@@ -19,9 +19,10 @@ button:disabled { cursor: default; }
 main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 
 /* strip */
-.strip { display: flex; align-items: center; gap: 12px; min-height: var(--tap); padding: 8px 0; border-bottom: 1px solid var(--line); }
+.strip { display: flex; align-items: center; gap: 9px; min-height: var(--tap); padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; white-space: nowrap; }
+.strip > * { flex: 0 0 auto; }
 .strip .marks { color: var(--acc); margin-left: auto; }
-.gear { min-width: var(--tap); min-height: var(--tap); font-size: 20px; color: var(--dim); }
+.gear { min-width: 36px; min-height: var(--tap); font-size: 20px; color: var(--dim); }
 
 /* tabs */
 .tabs { display: flex; gap: 6px; padding: 10px 0 4px; }
@@ -171,7 +172,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .chip.buy b { font-weight: 400; }
 
 /* class + xp */
-.cls { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: var(--tap); justify-content: center; }
+.cls { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: var(--tap); justify-content: center; white-space: nowrap; }
 .cls .xp { display: block; width: 100%; height: 3px; background: var(--panel2); border-radius: 2px; overflow: hidden; }
 .cls .xp .fill { display: block; height: 100%; background: var(--info); }
 .chip.off { opacity: .4; }

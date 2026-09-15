@@ -523,7 +523,8 @@ function heroTurn(run: Run, ctx: SimCtx, ev: Ev[]): void {
     const here = run.floor.items.find((i) => i.x === h.x && i.y === h.y);
     if (here) { pickUp(run, here, ev); tr.verb = { v: "pick_up" }; }
     else {
-      const s = bfsStep(run, (x, y) => !run.floor.seen[idx(x, y)]);
+      const seenItem = (x: number, y: number): boolean => run.floor.seen[idx(x, y)] && run.floor.items.some((i) => i.x === x && i.y === y);
+      const s = (run.goal !== "descend" && bfsStep(run, seenItem)) || bfsStep(run, (x, y) => !run.floor.seen[idx(x, y)]);
       if (s && run.goal !== "descend") moveHero(run, s[0], s[1], ev);
       else { run.goal = "descend"; const sd = run.floor.tiles.indexOf("stairs_down"); if (idx(h.x, h.y) === sd) { descendTo(run, run.depth + 1, ctx, ev); tr.verb = { v: "descend" }; } else { const st = bfsStep(run, (x, y) => idx(x, y) === sd); if (st) moveHero(run, st[0], st[1], ev); else if (!stepAway(run, foes, ev, false)) { /* stuck */ } } }
     }
@@ -609,6 +610,7 @@ function simTurn(run: Run, ctx: SimCtx): Ev[] {
   if (run.over) return ev;
   run.turn++; run.floorTurn++;
   run.alert = Math.min(5, Math.floor(run.floorTurn / 40));
+  if (run.floorTurn > 600) { endRun(run, "return", ev); return ev; } // safety valve: a stuck hero gives up the floor
   // overlays
   for (const o of run.floor.overlays) {
     if (o.x === run.hero.x && o.y === run.hero.y) hurtHero(run, o.k === "gas" ? 3 : 5, o.k, ev);

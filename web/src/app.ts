@@ -180,6 +180,7 @@ export function start(): void {
   const root = document.getElementById("app") ?? document.body.appendChild(document.createElement("div"));
   root.id = "app";
   const app = new App(root);
+  if (import.meta.env.DEV) (window as unknown as { __riddle: App }).__riddle = app; // dev inspection only
   void app.boot();
   if (import.meta.env.PROD && "serviceWorker" in navigator) {
     window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline-first is best effort */ }); });

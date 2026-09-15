@@ -4,3 +4,4 @@ dist/
 web/src/engine/pkg/
 *.log
 art/generated/_inspection_*
+.playwright-mcp/

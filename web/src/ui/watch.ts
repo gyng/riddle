@@ -37,6 +37,7 @@ export function renderWatch(app: App): Mounted {
   const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [], tamed: string[] = [], lost: string[] = [];
   let turns = 0;
   const kinds = new Map<number, string>(snap.entities.map((e) => [e.id, e.kind]));
+  const partyAtStart = (app.lineage.party ?? []).map((c) => c.kind);
   const lostKind = (id: number): string => kinds.get(id) ?? "?";
 
   function paintHud(s: Snapshot): void {
@@ -121,7 +122,7 @@ export function renderWatch(app: App): Mounted {
     if (overridden) app.engine.setRules(app.rules);
     if (pendingExit) { const p = pendingExit; pendingExit = undefined; exitSheet(p, () => finish(tier)); return; }
     app.refresh();
-    if (tier === "death") { app.go({ kind: "death", death: app.engine.death(runId), lost }); return; }
+    if (tier === "death") { for (const c of partyAtStart) if (!lost.includes(c)) lost.push(c); app.go({ kind: "death", death: app.engine.death(runId), lost }); return; }
     const L = app.lineage;
     const bests: string[] = []; for (let d = before.best + 1; d <= L.best_depth; d++) bests.push(`D${d}`);
     const report: ReturnReport = {
@@ -157,9 +158,11 @@ export function renderWatch(app: App): Mounted {
 
   void makeViewer(canvas).then(({ viewer: v }) => {
     if (disposed) { v.dispose(); return; }
-    viewer = v; v.load(snap); v.setSpeed(speed);
+    viewer = v; v.resize?.(); v.load(snap); v.setSpeed(speed);
   });
+  const onResize = (): void => viewer?.resize?.();
+  window.addEventListener("resize", onResize);
   paintHud(snap);
   timer = window.setTimeout(tick, 1000);
-  return { el, dispose: () => { disposed = true; clearTimeout(timer); clearTimeout(tickerTimer); viewer?.dispose(); if (overridden && !done) app.engine.setRules(app.rules); } };
+  return { el, dispose: () => { disposed = true; window.removeEventListener("resize", onResize); clearTimeout(timer); clearTimeout(tickerTimer); viewer?.dispose(); if (overridden && !done) app.engine.setRules(app.rules); } };
 }

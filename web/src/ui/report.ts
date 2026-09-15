@@ -18,8 +18,9 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
   const chips = (xs: string[], cls = "chip"): HTMLElement | null => xs.length ? h("div", { class: "chips" }, ...xs.map((x) => h("span", { class: cls }, x.replace(/_/g, " ")))) : null;
   const lines = (xs: string[]): HTMLElement | null => xs.length ? h("ul", { class: "lines" }, ...xs.map((x) => h("li", null, x))) : null;
   const affordable = available(L.unlocks).filter((u) => L.marks >= u.cost);
-  const pending = r.pending.length || affordable.length
-    ? h("div", null, lines(r.pending), affordable.length ? h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => { app.buy(u.id); app.go({ kind: "report", report: r }); } }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)))) : null)
+  const pendingLines = affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending;
+  const pending = pendingLines.length || affordable.length
+    ? h("div", null, lines(pendingLines), affordable.length ? h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => { app.buy(u.id); app.go({ kind: "report", report: r }); } }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)))) : null)
     : null;
   const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }, /* copy:button */ "open") : null;
   const camp = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "camp");
