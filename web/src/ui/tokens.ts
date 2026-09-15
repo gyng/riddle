@@ -16,6 +16,8 @@ const VERB: Record<string, string> = {
   shield_bash: "shield bash", vanish: "vanish", card: "card", explore: "explore", stunned: "stunned",
   tame: "tame", recall: "recall", send: "send", follow: "follow", shoot: "shoot", burst: "burst", steal: "steal",
   split: "split", flank: "flank", drain: "drain",
+  cleave: "cleave", taunt: "taunt", second_wind: "second wind", bulwark: "bulwark", backstab: "backstab", smoke: "smoke",
+  ambush: "ambush", shadowstep: "shadowstep",
 };
 export const PCT = new Set(["hp<", "hp>", "foe_hp<", "self_hp<", "party_hp<", "floor_seen>="]);
 export const NUMS: Record<string, number[]> = {

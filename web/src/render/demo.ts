@@ -240,7 +240,10 @@ function main(): void {
     }
   };
   requestAnimationFrame(loop);
-  (window as unknown as { viewer: unknown }).viewer = viewer;
+  // debugging hooks for headless drivers
+  (window as unknown as { viewer: unknown; makeFloor: unknown; script: unknown }).viewer = viewer;
+  (window as unknown as { makeFloor: unknown }).makeFloor = makeFloor;
+  (window as unknown as { script: unknown }).script = script;
 }
 
 main();

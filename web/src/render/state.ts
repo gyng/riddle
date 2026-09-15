@@ -6,6 +6,7 @@ import type { Ev, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
 
 
 export const STEP = 100; // ms of anim time per motion frame
+const MOVE_MS = 200, ATTACK_MS = 200, HURT_MS = 100, DIE_MS = 400, SPAWN_MS = 200;
 export const VISION_R = 7;
 
 export type EntState = {
@@ -30,9 +31,10 @@ export type Callout = { text: string; until: number }; // real-time ms
 
 type Batch = { evs: Ev[]; ends: number };
 
-const DUR: Record<Ev["k"], number> = {
-  move: 200, attack: 200, hurt: 100, die: 400, rule: 0, telegraph: 300, pickup: 150, use: 300,
-  fact: 0, overlay: 80, spawn: 200, steal: 250, ally: 250, descend: 600, exit: 700, note: 0, callout: 150,
+// Durations at 1× (ms of anim time). Kinds not listed are instant pass-throughs.
+const DUR: Partial<Record<Ev["k"], number>> = {
+  move: MOVE_MS, attack: ATTACK_MS, hurt: HURT_MS, die: DIE_MS, rule: 0, telegraph: 300, pickup: 150, use: 300,
+  fact: 0, overlay: 80, spawn: SPAWN_MS, steal: 250, ally: 250, descend: 600, exit: 700, note: 0, callout: 150,
   tame: 700, hatch: 150,
 };
 const INTERESTING = new Set<Ev["k"]>(["attack", "die", "telegraph", "use", "exit", "tame"]);
@@ -155,7 +157,7 @@ export class ReplayState {
       }
     }
     let dur = 0;
-    for (const e of evs) { this.start(e); dur = Math.max(dur, DUR[e.k]); }
+    for (const e of evs) { this.start(e); dur = Math.max(dur, DUR[e.k] ?? 0); }
     return { evs, ends: this.clock + dur };
   }
 
@@ -176,7 +178,7 @@ export class ReplayState {
       case "move": {
         const e = this.ents.get(ev.id);
         if (!e) break;
-        e.move = { fx: e.px, fy: e.py, tx: ev.x, ty: ev.y, t0: c, dur: DUR.move };
+        e.move = { fx: e.px, fy: e.py, tx: ev.x, ty: ev.y, t0: c, dur: MOVE_MS };
         if (ev.x !== e.x) e.flip = ev.x < e.x;
         e.x = ev.x; e.y = ev.y;
         if (e.hero) { e.glyph = null; this.visionDirty = true; }
@@ -196,13 +198,13 @@ export class ReplayState {
         const e = this.ents.get(ev.id);
         if (!e) break;
         e.hp = ev.hp;
-        e.flashUntil = c + DUR.hurt;
+        e.flashUntil = c + HURT_MS;
         break;
       }
       case "die": {
         const e = this.ents.get(ev.id);
         if (!e) break;
-        e.dying = { t0: c, dur: DUR.die };
+        e.dying = { t0: c, dur: DIE_MS };
         e.glyph = null;
         break;
       }
@@ -235,13 +237,13 @@ export class ReplayState {
       }
       case "spawn": {
         const e = this.addEntity(ev.e, false);
-        e.spawning = { t0: c, dur: DUR.spawn };
+        e.spawning = { t0: c, dur: SPAWN_MS };
         e.fade = 1;
         break;
       }
       case "steal": {
         const h = this.hero;
-        if (h) h.flashUntil = c + DUR.hurt;
+        if (h) h.flashUntil = c + HURT_MS;
         break;
       }
       case "ally": {
@@ -269,10 +271,8 @@ export class ReplayState {
       case "hatch":
         this.callout = { text: ev.kind.replace(/_/g, " ").slice(0, 24), until: performance.now() + 1000 };
         break;
-      case "rule":
-      case "fact":
-      case "note":
-        break;
+      default:
+        break; // rule, fact, note, level, …: nothing to draw
     }
   }
 
@@ -306,7 +306,7 @@ export class ReplayState {
         e.py = e.move.fy + (e.move.ty - e.move.fy) * p;
         if (raw >= 1) { e.px = e.move.tx; e.py = e.move.ty; e.move = null; }
       }
-      if (e.lunge && c - e.lunge.t0 >= DUR.attack) e.lunge = null;
+      if (e.lunge && c - e.lunge.t0 >= ATTACK_MS) e.lunge = null;
       if (e.shake && c - e.shake.t0 >= e.shake.dur) e.shake = null;
       if (e.dying) {
         const p = Math.min(1, (c - e.dying.t0) / e.dying.dur);
@@ -329,7 +329,7 @@ export class ReplayState {
       return [f % 2 === 0 ? 2 : -2, 0];
     }
     if (!e.lunge) return [0, 0];
-    const p = (this.clock - e.lunge.t0) / DUR.attack;
+    const p = (this.clock - e.lunge.t0) / ATTACK_MS;
     return p < 0.5 ? [e.lunge.dx, e.lunge.dy] : [0, 0];
   }
 

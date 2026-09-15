@@ -6,6 +6,8 @@ import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
 import { available, vaultSlots } from "./unlocks";
+import { xpToNext } from "../engine/classes";
+import { openSheet } from "./sheet";
 
 export function renderCamp(app: App, highlight?: number): Mounted {
   const strip = h("header", { class: "strip" });
@@ -20,16 +22,37 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, party.el, vault, supplies, unlocks, h("div", { class: "send-bar" }, send));
 
   function paintStrip(): void {
-    const L = app.lineage;
+    const L = app.lineage; const lvl = L.classes?.[L.class] ?? { level: 1, xp: 0 };
     replace(strip,
       h("span", { class: "num" }, `♟${L.heir}`),
       h("span", null, L.trait),
-      h("span", null, L.class),
+      h("button", { class: "cls", onclick: () => pickClass() }, L.class, " ", h("b", { class: "num" }, `${lvl.level}`),
+        h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round((lvl.xp / xpToNext(lvl.level)) * 100)}%` }))),
       h("span", { class: "num" }, `D${L.best_depth}`),
+      h("span", { class: "num rank" }, `★${L.rank ?? 0}`),
       h("span", { class: "num gold" }, `$${L.gold}`),
       h("span", { class: "num marks" }, `◆${L.marks}`),
       h("button", { class: "gear", onclick: () => openSettings(app) }, "⚙"),
     );
+  }
+  function openForge(app2: App): void {
+    openSheet(() => {
+      const L = app2.lineage; const rows = Object.entries(L.forge ?? {}).sort((a, b) => b[1].salvaged - a[1].salvaged);
+      const head = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), /* copy:label */ ...["salvaged", "craft", "tier"].map((s) => h("span", { class: "dot-h" }, s)));
+      return h("div", { class: "sheet-body ledger forge" }, head, ...rows.map(([kind, f]) => h("div", { class: "lrow" },
+        h("span", { class: "k" }, kind.replace(/_/g, " ")), h("span", { class: "dot num" }, `${f.salvaged}`),
+        h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "⚒" : "○"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "·"))));
+    });
+  }
+  function pickClass(): void {
+    openSheet((close) => {
+      const L = app.lineage; const grid = h("div", { class: "grid" });
+      for (const c of ["fighter", "rogue"]) {
+        const owned = c === "fighter" || L.unlocks.includes(`class:${c}`); const lv = L.classes?.[c] ?? { level: 1, xp: 0 };
+        grid.appendChild(h("button", { class: `chip verb${c === L.class ? " on" : ""}${owned ? "" : " off"}`, disabled: !owned, onclick: () => { app.buy(`class:${c}`); close(); } }, c, " ", h("b", { class: "num" }, `${lv.level}`)));
+      }
+      return h("div", { class: "sheet-body" }, grid);
+    });
   }
   function paintTabs(): void {
     clear(tabs);
@@ -38,7 +61,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function paintVault(): void {
     const L = app.lineage; const slots = vaultSlots(L.unlocks);
     clear(vault);
-    vault.appendChild(h("div", { class: "label" }, /* copy:label */ "vault", " ", h("span", { class: "num dim" }, `${L.vault.length}/${slots}`)));
+    vault.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", h("span", { class: "num dim" }, `${L.vault.length}/${slots}`),
+      h("button", { class: "mini", onclick: () => openForge(app) }, /* copy:button */ "forge")));
     const chips = h("div", { class: "chips" });
     for (const it of L.vault) {
       const on = app.loadout.includes(it.id);
@@ -48,6 +72,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     }
     for (let i = L.vault.length; i < slots; i++) chips.appendChild(h("span", { class: "chip empty" }, "·"));
     vault.appendChild(chips);
+    // keep preference for offline exits
+    const prefs = h("div", { class: "chips prefs" }, h("span", { class: "dim" }, /* copy:label */ "keep"),
+      /* copy:label */ ...[["best_weapon", "weapon"], ["best_armour", "armour"], ["none", "none"]].map(([id, lbl]) =>
+        h("button", { class: `chip${(L.keep_pref ?? "best_weapon") === id ? " on" : ""}`, onclick: () => { app.lineage = app.engine.setKeepPref(id); app.afterLineage(); } }, lbl)));
+    vault.appendChild(prefs);
   }
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const full = picks.length >= 3;

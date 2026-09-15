@@ -169,3 +169,17 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .chip.buy { background: var(--panel); }
 .chip.buy.off { opacity: .4; }
 .chip.buy b { font-weight: 400; }
+
+/* class + xp */
+.cls { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: var(--tap); justify-content: center; }
+.cls .xp { display: block; width: 100%; height: 3px; background: var(--panel2); border-radius: 2px; overflow: hidden; }
+.cls .xp .fill { display: block; height: 100%; background: var(--info); }
+.chip.off { opacity: .4; }
+.xp-line b { color: var(--ok); font-weight: 400; }
+
+/* forge / rank / keep pref */
+.rank { color: var(--info); }
+.prefs { margin-top: 10px; align-items: center; }
+.prefs .chip { min-height: 36px; padding: 0 12px; font-size: 13px; }
+.forge .lrow { grid-template-columns: 1fr repeat(3, 60px); }
+.ledger .up, .report .up { color: var(--ok); }

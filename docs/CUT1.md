@@ -365,3 +365,24 @@ Every run ends by converting what it carried and what it did into progression.
   `ReturnReport.renown: { gained: number; rank: number; ranks_up: number }`.
 - Marks from renown are the only farmable mark source; quadratic thresholds keep it a slow
   lane. Gates unchanged.
+
+## Addendum E — Real-time feel, discrete truth (added 2026-09-16, in scope for Cut 1)
+
+Replaces "one hero action per turn, then every monster acts once; fast monsters twice every
+other turn" with an **energy scheduler**, and the viewer with continuous playback.
+- **Ticks.** The sim advances in ticks. Every actor gains `speed` energy per tick (base 10;
+  `jackal` 15, `ogre` 7, hero 10 ± armour: mail −1, plate −2, speed potion +5) and acts when
+  energy ≥ 100 (energy −= 100). Ties resolve hero first, then by entity id. 10 ticks ≈ one
+  "turn" at base speed; `Ev.t` is the tick.
+- **Rules** are evaluated only when the hero acts. Cooldowns, telegraphs, overlays and
+  status durations are in ticks (multiply the contract's turn counts by 10). A telegraph is
+  emitted on the monster's action and resolves on its next action, so the gap is ≈ 10 ticks
+  at base speed.
+- **Projectiles** (archer shots, thrown items, `shoot`) travel 1 tile per tick as an
+  `Ev { k:"projectile", src, dst, path:[x,y][] }` before the `attack`/`use` event lands.
+- **Offline budget** is in ticks at 10 ticks/s (unchanged wall-clock rate); forecast and
+  verdict replays unchanged in method (replay from tick −100 instead of turn −10).
+- **Viewer.** Plays the event stream continuously: 1× = 10 ticks/s, 4× = 40, movement
+  tweened across the tile per action, no turn grid, no pauses between actors; skip-to-event
+  and tick-scrub in replays. Callout cadence unchanged.
+- Gates unchanged; "events per 60 turns" becomes "events per 600 ticks".

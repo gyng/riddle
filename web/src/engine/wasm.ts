@@ -57,6 +57,9 @@ export class WasmEngine implements Engine {
   buySupply(kind: string): Lineage { return this.call("buySupply", kind); }
   clearSupplies(): Lineage { return this.call("clearSupplies"); }
   supplyCatalogue(): SupplyEntry[] { return this.call("supplyCatalogue"); }
+  // Addendum D
+  keep(ids: number[]): Lineage { return this.call("keep", JSON.stringify(ids)); }
+  setKeepPref(pref: string): Lineage { return this.call("setKeepPref", pref); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. */

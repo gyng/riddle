@@ -29,6 +29,29 @@ impl Class {
     }
 }
 
+/// Class verb ladder (Addendum C): (verb, level).
+pub fn class_ladder(class: Class) -> &'static [(&'static str, u32)] {
+    match class {
+        Class::Fighter => &[("shield_bash", 1), ("cleave", 3), ("taunt", 5), ("second_wind", 7), ("bulwark", 9)],
+        Class::Rogue => &[("vanish", 1), ("throw", 1), ("backstab", 3), ("smoke", 5), ("ambush", 7), ("shadowstep", 9)],
+    }
+}
+
+pub fn class_has_verb(class: Class, level: u32, verb: &str) -> bool {
+    class_ladder(class).iter().any(|(v, l)| *v == verb && level >= *l)
+}
+
+pub fn xp_to_next(level: u32) -> u32 {
+    40 * level * level
+}
+
+pub fn mastery_card(class: Class) -> &'static str {
+    match class {
+        Class::Fighter => "phalanx",
+        Class::Rogue => "hit_and_fade",
+    }
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Trait {
@@ -71,6 +94,17 @@ pub struct Hero {
     pub bash_cd: i32,
     pub vanish_cd: i32,
     pub resting: bool,
+    /// Class level (Addendum C) and its verb cooldowns/states.
+    #[serde(default)]
+    pub level: u32,
+    #[serde(default)]
+    pub cleave_cd: i32,
+    #[serde(default)]
+    pub bulwark_t: i32,
+    #[serde(default)]
+    pub bulwark_cd: i32,
+    #[serde(default)]
+    pub second_wind_used: bool,
 }
 
 impl Hero {
@@ -99,14 +133,27 @@ impl Hero {
             bash_cd: 0,
             vanish_cd: 0,
             resting: false,
+            level: 1,
+            cleave_cd: 0,
+            bulwark_t: 0,
+            bulwark_cd: 0,
+            second_wind_used: false,
         }
+    }
+    /// Apply a class level: +2 max_hp per level past 1, +1 atk at L3/L6/L9.
+    pub fn apply_level(&mut self, level: u32) {
+        self.level = level.clamp(1, 10);
+        let extra = 2 * (self.level as i32 - 1);
+        self.max_hp += extra;
+        self.hp = self.max_hp;
+        self.str_bonus += [3, 6, 9].iter().filter(|l| self.level >= **l).count() as i32;
     }
     pub fn atk(&self) -> (i32, i32) {
         let (lo, hi) = self.weapon.as_ref().map(|w| w.atk()).unwrap_or(self.base_atk);
         (lo + self.str_bonus, hi + self.str_bonus)
     }
     pub fn def(&self) -> i32 {
-        self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0)
+        self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0) + if self.bulwark_t > 0 { 3 } else { 0 }
     }
     pub fn speed(&self) -> i32 {
         let mut s = 10;
@@ -208,6 +255,15 @@ impl Hero {
         if self.vanish_cd > 0 {
             self.vanish_cd -= 1;
         }
+        if self.cleave_cd > 0 {
+            self.cleave_cd -= 1;
+        }
+        if self.bulwark_t > 0 {
+            self.bulwark_t -= 1;
+        }
+        if self.bulwark_cd > 0 {
+            self.bulwark_cd -= 1;
+        }
     }
     pub fn status_tags(&self) -> Vec<String> {
         let mut t = Vec::new();
@@ -228,6 +284,9 @@ impl Hero {
         }
         if self.poison.1 > 0 {
             t.push("poisoned".into());
+        }
+        if self.bulwark_t > 0 {
+            t.push("bulwark".into());
         }
         t
     }

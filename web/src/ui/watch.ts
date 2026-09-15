@@ -3,6 +3,11 @@ import type { App, Mounted } from "../app";
 import type { Ev, Highlight, InvItem, ReturnReport, Snapshot } from "../engine/types";
 import { h, replace } from "./dom";
 import { makeViewer, type Viewer } from "./viewer";
+import { verbsAt, xpToNext } from "../engine/classes";
+import { openSheet } from "./sheet";
+import { salvageValue } from "./salvage";
+import { vaultSlots } from "./unlocks";
+import type { InvItem as Item } from "../engine/types";
 
 const INTERESTING = new Set(["hurt", "die", "telegraph", "pickup", "use", "fact", "steal", "ally", "descend", "exit", "spawn"]);
 
@@ -27,7 +32,8 @@ export function renderWatch(app: App): Mounted {
   let speed = 1, timer = 0, done = false, disposed = false, overridden = false, tickerTimer = 0;
   let snap: Snapshot = app.engine.send();
   const runId = snap.run.id;
-  const before = { best: app.lineage.best_depth, marks: app.lineage.marks };
+  const cls = app.lineage.class;
+  const before = { best: app.lineage.best_depth, marks: app.lineage.marks, level: app.lineage.classes?.[cls]?.level ?? 1, xp: app.lineage.classes?.[cls]?.xp ?? 0, renown: app.lineage.renown ?? 0, rank: app.lineage.rank ?? 0 };
   const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [], tamed: string[] = [], lost: string[] = [];
   let turns = 0;
   const kinds = new Map<number, string>(snap.entities.map((e) => [e.id, e.kind]));
@@ -56,22 +62,25 @@ export function renderWatch(app: App): Mounted {
       else if (ev.k === "tame" && ev.ok) tamed.push(ev.kind);
       else if (ev.k === "ally" && ev.state === "lost") lost.push(lostKind(ev.id));
       else if (ev.k === "spawn" && ev.e.cid !== undefined) kinds.set(ev.e.id, ev.e.kind);
+      else if (ev.k === "level") { for (const v of verbsAt(ev.class, ev.level)) learned.push(`verb:${v}`); callout(`${ev.class} ${ev.level}`); }
     }
     return exit;
   }
-  function handle(evs: Ev[], s: Snapshot): void {
+  let pendingExit: { items: Item[]; tier: string } | undefined;
+  function handle(evs: Ev[], s: Snapshot, pending?: { items: Item[]; tier: string }): void {
     snap = s; turns += 1;
     const exit = absorb(evs);
     viewer?.apply(evs);
     if (evs.some((e) => e.k === "descend")) viewer?.load(s);
     for (const e of s.entities) kinds.set(e.id, e.kind);
     paintHud(s);
+    if (pending) pendingExit = pending;
     if (exit) finish(exit);
   }
   function tick(): void {
     if (done || disposed) return;
     const r = app.engine.step(1);
-    handle(r.events, r.snapshot);
+    handle(r.events, r.snapshot, r.exit_pending);
     if (!done && speed > 0) timer = window.setTimeout(tick, 1000 / speed);
   }
   function setSpeed(n: number): void {
@@ -89,6 +98,7 @@ export function renderWatch(app: App): Mounted {
     for (let i = 0; i < 300 && !hit; i++) {
       const r = app.engine.step(1); all.push(...r.events); s = r.snapshot; turns += 1;
       hit = r.run_over || r.events.some((e) => INTERESTING.has(e.k));
+      if (r.exit_pending) pendingExit = r.exit_pending;
     }
     turns -= 1;
     handle(all, s);
@@ -101,9 +111,15 @@ export function renderWatch(app: App): Mounted {
     app.engine.setRules({ rows: [{ conds: [], verb: { v: "return" } }, ...app.rules.rows] });
     if (speed === 0) setSpeed(1);
   }
+  function xpGained(): number {
+    const c = app.lineage.classes?.[cls] ?? { level: 1, xp: 0 }; let g = c.xp - before.xp;
+    for (let l = before.level; l < c.level; l++) g += xpToNext(l);
+    return Math.max(0, g);
+  }
   function finish(tier: "bank" | "return" | "death"): void {
     done = true; clearTimeout(timer);
     if (overridden) app.engine.setRules(app.rules);
+    if (pendingExit) { const p = pendingExit; pendingExit = undefined; exitSheet(p, () => finish(tier)); return; }
     app.refresh();
     if (tier === "death") { app.go({ kind: "death", death: app.engine.death(runId), lost }); return; }
     const L = app.lineage;
@@ -111,8 +127,32 @@ export function renderWatch(app: App): Mounted {
     const report: ReturnReport = {
       elapsed_s: turns, runs: 1, sampled: false, learned, bests, found, deaths: [], pending: [],
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap, tamed, hatched: [], lost,
+      xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
+      salvaged: [], renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
     };
     app.go({ kind: "report", report });
+  }
+
+  // Addendum D: choose what to keep before the run settles
+  function exitSheet(p: { items: Item[]; tier: string }, then: () => void): void {
+    const free = Math.max(0, vaultSlots(app.lineage.unlocks) - app.lineage.vault.length);
+    const keep = new Set<number>();
+    openSheet((close) => {
+      const chips = h("div", { class: "chips" });
+      const count = h("span", { class: "num dim" });
+      const paint = (): void => {
+        replace(count, `${keep.size}/${free}`);
+        replace(chips, ...p.items.map((it) => h("button", { class: `chip item${keep.has(it.id) ? " on" : ""}`, onclick: () => {
+          if (keep.has(it.id)) keep.delete(it.id); else if (keep.size < free) keep.add(it.id);
+          paint();
+        } }, it.label, " ", keep.has(it.id) ? h("b", null, "⌂") : h("b", { class: "num gold" }, `$${salvageValue(it.kind, p.tier)}`))));
+      };
+      paint();
+      return h("div", { class: "sheet-body" },
+        h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", count),
+        chips,
+        h("button", { class: "btn primary wide", onclick: () => { app.lineage = app.engine.keep([...keep]); close(); then(); } }, /* copy:button */ "keep"));
+    });
   }
 
   void makeViewer(canvas).then(({ viewer: v }) => {

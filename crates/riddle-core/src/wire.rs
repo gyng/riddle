@@ -86,6 +86,8 @@ pub enum Ev {
     Callout { t: u32, text: String },
     Tame { t: u32, id: u32, kind: String, ok: bool },
     Hatch { t: u32, kind: String },
+    Level { t: u32, class: String, level: u32 },
+    Rank { t: u32, rank: u32 },
 }
 
 impl Ev {
@@ -109,7 +111,9 @@ impl Ev {
             | Ev::Note { t, .. }
             | Ev::Callout { t, .. }
             | Ev::Tame { t, .. }
-            | Ev::Hatch { t, .. } => *t,
+            | Ev::Hatch { t, .. }
+            | Ev::Level { t, .. }
+            | Ev::Rank { t, .. } => *t,
         }
     }
     /// Renderable, non-movement events (the "events per 60 turns" gate).
@@ -119,10 +123,18 @@ impl Ev {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExitPending {
+    pub items: Vec<InvItem>,
+    pub tier: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StepResult {
     pub events: Vec<Ev>,
     pub snapshot: Snapshot,
     pub run_over: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_pending: Option<ExitPending>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -212,6 +224,43 @@ pub struct ReturnReport {
     pub tamed: Vec<String>,
     pub hatched: Vec<String>,
     pub lost: Vec<String>,
+    pub xp: XpReport,
+    pub salvaged: Vec<SalvageRow>,
+    pub renown: RenownReport,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct XpReport {
+    pub class: String,
+    pub gained: u32,
+    pub level_ups: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SalvageRow {
+    pub kind: String,
+    pub n: u32,
+    pub gold: i32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RenownReport {
+    pub gained: u32,
+    pub rank: u32,
+    pub ranks_up: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ClassProg {
+    pub level: u32,
+    pub xp: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ForgeRow {
+    pub salvaged: u32,
+    pub craftable: bool,
+    pub tier: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -279,6 +328,11 @@ pub struct Lineage {
     pub ledger: Vec<LedgerRow>,
     pub gold: i32,
     pub supplies: Vec<InvItem>,
+    pub classes: std::collections::BTreeMap<String, ClassProg>,
+    pub forge: std::collections::BTreeMap<String, ForgeRow>,
+    pub renown: u32,
+    pub rank: u32,
+    pub keep_pref: String,
 }
 
 /// Supply catalogue entry (Addendum B).

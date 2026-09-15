@@ -41,9 +41,12 @@ export type Ev =
   | { t: number; k: "note"; text: string }                                  // chronicle line, ≤ 8 words
   | { t: number; k: "callout"; text: string }                               // ≤ 3 words, for the renderer
   | { t: number; k: "tame"; id: number; kind: string; ok: boolean }         // Addendum A
-  | { t: number; k: "hatch"; kind: string };                                // Addendum A
+  | { t: number; k: "hatch"; kind: string }                                 // Addendum A
+  | { t: number; k: "level"; class: string; level: number }                 // Addendum C
+  | { t: number; k: "rank"; rank: number };                                 // Addendum D
 
-export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean };
+export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
+                           exit_pending?: { items: InvItem[]; tier: string } };                                       // Addendum D
 
 export type Forecast = { depths: { depth: number; reach: number }[]; causes: { cause: string; share: number }[];
                          known_to: number };
@@ -57,12 +60,18 @@ export type ReturnReport = {
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; live: Snapshot;
   tamed: string[]; hatched: string[]; lost: string[];                        // Addendum A
+  xp: { class: string; gained: number; level_ups: number };                 // Addendum C
+  salvaged: { kind: string; n: number; gold: number }[];                    // Addendum D
+  renown: { gained: number; rank: number; ranks_up: number };               // Addendum D
 };
 export type Lineage = { seed: number; heir: number; trait: string; class: string; best_depth: number; marks: number;
                         facts: string[]; unlocks: string[]; vault: InvItem[]; graveyard: { heir: number; depth: number; cause: string; deeds: string[] }[];
                         trophies: string[]; sets: RuleSet[]; active_set: number; ended: boolean;
                         party: Companion[]; kennel: Companion[]; eggs: Egg[]; party_slots: number; ledger: LedgerRow[];  // Addendum A
-                        gold: number; supplies: InvItem[] };                                                             // Addendum B
+                        gold: number; supplies: InvItem[];                                                              // Addendum B
+                        classes: { [cls: string]: { level: number; xp: number } };                                     // Addendum C
+                        forge: { [kind: string]: { salvaged: number; craftable: boolean; tier: number } };               // Addendum D
+                        renown: number; rank: number; keep_pref: string };                                              // Addendum D
 
 // Addendum A — Companions
 export type Companion = { id: number; kind: string; name: string; level: number; tags: string[]; gen: number;
@@ -89,5 +98,8 @@ export interface Engine {
   breed(a: number, b: number): Lineage;  hatch(eggId: number): Lineage;  companionVocabulary(id: number): Vocabulary;
   // Addendum B
   buySupply(kind: string): Lineage;  clearSupplies(): Lineage;  supplyCatalogue(): SupplyEntry[];
+  // Addendum D
+  keep(ids: number[]): Lineage;
+  setKeepPref(pref: string): Lineage;   // client assumption: not in the addendum's wire list, needed for the camp selector
 }
 export type SupplyEntry = { kind: string; price: number; label: string };                                             // Addendum B

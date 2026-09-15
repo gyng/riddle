@@ -4,6 +4,7 @@ import type {
   Companion, Cond, Death, Engine, Entity, Ev, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   ReturnReport, Row, RuleSet, Snapshot, StepResult, SupplyEntry, Tile, Trace, Verb, Vocabulary,
 } from "./types";
+import { XP_LEVEL_CAP, verbsAt, verbsUpTo, xpToNext } from "./classes";
 
 type Rng = () => number;
 function mulberry32(seed: number): Rng {
@@ -58,6 +59,8 @@ export const UNLOCK_COST: Record<string, number> = {
   "card:corridor_fighting": 3, "card:kite_archers": 3, "card:stair_dance": 3, "verb:throw": 2,
   tame: 2, party_slot_2: 4,
 };
+const SALVAGE: Record<string, number> = { dagger: 10, sword: 20, axe: 30, bow: 20, leather: 15, mail: 25, plate: 40, leash: 5 };
+const salvageOf = (kind: string): number => SALVAGE[kind] ?? (POTIONS.includes(kind) ? 8 : SCROLLS.includes(kind) ? 12 : 0);
 const TAG_VERB: Record<string, string> = { ranged: "shoot", gas: "burst", thief: "steal", splitter: "split", pack: "flank", undead: "drain" };
 const LEDGER_KINDS = Object.keys({ rat: 1, jackal: 1, goblin: 1, goblin_archer: 1, goblin_conjurer: 1, monkey: 1, ogre: 1, bloat: 1, pink_jelly: 1, eel: 1, skeleton: 1, ghoul: 1, wraith: 1, goblin_warlord: 1, bloat_mother: 1, lich: 1 });
 function defaultCompanionRules(tags: string[]): RuleSet {
@@ -118,6 +121,8 @@ type Run = {
   nextId: number; picked: InvItem[]; nearDeath: boolean; kindsSeen: Set<string>; brought: number[]; cls: string; trait: string;
   loot_kept: number; cause?: string; goal?: "descend" | "bank";
   party: Companion[]; recalled: Mon[]; tamed: Mon[]; lostC: Companion[];
+  level: number; killXp: number; windUsed: boolean; bulwark: number; cleaveCd: number;
+  gear: InvItem[]; score: number;
 };
 type RunLog = { seed: number; rules: RuleSet; depth: number; cause?: string; turns: number; exit: string; known: string[]; cls: string; trait: string; heir: number; hpMargin: number };
 
@@ -211,21 +216,25 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
 }
 
 // --- sim ---
-type SimCtx = { rules: RuleSet; unlocks: Set<string>; flav: (k: string) => string; kindOfFlav: (f: string) => string | undefined };
+type SimCtx = { rules: RuleSet; unlocks: Set<string>; flav: (k: string) => string; kindOfFlav: (f: string) => string | undefined; tier: (kind: string) => number };
 
-function makeRun(id: number, heir: number, seed: number, cls: string, trait: string, known: Set<string>, brought: InvItem[], ctx: SimCtx, party: Companion[] = []): Run {
+function makeRun(id: number, heir: number, seed: number, cls: string, trait: string, known: Set<string>, brought: InvItem[], ctx: SimCtx, party: Companion[] = [], level = 1): Run {
   const rng = mulberry32(seed);
+  const atkBonus = [3, 6, 9].filter((l) => level >= l).length;
+  const base = (cls === "rogue" ? 16 : 20) + 2 * (level - 1);
   const hero: Hero = {
-    x: 0, y: 0, hp: cls === "rogue" ? 16 : 20, max_hp: cls === "rogue" ? 16 : 20, atk: cls === "rogue" ? [2, 4] : [2, 5], def: 0,
+    x: 0, y: 0, hp: base, max_hp: base, atk: cls === "rogue" ? [2 + atkBonus, 4 + atkBonus] : [2 + atkBonus, 5 + atkBonus], def: 0,
     inv: [], invis: 0, stun: 0, bashCd: 0, vanishCd: 0, speedT: 0,
   };
-  for (const it of brought) applyItem(hero, it);
+  for (const it of brought) applyItem(hero, it, ctx.tier(it.kind));
   if (!hero.weapon) { hero.weapon = "dagger"; hero.atk = WEAPONS.dagger; }
+  hero.atk = [hero.atk[0] + atkBonus, hero.atk[1] + atkBonus];
   const run: Run = {
     id, heir, seed, rng, depth: 0, turn: 0, started_turn: 0, floorTurn: 0, floor: undefined as unknown as Floor, hero, loot: 0, alert: 0,
     trace: [], over: false, kills: {}, hl: [], facts: [], known: new Set(known), hurt: false, killed: false, saw: false,
     nextId: 0, picked: [], nearDeath: false, kindsSeen: new Set(), brought: brought.map((b) => b.id), cls, trait, loot_kept: 0,
     party: party.map((c) => ({ ...c, tags: [...c.tags], rules: { rows: c.rules.rows.map((r) => ({ conds: r.conds.map((x) => ({ ...x })), verb: { ...r.verb } })) } })), recalled: [], tamed: [], lostC: [],
+    level, killXp: 0, windUsed: false, bulwark: 0, cleaveCd: 0, gear: [], score: 0,
   };
   run.nextId = 1000;
   run.recalled = run.party.map((c) => companionMon(run, c));
@@ -244,13 +253,13 @@ function placeAllies(run: Run): void {
   }
   run.recalled = [];
 }
-function applyItem(h: Hero, it: InvItem): void {
-  if (WEAPONS[it.kind]) { h.weapon = it.kind; h.atk = WEAPONS[it.kind]; }
-  else if (ARMOUR[it.kind] !== undefined) { h.armour = it.kind; h.def = ARMOUR[it.kind]; }
+function applyItem(h: Hero, it: InvItem, tier = 0): void {
+  if (WEAPONS[it.kind]) { h.weapon = it.kind; h.atk = [WEAPONS[it.kind][0] + tier, WEAPONS[it.kind][1] + tier]; }
+  else if (ARMOUR[it.kind] !== undefined) { h.armour = it.kind; h.def = ARMOUR[it.kind] + tier; }
   else h.inv.push(it);
 }
 function descendTo(run: Run, depth: number, ctx: SimCtx, ev: Ev[]): void {
-  run.depth = depth; run.floorTurn = 0; run.alert = 0; run.goal = undefined;
+  run.depth = depth; run.floorTurn = 0; run.alert = 0; run.goal = undefined; run.windUsed = false;
   if (run.floor) for (const m of run.floor.mons) if (m.ally && m.cid !== undefined) run.recalled.push(m);
   run.floor = genFloor(run.rng, depth, ctx.flav, run.known, () => run.nextId++);
   const up = run.floor.tiles.indexOf("stairs_up");
@@ -314,7 +323,7 @@ function hurtHero(run: Run, dmg: number, cause: string, ev: Ev[]): void {
 function killMon(run: Run, m: Mon, cause: string, ev: Ev[]): void {
   run.floor.mons = run.floor.mons.filter((x) => x !== m);
   ev.push({ t: run.turn, k: "die", id: m.id, cause });
-  run.killed = true; run.kills[m.kind] = (run.kills[m.kind] ?? 0) + 1;
+  run.killed = true; run.kills[m.kind] = (run.kills[m.kind] ?? 0) + 1; run.killXp += 1 + run.depth / 5; run.score += m.tags.includes("boss") ? 25 : Math.ceil(m.max_hp / 4);
   if (m.tags.includes("gas")) { for (const [dx, dy] of [[0, 0], ...DIRS]) { const x = m.x + dx, y = m.y + dy; if (inb(x, y) && passable(run.floor.tiles[idx(x, y)])) { run.floor.overlays.push({ x, y, k: "gas", ttl: 4 }); ev.push({ t: run.turn, k: "overlay", x, y, ov: "gas", ttl: 4 }); } } ev.push({ t: run.turn, k: "callout", text: "bloat pops" }); learn(run, `foe:${m.kind}:gas`, ev); }
   if (m.tags.includes("splitter") && m.max_hp >= 6) { for (let i = 0; i < 2; i++) { const [dx, dy] = DIRS[i]; const x = m.x + dx, y = m.y + dy; if (inb(x, y) && passable(run.floor.tiles[idx(x, y)]) && !occupied(run, x, y)) { const c: Mon = { ...m, id: run.nextId++, x, y, hp: Math.ceil(m.max_hp / 2), max_hp: Math.ceil(m.max_hp / 2) }; run.floor.mons.push(c); ev.push({ t: run.turn, k: "spawn", e: ent(c) }); } } learn(run, `foe:${m.kind}:splitter`, ev); }
   if (m.tags.includes("boss")) { run.hl.push({ pattern: "boss", score: 6, t: run.turn, run_id: run.id, text: `${nameOf(m)} slain on D${run.depth}` }); ev.push({ t: run.turn, k: "note", text: `${nameOf(m)} slain` }); }
@@ -421,13 +430,14 @@ function heroAttack(run: Run, m: Mon, ev: Ev[], verb: string, mult = 1): void {
 // returns true if the verb executed
 function exec(run: Run, v: Verb, ctx: SimCtx, ev: Ev[]): boolean {
   const h = run.hero; const foes = visibleFoes(run);
+  const has = (verb: string): boolean => verbsUpTo(run.cls, run.level).includes(verb) || (verb === "throw" && ctx.unlocks.has("verb:throw"));
   switch (v.v) {
     case "attack": { const m = target(run, v.a); if (!m) return false; heroAttack(run, m, ev, "attack"); return true; }
     case "retreat": if (!foes.length) return false; return stepAway(run, foes, ev, false);
     case "back_corridor": if (!foes.length) return false; if (inCorridor(run)) { const m = target(run, "nearest"); if (m && cheb(m.x, m.y, h.x, h.y) <= 1) { heroAttack(run, m, ev, "attack"); return true; } } return stepAway(run, foes, ev, true);
     case "drink": { if (h.hp >= h.max_hp && (v.a === "heal" || v.a === "unknown")) return false; const it = v.a === "unknown" ? h.inv.find((i) => !i.known && POTIONS.includes(i.kind)) : h.inv.find((i) => i.known && i.kind === (v.a ?? "heal")); if (!it) return false; useItem(run, it, ctx, ev); return true; }
     case "read": { const it = v.a === "unknown" ? h.inv.find((i) => !i.known && SCROLLS.includes(i.kind)) : h.inv.find((i) => i.known && i.kind === v.a); if (!it) return false; useItem(run, it, ctx, ev); return true; }
-    case "throw": { if (!(ctx.unlocks.has("verb:throw") || run.cls === "rogue")) return false; const [k, tg] = (v.a ?? "").split(","); const it = k === "unknown" ? h.inv.find((i) => !i.known && POTIONS.includes(i.kind)) : h.inv.find((i) => i.known && i.kind === k && THROWABLE.has(i.kind)); const m = target(run, tg); if (!it || !m || cheb(m.x, m.y, h.x, h.y) > 5) return false; useItem(run, it, ctx, ev, m); return true; }
+    case "throw": { if (!has("throw")) return false; const [k, tg] = (v.a ?? "").split(","); const it = k === "unknown" ? h.inv.find((i) => !i.known && POTIONS.includes(i.kind)) : h.inv.find((i) => i.known && i.kind === k && THROWABLE.has(i.kind)); const m = target(run, tg); if (!it || !m || cheb(m.x, m.y, h.x, h.y) > 5) return false; useItem(run, it, ctx, ev, m); return true; }
     case "descend": { const s = run.floor.tiles.indexOf("stairs_down"); if (s < 0 || !run.floor.seen[s]) return false; if (idx(h.x, h.y) === s) { descendTo(run, run.depth + 1, ctx, ev); return true; } const st = bfsStep(run, (x, y) => idx(x, y) === s); if (!st) return false; moveHero(run, st[0], st[1], ev); return true; }
     case "bank": { const s = run.floor.tiles.indexOf("stairs_up"); if (idx(h.x, h.y) === s) { endRun(run, "bank", ev); return true; } const st = bfsStep(run, (x, y) => idx(x, y) === s); if (!st) return false; moveHero(run, st[0], st[1], ev); return true; }
     case "return": endRun(run, "return", ev); return true;
@@ -448,8 +458,16 @@ function exec(run: Run, v: Verb, ctx: SimCtx, ev: Ev[]): boolean {
     }
     case "recall": { const c = companions(run).find((m) => !v.a || m.kind === v.a); if (!c) return false; run.floor.mons = run.floor.mons.filter((x) => x !== c); run.recalled.push(c); ev.push({ t: run.turn, k: "callout", text: `${nameOf(c)} recalled` }); return true; }
     case "send": { const c = companions(run).find((m) => !v.a || m.kind === v.a); if (!c || !foes.length) return false; c.sent = true; return true; }
-    case "shield_bash": { if (run.cls !== "fighter" || h.bashCd > 0) return false; const m = adjFoes(run)[0]; if (!m) return false; h.bashCd = 5; m.stun = 1; heroAttack(run, m, ev, "shield_bash"); return true; }
-    case "vanish": if (run.cls !== "rogue" || h.vanishCd > 0 || !foes.length) return false; h.vanishCd = 12; h.invis = 3; return true;
+    case "shield_bash": { if (!has("shield_bash") || h.bashCd > 0) return false; const m = adjFoes(run)[0]; if (!m) return false; h.bashCd = 5; m.stun = 1; heroAttack(run, m, ev, "shield_bash"); return true; }
+    case "vanish": if (!has("vanish") || h.vanishCd > 0 || !foes.length) return false; h.vanishCd = 12; h.invis = 3; return true;
+    case "cleave": { if (!has("cleave") || run.cleaveCd > 0) return false; const adj = adjFoes(run); if (adj.length < 2) return false; run.cleaveCd = 6; for (const m of adj) heroAttack(run, m, ev, "cleave"); return true; }
+    case "taunt": { if (!has("taunt") || foes.length < 1 || !companions(run).length) return false; for (const m of foes) m.sent = false; ev.push({ t: run.turn, k: "callout", text: "taunt" }); return true; }
+    case "second_wind": if (!has("second_wind") || run.windUsed || h.hp / h.max_hp >= 0.5) return false; run.windUsed = true; h.hp = Math.min(h.max_hp, h.hp + Math.ceil(h.max_hp * 0.3)); return true;
+    case "bulwark": if (!has("bulwark") || run.bulwark > 0 || !foes.length) return false; run.bulwark = 3; h.def += 3; return true;
+    case "backstab": { if (!has("backstab")) return false; const m = adjFoes(run).find((x) => x.stun > 0 || h.invis > 0); if (!m) return false; heroAttack(run, m, ev, "backstab", 2); return true; }
+    case "smoke": if (!has("smoke") || !foes.length) return false; for (const m of foes) m.stun = 3; ev.push({ t: run.turn, k: "callout", text: "smoke" }); return true;
+    case "ambush": { if (!has("ambush") || h.invis <= 0) return false; const m = adjFoes(run)[0]; if (!m) return false; heroAttack(run, m, ev, "ambush", 3); return true; }
+    case "shadowstep": if (!has("shadowstep") || !foes.length) return false; return stepAway(run, foes, ev, false);
     case "card": {
       if (!ctx.unlocks.has(`card:${v.a}`)) return false;
       if (v.a === "corridor_fighting") { if (foes.length < 2) return false; return exec(run, { v: "back_corridor" }, ctx, ev); }
@@ -468,6 +486,7 @@ function pickUp(run: Run, it: FloorItem, ev: Ev[]): void {
   const inv: InvItem = { id: it.id, kind: it.kind, known: it.known, label: it.label };
   if (!it.known && run.rng() < 0.5) inv.hint = ["poison", "caustic", "fire", "confusion", "aggravate"].includes(it.kind) ? "malevolent" : "benevolent";
   run.picked.push({ ...inv });
+  if (WEAPONS[it.kind] || ARMOUR[it.kind] !== undefined) run.gear.push({ ...inv });
   if (WEAPONS[it.kind]) { if (!run.hero.weapon || WEAPONS[it.kind][1] > run.hero.atk[1]) { run.hero.weapon = it.kind; run.hero.atk = WEAPONS[it.kind]; ev.push({ t: run.turn, k: "callout", text: `wields ${it.kind}` }); } run.loot += 10; return; }
   if (ARMOUR[it.kind] !== undefined) { if (ARMOUR[it.kind] > run.hero.def) { run.hero.armour = it.kind; run.hero.def = ARMOUR[it.kind]; ev.push({ t: run.turn, k: "callout", text: `wears ${it.kind}` }); } run.loot += 10; return; }
   if (run.hero.inv.length < 10) run.hero.inv.push(inv);
@@ -612,7 +631,8 @@ function simTurn(run: Run, ctx: SimCtx): Ev[] {
   if (run.over) return ev;
   const speedy = run.hero.speedT > 0; if (speedy) run.hero.speedT--;
   if (!speedy || run.turn % 2 === 0) for (const m of [...run.floor.mons]) { if (run.floor.mons.includes(m)) monsterTurn(run, m, ev); if (run.over) return ev; }
-  if (run.hero.invis > 0) run.hero.invis--; if (run.hero.bashCd > 0) run.hero.bashCd--; if (run.hero.vanishCd > 0) run.hero.vanishCd--;
+  if (run.hero.invis > 0) run.hero.invis--; if (run.hero.bashCd > 0) run.hero.bashCd--; if (run.hero.vanishCd > 0) run.hero.vanishCd--; if (run.cleaveCd > 0) run.cleaveCd--;
+  if (run.bulwark > 0) { run.bulwark--; if (run.bulwark === 0) run.hero.def -= 3; }
   if (run.hero.hp <= 0) die(run, ev);
   else if (hp0 <= run.hero.max_hp * 0.2 && run.hero.hp > hp0 && visibleFoes(run).length === 0) { run.hl.push({ pattern: "near_death", score: 5, t: run.turn, run_id: run.id, text: `Down to ${hp0} hp on D${run.depth}. Lived.` }); ev.push({ t: run.turn, k: "note", text: `survived at ${hp0} hp` }); }
   return ev;
@@ -649,6 +669,7 @@ export class FakeEngine implements Engine {
   private s!: State;
   private live: Run | null = null;
   private lastDeath: Record<number, Death> = {};
+  private settled = new Set<number>();
 
   private flavourMap(): Map<string, string> {
     const r = mulberry32(this.s.lineage.seed ^ 0x5eed); const f = [...FLAVOURS], m = new Map<string, string>();
@@ -658,7 +679,7 @@ export class FakeEngine implements Engine {
   }
   private ctx(rules = this.s.rules): SimCtx {
     const fm = this.flavourMap(); const inv = new Map([...fm].map(([k, v]) => [v, k]));
-    return { rules, unlocks: new Set(this.s.lineage.unlocks), flav: (k) => fm.get(k) ?? k, kindOfFlav: (f) => inv.get(f) };
+    return { rules, unlocks: new Set(this.s.lineage.unlocks), flav: (k) => fm.get(k) ?? k, kindOfFlav: (f) => inv.get(f), tier: (k) => this.s.lineage.forge?.[k]?.tier ?? 0 };
   }
   private maxRows(): number { return 4 + ["row5", "row6", "row7", "row8"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
   private vaultSlots(): number { return 1 + ["vault2", "vault3"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
@@ -671,7 +692,8 @@ export class FakeEngine implements Engine {
         seed, heir: 1, trait, class: "fighter", best_depth: 0, marks: 0, facts: [], unlocks: [], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
         party: [], kennel: [mkCompanion(1, "jackal", 2, ["pack", "fast"], 0), mkCompanion(2, "goblin_archer", 1, ["ranged"], 0)],
         eggs: [{ id: 3, kind: "bloat", tags: ["gas"], gen: 1, hatch_in: 3, from_loss: false }], party_slots: 1, ledger: [],
-        gold: 120, supplies: [],
+        gold: 120, supplies: [], classes: { fighter: { level: 1, xp: 0 }, rogue: { level: 1, xp: 0 } },
+        forge: { dagger: { salvaged: 6, craftable: true, tier: 0 } }, renown: 0, rank: 0, keep_pref: "best_weapon",
       },
       rules: copy(), loadout: [], killed: [], runCounter: 0, logs: {}, nextItem: 50000, tamedKinds: ["jackal", "goblin_archer"], bredKinds: ["bloat"], nextCid: 10,
     };
@@ -682,6 +704,8 @@ export class FakeEngine implements Engine {
     const p = JSON.parse(save) as State; this.s = p; this.live = null; this.lastDeath = {};
     const L = p.lineage; // older fake saves: fill addendum fields
     L.party ??= []; L.kennel ??= []; L.eggs ??= []; L.party_slots ??= 1; L.ledger ??= []; L.gold ??= 0; L.supplies ??= [];
+    L.classes ??= { fighter: { level: 1, xp: 0 }, rogue: { level: 1, xp: 0 } };
+    L.forge ??= {}; L.renown ??= 0; L.rank ??= 0; L.keep_pref ??= "best_weapon";
     p.tamedKinds ??= []; p.bredKinds ??= []; p.nextCid ??= 10;
     return this.lineage();
   }
@@ -691,6 +715,7 @@ export class FakeEngine implements Engine {
     const F = this.s.lineage.facts;
     return LEDGER_KINDS.map((kind) => ({ kind, seen: F.includes(`foe:${kind}`), known: F.includes(`foe:${kind}`) && MON[kind].tags.filter((t) => t !== "boss").every((t) => F.includes(`foe:${kind}:${t}`)), tamed: this.s.tamedKinds.includes(kind), bred: this.s.bredKinds.includes(kind) }));
   }
+  private classLevel(cls = this.s.lineage.class): number { return this.s.lineage.classes[cls]?.level ?? 1; }
   private partySlots(): number { return this.s.lineage.unlocks.includes("party_slot_2") ? 2 : 1; }
   setParty(ids: number[]): Lineage {
     const L = this.s.lineage; const all = [...L.kennel, ...L.party];
@@ -719,7 +744,13 @@ export class FakeEngine implements Engine {
   // Addendum B — supplies
   supplyCatalogue(): SupplyEntry[] {
     const out: SupplyEntry[] = [{ kind: "leash", price: 30, label: "leash" }];
-    for (const f of this.s.lineage.facts) { const m = /^item:[A-Za-z]+=([a-z_]+)$/.exec(f); if (!m) continue; const k = m[1]; if (POTIONS.includes(k)) out.push({ kind: k, price: 40, label: `${k} potion` }); else if (SCROLLS.includes(k)) out.push({ kind: k, price: 60, label: `scroll ${k}` }); }
+    const ided = new Set<string>();
+    for (const f of this.s.lineage.facts) { const m = /^item:[A-Za-z]+=([a-z_]+)$/.exec(f); if (!m) continue; const k = m[1]; ided.add(k); if (POTIONS.includes(k)) out.push({ kind: k, price: 40, label: `${k} potion` }); else if (SCROLLS.includes(k)) out.push({ kind: k, price: 60, label: `scroll ${k}` }); }
+    for (const [kind, f] of Object.entries(this.s.lineage.forge ?? {})) {
+      if (!f.craftable || out.some((o) => o.kind === kind)) continue;
+      if ((POTIONS.includes(kind) || SCROLLS.includes(kind)) && !ided.has(kind)) continue;
+      out.push({ kind, price: 2 * salvageOf(kind), label: POTIONS.includes(kind) ? `${kind} potion` : SCROLLS.includes(kind) ? `scroll ${kind}` : kind });
+    }
     return out;
   }
   buySupply(kind: string): Lineage {
@@ -757,9 +788,9 @@ export class FakeEngine implements Engine {
     verbs.push({ v: "drink", a: "unknown" });
     for (const k of kinds) if (SCROLLS.includes(k)) verbs.push({ v: "read", a: k });
     verbs.push({ v: "read", a: "unknown" });
-    if (L.unlocks.includes("verb:throw") || L.class === "rogue") { for (const k of kinds) if (THROWABLE.has(k)) verbs.push({ v: "throw", a: `${k},nearest` }); verbs.push({ v: "throw", a: "unknown,nearest" }); }
+    if (L.unlocks.includes("verb:throw") || verbsUpTo(L.class, this.classLevel()).includes("throw")) { for (const k of kinds) if (THROWABLE.has(k)) verbs.push({ v: "throw", a: `${k},nearest` }); verbs.push({ v: "throw", a: "unknown,nearest" }); }
     verbs.push({ v: "descend" }, { v: "bank" }, { v: "return" }, { v: "rest" }, { v: "pick_up" }, { v: "free_captive" });
-    verbs.push(L.class === "rogue" ? { v: "vanish" } : { v: "shield_bash" });
+    for (const v of verbsUpTo(L.class, this.classLevel())) if (v !== "throw") verbs.push({ v });
     if (L.unlocks.includes("tame")) { verbs.push({ v: "tame", a: "nearest" }); for (const t of tags) verbs.push({ v: "tame", a: `tag:${t}` }); }
     if (L.party.length) { verbs.push({ v: "recall" }, { v: "send" }); }
     for (const c of ["corridor_fighting", "kite_archers", "stair_dance"]) if (L.unlocks.includes(`card:${c}`)) verbs.push({ v: "card", a: c });
@@ -774,7 +805,7 @@ export class FakeEngine implements Engine {
   private known(): Set<string> { return new Set(this.s.lineage.facts); }
   private brought(): InvItem[] { return [...this.s.lineage.vault.filter((v) => this.s.loadout.includes(v.id)), ...this.s.lineage.supplies].map((v) => ({ ...v })); }
   private simOne(seed: number, rules: RuleSet, known: Set<string>, cls = this.s.lineage.class, trait = this.s.lineage.trait, brought: InvItem[] = []): Run {
-    const ctx = this.ctx(rules); const run = makeRun(0, this.s.lineage.heir, seed, cls, trait, known, brought, ctx); runToEnd(run, ctx); return run;
+    const ctx = this.ctx(rules); const run = makeRun(0, this.s.lineage.heir, seed, cls, trait, known, brought, ctx, [], this.classLevel(cls)); runToEnd(run, ctx); return run;
   }
 
   forecast(): Forecast {
@@ -793,7 +824,7 @@ export class FakeEngine implements Engine {
   private startRun(): Run {
     const L = this.s.lineage; this.s.runCounter++;
     const id = this.s.runCounter; const seed = hash(`run:${L.seed}:${id}`);
-    const run = makeRun(id, L.heir, seed, L.class, L.trait, this.known(), this.brought(), this.ctx(), L.party);
+    const run = makeRun(id, L.heir, seed, L.class, L.trait, this.known(), this.brought(), this.ctx(), L.party, this.classLevel());
     this.s.logs[id] = { seed, rules: JSON.parse(JSON.stringify(this.s.rules)) as RuleSet, depth: 1, turns: 0, exit: "", known: [...this.known()], cls: L.class, trait: L.trait, heir: L.heir, hpMargin: 0 };
     return run;
   }
@@ -802,14 +833,28 @@ export class FakeEngine implements Engine {
     if (!this.live) this.live = this.startRun();
     const ctx = this.ctx(); const events: Ev[] = [];
     for (let i = 0; i < turns && !this.live.over; i++) events.push(...simTurn(this.live, ctx));
-    if (this.live.over) this.settle(this.live, true);
-    return { events, snapshot: snapshot(this.live), run_over: this.live.over };
+    let exit_pending: StepResult["exit_pending"];
+    if (this.live.over && !this.pending && !this.settled.has(this.live.id)) {
+      const items = this.carried(this.live);
+      if (items.length) { this.pending = this.live; exit_pending = { items, tier: this.live.exit ?? "death" }; }
+      else { const r = this.settle(this.live, true); for (const level of r.levels) events.push({ t: this.live.turn, k: "level", class: this.live.cls, level }); for (const rank of r.ranks) events.push({ t: this.live.turn, k: "rank", rank }); }
+      this.settled.add(this.live.id);
+    }
+    return { events, snapshot: snapshot(this.live), run_over: this.live.over, exit_pending };
   }
   // apply a finished run to the lineage; returns [newFacts, newBests, marks]
-  private settle(run: Run, real: boolean): { facts: string[]; bests: string[]; marks: number; tamed: string[]; lost: string[]; hatched: string[] } {
+  private carried(run: Run): InvItem[] { return [...run.gear.filter((g) => !run.brought.includes(g.id)), ...run.hero.inv.filter((i) => !run.brought.includes(i.id) && !(this.s.lineage.supplies ?? []).some((s) => s.id === i.id))]; }
+  private autoKeep(run: Run): number[] {
+    const items = this.carried(run); const pref = this.s.lineage.keep_pref;
+    const pickBest = (score: (i: InvItem) => number): number[] => { const c = items.filter((i) => score(i) > 0).sort((a, b) => score(b) - score(a))[0]; return c ? [c.id] : []; };
+    if (pref === "best_weapon") return pickBest((i) => WEAPONS[i.kind]?.[1] ?? 0);
+    if (pref === "best_armour") return pickBest((i) => ARMOUR[i.kind] ?? 0);
+    return [];
+  }
+  private settle(run: Run, real: boolean, keepIds: number[] = []): { facts: string[]; bests: string[]; marks: number; tamed: string[]; lost: string[]; hatched: string[]; xp: number; levels: number[]; salvaged: { kind: string; n: number; gold: number }[]; score: number; ranks: number[] } {
     const L = this.s.lineage; const log = this.s.logs[run.id];
     if (log) { log.depth = run.depth; log.cause = run.cause; log.turns = run.turn; log.exit = run.exit ?? ""; log.hpMargin = run.lastHurt ? run.lastHurt.dmg - run.lastHurt.hpBefore + 1 : 0; if (run.exit === "death") log.turns = run.turn; }
-    if (!real) return { facts: [], bests: [], marks: 0, tamed: [], lost: [], hatched: [] };
+    if (!real) return { facts: [], bests: [], marks: 0, tamed: [], lost: [], hatched: [], xp: 0, levels: [], salvaged: [], score: 0, ranks: [] };
     const facts: string[] = []; const bests: string[] = []; let marks = 0;
     const tamed: string[] = [], lost: string[] = [], hatched: string[] = [];
     L.gold += run.loot_kept; L.supplies = [];
@@ -823,6 +868,12 @@ export class FakeEngine implements Engine {
       for (const m of run.tamed) if (survivors.includes(m)) { L.kennel.push(mkCompanion(this.s.nextCid++, m.kind, 1, [...m.tags], 0)); tamed.push(m.kind); if (!this.s.tamedKinds.includes(m.kind)) this.s.tamedKinds.push(m.kind); }
     }
     this.tickEggs(hatched);
+    // class xp (Addendum C)
+    const tier = run.exit === "bank" ? 1 : run.exit === "return" ? 0.6 : 0.3;
+    const xp = Math.round((run.killXp + 5 * run.depth) * tier);
+    const cl = (L.classes[run.cls] ??= { level: 1, xp: 0 }); cl.xp += xp; const levels: number[] = [];
+    while (cl.level < XP_LEVEL_CAP && cl.xp >= xpToNext(cl.level)) { cl.xp -= xpToNext(cl.level); cl.level++; levels.push(cl.level); for (const v of verbsAt(run.cls, cl.level)) facts.push(`verb:${v}`); }
+    if (cl.level >= XP_LEVEL_CAP && !L.trophies.includes(`master:${run.cls}`)) { L.trophies.push(`master:${run.cls}`); marks += 2; bests.push(`master ${run.cls}`); }
     for (const f of run.facts) if (!L.facts.includes(f)) { L.facts.push(f); facts.push(f); }
     for (let d = L.best_depth + 1; d <= run.depth; d++) { marks += 1; bests.push(`D${d}`); }
     if (run.depth > L.best_depth) L.best_depth = run.depth;
@@ -834,26 +885,48 @@ export class FakeEngine implements Engine {
       L.vault = L.vault.filter((v) => !run.brought.includes(v.id)); this.s.loadout = [];
       L.heir += 1; L.trait = TRAITS[(L.seed + L.heir * 7) % TRAITS.length];
     } else {
-      const cand = run.picked.filter((p) => WEAPONS[p.kind] || ARMOUR[p.kind] !== undefined || (p.known && p.kind === "heal"));
-      for (const c of cand) if (L.vault.length < this.vaultSlots() && !L.vault.some((v) => v.kind === c.kind)) L.vault.push({ ...c, id: this.s.nextItem++ });
     }
-    return { facts, bests, marks, tamed, lost, hatched };
+    // Addendum D: keep into free vault slots, salvage the rest
+    const tierMul = run.exit === "bank" ? 1 : run.exit === "return" ? 0.6 : 0.3;
+    const salv: Record<string, { n: number; gold: number }> = {};
+    for (const it of this.carried(run)) {
+      if (keepIds.includes(it.id) && L.vault.length < this.vaultSlots()) { L.vault.push({ ...it, id: this.s.nextItem++ }); continue; }
+      const g = Math.round(salvageOf(it.kind) * tierMul); L.gold += g;
+      const f = (L.forge[it.kind] ??= { salvaged: 0, craftable: false, tier: 0 }); f.salvaged++; f.craftable = f.salvaged >= 5; f.tier = f.salvaged >= 40 ? 2 : f.salvaged >= 15 ? 1 : 0;
+      (salv[it.kind] ??= { n: 0, gold: 0 }).n++; salv[it.kind].gold += g;
+    }
+    const salvaged = Object.entries(salv).map(([kind, v]) => ({ kind, ...v }));
+    // renown
+    const score = 10 * run.depth + run.score + run.hl.reduce((a, b) => a + b.score, 0); L.renown += score; const ranks: number[] = [];
+    while (L.renown >= 100 * (L.rank + 1) * (L.rank + 1)) { L.rank++; L.marks++; ranks.push(L.rank); }
+    return { facts, bests, marks, tamed, lost, hatched, xp, levels, salvaged, score, ranks };
   }
+  private pending: Run | null = null;
+  keep(ids: number[]): Lineage {
+    const run = this.pending; if (!run) return this.lineage();
+    this.pending = null; this.settle(run, true, ids); return this.lineage();
+  }
+  setKeepPref(pref: string): Lineage { if (["best_weapon", "best_armour", "none"].includes(pref)) this.s.lineage.keep_pref = pref; return this.lineage(); }
 
   runOffline(elapsedS: number): ReturnReport {
     const L = this.s.lineage;
     let budget = Math.max(0, Math.floor(elapsedS)); let runs = 0, stall = 0, sampled = false, turnsTotal = 0;
     const learned: string[] = [], bests: string[] = [], found: InvItem[] = [], deaths: Record<string, number> = {}; let marks = 0; let reel: Highlight[] = [];
-    const tamed: string[] = [], hatched: string[] = [], lost: string[] = [];
-    const take = (r: { tamed: string[]; lost: string[]; hatched: string[] }): void => { tamed.push(...r.tamed); lost.push(...r.lost); hatched.push(...r.hatched); };
+    const tamed: string[] = [], hatched: string[] = [], lost: string[] = []; let xpGained = 0, levelUps = 0, renownGained = 0, ranksUp = 0;
+    const salvMap: Record<string, { n: number; gold: number }> = {};
+    const take = (r: { tamed: string[]; lost: string[]; hatched: string[]; xp: number; levels: number[]; salvaged: { kind: string; n: number; gold: number }[]; score: number; ranks: number[] }): void => {
+      tamed.push(...r.tamed); lost.push(...r.lost); hatched.push(...r.hatched); xpGained += r.xp; levelUps += r.levels.length; renownGained += r.score; ranksUp += r.ranks.length;
+      for (const s of r.salvaged) { const m = (salvMap[s.kind] ??= { n: 0, gold: 0 }); m.n += s.n; m.gold += s.gold; }
+    };
+    if (this.pending) { const run = this.pending; this.pending = null; take(this.settle(run, true, this.autoKeep(run))); this.live = null; }
     let worst: { id: number; depth: number } | null = null;
-    if (this.live && !this.live.over) { const ctx = this.ctx(); while (!this.live.over && budget > 0) { simTurn(this.live, ctx); budget--; } if (this.live.over) { const r = this.settle(this.live, true); take(r); learned.push(...r.facts); bests.push(...r.bests); marks += r.marks; runs++; if (this.live.exit === "death") { deaths[this.live.cause ?? "?"] = 1; worst = { id: this.live.id, depth: this.live.depth }; } reel.push(...this.live.hl); this.live = null; } }
+    if (this.live && !this.live.over) { const ctx = this.ctx(); while (!this.live.over && budget > 0) { simTurn(this.live, ctx); budget--; } if (this.live.over) { const r = this.settle(this.live, true, this.autoKeep(this.live)); this.settled.add(this.live.id); take(r); learned.push(...r.facts); bests.push(...r.bests); marks += r.marks; runs++; if (this.live.exit === "death") { deaths[this.live.cause ?? "?"] = 1; worst = { id: this.live.id, depth: this.live.depth }; } reel.push(...this.live.hl); this.live = null; } }
     while (budget > 0 && stall < 20 && runs < 80 && !L.ended) {
       const run = this.startRun(); const ctx = this.ctx();
       while (!run.over && budget > 0) { simTurn(run, ctx); budget--; }
       if (!run.over) { this.live = run; break; }
       runs++; turnsTotal += run.turn;
-      const r = this.settle(run, true); take(r);
+      const r = this.settle(run, true, this.autoKeep(run)); this.settled.add(run.id); take(r);
       learned.push(...r.facts); bests.push(...r.bests); marks += r.marks;
       stall = r.facts.length || r.bests.length ? 0 : stall + 1;
       for (const p of run.picked) if ((WEAPONS[p.kind] || ARMOUR[p.kind] !== undefined) && !found.some((f) => f.kind === p.kind)) found.push(p);
@@ -867,7 +940,8 @@ export class FakeEngine implements Engine {
     const worstDeath = worst ? this.death(worst.id) : undefined;
     if (worstDeath?.verdict === "gap") pending.push(`patch D${worstDeath.depth} ${worstDeath.cause}`);
     if (!pending.length) pending.push("rules");
-    return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live: this.send(), tamed, hatched, lost };
+    return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live: this.send(), tamed, hatched, lost, xp: { class: L.class, gained: xpGained, level_ups: levelUps },
+      salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp } };
   }
   private unlockVisible(u: string): boolean {
     const L = this.s.lineage.unlocks;
@@ -908,6 +982,7 @@ export class FakeEngine implements Engine {
 
   buy(unlock: string): Lineage {
     const L = this.s.lineage; const cost = UNLOCK_COST[unlock];
+    if (unlock === "class:fighter" || (unlock === "class:rogue" && L.unlocks.includes(unlock))) { L.class = unlock.slice(6); return this.lineage(); }
     if (cost !== undefined && !L.unlocks.includes(unlock) && L.marks >= cost && this.unlockVisible(unlock)) { L.marks -= cost; L.unlocks.push(unlock); if (unlock === "class:rogue") L.class = "rogue"; if (unlock === "party_slot_2") L.party_slots = 2; }
     return this.lineage();
   }
