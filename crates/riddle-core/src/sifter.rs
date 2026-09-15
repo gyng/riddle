@@ -35,6 +35,9 @@ pub fn sift_with(run: &Run, first_kills: &[String]) -> Vec<Highlight> {
         }
     }
     for (t, kind, _) in &run.kills {
+        if kind.starts_with("spectral_") {
+            continue; // summons are not a first kill
+        }
         if first_kills.contains(kind) && !out.iter().any(|h| h.pattern == "first_kill" && h.text.contains(&kind_title(kind))) {
             out.push(hl(run, "first_kill", FIRST_KILL, *t, format!("First kill: {}.", kind_title(kind))));
         }
@@ -55,6 +58,16 @@ pub fn sift_with(run: &Run, first_kills: &[String]) -> Vec<Highlight> {
         out.push(hl(run, "boss", BOSS, *t, format!("Slew the {}.", kind_title(kind))));
     }
     out.sort_by(|a, b| b.score.cmp(&a.score).then(a.t.cmp(&b.t)));
+    // One entry per pattern per run: the highest-scoring instance (earliest on ties).
+    let mut seen: Vec<String> = Vec::new();
+    out.retain(|h| {
+        if seen.contains(&h.pattern) {
+            false
+        } else {
+            seen.push(h.pattern.clone());
+            true
+        }
+    });
     out
 }
 

@@ -25,13 +25,15 @@ pub struct View {
     pub lowest: Option<usize>,
 }
 
+/// Foes the hero can engage: visible hostiles that are adjacent, or neither fleeing nor
+/// given up on (unreachable / not closing). Rows count and target only these.
 pub fn view(run: &Run) -> View {
     let map = &run.floor.map;
     let hp = run.hero.pos;
     let mut foes: Vec<usize> = (0..run.monsters.len())
         .filter(|&i| {
             let m = &run.monsters[i];
-            m.hp > 0 && m.hostile() && map.is_visible(m.pos)
+            m.hp > 0 && m.hostile() && map.is_visible(m.pos) && (m.pos.adjacent(hp) || (!m.fleeing && m.fear == 0 && !run.is_ignored(m.id)))
         })
         .collect();
     foes.sort_by_key(|&i| (run.monsters[i].pos.cheb(hp), run.monsters[i].id));
@@ -121,9 +123,47 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
 }
 
 fn hero_action(run: &mut Run, cx: &mut Ctx) {
+    run.actions += 1;
+    run.note_foes();
+    oscillation_guard(run, cx);
     let v = view(run);
     let hp_before = run.hero.hp;
+    let inv_before = run.hero.inv.len() + run.hero.weapon.is_some() as usize + run.hero.armour.is_some() as usize;
     let (row, verb) = choose_and_act(run, cx, &v);
+    // Same-row loop guard: one row firing 40 actions straight with no blood drawn either way
+    // is a stalemate (a bloat that follows a retreating hero forever); rest it for 30 actions.
+    if row == -1 {
+        // trait deviations are transparent to the streak
+    } else if row >= 0 && row == run.row_streak.0 {
+        run.row_streak.1 += 1;
+        if run.row_streak.1 >= 40 && run.actions.saturating_sub(run.last_damage_action) >= 40 {
+            run.row_suppressed = (row, run.actions + 30);
+            run.row_streak = (-9, 0);
+            emit_rule(run, cx, -2, &Verb::new("stuck"), "stuck → chores");
+        }
+    } else {
+        run.row_streak = (row, 1);
+    }
+    // pick_up sanity: three picks in a row must have put something in the pack.
+    if verb.v == "pick_up" {
+        if run.pickup_streak == 0 {
+            run.pickup_inv = inv_before;
+        }
+        run.pickup_streak += 1;
+        let inv_now = run.hero.inv.len() + run.hero.weapon.is_some() as usize + run.hero.armour.is_some() as usize;
+        if inv_now > run.pickup_inv || run.hero.inv.iter().any(|i| i.kind == "leash" && i.amount > 1) {
+            run.pickup_streak = 0;
+        } else if run.pickup_streak >= 3 {
+            run.items_until = run.actions + 20;
+            run.pickup_streak = 0;
+        }
+    } else {
+        run.pickup_streak = 0;
+    }
+    run.recent_pos.push(run.hero.pos);
+    if run.recent_pos.len() > 12 {
+        run.recent_pos.remove(0);
+    }
     // Trace records the state at the start of the action.
     let telegraphs: Vec<String> = v
         .foes
@@ -156,11 +196,14 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     let foes = v.foes.len() as i32;
     let hp_pct = run.hero.hp_pct();
     let tr = run.trait_;
-    // Trait deviations, announced.
+    // Trait deviations, announced: at most one per 5 actions, and never below 25% HP
+    // (cowardice excepted, since fleeing at low HP is its point).
+    let trait_ready = run.trait_last.is_none_or(|t| run.actions >= t + 5);
     if tr == Trait::Cowardly && hp_pct < 50 && foes >= 1 && run.cowardly_streak < 3 {
         let verb = Verb::new("retreat");
         if ai::try_verb(run, cx, &verb, v) {
             run.cowardly_streak += 1;
+            run.trait_last = Some(run.actions);
             emit_rule(run, cx, -1, &verb, "cowardly → retreat");
             return (-1, verb);
         }
@@ -168,14 +211,16 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     if foes == 0 {
         run.cowardly_streak = 0;
     }
-    if tr == Trait::Greedy {
+    let trait_ok = trait_ready && hp_pct >= 25;
+    if tr == Trait::Greedy && trait_ok && !run.items_ignored() {
         let hp = run.hero.pos;
         let target = DIRS8
             .iter()
             .map(|d| hp.step(*d))
-            .find(|q| run.item_at(*q).is_some() && !run.occupied(*q) && run.floor.map.can_step(hp, *q));
+            .find(|q| run.item_at(*q).is_some_and(|ii| can_take(&run.hero, &run.items[ii].item)) && !run.occupied(*q) && run.floor.map.can_step(hp, *q));
         if let Some(q) = target {
             ai::move_hero(run, cx, q);
+            run.trait_last = Some(run.actions);
             let verb = Verb::new("pick_up");
             emit_rule(run, cx, -1, &verb, "greedy → pick up");
             return (-1, verb);
@@ -189,7 +234,12 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     }
     let rows: Vec<crate::rules::Row> = cx.rules.rows.iter().take(cx.max_rows).cloned().collect();
     let mut brave_said = false;
+    let stuck = run.stuck_until > run.actions;
+    let suppressed = if run.row_suppressed.1 > run.actions { run.row_suppressed.0 } else { -9 };
     for (i, row) in rows.iter().enumerate() {
+        if (stuck && targets_foes(&row.verb)) || i as i32 == suppressed {
+            continue;
+        }
         if !row.conds.iter().all(|c| cond_holds(run, cx, v, c)) {
             continue;
         }
@@ -213,8 +263,9 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             return (i as i32, row.verb.clone());
         }
     }
-    if tr == Trait::Curious && foes == 0 && hp_pct >= 50 {
+    if tr == Trait::Curious && trait_ok && foes == 0 && hp_pct >= 50 {
         if let Some(verb) = ai::curious_use(run, cx) {
+            run.trait_last = Some(run.actions);
             emit_rule(run, cx, -1, &verb, &format!("curious → {}", verb.short()));
             return (-1, verb);
         }
@@ -224,8 +275,48 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     (-2, verb)
 }
 
+/// If the last 12 actions visited ≤ 2 tiles with no damage dealt or taken, give up on the
+/// visible foes for 30 actions and let chores proceed; one `stuck` chore event explains it.
+fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
+    if run.stuck_until > run.actions || run.recent_pos.len() < 12 {
+        return;
+    }
+    let mut tiles: Vec<Pos> = run.recent_pos.clone();
+    tiles.sort();
+    tiles.dedup();
+    if tiles.len() > 2 || run.actions.saturating_sub(run.last_damage_action) < 12 {
+        return;
+    }
+    // Engaged in melee is not stuck: adjacent foes are always worth a row.
+    let hp = run.hero.pos;
+    let v = view(run);
+    if v.foes.iter().any(|&i| run.monsters[i].pos.adjacent(hp)) {
+        return;
+    }
+    let ids: Vec<u32> = v.foes.iter().map(|&i| run.monsters[i].id).collect();
+    if ids.is_empty() {
+        return;
+    }
+    for id in ids {
+        run.ignore(id, 30);
+    }
+    run.stuck_until = run.actions + 30;
+    run.recent_pos.clear();
+    run.chase = None;
+    let verb = Verb::new("stuck");
+    emit_rule(run, cx, -2, &verb, "stuck → chores");
+}
+
 pub fn emit_rule(run: &Run, cx: &mut Ctx, row: i32, verb: &Verb, text: &str) {
     cx.events.push(Ev::Rule { t: run.turn, row, verb: verb.clone(), text: crate::chronicle::clamp_words(text, 3) });
+}
+
+/// Verbs that act on the visible foes (suppressed while the oscillation guard is up).
+fn targets_foes(verb: &Verb) -> bool {
+    matches!(
+        verb.v.as_str(),
+        "attack" | "shield_bash" | "throw" | "tame" | "cleave" | "backstab" | "ambush" | "shadowstep" | "send" | "taunt"
+    )
 }
 
 pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
@@ -352,6 +443,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     }
     run.hero.hp -= dmg;
     run.hurt_since_action = true;
+    run.last_damage_action = run.actions;
     if run.boss_seen_t.is_some() {
         run.hurt_since_boss = true;
     }
@@ -383,6 +475,48 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
     if run.monsters[mi].hp <= 0 {
         return false;
     }
+    // The Warlord's shield wall: a goblin beside him takes any incidental blow from the
+    // hero's side (unaimed swings, allies, companions). Hazards and aimed strikes go through.
+    let mut mi = mi;
+    if run.monsters[mi].kind == "goblin_warlord" && !run.aimed {
+        let from_hero_side = match src {
+            Src::Hero { .. } => true,
+            Src::Mon(j) => run.monsters[*j].ally,
+            _ => false,
+        };
+        if from_hero_side {
+            let wp = run.monsters[mi].pos;
+            // Any goblin in his view interposes; only with the goblins gone do stray swings land.
+            let nearest = run
+                .monsters
+                .iter()
+                .enumerate()
+                .filter(|(_, o)| o.hp > 0 && o.hostile() && o.kind == "goblin" && o.pos.cheb(wp) <= crate::tiles::VISION)
+                .min_by_key(|(_, o)| (o.pos.cheb(wp), o.id))
+                .map(|(k, _)| k);
+            let guard = nearest.or_else(|| {
+                // No goblin left in view: a reserve steps in from behind him to take the blow.
+                let q = wp.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q))?;
+                let id = run.new_id();
+                let depth = run.depth;
+                let mut g = Monster::spawn(id, "goblin", q, depth);
+                g.awake = true;
+                g.last_seen = Some(run.hero.pos);
+                g.summoned = true;
+                g.extra_tags.push("summoned".into());
+                let e = crate::engine::monster_entity(&g, cx.facts);
+                run.monsters.push(g);
+                cx.events.push(Ev::Spawn { t: run.turn, e });
+                Some(run.monsters.len() - 1)
+            });
+            if let Some(g) = guard {
+                if run.floor.map.is_visible(wp) {
+                    callout(run, cx, "shielded");
+                }
+                mi = g;
+            }
+        }
+    }
     let cause = src.cause(run);
     let cause = cause.as_str();
     let dmg = dmg.max(0);
@@ -395,10 +529,19 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             learn(run, cx, crate::defs::counter_fact(&a, &b));
         }
     }
-    if run.monsters[mi].ally {
-        run.monsters[mi].hurt_since_action = true;
+    run.monsters[mi].hurt_since_action = true;
+    if matches!(src, Src::Hero { .. }) && dmg > 0 {
+        run.last_damage_action = run.actions;
     }
     run.monsters[mi].hp -= dmg;
+    if run.monsters[mi].kind == "bloat_mother" && run.monsters[mi].hp > 0 && matches!(src, Src::Hero { ranged: false }) {
+        let at = run.monsters[mi].pos;
+        place_overlay(run, cx, at, 2, OverlayKind::Gas, 30);
+        if run.floor.map.is_visible(at) {
+            callout(run, cx, "vents!");
+            learn_tag(run, cx, "bloat_mother", "gas");
+        }
+    }
     let (id, hp, kind, pos) = {
         let m = &run.monsters[mi];
         (m.id, m.hp, m.kind.clone(), m.pos)
@@ -512,6 +655,14 @@ fn tick_overlays(run: &mut Run, cx: &mut Ctx) {
             }
         }
         if let Some(mi) = run.monster_at(p) {
+            if src == Src::Gas && run.monsters[mi].has_tag("gas") {
+                // Gas creatures breathe it; the Bloat Mother heals in it.
+                if run.monsters[mi].kind == "bloat_mother" {
+                    let m = &mut run.monsters[mi];
+                    m.hp = (m.hp + 3).min(m.max_hp);
+                }
+                continue;
+            }
             damage_monster(run, cx, mi, dmg, &src);
         }
     }
@@ -571,6 +722,58 @@ fn tick_statuses(run: &mut Run, cx: &mut Ctx) {
             cx.events.push(Ev::Die { t: run.turn, id, cause: "faded".into() });
         }
     }
+}
+
+/// Rests per alert step: resting is not free. From alert 5 a wandering pack comes for the
+/// hero (spawned out of sight, nearby).
+pub const REST_ALERT_EVERY: u32 = 8;
+
+/// Resting raises the alert every `REST_ALERT_EVERY` rests; from alert 5 a pack comes.
+pub fn rest_clock(run: &mut Run, cx: &mut Ctx) {
+    run.rests += 1;
+    if !run.rests.is_multiple_of(REST_ALERT_EVERY) {
+        return;
+    }
+    run.alert = (run.alert + 1).min(8);
+    if run.alert < 5 {
+        return;
+    }
+    let table = crate::defs::spawn_table(run.biome(), run.depth);
+    let packs: Vec<(&str, u32, i32, i32)> = table.iter().copied().filter(|t| t.2 >= 2).collect();
+    let pool = if packs.is_empty() { table.clone() } else { packs };
+    let weights: Vec<u32> = pool.iter().map(|t| if t.0 == "captive" || t.0 == "eel" { 0 } else { t.1 }).collect();
+    let (kind, _, gmin, gmax) = pool[run.rng.weighted(&weights)];
+    let hero = run.hero.pos;
+    let cands: Vec<Pos> = run
+        .floor
+        .open_tiles()
+        .into_iter()
+        .filter(|p| !run.floor.map.is_visible(*p) && (3..=8).contains(&p.cheb(hero)) && !run.occupied(*p))
+        .collect();
+    if cands.is_empty() {
+        return;
+    }
+    let anchor = *run.rng.pick(&cands);
+    let n = run.rng.range(gmin.max(2), gmax.max(2));
+    for k in 0..n {
+        let pos = if k == 0 {
+            anchor
+        } else {
+            match anchor.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q)) {
+                Some(q) => q,
+                None => continue,
+            }
+        };
+        let id = run.new_id();
+        let depth = run.depth;
+        let mut m = Monster::spawn(id, kind, pos, depth);
+        m.awake = true;
+        m.last_seen = Some(hero);
+        let e = crate::engine::monster_entity(&m, cx.facts);
+        run.monsters.push(m);
+        cx.events.push(Ev::Spawn { t: run.turn, e });
+    }
+    callout(run, cx, "they heard you");
 }
 
 /// The forward clock: every 400 ticks on a floor the alert rises and wanderers arrive,
@@ -661,6 +864,14 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.hurt_since_boss = false;
     run.seen_ids.clear();
     run.last_visible = vec![u32::MAX];
+    run.ignored.clear();
+    run.known_foes.clear();
+    run.rests = 0;
+    run.chase = None;
+    run.recent_pos.clear();
+    run.stuck_until = 0;
+    run.items_until = 0;
+    run.pickup_streak = 0;
     run.gambles.clear();
     run.hero.second_wind_used = false;
     populate_floor(run, cx.grudges, cx.forge);
@@ -727,6 +938,21 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         return;
     }
     if run.hero.inv_full() && !item_replaces_gear(&run.hero, item) {
+        // A full pack swaps its cheapest consumable for a dearer one (a chore, silently).
+        let swap = run.hero.inv.iter().enumerate().filter(|(_, i)| i.is_consumable()).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, i)| (k, i.value()));
+        match swap {
+            Some((k, v)) if item.is_consumable() && item.value() > v => {
+                let dropped = run.hero.inv.remove(k);
+                let here = run.hero.pos;
+                let it = run.items.remove(ii).item;
+                let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
+                run.loot += it.value() - dropped.value();
+                run.hero.inv.push(it);
+                run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
+                cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
+            }
+            _ => {}
+        }
         return;
     }
     let it = run.items.remove(ii).item;
@@ -734,6 +960,15 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
     run.loot += it.value();
     run.hero.auto_equip(it);
     cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
+}
+
+/// Would picking this up change anything (gold, leash, room in the pack, or better gear)?
+pub fn can_take(h: &crate::hero::Hero, item: &Item) -> bool {
+    matches!(item.cat(), Cat::Gold)
+        || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash"))
+        || !h.inv_full()
+        || item_replaces_gear(h, item)
+        || (item.is_consumable() && h.inv.iter().filter(|i| i.is_consumable()).map(|i| i.value()).min().is_some_and(|v| item.value() > v))
 }
 
 fn item_replaces_gear(h: &crate::hero::Hero, item: &Item) -> bool {

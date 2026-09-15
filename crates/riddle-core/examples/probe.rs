@@ -15,14 +15,15 @@ fn main() {
         for u in ["row5", "row6", "row7", "row8"] {
             g.lineage.unlocks.insert(u.into());
         }
-        for k in ["heal", "poison", "teleport", "blink"] {
+        for k in ["heal", "poison", "fire", "teleport", "blink"] {
             if let Some(f) = riddle_core::item::ident_fact(&g.lineage.flavours, k) {
                 g.lineage.facts.insert(f);
             }
         }
-        for f in ["foe:jackal:pack", "foe:bloat:gas", "foe:goblin_archer:ranged"] {
+        for f in ["foe:jackal:pack", "foe:bloat:gas", "foe:goblin_archer:ranged", "foe:goblin_warlord:boss", "foe:bloat_mother:boss", "foe:lich:boss"] {
             g.lineage.facts.insert(f.into());
         }
+        g.lineage.unlocks.insert("throw".into());
         g.set_rules(set.clone()).unwrap();
         g.run_offline(hours * 3600);
         for (d, c) in &g.batch.run_outcomes {

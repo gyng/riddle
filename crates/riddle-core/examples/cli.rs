@@ -27,11 +27,21 @@ fn main() {
             for c in &r.conds {
                 if c.k == "foe_tag" {
                     if let Some(t) = &c.t {
-                        if let Some(m) = riddle_core::defs::MONSTERS.iter().find(|m| m.tags.contains(&t.as_str())) {
+                        for m in riddle_core::defs::MONSTERS.iter().filter(|m| m.tags.contains(&t.as_str())) {
                             game.lineage.facts.insert(format!("foe:{}:{}", m.kind, t));
+                        }
+                        if t == "summoned" {
+                            game.lineage.facts.insert("foe:skeleton:summoned".into());
+                            game.lineage.facts.insert("foe:goblin:summoned".into());
                         }
                     }
                 }
+            }
+            if r.verb.v == "throw" {
+                game.lineage.unlocks.insert("throw".into());
+            }
+            if r.verb.v == "tame" {
+                game.lineage.unlocks.insert("tame".into());
             }
             if let Some(a) = &r.verb.a {
                 if let Some(f) = riddle_core::item::ident_fact(&game.lineage.flavours, a) {
@@ -76,8 +86,17 @@ fn main() {
                 Ev::Note { t, text } => println!("  t{t:<5} {text}"),
                 Ev::Descend { t, depth, biome } => println!("  t{t:<5} ↓ D{depth} {biome}"),
                 Ev::Exit { t, tier, loot_kept } => println!("  t{t:<5} exit {tier} · loot {loot_kept}"),
-                Ev::Rule { t, row, text, .. } if verbose => println!("  t{t:<5} R{} {text}", row + 1),
+                Ev::Rule { t, row, text, .. } if verbose => {
+                    let label = match row {
+                        -1 => "trait".to_string(),
+                        -2 => "chore".to_string(),
+                        r => format!("R{}", r + 1),
+                    };
+                    println!("  t{t:<5} {label:<5} {text}")
+                }
                 Ev::Callout { t, text } if verbose => println!("  t{t:<5} ! {text}"),
+                Ev::Die { t, id, cause } if verbose && *id != 1 => println!("  t{t:<5} † #{id} by {cause}"),
+                Ev::Hurt { t, id, dmg, hp, cause } if verbose && *id != 1 && *hp > 0 => println!("  t{t:<5} · #{id} -{dmg} → {hp} by {cause}"),
                 _ => {}
             }
         }

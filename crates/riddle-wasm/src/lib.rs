@@ -189,6 +189,12 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Insure a vault item against loss on death (25% of salvage value ×10).
+    pub fn insure(&mut self, id: u32) -> Result<String, JsError> {
+        self.inner.insure(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     #[wasm_bindgen(js_name = setKeepPref)]
     pub fn set_keep_pref(&mut self, pref: &str) -> Result<String, JsError> {
         self.inner.set_keep_pref(pref).map_err(err)?;

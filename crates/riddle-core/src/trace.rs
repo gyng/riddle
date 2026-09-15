@@ -82,8 +82,11 @@ fn morgue(game: &Game, run: &Run, rules: &RuleSet) -> String {
 /// The candidate rows: every vocabulary verb under a small set of condition combinations.
 pub fn candidates(vocab: &Vocabulary, state: &Run, facts: &BTreeSet<String>, flavours: &crate::item::Flavours) -> Vec<Row> {
     let known_tags: Vec<String> = vocab.conds.iter().filter(|c| c.k == "foe_tag").filter_map(|c| c.t.clone()).collect();
+    // Every family: consumables / ID policy / escape (hp<N), retreat (foes, adj, hurt),
+    // targeting (foe_tag), and the unconditioned row (which must beat the baseline clearly).
     let mut cond_sets: Vec<Vec<Cond>> = vec![
         vec![],
+        vec![Cond::n("hp<", 20)],
         vec![Cond::n("hp<", 30)],
         vec![Cond::n("hp<", 50)],
         vec![Cond::n("foes>=", 1)],
@@ -92,6 +95,7 @@ pub fn candidates(vocab: &Vocabulary, state: &Run, facts: &BTreeSet<String>, fla
         vec![Cond::n("hp<", 50), Cond::n("foes>=", 2)],
         vec![Cond::n("hp<", 60), Cond::n("adj>=", 1)],
         vec![Cond::flag("on_hurt")],
+        vec![Cond::n("hp<", 40), Cond::flag("on_hurt")],
     ];
     for t in &known_tags {
         cond_sets.push(vec![Cond::t("foe_tag", t)]);
@@ -231,8 +235,16 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
         }
     }
     // Rank by survival; among equals prefer rows that change behaviour least (fewer conds, top).
-    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap().then(a.1.conds.len().cmp(&b.1.conds.len())).then(a.2.cmp(&b.2)));
-    let _ = PATCH_MARGIN;
+    // Rank by how much the row beats the unpatched baseline, then by simplicity.
+    // Ties: a conditioned row (a policy) beats an unconditioned one; then fewer conditions.
+    scored.sort_by(|a, b| {
+        (b.0 - baseline)
+            .partial_cmp(&(a.0 - baseline))
+            .unwrap()
+            .then(a.1.conds.is_empty().cmp(&b.1.conds.is_empty()))
+            .then(a.1.conds.len().cmp(&b.1.conds.len()))
+            .then(a.2.cmp(&b.2))
+    });
     if let Some(best) = scored.first() {
         if best.0 >= SURVIVE_BAR {
             rec.death.verdict = "gap".into();
@@ -250,7 +262,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
                 true
             }
         })
-        .take(6)
+        .take(8)
         .map(|(rate, row, pos)| Patch { row, insert_at: pos, survive: rate, forecast_delta: 0.0 })
         .collect();
 }
@@ -274,8 +286,16 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
         let r = crate::forecast::reach_with(game, &rules, depth, sims, 0xDE17A);
         p.forecast_delta = r - base;
     }
-    // Rank by what the patch does to the forecast, then by survival; keep three.
-    rec.death.patches.sort_by(|a, b| b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap().then(b.survive.partial_cmp(&a.survive).unwrap()));
+    // A patch must beat the baseline by 0.15 or move the forecast by 0.02; an unconditioned row
+    // must beat the baseline by 0.30. Rank by (survive − baseline), then by the delta; keep three.
+    let baseline = rec.death.baseline;
+    rec.death.patches.retain(|p| {
+        let edge = p.survive - baseline;
+        (edge > PATCH_MARGIN || p.forecast_delta > 0.02) && (!p.row.conds.is_empty() || edge >= 0.3)
+    });
+    rec.death.patches.sort_by(|a, b| {
+        (b.survive - baseline).partial_cmp(&(a.survive - baseline)).unwrap().then(b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap())
+    });
     rec.death.patches.truncate(3);
 }
 

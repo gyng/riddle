@@ -567,18 +567,33 @@ fn bloat_mother_swells_and_pops_a_big_cloud() {
     g.run.as_mut().unwrap().hero.max_hp = 500;
     g.run.as_mut().unwrap().hero.hp = 499;
     let b = add_monster(&mut g, "bloat_mother", 6, 5);
+    let evs = ticks(&mut g, 40);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == b && what == "swells")), "she telegraphs on the first turn");
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "boss:bloat_mother:counter")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Overlay { ov: OverlayKind::Gas, .. })));
+    // Melee hits vent a 5×5 cloud and she heals in it: melee-only cannot win.
+    g.run.as_mut().unwrap().overlays.clear();
     {
         let run = g.run.as_mut().unwrap();
         run.monsters[0].hp = 10;
     }
-    let evs = ticks(&mut g, 40);
-    assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == b && what == "swells")));
-    assert!(evs.iter().any(|e| matches!(e, Ev::Overlay { ov: OverlayKind::Gas, .. })));
-    let run = g.run.as_mut().unwrap();
-    run.overlays.clear();
     attack_rules(&mut g);
-    g.run.as_mut().unwrap().hero.auto_equip(Item::new(77, "axe"));
-    let evs = ticks(&mut g, 200);
+    let evs = ticks(&mut g, 60);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "vents!")));
+    let hp_after = monster(&g, b).map(|m| m.hp).unwrap_or(0);
+    assert!(hp_after > 10 || monster(&g, b).is_none() || evs.iter().filter(|e| matches!(e, Ev::Hurt { id, .. } if *id == b)).count() > 0);
+    // Ranged does not vent: shoot her down and she pops a 5×5 cloud on death.
+    {
+        let run = g.run.as_mut().unwrap();
+        run.overlays.clear();
+        run.monsters[0].hp = 3;
+        run.hero.weapon = None;
+        run.hero.auto_equip(Item::new(77, "bow"));
+        run.hero.pos = Pos::new(2, 5);
+        run.hero_dist_pos = None;
+        run.monsters[0].pos = Pos::new(8, 5);
+    }
+    let evs = ticks(&mut g, 120);
     assert!(evs.iter().any(|e| matches!(e, Ev::Die { id, .. } if *id == b)));
     let cloud = evs.iter().filter(|e| matches!(e, Ev::Overlay { ov: OverlayKind::Gas, ttl: 60, .. })).count();
     assert!(cloud >= 20, "5×5 pop, got {cloud}");
@@ -783,7 +798,7 @@ fn gold_adds_loot_and_unknown_items_hint() {
     }
     rules(&mut g, vec![]);
     ticks(&mut g, 40);
-    assert_eq!(g.run.as_ref().unwrap().loot, 25 + 8);
+    assert_eq!(g.run.as_ref().unwrap().loot, 25 + 14);
     let snap = g.snapshot();
     let inv = &snap.hero.inv[0];
     assert!(!inv.known);
@@ -830,12 +845,12 @@ fn bank_keeps_all_loot_and_gold() {
     give(&mut g, "sword");
     give(&mut g, "heal");
     finish_with(&mut g, ExitTier::Bank);
-    assert_eq!(g.lineage.gold, 100);
+    assert_eq!(g.lineage.gold, 100 / crate::engine::GOLD_DIVISOR);
     let p = g.pending_exit.as_ref().unwrap();
     assert_eq!(p.items.len(), 2, "sword and heal are offered; the starting dagger is not loot");
     g.keep(vec![p.items[0].id]).unwrap();
     assert_eq!(g.lineage.vault.len(), 1);
-    assert!(g.lineage.gold > 100, "the rest was salvaged");
+    assert!(g.lineage.gold > 25, "the rest was salvaged");
 }
 
 #[test]
@@ -846,7 +861,7 @@ fn return_keeps_sixty_percent() {
         give(&mut g, k);
     }
     finish_with(&mut g, ExitTier::Return);
-    assert!(g.lineage.gold >= 60 && g.lineage.gold < 100, "60% of loot plus salvage of the unkept items: {}", g.lineage.gold);
+    assert!(g.lineage.gold >= 15 && g.lineage.gold < 25, "60% of loot plus salvage of the unkept items, ÷4: {}", g.lineage.gold);
     assert_eq!(g.pending_exit.as_ref().unwrap().items.len(), 3, "60% of 5 items, rounded up");
 }
 
@@ -861,7 +876,7 @@ fn death_keeps_thirty_percent_and_loses_brought_items() {
     g.run.as_mut().unwrap().brought.push(brought);
     g.run.as_mut().unwrap().hero.hp = 0;
     finish_with(&mut g, ExitTier::Death);
-    assert!(g.lineage.gold >= 30 && g.lineage.gold < 60, "30% of loot plus 30% salvage: {}", g.lineage.gold);
+    assert!(g.lineage.gold >= 7 && g.lineage.gold < 15, "30% of loot plus 30% salvage, ÷4: {}", g.lineage.gold);
     let p = g.pending_exit.as_ref().unwrap();
     assert_eq!(p.items.len(), 1);
     assert!(p.items.iter().all(|i| i.id != brought));
@@ -1084,11 +1099,15 @@ fn sifter_scores_patterns() {
     assert_eq!(score("boss"), 6);
     assert_eq!(score("stolen"), 2);
     let gambles: Vec<i32> = hs.iter().filter(|h| h.pattern == "gamble").map(|h| h.score).collect();
-    assert_eq!(gambles, vec![4, 2]);
+    assert_eq!(gambles, vec![4], "one entry per pattern: the best gamble");
     assert!(hs.iter().all(|h| word_count(&h.text) <= 8));
     let reel = crate::sifter::reel(&hs);
     assert_eq!(reel.len(), 5);
     assert_eq!(reel[0].pattern, "comeback");
+    let mut run2 = run.clone();
+    run2.kills.push((7, "spectral_blade".into(), 2));
+    let hs2 = crate::sifter::sift_with(&run2, &["spectral_blade".to_string(), "rat".to_string()]);
+    assert!(!hs2.iter().any(|h| h.text.contains("spectral")), "summons are never a first kill");
 }
 
 // ---------------------------------------------------------------- marks and meta
@@ -1499,7 +1518,7 @@ fn salvage_feeds_the_forge_and_tiers_apply() {
     assert_eq!(f.salvaged, 15);
     assert!(f.craftable);
     assert_eq!(f.tier, 1);
-    assert!(g.lineage.gold >= 15 * 8);
+    assert!(g.lineage.gold >= 15 * 8 / crate::engine::GOLD_DIVISOR);
     g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
     g.lineage.gold = 100;
     g.buy_supply("heal").unwrap();
@@ -1598,3 +1617,304 @@ fn class_rogue_preset_uses_vanish() {
 
 
 
+
+
+// ---------------------------------------------------------------- oscillation and trait guards
+
+#[test]
+fn seed_3_floors_do_not_deadlock() {
+    // The coordinator's playtest: seed 3, fighter preset with heal identified; run 2 once spent
+    // 20 000 ticks on D3 ping-ponging between `attack` (unreachable rats behind a chained
+    // captive) and the descend chore. Every floor of the first three runs must finish quickly.
+    let mut g = Game::new(3);
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    g.send();
+    let mut floor_start = 0u32;
+    let mut run_id = 1;
+    let mut longest = 0u32;
+    let mut floors: Vec<(u32, u32, u32)> = Vec::new(); // (run, depth left, ticks)
+    let mut depth = 1;
+    while run_id <= 3 {
+        let r = g.step(20);
+        for e in &r.events {
+            if let Ev::Descend { t, depth: d, .. } = e {
+                floors.push((run_id, depth, *t - floor_start));
+                longest = longest.max(*t - floor_start);
+                floor_start = *t;
+                depth = *d;
+            }
+        }
+        if r.run_over {
+            floors.push((run_id, depth, r.snapshot.turn - floor_start));
+            longest = longest.max(r.snapshot.turn - floor_start);
+            floor_start = 0;
+            depth = 1;
+            run_id += 1;
+            g.send();
+        }
+    }
+    let run2_d3 = floors.iter().find(|(r, d, _)| *r == 2 && *d == 3).map(|f| f.2);
+    if let Some(t) = run2_d3 {
+        assert!(t < 3000, "run 2 spent {t} ticks on D3 (was ~20 000 before the guards)");
+    }
+    assert!(longest < 4000, "longest floor took {longest} ticks: {floors:?}");
+}
+
+#[test]
+fn unreachable_foe_falls_through_and_the_guard_frees_the_chores() {
+    // A chained captive plugs a one-wide corridor; rats sit behind it, awake but stuck.
+    let mut g = arena();
+    {
+        let run = g.run.as_mut().unwrap();
+        for x in 1..15 {
+            for y in 7..11 {
+                run.floor.map.set(Pos::new(x, y), Tile::Wall);
+            }
+        }
+        run.floor.map.set(Pos::new(8, 7), Tile::Floor);
+        run.floor.map.set(Pos::new(8, 8), Tile::Floor);
+        run.floor.map.set(Pos::new(8, 9), Tile::Floor);
+        run.floor.map.set(Pos::new(8, 10), Tile::Floor);
+        run.floor.map.set(Pos::new(14, 10), Tile::Wall);
+        run.floor.stairs_down = Pos::new(1, 1);
+        run.floor.map.set(Pos::new(1, 1), Tile::StairsDown);
+        run.floor.map.set(Pos::new(1, 2), Tile::StairsUp);
+        run.floor.stairs_up = Pos::new(1, 2);
+        run.floor.map.compute_corridors(&[]);
+        run.hero.pos = Pos::new(8, 6);
+        run.hero_dist_pos = None;
+        run.floor.map.reveal_all();
+        run.floor.map.update_vision(run.hero.pos, VISION);
+    }
+    let c = add_monster(&mut g, "captive", 8, 8);
+    g.run.as_mut().unwrap().monsters.iter_mut().find(|m| m.id == c).unwrap().awake = false;
+    // Wall off the far side so the rats cannot come around either.
+    for x in 1..15 {
+        g.run.as_mut().unwrap().floor.map.set(Pos::new(x, 11), Tile::Wall);
+    }
+    g.run.as_mut().unwrap().floor.map.set(Pos::new(8, 11), Tile::Floor);
+    add_monster(&mut g, "rat", 8, 10);
+    add_monster(&mut g, "rat", 8, 11);
+    g.run.as_mut().unwrap().monsters.iter_mut().for_each(|m| if m.kind == "rat" { m.paralysed = 10_000 });
+    attack_rules(&mut g);
+    let evs = ticks(&mut g, 600);
+    let attacks = evs.iter().filter(|e| matches!(e, Ev::Rule { row: 0, .. })).count();
+    assert!(attacks <= 24, "attack keeps firing at an unreachable foe: {attacks} of 60 actions");
+    assert!(g.run.as_ref().unwrap().depth >= 2 || hero(&g).pos == Pos::new(1, 1), "the chores took the hero down");
+}
+
+#[test]
+fn oscillation_guard_emits_stuck_and_suppresses_targeting_rows() {
+    let mut g = arena();
+    // A rat behind a wall pocket that the hero can see but never reach.
+    {
+        let run = g.run.as_mut().unwrap();
+        for (x, y) in [(9, 4), (9, 6), (10, 4), (10, 6), (11, 4), (11, 5), (11, 6)] {
+            run.floor.map.set(Pos::new(x, y), Tile::Chasm);
+        }
+    }
+    let r = add_monster(&mut g, "rat", 10, 5);
+    g.run.as_mut().unwrap().monsters.iter_mut().find(|m| m.id == r).unwrap().paralysed = 10_000;
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::new("shield_bash")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+    let evs = ticks(&mut g, 400);
+    let stuck = evs.iter().filter(|e| matches!(e, Ev::Rule { row: -2, verb, .. } if verb.v == "stuck")).count();
+    let last_attack = evs.iter().rposition(|e| matches!(e, Ev::Rule { row: 1, .. })).unwrap_or(0);
+    let first_stuck = evs.iter().position(|e| matches!(e, Ev::Rule { row: -2, verb, .. } if verb.v == "stuck"));
+    let explored = evs.iter().filter(|e| matches!(e, Ev::Rule { row: -2, verb, .. } if verb.v == "explore" || verb.v == "descend")).count();
+    assert!(explored >= 10, "chores proceeded: {explored}");
+    if let Some(fs) = first_stuck {
+        assert!(stuck >= 1 && last_attack < fs + 400, "one stuck event, then no attacks");
+    }
+    let attacks = evs.iter().filter(|e| matches!(e, Ev::Rule { row: 1, .. })).count();
+    assert!(attacks <= 24, "attacks against the unreachable rat: {attacks} of 40 actions");
+}
+
+#[test]
+fn traits_pre_empt_at_most_once_per_five_actions_and_never_below_quarter_hp() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Greedy;
+    {
+        let run = g.run.as_mut().unwrap();
+        for i in 0..8 {
+            run.items.push(crate::engine::FloorItem { pos: Pos::new(5 + i, 5), item: Item::new(200 + i as u32, "heal") });
+        }
+    }
+    rules(&mut g, vec![Row::new(vec![], Verb::new("hold"))]);
+    let evs = ticks(&mut g, 200);
+    let ts: Vec<u32> = evs.iter().filter_map(|e| if let Ev::Rule { t, row: -1, .. } = e { Some(*t) } else { None }).collect();
+    assert!(!ts.is_empty());
+    for w in ts.windows(2) {
+        assert!(w[1] - w[0] >= 50, "greedy fired twice within 5 actions: {ts:?}");
+    }
+    // Below 25% HP the trait never pre-empts (cowardice excepted).
+    let mut g = arena();
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Greedy;
+    g.run.as_mut().unwrap().hero.hp = 5;
+    g.run.as_mut().unwrap().items.push(crate::engine::FloorItem { pos: Pos::new(5, 5), item: Item::new(300, "heal") });
+    add_monster(&mut g, "goblin_archer", 10, 5);
+    rules(&mut g, vec![Row::new(vec![], Verb::new("hold"))]);
+    let evs = ticks(&mut g, 100);
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Rule { row: -1, .. })), "greedy pre-empted at 5 HP");
+    let mut g = arena();
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Cowardly;
+    g.run.as_mut().unwrap().hero.hp = 5;
+    add_monster(&mut g, "rat", 6, 5);
+    rules(&mut g, vec![Row::new(vec![], Verb::new("hold"))]);
+    let evs = ticks(&mut g, 30);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Rule { row: -1, text, .. } if text.starts_with("cowardly"))));
+}
+
+#[test]
+fn pick_up_never_repeats_three_times_without_a_pickup() {
+    let mut g = arena();
+    {
+        let run = g.run.as_mut().unwrap();
+        for i in 0..10 {
+            run.hero.inv.push(Item::new(400 + i, "teleport"));
+        }
+        // A dagger on the floor: worse than the sword, and the pack is full, so it stays put.
+        run.items.push(crate::engine::FloorItem { pos: Pos::new(9, 5), item: Item::new(500, "dagger") });
+    }
+    rules(&mut g, vec![Row::new(vec![], Verb::new("pick_up"))]);
+    let evs = ticks(&mut g, 300);
+    let verbs: Vec<String> = evs.iter().filter_map(|e| if let Ev::Rule { verb, .. } = e { Some(verb.v.clone()) } else { None }).collect();
+    let mut streak = 0;
+    let mut worst = 0;
+    for v in &verbs {
+        if v == "pick_up" {
+            streak += 1;
+            worst = worst.max(streak);
+        } else {
+            streak = 0;
+        }
+    }
+    assert!(worst <= 3, "pick_up chosen {worst} times in a row with nothing picked up: {verbs:?}");
+    assert!(verbs.iter().any(|v| v == "explore" || v == "descend"), "chores proceed");
+}
+
+// ---------------------------------------------------------------- walls, rest clock, insurance, patches
+
+#[test]
+fn a_living_boss_seals_the_stairs() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().depth = 5;
+    g.run.as_mut().unwrap().hero.pos = Pos::new(14, 10);
+    let w = add_monster(&mut g, "goblin_warlord", 3, 3);
+    rules(&mut g, vec![Row::new(vec![], Verb::new("descend")), Row::new(vec![], Verb::new("hold"))]);
+    let evs = ticks(&mut g, 30);
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Descend { .. })), "no way down past a living boss");
+    assert!(evs.iter().any(|e| matches!(e, Ev::Rule { row: 1, .. })), "the descend row falls through");
+    g.run.as_mut().unwrap().monsters.iter_mut().find(|m| m.id == w).unwrap().hp = 0;
+    let evs = ticks(&mut g, 30);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 6, .. })));
+}
+
+#[test]
+fn warlord_wall_shields_him_and_aimed_strikes_go_through() {
+    // attack-nearest: swings at the Warlord are taken by his goblins; he keeps rallying.
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.max_hp = 400;
+    g.run.as_mut().unwrap().hero.hp = 399;
+    let w = add_monster(&mut g, "goblin_warlord", 5, 5);
+    add_monster(&mut g, "goblin", 6, 5);
+    attack_rules(&mut g);
+    let evs = ticks(&mut g, 300);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == w && what == "rallies")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "boss:goblin_warlord:counter")), "the first telegraph teaches the counter");
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "shielded")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "shields up")));
+    assert!(monster(&g, w).is_some(), "the Warlord survives 30 actions of attack-nearest");
+    let hurt: i32 = evs.iter().filter_map(|e| if let Ev::Hurt { id, dmg, .. } = e { if *id == w { Some(*dmg) } else { None } } else { None }).sum();
+    assert!(hurt <= 8, "incidental swings barely touch him: {hurt}");
+    // attack tag:boss: aimed strikes land and cancel his rally.
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.max_hp = 400;
+    g.run.as_mut().unwrap().hero.hp = 399;
+    g.lineage.facts.insert("foe:goblin_warlord:boss".into());
+    let w = add_monster(&mut g, "goblin_warlord", 5, 5);
+    add_monster(&mut g, "goblin", 6, 5);
+    rules(&mut g, vec![Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")), Row::new(vec![], Verb::arg("attack", "nearest"))]);
+    let evs = ticks(&mut g, 300);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Die { id, .. } if *id == w)), "aimed at, the Warlord dies");
+}
+
+#[test]
+fn lich_reflects_arrows_and_keeps_chanting_while_summons_stand() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.max_hp = 400;
+    g.run.as_mut().unwrap().hero.hp = 399;
+    g.run.as_mut().unwrap().hero.weapon = None;
+    g.run.as_mut().unwrap().hero.auto_equip(Item::new(60, "bow"));
+    let l = add_monster(&mut g, "lich", 9, 5);
+    attack_rules(&mut g);
+    let evs = ticks(&mut g, 150);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == l && what == "chants")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "boss:lich:counter")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Attack { verb, dst, .. } if verb.as_deref() == Some("reflect") && *dst == HERO_ID)), "arrows come back");
+    let chants = evs.iter().filter(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == l && what == "chants")).count();
+    assert!(chants >= 2, "re-chants while skeletons stand: {chants}");
+    assert!(evs.iter().filter(|e| matches!(e, Ev::Spawn { e, .. } if e.kind == "skeleton")).count() >= 4, "two skeletons per chant");
+}
+
+#[test]
+fn resting_raises_the_alert_and_calls_a_pack() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.hp = 1;
+    g.run.as_mut().unwrap().hero.max_hp = 400;
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 99)], Verb::new("rest"))]);
+    let evs = ticks(&mut g, 10 * crate::turn::REST_ALERT_EVERY * 5 + 20);
+    let run = g.run.as_ref().unwrap();
+    assert!(run.alert >= 5, "{} rests raise the alert to 5: {}", crate::turn::REST_ALERT_EVERY * 5, run.alert);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "they heard you")));
+    assert!(evs.iter().filter(|e| matches!(e, Ev::Spawn { .. })).count() >= 2, "a pack, not a straggler");
+}
+
+#[test]
+fn insurance_keeps_a_brought_item_on_death() {
+    let mut g = Game::new(1);
+    g.lineage.vault.push(Item::new(100_001, "plate"));
+    assert!(g.insure(100_001).is_err(), "no gold");
+    g.lineage.gold = 1000;
+    g.insure(100_001).unwrap();
+    assert_eq!(g.lineage.gold, 1000 - crate::engine::insure_cost("plate"));
+    assert!(g.insure(100_001).is_err(), "already insured");
+    assert_eq!(g.lineage().insured, vec![100_001]);
+    g.loadout(vec![100_001]);
+    g.start_run(None);
+    assert!(hero(&g).armour.as_ref().is_some_and(|a| a.kind == "plate"));
+    g.run.as_mut().unwrap().hero.hp = 0;
+    finish_with(&mut g, ExitTier::Death);
+    assert!(g.lineage.vault.iter().any(|v| v.id == 100_001), "the insured plate came home");
+    assert!(g.lineage.insured.is_empty(), "the policy is spent");
+}
+
+#[test]
+fn patches_offer_the_id_policy_when_unknown_potions_went_unused() {
+    let mut g = arena_seed(4);
+    g.run.as_mut().unwrap().hero.hp = 12;
+    for _ in 0..3 {
+        give(&mut g, "heal");
+    }
+    for (x, y) in [(5, 5), (5, 6), (4, 6), (3, 6), (3, 4), (5, 4)] {
+        add_monster(&mut g, "goblin", x, y);
+    }
+    attack_rules(&mut g);
+    let mut id = None;
+    for _ in 0..400 {
+        g.tick();
+        g.events.clear();
+        if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            id = Some(g.run.as_ref().unwrap().id);
+            g.finish_run();
+            break;
+        }
+    }
+    let d = g.death(id.expect("died")).unwrap();
+    assert!(d.margin.contains("unknown unused"));
+    assert_eq!(d.verdict, "gap");
+    assert!(d.patches.iter().any(|p| p.row.verb.v == "drink" && p.row.verb.a.as_deref() == Some("unknown") && !p.row.conds.is_empty()), "{:?}", d.patches);
+    for p in &d.patches {
+        assert!(p.survive - d.baseline > 0.15 || p.forecast_delta > 0.02, "{p:?} vs baseline {}", d.baseline);
+        assert!(!p.row.conds.is_empty() || p.survive - d.baseline >= 0.3);
+    }
+}

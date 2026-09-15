@@ -31,13 +31,43 @@ pub fn good() -> RuleSet {
         name: Some("good".into()),
         rows: vec![
             Row::new(vec![Cond::n("hp<", 35)], Verb::arg("drink", "heal")),
-            Row::new(vec![Cond::t("foe_tag", "ranged")], Verb::arg("attack", "tag:ranged")),
+            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "fire,tag:boss")),
+            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "poison,tag:boss")),
+            Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")),
             Row::new(vec![Cond::n("foes>=", 3), Cond::n("hp<", 70)], Verb::new("back_corridor")),
-            Row::new(vec![Cond::t("foe_tag", "gas"), Cond::n("adj>=", 1)], Verb::new("retreat")),
             Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
             Row::new(vec![Cond::n("hp<", 90), Cond::n("foes>=", 0)], Verb::new("rest")),
-            Row::new(vec![Cond::flag("unknown_item"), Cond::n("hp>", 60)], Verb::arg("drink", "unknown")),
             Row::new(vec![Cond::n("floor_seen>=", 60)], Verb::new("descend")),
+        ],
+    }
+}
+
+/// The four-row set from the browser playtest that once reached the ending (TRIVIAL bot).
+pub fn trivial() -> RuleSet {
+    RuleSet {
+        name: Some("trivial".into()),
+        rows: vec![
+            Row::new(vec![], Verb::arg("tame", "nearest")),
+            Row::new(vec![Cond::n("hp<", 50), Cond::n("foes>=", 1)], Verb::new("retreat")),
+            Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest")),
+            Row::new(vec![], Verb::arg("attack", "nearest")),
+        ],
+    }
+}
+
+/// TRIVIAL plus the boss counters: range for the Bloat Mother, the Warlord himself, the
+/// Lich's summons first (COUNTERED bot).
+pub fn countered() -> RuleSet {
+    RuleSet {
+        name: Some("countered".into()),
+        rows: vec![
+            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "fire,tag:boss")),
+            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "poison,tag:boss")),
+            Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")),
+            Row::new(vec![], Verb::arg("tame", "nearest")),
+            Row::new(vec![Cond::n("hp<", 50), Cond::n("foes>=", 1)], Verb::new("retreat")),
+            Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest")),
+            Row::new(vec![], Verb::arg("attack", "nearest")),
         ],
     }
 }

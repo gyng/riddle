@@ -17,9 +17,11 @@ enum Bot {
     Learned,
     Pets,
     Levelled,
+    Trivial,
+    Countered,
 }
 
-const BOTS: [Bot; 7] = [Bot::Default, Bot::Edited, Bot::Random, Bot::Passive, Bot::Learned, Bot::Pets, Bot::Levelled];
+const BOTS: [Bot; 9] = [Bot::Default, Bot::Edited, Bot::Random, Bot::Passive, Bot::Learned, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered];
 
 impl Bot {
     fn name(self) -> &'static str {
@@ -31,6 +33,8 @@ impl Bot {
             Bot::Learned => "LEARNED",
             Bot::Pets => "PETS",
             Bot::Levelled => "LEVELLED",
+            Bot::Trivial => "TRIVIAL",
+            Bot::Countered => "COUNTERED",
         }
     }
 }
@@ -47,6 +51,7 @@ struct SeedResult {
     ticks: u32,
     known_to_ok: bool,
     runs: u32,
+    run_ticks: Vec<u32>,
 }
 
 fn good() -> RuleSet {
@@ -64,14 +69,15 @@ fn setup(bot: Bot, seed: u64) -> Game {
                 g.lineage.unlocks.insert(u.into());
             }
             // The vocabulary a player has after identifying the common items.
-            for k in ["heal", "poison", "teleport", "blink"] {
+            for k in ["heal", "poison", "fire", "teleport", "blink"] {
                 if let Some(f) = riddle_core::item::ident_fact(&g.lineage.flavours, k) {
                     g.lineage.facts.insert(f);
                 }
             }
-            g.lineage.facts.insert("foe:jackal:pack".into());
-            g.lineage.facts.insert("foe:bloat:gas".into());
-            g.lineage.facts.insert("foe:goblin_archer:ranged".into());
+            for f in ["foe:jackal:pack", "foe:bloat:gas", "foe:goblin_archer:ranged", "foe:goblin_warlord:boss", "foe:bloat_mother:boss", "foe:lich:boss"] {
+                g.lineage.facts.insert(f.into());
+            }
+            g.lineage.unlocks.insert("throw".into());
             g.set_rules(good()).expect("good rules");
         }
         Bot::Random => {
@@ -93,6 +99,23 @@ fn setup(bot: Bot, seed: u64) -> Game {
         Bot::Levelled => {
             g.lineage.classes.insert(Class::Fighter.name().into(), riddle_core::wire::ClassProg { level: 10, xp: 0 });
         }
+        Bot::Trivial | Bot::Countered => {
+            for u in ["row5", "row6", "row7", "row8", "tame", "throw"] {
+                g.lineage.unlocks.insert(u.into());
+            }
+            g.lineage.facts.insert("item:leash".into());
+            if bot == Bot::Countered {
+                for k in ["fire", "poison"] {
+                    if let Some(f) = riddle_core::item::ident_fact(&g.lineage.flavours, k) {
+                        g.lineage.facts.insert(f);
+                    }
+                }
+                for f in ["foe:goblin_warlord:boss", "foe:bloat_mother:boss", "foe:lich:boss", "foe:skeleton:summoned"] {
+                    g.lineage.facts.insert(f.into());
+                }
+            }
+            g.set_rules(if bot == Bot::Trivial { riddle_core::probes::trivial() } else { riddle_core::probes::countered() }).unwrap();
+        }
     }
     g
 }
@@ -109,6 +132,7 @@ fn run_seed(bot: Bot, seed: u64, hours: u64) -> SeedResult {
         runs: report.runs,
         ..Default::default()
     };
+    r.run_ticks = g.batch.run_ticks.clone();
     for (d, c) in &g.batch.run_outcomes {
         r.run_depths.push(*d);
         if let Some(c) = c {
@@ -185,6 +209,14 @@ fn main() {
         let cells: Vec<String> = (1..=12).map(|d| format!("D{d} {:>4.1}", pct(depths.iter().filter(|x| **x >= d).count(), n))).collect();
         println!("{:<9} {}", bot.name(), cells.join(" │ "));
     }
+    println!("\nrun length (ticks): p10 / median / p90 / max, share in 1800–4800");
+    for bot in [Bot::Default, Bot::Edited, Bot::Learned, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered] {
+        let mut t: Vec<u32> = per_bot(bot).iter().flat_map(|r| r.run_ticks.iter().copied()).collect();
+        t.sort();
+        let q = |f: f64| t.get(((t.len() as f64 - 1.0) * f) as usize).copied().unwrap_or(0);
+        let band = pct(t.iter().filter(|x| (1800..=4800).contains(*x)).count(), t.len());
+        println!("{:<9} {:>6} / {:>6} / {:>6} / {:>6}   {band:.0}%", bot.name(), q(0.1), q(0.5), q(0.9), t.last().copied().unwrap_or(0));
+    }
     let default = per_bot(Bot::Default);
     let edited = per_bot(Bot::Edited);
     let d_le6 = pct(default.iter().filter(|r| r.best_depth <= 6).count(), ns);
@@ -212,6 +244,12 @@ fn main() {
     let lev = per_bot(Bot::Levelled);
     let lev_le9 = pct(lev.iter().filter(|r| r.best_depth <= 9).count(), ns);
     rows.push(("LEVELLED dies by ≤ D9 ≥ 80% of seeds".into(), format!("{lev_le9:.0}%"), lev_le9 >= 80.0));
+    let triv = per_bot(Bot::Trivial);
+    let triv_le5 = pct(triv.iter().filter(|r| r.best_depth <= 5).count(), ns);
+    rows.push(("TRIVIAL never passes D5 ≥ 90% of seeds".into(), format!("{triv_le5:.0}%"), triv_le5 >= 90.0));
+    let ctr = per_bot(Bot::Countered);
+    let ctr_ge11 = pct(ctr.iter().filter(|r| r.best_depth >= 11).count(), ns);
+    rows.push(("COUNTERED reaches ≥ D11 ≥ 50% of seeds".into(), format!("{ctr_ge11:.0}%"), ctr_ge11 >= 50.0));
     // Verdicts and causes across bots.
     let all: Vec<&SeedResult> = BOTS.iter().flat_map(|b| per_bot(*b)).collect();
     let verdicts: Vec<&String> = all.iter().flat_map(|r| r.verdicts.iter()).collect();
@@ -271,7 +309,7 @@ fn main() {
     let known_ok = all.iter().all(|r| r.known_to_ok);
     rows.push(("Forecast known_to == best_depth + 1".into(), if known_ok { "all".into() } else { "violated".into() }, known_ok));
     // Player-shaped lineages only: LEARNED knows everything by construction, RANDOM/PASSIVE are probes.
-    let player_bots: Vec<&SeedResult> = [Bot::Default, Bot::Edited, Bot::Pets, Bot::Levelled].iter().flat_map(|b| per_bot(*b)).collect();
+    let player_bots: Vec<&SeedResult> = [Bot::Default, Bot::Edited, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered].iter().flat_map(|b| per_bot(*b)).collect();
     let off_ok = player_bots.iter().all(|r| r.learned >= 1 && r.pending >= 1);
     let off_min = player_bots.iter().map(|r| r.learned.min(r.pending)).min().unwrap_or(0);
     rows.push((format!("Offline {hours} h: learned ≥ 1 and pending ≥ 1 every seed"), format!("min {off_min}"), off_ok));

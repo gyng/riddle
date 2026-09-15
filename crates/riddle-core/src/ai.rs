@@ -46,12 +46,12 @@ fn hero_bfs(run: &Run) -> (Vec<i32>, Vec<i32>) {
     hero_bfs_water(run, true)
 }
 
+/// Chores and approaches path through monsters (a hostile on the first step simply stops the
+/// step; the rules decide what to do about it). Paths never depend on what is in view, so
+/// explore and descend cannot disagree about which corridor is open.
 fn hero_bfs_water(run: &Run, avoid_water: bool) -> (Vec<i32>, Vec<i32>) {
     let map = &run.floor.map;
-    map.bfs_parent(run.hero.pos, true, &|p| {
-        (avoid_water && map.get(p) == Tile::Water && p != run.hero.pos)
-            || run.monster_at(p).is_some_and(|mi| run.monsters[mi].hostile() && map.is_visible(run.monsters[mi].pos))
-    })
+    map.bfs_parent(run.hero.pos, true, &|p| avoid_water && map.get(p) == Tile::Water && p != run.hero.pos)
 }
 
 /// A path step toward `goal`, avoiding water when possible.
@@ -118,6 +118,11 @@ fn is_frontier(run: &Run, p: Pos) -> bool {
     })
 }
 
+/// The nearest frontier and the first step toward it (diagnostics).
+pub fn frontier_target(run: &Run) -> Option<(Pos, Option<Pos>)> {
+    nearest_tile(run, &|p| is_frontier(run, p)).map(|(goal, parent)| (goal, run.floor.map.first_step(&parent, run.hero.pos, goal)))
+}
+
 /// Explore toward the nearest frontier. Returns false when the floor is fully explored.
 pub fn explore_step(run: &mut Run, cx: &mut Ctx) -> bool {
     if let Some((goal, parent)) = nearest_tile(run, &|p| is_frontier(run, p)) {
@@ -130,7 +135,7 @@ fn nearest_item_step(run: &mut Run, cx: &mut Ctx, only_adjacent_free: bool) -> b
     let cands: Vec<Pos> = run
         .items
         .iter()
-        .filter(|fi| run.floor.map.is_seen(fi.pos) && !(run.hero.inv_full() && fi.item.cat() != Cat::Gold))
+        .filter(|fi| run.floor.map.is_seen(fi.pos) && crate::turn::can_take(&run.hero, &fi.item))
         .map(|fi| fi.pos)
         .collect();
     if cands.is_empty() {
@@ -145,6 +150,38 @@ fn nearest_item_step(run: &mut Run, cx: &mut Ctx, only_adjacent_free: bool) -> b
 
 fn in_hazard(run: &Run, p: Pos) -> bool {
     run.overlays.iter().any(|o| o.x == p.x && o.y == p.y)
+}
+
+/// Path to the stairs or the nearest frontier ignoring foes (used once the hero has idled);
+/// swaps past friends, stops before hostiles.
+fn push_through(run: &mut Run, cx: &mut Ctx) -> Option<Verb> {
+    let map = &run.floor.map;
+    let hp = run.hero.pos;
+    let (dist, parent) = map.bfs_parent(hp, true, &|_| false);
+    let stairs = run.floor.stairs_down;
+    let mut goal: Option<(i32, Pos, &str)> = None;
+    if map.is_seen(stairs) && dist[map.idx(stairs)] > 0 && !stairs_sealed(run) {
+        goal = Some((dist[map.idx(stairs)], stairs, "descend"));
+    }
+    for (i, d) in dist.iter().enumerate() {
+        if *d <= 0 {
+            continue;
+        }
+        let p = map.pos(i);
+        if is_frontier(run, p) && goal.is_none_or(|(gd, _, _)| *d < gd) {
+            goal = Some((*d, p, "explore"));
+        }
+    }
+    let (_, goal, verb) = goal?;
+    let q = map.first_step(&parent, hp, goal)?;
+    if run.monster_at(q).is_some_and(|mi| run.monsters[mi].hostile()) {
+        // A hostile in the way is the rules' business, not the chores'.
+        return None;
+    }
+    if step_towards(run, cx, goal, &parent) {
+        return Some(Verb::new(verb));
+    }
+    None
 }
 
 /// Step out of gas or fire if standing in it and a clear tile is adjacent.
@@ -172,7 +209,7 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     if escape_hazard(run, cx, v) {
         return Verb::new("explore");
     }
-    if v.adj == 0 && nearest_item_step(run, cx, false) {
+    if v.adj == 0 && !run.items_ignored() && nearest_item_step(run, cx, false) {
         return Verb::new("pick_up");
     }
     if explore_step(run, cx) {
@@ -181,8 +218,15 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     if descend_step(run, cx) {
         return Verb::new("descend");
     }
-    if nearest_item_step(run, cx, false) {
+    if !run.items_ignored() && nearest_item_step(run, cx, false) {
         return Verb::new("pick_up");
+    }
+    // Everything is walled off by foes for a while: path through them and bump whoever
+    // stands in the way (a deadlock breaker, not a fighting style).
+    if run.idle_actions >= 6 {
+        if let Some(verb) = push_through(run, cx) {
+            return verb;
+        }
     }
     // Nothing to do: after 20 idle actions, shuffle so a blocked hero does not idle forever.
     run.idle_actions += 1;
@@ -194,7 +238,15 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     Verb::new("wait")
 }
 
+/// A living boss seals the way down: the wall is impassable until the policy beats it.
+pub fn stairs_sealed(run: &Run) -> bool {
+    run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.is_boss())
+}
+
 fn descend_step(run: &mut Run, cx: &mut Ctx) -> bool {
+    if stairs_sealed(run) {
+        return false;
+    }
     let s = run.floor.stairs_down;
     if run.hero.pos == s {
         descend(run, cx);
@@ -296,7 +348,9 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
         }
         "shadowstep" => class_has_verb(run.hero.class, run.hero.level, "shadowstep") && verb_shadowstep(run, cx, v),
         "descend" => {
-            if run.hero.pos == run.floor.stairs_down {
+            if stairs_sealed(run) {
+                false
+            } else if run.hero.pos == run.floor.stairs_down {
                 descend(run, cx);
                 true
             } else if descend_step(run, cx) {
@@ -322,12 +376,13 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
         "rest" => {
             if run.hero.hp < run.hero.max_hp && v.foes.is_empty() && run.hero.poison.1 == 0 && !in_hazard(run, run.hero.pos) {
                 run.hero.hp = (run.hero.hp + 4).min(run.hero.max_hp);
+                crate::turn::rest_clock(run, cx);
                 true
             } else {
                 false
             }
         }
-        "pick_up" => nearest_item_step(run, cx, false),
+        "pick_up" => !run.items_ignored() && nearest_item_step(run, cx, false),
         "free_captive" => verb_free_captive(run, cx),
         "vanish" => {
             if class_has_verb(run.hero.class, run.hero.level, "vanish") && run.hero.vanish_cd == 0 && !v.foes.is_empty() {
@@ -369,7 +424,12 @@ fn pick_target(run: &Run, a: &str, v: &View) -> Option<usize> {
             let tagged = |i: &usize| run.monsters[*i].has_tag(t);
             v.foes.iter().copied().filter(ok).filter(tagged).find(adjacent).or_else(|| v.foes.iter().copied().filter(ok).find(tagged))
         }
-        _ => v.foes.iter().copied().filter(ok).find(adjacent).or_else(|| v.foes.iter().copied().find(ok)),
+        _ => {
+            // Nearest: adjacent first; among those the boss comes last (its guards are the
+            // wall; the boss is a deliberate target via `tag:boss`).
+            let key = |i: &usize| (!adjacent(i), run.monsters[*i].is_boss(), run.monsters[*i].pos.cheb(hp), run.monsters[*i].id);
+            v.foes.iter().copied().filter(ok).min_by_key(key)
+        }
     }
 }
 
@@ -378,8 +438,38 @@ fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bo
     let hp = run.hero.pos;
     let mp = run.monsters[mi].pos;
     if mp.adjacent(hp) {
+        run.chase = None;
+        // An aimed strike (`attack tag:boss`) or a bash goes through the Warlord's guards.
+        run.aimed = a == "tag:boss" || bash;
         hero_attack(run, cx, mi, if bash { "shield_bash" } else { "attack" }, bash);
+        run.aimed = false;
         return true;
+    }
+    // Chase progress: three approaches without closing the distance and the target is
+    // given up on for 30 actions (the row falls through).
+    let id = run.monsters[mi].id;
+    let d = mp.cheb(hp);
+    let boss = run.monsters[mi].is_boss();
+    let stalled = match run.chase {
+        Some((cid, last, n)) if cid == id => {
+            if d < last {
+                run.chase = Some((id, d, 0));
+                false
+            } else {
+                run.chase = Some((id, last.min(d), n + 1));
+                n + 1 >= 3
+            }
+        }
+        _ => {
+            run.chase = Some((id, d, 0));
+            false
+        }
+    };
+    if stalled && !boss {
+        // A boss is always worth the chase; anything else that will not close is given up on.
+        run.ignore(id, 30);
+        run.chase = None;
+        return false;
     }
     if bash {
         return false;
@@ -405,17 +495,41 @@ fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bo
         run.hold_dist = -1;
         run.hold_streak = 0;
     }
-    // Approach: path to a tile adjacent to the target.
-    let (dist, parent) = hero_bfs(run);
+    // Approach: path to a tile adjacent to the target, around other monsters if there is a
+    // way, otherwise straight through whoever stands in the way.
+    let around = {
+        let map = &run.floor.map;
+        map.bfs_parent(run.hero.pos, true, &|p| run.monster_at(p).is_some_and(|k| k != mi && run.monsters[k].hostile()))
+    };
+    let (dist, parent) = {
+        let map = &run.floor.map;
+        let reachable = mp.neighbours8().into_iter().any(|q| map.in_bounds(q) && around.0[map.idx(q)] > 0 && !run.occupied(q));
+        if reachable {
+            around
+        } else {
+            hero_bfs(run)
+        }
+    };
     let map = &run.floor.map;
     let goal = mp
         .neighbours8()
         .into_iter()
-        .filter(|q| map.in_bounds(*q) && dist[map.idx(*q)] >= 0)
+        .filter(|q| map.in_bounds(*q) && dist[map.idx(*q)] >= 0 && (!run.occupied(*q) || *q == hp))
         .min_by_key(|q| (dist[map.idx(*q)], q.x, q.y));
     match goal {
         Some(g) if g == hp => false,
-        Some(g) => step_towards(run, cx, g, &parent),
+        Some(g) => {
+            // Something hostile on the first step (a guard in the way)? Cut through it.
+            if let Some(q) = run.floor.map.first_step(&parent, hp, g) {
+                if let Some(bi) = run.monster_at(q) {
+                    if run.monsters[bi].hostile() {
+                        hero_attack(run, cx, bi, "attack", false);
+                        return true;
+                    }
+                }
+            }
+            step_towards(run, cx, g, &parent)
+        }
         None => {
             // No known path: close in greedily along the line of sight.
             let q = DIRS8
@@ -428,7 +542,12 @@ fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bo
                     move_hero(run, cx, q);
                     true
                 }
-                _ => false,
+                _ => {
+                    // Unreachable: give up on it for a while.
+                    run.ignore(id, 30);
+                    run.chase = None;
+                    false
+                }
             }
         }
     }
@@ -447,6 +566,17 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
     if verb == "shoot" {
         let (from, to) = (run.hero.pos, run.monsters[mi].pos);
         projectile(run, cx, HERO_ID, id, from, to);
+        if run.monsters[mi].has_tag("reflect") {
+            // The arrow comes back.
+            let kind = run.monsters[mi].kind.clone();
+            cx.events.push(Ev::Attack { t: run.turn, src: id, dst: HERO_ID, dmg, hit, verb: Some("reflect".into()) });
+            learn_tag(run, cx, &kind, "reflect");
+            callout(run, cx, "reflected!");
+            if hit {
+                damage_hero(run, cx, dmg, &Src::Mon(mi));
+            }
+            return;
+        }
     }
     cx.events.push(Ev::Attack { t: run.turn, src: HERO_ID, dst: id, dmg, hit, verb: Some(verb.into()) });
     if verb != "shoot" {
@@ -456,6 +586,10 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
         run.hero.bash_cd = 50;
     }
     if hit {
+        if bash || (run.monsters[mi].kind == "goblin_warlord" && run.aimed) {
+            run.monsters[mi].pending = None;
+            run.monsters[mi].telegraph = None;
+        }
         if bash {
             run.monsters[mi].stun = 10;
             callout(run, cx, "bash");
@@ -783,11 +917,14 @@ fn verb_throw(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
     let victim = if reflected { None } else { Some(mi) };
     let outcome = match pkind.as_str() {
         "poison" => {
+            // Stacks: each dose is another 8 over 40 ticks.
             let p = (2 * boost / 100, 40);
             if let Some(m) = victim {
-                run.monsters[m].poison = p;
+                let cur = run.monsters[m].poison;
+                run.monsters[m].poison = (p.0.max(cur.0), cur.1 + p.1);
             } else {
-                run.hero.poison = p;
+                let cur = run.hero.poison;
+                run.hero.poison = (p.0.max(cur.0), cur.1 + p.1);
             }
             "poisoned".into()
         }
@@ -945,7 +1082,7 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             v.adj >= 1 && verb_attack(run, cx, "nearest", v, false)
         }
         "stair_dance" => {
-            let on_stairs = run.hero.pos == run.floor.stairs_down;
+            let on_stairs = run.hero.pos == run.floor.stairs_down && !stairs_sealed(run);
             if on_stairs && foes >= 1 && run.hero.hp_pct() < 50 {
                 descend(run, cx);
                 return true;
@@ -1127,6 +1264,17 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
 fn summon_near(run: &mut Run, cx: &mut Ctx, at: Pos, kind: &str, n: usize, ttl: Option<i32>) -> usize {
     let mut made = 0;
     let mut cands: Vec<Pos> = at.neighbours8().into_iter().filter(|q| run.floor.map.passable(*q) && !run.occupied(*q)).collect();
+    if cands.len() < n {
+        // Crowded: the reserves squeeze in two tiles out.
+        for dy in -2..=2 {
+            for dx in -2..=2 {
+                let q = at.step((dx, dy));
+                if q.cheb(at) == 2 && run.floor.map.passable(q) && !run.occupied(q) {
+                    cands.push(q);
+                }
+            }
+        }
+    }
     for _ in 0..n {
         if cands.is_empty() {
             break;
@@ -1139,6 +1287,9 @@ fn summon_near(run: &mut Run, cx: &mut Ctx, at: Pos, kind: &str, n: usize, ttl: 
         m.last_seen = Some(run.hero.pos);
         m.ttl = ttl;
         m.summoned = true;
+        if !m.has_tag("summoned") {
+            m.extra_tags.push("summoned".into());
+        }
         let e = crate::engine::monster_entity(&m, cx.facts);
         run.monsters.push(m);
         cx.events.push(Ev::Spawn { t: run.turn, e });
@@ -1157,7 +1308,21 @@ fn telegraph(run: &mut Run, cx: &mut Ctx, mi: usize, what: &str, pending: Pendin
         let title = run.monsters[mi].def().title.split_whitespace().last().unwrap_or("foe").to_string();
         callout(run, cx, &format!("{title} {what}"));
         learn_tag(run, cx, &kind, "telegraph");
+        if run.monsters[mi].is_boss() {
+            // Every boss telegraphs its mechanic on the first turn; seeing it is the counter fact.
+            learn(run, cx, format!("boss:{kind}:counter"));
+        }
     }
+}
+
+/// Living summons that belong to a boss (goblins for the Warlord, skeletons for the Lich).
+fn boss_summons(run: &Run, kind: &str) -> usize {
+    let esc = match kind {
+        "goblin_warlord" => "goblin",
+        "lich" => "skeleton",
+        _ => return 0,
+    };
+    run.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && m.summoned && m.kind == esc).count()
 }
 
 fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending) {
@@ -1185,14 +1350,9 @@ fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending) {
         }
         Pending::Rally => {
             summon_near(run, cx, mi_pos(run, mi), "goblin", 2, None);
-            for m in run.monsters.iter_mut() {
-                if m.hostile() && m.kind.starts_with("goblin") && m.pos.cheb(mp) <= VISION {
-                    m.buff_def = (1, 60);
-                }
-            }
+            warlord_buff(run, cx, mi);
             if visible {
                 learn_tag(run, cx, &kind, "summoner");
-                learn_tag(run, cx, &kind, "buffer");
                 callout(run, cx, "rallied!");
             }
         }
@@ -1203,7 +1363,14 @@ fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending) {
             }
         }
         Pending::Chant => {
+            let before = run.monsters.len();
             summon_near(run, cx, mi_pos(run, mi), "skeleton", 2, None);
+            for m in run.monsters[before..].iter_mut() {
+                // Spectral: brittle, but they keep coming while any stand.
+                m.max_hp = 4;
+                m.hp = 4;
+                m.def = 0;
+            }
             if visible {
                 learn_tag(run, cx, &kind, "summoner");
                 callout(run, cx, "skeletons!");
@@ -1212,6 +1379,22 @@ fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending) {
     }
     if run.monsters[mi].is_boss() && run.over.is_none() && visible {
         learn(run, cx, format!("boss:{kind}:counter"));
+    }
+}
+
+/// Shield-buff: +2 def for 30 ticks to every goblin in the Warlord's view.
+fn warlord_buff(run: &mut Run, cx: &mut Ctx, mi: usize) {
+    let mp = run.monsters[mi].pos;
+    let mut any = false;
+    for m in run.monsters.iter_mut() {
+        if m.hostile() && m.kind == "goblin" && m.pos.cheb(mp) <= VISION {
+            m.buff_def = (1, 30);
+            any = true;
+        }
+    }
+    if any && run.floor.map.is_visible(mp) {
+        learn_tag(run, cx, "goblin_warlord", "buffer");
+        callout(run, cx, "shields up");
     }
 }
 
@@ -1345,18 +1528,35 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
                 approach(run, cx, mi);
             }
         }
+        // The Warlord is a wall of goblins: whenever no goblin stands beside him he rallies two
+        // more, and every 30 ticks he shield-buffs the goblins in view. Attrition beats
+        // attack-nearest; the counter is to go for him (`attack tag:boss`) or stun him.
         "goblin_warlord" => {
-            if sees && cooldown == 0 {
-                telegraph(run, cx, mi, "rallies", Pending::Rally);
-                run.monsters[mi].cooldown = 150;
+            let guards = run.monsters.iter().filter(|o| o.hp > 0 && o.hostile() && o.kind == "goblin" && o.pos.adjacent(mp)).count();
+            let in_view = run.monsters.iter().filter(|o| o.hp > 0 && o.hostile() && o.kind == "goblin" && o.pos.cheb(mp) <= VISION).count();
+            let hurt = run.monsters[mi].hurt_since_action;
+            run.monsters[mi].hurt_since_action = false;
+            if ((sees && guards < 2) || hurt) && in_view < 4 {
+                if guards == 0 && boss_summons(run, "goblin_warlord") > 0 {
+                    // Caught unguarded after the first rally: the reserves are already
+                    // there, they step in at once (no window for incidental swings).
+                    resolve_pending(run, cx, mi, Pending::Rally);
+                } else {
+                    telegraph(run, cx, mi, "rallies", Pending::Rally);
+                }
+            } else if sees && cooldown == 0 {
+                warlord_buff(run, cx, mi);
+                run.monsters[mi].cooldown = 30;
             } else if adjacent {
                 monster_attack(run, cx, mi, 1, "attack");
-            } else {
+            } else if dist > 3 {
                 chase(run, cx, mi, sees);
             }
         }
+        // The Bloat Mother vents a 5×5 cloud on every melee hit she takes and heals in gas:
+        // melee-only sets choke. The counter is range (bow, thrown potions).
         "bloat_mother" => {
-            if sees && cooldown == 0 && dist <= 3 && m_hp * 2 <= m_max {
+            if sees && m_hp == m_max && cooldown == 0 {
                 telegraph(run, cx, mi, "swells", Pending::Swell);
                 run.monsters[mi].cooldown = 80;
             } else if adjacent {
@@ -1365,17 +1565,20 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
                 chase(run, cx, mi, sees);
             }
         }
+        // The Lich reflects anything ranged and, while any of its skeletons stand, chants two
+        // more every 60 ticks. The counter is to melee the summons down, then the Lich.
         "lich" => {
+            let summons = boss_summons(run, "lich");
             if sees && cooldown == 0 {
                 telegraph(run, cx, mi, "chants", Pending::Chant);
-                run.monsters[mi].cooldown = 90;
+                run.monsters[mi].cooldown = if summons > 0 { 60 } else { 100 };
             } else if adjacent {
                 monster_attack(run, cx, mi, 1, "attack");
                 if run.over.is_none() && run.hero.max_hp > 5 {
                     run.hero.max_hp -= 1;
                     run.hero.hp = run.hero.hp.min(run.hero.max_hp);
                 }
-            } else {
+            } else if summons == 0 || dist > 4 {
                 chase(run, cx, mi, sees);
             }
         }
@@ -1801,6 +2004,8 @@ fn verb_taunt(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     for &i in &v.foes {
         run.monsters[i].awake = true;
         run.monsters[i].last_seen = Some(hp);
+        run.monsters[i].pending = None;
+        run.monsters[i].telegraph = None;
     }
     run.taunt_t = 30;
     callout(run, cx, "taunt");

@@ -338,6 +338,7 @@ pub struct Lineage {
     pub renown: u32,
     pub rank: u32,
     pub keep_pref: String,
+    pub insured: Vec<u32>,
 }
 
 /// Supply catalogue entry (Addendum B).

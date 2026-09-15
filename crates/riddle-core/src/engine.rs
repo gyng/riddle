@@ -18,11 +18,14 @@ pub const HERO_ID: u32 = 1;
 /// History entries kept for verdict replays (one per 10 ticks ⇒ ≈ 100 ticks back).
 pub const HISTORY_TURNS: usize = 10;
 pub const HISTORY_STRIDE: u32 = 10;
-pub const MAX_TURNS_PER_RUN: u32 = 60_000;
+/// A run that cannot finish in this many ticks (≈ 33 min at 1×) comes home with 60%.
+pub const MAX_TURNS_PER_RUN: u32 = 20_000;
 /// Energy needed to act; actors gain `speed` per tick.
 pub const ACT_ENERGY: i32 = 100;
 pub const TICKS_PER_TURN: u32 = 10;
 pub const MAX_LEVEL: u32 = 10;
+/// Gold from loot and salvage is divided by this (Addendum B/D economy pass).
+pub const GOLD_DIVISOR: i32 = 4;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -136,6 +139,48 @@ pub struct Run {
     pub hold_dist: i32,
     #[serde(default)]
     pub hold_streak: u32,
+    /// Hero actions taken this run (the clock for the guards below).
+    #[serde(default)]
+    pub actions: u32,
+    /// Foes the hero has given up on: id → action at which they may be engaged again.
+    #[serde(default)]
+    pub ignored: BTreeMap<u32, u32>,
+    /// Chase progress: (target id, last distance, attempts without closing).
+    #[serde(default)]
+    pub chase: Option<(u32, i32, u32)>,
+    /// Last 12 hero positions and the action of the last damage dealt or taken.
+    #[serde(default)]
+    pub recent_pos: Vec<Pos>,
+    #[serde(default)]
+    pub last_damage_action: u32,
+    /// Oscillation guard: rows that target foes are suppressed until this action.
+    #[serde(default)]
+    pub stuck_until: u32,
+    /// Trait pre-emption clock: the action of the last trait deviation.
+    #[serde(default)]
+    pub trait_last: Option<u32>,
+    /// Consecutive pick_up choices and the inventory size when they started.
+    #[serde(default)]
+    pub pickup_streak: u32,
+    #[serde(default)]
+    pub pickup_inv: usize,
+    #[serde(default)]
+    pub items_until: u32,
+    /// Where hostiles were last seen (id → position, action), so pathing does not flip
+    /// between "blocked" and "open" as a corridor foe drifts in and out of view.
+    #[serde(default)]
+    pub known_foes: BTreeMap<u32, (Pos, u32)>,
+    /// Same-row loop guard: (row, consecutive firings) and the row suppressed until an action.
+    #[serde(default)]
+    pub row_streak: (i32, u32),
+    #[serde(default)]
+    pub row_suppressed: (i32, u32),
+    /// Rests taken on this floor (the rest clock).
+    #[serde(default)]
+    pub rests: u32,
+    /// The current hero strike is aimed (`attack tag:boss` / bash): goes through shield walls.
+    #[serde(default)]
+    pub aimed: bool,
 }
 
 impl Run {
@@ -168,6 +213,39 @@ impl Run {
     /// Living companions on the floor.
     pub fn party_alive(&self) -> impl Iterator<Item = &Monster> {
         self.monsters.iter().filter(|m| m.is_companion() && m.hp > 0)
+    }
+    /// A foe the hero has given up on for now (unreachable or not closing).
+    pub fn is_ignored(&self, id: u32) -> bool {
+        self.ignored.get(&id).is_some_and(|until| *until > self.actions)
+    }
+    pub fn ignore(&mut self, id: u32, actions: u32) {
+        let until = self.actions + actions;
+        self.ignored.insert(id, until);
+    }
+    /// Items are ignored by chores until this action (after fruitless pick_up loops).
+    pub fn items_ignored(&self) -> bool {
+        self.items_until > self.actions
+    }
+    /// A tile with a visible hostile, or where one was seen recently (diagnostics; pathing
+    /// goes through monsters).
+    pub fn foe_blocks(&self, p: Pos) -> bool {
+        if let Some(mi) = self.monster_at(p) {
+            let m = &self.monsters[mi];
+            if m.hostile() && self.floor.map.is_visible(m.pos) {
+                return true;
+            }
+        }
+        self.known_foes.values().any(|(q, at)| *q == p && self.actions.saturating_sub(*at) < 30)
+    }
+    /// Remember where the visible hostiles are (called at each hero action).
+    pub fn note_foes(&mut self) {
+        let actions = self.actions;
+        let map = &self.floor.map;
+        let seen: Vec<(u32, Pos)> = self.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && map.is_visible(m.pos)).map(|m| (m.id, m.pos)).collect();
+        for (id, p) in seen {
+            self.known_foes.insert(id, (p, actions));
+        }
+        self.known_foes.retain(|_, (_, at)| actions.saturating_sub(*at) < 30);
     }
 }
 
@@ -223,6 +301,9 @@ pub struct LineageState {
     pub renown: u32,
     pub rank: u32,
     pub keep_pref: String,
+    /// Vault item ids insured against loss on death.
+    #[serde(default)]
+    pub insured: Vec<u32>,
 }
 
 impl LineageState {
@@ -267,6 +348,7 @@ impl LineageState {
             renown: 0,
             rank: 0,
             keep_pref: "best_weapon".into(),
+            insured: Vec::new(),
         }
     }
     pub fn rules(&self) -> &RuleSet {
@@ -303,6 +385,7 @@ impl LineageState {
             renown: self.renown,
             rank: self.rank,
             keep_pref: self.keep_pref.clone(),
+            insured: self.insured.clone(),
         }
     }
     pub fn vault_slots(&self) -> usize {
@@ -390,6 +473,8 @@ pub struct Batch {
     pub turns: u32,
     /// Real (simulated) runs: (final depth, death cause).
     pub run_outcomes: Vec<(u32, Option<String>)>,
+    /// Ticks per real run.
+    pub run_ticks: Vec<u32>,
 }
 
 /// What a finished run contributed (for offline accounting).
@@ -608,6 +693,21 @@ impl Game {
             cowardly_streak: 0,
             hold_dist: -1,
             hold_streak: 0,
+            actions: 0,
+            ignored: BTreeMap::new(),
+            chase: None,
+            recent_pos: Vec::new(),
+            last_damage_action: 0,
+            stuck_until: 0,
+            trait_last: None,
+            pickup_streak: 0,
+            pickup_inv: 0,
+            items_until: 0,
+            known_foes: BTreeMap::new(),
+            row_streak: (-9, 0),
+            row_suppressed: (-9, 0),
+            rests: 0,
+            aimed: false,
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
@@ -808,6 +908,7 @@ impl Game {
         self.batch.runs += 1;
         self.batch.turns += run.turn;
         self.batch.run_outcomes.push((run.depth, if tier == ExitTier::Death { run.death_cause.clone() } else { None }));
+        self.batch.run_ticks.push(run.turn);
         self.batch.renderable_events += run.renderable_events;
         if self.batch.row_fired.len() < 8 {
             self.batch.row_fired = vec![0; 8];
@@ -826,6 +927,9 @@ impl Game {
             bests.push(format!("D{}", run.max_depth));
         }
         for (_, kind, _) in &run.kills {
+            if kind.starts_with("spectral_") {
+                continue; // summons are not bests
+            }
             if self.lineage.kills.insert(kind.clone()) {
                 let boss = crate::defs::monster_def(kind).boss;
                 marks += if boss { 3 } else { 1 };
@@ -961,7 +1065,7 @@ impl Game {
         self.batch.bests.extend(bests);
         // Loot, gold and the vault (Addendum B/D).
         let loot_kept = run.loot.max(0) * tier.pct() / 100;
-        self.lineage.gold += loot_kept;
+        self.lineage.gold += loot_kept / GOLD_DIVISOR;
         let mut all: Vec<Item> = run.hero.inv.clone();
         if let Some(w) = &run.hero.weapon {
             all.push(w.clone());
@@ -971,6 +1075,13 @@ impl Game {
         }
         all.retain(|i| i.cat() != Cat::Gold && i.id != 1 && !run.supplies.contains(&i.id));
         if tier == ExitTier::Death {
+            // Brought vault items are lost on death, unless insured (Melvor insurance).
+            let (insured, lost): (Vec<Item>, Vec<Item>) = all.iter().filter(|i| run.brought.contains(&i.id)).cloned().partition(|i| self.lineage.insured.contains(&i.id));
+            for it in insured {
+                self.lineage.insured.retain(|id| *id != it.id);
+                self.lineage.vault.push(it);
+            }
+            let _ = lost;
             all.retain(|i| !run.brought.contains(&i.id));
         }
         all.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
@@ -1028,7 +1139,7 @@ impl Game {
     /// Salvage items: gold by tier, forge ledger by full count (Addendum D).
     fn salvage(&mut self, items: &[Item], tier: ExitTier) {
         for it in items {
-            let gold = salvage_value(&it.kind) * tier.pct() / 100;
+            let gold = salvage_value(&it.kind) * tier.pct() / 100 / GOLD_DIVISOR;
             self.lineage.gold += gold;
             let f = self.lineage.forge.entry(it.kind.clone()).or_default();
             f.salvaged += it.amount.max(1) as u32;
@@ -1243,6 +1354,21 @@ impl Game {
         Ok(())
     }
 
+    /// Insure a vault item against loss on death: 25% of its salvage value ×10.
+    pub fn insure(&mut self, id: u32) -> Result<(), String> {
+        let it = self.lineage.vault.iter().find(|v| v.id == id).ok_or("not in the vault")?;
+        if self.lineage.insured.contains(&id) {
+            return Err("already insured".into());
+        }
+        let cost = insure_cost(&it.kind);
+        if self.lineage.gold < cost {
+            return Err("not enough gold".into());
+        }
+        self.lineage.gold -= cost;
+        self.lineage.insured.push(id);
+        Ok(())
+    }
+
     pub fn clear_supplies(&mut self) {
         let cat = self.supply_catalogue();
         for s in std::mem::take(&mut self.lineage.supplies) {
@@ -1263,6 +1389,11 @@ pub fn salvage_value(kind: &str) -> i32 {
         Cat::Misc => 5,
         Cat::Gold => 0,
     }
+}
+
+/// Insurance premium: 25% of salvage value ×10 (Melvor style).
+pub fn insure_cost(kind: &str) -> i32 {
+    salvage_value(kind) * 10 / 4
 }
 
 /// Renown value of a kill (Addendum D): scaled by the monster's toughness.
@@ -1391,6 +1522,15 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             it.hint = Some(if d.benevolent { crate::item::Hint::Benevolent } else { crate::item::Hint::Malevolent });
         }
         place(run, it);
+    }
+    // The Fens stock the Bloat Mother's answer: three throwables per floor.
+    if biome == Biome::Fens {
+        for k in ["fire", "poison", if depth.is_multiple_of(2) { "fire" } else { "poison" }] {
+            let iid = run.new_item_id();
+            let mut it = Item::new(iid, k);
+            it.enchant = forge.get(k).map(|f| f.tier as i32).unwrap_or(0);
+            place(run, it);
+        }
     }
     if depth >= 2 && run.rng.chance(50) {
         let iid = run.new_item_id();

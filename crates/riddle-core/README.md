@@ -50,6 +50,30 @@ fields). Where the contract left a choice open, this is what the engine does:
   itself uses 50). Four forecasts per death at 50 sims made the return report take ~6 s
   natively; 20 keeps it under ~2 s. Same seeds for base and patched runs, so the delta is
   paired and low-noise.
+- **Boss walls (playtest pass).** A living boss seals the stairs down. Goblin Warlord: a
+  shield wall — any goblin in his view takes an *unaimed* swing meant for him (reserves
+  step in if none is left), he rallies two goblins whenever fewer than two guard him or he
+  is hit, and every 30 ticks he shield-buffs the goblins (+1 def). Only `attack tag:boss`
+  (aimed) or `shield_bash` lands on him and cancels his rally; `taunt` cancels telegraphs.
+  Bloat Mother: every melee hit she takes vents a 5×5 cloud, she heals 3/10 ticks in gas
+  and never chokes on it; the counter is range (`throw K,tag:boss`, bows). The Fens stock
+  three throwables per floor. Lich: reflects arrows and thrown potions, chants two brittle
+  skeletons (4 hp, tag `summoned`) every 60 ticks while any stand, 100 when none do; melee
+  the summons first. Every boss telegraphs on its first turn and that observation is the
+  `boss:<kind>:counter` fact. A run that cannot finish in 20 000 ticks comes home (`return`).
+- **`rest` costs alert**: every 8 rests raise the floor alert by one; from alert 5 each step
+  calls a pack (2–3) out of sight within 8 tiles ("they heard you").
+- **Gold ÷ 4** on loot and salvage (`GOLD_DIVISOR`); `insure(id)` at 25% of salvage value ×10
+  keeps a brought vault item on death (`Lineage.insured`, addition).
+- **Patches**: candidates cover every family (ID policy `hp<N → drink/read unknown`, escape
+  `hp<N → return`, retreat, targeting); a patch must beat the baseline by 0.15 or move the
+  forecast by 0.02, an unconditioned row must beat it by 0.30; ranked by (survive − baseline)
+  then delta, conditioned rows first on ties; only verbs the hero could have executed from the
+  checkpoint's inventory are tried.
+- **Sifter**: one highlight per pattern per run (highest score); summons (`spectral_*`) are
+  never a first kill or a best.
+- **Thrown poison stacks** (each dose adds 40 ticks of 2/10). A full pack swaps its cheapest
+  consumable for a dearer one (throwables are worth 14).
 - **Offline gate scope**: `learned ≥ 1 / pending ≥ 1` is checked for the player-shaped bots
   (DEFAULT, EDITED, PETS, LEVELLED). LEARNED knows every fact by construction; RANDOM and
   PASSIVE are probes.
@@ -80,27 +104,33 @@ cargo run --release --example metrics [-- --seeds 30 --hours 8]
 ## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`)
 
 ```
-DEFAULT dies by ≤ D6 ≥ 80% of seeds                 90%  PASS
-EDITED reaches ≥ D10 ≥ 50% of seeds                 63%  PASS
-EDITED − DEFAULT (≥ D10) ≥ 15 pts                63 pts  PASS
+DEFAULT dies by ≤ D6 ≥ 80% of seeds                100%  PASS
+EDITED reaches ≥ D10 ≥ 50% of seeds                100%  PASS
+EDITED − DEFAULT (≥ D10) ≥ 15 pts               100 pts  PASS
 RANDOM loses 100%                                  100%  PASS
 PASSIVE loses by ≤ D3 100%                         100%  PASS
-LEARNED mean depth ≤ DEFAULT + 2           3.68 vs 3.52  PASS
+LEARNED mean depth ≤ DEFAULT + 2           3.47 vs 3.38  PASS
 PETS dies by ≤ D8 ≥ 80% of seeds                   100%  PASS
-LEVELLED dies by ≤ D9 ≥ 80% of seeds                97%  PASS
-Unfair deaths (dice) ≤ 5% (n=9556)                 1.9%  PASS
-Deaths tracing to a row (gap) ≥ 70%               98.1%  PASS
-Top death cause share < 35% (jackal)              29.6%  PASS
-Events per 600 ticks (renderable) ≥ 6              44.3  PASS
+LEVELLED dies by ≤ D9 ≥ 80% of seeds               100%  PASS
+TRIVIAL never passes D5 ≥ 90% of seeds             100%  PASS
+COUNTERED reaches ≥ D11 ≥ 50% of seeds              57%  PASS
+Unfair deaths (dice) ≤ 5% (n=15343)                1.5%  PASS
+Deaths tracing to a row (gap) ≥ 70%               98.5%  PASS
+Top death cause share < 35% (goblin_archer)       24.1%  PASS
+Events per 600 ticks (renderable) ≥ 6              68.4  PASS
 Replay hash identical (seed+rules+elapsed)               PASS
 Forecast known_to == best_depth + 1                 all  PASS
 Offline 8 h: learned ≥ 1 and pending ≥ 1 every seed      PASS
 ```
 
-Per-run depth tails (share of runs reaching ≥ d): DEFAULT D5 13% · D6 5% · D7 0.3%;
-EDITED D5 76% · D6 41% · D7 12% · D8 7% · D9 4% · D10 3% · D12 1.6%. The "≤ D6 / ≥ D10"
-gates are on the *best depth per seed* over the batch (~30–40 runs), so they are tail
-gates: DEFAULT needs P(run ≥ D7) ≲ 0.4%, EDITED needs P(run ≥ D10) ≳ 1.5%.
+Run length (ticks) p10 / median / p90: DEFAULT 2484 / 3760 / 7392 (70% in 1800–4800),
+EDITED 2860 / 4470 / 9339 (57%); no run exceeds the 20 000-tick cap. Boss walls hold:
+DEFAULT, LEARNED, PETS, LEVELLED and TRIVIAL never leave D5; EDITED and COUNTERED (which
+carry the counters) reach D10+ in 12% / 8% of runs.
+
+TRIVIAL (the playtest's 4-row set) never passes D5; COUNTERED (TRIVIAL + `throw fire,tag:boss`
+/ `throw poison,tag:boss` at depth ≥ 6 / `attack tag:boss`) reaches D11+. See the gate table
+in the report for the measured numbers.
 
 ## Tuning notes (how the gates were met, in order of importance)
 
@@ -125,7 +155,20 @@ gates: DEFAULT needs P(run ≥ D7) ≲ 0.4%, EDITED needs P(run ≥ D10) ≳ 1.5
    alert clock (wanderers every 400 ticks, 1 + alert/3 of them). Bosses: Warlord 34 hp 2–5,
    rally every 150 ticks (2 goblins, +1 def buff); Bloat Mother 55 hp, swells at half HP,
    5×5 pop; Lich 50 hp, reflects throws, chants 2 skeletons every 90 ticks.
-5. Fleeing thieves are not chased (a fast monkey wasted whole floors of hero actions), the
+5. **Anti-deadlock guards** (from the coordinator's playtest). `attack` is executable only
+   against an *engageable* foe: adjacent, or neither fleeing nor given up on; a target that
+   is unreachable, or that three consecutive approaches failed to close on, is ignored for
+   30 actions and the row falls through (`foes>=N` counts engageable foes only). Pathing
+   remembers where hostiles were seen for 30 actions, so a corridor foe drifting in and out
+   of view cannot flip "blocked"/"open" between explore and descend. Oscillation guard: 12
+   actions on ≤ 2 tiles with no blood drawn → the visible non-adjacent foes are ignored and
+   foe-targeting rows are suppressed for 30 actions (one `stuck` chore event); the same row
+   firing 40 actions straight without damage is rested for 30 actions likewise. When every
+   path is walled off by foes the chores push through and bump whoever blocks the first
+   step. Traits pre-empt the rows at most once per 5 actions and never below 25% HP
+   (cowardice excepted); `pick_up` is never chosen three times running without something
+   entering the pack (items are then ignored for 20 actions), and greedy only grabs what fits.
+6. Fleeing thieves are not chased (a fast monkey wasted whole floors of hero actions), the
    hero paths around water (eels), swaps past allies and chained captives, steps out of gas
    or fire when no foe is adjacent, and shuffles after 20 idle actions.
 

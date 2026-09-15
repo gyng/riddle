@@ -1,13 +1,114 @@
 {
   "name": "good",
   "rows": [
-    { "conds": [{ "k": "hp<", "n": 35 }], "verb": { "v": "drink", "a": "heal" } },
-    { "conds": [{ "k": "foe_tag", "t": "ranged" }], "verb": { "v": "attack", "a": "tag:ranged" } },
-    { "conds": [{ "k": "foes>=", "n": 3 }, { "k": "hp<", "n": 70 }], "verb": { "v": "back_corridor" } },
-    { "conds": [{ "k": "foe_tag", "t": "gas" }, { "k": "adj>=", "n": 1 }], "verb": { "v": "retreat" } },
-    { "conds": [{ "k": "foes>=", "n": 1 }], "verb": { "v": "attack", "a": "nearest" } },
-    { "conds": [{ "k": "hp<", "n": 90 }, { "k": "foes>=", "n": 0 }], "verb": { "v": "rest" } },
-    { "conds": [{ "k": "unknown_item" }, { "k": "hp>", "n": 60 }], "verb": { "v": "drink", "a": "unknown" } },
-    { "conds": [{ "k": "floor_seen>=", "n": 60 }], "verb": { "v": "descend" } }
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 35
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        },
+        {
+          "k": "depth>=",
+          "n": 6
+        }
+      ],
+      "verb": {
+        "v": "throw",
+        "a": "fire,tag:boss"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        },
+        {
+          "k": "depth>=",
+          "n": 6
+        }
+      ],
+      "verb": {
+        "v": "throw",
+        "a": "poison,tag:boss"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 3
+        },
+        {
+          "k": "hp<",
+          "n": 70
+        }
+      ],
+      "verb": {
+        "v": "back_corridor"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 90
+        },
+        {
+          "k": "foes>=",
+          "n": 0
+        }
+      ],
+      "verb": {
+        "v": "rest"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "floor_seen>=",
+          "n": 60
+        }
+      ],
+      "verb": {
+        "v": "descend"
+      }
+    }
   ]
 }
