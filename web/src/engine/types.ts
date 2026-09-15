@@ -71,7 +71,7 @@ export type Lineage = { seed: number; heir: number; trait: string; class: string
                         facts: string[]; unlocks: string[]; vault: InvItem[]; graveyard: { heir: number; depth: number; cause: string; deeds: string[] }[];
                         trophies: string[]; sets: RuleSet[]; active_set: number; ended: boolean;
                         party: Companion[]; kennel: Companion[]; eggs: Egg[]; party_slots: number; ledger: LedgerRow[];  // Addendum A
-                        gold: number; supplies: InvItem[];                                                              // Addendum B
+                        gold: number; supplies: InvItem[]; insured?: number[];                                                              // Addendum B
                         classes: { [cls: string]: { level: number; xp: number } };                                     // Addendum C
                         forge: { [kind: string]: { salvaged: number; craftable: boolean; tier: number } };               // Addendum D
                         renown: number; rank: number; keep_pref: string };                                              // Addendum D
@@ -104,6 +104,7 @@ export interface Engine {
   // Addendum D
   keep(ids: number[]): Lineage;
   setKeepPref(pref: string): Lineage;   // core addition (README): keep preference for offline exits
+  insure(id: number): Lineage;          // core addition: gold bet that keeps a brought vault item on death
   // core additions (crates/riddle-core/README.md)
   unlocks(): UnlockInfo[];              // the catalogue; `available` = prereq + fact gate + affordable
   setClass(cls: string): Lineage;       // switch class (rogue needs the `rogue` unlock)

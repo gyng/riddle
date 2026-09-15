@@ -916,6 +916,7 @@ export class FakeEngine implements Engine {
     this.pending = null; this.settle(run, true, ids); return this.lineage();
   }
   setKeepPref(pref: string): Lineage { if (["best_weapon", "best_armour", "none"].includes(pref)) this.s.lineage.keep_pref = pref; return this.lineage(); }
+  insure(id: number): Lineage { const L = this.s.lineage; L.insured = [...(L.insured ?? []), id]; return this.lineage(); }
 
   runOffline(elapsedS: number): ReturnReport {
     const L = this.s.lineage;

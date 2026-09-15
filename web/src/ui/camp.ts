@@ -6,6 +6,7 @@ import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
 import { visible, vaultSlots } from "./unlocks";
+import { salvageValue } from "./salvage";
 import { xpToNext } from "../engine/classes";
 import { openSheet } from "./sheet";
 
@@ -69,6 +70,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       chips.appendChild(h("button", { class: `chip item${on ? " on risk" : ""}`, onclick: () => {
         app.setLoadout(on ? app.loadout.filter((x) => x !== it.id) : [...app.loadout, it.id]);
       } }, on ? "⚠ " : "", it.label));
+      if (on) {
+        const ins = (L.insured ?? []).includes(it.id);
+        const price = Math.ceil(salvageValue(it.kind, "bank") * 10 / 4);
+        chips.appendChild(h("button", { class: `chip mini${ins ? " on" : ""}`, disabled: ins || L.gold < price,
+          onclick: () => void app.mutate(() => app.engine.insure(it.id)) }, ins ? /* copy:label */ "insured" : `$${price}`));
+      }
     }
     for (let i = L.vault.length; i < slots; i++) chips.appendChild(h("span", { class: "chip empty" }, "·"));
     vault.appendChild(chips);
