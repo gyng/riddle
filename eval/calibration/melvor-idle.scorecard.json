@@ -1,0 +1,19 @@
+{ "game": "Melvor Idle", "genre": "idle-rpg", "presets": "../riddle/eval/presets.json", "tier": "calibration (evaluator's knowledge + reviews, research/idle-attraction.md)",
+  "axes": [
+    { "id": "clarity", "human": 0.8, "note": "every skill shows rate and next unlock; lapse: combat stats need the wiki" },
+    { "id": "decisions", "human": 0.8, "note": "which skill to train next and what to bring into a dungeon; lapse: the wiki has the answer" },
+    { "id": "mastery", "human": 0.6, "note": "learning the skill web; no execution skill" },
+    { "id": "tension", "human": 0.3, "note": "dungeon-can-I-survive maths; resolved by a calculator" },
+    { "id": "feel", "human": 0.3, "note": "spreadsheet UI, tiny progress bars" },
+    { "id": "surprise", "human": 0.3, "note": "rare drops; nothing changes the game" },
+    { "id": "expression", "human": 0.6, "note": "your skill order and gear route are yours; lapse: convergent late game" },
+    { "id": "story", "human": 0.1, "note": "" },
+    { "id": "pacing", "human": 0.8, "note": "check-ins bounded and satisfying; lapse: mid-game walls measured in days" },
+    { "id": "failure", "human": 0.6, "note": "death loses gear unless insured; cause is a stat comparison, legible after the fact" },
+    { "id": "social", "human": 0.0, "note": "" },
+    { "id": "autonomy", "human": 0.6, "note": "" },
+    { "id": "progression", "human": 1.0, "note": "the reference idle-RPG unlock cadence; 'completionist, not traditional fun'" },
+    { "id": "aesthetic", "human": 0.3, "note": "" },
+    { "id": "return", "human": 0.8, "note": "every return has a bank of resources and a next thing to set; lapse: the decision is often the same one" },
+    { "id": "attribution", "human": 0.6, "note": "the auto-eat threshold and gear you set decide survival; lapse: it is a calculation, not a play" }
+  ] }

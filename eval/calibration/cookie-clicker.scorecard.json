@@ -1,0 +1,19 @@
+{ "game": "Cookie Clicker", "genre": "idler", "presets": "../riddle/eval/presets.json", "tier": "calibration (evaluator's knowledge; eval-fun card + idle axes)",
+  "axes": [
+    { "id": "clarity", "human": 1.0, "note": "one number, one button, every purchase visibly changes the rate" },
+    { "id": "decisions", "human": 0.6, "note": "which upgrade next; lapse: the answer is usually the cheapest" },
+    { "id": "mastery", "human": 0.3, "note": "" },
+    { "id": "tension", "human": 0.1, "note": "" },
+    { "id": "feel", "human": 0.6, "note": "" },
+    { "id": "surprise", "human": 0.7, "note": "golden cookies, grandmapocalypse phase shift" },
+    { "id": "expression", "human": 0.2, "note": "" },
+    { "id": "story", "human": 0.3, "note": "" },
+    { "id": "pacing", "human": 0.9, "note": "" },
+    { "id": "failure", "human": 0.5, "note": "" },
+    { "id": "social", "human": 0.0, "note": "" },
+    { "id": "autonomy", "human": 0.2, "note": "" },
+    { "id": "progression", "human": 1.0, "note": "" },
+    { "id": "aesthetic", "human": 0.4, "note": "" },
+    { "id": "return", "human": 0.8, "note": "the bank is a present and there is always something affordable; lapse: nothing to decide beyond spend order" },
+    { "id": "attribution", "human": 0.0, "note": "nothing plays on your behalf (weight 0 in preset)" }
+  ] }

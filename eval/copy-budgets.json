@@ -1,0 +1,15 @@
+{
+  "$comment": "Word budgets per player-facing surface. Directive: super minimal copy; numbers, nouns and the rule trace do the telling. Lint enforces maxWords; noSentences forbids terminal punctuation and the words 'you', 'your', 'click', 'tap', 'this shows'.",
+  "surfaces": {
+    "callout":        { "maxWords": 3,  "noSentences": true,  "example": "HP 31% → Potion R2" },
+    "telegraph":      { "maxWords": 2,  "noSentences": true,  "example": "archer draws" },
+    "rule_token":     { "maxWords": 3,  "noSentences": true,  "example": "foe: caster" },
+    "death_line":     { "maxWords": 12, "noSentences": true,  "example": "Ghoul pack · D7 · 3 HP short · gap" },
+    "verdict":        { "maxWords": 1,  "noSentences": true,  "example": "gap | dice" },
+    "return_report":  { "maxWords": 0,  "noSentences": true,  "example": "numbers and nouns only: 14 runs · 3 deaths · D9 · 2 rares" },
+    "diary_line":     { "maxWords": 8,  "noSentences": false, "example": "Freed a captive. She followed." },
+    "unlock_card":    { "maxWords": 6,  "noSentences": true,  "example": "+1 row · cond: foe tag" },
+    "button":         { "maxWords": 1,  "noSentences": true,  "example": "patch | send | keep" },
+    "ending":         { "maxWords": 60, "noSentences": false, "example": "diegetic; judged separately" }
+  }
+}

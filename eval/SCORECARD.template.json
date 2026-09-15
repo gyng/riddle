@@ -1,0 +1,45 @@
+{
+  "$comment": "Copy me per build and rater. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md. One quoted observation per axis. bot: green|amber|red|na is a cap, never an award. Answer criterion + idle probes BEFORE awarding.",
+  "game": "Riddle",
+  "build": "commit or date",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "who",
+  "horizon": { "activeMinutes": 0, "absences": [], "runsWatched": 0, "runsOffline": 0, "ruleEdits": 0 },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": null,
+    "playAgainTomorrow_1to7": null,
+    "recommend_0to10": null,
+    "checkInTomorrowUnprompted_1to7": null,
+    "delayedRecall": ""
+  },
+  "axes": [
+    { "id": "clarity", "human": 0, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "" },
+    { "id": "decisions", "human": 0, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "" },
+    { "id": "mastery", "human": 0, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "" },
+    { "id": "tension", "human": 0, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "" },
+    { "id": "feel", "human": 0, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "" },
+    { "id": "surprise", "human": 0, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "" },
+    { "id": "expression", "human": 0, "bot": "na", "proxy": "rule-set diversity across clears", "note": "" },
+    { "id": "story", "human": 0, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "" },
+    { "id": "pacing", "human": 0, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "" },
+    { "id": "failure", "human": 0, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "" },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "" },
+    { "id": "autonomy", "human": 0, "bot": "na", "proxy": "route/goal freedom in rules", "note": "" },
+    { "id": "progression", "human": 0, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "" },
+    { "id": "aesthetic", "human": 0, "bot": "na", "proxy": "none", "note": "" },
+    { "id": "return", "human": 0, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "" },
+    { "id": "attribution", "human": 0, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "" }
+  ]
+}

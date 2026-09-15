@@ -1,0 +1,19 @@
+{ "game": "Loop Hero", "genre": "idle-roguelike", "presets": "../riddle/eval/presets.json", "tier": "calibration (evaluator's knowledge + reviews, research/comparables.md)",
+  "axes": [
+    { "id": "clarity", "human": 0.8, "note": "hero walks, cards placed, loop counter; lapse: many card synergies are undocumented" },
+    { "id": "decisions", "human": 0.8, "note": "every card placement is a trade of danger for resources; retreat-or-push at the camp tile; lapse: late game has a known optimal layout" },
+    { "id": "mastery", "human": 0.8, "note": "learning tile adjacency (village+vampire, mountain 3x3); lapse: plateaus once known" },
+    { "id": "tension", "human": 0.8, "note": "one more loop with 30% HP and the boss bar filling; lapse: mid-boss fights are stat checks" },
+    { "id": "feel", "human": 0.6, "note": "" },
+    { "id": "surprise", "human": 0.8, "note": "tile combos spawn new tiles and enemies; lapse: chapter 3-4 repeats" },
+    { "id": "expression", "human": 0.8, "note": "your loop is a map you drew; class builds; lapse: convergent gear" },
+    { "id": "story", "human": 0.6, "note": "runs produce anecdotes about a bad tile placement; the narrative frame is thin" },
+    { "id": "pacing", "human": 0.6, "note": "runs are 15-40 min at 2x; camp-building check-ins are quick; lapse: late-chapter grind for resources" },
+    { "id": "failure", "human": 0.8, "note": "death shows the fight and the loop; retreat keeps 60/30%; lapse: some deaths are card RNG" },
+    { "id": "social", "human": 0.0, "note": "" },
+    { "id": "autonomy", "human": 0.6, "note": "" },
+    { "id": "progression", "human": 0.8, "note": "camp unlocks add new cards and classes, i.e. new decisions; lapse: resource grind" },
+    { "id": "aesthetic", "human": 0.8, "note": "" },
+    { "id": "return", "human": 0.6, "note": "you can leave it looping but the game does not reward absence; the camp is the return payoff" },
+    { "id": "attribution", "human": 0.8, "note": "the hero died because I placed a lantern next to a spider cocoon; lapse: equipment auto-fight has no player input" }
+  ] }

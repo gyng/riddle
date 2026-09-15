@@ -1,0 +1,19 @@
+{ "game": "Progress Quest", "genre": "idle-rpg", "presets": "../riddle/eval/presets.json", "tier": "calibration (evaluator's knowledge; the reference watch-only joke)",
+  "axes": [
+    { "id": "clarity", "human": 0.8, "note": "progress bars say exactly what is happening" },
+    { "id": "decisions", "human": 0.0, "note": "there are none after character creation" },
+    { "id": "mastery", "human": 0.0, "note": "" },
+    { "id": "tension", "human": 0.0, "note": "" },
+    { "id": "feel", "human": 0.1, "note": "" },
+    { "id": "surprise", "human": 0.3, "note": "generated item names are funny for an hour" },
+    { "id": "expression", "human": 0.1, "note": "" },
+    { "id": "story", "human": 0.3, "note": "the quest log is a parody anecdote" },
+    { "id": "pacing", "human": 0.3, "note": "nothing to do at check-in" },
+    { "id": "failure", "human": 0.0, "note": "cannot lose" },
+    { "id": "social", "human": 0.0, "note": "" },
+    { "id": "autonomy", "human": 0.0, "note": "" },
+    { "id": "progression", "human": 0.6, "note": "numbers rise forever; no new decisions" },
+    { "id": "aesthetic", "human": 0.2, "note": "" },
+    { "id": "return", "human": 0.3, "note": "the bars moved; nothing to decide" },
+    { "id": "attribution", "human": 0.0, "note": "" }
+  ] }
