@@ -1,0 +1,14 @@
+{
+  "name": "Riddle",
+  "short_name": "Riddle",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0c0f",
+  "theme_color": "#0b0c0f",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

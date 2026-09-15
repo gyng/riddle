@@ -248,3 +248,61 @@ generation, `pack.py`, `art-qc.py`.
 
 `tools/verify.sh`: `cargo test` → `cargo clippy -D warnings` → `wasm-pack build` → `tsc` →
 `vite build` → `copy-lint` → `node tools/gates.mjs` (runs `metrics`). Green = cut done.
+
+## Addendum A — Companions (added 2026-09-16, in scope for Cut 1)
+
+Design: `PLAN.md` → "Companions (the collector layer)". Additive to everything above.
+
+**Rules.**
+- New item `leash` (misc, found D2+, ~1 per 2 floors, stacks). New verb `tame(tag:T|nearest)`:
+  executable only if a `leash` is held and the target foe has `hp < 25%` of max; consumes
+  the leash and the turn. Chance = 20% + 10% per known tag of that monster kind (cap 60%);
+  bosses and summons cannot be tamed. Success: foe becomes a companion entity
+  (`ally: true`, kind unchanged) that follows the hero; `fact` event `tamed:<kind>`;
+  chronicle note. Failure: foe gets a free attack.
+- Party: hero + companions in `lineage.party` (max `party_slots`, 1 at start, 2 by unlock).
+  A companion has `level` (1–5), `tags`, and its own `RuleSet` (`max_rows = 1 + level`).
+  Companion verbs are its tags: `ranged`→`shoot`, `gas`→`burst` (self-destruct into gas
+  3×3), `thief`→`steal` (takes a foe's next drop), `splitter`→`split` (if hp > 50%), `pack`→
+  `flank`, `undead`→`drain`, default `attack`, plus `follow` (chore), `recall` (leaves the
+  floor, safe). Companion condition tokens are the same set with `self_hp<N` replacing `hp<N`.
+- Hero scope token `party:<kind>` prefixes a row that targets that companion with verb
+  `recall` or `send` (companion engages nearest foe). Companion AI: its own rows top-down;
+  fallback = stay within 2 tiles of the hero, attack adjacent foes.
+- Exits: bank → companions return, `level += 1` (cap 5). return → unchanged. Companion
+  death → removed from the run and from `party`; an `Egg { tags, kind, gen }` is appended to
+  `lineage.eggs`; `Ev::ally{state:"lost"}`; chronicle note. Hero death → every companion in
+  the run becomes an egg likewise.
+- Breeding (camp, engine method `breed(a_id, b_id)`): both level ≥ 2, both consumed; egg =
+  kind of A, tags = tags(A) ∪ one tag of B not in A, `gen = max(gen)+1`, tag count ≤ 3.
+- Eggs hatch after 5 completed expeditions (`egg.hatch_in` decremented per exit); hatched
+  → companion at level 1 in `lineage.kennel` (roster; not in party until chosen).
+  `hatch(egg_id)` for a lost companion's egg costs 2 marks instead of expeditions.
+- Counters, learnable as facts `counter:<a>>b`: ranged>heavy, pack>lone, gas>pack,
+  water>fire, undead>poison (immune). Effect: ×1.5 damage (or immunity). Applies to all
+  entities.
+- Ledger: per monster kind `seen known tamed bred`. Trophy `ledger:<biome>` when every kind
+  in the biome is `tamed`.
+- Gate PETS: DEFAULT rules + two level-3 bred companions with default rows must die by
+  ≤ D8 on ≥ 80% of seeds.
+
+**Wire additions.**
+```ts
+export type Companion = { id: number; kind: string; name: string; level: number; tags: string[]; gen: number;
+                          rules: RuleSet; max_rows: number; hp: number; max_hp: number };
+export type Egg = { id: number; kind: string; tags: string[]; gen: number; hatch_in: number; from_loss: boolean };
+export type LedgerRow = { kind: string; seen: boolean; known: boolean; tamed: boolean; bred: boolean };
+// Lineage gains: party: Companion[]; kennel: Companion[]; eggs: Egg[]; party_slots: number; ledger: LedgerRow[]
+// Snapshot.entities: companions appear with ally:true and a `cid` field (companion id)
+// Ev additions:
+//   | { t; k: "tame"; id: number; kind: string; ok: boolean }
+//   | { t; k: "hatch"; kind: string }
+// ReturnReport gains: tamed: string[]; hatched: string[]; lost: string[]
+// Engine gains:
+//   setParty(ids: number[]): Lineage;  setCompanionRules(id: number, set: RuleSet): void;
+//   breed(a: number, b: number): Lineage;  hatch(eggId: number): Lineage;  companionVocabulary(id: number): Vocabulary;
+```
+Vocabulary additions: cond `party_hp<N` (any companion), verb `tame`, scope token
+`party:<kind>` exposed as a cond `{k:"party",t:"<kind>"}` for editor simplicity. Unlocks:
+`party_slot_2` (4 marks), `tame` verb for both classes (2 marks; hero must have the fact
+`item:leash` first).

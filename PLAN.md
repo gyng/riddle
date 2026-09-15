@@ -164,6 +164,50 @@ is deferred; this is the taste of it.
 - **Chronicle and sifter**: auto-notes during the run; a sifter picks comeback, first-kill,
   near-death, ally-lost, item-gamble into a reel per run and a lineage history.
 
+## Companions (the collector layer)
+
+Dragon Quest Monsters / Pokémon, woven into the rule and idle layers rather than bolted on.
+The bestiary is already the metagame; companions make it literal: every monster the hero
+can meet, it can eventually **tame**, **bring**, **breed** and **lose**.
+
+**Tame is a rule.** `foe: bloat · foe_hp < 25% → tame` is a row like any other, so capture
+is a policy decision with a trade-off (a low-HP foe still hits back; a tame attempt spends
+the turn and a `leash`, a scarce found item). Chance rises with facts: an unknown monster
+tames at 20%, one whose tags are all known at 60%. Collection therefore runs on knowledge,
+which is the idle yield.
+
+**Party.** Hero + up to 2 companions (slots by unlock). A companion has its own rule list
+(2 rows at level 1, +1 per level to 5) edited on its card, and verbs that *are its tags*:
+a tamed archer kites and shoots, a bloat pops on command (`self hp < 30% → burst`), a thief
+steals from foes, a jelly splits, a wraith drains. The hero's rows gain a `party:` scope
+(`party: archer · foes ≥ 3 → recall`). Companions telegraph, call out, and die.
+
+**Exits apply to companions.** Bank: companions return and level (+1, cap 5, levels add a
+row, never HP). Return: they come back unchanged. Death: a companion that dies leaves an
+**egg** with its tags; rehatching costs marks and resets its level. Bringing a bred
+companion is a bet, exactly like the vault.
+
+**Breeding at camp.** Two companions of level ≥ 2 → one egg: base form of parent A plus one
+tag inherited from B (bloat + archer = a ranged gas-popper; jelly + thief = a splitting
+pickpocket). Tags are the interaction vocabulary, so breeding composes situations, not
+stats. Generation caps the tag count at 3. Eggs hatch after 5 expeditions, so absence
+hatches them; no clock.
+
+**Counters are facts.** A five-line table the hero learns by observation, usable in rows:
+ranged beats heavy, pack beats lone, gas beats pack, water beats fire, undead ignores
+poison. No element chart beyond this.
+
+**Collection ledger.** Bestiary entries gain `seen · known · tamed · bred`; completing a
+biome's ledger is a trophy. This is the Zeigarnik checklist the research asks for, and it
+rewards varied policies (you must *not* kill the monkey to tame it).
+
+**Idle weave.** The return report gains `tamed`, `hatched`, `lost`. Companions at camp do
+nothing (no offline farms); the only idle producer is the expedition, so the party is
+always the bet. A companion's own death has a trace and a verdict too.
+
+**Gate.** PETS bot = DEFAULT rules + the two strongest bred companions with their default
+rows: must still die by D8. Party is not policy.
+
 ## Equipment and skills
 
 - **Class** per heir = verb set (v1: fighter, rogue; later ranger, caster). Skills are verbs,
@@ -272,7 +316,7 @@ the next contract.
 | P0 | K1 (A and B), K3; K2 on the art track | pass conditions |
 | 1 | Sim core: descent + floors, 15 monsters, 25 items, hazards, clock, 8 families, facts, trace, chronicle, exits, forecast, offline batch | all five bots green |
 | 2 | Client: replay viewer with pixel pipeline, snapped camera, two-density sprites, callouts, telegraphs, speed controls; editor UI; return report; death screen; vault; save/export | events/min ≥ 6; check-in median 2–10 min in dogfood; 60 fps mid phone |
-| 3 | Metagame: lineage, traits, fact-gated tokens, unlocks, tactic cards, trophies, presets, share-as-text | unlock cadence ≈ daily over a simulated 14-day log |
+| 3 | Metagame: lineage, traits, fact-gated tokens, unlocks, tactic cards, trophies, presets, share-as-text, companions (tame, party rows, exits, eggs, breeding, ledger) | unlock cadence ≈ daily over a simulated 14-day log |
 | 4 | Content to the bottom of v1: 3 biomes, 3 wall bosses, depth 15, ending | death-cause entropy green; every boss counter learnable in-game |
 | 5 | Story layer: sifter, reel, lineage history, hero voice, grudge monsters, sparse audio | tell-a-friend passes on 3 of 5 runs |
 | 6 | Release: PWA, copy-lint clean, WebMCP harness, Tier-2 eval on `idle-roguelike` | ≥ 72, no gate on `return`/`attribution`; blind second card α ≥ 0.67 |
@@ -296,10 +340,13 @@ the next contract.
 ## Open questions
 
 - Ending depth for v1 (15) vs full (30); whether ascension ships in v1.
-- Whether allies-with-rows is M3 or M7.
 - Name.
 
-## Review log (v1 → v2, 2026-09-15)
+## Review log
+
+**v2 → v3 (2026-09-16):** added the companion layer at the user's direction (DQM/Pokémon collector woven into rules and idle: tame as a row, party rows, exits and eggs, breeding by tag, counters as facts, ledger, PETS gate).
+
+**v1 → v2 (2026-09-15)**
 
 1. **Idle yield was numbers-shaped.** v1's absence returned loot and deaths; a walled policy
    returned "40 runs, 40 deaths". Fix: the hero learns *facts* autonomously (bestiary, item

@@ -10,6 +10,7 @@
     "diary_line":     { "maxWords": 8,  "noSentences": false, "example": "Freed a captive. She followed." },
     "unlock_card":    { "maxWords": 6,  "noSentences": true,  "example": "+1 row · cond: foe tag" },
     "button":         { "maxWords": 1,  "noSentences": true,  "example": "patch | send | keep" },
+    "label":          { "maxWords": 1,  "noSentences": true,  "example": "vault | forecast | learned" },
     "ending":         { "maxWords": 60, "noSentences": false, "example": "diegetic; judged separately" }
   }
 }

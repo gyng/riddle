@@ -1,0 +1,883 @@
+//! The game: lineage state, the live run, and the public API mirrored by the wasm bridge.
+use crate::defs::{item_def, spawn_table, Cat};
+use crate::descent::{biome_for, boss_for, Biome, Grudge, ENDING_DEPTH};
+use crate::gen::{generate, Floor};
+use crate::geom::Pos;
+use crate::hero::{Class, Hero, Trait};
+use crate::item::{describe, to_inv, Flavours, FloorItemWire, InvItem, Item};
+use crate::monster::Monster;
+use crate::rng::{hash_str, Rng};
+use crate::rules::{RuleSet, Vocabulary};
+use crate::tiles::{Overlay, VISION};
+use crate::wire::*;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+pub const SAVE_VERSION: u32 = 1;
+pub const HERO_ID: u32 = 1;
+pub const HISTORY_TURNS: usize = 10;
+pub const MAX_TURNS_PER_RUN: u32 = 6000;
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ExitTier {
+    Bank,
+    Return,
+    Death,
+}
+
+impl ExitTier {
+    pub fn name(self) -> &'static str {
+        match self {
+            ExitTier::Bank => "bank",
+            ExitTier::Return => "return",
+            ExitTier::Death => "death",
+        }
+    }
+    pub fn pct(self) -> i32 {
+        match self {
+            ExitTier::Bank => 100,
+            ExitTier::Return => 60,
+            ExitTier::Death => 30,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FloorItem {
+    pub pos: Pos,
+    pub item: Item,
+}
+
+/// Everything about one expedition. Cloned per turn into the history ring (for verdicts).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Run {
+    pub id: u32,
+    pub heir: u32,
+    pub started_turn: u64,
+    pub rng: Rng,
+    pub depth: u32,
+    pub floor: Floor,
+    pub hero: Hero,
+    pub trait_: Trait,
+    pub monsters: Vec<Monster>,
+    pub items: Vec<FloorItem>,
+    pub overlays: Vec<Overlay>,
+    pub turn: u32,
+    pub floor_turn: u32,
+    pub alert: i32,
+    pub loot: i32,
+    pub next_id: u32,
+    pub next_item_id: u32,
+    pub kills_floor: u32,
+    pub kills: Vec<(u32, String)>,
+    pub brought: Vec<u32>,
+    pub trace: Vec<TraceTurn>,
+    pub notes: Vec<(u32, String)>,
+    pub over: Option<ExitTier>,
+    pub death_cause: Option<String>,
+    pub death_blow: i32,
+    pub hurt_since_action: bool,
+    pub hurt_last: bool,
+    pub kill_since_action: bool,
+    pub kill_last: bool,
+    pub seen_ids: BTreeSet<u32>,
+    pub new_seen: bool,
+    pub telegraphs_now: Vec<String>,
+    pub low10_t: Option<u32>,
+    pub low20_t: Option<u32>,
+    pub near_deaths: Vec<u32>,
+    pub gambles: Vec<(u32, String, bool)>,
+    pub gambles_survived: Vec<(u32, String)>,
+    pub stolen: Vec<(u32, String)>,
+    pub ally_lost: Vec<(u32, String)>,
+    pub ally_freed: Vec<u32>,
+    pub boss_kills: Vec<(u32, String)>,
+    pub drank_heal: bool,
+    pub melee_used: bool,
+    pub boss_seen_t: Option<u32>,
+    pub hurt_since_boss: bool,
+    pub row_fired: Vec<u32>,
+    pub renderable_events: u32,
+    pub ended: bool,
+    pub max_depth: u32,
+    pub trophies_run: Vec<String>,
+}
+
+impl Run {
+    pub fn monster_at(&self, p: Pos) -> Option<usize> {
+        self.monsters.iter().position(|m| m.hp > 0 && m.pos == p)
+    }
+    pub fn occupied(&self, p: Pos) -> bool {
+        self.hero.pos == p || self.monster_at(p).is_some()
+    }
+    pub fn item_at(&self, p: Pos) -> Option<usize> {
+        self.items.iter().position(|i| i.pos == p)
+    }
+    pub fn new_id(&mut self) -> u32 {
+        self.next_id += 1;
+        self.next_id
+    }
+    pub fn new_item_id(&mut self) -> u32 {
+        self.next_item_id += 1;
+        self.next_item_id
+    }
+    pub fn biome(&self) -> Biome {
+        biome_for(self.depth)
+    }
+    pub fn allies(&self) -> impl Iterator<Item = &Monster> {
+        self.monsters.iter().filter(|m| m.ally && m.hp > 0)
+    }
+}
+
+/// Per-turn context borrowed from the game.
+pub struct Ctx<'a> {
+    pub facts: &'a mut BTreeSet<String>,
+    pub flavours: &'a Flavours,
+    pub rules: &'a RuleSet,
+    pub unlocks: &'a BTreeSet<String>,
+    pub events: &'a mut Vec<Ev>,
+    pub sim: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LineageState {
+    pub seed: u64,
+    pub heir: u32,
+    pub trait_: Trait,
+    pub class: Class,
+    pub best_depth: u32,
+    pub marks: u32,
+    pub facts: BTreeSet<String>,
+    pub unlocks: BTreeSet<String>,
+    pub vault: Vec<Item>,
+    pub graveyard: Vec<Grave>,
+    pub trophies: Vec<String>,
+    pub sets: Vec<RuleSet>,
+    pub active_set: usize,
+    pub ended: bool,
+    pub kills: BTreeSet<String>,
+    pub flavours: Flavours,
+    pub grudges: Vec<Grudge>,
+    pub total_turns: u64,
+    pub next_run_id: u32,
+    pub next_vault_id: u32,
+    pub rng: Rng,
+}
+
+impl LineageState {
+    pub fn new(seed: u64) -> LineageState {
+        let mut rng = Rng::derive(seed, hash_str("lineage"));
+        let flavours = Flavours::roll(&mut rng);
+        let trait_ = Trait::ALL[rng.below(4) as usize];
+        LineageState {
+            seed,
+            heir: 1,
+            trait_,
+            class: Class::Fighter,
+            best_depth: 0,
+            marks: 0,
+            facts: BTreeSet::new(),
+            unlocks: BTreeSet::new(),
+            vault: Vec::new(),
+            graveyard: Vec::new(),
+            trophies: Vec::new(),
+            sets: vec![crate::probes::preset(Class::Fighter), RuleSet::default(), RuleSet::default()],
+            active_set: 0,
+            ended: false,
+            kills: BTreeSet::new(),
+            flavours,
+            grudges: Vec::new(),
+            total_turns: 0,
+            next_run_id: 1,
+            next_vault_id: 100_000,
+            rng,
+        }
+    }
+    pub fn rules(&self) -> &RuleSet {
+        &self.sets[self.active_set.min(self.sets.len() - 1)]
+    }
+    pub fn to_wire(&self) -> Lineage {
+        Lineage {
+            seed: self.seed,
+            heir: self.heir,
+            trait_: self.trait_.name().into(),
+            class: self.class.name().into(),
+            best_depth: self.best_depth,
+            marks: self.marks,
+            facts: self.facts.iter().cloned().collect(),
+            unlocks: self.unlocks.iter().cloned().collect(),
+            vault: self.vault.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
+            graveyard: self.graveyard.clone(),
+            trophies: self.trophies.clone(),
+            sets: self.sets.clone(),
+            active_set: self.active_set,
+            ended: self.ended,
+        }
+    }
+    pub fn vault_slots(&self) -> usize {
+        1 + self.unlocks.contains("vault2") as usize + self.unlocks.contains("vault3") as usize
+    }
+    pub fn max_rows(&self) -> usize {
+        4 + ["row5", "row6", "row7", "row8"].iter().filter(|u| self.unlocks.contains(**u)).count()
+    }
+}
+
+/// A recorded death: the wire `Death` plus what is needed to compute its verdict lazily.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct DeathRec {
+    pub death: Death,
+    pub t10: Option<Run>,
+    pub t10_facts: BTreeSet<String>,
+    pub rules: RuleSet,
+    pub vocab: Vocabulary,
+    pub verdict_done: bool,
+    pub deltas_done: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Game {
+    pub version: u32,
+    pub lineage: LineageState,
+    pub run: Option<Run>,
+    pub deaths: BTreeMap<u32, DeathRec>,
+    pub loadout: Vec<u32>,
+    pub sim: bool,
+    pub history: VecDeque<(Run, BTreeSet<String>)>,
+    pub reel: Vec<Highlight>,
+    pub last_snapshot: Option<Snapshot>,
+    pub events: Vec<Ev>,
+    pub stall_runs: u32,
+    pub last_run_summary: Option<RunSummary>,
+}
+
+/// What a finished run contributed (for offline accounting).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RunSummary {
+    pub run_id: u32,
+    pub depth: u32,
+    pub tier: Option<ExitTier>,
+    pub cause: Option<String>,
+    pub new_facts: Vec<String>,
+    pub new_best: bool,
+    pub marks: u32,
+    pub bests: Vec<String>,
+    pub found: Vec<Item>,
+    pub turns: u32,
+    pub highlights: Vec<Highlight>,
+    pub renderable_events: u32,
+    pub row_fired: Vec<u32>,
+}
+
+impl Game {
+    pub fn new(seed: u64) -> Game {
+        Game {
+            version: SAVE_VERSION,
+            lineage: LineageState::new(seed),
+            run: None,
+            deaths: BTreeMap::new(),
+            loadout: Vec::new(),
+            sim: false,
+            history: VecDeque::new(),
+            reel: Vec::new(),
+            last_snapshot: None,
+            events: Vec::new(),
+            stall_runs: 0,
+            last_run_summary: None,
+        }
+    }
+
+    /// A lightweight copy for simulations: same lineage and run, no records.
+    pub fn sim_clone(&self) -> Game {
+        Game {
+            version: self.version,
+            lineage: self.lineage.clone(),
+            run: self.run.clone(),
+            deaths: BTreeMap::new(),
+            loadout: self.loadout.clone(),
+            sim: true,
+            history: VecDeque::new(),
+            reel: Vec::new(),
+            last_snapshot: None,
+            events: Vec::new(),
+            stall_runs: 0,
+            last_run_summary: None,
+        }
+    }
+
+    pub fn lineage(&self) -> Lineage {
+        self.lineage.to_wire()
+    }
+
+    pub fn set_rules(&mut self, set: RuleSet) -> Result<(), String> {
+        set.validate()?;
+        let i = self.lineage.active_set.min(self.lineage.sets.len() - 1);
+        self.lineage.sets[i] = set;
+        Ok(())
+    }
+
+    pub fn select_set(&mut self, i: usize) {
+        self.lineage.active_set = i.min(self.lineage.sets.len() - 1);
+    }
+
+    pub fn set_class(&mut self, class: &str) -> Result<(), String> {
+        let c = Class::parse(class).ok_or("unknown class")?;
+        if c == Class::Rogue && !self.lineage.unlocks.contains("rogue") {
+            return Err("rogue not unlocked".into());
+        }
+        self.lineage.class = c;
+        Ok(())
+    }
+
+    pub fn loadout(&mut self, ids: Vec<u32>) {
+        self.loadout = ids.into_iter().filter(|id| self.lineage.vault.iter().any(|v| v.id == *id)).collect();
+    }
+
+    pub fn run_seed(&self, run_id: u32) -> u64 {
+        crate::rng::splitmix(self.lineage.seed ^ (run_id as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15))
+    }
+
+    /// Start (or resume) an expedition.
+    pub fn send(&mut self) -> Snapshot {
+        if self.run.is_none() {
+            self.start_run(None);
+        }
+        let s = self.snapshot();
+        self.last_snapshot = Some(s.clone());
+        s
+    }
+
+    pub fn start_run(&mut self, seed_override: Option<u64>) {
+        let id = self.lineage.next_run_id;
+        self.lineage.next_run_id += 1;
+        let seed = seed_override.unwrap_or_else(|| self.run_seed(id));
+        let mut rng = Rng::new(seed);
+        let floor = generate(&mut rng, biome_for(1), 1);
+        let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
+        hero.auto_equip(Item::new(1, "dagger"));
+        let mut brought = Vec::new();
+        let mut loadout = std::mem::take(&mut self.loadout);
+        loadout.sort();
+        loadout.dedup();
+        for id in loadout {
+            if let Some(i) = self.lineage.vault.iter().position(|v| v.id == id) {
+                let it = self.lineage.vault.remove(i);
+                brought.push(it.id);
+                hero.auto_equip(it);
+            }
+        }
+        let mut run = Run {
+            id,
+            heir: self.lineage.heir,
+            started_turn: self.lineage.total_turns,
+            rng,
+            depth: 1,
+            floor,
+            hero,
+            trait_: self.lineage.trait_,
+            monsters: Vec::new(),
+            items: Vec::new(),
+            overlays: Vec::new(),
+            turn: 0,
+            floor_turn: 0,
+            alert: 0,
+            loot: 0,
+            next_id: HERO_ID,
+            next_item_id: 10,
+            kills_floor: 0,
+            kills: Vec::new(),
+            brought,
+            trace: Vec::new(),
+            notes: Vec::new(),
+            over: None,
+            death_cause: None,
+            death_blow: 0,
+            hurt_since_action: false,
+            hurt_last: false,
+            kill_since_action: false,
+            kill_last: false,
+            seen_ids: BTreeSet::new(),
+            new_seen: false,
+            telegraphs_now: Vec::new(),
+            low10_t: None,
+            low20_t: None,
+            near_deaths: Vec::new(),
+            gambles: Vec::new(),
+            gambles_survived: Vec::new(),
+            stolen: Vec::new(),
+            ally_lost: Vec::new(),
+            ally_freed: Vec::new(),
+            boss_kills: Vec::new(),
+            drank_heal: false,
+            melee_used: false,
+            boss_seen_t: None,
+            hurt_since_boss: false,
+            row_fired: vec![0; 8],
+            renderable_events: 0,
+            ended: false,
+            max_depth: 1,
+            trophies_run: Vec::new(),
+        };
+        self.populate_floor(&mut run);
+        run.floor.map.update_vision(run.hero.pos, VISION);
+        self.history.clear();
+        self.run = Some(run);
+        let mut cx = self.ctx();
+        let run = cx.0;
+        crate::facts::on_vision(run, &mut cx.1);
+        crate::chronicle::note(run, &mut cx.1, format!("Heir {} enters D1, {}.", run.heir, biome_for(1).title()));
+    }
+
+    /// Borrow the run and a context together.
+    pub fn ctx(&mut self) -> (&mut Run, Ctx<'_>) {
+        let Game { run, lineage, events, sim, .. } = self;
+        let run = run.as_mut().expect("no live run");
+        let set = lineage.active_set.min(lineage.sets.len() - 1);
+        let cx = Ctx {
+            facts: &mut lineage.facts,
+            flavours: &lineage.flavours,
+            rules: &lineage.sets[set],
+            unlocks: &lineage.unlocks,
+            events,
+            sim: *sim,
+        };
+        (run, cx)
+    }
+
+    /// Fill a freshly generated floor with monsters and items for the run's depth.
+    pub fn populate_floor(&mut self, run: &mut Run) {
+        let depth = run.depth;
+        let biome = run.biome();
+        let mut open = run.floor.open_tiles();
+        let hero = run.hero.pos;
+        open.retain(|p| p.cheb(hero) > 6);
+        if open.is_empty() {
+            open = run.floor.open_tiles();
+        }
+        run.rng.shuffle(&mut open);
+        let mut cursor = 0usize;
+        let mut take = |rng: &mut Rng, open: &Vec<Pos>, cursor: &mut usize| -> Pos {
+            if *cursor < open.len() {
+                let p = open[*cursor];
+                *cursor += 1;
+                p
+            } else {
+                *rng.pick(open)
+            }
+        };
+        let table = spawn_table(biome, depth);
+        let weights: Vec<u32> = table.iter().map(|t| t.1).collect();
+        let groups = crate::defs::group_budget(depth);
+        let water = run.floor.water_tiles();
+        let mut captive_placed = false;
+        for _ in 0..groups {
+            let (kind, _, gmin, gmax) = table[run.rng.weighted(&weights)];
+            if kind == "captive" {
+                if captive_placed {
+                    continue;
+                }
+                captive_placed = true;
+            }
+            let n = run.rng.range(gmin, gmax);
+            let anchor = if kind == "eel" && !water.is_empty() {
+                *run.rng.pick(&water)
+            } else {
+                take(&mut run.rng, &open, &mut cursor)
+            };
+            for k in 0..n {
+                let pos = if k == 0 {
+                    anchor
+                } else {
+                    let mut cands: Vec<Pos> = anchor
+                        .neighbours8()
+                        .into_iter()
+                        .filter(|q| run.floor.map.passable(*q) && !run.occupied(*q))
+                        .collect();
+                    if cands.is_empty() {
+                        cands.push(take(&mut run.rng, &open, &mut cursor));
+                    }
+                    *run.rng.pick(&cands)
+                };
+                if run.occupied(pos) {
+                    continue;
+                }
+                let id = run.new_id();
+                run.monsters.push(Monster::spawn(id, kind, pos, depth));
+            }
+        }
+        // Boss with escorts, near the down stairs.
+        if let Some(boss) = boss_for(depth) {
+            let near: Vec<Pos> = run
+                .floor
+                .open_tiles()
+                .into_iter()
+                .filter(|p| p.cheb(run.floor.stairs_down) <= 3 && !run.occupied(*p) && p.cheb(hero) > 6)
+                .collect();
+            let pos = if near.is_empty() { take(&mut run.rng, &open, &mut cursor) } else { *run.rng.pick(&near) };
+            let id = run.new_id();
+            run.monsters.push(Monster::spawn(id, boss, pos, depth));
+            let escort = match boss {
+                "goblin_warlord" => "goblin",
+                "bloat_mother" => "bloat",
+                _ => "skeleton",
+            };
+            for q in pos.neighbours8() {
+                if run.floor.map.passable(q) && !run.occupied(q) && run.rng.chance(40) {
+                    let id = run.new_id();
+                    run.monsters.push(Monster::spawn(id, escort, q, depth));
+                }
+            }
+        }
+        // Grudge monsters live on the floor they killed on.
+        for g in self.lineage.grudges.iter().filter(|g| g.depth == depth) {
+            let pos = take(&mut run.rng, &open, &mut cursor);
+            if run.occupied(pos) {
+                continue;
+            }
+            let id = run.new_id();
+            let mut m = Monster::spawn(id, &g.kind, pos, depth);
+            m.make_grudge(&g.name);
+            run.monsters.push(m);
+        }
+        // Items.
+        let budget = crate::defs::item_budget(depth);
+        let kinds: Vec<&crate::defs::ItemDef> = crate::defs::ITEMS.iter().filter(|i| i.weight > 0).collect();
+        let iw: Vec<u32> = kinds
+            .iter()
+            .map(|i| {
+                let mut w = i.weight;
+                match i.kind {
+                    "axe" | "bow" | "mail" if depth < 4 => w = 0,
+                    "plate" if depth < 8 => w = 0,
+                    _ => {}
+                }
+                w
+            })
+            .collect();
+        let mut open_items = run.floor.open_tiles();
+        run.rng.shuffle(&mut open_items);
+        let mut ic = 0usize;
+        for _ in 0..budget {
+            let d = kinds[run.rng.weighted(&iw)];
+            let iid = run.new_item_id();
+            let mut it = Item::new(iid, d.kind);
+            if d.cat == Cat::Potion || d.cat == Cat::Scroll {
+                if run.rng.chance(50) {
+                    it.hint = Some(if d.benevolent { crate::item::Hint::Benevolent } else { crate::item::Hint::Malevolent });
+                }
+            }
+            let pos = if ic < open_items.len() { open_items[ic] } else { *run.rng.pick(&open_items) };
+            ic += 1;
+            run.items.push(FloorItem { pos, item: it });
+        }
+        for _ in 0..2 {
+            let iid = run.new_item_id();
+            let mut it = Item::new(iid, "gold");
+            it.amount = run.rng.range(5, 12) * depth as i32;
+            let pos = if ic < open_items.len() { open_items[ic] } else { *run.rng.pick(&open_items) };
+            ic += 1;
+            run.items.push(FloorItem { pos, item: it });
+        }
+    }
+
+    /// Advance the live view by `turns`, returning the events and the new snapshot.
+    pub fn step(&mut self, turns: u32) -> StepResult {
+        let mut events = Vec::new();
+        let mut run_over = false;
+        if self.run.is_none() {
+            let snapshot = self.last_snapshot.clone().unwrap_or_else(|| {
+                self.start_run(None);
+                let s = self.snapshot();
+                self.run = None;
+                s
+            });
+            return StepResult { events, snapshot, run_over: true };
+        }
+        for _ in 0..turns {
+            self.tick();
+            events.append(&mut self.events);
+            if self.run.as_ref().is_none_or(|r| r.over.is_some()) {
+                run_over = true;
+                break;
+            }
+        }
+        let snapshot = self.snapshot();
+        if run_over {
+            self.finish_run();
+        }
+        self.last_snapshot = Some(snapshot.clone());
+        StepResult { events, snapshot, run_over }
+    }
+
+    /// One turn of the live run. Records history for verdicts when not simulating.
+    pub fn tick(&mut self) {
+        if self.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            return;
+        }
+        if !self.sim {
+            let r = self.run.as_ref().unwrap();
+            self.history.push_back((r.clone(), self.lineage.facts.clone()));
+            while self.history.len() > HISTORY_TURNS + 1 {
+                self.history.pop_front();
+            }
+        }
+        let (run, mut cx) = self.ctx();
+        crate::turn::step_turn(run, &mut cx);
+        let n = cx.events.iter().filter(|e| e.renderable()).count() as u32;
+        run.renderable_events += n;
+        if run.turn >= MAX_TURNS_PER_RUN && run.over.is_none() {
+            crate::turn::end_run(run, &mut cx, ExitTier::Return);
+        }
+        self.lineage.total_turns += 1;
+        if self.run.as_ref().unwrap().depth >= ENDING_DEPTH {
+            self.lineage.ended = true;
+        }
+    }
+
+    /// Run the live expedition to its end (used by forecasts and the offline batch).
+    pub fn run_to_end(&mut self, max_turns: u32) {
+        let mut n = 0;
+        while self.run.as_ref().is_some_and(|r| r.over.is_none()) && n < max_turns {
+            self.tick();
+            n += 1;
+        }
+    }
+
+    pub fn snapshot(&self) -> Snapshot {
+        let l = &self.lineage;
+        let run = self.run.as_ref().expect("no live run");
+        let m = &run.floor.map;
+        let h = &run.hero;
+        let hero = HeroSnap {
+            entity: Entity {
+                id: HERO_ID,
+                kind: format!("hero_{}", h.class.name()),
+                name: None,
+                x: h.pos.x,
+                y: h.pos.y,
+                hp: h.hp,
+                max_hp: h.max_hp,
+                tags: h.status_tags(),
+                ally: None,
+                telegraph: None,
+            },
+            inv: h.inv.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
+            weapon: h.weapon.as_ref().map(|w| w.kind.clone()),
+            armour: h.armour.as_ref().map(|a| a.kind.clone()),
+            class: h.class.name().into(),
+            trait_: run.trait_.name().into(),
+        };
+        let entities = run
+            .monsters
+            .iter()
+            .filter(|mo| mo.hp > 0 && m.is_visible(mo.pos))
+            .map(|mo| monster_entity(mo, &l.facts))
+            .collect();
+        let items = run
+            .items
+            .iter()
+            .filter(|fi| m.is_seen(fi.pos))
+            .map(|fi| {
+                let (known, kind, label) = describe(&fi.item, &l.facts, &l.flavours);
+                FloorItemWire { id: fi.item.id, x: fi.pos.x, y: fi.pos.y, kind, known, label }
+            })
+            .collect();
+        Snapshot {
+            depth: run.depth,
+            biome: run.biome().name().into(),
+            w: m.w,
+            h: m.h,
+            tiles: m.tiles.clone(),
+            seen: m.seen.clone(),
+            visible: m.visible.clone(),
+            overlays: run.overlays.clone(),
+            hero,
+            entities,
+            items,
+            alert: run.alert,
+            turn: run.turn,
+            loot: run.loot,
+            run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn },
+        }
+    }
+
+    /// Bank the run's outcome into the lineage: loot, vault, marks, graveyard, grudges, deaths.
+    pub fn finish_run(&mut self) -> Option<RunSummary> {
+        let run = self.run.take()?;
+        let tier = run.over.unwrap_or(ExitTier::Return);
+        let facts_before = self.lineage.facts.len();
+        let mut summary = RunSummary {
+            run_id: run.id,
+            depth: run.depth,
+            tier: Some(tier),
+            cause: run.death_cause.clone(),
+            turns: run.turn,
+            renderable_events: run.renderable_events,
+            row_fired: run.row_fired.clone(),
+            ..Default::default()
+        };
+        let _ = facts_before;
+        // Marks: new bests only.
+        let mut marks = 0;
+        if run.max_depth > self.lineage.best_depth {
+            marks += run.max_depth - self.lineage.best_depth;
+            self.lineage.best_depth = run.max_depth;
+            summary.new_best = true;
+            summary.bests.push(format!("D{}", run.max_depth));
+        }
+        for (_, kind) in &run.kills {
+            if self.lineage.kills.insert(kind.clone()) {
+                let boss = crate::defs::monster_def(kind).boss;
+                marks += if boss { 3 } else { 1 };
+                summary.new_best = true;
+                summary.bests.push(if boss { format!("boss: {kind}") } else { format!("first kill: {kind}") });
+            }
+        }
+        for t in &run.trophies_run {
+            if !self.lineage.trophies.contains(t) {
+                self.lineage.trophies.push(t.clone());
+                marks += 2;
+                summary.new_best = true;
+                summary.bests.push(format!("trophy: {t}"));
+            }
+        }
+        self.lineage.marks += marks;
+        summary.marks = marks;
+        // Loot and vault.
+        let mut kept: Vec<Item> = Vec::new();
+        let mut all: Vec<Item> = run.hero.inv.iter().cloned().collect();
+        if let Some(w) = &run.hero.weapon {
+            all.push(w.clone());
+        }
+        if let Some(a) = &run.hero.armour {
+            all.push(a.clone());
+        }
+        all.retain(|i| i.cat() != Cat::Gold && i.id != 1);
+        all.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
+        match tier {
+            ExitTier::Bank => kept = all,
+            ExitTier::Return => {
+                let n = (all.len() * 60).div_ceil(100);
+                kept = all.into_iter().take(n).collect();
+            }
+            ExitTier::Death => {
+                let n = (all.len() * 30) / 100;
+                kept = all.into_iter().filter(|i| !run.brought.contains(&i.id)).take(n).collect();
+            }
+        }
+        let slots = self.lineage.vault_slots();
+        for it in kept {
+            let mut v = it;
+            if v.id < 100_000 {
+                v.id = self.lineage.next_vault_id;
+                self.lineage.next_vault_id += 1;
+            }
+            self.lineage.vault.push(v.clone());
+            self.lineage.vault.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
+            if self.lineage.vault.len() > slots {
+                let dropped = self.lineage.vault.pop();
+                if dropped.as_ref().is_some_and(|d| d.id == v.id) {
+                    continue;
+                }
+            }
+            summary.found.push(v);
+        }
+        // Highlights.
+        summary.highlights = crate::sifter::sift(&run, &self.lineage);
+        for h in &summary.highlights {
+            self.reel.push(h.clone());
+        }
+        self.reel.sort_by(|a, b| b.score.cmp(&a.score).then(a.run_id.cmp(&b.run_id)).then(a.t.cmp(&b.t)));
+        self.reel.truncate(50);
+        // Death: graveyard, grudge, heir, record.
+        if tier == ExitTier::Death {
+            let cause = run.death_cause.clone().unwrap_or_else(|| "unknown".into());
+            let mut deeds: Vec<String> = summary.bests.clone();
+            for (_, k) in &run.boss_kills {
+                let d = format!("slew the {}", crate::defs::monster_def(k).title);
+                if !deeds.contains(&d) {
+                    deeds.push(d);
+                }
+            }
+            deeds.truncate(3);
+            self.lineage.graveyard.push(Grave { heir: run.heir, depth: run.depth, cause: cause.clone(), deeds });
+            if crate::defs::MONSTERS.iter().any(|m| m.kind == cause && !m.boss && !m.tags.contains(&"summoned"))
+                && !self.lineage.grudges.iter().any(|g| g.kind == cause && g.depth == run.depth)
+            {
+                let name = crate::descent::grudge_name(&mut self.lineage.rng);
+                self.lineage.grudges.push(Grudge { kind: cause.clone(), name, depth: run.depth, heir: run.heir });
+            }
+            self.lineage.heir += 1;
+            self.lineage.trait_ = Trait::ALL[self.lineage.rng.below(4) as usize];
+            if !self.sim {
+                let rec = crate::trace::death_record(self, &run);
+                self.deaths.insert(run.id, rec);
+                while self.deaths.len() > 40 {
+                    let k = *self.deaths.keys().next().unwrap();
+                    self.deaths.remove(&k);
+                }
+            }
+        }
+        self.history.clear();
+        self.last_run_summary = Some(summary.clone());
+        Some(summary)
+    }
+
+    pub fn vocabulary(&self) -> Vocabulary {
+        crate::tokens::vocabulary(&self.lineage)
+    }
+}
+
+pub fn monster_entity(mo: &Monster, facts: &BTreeSet<String>) -> Entity {
+    let mut tags: Vec<String> = mo
+        .def()
+        .tags
+        .iter()
+        .filter(|t| facts.contains(&format!("foe:{}:{}", mo.kind, t)))
+        .map(|t| t.to_string())
+        .collect();
+    if mo.neutral {
+        tags.push("captive".into());
+    }
+    if mo.stun > 0 {
+        tags.push("stunned".into());
+    }
+    if mo.paralysed > 0 {
+        tags.push("paralysed".into());
+    }
+    if mo.confused > 0 {
+        tags.push("confused".into());
+    }
+    if mo.fear > 0 || mo.fleeing {
+        tags.push("fleeing".into());
+    }
+    if mo.grudge {
+        tags.push("grudge".into());
+    }
+    Entity {
+        id: mo.id,
+        kind: mo.kind.clone(),
+        name: mo.name.clone(),
+        x: mo.pos.x,
+        y: mo.pos.y,
+        hp: mo.hp,
+        max_hp: mo.max_hp,
+        tags,
+        ally: if mo.ally { Some(true) } else { None },
+        telegraph: mo.telegraph.clone(),
+    }
+}
+
+pub fn item_wire(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> InvItem {
+    to_inv(item, facts, flavours)
+}
+
+pub fn kind_title(kind: &str) -> String {
+    if crate::defs::MONSTERS.iter().any(|m| m.kind == kind) {
+        crate::defs::monster_def(kind).title.to_string()
+    } else if crate::defs::ITEMS.iter().any(|i| i.kind == kind) {
+        item_def(kind).kind.replace('_', " ")
+    } else {
+        kind.replace('_', " ")
+    }
+}
