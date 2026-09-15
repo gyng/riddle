@@ -71,3 +71,11 @@ eval/score.sh eval/cards/<card>.json
   detached (`setsid nohup`).
 - After editing Rust, rebuild `web/src/engine/pkg`; the PWA precache is versioned, so verify
   frontend changes on a fresh port.
+
+## Browser harness (GPU under WSLg)
+
+Headless Chromium here runs on SwiftShader. Use `tools/browser.mjs` (headed Chromium under
+WSLg with Mesa's D3D12 driver forced via `/usr/lib/wsl/lib`), which reaches the real GPU:
+`node tools/browser.mjs --probe` should print `D3D12 (NVIDIA …)`. Every render playtest,
+frame-time measurement and screenshot goes through `launchGpu()` from that file. The
+Playwright MCP tools are headless/SwiftShader; do not use them for performance claims.

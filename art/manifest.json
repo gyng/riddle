@@ -25,8 +25,8 @@
       "kind": "monster",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 64,
-      "texel_h": 32,
+      "master_h": 32,
+      "texel_h": 16,
       "description": "A single dungeon rat facing right: fat low body, long bare tail curling behind, pink ears and nose, tiny black eye, dusty umber-grey fur with dry-brush edges. Small, simple, one-mass silhouette with the tail as its tag. Reads as 'rat' at 32 px."
     },
     {
@@ -34,8 +34,8 @@
       "kind": "monster",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 64,
-      "texel_h": 32,
+      "master_h": 48,
+      "texel_h": 24,
       "description": "A lean dungeon jackal facing right mid-lope: low horizontal body, ribs showing, big pointed ears, narrow snout with a snarl, tail straight out behind. Sandy-tan and dusty umber washes, one flat shadow mass. Tag: LOW, LEAN and FAST — the silhouette is a stretched horizontal dash with ears. Reads at 32 px."
     },
     {
@@ -70,8 +70,8 @@
       "kind": "monster",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 64,
-      "texel_h": 32,
+      "master_h": 56,
+      "texel_h": 28,
       "description": "A mischievous dungeon monkey facing right, mid-scamper on three limbs, CLUTCHING A STOLEN BULGING SACK in one arm against its chest, long tail curled up in a question mark, cheeky anime grin. Umber-brown fur with a pale belly, the sack in ochre with a red tie. Tag: the sack and the tail. Reads at 32 px."
     },
     {
@@ -97,8 +97,8 @@
       "kind": "monster",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 64,
-      "texel_h": 32,
+      "master_h": 48,
+      "texel_h": 24,
       "description": "A pink jelly: a low translucent quivering blob of rose-pink watercolour, dome-shaped with a wobbly lower edge, a few suspended darker pink flecks inside, a wet highlight upper-left. No face, no limbs. Tag: TRANSLUCENT BLOB — a squat dome silhouette. Reads at 32 px. Pink, magenta and ivory only."
     },
     {
@@ -106,8 +106,8 @@
       "kind": "monster",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 64,
-      "texel_h": 32,
+      "master_h": 40,
+      "texel_h": 20,
       "description": "A dungeon eel facing right: long thick S-curved body rising as if out of water, jaws open with needle teeth, small fin ridge along the back, tail trailing off lower-left. Dark olive-teal back and ivory belly (teal must be high-green, never royal blue). Tag: the long S-curve. Reads as a sinuous ribbon with a mouth at 32 px."
     },
     {
@@ -178,8 +178,8 @@
       "kind": "summon",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 48,
-      "texel_h": 24,
+      "master_h": 40,
+      "texel_h": 20,
       "description": "A spectral blade: a single floating ghost-sword, point down, ivory-white and pale teal watercolour, no hilt-holder, a faint trailing wisp. Bold ink outline. Tag: a floating sword. Reads as a vertical blade at 24 px. Never saturated blue."
     },
     {
@@ -187,8 +187,8 @@
       "kind": "summon",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 48,
-      "texel_h": 24,
+      "master_h": 40,
+      "texel_h": 20,
       "description": "A spectral hound facing right: a lean running dog made of ivory-white and pale teal wash, hind legs fading into wisps, ears back, mouth open. Bold ink outline. Tag: a ghostly running dog. Reads at 24 px. Never saturated blue."
     },
     {

@@ -3,7 +3,7 @@
   "armour": {
    "h": 8,
    "w": 8,
-   "x": 305,
+   "x": 112,
    "y": 308
   },
   "bloat": {
@@ -39,127 +39,127 @@
   "crypt_chasm": {
    "h": 8,
    "w": 8,
-   "x": 314,
+   "x": 121,
    "y": 308
   },
   "crypt_door": {
    "h": 8,
    "w": 8,
-   "x": 323,
+   "x": 130,
    "y": 308
   },
   "crypt_floor": {
    "h": 8,
    "w": 8,
-   "x": 332,
+   "x": 139,
    "y": 308
   },
   "crypt_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 341,
+   "x": 148,
    "y": 308
   },
   "crypt_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 350,
+   "x": 157,
    "y": 308
   },
   "crypt_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 359,
+   "x": 166,
    "y": 308
   },
   "crypt_wall": {
    "h": 8,
    "w": 8,
-   "x": 368,
+   "x": 175,
    "y": 308
   },
   "crypt_water": {
    "h": 8,
    "w": 8,
-   "x": 377,
+   "x": 184,
    "y": 308
   },
   "eel": {
-   "h": 64,
-   "w": 61,
-   "x": 213,
+   "h": 40,
+   "w": 38,
+   "x": 441,
    "y": 227
   },
   "fens_chasm": {
    "h": 8,
    "w": 8,
-   "x": 386,
+   "x": 193,
    "y": 308
   },
   "fens_door": {
    "h": 8,
    "w": 8,
-   "x": 395,
+   "x": 202,
    "y": 308
   },
   "fens_floor": {
    "h": 8,
    "w": 8,
-   "x": 404,
+   "x": 211,
    "y": 308
   },
   "fens_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 413,
+   "x": 220,
    "y": 308
   },
   "fens_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 422,
+   "x": 229,
    "y": 308
   },
   "fens_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 431,
+   "x": 238,
    "y": 308
   },
   "fens_wall": {
    "h": 8,
    "w": 8,
-   "x": 440,
+   "x": 247,
    "y": 308
   },
   "fens_water": {
    "h": 8,
    "w": 8,
-   "x": 449,
+   "x": 256,
    "y": 308
   },
   "fire_0": {
    "h": 8,
    "w": 8,
-   "x": 458,
+   "x": 265,
    "y": 308
   },
   "fire_1": {
    "h": 8,
    "w": 8,
-   "x": 467,
+   "x": 274,
    "y": 308
   },
   "gas_0": {
    "h": 8,
    "w": 8,
-   "x": 476,
+   "x": 283,
    "y": 308
   },
   "gas_1": {
    "h": 8,
    "w": 8,
-   "x": 485,
+   "x": 292,
    "y": 308
   },
   "ghoul": {
@@ -189,7 +189,7 @@
   "gold": {
    "h": 8,
    "w": 8,
-   "x": 494,
+   "x": 301,
    "y": 308
   },
   "hero_fighter": {
@@ -205,15 +205,15 @@
    "y": 130
   },
   "jackal": {
-   "h": 64,
-   "w": 139,
-   "x": 275,
+   "h": 48,
+   "w": 103,
+   "x": 265,
    "y": 227
   },
   "monkey": {
-   "h": 64,
-   "w": 58,
-   "x": 415,
+   "h": 56,
+   "w": 51,
+   "x": 213,
    "y": 227
   },
   "ogre": {
@@ -223,28 +223,28 @@
    "y": 130
   },
   "pink_jelly": {
-   "h": 64,
-   "w": 95,
-   "x": 1,
-   "y": 308
+   "h": 48,
+   "w": 71,
+   "x": 369,
+   "y": 227
   },
   "potion": {
    "h": 8,
    "w": 8,
-   "x": 503,
+   "x": 310,
    "y": 308
   },
   "rat": {
-   "h": 64,
-   "w": 128,
-   "x": 97,
+   "h": 32,
+   "w": 62,
+   "x": 49,
    "y": 308
   },
   "scroll": {
    "h": 8,
    "w": 8,
-   "x": 1,
-   "y": 373
+   "x": 319,
+   "y": 308
   },
   "skeleton": {
    "h": 96,
@@ -253,70 +253,70 @@
    "y": 130
   },
   "spectral_blade": {
-   "h": 48,
-   "w": 20,
-   "x": 226,
-   "y": 308
+   "h": 40,
+   "w": 17,
+   "x": 480,
+   "y": 227
   },
   "spectral_hound": {
-   "h": 48,
-   "w": 57,
-   "x": 247,
+   "h": 40,
+   "w": 47,
+   "x": 1,
    "y": 308
   },
   "warrens_chasm": {
    "h": 8,
    "w": 8,
-   "x": 10,
-   "y": 373
+   "x": 328,
+   "y": 308
   },
   "warrens_door": {
    "h": 8,
    "w": 8,
-   "x": 19,
-   "y": 373
+   "x": 337,
+   "y": 308
   },
   "warrens_floor": {
    "h": 8,
    "w": 8,
-   "x": 28,
-   "y": 373
+   "x": 346,
+   "y": 308
   },
   "warrens_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 37,
-   "y": 373
+   "x": 355,
+   "y": 308
   },
   "warrens_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 46,
-   "y": 373
+   "x": 364,
+   "y": 308
   },
   "warrens_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 55,
-   "y": 373
+   "x": 373,
+   "y": 308
   },
   "warrens_wall": {
    "h": 8,
    "w": 8,
-   "x": 64,
-   "y": 373
+   "x": 382,
+   "y": 308
   },
   "warrens_water": {
    "h": 8,
    "w": 8,
-   "x": 73,
-   "y": 373
+   "x": 391,
+   "y": 308
   },
   "weapon": {
    "h": 8,
    "w": 8,
-   "x": 82,
-   "y": 373
+   "x": 400,
+   "y": 308
   },
   "wraith": {
    "h": 96,
@@ -328,7 +328,7 @@
  "meta": {
   "atlas": {
    "gutter": 1,
-   "h": 382,
+   "h": 349,
    "w": 512
   },
   "palettes": {
@@ -391,8 +391,8 @@
    },
    "eel": {
     "kind": "monster",
-    "master_h": 64,
-    "texel_h": 32
+    "master_h": 40,
+    "texel_h": 20
    },
    "ghoul": {
     "kind": "monster",
@@ -426,13 +426,13 @@
    },
    "jackal": {
     "kind": "monster",
-    "master_h": 64,
-    "texel_h": 32
+    "master_h": 48,
+    "texel_h": 24
    },
    "monkey": {
     "kind": "monster",
-    "master_h": 64,
-    "texel_h": 32
+    "master_h": 56,
+    "texel_h": 28
    },
    "ogre": {
     "kind": "monster",
@@ -441,13 +441,13 @@
    },
    "pink_jelly": {
     "kind": "monster",
-    "master_h": 64,
-    "texel_h": 32
+    "master_h": 48,
+    "texel_h": 24
    },
    "rat": {
     "kind": "monster",
-    "master_h": 64,
-    "texel_h": 32
+    "master_h": 32,
+    "texel_h": 16
    },
    "skeleton": {
     "kind": "monster",
@@ -456,13 +456,13 @@
    },
    "spectral_blade": {
     "kind": "summon",
-    "master_h": 48,
-    "texel_h": 24
+    "master_h": 40,
+    "texel_h": 20
    },
    "spectral_hound": {
     "kind": "summon",
-    "master_h": 48,
-    "texel_h": 24
+    "master_h": 40,
+    "texel_h": 20
    },
    "wraith": {
     "kind": "monster",
