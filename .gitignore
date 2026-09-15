@@ -3,3 +3,4 @@ node_modules/
 dist/
 web/src/engine/pkg/
 *.log
+art/generated/_inspection_*
