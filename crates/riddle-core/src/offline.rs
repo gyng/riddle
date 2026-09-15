@@ -99,7 +99,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
     let b = &game.batch;
     let mut deaths: Vec<DeathCount> = b.deaths.iter().map(|(c, n)| DeathCount { cause: c.clone(), n: *n }).collect();
     deaths.sort_by(|a, b| b.n.cmp(&a.n).then(a.cause.cmp(&b.cause)));
-    let salvaged = b.salvaged.iter().map(|(k, (n, g))| SalvageRow { kind: k.clone(), n: *n, gold: *g }).collect();
+    let salvaged = b.salvaged.iter().map(|(k, (n, g))| SalvageRow { kind: k.clone(), n: *n, gold: (*g + 50) / 100 }).collect();
     ReturnReport {
         elapsed_s,
         runs: b.runs,

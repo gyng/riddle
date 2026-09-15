@@ -7,7 +7,7 @@ import { rowLabel, verbLabel } from "./tokens";
 const TRACE_ROWS = 5;
 
 export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
-  const line = h("h1", { class: "death-line" }, /* copy:death_line */ `${d.cause} · D${d.depth} · ${d.margin} · `, h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
+  const line = h("h1", { class: "death-line" }, /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth} · ${d.margin} · `, h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
   // The trace holds one row per hero action (~10 ticks apart at base speed); show the last five.
   const turns = d.trace.turns.slice(-TRACE_ROWS);
   const table = h("table", { class: "trace num" },

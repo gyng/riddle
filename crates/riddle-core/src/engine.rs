@@ -293,6 +293,9 @@ pub struct LineageState {
     pub next_comp_id: u32,
     // Addendum B
     pub gold: i32,
+    /// Sub-gold remainder from salvage, in hundredths (cheap items salvage fractions of a coin).
+    #[serde(default)]
+    pub gold_carry: i32,
     pub supplies: Vec<Item>,
     // Addendum C
     pub classes: BTreeMap<String, ClassProg>,
@@ -342,6 +345,7 @@ impl LineageState {
             bred: BTreeSet::new(),
             next_comp_id: 1,
             gold: 0,
+            gold_carry: 0,
             supplies: Vec::new(),
             classes,
             forge: BTreeMap::new(),
@@ -1139,7 +1143,11 @@ impl Game {
     /// Salvage items: gold by tier, forge ledger by full count (Addendum D).
     fn salvage(&mut self, items: &[Item], tier: ExitTier) {
         for it in items {
-            let gold = salvage_value(&it.kind) * tier.pct() / 100 / GOLD_DIVISOR;
+            // hundredths of a coin: value × tier% ÷ divisor, carried so cheap items still add up
+            let cents = salvage_value(&it.kind) * tier.pct() / GOLD_DIVISOR;
+            self.lineage.gold_carry += cents;
+            let gold = self.lineage.gold_carry / 100;
+            self.lineage.gold_carry %= 100;
             self.lineage.gold += gold;
             let f = self.lineage.forge.entry(it.kind.clone()).or_default();
             f.salvaged += it.amount.max(1) as u32;
@@ -1153,7 +1161,7 @@ impl Game {
             };
             let e = self.batch.salvaged.entry(it.kind.clone()).or_insert((0, 0));
             e.0 += 1;
-            e.1 += gold;
+            e.1 += cents;
         }
     }
 

@@ -261,6 +261,17 @@ export class App {
 /** Merge two offline reports (a then b): sums, unions in order, reel top 5, worst = deeper (ties: later). */
 export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const union = (x: string[], y: string[]): string[] => [...new Set([...x, ...y])];
+  // `rank 1 … rank 9` and `fighter L2 … L5` collapse to the highest of each ladder
+  const collapseBests = (xs: string[]): string[] => {
+    const top = new Map<string, [number, string]>(); const out: string[] = [];
+    for (const x of xs) {
+      const m = /^(rank|D|(\w+) L)(\d+)$/.exec(x);
+      if (!m) { out.push(x); continue; }
+      const key = m[1]; const n = Number(m[3]);
+      if (!top.has(key) || top.get(key)![0] < n) top.set(key, [n, x]);
+    }
+    return [...out, ...[...top.values()].map(([, x]) => x)];
+  };
   const deaths = new Map<string, number>();
   for (const d of [...a.deaths, ...b.deaths]) deaths.set(d.cause, (deaths.get(d.cause) ?? 0) + d.n);
   const salv = new Map<string, { n: number; gold: number }>();
@@ -268,7 +279,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const worst = !a.worst_death ? b.worst_death : !b.worst_death ? a.worst_death : b.worst_death.depth >= a.worst_death.depth ? b.worst_death : a.worst_death;
   return {
     elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,
-    learned: union(a.learned, b.learned), bests: union(a.bests, b.bests),
+    learned: union(a.learned, b.learned), bests: collapseBests(union(a.bests, b.bests)),
     found: [...a.found, ...b.found],
     deaths: [...deaths].map(([cause, n]) => ({ cause, n })).sort((x, y) => y.n - x.n),
     pending: b.pending,                                   // decisions waiting now (a state, not a delta)
