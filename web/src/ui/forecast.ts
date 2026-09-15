@@ -16,9 +16,11 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         h("span", { class: "n num" }, pct(d.reach))));
     }
     bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, `D${f.known_to + 1}+`), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
-    for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, c.cause, " ", h("b", { class: "num" }, pct(c.share))));
+    for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, c.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, pct(c.share))));
   };
+  // until the first forecast arrives (≈1 s in the worker): the unknown row only
+  bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, "…"), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
   const off = app.onForecast(paint);
-  app.emitForecast();
+  void app.emitForecast();
   return { el, dispose: off };
 }

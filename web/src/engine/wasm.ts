@@ -1,16 +1,19 @@
 // Real Engine over the wasm-pack output in ./pkg (built by tools/verify.sh). Imported lazily via
 // import.meta.glob so the client compiles and runs (falling back to the fake) when pkg/ is absent.
 //
-// Assumed wasm surface (docs/CUT1.md): `class Game { constructor(seed: number) }` with one method per
-// Engine member, camelCased, taking/returning JSON strings (exportRules returns plain text; setRules and
-// loadout return nothing). `load` may be a static constructor (`Game.load(json)`) or an instance method;
-// both are handled. Values that arrive already-parsed (serde-wasm-bindgen) are accepted too.
+// Wasm surface (crates/riddle-wasm/src/lib.rs): `class Game { constructor(seed) }` with one method per
+// Engine member, camelCased, taking/returning JSON strings (exportRules returns plain text; setRules,
+// loadout and setCompanionRules return nothing; `load` is an instance method, `fromSave` a static).
+// Errors surface as thrown JsError (invalid rules, unaffordable unlocks, …).
+//
+// This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
+// through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  Death, Engine, Forecast, Lineage, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, Vocabulary,
+  Death, Engine, Forecast, Lineage, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary,
 } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
-type GameCtor = (new (seed: number) => GameObj) & { load?: (save: string) => GameObj };
+type GameCtor = (new (seed: number) => GameObj) & { fromSave?: (save: string) => GameObj };
 type Pkg = { default?: (input?: unknown) => Promise<unknown>; Game: GameCtor; version?: () => string };
 
 const mods = import.meta.glob<Pkg>("./pkg/riddle_wasm.js");
@@ -29,10 +32,9 @@ export class WasmEngine implements Engine {
   }
   newLineage(seed: number): Lineage { this.g = new this.Game(seed >>> 0); return this.call<Lineage>("lineage"); }
   load(save: string): Lineage {
-    if (typeof this.Game.load === "function") { this.g = this.Game.load(save); return this.call<Lineage>("lineage"); }
+    if (typeof this.Game.fromSave === "function") { this.g = this.Game.fromSave(save); return this.call<Lineage>("lineage"); }
     if (!this.g) this.g = new this.Game(0);
-    const r = this.call<Lineage | undefined>("load", save);
-    return r ?? this.call<Lineage>("lineage");
+    return this.call<Lineage>("load", save);
   }
   save(): string { const r = this.game.save(); return typeof r === "string" ? r : JSON.stringify(r); }
   vocabulary(): Vocabulary { return this.call("vocabulary"); }
@@ -60,9 +62,13 @@ export class WasmEngine implements Engine {
   // Addendum D
   keep(ids: number[]): Lineage { return this.call("keep", JSON.stringify(ids)); }
   setKeepPref(pref: string): Lineage { return this.call("setKeepPref", pref); }
+  // core additions
+  unlocks(): UnlockInfo[] { return this.call("unlocks"); }
+  setClass(cls: string): Lineage { return this.call("setClass", cls); }
+  selectSet(i: number): Lineage { return this.call("selectSet", i); }
 }
 
-/** Resolves to a WasmEngine, or null when pkg/ is not built. */
+/** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */
 export async function loadWasmEngine(): Promise<WasmEngine | null> {
   const loader = Object.values(mods)[0];
   if (!loader) return null;

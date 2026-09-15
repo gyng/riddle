@@ -16,6 +16,7 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
   const foot = h("div", { class: "rows-foot" });
   const el = h("section", { class: "editor" }, list, foot);
   let hl = highlight;
+  let hlUntil = highlight !== undefined ? performance.now() + 2400 : 0; // survives the camp's repaint right after mount
   const vocab = (): Vocabulary => bind.vocab();
 
   function rows(): Row[] { return bind.rules().rows; }
@@ -29,7 +30,8 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
       h("span", { class: "dim num" }, `${rows().length}/${max}`),
       rows().length < max ? h("button", { class: "btn ghost", onclick: () => { rows().push(defaultRow()); commit(); } }, "+") : "",
     );
-    if (hl !== undefined) { const r = list.children[hl] as HTMLElement | undefined; if (r) { flash(r, "hl", 2400); r.scrollIntoView({ block: "center" }); } hl = undefined; }
+    if (hl !== undefined && performance.now() < hlUntil) { const r = list.children[hl] as HTMLElement | undefined; if (r) { flash(r, "hl", Math.max(600, hlUntil - performance.now())); r.scrollIntoView({ block: "center" }); } }
+    else hl = undefined;
   }
 
   function defaultRow(): Row {
@@ -105,7 +107,7 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
       grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
       me.classList.remove("dragging"); me.style.transform = "";
       rowEls.forEach((r) => r.classList.remove("before", "after"));
-      if (to !== from) { const rs = rows(); const [r] = rs.splice(from, 1); rs.splice(to, 0, r); hl = to; commit(); }
+      if (to !== from) { const rs = rows(); const [r] = rs.splice(from, 1); rs.splice(to, 0, r); hl = to; hlUntil = performance.now() + 1600; commit(); }
     };
     grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
   }

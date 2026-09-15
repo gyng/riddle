@@ -10,7 +10,8 @@ export interface Viewer {
   skipToEvent(): void;
   dispose(): void;
   resize?(): void;
-  idle?(): boolean;
+  idle?(): boolean;   // queue drained and tails played out (real renderer)
+  tick?(): number;    // current tick of the playback clock (real renderer)
 }
 type RenderMod = { createViewer(canvas: HTMLCanvasElement, opts?: { baseTexels?: number }): Viewer };
 const mods = import.meta.glob<RenderMod>("../render/index.ts");

@@ -2,7 +2,7 @@
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
   Companion, Cond, Death, Engine, Entity, Ev, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
-  ReturnReport, Row, RuleSet, Snapshot, StepResult, SupplyEntry, Tile, Trace, Verb, Vocabulary,
+  ReturnReport, Row, RuleSet, Snapshot, StepResult, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary,
 } from "./types";
 import { XP_LEVEL_CAP, verbsAt, verbsUpTo, xpToNext } from "./classes";
 
@@ -55,10 +55,11 @@ const WEAPONS: Record<string, [number, number]> = { dagger: [2, 4], sword: [3, 7
 const ARMOUR: Record<string, number> = { leather: 1, mail: 3, plate: 5 };
 
 export const UNLOCK_COST: Record<string, number> = {
-  row5: 2, row6: 3, row7: 4, row8: 5, "class:rogue": 4, vault2: 3, vault3: 5,
-  "card:corridor_fighting": 3, "card:kite_archers": 3, "card:stair_dance": 3, "verb:throw": 2,
+  row5: 2, row6: 3, row7: 4, row8: 5, rogue: 4, vault2: 3, vault3: 5,
+  corridor_fighting: 3, kite_archers: 3, stair_dance: 3, throw: 2,
   tame: 2, party_slot_2: 4,
-};
+}; // ids as the core's meta::UNLOCKS
+const UNLOCK_PREREQ: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", vault3: "vault2" };
 const SALVAGE: Record<string, number> = { dagger: 10, sword: 20, axe: 30, bow: 20, leather: 15, mail: 25, plate: 40, leash: 5 };
 const salvageOf = (kind: string): number => SALVAGE[kind] ?? (POTIONS.includes(kind) ? 8 : SCROLLS.includes(kind) ? 12 : 0);
 const TAG_VERB: Record<string, string> = { ranged: "shoot", gas: "burst", thief: "steal", splitter: "split", pack: "flank", undead: "drain" };
@@ -430,7 +431,7 @@ function heroAttack(run: Run, m: Mon, ev: Ev[], verb: string, mult = 1): void {
 // returns true if the verb executed
 function exec(run: Run, v: Verb, ctx: SimCtx, ev: Ev[]): boolean {
   const h = run.hero; const foes = visibleFoes(run);
-  const has = (verb: string): boolean => verbsUpTo(run.cls, run.level).includes(verb) || (verb === "throw" && ctx.unlocks.has("verb:throw"));
+  const has = (verb: string): boolean => verbsUpTo(run.cls, run.level).includes(verb) || (verb === "throw" && ctx.unlocks.has("throw"));
   switch (v.v) {
     case "attack": { const m = target(run, v.a); if (!m) return false; heroAttack(run, m, ev, "attack"); return true; }
     case "retreat": if (!foes.length) return false; return stepAway(run, foes, ev, false);
@@ -469,7 +470,7 @@ function exec(run: Run, v: Verb, ctx: SimCtx, ev: Ev[]): boolean {
     case "ambush": { if (!has("ambush") || h.invis <= 0) return false; const m = adjFoes(run)[0]; if (!m) return false; heroAttack(run, m, ev, "ambush", 3); return true; }
     case "shadowstep": if (!has("shadowstep") || !foes.length) return false; return stepAway(run, foes, ev, false);
     case "card": {
-      if (!ctx.unlocks.has(`card:${v.a}`)) return false;
+      if (!ctx.unlocks.has(v.a ?? "")) return false;
       if (v.a === "corridor_fighting") { if (foes.length < 2) return false; return exec(run, { v: "back_corridor" }, ctx, ev); }
       if (v.a === "kite_archers") { const m = adjFoes(run)[0]; if (!m || !foes.length) return false; if (stepAway(run, [m], ev, false)) return true; return exec(run, { v: "attack" }, ctx, ev); }
       if (v.a === "stair_dance") { if (h.hp / h.max_hp >= 0.5 || !foes.length) return false; return exec(run, { v: "descend" }, ctx, ev) || exec(run, { v: "retreat" }, ctx, ev); }
@@ -790,12 +791,12 @@ export class FakeEngine implements Engine {
     verbs.push({ v: "drink", a: "unknown" });
     for (const k of kinds) if (SCROLLS.includes(k)) verbs.push({ v: "read", a: k });
     verbs.push({ v: "read", a: "unknown" });
-    if (L.unlocks.includes("verb:throw") || verbsUpTo(L.class, this.classLevel()).includes("throw")) { for (const k of kinds) if (THROWABLE.has(k)) verbs.push({ v: "throw", a: `${k},nearest` }); verbs.push({ v: "throw", a: "unknown,nearest" }); }
+    if (L.unlocks.includes("throw") || verbsUpTo(L.class, this.classLevel()).includes("throw")) { for (const k of kinds) if (THROWABLE.has(k)) verbs.push({ v: "throw", a: `${k},nearest` }); verbs.push({ v: "throw", a: "unknown,nearest" }); }
     verbs.push({ v: "descend" }, { v: "bank" }, { v: "return" }, { v: "rest" }, { v: "pick_up" }, { v: "free_captive" });
     for (const v of verbsUpTo(L.class, this.classLevel())) if (v !== "throw") verbs.push({ v });
     if (L.unlocks.includes("tame")) { verbs.push({ v: "tame", a: "nearest" }); for (const t of tags) verbs.push({ v: "tame", a: `tag:${t}` }); }
     if (L.party.length) { verbs.push({ v: "recall" }, { v: "send" }); }
-    for (const c of ["corridor_fighting", "kite_archers", "stair_dance"]) if (L.unlocks.includes(`card:${c}`)) verbs.push({ v: "card", a: c });
+    for (const c of ["corridor_fighting", "kite_archers", "stair_dance"]) if (L.unlocks.includes(c)) verbs.push({ v: "tactic", a: c });
     return { conds, verbs, max_rows: this.maxRows() };
   }
   setRules(set: RuleSet): void {
@@ -830,10 +831,14 @@ export class FakeEngine implements Engine {
     this.s.logs[id] = { seed, rules: JSON.parse(JSON.stringify(this.s.rules)) as RuleSet, depth: 1, turns: 0, exit: "", known: [...this.known()], cls: L.class, trait: L.trait, heir: L.heir, hpMargin: 0 };
     return run;
   }
-  send(): Snapshot { if (!this.live || this.live.over) this.live = this.startRun(); return snapshot(this.live); }
-  step(turns: number): StepResult {
+  send(): Snapshot { if (!this.live || this.live.over) this.live = this.startRun(); const snap = snapshot(this.live); snap.turn *= 10; return snap; }
+  // The fake sims one hero action per turn; `step` takes ticks (Addendum E: 10 per action) so the
+  // viewer's clock reads it at the real pace. Event `t` and `snapshot.turn` are scaled ×10.
+  private tickAcc = 0;
+  step(ticks: number): StepResult {
     if (!this.live) this.live = this.startRun();
     const ctx = this.ctx(); const events: Ev[] = [];
+    this.tickAcc += ticks; const turns = Math.floor(this.tickAcc / 10); this.tickAcc -= turns * 10;
     for (let i = 0; i < turns && !this.live.over; i++) events.push(...simTurn(this.live, ctx));
     let exit_pending: StepResult["exit_pending"];
     if (this.live.over && !this.pending && !this.settled.has(this.live.id)) {
@@ -842,7 +847,9 @@ export class FakeEngine implements Engine {
       else { const r = this.settle(this.live, true); for (const level of r.levels) events.push({ t: this.live.turn, k: "level", class: this.live.cls, level }); for (const rank of r.ranks) events.push({ t: this.live.turn, k: "rank", rank }); }
       this.settled.add(this.live.id);
     }
-    return { events, snapshot: snapshot(this.live), run_over: this.live.over, exit_pending };
+    for (const e of events) e.t *= 10;
+    const snap = snapshot(this.live); snap.turn *= 10;
+    return { events, snapshot: snap, run_over: this.live.over, exit_pending };
   }
   // apply a finished run to the lineage; returns [newFacts, newBests, marks]
   private carried(run: Run): InvItem[] { return [...run.gear.filter((g) => !run.brought.includes(g.id)), ...run.hero.inv.filter((i) => !run.brought.includes(i.id) && !(this.s.lineage.supplies ?? []).some((s) => s.id === i.id))]; }
@@ -938,7 +945,7 @@ export class FakeEngine implements Engine {
     if (budget > 0 && stall >= 20 && turnsTotal > 0) { const extra = Math.floor(budget / (turnsTotal / runs)); if (extra > 0) { sampled = true; const scale = (runs + extra) / runs; for (const k of Object.keys(deaths)) deaths[k] = Math.round(deaths[k] * scale); runs += extra; } }
     reel = reel.sort((a, b) => b.score - a.score).slice(0, 5);
     const pending: string[] = [];
-    for (const [u, c] of Object.entries(UNLOCK_COST)) if (!L.unlocks.includes(u) && L.marks >= c && this.unlockVisible(u)) pending.push(`unlock ${u.replace(/^(card|verb|class):/, "$1 ")}`);
+    for (const [u, c] of Object.entries(UNLOCK_COST)) if (!L.unlocks.includes(u) && L.marks >= c && this.unlockVisible(u)) pending.push(`unlock ${u} (${c})`);
     const worstDeath = worst ? this.death(worst.id) : undefined;
     if (worstDeath?.verdict === "gap") pending.push(`patch D${worstDeath.depth} ${worstDeath.cause}`);
     if (!pending.length) pending.push("rules");
@@ -947,14 +954,14 @@ export class FakeEngine implements Engine {
   }
   private unlockVisible(u: string): boolean {
     const L = this.s.lineage.unlocks;
-    if (u === "row6") return L.includes("row5"); if (u === "row7") return L.includes("row6"); if (u === "row8") return L.includes("row7"); if (u === "vault3") return L.includes("vault2");
+    const pre = UNLOCK_PREREQ[u]; if (pre && !L.includes(pre)) return false;
     if (u === "tame") return this.s.lineage.facts.includes("item:leash"); return true;
   }
 
   death(runId: number): Death {
     if (this.lastDeath[runId]) return this.lastDeath[runId];
     const log = this.s.logs[runId]; const L = this.s.lineage;
-    if (!log) return { run_id: runId, depth: 0, cause: "unknown", margin: "?", verdict: "dice", trace: { turns: [] }, patches: [], morgue: "" };
+    if (!log) return { run_id: runId, depth: 0, cause: "unknown", margin: "?", verdict: "dice", baseline: 0, trace: { turns: [] }, patches: [], morgue: "" };
     const known = new Set(log.known);
     const replay = makeRun(runId, log.heir, log.seed, log.cls, log.trait, known, [], this.ctx(log.rules)); runToEnd(replay, this.ctx(log.rules));
     const N = 8;
@@ -978,15 +985,31 @@ export class FakeEngine implements Engine {
     const verdict: "gap" | "dice" = scored.length && scored[0].survive >= 0.6 ? "gap" : "dice";
     const margin = `${Math.max(1, log.hpMargin)} hp short`;
     const morgue = [`riddle · seed ${L.seed} · heir ${log.heir} · ${log.cls} · ${log.trait}`, `D${log.depth} · ${replay.cause ?? "?"} · ${margin} · ${verdict} · turn ${log.turns}`, "", ...log.rules.rows.map((r, i) => `R${i + 1} ${rowText(r)}`), "", ...replay.trace.map((t) => `t${t.t} R${t.row + 1} ${verbText(t.verb)} hp${t.hp} foes${t.foes}${t.telegraphs.length ? " " + t.telegraphs.join(",") : ""}`)].join("\n");
-    const d: Death = { run_id: runId, depth: log.depth, cause: replay.cause ?? log.cause ?? "?", margin, verdict, trace: { turns: replay.trace }, patches: scored, morgue };
+    const d: Death = { run_id: runId, depth: log.depth, cause: replay.cause ?? log.cause ?? "?", margin, verdict, baseline: base, trace: { turns: replay.trace }, patches: scored, morgue };
     this.lastDeath[runId] = d; return d;
   }
 
   buy(unlock: string): Lineage {
     const L = this.s.lineage; const cost = UNLOCK_COST[unlock];
-    if (unlock === "class:fighter" || (unlock === "class:rogue" && L.unlocks.includes(unlock))) { L.class = unlock.slice(6); return this.lineage(); }
-    if (cost !== undefined && !L.unlocks.includes(unlock) && L.marks >= cost && this.unlockVisible(unlock)) { L.marks -= cost; L.unlocks.push(unlock); if (unlock === "class:rogue") L.class = "rogue"; if (unlock === "party_slot_2") L.party_slots = 2; }
+    if (cost === undefined) throw new Error("unknown unlock");
+    if (L.unlocks.includes(unlock)) throw new Error("already owned");
+    if (!this.unlockVisible(unlock)) throw new Error("prerequisite missing");
+    if (L.marks < cost) throw new Error("not enough marks");
+    L.marks -= cost; L.unlocks.push(unlock); if (unlock === "party_slot_2") L.party_slots = 2;
     return this.lineage();
+  }
+  unlocks(): UnlockInfo[] {
+    const L = this.s.lineage;
+    return Object.entries(UNLOCK_COST).map(([id, cost]) => { const owned = L.unlocks.includes(id); return { id, cost, owned, available: !owned && this.unlockVisible(id) && L.marks >= cost }; });
+  }
+  setClass(cls: string): Lineage {
+    if (cls !== "fighter" && cls !== "rogue") throw new Error("unknown class");
+    if (cls === "rogue" && !this.s.lineage.unlocks.includes("rogue")) throw new Error("rogue not unlocked");
+    this.s.lineage.class = cls; return this.lineage();
+  }
+  selectSet(i: number): Lineage {
+    const L = this.s.lineage; L.active_set = Math.max(0, Math.min(L.sets.length - 1, i));
+    this.s.rules = JSON.parse(JSON.stringify(L.sets[L.active_set])) as RuleSet; return this.lineage();
   }
   exportRules(): string { return this.s.rules.rows.map(rowText).join("\n"); }
   importRules(text: string): RuleSet { const set = parseRules(text); this.setRules(set); return JSON.parse(JSON.stringify(this.s.rules)) as RuleSet; }

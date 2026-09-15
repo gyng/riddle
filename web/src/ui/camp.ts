@@ -5,7 +5,7 @@ import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
-import { available, vaultSlots } from "./unlocks";
+import { visible, vaultSlots } from "./unlocks";
 import { xpToNext } from "../engine/classes";
 import { openSheet } from "./sheet";
 
@@ -26,7 +26,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     replace(strip,
       h("span", { class: "num" }, `♟${L.heir}`),
       h("span", null, L.trait),
-      h("button", { class: "cls", onclick: () => pickClass() }, L.class, " ", h("b", { class: "num" }, `${lvl.level}`),
+      h("button", { class: "cls", onclick: () => pickClass() }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
         h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round((lvl.xp / xpToNext(lvl.level)) * 100)}%` }))),
       h("span", { class: "num" }, `D${L.best_depth}`),
       h("span", { class: "num rank" }, `★${L.rank ?? 0}`),
@@ -48,8 +48,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     openSheet((close) => {
       const L = app.lineage; const grid = h("div", { class: "grid" });
       for (const c of ["fighter", "rogue"]) {
-        const owned = c === "fighter" || L.unlocks.includes(`class:${c}`); const lv = L.classes?.[c] ?? { level: 1, xp: 0 };
-        grid.appendChild(h("button", { class: `chip verb${c === L.class ? " on" : ""}${owned ? "" : " off"}`, disabled: !owned, onclick: () => { app.buy(`class:${c}`); close(); } }, c, " ", h("b", { class: "num" }, `${lv.level}`)));
+        const owned = c === "fighter" || L.unlocks.includes(c); const lv = L.classes?.[c] ?? { level: 1, xp: 0 };
+        grid.appendChild(h("button", { class: `chip verb${c === L.class ? " on" : ""}${owned ? "" : " off"}`, disabled: !owned, onclick: () => { void app.setClass(c); close(); } }, c, " ", h("b", { class: "num" }, `${lv.level}`)));
       }
       return h("div", { class: "sheet-body" }, grid);
     });
@@ -75,34 +75,42 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // keep preference for offline exits
     const prefs = h("div", { class: "chips prefs" }, h("span", { class: "dim" }, /* copy:label */ "keep"),
       /* copy:label */ ...[["best_weapon", "weapon"], ["best_armour", "armour"], ["none", "none"]].map(([id, lbl]) =>
-        h("button", { class: `chip${(L.keep_pref ?? "best_weapon") === id ? " on" : ""}`, onclick: () => { app.lineage = app.engine.setKeepPref(id); app.afterLineage(); } }, lbl)));
+        h("button", { class: `chip${(L.keep_pref ?? "best_weapon") === id ? " on" : ""}`, onclick: () => void app.mutate(() => app.engine.setKeepPref(id)) }, lbl)));
     vault.appendChild(prefs);
   }
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const full = picks.length >= 3;
     clear(supplies);
     supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/3`),
-      picks.length ? h("button", { class: "mini", onclick: () => { app.lineage = app.engine.clearSupplies(); app.afterLineage(); } }, "×") : ""));
+      picks.length ? h("button", { class: "mini", onclick: () => void app.mutate(() => app.engine.clearSupplies()) }, "×") : ""));
     const chips = h("div", { class: "chips" });
     for (const p of picks) chips.appendChild(h("span", { class: "chip item on" }, p.label));
-    for (const e of app.engine.supplyCatalogue()) {
-      const can = !full && L.gold >= e.price;
-      chips.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => { app.lineage = app.engine.buySupply(e.kind); app.afterLineage(); } }, e.label, " ", h("b", { class: "num gold" }, `$${e.price}`)));
-    }
     supplies.appendChild(chips);
+    const gen = ++supplyGen;
+    void app.engine.supplyCatalogue().then((cat) => {
+      if (gen !== supplyGen) return;
+      for (const e of cat) {
+        const can = !full && L.gold >= e.price;
+        chips.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind)) }, e.label, " ", h("b", { class: "num gold" }, `$${e.price}`)));
+      }
+    }).catch((e) => console.warn("catalogue", e));
   }
+  let supplyGen = 0, unlockGen = 0;
   function paintUnlocks(): void {
-    const L = app.lineage;
-    clear(unlocks);
-    const list = available(L.unlocks);
-    if (!list.length) return;
-    unlocks.appendChild(h("div", { class: "label" }, /* copy:label */ "unlocks"));
-    const grid = h("div", { class: "cards" });
-    for (const u of list) {
-      const can = L.marks >= u.cost;
-      grid.appendChild(h("button", { class: `card${can ? "" : " off"}`, disabled: !can, onclick: () => app.buy(u.id) }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)));
-    }
-    unlocks.appendChild(grid);
+    const gen = ++unlockGen;
+    void app.engine.unlocks().then((cat) => {
+      if (gen !== unlockGen) return;
+      clear(unlocks);
+      const list = visible(cat);
+      if (!list.length) return;
+      unlocks.appendChild(h("div", { class: "label" }, /* copy:label */ "unlocks"));
+      const grid = h("div", { class: "cards" });
+      for (const u of list) {
+        // `available` = prerequisite + fact gate + affordable (engine truth); greyed otherwise
+        grid.appendChild(h("button", { class: `card${u.available ? "" : " off"}`, disabled: !u.available, onclick: () => void app.buy(u.id) }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)));
+      }
+      unlocks.appendChild(grid);
+    }).catch((e) => console.warn("unlocks", e));
   }
   function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); }
   paintAll();

@@ -43,7 +43,8 @@ export type Ev =
   | { t: number; k: "tame"; id: number; kind: string; ok: boolean }         // Addendum A
   | { t: number; k: "hatch"; kind: string }                                 // Addendum A
   | { t: number; k: "level"; class: string; level: number }                 // Addendum C
-  | { t: number; k: "rank"; rank: number };                                 // Addendum D
+  | { t: number; k: "rank"; rank: number }                                  // Addendum D
+  | { t: number; k: "projectile"; src: number; dst: number; path: [number, number][] }; // Addendum E: 1 tile per tick along path
 
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            exit_pending?: { items: InvItem[]; tier: string } };                                       // Addendum D
@@ -52,8 +53,10 @@ export type Forecast = { depths: { depth: number; reach: number }[]; causes: { c
                          known_to: number };
 export type Trace = { turns: { t: number; row: number; verb: Verb; hp: number; foes: number; telegraphs: string[] }[] };
 export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice";
+                      baseline: number;                                                   // core addition: survival of the unpatched rules, 0..1
                       trace: Trace; patches: { row: Row; insert_at: number; survive: number; forecast_delta: number }[];
                       morgue: string };
+// Fractions: Forecast.depths[].reach, causes[].share, Death.baseline, patches[].survive and forecast_delta are 0..1.
 export type Highlight = { pattern: string; score: number; t: number; run_id: number; text: string };
 export type ReturnReport = {
   elapsed_s: number; runs: number; sampled: boolean;
@@ -100,6 +103,14 @@ export interface Engine {
   buySupply(kind: string): Lineage;  clearSupplies(): Lineage;  supplyCatalogue(): SupplyEntry[];
   // Addendum D
   keep(ids: number[]): Lineage;
-  setKeepPref(pref: string): Lineage;   // client assumption: not in the addendum's wire list, needed for the camp selector
+  setKeepPref(pref: string): Lineage;   // core addition (README): keep preference for offline exits
+  // core additions (crates/riddle-core/README.md)
+  unlocks(): UnlockInfo[];              // the catalogue; `available` = prereq + fact gate + affordable
+  setClass(cls: string): Lineage;       // switch class (rogue needs the `rogue` unlock)
+  selectSet(i: number): Lineage;        // pick one of the three saved sets; setRules writes the active one
 }
+export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean };
+
+/** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */
+export type AsyncEngine = { [K in keyof Engine]: Engine[K] extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };
 export type SupplyEntry = { kind: string; price: number; label: string };                                             // Addendum B

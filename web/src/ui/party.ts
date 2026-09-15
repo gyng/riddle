@@ -28,7 +28,7 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     for (const c of all) cards.appendChild(card(c, L.party.includes(c)));
     for (const e of L.eggs) {
       eggs.appendChild(h("span", { class: "chip egg" }, "◯ ", nice(e.kind), h("small", { class: "dim" }, ` ${e.tags.map(nice).join(" ")} g${e.gen}`),
-        e.from_loss ? h("button", { class: `mini${L.gold >= 50 ? "" : " off"}`, disabled: L.gold < 50, onclick: () => { app.lineage = app.engine.hatch(e.id); app.afterLineage(); } }, "$50") : h("b", { class: "num" }, ` ${e.hatch_in}`)));
+        e.from_loss ? h("button", { class: `mini${L.gold >= 50 ? "" : " off"}`, disabled: L.gold < 50, onclick: () => void app.mutate(() => app.engine.hatch(e.id)) }, "$50") : h("b", { class: "num" }, ` ${e.hatch_in}`)));
     }
   }
   function ledgerBtn(): HTMLElement { return h("button", { class: "mini", onclick: () => openLedger(app) }, /* copy:button */ "ledger"); }
@@ -39,12 +39,12 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
       if (breeding) {
         if (c.level < 2 || inParty) return;
         breeding = picked ? breeding.filter((x) => x !== c.id) : [...breeding, c.id];
-        if (breeding.length === 2) { app.lineage = app.engine.breed(breeding[0], breeding[1]); breeding = null; app.afterLineage(); return; }
+        if (breeding.length === 2) { const [a, b] = breeding; breeding = null; void app.mutate(() => app.engine.breed(a, b)); return; }
         refresh(); return;
       }
       const ids = app.lineage.party.map((p) => p.id);
       const next = inParty ? ids.filter((x) => x !== c.id) : [...ids, c.id].slice(-(app.lineage.party_slots || 1));
-      app.lineage = app.engine.setParty(next); app.afterLineage();
+      void app.mutate(() => app.engine.setParty(next));
     };
     return h("div", { class: `card comp${inParty ? " on" : ""}${picked ? " pick" : ""}${breeding && c.level < 2 ? " off" : ""}` },
       h("button", { class: "comp-main", onclick: onTap },
@@ -59,14 +59,14 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
 
 function openRules(app: App, c: Companion): void {
   const local: RuleSet = cloneSet(c.rules);
-  openSheet(() => {
+  void app.engine.companionVocabulary(c.id).then((vocab) => openSheet(() => {
     const ed = renderEditor({
       rules: () => local,
-      vocab: () => app.engine.companionVocabulary(c.id),
-      changed: () => { app.engine.setCompanionRules(c.id, local); c.rules = cloneSet(local); app.persist(); },
+      vocab: () => vocab,
+      changed: () => { void app.engine.setCompanionRules(c.id, local).catch((e) => console.warn("companion rules", e)); c.rules = cloneSet(local); app.persist(); },
     });
     return h("div", { class: "sheet-body" }, h("div", { class: "sheet-head" }, nice(c.kind), " ", h("b", { class: "num" }, `L${c.level}`)), ed.el);
-  });
+  })).catch((e) => console.warn("companion vocabulary", e));
 }
 
 export function openLedger(app: App): void {

@@ -1,15 +1,27 @@
 // Watch: viewer canvas full-bleed; HUD (hp, depth, alert), speed 1× 4× ▶▶| ⏸, callout ticker, bail.
+//
+// Pacing (Addendum E): the viewer owns the clock (10 ticks/s × speed). The engine worker is pumped in
+// 10-tick batches whenever it is fewer than LEAD ticks ahead of the viewer, so events always arrive
+// before the viewer needs them and the engine never runs far ahead (≤ 22 ticks, under the viewer's
+// dead-air threshold). HUD hp/depth and the ticker are queued by tick and released at the viewer's
+// clock, so what the numbers say matches what the sprites do.
 import type { App, Mounted } from "../app";
-import type { Ev, Highlight, InvItem, ReturnReport, Snapshot } from "../engine/types";
+import type { Ev, Highlight, InvItem, ReturnReport, Snapshot, StepResult } from "../engine/types";
 import { h, replace } from "./dom";
 import { makeViewer, type Viewer } from "./viewer";
 import { verbsAt, xpToNext } from "../engine/classes";
 import { openSheet } from "./sheet";
 import { salvageValue } from "./salvage";
 import { vaultSlots } from "./unlocks";
-import type { InvItem as Item } from "../engine/types";
+import { verbLabel } from "./tokens";
 
-const INTERESTING = new Set(["hurt", "die", "telegraph", "pickup", "use", "fact", "steal", "ally", "descend", "exit", "spawn"]);
+type Tier = "bank" | "return" | "death";
+const INTERESTING = new Set(["hurt", "die", "telegraph", "pickup", "use", "fact", "steal", "ally", "descend", "exit", "spawn", "tame"]);
+const LEAD = 12, BATCH = 10;        // ticks: pump when the engine is < LEAD ahead; step BATCH at a time
+const PUMP_MS = 100;
+const EXIT_GRACE_MS = 4000;         // wait for the viewer to drain after an exit, at most this long
+const PERSIST_MS = 5000;
+const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "descend", pick_up: /* copy:callout */ "pick up" };
 
 export function renderWatch(app: App): Mounted {
   const canvas = h("canvas", { class: "view" });
@@ -29,87 +41,137 @@ export function renderWatch(app: App): Mounted {
     h("div", { class: "hud bottom" }, s1, s4, skip, bail));
 
   let viewer: Viewer | null = null;
-  let speed = 1, timer = 0, done = false, disposed = false, overridden = false, tickerTimer = 0;
-  let snap: Snapshot = app.engine.send();
-  const runId = snap.run.id;
+  let speed = 1, done = false, disposed = false, overridden = false, tickerTimer = 0, pumpTimer = 0;
+  let snap: Snapshot | null = null;
+  let runId = -1, engineTick = 0, startTick = 0, inflight = false, lastPersist = performance.now();
+  let pendingLoad: { snap: Snapshot; rest: Ev[] } | null = null;
+  let exitTier: Tier | null = null, exitAt = 0;
+  let pendingExit: { items: InvItem[]; tier: string } | undefined;
   const cls = app.lineage.class;
   const before = { best: app.lineage.best_depth, marks: app.lineage.marks, level: app.lineage.classes?.[cls]?.level ?? 1, xp: app.lineage.classes?.[cls]?.xp ?? 0, renown: app.lineage.renown ?? 0, rank: app.lineage.rank ?? 0 };
   const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [], tamed: string[] = [], lost: string[] = [];
-  let turns = 0;
-  const kinds = new Map<number, string>(snap.entities.map((e) => [e.id, e.kind]));
+  const kinds = new Map<number, string>();
   const partyAtStart = (app.lineage.party ?? []).map((c) => c.kind);
   const lostKind = (id: number): string => kinds.get(id) ?? "?";
-
-  function paintHud(s: Snapshot): void {
-    const p = s.hero.max_hp ? s.hero.hp / s.hero.max_hp : 0;
-    hpFill.style.width = `${Math.round(p * 100)}%`;
-    hpFill.classList.toggle("low", p < 0.3);
-    replace(hpText, `${s.hero.hp}/${s.hero.max_hp}`);
-    replace(depth, `D${s.depth}`);
-    replace(alert, "!".repeat(s.alert));
+  // HUD updates released at the viewer's clock
+  const hud = { hp: 0, maxHp: 1, depth: 1 };
+  const timed: { t: number; f: () => void }[] = [];
+  let lastRuleText = "", lastRuleAt = 0;
+  // placeholder viewer (no clock): a wall clock at 10 ticks/s × speed stands in
+  let fbTick = 0, fbAt = performance.now();
+  function viewerTick(): number {
+    if (viewer?.tick) return viewer.tick();
+    const now = performance.now(); fbTick += ((now - fbAt) / 1000) * 10 * speed; fbAt = now;
+    return Math.min(fbTick, engineTick);
   }
+  const viewerIdle = (): boolean => viewer?.idle ? viewer.idle() : true;
+
+  function paintHud(): void {
+    const p = hud.maxHp ? hud.hp / hud.maxHp : 0;
+    hpFill.style.width = `${Math.round(Math.max(0, p) * 100)}%`;
+    hpFill.classList.toggle("low", p < 0.3);
+    replace(hpText, `${Math.max(0, hud.hp)}/${hud.maxHp}`);
+    replace(depth, `D${hud.depth}`);
+    if (snap) replace(alert, "!".repeat(Math.max(0, Math.min(5, snap.alert))));
+  }
+  function hudFrom(s: Snapshot): void { hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; paintHud(); }
   function callout(text: string): void {
     replace(ticker, text); ticker.classList.add("show");
     clearTimeout(tickerTimer); tickerTimer = window.setTimeout(() => ticker.classList.remove("show"), 1800 / Math.max(1, speed));
   }
-  function absorb(evs: Ev[]): "bank" | "return" | "death" | null {
-    let exit: "bank" | "return" | "death" | null = null;
+  function ruleCallout(ev: Extract<Ev, { k: "rule" }>): string | null {
+    if (ev.row >= 0) return `R${ev.row + 1} · ${verbLabel(ev.verb)}`;
+    if (ev.row === -1) return ev.text;                       // trait deviation, e.g. "cowardly → retreat"
+    return CHORE_CALLOUT[ev.verb.v] ?? null;                  // chores are silent (pillar 2)
+  }
+  function at(t: number, f: () => void): void { timed.push({ t, f }); }
+  function release(upTo: number): void {
+    if (!timed.length) return;
+    const keep: typeof timed = [];
+    for (const x of timed) { if (x.t <= upTo) x.f(); else keep.push(x); }
+    timed.length = 0; timed.push(...keep);
+  }
+  function absorb(evs: Ev[], s: Snapshot): Tier | null {
+    let exit: Tier | null = null;
+    const heroId = s.hero.id;
     for (const ev of evs) {
-      if (ev.k === "callout") callout(ev.text);
-      else if (ev.k === "fact") learned.push(ev.fact);
-      else if (ev.k === "pickup") found.push({ id: ev.id, kind: ev.item, known: true, label: ev.item });
-      else if (ev.k === "note") notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text });
-      else if (ev.k === "exit") exit = ev.tier;
-      else if (ev.k === "tame" && ev.ok) tamed.push(ev.kind);
-      else if (ev.k === "ally" && ev.state === "lost") lost.push(lostKind(ev.id));
-      else if (ev.k === "spawn" && ev.e.cid !== undefined) kinds.set(ev.e.id, ev.e.kind);
-      else if (ev.k === "level") { for (const v of verbsAt(ev.class, ev.level)) learned.push(`verb:${v}`); callout(`${ev.class} ${ev.level}`); }
+      switch (ev.k) {
+        case "callout": at(ev.t, () => callout(ev.text)); break;
+        case "rule": {
+          const text = ruleCallout(ev);
+          if (text) at(ev.t, () => { const now = performance.now(); if (text !== lastRuleText || now - lastRuleAt > 4000) callout(text); lastRuleText = text; lastRuleAt = now; });
+          break;
+        }
+        case "hurt": if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); }); break;
+        case "descend": at(ev.t, () => { hud.depth = ev.depth; paintHud(); }); break;
+        case "fact": learned.push(ev.fact); break;
+        case "pickup": if (ev.id === heroId) found.push({ id: ev.id, kind: ev.item, known: true, label: ev.item }); break;
+        case "note": notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text }); break;
+        case "exit": exit = ev.tier; break;
+        case "tame": if (ev.ok) tamed.push(ev.kind); break;
+        case "ally": if (ev.state === "lost") lost.push(lostKind(ev.id)); break;
+        case "spawn": kinds.set(ev.e.id, ev.e.kind); break;
+        case "level": for (const v of verbsAt(ev.class, ev.level)) learned.push(`verb:${v}`); at(ev.t, () => callout(`${ev.class} L${ev.level}`)); break;
+        case "rank": at(ev.t, () => callout(`★${ev.rank}`)); break;
+        default: break;
+      }
     }
     return exit;
   }
-  let pendingExit: { items: Item[]; tier: string } | undefined;
-  function handle(evs: Ev[], s: Snapshot, pending?: { items: Item[]; tier: string }): void {
-    snap = s; turns += 1;
-    const exit = absorb(evs);
-    viewer?.apply(evs);
-    if (evs.some((e) => e.k === "descend")) viewer?.load(s);
+  function handle(r: StepResult): void {
+    const s = r.snapshot;
+    engineTick = s.turn;
     for (const e of s.entities) kinds.set(e.id, e.kind);
-    paintHud(s);
-    if (pending) pendingExit = pending;
-    if (exit) finish(exit);
+    const exit = absorb(r.events, s);
+    const di = r.events.findIndex((e) => e.k === "descend");
+    if (viewer && di >= 0) { viewer.apply(r.events.slice(0, di + 1)); pendingLoad = { snap: s, rest: r.events.slice(di + 1) }; }
+    else viewer?.apply(r.events);
+    snap = s;
+    hud.maxHp = s.hero.max_hp; paintHud();
+    if (r.exit_pending) pendingExit = r.exit_pending;
+    if (exit) { exitTier = exit; exitAt = performance.now() + EXIT_GRACE_MS; }
+    if (performance.now() - lastPersist > PERSIST_MS) { lastPersist = performance.now(); app.persist(); }
   }
-  function tick(): void {
-    if (done || disposed) return;
-    const r = app.engine.step(1);
-    handle(r.events, r.snapshot, r.exit_pending);
-    if (!done && speed > 0) timer = window.setTimeout(tick, 1000 / speed);
+  function pump(): void {
+    if (done || disposed || !viewer || !snap) return;
+    const now = viewerTick();
+    release(now);
+    if (pendingLoad) {
+      if (viewerIdle()) { const p = pendingLoad; pendingLoad = null; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+      return;
+    }
+    if (exitTier) { if (viewerIdle() || performance.now() > exitAt) { release(Infinity); void finish(exitTier); } return; }
+    if (speed <= 0 || inflight || engineTick - now >= LEAD) return;
+    inflight = true;
+    app.engine.step(BATCH).then((r) => { inflight = false; if (!disposed && !done) handle(r); })
+      .catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; });
   }
   function setSpeed(n: number): void {
     speed = n;
     for (const [b, v] of [[s1, 1], [s4, 4]] as const) b.classList.toggle("on", n === v);
     pause.classList.toggle("on", n === 0);
     replace(pause, n === 0 ? "▶" : "⏸");
-    clearTimeout(timer);
-    if (n > 0) { viewer?.setSpeed(n); if (!done) timer = window.setTimeout(tick, 1000 / n); }
+    viewer?.setSpeed(n);
   }
-  function skipToEvent(): void {
-    if (done) return;
-    clearTimeout(timer);
-    const all: Ev[] = []; let s = snap; let hit = false;
-    for (let i = 0; i < 300 && !hit; i++) {
-      const r = app.engine.step(1); all.push(...r.events); s = r.snapshot; turns += 1;
-      hit = r.run_over || r.events.some((e) => INTERESTING.has(e.k));
-      if (r.exit_pending) pendingExit = r.exit_pending;
-    }
-    turns -= 1;
-    handle(all, s);
-    viewer?.skipToEvent();
-    if (!done && speed > 0) timer = window.setTimeout(tick, 1000 / speed);
+  async function skipToEvent(): Promise<void> {
+    if (done || inflight || !viewer || exitTier || pendingLoad) return;
+    inflight = true;
+    try {
+      let hit = false;
+      for (let i = 0; i < 30 && !hit && !disposed; i++) {
+        const r = await app.engine.step(BATCH);
+        hit = r.run_over || r.events.some((e) => INTERESTING.has(e.k));
+        handle(r);
+        if (pendingLoad) break;
+      }
+    } catch (e) { console.warn("skip failed", e); }
+    inflight = false;
+    if (!pendingLoad) { viewer.skipToEvent(); fbTick = engineTick; release(viewerTick()); }
   }
   function doBail(): void {
     if (done || overridden) return;
     overridden = true; bail.classList.add("on");
-    app.engine.setRules({ rows: [{ conds: [], verb: { v: "return" } }, ...app.rules.rows] });
+    void app.engine.setRules({ rows: [{ conds: [], verb: { v: "return" } }, ...app.rules.rows] }).catch((e) => console.warn("bail", e));
     if (speed === 0) setSpeed(1);
   }
   function xpGained(): number {
@@ -117,17 +179,27 @@ export function renderWatch(app: App): Mounted {
     for (let l = before.level; l < c.level; l++) g += xpToNext(l);
     return Math.max(0, g);
   }
-  function finish(tier: "bank" | "return" | "death"): void {
-    done = true; clearTimeout(timer);
-    if (overridden) app.engine.setRules(app.rules);
-    if (pendingExit) { const p = pendingExit; pendingExit = undefined; exitSheet(p, () => finish(tier)); return; }
-    app.refresh();
-    if (tier === "death") { for (const c of partyAtStart) if (!lost.includes(c)) lost.push(c); app.go({ kind: "death", death: app.engine.death(runId), lost }); return; }
+  async function finish(tier: Tier): Promise<void> {
+    if (done) return;
+    done = true; clearInterval(pumpTimer);
+    if (overridden) await app.engine.setRules(app.rules).catch(() => { /* rules restored on next camp edit */ });
+    if (pendingExit && pendingExit.items.length) { const p = pendingExit; pendingExit = undefined; exitSheet(p, () => { done = false; void finish(tier); }); return; }
+    pendingExit = undefined;
+    await app.refresh();
+    if (disposed) return;
+    if (tier === "death") {
+      for (const c of partyAtStart) if (!lost.includes(c)) lost.push(c);
+      try {
+        const death = await app.busy(/* copy:label */ "verdict", () => app.engine.death(runId));
+        if (!disposed) app.go({ kind: "death", death, lost });
+      } catch (e) { console.warn("no death record", e); app.go({ kind: "camp" }); }
+      return;
+    }
     const L = app.lineage;
     const bests: string[] = []; for (let d = before.best + 1; d <= L.best_depth; d++) bests.push(`D${d}`);
     const report: ReturnReport = {
-      elapsed_s: turns, runs: 1, sampled: false, learned, bests, found, deaths: [], pending: [],
-      reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap, tamed, hatched: [], lost,
+      elapsed_s: Math.round((engineTick - startTick) / 10), runs: 1, sampled: false, learned, bests, found, deaths: [], pending: [],
+      reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,
       xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
       salvaged: [], renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
     };
@@ -135,9 +207,10 @@ export function renderWatch(app: App): Mounted {
   }
 
   // Addendum D: choose what to keep before the run settles
-  function exitSheet(p: { items: Item[]; tier: string }, then: () => void): void {
+  function exitSheet(p: { items: InvItem[]; tier: string }, then: () => void): void {
     const free = Math.max(0, vaultSlots(app.lineage.unlocks) - app.lineage.vault.length);
     const keep = new Set<number>();
+    let sent = false;
     openSheet((close) => {
       const chips = h("div", { class: "chips" });
       const count = h("span", { class: "num dim" });
@@ -152,17 +225,30 @@ export function renderWatch(app: App): Mounted {
       return h("div", { class: "sheet-body" },
         h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", count),
         chips,
-        h("button", { class: "btn primary wide", onclick: () => { app.lineage = app.engine.keep([...keep]); close(); then(); } }, /* copy:button */ "keep"));
+        h("button", { class: "btn primary wide", onclick: () => {
+          if (sent) return; sent = true;
+          app.engine.keep([...keep]).then((L) => { app.lineage = L; }).catch((e) => console.warn("keep", e)).finally(() => { close(); then(); });
+        } }, /* copy:button */ "keep"));
     });
   }
 
-  void makeViewer(canvas).then(({ viewer: v }) => {
+  async function init(): Promise<void> {
+    let s: Snapshot;
+    try { s = await app.engine.send(); } catch (e) { console.warn("send failed", e); if (!disposed) app.go({ kind: "camp" }); return; }
+    if (disposed) return;
+    snap = s; runId = s.run.id; engineTick = startTick = s.turn;
+    for (const e of s.entities) kinds.set(e.id, e.kind);
+    hudFrom(s);
+    const { viewer: v } = await makeViewer(canvas);
     if (disposed) { v.dispose(); return; }
-    viewer = v; v.resize?.(); v.load(snap); v.setSpeed(speed);
-  });
+    viewer = v; v.resize?.(); v.load(s); v.setSpeed(speed); fbTick = s.turn; fbAt = performance.now();
+    pumpTimer = window.setInterval(pump, PUMP_MS);
+  }
+  void init();
   const onResize = (): void => viewer?.resize?.();
   window.addEventListener("resize", onResize);
-  paintHud(snap);
-  timer = window.setTimeout(tick, 1000);
-  return { el, dispose: () => { disposed = true; window.removeEventListener("resize", onResize); clearTimeout(timer); clearTimeout(tickerTimer); viewer?.dispose(); if (overridden && !done) app.engine.setRules(app.rules); } };
+  return { el, dispose: () => {
+    disposed = true; window.removeEventListener("resize", onResize); clearInterval(pumpTimer); clearTimeout(tickerTimer); viewer?.dispose();
+    if (overridden && !done) void app.engine.setRules(app.rules);
+  } };
 }

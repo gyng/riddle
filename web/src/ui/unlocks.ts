@@ -1,24 +1,24 @@
-// Unlock catalogue (docs/CUT1.md "Meta"): id → cost, label. Ids are a client assumption until the core ships.
-export type Unlock = { id: string; cost: number; label: string; after?: string };
+// Unlock presentation. Ids and costs come from the engine's `unlocks()` catalogue
+// (crates/riddle-core/src/meta.rs); this file only adds labels and the display chain (row6 is
+// hidden until row5 is owned, etc.) so the camp shows one step at a time.
+import type { UnlockInfo } from "../engine/types";
 
 /* copy:unlock_card */
-export const UNLOCKS: Unlock[] = [
-  { id: "row5", cost: 2, label: "+1 row" },
-  { id: "row6", cost: 3, label: "+1 row", after: "row5" },
-  { id: "row7", cost: 4, label: "+1 row", after: "row6" },
-  { id: "row8", cost: 5, label: "+1 row", after: "row7" },
-  { id: "verb:throw", cost: 2, label: "verb: throw" },
-  { id: "class:rogue", cost: 4, label: "class: rogue" },
-  { id: "vault2", cost: 3, label: "+1 vault" },
-  { id: "vault3", cost: 5, label: "+1 vault", after: "vault2" },
-  { id: "card:corridor_fighting", cost: 3, label: "card: corridor fighting" },
-  { id: "card:kite_archers", cost: 3, label: "card: kite archers" },
-  { id: "card:stair_dance", cost: 3, label: "card: stair dance" },
-  { id: "tame", cost: 2, label: "verb: tame" },
-  { id: "party_slot_2", cost: 4, label: "+1 party" },
-];
+const LABEL: Record<string, string> = {
+  row5: "+1 row", row6: "+1 row", row7: "+1 row", row8: "+1 row",
+  throw: "verb: throw", rogue: "class: rogue", vault2: "+1 vault", vault3: "+1 vault",
+  corridor_fighting: "card: corridor fighting", kite_archers: "card: kite archers", stair_dance: "card: stair dance",
+  tame: "verb: tame", party_slot_2: "+1 party",
+};
+const AFTER: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", vault3: "vault2" };
 
-export function available(owned: string[]): Unlock[] {
-  return UNLOCKS.filter((u) => !owned.includes(u.id) && (!u.after || owned.includes(u.after)));
+export type UnlockCard = UnlockInfo & { label: string };
+
+/** Catalogue entries worth showing: not owned, and the previous step of a chain owned. */
+export function visible(catalogue: UnlockInfo[]): UnlockCard[] {
+  const owned = new Set(catalogue.filter((u) => u.owned).map((u) => u.id));
+  return catalogue
+    .filter((u) => !u.owned && (!AFTER[u.id] || owned.has(AFTER[u.id])))
+    .map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " ") }));
 }
 export const vaultSlots = (owned: string[]): number => 1 + ["vault2", "vault3"].filter((u) => owned.includes(u)).length;
