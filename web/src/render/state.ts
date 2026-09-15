@@ -1,13 +1,20 @@
 // Replay state: the floor as last loaded plus the animated consequences of applied events.
-// No three.js here. Time is an "anim clock" in ms that advances at dt*speed (0 = paused); event
-// durations below are at 1× speed. Motion progress is quantised to STEP ms of anim time so the
-// world moves at ~10 fps cadence (at 4× the same steps run 4× faster).
+// No three.js here.
+//
+// Playback model (CUT1 Addendum E): `Ev.t` is a tick; the viewer runs a tick clock at
+// 10 ticks/s × speed (0 = pause) and applies every queued event whose t ≤ clock, in order, so
+// events with the same t land together and actors never wait for each other. Tweens are timed
+// in ticks from the event's own t (not from when it was applied), so late-fed events still line
+// up. A move tweens across the tile over the actor's action interval, inferred by peeking at
+// the actor's next queued event (default 10 ticks, clamped 3..20), progress quantised to whole
+// ticks (10 fps cadence at 1×). Callouts stay on a real-time 1 s cadence.
 import type { Ev, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
 
-
-export const STEP = 100; // ms of anim time per motion frame
-const MOVE_MS = 200, ATTACK_MS = 200, HURT_MS = 100, DIE_MS = 400, SPAWN_MS = 200;
+export const TICKS_PER_S = 10;
 export const VISION_R = 7;
+const LUNGE_T = 2, HURT_T = 1.5, DIE_T = 4, SPAWN_T = 2, LEASH_T = 4, SHAKE_T = 3, GLYPH_T = 15;
+const MOVE_DEFAULT = 10, MOVE_MIN = 3, MOVE_MAX = 20;
+const IDLE_TAIL = 6; // ticks after the last event before idle() reports true
 
 export type EntState = {
   id: number; kind: string; ally: boolean; hero: boolean; cid: number | null;
@@ -15,30 +22,22 @@ export type EntState = {
   px: number; py: number;          // render tile pos (float)
   move: { fx: number; fy: number; tx: number; ty: number; t0: number; dur: number } | null;
   lunge: { dx: number; dy: number; t0: number } | null;
+  shake: { t0: number } | null;
   flashUntil: number;
   fade: number;                    // 0 = solid, 1 = gone
-  dying: { t0: number; dur: number } | null;
-  spawning: { t0: number; dur: number } | null;
+  dying: { t0: number } | null;
+  spawning: { t0: number } | null;
   hp: number; maxHp: number;
   flip: boolean;
-  glyph: string | null; glyphTurn: number;
-  shake: { t0: number; dur: number } | null;
+  glyph: string | null; glyphT: number;
+  ringFrom: number;                // companion ring shown once clock ≥ ringFrom
 };
-
-export type Leash = { from: number; to: number; t0: number; dur: number; ok: boolean };
 
 export type Callout = { text: string; until: number }; // real-time ms
+export type Leash = { from: number; to: number; t0: number; ok: boolean };
+export type Projectile = { path: [number, number][]; t0: number };
 
-type Batch = { evs: Ev[]; ends: number };
-
-// Durations at 1× (ms of anim time). Kinds not listed are instant pass-throughs.
-const DUR: Partial<Record<Ev["k"], number>> = {
-  move: MOVE_MS, attack: ATTACK_MS, hurt: HURT_MS, die: DIE_MS, rule: 0, telegraph: 300, pickup: 150, use: 300,
-  fact: 0, overlay: 80, spawn: SPAWN_MS, steal: 250, ally: 250, descend: 600, exit: 700, note: 0, callout: 150,
-  tame: 700, hatch: 150,
-};
-const INTERESTING = new Set<Ev["k"]>(["attack", "die", "telegraph", "use", "exit", "tame"]);
-const LEASH_MS = 350;
+const INTERESTING = new Set<string>(["attack", "die", "telegraph", "use", "exit", "tame"]);
 
 export class ReplayState {
   w = 0; h = 0; biome = "warrens"; depth = 1;
@@ -49,19 +48,31 @@ export class ReplayState {
   items: FloorItem[] = [];
   ents = new Map<number, EntState>();
   heroId = -1;
-  turn = 0;
-  clock = 0;          // anim ms
+  clock = 0;          // ticks (float)
   speed = 1;
   fadeTarget = 0;     // global fade (0 = visible, 1 = dark)
   fade = 0;
   callout: Callout | null = null;
   leash: Leash | null = null;
+  projectiles: Projectile[] = [];
   loaded = false;
-  private queue: Ev[] = [];
-  private active: Batch | null = null;
   visionDirty = true;
+  cameraSnap = false; // index.ts snaps the camera to the hero and clears this
+  private snap: Snapshot | null = null;
+  private queue: Ev[] = [];
+  private log: Ev[] = [];     // applied since load, in order (for seek)
+  private lastT = -Infinity;
+  private wholeTick = 0;
 
   load(s: Snapshot): void {
+    this.snap = s;
+    this.log = [];
+    this.queue = [];
+    this.reset(s);
+    this.cameraSnap = true;
+  }
+
+  private reset(s: Snapshot): void {
     this.w = s.w; this.h = s.h; this.biome = s.biome; this.depth = s.depth;
     this.tiles = s.tiles.slice();
     this.seen = Uint8Array.from(s.seen, (b) => (b ? 1 : 0));
@@ -70,14 +81,15 @@ export class ReplayState {
     this.items = s.items.map((i) => ({ ...i }));
     this.ents.clear();
     this.heroId = s.hero.id;
-    this.turn = s.turn;
+    this.clock = s.turn;
+    this.wholeTick = Math.floor(s.turn);
+    this.lastT = -Infinity;
     this.addEntity(s.hero, true);
     for (const e of s.entities) this.addEntity(e, false);
-    this.queue = [];
-    this.active = null;
     this.fade = this.fadeTarget = 0;
     this.callout = null;
     this.leash = null;
+    this.projectiles = [];
     this.loaded = true;
     this.computeVision();
   }
@@ -85,9 +97,9 @@ export class ReplayState {
   private addEntity(e: Entity, hero: boolean): EntState {
     const st: EntState = {
       id: e.id, kind: e.kind, ally: !!e.ally, hero, cid: e.cid ?? null, x: e.x, y: e.y, px: e.x, py: e.y,
-      move: null, lunge: null, flashUntil: 0, fade: 0, dying: null, spawning: null,
-      hp: e.hp, maxHp: e.max_hp, flip: false, glyph: e.telegraph ? "!" : null, glyphTurn: this.turn,
-      shake: null,
+      move: null, lunge: null, shake: null, flashUntil: -Infinity, fade: 0, dying: null, spawning: null,
+      hp: e.hp, maxHp: e.max_hp, flip: false, glyph: e.telegraph ? "!" : null, glyphT: this.clock,
+      ringFrom: -Infinity,
     };
     this.ents.set(e.id, st);
     return st;
@@ -100,96 +112,105 @@ export class ReplayState {
     return this.tiles[y * this.w + x];
   }
 
-  apply(evs: Ev[]): void { for (const e of evs) this.queue.push(e); }
-  idle(): boolean { return this.queue.length === 0 && this.active === null; }
-  pending(): number { return this.queue.length; }
+  apply(evs: Ev[]): void {
+    if (evs.length === 0) return;
+    const wasEmpty = this.queue.length === 0;
+    for (const e of evs) this.queue.push(e);
+    // dead air: if the stream resumes far ahead of the clock, jump to just before it
+    if (wasEmpty && this.queue[0]!.t > this.clock + 30) this.clock = this.queue[0]!.t - 1;
+  }
 
-  // Advance the anim clock and run events. dt = real ms.
+  idle(): boolean { return this.queue.length === 0 && this.clock >= this.lastT + IDLE_TAIL; }
+  pending(): number { return this.queue.length; }
+  tickNow(): number { return Math.floor(this.clock); }
+
+  // Advance the tick clock and apply due events. dt = real ms.
   tick(dt: number, now: number): void {
     if (!this.loaded) return;
-    this.clock += dt * this.speed;
-    // global fade toward target (real-time-ish: uses anim clock, but exit/descend set a long batch)
+    this.clock += (dt / 1000) * TICKS_PER_S * this.speed;
     const fs = (dt / 350) * Math.max(this.speed, 0.5);
     this.fade += Math.sign(this.fadeTarget - this.fade) * Math.min(fs, Math.abs(this.fadeTarget - this.fade));
     if (this.callout && now > this.callout.until) this.callout = null;
     if (this.speed <= 0) return;
-    let guard = 64;
-    while (guard-- > 0) {
-      if (this.active) {
-        if (this.clock < this.active.ends) break;
-        this.finish(this.active);
-        this.active = null;
-      }
-      const b = this.nextBatch();
-      if (!b) break;
-      this.active = b;
-    }
+    this.drain(this.clock);
     this.settle();
   }
 
-  // Fast-forward: finish the current batch, then apply instantly until the head is "interesting".
+  // Apply every queued event with t ≤ upTo.
+  private drain(upTo: number): void {
+    while (this.queue.length > 0 && this.queue[0]!.t <= upTo) {
+      const ev = this.queue.shift()!;
+      this.log.push(ev);
+      this.applyOne(ev);
+    }
+  }
+
+  // Fast-forward: apply instantly until the head is "interesting", then start playing there.
   skipToEvent(): void {
-    if (this.active) { this.finish(this.active); this.active = null; }
     let first = true;
     while (this.queue.length > 0) {
       const head = this.queue[0]!;
       if (!first && INTERESTING.has(head.k)) break;
       first = false;
-      const b = this.nextBatch();
-      if (!b) break;
-      this.finish(b);
+      this.log.push(this.queue.shift()!);
+      this.applyOne(head);
     }
+    this.clock = this.queue.length > 0 ? this.queue[0]!.t : this.lastT + IDLE_TAIL;
+    this.wholeTick = Math.floor(this.clock);
+    this.finishTweens();
     this.settle();
   }
 
-  private nextBatch(): Batch | null {
-    const ev = this.queue.shift();
-    if (!ev) return null;
-    const evs: Ev[] = [ev];
-    // moves in the same turn by different actors animate together
-    if (ev.k === "move") {
-      const ids = new Set([ev.id]);
-      while (this.queue.length > 0) {
-        const n = this.queue[0]!;
-        if (n.k !== "move" || n.t !== ev.t || ids.has(n.id)) break;
-        ids.add(n.id);
-        evs.push(this.queue.shift()!);
-      }
+  // Tick scrub: rebuild from the last loaded snapshot and replay everything with t ≤ t.
+  seek(t: number): void {
+    if (!this.snap) return;
+    const all = this.log.concat(this.queue);
+    this.log = [];
+    this.queue = [];
+    this.reset(this.snap);
+    for (const ev of all) {
+      if (ev.t <= t) { this.log.push(ev); this.applyOne(ev); }
+      else this.queue.push(ev);
     }
-    let dur = 0;
-    for (const e of evs) { this.start(e); dur = Math.max(dur, DUR[e.k] ?? 0); }
-    return { evs, ends: this.clock + dur };
+    this.clock = t;
+    this.wholeTick = Math.floor(t);
+    this.settle();
+    this.cameraSnap = true;
   }
 
-  private advanceTurn(t: number): void {
-    if (t <= this.turn) return;
-    for (let k = this.turn; k < t; k++) {
-      for (const o of this.overlays) o.ttl -= 1;
-      this.overlays = this.overlays.filter((o) => o.ttl > 0);
+  // The actor's action interval: ticks until its next own action in the queue (move, attack,
+  // telegraph, pickup, tame), clamped; default 10 (base speed) when nothing is queued yet.
+  private moveDur(id: number, t: number): number {
+    for (const e of this.queue) {
+      if (e.t <= t) continue;
+      if (e.t > t + MOVE_MAX) break;
+      const actor = e.k === "attack" ? e.src : e.k === "move" || e.k === "telegraph" || e.k === "pickup" ? e.id : e.k === "tame" ? this.heroId : -1;
+      if (actor === id) return Math.max(MOVE_MIN, e.t - t);
     }
-    this.turn = t;
-    for (const e of this.ents.values()) if (e.glyph && t >= e.glyphTurn + 2) e.glyph = null;
+    return MOVE_DEFAULT;
   }
 
-  private start(ev: Ev): void {
-    this.advanceTurn(ev.t);
-    const c = this.clock;
+  private applyOne(ev: Ev): void {
+    const t = ev.t;
+    this.lastT = Math.max(this.lastT, t);
     switch (ev.k) {
       case "move": {
         const e = this.ents.get(ev.id);
         if (!e) break;
-        e.move = { fx: e.px, fy: e.py, tx: ev.x, ty: ev.y, t0: c, dur: MOVE_MS };
+        // start from wherever the previous tween would be at t (chained moves stay continuous)
+        const [sx, sy] = this.posAt(e, t);
+        e.move = { fx: sx, fy: sy, tx: ev.x, ty: ev.y, t0: t, dur: this.moveDur(ev.id, t) };
         if (ev.x !== e.x) e.flip = ev.x < e.x;
         e.x = ev.x; e.y = ev.y;
-        if (e.hero) { e.glyph = null; this.visionDirty = true; }
-        else if (e.glyph) e.glyph = null;
+        e.glyph = null;
+        if (e.hero) this.visionDirty = true;
         break;
       }
       case "attack": {
         const s = this.ents.get(ev.src), d = this.ents.get(ev.dst);
         if (!s) break;
         const dx = d ? Math.sign(d.x - s.x) : 0, dy = d ? Math.sign(d.y - s.y) : 0;
-        s.lunge = { dx: dx * 3, dy: dy * 3, t0: c };
+        s.lunge = { dx: dx * 3, dy: dy * 3, t0: t };
         if (dx !== 0) s.flip = dx < 0;
         s.glyph = null;
         break;
@@ -198,13 +219,13 @@ export class ReplayState {
         const e = this.ents.get(ev.id);
         if (!e) break;
         e.hp = ev.hp;
-        e.flashUntil = c + HURT_MS;
+        e.flashUntil = t + HURT_T;
         break;
       }
       case "die": {
         const e = this.ents.get(ev.id);
         if (!e) break;
-        e.dying = { t0: c, dur: DIE_MS };
+        e.dying = { t0: t };
         e.glyph = null;
         break;
       }
@@ -212,9 +233,12 @@ export class ReplayState {
         const e = this.ents.get(ev.id);
         if (!e) break;
         e.glyph = /summon|cast|conjure/.test(ev.what) ? "*" : "!";
-        e.glyphTurn = ev.t;
+        e.glyphT = t;
         break;
       }
+      case "projectile":
+        if (ev.path.length > 0) this.projectiles.push({ path: ev.path.map(([x, y]) => [x, y]), t0: t });
+        break;
       case "pickup": {
         const e = this.ents.get(ev.id);
         if (!e) break;
@@ -225,7 +249,7 @@ export class ReplayState {
       }
       case "use": {
         const h = this.hero;
-        if (h) { h.glyph = "*"; h.glyphTurn = ev.t; }
+        if (h) { h.glyph = "*"; h.glyphT = t - GLYPH_T + 4; } // brief
         break;
       }
       case "overlay": {
@@ -237,18 +261,18 @@ export class ReplayState {
       }
       case "spawn": {
         const e = this.addEntity(ev.e, false);
-        e.spawning = { t0: c, dur: SPAWN_MS };
+        e.spawning = { t0: t };
         e.fade = 1;
         break;
       }
       case "steal": {
         const h = this.hero;
-        if (h) h.flashUntil = c + HURT_MS;
+        if (h) h.flashUntil = t + HURT_T;
         break;
       }
       case "ally": {
         const e = this.ents.get(ev.id);
-        if (e) e.ally = ev.state === "freed";
+        if (e) { e.ally = ev.state === "freed"; e.ringFrom = t; }
         break;
       }
       case "descend":
@@ -259,12 +283,12 @@ export class ReplayState {
         this.callout = { text: ev.text.slice(0, 24), until: performance.now() + 1000 };
         break;
       case "tame": {
-        // leash arc hero → target, then flash (ok) or shake (fail)
+        // leash arc hero → target over LEASH_T ticks, then flash + ring (ok) or shake (fail)
         const h = this.hero, e = this.ents.get(ev.id);
         if (!h || !e) break;
-        this.leash = { from: h.id, to: e.id, t0: c, dur: LEASH_MS, ok: ev.ok };
-        if (ev.ok) { e.flashUntil = c + LEASH_MS + 150; e.ally = true; e.glyph = null; }
-        else e.shake = { t0: c + LEASH_MS, dur: 300 };
+        this.leash = { from: h.id, to: e.id, t0: t, ok: ev.ok };
+        if (ev.ok) { e.flashUntil = t + LEASH_T + 2; e.ally = true; e.ringFrom = t + LEASH_T; e.glyph = null; }
+        else e.shake = { t0: t + LEASH_T };
         if (e.x !== h.x) h.flip = e.x < h.x;
         break;
       }
@@ -276,70 +300,96 @@ export class ReplayState {
     }
   }
 
-  // Force a batch's animations to their end states.
-  private finish(b: Batch): void {
-    for (const ev of b.evs) {
-      switch (ev.k) {
-        case "move": { const e = this.ents.get(ev.id); if (e) { e.px = e.x; e.py = e.y; e.move = null; } break; }
-        case "attack": { const e = this.ents.get(ev.src); if (e) e.lunge = null; break; }
-        case "hurt": { const e = this.ents.get(ev.id); if (e) e.flashUntil = 0; break; }
-        case "die": this.ents.delete(ev.id); break;
-        case "spawn": { const e = this.ents.get(ev.e.id); if (e) { e.spawning = null; e.fade = 0; } break; }
-        case "steal": { const h = this.hero; if (h) h.flashUntil = 0; break; }
-        case "use": { const h = this.hero; if (h && h.glyph === "*") h.glyph = null; break; }
-        case "descend": case "exit": this.fade = 1; break;
-        case "tame": { const e = this.ents.get(ev.id); if (e) { e.flashUntil = 0; e.shake = null; } this.leash = null; break; }
-        default: break;
-      }
-    }
+  // Where an entity's render position is at tick t (its current tween evaluated at t).
+  private posAt(e: EntState, t: number): [number, number] {
+    if (!e.move) return [e.px, e.py];
+    const p = Math.max(0, Math.min(1, (t - e.move.t0) / e.move.dur));
+    return [e.move.fx + (e.move.tx - e.move.fx) * p, e.move.fy + (e.move.ty - e.move.fy) * p];
   }
 
-  // Per-frame evaluation of tweens from the anim clock.
+  // Force all tweens to their end states (after a skip).
+  private finishTweens(): void {
+    for (const e of this.ents.values()) {
+      if (e.move) { e.px = e.move.tx; e.py = e.move.ty; e.move = null; }
+      e.lunge = null; e.shake = null;
+      if (e.spawning) { e.spawning = null; e.fade = 0; }
+    }
+    for (const [id, e] of this.ents) if (e.dying) this.ents.delete(id);
+    this.projectiles = [];
+    this.leash = null;
+    if (this.fadeTarget === 1) this.fade = 1;
+  }
+
+  // Per-frame evaluation of tweens from the tick clock.
   private settle(): void {
     const c = this.clock;
-    for (const e of this.ents.values()) {
+    // overlay TTLs are in ticks
+    const wt = Math.floor(c);
+    if (wt > this.wholeTick) {
+      const n = wt - this.wholeTick;
+      for (const o of this.overlays) o.ttl -= n;
+      this.overlays = this.overlays.filter((o) => o.ttl > 0);
+      this.wholeTick = wt;
+    }
+    for (const [id, e] of this.ents) {
       if (e.move) {
         const raw = Math.min(1, (c - e.move.t0) / e.move.dur);
-        const steps = Math.max(1, Math.round(e.move.dur / STEP));
-        const p = Math.floor(raw * steps) / steps;
+        const p = raw >= 1 ? 1 : Math.floor((c - e.move.t0)) / e.move.dur; // whole-tick steps
         e.px = e.move.fx + (e.move.tx - e.move.fx) * p;
         e.py = e.move.fy + (e.move.ty - e.move.fy) * p;
-        if (raw >= 1) { e.px = e.move.tx; e.py = e.move.ty; e.move = null; }
+        if (raw >= 1) e.move = null;
       }
-      if (e.lunge && c - e.lunge.t0 >= ATTACK_MS) e.lunge = null;
-      if (e.shake && c - e.shake.t0 >= e.shake.dur) e.shake = null;
+      if (e.lunge && c - e.lunge.t0 >= LUNGE_T * 2) e.lunge = null;
+      if (e.shake && c - e.shake.t0 >= SHAKE_T) e.shake = null;
+      if (e.glyph && c - e.glyphT >= GLYPH_T) e.glyph = null;
       if (e.dying) {
-        const p = Math.min(1, (c - e.dying.t0) / e.dying.dur);
-        e.fade = Math.floor(p * 4) / 4; // 4 dissolve steps
+        const p = Math.min(1, (c - e.dying.t0) / DIE_T);
+        e.fade = Math.floor(p * 4) / 4;
+        if (p >= 1) this.ents.delete(id);
       } else if (e.spawning) {
-        const p = Math.min(1, (c - e.spawning.t0) / e.spawning.dur);
+        const p = Math.min(1, (c - e.spawning.t0) / SPAWN_T);
         e.fade = 1 - Math.floor(p * 4) / 4;
         if (p >= 1) { e.spawning = null; e.fade = 0; }
       }
     }
-    if (this.leash && c - this.leash.t0 >= this.leash.dur + 300) this.leash = null;
+    this.projectiles = this.projectiles.filter((p) => c < p.t0 + p.path.length);
+    if (this.leash && c - this.leash.t0 >= LEASH_T + SHAKE_T) this.leash = null;
     if (this.visionDirty) this.computeVision();
   }
 
-  // Current lunge/shake offset in env texels for drawing (lunge: 2 frames out, back;
-  // shake: ±2 texels alternating every 50 ms).
+  // Current lunge/shake offset in env texels (lunge: LUNGE_T ticks out, LUNGE_T back;
+  // shake: ±2 texels alternating each half tick).
   lungeOffset(e: EntState): [number, number] {
     if (e.shake && this.clock >= e.shake.t0) {
-      const f = Math.floor((this.clock - e.shake.t0) / 50);
+      const f = Math.floor((this.clock - e.shake.t0) * 2);
       return [f % 2 === 0 ? 2 : -2, 0];
     }
     if (!e.lunge) return [0, 0];
-    const p = (this.clock - e.lunge.t0) / ATTACK_MS;
-    return p < 0.5 ? [e.lunge.dx, e.lunge.dy] : [0, 0];
+    return this.clock - e.lunge.t0 < LUNGE_T ? [e.lunge.dx, e.lunge.dy] : [0, 0];
   }
+
+  flashing(e: EntState): boolean { return e.flashUntil > this.clock; }
+  ringShown(e: EntState): boolean { return e.ally && !e.hero && this.clock >= e.ringFrom; }
 
   // Leash progress 0..1 while the arc is being drawn, or null.
   leashProgress(): number | null {
     if (!this.leash) return null;
-    return Math.min(1, (this.clock - this.leash.t0) / this.leash.dur);
+    return Math.min(1, (this.clock - this.leash.t0) / LEASH_T);
   }
 
-  flashing(e: EntState): boolean { return e.flashUntil > this.clock; }
+  // Projectile positions in tile coords (float), 1 tile per tick along the path.
+  projectilePositions(): [number, number][] {
+    const out: [number, number][] = [];
+    for (const p of this.projectiles) {
+      const u = this.clock - p.t0;
+      if (u < 0) continue;
+      const i = Math.min(p.path.length - 1, Math.floor(u));
+      const a = p.path[i]!, b = p.path[Math.min(p.path.length - 1, i + 1)]!;
+      const f = Math.min(1, u - i);
+      out.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]);
+    }
+    return out;
+  }
 
   // Presentation-only vision: radius 7 line of sight from the hero's logical tile; walls and
   // doors block. Unioned into `seen`; replaces `visible`.
@@ -358,7 +408,7 @@ export class ReplayState {
   }
 
   private los(x0: number, y0: number, x1: number, y1: number): boolean {
-    let dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
     const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
     let err = dx + dy, x = x0, y = y0;
     for (;;) {

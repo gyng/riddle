@@ -27,7 +27,7 @@ function makeFloor(depth: number, biome: string): Snapshot {
   const all = new Array<boolean>(W * H).fill(false);
   return {
     depth, biome, w: W, h: H, tiles, seen: all.slice(), visible: all.slice(),
-    overlays: [{ x: 15, y: 19, k: "gas", ttl: 6 }, { x: 16, y: 19, k: "gas", ttl: 6 }, { x: 16, y: 20, k: "gas", ttl: 5 }, { x: 7, y: 6, k: "fire", ttl: 3 }],
+    overlays: [{ x: 15, y: 19, k: "gas", ttl: 60 }, { x: 16, y: 19, k: "gas", ttl: 60 }, { x: 16, y: 20, k: "gas", ttl: 50 }, { x: 7, y: 6, k: "fire", ttl: 30 }],
     hero: { id: 1, kind: "hero_fighter", x: 4, y: 5, hp: 30, max_hp: 30, tags: [], inv: [], class: "fighter", trait: "stubborn", weapon: "sword", armour: "leather" },
     entities: [
       { id: 2, kind: "rat", x: 7, y: 3, hp: 4, max_hp: 4, tags: [] },
@@ -50,17 +50,33 @@ function makeFloor(depth: number, biome: string): Snapshot {
   };
 }
 
+// Straight-line path from a (exclusive) to b (inclusive), one tile per step.
+function line(a: [number, number], b: [number, number]): [number, number][] {
+  const out: [number, number][] = [];
+  let [x, y] = a;
+  const dx = Math.abs(b[0] - x), dy = -Math.abs(b[1] - y), sx = x < b[0] ? 1 : -1, sy = y < b[1] ? 1 : -1;
+  let err = dx + dy;
+  while (x !== b[0] || y !== b[1]) {
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x += sx; }
+    if (e2 <= dx) { err += dx; y += sy; }
+    out.push([x, y]);
+  }
+  return out;
+}
+
+// Timestamps are ticks (Addendum E): the hero acts every 10 ticks, the fast jackal every 7.
 function script(biome: string): Ev[] {
   const tameKind = biome === "fens" ? "eel" : biome === "crypt" ? "ghoul" : "monkey";
   const ev: Ev[] = [];
-  let t = 1;
+  let t = 10;
   let heroAt: [number, number] = [4, 5];
   let compAt: [number, number] = [4, 6];
   // hero moves; the companion steps into the hero's previous tile
-  const mv = (id: number, x: number, y: number) => {
-    ev.push({ t, k: "move", id, x, y });
+  const mv = (id: number, x: number, y: number, at = t) => {
+    ev.push({ t: at, k: "move", id, x, y });
     if (id === 1) {
-      if (compAt[0] !== heroAt[0] || compAt[1] !== heroAt[1]) { ev.push({ t, k: "move", id: 20, x: heroAt[0], y: heroAt[1] }); compAt = heroAt; }
+      if (compAt[0] !== heroAt[0] || compAt[1] !== heroAt[1]) { ev.push({ t: at, k: "move", id: 20, x: heroAt[0], y: heroAt[1] }); compAt = heroAt; }
       heroAt = [x, y];
     }
   };
@@ -71,133 +87,139 @@ function script(biome: string): Ev[] {
     mv(1, path[i]![0], path[i]![1]);
     if (i === 1) ev.push({ t, k: "callout", text: "rat!" });
     mv(2, rat[i]![0], rat[i]![1]);
-    t++;
+    t += 10;
   }
   // rat bites, hero kills rat
   ev.push({ t, k: "attack", src: 2, dst: 1, dmg: 2, hit: true });
   ev.push({ t, k: "hurt", id: 1, dmg: 2, hp: 28, cause: "rat" });
-  t++;
+  t += 10;
   ev.push({ t, k: "attack", src: 1, dst: 2, dmg: 5, hit: true, verb: "attack" });
   ev.push({ t, k: "hurt", id: 2, dmg: 5, hp: 0, cause: "hero" });
   ev.push({ t, k: "die", id: 2, cause: "hero" });
   ev.push({ t, k: "callout", text: "got it" });
-  t++;
-  // archer telegraphs, fires; jackal rushes (fast: 2 moves a turn)
+  t += 10;
+  // archer telegraphs, then an arrow flies 1 tile per tick; jackal rushes (fast: every 7 ticks)
   ev.push({ t, k: "telegraph", id: 3, what: "draws" });
-  mv(4, 19, 5); mv(4, 18, 5);
-  t++;
-  ev.push({ t, k: "attack", src: 3, dst: 1, dmg: 3, hit: true });
-  ev.push({ t, k: "hurt", id: 1, dmg: 3, hp: 25, cause: "arrow" });
-  mv(4, 17, 5); mv(4, 16, 5);
-  t++;
-  mv(1, 15, 4); mv(4, 15, 5);
+  mv(4, 19, 5); mv(4, 18, 5, t + 7);
+  t += 10;
+  const arrow = line([16, 3], [14, 4]);
+  ev.push({ t, k: "projectile", src: 3, dst: 1, path: arrow });
+  ev.push({ t: t + arrow.length, k: "attack", src: 3, dst: 1, dmg: 3, hit: true });
+  ev.push({ t: t + arrow.length, k: "hurt", id: 1, dmg: 3, hp: 25, cause: "arrow" });
+  mv(4, 17, 5, t + 4); mv(4, 16, 5, t + 11);
+  t += 10;
+  mv(1, 15, 4); mv(4, 15, 5, t + 8);
   ev.push({ t, k: "callout", text: "pack" });
-  t++;
+  t += 10;
   ev.push({ t, k: "attack", src: 4, dst: 1, dmg: 0, hit: false });
-  ev.push({ t, k: "attack", src: 1, dst: 4, dmg: 6, hit: true });
-  ev.push({ t, k: "hurt", id: 4, dmg: 6, hp: 0, cause: "hero" });
-  ev.push({ t, k: "die", id: 4, cause: "hero" });
-  t++;
+  ev.push({ t: t + 5, k: "attack", src: 1, dst: 4, dmg: 6, hit: true });
+  ev.push({ t: t + 5, k: "hurt", id: 4, dmg: 6, hp: 0, cause: "hero" });
+  ev.push({ t: t + 5, k: "die", id: 4, cause: "hero" });
+  t += 10;
   // pick up the bow, drink the unknown potion (fact), archer flees
   mv(1, 15, 5);
   ev.push({ t, k: "pickup", id: 1, item: "bow" });
   mv(3, 17, 3);
-  t++;
+  t += 10;
   ev.push({ t, k: "use", item: "potion?", outcome: "heal" });
   ev.push({ t, k: "fact", fact: "item:murky=heal" });
   ev.push({ t, k: "callout", text: "heal" });
-  t++;
-  // ogre winds up from far away (visible when we get there); gas spreads
-  ev.push({ t, k: "overlay", x: 15, y: 18, ov: "gas", ttl: 4 });
+  t += 10;
+  ev.push({ t, k: "overlay", x: 15, y: 18, ov: "gas", ttl: 40 });
   mv(1, 16, 4); mv(3, 18, 3);
-  t++;
+  t += 10;
+  mv(1, 17, 4);
+  t += 10;
   ev.push({ t, k: "attack", src: 1, dst: 3, dmg: 8, hit: true });
   ev.push({ t, k: "hurt", id: 3, dmg: 8, hp: 0, cause: "hero" });
   ev.push({ t, k: "die", id: 3, cause: "hero" });
-  t++;
-  // spawn a goblin conjurer that summons
+  t += 10;
+  // a goblin conjurer appears and summons
   ev.push({ t, k: "spawn", e: { id: 7, kind: "goblin_conjurer", x: 21, y: 4, hp: 6, max_hp: 6, tags: ["caster"] } });
-  t++;
+  t += 10;
   ev.push({ t, k: "telegraph", id: 7, what: "summons" });
-  mv(1, 17, 4);
-  t++;
+  mv(1, 18, 4);
+  t += 10;
   ev.push({ t, k: "spawn", e: { id: 8, kind: "goblin", x: 20, y: 4, hp: 5, max_hp: 5, tags: [] } });
   ev.push({ t, k: "callout", text: "blades!" });
-  mv(1, 18, 4);
-  t++;
+  mv(1, 19, 4);
+  t += 10;
   ev.push({ t, k: "attack", src: 8, dst: 1, dmg: 2, hit: true });
   ev.push({ t, k: "hurt", id: 1, dmg: 2, hp: 23, cause: "goblin" });
-  t++;
+  t += 10;
   ev.push({ t, k: "attack", src: 1, dst: 8, dmg: 7, hit: true, verb: "shield_bash" });
   ev.push({ t, k: "hurt", id: 8, dmg: 7, hp: 0, cause: "hero" });
   ev.push({ t, k: "die", id: 8, cause: "hero" });
-  t++;
-  mv(1, 19, 4); mv(7, 21, 3);
-  t++;
+  t += 10;
+  mv(1, 20, 4); mv(7, 21, 3);
+  t += 10;
   ev.push({ t, k: "attack", src: 1, dst: 7, dmg: 7, hit: true });
   ev.push({ t, k: "hurt", id: 7, dmg: 7, hp: 0, cause: "hero" });
   ev.push({ t, k: "die", id: 7, cause: "hero" });
-  t++;
-  // south down the east corridor into the SE room: pool, ogre, gas
-  const south: [number, number][] = [[18, 5], [18, 6], [18, 7], [18, 8], [18, 9], [18, 10], [18, 11], [18, 12], [18, 13]];
-  const ogre: [number, number][] = [[14, 14], [14, 14], [14, 14], [14, 14], [14, 14], [14, 13], [15, 13], [16, 13], [17, 13]];
+  t += 10;
+  // south down the east corridor into the SE room: pool, ogre (slow: every 14 ticks), gas
+  const south: [number, number][] = [[19, 5], [18, 6], [18, 7], [18, 8], [18, 9], [18, 10], [18, 11], [18, 12], [18, 13]];
+  const ogre: [number, number][] = [[14, 13], [15, 13], [16, 13], [17, 13]];
+  let ot = t + 50;
+  for (const [x, y] of ogre) { mv(5, x, y, ot); ot += 14; }
   for (let i = 0; i < south.length; i++) {
     mv(1, south[i]![0], south[i]![1]);
-    if (i >= 5) mv(5, ogre[i]![0], ogre[i]![1]);
     if (i === 6) ev.push({ t, k: "callout", text: "ogre" });
-    t++;
+    t += 10;
   }
-  ev.push({ t, k: "overlay", x: 19, y: 17, ov: "gas", ttl: 12 });
-  ev.push({ t, k: "overlay", x: 20, y: 17, ov: "gas", ttl: 12 });
-  ev.push({ t, k: "overlay", x: 20, y: 18, ov: "gas", ttl: 12 });
-  ev.push({ t, k: "overlay", x: 21, y: 18, ov: "gas", ttl: 12 });
-  ev.push({ t, k: "overlay", x: 14, y: 19, ov: "fire", ttl: 5 });
-  ev.push({ t, k: "overlay", x: 15, y: 19, ov: "fire", ttl: 5 });
+  t = Math.max(t, ot);
+  ev.push({ t, k: "overlay", x: 19, y: 17, ov: "gas", ttl: 120 });
+  ev.push({ t, k: "overlay", x: 20, y: 17, ov: "gas", ttl: 120 });
+  ev.push({ t, k: "overlay", x: 20, y: 18, ov: "gas", ttl: 120 });
+  ev.push({ t, k: "overlay", x: 21, y: 18, ov: "gas", ttl: 120 });
+  ev.push({ t, k: "overlay", x: 14, y: 19, ov: "fire", ttl: 50 });
+  ev.push({ t, k: "overlay", x: 15, y: 19, ov: "fire", ttl: 50 });
   ev.push({ t, k: "telegraph", id: 5, what: "winds up" });
-  t++;
+  t += 10;
   ev.push({ t, k: "attack", src: 1, dst: 5, dmg: 6, hit: true });
   ev.push({ t, k: "hurt", id: 5, dmg: 6, hp: 14, cause: "hero" });
-  t++;
+  t += 4;
   ev.push({ t, k: "attack", src: 5, dst: 1, dmg: 8, hit: true });
   ev.push({ t, k: "hurt", id: 1, dmg: 8, hp: 15, cause: "ogre" });
   ev.push({ t, k: "callout", text: "ouch" });
-  t++;
+  t += 6;
   ev.push({ t, k: "telegraph", id: 5, what: "winds up" });
   mv(1, 19, 13);
   ev.push({ t, k: "pickup", id: 1, item: "gold" });
-  t++;
-  mv(1, 20, 13); mv(5, 18, 13);
-  t++;
-  mv(1, 20, 14); mv(5, 19, 13);
-  t++;
+  t += 10;
+  mv(1, 20, 13); mv(5, 18, 13, t + 4);
+  t += 10;
+  mv(1, 20, 14); mv(5, 19, 13, t + 8);
+  t += 10;
   ev.push({ t, k: "attack", src: 1, dst: 5, dmg: 7, hit: true });
   ev.push({ t, k: "hurt", id: 5, dmg: 7, hp: 7, cause: "hero" });
-  t++;
-  ev.push({ t, k: "attack", src: 5, dst: 1, dmg: 0, hit: false });
+  t += 10;
+  ev.push({ t: t + 2, k: "attack", src: 5, dst: 1, dmg: 0, hit: false });
   ev.push({ t, k: "attack", src: 1, dst: 5, dmg: 7, hit: true });
   ev.push({ t, k: "hurt", id: 5, dmg: 7, hp: 0, cause: "hero" });
   ev.push({ t, k: "die", id: 5, cause: "hero" });
-  t++;
+  t += 10;
   // tame the creature by the pool: first attempt fails (shake), second succeeds (flash, ring)
   ev.push({ t, k: "tame", id: 6, kind: tameKind, ok: false });
-  t++;
+  t += 10;
   ev.push({ t, k: "tame", id: 6, kind: tameKind, ok: true });
   ev.push({ t, k: "fact", fact: `tamed:${tameKind}` });
-  t++;
+  t += 10;
   ev.push({ t, k: "hatch", kind: "jackal" });
-  // through the gas to the stairs
+  // through the gas to the stairs; the new companion trails
   for (const [x, y] of [[21, 15], [21, 16], [20, 17], [21, 18]] as [number, number][]) {
     mv(1, x, y);
     mv(6, x - 1, y - 1);
-    if (y >= 17) { ev.push({ t, k: "hurt", id: 1, dmg: 3, hp: 12, cause: "gas" }); }
-    t++;
+    if (y >= 17) { ev.push({ t: t + 5, k: "hurt", id: 1, dmg: 3, hp: 12, cause: "gas" }); }
+    t += 10;
   }
   ev.push({ t, k: "callout", text: "cough" });
   mv(1, 21, 19);
   ev.push({ t, k: "note", text: "stairs found" });
-  t++;
+  t += 10;
   ev.push({ t, k: "callout", text: "down" });
   ev.push({ t, k: "descend", depth: 2, biome: "fens" });
+  ev.sort((a, b) => a.t - b.t);
   return ev;
 }
 
@@ -226,7 +248,7 @@ function main(): void {
   const loop = (now: number) => {
     requestAnimationFrame(loop);
     const s = viewer.stats();
-    hud.textContent = `D${depth} ${floor.biome}  k=${s.k} dpr=${s.dpr}  dev ${s.device.join("×")}  env ${s.envTexels.join("×")}  target ${s.target.join("×")}  calls ${s.calls}  tris ${s.triangles}  queue ${s.pending}`;
+    hud.textContent = `D${depth} ${floor.biome}  k=${s.k} dpr=${s.dpr}  dev ${s.device.join("×")}  env ${s.envTexels.join("×")}  target ${s.target.join("×")}  calls ${s.calls}  tris ${s.triangles}  queue ${s.pending}  tick ${s.tick}`;
     if (now - lastLog > 2000) { lastLog = now; console.log(`[render-demo] draw calls=${s.calls} target=${s.target.join("x")} k=${s.k}`); }
     if (viewer.idle()) {
       if (restartAt === 0) restartAt = now + 1200;

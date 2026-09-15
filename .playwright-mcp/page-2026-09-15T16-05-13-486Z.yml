@@ -1,7 +1,0 @@
-- generic [active] [ref=f2e1]:
-  - generic: D1 warrens k=4 dpr=1.0000000298023224 dev 1920×1080 env 480×270 target 964×544 calls 6 tris 160 queue 70
-  - generic [ref=f2e4]:
-    - button "||" [ref=f2e5]
-    - button "1x" [ref=f2e6]
-    - button "4x" [ref=f2e7]
-    - button "skip" [ref=f2e8]

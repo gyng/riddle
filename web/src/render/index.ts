@@ -31,11 +31,13 @@ import type { Ev, Snapshot } from "./types";
 export type { Ev, Snapshot } from "./types";
 
 export type Viewer = {
-  load(snap: Snapshot): void;
-  apply(evs: Ev[]): void;
-  setSpeed(n: number): void;
-  skipToEvent(): void;
-  idle(): boolean;
+  load(snap: Snapshot): void;   // full floor state; clears the queue; resets camera to hero
+  apply(evs: Ev[]): void;       // queue events; played against the tick clock (Ev.t = tick)
+  setSpeed(n: number): void;    // 1 = 10 ticks/s, 4 = 40 ticks/s, 0 = pause
+  skipToEvent(): void;          // fast-forward to the next attack/die/telegraph/use/exit/tame
+  seek(t: number): void;        // tick scrub: rebuild from the last snapshot up to tick t (O(n))
+  tick(): number;               // current tick
+  idle(): boolean;              // queue drained and tails played out
   resize(): void;
   dispose(): void;
   stats(): ViewerStats;
@@ -43,7 +45,9 @@ export type Viewer = {
 
 export type ViewerStats = {
   calls: number; triangles: number; k: number; dpr: number;
-  device: [number, number]; envTexels: [number, number]; target: [number, number]; pending: number;
+  device: [number, number]; envTexels: [number, number]; target: [number, number]; pending: number; tick: number;
+  hero: [number, number]; // render position in tiles
+  projectiles: number;
 };
 
 const TILE = 8;
@@ -90,7 +94,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
   const st = new ReplayState();
   const cam = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0 };
-  const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0 };
+  const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, hero: [0, 0], projectiles: 0 };
   let k = 1, iw = 1, ih = 1, W = 3, H = 3, devW = 0, devH = 0, dpr = 1;
   let lastCss = "";
   let raf = 0;
@@ -188,11 +192,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const [fx, fy] = feet(e);
       const s = atlas.entity(e.kind);
       const w = s.w / 2, h = s.h / 2; // world units (env texels)
-      void e.cid;
       const z = 2 + Math.min(1, e.py / Math.max(1, st.h));
       if (!e.dying) {
         // contact shadow; companions (ally + cid, or tamed this run) get a 1-texel light ring
-        const ring = e.ally && !e.hero;
+        const ring = st.ringShown(e);
         const sh = atlas.shadow(Math.min(w - 2, 12), ring);
         L.shadows.push(fx, fy - (ring ? 2 : 1), 1.5, sh.w, sh.h, sh.u0, sh.v0, sh.u1, sh.v1, 1, 0, e.fade);
       }
@@ -219,6 +222,13 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         }
       }
     }
+    // projectiles: a 2×2 env-texel dot travelling 1 tile per tick along the path
+    {
+      const d = atlas.dot();
+      for (const [px, py] of st.projectilePositions()) {
+        L.glyphs.push(Math.round(px * TILE) + TILE / 2, -Math.round(py * TILE) - TILE / 2 - 1, 3.6, 2, 2, d.u0, d.v0, d.u1, d.v1);
+      }
+    }
     L.shadows.end(); L.ents.end(); L.glyphs.end();
 
     // callout: bitmap text above the hero (env density)
@@ -242,12 +252,13 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   function frame(now: number): void {
     if (disposed) return;
     raf = requestAnimationFrame(frame);
-    const dt = Math.min(100, now - last);
+    const dt = Math.min(250, now - last); // clamp long stalls (tab switch) but keep 4-fps devices on time
     last = now;
     const resized = measure();
     st.tick(dt, now);
-    const hadHero = !!st.hero;
-    updateCamera(dt / 1000, resized && !hadHero);
+    const snapCam = st.cameraSnap || (resized && !st.hero);
+    st.cameraSnap = false;
+    updateCamera(dt / 1000, snapCam);
     if (!st.loaded) return;
     build(now);
 
@@ -279,6 +290,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     stats.calls = renderer.info.render.calls;
     stats.triangles = renderer.info.render.triangles;
     stats.pending = st.pending();
+    stats.tick = st.tickNow();
+    if (hero) stats.hero = [hero.px, hero.py];
+    stats.projectiles = st.projectilePositions().length;
   }
 
   measure();
@@ -292,6 +306,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     apply(evs) { st.apply(evs); },
     setSpeed(n) { st.speed = Math.max(0, n); },
     skipToEvent() { st.skipToEvent(); },
+    seek(t) { st.seek(t); },
+    tick() { return st.tickNow(); },
     idle() { return st.idle(); },
     resize() { lastCss = ""; measure(); },
     dispose() {
