@@ -241,6 +241,9 @@ rows: must still die by D8. Party is not policy.
   lane (+2 HP per level, +1 attack every third). Level 10 is mastery: a class-unique tactic
   card and a trophy. New classes are new verb ladders, which is the expansion axis.
   Gate: default rules at level 10 must still die by D9.
+- **Every run converts.** Unkept items are salvaged into gold and the forge ledger; score
+  becomes renown and ranks. Nothing carried out is wasted, and a walled idle day still
+  returns something that spends.
 - **Lineage**: heirs with traits; graveyard with cause and deeds; facts, rule sets,
   vocabulary and vault persist.
 - **Unlocks**: one meta currency earned by new bests only (depth, first kills, trophies).

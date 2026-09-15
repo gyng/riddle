@@ -340,3 +340,28 @@ by exit tier (100/60/30%). Level thresholds: `xp_to_next(level) = 40 × level²`
   level_ups: number }`; `Ev { k: "level", class, level }` emitted at exit when a level is
   reached. Vocabulary for the active class must include verbs up to its level.
 - Gate LEVELLED: DEFAULT rules at class L10 must die by ≤ D9 on ≥ 80% of seeds.
+
+## Addendum D — Salvage, forge and renown (added 2026-09-16, in scope for Cut 1)
+
+Every run ends by converting what it carried and what it did into progression.
+- **Salvage.** At any exit, every inventory item not placed into the vault is salvaged:
+  `gold += value(kind)` (weapons 10–30, armour 15–40, potions 8, scrolls 12, leash 5)
+  scaled by the exit tier, and `lineage.forge[kind].salvaged += 1` (full count regardless of
+  tier). Vault choice happens at the exit: the engine returns `exit_pending: { items }` in
+  the last StepResult / offline report and `keep(itemIds)` finalises; offline runs keep
+  automatically by a preference rule (`keep_pref: "best_weapon" | "best_armour" | "none"`,
+  in `lineage`), default `best_weapon`.
+- **Forge ledger** per item kind: `{ salvaged, craftable, tier }`. `salvaged ≥ 5` →
+  `craftable` (kind joins the supply catalogue at 2× salvage value, potions/scrolls need
+  identification too); `≥ 15` → `tier 1`, `≥ 40` → `tier 2`: every future found or bought
+  copy of that kind is `+tier` (weapons +atk, armour +def, potions +25% effect per tier).
+- **Renown.** `score(run) = 10 × max_depth + Σ kill_value + 25 × bosses + Σ highlight
+  scores`; `lineage.renown += score` (all tiers, no scaling). Rank `r` reached when
+  `renown ≥ 100 × r²`; each new rank grants 1 mark and `Ev { k:"rank", rank }`.
+- Wire: `Lineage.forge: { [kind]: { salvaged: number; craftable: boolean; tier: number } }`,
+  `Lineage.renown: number; Lineage.rank: number; Lineage.keep_pref: string`;
+  `StepResult.exit_pending?: { items: InvItem[]; tier: string }`; `Engine.keep(ids: number[]):
+  Lineage`; `ReturnReport.salvaged: { kind: string; n: number; gold: number }[]`,
+  `ReturnReport.renown: { gained: number; rank: number; ranks_up: number }`.
+- Marks from renown are the only farmable mark source; quadratic thresholds keep it a slow
+  lane. Gates unchanged.
