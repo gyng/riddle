@@ -1,0 +1,45 @@
+{
+  "$comment": "Tier-1 card on the Cut 1 build by the build coordinator. Horizon: CLI runs on seeds 3/11 with fighter + good presets, two browser sessions on the GPU harness (one watched run at 4x, one simulated 8 h absence → report → worst death). Not an independent rater; treat as a baseline, not a decision.",
+  "game": "Riddle",
+  "build": "0a662e3 (2026-09-16)",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "coordinator (self-play, not blind)",
+  "horizon": { "activeMinutes": 45, "absences": ["8h simulated"], "runsWatched": 2, "runsOffline": 57, "ruleEdits": 2 },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 4,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 5,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "not yet taken (same day)"
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.8, "bot": "green", "note": "two rows, one button, forecast bars; lapse: raw fact tokens like 'foe:goblin archer:telegraph' before grouping" },
+    { "id": "decisions", "human": 0.6, "bot": "green", "note": "the Warlord wall forces 'attack boss' vs 'attack nearest'; lapse: on D1-4 the answer is usually 'add a retreat row'" },
+    { "id": "mastery", "human": 0.6, "bot": "na", "note": "went from dying at D3 to D5 wall in two edits; only one session, so 0.6" },
+    { "id": "tension", "human": 0.3, "bot": "na", "note": "watched at 4x, the D1 fight had no doubt; the wall is tense as a diagnosis, not as a watch" },
+    { "id": "feel", "human": 0.6, "bot": "amber", "note": "callouts land, projectiles travel, 33 fps on the harness (amber: below 60)" },
+    { "id": "surprise", "human": 0.6, "bot": "green", "note": "'The monkey stole the leash', Warlord rallies; death-cause entropy green; lapse: D1-4 monsters repeat" },
+    { "id": "expression", "human": 0.3, "bot": "na", "note": "two sets seen so far; too early" },
+    { "id": "story", "human": 0.6, "bot": "na", "note": "chronicle retells a run in three lines with a turn ('Greth the rat is avenged'); no tell-a-friend test yet" },
+    { "id": "pacing", "human": 0.6, "bot": "green", "note": "check-in 3-6 min; run 5-10 min at 1x; 8 h report 16 s to build (lapse)" },
+    { "id": "failure", "human": 0.8, "bot": "green", "note": "'goblin_warlord · D5 · 3 over · gap' with the rally telegraph in the trace and 'attack boss' offered; lapse: 0% deltas on all three patches" },
+    { "id": "social", "human": 0.0, "bot": "na", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.3, "bot": "na", "note": "dive/explore rule exists; not yet felt" },
+    { "id": "progression", "human": 0.6, "bot": "na", "note": "8 h returned 27 marks, fighter L1→L5, rank 9, forge counts; unlock cadence not yet observed over days" },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "note": "paper cut-out hero on the pixel diorama reads as one game at phone size; no audio (unassessed)" },
+    { "id": "return", "human": 0.8, "bot": "green", "note": "8 h → learned tokens first, 57 deaths by cause, a pending patch line; lapse: 16 s blank-ish wait" },
+    { "id": "attribution", "human": 0.8, "bot": "green", "note": "'I never told it to hit the boss' is the honest retelling; 98% of deaths trace to a row; lapse: not blind" }
+  ]
+}

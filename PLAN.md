@@ -1,6 +1,6 @@
 # Riddle — PLAN.md
 
-*Working title. Canonical plan, v2 (reviewed 2026-09-15; review log at the end). Research:
+*Working title. Canonical plan, v3. **Status 2026-09-16: Cut 1 (v1 playable) is BUILT and verified**; see `docs/CUT1.md` (contract + addenda A–E), `docs/INTEGRATION.md`, `eval/cards/cut1.tier1.json` (61.6, promising, gated on tension + expression). Review log at the end. Research:
 `research/*.md`. Fun eval: `docs/FUN_EVAL_IDLE.md` + `eval/`. Sibling conventions:
 `../tacticalswap/AGENTS.md` (cut contracts, gates, WebMCP), `../tacticalswap/docs/ART.md`
 (watercolour register), `../cyty/PLAN.md` (Rust sim → WASM, custom renderer).*
@@ -335,7 +335,13 @@ the next contract.
 | 6 | Release: PWA, copy-lint clean, WebMCP harness, Tier-2 eval on `idle-roguelike` | ≥ 72, no gate on `return`/`attribution`; blind second card α ≥ 0.67 |
 | 7+ | 30 monsters / 40 items / 5 biomes / depth 30, more classes, ascension, live cadence | new bests only |
 
-**v1 playable** = M0–M6 at the reduced content counts above.
+**v1 playable** = M0–M6 at the reduced content counts above. **Built 2026-09-16** in one cut
+(`docs/CUT1.md`): core 115 tests, 17 bot gates green (incl. TRIVIAL-never-passes-D5 and
+COUNTERED-reaches-D11), client + worker, renderer, 22 sprites + 33 tiles, PWA. Tier-1 self
+card: 61.6 promising. **Next cut (Cut 2) = the two gated axes:** tension while watching
+(stakes the player chose: insurance bets, bring-or-bank decisions visible in the HUD, boss
+rooms as set pieces, near-miss telegraphing) and expression (more tactic cards, ranger and
+caster ladders, companion breeding depth, shareable set gallery). Then a blind second card.
 
 ## Risks
 

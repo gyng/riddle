@@ -16,4 +16,12 @@ happen while you are away. The dungeon has a bottom.
 
 Score a card: `eval/score.sh eval/cards/<card>.json [--profile=achievement]` (needs `../eval-fun`).
 
-Status: planned, not built. Next: `docs/CUT1.md` (text-only sim + 4-row editor + trace, the legibility kill-test).
+Status: **Cut 1 built and playable** (2026-09-16). `tools/verify.sh` is the gate.
+
+```sh
+tools/verify.sh                    # tests → clippy → wasm → build → copy-lint → 17 bot gates
+cd web && pnpm dev --port 5219     # http://localhost:5219/  (?engine=fake for UI without wasm)
+node tools/browser.mjs --probe     # GPU harness under WSLg (see AGENTS.md)
+```
+
+Next: Cut 2 on the two gated axes, tension and expression (see PLAN.md → Milestones).
