@@ -51,7 +51,7 @@ export type ViewerStats = {
 };
 
 const TILE = 8;
-const BASE_TEXELS = 270;
+const BASE_TEXELS = 200; // was 270: phone hero read at 1/25 of screen height; 200 gives ~24 tiles across at 400 CSS px
 
 export type ViewerOpts = {
   atlasUrl?: string;   // default "/art/atlas.json" (+ atlas.png beside it)

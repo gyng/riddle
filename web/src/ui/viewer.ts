@@ -12,7 +12,7 @@ export interface Viewer {
   resize?(): void;
   idle?(): boolean;
 }
-type RenderMod = { createViewer(canvas: HTMLCanvasElement): Viewer };
+type RenderMod = { createViewer(canvas: HTMLCanvasElement, opts?: { baseTexels?: number }): Viewer };
 const mods = import.meta.glob<RenderMod>("../render/index.ts");
 
 export async function makeViewer(canvas: HTMLCanvasElement): Promise<{ viewer: Viewer; real: boolean }> {
