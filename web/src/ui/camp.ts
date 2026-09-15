@@ -14,9 +14,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const party = renderParty(app);
   const fc = renderForecast(app);
   const vault = h("section", { class: "vault" });
+  const supplies = h("section", { class: "supplies" });
   const unlocks = h("section", { class: "unlocks" });
   const send = h("button", { class: "btn primary send", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send");
-  const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, party.el, vault, unlocks, h("div", { class: "send-bar" }, send));
+  const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, party.el, vault, supplies, unlocks, h("div", { class: "send-bar" }, send));
 
   function paintStrip(): void {
     const L = app.lineage;
@@ -25,6 +26,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       h("span", null, L.trait),
       h("span", null, L.class),
       h("span", { class: "num" }, `D${L.best_depth}`),
+      h("span", { class: "num gold" }, `$${L.gold}`),
       h("span", { class: "num marks" }, `◆${L.marks}`),
       h("button", { class: "gear", onclick: () => openSettings(app) }, "⚙"),
     );
@@ -47,6 +49,19 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     for (let i = L.vault.length; i < slots; i++) chips.appendChild(h("span", { class: "chip empty" }, "·"));
     vault.appendChild(chips);
   }
+  function paintSupplies(): void {
+    const L = app.lineage; const picks = L.supplies ?? []; const full = picks.length >= 3;
+    clear(supplies);
+    supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/3`),
+      picks.length ? h("button", { class: "mini", onclick: () => { app.lineage = app.engine.clearSupplies(); app.afterLineage(); } }, "×") : ""));
+    const chips = h("div", { class: "chips" });
+    for (const p of picks) chips.appendChild(h("span", { class: "chip item on" }, p.label));
+    for (const e of app.engine.supplyCatalogue()) {
+      const can = !full && L.gold >= e.price;
+      chips.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => { app.lineage = app.engine.buySupply(e.kind); app.afterLineage(); } }, e.label, " ", h("b", { class: "num gold" }, `$${e.price}`)));
+    }
+    supplies.appendChild(chips);
+  }
   function paintUnlocks(): void {
     const L = app.lineage;
     clear(unlocks);
@@ -60,7 +75,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     }
     unlocks.appendChild(grid);
   }
-  function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintUnlocks(); party.refresh(); editor.refresh(); }
+  function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); }
   paintAll();
   const off = app.onChange(paintAll);
   return { el, dispose: () => { off(); fc.dispose(); } };

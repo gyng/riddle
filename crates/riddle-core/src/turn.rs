@@ -170,7 +170,8 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             }
             continue;
         }
-        if ai::try_verb(run, cx, &row.verb, v) {
+        let scope = row.conds.iter().find(|c| c.k == "party").and_then(|c| c.t.clone());
+        if ai::try_verb_scoped(run, cx, &row.verb, v, scope.as_deref()) {
             let text = row.text(hp_pct);
             emit_rule(run, cx, i as i32, &row.verb, &text);
             if i < run.row_fired.len() {

@@ -235,8 +235,12 @@ rows: must still die by D8. Party is not policy.
   common per-run loot protected by the exit tiers; it buys **supplies** (leashes, identified
   potions and scrolls, ≤ 3 per expedition) and rehatches lost eggs. Supplies are bets, not
   growth: gold never buys stats, rows or unlocks.
-- **No banked XP.** The hero has no levels; power is what the dungeon gave plus what you
-  chose to risk from the vault. Growth reads in depth, vocabulary, facts, ledger, companions.
+- **Class XP.** Persistent per class (the school remembers; heirs die). Earned per
+  expedition from kills and depth, kept by exit tier. Each level pays mostly in *verbs*
+  (a new class skill every other level, each a new row to write) with a small bounded stat
+  lane (+2 HP per level, +1 attack every third). Level 10 is mastery: a class-unique tactic
+  card and a trophy. New classes are new verb ladders, which is the expansion axis.
+  Gate: default rules at level 10 must still die by D9.
 - **Lineage**: heirs with traits; graveyard with cause and deeds; facts, rule sets,
   vocabulary and vault persist.
 - **Unlocks**: one meta currency earned by new bests only (depth, first kills, trophies).

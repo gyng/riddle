@@ -107,6 +107,8 @@ pub struct Run {
     pub recalled: Vec<u32>,
     pub tamed: Vec<(u32, String)>,
     pub lost_companions: Vec<(u32, String)>,
+    /// Item ids of camp supplies (never kept back).
+    pub supplies: Vec<u32>,
 }
 
 impl Run {
@@ -190,6 +192,10 @@ pub struct LineageState {
     pub bred: BTreeSet<String>,
     #[serde(default = "default_next_comp_id")]
     pub next_comp_id: u32,
+    #[serde(default)]
+    pub gold: i32,
+    #[serde(default)]
+    pub supplies: Vec<Item>,
 }
 
 fn default_next_comp_id() -> u32 {
@@ -228,6 +234,8 @@ impl LineageState {
             eggs: Vec::new(),
             bred: BTreeSet::new(),
             next_comp_id: 1,
+            gold: 0,
+            supplies: Vec::new(),
         }
     }
     pub fn party_slots(&self) -> u32 {
@@ -283,6 +291,8 @@ impl LineageState {
             eggs: self.eggs.clone(),
             party_slots: self.party_slots(),
             ledger: self.ledger(),
+            gold: self.gold,
+            supplies: self.supplies.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
         }
     }
     pub fn vault_slots(&self) -> usize {
@@ -494,7 +504,21 @@ impl Game {
             recalled: Vec::new(),
             tamed: Vec::new(),
             lost_companions: Vec::new(),
+            supplies: Vec::new(),
         };
+        for s in std::mem::take(&mut self.lineage.supplies) {
+            let mut it = s;
+            it.id = run.new_item_id() + 5000;
+            run.supplies.push(it.id);
+            if it.kind == "leash" {
+                match run.hero.inv.iter_mut().find(|i| i.kind == "leash") {
+                    Some(l) => l.amount += 1,
+                    None => run.hero.inv.push(it),
+                }
+            } else {
+                run.hero.auto_equip(it);
+            }
+        }
         populate_floor(&mut run, &self.lineage.grudges);
         spawn_party(&mut run, &self.lineage.party);
         run.floor.map.update_vision(run.hero.pos, VISION);
@@ -847,7 +871,9 @@ impl Game {
         if let Some(a) = &run.hero.armour {
             all.push(a.clone());
         }
-        all.retain(|i| i.cat() != Cat::Gold && i.id != 1);
+        all.retain(|i| i.cat() != Cat::Gold && i.id != 1 && !run.supplies.contains(&i.id));
+        let loot_kept = run.loot.max(0) * tier.pct() / 100;
+        self.lineage.gold += loot_kept;
         all.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
         match tier {
             ExitTier::Bank => kept = all,
@@ -1085,13 +1111,59 @@ impl Game {
         if !self.lineage.eggs[i].from_loss {
             return Err("bred eggs hatch after 5 expeditions".into());
         }
-        if self.lineage.marks < 2 {
-            return Err("2 marks needed".into());
+        if self.lineage.gold < 50 {
+            return Err("50 gold needed".into());
         }
-        self.lineage.marks -= 2;
+        self.lineage.gold -= 50;
         let e = self.lineage.eggs.remove(i);
         self.hatch_egg(e);
         Ok(())
+    }
+
+    // ---- Gold and supplies (Addendum B)
+
+    pub fn supply_catalogue(&self) -> Vec<SupplyInfo> {
+        let mut out = vec![SupplyInfo { kind: "leash".into(), price: 30, label: "leash".into() }];
+        for d in crate::defs::ITEMS {
+            let price = match d.cat {
+                Cat::Potion => 40,
+                Cat::Scroll => 60,
+                _ => continue,
+            };
+            if crate::item::is_identified(&self.lineage.facts, &self.lineage.flavours, d.kind) {
+                let cat = if d.cat == Cat::Potion { "potion" } else { "scroll" };
+                out.push(SupplyInfo { kind: d.kind.into(), price, label: format!("{} {cat}", d.kind.replace('_', " ")) });
+            }
+        }
+        out
+    }
+
+    pub fn buy_supply(&mut self, kind: &str) -> Result<(), String> {
+        if self.lineage.supplies.len() >= 3 {
+            return Err("3 supplies max".into());
+        }
+        let entry = self.supply_catalogue().into_iter().find(|s| s.kind == kind).ok_or("not for sale")?;
+        if self.lineage.gold < entry.price {
+            return Err("not enough gold".into());
+        }
+        self.lineage.gold -= entry.price;
+        let id = self.lineage.next_vault_id;
+        self.lineage.next_vault_id += 1;
+        let mut it = Item::new(id, kind);
+        if kind == "leash" {
+            it.amount = 1;
+        }
+        self.lineage.supplies.push(it);
+        Ok(())
+    }
+
+    pub fn clear_supplies(&mut self) {
+        let cat = self.supply_catalogue();
+        for s in std::mem::take(&mut self.lineage.supplies) {
+            if let Some(e) = cat.iter().find(|e| e.kind == s.kind) {
+                self.lineage.gold += e.price;
+            }
+        }
     }
 
     pub fn companion_vocabulary(&self, id: u32) -> Result<Vocabulary, String> {

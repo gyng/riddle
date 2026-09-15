@@ -2,7 +2,7 @@
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
   Companion, Cond, Death, Engine, Entity, Ev, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
-  ReturnReport, Row, RuleSet, Snapshot, StepResult, Tile, Trace, Verb, Vocabulary,
+  ReturnReport, Row, RuleSet, Snapshot, StepResult, SupplyEntry, Tile, Trace, Verb, Vocabulary,
 } from "./types";
 
 type Rng = () => number;
@@ -671,13 +671,20 @@ export class FakeEngine implements Engine {
         seed, heir: 1, trait, class: "fighter", best_depth: 0, marks: 0, facts: [], unlocks: [], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
         party: [], kennel: [mkCompanion(1, "jackal", 2, ["pack", "fast"], 0), mkCompanion(2, "goblin_archer", 1, ["ranged"], 0)],
         eggs: [{ id: 3, kind: "bloat", tags: ["gas"], gen: 1, hatch_in: 3, from_loss: false }], party_slots: 1, ledger: [],
+        gold: 120, supplies: [],
       },
       rules: copy(), loadout: [], killed: [], runCounter: 0, logs: {}, nextItem: 50000, tamedKinds: ["jackal", "goblin_archer"], bredKinds: ["bloat"], nextCid: 10,
     };
     this.live = null; this.lastDeath = {};
     return this.lineage();
   }
-  load(save: string): Lineage { const p = JSON.parse(save) as State; this.s = p; this.live = null; this.lastDeath = {}; return this.lineage(); }
+  load(save: string): Lineage {
+    const p = JSON.parse(save) as State; this.s = p; this.live = null; this.lastDeath = {};
+    const L = p.lineage; // older fake saves: fill addendum fields
+    L.party ??= []; L.kennel ??= []; L.eggs ??= []; L.party_slots ??= 1; L.ledger ??= []; L.gold ??= 0; L.supplies ??= [];
+    p.tamedKinds ??= []; p.bredKinds ??= []; p.nextCid ??= 10;
+    return this.lineage();
+  }
   save(): string { return JSON.stringify(this.s); }
   lineage(): Lineage { this.s.lineage.ledger = this.ledger(); return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage; }
   private ledger(): LedgerRow[] {
@@ -706,9 +713,21 @@ export class FakeEngine implements Engine {
   }
   hatch(eggId: number): Lineage {
     const L = this.s.lineage; const e = L.eggs.find((x) => x.id === eggId);
-    if (e && e.from_loss && L.marks >= 2) { L.marks -= 2; L.eggs = L.eggs.filter((x) => x !== e); L.kennel.push(mkCompanion(this.s.nextCid++, e.kind, 1, e.tags, e.gen)); }
+    if (e && e.from_loss && L.gold >= 50) { L.gold -= 50; L.eggs = L.eggs.filter((x) => x !== e); L.kennel.push(mkCompanion(this.s.nextCid++, e.kind, 1, e.tags, e.gen)); }
     return this.lineage();
   }
+  // Addendum B — supplies
+  supplyCatalogue(): SupplyEntry[] {
+    const out: SupplyEntry[] = [{ kind: "leash", price: 30, label: "leash" }];
+    for (const f of this.s.lineage.facts) { const m = /^item:[A-Za-z]+=([a-z_]+)$/.exec(f); if (!m) continue; const k = m[1]; if (POTIONS.includes(k)) out.push({ kind: k, price: 40, label: `${k} potion` }); else if (SCROLLS.includes(k)) out.push({ kind: k, price: 60, label: `scroll ${k}` }); }
+    return out;
+  }
+  buySupply(kind: string): Lineage {
+    const L = this.s.lineage; const e = this.supplyCatalogue().find((x) => x.kind === kind);
+    if (e && L.supplies.length < 3 && L.gold >= e.price) { L.gold -= e.price; L.supplies.push({ id: this.s.nextItem++, kind: e.kind, known: true, label: e.label }); }
+    return this.lineage();
+  }
+  clearSupplies(): Lineage { const L = this.s.lineage; for (const s of L.supplies) L.gold += this.supplyCatalogue().find((x) => x.kind === s.kind)?.price ?? 0; L.supplies = []; return this.lineage(); }
   companionVocabulary(id: number): Vocabulary {
     const c = [...this.s.lineage.kennel, ...this.s.lineage.party].find((x) => x.id === id);
     const base = this.vocabulary();
@@ -753,7 +772,7 @@ export class FakeEngine implements Engine {
   loadout(itemIds: number[]): void { this.s.loadout = itemIds.filter((id) => this.s.lineage.vault.some((v) => v.id === id)); }
 
   private known(): Set<string> { return new Set(this.s.lineage.facts); }
-  private brought(): InvItem[] { return this.s.lineage.vault.filter((v) => this.s.loadout.includes(v.id)).map((v) => ({ ...v })); }
+  private brought(): InvItem[] { return [...this.s.lineage.vault.filter((v) => this.s.loadout.includes(v.id)), ...this.s.lineage.supplies].map((v) => ({ ...v })); }
   private simOne(seed: number, rules: RuleSet, known: Set<string>, cls = this.s.lineage.class, trait = this.s.lineage.trait, brought: InvItem[] = []): Run {
     const ctx = this.ctx(rules); const run = makeRun(0, this.s.lineage.heir, seed, cls, trait, known, brought, ctx); runToEnd(run, ctx); return run;
   }
@@ -793,6 +812,7 @@ export class FakeEngine implements Engine {
     if (!real) return { facts: [], bests: [], marks: 0, tamed: [], lost: [], hatched: [] };
     const facts: string[] = []; const bests: string[] = []; let marks = 0;
     const tamed: string[] = [], lost: string[] = [], hatched: string[] = [];
+    L.gold += run.loot_kept; L.supplies = [];
     // companions: party members and tamed foes
     const survivors = run.floor ? [...companions(run), ...run.recalled] : [...run.recalled];
     const egg = (c: Companion): void => { L.eggs.push({ id: this.s.nextCid++, kind: c.kind, tags: [...c.tags], gen: c.gen, hatch_in: 5, from_loss: true }); lost.push(c.kind); };

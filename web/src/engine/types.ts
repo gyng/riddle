@@ -61,7 +61,8 @@ export type ReturnReport = {
 export type Lineage = { seed: number; heir: number; trait: string; class: string; best_depth: number; marks: number;
                         facts: string[]; unlocks: string[]; vault: InvItem[]; graveyard: { heir: number; depth: number; cause: string; deeds: string[] }[];
                         trophies: string[]; sets: RuleSet[]; active_set: number; ended: boolean;
-                        party: Companion[]; kennel: Companion[]; eggs: Egg[]; party_slots: number; ledger: LedgerRow[] }; // Addendum A
+                        party: Companion[]; kennel: Companion[]; eggs: Egg[]; party_slots: number; ledger: LedgerRow[];  // Addendum A
+                        gold: number; supplies: InvItem[] };                                                             // Addendum B
 
 // Addendum A — Companions
 export type Companion = { id: number; kind: string; name: string; level: number; tags: string[]; gen: number;
@@ -86,4 +87,7 @@ export interface Engine {
   // Addendum A
   setParty(ids: number[]): Lineage;  setCompanionRules(id: number, set: RuleSet): void;
   breed(a: number, b: number): Lineage;  hatch(eggId: number): Lineage;  companionVocabulary(id: number): Vocabulary;
+  // Addendum B
+  buySupply(kind: string): Lineage;  clearSupplies(): Lineage;  supplyCatalogue(): SupplyEntry[];
 }
+export type SupplyEntry = { kind: string; price: number; label: string };                                             // Addendum B

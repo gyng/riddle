@@ -6,7 +6,7 @@
 // loadout return nothing). `load` may be a static constructor (`Game.load(json)`) or an instance method;
 // both are handled. Values that arrive already-parsed (serde-wasm-bindgen) are accepted too.
 import type {
-  Death, Engine, Forecast, Lineage, ReturnReport, RuleSet, Snapshot, StepResult, Vocabulary,
+  Death, Engine, Forecast, Lineage, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, Vocabulary,
 } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
@@ -53,6 +53,10 @@ export class WasmEngine implements Engine {
   breed(a: number, b: number): Lineage { return this.call("breed", a, b); }
   hatch(eggId: number): Lineage { return this.call("hatch", eggId); }
   companionVocabulary(id: number): Vocabulary { return this.call("companionVocabulary", id); }
+  // Addendum B
+  buySupply(kind: string): Lineage { return this.call("buySupply", kind); }
+  clearSupplies(): Lineage { return this.call("clearSupplies"); }
+  supplyCatalogue(): SupplyEntry[] { return this.call("supplyCatalogue"); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. */

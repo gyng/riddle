@@ -9,7 +9,7 @@ use crate::item::{ident_fact, is_identified, Hint, Item};
 use crate::monster::{Monster, Pending};
 use crate::rules::Verb;
 use crate::tiles::{OverlayKind, Tile, VISION};
-use crate::turn::{damage_hero, damage_monster, descend, end_run, pickup_here, place_overlay, view, View};
+use crate::turn::{cond_holds, damage_hero, damage_monster, descend, end_run, pickup_here, place_overlay, view, Src, View};
 use crate::wire::Ev;
 
 pub const THROW_RANGE: i32 = 6;
@@ -144,8 +144,41 @@ fn descend_step(run: &mut Run, cx: &mut Ctx) -> bool {
 
 /// Execute a verb if it can execute now. Returns false to fall through.
 pub fn try_verb(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View) -> bool {
+    try_verb_scoped(run, cx, verb, v, None)
+}
+
+/// As `try_verb`, with the row's `party:<kind>` scope for `recall`/`send`.
+pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope: Option<&str>) -> bool {
     let a = verb.a.clone().unwrap_or_default();
     match verb.v.as_str() {
+        "tame" => cx.unlocks.contains("tame") && verb_tame(run, cx, &a, v),
+        "recall" => {
+            let mut any = false;
+            for mi in 0..run.monsters.len() {
+                let m = &run.monsters[mi];
+                if m.is_companion() && m.hp > 0 && scope.is_none_or(|k| m.kind == k) {
+                    recall_companion(run, cx, mi);
+                    any = true;
+                }
+            }
+            any
+        }
+        "send" => {
+            let mut any = false;
+            if v.foes.is_empty() {
+                return false;
+            }
+            for m in run.monsters.iter_mut() {
+                if m.is_companion() && m.hp > 0 && !m.sent && scope.is_none_or(|k| m.kind == k) {
+                    m.sent = true;
+                    any = true;
+                }
+            }
+            if any {
+                callout(run, cx, "sic!");
+            }
+            any
+        }
         "attack" => verb_attack(run, cx, &a, v, false),
         "shield_bash" => run.hero.class == Class::Fighter && run.hero.bash_cd == 0 && verb_attack(run, cx, "nearest", v, true),
         "retreat" => verb_retreat(run, cx, v),
@@ -264,8 +297,7 @@ pub fn hero_attack(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash: boo
             run.monsters[mi].stun = 1;
             callout(run, cx, "bash");
         }
-        let kind = run.monsters[mi].kind.clone();
-        damage_monster(run, cx, mi, dmg, &format!("hero:{kind}"));
+        damage_monster(run, cx, mi, dmg, &Src::Hero { ranged: verb == "shoot" });
         if run.monsters[mi].hp > 0 && !run.monsters[mi].awake {
             run.monsters[mi].awake = true;
             run.monsters[mi].last_seen = Some(run.hero.pos);
@@ -814,8 +846,42 @@ fn wander(run: &mut Run, cx: &mut Ctx, mi: usize) {
     }
 }
 
-/// Monster melee/ranged attack on the hero with tag riders. `mult` doubles ogre hits.
+fn adjacent_ally(run: &Run, mi: usize) -> Option<usize> {
+    let mp = run.monsters[mi].pos;
+    run.monsters
+        .iter()
+        .enumerate()
+        .filter(|(j, o)| *j != mi && o.hp > 0 && o.ally && o.pos.adjacent(mp))
+        .min_by_key(|(_, o)| (o.hp, o.id))
+        .map(|(j, _)| j)
+}
+
+/// Something to hit in melee: the hero, else an adjacent ally.
+fn engaged(run: &Run, mi: usize) -> bool {
+    let mp = run.monsters[mi].pos;
+    (mp.adjacent(run.hero.pos) && !run.hero.untargetable()) || adjacent_ally(run, mi).is_some()
+}
+
+/// Monster attack on the hero (or, failing adjacency, an ally) with tag riders. `mult` doubles ogre hits.
 fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str) {
+    let mp = run.monsters[mi].pos;
+    if !(mp.adjacent(run.hero.pos) && !run.hero.untargetable()) || verb == "shoot" && !can_see_hero(run, mi) {
+        if let Some(ai) = adjacent_ally(run, mi) {
+            let m = &run.monsters[mi];
+            let atk = (m.atk.0 * mult, m.atk.1 * mult);
+            let def = run.monsters[ai].effective_def();
+            let (hit, dmg) = roll_hit(&mut run.rng, atk, def);
+            let (src, dst) = (run.monsters[mi].id, run.monsters[ai].id);
+            cx.events.push(Ev::Attack { t: run.turn, src, dst, dmg, hit, verb: Some(verb.into()) });
+            if hit {
+                damage_monster(run, cx, ai, dmg, &Src::Mon(mi));
+            }
+            return;
+        }
+        if verb != "shoot" {
+            return;
+        }
+    }
     let m = &run.monsters[mi];
     let atk = (m.atk.0 * mult, m.atk.1 * mult);
     let def = run.hero.def();
@@ -857,7 +923,8 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
     if mult > 1 {
         learn_tag(run, cx, &kind, "heavy");
     }
-    damage_hero(run, cx, dmg, &cause);
+    let _ = cause;
+    damage_hero(run, cx, dmg, &Src::Mon(mi));
 }
 
 fn summon_near(run: &mut Run, cx: &mut Ctx, at: Pos, kind: &str, n: usize, ttl: Option<i32>) -> usize {
@@ -911,7 +978,7 @@ fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending, hero_dist
             }
         }
         Pending::HeavyHit => {
-            if mp.adjacent(hp) && !run.hero.untargetable() {
+            if engaged(run, mi) {
                 monster_attack(run, cx, mi, 2, "smash");
             } else {
                 approach(run, cx, mi, hero_dist);
@@ -968,7 +1035,11 @@ fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize, hero_dist: &[i32]) {
         return;
     }
     if ally {
-        ally_act(run, cx, mi, hero_dist);
+        if run.monsters[mi].is_companion() {
+            companion_act(run, cx, mi, hero_dist);
+        } else {
+            ally_act(run, cx, mi, hero_dist);
+        }
         return;
     }
     if confused > 0 {
@@ -983,7 +1054,7 @@ fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize, hero_dist: &[i32]) {
     }
     let m = run.monsters[mi].clone();
     let mp = m.pos;
-    let adjacent = mp.adjacent(hp) && !run.hero.untargetable();
+    let adjacent = engaged(run, mi);
     if m.fear > 0 || m.fleeing {
         if m.fleeing && !sees && !run.floor.map.is_visible(mp) {
             return; // hidden with the loot
@@ -1020,8 +1091,10 @@ fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize, hero_dist: &[i32]) {
             }
         }
         "ogre" => {
-            if adjacent {
+            if adjacent && m.pos.adjacent(hp) {
                 telegraph(run, cx, mi, "winds up", Pending::HeavyHit);
+            } else if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
             } else {
                 chase(run, cx, mi, hero_dist, sees);
             }
@@ -1165,8 +1238,7 @@ fn ally_act(run: &mut Run, cx: &mut Ctx, mi: usize, hero_dist: &[i32]) {
         let (src, dst) = (run.monsters[mi].id, run.monsters[ti].id);
         cx.events.push(Ev::Attack { t: run.turn, src, dst, dmg, hit, verb: Some("attack".into()) });
         if hit {
-            let k = run.monsters[mi].kind.clone();
-            damage_monster(run, cx, ti, dmg, &format!("ally:{k}"));
+            damage_monster(run, cx, ti, dmg, &Src::Mon(mi));
         }
         return;
     }
@@ -1191,5 +1263,310 @@ fn ally_act(run: &mut Run, cx: &mut Ctx, mi: usize, hero_dist: &[i32]) {
                 move_monster(run, cx, mi, q);
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------- companions (Addendum A)
+
+fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
+    let Some(li) = run.hero.inv.iter().position(|i| i.kind == "leash" && i.amount > 0) else { return false };
+    let sel = if a.is_empty() { "nearest" } else { a };
+    let cand = v.foes.iter().copied().find(|&i| {
+        let m = &run.monsters[i];
+        let weak = m.hp * 100 / m.max_hp.max(1) < 25;
+        let tag_ok = match sel.strip_prefix("tag:") {
+            Some(t) => m.has_tag(t),
+            None => true,
+        };
+        weak && tag_ok && !m.is_boss() && !m.summoned && !m.neutral
+    });
+    let Some(mi) = cand else { return false };
+    let hp = run.hero.pos;
+    let mp = run.monsters[mi].pos;
+    if !mp.adjacent(hp) {
+        let (dist, parent) = hero_bfs(run);
+        let map = &run.floor.map;
+        let goal = mp.neighbours8().into_iter().filter(|q| map.in_bounds(*q) && dist[map.idx(*q)] >= 0).min_by_key(|q| (dist[map.idx(*q)], q.x, q.y));
+        return match goal {
+            Some(g) if g != hp => step_towards(run, cx, g, &parent),
+            _ => false,
+        };
+    }
+    // Spend the leash and the turn.
+    run.hero.inv[li].amount -= 1;
+    if run.hero.inv[li].amount <= 0 {
+        run.hero.inv.remove(li);
+    }
+    let kind = run.monsters[mi].kind.clone();
+    let chance = crate::engine::tame_chance(cx.facts, &kind);
+    let ok = run.rng.chance(chance);
+    let id = run.monsters[mi].id;
+    cx.events.push(Ev::Tame { t: run.turn, id, kind: kind.clone(), ok });
+    if ok {
+        let n = run.tamed.len() as u32;
+        let cid = 1_000_000 + run.id * 100 + n;
+        let name = crate::descent::grudge_name(&mut run.rng);
+        {
+            let m = &mut run.monsters[mi];
+            m.ally = true;
+            m.awake = true;
+            m.fleeing = false;
+            m.fear = 0;
+            m.cid = Some(cid);
+            m.name = Some(name.clone());
+            m.level = 1;
+            m.stolen = None;
+            m.last_seen = None;
+        }
+        let rec = crate::engine::new_companion(cid, &run.monsters[mi], name.clone());
+        run.companions.push(rec);
+        run.tamed.push((run.turn, kind.clone()));
+        learn(run, cx, format!("tamed:{kind}"));
+        note(run, cx, format!("Tamed a {}: {}.", crate::engine::kind_title(&kind), name));
+        callout(run, cx, "tamed!");
+    } else {
+        callout(run, cx, "slipped");
+        monster_attack(run, cx, mi, 1, "attack");
+    }
+    true
+}
+
+fn recall_companion(run: &mut Run, cx: &mut Ctx, mi: usize) {
+    let Some(cid) = run.monsters[mi].cid else { return };
+    if !run.recalled.contains(&cid) {
+        run.recalled.push(cid);
+    }
+    let id = run.monsters[mi].id;
+    run.monsters[mi].hp = 0;
+    run.monsters[mi].cid = None;
+    cx.events.push(Ev::Move { t: run.turn, id, x: -1, y: -1 });
+    callout(run, cx, "recalled");
+}
+
+/// Foes as seen from a companion: shared party vision plus its own adjacency.
+fn companion_view(run: &Run, mi: usize) -> View {
+    let mp = run.monsters[mi].pos;
+    let map = &run.floor.map;
+    let mut foes: Vec<usize> = (0..run.monsters.len())
+        .filter(|&i| {
+            let m = &run.monsters[i];
+            i != mi && m.hp > 0 && m.hostile() && (map.is_visible(m.pos) || m.pos.adjacent(mp))
+        })
+        .collect();
+    foes.sort_by_key(|&i| (run.monsters[i].pos.cheb(mp), run.monsters[i].id));
+    let adj = foes.iter().filter(|&&i| run.monsters[i].pos.adjacent(mp)).count() as i32;
+    let nearest = foes.first().copied();
+    let lowest = foes.iter().copied().min_by_key(|&i| (run.monsters[i].hp, run.monsters[i].id));
+    View { foes, adj, nearest, lowest }
+}
+
+fn companion_cond(run: &Run, cx: &Ctx, mi: usize, v: &View, c: &crate::rules::Cond) -> bool {
+    let m = &run.monsters[mi];
+    let n = c.n.unwrap_or(0);
+    let pct = m.hp * 100 / m.max_hp.max(1);
+    match c.k.as_str() {
+        "self_hp<" => pct < n,
+        "self_hp>" => pct > n,
+        "in_corridor" => run.floor.map.is_corridor(m.pos),
+        "on_hurt" => m.hurt_since_action,
+        _ => cond_holds(run, cx, v, c),
+    }
+}
+
+fn companion_melee(run: &mut Run, cx: &mut Ctx, mi: usize, ti: usize, verb: &str, mult_num: i32) -> i32 {
+    let atk = run.monsters[mi].atk;
+    let atk = (atk.0 * mult_num / 2, atk.1 * mult_num / 2);
+    let def = run.monsters[ti].effective_def();
+    let (hit, dmg) = roll_hit(&mut run.rng, atk, def);
+    let (src, dst) = (run.monsters[mi].id, run.monsters[ti].id);
+    cx.events.push(Ev::Attack { t: run.turn, src, dst, dmg, hit, verb: Some(verb.into()) });
+    if hit {
+        damage_monster(run, cx, ti, dmg, &Src::Mon(mi));
+        if run.monsters[ti].hp > 0 && !run.monsters[ti].awake {
+            run.monsters[ti].awake = true;
+            run.monsters[ti].last_seen = Some(run.hero.pos);
+        }
+        dmg
+    } else {
+        0
+    }
+}
+
+/// Step toward a target monster (BFS over the whole map, occupied tiles blocked).
+fn companion_approach(run: &mut Run, cx: &mut Ctx, mi: usize, target: Pos) -> bool {
+    let mp = run.monsters[mi].pos;
+    let map = &run.floor.map;
+    let dist = map.bfs(target, false, &|p| p != mp && run.occupied(p));
+    let occ = |q: Pos| run.occupied(q);
+    if let Some(q) = map.step_down(&dist, mp, &occ) {
+        move_monster(run, cx, mi, q);
+        return true;
+    }
+    false
+}
+
+fn try_companion_verb(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &Verb, v: &View, hero_dist: &[i32]) -> bool {
+    let mp = run.monsters[mi].pos;
+    let adj_target = v.foes.iter().copied().find(|&i| run.monsters[i].pos.adjacent(mp));
+    match verb.v.as_str() {
+        "attack" => {
+            if let Some(ti) = adj_target {
+                companion_melee(run, cx, mi, ti, "attack", 2);
+                return true;
+            }
+            match v.nearest {
+                Some(ti) if run.monsters[ti].pos.cheb(mp) <= 6 => {
+                    let tp = run.monsters[ti].pos;
+                    companion_approach(run, cx, mi, tp)
+                }
+                _ => false,
+            }
+        }
+        "shoot" => {
+            if !run.monsters[mi].has_tag("ranged") {
+                return false;
+            }
+            let target = v.foes.iter().copied().find(|&i| {
+                let tp = run.monsters[i].pos;
+                (1..=BOW_RANGE).contains(&tp.cheb(mp)) && run.floor.map.los(mp, tp)
+            });
+            match target {
+                Some(ti) => {
+                    companion_melee(run, cx, mi, ti, "shoot", 2);
+                    true
+                }
+                None => false,
+            }
+        }
+        "burst" => {
+            if !run.monsters[mi].has_tag("gas") || v.foes.is_empty() {
+                return false;
+            }
+            let hp = run.monsters[mi].hp;
+            callout(run, cx, "burst!");
+            damage_monster(run, cx, mi, hp, &Src::Burst);
+            true
+        }
+        "steal" => {
+            if !run.monsters[mi].has_tag("thief") {
+                return false;
+            }
+            let Some(ti) = adj_target.filter(|&t| !run.monsters[mi].stole_from.contains(&run.monsters[t].id)) else { return false };
+            let dmg = companion_melee(run, cx, mi, ti, "steal", 2);
+            if dmg > 0 && run.monsters.get(ti).is_some() {
+                let tid = run.monsters[ti].id;
+                let gold = 3 * run.depth as i32;
+                run.loot += gold;
+                run.monsters[mi].stole_from.push(tid);
+                let id = run.monsters[mi].id;
+                cx.events.push(Ev::Steal { t: run.turn, id, item: format!("gold ({gold})") });
+            }
+            true
+        }
+        "split" => {
+            let m = &run.monsters[mi];
+            if !m.has_tag("splitter") || m.hp * 2 <= m.max_hp || v.foes.is_empty() {
+                return false;
+            }
+            let half = m.hp / 2;
+            let Some(q) = mp.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q)) else { return false };
+            run.monsters[mi].hp -= half;
+            let id = run.new_id();
+            let kind = run.monsters[mi].kind.clone();
+            let depth = run.depth;
+            let mut child = Monster::spawn(id, &kind, q, depth);
+            child.ally = true;
+            child.awake = true;
+            child.hp = half;
+            child.max_hp = run.monsters[mi].max_hp;
+            child.extra_tags = run.monsters[mi].extra_tags.clone();
+            let e = crate::engine::monster_entity(&child, cx.facts);
+            run.monsters.push(child);
+            cx.events.push(Ev::Spawn { t: run.turn, e });
+            callout(run, cx, "splits!");
+            true
+        }
+        "flank" => {
+            if !run.monsters[mi].has_tag("pack") {
+                return false;
+            }
+            let Some(ti) = v.nearest else { return false };
+            let tp = run.monsters[ti].pos;
+            if tp.adjacent(mp) {
+                let flanked = tp.adjacent(run.hero.pos);
+                companion_melee(run, cx, mi, ti, "flank", if flanked { 3 } else { 2 });
+                return true;
+            }
+            let hp = run.hero.pos;
+            let map = &run.floor.map;
+            let goal = tp
+                .neighbours8()
+                .into_iter()
+                .filter(|q| map.passable(*q) && !run.occupied(*q))
+                .max_by_key(|q| (q.cheb(hp), -q.x, -q.y));
+            match goal {
+                Some(g) => companion_approach(run, cx, mi, g),
+                None => false,
+            }
+        }
+        "drain" => {
+            if !run.monsters[mi].has_tag("undead") {
+                return false;
+            }
+            let Some(ti) = adj_target else { return false };
+            let dmg = companion_melee(run, cx, mi, ti, "drain", 2);
+            if dmg > 0 {
+                let m = &mut run.monsters[mi];
+                m.hp = (m.hp + dmg).min(m.max_hp);
+            }
+            true
+        }
+        "follow" => {
+            if mp.cheb(run.hero.pos) > 2 {
+                approach(run, cx, mi, hero_dist);
+            }
+            true
+        }
+        "recall" => {
+            recall_companion(run, cx, mi);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// A companion acts on its own rows; fallback: fight adjacent, stay within 2 of the hero.
+fn companion_act(run: &mut Run, cx: &mut Ctx, mi: usize, hero_dist: &[i32]) {
+    let Some(cid) = run.monsters[mi].cid else { return };
+    let (rows, max_rows) = match run.companion(cid) {
+        Some(c) => (c.rules.rows.clone(), c.max_rows),
+        None => (Vec::new(), 2),
+    };
+    let v = companion_view(run, mi);
+    if run.monsters[mi].sent {
+        if v.foes.is_empty() {
+            run.monsters[mi].sent = false;
+        } else if try_companion_verb(run, cx, mi, &Verb::new("attack"), &v, hero_dist) {
+            run.monsters[mi].hurt_since_action = false;
+            return;
+        }
+    }
+    for row in rows.iter().take(max_rows) {
+        if !row.conds.iter().all(|c| companion_cond(run, cx, mi, &v, c)) {
+            continue;
+        }
+        if try_companion_verb(run, cx, mi, &row.verb, &v, hero_dist) {
+            run.monsters[mi].hurt_since_action = false;
+            return;
+        }
+    }
+    run.monsters[mi].hurt_since_action = false;
+    let mp = run.monsters[mi].pos;
+    if let Some(ti) = v.foes.iter().copied().find(|&i| run.monsters[i].pos.adjacent(mp)) {
+        companion_melee(run, cx, mi, ti, "attack", 2);
+        return;
+    }
+    if mp.cheb(run.hero.pos) > 2 {
+        approach(run, cx, mi, hero_dist);
     }
 }

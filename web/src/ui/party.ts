@@ -28,7 +28,7 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     for (const c of all) cards.appendChild(card(c, L.party.includes(c)));
     for (const e of L.eggs) {
       eggs.appendChild(h("span", { class: "chip egg" }, "◯ ", nice(e.kind), h("small", { class: "dim" }, ` ${e.tags.map(nice).join(" ")} g${e.gen}`),
-        e.from_loss ? h("button", { class: `mini${L.marks >= 2 ? "" : " off"}`, disabled: L.marks < 2, onclick: () => { app.lineage = app.engine.hatch(e.id); app.afterLineage(); } }, "◆2") : h("b", { class: "num" }, ` ${e.hatch_in}`)));
+        e.from_loss ? h("button", { class: `mini${L.gold >= 50 ? "" : " off"}`, disabled: L.gold < 50, onclick: () => { app.lineage = app.engine.hatch(e.id); app.afterLineage(); } }, "$50") : h("b", { class: "num" }, ` ${e.hatch_in}`)));
     }
   }
   function ledgerBtn(): HTMLElement { return h("button", { class: "mini", onclick: () => openLedger(app) }, /* copy:button */ "ledger"); }

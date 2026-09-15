@@ -161,3 +161,11 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .ledger .lrow.head { color: var(--dim); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
 .ledger .dot, .ledger .dot-h { text-align: center; color: var(--dim); }
 .ledger .dot.on { color: var(--acc); }
+
+/* supplies */
+.gold { color: #e8c24a; }
+.strip .gold { margin-left: auto; }
+.strip .marks { margin-left: 0; }
+.chip.buy { background: var(--panel); }
+.chip.buy.off { opacity: .4; }
+.chip.buy b { font-weight: 400; }

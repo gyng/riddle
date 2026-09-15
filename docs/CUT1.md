@@ -320,3 +320,23 @@ Gold is the common currency; marks stay rare (new bests only, vocabulary only).
   `Engine.buySupply(kind: string): Lineage`, `Engine.clearSupplies(): Lineage`,
   `Vocabulary`-like `Engine.supplyCatalogue(): { kind: string; price: number; label: string }[]`.
 - No other gold sink. Gold never buys stats, rows, or unlocks.
+
+## Addendum C — Class XP (added 2026-09-16, in scope for Cut 1)
+
+Persistent per-class levels. `lineage.classes: { [class]: { level: number; xp: number } }`,
+levels 1–10 (v1). XP per expedition = Σ kills × (1 + depth/5) + 5 × max depth reached, kept
+by exit tier (100/60/30%). Level thresholds: `xp_to_next(level) = 40 × level²`.
+- **Verbs by level** (each becomes a rule token; classes gate them):
+  fighter L1 `shield_bash`, L3 `cleave` (hit all adjacent, cooldown 6), L5 `taunt` (foes in
+  view target hero 3 turns; companions safe), L7 `second_wind` (heal 30% once per floor),
+  L9 `bulwark` (def +3 for 3 turns, cooldown 8).
+  rogue L1 `vanish`, L1 `throw`, L3 `backstab` (2× dmg on an unaware or stunned foe), L5
+  `smoke` (darkness 2×2, 3 turns), L7 `ambush` (first hit from vanish 3×), L9 `shadowstep`
+  (blink 3 tiles behind target).
+- **Stats by level**: `max_hp += 2` per level; `atk_min, atk_max += 1` at L3, L6, L9.
+- **L10 mastery**: trophy `master:<class>` (2 marks) and a class-unique tactic card
+  (fighter `phalanx`: back_corridor + taunt bundle; rogue `hit_and_fade`: backstab + vanish).
+- Wire: `Lineage.classes` as above; `ReturnReport.xp: { class: string; gained: number;
+  level_ups: number }`; `Ev { k: "level", class, level }` emitted at exit when a level is
+  reached. Vocabulary for the active class must include verbs up to its level.
+- Gate LEVELLED: DEFAULT rules at class L10 must die by ≤ D9 on ≥ 80% of seeds.

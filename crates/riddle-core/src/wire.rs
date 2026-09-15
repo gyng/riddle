@@ -277,6 +277,16 @@ pub struct Lineage {
     pub eggs: Vec<Egg>,
     pub party_slots: u32,
     pub ledger: Vec<LedgerRow>,
+    pub gold: i32,
+    pub supplies: Vec<InvItem>,
+}
+
+/// Supply catalogue entry (Addendum B).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SupplyInfo {
+    pub kind: String,
+    pub price: i32,
+    pub label: String,
 }
 
 /// Unlock catalogue entry (addition to the contract; see README).
