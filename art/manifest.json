@@ -1,0 +1,204 @@
+{
+  "notes": "One PNG per id at art/generated/<id>.png. art/ART.md is the style authority. 'keyed' register = loose 1980s watercolour-anime washes INSIDE bold clean dark ink contour lines (4-8 px at 1024 px), upper-left key light, flat pure #0000FF background, no floor/shadow pool/text/glow, subject facing right, tag visible in the silhouette, must read at 48 px (hero) / 32-48 px (monster). gen = generation size (1024 short edge for units). master_h = pack.py resample height (2x runtime texel height). texel_h = runtime sprite-texel height. Environment tiles are NOT here: art/make_tiles.py owns them.",
+  "gen_default": "1024x1024",
+  "assets": [
+    {
+      "id": "hero_fighter",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px. Loose watercolour inside bold ink."
+    },
+    {
+      "id": "hero_rogue",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px."
+    },
+    {
+      "id": "rat",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "A single dungeon rat facing right: fat low body, long bare tail curling behind, pink ears and nose, tiny black eye, dusty umber-grey fur with dry-brush edges. Small, simple, one-mass silhouette with the tail as its tag. Reads as 'rat' at 32 px."
+    },
+    {
+      "id": "jackal",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "A lean dungeon jackal facing right mid-lope: low horizontal body, ribs showing, big pointed ears, narrow snout with a snarl, tail straight out behind. Sandy-tan and dusty umber washes, one flat shadow mass. Tag: LOW, LEAN and FAST — the silhouette is a stretched horizontal dash with ears. Reads at 32 px."
+    },
+    {
+      "id": "goblin",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A small hunched goblin facing right: big head, pointed ears, wide grin, pot belly, holding a crude short cleaver up at shoulder height, rag loincloth and a scrap of leather. Olive-green skin, ochre rags, one jewel-bright accent (red cloth). Upright, compact, simple silhouette; reads 'goblin with cleaver' at 40 px."
+    },
+    {
+      "id": "goblin_archer",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A goblin archer facing right, DRAWING A BOW: tall crude recurve bow held out front with the string pulled fully back to the cheek and an arrow nocked, quiver on the back. Same olive skin and ochre rags as the plain goblin, plus a leather cap. The drawn bow is the tag — it must be a big clear arc in the silhouette at 40 px, wider than the body."
+    },
+    {
+      "id": "goblin_conjurer",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A goblin conjurer facing right: same olive goblin build, wrapped in a tattered violet robe with a bone-fetish hood, both arms raised holding a gnarled staff overhead; two small pale ghost-blades hover just above the staff tip. Tag: raised staff + hovering blades, readable as a T-shape with sparks at 40 px. Blades are ivory/teal-white, never saturated blue."
+    },
+    {
+      "id": "monkey",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "A mischievous dungeon monkey facing right, mid-scamper on three limbs, CLUTCHING A STOLEN BULGING SACK in one arm against its chest, long tail curled up in a question mark, cheeky anime grin. Umber-brown fur with a pale belly, the sack in ochre with a red tie. Tag: the sack and the tail. Reads at 32 px."
+    },
+    {
+      "id": "ogre",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "A HUGE wide ogre facing right, winding up: massive rounded shoulders, small head, barrel gut, a great tree-trunk club raised high over its head with both hands. Dull grey-umber skin, ragged hide kilt, tusks. Tag: HUGE and heavy, the club overhead. The silhouette is a broad mass much wider than a goblin; reads at 48 px."
+    },
+    {
+      "id": "bloat",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A bloat: one swollen, taut, floating sac of sickly yellow-green gas, veined, with a few tiny dangling tendrils and a small puckered mouth. No limbs, no face beyond the mouth. Tag: SWOLLEN SAC — a single fat teardrop/balloon silhouette, glowing faintly from within. Reads as 'balloon about to pop' at 40 px. Yellow-green, never blue."
+    },
+    {
+      "id": "pink_jelly",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "A pink jelly: a low translucent quivering blob of rose-pink watercolour, dome-shaped with a wobbly lower edge, a few suspended darker pink flecks inside, a wet highlight upper-left. No face, no limbs. Tag: TRANSLUCENT BLOB — a squat dome silhouette. Reads at 32 px. Pink, magenta and ivory only."
+    },
+    {
+      "id": "eel",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "A dungeon eel facing right: long thick S-curved body rising as if out of water, jaws open with needle teeth, small fin ridge along the back, tail trailing off lower-left. Dark olive-teal back and ivory belly (teal must be high-green, never royal blue). Tag: the long S-curve. Reads as a sinuous ribbon with a mouth at 32 px."
+    },
+    {
+      "id": "skeleton",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "A walking skeleton warrior facing right: all bone, upright, ribcage and skull clearly drawn, holding a rusted notched sword, a few rags of grave-cloth. Bone-white paper with warm ivory washes and one flat indigo shadow side; dark ink between every bone. Tag: ALL BONE — the gappy ribcage silhouette. Reads at 48 px."
+    },
+    {
+      "id": "ghoul",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A ghoul facing right: hunched, gaunt, grey-green corpse flesh, arms out front ending in long clawed hands, jaw hanging open, hair in lank strands. Tag: HUNCHED with CLAWS reaching forward — the silhouette leans forward with two claw shapes leading. Distinct from the upright skeleton at 40 px."
+    },
+    {
+      "id": "wraith",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "A wraith facing right: a tall floating tattered shroud with no legs, the hem torn into trailing ribbons, a hooded void where the face should be with two pale points of light, long thin reaching hand. Ash-violet and blue-black washes (all channels low, never saturated blue), ivory-pale edges. Tag: TATTERED and FLOATING — ragged hem, no feet. Reads at 48 px."
+    },
+    {
+      "id": "captive",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "A captive facing right: an anime adventurer kneeling or slumped with heavy iron manacles and a thick chain visibly wrapping the wrists and trailing to the floor edge of the figure, torn tunic, hopeful anime face looking up. Warm ivory skin, dull red tunic, iron-grey chain with ink links. Tag: IN CHAINS — the chain must be a bold dark line in the silhouette at 48 px. No floor drawn."
+    },
+    {
+      "id": "boss_goblin_warlord",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "The Goblin Warlord facing right, LARGER than any goblin: broad, armoured in scavenged iron plates and a fur mantle, a jagged iron CROWN, a huge cleaver in one hand and a raised fist in the other, a red war-banner strip trailing. Olive skin, iron grey, red banner. Tag: BOSS — crowned, big, banner. Reads as 'the big crowned goblin' at 64 px."
+    },
+    {
+      "id": "boss_bloat_mother",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "The Bloat Mother: an enormous swollen sac of sickly yellow-green gas, ringed with a crown of bone spines around the top, dozens of tiny bloat-buds budding from her sides, a wide puckered maw, taut veins. Tag: BOSS — huge, spine-crowned, budding. The silhouette is a giant balloon with a spiky crown; reads at 64 px. Yellow-green and bone, never blue."
+    },
+    {
+      "id": "boss_lich",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "The Lich facing right: a tall gaunt robed skeleton king in tattered indigo-black robes with a tall bone SKULL-CROWN, one hand raising a crooked staff topped with a pale skull, the other hand open with a cold teal-white flame. Bone-white skull, blue-black robes (all channels low, never saturated blue), teal-white flame. Tag: BOSS — crowned skull, staff, flame. Reads at 64 px."
+    },
+    {
+      "id": "spectral_blade",
+      "kind": "summon",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 48,
+      "texel_h": 24,
+      "description": "A spectral blade: a single floating ghost-sword, point down, ivory-white and pale teal watercolour, no hilt-holder, a faint trailing wisp. Bold ink outline. Tag: a floating sword. Reads as a vertical blade at 24 px. Never saturated blue."
+    },
+    {
+      "id": "spectral_hound",
+      "kind": "summon",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 48,
+      "texel_h": 24,
+      "description": "A spectral hound facing right: a lean running dog made of ivory-white and pale teal wash, hind legs fading into wisps, ears back, mouth open. Bold ink outline. Tag: a ghostly running dog. Reads at 24 px. Never saturated blue."
+    },
+    {
+      "id": "title",
+      "kind": "title",
+      "bg": "bleed",
+      "gen": "1536x1024",
+      "size_px_w": 1536,
+      "size_px_h": 1024,
+      "description": "Key art, landscape, NO TEXT: the anime fighter and rogue seen from behind, small at the bottom of the frame, standing at the mouth of a great dark stair descending into an olive-umber warren; a faint teal fen glow and a distant indigo crypt light stacked deeper below; the whole painted as loose 1980s anime watercolour key art with bold ink, white paper breathing through at the top. Chiaroscuro, upper-left key light, muted field with jewel accents."
+    }
+  ]
+}

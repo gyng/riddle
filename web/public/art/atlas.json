@@ -1,0 +1,510 @@
+{
+ "frames": {
+  "armour": {
+   "h": 8,
+   "w": 8,
+   "x": 305,
+   "y": 308
+  },
+  "bloat": {
+   "h": 80,
+   "w": 75,
+   "x": 344,
+   "y": 130
+  },
+  "boss_bloat_mother": {
+   "h": 128,
+   "w": 123,
+   "x": 1,
+   "y": 1
+  },
+  "boss_goblin_warlord": {
+   "h": 128,
+   "w": 122,
+   "x": 125,
+   "y": 1
+  },
+  "boss_lich": {
+   "h": 128,
+   "w": 96,
+   "x": 248,
+   "y": 1
+  },
+  "captive": {
+   "h": 96,
+   "w": 72,
+   "x": 345,
+   "y": 1
+  },
+  "crypt_chasm": {
+   "h": 8,
+   "w": 8,
+   "x": 314,
+   "y": 308
+  },
+  "crypt_door": {
+   "h": 8,
+   "w": 8,
+   "x": 323,
+   "y": 308
+  },
+  "crypt_floor": {
+   "h": 8,
+   "w": 8,
+   "x": 332,
+   "y": 308
+  },
+  "crypt_floor_alt": {
+   "h": 8,
+   "w": 8,
+   "x": 341,
+   "y": 308
+  },
+  "crypt_stairs_down": {
+   "h": 8,
+   "w": 8,
+   "x": 350,
+   "y": 308
+  },
+  "crypt_stairs_up": {
+   "h": 8,
+   "w": 8,
+   "x": 359,
+   "y": 308
+  },
+  "crypt_wall": {
+   "h": 8,
+   "w": 8,
+   "x": 368,
+   "y": 308
+  },
+  "crypt_water": {
+   "h": 8,
+   "w": 8,
+   "x": 377,
+   "y": 308
+  },
+  "eel": {
+   "h": 64,
+   "w": 61,
+   "x": 213,
+   "y": 227
+  },
+  "fens_chasm": {
+   "h": 8,
+   "w": 8,
+   "x": 386,
+   "y": 308
+  },
+  "fens_door": {
+   "h": 8,
+   "w": 8,
+   "x": 395,
+   "y": 308
+  },
+  "fens_floor": {
+   "h": 8,
+   "w": 8,
+   "x": 404,
+   "y": 308
+  },
+  "fens_floor_alt": {
+   "h": 8,
+   "w": 8,
+   "x": 413,
+   "y": 308
+  },
+  "fens_stairs_down": {
+   "h": 8,
+   "w": 8,
+   "x": 422,
+   "y": 308
+  },
+  "fens_stairs_up": {
+   "h": 8,
+   "w": 8,
+   "x": 431,
+   "y": 308
+  },
+  "fens_wall": {
+   "h": 8,
+   "w": 8,
+   "x": 440,
+   "y": 308
+  },
+  "fens_water": {
+   "h": 8,
+   "w": 8,
+   "x": 449,
+   "y": 308
+  },
+  "fire_0": {
+   "h": 8,
+   "w": 8,
+   "x": 458,
+   "y": 308
+  },
+  "fire_1": {
+   "h": 8,
+   "w": 8,
+   "x": 467,
+   "y": 308
+  },
+  "gas_0": {
+   "h": 8,
+   "w": 8,
+   "x": 476,
+   "y": 308
+  },
+  "gas_1": {
+   "h": 8,
+   "w": 8,
+   "x": 485,
+   "y": 308
+  },
+  "ghoul": {
+   "h": 80,
+   "w": 68,
+   "x": 420,
+   "y": 130
+  },
+  "goblin": {
+   "h": 80,
+   "w": 60,
+   "x": 1,
+   "y": 227
+  },
+  "goblin_archer": {
+   "h": 80,
+   "w": 69,
+   "x": 62,
+   "y": 227
+  },
+  "goblin_conjurer": {
+   "h": 80,
+   "w": 80,
+   "x": 132,
+   "y": 227
+  },
+  "gold": {
+   "h": 8,
+   "w": 8,
+   "x": 494,
+   "y": 308
+  },
+  "hero_fighter": {
+   "h": 96,
+   "w": 72,
+   "x": 418,
+   "y": 1
+  },
+  "hero_rogue": {
+   "h": 96,
+   "w": 102,
+   "x": 1,
+   "y": 130
+  },
+  "jackal": {
+   "h": 64,
+   "w": 139,
+   "x": 275,
+   "y": 227
+  },
+  "monkey": {
+   "h": 64,
+   "w": 58,
+   "x": 415,
+   "y": 227
+  },
+  "ogre": {
+   "h": 96,
+   "w": 70,
+   "x": 104,
+   "y": 130
+  },
+  "pink_jelly": {
+   "h": 64,
+   "w": 95,
+   "x": 1,
+   "y": 308
+  },
+  "potion": {
+   "h": 8,
+   "w": 8,
+   "x": 503,
+   "y": 308
+  },
+  "rat": {
+   "h": 64,
+   "w": 128,
+   "x": 97,
+   "y": 308
+  },
+  "scroll": {
+   "h": 8,
+   "w": 8,
+   "x": 1,
+   "y": 373
+  },
+  "skeleton": {
+   "h": 96,
+   "w": 75,
+   "x": 175,
+   "y": 130
+  },
+  "spectral_blade": {
+   "h": 48,
+   "w": 20,
+   "x": 226,
+   "y": 308
+  },
+  "spectral_hound": {
+   "h": 48,
+   "w": 57,
+   "x": 247,
+   "y": 308
+  },
+  "warrens_chasm": {
+   "h": 8,
+   "w": 8,
+   "x": 10,
+   "y": 373
+  },
+  "warrens_door": {
+   "h": 8,
+   "w": 8,
+   "x": 19,
+   "y": 373
+  },
+  "warrens_floor": {
+   "h": 8,
+   "w": 8,
+   "x": 28,
+   "y": 373
+  },
+  "warrens_floor_alt": {
+   "h": 8,
+   "w": 8,
+   "x": 37,
+   "y": 373
+  },
+  "warrens_stairs_down": {
+   "h": 8,
+   "w": 8,
+   "x": 46,
+   "y": 373
+  },
+  "warrens_stairs_up": {
+   "h": 8,
+   "w": 8,
+   "x": 55,
+   "y": 373
+  },
+  "warrens_wall": {
+   "h": 8,
+   "w": 8,
+   "x": 64,
+   "y": 373
+  },
+  "warrens_water": {
+   "h": 8,
+   "w": 8,
+   "x": 73,
+   "y": 373
+  },
+  "weapon": {
+   "h": 8,
+   "w": 8,
+   "x": 82,
+   "y": 373
+  },
+  "wraith": {
+   "h": 96,
+   "w": 92,
+   "x": 251,
+   "y": 130
+  }
+ },
+ "meta": {
+  "atlas": {
+   "gutter": 1,
+   "h": 382,
+   "w": 512
+  },
+  "palettes": {
+   "crypt": [
+    "#0b0a14",
+    "#1c1a30",
+    "#33304f",
+    "#4f4d6d",
+    "#77738c",
+    "#a39fae",
+    "#d3cfc9",
+    "#f1ede0"
+   ],
+   "fens": [
+    "#0c1416",
+    "#1a2b2e",
+    "#24443f",
+    "#2f6a5a",
+    "#4d8a72",
+    "#6f9f8a",
+    "#9dbfa8",
+    "#d6e6da"
+   ],
+   "warrens": [
+    "#14120d",
+    "#2e2a1c",
+    "#4a4326",
+    "#6b6a2f",
+    "#8c7a3c",
+    "#b09a5a",
+    "#d4c58a",
+    "#efe6c0"
+   ]
+  },
+  "sprites": {
+   "bloat": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
+   "boss_bloat_mother": {
+    "kind": "boss",
+    "master_h": 128,
+    "texel_h": 64
+   },
+   "boss_goblin_warlord": {
+    "kind": "boss",
+    "master_h": 128,
+    "texel_h": 64
+   },
+   "boss_lich": {
+    "kind": "boss",
+    "master_h": 128,
+    "texel_h": 64
+   },
+   "captive": {
+    "kind": "monster",
+    "master_h": 96,
+    "texel_h": 48
+   },
+   "eel": {
+    "kind": "monster",
+    "master_h": 64,
+    "texel_h": 32
+   },
+   "ghoul": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
+   "goblin": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
+   "goblin_archer": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
+   "goblin_conjurer": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
+   "hero_fighter": {
+    "kind": "hero",
+    "master_h": 96,
+    "texel_h": 48
+   },
+   "hero_rogue": {
+    "kind": "hero",
+    "master_h": 96,
+    "texel_h": 48
+   },
+   "jackal": {
+    "kind": "monster",
+    "master_h": 64,
+    "texel_h": 32
+   },
+   "monkey": {
+    "kind": "monster",
+    "master_h": 64,
+    "texel_h": 32
+   },
+   "ogre": {
+    "kind": "monster",
+    "master_h": 96,
+    "texel_h": 48
+   },
+   "pink_jelly": {
+    "kind": "monster",
+    "master_h": 64,
+    "texel_h": 32
+   },
+   "rat": {
+    "kind": "monster",
+    "master_h": 64,
+    "texel_h": 32
+   },
+   "skeleton": {
+    "kind": "monster",
+    "master_h": 96,
+    "texel_h": 48
+   },
+   "spectral_blade": {
+    "kind": "summon",
+    "master_h": 48,
+    "texel_h": 24
+   },
+   "spectral_hound": {
+    "kind": "summon",
+    "master_h": 48,
+    "texel_h": 24
+   },
+   "wraith": {
+    "kind": "monster",
+    "master_h": 96,
+    "texel_h": 48
+   }
+  },
+  "tile": 8,
+  "tiles": [
+   "armour",
+   "crypt_chasm",
+   "crypt_door",
+   "crypt_floor",
+   "crypt_floor_alt",
+   "crypt_stairs_down",
+   "crypt_stairs_up",
+   "crypt_wall",
+   "crypt_water",
+   "fens_chasm",
+   "fens_door",
+   "fens_floor",
+   "fens_floor_alt",
+   "fens_stairs_down",
+   "fens_stairs_up",
+   "fens_wall",
+   "fens_water",
+   "fire_0",
+   "fire_1",
+   "gas_0",
+   "gas_1",
+   "gold",
+   "potion",
+   "scroll",
+   "warrens_chasm",
+   "warrens_door",
+   "warrens_floor",
+   "warrens_floor_alt",
+   "warrens_stairs_down",
+   "warrens_stairs_up",
+   "warrens_wall",
+   "warrens_water",
+   "weapon"
+  ]
+ }
+}
