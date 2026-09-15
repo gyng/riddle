@@ -1,7 +1,7 @@
 // Fake Engine: a tiny deterministic mini-sim with canned-shaped output so the UI can be built and
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
-  Cond, Death, Engine, Entity, Ev, FloorItem, Forecast, Highlight, InvItem, Lineage, Overlay,
+  Companion, Cond, Death, Engine, Entity, Ev, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   ReturnReport, Row, RuleSet, Snapshot, StepResult, Tile, Trace, Verb, Vocabulary,
 } from "./types";
 
@@ -56,7 +56,18 @@ const ARMOUR: Record<string, number> = { leather: 1, mail: 3, plate: 5 };
 export const UNLOCK_COST: Record<string, number> = {
   row5: 2, row6: 3, row7: 4, row8: 5, "class:rogue": 4, vault2: 3, vault3: 5,
   "card:corridor_fighting": 3, "card:kite_archers": 3, "card:stair_dance": 3, "verb:throw": 2,
+  tame: 2, party_slot_2: 4,
 };
+const TAG_VERB: Record<string, string> = { ranged: "shoot", gas: "burst", thief: "steal", splitter: "split", pack: "flank", undead: "drain" };
+const LEDGER_KINDS = Object.keys({ rat: 1, jackal: 1, goblin: 1, goblin_archer: 1, goblin_conjurer: 1, monkey: 1, ogre: 1, bloat: 1, pink_jelly: 1, eel: 1, skeleton: 1, ghoul: 1, wraith: 1, goblin_warlord: 1, bloat_mother: 1, lich: 1 });
+function defaultCompanionRules(tags: string[]): RuleSet {
+  const v = tags.map((t) => TAG_VERB[t]).find((x) => x) ?? "attack";
+  return { rows: [{ conds: [{ k: "self_hp<", n: 30 }], verb: { v: "recall" } }, { conds: [{ k: "adj>=", n: 1 }], verb: { v } }] };
+}
+function mkCompanion(id: number, kind: string, level: number, tags: string[], gen: number): Companion {
+  const d = MON[kind] ?? MON.rat; const hp = Math.round(d.hp * (1 + 0.15 * (level - 1)));
+  return { id, kind, name: kind.replace(/_/g, " "), level, tags, gen, rules: defaultCompanionRules(tags), max_rows: 1 + level, hp, max_hp: hp };
+}
 
 const PRESET_FIGHTER: RuleSet = { name: "fighter", rows: [
   { conds: [{ k: "hp<", n: 30 }], verb: { v: "drink", a: "unknown" } },
@@ -94,7 +105,7 @@ export function parseRules(text: string): RuleSet {
 
 // --- world ---
 type Rect = { x: number; y: number; w: number; h: number };
-type Mon = Entity & { def: number; atk: [number, number]; wind: number; drawn: boolean; stun: number; summoned: boolean };
+type Mon = Entity & { def: number; atk: [number, number]; wind: number; drawn: boolean; stun: number; summoned: boolean; rules?: RuleSet; sent?: boolean };
 type Floor = { tiles: Tile[]; seen: boolean[]; visible: boolean[]; overlays: Overlay[]; rooms: Rect[]; items: FloorItem[]; mons: Mon[]; roomOf: Int8Array };
 type Hero = { x: number; y: number; hp: number; max_hp: number; atk: [number, number]; def: number; inv: InvItem[];
   weapon?: string; armour?: string; invis: number; stun: number; bashCd: number; vanishCd: number; speedT: number };
@@ -106,6 +117,7 @@ type Run = {
   lastHurt?: { cause: string; dmg: number; hpBefore: number }; hurt: boolean; killed: boolean; saw: boolean;
   nextId: number; picked: InvItem[]; nearDeath: boolean; kindsSeen: Set<string>; brought: number[]; cls: string; trait: string;
   loot_kept: number; cause?: string; goal?: "descend" | "bank";
+  party: Companion[]; recalled: Mon[]; tamed: Mon[]; lostC: Companion[];
 };
 type RunLog = { seed: number; rules: RuleSet; depth: number; cause?: string; turns: number; exit: string; known: string[]; cls: string; trait: string; heir: number; hpMargin: number };
 
@@ -174,7 +186,8 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
     const r = pick(rng, rooms.slice(1)); const [x, y] = spot(r);
     const roll = rng();
     let kind: string, label: string, knownIt = true;
-    if (roll < 0.35) { kind = "gold"; label = `gold ${ri(rng, 5, 10 + depth * 4)}`; }
+    if (depth >= 2 && roll < 0.12) { kind = "leash"; label = "leash"; }
+    else if (roll < 0.35) { kind = "gold"; label = `gold ${ri(rng, 5, 10 + depth * 4)}`; }
     else if (roll < 0.7) { kind = pick(rng, POTIONS); const f = flav(kind); knownIt = known.has(`item:${f}=${kind}`); label = knownIt ? `${kind} potion` : `${f} potion?`; }
     else if (roll < 0.9) { kind = pick(rng, SCROLLS); const f = flav(kind); knownIt = known.has(`item:${f}=${kind}`); label = knownIt ? `scroll ${kind}` : `scroll? ${f}`; }
     else { const g = depth < 4 ? ["dagger", "leather", "sword"] : depth < 9 ? ["sword", "mail", "axe", "bow"] : ["axe", "plate", "mail"]; kind = pick(rng, g); label = kind; }
@@ -200,7 +213,7 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
 // --- sim ---
 type SimCtx = { rules: RuleSet; unlocks: Set<string>; flav: (k: string) => string; kindOfFlav: (f: string) => string | undefined };
 
-function makeRun(id: number, heir: number, seed: number, cls: string, trait: string, known: Set<string>, brought: InvItem[], ctx: SimCtx): Run {
+function makeRun(id: number, heir: number, seed: number, cls: string, trait: string, known: Set<string>, brought: InvItem[], ctx: SimCtx, party: Companion[] = []): Run {
   const rng = mulberry32(seed);
   const hero: Hero = {
     x: 0, y: 0, hp: cls === "rogue" ? 16 : 20, max_hp: cls === "rogue" ? 16 : 20, atk: cls === "rogue" ? [2, 4] : [2, 5], def: 0,
@@ -212,10 +225,24 @@ function makeRun(id: number, heir: number, seed: number, cls: string, trait: str
     id, heir, seed, rng, depth: 0, turn: 0, started_turn: 0, floorTurn: 0, floor: undefined as unknown as Floor, hero, loot: 0, alert: 0,
     trace: [], over: false, kills: {}, hl: [], facts: [], known: new Set(known), hurt: false, killed: false, saw: false,
     nextId: 0, picked: [], nearDeath: false, kindsSeen: new Set(), brought: brought.map((b) => b.id), cls, trait, loot_kept: 0,
+    party: party.map((c) => ({ ...c, tags: [...c.tags], rules: { rows: c.rules.rows.map((r) => ({ conds: r.conds.map((x) => ({ ...x })), verb: { ...r.verb } })) } })), recalled: [], tamed: [], lostC: [],
   };
   run.nextId = 1000;
+  run.recalled = run.party.map((c) => companionMon(run, c));
   descendTo(run, 1, ctx, []);
   return run;
+}
+function companionMon(run: Run, c: Companion): Mon {
+  const d = MON[c.kind] ?? MON.rat;
+  return { id: run.nextId++, cid: c.id, kind: c.kind, name: c.name, x: 0, y: 0, hp: c.hp, max_hp: c.max_hp, tags: [...c.tags], ally: true, def: d.def, atk: d.atk, wind: 0, drawn: false, stun: 0, summoned: false, rules: c.rules };
+}
+function placeAllies(run: Run): void {
+  for (const m of run.recalled) {
+    for (const [dx, dy] of DIRS) { const x = run.hero.x + dx, y = run.hero.y + dy; if (inb(x, y) && passable(run.floor.tiles[idx(x, y)]) && !occupied(run, x, y)) { m.x = x; m.y = y; break; } }
+    if (m.x === 0 && m.y === 0) { m.x = run.hero.x; m.y = run.hero.y; }
+    run.floor.mons.push(m);
+  }
+  run.recalled = [];
 }
 function applyItem(h: Hero, it: InvItem): void {
   if (WEAPONS[it.kind]) { h.weapon = it.kind; h.atk = WEAPONS[it.kind]; }
@@ -224,9 +251,11 @@ function applyItem(h: Hero, it: InvItem): void {
 }
 function descendTo(run: Run, depth: number, ctx: SimCtx, ev: Ev[]): void {
   run.depth = depth; run.floorTurn = 0; run.alert = 0; run.goal = undefined;
+  if (run.floor) for (const m of run.floor.mons) if (m.ally && m.cid !== undefined) run.recalled.push(m);
   run.floor = genFloor(run.rng, depth, ctx.flav, run.known, () => run.nextId++);
   const up = run.floor.tiles.indexOf("stairs_up");
   run.hero.x = up % W; run.hero.y = Math.floor(up / W);
+  placeAllies(run);
   ev.push({ t: run.turn, k: "descend", depth, biome: biomeOf(depth) });
   ev.push({ t: run.turn, k: "callout", text: `D${depth} ${biomeOf(depth)}` });
   const bf = `biome:${biomeOf(depth)}`;
@@ -295,7 +324,23 @@ function learn(run: Run, fact: string, ev: Ev[]): void {
   ev.push({ t: run.turn, k: "fact", fact });
   const parts = fact.split(":"); ev.push({ t: run.turn, k: "callout", text: parts.length === 3 ? `${parts[1].replace(/_/g, " ")}: ${parts[2]}` : fact.replace(/^item:/, "").replace(/_/g, " ") });
 }
-function ent(m: Mon): Entity { return { id: m.id, kind: m.kind, name: m.name, x: m.x, y: m.y, hp: m.hp, max_hp: m.max_hp, tags: m.tags, ally: m.ally, telegraph: m.drawn ? "draws" : m.wind ? "winds up" : undefined }; }
+function ent(m: Mon): Entity { return { id: m.id, kind: m.kind, name: m.name, x: m.x, y: m.y, hp: m.hp, max_hp: m.max_hp, tags: m.tags, ally: m.ally, telegraph: m.drawn ? "draws" : m.wind ? "winds up" : undefined, cid: m.cid }; }
+function companions(run: Run): Mon[] { return run.floor.mons.filter((m) => m.ally && m.cid !== undefined); }
+function loseCompanion(run: Run, m: Mon, cause: string, ev: Ev[]): void {
+  run.floor.mons = run.floor.mons.filter((x) => x !== m);
+  ev.push({ t: run.turn, k: "die", id: m.id, cause });
+  ev.push({ t: run.turn, k: "ally", id: m.id, state: "lost" });
+  ev.push({ t: run.turn, k: "note", text: `${nameOf(m)} lost to ${cause}` });
+  ev.push({ t: run.turn, k: "callout", text: `${nameOf(m)} lost` });
+  const c = run.party.find((p) => p.id === m.cid) ?? { id: m.cid ?? 0, kind: m.kind, name: nameOf(m), level: 1, tags: [...m.tags], gen: 0, rules: { rows: [] }, max_rows: 2, hp: m.max_hp, max_hp: m.max_hp };
+  run.lostC.push(c);
+  run.hl.push({ pattern: "ally_lost", score: 4, t: run.turn, run_id: run.id, text: `${nameOf(m)} fell on D${run.depth}.` });
+}
+function hurtMon(run: Run, m: Mon, dmg: number, cause: string, ev: Ev[]): void {
+  m.hp -= dmg;
+  if (m.ally && m.cid !== undefined) ev.push({ t: run.turn, k: "hurt", id: m.id, dmg, hp: Math.max(0, m.hp), cause });
+  if (m.hp <= 0) { if (m.ally && m.cid !== undefined) loseCompanion(run, m, cause, ev); else killMon(run, m, cause, ev); }
+}
 
 function useItem(run: Run, it: InvItem, ctx: SimCtx, ev: Ev[], thrownAt?: Mon): void {
   run.hero.inv = run.hero.inv.filter((x) => x !== it);
@@ -354,6 +399,8 @@ function condHolds(run: Run, c: Cond): boolean {
     case "on_hurt": return run.hurt;
     case "on_kill": return run.killed;
     case "on_see": return run.saw;
+    case "party_hp<": return companions(run).some((m) => (m.hp / m.max_hp) * 100 < (c.n ?? 0));
+    case "party": return companions(run).some((m) => m.kind === c.t);
     default: return false;
   }
 }
@@ -387,6 +434,20 @@ function exec(run: Run, v: Verb, ctx: SimCtx, ev: Ev[]): boolean {
     case "rest": if (foes.length || h.hp >= h.max_hp) return false; h.hp = Math.min(h.max_hp, h.hp + 1); return true;
     case "pick_up": { const it = run.floor.items.find((i) => i.x === h.x && i.y === h.y); if (!it) return false; pickUp(run, it, ev); return true; }
     case "free_captive": return false;
+    case "tame": {
+      if (!ctx.unlocks.has("tame")) return false;
+      const leash = h.inv.find((i) => i.kind === "leash"); if (!leash) return false;
+      const m = target(run, v.a); if (!m || m.hp / m.max_hp >= 0.25 || cheb(m.x, m.y, h.x, h.y) > 1 || m.tags.includes("boss") || m.summoned) return false;
+      h.inv = h.inv.filter((i) => i !== leash);
+      const known = m.tags.filter((t) => run.known.has(`foe:${m.kind}:${t}`)).length;
+      const ok = run.rng() < Math.min(0.6, 0.2 + 0.1 * known);
+      ev.push({ t: run.turn, k: "tame", id: m.id, kind: m.kind, ok });
+      if (ok) { m.ally = true; m.cid = run.nextId++; m.rules = defaultCompanionRules(m.tags); m.drawn = false; m.wind = 0; run.tamed.push(m); learn(run, `tamed:${m.kind}`, ev); ev.push({ t: run.turn, k: "ally", id: m.id, state: "freed" }); ev.push({ t: run.turn, k: "note", text: `tamed a ${nameOf(m)}` }); ev.push({ t: run.turn, k: "callout", text: `tamed ${nameOf(m)}` }); run.hl.push({ pattern: "tamed", score: 5, t: run.turn, run_id: run.id, text: `Leashed a ${nameOf(m)} on D${run.depth}.` }); }
+      else { ev.push({ t: run.turn, k: "callout", text: "leash slips" }); const r = hitRoll(run.rng, m.atk, h.def); ev.push({ t: run.turn, k: "attack", src: m.id, dst: 0, dmg: r.dmg, hit: r.hit }); if (r.hit && r.dmg) hurtHero(run, r.dmg, nameOf(m), ev); }
+      return true;
+    }
+    case "recall": { const c = companions(run).find((m) => !v.a || m.kind === v.a); if (!c) return false; run.floor.mons = run.floor.mons.filter((x) => x !== c); run.recalled.push(c); ev.push({ t: run.turn, k: "callout", text: `${nameOf(c)} recalled` }); return true; }
+    case "send": { const c = companions(run).find((m) => !v.a || m.kind === v.a); if (!c || !foes.length) return false; c.sent = true; return true; }
     case "shield_bash": { if (run.cls !== "fighter" || h.bashCd > 0) return false; const m = adjFoes(run)[0]; if (!m) return false; h.bashCd = 5; m.stun = 1; heroAttack(run, m, ev, "shield_bash"); return true; }
     case "vanish": if (run.cls !== "rogue" || h.vanishCd > 0 || !foes.length) return false; h.vanishCd = 12; h.invis = 3; return true;
     case "card": {
@@ -403,6 +464,7 @@ function pickUp(run: Run, it: FloorItem, ev: Ev[]): void {
   run.floor.items = run.floor.items.filter((x) => x !== it);
   ev.push({ t: run.turn, k: "pickup", id: it.id, item: it.label });
   if (it.kind === "gold") { run.loot += +it.label.split(" ")[1]; return; }
+  if (it.kind === "leash") learn(run, "item:leash", ev);
   const inv: InvItem = { id: it.id, kind: it.kind, known: it.known, label: it.label };
   if (!it.known && run.rng() < 0.5) inv.hint = ["poison", "caustic", "fire", "confusion", "aggravate"].includes(it.kind) ? "malevolent" : "benevolent";
   run.picked.push({ ...inv });
@@ -452,9 +514,10 @@ function heroTurn(run: Run, ctx: SimCtx, ev: Ev[]): void {
 function monsterTurn(run: Run, m: Mon, ev: Ev[]): void {
   const h = run.hero;
   if (m.stun > 0) { m.stun--; return; }
-  if (m.ally) { const t = run.floor.mons.filter((x) => !x.ally).sort((p, q) => cheb(p.x, p.y, m.x, m.y) - cheb(q.x, q.y, m.x, m.y))[0]; if (!t) return; if (cheb(t.x, t.y, m.x, m.y) <= 1) { const r = hitRoll(run.rng, m.atk, t.def); ev.push({ t: run.turn, k: "attack", src: m.id, dst: t.id, dmg: r.dmg, hit: r.hit }); if (r.hit) { t.hp -= r.dmg; if (t.hp <= 0) killMon(run, t, "ally", ev); } } return; }
+  if (m.ally) { companionTurn(run, m, ev); return; }
   const d = cheb(m.x, m.y, h.x, h.y);
   const sees = d <= VIS && !h.invis && los(run.floor.tiles, m.x, m.y, h.x, h.y);
+  if (d > 1) { const c = companions(run).find((a) => cheb(a.x, a.y, m.x, m.y) <= 1); if (c) { const r = hitRoll(run.rng, m.atk, c.def); ev.push({ t: run.turn, k: "attack", src: m.id, dst: c.id, dmg: r.dmg, hit: r.hit }); if (r.hit && r.dmg) hurtMon(run, c, r.dmg, nameOf(m), ev); return; } }
   if (!sees) return;
   if (m.tags.includes("water") && run.floor.tiles[idx(m.x, m.y)] !== "water") return;
   if (m.tags.includes("caster") && !m.summoned && d <= 6) {
@@ -486,6 +549,42 @@ function monsterTurn(run: Run, m: Mon, ev: Ev[]): void {
   }
 }
 
+function companionTurn(run: Run, m: Mon, ev: Ev[]): void {
+  const h = run.hero;
+  const foes = run.floor.mons.filter((x) => !x.ally && cheb(x.x, x.y, m.x, m.y) <= 6).sort((p, q) => cheb(p.x, p.y, m.x, m.y) - cheb(q.x, q.y, m.x, m.y));
+  const near = foes[0];
+  const strike = (t: Mon, verb: string, mult = 1): void => { const r = hitRoll(run.rng, m.atk, t.def); ev.push({ t: run.turn, k: "attack", src: m.id, dst: t.id, dmg: r.dmg * mult, hit: r.hit, verb }); if (r.hit) hurtMon(run, t, r.dmg * mult, nameOf(m), ev); };
+  const stepTo = (x: number, y: number): void => { const dx = Math.sign(x - m.x), dy = Math.sign(y - m.y); for (const [ox, oy] of [[dx, dy], [dx, 0], [0, dy]] as [number, number][]) { const nx = m.x + ox, ny = m.y + oy; if ((ox || oy) && inb(nx, ny) && passable(run.floor.tiles[idx(nx, ny)]) && !occupied(run, nx, ny)) { m.x = nx; m.y = ny; ev.push({ t: run.turn, k: "move", id: m.id, x: nx, y: ny }); return; } } };
+  const holds = (c: Cond): boolean => {
+    switch (c.k) {
+      case "self_hp<": return (m.hp / m.max_hp) * 100 < (c.n ?? 0);
+      case "foes>=": return foes.length >= (c.n ?? 1);
+      case "adj>=": return foes.filter((f) => cheb(f.x, f.y, m.x, m.y) <= 1).length >= (c.n ?? 1);
+      case "foe_tag": return foes.some((f) => f.tags.includes(c.t ?? ""));
+      case "hp<": return (h.hp / h.max_hp) * 100 < (c.n ?? 0);
+      default: return condHolds(run, c);
+    }
+  };
+  const doVerb = (v: Verb): boolean => {
+    switch (v.v) {
+      case "recall": run.floor.mons = run.floor.mons.filter((x) => x !== m); run.recalled.push(m); ev.push({ t: run.turn, k: "callout", text: `${nameOf(m)} recalled` }); return true;
+      case "follow": if (cheb(m.x, m.y, h.x, h.y) > 2) { stepTo(h.x, h.y); return true; } return false;
+      case "shoot": if (!near || !m.tags.includes("ranged") || cheb(near.x, near.y, m.x, m.y) > 5) return false; strike(near, "shoot"); return true;
+      case "burst": { if (!m.tags.includes("gas") || !near || cheb(near.x, near.y, m.x, m.y) > 1) return false; for (const [dx, dy] of [[0, 0], ...DIRS]) { const x = m.x + dx, y = m.y + dy; if (inb(x, y) && passable(run.floor.tiles[idx(x, y)])) { run.floor.overlays.push({ x, y, k: "gas", ttl: 4 }); ev.push({ t: run.turn, k: "overlay", x, y, ov: "gas", ttl: 4 }); } } loseCompanion(run, m, "burst", ev); return true; }
+      case "attack": case "flank": case "drain": case "steal": case "split": {
+        if (!near) return false;
+        if (cheb(near.x, near.y, m.x, m.y) <= 1) { strike(near, v.v, v.v === "flank" || v.v === "drain" ? 1.5 : 1); if (v.v === "drain" && m.hp < m.max_hp) m.hp++; return true; }
+        if (cheb(near.x, near.y, h.x, h.y) <= 3 || m.sent) { stepTo(near.x, near.y); return true; }
+        return false;
+      }
+      default: return false;
+    }
+  };
+  for (const r of m.rules?.rows ?? []) if (r.conds.every(holds) && doVerb(r.verb)) return;
+  if (near && cheb(near.x, near.y, m.x, m.y) <= 1) { strike(near, "attack"); return; }
+  if (cheb(m.x, m.y, h.x, h.y) > 2) stepTo(h.x, h.y);
+}
+
 function simTurn(run: Run, ctx: SimCtx): Ev[] {
   const ev: Ev[] = [];
   if (run.over) return ev;
@@ -494,7 +593,7 @@ function simTurn(run: Run, ctx: SimCtx): Ev[] {
   // overlays
   for (const o of run.floor.overlays) {
     if (o.x === run.hero.x && o.y === run.hero.y) hurtHero(run, o.k === "gas" ? 3 : 5, o.k, ev);
-    for (const m of run.floor.mons) if (m.x === o.x && m.y === o.y && !m.tags.includes("gas")) { m.hp -= o.k === "gas" ? 3 : 5; if (m.hp <= 0) killMon(run, m, o.k, ev); }
+    for (const m of [...run.floor.mons]) if (m.x === o.x && m.y === o.y && !m.tags.includes("gas")) hurtMon(run, m, o.k === "gas" ? 3 : 5, o.k, ev);
     o.ttl--;
   }
   run.floor.overlays = run.floor.overlays.filter((o) => o.ttl > 0);
@@ -543,6 +642,7 @@ function runToEnd(run: Run, ctx: SimCtx, maxTurns = 3000): void { while (!run.ov
 // --- engine ---
 type State = {
   lineage: Lineage; rules: RuleSet; loadout: number[]; killed: string[]; runCounter: number; logs: Record<number, RunLog>; nextItem: number;
+  tamedKinds: string[]; bredKinds: string[]; nextCid: number;
 };
 
 export class FakeEngine implements Engine {
@@ -567,15 +667,60 @@ export class FakeEngine implements Engine {
     const trait = TRAITS[(seed >>> 3) % TRAITS.length];
     const copy = (): RuleSet => ({ rows: PRESET_FIGHTER.rows.map((r) => ({ conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } })) });
     this.s = {
-      lineage: { seed, heir: 1, trait, class: "fighter", best_depth: 0, marks: 0, facts: [], unlocks: [], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false },
-      rules: copy(), loadout: [], killed: [], runCounter: 0, logs: {}, nextItem: 50000,
+      lineage: {
+        seed, heir: 1, trait, class: "fighter", best_depth: 0, marks: 0, facts: [], unlocks: [], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
+        party: [], kennel: [mkCompanion(1, "jackal", 2, ["pack", "fast"], 0), mkCompanion(2, "goblin_archer", 1, ["ranged"], 0)],
+        eggs: [{ id: 3, kind: "bloat", tags: ["gas"], gen: 1, hatch_in: 3, from_loss: false }], party_slots: 1, ledger: [],
+      },
+      rules: copy(), loadout: [], killed: [], runCounter: 0, logs: {}, nextItem: 50000, tamedKinds: ["jackal", "goblin_archer"], bredKinds: ["bloat"], nextCid: 10,
     };
     this.live = null; this.lastDeath = {};
     return this.lineage();
   }
   load(save: string): Lineage { const p = JSON.parse(save) as State; this.s = p; this.live = null; this.lastDeath = {}; return this.lineage(); }
   save(): string { return JSON.stringify(this.s); }
-  lineage(): Lineage { return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage; }
+  lineage(): Lineage { this.s.lineage.ledger = this.ledger(); return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage; }
+  private ledger(): LedgerRow[] {
+    const F = this.s.lineage.facts;
+    return LEDGER_KINDS.map((kind) => ({ kind, seen: F.includes(`foe:${kind}`), known: F.includes(`foe:${kind}`) && MON[kind].tags.filter((t) => t !== "boss").every((t) => F.includes(`foe:${kind}:${t}`)), tamed: this.s.tamedKinds.includes(kind), bred: this.s.bredKinds.includes(kind) }));
+  }
+  private partySlots(): number { return this.s.lineage.unlocks.includes("party_slot_2") ? 2 : 1; }
+  setParty(ids: number[]): Lineage {
+    const L = this.s.lineage; const all = [...L.kennel, ...L.party];
+    const chosen = ids.map((id) => all.find((c) => c.id === id)).filter((c): c is Companion => !!c).slice(0, this.partySlots());
+    L.party = chosen; L.kennel = all.filter((c) => !chosen.includes(c)); L.party_slots = this.partySlots();
+    return this.lineage();
+  }
+  setCompanionRules(id: number, set: RuleSet): void {
+    const c = [...this.s.lineage.kennel, ...this.s.lineage.party].find((x) => x.id === id); if (!c) return;
+    c.rules = { rows: set.rows.slice(0, c.max_rows).map((r) => ({ conds: r.conds.slice(0, 2).map((x) => ({ ...x })), verb: { ...r.verb } })) };
+  }
+  breed(a: number, b: number): Lineage {
+    const L = this.s.lineage; const A = L.kennel.find((c) => c.id === a), B = L.kennel.find((c) => c.id === b);
+    if (!A || !B || A === B || A.level < 2 || B.level < 2) return this.lineage();
+    const extra = B.tags.find((t) => !A.tags.includes(t)); const tags = [...A.tags, ...(extra ? [extra] : [])].slice(0, 3);
+    L.kennel = L.kennel.filter((c) => c !== A && c !== B);
+    L.eggs.push({ id: this.s.nextCid++, kind: A.kind, tags, gen: Math.max(A.gen, B.gen) + 1, hatch_in: 5, from_loss: false });
+    if (!this.s.bredKinds.includes(A.kind)) this.s.bredKinds.push(A.kind);
+    return this.lineage();
+  }
+  hatch(eggId: number): Lineage {
+    const L = this.s.lineage; const e = L.eggs.find((x) => x.id === eggId);
+    if (e && e.from_loss && L.marks >= 2) { L.marks -= 2; L.eggs = L.eggs.filter((x) => x !== e); L.kennel.push(mkCompanion(this.s.nextCid++, e.kind, 1, e.tags, e.gen)); }
+    return this.lineage();
+  }
+  companionVocabulary(id: number): Vocabulary {
+    const c = [...this.s.lineage.kennel, ...this.s.lineage.party].find((x) => x.id === id);
+    const base = this.vocabulary();
+    const conds = base.conds.filter((k) => k.k !== "party" && k.k !== "party_hp<").map((k) => (k.k === "hp<" ? { k: "self_hp<" } : k));
+    const verbs: Verb[] = [{ v: "attack" }, { v: "follow" }, { v: "recall" }];
+    for (const t of c?.tags ?? []) if (TAG_VERB[t]) verbs.push({ v: TAG_VERB[t] });
+    return { conds, verbs, max_rows: c?.max_rows ?? 2 };
+  }
+  private tickEggs(hatched: string[]): void {
+    const L = this.s.lineage;
+    for (const e of [...L.eggs]) { e.hatch_in -= 1; if (e.hatch_in <= 0) { L.eggs = L.eggs.filter((x) => x !== e); L.kennel.push(mkCompanion(this.s.nextCid++, e.kind, 1, e.tags, e.gen)); hatched.push(e.kind); } }
+  }
 
   vocabulary(): Vocabulary {
     const L = this.s.lineage; const tags = new Set<string>(); const kinds = new Set<string>();
@@ -585,6 +730,7 @@ export class FakeEngine implements Engine {
     conds.push({ k: "foe_hp<" });
     for (const k of kinds) conds.push({ k: "item", t: k });
     conds.push({ k: "unknown_item" }, { k: "floor_seen>=" }, { k: "depth>=" }, { k: "alert>=" }, { k: "in_corridor" }, { k: "path_stairs" }, { k: "ally" }, { k: "loot>=" }, { k: "turns>" }, { k: "on_hurt" }, { k: "on_kill" }, { k: "on_see" });
+    if (L.party.length || L.kennel.length) { conds.push({ k: "party_hp<" }); for (const k of new Set([...L.party, ...L.kennel].map((c) => c.kind))) conds.push({ k: "party", t: k }); }
     const verbs: Verb[] = [{ v: "attack", a: "nearest" }, { v: "attack", a: "lowest" }];
     for (const t of tags) verbs.push({ v: "attack", a: `tag:${t}` });
     verbs.push({ v: "retreat" }, { v: "back_corridor" });
@@ -595,6 +741,8 @@ export class FakeEngine implements Engine {
     if (L.unlocks.includes("verb:throw") || L.class === "rogue") { for (const k of kinds) if (THROWABLE.has(k)) verbs.push({ v: "throw", a: `${k},nearest` }); verbs.push({ v: "throw", a: "unknown,nearest" }); }
     verbs.push({ v: "descend" }, { v: "bank" }, { v: "return" }, { v: "rest" }, { v: "pick_up" }, { v: "free_captive" });
     verbs.push(L.class === "rogue" ? { v: "vanish" } : { v: "shield_bash" });
+    if (L.unlocks.includes("tame")) { verbs.push({ v: "tame", a: "nearest" }); for (const t of tags) verbs.push({ v: "tame", a: `tag:${t}` }); }
+    if (L.party.length) { verbs.push({ v: "recall" }, { v: "send" }); }
     for (const c of ["corridor_fighting", "kite_archers", "stair_dance"]) if (L.unlocks.includes(`card:${c}`)) verbs.push({ v: "card", a: c });
     return { conds, verbs, max_rows: this.maxRows() };
   }
@@ -626,7 +774,7 @@ export class FakeEngine implements Engine {
   private startRun(): Run {
     const L = this.s.lineage; this.s.runCounter++;
     const id = this.s.runCounter; const seed = hash(`run:${L.seed}:${id}`);
-    const run = makeRun(id, L.heir, seed, L.class, L.trait, this.known(), this.brought(), this.ctx());
+    const run = makeRun(id, L.heir, seed, L.class, L.trait, this.known(), this.brought(), this.ctx(), L.party);
     this.s.logs[id] = { seed, rules: JSON.parse(JSON.stringify(this.s.rules)) as RuleSet, depth: 1, turns: 0, exit: "", known: [...this.known()], cls: L.class, trait: L.trait, heir: L.heir, hpMargin: 0 };
     return run;
   }
@@ -639,11 +787,22 @@ export class FakeEngine implements Engine {
     return { events, snapshot: snapshot(this.live), run_over: this.live.over };
   }
   // apply a finished run to the lineage; returns [newFacts, newBests, marks]
-  private settle(run: Run, real: boolean): { facts: string[]; bests: string[]; marks: number } {
+  private settle(run: Run, real: boolean): { facts: string[]; bests: string[]; marks: number; tamed: string[]; lost: string[]; hatched: string[] } {
     const L = this.s.lineage; const log = this.s.logs[run.id];
     if (log) { log.depth = run.depth; log.cause = run.cause; log.turns = run.turn; log.exit = run.exit ?? ""; log.hpMargin = run.lastHurt ? run.lastHurt.dmg - run.lastHurt.hpBefore + 1 : 0; if (run.exit === "death") log.turns = run.turn; }
-    if (!real) return { facts: [], bests: [], marks: 0 };
+    if (!real) return { facts: [], bests: [], marks: 0, tamed: [], lost: [], hatched: [] };
     const facts: string[] = []; const bests: string[] = []; let marks = 0;
+    const tamed: string[] = [], lost: string[] = [], hatched: string[] = [];
+    // companions: party members and tamed foes
+    const survivors = run.floor ? [...companions(run), ...run.recalled] : [...run.recalled];
+    const egg = (c: Companion): void => { L.eggs.push({ id: this.s.nextCid++, kind: c.kind, tags: [...c.tags], gen: c.gen, hatch_in: 5, from_loss: true }); lost.push(c.kind); };
+    for (const c of run.lostC) { L.party = L.party.filter((p) => p.id !== c.id); egg(c); }
+    if (run.exit === "death") { for (const c of L.party) egg(c); L.party = []; }
+    else {
+      for (const c of L.party) { const m = survivors.find((s) => s.cid === c.id); if (m) c.hp = c.max_hp; if (run.exit === "bank") { c.level = Math.min(5, c.level + 1); c.max_rows = 1 + c.level; } }
+      for (const m of run.tamed) if (survivors.includes(m)) { L.kennel.push(mkCompanion(this.s.nextCid++, m.kind, 1, [...m.tags], 0)); tamed.push(m.kind); if (!this.s.tamedKinds.includes(m.kind)) this.s.tamedKinds.push(m.kind); }
+    }
+    this.tickEggs(hatched);
     for (const f of run.facts) if (!L.facts.includes(f)) { L.facts.push(f); facts.push(f); }
     for (let d = L.best_depth + 1; d <= run.depth; d++) { marks += 1; bests.push(`D${d}`); }
     if (run.depth > L.best_depth) L.best_depth = run.depth;
@@ -658,21 +817,23 @@ export class FakeEngine implements Engine {
       const cand = run.picked.filter((p) => WEAPONS[p.kind] || ARMOUR[p.kind] !== undefined || (p.known && p.kind === "heal"));
       for (const c of cand) if (L.vault.length < this.vaultSlots() && !L.vault.some((v) => v.kind === c.kind)) L.vault.push({ ...c, id: this.s.nextItem++ });
     }
-    return { facts, bests, marks };
+    return { facts, bests, marks, tamed, lost, hatched };
   }
 
   runOffline(elapsedS: number): ReturnReport {
     const L = this.s.lineage;
     let budget = Math.max(0, Math.floor(elapsedS)); let runs = 0, stall = 0, sampled = false, turnsTotal = 0;
     const learned: string[] = [], bests: string[] = [], found: InvItem[] = [], deaths: Record<string, number> = {}; let marks = 0; let reel: Highlight[] = [];
+    const tamed: string[] = [], hatched: string[] = [], lost: string[] = [];
+    const take = (r: { tamed: string[]; lost: string[]; hatched: string[] }): void => { tamed.push(...r.tamed); lost.push(...r.lost); hatched.push(...r.hatched); };
     let worst: { id: number; depth: number } | null = null;
-    if (this.live && !this.live.over) { const ctx = this.ctx(); while (!this.live.over && budget > 0) { simTurn(this.live, ctx); budget--; } if (this.live.over) { const r = this.settle(this.live, true); learned.push(...r.facts); bests.push(...r.bests); marks += r.marks; runs++; if (this.live.exit === "death") { deaths[this.live.cause ?? "?"] = 1; worst = { id: this.live.id, depth: this.live.depth }; } reel.push(...this.live.hl); this.live = null; } }
+    if (this.live && !this.live.over) { const ctx = this.ctx(); while (!this.live.over && budget > 0) { simTurn(this.live, ctx); budget--; } if (this.live.over) { const r = this.settle(this.live, true); take(r); learned.push(...r.facts); bests.push(...r.bests); marks += r.marks; runs++; if (this.live.exit === "death") { deaths[this.live.cause ?? "?"] = 1; worst = { id: this.live.id, depth: this.live.depth }; } reel.push(...this.live.hl); this.live = null; } }
     while (budget > 0 && stall < 20 && runs < 80 && !L.ended) {
       const run = this.startRun(); const ctx = this.ctx();
       while (!run.over && budget > 0) { simTurn(run, ctx); budget--; }
       if (!run.over) { this.live = run; break; }
       runs++; turnsTotal += run.turn;
-      const r = this.settle(run, true);
+      const r = this.settle(run, true); take(r);
       learned.push(...r.facts); bests.push(...r.bests); marks += r.marks;
       stall = r.facts.length || r.bests.length ? 0 : stall + 1;
       for (const p of run.picked) if ((WEAPONS[p.kind] || ARMOUR[p.kind] !== undefined) && !found.some((f) => f.kind === p.kind)) found.push(p);
@@ -686,11 +847,12 @@ export class FakeEngine implements Engine {
     const worstDeath = worst ? this.death(worst.id) : undefined;
     if (worstDeath?.verdict === "gap") pending.push(`patch D${worstDeath.depth} ${worstDeath.cause}`);
     if (!pending.length) pending.push("rules");
-    return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live: this.send() };
+    return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live: this.send(), tamed, hatched, lost };
   }
   private unlockVisible(u: string): boolean {
     const L = this.s.lineage.unlocks;
-    if (u === "row6") return L.includes("row5"); if (u === "row7") return L.includes("row6"); if (u === "row8") return L.includes("row7"); if (u === "vault3") return L.includes("vault2"); return true;
+    if (u === "row6") return L.includes("row5"); if (u === "row7") return L.includes("row6"); if (u === "row8") return L.includes("row7"); if (u === "vault3") return L.includes("vault2");
+    if (u === "tame") return this.s.lineage.facts.includes("item:leash"); return true;
   }
 
   death(runId: number): Death {
@@ -726,7 +888,7 @@ export class FakeEngine implements Engine {
 
   buy(unlock: string): Lineage {
     const L = this.s.lineage; const cost = UNLOCK_COST[unlock];
-    if (cost !== undefined && !L.unlocks.includes(unlock) && L.marks >= cost && this.unlockVisible(unlock)) { L.marks -= cost; L.unlocks.push(unlock); if (unlock === "class:rogue") L.class = "rogue"; }
+    if (cost !== undefined && !L.unlocks.includes(unlock) && L.marks >= cost && this.unlockVisible(unlock)) { L.marks -= cost; L.unlocks.push(unlock); if (unlock === "class:rogue") L.class = "rogue"; if (unlock === "party_slot_2") L.party_slots = 2; }
     return this.lineage();
   }
   exportRules(): string { return this.s.rules.rows.map(rowText).join("\n"); }

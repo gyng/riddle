@@ -231,6 +231,12 @@ rows: must still die by D8. Party is not policy.
 
 ## Metagame
 
+- **Two currencies.** *Marks* are rare (new bests only) and buy vocabulary. *Gold* is the
+  common per-run loot protected by the exit tiers; it buys **supplies** (leashes, identified
+  potions and scrolls, ≤ 3 per expedition) and rehatches lost eggs. Supplies are bets, not
+  growth: gold never buys stats, rows or unlocks.
+- **No banked XP.** The hero has no levels; power is what the dungeon gave plus what you
+  chose to risk from the vault. Growth reads in depth, vocabulary, facts, ledger, companions.
 - **Lineage**: heirs with traits; graveyard with cause and deeds; facts, rule sets,
   vocabulary and vault persist.
 - **Unlocks**: one meta currency earned by new bests only (depth, first kills, trophies).

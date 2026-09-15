@@ -47,6 +47,12 @@ export class WasmEngine implements Engine {
   lineage(): Lineage { return this.call("lineage"); }
   exportRules(): string { const r = this.game.exportRules(); return typeof r === "string" ? r : JSON.stringify(r); }
   importRules(text: string): RuleSet { return this.call("importRules", text); }
+  // Addendum A
+  setParty(ids: number[]): Lineage { return this.call("setParty", JSON.stringify(ids)); }
+  setCompanionRules(id: number, set: RuleSet): void { this.game.setCompanionRules(id, JSON.stringify(set)); }
+  breed(a: number, b: number): Lineage { return this.call("breed", a, b); }
+  hatch(eggId: number): Lineage { return this.call("hatch", eggId); }
+  companionVocabulary(id: number): Vocabulary { return this.call("companionVocabulary", id); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. */

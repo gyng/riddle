@@ -4,7 +4,7 @@ import type { Death } from "../engine/types";
 import { h, copyText, replace } from "./dom";
 import { rowLabel, verbLabel } from "./tokens";
 
-export function renderDeath(app: App, d: Death): Mounted {
+export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
   const line = h("h1", { class: "death-line" }, /* copy:death_line */ `${d.cause} · D${d.depth} · ${d.margin} · `, h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
   const table = h("table", { class: "trace num" },
     h("thead", null, h("tr", null, /* copy:label */ ...["t", "R", "hp", "foes", "tele"].map((s) => h("th", null, s)))),
@@ -23,6 +23,7 @@ export function renderDeath(app: App, d: Death): Mounted {
   }));
   const morgue = h("button", { class: "btn", onclick: async () => { const ok = await copyText(d.morgue); replace(morgue, ok ? "✓" : "×"); setTimeout(() => replace(morgue, /* copy:button */ "morgue"), 900); } }, /* copy:button */ "morgue");
   const edit = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "edit");
-  const el = h("main", { class: "death" }, line, table, patches, h("div", { class: "btn-row" }, morgue, edit));
+  const eggs = lost.length ? h("div", { class: "chips eggs" }, ...lost.map((k) => h("span", { class: "chip egg" }, "◯ ", k.replace(/_/g, " ")))) : null;
+  const el = h("main", { class: "death" }, line, eggs, table, patches, h("div", { class: "btn-row" }, morgue, edit));
   return { el };
 }

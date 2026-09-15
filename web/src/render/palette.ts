@@ -19,6 +19,11 @@ export const PALETTES: Record<string, Palette> = {
   crypt:   ["#0b0a14", "#1c1a30", "#33304f", "#4f4d6d", "#77738c", "#a39fae", "#d3cfc9", "#f1ede0"].map(hex), // indigo/ash/bone
 };
 
+// Replace ramps at runtime (atlas.json meta.palettes is the authority when present).
+export function setPalettes(p: Record<string, string[]>): void {
+  for (const [biome, cols] of Object.entries(p)) if (cols.length >= 2) PALETTES[biome] = cols.slice(0, 8).map(hex);
+}
+
 export function paletteFor(biome: string): Palette {
   return PALETTES[biome] ?? PALETTES.warrens!;
 }

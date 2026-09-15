@@ -176,6 +176,9 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             if i < run.row_fired.len() {
                 run.row_fired[i] += 1;
             }
+            if matches!(row.verb.v.as_str(), "recall" | "send") {
+                continue; // party orders are free actions
+            }
             return (i as i32, row.verb.clone());
         }
     }
@@ -230,13 +233,95 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
         "on_hurt" => run.hurt_since_action,
         "on_kill" => run.kill_since_action,
         "on_see" => run.new_seen,
+        "party" => run.party_alive().any(|m| m.kind == t),
+        "party_hp<" => run.party_alive().any(|m| m.hp * 100 / m.max_hp.max(1) < n),
         _ => false,
     }
 }
 
-/// Hero takes damage from `cause` (a monster kind or hazard).
-pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, cause: &str) {
+/// Where damage comes from, for causes and counters.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Src {
+    Hero { ranged: bool },
+    Mon(usize),
+    Gas,
+    Fire,
+    Poison,
+    Burst,
+}
+
+impl Src {
+    pub fn cause(&self, run: &Run) -> String {
+        match self {
+            Src::Hero { .. } => "hero".into(),
+            Src::Mon(i) => run.monsters[*i].kind.clone(),
+            Src::Gas => "gas".into(),
+            Src::Fire => "fire".into(),
+            Src::Poison => "poison".into(),
+            Src::Burst => "burst".into(),
+        }
+    }
+    pub fn tags(&self, run: &Run) -> Vec<String> {
+        match self {
+            Src::Hero { ranged } => {
+                if *ranged {
+                    vec!["ranged".into()]
+                } else {
+                    vec![]
+                }
+            }
+            Src::Mon(i) => run.monsters[*i].tags(),
+            Src::Gas | Src::Burst => vec!["gas".into()],
+            Src::Fire => vec!["fire".into()],
+            Src::Poison => vec!["poison".into()],
+        }
+    }
+}
+
+/// Is an entity alone (no friend within 2 tiles)?
+pub fn is_lone(run: &Run, pos: Pos, hostile: bool) -> bool {
+    if hostile {
+        !run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.pos != pos && m.pos.cheb(pos) <= 2)
+    } else {
+        let hero_near = run.hero.pos != pos && run.hero.pos.cheb(pos) <= 2;
+        !hero_near && !run.monsters.iter().any(|m| m.hp > 0 && m.ally && m.pos != pos && m.pos.cheb(pos) <= 2)
+    }
+}
+
+/// Apply the counter table (Addendum A): returns the adjusted damage and the counter observed.
+pub fn counter_damage(run: &Run, src: &Src, dmg: i32, target_tags: &[String], target_pos: Pos, target_hostile: bool) -> (i32, Option<(String, String)>) {
+    let atk = src.tags(run);
+    let on_water = run.floor.map.get(target_pos) == Tile::Water;
+    for (a, b, immune) in crate::defs::COUNTERS {
+        let (hit, winner_is_attacker) = if *immune {
+            // defender's tag beats the attack's tag
+            let def_has = target_tags.iter().any(|t| t == a) || (*a == "water" && on_water);
+            (def_has && atk.iter().any(|t| t == b), false)
+        } else {
+            let tgt = if *b == "lone" { is_lone(run, target_pos, target_hostile) } else { target_tags.iter().any(|t| t == b) };
+            (atk.iter().any(|t| t == a) && tgt, true)
+        };
+        if hit {
+            let _ = winner_is_attacker;
+            let out = if *immune { 0 } else { dmg * 3 / 2 };
+            return (out, Some((a.to_string(), b.to_string())));
+        }
+    }
+    (dmg, None)
+}
+
+/// Hero takes damage from `src`.
+pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     if dmg <= 0 || run.over.is_some() {
+        return;
+    }
+    let cause = src.cause(run);
+    let cause = cause.as_str();
+    let (dmg, counter) = counter_damage(run, src, dmg, &[], run.hero.pos, false);
+    if let Some((a, b)) = counter {
+        learn(run, cx, crate::defs::counter_fact(&a, &b));
+    }
+    if dmg <= 0 {
         return;
     }
     run.hero.hp -= dmg;
@@ -267,12 +352,26 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, cause: &str) {
     }
 }
 
-/// Monster takes damage; handles splits, pops, drops, kills. Returns true if it died.
-pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, cause: &str) -> bool {
+/// Monster takes damage; handles counters, splits, pops, drops, kills. Returns true if it died.
+pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Src) -> bool {
     if run.monsters[mi].hp <= 0 {
         return false;
     }
+    let cause = src.cause(run);
+    let cause = cause.as_str();
     let dmg = dmg.max(0);
+    let (dmg, counter) = {
+        let m = &run.monsters[mi];
+        counter_damage(run, src, dmg, &m.tags(), m.pos, m.hostile())
+    };
+    if let Some((a, b)) = counter {
+        if run.floor.map.is_visible(run.monsters[mi].pos) {
+            learn(run, cx, crate::defs::counter_fact(&a, &b));
+        }
+    }
+    if run.monsters[mi].ally {
+        run.monsters[mi].hurt_since_action = true;
+    }
     run.monsters[mi].hp -= dmg;
     let (id, hp, kind, pos) = {
         let m = &run.monsters[mi];
@@ -310,7 +409,13 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, cause: &
     if m.ally {
         run.ally_lost.push((run.turn, kind.clone()));
         cx.events.push(Ev::Ally { t: run.turn, id, state: "lost".into() });
-        note(run, cx, format!("The {} fell.", crate::engine::kind_title(&kind)));
+        if let Some(cid) = m.cid {
+            let name = run.companion(cid).map(|c| c.name.clone()).unwrap_or_else(|| kind.clone());
+            run.lost_companions.push((run.turn, name.clone()));
+            note(run, cx, format!("{name} the {} fell.", crate::engine::kind_title(&kind)));
+        } else {
+            note(run, cx, format!("The {} fell.", crate::engine::kind_title(&kind)));
+        }
     } else if !m.neutral {
         run.kills.push((run.turn, kind.clone()));
         run.kills_floor += 1;
@@ -363,18 +468,18 @@ fn tick_overlays(run: &mut Run, cx: &mut Ctx) {
     let overlays = run.overlays.clone();
     for o in &overlays {
         let p = Pos::new(o.x, o.y);
-        let (dmg, cause) = match o.k {
-            OverlayKind::Gas => (3, "gas"),
-            OverlayKind::Fire => (5, "fire"),
+        let (dmg, src) = match o.k {
+            OverlayKind::Gas => (3, Src::Gas),
+            OverlayKind::Fire => (5, Src::Fire),
         };
         if run.hero.pos == p {
-            damage_hero(run, cx, dmg, cause);
+            damage_hero(run, cx, dmg, &src);
             if run.over.is_some() {
                 return;
             }
         }
         if let Some(mi) = run.monster_at(p) {
-            damage_monster(run, cx, mi, dmg, cause);
+            damage_monster(run, cx, mi, dmg, &src);
         }
     }
     // Fire spreads once to adjacent floor.
@@ -400,7 +505,7 @@ fn tick_statuses(run: &mut Run, cx: &mut Ctx) {
     if run.hero.poison.1 > 0 {
         let d = run.hero.poison.0;
         run.hero.poison.1 -= 1;
-        damage_hero(run, cx, d, "poison");
+        damage_hero(run, cx, d, &Src::Poison);
         if run.over.is_some() {
             return;
         }
@@ -410,7 +515,7 @@ fn tick_statuses(run: &mut Run, cx: &mut Ctx) {
         if run.monsters[mi].poison.1 > 0 {
             let d = run.monsters[mi].poison.0;
             run.monsters[mi].poison.1 -= 1;
-            damage_monster(run, cx, mi, d, "poison");
+            damage_monster(run, cx, mi, d, &Src::Poison);
         }
         run.monsters[mi].tick_statuses();
         if run.monsters[mi].ttl.is_some_and(|t| t <= 0) && run.monsters[mi].hp > 0 {
@@ -492,15 +597,12 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.floor = floor;
     run.hero.pos = run.floor.stairs_up;
     run.monsters.retain(|m| m.ally && m.hp > 0);
-    for (i, m) in run.monsters.iter_mut().enumerate() {
-        m.pos = run.floor.stairs_up.add(DIRS8[i % 8]);
-    }
     let up = run.floor.stairs_up;
-    let mut allies = std::mem::take(&mut run.monsters);
-    for m in allies.iter_mut() {
+    let allies = std::mem::take(&mut run.monsters);
+    for mut m in allies {
         let free = up.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q) && *q != up);
         m.pos = free.unwrap_or(up);
-        run.monsters.push(m.clone());
+        run.monsters.push(m);
     }
     run.items.clear();
     run.overlays.clear();
@@ -553,6 +655,25 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         let it = run.items.remove(ii).item;
         run.loot += it.amount;
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: format!("gold ({})", it.amount) });
+        return;
+    }
+    if item.kind == "leash" {
+        let it = run.items.remove(ii).item;
+        run.loot += it.value();
+        match run.hero.inv.iter_mut().find(|i| i.kind == "leash") {
+            Some(l) => l.amount += it.amount.max(1),
+            None => {
+                if run.hero.inv_full() {
+                    run.items.push(crate::engine::FloorItem { pos: run.hero.pos, item: it });
+                    return;
+                }
+                let mut l = it;
+                l.amount = l.amount.max(1);
+                run.hero.inv.push(l);
+            }
+        }
+        cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: "leash".into() });
+        learn(run, cx, "item:leash".into());
         return;
     }
     if run.hero.inv_full() && !item_replaces_gear(&run.hero, item) {

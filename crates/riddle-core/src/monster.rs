@@ -47,6 +47,22 @@ pub struct Monster {
     pub fleeing: bool,
     pub grudge: bool,
     pub summoned: bool,
+    /// Companion id when this ally is a party member (Addendum A).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cid: Option<u32>,
+    /// Tags beyond the kind's own (bred companions).
+    #[serde(default)]
+    pub extra_tags: Vec<String>,
+    #[serde(default)]
+    pub level: u32,
+    /// Companion ordered to engage (hero verb `send`).
+    #[serde(default)]
+    pub sent: bool,
+    /// Foes already pickpocketed by a thief companion.
+    #[serde(default)]
+    pub stole_from: Vec<u32>,
+    #[serde(default)]
+    pub hurt_since_action: bool,
 }
 
 impl Monster {
@@ -85,13 +101,32 @@ impl Monster {
             fleeing: false,
             grudge: false,
             summoned: d.tags.contains(&"summoned"),
+            cid: None,
+            extra_tags: Vec::new(),
+            level: 0,
+            sent: false,
+            stole_from: Vec::new(),
+            hurt_since_action: false,
         }
     }
     pub fn def(&self) -> &'static MonsterDef {
         monster_def(&self.kind)
     }
     pub fn has_tag(&self, tag: &str) -> bool {
-        self.def().tags.contains(&tag)
+        self.def().tags.contains(&tag) || self.extra_tags.iter().any(|t| t == tag)
+    }
+    /// All tags: the kind's plus bred extras.
+    pub fn tags(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.def().tags.iter().map(|t| t.to_string()).collect();
+        for t in &self.extra_tags {
+            if !v.contains(t) {
+                v.push(t.clone());
+            }
+        }
+        v
+    }
+    pub fn is_companion(&self) -> bool {
+        self.cid.is_some() && self.ally
     }
     pub fn is_boss(&self) -> bool {
         self.def().boss

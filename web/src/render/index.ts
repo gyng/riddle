@@ -188,13 +188,35 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const [fx, fy] = feet(e);
       const s = atlas.entity(e.kind);
       const w = s.w / 2, h = s.h / 2; // world units (env texels)
+      void e.cid;
       const z = 2 + Math.min(1, e.py / Math.max(1, st.h));
-      if (!e.dying) { const sh = atlas.shadow(Math.min(w - 2, 12)); L.shadows.push(fx, fy - 1, 1.5, sh.w, 2, sh.u0, sh.v0, sh.u1, sh.v1, 1, 0, e.fade); }
+      if (!e.dying) {
+        // contact shadow; companions (ally + cid, or tamed this run) get a 1-texel light ring
+        const ring = e.ally && !e.hero;
+        const sh = atlas.shadow(Math.min(w - 2, 12), ring);
+        L.shadows.push(fx, fy - (ring ? 2 : 1), 1.5, sh.w, sh.h, sh.u0, sh.v0, sh.u1, sh.v1, 1, 0, e.fade);
+      }
       const flash = st.flashing(e) ? 1 : 0;
       L.ents.push(fx, fy, z, s.w / 2, s.h / 2, s.u0, s.v0, s.u1, s.v1, e.ally && !e.hero ? 1.1 : 1, flash, e.fade, e.flip ? 1 : 0);
       if (e.glyph) {
         const g = atlas.glyph(e.glyph);
         L.glyphs.push(fx, fy + h + 2, 3.5, TILE, TILE, g.u0, g.v0, g.u1, g.v1);
+      }
+    }
+    // tame leash: dots along an arc from the hero's chest to the target, revealed over the leash time
+    const lp = st.leashProgress();
+    if (lp !== null && st.leash) {
+      const a = st.ents.get(st.leash.from), t = st.ents.get(st.leash.to);
+      if (a && t) {
+        const [ax, ay] = feet(a), [tx, ty] = feet(t);
+        const d = atlas.dot();
+        const n = 9, shown = Math.floor(lp * n);
+        for (let i = 1; i <= shown; i++) {
+          const u = i / n;
+          const x = Math.round(ax + (tx - ax) * u);
+          const y = Math.round(ay + 10 + (ty - ay) * u + 4 * u * (1 - u) * 12);
+          L.glyphs.push(x, y, 3.6, 2, 2, d.u0, d.v0, d.u1, d.v1);
+        }
       }
     }
     L.shadows.end(); L.ents.end(); L.glyphs.end();

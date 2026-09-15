@@ -19,6 +19,9 @@ pub struct Entity {
     pub ally: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub telegraph: Option<String>,
+    /// Companion id (Addendum A).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cid: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -81,6 +84,8 @@ pub enum Ev {
     Exit { t: u32, tier: String, loot_kept: i32 },
     Note { t: u32, text: String },
     Callout { t: u32, text: String },
+    Tame { t: u32, id: u32, kind: String, ok: bool },
+    Hatch { t: u32, kind: String },
 }
 
 impl Ev {
@@ -102,7 +107,9 @@ impl Ev {
             | Ev::Descend { t, .. }
             | Ev::Exit { t, .. }
             | Ev::Note { t, .. }
-            | Ev::Callout { t, .. } => *t,
+            | Ev::Callout { t, .. }
+            | Ev::Tame { t, .. }
+            | Ev::Hatch { t, .. } => *t,
         }
     }
     /// Renderable, non-movement events (the "events per 60 turns" gate).
@@ -202,6 +209,42 @@ pub struct ReturnReport {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worst_death: Option<Death>,
     pub live: Snapshot,
+    pub tamed: Vec<String>,
+    pub hatched: Vec<String>,
+    pub lost: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Companion {
+    pub id: u32,
+    pub kind: String,
+    pub name: String,
+    pub level: u32,
+    pub tags: Vec<String>,
+    pub gen: u32,
+    pub rules: RuleSet,
+    pub max_rows: usize,
+    pub hp: i32,
+    pub max_hp: i32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Egg {
+    pub id: u32,
+    pub kind: String,
+    pub tags: Vec<String>,
+    pub gen: u32,
+    pub hatch_in: u32,
+    pub from_loss: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LedgerRow {
+    pub kind: String,
+    pub seen: bool,
+    pub known: bool,
+    pub tamed: bool,
+    pub bred: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -229,6 +272,11 @@ pub struct Lineage {
     pub sets: Vec<RuleSet>,
     pub active_set: usize,
     pub ended: bool,
+    pub party: Vec<Companion>,
+    pub kennel: Vec<Companion>,
+    pub eggs: Vec<Egg>,
+    pub party_slots: u32,
+    pub ledger: Vec<LedgerRow>,
 }
 
 /// Unlock catalogue entry (addition to the contract; see README).
@@ -255,7 +303,7 @@ mod tests {
     #[test]
     fn hero_snapshot_flattens_entity_and_trait() {
         let h = HeroSnap {
-            entity: Entity { id: 1, kind: "hero_fighter".into(), name: None, x: 1, y: 2, hp: 3, max_hp: 4, tags: vec![], ally: None, telegraph: None },
+            entity: Entity { id: 1, kind: "hero_fighter".into(), name: None, x: 1, y: 2, hp: 3, max_hp: 4, tags: vec![], ally: None, telegraph: None, cid: None },
             inv: vec![],
             weapon: Some("dagger".into()),
             armour: None,

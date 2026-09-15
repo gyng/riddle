@@ -1,7 +1,8 @@
 // Camp: lineage strip · set tabs · rule editor · forecast · vault loadout · unlocks · send.
 import type { App, Mounted } from "../app";
 import { h, clear, replace } from "./dom";
-import { renderEditor } from "./editor";
+import { heroBinding, renderEditor } from "./editor";
+import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
 import { available, vaultSlots } from "./unlocks";
@@ -9,12 +10,13 @@ import { available, vaultSlots } from "./unlocks";
 export function renderCamp(app: App, highlight?: number): Mounted {
   const strip = h("header", { class: "strip" });
   const tabs = h("nav", { class: "tabs" });
-  const editor = renderEditor(app, highlight);
+  const editor = renderEditor(heroBinding(app), highlight);
+  const party = renderParty(app);
   const fc = renderForecast(app);
   const vault = h("section", { class: "vault" });
   const unlocks = h("section", { class: "unlocks" });
   const send = h("button", { class: "btn primary send", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send");
-  const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, vault, unlocks, h("div", { class: "send-bar" }, send));
+  const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, party.el, vault, unlocks, h("div", { class: "send-bar" }, send));
 
   function paintStrip(): void {
     const L = app.lineage;
@@ -58,7 +60,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     }
     unlocks.appendChild(grid);
   }
-  function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintUnlocks(); editor.refresh(); }
+  function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintUnlocks(); party.refresh(); editor.refresh(); }
   paintAll();
   const off = app.onChange(paintAll);
   return { el, dispose: () => { off(); fc.dispose(); } };

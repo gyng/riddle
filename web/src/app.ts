@@ -6,12 +6,12 @@ import { renderCamp } from "./ui/camp";
 import { renderWatch } from "./ui/watch";
 import { renderDeath } from "./ui/death";
 import { renderReport } from "./ui/report";
-import { closeSheet } from "./ui/sheet";
+import { closeAllSheets } from "./ui/sheet";
 
 export type Screen =
   | { kind: "camp"; highlight?: number }
   | { kind: "watch" }
-  | { kind: "death"; death: Death }
+  | { kind: "death"; death: Death; lost?: string[] }
   | { kind: "report"; report: ReturnReport };
 
 export type Mounted = { el: HTMLElement; dispose?: () => void };
@@ -117,6 +117,8 @@ export class App {
   refresh(): void { this.lineage = this.engine.lineage(); this.vocab = this.engine.vocabulary(); this.emitChange(); }
   onChange(fn: () => void): () => void { this.changeListeners.add(fn); return () => this.changeListeners.delete(fn); }
   private emitChange(): void { for (const fn of this.changeListeners) fn(); }
+  /** After an engine call that returned a new Lineage: refresh vocab, persist, repaint, re-forecast. */
+  afterLineage(): void { this.vocab = this.engine.vocabulary(); this.persist(); this.emitChange(); this.rulesChanged(); }
   buy(id: string): void { this.lineage = this.engine.buy(id); this.vocab = this.engine.vocabulary(); this.persist(); this.emitChange(); this.rulesChanged(); }
   setLoadout(ids: number[]): void { this.loadout = ids; this.engine.loadout(ids); this.persist(); this.emitChange(); }
   resetLineage(): void {
@@ -153,14 +155,14 @@ export class App {
 
   // --- screens ---
   go(screen: Screen): void {
-    closeSheet();
+    closeAllSheets();
     this.mounted?.dispose?.();
     this.screen = screen;
     let m: Mounted;
     switch (screen.kind) {
       case "camp": m = renderCamp(this, screen.highlight); break;
       case "watch": m = renderWatch(this); break;
-      case "death": m = renderDeath(this, screen.death); break;
+      case "death": m = renderDeath(this, screen.death, screen.lost ?? []); break;
       case "report": m = renderReport(this, screen.report); break;
     }
     this.mounted = m;

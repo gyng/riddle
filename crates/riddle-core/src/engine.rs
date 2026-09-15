@@ -102,9 +102,24 @@ pub struct Run {
     pub ended: bool,
     pub max_depth: u32,
     pub trophies_run: Vec<String>,
+    /// Companion records active in this run (party members and new tames).
+    pub companions: Vec<Companion>,
+    pub recalled: Vec<u32>,
+    pub tamed: Vec<(u32, String)>,
+    pub lost_companions: Vec<(u32, String)>,
 }
 
 impl Run {
+    pub fn companion(&self, cid: u32) -> Option<&Companion> {
+        self.companions.iter().find(|c| c.id == cid)
+    }
+    pub fn companion_mut(&mut self, cid: u32) -> Option<&mut Companion> {
+        self.companions.iter_mut().find(|c| c.id == cid)
+    }
+    /// Living companions on the floor.
+    pub fn party_alive(&self) -> impl Iterator<Item = &Monster> {
+        self.monsters.iter().filter(|m| m.is_companion() && m.hp > 0)
+    }
     pub fn monster_at(&self, p: Pos) -> Option<usize> {
         self.monsters.iter().position(|m| m.hp > 0 && m.pos == p)
     }
@@ -136,6 +151,8 @@ pub struct Ctx<'a> {
     pub flavours: &'a Flavours,
     pub rules: &'a RuleSet,
     pub unlocks: &'a BTreeSet<String>,
+    pub grudges: &'a [Grudge],
+    pub max_rows: usize,
     pub events: &'a mut Vec<Ev>,
     pub sim: bool,
 }
@@ -163,6 +180,20 @@ pub struct LineageState {
     pub next_run_id: u32,
     pub next_vault_id: u32,
     pub rng: Rng,
+    #[serde(default)]
+    pub party: Vec<Companion>,
+    #[serde(default)]
+    pub kennel: Vec<Companion>,
+    #[serde(default)]
+    pub eggs: Vec<Egg>,
+    #[serde(default)]
+    pub bred: BTreeSet<String>,
+    #[serde(default = "default_next_comp_id")]
+    pub next_comp_id: u32,
+}
+
+fn default_next_comp_id() -> u32 {
+    1
 }
 
 impl LineageState {
@@ -192,7 +223,41 @@ impl LineageState {
             next_run_id: 1,
             next_vault_id: 100_000,
             rng,
+            party: Vec::new(),
+            kennel: Vec::new(),
+            eggs: Vec::new(),
+            bred: BTreeSet::new(),
+            next_comp_id: 1,
         }
+    }
+    pub fn party_slots(&self) -> u32 {
+        1 + self.unlocks.contains("party_slot_2") as u32
+    }
+    pub fn new_comp_id(&mut self) -> u32 {
+        let id = self.next_comp_id;
+        self.next_comp_id += 1;
+        id
+    }
+    /// Bestiary ledger derived from facts and breeding.
+    pub fn ledger(&self) -> Vec<LedgerRow> {
+        crate::defs::MONSTERS
+            .iter()
+            .filter(|m| !m.boss && !m.tags.contains(&"summoned"))
+            .map(|m| {
+                let seen = self.facts.contains(&format!("foe:{}", m.kind));
+                let known = seen && m.tags.iter().all(|t| self.facts.contains(&format!("foe:{}:{}", m.kind, t)));
+                LedgerRow {
+                    kind: m.kind.to_string(),
+                    seen,
+                    known,
+                    tamed: self.facts.contains(&format!("tamed:{}", m.kind)),
+                    bred: self.bred.contains(m.kind),
+                }
+            })
+            .collect()
+    }
+    pub fn all_companions(&self) -> impl Iterator<Item = &Companion> {
+        self.party.iter().chain(self.kennel.iter())
     }
     pub fn rules(&self) -> &RuleSet {
         &self.sets[self.active_set.min(self.sets.len() - 1)]
@@ -213,6 +278,11 @@ impl LineageState {
             sets: self.sets.clone(),
             active_set: self.active_set,
             ended: self.ended,
+            party: self.party.clone(),
+            kennel: self.kennel.clone(),
+            eggs: self.eggs.clone(),
+            party_slots: self.party_slots(),
+            ledger: self.ledger(),
         }
     }
     pub fn vault_slots(&self) -> usize {
@@ -267,6 +337,9 @@ pub struct RunSummary {
     pub highlights: Vec<Highlight>,
     pub renderable_events: u32,
     pub row_fired: Vec<u32>,
+    pub tamed: Vec<String>,
+    pub hatched: Vec<String>,
+    pub lost: Vec<String>,
 }
 
 impl Game {
@@ -417,8 +490,13 @@ impl Game {
             ended: false,
             max_depth: 1,
             trophies_run: Vec::new(),
+            companions: Vec::new(),
+            recalled: Vec::new(),
+            tamed: Vec::new(),
+            lost_companions: Vec::new(),
         };
-        self.populate_floor(&mut run);
+        populate_floor(&mut run, &self.lineage.grudges);
+        spawn_party(&mut run, &self.lineage.party);
         run.floor.map.update_vision(run.hero.pos, VISION);
         self.history.clear();
         self.run = Some(run);
@@ -433,19 +511,25 @@ impl Game {
         let Game { run, lineage, events, sim, .. } = self;
         let run = run.as_mut().expect("no live run");
         let set = lineage.active_set.min(lineage.sets.len() - 1);
+        let max_rows = lineage.max_rows();
         let cx = Ctx {
             facts: &mut lineage.facts,
             flavours: &lineage.flavours,
             rules: &lineage.sets[set],
             unlocks: &lineage.unlocks,
+            grudges: &lineage.grudges,
+            max_rows,
             events,
             sim: *sim,
         };
         (run, cx)
     }
 
-    /// Fill a freshly generated floor with monsters and items for the run's depth.
-    pub fn populate_floor(&mut self, run: &mut Run) {
+}
+
+/// Fill a freshly generated floor with monsters and items for the run's depth.
+pub fn populate_floor(run: &mut Run, grudges: &[Grudge]) {
+    {
         let depth = run.depth;
         let biome = run.biome();
         let mut open = run.floor.open_tiles();
@@ -529,7 +613,7 @@ impl Game {
             }
         }
         // Grudge monsters live on the floor they killed on.
-        for g in self.lineage.grudges.iter().filter(|g| g.depth == depth) {
+        for g in grudges.iter().filter(|g| g.depth == depth) {
             let pos = take(&mut run.rng, &open, &mut cursor);
             if run.occupied(pos) {
                 continue;
@@ -570,6 +654,14 @@ impl Game {
             ic += 1;
             run.items.push(FloorItem { pos, item: it });
         }
+        if depth >= 2 && run.rng.chance(50) {
+            let iid = run.new_item_id();
+            let mut it = Item::new(iid, "leash");
+            it.amount = 1;
+            let pos = if ic < open_items.len() { open_items[ic] } else { *run.rng.pick(&open_items) };
+            ic += 1;
+            run.items.push(FloorItem { pos, item: it });
+        }
         for _ in 0..2 {
             let iid = run.new_item_id();
             let mut it = Item::new(iid, "gold");
@@ -580,6 +672,9 @@ impl Game {
         }
     }
 
+}
+
+impl Game {
     /// Advance the live view by `turns`, returning the events and the new snapshot.
     pub fn step(&mut self, turns: u32) -> StepResult {
         let mut events = Vec::new();
@@ -782,6 +877,81 @@ impl Game {
             }
             summary.found.push(v);
         }
+        // Companions (Addendum A): survivors return, level on bank; the dead are eggs.
+        let alive_cids: Vec<u32> = run.party_alive().filter_map(|m| m.cid).collect();
+        for rec in &run.companions {
+            let alive = alive_cids.contains(&rec.id);
+            let recalled = run.recalled.contains(&rec.id);
+            let in_party = self.lineage.party.iter().position(|c| c.id == rec.id);
+            if alive || recalled {
+                let mut c = rec.clone();
+                c.hp = c.max_hp;
+                if tier == ExitTier::Bank && alive && c.level < 5 {
+                    c.level += 1;
+                    c.max_rows = 1 + c.level as usize;
+                    summary.bests.push(format!("{} L{}", c.name, c.level));
+                }
+                match in_party {
+                    Some(i) => self.lineage.party[i] = c,
+                    None => {
+                        if (self.lineage.party.len() as u32) < self.lineage.party_slots() {
+                            self.lineage.party.push(c);
+                        } else {
+                            self.lineage.kennel.push(c);
+                        }
+                    }
+                }
+            } else {
+                if let Some(i) = in_party {
+                    self.lineage.party.remove(i);
+                }
+                let eid = self.lineage.new_comp_id();
+                self.lineage.eggs.push(Egg { id: eid, kind: rec.kind.clone(), tags: rec.tags.clone(), gen: rec.gen, hatch_in: 5, from_loss: true });
+            }
+        }
+        summary.tamed = run.tamed.iter().map(|(_, k)| k.clone()).collect();
+        summary.lost = run.lost_companions.iter().map(|(_, k)| k.clone()).collect();
+        if tier == ExitTier::Death {
+            for rec in &run.companions {
+                if alive_cids.contains(&rec.id) {
+                    summary.lost.push(rec.name.clone());
+                }
+            }
+        }
+        // Eggs hatch after 5 completed expeditions.
+        let mut hatched: Vec<Egg> = Vec::new();
+        for e in self.lineage.eggs.iter_mut() {
+            if e.hatch_in > 0 {
+                e.hatch_in -= 1;
+            }
+        }
+        let eggs = std::mem::take(&mut self.lineage.eggs);
+        for e in eggs {
+            if e.hatch_in == 0 {
+                hatched.push(e);
+            } else {
+                self.lineage.eggs.push(e);
+            }
+        }
+        for e in hatched {
+            let kind = e.kind.clone();
+            self.hatch_egg(e);
+            self.events.push(Ev::Hatch { t: run.turn, kind: kind.clone() });
+            summary.hatched.push(kind);
+        }
+        // Ledger trophies.
+        for biome in [Biome::Warrens, Biome::Fens, Biome::Crypt] {
+            let t = format!("ledger:{}", biome.name());
+            if !self.lineage.trophies.contains(&t)
+                && crate::defs::biome_kinds(biome).iter().all(|k| self.lineage.facts.contains(&format!("tamed:{k}")))
+            {
+                self.lineage.trophies.push(t.clone());
+                self.lineage.marks += 2;
+                summary.marks += 2;
+                summary.new_best = true;
+                summary.bests.push(format!("trophy: {t}"));
+            }
+        }
         // Highlights.
         summary.highlights = crate::sifter::sift(&run, &self.lineage);
         for h in &summary.highlights {
@@ -826,6 +996,108 @@ impl Game {
     pub fn vocabulary(&self) -> Vocabulary {
         crate::tokens::vocabulary(&self.lineage)
     }
+
+    // ---- Companions (Addendum A)
+
+    fn hatch_egg(&mut self, e: Egg) {
+        let id = self.lineage.new_comp_id();
+        let name = crate::descent::grudge_name(&mut self.lineage.rng);
+        let def = crate::defs::monster_def(&e.kind);
+        let rules = crate::probes::default_companion_rules(&e.tags, 1);
+        self.lineage.kennel.push(Companion {
+            id,
+            kind: e.kind,
+            name,
+            level: 1,
+            tags: e.tags,
+            gen: e.gen,
+            rules,
+            max_rows: 2,
+            hp: def.hp,
+            max_hp: def.hp,
+        });
+    }
+
+    /// Choose which owned companions go on the next expedition.
+    pub fn set_party(&mut self, ids: Vec<u32>) -> Result<(), String> {
+        let slots = self.lineage.party_slots() as usize;
+        let mut all: Vec<Companion> = std::mem::take(&mut self.lineage.party);
+        all.append(&mut self.lineage.kennel);
+        let mut party = Vec::new();
+        for id in ids {
+            if party.len() >= slots {
+                break;
+            }
+            if let Some(i) = all.iter().position(|c| c.id == id) {
+                party.push(all.remove(i));
+            }
+        }
+        self.lineage.party = party;
+        self.lineage.kennel = all;
+        Ok(())
+    }
+
+    pub fn set_companion_rules(&mut self, id: u32, set: RuleSet) -> Result<(), String> {
+        set.validate()?;
+        let c = self
+            .lineage
+            .party
+            .iter_mut()
+            .chain(self.lineage.kennel.iter_mut())
+            .find(|c| c.id == id)
+            .ok_or("no such companion")?;
+        let mut set = set;
+        set.rows.truncate(c.max_rows);
+        c.rules = set;
+        Ok(())
+    }
+
+    /// Two level ≥ 2 companions become one egg: A's kind, A's tags plus one of B's.
+    pub fn breed(&mut self, a: u32, b: u32) -> Result<(), String> {
+        if a == b {
+            return Err("same companion".into());
+        }
+        let find = |l: &LineageState, id: u32| l.all_companions().find(|c| c.id == id).cloned();
+        let ca = find(&self.lineage, a).ok_or("no such companion")?;
+        let cb = find(&self.lineage, b).ok_or("no such companion")?;
+        if ca.level < 2 || cb.level < 2 {
+            return Err("both must be level 2".into());
+        }
+        let mut tags = ca.tags.clone();
+        if tags.len() < 3 {
+            if let Some(t) = cb.tags.iter().find(|t| !tags.contains(t)) {
+                tags.push(t.clone());
+            }
+        }
+        for id in [a, b] {
+            self.lineage.party.retain(|c| c.id != id);
+            self.lineage.kennel.retain(|c| c.id != id);
+        }
+        let eid = self.lineage.new_comp_id();
+        self.lineage.eggs.push(Egg { id: eid, kind: ca.kind.clone(), tags, gen: ca.gen.max(cb.gen) + 1, hatch_in: 5, from_loss: false });
+        self.lineage.bred.insert(ca.kind);
+        Ok(())
+    }
+
+    /// Hatch a lost companion's egg now for 2 marks.
+    pub fn hatch(&mut self, egg_id: u32) -> Result<(), String> {
+        let i = self.lineage.eggs.iter().position(|e| e.id == egg_id).ok_or("no such egg")?;
+        if !self.lineage.eggs[i].from_loss {
+            return Err("bred eggs hatch after 5 expeditions".into());
+        }
+        if self.lineage.marks < 2 {
+            return Err("2 marks needed".into());
+        }
+        self.lineage.marks -= 2;
+        let e = self.lineage.eggs.remove(i);
+        self.hatch_egg(e);
+        Ok(())
+    }
+
+    pub fn companion_vocabulary(&self, id: u32) -> Result<Vocabulary, String> {
+        let c = self.lineage.all_companions().find(|c| c.id == id).ok_or("no such companion")?;
+        Ok(crate::tokens::companion_vocabulary(&self.lineage, c))
+    }
 }
 
 pub fn monster_entity(mo: &Monster, facts: &BTreeSet<String>) -> Entity {
@@ -865,7 +1137,51 @@ pub fn monster_entity(mo: &Monster, facts: &BTreeSet<String>) -> Entity {
         tags,
         ally: if mo.ally { Some(true) } else { None },
         telegraph: mo.telegraph.clone(),
+        cid: mo.cid,
     }
+}
+
+/// Spawn the party's companions next to the hero at the start of a run.
+pub fn spawn_party(run: &mut Run, party: &[Companion]) {
+    let hp = run.hero.pos;
+    for c in party {
+        let free = hp.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q));
+        let Some(q) = free else { continue };
+        let id = run.new_id();
+        let m = companion_monster(id, c, q);
+        run.monsters.push(m);
+        let mut rec = c.clone();
+        rec.hp = rec.max_hp;
+        run.companions.push(rec);
+    }
+}
+
+pub fn companion_monster(id: u32, c: &Companion, pos: Pos) -> Monster {
+    let mut m = Monster::spawn(id, &c.kind, pos, 1);
+    m.ally = true;
+    m.awake = true;
+    m.neutral = false;
+    m.cid = Some(c.id);
+    m.name = Some(c.name.clone());
+    m.level = c.level;
+    m.max_hp = c.max_hp.max(1);
+    m.hp = m.max_hp;
+    let base: Vec<&str> = m.def().tags.to_vec();
+    m.extra_tags = c.tags.iter().filter(|t| !base.contains(&t.as_str())).cloned().collect();
+    m
+}
+
+/// A companion record for a freshly tamed monster.
+pub fn new_companion(id: u32, m: &Monster, name: String) -> Companion {
+    let tags = m.tags();
+    let rules = crate::probes::default_companion_rules(&tags, 1);
+    Companion { id, kind: m.kind.clone(), name, level: 1, tags, gen: 0, rules, max_rows: 2, hp: m.max_hp, max_hp: m.max_hp }
+}
+
+/// Monster tags known well enough to tame: 20% + 10% per known tag, cap 60%.
+pub fn tame_chance(facts: &BTreeSet<String>, kind: &str) -> u32 {
+    let known = crate::defs::monster_def(kind).tags.iter().filter(|t| facts.contains(&format!("foe:{kind}:{t}"))).count() as u32;
+    (20 + 10 * known).min(60)
 }
 
 pub fn item_wire(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> InvItem {

@@ -121,6 +121,7 @@ pub enum Cat {
     Potion,
     Scroll,
     Gold,
+    Misc,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -162,7 +163,51 @@ pub const ITEMS: &[ItemDef] = &[
     ItemDef { kind: "summon_ally", cat: Cat::Scroll, a: (0, 0), speed: 0, ranged: false, value: 15, benevolent: true, weight: 2 },
     ItemDef { kind: "aggravate", cat: Cat::Scroll, a: (0, 0), speed: 0, ranged: false, value: 2, benevolent: false, weight: 3 },
     ItemDef { kind: "gold", cat: Cat::Gold, a: (0, 0), speed: 0, ranged: false, value: 1, benevolent: true, weight: 0 },
+    ItemDef { kind: "leash", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 6, benevolent: true, weight: 0 },
 ];
+
+/// Counters (Addendum A): (winner, loser, immune). For the first three the winner is the
+/// attacker's tag; for the last two the winner is the defender's tag against the attack's tag.
+pub const COUNTERS: &[(&str, &str, bool)] = &[
+    ("ranged", "heavy", false),
+    ("pack", "lone", false),
+    ("gas", "pack", false),
+    ("water", "fire", true),
+    ("undead", "poison", true),
+];
+
+pub fn counter_fact(a: &str, b: &str) -> String {
+    format!("counter:{a}>{b}")
+}
+
+/// Companion verb granted by a tag.
+pub fn tag_verb(tag: &str) -> Option<&'static str> {
+    match tag {
+        "ranged" => Some("shoot"),
+        "gas" => Some("burst"),
+        "thief" => Some("steal"),
+        "splitter" => Some("split"),
+        "pack" => Some("flank"),
+        "undead" => Some("drain"),
+        _ => None,
+    }
+}
+
+/// Kinds a biome's ledger needs tamed (tameable spawns only).
+pub fn biome_kinds(biome: Biome) -> Vec<&'static str> {
+    let mut v: Vec<&str> = Vec::new();
+    for d in 1..=15u32 {
+        if crate::descent::biome_for(d) != biome {
+            continue;
+        }
+        for (k, ..) in spawn_table(biome, d) {
+            if k != "captive" && !v.contains(&k) {
+                v.push(k);
+            }
+        }
+    }
+    v
+}
 
 pub fn item_def(kind: &str) -> &'static ItemDef {
     ITEMS.iter().find(|i| i.kind == kind).unwrap_or(&ITEMS[0])
@@ -190,7 +235,7 @@ mod tests {
     fn content_counts() {
         assert_eq!(MONSTERS.iter().filter(|m| !m.boss && !m.tags.contains(&"summoned")).count(), 14);
         assert_eq!(MONSTERS.iter().filter(|m| m.boss).count(), 3);
-        assert_eq!(ITEMS.len(), 25);
+        assert_eq!(ITEMS.len(), 26, "25 items + the leash (Addendum A)");
         assert_eq!(potion_kinds().len(), 8);
         assert_eq!(scroll_kinds().len(), 9);
     }

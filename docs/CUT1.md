@@ -306,3 +306,17 @@ Vocabulary additions: cond `party_hp<N` (any companion), verb `tame`, scope toke
 `party:<kind>` exposed as a cond `{k:"party",t:"<kind>"}` for editor simplicity. Unlocks:
 `party_slot_2` (4 marks), `tame` verb for both classes (2 marks; hero must have the fact
 `item:leash` first).
+
+## Addendum B — Gold and supplies (added 2026-09-16, in scope for Cut 1)
+
+Gold is the common currency; marks stay rare (new bests only, vocabulary only).
+- `loot` (gold) kept per exit tier is added to `lineage.gold`.
+- Camp **supplies**: `buySupply(kind)` at fixed prices, max 3 supply items per expedition,
+  placed into the starting inventory alongside vault items. Catalogue: `leash` 30,
+  any *identified* potion kind 40, any *identified* scroll kind 60 (identified = fact
+  `item:*=<kind>` exists). Supplies are per-run consumables; they are never kept back.
+- `hatch(eggId)` for `from_loss` eggs costs **50 gold** (not marks).
+- Wire: `Lineage.gold: number`, `Lineage.supplies: InvItem[]` (this run's picks),
+  `Engine.buySupply(kind: string): Lineage`, `Engine.clearSupplies(): Lineage`,
+  `Vocabulary`-like `Engine.supplyCatalogue(): { kind: string; price: number; label: string }[]`.
+- No other gold sink. Gold never buys stats, rows, or unlocks.

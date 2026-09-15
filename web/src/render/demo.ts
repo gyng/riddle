@@ -35,8 +35,10 @@ function makeFloor(depth: number, biome: string): Snapshot {
       { id: 4, kind: "jackal", x: 20, y: 5, hp: 6, max_hp: 6, tags: ["pack", "fast"] },
       { id: 5, kind: "ogre", x: 14, y: 14, hp: 20, max_hp: 20, tags: ["heavy"] },
       biome === "fens"
-        ? { id: 6, kind: "eel", x: 17, y: 15, hp: 6, max_hp: 6, tags: ["water"] }
-        : { id: 6, kind: biome === "crypt" ? "wraith" : "captive", x: 13, y: 19, hp: 6, max_hp: 6, tags: [] },
+        ? { id: 6, kind: "eel", x: 19, y: 15, hp: 6, max_hp: 6, tags: ["water"] }
+        : { id: 6, kind: biome === "crypt" ? "ghoul" : "monkey", x: 20, y: 15, hp: 6, max_hp: 6, tags: [] },
+      // companion (Addendum A): ally + cid, follows the hero
+      { id: 20, kind: "jackal", x: 4, y: 6, hp: 6, max_hp: 6, tags: ["pack", "fast"], ally: true, cid: 1 },
     ],
     items: [
       { id: 10, x: 6, y: 6, kind: "heal", known: false, label: "potion?" },
@@ -48,10 +50,20 @@ function makeFloor(depth: number, biome: string): Snapshot {
   };
 }
 
-function script(): Ev[] {
+function script(biome: string): Ev[] {
+  const tameKind = biome === "fens" ? "eel" : biome === "crypt" ? "ghoul" : "monkey";
   const ev: Ev[] = [];
   let t = 1;
-  const mv = (id: number, x: number, y: number) => ev.push({ t, k: "move", id, x, y });
+  let heroAt: [number, number] = [4, 5];
+  let compAt: [number, number] = [4, 6];
+  // hero moves; the companion steps into the hero's previous tile
+  const mv = (id: number, x: number, y: number) => {
+    ev.push({ t, k: "move", id, x, y });
+    if (id === 1) {
+      if (compAt[0] !== heroAt[0] || compAt[1] !== heroAt[1]) { ev.push({ t, k: "move", id: 20, x: heroAt[0], y: heroAt[1] }); compAt = heroAt; }
+      heroAt = [x, y];
+    }
+  };
   // hero walks east through the door towards the NE room; rat approaches
   const path: [number, number][] = [[5, 5], [6, 4], [7, 4], [8, 4], [9, 4], [10, 4], [11, 4], [12, 4], [13, 4], [14, 4]];
   const rat: [number, number][] = [[7, 4], [7, 5], [7, 5], [8, 5], [9, 5], [10, 5], [11, 5], [12, 5], [13, 5], [13, 4]];
@@ -166,9 +178,17 @@ function script(): Ev[] {
   ev.push({ t, k: "hurt", id: 5, dmg: 7, hp: 0, cause: "hero" });
   ev.push({ t, k: "die", id: 5, cause: "hero" });
   t++;
+  // tame the creature by the pool: first attempt fails (shake), second succeeds (flash, ring)
+  ev.push({ t, k: "tame", id: 6, kind: tameKind, ok: false });
+  t++;
+  ev.push({ t, k: "tame", id: 6, kind: tameKind, ok: true });
+  ev.push({ t, k: "fact", fact: `tamed:${tameKind}` });
+  t++;
+  ev.push({ t, k: "hatch", kind: "jackal" });
   // through the gas to the stairs
-  for (const [x, y] of [[20, 15], [20, 16], [20, 17], [21, 18]] as [number, number][]) {
+  for (const [x, y] of [[21, 15], [21, 16], [20, 17], [21, 18]] as [number, number][]) {
     mv(1, x, y);
+    mv(6, x - 1, y - 1);
     if (y >= 17) { ev.push({ t, k: "hurt", id: 1, dmg: 3, hp: 12, cause: "gas" }); }
     t++;
   }
@@ -188,7 +208,7 @@ function main(): void {
   let depth = 1;
   let floor = makeFloor(depth, biomes[0]!);
   viewer.load(floor);
-  viewer.apply(script());
+  viewer.apply(script(floor.biome));
 
   const hud = document.getElementById("hud")!;
   const speeds = document.querySelectorAll<HTMLButtonElement>("button[data-speed]");
@@ -215,7 +235,7 @@ function main(): void {
         depth = (depth % 3) + 1;
         floor = makeFloor(depth, biomes[depth - 1]!);
         viewer.load(floor);
-        viewer.apply(script());
+        viewer.apply(script(floor.biome));
       }
     }
   };

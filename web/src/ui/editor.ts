@@ -1,26 +1,30 @@
 // Rule editor: rows as token chips `[cond] [cond] → [verb]`, drag grip to reorder (pointer events),
 // tap a chip to swap it from the unlocked vocabulary (bottom sheet). Thumb-sized targets.
 import type { App } from "../app";
-import type { Cond, Row, Verb } from "../engine/types";
+import type { Cond, Row, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash } from "./dom";
 import { openSheet } from "./sheet";
-import { NUMS, condLabel, condName, needsN, sameCond, sameVerb, verbLabel } from "./tokens";
+import { NUMS, PCT, condLabel, condName, needsN, sameCond, sameVerb, verbLabel } from "./tokens";
 
 export type Editor = { el: HTMLElement; refresh(): void };
+/** What the editor edits: the hero's active set, or a companion's own rows. */
+export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void };
+export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged() });
 
-export function renderEditor(app: App, highlight?: number): Editor {
+export function renderEditor(bind: Binding, highlight?: number): Editor {
   const list = h("div", { class: "rows" });
   const foot = h("div", { class: "rows-foot" });
   const el = h("section", { class: "editor" }, list, foot);
   let hl = highlight;
+  const vocab = (): Vocabulary => bind.vocab();
 
-  function rows(): Row[] { return app.rules.rows; }
-  function commit(): void { app.rulesChanged(); refresh(); }
+  function rows(): Row[] { return bind.rules().rows; }
+  function commit(): void { bind.changed(); refresh(); }
 
   function refresh(): void {
     clear(list); clear(foot);
     rows().forEach((row, i) => list.appendChild(rowEl(row, i)));
-    const max = app.vocab.max_rows;
+    const max = vocab().max_rows;
     foot.append(
       h("span", { class: "dim num" }, `${rows().length}/${max}`),
       rows().length < max ? h("button", { class: "btn ghost", onclick: () => { rows().push(defaultRow()); commit(); } }, "+") : "",
@@ -29,8 +33,8 @@ export function renderEditor(app: App, highlight?: number): Editor {
   }
 
   function defaultRow(): Row {
-    const v = app.vocab.verbs[0] ?? { v: "attack" };
-    return { conds: [{ ...(app.vocab.conds[0] ?? { k: "hp<" }), n: needsN(app.vocab.conds[0]?.k ?? "hp<") ? 50 : undefined }], verb: { ...v } };
+    const V = vocab(); const v = V.verbs[0] ?? { v: "attack" }; const c = V.conds[0] ?? { k: "hp<" };
+    return { conds: [{ ...c, n: needsN(c.k) ? 50 : undefined }], verb: { ...v } };
   }
 
   function rowEl(row: Row, i: number): HTMLElement {
@@ -39,9 +43,9 @@ export function renderEditor(app: App, highlight?: number): Editor {
     if (row.conds.length < 2) chips.appendChild(h("button", { class: "chip cond add", onclick: () => pickCond(row, row.conds.length) }, "+"));
     chips.appendChild(h("span", { class: "arrow" }, "→"));
     chips.appendChild(h("button", { class: "chip verb", onclick: () => pickVerb(row) }, verbLabel(row.verb)));
-    const grip = h("button", { class: "grip", onpointerdown: (e) => startDrag(e as PointerEvent, i) }, "≡");
+    const grip = h("button", { class: "grip", onpointerdown: (e) => startDrag(e as PointerEvent, i) }, "≡", h("small", { class: "rn num" }, `R${i + 1}`));
     const x = h("button", { class: "x", onclick: () => { rows().splice(i, 1); commit(); } }, "×");
-    return h("div", { class: "row", "data-i": i }, grip, h("span", { class: "rn num" }, `R${i + 1}`), chips, x);
+    return h("div", { class: "row", "data-i": i }, grip, chips, x);
   }
 
   // --- sheets ---
@@ -50,7 +54,7 @@ export function renderEditor(app: App, highlight?: number): Editor {
     openSheet((close) => {
       const body = h("div", { class: "sheet-body" });
       const grid = h("div", { class: "grid" });
-      for (const c of app.vocab.conds) {
+      for (const c of vocab().conds) {
         if (row.conds.some((rc, j) => j !== ci && sameCond(rc, c))) continue;
         const on = existing && sameCond(existing, c);
         grid.appendChild(h("button", { class: `chip cond${on ? " on" : ""}`, onclick: () => {
@@ -65,7 +69,7 @@ export function renderEditor(app: App, highlight?: number): Editor {
   }
   function pickN(body: HTMLElement, c: Cond, done: (n: number) => void, cur?: number): void {
     clear(body);
-    const pctish = ["hp<", "hp>", "foe_hp<", "floor_seen>="].includes(c.k);
+    const pctish = PCT.has(c.k);
     body.appendChild(h("div", { class: "sheet-head" }, condName(c.k)));
     const grid = h("div", { class: "grid nums" });
     for (const n of NUMS[c.k]) grid.appendChild(h("button", { class: `chip num${n === cur ? " on" : ""}`, onclick: () => done(n) }, `${n}${pctish ? "%" : ""}`));
@@ -74,7 +78,7 @@ export function renderEditor(app: App, highlight?: number): Editor {
   function pickVerb(row: Row): void {
     openSheet((close) => {
       const grid = h("div", { class: "grid" });
-      for (const v of app.vocab.verbs) {
+      for (const v of vocab().verbs) {
         const on = sameVerb(row.verb, v);
         grid.appendChild(h("button", { class: `chip verb${on ? " on" : ""}`, onclick: () => { row.verb = { ...v } as Verb; commit(); close(); } }, verbLabel(v)));
       }

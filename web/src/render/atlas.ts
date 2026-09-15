@@ -6,10 +6,15 @@
 // overrides slots by id:  `<biome>_<tile>` → tile, entity kind → entity, `gas`/`fire`(`_0`/`_1`,
 // or `ov_` prefix) → overlay, `item_<kind>` (or a bare unknown id) → item.
 import * as THREE from "three";
-import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, paletteFor, TILE_IDS, type Rgb } from "./palette";
+import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, paletteFor, setPalettes, TILE_IDS, type Rgb } from "./palette";
 import { FONT_CELL_H, FONT_CELL_W, FONT_H, FONT_W, glyphBits } from "./font";
 
 export type Rect = { x: number; y: number; w: number; h: number };
+type AtlasJson = {
+  image?: string;
+  frames?: Record<string, Rect>;
+  meta?: { palettes?: Record<string, string[]>; sprites?: Record<string, { texel_h?: number }> };
+};
 export type Slot = Rect & { u0: number; v0: number; u1: number; v1: number };
 
 class Sheet {
@@ -98,7 +103,8 @@ export class Atlas {
   overlay(kind: string, frame: number): Slot { return this.envSlot(`ov:${kind}_${frame}`); }
   glyph(ch: string): Slot { return this.envSlot(`glyph:${ch}`); }
   font(ch: string): Slot { return this.envSlot(`font:${ch.toUpperCase()}`); }
-  shadow(width: number): Slot { return this.envSlot(`shadow:${Math.max(6, Math.round(width))}`); }
+  shadow(width: number, ally = false): Slot { return this.envSlot(`${ally ? "ring" : "shadow"}:${Math.max(6, Math.round(width))}`); }
+  dot(): Slot { return this.envSlot("dot:2"); }
   // ---- sprite-density ids -------------------------------------------------------------------
   entity(kind: string): Slot { return this.spriteSlot(`ent:${kind}`); }
 
@@ -123,9 +129,21 @@ export class Atlas {
     }
     if (cat === "glyph") { const slot = g.alloc(id, 8, 8); drawGlyph(g.ctx, slot, rest); return slot; }
     if (cat === "font") { const slot = g.alloc(id, FONT_CELL_W, FONT_CELL_H); drawFontCell(g.ctx, slot, rest); return slot; }
+    if (cat === "dot") { const slot = g.alloc(id, 2, 2); g.ctx.fillStyle = "#f4ecd8"; g.ctx.fillRect(slot.x, slot.y, 2, 2); return slot; }
     // shadow:<w>: w×2 ellipse (top row w-2 wide, bottom row w-4), one slot per exact width so
-    // no quad is ever stretched to a non-integer texel size
+    // no quad is ever stretched to a non-integer texel size. ring:<w>: the same ellipse inside a
+    // 1-texel light ring (companion marker), w×3.
     const w = Number(rest) || 8;
+    if (cat === "ring") {
+      const slot = g.alloc(id, w, 3);
+      g.ctx.fillStyle = "#f4ecd8";
+      g.ctx.fillRect(slot.x + 1, slot.y, w - 2, 1);
+      g.ctx.fillRect(slot.x, slot.y + 1, 1, 1); g.ctx.fillRect(slot.x + w - 1, slot.y + 1, 1, 1);
+      g.ctx.fillRect(slot.x + 1, slot.y + 2, w - 2, 1);
+      g.ctx.fillStyle = "rgba(6,5,8,1)";
+      g.ctx.fillRect(slot.x + 1, slot.y + 1, w - 2, 1);
+      return slot;
+    }
     const slot = g.alloc(id, w, 2);
     g.ctx.fillStyle = "rgba(6,5,8,1)";
     g.ctx.fillRect(slot.x + 1, slot.y, w - 2, 1);
@@ -148,18 +166,22 @@ export class Atlas {
     try {
       const res = await fetch(url);
       if (!res.ok) return false;
-      const json = (await res.json()) as { image?: string; frames?: Record<string, Rect> };
+      const json = (await res.json()) as AtlasJson;
       if (!json.frames) return false;
       const base = url.slice(0, url.lastIndexOf("/") + 1);
       const img = await loadImage(base + (json.image ?? "atlas.png"));
-      for (const [id, r] of Object.entries(json.frames)) this.override(id, img, r);
+      if (json.meta?.palettes) setPalettes(json.meta.palettes);
+      for (const [id, r] of Object.entries(json.frames)) this.override(id, img, r, json.meta?.sprites?.[id]?.texel_h);
+      this.loadedIds = new Set(Object.keys(json.frames));
       return true;
     } catch {
       return false;
     }
   }
 
-  private override(id: string, img: HTMLImageElement, r: Rect): void {
+  loadedIds = new Set<string>(); // frame ids provided by the external atlas (for diagnostics)
+
+  private override(id: string, img: HTMLImageElement, r: Rect, texelH?: number): void {
     const put = (sheet: Sheet, slotId: string, w: number, h: number) => {
       const slot = sheet.alloc(slotId, w, h);
       sheet.ctx.imageSmoothingEnabled = false;
@@ -168,9 +190,10 @@ export class Atlas {
     const ovm = /^(?:ov_)?(gas|fire)(?:_(\d))?$/.exec(id);
     if (r.h > 16) {
       // any tall frame is an entity; `boss_` prefix is stripped; box-fit at sprite density
+      // meta.sprites[id].texel_h is the intended runtime height in sprite texels (masters are 2×)
       const kind = id.replace(/^boss_/, "");
       const [bw, bh] = ENTITY_BOX[kind] ?? [32, 32];
-      const sc = Math.min(bw / r.w, bh / r.h);
+      const sc = texelH ? texelH / r.h : Math.min(bw / r.w, bh / r.h);
       put(this.sprite, `ent:${kind}`, Math.max(1, Math.round(r.w * sc)), Math.max(1, Math.round(r.h * sc)));
     } else if (ovm) {
       const frames = ovm[2] === undefined ? [0, 1] : [Number(ovm[2])];

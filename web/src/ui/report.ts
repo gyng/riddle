@@ -21,11 +21,14 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
   const pending = r.pending.length || affordable.length
     ? h("div", null, lines(r.pending), affordable.length ? h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => { app.buy(u.id); app.go({ kind: "report", report: r }); } }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)))) : null)
     : null;
-  const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death! }) }, /* copy:button */ "open") : null;
+  const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }, /* copy:button */ "open") : null;
   const camp = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "camp");
   const el = h("main", { class: "report" },
     tiles,
     section(/* copy:label */ "learned", chips(r.learned, "chip fact")),
+    section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
+    section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),
+    section(/* copy:label */ "lost", chips((r.lost ?? []).map((k) => `◯ ${k}`), "chip egg")),
     section(/* copy:label */ "bests", lines(r.bests)),
     section(/* copy:label */ "found", chips(r.found.map((i) => i.label))),
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause, " ", h("b", { class: "num" }, `×${d.n}`)))) : null),

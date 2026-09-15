@@ -14,6 +14,8 @@ export const UNLOCKS: Unlock[] = [
   { id: "card:corridor_fighting", cost: 3, label: "card: corridor fighting" },
   { id: "card:kite_archers", cost: 3, label: "card: kite archers" },
   { id: "card:stair_dance", cost: 3, label: "card: stair dance" },
+  { id: "tame", cost: 2, label: "verb: tame" },
+  { id: "party_slot_2", cost: 4, label: "+1 party" },
 ];
 
 export function available(owned: string[]): Unlock[] {

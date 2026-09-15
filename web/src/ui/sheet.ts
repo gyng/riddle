@@ -1,17 +1,19 @@
-// Bottom sheet: one at a time, thumb-reachable, dismissed by backdrop tap or Escape.
+// Bottom sheets, stackable (a companion's rule sheet opens token sheets on top of it).
+// Dismissed by backdrop tap or Escape; closeAll() on screen change.
 import { h } from "./dom";
 
-let open: HTMLElement | null = null;
+const stack: HTMLElement[] = [];
 
-export function closeSheet(): void { open?.remove(); open = null; }
+export function closeSheet(): void { stack.pop()?.remove(); }
+export function closeAllSheets(): void { while (stack.length) closeSheet(); }
 
 export function openSheet(build: (close: () => void) => Node): void {
-  closeSheet();
   const panel = h("div", { class: "sheet", role: "dialog" });
-  const wrap = h("div", { class: "sheet-wrap", onclick: (e) => { if (e.target === wrap) closeSheet(); } }, panel);
-  panel.appendChild(build(closeSheet));
+  const wrap = h("div", { class: "sheet-wrap", onclick: (e) => { if (e.target === wrap) close(); } });
+  const close = (): void => { const i = stack.indexOf(wrap); if (i >= 0) { stack.splice(i, 1); wrap.remove(); } };
+  wrap.appendChild(panel);
+  panel.appendChild(build(close));
   document.body.appendChild(wrap);
-  open = wrap;
-  const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") { closeSheet(); window.removeEventListener("keydown", onKey); } };
-  window.addEventListener("keydown", onKey);
+  stack.push(wrap);
 }
+window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });

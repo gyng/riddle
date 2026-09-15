@@ -11,7 +11,8 @@ export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number };  //
 export type Tile = "floor"|"wall"|"door"|"stairs_down"|"stairs_up"|"water"|"chasm";
 export type Overlay = { x: number; y: number; k: "gas"|"fire"; ttl: number };
 export type Entity = { id: number; kind: string; name?: string; x: number; y: number;
-                       hp: number; max_hp: number; tags: string[]; ally?: boolean; telegraph?: string };
+                       hp: number; max_hp: number; tags: string[]; ally?: boolean; telegraph?: string;
+                       cid?: number };                                   // Addendum A: companions carry their companion id
 export type FloorItem = { id: number; x: number; y: number; kind: string; known: boolean; label: string };
 export type Snapshot = {
   depth: number; biome: string; w: number; h: number; tiles: Tile[]; seen: boolean[]; visible: boolean[];
@@ -38,7 +39,9 @@ export type Ev =
   | { t: number; k: "descend"; depth: number; biome: string }
   | { t: number; k: "exit"; tier: "bank"|"return"|"death"; loot_kept: number }
   | { t: number; k: "note"; text: string }                                  // chronicle line, ≤ 8 words
-  | { t: number; k: "callout"; text: string };                              // ≤ 3 words, for the renderer
+  | { t: number; k: "callout"; text: string }                               // ≤ 3 words, for the renderer
+  | { t: number; k: "tame"; id: number; kind: string; ok: boolean }         // Addendum A
+  | { t: number; k: "hatch"; kind: string };                                // Addendum A
 
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean };
 
@@ -53,10 +56,18 @@ export type ReturnReport = {
   elapsed_s: number; runs: number; sampled: boolean;
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; live: Snapshot;
+  tamed: string[]; hatched: string[]; lost: string[];                        // Addendum A
 };
 export type Lineage = { seed: number; heir: number; trait: string; class: string; best_depth: number; marks: number;
                         facts: string[]; unlocks: string[]; vault: InvItem[]; graveyard: { heir: number; depth: number; cause: string; deeds: string[] }[];
-                        trophies: string[]; sets: RuleSet[]; active_set: number; ended: boolean };
+                        trophies: string[]; sets: RuleSet[]; active_set: number; ended: boolean;
+                        party: Companion[]; kennel: Companion[]; eggs: Egg[]; party_slots: number; ledger: LedgerRow[] }; // Addendum A
+
+// Addendum A — Companions
+export type Companion = { id: number; kind: string; name: string; level: number; tags: string[]; gen: number;
+                          rules: RuleSet; max_rows: number; hp: number; max_hp: number };
+export type Egg = { id: number; kind: string; tags: string[]; gen: number; hatch_in: number; from_loss: boolean };
+export type LedgerRow = { kind: string; seen: boolean; known: boolean; tamed: boolean; bred: boolean };
 
 export interface Engine {
   newLineage(seed: number): Lineage;
@@ -72,4 +83,7 @@ export interface Engine {
   buy(unlock: string): Lineage;
   lineage(): Lineage;
   exportRules(): string;  importRules(text: string): RuleSet;
+  // Addendum A
+  setParty(ids: number[]): Lineage;  setCompanionRules(id: number, set: RuleSet): void;
+  breed(a: number, b: number): Lineage;  hatch(eggId: number): Lineage;  companionVocabulary(id: number): Vocabulary;
 }

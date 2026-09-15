@@ -28,8 +28,10 @@ export function renderWatch(app: App): Mounted {
   let snap: Snapshot = app.engine.send();
   const runId = snap.run.id;
   const before = { best: app.lineage.best_depth, marks: app.lineage.marks };
-  const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [];
+  const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [], tamed: string[] = [], lost: string[] = [];
   let turns = 0;
+  const kinds = new Map<number, string>(snap.entities.map((e) => [e.id, e.kind]));
+  const lostKind = (id: number): string => kinds.get(id) ?? "?";
 
   function paintHud(s: Snapshot): void {
     const p = s.hero.max_hp ? s.hero.hp / s.hero.max_hp : 0;
@@ -51,6 +53,9 @@ export function renderWatch(app: App): Mounted {
       else if (ev.k === "pickup") found.push({ id: ev.id, kind: ev.item, known: true, label: ev.item });
       else if (ev.k === "note") notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text });
       else if (ev.k === "exit") exit = ev.tier;
+      else if (ev.k === "tame" && ev.ok) tamed.push(ev.kind);
+      else if (ev.k === "ally" && ev.state === "lost") lost.push(lostKind(ev.id));
+      else if (ev.k === "spawn" && ev.e.cid !== undefined) kinds.set(ev.e.id, ev.e.kind);
     }
     return exit;
   }
@@ -59,6 +64,7 @@ export function renderWatch(app: App): Mounted {
     const exit = absorb(evs);
     viewer?.apply(evs);
     if (evs.some((e) => e.k === "descend")) viewer?.load(s);
+    for (const e of s.entities) kinds.set(e.id, e.kind);
     paintHud(s);
     if (exit) finish(exit);
   }
@@ -99,12 +105,12 @@ export function renderWatch(app: App): Mounted {
     done = true; clearTimeout(timer);
     if (overridden) app.engine.setRules(app.rules);
     app.refresh();
-    if (tier === "death") { app.go({ kind: "death", death: app.engine.death(runId) }); return; }
+    if (tier === "death") { app.go({ kind: "death", death: app.engine.death(runId), lost }); return; }
     const L = app.lineage;
     const bests: string[] = []; for (let d = before.best + 1; d <= L.best_depth; d++) bests.push(`D${d}`);
     const report: ReturnReport = {
       elapsed_s: turns, runs: 1, sampled: false, learned, bests, found, deaths: [], pending: [],
-      reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap,
+      reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap, tamed, hatched: [], lost,
     };
     app.go({ kind: "report", report });
   }

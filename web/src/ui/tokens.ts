@@ -7,17 +7,20 @@ const COND: Record<string, string> = {
   item: "has:", unknown_item: "unknown item", "floor_seen>=": "seen ≥", "depth>=": "depth ≥", "alert>=": "alert ≥",
   in_corridor: "corridor", path_stairs: "stairs seen", ally: "ally", "loot>=": "loot ≥", "turns>": "turns >",
   on_hurt: "on hurt", on_kill: "on kill", on_see: "on see",
+  "self_hp<": "self hp <", "party_hp<": "party hp <", party: "party:",
 };
 /* copy:rule_token */
 const VERB: Record<string, string> = {
   attack: "attack", retreat: "retreat", back_corridor: "to corridor", drink: "drink", read: "read", throw: "throw",
   descend: "descend", bank: "bank", return: "return", rest: "rest", pick_up: "pick up", free_captive: "free captive",
   shield_bash: "shield bash", vanish: "vanish", card: "card", explore: "explore", stunned: "stunned",
+  tame: "tame", recall: "recall", send: "send", follow: "follow", shoot: "shoot", burst: "burst", steal: "steal",
+  split: "split", flank: "flank", drain: "drain",
 };
-const PCT = new Set(["hp<", "hp>", "foe_hp<", "floor_seen>="]);
+export const PCT = new Set(["hp<", "hp>", "foe_hp<", "self_hp<", "party_hp<", "floor_seen>="]);
 export const NUMS: Record<string, number[]> = {
   "hp<": [10, 20, 25, 30, 40, 50, 60, 75], "hp>": [25, 50, 75, 90], "foes>=": [1, 2, 3, 4], "adj>=": [1, 2, 3],
-  "foe_hp<": [25, 50], "floor_seen>=": [25, 50, 75, 100], "depth>=": [2, 3, 5, 8, 10, 12], "alert>=": [1, 2, 3, 4, 5],
+  "foe_hp<": [25, 50], "self_hp<": [20, 30, 50], "party_hp<": [25, 50], "floor_seen>=": [25, 50, 75, 100], "depth>=": [2, 3, 5, 8, 10, 12], "alert>=": [1, 2, 3, 4, 5],
   "loot>=": [25, 50, 100, 200], "turns>": [50, 100, 200, 400],
 };
 export const needsN = (k: string): boolean => k in NUMS;

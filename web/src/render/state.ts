@@ -4,11 +4,12 @@
 // world moves at ~10 fps cadence (at 4× the same steps run 4× faster).
 import type { Ev, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
 
+
 export const STEP = 100; // ms of anim time per motion frame
 export const VISION_R = 7;
 
 export type EntState = {
-  id: number; kind: string; ally: boolean; hero: boolean;
+  id: number; kind: string; ally: boolean; hero: boolean; cid: number | null;
   x: number; y: number;            // logical tile
   px: number; py: number;          // render tile pos (float)
   move: { fx: number; fy: number; tx: number; ty: number; t0: number; dur: number } | null;
@@ -20,7 +21,10 @@ export type EntState = {
   hp: number; maxHp: number;
   flip: boolean;
   glyph: string | null; glyphTurn: number;
+  shake: { t0: number; dur: number } | null;
 };
+
+export type Leash = { from: number; to: number; t0: number; dur: number; ok: boolean };
 
 export type Callout = { text: string; until: number }; // real-time ms
 
@@ -29,8 +33,10 @@ type Batch = { evs: Ev[]; ends: number };
 const DUR: Record<Ev["k"], number> = {
   move: 200, attack: 200, hurt: 100, die: 400, rule: 0, telegraph: 300, pickup: 150, use: 300,
   fact: 0, overlay: 80, spawn: 200, steal: 250, ally: 250, descend: 600, exit: 700, note: 0, callout: 150,
+  tame: 700, hatch: 150,
 };
-const INTERESTING = new Set<Ev["k"]>(["attack", "die", "telegraph", "use", "exit"]);
+const INTERESTING = new Set<Ev["k"]>(["attack", "die", "telegraph", "use", "exit", "tame"]);
+const LEASH_MS = 350;
 
 export class ReplayState {
   w = 0; h = 0; biome = "warrens"; depth = 1;
@@ -47,6 +53,7 @@ export class ReplayState {
   fadeTarget = 0;     // global fade (0 = visible, 1 = dark)
   fade = 0;
   callout: Callout | null = null;
+  leash: Leash | null = null;
   loaded = false;
   private queue: Ev[] = [];
   private active: Batch | null = null;
@@ -68,15 +75,17 @@ export class ReplayState {
     this.active = null;
     this.fade = this.fadeTarget = 0;
     this.callout = null;
+    this.leash = null;
     this.loaded = true;
     this.computeVision();
   }
 
   private addEntity(e: Entity, hero: boolean): EntState {
     const st: EntState = {
-      id: e.id, kind: e.kind, ally: !!e.ally, hero, x: e.x, y: e.y, px: e.x, py: e.y,
+      id: e.id, kind: e.kind, ally: !!e.ally, hero, cid: e.cid ?? null, x: e.x, y: e.y, px: e.x, py: e.y,
       move: null, lunge: null, flashUntil: 0, fade: 0, dying: null, spawning: null,
       hp: e.hp, maxHp: e.max_hp, flip: false, glyph: e.telegraph ? "!" : null, glyphTurn: this.turn,
+      shake: null,
     };
     this.ents.set(e.id, st);
     return st;
@@ -247,6 +256,19 @@ export class ReplayState {
       case "callout":
         this.callout = { text: ev.text.slice(0, 24), until: performance.now() + 1000 };
         break;
+      case "tame": {
+        // leash arc hero → target, then flash (ok) or shake (fail)
+        const h = this.hero, e = this.ents.get(ev.id);
+        if (!h || !e) break;
+        this.leash = { from: h.id, to: e.id, t0: c, dur: LEASH_MS, ok: ev.ok };
+        if (ev.ok) { e.flashUntil = c + LEASH_MS + 150; e.ally = true; e.glyph = null; }
+        else e.shake = { t0: c + LEASH_MS, dur: 300 };
+        if (e.x !== h.x) h.flip = e.x < h.x;
+        break;
+      }
+      case "hatch":
+        this.callout = { text: ev.kind.replace(/_/g, " ").slice(0, 24), until: performance.now() + 1000 };
+        break;
       case "rule":
       case "fact":
       case "note":
@@ -266,6 +288,7 @@ export class ReplayState {
         case "steal": { const h = this.hero; if (h) h.flashUntil = 0; break; }
         case "use": { const h = this.hero; if (h && h.glyph === "*") h.glyph = null; break; }
         case "descend": case "exit": this.fade = 1; break;
+        case "tame": { const e = this.ents.get(ev.id); if (e) { e.flashUntil = 0; e.shake = null; } this.leash = null; break; }
         default: break;
       }
     }
@@ -284,6 +307,7 @@ export class ReplayState {
         if (raw >= 1) { e.px = e.move.tx; e.py = e.move.ty; e.move = null; }
       }
       if (e.lunge && c - e.lunge.t0 >= DUR.attack) e.lunge = null;
+      if (e.shake && c - e.shake.t0 >= e.shake.dur) e.shake = null;
       if (e.dying) {
         const p = Math.min(1, (c - e.dying.t0) / e.dying.dur);
         e.fade = Math.floor(p * 4) / 4; // 4 dissolve steps
@@ -293,14 +317,26 @@ export class ReplayState {
         if (p >= 1) { e.spawning = null; e.fade = 0; }
       }
     }
+    if (this.leash && c - this.leash.t0 >= this.leash.dur + 300) this.leash = null;
     if (this.visionDirty) this.computeVision();
   }
 
-  // Current lunge offset in env texels for drawing (2 frames: out, back).
+  // Current lunge/shake offset in env texels for drawing (lunge: 2 frames out, back;
+  // shake: ±2 texels alternating every 50 ms).
   lungeOffset(e: EntState): [number, number] {
+    if (e.shake && this.clock >= e.shake.t0) {
+      const f = Math.floor((this.clock - e.shake.t0) / 50);
+      return [f % 2 === 0 ? 2 : -2, 0];
+    }
     if (!e.lunge) return [0, 0];
     const p = (this.clock - e.lunge.t0) / DUR.attack;
     return p < 0.5 ? [e.lunge.dx, e.lunge.dy] : [0, 0];
+  }
+
+  // Leash progress 0..1 while the arc is being drawn, or null.
+  leashProgress(): number | null {
+    if (!this.leash) return null;
+    return Math.min(1, (this.clock - this.leash.t0) / this.leash.dur);
   }
 
   flashing(e: EntState): boolean { return e.flashUntil > this.clock; }

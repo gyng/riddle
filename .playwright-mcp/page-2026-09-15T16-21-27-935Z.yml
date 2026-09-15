@@ -1,0 +1,106 @@
+- main [ref=f9e3]:
+  - generic [ref=f9e4]:
+    - generic [ref=f9e5]: ♟1
+    - generic [ref=f9e6]: cowardly
+    - generic [ref=f9e7]: fighter
+    - generic [ref=f9e8]: D0
+    - generic [ref=f9e9]: ◆0
+    - button "⚙" [ref=f9e10] [cursor=pointer]
+  - navigation [ref=f9e11]:
+    - button "1 2" [ref=f9e12] [cursor=pointer]
+    - button "2 2" [ref=f9e13] [cursor=pointer]
+    - button "3 2" [ref=f9e14] [cursor=pointer]
+  - generic [ref=f9e15]:
+    - generic [ref=f9e16]:
+      - generic [ref=f9e17]:
+        - button "≡ R1" [ref=f9e18]:
+          - text: ≡
+          - generic [ref=f9e19]: R1
+        - generic [ref=f9e20]:
+          - button "hp < 30%" [ref=f9e21] [cursor=pointer]
+          - button "+" [ref=f9e22] [cursor=pointer]
+          - generic [ref=f9e23]: →
+          - button "drink unknown" [ref=f9e24] [cursor=pointer]
+        - button "×" [ref=f9e25] [cursor=pointer]
+      - generic [ref=f9e26]:
+        - button "≡ R2" [ref=f9e27]:
+          - text: ≡
+          - generic [ref=f9e28]: R2
+        - generic [ref=f9e29]:
+          - button "foes ≥ 1" [ref=f9e30] [cursor=pointer]
+          - button "+" [ref=f9e31] [cursor=pointer]
+          - generic [ref=f9e32]: →
+          - button "attack nearest" [ref=f9e33] [cursor=pointer]
+        - button "×" [ref=f9e34] [cursor=pointer]
+    - generic [ref=f9e35]:
+      - generic [ref=f9e36]: 2/4
+      - button "+" [ref=f9e37] [cursor=pointer]
+  - generic [ref=f9e38]:
+    - generic [ref=f9e39]: forecast
+    - generic [ref=f9e40]:
+      - generic [ref=f9e41]:
+        - generic [ref=f9e42]: D1
+        - generic [ref=f9e45]: 100%
+      - generic [ref=f9e46]:
+        - generic [ref=f9e47]: D2+
+        - generic [ref=f9e49]: "?"
+    - generic [ref=f9e50]:
+      - generic [ref=f9e51]: jackal 60%
+      - generic [ref=f9e52]: jackal pack 15%
+      - generic [ref=f9e53]: rat 5%
+  - generic [ref=f9e54]:
+    - generic [ref=f9e55]:
+      - text: party
+      - generic [ref=f9e56]: 0/1
+      - button "ledger" [ref=f9e57] [cursor=pointer]
+    - generic [ref=f9e58]:
+      - generic [ref=f9e59]:
+        - button "jackal L2 g0 pack · fast 6/6 · 2/3" [ref=f9e60] [cursor=pointer]:
+          - generic [ref=f9e61]: jackal L2 g0
+          - generic [ref=f9e62]: pack · fast
+          - generic [ref=f9e63]: 6/6 · 2/3
+        - button "≡" [ref=f9e64] [cursor=pointer]
+      - generic [ref=f9e65]:
+        - button "goblin archer L1 g0 ranged 6/6 · 2/2" [ref=f9e66] [cursor=pointer]:
+          - generic [ref=f9e67]: goblin archer L1 g0
+          - generic [ref=f9e68]: ranged
+          - generic [ref=f9e69]: 6/6 · 2/2
+        - button "≡" [ref=f9e70] [cursor=pointer]
+    - generic [ref=f9e72]:
+      - text: ◯ bloat
+      - generic [ref=f9e73]: gas g1
+      - generic [ref=f9e74]: "3"
+  - generic [ref=f9e75]:
+    - generic [ref=f9e76]: vault 0/1
+    - generic [ref=f9e77]: ·
+  - generic [ref=f9e79]:
+    - generic [ref=f9e80]: unlocks
+    - generic [ref=f9e81]:
+      - button "+1 row ◆2" [disabled] [ref=f9e82]:
+        - generic [ref=f9e83]: +1 row
+        - generic [ref=f9e84]: ◆2
+      - 'button "verb: throw ◆2" [disabled] [ref=f9e85]':
+        - generic [ref=f9e86]: "verb: throw"
+        - generic [ref=f9e87]: ◆2
+      - 'button "class: rogue ◆4" [disabled] [ref=f9e88]':
+        - generic [ref=f9e89]: "class: rogue"
+        - generic [ref=f9e90]: ◆4
+      - button "+1 vault ◆3" [disabled] [ref=f9e91]:
+        - generic [ref=f9e92]: +1 vault
+        - generic [ref=f9e93]: ◆3
+      - 'button "card: corridor fighting ◆3" [disabled] [ref=f9e94]':
+        - generic [ref=f9e95]: "card: corridor fighting"
+        - generic [ref=f9e96]: ◆3
+      - 'button "card: kite archers ◆3" [disabled] [ref=f9e97]':
+        - generic [ref=f9e98]: "card: kite archers"
+        - generic [ref=f9e99]: ◆3
+      - 'button "card: stair dance ◆3" [disabled] [ref=f9e100]':
+        - generic [ref=f9e101]: "card: stair dance"
+        - generic [ref=f9e102]: ◆3
+      - 'button "verb: tame ◆2" [disabled] [ref=f9e103]':
+        - generic [ref=f9e104]: "verb: tame"
+        - generic [ref=f9e105]: ◆2
+      - button "+1 party ◆4" [disabled] [ref=f9e106]:
+        - generic [ref=f9e107]: +1 party
+        - generic [ref=f9e108]: ◆4
+  - button "send" [ref=f9e110] [cursor=pointer]
