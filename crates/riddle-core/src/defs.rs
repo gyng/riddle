@@ -16,24 +16,24 @@ pub struct MonsterDef {
 
 pub const MONSTERS: &[MonsterDef] = &[
     MonsterDef { kind: "rat", title: "rat", hp: 4, atk: (1, 2), def: 0, speed: 10, tags: &[], boss: false },
-    MonsterDef { kind: "jackal", title: "jackal", hp: 5, atk: (1, 3), def: 0, speed: 15, tags: &["pack", "fast"], boss: false },
-    MonsterDef { kind: "goblin", title: "goblin", hp: 9, atk: (2, 4), def: 0, speed: 10, tags: &[], boss: false },
-    MonsterDef { kind: "goblin_archer", title: "goblin archer", hp: 7, atk: (2, 4), def: 0, speed: 10, tags: &["ranged", "telegraph"], boss: false },
+    MonsterDef { kind: "jackal", title: "jackal", hp: 4, atk: (1, 2), def: 0, speed: 15, tags: &["pack", "fast"], boss: false },
+    MonsterDef { kind: "goblin", title: "goblin", hp: 7, atk: (1, 3), def: 0, speed: 10, tags: &[], boss: false },
+    MonsterDef { kind: "goblin_archer", title: "goblin archer", hp: 7, atk: (1, 3), def: 0, speed: 10, tags: &["ranged", "telegraph"], boss: false },
     MonsterDef { kind: "goblin_conjurer", title: "goblin conjurer", hp: 8, atk: (1, 2), def: 0, speed: 10, tags: &["caster", "summoner"], boss: false },
     MonsterDef { kind: "monkey", title: "monkey", hp: 6, atk: (1, 2), def: 0, speed: 15, tags: &["thief", "fast"], boss: false },
-    MonsterDef { kind: "ogre", title: "ogre", hp: 26, atk: (3, 7), def: 0, speed: 10, tags: &["heavy", "telegraph"], boss: false },
+    MonsterDef { kind: "ogre", title: "ogre", hp: 30, atk: (2, 4), def: 0, speed: 7, tags: &["heavy", "telegraph"], boss: false },
     MonsterDef { kind: "bloat", title: "bloat", hp: 4, atk: (0, 0), def: 0, speed: 7, tags: &["gas"], boss: false },
     MonsterDef { kind: "pink_jelly", title: "pink jelly", hp: 20, atk: (1, 3), def: 0, speed: 10, tags: &["splitter"], boss: false },
     MonsterDef { kind: "eel", title: "eel", hp: 12, atk: (3, 6), def: 0, speed: 12, tags: &["water"], boss: false },
-    MonsterDef { kind: "skeleton", title: "skeleton", hp: 14, atk: (2, 5), def: 1, speed: 10, tags: &["undead"], boss: false },
-    MonsterDef { kind: "ghoul", title: "ghoul", hp: 12, atk: (2, 4), def: 0, speed: 10, tags: &["undead", "pack", "paralyse"], boss: false },
-    MonsterDef { kind: "wraith", title: "wraith", hp: 10, atk: (1, 4), def: 0, speed: 12, tags: &["undead", "drain"], boss: false },
+    MonsterDef { kind: "skeleton", title: "skeleton", hp: 14, atk: (2, 4), def: 1, speed: 10, tags: &["undead"], boss: false },
+    MonsterDef { kind: "ghoul", title: "ghoul", hp: 12, atk: (2, 3), def: 0, speed: 10, tags: &["undead", "pack", "paralyse"], boss: false },
+    MonsterDef { kind: "wraith", title: "wraith", hp: 10, atk: (1, 3), def: 0, speed: 12, tags: &["undead", "drain"], boss: false },
     MonsterDef { kind: "captive", title: "captive", hp: 14, atk: (2, 4), def: 0, speed: 10, tags: &["ally"], boss: false },
-    MonsterDef { kind: "spectral_blade", title: "spectral blade", hp: 3, atk: (1, 3), def: 0, speed: 15, tags: &["summoned"], boss: false },
+    MonsterDef { kind: "spectral_blade", title: "spectral blade", hp: 3, atk: (1, 2), def: 0, speed: 12, tags: &["summoned"], boss: false },
     MonsterDef { kind: "spectral_hound", title: "spectral hound", hp: 8, atk: (2, 4), def: 0, speed: 15, tags: &["summoned"], boss: false },
-    MonsterDef { kind: "goblin_warlord", title: "Goblin Warlord", hp: 42, atk: (3, 7), def: 1, speed: 10, tags: &["boss", "summoner", "buffer", "telegraph"], boss: true },
-    MonsterDef { kind: "bloat_mother", title: "Bloat Mother", hp: 55, atk: (2, 4), def: 0, speed: 7, tags: &["boss", "gas", "telegraph"], boss: true },
-    MonsterDef { kind: "lich", title: "Lich", hp: 50, atk: (3, 6), def: 2, speed: 10, tags: &["boss", "undead", "reflect", "summoner", "telegraph"], boss: true },
+    MonsterDef { kind: "goblin_warlord", title: "Goblin Warlord", hp: 34, atk: (2, 5), def: 0, speed: 10, tags: &["boss", "summoner", "buffer", "telegraph"], boss: true },
+    MonsterDef { kind: "bloat_mother", title: "Bloat Mother", hp: 55, atk: (2, 3), def: 0, speed: 7, tags: &["boss", "gas", "telegraph"], boss: true },
+    MonsterDef { kind: "lich", title: "Lich", hp: 50, atk: (3, 5), def: 2, speed: 10, tags: &["boss", "undead", "reflect", "summoner", "telegraph"], boss: true },
 ];
 
 pub fn monster_def(kind: &str) -> &'static MonsterDef {
@@ -71,7 +71,7 @@ pub fn spawn_table(biome: Biome, depth: u32) -> Vec<(&'static str, u32, i32, i32
                 t.push(("goblin_archer", 12, 1, 1));
             }
             if d >= 4 {
-                t.push(("goblin_conjurer", 8, 1, 1));
+                t.push(("goblin_conjurer", 6, 1, 1));
                 t.push(("ogre", 6, 1, 1));
             }
             if d >= 2 {
@@ -103,15 +103,15 @@ pub fn spawn_table(biome: Biome, depth: u32) -> Vec<(&'static str, u32, i32, i32
 
 /// Number of spawn groups on a floor.
 pub fn group_budget(depth: u32) -> i32 {
-    3 + (depth as i32) / 2
+    2 + (depth as i32) / 2
 }
 
-/// Small linear stat growth with depth: +1 hp per 2 floors, +1 max atk per 5 floors.
+/// Small linear stat growth with depth: +1 hp per 2 floors, +1 max atk per 6 floors.
 pub fn depth_hp_bonus(depth: u32) -> i32 {
     (depth as i32) / 2
 }
 pub fn depth_atk_bonus(depth: u32) -> i32 {
-    (depth as i32) / 5
+    (depth as i32) / 6
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -145,7 +145,7 @@ pub const ITEMS: &[ItemDef] = &[
     ItemDef { kind: "leather", cat: Cat::Armour, a: (1, 0), speed: 0, ranged: false, value: 15, benevolent: true, weight: 4 },
     ItemDef { kind: "mail", cat: Cat::Armour, a: (3, 0), speed: -1, ranged: false, value: 30, benevolent: true, weight: 2 },
     ItemDef { kind: "plate", cat: Cat::Armour, a: (5, 0), speed: -2, ranged: false, value: 45, benevolent: true, weight: 1 },
-    ItemDef { kind: "heal", cat: Cat::Potion, a: (0, 0), speed: 0, ranged: false, value: 12, benevolent: true, weight: 9 },
+    ItemDef { kind: "heal", cat: Cat::Potion, a: (0, 0), speed: 0, ranged: false, value: 12, benevolent: true, weight: 6 },
     ItemDef { kind: "strength", cat: Cat::Potion, a: (0, 0), speed: 0, ranged: false, value: 20, benevolent: true, weight: 2 },
     ItemDef { kind: "speed", cat: Cat::Potion, a: (0, 0), speed: 0, ranged: false, value: 10, benevolent: true, weight: 3 },
     ItemDef { kind: "invisibility", cat: Cat::Potion, a: (0, 0), speed: 0, ranged: false, value: 10, benevolent: true, weight: 2 },

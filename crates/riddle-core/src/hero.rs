@@ -110,8 +110,8 @@ pub struct Hero {
 impl Hero {
     pub fn new(class: Class, pos: Pos) -> Hero {
         let max_hp = match class {
-            Class::Fighter => 30,
-            Class::Rogue => 24,
+            Class::Fighter => 36,
+            Class::Rogue => 28,
         };
         Hero {
             pos,
@@ -164,7 +164,7 @@ impl Hero {
             s += a.def().speed;
         }
         if self.speed_t > 0 {
-            s += 10;
+            s += 5;
         }
         s
     }
@@ -308,5 +308,7 @@ mod tests {
         h.auto_equip(Item::new(4, "plate"));
         assert_eq!(h.def(), 5);
         assert_eq!(h.speed(), 8);
+        h.speed_t = 5;
+        assert_eq!(h.speed(), 13);
     }
 }

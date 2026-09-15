@@ -84,11 +84,13 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
     for v in ["descend", "bank", "return", "rest", "pick_up", "free_captive"] {
         verbs.push(Verb::new(v));
     }
-    match l.class {
-        Class::Fighter => verbs.push(Verb::new("shield_bash")),
-        Class::Rogue => verbs.push(Verb::new("vanish")),
+    let level = l.class_level();
+    for (verb, lvl) in crate::hero::class_ladder(l.class) {
+        if level >= *lvl && *verb != "throw" {
+            verbs.push(Verb::new(verb));
+        }
     }
-    for card in TACTIC_CARDS {
+    for card in TACTIC_CARDS.iter().copied().chain(["phalanx", "hit_and_fade"]) {
         if l.unlocks.contains(card) {
             verbs.push(Verb::arg("tactic", card));
         }

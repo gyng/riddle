@@ -6,7 +6,7 @@ pub fn note(run: &mut Run, cx: &mut Ctx, text: String) {
     let text = clamp_words(&text, 8);
     cx.events.push(Ev::Note { t: run.turn, text: text.clone() });
     run.notes.push((run.turn, text));
-    if run.notes.len() > 200 {
+    if run.notes.len() > 48 {
         run.notes.remove(0);
     }
 }

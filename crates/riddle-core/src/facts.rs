@@ -28,6 +28,9 @@ fn fact_note(fact: &str) -> String {
         ["foe", kind, tag] => format!("{}: {}.", crate::engine::kind_title(kind), tag),
         ["biome", b] => format!("Entered the {b}."),
         ["boss", kind, "counter"] => format!("{}: counter learned.", crate::engine::kind_title(kind)),
+        ["item", "leash"] => "Found a leash.".into(),
+        ["tamed", kind] => format!("Tamed a {}.", crate::engine::kind_title(kind)),
+        ["counter", rest] => format!("Learned: {}.", rest.replace('>', " beats ")),
         ["item", rest] => {
             let mut it = rest.split('=');
             let fl = it.next().unwrap_or("");
@@ -52,11 +55,16 @@ pub fn has_boss_counter(facts: &BTreeSet<String>) -> bool {
     facts.iter().any(|f| f.starts_with("boss:") && f.ends_with(":counter"))
 }
 
-/// Sight-based facts, called after every vision update.
+/// Sight-based facts, called after every vision update. Cheap when nothing changed.
 pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
     let map = &run.floor.map;
     let visible: Vec<usize> =
         (0..run.monsters.len()).filter(|i| run.monsters[*i].hp > 0 && map.is_visible(run.monsters[*i].pos)).collect();
+    let ids: Vec<u32> = visible.iter().map(|&i| run.monsters[i].id).collect();
+    if ids == run.last_visible {
+        return;
+    }
+    run.last_visible = ids;
     let mut sight_facts: Vec<String> = Vec::new();
     let mut new_seen = false;
     for &i in &visible {
@@ -64,23 +72,30 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
         if !run.seen_ids.contains(&m.id) {
             new_seen = true;
         }
-        sight_facts.push(format!("foe:{}", m.kind));
-        if m.has_tag("undead") {
-            sight_facts.push(format!("foe:{}:undead", m.kind));
+        if m.ally {
+            continue;
         }
-        if m.has_tag("boss") {
-            sight_facts.push(format!("foe:{}:boss", m.kind));
+        let kind = m.kind.as_str();
+        let want = |tag: &str| !cx.facts.contains(&format!("foe:{kind}:{tag}"));
+        if !cx.facts.contains(&format!("foe:{kind}")) {
+            sight_facts.push(format!("foe:{kind}"));
         }
-        if m.has_tag("ally") && m.neutral {
-            sight_facts.push(format!("foe:{}:ally", m.kind));
+        if m.has_tag("undead") && want("undead") {
+            sight_facts.push(format!("foe:{kind}:undead"));
         }
-        if m.has_tag("water") && run.floor.map.get(m.pos) == crate::tiles::Tile::Water {
-            sight_facts.push(format!("foe:{}:water", m.kind));
+        if m.has_tag("boss") && want("boss") {
+            sight_facts.push(format!("foe:{kind}:boss"));
         }
-        if m.has_tag("pack") {
-            let same = visible.iter().filter(|j| run.monsters[**j].kind == m.kind).count();
+        if m.has_tag("ally") && m.neutral && want("ally") {
+            sight_facts.push(format!("foe:{kind}:ally"));
+        }
+        if m.has_tag("water") && run.floor.map.get(m.pos) == crate::tiles::Tile::Water && want("water") {
+            sight_facts.push(format!("foe:{kind}:water"));
+        }
+        if m.has_tag("pack") && want("pack") {
+            let same = visible.iter().filter(|j| run.monsters[**j].kind == m.kind && run.monsters[**j].hostile()).count();
             if same >= 2 {
-                sight_facts.push(format!("foe:{}:pack", m.kind));
+                sight_facts.push(format!("foe:{kind}:pack"));
             }
         }
     }

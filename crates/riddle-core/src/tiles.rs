@@ -108,8 +108,11 @@ impl Map {
         true
     }
     pub fn los(&self, a: Pos, b: Pos) -> bool {
+        if a == b {
+            return true;
+        }
         let l = line(a, b);
-        for p in &l[1..l.len().saturating_sub(1)] {
+        for p in &l[1..l.len() - 1] {
             if self.get(*p).blocks_sight() {
                 return false;
             }
@@ -134,7 +137,7 @@ impl Map {
         }
         for dy in -radius..=radius {
             for dx in -radius..=radius {
-                let p = from.add((dx, dy));
+                let p = from.step((dx, dy));
                 if !self.in_bounds(p) {
                     continue;
                 }
@@ -159,8 +162,8 @@ impl Map {
                 self.corridor[i] = false;
                 continue;
             }
-            let open8 = DIRS8.iter().filter(|d| self.passable(p.add(**d))).count();
-            let open4 = DIRS4.iter().filter(|d| self.passable(p.add(**d))).count();
+            let open8 = DIRS8.iter().filter(|d| self.passable(p.step(**d))).count();
+            let open4 = DIRS4.iter().filter(|d| self.passable(p.step(**d))).count();
             self.corridor[i] = open4 <= 2 && open8 <= 4;
         }
     }
@@ -178,7 +181,7 @@ impl Map {
         while let Some(p) = queue.pop_front() {
             let d = dist[self.idx(p)];
             for dir in DIRS8 {
-                let q = p.add(dir);
+                let q = p.step(dir);
                 if !self.in_bounds(q) || !self.can_step(p, q) {
                     continue;
                 }
@@ -210,7 +213,7 @@ impl Map {
             let pi = self.idx(p);
             let d = dist[pi];
             for dir in DIRS8 {
-                let q = p.add(dir);
+                let q = p.step(dir);
                 if !self.in_bounds(q) || !self.can_step(p, q) {
                     continue;
                 }
@@ -247,7 +250,7 @@ impl Map {
     pub fn step_down(&self, dist: &[i32], p: Pos, occupied: &dyn Fn(Pos) -> bool) -> Option<Pos> {
         let mut best: Option<(i32, Pos)> = None;
         for dir in DIRS8 {
-            let q = p.add(dir);
+            let q = p.step(dir);
             if !self.in_bounds(q) || !self.can_step(p, q) {
                 continue;
             }

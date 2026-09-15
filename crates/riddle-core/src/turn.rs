@@ -1,8 +1,10 @@
-//! The turn: hero action (rules → verbs → chores), monsters, overlays, clocks, vision.
+//! The tick: energy scheduler (Addendum E), hero action (rules → verbs → chores), monsters,
+//! overlays, clocks, vision. All durations are ticks; 10 ticks ≈ one turn at base speed.
 use crate::ai;
+use crate::chronicle::{callout, note};
 use crate::defs::{monster_def, Cat};
 use crate::descent::{biome_for, ENDING_DEPTH};
-use crate::engine::{populate_floor, Ctx, ExitTier, Run, HERO_ID};
+use crate::engine::{populate_floor, Ctx, ExitTier, Run, ACT_ENERGY, HERO_ID, TICKS_PER_TURN};
 use crate::facts::{learn, learn_tag, tag_known};
 use crate::gen::generate;
 use crate::geom::{Pos, DIRS8};
@@ -12,7 +14,6 @@ use crate::monster::Monster;
 use crate::rules::{Cond, Verb};
 use crate::tiles::{Overlay, OverlayKind, Tile, VISION};
 use crate::wire::{Ev, TraceTurn};
-use crate::chronicle::{callout, note};
 
 /// What the hero can see this action.
 #[derive(Clone, Debug, Default)]
@@ -40,68 +41,83 @@ pub fn view(run: &Run) -> View {
     View { foes, adj, nearest, lowest }
 }
 
-pub fn step_turn(run: &mut Run, cx: &mut Ctx) {
+/// The cached hero distance field, recomputed when the hero has moved.
+pub fn hero_dist(run: &mut Run) -> &[i32] {
+    if run.hero_dist_pos != Some(run.hero.pos) || run.hero_dist.len() != run.floor.map.tiles.len() {
+        run.hero_dist = run.floor.map.bfs(run.hero.pos, false, &|_| false);
+        run.hero_dist_pos = Some(run.hero.pos);
+    }
+    &run.hero_dist
+}
+
+pub fn tick(run: &mut Run, cx: &mut Ctx) {
     if run.over.is_some() {
         return;
     }
     run.turn += 1;
     run.floor_turn += 1;
-    run.floor.map.update_vision(run.hero.pos, VISION);
-    // Hero.
     run.hero.energy += run.hero.speed();
+    for m in run.monsters.iter_mut() {
+        if m.hp > 0 {
+            m.energy += m.speed;
+        }
+    }
     let mut acted = false;
-    while run.hero.energy >= 10 && run.over.is_none() {
-        run.hero.energy -= 10;
+    // Hero first.
+    while run.hero.energy >= ACT_ENERGY && run.over.is_none() {
+        run.hero.energy -= ACT_ENERGY;
         hero_action(run, cx);
         acted = true;
         run.floor.map.update_vision(run.hero.pos, VISION);
         crate::facts::on_vision(run, cx);
-    }
-    if !acted {
-        let v = view(run);
-        push_trace(run, -2, Verb::new("wait"), &v);
+        for m in run.monsters.iter_mut() {
+            m.acts_since_hero = 0;
+        }
     }
     if run.over.is_some() {
         return;
     }
     run.monsters.retain(|m| m.hp > 0);
-    // Monsters, on a shared distance field from the hero.
-    let hero_dist = run.floor.map.bfs(run.hero.pos, false, &|_| false);
+    // Then monsters, by id (spawn order).
     let n = run.monsters.len();
     for mi in 0..n {
         if run.over.is_some() {
             return;
         }
-        ai::monster_turn(run, cx, mi, &hero_dist);
+        while run.monsters[mi].hp > 0 && run.monsters[mi].energy >= ACT_ENERGY && run.over.is_none() {
+            run.monsters[mi].energy -= ACT_ENERGY;
+            ai::monster_act(run, cx, mi);
+            acted = true;
+            run.monsters[mi].acts_since_hero += 1;
+            if run.monsters[mi].acts_since_hero >= 2
+                && run.monsters[mi].hp > 0
+                && run.monsters[mi].has_tag("fast")
+                && run.floor.map.is_visible(run.monsters[mi].pos)
+            {
+                let k = run.monsters[mi].kind.clone();
+                learn_tag(run, cx, &k, "fast");
+            }
+        }
     }
     run.monsters.retain(|m| m.hp > 0);
     if run.over.is_some() {
         return;
     }
-    tick_overlays(run, cx);
-    if run.over.is_some() {
-        return;
+    if run.turn.is_multiple_of(TICKS_PER_TURN) {
+        tick_overlays(run, cx);
+        if run.over.is_some() {
+            return;
+        }
+        tick_poison(run, cx);
+        if run.over.is_some() {
+            return;
+        }
+        tick_alert(run, cx);
     }
     tick_statuses(run, cx);
-    if run.over.is_some() {
-        return;
-    }
-    tick_alert(run, cx);
     run.monsters.retain(|m| m.hp > 0);
-    run.floor.map.update_vision(run.hero.pos, VISION);
+    let _ = acted;
     crate::facts::on_vision(run, cx);
-}
-
-pub fn push_trace(run: &mut Run, row: i32, verb: Verb, v: &View) {
-    let telegraphs: Vec<String> = v
-        .foes
-        .iter()
-        .filter_map(|&i| run.monsters[i].telegraph.as_ref().map(|t| format!("{} {}", run.monsters[i].kind, t)))
-        .collect();
-    run.trace.push(TraceTurn { t: run.turn, row, verb, hp: run.hero.hp, foes: v.foes.len() as i32, telegraphs });
-    if run.trace.len() > 40 {
-        run.trace.remove(0);
-    }
 }
 
 fn hero_action(run: &mut Run, cx: &mut Ctx) {
@@ -115,7 +131,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
         .filter_map(|&i| run.monsters.get(i).and_then(|m| m.telegraph.as_ref().map(|t| format!("{} {}", m.kind, t))))
         .collect();
     run.trace.push(TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: v.foes.len() as i32, telegraphs });
-    if run.trace.len() > 40 {
+    if run.trace.len() > 16 {
         run.trace.remove(0);
     }
     run.hurt_last = run.hurt_since_action;
@@ -127,28 +143,36 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
 
 fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     if run.hero.paralysed > 0 {
-        return (-2, Verb::new("paralysed"));
+        let verb = Verb::new("paralysed");
+        emit_rule(run, cx, -2, &verb, "paralysed");
+        return (-2, verb);
     }
     if run.hero.confused > 0 && run.rng.chance(50) {
         ai::random_step(run, cx);
-        return (-2, Verb::new("stumble"));
+        let verb = Verb::new("stumble");
+        emit_rule(run, cx, -2, &verb, "confused → stumble");
+        return (-2, verb);
     }
     let foes = v.foes.len() as i32;
     let hp_pct = run.hero.hp_pct();
     let tr = run.trait_;
     // Trait deviations, announced.
-    if tr == Trait::Cowardly && hp_pct < 50 && foes >= 1 {
+    if tr == Trait::Cowardly && hp_pct < 50 && foes >= 1 && run.cowardly_streak < 3 {
         let verb = Verb::new("retreat");
         if ai::try_verb(run, cx, &verb, v) {
+            run.cowardly_streak += 1;
             emit_rule(run, cx, -1, &verb, "cowardly → retreat");
             return (-1, verb);
         }
+    }
+    if foes == 0 {
+        run.cowardly_streak = 0;
     }
     if tr == Trait::Greedy {
         let hp = run.hero.pos;
         let target = DIRS8
             .iter()
-            .map(|d| hp.add(*d))
+            .map(|d| hp.step(*d))
             .find(|q| run.item_at(*q).is_some() && !run.occupied(*q) && run.floor.map.can_step(hp, *q));
         if let Some(q) = target {
             ai::move_hero(run, cx, q);
@@ -156,6 +180,12 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             emit_rule(run, cx, -1, &verb, "greedy → pick up");
             return (-1, verb);
         }
+    }
+    // Sanity: nobody stands in gas or fire with no foe adjacent.
+    if v.adj == 0 && ai::escape_hazard(run, cx, v) {
+        let verb = Verb::new("explore");
+        emit_rule(run, cx, -2, &verb, "hazard → step out");
+        return (-2, verb);
     }
     let rows: Vec<crate::rules::Row> = cx.rules.rows.iter().take(cx.max_rows).cloned().collect();
     let mut brave_said = false;
@@ -230,7 +260,7 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
         }
         "ally" => run.allies().next().is_some(),
         "loot>=" => run.loot >= n,
-        "turns>" => run.floor_turn as i32 > n,
+        "turns>" => (run.floor_turn / TICKS_PER_TURN) as i32 > n,
         "on_hurt" => run.hurt_since_action,
         "on_kill" => run.kill_since_action,
         "on_see" => run.new_seen,
@@ -262,25 +292,22 @@ impl Src {
             Src::Burst => "burst".into(),
         }
     }
-    pub fn tags(&self, run: &Run) -> Vec<String> {
+    pub fn has_tag(&self, run: &Run, tag: &str) -> bool {
         match self {
-            Src::Hero { ranged } => {
-                if *ranged {
-                    vec!["ranged".into()]
-                } else {
-                    vec![]
-                }
-            }
-            Src::Mon(i) => run.monsters[*i].tags(),
-            Src::Gas | Src::Burst => vec!["gas".into()],
-            Src::Fire => vec!["fire".into()],
-            Src::Poison => vec!["poison".into()],
+            Src::Hero { ranged } => *ranged && tag == "ranged",
+            Src::Mon(i) => run.monsters[*i].has_tag(tag),
+            Src::Gas | Src::Burst => tag == "gas",
+            Src::Fire => tag == "fire",
+            Src::Poison => tag == "poison",
         }
     }
 }
 
-/// Is an entity alone (no friend within 2 tiles)?
+/// Is a monster alone (no friend within 2 tiles)? The hero has no tags and is never "lone".
 pub fn is_lone(run: &Run, pos: Pos, hostile: bool) -> bool {
+    if pos == run.hero.pos {
+        return false;
+    }
     if hostile {
         !run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.pos != pos && m.pos.cheb(pos) <= 2)
     } else {
@@ -289,21 +316,19 @@ pub fn is_lone(run: &Run, pos: Pos, hostile: bool) -> bool {
     }
 }
 
-/// Apply the counter table (Addendum A): returns the adjusted damage and the counter observed.
-pub fn counter_damage(run: &Run, src: &Src, dmg: i32, target_tags: &[String], target_pos: Pos, target_hostile: bool) -> (i32, Option<(String, String)>) {
-    let atk = src.tags(run);
+/// Apply the counter table (Addendum A): the adjusted damage and the counter observed.
+pub fn counter_damage(run: &Run, src: &Src, dmg: i32, target: Option<usize>, target_pos: Pos, target_hostile: bool) -> (i32, Option<(String, String)>) {
     let on_water = run.floor.map.get(target_pos) == Tile::Water;
+    let tgt_has = |t: &str| target.is_some_and(|i| run.monsters[i].has_tag(t));
     for (a, b, immune) in crate::defs::COUNTERS {
-        let (hit, winner_is_attacker) = if *immune {
-            // defender's tag beats the attack's tag
-            let def_has = target_tags.iter().any(|t| t == a) || (*a == "water" && on_water);
-            (def_has && atk.iter().any(|t| t == b), false)
+        let hit = if *immune {
+            let def_has = tgt_has(a) || (*a == "water" && on_water);
+            def_has && src.has_tag(run, b)
         } else {
-            let tgt = if *b == "lone" { is_lone(run, target_pos, target_hostile) } else { target_tags.iter().any(|t| t == b) };
-            (atk.iter().any(|t| t == a) && tgt, true)
+            let tgt = if *b == "lone" { is_lone(run, target_pos, target_hostile) } else { tgt_has(b) };
+            src.has_tag(run, a) && tgt
         };
         if hit {
-            let _ = winner_is_attacker;
             let out = if *immune { 0 } else { dmg * 3 / 2 };
             return (out, Some((a.to_string(), b.to_string())));
         }
@@ -318,7 +343,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     }
     let cause = src.cause(run);
     let cause = cause.as_str();
-    let (dmg, counter) = counter_damage(run, src, dmg, &[], run.hero.pos, false);
+    let (dmg, counter) = counter_damage(run, src, dmg, None, run.hero.pos, false);
     if let Some((a, b)) = counter {
         learn(run, cx, crate::defs::counter_fact(&a, &b));
     }
@@ -363,7 +388,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
     let dmg = dmg.max(0);
     let (dmg, counter) = {
         let m = &run.monsters[mi];
-        counter_damage(run, src, dmg, &m.tags(), m.pos, m.hostile())
+        counter_damage(run, src, dmg, Some(mi), m.pos, m.hostile())
     };
     if let Some((a, b)) = counter {
         if run.floor.map.is_visible(run.monsters[mi].pos) {
@@ -381,7 +406,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
     cx.events.push(Ev::Hurt { t: run.turn, id, dmg, hp: hp.max(0), cause: cause.into() });
     let visible = run.floor.map.is_visible(pos);
     if hp > 0 {
-        if run.monsters[mi].has_tag("splitter") && hp > 4 && dmg > 0 {
+        if run.monsters[mi].has_tag("splitter") && hp > 4 && dmg > 0 && !run.monsters[mi].ally {
             let half = hp / 2;
             run.monsters[mi].hp = hp - half;
             let free = pos.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q));
@@ -418,7 +443,8 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             note(run, cx, format!("The {} fell.", crate::engine::kind_title(&kind)));
         }
     } else if !m.neutral {
-        run.kills.push((run.turn, kind.clone()));
+        let depth = run.depth;
+        run.kills.push((run.turn, kind.clone(), depth));
         run.kills_floor += 1;
         run.kill_since_action = true;
         if m.is_boss() {
@@ -433,11 +459,11 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             note(run, cx, format!("{} is avenged.", m.title()));
         }
     }
-    if let Some(it) = m.stolen {
+    if let Some(it) = m.stolen.clone() {
         run.items.push(crate::engine::FloorItem { pos, item: it });
     }
     if m.has_tag("gas") {
-        let (r, ttl) = if m.is_boss() { (2, 6) } else { (1, 4) };
+        let (r, ttl) = if m.is_boss() { (2, 60) } else { (1, 40) };
         place_overlay(run, cx, pos, r, OverlayKind::Gas, ttl);
         if visible {
             callout(run, cx, "pops!");
@@ -450,13 +476,18 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
 pub fn place_overlay(run: &mut Run, cx: &mut Ctx, centre: Pos, r: i32, k: OverlayKind, ttl: i32) {
     for dy in -r..=r {
         for dx in -r..=r {
-            let p = centre.add((dx, dy));
+            let p = centre.step((dx, dy));
             if !run.floor.map.in_bounds(p) || !run.floor.map.passable(p) {
                 continue;
             }
             if let Some(o) = run.overlays.iter_mut().find(|o| o.x == p.x && o.y == p.y) {
+                let changed = o.k != k;
                 o.k = k;
                 o.ttl = o.ttl.max(ttl);
+                if changed {
+                    let ttl = o.ttl;
+                    cx.events.push(Ev::Overlay { t: run.turn, x: p.x, y: p.y, ov: k, ttl });
+                }
                 continue;
             }
             run.overlays.push(Overlay { x: p.x, y: p.y, k, ttl, spread: k == OverlayKind::Fire });
@@ -465,6 +496,7 @@ pub fn place_overlay(run: &mut Run, cx: &mut Ctx, centre: Pos, r: i32, k: Overla
     }
 }
 
+/// Every 10 ticks: hazards bite, fire spreads once, overlays age.
 fn tick_overlays(run: &mut Run, cx: &mut Ctx) {
     let overlays = run.overlays.clone();
     for o in &overlays {
@@ -483,13 +515,12 @@ fn tick_overlays(run: &mut Run, cx: &mut Ctx) {
             damage_monster(run, cx, mi, dmg, &src);
         }
     }
-    // Fire spreads once to adjacent floor.
     let spreading: Vec<Overlay> = run.overlays.iter().filter(|o| o.spread && o.k == OverlayKind::Fire).cloned().collect();
     for o in spreading {
         for d in DIRS8 {
-            let q = Pos::new(o.x, o.y).add(d);
+            let q = Pos::new(o.x, o.y).step(d);
             if run.floor.map.get(q) == Tile::Floor && !run.overlays.iter().any(|x| x.x == q.x && x.y == q.y) {
-                let ttl = (o.ttl - 1).max(1);
+                let ttl = (o.ttl - TICKS_PER_TURN as i32).max(TICKS_PER_TURN as i32);
                 run.overlays.push(Overlay { x: q.x, y: q.y, k: OverlayKind::Fire, ttl, spread: false });
                 cx.events.push(Ev::Overlay { t: run.turn, x: q.x, y: q.y, ov: OverlayKind::Fire, ttl });
             }
@@ -497,26 +528,38 @@ fn tick_overlays(run: &mut Run, cx: &mut Ctx) {
     }
     for o in run.overlays.iter_mut() {
         o.spread = false;
-        o.ttl -= 1;
+        o.ttl -= TICKS_PER_TURN as i32;
     }
     run.overlays.retain(|o| o.ttl > 0);
 }
 
-fn tick_statuses(run: &mut Run, cx: &mut Ctx) {
+fn tick_poison(run: &mut Run, cx: &mut Ctx) {
     if run.hero.poison.1 > 0 {
         let d = run.hero.poison.0;
-        run.hero.poison.1 -= 1;
         damage_hero(run, cx, d, &Src::Poison);
         if run.over.is_some() {
             return;
         }
     }
+    for mi in 0..run.monsters.len() {
+        if run.monsters[mi].poison.1 > 0 && run.monsters[mi].hp > 0 {
+            let d = run.monsters[mi].poison.0;
+            damage_monster(run, cx, mi, d, &Src::Poison);
+        }
+    }
+}
+
+fn tick_statuses(run: &mut Run, cx: &mut Ctx) {
+    if run.hero.poison.1 > 0 {
+        run.hero.poison.1 -= 1;
+    }
     run.hero.tick_statuses();
+    if run.taunt_t > 0 {
+        run.taunt_t -= 1;
+    }
     for mi in 0..run.monsters.len() {
         if run.monsters[mi].poison.1 > 0 {
-            let d = run.monsters[mi].poison.0;
             run.monsters[mi].poison.1 -= 1;
-            damage_monster(run, cx, mi, d, &Src::Poison);
         }
         run.monsters[mi].tick_statuses();
         if run.monsters[mi].ttl.is_some_and(|t| t <= 0) && run.monsters[mi].hp > 0 {
@@ -530,34 +573,38 @@ fn tick_statuses(run: &mut Run, cx: &mut Ctx) {
     }
 }
 
-/// The forward clock: every 30 turns on a floor the alert rises and a wanderer arrives.
+/// The forward clock: every 400 ticks on a floor the alert rises and wanderers arrive,
+/// more of them as the alert climbs (1 + alert/3). Explore-everything policies pay for it.
 fn tick_alert(run: &mut Run, cx: &mut Ctx) {
-    if run.floor_turn % 30 != 0 || run.alert >= 8 {
+    if !run.floor_turn.is_multiple_of(400) || run.alert >= 8 {
         return;
     }
     run.alert += 1;
     let table = crate::defs::spawn_table(run.biome(), run.depth);
     let weights: Vec<u32> = table.iter().map(|t| if t.0 == "captive" || t.0 == "eel" { 0 } else { t.1 }).collect();
-    let (kind, ..) = table[run.rng.weighted(&weights)];
     let hero = run.hero.pos;
-    let cands: Vec<Pos> = run
-        .floor
-        .open_tiles()
-        .into_iter()
-        .filter(|p| !run.floor.map.is_visible(*p) && p.cheb(hero) >= 6 && !run.occupied(*p))
-        .collect();
-    if cands.is_empty() {
-        return;
+    let n = 1 + run.alert / 3;
+    for _ in 0..n {
+        let (kind, ..) = table[run.rng.weighted(&weights)];
+        let cands: Vec<Pos> = run
+            .floor
+            .open_tiles()
+            .into_iter()
+            .filter(|p| !run.floor.map.is_visible(*p) && p.cheb(hero) >= 6 && !run.occupied(*p))
+            .collect();
+        if cands.is_empty() {
+            return;
+        }
+        let pos = *run.rng.pick(&cands);
+        let id = run.new_id();
+        let depth = run.depth;
+        let mut m = Monster::spawn(id, kind, pos, depth);
+        m.awake = true;
+        m.last_seen = Some(hero);
+        let e = crate::engine::monster_entity(&m, cx.facts);
+        run.monsters.push(m);
+        cx.events.push(Ev::Spawn { t: run.turn, e });
     }
-    let pos = *run.rng.pick(&cands);
-    let id = run.new_id();
-    let depth = run.depth;
-    let mut m = Monster::spawn(id, kind, pos, depth);
-    m.awake = true;
-    m.last_seen = Some(hero);
-    let e = crate::engine::monster_entity(&m, cx.facts);
-    run.monsters.push(m);
-    cx.events.push(Ev::Spawn { t: run.turn, e });
     if run.alert == 3 || run.alert == 6 {
         callout(run, cx, "alert rising");
     }
@@ -565,7 +612,6 @@ fn tick_alert(run: &mut Run, cx: &mut Ctx) {
 
 /// Go down a floor (or reach the ending).
 pub fn descend(run: &mut Run, cx: &mut Ctx) {
-    // Floor survived bookkeeping for the sifter.
     if let Some(t) = run.low10_t.take() {
         run.near_deaths.push(t);
     }
@@ -597,6 +643,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.max_depth = run.max_depth.max(next);
     run.floor = floor;
     run.hero.pos = run.floor.stairs_up;
+    run.hero_dist_pos = None;
     run.monsters.retain(|m| m.ally && m.hp > 0);
     let up = run.floor.stairs_up;
     let allies = std::mem::take(&mut run.monsters);
@@ -613,8 +660,10 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.boss_seen_t = None;
     run.hurt_since_boss = false;
     run.seen_ids.clear();
+    run.last_visible = vec![u32::MAX];
     run.gambles.clear();
-    populate_floor(run, cx.grudges);
+    run.hero.second_wind_used = false;
+    populate_floor(run, cx.grudges, cx.forge);
     run.floor.map.update_vision(run.hero.pos, VISION);
     cx.events.push(Ev::Descend { t: run.turn, depth: next, biome: biome.name().into() });
     if biome_for(next - 1) != biome {
@@ -660,7 +709,6 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
     }
     if item.kind == "leash" {
         let it = run.items.remove(ii).item;
-        run.loot += it.value();
         match run.hero.inv.iter_mut().find(|i| i.kind == "leash") {
             Some(l) => l.amount += it.amount.max(1),
             None => {
@@ -673,6 +721,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
                 run.hero.inv.push(l);
             }
         }
+        run.loot += 5;
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: "leash".into() });
         learn(run, cx, "item:leash".into());
         return;
@@ -693,7 +742,7 @@ fn item_replaces_gear(h: &crate::hero::Hero, item: &Item) -> bool {
             let cur = h.weapon.as_ref().map(|w| w.atk().0 + w.atk().1).unwrap_or(0);
             item.atk().0 + item.atk().1 > cur
         }
-        Cat::Armour => item.def_bonus() > h.def(),
+        Cat::Armour => item.def_bonus() > h.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0),
         _ => false,
     }
 }

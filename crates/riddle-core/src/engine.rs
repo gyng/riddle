@@ -1,9 +1,9 @@
 //! The game: lineage state, the live run, and the public API mirrored by the wasm bridge.
-use crate::defs::{item_def, spawn_table, Cat};
+use crate::defs::{spawn_table, Cat};
 use crate::descent::{biome_for, boss_for, Biome, Grudge, ENDING_DEPTH};
 use crate::gen::{generate, Floor};
 use crate::geom::Pos;
-use crate::hero::{Class, Hero, Trait};
+use crate::hero::{mastery_card, xp_to_next, Class, Hero, Trait};
 use crate::item::{describe, to_inv, Flavours, FloorItemWire, InvItem, Item};
 use crate::monster::Monster;
 use crate::rng::{hash_str, Rng};
@@ -15,8 +15,14 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub const SAVE_VERSION: u32 = 1;
 pub const HERO_ID: u32 = 1;
+/// History entries kept for verdict replays (one per 10 ticks ⇒ ≈ 100 ticks back).
 pub const HISTORY_TURNS: usize = 10;
-pub const MAX_TURNS_PER_RUN: u32 = 6000;
+pub const HISTORY_STRIDE: u32 = 10;
+pub const MAX_TURNS_PER_RUN: u32 = 60_000;
+/// Energy needed to act; actors gain `speed` per tick.
+pub const ACT_ENERGY: i32 = 100;
+pub const TICKS_PER_TURN: u32 = 10;
+pub const MAX_LEVEL: u32 = 10;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -70,7 +76,8 @@ pub struct Run {
     pub next_id: u32,
     pub next_item_id: u32,
     pub kills_floor: u32,
-    pub kills: Vec<(u32, String)>,
+    /// (turn, kind, depth)
+    pub kills: Vec<(u32, String, u32)>,
     pub brought: Vec<u32>,
     pub trace: Vec<TraceTurn>,
     pub notes: Vec<(u32, String)>,
@@ -109,19 +116,29 @@ pub struct Run {
     pub lost_companions: Vec<(u32, String)>,
     /// Item ids of camp supplies (never kept back).
     pub supplies: Vec<u32>,
+    /// Taunt: foes ignore companions for this many ticks.
+    pub taunt_t: i32,
+    /// Cached BFS field from the hero (recomputed when the hero moves).
+    #[serde(skip)]
+    pub hero_dist: Vec<i32>,
+    #[serde(skip)]
+    pub hero_dist_pos: Option<Pos>,
+    /// Ids visible at the last vision pass (to skip unchanged passes).
+    #[serde(skip)]
+    pub last_visible: Vec<u32>,
+    #[serde(default)]
+    pub idle_actions: u32,
+    /// Consecutive cowardly retreats (the trait yields after three).
+    #[serde(default)]
+    pub cowardly_streak: u32,
+    /// Corridor hold: distance of the nearest foe at the last hold, and how long it stayed put.
+    #[serde(default)]
+    pub hold_dist: i32,
+    #[serde(default)]
+    pub hold_streak: u32,
 }
 
 impl Run {
-    pub fn companion(&self, cid: u32) -> Option<&Companion> {
-        self.companions.iter().find(|c| c.id == cid)
-    }
-    pub fn companion_mut(&mut self, cid: u32) -> Option<&mut Companion> {
-        self.companions.iter_mut().find(|c| c.id == cid)
-    }
-    /// Living companions on the floor.
-    pub fn party_alive(&self) -> impl Iterator<Item = &Monster> {
-        self.monsters.iter().filter(|m| m.is_companion() && m.hp > 0)
-    }
     pub fn monster_at(&self, p: Pos) -> Option<usize> {
         self.monsters.iter().position(|m| m.hp > 0 && m.pos == p)
     }
@@ -145,6 +162,13 @@ impl Run {
     pub fn allies(&self) -> impl Iterator<Item = &Monster> {
         self.monsters.iter().filter(|m| m.ally && m.hp > 0)
     }
+    pub fn companion(&self, cid: u32) -> Option<&Companion> {
+        self.companions.iter().find(|c| c.id == cid)
+    }
+    /// Living companions on the floor.
+    pub fn party_alive(&self) -> impl Iterator<Item = &Monster> {
+        self.monsters.iter().filter(|m| m.is_companion() && m.hp > 0)
+    }
 }
 
 /// Per-turn context borrowed from the game.
@@ -154,6 +178,7 @@ pub struct Ctx<'a> {
     pub rules: &'a RuleSet,
     pub unlocks: &'a BTreeSet<String>,
     pub grudges: &'a [Grudge],
+    pub forge: &'a BTreeMap<String, ForgeRow>,
     pub max_rows: usize,
     pub events: &'a mut Vec<Ev>,
     pub sim: bool,
@@ -182,24 +207,22 @@ pub struct LineageState {
     pub next_run_id: u32,
     pub next_vault_id: u32,
     pub rng: Rng,
-    #[serde(default)]
+    // Addendum A
     pub party: Vec<Companion>,
-    #[serde(default)]
     pub kennel: Vec<Companion>,
-    #[serde(default)]
     pub eggs: Vec<Egg>,
-    #[serde(default)]
     pub bred: BTreeSet<String>,
-    #[serde(default = "default_next_comp_id")]
     pub next_comp_id: u32,
-    #[serde(default)]
+    // Addendum B
     pub gold: i32,
-    #[serde(default)]
     pub supplies: Vec<Item>,
-}
-
-fn default_next_comp_id() -> u32 {
-    1
+    // Addendum C
+    pub classes: BTreeMap<String, ClassProg>,
+    // Addendum D
+    pub forge: BTreeMap<String, ForgeRow>,
+    pub renown: u32,
+    pub rank: u32,
+    pub keep_pref: String,
 }
 
 impl LineageState {
@@ -207,6 +230,9 @@ impl LineageState {
         let mut rng = Rng::derive(seed, hash_str("lineage"));
         let flavours = Flavours::roll(&mut rng);
         let trait_ = Trait::ALL[rng.below(4) as usize];
+        let mut classes = BTreeMap::new();
+        classes.insert("fighter".to_string(), ClassProg { level: 1, xp: 0 });
+        classes.insert("rogue".to_string(), ClassProg { level: 1, xp: 0 });
         LineageState {
             seed,
             heir: 1,
@@ -236,7 +262,54 @@ impl LineageState {
             next_comp_id: 1,
             gold: 0,
             supplies: Vec::new(),
+            classes,
+            forge: BTreeMap::new(),
+            renown: 0,
+            rank: 0,
+            keep_pref: "best_weapon".into(),
         }
+    }
+    pub fn rules(&self) -> &RuleSet {
+        &self.sets[self.active_set.min(self.sets.len() - 1)]
+    }
+    pub fn class_level(&self) -> u32 {
+        self.classes.get(self.class.name()).map(|c| c.level).unwrap_or(1)
+    }
+    pub fn to_wire(&self) -> Lineage {
+        Lineage {
+            seed: self.seed,
+            heir: self.heir,
+            trait_: self.trait_.name().into(),
+            class: self.class.name().into(),
+            best_depth: self.best_depth,
+            marks: self.marks,
+            facts: self.facts.iter().cloned().collect(),
+            unlocks: self.unlocks.iter().cloned().collect(),
+            vault: self.vault.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
+            graveyard: self.graveyard.clone(),
+            trophies: self.trophies.clone(),
+            sets: self.sets.clone(),
+            active_set: self.active_set,
+            ended: self.ended,
+            party: self.party.clone(),
+            kennel: self.kennel.clone(),
+            eggs: self.eggs.clone(),
+            party_slots: self.party_slots(),
+            ledger: self.ledger(),
+            gold: self.gold,
+            supplies: self.supplies.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
+            classes: self.classes.clone(),
+            forge: self.forge.clone(),
+            renown: self.renown,
+            rank: self.rank,
+            keep_pref: self.keep_pref.clone(),
+        }
+    }
+    pub fn vault_slots(&self) -> usize {
+        1 + self.unlocks.contains("vault2") as usize + self.unlocks.contains("vault3") as usize
+    }
+    pub fn max_rows(&self) -> usize {
+        4 + ["row5", "row6", "row7", "row8"].iter().filter(|u| self.unlocks.contains(**u)).count()
     }
     pub fn party_slots(&self) -> u32 {
         1 + self.unlocks.contains("party_slot_2") as u32
@@ -267,39 +340,9 @@ impl LineageState {
     pub fn all_companions(&self) -> impl Iterator<Item = &Companion> {
         self.party.iter().chain(self.kennel.iter())
     }
-    pub fn rules(&self) -> &RuleSet {
-        &self.sets[self.active_set.min(self.sets.len() - 1)]
-    }
-    pub fn to_wire(&self) -> Lineage {
-        Lineage {
-            seed: self.seed,
-            heir: self.heir,
-            trait_: self.trait_.name().into(),
-            class: self.class.name().into(),
-            best_depth: self.best_depth,
-            marks: self.marks,
-            facts: self.facts.iter().cloned().collect(),
-            unlocks: self.unlocks.iter().cloned().collect(),
-            vault: self.vault.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
-            graveyard: self.graveyard.clone(),
-            trophies: self.trophies.clone(),
-            sets: self.sets.clone(),
-            active_set: self.active_set,
-            ended: self.ended,
-            party: self.party.clone(),
-            kennel: self.kennel.clone(),
-            eggs: self.eggs.clone(),
-            party_slots: self.party_slots(),
-            ledger: self.ledger(),
-            gold: self.gold,
-            supplies: self.supplies.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
-        }
-    }
-    pub fn vault_slots(&self) -> usize {
-        1 + self.unlocks.contains("vault2") as usize + self.unlocks.contains("vault3") as usize
-    }
-    pub fn max_rows(&self) -> usize {
-        4 + ["row5", "row6", "row7", "row8"].iter().filter(|u| self.unlocks.contains(**u)).count()
+    /// Forge tier of a kind (Addendum D): +tier to every future copy.
+    pub fn forge_tier(&self, kind: &str) -> i32 {
+        self.forge.get(kind).map(|f| f.tier as i32).unwrap_or(0)
     }
 }
 
@@ -315,6 +358,52 @@ pub struct DeathRec {
     pub deltas_done: bool,
 }
 
+/// The vault decision waiting at an exit (Addendum D).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PendingExit {
+    pub run_id: u32,
+    pub tier: ExitTier,
+    pub items: Vec<Item>,
+}
+
+/// Accumulated outcomes since the last return report.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Batch {
+    pub runs: u32,
+    pub bests: Vec<String>,
+    pub found: Vec<Item>,
+    pub deaths: BTreeMap<String, u32>,
+    pub marks: u32,
+    pub highlights: Vec<Highlight>,
+    pub tamed: Vec<String>,
+    pub hatched: Vec<String>,
+    pub lost: Vec<String>,
+    pub xp_gained: u32,
+    pub level_ups: u32,
+    pub salvaged: BTreeMap<String, (u32, i32)>,
+    pub renown_gained: u32,
+    pub ranks_up: u32,
+    pub worst_death: Option<u32>,
+    pub worst_depth: u32,
+    pub row_fired: Vec<u32>,
+    pub renderable_events: u32,
+    pub turns: u32,
+    /// Real (simulated) runs: (final depth, death cause).
+    pub run_outcomes: Vec<(u32, Option<String>)>,
+}
+
+/// What a finished run contributed (for offline accounting).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RunOutcome {
+    pub run_id: u32,
+    pub depth: u32,
+    pub tier: Option<ExitTier>,
+    pub cause: Option<String>,
+    pub new_facts: u32,
+    pub new_best: bool,
+    pub turns: u32,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Game {
     pub version: u32,
@@ -328,28 +417,16 @@ pub struct Game {
     pub last_snapshot: Option<Snapshot>,
     pub events: Vec<Ev>,
     pub stall_runs: u32,
-    pub last_run_summary: Option<RunSummary>,
+    pub pending_exit: Option<PendingExit>,
+    pub batch: Batch,
+    pub facts_at_run_start: usize,
+    /// Death records kept (the metrics raise this to keep every death of a batch).
+    #[serde(default = "default_max_deaths")]
+    pub max_deaths: usize,
 }
 
-/// What a finished run contributed (for offline accounting).
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct RunSummary {
-    pub run_id: u32,
-    pub depth: u32,
-    pub tier: Option<ExitTier>,
-    pub cause: Option<String>,
-    pub new_facts: Vec<String>,
-    pub new_best: bool,
-    pub marks: u32,
-    pub bests: Vec<String>,
-    pub found: Vec<Item>,
-    pub turns: u32,
-    pub highlights: Vec<Highlight>,
-    pub renderable_events: u32,
-    pub row_fired: Vec<u32>,
-    pub tamed: Vec<String>,
-    pub hatched: Vec<String>,
-    pub lost: Vec<String>,
+fn default_max_deaths() -> usize {
+    40
 }
 
 impl Game {
@@ -366,7 +443,10 @@ impl Game {
             last_snapshot: None,
             events: Vec::new(),
             stall_runs: 0,
-            last_run_summary: None,
+            pending_exit: None,
+            batch: Batch::default(),
+            facts_at_run_start: 0,
+            max_deaths: 40,
         }
     }
 
@@ -384,7 +464,10 @@ impl Game {
             last_snapshot: None,
             events: Vec::new(),
             stall_runs: 0,
-            last_run_summary: None,
+            pending_exit: None,
+            batch: Batch::default(),
+            facts_at_run_start: self.lineage.facts.len(),
+            max_deaths: 0,
         }
     }
 
@@ -412,6 +495,14 @@ impl Game {
         Ok(())
     }
 
+    pub fn set_keep_pref(&mut self, pref: &str) -> Result<(), String> {
+        if !["best_weapon", "best_armour", "none"].contains(&pref) {
+            return Err("unknown keep_pref".into());
+        }
+        self.lineage.keep_pref = pref.into();
+        Ok(())
+    }
+
     pub fn loadout(&mut self, ids: Vec<u32>) {
         self.loadout = ids.into_iter().filter(|id| self.lineage.vault.iter().any(|v| v.id == *id)).collect();
     }
@@ -422,6 +513,7 @@ impl Game {
 
     /// Start (or resume) an expedition.
     pub fn send(&mut self) -> Snapshot {
+        self.auto_keep();
         if self.run.is_none() {
             self.start_run(None);
         }
@@ -431,13 +523,16 @@ impl Game {
     }
 
     pub fn start_run(&mut self, seed_override: Option<u64>) {
+        self.auto_keep();
         let id = self.lineage.next_run_id;
         self.lineage.next_run_id += 1;
         let seed = seed_override.unwrap_or_else(|| self.run_seed(id));
         let mut rng = Rng::new(seed);
         let floor = generate(&mut rng, biome_for(1), 1);
         let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
-        hero.auto_equip(Item::new(1, "dagger"));
+        hero.apply_level(self.lineage.class_level());
+        // Starting arms: the fighter carries a sword, the rogue a dagger (id 1 is never loot).
+        hero.auto_equip(Item::new(1, if self.lineage.class == Class::Fighter { "sword" } else { "dagger" }));
         let mut brought = Vec::new();
         let mut loadout = std::mem::take(&mut self.loadout);
         loadout.sort();
@@ -505,6 +600,14 @@ impl Game {
             tamed: Vec::new(),
             lost_companions: Vec::new(),
             supplies: Vec::new(),
+            taunt_t: 0,
+            hero_dist: Vec::new(),
+            hero_dist_pos: None,
+            last_visible: vec![u32::MAX],
+            idle_actions: 0,
+            cowardly_streak: 0,
+            hold_dist: -1,
+            hold_streak: 0,
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
@@ -519,10 +622,11 @@ impl Game {
                 run.hero.auto_equip(it);
             }
         }
-        populate_floor(&mut run, &self.lineage.grudges);
+        populate_floor(&mut run, &self.lineage.grudges, &self.lineage.forge);
         spawn_party(&mut run, &self.lineage.party);
         run.floor.map.update_vision(run.hero.pos, VISION);
         self.history.clear();
+        self.facts_at_run_start = self.lineage.facts.len();
         self.run = Some(run);
         let mut cx = self.ctx();
         let run = cx.0;
@@ -542,6 +646,7 @@ impl Game {
             rules: &lineage.sets[set],
             unlocks: &lineage.unlocks,
             grudges: &lineage.grudges,
+            forge: &lineage.forge,
             max_rows,
             events,
             sim: *sim,
@@ -549,168 +654,22 @@ impl Game {
         (run, cx)
     }
 
-}
-
-/// Fill a freshly generated floor with monsters and items for the run's depth.
-pub fn populate_floor(run: &mut Run, grudges: &[Grudge]) {
-    {
-        let depth = run.depth;
-        let biome = run.biome();
-        let mut open = run.floor.open_tiles();
-        let hero = run.hero.pos;
-        open.retain(|p| p.cheb(hero) > 6);
-        if open.is_empty() {
-            open = run.floor.open_tiles();
-        }
-        run.rng.shuffle(&mut open);
-        let mut cursor = 0usize;
-        let mut take = |rng: &mut Rng, open: &Vec<Pos>, cursor: &mut usize| -> Pos {
-            if *cursor < open.len() {
-                let p = open[*cursor];
-                *cursor += 1;
-                p
-            } else {
-                *rng.pick(open)
-            }
-        };
-        let table = spawn_table(biome, depth);
-        let weights: Vec<u32> = table.iter().map(|t| t.1).collect();
-        let groups = crate::defs::group_budget(depth);
-        let water = run.floor.water_tiles();
-        let mut captive_placed = false;
-        for _ in 0..groups {
-            let (kind, _, gmin, gmax) = table[run.rng.weighted(&weights)];
-            if kind == "captive" {
-                if captive_placed {
-                    continue;
-                }
-                captive_placed = true;
-            }
-            let n = run.rng.range(gmin, gmax);
-            let anchor = if kind == "eel" && !water.is_empty() {
-                *run.rng.pick(&water)
-            } else {
-                take(&mut run.rng, &open, &mut cursor)
-            };
-            for k in 0..n {
-                let pos = if k == 0 {
-                    anchor
-                } else {
-                    let mut cands: Vec<Pos> = anchor
-                        .neighbours8()
-                        .into_iter()
-                        .filter(|q| run.floor.map.passable(*q) && !run.occupied(*q))
-                        .collect();
-                    if cands.is_empty() {
-                        cands.push(take(&mut run.rng, &open, &mut cursor));
-                    }
-                    *run.rng.pick(&cands)
-                };
-                if run.occupied(pos) {
-                    continue;
-                }
-                let id = run.new_id();
-                run.monsters.push(Monster::spawn(id, kind, pos, depth));
-            }
-        }
-        // Boss with escorts, near the down stairs.
-        if let Some(boss) = boss_for(depth) {
-            let near: Vec<Pos> = run
-                .floor
-                .open_tiles()
-                .into_iter()
-                .filter(|p| p.cheb(run.floor.stairs_down) <= 3 && !run.occupied(*p) && p.cheb(hero) > 6)
-                .collect();
-            let pos = if near.is_empty() { take(&mut run.rng, &open, &mut cursor) } else { *run.rng.pick(&near) };
-            let id = run.new_id();
-            run.monsters.push(Monster::spawn(id, boss, pos, depth));
-            let escort = match boss {
-                "goblin_warlord" => "goblin",
-                "bloat_mother" => "bloat",
-                _ => "skeleton",
-            };
-            for q in pos.neighbours8() {
-                if run.floor.map.passable(q) && !run.occupied(q) && run.rng.chance(40) {
-                    let id = run.new_id();
-                    run.monsters.push(Monster::spawn(id, escort, q, depth));
-                }
-            }
-        }
-        // Grudge monsters live on the floor they killed on.
-        for g in grudges.iter().filter(|g| g.depth == depth) {
-            let pos = take(&mut run.rng, &open, &mut cursor);
-            if run.occupied(pos) {
-                continue;
-            }
-            let id = run.new_id();
-            let mut m = Monster::spawn(id, &g.kind, pos, depth);
-            m.make_grudge(&g.name);
-            run.monsters.push(m);
-        }
-        // Items.
-        let budget = crate::defs::item_budget(depth);
-        let kinds: Vec<&crate::defs::ItemDef> = crate::defs::ITEMS.iter().filter(|i| i.weight > 0).collect();
-        let iw: Vec<u32> = kinds
-            .iter()
-            .map(|i| {
-                let mut w = i.weight;
-                match i.kind {
-                    "axe" | "bow" | "mail" if depth < 4 => w = 0,
-                    "plate" if depth < 8 => w = 0,
-                    _ => {}
-                }
-                w
-            })
-            .collect();
-        let mut open_items = run.floor.open_tiles();
-        run.rng.shuffle(&mut open_items);
-        let mut ic = 0usize;
-        for _ in 0..budget {
-            let d = kinds[run.rng.weighted(&iw)];
-            let iid = run.new_item_id();
-            let mut it = Item::new(iid, d.kind);
-            if d.cat == Cat::Potion || d.cat == Cat::Scroll {
-                if run.rng.chance(50) {
-                    it.hint = Some(if d.benevolent { crate::item::Hint::Benevolent } else { crate::item::Hint::Malevolent });
-                }
-            }
-            let pos = if ic < open_items.len() { open_items[ic] } else { *run.rng.pick(&open_items) };
-            ic += 1;
-            run.items.push(FloorItem { pos, item: it });
-        }
-        if depth >= 2 && run.rng.chance(50) {
-            let iid = run.new_item_id();
-            let mut it = Item::new(iid, "leash");
-            it.amount = 1;
-            let pos = if ic < open_items.len() { open_items[ic] } else { *run.rng.pick(&open_items) };
-            ic += 1;
-            run.items.push(FloorItem { pos, item: it });
-        }
-        for _ in 0..2 {
-            let iid = run.new_item_id();
-            let mut it = Item::new(iid, "gold");
-            it.amount = run.rng.range(5, 12) * depth as i32;
-            let pos = if ic < open_items.len() { open_items[ic] } else { *run.rng.pick(&open_items) };
-            ic += 1;
-            run.items.push(FloorItem { pos, item: it });
-        }
-    }
-
-}
-
-impl Game {
     /// Advance the live view by `turns`, returning the events and the new snapshot.
     pub fn step(&mut self, turns: u32) -> StepResult {
         let mut events = Vec::new();
         let mut run_over = false;
         if self.run.is_none() {
-            let snapshot = self.last_snapshot.clone().unwrap_or_else(|| {
-                self.start_run(None);
-                let s = self.snapshot();
-                self.run = None;
-                s
-            });
-            return StepResult { events, snapshot, run_over: true };
+            let snapshot = match self.last_snapshot.clone() {
+                Some(s) => s,
+                None => {
+                    self.start_run(None);
+                    let s = self.snapshot();
+                    self.run = None;
+                    s
+                }
+            };
+            let exit_pending = self.exit_pending_wire();
+            return StepResult { events, snapshot, run_over: true, exit_pending };
         }
         for _ in 0..turns {
             self.tick();
@@ -723,9 +682,18 @@ impl Game {
         let snapshot = self.snapshot();
         if run_over {
             self.finish_run();
+            events.append(&mut self.events);
         }
         self.last_snapshot = Some(snapshot.clone());
-        StepResult { events, snapshot, run_over }
+        let exit_pending = if run_over { self.exit_pending_wire() } else { None };
+        StepResult { events, snapshot, run_over, exit_pending }
+    }
+
+    fn exit_pending_wire(&self) -> Option<ExitPending> {
+        self.pending_exit.as_ref().map(|p| ExitPending {
+            items: p.items.iter().map(|i| to_inv(i, &self.lineage.facts, &self.lineage.flavours)).collect(),
+            tier: p.tier.name().into(),
+        })
     }
 
     /// One turn of the live run. Records history for verdicts when not simulating.
@@ -733,7 +701,7 @@ impl Game {
         if self.run.as_ref().is_none_or(|r| r.over.is_some()) {
             return;
         }
-        if !self.sim {
+        if !self.sim && self.run.as_ref().unwrap().turn.is_multiple_of(HISTORY_STRIDE) {
             let r = self.run.as_ref().unwrap();
             self.history.push_back((r.clone(), self.lineage.facts.clone()));
             while self.history.len() > HISTORY_TURNS + 1 {
@@ -741,8 +709,9 @@ impl Game {
             }
         }
         let (run, mut cx) = self.ctx();
-        crate::turn::step_turn(run, &mut cx);
-        let n = cx.events.iter().filter(|e| e.renderable()).count() as u32;
+        let before = cx.events.len();
+        crate::turn::tick(run, &mut cx);
+        let n = cx.events[before..].iter().filter(|e| e.renderable()).count() as u32;
         run.renderable_events += n;
         if run.turn >= MAX_TURNS_PER_RUN && run.over.is_none() {
             crate::turn::end_run(run, &mut cx, ExitTier::Return);
@@ -779,6 +748,7 @@ impl Game {
                 tags: h.status_tags(),
                 ally: None,
                 telegraph: None,
+                cid: None,
             },
             inv: h.inv.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
             weapon: h.weapon.as_ref().map(|w| w.kind.clone()),
@@ -789,7 +759,7 @@ impl Game {
         let entities = run
             .monsters
             .iter()
-            .filter(|mo| mo.hp > 0 && m.is_visible(mo.pos))
+            .filter(|mo| mo.hp > 0 && (m.is_visible(mo.pos) || mo.ally))
             .map(|mo| monster_entity(mo, &l.facts))
             .collect();
         let items = run
@@ -820,90 +790,84 @@ impl Game {
         }
     }
 
-    /// Bank the run's outcome into the lineage: loot, vault, marks, graveyard, grudges, deaths.
-    pub fn finish_run(&mut self) -> Option<RunSummary> {
+    /// Bank the run's outcome into the lineage: marks, xp, renown, companions, deaths.
+    /// The vault decision (Addendum D) is left pending; `keep` or `auto_keep` finalises it.
+    pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
         let tier = run.over.unwrap_or(ExitTier::Return);
-        let facts_before = self.lineage.facts.len();
-        let mut summary = RunSummary {
+        let t = run.turn;
+        let mut outcome = RunOutcome {
             run_id: run.id,
             depth: run.depth,
             tier: Some(tier),
             cause: run.death_cause.clone(),
+            new_facts: (self.lineage.facts.len().saturating_sub(self.facts_at_run_start)) as u32,
             turns: run.turn,
-            renderable_events: run.renderable_events,
-            row_fired: run.row_fired.clone(),
             ..Default::default()
         };
-        let _ = facts_before;
+        self.batch.runs += 1;
+        self.batch.turns += run.turn;
+        self.batch.run_outcomes.push((run.depth, if tier == ExitTier::Death { run.death_cause.clone() } else { None }));
+        self.batch.renderable_events += run.renderable_events;
+        if self.batch.row_fired.len() < 8 {
+            self.batch.row_fired = vec![0; 8];
+        }
+        for (i, n) in run.row_fired.iter().enumerate() {
+            if i < 8 {
+                self.batch.row_fired[i] += n;
+            }
+        }
         // Marks: new bests only.
         let mut marks = 0;
+        let mut bests: Vec<String> = Vec::new();
         if run.max_depth > self.lineage.best_depth {
             marks += run.max_depth - self.lineage.best_depth;
             self.lineage.best_depth = run.max_depth;
-            summary.new_best = true;
-            summary.bests.push(format!("D{}", run.max_depth));
+            bests.push(format!("D{}", run.max_depth));
         }
-        for (_, kind) in &run.kills {
+        for (_, kind, _) in &run.kills {
             if self.lineage.kills.insert(kind.clone()) {
                 let boss = crate::defs::monster_def(kind).boss;
                 marks += if boss { 3 } else { 1 };
-                summary.new_best = true;
-                summary.bests.push(if boss { format!("boss: {kind}") } else { format!("first kill: {kind}") });
+                bests.push(if boss { format!("boss: {kind}") } else { format!("first kill: {kind}") });
             }
         }
-        for t in &run.trophies_run {
-            if !self.lineage.trophies.contains(t) {
-                self.lineage.trophies.push(t.clone());
+        for tr in &run.trophies_run {
+            if !self.lineage.trophies.contains(tr) {
+                self.lineage.trophies.push(tr.clone());
                 marks += 2;
-                summary.new_best = true;
-                summary.bests.push(format!("trophy: {t}"));
+                bests.push(format!("trophy: {tr}"));
             }
         }
-        self.lineage.marks += marks;
-        summary.marks = marks;
-        // Loot and vault.
-        let mut kept: Vec<Item> = Vec::new();
-        let mut all: Vec<Item> = run.hero.inv.iter().cloned().collect();
-        if let Some(w) = &run.hero.weapon {
-            all.push(w.clone());
+        // Class XP (Addendum C).
+        let raw5: u32 = run.kills.iter().map(|(_, _, d)| 5 + d).sum::<u32>() + 25 * run.max_depth;
+        let xp = raw5 * tier.pct() as u32 / 500;
+        let class = self.lineage.class;
+        let prog = self.lineage.classes.entry(class.name().into()).or_insert(ClassProg { level: 1, xp: 0 });
+        prog.xp += xp;
+        let mut level_ups = 0;
+        while prog.level < MAX_LEVEL && prog.xp >= xp_to_next(prog.level) {
+            prog.xp -= xp_to_next(prog.level);
+            prog.level += 1;
+            level_ups += 1;
+            let lv = prog.level;
+            self.events.push(Ev::Level { t, class: class.name().into(), level: lv });
+            bests.push(format!("{} L{}", class.name(), lv));
         }
-        if let Some(a) = &run.hero.armour {
-            all.push(a.clone());
-        }
-        all.retain(|i| i.cat() != Cat::Gold && i.id != 1 && !run.supplies.contains(&i.id));
-        let loot_kept = run.loot.max(0) * tier.pct() / 100;
-        self.lineage.gold += loot_kept;
-        all.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
-        match tier {
-            ExitTier::Bank => kept = all,
-            ExitTier::Return => {
-                let n = (all.len() * 60).div_ceil(100);
-                kept = all.into_iter().take(n).collect();
-            }
-            ExitTier::Death => {
-                let n = (all.len() * 30) / 100;
-                kept = all.into_iter().filter(|i| !run.brought.contains(&i.id)).take(n).collect();
+        let level_now = prog.level;
+        if level_now >= MAX_LEVEL {
+            let tr = format!("master:{}", class.name());
+            if !self.lineage.trophies.contains(&tr) {
+                self.lineage.trophies.push(tr.clone());
+                marks += 2;
+                bests.push(format!("trophy: {tr}"));
+                self.lineage.unlocks.insert(mastery_card(class).into());
             }
         }
-        let slots = self.lineage.vault_slots();
-        for it in kept {
-            let mut v = it;
-            if v.id < 100_000 {
-                v.id = self.lineage.next_vault_id;
-                self.lineage.next_vault_id += 1;
-            }
-            self.lineage.vault.push(v.clone());
-            self.lineage.vault.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
-            if self.lineage.vault.len() > slots {
-                let dropped = self.lineage.vault.pop();
-                if dropped.as_ref().is_some_and(|d| d.id == v.id) {
-                    continue;
-                }
-            }
-            summary.found.push(v);
-        }
+        self.batch.xp_gained += xp;
+        self.batch.level_ups += level_ups;
         // Companions (Addendum A): survivors return, level on bank; the dead are eggs.
+        let eggs_before: Vec<u32> = self.lineage.eggs.iter().map(|e| e.id).collect();
         let alive_cids: Vec<u32> = run.party_alive().filter_map(|m| m.cid).collect();
         for rec in &run.companions {
             let alive = alive_cids.contains(&rec.id);
@@ -915,7 +879,7 @@ impl Game {
                 if tier == ExitTier::Bank && alive && c.level < 5 {
                     c.level += 1;
                     c.max_rows = 1 + c.level as usize;
-                    summary.bests.push(format!("{} L{}", c.name, c.level));
+                    bests.push(format!("{} L{}", c.name, c.level));
                 }
                 match in_party {
                     Some(i) => self.lineage.party[i] = c,
@@ -933,62 +897,101 @@ impl Game {
                 }
                 let eid = self.lineage.new_comp_id();
                 self.lineage.eggs.push(Egg { id: eid, kind: rec.kind.clone(), tags: rec.tags.clone(), gen: rec.gen, hatch_in: 5, from_loss: true });
-            }
-        }
-        summary.tamed = run.tamed.iter().map(|(_, k)| k.clone()).collect();
-        summary.lost = run.lost_companions.iter().map(|(_, k)| k.clone()).collect();
-        if tier == ExitTier::Death {
-            for rec in &run.companions {
-                if alive_cids.contains(&rec.id) {
-                    summary.lost.push(rec.name.clone());
+                if !run.lost_companions.iter().any(|(_, n)| *n == rec.name) {
+                    self.batch.lost.push(rec.name.clone());
                 }
             }
         }
-        // Eggs hatch after 5 completed expeditions.
-        let mut hatched: Vec<Egg> = Vec::new();
+        for (_, k) in &run.tamed {
+            self.batch.tamed.push(k.clone());
+        }
+        for (_, n) in &run.lost_companions {
+            self.batch.lost.push(n.clone());
+        }
+        // Eggs hatch after 5 completed expeditions (not counting the one that laid them).
         for e in self.lineage.eggs.iter_mut() {
-            if e.hatch_in > 0 {
+            if e.hatch_in > 0 && eggs_before.contains(&e.id) {
                 e.hatch_in -= 1;
             }
         }
         let eggs = std::mem::take(&mut self.lineage.eggs);
         for e in eggs {
             if e.hatch_in == 0 {
-                hatched.push(e);
+                let kind = e.kind.clone();
+                self.hatch_egg(e);
+                self.events.push(Ev::Hatch { t, kind: kind.clone() });
+                self.batch.hatched.push(kind);
             } else {
                 self.lineage.eggs.push(e);
             }
         }
-        for e in hatched {
-            let kind = e.kind.clone();
-            self.hatch_egg(e);
-            self.events.push(Ev::Hatch { t: run.turn, kind: kind.clone() });
-            summary.hatched.push(kind);
-        }
-        // Ledger trophies.
         for biome in [Biome::Warrens, Biome::Fens, Biome::Crypt] {
-            let t = format!("ledger:{}", biome.name());
-            if !self.lineage.trophies.contains(&t)
+            let tr = format!("ledger:{}", biome.name());
+            if !self.lineage.trophies.contains(&tr)
                 && crate::defs::biome_kinds(biome).iter().all(|k| self.lineage.facts.contains(&format!("tamed:{k}")))
             {
-                self.lineage.trophies.push(t.clone());
-                self.lineage.marks += 2;
-                summary.marks += 2;
-                summary.new_best = true;
-                summary.bests.push(format!("trophy: {t}"));
+                self.lineage.trophies.push(tr.clone());
+                marks += 2;
+                bests.push(format!("trophy: {tr}"));
             }
         }
-        // Highlights.
-        summary.highlights = crate::sifter::sift(&run, &self.lineage);
-        for h in &summary.highlights {
+        // Highlights and renown (Addendum D).
+        let highlights = crate::sifter::sift(&run, &self.lineage);
+        let kill_value: u32 = run.kills.iter().map(|(_, k, _)| kill_value(k)).sum();
+        let score = 10 * run.max_depth + kill_value + 25 * run.boss_kills.len() as u32 + highlights.iter().map(|h| h.score as u32).sum::<u32>();
+        self.lineage.renown += score;
+        self.batch.renown_gained += score;
+        while self.lineage.renown >= 100 * (self.lineage.rank + 1) * (self.lineage.rank + 1) {
+            self.lineage.rank += 1;
+            marks += 1;
+            self.batch.ranks_up += 1;
+            let r = self.lineage.rank;
+            self.events.push(Ev::Rank { t, rank: r });
+            bests.push(format!("rank {r}"));
+        }
+        for h in &highlights {
             self.reel.push(h.clone());
+            self.batch.highlights.push(h.clone());
         }
         self.reel.sort_by(|a, b| b.score.cmp(&a.score).then(a.run_id.cmp(&b.run_id)).then(a.t.cmp(&b.t)));
         self.reel.truncate(50);
+        outcome.new_best = !bests.is_empty();
+        self.lineage.marks += marks;
+        self.batch.marks += marks;
+        self.batch.bests.extend(bests);
+        // Loot, gold and the vault (Addendum B/D).
+        let loot_kept = run.loot.max(0) * tier.pct() / 100;
+        self.lineage.gold += loot_kept;
+        let mut all: Vec<Item> = run.hero.inv.clone();
+        if let Some(w) = &run.hero.weapon {
+            all.push(w.clone());
+        }
+        if let Some(a) = &run.hero.armour {
+            all.push(a.clone());
+        }
+        all.retain(|i| i.cat() != Cat::Gold && i.id != 1 && !run.supplies.contains(&i.id));
+        if tier == ExitTier::Death {
+            all.retain(|i| !run.brought.contains(&i.id));
+        }
+        all.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
+        let n_keep = match tier {
+            ExitTier::Bank => all.len(),
+            ExitTier::Return => (all.len() * 60).div_ceil(100),
+            ExitTier::Death => (all.len() * 30) / 100,
+        };
+        let eligible: Vec<Item> = all.iter().take(n_keep).cloned().collect();
+        let rest: Vec<Item> = all.into_iter().skip(n_keep).collect();
+        self.salvage(&rest, tier);
+        self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible });
         // Death: graveyard, grudge, heir, record.
         if tier == ExitTier::Death {
             let cause = run.death_cause.clone().unwrap_or_else(|| "unknown".into());
-            let mut deeds: Vec<String> = summary.bests.clone();
+            *self.batch.deaths.entry(cause.clone()).or_insert(0) += 1;
+            if run.depth >= self.batch.worst_depth {
+                self.batch.worst_depth = run.depth;
+                self.batch.worst_death = Some(run.id);
+            }
+            let mut deeds: Vec<String> = self.batch.bests.iter().rev().take(3).cloned().collect();
             for (_, k) in &run.boss_kills {
                 let d = format!("slew the {}", crate::defs::monster_def(k).title);
                 if !deeds.contains(&d) {
@@ -1008,15 +1011,83 @@ impl Game {
             if !self.sim {
                 let rec = crate::trace::death_record(self, &run);
                 self.deaths.insert(run.id, rec);
-                while self.deaths.len() > 40 {
+                while self.deaths.len() > self.max_deaths {
                     let k = *self.deaths.keys().next().unwrap();
                     self.deaths.remove(&k);
                 }
             }
         }
         self.history.clear();
-        self.last_run_summary = Some(summary.clone());
-        Some(summary)
+        outcome.new_facts = (self.lineage.facts.len().saturating_sub(self.facts_at_run_start)) as u32;
+        if self.sim {
+            self.auto_keep();
+        }
+        Some(outcome)
+    }
+
+    /// Salvage items: gold by tier, forge ledger by full count (Addendum D).
+    fn salvage(&mut self, items: &[Item], tier: ExitTier) {
+        for it in items {
+            let gold = salvage_value(&it.kind) * tier.pct() / 100;
+            self.lineage.gold += gold;
+            let f = self.lineage.forge.entry(it.kind.clone()).or_default();
+            f.salvaged += it.amount.max(1) as u32;
+            f.craftable = f.salvaged >= 5;
+            f.tier = if f.salvaged >= 40 {
+                2
+            } else if f.salvaged >= 15 {
+                1
+            } else {
+                0
+            };
+            let e = self.batch.salvaged.entry(it.kind.clone()).or_insert((0, 0));
+            e.0 += 1;
+            e.1 += gold;
+        }
+    }
+
+    /// Finalise the exit's vault choice: chosen ids go to the vault, the rest are salvaged.
+    pub fn keep(&mut self, ids: Vec<u32>) -> Result<(), String> {
+        let Some(p) = self.pending_exit.take() else { return Err("nothing to keep".into()) };
+        let slots = self.lineage.vault_slots();
+        let mut salvage: Vec<Item> = Vec::new();
+        for it in p.items {
+            if !ids.contains(&it.id) {
+                salvage.push(it);
+                continue;
+            }
+            let mut v = it;
+            if v.id < 100_000 {
+                v.id = self.lineage.next_vault_id;
+                self.lineage.next_vault_id += 1;
+            }
+            self.lineage.vault.push(v.clone());
+            self.lineage.vault.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
+            if self.lineage.vault.len() > slots {
+                if let Some(d) = self.lineage.vault.pop() {
+                    if d.id == v.id {
+                        salvage.push(d);
+                        continue;
+                    }
+                    salvage.push(d);
+                }
+            }
+            self.batch.found.push(v);
+        }
+        self.salvage(&salvage, p.tier);
+        Ok(())
+    }
+
+    /// Resolve a pending exit by `keep_pref` (offline runs, or when the client moves on).
+    pub fn auto_keep(&mut self) {
+        let Some(p) = self.pending_exit.as_ref() else { return };
+        let pick = |cat: Cat| p.items.iter().filter(|i| i.cat() == cat).max_by_key(|i| (i.value(), i.id)).map(|i| i.id);
+        let ids: Vec<u32> = match self.lineage.keep_pref.as_str() {
+            "best_weapon" => pick(Cat::Weapon).or_else(|| pick(Cat::Armour)).into_iter().collect(),
+            "best_armour" => pick(Cat::Armour).or_else(|| pick(Cat::Weapon)).into_iter().collect(),
+            _ => Vec::new(),
+        };
+        let _ = self.keep(ids);
     }
 
     pub fn vocabulary(&self) -> Vocabulary {
@@ -1105,7 +1176,7 @@ impl Game {
         Ok(())
     }
 
-    /// Hatch a lost companion's egg now for 2 marks.
+    /// Hatch a lost companion's egg now for 50 gold (Addendum B).
     pub fn hatch(&mut self, egg_id: u32) -> Result<(), String> {
         let i = self.lineage.eggs.iter().position(|e| e.id == egg_id).ok_or("no such egg")?;
         if !self.lineage.eggs[i].from_loss {
@@ -1120,20 +1191,34 @@ impl Game {
         Ok(())
     }
 
-    // ---- Gold and supplies (Addendum B)
+    pub fn companion_vocabulary(&self, id: u32) -> Result<Vocabulary, String> {
+        let c = self.lineage.all_companions().find(|c| c.id == id).ok_or("no such companion")?;
+        Ok(crate::tokens::companion_vocabulary(&self.lineage, c))
+    }
+
+    // ---- Gold and supplies (Addendum B, forge Addendum D)
 
     pub fn supply_catalogue(&self) -> Vec<SupplyInfo> {
         let mut out = vec![SupplyInfo { kind: "leash".into(), price: 30, label: "leash".into() }];
         for d in crate::defs::ITEMS {
-            let price = match d.cat {
-                Cat::Potion => 40,
-                Cat::Scroll => 60,
+            let base = match d.cat {
+                Cat::Potion => Some(40),
+                Cat::Scroll => Some(60),
+                _ => None,
+            };
+            let identified = crate::item::is_identified(&self.lineage.facts, &self.lineage.flavours, d.kind);
+            let craftable = self.lineage.forge.get(d.kind).is_some_and(|f| f.craftable);
+            let price = match (base, craftable, identified) {
+                (Some(p), _, true) => p,
+                (None, true, _) if d.cat != Cat::Gold && d.kind != "leash" => 2 * salvage_value(d.kind),
                 _ => continue,
             };
-            if crate::item::is_identified(&self.lineage.facts, &self.lineage.flavours, d.kind) {
-                let cat = if d.cat == Cat::Potion { "potion" } else { "scroll" };
-                out.push(SupplyInfo { kind: d.kind.into(), price, label: format!("{} {cat}", d.kind.replace('_', " ")) });
-            }
+            let label = match d.cat {
+                Cat::Potion => format!("{} potion", d.kind.replace('_', " ")),
+                Cat::Scroll => format!("{} scroll", d.kind.replace('_', " ")),
+                _ => d.kind.to_string(),
+            };
+            out.push(SupplyInfo { kind: d.kind.into(), price, label });
         }
         out
     }
@@ -1150,6 +1235,7 @@ impl Game {
         let id = self.lineage.next_vault_id;
         self.lineage.next_vault_id += 1;
         let mut it = Item::new(id, kind);
+        it.enchant = self.lineage.forge_tier(kind);
         if kind == "leash" {
             it.amount = 1;
         }
@@ -1165,21 +1251,163 @@ impl Game {
             }
         }
     }
+}
 
-    pub fn companion_vocabulary(&self, id: u32) -> Result<Vocabulary, String> {
-        let c = self.lineage.all_companions().find(|c| c.id == id).ok_or("no such companion")?;
-        Ok(crate::tokens::companion_vocabulary(&self.lineage, c))
+/// Salvage value per kind (Addendum D).
+pub fn salvage_value(kind: &str) -> i32 {
+    let d = crate::defs::item_def(kind);
+    match d.cat {
+        Cat::Weapon | Cat::Armour => d.value,
+        Cat::Potion => 8,
+        Cat::Scroll => 12,
+        Cat::Misc => 5,
+        Cat::Gold => 0,
+    }
+}
+
+/// Renown value of a kill (Addendum D): scaled by the monster's toughness.
+pub fn kill_value(kind: &str) -> u32 {
+    let d = crate::defs::monster_def(kind);
+    (d.hp as u32) / 3 + 1
+}
+
+/// Fill a freshly generated floor with monsters and items for the run's depth.
+pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String, ForgeRow>) {
+    let depth = run.depth;
+    let biome = run.biome();
+    let mut open = run.floor.open_tiles();
+    let hero = run.hero.pos;
+    open.retain(|p| p.cheb(hero) > 6);
+    if open.is_empty() {
+        open = run.floor.open_tiles();
+    }
+    run.rng.shuffle(&mut open);
+    let mut cursor = 0usize;
+    let take = |rng: &mut Rng, open: &Vec<Pos>, cursor: &mut usize| -> Pos {
+        if *cursor < open.len() {
+            let p = open[*cursor];
+            *cursor += 1;
+            p
+        } else {
+            *rng.pick(open)
+        }
+    };
+    let table = spawn_table(biome, depth);
+    let weights: Vec<u32> = table.iter().map(|t| t.1).collect();
+    let groups = crate::defs::group_budget(depth);
+    let water = run.floor.water_tiles();
+    let mut captive_placed = false;
+    for _ in 0..groups {
+        let (kind, _, gmin, gmax) = table[run.rng.weighted(&weights)];
+        if kind == "captive" {
+            if captive_placed {
+                continue;
+            }
+            captive_placed = true;
+        }
+        let n = run.rng.range(gmin, gmax);
+        let anchor = if kind == "eel" && !water.is_empty() { *run.rng.pick(&water) } else { take(&mut run.rng, &open, &mut cursor) };
+        for k in 0..n {
+            let pos = if k == 0 {
+                anchor
+            } else {
+                let mut cands: Vec<Pos> =
+                    anchor.neighbours8().into_iter().filter(|q| run.floor.map.passable(*q) && !run.occupied(*q)).collect();
+                if cands.is_empty() {
+                    cands.push(take(&mut run.rng, &open, &mut cursor));
+                }
+                *run.rng.pick(&cands)
+            };
+            if run.occupied(pos) {
+                continue;
+            }
+            let id = run.new_id();
+            run.monsters.push(Monster::spawn(id, kind, pos, depth));
+        }
+    }
+    // Boss with escorts, near the down stairs.
+    if let Some(boss) = boss_for(depth) {
+        let near: Vec<Pos> = run
+            .floor
+            .open_tiles()
+            .into_iter()
+            .filter(|p| p.cheb(run.floor.stairs_down) <= 3 && !run.occupied(*p) && p.cheb(hero) > 6)
+            .collect();
+        let pos = if near.is_empty() { take(&mut run.rng, &open, &mut cursor) } else { *run.rng.pick(&near) };
+        let id = run.new_id();
+        run.monsters.push(Monster::spawn(id, boss, pos, depth));
+        let escort = match boss {
+            "goblin_warlord" => "goblin",
+            "bloat_mother" => "bloat",
+            _ => "skeleton",
+        };
+        for q in pos.neighbours8() {
+            if run.floor.map.passable(q) && !run.occupied(q) && run.rng.chance(40) {
+                let id = run.new_id();
+                run.monsters.push(Monster::spawn(id, escort, q, depth));
+            }
+        }
+    }
+    // Grudge monsters live on the floor they killed on.
+    for g in grudges.iter().filter(|g| g.depth == depth) {
+        let pos = take(&mut run.rng, &open, &mut cursor);
+        if run.occupied(pos) {
+            continue;
+        }
+        let id = run.new_id();
+        let mut m = Monster::spawn(id, &g.kind, pos, depth);
+        m.make_grudge(&g.name);
+        run.monsters.push(m);
+    }
+    // Items.
+    let budget = crate::defs::item_budget(depth);
+    let kinds: Vec<&crate::defs::ItemDef> = crate::defs::ITEMS.iter().filter(|i| i.weight > 0).collect();
+    let iw: Vec<u32> = kinds
+        .iter()
+        .map(|i| {
+            let mut w = i.weight;
+            match i.kind {
+                "axe" | "bow" | "mail" if depth < 4 => w = 0,
+                "plate" if depth < 8 => w = 0,
+                _ => {}
+            }
+            w
+        })
+        .collect();
+    let mut open_items = run.floor.open_tiles();
+    run.rng.shuffle(&mut open_items);
+    let mut ic = 0usize;
+    let mut place = |run: &mut Run, it: Item| {
+        let pos = if ic < open_items.len() { open_items[ic] } else { *run.rng.pick(&open_items) };
+        ic += 1;
+        run.items.push(FloorItem { pos, item: it });
+    };
+    for _ in 0..budget {
+        let d = kinds[run.rng.weighted(&iw)];
+        let iid = run.new_item_id();
+        let mut it = Item::new(iid, d.kind);
+        it.enchant = forge.get(d.kind).map(|f| f.tier as i32).unwrap_or(0);
+        if (d.cat == Cat::Potion || d.cat == Cat::Scroll) && run.rng.chance(50) {
+            it.hint = Some(if d.benevolent { crate::item::Hint::Benevolent } else { crate::item::Hint::Malevolent });
+        }
+        place(run, it);
+    }
+    if depth >= 2 && run.rng.chance(50) {
+        let iid = run.new_item_id();
+        let mut it = Item::new(iid, "leash");
+        it.amount = 1;
+        place(run, it);
+    }
+    for _ in 0..2 {
+        let iid = run.new_item_id();
+        let mut it = Item::new(iid, "gold");
+        it.amount = run.rng.range(5, 12) * depth as i32;
+        place(run, it);
     }
 }
 
 pub fn monster_entity(mo: &Monster, facts: &BTreeSet<String>) -> Entity {
-    let mut tags: Vec<String> = mo
-        .def()
-        .tags
-        .iter()
-        .filter(|t| facts.contains(&format!("foe:{}:{}", mo.kind, t)))
-        .map(|t| t.to_string())
-        .collect();
+    let mut tags: Vec<String> = mo.tags().into_iter().filter(|t| mo.ally || facts.contains(&format!("foe:{}:{}", mo.kind, t))).collect();
     if mo.neutral {
         tags.push("captive".into());
     }
@@ -1263,8 +1491,6 @@ pub fn item_wire(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> 
 pub fn kind_title(kind: &str) -> String {
     if crate::defs::MONSTERS.iter().any(|m| m.kind == kind) {
         crate::defs::monster_def(kind).title.to_string()
-    } else if crate::defs::ITEMS.iter().any(|i| i.kind == kind) {
-        item_def(kind).kind.replace('_', " ")
     } else {
         kind.replace('_', " ")
     }

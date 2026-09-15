@@ -88,6 +88,7 @@ pub enum Ev {
     Hatch { t: u32, kind: String },
     Level { t: u32, class: String, level: u32 },
     Rank { t: u32, rank: u32 },
+    Projectile { t: u32, src: u32, dst: u32, path: Vec<[i32; 2]> },
 }
 
 impl Ev {
@@ -113,7 +114,8 @@ impl Ev {
             | Ev::Tame { t, .. }
             | Ev::Hatch { t, .. }
             | Ev::Level { t, .. }
-            | Ev::Rank { t, .. } => *t,
+            | Ev::Rank { t, .. }
+            | Ev::Projectile { t, .. } => *t,
         }
     }
     /// Renderable, non-movement events (the "events per 60 turns" gate).
@@ -186,6 +188,9 @@ pub struct Death {
     pub cause: String,
     pub margin: String,
     pub verdict: String,
+    /// Survival of the unpatched rules over the reseeded replays (addition; 0..1).
+    #[serde(default)]
+    pub baseline: f64,
     pub trace: Trace,
     pub patches: Vec<Patch>,
     pub morgue: String,

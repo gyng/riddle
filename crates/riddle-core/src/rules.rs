@@ -40,11 +40,19 @@ pub struct Vocabulary {
 pub const COND_KEYS: &[&str] = &[
     "hp<", "hp>", "foes>=", "adj>=", "foe_tag", "foe_hp<", "item", "unknown_item", "floor_seen>=", "depth>=",
     "alert>=", "in_corridor", "path_stairs", "ally", "loot>=", "turns>", "on_hurt", "on_kill", "on_see",
+    // Addendum A (party scope, companion self)
+    "party", "party_hp<", "self_hp<", "self_hp>",
 ];
 
 pub const VERB_KEYS: &[&str] = &[
     "attack", "retreat", "back_corridor", "drink", "read", "throw", "descend", "bank", "return", "rest",
     "pick_up", "free_captive", "shield_bash", "vanish", "tactic",
+    // Addendum A (tame, party orders, companion verbs)
+    "tame", "recall", "send", "shoot", "burst", "steal", "split", "flank", "drain", "follow",
+    // Addendum C (class ladder)
+    "cleave", "taunt", "second_wind", "bulwark", "backstab", "smoke", "ambush", "shadowstep",
+    // hold position (always executes; not offered by the editor)
+    "hold",
 ];
 
 impl Cond {
@@ -80,6 +88,10 @@ impl Cond {
             "on_hurt" => "hurt".into(),
             "on_kill" => "kill".into(),
             "on_see" => "see".into(),
+            "party" => self.t.clone().unwrap_or_default(),
+            "party_hp<" => format!("pet<{n}%"),
+            "self_hp<" => format!("self<{n}%"),
+            "self_hp>" => format!("self>{n}%"),
             other => other.to_string(),
         }
     }

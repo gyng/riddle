@@ -63,6 +63,9 @@ pub struct Monster {
     pub stole_from: Vec<u32>,
     #[serde(default)]
     pub hurt_since_action: bool,
+    /// Actions taken since the hero last acted (for the `fast` fact).
+    #[serde(default)]
+    pub acts_since_hero: u32,
 }
 
 impl Monster {
@@ -107,6 +110,7 @@ impl Monster {
             sent: false,
             stole_from: Vec::new(),
             hurt_since_action: false,
+            acts_since_hero: 0,
         }
     }
     pub fn def(&self) -> &'static MonsterDef {
@@ -141,9 +145,9 @@ impl Monster {
     pub fn make_grudge(&mut self, name: &str) {
         self.name = Some(name.into());
         self.grudge = true;
-        self.max_hp = (self.max_hp * 11).div_ceil(10);
+        self.max_hp = (self.max_hp * 11 + 9) / 10;
         self.hp = self.max_hp;
-        self.atk = (self.atk.0, (self.atk.1 * 11).div_ceil(10));
+        self.atk = (self.atk.0, (self.atk.1 * 11 + 9) / 10);
     }
     pub fn effective_def(&self) -> i32 {
         self.def + if self.buff_def.1 > 0 { self.buff_def.0 } else { 0 }

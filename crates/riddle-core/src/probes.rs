@@ -31,13 +31,13 @@ pub fn good() -> RuleSet {
         name: Some("good".into()),
         rows: vec![
             Row::new(vec![Cond::n("hp<", 35)], Verb::arg("drink", "heal")),
-            Row::new(vec![Cond::n("hp<", 25), Cond::n("foes>=", 1)], Verb::arg("read", "unknown")),
-            Row::new(vec![Cond::n("foes>=", 2), Cond::n("hp<", 60)], Verb::new("back_corridor")),
+            Row::new(vec![Cond::t("foe_tag", "ranged")], Verb::arg("attack", "tag:ranged")),
+            Row::new(vec![Cond::n("foes>=", 3), Cond::n("hp<", 70)], Verb::new("back_corridor")),
             Row::new(vec![Cond::t("foe_tag", "gas"), Cond::n("adj>=", 1)], Verb::new("retreat")),
-            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "lowest")),
-            Row::new(vec![Cond::n("hp<", 70), Cond::n("foes>=", 0)], Verb::new("rest")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+            Row::new(vec![Cond::n("hp<", 90), Cond::n("foes>=", 0)], Verb::new("rest")),
             Row::new(vec![Cond::flag("unknown_item"), Cond::n("hp>", 60)], Verb::arg("drink", "unknown")),
-            Row::new(vec![Cond::n("floor_seen>=", 55)], Verb::new("descend")),
+            Row::new(vec![Cond::n("floor_seen>=", 60)], Verb::new("descend")),
         ],
     }
 }

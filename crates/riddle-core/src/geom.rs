@@ -20,13 +20,14 @@ impl Pos {
     pub fn adjacent(self, o: Pos) -> bool {
         self != o && self.cheb(o) <= 1
     }
-    pub fn add(self, d: (i32, i32)) -> Pos {
+    /// The position offset by `d`.
+    pub fn step(self, d: (i32, i32)) -> Pos {
         Pos::new(self.x + d.0, self.y + d.1)
     }
     pub fn neighbours8(self) -> [Pos; 8] {
         let mut out = [self; 8];
         for (i, d) in DIRS8.iter().enumerate() {
-            out[i] = self.add(*d);
+            out[i] = self.step(*d);
         }
         out
     }

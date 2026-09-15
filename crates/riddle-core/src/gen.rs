@@ -166,7 +166,7 @@ fn carve_line(map: &mut Map, room_mask: &[bool], a: Pos, b: Pos) {
         if map.tiles[i] == Tile::Wall {
             // Door where the corridor enters a room boundary.
             let touches_room = DIRS4.iter().any(|d| {
-                let q = p.add(*d);
+                let q = p.step(*d);
                 map.in_bounds(q) && room_mask[map.idx(q)]
             });
             map.tiles[i] = if touches_room { Tile::Door } else { Tile::Floor };
@@ -197,7 +197,7 @@ fn gen_cave(rng: &mut Rng, depth: u32) -> Option<Floor> {
         for y in 1..h - 1 {
             for x in 1..w - 1 {
                 let p = Pos::new(x, y);
-                let walls = DIRS8.iter().filter(|d| !cells[(p.add(**d).y * w + p.add(**d).x) as usize]).count();
+                let walls = DIRS8.iter().filter(|d| !cells[(p.step(**d).y * w + p.step(**d).x) as usize]).count();
                 next[(y * w + x) as usize] = walls < 4 || (walls == 4 && cells[(y * w + x) as usize]);
             }
         }
@@ -232,8 +232,8 @@ fn gen_cave(rng: &mut Rng, depth: u32) -> Option<Floor> {
     if best_count < 120 {
         return None;
     }
-    for i in 0..n {
-        if best[i] < 0 {
+    for (i, d) in best.iter().enumerate() {
+        if *d < 0 {
             map.tiles[i] = Tile::Wall;
         }
     }
@@ -247,7 +247,7 @@ fn gen_cave(rng: &mut Rng, depth: u32) -> Option<Floor> {
                 map.set(p, Tile::Water);
             }
             let d = DIRS4[rng.below(4) as usize];
-            let q = p.add(d);
+            let q = p.step(d);
             if map.in_bounds(q) && map.get(q) != Tile::Wall {
                 p = q;
             }
