@@ -7,6 +7,7 @@ import { renderCamp } from "./ui/camp";
 import { renderWatch } from "./ui/watch";
 import { renderDeath } from "./ui/death";
 import { renderReport } from "./ui/report";
+import { renderEnding } from "./ui/ending";
 import { closeAllSheets } from "./ui/sheet";
 import { showBusy } from "./ui/progress";
 
@@ -14,13 +15,17 @@ export type Screen =
   | { kind: "camp"; highlight?: number }
   | { kind: "watch" }
   | { kind: "death"; death: Death; lost?: string[] }
-  | { kind: "report"; report: ReturnReport };
+  | { kind: "report"; report: ReturnReport }
+  | { kind: "ending" };
 
 export type Mounted = { el: HTMLElement; dispose?: () => void };
 
 const OFFLINE_MIN_S = 60;
 const SETS = 3;
 const SAVE_DEBOUNCE_MS = 1000;
+// runOffline is chunked so the progress label can count runs. Every slice pays the worst-death verdict
+// (~2.3 s in wasm), so slices grow with the absence: 30 min for an hour away, 80 min for 8 h, 2 h cap.
+const OFFLINE_SLICE_MIN_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES = 6;
 
 export class App {
   engine!: AsyncEngine;
@@ -42,6 +47,9 @@ export class App {
   private fcDirty = false;
   private fcListeners = new Set<(f: Forecast) => void>();
   private changeListeners = new Set<() => void>();
+  private offlineRunning = false;
+  /** Runs seen by this client (the wire Lineage has no run counter); persisted in the blob. */
+  runsSeen = 0;
 
   constructor(root: HTMLElement) { this.root = root; }
 
@@ -55,6 +63,7 @@ export class App {
       try {
         this.lineage = await this.engine.load(blob.engine);
         this.loadout = blob.loadout;
+        this.runsSeen = blob.runs ?? 0;
         elapsed = Math.max(0, (Date.now() - blob.last_seen) / 1000);
         loaded = true;
       } catch (e) { console.warn("save rejected, new lineage", e); }
@@ -67,7 +76,10 @@ export class App {
     window.addEventListener("pagehide", () => this.flushSync());
     setInterval(() => { if (!document.hidden) void this.flush(); }, 30_000);
     if (loaded && elapsed >= OFFLINE_MIN_S) {
-      const report = await this.busy(/* copy:label */ "offline", () => this.engine.runOffline(Math.floor(elapsed)));
+      // the camp (last state) shows underneath, inert, while the batch runs (no forecast queued ahead of it)
+      this.offlineRunning = true;
+      this.go({ kind: "camp" });
+      const report = await this.runOfflineChunked(Math.floor(elapsed));
       await this.refresh();
       this.adoptSets();
       this.go({ kind: "report", report });
@@ -77,8 +89,44 @@ export class App {
 
   /** Runs an engine call behind the progress bar. */
   async busy<T>(label: string, fn: () => Promise<T>): Promise<T> {
-    const done = showBusy(label);
-    try { return await fn(); } finally { done(); }
+    const b = showBusy(label);
+    try { return await fn(); } finally { b.done(); }
+  }
+
+  /** `runOffline` in ≤ 30-minute slices, reports merged client-side, progress label `runs N · best Dk`. */
+  async runOfflineChunked(elapsedS: number): Promise<ReturnReport> {
+    this.offlineRunning = true;
+    this.root.inert = true;
+    const b = showBusy(/* copy:label */ "offline");
+    let merged: ReturnReport | null = null;
+    try {
+      const slice = Math.min(OFFLINE_SLICE_MAX_S, Math.max(OFFLINE_SLICE_MIN_S, Math.ceil(elapsedS / OFFLINE_SLICES)));
+      for (let left = elapsedS; left > 0; left -= slice) {
+        const r = await this.engine.runOffline(Math.min(left, slice));
+        merged = merged ? mergeReports(merged, r) : r;
+        const best = Math.max(this.lineage.best_depth, ...merged.bests.map((x) => Number(/^D(\d+)$/.exec(x)?.[1] ?? 0)));
+        b.set(`runs ${merged.runs} · best D${best}`);
+      }
+    } finally { b.done(); this.root.inert = false; this.offlineRunning = false; }
+    this.runsSeen += merged!.runs;
+    return merged!;
+  }
+  totalRuns(): number { return this.runsSeen; }
+
+  /** After the ending: a fresh lineage that keeps the player's three rule sets (facts, classes, meta reset —
+   *  the core has no carry-over method). */
+  async again(): Promise<void> {
+    const sets = this.sets.map(cloneSet); const active = this.active;
+    this.lineage = await this.engine.newLineage(randomSeed());
+    for (let i = 0; i < sets.length; i++) { await this.engine.selectSet(i); await this.engine.setRules(sets[i]).catch(() => { /* a set the fresh vocabulary rejects stays the preset */ }); }
+    await this.engine.selectSet(active);
+    this.lineage = await this.engine.lineage();
+    this.loadout = []; this.runsSeen = 0;
+    this.adoptSets();
+    await this.engine.loadout([]);
+    this.vocab = await this.engine.vocabulary();
+    await this.flush();
+    this.go({ kind: "camp" });
   }
 
   private async fresh(): Promise<void> {
@@ -106,7 +154,7 @@ export class App {
   onForecast(fn: (f: Forecast) => void): () => void { this.fcListeners.add(fn); return () => this.fcListeners.delete(fn); }
   async emitForecast(): Promise<void> {
     if (!this.fcListeners.size) return;
-    if (this.fcInFlight) { this.fcDirty = true; return; }
+    if (this.fcInFlight || this.offlineRunning) { this.fcDirty = true; return; }
     this.fcInFlight = true; this.fcDirty = false;
     try {
       const f = await this.busy(/* copy:label */ "forecast", () => this.engine.forecast());
@@ -171,14 +219,14 @@ export class App {
   }
   /** pagehide/visibilitychange cannot await the worker: write the last save string fetched. */
   private flushSync(): void { if (this.lastSave) writeBlob(this.blob()); }
-  private blob(): SaveBlob { return { v: 2, engine: this.lastSave, loadout: this.loadout, last_seen: Date.now() }; }
+  private blob(): SaveBlob { return { v: 2, engine: this.lastSave, loadout: this.loadout, last_seen: Date.now(), runs: this.runsSeen }; }
   exportSave(): string { return JSON.stringify(this.blob()); }
   async importSave(text: string): Promise<boolean> {
     try {
       const b = JSON.parse(text) as SaveBlob;
       if (!b || typeof b.engine !== "string") return false;
       this.lineage = await this.engine.load(b.engine);
-      this.loadout = b.loadout ?? [];
+      this.loadout = b.loadout ?? []; this.runsSeen = b.runs ?? 0;
       this.adoptSets();
       await this.engine.setRules(this.rules); await this.engine.loadout(this.loadout);
       this.vocab = await this.engine.vocabulary();
@@ -194,8 +242,10 @@ export class App {
     this.mounted?.dispose?.();
     this.screen = screen;
     let m: Mounted;
+    if (screen.kind === "camp" && this.lineage.ended) screen = { kind: "ending" };
     switch (screen.kind) {
       case "camp": m = renderCamp(this, screen.highlight); break;
+      case "ending": m = renderEnding(this); break;
       case "watch": m = renderWatch(this); break;
       case "death": m = renderDeath(this, screen.death, screen.lost ?? []); break;
       case "report": m = renderReport(this, screen.report); break;
@@ -206,6 +256,29 @@ export class App {
     window.scrollTo(0, 0);
     this.persist();
   }
+}
+
+/** Merge two offline reports (a then b): sums, unions in order, reel top 5, worst = deeper (ties: later). */
+export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
+  const union = (x: string[], y: string[]): string[] => [...new Set([...x, ...y])];
+  const deaths = new Map<string, number>();
+  for (const d of [...a.deaths, ...b.deaths]) deaths.set(d.cause, (deaths.get(d.cause) ?? 0) + d.n);
+  const salv = new Map<string, { n: number; gold: number }>();
+  for (const s of [...a.salvaged, ...b.salvaged]) { const m = salv.get(s.kind) ?? { n: 0, gold: 0 }; m.n += s.n; m.gold += s.gold; salv.set(s.kind, m); }
+  const worst = !a.worst_death ? b.worst_death : !b.worst_death ? a.worst_death : b.worst_death.depth >= a.worst_death.depth ? b.worst_death : a.worst_death;
+  return {
+    elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,
+    learned: union(a.learned, b.learned), bests: union(a.bests, b.bests),
+    found: [...a.found, ...b.found],
+    deaths: [...deaths].map(([cause, n]) => ({ cause, n })).sort((x, y) => y.n - x.n),
+    pending: b.pending,                                   // decisions waiting now (a state, not a delta)
+    reel: [...a.reel, ...b.reel].sort((x, y) => y.score - x.score).slice(0, 5),
+    marks_earned: a.marks_earned + b.marks_earned, worst_death: worst, live: b.live,
+    tamed: [...a.tamed, ...b.tamed], hatched: [...a.hatched, ...b.hatched], lost: [...a.lost, ...b.lost],
+    xp: { class: b.xp.class, gained: a.xp.gained + b.xp.gained, level_ups: a.xp.level_ups + b.xp.level_ups },
+    salvaged: [...salv].map(([kind, v]) => ({ kind, ...v })),
+    renown: { gained: a.renown.gained + b.renown.gained, rank: b.renown.rank, ranks_up: a.renown.ranks_up + b.renown.ranks_up },
+  };
 }
 
 export const cloneRow = (r: Row): Row => ({ conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } });

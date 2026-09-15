@@ -50,9 +50,11 @@ export function renderWatch(app: App): Mounted {
   const cls = app.lineage.class;
   const before = { best: app.lineage.best_depth, marks: app.lineage.marks, level: app.lineage.classes?.[cls]?.level ?? 1, xp: app.lineage.classes?.[cls]?.xp ?? 0, renown: app.lineage.renown ?? 0, rank: app.lineage.rank ?? 0 };
   const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [], tamed: string[] = [], lost: string[] = [];
-  const kinds = new Map<number, string>();
-  const partyAtStart = (app.lineage.party ?? []).map((c) => c.kind);
-  const lostKind = (id: number): string => kinds.get(id) ?? "?";
+  const kinds = new Map<number, string>(), names = new Map<number, string>();
+  const partyAtStart = (app.lineage.party ?? []).map((c) => `${c.kind} · ${c.name}`);
+  const tamedIds: number[] = [], lostIds: number[] = [];
+  const compLabel = (id: number): string => { const n = names.get(id); return `${kinds.get(id) ?? "?"}${n ? ` · ${n}` : ""}`; };
+  const note_ = (e: { id: number; kind: string; name?: string }): void => { kinds.set(e.id, e.kind); if (e.name) names.set(e.id, e.name); };
   // HUD updates released at the viewer's clock
   const hud = { hp: 0, maxHp: 1, depth: 1 };
   const timed: { t: number; f: () => void }[] = [];
@@ -108,9 +110,9 @@ export function renderWatch(app: App): Mounted {
         case "pickup": if (ev.id === heroId) found.push({ id: ev.id, kind: ev.item, known: true, label: ev.item }); break;
         case "note": notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text }); break;
         case "exit": exit = ev.tier; break;
-        case "tame": if (ev.ok) tamed.push(ev.kind); break;
-        case "ally": if (ev.state === "lost") lost.push(lostKind(ev.id)); break;
-        case "spawn": kinds.set(ev.e.id, ev.e.kind); break;
+        case "tame": if (ev.ok) { tamedIds.push(ev.id); kinds.set(ev.id, ev.kind); } break;
+        case "ally": if (ev.state === "lost") lostIds.push(ev.id); break;
+        case "spawn": note_(ev.e); break;
         case "level": for (const v of verbsAt(ev.class, ev.level)) learned.push(`verb:${v}`); at(ev.t, () => callout(`${ev.class} L${ev.level}`)); break;
         case "rank": at(ev.t, () => callout(`★${ev.rank}`)); break;
         default: break;
@@ -121,7 +123,7 @@ export function renderWatch(app: App): Mounted {
   function handle(r: StepResult): void {
     const s = r.snapshot;
     engineTick = s.turn;
-    for (const e of s.entities) kinds.set(e.id, e.kind);
+    for (const e of s.entities) note_(e);
     const exit = absorb(r.events, s);
     const di = r.events.findIndex((e) => e.k === "descend");
     if (viewer && di >= 0) { viewer.apply(r.events.slice(0, di + 1)); pendingLoad = { snap: s, rest: r.events.slice(di + 1) }; }
@@ -186,9 +188,12 @@ export function renderWatch(app: App): Mounted {
     if (pendingExit && pendingExit.items.length) { const p = pendingExit; pendingExit = undefined; exitSheet(p, () => { done = false; void finish(tier); }); return; }
     pendingExit = undefined;
     await app.refresh();
+    app.runsSeen += 1;
     if (disposed) return;
+    tamed.push(...tamedIds.map(compLabel));
+    lost.push(...lostIds.map(compLabel));
     if (tier === "death") {
-      for (const c of partyAtStart) if (!lost.includes(c)) lost.push(c);
+      for (const c of partyAtStart) if (!lost.some((l) => l === c || l.endsWith(c.slice(c.indexOf(" · "))))) lost.push(c);
       try {
         const death = await app.busy(/* copy:label */ "verdict", () => app.engine.death(runId));
         if (!disposed) app.go({ kind: "death", death, lost });
@@ -237,7 +242,7 @@ export function renderWatch(app: App): Mounted {
     try { s = await app.engine.send(); } catch (e) { console.warn("send failed", e); if (!disposed) app.go({ kind: "camp" }); return; }
     if (disposed) return;
     snap = s; runId = s.run.id; engineTick = startTick = s.turn;
-    for (const e of s.entities) kinds.set(e.id, e.kind);
+    for (const e of s.entities) note_(e);
     hudFrom(s);
     const { viewer: v } = await makeViewer(canvas);
     if (disposed) { v.dispose(); return; }

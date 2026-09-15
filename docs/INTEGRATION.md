@@ -140,3 +140,40 @@ Console: zero errors or warnings on every step (page errors, worker errors and c
 - **Offline boot**: the page is blank except for the 3 px bar for up to ~10 s. A player may
   think it hung; a `runs so far` count would need chunked batches from the core.
 - **Lost companions** are listed by name (`◯ Zelim`) while tamed/hatched are listed by kind.
+
+## Follow-ups (same day, after commit 8499740)
+
+1. **Phone map scale.** `ui/viewer.ts` passes `baseTexels: 150` when the canvas's short side is
+   < 600 CSS px (else the renderer's default 200). At 400×800 @3: k = 8, a tile is 21 CSS px,
+   ~19 tiles across, hero ≈ 1/12 of the height. Desktop unchanged. Re-shot: `02-watch-phone.png`.
+2. **Chunked offline.** `App.runOfflineChunked` calls `runOffline` per slice and merges the
+   reports (`mergeReports`: sums runs/deaths/xp/renown/marks/salvaged, unions learned/bests,
+   concatenates tamed/hatched/lost/found, reel = top 5 by score, worst_death = deeper (ties: later),
+   live = last, pending = last slice's (it is a state, not a delta), sampled = any). The camp
+   renders first with the last state, `inert` and dimmed, and the bar reads `RUNS N · BEST Dk`
+   after each slice (`27-offline-progress-phone.png`); the forecast is deferred until the batch is
+   done so it does not queue ahead of the first slice.
+   *Slice size.* Every slice pays the worst-death verdict + four patch forecasts inside the core's
+   `report()` (~2.3 s in wasm on this loaded machine). With the requested ≤ 30-minute slices an 8 h
+   absence took **46–50 s** (16 slices) against ~10 s for one call, so the slice is
+   `clamp(elapsed / 6, 30 min, 2 h)`: 1 h → 2 slices, 3.3 s; 8 h → 80-min slices, **16.3 s**
+   total, first count at 2.9 s; 24 h → 2 h slices, 51 s (12 slices). Recommendation for the core: a
+   `run_offline` variant (or flag) that skips the verdict, then 30-minute slices cost nothing extra
+   and the count can tick every ~0.6 s.
+3. **Ending.** `ui/ending.ts`: `/art/title.png` full-bleed (`object-fit: cover`), `♟heir Dbest`,
+   four tiles (runs · deaths · facts · renown), one button `again`. Shown whenever the app would
+   show the camp and `lineage.ended` is true (so the report's `camp` button lands on it). The core
+   has no ascend/carry-over method, so `again` = `newLineage(fresh seed)` with the three rule sets
+   re-applied via `selectSet`/`setRules` (facts, classes, gold, marks, kennel reset). The wire
+   `Lineage` has no run counter, so "runs" is counted client-side (`runsSeen`, in the save blob):
+   watched runs + offline `report.runs` since the lineage began. Reached in the test by a 3-row
+   `retreat / rest / attack` set in the second 8 h batch: `28-ending-phone.png`,
+   `28-ending-wide.png`, `29-camp-after-again-phone.png` (heir 1, same 3 rows, 0 facts).
+4. **Names.** Kennel/party cards and the companion rule sheet show `kind name L g` (`jackal
+   Zelim`). Reports from a watched run list tamed and lost companions as `kind · name` (name from
+   the snapshot entity), rendered kind + small name. Offline reports keep what the core sends:
+   `tamed`/`hatched` are kinds, `lost` are names only — pairing them needs the core to emit
+   `kind · name` (or both fields) in `ReturnReport`.
+
+`pnpm -s build`, `tsc`, `node tools/copy-lint.mjs` clean; zero console errors on the ending,
+again, and chunked-offline walks.

@@ -1,6 +1,6 @@
 // localStorage persistence: engine save string + loadout + last_seen. (v1 blobs also carried client-side
 // set tabs; the engine's saved sets are the truth now, so v1 is read but its sets are ignored.)
-export type SaveBlob = { v: 1 | 2; engine: string; loadout: number[]; last_seen: number };
+export type SaveBlob = { v: 1 | 2; engine: string; loadout: number[]; last_seen: number; runs?: number };
 const KEY = "riddle.save";
 
 export function readBlob(): SaveBlob | null {

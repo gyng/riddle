@@ -19,7 +19,9 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
   // repeats (three goblin archers tamed) collapse to one chip with a count
   const chips = (xs: string[], cls = "chip"): HTMLElement | null => {
     const n = new Map<string, number>(); for (const x of xs) n.set(x, (n.get(x) ?? 0) + 1);
-    return n.size ? h("div", { class: "chips" }, ...[...n].map(([x, k]) => h("span", { class: cls }, nice(x), k > 1 ? h("b", { class: "num" }, ` ×${k}`) : ""))) : null;
+    // "kind · name" (companions) renders the name small
+    const label = (x: string): (string | HTMLElement)[] => { const i = x.indexOf(" · "); return i < 0 ? [nice(x)] : [nice(x.slice(0, i)), h("small", { class: "dim" }, ` ${x.slice(i + 3)}`)]; };
+    return n.size ? h("div", { class: "chips" }, ...[...n].map(([x, k]) => h("span", { class: cls }, ...label(x), k > 1 ? h("b", { class: "num" }, ` ×${k}`) : ""))) : null;
   };
   const lines = (xs: string[]): HTMLElement | null => xs.length ? h("ul", { class: "lines" }, ...xs.map((x) => h("li", null, nice(x)))) : null;
   // identical reel lines (the same pattern in several runs) collapse to one with a count

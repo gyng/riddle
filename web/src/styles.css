@@ -200,3 +200,13 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 /* report: dense fact chips (an 8 h batch learns dozens) */
 .report .chips .chip { min-height: 32px; padding: 0 10px; font-size: 14px; }
 .report .chip small { color: var(--dim); }
+
+/* ending */
+#app[data-screen="ending"] { max-width: none; padding: 0; }
+.ending { position: fixed; inset: 0; padding: 0; gap: 0; }
+.title-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; image-rendering: auto; }
+.ending-body { position: absolute; left: 0; right: 0; bottom: 0; padding: 24px 12px calc(96px + env(safe-area-inset-bottom)); max-width: 520px; margin: 0 auto; background: linear-gradient(transparent, rgba(11,12,15,.92) 40%); }
+.ending-heir { font-size: 28px; margin-bottom: 12px; text-shadow: 0 2px 8px #000; }
+.ending .tiles { margin-top: 0; }
+.ending .tile { background: rgba(20,22,27,.85); }
+#app[inert] { opacity: .55; }

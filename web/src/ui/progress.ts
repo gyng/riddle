@@ -18,10 +18,11 @@ function paint(): void {
   label!.textContent = texts[texts.length - 1];
 }
 
-/** Shows the bar with a label (copy surface: label, one word) until the returned function is called. */
-export function showBusy(text: string): () => void {
+export type Busy = { done(): void; set(text: string): void };
+/** Shows the bar with a label (copy surface: label) until `done()`; `set` updates the label. */
+export function showBusy(text: string): Busy {
   const id = next++;
   active.set(id, text);
   paint();
-  return () => { active.delete(id); paint(); };
+  return { done: () => { active.delete(id); paint(); }, set: (t) => { if (active.has(id)) { active.set(id, t); paint(); } } };
 }

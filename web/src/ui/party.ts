@@ -48,7 +48,7 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     };
     return h("div", { class: `card comp${inParty ? " on" : ""}${picked ? " pick" : ""}${breeding && c.level < 2 ? " off" : ""}` },
       h("button", { class: "comp-main", onclick: onTap },
-        h("span", { class: "name" }, nice(c.kind), " ", h("b", { class: "num" }, `L${c.level}`), h("small", { class: "dim num" }, ` g${c.gen}`)),
+        h("span", { class: "name" }, nice(c.kind), " ", h("small", { class: "dim" }, c.name), " ", h("b", { class: "num" }, `L${c.level}`), h("small", { class: "dim num" }, ` g${c.gen}`)),
         h("span", { class: "tags dim" }, c.tags.map(nice).join(" · ")),
         h("span", { class: "hp num dim" }, `${c.hp}/${c.max_hp} · ${c.rules.rows.length}/${c.max_rows}`)),
       h("button", { class: "grip", onclick: () => openRules(app, c) }, "≡"));
@@ -65,7 +65,7 @@ function openRules(app: App, c: Companion): void {
       vocab: () => vocab,
       changed: () => { void app.engine.setCompanionRules(c.id, local).catch((e) => console.warn("companion rules", e)); c.rules = cloneSet(local); app.persist(); },
     });
-    return h("div", { class: "sheet-body" }, h("div", { class: "sheet-head" }, nice(c.kind), " ", h("b", { class: "num" }, `L${c.level}`)), ed.el);
+    return h("div", { class: "sheet-body" }, h("div", { class: "sheet-head" }, nice(c.kind), " ", c.name, " ", h("b", { class: "num" }, `L${c.level}`)), ed.el);
   })).catch((e) => console.warn("companion vocabulary", e));
 }
 
