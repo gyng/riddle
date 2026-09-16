@@ -93,3 +93,14 @@ buying.
 - **Core** (`crates/**`): §1, §2 (chronicle field), §3, §4, §5 (bail as a queued return).
 - **Client/renderer** (`web/src/**`): §2 sheet, §5 cadence/camera/bail, §6.
 - **Art** (`art/**`): shrine, vault cage, nest 8×8 props ×3 biomes of the Warrens/Fens/Crypt.
+
+## Cohort 2 result (build 186d0ac)
+
+| Rater | Seed | Total | Verdict | Gates |
+|---|---|---|---|---|
+| C | 37 | 63.5 | promising | clarity |
+| D | 41 | 68.4 | promising | none |
+
+α = 0.809 (decision-grade). Mean 66.0 vs cohort 1's 63.7. Story 0.45 → 0.70, tension 0.60 →
+0.80, attribution 0.70 → 0.80; clarity 0.60 → 0.45 (money, silent rows, grey send, unnamed
+counters). Next: `docs/CUT6.md`.
