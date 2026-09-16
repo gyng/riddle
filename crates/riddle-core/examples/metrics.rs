@@ -563,9 +563,25 @@ fn main() {
     let (fresh_n, fresh_f): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.patches_fresh.0, a.1 + r.patches_fresh.1));
     println!("shown patches fire in {:.0}% of fresh reseeded replays (n={fresh_n})", pct(fresh_f as usize, fresh_n as usize));
     rows.push((format!("Patches whose row fired in ≥ 50% of replays (n={shown})"), format!("{:.0}%", pct(fired as usize, shown as usize)), fired == shown));
-    let vsecs: Vec<f64> = all.iter().flat_map(|r| r.verdict_secs.iter().copied()).collect();
+    // Verdict cost as the player pays it: one verdict at a time in the worker. The batch above ran
+    // on every core, so its per-verdict wall times include contention; re-measure single-threaded on
+    // a fresh sample of deaths after the batch has drained.
+    let vsecs: Vec<f64> = {
+        let mut v = Vec::new();
+        for seed in 1..=3u64 {
+            let mut g = setup(Bot::Default, seed);
+            let _ = g.run_offline(3600 * 2);
+            let ids: Vec<u32> = g.deaths.keys().copied().collect();
+            for id in ids.iter().take(4) {
+                let t = std::time::Instant::now();
+                let _ = riddle_core::trace::verdict(&mut g, *id);
+                v.push(t.elapsed().as_secs_f64());
+            }
+        }
+        v
+    };
     let vmean = vsecs.iter().sum::<f64>() / vsecs.len().max(1) as f64;
-    rows.push((format!("Verdict time ≤ 0.4 s (mean of {})", vsecs.len()), format!("{vmean:.2} s"), vmean <= 0.4));
+    rows.push((format!("Verdict time ≤ 0.4 s (single-threaded mean of {})", vsecs.len()), format!("{vmean:.2} s"), vmean <= 0.4));
     let dsecs: Vec<f64> = all.iter().flat_map(|r| r.death_secs.iter().copied()).collect();
     let dmean = dsecs.iter().sum::<f64>() / dsecs.len().max(1) as f64;
     println!("death() with forecast deltas: mean {dmean:.2} s over {}", dsecs.len());
