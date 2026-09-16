@@ -23,6 +23,7 @@ import * as THREE from "three";
 import { Atlas } from "./atlas";
 import { Blit } from "./blit";
 import { QuadLayer } from "./layers";
+import { GpuTimer, Hist } from "./gputimer";
 import { paletteFor } from "./palette";
 import { FONT_ADVANCE, FONT_CELL_H, FONT_CELL_W } from "./font";
 import { ReplayState, type EntState } from "./state";
@@ -48,6 +49,10 @@ export type ViewerStats = {
   device: [number, number]; envTexels: [number, number]; target: [number, number]; pending: number; tick: number;
   hero: [number, number]; // render position in tiles
   projectiles: number;
+  // timing (see docs/RENDER_PERF.md): cpuMs = build + render wall time this frame; gpuMs = GPU
+  // elapsed time for the whole pipeline (NaN without EXT_disjoint_timer_query_webgl2); p95 over
+  // the last 120 frames; fps over the last second of rAF callbacks.
+  cpuMs: number; cpuP95: number; buildMs: number; gpuMs: number; gpuP95: number; gpuTimer: boolean; fps: number;
 };
 
 const TILE = 8;
@@ -67,6 +72,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   renderer.setPixelRatio(1);
   renderer.autoClear = true;
   renderer.info.autoReset = false;
+  const gpu = new GpuTimer(renderer.getContext() as WebGL2RenderingContext);
+  const cpuHist = new Hist(), buildHist = new Hist();
+  const frameTimes: number[] = [];
+  let frameNo = 0;
 
   const rt = new THREE.WebGLRenderTarget(4, 4, {
     minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false,
@@ -94,7 +103,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
   const st = new ReplayState();
   const cam = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0 };
-  const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, hero: [0, 0], projectiles: 0 };
+  const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, hero: [0, 0], projectiles: 0,
+    cpuMs: NaN, cpuP95: NaN, buildMs: NaN, gpuMs: NaN, gpuP95: NaN, gpuTimer: gpu.available, fps: NaN };
   let k = 1, iw = 1, ih = 1, W = 3, H = 3, devW = 0, devH = 0, dpr = 1;
   let lastCss = "";
   let raf = 0;
@@ -148,7 +158,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   }
 
   function build(now: number): void {
-    const p = paletteFor(st.biome);
+    const p = paletteFor(st.clock < st.bossFlashUntil ? "boss_flash" : st.biome);
     blit.setPalette(p);
     clear.setRGB(p[0]![0], p[0]![1], p[0]![2]);
     const b = st.biome;
@@ -175,18 +185,28 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
     L.overlays.end();
 
+    // bones piles (Cut 2 §2) arrive as item kind or entity kind `bones`: env density, 2 frames at 1 fps
+    const bonesFrame = Math.floor(now / 1000) & 1;
     L.items.begin();
     for (const it of st.items) {
       const i = it.y * st.w + it.x;
       if (!st.seen[i]) continue;
-      const s = atlas.item(it.known ? it.kind : /scroll/.test(it.label) ? "scroll" : "potion");
+      const s = it.kind === "bones" ? atlas.bones(b, bonesFrame) : atlas.item(it.known ? it.kind : /scroll/.test(it.label) ? "scroll" : "potion");
       L.items.push(it.x * TILE + TILE / 2, -(it.y + 1) * TILE, 1, TILE, TILE, s.u0, s.v0, s.u1, s.v1, st.visible[i] ? 1 : 0.6);
+    }
+    for (const e of st.ents.values()) {
+      if (e.kind !== "bones") continue;
+      const i = e.y * st.w + e.x;
+      if (!st.seen[i]) continue;
+      const s = atlas.bones(b, bonesFrame);
+      L.items.push(e.x * TILE + TILE / 2, -(e.y + 1) * TILE, 1, TILE, TILE, s.u0, s.v0, s.u1, s.v1, st.visible[i] ? 1 : 0.6);
     }
     L.items.end();
 
     // entities (sprite density: 1 sprite texel = 0.5 world), shadows, glyphs
     L.shadows.begin(); L.ents.begin(); L.glyphs.begin();
     for (const e of st.ents.values()) {
+      if (e.kind === "bones") continue; // drawn in the items layer above
       const vi = e.y * st.w + e.x;
       if (!e.hero && !st.visible[vi]) continue;
       const [fx, fy] = feet(e);
@@ -252,6 +272,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   function frame(now: number): void {
     if (disposed) return;
     raf = requestAnimationFrame(frame);
+    frameTimes.push(now);
+    while (frameTimes.length > 2 && now - frameTimes[0]! > 1000) frameTimes.shift();
+    if (frameTimes.length > 1) stats.fps = (frameTimes.length - 1) / ((now - frameTimes[0]!) / 1000);
     const dt = Math.min(250, now - last); // clamp long stalls (tab switch) but keep 4-fps devices on time
     last = now;
     const resized = measure();
@@ -260,7 +283,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     st.cameraSnap = false;
     updateCamera(dt / 1000, snapCam);
     if (!st.loaded) return;
+    const t0 = performance.now();
     build(now);
+    const t1 = performance.now();
 
     // snap camera to the env-texel grid; remainder → blit UV offset quantised to device px
     const sx = Math.round(cam.x), sy = Math.round(cam.y);
@@ -275,6 +300,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     u.uFade!.value = st.fade;
 
     renderer.info.reset();
+    gpu.begin();
     renderer.setRenderTarget(rt);
     renderer.setClearColor(clear, 1);
     renderer.clear(true, true, false);
@@ -287,6 +313,11 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     renderer.clear(true, false, false);
     renderer.setViewport(0, devH - ih * k, iw * k, ih * k);
     renderer.render(blit.scene, blit.camera);
+    gpu.end();
+    const t2 = performance.now();
+    buildHist.push(t1 - t0); cpuHist.push(t2 - t0);
+    stats.buildMs = t1 - t0; stats.cpuMs = t2 - t0; stats.gpuMs = gpu.ms; stats.gpuTimer = gpu.available;
+    if ((++frameNo & 31) === 0) { stats.cpuP95 = cpuHist.pct(0.95); stats.gpuP95 = gpu.pct(0.95); }
     stats.calls = renderer.info.render.calls;
     stats.triangles = renderer.info.render.triangles;
     stats.pending = st.pending();
@@ -315,6 +346,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       cancelAnimationFrame(raf);
       for (const l of Object.values(L)) l.dispose();
       blit.dispose();
+      gpu.dispose();
       rt.dispose();
       env.dispose(); spr.dispose();
       renderer.dispose();

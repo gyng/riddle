@@ -105,6 +105,11 @@ export class Atlas {
   font(ch: string): Slot { return this.envSlot(`font:${ch.toUpperCase()}`); }
   shadow(width: number, ally = false): Slot { return this.envSlot(`${ally ? "ring" : "shadow"}:${Math.max(6, Math.round(width))}`); }
   dot(): Slot { return this.envSlot("dot:2"); }
+  // bones pile (Cut 2 §2): per-biome 2-frame tile art if the atlas has it, else the `bones` item
+  // glyph (atlas or procedural). Env density, 8×8, no shadow.
+  bones(biome: string, frame: number): Slot {
+    return this.env.get(`tile:${biome}_bones_${frame & 1}`) ?? this.env.get(`tile:${biome}_bones_0`) ?? this.envSlot("item:bones");
+  }
   // ---- sprite-density ids -------------------------------------------------------------------
   entity(kind: string): Slot { return this.spriteSlot(`ent:${kind}`); }
 
@@ -198,7 +203,7 @@ export class Atlas {
     } else if (ovm) {
       const frames = ovm[2] === undefined ? [0, 1] : [Number(ovm[2])];
       for (const f of frames) put(this.env, `ov:${ovm[1]}_${f}`, 8, 8);
-    } else if (TILE_IDS.some((t) => id.endsWith(`_${t}`) || id.endsWith(`_${t}_alt`))) {
+    } else if (TILE_IDS.some((t) => id.endsWith(`_${t}`) || id.endsWith(`_${t}_alt`)) || /_bones_[01]$/.test(id)) {
       put(this.env, `tile:${id}`, 8, 8);
     } else {
       put(this.env, `item:${id.replace(/^item_/, "")}`, 8, 8);
@@ -258,6 +263,14 @@ function drawItem(c: Ctx, s: Slot, kind: string): void {
   const weapon = /dagger|sword|axe|bow/.test(kind);
   const armour = /leather|mail|plate/.test(kind);
   const gold = /gold/.test(kind);
+  if (/^bones$/.test(kind)) {
+    // skull (3×3 with eye pits) over two crossed long bones
+    const B = "#e8dcc0", S = "#9a8e78";
+    for (const [x, y] of [[0, 6], [1, 5], [2, 4], [5, 4], [6, 5], [7, 6], [0, 4], [1, 5], [6, 5], [7, 4]] as [number, number][]) px(c, s, x, y, S);
+    for (let y = 1; y <= 3; y++) for (let x = 2; x <= 5; x++) px(c, s, x, y, B);
+    px(c, s, 3, 2, D); px(c, s, 4, 2, D); px(c, s, 3, 4, S); px(c, s, 4, 4, S);
+    return;
+  }
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
     let col: string | null = null;
     if (potion) {

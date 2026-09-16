@@ -248,8 +248,10 @@ function main(): void {
   const loop = (now: number) => {
     requestAnimationFrame(loop);
     const s = viewer.stats();
-    hud.textContent = `D${depth} ${floor.biome}  k=${s.k} dpr=${s.dpr}  dev ${s.device.join("×")}  env ${s.envTexels.join("×")}  target ${s.target.join("×")}  calls ${s.calls}  tris ${s.triangles}  queue ${s.pending}  tick ${s.tick}`;
-    if (now - lastLog > 2000) { lastLog = now; console.log(`[render-demo] draw calls=${s.calls} target=${s.target.join("x")} k=${s.k}`); }
+    const f1 = (n: number) => (Number.isNaN(n) ? "-" : n.toFixed(2));
+    hud.textContent = `D${depth} ${floor.biome}  k=${s.k} dpr=${s.dpr}  dev ${s.device.join("×")}  env ${s.envTexels.join("×")}  target ${s.target.join("×")}  tris ${s.triangles}  queue ${s.pending}  tick ${s.tick}\n`
+      + `frame ms (cpu) ${f1(s.cpuMs)} p95 ${f1(s.cpuP95)} (build ${f1(s.buildMs)}) / gpu ms ${f1(s.gpuMs)} p95 ${f1(s.gpuP95)}${s.gpuTimer ? "" : " (no timer ext)"} / calls ${s.calls} / fps ${Number.isNaN(s.fps) ? "-" : s.fps.toFixed(0)}`;
+    if (now - lastLog > 2000) { lastLog = now; console.log(`[render-demo] cpu=${f1(s.cpuMs)}ms gpu=${f1(s.gpuMs)}ms calls=${s.calls} fps=${Number.isNaN(s.fps) ? "-" : s.fps.toFixed(0)} target=${s.target.join("x")} k=${s.k}`); }
     if (viewer.idle()) {
       if (restartAt === 0) restartAt = now + 1200;
       else if (now > restartAt) {

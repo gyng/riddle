@@ -118,7 +118,7 @@ Console: zero errors or warnings on every step (page errors, worker errors and c
 - **Watch, phone**: the map is tiny. A tile is 16 CSS px, the visible floor sits in the middle
   third of a 400×800 screen with black around it; the hero sprite is two tiles tall, which reads
   well, but the rooms and corridors are hard to read at arm's length. Wide is fine.
-- **Watch**: 33 fps on the phone-sized viewport and 18 fps wide in the harness, JS idle — the
+- **Watch**: corrected 2026-09-16 (docs/RENDER_PERF.md): 59–60 fps at 400×800@3, 0.7 ms CPU per frame; the earlier 33 fps was the WSLg present ceiling, which scales with window width (1280 wide caps at ~29). The rest of this bullet is historical: JS idle — the
   pixel pipeline's cost is on the GPU/present side; worth a look before phones.
 - **Death screen**: the DEFAULT hero sits at 1–3 HP for 4–5 actions "attacking nearest" with
   `1 unknown unused` / `5 unknown unused` in its pack, and the patches offered are `hp < 30% →

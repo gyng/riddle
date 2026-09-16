@@ -52,6 +52,8 @@ export class QuadLayer {
   private uvr: THREE.InstancedBufferAttribute;
   private par: THREE.InstancedBufferAttribute;
   private n = 0;
+  private lastN = 0;
+  private dirty = true; // any instance value changed since the last upload
   readonly capacity: number;
 
   constructor(texture: THREE.Texture, capacity: number, tag: number, renderOrder: number) {
@@ -89,21 +91,29 @@ export class QuadLayer {
 
   begin(): void { this.n = 0; }
 
+  // Compare-and-write: the GPU upload in end() is skipped when nothing changed (static floors,
+  // paused replay), which is most frames for the tile/item layers.
   push(x: number, y: number, z: number, w: number, h: number,
        u0: number, v0: number, u1: number, v1: number,
        dim = 1, flash = 0, fade = 0, flip = 0): void {
     if (this.n >= this.capacity) return;
     const i = this.n++;
-    this.pos.setXYZ(i, x, y, z);
-    this.size.setXY(i, w, h);
-    this.uvr.setXYZW(i, u0, v0, u1, v1);
-    this.par.setXYZW(i, dim, flash, fade, flip);
+    const P = this.pos.array as Float32Array, S = this.size.array as Float32Array;
+    const U = this.uvr.array as Float32Array, R = this.par.array as Float32Array;
+    const p3 = i * 3, s2 = i * 2, q4 = i * 4;
+    if (P[p3] !== x || P[p3 + 1] !== y || P[p3 + 2] !== z) { P[p3] = x; P[p3 + 1] = y; P[p3 + 2] = z; this.dirty = true; }
+    if (S[s2] !== w || S[s2 + 1] !== h) { S[s2] = w; S[s2 + 1] = h; this.dirty = true; }
+    if (U[q4] !== u0 || U[q4 + 1] !== v0 || U[q4 + 2] !== u1 || U[q4 + 3] !== v1) { U[q4] = u0; U[q4 + 1] = v0; U[q4 + 2] = u1; U[q4 + 3] = v1; this.dirty = true; }
+    if (R[q4] !== dim || R[q4 + 1] !== flash || R[q4 + 2] !== fade || R[q4 + 3] !== flip) { R[q4] = dim; R[q4 + 1] = flash; R[q4 + 2] = fade; R[q4 + 3] = flip; this.dirty = true; }
   }
 
   end(): void {
     this.geom.instanceCount = this.n;
     this.mesh.visible = this.n > 0;
+    if (!this.dirty && this.n <= this.lastN) { this.lastN = this.n; return; }
     for (const a of [this.pos, this.size, this.uvr, this.par]) { a.needsUpdate = true; a.clearUpdateRanges(); a.addUpdateRange(0, this.n * a.itemSize); }
+    this.lastN = this.n;
+    this.dirty = false;
   }
 
   get count(): number { return this.n; }

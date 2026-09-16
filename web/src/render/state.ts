@@ -15,6 +15,7 @@ export const VISION_R = 7;
 const LUNGE_T = 2, HURT_T = 1.5, DIE_T = 4, SPAWN_T = 2, LEASH_T = 4, SHAKE_T = 3, GLYPH_T = 15;
 const MOVE_DEFAULT = 10, MOVE_MIN = 3, MOVE_MAX = 20;
 const IDLE_TAIL = 6; // ticks after the last event before idle() reports true
+const BOSS_FLASH_T = 6; // ticks the palette flashes to `boss_flash` when a boss is first seen/spawned
 
 export type EntState = {
   id: number; kind: string; ally: boolean; hero: boolean; cid: number | null;
@@ -58,6 +59,7 @@ export class ReplayState {
   loaded = false;
   visionDirty = true;
   cameraSnap = false; // index.ts snaps the camera to the hero and clears this
+  bossFlashUntil = -Infinity; // clock < this → index.ts renders with the `boss_flash` palette
   private snap: Snapshot | null = null;
   private queue: Ev[] = [];
   private log: Ev[] = [];     // applied since load, in order (for seek)
@@ -87,6 +89,7 @@ export class ReplayState {
     this.addEntity(s.hero, true);
     for (const e of s.entities) this.addEntity(e, false);
     this.fade = this.fadeTarget = 0;
+    this.bossFlashUntil = -Infinity;
     this.callout = null;
     this.leash = null;
     this.projectiles = [];
@@ -193,6 +196,13 @@ export class ReplayState {
   private applyOne(ev: Ev): void {
     const t = ev.t;
     this.lastT = Math.max(this.lastT, t);
+    // `see` is not in the wire types yet (engine track): accept {e: Entity} or {id} and flash for a boss
+    if ((ev as { k: string }).k === "see") {
+      const sv = ev as unknown as { e?: Entity; id?: number };
+      const tags = sv.e?.tags ?? (sv.id !== undefined ? this.snap?.entities.find((x) => x.id === sv.id)?.tags : undefined);
+      if (tags?.includes("boss")) this.bossFlashUntil = t + BOSS_FLASH_T;
+      return;
+    }
     switch (ev.k) {
       case "move": {
         const e = this.ents.get(ev.id);
@@ -263,6 +273,7 @@ export class ReplayState {
         const e = this.addEntity(ev.e, false);
         e.spawning = { t0: t };
         e.fade = 1;
+        if (ev.e.tags?.includes("boss")) this.bossFlashUntil = t + BOSS_FLASH_T;
         break;
       }
       case "steal": {
