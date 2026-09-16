@@ -36,7 +36,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
     if l.facts.iter().any(|f| f.starts_with("foe:") && f.ends_with(":studied")) {
         conds.push(Cond::n("foe_hp<", 25));
     }
-    for (k, n) in [("alert>=", 3), ("loot>=", 50), ("turns>", 100)] {
+    for (k, n) in [("alert>=", 3), ("loot>=", 20), ("turns>", 100)] {
         if owned(k) {
             conds.push(Cond::n(k, n));
         }

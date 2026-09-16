@@ -31,6 +31,9 @@ pub const TARGET_TAGS: usize = 4;
 pub const CONTEXT_RANGE: i32 = 8;
 /// Patches shown on the death screen.
 pub const SHOWN: usize = 3;
+/// Cut 4: a replay runs on past the killing blow while an awake hostile is in view, at most
+/// this many ticks (surviving the moment of the blow is not surviving the fight).
+pub const ENCOUNTER_TICKS: u32 = 300;
 
 pub fn death_record(game: &Game, run: &Run) -> DeathRec {
     let turns: Vec<_> = run.trace.iter().rev().take(TRACE_LEN).rev().cloned().collect();
@@ -74,7 +77,7 @@ pub fn death_record(game: &Game, run: &Run) -> DeathRec {
         Some((r, f)) => (Some(r.clone()), f.clone()),
         None => (None, BTreeSet::new()),
     };
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false }
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn }
 }
 
 fn morgue(game: &Game, run: &Run, rules: &RuleSet) -> String {
@@ -321,8 +324,19 @@ impl Replayer {
         self.g.lineage.ended = self.ended;
         self.g.events.clear();
         let mut fired = false;
-        for _ in 0..self.ticks {
+        // Cut 4: the window ends at the killing blow, then runs on while a hostile is still in
+        // view (up to `ENCOUNTER_TICKS`): surviving the tick of the blow is not surviving the
+        // fight, and a boss wall scored 0.9+ baselines that way.
+        let mut n = 0;
+        loop {
+            if n >= self.ticks + ENCOUNTER_TICKS {
+                break;
+            }
+            if n >= self.ticks && !self.g.run.as_ref().is_some_and(|r| crate::turn::view(r).foes.iter().any(|&i| r.monsters[i].awake)) {
+                break;
+            }
             self.g.tick();
+            n += 1;
             if !fired {
                 fired = self.g.events.iter().any(|e| matches!(e, Ev::Rule { row, .. } if *row == watch_row));
             }
@@ -346,8 +360,13 @@ fn replay_base(game: &Game, rec: &DeathRec) -> Option<(Game, u32)> {
     base.lineage.class = t10.hero.class;
     base.lineage.party.clear();
     base.lineage.supplies.clear();
+    // Cut 4: the window runs to the killing blow (the trace's last turn is the hero's last
+    // *action*; the blow lands up to a turn later, and a replay cut there scored a hero at 1 HP
+    // as "survived" — baselines of 0.9–1.0 on most deaths), plus one turn of grace for the
+    // reseeded timing.
     let last_t = rec.death.trace.turns.last().map(|t| t.t).unwrap_or(t10.turn + 100);
-    let ticks = (last_t.saturating_sub(t10.turn)).max(1) + 1;
+    let end = rec.death_tick.max(last_t);
+    let ticks = (end.saturating_sub(t10.turn)).max(1) + crate::engine::TICKS_PER_TURN;
     base.run = Some(t10);
     Some((base, ticks))
 }
@@ -386,9 +405,11 @@ fn row_nonce(row: &Row, pos: usize, i: u32) -> u64 {
     h ^ ((pos as u64) << 16) ^ i as u64
 }
 
-/// Replays one patched rule set. `None` when the row rarely fires or the hero still dies;
-/// otherwise (survive share, fired share) over all replays.
-fn score(rp: &mut Replayer, row: &Row, pos: usize) -> Option<(f64, f64)> {
+/// Replays one patched rule set. `None` when the row rarely fires or the hero does not reach
+/// `bar` (Cut 4: the baseline plus `PATCH_MARGIN`, never above `SURVIVE_BAR`, so a patch that
+/// only moves the forecast is still scored at a high baseline); otherwise (survive share,
+/// fired share) over all replays.
+fn score(rp: &mut Replayer, row: &Row, pos: usize, bar: f64) -> Option<(f64, f64)> {
     let (mut survived, mut failed, mut fired) = (0u32, 0u32, 0u32);
     for i in 0..REPLAYS {
         let (s, f) = rp.replay(row_nonce(row, pos, i), pos as i32);
@@ -401,7 +422,7 @@ fn score(rp: &mut Replayer, row: &Row, pos: usize) -> Option<(f64, f64)> {
         if i == 0 && !f {
             return None; // the row never fires here: identical to the original
         }
-        if failed as f64 > REPLAYS as f64 * (1.0 - SURVIVE_BAR) {
+        if failed as f64 > REPLAYS as f64 * (1.0 - bar) {
             return None;
         }
         if (i + 1 - fired) as f64 > REPLAYS as f64 * (1.0 - FIRED_BAR) {
@@ -410,7 +431,13 @@ fn score(rp: &mut Replayer, row: &Row, pos: usize) -> Option<(f64, f64)> {
     }
     let rate = survived as f64 / REPLAYS as f64;
     let fired = fired as f64 / REPLAYS as f64;
-    (rate >= SURVIVE_BAR && fired >= FIRED_BAR).then_some((rate, fired))
+    (rate >= bar && fired >= FIRED_BAR).then_some((rate, fired))
+}
+
+/// The survival a scored candidate must reach: the baseline plus the margin, capped at
+/// `SURVIVE_BAR` (so at a high baseline the forecast can still decide).
+pub fn survive_bar(baseline: f64) -> f64 {
+    (baseline + PATCH_MARGIN).min(SURVIVE_BAR)
 }
 
 /// Share of the death's own replays in which a patch's row fired (the selection's replays,
@@ -439,7 +466,10 @@ fn one_per_family(patches: Vec<Patch>) -> Vec<Patch> {
         .collect()
 }
 
-/// Compute the verdict and patches (survival only) for a recorded death.
+/// Compute the verdict and patches for a recorded death. Cut 4: `gap` iff the best candidate
+/// beats the unpatched baseline by `PATCH_MARGIN` (survival over the reseeded replays), or —
+/// when none does — some candidate moves the forecast at the death's depth by `DELTA_BAR`
+/// (the deltas are simulated here, so the verdict is final); else `dice`.
 pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     if rec.verdict_done {
         return;
@@ -454,6 +484,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
         None => 0.0,
     };
     rec.death.baseline = baseline;
+    let bar = survive_bar(baseline);
     let cands = match &rec.t10 {
         Some(t10) => candidates(&rec.vocab, t10, &rec.t10_facts, &game.lineage.flavours, &rec.death.trace),
         None => Vec::new(),
@@ -462,7 +493,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     for row in &cands {
         for &pos in &positions {
             let Some(mut rp) = Replayer::new(&base, &patched(rec, row, pos), ticks) else { continue };
-            if let Some((rate, _fired)) = score(&mut rp, row, pos) {
+            if let Some((rate, _fired)) = score(&mut rp, row, pos, bar) {
                 scored.push((rate, row.clone(), pos));
             }
         }
@@ -477,43 +508,79 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
             .then(a.1.conds.len().cmp(&b.1.conds.len()))
             .then(a.2.cmp(&b.2))
     });
-    if scored.first().is_some_and(|best| best.0 >= SURVIVE_BAR) {
-        rec.death.verdict = "gap".into();
-    }
+    let edge_gap = scored.first().is_some_and(|best| best.0 - baseline >= PATCH_MARGIN - 1e-9);
     let patches = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos, survive: rate, forecast_delta: 0.0, replace: false, remove: false }).collect();
     rec.death.patches = one_per_family(patches);
+    if edge_gap {
+        rec.death.verdict = "gap".into();
+    } else {
+        // No patch survives the moment clearly: the forecast decides (a row that costs no
+        // survival here but gains floors is still a gap in the policy).
+        forecast_deltas(game, rec, VERDICT_DELTA_CANDIDATES, true);
+        if rec.death.patches.iter().any(|p| p.forecast_delta >= DELTA_BAR - 1e-9) {
+            rec.death.verdict = "gap".into();
+        }
+    }
 }
 
-/// Fill in each patch's full-forecast delta at the death's depth.
-pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
-    if rec.deltas_done {
-        return;
-    }
-    rec.deltas_done = true;
-    if rec.death.patches.is_empty() {
+/// Simulate the candidates' forecast deltas at the death's depth (`DELTA_SIMS` paired sims
+/// each), in survival-edge order, up to `limit` patches; with `until_gap` the loop stops at the
+/// first delta that makes the death a gap. `rec.deltas_n` counts the leading patches done, so
+/// the death screen's full pass only adds the rest.
+fn forecast_deltas(game: &Game, rec: &mut DeathRec, limit: usize, until_gap: bool) {
+    if rec.deltas_done || rec.death.patches.is_empty() {
+        rec.deltas_done = true;
         return;
     }
     let depth = (rec.death.depth + 1).min(game.lineage.best_depth + 1).max(1);
     let sims = crate::forecast::DELTA_SIMS;
-    // Forecasts cost ~20 sims each: rank by survival edge first and only forecast the top few.
     let baseline = rec.death.baseline;
-    rec.death.patches.sort_by(|a, b| (b.survive - baseline).partial_cmp(&(a.survive - baseline)).unwrap().then(a.row.conds.len().cmp(&b.row.conds.len()).reverse()));
-    rec.death.patches.truncate(DELTA_CANDIDATES);
+    if rec.deltas_n == 0 {
+        // Forecasts cost ~20 sims each: rank by survival edge first and only forecast the top few.
+        rec.death.patches.sort_by(|a, b| (b.survive - baseline).partial_cmp(&(a.survive - baseline)).unwrap().then(a.row.conds.len().cmp(&b.row.conds.len()).reverse()));
+        rec.death.patches.truncate(DELTA_CANDIDATES);
+    }
     let base = crate::forecast::reach_with(game, &rec.rules, depth, sims, 0xDE17A);
-    for p in rec.death.patches.iter_mut() {
+    let limit = limit.min(rec.death.patches.len());
+    while rec.deltas_n < limit {
+        let p = &mut rec.death.patches[rec.deltas_n];
         let mut rules = rec.rules.clone();
         rules.rows.insert(p.insert_at.min(rules.rows.len()), p.row.clone());
         rules.rows.truncate(rec.vocab.max_rows.max(rules.rows.len()));
         let r = crate::forecast::reach_with(game, &rules, depth, sims, 0xDE17A);
         p.forecast_delta = r - base;
+        rec.deltas_n += 1;
+        if until_gap && p.forecast_delta >= DELTA_BAR - 1e-9 {
+            break;
+        }
     }
+    if rec.deltas_n >= rec.death.patches.len() {
+        rec.deltas_done = true;
+    }
+}
+
+/// Candidates whose forecast delta the verdict itself simulates when no patch has a survival
+/// edge (the best by edge; the death screen fills in the rest).
+pub const VERDICT_DELTA_CANDIDATES: usize = 3;
+
+/// Fill in each patch's full-forecast delta at the death's depth and shape the shown list.
+pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
+    if rec.shaped {
+        return;
+    }
+    rec.shaped = true;
+    forecast_deltas(game, rec, DELTA_CANDIDATES, false);
+    if rec.death.patches.is_empty() {
+        return;
+    }
+    let baseline = rec.death.baseline;
     // A patch must beat the baseline by 0.15 or move the forecast by 0.02; an unconditioned row
     // must beat the baseline by 0.30. Rank by the forecast delta when any patch moves it, else
     // by (survive − baseline); show three, never two of one family.
     let pre_retain = rec.death.patches.clone();
     rec.death.patches.retain(|p| {
         let edge = p.survive - baseline;
-        (edge > PATCH_MARGIN || p.forecast_delta > DELTA_BAR) && (!p.row.conds.is_empty() || edge >= 0.3)
+        (edge >= PATCH_MARGIN - 1e-9 || p.forecast_delta >= DELTA_BAR - 1e-9) && (!p.row.conds.is_empty() || edge >= 0.3)
     });
     rank_patches(&mut rec.death.patches, baseline);
     let patches = std::mem::take(&mut rec.death.patches);
@@ -528,8 +595,9 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     }
 }
 
-/// A patch moves the forecast when its delta is above this; below `DELTA_SINK` it is demoted
-/// under every other patch (a row that survives the moment but costs floors).
+/// A patch moves the forecast when its delta reaches this (Cut 4: also a `gap` on its own);
+/// below `DELTA_SINK` it is demoted under every other patch (a row that survives the moment
+/// but costs floors).
 pub const DELTA_BAR: f64 = 0.02;
 pub const DELTA_SINK: f64 = -0.05;
 
@@ -737,7 +805,7 @@ mod tests_trace {
         for p in &d.patches {
             let fired = patch_fired_rate(&g, &rec, p);
             assert!(fired >= FIRED_BAR, "{} fired in {:.0}% of replays", p.row.describe(), fired * 100.0);
-            assert!(p.survive >= SURVIVE_BAR);
+            assert!(p.survive >= survive_bar(d.baseline) || p.forecast_delta >= DELTA_BAR, "{p:?} at baseline {}", d.baseline);
             assert!(p.row.conds.iter().filter(|c| c.k == "hp<").all(|c| HP_THRESHOLDS.contains(&c.n.unwrap())));
         }
         let fams = families(&d.patches);
@@ -820,5 +888,40 @@ mod tests_trace {
             best = best.min(t.elapsed().as_secs_f64());
         }
         assert!(best < 0.6, "fastest verdict {best:.2}s");
+    }
+}
+
+#[cfg(test)]
+mod tests_faithful {
+    use super::*;
+    /// Cut 4: a replay from the checkpoint with the checkpoint's own rng reproduces the death
+    /// inside the replay window (the window reaches the killing blow, not just the last action).
+    #[test]
+    fn replay_without_reseed_reproduces_the_death() {
+        let mut g = Game::new(3);
+        g.max_deaths = 1000;
+        g.run_offline(2 * 3600);
+        let ids: Vec<u32> = g.deaths.keys().copied().collect();
+        assert!(ids.len() >= 3, "too few deaths in two hours: {}", ids.len());
+        for id in &ids {
+            let rec = g.deaths.get(id).unwrap().clone();
+            let (base, ticks) = replay_base(&g, &rec).expect("checkpoint");
+            let mut rp = Replayer::new(&base, &rec.rules, ticks).expect("replayer");
+            rp.g.run = Some(rp.run.clone());
+            rp.g.lineage.facts = rp.facts.clone();
+            rp.g.lineage.kill_counts = rp.kill_counts.clone();
+            rp.g.lineage.total_turns = rp.total_turns;
+            rp.g.events.clear();
+            for _ in 0..ticks {
+                rp.g.tick();
+                rp.g.events.clear();
+                if rp.g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+                    break;
+                }
+            }
+            let r = rp.g.run.as_ref().unwrap();
+            assert_eq!(r.over, Some(ExitTier::Death), "death {id}: checkpoint t{} replay ended at t{} hp {} (death tick {})", rp.run.turn, r.turn, r.hero.hp, rec.death_tick);
+            assert_eq!(r.turn, rec.death_tick, "death {id}");
+        }
     }
 }

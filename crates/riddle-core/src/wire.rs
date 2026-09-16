@@ -22,6 +22,9 @@ pub struct Entity {
     /// Companion id (Addendum A).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cid: Option<u32>,
+    /// Cut 4: a hostile the hero remembers but cannot see, at its last-seen tile.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub remembered: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -198,6 +201,10 @@ pub struct TraceTurn {
     pub hp: i32,
     pub foes: i32,
     pub telegraphs: Vec<String>,
+    /// Cut 4: the first row this action whose conditions held but whose verb could not
+    /// execute (`R1 retreat ✗ no path`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blocked: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -419,6 +426,9 @@ pub struct Lineage {
     /// Cut 3: ascension level and variant ("" at level 0).
     #[serde(default)]
     pub ascension: Ascension,
+    /// Cut 4: variants the lineage has already finished the dungeon with.
+    #[serde(default)]
+    pub ascended: Vec<String>,
 }
 
 /// Cut 3: `{level, variant}`; `variant` is one of `no_rest short_list bones_only hunted`.
@@ -445,7 +455,7 @@ pub struct SupplyInfo {
 }
 
 /// Unlock catalogue entry (addition to the contract; see README).
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct UnlockInfo {
     pub id: String,
     pub cost: u32,
@@ -454,6 +464,10 @@ pub struct UnlockInfo {
     /// Cut 2 §3: the human-readable gate (fact/trophy) still missing, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub needs: Option<String>,
+    /// Cut 4 §9: for a tactic card or a verb not yet owned whose gate is open, the forecast
+    /// reach delta at `best_depth + 1` if it were owned and its row added (0..1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delta: Option<f64>,
 }
 
 #[cfg(test)]
@@ -471,7 +485,7 @@ mod tests {
     #[test]
     fn hero_snapshot_flattens_entity_and_trait() {
         let h = HeroSnap {
-            entity: Entity { id: 1, kind: "hero_fighter".into(), name: None, x: 1, y: 2, hp: 3, max_hp: 4, tags: vec![], ally: None, telegraph: None, cid: None },
+            entity: Entity { id: 1, kind: "hero_fighter".into(), name: None, x: 1, y: 2, hp: 3, max_hp: 4, tags: vec![], ally: None, telegraph: None, cid: None, remembered: false },
             inv: vec![],
             weapon: Some("dagger".into()),
             armour: None,

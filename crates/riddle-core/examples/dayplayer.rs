@@ -1,7 +1,9 @@
 //! Fourteen simulated days of a plausible player (docs/CUT2.md): check in N times a day, read
-//! the worst death, apply its top patch when it clearly beats the baseline, insert the boss
-//! counter row once a wall has held two days and the counter fact is known, buy the cheapest
-//! affordable unlock, field the kennel. Prints a per-day table per seed and the Cut 2 probes;
+//! the worst death, apply its top patch when it clearly beats the baseline and does not cost
+//! floors (Cut 4: the death screen shows the forecast delta), take the report's stall patch,
+//! insert the boss counter row once a wall has held a day and the counter fact is known (buying
+//! the card or verb it needs), buy the cheapest affordable unlock (a bought card goes in as a
+//! row when a slot is free), field the kennel. Prints a per-day table per seed and the Cut 2 probes;
 //! `--gate` checks the bars and exits non-zero on a failed one (never weaken a bar).
 //!   cargo run -q --profile fast -p riddle-core --example dayplayer -- [--seeds 3] [--days 14] [--checkins 3] [--gate]
 use riddle_core::rules::{Cond, Row, Verb};
@@ -132,12 +134,15 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                     counters_done.clear();
                 }
             }
-            // 1. The worst death: patch if the top candidate clearly beats the baseline.
+            // 1. The worst death: patch if the top candidate clearly beats the baseline. Cut 4:
+            //    the death screen shows the forecast delta next to it; a human declines a patch
+            //    that reads `reach −8%` (a return row that survives the moment and costs floors).
             if let Some(id) = rep.worst_death_id {
                 if let Some(death) = g.death(id) {
                     if death.verdict == "gap" {
                         if let Some(p) = death.patches.first() {
-                            if p.survive > death.baseline + 0.15 && insert_row(&mut g, p.row.clone(), p.insert_at) {
+                            let costs_floors = p.forecast_delta < 0.0;
+                            if p.survive > death.baseline + 0.15 && !costs_floors && insert_row(&mut g, p.row.clone(), p.insert_at) {
                                 d.edits += 1;
                                 decided = true;
                             }
@@ -145,12 +150,37 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                     }
                 }
             }
-            // 2. A wall held two days and the counter is known: a human who read the fact
-            //    inserts the counter row (once per boss).
+            // 1b. Cut 4: the report's stall verdict (`R1 return ended 16 runs at D8`, with
+            //     patches forecast at the stall depth + 1): a human who reads it takes the top
+            //     patch, as the client offers it.
+            if let Some(stall) = &rep.stall {
+                if let Some(p) = stall.patches.first() {
+                    let max_rows = g.vocabulary().max_rows;
+                    // An insert into a full set makes room like the editor's player would
+                    // (never the plain attack row); replace/remove act in place.
+                    let applied = if p.replace || p.remove {
+                        let rules = riddle_core::offline::apply_patch(g.lineage.rules(), p, max_rows);
+                        rules != *g.lineage.rules() && g.set_rules(rules).is_ok()
+                    } else {
+                        insert_row(&mut g, p.row.clone(), p.insert_at)
+                    };
+                    if applied {
+                        if verbose {
+                            eprintln!("  day {} stall: {} → {}{}", day + 1, stall.text, p.row.describe(), if p.remove { " (removed)" } else if p.replace { " (replaced)" } else { "" });
+                        }
+                        d.edits += 1;
+                        decided = true;
+                        stalled_days = 0;
+                    }
+                }
+            }
+            // 2. A wall held a day and the counter is known: a human who read the fact (the
+            //    forecast names the boss at `best+1`, Cut 4 §8) inserts the counter row (once
+            //    per boss) and buys the card or verb it needs if affordable.
             let best = g.lineage.best_depth;
             if let Some(boss) = boss_at(best) {
                 let fact = format!("boss:{boss}:counter");
-                if stalled_days >= 2 && g.lineage.facts.contains(&fact) && !counters_done.contains(&boss.to_string()) {
+                if stalled_days >= 1 && g.lineage.facts.contains(&fact) && !counters_done.contains(&boss.to_string()) {
                     let rows = counter_rows(boss);
                     // The editor offers `throw fire` and lets the player aim it; `attack tag:T` needs the tag known.
                     let usable_now = |g: &Game| {
@@ -255,6 +285,15 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                 bought += 1;
                 d.unlocks += 1;
                 decided = true;
+                // Cut 4: a bought card is a row (the editor renders it as one): it goes in at
+                // the top when the set has a free slot — a human does not throw a rule away
+                // for it unprompted.
+                if let Some(row) = riddle_core::meta::unlock_row(&g.lineage, &u.id) {
+                    let free = g.lineage.rules().rows.len() < g.vocabulary().max_rows;
+                    if u.id != "throw" && u.id != "tame" && free && insert_row(&mut g, row, 0) {
+                        d.edits += 1;
+                    }
+                }
             }
             if verbose && g.lineage.marks > 8 {
                 let gated: Vec<String> = g.unlocks().into_iter().filter(|u| !u.owned).map(|u| format!("{}:{}{}", u.id, u.cost, u.needs.as_ref().map(|n| format!("[{n}]")).unwrap_or_default())).collect();

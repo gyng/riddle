@@ -6,8 +6,11 @@ use crate::wire::{Forecast, ForecastCause, ForecastDepth};
 use std::collections::BTreeMap;
 
 pub const FORECAST_SIMS: u32 = 50;
-/// Sims per candidate when computing patch forecast deltas (four forecasts per death).
-pub const DELTA_SIMS: u32 = 20;
+/// Sims per candidate when computing patch forecast deltas (paired seeds; base and patched
+/// runs share them). Cut 4: 12, the replay count — a delta of `DELTA_BAR` is "one seed
+/// improved net" at 12 as it was at 20, and the verdict now waits on these (up to three
+/// candidates when no patch has a survival edge).
+pub const DELTA_SIMS: u32 = 12;
 /// Cut 3: a forecast stops launching sims once this many ticks have been simulated (a deep
 /// lineage's sims run to D20+, ~40 000 ticks each); at least `MIN_SIMS` always run. A shallow
 /// lineage's 50 × ~6 000 ticks stay under it, so the Cut 1/2 numbers are unchanged.
@@ -84,8 +87,80 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     Forecast { depths, causes, known_to }
 }
 
-/// Fraction of sims reaching `depth` with `rules`.
+/// Fraction of sims reaching `depth` with `rules`. Cut 4: memoised on the game per (lineage,
+/// rules, depth, sims, tag) — a verdict, the stall verdict and the unlock deltas all ask for
+/// the same unpatched base at the same depth, and a batch of verdicts asks for it per death.
 pub fn reach_with(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64) -> f64 {
-    let results = simulate(game, rules, sims, tag, depth);
-    results.iter().filter(|r| r.max_depth >= depth).count() as f64 / results.len().max(1) as f64
+    let budget = if sims >= FORECAST_SIMS { FORECAST_TICK_BUDGET } else { DELTA_TICK_BUDGET };
+    reach_budget(game, rules, depth, sims, tag, budget)
+}
+
+/// Cut 4 §9: the unlock catalogue's deltas run under a tighter tick budget per forecast
+/// (`MIN_SIMS` always), so a deep lineage's camp visit pays seconds, not tens of seconds.
+pub const CATALOGUE_TICK_BUDGET: u64 = 60_000;
+
+pub fn reach_budget(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, budget: u64) -> f64 {
+    if let Some(v) = reach_cached(game, rules, depth, sims, tag, budget) {
+        return v;
+    }
+    let key = reach_key(game, rules, depth, sims, tag, budget);
+    let results = simulate_budget(game, rules, sims, tag, depth, budget);
+    let v = results.iter().filter(|r| r.max_depth >= depth).count() as f64 / results.len().max(1) as f64;
+    let mut cache = game.forecast_cache.borrow_mut();
+    if cache.len() >= FORECAST_CACHE_MAX {
+        cache.clear();
+    }
+    cache.insert(key, v);
+    v
+}
+
+pub const FORECAST_CACHE_MAX: usize = 256;
+
+/// The memoised reach, if this game already computed it (no sims).
+pub fn reach_cached(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, budget: u64) -> Option<f64> {
+    game.forecast_cache.borrow().get(&reach_key(game, rules, depth, sims, tag, budget)).copied()
+}
+
+fn reach_key(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, budget: u64) -> String {
+    format!("{}:{depth}:{sims}:{tag}:{budget}:{}", lineage_key(game), serde_json::to_string(rules).unwrap_or_default())
+}
+
+/// A fingerprint of what a sim starts from: the lineage fields a fresh run reads (facts,
+/// unlocks, class and level, vault and loadout, party, supplies, gold, forge, grudges, bones,
+/// insurance, keep preference, trait, heir, variant, hunter) — not marks, renown or the rest
+/// clock, so a purchase or a rank does not spill the cache.
+fn lineage_key(game: &Game) -> u64 {
+    let l = &game.lineage;
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut feed = |s: &str| {
+        for b in s.bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+        h ^= 0xff;
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    };
+    feed(&l.seed.to_string());
+    feed(&l.heir.to_string());
+    feed(l.trait_.name());
+    feed(l.class.name());
+    feed(&l.class_level().to_string());
+    feed(&format!("{:?}", l.facts));
+    feed(&format!("{:?}", l.unlocks));
+    feed(&serde_json::to_string(&l.vault).unwrap_or_default());
+    feed(&format!("{:?}", game.loadout));
+    feed(&serde_json::to_string(&l.party).unwrap_or_default());
+    feed(&serde_json::to_string(&l.supplies).unwrap_or_default());
+    feed(&format!("{:?}", l.last_supplies));
+    feed(&l.gold.to_string());
+    feed(&serde_json::to_string(&l.forge).unwrap_or_default());
+    feed(&serde_json::to_string(&l.grudges).unwrap_or_default());
+    feed(&serde_json::to_string(&l.bones).unwrap_or_default());
+    feed(&format!("{:?}", l.insured));
+    feed(&l.keep_pref);
+    feed(&l.variant);
+    feed(&serde_json::to_string(&l.hunter).unwrap_or_default());
+    feed(&format!("{:?}", l.kill_counts));
+    feed(&l.ended.to_string());
+    h
 }

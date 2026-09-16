@@ -1,7 +1,7 @@
 # riddle-core
 
 Deterministic roguelike sim, rule engine, facts, forecast, offline batch, chronicle, sifter,
-meta (Cut 1 + Addenda A–E, Cut 2, Cut 3). All game truth lives here; `riddle-wasm` is a JSON bridge.
+meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4). All game truth lives here; `riddle-wasm` is a JSON bridge.
 
 ## Wire deviations
 
@@ -14,7 +14,7 @@ fields). Where the contract left a choice open, this is what the engine does:
   when `known`, otherwise `"potion"` or `"scroll"` (label `"blue potion?"`, `hint` when the
   hero got one). Gear and gold are always known.
 - **`Ev.rule` is also emitted for chores** (`row: -2`, verbs `explore | descend | pick_up |
-  wait | shuffle | paralysed | stumble`) and traits (`row: -1`, text starts with the trait).
+  wait | shuffle | paralysed | stumble | stuck | cornered`) and traits (`row: -1`, text starts with the trait).
 - **`throw` argument** is `"K"` or `"K,nearest"` or `"K,tag:T"` (one `a` string).
   **`tactic`** is a verb `{v:"tactic", a:"corridor_fighting"}`. `hold` is a valid verb
   (stay put) used by tests; the editor never offers it.
@@ -254,10 +254,107 @@ fields). Where the contract left a choice open, this is what the engine does:
   `probe --full` surveys a set's exits by depth; `watch [seed] [depth] [--survey]` traces one
   FULL run from a depth or summarises every run's last floor.
 
+## Cut 4 (legibility and feel) — deviations and additions
+
+- **Verdict semantics.** `gap` iff the best candidate beats the unpatched baseline by
+  `PATCH_MARGIN` 0.15 in survival, or — when none does — one of the top
+  `VERDICT_DELTA_CANDIDATES` (3, by survival edge) moves the forecast at the death's depth by
+  `DELTA_BAR` 0.02; else `dice`. The forecast deltas are simulated inside `verdict()` for that
+  second test (so a verdict is final, not provisional) and reused by `death()`, which only adds
+  the remaining candidates (`DeathRec.deltas_n`). A gap never shows an empty list (the
+  fallback is unchanged). Candidates are scored at survival ≥ `min(0.6, baseline + 0.15)`
+  (`trace::survive_bar`), so a row that only moves the forecast still reaches the delta test
+  at a high baseline.
+- **Replay window.** The checkpoint is unchanged (the last history entry at ≥ 50 % HP, at least
+  8 turns before death, up to `HISTORY_TURNS` 30 back — measured at 40 too: 4.9 % dice vs 4.7 %
+  at 30 on the full table, so the window stays). The window now
+  ends at the killing blow plus one turn (`DeathRec.death_tick`; it ended one tick after the
+  hero's last *action*, and a hero alive at 1 HP counted as survived — most deaths had a
+  baseline of 0.9–1.0 and "dice" was the honest reading of a bug), and a replay that survives
+  the blow runs on while an awake hostile is in view, at most `ENCOUNTER_TICKS` 300: surviving
+  the tick of the blow is not surviving the fight. `tests_faithful` checks an un-reseeded replay
+  dies at `death_tick`.
+- **`DELTA_SIMS` 20 → 12** (the replay count): a delta of 0.02 is "one paired seed improved
+  net" at either count, and the verdict now waits on up to three of these forecasts. `death()`
+  with all deltas: 2.2 s → ~0.9 s native.
+- **`forecast::reach_with` is memoised on the game** (`Game.forecast_cache`, per
+  lineage-fingerprint × rules × depth × sims × tag × budget; the fingerprint skips marks,
+  renown and the rest clock): a batch of verdicts, the stall verdict and the unlock catalogue
+  ask for the same unpatched base at the same depth.
+- **Remembered foes and the hunt.** `Snapshot.entities` also lists hostiles the hero
+  remembers but cannot see — alive, out of view, seen within `REMEMBER_ACTIONS` 10 hero
+  actions — at the tile they were last seen on, with `remembered: true` (serde skips it when
+  false; hp shown is current). The row that last acted on a foe (`Run.hunt` = (id, row)) keeps
+  walking toward that tile when the foe steps out of view, as that row's action (`Ev.rule`
+  with the row's index, text `hunt <kind>`), until the foe is seen again, dead, forgotten,
+  given up on, or the tile is reached (`ai::hunt_step`).
+- **Callouts name the target.** A row whose verb acted on a foe reads `<verb> <kind>` (`attack
+  goblin`, `shoot goblin archer`, `bash ogre`, `tame jackal`; ≤ 3 words, the kind's title
+  lower-cased) instead of `cond → verb`; other rows are unchanged. A companion's row is
+  announced `<kind>: <verb>` (`jackal: flank`) once per streak of the same verb, in view.
+- **`foes>=` counts every hostile in view** (`View.foes`); melee targeting (`attack`,
+  `shield_bash`) draws from `View.engage` — adjacent, or neither fleeing nor given up on —
+  while ranged verbs, throws, `retreat`, `back_corridor` and the conditions see all of them.
+  (Rater B: `hp<50 · foes>=2 → retreat` did not fire at 13/40 with five foes because the count
+  excluded the foes the hero had given up chasing.)
+- **Blocked rows are shown.** The first row per action whose conditions held but whose verb
+  could not execute is recorded on the trace turn as `TraceTurn.blocked` (`R1 retreat ✗ no
+  path`; serde-skipped when none) and called out once per streak (`retreat ✗ no path`, ≤ 3
+  words). Reasons: `no path` (retreat, corridor, blinks), `no target` / `no line` / `no bow` /
+  `cooldown` (foe verbs), `no item` / `no use` (drink, read, throw), `no leash` / `none weak`
+  (tame), `not safe` (rest), `no stairs`, `no way` (return/bank/recall). Tactic cards fall
+  through by design and are never "blocked".
+- **Stalemate guards lift on blood.** A hit on the hero clears the oscillation guard, the
+  same-row guard and every ignored foe (`Run::unstick`); a hit by the hero clears the guards.
+  (Rater B: five `wait` chores at 9 → 1 HP with two foes while `foes>=1 → attack nearest` was
+  live — the guards had suppressed the row for 30 actions.) With an awake hostile adjacent and
+  nothing to do, the chore is `cornered` (text `cornered, no orders`), never `wait`; the
+  chores neither step clear nor swing (PASSIVE must lose every seed).
+- **`auto_supply` restocks when the hero comes home** (`Game::restock` in `finish_run` and
+  after `keep`, and still at `start_run`), so `Lineage.supplies` shows the shelf before the
+  next send; `clearSupplies` also clears the automation's memory (`last_supplies`), so a
+  cleared shelf stays cleared.
+- **One loot unit.** `Run.loot` is gold: every pickup adds its value to `Run.loot_raw` and
+  `loot = loot_raw / GOLD_DIVISOR` (`Run::loot_add`). The HUD stake, `Ev.exit.loot_kept`, the
+  exit notes (`Banked $58.` / `Returned with $34.`), the reel and `Lineage.gold` all carry the
+  same number; salvage stays in gold as before. The `loot>=` token's offered value is 20 (was
+  50, in the old unit).
+- **Marks.** The first *bank* from each depth is a mark and a best `home:D<n>`
+  (`LineageState.banked_depths`; reset by ascension; returns and timed-out runs do not count).
+  Tier-2 costs: `row9` 8, `row10` 12, `vault5` 8, `party_slot_4` 8 (were 14/18/14/14);
+  tier-2 cards 5, `lantern_rig` 6, `recall_sense` 8 unchanged. Rank thresholds 100·r² unchanged.
+- **Reel and chronicle.** Every reel line is setup + turn + end in ≤ 8 words: `Down to 2 HP,
+  then banked $313.` · `Brink, slew the Lich, banked $313.` · `Slew the Lich, fell on D9.` ·
+  `Lost the hound on D4, returned with $80.` (`sifter::end_phrase`: `banked $N` · `returned
+  with $N` · `fell on D<n>` · `lost the thread`); `first_kill` and `bones` keep their shape.
+  `Run.low_hp` is the lowest HP of the run. When the hero fell to ≤ 20 % and lived to leave the
+  floor (descend, bank, return), the chronicle names the first row that acted after the low
+  point: `R3 rest caught him.` (`Run.saved_by`).
+- **`UnlockInfo.delta?`** for every tactic card or verb (`tame`, `throw`) not yet owned whose
+  gate is open: the forecast reach at `best_depth + 1` with the unlock owned and its natural
+  row inserted at the top of the list, minus the reach without (`DELTA_SIMS` paired sims,
+  `CATALOGUE_TICK_BUDGET` 60 000 ticks per forecast, at least `MIN_SIMS`). **`unlockDeltas()`**
+  (wasm; `Game::unlock_deltas`) simulates them and returns the catalogue; `unlocks()` never
+  simulates and carries the deltas once they are memoised for the current lineage state (a
+  purchase or a new fact changes the state: call `unlockDeltas()` again after `buy`). Rows
+  (`meta::unlock_row`): `corridor_fighting`/`stair_dance` `foes>=2`; `kite_archers`
+  `foe_tag:ranged`; `gas_step` `foe_tag:gas`; `pack_break` `foe_tag:pack`; `thief_guard`
+  `foe_tag:thief`; `boss_focus` `foe_tag:boss`; `last_stand` `hp<30`; `cadence`
+  `foe_tag:mirror`; `noise_discipline` `hp<90`; `reflect_read` `foe_tag:reflect_melee`;
+  `deep_march` `depth>=21`; `throw` `foe_tag:boss → throw unknown,tag:boss` (else `foes>=2 →
+  throw unknown,nearest`); `tame` `foes>=1 → tame nearest`. Absent for rows, vaults, slots,
+  classes, conditions, automations, owned or gated entries. Memoised with the forecasts (a
+  camp visit pays once). Cost, native and quiet: D3 with 4 open entries 0.3 s; D10 with 9
+  open entries 1.5–2.2 s (each forecast is `MIN_SIMS` 5 sims of ~12 000 ticks under the
+  budget) — the brief's ≤ 0.2 s for the whole catalogue is not met past D3, which is why the
+  computing call is separate from `unlocks()`.
+- **`Lineage.ascended: string[]`** — the variants the lineage has finished the dungeon with.
+
 ## Additions to the `Engine` interface (all JSON strings)
 
 `unlocks()` → `UnlockInfo[] {id,cost,owned,available,needs?}` · `setClass(class)` → Lineage ·
 `selectSet(i)` → Lineage (three saved sets; `setRules` writes the active one) ·
+`unlockDeltas()` → `UnlockInfo[]` with `delta` simulated (Cut 4) ·
 `fromSave(json)` (static constructor) · `setKeepPref(pref)` → Lineage ·
 Addendum A: `setParty(idsJson)`, `setCompanionRules(id, setJson)`, `breed(a,b)`, `hatch(eggId)`,
 `companionVocabulary(id)` · Addendum B: `buySupply(kind)`, `clearSupplies()`,
@@ -280,6 +377,58 @@ survey tools.
 cargo run --release --example cli -- --seed 1 --rules presets/good.json --runs 3 [--verbose] [--all-deaths]
 cargo run --release --example metrics [-- --seeds 30 --hours 8]
 ```
+
+## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`, Cut 4; `node tools/gates.mjs --full`)
+
+```
+DEFAULT dies by ≤ D6 ≥ 80% of seeds                                100%  PASS
+EDITED reaches ≥ D10 ≥ 50% of seeds                                 83%  PASS
+EDITED − DEFAULT (≥ D10) ≥ 15 pts                                83 pts  PASS
+RANDOM loses 100%                                                  100%  PASS
+PASSIVE loses by ≤ D3 100%                                         100%  PASS
+LEARNED mean depth ≤ DEFAULT + 2                           4.76 vs 4.60  PASS
+PETS dies by ≤ D8 ≥ 80% of seeds                                   100%  PASS
+LEVELLED dies by ≤ D9 ≥ 80% of seeds                               100%  PASS
+TRIVIAL never passes D5 ≥ 90% of seeds                             100%  PASS
+COUNTERED reaches ≥ D11 ≥ 50% of seeds                              63%  PASS
+FULL reaches ≥ D26 ≥ 50% of seeds (3 × 8 h)                         83%  PASS
+FULL−D20 never passes D20 ≥ 90% of seeds                           100%  PASS
+FULL−D25 never passes D25 ≥ 90% of seeds                           100%  PASS
+FULL−D30 never passes D30 ≥ 90% of seeds                            90%  PASS
+Unfair deaths (dice) ≤ 5% (n=2186)                                 4.7%  PASS
+Deaths tracing to a row (gap) ≥ 70%                               95.3%  PASS
+Top death cause share < 35% (goblin)                              29.1%  PASS
+Events per 600 ticks (renderable) ≥ 6                              44.3  PASS
+Replay hash identical (seed+rules+elapsed)             d174319c550a9654  PASS
+Forecast known_to == best_depth + 1                                 all  PASS
+Expeditions per 8 h (DEFAULT, EDITED) in 6–16               15.7 · 13.0  PASS
+DEFAULT yields 0 xp/gold over 8 h                                     0  PASS
+EDITED banks ≥ 3 runs per 8 h                                       8.4  PASS
+Patches whose row fired in ≥ 50% of replays (n=265)                100%  PASS
+Verdict time ≤ 0.4 s (mean of 2186)                              0.29 s  PASS
+Per-tick cost ≤ 6 µs (quiet, DEFAULT/EDITED/FULL)               2.94 µs  PASS
+Offline 8 h: learned ≥ 1 and pending ≥ 1 every seed              min 18  PASS
+```
+
+Verdicts under the Cut 4 semantics: gap 95.3 %, dice 4.7 % (5.3 % with `HISTORY_TURNS` 40
+and two verdict delta candidates; 4.9 % with 40 and three — the window stays at 30). Before
+the replay-window fix the same semantics read 13.9 % dice at 1.25 s per verdict. `death()`
+with every delta 1.4 s (was 2.2 s). FULL 83 % of seeds to D26 (87 % in Cut 3; the boss walls
+hold 100 / 100 / 90 %).
+
+The 14-day player (`examples/dayplayer.rs --gate --seeds 3`, Cut 4 model: takes the report's
+stall patch, declines a death patch that reads `reach −N%`, plays a bought card as a row, arms
+a boss counter after one stalled day and buys what it needs): marks unspent ≤ 8 (7), empty
+check-ins 0 %, L10 on day 10 — PASS; **days with a purchase 8.3 / 14 (bar 10) and the longest
+counter-known stall 5 days (bar 3) — FAIL** (Cut 3: 8.0 and 5). Final depths 19 / 19 / 18 in
+14 days; the same model without the `reach −N%` decline reached 25 / 31 (ascended day 8) / 20
+with 8.7 purchase days and an 8-day stall in the second act. The stalls are now the Bloat
+Mother (D10: the counter fact arrives only once the hero survives to meet her; 4–7 days at D10
+before `boss:bloat_mother:counter` is known, which the bar does not count) and the Lich (D15:
+the hand-written counter rows `attack tag:summoned` / `attack tag:boss` lose to the chant
+loop for 4 days). Income after the cheap catalogue is 1–3 marks a day (ranks, first banks)
+against 3–12 per item, so purchase days track depth progress. The tier-2 costs and first-bank
+marks are in; the remaining lever is the player model's boss play, which is a design call.
 
 ## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`, Cut 3; `node tools/gates.mjs --full`)
 

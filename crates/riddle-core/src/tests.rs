@@ -806,7 +806,8 @@ fn gold_adds_loot_and_unknown_items_hint() {
     }
     rules(&mut g, vec![]);
     ticks(&mut g, 40);
-    assert_eq!(g.run.as_ref().unwrap().loot, 25 + 14);
+    assert_eq!(g.run.as_ref().unwrap().loot_raw, 25 + 14);
+    assert_eq!(g.run.as_ref().unwrap().loot, (25 + 14) / crate::engine::GOLD_DIVISOR, "loot is counted in gold at pickup (Cut 4)");
     let snap = g.snapshot();
     let inv = &snap.hero.inv[0];
     assert!(!inv.known);
@@ -849,7 +850,7 @@ fn finish_with(g: &mut Game, tier: ExitTier) -> u32 {
 #[test]
 fn bank_keeps_all_loot_and_gold() {
     let mut g = arena();
-    g.run.as_mut().unwrap().loot = 100;
+    g.run.as_mut().unwrap().loot_add(100);
     give(&mut g, "sword");
     give(&mut g, "heal");
     finish_with(&mut g, ExitTier::Bank);
@@ -864,7 +865,7 @@ fn bank_keeps_all_loot_and_gold() {
 #[test]
 fn return_keeps_sixty_percent() {
     let mut g = arena();
-    g.run.as_mut().unwrap().loot = 100;
+    g.run.as_mut().unwrap().loot_add(100);
     for k in ["sword", "axe", "heal", "heal", "teleport"] {
         give(&mut g, k);
     }
@@ -876,7 +877,7 @@ fn return_keeps_sixty_percent() {
 #[test]
 fn death_keeps_nothing_and_leaves_bones() {
     let mut g = arena();
-    g.run.as_mut().unwrap().loot = 100;
+    g.run.as_mut().unwrap().loot_add(100);
     for k in ["sword", "heal", "heal", "teleport"] {
         give(&mut g, k);
     }
@@ -1182,7 +1183,7 @@ fn death_with_an_unused_heal_is_a_gap_with_a_drink_patch() {
     assert!(d.margin.contains("heal unused"));
     assert!(d.trace.turns.len() <= 10 && !d.trace.turns.is_empty());
     assert!(!d.patches.is_empty() && d.patches.len() <= 3);
-    assert!(d.patches.iter().all(|p| p.survive >= 0.6));
+    assert!(d.patches.iter().all(|p| p.survive >= crate::trace::survive_bar(d.baseline) || p.forecast_delta >= crate::trace::DELTA_BAR), "{:?}", d.patches);
     assert!(d.patches.iter().any(|p| p.row.verb.v == "drink" || p.row.verb.v == "retreat" || p.row.verb.v == "back_corridor"), "{:?}", d.patches);
     assert!(d.morgue.contains("rules:") && d.morgue.contains("trace:"));
 }
@@ -1259,21 +1260,22 @@ fn marks_are_earned_on_new_bests_only() {
     g.run.as_mut().unwrap().max_depth = 3;
     g.run.as_mut().unwrap().kills.push((1, "rat".into(), 1));
     finish_with(&mut g, ExitTier::Bank);
-    assert_eq!(g.lineage.marks, 3, "D1..D3 (3); first kills no longer mark (Cut 2 §2)");
+    assert_eq!(g.lineage.marks, 4, "D1..D3 (3) + first bank from D3 (Cut 4); first kills no longer mark (Cut 2 §2)");
     assert!(g.batch.bests.iter().any(|b| b == "first kill: rat"), "but stay in bests");
+    assert!(g.batch.bests.iter().any(|b| b == "home:D3"));
     g.auto_keep();
     let mut g2 = arena();
     g2.lineage = g.lineage.clone();
     g2.run.as_mut().unwrap().max_depth = 3;
     g2.run.as_mut().unwrap().kills.push((1, "rat".into(), 1));
     finish_with(&mut g2, ExitTier::Bank);
-    assert_eq!(g2.lineage.marks, 3, "no new best, no marks");
+    assert_eq!(g2.lineage.marks, 4, "no new best, no marks");
     let mut g3 = arena();
     g3.lineage = g2.lineage.clone();
     g3.run.as_mut().unwrap().kills.push((1, "goblin_warlord".into(), 5));
     g3.run.as_mut().unwrap().trophies_run.push("pacifist_floor".into());
     finish_with(&mut g3, ExitTier::Bank);
-    assert_eq!(g3.lineage.marks, 3 + 3 + 2);
+    assert_eq!(g3.lineage.marks, 4 + 3 + 2 + 1, "boss 3, trophy 2, first bank from D1 1");
 }
 
 #[test]
@@ -2043,7 +2045,8 @@ fn patches_offer_the_id_policy_when_unknown_potions_went_unused() {
     for _ in 0..3 {
         give(&mut g, "heal");
     }
-    for (x, y) in [(5, 5), (5, 6), (4, 6), (3, 6), (3, 4), (5, 4)] {
+    // Cut 4: the replay runs on through the fight, so the fight must be winnable with a heal.
+    for (x, y) in [(5, 5), (5, 6), (4, 6)] {
         add_monster(&mut g, "goblin", x, y);
     }
     attack_rules(&mut g);
@@ -2676,7 +2679,7 @@ fn tier_two_unlocks_need_bosses_and_open_rows_to_ten() {
     g.lineage.kills.insert("foundry_master".into());
     g.buy("row10").unwrap();
     assert_eq!(g.lineage.max_rows(), 10);
-    assert_eq!(g.lineage.marks, 100 - 14 - 18);
+    assert_eq!(g.lineage.marks, 100 - 8 - 12);
     let ten: Vec<Row> = (0..10).map(|_| Row::new(vec![], Verb::new("hold"))).collect();
     assert!(g.set_rules(RuleSet { rows: ten.clone(), name: None }).is_ok());
     assert_eq!(g.lineage.rules().rows.len(), 10);
@@ -2951,4 +2954,415 @@ fn forecast_stops_at_known_to_and_the_run_cap_is_long() {
     assert_eq!(f.depths.len(), 3);
     let r = crate::forecast::simulate(&g, g.lineage.rules(), 3, 7, 1);
     assert!(r.iter().all(|s| s.max_depth <= 1), "sims stop at the depth asked");
+}
+
+// ---------------------------------------------------------------- Cut 4
+
+/// Cut 4 §5: one loot unit. The exit note, `Ev::Exit.loot_kept`, the HUD stake and the gold
+/// delta on a bank are the same number, in gold, on every seed.
+#[test]
+fn loot_is_one_unit_from_pickup_to_the_bank() {
+    for seed in 1..=6u64 {
+        let mut g = arena_seed(seed);
+        {
+            let run = g.run.as_mut().unwrap();
+            let mut gold = Item::new(70, "gold");
+            gold.amount = 25 + seed as i32 * 7;
+            run.items.push(crate::engine::FloorItem { pos: Pos::new(5, 5), item: gold });
+            let mut gold = Item::new(71, "gold");
+            gold.amount = 3;
+            run.items.push(crate::engine::FloorItem { pos: Pos::new(6, 5), item: gold });
+        }
+        rules(&mut g, vec![]);
+        ticks(&mut g, 60);
+        let snap = g.snapshot();
+        let run = g.run.as_ref().unwrap();
+        assert!(run.loot_raw >= 28, "seed {seed}: nothing picked up");
+        assert_eq!(run.loot, run.loot_raw / crate::engine::GOLD_DIVISOR);
+        assert_eq!(snap.stake.loot, run.loot, "the HUD stake is the run's gold");
+        assert_eq!(snap.loot, run.loot);
+        let gold_before = g.lineage.gold;
+        let (kept, note) = {
+            let (run, mut cx) = g.ctx();
+            crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+            let kept = cx.events.iter().find_map(|e| if let Ev::Exit { loot_kept, .. } = e { Some(*loot_kept) } else { None }).unwrap();
+            let note = cx.events.iter().find_map(|e| if let Ev::Note { text, .. } = e { Some(text.clone()) } else { None }).unwrap();
+            (kept, note)
+        };
+        g.finish_run();
+        g.keep(vec![]).unwrap();
+        assert_eq!(note, format!("Banked ${kept}."), "seed {seed}");
+        assert_eq!(kept, snap.stake.loot, "seed {seed}: the exit keeps what the HUD showed");
+        // Salvage of the starting kit is nil (the dagger is not loot): the delta is the loot.
+        assert_eq!(g.lineage.gold - gold_before, kept, "seed {seed}: gold delta on bank");
+    }
+}
+
+/// Cut 4 §6: the first bank from each depth is a mark and a `home:D<n>` best, distinct from
+/// the first reach; a second bank from the same depth earns nothing.
+#[test]
+fn first_bank_at_each_depth_is_a_mark() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().depth = 3;
+    g.run.as_mut().unwrap().max_depth = 3;
+    g.lineage.best_depth = 3; // already reached: no depth mark
+    let marks = g.lineage.marks;
+    finish_with(&mut g, ExitTier::Bank);
+    g.keep(vec![]).unwrap();
+    assert_eq!(g.lineage.marks, marks + 1);
+    assert!(g.batch.bests.contains(&"home:D3".to_string()), "{:?}", g.batch.bests);
+    // Again from D3: nothing. From D3 as a return: nothing.
+    g.start_run(Some(9));
+    g.run.as_mut().unwrap().depth = 3;
+    g.run.as_mut().unwrap().max_depth = 3;
+    finish_with(&mut g, ExitTier::Bank);
+    g.keep(vec![]).unwrap();
+    assert_eq!(g.lineage.marks, marks + 1);
+    g.start_run(Some(10));
+    g.run.as_mut().unwrap().depth = 4;
+    g.run.as_mut().unwrap().max_depth = 4;
+    g.lineage.best_depth = 4;
+    finish_with(&mut g, ExitTier::Return);
+    g.keep(vec![]).unwrap();
+    assert_eq!(g.lineage.marks, marks + 1, "a return is not a bank");
+    assert!(!g.batch.bests.iter().any(|b| b == "home:D4"));
+}
+
+/// Cut 4 §3: a row that acted on a foe keeps hunting it when it steps out of view: the
+/// snapshot carries it as `remembered` at its last-seen tile and the callout reads `hunt <kind>`;
+/// in view the callout names the act and the kind (`attack goblin`).
+#[test]
+fn a_pursued_foe_out_of_view_is_remembered_and_hunted() {
+    let mut g = arena();
+    let id = add_monster(&mut g, "goblin", 7, 5);
+    attack_rules(&mut g);
+    let evs = ticks(&mut g, 10);
+    let texts: Vec<String> = evs.iter().filter_map(|e| if let Ev::Rule { row: 0, text, .. } = e { Some(text.clone()) } else { None }).collect();
+    assert!(!texts.is_empty() && texts.iter().all(|t| t == "attack goblin"), "{texts:?}");
+    assert!(texts.iter().all(|t| word_count(t) <= 3));
+    let seen_at = g.run.as_ref().unwrap().known_foes.get(&id).map(|(p, _)| *p).expect("the goblin was noted");
+    // It slips out of view (a corner, in a real floor): far off and asleep.
+    {
+        let run = g.run.as_mut().unwrap();
+        let m = run.monsters.iter_mut().find(|m| m.id == id).unwrap();
+        m.pos = Pos::new(14, 9);
+        m.awake = false;
+        run.floor.map.update_vision(run.hero.pos, VISION);
+        assert!(!run.floor.map.is_visible(Pos::new(14, 9)));
+    }
+    let snap = g.snapshot();
+    let ghost = snap.entities.iter().find(|e| e.id == id).expect("remembered in the snapshot");
+    assert!(ghost.remembered);
+    assert_eq!((ghost.x, ghost.y), (seen_at.x, seen_at.y), "at its last-seen tile, not where it is");
+    assert!(serde_json::to_string(ghost).unwrap().contains(r#""remembered":true"#));
+    assert!(!serde_json::to_string(&snap.hero).unwrap().contains("remembered"), "serde skips it when false");
+    let pos_before = hero(&g).pos;
+    let evs = ticks(&mut g, 10);
+    let hunt: Vec<String> = evs.iter().filter_map(|e| if let Ev::Rule { row: 0, text, .. } = e { Some(text.clone()) } else { None }).collect();
+    assert!(!hunt.is_empty() && hunt[0].starts_with("hunt goblin"), "{hunt:?}");
+    assert!(hero(&g).pos != pos_before, "the hero walked toward the last-seen tile");
+    assert!(g.run.as_ref().unwrap().trace.last().unwrap().row == 0, "the hunt is the row's action");
+}
+
+/// Cut 4 (rater B): `foes>=N` counts every hostile in view, not only the ones the hero has not
+/// given up on; a row whose conditions hold but whose verb cannot execute shows why.
+#[test]
+fn foes_count_the_visible_and_a_blocked_row_says_why() {
+    let mut g = arena();
+    // Cornered in the top-left: hero at (1,2) with the stairs up at (1,1), goblins on every
+    // other free neighbour.
+    g.run.as_mut().unwrap().hero.pos = Pos::new(1, 2);
+    g.run.as_mut().unwrap().hero.hp = 10;
+    let ids: Vec<u32> = [(2, 1), (2, 2), (2, 3), (1, 3)].iter().map(|&(x, y)| add_monster(&mut g, "goblin", x, y)).collect();
+    // The stairs tile is free: block it too.
+    add_monster(&mut g, "goblin", 1, 1);
+    // One of them was given up on (unreachable): it still counts as a foe in view.
+    g.run.as_mut().unwrap().ignore(ids[0], 30);
+    g.run.as_mut().unwrap().floor.map.update_vision(Pos::new(1, 2), VISION);
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 50), Cond::n("foes>=", 5)], Verb::new("retreat")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+    let evs = ticks(&mut g, 10);
+    let run = g.run.as_ref().unwrap();
+    let t = run.trace.first().expect("an action");
+    assert_eq!(t.foes, 5, "five hostiles in view, one of them ignored");
+    assert_eq!(t.blocked.as_deref(), Some("R1 retreat ✗ no path"), "{t:?}");
+    assert!(word_count(t.blocked.as_ref().unwrap()) <= 4);
+    assert_eq!(t.row, 1, "the attack row acted instead");
+    let callouts: Vec<&String> = evs.iter().filter_map(|e| if let Ev::Callout { text, .. } = e { Some(text) } else { None }).collect();
+    assert!(callouts.iter().any(|c| c.as_str() == "retreat ✗ no path"), "{callouts:?}");
+    assert_eq!(callouts.iter().filter(|c| c.as_str() == "retreat ✗ no path").count(), 1, "once per streak");
+    let json = serde_json::to_string(t).unwrap();
+    assert!(json.contains(r#""blocked":"R1 retreat"#));
+    // A turn without a block serialises without the field.
+    let mut g2 = arena();
+    rules(&mut g2, vec![]);
+    ticks(&mut g2, 12);
+    let t2 = g2.run.as_ref().unwrap().trace.first().unwrap();
+    assert!(t2.blocked.is_none());
+    assert!(!serde_json::to_string(t2).unwrap().contains("blocked"));
+}
+
+/// Cut 4 (rater B): the stalemate guards lift when blood is drawn, and the chores never `wait`
+/// with an awake hostile adjacent.
+#[test]
+fn blood_drawn_lifts_the_stalemate_guards_and_nobody_waits_while_bitten() {
+    let mut g = arena();
+    // Two fast jackals: the hero cannot step clear of both, so one bites.
+    let id = add_monster(&mut g, "jackal", 5, 5);
+    add_monster(&mut g, "jackal", 3, 6);
+    attack_rules(&mut g);
+    {
+        let run = g.run.as_mut().unwrap();
+        run.stuck_until = run.actions + 30; // the oscillation guard is up
+        run.row_suppressed = (0, run.actions + 30); // and the same-row guard
+        run.ignore(id, 30);
+    }
+    let evs = ticks(&mut g, 60);
+    let verbs: Vec<String> = evs.iter().filter_map(|e| if let Ev::Rule { verb, .. } = e { Some(verb.v.clone()) } else { None }).collect();
+    assert!(!verbs.contains(&"wait".to_string()), "{verbs:?}");
+    let bitten = evs.iter().position(|e| matches!(e, Ev::Hurt { id: HERO_ID, .. }));
+    let bitten = bitten.expect("a jackal bit the hero");
+    let after: Vec<&Ev> = evs[bitten..].iter().filter(|e| matches!(e, Ev::Rule { .. })).collect();
+    assert!(matches!(after.first(), Some(Ev::Rule { row: 0, .. })), "the attack row fired once blood was drawn: {after:?}");
+    let run = g.run.as_ref().unwrap();
+    assert_eq!(run.stuck_until, 0);
+    assert!(run.ignored.is_empty());
+    // No rows at all (PASSIVE), walled in with a goblin at its elbow: the chore is `cornered`,
+    // never `wait` (and never a step or a swing the player did not write).
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.pos = Pos::new(1, 2);
+    for (x, y) in [(1, 1), (2, 1), (2, 2), (2, 3), (1, 3)] {
+        add_monster(&mut g, "goblin", x, y);
+    }
+    g.run.as_mut().unwrap().floor.map.update_vision(Pos::new(1, 2), VISION);
+    rules(&mut g, vec![]);
+    let evs = ticks(&mut g, 30);
+    let chores: Vec<String> = evs.iter().filter_map(|e| if let Ev::Rule { row: -2, verb, .. } = e { Some(verb.v.clone()) } else { None }).collect();
+    assert!(!chores.contains(&"wait".to_string()), "{chores:?}");
+    assert!(chores.iter().any(|v| v == "cornered"), "{chores:?}");
+    assert!(!chores.iter().any(|v| v == "attack"), "{chores:?}");
+    assert!(evs.iter().any(|e| matches!(e, Ev::Rule { text, .. } if text == "cornered, no orders")));
+}
+
+/// Cut 4 (rater B): `auto_supply` restocks the last expedition's supplies from gold when the
+/// hero comes home, and the camp's shelf (`Lineage.supplies`) shows it before the next send.
+#[test]
+fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
+    let mut g = Game::new(5);
+    g.lineage.unlocks.insert("auto_supply".into());
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    g.lineage.gold = 1000;
+    g.buy_supply("heal").unwrap();
+    g.buy_supply("heal").unwrap();
+    let price = 1000 - g.lineage.gold;
+    assert!(price > 0);
+    g.start_run(None);
+    assert!(g.lineage.supplies.is_empty(), "the shelf went into the pack");
+    assert_eq!(g.run.as_ref().unwrap().supplies.len(), 2);
+    let gold_before = g.lineage.gold;
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.finish_run();
+    assert_eq!(g.lineage.supplies.len(), 2, "restocked on coming home");
+    assert!(g.lineage.supplies.iter().all(|s| s.kind == "heal"));
+    assert_eq!(g.lineage().supplies.len(), 2, "and the wire lineage shows it");
+    assert_eq!(g.lineage.gold, gold_before - price, "paid from gold");
+    g.keep(vec![]).unwrap();
+    assert_eq!(g.lineage.supplies.len(), 2, "no double restock after the vault decision");
+    g.start_run(None);
+    assert_eq!(g.run.as_ref().unwrap().supplies.len(), 2, "the restocked shelf goes out again");
+    assert!(g.lineage.supplies.is_empty());
+    // Clearing the shelf is an order the automation respects.
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.finish_run();
+    g.keep(vec![]).unwrap();
+    assert_eq!(g.lineage.supplies.len(), 2);
+    g.clear_supplies();
+    g.start_run(None);
+    assert!(g.run.as_ref().unwrap().supplies.is_empty(), "cleared stays cleared");
+    // Without the gold, nothing is bought and nothing breaks.
+    let mut g = Game::new(6);
+    g.lineage.unlocks.insert("auto_supply".into());
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    g.lineage.gold = 100;
+    g.buy_supply("heal").unwrap();
+    g.start_run(None);
+    g.lineage.gold = 0;
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Death);
+    }
+    g.finish_run();
+    assert!(g.lineage.supplies.is_empty());
+}
+
+/// Cut 4 §7: every reel line is setup + turn + end in ≤ 8 words and carries how the run ended
+/// (`Down to 2 HP, then banked $313.`); `bones` and `first_kill` keep their shape.
+#[test]
+fn reel_lines_carry_the_turn_and_the_end_in_eight_words() {
+    let mut g = arena();
+    let run = g.run.as_mut().unwrap();
+    run.loot_add(313 * crate::engine::GOLD_DIVISOR);
+    run.low_hp = 2;
+    run.near_deaths.push(10);
+    run.low20_t = Some(20);
+    run.boss_kills.push((30, "goblin_warlord".into()));
+    run.kills.push((30, "goblin_warlord".into(), 5));
+    run.kills.push((5, "rat".into(), 1));
+    run.ally_lost.push((40, "captive".into()));
+    run.gambles.push((50, "poison".into(), true));
+    run.gambles_survived.push((50, "poison".into()));
+    run.stolen.push((60, "sword".into()));
+    run.over = Some(ExitTier::Bank);
+    let hs = crate::sifter::sift_with(run, &["rat".to_string()]);
+    let text = |p: &str| hs.iter().find(|h| h.pattern == p).map(|h| h.text.clone()).unwrap_or_default();
+    assert_eq!(text("near_death"), "Down to 2 HP, then banked $313.");
+    assert_eq!(text("comeback"), "Brink, slew the Goblin Warlord, banked $313.");
+    assert_eq!(text("boss"), "Slew the Goblin Warlord, banked $313.");
+    assert_eq!(text("first_kill"), "First kill: rat.");
+    assert!(text("ally_lost").ends_with(", banked $313."), "{}", text("ally_lost"));
+    assert!(text("gamble").ends_with(", banked $313."));
+    assert!(text("stolen").ends_with(", banked $313."));
+    for h in &hs {
+        assert!(word_count(&h.text) <= 8, "{}", h.text);
+        assert!(h.pattern == "first_kill" || h.text.contains("banked $313"), "{}", h.text);
+    }
+    // The end follows the exit: a death names the floor, a return the 60 %.
+    run.over = Some(ExitTier::Death);
+    run.depth = 4;
+    let hs = crate::sifter::sift_with(run, &[]);
+    assert_eq!(hs.iter().find(|h| h.pattern == "near_death").unwrap().text, "Down to 2 HP, then fell on D4.");
+    run.over = Some(ExitTier::Return);
+    let hs = crate::sifter::sift_with(run, &[]);
+    assert_eq!(hs.iter().find(|h| h.pattern == "near_death").unwrap().text, "Down to 2 HP, then returned with $187.");
+    assert!(hs.iter().all(|h| word_count(&h.text) <= 8));
+}
+
+/// Cut 4 §7: when a row caught the hero (≤ 20 % HP, then the floor survived), the chronicle
+/// names it.
+#[test]
+fn the_chronicle_names_the_row_that_caught_the_hero() {
+    let mut g = arena();
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    give(&mut g, "heal");
+    g.run.as_mut().unwrap().hero.hp = 20;
+    let id = add_monster(&mut g, "rat", 5, 5);
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")), Row::new(vec![Cond::n("hp<", 25)], Verb::arg("drink", "heal"))]);
+    // The rat bites until the hero is under 20 %, then the drink row fires (R2).
+    let mut evs = Vec::new();
+    for _ in 0..200 {
+        evs.append(&mut ticks(&mut g, 1));
+        if hero(&g).hp_pct() <= 20 || monster(&g, id).is_none() {
+            break;
+        }
+    }
+    if hero(&g).hp_pct() > 20 {
+        // The rat died first: bite the hero ourselves.
+        let run = g.run.as_mut().unwrap();
+        run.hero.hp = 5;
+        run.low20_t = Some(run.turn);
+    }
+    evs.append(&mut ticks(&mut g, 40));
+    let saved = g.run.as_ref().unwrap().saved_by;
+    assert!(saved.is_some(), "a row fired after the low point: {:?}", g.run.as_ref().unwrap().trace);
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+        evs.append(cx.events);
+    }
+    let notes: Vec<&String> = evs.iter().filter_map(|e| if let Ev::Note { text, .. } = e { Some(text) } else { None }).collect();
+    let caught = notes.iter().find(|n| n.contains("caught him")).unwrap_or_else(|| panic!("{notes:?}"));
+    assert!(caught.starts_with(&format!("R{} ", saved.unwrap() + 1)), "{caught}");
+    assert!(word_count(caught) <= 8);
+    let bank = notes.iter().find(|n| n.starts_with("Banked $")).expect("the exit note");
+    assert!(notes.iter().position(|n| n == caught) < notes.iter().position(|n| n == bank), "the catch is noted before the exit");
+    // A death names no saviour.
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.hp = 3;
+    g.run.as_mut().unwrap().low20_t = Some(1);
+    g.run.as_mut().unwrap().saved_by = Some(0);
+    attack_rules(&mut g);
+    let (run, mut cx) = g.ctx();
+    crate::turn::end_run(run, &mut cx, ExitTier::Death);
+    assert!(!cx.events.iter().any(|e| matches!(e, Ev::Note { text, .. } if text.contains("caught"))));
+}
+
+/// Cut 4 §9: `unlocks()` carries `delta` for a card or verb whose gate is open and that is not
+/// yet owned — the forecast reach delta at `best_depth + 1` with its row at the top — and for
+/// nothing else; the catalogue is memoised, so a second call is free.
+#[test]
+fn unlock_catalogue_carries_a_forecast_delta_for_open_cards() {
+    let mut g = Game::new(2);
+    g.lineage.facts.insert("foe:jackal:pack".into());
+    g.lineage.facts.insert("foe:jackal:fast".into());
+    g.lineage.facts.insert("item:leash".into());
+    g.lineage.best_depth = 2;
+    assert!(g.unlocks().iter().all(|u| u.delta.is_none()), "no sims before unlock_deltas");
+    let t = std::time::Instant::now();
+    let cat = g.unlock_deltas();
+    let first = t.elapsed().as_secs_f64();
+    let by = |id: &str| cat.iter().find(|u| u.id == id).unwrap().clone();
+    assert!(by("corridor_fighting").delta.is_some(), "open card: {:?}", by("corridor_fighting"));
+    assert!(by("pack_break").delta.is_some());
+    assert!(by("kite_archers").delta.is_none(), "gated on the ranged fact");
+    assert!(by("row5").delta.is_none(), "rows have no row to add");
+    assert!(by("throw").delta.is_some(), "verbs get a canonical row");
+    assert!(by("tame").delta.is_some());
+    for u in &cat {
+        if let Some(d) = u.delta {
+            assert!((-1.0..=1.0).contains(&d), "{u:?}");
+        }
+    }
+    let t = std::time::Instant::now();
+    let again = g.unlocks();
+    assert_eq!(again, cat, "unlocks() carries the memoised deltas");
+    assert!(t.elapsed().as_secs_f64() < first / 4.0 + 0.01, "memoised: {:.3}s vs {first:.3}s", t.elapsed().as_secs_f64());
+    assert_eq!(g.unlock_deltas(), cat);
+    // Owning it drops the delta (there is nothing to buy).
+    g.lineage.marks = 10;
+    g.buy("corridor_fighting").unwrap();
+    let cat = g.unlock_deltas(); // a purchase changes the lineage: the deltas are re-simulated
+    let c = cat.iter().find(|u| u.id == "corridor_fighting").unwrap();
+    assert!(c.owned && c.delta.is_none());
+    let json = serde_json::to_string(&cat).unwrap();
+    assert!(json.contains(r#""delta":"#));
+    assert!(!serde_json::to_string(&c).unwrap().contains("delta"), "serde skips it when absent");
+    eprintln!("catalogue deltas at D3: {first:.3}s");
+}
+
+/// Cut 4: `Lineage.ascended` lists the variants already finished.
+#[test]
+fn lineage_wire_carries_ascended_variants() {
+    let mut g = Game::new(1);
+    assert!(g.lineage().ascended.is_empty());
+    g.lineage.ascended.push("no_rest".into());
+    let l = g.lineage();
+    assert_eq!(l.ascended, vec!["no_rest".to_string()]);
+    assert!(serde_json::to_string(&l).unwrap().contains(r#""ascended":["no_rest"]"#));
+}
+
+#[test]
+#[ignore]
+fn catalogue_delta_cost_by_depth() {
+    for hours in [2u64, 8, 24] {
+        let mut g = Game::new(7);
+        for u in ["row5", "row6", "row7", "row8", "throw"] {
+            g.lineage.unlocks.insert(u.into());
+        }
+        for k in ["heal", "poison", "fire", "teleport", "blink"] {
+            if let Some(f) = ident_fact(&g.lineage.flavours, k) {
+                g.lineage.facts.insert(f);
+            }
+        }
+        g.set_rules(RuleSet::parse(&std::fs::read_to_string("presets/good.json").unwrap()).unwrap()).unwrap();
+        g.run_offline(hours * 3600);
+        g.forecast_cache.borrow_mut().clear();
+        let t = std::time::Instant::now();
+        let open = g.unlock_deltas().iter().filter(|u| u.delta.is_some()).count();
+        eprintln!("best D{} open cards {open}: catalogue {:.2}s", g.lineage.best_depth, t.elapsed().as_secs_f64());
+    }
 }

@@ -18,29 +18,40 @@ use crate::wire::{Ev, TraceTurn};
 /// What the hero can see this action.
 #[derive(Clone, Debug, Default)]
 pub struct View {
-    /// Visible hostile monster indices, nearest first.
+    /// Visible hostile monster indices, nearest first. Cut 4: every hostile in view — this is
+    /// what `foes>=` counts (the player's mental model); melee targeting uses `engage`.
     pub foes: Vec<usize>,
+    /// The subset the hero can engage in melee: adjacent, or neither fleeing nor given up on
+    /// (unreachable / not closing).
+    pub engage: Vec<usize>,
     pub adj: i32,
     pub nearest: Option<usize>,
     pub lowest: Option<usize>,
 }
 
-/// Foes the hero can engage: visible hostiles that are adjacent, or neither fleeing nor
-/// given up on (unreachable / not closing). Rows count and target only these.
+/// Foes in view. `foes` is every visible hostile; `engage` the ones a melee row may chase.
 pub fn view(run: &Run) -> View {
     let map = &run.floor.map;
     let hp = run.hero.pos;
     let mut foes: Vec<usize> = (0..run.monsters.len())
         .filter(|&i| {
             let m = &run.monsters[i];
-            m.hp > 0 && m.hostile() && map.is_visible(m.pos) && (m.pos.adjacent(hp) || (!m.fleeing && m.fear == 0 && !run.is_ignored(m.id)))
+            m.hp > 0 && m.hostile() && map.is_visible(m.pos)
         })
         .collect();
     foes.sort_by_key(|&i| (run.monsters[i].pos.cheb(hp), run.monsters[i].id));
+    let engage: Vec<usize> = foes
+        .iter()
+        .copied()
+        .filter(|&i| {
+            let m = &run.monsters[i];
+            m.pos.adjacent(hp) || (!m.fleeing && m.fear == 0 && !run.is_ignored(m.id))
+        })
+        .collect();
     let adj = foes.iter().filter(|&&i| run.monsters[i].pos.adjacent(hp)).count() as i32;
-    let nearest = foes.first().copied();
-    let lowest = foes.iter().copied().min_by_key(|&i| (run.monsters[i].hp, run.monsters[i].id));
-    View { foes, adj, nearest, lowest }
+    let nearest = engage.first().copied();
+    let lowest = engage.iter().copied().min_by_key(|&i| (run.monsters[i].hp, run.monsters[i].id));
+    View { foes, engage, adj, nearest, lowest }
 }
 
 /// The cached hero distance field, recomputed when the hero has moved.
@@ -210,7 +221,8 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
         .iter()
         .filter_map(|&i| run.monsters.get(i).and_then(|m| m.telegraph.as_ref().map(|t| format!("{} {}", m.kind, t))))
         .collect();
-    run.trace.push(TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: v.foes.len() as i32, telegraphs });
+    let blocked = run.blocked_now.take();
+    run.trace.push(TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: v.foes.len() as i32, telegraphs, blocked });
     if run.trace.len() > 16 {
         run.trace.remove(0);
     }
@@ -284,14 +296,14 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     let mut brave_said = false;
     let stuck = run.stuck_until > run.actions;
     let suppressed = if run.row_suppressed.1 > run.actions { run.row_suppressed.0 } else { -9 };
+    run.last_target = None;
+    run.blocked_now = None;
     for (i, row) in rows.iter().enumerate() {
         if (stuck && targets_foes(&row.verb)) || i as i32 == suppressed {
             continue;
         }
-        if !row.conds.iter().all(|c| cond_holds(run, cx, v, c)) {
-            continue;
-        }
-        if tr == Trait::Brave && foes == 1 && matches!(row.verb.v.as_str(), "retreat" | "back_corridor") {
+        let holds = row.conds.iter().all(|c| cond_holds(run, cx, v, c));
+        if holds && tr == Trait::Brave && foes == 1 && matches!(row.verb.v.as_str(), "retreat" | "back_corridor") {
             if !brave_said {
                 emit_rule(run, cx, -1, &Verb::new("attack"), "brave → hold");
                 brave_said = true;
@@ -299,8 +311,8 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             continue;
         }
         let scope = row.conds.iter().find(|c| c.k == "party").and_then(|c| c.t.clone());
-        if ai::try_verb_scoped(run, cx, &row.verb, v, scope.as_deref()) {
-            let text = row.text(hp_pct);
+        if holds && ai::try_verb_scoped(run, cx, &row.verb, v, scope.as_deref()) {
+            let text = rule_text(run, row, hp_pct);
             emit_rule(run, cx, i as i32, &row.verb, &text);
             if i < run.row_fired.len() {
                 run.row_fired[i] += 1;
@@ -308,11 +320,43 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             if run.over.is_some() && run.exit_row.is_none() {
                 run.exit_row = Some(i as i32);
             }
+            // Cut 4: the first row to act after the hero fell to ≤ 20 % is the one the
+            // chronicle credits if the floor is survived.
+            if run.saved_by.is_none() && (run.low20_t.is_some() || run.low10_t.is_some()) {
+                run.saved_by = Some(i as i32);
+            }
             if matches!(row.verb.v.as_str(), "recall" | "send") {
                 continue; // party orders are free actions
             }
+            // Cut 4: the foe this row acted on is hunted when it steps out of view.
+            run.hunt = if targets_foes(&row.verb) { run.last_target.map(|id| (id, i as i32)) } else { None };
             return (i as i32, row.verb.clone());
         }
+        // Cut 4: the row that last acted on a foe now out of view walks to where it was seen.
+        if targets_foes(&row.verb) && run.hunt.is_some_and(|(_, r)| r == i as i32) {
+            if let Some(kind) = ai::hunt_step(run, cx) {
+                let text = format!("hunt {}", crate::engine::kind_title(&kind).to_lowercase());
+                emit_rule(run, cx, i as i32, &row.verb, &text);
+                if i < run.row_fired.len() {
+                    run.row_fired[i] += 1;
+                }
+                return (i as i32, row.verb.clone());
+            }
+        }
+        // Cut 4: a row whose conditions hold but whose verb cannot execute is shown as such
+        // (`R1 retreat ✗ no path`), the first such row per action; cards fall through by design.
+        if holds && run.blocked_now.is_none() && row.verb.v != "tactic" {
+            let reason = ai::block_reason(run, &row.verb, v);
+            run.blocked_now = Some(format!("R{} {} ✗ {reason}", i + 1, row.verb.short()));
+            let short = format!("{} ✗ {reason}", row.verb.v.split('_').next().unwrap_or(&row.verb.v));
+            if run.blocked_last.as_deref() != Some(&short) {
+                crate::chronicle::callout(run, cx, &short);
+            }
+            run.blocked_last = Some(short);
+        }
+    }
+    if run.blocked_now.is_none() {
+        run.blocked_last = None;
     }
     if tr == Trait::Curious && trait_ok && foes == 0 && hp_pct >= 50 {
         if let Some(verb) = ai::curious_use(run, cx) {
@@ -322,7 +366,8 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         }
     }
     let verb = ai::chore(run, cx, v);
-    emit_rule(run, cx, -2, &verb, &format!("chore → {}", verb.short()));
+    let text = if verb.v == "cornered" { "cornered, no orders".to_string() } else { format!("chore → {}", verb.short()) };
+    emit_rule(run, cx, -2, &verb, &text);
     (-2, verb)
 }
 
@@ -358,12 +403,23 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     emit_rule(run, cx, -2, &verb, "stuck → chores");
 }
 
+/// Callout text for a fired row: `cond → verb`, or for a verb that acted on a foe the act and
+/// its kind (`attack goblin`, `shoot goblin archer`; Cut 4), ≤ 3 words.
+fn rule_text(run: &Run, row: &crate::rules::Row, hp_pct: i32) -> String {
+    if targets_foes(&row.verb) {
+        if let Some(m) = run.last_target.and_then(|id| run.monsters.iter().find(|m| m.id == id)) {
+            return format!("{} {}", row.verb.short(), crate::engine::kind_title(&m.kind).to_lowercase());
+        }
+    }
+    row.text(hp_pct)
+}
+
 pub fn emit_rule(run: &Run, cx: &mut Ctx, row: i32, verb: &Verb, text: &str) {
     cx.events.push(Ev::Rule { t: run.turn, row, verb: verb.clone(), text: crate::chronicle::clamp_words(text, 3) });
 }
 
 /// Verbs that act on the visible foes (suppressed while the oscillation guard is up).
-fn targets_foes(verb: &Verb) -> bool {
+pub fn targets_foes(verb: &Verb) -> bool {
     matches!(
         verb.v.as_str(),
         "attack" | "shield_bash" | "throw" | "tame" | "cleave" | "backstab" | "ambush" | "shadowstep" | "send" | "taunt"
@@ -519,12 +575,17 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     run.hero.hp -= dmg;
     run.hurt_since_action = true;
     run.last_damage_action = run.actions;
+    // Cut 4: blood drawn ends every stalemate guard — the oscillation guard and the same-row
+    // guard suppressed the attack row for 30 actions while a pack bit the hero (five `wait`
+    // chores at 9 → 1 HP), and a foe given up on as unreachable is worth engaging once it hits.
+    run.unstick();
     if run.boss_seen_t.is_some() {
         run.hurt_since_boss = true;
     }
     cx.events.push(Ev::Hurt { t: run.turn, id: HERO_ID, dmg, hp: run.hero.hp.max(0), cause: cause.into() });
     let pct = run.hero.hp_pct();
     if run.hero.hp > 0 {
+        run.low_hp = run.low_hp.min(run.hero.hp);
         if pct <= 10 && run.low10_t.is_none() {
             run.low10_t = Some(run.turn);
             let hp = run.hero.hp;
@@ -638,6 +699,8 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
     run.monsters[mi].hurt_since_action = true;
     if matches!(src, Src::Hero { .. }) && dmg > 0 {
         run.last_damage_action = run.actions;
+        run.stuck_until = 0;
+        run.row_suppressed = (-9, 0);
     }
     run.monsters[mi].hp -= dmg;
     if run.monsters[mi].kind == "bloat_mother" && run.monsters[mi].hp > 0 && matches!(src, Src::Hero { ranged: false }) {
@@ -1004,10 +1067,12 @@ fn tick_alert(run: &mut Run, cx: &mut Ctx) {
 
 /// Go down a floor (or reach the ending).
 pub fn descend(run: &mut Run, cx: &mut Ctx) {
+    note_saved(run, cx);
     if let Some(t) = run.low10_t.take() {
         run.near_deaths.push(t);
     }
     run.low20_t = None;
+    run.saved_by = None;
     let floor_gambles: Vec<(u32, String, bool)> = run.gambles.clone();
     for (t, k, mal) in floor_gambles {
         if mal && !run.gambles_survived.iter().any(|(gt, _)| *gt == t) {
@@ -1066,6 +1131,8 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.last_visible = vec![u32::MAX];
     run.ignored.clear();
     run.known_foes.clear();
+    run.hunt = None;
+    run.last_target = None;
     run.rests = 0;
     run.chase = None;
     run.recent_pos.clear();
@@ -1107,16 +1174,33 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     crate::facts::on_vision(run, cx);
 }
 
+/// Cut 4: the hero fell to ≤ 20 % on this floor and lived to leave it — the chronicle names
+/// the row that caught it (`R3 rest caught him`).
+fn note_saved(run: &mut Run, cx: &mut Ctx) {
+    if run.low20_t.is_none() && run.low10_t.is_none() {
+        return;
+    }
+    if let Some(r) = run.saved_by.take() {
+        if let Some(row) = cx.rules.rows.get(r as usize) {
+            let text = format!("R{} {} caught him.", r + 1, row.verb.short());
+            note(run, cx, text);
+        }
+    }
+}
+
 pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
     if run.over.is_some() {
         return;
+    }
+    if tier != ExitTier::Death {
+        note_saved(run, cx);
     }
     run.over = Some(tier);
     let loot_kept = if run.timed_out { 0 } else { run.loot * tier.pct() / 100 };
     cx.events.push(Ev::Exit { t: run.turn, tier: tier.name().into(), loot_kept });
     match tier {
-        ExitTier::Bank => note(run, cx, format!("Banked {loot_kept} loot.")),
-        ExitTier::Return => note(run, cx, format!("Returned with {loot_kept} loot.")),
+        ExitTier::Bank => note(run, cx, format!("Banked ${loot_kept}.")),
+        ExitTier::Return => note(run, cx, format!("Returned with ${loot_kept}.")),
         ExitTier::Death => {}
     }
 }
@@ -1134,7 +1218,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
     }
     if item.cat() == Cat::Gold {
         let it = run.items.remove(ii).item;
-        run.loot += it.amount;
+        run.loot_add(it.amount);
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: format!("gold ({})", it.amount) });
         return;
     }
@@ -1143,7 +1227,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         let it = run.items.remove(ii).item;
         let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
         let kind = it.kind.clone();
-        run.loot += it.value();
+        run.loot_add(it.value());
         run.hero.inv.push(it);
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
         learn(run, cx, format!("item:{kind}"));
@@ -1163,7 +1247,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
                 run.hero.inv.push(l);
             }
         }
-        run.loot += 5;
+        run.loot_add(5);
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: "leash".into() });
         learn(run, cx, "item:leash".into());
         return;
@@ -1188,7 +1272,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
                 let here = run.hero.pos;
                 let it = run.items.remove(ii).item;
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
-                run.loot += it.value() - dropped.value();
+                run.loot_add(it.value() - dropped.value());
                 run.hero.inv.push(it);
                 run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
                 cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
@@ -1207,7 +1291,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
                 let here = run.hero.pos;
                 let it = run.items.remove(ii).item;
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
-                run.loot += it.value() - dropped.value();
+                run.loot_add(it.value() - dropped.value());
                 run.hero.inv.push(it);
                 run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
                 cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
@@ -1218,7 +1302,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
     }
     let it = run.items.remove(ii).item;
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
-    run.loot += it.value();
+    run.loot_add(it.value());
     run.hero.auto_equip(it);
     cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
 }
@@ -1241,7 +1325,7 @@ fn recover_bones(run: &mut Run, cx: &mut Ctx, ii: usize) {
             _ => run.hero.inv.iter().any(|i| i.id == it.id),
         };
         if taken {
-            run.loot += value;
+            run.loot_add(value);
         } else {
             drop_near(run, here, it);
         }

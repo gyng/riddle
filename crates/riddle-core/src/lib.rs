@@ -42,8 +42,15 @@ impl Game {
     pub fn buy(&mut self, unlock: &str) -> Result<(), String> {
         meta::buy(self, unlock)
     }
+    /// The unlock catalogue; Cut 4 §9: cards and verbs carry `delta` once `unlock_deltas`
+    /// computed them for this lineage state (no sims here).
     pub fn unlocks(&self) -> Vec<UnlockInfo> {
-        meta::catalogue(&self.lineage)
+        meta::catalogue_with_deltas(self, false)
+    }
+    /// The catalogue with every open card's and verb's `delta` simulated (memoised: a camp
+    /// visit pays once; `unlocks()` returns the same numbers afterwards).
+    pub fn unlock_deltas(&self) -> Vec<UnlockInfo> {
+        meta::catalogue_with_deltas(self, true)
     }
     pub fn save(&self) -> String {
         save::save(self)

@@ -16,23 +16,42 @@ fn hl(run: &Run, pattern: &str, score: i32, t: u32, text: String) -> Highlight {
     Highlight { pattern: pattern.into(), score, t, run_id: run.id, text: crate::chronicle::clamp_words(&text, 8) }
 }
 
-/// `first_kills`: kinds killed in this run for the first time in the lineage.
+/// Cut 4: how the run ended, as the tail of a reel line (`banked $313` · `returned with $80`
+/// · `fell on D4`); empty while the run is live.
+pub fn end_phrase(run: &Run) -> String {
+    use crate::engine::ExitTier;
+    match run.over {
+        Some(ExitTier::Bank) => format!("banked ${}", run.loot.max(0)),
+        Some(ExitTier::Return) if run.timed_out => "lost the thread".into(),
+        Some(ExitTier::Return) => format!("returned with ${}", run.loot.max(0) * ExitTier::Return.pct() / 100),
+        Some(ExitTier::Death) => format!("fell on D{}", run.depth),
+        None => String::new(),
+    }
+}
+
+/// `first_kills`: kinds killed in this run for the first time in the lineage. Cut 4: every
+/// line is setup + turn + end in ≤ 8 words (`Down to 2 HP, then banked $313.`); `bones` and
+/// `first_kill` keep their shape.
 pub fn sift_with(run: &Run, first_kills: &[String]) -> Vec<Highlight> {
     let mut out = Vec::new();
     let alive_end = run.over.is_some_and(|t| t != crate::engine::ExitTier::Death);
+    let end = end_phrase(run);
+    let then = |s: &str| if end.is_empty() { format!("{s}.") } else { format!("{s}, then {end}.") };
+    let comma = |s: &str| if end.is_empty() { format!("{s}.") } else { format!("{s}, {end}.") };
     let mut near: Vec<u32> = run.near_deaths.clone();
     if alive_end {
         if let Some(t) = run.low10_t {
             near.push(t);
         }
     }
+    let low_hp = if run.low_hp == i32::MAX { 1 } else { run.low_hp.max(1) };
     for t in near {
-        out.push(hl(run, "near_death", NEAR_DEATH, t, "Near death, then the floor survived.".into()));
+        out.push(hl(run, "near_death", NEAR_DEATH, t, then(&format!("Down to {low_hp} HP"))));
     }
     if let Some(t20) = run.low20_t.or(run.low10_t) {
         for (bt, kind) in &run.boss_kills {
             if *bt > t20 {
-                out.push(hl(run, "comeback", COMEBACK, *bt, format!("Comeback: slew the {} from the brink.", kind_title(kind))));
+                out.push(hl(run, "comeback", COMEBACK, *bt, comma(&format!("Brink, slew the {}", kind_title(kind)))));
             }
         }
     }
@@ -45,19 +64,19 @@ pub fn sift_with(run: &Run, first_kills: &[String]) -> Vec<Highlight> {
         }
     }
     for (t, kind) in &run.ally_lost {
-        out.push(hl(run, "ally_lost", ALLY_LOST, *t, format!("Lost the {} on D{}.", kind_title(kind), run.depth)));
+        out.push(hl(run, "ally_lost", ALLY_LOST, *t, comma(&format!("Lost the {} on D{}", kind_title(kind), run.depth))));
     }
     for (t, kind, mal) in &run.gambles {
         let survived = *mal && (run.gambles_survived.iter().any(|(gt, _)| gt == t) || alive_end);
         let score = GAMBLE + if survived { 2 } else { 0 };
-        let text = if *mal { format!("Gambled and survived the {}.", kind.replace('_', " ")) } else { format!("Gambled: it was {}.", kind.replace('_', " ")) };
+        let text = if *mal { comma(&format!("Gambled, survived the {}", kind.replace('_', " "))) } else { comma(&format!("Gambled: it was {}", kind.replace('_', " "))) };
         out.push(hl(run, "gamble", score, *t, text));
     }
     for (t, label) in &run.stolen {
-        out.push(hl(run, "stolen", STOLEN, *t, format!("A monkey stole the {label}.")));
+        out.push(hl(run, "stolen", STOLEN, *t, comma(&format!("A monkey stole the {label}"))));
     }
     for (t, kind) in &run.boss_kills {
-        out.push(hl(run, "boss", BOSS, *t, format!("Slew the {}.", kind_title(kind))));
+        out.push(hl(run, "boss", BOSS, *t, comma(&format!("Slew the {}", kind_title(kind)))));
     }
     out.sort_by(|a, b| b.score.cmp(&a.score).then(a.t.cmp(&b.t)));
     // One entry per pattern per run: the highest-scoring instance (earliest on ties).

@@ -20,6 +20,9 @@ pub const HERO_ID: u32 = 1;
 /// half its HP (up to this many turns back), so slow bleeds are attributable to a row, not to dice.
 pub const HISTORY_TURNS: usize = 30;
 pub const HISTORY_STRIDE: u32 = 10;
+/// Cut 4: a hostile that stepped out of view is remembered (snapshot `remembered`, the hunt)
+/// for this many hero actions after it was last seen.
+pub const REMEMBER_ACTIONS: u32 = 10;
 /// A run that cannot finish in this many ticks (≈ 3 h 20 min at 1×) comes home empty-handed
 /// (tier `return`, yield ×0: a stalemate is not a policy). Cut 3: a D30 run needs ~75 000.
 pub const MAX_TURNS_PER_RUN: u32 = 120_000;
@@ -246,9 +249,39 @@ pub struct Run {
     /// (never within a tile), as they path around water. Refreshed each hero action.
     #[serde(default)]
     pub mirrors: Vec<Pos>,
+    // Cut 4
+    /// Item value picked up this run, before `GOLD_DIVISOR`; `loot` is gold (`loot_add`).
+    #[serde(default)]
+    pub loot_raw: i32,
+    /// The lowest HP the hero fell to this run (the reel's setup).
+    #[serde(default)]
+    pub low_hp: i32,
+    /// The first rule row that fired after the hero fell to ≤ 20 % on this floor (the row
+    /// the chronicle credits when the floor is survived).
+    #[serde(default)]
+    pub saved_by: Option<i32>,
+    /// The foe the last foe-targeting row acted on, and that row: the hunt continues to its
+    /// last-seen tile when it steps out of view.
+    #[serde(default)]
+    pub last_target: Option<u32>,
+    #[serde(default)]
+    pub hunt: Option<(u32, i32)>,
+    /// The first row this action whose conditions held but whose verb could not execute
+    /// (`R1 retreat ✗ no path`), and the callout last shown for it (once per streak).
+    #[serde(skip)]
+    pub blocked_now: Option<String>,
+    #[serde(default)]
+    pub blocked_last: Option<String>,
 }
 
 impl Run {
+    /// Cut 4: loot is counted in gold at pickup. `raw` is the item value (gold pile amount,
+    /// item value); `loot` is `loot_raw / GOLD_DIVISOR`, so the HUD stake, the exit note,
+    /// `Ev::Exit.loot_kept` and the lineage's gold all agree.
+    pub fn loot_add(&mut self, raw: i32) {
+        self.loot_raw += raw;
+        self.loot = self.loot_raw / GOLD_DIVISOR;
+    }
     pub fn monster_at(&self, p: Pos) -> Option<usize> {
         self.monsters.iter().position(|m| m.hp > 0 && m.pos == p)
     }
@@ -286,6 +319,26 @@ impl Run {
     pub fn ignore(&mut self, id: u32, actions: u32) {
         let until = self.actions + actions;
         self.ignored.insert(id, until);
+    }
+    /// Cut 4: blood drawn on the hero ends the stalemate guards and every ignore.
+    pub fn unstick(&mut self) {
+        self.stuck_until = 0;
+        self.row_suppressed = (-9, 0);
+        self.ignored.clear();
+    }
+    /// Cut 4: hostiles the hero remembers but cannot see — alive, out of view, seen within
+    /// `REMEMBER_ACTIONS` — with the tile they were last seen on.
+    pub fn remembered_foes(&self) -> Vec<(usize, Pos)> {
+        let map = &self.floor.map;
+        self.monsters
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.hp > 0 && m.hostile() && !map.is_visible(m.pos))
+            .filter_map(|(i, m)| {
+                let (p, at) = self.known_foes.get(&m.id)?;
+                (self.actions.saturating_sub(*at) <= REMEMBER_ACTIONS).then_some((i, *p))
+            })
+            .collect()
     }
     /// Items are ignored by chores until this action (after fruitless pick_up loops).
     pub fn items_ignored(&self) -> bool {
@@ -422,6 +475,9 @@ pub struct LineageState {
     /// `hunted`: the grudge that stalks every floor from D3.
     #[serde(default)]
     pub hunter: Option<Grudge>,
+    /// Cut 4: depths banked from at least once (the first bank at a depth is a mark).
+    #[serde(default)]
+    pub banked_depths: BTreeSet<u32>,
 }
 
 impl LineageState {
@@ -480,6 +536,7 @@ impl LineageState {
             ascension: 0,
             variant: String::new(),
             ascended: Vec::new(),
+            banked_depths: BTreeSet::new(),
             hunter: None,
         }
     }
@@ -524,6 +581,7 @@ impl LineageState {
             rest_left_s: self.rest_left.div_ceil(crate::offline::TICKS_PER_SECOND as u32),
             bones: self.bones.iter().map(|b| BonesPile { depth: b.depth, heir: b.heir, items: b.items.len() as u32 }).collect(),
             ascension: Ascension { level: self.ascension, variant: self.variant.clone() },
+            ascended: self.ascended.clone(),
         }
     }
     pub fn vault_slots(&self) -> usize {
@@ -614,6 +672,15 @@ pub struct DeathRec {
     pub vocab: Vocabulary,
     pub verdict_done: bool,
     pub deltas_done: bool,
+    /// Cut 4: leading patches (by survival edge) whose forecast delta is simulated, and
+    /// whether the shown list has been cut and ranked (`compute_deltas`).
+    #[serde(default)]
+    pub deltas_n: usize,
+    #[serde(default)]
+    pub shaped: bool,
+    /// Cut 4: the tick the killing blow landed (the replay window's end).
+    #[serde(default)]
+    pub death_tick: u32,
 }
 
 /// The vault decision waiting at an exit (Addendum D).
@@ -719,6 +786,9 @@ pub struct Game {
     /// The stall patches last forecast, keyed by (row, depth, rules, vocabulary); the text is cheap.
     #[serde(skip)]
     pub stall_cache: Option<(String, Vec<Patch>)>,
+    /// Cut 4: `forecast::reach_with` results keyed by (lineage, rules, depth, sims, tag).
+    #[serde(skip)]
+    pub forecast_cache: std::cell::RefCell<BTreeMap<String, f64>>,
 }
 
 fn default_max_deaths() -> usize {
@@ -746,6 +816,7 @@ impl Game {
             offline: false,
             stall: StallTally::default(),
             stall_cache: None,
+            forecast_cache: Default::default(),
         }
     }
 
@@ -770,6 +841,7 @@ impl Game {
             offline: false,
             stall: StallTally::default(),
             stall_cache: None,
+            forecast_cache: Default::default(),
         }
     }
 
@@ -857,6 +929,7 @@ impl Game {
         l.gold = 0;
         l.gold_carry = 0;
         l.best_depth = 0;
+        l.banked_depths.clear();
         l.renown = 0;
         l.rank = 0;
         l.graveyard.clear();
@@ -956,11 +1029,7 @@ impl Game {
                 let _ = self.insure(id);
             }
         }
-        if self.lineage.unlocks.contains("auto_supply") && self.lineage.supplies.is_empty() {
-            for kind in self.lineage.last_supplies.clone() {
-                let _ = self.buy_supply(&kind);
-            }
-        }
+        self.restock();
         self.lineage.last_supplies = self.lineage.supplies.iter().map(|i| i.kind.clone()).collect();
         for id in loadout {
             if let Some(i) = self.lineage.vault.iter().position(|v| v.id == id) {
@@ -1044,6 +1113,13 @@ impl Game {
             pickup_inv: 0,
             items_until: 0,
             known_foes: BTreeMap::new(),
+            loot_raw: 0,
+            low_hp: i32::MAX,
+            saved_by: None,
+            last_target: None,
+            hunt: None,
+            blocked_now: None,
+            blocked_last: None,
             row_streak: (-9, 0),
             row_suppressed: (-9, 0),
             rests: 0,
@@ -1220,6 +1296,7 @@ impl Game {
                 ally: None,
                 telegraph: None,
                 cid: None,
+                remembered: false,
             },
             inv: h.inv.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
             weapon: h.weapon.as_ref().map(|w| w.kind.clone()),
@@ -1227,12 +1304,20 @@ impl Game {
             class: h.class.name().into(),
             trait_: run.trait_.name().into(),
         };
-        let entities = run
+        let mut entities: Vec<Entity> = run
             .monsters
             .iter()
             .filter(|mo| mo.hp > 0 && (m.is_visible(mo.pos) || mo.ally))
             .map(|mo| monster_entity(mo, &l.facts))
             .collect();
+        // Cut 4: pursued-but-unseen hostiles, at the tile they were last seen on.
+        for (i, p) in run.remembered_foes() {
+            let mut e = monster_entity(&run.monsters[i], &l.facts);
+            e.x = p.x;
+            e.y = p.y;
+            e.remembered = true;
+            entities.push(e);
+        }
         let items = run
             .items
             .iter()
@@ -1339,6 +1424,11 @@ impl Game {
             marks += run.max_depth - self.lineage.best_depth;
             self.lineage.best_depth = run.max_depth;
             bests.push(format!("D{}", run.max_depth));
+        }
+        // Cut 4: the first bank from each depth is a mark (a distinct best from first reach).
+        if tier == ExitTier::Bank && !run.timed_out && self.lineage.banked_depths.insert(run.max_depth) {
+            marks += 1;
+            bests.push(format!("home:D{}", run.max_depth));
         }
         for (_, kind, _) in &run.kills {
             if kind.starts_with("spectral_") {
@@ -1520,8 +1610,10 @@ impl Game {
         outcome.new_best = !bests.is_empty();
         self.batch.bests.extend(bests);
         // Loot, gold and the vault (Addendum B/D; Cut 2 §2 death keeps nothing).
+        // Cut 4: `run.loot` is already gold (÷ 4 at pickup); the same number the exit note
+        // and `Ev::Exit.loot_kept` carried.
         let loot_kept = run.loot.max(0) * pct / 100;
-        self.lineage.gold += loot_kept / GOLD_DIVISOR;
+        self.lineage.gold += loot_kept;
         let mut all: Vec<Item> = run.hero.inv.clone();
         if let Some(w) = &run.hero.weapon {
             all.push(w.clone());
@@ -1606,6 +1698,7 @@ impl Game {
         if self.sim {
             self.auto_keep();
         }
+        self.restock();
         Some(outcome)
     }
 
@@ -1684,6 +1777,7 @@ impl Game {
             self.batch.found.push(v);
         }
         self.salvage(&salvage, p.pct);
+        self.restock();
         Ok(())
     }
 
@@ -1891,6 +1985,26 @@ impl Game {
                 self.lineage.gold += e.price;
             }
         }
+        // Cut 4: clearing the shelf is an order; the automation does not undo it.
+        self.lineage.last_supplies.clear();
+    }
+
+    /// `auto_supply` (Cut 2 §3): an empty shelf is restocked with the last expedition's kinds
+    /// as far as gold allows. Cut 4: runs when the hero comes home (`finish_run`, and again
+    /// after the vault decision brought the salvage in), so the camp's shelf shows the restock
+    /// before the next send — restocking only at `start_run` moved the supplies straight into
+    /// the pack and the shelf never showed them.
+    pub fn restock(&mut self) -> u32 {
+        if !self.lineage.unlocks.contains("auto_supply") || !self.lineage.supplies.is_empty() {
+            return 0;
+        }
+        let mut n = 0;
+        for kind in self.lineage.last_supplies.clone() {
+            if self.buy_supply(&kind).is_ok() {
+                n += 1;
+            }
+        }
+        n
     }
 }
 
@@ -2116,6 +2230,7 @@ pub fn monster_entity(mo: &Monster, facts: &BTreeSet<String>) -> Entity {
         ally: if mo.ally { Some(true) } else { None },
         telegraph: mo.telegraph.clone(),
         cid: mo.cid,
+        remembered: false,
     }
 }
 

@@ -1,6 +1,7 @@
 //! Meta: unlock catalogue (Cut 2 §3), purchases, pending decisions.
 use crate::engine::{Game, LineageState};
 use crate::facts::{has_boss_counter, has_tag_fact};
+use crate::rules::{Cond, Row, Verb};
 use crate::wire::UnlockInfo;
 
 pub struct UnlockDef {
@@ -47,11 +48,12 @@ pub const UNLOCKS: &[UnlockDef] = &[
     UnlockDef { id: "supply_cap_5", cost: 3, prereq: None },
     UnlockDef { id: "bone_sense", cost: 3, prereq: None },
     UnlockDef { id: "third_tag", cost: 6, prereq: None },
-    // Cut 3: tier 2 (needs a boss).
-    UnlockDef { id: "row9", cost: 14, prereq: Some("row8") },
-    UnlockDef { id: "row10", cost: 18, prereq: Some("row9") },
-    UnlockDef { id: "vault5", cost: 14, prereq: Some("vault4") },
-    UnlockDef { id: "party_slot_4", cost: 14, prereq: Some("party_slot_3") },
+    // Cut 3: tier 2 (needs a boss). Cut 4: 8–12 (income after the cheap catalogue is ~2
+    // marks a day plus a first-bank mark per depth; 14–18 stalled the fortnight's purchases).
+    UnlockDef { id: "row9", cost: 8, prereq: Some("row8") },
+    UnlockDef { id: "row10", cost: 12, prereq: Some("row9") },
+    UnlockDef { id: "vault5", cost: 8, prereq: Some("vault4") },
+    UnlockDef { id: "party_slot_4", cost: 8, prereq: Some("party_slot_3") },
     UnlockDef { id: "cadence", cost: 5, prereq: None },
     UnlockDef { id: "noise_discipline", cost: 5, prereq: None },
     UnlockDef { id: "reflect_read", cost: 5, prereq: None },
@@ -127,9 +129,85 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             let prereq_ok = u.prereq.is_none_or(|p| l.unlocks.contains(p));
             let needs = gate(l, u.id).or_else(|| if prereq_ok { None } else { u.prereq.map(|p| p.to_string()) });
             let available = !owned && prereq_ok && needs.is_none() && l.marks >= u.cost;
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs: if owned { None } else { needs } }
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs: if owned { None } else { needs }, delta: None }
         })
         .collect()
+}
+
+/// Cut 4 §9: the row a tactic card or a verb unlock would add (its natural place, at the top
+/// of the list), for the catalogue's forecast delta. `None` for anything else.
+pub fn unlock_row(l: &LineageState, id: &str) -> Option<Row> {
+    let tag = |t: &str| Cond::t("foe_tag", t);
+    let card = |conds: Vec<Cond>| Some(Row::new(conds, Verb::arg("tactic", id)));
+    match id {
+        "corridor_fighting" | "stair_dance" => card(vec![Cond::n("foes>=", 2)]),
+        "kite_archers" => card(vec![tag("ranged")]),
+        "gas_step" => card(vec![tag("gas")]),
+        "pack_break" => card(vec![tag("pack")]),
+        "thief_guard" => card(vec![tag("thief")]),
+        "boss_focus" => card(vec![tag("boss")]),
+        "last_stand" => card(vec![Cond::n("hp<", 30)]),
+        "cadence" => card(vec![tag("mirror")]),
+        "noise_discipline" => card(vec![Cond::n("hp<", 90)]),
+        "reflect_read" => card(vec![tag("reflect_melee")]),
+        "deep_march" => card(vec![Cond::n("depth>=", 21)]),
+        "throw" => {
+            if has_tag_fact(&l.facts, "boss") {
+                Some(Row::new(vec![tag("boss")], Verb::arg("throw", "unknown,tag:boss")))
+            } else {
+                Some(Row::new(vec![Cond::n("foes>=", 2)], Verb::arg("throw", "unknown,nearest")))
+            }
+        }
+        "tame" => Some(Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("tame", "nearest"))),
+        _ => None,
+    }
+}
+
+/// Cut 4 §9: the catalogue with `delta` filled in for every card or verb not yet owned whose
+/// gate is open: the forecast reach at `best_depth + 1` with the unlock owned and its row at
+/// the top, minus the reach without (`DELTA_SIMS` paired sims under `CATALOGUE_TICK_BUDGET`,
+/// memoised on the game per lineage/rules/depth like every `reach_with`). With `compute`
+/// false only deltas already memoised are filled (no sims: `unlocks()` stays instant;
+/// `unlock_deltas()` pays once per camp visit).
+pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
+    let l = &game.lineage;
+    let mut cat = catalogue(l);
+    let depth = l.best_depth + 1;
+    let sims = crate::forecast::DELTA_SIMS;
+    let budget = crate::forecast::CATALOGUE_TICK_BUDGET;
+    let rules = l.rules().clone();
+    let max_rows = l.max_rows();
+    let mut base: Option<f64> = None;
+    for u in cat.iter_mut() {
+        if u.owned || u.needs.is_some() {
+            continue;
+        }
+        let Some(row) = unlock_row(l, &u.id) else { continue };
+        if rules.rows.contains(&row) {
+            continue;
+        }
+        // The sim lineage owns the unlock (the verb must be in its vocabulary to fire).
+        let mut g = game.sim_clone();
+        g.lineage.unlocks.insert(u.id.clone());
+        let mut patched = rules.clone();
+        patched.rows.insert(0, row);
+        patched.rows.truncate(max_rows.max(1));
+        // The sim game's lookups (its own fingerprint) go through the parent's cache.
+        g.forecast_cache = game.forecast_cache.clone();
+        if !compute {
+            let b = crate::forecast::reach_cached(game, &rules, depth, sims, 0xCA4D, budget);
+            let r = crate::forecast::reach_cached(&g, &patched, depth, sims, 0xCA4D, budget);
+            if let (Some(b), Some(r)) = (b, r) {
+                u.delta = Some(r - b);
+            }
+            continue;
+        }
+        let base_reach = *base.get_or_insert_with(|| crate::forecast::reach_budget(game, &rules, depth, sims, 0xCA4D, budget));
+        let r = crate::forecast::reach_budget(&g, &patched, depth, sims, 0xCA4D, budget);
+        game.forecast_cache.borrow_mut().extend(g.forecast_cache.into_inner());
+        u.delta = Some(r - base_reach);
+    }
+    cat
 }
 
 pub fn buy(game: &mut Game, id: &str) -> Result<(), String> {
@@ -210,10 +288,14 @@ mod tests {
             assert!(ids.contains(&u), "{u}");
         }
         let cost: u32 = UNLOCKS.iter().map(|u| u.cost).sum();
-        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 4 + 6 + 8 + 2 + 2 + 12 + 24 + 5 + 4 + 6 + 4 + 3 + 3 + 6 + 14 + 18 + 14 + 14 + 20 + 6 + 8);
+        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 4 + 6 + 8 + 2 + 2 + 12 + 24 + 5 + 4 + 6 + 4 + 3 + 3 + 6 + 8 + 12 + 8 + 8 + 20 + 6 + 8);
         let by = |id: &str| UNLOCKS.iter().find(|u| u.id == id).unwrap();
         assert_eq!(by("row9").prereq, Some("row8"));
-        assert_eq!(by("row10").cost, 18);
+        assert_eq!(by("row10").cost, 12);
+        // Cut 4: tier 2 costs 8–12.
+        for u in UNLOCKS.iter().skip(35) {
+            assert!((5..=12).contains(&u.cost), "{} costs {}", u.id, u.cost);
+        }
         let l = LineageState::new(2);
         let cat = catalogue(&l);
         assert_eq!(cat.iter().find(|u| u.id == "row9").unwrap().needs.as_deref(), Some("slay 3 bosses"));

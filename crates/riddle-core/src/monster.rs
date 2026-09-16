@@ -84,6 +84,9 @@ pub struct Monster {
     /// Cut 3: a boss has shown its opening telegraph.
     #[serde(default)]
     pub introduced: bool,
+    /// Cut 4: the companion verb last announced (`<kind>: flank`, once per streak).
+    #[serde(default)]
+    pub last_verb: String,
 }
 
 impl Monster {
@@ -133,6 +136,7 @@ impl Monster {
             slow_t: 0,
             warden_ranged: false,
             introduced: false,
+            last_verb: String::new(),
         }
     }
     pub fn def(&self) -> &'static MonsterDef {

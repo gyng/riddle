@@ -125,6 +125,13 @@ impl Game {
         js(&self.inner.unlocks())
     }
 
+    /// Cut 4 §9: the catalogue with `delta` simulated for every open card and verb (memoised
+    /// per lineage state; `unlocks()` carries the same deltas afterwards without sims).
+    #[wasm_bindgen(js_name = unlockDeltas)]
+    pub fn unlock_deltas(&self) -> String {
+        js(&self.inner.unlock_deltas())
+    }
+
     #[wasm_bindgen(js_name = setClass)]
     pub fn set_class(&mut self, class: &str) -> Result<String, JsError> {
         self.inner.set_class(class).map_err(err)?;

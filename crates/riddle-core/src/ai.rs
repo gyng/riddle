@@ -233,6 +233,10 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     if escape_hazard(run, cx, v) {
         return Verb::new("explore");
     }
+    // Cut 4: with an awake hostile at the hero's elbow and no row that acts, the chores say
+    // so (`cornered`, not `wait`): stepping clear or swinging back would be a policy the
+    // player never wrote (PASSIVE must lose every seed).
+    let biting = v.foes.iter().any(|&i| run.monsters[i].awake && run.monsters[i].pos.adjacent(run.hero.pos));
     if v.foes.is_empty() {
         if let Some(verb) = use_boosts(run, cx) {
             return verb;
@@ -279,10 +283,110 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
         random_step(run, cx);
         return Verb::new("shuffle");
     }
+    if biting {
+        return Verb::new("cornered");
+    }
     Verb::new("wait")
 }
 
-/// Step toward a bones pile on this floor over the whole map (`bone_sense`).
+/// Cut 4: the hunt. The foe the last foe-targeting row acted on has stepped out of view: walk
+/// toward the tile it was last seen on. Returns its kind when a step was taken; `None` (and
+/// the hunt dropped) when it is dead, in view again, forgotten, given up on, or the tile is
+/// reached or unreachable.
+pub fn hunt_step(run: &mut Run, cx: &mut Ctx) -> Option<String> {
+    let (id, _) = run.hunt?;
+    let Some(mi) = run.monsters.iter().position(|m| m.id == id && m.hp > 0 && m.hostile()) else {
+        run.hunt = None;
+        return None;
+    };
+    if run.floor.map.is_visible(run.monsters[mi].pos) || run.is_ignored(id) {
+        run.hunt = None;
+        return None;
+    }
+    let Some(&(goal, at)) = run.known_foes.get(&id) else {
+        run.hunt = None;
+        return None;
+    };
+    let hp = run.hero.pos;
+    if run.actions.saturating_sub(at) > crate::engine::REMEMBER_ACTIONS || goal.cheb(hp) <= 1 {
+        run.hunt = None;
+        return None;
+    }
+    let (_, parent) = hero_bfs(run);
+    if step_towards(run, cx, goal, &parent) {
+        Some(run.monsters[mi].kind.clone())
+    } else {
+        run.hunt = None;
+        None
+    }
+}
+
+/// A class verb still cooling down.
+fn class_cooldown(run: &Run, verb: &Verb) -> bool {
+    let h = &run.hero;
+    match verb.v.as_str() {
+        "shield_bash" => h.bash_cd > 0,
+        "cleave" => h.cleave_cd > 0,
+        "double_shot" => h.double_cd > 0,
+        _ => false,
+    }
+}
+
+/// Cut 4: why a row whose conditions held could not act (≤ 2 words).
+pub fn block_reason(run: &Run, verb: &Verb, v: &View) -> &'static str {
+    let holds = |kind: &str| run.hero.inv.iter().any(|i| i.kind == kind);
+    match verb.v.as_str() {
+        "retreat" | "back_corridor" | "blink" | "shadowstep" | "vanish" | "smoke" => "no path",
+        "drink" | "read" => {
+            let a = verb.a.as_deref().unwrap_or("");
+            if a.is_empty() || a == "unknown" || holds(a) {
+                "no use"
+            } else {
+                "no item"
+            }
+        }
+        "throw" => {
+            let k = verb.a.as_deref().unwrap_or("").split(',').next().unwrap_or("");
+            if !k.is_empty() && k != "unknown" && !holds(k) {
+                "no item"
+            } else if v.foes.is_empty() {
+                "no target"
+            } else {
+                "no line"
+            }
+        }
+        "shoot" | "volley" | "double_shot" => {
+            if !run.hero.ranged() {
+                "no bow"
+            } else if v.foes.is_empty() {
+                "no target"
+            } else {
+                "no line"
+            }
+        }
+        "tame" => {
+            if !holds("leash") {
+                "no leash"
+            } else {
+                "none weak"
+            }
+        }
+        "rest" => "not safe",
+        "descend" => "no stairs",
+        "return" | "bank" | "recall" => "no way",
+        _ if crate::turn::targets_foes(verb) => {
+            if v.engage.is_empty() {
+                "no target"
+            } else if class_cooldown(run, verb) {
+                "cooldown"
+            } else {
+                "no path"
+            }
+        }
+        _ => "no use",
+    }
+}
+
 fn bones_step(run: &mut Run, cx: &mut Ctx) -> bool {
     let Some(goal) = run.items.iter().find(|fi| fi.item.kind == "bones").map(|fi| fi.pos) else { return false };
     let map = &run.floor.map;
@@ -864,8 +968,22 @@ fn verb_drain(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     true
 }
 
-/// Attack targets: fleeing foes are not chased unless adjacent (a fool's errand).
-fn pick_target(run: &Run, a: &str, v: &View) -> Option<usize> {
+/// Attack targets: fleeing foes are not chased unless adjacent (a fool's errand). Cut 4: a
+/// melee pick draws from `engage` (foes the hero has not given up on); a ranged pick from
+/// every foe in view (an archer out of reach on foot is still in bow range).
+fn pick_target(run: &mut Run, a: &str, v: &View) -> Option<usize> {
+    let mi = pick_target_from(run, a, &v.foes);
+    run.last_target = mi.map(|i| run.monsters[i].id);
+    mi
+}
+
+fn pick_melee_target(run: &mut Run, a: &str, v: &View) -> Option<usize> {
+    let mi = pick_target_from(run, a, &v.engage);
+    run.last_target = mi.map(|i| run.monsters[i].id);
+    mi
+}
+
+fn pick_target_from(run: &Run, a: &str, foes: &[usize]) -> Option<usize> {
     let hp = run.hero.pos;
     let ok = |i: &usize| {
         let m = &run.monsters[*i];
@@ -874,28 +992,23 @@ fn pick_target(run: &Run, a: &str, v: &View) -> Option<usize> {
     // An adjacent match beats a distant one: never walk past a foe that is already biting.
     let adjacent = |i: &usize| run.monsters[*i].pos.adjacent(hp);
     match a {
-        "lowest" => v
-            .foes
-            .iter()
-            .copied()
-            .filter(ok)
-            .min_by_key(|&i| (!adjacent(&i), run.monsters[i].hp, run.monsters[i].id)),
+        "lowest" => foes.iter().copied().filter(ok).min_by_key(|&i| (!adjacent(&i), run.monsters[i].hp, run.monsters[i].id)),
         s if s.starts_with("tag:") => {
             let t = &s[4..];
             let tagged = |i: &usize| run.monsters[*i].has_tag(t);
-            v.foes.iter().copied().filter(ok).filter(tagged).find(adjacent).or_else(|| v.foes.iter().copied().filter(ok).find(tagged))
+            foes.iter().copied().filter(ok).filter(tagged).find(adjacent).or_else(|| foes.iter().copied().filter(ok).find(tagged))
         }
         _ => {
             // Nearest: adjacent first; among those the boss comes last (its guards are the
             // wall; the boss is a deliberate target via `tag:boss`).
             let key = |i: &usize| (!adjacent(i), run.monsters[*i].is_boss(), run.monsters[*i].pos.cheb(hp), run.monsters[*i].id);
-            v.foes.iter().copied().filter(ok).min_by_key(key)
+            foes.iter().copied().filter(ok).min_by_key(key)
         }
     }
 }
 
 fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bool {
-    let Some(mi) = pick_target(run, a, v) else { return false };
+    let Some(mi) = pick_melee_target(run, a, v) else { return false };
     let hp = run.hero.pos;
     let mp = run.monsters[mi].pos;
     // Cut 3: a spear reaches two tiles.
@@ -2194,7 +2307,7 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
             let ii = stealable[run.rng.below(stealable.len() as u32) as usize];
             let it = run.hero.inv.remove(ii);
             let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
-            run.loot -= it.value();
+            run.loot_add(-it.value());
             run.monsters[mi].stolen = Some(it);
             run.monsters[mi].fleeing = true;
             cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone() });
@@ -2908,6 +3021,7 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         weak && tag_ok && !m.is_boss() && !m.summoned && !m.neutral
     });
     let Some(mi) = cand else { return false };
+    run.last_target = Some(run.monsters[mi].id);
     let hp = run.hero.pos;
     let mp = run.monsters[mi].pos;
     if !mp.adjacent(hp) {
@@ -2984,7 +3098,7 @@ fn companion_view(run: &Run, mi: usize) -> View {
     let adj = foes.iter().filter(|&&i| run.monsters[i].pos.adjacent(mp)).count() as i32;
     let nearest = foes.first().copied();
     let lowest = foes.iter().copied().min_by_key(|&i| (run.monsters[i].hp, run.monsters[i].id));
-    View { foes, adj, nearest, lowest }
+    View { engage: foes.clone(), foes, adj, nearest, lowest }
 }
 
 fn companion_cond(run: &Run, cx: &Ctx, mi: usize, v: &View, c: &crate::rules::Cond) -> bool {
@@ -3085,7 +3199,7 @@ fn try_companion_verb(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &Verb, v: &V
             if dmg > 0 && run.monsters.get(ti).is_some() {
                 let tid = run.monsters[ti].id;
                 let gold = 3 * run.depth as i32;
-                run.loot += gold;
+                run.loot_add(gold);
                 run.monsters[mi].stole_from.push(tid);
                 let id = run.monsters[mi].id;
                 cx.events.push(Ev::Steal { t: run.turn, id, item: format!("gold ({gold})") });
@@ -3196,6 +3310,20 @@ fn try_companion_verb(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &Verb, v: &V
     }
 }
 
+/// Cut 4: a companion's row is announced as `<kind>: <verb>` (`jackal: flank`), once per
+/// streak of the same verb, and only in the hero's view.
+fn companion_callout(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str) {
+    if run.monsters[mi].last_verb == verb {
+        return;
+    }
+    run.monsters[mi].last_verb = verb.to_string();
+    if !run.floor.map.is_visible(run.monsters[mi].pos) || matches!(verb, "follow") {
+        return;
+    }
+    let kind = crate::engine::kind_title(&run.monsters[mi].kind).to_lowercase();
+    callout(run, cx, &format!("{kind}: {}", verb.replace('_', " ")));
+}
+
 /// A companion acts on its own rows; fallback: fight adjacent, stay within 2 of the hero.
 fn companion_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
     let Some(cid) = run.monsters[mi].cid else { return };
@@ -3218,6 +3346,7 @@ fn companion_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
         }
         if try_companion_verb(run, cx, mi, &row.verb, &v) {
             run.monsters[mi].hurt_since_action = false;
+            companion_callout(run, cx, mi, &row.verb.v);
             return;
         }
     }
