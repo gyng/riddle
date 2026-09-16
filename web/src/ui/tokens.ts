@@ -20,6 +20,18 @@ const VERB: Record<string, string> = {
   ambush: "ambush", shadowstep: "shadowstep",
   kite: "kite", volley: "volley", trap: "trap", mark: "mark", double_shot: "double shot",
   bolt: "bolt", ward: "ward", blink: "blink", slow: "slow", nova: "nova", tactic: "card",
+  // Cut 3: chores the trace names, a mirror companion's copy, the cadence card's filler
+  hold: "hold", wait: "wait", shuffle: "shuffle", paralysed: "paralysed", stumble: "stumble", mimic: "mimic", feint: "feint",
+};
+/* copy:rule_token */
+/** Verb arguments and condition targets (cards, item kinds, foe tags) — Cut 3 names the ones an underscore→space
+ *  would misread; everything else falls through `nice()`. */
+const ARG: Record<string, string> = {
+  cadence: "cadence", noise_discipline: "noise discipline", reflect_read: "reflect read", deep_march: "deep march",
+  lantern_rig: "lantern rig", recall_sense: "recall sense",
+  spear: "spear", mace: "mace", scale: "scale", regen: "regen", resist_fire: "resist fire", clarity: "clarity", recall: "recall",
+  silence: "silence", earthquake: "earthquake", mirror: "mirror", lantern: "lantern", bell: "bell", salt: "salt", chalk: "chalk", mirror_shard: "mirror shard",
+  reflect_melee: "reflects melee", reflect: "reflects", alarm: "alarm", blind: "blind", aura: "aura", gaze: "gaze", healer: "healer", echo: "echo", buffer: "buffer",
 };
 export const PCT = new Set(["hp<", "hp>", "foe_hp<", "self_hp<", "party_hp<", "floor_seen>="]);
 export const NUMS: Record<string, number[]> = {
@@ -28,7 +40,7 @@ export const NUMS: Record<string, number[]> = {
   "loot>=": [25, 50, 100, 200], "turns>": [50, 100, 200, 400],
 };
 export const needsN = (k: string): boolean => k in NUMS;
-const nice = (s: string): string => s.replace(/_/g, " ");
+const nice = (s: string): string => ARG[s] ?? s.replace(/_/g, " ");
 
 export function condName(k: string): string { return COND[k] ?? nice(k); }
 export function condLabel(c: Cond): string {

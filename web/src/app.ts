@@ -177,6 +177,18 @@ export class App {
   }
   totalRuns(): number { return this.runsSeen; }
 
+  /** Cut 3: after the ending, ascend under a variant (`no_rest | short_list | bones_only | hunted`): the engine keeps
+   *  classes, kennel, vault, facts, forge, trophies and rules. An engine without `ascend` falls back to `again()`. */
+  async ascend(variant: string): Promise<void> {
+    try { this.lineage = await this.engine.ascend(variant); }
+    catch (e) { console.warn("ascend unavailable, starting again", e); return this.again(); }
+    this.loadout = []; this.runsSeen = 0;
+    this.adoptSets();
+    await this.engine.loadout([]);
+    this.vocab = await this.engine.vocabulary();
+    await this.flush();
+    this.go({ kind: "camp" });
+  }
   /** After the ending: a fresh lineage that keeps the player's three rule sets (facts, classes, meta reset —
    *  the core has no carry-over method). */
   async again(): Promise<void> {

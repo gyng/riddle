@@ -22,6 +22,7 @@ export type Snapshot = {
   entities: Entity[]; items: FloorItem[]; alert: number; turn: number; loot: number;
   run: { id: number; heir: number; started_turn: number };
   stake?: Stake;                                                          // Cut 2 §7: what is on the line right now
+  vision?: number;                                                        // Cut 3: the hero's sight radius on this floor (Deep 4, else 7; +2 lantern)
 };
 /** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any. */
 export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number };
@@ -92,7 +93,11 @@ export type Lineage = { seed: number; heir: number; trait: string; class: string
                         classes: { [cls: string]: { level: number; xp: number } };                                     // Addendum C
                         forge: { [kind: string]: { salvaged: number; craftable: boolean; tier: number } };               // Addendum D
                         renown: number; rank: number; keep_pref: string;                                               // Addendum D
-                        rest_left_s?: number; bones?: BonesPile[] };                                                    // Cut 2 §1–2
+                        rest_left_s?: number; bones?: BonesPile[];                                                      // Cut 2 §1–2
+                        ascension?: Ascension };                                                                        // Cut 3
+/** Cut 3: times the lineage ascended and the variant it plays under (`""` at level 0). */
+export type Ascension = { level: number; variant: string };
+export const VARIANTS = ["no_rest", "short_list", "bones_only", "hunted"] as const;
 /** Cut 2 §2 — a dead heir's kit on the floor (per lineage, max 3; oldest expires). */
 export type BonesPile = { depth: number; heir: number; items: number };
 
@@ -130,6 +135,7 @@ export interface Engine {
   unlocks(): UnlockInfo[];              // the catalogue; `available` = prereq + fact gate + affordable
   setClass(cls: string): Lineage;       // switch class (rogue needs the `rogue` unlock)
   selectSet(i: number): Lineage;        // pick one of the three saved sets; setRules writes the active one
+  ascend(variant: string): Lineage;     // Cut 3: after the ending, a new lineage under a variant (keeps classes, kennel, vault, facts, rules)
 }
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
                            delta?: number };                                                                // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards

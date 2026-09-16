@@ -68,6 +68,8 @@ export class WasmEngine implements Engine {
   unlocks(): UnlockInfo[] { return this.call("unlocks"); }
   setClass(cls: string): Lineage { return this.call("setClass", cls); }
   selectSet(i: number): Lineage { return this.call("selectSet", i); }
+  // Cut 3
+  ascend(variant: string): Lineage { return this.call("ascend", variant); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

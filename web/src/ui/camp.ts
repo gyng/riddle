@@ -27,6 +27,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const L = app.lineage; const lvl = L.classes?.[L.class] ?? { level: 1, xp: 0 };
     replace(strip,
       h("span", { class: "num" }, `♟${L.heir}`),
+      // Cut 3: `↑2 no rest` once ascended
+      (L.ascension?.level ?? 0) > 0 ? h("span", { class: "num asc" }, `↑${L.ascension!.level} ${L.ascension!.variant.replace(/_/g, " ")}`) : "",
       h("span", null, L.trait),
       h("button", { class: "cls", onclick: () => pickClass() }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
         h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round((lvl.xp / xpToNext(lvl.level)) * 100)}%` }))),

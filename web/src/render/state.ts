@@ -11,7 +11,7 @@
 import type { Ev, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
 
 export const TICKS_PER_S = 10;
-export const VISION_R = 7;
+export const VISION_R = 7; // default sight radius; a snapshot's `vision` (Cut 3: the Deep is 4) overrides per floor
 const LUNGE_T = 2, HURT_T = 1.5, DIE_T = 4, SPAWN_T = 2, LEASH_T = 4, SHAKE_T = 3, GLYPH_T = 15;
 const MOVE_DEFAULT = 10, MOVE_MIN = 3, MOVE_MAX = 20;
 const IDLE_TAIL = 6; // ticks after the last event before idle() reports true
@@ -61,6 +61,7 @@ export class ReplayState {
   visionDirty = true;
   cameraSnap = false; // index.ts snaps the camera to the hero and clears this
   bossFlashUntil = -Infinity; // clock < this → index.ts renders with the `boss_flash` palette
+  vision = VISION_R;  // presentation LOS radius and the fog bands (index.ts) follow the floor's vision
   private snap: Snapshot | null = null;
   private queue: Ev[] = [];
   private log: Ev[] = [];     // applied since load, in order (for seek)
@@ -77,6 +78,7 @@ export class ReplayState {
 
   private reset(s: Snapshot): void {
     this.w = s.w; this.h = s.h; this.biome = s.biome; this.depth = s.depth;
+    this.vision = s.vision ?? VISION_R;
     this.tiles = s.tiles.slice();
     this.seen = Uint8Array.from(s.seen, (b) => (b ? 1 : 0));
     this.visible = Uint8Array.from(s.visible, (b) => (b ? 1 : 0));
@@ -129,6 +131,7 @@ export class ReplayState {
    *  snapshot puts it, so the moves that follow tween from the right tile. Unknown remembered ones are added. */
   sync(s: Snapshot): void {
     if (!this.loaded || s.depth !== this.depth) return;
+    if (s.vision !== undefined && s.vision !== this.vision) { this.vision = s.vision; this.visionDirty = true; } // a lantern picked up
     const flagged = new Map<number, Entity>();
     for (const e of s.entities) if (e.id !== this.heroId) flagged.set(e.id, e);
     for (const [id, e] of this.ents) {
@@ -433,7 +436,7 @@ export class ReplayState {
     const h = this.hero;
     if (!h) return;
     this.visible.fill(0);
-    const R = VISION_R;
+    const R = this.vision;
     for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
       if (dx * dx + dy * dy > R * R + R) continue;
       const tx = h.x + dx, ty = h.y + dy;

@@ -83,6 +83,8 @@ const COND_UNLOCK: Record<string, string> = { "alert>=": "cond_alert", "turns>":
 const REST_CAP_S = 30 * 60, WAKE_S = 20 * 60, BONES_MAX = 3, STUDIED_KILLS = 5;
 // UI dev knob: `?engine=fake&fake_depth=5` starts every run on D5 (boss floor) so the boss HUD can be seen.
 const DEV_START_DEPTH = Math.max(1, (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_depth"))) || 1);
+// UI dev knob: `?engine=fake&fake_vision=4` reports the Deep's sight radius (renderer fog bands follow it).
+const DEV_VISION = (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_vision"))) || 7;
 const SALVAGE: Record<string, number> = { dagger: 10, sword: 20, axe: 30, bow: 20, leather: 15, mail: 25, plate: 40, leash: 5 };
 const salvageOf = (kind: string): number => SALVAGE[kind] ?? (POTIONS.includes(kind) ? 8 : SCROLLS.includes(kind) ? 12 : 0);
 const TAG_VERB: Record<string, string> = { ranged: "shoot", gas: "burst", thief: "steal", splitter: "split", pack: "flank", undead: "drain" };
@@ -718,7 +720,7 @@ function snapshot(run: Run, rules?: RuleSet): Snapshot {
     entities: run.floor.mons.map((m) => { const vis = run.floor.visible[idx(m.x, m.y)]; if (vis) m.seen = true; const e = ent(m); if (!vis && m.seen && !m.ally) e.remembered = true; return e; }),
     items: run.floor.items.map((i) => ({ ...i })), alert: run.alert, turn: run.turn, loot: run.loot,
     run: { id: run.id, heir: run.heir, started_turn: run.started_turn },
-    stake: stakeOf(run, rules),
+    stake: stakeOf(run, rules), vision: DEV_VISION,
   };
 }
 /** Cut 2 §7: loot on the hero, brought items (insured = safe), the first row that would bank or return. */
@@ -1137,6 +1139,16 @@ export class FakeEngine implements Engine {
   selectSet(i: number): Lineage {
     const L = this.s.lineage; L.active_set = Math.max(0, Math.min(L.sets.length - 1, i));
     this.s.rules = JSON.parse(JSON.stringify(L.sets[L.active_set])) as RuleSet; return this.lineage();
+  }
+  /** Cut 3: a new lineage under `variant`, keeping classes, kennel (party goes home), vault, facts, forge, trophies, rules.
+   *  The core insists on the ending first; the UI fake does not, so the ending screen can be exercised from any state. */
+  ascend(variant: string): Lineage {
+    if (!["no_rest", "short_list", "bones_only", "hunted"].includes(variant)) throw new Error(`unknown variant ${variant}`);
+    const old = this.s.lineage; const level = (old.ascension?.level ?? 0) + 1;
+    const keep = { classes: old.classes, kennel: [...old.party, ...old.kennel], vault: old.vault, facts: old.facts, forge: old.forge, trophies: old.trophies, sets: old.sets, active_set: old.active_set, ledger: old.ledger, class: old.class };
+    this.newLineage(old.seed + level);
+    Object.assign(this.s.lineage, keep, { party: [], unlocks: old.unlocks.filter((u) => ["rogue", "ranger", "caster"].includes(u)), ascension: { level, variant } });
+    return this.selectSet(old.active_set);
   }
   exportRules(): string { return this.s.rules.rows.map(rowText).join("\n"); }
   importRules(text: string): RuleSet { const set = parseRules(text); this.setRules(set); return JSON.parse(JSON.stringify(this.s.rules)) as RuleSet; }
