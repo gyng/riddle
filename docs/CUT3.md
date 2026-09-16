@@ -85,3 +85,12 @@ counter facts (`boss:<kind>:counter`) are learned from the first telegraph.
 - **Client** (small; after core lands): verb/token labels for new verbs (`cadence` card, etc.),
   the ending screen's `again` → `ascend(variant)` with a four-chip variant picker (copy budget:
   one word per chip), `ascension` in the lineage strip (`↑2 hunted`).
+
+## Recorded outcome (2026-09-16)
+
+All metrics gates pass on 30 seeds (FULL reaches D26 in 87%; each boss holds ≥ 97% without its
+counter row; per-tick 3.0 µs). Dayplayer content bars still fail (unlock days 8/14, stall 5 days)
+for an economy reason: after the cheap catalogue, income is ~2 marks/day against tier-2 costs of
+14–18, and the simulated player stalls at the Foundry Master. Carried into Cut 4 core: first-bank
+marks per depth, tier-2 costs 8–12, and the bars are enforced once that lands. Wire additions in
+the core README ("Cut 3").
