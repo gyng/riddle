@@ -1,0 +1,153 @@
+{
+  "$comment": "Blind rater B card. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md. One quoted observation per axis. bot stays na (caps applied by the coordinator). Criterion + probes answered before awards. Files read: eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md s1-3, eval/SCORECARD.template.json, eval/presets.json (weights only). No PLAN.md, research/, CUT*.md, other cards or source opened.",
+  "game": "Riddle",
+  "build": "6e691ec",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterB",
+  "horizon": {
+    "activeMinutes": 60,
+    "absences": [
+      "First attempt (production build without dev=1, 12:37): ?absent=8h was ignored; the camp came back byte-for-byte identical and the paused hero resumed. Coordinator confirmed this was a harness fault, not the game; that observation no longer scores.",
+      "REDO: the first lineage was lost when I closed the browser after handing back the card, so per the coordinator's fallback I started ?dev=1&seed=23&fresh=1 at 13:16 and replayed 12 minutes with my own decisions to a comparable state (hero 3 'curious' L1, six rules: drink heal / hp<50% foes>=2 retreat / attack nearest / rest / depth>=5 bank / foe: thief attack thief, forecast D5 94%, $61, 2 heal potions stocked, star 1). At 13:28 I loaded ?dev=1&absent=8h once. Return session 13:28-13:38 and 18:17-18:25 (about 18 min of play; an API limit cut the session in between while the camp sat idle, nothing was replayed): 4 runs (bank $452, bank $181, death at my bank-at-8 stake, bank $343), 1 death read, 3 own edits + 1 patch, 3 unlocks bought.",
+      "Unplanned (original session): an API usage limit cut the rater session 12:56-13:12 with the page paused on a bank sheet; the lineage survived."
+    ],
+    "runsWatched": 19,
+    "runsOffline": 16,
+    "ruleEdits": 18,
+    "$note": "Seed 23, fresh lineage. Runs: 1 death D3 (rat), 2 death D5 (goblin), 3 bank D5 $232, 4 bank D5 $313, 5 death D5 (goblin archer, bank@8 stake), 6 bank D5 $243, 7/8 bank D5 $297 (7 paused across the absence and resumed as 8), 9 bank D5 $238, 10 bail at D3 (+44), 11 bank D5 $159 watched entirely at 1x (7m15s). Runs 1, 2, 11 and the first 4 min of run 3 watched at 1x; others at 4x. Own rule edits: 8 (rest rule; drink heal->drink unknown; depth>=3/5/8/5 -> bank; tame nearest with foe hp<50%; rebuilt rule order by delete/re-add; hp<30% rest; foe: thief -> attack thief). Offered patches tapped: 2 (retreat; drink heal). Purchases: path: bones, +1 row x2, verb: tame, card: thief guard, leash, heal potions, leather, rat $50 x1. Deaths read: 3. Three spend of marks; marks income after the first D5 was 0-2 per bank. REDO lineage: runs 1 death D5 (goblin), 2 death D3 (goblin, '· wait' rows), 3 bank $226, 4 bank $345; 16 runs offline (15 banked, 1 death); on return runs 5 bank $452, 6 bank $181, 7 death D5 (goblin warlord, bank-at-8 stake), 8 bank $343.",
+    "redo": "Absence and return redone on a rebuilt seed-23 lineage with dev=1 (see absences[1]). Revised on this card: return, pacing, progression, decisions, the returnWithNothingToDecide kill flag and the horizon block. Every other award and note is from the original session and untouched. Screenshots of the redo are in the rater scratchpad shots2/ (RETURN-SCREEN-REDO-b.png, NIGHT-DEATH.png, FIRST-EDIT-AFTER-RETURN-REDO.png)."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 4,
+    "playAgainTomorrow_1to7": 4,
+    "recommend_0to10": 4,
+    "checkInTomorrowUnprompted_1to7": 2,
+    "delayedRecall": "same-day: I sent hero 3 with my new order (retreat first, bank at depth 5 last) and a rat-taming rule I had just bought the leash for, and on D4 the HP bar went from 21 to 2 in one breath while the summary later said 'Gambled: invisibility potion'. My rest rule caught it at 2 HP and brought him to 13, the tame rule fired somewhere I never saw and a rat named Krak joined and was lost, and 'R5 · bank' walked him home from D5 with $313 and my first star. The reel wrote 'Down to 2 HP. D5: the Warrens. Trophy: no heal to D5. Banked 313 loot.' and that is the run I would tell someone about."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Probe: I always knew what to do (edit, send, read the death) and the forecast answered every edit within a second ('depth >= 3 -> bank' turned D4 to 0% and told me bank ends the run). What I did not know: 'Banked 232 loot' then camp showed $78 with no line saying where 154 went; 'card: thief guard' took 3 marks and changed nothing on screen; the morgue button turned into a tick; and on death 3 the trace showed 'R5 attack nearest' at hp 7, foes 2 while my R1 'hp < 50% · foes >= 2 -> retreat' sat at the top with no word on why it did not match. First own edit at minute 8. Adequate: the loop is clear, the money and the rule matcher are not."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Probe: the choice I would defend is bank depth: 'depth >= 5 -> bank' forecast D5 78% and banked six runs of $159-$313; 'depth >= 8' for one run was a stake I chose and it died on D5 with 'bones left · 10 items'. I would make both again. Also real: which one of 8 items to keep in the 1-slot vault (I kept the heal potion), whether to bring the rat, and rule order (rest below attack fires only when no foes). Lapse: after death 2 all three offered patches read '100% +0%' and after death 3 again '100% +0%', so the game's own suggestions could not be told apart, and the mark economy (0-2 per bank) made most unlock choices moot. Redo return: the night report made two decisions for me that I would defend, retuning R6 to 'foe: fast' because the death was a spectral blade and 'thief never fired', and raising heal to 50% because 'R1 never fired'; a bank-at-8 stake after the return died on D5 to 'goblin warlord · 3 over' with five foes and I would still take it. Award unchanged."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Probe: an hour ago the default hero died on D3 with '5 unknown unused'; now I reach D5 and bank on 7 of 8 sends, and I learned rule order the hard way (retreat placed above attack, rest below it) and that 'drink unknown' instead of 'drink heal' produces 'heal unused' on the death line. The next thing to learn is walled off: every forecast says 'D6 0%' and nothing on any screen says what is on D6 or what would move that number."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Probe: I sweated on run 2 at '$258 · death: lose all' on D4 with 19/36 HP and no bank rule, and I let it ride and lost it all to four goblins; on run 4 the bar went 21 -> 2 before 'R6 · rest' fired. The game noticed: the reel wrote 'Down to 2 HP' and the death line wrote '2 over'. Stakes I chose (bank at 8) resolved as a death I could read. Weak side: at 1x a fight is HP numbers ticking, I never saw a foe sprite in any watched frame, so the doubt is felt in the header, not in the room."
+    },
+    {
+      "id": "feel",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Audio: unassessed, there is none. Probe: taps land instantly and the forecast bars re-run before my finger lifts, which felt good; the run view did not. At 1x the same header text stood for 7 samples (about 63 s) on D4 in run 11 and for 30-40 s stretches in run 1; the camera hugs the hero so tightly that no goblin, archer or ogre was ever in frame, 'ogre winds up' appeared only as text. Nothing I did just because it felt good."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Probe: 'stolen!' ($24 -> $12 on D1) made me write 'foe: thief -> attack thief'; 'Gambled: invisibility potion' and 'caustic red' came out of my drink-unknown rule; 'ogre winds up · goblin_archer draws' in the death trace was new vocabulary; a rat got tamed by a rule I half expected to do nothing. Repeats: every run was 'D1-D5: the Warrens', the top death cause was jackal/goblin on every forecast, and after run 6 nothing new happened on D1-D4."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "Probe, to a friend: 'a cowardly fighter who backs off when two things are on him under half health, naps when nobody is around, hits thieves first, drinks at 40% and always walks the gold home from floor five.' That is mine. But the vocabulary is 6 rows of one condition plus one verb from a short list, 'foes = 0' cannot be said, and a tapped patch replaced my rest rule without saying so, so the set is only partly under my hand."
+    },
+    {
+      "id": "story",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Probe: run 4 in three sentences is in delayedRecall and has a turn ('Down to 2 HP' then rest then 'Banked 313 loot'); the reel also wrote 'Uleth the rat fell', 'Krusk the rat is avenged' and 'Trophy: pacifist floor'. Most reels though were 'D3: the Warrens. D4: the Warrens. D5: the Warrens.' and the pet's name changed each time (Krak, Krusk, Uleth, Ulak) so the avenging line did not land."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-run: a full camp-to-bank run at 1x took 7m15s with dead stretches over 60 s of the same 'pick up' callout (7 of 13 samples changed in a 2-min 1x watch after return too); 4x is the only watchable speed. Check-in: arrive, read the night ('rested 338m', two 'never fired' lines, 'open' the one death), edit two rules, spend marks, send: about 4 min and it ended on 'send', which is right. Cadence: the overnight absence now produced a distinct experience (a summary with bests, salvage and a death to open) but the first attempt showed the same screen is only a pause without it, and a bail still spends its return on a black screen with a 'rest 20m' banner. Adequate: the check-in loop is right, watching at 1x is not."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Probe: death 1 'rat · D3 · 1 over · 5 unknown unused · gap' with five trace rows at hp 1 told me the cause, the margin and that no rule covered it; death 2 'goblin · D5 · 2 over · 9 unknown unused' showed hp 16 -> 1 across five 'R2 attack nearest' rows, my fault for having nothing above attack. Recovery is one tap ('edit', then 'send'). Lapse: death 3 'goblin archer · 1 over · heal unused · gap' showed 'R5 attack nearest' at hp 7 foes 2 with my retreat rule at R1 unfired and nothing saying why, so that one I could not trace to a rule or a gap."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0"
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "Probe: the game never asked me to bank at depth 8, bail at D3 to see what 'return' does, or pay $50 to bring a rat; I did those. Depth order and route are the hero's, not mine, and there is one dungeon ('the Warrens')."
+    },
+    {
+      "id": "progression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Within-run: gold $0 -> $452, 'fighter +44 · L3'. Between-run: marks bought rows, verbs and cards; potions and scrolls became known ('LEARNED ... enchant folded, blink mossy, aggravate sealed') and new chips appeared ('foe: telegraph', 'foe: summoner', 'has: mapping'); renown ★0 -> ★4; the night alone gave 'fighter +472 · L3 ↑2' and '◆+10 MARKS'. Automation layer, now observed: I bought 'auto: restock' (◆4) on return and after two more banks SUPPLIES still read 0/3, so the one automation I could afford did nothing I could see; and the mark cadence during active play stays 0-3 per bank, so the other autos were bought only with the night's windfall. The layer exists and is reachable; it did not yet remove a chore."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Probe: a dark pixel dungeon in olive and black with a single lit room around a fighter with a shield, monospace chips, 'the Warrens'. I would not sit in it doing nothing: most of every run screen is black and every summary screen is a list. Sound: none, unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Probe: I came back to '16 RUNS · D5 BEST · ◆+10 MARKS · 15 BANKED · 0 RETURNED · 1 DEATHS · rested 338m', 'fighter +472 · L3 ↑2', 'RENOWN +1310 · ★3 ↑2', a SALVAGED list of 23 lines ('leather ×12 · $48 ... heal ×3 · $6'), a PENDING block that read 'R1 never fired: HP<30% → drink heal' and 'R6 never fired: thief → hit thief' and 'bones: 2 on the floor', a reel ('Recovered heir 2's bones on D3. Near death, then the floor survived. ×2 A monkey stole the fear scroll.') and an 'open' button that showed the night's one death, 'spectral blade · D4 · 2 over · gap', with its trace and three patches. What I decided because of it: R6 thief -> 'foe: fast -> attack fast' and R1 heal 30% -> 50%, both straight from the two 'never fired' lines, then spent 10 of the 10 marks on restock, bones and a vault slot. Would I rather have stayed: no, the night did 16 runs I would not have watched. Lapse: the payoff did not scale legibly, $61 became $1366 with no per-run or per-hour line, and 'auto: restock' bought on return left SUPPLIES 0/3 after two banks with nothing saying why."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "Probe, last run ended: 'I sent him with bank at 5, my drink-heal rule pulled him from 12 to 28 on D3, and my bank rule walked him home with $159.' Whose decision: mine, and death 2 was mine too, I had nothing above attack nearest. Pronoun count in my retelling: I/my 7, he/him 4. Lapse: death 3 hung on a rule I wrote that did not fire with no reason shown, and the drink-heal patch overwrote my rest rule silently, so for one death and one edit I could not say whose it was."
+    }
+  ]
+}
