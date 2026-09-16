@@ -51,6 +51,8 @@ pub const VERB_KEYS: &[&str] = &[
     "tame", "recall", "send", "shoot", "burst", "steal", "split", "flank", "drain", "follow",
     // Addendum C (class ladder)
     "cleave", "taunt", "second_wind", "bulwark", "backstab", "smoke", "ambush", "shadowstep",
+    // Cut 2 §4 (ranger and caster ladders; `shoot` and `drain` above)
+    "kite", "volley", "trap", "mark", "double_shot", "bolt", "ward", "blink", "slow", "nova",
     // hold position (always executes; not offered by the editor)
     "hold",
 ];
@@ -126,6 +128,7 @@ impl Verb {
             }
             "shield_bash" => "bash".into(),
             "free_captive" => "free".into(),
+            "double_shot" => "double shot".into(),
             "tactic" => a.replace('_', " "),
             other => other.to_string(),
         }

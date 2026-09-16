@@ -3,10 +3,11 @@
 //!   cargo run --release --example metrics [-- --seeds 30 --hours 8]
 use riddle_core::engine::ExitTier;
 use riddle_core::hero::Class;
-use riddle_core::rng::Rng;
-use riddle_core::{Game, RuleSet};
+use riddle_core::rng::{splitmix, Rng};
+use riddle_core::{Ev, Game, RuleSet};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Bot {
@@ -52,6 +53,18 @@ struct SeedResult {
     known_to_ok: bool,
     runs: u32,
     run_ticks: Vec<u32>,
+    // Cut 2
+    banked: u32,
+    returned: u32,
+    xp: u32,
+    gold: i32,
+    rested_s: u64,
+    /// (patches shown, patches whose row fired in ≥ 50% of replays)
+    patches: (u32, u32),
+    /// (fresh reseeded replays, of which the patch row fired) — information only
+    patches_fresh: (u32, u32),
+    verdict_secs: Vec<f64>,
+    death_secs: Vec<f64>,
 }
 
 fn good() -> RuleSet {
@@ -77,7 +90,10 @@ fn setup(bot: Bot, seed: u64) -> Game {
             for f in ["foe:jackal:pack", "foe:bloat:gas", "foe:goblin_archer:ranged", "foe:goblin_warlord:boss", "foe:bloat_mother:boss", "foe:lich:boss"] {
                 g.lineage.facts.insert(f.into());
             }
-            g.lineage.unlocks.insert("throw".into());
+            // Cut 2 §3: the condition tokens are unlocks; a player this far along owns them.
+            for u in ["throw", "cond_alert", "cond_turns", "cond_loot", "cond_on_kill", "cond_on_see"] {
+                g.lineage.unlocks.insert(u.into());
+            }
             g.set_rules(good()).expect("good rules");
         }
         Bot::Random => {
@@ -120,9 +136,40 @@ fn setup(bot: Bot, seed: u64) -> Game {
     g
 }
 
+/// One reseeded replay of the last ticks before a death with `rules`; true if `row` fired.
+fn patch_fired(g: &Game, rec: &riddle_core::engine::DeathRec, rules: &RuleSet, row: i32, nonce: u64) -> bool {
+    let Some(t10) = rec.t10.clone() else { return false };
+    let mut base = g.sim_clone();
+    base.lineage.facts = rec.t10_facts.clone();
+    base.lineage.heir = t10.heir;
+    base.lineage.trait_ = t10.trait_;
+    base.lineage.class = t10.hero.class;
+    base.lineage.party.clear();
+    base.lineage.supplies.clear();
+    let last_t = rec.death.trace.turns.last().map(|t| t.t).unwrap_or(t10.turn + 100);
+    let ticks = (last_t.saturating_sub(t10.turn)).max(1) + 1;
+    let turn = t10.turn as u64;
+    base.run = Some(t10);
+    let _ = base.set_rules(rules.clone());
+    if let Some(run) = base.run.as_mut() {
+        run.rng = Rng::derive(g.lineage.seed ^ splitmix(nonce), turn);
+    }
+    for _ in 0..ticks {
+        base.tick();
+        if base.events.iter().any(|e| matches!(e, Ev::Rule { row: r, .. } if *r == row)) {
+            return true;
+        }
+        base.events.clear();
+        if base.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            break;
+        }
+    }
+    false
+}
+
 fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedResult {
     let mut g = setup(bot, seed);
-    let report = g.run_offline(hours * 3600);
+    let report = riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
     let mut r = SeedResult {
         best_depth: g.lineage.best_depth,
         learned: report.learned.len(),
@@ -130,6 +177,11 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
         events: g.batch.renderable_events,
         ticks: g.batch.turns,
         runs: report.runs,
+        banked: report.banked,
+        returned: report.returned,
+        xp: report.xp.gained,
+        gold: g.lineage.gold,
+        rested_s: report.rested_s,
         ..Default::default()
     };
     r.run_ticks = g.batch.run_ticks.clone();
@@ -144,8 +196,36 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
     let ids: Vec<u32> = g.deaths.keys().copied().collect();
     let step = (ids.len() / verdicts_per_seed).max(1);
     for id in ids.iter().step_by(step).take(verdicts_per_seed) {
+        let t = Instant::now();
         if let Some(v) = riddle_core::trace::verdict(&mut g, *id) {
+            r.verdict_secs.push(t.elapsed().as_secs_f64());
             r.verdicts.push(v);
+        }
+    }
+    // Cut 2 §6 patch quality: the shown patches (full `death()`, two per seed on the
+    // player-shaped bots) must have fired in ≥ 50% of 12 reseeded replays of the death.
+    if matches!(bot, Bot::Default | Bot::Edited) {
+        for id in ids.iter().step_by(step).take(2) {
+            let t = Instant::now();
+            let Some(d) = g.death(*id) else { continue };
+            r.death_secs.push(t.elapsed().as_secs_f64());
+            let rec = g.deaths.get(id).cloned().unwrap();
+            for p in &d.patches {
+                let mut rules = rec.rules.clone();
+                let at = p.insert_at.min(rules.rows.len());
+                rules.rows.insert(at, p.row.clone());
+                rules.rows.truncate(rec.vocab.max_rows.max(rules.rows.len()));
+                // The selection's own replays (trace::patch_fired_rate) plus 12 fresh ones: a
+                // shown patch must have fired in at least half of each.
+                let own = riddle_core::trace::patch_fired_rate(&g, &rec, p);
+                let fresh = (0..12).filter(|i| patch_fired(&g, &rec, &rules, at as i32, 0xF1_7ED0 + *i as u64 + ((*id as u64) << 8))).count();
+                r.patches.0 += 1;
+                if own >= 0.5 {
+                    r.patches.1 += 1;
+                }
+                r.patches_fresh.0 += 12;
+                r.patches_fresh.1 += fresh as u32;
+            }
         }
     }
     let f = g.forecast();
@@ -217,13 +297,19 @@ fn main() {
         let cells: Vec<String> = (1..=12).map(|d| format!("D{d} {:>4.1}", pct(depths.iter().filter(|x| **x >= d).count(), n))).collect();
         println!("{:<9} {}", bot.name(), cells.join(" │ "));
     }
-    println!("\nrun length (ticks): p10 / median / p90 / max, share in 1800–4800");
+    println!("\nrun length (ticks): p10 / median / p90 / max, share in 3600–7200 (6–12 min) · per 8 h: runs · banked · returned · rest share");
     for bot in [Bot::Default, Bot::Edited, Bot::Learned, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered] {
-        let mut t: Vec<u32> = per_bot(bot).iter().flat_map(|r| r.run_ticks.iter().copied()).collect();
+        let rs = per_bot(bot);
+        let mut t: Vec<u32> = rs.iter().flat_map(|r| r.run_ticks.iter().copied()).collect();
         t.sort();
         let q = |f: f64| t.get(((t.len() as f64 - 1.0) * f) as usize).copied().unwrap_or(0);
-        let band = pct(t.iter().filter(|x| (1800..=4800).contains(*x)).count(), t.len());
-        println!("{:<9} {:>6} / {:>6} / {:>6} / {:>6}   {band:.0}%", bot.name(), q(0.1), q(0.5), q(0.9), t.last().copied().unwrap_or(0));
+        let band = pct(t.iter().filter(|x| (3600..=7200).contains(*x)).count(), t.len());
+        let mean = |f: &dyn Fn(&SeedResult) -> f64| rs.iter().map(|r| f(r)).sum::<f64>() / ns as f64;
+        let runs8 = mean(&|r| r.runs as f64 * 8.0 / hours as f64);
+        let banked8 = mean(&|r| r.banked as f64 * 8.0 / hours as f64);
+        let returned8 = mean(&|r| r.returned as f64 * 8.0 / hours as f64);
+        let rest = mean(&|r| r.rested_s as f64) / (hours as f64 * 3600.0);
+        println!("{:<9} {:>6} / {:>6} / {:>6} / {:>6}   {band:.0}%   {runs8:.1} · {banked8:.1} · {returned8:.1} · {:.0}%", bot.name(), q(0.1), q(0.5), q(0.9), t.last().copied().unwrap_or(0), 100.0 * rest);
     }
     let default = per_bot(Bot::Default);
     let edited = per_bot(Bot::Edited);
@@ -316,6 +402,24 @@ fn main() {
     rows.push(("Replay hash identical (seed+rules+elapsed)".into(), format!("{ha:016x}"), ha == hb));
     let known_ok = all.iter().all(|r| r.known_to_ok);
     rows.push(("Forecast known_to == best_depth + 1".into(), if known_ok { "all".into() } else { "violated".into() }, known_ok));
+    // Cut 2 gates (docs/CUT2.md).
+    let runs8 = |rs: &[&SeedResult]| rs.iter().map(|r| r.runs as f64 * 8.0 / hours as f64).sum::<f64>() / ns as f64;
+    let (d8, e8) = (runs8(&default), runs8(&edited));
+    rows.push(("Expeditions per 8 h (DEFAULT, EDITED) in 6–16".into(), format!("{d8:.1} · {e8:.1}"), (6.0..=16.0).contains(&d8) && (6.0..=16.0).contains(&e8)));
+    let d_yield = default.iter().map(|r| r.xp as u64 + r.gold.max(0) as u64).sum::<u64>();
+    rows.push(("DEFAULT yields 0 xp/gold over 8 h".into(), format!("{d_yield}"), d_yield == 0));
+    let e_banked = edited.iter().map(|r| r.banked as f64 * 8.0 / hours as f64).sum::<f64>() / ns as f64;
+    rows.push(("EDITED banks ≥ 3 runs per 8 h".into(), format!("{e_banked:.1}"), e_banked >= 3.0));
+    let (shown, fired): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.patches.0, a.1 + r.patches.1));
+    let (fresh_n, fresh_f): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.patches_fresh.0, a.1 + r.patches_fresh.1));
+    println!("shown patches fire in {:.0}% of fresh reseeded replays (n={fresh_n})", pct(fresh_f as usize, fresh_n as usize));
+    rows.push((format!("Patches whose row fired in ≥ 50% of replays (n={shown})"), format!("{:.0}%", pct(fired as usize, shown as usize)), fired == shown));
+    let vsecs: Vec<f64> = all.iter().flat_map(|r| r.verdict_secs.iter().copied()).collect();
+    let vmean = vsecs.iter().sum::<f64>() / vsecs.len().max(1) as f64;
+    rows.push((format!("Verdict time ≤ 0.4 s (mean of {})", vsecs.len()), format!("{vmean:.2} s"), vmean <= 0.4));
+    let dsecs: Vec<f64> = all.iter().flat_map(|r| r.death_secs.iter().copied()).collect();
+    let dmean = dsecs.iter().sum::<f64>() / dsecs.len().max(1) as f64;
+    println!("death() with forecast deltas: mean {dmean:.2} s over {}", dsecs.len());
     // Player-shaped lineages only: LEARNED knows everything by construction, RANDOM/PASSIVE are probes.
     let player_bots: Vec<&SeedResult> = [Bot::Default, Bot::Edited, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered].iter().flat_map(|b| per_bot(*b)).collect();
     let off_ok = player_bots.iter().all(|r| r.learned >= 1 && r.pending >= 1);

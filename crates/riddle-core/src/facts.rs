@@ -21,11 +21,30 @@ pub fn learn_tag(run: &mut Run, cx: &mut Ctx, kind: &str, tag: &str) -> bool {
     learn(run, cx, format!("foe:{kind}:{tag}"))
 }
 
+/// Cut 2 §5, third tier: a kill counts toward the kind's `studied` fact (five kills).
+pub fn on_kill(run: &mut Run, cx: &mut Ctx, kind: &str) {
+    if kind.starts_with("spectral_") {
+        return;
+    }
+    let n = cx.kill_counts.entry(kind.to_string()).or_insert(0);
+    *n += 1;
+    if *n >= crate::engine::STUDIED_KILLS {
+        learn(run, cx, format!("foe:{kind}:studied"));
+    }
+}
+
+pub fn is_studied(facts: &BTreeSet<String>, kind: &str) -> bool {
+    facts.contains(&format!("foe:{kind}:studied"))
+}
+
 fn fact_note(fact: &str) -> String {
     let parts: Vec<&str> = fact.split(':').collect();
     match parts.as_slice() {
         ["foe", kind] => format!("Met a {}.", crate::engine::kind_title(kind)),
+        ["foe", kind, "studied"] => format!("{}: studied.", crate::engine::kind_title(kind)),
         ["foe", kind, tag] => format!("{}: {}.", crate::engine::kind_title(kind), tag),
+        ["bones", d] => format!("Bones lie on D{d}."),
+        ["alert", "rising"] => "The dungeon listens.".into(),
         ["biome", b] => format!("Entered the {b}."),
         ["boss", kind, "counter"] => format!("{}: counter learned.", crate::engine::kind_title(kind)),
         ["item", "leash"] => "Found a leash.".into(),
@@ -44,7 +63,7 @@ fn fact_note(fact: &str) -> String {
 /// Any known fact carrying this tag (any monster kind).
 pub fn has_tag_fact(facts: &BTreeSet<String>, tag: &str) -> bool {
     let suffix = format!(":{tag}");
-    facts.iter().any(|f| f.starts_with("foe:") && f.ends_with(&suffix) && f.matches(':').count() == 2)
+    facts.iter().any(|f| f.starts_with("foe:") && f.ends_with(&suffix) && f.matches(':').count() == 2 && tag != "studied")
 }
 
 pub fn tag_known(facts: &BTreeSet<String>, kind: &str, tag: &str) -> bool {

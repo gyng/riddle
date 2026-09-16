@@ -9,6 +9,8 @@ pub const ALLY_LOST: i32 = 4;
 pub const GAMBLE: i32 = 2;
 pub const STOLEN: i32 = 2;
 pub const BOSS: i32 = 6;
+/// Cut 2 §2: recovering a named heir's bones.
+pub const BONES: i32 = 6;
 
 fn hl(run: &Run, pattern: &str, score: i32, t: u32, text: String) -> Highlight {
     Highlight { pattern: pattern.into(), score, t, run_id: run.id, text: crate::chronicle::clamp_words(&text, 8) }

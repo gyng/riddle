@@ -18,14 +18,27 @@ pub const HERO_ID: u32 = 1;
 /// History entries kept for verdict replays (one per 10 ticks ⇒ ≈ 100 ticks back).
 pub const HISTORY_TURNS: usize = 10;
 pub const HISTORY_STRIDE: u32 = 10;
-/// A run that cannot finish in this many ticks (≈ 33 min at 1×) comes home with 60%.
-pub const MAX_TURNS_PER_RUN: u32 = 20_000;
+/// A run that cannot finish in this many ticks (≈ 67 min at 1×) comes home empty-handed
+/// (tier `return`, yield ×0: a stalemate is not a policy).
+pub const MAX_TURNS_PER_RUN: u32 = 40_000;
 /// Energy needed to act; actors gain `speed` per tick.
 pub const ACT_ENERGY: i32 = 100;
 pub const TICKS_PER_TURN: u32 = 10;
 pub const MAX_LEVEL: u32 = 10;
 /// Gold from loot and salvage is divided by this (Addendum B/D economy pass).
 pub const GOLD_DIVISOR: i32 = 4;
+/// Cut 2 §1: camp rest after an expedition lasts as long as it did, capped at 30 min and never
+/// shorter than the wake (a two-minute `hp<50 → return` sortie would otherwise farm hundreds
+/// of runs a day); a death is followed by a fixed 20-minute wake. Ticks (10/s).
+pub const REST_CAP_TICKS: u32 = 30 * 60 * 10;
+pub const REST_MIN_TICKS: u32 = 20 * 60 * 10;
+pub const WAKE_TICKS: u32 = 20 * 60 * 10;
+/// Cut 2 §1: an egg hatches after this many rests (1 with the incubator).
+pub const EGG_RESTS: u32 = 3;
+/// Cut 2 §2: bones piles kept per lineage (oldest expires).
+pub const BONES_MAX: usize = 3;
+/// Cut 2 §5: kills of a kind before it counts as studied.
+pub const STUDIED_KILLS: u32 = 5;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -47,9 +60,20 @@ impl ExitTier {
         match self {
             ExitTier::Bank => 100,
             ExitTier::Return => 60,
-            ExitTier::Death => 30,
+            ExitTier::Death => 0,
         }
     }
+}
+
+/// Cut 2 §2: a dead heir's inventory and kit, waiting on the floor it died on.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Bones {
+    pub heir: u32,
+    pub depth: u32,
+    pub items: Vec<Item>,
+    /// The grave had deeds: recovering it is a highlight.
+    #[serde(default)]
+    pub named: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -181,6 +205,17 @@ pub struct Run {
     /// The current hero strike is aimed (`attack tag:boss` / bash): goes through shield walls.
     #[serde(default)]
     pub aimed: bool,
+    /// Cut 2 §2: the lineage's bones piles (copied at start) and the heirs recovered this run.
+    #[serde(default)]
+    pub bones: Vec<Bones>,
+    #[serde(default)]
+    pub bones_found: Vec<u32>,
+    /// Cut 2 §5: kills per kind this run were counted into the lineage's ledger up to here.
+    #[serde(default)]
+    pub kills_counted: usize,
+    /// Hit the run cap: comes home as `return` with no yield.
+    #[serde(default)]
+    pub timed_out: bool,
 }
 
 impl Run {
@@ -252,6 +287,8 @@ impl Run {
 /// Per-turn context borrowed from the game.
 pub struct Ctx<'a> {
     pub facts: &'a mut BTreeSet<String>,
+    /// Cut 2 §5: lineage kills per kind (the `studied` tier).
+    pub kill_counts: &'a mut BTreeMap<String, u32>,
     pub flavours: &'a Flavours,
     pub rules: &'a RuleSet,
     pub unlocks: &'a BTreeSet<String>,
@@ -307,6 +344,29 @@ pub struct LineageState {
     /// Vault item ids insured against loss on death.
     #[serde(default)]
     pub insured: Vec<u32>,
+    // Cut 2
+    /// Camp rest (or wake) left before the next expedition, in ticks. `send` skips it.
+    #[serde(default)]
+    pub rest_left: u32,
+    /// Bones piles (§2), oldest first.
+    #[serde(default)]
+    pub bones: Vec<Bones>,
+    /// Kills per kind (§5 studied).
+    #[serde(default)]
+    pub kill_counts: BTreeMap<String, u32>,
+    /// Supplies of the last expedition, for the `auto_supply` automation.
+    #[serde(default)]
+    pub last_supplies: Vec<String>,
+    /// Eggs ever laid (the incubator gate).
+    #[serde(default)]
+    pub eggs_laid: u32,
+    /// Runs banked / returned / died, lifetime.
+    #[serde(default)]
+    pub runs_banked: u32,
+    #[serde(default)]
+    pub runs_returned: u32,
+    #[serde(default)]
+    pub runs_died: u32,
 }
 
 impl LineageState {
@@ -315,8 +375,9 @@ impl LineageState {
         let flavours = Flavours::roll(&mut rng);
         let trait_ = Trait::ALL[rng.below(4) as usize];
         let mut classes = BTreeMap::new();
-        classes.insert("fighter".to_string(), ClassProg { level: 1, xp: 0 });
-        classes.insert("rogue".to_string(), ClassProg { level: 1, xp: 0 });
+        for c in Class::ALL {
+            classes.insert(c.name().to_string(), ClassProg { level: 1, xp: 0 });
+        }
         LineageState {
             seed,
             heir: 1,
@@ -353,6 +414,14 @@ impl LineageState {
             rank: 0,
             keep_pref: "best_weapon".into(),
             insured: Vec::new(),
+            rest_left: 0,
+            bones: Vec::new(),
+            kill_counts: BTreeMap::new(),
+            last_supplies: Vec::new(),
+            eggs_laid: 0,
+            runs_banked: 0,
+            runs_returned: 0,
+            runs_died: 0,
         }
     }
     pub fn rules(&self) -> &RuleSet {
@@ -390,16 +459,45 @@ impl LineageState {
             rank: self.rank,
             keep_pref: self.keep_pref.clone(),
             insured: self.insured.clone(),
+            rest_left_s: self.rest_left.div_ceil(crate::offline::TICKS_PER_SECOND as u32),
+            bones: self.bones.iter().map(|b| BonesPile { depth: b.depth, heir: b.heir, items: b.items.len() as u32 }).collect(),
         }
     }
     pub fn vault_slots(&self) -> usize {
-        1 + self.unlocks.contains("vault2") as usize + self.unlocks.contains("vault3") as usize
+        1 + ["vault2", "vault3", "vault4"].iter().filter(|u| self.unlocks.contains(**u)).count()
     }
     pub fn max_rows(&self) -> usize {
         4 + ["row5", "row6", "row7", "row8"].iter().filter(|u| self.unlocks.contains(**u)).count()
     }
     pub fn party_slots(&self) -> u32 {
-        1 + self.unlocks.contains("party_slot_2") as u32
+        1 + self.unlocks.contains("party_slot_2") as u32 + self.unlocks.contains("party_slot_3") as u32
+    }
+    /// Supplies per expedition (Cut 2 §3 `supply_cap_5`).
+    pub fn supply_cap(&self) -> usize {
+        if self.unlocks.contains("supply_cap_5") {
+            5
+        } else {
+            3
+        }
+    }
+    /// Rests an egg needs (Cut 2 §1; `incubator`).
+    pub fn egg_rests(&self) -> u32 {
+        if self.unlocks.contains("incubator") {
+            1
+        } else {
+            EGG_RESTS
+        }
+    }
+    /// Kinds tamed so far (facts `tamed:<kind>`).
+    pub fn tamed_kinds(&self) -> usize {
+        self.facts.iter().filter(|f| f.starts_with("tamed:")).count()
+    }
+    /// Distinct bosses slain.
+    pub fn bosses_slain(&self) -> usize {
+        self.kills.iter().filter(|k| crate::defs::monster_def(k).boss).count()
+    }
+    pub fn studied(&self, kind: &str) -> bool {
+        self.facts.contains(&format!("foe:{kind}:studied"))
     }
     pub fn new_comp_id(&mut self) -> u32 {
         let id = self.next_comp_id;
@@ -420,6 +518,7 @@ impl LineageState {
                     known,
                     tamed: self.facts.contains(&format!("tamed:{}", m.kind)),
                     bred: self.bred.contains(m.kind),
+                    studied: self.studied(m.kind),
                 }
             })
             .collect()
@@ -451,6 +550,13 @@ pub struct PendingExit {
     pub run_id: u32,
     pub tier: ExitTier,
     pub items: Vec<Item>,
+    /// Salvage share of the unkept items (0 for a timed-out run).
+    #[serde(default = "default_pct")]
+    pub pct: i32,
+}
+
+fn default_pct() -> i32 {
+    60
 }
 
 /// Accumulated outcomes since the last return report.
@@ -472,6 +578,14 @@ pub struct Batch {
     pub ranks_up: u32,
     pub worst_death: Option<u32>,
     pub worst_depth: u32,
+    // Cut 2
+    /// Runs banked / returned, rest and wake ticks consumed, the best single run's score
+    /// (renown per absence), bones recovered.
+    pub banked: u32,
+    pub returned: u32,
+    pub rested: u64,
+    pub best_score: u32,
+    pub bones_found: Vec<String>,
     pub row_fired: Vec<u32>,
     pub renderable_events: u32,
     pub turns: u32,
@@ -512,6 +626,9 @@ pub struct Game {
     /// Death records kept (the metrics raise this to keep every death of a batch).
     #[serde(default = "default_max_deaths")]
     pub max_deaths: usize,
+    /// Inside an offline batch: renown settles once per absence (Cut 2 §2).
+    #[serde(default)]
+    pub offline: bool,
 }
 
 fn default_max_deaths() -> usize {
@@ -536,6 +653,7 @@ impl Game {
             batch: Batch::default(),
             facts_at_run_start: 0,
             max_deaths: 40,
+            offline: false,
         }
     }
 
@@ -557,6 +675,7 @@ impl Game {
             batch: Batch::default(),
             facts_at_run_start: self.lineage.facts.len(),
             max_deaths: 0,
+            offline: false,
         }
     }
 
@@ -564,7 +683,11 @@ impl Game {
         self.lineage.to_wire()
     }
 
+    /// Rows beyond the unlocked count are dropped (a patch inserted into a full set pushes
+    /// the last row out, which is what the player would do); the rest is validated.
     pub fn set_rules(&mut self, set: RuleSet) -> Result<(), String> {
+        let mut set = set;
+        set.rows.truncate(self.lineage.max_rows());
         set.validate()?;
         let i = self.lineage.active_set.min(self.lineage.sets.len() - 1);
         self.lineage.sets[i] = set;
@@ -577,8 +700,10 @@ impl Game {
 
     pub fn set_class(&mut self, class: &str) -> Result<(), String> {
         let c = Class::parse(class).ok_or("unknown class")?;
-        if c == Class::Rogue && !self.lineage.unlocks.contains("rogue") {
-            return Err("rogue not unlocked".into());
+        if let Some(u) = c.unlock() {
+            if !self.lineage.unlocks.contains(u) {
+                return Err(format!("{u} not unlocked"));
+            }
         }
         self.lineage.class = c;
         Ok(())
@@ -600,8 +725,14 @@ impl Game {
         crate::rng::splitmix(self.lineage.seed ^ (run_id as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15))
     }
 
-    /// Start (or resume) an expedition.
+    /// Start (or resume) an expedition. The player chose to go: any camp rest left is skipped.
     pub fn send(&mut self) -> Snapshot {
+        self.lineage.rest_left = 0;
+        self.ensure_run()
+    }
+
+    /// A live run for the snapshot without touching the rest clock (reports, replays).
+    pub fn ensure_run(&mut self) -> Snapshot {
         self.auto_keep();
         if self.run.is_none() {
             self.start_run(None);
@@ -609,6 +740,14 @@ impl Game {
         let s = self.snapshot();
         self.last_snapshot = Some(s.clone());
         s
+    }
+
+    /// Consume up to `ticks` of camp rest; returns how many were used.
+    pub fn rest_tick(&mut self, ticks: u32) -> u32 {
+        let used = ticks.min(self.lineage.rest_left);
+        self.lineage.rest_left -= used;
+        self.lineage.total_turns += used as u64;
+        used
     }
 
     pub fn start_run(&mut self, seed_override: Option<u64>) {
@@ -620,12 +759,25 @@ impl Game {
         let floor = generate(&mut rng, biome_for(1), 1);
         let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
         hero.apply_level(self.lineage.class_level());
-        // Starting arms: the fighter carries a sword, the rogue a dagger (id 1 is never loot).
-        hero.auto_equip(Item::new(1, if self.lineage.class == Class::Fighter { "sword" } else { "dagger" }));
+        // Starting arms by class (id 1 is never loot).
+        hero.auto_equip(Item::new(1, self.lineage.class.starting_weapon()));
         let mut brought = Vec::new();
         let mut loadout = std::mem::take(&mut self.loadout);
         loadout.sort();
         loadout.dedup();
+        // Automations (Cut 2 §3): auto_insure covers the brought items when gold allows;
+        // auto_supply restocks the last expedition's supplies.
+        if self.lineage.unlocks.contains("auto_insure") {
+            for id in loadout.clone() {
+                let _ = self.insure(id);
+            }
+        }
+        if self.lineage.unlocks.contains("auto_supply") && self.lineage.supplies.is_empty() {
+            for kind in self.lineage.last_supplies.clone() {
+                let _ = self.buy_supply(&kind);
+            }
+        }
+        self.lineage.last_supplies = self.lineage.supplies.iter().map(|i| i.kind.clone()).collect();
         for id in loadout {
             if let Some(i) = self.lineage.vault.iter().position(|v| v.id == id) {
                 let it = self.lineage.vault.remove(i);
@@ -712,6 +864,10 @@ impl Game {
             row_suppressed: (-9, 0),
             rests: 0,
             aimed: false,
+            bones: self.lineage.bones.clone(),
+            bones_found: Vec::new(),
+            kills_counted: 0,
+            timed_out: false,
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
@@ -727,6 +883,7 @@ impl Game {
             }
         }
         populate_floor(&mut run, &self.lineage.grudges, &self.lineage.forge);
+        place_bones(&mut run);
         spawn_party(&mut run, &self.lineage.party);
         run.floor.map.update_vision(run.hero.pos, VISION);
         self.history.clear();
@@ -746,6 +903,7 @@ impl Game {
         let max_rows = lineage.max_rows();
         let cx = Ctx {
             facts: &mut lineage.facts,
+            kill_counts: &mut lineage.kill_counts,
             flavours: &lineage.flavours,
             rules: &lineage.sets[set],
             unlocks: &lineage.unlocks,
@@ -762,6 +920,15 @@ impl Game {
     pub fn step(&mut self, turns: u32) -> StepResult {
         let mut events = Vec::new();
         let mut run_over = false;
+        // Camp rest runs on the same clock online (Cut 2 §1); `send` skips it.
+        if self.lineage.rest_left > 0 && self.run.as_ref().is_none_or(|r| r.turn == 0) {
+            let used = self.rest_tick(turns);
+            if self.lineage.rest_left > 0 || used == turns {
+                let snapshot = self.ensure_run();
+                let exit_pending = self.exit_pending_wire();
+                return StepResult { events, snapshot, run_over: false, exit_pending };
+            }
+        }
         if self.run.is_none() {
             let snapshot = match self.last_snapshot.clone() {
                 Some(s) => s,
@@ -818,6 +985,8 @@ impl Game {
         let n = cx.events[before..].iter().filter(|e| e.renderable()).count() as u32;
         run.renderable_events += n;
         if run.turn >= MAX_TURNS_PER_RUN && run.over.is_none() {
+            run.timed_out = true;
+            crate::chronicle::note(run, &mut cx, "Lost the thread. Came home empty-handed.".into());
             crate::turn::end_run(run, &mut cx, ExitTier::Return);
         }
         self.lineage.total_turns += 1;
@@ -875,6 +1044,15 @@ impl Game {
                 FloorItemWire { id: fi.item.id, x: fi.pos.x, y: fi.pos.y, kind, known, label }
             })
             .collect();
+        let mut brought: Vec<StakeItem> = Vec::new();
+        for id in &run.brought {
+            let it = h.inv.iter().chain(h.weapon.iter()).chain(h.armour.iter()).find(|i| i.id == *id);
+            if let Some(it) = it {
+                let (_, _, label) = describe(it, &l.facts, &l.flavours);
+                brought.push(StakeItem { label, insured: l.insured.contains(id) });
+            }
+        }
+        let return_row = l.rules().rows.iter().take(l.max_rows()).position(|r| matches!(r.verb.v.as_str(), "return" | "bank"));
         Snapshot {
             depth: run.depth,
             biome: run.biome().name().into(),
@@ -891,14 +1069,19 @@ impl Game {
             turn: run.turn,
             loot: run.loot,
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn },
+            stake: Stake { loot: run.loot, brought, return_row },
         }
     }
 
-    /// Bank the run's outcome into the lineage: marks, xp, renown, companions, deaths.
+    /// Bank the run's outcome into the lineage: marks, xp, renown, companions, deaths, rest.
     /// The vault decision (Addendum D) is left pending; `keep` or `auto_keep` finalises it.
+    /// Cut 2 §2: yield follows the exit — bank 1.0 / return 0.6 / death 0.0 for gold, salvage,
+    /// class XP and renown; a dead heir's kit stays on the floor as bones.
     pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
         let tier = run.over.unwrap_or(ExitTier::Return);
+        // Yield follows the exit (Cut 2 §2); a timed-out run yields nothing.
+        let pct: i32 = if run.timed_out { 0 } else { tier.pct() };
         let t = run.turn;
         let mut outcome = RunOutcome {
             run_id: run.id,
@@ -914,6 +1097,17 @@ impl Game {
         self.batch.run_outcomes.push((run.depth, if tier == ExitTier::Death { run.death_cause.clone() } else { None }));
         self.batch.run_ticks.push(run.turn);
         self.batch.renderable_events += run.renderable_events;
+        match tier {
+            ExitTier::Bank => {
+                self.batch.banked += 1;
+                self.lineage.runs_banked += 1;
+            }
+            ExitTier::Return => {
+                self.batch.returned += 1;
+                self.lineage.runs_returned += 1;
+            }
+            ExitTier::Death => self.lineage.runs_died += 1,
+        }
         if self.batch.row_fired.len() < 8 {
             self.batch.row_fired = vec![0; 8];
         }
@@ -922,7 +1116,11 @@ impl Game {
                 self.batch.row_fired[i] += n;
             }
         }
-        // Marks: new bests only.
+        // Camp rest (Cut 2 §1): as long as the expedition, capped; a death is a fixed wake.
+        let rest = crate::offline::rest_after(run.turn, tier);
+        self.lineage.rest_left = rest;
+        self.events.push(Ev::Rest { t, seconds: rest.div_ceil(crate::offline::TICKS_PER_SECOND as u32) });
+        // Marks (Cut 2 §2): new depth, boss, trophy, rank. First kills stay in bests and the ledger.
         let mut marks = 0;
         let mut bests: Vec<String> = Vec::new();
         if run.max_depth > self.lineage.best_depth {
@@ -936,7 +1134,9 @@ impl Game {
             }
             if self.lineage.kills.insert(kind.clone()) {
                 let boss = crate::defs::monster_def(kind).boss;
-                marks += if boss { 3 } else { 1 };
+                if boss {
+                    marks += 3;
+                }
                 bests.push(if boss { format!("boss: {kind}") } else { format!("first kill: {kind}") });
             }
         }
@@ -947,9 +1147,9 @@ impl Game {
                 bests.push(format!("trophy: {tr}"));
             }
         }
-        // Class XP (Addendum C).
-        let raw5: u32 = run.kills.iter().map(|(_, _, d)| 5 + d).sum::<u32>() + 25 * run.max_depth;
-        let xp = raw5 * tier.pct() as u32 / 500;
+        // Class XP (Addendum C, Cut 2 §2): only banked and returned runs feed it.
+        let raw: u32 = run.kills.iter().map(|(_, _, d)| 2 + d).sum::<u32>() / 4 + 3 * run.max_depth;
+        let xp = raw * pct as u32 / 100;
         let class = self.lineage.class;
         let prog = self.lineage.classes.entry(class.name().into()).or_insert(ClassProg { level: 1, xp: 0 });
         prog.xp += xp;
@@ -977,6 +1177,7 @@ impl Game {
         // Companions (Addendum A): survivors return, level on bank; the dead are eggs.
         let eggs_before: Vec<u32> = self.lineage.eggs.iter().map(|e| e.id).collect();
         let alive_cids: Vec<u32> = run.party_alive().filter_map(|m| m.cid).collect();
+        let egg_rests = self.lineage.egg_rests();
         for rec in &run.companions {
             let alive = alive_cids.contains(&rec.id);
             let recalled = run.recalled.contains(&rec.id);
@@ -1004,7 +1205,8 @@ impl Game {
                     self.lineage.party.remove(i);
                 }
                 let eid = self.lineage.new_comp_id();
-                self.lineage.eggs.push(Egg { id: eid, kind: rec.kind.clone(), tags: rec.tags.clone(), gen: rec.gen, hatch_in: 5, from_loss: true });
+                self.lineage.eggs.push(Egg { id: eid, kind: rec.kind.clone(), tags: rec.tags.clone(), gen: rec.gen, hatch_in: egg_rests, from_loss: true });
+                self.lineage.eggs_laid += 1;
                 if !run.lost_companions.iter().any(|(_, n)| *n == rec.name) {
                     self.batch.lost.push(rec.name.clone());
                 }
@@ -1016,7 +1218,8 @@ impl Game {
         for (_, n) in &run.lost_companions {
             self.batch.lost.push(n.clone());
         }
-        // Eggs hatch after 5 completed expeditions (not counting the one that laid them).
+        // Eggs incubate through the camp rest that follows every expedition (Cut 2 §1): three
+        // rests (one with the incubator), not counting the run that laid them.
         for e in self.lineage.eggs.iter_mut() {
             if e.hatch_in > 0 && eggs_before.contains(&e.id) {
                 e.hatch_in -= 1;
@@ -1033,6 +1236,31 @@ impl Game {
                 self.lineage.eggs.push(e);
             }
         }
+        // Lifetime trophies (Cut 2): the ledger's studied column, banking, bones, kills. Each is
+        // a best worth two marks, spread across the arc so the camp has something to buy.
+        let studied = self.lineage.facts.iter().filter(|f| f.starts_with("foe:") && f.ends_with(":studied")).count();
+        let slain: u32 = self.lineage.kill_counts.values().sum();
+        let homed = self.lineage.runs_banked + self.lineage.runs_returned;
+        let lifetime: Vec<(bool, String)> = vec![
+            (studied >= 5, "studied:5".into()),
+            (studied >= 10, "studied:10".into()),
+            (studied >= 14, "studied:14".into()),
+            (homed >= 10, "home:10".into()),
+            (homed >= 50, "home:50".into()),
+            (homed >= 100, "home:100".into()),
+            (homed >= 200, "home:200".into()),
+            (!run.bones_found.is_empty(), "bones:1".into()),
+            (slain >= 100, "slain:100".into()),
+            (slain >= 500, "slain:500".into()),
+            (slain >= 1000, "slain:1000".into()),
+        ];
+        for (ok, tr) in lifetime {
+            if ok && !self.lineage.trophies.contains(&tr) {
+                self.lineage.trophies.push(tr.clone());
+                marks += 2;
+                bests.push(format!("trophy: {tr}"));
+            }
+        }
         for biome in [Biome::Warrens, Biome::Fens, Biome::Crypt] {
             let tr = format!("ledger:{}", biome.name());
             if !self.lineage.trophies.contains(&tr)
@@ -1043,32 +1271,37 @@ impl Game {
                 bests.push(format!("trophy: {tr}"));
             }
         }
-        // Highlights and renown (Addendum D).
-        let highlights = crate::sifter::sift(&run, &self.lineage);
-        let kill_value: u32 = run.kills.iter().map(|(_, k, _)| kill_value(k)).sum();
-        let score = 10 * run.max_depth + kill_value + 25 * run.boss_kills.len() as u32 + highlights.iter().map(|h| h.score as u32).sum::<u32>();
-        self.lineage.renown += score;
-        self.batch.renown_gained += score;
-        while self.lineage.renown >= 100 * (self.lineage.rank + 1) * (self.lineage.rank + 1) {
-            self.lineage.rank += 1;
-            marks += 1;
-            self.batch.ranks_up += 1;
-            let r = self.lineage.rank;
-            self.events.push(Ev::Rank { t, rank: r });
-            bests.push(format!("rank {r}"));
+        // Bones recovered this run (Cut 2 §2): the piles leave the lineage; their items are now
+        // the hero's and follow the exit like anything else.
+        let mut highlights = crate::sifter::sift(&run, &self.lineage);
+        for heir in &run.bones_found {
+            if let Some(i) = self.lineage.bones.iter().position(|b| b.heir == *heir) {
+                let b = self.lineage.bones.remove(i);
+                self.batch.bones_found.push(format!("heir {} · D{} · {} items", b.heir, b.depth, b.items.len()));
+                if b.named {
+                    let text = format!("Recovered heir {}'s bones on D{}.", b.heir, b.depth);
+                    highlights.push(Highlight { pattern: "bones".into(), score: crate::sifter::BONES, t, run_id: run.id, text });
+                }
+            }
         }
+        // Highlights and renown (Addendum D; Cut 2 §2: renown per absence = the best run's
+        // score, and only banked or returned runs score).
+        let kill_value: u32 = run.kills.iter().map(|(_, k, _)| kill_value(k)).sum();
+        let raw_score = 10 * run.max_depth + kill_value + 25 * run.boss_kills.len() as u32 + highlights.iter().map(|h| h.score as u32).sum::<u32>();
+        let score = raw_score * pct as u32 / 100;
+        self.batch.best_score = self.batch.best_score.max(score);
         for h in &highlights {
             self.reel.push(h.clone());
             self.batch.highlights.push(h.clone());
         }
         self.reel.sort_by(|a, b| b.score.cmp(&a.score).then(a.run_id.cmp(&b.run_id)).then(a.t.cmp(&b.t)));
         self.reel.truncate(50);
-        outcome.new_best = !bests.is_empty();
         self.lineage.marks += marks;
         self.batch.marks += marks;
+        outcome.new_best = !bests.is_empty();
         self.batch.bests.extend(bests);
-        // Loot, gold and the vault (Addendum B/D).
-        let loot_kept = run.loot.max(0) * tier.pct() / 100;
+        // Loot, gold and the vault (Addendum B/D; Cut 2 §2 death keeps nothing).
+        let loot_kept = run.loot.max(0) * pct / 100;
         self.lineage.gold += loot_kept / GOLD_DIVISOR;
         let mut all: Vec<Item> = run.hero.inv.clone();
         if let Some(w) = &run.hero.weapon {
@@ -1077,27 +1310,41 @@ impl Game {
         if let Some(a) = &run.hero.armour {
             all.push(a.clone());
         }
-        all.retain(|i| i.cat() != Cat::Gold && i.id != 1 && !run.supplies.contains(&i.id));
+        all.retain(|i| i.cat() != Cat::Gold && i.id != 1 && !matches!(i.kind.as_str(), "bones" | "trap"));
         if tier == ExitTier::Death {
-            // Brought vault items are lost on death, unless insured (Melvor insurance).
-            let (insured, lost): (Vec<Item>, Vec<Item>) = all.iter().filter(|i| run.brought.contains(&i.id)).cloned().partition(|i| self.lineage.insured.contains(&i.id));
+            // Insured brought items come home (Melvor insurance); everything else stays on the
+            // floor as a bones pile for a later heir.
+            let (insured, rest): (Vec<Item>, Vec<Item>) = all.into_iter().partition(|i| run.brought.contains(&i.id) && self.lineage.insured.contains(&i.id));
             for it in insured {
                 self.lineage.insured.retain(|id| *id != it.id);
                 self.lineage.vault.push(it);
             }
-            let _ = lost;
-            all.retain(|i| !run.brought.contains(&i.id));
+            all = Vec::new();
+            if !rest.is_empty() {
+                let named = !self.batch.bests.is_empty() || !run.boss_kills.is_empty();
+                self.lineage.bones.push(Bones { heir: run.heir, depth: run.depth, items: rest.clone(), named });
+                while self.lineage.bones.len() > BONES_MAX {
+                    self.lineage.bones.remove(0);
+                }
+                self.events.push(Ev::Bones { t, heir: run.heir, items: rest.len() as u32 });
+            }
+            let f = format!("bones:{}", run.depth);
+            if self.lineage.facts.insert(f.clone()) {
+                self.events.push(Ev::Fact { t, fact: f });
+            }
+        } else {
+            all.retain(|i| !run.supplies.contains(&i.id));
         }
         all.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
         let n_keep = match tier {
             ExitTier::Bank => all.len(),
             ExitTier::Return => (all.len() * 60).div_ceil(100),
-            ExitTier::Death => (all.len() * 30) / 100,
+            ExitTier::Death => 0,
         };
         let eligible: Vec<Item> = all.iter().take(n_keep).cloned().collect();
-        let rest: Vec<Item> = all.into_iter().skip(n_keep).collect();
-        self.salvage(&rest, tier);
-        self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible });
+        let rest_items: Vec<Item> = all.into_iter().skip(n_keep).collect();
+        self.salvage(&rest_items, pct);
+        self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible, pct });
         // Death: graveyard, grudge, heir, record.
         if tier == ExitTier::Death {
             let cause = run.death_cause.clone().unwrap_or_else(|| "unknown".into());
@@ -1134,17 +1381,40 @@ impl Game {
         }
         self.history.clear();
         outcome.new_facts = (self.lineage.facts.len().saturating_sub(self.facts_at_run_start)) as u32;
+        if !self.offline {
+            self.settle_renown(t);
+        }
         if self.sim {
             self.auto_keep();
         }
         Some(outcome)
     }
 
+    /// Renown per absence (Cut 2 §2): the best single run's score, settled once per report
+    /// offline and per run when watched. Ranks at `100 r²` grant a mark each.
+    pub fn settle_renown(&mut self, t: u32) {
+        let score = std::mem::take(&mut self.batch.best_score);
+        if score == 0 {
+            return;
+        }
+        self.lineage.renown += score;
+        self.batch.renown_gained += score;
+        while self.lineage.renown >= 100 * (self.lineage.rank + 1) * (self.lineage.rank + 1) {
+            self.lineage.rank += 1;
+            self.lineage.marks += 1;
+            self.batch.marks += 1;
+            self.batch.ranks_up += 1;
+            let r = self.lineage.rank;
+            self.events.push(Ev::Rank { t, rank: r });
+            self.batch.bests.push(format!("rank {r}"));
+        }
+    }
+
     /// Salvage items: gold by tier, forge ledger by full count (Addendum D).
-    fn salvage(&mut self, items: &[Item], tier: ExitTier) {
+    fn salvage(&mut self, items: &[Item], pct: i32) {
         for it in items {
             // hundredths of a coin: value × tier% ÷ divisor, carried so cheap items still add up
-            let cents = salvage_value(&it.kind) * tier.pct() / GOLD_DIVISOR;
+            let cents = salvage_value(&it.kind) * pct / GOLD_DIVISOR;
             self.lineage.gold_carry += cents;
             let gold = self.lineage.gold_carry / 100;
             self.lineage.gold_carry %= 100;
@@ -1193,18 +1463,23 @@ impl Game {
             }
             self.batch.found.push(v);
         }
-        self.salvage(&salvage, p.tier);
+        self.salvage(&salvage, p.pct);
         Ok(())
     }
 
     /// Resolve a pending exit by `keep_pref` (offline runs, or when the client moves on).
+    /// The `quartermaster` automation (Cut 2 §3) keeps the best weapon *and* armour.
     pub fn auto_keep(&mut self) {
         let Some(p) = self.pending_exit.as_ref() else { return };
         let pick = |cat: Cat| p.items.iter().filter(|i| i.cat() == cat).max_by_key(|i| (i.value(), i.id)).map(|i| i.id);
-        let ids: Vec<u32> = match self.lineage.keep_pref.as_str() {
-            "best_weapon" => pick(Cat::Weapon).or_else(|| pick(Cat::Armour)).into_iter().collect(),
-            "best_armour" => pick(Cat::Armour).or_else(|| pick(Cat::Weapon)).into_iter().collect(),
-            _ => Vec::new(),
+        let ids: Vec<u32> = if self.lineage.unlocks.contains("quartermaster") {
+            pick(Cat::Weapon).into_iter().chain(pick(Cat::Armour)).collect()
+        } else {
+            match self.lineage.keep_pref.as_str() {
+                "best_weapon" => pick(Cat::Weapon).or_else(|| pick(Cat::Armour)).into_iter().collect(),
+                "best_armour" => pick(Cat::Armour).or_else(|| pick(Cat::Weapon)).into_iter().collect(),
+                _ => Vec::new(),
+            }
         };
         let _ = self.keep(ids);
     }
@@ -1279,8 +1554,11 @@ impl Game {
         if ca.level < 2 || cb.level < 2 {
             return Err("both must be level 2".into());
         }
+        // Cut 2 §3: two tags carry unless `third_tag` is owned.
+        let cap = if self.lineage.unlocks.contains("third_tag") { 3 } else { 2 };
         let mut tags = ca.tags.clone();
-        if tags.len() < 3 {
+        tags.truncate(cap);
+        if tags.len() < cap {
             if let Some(t) = cb.tags.iter().find(|t| !tags.contains(t)) {
                 tags.push(t.clone());
             }
@@ -1290,7 +1568,9 @@ impl Game {
             self.lineage.kennel.retain(|c| c.id != id);
         }
         let eid = self.lineage.new_comp_id();
-        self.lineage.eggs.push(Egg { id: eid, kind: ca.kind.clone(), tags, gen: ca.gen.max(cb.gen) + 1, hatch_in: 5, from_loss: false });
+        let hatch_in = self.lineage.egg_rests();
+        self.lineage.eggs.push(Egg { id: eid, kind: ca.kind.clone(), tags, gen: ca.gen.max(cb.gen) + 1, hatch_in, from_loss: false });
+        self.lineage.eggs_laid += 1;
         self.lineage.bred.insert(ca.kind);
         Ok(())
     }
@@ -1299,7 +1579,7 @@ impl Game {
     pub fn hatch(&mut self, egg_id: u32) -> Result<(), String> {
         let i = self.lineage.eggs.iter().position(|e| e.id == egg_id).ok_or("no such egg")?;
         if !self.lineage.eggs[i].from_loss {
-            return Err("bred eggs hatch after 5 expeditions".into());
+            return Err("bred eggs hatch after 3 rests".into());
         }
         if self.lineage.gold < 50 {
             return Err("50 gold needed".into());
@@ -1343,8 +1623,8 @@ impl Game {
     }
 
     pub fn buy_supply(&mut self, kind: &str) -> Result<(), String> {
-        if self.lineage.supplies.len() >= 3 {
-            return Err("3 supplies max".into());
+        if self.lineage.supplies.len() >= self.lineage.supply_cap() {
+            return Err(format!("{} supplies max", self.lineage.supply_cap()));
         }
         let entry = self.supply_catalogue().into_iter().find(|s| s.kind == kind).ok_or("not for sale")?;
         if self.lineage.gold < entry.price {
@@ -1546,10 +1826,10 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         it.amount = 1;
         place(run, it);
     }
-    for _ in 0..2 {
+    for _ in 0..6 {
         let iid = run.new_item_id();
         let mut it = Item::new(iid, "gold");
-        it.amount = run.rng.range(5, 12) * depth as i32;
+        it.amount = run.rng.range(3, 7) * depth as i32;
         place(run, it);
     }
 }
@@ -1626,10 +1906,33 @@ pub fn new_companion(id: u32, m: &Monster, name: String) -> Companion {
     Companion { id, kind: m.kind.clone(), name, level: 1, tags, gen: 0, rules, max_rows: 2, hp: m.max_hp, max_hp: m.max_hp }
 }
 
-/// Monster tags known well enough to tame: 20% + 10% per known tag, cap 60%.
+/// Monster tags known well enough to tame: 20% + 10% per known tag, cap 60%; a studied kind
+/// (Cut 2 §5) adds 20 points.
 pub fn tame_chance(facts: &BTreeSet<String>, kind: &str) -> u32 {
     let known = crate::defs::monster_def(kind).tags.iter().filter(|t| facts.contains(&format!("foe:{kind}:{t}"))).count() as u32;
-    (20 + 10 * known).min(60)
+    let studied = facts.contains(&format!("foe:{kind}:studied")) as u32;
+    (20 + 10 * known).min(60) + 20 * studied
+}
+
+/// Cut 2 §2: a bones pile for this depth lies somewhere on the floor (item kind `bones`; the
+/// item id is the dead heir's number).
+pub fn place_bones(run: &mut Run) {
+    let depth = run.depth;
+    let heirs: Vec<u32> = run.bones.iter().filter(|b| b.depth == depth && !run.bones_found.contains(&b.heir)).map(|b| b.heir).collect();
+    if heirs.is_empty() {
+        return;
+    }
+    let hero = run.hero.pos;
+    let mut open: Vec<Pos> = run.floor.open_tiles().into_iter().filter(|p| p.cheb(hero) > 6 && run.item_at(*p).is_none()).collect();
+    if open.is_empty() {
+        open = run.floor.open_tiles();
+    }
+    for heir in heirs {
+        let pos = *run.rng.pick(&open);
+        let mut it = Item::new(1_000_000 + heir, "bones");
+        it.amount = heir as i32;
+        run.items.push(FloorItem { pos, item: it });
+    }
 }
 
 pub fn item_wire(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> InvItem {

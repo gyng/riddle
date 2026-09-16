@@ -66,6 +66,11 @@ pub struct Monster {
     /// Actions taken since the hero last acted (for the `fast` fact).
     #[serde(default)]
     pub acts_since_hero: u32,
+    /// Cut 2 §4: ranger `mark` (×1.5 damage taken) and caster `slow` (speed −5), in ticks.
+    #[serde(default)]
+    pub marked: i32,
+    #[serde(default)]
+    pub slow_t: i32,
 }
 
 impl Monster {
@@ -111,6 +116,8 @@ impl Monster {
             stole_from: Vec::new(),
             hurt_since_action: false,
             acts_since_hero: 0,
+            marked: 0,
+            slow_t: 0,
         }
     }
     pub fn def(&self) -> &'static MonsterDef {
@@ -149,6 +156,14 @@ impl Monster {
         self.hp = self.max_hp;
         self.atk = (self.atk.0, (self.atk.1 * 11 + 9) / 10);
     }
+    /// Speed after the caster's `slow` (never below 1).
+    pub fn effective_speed(&self) -> i32 {
+        if self.slow_t > 0 {
+            (self.speed - 5).max(1)
+        } else {
+            self.speed
+        }
+    }
     pub fn effective_def(&self) -> i32 {
         self.def + if self.buff_def.1 > 0 { self.buff_def.0 } else { 0 }
     }
@@ -176,6 +191,12 @@ impl Monster {
         }
         if self.cooldown > 0 {
             self.cooldown -= 1;
+        }
+        if self.marked > 0 {
+            self.marked -= 1;
+        }
+        if self.slow_t > 0 {
+            self.slow_t -= 1;
         }
         if let Some(t) = self.ttl.as_mut() {
             *t -= 1;

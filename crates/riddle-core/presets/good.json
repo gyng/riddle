@@ -16,17 +16,16 @@
     {
       "conds": [
         {
-          "k": "foe_tag",
-          "t": "boss"
+          "k": "hp<",
+          "n": 30
         },
         {
           "k": "depth>=",
-          "n": 6
+          "n": 5
         }
       ],
       "verb": {
-        "v": "throw",
-        "a": "fire,tag:boss"
+        "v": "bank"
       }
     },
     {
@@ -42,7 +41,7 @@
       ],
       "verb": {
         "v": "throw",
-        "a": "poison,tag:boss"
+        "a": "fire,tag:boss"
       }
     },
     {
@@ -89,10 +88,6 @@
         {
           "k": "hp<",
           "n": 90
-        },
-        {
-          "k": "foes>=",
-          "n": 0
         }
       ],
       "verb": {

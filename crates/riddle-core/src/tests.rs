@@ -213,10 +213,13 @@ fn rows_beyond_unlocked_count_are_ignored() {
     let mut g = arena();
     let mut rows: Vec<Row> = (0..4).map(|_| Row::new(vec![Cond::n("hp<", 0)], Verb::new("rest"))).collect();
     rows.push(Row::new(vec![], Verb::new("return")));
-    rules(&mut g, rows);
+    rules(&mut g, rows.clone());
+    assert_eq!(g.lineage.rules().rows.len(), 4, "a fifth row is dropped at set time without the row5 unlock (Cut 2)");
     let evs = ticks(&mut g, 10);
     assert!(!evs.iter().any(|e| matches!(e, Ev::Exit { .. })), "row 5 must not fire without the row5 unlock");
     g.lineage.unlocks.insert("row5".into());
+    rules(&mut g, rows);
+    assert_eq!(g.lineage.rules().rows.len(), 5);
     let evs = ticks(&mut g, 10);
     assert!(evs.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "return")));
 }
@@ -478,6 +481,7 @@ fn monkey_steals_then_flees_and_drops_on_death() {
             run,
             crate::engine::Ctx {
                 facts: &mut lineage.facts,
+                kill_counts: &mut lineage.kill_counts,
                 flavours: &lineage.flavours,
                 rules: &lineage.sets[set],
                 unlocks: &lineage.unlocks,
@@ -583,9 +587,11 @@ fn bloat_mother_swells_and_pops_a_big_cloud() {
     let hp_after = monster(&g, b).map(|m| m.hp).unwrap_or(0);
     assert!(hp_after > 10 || monster(&g, b).is_none() || evs.iter().filter(|e| matches!(e, Ev::Hurt { id, .. } if *id == b)).count() > 0);
     // Ranged does not vent: shoot her down and she pops a 5×5 cloud on death.
+    let b = if monster(&g, b).is_some() { b } else { add_monster(&mut g, "bloat_mother", 8, 5) };
     {
         let run = g.run.as_mut().unwrap();
         run.overlays.clear();
+        run.monsters.retain(|m| m.hp > 0);
         run.monsters[0].hp = 3;
         run.hero.weapon = None;
         run.hero.auto_equip(Item::new(77, "bow"));
@@ -866,7 +872,7 @@ fn return_keeps_sixty_percent() {
 }
 
 #[test]
-fn death_keeps_thirty_percent_and_loses_brought_items() {
+fn death_keeps_nothing_and_leaves_bones() {
     let mut g = arena();
     g.run.as_mut().unwrap().loot = 100;
     for k in ["sword", "heal", "heal", "teleport"] {
@@ -876,12 +882,69 @@ fn death_keeps_thirty_percent_and_loses_brought_items() {
     g.run.as_mut().unwrap().brought.push(brought);
     g.run.as_mut().unwrap().hero.hp = 0;
     finish_with(&mut g, ExitTier::Death);
-    assert!(g.lineage.gold >= 7 && g.lineage.gold < 15, "30% of loot plus 30% salvage, ÷4: {}", g.lineage.gold);
+    assert_eq!(g.lineage.gold, 0, "Cut 2 §2: death yields nothing");
     let p = g.pending_exit.as_ref().unwrap();
-    assert_eq!(p.items.len(), 1);
-    assert!(p.items.iter().all(|i| i.id != brought));
+    assert!(p.items.is_empty());
     assert_eq!(g.lineage.heir, 2);
     assert_eq!(g.lineage.graveyard.len(), 1);
+    assert_eq!(g.lineage.bones.len(), 1, "the kit waits on the floor");
+    let b = &g.lineage.bones[0];
+    assert_eq!((b.heir, b.depth), (1, 1));
+    assert_eq!(b.items.len(), 5, "sword, heals, scroll, the uninsured plate; not the starting sword");
+    assert!(g.lineage.facts.contains("bones:1"));
+    assert!(g.events.iter().any(|e| matches!(e, Ev::Bones { heir: 1, items: 5, .. })));
+    assert!(g.events.iter().any(|e| matches!(e, Ev::Rest { seconds: 1200, .. })), "a death is a 20-minute wake");
+    assert_eq!(g.lineage().rest_left_s, 1200);
+    assert_eq!(g.lineage().bones[0].items, 5);
+    // The next heir finds them on D1 and recovers them.
+    g.auto_keep();
+    g.start_run(None);
+    let run = g.run.as_mut().unwrap();
+    let bi = run.items.iter().position(|i| i.item.kind == "bones").expect("bones placed on D1");
+    run.hero.pos = run.items[bi].pos;
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::pickup_here(run, &mut cx);
+    }
+    assert!(g.events.iter().any(|e| matches!(e, Ev::Bones { heir: 1, items: 5, .. })));
+    assert!(hero(&g).armour.as_ref().is_some_and(|a| a.kind == "plate"));
+    assert_eq!(g.run.as_ref().unwrap().bones_found, vec![1]);
+    finish_with(&mut g, ExitTier::Return);
+    assert!(g.lineage.bones.is_empty(), "the pile is gone once recovered");
+    assert_eq!(g.batch.bones_found.len(), 1);
+    assert!(g.events.iter().any(|e| matches!(e, Ev::Rest { seconds: 1200, .. })), "rest as long as the run, never under the 20-minute floor");
+}
+
+#[test]
+fn bones_piles_cap_at_three_and_bone_sense_paths_to_them() {
+    let mut g = arena();
+    for heir in 1..=4u32 {
+        g.lineage.bones.push(crate::engine::Bones { heir, depth: 1, items: vec![Item::new(500 + heir, "dagger")], named: false });
+    }
+    give(&mut g, "sword");
+    g.run.as_mut().unwrap().hero.hp = 0;
+    finish_with(&mut g, ExitTier::Death);
+    assert_eq!(g.lineage.bones.len(), 3, "oldest expires");
+    assert_eq!(g.lineage.bones.iter().map(|b| b.heir).collect::<Vec<_>>(), vec![3, 4, 1]);
+    // bone_sense: the chores walk to unseen bones.
+    g.lineage.unlocks.insert("bone_sense".into());
+    g.auto_keep();
+    g.start_run(None);
+    assert!(g.run.as_ref().unwrap().items.iter().filter(|i| i.item.kind == "bones").count() == 3);
+    g.set_rules(RuleSet::default()).unwrap();
+    let mut found = false;
+    for _ in 0..3000 {
+        g.tick();
+        if g.events.iter().any(|e| matches!(e, Ev::Bones { .. })) {
+            found = true;
+            break;
+        }
+        g.events.clear();
+        if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            break;
+        }
+    }
+    assert!(found, "bone_sense led the hero to a pile");
 }
 
 #[test]
@@ -1006,7 +1069,7 @@ fn offline_samples_after_twenty_stalled_runs() {
     g.lineage.trophies.push("master:fighter".into());
     g.lineage.unlocks.insert("phalanx".into());
     g.set_rules(RuleSet::default()).unwrap();
-    let r = g.run_offline(6 * 3600);
+    let r = g.run_offline(30 * 3600);
     assert!(r.sampled, "a walled passive policy stalls and is sampled");
     assert!(r.runs > 40);
     assert!(g.run.is_some());
@@ -1118,20 +1181,21 @@ fn marks_are_earned_on_new_bests_only() {
     g.run.as_mut().unwrap().max_depth = 3;
     g.run.as_mut().unwrap().kills.push((1, "rat".into(), 1));
     finish_with(&mut g, ExitTier::Bank);
-    assert_eq!(g.lineage.marks, 4, "D1..D3 (3) + first rat (1)");
+    assert_eq!(g.lineage.marks, 3, "D1..D3 (3); first kills no longer mark (Cut 2 §2)");
+    assert!(g.batch.bests.iter().any(|b| b == "first kill: rat"), "but stay in bests");
     g.auto_keep();
     let mut g2 = arena();
     g2.lineage = g.lineage.clone();
     g2.run.as_mut().unwrap().max_depth = 3;
     g2.run.as_mut().unwrap().kills.push((1, "rat".into(), 1));
     finish_with(&mut g2, ExitTier::Bank);
-    assert_eq!(g2.lineage.marks, 4, "no new best, no marks");
+    assert_eq!(g2.lineage.marks, 3, "no new best, no marks");
     let mut g3 = arena();
     g3.lineage = g2.lineage.clone();
     g3.run.as_mut().unwrap().kills.push((1, "goblin_warlord".into(), 5));
     g3.run.as_mut().unwrap().trophies_run.push("pacifist_floor".into());
     finish_with(&mut g3, ExitTier::Bank);
-    assert_eq!(g3.lineage.marks, 4 + 3 + 2);
+    assert_eq!(g3.lineage.marks, 3 + 3 + 2);
 }
 
 #[test]
@@ -1213,6 +1277,7 @@ fn snapshot_wire_shape() {
 fn tame_setup(seed: u64) -> (Game, u32) {
     let mut g = arena_seed(seed);
     g.lineage.unlocks.insert("tame".into());
+    g.lineage.facts.insert("foe:rat:studied".into());
     give(&mut g, "leash");
     let r = add_monster(&mut g, "rat", 5, 5);
     g.run.as_mut().unwrap().monsters[0].hp = 1;
@@ -1277,7 +1342,7 @@ fn tamed_companion_joins_the_party_and_levels_on_bank() {
 }
 
 #[test]
-fn companion_death_leaves_an_egg_that_hatches_after_five_expeditions() {
+fn companion_death_leaves_an_egg_that_hatches_after_three_rests() {
     let mut g = arena();
     g.lineage.party = vec![crate::probes::pets_party()[0].clone()];
     g.auto_keep();
@@ -1295,13 +1360,13 @@ fn companion_death_leaves_an_egg_that_hatches_after_five_expeditions() {
     assert!(g.lineage.eggs[0].from_loss);
     assert_eq!(g.lineage.eggs[0].tags, vec!["ranged", "telegraph", "gas"]);
     assert!(g.batch.lost.contains(&"Skix".to_string()));
-    for i in 0..5 {
-        assert_eq!(g.lineage.eggs.len(), 1, "still an egg before expedition {}", i + 1);
+    for i in 0..3 {
+        assert_eq!(g.lineage.eggs.len(), 1, "still an egg before rest {}", i + 1);
         g.auto_keep();
         g.start_run(None);
         finish_with(&mut g, ExitTier::Return);
     }
-    assert!(g.lineage.eggs.is_empty(), "hatched after 5 completed expeditions");
+    assert!(g.lineage.eggs.is_empty(), "hatched after 3 rests (Cut 2 §1)");
     assert_eq!(g.lineage.kennel.len(), 1);
     assert_eq!(g.lineage.kennel[0].level, 1);
     assert!(g.events.iter().any(|e| matches!(e, Ev::Hatch { kind, .. } if kind == "goblin_archer")));
@@ -1330,7 +1395,8 @@ fn hatch_from_loss_costs_fifty_gold_and_breeding_merges_tags() {
     g.breed(a.id, b.id).unwrap();
     let egg = g.lineage.eggs.last().unwrap();
     assert_eq!(egg.kind, "goblin_archer");
-    assert_eq!(egg.tags.len(), 3, "tag count capped at 3");
+    assert_eq!(egg.tags.len(), 2, "two tags without third_tag (Cut 2 §3)");
+    assert_eq!(egg.hatch_in, 3);
     assert!(!egg.from_loss);
     assert_eq!(egg.gen, 2);
     assert!(g.hatch(egg.id).is_err(), "bred eggs hatch by expeditions");
@@ -1457,13 +1523,13 @@ fn supplies_are_bought_with_gold_and_never_kept_back() {
 fn xp_levels_the_class_and_gates_verbs() {
     let mut g = arena();
     let run = g.run.as_mut().unwrap();
-    run.max_depth = 6;
-    for _ in 0..20 {
-        run.kills.push((1, "goblin".into(), 3));
+    run.max_depth = 10;
+    for _ in 0..60 {
+        run.kills.push((1, "goblin".into(), 5));
     }
     finish_with(&mut g, ExitTier::Bank);
     let p = &g.lineage.classes["fighter"];
-    assert_eq!(p.level, 2, "40 xp to L2: {}", p.xp);
+    assert_eq!(p.level, 2, "100 xp to L2 (60 kills at D5 and D10 reached = 135): {}", p.xp);
     assert!(g.events.iter().any(|e| matches!(e, Ev::Level { class, level: 2, .. } if class == "fighter")));
     assert_eq!(g.batch.level_ups, 1);
     assert!(!g.vocabulary().verbs.iter().any(|v| v.v == "cleave"));
@@ -1474,7 +1540,7 @@ fn xp_levels_the_class_and_gates_verbs() {
     let h = hero(&g);
     assert_eq!(h.max_hp, 36 + 4);
     assert_eq!(h.str_bonus, 1);
-    assert_eq!(crate::hero::xp_to_next(3), 360);
+    assert_eq!(crate::hero::xp_to_next(3), 900);
 }
 
 #[test]
@@ -1491,7 +1557,7 @@ fn cleave_hits_all_adjacent_and_mastery_grants_card() {
     assert!(evs.iter().any(|e| matches!(e, Ev::Attack { dst, verb, .. } if *dst == b && verb.as_deref() == Some("cleave"))));
     assert!(hero(&g).cleave_cd > 0);
     let mut g = arena();
-    g.lineage.classes.insert("fighter".into(), ClassProg { level: 9, xp: 3239 });
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 9, xp: crate::hero::xp_to_next(9) - 5 });
     g.run.as_mut().unwrap().max_depth = 2;
     finish_with(&mut g, ExitTier::Bank);
     assert_eq!(g.lineage.classes["fighter"].level, 10);
@@ -1588,7 +1654,7 @@ fn a_full_lineage_plays_through_many_runs_without_panics() {
     g.lineage.unlocks.insert("party_slot_2".into());
     let r = g.run_offline(1200);
     assert!(r.runs >= 1);
-    assert!(r.live.turn > 0);
+    assert!(r.live.turn > 0 || g.lineage.rest_left > 0, "mid-run, or resting at camp");
     let v = serde_json::to_value(&r).unwrap();
     for k in ["elapsed_s", "runs", "sampled", "learned", "bests", "found", "deaths", "pending", "reel", "marks_earned", "live", "tamed", "hatched", "lost", "xp", "salvaged", "renown"] {
         assert!(v.get(k).is_some(), "report missing {k}");
@@ -1698,7 +1764,9 @@ fn unreachable_foe_falls_through_and_the_guard_frees_the_chores() {
     g.run.as_mut().unwrap().monsters.iter_mut().for_each(|m| if m.kind == "rat" { m.paralysed = 10_000 });
     attack_rules(&mut g);
     let evs = ticks(&mut g, 600);
-    let attacks = evs.iter().filter(|e| matches!(e, Ev::Rule { row: 0, .. })).count();
+    // Only this floor counts: D2 (a real 32×32 floor) has reachable foes to fight.
+    let left = evs.iter().find_map(|e| if let Ev::Descend { t, .. } = e { Some(*t) } else { None }).unwrap_or(600);
+    let attacks = evs.iter().filter(|e| matches!(e, Ev::Rule { row: 0, t, .. } if *t <= left)).count();
     assert!(attacks <= 24, "attack keeps firing at an unreachable foe: {attacks} of 60 actions");
     assert!(g.run.as_ref().unwrap().depth >= 2 || hero(&g).pos == Pos::new(1, 1), "the chores took the hero down");
 }

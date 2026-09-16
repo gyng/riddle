@@ -11,29 +11,63 @@ pub const INV_SLOTS: usize = 10;
 pub enum Class {
     Fighter,
     Rogue,
+    Ranger,
+    Caster,
 }
 
 impl Class {
+    pub const ALL: [Class; 4] = [Class::Fighter, Class::Rogue, Class::Ranger, Class::Caster];
     pub fn name(self) -> &'static str {
         match self {
             Class::Fighter => "fighter",
             Class::Rogue => "rogue",
+            Class::Ranger => "ranger",
+            Class::Caster => "caster",
         }
     }
     pub fn parse(s: &str) -> Option<Class> {
         match s {
             "fighter" => Some(Class::Fighter),
             "rogue" => Some(Class::Rogue),
+            "ranger" => Some(Class::Ranger),
+            "caster" => Some(Class::Caster),
             _ => None,
+        }
+    }
+    /// The unlock that opens the class (the fighter is free).
+    pub fn unlock(self) -> Option<&'static str> {
+        match self {
+            Class::Fighter => None,
+            Class::Rogue => Some("rogue"),
+            Class::Ranger => Some("ranger"),
+            Class::Caster => Some("caster"),
+        }
+    }
+    /// Starting arm (item id 1 is never loot).
+    pub fn starting_weapon(self) -> &'static str {
+        match self {
+            Class::Fighter => "sword",
+            Class::Rogue | Class::Caster => "dagger",
+            Class::Ranger => "bow",
+        }
+    }
+    pub fn base_hp(self) -> i32 {
+        match self {
+            Class::Fighter => 36,
+            Class::Rogue => 28,
+            Class::Ranger => 30,
+            Class::Caster => 24,
         }
     }
 }
 
-/// Class verb ladder (Addendum C): (verb, level).
+/// Class verb ladder (Addendum C, Cut 2 §4): (verb, level).
 pub fn class_ladder(class: Class) -> &'static [(&'static str, u32)] {
     match class {
         Class::Fighter => &[("shield_bash", 1), ("cleave", 3), ("taunt", 5), ("second_wind", 7), ("bulwark", 9)],
         Class::Rogue => &[("vanish", 1), ("throw", 1), ("backstab", 3), ("smoke", 5), ("ambush", 7), ("shadowstep", 9)],
+        Class::Ranger => &[("shoot", 1), ("kite", 1), ("volley", 3), ("trap", 5), ("mark", 7), ("double_shot", 9)],
+        Class::Caster => &[("bolt", 1), ("ward", 1), ("blink", 3), ("slow", 5), ("nova", 7), ("drain", 9)],
     }
 }
 
@@ -41,14 +75,17 @@ pub fn class_has_verb(class: Class, level: u32, verb: &str) -> bool {
     class_ladder(class).iter().any(|(v, l)| *v == verb && level >= *l)
 }
 
+/// Cut 2 §2: `100 × level²`; XP only from banked and returned runs.
 pub fn xp_to_next(level: u32) -> u32 {
-    40 * level * level
+    100 * level * level
 }
 
 pub fn mastery_card(class: Class) -> &'static str {
     match class {
         Class::Fighter => "phalanx",
         Class::Rogue => "hit_and_fade",
+        Class::Ranger => "hawkeye",
+        Class::Caster => "archmage",
     }
 }
 
@@ -105,14 +142,24 @@ pub struct Hero {
     pub bulwark_cd: i32,
     #[serde(default)]
     pub second_wind_used: bool,
+    // Cut 2 §4: ranger and caster cooldowns and buffs (ticks).
+    #[serde(default)]
+    pub volley_cd: i32,
+    #[serde(default)]
+    pub double_cd: i32,
+    #[serde(default)]
+    pub ward_t: i32,
+    #[serde(default)]
+    pub ward_cd: i32,
+    #[serde(default)]
+    pub blink_cd: i32,
+    #[serde(default)]
+    pub nova_cd: i32,
 }
 
 impl Hero {
     pub fn new(class: Class, pos: Pos) -> Hero {
-        let max_hp = match class {
-            Class::Fighter => 36,
-            Class::Rogue => 28,
-        };
+        let max_hp = class.base_hp();
         Hero {
             pos,
             hp: max_hp,
@@ -138,6 +185,12 @@ impl Hero {
             bulwark_t: 0,
             bulwark_cd: 0,
             second_wind_used: false,
+            volley_cd: 0,
+            double_cd: 0,
+            ward_t: 0,
+            ward_cd: 0,
+            blink_cd: 0,
+            nova_cd: 0,
         }
     }
     /// Apply a class level: +2 max_hp per level past 1, +1 atk at L3/L6/L9.
@@ -153,7 +206,7 @@ impl Hero {
         (lo + self.str_bonus, hi + self.str_bonus)
     }
     pub fn def(&self) -> i32 {
-        self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0) + if self.bulwark_t > 0 { 3 } else { 0 }
+        self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0) + if self.bulwark_t > 0 { 3 } else { 0 } + if self.ward_t > 0 { 2 } else { 0 }
     }
     pub fn speed(&self) -> i32 {
         let mut s = 10;
@@ -264,6 +317,11 @@ impl Hero {
         if self.bulwark_cd > 0 {
             self.bulwark_cd -= 1;
         }
+        for c in [&mut self.volley_cd, &mut self.double_cd, &mut self.ward_t, &mut self.ward_cd, &mut self.blink_cd, &mut self.nova_cd] {
+            if *c > 0 {
+                *c -= 1;
+            }
+        }
     }
     pub fn status_tags(&self) -> Vec<String> {
         let mut t = Vec::new();
@@ -287,6 +345,9 @@ impl Hero {
         }
         if self.bulwark_t > 0 {
             t.push("bulwark".into());
+        }
+        if self.ward_t > 0 {
+            t.push("warded".into());
         }
         t
     }

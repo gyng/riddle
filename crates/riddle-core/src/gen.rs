@@ -1,13 +1,13 @@
 //! Floor generation: rooms+corridors (Warrens, Crypt) and cellular caves with water (Fens).
-//! ≤ 24×24, connectivity stairs_up → stairs_down guaranteed.
+//! 32×32 (Cut 2 §1), connectivity stairs_up → stairs_down guaranteed.
 use crate::descent::Biome;
 use crate::geom::{Pos, DIRS4, DIRS8};
 use crate::rng::Rng;
 use crate::tiles::{Map, Tile};
 use serde::{Deserialize, Serialize};
 
-pub const MAX_W: i32 = 24;
-pub const MAX_H: i32 = 24;
+pub const MAX_W: i32 = 32;
+pub const MAX_H: i32 = 32;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Rect {
@@ -74,7 +74,7 @@ fn gen_rooms(rng: &mut Rng, biome: Biome, depth: u32) -> Option<Floor> {
     let h = MAX_H;
     let mut map = Map::new(w, h, Tile::Wall);
     let mut rooms: Vec<Rect> = Vec::new();
-    let target = 6 + (depth as usize / 4).min(3);
+    let target = 16 + (depth as usize / 4).min(3);
     for _ in 0..120 {
         if rooms.len() >= target {
             break;
@@ -111,7 +111,7 @@ fn gen_rooms(rng: &mut Rng, biome: Biome, depth: u32) -> Option<Floor> {
         let b = rooms[order[k]].centre();
         carve_l(&mut map, &room_mask, rng, a, b);
     }
-    for _ in 0..2 {
+    for _ in 0..3 {
         let a = rooms[rng.below(rooms.len() as u32) as usize].centre();
         let b = rooms[rng.below(rooms.len() as u32) as usize].centre();
         if a != b {
@@ -229,7 +229,7 @@ fn gen_cave(rng: &mut Rng, depth: u32) -> Option<Floor> {
             best = d;
         }
     }
-    if best_count < 120 {
+    if best_count < 220 {
         return None;
     }
     for (i, d) in best.iter().enumerate() {
@@ -239,7 +239,7 @@ fn gen_cave(rng: &mut Rng, depth: u32) -> Option<Floor> {
     }
     // Water: random-walk blobs, never on the stairs.
     let open: Vec<Pos> = (0..n).filter(|i| map.tiles[*i] == Tile::Floor).map(|i| map.pos(i)).collect();
-    let blobs = 3 + (depth as i32 - 6).clamp(0, 2);
+    let blobs = 5 + (depth as i32 - 6).clamp(0, 3);
     for _ in 0..blobs {
         let mut p = *rng.pick(&open);
         for _ in 0..rng.range(8, 16) {
@@ -264,7 +264,7 @@ fn gen_cave(rng: &mut Rng, depth: u32) -> Option<Floor> {
             far = map.pos(i);
         }
     }
-    if far_d < 8 {
+    if far_d < 12 {
         return None;
     }
     map.set(stairs_up, Tile::StairsUp);

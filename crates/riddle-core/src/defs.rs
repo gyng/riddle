@@ -59,15 +59,16 @@ pub fn spawn_table(biome: Biome, depth: u32) -> Vec<(&'static str, u32, i32, i32
     let mut t: Vec<(&str, u32, i32, i32)> = Vec::new();
     match biome {
         Biome::Warrens => {
+            // D1 is the doorstep: rats, monkeys and lone goblins. Packs from D2, archers from D4.
             if d <= 3 {
                 t.push(("rat", 30, 1, 2));
             }
-            t.push(("jackal", 22, 2, 3));
-            t.push(("monkey", 10, 1, 1));
             if d >= 2 {
-                t.push(("goblin", 20, 1, 2));
+                t.push(("jackal", 22, 2, 3));
             }
-            if d >= 3 {
+            t.push(("monkey", 10, 1, 1));
+            t.push(("goblin", if d >= 2 { 20 } else { 12 }, 1, if d >= 2 { 2 } else { 1 }));
+            if d >= 4 {
                 t.push(("goblin_archer", 12, 1, 1));
             }
             if d >= 4 {
@@ -101,9 +102,9 @@ pub fn spawn_table(biome: Biome, depth: u32) -> Vec<(&'static str, u32, i32, i32
     t
 }
 
-/// Number of spawn groups on a floor.
+/// Number of spawn groups on a floor (32×32 floors, Cut 2 §1).
 pub fn group_budget(depth: u32) -> i32 {
-    2 + (depth as i32) / 2
+    1 + (depth as i32 + 1) / 2
 }
 
 /// Small linear stat growth with depth: +1 hp per 2 floors, +1 max atk per 6 floors.
@@ -164,6 +165,9 @@ pub const ITEMS: &[ItemDef] = &[
     ItemDef { kind: "aggravate", cat: Cat::Scroll, a: (0, 0), speed: 0, ranged: false, value: 2, benevolent: false, weight: 3 },
     ItemDef { kind: "gold", cat: Cat::Gold, a: (0, 0), speed: 0, ranged: false, value: 1, benevolent: true, weight: 0 },
     ItemDef { kind: "leash", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 6, benevolent: true, weight: 0 },
+    // Cut 2: a dead heir's kit on the floor (§2) and the ranger's trap (§4). Never loot.
+    ItemDef { kind: "bones", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 0, benevolent: true, weight: 0 },
+    ItemDef { kind: "trap", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 0, benevolent: true, weight: 0 },
 ];
 
 /// Counters (Addendum A): (winner, loser, immune). For the first three the winner is the
@@ -223,9 +227,9 @@ pub fn scroll_kinds() -> Vec<&'static str> {
     ITEMS.iter().filter(|i| i.cat == Cat::Scroll).map(|i| i.kind).collect()
 }
 
-/// Items per floor.
+/// Items per floor (32×32 floors, Cut 2 §1).
 pub fn item_budget(depth: u32) -> i32 {
-    4 + (depth as i32) / 4
+    7 + (depth as i32) / 3
 }
 
 #[cfg(test)]
@@ -235,7 +239,7 @@ mod tests {
     fn content_counts() {
         assert_eq!(MONSTERS.iter().filter(|m| !m.boss && !m.tags.contains(&"summoned")).count(), 14);
         assert_eq!(MONSTERS.iter().filter(|m| m.boss).count(), 3);
-        assert_eq!(ITEMS.len(), 26, "25 items + the leash (Addendum A)");
+        assert_eq!(ITEMS.len(), 28, "25 items + the leash (Addendum A) + bones and trap (Cut 2)");
         assert_eq!(potion_kinds().len(), 8);
         assert_eq!(scroll_kinds().len(), 9);
     }

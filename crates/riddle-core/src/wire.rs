@@ -62,6 +62,25 @@ pub struct Snapshot {
     pub turn: u32,
     pub loot: i32,
     pub run: RunRef,
+    /// Cut 2 §7: what is on the line right now.
+    #[serde(default)]
+    pub stake: Stake,
+}
+
+/// Cut 2 §7: loot on the hero, brought vault items (insured = kept on death), and the row
+/// that would bank or return if any.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Stake {
+    pub loot: i32,
+    pub brought: Vec<StakeItem>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub return_row: Option<usize>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StakeItem {
+    pub label: String,
+    pub insured: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -89,6 +108,10 @@ pub enum Ev {
     Level { t: u32, class: String, level: u32 },
     Rank { t: u32, rank: u32 },
     Projectile { t: u32, src: u32, dst: u32, path: Vec<[i32; 2]> },
+    /// Cut 2 §1: emitted at exit; camp rest (or wake) in seconds.
+    Rest { t: u32, seconds: u32 },
+    /// Cut 2 §2: a bones pile left on death, or recovered by a later heir.
+    Bones { t: u32, heir: u32, items: u32 },
 }
 
 impl Ev {
@@ -115,12 +138,14 @@ impl Ev {
             | Ev::Hatch { t, .. }
             | Ev::Level { t, .. }
             | Ev::Rank { t, .. }
-            | Ev::Projectile { t, .. } => *t,
+            | Ev::Projectile { t, .. }
+            | Ev::Rest { t, .. }
+            | Ev::Bones { t, .. } => *t,
         }
     }
     /// Renderable, non-movement events (the "events per 60 turns" gate).
     pub fn renderable(&self) -> bool {
-        !matches!(self, Ev::Move { .. } | Ev::Rule { .. } | Ev::Fact { .. } | Ev::Note { .. })
+        !matches!(self, Ev::Move { .. } | Ev::Rule { .. } | Ev::Fact { .. } | Ev::Note { .. } | Ev::Rest { .. })
     }
 }
 
@@ -234,6 +259,16 @@ pub struct ReturnReport {
     pub xp: XpReport,
     pub salvaged: Vec<SalvageRow>,
     pub renown: RenownReport,
+    /// Cut 2 §1: camp rest and wake consumed by this absence (seconds).
+    #[serde(default)]
+    pub rested_s: u64,
+    #[serde(default)]
+    pub banked: u32,
+    #[serde(default)]
+    pub returned: u32,
+    /// Cut 2 §2: bones piles recovered this absence ("heir 3 · D4 · 5 items").
+    #[serde(default)]
+    pub bones_found: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -301,6 +336,9 @@ pub struct LedgerRow {
     pub known: bool,
     pub tamed: bool,
     pub bred: bool,
+    /// Cut 2 §5: five kills of the kind.
+    #[serde(default)]
+    pub studied: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -341,6 +379,20 @@ pub struct Lineage {
     pub rank: u32,
     pub keep_pref: String,
     pub insured: Vec<u32>,
+    /// Cut 2 §1: camp rest remaining (seconds) before the next expedition; `send` skips it.
+    #[serde(default)]
+    pub rest_left_s: u32,
+    /// Cut 2 §2: dead heirs' kit waiting on the floor (max 3, oldest expires).
+    #[serde(default)]
+    pub bones: Vec<BonesPile>,
+}
+
+/// Cut 2 §2: a bones pile on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BonesPile {
+    pub depth: u32,
+    pub heir: u32,
+    pub items: u32,
 }
 
 /// Supply catalogue entry (Addendum B).
@@ -358,6 +410,9 @@ pub struct UnlockInfo {
     pub cost: u32,
     pub owned: bool,
     pub available: bool,
+    /// Cut 2 §3: the human-readable gate (fact/trophy) still missing, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub needs: Option<String>,
 }
 
 #[cfg(test)]

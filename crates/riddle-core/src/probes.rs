@@ -21,22 +21,39 @@ pub fn preset(class: Class) -> RuleSet {
                 Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
             ],
         },
+        Class::Ranger => RuleSet {
+            name: Some("ranger".into()),
+            rows: vec![
+                Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")),
+                Row::new(vec![Cond::n("adj>=", 1)], Verb::new("kite")),
+                Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("shoot", "nearest")),
+            ],
+        },
+        Class::Caster => RuleSet {
+            name: Some("caster".into()),
+            rows: vec![
+                Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")),
+                Row::new(vec![Cond::n("adj>=", 1)], Verb::new("ward")),
+                Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("bolt", "nearest")),
+            ],
+        },
     }
 }
 
 /// A genuinely good set within the vocabulary a player has after unlocking rows to 8 and
-/// identifying the common items (EDITED bot). Shipped as presets/good.json.
+/// identifying the common items (EDITED bot). Shipped as presets/good.json. Cut 2: banks
+/// when hurt past D5 (yield follows the exit), so the good player comes home with the loot.
 pub fn good() -> RuleSet {
     RuleSet {
         name: Some("good".into()),
         rows: vec![
             Row::new(vec![Cond::n("hp<", 35)], Verb::arg("drink", "heal")),
+            Row::new(vec![Cond::n("hp<", 30), Cond::n("depth>=", 5)], Verb::new("bank")),
             Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "fire,tag:boss")),
-            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "poison,tag:boss")),
             Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")),
             Row::new(vec![Cond::n("foes>=", 3), Cond::n("hp<", 70)], Verb::new("back_corridor")),
             Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
-            Row::new(vec![Cond::n("hp<", 90), Cond::n("foes>=", 0)], Verb::new("rest")),
+            Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest")),
             Row::new(vec![Cond::n("floor_seen>=", 60)], Verb::new("descend")),
         ],
     }
@@ -130,7 +147,9 @@ pub fn learn_everything(g: &mut crate::engine::Game) {
         if m.boss {
             g.lineage.facts.insert(format!("boss:{}:counter", m.kind));
         }
+        g.lineage.facts.insert(format!("foe:{}:studied", m.kind));
     }
+    g.lineage.facts.insert("alert:rising".into());
     for i in crate::defs::ITEMS {
         if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, i.kind) {
             g.lineage.facts.insert(f);
@@ -174,8 +193,9 @@ mod tests {
     use super::*;
     #[test]
     fn presets_validate() {
-        assert!(preset(Class::Fighter).validate().is_ok());
-        assert!(preset(Class::Rogue).validate().is_ok());
+        for c in Class::ALL {
+            assert!(preset(c).validate().is_ok());
+        }
         assert!(good().validate().is_ok());
         assert!(good().rows.len() <= 8);
     }

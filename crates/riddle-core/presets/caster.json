@@ -1,0 +1,40 @@
+{
+  "name": "caster",
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "adj>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "ward"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "bolt",
+        "a": "nearest"
+      }
+    }
+  ]
+}

@@ -14,6 +14,11 @@ use crate::wire::Ev;
 
 pub const THROW_RANGE: i32 = 6;
 pub const BOW_RANGE: i32 = 6;
+/// Cut 2 §4: the ranger keeps this range with `kite`; the caster's bolt.
+pub const KITE_RANGE: i32 = 3;
+/// Cut 2 §1: the chores descend once this much of the floor is seen.
+pub const CHORE_DESCEND_SEEN: i32 = 60;
+pub const BOLT_ATK: (i32, i32) = (2, 5);
 
 /// 80% to hit; damage = roll(atk) − def, min 0.
 pub fn roll_hit(rng: &mut crate::rng::Rng, atk: (i32, i32), def: i32) -> (bool, i32) {
@@ -160,7 +165,7 @@ fn push_through(run: &mut Run, cx: &mut Ctx) -> Option<Verb> {
     let (dist, parent) = map.bfs_parent(hp, true, &|_| false);
     let stairs = run.floor.stairs_down;
     let mut goal: Option<(i32, Pos, &str)> = None;
-    if map.is_seen(stairs) && dist[map.idx(stairs)] > 0 && !stairs_sealed(run) {
+    if map.is_seen(stairs) && dist[map.idx(stairs)] > 0 && (!stairs_sealed(run) || hp.cheb(stairs) > 2) {
         goal = Some((dist[map.idx(stairs)], stairs, "descend"));
     }
     for (i, d) in dist.iter().enumerate() {
@@ -212,6 +217,16 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     if v.adj == 0 && !run.items_ignored() && nearest_item_step(run, cx, false) {
         return Verb::new("pick_up");
     }
+    // Cut 2 §3 `bone_sense`: the hero paths to the bones on this floor, seen or not.
+    if v.adj == 0 && cx.unlocks.contains("bone_sense") && bones_step(run, cx) {
+        return Verb::new("pick_up");
+    }
+    // The chore threshold for `descend` is 60% seen (Cut 2 §1): once that much of the floor
+    // is known and the way down is too, the chores go down rather than sweep the rest. A
+    // heir with no rows at all has no orders and only wanders (the chores never carry it).
+    if !cx.rules.rows.is_empty() && run.floor.map.seen_pct() >= CHORE_DESCEND_SEEN && !stairs_sealed(run) && descend_step(run, cx) {
+        return Verb::new("descend");
+    }
     if explore_step(run, cx) {
         return Verb::new("explore");
     }
@@ -238,16 +253,33 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     Verb::new("wait")
 }
 
+/// Step toward a bones pile on this floor over the whole map (`bone_sense`).
+fn bones_step(run: &mut Run, cx: &mut Ctx) -> bool {
+    let Some(goal) = run.items.iter().find(|fi| fi.item.kind == "bones").map(|fi| fi.pos) else { return false };
+    let map = &run.floor.map;
+    let (_, parent) = map.bfs_parent(run.hero.pos, false, &|p| map.get(p) == Tile::Water && p != run.hero.pos);
+    if map.first_step(&parent, run.hero.pos, goal).is_none() {
+        let (_, parent) = map.bfs_parent(run.hero.pos, false, &|_| false);
+        return step_towards(run, cx, goal, &parent);
+    }
+    step_towards(run, cx, goal, &parent)
+}
+
 /// A living boss seals the way down: the wall is impassable until the policy beats it.
 pub fn stairs_sealed(run: &Run) -> bool {
     run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.is_boss())
 }
 
 fn descend_step(run: &mut Run, cx: &mut Ctx) -> bool {
-    if stairs_sealed(run) {
-        return false;
-    }
     let s = run.floor.stairs_down;
+    if stairs_sealed(run) {
+        // The wall: walk up to it (the boss is there to be seen and fought), never through.
+        if !run.floor.map.is_seen(s) || run.hero.pos.cheb(s) <= 2 {
+            return false;
+        }
+        let (_, parent) = hero_bfs(run);
+        return step_towards(run, cx, s, &parent);
+    }
     if run.hero.pos == s {
         descend(run, cx);
         return true;
@@ -399,8 +431,279 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
         }
         "tactic" => verb_tactic(run, cx, &a, v),
         "hold" => true,
+        // Cut 2 §4: ranger
+        "shoot" => class_has_verb(run.hero.class, run.hero.level, "shoot") && verb_shoot(run, cx, &a, v),
+        "kite" => class_has_verb(run.hero.class, run.hero.level, "kite") && verb_kite(run, cx, v),
+        "volley" => class_has_verb(run.hero.class, run.hero.level, "volley") && verb_volley(run, cx, v),
+        "trap" => class_has_verb(run.hero.class, run.hero.level, "trap") && verb_trap(run, cx, v),
+        "mark" => class_has_verb(run.hero.class, run.hero.level, "mark") && verb_mark(run, cx, &a, v),
+        "double_shot" => class_has_verb(run.hero.class, run.hero.level, "double_shot") && verb_double_shot(run, cx, &a, v),
+        // Cut 2 §4: caster
+        "bolt" => class_has_verb(run.hero.class, run.hero.level, "bolt") && verb_bolt(run, cx, &a, v),
+        "ward" => {
+            if class_has_verb(run.hero.class, run.hero.level, "ward") && run.hero.ward_cd == 0 && !v.foes.is_empty() {
+                run.hero.ward_t = 30;
+                run.hero.ward_cd = 100;
+                callout(run, cx, "ward");
+                true
+            } else {
+                false
+            }
+        }
+        "blink" => class_has_verb(run.hero.class, run.hero.level, "blink") && verb_blink(run, cx, v),
+        "slow" => class_has_verb(run.hero.class, run.hero.level, "slow") && verb_slow(run, cx, &a, v),
+        "nova" => class_has_verb(run.hero.class, run.hero.level, "nova") && verb_nova(run, cx, v),
+        "drain" => class_has_verb(run.hero.class, run.hero.level, "drain") && verb_drain(run, cx, v),
         _ => false,
     }
+}
+
+// ---------------------------------------------------------------- ranger (Cut 2 §4)
+
+/// A shot at `sel` within bow range and line of sight, else a step toward it. Needs a bow.
+fn verb_shoot(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View) -> bool {
+    if !run.hero.ranged() {
+        return false;
+    }
+    let Some(mi) = pick_target(run, sel, v) else { return false };
+    let hp = run.hero.pos;
+    let mp = run.monsters[mi].pos;
+    if mp.cheb(hp) <= BOW_RANGE && run.floor.map.los(hp, mp) {
+        hero_attack(run, cx, mi, "shoot", false);
+        return true;
+    }
+    approach_target(run, cx, mi)
+}
+
+/// Keep range 3: step away from a foe closer than that, shoot one at range, else close a step.
+fn verb_kite(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
+    let Some(mi) = v.nearest else { return false };
+    let hp = run.hero.pos;
+    let d = run.monsters[mi].pos.cheb(hp);
+    if d < KITE_RANGE && verb_retreat(run, cx, v) {
+        return true;
+    }
+    if run.hero.ranged() {
+        let mp = run.monsters[mi].pos;
+        if mp.cheb(hp) <= BOW_RANGE && run.floor.map.los(hp, mp) {
+            hero_attack(run, cx, mi, "shoot", false);
+            return true;
+        }
+    }
+    if d > KITE_RANGE {
+        return approach_target(run, cx, mi);
+    }
+    false
+}
+
+/// Every foe on the line through the nearest target, to bow range; cooldown 8 turns.
+fn verb_volley(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
+    if run.hero.volley_cd > 0 || !run.hero.ranged() {
+        return false;
+    }
+    let Some(mi) = v.nearest else { return false };
+    let hp = run.hero.pos;
+    let mp = run.monsters[mi].pos;
+    if !run.floor.map.los(hp, mp) {
+        return false;
+    }
+    let (dx, dy) = ((mp.x - hp.x).signum(), (mp.y - hp.y).signum());
+    let mut targets = Vec::new();
+    let mut p = hp;
+    for _ in 0..BOW_RANGE {
+        p = p.step((dx, dy));
+        if !run.floor.map.in_bounds(p) || run.floor.map.get(p) == Tile::Wall {
+            break;
+        }
+        if let Some(k) = run.monster_at(p) {
+            if run.monsters[k].hostile() {
+                targets.push(k);
+            }
+        }
+    }
+    if targets.is_empty() {
+        return false;
+    }
+    run.hero.volley_cd = 80;
+    callout(run, cx, "volley");
+    for k in targets {
+        if run.monsters[k].hp > 0 {
+            hero_attack(run, cx, k, "shoot", false);
+        }
+    }
+    true
+}
+
+/// Lay a trap on the tile toward the nearest foe: the first hostile onto it is stunned 20 ticks.
+fn verb_trap(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
+    let Some(mi) = v.nearest else { return false };
+    let hp = run.hero.pos;
+    let mp = run.monsters[mi].pos;
+    if mp.adjacent(hp) {
+        return false;
+    }
+    let q = hp.step(((mp.x - hp.x).signum(), (mp.y - hp.y).signum()));
+    if !run.floor.map.passable(q) || run.occupied(q) || run.item_at(q).is_some() {
+        return false;
+    }
+    let id = run.new_item_id();
+    run.items.push(crate::engine::FloorItem { pos: q, item: Item::new(id, "trap") });
+    callout(run, cx, "trap set");
+    true
+}
+
+/// Mark a target: it takes ×1.5 from the hero for 30 ticks.
+fn verb_mark(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View) -> bool {
+    let Some(mi) = pick_target(run, sel, v) else { return false };
+    if run.monsters[mi].marked > 0 {
+        return false;
+    }
+    run.monsters[mi].marked = 30;
+    callout(run, cx, "marked");
+    true
+}
+
+fn verb_double_shot(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View) -> bool {
+    if run.hero.double_cd > 0 || !run.hero.ranged() {
+        return false;
+    }
+    let Some(mi) = pick_target(run, sel, v) else { return false };
+    let hp = run.hero.pos;
+    let mp = run.monsters[mi].pos;
+    if mp.cheb(hp) > BOW_RANGE || !run.floor.map.los(hp, mp) {
+        return false;
+    }
+    run.hero.double_cd = 40;
+    callout(run, cx, "double shot");
+    hero_attack(run, cx, mi, "shoot", false);
+    if run.monsters.get(mi).is_some_and(|m| m.hp > 0) {
+        hero_attack(run, cx, mi, "shoot", false);
+    }
+    true
+}
+
+/// Path to a tile adjacent to the target (shared by the ranged verbs).
+fn approach_target(run: &mut Run, cx: &mut Ctx, mi: usize) -> bool {
+    let hp = run.hero.pos;
+    let mp = run.monsters[mi].pos;
+    let (dist, parent) = hero_bfs(run);
+    let map = &run.floor.map;
+    let goal = mp
+        .neighbours8()
+        .into_iter()
+        .filter(|q| map.in_bounds(*q) && dist[map.idx(*q)] >= 0 && (!run.occupied(*q) || *q == hp))
+        .min_by_key(|q| (dist[map.idx(*q)], q.x, q.y));
+    match goal {
+        Some(g) if g != hp => step_towards(run, cx, g, &parent),
+        _ => false,
+    }
+}
+
+// ---------------------------------------------------------------- caster (Cut 2 §4)
+
+/// A bolt (2–5, no ammo) at `sel` within range and sight, else a step toward it.
+fn verb_bolt(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View) -> bool {
+    let Some(mi) = pick_target(run, sel, v) else { return false };
+    let hp = run.hero.pos;
+    let mp = run.monsters[mi].pos;
+    if mp.cheb(hp) <= BOW_RANGE && run.floor.map.los(hp, mp) {
+        let def = run.monsters[mi].effective_def();
+        let (hit, dmg) = roll_hit(&mut run.rng, (BOLT_ATK.0 + run.hero.str_bonus, BOLT_ATK.1 + run.hero.str_bonus), def);
+        let id = run.monsters[mi].id;
+        projectile(run, cx, HERO_ID, id, hp, mp);
+        cx.events.push(Ev::Attack { t: run.turn, src: HERO_ID, dst: id, dmg, hit, verb: Some("bolt".into()) });
+        if hit {
+            let dmg = if run.monsters[mi].marked > 0 { dmg * 3 / 2 } else { dmg };
+            damage_monster(run, cx, mi, dmg, &Src::Hero { ranged: true });
+            if run.monsters.get(mi).is_some_and(|m| m.hp > 0 && !m.awake) {
+                run.monsters[mi].awake = true;
+                run.monsters[mi].last_seen = Some(run.hero.pos);
+            }
+        }
+        return true;
+    }
+    approach_target(run, cx, mi)
+}
+
+/// Blink up to 3 tiles away from the foes (no scroll); cooldown 5 turns.
+fn verb_blink(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
+    if run.hero.blink_cd > 0 || v.foes.is_empty() {
+        return false;
+    }
+    let hp = run.hero.pos;
+    let map = &run.floor.map;
+    let mut cands: Vec<Pos> = Vec::new();
+    for dy in -3..=3 {
+        for dx in -3..=3 {
+            let q = hp.step((dx, dy));
+            if q != hp && map.passable(q) && !run.occupied(q) && map.los(hp, q) && !in_hazard(run, q) {
+                cands.push(q);
+            }
+        }
+    }
+    let cur = min_foe_dist(run, v, hp);
+    let Some(q) = cands.iter().max_by_key(|q| (min_foe_dist(run, v, **q), -q.cheb(hp), q.x, q.y)).copied() else { return false };
+    if min_foe_dist(run, v, q) <= cur {
+        return false;
+    }
+    run.hero.blink_cd = 50;
+    move_hero(run, cx, q);
+    callout(run, cx, "blink");
+    true
+}
+
+/// Slow a target (speed −5) for 30 ticks.
+fn verb_slow(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View) -> bool {
+    let Some(mi) = pick_target(run, sel, v) else { return false };
+    if run.monsters[mi].slow_t > 0 {
+        return false;
+    }
+    let hp = run.hero.pos;
+    let mp = run.monsters[mi].pos;
+    if mp.cheb(hp) > BOW_RANGE || !run.floor.map.los(hp, mp) {
+        return false;
+    }
+    run.monsters[mi].slow_t = 30;
+    callout(run, cx, "slowed");
+    true
+}
+
+/// Fire on the eight tiles around the caster; cooldown 15 turns.
+fn verb_nova(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
+    if run.hero.nova_cd > 0 || v.adj == 0 {
+        return false;
+    }
+    let hp = run.hero.pos;
+    run.hero.nova_cd = 150;
+    callout(run, cx, "nova");
+    for q in hp.neighbours8() {
+        if run.floor.map.in_bounds(q) && run.floor.map.passable(q) {
+            place_overlay(run, cx, q, 0, OverlayKind::Fire, 20);
+        }
+    }
+    // The blast lands at once on whoever stands in it.
+    for q in hp.neighbours8() {
+        if let Some(k) = run.monster_at(q) {
+            if run.monsters[k].hostile() {
+                damage_monster(run, cx, k, 5, &Src::Fire);
+            }
+        }
+    }
+    true
+}
+
+/// Steal 5 hp from an adjacent foe.
+fn verb_drain(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
+    let hp = run.hero.pos;
+    let Some(mi) = v.foes.iter().copied().find(|&i| run.monsters[i].pos.adjacent(hp)) else { return false };
+    let id = run.monsters[mi].id;
+    cx.events.push(Ev::Attack { t: run.turn, src: HERO_ID, dst: id, dmg: 5, hit: true, verb: Some("drain".into()) });
+    let before = run.monsters[mi].hp;
+    damage_monster(run, cx, mi, 5, &Src::Hero { ranged: false });
+    let taken = before - run.monsters.get(mi).map(|m| m.hp.max(0)).unwrap_or(0);
+    run.hero.hp = (run.hero.hp + taken.clamp(0, 5)).min(run.hero.max_hp);
+    callout(run, cx, "drain");
+    true
 }
 
 /// Attack targets: fleeing foes are not chased unless adjacent (a fool's errand).
@@ -594,6 +897,7 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
             run.monsters[mi].stun = 10;
             callout(run, cx, "bash");
         }
+        let dmg = if run.monsters[mi].marked > 0 { dmg * 3 / 2 } else { dmg };
         damage_monster(run, cx, mi, dmg, &Src::Hero { ranged: verb == "shoot" });
         if run.monsters[mi].hp > 0 && !run.monsters[mi].awake {
             run.monsters[mi].awake = true;
@@ -671,6 +975,12 @@ fn verb_back_corridor(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
 }
 
 fn find_consumable(run: &Run, cx: &Ctx, cat: Cat, a: &str) -> Option<usize> {
+    find_consumable_for(run, cx, cat, a, false)
+}
+
+/// `to_throw`: an unknown potion for throwing is picked malevolent-hint first (Cut 2: a hero
+/// that has read "counter: range" throws what it has at the boss).
+fn find_consumable_for(run: &Run, cx: &Ctx, cat: Cat, a: &str, to_throw: bool) -> Option<usize> {
     if a == "unknown" || a.is_empty() {
         let mut best: Option<(i32, usize)> = None;
         for (i, it) in run.hero.inv.iter().enumerate() {
@@ -682,6 +992,7 @@ fn find_consumable(run: &Run, cx: &Ctx, cat: Cat, a: &str) -> Option<usize> {
                 None => 1,
                 Some(Hint::Malevolent) => 2,
             };
+            let rank = if to_throw { 2 - rank } else { rank };
             if best.is_none_or(|(r, _)| rank < r) {
                 best = Some((rank, i));
             }
@@ -894,7 +1205,7 @@ fn verb_throw(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
     let mut parts = a.split(',');
     let kind = parts.next().unwrap_or("").trim();
     let target_sel = parts.next().unwrap_or("nearest").trim();
-    let Some(ii) = find_consumable(run, cx, Cat::Potion, kind) else { return false };
+    let Some(ii) = find_consumable_for(run, cx, Cat::Potion, kind, true) else { return false };
     let Some(mi) = pick_target(run, target_sel, v) else { return false };
     let hp = run.hero.pos;
     let mut land = run.monsters[mi].pos;
@@ -1092,6 +1403,158 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             }
             v.adj >= 1 && verb_attack(run, cx, "nearest", v, false)
         }
+        // Cut 2 §3. gas_step: never stand in gas and never pop a bloat beside you — step
+        // out of hazards, kill gas foes at range when possible, otherwise back off a step
+        // before the melee, then fight.
+        "gas_step" => {
+            if escape_hazard(run, cx, v) {
+                return true;
+            }
+            let hp = run.hero.pos;
+            let gas_adj = v.foes.iter().copied().find(|&i| run.monsters[i].has_tag("gas") && run.monsters[i].pos.adjacent(hp));
+            if let Some(i) = gas_adj {
+                if run.hero.ranged() {
+                    hero_attack(run, cx, i, "shoot", false);
+                    return true;
+                }
+                let n_gas = v.foes.iter().filter(|&&j| run.monsters[j].has_tag("gas")).count();
+                if n_gas >= 1 && run.hero.hp_pct() < 60 && verb_retreat(run, cx, v) {
+                    return true;
+                }
+                return verb_attack(run, cx, "tag:gas", v, false);
+            }
+            if v.foes.iter().any(|&i| run.monsters[i].has_tag("gas")) {
+                if run.hero.ranged() {
+                    return verb_attack(run, cx, "tag:gas", v, false);
+                }
+                if let Some(other) = v.foes.iter().copied().find(|&i| !run.monsters[i].has_tag("gas") && run.monsters[i].pos.adjacent(hp)) {
+                    hero_attack(run, cx, other, "attack", false);
+                    return true;
+                }
+                return true; // wait for the bloat to drift in; it dies to the next swing on open ground
+            }
+            false
+        }
+        // pack_break: split a fast pack — fall back to a corridor, then kill the weakest
+        // one adjacent so the pack loses its nerve, never chase the ones hanging back.
+        "pack_break" => {
+            if foes >= 2 && !in_corr && verb_back_corridor(run, cx, v) {
+                return true;
+            }
+            if v.adj >= 1 {
+                return verb_attack(run, cx, "lowest", v, false);
+            }
+            if foes >= 2 {
+                return true; // hold: a pack that hangs back is not worth stepping out for
+            }
+            foes >= 1 && verb_attack(run, cx, "nearest", v, false)
+        }
+        // thief_guard: a thief in view is killed first while it is adjacent; one that flees
+        // with the loot is shot or pelted; nothing else is chased.
+        "thief_guard" => {
+            let hp = run.hero.pos;
+            let thief = v.foes.iter().copied().find(|&i| run.monsters[i].has_tag("thief"));
+            let Some(i) = thief else { return false };
+            if run.monsters[i].pos.adjacent(hp) {
+                hero_attack(run, cx, i, "attack", false);
+                return true;
+            }
+            let mp = run.monsters[i].pos;
+            if run.monsters[i].stolen.is_some() && mp.cheb(hp) <= BOW_RANGE && run.floor.map.los(hp, mp) {
+                if run.hero.ranged() {
+                    hero_attack(run, cx, i, "shoot", false);
+                    return true;
+                }
+                for k in ["fire", "poison", "caustic", "confusion"] {
+                    if verb_throw(run, cx, &format!("{k},tag:thief"), v) {
+                        return true;
+                    }
+                }
+            }
+            // Keep the pack away from it: back into a corridor if one is at hand.
+            !in_corr && verb_back_corridor(run, cx, v)
+        }
+        // boss_focus: the boss's own counter — the Warlord himself (aimed), the Bloat
+        // Mother at range, the Lich's summons first — then the boss.
+        "boss_focus" => {
+            let Some(bi) = v.foes.iter().copied().find(|&i| run.monsters[i].is_boss()) else { return false };
+            let kind = run.monsters[bi].kind.clone();
+            match kind.as_str() {
+                "bloat_mother" => {
+                    if run.hero.ranged() {
+                        return verb_attack(run, cx, "tag:boss", v, false);
+                    }
+                    for k in ["fire", "poison", "caustic"] {
+                        if verb_throw(run, cx, &format!("{k},tag:boss"), v) {
+                            return true;
+                        }
+                    }
+                    verb_attack(run, cx, "tag:boss", v, false)
+                }
+                "lich" => {
+                    if v.foes.iter().any(|&i| run.monsters[i].has_tag("summoned")) {
+                        return verb_attack(run, cx, "tag:summoned", v, false);
+                    }
+                    verb_attack(run, cx, "tag:boss", v, false)
+                }
+                _ => verb_attack(run, cx, "tag:boss", v, false),
+            }
+        }
+        // last_stand: below 30% with foes adjacent — every heal, the second wind, then the
+        // weakest foe, throwing whatever is left; no retreat.
+        "last_stand" => {
+            if v.adj == 0 || run.hero.hp_pct() >= 30 {
+                return false;
+            }
+            if verb_drink(run, cx, "heal") {
+                return true;
+            }
+            if class_has_verb(run.hero.class, run.hero.level, "second_wind") && !run.hero.second_wind_used {
+                run.hero.second_wind_used = true;
+                let add = run.hero.max_hp * 3 / 10;
+                run.hero.hp = (run.hero.hp + add).min(run.hero.max_hp);
+                callout(run, cx, "second wind");
+                return true;
+            }
+            if verb_drink(run, cx, "unknown") {
+                return true;
+            }
+            for k in ["fire", "poison", "confusion"] {
+                if verb_throw(run, cx, &format!("{k},nearest"), v) {
+                    return true;
+                }
+            }
+            verb_attack(run, cx, "lowest", v, false)
+        }
+        // Mastery cards (class L10). hawkeye: the ranger's whole ladder in one row.
+        "hawkeye" => {
+            if v.adj >= 1 && verb_kite(run, cx, v) {
+                return true;
+            }
+            if foes >= 2 && verb_volley(run, cx, v) {
+                return true;
+            }
+            if verb_double_shot(run, cx, "nearest", v) {
+                return true;
+            }
+            verb_shoot(run, cx, "nearest", v)
+        }
+        // archmage: the caster's — ward when pressed, nova when surrounded, bolt otherwise.
+        "archmage" => {
+            if v.adj >= 2 && verb_nova(run, cx, v) {
+                return true;
+            }
+            if v.adj >= 1 && run.hero.ward_cd == 0 && run.hero.ward_t == 0 {
+                run.hero.ward_t = 30;
+                run.hero.ward_cd = 100;
+                callout(run, cx, "ward");
+                return true;
+            }
+            if v.adj >= 1 && run.hero.hp_pct() < 50 && verb_blink(run, cx, v) {
+                return true;
+            }
+            verb_bolt(run, cx, "nearest", v)
+        }
         _ => false,
     }
 }
@@ -1104,6 +1567,18 @@ fn move_monster(run: &mut Run, cx: &mut Ctx, mi: usize, q: Pos) {
     if was_visible || run.floor.map.is_visible(q) {
         let id = run.monsters[mi].id;
         cx.events.push(Ev::Move { t: run.turn, id, x: q.x, y: q.y });
+    }
+    // The ranger's trap (Cut 2 §4): the first hostile onto it is stunned for 20 ticks.
+    if run.monsters[mi].hostile() {
+        if let Some(ii) = run.item_at(q).filter(|&ii| run.items[ii].item.kind == "trap") {
+            run.items.remove(ii);
+            run.monsters[mi].stun = 20;
+            run.monsters[mi].pending = None;
+            run.monsters[mi].telegraph = None;
+            if run.floor.map.is_visible(q) {
+                callout(run, cx, "trapped");
+            }
+        }
     }
 }
 
@@ -1291,8 +1766,13 @@ fn summon_near(run: &mut Run, cx: &mut Ctx, at: Pos, kind: &str, n: usize, ttl: 
             m.extra_tags.push("summoned".into());
         }
         let e = crate::engine::monster_entity(&m, cx.facts);
+        let seen = run.floor.map.is_visible(q);
         run.monsters.push(m);
         cx.events.push(Ev::Spawn { t: run.turn, e });
+        if seen {
+            // Cut 2 §5: what the hero sees conjured is a fact it can target (`attack tag:summoned`).
+            learn_tag(run, cx, kind, "summoned");
+        }
         made += 1;
     }
     made
@@ -1549,7 +2029,8 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
                 run.monsters[mi].cooldown = 30;
             } else if adjacent {
                 monster_attack(run, cx, mi, 1, "attack");
-            } else if dist > 3 {
+            } else if dist > 3 || guards >= 2 {
+                // Guarded, he presses the hero himself: a wall that never bites is a stalemate.
                 chase(run, cx, mi, sees);
             }
         }

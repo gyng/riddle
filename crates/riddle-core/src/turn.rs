@@ -61,7 +61,7 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
     run.hero.energy += run.hero.speed();
     for m in run.monsters.iter_mut() {
         if m.hp > 0 {
-            m.energy += m.speed;
+            m.energy += m.effective_speed();
         }
     }
     let mut acted = false;
@@ -114,7 +114,11 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
         if run.over.is_some() {
             return;
         }
-        tick_alert(run, cx);
+    }
+    // The floor clock runs from the descend, not from a multiple of ten ticks.
+    tick_alert(run, cx);
+    if run.over.is_some() {
+        return;
     }
     tick_statuses(run, cx);
     run.monsters.retain(|m| m.hp > 0);
@@ -316,6 +320,7 @@ fn targets_foes(verb: &Verb) -> bool {
     matches!(
         verb.v.as_str(),
         "attack" | "shield_bash" | "throw" | "tame" | "cleave" | "backstab" | "ambush" | "shadowstep" | "send" | "taunt"
+            | "shoot" | "volley" | "mark" | "double_shot" | "bolt" | "slow" | "drain"
     )
 }
 
@@ -323,6 +328,11 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
     let n = c.n.unwrap_or(0);
     let t = c.t.as_deref().unwrap_or("");
     let h = &run.hero;
+    // Cut 2 §3: some condition tokens are unlocks; a row using one the lineage does not own
+    // never fires.
+    if crate::meta::cond_unlock(&c.k).is_some_and(|u| !cx.unlocks.contains(u)) {
+        return false;
+    }
     match c.k.as_str() {
         "hp<" => h.hp_pct() < n,
         "hp>" => h.hp_pct() > n,
@@ -332,9 +342,10 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
             let m = &run.monsters[i];
             m.has_tag(t) && tag_known(cx.facts, &m.kind, t)
         }),
-        "foe_hp<" => v.nearest.is_some_and(|i| {
+        // Cut 2 §5: reading a foe's wounds needs the kind studied (five kills).
+        "foe_hp<" => v.foes.iter().any(|&i| {
             let m = &run.monsters[i];
-            m.hp * 100 / m.max_hp.max(1) < n
+            crate::facts::is_studied(cx.facts, &m.kind) && m.hp * 100 / m.max_hp.max(1) < n
         }),
         "item" => h.has_kind(t) && is_identified(cx.facts, cx.flavours, t),
         "unknown_item" => h.inv.iter().any(|i| i.is_consumable() && !is_identified(cx.facts, cx.flavours, &i.kind)),
@@ -590,6 +601,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         run.kills.push((run.turn, kind.clone(), depth));
         run.kills_floor += 1;
         run.kill_since_action = true;
+        crate::facts::on_kill(run, cx, &kind);
         if m.is_boss() {
             run.boss_kills.push((run.turn, kind.clone()));
             note(run, cx, format!("Slew the {}.", m.title()));
@@ -776,17 +788,19 @@ pub fn rest_clock(run: &mut Run, cx: &mut Ctx) {
     callout(run, cx, "they heard you");
 }
 
-/// The forward clock: every 400 ticks on a floor the alert rises and wanderers arrive,
-/// more of them as the alert climbs (1 + alert/3). Explore-everything policies pay for it.
+/// The forward clock: every `ALERT_EVERY` ticks on a floor the alert rises and wanderers
+/// arrive, more of them as the alert climbs (1 + alert/4). Lingering policies pay for it.
+pub const ALERT_EVERY: u32 = 800;
+
 fn tick_alert(run: &mut Run, cx: &mut Ctx) {
-    if !run.floor_turn.is_multiple_of(400) || run.alert >= 8 {
+    if run.floor_turn == 0 || !run.floor_turn.is_multiple_of(ALERT_EVERY) || run.alert >= 8 {
         return;
     }
     run.alert += 1;
     let table = crate::defs::spawn_table(run.biome(), run.depth);
     let weights: Vec<u32> = table.iter().map(|t| if t.0 == "captive" || t.0 == "eel" { 0 } else { t.1 }).collect();
     let hero = run.hero.pos;
-    let n = 1 + run.alert / 3;
+    let n = 1 + run.alert / 4;
     for _ in 0..n {
         let (kind, ..) = table[run.rng.weighted(&weights)];
         let cands: Vec<Pos> = run
@@ -810,6 +824,7 @@ fn tick_alert(run: &mut Run, cx: &mut Ctx) {
     }
     if run.alert == 3 || run.alert == 6 {
         callout(run, cx, "alert rising");
+        learn(run, cx, "alert:rising".into());
     }
 }
 
@@ -875,6 +890,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.gambles.clear();
     run.hero.second_wind_used = false;
     populate_floor(run, cx.grudges, cx.forge);
+    crate::engine::place_bones(run);
     run.floor.map.update_vision(run.hero.pos, VISION);
     cx.events.push(Ev::Descend { t: run.turn, depth: next, biome: biome.name().into() });
     if biome_for(next - 1) != biome {
@@ -899,7 +915,7 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
         return;
     }
     run.over = Some(tier);
-    let loot_kept = run.loot * tier.pct() / 100;
+    let loot_kept = if run.timed_out { 0 } else { run.loot * tier.pct() / 100 };
     cx.events.push(Ev::Exit { t: run.turn, tier: tier.name().into(), loot_kept });
     match tier {
         ExitTier::Bank => note(run, cx, format!("Banked {loot_kept} loot.")),
@@ -910,8 +926,15 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
 
 /// Pick up whatever lies on the hero's tile.
 pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
-    let Some(ii) = run.item_at(run.hero.pos) else { return };
+    // Several items may share a tile (a recovered kit that did not fit): take the first
+    // that would change anything.
+    let here = run.hero.pos;
+    let Some(ii) = run.items.iter().position(|fi| fi.pos == here && can_take(&run.hero, &fi.item)) else { return };
     let item = &run.items[ii].item;
+    if item.kind == "bones" {
+        recover_bones(run, cx, ii);
+        return;
+    }
     if item.cat() == Cat::Gold {
         let it = run.items.remove(ii).item;
         run.loot += it.amount;
@@ -962,8 +985,55 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
     cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
 }
 
+/// Cut 2 §2: a later heir steps on a bones pile and recovers the kit (what does not fit the
+/// pack lies where it stood). A note always; the highlight is settled at the exit.
+fn recover_bones(run: &mut Run, cx: &mut Ctx, ii: usize) {
+    let here = run.hero.pos;
+    let heir = run.items.remove(ii).item.amount as u32;
+    let Some(pile) = run.bones.iter().find(|b| b.heir == heir).cloned() else { return };
+    run.bones_found.push(heir);
+    let n = pile.items.len() as u32;
+    for it in pile.items {
+        let value = it.value();
+        let cat = it.cat();
+        let replaced = run.hero.auto_equip(it.clone());
+        let taken = match cat {
+            Cat::Weapon => run.hero.weapon.as_ref().is_some_and(|w| w.id == it.id) || run.hero.inv.iter().any(|i| i.id == it.id),
+            Cat::Armour => run.hero.armour.as_ref().is_some_and(|a| a.id == it.id) || run.hero.inv.iter().any(|i| i.id == it.id),
+            _ => run.hero.inv.iter().any(|i| i.id == it.id),
+        };
+        if taken {
+            run.loot += value;
+        } else {
+            drop_near(run, here, it);
+        }
+        if let Some(old) = replaced {
+            if !run.hero.inv.iter().any(|i| i.id == old.id) {
+                drop_near(run, here, old);
+            }
+        }
+    }
+    cx.events.push(Ev::Bones { t: run.turn, heir, items: n });
+    note(run, cx, format!("Found heir {heir}'s bones: {n} items."));
+    callout(run, cx, "bones");
+}
+
+/// Drop an item on the nearest free floor tile around `at` (its own tile if none).
+fn drop_near(run: &mut Run, at: Pos, it: Item) {
+    let free = std::iter::once(at)
+        .chain(at.neighbours8())
+        .find(|q| run.floor.map.in_bounds(*q) && run.floor.map.get(*q) == Tile::Floor && run.item_at(*q).is_none());
+    run.items.push(crate::engine::FloorItem { pos: free.unwrap_or(at), item: it });
+}
+
 /// Would picking this up change anything (gold, leash, room in the pack, or better gear)?
 pub fn can_take(h: &crate::hero::Hero, item: &Item) -> bool {
+    if item.kind == "trap" {
+        return false;
+    }
+    if item.kind == "bones" {
+        return true;
+    }
     matches!(item.cat(), Cat::Gold)
         || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash"))
         || !h.inv_full()

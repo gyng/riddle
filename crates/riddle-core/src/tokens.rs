@@ -2,12 +2,11 @@
 use crate::defs::{all_tags, item_def, Cat, ITEMS};
 use crate::engine::LineageState;
 use crate::facts::has_tag_fact;
-use crate::hero::Class;
 use crate::item::is_identified;
 use crate::rules::{Cond, Verb, Vocabulary};
 use crate::wire::Companion;
 
-pub const TACTIC_CARDS: [&str; 3] = ["corridor_fighting", "kite_archers", "stair_dance"];
+pub use crate::meta::{MASTERY_CARDS, TACTIC_CARDS};
 
 pub fn known_tags(l: &LineageState) -> Vec<&'static str> {
     all_tags().into_iter().filter(|t| has_tag_fact(&l.facts, t)).collect()
@@ -18,25 +17,35 @@ pub fn identified_kinds(l: &LineageState, cat: Cat) -> Vec<&'static str> {
 }
 
 pub fn vocabulary(l: &LineageState) -> Vocabulary {
+    // Cut 2 §3: `alert>= turns> loot>= on_kill on_see party_hp<` are unlocks; §5: `foe_hp<`
+    // opens once a kind is studied.
+    let owned = |k: &str| crate::meta::cond_unlock(k).is_none_or(|u| l.unlocks.contains(u));
     let mut conds = vec![
         Cond::n("hp<", 30),
         Cond::n("hp>", 70),
         Cond::n("foes>=", 2),
         Cond::n("adj>=", 2),
-        Cond::n("foe_hp<", 25),
         Cond::flag("unknown_item"),
         Cond::n("floor_seen>=", 60),
         Cond::n("depth>=", 2),
-        Cond::n("alert>=", 3),
         Cond::flag("in_corridor"),
         Cond::flag("path_stairs"),
         Cond::flag("ally"),
-        Cond::n("loot>=", 50),
-        Cond::n("turns>", 100),
         Cond::flag("on_hurt"),
-        Cond::flag("on_kill"),
-        Cond::flag("on_see"),
     ];
+    if l.facts.iter().any(|f| f.starts_with("foe:") && f.ends_with(":studied")) {
+        conds.push(Cond::n("foe_hp<", 25));
+    }
+    for (k, n) in [("alert>=", 3), ("loot>=", 50), ("turns>", 100)] {
+        if owned(k) {
+            conds.push(Cond::n(k, n));
+        }
+    }
+    for k in ["on_kill", "on_see"] {
+        if owned(k) {
+            conds.push(Cond::flag(k));
+        }
+    }
     for t in known_tags(l) {
         conds.push(Cond::t("foe_tag", t));
     }
@@ -50,7 +59,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
     if l.facts.contains("item:leash") {
         conds.push(Cond::t("item", "leash"));
     }
-    if l.all_companions().next().is_some() {
+    if l.all_companions().next().is_some() && owned("party_hp<") {
         conds.push(Cond::n("party_hp<", 50));
     }
     for c in &l.party {
@@ -74,7 +83,8 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
             verbs.push(Verb::arg("read", k));
         }
     }
-    if l.class == Class::Rogue || l.unlocks.contains("throw") {
+    if crate::hero::class_has_verb(l.class, l.class_level(), "throw") || l.unlocks.contains("throw") {
+        verbs.push(Verb::arg("throw", "unknown"));
         for k in identified_kinds(l, Cat::Potion) {
             if !item_def(k).benevolent {
                 verbs.push(Verb::arg("throw", k));
@@ -86,11 +96,22 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
     }
     let level = l.class_level();
     for (verb, lvl) in crate::hero::class_ladder(l.class) {
-        if level >= *lvl && *verb != "throw" {
-            verbs.push(Verb::new(verb));
+        if level < *lvl || *verb == "throw" {
+            continue;
+        }
+        match *verb {
+            // Targeted ranged verbs take the attack selectors.
+            "shoot" | "bolt" | "mark" | "slow" | "double_shot" => {
+                verbs.push(Verb::arg(verb, "nearest"));
+                verbs.push(Verb::arg(verb, "lowest"));
+                for t in known_tags(l) {
+                    verbs.push(Verb::arg(verb, &format!("tag:{t}")));
+                }
+            }
+            _ => verbs.push(Verb::new(verb)),
         }
     }
-    for card in TACTIC_CARDS.iter().copied().chain(["phalanx", "hit_and_fade"]) {
+    for card in TACTIC_CARDS.iter().copied().chain(MASTERY_CARDS) {
         if l.unlocks.contains(card) {
             verbs.push(Verb::arg("tactic", card));
         }
@@ -149,6 +170,16 @@ mod tests {
         assert!(!v.verbs.iter().any(|x| x.v == "throw"));
         assert!(v.verbs.iter().any(|x| x.v == "shield_bash"));
         assert_eq!(v.max_rows, 4);
+        // Cut 2: gated condition tokens and the studied tier.
+        for k in ["alert>=", "turns>", "loot>=", "on_kill", "on_see", "foe_hp<"] {
+            assert!(!v.conds.iter().any(|c| c.k == k), "{k} is gated");
+        }
+        l.unlocks.insert("cond_alert".into());
+        l.facts.insert("foe:rat:studied".into());
+        let v = vocabulary(&l);
+        assert!(v.conds.iter().any(|c| c.k == "alert>="));
+        assert!(v.conds.iter().any(|c| c.k == "foe_hp<"));
+        assert!(!v.conds.iter().any(|c| c.k == "turns>"));
         l.facts.insert("foe:jackal:pack".into());
         let f = crate::item::ident_fact(&l.flavours, "poison").unwrap();
         l.facts.insert(f);
@@ -162,5 +193,31 @@ mod tests {
         assert!(v.verbs.contains(&Verb::arg("drink", "poison")));
         assert!(v.verbs.contains(&Verb::arg("attack", "tag:pack")));
         assert_eq!(v.max_rows, 5);
+    }
+}
+
+#[cfg(test)]
+mod class_tests {
+    use super::*;
+    use crate::hero::Class;
+    #[test]
+    fn ranger_and_caster_ladders_are_level_gated() {
+        let mut l = LineageState::new(3);
+        l.class = Class::Ranger;
+        let v = vocabulary(&l);
+        assert!(v.verbs.contains(&Verb::arg("shoot", "nearest")));
+        assert!(v.verbs.contains(&Verb::new("kite")));
+        assert!(!v.verbs.iter().any(|x| x.v == "volley"));
+        l.classes.insert("ranger".into(), crate::wire::ClassProg { level: 9, xp: 0 });
+        let v = vocabulary(&l);
+        for x in ["volley", "trap", "mark", "double_shot"] {
+            assert!(v.verbs.iter().any(|y| y.v == x), "{x}");
+        }
+        l.class = Class::Caster;
+        let v = vocabulary(&l);
+        assert!(v.verbs.contains(&Verb::arg("bolt", "nearest")));
+        assert!(v.verbs.contains(&Verb::new("ward")));
+        assert!(!v.verbs.iter().any(|x| x.v == "nova"));
+        assert!(!v.verbs.iter().any(|x| x.v == "throw"), "casters need the throw unlock");
     }
 }
