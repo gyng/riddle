@@ -6,3 +6,4 @@ web/src/engine/pkg/
 art/generated/_inspection_*
 .playwright-mcp/
 __pycache__/
+docs/playtests/

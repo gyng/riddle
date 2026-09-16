@@ -20,12 +20,25 @@ export type Screen =
 
 export type Mounted = { el: HTMLElement; dispose?: () => void };
 
+/** Dev-only boot options (parsed from the URL in main.ts; `tools/dev.sh` + `tools/playtest.mjs`). */
+export type DevOptions = {
+  seed?: number;      // new lineage with this seed on a fresh boot (ignored while a save exists, unless `fresh`)
+  fresh?: boolean;    // clear the save first
+  absent?: number;    // seconds: treat last_seen as that far back, so the offline report runs
+  rules?: string;     // rule-set text for `importRules`, applied to the active set before anything else
+  speed?: number;     // watch speed to press on entering a run (1 | 4)
+  autosend?: boolean; // send straight from boot (the camp is skipped so its forecast does not queue ahead of `send`)
+};
+/** What a rater or script sees: the mounted screen, or `exit` while the exit sheet is up over a run. */
+export type DevScreen = "camp" | "watch" | "death" | "report" | "ending" | "exit";
+
 const OFFLINE_MIN_S = 60;
 const SETS = 3;
 const SAVE_DEBOUNCE_MS = 1000;
-// runOffline is chunked so the progress label can count runs. Every slice pays the worst-death verdict
-// (~2.3 s in wasm), so slices grow with the absence: 30 min for an hour away, 80 min for 8 h, 2 h cap.
-const OFFLINE_SLICE_MIN_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES = 6;
+// runOffline is chunked so the progress label can count runs. `runOfflineQuick` skips the worst-death verdict
+// (~3 s per slice; one `death(id)` at the end instead), so slices are a flat 30 min. On a stale wasm build
+// without it, the full call is used with slices that grow with the absence (80 min for 8 h, 2 h cap).
+const OFFLINE_SLICE_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES = 6;
 
 export class App {
   engine!: AsyncEngine;
@@ -37,8 +50,11 @@ export class App {
   sets: RuleSet[] = [];
   active = 0;
   loadout: number[] = [];
-  screen: Screen = { kind: "camp" };
+  view: Screen = { kind: "camp" };
+  /** True once `boot()` has settled (after the offline batch, if any). Dev inspection. */
+  booted = false;
   private root: HTMLElement;
+  private dev: DevOptions | null;
   private mounted: Mounted | null = null;
   private saveTimer = 0;
   private lastSave = "";
@@ -51,11 +67,13 @@ export class App {
   /** Runs seen by this client (the wire Lineage has no run counter); persisted in the blob. */
   runsSeen = 0;
 
-  constructor(root: HTMLElement) { this.root = root; }
+  constructor(root: HTMLElement, dev: DevOptions | null = null) { this.root = root; this.dev = dev; }
 
   async boot(): Promise<void> {
+    const dev = this.dev;
     const sel = await selectEngine();
     this.engine = sel.engine; this.kind = sel.kind; this.version = sel.version;
+    if (dev?.fresh) clearBlob();
     const blob = readBlob();
     let elapsed = 0;
     let loaded = false;
@@ -68,13 +86,21 @@ export class App {
         loaded = true;
       } catch (e) { console.warn("save rejected, new lineage", e); }
     }
-    if (!loaded) await this.fresh();
+    if (!loaded) await this.fresh(dev?.seed);
     this.adoptSets();
+    if (dev?.rules) {
+      try {
+        const set = await this.engine.importRules(dev.rules);
+        this.sets[this.active] = { rows: set.rows.map(cloneRow) };
+        await this.engine.setRules(this.rules);
+      } catch (e) { console.warn("dev rules rejected", e); }
+    }
     await this.engine.loadout(this.loadout);
     this.vocab = await this.engine.vocabulary();
     document.addEventListener("visibilitychange", () => { if (document.hidden) this.flushSync(); });
     window.addEventListener("pagehide", () => this.flushSync());
     setInterval(() => { if (!document.hidden) void this.flush(); }, 30_000);
+    if (dev?.absent) { elapsed = dev.absent; loaded = true; }
     if (loaded && elapsed >= OFFLINE_MIN_S) {
       // the camp (last state) shows underneath, inert, while the batch runs (no forecast queued ahead of it)
       this.offlineRunning = true;
@@ -83,9 +109,21 @@ export class App {
       await this.refresh();
       this.adoptSets();
       this.go({ kind: "report", report });
-    } else this.go({ kind: "camp" });
+    } else this.go({ kind: dev?.autosend ? "watch" : "camp" });
     await this.flush();
+    this.booted = true;
   }
+
+  // --- dev inspection (window.__riddle in dev builds or with ?dev=1) ---
+  /** The screen a rater sees: the mounted screen, or `exit` while the exit sheet is open over a run. */
+  get screen(): DevScreen {
+    if (this.view.kind === "watch" && document.querySelector(".sheet-wrap")) return "exit";
+    return this.view.kind;
+  }
+  /** Is the progress bar up (offline batch, forecast, verdict)? */
+  get engineBusy(): boolean { return !!document.querySelector(".busy"); }
+  /** Everything on screen as text: the mounted screen, open sheets, the busy label. */
+  text(): string { return document.body.innerText; }
 
   /** Runs an engine call behind the progress bar. */
   async busy<T>(label: string, fn: () => Promise<T>): Promise<T> {
@@ -93,19 +131,44 @@ export class App {
     try { return await fn(); } finally { b.done(); }
   }
 
-  /** `runOffline` in ≤ 30-minute slices, reports merged client-side, progress label `runs N · best Dk`. */
+  /** `runOfflineQuick` in 30-minute slices, reports merged client-side, progress label `runs N · best Dk`; then one
+   *  `death(id)` for the deepest slice's worst death (deepest, ties → later: the core's own ordering, read off the
+   *  graveyard entries each slice adds) becomes the merged report's `worst_death`. */
   async runOfflineChunked(elapsedS: number): Promise<ReturnReport> {
     this.offlineRunning = true;
     this.root.inert = true;
     const b = showBusy(/* copy:label */ "offline");
     let merged: ReturnReport | null = null;
+    let quick = true;
+    let worst: { id: number; depth: number } | null = null;
+    let graves = this.lineage.graveyard.length;
     try {
-      const slice = Math.min(OFFLINE_SLICE_MAX_S, Math.max(OFFLINE_SLICE_MIN_S, Math.ceil(elapsedS / OFFLINE_SLICES)));
+      let slice = OFFLINE_SLICE_S;
       for (let left = elapsedS; left > 0; left -= slice) {
-        const r = await this.engine.runOffline(Math.min(left, slice));
+        let r: ReturnReport;
+        if (quick) {
+          try { r = await this.engine.runOfflineQuick(Math.min(left, slice)); }
+          catch (e) {
+            if (merged) throw e;
+            // stale wasm build without runOfflineQuick: the full call, larger slices (each pays the verdict)
+            console.warn("runOfflineQuick unavailable, using runOffline", e); quick = false;
+            slice = Math.min(OFFLINE_SLICE_MAX_S, Math.max(OFFLINE_SLICE_S, Math.ceil(elapsedS / OFFLINE_SLICES)));
+            r = await this.engine.runOffline(Math.min(left, slice));
+          }
+        } else r = await this.engine.runOffline(Math.min(left, slice));
         merged = merged ? mergeReports(merged, r) : r;
+        if (r.worst_death_id !== undefined && !r.worst_death) {
+          const L = await this.engine.lineage();
+          const depth = Math.max(0, ...L.graveyard.slice(graves).map((g) => g.depth));
+          graves = L.graveyard.length;
+          if (!worst || depth >= worst.depth) worst = { id: r.worst_death_id, depth };
+        }
         const best = Math.max(this.lineage.best_depth, ...merged.bests.map((x) => Number(/^D(\d+)$/.exec(x)?.[1] ?? 0)));
         b.set(`runs ${merged.runs} · best D${best}`);
+      }
+      if (worst && !merged!.worst_death) {
+        b.set(/* copy:label */ "verdict");
+        try { merged!.worst_death = await this.engine.death(worst.id); } catch (e) { console.warn("worst death", e); }
       }
     } finally { b.done(); this.root.inert = false; this.offlineRunning = false; }
     this.runsSeen += merged!.runs;
@@ -129,8 +192,8 @@ export class App {
     this.go({ kind: "camp" });
   }
 
-  private async fresh(): Promise<void> {
-    this.lineage = await this.engine.newLineage(randomSeed());
+  private async fresh(seed?: number): Promise<void> {
+    this.lineage = await this.engine.newLineage(seed ?? randomSeed());
     this.loadout = [];
   }
   /** Take the editing copies from the engine's lineage (the engine is the source of truth). */
@@ -240,9 +303,9 @@ export class App {
   go(screen: Screen): void {
     closeAllSheets();
     this.mounted?.dispose?.();
-    this.screen = screen;
-    let m: Mounted;
     if (screen.kind === "camp" && this.lineage.ended) screen = { kind: "ending" };
+    this.view = screen;
+    let m: Mounted;
     switch (screen.kind) {
       case "camp": m = renderCamp(this, screen.highlight); break;
       case "ending": m = renderEnding(this); break;
@@ -255,6 +318,11 @@ export class App {
     this.root.dataset.screen = screen.kind;
     window.scrollTo(0, 0);
     this.persist();
+    // dev `?speed=4`: press the matching HUD speed button as the run mounts (the watch owns its clock)
+    if (screen.kind === "watch" && this.dev?.speed) {
+      const want = `${this.dev.speed}×`;
+      for (const b of m.el.querySelectorAll<HTMLButtonElement>("button.hud-btn")) if (b.textContent === want) { b.click(); break; }
+    }
   }
 }
 
@@ -277,7 +345,12 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const salv = new Map<string, { n: number; gold: number }>();
   for (const s of [...a.salvaged, ...b.salvaged]) { const m = salv.get(s.kind) ?? { n: 0, gold: 0 }; m.n += s.n; m.gold += s.gold; salv.set(s.kind, m); }
   const worst = !a.worst_death ? b.worst_death : !b.worst_death ? a.worst_death : b.worst_death.depth >= a.worst_death.depth ? b.worst_death : a.worst_death;
+  // Cut 2 fields: the report picks its layout by presence, so they stay undefined only when both sides lack them
+  const sum = (x?: number, y?: number): number | undefined => x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0);
+  const cat = (x?: string[], y?: string[]): string[] | undefined => x === undefined && y === undefined ? undefined : [...(x ?? []), ...(y ?? [])];
   return {
+    rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned),
+    bones_found: cat(a.bones_found, b.bones_found),
     elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,
     learned: union(a.learned, b.learned), bests: collapseBests(union(a.bests, b.bests)),
     found: [...a.found, ...b.found],
@@ -295,11 +368,13 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
 export const cloneRow = (r: Row): Row => ({ conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } });
 export const cloneSet = (s: RuleSet): RuleSet => ({ rows: s.rows.map(cloneRow), name: s.name });
 
-export function start(): void {
+/** `dev` is non-null in dev builds or with `?dev=1` (main.ts): boot options plus `window.__riddle` for inspection
+ *  (`__riddle.screen`, `__riddle.text()`, `__riddle.engineBusy`, `__riddle.booted`, and the App itself). */
+export function start(dev: DevOptions | null = null): void {
   const root = document.getElementById("app") ?? document.body.appendChild(document.createElement("div"));
   root.id = "app";
-  const app = new App(root);
-  if (import.meta.env.DEV) (window as unknown as { __riddle: App }).__riddle = app; // dev inspection only
+  const app = new App(root, dev);
+  if (dev) (window as unknown as { __riddle: App }).__riddle = app;
   void app.boot().catch((e) => console.error("boot failed", e));
   if (import.meta.env.PROD && "serviceWorker" in navigator) {
     window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline-first is best effort */ }); });
