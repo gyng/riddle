@@ -12,5 +12,7 @@ pub fn load(text: &str) -> Result<Game, String> {
     }
     // Cut 6 §5: counter facts carry their row.
     crate::facts::upgrade_counter_facts(&mut g.lineage.facts);
+    // Cut 9 §7: the graveyard's last five deaths stay answerable.
+    g.max_deaths = g.max_deaths.max(crate::engine::KEPT_DEATHS);
     Ok(g)
 }

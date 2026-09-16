@@ -16,7 +16,7 @@ fn main() {
                 for u in ["row5", "row6", "row7", "row8", "throw", "tame"] {
                     g.lineage.unlocks.insert(u.into());
                 }
-                g.set_rules(good.clone()).unwrap();
+                g.set_rules_raw(good.clone()).unwrap();
             }
             let r = riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
             println!("== seed {seed} {} · {} runs · best D{}", if edited { "EDITED" } else { "DEFAULT" }, r.runs, g.lineage.best_depth);

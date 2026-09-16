@@ -43,7 +43,7 @@ fn main() {
             }
             g.lineage.unlocks.insert("throw".into());
         }
-        g.set_rules(set.clone()).unwrap();
+        g.set_rules_raw(set.clone()).unwrap();
         let t = Instant::now();
         riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
         secs += t.elapsed().as_secs_f64();

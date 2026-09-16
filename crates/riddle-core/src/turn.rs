@@ -1509,7 +1509,7 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
         ExitTier::Death => Resolution::Died { cause: run.death_cause.clone().unwrap_or_else(|| "unknown".into()) },
     };
     sifter::resolve(run, res);
-    cx.events.push(Ev::Exit { t: run.turn, tier: tier.name().into(), loot_kept, line: None });
+    cx.events.push(Ev::Exit { t: run.turn, tier: tier.name().into(), loot_kept, line: None, trace: None });
     match tier {
         ExitTier::Bank => note(run, cx, format!("Banked ${loot_kept}.")),
         ExitTier::Return => note(run, cx, format!("Returned with ${loot_kept}.")),

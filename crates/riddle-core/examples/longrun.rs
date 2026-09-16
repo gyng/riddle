@@ -13,7 +13,7 @@ fn main() {
             for f in ["foe:jackal:pack", "foe:bloat:gas", "foe:goblin_archer:ranged"] {
                 g.lineage.facts.insert(f.into());
             }
-            g.set_rules(set.clone()).unwrap();
+            g.set_rules_raw(set.clone()).unwrap();
         }
         g.send();
         let mut events: Vec<Ev> = Vec::new();

@@ -1,7 +1,7 @@
 # riddle-core
 
 Deterministic roguelike sim, rule engine, facts, forecast, offline batch, chronicle, sifter,
-meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4, Cut 5, Cut 6, Cut 7). All game truth lives here; `riddle-wasm` is a JSON bridge.
+meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4, Cut 5, Cut 6, Cut 7, Cut 8B, Cut 9). All game truth lives here; `riddle-wasm` is a JSON bridge.
 
 ## Wire deviations
 
@@ -42,7 +42,7 @@ fields). Where the contract left a choice open, this is what the engine does:
   cond_loot cond_on_kill cond_on_see cond_party_hp · corridor_fighting kite_archers stair_dance
   gas_step pack_break thief_guard boss_focus last_stand · quartermaster auto_supply auto_insure
   incubator supply_cap_5 bone_sense third_tag`. `UnlockInfo.needs` is the human-readable gate
-  still missing (`"fact: ranged"`, `"tame 1"`, `"slay a boss"`, a prerequisite id for the
+  still missing (`"fact: ranged"`, `"tame once"`, `"slay a boss"`, a prerequisite id for the
   row/vault/party chains). Gates: `party_slot_2/3` tamed ≥ 1/3, `ranger`/`caster` 1/2 bosses
   slain, `tame` `item:leash`, `cond_alert` the `alert:rising` fact (learned when the floor
   alert first reaches 3), `cond_on_kill` a kill, `cond_on_see` any `foe:*`, `cond_party_hp`
@@ -730,6 +730,73 @@ Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion ver
   (30 × 8 × 8 = 2116 verdicts) reads **4.1 %** (Cut 7 head: 4.4 %), and a 16-seed × 12-verdict
   A/B on the same code reads 4.3 % against the Cut 7 head's 4.7 %. The bar is unchanged; the
   quick sample is a different set of deaths, not a worse rate.
+
+## Cut 9 (the last four points) — deviations and additions
+
+- **`Vocabulary.locked`** (§1; `tokens::locked_conds`): every condition token the editor knows
+  of but the lineage cannot use yet, `[{cond, needs}]`, `needs` ≤ 3 words — a cond unlock
+  reads its price (`◆2`) or its own shut gate (`meet a foe`, `see alert rise`); `party_hp<`
+  with the unlock but no companion `tame once`; `foe_hp<` `study a kind`; an unlearned tag of
+  a kind the hero has met (`foe:jackal` held, `foe:jackal:pack` not) `fact: pack` — tags of
+  kinds never met stay off the sheet; an unidentified potion or scroll `identify poison`; an unfound misc item
+  `find: lantern`; an unseen situation `see: stray`. A token is never both open and locked;
+  the number is the player's (`Cond::same_token` matches key and tag). Absent when empty; a
+  companion's vocabulary locks nothing; `party: K` is not a gate. **`set_rules` refuses a
+  row that uses a locked token**: `row 2: see stray is locked (see: stray)`. Sims skip the
+  check (a verdict replay or a forecast takes the lineage's rows as they are), and
+  **`Game::set_rules_raw`** writes rows past it for tests and tools (`metrics`' situation and
+  replay-hash rigs, `stories`, `longrun`, `leak`, `probe`); a row that *becomes* locked in
+  play (an ascension resets the cond unlocks, a companion is lost) still reads `locked cond`
+  in the trace.
+- **`needs` on every non-available unlock** (§2; `meta::needs`): the fact/trophy gate, else
+  the missing prerequisite's id (`row5`), else the marks short (`◆2 more`). `available` is now
+  exactly `!owned && needs.is_none()`. The forecast deltas still run for a card that is only
+  short of marks (the marks are not a gate on the sim). Gate texts moved: `party_slot_2` and
+  `cond_party_hp` read **`tame once`**, `party_slot_3` `tame 3 kinds`, `party_slot_4` `tame 6
+  kinds`, `cond_alert` `see alert rise` (3 words).
+- **Forecast `±`** (§3): `Forecast.depths[].pm` is the 95 % binomial half-width over the sims
+  that ran, `1.96·√(p(1−p)/n)` (`forecast::half_width`; 0 at a share of 0 or 1). The refine
+  pass was already the same seed sequence widened (`forecast_tag` + the sim index); its first
+  50 results are the panel's, so the number moves by at most the noise of the second fifty
+  and `pm` narrows. **Unlock deltas run the panel's seeds** (`meta::catalogue_with_deltas`):
+  the base is `reach_counted` — the panel's tag and `FORECAST_SIMS` under
+  `CATALOGUE_TICK_BUDGET` (raised 60 000 → 100 000, so a D1–5 lineage's 50 seeds fit and the
+  base *is* the panel number) — and every candidate replays exactly the seeds the base ran
+  (`reach_paired`, no budget), so a chip's delta is a paired difference over the same seeds,
+  not a second 12-seed draw. Cost: ~1 s native at D3, ~3 s at D9+ (was 0.3 / 1.5 s); the
+  client runs it off the main thread. `forecast_cache` now memoises `(reach, sims run)`.
+- **Trace on every exit** (§5): `ExitLine.trace` — the run's last `EXIT_TRACE_LEN` 5 hero
+  turns with the Cut 6 row accounting, read off the run's own 16-turn trace ring at
+  `finish_run` (nothing more per tick) — on `ReturnReport.exits[]`, on the stall verdict
+  (`Stall.trace`: the latest run the named row ended, `StallTally.traces`), and on the exit
+  event (`Ev::Exit.trace`, beside `line`; the line's own copy is dropped there so the event
+  carries it once). A death's line leaves `trace` out (`Death.trace` is the longer, 10-turn
+  one).
+- **Reel dedupe across absences** (§6; `sifter::reel(highlights, best_run, recent)`):
+  `LineageState.reel_pairs` keeps the (threat, resolution) pairs of the last `REEL_ABSENCES` 3
+  reels (each `report()` — a quick slice is a report — pushes its own), and the next reel
+  skips them. Order: the best-depth run's closing episode leads (its latest *fresh* episode
+  when the closing pair was shown lately), then three by rank where a turn beat that names a
+  row or a combo (`sifter::names_row`) outranks `no row fired` and the score breaks ties,
+  then `bones` fill to four. When nothing at all is fresh, the closing episode is the reel
+  alone — the one repeat allowed (the alternative was an empty reel). The gate test allows
+  exactly that lone line.
+- **Graveyard keeps the last five deaths** (§7): `Grave.death_id` is the run id while the
+  engine still holds the record — the last `KEPT_DEATHS` 5 graves only (`Game::prune_graves`
+  on every death); `max_deaths` is floored at 5 on insert and on load, so a save that trimmed
+  it still answers `death(id)` for those five. Older graves drop the id.
+- **Pending lines in numbers** (§8): `R1 fired 0 of 15 runs: HP<30% → drink heal` over the
+  absence's *real* runs (`Batch.run_ticks.len()`, the same window as the reel; a sampled
+  absence's extrapolated runs are not counted). `never fired` is gone. A chunked absence
+  reports per slice; the client sums the numbers if it merges slices.
+- **Forge rungs** (§10): `ForgeRow.next: {need, label}` — the ladder `FORGE_LADDER` 5
+  `craftable` · 15 `tier 1` · 40 `tier 2`, absent at the top; `ForgeRow::settle` /
+  `ForgeRow::at(n)` keep `craftable`, `tier` and `next` in step, and `to_wire` settles an older
+  save's rows.
+- **Tests**: 228 (+9). The forecast test times its own refine bound (`worst overshoot of 2·pm`
+  prints 0.000 over 30 seeds). `tools/gates.mjs` (quick) reads the same 237 verdicts as the
+  Cut 8B head (dice 5.4 % on the quick sample; see the Cut 8B gate note for the full-table
+  number).
 
 ## Layout
 

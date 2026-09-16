@@ -166,6 +166,14 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
     let stall = stall_verdict(game);
     let live = game.ensure_run();
     game.events.clear();
+    // Cut 9 §6: the reel skips the pairs of the last three absences' reels and remembers its
+    // own.
+    let recent: Vec<(String, String)> = game.lineage.reel_pairs.iter().flatten().cloned().collect();
+    let reel = crate::sifter::reel(&game.batch.highlights, game.batch.best_run.map(|(_, id)| id), &recent);
+    game.lineage.reel_pairs.push(reel.iter().filter_map(crate::sifter::pair).collect());
+    while game.lineage.reel_pairs.len() > crate::engine::REEL_ABSENCES {
+        game.lineage.reel_pairs.remove(0);
+    }
     let b = &game.batch;
     let mut deaths: Vec<DeathCount> = b.deaths.iter().map(|(c, n)| DeathCount { cause: c.clone(), n: *n }).collect();
     deaths.sort_by(|a, b| b.n.cmp(&a.n).then(a.cause.cmp(&b.cause)));
@@ -179,7 +187,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         found: b.found.iter().map(|i| to_inv(i, &game.lineage.facts, &game.lineage.flavours)).collect(),
         deaths,
         pending,
-        reel: crate::sifter::reel(&b.highlights, b.best_run.map(|(_, id)| id)),
+        reel,
         marks_earned: b.marks,
         worst_death,
         worst_death_id,
@@ -224,7 +232,8 @@ pub fn stall_verdict(game: &mut Game) -> Option<Stall> {
             p
         }
     };
-    Some(Stall { row: row as usize, fired, text, patches })
+    let trace = game.stall.traces.get(&row).cloned();
+    Some(Stall { row: row as usize, fired, text, patches, trace })
 }
 
 /// `rules` with a stall patch applied (replace / remove / insert), cut to the row cap like the editor.

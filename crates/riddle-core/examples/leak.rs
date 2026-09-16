@@ -19,7 +19,7 @@ fn main() {
                 g.lineage.facts.insert(f);
             }
         }
-        g.set_rules(set.clone()).unwrap();
+        g.set_rules_raw(set.clone()).unwrap();
         g.send();
         let mut events: Vec<Ev> = Vec::new();
         let mut runs = 0;

@@ -71,8 +71,10 @@ fn give(g: &mut Game, kind: &str) -> u32 {
     id
 }
 
+/// Rows straight into the set, locks and all (the arena tests are about the engine, not the
+/// editor's door; `set_rules_refuses_a_locked_token` tests the door).
 fn rules(g: &mut Game, rows: Vec<Row>) {
-    g.set_rules(RuleSet { rows, name: None }).unwrap();
+    g.set_rules_raw(RuleSet { rows, name: None }).unwrap();
 }
 
 fn ticks(g: &mut Game, n: u32) -> Vec<Ev> {
@@ -235,7 +237,7 @@ fn rows_beyond_unlocked_count_are_ignored() {
 #[test]
 fn rule_text_is_at_most_three_words() {
     let mut g = Game::new(11);
-    g.set_rules(crate::probes::good()).unwrap();
+    g.set_rules_raw(crate::probes::good()).unwrap();
     g.lineage.unlocks.extend(["row5", "row6", "row7", "row8"].map(String::from));
     g.send();
     let mut notes = 0;
@@ -1127,6 +1129,10 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     assert!(!stall.patches.is_empty() && stall.patches.len() <= 3);
     assert!(stall.patches.iter().all(|p| p.forecast_delta > crate::offline::STALL_DELTA), "{:?}", stall.patches);
     assert!(stall.patches.windows(2).all(|w| w[0].forecast_delta >= w[1].forecast_delta));
+    // Cut 9 §5: the verdict carries the last-5 trace of the latest run the row ended.
+    let tr = stall.trace.as_ref().expect("the stall carries a trace");
+    assert!(!tr.turns.is_empty() && tr.turns.len() <= crate::engine::EXIT_TRACE_LEN);
+    assert_eq!(tr.turns.last().unwrap().row, 0, "the last turn is the return: {:?}", tr.turns.last());
     // The client's path: 30-minute quick slices; the last slice carries the same stall.
     let mut q = Game::new(5);
     let mut set = q.lineage.rules().clone();
@@ -1385,16 +1391,57 @@ fn reel_is_three_distinct_pairs_plus_the_best_run() {
         h(1, 6, 50, "none", "banked $12"),
         Highlight { pattern: "bones".into(), score: 6, t: 1, run_id: 7, text: "Recovered heir 2's bones on D3.".into(), arc: None },
     ];
-    let reel = crate::sifter::reel(&hs, Some(6));
+    let reel = crate::sifter::reel(&hs, Some(6), &[]);
     let ids: Vec<u32> = reel.iter().map(|h| h.run_id).collect();
-    assert_eq!(ids, vec![1, 3, 4, 6], "{reel:?}");
-    assert_eq!(reel[3].t, 50, "the best run's closing episode");
+    // Cut 9 §6: the best run's closing episode leads.
+    assert_eq!(ids, vec![6, 1, 3, 4], "{reel:?}");
+    assert_eq!(reel[0].t, 50, "the best run's closing episode");
     let pairs: std::collections::BTreeSet<_> = reel.iter().filter_map(crate::sifter::pair).collect();
     assert_eq!(pairs.len(), 4);
     // Without a best run the fourth slot takes the bones highlight.
-    let reel = crate::sifter::reel(&hs, None);
+    let reel = crate::sifter::reel(&hs, None, &[]);
     assert_eq!(reel.len(), 4);
     assert_eq!(reel[3].pattern, "bones");
+}
+
+/// Cut 9 §6: the reel skips pairs the last three absences showed, prefers a turn beat that
+/// names a row or a combo over `no row fired`, and leads with the best run's closing episode
+/// (its latest fresh one when the closing pair was shown before; alone when nothing is fresh).
+#[test]
+fn reel_dedupes_across_absences_and_prefers_rows() {
+    let h = |score: i32, run_id: u32, t: u32, threat: &str, turn: &str, res: &str| Highlight {
+        pattern: "episode".into(),
+        score,
+        t,
+        run_id,
+        text: format!("{threat}; {turn}; {res}."),
+        arc: Some(HighlightArc { low_hp: 3, row: 0, threat: threat.into(), resolution: res.into() }),
+    };
+    let hs = vec![
+        h(20, 1, 10, "jackal", "no row fired", "banked $58"),
+        h(15, 2, 10, "goblin", "R2 drank", "died to a goblin"),
+        h(12, 3, 10, "gas", "the bait landed", "reached D3"),
+        h(9, 4, 10, "rat", "greed grabbed", "returned"),
+        h(2, 5, 5, "ogre", "R1 attacked", "reached D4"),
+        h(1, 5, 50, "none", "no row fired", "banked $12"),
+    ];
+    let recent = vec![("gas".to_string(), "reached D".to_string())];
+    let reel = crate::sifter::reel(&hs, Some(5), &recent);
+    let ids: Vec<(u32, u32)> = reel.iter().map(|h| (h.run_id, h.t)).collect();
+    // Lead: run 5's closing episode. Then rows first (2, then 5's opener is a repeat of run
+    // 5? no — a different pair, but its text already... it is fresh: ogre/reached D is not
+    // recent), then the rest by score; gas/reached D was shown last absence and is skipped.
+    assert_eq!(ids, vec![(5, 50), (2, 10), (5, 5), (1, 10)], "{reel:?}");
+    assert!(!reel.iter().any(|h| h.run_id == 3), "a pair shown in the last three absences is skipped");
+    // The closing pair shown before: the run's latest fresh episode leads instead.
+    let recent = vec![("none".to_string(), "banked $".to_string())];
+    let reel = crate::sifter::reel(&hs, Some(5), &recent);
+    assert_eq!(reel[0].t, 5, "{reel:?}");
+    // Nothing fresh at all: the closing episode leads alone.
+    let recent: Vec<(String, String)> = hs.iter().filter_map(crate::sifter::pair).collect();
+    let reel = crate::sifter::reel(&hs, Some(5), &recent);
+    assert_eq!(reel.len(), 1, "{reel:?}");
+    assert_eq!(reel[0].t, 50);
 }
 
 /// Gate: over 100 real runs every story line is three beats in ≤ 12 words with a table verb,
@@ -1864,7 +1911,7 @@ fn salvage_feeds_the_forge_and_tiers_apply() {
     a.run.as_mut().unwrap().hero.inv.push(d);
     let cat = a.supply_catalogue();
     assert!(!cat.iter().any(|s| s.kind == "sword"));
-    a.lineage.forge.insert("sword".into(), ForgeRow { salvaged: 6, craftable: true, tier: 0 });
+    a.lineage.forge.insert("sword".into(), ForgeRow::at(6));
     assert!(a.supply_catalogue().iter().any(|s| s.kind == "sword" && s.price == 50));
 }
 
@@ -1916,7 +1963,7 @@ fn renown_ranks_grant_marks() {
 #[test]
 fn a_full_lineage_plays_through_many_runs_without_panics() {
     let mut g = Game::new(77);
-    g.set_rules(crate::probes::good()).unwrap();
+    g.set_rules_raw(crate::probes::good()).unwrap();
     g.lineage.unlocks.extend(["row5", "row6", "row7", "row8"].map(String::from));
     g.lineage.party = crate::probes::pets_party();
     g.lineage.unlocks.insert("party_slot_2".into());
@@ -2996,9 +3043,9 @@ fn finished_lineage() -> Game {
     g.lineage.party.push(crate::probes::pets_party()[1].clone());
     g.lineage.vault.push(Item::new(100_001, "plate"));
     g.lineage.facts.insert("foe:lich:boss".into());
-    g.lineage.forge.insert("sword".into(), ForgeRow { salvaged: 20, craftable: true, tier: 1 });
+    g.lineage.forge.insert("sword".into(), ForgeRow::at(20));
     g.lineage.grudges.push(crate::descent::Grudge { kind: "ogre".into(), name: "Grak".into(), depth: 7, heir: 3 });
-    g.lineage.graveyard.push(Grave { heir: 3, depth: 7, cause: "ogre".into(), deeds: vec![] });
+    g.lineage.graveyard.push(Grave { heir: 3, depth: 7, cause: "ogre".into(), deeds: vec![], death_id: None });
     g.set_rules(crate::probes::good()).unwrap();
     g
 }
@@ -3506,7 +3553,7 @@ fn catalogue_delta_cost_by_depth() {
                 g.lineage.facts.insert(f);
             }
         }
-        g.set_rules(RuleSet::parse(&std::fs::read_to_string("presets/good.json").unwrap()).unwrap()).unwrap();
+        g.set_rules_raw(RuleSet::parse(&std::fs::read_to_string("presets/good.json").unwrap()).unwrap()).unwrap();
         g.run_offline(hours * 3600);
         g.forecast_cache.borrow_mut().clear();
         let t = std::time::Instant::now();
@@ -3864,7 +3911,7 @@ fn ledger_line_reconciles_on_every_exit() {
     for seed in 1..=30u64 {
         let mut g = Game::new(seed);
         if seed % 2 == 0 {
-            g.set_rules(crate::probes::good()).unwrap();
+            g.set_rules_raw(crate::probes::good()).unwrap();
         }
         // Half the seeds own the automations, so `spent` is exercised.
         if seed % 3 == 0 {
@@ -3902,7 +3949,8 @@ fn ledger_line_reconciles_on_every_exit() {
                     None => assert!(!line.text.contains("bones"), "{}", line.text),
                 }
                 let d = g.deaths.values().last().unwrap();
-                assert_eq!(d.death.line.as_ref(), Some(&line), "the death carries its line");
+                assert_eq!(d.death.line.as_ref(), Some(&ExitLine { trace: None, ..line.clone() }), "the death carries its line (its own trace is longer)");
+                assert!(line.trace.as_ref().is_some_and(|t| !t.turns.is_empty()), "Cut 9 §5: the exit line carries the trace");
             }
             // The ledger since the exit: the exit movement, salvage, the automations' spending.
             let tail: Vec<GoldLine> = g.lineage.gold_ledger.iter().skip(lines_before.min(g.lineage.gold_ledger.len().saturating_sub(1))).cloned().collect();
@@ -3955,7 +4003,9 @@ fn exit_event_stake_and_report_carry_the_ledger() {
             assert_eq!(r.snapshot.stake.return_row, Some(0));
             assert_eq!(r.snapshot.stake.kept, Some(r.snapshot.stake.loot * 60 / 100), "the kept number, not the carried one");
         }
-        if let Some(l) = r.events.iter().find_map(|e| if let Ev::Exit { line, .. } = e { line.clone() } else { None }) {
+        if let Some((l, tr)) = r.events.iter().find_map(|e| if let Ev::Exit { line, trace, .. } = e { line.clone().map(|l| (l, trace.clone())) } else { None }) {
+            // Cut 9 §5: the exit event carries the last-5 trace beside the line.
+            assert!(tr.is_some_and(|t| !t.turns.is_empty() && t.turns.len() <= crate::engine::EXIT_TRACE_LEN));
             line = Some(l);
             break;
         }
@@ -3964,7 +4014,8 @@ fn exit_event_stake_and_report_carry_the_ledger() {
     assert_eq!(line.keep_pct, 60);
     assert_eq!(line.kept, line.carried * 60 / 100);
     assert!(line.text.contains("return keeps 60%"), "{}", line.text);
-    assert_eq!(g.batch.exits.last(), Some(&line));
+    assert_eq!(g.batch.exits.last().map(|l| ExitLine { trace: None, ..l.clone() }), Some(line.clone()));
+    assert!(g.batch.exits.last().unwrap().trace.is_some(), "the report's exit line carries the trace");
     // Purchases, insurance, a refund and a hatch are ledger lines with ≤ 3-word reasons.
     g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
     let before = g.lineage.gold;
@@ -4051,7 +4102,7 @@ fn death_traces_account_for_every_row_above_the_fired_one() {
         let mut g = Game::new(seed);
         g.max_deaths = 1000;
         if seed % 2 == 0 {
-            g.set_rules(crate::probes::good()).unwrap();
+            g.set_rules_raw(crate::probes::good()).unwrap();
         }
         crate::offline::run_offline_quick(&mut g, 4 * 3600);
         let n_rows = g.lineage.rules().rows.len().min(g.lineage.max_rows());
@@ -4173,7 +4224,7 @@ fn counter_facts_carry_the_row() {
     assert_eq!(l.counters[0].text, "attack boss");
     assert_eq!(l.counters[0].row, Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")));
     // The `stair_dance` gate ("a boss counter") reads the new form.
-    assert!(g.unlocks().iter().find(|u| u.id == "stair_dance").unwrap().needs.is_none());
+    assert!(crate::meta::gate(&g.lineage, "stair_dance").is_none());
     // An old save's fact is upgraded on load.
     g.lineage.facts.insert("boss:lich:counter".into());
     let g2 = Game::load(&g.save()).unwrap();
@@ -4251,7 +4302,7 @@ fn boss_deaths_show_the_counter_row_first() {
 #[test]
 fn forecast_is_deterministic_per_rules_and_lineage() {
     let mut g = Game::new(11);
-    g.set_rules(crate::probes::good()).unwrap();
+    g.set_rules_raw(crate::probes::good()).unwrap();
     let a = g.forecast();
     let b = g.forecast();
     assert_eq!(a, b);
@@ -4270,7 +4321,7 @@ fn forecast_is_deterministic_per_rules_and_lineage() {
     // A second game with the same seed and rules reads the same forecast; the seeds are the
     // forecast's own (a different rule set draws its own seeds).
     let mut h = Game::new(11);
-    h.set_rules(crate::probes::good()).unwrap();
+    h.set_rules_raw(crate::probes::good()).unwrap();
     assert_eq!(h.forecast(), a);
     let t1 = crate::forecast::forecast_tag(&g, g.lineage.rules(), 1);
     let t2 = crate::forecast::forecast_tag(&g, &crate::probes::preset(Class::Fighter), 1);
@@ -4308,7 +4359,7 @@ fn row_origins_preset_and_card() {
     let mut set = g.lineage.rules().clone();
     set.rows.insert(0, Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("tactic", "boss_focus")));
     set.rows.push(Row::new(vec![], Verb::new("rest")));
-    g.set_rules(set).unwrap();
+    g.set_rules_raw(set).unwrap();
     let rows = &g.lineage.rules().rows;
     assert_eq!(rows[0].origin.as_deref(), Some("card"), "a bare tactic row is a card's");
     assert!(rows[3].origin.is_none(), "the client tags patch/player rows");
@@ -4746,4 +4797,355 @@ fn the_first_stray_waits_on_d2_or_d3_for_the_kennel_leash() {
         }
     }
     assert!(tamed);
+}
+
+
+// ---------------------------------------------------------------- Cut 9 (the last four points)
+
+/// §1: the vocabulary lists every gated condition token with its ≤ 3-word gate, none of them
+/// among the open ones, and `set_rules` refuses a row that uses one, naming the token.
+#[test]
+fn vocabulary_lists_locked_conds_and_set_rules_refuses_them() {
+    let mut g = Game::new(3);
+    let v = g.vocabulary();
+    assert!(!v.locked.is_empty());
+    for l in &v.locked {
+        assert!(!v.conds.iter().any(|c| c.same_token(&l.cond)), "{:?} is open and locked", l.cond);
+        assert!(!l.needs.is_empty() && word_count(&l.needs) <= 3, "{:?}: {}", l.cond, l.needs);
+    }
+    let needs = |v: &crate::rules::Vocabulary, c: &Cond| v.locked.iter().find(|l| l.cond.same_token(c)).map(|l| l.needs.clone());
+    assert_eq!(needs(&v, &Cond::t("on_see", "stray")).as_deref(), Some("see: stray"));
+    assert_eq!(needs(&v, &Cond::flag("on_see")).as_deref(), Some("meet a foe"), "the unlock's own gate while shut");
+    assert_eq!(needs(&v, &Cond::n("turns>", 100)).as_deref(), Some("◆2"), "an open unlock: its price");
+    assert!(needs(&v, &Cond::t("foe_tag", "pack")).is_none(), "no jackal met yet: its tag is not on the sheet");
+    g.lineage.facts.insert("foe:jackal".into());
+    let v = g.vocabulary();
+    assert_eq!(needs(&v, &Cond::t("foe_tag", "pack")).as_deref(), Some("fact: pack"));
+    assert_eq!(needs(&v, &Cond::t("foe_tag", "fast")).as_deref(), Some("fact: fast"));
+    assert!(needs(&v, &Cond::t("foe_tag", "mirror")).is_none(), "a tag of a kind never met");
+    g.lineage.facts.insert("foe:jackal:pack".into());
+    let v = g.vocabulary();
+    assert!(v.conds.contains(&Cond::t("foe_tag", "pack")) && needs(&v, &Cond::t("foe_tag", "pack")).is_none());
+    assert_eq!(needs(&v, &Cond::n("foe_hp<", 25)).as_deref(), Some("study a kind"));
+    assert_eq!(needs(&v, &Cond::n("party_hp<", 50)).as_deref(), Some("tame once"));
+    assert!(needs(&v, &Cond::t("item", "heal")).is_some_and(|n| n.starts_with("identify ")));
+    assert_eq!(needs(&v, &Cond::t("item", "lantern")).as_deref(), Some("find: lantern"));
+    assert!(needs(&v, &Cond::t("item", "leash")).is_none(), "the kennel's leash is a fact from the start");
+    assert!(serde_json::to_string(&v).unwrap().contains(r#""locked":[{"cond":"#));
+    // The door: a locked token is refused by name; the number is the player's.
+    let row = |c: Cond| RuleSet { rows: vec![Row::new(vec![c], Verb::arg("tame", "nearest"))], name: None };
+    let e = g.set_rules(row(Cond::t("on_see", "stray"))).unwrap_err();
+    assert!(e.contains("see stray") && e.contains("locked") && e.contains("see: stray"), "{e}");
+    let e = g.set_rules(row(Cond::n("turns>", 7))).unwrap_err();
+    assert!(e.contains("turns 7+") && e.contains("◆2"), "{e}");
+    let e = g.set_rules(row(Cond::n("alert>=", 7))).unwrap_err();
+    assert!(e.contains("alert 7+") && e.contains("see alert rise"), "{e}");
+    // Open the gates: the fact, the unlock.
+    g.lineage.facts.insert("stray".into());
+    g.lineage.unlocks.insert("cond_turns".into());
+    let v = g.vocabulary();
+    assert!(v.conds.contains(&Cond::t("on_see", "stray")) && needs(&v, &Cond::t("on_see", "stray")).is_none());
+    assert!(v.conds.iter().any(|c| c.k == "turns>") && needs(&v, &Cond::n("turns>", 7)).is_none());
+    g.set_rules(row(Cond::t("on_see", "stray"))).unwrap();
+    g.set_rules(row(Cond::n("turns>", 7))).unwrap();
+    // A sim (a verdict replay, a forecast) takes the lineage's rows as they are.
+    let mut sim = g.sim_clone();
+    sim.set_rules(row(Cond::t("foe_tag", "pack"))).unwrap();
+    // A companion's vocabulary locks nothing.
+    assert!(crate::tokens::companion_vocabulary(&g.lineage, &crate::probes::pets_party()[0]).locked.is_empty());
+}
+
+/// §2: every unlock that is not `available` carries a non-empty ≤ 3-word `needs` — at a
+/// fresh lineage, with marks to spare, and after an ascension; party slots read `tame once`.
+#[test]
+fn every_unavailable_unlock_carries_needs() {
+    let check = |g: &Game, when: &str| {
+        for u in g.unlocks() {
+            if u.owned {
+                assert!(u.needs.is_none(), "{when}: {} owned with needs", u.id);
+            } else if u.available {
+                assert!(u.needs.is_none(), "{when}: {} available with needs {:?}", u.id, u.needs);
+            } else {
+                let n = u.needs.as_deref().unwrap_or_else(|| panic!("{when}: {} unavailable without needs", u.id));
+                assert!(!n.is_empty() && word_count(n) <= 3, "{when}: {} needs {n:?}", u.id);
+            }
+        }
+    };
+    let mut g = Game::new(4);
+    check(&g, "fresh");
+    let by = |g: &Game, id: &str| g.unlocks().into_iter().find(|u| u.id == id).unwrap();
+    assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame once"));
+    assert_eq!(by(&g, "row5").needs.as_deref(), Some("◆2 more"));
+    assert_eq!(by(&g, "row6").needs.as_deref(), Some("row5"));
+    g.lineage.marks = 100;
+    check(&g, "rich");
+    assert!(by(&g, "row5").available && by(&g, "row5").needs.is_none());
+    assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame once"));
+    let mut g = finished_lineage();
+    g.ascend("short_list").unwrap();
+    check(&g, "ascended");
+    g.lineage.marks = 100;
+    check(&g, "ascended, rich");
+    // A card short of marks still shows a delta once simulated (the marks are not a gate).
+    let mut g = Game::new(2);
+    g.lineage.facts.insert("foe:jackal:pack".into());
+    g.lineage.best_depth = 1;
+    let c = g.unlock_deltas().into_iter().find(|u| u.id == "corridor_fighting").unwrap();
+    assert_eq!(c.needs.as_deref(), Some("◆3 more"));
+    assert!(c.delta.is_some(), "{c:?}");
+}
+
+/// §3: the forecast carries `pm` (the binomial half-width), two reads of an unchanged set are
+/// identical, the refine pass widens the same seed sequence (its first 50 results are the
+/// panel's) so its number lands within the panel's `±` of the first, and the unlock deltas
+/// run the panel's seeds (a shallow lineage's base *is* the panel number).
+#[test]
+fn forecast_pm_and_refine_share_the_panel_seeds() {
+    let mut worst = 0.0f64;
+    // A set that dives at once and fights what it meets: short sims, a real miss rate.
+    let dive = RuleSet { rows: vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")), Row::new(vec![], Verb::new("descend"))], name: None };
+    for seed in 1..=30u64 {
+        let mut g = Game::new(seed);
+        g.set_rules(dive.clone()).unwrap();
+        g.lineage.best_depth = 1;
+        let a = g.forecast();
+        if seed <= 12 {
+            assert_eq!(a, g.forecast(), "seed {seed}: two reads differ");
+        }
+        // A D2 sim is short: all fifty run.
+        let n = crate::forecast::FORECAST_SIMS as usize;
+        for d in &a.depths {
+            let pm = d.pm.expect("pm on every depth");
+            let want = 1.96 * (d.reach * (1.0 - d.reach) / n as f64).sqrt();
+            assert!((pm - want).abs() < 1e-9, "seed {seed} D{}: pm {pm} vs {want}", d.depth);
+            assert!((0.0..=0.5).contains(&pm));
+        }
+        if seed > 6 {
+            continue;
+        }
+        let r = g.forecast_refine();
+        assert_eq!(r.known_to, a.known_to);
+        for (x, y) in a.depths.iter().zip(&r.depths) {
+            let pm = x.pm.unwrap();
+            let diff = (x.reach - y.reach).abs();
+            worst = worst.max(diff - 2.0 * pm);
+            // A share at 0 or 1 has no width; one more miss in the second fifty is 1/100.
+            assert!(diff <= 2.0 * pm + 0.02, "seed {seed} D{}: {:.2} → {:.2} (±{pm:.2})", x.depth, x.reach, y.reach);
+            assert!(y.pm.unwrap() <= pm + 1e-9 || pm == 0.0, "the refine narrows the width");
+        }
+    }
+    // The refine's first fifty are the panel's own sims.
+    let mut g = Game::new(7);
+    g.set_rules(dive.clone()).unwrap();
+    g.lineage.best_depth = 2;
+    let rules = g.lineage.rules().clone();
+    let tag = crate::forecast::forecast_tag(&g, &rules, 3);
+    let a = crate::forecast::simulate_budget(&g, &rules, 50, tag, 3, u64::MAX);
+    let b = crate::forecast::simulate_budget(&g, &rules, 100, tag, 3, u64::MAX);
+    assert_eq!(b.len(), 100);
+    for (x, y) in a.iter().zip(&b) {
+        assert_eq!((x.max_depth, x.tier, &x.cause), (y.max_depth, y.tier, &y.cause));
+    }
+    // The unlock deltas' base is the panel's number at `best_depth + 1`.
+    g.lineage.facts.insert("foe:jackal:pack".into());
+    g.lineage.facts.insert("foe:jackal:fast".into());
+    let panel = g.forecast();
+    let cat = g.unlock_deltas();
+    assert!(cat.iter().any(|u| u.delta.is_some()));
+    let (base, n) = *g.forecast_cache.borrow().get(&crate::forecast::reach_key(&g, g.lineage.rules(), 3, crate::forecast::FORECAST_SIMS, tag, crate::forecast::CATALOGUE_TICK_BUDGET)).expect("the base is memoised");
+    if n == crate::forecast::FORECAST_SIMS {
+        assert_eq!(base, panel.depths[2].reach, "the base is the panel's own number");
+    } else {
+        // The catalogue budget stopped the base short: it is the panel's first `n` seeds.
+        let first = crate::forecast::simulate_budget(&g, g.lineage.rules(), n, tag, 3, u64::MAX);
+        assert_eq!(base, first.iter().filter(|r| r.max_depth >= 3).count() as f64 / n as f64);
+    }
+    assert_eq!(g.unlock_deltas(), cat, "a second read is the same");
+    eprintln!("refine vs panel: worst overshoot of 2·pm {worst:.3}");
+}
+
+/// §5: every exit — bank, return, death — carries its last five hero turns with row
+/// accounting on the report's exit lines and on the exit event; a death's trace is its own.
+#[test]
+fn every_exit_carries_a_five_turn_trace_with_row_accounting() {
+    let mut tiers: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut exits = 0;
+    for seed in 1..=12u64 {
+        let mut g = Game::new(seed);
+        if seed % 3 == 0 {
+            let mut set = g.lineage.rules().clone();
+            set.rows.insert(0, Row::new(vec![Cond::n("hp<", 40)], Verb::new(if seed % 2 == 0 { "bank" } else { "return" })));
+            g.set_rules(set).unwrap();
+        }
+        let r = crate::offline::run_offline_quick(&mut g, 3 * 3600);
+        for line in &r.exits {
+            exits += 1;
+            let tr = line.trace.as_ref().unwrap_or_else(|| panic!("seed {seed}: an exit line without a trace: {}", line.text));
+            assert!(!tr.turns.is_empty() && tr.turns.len() <= crate::engine::EXIT_TRACE_LEN, "{}", line.text);
+            assert!(tr.turns.windows(2).all(|w| w[0].t < w[1].t));
+            for t in &tr.turns {
+                if let Some(rows) = &t.rows {
+                    assert!(!rows.is_empty());
+                    assert!(rows.iter().all(|w| crate::turn::row_reason_ok(&w.why)), "{rows:?}");
+                }
+            }
+            tiers.insert(line.text.split(" keeps ").next().unwrap().rsplit(' ').next().unwrap().to_string());
+        }
+        // A death's record has its own, longer trace; its line leaves it out.
+        for rec in g.deaths.values() {
+            assert!(rec.death.line.as_ref().is_some_and(|l| l.trace.is_none()));
+            assert!(!rec.death.trace.turns.is_empty());
+        }
+    }
+    assert!(exits >= 12, "{exits} exits");
+    assert!(tiers.contains("return") && tiers.contains("death"), "{tiers:?}");
+    // The exit event of a watched run carries the same trace beside its line.
+    let mut g = arena();
+    g.run.as_mut().unwrap().loot_add(50);
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp>", 10)], Verb::new("return")), Row::new(vec![], Verb::new("rest"))]);
+    let r = g.step(40);
+    let (line, trace) = r.events.iter().find_map(|e| if let Ev::Exit { line, trace, tier, .. } = e { assert_eq!(tier, "return"); Some((line.clone(), trace.clone())) } else { None }).expect("the return");
+    assert!(line.is_some_and(|l| l.trace.is_none()), "the line's copy rides on the event, once");
+    let trace = trace.expect("the exit event's trace");
+    assert!(!trace.turns.is_empty() && trace.turns.len() <= crate::engine::EXIT_TRACE_LEN);
+    assert_eq!(trace.turns.last().unwrap().verb.v, "return");
+    assert_eq!(trace, g.batch.exits.last().unwrap().trace.clone().unwrap());
+}
+
+/// §6: over three consecutive absences a (threat, resolution) pair shows on at most one reel;
+/// the fourth absence may repeat the first's. The best-depth run's closing episode leads.
+#[test]
+fn reel_pairs_never_repeat_across_three_absences() {
+    let mut checked = 0;
+    for seed in 1..=10u64 {
+        let mut g = Game::new(seed);
+        let mut reels: Vec<Vec<(String, String)>> = Vec::new();
+        for _ in 0..6 {
+            let r = crate::offline::run_offline_quick(&mut g, 2 * 3600);
+            let pairs: Vec<(String, String)> = r.reel.iter().filter_map(crate::sifter::pair).collect();
+            // Within a reel: distinct pairs.
+            let set: std::collections::BTreeSet<_> = pairs.iter().cloned().collect();
+            assert_eq!(set.len(), pairs.len(), "seed {seed}: {:?}", r.reel);
+            // The best run leads whenever one of its episodes is on the reel.
+            if let (Some((_, best)), Some(first)) = (g.batch.best_run, r.reel.first()) {
+                if r.reel.iter().any(|h| h.run_id == best && h.arc.is_some()) {
+                    assert_eq!(first.run_id, best, "seed {seed}: the best run leads: {:?}", r.reel);
+                }
+            }
+            reels.push(pairs);
+            assert_eq!(g.lineage.reel_pairs.len(), reels.len().min(crate::engine::REEL_ABSENCES));
+        }
+        for w in reels.windows(3) {
+            let all: Vec<&(String, String)> = w.iter().flatten().collect();
+            let set: std::collections::BTreeSet<_> = all.iter().cloned().collect();
+            // The one allowed repeat: a reel with nothing fresh leads with the closing episode alone.
+            let lone = w.iter().filter(|r| r.len() == 1).count();
+            assert!(set.len() + lone >= all.len(), "seed {seed}: a pair repeated within three absences: {w:?}");
+            checked += 1;
+        }
+    }
+    assert!(checked >= 30);
+    // The memory survives a save.
+    let mut g = Game::new(2);
+    crate::offline::run_offline_quick(&mut g, 3600);
+    let g2 = Game::load(&g.save()).unwrap();
+    assert_eq!(g2.lineage.reel_pairs, g.lineage.reel_pairs);
+}
+
+/// §7: the graveyard's last five deaths keep `death_id`, the engine keeps their records
+/// through a save (even one that trimmed `max_deaths`), and `death(id)` answers for each.
+#[test]
+fn graveyard_keeps_the_last_five_deaths_answerable() {
+    let mut g = Game::new(3);
+    // A set that fights everything and never comes home: a death an hour or so.
+    g.set_rules(RuleSet { rows: vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")), Row::new(vec![], Verb::new("descend"))], name: None }).unwrap();
+    let mut hours = 0;
+    while g.lineage.graveyard.len() < 7 && hours < 48 {
+        crate::offline::run_offline_quick(&mut g, 2 * 3600);
+        hours += 2;
+    }
+    let n = g.lineage.graveyard.len();
+    assert!(n >= 7, "{n} deaths in {hours} h");
+    let gy = &g.lineage.graveyard;
+    for (i, grave) in gy.iter().enumerate() {
+        if i + crate::engine::KEPT_DEATHS < n {
+            assert!(grave.death_id.is_none(), "grave {i} of {n} keeps an id");
+        } else {
+            let id = grave.death_id.unwrap_or_else(|| panic!("grave {i} of {n} has no id"));
+            assert!(g.deaths.contains_key(&id));
+        }
+    }
+    let ids: Vec<u32> = gy.iter().filter_map(|x| x.death_id).collect();
+    assert_eq!(ids.len(), crate::engine::KEPT_DEATHS);
+    assert!(serde_json::to_string(&g.lineage()).unwrap().contains(r#""death_id":"#));
+    // Through a save that trimmed the record cap: five stay, and each answers.
+    g.max_deaths = 1;
+    let mut g2 = Game::load(&g.save()).unwrap();
+    assert_eq!(g2.max_deaths, crate::engine::KEPT_DEATHS);
+    for id in &ids {
+        assert!(g2.deaths.contains_key(id), "death {id} lost in the save");
+    }
+    let d = g2.death(ids[0]).expect("the oldest kept death answers");
+    assert_eq!(d.run_id, ids[0]);
+    assert!(!d.trace.turns.is_empty() && d.line.is_some());
+    // A sixth death after the load drops the oldest id.
+    let before = ids.clone();
+    let mut more = 0;
+    while g2.lineage.graveyard.len() == n && more < 12 {
+        crate::offline::run_offline_quick(&mut g2, 2 * 3600);
+        more += 1;
+    }
+    assert!(g2.lineage.graveyard.len() > n);
+    assert!(g2.lineage.graveyard.iter().all(|x| x.death_id != Some(before[0])), "the oldest id is gone");
+    assert_eq!(g2.lineage.graveyard.iter().filter(|x| x.death_id.is_some()).count(), crate::engine::KEPT_DEATHS);
+}
+
+/// §8: a pending line for a silent row counts the absence's runs in numbers.
+#[test]
+fn pending_counts_a_silent_row_over_the_absence() {
+    let mut g = Game::new(6);
+    let mut set = g.lineage.rules().clone();
+    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 1)], Verb::new("bank")));
+    g.set_rules(set).unwrap();
+    let r = crate::offline::run_offline_quick(&mut g, 2 * 3600);
+    let runs = g.batch.run_ticks.len();
+    assert!(runs >= 2, "{runs} runs");
+    let line = r.pending.iter().find(|p| p.starts_with("R1 fired 0 of ")).unwrap_or_else(|| panic!("{:?}", r.pending));
+    assert!(line.starts_with(&format!("R1 fired 0 of {runs} runs: ")), "{line}");
+    assert!(!r.pending.iter().any(|p| p.contains("never")), "{:?}", r.pending);
+    // The attack row fires every run: no line.
+    let attack = g.lineage.rules().rows.iter().position(|r| r.verb.v == "attack").unwrap();
+    assert!(!r.pending.iter().any(|p| p.starts_with(&format!("R{} fired", attack + 1))), "{:?}", r.pending);
+}
+
+/// §10: forge rows carry the ladder's next rung.
+#[test]
+fn forge_rows_carry_the_next_rung() {
+    let next = |n: u32| ForgeRow::at(n).next.map(|x| (x.need, x.label));
+    assert_eq!(next(0), Some((5, "craftable".into())));
+    assert_eq!(next(3), Some((5, "craftable".into())));
+    let r = ForgeRow::at(5);
+    assert!(r.craftable && r.tier == 0);
+    assert_eq!(next(5), Some((15, "tier 1".into())));
+    assert_eq!(ForgeRow::at(15).tier, 1);
+    assert_eq!(next(20), Some((40, "tier 2".into())));
+    assert_eq!(ForgeRow::at(40).tier, 2);
+    assert_eq!(next(40), None);
+    assert_eq!(next(99), None);
+    // On the wire, an older save's row settles too.
+    let mut g = Game::new(1);
+    g.lineage.forge.insert("sword".into(), ForgeRow { salvaged: 3, ..Default::default() });
+    let l = g.lineage();
+    assert_eq!(l.forge["sword"].next.as_ref().map(|x| (x.need, x.label.as_str())), Some((5, "craftable")));
+    assert!(serde_json::to_string(&l).unwrap().contains(r#""next":{"need":5,"label":"craftable"}"#));
+    // Salvage climbs the ladder.
+    let mut g = arena();
+    for _ in 0..6 {
+        give(&mut g, "sword");
+    }
+    finish_with(&mut g, ExitTier::Bank);
+    g.keep(vec![]).unwrap();
+    let f = &g.lineage.forge["sword"];
+    assert!(f.salvaged >= 5 && f.craftable, "{f:?}");
+    assert_eq!(f.next.as_ref().map(|x| x.need), Some(15));
 }

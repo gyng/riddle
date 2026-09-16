@@ -50,6 +50,18 @@ pub struct Vocabulary {
     /// Cut 8B §1: the combo table (`COMBOS`), so the editor can name a pair as it is written.
     #[serde(default)]
     pub combos: Vec<Combo>,
+    /// Cut 9 §1: condition tokens that exist but are gated for this lineage, each with the
+    /// gate as the player reads it (`fact: pack`, `◆2`, `see: stray`, `tame once`). The sheet
+    /// shows them dim; `set_rules` refuses a row that uses one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub locked: Vec<LockedCond>,
+}
+
+/// Cut 9 §1: a gated condition token and its ≤ 3-word gate.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct LockedCond {
+    pub cond: Cond,
+    pub needs: String,
 }
 
 /// Cut 8B §1: a combo on the wire — two verb patterns (`shield_bash`, `drink unknown`) that
@@ -188,6 +200,10 @@ impl Cond {
     }
     pub fn valid(&self) -> bool {
         COND_KEYS.contains(&self.k.as_str())
+    }
+    /// Cut 9 §1: the same token — key and tag; the number is the player's to edit.
+    pub fn same_token(&self, o: &Cond) -> bool {
+        self.k == o.k && self.t == o.t
     }
 }
 

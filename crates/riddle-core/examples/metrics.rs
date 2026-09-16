@@ -174,7 +174,7 @@ fn setup(bot: Bot, seed: u64) -> Game {
                     g.lineage.facts.insert(f.into());
                 }
             }
-            g.set_rules(if bot == Bot::Trivial { riddle_core::probes::trivial() } else { riddle_core::probes::countered() }).unwrap();
+            g.set_rules_raw(if bot == Bot::Trivial { riddle_core::probes::trivial() } else { riddle_core::probes::countered() }).unwrap();
         }
         Bot::Full | Bot::FullNo23 | Bot::FullNo28 | Bot::FullNo33 => {
             // Everything a finished lineage has: every unlock, every fact, a mastered fighter.
@@ -538,7 +538,7 @@ fn main() {
             }
         }
         let mut g2 = Game::new(g.lineage.seed);
-        g2.set_rules(good()).unwrap();
+        g2.set_rules_raw(good()).unwrap();
         let rep = g2.run_offline(1800);
         let s = serde_json::to_string(&rep).unwrap() + &g2.save();
         for b in s.bytes() {
@@ -548,9 +548,9 @@ fn main() {
         h
     };
     let mut ga = Game::new(7);
-    ga.set_rules(good()).unwrap();
+    ga.set_rules_raw(good()).unwrap();
     let mut gb = Game::new(7);
-    gb.set_rules(good()).unwrap();
+    gb.set_rules_raw(good()).unwrap();
     let (ha, hb) = (hash_of(&mut ga), hash_of(&mut gb));
     rows.push(("Replay hash identical (seed+rules+elapsed)".into(), format!("{ha:016x}"), ha == hb));
     let known_ok = all.iter().all(|r| r.known_to_ok);

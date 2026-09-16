@@ -959,34 +959,51 @@ pub fn sift(run: &Run, l: &LineageState) -> Vec<Highlight> {
     sift_with(run, named)
 }
 
-/// The reel: the top three episodes by score (never two with the same (threat, resolution)),
-/// plus the closing episode of the run that reached the best depth; other highlights
-/// (`bones`) fill to four.
-pub fn reel(highlights: &[Highlight], best_run: Option<u32>) -> Vec<Highlight> {
+/// Cut 9 §6: does the highlight's turn beat name a row or a combo (`R2 drank`, `the bait
+/// landed`) rather than a trait or `no row fired`?
+pub fn names_row(h: &Highlight) -> bool {
+    let Some(body) = h.text.strip_suffix('.') else { return false };
+    let beats: Vec<&str> = body.split("; ").collect();
+    if beats.len() != 3 {
+        return false;
+    }
+    let turn = beats[1];
+    (turn.starts_with('R') && turn.chars().nth(1).is_some_and(|c| c.is_ascii_digit())) || (turn.starts_with("the ") && turn.ends_with(" landed"))
+}
+
+/// The reel: the best-depth run's closing episode leads, then the top episodes by score to
+/// three — never two with the same (threat, resolution), and never a pair in `recent` (the
+/// last three absences' reels, Cut 9 §6); an episode whose turn beat names a row or a combo
+/// outranks one that reads `no row fired`. Other highlights (`bones`) fill to four. When the
+/// best run's closing pair was shown lately its latest fresh episode leads instead; when
+/// nothing at all is fresh, the closing episode is the reel alone (the one repeat allowed).
+pub fn reel(highlights: &[Highlight], best_run: Option<u32>, recent: &[(String, String)]) -> Vec<Highlight> {
     let mut eps: Vec<&Highlight> = highlights.iter().filter(|h| h.arc.is_some()).collect();
-    eps.sort_by(|a, b| b.score.cmp(&a.score).then(a.run_id.cmp(&b.run_id)).then(a.t.cmp(&b.t)));
+    eps.sort_by(|a, b| names_row(b).cmp(&names_row(a)).then(b.score.cmp(&a.score)).then(a.run_id.cmp(&b.run_id)).then(a.t.cmp(&b.t)));
     let mut out: Vec<Highlight> = Vec::new();
-    let mut seen: Vec<(String, String)> = Vec::new();
+    let mut seen: Vec<(String, String)> = recent.to_vec();
+    let fresh = |h: &Highlight, seen: &[(String, String)], out: &[Highlight]| !seen.contains(&pair(h).unwrap()) && !out.iter().any(|o| o.text == h.text);
+    let mut mine: Vec<&Highlight> = eps.iter().copied().filter(|h| Some(h.run_id) == best_run).collect();
+    mine.sort_by_key(|b| std::cmp::Reverse(b.t));
+    if let Some(c) = mine.iter().find(|h| fresh(h, &seen, &out)) {
+        seen.push(pair(c).unwrap());
+        out.push((*c).clone());
+    }
+    // Three by rank after the lead (the lead's own slot is its own).
+    let cap = 3 + out.len();
     for h in &eps {
-        if out.len() >= 3 {
+        if out.len() >= cap {
             break;
         }
-        let p = pair(h).unwrap();
-        if seen.contains(&p) || out.iter().any(|o| o.text == h.text) {
+        if !fresh(h, &seen, &out) {
             continue;
         }
-        seen.push(p);
+        seen.push(pair(h).unwrap());
         out.push((*h).clone());
     }
-    if let Some(r) = best_run {
-        if !out.iter().any(|h| h.run_id == r) {
-            let mut mine: Vec<&Highlight> = eps.iter().copied().filter(|h| h.run_id == r).collect();
-            // The closing episode first, then the run's others by score.
-            mine.sort_by_key(|b| std::cmp::Reverse(b.t));
-            if let Some(c) = mine.iter().find(|h| !seen.contains(&pair(h).unwrap())) {
-                seen.push(pair(c).unwrap());
-                out.push((*c).clone());
-            }
+    if out.is_empty() {
+        if let Some(c) = mine.first() {
+            out.push((*c).clone());
         }
     }
     let mut rest: Vec<&Highlight> = highlights.iter().filter(|h| h.arc.is_none()).collect();

@@ -93,7 +93,10 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let results = simulate_budget(game, rules, sims, tag, known_to, budget);
     let n = results.len().max(1) as f64;
     let depths = (1..=known_to)
-        .map(|d| ForecastDepth { depth: d, reach: results.iter().filter(|r| r.max_depth >= d).count() as f64 / n })
+        .map(|d| {
+            let reach = results.iter().filter(|r| r.max_depth >= d).count() as f64 / n;
+            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, results.len())) }
+        })
         .collect();
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
     let mut deaths = 0u32;
@@ -111,6 +114,14 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     Forecast { depths, causes, known_to }
 }
 
+/// Cut 9 §3: the 95 % binomial half-width of a share `p` over `n` sims (`1.96·√(p(1−p)/n)`).
+pub fn half_width(p: f64, n: usize) -> f64 {
+    if n == 0 {
+        return 0.0;
+    }
+    1.96 * (p * (1.0 - p) / n as f64).sqrt()
+}
+
 /// Fraction of sims reaching `depth` with `rules`. Cut 4: memoised on the game per (lineage,
 /// rules, depth, sims, tag) — a verdict, the stall verdict and the unlock deltas all ask for
 /// the same unpatched base at the same depth, and a batch of verdicts asks for it per death.
@@ -121,31 +132,45 @@ pub fn reach_with(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64)
 
 /// Cut 4 §9: the unlock catalogue's deltas run under a tighter tick budget per forecast
 /// (`MIN_SIMS` always), so a deep lineage's camp visit pays seconds, not tens of seconds.
-pub const CATALOGUE_TICK_BUDGET: u64 = 60_000;
+/// Cut 9 §3: 100 000 — a D1–5 lineage's 50 panel seeds fit (the base then *is* the panel
+/// number); deeper, the base runs as many seeds as fit and every candidate replays exactly
+/// those (`reach_paired`), so a delta is always a paired difference over the same seeds.
+pub const CATALOGUE_TICK_BUDGET: u64 = 100_000;
 
 pub fn reach_budget(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, budget: u64) -> f64 {
-    if let Some(v) = reach_cached(game, rules, depth, sims, tag, budget) {
-        return v;
-    }
+    reach_counted(game, rules, depth, sims, tag, budget).0
+}
+
+/// `reach_budget` with the number of sims that ran (the budget may have stopped it short).
+pub fn reach_counted(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, budget: u64) -> (f64, u32) {
     let key = reach_key(game, rules, depth, sims, tag, budget);
+    if let Some(v) = game.forecast_cache.borrow().get(&key) {
+        return *v;
+    }
     let results = simulate_budget(game, rules, sims, tag, depth, budget);
     let v = results.iter().filter(|r| r.max_depth >= depth).count() as f64 / results.len().max(1) as f64;
     let mut cache = game.forecast_cache.borrow_mut();
     if cache.len() >= FORECAST_CACHE_MAX {
         cache.clear();
     }
-    cache.insert(key, v);
-    v
+    cache.insert(key, (v, results.len() as u32));
+    (v, results.len() as u32)
+}
+
+/// Cut 9 §3: the reach of `rules` over exactly the first `n` seeds of `tag` (no tick budget),
+/// to pair a candidate with a base that ran `n` (`reach_counted`).
+pub fn reach_paired(game: &Game, rules: &RuleSet, depth: u32, n: u32, tag: u64) -> f64 {
+    reach_counted(game, rules, depth, n.max(1), tag, u64::MAX).0
 }
 
 pub const FORECAST_CACHE_MAX: usize = 256;
 
 /// The memoised reach, if this game already computed it (no sims).
 pub fn reach_cached(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, budget: u64) -> Option<f64> {
-    game.forecast_cache.borrow().get(&reach_key(game, rules, depth, sims, tag, budget)).copied()
+    game.forecast_cache.borrow().get(&reach_key(game, rules, depth, sims, tag, budget)).map(|v| v.0)
 }
 
-fn reach_key(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, budget: u64) -> String {
+pub fn reach_key(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, budget: u64) -> String {
     format!("{}:{depth}:{sims}:{tag}:{budget}:{}", lineage_key(game), serde_json::to_string(rules).unwrap_or_default())
 }
 

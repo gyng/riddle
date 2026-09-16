@@ -85,20 +85,26 @@ pub fn cond_unlock(k: &str) -> Option<&'static str> {
     COND_UNLOCKS.iter().find(|(t, _)| *t == k).map(|(_, u)| *u)
 }
 
+/// An unlock's cost in marks (0 for an unknown id).
+pub fn unlock_cost(id: &str) -> u32 {
+    UNLOCKS.iter().find(|u| u.id == id).map(|u| u.cost).unwrap_or(0)
+}
+
 /// The fact/trophy gate of an unlock: `None` when open, else the human-readable need.
 pub fn gate(l: &LineageState, id: &str) -> Option<String> {
     let need = |ok: bool, text: &str| if ok { None } else { Some(text.to_string()) };
     match id {
-        "party_slot_2" => need(l.tamed_kinds() >= 1, "tame 1"),
-        "party_slot_3" => need(l.tamed_kinds() >= 3, "tame 3"),
+        // Cut 9 §2/§10: the party slots read as the player does (`tame once`).
+        "party_slot_2" => need(l.tamed_kinds() >= 1, "tame once"),
+        "party_slot_3" => need(l.tamed_kinds() >= 3, "tame 3 kinds"),
         "rogue" => need(!l.banked_depths.is_empty(), "bank once"),
         "ranger" => need(l.bosses_slain() >= 1, "slay a boss"),
         "caster" => need(l.bosses_slain() >= 2, "slay 2 bosses"),
         "tame" => need(l.facts.contains("item:leash"), "find a leash"),
-        "cond_alert" => need(l.facts.contains("alert:rising"), "see the alert rise"),
+        "cond_alert" => need(l.facts.contains("alert:rising"), "see alert rise"),
         "cond_on_kill" => need(!l.kills.is_empty(), "a kill"),
         "cond_on_see" => need(l.facts.iter().any(|f| f.starts_with("foe:")), "meet a foe"),
-        "cond_party_hp" => need(l.tamed_kinds() >= 1, "tame 1"),
+        "cond_party_hp" => need(l.tamed_kinds() >= 1, "tame once"),
         "corridor_fighting" => need(has_tag_fact(&l.facts, "pack"), "fact: pack"),
         "kite_archers" => need(has_tag_fact(&l.facts, "ranged"), "fact: ranged"),
         "stair_dance" => need(has_boss_counter(&l.facts), "a boss counter"),
@@ -113,7 +119,7 @@ pub fn gate(l: &LineageState, id: &str) -> Option<String> {
         // Cut 3 tier 2.
         "row9" | "vault5" => need(l.bosses_slain() >= 3, "slay 3 bosses"),
         "row10" => need(l.bosses_slain() >= 4, "slay 4 bosses"),
-        "party_slot_4" => need(l.tamed_kinds() >= 6, "tame 6"),
+        "party_slot_4" => need(l.tamed_kinds() >= 6, "tame 6 kinds"),
         "cadence" => need(has_tag_fact(&l.facts, "mirror"), "fact: mirror"),
         "noise_discipline" => need(has_tag_fact(&l.facts, "blind"), "fact: blind"),
         "reflect_read" => need(has_tag_fact(&l.facts, "reflect_melee"), "fact: reflect_melee"),
@@ -124,15 +130,24 @@ pub fn gate(l: &LineageState, id: &str) -> Option<String> {
     }
 }
 
+/// Cut 9 §2: the gate still shut on an unlock — its fact/trophy gate, else its prerequisite,
+/// else (`◆2 more`) the marks it is short of. `None` when it is buyable now.
+pub fn needs(l: &LineageState, u: &UnlockDef) -> Option<String> {
+    gate(l, u.id)
+        .or_else(|| u.prereq.filter(|p| !l.unlocks.contains(*p)).map(|p| p.to_string()))
+        .or_else(|| (l.marks < u.cost).then(|| format!("◆{} more", u.cost - l.marks)))
+}
+
 pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
     UNLOCKS
         .iter()
         .map(|u| {
             let owned = l.unlocks.contains(u.id);
-            let prereq_ok = u.prereq.is_none_or(|p| l.unlocks.contains(p));
-            let needs = gate(l, u.id).or_else(|| if prereq_ok { None } else { u.prereq.map(|p| p.to_string()) });
-            let available = !owned && prereq_ok && needs.is_none() && l.marks >= u.cost;
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs: if owned { None } else { needs }, delta: None, rows: unlock_rows(u.id) }
+            // Cut 9 §2: every card that is not `available` says why (a shut gate, a missing
+            // prerequisite, or the marks it is short of), so no card sits disabled unexplained.
+            let needs = if owned { None } else { needs(l, u) };
+            let available = !owned && needs.is_none();
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id) }
         })
         .collect()
 }
@@ -220,13 +235,20 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
     let l = &game.lineage;
     let mut cat = catalogue(l);
     let depth = l.best_depth + 1;
-    let sims = crate::forecast::DELTA_SIMS;
+    // Cut 9 §3: the panel's seed sequence and count (`forecast_tag`, `FORECAST_SIMS`): the
+    // base runs the panel's seeds under the catalogue budget and every candidate replays
+    // exactly the seeds the base ran, so a chip's delta is the panel's own sims moved by one
+    // row — a paired difference, not a second, smaller draw.
+    let sims = crate::forecast::FORECAST_SIMS;
     let budget = crate::forecast::CATALOGUE_TICK_BUDGET;
     let rules = l.rules().clone();
+    let tag = crate::forecast::forecast_tag(game, &rules, depth);
     let max_rows = l.max_rows();
-    let mut base: Option<f64> = None;
+    let mut base: Option<(f64, u32)> = None;
     for u in cat.iter_mut() {
-        if u.owned || u.needs.is_some() {
+        // A card short of marks still shows its delta (the marks are not a gate on the sim).
+        let gated = gate(l, &u.id).is_some() || UNLOCKS.iter().find(|d| d.id == u.id).and_then(|d| d.prereq).is_some_and(|p| !l.unlocks.contains(p));
+        if u.owned || gated {
             continue;
         }
         let Some(row) = unlock_row(l, &u.id) else { continue };
@@ -242,15 +264,15 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         // The sim game's lookups (its own fingerprint) go through the parent's cache.
         g.forecast_cache = game.forecast_cache.clone();
         if !compute {
-            let b = crate::forecast::reach_cached(game, &rules, depth, sims, 0xCA4D, budget);
-            let r = crate::forecast::reach_cached(&g, &patched, depth, sims, 0xCA4D, budget);
-            if let (Some(b), Some(r)) = (b, r) {
+            let b = game.forecast_cache.borrow().get(&crate::forecast::reach_key(game, &rules, depth, sims, tag, budget)).copied();
+            let r = b.and_then(|(_, n)| crate::forecast::reach_cached(&g, &patched, depth, n.max(1), tag, u64::MAX));
+            if let (Some((b, _)), Some(r)) = (b, r) {
                 u.delta = Some(r - b);
             }
             continue;
         }
-        let base_reach = *base.get_or_insert_with(|| crate::forecast::reach_budget(game, &rules, depth, sims, 0xCA4D, budget));
-        let r = crate::forecast::reach_budget(&g, &patched, depth, sims, 0xCA4D, budget);
+        let (base_reach, n) = *base.get_or_insert_with(|| crate::forecast::reach_counted(game, &rules, depth, sims, tag, budget));
+        let r = crate::forecast::reach_paired(&g, &patched, depth, n, tag);
         game.forecast_cache.borrow_mut().extend(g.forecast_cache.into_inner());
         u.delta = Some(r - base_reach);
     }
@@ -290,10 +312,13 @@ pub fn pending(game: &Game) -> Vec<String> {
     if rules.rows.is_empty() {
         out.push("rows: none".into());
     }
-    if game.batch.runs > 0 {
+    // Cut 9 §8: over the absence's real runs (the same window as the reel), in numbers:
+    // `R1 fired 0 of 15 runs: HP<30% → drink heal`.
+    let real_runs = game.batch.run_ticks.len() as u32;
+    if real_runs > 0 {
         for (i, r) in rules.rows.iter().enumerate().take(l.max_rows()) {
             if game.batch.row_fired.get(i).copied().unwrap_or(1) == 0 {
-                out.push(format!("R{} never fired: {}", i + 1, r.describe()));
+                out.push(format!("R{} fired 0 of {real_runs} runs: {}", i + 1, r.describe()));
             }
         }
     }
@@ -356,7 +381,13 @@ mod tests {
         let kite = cat.iter().find(|u| u.id == "kite_archers").unwrap();
         assert_eq!(kite.needs.as_deref(), Some("fact: ranged"));
         assert!(cat.iter().find(|u| u.id == "row6").unwrap().needs.as_deref() == Some("row5"));
-        assert!(cat.iter().find(|u| u.id == "cond_turns").unwrap().needs.is_none());
+        // Cut 9 §2: short of marks is a need too (`◆2 more`); with the marks, none.
+        assert_eq!(cat.iter().find(|u| u.id == "cond_turns").unwrap().needs.as_deref(), Some("◆2 more"));
+        let mut l = LineageState::new(1);
+        l.marks = 2;
+        let cat = catalogue(&l);
+        let ct = cat.iter().find(|u| u.id == "cond_turns").unwrap();
+        assert!(ct.needs.is_none() && ct.available);
     }
 
     /// Cut 8B §2–3: the rogue costs nothing and opens at the first bank; `tame` is owned from

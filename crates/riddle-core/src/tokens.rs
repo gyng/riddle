@@ -3,8 +3,11 @@ use crate::defs::{all_tags, item_def, Cat, ITEMS};
 use crate::engine::LineageState;
 use crate::facts::has_tag_fact;
 use crate::item::is_identified;
-use crate::rules::{Cond, Verb, Vocabulary};
+use crate::rules::{Cond, LockedCond, Verb, Vocabulary};
 use crate::wire::Companion;
+
+/// Cut 9 §1: the situations whose `on_see: K` token opens on their fact.
+pub const SITUATION_TOKENS: [&str; 8] = ["nest", "shrine", "vault", "den", "lock", "captive", "hunger", "stray"];
 
 pub use crate::meta::{MASTERY_CARDS, TACTIC_CARDS, TIER2_CARDS};
 
@@ -68,7 +71,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
     // Cut 5 §4: situations seen are tokens (`on_see: nest`), gated by their fact alone.
     // Cut 7 §3: the band situations are tokens the same way.
     // Cut 8B §3: the stray too (`on_see: stray` → `tame`), once one has been seen.
-    for k in ["nest", "shrine", "vault", "den", "lock", "captive", "hunger", "stray"] {
+    for k in SITUATION_TOKENS {
         if l.facts.contains(k) {
             conds.push(Cond::t("on_see", k));
         }
@@ -154,7 +157,61 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
         verbs.push(Verb::new("recall"));
         verbs.push(Verb::new("send"));
     }
-    Vocabulary { conds, verbs, max_rows: l.max_rows(), combos: crate::rules::combo_table() }
+    let locked = locked_conds(l, &conds);
+    Vocabulary { conds, verbs, max_rows: l.max_rows(), combos: crate::rules::combo_table(), locked }
+}
+
+/// Cut 9 §1: every condition token the editor knows of but this lineage cannot use yet, with
+/// its gate in ≤ 3 words — the cond unlocks (`◆2`, or the unlock's own gate while that is
+/// shut), `foe_hp<` (`study a kind`), the unlearned tags of kinds met (`fact: pack`), unidentified potions and
+/// scrolls (`identify poison`), unfound misc items (`find: lantern`), unseen situations
+/// (`see: stray`) and `party_hp<` without a companion (`tame once`). Nothing in `conds` is
+/// listed; `party: K` is not a gate (a companion comes and goes).
+pub fn locked_conds(l: &LineageState, open: &[Cond]) -> Vec<LockedCond> {
+    let mut out: Vec<LockedCond> = Vec::new();
+    let mut lock = |cond: Cond, needs: String| {
+        if !open.iter().any(|c| c.same_token(&cond)) && !out.iter().any(|x| x.cond.same_token(&cond)) {
+            out.push(LockedCond { cond, needs });
+        }
+    };
+    for (k, u) in crate::meta::COND_UNLOCKS {
+        let cond = match k {
+            "alert>=" => Cond::n(k, 3),
+            "loot>=" => Cond::n(k, 20),
+            "turns>" => Cond::n(k, 100),
+            "party_hp<" => Cond::n(k, 50),
+            _ => Cond::flag(k),
+        };
+        let needs = if l.unlocks.contains(u) {
+            // Owned: only `party_hp<` stays shut (no companion yet).
+            "tame once".to_string()
+        } else {
+            crate::meta::gate(l, u).unwrap_or_else(|| format!("◆{}", crate::meta::unlock_cost(u)))
+        };
+        lock(cond, needs);
+    }
+    lock(Cond::n("foe_hp<", 25), "study a kind".into());
+    // A tag of a kind the hero has met (`foe:<kind>`) whose tag fact is still unlearned; the
+    // tags of kinds never seen are not on the sheet (the bestiary shows what was met).
+    let met: Vec<&str> = crate::defs::MONSTERS.iter().filter(|m| l.facts.contains(&format!("foe:{}", m.kind))).flat_map(|m| m.tags.iter().copied()).collect();
+    for t in all_tags() {
+        if met.contains(&t) {
+            lock(Cond::t("foe_tag", t), format!("fact: {t}"));
+        }
+    }
+    for i in ITEMS {
+        if matches!(i.cat, Cat::Potion | Cat::Scroll) {
+            lock(Cond::t("item", i.kind), format!("identify {}", i.kind));
+        }
+    }
+    lock(Cond::t("item", "leash"), "find: leash".into());
+    for k in crate::defs::FACT_MISC {
+        lock(Cond::t("item", k), format!("find: {}", k.replace('_', " ")));
+    }
+    for k in SITUATION_TOKENS {
+        lock(Cond::t("on_see", k), format!("see: {k}"));
+    }
+    out
 }
 
 /// A companion's editor vocabulary: its tags are its verbs.
@@ -184,7 +241,7 @@ pub fn companion_vocabulary(l: &LineageState, c: &Companion) -> Vocabulary {
     }
     verbs.push(Verb::new("follow"));
     verbs.push(Verb::new("recall"));
-    Vocabulary { conds, verbs, max_rows: c.max_rows, combos: Vec::new() }
+    Vocabulary { conds, verbs, max_rows: c.max_rows, combos: Vec::new(), locked: Vec::new() }
 }
 
 #[cfg(test)]

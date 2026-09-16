@@ -127,6 +127,10 @@ pub struct ExitLine {
     pub spent: i32,
     pub spent_on: Vec<String>,
     pub text: String,
+    /// Cut 9 §5: the exit's last `EXIT_TRACE_LEN` hero turns with row accounting (every tier;
+    /// a death's own `Death.trace` is longer, so its line leaves this out).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trace: Option<Trace>,
 }
 
 /// Cut 6 §1: one gold movement (`+50 returned D5`, `−40 heal`, `−8 insure sword`, `+3
@@ -185,6 +189,9 @@ pub enum Ev {
         /// Cut 6 §1: the ledger line (filled once the exit is settled).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         line: Option<ExitLine>,
+        /// Cut 9 §5: the exit's last-5 trace (bank and return; a death has `Death.trace`).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        trace: Option<Trace>,
     },
     Note { t: u32, text: String },
     Callout { t: u32, text: String },
@@ -258,6 +265,10 @@ pub struct StepResult {
 pub struct ForecastDepth {
     pub depth: u32,
     pub reach: f64,
+    /// Cut 9 §3: the binomial half-width of `reach` over the sims that ran (`1.96·√(p(1−p)/n)`,
+    /// 0..1), so a wobble inside it reads as noise (`D4 71% ±6`). The refine pass narrows it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pm: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -323,6 +334,9 @@ pub struct Stall {
     pub fired: u32,
     pub text: String,
     pub patches: Vec<Patch>,
+    /// Cut 9 §5: the last-5 trace of the latest run the named row ended.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trace: Option<Trace>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -446,6 +460,41 @@ pub struct ForgeRow {
     pub salvaged: u32,
     pub craftable: bool,
     pub tier: u32,
+    /// Cut 9 §10: the ladder's next rung (`salvaged 3/5 → craftable`); absent at the top.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<ForgeNext>,
+}
+
+/// Cut 9 §10: the salvage count the next forge rung needs and its label (`craftable`, `tier
+/// 1`, `tier 2`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ForgeNext {
+    pub need: u32,
+    pub label: String,
+}
+
+/// Cut 9 §10: the forge ladder — (salvaged needed, rung label), in order.
+pub const FORGE_LADDER: [(u32, &str); 3] = [(5, "craftable"), (15, "tier 1"), (40, "tier 2")];
+
+impl ForgeRow {
+    /// The row for a salvage count, with its rung and its next rung.
+    pub fn at(salvaged: u32) -> ForgeRow {
+        let mut r = ForgeRow { salvaged, ..Default::default() };
+        r.settle();
+        r
+    }
+    /// Cut 9 §10: recompute `craftable`, `tier` and `next` from `salvaged`.
+    pub fn settle(&mut self) {
+        self.craftable = self.salvaged >= FORGE_LADDER[0].0;
+        self.tier = if self.salvaged >= FORGE_LADDER[2].0 {
+            2
+        } else if self.salvaged >= FORGE_LADDER[1].0 {
+            1
+        } else {
+            0
+        };
+        self.next = FORGE_LADDER.iter().find(|(need, _)| self.salvaged < *need).map(|(need, label)| ForgeNext { need: *need, label: (*label).into() });
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -501,6 +550,10 @@ pub struct Grave {
     pub depth: u32,
     pub cause: String,
     pub deeds: Vec<String>,
+    /// Cut 9 §7: the death's run id while the engine still keeps its record (the last
+    /// `KEPT_DEATHS` deaths; `death(id)` answers for these, through a save).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_id: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

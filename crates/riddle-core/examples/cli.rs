@@ -85,7 +85,7 @@ fn main() {
             match e {
                 Ev::Note { t, text } => println!("  t{t:<5} {text}"),
                 Ev::Descend { t, depth, biome } => println!("  t{t:<5} ↓ D{depth} {biome}"),
-                Ev::Exit { t, tier, loot_kept, line } => println!("  t{t:<5} exit {tier} · loot {loot_kept}{}", line.as_ref().map(|l| format!(" · {}", l.text)).unwrap_or_default()),
+                Ev::Exit { t, tier, loot_kept, line, .. } => println!("  t{t:<5} exit {tier} · loot {loot_kept}{}", line.as_ref().map(|l| format!(" · {}", l.text)).unwrap_or_default()),
                 Ev::Rule { t, row, text, .. } if verbose => {
                     let label = match row {
                         -1 => "trait".to_string(),

@@ -58,6 +58,13 @@ pub const CHRONICLE_CAP: usize = 40;
 pub const VAULT_GRACE: u32 = 50;
 /// Cut 8B §3: share of lineages whose first stray waits on D2 or D3.
 pub const FIRST_STRAY_PCT: u32 = 80;
+/// Cut 9 §5: hero turns on an exit's trace (bank / return / death lines alike).
+pub const EXIT_TRACE_LEN: usize = 5;
+/// Cut 9 §7: deaths whose record the graveyard still points at (`Grave.death_id`); the
+/// engine keeps at least this many records through a save.
+pub const KEPT_DEATHS: usize = 5;
+/// Cut 9 §6: absences whose reel pairs (threat, resolution) are remembered for the dedupe.
+pub const REEL_ABSENCES: usize = 3;
 /// Cut 5 §4: a stray (a lost heir's companion gone wild) tames at this chance.
 pub const STRAY_TAME: u32 = 60;
 /// Cut 5 §4: the shrine's price — a fifth of max HP for the run.
@@ -655,6 +662,11 @@ pub struct LineageState {
     /// §1: the last `GOLD_LEDGER_CAP` gold movements, oldest first.
     #[serde(default)]
     pub gold_ledger: Vec<GoldLine>,
+    // Cut 9
+    /// §6: the (threat, resolution) pairs of the last `REEL_ABSENCES` reels, oldest first —
+    /// the next reel skips them.
+    #[serde(default)]
+    pub reel_pairs: Vec<Vec<(String, String)>>,
 }
 
 /// Cut 6 §1: gold movements kept on the lineage.
@@ -731,6 +743,7 @@ impl LineageState {
             lost: Vec::new(),
             vault_pref: default_vault_pref(),
             gold_ledger: Vec::new(),
+            reel_pairs: Vec::new(),
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -865,7 +878,8 @@ impl LineageState {
             gold: self.gold,
             supplies: self.supplies.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
             classes: self.classes.clone(),
-            forge: self.forge.clone(),
+            // Cut 9 §10: every row carries its next rung (an older save's rows too).
+            forge: self.forge.iter().map(|(k, f)| (k.clone(), { let mut f = f.clone(); f.settle(); f })).collect(),
             renown: self.renown,
             rank: self.rank,
             keep_pref: self.keep_pref.clone(),
@@ -1072,6 +1086,9 @@ pub struct StallTally {
     pub runs: u32,
     pub depth: u32,
     pub exit_rows: BTreeMap<i32, u32>,
+    /// Cut 9 §5: the last-5 trace of the latest run each row ended.
+    #[serde(default)]
+    pub traces: BTreeMap<i32, Trace>,
 }
 
 /// What a finished run contributed (for offline accounting).
@@ -1116,7 +1133,7 @@ pub struct Game {
     pub stall_cache: Option<(String, Vec<Patch>)>,
     /// Cut 4: `forecast::reach_with` results keyed by (lineage, rules, depth, sims, tag).
     #[serde(skip)]
-    pub forecast_cache: std::cell::RefCell<BTreeMap<String, f64>>,
+    pub forecast_cache: std::cell::RefCell<BTreeMap<String, (f64, u32)>>,
     /// Cut 6 §1: the ledger line of the last settled exit (`step` attaches it to `Ev::Exit`).
     #[serde(default)]
     pub last_exit: Option<ExitLine>,
@@ -1194,6 +1211,18 @@ impl Game {
         let mut set = set;
         set.rows.truncate(self.lineage.max_rows());
         set.validate()?;
+        // Cut 9 §1: a locked token is refused at the door (the sheet never offers it; a sim
+        // replays what the lineage already holds, locks and all).
+        if !self.sim {
+            let locked = crate::tokens::locked_conds(&self.lineage, &crate::tokens::vocabulary(&self.lineage).conds);
+            for (i, r) in set.rows.iter().enumerate() {
+                for c in &r.conds {
+                    if let Some(l) = locked.iter().find(|l| l.cond.same_token(c)) {
+                        return Err(format!("row {}: {} is locked ({})", i + 1, c.short(), l.needs));
+                    }
+                }
+            }
+        }
         // Cut 7 §2: a card's row is the card's wherever it came from; the client tags
         // patch/player rows itself.
         for r in set.rows.iter_mut() {
@@ -1207,6 +1236,16 @@ impl Game {
         }
         self.lineage.sets[i] = set;
         Ok(())
+    }
+
+    /// `set_rules` without the Cut 9 lock check: tests and tools that write rows ahead of
+    /// the facts (a row with a locked token exists in play too — after an ascension, or when
+    /// a companion is lost — and reads `locked cond` in the trace).
+    pub fn set_rules_raw(&mut self, set: RuleSet) -> Result<(), String> {
+        let sim = std::mem::replace(&mut self.sim, true);
+        let r = self.set_rules(set);
+        self.sim = sim;
+        r
     }
 
     pub fn select_set(&mut self, i: usize) {
@@ -1648,8 +1687,10 @@ impl Game {
             events.append(&mut self.events);
             // Cut 6 §1: the exit event carries the settled ledger line.
             if let Some(line) = self.last_exit.take() {
-                if let Some(Ev::Exit { line: l, .. }) = events.iter_mut().rev().find(|e| matches!(e, Ev::Exit { .. })) {
-                    *l = Some(line);
+                if let Some(Ev::Exit { line: l, trace, .. }) = events.iter_mut().rev().find(|e| matches!(e, Ev::Exit { .. })) {
+                    // Cut 9 §5: the exit event carries the last-5 trace beside the line.
+                    *trace = line.trace.clone();
+                    *l = Some(ExitLine { trace: None, ..line });
                 }
             }
         }
@@ -1896,6 +1937,7 @@ impl Game {
             self.stall.depth = self.stall.depth.max(run.max_depth);
             if let Some(r) = run.exit_row {
                 *self.stall.exit_rows.entry(r).or_insert(0) += 1;
+                self.stall.traces.insert(r, exit_trace(&run));
             }
         }
         if run.max_depth > self.lineage.best_depth {
@@ -2172,7 +2214,8 @@ impl Game {
                 }
             }
             deeds.truncate(3);
-            self.lineage.graveyard.push(Grave { heir: run.heir, depth: run.depth, cause: cause.clone(), deeds });
+            // Cut 9 §7: the grave points at its death record while the engine keeps it.
+            self.lineage.graveyard.push(Grave { heir: run.heir, depth: run.depth, cause: cause.clone(), deeds, death_id: (!self.sim).then_some(run.id) });
             if crate::defs::MONSTERS.iter().any(|m| m.kind == cause && !m.boss && !m.tags.contains(&"summoned"))
                 && !self.lineage.grudges.iter().any(|g| g.kind == cause && g.depth == run.depth)
             {
@@ -2190,10 +2233,11 @@ impl Game {
             if !self.sim {
                 let rec = crate::trace::death_record(self, &run);
                 self.deaths.insert(run.id, rec);
-                while self.deaths.len() > self.max_deaths {
+                while self.deaths.len() > self.max_deaths.max(KEPT_DEATHS) {
                     let k = *self.deaths.keys().next().unwrap();
                     self.deaths.remove(&k);
                 }
+                self.prune_graves();
             }
         }
         if run.ended && tier != ExitTier::Death {
@@ -2216,11 +2260,15 @@ impl Game {
         // coming home, and where the kit went on a death.
         let spent: i32 = self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.delta < 0 && !g.why.starts_with("salvage")).map(|g| -g.delta).sum();
         let bones_n = if tier == ExitTier::Death { self.lineage.bones.last().filter(|b| b.heir == run.heir).map(|b| b.items.len()).unwrap_or(0) } else { 0 };
-        let line = exit_line(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, bones_n, run.depth);
+        let mut line = exit_line(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, bones_n, run.depth);
+        // Cut 9 §5: every exit carries its last five hero turns (read off the run's own trace
+        // ring: nothing more per tick).
+        line.trace = Some(exit_trace(&run));
         debug_assert!(self.lineage.gold - gold_before == loot_kept - spent + self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.why.starts_with("salvage")).map(|g| g.delta).sum::<i32>());
         if tier == ExitTier::Death {
             if let Some(rec) = self.deaths.get_mut(&run.id) {
-                rec.death.line = Some(line.clone());
+                // The death's own trace is longer; its line does not repeat it.
+                rec.death.line = Some(ExitLine { trace: None, ..line.clone() });
             }
         }
         self.batch.exits.push(line.clone());
@@ -2229,6 +2277,17 @@ impl Game {
         }
         self.last_exit = Some(line);
         Some(outcome)
+    }
+
+    /// Cut 9 §7: only the last `KEPT_DEATHS` graves keep their `death_id`, and only while
+    /// the record is still held.
+    pub fn prune_graves(&mut self) {
+        let n = self.lineage.graveyard.len();
+        for (i, g) in self.lineage.graveyard.iter_mut().enumerate() {
+            if i + KEPT_DEATHS < n || g.death_id.is_some_and(|id| !self.deaths.contains_key(&id)) {
+                g.death_id = None;
+            }
+        }
     }
 
     /// Renown per absence (Cut 2 §2): the best single run's score, settled once per report
@@ -2262,14 +2321,7 @@ impl Game {
             self.lineage.gold_move(gold, "salvage");
             let f = self.lineage.forge.entry(it.kind.clone()).or_default();
             f.salvaged += it.amount.max(1) as u32;
-            f.craftable = f.salvaged >= 5;
-            f.tier = if f.salvaged >= 40 {
-                2
-            } else if f.salvaged >= 15 {
-                1
-            } else {
-                0
-            };
+            f.settle();
             let e = self.batch.salvaged.entry(it.kind.clone()).or_insert((0, 0));
             e.0 += 1;
             e.1 += cents;
@@ -2550,6 +2602,11 @@ impl Game {
 /// Cut 6 §1: the exit's ledger line, ≤ 14 words (`$84 carried · return keeps 60% → $50`;
 /// death: `$144 carried · death keeps 0% → $0 · bones: 7 items on D5`; a run that hit the cap:
 /// `lost thread keeps 0%`).
+/// Cut 9 §5: the last `EXIT_TRACE_LEN` hero turns of a run, from its trace ring.
+pub fn exit_trace(run: &Run) -> Trace {
+    Trace { turns: run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect() }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: Vec<String>, tier: ExitTier, timed_out: bool, bones: usize, depth: u32) -> ExitLine {
     let word = if timed_out { "lost thread" } else { tier.name() };
@@ -2557,7 +2614,7 @@ pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: V
     if bones > 0 {
         text.push_str(&format!(" · bones: {bones} items on D{depth}"));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None }
 }
 
 /// Salvage value per kind (Addendum D).
