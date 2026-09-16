@@ -1,18 +1,22 @@
 // Camp: lineage strip · set tabs · rule editor · forecast · vault loadout · unlocks · send.
+// Cut 6: the strip's gold opens the `gold` sheet (the last 20 movements, newest first, §1); the disabled send reads
+// `6/5 · drop one` and a card's buy reads `◆3 · takes a row` on a full set (§4); owned cards and automations stay on the
+// shelf as chips that open their rows (§6); `rest 12m` is a chip that answers `send skips rest` (§7).
 import type { App, Mounted } from "../app";
 import type { UnlockInfo } from "../engine/types";
-import { h, clear, replace, spanOf } from "./dom";
-import { heroBinding, renderEditor } from "./editor";
+import { h, clear, flash, replace, spanOf } from "./dom";
+import { heroBinding, openRowsSheet, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
-import { classList, supplyCap, visible, vaultSlots } from "./unlocks";
+import { classList, isCard, ownedRows, supplyCap, visible, vaultSlots } from "./unlocks";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS, xpToNext } from "../engine/classes";
 import { verbLabel } from "./tokens";
 import { openSheet } from "./sheet";
 
 const SET_NAME_MAX = 12;
+const REST_BEAT_MS = 1400;   // Cut 6 §7: how long the rest chip reads `send skips rest`
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
 export function renderCamp(app: App, highlight?: number): Mounted {
@@ -25,7 +29,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const supplies = h("section", { class: "supplies" });
   const unlocks = h("section", { class: "unlocks" });
   const send = h("button", { class: "btn primary send", onclick: () => { if (!app.overBudget) app.go({ kind: "watch" }); } }, /* copy:button */ "send");
-  const rest = h("span", { class: "rest num" });
+  // Cut 6 §7: the rest chip answers for a beat, then reads `rest 12m` again
+  let restTimer = 0;
+  const rest = h("button", { class: "rest chip num", onclick: () => {
+    clearTimeout(restTimer); replace(rest, /* copy:callout */ "send skips rest"); flash(rest, "on", REST_BEAT_MS);
+    restTimer = window.setTimeout(paintRest, REST_BEAT_MS);
+  } });
   const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, party.el, vault, supplies, unlocks, h("div", { class: "send-bar" }, rest, send));
 
   function paintStrip(): void {
@@ -39,14 +48,28 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round((lvl.xp / xpToNext(lvl.level)) * 100)}%` }))),
       h("span", { class: "num" }, `D${L.best_depth}`),
       h("span", { class: "num rank" }, `★${L.rank ?? 0}`),
-      h("span", { class: "num gold" }, `$${L.gold}`),
+      h("button", { class: "num gold", onclick: () => openGold() }, `$${L.gold}`),
       h("span", { class: "num marks" }, `◆${L.marks}`),
       h("button", { class: "gear", onclick: () => openSettings(app) }, "⚙"),
     );
-    // Cut 2 §1: camp rest remaining; `send` skips it, so the number just disappears
-    const restS = L.rest_left_s ?? 0;
+    clearTimeout(restTimer); paintRest();
+  }
+  // Cut 2 §1: camp rest remaining; `send` skips it, so the number just disappears
+  function paintRest(): void {
+    const restS = app.lineage.rest_left_s ?? 0;
     replace(rest, /* copy:label */ "rest", " ", spanOf(restS));
     rest.hidden = restS <= 0;
+  }
+  // Cut 6 §1: the last 20 gold movements, newest first, one per line: `+$50 returned D5` · `−$40 heal` (engine data, no prose)
+  function openGold(): void {
+    openSheet(() => {
+      const L = app.lineage; const lines = [...(L.gold_ledger ?? [])].reverse();
+      const fmt = (d: number): string => `${d < 0 ? "−" : d > 0 ? "+" : ""}$${Math.abs(d)}`;
+      return h("div", { class: "sheet-body gold-sheet" },
+        h("div", { class: "label row-label" }, /* copy:label */ "gold", " ", h("span", { class: "num gold" }, `$${L.gold}`)),
+        ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}` }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, g.why.replace(/_/g, " ")))),
+        lines.length ? "" : h("div", { class: "lrow num dim" }, "·"));
+    });
   }
   function openForge(app2: App): void {
     openSheet(() => {
@@ -147,10 +170,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const gen = ++unlockGen;
     void app.engine.unlocks().then((cat) => {
       if (gen !== unlockGen) return;
-      unlockCat = cat;
+      unlockCat = cat; app.unlockCat = cat;
+      if (cat.some((u) => u.owned && u.rows?.length)) editor.refresh();   // Cut 6 §6: `[card]` chips open their rows once the catalogue is here
       // forecast deltas arrive later (0.3–2 s of sims); repaint once with them, never blocking the shelf
       if (!cat.some((u) => u.delta !== undefined)) {
-        void app.engine.unlockDeltas().then((withDeltas) => { if (gen === unlockGen && withDeltas.some((u) => u.delta)) { unlockGen++; paintFrom(withDeltas); } }).catch(() => { /* deltas are optional */ });
+        void app.engine.unlockDeltas().then((withDeltas) => { if (gen === unlockGen && withDeltas.some((u) => u.delta)) { unlockGen++; unlockCat = withDeltas; app.unlockCat = withDeltas; paintFrom(withDeltas); } }).catch(() => { /* deltas are optional */ });
       }
       paintFrom(cat);
     }).catch((e) => console.warn("unlocks", e));
@@ -159,24 +183,35 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     {
       clear(unlocks);
       const list = visible(cat);
-      if (!list.length) return;
+      // Cut 6 §6: owned cards and automations stay on the shelf as chips that open their rows
+      const owned = ownedRows(cat);
+      if (!list.length && !owned.length) return;
       unlocks.appendChild(h("div", { class: "label" }, /* copy:label */ "unlocks"));
       const grid = h("div", { class: "cards" });
+      const full = app.rules.rows.length >= app.vocab.max_rows;
       for (const u of list) {
         // `available` = prerequisite + fact gate + affordable (engine truth). Two dims: gated (the `needs` line
         // is what is missing, marks are there) and unaffordable.
         // Cut 4 §9: the forecast delta of buying (tactic cards), only when the catalogue carries one and it is not 0
         const d = u.delta === undefined ? 0 : Math.round(u.delta * 100);
+        // Cut 6 §4: a card bought onto a full set is an overflow decision; its buy says so
+        const takesRow = full && u.available && isCard(u);
         grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, disabled: !u.available, onclick: () => void app.buy(u.id) },
           h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
             d ? h("small", { class: `num delta ${d > 0 ? "up" : "down"}` }, /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%`) : ""),
-          h("span", { class: "num cost" }, `◆${u.cost}`)));
+          h("span", { class: `num cost${takesRow ? " takes" : ""}` }, `◆${u.cost}`, takesRow ? h("small", { class: "dim" }, /* copy:unlock_card */ " · takes a row") : "")));
       }
       unlocks.appendChild(grid);
+      if (owned.length) unlocks.appendChild(h("div", { class: "chips owned" }, ...owned.map((u) => h("button", { class: "chip mini owned", onclick: () => openRowsSheet(u.rows!) }, u.label))));
     }
   }
-  // Cut 4 §1: `send` waits while the set is over budget (the editor shows which row to drop)
-  function paintSend(): void { send.disabled = app.overBudget; paintTabs(); }
+  // Cut 4 §1: `send` waits while the set is over budget (the editor shows which row to drop). Cut 6 §4: it says so: `6/5 · drop one`.
+  function paintSend(): void {
+    send.disabled = app.overBudget;
+    replace(send, app.overBudget ? /* copy:callout */ `${app.rules.rows.length}/${app.vocab.max_rows} · drop one` : /* copy:button */ "send");
+    paintTabs();
+    if (unlockCat) paintFrom(unlockCat);   // a card's buy reads `takes a row` only while the set is full
+  }
   function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }
   paintAll();
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend);

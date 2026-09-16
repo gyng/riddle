@@ -1,7 +1,7 @@
 // Fake Engine: a tiny deterministic mini-sim with canned-shaped output so the UI can be built and
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
-  BonesPile, Companion, Cond, Death, Engine, Entity, Ev, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
+  BonesPile, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
@@ -45,6 +45,29 @@ const MON: Record<string, MonDef> = {
   blade:           { hp: 3,  atk: [1, 3], def: 0, tags: [],                  lo: 99, hi: 99 },
 };
 const BOSS: Record<number, string> = { 5: "goblin_warlord", 10: "bloat_mother", 15: "lich" };
+// Cut 6 §5: the counter each boss teaches on first sight, as a row (the core's fact carries the row text)
+const COUNTER: Record<string, { row: Row; text: string }> = {
+  goblin_warlord: { row: { conds: [{ k: "foe_tag", t: "boss" }], verb: { v: "attack", a: "tag:boss" } }, text: "attack boss" },
+  bloat_mother: { row: { conds: [{ k: "foe_tag", t: "boss" }], verb: { v: "throw", a: "fire,boss" } }, text: "throw fire, boss" },
+  lich: { row: { conds: [{ k: "foe_tag", t: "boss" }], verb: { v: "read", a: "silence" } }, text: "read silence" },
+};
+// Cut 6 §6: a card's rows / an automation's effect as a row, for the sheet behind `[card]` rows and owned autos
+const UNLOCK_ROWS: Record<string, Row[]> = {
+  corridor_fighting: [{ conds: [{ k: "foes>=", n: 2 }, { k: "in_corridor" }], verb: { v: "hold" } }, { conds: [{ k: "foes>=", n: 2 }], verb: { v: "back_corridor" } }],
+  kite_archers: [{ conds: [{ k: "foe_tag", t: "ranged" }], verb: { v: "kite" } }],
+  stair_dance: [{ conds: [{ k: "foe_tag", t: "boss" }, { k: "path_stairs" }], verb: { v: "descend" } }],
+  gas_step: [{ conds: [{ k: "foe_tag", t: "gas" }, { k: "adj>=", n: 1 }], verb: { v: "retreat" } }],
+  pack_break: [{ conds: [{ k: "foe_tag", t: "pack" }], verb: { v: "back_corridor" } }, { conds: [{ k: "adj>=", n: 2 }], verb: { v: "attack", a: "lowest" } }],
+  thief_guard: [{ conds: [{ k: "foe_tag", t: "thief" }], verb: { v: "attack", a: "tag:thief" } }],
+  boss_focus: [{ conds: [{ k: "foe_tag", t: "boss" }], verb: { v: "attack", a: "tag:boss" } }],
+  last_stand: [{ conds: [{ k: "hp<", n: 20 }, { k: "adj>=", n: 2 }], verb: { v: "attack", a: "lowest" } }],
+  // automations: one row-like entry, the core's shape (`{conds: [], verb: {v: "auto", a: "keeps best weapon+armour"}}`)
+  quartermaster: [{ conds: [], verb: { v: "auto", a: "keeps best weapon+armour" } }],
+  auto_supply: [{ conds: [], verb: { v: "auto", a: "restocks supplies" } }],
+  auto_insure: [{ conds: [], verb: { v: "auto", a: "insures brought items" } }],
+  incubator: [{ conds: [], verb: { v: "auto", a: "hatches eggs at rest" } }],
+  bone_sense: [{ conds: [], verb: { v: "auto", a: "paths to bones" } }],
+};
 const POTIONS = ["heal", "strength", "speed", "invisibility", "poison", "caustic", "confusion", "fire"];
 const FLAVOURS = ["blue", "red", "green", "murky", "clear", "amber", "violet", "black"];
 const SCROLLS = ["teleport", "blink", "fear", "mapping", "identify", "enchant", "darkness", "summon_ally", "aggravate"];
@@ -98,7 +121,7 @@ export const UNLOCK_COST: Record<string, number> = Object.fromEntries(Object.ent
 const UNLOCK_PREREQ: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", vault3: "vault2", vault4: "vault3", party_slot_3: "party_slot_2" };
 const TACTIC_CARDS = ["corridor_fighting", "kite_archers", "stair_dance", "gas_step", "pack_break", "thief_guard", "boss_focus", "last_stand"];
 const COND_UNLOCK: Record<string, string> = { "alert>=": "cond_alert", "turns>": "cond_turns", "loot>=": "cond_loot", on_kill: "cond_on_kill", on_see: "cond_on_see", "party_hp<": "cond_party_hp" };
-const REST_CAP_S = 30 * 60, WAKE_S = 20 * 60, BONES_MAX = 3, STUDIED_KILLS = 5;
+const REST_CAP_S = 30 * 60, WAKE_S = 20 * 60, BONES_MAX = 3, STUDIED_KILLS = 5, GOLD_LEDGER_CAP = 20, EXITS_CAP = 5;
 // UI dev knob: `?engine=fake&fake_depth=5` starts every run on D5 (boss floor) so the boss HUD can be seen.
 const DEV_START_DEPTH = Math.max(1, (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_depth"))) || 1);
 // UI dev knob: `?engine=fake&fake_vision=4` reports the Deep's sight radius (renderer fog bands follow it).
@@ -168,8 +191,10 @@ type Run = {
   level: number; killXp: number; windUsed: boolean; bulwark: number; cleaveCd: number;
   gear: InvItem[]; score: number;
   bonesFound: BonesPile[]; bonesPiles: BonesPile[]; rest_s: number; insured: Set<number>; broughtItems: InvItem[];
+  gold: number; spent: { label: string; price: number }[]; line?: ExitLine;                  // Cut 6 §1: the ledger line at the exit
+  lastRows?: { row: number; why: string }[];                                                  // Cut 6 §3: row accounting of the last action
 };
-type RunLog = { seed: number; rules: RuleSet; depth: number; cause?: string; turns: number; exit: string; known: string[]; cls: string; trait: string; heir: number; hpMargin: number };
+type RunLog = { seed: number; rules: RuleSet; depth: number; cause?: string; turns: number; exit: string; known: string[]; cls: string; trait: string; heir: number; hpMargin: number; line?: ExitLine };
 
 const idx = (x: number, y: number): number => y * W + x;
 const inb = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < W && y < H;
@@ -264,7 +289,7 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
 
 // --- sim ---
 type SimCtx = { rules: RuleSet; unlocks: Set<string>; flav: (k: string) => string; kindOfFlav: (f: string) => string | undefined; tier: (kind: string) => number;
-  bones: BonesPile[]; insured: Set<number> };
+  bones: BonesPile[]; insured: Set<number>; gold: number; spent: { label: string; price: number }[] };
 
 function makeRun(id: number, heir: number, seed: number, cls: string, trait: string, known: Set<string>, brought: InvItem[], ctx: SimCtx, party: Companion[] = [], level = 1): Run {
   const rng = mulberry32(seed);
@@ -284,6 +309,7 @@ function makeRun(id: number, heir: number, seed: number, cls: string, trait: str
     nextId: 0, picked: [], nearDeath: false, kindsSeen: new Set(), brought: brought.map((b) => b.id), cls, trait, loot_kept: 0,
     party: party.map((c) => ({ ...c, tags: [...c.tags], rules: { rows: c.rules.rows.map((r) => ({ conds: r.conds.map((x) => ({ ...x })), verb: { ...r.verb } })) } })), recalled: [], tamed: [], lostC: [],
     level, killXp: 0, windUsed: false, bulwark: 0, cleaveCd: 0, gear: [], score: 0, bonesFound: [], bonesPiles: ctx.bones, rest_s: 0, insured: ctx.insured, broughtItems: brought.map((b) => ({ ...b })),
+    gold: ctx.gold, spent: ctx.spent,
   };
   run.nextId = 1000;
   run.recalled = run.party.map((c) => companionMon(run, c));
@@ -353,7 +379,9 @@ function bfsStep(run: Run, goal: (x: number, y: number) => boolean, avoidMons = 
   let cur = found; while (prev[cur] !== q[0]) cur = prev[cur];
   return [cur % W, Math.floor(cur / W)];
 }
-function moveHero(run: Run, x: number, y: number, ev: Ev[]): void { run.hero.x = x; run.hero.y = y; ev.push({ t: run.turn, k: "move", id: 0, x, y }); updateVis(run); }
+function moveHero(run: Run, x: number, y: number, ev: Ev[]): void { run.hero.x = x; run.hero.y = y; ev.push({ t: run.turn, k: "move", id: 0, x, y }); updateVis(run); bossInView(run, ev); }
+/** Cut 6 §5: seeing the boss is the counter fact (the core learns it on the boss's first telegraph, the same step). */
+function bossInView(run: Run, ev: Ev[]): void { for (const m of visibleFoes(run)) if (m.tags.includes("boss")) learn(run, `boss:${m.kind}:counter`, ev); }
 function stepAway(run: Run, from: Mon[], ev: Ev[], preferCorridor: boolean): boolean {
   const h = run.hero; let best: [number, number] | null = null, bestScore = -Infinity;
   for (const [dx, dy] of DIRS) {
@@ -440,6 +468,38 @@ function useItem(run: Run, it: InvItem, ctx: SimCtx, ev: Ev[], thrownAt?: Mon): 
   }
 }
 
+/** Cut 6 §3: why a condition did not hold, as the player reads it (`hp 45% ≥ 30%`, `foes 0 < 1`, `no ranged`, `none held`). */
+function condWhy(run: Run, c: Cond): string {
+  const h = run.hero, pct = Math.round((h.hp / h.max_hp) * 100), foes = visibleFoes(run);
+  switch (c.k) {
+    case "hp<": return `hp ${pct}% ≥ ${c.n}%`;
+    case "hp>": return `hp ${pct}% ≤ ${c.n}%`;
+    case "foes>=": return `foes ${foes.length} < ${c.n ?? 1}`;
+    case "adj>=": return `adjacent ${adjFoes(run).length} < ${c.n ?? 1}`;
+    case "foe_tag": return `no ${(c.t ?? "").replace(/_/g, " ")}`;
+    case "foe_hp<": return foes.length ? `foe hp ≥ ${c.n}%` : "no foe";
+    case "item": return "none held";
+    case "unknown_item": return "none held";
+    case "depth>=": return `D${run.depth} < ${c.n}`;
+    case "alert>=": return `alert ${run.alert} < ${c.n}`;
+    case "loot>=": return `$${run.loot} < ${c.n}`;
+    case "path_stairs": return "stairs unseen";
+    case "in_corridor": return "not in corridor";
+    case "ally": return "no ally";
+    default: return `not ${c.k.replace(/_/g, " ").replace(/[<>]=?$/, "")}`;
+  }
+}
+/** Cut 6 §3: why a verb whose conditions held could not run. */
+function verbWhy(v: Verb): string {
+  switch (v.v) {
+    case "drink": case "read": case "throw": return "none held";
+    case "retreat": case "back_corridor": return "no path";
+    case "attack": case "shoot": case "tame": return "not in view";
+    case "descend": return "no stairs";
+    case "pick_up": return "nothing here";
+    default: return "blocked";
+  }
+}
 function condHolds(run: Run, c: Cond): boolean {
   const h = run.hero, pct = (h.hp / h.max_hp) * 100, foes = visibleFoes(run);
   switch (c.k) {
@@ -565,8 +625,15 @@ function pickUp(run: Run, it: FloorItem, ev: Ev[]): void {
 }
 function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   run.over = true; run.exit = tier;
-  run.loot_kept = Math.round(run.loot * (tier === "bank" ? 1 : tier === "return" ? 0.6 : 0));   // Cut 2 §2: death 0%
-  ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept });
+  const keep_pct = tier === "bank" ? 100 : tier === "return" ? 60 : 0;
+  run.loot_kept = Math.round(run.loot * keep_pct / 100);   // Cut 2 §2: death 0%
+  // Cut 6 §1: one arithmetic line the player can check (supplies were paid in camp; a death names its bones instead)
+  const spent = run.spent.reduce((n, x) => n + x.price, 0);
+  const parts = [`$${run.loot} carried`, `${tier} keeps ${keep_pct}% → $${run.loot_kept}`];
+  if (tier === "death") { const kit = bonesKit(run).length; if (kit) parts.push(`bones: ${kit} item${kit === 1 ? "" : "s"} on D${run.depth}`); }
+  else if (spent) parts.push(`supplies −$${spent}`);
+  run.line = { carried: run.loot, keep_pct, kept: run.loot_kept, spent, spent_on: run.spent.map((x) => x.label), text: parts.join(" · ") };
+  ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept, line: run.line });
   // Cut 2 §1: camp rest as long as the expedition (one turn ≈ 1 s), capped; a death is a fixed wake
   run.rest_s = tier === "death" ? WAKE_S : Math.min(REST_CAP_S, run.turn);
   ev.push({ t: run.turn, k: "rest", seconds: run.rest_s });
@@ -580,17 +647,23 @@ function heroTurn(run: Run, ctx: SimCtx, ev: Ev[]): void {
   let done = false;
   if (h.stun > 0) { h.stun--; done = true; tr.verb = { v: "stunned" }; }
   if (!done && run.trait === "cowardly" && h.hp / h.max_hp < 0.5 && foes.length && stepAway(run, foes, ev, true)) { fire(-1, { v: "retreat" }, "cowardly: retreat"); ev.push({ t: run.turn, k: "callout", text: "cowardly: retreats" }); done = true; }
+  // Cut 6 §3: every row above the fired one gets one reason (the failing cond named, or why the verb could not run)
+  const rows: { row: number; why: string }[] = [];
   if (!done) for (let i = 0; i < ctx.rules.rows.length; i++) {
     const r = ctx.rules.rows[i];
-    if (!r.conds.every((c) => condHolds(run, c))) continue;
-    if (run.trait === "brave" && (r.verb.v === "retreat" || r.verb.v === "back_corridor") && foes.length === 1) continue;
+    const miss = r.conds.find((c) => !condHolds(run, c));
+    if (miss) { rows.push({ row: i, why: condWhy(run, miss) }); continue; }
+    if (run.trait === "brave" && (r.verb.v === "retreat" || r.verb.v === "back_corridor") && foes.length === 1) { rows.push({ row: i, why: "brave" }); continue; }
     if (exec(run, r.verb, ctx, ev)) {
       fire(i, r.verb, rowText(r));
       const hpc = r.conds.find((c) => c.k === "hp<");
       ev.push({ t: run.turn, k: "callout", text: hpc ? `hp ${Math.round((h.hp / h.max_hp) * 100)}% → ${r.verb.v.replace("_", " ")} R${i + 1}` : `${r.verb.v.replace("_", " ")} R${i + 1}` });
       done = true; break;
     }
+    rows.push({ row: i, why: verbWhy(r.verb) });
+    if (!tr.blocked) tr.blocked = `R${i + 1} ${r.verb.v.replace(/_/g, " ")} ✗ ${verbWhy(r.verb)}`;
   }
+  if (rows.length) tr.rows = rows;
   if (!done && run.trait === "curious" && !foes.length) { const u = h.inv.find((i) => !i.known); if (u) { useItem(run, u, ctx, ev); fire(-1, { v: POTIONS.includes(u.kind) ? "drink" : "read", a: "unknown" }, "curious: tries unknown"); ev.push({ t: run.turn, k: "callout", text: "curious: tries it" }); done = true; } }
   if (!done && run.trait === "greedy" && foes.length) { const it = run.floor.items.find((i) => cheb(i.x, i.y, h.x, h.y) <= 1); if (it) { if (it.x === h.x && it.y === h.y) pickUp(run, it, ev); else moveHero(run, it.x, it.y, ev); fire(-1, { v: "pick_up" }, "greedy: takes it"); ev.push({ t: run.turn, k: "callout", text: "greedy: grabs it" }); done = true; } }
   if (!done) {
@@ -710,6 +783,7 @@ function simTurn(run: Run, ctx: SimCtx): Ev[] {
   if (!speedy || run.turn % 2 === 0) for (const m of [...run.floor.mons]) { if (run.floor.mons.includes(m)) monsterTurn(run, m, ev); if (run.over) return ev; }
   if (run.hero.invis > 0) run.hero.invis--; if (run.hero.bashCd > 0) run.hero.bashCd--; if (run.hero.vanishCd > 0) run.hero.vanishCd--; if (run.cleaveCd > 0) run.cleaveCd--;
   if (run.bulwark > 0) { run.bulwark--; if (run.bulwark === 0) run.hero.def -= 3; }
+  bossInView(run, ev);                      // Cut 6 §5: a boss that walked into view this turn
   if (run.hero.hp <= 0) die(run, ev);
   else if (hp0 <= run.hero.max_hp * 0.2 && run.hero.hp > hp0 && visibleFoes(run).length === 0) { run.hl.push({ pattern: "near_death", score: 5, t: run.turn, run_id: run.id, text: `Down to ${hp0} hp on D${run.depth}. Lived.` }); ev.push({ t: run.turn, k: "note", text: `survived at ${hp0} hp` }); }
   return ev;
@@ -747,7 +821,8 @@ function snapshot(run: Run, rules?: RuleSet): Snapshot {
 function stakeOf(run: Run, rules?: RuleSet): Snapshot["stake"] {
   const brought = run.broughtItems.map((i) => ({ label: i.label, insured: run.insured.has(i.id) }));
   const rows = rules?.rows ?? []; const ri = rows.findIndex((r) => r.verb.v === "return" || r.verb.v === "bank");
-  return { loot: run.loot, brought, return_row: ri >= 0 ? ri : undefined };
+  // Cut 6 §1: what that row would bring home now (the kept number, not the carried one)
+  return { loot: run.loot, brought, return_row: ri >= 0 ? ri : undefined, kept: ri >= 0 ? Math.round(run.loot * (rows[ri].verb.v === "bank" ? 1 : 0.6)) : undefined };
 }
 function runToEnd(run: Run, ctx: SimCtx, maxTurns = 3000): void { while (!run.over && run.turn < maxTurns) simTurn(run, ctx); if (!run.over) endRun(run, "return", []); }
 
@@ -771,8 +846,10 @@ export class FakeEngine implements Engine {
   }
   private ctx(rules = this.s.rules): SimCtx {
     const fm = this.flavourMap(); const inv = new Map([...fm].map(([k, v]) => [v, k]));
+    const cat = this.supplyCatalogue();
     return { rules, unlocks: new Set(this.s.lineage.unlocks), flav: (k) => fm.get(k) ?? k, kindOfFlav: (f) => inv.get(f), tier: (k) => this.s.lineage.forge?.[k]?.tier ?? 0,
-      bones: this.s.lineage.bones ?? [], insured: new Set(this.s.lineage.insured ?? []) };
+      bones: this.s.lineage.bones ?? [], insured: new Set(this.s.lineage.insured ?? []),
+      gold: this.s.lineage.gold, spent: (this.s.lineage.supplies ?? []).map((it) => ({ label: it.label, price: cat.find((c) => c.kind === it.kind)?.price ?? 0 })) };
   }
   private maxRows(): number { return 4 + ["row5", "row6", "row7", "row8"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
   private vaultSlots(): number { return 1 + ["vault2", "vault3", "vault4"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
@@ -806,7 +883,21 @@ export class FakeEngine implements Engine {
     return this.lineage();
   }
   save(): string { return JSON.stringify(this.s); }
-  lineage(): Lineage { this.s.lineage.ledger = this.ledger(); return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage; }
+  lineage(): Lineage {
+    this.s.lineage.ledger = this.ledger();
+    this.s.lineage.counters = this.counters();
+    return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage;
+  }
+  /** Cut 6 §5: bosses whose counter fact is known, with the counter as a row. */
+  private counters(): Counter[] {
+    // the core merges facts into the lineage as they are learned; the live run's facts count here for the same reason
+    return [...new Set([...this.s.lineage.facts, ...(this.live?.facts ?? [])])].flatMap((f) => { const m = /^boss:([a-z_]+):counter$/.exec(f); const c = m && COUNTER[m[1]]; return c ? [{ boss: m[1], row: c.row, text: c.text }] : []; });
+  }
+  /** Cut 6 §1: every gold movement is a ledger line (`+$50 returned D5`, `−$40 heal potion`), the last 20 kept, oldest first. */
+  private gold(delta: number, why: string): void {
+    const L = this.s.lineage; L.gold += delta;
+    const g = (L.gold_ledger ??= []); g.push({ t: this.s.runCounter, delta, why }); while (g.length > GOLD_LEDGER_CAP) g.shift();
+  }
   private ledger(): LedgerRow[] {
     const F = this.s.lineage.facts;
     return LEDGER_KINDS.map((kind) => ({ kind, seen: F.includes(`foe:${kind}`), known: F.includes(`foe:${kind}`) && MON[kind].tags.filter((t) => t !== "boss").every((t) => F.includes(`foe:${kind}:${t}`)), studied: F.includes(`foe:${kind}:studied`), tamed: this.s.tamedKinds.includes(kind), bred: this.s.bredKinds.includes(kind) }));
@@ -834,7 +925,7 @@ export class FakeEngine implements Engine {
   }
   hatch(eggId: number): Lineage {
     const L = this.s.lineage; const e = L.eggs.find((x) => x.id === eggId);
-    if (e && e.from_loss && L.gold >= 50) { L.gold -= 50; L.eggs = L.eggs.filter((x) => x !== e); L.kennel.push(mkCompanion(this.s.nextCid++, e.kind, 1, e.tags, e.gen)); }
+    if (e && e.from_loss && L.gold >= 50) { this.gold(-50, `hatch ${e.kind.replace(/_/g, " ")}`); L.eggs = L.eggs.filter((x) => x !== e); L.kennel.push(mkCompanion(this.s.nextCid++, e.kind, 1, e.tags, e.gen)); }
     return this.lineage();
   }
   // Addendum B — supplies
@@ -851,10 +942,10 @@ export class FakeEngine implements Engine {
   }
   buySupply(kind: string): Lineage {
     const L = this.s.lineage; const e = this.supplyCatalogue().find((x) => x.kind === kind);
-    if (e && L.supplies.length < 3 && L.gold >= e.price) { L.gold -= e.price; L.supplies.push({ id: this.s.nextItem++, kind: e.kind, known: true, label: e.label }); }
+    if (e && L.supplies.length < 3 && L.gold >= e.price) { this.gold(-e.price, e.label); L.supplies.push({ id: this.s.nextItem++, kind: e.kind, known: true, label: e.label }); }
     return this.lineage();
   }
-  clearSupplies(): Lineage { const L = this.s.lineage; for (const s of L.supplies) L.gold += this.supplyCatalogue().find((x) => x.kind === s.kind)?.price ?? 0; L.supplies = []; return this.lineage(); }
+  clearSupplies(): Lineage { const L = this.s.lineage; for (const s of L.supplies) this.gold(this.supplyCatalogue().find((x) => x.kind === s.kind)?.price ?? 0, `refund ${s.label}`); L.supplies = []; return this.lineage(); }
   companionVocabulary(id: number): Vocabulary {
     const c = [...this.s.lineage.kennel, ...this.s.lineage.party].find((x) => x.id === id);
     const base = this.vocabulary();
@@ -909,8 +1000,11 @@ export class FakeEngine implements Engine {
     const ctx = this.ctx(rules); const run = makeRun(0, this.s.lineage.heir, seed, cls, trait, known, brought, ctx, [], this.classLevel(cls)); runToEnd(run, ctx); return run;
   }
 
-  forecast(): Forecast {
-    const L = this.s.lineage; const known_to = L.best_depth + 1; const N = 20;
+  forecast(): Forecast { return this.forecastN(20); }
+  /** Cut 6 §9: the same forecast at 100 sims (the client asks 2 s after a quiet paint). Same seeds ⇒ the first 20 agree. */
+  forecastRefine(): Forecast { return this.forecastN(100); }
+  private forecastN(N: number): Forecast {
+    const L = this.s.lineage; const known_to = L.best_depth + 1;
     const reach = new Array(16).fill(0); const causes: Record<string, number> = {};
     for (let i = 0; i < N; i++) {
       const r = this.simOne(hash(`fc:${L.seed}:${i}`), this.s.rules, this.known());
@@ -962,11 +1056,11 @@ export class FakeEngine implements Engine {
   }
   private settle(run: Run, real: boolean, keepIds: number[] = []): { facts: string[]; bests: string[]; marks: number; tamed: string[]; lost: string[]; hatched: string[]; xp: number; levels: number[]; salvaged: { kind: string; n: number; gold: number }[]; score: number; ranks: number[] } {
     const L = this.s.lineage; const log = this.s.logs[run.id];
-    if (log) { log.depth = run.depth; log.cause = run.cause; log.turns = run.turn; log.exit = run.exit ?? ""; log.hpMargin = run.lastHurt ? run.lastHurt.dmg - run.lastHurt.hpBefore + 1 : 0; if (run.exit === "death") log.turns = run.turn; }
+    if (log) { log.depth = run.depth; log.cause = run.cause; log.turns = run.turn; log.exit = run.exit ?? ""; log.line = run.line; log.hpMargin = run.lastHurt ? run.lastHurt.dmg - run.lastHurt.hpBefore + 1 : 0; if (run.exit === "death") log.turns = run.turn; }
     if (!real) return { facts: [], bests: [], marks: 0, tamed: [], lost: [], hatched: [], xp: 0, levels: [], salvaged: [], score: 0, ranks: [] };
     const facts: string[] = []; const bests: string[] = []; let marks = 0;
     const tamed: string[] = [], lost: string[] = [], hatched: string[] = [];
-    L.gold += run.loot_kept; L.supplies = [];
+    this.gold(run.loot_kept, `${run.exit === "bank" ? "banked" : run.exit === "return" ? "returned" : "died"} D${run.depth}`); L.supplies = [];
     L.rest_left_s = run.rest_s;                                             // Cut 2 §1: camp rest after every expedition (send skips it)
     // Cut 2 §2: bones recovered this run leave the lineage; a death leaves a new pile (max 3, oldest expires)
     L.bones = (L.bones ?? []).filter((b) => !run.bonesFound.some((f) => f.heir === b.heir && f.depth === b.depth));
@@ -1015,7 +1109,7 @@ export class FakeEngine implements Engine {
     const salv: Record<string, { n: number; gold: number }> = {};
     for (const it of run.exit === "death" ? [] : this.carried(run)) {
       if (keepIds.includes(it.id) && L.vault.length < this.vaultSlots()) { L.vault.push({ ...it, id: this.s.nextItem++ }); continue; }
-      const g = Math.round(salvageOf(it.kind) * tierMul); L.gold += g;
+      const g = Math.round(salvageOf(it.kind) * tierMul); this.gold(g, `salvaged ${it.kind.replace(/_/g, " ")}`);
       const f = (L.forge[it.kind] ??= { salvaged: 0, craftable: false, tier: 0 }); f.salvaged++; f.craftable = f.salvaged >= 5; f.tier = f.salvaged >= 40 ? 2 : f.salvaged >= 15 ? 1 : 0;
       (salv[it.kind] ??= { n: 0, gold: 0 }).n++; salv[it.kind].gold += g;
     }
@@ -1036,15 +1130,20 @@ export class FakeEngine implements Engine {
   bail(): void { if (this.live && !this.live.over) this.bailed = true; }
   choose(_itemId: number): Snapshot { if (!this.live) this.live = this.startRun(); const snap = snapshot(this.live, this.s.rules); snap.turn *= 10; return snap; }
   setVaultPref(pref: string): Lineage { if (["weapon", "armour", "potion", "scroll"].includes(pref)) this.s.lineage.vault_pref = pref; return this.lineage(); }
-  insure(id: number): Lineage { const L = this.s.lineage; L.insured = [...(L.insured ?? []), id]; return this.lineage(); }
+  insure(id: number): Lineage {
+    const L = this.s.lineage; const it = L.vault.find((v) => v.id === id);
+    if (!it || (L.insured ?? []).includes(id)) return this.lineage();
+    const price = Math.ceil(salvageOf(it.kind) * 10 / 4); if (L.gold < price) return this.lineage();   // the camp's own price (ui/salvage.ts)
+    this.gold(-price, `insure ${it.label}`); L.insured = [...(L.insured ?? []), id]; return this.lineage();
+  }
 
   runOfflineQuick(elapsedS: number): ReturnReport { const r = this.runOffline(elapsedS); return { ...r, worst_death_id: r.worst_death?.run_id, worst_death: undefined }; }
   runOffline(elapsedS: number): ReturnReport {
     const L = this.s.lineage;
     let budget = Math.max(0, Math.floor(elapsedS)); let runs = 0, stall = 0, sampled = false, turnsTotal = 0;
-    let rested = 0, banked = 0, returned = 0; const bonesFound: string[] = [];
+    let rested = 0, banked = 0, returned = 0; const bonesFound: string[] = []; const exits: ExitLine[] = [];
     // Cut 2 §1: the rest (or wake) after each expedition comes out of the same clock; what is left waits in camp
-    const rest = (run: Run): void => { const r = Math.min(run.rest_s, budget); rested += r; budget -= r; L.rest_left_s = run.rest_s - r; if (run.exit === "bank") banked++; else if (run.exit === "return") returned++; for (const b of run.bonesFound) bonesFound.push(`heir ${b.heir} · D${b.depth} · ${b.items} items`); };
+    const rest = (run: Run): void => { if (run.line) { exits.push(run.line); while (exits.length > EXITS_CAP) exits.shift(); } const r = Math.min(run.rest_s, budget); rested += r; budget -= r; L.rest_left_s = run.rest_s - r; if (run.exit === "bank") banked++; else if (run.exit === "return") returned++; for (const b of run.bonesFound) bonesFound.push(`heir ${b.heir} · D${b.depth} · ${b.items} items`); };
     if ((L.rest_left_s ?? 0) > 0) { const r = Math.min(L.rest_left_s ?? 0, budget); rested += r; budget -= r; L.rest_left_s = (L.rest_left_s ?? 0) - r; }
     const learned: string[] = [], bests: string[] = [], found: InvItem[] = [], deaths: Record<string, number> = {}; let marks = 0; let reel: Highlight[] = [];
     const tamed: string[] = [], hatched: string[] = [], lost: string[] = []; let xpGained = 0, levelUps = 0, renownGained = 0, ranksUp = 0;
@@ -1082,7 +1181,7 @@ export class FakeEngine implements Engine {
     const live = this.send(); L.rest_left_s = restLeft;                    // `live` is a peek, not a send: the rest stands
     return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live, tamed, hatched, lost, xp: { class: L.class, gained: xpGained, level_ups: levelUps },
       salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp },
-      rested_s: rested, banked, returned, bones_found: bonesFound, stall: verdictStall };
+      rested_s: rested, banked, returned, bones_found: bonesFound, stall: verdictStall, exits };
   }
   /** Stall verdict (core README) so the report's section can be seen: a `return` / `bank` row that sent ≥ 4 runs home with no
    *  new depth is named; the candidates (row 10 points deeper as `replace`, the row as `remove`, `hp<90 → rest`) carry the
@@ -1144,7 +1243,7 @@ export class FakeEngine implements Engine {
     const verdict: "gap" | "dice" = scored.length && scored[0].survive >= 0.6 ? "gap" : "dice";
     const margin = `${Math.max(1, log.hpMargin)} hp short`;
     const morgue = [`riddle · seed ${L.seed} · heir ${log.heir} · ${log.cls} · ${log.trait}`, `D${log.depth} · ${replay.cause ?? "?"} · ${margin} · ${verdict} · turn ${log.turns}`, "", ...log.rules.rows.map((r, i) => `R${i + 1} ${rowText(r)}`), "", ...replay.trace.map((t) => `t${t.t} R${t.row + 1} ${verbText(t.verb)} hp${t.hp} foes${t.foes}${t.telegraphs.length ? " " + t.telegraphs.join(",") : ""}`)].join("\n");
-    const d: Death = { run_id: runId, depth: log.depth, cause: replay.cause ?? log.cause ?? "?", margin, verdict, baseline: base, trace: { turns: replay.trace }, patches: scored, morgue };
+    const d: Death = { run_id: runId, depth: log.depth, cause: replay.cause ?? log.cause ?? "?", margin, verdict, baseline: base, trace: { turns: replay.trace }, patches: scored, morgue, line: log.line ?? replay.line };
     this.lastDeath[runId] = d; return d;
   }
 
@@ -1162,7 +1261,8 @@ export class FakeEngine implements Engine {
     const L = this.s.lineage;
     L.ledger = this.ledger();
     return Object.entries(UNLOCKS).map(([id, u]) => { const owned = L.unlocks.includes(id); const met = u.gate?.(L) ?? true; return { id, cost: u.cost, owned, available: !owned && this.unlockVisible(id) && L.marks >= u.cost, needs: met ? undefined : u.needs,
-      delta: TACTIC_CARDS.includes(id) && !owned ? ((Math.abs(hash(id)) % 9) - 2) / 100 : undefined };   // delta: Cut 4 §9 stand-in (`reach +4%` on a card)
+      delta: TACTIC_CARDS.includes(id) && !owned ? ((Math.abs(hash(id)) % 9) - 2) / 100 : undefined,   // delta: Cut 4 §9 stand-in (`reach +4%` on a card)
+      rows: UNLOCK_ROWS[id] };                                                                          // Cut 6 §6
     });
   }
   setClass(cls: string): Lineage {

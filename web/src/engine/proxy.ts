@@ -8,6 +8,7 @@ const METHODS: (keyof Engine)[] = [
   "buy", "lineage", "exportRules", "importRules", "setParty", "setCompanionRules", "breed", "hatch", "companionVocabulary",
   "buySupply", "clearSupplies", "supplyCatalogue", "keep", "setKeepPref", "insure", "runOfflineQuick", "unlocks", "unlockDeltas", "setClass", "selectSet", "ascend",
   "bail", "choose", "setVaultPref",
+  "forecastRefine",   // Cut 6: optional on the engine; the proxy rejects when the engine lacks it (the client treats that as "no refine")
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */
@@ -15,7 +16,9 @@ export function asyncify(e: Engine): AsyncEngine {
   const out: Record<string, (...a: unknown[]) => Promise<unknown>> = {};
   for (const m of METHODS) {
     out[m] = (...a: unknown[]) => new Promise((res, rej) => {
-      try { res((e[m] as (...x: unknown[]) => unknown).apply(e, a)); } catch (err) { rej(err); }
+      const fn = e[m] as ((...x: unknown[]) => unknown) | undefined;
+      if (typeof fn !== "function") { rej(new Error(`no engine method ${m}`)); return; }
+      try { res(fn.apply(e, a)); } catch (err) { rej(err); }
     });
   }
   return out as unknown as AsyncEngine;

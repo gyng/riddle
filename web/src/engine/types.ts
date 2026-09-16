@@ -28,8 +28,16 @@ export type Snapshot = {
 };
 /** Cut 5 §4 — the three items of an opened vault; `choose(id)` takes one, the rest vanish. */
 export type VaultChoice = { items: InvItem[] };
-/** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any. */
-export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number };
+/** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any.
+ *  Cut 6 §1: `kept` = what that row would bring home now (`$84 · keeps $50`). */
+export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number };
+/** Cut 6 §1 — the ledger line of an exit: one arithmetic line the player can check, `text` is shown verbatim
+ *  (`$84 carried · return keeps 60% → $50 · supplies −$12 → $68`). Fractions: `keep_pct` 0..100. */
+export type ExitLine = { carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string };
+/** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
+export type GoldLine = { t: number; delta: number; why: string };
+/** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */
+export type Counter = { boss: string; row?: Row | string; text: string };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent" };
 
 export type Ev =
@@ -47,7 +55,7 @@ export type Ev =
   | { t: number; k: "steal"; id: number; item: string }
   | { t: number; k: "ally"; id: number; state: "freed"|"lost" }
   | { t: number; k: "descend"; depth: number; biome: string }
-  | { t: number; k: "exit"; tier: "bank"|"return"|"death"; loot_kept: number }
+  | { t: number; k: "exit"; tier: "bank"|"return"|"death"; loot_kept: number; line?: ExitLine }   // line: Cut 6 §1
   | { t: number; k: "note"; text: string }                                  // chronicle line, ≤ 8 words
   | { t: number; k: "callout"; text: string }                               // ≤ 3 words, for the renderer
   | { t: number; k: "tame"; id: number; kind: string; ok: boolean }         // Addendum A
@@ -64,14 +72,19 @@ export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
 
 export type Forecast = { depths: { depth: number; reach: number; cause?: string }[]; causes: { cause: string; share: number }[];
                          known_to: number };                             // depths[].cause: Cut 4 §8, optional per-depth top cause
-export type Trace = { turns: { t: number; row: number; verb: Verb; hp: number; foes: number; telegraphs: string[] }[] };
+/** Cut 4: `blocked` = the first row whose conds held but whose verb could not execute. Cut 6 §3: `rows` = every row above the
+ *  fired one with one reason why it did not fire (`none held`, `no path`, `not in view`, `hp 8% ≥ 30%`). */
+export type TraceTurn = { t: number; row: number; verb: Verb; hp: number; foes: number; telegraphs: string[];
+                          blocked?: string; rows?: { row: number; why: string }[] };
+export type Trace = { turns: TraceTurn[] };
 /** A candidate row. Death patches insert before `insert_at`; stall patches (core README) may instead `replace` the row at
  *  `insert_at` or `remove` it (`row` echoes the removed row). */
 export type Patch = { row: Row; insert_at: number; survive: number; forecast_delta: number; replace?: boolean; remove?: boolean };
 export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice";
                       baseline: number;                                                   // core addition: survival of the unpatched rules, 0..1
                       trace: Trace; patches: Patch[];
-                      morgue: string };
+                      morgue: string;
+                      line?: ExitLine };                                                     // Cut 6 §1: the death's ledger line
 /** Core addition: the last ≥ 4 runs all came home with no new depth — the row that ended them, how many, a ≤ 12-word line,
  *  and up to 3 patches with forecast deltas at the stall depth + 1 (`survive` = the patched reach there). A state: the
  *  last slice's wins on merge. */
@@ -88,6 +101,7 @@ export type ReturnReport = {
   renown: { gained: number; rank: number; ranks_up: number };               // Addendum D
   rested_s?: number; banked?: number; returned?: number; bones_found?: string[]; // Cut 2 §1–2
   stall?: Stall;                                                              // core addition: stall verdict
+  exits?: ExitLine[];                                                         // Cut 6 §1: one ledger line per exit in the batch
 };
 export type Lineage = { seed: number; heir: number; trait: string; class: string; best_depth: number; marks: number;
                         facts: string[]; unlocks: string[]; vault: InvItem[]; graveyard: { heir: number; depth: number; cause: string; deeds: string[] }[];
@@ -101,7 +115,9 @@ export type Lineage = { seed: number; heir: number; trait: string; class: string
                         ascension?: Ascension;                                                                         // Cut 3
                         chronicle?: string[];                                                                          // Cut 5 §2: one line per ended heir, oldest first (cap 40)
                         vault_pref?: string;                                                                           // Cut 5 §4: what an unwatched vault choice takes (`weapon | armour | potion | scroll`)
-                        ascended?: string[] };                                                                         // Cut 5: variants the lineage has finished the dungeon with
+                        ascended?: string[];                                                                          // Cut 5: variants the lineage has finished the dungeon with
+                        gold_ledger?: GoldLine[];                                                                      // Cut 6 §1: the last 20 gold movements, oldest first (`ledger` is the bestiary)
+                        counters?: Counter[] };                                                                        // Cut 6 §5: bosses whose counter row is known
 /** Cut 3: times the lineage ascended and the variant it plays under (`""` at level 0). */
 export type Ascension = { level: number; variant: string };
 export const VARIANTS = ["no_rest", "short_list", "bones_only", "hunted"] as const;
@@ -148,10 +164,13 @@ export interface Engine {
   bail(): void;                         // §5: a `return` fires on the hero's next action as a chore; the rules are untouched
   choose(itemId: number): Snapshot;     // §4: take one item of the opened vault (`Snapshot.vault_choice.items[].id`)
   setVaultPref(pref: string): Lineage;  // §4: `weapon | armour | potion | scroll` — what an unanswered vault choice takes
+  // Cut 6
+  forecastRefine?(): Forecast;          // §9: the same forecast at 100 sims (optional; the client calls it 2 s after a quiet paint)
 }
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
-                           delta?: number };                                                                // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards
+                           delta?: number;                                                                 // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards
+                           rows?: Row[] };                                                                  // Cut 6 §6: a card's rows / an automation's effect as a row
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */
-export type AsyncEngine = { [K in keyof Engine]: Engine[K] extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };
+export type AsyncEngine = { [K in keyof Engine]: NonNullable<Engine[K]> extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };
 export type SupplyEntry = { kind: string; price: number; label: string };                                             // Addendum B

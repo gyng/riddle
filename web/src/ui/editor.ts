@@ -3,6 +3,8 @@
 // Cut 4 §1: over budget (a patch on a full set) shows `5/4` in red and marks the rows the engine would drop;
 // nothing is evicted. Cut 4 §9: a tactic-card row (`{v:"tactic"}`) is a locked chip `[card] thief guard`:
 // not editable, but deletable and draggable, so the player sees where the card sits.
+// Cut 6 §4: over budget, the rows marked to drop are the card rows first (a card is the newest row), then the last
+// player rows. Cut 6 §6: tapping a `[card]` chip opens a sheet with the card's rows as read-only chips (`cardRows`).
 import type { App } from "../app";
 import type { Cond, Row, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash } from "./dom";
@@ -11,8 +13,28 @@ import { NUMS, PCT, condLabel, condName, needsN, sameCond, sameVerb, verbLabel }
 
 export type Editor = { el: HTMLElement; refresh(): void };
 /** What the editor edits: the hero's active set, or a companion's own rows. */
-export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void };
-export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged() });
+export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; cardRows?(id: string): Row[] | undefined };
+export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id) });
+
+/** Cut 6 §6: a row as read-only chips (`foe: ranged → kite`), shared by the card sheet and the shelf. */
+export function rowChips(row: Row): HTMLElement {
+  const chips = h("div", { class: "chips" });
+  row.conds.forEach((c) => chips.appendChild(h("span", { class: "chip cond locked" }, condLabel(c))));
+  if (row.conds.length) chips.appendChild(h("span", { class: "arrow" }, "→"));
+  chips.appendChild(h("span", { class: "chip verb locked" }, verbLabel(row.verb)));
+  return chips;
+}
+/** Cut 6 §6: the sheet behind a `[card]` row or an owned automation: its rows as chips, nothing else. */
+export function openRowsSheet(rows: Row[]): void {
+  openSheet(() => h("div", { class: "sheet-body card-rows" }, ...rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))));
+}
+/** Cut 6 §4: which rows an over-budget set marks to drop: card rows (newest) first, then the last rows. */
+export function dropRows(rows: Row[], max: number): Set<number> {
+  const out = new Set<number>(); let n = rows.length - max;
+  for (let i = rows.length - 1; i >= 0 && n > 0; i--) if (rows[i].verb.v === "tactic") { out.add(i); n--; }
+  for (let i = rows.length - 1; i >= 0 && n > 0; i--) if (!out.has(i)) { out.add(i); n--; }
+  return out;
+}
 
 export function renderEditor(bind: Binding, highlight?: number): Editor {
   const list = h("div", { class: "rows" });
@@ -28,7 +50,8 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
   function refresh(): void {
     clear(list); clear(foot);
     const n = rows().length, max = vocab().max_rows, over = n > max;
-    rows().forEach((row, i) => list.appendChild(rowEl(row, i, over && i >= max)));
+    const drop = over ? dropRows(rows(), max) : new Set<number>();
+    rows().forEach((row, i) => list.appendChild(rowEl(row, i, drop.has(i))));
     foot.append(
       h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`),
       n < max ? h("button", { class: "btn ghost", onclick: () => { rows().push(defaultRow()); commit(); } }, "+") : "",
@@ -48,7 +71,10 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
     if (card) {
       row.conds.forEach((c) => chips.appendChild(h("span", { class: "chip cond locked" }, condLabel(c))));
       if (row.conds.length) chips.appendChild(h("span", { class: "arrow" }, "→"));
-      chips.appendChild(h("span", { class: "chip verb locked" }, h("small", { class: "dim" }, /* copy:rule_token */ "[card]"), " ", (row.verb.a ?? "").replace(/_/g, " ")));
+      const id = row.verb.a ?? "";
+      const inner = [h("small", { class: "dim" }, /* copy:rule_token */ "[card]"), " ", id.replace(/_/g, " ")];
+      const cardRows = bind.cardRows?.(id);
+      chips.appendChild(cardRows?.length ? h("button", { class: "chip verb locked", onclick: () => openRowsSheet(cardRows) }, ...inner) : h("span", { class: "chip verb locked" }, ...inner));
     } else {
       row.conds.forEach((c, ci) => chips.appendChild(h("button", { class: "chip cond", onclick: () => pickCond(row, ci) }, condLabel(c))));
       if (row.conds.length < 2) chips.appendChild(h("button", { class: "chip cond add", onclick: () => pickCond(row, row.conds.length) }, "+"));

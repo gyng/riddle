@@ -1,6 +1,6 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
-import type { AsyncEngine, Death, Forecast, Lineage, Patch, ReturnReport, Row, RuleSet, Vocabulary } from "./engine/types";
+import type { AsyncEngine, Death, Forecast, Lineage, Patch, ReturnReport, Row, RuleSet, UnlockInfo, Vocabulary } from "./engine/types";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
 import { renderCamp } from "./ui/camp";
@@ -39,6 +39,7 @@ const SAVE_DEBOUNCE_MS = 1000;
 // (~3 s per slice; one `death(id)` at the end instead), so slices are a flat 30 min. On a stale wasm build
 // without it, the full call is used with slices that grow with the absence (80 min for 8 h, 2 h cap).
 const OFFLINE_SLICE_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES = 6;
+const REFINE_MS = 2000;
 
 export class App {
   engine!: AsyncEngine;
@@ -61,12 +62,19 @@ export class App {
   private fcTimer = 0;
   private fcInFlight = false;
   private fcDirty = false;
+  /** Cut 6 §9: the quiet second pass (100 sims) 2 s after a paint with the rules unchanged; off once the engine lacks it. */
+  private refineTimer = 0;
+  private refineSeq = 0;
+  private refineOff = false;
   private fcListeners = new Set<(f: Forecast) => void>();
   private changeListeners = new Set<() => void>();
   private rulesListeners = new Set<() => void>();
   private offlineRunning = false;
   /** Runs seen by this client (the wire Lineage has no run counter); persisted in the blob. */
   runsSeen = 0;
+  /** Cut 6 §6: the unlock catalogue as last fetched by the camp; a card's rows back the editor's `[card]` sheet. */
+  unlockCat: UnlockInfo[] = [];
+  cardRows(id: string): Row[] | undefined { return this.unlockCat.find((u) => u.id === id)?.rows; }
 
   constructor(root: HTMLElement, dev: DevOptions | null = null) { this.root = root; this.dev = dev; }
 
@@ -226,7 +234,7 @@ export class App {
   get overBudget(): boolean { return this.rules.rows.length > this.vocab.max_rows; }
   rulesChanged(): void {
     this.persist();
-    clearTimeout(this.fcTimer);
+    clearTimeout(this.fcTimer); clearTimeout(this.refineTimer); this.refineSeq++;
     for (const fn of this.rulesListeners) fn();
     if (this.overBudget) return;
     void this.engine.setRules(this.rules).catch((e) => console.warn("rules rejected", e));
@@ -242,9 +250,25 @@ export class App {
     try {
       const f = await this.busy(/* copy:label */ "forecast", () => this.engine.forecast());
       for (const fn of this.fcListeners) fn(f);
+      this.scheduleRefine();
     } catch (e) { console.warn("forecast failed", e); }
     finally { this.fcInFlight = false; }
     if (this.fcDirty) await this.emitForecast();
+  }
+  /** Cut 6 §9: after the forecast paints and the rules stay unchanged for REFINE_MS, `forecastRefine` (100 sims) repaints
+   *  quietly (no progress bar). A rule edit or a fresh forecast cancels it; an engine without it is asked once. */
+  private scheduleRefine(): void {
+    clearTimeout(this.refineTimer);
+    if (this.refineOff || !this.engine.forecastRefine) return;
+    const seq = ++this.refineSeq;
+    this.refineTimer = window.setTimeout(async () => {
+      if (seq !== this.refineSeq || this.fcInFlight || this.offlineRunning || this.overBudget) return;
+      try {
+        const f = await this.engine.forecastRefine!();
+        if (seq !== this.refineSeq) return;
+        for (const fn of this.fcListeners) fn(f);
+      } catch (e) { this.refineOff = true; console.warn("forecastRefine unavailable", e); }
+    }, REFINE_MS);
   }
   /** Cut 5 §6: the set's name (≤ 12 chars; empty clears it to the default). It rides the RuleSet through `setRules`, so the
    *  engine save carries it and the core can quote it in the chronicle. Renaming a set that is not active selects it first. */
@@ -394,10 +418,11 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const worst = !a.worst_death ? b.worst_death : !b.worst_death ? a.worst_death : b.worst_death.depth >= a.worst_death.depth ? b.worst_death : a.worst_death;
   // Cut 2 fields: the report picks its layout by presence, so they stay undefined only when both sides lack them
   const sum = (x?: number, y?: number): number | undefined => x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0);
-  const cat = (x?: string[], y?: string[]): string[] | undefined => x === undefined && y === undefined ? undefined : [...(x ?? []), ...(y ?? [])];
+  const cat = <T,>(x?: T[], y?: T[]): T[] | undefined => x === undefined && y === undefined ? undefined : [...(x ?? []), ...(y ?? [])];
   return {
     rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned),
     bones_found: cat(a.bones_found, b.bones_found),
+    exits: cat(a.exits, b.exits),                          // Cut 6 §1: one ledger line per exit
     elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,
     learned: union(a.learned, b.learned), bests: collapseBests(union(a.bests, b.bests)),
     found: [...a.found, ...b.found],

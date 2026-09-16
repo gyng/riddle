@@ -1,9 +1,11 @@
 // Return report: learned · bests · found · deaths · pending · reel · marks. Delta, not totals.
 import type { App, Mounted } from "../app";
-import type { ReturnReport } from "../engine/types";
+import type { Counter, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
 import { visible } from "./unlocks";
+
+const EXITS_SHOW = 8;
 
 export function renderReport(app: App, r: ReturnReport): Mounted {
   const L = app.lineage;
@@ -21,6 +23,9 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
     exits ? tile(`${deathsN}`, /* copy:label */ "deaths") : null,
   );
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
+  // Cut 6 §1: one ledger line per exit, verbatim from the engine, under the tiles (oldest first; the core keeps the last 5
+  // per slice and the client merges slices, so a long absence shows its last EXITS_SHOW)
+  const exitLines = r.exits?.length ? h("div", { class: "exit-lines" }, ...r.exits.slice(-EXITS_SHOW).map((x) => h("div", { class: "ledger-line num dim" }, x.text))) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
   const stall = r.stall ? h("section", { class: "rsec stall" },
@@ -63,8 +68,8 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
   const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }, /* copy:button */ "open") : null;
   const camp = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "camp");
   const el = h("main", { class: "report" },
-    tiles, rested, stall,
-    section(/* copy:label */ "learned", factChips(r.learned)),
+    tiles, exitLines, rested, stall,
+    section(/* copy:label */ "learned", factChips(r.learned, L.counters ?? [])),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),
     section(/* copy:label */ "lost", chips((r.lost ?? []).map((k) => `◯ ${k}`), "chip egg")),
@@ -83,8 +88,9 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
 }
 
 /** Facts grouped for reading: `foe:x`, `foe:x:t1`, `foe:x:t2` → one chip "x · t1 · t2"; `item:f=k` → "k (f)";
- *  `biome:x` → "x"; `boss:x:counter` → "x counter"; others verbatim. */
-function factChips(facts: string[]): HTMLElement | null {
+ *  `biome:x` → "x"; `boss:x:counter[=row]` → "x counter: attack boss" (Cut 6 §5: the lineage's counter text names the row);
+ *  others verbatim. */
+function factChips(facts: string[], counters: Counter[] = []): HTMLElement | null {
   const nice = (x: string): string => x.replace(/_/g, " ");
   const foes = new Map<string, string[]>();
   const rest: HTMLElement[] = [];
@@ -97,8 +103,8 @@ function factChips(facts: string[]): HTMLElement | null {
     if (b) { rest.push(h("span", { class: "chip fact" }, nice(b[1]))); continue; }
     const bn = /^bones:(\d+)$/.exec(f);
     if (bn) { rest.push(h("span", { class: "chip fact" }, /* copy:label */ "bones", h("small", null, ` D${bn[1]}`))); continue; }
-    const c = /^boss:([^:]+):counter$/.exec(f);
-    if (c) { rest.push(h("span", { class: "chip fact" }, nice(c[1]), h("small", null, /* copy:label */ " counter"))); continue; }
+    const c = /^boss:([^:]+):counter(?:=.*)?$/.exec(f);
+    if (c) { const text = counters.find((k) => k.boss === c[1])?.text; rest.push(h("span", { class: "chip fact" }, nice(c[1]), h("small", null, /* copy:label */ " counter", text ? `: ${text}` : ""))); continue; }
     rest.push(h("span", { class: "chip fact" }, nice(f)));
   }
   const out = [...foes].map(([k, tags]) => h("span", { class: "chip fact" }, nice(k), tags.length ? h("small", null, ` ${tags.map(nice).join(" · ")}`) : ""));

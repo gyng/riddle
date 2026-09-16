@@ -32,6 +32,12 @@ export function visible(catalogue: UnlockInfo[]): UnlockCard[] {
     .filter((u) => !u.owned && (!AFTER[u.id] || owned.has(AFTER[u.id])))
     .map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " "), gated: !u.available && !!u.needs }));
 }
+/** Cut 6 §4: a tactic card (it becomes a row when bought). */
+export const isCard = (u: UnlockInfo): boolean => /^card:/.test(LABEL[u.id] ?? "");
+/** Cut 6 §6: owned entries that carry rows (cards, automations) — the shelf keeps them as chips that open their rows. */
+export function ownedRows(catalogue: UnlockInfo[]): UnlockCard[] {
+  return catalogue.filter((u) => u.owned && u.rows?.length).map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " "), gated: false }));
+}
 export const vaultSlots = (owned: string[]): number => 1 + ["vault2", "vault3", "vault4", "vault5"].filter((u) => owned.includes(u)).length;
 export const supplyCap = (owned: string[]): number => (owned.includes("supply_cap_5") ? 5 : 3);
 

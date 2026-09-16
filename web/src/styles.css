@@ -266,3 +266,25 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .vault-choice .glyph { color: var(--acc); font-weight: 400; }
 
 .morgue-text { white-space: pre-wrap; font-size: 12px; line-height: 1.35; margin: 0; max-height: 70vh; overflow: auto; }
+
+/* Cut 6 — clarity: the ledger line, row accounting, the gold sheet, card sheets, the rest chip */
+.ledger-line { font-size: 13px; margin: 0 0 12px; line-height: 1.4; }
+.death .ledger-line { margin-top: -6px; }
+.exit-lines { margin: 8px 0 4px; }
+.exit-lines .ledger-line { margin: 0 0 4px; }
+.rows-line { font-size: 12px; margin: 6px 0 10px; line-height: 1.4; }
+.strip button.gold { min-height: var(--tap); padding: 0 4px; }
+.gold-sheet .lrow { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: center; min-height: 36px; border-bottom: 1px solid var(--line); }
+.gold-sheet .lrow .k { text-align: right; }
+.gold-sheet .lrow.down .k { color: var(--hp); }
+.gold-sheet .lrow.up .k { color: var(--ok); }
+.gold-sheet .why { color: var(--dim); }
+.card-rows .row { grid-template-columns: 1fr; padding: 6px 10px; margin-bottom: 6px; }
+.chips.owned { margin-top: 8px; }
+.chip.owned { margin-left: 0; text-transform: none; letter-spacing: 0; font-size: 13px; }
+.send-bar .rest.chip { min-height: 36px; padding: 0 12px; border-style: dashed; background: transparent; cursor: pointer; }
+.send-bar .rest.chip.on { color: var(--acc); border-color: var(--acc); border-style: solid; }
+.stake .kept { color: var(--ok); }
+.card .cost.takes { display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
+.card .cost.takes small { font-size: 10px; letter-spacing: .04em; }
+button.chip.locked { cursor: pointer; }

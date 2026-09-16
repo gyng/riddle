@@ -18,7 +18,7 @@
 // as chips and holds the clock at 1×; a tap is `choose(id)`. The engine's 50-tick grace runs watched or not, so
 // an unanswered sheet closes on its own when `vault_choice` leaves the snapshot (the lineage's `vault_pref` took).
 import type { App, Mounted } from "../app";
-import type { Ev, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, VaultChoice } from "../engine/types";
+import type { Ev, ExitLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, VaultChoice } from "../engine/types";
 import { h, items, replace, spanOf } from "./dom";
 import { makeViewer, type Viewer } from "./viewer";
 import { verbsAt, xpToNext } from "../engine/classes";
@@ -72,7 +72,9 @@ export function renderWatch(app: App): Mounted {
   let speed = AUTO_FAST, done = false, disposed = false, overridden = false, tickerTimer = 0, bannerTimer = 0, pumpTimer = 0;
   // Cut 2: rest after the exit, bones left (death) / found, bosses already announced
   let restS: number | undefined, restUntil = 0, bonesLeft: number | undefined;
+  let exitLine: ExitLine | undefined;   // Cut 6 §1: the exit's ledger line (exit sheet, report, death)
   const bonesFound: string[] = []; const bossSeen = new Set<number>();
+  let counters = app.lineage.counters ?? [];   // Cut 6 §5: bosses with a named counter row, re-read on a sighting
   let snap: Snapshot | null = null;
   let runId = -1, engineTick = 0, startTick = 0, inflight = false, lastPersist = performance.now();
   let pendingLoad: { snap: Snapshot; rest: Ev[] } | null = null;
@@ -118,6 +120,8 @@ export function renderWatch(app: App): Mounted {
     stake.hidden = !st;
     if (!st) return;
     const parts: (string | HTMLElement)[] = [`$${st.loot}`];
+    // Cut 6 §1: the kept number while a return/bank row exists (`$84 · keeps $50`)
+    if (st.kept !== undefined && !overridden) parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `keeps $${st.kept}`));
     for (const b of st.brought) parts.push(" · ", h("span", { class: b.insured ? "" : "risk" }, b.label, b.insured ? "" : "⚠"));
     if (overridden) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "returning"));
     else if (st.return_row === undefined) parts.push(" · ", h("span", { class: "lose" }, /* copy:callout */ "death: lose all"));
@@ -138,8 +142,17 @@ export function renderWatch(app: App): Mounted {
     for (const e of s.entities) {
       if (!e.tags.includes("boss") || bossSeen.has(e.id) || !s.visible[e.y * s.w + e.x]) continue;
       bossSeen.add(e.id);
-      const known = app.lineage.facts.includes(`boss:${e.kind}:counter`) || learned.includes(`boss:${e.kind}:counter`);
-      at(s.turn, () => showBanner(known ? /* copy:callout */ "boss · counter: known" : /* copy:callout */ "boss · counter: unknown", BOSS_BANNER_MS, "boss"));
+      const isFact = (f: string): boolean => f === `boss:${e.kind}:counter` || f.startsWith(`boss:${e.kind}:counter=`);   // Cut 6: the fact may carry the row
+      const known = (): boolean => app.lineage.facts.some(isFact) || learned.some(isFact);
+      // Cut 6 §5: the counter named as a row (`boss · counter: attack boss`). The fact lands on the sighting step itself (the
+      // core learns it on the boss's first telegraph), so the lineage is re-read as the banner is released at the viewer's clock.
+      at(s.turn, () => {
+        const show = (): void => {
+          const named = counters.find((c) => c.boss === e.kind)?.text;
+          showBanner(named ? /* copy:callout */ `boss · counter: ${named}` : known() ? /* copy:callout */ "boss · counter: known" : /* copy:callout */ "boss · counter: unknown", BOSS_BANNER_MS, "boss");
+        };
+        app.engine.lineage().then((L) => { counters = L.counters ?? counters; }).catch(() => { /* the mounted lineage's counters stand */ }).finally(() => { if (!disposed) show(); });
+      });
     }
   }
   function callout(text: string, cls = "", ms = 1800 / Math.max(1, speed)): void {
@@ -174,10 +187,18 @@ export function renderWatch(app: App): Mounted {
         }
         case "hurt": if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) callout(`−${ev.dmg} ${oneWord(ev.cause)}`, "hurt", HURT_MS); }); break;
         case "descend": at(ev.t, () => { hud.depth = ev.depth; paintHud(); }); break;
-        case "fact": learned.push(ev.fact); break;
+        case "fact": {
+          learned.push(ev.fact);
+          // Cut 6 §5: the counter learned mid-fight (the boss's first telegraph) names itself: `boss · counter: attack boss`
+          const m = /^boss:([a-z_]+):counter(?:=|$)/.exec(ev.fact);
+          if (m) at(ev.t, () => { app.engine.lineage().then((L) => { counters = L.counters ?? counters; }).catch(() => { /* keep */ }).finally(() => {
+            const named = counters.find((c) => c.boss === m[1])?.text; if (named && !disposed) showBanner(/* copy:callout */ `boss · counter: ${named}`, BOSS_BANNER_MS, "boss");
+          }); });
+          break;
+        }
         case "pickup": if (ev.id === heroId) found.push({ id: ev.id, kind: ev.item, known: true, label: ev.item }); break;
         case "note": notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text }); break;
-        case "exit": exit = ev.tier; break;
+        case "exit": exit = ev.tier; exitLine = ev.line ?? exitLine; break;
         case "tame": if (ev.ok) { tamedIds.push(ev.id); kinds.set(ev.id, ev.kind); } break;
         case "ally": if (ev.state === "lost") lostIds.push(ev.id); break;
         case "spawn": note_(ev.e); break;
@@ -350,6 +371,7 @@ export function renderWatch(app: App): Mounted {
       for (const c of partyAtStart) if (!lost.some((l) => l === c || l.endsWith(c.slice(c.indexOf(" · "))))) lost.push(c);
       try {
         const death = await app.busy(/* copy:label */ "verdict", () => app.engine.death(runId));
+        death.line ??= exitLine;   // Cut 6 §1: the verdict may lack the line; the exit event carried it
         if (!disposed) app.go({ kind: "death", death, lost });
       } catch (e) { console.warn("no death record", e); app.go({ kind: "camp" }); }
       return;
@@ -362,6 +384,7 @@ export function renderWatch(app: App): Mounted {
       xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
       salvaged: [], renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
       banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, bones_found: bonesFound,   // rest is still ahead: the camp shows it
+      exits: exitLine ? [exitLine] : undefined,                                                       // Cut 6 §1
     };
     app.go({ kind: "report", report });
   }
@@ -383,9 +406,10 @@ export function renderWatch(app: App): Mounted {
       };
       paint();
       const bones = p.tier === "death" && bonesLeft !== undefined ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(bonesLeft)}`) : null;
+      const ledger = exitLine?.text ? h("div", { class: "ledger-line num dim" }, exitLine.text) : null;   // Cut 6 §1: engine data, verbatim
       return h("div", { class: "sheet-body" },
         h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", count),
-        chips, bones,
+        chips, bones, ledger,
         h("button", { class: "btn primary wide", onclick: () => {
           if (sent) return; sent = true;
           app.engine.keep([...keep]).then((L) => { app.lineage = L; }).catch((e) => console.warn("keep", e)).finally(() => { close(); then(); });

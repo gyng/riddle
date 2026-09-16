@@ -75,6 +75,8 @@ export class WasmEngine implements Engine {
   bail(): void { this.game.bail(); }
   choose(itemId: number): Snapshot { return this.call("choose", itemId); }
   setVaultPref(pref: string): Lineage { return this.call("setVaultPref", pref); }
+  // Cut 6 §9: throws `wasm: forecastRefine` on a build without it (the client stops asking)
+  forecastRefine(): Forecast { return this.call("forecastRefine"); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */
