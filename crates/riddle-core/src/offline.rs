@@ -40,6 +40,8 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
     game.batch = Batch::default();
     game.events.clear();
     game.offline = true;
+    // Cut 7 §5: nothing in an absence is watched (a run left mid-watch finishes unwatched).
+    game.watched = false;
     let facts_before = game.lineage.facts.clone();
     let class = game.lineage.class.name().to_string();
     let rank_before = game.lineage.rank;

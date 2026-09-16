@@ -3,8 +3,17 @@ use crate::hero::Class;
 use crate::rng::Rng;
 use crate::rules::{Cond, Row, RuleSet, Verb, Vocabulary};
 
-/// The shipped class preset (DEFAULT bot).
+/// The shipped class preset (DEFAULT bot). Cut 7 §2: two rows for the fighter (the editor
+/// opens with two empty slots), each tagged `origin: "preset"`.
 pub fn preset(class: Class) -> RuleSet {
+    let mut set = preset_rows(class);
+    for r in set.rows.iter_mut() {
+        r.origin = Some("preset".into());
+    }
+    set
+}
+
+fn preset_rows(class: Class) -> RuleSet {
     match class {
         Class::Fighter => RuleSet {
             name: Some("fighter".into()),
@@ -49,7 +58,7 @@ pub fn good() -> RuleSet {
         rows: vec![
             Row::new(vec![Cond::n("hp<", 35)], Verb::arg("drink", "heal")),
             Row::new(vec![Cond::n("hp<", 30), Cond::n("depth>=", 5)], Verb::new("bank")),
-            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "fire,tag:boss")),
+            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 9)], Verb::arg("throw", "fire,tag:boss")),
             Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")),
             Row::new(vec![Cond::n("foes>=", 3), Cond::n("hp<", 70)], Verb::new("back_corridor")),
             Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
@@ -61,18 +70,19 @@ pub fn good() -> RuleSet {
 
 /// Cut 3: the shipped best set (FULL bot) — every boss counter, every unlock assumed. Shipped
 /// as presets/full.json. Rows 3–5 are the Cut 3 boss counters (the gate removes each in turn):
-/// `cadence` for the Mirror King, `silence` for the Lurker Queen (read when her called
-/// lurkers show, before she is seen), `reflect_read` for the Foundry Master (smiths first).
+/// `cadence` for the Mirror King (Cut 7: D33), `silence` for the Lurker Queen (D28; read when
+/// her called lurkers show, before she is seen), `reflect_read` for the Foundry Master (D23;
+/// smiths first).
 pub fn full() -> RuleSet {
     RuleSet {
         name: Some("full".into()),
         rows: vec![
             Row::new(vec![Cond::n("hp<", 35)], Verb::arg("drink", "heal")),
             Row::new(vec![Cond::n("hp<", 20), Cond::n("depth>=", 5)], Verb::new("return")),
-            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 30)], Verb::arg("tactic", "cadence")),
-            Row::new(vec![Cond::t("foe_tag", "summoned"), Cond::n("depth>=", 25)], Verb::arg("read", "silence")),
+            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 33)], Verb::arg("tactic", "cadence")),
+            Row::new(vec![Cond::t("foe_tag", "summoned"), Cond::n("depth>=", 28)], Verb::arg("read", "silence")),
             Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read")),
-            Row::new(vec![Cond::t("foe_tag", "buffer"), Cond::n("depth>=", 16)], Verb::arg("attack", "tag:buffer")),
+            Row::new(vec![Cond::t("foe_tag", "buffer"), Cond::n("depth>=", 19)], Verb::arg("attack", "tag:buffer")),
             Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("tactic", "boss_focus")),
             Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
             Row::new(vec![Cond::n("foes>=", 3), Cond::n("hp<", 70)], Verb::new("back_corridor")),
@@ -95,14 +105,16 @@ pub fn trivial() -> RuleSet {
 }
 
 /// TRIVIAL plus the boss counters: range for the Bloat Mother, the Warlord himself, the
-/// Lich's summons first (COUNTERED bot).
+/// Lich's summons first (COUNTERED bot). Cut 7: and the crypt's hunger answered (a player
+/// who reads the D12 fact lights the shrine; the D9 captive is cut down, the coward's way).
 pub fn countered() -> RuleSet {
     RuleSet {
         name: Some("countered".into()),
         rows: vec![
-            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "fire,tag:boss")),
-            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "poison,tag:boss")),
+            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 9)], Verb::arg("throw", "fire,tag:boss")),
+            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 9)], Verb::arg("throw", "poison,tag:boss")),
             Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")),
+            Row::new(vec![Cond::t("on_see", "hunger")], Verb::arg("pray", "row")),
             Row::new(vec![], Verb::arg("tame", "nearest")),
             Row::new(vec![Cond::n("hp<", 50), Cond::n("foes>=", 1)], Verb::new("retreat")),
             Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest")),
@@ -191,6 +203,68 @@ pub fn learn_everything(g: &mut crate::engine::Game) {
         g.lineage.facts.insert(crate::defs::counter_fact(a, b));
     }
     g.lineage.facts.insert("item:leash".into());
+}
+
+/// Cut 7 §3: the one-row answer to a band situation (the fighter's vocabulary).
+pub fn situation_answer(what: &str) -> Row {
+    match what {
+        "den" => Row::new(vec![Cond::t("on_see", "den")], Verb::arg("attack", "nearest")),
+        "lock" => Row::new(vec![Cond::t("foe_tag", "gas"), Cond::n("adj>=", 1)], Verb::new("retreat")),
+        "captive" => Row::new(vec![Cond::t("on_see", "captive")], Verb::new("free_captive")),
+        _ => Row::new(vec![Cond::t("on_see", "hunger")], Verb::arg("pray", "row")),
+    }
+}
+
+/// Cut 7 §3 gate probe: a fighter shaped for the band's depth (levelled, in mail below the
+/// Warrens' doorstep) starts on the situation's floor with the shipped preset — plus the
+/// one-row answer when `answered` — and plays the floor out. Returns (met, passed, left the
+/// floor alive).
+pub fn situation_trial(seed: u64, what: &str, answered: bool) -> (bool, bool, bool) {
+    let depth = crate::situations::depth_of(what).expect("a band situation");
+    let mut set = preset(Class::Fighter);
+    if answered {
+        set.rows.insert(0, situation_answer(what));
+    }
+    let g = floor_trial(seed, depth, set);
+    let run = g.run.as_ref().expect("the run is live or over");
+    let met = run.situations.iter().any(|(_, s)| s == what);
+    let passed = run.passed.iter().any(|s| s == what);
+    (met, passed, run.depth > depth)
+}
+
+/// Cut 7: a shaped fighter plays one floor with `set` (the situation trial's engine; also the
+/// Captain's floor measure). Returns the game with the run live or over.
+pub fn floor_trial(seed: u64, depth: u32, set: RuleSet) -> crate::engine::Game {
+    let mut g = crate::engine::Game::new(seed);
+    for f in ["den", "lock", "captive", "hunger", "shrine", "foe:bloat:gas", "foe:monkey:thief"] {
+        g.lineage.facts.insert(f.into());
+    }
+    g.set_rules(set).expect("trial rules");
+    let level = match depth {
+        0..=3 => 1,
+        4..=6 => 2,
+        7..=9 => 4,
+        _ => 6,
+    };
+    g.lineage.classes.insert("fighter".into(), crate::wire::ClassProg { level, xp: 0 });
+    if depth >= 6 {
+        let id = g.lineage.next_vault_id;
+        g.lineage.next_vault_id += 1;
+        let mut it = crate::item::Item::new(id, "mail");
+        it.enchant = 1;
+        g.lineage.vault.push(it);
+        g.loadout(vec![id]);
+    }
+    g.sim = true;
+    g.start_run(Some(seed ^ 0x51));
+    g.descend_to(depth);
+    let mut n = 0;
+    while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.depth == depth) && n < 6000 {
+        g.tick();
+        g.events.clear();
+        n += 1;
+    }
+    g
 }
 
 /// Two level-3 bred companions with default rows (PETS bot).

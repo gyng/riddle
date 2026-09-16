@@ -325,6 +325,34 @@ pub struct Run {
     /// the trace turn by `hero_action`).
     #[serde(default)]
     pub rows_why: Vec<RowWhy>,
+    // Cut 7
+    /// §4: the tick `Ev::Ending` was last emitted (once per 100 ticks).
+    #[serde(default)]
+    pub ending_t: Option<u32>,
+    /// §3: the band situations' bookkeeping — den thefts outstanding (item ids), gas damage
+    /// taken on this floor, the lit shrine, and the situations passed this run
+    /// (`den | lock | captive | hunger`).
+    #[serde(default)]
+    pub den_stolen: Vec<u32>,
+    #[serde(default)]
+    pub gas_dmg_floor: i32,
+    /// §3: the tick the last lock bloat burst (gas within 40 ticks of it is the lock's).
+    #[serde(default)]
+    pub lock_last_pop: u32,
+    #[serde(default)]
+    pub lit: bool,
+    #[serde(default)]
+    pub passed: Vec<String>,
+    /// §3: the gas lock's tiles (bloats swell on sight), for the `on_see: lock` token.
+    #[serde(default)]
+    pub lock_tiles: Vec<Pos>,
+    /// §3: the row acting now names the den (`on_see: den` / `foe_tag thief`): its melee may
+    /// raid the sleeping thieves. Any other row walks past them.
+    #[serde(skip)]
+    pub raiding: bool,
+    /// §3: the den's sleepers (tiles the chores walk round; a blow on one is a raid).
+    #[serde(skip)]
+    pub sleepers: Vec<Pos>,
 }
 
 impl Run {
@@ -332,6 +360,15 @@ impl Run {
     /// hero is not tempted.
     pub fn in_den_zone(&self, p: Pos) -> bool {
         !self.tempted && self.dens.iter().any(|d| d.cheb(p) <= 2)
+    }
+    /// Cut 7 §4: the room the hero stands in (1-based index into `floor.rooms`; 0 for a
+    /// corridor, a door or a cave) and the awake hostiles standing in it.
+    pub fn room_ref(&self) -> crate::wire::RoomRef {
+        let hp = self.hero.pos;
+        let Some(ri) = self.floor.rooms.iter().position(|r| r.contains(hp)) else { return crate::wire::RoomRef { id: 0, hostiles: 0 } };
+        let r = self.floor.rooms[ri];
+        let hostiles = self.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && !m.dormant && m.awake && r.contains(m.pos)).count() as u32;
+        crate::wire::RoomRef { id: ri as u32 + 1, hostiles }
     }
     /// Cut 5 §4: the first tile of a kind on this floor.
     pub fn tile_pos(&self, t: crate::tiles::Tile) -> Option<Pos> {
@@ -347,12 +384,15 @@ impl Run {
             "nest" => Tile::Nest,
             "shrine" => Tile::Shrine,
             "vault" => Tile::Vault,
+            // Cut 7 §3: the band situations.
+            "den" | "lock" | "captive" | "hunger" => return crate::situations::sees(self, what),
             _ => return false,
         };
         let seen = map.tiles.iter().enumerate().any(|(i, x)| *x == tile && map.visible[i]);
         seen && match what {
             "nest" => self.monsters.iter().any(|m| m.nest && m.dormant && m.hp > 0),
-            "shrine" => !self.prayed,
+            // Cut 7 §3: the hunger's shrine can be lit once, whatever was prayed above.
+            "shrine" => !self.prayed || (crate::situations::hunger_floor(self) && !self.lit),
             _ => true,
         }
     }
@@ -838,24 +878,30 @@ impl LineageState {
         self.next_comp_id += 1;
         id
     }
-    /// Bestiary ledger derived from facts and breeding.
+    /// Bestiary ledger derived from facts and breeding. Cut 7 §1: the bosses follow the kinds,
+    /// each carrying its counter row as a chip once the counter fact is held.
     pub fn ledger(&self) -> Vec<LedgerRow> {
-        crate::defs::MONSTERS
-            .iter()
-            .filter(|m| !m.boss && !m.tags.contains(&"summoned"))
-            .map(|m| {
-                let seen = self.facts.contains(&format!("foe:{}", m.kind));
-                let known = seen && m.tags.iter().all(|t| self.facts.contains(&format!("foe:{}:{}", m.kind, t)));
-                LedgerRow {
-                    kind: m.kind.to_string(),
-                    seen,
-                    known,
-                    tamed: self.facts.contains(&format!("tamed:{}", m.kind)),
-                    bred: self.bred.contains(m.kind),
-                    studied: self.studied(m.kind),
-                }
-            })
-            .collect()
+        let row = |m: &crate::defs::MonsterDef| {
+            let seen = self.facts.contains(&format!("foe:{}", m.kind));
+            let known = seen && m.tags.iter().all(|t| self.facts.contains(&format!("foe:{}:{}", m.kind, t)));
+            let counter = if m.boss {
+                crate::facts::boss_counter_row(&self.facts, m.kind).map(|row| crate::wire::CounterChip { text: crate::facts::counter_text(&row), row })
+            } else {
+                None
+            };
+            LedgerRow {
+                kind: m.kind.to_string(),
+                seen,
+                known,
+                tamed: self.facts.contains(&format!("tamed:{}", m.kind)),
+                bred: self.bred.contains(m.kind),
+                studied: self.studied(m.kind),
+                counter,
+            }
+        };
+        let kinds = crate::defs::MONSTERS.iter().filter(|m| !m.boss && !m.tags.contains(&"summoned")).map(row);
+        let bosses = crate::descent::BOSS_DEPTHS.iter().map(|(k, _)| row(crate::defs::monster_def(k)));
+        kinds.chain(bosses).collect()
     }
     pub fn all_companions(&self) -> impl Iterator<Item = &Companion> {
         self.party.iter().chain(self.kennel.iter())
@@ -949,9 +995,20 @@ pub struct Batch {
     /// real runs that met a situation on D1–5 (§4 gate).
     pub best_run: Option<(u32, u32)>,
     pub situation_runs: u32,
+    /// Cut 7 §3: per real run — the depth reached, the band situations met and passed.
+    #[serde(default)]
+    pub band_runs: Vec<BandRun>,
     /// Cut 6 §1: the ledger lines of the last `EXITS_CAP` exits, oldest first.
     #[serde(default)]
     pub exits: Vec<ExitLine>,
+}
+
+/// Cut 7 §3: what a run met and answered of the band situations.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct BandRun {
+    pub depth: u32,
+    pub met: Vec<String>,
+    pub passed: Vec<String>,
 }
 
 /// The stall verdict's window: runs since the last death, new best depth or rule edit, the
@@ -1010,6 +1067,10 @@ pub struct Game {
     /// Cut 6 §1: the ledger line of the last settled exit (`step` attaches it to `Ev::Exit`).
     #[serde(default)]
     pub last_exit: Option<ExitLine>,
+    /// Cut 7 §5: the live run is being watched (`send()` / `step()` set it, the offline batch
+    /// clears it): a watched bank grants +50% class XP.
+    #[serde(default)]
+    pub watched: bool,
 }
 
 fn default_max_deaths() -> usize {
@@ -1036,6 +1097,7 @@ impl Game {
             max_deaths: 40,
             offline: false,
             last_exit: None,
+            watched: false,
             stall: StallTally::default(),
             stall_cache: None,
             forecast_cache: Default::default(),
@@ -1065,6 +1127,7 @@ impl Game {
             stall_cache: None,
             forecast_cache: Default::default(),
             last_exit: None,
+            watched: false,
         }
     }
 
@@ -1078,6 +1141,13 @@ impl Game {
         let mut set = set;
         set.rows.truncate(self.lineage.max_rows());
         set.validate()?;
+        // Cut 7 §2: a card's row is the card's wherever it came from; the client tags
+        // patch/player rows itself.
+        for r in set.rows.iter_mut() {
+            if r.origin.is_none() && r.verb.v == "tactic" {
+                r.origin = Some("card".into());
+            }
+        }
         let i = self.lineage.active_set.min(self.lineage.sets.len() - 1);
         if self.lineage.sets[i] != set {
             self.stall = StallTally::default();
@@ -1247,6 +1317,7 @@ impl Game {
     /// Start (or resume) an expedition. The player chose to go: any camp rest left is skipped.
     pub fn send(&mut self) -> Snapshot {
         self.lineage.rest_left = 0;
+        self.watched = true;
         self.ensure_run()
     }
 
@@ -1412,6 +1483,15 @@ impl Game {
             dens: Vec::new(),
             tempted: false,
             rows_why: Vec::new(),
+            ending_t: None,
+            den_stolen: Vec::new(),
+            gas_dmg_floor: 0,
+            lock_last_pop: 0,
+            lit: false,
+            passed: Vec::new(),
+            lock_tiles: Vec::new(),
+            raiding: false,
+            sleepers: Vec::new(),
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
@@ -1428,6 +1508,7 @@ impl Game {
         }
         populate_floor(&mut run, &self.lineage.grudges, &self.lineage.forge, self.lineage.hunter.as_ref());
         place_situations(&mut run, &self.lineage.lost);
+        crate::situations::place(&mut run);
         place_bones(&mut run);
         spawn_party(&mut run, &self.lineage.party);
         let vision = run.vision(&self.lineage.unlocks);
@@ -1472,6 +1553,7 @@ impl Game {
     pub fn step(&mut self, turns: u32) -> StepResult {
         let mut events = Vec::new();
         let mut run_over = false;
+        self.watched = true;
         // Camp rest runs on the same clock online (Cut 2 §1); `send` skips it.
         if self.lineage.rest_left > 0 && self.run.as_ref().is_none_or(|r| r.turn == 0) {
             let used = self.rest_tick(turns);
@@ -1555,6 +1637,17 @@ impl Game {
                 self.lineage.ascended.push(v);
             }
         }
+    }
+
+    /// Cut 7: walk the live run straight down to `depth` (fresh floors, the hero untouched),
+    /// for probes and tests that start at a band's floor.
+    pub fn descend_to(&mut self, depth: u32) {
+        while self.run.as_ref().is_some_and(|r| r.over.is_none() && r.depth < depth) {
+            let (run, mut cx) = self.ctx();
+            run.hero.pos = run.floor.stairs_down;
+            crate::turn::descend(run, &mut cx);
+        }
+        self.events.clear();
     }
 
     /// Run the live expedition to its end (used by forecasts and the offline batch).
@@ -1648,6 +1741,8 @@ impl Game {
             stake: Stake { loot: run.loot, brought, return_row, kept },
             vision: run.vision(&l.unlocks),
             vault_choice: run.vault_choice.as_ref().map(|(_, items)| VaultChoice { items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect() }),
+            room: Some(run.room_ref()),
+            rooms: Some(run.floor.rooms.len() as u32),
         }
     }
 
@@ -1682,6 +1777,12 @@ impl Game {
         if !run.situations.is_empty() {
             self.batch.situation_runs += 1;
         }
+        let band: Vec<&str> = crate::descent::SITUATION_DEPTHS.iter().map(|(k, _)| *k).collect();
+        self.batch.band_runs.push(BandRun {
+            depth: run.max_depth,
+            met: run.situations.iter().map(|(_, s)| s.clone()).filter(|s| band.contains(&s.as_str())).collect(),
+            passed: run.passed.clone(),
+        });
         self.lineage.heir_best = self.lineage.heir_best.max(run.max_depth);
         if !run.ally_freed.is_empty() {
             self.lineage.heir_deed("freed a captive".into());
@@ -1761,9 +1862,15 @@ impl Game {
                 bests.push(format!("trophy: {tr}"));
             }
         }
-        // Class XP (Addendum C, Cut 2 §2): only banked and returned runs feed it.
-        let raw: u32 = run.kills.iter().map(|(_, _, d)| 2 + d).sum::<u32>() / 4 + 3 * run.max_depth;
-        let xp = raw * pct as u32 / 100;
+        // Class XP (Addendum C, Cut 2 §2): only banked and returned runs feed it. Cut 7 §5: a
+        // watched bank is worth half again (presence, inside the 1.5–3× band; offline unchanged).
+        // Cut 7: XP is keyed on the content depth (`descent::tier_depth`), so a Fens floor is
+        // worth what it was before the Warrens grew three floors.
+        let raw: u32 = run.kills.iter().map(|(_, _, d)| 2 + crate::descent::tier_depth(*d)).sum::<u32>() / 4 + 3 * crate::descent::tier_depth(run.max_depth);
+        let mut xp = raw * pct as u32 / 100;
+        if self.watched && !self.sim && tier == ExitTier::Bank {
+            xp += xp / 2;
+        }
         let class = self.lineage.class;
         let prog = self.lineage.classes.entry(class.name().into()).or_insert(ClassProg { level: 1, xp: 0 });
         prog.xp += xp;
@@ -2458,8 +2565,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             run.monsters.push(Monster::spawn(id, kind, pos, depth));
         }
     }
-    // Boss with escorts, near the down stairs.
-    if let Some(boss) = boss_for(depth) {
+    // Boss with escorts, near the down stairs. Cut 7 §1: the D5 lieutenant is placed the same
+    // way (he holds the stairs), with goblins round him.
+    if let Some(boss) = boss_for(depth).or_else(|| crate::descent::lieutenant_for(depth)) {
         let near: Vec<Pos> = run
             .floor
             .open_tiles()
@@ -2470,15 +2578,17 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         let id = run.new_id();
         run.monsters.push(Monster::spawn(id, boss, pos, depth));
         let escort = match boss {
-            "goblin_warlord" => "goblin",
+            "goblin_warlord" | "goblin_captain" => "goblin",
             "bloat_mother" => "bloat",
             "foundry_master" => "smith",
             "lurker_queen" => "lurker",
             "mirror_king" => "mirror_shade",
             _ => "skeleton",
         };
+        // The Captain keeps a thinner guard than a boss.
+        let guard = if crate::defs::monster_def(boss).boss { 40 } else { 15 };
         for q in pos.neighbours8() {
-            if run.floor.map.passable(q) && !run.occupied(q) && run.rng.chance(40) {
+            if run.floor.map.passable(q) && !run.occupied(q) && run.rng.chance(guard) {
                 let id = run.new_id();
                 run.monsters.push(Monster::spawn(id, escort, q, depth));
             }
@@ -2504,7 +2614,7 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
     // Items.
     let budget = crate::defs::item_budget(depth);
     let kinds: Vec<&crate::defs::ItemDef> = crate::defs::ITEMS.iter().filter(|i| i.weight > 0).collect();
-    let iw: Vec<u32> = kinds.iter().map(|i| if depth < crate::defs::item_min_depth(i.kind) { 0 } else { i.weight }).collect();
+    let iw: Vec<u32> = kinds.iter().map(|i| if crate::descent::tier_depth(depth) < crate::defs::item_min_depth(i.kind) { 0 } else { i.weight }).collect();
     let mut open_items = run.floor.open_tiles();
     run.rng.shuffle(&mut open_items);
     let mut ic = 0usize;
@@ -2530,9 +2640,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         Biome::Fens => vec!["fire", "poison", if depth.is_multiple_of(2) { "fire" } else { "poison" }],
         Biome::Foundry => {
             // The smiths' rack: a bow on the doorstep (melee is reflected here).
-            if depth == 16 {
+            if depth == crate::descent::biome_first(Biome::Foundry) {
                 vec!["fire", "poison", "caustic", "bow"]
-            } else if depth == 20 {
+            } else if boss_for(depth).is_some() {
                 // The Master's own stockpile, for whoever reaches him.
                 vec!["fire", "fire", "poison", "caustic", "bow"]
             } else {
@@ -2540,9 +2650,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             }
         }
         Biome::Deep => {
-            if depth == 21 {
+            if depth == crate::descent::biome_first(Biome::Deep) {
                 vec!["silence", "silence", "lantern", "regen"]
-            } else if depth < 25 {
+            } else if boss_for(depth).is_none() {
                 vec!["silence", "silence", "regen"]
             } else {
                 vec!["silence", "regen"]

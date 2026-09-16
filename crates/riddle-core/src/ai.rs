@@ -57,7 +57,8 @@ fn hero_bfs(run: &Run) -> (Vec<i32>, Vec<i32>) {
 fn hero_bfs_water(run: &Run, avoid: bool) -> (Vec<i32>, Vec<i32>) {
     let map = &run.floor.map;
     let hp = run.hero.pos;
-    map.bfs_parent(hp, true, &|p| avoid && p != hp && (map.get(p) == Tile::Water || run.mirrors.iter().any(|m| m.cheb(p) <= 1) || run.in_den_zone(p)))
+    // Cut 7: lingering gas is terrain too when another way exists.
+    map.bfs_parent(hp, true, &|p| avoid && p != hp && (map.get(p) == Tile::Water || run.mirrors.iter().any(|m| m.cheb(p) <= 1) || run.in_den_zone(p) || run.sleepers.contains(&p) || run.overlays.iter().any(|o| o.x == p.x && o.y == p.y)))
 }
 
 /// A path step toward `goal`, avoiding water when possible.
@@ -75,12 +76,18 @@ fn step_towards(run: &mut Run, cx: &mut Ctx, goal: Pos, parent: &[i32]) -> bool 
     let step = run.floor.map.first_step(parent, hp, goal).or_else(|| path_step(run, goal));
     if let Some(q) = step {
         if let Some(mi) = run.monster_at(q) {
-            if !run.monsters[mi].hostile() {
-                // Swap places with the ally (or chained captive) in the way.
+            // Cut 7 §3: a captive chained across the stairs cannot be swapped past.
+            if !run.monsters[mi].hostile() && run.monsters[mi].situation.as_deref() != Some("captive") {
+                // Swap places with the ally (or a plain captive) in the way.
                 run.monsters[mi].pos = hp;
                 let id = run.monsters[mi].id;
                 cx.events.push(Ev::Move { t: run.turn, id, x: hp.x, y: hp.y });
                 move_hero(run, cx, q);
+                return true;
+            }
+            // Cut 7 §3: a sleeping thief with no way round it is shoved awake (it bolts).
+            if run.monsters[mi].dormant && run.monsters[mi].situation.is_some() {
+                hero_attack(run, cx, mi, "attack", false);
                 return true;
             }
             return false;
@@ -216,7 +223,23 @@ pub fn escape_hazard(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
             move_hero(run, cx, q);
             true
         }
-        None => false,
+        None => {
+            // Cut 7: deep in a cloud (every neighbour gassed) — walk toward the nearest clean
+            // tile rather than stand and breathe it.
+            let (dist, parent) = run.floor.map.bfs_parent(hp, false, &|p| run.occupied(p));
+            let map = &run.floor.map;
+            let goal = (0..map.tiles.len())
+                .filter(|&i| dist[i] > 0 && !in_hazard(run, map.pos(i)))
+                .min_by_key(|&i| (dist[i], i))
+                .map(|i| map.pos(i));
+            match goal.and_then(|g| run.floor.map.first_step(&parent, hp, g)) {
+                Some(q) => {
+                    move_hero(run, cx, q);
+                    true
+                }
+                None => false,
+            }
+        }
     }
 }
 
@@ -734,7 +757,9 @@ fn verb_rest(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
 
 /// Cut 5 §4: `pray row|trait` — walk to the shrine seen on this floor and pray once per run.
 fn verb_pray(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
-    if run.prayed {
+    // Cut 7 §3: the hunger's shrine can be lit whatever was prayed above.
+    let hunger_unlit = crate::situations::hunger_floor(run) && !run.lit;
+    if run.prayed && !hunger_unlit {
         return false;
     }
     let Some(goal) = run.tile_pos(Tile::Shrine) else { return false };
@@ -1069,9 +1094,11 @@ fn pick_melee_target(run: &mut Run, a: &str, v: &View) -> Option<usize> {
     // Cut 5 §4: with nothing awake to fight, a melee row may raid a sleeping den (a free
     // blow, and the den wakes) — `on_see: nest → attack` is the raid; `foes>=` never sees
     // sleepers, so the default set walks past.
+    // Cut 7 §3: the thief's den is raided only by a row that names it.
     if mi.is_none() && v.engage.is_empty() {
         let map = &run.floor.map;
-        let sleepers: Vec<usize> = (0..run.monsters.len()).filter(|&i| run.monsters[i].hp > 0 && run.monsters[i].hostile() && run.monsters[i].dormant && map.is_visible(run.monsters[i].pos)).collect();
+        let raiding = run.raiding;
+        let sleepers: Vec<usize> = (0..run.monsters.len()).filter(|&i| run.monsters[i].hp > 0 && run.monsters[i].hostile() && run.monsters[i].dormant && map.is_visible(run.monsters[i].pos) && (raiding || run.monsters[i].situation.is_none())).collect();
         mi = pick_target_from(run, a, &sleepers);
     }
     run.last_target = mi.map(|i| run.monsters[i].id);
@@ -1166,11 +1193,12 @@ fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bo
         run.hold_dist = -1;
         run.hold_streak = 0;
     }
-    // Approach: path to a tile adjacent to the target, around other monsters if there is a
-    // way, otherwise straight through whoever stands in the way.
+    // Approach: path to a tile adjacent to the target, around other monsters (Cut 7: and
+    // round lingering gas or fire) if there is a way, otherwise straight through whoever
+    // stands in the way.
     let around = {
         let map = &run.floor.map;
-        map.bfs_parent(run.hero.pos, true, &|p| run.monster_at(p).is_some_and(|k| k != mi && run.monsters[k].hostile()))
+        map.bfs_parent(run.hero.pos, true, &|p| run.monster_at(p).is_some_and(|k| k != mi && run.monsters[k].hostile()) || run.overlays.iter().any(|o| o.x == p.x && o.y == p.y))
     };
     let (dist, parent) = {
         let map = &run.floor.map;
@@ -1206,12 +1234,16 @@ fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bo
             let q = DIRS8
                 .iter()
                 .map(|d| hp.step(*d))
-                .filter(|q| run.floor.map.can_step(hp, *q) && !run.occupied(*q))
+                .filter(|q| run.floor.map.can_step(hp, *q) && !run.occupied(*q) && !run.overlays.iter().any(|o| o.x == q.x && o.y == q.y))
                 .min_by_key(|q| (q.cheb(mp), q.x, q.y));
             match q {
                 Some(q) if q.cheb(mp) < hp.cheb(mp) => {
                     move_hero(run, cx, q);
                     true
+                }
+                _ if run.overlays.iter().any(|o| mp.cheb(Pos::new(o.x, o.y)) <= 1) => {
+                    // Cut 7: the target stands in gas or fire — wait it out, not walk in.
+                    false
                 }
                 _ => {
                     // Unreachable: give up on it for a while.
@@ -1317,8 +1349,10 @@ fn verb_retreat(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
             continue;
         }
         let sum: i32 = v.foes.iter().map(|&i| run.monsters[i].pos.cheb(q)).sum();
-        let score = md * 8 + sum + map.is_corridor(q) as i32 * 3 + matches!(map.get(q), Tile::StairsDown | Tile::StairsUp) as i32 * 2;
-        let base = cur * 8 + v.foes.iter().map(|&i| run.monsters[i].pos.cheb(hp)).sum::<i32>();
+        // Cut 7: room to keep going counts (a retreat into a dead end is a corner).
+        let open = |p: Pos| DIRS8.iter().filter(|d| map.can_step(p, p.step(**d)) && !run.occupied(p.step(**d))).count() as i32;
+        let score = md * 8 + sum + map.is_corridor(q) as i32 * 3 + matches!(map.get(q), Tile::StairsDown | Tile::StairsUp) as i32 * 2 + open(q);
+        let base = cur * 8 + v.foes.iter().map(|&i| run.monsters[i].pos.cheb(hp)).sum::<i32>() + open(hp);
         if score > base && best.is_none_or(|(bs, _)| score > bs) {
             best = Some((score, q));
         }
@@ -1823,10 +1857,15 @@ fn verb_free_captive(run: &mut Run, cx: &mut Ctx) -> bool {
         m.ally = true;
         m.awake = true;
         let id = m.id;
+        let chained = m.situation.take().is_some();
         cx.events.push(Ev::Ally { t: run.turn, id, state: "freed".into() });
         run.ally_freed.push(run.turn);
         note(run, cx, "Freed the captive. It followed.".into());
         callout(run, cx, "freed");
+        if chained {
+            crate::situations::pass(run, cx, "captive");
+            crate::sifter::open_situation(run, crate::sifter::Setup::Captive, "captive", "captive", "");
+        }
         return true;
     }
     let (dist, parent) = hero_bfs(run);
@@ -2404,6 +2443,10 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
         if !stealable.is_empty() {
             let ii = stealable[run.rng.below(stealable.len() as u32) as usize];
             let it = run.hero.inv.remove(ii);
+            // Cut 7 §3: a den thief's theft counts against the den.
+            if run.monsters[mi].situation.as_deref() == Some("den") {
+                run.den_stolen.push(it.id);
+            }
             let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
             run.loot_add(-it.value());
             run.monsters[mi].stolen = Some(it);
@@ -2526,8 +2569,12 @@ fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending) {
             }
         }
         Pending::Rally => {
-            summon_near(run, cx, mi_pos(run, mi), "goblin", 2, None);
-            warlord_buff(run, cx, mi);
+            // Cut 7 §1: the Captain's one rally brings a single goblin.
+            let n = if kind == "goblin_captain" { 1 } else { 2 };
+            summon_near(run, cx, mi_pos(run, mi), "goblin", n, None);
+            if kind == "goblin_warlord" {
+                warlord_buff(run, cx, mi);
+            }
             if visible {
                 learn_tag(run, cx, &kind, "summoner");
                 callout(run, cx, "rallied!");
@@ -2678,6 +2725,14 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
     if run.monsters[mi].dormant {
         return;
     }
+    // Cut 7 §3: a lock bloat waits for the hero to come near (`situations::wake`), then swells
+    // and bursts on its fuse.
+    if run.monsters[mi].situation.as_deref() == Some("lock") && !run.monsters[mi].awake {
+        return;
+    }
+    if crate::situations::lock_bloat_act(run, cx, mi) {
+        return;
+    }
     let sees = can_see_hero(run, mi);
     if sees {
         run.monsters[mi].awake = true;
@@ -2800,6 +2855,18 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
                 monster_attack(run, cx, mi, 1, "attack");
             } else if dist > 3 || guards >= 2 {
                 // Guarded, he presses the hero himself: a wall that never bites is a stalemate.
+                chase(run, cx, mi, sees);
+            }
+        }
+        // Cut 7 §1: the Captain is the Warlord's lesson in small — one rally (two goblins) on
+        // first sight, no shield wall, then he fights like a goblin with a longer reach.
+        "goblin_captain" => {
+            if sees && !run.monsters[mi].introduced {
+                run.monsters[mi].introduced = true;
+                telegraph(run, cx, mi, "rallies", Pending::Rally);
+            } else if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else {
                 chase(run, cx, mi, sees);
             }
         }

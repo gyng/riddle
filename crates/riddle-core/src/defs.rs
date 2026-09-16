@@ -31,22 +31,25 @@ pub const MONSTERS: &[MonsterDef] = &[
     MonsterDef { kind: "captive", title: "captive", hp: 14, atk: (2, 4), def: 0, speed: 10, tags: &["ally"], boss: false },
     MonsterDef { kind: "spectral_blade", title: "spectral blade", hp: 3, atk: (1, 2), def: 0, speed: 12, tags: &["summoned"], boss: false },
     MonsterDef { kind: "spectral_hound", title: "spectral hound", hp: 8, atk: (2, 4), def: 0, speed: 15, tags: &["summoned"], boss: false },
+    // Cut 7 §1: the lieutenant at D5 — rallies once, no shield wall; the preset beats him about
+    // half the time. Not a boss: no counter fact, no marks, the ledger lists him like any kind.
+    MonsterDef { kind: "goblin_captain", title: "Goblin Captain", hp: 12, atk: (2, 4), def: 0, speed: 10, tags: &["summoner", "telegraph"], boss: false },
     MonsterDef { kind: "goblin_warlord", title: "Goblin Warlord", hp: 24, atk: (2, 5), def: 0, speed: 10, tags: &["boss", "summoner", "buffer", "telegraph"], boss: true },
     MonsterDef { kind: "bloat_mother", title: "Bloat Mother", hp: 20, atk: (2, 3), def: 0, speed: 7, tags: &["boss", "gas", "telegraph"], boss: true },
     MonsterDef { kind: "lich", title: "Lich", hp: 50, atk: (3, 5), def: 2, speed: 10, tags: &["boss", "undead", "reflect", "summoner", "telegraph"], boss: true },
-    // Cut 3 — the Foundry (D16–20): melee is reflected, bells raise the clock.
+    // Cut 3 — the Foundry (Cut 7: D19–23): melee is reflected, bells raise the clock.
     MonsterDef { kind: "iron_golem", title: "iron golem", hp: 24, atk: (3, 6), def: 1, speed: 4, tags: &["reflect_melee"], boss: false },
     MonsterDef { kind: "forge_imp", title: "forge imp", hp: 9, atk: (1, 3), def: 0, speed: 13, tags: &["fire", "thief"], boss: false },
     MonsterDef { kind: "bell_sentinel", title: "bell sentinel", hp: 10, atk: (1, 2), def: 0, speed: 10, tags: &["alarm"], boss: false },
     MonsterDef { kind: "slag_crawler", title: "slag crawler", hp: 26, atk: (2, 5), def: 0, speed: 7, tags: &["heavy", "fire", "telegraph"], boss: false },
     MonsterDef { kind: "smith", title: "smith", hp: 12, atk: (2, 4), def: 0, speed: 10, tags: &["buffer"], boss: false },
-    // The Deep (D21–25): dark, hunters track noise, regen.
+    // The Deep (Cut 7: D24–28): dark, hunters track noise, regen.
     MonsterDef { kind: "lurker", title: "lurker", hp: 10, atk: (2, 5), def: 0, speed: 12, tags: &["blind"], boss: false },
     MonsterDef { kind: "deep_eel", title: "deep eel", hp: 16, atk: (4, 7), def: 0, speed: 12, tags: &["water"], boss: false },
     MonsterDef { kind: "cave_troll", title: "cave troll", hp: 34, atk: (3, 6), def: 0, speed: 8, tags: &["regen"], boss: false },
     MonsterDef { kind: "siren", title: "siren", hp: 14, atk: (1, 3), def: 0, speed: 10, tags: &["aura"], boss: false },
     MonsterDef { kind: "mirror_shade", title: "mirror shade", hp: 14, atk: (2, 4), def: 0, speed: 10, tags: &["mirror"], boss: false },
-    // The Sanctum (D26–30): variety is enforced.
+    // The Sanctum (Cut 7: D29–33): variety is enforced.
     MonsterDef { kind: "warden", title: "warden", hp: 30, atk: (3, 6), def: 1, speed: 9, tags: &["reflect_melee", "reflect", "telegraph"], boss: false },
     MonsterDef { kind: "acolyte", title: "acolyte", hp: 12, atk: (1, 3), def: 0, speed: 10, tags: &["healer"], boss: false },
     MonsterDef { kind: "echo", title: "echo", hp: 16, atk: (2, 5), def: 0, speed: 10, tags: &["echo"], boss: false },
@@ -81,6 +84,8 @@ pub fn spawn_table(biome: Biome, depth: u32) -> Vec<(&'static str, u32, i32, i32
     match biome {
         Biome::Warrens => {
             // D1 is the doorstep: rats, monkeys and lone goblins. Packs from D2, archers from D4.
+            // Cut 7: D6–8 are the Warrens' deep end — goblin bands, archers in pairs, ogres;
+            // the first bloats are the D6 gas lock's (`situations`).
             if d <= 3 {
                 t.push(("rat", 30, 1, 2));
             }
@@ -88,13 +93,13 @@ pub fn spawn_table(biome: Biome, depth: u32) -> Vec<(&'static str, u32, i32, i32
                 t.push(("jackal", 22, 2, 3));
             }
             t.push(("monkey", 10, 1, 1));
-            t.push(("goblin", if d >= 2 { 20 } else { 12 }, 1, if d >= 2 { 2 } else { 1 }));
+            t.push(("goblin", if d >= 2 { 20 } else { 12 }, 1, if d >= 6 { 3 } else if d >= 2 { 2 } else { 1 }));
             if d >= 4 {
-                t.push(("goblin_archer", 12, 1, 1));
+                t.push(("goblin_archer", if d >= 6 { 16 } else { 12 }, 1, if d >= 6 { 2 } else { 1 }));
             }
             if d >= 4 {
-                t.push(("goblin_conjurer", 6, 1, 1));
-                t.push(("ogre", 6, 1, 1));
+                t.push(("goblin_conjurer", if d >= 6 { 8 } else { 6 }, 1, 1));
+                t.push(("ogre", if d >= 6 { 10 } else { 6 }, 1, 1));
             }
             if d >= 2 {
                 t.push(("captive", 5, 1, 1));
@@ -150,18 +155,22 @@ pub fn spawn_table(biome: Biome, depth: u32) -> Vec<(&'static str, u32, i32, i32
 }
 
 /// Number of spawn groups on a floor (32×32 floors, Cut 2 §1). Cut 3: the count stops
-/// growing past D15 (nine groups); the deep biomes' kinds carry the difficulty, not the crowd.
+/// growing past the Crypt (nine groups); the deep biomes' kinds carry the difficulty, not the
+/// crowd. Cut 7: keyed on the content depth (`descent::tier_depth`); the Warrens' tail D6–8
+/// grows by one group.
 pub fn group_budget(depth: u32) -> i32 {
-    1 + (depth.min(15) as i32 + 1) / 2
+    let d = crate::descent::tier_depth(depth) + (6..=8).contains(&depth) as u32;
+    1 + (d.min(15) as i32 + 1) / 2
 }
 
 /// Small linear stat growth with depth: +1 hp per 2 floors, +1 max atk per 6 floors, both
-/// frozen from D16 (Cut 3: the new kinds are tuned on their own numbers).
+/// frozen from the Foundry (Cut 3: the new kinds are tuned on their own numbers). Cut 7: on
+/// the content depth.
 pub fn depth_hp_bonus(depth: u32) -> i32 {
-    (depth.min(16) as i32) / 2
+    (crate::descent::tier_depth(depth).min(16) as i32) / 2
 }
 pub fn depth_atk_bonus(depth: u32) -> i32 {
-    (depth.min(16) as i32) / 6
+    (crate::descent::tier_depth(depth).min(16) as i32) / 6
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -240,7 +249,7 @@ pub const THROWABLE_MISC: [&str; 2] = ["bell", "salt"];
 /// Cut 3: misc items whose pickup is a fact (`item:<kind>`), gating unlocks and tokens.
 pub const FACT_MISC: [&str; 5] = ["lantern", "bell", "salt", "chalk", "mirror_shard"];
 
-/// The depth from which a Cut 3 item may appear (0 = anywhere).
+/// The content depth (`descent::tier_depth`) from which a Cut 3 item may appear (0 = anywhere).
 pub fn item_min_depth(kind: &str) -> u32 {
     match kind {
         "axe" | "bow" | "mail" => 4,
@@ -286,7 +295,7 @@ pub fn tag_verb(tag: &str) -> Option<&'static str> {
 /// Kinds a biome's ledger needs tamed (tameable spawns only).
 pub fn biome_kinds(biome: Biome) -> Vec<&'static str> {
     let mut v: Vec<&str> = Vec::new();
-    for d in 1..=30u32 {
+    for d in 1..crate::descent::ENDING_DEPTH {
         if crate::descent::biome_for(d) != biome {
             continue;
         }
@@ -313,9 +322,9 @@ pub fn scroll_kinds() -> Vec<&'static str> {
     ITEMS.iter().filter(|i| i.cat == Cat::Scroll).map(|i| i.kind).collect()
 }
 
-/// Items per floor (32×32 floors, Cut 2 §1).
+/// Items per floor (32×32 floors, Cut 2 §1); Cut 7: on the content depth.
 pub fn item_budget(depth: u32) -> i32 {
-    7 + (depth as i32) / 3
+    7 + (crate::descent::tier_depth(depth) as i32) / 3
 }
 
 #[cfg(test)]
@@ -323,20 +332,20 @@ mod tests {
     use super::*;
     #[test]
     fn content_counts() {
-        assert_eq!(MONSTERS.iter().filter(|m| !m.boss && !m.tags.contains(&"summoned")).count(), 28, "14 + the Cut 3 biomes' 14");
+        assert_eq!(MONSTERS.iter().filter(|m| !m.boss && !m.tags.contains(&"summoned")).count(), 29, "14 + the Cut 3 biomes' 14 + the Cut 7 captain");
         assert_eq!(MONSTERS.iter().filter(|m| m.boss).count(), 6);
         assert_eq!(ITEMS.len(), 43, "25 items + the leash (Addendum A) + bones and trap (Cut 2) + 15 (Cut 3)");
         assert_eq!(potion_kinds().len(), 11);
         assert_eq!(scroll_kinds().len(), 13);
         assert!(POTION_FLAVOURS.len() >= potion_kinds().len());
         assert!(SCROLL_FLAVOURS.len() >= scroll_kinds().len());
-        for k in ["iron_golem", "forge_imp", "bell_sentinel", "slag_crawler", "smith", "lurker", "deep_eel", "cave_troll", "siren", "mirror_shade", "warden", "acolyte", "echo", "sentinel", "foundry_master", "lurker_queen", "mirror_king"] {
+        for k in ["iron_golem", "forge_imp", "bell_sentinel", "slag_crawler", "smith", "lurker", "deep_eel", "cave_troll", "siren", "mirror_shade", "warden", "acolyte", "echo", "sentinel", "foundry_master", "lurker_queen", "mirror_king", "goblin_captain"] {
             assert_eq!(monster_def(k).kind, k, "{k} is a sprite key");
         }
     }
     #[test]
     fn every_biome_has_spawns() {
-        for d in 1..=30 {
+        for d in 1..crate::descent::ENDING_DEPTH {
             let t = spawn_table(crate::descent::biome_for(d), d);
             assert!(!t.is_empty());
             for (k, ..) in t {

@@ -57,17 +57,17 @@ fn boss_at(depth: u32) -> Option<&'static str> {
 fn counter_rows(boss: &str) -> Vec<Row> {
     match boss {
         "goblin_warlord" => vec![Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss"))],
-        "bloat_mother" => vec![Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "fire,tag:boss"))],
+        "bloat_mother" => vec![Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 9)], Verb::arg("throw", "fire,tag:boss"))],
         "lich" => vec![
             Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:summoned")),
             Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")),
         ],
         "foundry_master" => vec![
             Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read")),
-            Row::new(vec![Cond::t("foe_tag", "buffer"), Cond::n("depth>=", 16)], Verb::arg("attack", "tag:buffer")),
+            Row::new(vec![Cond::t("foe_tag", "buffer"), Cond::n("depth>=", 19)], Verb::arg("attack", "tag:buffer")),
         ],
-        "lurker_queen" => vec![Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 25)], Verb::arg("read", "silence"))],
-        "mirror_king" => vec![Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 30)], Verb::arg("tactic", "cadence"))],
+        "lurker_queen" => vec![Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 28)], Verb::arg("read", "silence"))],
+        "mirror_king" => vec![Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 33)], Verb::arg("tactic", "cadence"))],
         _ => vec![Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss"))],
     }
 }
@@ -79,6 +79,80 @@ fn row_unlock(row: &Row) -> Option<String> {
         ("throw", _) => Some("throw".into()),
         _ => None,
     }
+}
+
+/// Cut 7: the rows a human writes without a patch — a bank row (a banking player keeps the
+/// loot and levels), and the one-row answer to each band situation once its fact is held.
+fn bank_row() -> Row {
+    Row::new(vec![Cond::n("hp<", 40), Cond::n("depth>=", 3)], Verb::new("bank")).from("player")
+}
+
+fn write_own_rows(g: &mut Game, bank: bool) -> u32 {
+    let mut n = 0;
+    let has_exit = g.lineage.rules().rows.iter().any(|r| matches!(r.verb.v.as_str(), "bank" | "return"));
+    if bank && !has_exit && insert_row(g, bank_row(), 0) {
+        n += 1;
+    }
+    for (what, _) in riddle_core::descent::SITUATION_DEPTHS {
+        if !g.lineage.facts.contains(what) {
+            continue;
+        }
+        let row = riddle_core::probes::situation_answer(what).from("player");
+        // The answer needs its tokens (the gas tag for the lock, the shrine for the hunger).
+        let vocab = g.vocabulary();
+        let ok = row.conds.iter().all(|c| vocab.conds.iter().any(|v| v.k == c.k && v.t == c.t)) && vocab.verbs.iter().any(|v| v.v == row.verb.v && v.a == row.verb.a);
+        if ok && !g.lineage.rules().rows.contains(&row) && g.lineage.rules().rows.len() < g.vocabulary().max_rows && insert_row(g, row, 0) {
+            n += 1;
+        }
+    }
+    n
+}
+
+/// Cut 7: rows that are the player's — anything not shipped (`preset`).
+fn player_rows(g: &Game) -> usize {
+    g.lineage.rules().rows.iter().filter(|r| r.origin.as_deref() != Some("preset")).count()
+}
+
+/// Cut 7 §6: the first hour — a *watched* hour: three 20-minute check-ins at the scene
+/// cadence (1× in fights, 8× elsewhere: ~4× on average, so 20 minutes of watching is
+/// `HOUR_CHECKIN_TICKS` of play), the heir sent again the moment it comes home (no camp
+/// rest for a present player). Between check-ins the same hands: the worst death's patch
+/// taken, the bank row written, the situation rows written as their facts land, the
+/// cheapest unlock bought. Returns (best depth, player rows, class level).
+const HOUR_CHECKIN_TICKS: u32 = 20 * 60 * 10 * 4;
+
+fn first_hour(seed: u64) -> (u32, usize, u32) {
+    let mut g = Game::new(seed);
+    for _ in 0..3 {
+        g.batch = riddle_core::engine::Batch::default();
+        let mut spent = 0u32;
+        while spent < HOUR_CHECKIN_TICKS {
+            g.send();
+            g.run_to_end(riddle_core::engine::MAX_TURNS_PER_RUN);
+            spent += g.run.as_ref().map(|r| r.turn).unwrap_or(0);
+            g.events.clear();
+            g.finish_run();
+            g.auto_keep();
+        }
+        if let Some(id) = g.batch.worst_death {
+            if let Some(death) = g.death(id) {
+                if death.verdict == "gap" {
+                    if let Some(p) = death.patches.first() {
+                        if p.survive > death.baseline + 0.15 && p.forecast_delta >= 0.0 {
+                            insert_row(&mut g, p.row.clone().from("patch"), p.insert_at);
+                        }
+                    }
+                }
+            }
+        }
+        write_own_rows(&mut g, true);
+        let mut opts: Vec<_> = g.unlocks().into_iter().filter(|u| !u.owned && u.available && u.cost <= g.lineage.marks).collect();
+        opts.sort_by(|a, b| a.cost.cmp(&b.cost).then(a.id.cmp(&b.id)));
+        if let Some(u) = opts.first() {
+            let _ = g.buy(&u.id);
+        }
+    }
+    (g.lineage.best_depth, player_rows(&g), g.lineage.class_level())
 }
 
 fn insert_row(g: &mut Game, row: Row, at: usize) -> bool {
@@ -118,6 +192,13 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
             d.deaths += rep.deaths.iter().map(|x| x.n).sum::<u32>();
             d.xp += rep.xp.gained;
             let mut decided = false;
+            // Cut 7: the rows a human writes unprompted (the bank row on day 1 — the banking
+            // player of the L2 bar; later the stall patches shape the exits — and a
+            // situation's answer once its fact is held).
+            if write_own_rows(&mut g, day == 0) > 0 {
+                d.edits += 1;
+                decided = true;
+            }
             // 0. Cut 3: the ending reached — ascend with `no_rest` and keep counting. The
             //    descent, marks and unlocks start over; the rules stay.
             if g.lineage.ended {
@@ -226,7 +307,7 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                     } else if boss == "bloat_mother" && g.lineage.unlocks.contains("throw") {
                         // `throw fire` needs fire identified: meanwhile throw whatever is in the
                         // pack at her (the throw identifies it).
-                        let row = Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "unknown,tag:boss"));
+                        let row = Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 9)], Verb::arg("throw", "unknown,tag:boss"));
                         if !g.lineage.rules().rows.contains(&row) && insert_row(&mut g, row, 0) {
                             d.edits += 1;
                             decided = true;
@@ -373,6 +454,12 @@ fn main() {
         let hs: Vec<_> = (1..=seeds).map(|s| sc.spawn(move || play(s, days, checkins, verbose))).collect();
         hs.into_iter().map(|h| h.join().unwrap()).collect()
     });
+    // Cut 7 §6: the first hour, over more seeds than the fortnight (it is cheap).
+    let hour_seeds = get("--hour-seeds", seeds.max(10));
+    let hours: Vec<(u32, usize, u32)> = std::thread::scope(|sc| {
+        let hs: Vec<_> = (1..=hour_seeds).map(|s| sc.spawn(move || first_hour(s))).collect();
+        hs.into_iter().map(|h| h.join().unwrap()).collect()
+    });
     for (i, o) in outs.iter().enumerate() {
         println!("seed {}: ascension {} · rules now = {}", i + 1, o.ascension, o.rules);
         println!("day  best  unl  edit  empty/ci  runs  bank  deaths  marks  max  gold  facts  L  rank  rows  pets  bones  xp");
@@ -420,6 +507,11 @@ fn main() {
     let stall = outs.iter().map(|o| o.stall).max().unwrap_or(0);
     let final_best: Vec<u32> = outs.iter().map(|o| o.table.last().map(|d| d.best).unwrap_or(0)).collect();
     let runs_day: f64 = outs.iter().map(|o| o.table.iter().map(|d| d.runs as f64).sum::<f64>() / days as f64).sum::<f64>() / n;
+    let hour_ok = hours.iter().filter(|(best, rows, _)| *best >= 6 && *rows >= 2).count();
+    let hour_pct = 100.0 * hour_ok as f64 / hour_seeds as f64;
+    let l2_day1 = outs.iter().filter(|o| o.table.first().is_some_and(|d| d.level >= 2)).count();
+    let l2_pct = 100.0 * l2_day1 as f64 / n;
+    println!("  first hour (3 × 20 min) per seed  {:?}  (best, player rows, level)", hours);
     println!("\nprobes over {seeds} seeds × {days} days × {checkins}/day  ({:.0}s)", t0.elapsed().as_secs_f64());
     let asc: Vec<u32> = outs.iter().map(|o| o.ascension).collect();
     println!("  final best depth per seed       {final_best:?}   ending at {} · ascensions {asc:?}", riddle_core::descent::ENDING_DEPTH);
@@ -431,6 +523,9 @@ fn main() {
         ("Empty check-ins ≤ 15%".into(), format!("{empty_pct:.0}%"), empty_pct <= 15.0),
         ("Class L10 not before day 7".into(), l10_min.map(|d| format!("day {d}")).unwrap_or_else(|| "never".into()), l10_min.is_none_or(|d| d >= 7)),
         ("Longest best-depth stall (counter known) ≤ 3 days".into(), format!("{stall}"), stall <= 3),
+        // Cut 7 §6.
+        (format!("First hour: best ≥ D6 and ≥ 2 player rows ≥ 80% ({hour_seeds} seeds)"), format!("{hour_pct:.0}%"), hour_pct >= 80.0),
+        ("L2 by the end of day 1 (banking player) ≥ 80%".into(), format!("{l2_pct:.0}%"), l2_pct >= 80.0),
     ];
     println!();
     println!("{:<52} {:>10}  result", "bar", "value");

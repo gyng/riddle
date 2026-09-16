@@ -75,6 +75,21 @@ pub struct Snapshot {
     /// and unwatched runs pick by `Lineage.vault_pref`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vault_choice: Option<VaultChoice>,
+    /// Cut 7 §4: the room the hero stands in (`id` 0 = a corridor or a cave; rooms are
+    /// numbered from 1 in the floor's room list) and the awake hostiles in it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub room: Option<RoomRef>,
+    /// Cut 7 §4: the floor's room count (0 on a cave), for the `D3 · 4 rooms` ambient.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rooms: Option<u32>,
+}
+
+/// Cut 7 §4: a room as a scene — the viewer holds 1× while a room with ≥ 2 hostiles is not
+/// yet clear or left.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RoomRef {
+    pub id: u32,
+    pub hostiles: u32,
 }
 
 /// Cut 5 §4: the three items of an opened vault; `choose(id)` takes one, the rest vanish.
@@ -182,6 +197,10 @@ pub enum Ev {
     Rest { t: u32, seconds: u32 },
     /// Cut 2 §2: a bones pile left on death, or recovered by a later heir.
     Bones { t: u32, heir: u32, items: u32 },
+    /// Cut 7 §4: an exit the engine can foresee, `ticks` ahead — a bank walk-out or the
+    /// bottom's stairs within three steps (30 ticks), or death in the air (hp ≤ 15% with a
+    /// hostile adjacent; once per 100 ticks). An instant exit (`return`, recall) says 0.
+    Ending { t: u32, ticks: u32 },
 }
 
 impl Ev {
@@ -210,12 +229,13 @@ impl Ev {
             | Ev::Rank { t, .. }
             | Ev::Projectile { t, .. }
             | Ev::Rest { t, .. }
-            | Ev::Bones { t, .. } => *t,
+            | Ev::Bones { t, .. }
+            | Ev::Ending { t, .. } => *t,
         }
     }
     /// Renderable, non-movement events (the "events per 60 turns" gate).
     pub fn renderable(&self) -> bool {
-        !matches!(self, Ev::Move { .. } | Ev::Rule { .. } | Ev::Fact { .. } | Ev::Note { .. } | Ev::Rest { .. })
+        !matches!(self, Ev::Move { .. } | Ev::Rule { .. } | Ev::Fact { .. } | Ev::Note { .. } | Ev::Rest { .. } | Ev::Ending { .. })
     }
 }
 
@@ -462,6 +482,17 @@ pub struct LedgerRow {
     /// Cut 2 §5: five kills of the kind.
     #[serde(default)]
     pub studied: bool,
+    /// Cut 7 §1: a boss kind whose counter is known — the row the bestiary card offers as a
+    /// chip and its ≤ 3-word text (`Lineage.counters` holds the same for the camp).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counter: Option<CounterChip>,
+}
+
+/// Cut 7 §1: the counter row on a bestiary card.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CounterChip {
+    pub row: Row,
+    pub text: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

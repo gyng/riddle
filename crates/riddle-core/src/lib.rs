@@ -19,6 +19,7 @@ pub mod rng;
 pub mod rules;
 pub mod save;
 pub mod sifter;
+pub mod situations;
 pub mod tiles;
 pub mod tokens;
 pub mod trace;

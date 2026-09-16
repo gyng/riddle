@@ -177,6 +177,10 @@ pub fn unlock_rows(id: &str) -> Option<Vec<Row>> {
 /// Cut 4 §9: the row a tactic card or a verb unlock would add (its natural place, at the top
 /// of the list), for the catalogue's forecast delta. `None` for anything else.
 pub fn unlock_row(l: &LineageState, id: &str) -> Option<Row> {
+    unlock_row_untagged(l, id).map(|r| r.from("card"))
+}
+
+fn unlock_row_untagged(l: &LineageState, id: &str) -> Option<Row> {
     let tag = |t: &str| Cond::t("foe_tag", t);
     let card = |conds: Vec<Cond>| Some(Row::new(conds, Verb::arg("tactic", id)));
     match id {
@@ -190,7 +194,7 @@ pub fn unlock_row(l: &LineageState, id: &str) -> Option<Row> {
         "cadence" => card(vec![tag("mirror")]),
         "noise_discipline" => card(vec![Cond::n("hp<", 90)]),
         "reflect_read" => card(vec![tag("reflect_melee")]),
-        "deep_march" => card(vec![Cond::n("depth>=", 21)]),
+        "deep_march" => card(vec![Cond::n("depth>=", crate::descent::biome_first(crate::descent::Biome::Deep) as i32)]),
         "throw" => {
             if has_tag_fact(&l.facts, "boss") {
                 Some(Row::new(vec![tag("boss")], Verb::arg("throw", "unknown,tag:boss")))

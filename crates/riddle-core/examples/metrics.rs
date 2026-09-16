@@ -21,14 +21,15 @@ enum Bot {
     Trivial,
     Countered,
     // Cut 3: the shipped best set with every counter and unlock, and the same set minus one
-    // boss counter row each (D20 reflect_read, D25 silence, D30 cadence). 3 × 8 h batches.
+    // boss counter row each (Cut 7 depths: D23 reflect_read, D28 silence, D33 cadence).
+    // 3 × 8 h batches.
     Full,
-    FullNo20,
-    FullNo25,
-    FullNo30,
+    FullNo23,
+    FullNo28,
+    FullNo33,
 }
 
-const BOTS: [Bot; 13] = [Bot::Default, Bot::Edited, Bot::Random, Bot::Passive, Bot::Learned, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered, Bot::Full, Bot::FullNo20, Bot::FullNo25, Bot::FullNo30];
+const BOTS: [Bot; 13] = [Bot::Default, Bot::Edited, Bot::Random, Bot::Passive, Bot::Learned, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered, Bot::Full, Bot::FullNo23, Bot::FullNo28, Bot::FullNo33];
 /// Cut 3: the FULL bots play three 8 h absences.
 const FULL_BATCHES: u64 = 3;
 
@@ -45,13 +46,13 @@ impl Bot {
             Bot::Trivial => "TRIVIAL",
             Bot::Countered => "COUNTERED",
             Bot::Full => "FULL",
-            Bot::FullNo20 => "FULL−D20",
-            Bot::FullNo25 => "FULL−D25",
-            Bot::FullNo30 => "FULL−D30",
+            Bot::FullNo23 => "FULL−D23",
+            Bot::FullNo28 => "FULL−D28",
+            Bot::FullNo33 => "FULL−D33",
         }
     }
     fn is_full(self) -> bool {
-        matches!(self, Bot::Full | Bot::FullNo20 | Bot::FullNo25 | Bot::FullNo30)
+        matches!(self, Bot::Full | Bot::FullNo23 | Bot::FullNo28 | Bot::FullNo33)
     }
     fn batches(self) -> u64 {
         if self.is_full() {
@@ -97,6 +98,10 @@ struct SeedResult {
     /// (story lines, of which in the grammar) and (real runs, of which met a situation on D1–5).
     stories: (u32, u32),
     situations: (u32, u32),
+    /// Cut 7 §3: per real run, the depth reached and the band situations met / passed.
+    band: Vec<riddle_core::engine::BandRun>,
+    /// Cut 7 §1: DEFAULT's runs that reached D5, of which left it alive.
+    captain: (u32, u32),
 }
 
 fn good() -> RuleSet {
@@ -171,7 +176,7 @@ fn setup(bot: Bot, seed: u64) -> Game {
             }
             g.set_rules(if bot == Bot::Trivial { riddle_core::probes::trivial() } else { riddle_core::probes::countered() }).unwrap();
         }
-        Bot::Full | Bot::FullNo20 | Bot::FullNo25 | Bot::FullNo30 => {
+        Bot::Full | Bot::FullNo23 | Bot::FullNo28 | Bot::FullNo33 => {
             // Everything a finished lineage has: every unlock, every fact, a mastered fighter.
             for u in riddle_core::meta::UNLOCKS {
                 g.lineage.unlocks.insert(u.id.into());
@@ -185,9 +190,9 @@ fn setup(bot: Bot, seed: u64) -> Game {
                 set.rows.remove(i);
             };
             match bot {
-                Bot::FullNo20 => drop(&mut set, "tactic", "reflect_read"),
-                Bot::FullNo25 => drop(&mut set, "read", "silence"),
-                Bot::FullNo30 => drop(&mut set, "tactic", "cadence"),
+                Bot::FullNo23 => drop(&mut set, "tactic", "reflect_read"),
+                Bot::FullNo28 => drop(&mut set, "read", "silence"),
+                Bot::FullNo33 => drop(&mut set, "tactic", "cadence"),
                 _ => {}
             }
             g.set_rules(set).expect("full rules");
@@ -257,6 +262,13 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
         }
         r.situations.0 += g.batch.run_outcomes.len() as u32;
         r.situations.1 += g.batch.situation_runs;
+        r.band.extend(g.batch.band_runs.iter().cloned());
+        for b in &g.batch.band_runs {
+            if b.depth >= riddle_core::descent::LIEUTENANT_DEPTH {
+                r.captain.0 += 1;
+                r.captain.1 += (b.depth > riddle_core::descent::LIEUTENANT_DEPTH) as u32;
+            }
+        }
         for (d, c) in &g.batch.run_outcomes {
             r.run_depths.push(*d);
             if let Some(c) = c {
@@ -376,14 +388,14 @@ fn main() {
     let ns = seeds as usize;
     let mut rows: Vec<(String, String, bool)> = Vec::new();
     // Per-bot summary.
-    println!("bot        best-depth mean  ≤D6  ≥D10  ≥D20  ≥D26  mean-death-depth  runs  deaths   dice");
+    println!("bot        best-depth mean  ≤D8  ≥D10  ≥D23  ≥D29  mean-death-depth  runs  deaths   dice");
     for bot in BOTS {
         let rs = per_bot(bot);
         let mean_best = rs.iter().map(|r| r.best_depth as f64).sum::<f64>() / ns as f64;
-        let le6 = rs.iter().filter(|r| r.best_depth <= 6).count();
+        let le6 = rs.iter().filter(|r| r.best_depth <= 8).count();
         let ge10 = rs.iter().filter(|r| r.best_depth >= 10).count();
-        let ge20 = rs.iter().filter(|r| r.best_depth >= 20).count();
-        let ge26 = rs.iter().filter(|r| r.best_depth >= 26).count();
+        let ge20 = rs.iter().filter(|r| r.best_depth >= 23).count();
+        let ge26 = rs.iter().filter(|r| r.best_depth >= 29).count();
         let depths: Vec<u32> = rs.iter().flat_map(|r| r.run_depths.iter().copied()).collect();
         let mdd = depths.iter().sum::<u32>() as f64 / depths.len().max(1) as f64;
         let runs: u32 = rs.iter().map(|r| r.runs).sum();
@@ -397,7 +409,7 @@ fn main() {
         let rs = per_bot(bot);
         let depths: Vec<u32> = rs.iter().flat_map(|r| r.run_depths.iter().copied()).collect();
         let n = depths.len().max(1);
-        let cols: Vec<u32> = if bot.is_full() { vec![5, 10, 15, 16, 20, 21, 25, 26, 30, 31] } else { (1..=12).collect() };
+        let cols: Vec<u32> = if bot.is_full() { vec![8, 13, 18, 19, 23, 24, 28, 29, 33, 34] } else { (1..=13).collect() };
         let cells: Vec<String> = cols.iter().map(|d| format!("D{d} {:>4.1}", pct(depths.iter().filter(|x| *x >= d).count(), n))).collect();
         println!("{:<9} {}", bot.name(), cells.join(" │ "));
     }
@@ -418,14 +430,15 @@ fn main() {
     }
     let default = per_bot(Bot::Default);
     let edited = per_bot(Bot::Edited);
-    let d_le6 = pct(default.iter().filter(|r| r.best_depth <= 6).count(), ns);
-    rows.push(("DEFAULT dies by ≤ D6 ≥ 80% of seeds".into(), format!("{d_le6:.0}%"), d_le6 >= 80.0));
+    // Cut 7: the wall moved to D8 (the Warlord; D5 is the Captain); the bars moved with it.
+    let d_le6 = pct(default.iter().filter(|r| r.best_depth <= 8).count(), ns);
+    rows.push(("DEFAULT dies by ≤ D8 ≥ 80% of seeds".into(), format!("{d_le6:.0}%"), d_le6 >= 80.0));
     let e_ge10 = pct(edited.iter().filter(|r| r.best_depth >= 10).count(), ns);
     let d_ge10 = pct(default.iter().filter(|r| r.best_depth >= 10).count(), ns);
     rows.push(("EDITED reaches ≥ D10 ≥ 50% of seeds".into(), format!("{e_ge10:.0}%"), e_ge10 >= 50.0));
     rows.push(("EDITED − DEFAULT (≥ D10) ≥ 15 pts".into(), format!("{:.0} pts", e_ge10 - d_ge10), e_ge10 - d_ge10 >= 15.0));
     let random = per_bot(Bot::Random);
-    let r_lose = pct(random.iter().filter(|r| r.best_depth < 16).count(), ns);
+    let r_lose = pct(random.iter().filter(|r| r.best_depth < 19).count(), ns);
     rows.push(("RANDOM loses 100%".into(), format!("{r_lose:.0}%"), r_lose >= 100.0));
     let passive = per_bot(Bot::Passive);
     let p_le3 = pct(passive.iter().filter(|r| r.best_depth <= 3).count(), ns);
@@ -444,17 +457,17 @@ fn main() {
     let lev_le9 = pct(lev.iter().filter(|r| r.best_depth <= 9).count(), ns);
     rows.push(("LEVELLED dies by ≤ D9 ≥ 80% of seeds".into(), format!("{lev_le9:.0}%"), lev_le9 >= 80.0));
     let triv = per_bot(Bot::Trivial);
-    let triv_le5 = pct(triv.iter().filter(|r| r.best_depth <= 5).count(), ns);
-    rows.push(("TRIVIAL never passes D5 ≥ 90% of seeds".into(), format!("{triv_le5:.0}%"), triv_le5 >= 90.0));
+    let triv_le5 = pct(triv.iter().filter(|r| r.best_depth <= 8).count(), ns);
+    rows.push(("TRIVIAL never passes D8 ≥ 90% of seeds".into(), format!("{triv_le5:.0}%"), triv_le5 >= 90.0));
     let ctr = per_bot(Bot::Countered);
-    let ctr_ge11 = pct(ctr.iter().filter(|r| r.best_depth >= 11).count(), ns);
-    rows.push(("COUNTERED reaches ≥ D11 ≥ 50% of seeds".into(), format!("{ctr_ge11:.0}%"), ctr_ge11 >= 50.0));
+    let ctr_ge11 = pct(ctr.iter().filter(|r| r.best_depth >= 14).count(), ns);
+    rows.push(("COUNTERED reaches ≥ D14 ≥ 50% of seeds".into(), format!("{ctr_ge11:.0}%"), ctr_ge11 >= 50.0));
     // Cut 3 gates (docs/CUT3.md): the shipped best set reaches the Sanctum; each new boss's
     // counter row is load-bearing.
     let full = per_bot(Bot::Full);
-    let full_ge26 = pct(full.iter().filter(|r| r.best_depth >= 26).count(), ns);
-    rows.push((format!("FULL reaches ≥ D26 ≥ 50% of seeds ({FULL_BATCHES} × 8 h)"), format!("{full_ge26:.0}%"), full_ge26 >= 50.0));
-    for (bot, boss) in [(Bot::FullNo20, 20u32), (Bot::FullNo25, 25), (Bot::FullNo30, 30)] {
+    let full_ge26 = pct(full.iter().filter(|r| r.best_depth >= 29).count(), ns);
+    rows.push((format!("FULL reaches ≥ D29 ≥ 50% of seeds ({FULL_BATCHES} × 8 h)"), format!("{full_ge26:.0}%"), full_ge26 >= 50.0));
+    for (bot, boss) in [(Bot::FullNo23, 23u32), (Bot::FullNo28, 28), (Bot::FullNo33, 33)] {
         let rs = per_bot(bot);
         let held = pct(rs.iter().filter(|r| r.best_depth <= boss).count(), ns);
         rows.push((format!("{} never passes D{boss} ≥ 90% of seeds", bot.name()), format!("{held:.0}%"), held >= 90.0));
@@ -583,6 +596,30 @@ fn main() {
     let (si_runs, si_with): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.situations.0, a.1 + r.situations.1));
     let si_pct = pct(si_with as usize, si_runs as usize);
     rows.push((format!("Situations: ≥ 1 per run on D1–5 ≥ 90% (n={si_runs})"), format!("{si_pct:.1}%"), si_pct >= 90.0));
+    // Cut 7 gates (docs/CUT7.md). §1: the Captain's floor — DEFAULT leaves D5 alive about half
+    // the time (informational; the wall gates above are the bars). §3: each band situation
+    // appears on ≥ 90% of the runs that reach its depth (every bot's real runs), and the
+    // shipped preset passes it on ≤ 20% of seeds (a fresh hero on the floor,
+    // `probes::situation_trial`); the one-row answer's rate is printed beside it.
+    let (c_reached, c_left): (u32, u32) = default.iter().fold((0, 0), |a, r| (a.0 + r.captain.0, a.1 + r.captain.1));
+    println!("captain: DEFAULT left D5 alive in {:.0}% of {} runs that reached it", pct(c_left as usize, c_reached as usize), c_reached);
+    let band: Vec<&riddle_core::engine::BandRun> = all.iter().flat_map(|r| r.band.iter()).collect();
+    let mut sit_lines: Vec<String> = Vec::new();
+    for (what, depth) in riddle_core::descent::SITUATION_DEPTHS {
+        let reached: Vec<&&riddle_core::engine::BandRun> = band.iter().filter(|b| b.depth >= depth).collect();
+        let met = reached.iter().filter(|b| b.met.iter().any(|m| m == what)).count();
+        let appear = pct(met, reached.len());
+        rows.push((format!("Situation {what} (D{depth}) appears when reached ≥ 90% (n={})", reached.len()), format!("{appear:.0}%"), appear >= 90.0 || reached.is_empty()));
+        let trials: Vec<(bool, bool, bool)> = (1..=seeds).map(|s| riddle_core::probes::situation_trial(s, what, false)).collect();
+        let answered: Vec<(bool, bool, bool)> = (1..=seeds).map(|s| riddle_core::probes::situation_trial(s, what, true)).collect();
+        let p_pass = pct(trials.iter().filter(|t| t.1).count(), ns);
+        let a_pass = pct(answered.iter().filter(|t| t.1).count(), ns);
+        let p_left = pct(trials.iter().filter(|t| t.2).count(), ns);
+        let a_left = pct(answered.iter().filter(|t| t.2).count(), ns);
+        sit_lines.push(format!("{what:<8} D{depth:<3} appears {appear:>4.0}%   preset pass {p_pass:>4.0}% (left {p_left:>3.0}%)   answered pass {a_pass:>4.0}% (left {a_left:>3.0}%)   row: {}", riddle_core::probes::situation_answer(what).describe()));
+        rows.push((format!("DEFAULT passes the {what} ≤ 20% of seeds"), format!("{p_pass:.0}%"), p_pass <= 20.0));
+    }
+    println!("situations (Cut 7 §3):\n  {}", sit_lines.join("\n  "));
     println!();
     println!("{:<52} {:>18}  result", "gate", "value");
     let mut fails = 0;

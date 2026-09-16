@@ -955,38 +955,40 @@ fn bones_piles_cap_at_three_and_bone_sense_paths_to_them() {
 }
 
 #[test]
-fn reaching_d31_is_the_ending_and_d16_is_the_foundry() {
+fn reaching_d34_is_the_ending_and_d19_is_the_foundry() {
+    // Cut 7: the bottom is D34 (Cut 3: D31).
     let mut g = arena();
-    g.run.as_mut().unwrap().depth = 30;
+    g.run.as_mut().unwrap().depth = 33;
     g.run.as_mut().unwrap().hero.pos = Pos::new(14, 10);
     rules(&mut g, vec![Row::new(vec![], Verb::new("descend"))]);
     let evs = ticks(&mut g, 10);
-    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 31, .. })));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 34, .. })));
     assert!(evs.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "bank")));
     assert!(g.lineage.ended);
-    // Cut 3: D16 is the Foundry's doorstep, not an ending.
+    // Cut 3: the Foundry's doorstep (Cut 7: D19) is not an ending.
     let mut g = arena();
-    g.run.as_mut().unwrap().depth = 15;
+    g.run.as_mut().unwrap().depth = 18;
     g.run.as_mut().unwrap().hero.pos = Pos::new(14, 10);
     rules(&mut g, vec![Row::new(vec![], Verb::new("descend"))]);
     let evs = ticks(&mut g, 10);
-    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 16, biome, .. } if biome == "foundry")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 19, biome, .. } if biome == "foundry")));
     assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "biome:foundry")));
     assert!(!g.lineage.ended);
-    assert_eq!(g.run.as_ref().unwrap().depth, 16);
+    assert_eq!(g.run.as_ref().unwrap().depth, 19);
 }
 
 #[test]
 fn descending_regenerates_floor_and_learns_biome() {
+    // Cut 7: the Fens start at D9 (the Warrens run to D8).
     let mut g = arena();
-    g.run.as_mut().unwrap().depth = 5;
+    g.run.as_mut().unwrap().depth = 8;
     g.run.as_mut().unwrap().hero.pos = Pos::new(14, 10);
     rules(&mut g, vec![Row::new(vec![], Verb::new("descend"))]);
     let evs = ticks(&mut g, 10);
-    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 6, biome, .. } if biome == "fens")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 9, biome, .. } if biome == "fens")));
     assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "biome:fens")));
     let run = g.run.as_ref().unwrap();
-    assert_eq!(run.depth, 6);
+    assert_eq!(run.depth, 9);
     assert!(!run.monsters.is_empty());
     assert!(!run.floor.water_tiles().is_empty());
     assert_eq!(run.hero.pos, run.floor.stairs_up);
@@ -1126,7 +1128,10 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     let chunked = last.expect("the last quick slice carries the stall");
     assert_eq!(chunked.row, 0);
     assert!(chunked.fired >= 4, "{}", chunked.text);
-    assert!(!chunked.patches.is_empty(), "{}", chunked.text);
+    // Cut 7: this seed's chunked stall sits at the Warlord's floor (D8), where no single
+    // patch moves the forecast past the wall; a stall at a boss may carry none.
+    let at_wall = chunked.text.ends_with(" at D8");
+    assert!(!chunked.patches.is_empty() || at_wall, "{}", chunked.text);
     // The verdict is a state: a second look (no runs, same rules) repeats it from the cache.
     let again = crate::offline::stall_verdict(&mut g).expect("still stalled");
     assert_eq!(again.patches, stall.patches);
@@ -1787,7 +1792,10 @@ fn xp_levels_the_class_and_gates_verbs() {
     let h = hero(&g);
     assert_eq!(h.max_hp, 36 + 4);
     assert_eq!(h.str_bonus, 1);
-    assert_eq!(crate::hero::xp_to_next(3), 900);
+    // Cut 7 §5: 60·L² to L3, 100·L² from L4.
+    assert_eq!(crate::hero::xp_to_next(3), 540);
+    assert_eq!(crate::hero::xp_to_next(1), 60);
+    assert_eq!(crate::hero::xp_to_next(4), 1600);
 }
 
 #[test]
@@ -1971,9 +1979,9 @@ fn seed_3_floors_do_not_deadlock() {
         assert!(t < 3000, "run 2 spent {t} ticks on D3 (was ~20 000 before the guards)");
     }
     // 4000 before Cut 3; the larger flavour pool reseeds the lineage and a D5 (Warlord) floor
-    // now lands at ~4000 on this seed; Cut 5's situations add a detour (4600). A deadlock is
-    // 20 000.
-    assert!(longest < 5000, "longest floor took {longest} ticks: {floors:?}");
+    // now lands at ~4000 on this seed; Cut 5's situations add a detour (4600); Cut 7 moves the
+    // Warlord to D8 with a group more (5300). A deadlock is 20 000.
+    assert!(longest < 6500, "longest floor took {longest} ticks: {floors:?}");
 }
 
 #[test]
@@ -2587,7 +2595,7 @@ fn foundry_master_telegraphs_his_hammer_and_learns_the_counter() {
 
 #[test]
 fn boss_escorts_and_stock_for_the_new_biomes() {
-    for (depth, boss, escort) in [(20u32, "foundry_master", "smith"), (25, "lurker_queen", "lurker"), (30, "mirror_king", "mirror_shade")] {
+    for (depth, boss, escort) in [(23u32, "foundry_master", "smith"), (28, "lurker_queen", "lurker"), (33, "mirror_king", "mirror_shade")] {
         let mut found_escort = false;
         for seed in 1..=6u64 {
             let mut g = Game::new(seed);
@@ -2609,7 +2617,7 @@ fn boss_escorts_and_stock_for_the_new_biomes() {
     let mut g = Game::new(3);
     g.start_run(Some(3));
     let run = g.run.as_mut().unwrap();
-    run.depth = 20;
+    run.depth = 23;
     run.hero.pos = run.floor.stairs_down;
     {
         let (run, mut cx) = g.ctx();
@@ -3084,7 +3092,7 @@ fn the_ending_after_an_ascension_records_the_variant() {
     g.ascend("no_rest").unwrap();
     g.start_run(Some(1));
     let run = g.run.as_mut().unwrap();
-    run.depth = 30;
+    run.depth = 33;
     run.hero.pos = run.floor.stairs_down;
     run.monsters.clear();
     g.set_rules(RuleSet { rows: vec![Row::new(vec![], Verb::new("descend"))], name: None }).unwrap();
@@ -4257,4 +4265,241 @@ fn forecast_is_deterministic_per_rules_and_lineage() {
     // Through the save: identical.
     let g3 = Game::load(&g.save()).unwrap();
     assert_eq!(g3.forecast(), a);
+}
+
+// ---------------------------------------------------------------- Cut 7
+
+/// §2: the shipped preset is two rows tagged `preset`; a card's row is tagged `card` (by
+/// `unlock_row`, and by `set_rules` for a bare tactic row); origin is not identity.
+#[test]
+fn row_origins_preset_and_card() {
+    let g = Game::new(1);
+    let rows = &g.lineage.rules().rows;
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|r| r.origin.as_deref() == Some("preset")));
+    assert_eq!(g.lineage.max_rows(), 4);
+    let a = Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal"));
+    let b = a.clone().from("player");
+    assert_eq!(a, b, "origin is not part of a row's identity");
+    let json = serde_json::to_string(&b).unwrap();
+    assert!(json.contains("\"origin\":\"player\""));
+    let back: Row = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.origin.as_deref(), Some("player"));
+    let plain: Row = serde_json::from_str(r#"{"conds":[],"verb":{"v":"rest"}}"#).unwrap();
+    assert!(plain.origin.is_none());
+    let mut g = Game::new(1);
+    g.lineage.unlocks.insert("boss_focus".into());
+    let card = crate::meta::unlock_row(&g.lineage, "boss_focus").unwrap();
+    assert_eq!(card.origin.as_deref(), Some("card"));
+    let mut set = g.lineage.rules().clone();
+    set.rows.insert(0, Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("tactic", "boss_focus")));
+    set.rows.push(Row::new(vec![], Verb::new("rest")));
+    g.set_rules(set).unwrap();
+    let rows = &g.lineage.rules().rows;
+    assert_eq!(rows[0].origin.as_deref(), Some("card"), "a bare tactic row is a card's");
+    assert!(rows[3].origin.is_none(), "the client tags patch/player rows");
+}
+
+/// §1: the Captain rallies once (two goblins) and never shield-buffs; not a boss, no counter
+/// fact, no `boss` tag; the Warlord keeps both.
+#[test]
+fn captain_rallies_once_and_is_no_boss() {
+    let mut g = arena();
+    let c = add_monster(&mut g, "goblin_captain", 6, 5);
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 60);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == c && what == "rallies")));
+    let rallies = evs.iter().filter(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == c && what == "rallies")).count();
+    assert_eq!(rallies, 1, "one rally");
+    let goblins = g.run.as_ref().unwrap().monsters.iter().filter(|m| m.kind == "goblin" && m.hp > 0).count();
+    assert_eq!(goblins, 1, "one goblin, once");
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "shields up")), "no shield wall");
+    assert!(!crate::facts::has_boss_counter(&g.lineage.facts));
+    assert!(!crate::defs::monster_def("goblin_captain").boss);
+    assert!(!g.lineage.facts.contains("foe:goblin_captain:boss"));
+    assert_eq!(crate::descent::lieutenant_for(5), Some("goblin_captain"));
+    // Placed by the stairs on D5 with goblins about, like a boss.
+    for seed in 1..=4u64 {
+        let mut g = Game::new(seed);
+        g.start_run(Some(seed));
+        g.descend_to(5);
+        let run = g.run.as_ref().unwrap();
+        let cap = run.monsters.iter().find(|m| m.kind == "goblin_captain").expect("a captain on D5");
+        assert!(cap.pos.cheb(run.floor.stairs_down) <= 3, "seed {seed}");
+        g.descend_to(8);
+        let run = g.run.as_ref().unwrap();
+        assert!(run.monsters.iter().any(|m| m.kind == "goblin_warlord"), "seed {seed}: the Warlord at D8");
+        assert!(!run.monsters.iter().any(|m| m.kind == "goblin_captain"));
+    }
+}
+
+/// §4: `Snapshot.room` names the room and its awake hostiles; `rooms` the floor's count; a
+/// corridor reads room 0.
+#[test]
+fn snapshot_room_and_rooms() {
+    let mut g = Game::new(3);
+    g.send();
+    let s = g.snapshot();
+    let run = g.run.as_ref().unwrap();
+    assert_eq!(s.rooms, Some(run.floor.rooms.len() as u32));
+    let room = s.room.unwrap();
+    let ri = run.floor.rooms.iter().position(|r| r.contains(run.hero.pos)).map(|i| i as u32 + 1).unwrap_or(0);
+    assert_eq!(room.id, ri);
+    // A room with two awake hostiles beside the hero.
+    let hp = run.hero.pos;
+    let r = run.floor.rooms[(room.id.max(1) - 1) as usize];
+    let free: Vec<Pos> = (r.y..r.y + r.h).flat_map(|y| (r.x..r.x + r.w).map(move |x| Pos::new(x, y))).filter(|p| *p != hp && run.floor.map.get(*p) == Tile::Floor && !run.occupied(*p)).take(2).collect();
+    for p in &free {
+        let id = add_monster(&mut g, "rat", p.x, p.y);
+        let run = g.run.as_mut().unwrap();
+        let m = run.monsters.iter_mut().find(|m| m.id == id).unwrap();
+        m.awake = true;
+    }
+    let s = g.snapshot();
+    assert!(s.room.unwrap().hostiles >= free.len() as u32);
+    // The arena has no rooms: a corridor.
+    let g = arena();
+    let s = g.snapshot();
+    assert_eq!(s.room, Some(crate::wire::RoomRef { id: 0, hostiles: 0 }));
+    assert_eq!(s.rooms, Some(0));
+}
+
+/// §4: `Ev::Ending` before a bank walk-out (within three steps of the stairs) and in the
+/// air of a death (≤ 15% with a foe adjacent), once per 100 ticks; a `return` reads 0.
+#[test]
+fn ending_is_foreseen() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.pos = Pos::new(4, 4);
+    rules(&mut g, vec![Row::new(vec![], Verb::new("bank"))]);
+    let evs = ticks(&mut g, 60);
+    let ending = evs.iter().find(|e| matches!(e, Ev::Ending { .. })).expect("an ending before the bank");
+    let exit_t = evs.iter().find_map(|e| if let Ev::Exit { t, .. } = e { Some(*t) } else { None }).expect("the bank");
+    assert!(matches!(ending, Ev::Ending { ticks: 30, t } if *t < exit_t));
+    assert_eq!(evs.iter().filter(|e| matches!(e, Ev::Ending { .. })).count(), 1);
+    // Near death with a foe adjacent.
+    let mut g = arena();
+    add_monster(&mut g, "rat", 5, 5);
+    g.run.as_mut().unwrap().hero.hp = 3;
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 120);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Ending { ticks: 30, .. })));
+    assert!(evs.iter().filter(|e| matches!(e, Ev::Ending { .. })).count() <= 2, "once per 100 ticks");
+    // An instant exit says 0.
+    let mut g = arena();
+    rules(&mut g, vec![Row::new(vec![], Verb::new("return"))]);
+    let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Ending { ticks: 0, .. })));
+    assert!(!Ev::Ending { t: 0, ticks: 0 }.renderable());
+}
+
+/// §5: L1–3 need 60·L²; a watched bank earns half again; offline and returns do not.
+#[test]
+fn watched_bank_earns_half_again() {
+    let xp_of = |watched: bool, tier: ExitTier| -> u32 {
+        let mut g = arena();
+        g.run.as_mut().unwrap().depth = 4;
+        g.run.as_mut().unwrap().max_depth = 4;
+        if watched {
+            g.watched = true;
+        }
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, tier);
+        g.finish_run();
+        g.lineage.classes["fighter"].xp
+    };
+    let offline = xp_of(false, ExitTier::Bank);
+    let watched = xp_of(true, ExitTier::Bank);
+    assert_eq!(offline, 12, "3 × depth 4");
+    assert_eq!(watched, 18);
+    assert_eq!(xp_of(true, ExitTier::Return), 7, "a return is 60% and no bonus");
+    // `send`/`step` mark the run watched; an absence clears it.
+    let mut g = Game::new(1);
+    assert!(!g.watched);
+    g.send();
+    assert!(g.watched);
+    g.run_offline(600);
+    assert!(!g.watched);
+    g.step(5);
+    assert!(g.watched);
+}
+
+/// §1: the ledger lists the bosses after the kinds; a known counter rides along as a chip.
+#[test]
+fn ledger_boss_rows_carry_counters() {
+    let mut g = Game::new(1);
+    let ledger = g.lineage.ledger();
+    let bosses: Vec<&LedgerRow> = ledger.iter().filter(|r| crate::defs::monster_def(&r.kind).boss).collect();
+    assert_eq!(bosses.len(), 6);
+    assert!(bosses.iter().all(|r| r.counter.is_none() && !r.seen));
+    assert_eq!(ledger.iter().position(|r| r.kind == "goblin_warlord").unwrap(), ledger.len() - 6, "bosses last, in descent order");
+    g.lineage.facts.insert(crate::facts::boss_counter_fact("bloat_mother"));
+    g.lineage.facts.insert("foe:bloat_mother".into());
+    let ledger = g.lineage.ledger();
+    let mother = ledger.iter().find(|r| r.kind == "bloat_mother").unwrap();
+    let chip = mother.counter.as_ref().expect("the counter chip");
+    assert_eq!(chip.text, "throw fire, boss");
+    assert_eq!(chip.row, crate::facts::counter_row("bloat_mother"));
+    assert!(mother.seen);
+    assert!(ledger.iter().find(|r| r.kind == "lich").unwrap().counter.is_none());
+    assert!(ledger.iter().filter(|r| !crate::defs::monster_def(&r.kind).boss).all(|r| r.counter.is_none()));
+}
+
+/// §3: the situations are facts and tokens; the captive gate takes the coward's way for a
+/// plain attack row and the friend's way for `free_captive`; the hunger's shrine lights for
+/// a hero who prayed above.
+#[test]
+fn situations_are_facts_tokens_and_answers() {
+    let mut l = crate::engine::LineageState::new(1);
+    for k in ["den", "lock", "captive", "hunger"] {
+        assert!(!crate::tokens::vocabulary(&l).conds.contains(&Cond::t("on_see", k)));
+        l.facts.insert(k.into());
+        assert!(crate::tokens::vocabulary(&l).conds.contains(&Cond::t("on_see", k)), "{k}");
+    }
+    // The gate: attack nearest cuts the chained captive down (no_friends), free_captive passes.
+    for coward in [true, false] {
+        let mut g = Game::new(4);
+        g.lineage.facts.insert("captive".into());
+        let row = if coward { Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")) } else { Row::new(vec![Cond::t("on_see", "captive")], Verb::new("free_captive")) };
+        g.set_rules(RuleSet { rows: vec![row], name: None }).unwrap();
+        g.start_run(Some(4));
+        g.descend_to(9);
+        {
+            let run = g.run.as_mut().unwrap();
+            run.monsters.retain(|m| m.situation.is_some());
+            let s = run.floor.stairs_down;
+            let near = s.neighbours8().into_iter().find(|q| run.floor.map.passable(*q)).unwrap();
+            run.hero.pos = near;
+            run.hero_dist_pos = None;
+            run.floor.map.update_vision(near, 7);
+        }
+        let evs = ticks(&mut g, 200);
+        let run = g.run.as_ref().unwrap();
+        if coward {
+            assert!(run.trophies_run.contains(&"no_friends".to_string()), "{evs:?}");
+            assert!(!run.passed.contains(&"captive".to_string()));
+        } else {
+            assert!(evs.iter().any(|e| matches!(e, Ev::Ally { state, .. } if state == "freed")));
+            assert!(run.passed.contains(&"captive".to_string()));
+            assert!(run.monsters.iter().any(|m| m.ally && m.kind == "captive"));
+        }
+    }
+    // The hunger: a prayed hero still lights D12's shrine, free.
+    let mut g = Game::new(5);
+    for f in ["shrine", "hunger"] {
+        g.lineage.facts.insert(f.into());
+    }
+    g.set_rules(RuleSet { rows: vec![Row::new(vec![Cond::t("on_see", "hunger")], Verb::arg("pray", "row"))], name: None }).unwrap();
+    g.start_run(Some(5));
+    g.descend_to(12);
+    {
+        let run = g.run.as_mut().unwrap();
+        run.prayed = true;
+        run.monsters.clear();
+    }
+    let max_before = g.run.as_ref().unwrap().hero.max_hp;
+    let evs = ticks(&mut g, 600);
+    let run = g.run.as_ref().unwrap();
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "lit")), "{evs:?}");
+    assert!(run.lit && run.passed.contains(&"hunger".to_string()));
+    assert!(run.hero.max_hp >= max_before - 2, "the hunger bit at most twice before the light");
 }

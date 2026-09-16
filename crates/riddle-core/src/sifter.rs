@@ -62,6 +62,8 @@ pub enum Setup {
     Stray,
     /// `Untouched` / `Untouched by the Warlord`.
     Untouched,
+    /// Cut 7 §3: `A captive, chained` (the gate answered by `free_captive`).
+    Captive,
 }
 
 /// The end beat. `Pending` is a sealed episode waiting for the run's next resolution.
@@ -206,7 +208,7 @@ pub fn threat_now(run: &Run) -> Vec<(String, u32)> {
     let map = &run.floor.map;
     let mut v: Vec<(String, u32)> = Vec::new();
     for m in run.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && !m.dormant && map.is_visible(m.pos)) {
-        let key = if m.nest { "nest".to_string() } else if m.stray { "stray".to_string() } else { m.kind.clone() };
+        let key = if m.nest { "nest".to_string() } else if m.stray { "stray".to_string() } else if let Some(s) = &m.situation { s.clone() } else { m.kind.clone() };
         match v.iter_mut().find(|(k, _)| *k == key) {
             Some(e) => e.1 += 1,
             None => v.push((key, 1)),
@@ -589,6 +591,10 @@ pub fn cause_phrase(cause: &str) -> String {
         "shrine" => "the shrine".into(),
         "nest" => "the nest".into(),
         "stray" => "a stray".into(),
+        "den" => "the den".into(),
+        "lock" => "the lock".into(),
+        "captive" => "the captive".into(),
+        "hunger" => "the hunger".into(),
         k if is_boss(k) => format!("the {}", boss_short(k)),
         k if is_monster(k) => {
             let t = kind_title(k);
@@ -609,6 +615,10 @@ fn subject(ep: &Episode, short: bool) -> String {
         "shrine" => "The shrine".into(),
         "nest" => "The nest".into(),
         "vault" => "The vault".into(),
+        "den" => "The den".into(),
+        "lock" => "The lock".into(),
+        "captive" => "The captive".into(),
+        "hunger" => "The hunger".into(),
         "stray" => {
             if short {
                 "The stray".into()
@@ -642,6 +652,7 @@ fn subject(ep: &Episode, short: bool) -> String {
 fn setup_phrase(ep: &Episode, short: bool) -> String {
     match ep.setup {
         Setup::Vault => "The vault held three".into(),
+        Setup::Captive => "A captive, chained".into(),
         Setup::Stray => {
             if short {
                 format!("{} came back", ep.name)
@@ -776,6 +787,7 @@ pub fn story_ok(text: &str) -> bool {
     let setup_ok = setup == "Untouched"
         || setup.starts_with("Untouched by ")
         || setup == "The vault held three"
+        || setup == "A captive, chained"
         || setup.ends_with(" came back")
         || setup.ends_with(" took him down")
         || (setup.ends_with(" HP") && [" took him to ", " cornered him to ", " chased him to "].iter().any(|v| setup.contains(v)));
@@ -850,6 +862,7 @@ pub fn threat_key(ep: &Episode) -> String {
     match ep.setup {
         Setup::Vault => "vault".into(),
         Setup::Stray => "stray".into(),
+        Setup::Captive => "captive".into(),
         _ => ep.threat.first().map(|(k, _)| k.clone()).unwrap_or_else(|| "none".into()),
     }
 }

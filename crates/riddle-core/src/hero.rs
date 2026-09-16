@@ -75,9 +75,14 @@ pub fn class_has_verb(class: Class, level: u32, verb: &str) -> bool {
     class_ladder(class).iter().any(|(v, l)| *v == verb && level >= *l)
 }
 
-/// Cut 2 §2: `100 × level²`; XP only from banked and returned runs.
+/// Cut 2 §2: `100 × level²`; XP only from banked and returned runs. Cut 7 §5: `60 × level²`
+/// for L1–3, so L2 lands in the first hour of a player who banks once (L4+ unchanged).
 pub fn xp_to_next(level: u32) -> u32 {
-    100 * level * level
+    if level <= 3 {
+        60 * level * level
+    } else {
+        100 * level * level
+    }
 }
 
 pub fn mastery_card(class: Class) -> &'static str {

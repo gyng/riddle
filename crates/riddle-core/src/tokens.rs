@@ -66,7 +66,8 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
         }
     }
     // Cut 5 §4: situations seen are tokens (`on_see: nest`), gated by their fact alone.
-    for k in ["nest", "shrine", "vault"] {
+    // Cut 7 §3: the band situations are tokens the same way.
+    for k in ["nest", "shrine", "vault", "den", "lock", "captive", "hunger"] {
         if l.facts.contains(k) {
             conds.push(Cond::t("on_see", k));
         }

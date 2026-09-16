@@ -61,7 +61,7 @@ fn fact_note(fact: &str) -> String {
         ["chalk", d] => format!("D{d} is chalked."),
         ["ascended", v] => format!("Ascended: {}.", v.replace('_', " ")),
         ["tamed", kind] => format!("Tamed a {}.", crate::engine::kind_title(kind)),
-        ["shrine"] | ["vault"] | ["nest"] | ["stray"] => String::new(),
+        ["shrine"] | ["vault"] | ["nest"] | ["stray"] | ["den"] | ["lock"] | ["captive"] | ["hunger"] => String::new(),
         ["counter", rest] => format!("Learned: {}.", rest.replace('>', " beats ")),
         ["item", rest] => {
             let mut it = rest.split('=');

@@ -17,10 +17,22 @@ pub struct Verb {
     pub a: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, Default)]
 pub struct Row {
     pub conds: Vec<Cond>,
     pub verb: Verb,
+    /// Cut 7 §2: where the row came from — `preset` (the shipped two rows, tagged on a new
+    /// lineage), `card` (a bought card's row), `patch` / `player` (tagged by the client). Not
+    /// part of a row's identity: two rows with the same conds and verb are equal whatever
+    /// their origin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+}
+
+impl PartialEq for Row {
+    fn eq(&self, o: &Row) -> bool {
+        self.conds == o.conds && self.verb == o.verb
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -146,7 +158,12 @@ impl Verb {
 
 impl Row {
     pub fn new(conds: Vec<Cond>, verb: Verb) -> Row {
-        Row { conds, verb }
+        Row { conds, verb, origin: None }
+    }
+    /// The same row tagged with an origin (`preset` · `card` · `patch` · `player`).
+    pub fn from(mut self, origin: &str) -> Row {
+        self.origin = Some(origin.into());
+        self
     }
     /// Callout text: first condition + verb, ≤ 3 words.
     pub fn text(&self, hp_pct: i32) -> String {

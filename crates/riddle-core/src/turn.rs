@@ -39,7 +39,10 @@ pub fn view(run: &Run) -> View {
     let mut foes: Vec<usize> = (0..run.monsters.len())
         .filter(|&i| {
             let m = &run.monsters[i];
-            m.hp > 0 && m.hostile() && !m.dormant && map.is_visible(m.pos)
+            // Cut 7 §3: a captive chained across the stairs is a foe once the hero stands
+            // beside it (the coward's way through the gate).
+            let chained = m.neutral && m.situation.as_deref() == Some("captive") && m.pos.adjacent(hp);
+            m.hp > 0 && (m.hostile() || chained) && !m.dormant && map.is_visible(m.pos)
         })
         .collect();
     foes.sort_by_key(|&i| (run.monsters[i].pos.cheb(hp), run.monsters[i].id));
@@ -83,6 +86,8 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
             m.energy += m.effective_speed();
         }
     }
+    // Cut 7 §3: the hunger bites on an unlit D12.
+    crate::situations::hunger_tick(run, cx);
     let mut acted = false;
     // Hero first.
     while run.hero.energy >= ACT_ENERGY && run.over.is_none() {
@@ -163,9 +168,13 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
         .collect();
     // Cut 5 §4: sleeping dens the hero has seen are terrain too (kept two tiles clear).
     run.dens = run.monsters.iter().filter(|m| m.hp > 0 && m.nest && m.dormant && map.is_seen(m.pos)).map(|m| m.pos).collect();
+    // Cut 7 §3: the thief's den's sleepers are terrain the chores walk round.
+    run.sleepers = run.monsters.iter().filter(|m| m.hp > 0 && m.dormant && m.situation.is_some()).map(|m| m.pos).collect();
     oscillation_guard(run, cx);
     // Cut 5 §4: a den wakes when the hero comes within two tiles of it.
     wake_nest(run, cx);
+    // Cut 7 §3: the thief's den pounces on a hero at the stairs.
+    crate::situations::before_action(run, cx);
     let v = view(run);
     // Cut 5 §3: the fight clock (no hero lines in a fight's first ten ticks).
     if v.foes.is_empty() {
@@ -189,6 +198,8 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
         }
     }
     let (row, verb) = choose_and_act(run, cx, &v);
+    // Cut 7 §4: the last 30 ticks before a foreseeable exit are announced.
+    foresee_ending(run, cx, &verb, &v);
     // Cut 5 §1: the episode records the action (the row at the low point when one is awaited)
     // and seals itself once the hero has recovered from a low.
     sifter::on_action(run, row, &verb);
@@ -394,6 +405,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             continue;
         }
         let scope = row.conds.iter().find(|c| c.k == "party").and_then(|c| c.t.clone());
+        run.raiding = row.conds.iter().any(|c| (c.k == "on_see" && c.t.as_deref() == Some("den")) || (c.k == "foe_tag" && c.t.as_deref() == Some("thief")));
         if holds && ai::try_verb_scoped(run, cx, &row.verb, v, scope.as_deref()) {
             let text = rule_text(run, row, hp_pct);
             emit_rule(run, cx, i as i32, &row.verb, &text);
@@ -775,10 +787,14 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
                     Some("nest")
                 } else if m.stray {
                     Some("stray")
+                } else if m.situation.as_deref() == Some("den") {
+                    Some("den")
                 } else {
                     None
                 }
             }
+            // Cut 7 §3: gas on the lock floor is the lock's.
+            Src::Gas | Src::Burst if !run.lock_tiles.is_empty() => Some("lock"),
             _ => None,
         };
         if sifter::on_hurt(run, cause, flag) {
@@ -900,9 +916,14 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         run.stuck_until = 0;
         run.row_suppressed = (-9, 0);
     }
-    // Cut 5 §4: a blow on a sleeper wakes the whole den.
+    // Cut 5 §4: a blow on a sleeper wakes the whole den. Cut 7 §3: a den thief caught napping
+    // bolts alone.
     if run.monsters[mi].dormant {
-        wake_den(run, cx);
+        if run.monsters[mi].situation.as_deref() == Some("den") {
+            crate::situations::raided(run, cx, mi);
+        } else {
+            wake_den(run, cx);
+        }
     }
     run.monsters[mi].hp -= dmg;
     if run.monsters[mi].kind == "bloat_mother" && run.monsters[mi].hp > 0 && matches!(src, Src::Hero { ranged: false }) {
@@ -962,6 +983,13 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             run.arc.allies_lost.push(kind.clone());
             note(run, cx, format!("The {} fell.", crate::engine::kind_title(&kind)));
         }
+    } else if m.neutral && m.situation.as_deref() == Some("captive") {
+        // Cut 7 §3: the coward's way through the gate.
+        note(run, cx, "Cut the captive down. The stairs are clear.".into());
+        callout(run, cx, "no friends");
+        if !run.trophies_run.contains(&"no_friends".to_string()) {
+            run.trophies_run.push("no_friends".into());
+        }
     } else if !m.neutral {
         let depth = run.depth;
         run.kills.push((run.turn, kind.clone(), depth));
@@ -989,11 +1017,21 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         run.items.push(crate::engine::FloorItem { pos, item: it });
     }
     if m.has_tag("gas") {
-        let (r, ttl) = if m.is_boss() { (2, 60) } else { (1, 40) };
+        // Cut 7 §3: a lock bloat's cloud is quick — it bursts hard (a hero beside it takes the
+        // burst at once) and clears in two turns.
+        let lock = m.situation.as_deref() == Some("lock");
+        let (r, ttl) = if m.is_boss() { (2, 60) } else if lock { (1, 20) } else { (1, 40) };
         place_overlay(run, cx, pos, r, OverlayKind::Gas, ttl);
         if visible {
             callout(run, cx, "pops!");
             learn_tag(run, cx, &kind, "gas");
+        }
+        if lock {
+            run.lock_last_pop = run.turn;
+            if run.hero.pos.cheb(pos) <= 1 && run.over.is_none() {
+                run.gas_dmg_floor += 3;
+                damage_hero(run, cx, 3, &Src::Burst);
+            }
         }
     }
     true
@@ -1032,6 +1070,11 @@ fn tick_overlays(run: &mut Run, cx: &mut Ctx) {
             OverlayKind::Fire => (5, Src::Fire),
         };
         if run.hero.pos == p {
+            // Cut 7 §3: gas that is the lock's — while its bloats stand, or just after a burst.
+            let lock_live = run.monsters.iter().any(|m| m.hp > 0 && m.situation.as_deref() == Some("lock"));
+            if src == Src::Gas && (lock_live || run.turn <= run.lock_last_pop + 40) {
+                run.gas_dmg_floor += dmg;
+            }
             damage_hero(run, cx, dmg, &src);
             if run.over.is_some() {
                 return;
@@ -1300,6 +1343,8 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
         run.trophies_run.push("pacifist_floor".into());
         note(run, cx, "Trophy: pacifist floor.".into());
     }
+    // Cut 7 §3: the band's situation is judged as the floor is left.
+    crate::situations::on_leave_floor(run, cx);
     let next = run.depth + 1;
     // Cut 3: chalk in the pack marks the floor left behind (`chalk:<depth>`): the next heir here
     // goes straight for the stairs.
@@ -1369,6 +1414,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.tempted = false;
     populate_floor(run, cx.grudges, cx.forge, cx.hunter);
     crate::engine::place_situations(run, cx.lost);
+    crate::situations::place(run);
     crate::engine::place_bones(run);
     if cx.facts.contains(&format!("chalk:{next}")) {
         let s = run.floor.stairs_down;
@@ -1393,6 +1439,39 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
         }
     }
     crate::facts::on_vision(run, cx);
+}
+
+/// Cut 7 §4: `Ev::Ending { ticks }` before an exit the engine can foresee — a bank walk-out or
+/// the bottom's stairs within three steps (~30 ticks at base speed), or death in the air
+/// (hp ≤ 15% with a hostile adjacent). Once per 100 ticks; a run that has already ended this
+/// action (`return`, recall, the bottom reached) gets a `0` so the viewer knows it was instant.
+fn foresee_ending(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View) {
+    let t = run.turn;
+    if run.ending_t.is_some_and(|e| t < e + 100) {
+        return;
+    }
+    // Chebyshev distance bounds the path length from below: no BFS until the goal is close.
+    let steps_to = |run: &Run, goal: Pos| -> i32 {
+        if run.hero.pos.cheb(goal) > 3 {
+            return i32::MAX;
+        }
+        let d = run.floor.map.bfs(run.hero.pos, false, &|_| false);
+        d[run.floor.map.idx(goal)]
+    };
+    let dying = run.hero.hp_pct() <= 15 && v.adj >= 1;
+    let banking = verb.v == "bank" && (0..=3).contains(&steps_to(run, run.floor.stairs_up));
+    let bottom = verb.v == "descend" && run.depth + 1 >= ENDING_DEPTH && (0..=3).contains(&steps_to(run, run.floor.stairs_down));
+    let ticks = if run.over.is_some() {
+        Some(0)
+    } else if dying || banking || bottom {
+        Some(30)
+    } else {
+        None
+    };
+    if let Some(ticks) = ticks {
+        run.ending_t = Some(t);
+        cx.events.push(Ev::Ending { t, ticks });
+    }
 }
 
 /// Cut 4: the hero fell to ≤ 20 % on this floor and lived to leave it — the chronicle names
@@ -1438,6 +1517,7 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
 
 /// Situations in view become facts (`shrine`, `vault`, `nest`, `stray`) and count for the run.
 fn situations_seen(run: &mut Run, cx: &mut Ctx) {
+    crate::situations::seen(run, cx);
     if run.depth > 5 {
         return;
     }
@@ -1561,6 +1641,11 @@ pub fn vault_take(run: &mut Run, cx: &mut Ctx, id: Option<u32>) {
 /// other saved sets: the first row there the active set lacks) or a trait swap; `pray trait`
 /// always swaps, `pray row` swaps when no row can be lent.
 pub fn pray(run: &mut Run, cx: &mut Ctx, want_row: bool) {
+    // Cut 7 §3: the hunger's shrine is lit, not bargained with.
+    if crate::situations::hunger_floor(run) && !run.lit {
+        crate::situations::light_shrine(run, cx);
+        return;
+    }
     run.prayed = true;
     let cost = run.hero.max_hp * crate::engine::PRAY_COST_PCT / 100;
     run.hero.max_hp = (run.hero.max_hp - cost).max(1);

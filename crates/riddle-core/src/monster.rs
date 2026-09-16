@@ -99,6 +99,11 @@ pub struct Monster {
     /// hero: the third of a kind comes back).
     #[serde(default)]
     pub verb_ring: Vec<String>,
+    /// Cut 7 §3: the band situation this monster belongs to — `den` (a thief that snatches
+    /// only from a flanked hero), `lock` (a bloat that swells and bursts on sight), `captive`
+    /// (chained across the stairs: no place-swapping, a foe once adjacent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub situation: Option<String>,
 }
 
 impl Monster {
@@ -153,6 +158,7 @@ impl Monster {
             stray: false,
             dormant: false,
             verb_ring: Vec::new(),
+            situation: None,
         }
     }
     pub fn def(&self) -> &'static MonsterDef {

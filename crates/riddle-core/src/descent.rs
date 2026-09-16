@@ -1,8 +1,13 @@
 //! The persistent descent: biome order, bosses, grudge monsters. Floors regenerate per run.
 use serde::{Deserialize, Serialize};
 
-/// Cut 3: reaching D31's stairs is the ending (D16 was v1's placeholder).
-pub const ENDING_DEPTH: u32 = 31;
+/// Cut 7: reaching D34's stairs is the ending (Cut 3: D31; D16 was v1's placeholder). The
+/// Warrens run to D8 so the wall arrives when the player has a policy, not a preset.
+pub const ENDING_DEPTH: u32 = 34;
+/// Cut 7 §1: the lieutenant's floor — the Goblin Captain at D5 (rallies once, no shield wall).
+pub const LIEUTENANT_DEPTH: u32 = 5;
+/// Cut 7 §3: the band situations (thief's den, gas lock, captive gate, crypt's hunger).
+pub const SITUATION_DEPTHS: [(&str, u32); 4] = [("den", 3), ("lock", 6), ("captive", 9), ("hunger", 12)];
 /// Cut 3: the hero's sight radius in a lit biome; the Deep is dark (`vision_for`).
 pub const VISION_LIT: i32 = 7;
 pub const VISION_DARK: i32 = 4;
@@ -54,29 +59,57 @@ impl Biome {
     }
 }
 
+/// Cut 7: Warrens D1–8 (captain D5, Warlord D8), Fens D9–13, Crypt D14–18, Foundry D19–23,
+/// Deep D24–28, Sanctum D29–33, the bottom at D34.
 pub fn biome_for(depth: u32) -> Biome {
     match depth {
-        0..=5 => Biome::Warrens,
-        6..=10 => Biome::Fens,
-        11..=15 => Biome::Crypt,
-        16..=20 => Biome::Foundry,
-        21..=25 => Biome::Deep,
+        0..=8 => Biome::Warrens,
+        9..=13 => Biome::Fens,
+        14..=18 => Biome::Crypt,
+        19..=23 => Biome::Foundry,
+        24..=28 => Biome::Deep,
         _ => Biome::Sanctum,
     }
 }
 
+/// The first floor of a biome.
+pub fn biome_first(biome: Biome) -> u32 {
+    match biome {
+        Biome::Warrens => 1,
+        Biome::Fens => 9,
+        Biome::Crypt => 14,
+        Biome::Foundry => 19,
+        Biome::Deep => 24,
+        Biome::Sanctum => 29,
+    }
+}
+
 /// The boss floors in order (Cut 6 §5: `Lineage.counters` walks them).
-pub const BOSS_DEPTHS: [(&str, u32); 6] = [("goblin_warlord", 5), ("bloat_mother", 10), ("lich", 15), ("foundry_master", 20), ("lurker_queen", 25), ("mirror_king", 30)];
+pub const BOSS_DEPTHS: [(&str, u32); 6] = [("goblin_warlord", 8), ("bloat_mother", 13), ("lich", 18), ("foundry_master", 23), ("lurker_queen", 28), ("mirror_king", 33)];
 
 pub fn boss_for(depth: u32) -> Option<&'static str> {
+    BOSS_DEPTHS.iter().find(|(_, d)| *d == depth).map(|(k, _)| *k)
+}
+
+/// The depth of a boss kind.
+pub fn boss_depth(kind: &str) -> Option<u32> {
+    BOSS_DEPTHS.iter().find(|(k, _)| *k == kind).map(|(_, d)| *d)
+}
+
+/// Cut 7 §1: the lieutenant on a floor (the Goblin Captain at D5), placed like a boss but
+/// no boss: no counter fact, no marks, a bestiary entry like any other kind.
+pub fn lieutenant_for(depth: u32) -> Option<&'static str> {
+    (depth == LIEUTENANT_DEPTH).then_some("goblin_captain")
+}
+
+/// Cut 7: the content depth — the Cut 3–6 tuning (spawn groups, stat growth, item budgets,
+/// item depths) was written against Warrens D1–5 / Fens D6–10 / …; the Warrens' three new
+/// floors sit at the old D5's numbers and everything below keeps its old tuning depth.
+pub fn tier_depth(depth: u32) -> u32 {
     match depth {
-        5 => Some("goblin_warlord"),
-        10 => Some("bloat_mother"),
-        15 => Some("lich"),
-        20 => Some("foundry_master"),
-        25 => Some("lurker_queen"),
-        30 => Some("mirror_king"),
-        _ => None,
+        0..=5 => depth,
+        6..=8 => 5,
+        _ => depth - 3,
     }
 }
 
@@ -102,20 +135,32 @@ mod tests {
     #[test]
     fn biome_order_fixed() {
         assert_eq!(biome_for(1), Biome::Warrens);
-        assert_eq!(biome_for(5), Biome::Warrens);
-        assert_eq!(biome_for(6), Biome::Fens);
-        assert_eq!(biome_for(11), Biome::Crypt);
-        assert_eq!(boss_for(5), Some("goblin_warlord"));
-        assert_eq!(boss_for(10), Some("bloat_mother"));
-        assert_eq!(boss_for(15), Some("lich"));
-        assert_eq!(boss_for(7), None);
-        assert_eq!(biome_for(16), Biome::Foundry);
-        assert_eq!(biome_for(21), Biome::Deep);
-        assert_eq!(biome_for(30), Biome::Sanctum);
-        assert_eq!(boss_for(20), Some("foundry_master"));
-        assert_eq!(boss_for(25), Some("lurker_queen"));
-        assert_eq!(boss_for(30), Some("mirror_king"));
-        assert_eq!(ENDING_DEPTH, 31);
+        assert_eq!(biome_for(8), Biome::Warrens);
+        assert_eq!(biome_for(9), Biome::Fens);
+        assert_eq!(biome_for(14), Biome::Crypt);
+        assert_eq!(boss_for(8), Some("goblin_warlord"));
+        assert_eq!(boss_for(13), Some("bloat_mother"));
+        assert_eq!(boss_for(18), Some("lich"));
+        assert_eq!(boss_for(5), None);
+        assert_eq!(lieutenant_for(5), Some("goblin_captain"));
+        assert_eq!(lieutenant_for(8), None);
+        assert_eq!(biome_for(19), Biome::Foundry);
+        assert_eq!(biome_for(24), Biome::Deep);
+        assert_eq!(biome_for(33), Biome::Sanctum);
+        assert_eq!(boss_for(23), Some("foundry_master"));
+        assert_eq!(boss_for(28), Some("lurker_queen"));
+        assert_eq!(boss_for(33), Some("mirror_king"));
+        assert_eq!(boss_depth("lich"), Some(18));
+        assert_eq!(ENDING_DEPTH, 34);
+        for b in Biome::ALL {
+            assert_eq!(biome_for(biome_first(b)), b);
+            assert!(biome_first(b) == 1 || biome_for(biome_first(b) - 1) != b);
+        }
+        for (k, d) in BOSS_DEPTHS {
+            assert_eq!(boss_for(d), Some(k));
+            assert!(d + 1 == ENDING_DEPTH || biome_for(d + 1) != biome_for(d), "{k} guards its biome's last floor");
+        }
+        assert_eq!((tier_depth(5), tier_depth(6), tier_depth(8), tier_depth(9), tier_depth(33)), (5, 5, 5, 6, 30));
         assert_eq!(Biome::Deep.vision(), 4);
         assert_eq!(Biome::Sanctum.vision(), 7);
     }

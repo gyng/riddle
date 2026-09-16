@@ -1,7 +1,7 @@
 # riddle-core
 
 Deterministic roguelike sim, rule engine, facts, forecast, offline batch, chronicle, sifter,
-meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4, Cut 5, Cut 6). All game truth lives here; `riddle-wasm` is a JSON bridge.
+meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4, Cut 5, Cut 6, Cut 7). All game truth lives here; `riddle-wasm` is a JSON bridge.
 
 ## Wire deviations
 
@@ -572,10 +572,110 @@ Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion ver
 `attack shoot burst steal split flank drain follow recall`. Hero scope cond `{k:"party",t:kind}`,
 `{k:"party_hp<",n}`, verb `tame` (`nearest | tag:T`).
 
+## Cut 7 (the first hour is not five floors) — deviations and additions
+
+- **The descent** (§1). Warrens D1–8, Fens D9–13, Crypt D14–18, Foundry D19–23, Deep D24–28,
+  Sanctum D29–33, the bottom at **D34** (`descent::ENDING_DEPTH`). Bosses one floor before
+  each change: Warlord **D8**, Bloat Mother D13, Lich D18, Foundry Master D23, Lurker Queen
+  D28, Mirror King D33 (`descent::BOSS_DEPTHS`, `boss_depth(kind)`, `biome_first(biome)`).
+  The Cut 3–6 tuning that was keyed on depth (spawn groups, stat growth, item budget and item
+  depths, the Foundry/Deep stock floors) runs on `descent::tier_depth`: D1–5 as before, D6–8
+  at the old D5's numbers (one spawn group more), D9+ three floors shallower — so the Fens,
+  Crypt and deeper biomes play exactly as they did three floors down. Every preset,
+  `probes::full/countered`, the dayplayer's counter rows and the gate bars moved with the
+  walls (`good.json` throws at bosses from D9; `full.json` at D19/D28/D33; `deep_march`
+  reads `D24+`).
+- **The Captain** (§1; `descent::lieutenant_for(5)`): `goblin_captain` (16 HP, 2–4, tags
+  `summoner telegraph`, **not a boss**) is placed at D5 like a boss (by the stairs, goblins
+  round him), rallies **once** (two goblins) on first sight and never shield-buffs; no counter
+  fact, no marks, an ordinary ledger row. The stairs are not sealed by him (only bosses seal).
+  DEFAULT leaves D5 alive in ~25–30% of the runs that reach it (the whole floor — archers
+  in pairs, ogres — not the Captain alone; the walls above are the gates).
+- **Preset and origins** (§2). The shipped fighter preset is two rows (`HP<30% → drink heal`,
+  `foes 1+ → attack`), `max_rows` 4. **`Row.origin?: "preset" | "card" | "patch" |
+  "player"`** (serde default none, skipped when none; **not part of a row's identity** —
+  `Row: PartialEq` compares conds and verb only, so `rows.contains(&row)` and the patch
+  machinery ignore it). The engine tags the preset rows on a new lineage
+  (`probes::preset`), `meta::unlock_row` returns a card's row tagged `card`, and `set_rules`
+  tags any bare `tactic` row `card`; the client tags `patch` / `player`.
+- **Situations per band** (§3; `situations.rs`; `descent::SITUATION_DEPTHS`). Each is a
+  bare fact, an `on_see: <fact>` token (gated by the fact alone, like `nest`), and an episode
+  (`Episode.situation`, `Setup::Captive`; the sifter's subjects `The den` · `The lock` · `The
+  captive` · `The hunger`). `Run.passed` records the ones answered; the offline batch keeps
+  `Batch.band_runs: [{depth, met, passed}]` per real run for the gate.
+  - **D3 the thief's den**: three monkeys (10 HP, def 2, `Monster.situation = "den"`) asleep
+    within two tiles of the down stairs, never walling them off. A hero standing **on the
+    stairs** is pounced on: each snatches one thing — a vault-brought pack item first, then
+    any pack item, then the weapon in hand — and runs with it (a fleeing thief hides; a
+    killed one drops it). A blow on a sleeper (the raid) wakes that one alone and it bolts
+    for good, empty-handed; the raid is only for a row that names the den (`on_see: den` or
+    `foe_tag thief` — `Run.raiding`), a plain `attack nearest` walks past sleepers as it does
+    the nest's, and the chores route round them (`Run.sleepers`; a sleeper with no way round
+    is shoved awake). Met on sight (the den is the stairs room); **pass** = leave D3 with
+    every snatched item back on the hero (`Run.den_stolen`). Answer: `see den → attack`.
+  - **D6 the gas lock**: every way into the down-stairs room — its doors and two corridor
+    tiles behind each, up to `LOCK_MAX` 4 — holds a bloat (`situation = "lock"`). They stir
+    when the hero is in sight or within 5 steps, drift at him (speed 7), **swell** the moment
+    they stand beside him (`telegraph: "swells"`, `LOCK_FUSE` 10 ticks) and burst one action
+    later: a burst hits a hero beside it for 3 at once (`Src::Burst`) and leaves a quick
+    cloud (r1, 20 ticks). Met on arrival (the reek carries). **Pass** = leave D6 with ≤
+    `LOCK_PASS_GAS` 6 of the lock's gas taken (`Run.gas_dmg_floor`: bursts, and cloud damage
+    while its bloats stand or within 40 ticks of the last burst — a curious hero's caustic
+    potion does not count). Answer: `gas · adj 1+ → retreat` (step back and let it pop at
+    arm's length); the preset swings and eats each burst.
+  - **D9 the captive gate**: a captive chained **on the down stairs** (`situation =
+    "captive"`, neutral); no place-swapping past it. `free_captive` frees it (an ally for the
+    Bloat Mother's floor) and passes; a chained captive **counts as a foe once the hero stands
+    beside it**, so `attack nearest` cuts it down — the coward's way, trophy `no_friends` —
+    and no set ever stalls at the gate. Met on arrival (its cry carries). Answer: `see captive
+    → free`.
+  - **D12 the crypt's hunger** (the Crypt reaches up into the Fens' last floors): a shrine
+    4–7 steps down the path from the entrance and three wraiths already hunting
+    (`situation = "hunger"`). Every `HUNGER_TURNS` 12 turns unlit the floor takes a point of
+    max HP (never below 5; `Ev::hurt {dmg: 0, cause: "hunger"}`, callout `hunger`); light is
+    a lantern in the pack or the shrine **lit**: `pray` on this floor lights it — free, no
+    row lent or trait swapped, whatever was prayed above (`Run.lit`; the wraiths lose their
+    nerve). Met by the first bite; **pass** = leave D12 lit. Answer: `see hunger → pray row`
+    (`see shrine → pray row` works too, at the D1–5 shrines' price).
+  - **The chores** learned two things for the lock that hold everywhere: lingering gas or
+    fire is terrain when another way exists (chores, attack approaches; a target standing in
+    it is waited out, not walked into), a hero deep in a cloud walks to the nearest clean
+    tile instead of standing in it, and `retreat` weighs open ground (a step into a dead end
+    scores a little lower).
+  - **Gate probe** (`probes::situation_trial(seed, what, answered)`): a fighter shaped for
+    the depth (L1/2/4/6, in mail below the Warrens' doorstep) starts on the band's floor with
+    the shipped preset, plus `probes::situation_answer(what)` when answered, and plays the
+    floor out. The metrics print appearance over every bot's real runs that reached the depth
+    and both pass rates; the bars are appearance ≥ 90% and the preset ≤ 20%.
+- **The watch as a scene** (§4). **`Snapshot.room?: {id, hostiles}`** — the room the hero
+  stands in (1-based index into the floor's rooms; `0` for a corridor, a door or a cave) and
+  the awake hostiles standing in it; **`Snapshot.rooms?: number`** the floor's room count.
+  **`Ev::ending {t, ticks}`**: emitted before an exit the engine can foresee — `ticks: 30`
+  when a `bank` row walks within three steps of the up stairs, when the bottom's stairs are
+  within three steps, or when the hero is at ≤ 15% with a hostile adjacent (once per 100
+  ticks); `ticks: 0` for an instant exit (`return`, recall, the bottom reached this action).
+  Not renderable (the events-per-600-ticks gate ignores it).
+- **Levels** (§5). `hero::xp_to_next` is `60·L²` for L1–3 (L4+ `100·L²` as before).
+  **`Game.watched`** (serde default false): set by `send()` and `step()`, cleared by every
+  offline batch; a watched **bank** earns +50% class XP (returns and sims never). The wasm
+  bridge needs nothing new: the client's live loop is `send`/`step`.
+- **The ledger's boss rows** (§1). `Lineage.ledger` now lists the six bosses after the kinds,
+  in descent order; a boss whose counter is known carries **`LedgerRow.counter?: {row,
+  text}`** (the same row and ≤ 3-word text as `Lineage.counters`). Clients counting "kinds
+  known" over the ledger should skip boss rows (`defs::monster_def(kind).boss`).
+- **Dayplayer** (§6). Two new bars: the **first hour** — three 20-minute check-ins of a
+  *watched* player (the scene cadence averages ~4×, so a check-in is 48 000 ticks of play
+  with no camp rest; between them the same hands as the fortnight: the worst death's patch,
+  the bank row `HP<40% · D3+ → bank`, the situation answers as their facts land, the cheapest
+  unlock) ends with best ≥ D6 and ≥ 2 player rows (any row not `preset`) on ≥ 80% of seeds;
+  **L2 by the end of day 1** for the banking fortnight player ≥ 80%. The fortnight player now
+  writes the bank row and the situation answers itself (`write_own_rows`); the content bars
+  (purchase days, stall) stay informational.
+
 ## Layout
 
-`src/` per `docs/CUT1.md` plus `wire.rs` (the wire structs) and `tests.rs` (integration
-tests). `examples/cli.rs` playtest; `examples/metrics.rs` gates; `examples/bench.rs` timing.
+`src/` per `docs/CUT1.md` plus `wire.rs` (the wire structs), `situations.rs` (the Cut 7 band
+situations) and `tests.rs` (integration tests). `examples/cli.rs` playtest; `examples/metrics.rs` gates; `examples/bench.rs` timing.
 `presets/{fighter,rogue,ranger,caster,good,full}.json` (`full` is the Cut 3 FULL bot: every
 counter, every unlock assumed). `examples/dayplayer.rs` is the 14-day player simulation
 (`--gate` checks the Cut 2/3 bars; `--verbose` logs purchases and bests; after the ending it
@@ -586,6 +686,72 @@ survey tools; `examples/stories.rs` the Cut 5 story probe.
 cargo run --release --example cli -- --seed 1 --rules presets/good.json --runs 3 [--verbose] [--all-deaths]
 cargo run --release --example metrics [-- --seeds 30 --hours 8]
 ```
+
+## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`, Cut 7; `node tools/gates.mjs --full`)
+
+```
+DEFAULT dies by ≤ D8 ≥ 80% of seeds                                100%  PASS
+EDITED reaches ≥ D10 ≥ 50% of seeds                                100%  PASS
+EDITED − DEFAULT (≥ D10) ≥ 15 pts                               100 pts  PASS
+RANDOM loses 100%                                                  100%  PASS
+PASSIVE loses by ≤ D3 100%                                         100%  PASS
+LEARNED mean depth ≤ DEFAULT + 2                           5.18 vs 4.90  PASS
+PETS dies by ≤ D8 ≥ 80% of seeds                                   100%  PASS
+LEVELLED dies by ≤ D9 ≥ 80% of seeds                               100%  PASS
+TRIVIAL never passes D8 ≥ 90% of seeds                             100%  PASS
+COUNTERED reaches ≥ D14 ≥ 50% of seeds                              53%  PASS
+FULL reaches ≥ D29 ≥ 50% of seeds (3 × 8 h)                         87%  PASS
+FULL−D23 never passes D23 ≥ 90% of seeds                           100%  PASS
+FULL−D28 never passes D28 ≥ 90% of seeds                            97%  PASS
+FULL−D33 never passes D33 ≥ 90% of seeds                            97%  PASS
+Unfair deaths (dice) ≤ 5% (n=2073, death-weighted)                 4.7%  PASS
+Deaths tracing to a row (gap) ≥ 70%                               95.3%  PASS
+Top death cause share < 35% (goblin)                              19.1%  PASS
+Events per 600 ticks (renderable) ≥ 6                              43.7  PASS
+Replay hash identical (seed+rules+elapsed)             8808d0472b75d688  PASS
+Forecast known_to == best_depth + 1                                 all  PASS
+Expeditions per 8 h (DEFAULT, EDITED) in 6–16                15.4 · 9.5  PASS
+DEFAULT yields 0 xp/gold over 8 h                                     0  PASS
+EDITED banks ≥ 3 runs per 8 h                                       6.9  PASS
+Patches whose row fired in ≥ 50% of replays (n=262)                100%  PASS
+Verdict time ≤ 0.4 s (mean of 2073)                              0.37 s  PASS
+Per-tick cost ≤ 6 µs (quiet, DEFAULT/EDITED/FULL)               2.92 µs  PASS
+Offline 8 h: learned ≥ 1 and pending ≥ 1 every seed              min 18  PASS
+Story lines ≤ 12 words, table verb (n=70639)                     100.0%  PASS
+Reel ≥ 2 distinct (threat, resolution) pairs per 8 h (n=180)               100%  PASS
+Top reel line names a row, trait or companion ≥ 80%                 91%  PASS
+Situations: ≥ 1 per run on D1–5 ≥ 90% (n=5952)                    94.9%  PASS
+Situation den (D3) appears when reached ≥ 90% (n=4725)                98%  PASS
+DEFAULT passes the den ≤ 20% of seeds                                0%  PASS
+Situation lock (D6) appears when reached ≥ 90% (n=3448)               100%  PASS
+DEFAULT passes the lock ≤ 20% of seeds                               3%  PASS
+Situation captive (D9) appears when reached ≥ 90% (n=2224)               100%  PASS
+DEFAULT passes the captive ≤ 20% of seeds                            0%  PASS
+Situation hunger (D12) appears when reached ≥ 90% (n=2077)               100%  PASS
+DEFAULT passes the hunger ≤ 20% of seeds                             0%  PASS
+```
+
+```
+captain: DEFAULT left D5 alive in 41% of 282 runs that reached it
+  den      D3   appears   98%   preset pass    0% (left  73%)   answered pass   97% (left 100%)   row: see den → attack
+  lock     D6   appears  100%   preset pass    3% (left 100%)   answered pass   60% (left 100%)   row: gas · adj 1+ → retreat
+  captive  D9   appears  100%   preset pass    0% (left 100%)   answered pass  100% (left 100%)   row: see captive → free
+  hunger   D12  appears  100%   preset pass    0% (left 100%)   answered pass  100% (left 100%)   row: see hunger → pray row
+```
+
+The walls moved, not the bars: DEFAULT 100% ≤ D8 (was ≤ D6), TRIVIAL 100% ≤ D8, EDITED 100%
+≥ D10, COUNTERED 53% ≥ D14 (was 70% ≥ D11 — the three extra Fens floors and the situations
+shave it; it answers the hunger and cuts the captive down), FULL 87% ≥ D29 (was 97% ≥ D26 —
+three floors more of the Sanctum's approach in the same 3 × 8 h), the FULL−counter walls
+hold at D23/D28/D33. DEFAULT's run histogram: D5 61% · D6 25% · D7 7% · D8 5% · D9 0 — the
+Captain's floor takes a third, the lock a fifth, the Warlord the rest. The four situations
+appear on 98–100% of the runs that reach them; the preset passes none but the lock's 3%; the
+one-row answers pass 97 / 60 / 100 / 100% (the lock's `gas · adj 1+ → retreat` is a partial
+answer: four drifting bloats can box a hero in; a second row — `foes 2+ → corridor` — closes
+it). Dayplayer: first hour 100% (best D6–8, 2–3 player rows, L3–4 by its end on the watched
+bonus), L2 by day 1 100%, L10 on day 9; the content bars stay informational (6.0 purchase
+days; the stall bar is a seed that farms D9–13 with a `return` patch). Class XP is keyed on
+the content depth too, so a Fens floor is worth what it was.
 
 ## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`, Cut 6; `node tools/gates.mjs --full`)
 
