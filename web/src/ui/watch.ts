@@ -1,4 +1,6 @@
-// Watch: viewer canvas full-bleed; HUD (hp, depth, alert), speed slow · fast · auto, ▶▶| skip, ⏸, callout ticker, bail.
+// Watch: viewer canvas full-bleed; HUD (hp, depth, alert), speed auto · fast, ▶▶| skip, ⏸, callout ticker, bail.
+// Cut 9 §9: `slow` is gone (auto already runs fights at 1× and travel at 8×); `?speed=1` maps to auto (app.ts).
+// Cut 9 §5: the exit event's trace (every tier) rides on the exit sheet as a `trace` chip and on the report's exit line.
 //
 // Pacing (Addendum E): the viewer owns the clock (10 ticks/s × speed). The engine worker is pumped in
 // 10-tick batches whenever it is fewer than LEAD ticks ahead of the viewer, so events always arrive
@@ -34,7 +36,7 @@
 // so the cut lands when the foes are on screen. The fight frame runs at 1× whatever the mode; the map frame keeps the
 // cadence above. `data-frame="map|fight"` on the element for tooling.
 import type { App, Mounted } from "../app";
-import type { Ev, ExitLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, VaultChoice } from "../engine/types";
+import type { Ev, ExitLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, items, replace, spanOf } from "./dom";
 import { makeViewer, type Viewer } from "./viewer";
 import { verbsAt, xpToNext } from "../engine/classes";
@@ -42,6 +44,7 @@ import { openSheet } from "./sheet";
 import { salvageValue } from "./salvage";
 import { vaultSlots } from "./unlocks";
 import { kindGlyph, verbLabel } from "./tokens";
+import { traceChip } from "./trace";
 
 type Tier = "bank" | "return" | "death";
 type FrameName = "map" | "fight";
@@ -55,8 +58,8 @@ const ENDING_TICKS = 30;            // Cut 7 §4: the last ticks before any exit
 const SCENE_FOES = 2;               // Cut 7 §4: awake hostiles in the hero's room that make it a scene
 const AMBIENT_MS = 10_000, AMBIENT_SHOW_MS = 1500;   // Cut 7 §4: one ambient callout per 10 s, shown 1.5 s whatever the speed
 const PUMP_MS = 50;
-type Mode = "slow" | "fast" | "auto";
-const RATE: Record<Mode, number> = { slow: 1, fast: 4, auto: 8 };
+type Mode = "fast" | "auto";
+const RATE: Record<Mode, number> = { fast: 4, auto: 8 };
 const AUTO_FAST = 8, AUTO_TAIL = 20; // auto: 8× when nothing is near; 1× until AUTO_TAIL ticks after the last sighting / hp change
 const EXIT_GRACE_MS = 4000;         // wait for the viewer to drain after an exit, at most this long
 const PERSIST_MS = 5000;
@@ -78,16 +81,15 @@ export function renderWatch(app: App): Mounted {
   const banner = h("div", { class: "banner num" });
   const pause = h("button", { class: "hud-btn", onclick: () => togglePause() }, "⏸");
   const modeBtn: Record<Mode, HTMLButtonElement> = {
-    slow: h("button", { class: "hud-btn", onclick: () => setMode("slow") }, /* copy:button */ "slow"),
-    fast: h("button", { class: "hud-btn", onclick: () => setMode("fast") }, /* copy:button */ "fast"),
     auto: h("button", { class: "hud-btn on", onclick: () => setMode("auto") }, /* copy:button */ "auto"),
+    fast: h("button", { class: "hud-btn", onclick: () => setMode("fast") }, /* copy:button */ "fast"),
   };
   const skip = h("button", { class: "hud-btn", onclick: () => skipToEvent() }, "▶▶|");
   const bail = h("button", { class: "hud-btn bail", onclick: () => doBail() }, /* copy:button */ "bail");
   const el = h("main", { class: "watch" }, canvas,
     h("div", { class: "hud top" }, h("div", { class: "hp" }, h("span", { class: "track" }, hpFill), hpText), depth, alert, pause, stake),
     banner, ticker,
-    h("div", { class: "hud bottom" }, modeBtn.slow, modeBtn.fast, modeBtn.auto, skip, bail));
+    h("div", { class: "hud bottom" }, modeBtn.auto, modeBtn.fast, skip, bail));
 
   let viewer: Viewer | null = null;
   let mode: Mode = "auto", paused = false, slowUntil = -Infinity, lastHp = NaN;
@@ -102,6 +104,7 @@ export function renderWatch(app: App): Mounted {
   // Cut 2: rest after the exit, bones left (death) / found, bosses already announced
   let restS: number | undefined, restUntil = 0, bonesLeft: number | undefined;
   let exitLine: ExitLine | undefined;   // Cut 6 §1: the exit's ledger line (exit sheet, report, death)
+  let exitTrace: Trace | undefined;     // Cut 9 §5: the exit's last-5 trace (on the event, or on its line)
   const bonesFound: string[] = []; const bossSeen = new Set<number>();
   let counters = app.lineage.counters ?? [];   // Cut 6 §5: bosses with a named counter row, re-read on a sighting
   let snap: Snapshot | null = null;
@@ -245,7 +248,7 @@ export function renderWatch(app: App): Mounted {
           break;
         }
         case "note": notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text }); break;
-        case "exit": exit = ev.tier; exitLine = ev.line ?? exitLine; endingFrom = Math.min(endingFrom, ev.t - ENDING_TICKS); break;   // Cut 7 §4
+        case "exit": exit = ev.tier; exitLine = ev.line ?? exitLine; exitTrace = ev.trace ?? ev.line?.trace ?? exitTrace; endingFrom = Math.min(endingFrom, ev.t - ENDING_TICKS); break;   // Cut 7 §4
         case "ending": endingFrom = Math.min(endingFrom, ev.t); break;                                                                // Cut 7 §4: the core's marker
         case "tame": if (ev.ok) { tamedIds.push(ev.id); kinds.set(ev.id, ev.kind); } break;
         case "ally": if (ev.state === "lost") lostIds.push(ev.id); break;
@@ -369,7 +372,7 @@ export function renderWatch(app: App): Mounted {
     if (!viewer?.tick) viewerTick();          // placeholder clock: bank the ticks run at the old rate first
     speed = n; viewer?.setSpeed(n);
     el.dataset.speed = String(n);
-    for (const m of Object.keys(modeBtn) as Mode[]) modeBtn[m].classList.toggle("slowed", m === mode && m !== "slow" && n === 1);
+    for (const m of Object.keys(modeBtn) as Mode[]) modeBtn[m].classList.toggle("slowed", m === mode && n === 1);
   }
   function setMode(m: Mode): void {
     mode = m; paused = false;
@@ -513,7 +516,7 @@ export function renderWatch(app: App): Mounted {
       xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
       salvaged: [], renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
       banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, bones_found: bonesFound,   // rest is still ahead: the camp shows it
-      exits: exitLine ? [exitLine] : undefined,                                                       // Cut 6 §1
+      exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
     };
     app.go({ kind: "report", report });
   }
@@ -536,8 +539,9 @@ export function renderWatch(app: App): Mounted {
       paint();
       const bones = p.tier === "death" && bonesLeft !== undefined ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(bonesLeft)}`) : null;
       const ledger = exitLine?.text ? h("div", { class: "ledger-line num dim" }, exitLine.text) : null;   // Cut 6 §1: engine data, verbatim
+      const trace = traceChip(exitTrace ?? exitLine?.trace);                                              // Cut 9 §5: the last-5 trace, on a chip
       return h("div", { class: "sheet-body" },
-        h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", count),
+        h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", count, trace),
         chips, bones, ledger,
         h("button", { class: "btn primary wide", onclick: () => {
           if (sent) return; sent = true;

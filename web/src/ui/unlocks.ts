@@ -1,8 +1,14 @@
 // Unlock presentation. Ids, costs and `needs` (the gate as text) come from the engine's `unlocks()`
 // catalogue (crates/riddle-core/src/meta.rs); this file only adds labels and the display chain (row6 is
 // hidden until row5 is owned, etc.) so the camp shows one step at a time.
+// Cut 9 §2: every buy goes through `openUnlockSheet` — the card's rows / effect, `◆cost`, `needs` when gated, `reach ±N%`
+// when known, then `buy`. No card buys on its own tap; a disabled card still opens the sheet to show its gate.
+import type { App } from "../app";
 import type { Lineage, UnlockInfo } from "../engine/types";
 import { CLASSES, isFreeClass } from "../engine/classes";
+import { h } from "./dom";
+import { rowChips } from "./editor";
+import { openSheet } from "./sheet";
 
 /* copy:unlock_card */
 const LABEL: Record<string, string> = {
@@ -31,6 +37,26 @@ export function visible(catalogue: UnlockInfo[]): UnlockCard[] {
   return catalogue
     .filter((u) => !u.owned && (!AFTER[u.id] || owned.has(AFTER[u.id])))
     .map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " "), gated: !u.available && !!u.needs }));
+}
+/** Cut 9 §2: the sheet behind an unlock card. `full` = the active set is at max_rows (a card then `takes a row`, Cut 6 §4);
+ *  `after` runs once a buy went through (the report repaints itself with it). */
+export function openUnlockSheet(app: App, u: UnlockCard, full = false, after?: () => void): void {
+  openSheet((close) => {
+    const d = u.delta === undefined ? 0 : Math.round(u.delta * 100);
+    const takesRow = full && isCard(u);
+    let sent = false;
+    const buy = h("button", { class: `btn primary wide buy${u.available ? "" : " off"}`, disabled: !u.available, onclick: () => {
+      if (sent) return; sent = true;
+      void app.buy(u.id).then((ok) => { close(); if (ok) after?.(); });
+    } }, /* copy:button */ "buy");
+    return h("div", { class: "sheet-body unlock-sheet" },
+      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`)),
+      u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))) : "",
+      u.needs ? h("div", { class: "needs-line dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
+      d ? h("div", { class: `num delta ${d > 0 ? "up" : "down"}` }, /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%`) : "",
+      takesRow ? h("div", { class: "num dim" }, /* copy:unlock_card */ "takes a row") : "",
+      buy);
+  });
 }
 /** Cut 6 §4: a tactic card (it becomes a row when bought). */
 export const isCard = (u: UnlockInfo): boolean => /^card:/.test(LABEL[u.id] ?? "");

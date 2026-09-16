@@ -3,7 +3,8 @@ import type { App, Mounted } from "../app";
 import type { Counter, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
-import { visible } from "./unlocks";
+import { openUnlockSheet, visible } from "./unlocks";
+import { traceChip } from "./trace";
 
 const EXITS_SHOW = 8;
 
@@ -25,12 +26,13 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
   // Cut 6 §1: one ledger line per exit, verbatim from the engine, under the tiles (oldest first; the core keeps the last 5
   // per slice and the client merges slices, so a long absence shows its last EXITS_SHOW)
-  const exitLines = r.exits?.length ? h("div", { class: "exit-lines" }, ...r.exits.slice(-EXITS_SHOW).map((x) => h("div", { class: "ledger-line num dim" }, x.text))) : null;
+  // Cut 9 §5: an exit that carries its trace gets a `trace` chip after the line
+  const exitLines = r.exits?.length ? h("div", { class: "exit-lines" }, ...r.exits.slice(-EXITS_SHOW).map((x) => h("div", { class: "ledger-line num dim" }, x.text, traceChip(x.trace)))) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
   const stall = r.stall ? h("section", { class: "rsec stall" },
     h("div", { class: "label" }, /* copy:label */ "stall"),
-    h("div", { class: "stall-line num" }, r.stall.text),
+    h("div", { class: "stall-line num" }, r.stall.text, traceChip(r.stall.trace)),   // Cut 9 §5: the trace of the last run the row ended
     r.stall.patches.length ? patchRows(app, r.stall.patches) : null) : null;
   // Cut 2 §2: `bones D7 · 4 items · ♟3` per pile recovered (the core sends `heir 3 · D7 · 4 items`; `bones:7:4` too)
   const bonesLine = (x: string): string => {
@@ -60,7 +62,9 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
     const pendingLines = affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending;
     pendingBody.replaceChildren();
     const ul = lines(pendingLines); if (ul) pendingBody.appendChild(ul);
-    if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => void app.buy(u.id).then(() => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)))));
+    // Cut 9 §2: the card opens its sheet; the buy is there, and the report repaints itself after one
+    const full = app.rules.rows.length >= app.vocab.max_rows;
+    if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => openUnlockSheet(app, u, full, () => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)))));
     if (pendingSec) pendingSec.hidden = !pendingBody.childElementCount;
   };
   paintPending([]);

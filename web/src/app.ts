@@ -27,7 +27,7 @@ export type DevOptions = {
   fresh?: boolean;    // clear the save first
   absent?: number;    // seconds: treat last_seen as that far back, so the offline report runs
   rules?: string;     // rule-set text for `importRules`, applied to the active set before anything else
-  speed?: number;     // watch speed to press on entering a run (1 slow | 4 fast | 8 auto, the default)
+  speed?: number;     // watch speed to press on entering a run (4 fast | 8 auto, the default; Cut 9 §9: 1 maps to auto, `slow` is gone)
   autosend?: boolean; // send straight from boot (the camp is skipped so its forecast does not queue ahead of `send`)
 };
 /** What a rater or script sees: the mounted screen, or `exit` while the exit sheet is up over a run. */
@@ -418,9 +418,10 @@ export class App {
     this.root.dataset.screen = screen.kind;
     window.scrollTo(0, 0);
     this.persist();
-    // dev `?speed=4`: press the matching HUD speed button as the run mounts (the watch owns its clock; 1 slow · 4 fast · 8 auto)
+    // dev `?speed=4`: press the matching HUD speed button as the run mounts (the watch owns its clock; 4 fast · 8 auto;
+    // Cut 9 §9: 1 maps to auto, which already runs fights at 1×)
     if (screen.kind === "watch" && this.dev?.speed) {
-      const want = ({ 1: "slow", 4: "fast", 8: "auto" } as Record<number, string>)[this.dev.speed] ?? `${this.dev.speed}×`;
+      const want = ({ 1: "auto", 4: "fast", 8: "auto" } as Record<number, string>)[this.dev.speed] ?? `${this.dev.speed}×`;
       for (const b of m.el.querySelectorAll<HTMLButtonElement>("button.hud-btn")) if (b.textContent === want) { b.click(); break; }
     }
   }

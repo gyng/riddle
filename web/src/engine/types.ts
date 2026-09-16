@@ -11,7 +11,10 @@ export type Row  = { conds: Cond[]; verb: Verb; origin?: RowOrigin };
 export type RuleSet = { rows: Row[]; name?: string };
 
 export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number;
-                           combos?: Combo[] };                              // Cut 8B §1: the combo table (adjacent-row verb pairs the engine names)
+                           combos?: Combo[];                                // Cut 8B §1: the combo table (adjacent-row verb pairs the engine names)
+                           locked?: LockedCond[] };                         // Cut 9 §1: gated conds the sheet shows dim with their gate, never selectable
+/** Cut 9 §1 — a condition the lineage cannot use yet and the gate as the player reads it (`foe: any`, `◆2`). */
+export type LockedCond = { cond: Cond; needs: string };
 /** Cut 8B §1 — a combo: verb patterns for two adjacent rows (`shield_bash`, or `drink unknown` for one argument) and the name the
  *  engine gives the pair (`opener`, `hit and fade`, `bait`). Engine data, never player-written. */
 export type Combo = { a: string; b: string; name: string };
@@ -44,7 +47,8 @@ export type VaultChoice = { items: InvItem[] };
 export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number };
 /** Cut 6 §1 — the ledger line of an exit: one arithmetic line the player can check, `text` is shown verbatim
  *  (`$84 carried · return keeps 60% → $50 · supplies −$12 → $68`). Fractions: `keep_pct` 0..100. */
-export type ExitLine = { carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string };
+export type ExitLine = { carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string;
+                         trace?: Trace };                                                                    // Cut 9 §5: the exit's last-5 trace (every tier)
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
 export type GoldLine = { t: number; delta: number; why: string };
 /** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */
@@ -66,7 +70,7 @@ export type Ev =
   | { t: number; k: "steal"; id: number; item: string }
   | { t: number; k: "ally"; id: number; state: "freed"|"lost" }
   | { t: number; k: "descend"; depth: number; biome: string }
-  | { t: number; k: "exit"; tier: "bank"|"return"|"death"; loot_kept: number; line?: ExitLine }   // line: Cut 6 §1
+  | { t: number; k: "exit"; tier: "bank"|"return"|"death"; loot_kept: number; line?: ExitLine; trace?: Trace }   // line: Cut 6 §1; trace: Cut 9 §5
   | { t: number; k: "note"; text: string }                                  // chronicle line, ≤ 8 words
   | { t: number; k: "callout"; text: string }                               // ≤ 3 words, for the renderer
   | { t: number; k: "tame"; id: number; kind: string; ok: boolean }         // Addendum A
@@ -82,8 +86,8 @@ export type Ev =
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            exit_pending?: { items: InvItem[]; tier: string } };                                       // Addendum D
 
-export type Forecast = { depths: { depth: number; reach: number; cause?: string }[]; causes: { cause: string; share: number }[];
-                         known_to: number };                             // depths[].cause: Cut 4 §8, optional per-depth top cause
+export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number }[]; causes: { cause: string; share: number }[];
+                         known_to: number };                             // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`)
 /** Cut 4: `blocked` = the first row whose conds held but whose verb could not execute. Cut 6 §3: `rows` = every row above the
  *  fired one with one reason why it did not fire (`none held`, `no path`, `not in view`, `hp 8% ≥ 30%`). */
 export type TraceTurn = { t: number; row: number; verb: Verb; hp: number; foes: number; telegraphs: string[];
@@ -100,7 +104,7 @@ export type Death = { run_id: number; depth: number; cause: string; margin: stri
 /** Core addition: the last ≥ 4 runs all came home with no new depth — the row that ended them, how many, a ≤ 12-word line,
  *  and up to 3 patches with forecast deltas at the stall depth + 1 (`survive` = the patched reach there). A state: the
  *  last slice's wins on merge. */
-export type Stall = { row: number; fired: number; text: string; patches: Patch[] };
+export type Stall = { row: number; fired: number; text: string; patches: Patch[]; trace?: Trace };   // trace: Cut 9 §5, the last run that row ended
 // Fractions: Forecast.depths[].reach, causes[].share, Death.baseline, patches[].survive and forecast_delta are 0..1.
 export type Highlight = { pattern: string; score: number; t: number; run_id: number; text: string };
 export type ReturnReport = {
@@ -116,12 +120,14 @@ export type ReturnReport = {
   exits?: ExitLine[];                                                         // Cut 6 §1: one ledger line per exit in the batch
 };
 export type Lineage = { seed: number; heir: number; trait: string; class: string; best_depth: number; marks: number;
-                        facts: string[]; unlocks: string[]; vault: InvItem[]; graveyard: { heir: number; depth: number; cause: string; deeds: string[] }[];
+                        facts: string[]; unlocks: string[]; vault: InvItem[];
+                        graveyard: { heir: number; depth: number; cause: string; deeds: string[]; death_id?: number }[];   // death_id: Cut 9 §7, a kept death (`death(id)` answers)
                         trophies: string[]; sets: RuleSet[]; active_set: number; ended: boolean;
                         party: Companion[]; kennel: Companion[]; eggs: Egg[]; party_slots: number; ledger: LedgerRow[];  // Addendum A
                         gold: number; supplies: InvItem[]; insured?: number[];                                                              // Addendum B
                         classes: { [cls: string]: { level: number; xp: number } };                                     // Addendum C
-                        forge: { [kind: string]: { salvaged: number; craftable: boolean; tier: number } };               // Addendum D
+                        forge: { [kind: string]: { salvaged: number; craftable: boolean; tier: number;
+                                                   next?: { need: number; label: string } } };                         // Addendum D; next: Cut 9 §10, the ladder's next rung (`3/5 → craftable`)
                         renown: number; rank: number; keep_pref: string;                                               // Addendum D
                         rest_left_s?: number; bones?: BonesPile[];                                                      // Cut 2 §1–2
                         ascension?: Ascension;                                                                         // Cut 3

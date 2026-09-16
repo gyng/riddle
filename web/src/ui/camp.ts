@@ -2,6 +2,7 @@
 // Cut 6: the strip's gold opens the `gold` sheet (the last 20 movements, newest first, §1); the disabled send reads
 // `6/5 · drop one` and a card's buy reads `◆3 · takes a row` on a full set (§4); owned cards and automations stay on the
 // shelf as chips that open their rows (§6); `rest 12m` is a chip that answers `send skips rest` (§7).
+// Cut 9: an unlock card opens its sheet, the buy is there (§2); the forge sheet shows each kind's ladder (§10).
 import type { App, Mounted } from "../app";
 import type { UnlockInfo } from "../engine/types";
 import { h, clear, flash, replace, spanOf } from "./dom";
@@ -9,7 +10,7 @@ import { heroBinding, openRowsSheet, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
-import { classList, isCard, ownedRows, supplyCap, visible, vaultSlots } from "./unlocks";
+import { classList, isCard, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots } from "./unlocks";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS, xpToNext } from "../engine/classes";
 import { verbLabel } from "./tokens";
@@ -71,12 +72,14 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         lines.length ? "" : h("div", { class: "lrow num dim" }, "·"));
     });
   }
+  // Cut 9 §10: each kind shows its ladder — `sword · salvaged 3/5 → craftable` (the engine's `next` rung); at the top, the count alone
   function openForge(app2: App): void {
     openSheet(() => {
       const L = app2.lineage; const rows = Object.entries(L.forge ?? {}).sort((a, b) => b[1].salvaged - a[1].salvaged);
-      const head = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), /* copy:label */ ...["salvaged", "craft", "tier"].map((s) => h("span", { class: "dot-h" }, s)));
+      const head = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), h("span", null, ""), /* copy:label */ ...["craft", "tier"].map((s) => h("span", { class: "dot-h" }, s)));
       return h("div", { class: "sheet-body ledger forge" }, head, ...rows.map(([kind, f]) => h("div", { class: "lrow" },
-        h("span", { class: "k" }, kind.replace(/_/g, " ")), h("span", { class: "dot num" }, `${f.salvaged}`),
+        h("span", { class: "k" }, kind.replace(/_/g, " ")),
+        h("span", { class: "ladder num dim" }, /* copy:label */ "salvaged", " ", f.next ? h("span", null, `${f.salvaged}/${f.next.need}`, " → ", h("span", { class: "rung" }, f.next.label.replace(/_/g, " "))) : `${f.salvaged}`),
         h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "⚒" : "○"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "·"))));
     });
   }
@@ -201,7 +204,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         const d = u.delta === undefined ? 0 : Math.round(u.delta * 100);
         // Cut 6 §4: a card bought onto a full set is an overflow decision; its buy says so
         const takesRow = full && u.available && isCard(u);
-        grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, disabled: !u.available, onclick: () => void app.buy(u.id) },
+        // Cut 9 §2: the tap opens the sheet (rows, cost, needs, reach); the buy is on the sheet. A gated or unaffordable card
+        // still opens it (the `needs` line is the answer), so nothing on the shelf is disabled.
+        grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u, full) },
           h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
             d ? h("small", { class: `num delta ${d > 0 ? "up" : "down"}` }, /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%`) : ""),
           h("span", { class: `num cost${takesRow ? " takes" : ""}` }, `◆${u.cost}`, takesRow ? h("small", { class: "dim" }, /* copy:unlock_card */ " · takes a row") : "")));

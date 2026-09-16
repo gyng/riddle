@@ -131,6 +131,7 @@ export const UNLOCKS: Record<string, UnlockDef> = {
 }; // ids as the core's meta::UNLOCKS
 export const UNLOCK_COST: Record<string, number> = Object.fromEntries(Object.entries(UNLOCKS).map(([k, v]) => [k, v.cost]));
 const UNLOCK_PREREQ: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", vault3: "vault2", vault4: "vault3", party_slot_3: "party_slot_2" };
+const FORGE_LADDER = [{ need: 5, label: "craftable" }, { need: 15, label: "tier 1" }, { need: 40, label: "tier 2" }];   // Cut 9 §10: the core's `FORGE_LADDER`
 const TACTIC_CARDS = ["corridor_fighting", "kite_archers", "stair_dance", "gas_step", "pack_break", "thief_guard", "boss_focus", "last_stand"];
 const COND_UNLOCK: Record<string, string> = { "alert>=": "cond_alert", "turns>": "cond_turns", "loot>=": "cond_loot", on_kill: "cond_on_kill", on_see: "cond_on_see", "party_hp<": "cond_party_hp" };
 const REST_CAP_S = 30 * 60, WAKE_S = 20 * 60, BONES_MAX = 3, STUDIED_KILLS = 5, GOLD_LEDGER_CAP = 20, EXITS_CAP = 5;
@@ -644,8 +645,10 @@ function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   const parts = [`$${run.loot} carried`, `${tier} keeps ${keep_pct}% → $${run.loot_kept}`];
   if (tier === "death") { const kit = bonesKit(run).length; if (kit) parts.push(`bones: ${kit} item${kit === 1 ? "" : "s"} on D${run.depth}`); }
   else if (spent) parts.push(`supplies −$${spent}`);
-  run.line = { carried: run.loot, keep_pct, kept: run.loot_kept, spent, spent_on: run.spent.map((x) => x.label), text: parts.join(" · ") };
-  ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept, line: run.line });
+  // Cut 9 §5: every exit carries its last-5 trace (row accounting included), on the event and on the ledger line
+  const trace: Trace = { turns: run.trace.map((t) => ({ ...t, telegraphs: [...t.telegraphs], rows: t.rows?.map((r) => ({ ...r })) })) };
+  run.line = { carried: run.loot, keep_pct, kept: run.loot_kept, spent, spent_on: run.spent.map((x) => x.label), text: parts.join(" · "), trace };
+  ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept, line: run.line, trace });
   // Cut 2 §1: camp rest as long as the expedition (one turn ≈ 1 s), capped; a death is a fixed wake
   run.rest_s = tier === "death" ? WAKE_S : Math.min(REST_CAP_S, run.turn);
   ev.push({ t: run.turn, k: "rest", seconds: run.rest_s });
@@ -906,6 +909,8 @@ export class FakeEngine implements Engine {
     this.s.lineage.ledger = this.ledger();
     this.s.lineage.counters = this.counters();
     this.s.lineage.combos = combosIn(this.s.rules.rows, COMBOS);   // Cut 8B §1
+    // Cut 9 §10: the forge ladder's next rung per kind (`3/5 → craftable`, `6/15 → +1`, `20/40 → +2`; none at the top)
+    for (const f of Object.values(this.s.lineage.forge ?? {})) { const rung = FORGE_LADDER.find((r) => f.salvaged < r.need); if (rung) f.next = { ...rung }; else delete f.next; }
     return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage;
   }
   /** Cut 6 §5: bosses whose counter fact is known, with the counter as a row. */
@@ -990,8 +995,11 @@ export class FakeEngine implements Engine {
     for (const k of kinds) conds.push({ k: "item", t: k });
     conds.push({ k: "unknown_item" }, { k: "floor_seen>=" }, { k: "depth>=" }, { k: "alert>=" }, { k: "in_corridor" }, { k: "path_stairs" }, { k: "ally" }, { k: "loot>=" }, { k: "turns>" }, { k: "on_hurt" }, { k: "on_kill" }, { k: "on_see" });
     if (L.party.length || L.kennel.length) { conds.push({ k: "party_hp<" }); for (const k of new Set([...L.party, ...L.kennel].map((c) => c.kind))) conds.push({ k: "party", t: k }); }
-    // Cut 2 §3: condition tokens are unlocks now
+    // Cut 2 §3: condition tokens are unlocks now. Cut 9 §1: the gated ones ride along as `locked` with the gate as text
+    // (the fact still missing, else the price) so the sheet shows why, and never offers them.
     const gated = conds.filter((c) => !COND_UNLOCK[c.k] || L.unlocks.includes(COND_UNLOCK[c.k]));
+    const locked = conds.filter((c) => COND_UNLOCK[c.k] && !L.unlocks.includes(COND_UNLOCK[c.k]))
+      .map((cond) => { const u = UNLOCKS[COND_UNLOCK[cond.k]]; return { cond, needs: u.gate && !u.gate(L) ? u.needs ?? "?" : `◆${u.cost}` }; });
     const verbs: Verb[] = [{ v: "attack", a: "nearest" }, { v: "attack", a: "lowest" }];
     for (const t of tags) verbs.push({ v: "attack", a: `tag:${t}` });
     verbs.push({ v: "retreat" }, { v: "back_corridor" });
@@ -1005,7 +1013,7 @@ export class FakeEngine implements Engine {
     if (L.unlocks.includes("tame")) { verbs.push({ v: "tame", a: "nearest" }); for (const t of tags) verbs.push({ v: "tame", a: `tag:${t}` }); }
     if (L.party.length) { verbs.push({ v: "recall" }, { v: "send" }); }
     for (const c of TACTIC_CARDS) if (L.unlocks.includes(c)) verbs.push({ v: "tactic", a: c });
-    return { conds: gated, verbs, max_rows: this.maxRows(), combos: COMBOS };
+    return { conds: gated, verbs, max_rows: this.maxRows(), combos: COMBOS, locked };
   }
   setRules(set: RuleSet): void {
     this.home = 0;                                                           // a rule edit opens a fresh stall window
@@ -1033,7 +1041,8 @@ export class FakeEngine implements Engine {
       for (let d = 1; d <= r.depth; d++) reach[d]++;
       if (r.exit === "death") causes[r.cause ?? "?"] = (causes[r.cause ?? "?"] ?? 0) + 1;
     }
-    const depths = []; for (let d = 1; d <= Math.min(15, known_to); d++) depths.push({ depth: d, reach: reach[d] / N });
+    // Cut 9 §3: `pm` = the binomial half-width (1.96 σ, a fraction like `reach`), so a wobble between reads reads as noise
+    const depths = []; for (let d = 1; d <= Math.min(15, known_to); d++) { const p = reach[d] / N; depths.push({ depth: d, reach: p, pm: 1.96 * Math.sqrt((p * (1 - p)) / N) }); }
     const top = Object.entries(causes).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([cause, n]) => ({ cause, share: n / N }));
     return { depths, causes: top, known_to };
   }
@@ -1116,7 +1125,7 @@ export class FakeEngine implements Engine {
     if (run.depth >= 5 && !this.s.rules.rows.some((r) => r.verb.v === "drink") && !L.trophies.includes("no_heal_D5")) { L.trophies.push("no_heal_D5"); marks += 2; bests.push("trophy no_heal_D5"); }
     L.marks += marks;
     if (run.exit === "death") {
-      L.graveyard.push({ heir: run.heir, depth: run.depth, cause: run.cause ?? "?", deeds: bests.slice(0, 3) });
+      L.graveyard.push({ heir: run.heir, depth: run.depth, cause: run.cause ?? "?", deeds: bests.slice(0, 3), death_id: run.id });   // Cut 9 §7: the fake keeps every log, so every grave opens
       // Cut 5 §2: the heir's chronicle line (the set's name, its best deed, its end, its bones)
       const kit = bonesKit(run).length;
       const deed = L.trophies.filter((t) => t.startsWith("boss:")).slice(-1).map((t) => `took the ${t.slice(5).replace(/_/g, " ")}`)[0] ?? bests.find((b) => b.startsWith("first kill"))?.replace(/^first kill /, "first ");
@@ -1282,7 +1291,11 @@ export class FakeEngine implements Engine {
   unlocks(): UnlockInfo[] {
     const L = this.s.lineage;
     L.ledger = this.ledger();
-    return Object.entries(UNLOCKS).map(([id, u]) => { const owned = L.unlocks.includes(id); const met = u.gate?.(L) ?? true; return { id, cost: u.cost, owned, available: !owned && this.unlockVisible(id) && L.marks >= u.cost, needs: met ? undefined : u.needs,
+    // Cut 9 §2: every card that is not `available` says why — the gate, the missing prerequisite, or `◆2 more` (the core's `needs`)
+    return Object.entries(UNLOCKS).map(([id, u]) => {
+      const owned = L.unlocks.includes(id); const met = u.gate?.(L) ?? true;
+      const needs = owned ? undefined : !met ? u.needs : !this.unlockVisible(id) ? UNLOCK_PREREQ[id]?.replace(/_/g, " ") : L.marks < u.cost ? `◆${u.cost - L.marks} more` : undefined;
+      return { id, cost: u.cost, owned, available: !owned && needs === undefined, needs,
       delta: TACTIC_CARDS.includes(id) && !owned ? ((Math.abs(hash(id)) % 9) - 2) / 100 : undefined,   // delta: Cut 4 §9 stand-in (`reach +4%` on a card)
       rows: UNLOCK_ROWS[id] };                                                                          // Cut 6 §6
     });

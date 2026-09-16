@@ -76,10 +76,10 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 
 /* forecast */
 .fc-bars { display: flex; flex-direction: column; gap: 4px; }
-.bar { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 8px; font-size: 13px; }
+.bar { display: grid; grid-template-columns: 44px 1fr 64px; align-items: center; gap: 8px; font-size: 13px; }
 .bar .track { height: 10px; background: var(--panel2); border-radius: 5px; overflow: hidden; }
 .bar .fill { display: block; height: 100%; background: var(--ok); }
-.bar .n { text-align: right; }
+.bar .n { text-align: right; white-space: nowrap; }   /* Cut 9 §3: `71% ±6` stays on one line */
 .bar.unknown { color: var(--dim); }
 .bar.next { grid-template-columns: 44px 1fr auto; }
 .bar.next .n small { font-size: 12px; }
@@ -235,7 +235,9 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .rank { color: var(--info); }
 .prefs { margin-top: 10px; align-items: center; }
 .prefs .chip { min-height: 36px; padding: 0 10px; font-size: 13px; }   /* four vault chips + the word fit 360px */
-.forge .lrow { grid-template-columns: 1fr repeat(3, 60px); }
+.forge .lrow { grid-template-columns: auto 1fr 40px 40px; gap: 0 10px; }   /* Cut 9 §10: kind · salvaged 3/5 → craftable · ⚒ · +1 */
+.forge .ladder { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.forge .ladder .rung { color: var(--fg); }
 .ledger .up, .report .up { color: var(--ok); }
 
 /* busy bar (engine worker: offline batch, forecast, verdict) */
@@ -301,3 +303,24 @@ button.chip.locked { cursor: pointer; }
 .row.combo-a { border-bottom-color: var(--acc); }
 .row.combo-b { border-top-color: var(--acc); }
 .row.combo-a::after { content: "⌐ " attr(data-combo); position: absolute; right: 40px; top: calc(100% - 9px); z-index: 1; padding: 0 6px; font: 11px var(--mono); line-height: 18px; color: var(--acc); background: var(--bg); border: 1px solid var(--acc); border-radius: 6px; white-space: nowrap; pointer-events: none; }
+/* Cut 9 §1: a locked token in the cond sheet — dim, dashed, its gate as small text, no handler (a span) */
+.chip.cond.locked.off { opacity: .45; flex-direction: column; align-items: flex-start; gap: 0; padding-block: 4px; line-height: 1.2; cursor: not-allowed; }
+.chip.cond.locked.off .needs { font-size: 10px; letter-spacing: .04em; }
+/* Cut 9 §2: the unlock sheet — label · ◆cost, the rows, the gate, the reach delta, then buy */
+.unlock-sheet .row-label { margin-top: 0; }
+.unlock-sheet .cost { color: var(--acc); text-transform: none; letter-spacing: 0; font-size: 14px; }
+.unlock-sheet .card-rows { margin: 4px 0 8px; }
+.unlock-sheet .needs-line { font-size: 13px; margin: 4px 0; }
+.unlock-sheet .delta { font-size: 13px; margin: 4px 0; }
+.unlock-sheet .buy.off { opacity: .4; cursor: default; }
+/* Cut 9 §4: the card's trigger on its chip; `· card R2 first` on the forecast's yours line */
+.chip .trigger { font-size: 11px; }
+.fc-yours .card-first { color: var(--warn); }
+/* Cut 9 §3: `±6` after the reach */
+.bar .pm { font-size: 11px; }
+/* Cut 9 §5: the trace chip on an exit line / the exit sheet; the trace in a sheet */
+.ledger-line .chip.mini, .stall-line .chip.mini { margin-left: 8px; min-height: 26px; padding: 0 8px; font-size: 11px; vertical-align: middle; }
+.trace-sheet .trace { margin-top: 4px; }
+/* Cut 9 §7: a chronicle line with a kept death is a button */
+.chronicle button.cline { display: block; width: 100%; text-align: left; color: inherit; }
+.chronicle button.cline:active { background: var(--panel2); }

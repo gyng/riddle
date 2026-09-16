@@ -8,6 +8,8 @@
 // Cut 8B §4: a `[card]` row shows its rows inline underneath as dim read-only chips (the sheet stays for the shelf's
 // automations); two adjacent rows that make a combo (`vocab.combos`, engine data) carry a small bracket with the
 // combo's name to the right of the pair (`⌐ opener`), repainted on every edit.
+// Cut 9 §1: the cond sheet shows the vocabulary's `locked` tokens dim with their `needs` text and no handler. Cut 9 §4: a
+// `[card]` chip carries the card's trigger (`[card] pack break · foes ≥ 2`, the first inline row's conds).
 import type { App } from "../app";
 import type { Cond, Row, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash } from "./dom";
@@ -30,6 +32,19 @@ export function rowChips(row: Row): HTMLElement {
 /** Cut 6 §6: the sheet behind a `[card]` row or an owned automation: its rows as chips, nothing else. */
 export function openRowsSheet(rows: Row[]): void {
   openSheet(() => h("div", { class: "sheet-body card-rows" }, ...rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))));
+}
+/** Cut 9 §4: a card's trigger as text — the conds of its first row (`foes ≥ 2 · corridor`); `always` when that row has none. */
+export function cardTrigger(cardRows: Row[] | undefined): string | undefined {
+  const first = cardRows?.[0];
+  if (!first) return undefined;
+  return first.conds.length ? first.conds.map(condLabel).join(" · ") : /* copy:rule_token */ "always";
+}
+/** Cut 9 §4: the 1-based index of the first `[card]` row that sits above any of the player's rows (every non-card row: a
+ *  card eats the turn from whatever is under it, whoever offered that row), else undefined. */
+export function cardAbovePlayer(rows: Row[]): number | undefined {
+  const last = rows.map((r) => r.verb.v !== "tactic").lastIndexOf(true);
+  const i = rows.findIndex((r, k) => r.verb.v === "tactic" && k < last);
+  return i >= 0 ? i + 1 : undefined;
 }
 /** Cut 6 §4: which rows an over-budget set marks to drop: card rows (newest) first, then the last rows. */
 export function dropRows(rows: Row[], max: number): Set<number> {
@@ -83,8 +98,10 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
       row.conds.forEach((c) => chips.appendChild(h("span", { class: "chip cond locked" }, condLabel(c))));
       if (row.conds.length) chips.appendChild(h("span", { class: "arrow" }, "→"));
       const id = row.verb.a ?? "";
-      const inner = [h("small", { class: "dim" }, /* copy:rule_token */ "[card]"), " ", id.replace(/_/g, " ")];
       const cardRows = bind.cardRows?.(id);
+      // Cut 9 §4: the card's trigger — its first row's conds as text — on the chip: `[card] pack break · foes ≥ 2`
+      const trigger = cardTrigger(cardRows);
+      const inner = [h("small", { class: "dim" }, /* copy:rule_token */ "[card]"), " ", id.replace(/_/g, " "), trigger ? h("small", { class: "dim trigger" }, ` · ${trigger}`) : ""];
       chips.appendChild(cardRows?.length ? h("button", { class: "chip verb locked", onclick: () => openRowsSheet(cardRows) }, ...inner) : h("span", { class: "chip verb locked" }, ...inner));
       // Cut 8B §4: the card's rows, inline and dim — rows the player could have written
       if (cardRows?.length) chips.appendChild(h("div", { class: "card-inline" }, ...cardRows.map((r) => rowChips(r))));
@@ -112,6 +129,12 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
           if (needsN(c.k)) { pickN(body, c, (n) => { row.conds[ci] = { ...c, n }; edited(row); close(); }, existing && sameCond(existing, c) ? existing.n : undefined); return; }
           row.conds[ci] = { ...c }; edited(row); close();
         } }, condName(c.k) + (c.t ? ` ${c.t.replace(/_/g, " ")}` : "")));
+      }
+      // Cut 9 §1: locked tokens (engine data: `Vocabulary.locked`) sit dim after the offered ones with their gate as text and
+      // no handler at all — a `span`, not a button — so the sheet never offers what a run would refuse
+      for (const l of vocab().locked ?? []) {
+        if (vocab().conds.some((c) => sameCond(c, l.cond))) continue;
+        grid.appendChild(h("span", { class: "chip cond locked off", "aria-disabled": "true" }, "⊘ ", condName(l.cond.k) + (l.cond.t ? ` ${l.cond.t.replace(/_/g, " ")}` : ""), h("small", { class: "needs dim" }, l.needs.replace(/_/g, " "))));
       }
       body.appendChild(grid);
       if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); edited(row); close(); } }, "×"));
