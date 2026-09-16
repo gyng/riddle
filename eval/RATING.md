@@ -9,7 +9,7 @@ tentative, ≥ 0.80 decision). This file is the precommitted contract for a rati
 | Field | Value |
 |---|---|
 | Build | git commit hash; `tools/wasm.sh --ship` then `cd web && pnpm build`; served from `pnpm preview --port 5230` |
-| Save | fresh lineage, seed pinned per rater (`?seed=<n>&fresh=1`), raters get different seeds |
+| Save | fresh lineage, seed pinned per rater (`?dev=1&seed=<n>&fresh=1` (production builds honour dev params only with `dev=1`)), raters get different seeds |
 | Tier | 1 (one hour plus one absence) unless stated |
 | Horizon | 40 min active cold, then `?absent=8h` (simulated overnight), then 20 min on return; at least 3 deaths read, at least 2 rule edits attempted |
 | Audio | none in the build → `feel` audio unassessed, not scored |

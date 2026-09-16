@@ -17,7 +17,7 @@ set if you like.
 
 Horizon (fixed, do not shorten): about 40 minutes of active play from a fresh lineage (send the
 hero, watch at least two runs at 1× for a few minutes each, read every death, edit rules, buy
-what you can), then simulate an overnight absence by loading `{URL}?absent=8h` (once), then
+what you can), then simulate an overnight absence by loading `{URL}?dev=1&absent=8h` (once; the `dev=1` is required on a production build), then
 about 20 minutes on return. Read at least three deaths; attempt at least two rule edits of your
 own (not only tapping offered patches). Write down what you saw as you go.
 
