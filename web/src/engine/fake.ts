@@ -1,10 +1,20 @@
 // Fake Engine: a tiny deterministic mini-sim with canned-shaped output so the UI can be built and
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
-  BonesPile, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
+  BonesPile, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
+import { combosIn } from "../ui/tokens";
+
+/** Cut 8B §1: the combo table, as the core's `rules::COMBOS` (adjacent-row verb pairs the engine names). */
+export const COMBOS: Combo[] = [
+  { a: "shield_bash", b: "backstab", name: "opener" }, { a: "shield_bash", b: "attack", name: "opener" },
+  { a: "throw", b: "retreat", name: "hit and fade" }, { a: "throw", b: "back_corridor", name: "hit and fade" },
+  { a: "taunt", b: "cleave", name: "bait" }, { a: "shoot", b: "kite", name: "kite" }, { a: "shoot", b: "retreat", name: "kite" },
+  { a: "vanish", b: "backstab", name: "ambush" }, { a: "pray", b: "descend", name: "pilgrim" }, { a: "tame", b: "send", name: "handler" },
+  { a: "drink unknown", b: "attack", name: "gambler" }, { a: "back_corridor", b: "attack", name: "chokepoint" },
+];
 
 type Rng = () => number;
 function mulberry32(seed: number): Rng {
@@ -104,8 +114,10 @@ export const UNLOCKS: Record<string, UnlockDef> = {
   party_slot_2: { cost: 4, needs: "tamed ≥ 1", gate: (L) => L.ledger.filter((r) => r.tamed).length >= 1 },
   party_slot_3: { cost: 9, needs: "tamed ≥ 3", gate: (L) => L.ledger.filter((r) => r.tamed).length >= 3 },
   vault2: { cost: 3 }, vault3: { cost: 6 }, vault4: { cost: 10 },
-  rogue: { cost: 4 }, ranger: { cost: 6, needs: "boss 1", gate: (L) => bossKills(L) >= 1 }, caster: { cost: 8, needs: "boss 2", gate: (L) => bossKills(L) >= 2 },
-  tame: { cost: 2, needs: "item: leash", gate: hasFact(/^item:leash$/) }, throw: { cost: 2 },
+  // Cut 8B §2–3: the rogue is free at the first bank; `tame` costs nothing and is owned from the start
+  rogue: { cost: 0, needs: "bank once", gate: (L) => (L.gold_ledger ?? []).some((g) => g.why.startsWith("banked")) },
+  ranger: { cost: 6, needs: "boss 1", gate: (L) => bossKills(L) >= 1 }, caster: { cost: 8, needs: "boss 2", gate: (L) => bossKills(L) >= 2 },
+  tame: { cost: 0, needs: "item: leash", gate: hasFact(/^item:leash$/) }, throw: { cost: 2 },
   cond_alert: { cost: 2, needs: "foe: any", gate: hasFact(/^foe:/) }, cond_turns: { cost: 2, needs: "D3", gate: (L) => L.best_depth >= 3 },
   cond_loot: { cost: 2, needs: "D2", gate: (L) => L.best_depth >= 2 }, cond_on_kill: { cost: 2, needs: "foe: any", gate: hasFact(/^foe:/) },
   cond_on_see: { cost: 2, needs: "foe: any", gate: hasFact(/^foe:/) }, cond_party_hp: { cost: 2, needs: "tamed ≥ 1", gate: (L) => L.ledger.some((r) => r.tamed) },
@@ -866,10 +878,10 @@ export class FakeEngine implements Engine {
     const copy = (): RuleSet => ({ rows: PRESET_FIGHTER.rows.map((r) => ({ conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } })) });
     this.s = {
       lineage: {
-        seed, heir: 1 + SEED_CHRONICLE.length, trait, class: "fighter", best_depth: 0, marks: 0, facts: [], unlocks: [], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
+        seed, heir: 1 + SEED_CHRONICLE.length, trait, class: "fighter", best_depth: 0, marks: 0, facts: ["item:leash"], unlocks: ["tame"], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
         party: [], kennel: [mkCompanion(1, "jackal", 2, ["pack", "fast"], 0), mkCompanion(2, "goblin_archer", 1, ["ranged"], 0)],
         eggs: [{ id: 3, kind: "bloat", tags: ["gas"], gen: 1, hatch_in: 3, from_loss: false }], party_slots: 1, ledger: [],
-        gold: 120, supplies: [], classes: Object.fromEntries(CLASSES.map((c) => [c, { level: 1, xp: 0 }])),
+        gold: 120, supplies: [{ id: 49_999, kind: "leash", known: true, label: "leash" }], classes: Object.fromEntries(CLASSES.map((c) => [c, { level: 1, xp: 0 }])),   // Cut 8B §3: the kennel's leash
         forge: { dagger: { salvaged: 6, craftable: true, tier: 0 } }, renown: 0, rank: 0, keep_pref: "best_weapon", vault_pref: "weapon",
         rest_left_s: 0, bones: [],
         chronicle: SEED_CHRONICLE.map(([trait, cls, depth, deed, end, tail], i) => chronicleLine(i + 1, trait, cls, depth, deed, end, tail)),
@@ -893,6 +905,7 @@ export class FakeEngine implements Engine {
   lineage(): Lineage {
     this.s.lineage.ledger = this.ledger();
     this.s.lineage.counters = this.counters();
+    this.s.lineage.combos = combosIn(this.s.rules.rows, COMBOS);   // Cut 8B §1
     return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage;
   }
   /** Cut 6 §5: bosses whose counter fact is known, with the counter as a row. */
@@ -992,7 +1005,7 @@ export class FakeEngine implements Engine {
     if (L.unlocks.includes("tame")) { verbs.push({ v: "tame", a: "nearest" }); for (const t of tags) verbs.push({ v: "tame", a: `tag:${t}` }); }
     if (L.party.length) { verbs.push({ v: "recall" }, { v: "send" }); }
     for (const c of TACTIC_CARDS) if (L.unlocks.includes(c)) verbs.push({ v: "tactic", a: c });
-    return { conds: gated, verbs, max_rows: this.maxRows() };
+    return { conds: gated, verbs, max_rows: this.maxRows(), combos: COMBOS };
   }
   setRules(set: RuleSet): void {
     this.home = 0;                                                           // a rule edit opens a fresh stall window

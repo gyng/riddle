@@ -13,9 +13,11 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const causes = h("div", { class: "fc-causes" });
   const yours = h("div", { class: "fc-yours num" });
   const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast"), bars, yours, causes);
+  // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
   const paintYours = (): void => {
-    const n = app.playerRows(), m = app.rules.rows.length;
-    replace(yours, h("span", { class: n ? "" : "dim" }, /* copy:callout */ `yours: ${n} of ${m} row${m === 1 ? "" : "s"}`));
+    const n = app.playerRows(), m = app.rules.rows.length, k = app.combos().length;
+    replace(yours, h("span", { class: n ? "" : "dim" }, /* copy:callout */ `yours: ${n} of ${m} row${m === 1 ? "" : "s"}`),
+      k ? h("span", { class: "combos" }, /* copy:label */ ` · ${k} combo${k === 1 ? "" : "s"}`) : "");
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {

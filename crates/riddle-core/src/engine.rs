@@ -56,6 +56,8 @@ pub const CHRONICLE_CAP: usize = 40;
 /// Cut 5 §4: a watched run's opened vault waits this many ticks for `choose` before the
 /// preference picks; offline and simulated runs pick at once.
 pub const VAULT_GRACE: u32 = 50;
+/// Cut 8B §3: share of lineages whose first stray waits on D2 or D3.
+pub const FIRST_STRAY_PCT: u32 = 80;
 /// Cut 5 §4: a stray (a lost heir's companion gone wild) tames at this chance.
 pub const STRAY_TAME: u32 = 60;
 /// Cut 5 §4: the shrine's price — a fifth of max HP for the run.
@@ -315,6 +317,9 @@ pub struct Run {
     /// §4: a stray was placed this run; strays tamed (their names, back from the lost list).
     #[serde(default)]
     pub stray_placed: bool,
+    /// Cut 8B §3: the lineage's first stray, (depth, name), while nothing has been tamed.
+    #[serde(default)]
+    pub first_stray: Option<(u32, String)>,
     #[serde(default)]
     pub strays_tamed: Vec<String>,
     /// §5: `bail()` queued a `return` for the next hero action.
@@ -391,6 +396,8 @@ impl Run {
             "vault" => Tile::Vault,
             // Cut 7 §3: the band situations.
             "den" | "lock" | "captive" | "hunger" => return crate::situations::sees(self, what),
+            // Cut 8B §3: a stray in view (`on_see: stray → tame`).
+            "stray" => return self.monsters.iter().any(|m| m.stray && m.hp > 0 && map.is_visible(m.pos)),
             _ => return false,
         };
         let seen = map.tiles.iter().enumerate().any(|(i, x)| *x == tile && map.visible[i]);
@@ -668,7 +675,7 @@ impl LineageState {
         for c in Class::ALL {
             classes.insert(c.name().to_string(), ClassProg { level: 1, xp: 0 });
         }
-        LineageState {
+        let mut l = LineageState {
             seed,
             heir: 1,
             trait_,
@@ -724,7 +731,41 @@ impl LineageState {
             lost: Vec::new(),
             vault_pref: default_vault_pref(),
             gold_ledger: Vec::new(),
+        };
+        // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
+        // fact with it), so the first stray is a companion in the first hour.
+        l.unlocks.insert("tame".into());
+        l.facts.insert("item:leash".into());
+        l.kennel_leash();
+        l
+    }
+    /// Cut 8B §3: the kennel's leash — while the lineage has never tamed, a free, known leash
+    /// sits on the shelf (never refunded, never rebought; one at a time).
+    pub fn kennel_leash(&mut self) {
+        if self.tamed_kinds() > 0 || self.supplies.iter().any(|s| s.kind == "leash") || self.supplies.len() >= self.supply_cap() {
+            return;
         }
+        let id = self.next_vault_id;
+        self.next_vault_id += 1;
+        let mut it = Item::new(id, "leash");
+        it.amount = 1;
+        it.known = true;
+        it.free = true;
+        self.supplies.push(it);
+    }
+    /// Cut 8B §3: the first stray — a lineage that has never tamed (and has lost no companion
+    /// to go wild) meets a stray jackal on D2 or D3 on 80% of seeds, the same jackal every run
+    /// until it is tamed. Returns (depth, name).
+    pub fn first_stray(&self) -> Option<(u32, String)> {
+        if self.tamed_kinds() > 0 || !self.lost.is_empty() {
+            return None;
+        }
+        let mut rng = Rng::derive(self.seed, hash_str("first_stray"));
+        if !rng.chance(FIRST_STRAY_PCT) {
+            return None;
+        }
+        let depth = 2 + rng.below(2);
+        Some((depth, crate::descent::grudge_name(&mut rng)))
     }
     /// Cut 6 §1: every gold movement goes through here — the amount and a ≤ 3-word reason
     /// land in the ledger (a movement with the same tick and reason as the last line merges
@@ -762,7 +803,13 @@ impl LineageState {
             return;
         }
         self.chronicled = self.heir;
-        let mut parts = vec![format!("♟{} the {} {}", self.heir, self.trait_.name(), self.class.name()), format!("D{}", self.heir_best)];
+        // Cut 8B §1: a set with a combo names the heir by it (`the bait fighter`, `the
+        // hit-and-fade rogue`; the first combo by row order), else by the trait.
+        let epithet = match self.rules().combos().first() {
+            Some(c) => crate::rules::combo_slug(&c.name),
+            None => self.trait_.name().to_string(),
+        };
+        let mut parts = vec![format!("♟{} the {} {}", self.heir, epithet, self.class.name()), format!("D{}", self.heir_best)];
         if let Some(name) = self.rules().name.as_deref().filter(|n| !n.trim().is_empty()) {
             parts.push(format!("\"{}\" set", name.trim()));
         }
@@ -831,6 +878,7 @@ impl LineageState {
             vault_pref: self.vault_pref.clone(),
             gold_ledger: self.gold_ledger.clone(),
             counters: self.counters(),
+            combos: self.rules().combos(),
         }
     }
     pub fn vault_slots(&self) -> usize {
@@ -1296,6 +1344,9 @@ impl Game {
             .cloned()
             .collect();
         l.unlocks = keep;
+        // Cut 8B §3: `tame` is never bought; the kennel's leash is back if nothing was tamed.
+        l.unlocks.insert("tame".into());
+        l.kennel_leash();
         if variant == "bones_only" {
             l.vault.clear();
         }
@@ -1368,7 +1419,7 @@ impl Game {
             }
         }
         self.restock();
-        self.lineage.last_supplies = self.lineage.supplies.iter().map(|i| i.kind.clone()).collect();
+        self.lineage.last_supplies = self.lineage.supplies.iter().filter(|i| !i.free).map(|i| i.kind.clone()).collect();
         for id in loadout {
             if let Some(i) = self.lineage.vault.iter().position(|v| v.id == id) {
                 let it = self.lineage.vault.remove(i);
@@ -1484,6 +1535,7 @@ impl Game {
             prayed: false,
             lent_row: None,
             stray_placed: false,
+            first_stray: self.lineage.first_stray(),
             strays_tamed: Vec::new(),
             bail: false,
             dens: Vec::new(),
@@ -2158,6 +2210,8 @@ impl Game {
             self.auto_keep();
         }
         let spent_on = self.restock();
+        // Cut 8B §3: the kennel's leash is back on the shelf while nothing has been tamed.
+        self.lineage.kennel_leash();
         // Cut 6 §1: the ledger line — carried × keep% → kept, what the automations spent on
         // coming home, and where the kit went on a death.
         let spent: i32 = self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.delta < 0 && !g.why.starts_with("salvage")).map(|g| -g.delta).sum();
@@ -2255,6 +2309,7 @@ impl Game {
         }
         self.salvage(&salvage, p.pct);
         self.restock();
+        self.lineage.kennel_leash();
         Ok(())
     }
 
@@ -2461,6 +2516,9 @@ impl Game {
     pub fn clear_supplies(&mut self) {
         let cat = self.supply_catalogue();
         for s in std::mem::take(&mut self.lineage.supplies) {
+            if s.free {
+                continue;
+            }
             if let Some(e) = cat.iter().find(|e| e.kind == s.kind) {
                 let why = format!("refund {}", s.kind.replace('_', " "));
                 self.lineage.gold_move(e.price, &why);
@@ -2476,7 +2534,7 @@ impl Game {
     /// before the next send — restocking only at `start_run` moved the supplies straight into
     /// the pack and the shelf never showed them.
     pub fn restock(&mut self) -> Vec<String> {
-        if !self.lineage.unlocks.contains("auto_supply") || !self.lineage.supplies.is_empty() {
+        if !self.lineage.unlocks.contains("auto_supply") || self.lineage.supplies.iter().any(|s| !s.free) {
             return Vec::new();
         }
         let mut bought = Vec::new();
@@ -2846,6 +2904,8 @@ pub fn place_situations(run: &mut Run, lost: &[Lost]) {
         kinds.push(pool[rng.weighted(&w)]);
     }
     let stray = !run.stray_placed && !lost.is_empty() && (rng.chance(50) || depth == 5);
+    // Cut 8B §3: the first stray waits on its floor (a jackal, named once per lineage).
+    let first = run.first_stray.clone().filter(|(d, _)| *d == depth && !run.stray_placed && !stray);
     let mut used: Vec<usize> = Vec::new();
     let pick_room = |rng: &mut Rng, near: bool, used: &mut Vec<usize>| -> Option<usize> {
         let free: Vec<usize> = rooms.iter().filter(|(_, i)| !used.contains(i)).map(|(_, i)| *i).collect();
@@ -2914,18 +2974,17 @@ pub fn place_situations(run: &mut Run, lost: &[Lost]) {
             }
         }
     }
-    if stray {
-        if let Some(l) = lost.last() {
-            if let Some(ri) = pick_room(&mut rng, false, &mut used) {
-                if let Some(p) = interior(run, ri) {
-                    let id = run.new_id();
-                    let mut m = Monster::spawn(id, &l.kind, p, depth);
-                    m.stray = true;
-                    m.name = Some(l.name.clone());
-                    m.level = 1;
-                    run.monsters.push(m);
-                    run.stray_placed = true;
-                }
+    let wild = if stray { lost.last().map(|l| (l.kind.clone(), l.name.clone())) } else { first.map(|(_, name)| ("jackal".to_string(), name)) };
+    if let Some((kind, name)) = wild {
+        if let Some(ri) = pick_room(&mut rng, false, &mut used) {
+            if let Some(p) = interior(run, ri) {
+                let id = run.new_id();
+                let mut m = Monster::spawn(id, &kind, p, depth);
+                m.stray = true;
+                m.name = Some(name);
+                m.level = 1;
+                run.monsters.push(m);
+                run.stray_placed = true;
             }
         }
     }

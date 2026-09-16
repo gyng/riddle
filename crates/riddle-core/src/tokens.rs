@@ -67,7 +67,8 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
     }
     // Cut 5 §4: situations seen are tokens (`on_see: nest`), gated by their fact alone.
     // Cut 7 §3: the band situations are tokens the same way.
-    for k in ["nest", "shrine", "vault", "den", "lock", "captive", "hunger"] {
+    // Cut 8B §3: the stray too (`on_see: stray` → `tame`), once one has been seen.
+    for k in ["nest", "shrine", "vault", "den", "lock", "captive", "hunger", "stray"] {
         if l.facts.contains(k) {
             conds.push(Cond::t("on_see", k));
         }
@@ -153,7 +154,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
         verbs.push(Verb::new("recall"));
         verbs.push(Verb::new("send"));
     }
-    Vocabulary { conds, verbs, max_rows: l.max_rows() }
+    Vocabulary { conds, verbs, max_rows: l.max_rows(), combos: crate::rules::combo_table() }
 }
 
 /// A companion's editor vocabulary: its tags are its verbs.
@@ -183,7 +184,7 @@ pub fn companion_vocabulary(l: &LineageState, c: &Companion) -> Vocabulary {
     }
     verbs.push(Verb::new("follow"));
     verbs.push(Verb::new("recall"));
-    Vocabulary { conds, verbs, max_rows: c.max_rows }
+    Vocabulary { conds, verbs, max_rows: c.max_rows, combos: Vec::new() }
 }
 
 #[cfg(test)]

@@ -134,6 +134,10 @@ pub struct Episode {
     #[serde(default)]
     pub allies_lost: Vec<String>,
     pub resolution: Resolution,
+    /// Cut 8B §1: a combo both of whose rows fired within three hero actions of the low point
+    /// (`the bait landed` is the turn beat instead of the single row).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub combo: Option<String>,
 }
 
 /// The live episode (`Run.arc`).
@@ -159,7 +163,18 @@ pub struct Arc {
     pub voiced_low: bool,
     /// Sealed lows awaiting a resolution.
     pub sealed: Vec<Episode>,
+    /// Cut 8B §1: the last few hero actions as (action number, act), the action number of the
+    /// low point's act, and the combo credited once two adjacent rows fired around it.
+    #[serde(default)]
+    pub acts: Vec<(u32, Act)>,
+    #[serde(default)]
+    pub low_act: Option<u32>,
+    #[serde(default)]
+    pub combo: Option<String>,
 }
+
+/// Cut 8B §1: hero actions kept for combo credit (the low's act and its neighbours).
+const COMBO_ACTS: usize = 4;
 
 impl Arc {
     pub fn has_low(&self) -> bool {
@@ -175,7 +190,7 @@ impl Arc {
         let sealed = std::mem::take(&mut self.sealed);
         *self = Arc { start_t: t, sealed, ..Arc::default() };
     }
-    fn to_episode(&self, run: &Run, res: Resolution) -> Episode {
+    pub fn to_episode(&self, run: &Run, res: Resolution) -> Episode {
         let (low_hp, setup) = match self.low {
             Some((hp, _)) => (hp, Setup::Hurt),
             None => (run.hero.hp, Setup::Untouched),
@@ -197,7 +212,29 @@ impl Arc {
             items_used: self.items_used.clone(),
             allies_lost: self.allies_lost.clone(),
             resolution: res,
+            combo: self.combo.clone(),
         }
+    }
+    /// Cut 8B §1: two adjacent rows (`a` then `b`, in row order) fired within the three hero
+    /// actions around the low point's act — the combo the pair names.
+    fn combo_around(&self) -> Option<String> {
+        let k = self.low_act?;
+        let lo = k.saturating_sub(1);
+        let hi = k + 1;
+        for (i, (ni, ai)) in self.acts.iter().enumerate() {
+            if *ni < lo || ai.row < 0 {
+                continue;
+            }
+            for (nj, aj) in self.acts.iter().skip(i + 1) {
+                if *nj > hi || aj.row != ai.row + 1 {
+                    continue;
+                }
+                if let Some(name) = crate::rules::combo_name(&ai.verb, &aj.verb) {
+                    return Some(name.into());
+                }
+            }
+        }
+        None
     }
 }
 
@@ -279,10 +316,20 @@ pub fn on_action(run: &mut Run, row: i32, verb: &Verb) {
     let target = run.last_target.and_then(|id| run.monsters.iter().find(|m| m.id == id)).map(|m| (m.kind.clone(), m.is_boss()));
     let act = Act { row, verb: verb.clone(), target: target.as_ref().map(|t| t.0.clone()), boss: target.is_some_and(|t| t.1) };
     let turn = run.turn;
+    let actions = run.actions;
     let a = &mut run.arc;
     if a.row_pending {
         a.row = Some(act.clone());
         a.row_pending = false;
+        a.low_act = Some(actions);
+    }
+    // Cut 8B §1: the act joins the window; a combo around the low point is credited once.
+    a.acts.push((actions, act.clone()));
+    if a.acts.len() > COMBO_ACTS {
+        a.acts.remove(0);
+    }
+    if a.combo.is_none() && a.low_act.is_some_and(|k| actions <= k + 1) {
+        a.combo = a.combo_around();
     }
     // A situation opened this action (a stray tamed) takes the action as its turn beat.
     for e in a.sealed.iter_mut().filter(|e| e.t == turn && e.setup == Setup::Stray && e.act == Act::default()) {
@@ -699,6 +746,11 @@ fn turn_phrase(ep: &Episode, short: bool) -> String {
         return format!("he took the {}", ep.detail);
     }
     let a = &ep.act;
+    // Cut 8B §1: a combo that landed at the low point is the turn beat.
+    if let Some(c) = ep.combo.as_deref().filter(|_| a.row >= 0) {
+        // Short: one word (`the hit-and-fade landed`).
+        return if short { format!("the {} landed", crate::rules::combo_slug(c)) } else { format!("the {c} landed") };
+    }
     let past = past_tense_form(&a.verb, short);
     if a.row >= 0 {
         let base = format!("R{} {past}", a.row + 1);
@@ -793,7 +845,8 @@ pub fn story_ok(text: &str) -> bool {
         || (setup.ends_with(" HP") && [" took him to ", " cornered him to ", " chased him to "].iter().any(|v| setup.contains(v)));
     let turn = beats[1];
     let forms = past_forms();
-    let turn_ok = NO_ROW.contains(&turn) || (setup == "The vault held three" && turn.starts_with("he took the ")) || {
+    let combo_ok = crate::rules::COMBOS.iter().any(|c| turn == format!("the {} landed", c.name) || turn == format!("the {} landed", crate::rules::combo_slug(c.name)));
+    let turn_ok = NO_ROW.contains(&turn) || combo_ok || (setup == "The vault held three" && turn.starts_with("he took the ")) || {
         let (head, rest) = match turn.split_once(' ') {
             Some(x) => x,
             None => return false,
@@ -818,7 +871,8 @@ pub fn names_agent(h: &Highlight) -> bool {
         return false;
     }
     let turn = beats[1];
-    let row = turn.starts_with('R') && turn.chars().nth(1).is_some_and(|c| c.is_ascii_digit());
+    // Cut 8B §1: a combo names two rows.
+    let row = (turn.starts_with('R') && turn.chars().nth(1).is_some_and(|c| c.is_ascii_digit())) || (turn.starts_with("the ") && turn.ends_with(" landed"));
     let trait_ = ["greed ", "cowardice ", "bravery ", "curiosity "].iter().any(|t| turn.starts_with(t));
     let companion = beats[2].ends_with(" fell") || beats[0].ends_with(" came back");
     row || trait_ || companion

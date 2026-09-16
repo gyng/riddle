@@ -88,12 +88,21 @@ fn bank_row() -> Row {
 }
 
 fn write_own_rows(g: &mut Game, bank: bool) -> u32 {
+    write_own_rows_full(g, bank).0
+}
+
+/// Returns (rows written, answers that wanted a row the full set had no room for).
+fn write_own_rows_full(g: &mut Game, bank: bool) -> (u32, u32) {
     let mut n = 0;
+    let mut blocked = 0;
     let has_exit = g.lineage.rules().rows.iter().any(|r| matches!(r.verb.v.as_str(), "bank" | "return"));
     if bank && !has_exit && insert_row(g, bank_row(), 0) {
         n += 1;
     }
-    for (what, _) in riddle_core::descent::SITUATION_DEPTHS {
+    // Cut 8B §3: the stray answer (`see stray → tame nearest`) once a stray has been seen —
+    // the kennel's leash is in the pack and `tame` is owned from the start.
+    let situations = std::iter::once("stray").chain(riddle_core::descent::SITUATION_DEPTHS.iter().map(|(w, _)| *w));
+    for what in situations {
         if !g.lineage.facts.contains(what) {
             continue;
         }
@@ -101,11 +110,16 @@ fn write_own_rows(g: &mut Game, bank: bool) -> u32 {
         // The answer needs its tokens (the gas tag for the lock, the shrine for the hunger).
         let vocab = g.vocabulary();
         let ok = row.conds.iter().all(|c| vocab.conds.iter().any(|v| v.k == c.k && v.t == c.t)) && vocab.verbs.iter().any(|v| v.v == row.verb.v && v.a == row.verb.a);
-        if ok && !g.lineage.rules().rows.contains(&row) && g.lineage.rules().rows.len() < g.vocabulary().max_rows && insert_row(g, row, 0) {
+        if !ok || g.lineage.rules().rows.contains(&row) {
+            continue;
+        }
+        if g.lineage.rules().rows.len() >= g.vocabulary().max_rows {
+            blocked += 1;
+        } else if insert_row(g, row, 0) {
             n += 1;
         }
     }
-    n
+    (n, blocked)
 }
 
 /// Cut 7: rows that are the player's — anything not shipped (`preset`).
@@ -118,10 +132,10 @@ fn player_rows(g: &Game) -> usize {
 /// `HOUR_CHECKIN_TICKS` of play), the heir sent again the moment it comes home (no camp
 /// rest for a present player). Between check-ins the same hands: the worst death's patch
 /// taken, the bank row written, the situation rows written as their facts land, the
-/// cheapest unlock bought. Returns (best depth, player rows, class level).
+/// cheapest unlock bought. Returns (best depth, player rows, class level, kinds tamed).
 const HOUR_CHECKIN_TICKS: u32 = 20 * 60 * 10 * 4;
 
-fn first_hour(seed: u64) -> (u32, usize, u32) {
+fn first_hour(seed: u64) -> (u32, usize, u32, usize) {
     let mut g = Game::new(seed);
     for _ in 0..3 {
         g.batch = riddle_core::engine::Batch::default();
@@ -145,14 +159,20 @@ fn first_hour(seed: u64) -> (u32, usize, u32) {
                 }
             }
         }
-        write_own_rows(&mut g, true);
+        let (_, blocked) = write_own_rows_full(&mut g, true);
         let mut opts: Vec<_> = g.unlocks().into_iter().filter(|u| !u.owned && u.available && u.cost <= g.lineage.marks).collect();
         opts.sort_by(|a, b| a.cost.cmp(&b.cost).then(a.id.cmp(&b.id)));
-        if let Some(u) = opts.first() {
+        // Cut 8B §3: a player with a row to write and no room buys the row first (a watched
+        // hour: the stray was just seen), else the cheapest unlock.
+        let row_unlock = opts.iter().find(|u| u.id.starts_with("row")).filter(|_| blocked > 0);
+        if let Some(u) = row_unlock.or(opts.first()) {
             let _ = g.buy(&u.id);
         }
+        if blocked > 0 {
+            write_own_rows(&mut g, true);
+        }
     }
-    (g.lineage.best_depth, player_rows(&g), g.lineage.class_level())
+    (g.lineage.best_depth, player_rows(&g), g.lineage.class_level(), g.lineage.tamed_kinds())
 }
 
 fn insert_row(g: &mut Game, row: Row, at: usize) -> bool {
@@ -456,7 +476,7 @@ fn main() {
     });
     // Cut 7 §6: the first hour, over more seeds than the fortnight (it is cheap).
     let hour_seeds = get("--hour-seeds", seeds.max(10));
-    let hours: Vec<(u32, usize, u32)> = std::thread::scope(|sc| {
+    let hours: Vec<(u32, usize, u32, usize)> = std::thread::scope(|sc| {
         let hs: Vec<_> = (1..=hour_seeds).map(|s| sc.spawn(move || first_hour(s))).collect();
         hs.into_iter().map(|h| h.join().unwrap()).collect()
     });
@@ -507,11 +527,14 @@ fn main() {
     let stall = outs.iter().map(|o| o.stall).max().unwrap_or(0);
     let final_best: Vec<u32> = outs.iter().map(|o| o.table.last().map(|d| d.best).unwrap_or(0)).collect();
     let runs_day: f64 = outs.iter().map(|o| o.table.iter().map(|d| d.runs as f64).sum::<f64>() / days as f64).sum::<f64>() / n;
-    let hour_ok = hours.iter().filter(|(best, rows, _)| *best >= 6 && *rows >= 2).count();
+    let hour_ok = hours.iter().filter(|(best, rows, _, _)| *best >= 6 && *rows >= 2).count();
     let hour_pct = 100.0 * hour_ok as f64 / hour_seeds as f64;
+    // Cut 8B §3: a companion in the first hour.
+    let hour_tamed = hours.iter().filter(|(_, _, _, tamed)| *tamed >= 1).count();
+    let tame_pct = 100.0 * hour_tamed as f64 / hour_seeds as f64;
     let l2_day1 = outs.iter().filter(|o| o.table.first().is_some_and(|d| d.level >= 2)).count();
     let l2_pct = 100.0 * l2_day1 as f64 / n;
-    println!("  first hour (3 × 20 min) per seed  {:?}  (best, player rows, level)", hours);
+    println!("  first hour (3 × 20 min) per seed  {:?}  (best, player rows, level, tamed)", hours);
     println!("\nprobes over {seeds} seeds × {days} days × {checkins}/day  ({:.0}s)", t0.elapsed().as_secs_f64());
     let asc: Vec<u32> = outs.iter().map(|o| o.ascension).collect();
     println!("  final best depth per seed       {final_best:?}   ending at {} · ascensions {asc:?}", riddle_core::descent::ENDING_DEPTH);
@@ -525,6 +548,8 @@ fn main() {
         ("Longest best-depth stall (counter known) ≤ 3 days".into(), format!("{stall}"), stall <= 3),
         // Cut 7 §6.
         (format!("First hour: best ≥ D6 and ≥ 2 player rows ≥ 80% ({hour_seeds} seeds)"), format!("{hour_pct:.0}%"), hour_pct >= 80.0),
+        // Cut 8B §3.
+        (format!("First hour: tamed ≥ 1 on ≥ 60% of seeds ({hour_seeds} seeds)"), format!("{tame_pct:.0}%"), tame_pct >= 60.0),
         ("L2 by the end of day 1 (banking player) ≥ 80%".into(), format!("{l2_pct:.0}%"), l2_pct >= 80.0),
     ];
     println!();

@@ -21,6 +21,8 @@ fn arena() -> Game {
 fn arena_seed(seed: u64) -> Game {
     let mut g = Game::new(seed);
     g.max_deaths = 1000;
+    // Cut 8B §3: the kennel's leash stays on the shelf; the arena's pack starts empty.
+    g.lineage.supplies.clear();
     g.start_run(Some(seed.wrapping_mul(7) + 3));
     let run = g.run.as_mut().unwrap();
     let mut map = Map::new(16, 12, Tile::Wall);
@@ -95,6 +97,12 @@ fn monster(g: &Game, id: u32) -> Option<&Monster> {
 
 fn attack_rules(g: &mut Game) {
     rules(g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+}
+
+/// Cut 8B §3: a lineage that has tamed keeps no free leash on the shelf (for the supply tests).
+fn no_kennel_leash(g: &mut Game) {
+    g.lineage.facts.insert("tamed:rat".into());
+    g.lineage.supplies.clear();
 }
 
 fn hold_rules(g: &mut Game) {
@@ -832,6 +840,8 @@ fn leash_stacks_and_teaches_the_fact() {
         }
     }
     rules(&mut g, vec![]);
+    // Cut 8B §3: the fact is held from the start (the kennel's leash); drop it to see it learned.
+    g.lineage.facts.remove("item:leash");
     let evs = ticks(&mut g, 40);
     let leash = hero(&g).inv.iter().find(|i| i.kind == "leash").unwrap();
     assert_eq!(leash.amount, 2);
@@ -1100,12 +1110,13 @@ fn offline_samples_after_twenty_stalled_runs() {
 /// stall — the return row is named, and at least one patch moves the forecast at depth + 1.
 #[test]
 fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
-    // Cut 5: 12 h (situations on D1–5 gave this seed a new best on its 17th run of 8 h).
+    // Cut 5: 12 h (situations on D1–5 gave this seed a new best on its 17th run of 8 h);
+    // Cut 8B: 16 h (the first stray on D2 moved the bests again).
     let mut g = Game::new(5);
     let mut set = g.lineage.rules().clone();
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")));
     g.set_rules(set).unwrap();
-    let r = g.run_offline(12 * 3600);
+    let r = g.run_offline(16 * 3600);
     let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
     let stall = r.stall.unwrap_or_else(|| panic!("no stall: {} runs · {deaths} deaths · bests {:?}", r.runs, r.bests));
     assert_eq!(deaths, 0);
@@ -1122,7 +1133,7 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")));
     q.set_rules(set).unwrap();
     let mut last = None;
-    for _ in 0..24 {
+    for _ in 0..32 {
         last = crate::offline::run_offline_quick(&mut q, 1800).stall;
     }
     let chunked = last.expect("the last quick slice carries the stall");
@@ -1743,6 +1754,7 @@ fn counters_scale_damage_and_are_learned() {
 #[test]
 fn supplies_are_bought_with_gold_and_never_kept_back() {
     let mut g = Game::new(1);
+    no_kennel_leash(&mut g);
     assert!(g.buy_supply("leash").is_err());
     g.lineage.gold = 100;
     assert!(g.buy_supply("heal").is_err(), "unidentified");
@@ -1842,6 +1854,7 @@ fn salvage_feeds_the_forge_and_tiers_apply() {
     assert!(g.lineage.gold >= 15 * 8 / crate::engine::GOLD_DIVISOR);
     g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
     g.lineage.gold = 100;
+    no_kennel_leash(&mut g);
     g.buy_supply("heal").unwrap();
     assert_eq!(g.lineage.supplies[0].enchant, 1, "forge tier on bought copies");
     let mut a = arena();
@@ -3324,6 +3337,7 @@ fn blood_drawn_lifts_the_stalemate_guards_and_nobody_waits_while_bitten() {
 #[test]
 fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
     let mut g = Game::new(5);
+    no_kennel_leash(&mut g);
     g.lineage.unlocks.insert("auto_supply".into());
     g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
     g.lineage.gold = 1000;
@@ -3373,7 +3387,7 @@ fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
         crate::turn::end_run(run, &mut cx, ExitTier::Death);
     }
     g.finish_run();
-    assert!(g.lineage.supplies.is_empty());
+    assert!(g.lineage.supplies.iter().all(|s| s.free), "nothing bought; only the kennel's leash");
 }
 
 /// Cut 4 §7: when a row caught the hero (≤ 20 % HP, then the floor survived), the chronicle
@@ -3445,7 +3459,7 @@ fn unlock_catalogue_carries_a_forecast_delta_for_open_cards() {
     assert!(by("kite_archers").delta.is_none(), "gated on the ranged fact");
     assert!(by("row5").delta.is_none(), "rows have no row to add");
     assert!(by("throw").delta.is_some(), "verbs get a canonical row");
-    assert!(by("tame").delta.is_some());
+    assert!(by("tame").owned && by("tame").delta.is_none(), "Cut 8B: tame is owned from the start");
     for u in &cat {
         if let Some(d) = u.delta {
             assert!((-1.0..=1.0).contains(&d), "{u:?}");
@@ -4540,4 +4554,196 @@ fn a_run_that_keeps_shuffling_ends_as_stalled_not_at_the_cap() {
         assert_eq!(exit_tier.as_deref(), Some("return"));
         assert!(ticks < crate::engine::MAX_TURNS_PER_RUN / 2, "stall should end long before the cap: {ticks}");
     }
+}
+
+// ---------------------------------------------------------------- Cut 8B (rows become a roster)
+
+/// §1: a set with a combo names the heir by it in the chronicle (`the chokepoint fighter`,
+/// the first combo by row order; a multi-word name is hyphenated), else by the trait; the
+/// wire lineage carries the combos and recomputes them on every `set_rules`.
+#[test]
+fn the_chronicle_names_the_heir_by_its_first_combo() {
+    let mut g = arena();
+    g.lineage.trait_ = crate::hero::Trait::Greedy;
+    let set = RuleSet {
+        name: None,
+        rows: vec![
+            Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")),
+            Row::new(vec![Cond::n("foes>=", 2)], Verb::new("back_corridor")),
+            Row::new(vec![Cond::n("adj>=", 1)], Verb::arg("attack", "nearest")),
+        ],
+    };
+    g.set_rules(set).unwrap();
+    let l = g.lineage();
+    assert_eq!(l.combos.len(), 1);
+    assert_eq!((l.combos[0].rows, l.combos[0].name.as_str()), ([1, 2], "chokepoint"));
+    g.run.as_mut().unwrap().max_depth = 3;
+    g.lineage.heir_best = 3;
+    g.lineage.chronicle_heir("fell to a rat", None);
+    assert_eq!(g.lineage.chronicle, vec!["♟1 the chokepoint fighter · D3 · fell to a rat.".to_string()]);
+    // A rogue with `throw → retreat` above the chokepoint: the first combo wins, hyphenated.
+    g.lineage.heir = 2;
+    g.lineage.unlocks.insert("rogue".into());
+    g.lineage.class = crate::hero::Class::Rogue;
+    let set = RuleSet {
+        name: Some("fade".into()),
+        rows: vec![
+            Row::new(vec![Cond::n("foes>=", 2)], Verb::arg("throw", "unknown,nearest")),
+            Row::new(vec![Cond::n("adj>=", 1)], Verb::new("retreat")),
+            Row::new(vec![Cond::n("foes>=", 2)], Verb::new("back_corridor")),
+            Row::new(vec![Cond::n("adj>=", 1)], Verb::arg("attack", "nearest")),
+        ],
+    };
+    g.set_rules(set).unwrap();
+    assert_eq!(g.lineage().combos.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["hit and fade", "chokepoint"]);
+    g.lineage.chronicle_heir("fell to gas", None);
+    assert_eq!(g.lineage.chronicle[1], "♟2 the hit-and-fade rogue · D3 · \"fade\" set · fell to gas.");
+    // No combo: the trait, as before.
+    g.lineage.heir = 3;
+    g.set_rules(crate::probes::preset(crate::hero::Class::Fighter)).unwrap();
+    assert!(g.lineage().combos.is_empty());
+    g.lineage.chronicle_heir("fell to gas", None);
+    assert!(g.lineage.chronicle[2].starts_with("♟3 the greedy rogue"), "{}", g.lineage.chronicle[2]);
+    // The vocabulary carries the table.
+    assert_eq!(g.vocabulary().combos.len(), crate::rules::COMBOS.len());
+}
+
+/// §1: an episode credits a combo when both of its rows fired within three hero actions of
+/// the low point — the story line's turn beat reads `the chokepoint landed` in place of the
+/// single row, and the gate's grammar accepts it. Rows fired further apart, or out of order,
+/// credit nothing.
+#[test]
+fn story_lines_credit_a_combo_that_landed_at_the_low_point() {
+    let mut g = arena();
+    let a = add_monster(&mut g, "jackal", 5, 5);
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 2)], Verb::new("back_corridor")), Row::new(vec![Cond::n("adj>=", 1)], Verb::arg("attack", "nearest"))]);
+    let corridor = Verb::new("back_corridor");
+    let attack = Verb::arg("attack", "nearest");
+    {
+        let (run, mut cx) = g.ctx();
+        run.monsters.iter_mut().for_each(|m| m.stun = 500);
+        run.floor.map.update_vision(run.hero.pos, VISION);
+        let ai = run.monsters.iter().position(|m| m.id == a).unwrap();
+        // R1 fired the action before the blow, R2 the action after: the pair lands.
+        run.actions += 1;
+        crate::sifter::on_action(run, 0, &corridor);
+        let hp = run.hero.hp;
+        crate::turn::damage_hero(run, &mut cx, hp - 3, &crate::turn::Src::Mon(ai));
+        assert!(run.arc.row_pending);
+        run.actions += 1;
+        crate::sifter::on_action(run, 1, &attack);
+        assert_eq!(run.arc.combo.as_deref(), Some("chokepoint"));
+        let ep = run.arc.to_episode(run, crate::sifter::Resolution::Banked { gold: 58 });
+        let text = crate::sifter::story_line(&ep);
+        assert_eq!(text, "A jackal chased him to 3 HP; the chokepoint landed; banked $58.");
+        assert!(crate::sifter::story_ok(&text), "{text}");
+        let h = crate::sifter::to_highlight(run, &ep, false);
+        assert!(crate::sifter::names_agent(&h));
+    }
+    // Out of order (R2 then R1) is no combo; a pair three actions apart is none either.
+    let mut g = arena();
+    let a = add_monster(&mut g, "jackal", 5, 5);
+    {
+        let (run, mut cx) = g.ctx();
+        run.monsters.iter_mut().for_each(|m| m.stun = 500);
+        run.floor.map.update_vision(run.hero.pos, VISION);
+        let ai = run.monsters.iter().position(|m| m.id == a).unwrap();
+        let hp = run.hero.hp;
+        crate::turn::damage_hero(run, &mut cx, hp - 3, &crate::turn::Src::Mon(ai));
+        run.actions += 1;
+        crate::sifter::on_action(run, 1, &attack);
+        run.actions += 1;
+        crate::sifter::on_action(run, 0, &corridor);
+        assert_eq!(run.arc.combo, None);
+        run.actions += 1;
+        crate::sifter::on_action(run, 1, &attack);
+        assert_eq!(run.arc.combo, None, "the low's window has closed");
+    }
+    // A multi-word name reads whole; a combo with no row (a trait acted) is not credited.
+    let mut ep = crate::sifter::Episode { combo: Some("hit and fade".into()), act: crate::sifter::Act { row: 2, verb: Verb::new("retreat"), target: None, boss: false }, low_hp: 5, max_hp: 30, threat: vec![("ogre".into(), 1)], resolution: crate::sifter::Resolution::Reached { depth: 4 }, ..Default::default() };
+    assert_eq!(crate::sifter::story_line(&ep), "An ogre took him to 5 HP; the hit-and-fade landed; reached D4.", "the short form is one word");
+    ep.threat = vec![("gas".into(), 1)];
+    ep.low_hp = 0;
+    ep.resolution = crate::sifter::Resolution::Returned;
+    assert_eq!(crate::sifter::story_line(&ep), "Gas took him down; the hit and fade landed; returned.");
+    assert!(crate::sifter::story_ok(&crate::sifter::story_line(&ep)));
+    ep.act.row = -1;
+    assert!(!crate::sifter::story_line(&ep).contains("landed"));
+}
+
+/// §3: the first stray — 80% of lineages meet a named stray jackal on D2 or D3 while they
+/// have tamed nothing, the same jackal every run; `on_see: stray → tame` takes it with the
+/// kennel's leash (free, known, on the shelf from the first camp, back after every run until
+/// something is tamed, never refunded).
+#[test]
+fn the_first_stray_waits_on_d2_or_d3_for_the_kennel_leash() {
+    let mut with = 0;
+    for seed in 1..=40u64 {
+        let g = Game::new(seed);
+        if let Some((d, name)) = g.lineage.first_stray() {
+            with += 1;
+            assert!((2..=3).contains(&d), "{d}");
+            assert!(!name.is_empty());
+            assert_eq!(g.lineage.first_stray(), Some((d, name)), "decided once per lineage");
+        }
+    }
+    assert!((26..=38).contains(&with), "{with}/40 lineages at 80%");
+    let seed = (1..=40u64).find(|s| Game::new(*s).lineage.first_stray().is_some()).unwrap();
+    let mut g = Game::new(seed);
+    let (d, name) = g.lineage.first_stray().unwrap();
+    g.max_deaths = 1000;
+    g.start_run(None);
+    assert!(hero(&g).inv.iter().any(|i| i.kind == "leash" && i.amount == 1), "the kennel's leash is in the pack");
+    assert!(g.lineage.supplies.is_empty());
+    g.descend_to(d);
+    {
+        let run = g.run.as_ref().unwrap();
+        let m = run.monsters.iter().find(|m| m.stray).expect("the stray is placed");
+        assert_eq!((m.kind.as_str(), m.name.as_deref()), ("jackal", Some(name.as_str())));
+        assert_eq!(run.first_stray, Some((d, name.clone())));
+    }
+    // Home again untamed: the leash is back on the shelf; a refund is nothing.
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Return);
+    }
+    g.finish_run();
+    assert!(g.lineage.supplies.iter().any(|s| s.kind == "leash" && s.free));
+    let gold = g.lineage.gold;
+    g.clear_supplies();
+    assert_eq!(g.lineage.gold, gold);
+    // Tamed: the stray answer (`see stray → tame nearest`) fires on sight and the jackal
+    // comes back named; afterwards no stray waits and no leash is supplied.
+    let mut tamed = false;
+    for seed in 1..=30u64 {
+        let mut g = arena_seed(seed);
+        g.run.as_mut().unwrap().first_stray = Some((1, "Uleth".into()));
+        g.lineage.facts.insert("stray".into());
+        let id = add_monster(&mut g, "jackal", 6, 5);
+        {
+            let run = g.run.as_mut().unwrap();
+            let m = run.monsters.iter_mut().find(|m| m.id == id).unwrap();
+            m.stray = true;
+            m.name = Some("Uleth".into());
+            m.stun = 500;
+        }
+        give(&mut g, "leash");
+        assert!(g.vocabulary().conds.contains(&Cond::t("on_see", "stray")));
+        rules(&mut g, vec![crate::probes::situation_answer("stray")]);
+        let evs = ticks(&mut g, 60);
+        if evs.iter().any(|e| matches!(e, Ev::Tame { ok: true, .. })) {
+            tamed = true;
+            {
+                let (run, mut cx) = g.ctx();
+                crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+            }
+            g.finish_run();
+            assert_eq!(g.lineage.tamed_kinds(), 1);
+            assert_eq!(g.lineage.first_stray(), None);
+            assert!(g.lineage.supplies.iter().all(|s| !s.free));
+            assert!(g.lineage.party.iter().any(|c| c.name == "Uleth"), "{:?}", g.lineage.party);
+            break;
+        }
+    }
+    assert!(tamed);
 }

@@ -10,7 +10,13 @@ export type RowOrigin = "preset" | "patch" | "card" | "player";
 export type Row  = { conds: Cond[]; verb: Verb; origin?: RowOrigin };
 export type RuleSet = { rows: Row[]; name?: string };
 
-export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number };  // what the editor may offer
+export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number;
+                           combos?: Combo[] };                              // Cut 8B §1: the combo table (adjacent-row verb pairs the engine names)
+/** Cut 8B §1 — a combo: verb patterns for two adjacent rows (`shield_bash`, or `drink unknown` for one argument) and the name the
+ *  engine gives the pair (`opener`, `hit and fade`, `bait`). Engine data, never player-written. */
+export type Combo = { a: string; b: string; name: string };
+/** Cut 8B §1 — a combo found in the active set: the two adjacent row indices (0-based) and its name. */
+export type ComboHit = { rows: [number, number]; name: string };
 
 export type Tile = "floor"|"wall"|"door"|"stairs_down"|"stairs_up"|"water"|"chasm"
                  | "shrine"|"vault"|"vault_open"|"nest";                 // Cut 5 §4 situations: floor-standing props (renderer tolerates them absent)
@@ -123,7 +129,8 @@ export type Lineage = { seed: number; heir: number; trait: string; class: string
                         vault_pref?: string;                                                                           // Cut 5 §4: what an unwatched vault choice takes (`weapon | armour | potion | scroll`)
                         ascended?: string[];                                                                          // Cut 5: variants the lineage has finished the dungeon with
                         gold_ledger?: GoldLine[];                                                                      // Cut 6 §1: the last 20 gold movements, oldest first (`ledger` is the bestiary)
-                        counters?: Counter[] };                                                                        // Cut 6 §5: bosses whose counter row is known
+                        counters?: Counter[];                                                                         // Cut 6 §5: bosses whose counter row is known
+                        combos?: ComboHit[] };                                                                        // Cut 8B §1: the active set's combos, in row order (recomputed on setRules)
 /** Cut 3: times the lineage ascended and the variant it plays under (`""` at level 0). */
 export type Ascension = { level: number; variant: string };
 export const VARIANTS = ["no_rest", "short_list", "bones_only", "hunted"] as const;

@@ -1,6 +1,7 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
-import type { AsyncEngine, Death, Forecast, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, UnlockInfo, Vocabulary } from "./engine/types";
+import type { AsyncEngine, ComboHit, Death, Forecast, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, UnlockInfo, Vocabulary } from "./engine/types";
+import { combosIn } from "./ui/tokens";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
 import { renderCamp } from "./ui/camp";
@@ -79,6 +80,8 @@ export class App {
   private savedOrigins: string[][] | null = null;
   /** Cut 7 §2: the rows of the active set that are the player's own (`yours: 3 of 5 rows`). */
   playerRows(): number { return this.rules.rows.filter((r) => (r.origin ?? "player") === "player").length; }
+  /** Cut 8B §1: the active set's combos as the editor sees them now (the vocabulary's table over the editing copy). */
+  combos(): ComboHit[] { return combosIn(this.rules.rows, this.vocab?.combos); }
 
   constructor(root: HTMLElement, dev: DevOptions | null = null) { this.root = root; this.dev = dev; }
 

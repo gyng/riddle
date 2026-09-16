@@ -211,6 +211,8 @@ pub fn situation_answer(what: &str) -> Row {
         "den" => Row::new(vec![Cond::t("on_see", "den")], Verb::arg("attack", "nearest")),
         "lock" => Row::new(vec![Cond::t("foe_tag", "gas"), Cond::n("adj>=", 1)], Verb::new("retreat")),
         "captive" => Row::new(vec![Cond::t("on_see", "captive")], Verb::new("free_captive")),
+        // Cut 8B §3: the stray takes the kennel's leash.
+        "stray" => Row::new(vec![Cond::t("on_see", "stray")], Verb::arg("tame", "nearest")),
         _ => Row::new(vec![Cond::t("on_see", "hunger")], Verb::arg("pray", "row")),
     }
 }

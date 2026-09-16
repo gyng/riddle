@@ -82,6 +82,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
   // Cut 5 §6: each row carries the class's verb ladder as chips (`L1 shield bash · L3 cleave · …`), reached rungs lit.
+  // Cut 8B §2: a class not yet owned shows its door (`◆0 · bank once`); once open it is taken from here (the rogue is
+  // free at the first bank), so a second class is one tap from the strip.
   function pickClass(): void {
     openSheet((close) => {
       const L = app.lineage; const grid = h("div", { class: "classes" });
@@ -89,8 +91,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         clear(grid);
         for (const { cls, owned, level } of classList(L, cat)) {
           const ladder = Object.entries(CLASS_VERBS[cls] ?? {}).flatMap(([l, vs]) => vs.map((v) => h("span", { class: `chip rung num${Number(l) <= level && owned ? " on" : ""}` }, `L${l} `, verbLabel({ v }))));
+          const u = owned ? undefined : cat?.find((x) => x.id === cls);
+          const door = u ? h("small", { class: "num dim door" }, ` ◆${u.cost}`, u.needs ? ` · ${u.needs.replace(/_/g, " ")}` : "") : "";
+          const take = async (): Promise<void> => { if (u && !(await app.buy(cls))) return; void app.setClass(cls); close(); };
           grid.appendChild(h("div", { class: "class-row" },
-            h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned ? "" : " off"}`, disabled: !owned, onclick: () => { void app.setClass(cls); close(); } }, cls, " ", h("b", { class: "num" }, `L${level}`)),
+            h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned || u?.available ? "" : " off"}`, disabled: !(owned || u?.available), onclick: () => void take() }, cls, " ", h("b", { class: "num" }, `L${level}`), door),
             ladder.length ? h("div", { class: "chips ladder" }, ...ladder) : ""));
         }
       };

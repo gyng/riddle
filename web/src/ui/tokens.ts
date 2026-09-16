@@ -1,5 +1,5 @@
 // Player-facing labels for rule tokens. Nouns and numbers; every label is a rule_token (≤ 3 words).
-import type { Cond, Row, Verb } from "../engine/types";
+import type { Combo, ComboHit, Cond, Row, Verb } from "../engine/types";
 
 /* copy:rule_token */
 const COND: Record<string, string> = {
@@ -65,9 +65,28 @@ export function condLabel(c: Cond): string {
 export function verbLabel(v: Verb): string {
   const name = VERB[v.v] ?? nice(v.v);
   if (!v.a) return name;
-  const a = v.a.startsWith("tag:") ? v.a.slice(4) : v.a.replace(",nearest", "");
-  return `${name} ${nice(a)}`;
+  // `tag:thief` → `thief`; `fire,tag:thief` → `fire thief`; a trailing `,nearest` is the default target and stays silent
+  const parts = v.a.split(",");
+  const a = parts.filter((x, i) => i === 0 || x !== "nearest").map((x) => nice(x.startsWith("tag:") ? x.slice(4) : x)).join(" ");
+  return `${name} ${a}`;
 }
 export function rowLabel(r: Row): string { return `${r.conds.map(condLabel).join(" · ")} → ${verbLabel(r.verb)}`; }
 export const sameCond = (a: Cond, b: Cond): boolean => a.k === b.k && a.t === b.t;
 export const sameVerb = (a: Verb, b: Verb): boolean => a.v === b.v && a.a === b.a;
+
+/** Cut 8B §1: does a combo pattern name this verb? `throw` matches every throw; `drink unknown` only the gamble. */
+export function verbIs(pat: string, v: Verb): boolean {
+  const i = pat.indexOf(" ");
+  return i < 0 ? v.v === pat : v.v === pat.slice(0, i) && v.a === pat.slice(i + 1);
+}
+/** Cut 8B §1: every combo in a row list, in row order — the client's mirror of the core's `combos_in`, so a pair lights up
+ *  as it is written (the engine's own `Lineage.combos` arrives after `setRules`). */
+export function combosIn(rows: Row[], table: Combo[] | undefined): ComboHit[] {
+  const out: ComboHit[] = [];
+  if (!table?.length) return out;
+  for (let i = 0; i + 1 < rows.length; i++) {
+    const c = table.find((t) => verbIs(t.a, rows[i].verb) && verbIs(t.b, rows[i + 1].verb));
+    if (c) out.push({ rows: [i, i + 1], name: c.name });
+  }
+  return out;
+}

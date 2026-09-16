@@ -672,6 +672,65 @@ Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion ver
   writes the bank row and the situation answers itself (`write_own_rows`); the content bars
   (purchase days, stall) stay informational.
 
+## Cut 8B (rows become a roster) — deviations and additions
+
+- **Combos are named** (§1; `rules::COMBOS`). A fixed table of adjacent-row verb pairs the
+  engine already resolves as one move, each with a name the player did not write:
+  `shield_bash → backstab | attack` **opener** · `throw → retreat | back_corridor` **hit and
+  fade** · `taunt → cleave` **bait** · `shoot → kite | retreat` **kite** · `vanish → backstab`
+  **ambush** · `pray → descend` **pilgrim** · `tame → send` **handler** · `drink unknown →
+  attack` **gambler** · `back_corridor → attack` **chokepoint**. A pattern is a verb key
+  (`throw` matches every throw) or `verb arg` (`drink unknown` only the gamble;
+  `rules::verb_is`). `Vocabulary.combos: [{a, b, name}]` carries the table (empty for a
+  companion's vocabulary); `rules::combos_in(set)` / `RuleSet::combos()` → `[{rows: [i, j],
+  name}]` in row order (0-based, `j = i + 1`; a row may close one combo and open the next), on
+  the wire as **`Lineage.combos`** (computed from the active set on every `lineage()`, so it
+  follows `set_rules` and `select_set`). A card row (`tactic`) is never part of a combo.
+- **The chronicle credits the combo** (§1). The heir line names the heir by its set's first
+  combo (by row order) instead of the trait: `♟3 the chokepoint fighter · D7 · …`, a
+  multi-word name hyphenated (`the hit-and-fade rogue`); a set with no combo reads as before
+  (`the greedy fighter`). **Episodes credit combos** (`Episode.combo`): `Arc.acts` keeps the
+  last four hero actions with their action numbers and `Arc.low_act` the number of the low
+  point's act; when two adjacent rows fired *in row order* within the three hero actions
+  around the low (the act before it, the act, the act after), the episode's turn beat reads
+  `the bait landed` (short form one word: `the hit-and-fade landed`) in place of the single
+  row; `story_ok` accepts both forms, `names_agent` counts them as a row. A pair out of order
+  or further apart credits nothing.
+- **Rogue free at the first bank** (§2). `rogue` costs **0** marks with the gate `bank once`
+  (`banked_depths` non-empty: any `home:D*` best). Cut 8B moved the unlock catalogue's sum by
+  −6 (rogue 4 → 0, tame 2 → 0).
+- **A companion in the first hour** (§3). `tame` is **owned from the start** (cost 0; a new
+  lineage and every ascension insert it) and the fact `item:leash` is held from the first camp.
+  The **kennel's leash** (`LineageState::kennel_leash`, `Item.free`): while the lineage has
+  never tamed (`tamed_kinds() == 0`) a free, known leash sits on the supply shelf — placed on a
+  new lineage, back after every homecoming (`finish_run`, `keep`) and on ascension; never
+  refunded by `clear_supplies`, never rebought by `auto_supply` (`last_supplies` skips free
+  items; `auto_supply` restocks an empty-but-for-the-leash shelf). Clearing the shelf is still
+  an order: the leash comes back only when the hero comes home. The **first stray**
+  (`LineageState::first_stray`, `FIRST_STRAY_PCT` 80): on 80 % of lineages (a side stream off
+  the lineage seed) a stray **jackal** with a fixed name waits on **D2 or D3**, the same jackal
+  every run while nothing has been tamed and no companion has been lost (the Cut 5 stray takes
+  over once one has); placed by `place_situations` through `Run.first_stray`, tames at
+  `STRAY_TAME` 60 % like any stray, comes back named. Token **`on_see: stray`** enters the
+  vocabulary once a stray has been seen (the `stray` fact, gated like the other situations;
+  `Run::sees_situation("stray")` = a live stray in view); `probes::situation_answer("stray")`
+  is `see stray → tame nearest`. *Deviation from the brief*: the brief placed the stray for
+  `heir == 1` only; the first heir rarely lives to the first check-in that writes the tame
+  row, so the stray waits (by depth and name) for every heir until a tame happens.
+- **Dayplayer** (§3). `write_own_rows` writes the stray answer as its fact lands, before the
+  band answers; the first hour's player, holding an answer the full set has no room for, buys
+  the row unlock first (else the cheapest) and writes it. New bar: **first hour tamed ≥ 1 on ≥
+  60 % of seeds** (80 % over 30 seeds; the misses are the 20 % of lineages with no first
+  stray). The first-hour probe now returns `(best, player rows, level, tamed)`.
+- **Tests** moved by the shelf: the arena starts with an empty pack (`arena_seed` clears the
+  supplies), the supply tests mark the lineage as having tamed (`no_kennel_leash`), the
+  stall-verdict seed runs 16 h (the D2 stray moved its bests).
+- **Gate note**: the quick table (`node tools/gates.mjs`, 8 seeds × 3 verdicts = 237 sampled
+  verdicts) reads the dice share at 5.4 % against the 5 % bar on this head; the full table
+  (30 × 8 × 8 = 2116 verdicts) reads **4.1 %** (Cut 7 head: 4.4 %), and a 16-seed × 12-verdict
+  A/B on the same code reads 4.3 % against the Cut 7 head's 4.7 %. The bar is unchanged; the
+  quick sample is a different set of deaths, not a worse rate.
+
 ## Layout
 
 `src/` per `docs/CUT1.md` plus `wire.rs` (the wire structs), `situations.rs` (the Cut 7 band

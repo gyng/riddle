@@ -557,6 +557,10 @@ pub struct Lineage {
     /// Cut 6 §5: bosses whose counter row is known, with the row and its ≤ 3-word text.
     #[serde(default)]
     pub counters: Vec<Counter>,
+    /// Cut 8B §1: the active set's combos (adjacent rows the engine resolves as one move), in
+    /// row order; recomputed on every `set_rules`.
+    #[serde(default)]
+    pub combos: Vec<crate::rules::ComboHit>,
 }
 
 /// Cut 3: `{level, variant}`; `variant` is one of `no_rest short_list bones_only hunted`.

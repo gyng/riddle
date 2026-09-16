@@ -25,11 +25,15 @@ pub struct Item {
     /// while the flavour is unidentified. Found items are known only through their flavour.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub known: bool,
+    /// Cut 8B §3: the kennel's leash — on the shelf for nothing while the lineage has never
+    /// tamed; clearing the shelf refunds nothing for it and `auto_supply` never rebuys it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub free: bool,
 }
 
 impl Item {
     pub fn new(id: u32, kind: &str) -> Item {
-        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false }
+        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false }
     }
     /// Cut 6 §2: known by name (bought, crafted, vaulted) or by an identified flavour.
     pub fn is_known(&self, facts: &BTreeSet<String>, flavours: &Flavours) -> bool {

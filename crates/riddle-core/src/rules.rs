@@ -47,6 +47,78 @@ pub struct Vocabulary {
     pub conds: Vec<Cond>,
     pub verbs: Vec<Verb>,
     pub max_rows: usize,
+    /// Cut 8B §1: the combo table (`COMBOS`), so the editor can name a pair as it is written.
+    #[serde(default)]
+    pub combos: Vec<Combo>,
+}
+
+/// Cut 8B §1: a combo on the wire — two verb patterns (`shield_bash`, `drink unknown`) that
+/// name adjacent rows, and the name the engine gives the pair (`opener`, `hit and fade`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Combo {
+    pub a: String,
+    pub b: String,
+    pub name: String,
+}
+
+/// Cut 8B §1: a combo found in a set — the two row indices (0-based, adjacent) and its name.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ComboHit {
+    pub rows: [usize; 2],
+    pub name: String,
+}
+
+pub struct ComboDef {
+    pub a: &'static str,
+    pub b: &'static str,
+    pub name: &'static str,
+}
+
+/// Cut 8B §1: adjacent-row verb pairs the engine resolves as one move, and their names. A
+/// pattern is a verb key (`throw` matches any throw) or `verb arg` (`drink unknown`). The
+/// first row's verb matches `a`, the next row's `b`. Names are engine data (≤ 3 words).
+pub const COMBOS: &[ComboDef] = &[
+    ComboDef { a: "shield_bash", b: "backstab", name: "opener" },
+    ComboDef { a: "shield_bash", b: "attack", name: "opener" },
+    ComboDef { a: "throw", b: "retreat", name: "hit and fade" },
+    ComboDef { a: "throw", b: "back_corridor", name: "hit and fade" },
+    ComboDef { a: "taunt", b: "cleave", name: "bait" },
+    ComboDef { a: "shoot", b: "kite", name: "kite" },
+    ComboDef { a: "shoot", b: "retreat", name: "kite" },
+    ComboDef { a: "vanish", b: "backstab", name: "ambush" },
+    ComboDef { a: "pray", b: "descend", name: "pilgrim" },
+    ComboDef { a: "tame", b: "send", name: "handler" },
+    ComboDef { a: "drink unknown", b: "attack", name: "gambler" },
+    ComboDef { a: "back_corridor", b: "attack", name: "chokepoint" },
+];
+
+/// Does a combo pattern name this verb? `throw` matches every throw; `drink unknown` only the
+/// gamble.
+pub fn verb_is(pat: &str, v: &Verb) -> bool {
+    match pat.split_once(' ') {
+        Some((key, arg)) => v.v == key && v.a.as_deref() == Some(arg),
+        None => v.v == pat,
+    }
+}
+
+/// The combo two verbs make when written on adjacent rows (`a` above `b`), if any.
+pub fn combo_name(a: &Verb, b: &Verb) -> Option<&'static str> {
+    COMBOS.iter().find(|c| verb_is(c.a, a) && verb_is(c.b, b)).map(|c| c.name)
+}
+
+/// The table for the wire.
+pub fn combo_table() -> Vec<Combo> {
+    COMBOS.iter().map(|c| Combo { a: c.a.into(), b: c.b.into(), name: c.name.into() }).collect()
+}
+
+/// Every combo in a set, in row order (a row may open one combo and close another).
+pub fn combos_in(rules: &RuleSet) -> Vec<ComboHit> {
+    rules.rows.windows(2).enumerate().filter_map(|(i, w)| combo_name(&w[0].verb, &w[1].verb).map(|name| ComboHit { rows: [i, i + 1], name: name.into() })).collect()
+}
+
+/// A combo name as one word for the chronicle (`hit-and-fade`).
+pub fn combo_slug(name: &str) -> String {
+    name.split_whitespace().collect::<Vec<_>>().join("-")
 }
 
 pub const COND_KEYS: &[&str] = &[
@@ -209,6 +281,10 @@ impl RuleSet {
     pub fn to_text(&self) -> String {
         serde_json::to_string_pretty(self).unwrap_or_default()
     }
+    /// Cut 8B §1: the set's combos, in row order.
+    pub fn combos(&self) -> Vec<ComboHit> {
+        combos_in(self)
+    }
 }
 
 pub fn word_count(s: &str) -> usize {
@@ -228,6 +304,36 @@ mod tests {
         let r = RuleSet::parse(r#"{"rows":[{"conds":[{"k":"foe_tag","t":"pack"}],"verb":{"v":"retreat"}}]}"#).unwrap();
         assert_eq!(r.rows[0].conds[0].t.as_deref(), Some("pack"));
         assert!(serde_json::to_string(&r).unwrap().contains(r#""verb":{"v":"retreat"}"#));
+    }
+    /// Cut 8B §1: combos are adjacent pairs from the table, in row order; a pattern with an
+    /// argument matches only that argument; a card row is never part of one.
+    #[test]
+    fn combos_are_named_adjacent_pairs() {
+        let rows = vec![
+            Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::new("taunt")),
+            Row::new(vec![Cond::n("adj>=", 2)], Verb::new("cleave")),
+            Row::new(vec![Cond::n("foes>=", 3)], Verb::new("back_corridor")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+            Row::new(vec![Cond::flag("unknown_item")], Verb::arg("drink", "unknown")),
+            Row::new(vec![], Verb::arg("tactic", "boss_focus")),
+        ];
+        let set = RuleSet { rows, name: None };
+        let hits = set.combos();
+        assert_eq!(hits.len(), 2, "{hits:?}");
+        assert_eq!((hits[0].rows, hits[0].name.as_str()), ([1, 2], "bait"));
+        assert_eq!((hits[1].rows, hits[1].name.as_str()), ([3, 4], "chokepoint"));
+        // `drink heal → attack` is not the gamble; `throw fire → retreat` is a hit and fade.
+        assert_eq!(combo_name(&Verb::arg("drink", "heal"), &Verb::arg("attack", "nearest")), None);
+        assert_eq!(combo_name(&Verb::arg("drink", "unknown"), &Verb::arg("attack", "lowest")), Some("gambler"));
+        assert_eq!(combo_name(&Verb::arg("throw", "fire,tag:boss"), &Verb::new("retreat")), Some("hit and fade"));
+        assert_eq!(combo_name(&Verb::new("shield_bash"), &Verb::new("backstab")), Some("opener"));
+        for c in COMBOS {
+            assert!(word_count(c.name) <= 3, "{}", c.name);
+            assert!(VERB_KEYS.contains(&c.a.split(' ').next().unwrap()) && VERB_KEYS.contains(&c.b.split(' ').next().unwrap()), "{} → {}", c.a, c.b);
+        }
+        assert_eq!(combo_slug("hit and fade"), "hit-and-fade");
+        assert_eq!(combo_table().len(), COMBOS.len());
     }
     #[test]
     fn validation() {

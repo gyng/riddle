@@ -22,10 +22,12 @@ pub const UNLOCKS: &[UnlockDef] = &[
     UnlockDef { id: "vault2", cost: 3, prereq: None },
     UnlockDef { id: "vault3", cost: 6, prereq: Some("vault2") },
     UnlockDef { id: "vault4", cost: 10, prereq: Some("vault3") },
-    UnlockDef { id: "rogue", cost: 4, prereq: None },
+    // Cut 8B §2: the rogue is free at the first bank (a second class in the first hour).
+    UnlockDef { id: "rogue", cost: 0, prereq: None },
     UnlockDef { id: "ranger", cost: 6, prereq: None },
     UnlockDef { id: "caster", cost: 8, prereq: None },
-    UnlockDef { id: "tame", cost: 2, prereq: None },
+    // Cut 8B §3: `tame` is owned from the start (the kennel's leash is on the shelf); cost 0.
+    UnlockDef { id: "tame", cost: 0, prereq: None },
     UnlockDef { id: "throw", cost: 2, prereq: None },
     UnlockDef { id: "cond_alert", cost: 2, prereq: None },
     UnlockDef { id: "cond_turns", cost: 2, prereq: None },
@@ -89,6 +91,7 @@ pub fn gate(l: &LineageState, id: &str) -> Option<String> {
     match id {
         "party_slot_2" => need(l.tamed_kinds() >= 1, "tame 1"),
         "party_slot_3" => need(l.tamed_kinds() >= 3, "tame 3"),
+        "rogue" => need(!l.banked_depths.is_empty(), "bank once"),
         "ranger" => need(l.bosses_slain() >= 1, "slay a boss"),
         "caster" => need(l.bosses_slain() >= 2, "slay 2 bosses"),
         "tame" => need(l.facts.contains("item:leash"), "find a leash"),
@@ -332,7 +335,10 @@ mod tests {
             assert!(ids.contains(&u), "{u}");
         }
         let cost: u32 = UNLOCKS.iter().map(|u| u.cost).sum();
-        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 4 + 6 + 8 + 2 + 2 + 12 + 24 + 5 + 4 + 6 + 4 + 3 + 3 + 6 + 8 + 12 + 8 + 8 + 20 + 6 + 8);
+        // Cut 8B: the rogue and `tame` cost nothing (were 4 and 2: 6 off the Cut 3 sum).
+        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 6 + 8 + 2 + 12 + 24 + 5 + 4 + 6 + 4 + 3 + 3 + 6 + 8 + 12 + 8 + 8 + 20 + 6 + 8);
+        assert_eq!(UNLOCKS.iter().find(|u| u.id == "rogue").unwrap().cost, 0);
+        assert_eq!(UNLOCKS.iter().find(|u| u.id == "tame").unwrap().cost, 0);
         let by = |id: &str| UNLOCKS.iter().find(|u| u.id == id).unwrap();
         assert_eq!(by("row9").prereq, Some("row8"));
         assert_eq!(by("row10").cost, 12);
@@ -351,6 +357,31 @@ mod tests {
         assert_eq!(kite.needs.as_deref(), Some("fact: ranged"));
         assert!(cat.iter().find(|u| u.id == "row6").unwrap().needs.as_deref() == Some("row5"));
         assert!(cat.iter().find(|u| u.id == "cond_turns").unwrap().needs.is_none());
+    }
+
+    /// Cut 8B §2–3: the rogue costs nothing and opens at the first bank; `tame` is owned from
+    /// the start with the kennel's leash on the shelf and its fact held.
+    #[test]
+    fn rogue_free_at_first_bank_and_tame_from_the_start() {
+        let mut g = crate::engine::Game::new(7);
+        let cat = catalogue(&g.lineage);
+        let rogue = cat.iter().find(|u| u.id == "rogue").unwrap();
+        assert_eq!((rogue.cost, rogue.available, rogue.needs.as_deref()), (0, false, Some("bank once")));
+        assert!(cat.iter().find(|u| u.id == "tame").unwrap().owned);
+        assert!(g.lineage.facts.contains("item:leash"));
+        assert!(g.lineage.supplies.iter().any(|s| s.kind == "leash" && s.known && s.free));
+        assert!(g.vocabulary().verbs.contains(&Verb::arg("tame", "nearest")));
+        assert_eq!(buy(&mut g, "rogue").unwrap_err(), "needs bank once");
+        // One bank, no marks to spare: the rogue is bought.
+        g.lineage.banked_depths.insert(2);
+        g.lineage.marks = 0;
+        assert!(catalogue(&g.lineage).iter().find(|u| u.id == "rogue").unwrap().available);
+        buy(&mut g, "rogue").unwrap();
+        assert!(g.set_class("rogue").is_ok());
+        // The free leash refunds nothing and is not rebought by the automation.
+        g.clear_supplies();
+        assert_eq!(g.lineage.gold, 0);
+        assert!(g.lineage.gold_ledger.is_empty());
     }
 
     /// Cut 6 §6: every card and automation carries rows; rows, vaults, slots, classes,

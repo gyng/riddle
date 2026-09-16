@@ -5,11 +5,14 @@
 // not editable, but deletable and draggable, so the player sees where the card sits.
 // Cut 6 §4: over budget, the rows marked to drop are the card rows first (a card is the newest row), then the last
 // player rows. Cut 6 §6: tapping a `[card]` chip opens a sheet with the card's rows as read-only chips (`cardRows`).
+// Cut 8B §4: a `[card]` row shows its rows inline underneath as dim read-only chips (the sheet stays for the shelf's
+// automations); two adjacent rows that make a combo (`vocab.combos`, engine data) carry a small bracket with the
+// combo's name to the right of the pair (`⌐ opener`), repainted on every edit.
 import type { App } from "../app";
 import type { Cond, Row, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash } from "./dom";
 import { openSheet } from "./sheet";
-import { NUMS, PCT, condLabel, condName, needsN, sameCond, sameVerb, verbLabel } from "./tokens";
+import { NUMS, PCT, combosIn, condLabel, condName, needsN, sameCond, sameVerb, verbLabel } from "./tokens";
 
 export type Editor = { el: HTMLElement; refresh(): void };
 /** What the editor edits: the hero's active set, or a companion's own rows. */
@@ -54,6 +57,12 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
     const n = rows().length, max = vocab().max_rows, over = n > max;
     const drop = over ? dropRows(rows(), max) : new Set<number>();
     rows().forEach((row, i) => list.appendChild(rowEl(row, i, drop.has(i))));
+    // Cut 8B §4: the bracket sits on the pair's first row and reaches the second (`data-combo` is the name, engine data)
+    for (const c of combosIn(rows(), vocab().combos)) {
+      const a = list.children[c.rows[0]] as HTMLElement | undefined, b = list.children[c.rows[1]] as HTMLElement | undefined;
+      if (!a || !b) continue;
+      a.classList.add("combo-a"); b.classList.add("combo-b"); a.dataset.combo = c.name;
+    }
     foot.append(
       h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`),
       n < max ? h("button", { class: "btn ghost", onclick: () => { rows().push(defaultRow()); commit(); } }, "+") : "",
@@ -77,6 +86,8 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
       const inner = [h("small", { class: "dim" }, /* copy:rule_token */ "[card]"), " ", id.replace(/_/g, " ")];
       const cardRows = bind.cardRows?.(id);
       chips.appendChild(cardRows?.length ? h("button", { class: "chip verb locked", onclick: () => openRowsSheet(cardRows) }, ...inner) : h("span", { class: "chip verb locked" }, ...inner));
+      // Cut 8B §4: the card's rows, inline and dim — rows the player could have written
+      if (cardRows?.length) chips.appendChild(h("div", { class: "card-inline" }, ...cardRows.map((r) => rowChips(r))));
     } else {
       row.conds.forEach((c, ci) => chips.appendChild(h("button", { class: "chip cond", onclick: () => pickCond(row, ci) }, condLabel(c))));
       if (row.conds.length < 2) chips.appendChild(h("button", { class: "chip cond add", onclick: () => pickCond(row, row.conds.length) }, "+"));
