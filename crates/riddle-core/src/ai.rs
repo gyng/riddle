@@ -2042,8 +2042,10 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                     }
                 }
             }
-            // Keep the pack away from it: back into a corridor if one is at hand.
-            !in_corr && verb_back_corridor(run, cx, v)
+            // Keep the pack away from a thief that is actually coming (≤ 3 tiles): back into a
+            // corridor if one is at hand. A thief loitering at range is not a reason to shuffle
+            // (rater F: `to corridor` ↔ `pick up` for minutes at frozen HP).
+            !in_corr && mp.cheb(hp) <= 3 && verb_back_corridor(run, cx, v)
         }
         // boss_focus: the boss's own counter — the Warlord himself (aimed), the Bloat
         // Mother at range, the Lich's summons first — then the boss.

@@ -1,0 +1,149 @@
+{
+  "$comment": "Copy me per build and rater. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md. One quoted observation per axis. bot: green|amber|red|na is a cap, never an award. Answer criterion + idle probes BEFORE awarding.",
+  "game": "Riddle",
+  "build": "207cc0e",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterE",
+  "horizon": {
+    "activeMinutes": 60,
+    "absences": [
+      "8h simulated once via ?dev=1&absent=8h after ~40 min active; ~20 min on return"
+    ],
+    "runsWatched": 6,
+    "runsOffline": 14,
+    "ruleEdits": 12
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: I sent my cowardly fighter down with a 10% return floor and a fire potion for packs, and on D4 a goblin archer started 'archer draws' six times in a row while spectral blades ('blades!') cut him from 21 to 13 to 1 HP. My pack rule never threw ('throw ✗ no item') and my heal rule had nothing left, so the only thing standing between him and the bones was the floor I had set. It tripped at exactly 1/38 ('R1 · return'), and the reel read 'Down to 1 HP. R4 attack caught him. Returned with $61.'"
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "I always knew the loop (edit rows, read the forecast, send, read the death), and the forecast answered every edit within seconds ('D6 20% · jackal' became 'goblin archer 100%' when I put foe: pack → to corridor above attack); but I never learned why 'throw ✗ no item' fired with a $40 fire potion in supplies, why my leash vanished after run 2, or why 'R1 hp not <10%' at 4 HP (max HP is not shown anywhere on the trace), and 'card: thief guard reach −33%' reads as either a benefit or a penalty."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "The choice I would defend: putting hp < 20% → return at the top and accepting the forecast's cost (D5 56% → 46%, D6 20% → 4%) for 60% of the gold; later I compared three verbs for foe: telegraph and the forecast split them (retreat D6 8%, attack telegraph 38%, shield bash 62%), which is a real trade-off I could foresee. Lapse: the carry decision is blind, since a carried fire potion produced 'throw ✗ no item' and two carried heals produced 'Trophy: no heal to D5' with R2 hp < 30% → drink heal in place."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "An hour in I could read rule order (the trait fires before rows, 'R1 trait first' ×5 in the morgue), knew that identifying a potion unlocks it in the shop and as a verb, and had pushed my own forecast from D6 4% to D6 62%; but my active runs still returned at D5 (run 1) and D5 (run 5), so the skill was visible in the forecast more than in the dungeon."
+    },
+    {
+      "id": "tension",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "I sweated on run 1 at 9/36 on D5 with '$93 · death: lose all' in red and a bail button, and I chose to carry a 10% floor into the night, which the morning paid off as '$272 carried · death keeps 0% → $0 · bones: 10 items on D8'. Lapse: at 1x the fight itself is unreadable (no foe is visible in any frame I took), so the doubt lives only in the HP number."
+    },
+    {
+      "id": "feel",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "The hero sprite reads well and the forecast bars redraw instantly, but hits are a one-line '−2 jackal' callout with no visible foe, no flash and no screen reaction, and at 1x I logged 20–30 s stretches of nothing but 'pick up'. Audio unassessed (none in the build)."
+    },
+    {
+      "id": "surprise",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Things I met that changed what I configured: 'The monkey stole the torn scroll?.' (I bought thief guard), 'heal = murky' (I rewrote R1 and the shop grew), 'ogre winds up' in the trace (I added foe: telegraph → shield bash), a new heir arriving 'greedy' with 'greedy → pick up' and 'not the gold' callouts. Lapse: runs 1–4 were the same D1–D4 cast (rat, jackal, goblin, monkey) with the same 'pick up' rhythm."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "I would describe my set as 'a coward who gambles on unknown potions while healthy, throws fire at packs, bashes anything winding up, and walks home at 20%', and the game itself says 'yours: 6 of 6 rows'; but every set funnels through hp thresholds plus 'foes ≥ 1 → attack nearest', so I doubt a friend could tell mine from theirs."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "The reel gave me retellable lines with a turn: 'Warlord cornered him to 3 HP; R4 attacked; died to an ogre.' and the chronicle carries lineage: '♟3 the greedy fighter · found ♟1's bones · found ♟2's bones · fell to an ogre · left bones on D8.' Lapse: the four overnight deaths all read as the same template ('X took him to N HP; R4 attacked; died to Y') and only the last one opens."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-run at 1x: fights are 2–6 s bursts between 20–30 s of 'pick up', and run 2 stalled on D3 for ~70 s at fast speed spamming 'descend' / 'card thief guard' while the alert rose to '!!!!!'. Check-in: arrive → read summary → edit → buy → send took me 5–10 min and ended on 'send'. Cadence: 'rest 20m' between runs, 'rested 264m' overnight with a distinct 14-run summary."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "The death screen is the best thing in the build: 'ogre · D8 · 5 over · 2 unknown unused · gap', a trace with 'ogre winds up' in the tele column, 'R1 hp not <10% · R2 no item · R3 not in view' for every rule that stayed silent, and patches with replayed odds ('hp < 20% → return · survives 100% · base 75%'); the next heir is sent automatically. Lapse: returns get no trace at all ('Trophy: no heal to D5' with two heals carried is unexplained), and older deaths in the chronicle do not open."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0"
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I bailed at 9/36 on D5 on my own judgement, left bones on three floors unrecovered, and sent an empty rule set just to see what happens (he stood 'cornered' on D1 and died to a rat) — none of which the game asked for; the dungeon route itself is not mine to choose."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Within-run: gold, 'sword +1' then 'sword +2', fighter L1 → L3. Between-run: marks bought +1 row, +1 vault, verb: throw, auto: restock, path: bones; identification grew the shop from 'leash $30' to sixteen items; renown ★0 → ★4; heirs ♟1 → ♟6. Automation: 'auto: restock' rebuilt 'heal potion · heal potion · leather' without me. Lapse: active runs 2–4 paid ◆+1, ◆0, ◆0, so at two check-ins there was nothing I could afford."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Dark olive cave tiles, a single lit corridor and one hero sprite; foes never appear in a frame; the HUD is monospace on black. I would not sit in it doing nothing."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "I came back to '14 RUNS · D8 BEST · ◆+20 · 10 RETURNED · 4 DEATHS', a new heir called 'greedy', bones on D5/D6/D8, a 'PENDING: R5 never fired' nudge and an open death with patches; because of it I raised the floor to 20%, added foe: telegraph → shield bash and bought +1 row, restock, bones and vault. I wanted to come back before I saw it (curious whether the 10% floor would hold). Lapse: the night out-earned my whole active hour by roughly 7× ($755 vs ~$110, ◆20 vs ◆8), so active play felt underpaid."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "My retelling: 'I set the floor at 10%, the ogre took him 8 → 4 in one wind-up, my R1 did not trip because 4 was not under 10%, and my R4 kept swinging' — four first-person pronouns and the screen agreed with a 'gap' badge. Lapse: two losses I could not connect to anything I wrote — heals never drunk at 25% with R2 hp < 30% → drink heal live, and 'throw ✗ no item' with a fire potion carried."
+    }
+  ]
+}

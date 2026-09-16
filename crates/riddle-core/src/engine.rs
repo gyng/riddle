@@ -27,6 +27,8 @@ pub const REMEMBER_ACTIONS: u32 = 10;
 /// A run that cannot finish in this many ticks (≈ 3 h 20 min at 1×) comes home empty-handed
 /// (tier `return`, yield ×0: a stalemate is not a policy). Cut 3: a D30 run needs ~75 000.
 pub const MAX_TURNS_PER_RUN: u32 = 120_000;
+/// Oscillation-guard firings on one floor before the run ends as `stalled` and gets a verdict.
+pub const STALL_FIRES: u32 = 3;
 /// Cut 3: rule rows with every row unlock (`row5`–`row10`).
 pub const MAX_ROWS: usize = 10;
 /// Cut 3: the ascension variants, in the order they are offered.
@@ -196,6 +198,9 @@ pub struct Run {
     pub recent_pos: Vec<Pos>,
     #[serde(default)]
     pub last_damage_action: u32,
+    /// Times the oscillation guard fired on this floor; three ends the run as `stalled` (Cut 7 fix).
+    #[serde(default)]
+    pub stuck_fires: u32,
     /// Oscillation guard: rows that target foes are suppressed until this action.
     #[serde(default)]
     pub stuck_until: u32,
@@ -1440,6 +1445,7 @@ impl Game {
             chase: None,
             recent_pos: Vec::new(),
             last_damage_action: 0,
+            stuck_fires: 0,
             stuck_until: 0,
             trait_last: None,
             pickup_streak: 0,
@@ -1627,6 +1633,14 @@ impl Game {
         if run.turn >= MAX_TURNS_PER_RUN && run.over.is_none() {
             run.timed_out = true;
             crate::chronicle::note(run, &mut cx, "Lost the thread. Came home empty-handed.".into());
+            crate::turn::end_run(run, &mut cx, ExitTier::Return);
+        }
+        // A run that keeps shuffling on one floor is a policy failure, not a wait: end it as a
+        // return with nothing kept so the stall verdict names the row (rater F: minutes of
+        // `to corridor` ↔ `pick up` at frozen HP with no trace and no patch).
+        if run.stuck_fires >= STALL_FIRES && run.over.is_none() {
+            run.timed_out = true;
+            crate::chronicle::note(run, &mut cx, "Stalled. Came home empty-handed.".into());
             crate::turn::end_run(run, &mut cx, ExitTier::Return);
         }
         self.lineage.total_turns += 1;

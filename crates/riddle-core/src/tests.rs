@@ -4503,3 +4503,41 @@ fn situations_are_facts_tokens_and_answers() {
     assert!(run.lit && run.passed.contains(&"hunger".to_string()));
     assert!(run.hero.max_hp >= max_before - 2, "the hunger bit at most twice before the light");
 }
+
+/// Rater F (cohort 3): a thief-guard card plus a pickup chore shuffled between two tiles for
+/// minutes at frozen HP with no verdict. Three guard firings on one floor now end the run as a
+/// `return` with nothing kept, so the stall verdict can name the row.
+#[test]
+fn a_run_that_keeps_shuffling_ends_as_stalled_not_at_the_cap() {
+    use crate::engine::STALL_FIRES;
+    let mut g = Game::new(67);
+    g.lineage.unlocks.insert("thief_guard".into());
+    g.lineage.facts.insert("foe:monkey:thief".into());
+    let rows = vec![
+        Row::new(vec![], Verb::arg("tactic", "thief_guard")),
+        Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+    ];
+    g.set_rules(RuleSet { rows, name: None }).unwrap();
+    let _ = g.send();
+    let (mut fires, mut ticks, mut exit_tier) = (0u32, 0u32, None::<String>);
+    let mut stalled_note = false;
+    for _ in 0..6_000 {
+        let r = g.step(10);
+        ticks += 10;
+        for e in &r.events {
+            match e {
+                Ev::Rule { verb, .. } if verb.v == "stuck" => fires += 1,
+                Ev::Exit { tier, .. } => exit_tier = Some(tier.clone()),
+                Ev::Note { text, .. } if text.starts_with("Stalled") => stalled_note = true,
+                _ => {}
+            }
+        }
+        if r.run_over || exit_tier.is_some() { break; }
+    }
+    assert!(exit_tier.is_some(), "a shuffling run must end within 60k ticks (fires {fires})");
+    if stalled_note {
+        assert!(fires >= STALL_FIRES, "stalled without three guard firings");
+        assert_eq!(exit_tier.as_deref(), Some("return"));
+        assert!(ticks < crate::engine::MAX_TURNS_PER_RUN / 2, "stall should end long before the cap: {ticks}");
+    }
+}

@@ -585,6 +585,7 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
         run.ignore(id, 30);
     }
     run.stuck_until = run.actions + 30;
+    run.stuck_fires += 1;
     run.recent_pos.clear();
     run.chase = None;
     let verb = Verb::new("stuck");
@@ -612,6 +613,8 @@ pub fn targets_foes(verb: &Verb) -> bool {
         verb.v.as_str(),
         "attack" | "shield_bash" | "throw" | "tame" | "cleave" | "backstab" | "ambush" | "shadowstep" | "send" | "taunt"
             | "shoot" | "volley" | "mark" | "double_shot" | "bolt" | "slow" | "drain"
+            // a tactic card acts on the foes it sees; while stuck it must yield like any targeting row
+            | "tactic" | "back_corridor" | "retreat"
     )
 }
 
@@ -1399,6 +1402,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.chase = None;
     run.recent_pos.clear();
     run.stuck_until = 0;
+    run.stuck_fires = 0;
     run.items_until = 0;
     run.pickup_streak = 0;
     run.gambles.clear();
