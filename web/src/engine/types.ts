@@ -13,7 +13,8 @@ export type Tile = "floor"|"wall"|"door"|"stairs_down"|"stairs_up"|"water"|"chas
 export type Overlay = { x: number; y: number; k: "gas"|"fire"; ttl: number };
 export type Entity = { id: number; kind: string; name?: string; x: number; y: number;
                        hp: number; max_hp: number; tags: string[]; ally?: boolean; telegraph?: string;
-                       cid?: number };                                   // Addendum A: companions carry their companion id
+                       cid?: number;                                    // Addendum A: companions carry their companion id
+                       remembered?: boolean };                          // Cut 4 §3: pursued but unseen, at its last seen tile (drawn dimmed)
 export type FloorItem = { id: number; x: number; y: number; kind: string; known: boolean; label: string };
 export type Snapshot = {
   depth: number; biome: string; w: number; h: number; tiles: Tile[]; seen: boolean[]; visible: boolean[];
@@ -56,8 +57,8 @@ export type Ev =
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            exit_pending?: { items: InvItem[]; tier: string } };                                       // Addendum D
 
-export type Forecast = { depths: { depth: number; reach: number }[]; causes: { cause: string; share: number }[];
-                         known_to: number };
+export type Forecast = { depths: { depth: number; reach: number; cause?: string }[]; causes: { cause: string; share: number }[];
+                         known_to: number };                             // depths[].cause: Cut 4 §8, optional per-depth top cause
 export type Trace = { turns: { t: number; row: number; verb: Verb; hp: number; foes: number; telegraphs: string[] }[] };
 /** A candidate row. Death patches insert before `insert_at`; stall patches (core README) may instead `replace` the row at
  *  `insert_at` or `remove` it (`row` echoes the removed row). */
@@ -130,7 +131,8 @@ export interface Engine {
   setClass(cls: string): Lineage;       // switch class (rogue needs the `rogue` unlock)
   selectSet(i: number): Lineage;        // pick one of the three saved sets; setRules writes the active one
 }
-export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string };  // needs: Cut 2 §3, the gate still missing (absent once met)
+export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
+                           delta?: number };                                                                // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */
 export type AsyncEngine = { [K in keyof Engine]: Engine[K] extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };

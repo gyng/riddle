@@ -19,7 +19,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const vault = h("section", { class: "vault" });
   const supplies = h("section", { class: "supplies" });
   const unlocks = h("section", { class: "unlocks" });
-  const send = h("button", { class: "btn primary send", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send");
+  const send = h("button", { class: "btn primary send", onclick: () => { if (!app.overBudget) app.go({ kind: "watch" }); } }, /* copy:button */ "send");
   const rest = h("span", { class: "rest num" });
   const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, party.el, vault, supplies, unlocks, h("div", { class: "send-bar" }, rest, send));
 
@@ -127,15 +127,20 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       for (const u of list) {
         // `available` = prerequisite + fact gate + affordable (engine truth). Two dims: gated (the `needs` line
         // is what is missing, marks are there) and unaffordable.
+        // Cut 4 §9: the forecast delta of buying (tactic cards), only when the catalogue carries one and it is not 0
+        const d = u.delta === undefined ? 0 : Math.round(u.delta * 100);
         grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, disabled: !u.available, onclick: () => void app.buy(u.id) },
-          h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : ""),
+          h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
+            d ? h("small", { class: `num delta ${d > 0 ? "up" : "down"}` }, /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%`) : ""),
           h("span", { class: "num cost" }, `◆${u.cost}`)));
       }
       unlocks.appendChild(grid);
     }).catch((e) => console.warn("unlocks", e));
   }
-  function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); }
+  // Cut 4 §1: `send` waits while the set is over budget (the editor shows which row to drop)
+  function paintSend(): void { send.disabled = app.overBudget; paintTabs(); }
+  function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }
   paintAll();
-  const off = app.onChange(paintAll);
-  return { el, dispose: () => { off(); fc.dispose(); } };
+  const off = app.onChange(paintAll), offRules = app.onRules(paintSend);
+  return { el, dispose: () => { off(); offRules(); fc.dispose(); } };
 }

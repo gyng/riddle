@@ -132,7 +132,7 @@ export function parseRules(text: string): RuleSet {
 
 // --- world ---
 type Rect = { x: number; y: number; w: number; h: number };
-type Mon = Entity & { def: number; atk: [number, number]; wind: number; drawn: boolean; stun: number; summoned: boolean; rules?: RuleSet; sent?: boolean };
+type Mon = Entity & { def: number; atk: [number, number]; wind: number; drawn: boolean; stun: number; summoned: boolean; rules?: RuleSet; sent?: boolean; seen?: boolean };
 type Floor = { tiles: Tile[]; seen: boolean[]; visible: boolean[]; overlays: Overlay[]; rooms: Rect[]; items: FloorItem[]; mons: Mon[]; roomOf: Int8Array };
 type Hero = { x: number; y: number; hp: number; max_hp: number; atk: [number, number]; def: number; inv: InvItem[];
   weapon?: string; armour?: string; invis: number; stun: number; bashCd: number; vanishCd: number; speedT: number };
@@ -714,7 +714,9 @@ function snapshot(run: Run, rules?: RuleSet): Snapshot {
     depth: run.depth, biome: biomeOf(run.depth), w: W, h: H, tiles: run.floor.tiles.slice(), seen: run.floor.seen.slice(), visible: run.floor.visible.slice(),
     overlays: run.floor.overlays.map((o) => ({ ...o })),
     hero: { id: 0, kind: `hero_${run.cls}`, x: h.x, y: h.y, hp: h.hp, max_hp: h.max_hp, tags: h.invis ? ["invisible"] : [], inv: h.inv.map((i) => ({ ...i })), weapon: h.weapon, armour: h.armour, class: run.cls, trait: run.trait },
-    entities: run.floor.mons.map(ent), items: run.floor.items.map((i) => ({ ...i })), alert: run.alert, turn: run.turn, loot: run.loot,
+    // Cut 4 §3 (UI dev stand-in for the core): a hostile seen before and out of sight now is `remembered`
+    entities: run.floor.mons.map((m) => { const vis = run.floor.visible[idx(m.x, m.y)]; if (vis) m.seen = true; const e = ent(m); if (!vis && m.seen && !m.ally) e.remembered = true; return e; }),
+    items: run.floor.items.map((i) => ({ ...i })), alert: run.alert, turn: run.turn, loot: run.loot,
     run: { id: run.id, heir: run.heir, started_turn: run.started_turn },
     stake: stakeOf(run, rules),
   };
@@ -1100,7 +1102,7 @@ export class FakeEngine implements Engine {
       { conds: [{ k: "floor_seen>=", n: 40 }], verb: { v: "descend" } },
     ];
     for (const t of ktags) cands.unshift({ conds: [{ k: "foe_tag", t }], verb: { v: "retreat" } });
-    const scored = cands.filter((c) => log.rules.rows.length < this.maxRows() && !log.rules.rows.some((r) => rowText(r) === rowText(c)))
+    const scored = cands.filter((c) => !log.rules.rows.some((r) => rowText(r) === rowText(c)))   // a full set still gets patches (Cut 4 §1: overflow is the player's call)
       .map((row) => { const rules: RuleSet = { rows: [row, ...log.rules.rows] }; return { row, insert_at: 0, survive: survive(rules), forecast_delta: 0 }; })
       .sort((a, b) => b.survive - a.survive).slice(0, 3)
       .map((p) => ({ ...p, forecast_delta: Math.round((p.survive - base) * 100) / 100 }));
@@ -1123,7 +1125,9 @@ export class FakeEngine implements Engine {
   unlocks(): UnlockInfo[] {
     const L = this.s.lineage;
     L.ledger = this.ledger();
-    return Object.entries(UNLOCKS).map(([id, u]) => { const owned = L.unlocks.includes(id); const met = u.gate?.(L) ?? true; return { id, cost: u.cost, owned, available: !owned && this.unlockVisible(id) && L.marks >= u.cost, needs: met ? undefined : u.needs }; });
+    return Object.entries(UNLOCKS).map(([id, u]) => { const owned = L.unlocks.includes(id); const met = u.gate?.(L) ?? true; return { id, cost: u.cost, owned, available: !owned && this.unlockVisible(id) && L.marks >= u.cost, needs: met ? undefined : u.needs,
+      delta: TACTIC_CARDS.includes(id) && !owned ? ((Math.abs(hash(id)) % 9) - 2) / 100 : undefined };   // delta: Cut 4 §9 stand-in (`reach +4%` on a card)
+    });
   }
   setClass(cls: string): Lineage {
     if (!(CLASSES as readonly string[]).includes(cls)) throw new Error("unknown class");

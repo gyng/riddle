@@ -37,6 +37,7 @@ export type Viewer = {
   setSpeed(n: number): void;    // 1 = 10 ticks/s, 4 = 40 ticks/s, 0 = pause
   skipToEvent(): void;          // fast-forward to the next attack/die/telegraph/use/exit/tame
   seek(t: number): void;        // tick scrub: rebuild from the last snapshot up to tick t (O(n))
+  sync(snap: Snapshot): void;   // Cut 4 §3: adopt `remembered` flags from a step's snapshot (no reload)
   tick(): number;               // current tick
   idle(): boolean;              // queue drained and tails played out
   resize(): void;
@@ -56,6 +57,7 @@ export type ViewerStats = {
 };
 
 const TILE = 8;
+const REMEMBERED_DIM = 0.5; // Cut 4 §3: a remembered foe, like a memory tile
 const BASE_TEXELS = 200; // was 270: phone hero read at 1/25 of screen height; 200 gives ~24 tiles across at 400 CSS px
 
 export type ViewerOpts = {
@@ -203,16 +205,21 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
     L.items.end();
 
-    // entities (sprite density: 1 sprite texel = 0.5 world), shadows, glyphs
+    // entities (sprite density: 1 sprite texel = 0.5 world), shadows, glyphs. A remembered foe (Cut 4 §3) is drawn
+    // at its last seen tile dimmed like a memory tile: no shadow, no flash, no telegraph glyph.
     L.shadows.begin(); L.ents.begin(); L.glyphs.begin();
     for (const e of st.ents.values()) {
       if (e.kind === "bones") continue; // drawn in the items layer above
       const vi = e.y * st.w + e.x;
-      if (!e.hero && !st.visible[vi]) continue;
+      if (!e.hero && !st.visible[vi] && !e.remembered) continue;
       const [fx, fy] = feet(e);
       const s = atlas.entity(e.kind);
       const w = s.w / 2, h = s.h / 2; // world units (env texels)
       const z = 2 + Math.min(1, e.py / Math.max(1, st.h));
+      if (e.remembered) {
+        L.ents.push(fx, fy, z, s.w / 2, s.h / 2, s.u0, s.v0, s.u1, s.v1, REMEMBERED_DIM, 0, e.fade, e.flip ? 1 : 0);
+        continue;
+      }
       if (!e.dying) {
         // contact shadow; companions (ally + cid, or tamed this run) get a 1-texel light ring
         const ring = st.ringShown(e);
@@ -338,6 +345,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     setSpeed(n) { st.speed = Math.max(0, n); },
     skipToEvent() { st.skipToEvent(); },
     seek(t) { st.seek(t); },
+    sync(snap) { st.sync(snap); },
     tick() { return st.tickNow(); },
     idle() { return st.idle(); },
     resize() { lastCss = ""; measure(); },

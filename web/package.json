@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node tests/patch-overflow.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",

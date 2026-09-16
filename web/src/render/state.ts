@@ -32,6 +32,7 @@ export type EntState = {
   flip: boolean;
   glyph: string | null; glyphT: number;
   ringFrom: number;                // companion ring shown once clock ≥ ringFrom
+  remembered: boolean;             // Cut 4 §3: pursued but unseen; drawn dimmed at its last seen tile, never tweened
 };
 
 export type Callout = { text: string; until: number }; // real-time ms
@@ -102,7 +103,7 @@ export class ReplayState {
       id: e.id, kind: e.kind, ally: !!e.ally, hero, cid: e.cid ?? null, x: e.x, y: e.y, px: e.x, py: e.y,
       move: null, lunge: null, shake: null, flashUntil: -Infinity, fade: 0, dying: null, spawning: null,
       hp: e.hp, maxHp: e.max_hp, flip: false, glyph: e.telegraph ? "!" : null, glyphT: this.clock,
-      ringFrom: -Infinity,
+      ringFrom: -Infinity, remembered: !!e.remembered,
     };
     this.ents.set(e.id, st);
     return st;
@@ -121,6 +122,25 @@ export class ReplayState {
     for (const e of evs) this.queue.push(e);
     // dead air: if the stream resumes far ahead of the clock, jump to just before it
     if (wasEmpty && this.queue[0]!.t > this.clock + 30) this.clock = this.queue[0]!.t - 1;
+  }
+
+  /** Cut 4 §3: adopt `remembered` from a step's snapshot of this floor. A flagged entity sits at the snapshot's
+   *  (last seen) tile with no tween; one the snapshot no longer flags is unflagged and snapped to where the
+   *  snapshot puts it, so the moves that follow tween from the right tile. Unknown remembered ones are added. */
+  sync(s: Snapshot): void {
+    if (!this.loaded || s.depth !== this.depth) return;
+    const flagged = new Map<number, Entity>();
+    for (const e of s.entities) if (e.id !== this.heroId) flagged.set(e.id, e);
+    for (const [id, e] of this.ents) {
+      if (e.hero || e.dying) continue;
+      const se = flagged.get(id);
+      const rem = !!se?.remembered;
+      if (rem === e.remembered) continue;
+      e.remembered = rem;
+      if (se) { e.x = e.px = se.x; e.y = e.py = se.y; }
+      e.move = null; e.lunge = null; e.glyph = null;
+    }
+    for (const se of flagged.values()) if (se.remembered && !this.ents.has(se.id)) this.addEntity(se, false);
   }
 
   idle(): boolean { return this.queue.length === 0 && this.clock >= this.lastT + IDLE_TAIL; }
@@ -207,9 +227,13 @@ export class ReplayState {
       case "move": {
         const e = this.ents.get(ev.id);
         if (!e) break;
-        // start from wherever the previous tween would be at t (chained moves stay continuous)
-        const [sx, sy] = this.posAt(e, t);
-        e.move = { fx: sx, fy: sy, tx: ev.x, ty: ev.y, t0: t, dur: this.moveDur(ev.id, t) };
+        // start from wherever the previous tween would be at t (chained moves stay continuous); a remembered
+        // foe is never tweened (Cut 4 §3): it lands on the tile
+        if (e.remembered) { e.move = null; e.px = ev.x; e.py = ev.y; }
+        else {
+          const [sx, sy] = this.posAt(e, t);
+          e.move = { fx: sx, fy: sy, tx: ev.x, ty: ev.y, t0: t, dur: this.moveDur(ev.id, t) };
+        }
         if (ev.x !== e.x) e.flip = ev.x < e.x;
         e.x = ev.x; e.y = ev.y;
         e.glyph = null;

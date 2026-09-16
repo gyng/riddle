@@ -1,5 +1,8 @@
 // Rule editor: rows as token chips `[cond] [cond] → [verb]`, drag grip to reorder (pointer events),
 // tap a chip to swap it from the unlocked vocabulary (bottom sheet). Thumb-sized targets.
+// Cut 4 §1: over budget (a patch on a full set) shows `5/4` in red and marks the rows the engine would drop;
+// nothing is evicted. Cut 4 §9: a tactic-card row (`{v:"tactic"}`) is a locked chip `[card] thief guard`:
+// not editable, but deletable and draggable, so the player sees where the card sits.
 import type { App } from "../app";
 import type { Cond, Row, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash } from "./dom";
@@ -24,11 +27,11 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
 
   function refresh(): void {
     clear(list); clear(foot);
-    rows().forEach((row, i) => list.appendChild(rowEl(row, i)));
-    const max = vocab().max_rows;
+    const n = rows().length, max = vocab().max_rows, over = n > max;
+    rows().forEach((row, i) => list.appendChild(rowEl(row, i, over && i >= max)));
     foot.append(
-      h("span", { class: "dim num" }, `${rows().length}/${max}`),
-      rows().length < max ? h("button", { class: "btn ghost", onclick: () => { rows().push(defaultRow()); commit(); } }, "+") : "",
+      h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`),
+      n < max ? h("button", { class: "btn ghost", onclick: () => { rows().push(defaultRow()); commit(); } }, "+") : "",
     );
     if (hl !== undefined && performance.now() < hlUntil) { const r = list.children[hl] as HTMLElement | undefined; if (r) { flash(r, "hl", Math.max(600, hlUntil - performance.now())); r.scrollIntoView({ block: "center" }); } }
     else hl = undefined;
@@ -39,15 +42,22 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
     return { conds: [{ ...c, n: needsN(c.k) ? 50 : undefined }], verb: { ...v } };
   }
 
-  function rowEl(row: Row, i: number): HTMLElement {
+  function rowEl(row: Row, i: number, drop = false): HTMLElement {
     const chips = h("div", { class: "chips" });
-    row.conds.forEach((c, ci) => chips.appendChild(h("button", { class: "chip cond", onclick: () => pickCond(row, ci) }, condLabel(c))));
-    if (row.conds.length < 2) chips.appendChild(h("button", { class: "chip cond add", onclick: () => pickCond(row, row.conds.length) }, "+"));
-    chips.appendChild(h("span", { class: "arrow" }, "→"));
-    chips.appendChild(h("button", { class: "chip verb", onclick: () => pickVerb(row) }, verbLabel(row.verb)));
+    const card = row.verb.v === "tactic";
+    if (card) {
+      row.conds.forEach((c) => chips.appendChild(h("span", { class: "chip cond locked" }, condLabel(c))));
+      if (row.conds.length) chips.appendChild(h("span", { class: "arrow" }, "→"));
+      chips.appendChild(h("span", { class: "chip verb locked" }, h("small", { class: "dim" }, /* copy:rule_token */ "[card]"), " ", (row.verb.a ?? "").replace(/_/g, " ")));
+    } else {
+      row.conds.forEach((c, ci) => chips.appendChild(h("button", { class: "chip cond", onclick: () => pickCond(row, ci) }, condLabel(c))));
+      if (row.conds.length < 2) chips.appendChild(h("button", { class: "chip cond add", onclick: () => pickCond(row, row.conds.length) }, "+"));
+      chips.appendChild(h("span", { class: "arrow" }, "→"));
+      chips.appendChild(h("button", { class: "chip verb", onclick: () => pickVerb(row) }, verbLabel(row.verb)));
+    }
     const grip = h("button", { class: "grip", onpointerdown: (e) => startDrag(e as PointerEvent, i) }, "≡", h("small", { class: "rn num" }, `R${i + 1}`));
     const x = h("button", { class: "x", onclick: () => { rows().splice(i, 1); commit(); } }, "×");
-    return h("div", { class: "row", "data-i": i }, grip, chips, x);
+    return h("div", { class: `row${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, chips, x);
   }
 
   // --- sheets ---

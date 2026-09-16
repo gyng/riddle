@@ -23,7 +23,10 @@ const EXIT_GRACE_MS = 4000;         // wait for the viewer to drain after an exi
 const PERSIST_MS = 5000;
 const BOSS_BANNER_MS = 3000;        // Cut 2 §7: `boss · counter: known|unknown` on first sight
 const REST_BEAT_MS = 1400;          // Cut 2 §1: `rest 12m` after the exit, before the exit flow continues
-const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "descend", pick_up: /* copy:callout */ "pick up" };
+const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "descend", pick_up: /* copy:callout */ "pick up" }; // explore never (Cut 4 §4)
+const HURT_MS = 600;                // Cut 4 §4: `−7 archer` in red
+/** The cause of a `hurt` as one word: `goblin_archer` → `archer`. */
+const oneWord = (cause: string): string => cause.replace(/_/g, " ").trim().split(/\s+/).pop() ?? "";
 
 export function renderWatch(app: App): Mounted {
   const canvas = h("canvas", { class: "view" });
@@ -65,7 +68,7 @@ export function renderWatch(app: App): Mounted {
   // HUD updates released at the viewer's clock
   const hud = { hp: 0, maxHp: 1, depth: 1 };
   const timed: { t: number; f: () => void }[] = [];
-  let lastRuleText = "", lastRuleAt = 0;
+  let lastRuleText = "", lastRuleAt = 0, lastShown = "";
   // placeholder viewer (no clock): a wall clock at 10 ticks/s × speed stands in
   let fbTick = 0, fbAt = performance.now();
   function viewerTick(): number {
@@ -114,9 +117,10 @@ export function renderWatch(app: App): Mounted {
       at(s.turn, () => showBanner(known ? /* copy:callout */ "boss · counter: known" : /* copy:callout */ "boss · counter: unknown", BOSS_BANNER_MS, "boss"));
     }
   }
-  function callout(text: string): void {
-    replace(ticker, text); ticker.classList.add("show");
-    clearTimeout(tickerTimer); tickerTimer = window.setTimeout(() => ticker.classList.remove("show"), 1800 / Math.max(1, speed));
+  function callout(text: string, cls = "", ms = 1800 / Math.max(1, speed)): void {
+    lastShown = text;
+    replace(ticker, text); ticker.className = `ticker show ${cls}`;
+    clearTimeout(tickerTimer); tickerTimer = window.setTimeout(() => ticker.classList.remove("show"), ms);
   }
   function ruleCallout(ev: Extract<Ev, { k: "rule" }>): string | null {
     if (ev.row >= 0) return `R${ev.row + 1} · ${verbLabel(ev.verb)}`;
@@ -135,13 +139,14 @@ export function renderWatch(app: App): Mounted {
     const heroId = s.hero.id;
     for (const ev of evs) {
       switch (ev.k) {
-        case "callout": at(ev.t, () => callout(ev.text)); break;
+        case "callout": if (ev.text !== "explore") at(ev.t, () => callout(ev.text)); break;
         case "rule": {
           const text = ruleCallout(ev);
-          if (text) at(ev.t, () => { const now = performance.now(); if (text !== lastRuleText || now - lastRuleAt > 4000) callout(text); lastRuleText = text; lastRuleAt = now; });
+          // a chore (`pick up`) shows once per streak: not again until another callout intervened
+          if (text) at(ev.t, () => { const now = performance.now(); if (ev.row === -2 ? text !== lastShown : text !== lastRuleText || now - lastRuleAt > 4000) callout(text); lastRuleText = text; lastRuleAt = now; });
           break;
         }
-        case "hurt": if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); }); break;
+        case "hurt": if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) callout(`−${ev.dmg} ${oneWord(ev.cause)}`, "hurt", HURT_MS); }); break;
         case "descend": at(ev.t, () => { hud.depth = ev.depth; paintHud(); }); break;
         case "fact": learned.push(ev.fact); break;
         case "pickup": if (ev.id === heroId) found.push({ id: ev.id, kind: ev.item, known: true, label: ev.item }); break;
@@ -169,7 +174,7 @@ export function renderWatch(app: App): Mounted {
     const exit = absorb(r.events, s);
     const di = r.events.findIndex((e) => e.k === "descend");
     if (viewer && di >= 0) { viewer.apply(r.events.slice(0, di + 1)); pendingLoad = { snap: s, rest: r.events.slice(di + 1) }; }
-    else viewer?.apply(r.events);
+    else { viewer?.apply(r.events); if (viewer?.sync) { const v = viewer; at(s.turn, () => v.sync!(s)); } } // Cut 4 §3: remembered foes
     snap = s;
     hud.maxHp = s.hero.max_hp; paintHud(); paintStake(s); bossSighted(s);
     if (r.exit_pending) pendingExit = r.exit_pending;

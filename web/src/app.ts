@@ -63,6 +63,7 @@ export class App {
   private fcDirty = false;
   private fcListeners = new Set<(f: Forecast) => void>();
   private changeListeners = new Set<() => void>();
+  private rulesListeners = new Set<() => void>();
   private offlineRunning = false;
   /** Runs seen by this client (the wire Lineage has no run counter); persisted in the blob. */
   runsSeen = 0;
@@ -208,12 +209,19 @@ export class App {
   get rules(): RuleSet { return this.sets[this.active]; }
 
   // --- rules ---
+  /** Cut 4 §1: more rows than the vocabulary allows. A patch never evicts a row; the editor shows `5/4` and `send`
+   *  and the forecast wait until the player removes one. The engine keeps its last valid set meanwhile. */
+  get overBudget(): boolean { return this.rules.rows.length > this.vocab.max_rows; }
   rulesChanged(): void {
-    void this.engine.setRules(this.rules).catch((e) => console.warn("rules rejected", e));
     this.persist();
     clearTimeout(this.fcTimer);
+    for (const fn of this.rulesListeners) fn();
+    if (this.overBudget) return;
+    void this.engine.setRules(this.rules).catch((e) => console.warn("rules rejected", e));
     this.fcTimer = window.setTimeout(() => void this.emitForecast(), 250);
   }
+  /** Fires on every rule edit (the camp gates `send` on `overBudget`); `onChange` is for lineage changes. */
+  onRules(fn: () => void): () => void { this.rulesListeners.add(fn); return () => this.rulesListeners.delete(fn); }
   onForecast(fn: (f: Forecast) => void): () => void { this.fcListeners.add(fn); return () => this.fcListeners.delete(fn); }
   async emitForecast(): Promise<void> {
     if (!this.fcListeners.size) return;
@@ -233,16 +241,16 @@ export class App {
     this.rulesChanged();
     this.emitChange();
   }
+  /** Inserts even when the set is full (Cut 4 §1: overflow is the player's decision, see `overBudget`). */
   insertRow(row: Row, at: number): number {
     const rows = this.rules.rows;
     const i = Math.max(0, Math.min(rows.length, at));
-    if (rows.length >= this.vocab.max_rows) rows.pop();
     rows.splice(i, 0, cloneRow(row));
     this.rulesChanged();
     return i;
   }
   /** A patch from the death screen or the report's stall: insert before `insert_at`, or (stall) replace / remove the row
-   *  there. Returns the row to highlight in the camp (none after a removal). */
+   *  there. Returns the row to highlight in the camp (none after a removal). Replace never overflows; insert may. */
   applyPatch(p: Patch): number | undefined {
     const rows = this.rules.rows;
     if (p.remove) { if (p.insert_at < rows.length) rows.splice(p.insert_at, 1); this.rulesChanged(); return undefined; }
@@ -268,7 +276,16 @@ export class App {
     await this.afterLineage();
     return true;
   }
-  buy(id: string): Promise<boolean> { return this.mutate(() => this.engine.buy(id)); }
+  /** Cut 4 §9: a bought tactic card becomes a row `[card] <name>` at the end of the active set (the card only acts as
+   *  a row: `{v:"tactic", a:<id>}`), so the player sees where it sits; over a full set that is an overflow decision. */
+  async buy(id: string): Promise<boolean> {
+    const ok = await this.mutate(() => this.engine.buy(id));
+    if (ok && this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id) && !this.rules.rows.some((r) => r.verb.v === "tactic" && r.verb.a === id)) {
+      this.insertRow({ conds: [], verb: { v: "tactic", a: id } }, this.rules.rows.length);
+      this.emitChange();
+    }
+    return ok;
+  }
   setClass(cls: string): Promise<boolean> { return this.mutate(() => this.engine.setClass(cls)); }
   setLoadout(ids: number[]): void { this.loadout = ids; void this.engine.loadout(ids); this.persist(); this.emitChange(); }
   async resetLineage(): Promise<void> {
