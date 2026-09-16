@@ -34,7 +34,9 @@ Runtime contract (renderer): sprite frames are `master_h` px tall = **2× the ru
 height** (`meta.sprites[id].texel_h`); draw at half size with nearest sampling (option C, two densities
 in one target) or as-is on a 1× target. Tiles are 8×8 keyed `<biome>_<tile>`; overlays `gas_0/1`,
 `fire_0/1`; item glyphs `potion scroll weapon armour gold bones`; props `<biome>_bones_0/1` (alpha,
-drawn in the biome ramp, frame 1 = glint). `meta.palettes` carries the six 8-colour biome ramps
+drawn in the biome ramp, frame 1 = glint), `<biome>_shrine_0/1` (frame 1 = light lifted one texel),
+`<biome>_vault` / `<biome>_vault_open`, `<biome>_nest_0/1` (frame 0 eyes closed, 1 open) — all alpha
+props over floor. `meta.palettes` carries the six 8-colour biome ramps
 (`warrens fens crypt foundry deep sanctum`) for the palette/tint pass plus `boss_flash` (crimson→white-hot, same 8-index shape; CUT2 §7 one-shot
 palette flash on boss sight — no tiles are authored in it).
 
@@ -253,6 +255,47 @@ composites over all six biomes (review.py reads `make_tiles.PALETTES`).
 `qc/review.png` regenerated for the 17 new ids over all six biomes; `tiles/_sheet.png` has the
 three new biome rows. Note for the client track: `web/src/render/palette.ts` hard-codes the
 first three ramps; the new three are in `atlas.json meta.palettes` (`foundry`, `deep`, `sanctum`).
+
+## Per-asset notes (round 4 / Cut 5, 2026-09-16 — three situation props, all six ramps)
+
+`make_tiles.py` only, no codex. CUT5 §4's situations get one 8×8 prop each, drawn on
+transparent so they overlay `floor`/`floor_alt`, ramp-indexed so every biome gets them for free
+(the brief asks for Warrens/Fens/Crypt; `build()` iterates `PALETTES`, so foundry/deep/sanctum
+ship too, with per-biome overrides where a ramp's index roles differ). Rim rule: ramp-0 wherever
+the outer silhouette meets the floor; a lone lit texel (the shrine light) is exempt like the
+bones sparkle. Judged at 4× on `tiles/_sheet.png` (the "over floor" rows now end
+`shrine_0 shrine_1 vault vault_open nest_0 nest_1`; the sample room is 7×4 and carries a shrine,
+a closed and an open vault, and both nest frames next to walls) and at 12× over floor.
+
+- **shrine** (`<biome>_shrine_0/1`, 6 colours; sanctum 5) — a 5-wide stele (face 5, one lit
+  glyph texel 6 over a carved 3) on a 7-wide plinth (4), full ramp-0 rim, and one ramp-7 texel
+  floating above = the altar light. Frame 1 moves that texel one row up (2 Hz flip = a flicker;
+  the light is the only thing that changes, so the renderer can also hold frame 0 for an
+  unlit/used shrine). Sanctum: pale stele (6) with the one gold (4) as the glyph on a slate (3)
+  plinth — face 5 would have matched the floor field. Foundry: iron stele (4) with an ember
+  glyph (5) on a rust (3) plinth so the stele is not an orange block on rust.
+- **vault** (`<biome>_vault`, 4 colours; `<biome>_vault_open`, 3) — a front-on cage: ramp-0
+  posts and rails, a lit top rail (4, 5 ends), two ramp-4 iron bars, and a 2×2 lock plate (6)
+  with one dark keyhole texel under a dark cross rail. The floor shows through four gaps. A
+  first pass with ramp-0 bars read as a strongbox; lit bars between dark posts read "gate" at
+  4×, which is why the bars are 4 not 0 (they sit in enclosed openings, so the outer rim is
+  still all ramp-0). `vault_open` keeps the frame and rail and folds both bars flush against
+  the posts, leaving a 4×5 window of open floor — "open" reads by the empty interior alone.
+  On the deep ramp the 0-vs-2 post/floor gap is ~20 luminance; the lit rail and plate carry
+  it (deep is outside the CUT5 biome list anyway).
+- **nest** (`<biome>_nest_0/1`, 6 colours; sanctum 5) — a low straw mound, six texels tall
+  (a seven-tall dome read as a head at 12×), body 4 with a lit patch 5 upper-right, a shadowed
+  3 band at the base, two bone chips (7 then 6, diagonal, so they read as one bone) lower-left,
+  ramp-0 rim. Frame 0: two ramp-3 slits in the lit patch (eyes closed, a sleeping den). Frame 1:
+  the same two texels ramp-0 (eyes open). The renderer should flip to frame 1 on `on_see: nest`
+  / when the den wakes rather than blink at 2 Hz. Sanctum: pale cloth-and-bone mound (6/7) with
+  a gold fleck (4) for the bone chip; the default 4 would have been the sanctum's gold.
+
+`pack.py`: 40 keyed masters + 106 tiles → 146 frames in a 512×650 `atlas.png` (was 110 / 641).
+`art-qc.py` PASS (146 frames, 0 warnings, 0 failures). Frame ids for the client:
+`<biome>_shrine_0`, `<biome>_shrine_1`, `<biome>_vault`, `<biome>_vault_open`, `<biome>_nest_0`,
+`<biome>_nest_1` for each of `warrens fens crypt foundry deep sanctum`. The stray is a monster
+sprite (a previous heir's companion), not a prop — nothing authored here.
 
 ## For the next batch
 

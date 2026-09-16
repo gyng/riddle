@@ -114,52 +114,88 @@
    "x": 193,
    "y": 591
   },
-  "crypt_stairs_down": {
+  "crypt_nest_0": {
    "h": 8,
    "w": 8,
    "x": 202,
    "y": 591
   },
-  "crypt_stairs_up": {
+  "crypt_nest_1": {
    "h": 8,
    "w": 8,
    "x": 211,
    "y": 591
   },
-  "crypt_wall": {
+  "crypt_shrine_0": {
    "h": 8,
    "w": 8,
    "x": 220,
    "y": 591
   },
-  "crypt_water": {
+  "crypt_shrine_1": {
    "h": 8,
    "w": 8,
    "x": 229,
    "y": 591
   },
-  "deep_bones_0": {
+  "crypt_stairs_down": {
    "h": 8,
    "w": 8,
    "x": 238,
    "y": 591
   },
-  "deep_bones_1": {
+  "crypt_stairs_up": {
    "h": 8,
    "w": 8,
    "x": 247,
    "y": 591
   },
-  "deep_chasm": {
+  "crypt_vault": {
    "h": 8,
    "w": 8,
    "x": 256,
    "y": 591
   },
-  "deep_door": {
+  "crypt_vault_open": {
    "h": 8,
    "w": 8,
    "x": 265,
+   "y": 591
+  },
+  "crypt_wall": {
+   "h": 8,
+   "w": 8,
+   "x": 274,
+   "y": 591
+  },
+  "crypt_water": {
+   "h": 8,
+   "w": 8,
+   "x": 283,
+   "y": 591
+  },
+  "deep_bones_0": {
+   "h": 8,
+   "w": 8,
+   "x": 292,
+   "y": 591
+  },
+  "deep_bones_1": {
+   "h": 8,
+   "w": 8,
+   "x": 301,
+   "y": 591
+  },
+  "deep_chasm": {
+   "h": 8,
+   "w": 8,
+   "x": 310,
+   "y": 591
+  },
+  "deep_door": {
+   "h": 8,
+   "w": 8,
+   "x": 319,
    "y": 591
   },
   "deep_eel": {
@@ -171,37 +207,73 @@
   "deep_floor": {
    "h": 8,
    "w": 8,
-   "x": 274,
+   "x": 328,
    "y": 591
   },
   "deep_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 283,
+   "x": 337,
+   "y": 591
+  },
+  "deep_nest_0": {
+   "h": 8,
+   "w": 8,
+   "x": 346,
+   "y": 591
+  },
+  "deep_nest_1": {
+   "h": 8,
+   "w": 8,
+   "x": 355,
+   "y": 591
+  },
+  "deep_shrine_0": {
+   "h": 8,
+   "w": 8,
+   "x": 364,
+   "y": 591
+  },
+  "deep_shrine_1": {
+   "h": 8,
+   "w": 8,
+   "x": 373,
    "y": 591
   },
   "deep_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 292,
+   "x": 382,
    "y": 591
   },
   "deep_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 301,
+   "x": 391,
+   "y": 591
+  },
+  "deep_vault": {
+   "h": 8,
+   "w": 8,
+   "x": 400,
+   "y": 591
+  },
+  "deep_vault_open": {
+   "h": 8,
+   "w": 8,
+   "x": 409,
    "y": 591
   },
   "deep_wall": {
    "h": 8,
    "w": 8,
-   "x": 310,
+   "x": 418,
    "y": 591
   },
   "deep_water": {
    "h": 8,
    "w": 8,
-   "x": 319,
+   "x": 427,
    "y": 591
   },
   "echo": {
@@ -219,74 +291,110 @@
   "fens_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 328,
+   "x": 436,
    "y": 591
   },
   "fens_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 337,
+   "x": 445,
    "y": 591
   },
   "fens_chasm": {
    "h": 8,
    "w": 8,
-   "x": 346,
+   "x": 454,
    "y": 591
   },
   "fens_door": {
    "h": 8,
    "w": 8,
-   "x": 355,
+   "x": 463,
    "y": 591
   },
   "fens_floor": {
    "h": 8,
    "w": 8,
-   "x": 364,
+   "x": 472,
    "y": 591
   },
   "fens_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 373,
+   "x": 481,
    "y": 591
+  },
+  "fens_nest_0": {
+   "h": 8,
+   "w": 8,
+   "x": 490,
+   "y": 591
+  },
+  "fens_nest_1": {
+   "h": 8,
+   "w": 8,
+   "x": 499,
+   "y": 591
+  },
+  "fens_shrine_0": {
+   "h": 8,
+   "w": 8,
+   "x": 1,
+   "y": 632
+  },
+  "fens_shrine_1": {
+   "h": 8,
+   "w": 8,
+   "x": 10,
+   "y": 632
   },
   "fens_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 382,
-   "y": 591
+   "x": 19,
+   "y": 632
   },
   "fens_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 391,
-   "y": 591
+   "x": 28,
+   "y": 632
+  },
+  "fens_vault": {
+   "h": 8,
+   "w": 8,
+   "x": 37,
+   "y": 632
+  },
+  "fens_vault_open": {
+   "h": 8,
+   "w": 8,
+   "x": 46,
+   "y": 632
   },
   "fens_wall": {
    "h": 8,
    "w": 8,
-   "x": 400,
-   "y": 591
+   "x": 55,
+   "y": 632
   },
   "fens_water": {
    "h": 8,
    "w": 8,
-   "x": 409,
-   "y": 591
+   "x": 64,
+   "y": 632
   },
   "fire_0": {
    "h": 8,
    "w": 8,
-   "x": 418,
-   "y": 591
+   "x": 73,
+   "y": 632
   },
   "fire_1": {
    "h": 8,
    "w": 8,
-   "x": 427,
-   "y": 591
+   "x": 82,
+   "y": 632
   },
   "forge_imp": {
    "h": 56,
@@ -297,73 +405,109 @@
   "foundry_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 436,
-   "y": 591
+   "x": 91,
+   "y": 632
   },
   "foundry_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 445,
-   "y": 591
+   "x": 100,
+   "y": 632
   },
   "foundry_chasm": {
    "h": 8,
    "w": 8,
-   "x": 454,
-   "y": 591
+   "x": 109,
+   "y": 632
   },
   "foundry_door": {
    "h": 8,
    "w": 8,
-   "x": 463,
-   "y": 591
+   "x": 118,
+   "y": 632
   },
   "foundry_floor": {
    "h": 8,
    "w": 8,
-   "x": 472,
-   "y": 591
+   "x": 127,
+   "y": 632
   },
   "foundry_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 481,
-   "y": 591
+   "x": 136,
+   "y": 632
+  },
+  "foundry_nest_0": {
+   "h": 8,
+   "w": 8,
+   "x": 145,
+   "y": 632
+  },
+  "foundry_nest_1": {
+   "h": 8,
+   "w": 8,
+   "x": 154,
+   "y": 632
+  },
+  "foundry_shrine_0": {
+   "h": 8,
+   "w": 8,
+   "x": 163,
+   "y": 632
+  },
+  "foundry_shrine_1": {
+   "h": 8,
+   "w": 8,
+   "x": 172,
+   "y": 632
   },
   "foundry_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 490,
-   "y": 591
+   "x": 181,
+   "y": 632
   },
   "foundry_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 499,
-   "y": 591
+   "x": 190,
+   "y": 632
+  },
+  "foundry_vault": {
+   "h": 8,
+   "w": 8,
+   "x": 199,
+   "y": 632
+  },
+  "foundry_vault_open": {
+   "h": 8,
+   "w": 8,
+   "x": 208,
+   "y": 632
   },
   "foundry_wall": {
    "h": 8,
    "w": 8,
-   "x": 1,
+   "x": 217,
    "y": 632
   },
   "foundry_water": {
    "h": 8,
    "w": 8,
-   "x": 10,
+   "x": 226,
    "y": 632
   },
   "gas_0": {
    "h": 8,
    "w": 8,
-   "x": 19,
+   "x": 235,
    "y": 632
   },
   "gas_1": {
    "h": 8,
    "w": 8,
-   "x": 28,
+   "x": 244,
    "y": 632
   },
   "ghoul": {
@@ -393,7 +537,7 @@
   "gold": {
    "h": 8,
    "w": 8,
-   "x": 37,
+   "x": 253,
    "y": 632
   },
   "hero_caster": {
@@ -465,7 +609,7 @@
   "potion": {
    "h": 8,
    "w": 8,
-   "x": 46,
+   "x": 262,
    "y": 632
   },
   "rat": {
@@ -477,67 +621,103 @@
   "sanctum_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 55,
+   "x": 271,
    "y": 632
   },
   "sanctum_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 64,
+   "x": 280,
    "y": 632
   },
   "sanctum_chasm": {
    "h": 8,
    "w": 8,
-   "x": 73,
+   "x": 289,
    "y": 632
   },
   "sanctum_door": {
    "h": 8,
    "w": 8,
-   "x": 82,
+   "x": 298,
    "y": 632
   },
   "sanctum_floor": {
    "h": 8,
    "w": 8,
-   "x": 91,
+   "x": 307,
    "y": 632
   },
   "sanctum_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 100,
+   "x": 316,
+   "y": 632
+  },
+  "sanctum_nest_0": {
+   "h": 8,
+   "w": 8,
+   "x": 325,
+   "y": 632
+  },
+  "sanctum_nest_1": {
+   "h": 8,
+   "w": 8,
+   "x": 334,
+   "y": 632
+  },
+  "sanctum_shrine_0": {
+   "h": 8,
+   "w": 8,
+   "x": 343,
+   "y": 632
+  },
+  "sanctum_shrine_1": {
+   "h": 8,
+   "w": 8,
+   "x": 352,
    "y": 632
   },
   "sanctum_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 109,
+   "x": 361,
    "y": 632
   },
   "sanctum_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 118,
+   "x": 370,
+   "y": 632
+  },
+  "sanctum_vault": {
+   "h": 8,
+   "w": 8,
+   "x": 379,
+   "y": 632
+  },
+  "sanctum_vault_open": {
+   "h": 8,
+   "w": 8,
+   "x": 388,
    "y": 632
   },
   "sanctum_wall": {
    "h": 8,
    "w": 8,
-   "x": 127,
+   "x": 397,
    "y": 632
   },
   "sanctum_water": {
    "h": 8,
    "w": 8,
-   "x": 136,
+   "x": 406,
    "y": 632
   },
   "scroll": {
    "h": 8,
    "w": 8,
-   "x": 145,
+   "x": 415,
    "y": 632
   },
   "sentinel": {
@@ -591,68 +771,104 @@
   "warrens_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 154,
+   "x": 424,
    "y": 632
   },
   "warrens_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 163,
+   "x": 433,
    "y": 632
   },
   "warrens_chasm": {
    "h": 8,
    "w": 8,
-   "x": 172,
+   "x": 442,
    "y": 632
   },
   "warrens_door": {
    "h": 8,
    "w": 8,
-   "x": 181,
+   "x": 451,
    "y": 632
   },
   "warrens_floor": {
    "h": 8,
    "w": 8,
-   "x": 190,
+   "x": 460,
    "y": 632
   },
   "warrens_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 199,
+   "x": 469,
    "y": 632
+  },
+  "warrens_nest_0": {
+   "h": 8,
+   "w": 8,
+   "x": 478,
+   "y": 632
+  },
+  "warrens_nest_1": {
+   "h": 8,
+   "w": 8,
+   "x": 487,
+   "y": 632
+  },
+  "warrens_shrine_0": {
+   "h": 8,
+   "w": 8,
+   "x": 496,
+   "y": 632
+  },
+  "warrens_shrine_1": {
+   "h": 8,
+   "w": 8,
+   "x": 1,
+   "y": 641
   },
   "warrens_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 208,
-   "y": 632
+   "x": 10,
+   "y": 641
   },
   "warrens_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 217,
-   "y": 632
+   "x": 19,
+   "y": 641
+  },
+  "warrens_vault": {
+   "h": 8,
+   "w": 8,
+   "x": 28,
+   "y": 641
+  },
+  "warrens_vault_open": {
+   "h": 8,
+   "w": 8,
+   "x": 37,
+   "y": 641
   },
   "warrens_wall": {
    "h": 8,
    "w": 8,
-   "x": 226,
-   "y": 632
+   "x": 46,
+   "y": 641
   },
   "warrens_water": {
    "h": 8,
    "w": 8,
-   "x": 235,
-   "y": 632
+   "x": 55,
+   "y": 641
   },
   "weapon": {
    "h": 8,
    "w": 8,
-   "x": 244,
-   "y": 632
+   "x": 64,
+   "y": 641
   },
   "wraith": {
    "h": 96,
@@ -664,7 +880,7 @@
  "meta": {
   "atlas": {
    "gutter": 1,
-   "h": 641,
+   "h": 650,
    "w": 512
   },
   "palettes": {
@@ -951,8 +1167,14 @@
    "crypt_door",
    "crypt_floor",
    "crypt_floor_alt",
+   "crypt_nest_0",
+   "crypt_nest_1",
+   "crypt_shrine_0",
+   "crypt_shrine_1",
    "crypt_stairs_down",
    "crypt_stairs_up",
+   "crypt_vault",
+   "crypt_vault_open",
    "crypt_wall",
    "crypt_water",
    "deep_bones_0",
@@ -961,8 +1183,14 @@
    "deep_door",
    "deep_floor",
    "deep_floor_alt",
+   "deep_nest_0",
+   "deep_nest_1",
+   "deep_shrine_0",
+   "deep_shrine_1",
    "deep_stairs_down",
    "deep_stairs_up",
+   "deep_vault",
+   "deep_vault_open",
    "deep_wall",
    "deep_water",
    "fens_bones_0",
@@ -971,8 +1199,14 @@
    "fens_door",
    "fens_floor",
    "fens_floor_alt",
+   "fens_nest_0",
+   "fens_nest_1",
+   "fens_shrine_0",
+   "fens_shrine_1",
    "fens_stairs_down",
    "fens_stairs_up",
+   "fens_vault",
+   "fens_vault_open",
    "fens_wall",
    "fens_water",
    "fire_0",
@@ -983,8 +1217,14 @@
    "foundry_door",
    "foundry_floor",
    "foundry_floor_alt",
+   "foundry_nest_0",
+   "foundry_nest_1",
+   "foundry_shrine_0",
+   "foundry_shrine_1",
    "foundry_stairs_down",
    "foundry_stairs_up",
+   "foundry_vault",
+   "foundry_vault_open",
    "foundry_wall",
    "foundry_water",
    "gas_0",
@@ -997,8 +1237,14 @@
    "sanctum_door",
    "sanctum_floor",
    "sanctum_floor_alt",
+   "sanctum_nest_0",
+   "sanctum_nest_1",
+   "sanctum_shrine_0",
+   "sanctum_shrine_1",
    "sanctum_stairs_down",
    "sanctum_stairs_up",
+   "sanctum_vault",
+   "sanctum_vault_open",
    "sanctum_wall",
    "sanctum_water",
    "scroll",
@@ -1008,8 +1254,14 @@
    "warrens_door",
    "warrens_floor",
    "warrens_floor_alt",
+   "warrens_nest_0",
+   "warrens_nest_1",
+   "warrens_shrine_0",
+   "warrens_shrine_1",
    "warrens_stairs_down",
    "warrens_stairs_up",
+   "warrens_vault",
+   "warrens_vault_open",
    "warrens_wall",
    "warrens_water",
    "weapon"

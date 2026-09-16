@@ -16,6 +16,13 @@ Outputs:
   art/tiles/potion|scroll|weapon|armour|gold|bones.png   RGBA item glyphs
   art/tiles/<biome>_bones_0/1.png   RGBA prop, 2 frames (skull + bones on nothing;
                                     frame 1 adds a glint) in the biome ramp
+  art/tiles/<biome>_shrine_0/1.png  RGBA prop (CUT5 §4): stele on a plinth, lit top texel;
+                                    frame 1 lifts the light one texel
+  art/tiles/<biome>_vault.png, <biome>_vault_open.png
+                                    RGBA prop (CUT5 §4): iron cage with a keyhole plate;
+                                    _open = bars parted, floor visible through the frame
+  art/tiles/<biome>_nest_0/1.png    RGBA prop (CUT5 §4): straw/bone mound; frame 0 eyes
+                                    closed (slits), frame 1 two dark eye texels open
   art/tiles/_sheet.png           4x review sheet (three rows per biome: tiles, over-floor, sample room)
 
 Run: python3 art/make_tiles.py
@@ -532,6 +539,161 @@ BONES_ITEM = [  # generic item glyph (same drawing as frame 0, own palette)
     "..kk.kk.",
 ]
 
+# --- CUT5 §4 situation props --------------------------------------------
+# All three are drawn ON NOTHING ('.' = transparent), ramp-indexed, and carry a ramp-0 rim
+# wherever the silhouette meets the floor (the "dark edge" rule). Each frame is a template
+# per tpl(): a row list for every biome, or {biome: rows, "*": default}. Every frame <= 8
+# colours by construction.
+
+# Shrine: a small stele (5 face, 6 lit glyph, 3 carved glyph) on a wider plinth (4), with one
+# lit texel (7) floating above the stele = the altar light. Frame 1 lifts the light one texel
+# (the 2 Hz flip reads as a flicker). Sanctum: pale stele with the one gold glyph on a slate
+# plinth. Foundry: iron stele (4) with an ember glyph (5) on a rust plinth (3).
+SHRINE = [
+    {
+        "*": [
+            "........",
+            "....7...",  # altar light
+            "..00000.",
+            "..05650.",  # stele face, lit glyph texel
+            "..05350.",  # carved glyph
+            "..05550.",
+            ".0444440",  # plinth
+            ".0000000",
+        ],
+        "sanctum": [
+            "........",
+            "....7...",
+            "..00000.",
+            "..06460.",  # gold glyph on pale stone
+            "..06360.",
+            "..06660.",
+            ".0333330",  # slate plinth
+            ".0000000",
+        ],
+        "foundry": [
+            "........",
+            "....7...",
+            "..00000.",
+            "..04640.",  # iron face, grey-lit glyph
+            "..04540.",  # ember glyph
+            "..04440.",
+            ".0333330",  # rust plinth
+            ".0000000",
+        ],
+    },
+    {
+        "*": [
+            "....7...",  # light one texel higher
+            "........",
+            "..00000.",
+            "..05650.",
+            "..05350.",
+            "..05550.",
+            ".0444440",
+            ".0000000",
+        ],
+        "sanctum": [
+            "....7...",
+            "........",
+            "..00000.",
+            "..06460.",
+            "..06360.",
+            "..06660.",
+            ".0333330",
+            ".0000000",
+        ],
+        "foundry": [
+            "....7...",
+            "........",
+            "..00000.",
+            "..04640.",
+            "..04540.",
+            "..04440.",
+            ".0333330",
+            ".0000000",
+        ],
+    },
+]
+
+# Vault: a front-on iron cage. Posts and rails are ramp-0 (the silhouette's dark edge), the
+# top rail catches light (4 with 5 ends), two lit iron bars (4) stand inside, and a 2x2 lock
+# plate (6, one dark keyhole texel) hangs between them under a dark cross rail. The floor
+# shows through the four gaps (enclosed openings, so the bars need no rim of their own).
+# `vault_open`: the bars have swung flush against the posts, the interior is open floor.
+VAULT = [
+    "00000000",
+    "05444450",  # top rail
+    "0.4..4.0",  # iron bars, floor through the gaps
+    "0.4004.0",  # cross rail = plate rim
+    "0.4664.0",  # lock plate
+    "0.4064.0",  # keyhole
+    "0.4004.0",
+    "00000000",
+]
+VAULT_OPEN = [
+    "00000000",
+    "05444450",
+    "04....40",  # bars folded onto the posts
+    "04....40",
+    "04....40",
+    "04....40",
+    "04....40",
+    "00000000",
+]
+
+# Nest: a low mound of straw (4, lit 5, shadowed 3), six texels tall so it reads "pile" not
+# "head", with two bone chips (7, 6) on the left and a lit patch upper-right. Frame 0: eyes
+# closed (two 3 slits in the lit patch). Frame 1: eyes open (two ramp-0 texels). Sanctum: a
+# pale bone-and-cloth mound (6/7, slate 3) with a gold fleck (4) for the bone chip, so it
+# does not read as the floor.
+NEST = [
+    {
+        "*": [
+            "........",
+            "........",
+            "..00000.",
+            ".0455540",
+            "04535340",  # slits: eyes closed
+            "04744450",  # bone chip
+            "03463330",  # bone chip, shadowed straw
+            ".000000.",
+        ],
+        "sanctum": [
+            "........",
+            "........",
+            "..00000.",
+            ".0677760",
+            "06737360",
+            "06466670",
+            "03643330",
+            ".000000.",
+        ],
+    },
+    {
+        "*": [
+            "........",
+            "........",
+            "..00000.",
+            ".0455540",
+            "04505040",  # eyes open
+            "04744450",
+            "03463330",
+            ".000000.",
+        ],
+        "sanctum": [
+            "........",
+            "........",
+            "..00000.",
+            ".0677760",
+            "06707060",
+            "06466670",
+            "03643330",
+            ".000000.",
+        ],
+    },
+]
+
 
 def resolve(ch: str, x: int, y: int) -> int | None:
     """Map a template character to a ramp index (None = transparent)."""
@@ -593,6 +755,12 @@ def build() -> dict[str, Image.Image]:
             tiles[f"{biome}_{name}"] = ramp_tile(tpl(template, biome), ramp)
         for i, rows in enumerate(BONES):
             tiles[f"{biome}_bones_{i}"] = ramp_keyed_tile(rows, ramp)
+        for i, frame in enumerate(SHRINE):
+            tiles[f"{biome}_shrine_{i}"] = ramp_keyed_tile(tpl(frame, biome), ramp)
+        tiles[f"{biome}_vault"] = ramp_keyed_tile(VAULT, ramp)
+        tiles[f"{biome}_vault_open"] = ramp_keyed_tile(VAULT_OPEN, ramp)
+        for i, frame in enumerate(NEST):
+            tiles[f"{biome}_nest_{i}"] = ramp_keyed_tile(tpl(frame, biome), ramp)
     for i, rows in enumerate(GAS):
         tiles[f"gas_{i}"] = keyed_tile(rows, GAS_PAL)
     for i, rows in enumerate(FIRE):
@@ -605,15 +773,17 @@ def build() -> dict[str, Image.Image]:
 
 def sheet(tiles: dict[str, Image.Image], scale: int = 4) -> Image.Image:
     """4x review sheet: per biome, a row of tiles, a row of overlays/items/props over the floor,
-    and a 5x4 sample room (walls around every special floor + a bones pile) to judge the rim rule."""
+    and a 7x4 sample room (walls around every special floor + bones, shrine, vault open/closed,
+    nest) to judge the rim rule."""
     order = ["floor", "floor_alt", "wall", "door", "stairs_down", "stairs_up", "water", "chasm"]
     extras = ["gas_0", "gas_1", "fire_0", "fire_1", "potion", "scroll", "weapon", "armour", "gold",
-              "bones", "{b}_bones_0", "{b}_bones_1"]
+              "bones", "{b}_bones_0", "{b}_bones_1",
+              "{b}_shrine_0", "{b}_shrine_1", "{b}_vault", "{b}_vault_open", "{b}_nest_0", "{b}_nest_1"]
     room = [
-        ["wall", "wall", "wall", "wall", "wall"],
-        ["wall", "floor", "floor_alt", "stairs_up", "wall"],
-        ["wall", "water", "floor+bones_0", "floor", "door"],
-        ["wall", "chasm", "stairs_down", "floor_alt", "wall"],
+        ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+        ["wall", "floor", "floor_alt", "stairs_up", "floor+shrine_0", "floor", "wall"],
+        ["wall", "water", "floor+bones_0", "floor", "floor+vault", "floor_alt+nest_1", "door"],
+        ["wall", "chasm", "stairs_down", "floor_alt", "floor+vault_open", "floor+nest_0", "wall"],
     ]
     cell = T * scale
     pad = 6
