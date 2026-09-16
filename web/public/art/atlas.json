@@ -1,22 +1,34 @@
 {
  "frames": {
+  "acolyte": {
+   "h": 80,
+   "w": 70,
+   "x": 148,
+   "y": 356
+  },
   "armour": {
    "h": 8,
    "w": 8,
-   "x": 345,
-   "y": 308
+   "x": 130,
+   "y": 591
+  },
+  "bell_sentinel": {
+   "h": 80,
+   "w": 42,
+   "x": 219,
+   "y": 356
   },
   "bloat": {
    "h": 80,
    "w": 75,
-   "x": 1,
-   "y": 227
+   "x": 262,
+   "y": 356
   },
   "bones": {
    "h": 8,
    "w": 8,
-   "x": 354,
-   "y": 308
+   "x": 139,
+   "y": 591
   },
   "boss_bloat_mother": {
    "h": 128,
@@ -24,365 +36,635 @@
    "x": 1,
    "y": 1
   },
+  "boss_foundry_master": {
+   "h": 128,
+   "w": 112,
+   "x": 125,
+   "y": 1
+  },
   "boss_goblin_warlord": {
    "h": 128,
    "w": 122,
-   "x": 125,
+   "x": 238,
    "y": 1
   },
   "boss_lich": {
    "h": 128,
    "w": 96,
-   "x": 248,
+   "x": 361,
    "y": 1
+  },
+  "boss_lurker_queen": {
+   "h": 128,
+   "w": 117,
+   "x": 1,
+   "y": 130
+  },
+  "boss_mirror_king": {
+   "h": 128,
+   "w": 93,
+   "x": 119,
+   "y": 130
   },
   "captive": {
    "h": 96,
    "w": 72,
-   "x": 345,
-   "y": 1
+   "x": 213,
+   "y": 130
+  },
+  "cave_troll": {
+   "h": 96,
+   "w": 96,
+   "x": 286,
+   "y": 130
   },
   "crypt_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 363,
-   "y": 308
+   "x": 148,
+   "y": 591
   },
   "crypt_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 372,
-   "y": 308
+   "x": 157,
+   "y": 591
   },
   "crypt_chasm": {
    "h": 8,
    "w": 8,
-   "x": 381,
-   "y": 308
+   "x": 166,
+   "y": 591
   },
   "crypt_door": {
    "h": 8,
    "w": 8,
-   "x": 390,
-   "y": 308
+   "x": 175,
+   "y": 591
   },
   "crypt_floor": {
    "h": 8,
    "w": 8,
-   "x": 399,
-   "y": 308
+   "x": 184,
+   "y": 591
   },
   "crypt_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 408,
-   "y": 308
+   "x": 193,
+   "y": 591
   },
   "crypt_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 417,
-   "y": 308
+   "x": 202,
+   "y": 591
   },
   "crypt_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 426,
-   "y": 308
+   "x": 211,
+   "y": 591
   },
   "crypt_wall": {
    "h": 8,
    "w": 8,
-   "x": 435,
-   "y": 308
+   "x": 220,
+   "y": 591
   },
   "crypt_water": {
    "h": 8,
    "w": 8,
-   "x": 444,
-   "y": 308
+   "x": 229,
+   "y": 591
+  },
+  "deep_bones_0": {
+   "h": 8,
+   "w": 8,
+   "x": 238,
+   "y": 591
+  },
+  "deep_bones_1": {
+   "h": 8,
+   "w": 8,
+   "x": 247,
+   "y": 591
+  },
+  "deep_chasm": {
+   "h": 8,
+   "w": 8,
+   "x": 256,
+   "y": 591
+  },
+  "deep_door": {
+   "h": 8,
+   "w": 8,
+   "x": 265,
+   "y": 591
+  },
+  "deep_eel": {
+   "h": 48,
+   "w": 113,
+   "x": 53,
+   "y": 534
+  },
+  "deep_floor": {
+   "h": 8,
+   "w": 8,
+   "x": 274,
+   "y": 591
+  },
+  "deep_floor_alt": {
+   "h": 8,
+   "w": 8,
+   "x": 283,
+   "y": 591
+  },
+  "deep_stairs_down": {
+   "h": 8,
+   "w": 8,
+   "x": 292,
+   "y": 591
+  },
+  "deep_stairs_up": {
+   "h": 8,
+   "w": 8,
+   "x": 301,
+   "y": 591
+  },
+  "deep_wall": {
+   "h": 8,
+   "w": 8,
+   "x": 310,
+   "y": 591
+  },
+  "deep_water": {
+   "h": 8,
+   "w": 8,
+   "x": 319,
+   "y": 591
+  },
+  "echo": {
+   "h": 80,
+   "w": 65,
+   "x": 338,
+   "y": 356
   },
   "eel": {
    "h": 40,
    "w": 38,
-   "x": 177,
-   "y": 308
+   "x": 465,
+   "y": 534
   },
   "fens_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 453,
-   "y": 308
+   "x": 328,
+   "y": 591
   },
   "fens_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 462,
-   "y": 308
+   "x": 337,
+   "y": 591
   },
   "fens_chasm": {
    "h": 8,
    "w": 8,
-   "x": 471,
-   "y": 308
+   "x": 346,
+   "y": 591
   },
   "fens_door": {
    "h": 8,
    "w": 8,
-   "x": 480,
-   "y": 308
+   "x": 355,
+   "y": 591
   },
   "fens_floor": {
    "h": 8,
    "w": 8,
-   "x": 489,
-   "y": 308
+   "x": 364,
+   "y": 591
   },
   "fens_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 498,
-   "y": 308
+   "x": 373,
+   "y": 591
   },
   "fens_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 1,
-   "y": 357
+   "x": 382,
+   "y": 591
   },
   "fens_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 10,
-   "y": 357
+   "x": 391,
+   "y": 591
   },
   "fens_wall": {
    "h": 8,
    "w": 8,
-   "x": 19,
-   "y": 357
+   "x": 400,
+   "y": 591
   },
   "fens_water": {
    "h": 8,
    "w": 8,
-   "x": 28,
-   "y": 357
+   "x": 409,
+   "y": 591
   },
   "fire_0": {
    "h": 8,
    "w": 8,
-   "x": 37,
-   "y": 357
+   "x": 418,
+   "y": 591
   },
   "fire_1": {
    "h": 8,
    "w": 8,
-   "x": 46,
-   "y": 357
+   "x": 427,
+   "y": 591
+  },
+  "forge_imp": {
+   "h": 56,
+   "w": 34,
+   "x": 443,
+   "y": 453
+  },
+  "foundry_bones_0": {
+   "h": 8,
+   "w": 8,
+   "x": 436,
+   "y": 591
+  },
+  "foundry_bones_1": {
+   "h": 8,
+   "w": 8,
+   "x": 445,
+   "y": 591
+  },
+  "foundry_chasm": {
+   "h": 8,
+   "w": 8,
+   "x": 454,
+   "y": 591
+  },
+  "foundry_door": {
+   "h": 8,
+   "w": 8,
+   "x": 463,
+   "y": 591
+  },
+  "foundry_floor": {
+   "h": 8,
+   "w": 8,
+   "x": 472,
+   "y": 591
+  },
+  "foundry_floor_alt": {
+   "h": 8,
+   "w": 8,
+   "x": 481,
+   "y": 591
+  },
+  "foundry_stairs_down": {
+   "h": 8,
+   "w": 8,
+   "x": 490,
+   "y": 591
+  },
+  "foundry_stairs_up": {
+   "h": 8,
+   "w": 8,
+   "x": 499,
+   "y": 591
+  },
+  "foundry_wall": {
+   "h": 8,
+   "w": 8,
+   "x": 1,
+   "y": 632
+  },
+  "foundry_water": {
+   "h": 8,
+   "w": 8,
+   "x": 10,
+   "y": 632
   },
   "gas_0": {
    "h": 8,
    "w": 8,
-   "x": 55,
-   "y": 357
+   "x": 19,
+   "y": 632
   },
   "gas_1": {
    "h": 8,
    "w": 8,
-   "x": 64,
-   "y": 357
+   "x": 28,
+   "y": 632
   },
   "ghoul": {
    "h": 80,
    "w": 68,
-   "x": 77,
-   "y": 227
+   "x": 404,
+   "y": 356
   },
   "goblin": {
    "h": 80,
    "w": 60,
-   "x": 146,
-   "y": 227
+   "x": 1,
+   "y": 453
   },
   "goblin_archer": {
    "h": 80,
    "w": 69,
-   "x": 207,
-   "y": 227
+   "x": 62,
+   "y": 453
   },
   "goblin_conjurer": {
    "h": 80,
    "w": 80,
-   "x": 277,
-   "y": 227
+   "x": 132,
+   "y": 453
   },
   "gold": {
    "h": 8,
    "w": 8,
-   "x": 73,
-   "y": 357
+   "x": 37,
+   "y": 632
   },
   "hero_caster": {
    "h": 96,
    "w": 54,
-   "x": 418,
-   "y": 1
+   "x": 383,
+   "y": 130
   },
   "hero_fighter": {
    "h": 96,
    "w": 72,
-   "x": 1,
+   "x": 438,
    "y": 130
   },
   "hero_ranger": {
    "h": 96,
    "w": 69,
-   "x": 74,
-   "y": 130
+   "x": 1,
+   "y": 259
   },
   "hero_rogue": {
    "h": 96,
    "w": 102,
-   "x": 144,
-   "y": 130
+   "x": 71,
+   "y": 259
+  },
+  "iron_golem": {
+   "h": 96,
+   "w": 85,
+   "x": 174,
+   "y": 259
   },
   "jackal": {
    "h": 48,
    "w": 103,
-   "x": 1,
-   "y": 308
+   "x": 167,
+   "y": 534
+  },
+  "lurker": {
+   "h": 80,
+   "w": 59,
+   "x": 213,
+   "y": 453
+  },
+  "mirror_shade": {
+   "h": 96,
+   "w": 88,
+   "x": 260,
+   "y": 259
   },
   "monkey": {
    "h": 56,
    "w": 51,
-   "x": 358,
-   "y": 227
+   "x": 1,
+   "y": 534
   },
   "ogre": {
    "h": 96,
    "w": 70,
-   "x": 247,
-   "y": 130
+   "x": 349,
+   "y": 259
   },
   "pink_jelly": {
    "h": 48,
    "w": 71,
-   "x": 105,
-   "y": 308
+   "x": 271,
+   "y": 534
   },
   "potion": {
    "h": 8,
    "w": 8,
-   "x": 82,
-   "y": 357
+   "x": 46,
+   "y": 632
   },
   "rat": {
    "h": 32,
    "w": 62,
-   "x": 282,
-   "y": 308
+   "x": 67,
+   "y": 591
+  },
+  "sanctum_bones_0": {
+   "h": 8,
+   "w": 8,
+   "x": 55,
+   "y": 632
+  },
+  "sanctum_bones_1": {
+   "h": 8,
+   "w": 8,
+   "x": 64,
+   "y": 632
+  },
+  "sanctum_chasm": {
+   "h": 8,
+   "w": 8,
+   "x": 73,
+   "y": 632
+  },
+  "sanctum_door": {
+   "h": 8,
+   "w": 8,
+   "x": 82,
+   "y": 632
+  },
+  "sanctum_floor": {
+   "h": 8,
+   "w": 8,
+   "x": 91,
+   "y": 632
+  },
+  "sanctum_floor_alt": {
+   "h": 8,
+   "w": 8,
+   "x": 100,
+   "y": 632
+  },
+  "sanctum_stairs_down": {
+   "h": 8,
+   "w": 8,
+   "x": 109,
+   "y": 632
+  },
+  "sanctum_stairs_up": {
+   "h": 8,
+   "w": 8,
+   "x": 118,
+   "y": 632
+  },
+  "sanctum_wall": {
+   "h": 8,
+   "w": 8,
+   "x": 127,
+   "y": 632
+  },
+  "sanctum_water": {
+   "h": 8,
+   "w": 8,
+   "x": 136,
+   "y": 632
   },
   "scroll": {
    "h": 8,
    "w": 8,
-   "x": 91,
-   "y": 357
+   "x": 145,
+   "y": 632
+  },
+  "sentinel": {
+   "h": 80,
+   "w": 56,
+   "x": 273,
+   "y": 453
+  },
+  "siren": {
+   "h": 80,
+   "w": 54,
+   "x": 330,
+   "y": 453
   },
   "skeleton": {
    "h": 96,
    "w": 75,
-   "x": 318,
-   "y": 130
+   "x": 420,
+   "y": 259
+  },
+  "slag_crawler": {
+   "h": 48,
+   "w": 121,
+   "x": 343,
+   "y": 534
+  },
+  "smith": {
+   "h": 80,
+   "w": 57,
+   "x": 385,
+   "y": 453
   },
   "spectral_blade": {
    "h": 40,
    "w": 17,
-   "x": 216,
-   "y": 308
+   "x": 1,
+   "y": 591
   },
   "spectral_hound": {
    "h": 40,
    "w": 47,
-   "x": 234,
-   "y": 308
+   "x": 19,
+   "y": 591
+  },
+  "warden": {
+   "h": 96,
+   "w": 53,
+   "x": 1,
+   "y": 356
   },
   "warrens_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 100,
-   "y": 357
+   "x": 154,
+   "y": 632
   },
   "warrens_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 109,
-   "y": 357
+   "x": 163,
+   "y": 632
   },
   "warrens_chasm": {
    "h": 8,
    "w": 8,
-   "x": 118,
-   "y": 357
+   "x": 172,
+   "y": 632
   },
   "warrens_door": {
    "h": 8,
    "w": 8,
-   "x": 127,
-   "y": 357
+   "x": 181,
+   "y": 632
   },
   "warrens_floor": {
    "h": 8,
    "w": 8,
-   "x": 136,
-   "y": 357
+   "x": 190,
+   "y": 632
   },
   "warrens_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 145,
-   "y": 357
+   "x": 199,
+   "y": 632
   },
   "warrens_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 154,
-   "y": 357
+   "x": 208,
+   "y": 632
   },
   "warrens_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 163,
-   "y": 357
+   "x": 217,
+   "y": 632
   },
   "warrens_wall": {
    "h": 8,
    "w": 8,
-   "x": 172,
-   "y": 357
+   "x": 226,
+   "y": 632
   },
   "warrens_water": {
    "h": 8,
    "w": 8,
-   "x": 181,
-   "y": 357
+   "x": 235,
+   "y": 632
   },
   "weapon": {
    "h": 8,
    "w": 8,
-   "x": 190,
-   "y": 357
+   "x": 244,
+   "y": 632
   },
   "wraith": {
    "h": 96,
    "w": 92,
-   "x": 394,
-   "y": 130
+   "x": 55,
+   "y": 356
   }
  },
  "meta": {
   "atlas": {
    "gutter": 1,
-   "h": 366,
+   "h": 641,
    "w": 512
   },
   "palettes": {
@@ -406,6 +688,16 @@
     "#d3cfc9",
     "#f1ede0"
    ],
+   "deep": [
+    "#030306",
+    "#0c0e1a",
+    "#181b30",
+    "#1e2340",
+    "#2c3560",
+    "#5a5f78",
+    "#b8b09a",
+    "#ece4cc"
+   ],
    "fens": [
     "#0c1416",
     "#1a2b2e",
@@ -415,6 +707,26 @@
     "#6f9f8a",
     "#9dbfa8",
     "#d6e6da"
+   ],
+   "foundry": [
+    "#120b08",
+    "#2c1a12",
+    "#4e2a18",
+    "#8a3f1c",
+    "#5b5a5e",
+    "#c2622a",
+    "#9a9598",
+    "#f4c040"
+   ],
+   "sanctum": [
+    "#1a1c24",
+    "#3c404e",
+    "#666a78",
+    "#9a9aa0",
+    "#c9a84a",
+    "#d9d4c6",
+    "#ebe6d8",
+    "#fbf7ee"
    ],
    "warrens": [
     "#14120d",
@@ -428,12 +740,27 @@
    ]
   },
   "sprites": {
+   "acolyte": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
+   "bell_sentinel": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
    "bloat": {
     "kind": "monster",
     "master_h": 80,
     "texel_h": 40
    },
    "boss_bloat_mother": {
+    "kind": "boss",
+    "master_h": 128,
+    "texel_h": 64
+   },
+   "boss_foundry_master": {
     "kind": "boss",
     "master_h": 128,
     "texel_h": 64
@@ -448,15 +775,45 @@
     "master_h": 128,
     "texel_h": 64
    },
+   "boss_lurker_queen": {
+    "kind": "boss",
+    "master_h": 128,
+    "texel_h": 64
+   },
+   "boss_mirror_king": {
+    "kind": "boss",
+    "master_h": 128,
+    "texel_h": 64
+   },
    "captive": {
     "kind": "monster",
     "master_h": 96,
     "texel_h": 48
    },
+   "cave_troll": {
+    "kind": "monster",
+    "master_h": 96,
+    "texel_h": 48
+   },
+   "deep_eel": {
+    "kind": "monster",
+    "master_h": 48,
+    "texel_h": 24
+   },
+   "echo": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
    "eel": {
     "kind": "monster",
     "master_h": 40,
     "texel_h": 20
+   },
+   "forge_imp": {
+    "kind": "monster",
+    "master_h": 56,
+    "texel_h": 28
    },
    "ghoul": {
     "kind": "monster",
@@ -498,10 +855,25 @@
     "master_h": 96,
     "texel_h": 48
    },
+   "iron_golem": {
+    "kind": "monster",
+    "master_h": 96,
+    "texel_h": 48
+   },
    "jackal": {
     "kind": "monster",
     "master_h": 48,
     "texel_h": 24
+   },
+   "lurker": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
+   "mirror_shade": {
+    "kind": "monster",
+    "master_h": 96,
+    "texel_h": 48
    },
    "monkey": {
     "kind": "monster",
@@ -523,10 +895,30 @@
     "master_h": 32,
     "texel_h": 16
    },
+   "sentinel": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
+   "siren": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
+   },
    "skeleton": {
     "kind": "monster",
     "master_h": 96,
     "texel_h": 48
+   },
+   "slag_crawler": {
+    "kind": "monster",
+    "master_h": 48,
+    "texel_h": 24
+   },
+   "smith": {
+    "kind": "monster",
+    "master_h": 80,
+    "texel_h": 40
    },
    "spectral_blade": {
     "kind": "summon",
@@ -537,6 +929,11 @@
     "kind": "summon",
     "master_h": 40,
     "texel_h": 20
+   },
+   "warden": {
+    "kind": "monster",
+    "master_h": 96,
+    "texel_h": 48
    },
    "wraith": {
     "kind": "monster",
@@ -558,6 +955,16 @@
    "crypt_stairs_up",
    "crypt_wall",
    "crypt_water",
+   "deep_bones_0",
+   "deep_bones_1",
+   "deep_chasm",
+   "deep_door",
+   "deep_floor",
+   "deep_floor_alt",
+   "deep_stairs_down",
+   "deep_stairs_up",
+   "deep_wall",
+   "deep_water",
    "fens_bones_0",
    "fens_bones_1",
    "fens_chasm",
@@ -570,10 +977,30 @@
    "fens_water",
    "fire_0",
    "fire_1",
+   "foundry_bones_0",
+   "foundry_bones_1",
+   "foundry_chasm",
+   "foundry_door",
+   "foundry_floor",
+   "foundry_floor_alt",
+   "foundry_stairs_down",
+   "foundry_stairs_up",
+   "foundry_wall",
+   "foundry_water",
    "gas_0",
    "gas_1",
    "gold",
    "potion",
+   "sanctum_bones_0",
+   "sanctum_bones_1",
+   "sanctum_chasm",
+   "sanctum_door",
+   "sanctum_floor",
+   "sanctum_floor_alt",
+   "sanctum_stairs_down",
+   "sanctum_stairs_up",
+   "sanctum_wall",
+   "sanctum_water",
    "scroll",
    "warrens_bones_0",
    "warrens_bones_1",

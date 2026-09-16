@@ -34,8 +34,8 @@ Runtime contract (renderer): sprite frames are `master_h` px tall = **2× the ru
 height** (`meta.sprites[id].texel_h`); draw at half size with nearest sampling (option C, two densities
 in one target) or as-is on a 1× target. Tiles are 8×8 keyed `<biome>_<tile>`; overlays `gas_0/1`,
 `fire_0/1`; item glyphs `potion scroll weapon armour gold bones`; props `<biome>_bones_0/1` (alpha,
-drawn in the biome ramp, frame 1 = glint). `meta.palettes` carries the three 8-colour biome ramps for
-the palette/tint pass plus `boss_flash` (crimson→white-hot, same 8-index shape; CUT2 §7 one-shot
+drawn in the biome ramp, frame 1 = glint). `meta.palettes` carries the six 8-colour biome ramps
+(`warrens fens crypt foundry deep sanctum`) for the palette/tint pass plus `boss_flash` (crimson→white-hot, same 8-index shape; CUT2 §7 one-shot
 palette flash on boss sight — no tiles are authored in it).
 
 ## Operational rules (paid for in blood, tacticalswap + this round)
@@ -147,6 +147,113 @@ landed together and codex exited ~2 min later). Zero retries. Codex resampled bo
 `pack.py`: 23 keyed masters + 40 tiles → 63 frames in a 512×366 `atlas.png`. `art-qc.py` PASS
 (63 frames, 0 warnings, 0 failures). `qc/review.png` regenerated for all 23 ids (heroes are rows 1–4).
 
+## Per-asset notes (round 3 / Cut 3, 2026-09-16 — three tile sets)
+
+`make_tiles.py` now carries six biome ramps and per-biome overrides for *any* tile (`tpl()`:
+a template is a row list for every biome or `{biome: rows, "*": default}`); dither codes moved
+to a `DITHER` table. `_sheet.png` is three rows per biome (tiles, over-floor, a 5×4 sample room
+with every special floor + a bones pile) — the old single "room" row overlapped its rooms.
+
+| biome | ramp (0 darkest → 7 lightest) | what each index is for |
+|---|---|---|
+| foundry | `#120b08 #2c1a12 #4e2a18 #8a3f1c #5b5a5e #c2622a #9a9598 #f4c040` | 2 dark-rust floor, 3/5 oranges, 4/6 iron greys, 7 the one hot yellow |
+| deep | `#030306 #0c0e1a #181b30 #1e2340 #2c3560 #5a5f78 #b8b09a #ece4cc` | 2 near-black floor, 3/4 blue-black walls, 6/7 bone highlights |
+| sanctum | `#1a1c24 #3c404e #666a78 #9a9aa0 #c9a84a #d9d4c6 #ebe6d8 #fbf7ee` | 0–3 slate shadows, 4 the one gold, 5–7 pale stone (floor field is 5, not 2) |
+
+Ramps stay monotone in luminance so the tint pass can index by value; all three ship in
+`atlas.json meta.palettes` next to the first three and `boss_flash`.
+
+- **foundry** — floor: dark rust field with one orange fleck and iron grit; floor_alt: a diagonal
+  crack with one ember (5) in it. Wall: riveted iron plates (4) with light rivets (6) at the plate
+  corners, a dark seam and one rust patch (3). Door: iron plates, dark seams, light knob. **Water is a
+  molten channel** (`f` = 50 % dither of the two oranges, hot-yellow dashes) — it still reads "the
+  light special floor" by value, and the foundry has no water creature. Stairs and chasm default.
+- **deep** — floor: near-black (2) with the fewest marks of any biome (vision 4 — the floor must
+  not fight the dark); floor_alt: a wet pool (3) and one bone chip (6). Wall: blue-black cave rock
+  with vertical cracks. **stairs_down's top step is bone (6)** so the stairs are findable on the
+  near-black floor; **chasm lip is `d`** (25 % ink-blue over blue-black) because "light falls in
+  from above" does not apply and the floor-vs-chasm gap is only ~20 luminance — judged in the
+  sample room: the chasm still reads as the hole. Water default (ink-blue dither, bone dashes).
+- **sanctum** — floor: pale dressed flagstones, field 5 with light-slate mortar (3) and one lit
+  texel (6) per slab; floor_alt: a cracked slab with a gold inlay fleck (4). Wall: white marble
+  courses with a **gold trim course (4) at mid-height** (a frieze every 8 texels when stacked).
+  **Water is a still reflecting pool** (`e` = slate greys, white dashes). Door default (pale planks
+  over gold, i.e. a gilded door); stairs_down's top step comes out gold, stairs_up pale/pale/gold.
+  Bones props on the pale floor survive only thanks to their ramp-0 rim — checked in the room.
+- Every tile ≤ 8 colours by construction (ramp-indexed); `make_tiles.py` counts and fails if not.
+
+## Per-asset notes (round 3 / Cut 3, 2026-09-16 — 14 monsters + 3 bosses, 17/17 accepted, 2 retried)
+
+Three concurrent codex batches, one per biome (`prompts/batch6..8.txt`, 6/6/5 ids, logs
+`logs/batch6..8.log`), same `gpt-6-astra` / `image_gen`; launched 12:00, all finals quiescent by
+12:09, every source opaque `#0000FF` 1024×1024. Codex used its own single retry on seven ids
+(golem's first landing was the RGB flatten-to-black; warden/echo/mirror_king/smith/eel/queen for
+"small blue patches") and kept the echo's first version when the retry came back transparent. One
+critique retry from our side (`batch9.txt`, forge_imp + siren, ~5 min): originals archived as
+`archive/superseded/<id>_r1.png`, the sharper briefs are now the manifest descriptions. The
+monster list is the CUT3 table's 14 kinds (the track brief says "15" but enumerates the same 14).
+
+Census after the retries: 17/17 corners exact; every `<-- CHECK` is fringe. Splitting
+`enclosed_near` into ≤ 3 px-of-an-opening fringe vs true subject spill: golem 696/3, foundry
+master 899/0, lurker 701/0, troll 507/3, shade 204/16, queen 397/219, warden 570/89, echo 538/0,
+mirror king 642/0, imp (retry) 36 total, siren (retry) 381/11, smith 114/26. The queen's 219 and
+warden's 89 are scattered shadow flecks in 1 M px sources — sub-texel after the box downscale, and
+`art-qc.py` reports zero semi-transparent blue in the packed frames. `qc/review.png` now
+composites over all six biomes (review.py reads `make_tiles.PALETTES`).
+
+- **iron_golem** (85×96) — codex's own retry after a flatten-to-black. Stepped block of riveted
+  rust plates, small visor head; the right-angle silhouette is nothing like the ogre. Accept.
+- **forge_imp** (34×56) — RETRIED. Round 1 was a flame-blob with the bottle lost in it (the
+  brief's "flame tuft of hair" became a body of fire). Retry wording that worked: "the body is
+  flesh, NOT made of fire", the bottle "pale bone-white glass ... separated from the body by a
+  full ink contour ... the palest, brightest thing in the sprite". Now a solid orange imp holding
+  a pale flask out front; at 28 px the flask is its own pale bump. Accept.
+- **bell_sentinel** (42×80) — first try. Conical bronze bell for a head over a slim iron body, rod
+  raised; the bell is the top of the silhouette on every biome. Accept.
+- **slag_crawler** (121×48) — first try. Low horizontal dash, cracked crust, ember dots trailing
+  off the tail. Widest monster in the set (121 px master = 7.5 tiles at runtime; the renderer may
+  scale it 0.75 like the rat). Accept.
+- **smith** (57×80) — first try. Square hammer raised over the shoulder, long apron rectangle;
+  reads "hammer and apron", distinct from goblins and from the golem. Accept.
+- **boss_foundry_master** (112×128) — first try. Rivet-spiked helm crown, giant hammer overhead,
+  apron over plates, anvil chest. "The big crowned iron smith" next to the golem. Accept.
+- **lurker** (59×80) — first try. Blank eyeless brow, craned neck, arms hanging past the feet.
+  Most legible of the deep set. Accept.
+- **deep_eel** (113×48) — first try. Thin three-wave ribbon with a frill; clearly not the fens
+  eel's thick S at 32 px. Accept.
+- **cave_troll** (96×96) — first try. Boulder back, head sunk low, knuckles at the ankles, no
+  weapon — the hunched counterpart to the upright ogre. Accept.
+- **siren** (54×80) — RETRIED. Round 1 stood with hands clasped and head bowed under the hood:
+  "hooded robe", not "singer". Retry wording: "head THROWN BACK — chin up, face to the ceiling,
+  mouth wide open — hood fallen back", voice-arcs "as thick as the contour line and a head-width
+  wide", "Not a hooded figure looking down". Now the throat and the three arcs are in the
+  silhouette. Accept.
+- **mirror_shade** (88×96) — first try. Flat blue-black hero silhouette (sword low, half-cloak)
+  with thin cyan-white edge light; no face. On the deep floor it is a dark shape on near-black
+  and survives only by the ink ring + highlights — the intended "shadow" read; watch it after
+  the runtime tint. Accept.
+- **boss_lurker_queen** (117×128) — first try. Bone-spine crown, four arms, swollen belly,
+  hatchlings on the flanks. Accept.
+- **warden** (53×96) — first try. Tower shield forward, bow arc and quiver above the far
+  shoulder; both bumps survive at 48 px. Accept.
+- **acolyte** (70×80) — first try. Folded at the waist, both arms out with open palms; distinct
+  from the siren's thrown-back head. Accept.
+- **echo** (65×80) — first try (codex kept its first version after a transparent retry).
+  Doubled walking figure, two heads and two sets of legs, rear copy paler. Accept.
+- **sentinel** (56×80) — first try. Tapered monolith with one large gold-irised eye; no limbs.
+  Not confusable with the bell sentinel. Accept.
+- **boss_mirror_king** (93×128) — first try. Tall spiked gold crown, robe, sceptre topped with a
+  round mirror — the boss tag reads. Hue drift: codex painted a pale ivory-and-gold king rather
+  than the briefed dark-mirror body (the shade is dark, the king is not), so the "hero's dark
+  reflection" idea is carried by the shade alone. Acceptable for the sanctum palette (it sits
+  with the warden/acolyte); regenerate only if the ending screen wants the pair to rhyme.
+
+`pack.py`: 40 keyed masters + 70 tiles → 110 frames in a 512×641 `atlas.png`; six biome ramps +
+`boss_flash` in `meta.palettes`. `art-qc.py` PASS (110 frames, 0 warnings, 0 failures).
+`qc/review.png` regenerated for the 17 new ids over all six biomes; `tiles/_sheet.png` has the
+three new biome rows. Note for the client track: `web/src/render/palette.ts` hard-codes the
+first three ramps; the new three are in `atlas.json meta.palettes` (`foundry`, `deep`, `sanctum`).
+
 ## For the next batch
 
 - The full ART.md preamble as the first block + per-asset "tag in the silhouette" line + the
@@ -155,5 +262,12 @@ landed together and codex exited ~2 min later). Zero retries. Codex resampled bo
 - Codex's `image_gen` defaults to transparent output; either accept it (pack.py does) or let
   codex's own corner self-check retry. Do not fight it in the prompt beyond one sentence.
 - Watch for RGB flatten-to-black on any retry; `review.py` `corners=False` catches it.
-- Horizontal animals (rat, jackal, eel) get wide at a given `texel_h`; set `master_h` by the
-  longest axis you want, not the height, if a future creature is very long.
+- Horizontal animals (rat, jackal, eel, slag_crawler, deep_eel) get wide at a given `texel_h`; set
+  `master_h` by the longest axis you want, not the height, if a future creature is very long.
+- When a brief says a creature has a flame/glow *detail*, say what the body is made of in the
+  same sentence ("the body is flesh, NOT made of fire") — round 3's imp became a fireball.
+- A pose tag ("singing", "bowed") needs the head direction spelled out ("chin up, face to the
+  ceiling"); "hooded" alone pulls the head down into the hood.
+- Batches of six, three concurrent, took ~9 min wall clock end to end; a two-id critique retry
+  ~5 min. Codex's own single retry now covers most colour-science misses, so check
+  `review.py` for `corners=False` and judge the sheet before deciding on a retry.

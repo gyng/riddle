@@ -9,14 +9,14 @@ edge" rule (research/art-tech.md section 4 mitigations). Downwell register:
 mostly flat with a little dither.
 
 Outputs:
-  art/tiles/<biome>_<tile>.png   biome in {warrens, fens, crypt},
+  art/tiles/<biome>_<tile>.png   biome in {warrens, fens, crypt, foundry, deep, sanctum},
                                  tile in {floor, floor_alt, wall, door,
                                           stairs_down, stairs_up, water, chasm}
   art/tiles/gas_0/1.png, fire_0/1.png   RGBA overlays, 2 frames each
   art/tiles/potion|scroll|weapon|armour|gold|bones.png   RGBA item glyphs
   art/tiles/<biome>_bones_0/1.png   RGBA prop, 2 frames (skull + bones on nothing;
                                     frame 1 adds a glint) in the biome ramp
-  art/tiles/_sheet.png           4x review sheet
+  art/tiles/_sheet.png           4x review sheet (three rows per biome: tiles, over-floor, sample room)
 
 Run: python3 art/make_tiles.py
 """
@@ -35,6 +35,13 @@ PALETTES: dict[str, list[str]] = {
     "warrens": ["#14120d", "#2e2a1c", "#4a4326", "#6b6a2f", "#8c7a3c", "#b09a5a", "#d4c58a", "#efe6c0"],
     "fens": ["#0c1416", "#1a2b2e", "#24443f", "#2f6a5a", "#4d8a72", "#6f9f8a", "#9dbfa8", "#d6e6da"],
     "crypt": ["#0b0a14", "#1c1a30", "#33304f", "#4f4d6d", "#77738c", "#a39fae", "#d3cfc9", "#f1ede0"],
+    # Cut 3 (docs/CUT3.md). Ramps stay monotone in luminance so the tint pass can index by value.
+    # foundry: rust / ember / iron - warm dark oranges, two iron greys (4, 6), one hot yellow (7).
+    "foundry": ["#120b08", "#2c1a12", "#4e2a18", "#8a3f1c", "#5b5a5e", "#c2622a", "#9a9598", "#f4c040"],
+    # deep: black / ink-blue / bone - near-black floor (2), blue-black walls (3, 4), bone highlights (6, 7).
+    "deep": ["#030306", "#0c0e1a", "#181b30", "#1e2340", "#2c3560", "#5a5f78", "#b8b09a", "#ece4cc"],
+    # sanctum: white / gold / slate - slate shadows (0-3), one gold (4), pale stone (5-7).
+    "sanctum": ["#1a1c24", "#3c404e", "#666a78", "#9a9aa0", "#c9a84a", "#d9d4c6", "#ebe6d8", "#fbf7ee"],
 }
 
 # One-shot palette flash (CUT2 §7, boss sighted): the viewer swaps the biome ramp for this
@@ -57,11 +64,24 @@ def hex_rgb(h: str) -> tuple[int, int, int]:
 
 
 # --- ASCII templates ------------------------------------------------------
-# Digits index the biome ramp. Letters are dither cells resolved per texel:
-#   'a' = 50% Bayer between idx 3 and 4 (water body)
-#   'b' = 25% Bayer between idx 0 and 1 (chasm lip)
-#   'c' = 25% Bayer between idx 2 and 1 (floor grit)
-# Templates are per tile, with optional per-biome overrides for character.
+# Digits index the biome ramp. Letters are ordered-dither cells resolved per texel from
+# DITHER: (idx if bayer < threshold, idx otherwise, threshold out of 16).
+DITHER: dict[str, tuple[int, int, int]] = {
+    "a": (4, 3, 8),   # 50% between 4 and 3 (water body)
+    "b": (1, 0, 4),   # 25% of 1 over 0 (chasm lip)
+    "c": (1, 2, 4),   # 25% of 1 over 2 (floor grit)
+    "d": (3, 1, 4),   # 25% of 3 over 1 (deep chasm lip: a little ink-blue over blue-black)
+    "e": (3, 2, 8),   # 50% between 3 and 2 (sanctum pool: slate greys)
+    "f": (5, 3, 8),   # 50% between 5 and 3 (foundry molten channel: two oranges)
+}
+# A template is either a list of rows (every biome) or a dict {biome: rows, "*": default rows}.
+
+
+def tpl(spec, biome: str) -> list[str]:
+    if isinstance(spec, dict):
+        return spec[biome] if biome in spec else spec["*"]
+    return spec
+
 
 FLOOR = {
     "warrens": [
@@ -93,6 +113,36 @@ FLOOR = {
         "22122222",
         "22122222",
         "22122222",
+    ],
+    "foundry": [  # cooled slag: dark rust field, an orange fleck and iron grit
+        "22222222",
+        "22222232",
+        "22222222",
+        "21222222",
+        "22222221",
+        "22232222",
+        "22222222",
+        "22221222",
+    ],
+    "deep": [  # near-black cave floor; the fewest marks of any biome (vision 4)
+        "22222222",
+        "22222222",
+        "22212222",
+        "22222232",
+        "22222222",
+        "22222212",
+        "22222222",
+        "21222222",
+    ],
+    "sanctum": [  # pale dressed flagstones: light mortar (3) on pale stone (5), a lit texel per slab
+        "55555355",
+        "56555355",
+        "55555365",
+        "33333333",
+        "55355555",
+        "55356555",
+        "55355555",
+        "55355555",
     ],
 }
 
@@ -127,6 +177,36 @@ FLOOR_ALT = {
         "22122122",
         "22122222",
     ],
+    "foundry": [  # a diagonal crack with one ember (5) still hot in it
+        "22222222",
+        "22222212",
+        "22222122",
+        "22221222",
+        "22212222",
+        "22522222",
+        "22222222",
+        "22222222",
+    ],
+    "deep": [  # a wet pool (3) and one bone chip (6)
+        "22222222",
+        "22222222",
+        "22233222",
+        "22333222",
+        "22222222",
+        "22222262",
+        "22222222",
+        "22222222",
+    ],
+    "sanctum": [  # cracked slab with a gold inlay fleck (4)
+        "55555355",
+        "55535355",
+        "55535355",
+        "33333333",
+        "55355555",
+        "55355545",
+        "55355355",
+        "55355555",
+    ],
 }
 
 WALL = {
@@ -160,29 +240,83 @@ WALL = {
         "01111110",
         "00000000",
     ],
+    "foundry": [  # riveted iron plates (4) with light rivets (6), a dark seam, one rust patch (3)
+        "00000000",
+        "06444460",
+        "04444440",
+        "01111110",
+        "04434440",
+        "06444460",
+        "01111110",
+        "00000000",
+    ],
+    "deep": [  # blue-black cave rock, vertical cracks, a bone-lit corner upper-left
+        "00000000",
+        "04431330",
+        "03431330",
+        "03411330",
+        "01133130",
+        "03333130",
+        "01331110",
+        "00000000",
+    ],
+    "sanctum": [  # white marble courses with a gold trim course (4) at mid-height
+        "00000000",
+        "07666510",
+        "06666510",
+        "01111110",
+        "04444440",
+        "01111110",
+        "06651660",
+        "00000000",
+    ],
 }
 
-DOOR = [  # planked door in a dark frame, knob at idx 6
-    "00000000",
-    "05505500",
-    "05505500",
-    "05505500",
-    "05505560",
-    "04404400",
-    "04404400",
-    "00000000",
-]
+DOOR = {
+    "*": [  # planked door in a dark frame, knob at idx 6
+        "00000000",
+        "05505500",
+        "05505500",
+        "05505500",
+        "05505560",
+        "04404400",
+        "04404400",
+        "00000000",
+    ],
+    "foundry": [  # iron door: grey plates (4), dark seams, light knob (6)
+        "00000000",
+        "04414410",
+        "04414410",
+        "04414410",
+        "04414460",
+        "01111110",
+        "04414410",
+        "00000000",
+    ],
+}
 
-STAIRS_DOWN = [  # a pit of steps descending to the lower-right, lit step on top
-    "22222222",
-    "20000002",
-    "20444402",
-    "20033302",
-    "20022202",
-    "20011102",
-    "20000002",
-    "22222222",
-]
+STAIRS_DOWN = {
+    "*": [  # a pit of steps descending to the lower-right, lit step on top
+        "22222222",
+        "20000002",
+        "20444402",
+        "20033302",
+        "20022202",
+        "20011102",
+        "20000002",
+        "22222222",
+    ],
+    "deep": [  # the top step is bone-lit (6) so the stairs are findable on a near-black floor
+        "22222222",
+        "20000002",
+        "20666602",
+        "20444402",
+        "20333302",
+        "20111102",
+        "20000002",
+        "22222222",
+    ],
+}
 
 STAIRS_UP = [  # steps rising toward the top; risers as dark lines
     "22222222",
@@ -195,27 +329,61 @@ STAIRS_UP = [  # steps rising toward the top; risers as dark lines
     "22222222",
 ]
 
-WATER = [  # dithered body with two wave dashes (idx 6)
-    "aaaaaaaa",
-    "aa66aaaa",
-    "aaaaaaaa",
-    "aaaaaaaa",
-    "aaaaaa66",
-    "aaaaaaaa",
-    "a66aaaaa",
-    "aaaaaaaa",
-]
+WATER = {
+    "*": [  # dithered body with two wave dashes (idx 6)
+        "aaaaaaaa",
+        "aa66aaaa",
+        "aaaaaaaa",
+        "aaaaaaaa",
+        "aaaaaa66",
+        "aaaaaaaa",
+        "a66aaaaa",
+        "aaaaaaaa",
+    ],
+    "foundry": [  # molten channel: two oranges dithered, hot-yellow (7) dashes
+        "ffffffff",
+        "ff77ffff",
+        "ffffffff",
+        "ffffffff",
+        "ffffff77",
+        "ffffffff",
+        "f77fffff",
+        "ffffffff",
+    ],
+    "sanctum": [  # still reflecting pool: slate greys dithered, white (7) dashes
+        "eeeeeeee",
+        "ee77eeee",
+        "eeeeeeee",
+        "eeeeeeee",
+        "eeeeee77",
+        "eeeeeeee",
+        "e77eeeee",
+        "eeeeeeee",
+    ],
+}
 
-CHASM = [  # near-black with a dithered lip at the top (light falls in from above)
-    "bbbbbbbb",
-    "bbbbbbbb",
-    "00000000",
-    "00000000",
-    "00000000",
-    "00000000",
-    "00000000",
-    "00000000",
-]
+CHASM = {
+    "*": [  # near-black with a dithered lip at the top (light falls in from above)
+        "bbbbbbbb",
+        "bbbbbbbb",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+    ],
+    "deep": [  # no light falls in; the lip is a dusting of ink-blue so it separates from the floor
+        "dddddddd",
+        "dddddddd",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+    ],
+}
 
 # Overlays and item glyphs use their own small palettes ('.' = transparent).
 GAS_PAL = {"k": "#2b3a10", "d": "#6f9a2a", "m": "#9ac43a", "l": "#d8e87a"}
@@ -369,14 +537,8 @@ def resolve(ch: str, x: int, y: int) -> int | None:
     """Map a template character to a ramp index (None = transparent)."""
     if ch.isdigit():
         return int(ch)
-    b = BAYER4[y % 4][x % 4]
-    if ch == "a":
-        return 4 if b < 8 else 3
-    if ch == "b":
-        return 1 if b < 4 else 0
-    if ch == "c":
-        return 1 if b < 4 else 2
-    raise ValueError(ch)
+    lo, hi, thresh = DITHER[ch]
+    return lo if BAYER4[y % 4][x % 4] < thresh else hi
 
 
 def ramp_tile(rows: list[str], ramp: list[str]) -> Image.Image:
@@ -418,17 +580,17 @@ def build() -> dict[str, Image.Image]:
     tiles: dict[str, Image.Image] = {}
     for biome, ramp in PALETTES.items():
         spec = {
-            "floor": FLOOR[biome],
-            "floor_alt": FLOOR_ALT[biome],
-            "wall": WALL[biome],
+            "floor": FLOOR,
+            "floor_alt": FLOOR_ALT,
+            "wall": WALL,
             "door": DOOR,
             "stairs_down": STAIRS_DOWN,
             "stairs_up": STAIRS_UP,
             "water": WATER,
             "chasm": CHASM,
         }
-        for name, rows in spec.items():
-            tiles[f"{biome}_{name}"] = ramp_tile(rows, ramp)
+        for name, template in spec.items():
+            tiles[f"{biome}_{name}"] = ramp_tile(tpl(template, biome), ramp)
         for i, rows in enumerate(BONES):
             tiles[f"{biome}_bones_{i}"] = ramp_keyed_tile(rows, ramp)
     for i, rows in enumerate(GAS):
@@ -442,19 +604,35 @@ def build() -> dict[str, Image.Image]:
 
 
 def sheet(tiles: dict[str, Image.Image], scale: int = 4) -> Image.Image:
-    """4x review sheet: one row per biome, then overlays + items over each floor."""
+    """4x review sheet: per biome, a row of tiles, a row of overlays/items/props over the floor,
+    and a 5x4 sample room (walls around every special floor + a bones pile) to judge the rim rule."""
     order = ["floor", "floor_alt", "wall", "door", "stairs_down", "stairs_up", "water", "chasm"]
     extras = ["gas_0", "gas_1", "fire_0", "fire_1", "potion", "scroll", "weapon", "armour", "gold",
               "bones", "{b}_bones_0", "{b}_bones_1"]
+    room = [
+        ["wall", "wall", "wall", "wall", "wall"],
+        ["wall", "floor", "floor_alt", "stairs_up", "wall"],
+        ["wall", "water", "floor+bones_0", "floor", "door"],
+        ["wall", "chasm", "stairs_down", "floor_alt", "wall"],
+    ]
     cell = T * scale
     pad = 6
     label_h = 12
     cols = max(len(order), len(extras))
     w = pad + cols * (cell + pad) + 80
-    rows = len(PALETTES) * 2
-    h = pad + rows * (cell + label_h + pad) + label_h + 4 * cell + pad
+    per_biome = 2 * (cell + label_h + pad) + (len(room) * cell + label_h + pad)
+    h = pad + len(PALETTES) * per_biome + pad
     im = Image.new("RGBA", (w, h), (24, 22, 20, 255))
     d = ImageDraw.Draw(im)
+
+    def tile_at(biome: str, name: str) -> Image.Image:
+        if "+" in name:  # "floor+bones_0": prop composited over that floor
+            base, prop = name.split("+")
+            comp = tiles[f"{biome}_{base}"].copy()
+            comp.alpha_composite(tiles[f"{biome}_{prop}"])
+            return comp
+        return tiles[f"{biome}_{name}"]
+
     y = pad
     for biome in PALETTES:
         d.text((pad, y), biome, fill=(230, 220, 200, 255))
@@ -474,15 +652,14 @@ def sheet(tiles: dict[str, Image.Image], scale: int = 4) -> Image.Image:
             im.paste(comp.resize((cell, cell), Image.Resampling.NEAREST), (x, y + label_h))
             d.text((x, y), name.replace(f"{biome}_", "")[:10], fill=(180, 170, 150, 255))
         y += cell + label_h + pad
-    # a 3x3 sample room per biome at 4x, walls around floors, to judge the rim rule
-    d.text((pad, y), "room", fill=(230, 220, 200, 255))
-    for bi, biome in enumerate(PALETTES):
-        x0 = 80 + pad + bi * (3 * cell + pad * 2)
-        room = [["wall"] * 4, ["wall", "floor", "floor_alt", "wall"], ["wall", "water", "stairs_down", "door"], ["wall"] * 4]
+        # sample room at 4x, walls around floors, to judge the rim rule and the special floors
+        d.text((pad, y), "room", fill=(180, 170, 150, 255))
+        x0 = 80 + pad
         for ry, row in enumerate(room):
             for rx, name in enumerate(row):
-                im.paste(tiles[f"{biome}_{name}"].resize((cell, cell), Image.Resampling.NEAREST),
+                im.paste(tile_at(biome, name).resize((cell, cell), Image.Resampling.NEAREST),
                          (x0 + rx * cell, y + label_h + ry * cell))
+        y += len(room) * cell + label_h + pad
     return im
 
 

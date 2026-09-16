@@ -1,31 +1,4 @@
-#!/usr/bin/env python3
-"""Build codex batch prompts (art/prompts/batchN.txt) from art/manifest.json.
-
-Usage: python3 art/make_prompts.py [N id id id ...]   (no args = default batches)
-Each prompt embeds the ART.md preamble, the chroma-key colour science, exact output
-paths and sizes, and the "touch nothing outside art/generated/" rule.
-"""
-import json
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent
-MAN = json.loads((ROOT / "manifest.json").read_text())
-BY_ID = {a["id"]: a for a in MAN["assets"]}
-
-DEFAULT_BATCHES = {
-    1: ["hero_fighter", "hero_rogue", "rat", "jackal", "goblin", "goblin_archer"],
-    2: ["goblin_conjurer", "monkey", "ogre", "bloat", "pink_jelly", "eel"],
-    3: ["skeleton", "ghoul", "wraith", "captive", "spectral_blade", "spectral_hound"],
-    4: ["boss_goblin_warlord", "boss_bloat_mother", "boss_lich", "title"],
-    5: ["hero_ranger", "hero_caster"],
-    # Cut 3: biomes 4-6, one batch per biome (monsters + that biome's boss)
-    6: ["iron_golem", "forge_imp", "bell_sentinel", "slag_crawler", "smith", "boss_foundry_master"],
-    7: ["lurker", "deep_eel", "cave_troll", "siren", "mirror_shade", "boss_lurker_queen"],
-    8: ["warden", "acolyte", "echo", "sentinel", "boss_mirror_king"],
-}
-
-HEADER = """You are generating painted sprite masters for the game "Riddle" (a phone roguelike).
+You are generating painted sprite masters for the game "Riddle" (a phone roguelike).
 Use your built-in image_gen tool, one call per asset below. Do NOT write code, do NOT touch
 anything outside /home/g/p/riddle/art/generated/. Do not read or modify any other file in the
 repository. Do not leave _inspection_*.png or any other scratch file behind. If a file already
@@ -73,42 +46,18 @@ NO floor, NO ground plane, NO contact shadow, NO cast-shadow pool, NO scenery, N
 NO pedestal — the subject floats on flat blue and the game engine draws its own shadow.
 
 === ASSETS ===
-"""
+--- 1. id: forge_imp  (monster)
+Output path: /home/g/p/riddle/art/generated/forge_imp.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 28 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A forge imp facing right, SMALL, mid-hop with knees tucked: a scrawny imp with solid ember-orange skin and soot-black hands, feet and horn tips, ONE small flame tuft of hair only (the body is flesh, NOT made of fire), a wide toothy grin, HOLDING OUT A STOLEN POTION BOTTLE in both arms in front of its chest — a big round-bellied flask of pale bone-white glass with a cork and rose-red liquid, one third of the imp's height, separated from the body by a full ink contour so it is its own shape. The bottle is the palest, brightest thing in the sprite. Orange + soot-black + bone-white glass + one red accent. Tag: SMALL, WITH A STOLEN BOTTLE — at 28 px the bottle must be a distinct pale round bump on the front of the silhouette. No fire on the ground, no flames around the body.
 
-TITLE_RULES = """Register for this asset: BLEED key art (not keyed). Painted edge to edge, full bleed, no blue key,
-no transparency. Same medium (loose 1980s anime watercolour key art with bold ink) but this one is a
-composed scene. ABSOLUTELY NO TEXT, letters, logotype or title anywhere in the image.
-"""
+--- 2. id: siren  (monster)
+Output path: /home/g/p/riddle/art/generated/siren.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A siren facing right, standing and SINGING: a slender figure in a long robe whose HEAD IS THROWN BACK — chin up, face to the ceiling, mouth wide open — with the deep hood fallen back off the face onto the shoulders, both hands clasped at the chest, the robe hem pooled at the feet; THREE BOLD flat ink voice-arcs stacked in front of the open mouth (each as thick as the contour line and a head-width wide, flat shapes, no glow). Bone-white face and throat, deep violet-black robe (all channels low, never saturated blue), a pale teal lining inside the fallen hood. Tag: HOODED SINGER — the thrown-back open-mouthed head and the voice-arcs are the silhouette at 40 px. Distinct from the floating wraith: this one stands. Not a hooded figure looking down.
 
-
-def asset_block(i: int, a: dict) -> str:
-    out = f"/home/g/p/riddle/art/generated/{a['id']}.png"
-    w, h = a["gen"].split("x")
-    lines = [f"--- {i}. id: {a['id']}  ({a['kind']})",
-             f"Output path: {out}",
-             f"Size: exactly {w}x{h} px (width x height), PNG."]
-    if a["bg"] == "keyed":
-        lines.append(f"Shown in game at about {a['texel_h']} px tall; judge readability at that size.")
-        lines.append(f"Background: flat pure blue #0000FF, keyed register (rules above).")
-    else:
-        lines.append(TITLE_RULES.rstrip())
-    lines.append("Brief: " + a["description"])
-    return "\n".join(lines) + "\n\n"
-
-
-def build(n: int, ids: list[str]) -> Path:
-    body = HEADER + "".join(asset_block(i + 1, BY_ID[i_]) for i, i_ in enumerate(ids))
-    body += ("When all assets are saved, list the final paths and their pixel sizes. "
-             "Do nothing else.\n")
-    p = ROOT / "prompts" / f"batch{n}.txt"
-    p.write_text(body)
-    return p
-
-
-if __name__ == "__main__":
-    if len(sys.argv) > 2:
-        n = int(sys.argv[1])
-        print(build(n, sys.argv[2:]))
-    else:
-        for n, ids in DEFAULT_BATCHES.items():
-            print(build(n, ids))
+When all assets are saved, list the final paths and their pixel sizes. Do nothing else.

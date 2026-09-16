@@ -54,7 +54,7 @@
       "gen": "1024x1024",
       "master_h": 48,
       "texel_h": 24,
-      "description": "A lean dungeon jackal facing right mid-lope: low horizontal body, ribs showing, big pointed ears, narrow snout with a snarl, tail straight out behind. Sandy-tan and dusty umber washes, one flat shadow mass. Tag: LOW, LEAN and FAST \u2014 the silhouette is a stretched horizontal dash with ears. Reads at 32 px."
+      "description": "A lean dungeon jackal facing right mid-lope: low horizontal body, ribs showing, big pointed ears, narrow snout with a snarl, tail straight out behind. Sandy-tan and dusty umber washes, one flat shadow mass. Tag: LOW, LEAN and FAST — the silhouette is a stretched horizontal dash with ears. Reads at 32 px."
     },
     {
       "id": "goblin",
@@ -72,7 +72,7 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A goblin archer facing right, DRAWING A BOW: tall crude recurve bow held out front with the string pulled fully back to the cheek and an arrow nocked, quiver on the back. Same olive skin and ochre rags as the plain goblin, plus a leather cap. The drawn bow is the tag \u2014 it must be a big clear arc in the silhouette at 40 px, wider than the body."
+      "description": "A goblin archer facing right, DRAWING A BOW: tall crude recurve bow held out front with the string pulled fully back to the cheek and an arrow nocked, quiver on the back. Same olive skin and ochre rags as the plain goblin, plus a leather cap. The drawn bow is the tag — it must be a big clear arc in the silhouette at 40 px, wider than the body."
     },
     {
       "id": "goblin_conjurer",
@@ -108,7 +108,7 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A bloat: one swollen, taut, floating sac of sickly yellow-green gas, veined, with a few tiny dangling tendrils and a small puckered mouth. No limbs, no face beyond the mouth. Tag: SWOLLEN SAC \u2014 a single fat teardrop/balloon silhouette, glowing faintly from within. Reads as 'balloon about to pop' at 40 px. Yellow-green, never blue."
+      "description": "A bloat: one swollen, taut, floating sac of sickly yellow-green gas, veined, with a few tiny dangling tendrils and a small puckered mouth. No limbs, no face beyond the mouth. Tag: SWOLLEN SAC — a single fat teardrop/balloon silhouette, glowing faintly from within. Reads as 'balloon about to pop' at 40 px. Yellow-green, never blue."
     },
     {
       "id": "pink_jelly",
@@ -117,7 +117,7 @@
       "gen": "1024x1024",
       "master_h": 48,
       "texel_h": 24,
-      "description": "A pink jelly: a low translucent quivering blob of rose-pink watercolour, dome-shaped with a wobbly lower edge, a few suspended darker pink flecks inside, a wet highlight upper-left. No face, no limbs. Tag: TRANSLUCENT BLOB \u2014 a squat dome silhouette. Reads at 32 px. Pink, magenta and ivory only."
+      "description": "A pink jelly: a low translucent quivering blob of rose-pink watercolour, dome-shaped with a wobbly lower edge, a few suspended darker pink flecks inside, a wet highlight upper-left. No face, no limbs. Tag: TRANSLUCENT BLOB — a squat dome silhouette. Reads at 32 px. Pink, magenta and ivory only."
     },
     {
       "id": "eel",
@@ -135,7 +135,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A walking skeleton warrior facing right: all bone, upright, ribcage and skull clearly drawn, holding a rusted notched sword, a few rags of grave-cloth. Bone-white paper with warm ivory washes and one flat indigo shadow side; dark ink between every bone. Tag: ALL BONE \u2014 the gappy ribcage silhouette. Reads at 48 px."
+      "description": "A walking skeleton warrior facing right: all bone, upright, ribcage and skull clearly drawn, holding a rusted notched sword, a few rags of grave-cloth. Bone-white paper with warm ivory washes and one flat indigo shadow side; dark ink between every bone. Tag: ALL BONE — the gappy ribcage silhouette. Reads at 48 px."
     },
     {
       "id": "ghoul",
@@ -144,7 +144,7 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A ghoul facing right: hunched, gaunt, grey-green corpse flesh, arms out front ending in long clawed hands, jaw hanging open, hair in lank strands. Tag: HUNCHED with CLAWS reaching forward \u2014 the silhouette leans forward with two claw shapes leading. Distinct from the upright skeleton at 40 px."
+      "description": "A ghoul facing right: hunched, gaunt, grey-green corpse flesh, arms out front ending in long clawed hands, jaw hanging open, hair in lank strands. Tag: HUNCHED with CLAWS reaching forward — the silhouette leans forward with two claw shapes leading. Distinct from the upright skeleton at 40 px."
     },
     {
       "id": "wraith",
@@ -153,7 +153,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A wraith facing right: a tall floating tattered shroud with no legs, the hem torn into trailing ribbons, a hooded void where the face should be with two pale points of light, long thin reaching hand. Ash-violet and blue-black washes (all channels low, never saturated blue), ivory-pale edges. Tag: TATTERED and FLOATING \u2014 ragged hem, no feet. Reads at 48 px."
+      "description": "A wraith facing right: a tall floating tattered shroud with no legs, the hem torn into trailing ribbons, a hooded void where the face should be with two pale points of light, long thin reaching hand. Ash-violet and blue-black washes (all channels low, never saturated blue), ivory-pale edges. Tag: TATTERED and FLOATING — ragged hem, no feet. Reads at 48 px."
     },
     {
       "id": "captive",
@@ -162,7 +162,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A captive facing right: an anime adventurer kneeling or slumped with heavy iron manacles and a thick chain visibly wrapping the wrists and trailing to the floor edge of the figure, torn tunic, hopeful anime face looking up. Warm ivory skin, dull red tunic, iron-grey chain with ink links. Tag: IN CHAINS \u2014 the chain must be a bold dark line in the silhouette at 48 px. No floor drawn."
+      "description": "A captive facing right: an anime adventurer kneeling or slumped with heavy iron manacles and a thick chain visibly wrapping the wrists and trailing to the floor edge of the figure, torn tunic, hopeful anime face looking up. Warm ivory skin, dull red tunic, iron-grey chain with ink links. Tag: IN CHAINS — the chain must be a bold dark line in the silhouette at 48 px. No floor drawn."
     },
     {
       "id": "boss_goblin_warlord",
@@ -171,7 +171,7 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Goblin Warlord facing right, LARGER than any goblin: broad, armoured in scavenged iron plates and a fur mantle, a jagged iron CROWN, a huge cleaver in one hand and a raised fist in the other, a red war-banner strip trailing. Olive skin, iron grey, red banner. Tag: BOSS \u2014 crowned, big, banner. Reads as 'the big crowned goblin' at 64 px."
+      "description": "The Goblin Warlord facing right, LARGER than any goblin: broad, armoured in scavenged iron plates and a fur mantle, a jagged iron CROWN, a huge cleaver in one hand and a raised fist in the other, a red war-banner strip trailing. Olive skin, iron grey, red banner. Tag: BOSS — crowned, big, banner. Reads as 'the big crowned goblin' at 64 px."
     },
     {
       "id": "boss_bloat_mother",
@@ -180,7 +180,7 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Bloat Mother: an enormous swollen sac of sickly yellow-green gas, ringed with a crown of bone spines around the top, dozens of tiny bloat-buds budding from her sides, a wide puckered maw, taut veins. Tag: BOSS \u2014 huge, spine-crowned, budding. The silhouette is a giant balloon with a spiky crown; reads at 64 px. Yellow-green and bone, never blue."
+      "description": "The Bloat Mother: an enormous swollen sac of sickly yellow-green gas, ringed with a crown of bone spines around the top, dozens of tiny bloat-buds budding from her sides, a wide puckered maw, taut veins. Tag: BOSS — huge, spine-crowned, budding. The silhouette is a giant balloon with a spiky crown; reads at 64 px. Yellow-green and bone, never blue."
     },
     {
       "id": "boss_lich",
@@ -189,7 +189,7 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Lich facing right: a tall gaunt robed skeleton king in tattered indigo-black robes with a tall bone SKULL-CROWN, one hand raising a crooked staff topped with a pale skull, the other hand open with a cold teal-white flame. Bone-white skull, blue-black robes (all channels low, never saturated blue), teal-white flame. Tag: BOSS \u2014 crowned skull, staff, flame. Reads at 64 px."
+      "description": "The Lich facing right: a tall gaunt robed skeleton king in tattered indigo-black robes with a tall bone SKULL-CROWN, one hand raising a crooked staff topped with a pale skull, the other hand open with a cold teal-white flame. Bone-white skull, blue-black robes (all channels low, never saturated blue), teal-white flame. Tag: BOSS — crowned skull, staff, flame. Reads at 64 px."
     },
     {
       "id": "spectral_blade",
@@ -208,6 +208,159 @@
       "master_h": 40,
       "texel_h": 20,
       "description": "A spectral hound facing right: a lean running dog made of ivory-white and pale teal wash, hind legs fading into wisps, ears back, mouth open. Bold ink outline. Tag: a ghostly running dog. Reads at 24 px. Never saturated blue."
+    },
+    {
+      "id": "iron_golem",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "An iron golem facing right, MASSIVE and boxy: a walking stack of thick riveted iron plates — slab shoulders wider than it is tall at the top, a small visor-slit head sunk between them, block forearms, stubby plated legs, a broad chest plate. Rust-red and dull steel-grey iron with dry-brush rust bloom, a few ember-orange seams between the plates painted as flat bright cracks (no glow). Tag: MASSIVE IRON PLATES — the silhouette is a squared-off stepped block, all right angles, clearly not the rounded ogre. Reads at 48 px."
+    },
+    {
+      "id": "forge_imp",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 56,
+      "texel_h": 28,
+      "description": "A forge imp facing right, SMALL, mid-hop with knees tucked: a scrawny imp with solid ember-orange skin and soot-black hands, feet and horn tips, ONE small flame tuft of hair only (the body is flesh, NOT made of fire), a wide toothy grin, HOLDING OUT A STOLEN POTION BOTTLE in both arms in front of its chest — a big round-bellied flask of pale bone-white glass with a cork and rose-red liquid, one third of the imp's height, separated from the body by a full ink contour so it is its own shape. The bottle is the palest, brightest thing in the sprite. Orange + soot-black + bone-white glass + one red accent. Tag: SMALL, WITH A STOLEN BOTTLE — at 28 px the bottle must be a distinct pale round bump on the front of the silhouette. No fire on the ground, no flames around the body."
+    },
+    {
+      "id": "bell_sentinel",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A bell sentinel facing right, upright and stiff: an iron-armoured humanoid whose entire HEAD IS A LARGE BRONZE BELL — the flared bell mouth opening downward over the shoulders, wider than the body, a dark clapper visible hanging inside it; a slender riveted body beneath, one arm raised holding a striking rod ready to ring. Tarnished bronze-gold bell, iron-grey body, one ember-orange seam accent. Tag: A BELL FOR A HEAD — the top of the silhouette is a bell shape, unmistakable at 40 px. No sound lines, no glow."
+    },
+    {
+      "id": "slag_crawler",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 48,
+      "texel_h": 24,
+      "description": "A slag crawler facing right: a LOW, long, many-legged creature of cooled black slag crust cracked open along the back to show ember-orange heat beneath (flat bright cracks, no glow), a blunt heavy head low to the front, six short stubby legs, and a TRAIL OF EMBERS behind it — a scatter of small orange and yellow flecks attached to the tapering tail end, drawn as part of the silhouette. Soot-black + ember-orange + one hot yellow accent. Tag: LOW and TRAILING EMBERS — a horizontal dash with a dotted ember tail. Reads at 32 px. No floor."
+    },
+    {
+      "id": "smith",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A foundry smith facing right, stocky and broad: a burly bare-armed figure in a heavy leather APRON down to the shins, a massive square-headed HAMMER raised in both hands over the shoulder, a soot-streaked face with a set anime jaw and a headband, thick gloves, boots. Warm leather browns, iron-grey hammer head, one ember-orange accent (a hot rivet on the apron pocket). Tag: HAMMER AND APRON — the raised square hammer and the long apron rectangle are the silhouette at 40 px. Clearly not a goblin, clearly not the golem."
+    },
+    {
+      "id": "boss_foundry_master",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "The Foundry Master facing right, LARGER than the iron golem: a colossal iron-and-bronze forge-lord, riveted plate body like the golem but with an ANVIL-SHAPED chest, a heavy leather apron over the plates, a jagged CROWN of iron rivet-spikes on the helm, a gigantic two-handed forge hammer raised overhead, ember-orange seams at every joint (flat bright cracks, no glow). Rust-red iron, bronze, leather, one hot yellow accent in the crown's centre. Tag: BOSS — crowned, huge hammer, apron over iron. Reads as 'the big crowned iron smith' at 64 px."
+    },
+    {
+      "id": "lurker",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A lurker facing right, hunched: a pallid bone-white cave-thing with NO EYES — a smooth blank brow above a wide lipless mouth of needle teeth, a long neck craned forward, and ARMS FAR LONGER THAN ITS BODY that reach down past its feet, ending in long thin fingers. Skinny torso, knees bent. Bone-white and pale grey washes, blue-black shadow side (all channels low, never saturated blue). Tag: EYELESS and LONG-ARMED — the silhouette is a hunched body with two arms hanging to the bottom edge. Reads at 40 px."
+    },
+    {
+      "id": "deep_eel",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 48,
+      "texel_h": 24,
+      "description": "A deep eel facing right: a very long, thin RIBBON of a fish undulating in three waves across the frame, a continuous translucent fin frill along the whole back, a narrow head with a needle jaw at the right, a tapering ribbon tail at the left. Ink-black back, bone-white belly and frill, a few pale teal flecks along the flank (high green, never royal blue). Tag: A RIBBON — thin and wavy with many curves, clearly different from the thick S-curved fens eel. Reads at 32 px."
+    },
+    {
+      "id": "cave_troll",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "A cave troll facing right: HUNCHED BULK — an enormous rounded back and shoulders, a small head sunk low in front of the chest, both long thick arms reaching down with knuckles at ankle level, short bowed legs, no weapon. Mottled slate-grey and moss-green hide with wart-lumps, a pale belly, blue-black shadow mass (never saturated blue). Tag: HUNCHED BULK — the silhouette is a big boulder with knuckles under it, clearly not the upright club-raising ogre. Reads at 48 px."
+    },
+    {
+      "id": "siren",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A siren facing right, standing and SINGING: a slender figure in a long robe whose HEAD IS THROWN BACK — chin up, face to the ceiling, mouth wide open — with the deep hood fallen back off the face onto the shoulders, both hands clasped at the chest, the robe hem pooled at the feet; THREE BOLD flat ink voice-arcs stacked in front of the open mouth (each as thick as the contour line and a head-width wide, flat shapes, no glow). Bone-white face and throat, deep violet-black robe (all channels low, never saturated blue), a pale teal lining inside the fallen hood. Tag: HOODED SINGER — the thrown-back open-mouthed head and the voice-arcs are the silhouette at 40 px. Distinct from the floating wraith: this one stands. Not a hooded figure looking down."
+    },
+    {
+      "id": "mirror_shade",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "A mirror shade facing right: a HERO-SHAPED DARK MIRROR — the full-body silhouette of an anime adventurer in a ready stance with a short sword held low, painted as a flat solid blue-black shape (all channels low, never saturated or royal blue) with thin silvered cyan-white edge highlights along the upper-left contours (green channel at least as high as blue), NO face, NO features, one pale crack running across the chest. Bold dark ink outline as always. Tag: A HERO SHAPE, BUT DARK — at 48 px it must read as 'the hero's shadow'."
+    },
+    {
+      "id": "boss_lurker_queen",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "The Lurker Queen facing right, LARGER than any lurker: a huge pallid eyeless matriarch, blank brow, wide needle-toothed maw, a tall CROWN of bone spines growing from her skull, FOUR long thin arms reaching down and out, a swollen belly, and three small lurker-hatchlings clinging to her flanks and shoulders. Bone-white and grey washes, blue-black shadow side (never saturated blue), one pale teal accent in the crown. Tag: BOSS — crowned, eyeless, many long arms, hatchlings. Reads at 64 px."
+    },
+    {
+      "id": "warden",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "A sanctum warden facing right, tall and upright in pale stone-white plate armour with gold trim and a slate-grey tabard: a tall rectangular TOWER SHIELD held out in FRONT (to the right, covering knees to chin), and a LONGBOW slung across the BACK so its arc pokes clearly above the left shoulder and below the hip behind the figure, a full quiver beside it. Closed great-helm. Ivory-white, gold, slate. Tag: SHIELD IN FRONT, BOW ON THE BACK — both must be distinct bumps of the silhouette at 48 px."
+    },
+    {
+      "id": "acolyte",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A sanctum acolyte facing right, BOWED: a robed figure bent forward at the waist, head bowed low, both arms raised with open palms turned up at shoulder height (an offering gesture), a long white robe with gold hem trim and a slate-grey hood, bare feet. Ivory-white, one gold accent, slate shadow. Tag: BOWED, HANDS UP — a folded figure with two raised hands, clearly not the singing siren (whose head goes back) at 40 px."
+    },
+    {
+      "id": "echo",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "An echo facing right: a slender pale humanoid in a plain ivory tunic drawn TWICE — the front figure solid, and an identical DOUBLE offset half a body-width up and to the left behind it, painted as a translucent ghost (much paler washes, the front figure showing through) but with its own dark ink outline. Both figures in the same walking pose. Ivory-white, pale gold, slate-grey ink. Tag: A TRANSLUCENT DOUBLE — at 40 px the silhouette has two heads and two sets of legs, a doubled outline."
+    },
+    {
+      "id": "sentinel",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "A sanctum sentinel: a squat standing STONE PILLAR, slightly tapered, with ONE HUGE OPEN EYE carved into its upper face — a wide almond eye with a gold iris and a dark pupil, looking right — and a few gold-inlaid lines below it; no limbs, no face beyond the eye. Pale slate-grey stone with chalk-white lit side, gold accent, no glow. Tag: A STONE EYE — a blunt monolith with an eye. Reads at 40 px; clearly not the bell sentinel (which is a humanoid with a bell head)."
+    },
+    {
+      "id": "boss_mirror_king",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "The Mirror King facing right, LARGER than the warden: a tall regal figure whose whole body is a DARK MIRROR (flat blue-black, all channels low, never saturated blue) with silvered cyan-white edge highlights (green at least as high as blue), wearing a long slate-and-gold robe and a tall spiked GOLD CROWN, holding a tall sceptre topped with a round polished hand-mirror, a single pale crack across the featureless face. Gold, ivory, blue-black. Tag: BOSS — crowned, mirror sceptre, the hero's dark reflection made king. Reads at 64 px."
     },
     {
       "id": "title",

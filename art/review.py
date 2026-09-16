@@ -26,6 +26,7 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+from make_tiles import PALETTES  # noqa: E402  biome order for the composite panels
 from pack import build_sprite  # noqa: E402
 
 SRC = ROOT / "generated"
@@ -91,17 +92,18 @@ def census(path: Path) -> dict:
 
 def review_sheet(ids: list[str], manifest: dict) -> Path:
     by_id = {a["id"]: a for a in manifest["assets"]}
-    floors = {b: Image.open(TILES / f"{b}_floor.png").convert("RGBA") for b in ("warrens", "fens", "crypt")}
-    walls = {b: Image.open(TILES / f"{b}_wall.png").convert("RGBA") for b in ("warrens", "fens", "crypt")}
-    # each row: id label | master 1x | runtime over warrens | fens | crypt  (runtime = nearest /2, tiles at 2x
-    # so 1 env texel = 2 px, 1 sprite texel = 1 px -> the option-C density ratio)
+    biomes = list(PALETTES)
+    floors = {b: Image.open(TILES / f"{b}_floor.png").convert("RGBA") for b in biomes}
+    walls = {b: Image.open(TILES / f"{b}_wall.png").convert("RGBA") for b in biomes}
+    # each row: id label | master 1x | runtime over every biome's floor+wall, in PALETTES order
+    # (runtime = nearest /2, tiles at 2x so 1 env texel = 2 px, 1 sprite texel = 1 px -> option C)
     rows = []
     for aid in ids:
         a = by_id[aid]
         master = build_sprite(SRC / f"{aid}.png", int(a["master_h"]), True)
         rt = master.resize((max(1, master.width // 2), max(1, master.height // 2)), Image.Resampling.NEAREST)
         panels = []
-        for b in ("warrens", "fens", "crypt"):
+        for b in biomes:
             pw, ph = rt.width + 32, rt.height + 32
             bg = Image.new("RGBA", (pw, ph))
             f2 = floors[b].resize((16, 16), Image.Resampling.NEAREST)
