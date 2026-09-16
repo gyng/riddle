@@ -1,0 +1,71 @@
+{
+  "$comment": "Blind card. Rater F, seed 67, build 207cc0e, phone 400x800@3 via tools/browser.mjs, one browser context for the whole session. Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK.md s1-3 and the template. Did not open PLAN.md, research/, CUT*.md, other cards or source. Notes and screenshots in the raterF scratchpad.",
+  "game": "Riddle",
+  "build": "207cc0e",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterF",
+  "horizon": {
+    "activeMinutes": 53,
+    "absences": ["8h simulated via ?dev=1&absent=8h, taken after 30 min of cold play (I misjudged elapsed time and left 10 min early); 23 min on return"],
+    "runsWatched": 7,
+    "runsOffline": 14,
+    "ruleEdits": 7,
+    "$detail": "Own edits: foes>=3 -> to corridor (+reorder), foe: thief -> attack thief (+reorder), depth>=5 -> return (+reorder), foes>=3 -> attack lowest, depth>=5 -> depth>=8. Offered: card thief guard (bought, later removed), patch hp<20% -> return (tapped). Runs watched at 1x (slow): 1, 2, 7; at fast: 3, 5; skipped: 6; run 4 stalled and was bailed. Deaths read in full: monkey D3 (run 1), gas D6 (heir 3, worst overnight death), goblin D5 (run 6); plus the 14 overnight reel/summary lines. Bought: card thief guard (3 marks), +1 row (2), path: bones (3), heal potion x2 ($40 each)."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false,
+    "$note": "Not a kill but close: two runs stalled in an unbreakable loop (hero alternating 'to corridor' / 'pick up' for 3+ minutes at frozen HP; the skip-to-end button did nothing 40 presses in a row) and the only way out was bail. No data loss: banked $57 survived the absence."
+  },
+  "criterion": {
+    "fun_1to7": 4,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 5,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: I sent heir 16 down with a heal potion I had just paid $40 for and a rule I wrote that morning, 'depth >= 5 -> return'. On D4 an archer drew and took him from 12 to 9 HP, my heal rule finally fired ('R2 · drink heal', 9 -> 23), he gambled an unknown potion and turned invisible, and 'Morak the jackal is avenged' scrolled past. He stepped onto D5 with $117, my return rule fired, and the report read '$117 carried · return keeps 60% -> $70' after fourteen dead heirs overnight had banked nothing."
+  },
+  "probes": {
+    "clarity": "The death sheet told me exactly why nothing saved him: 'R1 unknown item · R2 not in view · R3 foes not >=3'; but the 'VAULT ... choose one' panel appeared mid-run and resolved itself before I could tap, and buying 'card: thief guard' for 3 marks inserted a row with no description and dropped the D4 forecast from 92% to 33%.",
+    "decisions": "I chose 'depth >= 5 -> return' over the offered 'hp < 40% -> return' because I wanted gold banked at a fixed depth; it returned $70; when I pushed it to 'depth >= 8' the next heir died on D5 with $67 and 'death keeps 0% -> $0', so yes I would make the D5 choice again.",
+    "mastery": "An hour ago I did not know 'drink heal' was dead until a potion is identified or bought ('R1 no item' in run 1); by the end I bought one and watched '9/36 -> 23/36' on D4.",
+    "tension": "At '$71 · death: lose all' with 18/36 HP on D3 I hovered over bail for a minute; the game noticed in the sense that the header later read '$117 · keeps $70 · return at D5' so I could see what a death would cost.",
+    "feel": "'STOLEN!' popping over the hero when the monkey took $3, 'archer draws' before the arrow, and '-2 jackal' damage floats read well; nothing was done purely because it felt good, and there is no sound to assess.",
+    "surprise": "'A thief snatched the sword' on the same tick 'The den wakes: thieves on every side', a bloat that 'swells' before gas, a 'cowardly' heir whose 'trait retreat' overrode all four rules, 'Found heir 2's bones: 11 items' — each changed a rule I wrote; D1-D2 however played identically every run (pick up, pick up, descend).",
+    "expression": "My set is 'a fighter that banks at D5 and goes for thieves first' — 'yours: 3 of 5 rows' — but every one of the fifteen obituaries in the chronicle says '\"fighter\" set' and the rogue/ranger/caster classes were locked behind marks or boss kills I never reached.",
+    "story": "Run 1: the curious fighter walked into a den of thieves on D3 at 17 HP, a monkey stole his sword the tick the den woke, and he died '2 HP over' swinging at three of them with a heal rule that had nothing to drink.",
+    "pacing": "At 1x the first 45 s of run 7 were 'pick up' with $5 -> $7 and no HP change, D2 in run 2 was 80 s of the same; the two stalls were 3+ minutes of 'R4 · to corridor' / 'pick up' with the skip button doing nothing; the return check-in itself was a good 3 minutes (read 14 deaths, buy a row and a potion, write a rule).",
+    "failure": "'gas · D6 · 3 over · 6 unknown unused · gap', five ticks of 'R4 attack nearest hp 4 foes 2' with 'bloat swells' in the telegraph column — my fault for having no gas or drink-unknown rule; the reel line 'A goblin took him down; R4 attacked; died to a goblin' blames a rule I did not write.",
+    "social": "weight 0; the 'captive: ally' and 'LOST ◯ spectral hound' lines were the only relationships and they did not develop.",
+    "autonomy": "I pushed the return depth to 8 to see the Warrens deeper — nothing asked me to — and I bailed a stalled hero at $71 rather than wait.",
+    "progression": "Within the run: $3 -> $117 and D1 -> D5; between runs: marks 0 -> 13 -> 9 spent on '+1 row' (4/4 -> 5/5) and 'path: bones' (which recovered 'bones D4 · 12 items'), supplies list 3 -> 14 as potions and scrolls were identified overnight, renown '★1 ↑1'; automation ('auto: restock ◆4', 'auto: insure ◆6') I could see but never afford.",
+    "aesthetic": "A dark cave of ochre tiles on black with a chunky shield-bearing fighter and a three-jackal pack in a doorway; readable but I would not sit in it — most of the screen is void.",
+    "return": "I came back to '14 RUNS · D6 BEST · ◆+13 MARKS · 0 BANKED · 0 RETURNED · 14 DEATHS', a deaths tally 'jackal x4, goblin x4, goblin archer x3, gas x2, ogre x1', twenty LEARNED chips and 'bones: 3 on the floor'; I decided I needed a return rule and a potion; I would rather have stayed for the first two runs but not for fourteen.",
+    "attribution": "Run 5 ended because my 'depth >= 5 -> return' fired with $117 and my bought potion fired at 9 HP — those were mine; run 6 ended because I moved return to D8 and forgot to restock ('R2 no item') — also mine; the fourteen overnight deaths ended in 'R4 attacked', the default rule, and I only own three of five rows."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Trace lines like 'R1 unknown item · R2 not in view · R3 foes not >=3' and the live forecast ('D4 92%' moving as I dragged rows) make the loop legible; lapses: the mid-run 'choose one' vault panel that vanished on its own, a 3-mark card bought with no description, a forecast that reads '0%' for D6+ when a return rule simply stops the hero at D5, and '2 over' only explained inside the morgue." },
+    { "id": "decisions", "human": 0.6, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "'depth >= 5 -> return' ($70 banked) versus 'depth >= 8' (died at D5 with $67) is a real gap I would defend; but the offered patches all read 'survives 100% · base 0%' so tapping any is a maths pick, the forecast jitters 96/90/92/85 across taps with no rule change, and 'to corridor' is a verb that silently stalls." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Learned that potions are unknown until identified ('R1 no item'), that traits override rules ('R1 trait first'), that only a return rule banks gold; D3 death -> D5 return with $70 in an hour, but the next thing to learn (gas, archers, bosses) is behind marks I cannot see how to earn faster." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'$71 · death: lose all' at 18/36 HP made bail a real choice, and 'keeps $70 · return at D5' put the stake on screen every tick; lapse: two 3-minute stalls at frozen HP drained it to nothing, and the overnight was fourteen lose-all deaths with no stake I had knowingly set." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "'STOLEN!', 'LET'S SEE', '-2 jackal', 'archer draws' land at the right moment and the jackal pack sprite in the doorway reads; at 1x though there are 45-80 s stretches of 'pick up' with nothing moving but the gold counter. Audio: none, unassessed." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Sword stolen the tick the den woke, 'bloat swells' then gas, a cowardly heir's 'trait retreat' overriding all rules, 'Found heir 2's bones', an invisibility gamble, five distinct overnight death causes — each changed a rule; lapse: D1-D2 are the same 'pick up' walk in all seven runs." },
+    { "id": "expression", "human": 0.3, "bot": "na", "proxy": "rule-set diversity across clears", "note": "'yours: 3 of 5 rows' and a set I can describe ('banks at D5, hunts thieves first'), but fifteen obituaries all say '\"fighter\" set', classes and most verbs are locked, and the row cap of 5 with two defaults leaves little room to be anyone in particular." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Run 5 has setup, turn and end (potion at 9 HP, 'Morak the jackal is avenged', 'Returned with $70') and the morgue notes retell run 1 well ('A thief snatched the sword'); the overnight reel is formulaic ('A goblin took him down; R4 attacked; died to a goblin') and the chronicle's one-liners cannot be opened again." },
+    { "id": "pacing", "human": 0.3, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 45-80 s dead stretches of 'pick up' at 1x and two 3+ minute stalls that '▶▶|' could not break (40 presses); check-in on return was a good ~3 min; cadence: only one absence taken, the 'rest 20m' button exists but its distinct payoff I did not see." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Every death names foe, floor, margin ('2 over'), the rule that fired each tick and why every other rule did not ('R2 no item · R3 not in view'), plus the telegraph ('bloat swells'), and heirs respawn on their own (14 offline); lapse: stalls are not deaths so they get no trace, and reel lines blame 'R4', a default rule." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goal (bank at D5, then push to D8), bailed when I chose, and chose the axe from the vault; the dungeon itself is on rails (descend when done) and there was nothing to find by looking that a rule did not already name." },
+    { "id": "progression", "human": 0.6, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run $3 -> $117 / D1 -> D5; between runs marks 3 -> 13 spent on '+1 row' and 'path: bones' (paid off: 'bones D4 · 12 items'), supplies 3 -> 14 as the overnight heirs identified potions, renown '★1'; the automation layer ('auto: restock', 'auto: insure') was visible but never affordable in the horizon, so the third layer is unobserved." },
+    { "id": "aesthetic", "human": 0.3, "bot": "na", "proxy": "none", "note": "Ochre cave tiles on black, a readable pixel fighter and jackal pack, 'The dungeon listens' in the reel; most of the phone screen is void and there is no sound, so I would not sit in it." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "The return screen gave me '14 RUNS · D6 BEST · ◆+13', a five-cause deaths tally, twenty LEARNED chips, 'bones: 3 on the floor', a five-line reel and a list of affordable unlocks, and it took me straight to a decision (a return rule, a row, a potion) within ~3 min; lapse: '0 BANKED · 0 RETURNED' — eight hours yielded no gold at all because the default set never returns, which I could only fix after the fact. Scored same-day by necessity (simulated absence)." },
+    { "id": "attribution", "human": 0.6, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Run 5's $70 was my return rule and my potion ('R2 · drink heal' at 9 HP) and run 6's death was my D8 push plus 'R2 no item' — both first person; but fourteen overnight deaths all ended 'R4 attacked' (a preset row), run 1 died on the shipped set, and the thief-guard card I bought stalled a run without anything on screen saying my rule did it." }
+  ]
+}
