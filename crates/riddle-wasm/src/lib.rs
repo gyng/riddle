@@ -214,6 +214,27 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    // ---- Cut 5: bail, the vault choice, the vault preference
+
+    /// §5: queue a `return` for the hero's next action (the rules untouched).
+    pub fn bail(&mut self) {
+        self.inner.bail();
+    }
+
+    /// §4: take one item of the opened vault (`Snapshot.vault_choice.items[].id`); returns
+    /// the Snapshot.
+    pub fn choose(&mut self, item_id: u32) -> Result<String, JsError> {
+        self.inner.choose(item_id).map_err(err)?;
+        Ok(js(&self.inner.snapshot()))
+    }
+
+    /// §4: what an unwatched vault choice takes (`weapon | armour | potion | scroll`).
+    #[wasm_bindgen(js_name = setVaultPref)]
+    pub fn set_vault_pref(&mut self, pref: &str) -> Result<String, JsError> {
+        self.inner.set_vault_pref(pref).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     // ---- Cut 3: ascension
 
     /// After the ending: a new lineage under `variant` (`no_rest | short_list | bones_only |

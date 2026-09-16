@@ -70,6 +70,9 @@ fn main() {
                                     riddle_core::tiles::Tile::Chasm => 'v',
                                     riddle_core::tiles::Tile::StairsDown => '>',
                                     riddle_core::tiles::Tile::StairsUp => '<',
+                                    riddle_core::tiles::Tile::Shrine => '_',
+                                    riddle_core::tiles::Tile::Vault | riddle_core::tiles::Tile::VaultOpen => '=',
+                                    riddle_core::tiles::Tile::Nest => 'n',
                                 }
                             };
                             line.push(c);

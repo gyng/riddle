@@ -87,6 +87,18 @@ pub struct Monster {
     /// Cut 4: the companion verb last announced (`<kind>: flank`, once per streak).
     #[serde(default)]
     pub last_verb: String,
+    /// Cut 5 §4: a nest's sleeper (never wakes by sight; the hero within two tiles wakes the
+    /// den) and a lost heir's stray companion (tameable at 60 % whatever its wounds).
+    #[serde(default)]
+    pub nest: bool,
+    #[serde(default)]
+    pub stray: bool,
+    #[serde(default)]
+    pub dormant: bool,
+    /// Cut 5: an ally's last verbs on the Mirror King (he mirrors the pack as he mirrors the
+    /// hero: the third of a kind comes back).
+    #[serde(default)]
+    pub verb_ring: Vec<String>,
 }
 
 impl Monster {
@@ -137,6 +149,10 @@ impl Monster {
             warden_ranged: false,
             introduced: false,
             last_verb: String::new(),
+            nest: false,
+            stray: false,
+            dormant: false,
+            verb_ring: Vec::new(),
         }
     }
     pub fn def(&self) -> &'static MonsterDef {

@@ -65,6 +65,12 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
             conds.push(Cond::t("item", k));
         }
     }
+    // Cut 5 §4: situations seen are tokens (`on_see: nest`), gated by their fact alone.
+    for k in ["nest", "shrine", "vault"] {
+        if l.facts.contains(k) {
+            conds.push(Cond::t("on_see", k));
+        }
+    }
     if l.all_companions().next().is_some() && owned("party_hp<") {
         conds.push(Cond::n("party_hp<", 50));
     }
@@ -126,6 +132,10 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
             }
             _ => verbs.push(Verb::new(verb)),
         }
+    }
+    if l.facts.contains("shrine") {
+        verbs.push(Verb::arg("pray", "row"));
+        verbs.push(Verb::arg("pray", "trait"));
     }
     for card in TACTIC_CARDS.iter().copied().chain(MASTERY_CARDS).chain(TIER2_CARDS) {
         if l.unlocks.contains(card) {

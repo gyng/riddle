@@ -174,10 +174,16 @@ pub fn family(row: &Row) -> &'static str {
         "read" if matches!(a, "teleport" | "blink") => "escape",
         "drink" | "read" | "throw" | "second_wind" => "consumable",
         "return" | "bank" => "escape",
+        "rest" => "rest",
         "descend" => "dive",
         "free_captive" | "tame" | "recall" | "send" => "ally",
         _ => "targeting",
     }
+}
+
+/// The trace shows the set resting already (a rest row fired): no rest candidate then.
+fn trace_rules_rest(trace: &Trace) -> bool {
+    trace.turns.iter().any(|t| t.row >= 0 && t.verb.v == "rest")
 }
 
 /// The hp threshold (from {20, 30, 40, 50}) nearest the hero's hp% at the trace's first row;
@@ -203,6 +209,14 @@ pub fn candidates(vocab: &Vocabulary, state: &Run, facts: &BTreeSet<String>, fla
     let held = |cat: Cat| state.hero.inv.iter().filter(move |i| i.cat() == cat);
     let known = |kind: &str| is_identified(facts, flavours, kind);
     let mut out: Vec<Row> = Vec::new();
+    // Rest (Cut 5): a set that never rests wanders worn; `hp<N → rest` is the honest patch for
+    // a death a reseeded replay mostly survives (the encounter was luck, the low hp was not).
+    // First in the list: on a tie it is among the candidates whose forecast delta is tried.
+    if has_cond("hp<") && !trace_rules_rest(trace) {
+        if let Some(v) = verb("rest", None) {
+            out.push(Row::new(vec![low.clone()], v));
+        }
+    }
     // Retreat: hp<N · foes>=M → retreat | back_corridor.
     if max_foes >= 1 && has_cond("hp<") && has_cond("foes>=") {
         for v in ["retreat", "back_corridor"] {

@@ -55,6 +55,7 @@ fn fact_note(fact: &str) -> String {
         ["chalk", d] => format!("D{d} is chalked."),
         ["ascended", v] => format!("Ascended: {}.", v.replace('_', " ")),
         ["tamed", kind] => format!("Tamed a {}.", crate::engine::kind_title(kind)),
+        ["shrine"] | ["vault"] | ["nest"] | ["stray"] => String::new(),
         ["counter", rest] => format!("Learned: {}.", rest.replace('>', " beats ")),
         ["item", rest] => {
             let mut it = rest.split('=');
@@ -143,6 +144,9 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
             let title = run.monsters[i].title();
             cx.events.push(Ev::Callout { t: run.turn, text: title.clone() });
             crate::chronicle::note(run, cx, format!("The {title} waits."));
+            // Cut 5 §1/§3: the boss leads its own episode; the hero has a word for it.
+            crate::sifter::seal(run);
+            crate::sifter::voice(run, cx, crate::sifter::Moment::BossSeen);
         }
     }
     for f in sight_facts {

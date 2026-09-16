@@ -1,106 +1,1043 @@
-//! The sifter: scores a run's moments into highlights. Reel = top 5 by score.
-use crate::engine::{kind_title, LineageState, Run};
-use crate::wire::Highlight;
+//! Cut 5 §1: the sifter, rewritten around episodes. An episode is a span of a run with a low
+//! point and a resolution; `Run.arc` tracks the live one (hp low-water since the last
+//! resolution, the row that fired at it, the threat present, items used, allies lost) and each
+//! closed episode becomes one story line of three beats, ≤ 12 words, from the tables below:
+//!
+//! `Two jackals took him to 3 HP; R2 drank; banked $58.`
+//! `The Warlord took him to 9 HP; R4 bashed him; first boss.`
+//! `The nest took him to 5 HP; greed took the gold; jackal Uleth fell.`
+//!
+//! The reel is the top three episodes of an absence by score (low-point depth × resolution
+//! weight) plus the best-depth run's closing episode, never two with the same (threat,
+//! resolution). §3: the hero's voice, a trait × moment table, is here too.
+use crate::engine::{kind_title, Ctx, LineageState, Run};
+use crate::hero::Trait;
+use crate::rules::{word_count, Verb};
+use crate::wire::{Highlight, HighlightArc};
+use serde::{Deserialize, Serialize};
 
-pub const NEAR_DEATH: i32 = 5;
-pub const COMEBACK: i32 = 8;
-pub const FIRST_KILL: i32 = 3;
-pub const ALLY_LOST: i32 = 4;
-pub const GAMBLE: i32 = 2;
-pub const STOLEN: i32 = 2;
-pub const BOSS: i32 = 6;
+/// A story line's word budget.
+pub const STORY_WORDS: usize = 12;
+/// A low at or under this share of max HP is a low point; recovering past `RECOVER_PCT`
+/// afterwards seals the episode (its resolution is the next one the run reaches).
+pub const LOW_PCT: i32 = 25;
+pub const RECOVER_PCT: i32 = 60;
+/// Sealed episodes waiting for a resolution (the deepest lows are kept).
+pub const SEALED_MAX: usize = 2;
 /// Cut 2 §2: recovering a named heir's bones.
 pub const BONES: i32 = 6;
+/// §3: the hero speaks at most once per this many ticks, never in a fight's first ten.
+pub const VOICE_EVERY: u32 = 100;
+pub const VOICE_FIGHT_QUIET: u32 = 10;
 
-fn hl(run: &Run, pattern: &str, score: i32, t: u32, text: String) -> Highlight {
-    Highlight { pattern: pattern.into(), score, t, run_id: run.id, text: crate::chronicle::clamp_words(&text, 8) }
+/// The hero action recorded for an episode (row −1 trait, −2 chores).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Act {
+    pub row: i32,
+    pub verb: Verb,
+    /// The kind the verb acted on, and whether it was a boss (`R4 bashed him`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    #[serde(default)]
+    pub boss: bool,
 }
 
-/// Cut 4: how the run ended, as the tail of a reel line (`banked $313` · `returned with $80`
-/// · `fell on D4`); empty while the run is live.
-pub fn end_phrase(run: &Run) -> String {
-    use crate::engine::ExitTier;
-    match run.over {
-        Some(ExitTier::Bank) => format!("banked ${}", run.loot.max(0)),
-        Some(ExitTier::Return) if run.timed_out => "lost the thread".into(),
-        Some(ExitTier::Return) => format!("returned with ${}", run.loot.max(0) * ExitTier::Return.pct() / 100),
-        Some(ExitTier::Death) => format!("fell on D{}", run.depth),
+impl Default for Act {
+    /// No action recorded: the chores' `no row fired`.
+    fn default() -> Act {
+        Act { row: -2, verb: Verb::new("wait"), target: None, boss: false }
+    }
+}
+
+/// The setup beat's shape.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Setup {
+    /// `<threat> took|cornered|chased him to N HP` (`took him down` at 0).
+    #[default]
+    Hurt,
+    /// `The vault held a mail`.
+    Vault,
+    /// `Uleth the jackal came back`.
+    Stray,
+    /// `Untouched` / `Untouched by the Warlord`.
+    Untouched,
+}
+
+/// The end beat. `Pending` is a sealed episode waiting for the run's next resolution.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(tag = "k", rename_all = "snake_case")]
+pub enum Resolution {
+    #[default]
+    Pending,
+    Banked {
+        gold: i32,
+    },
+    Reached {
+        depth: u32,
+    },
+    FirstBoss {
+        kind: String,
+    },
+    BossSlain {
+        kind: String,
+    },
+    Returned,
+    Lost,
+    Died {
+        cause: String,
+    },
+    Fell {
+        kind: String,
+        name: String,
+    },
+}
+
+impl Resolution {
+    /// Boss kills and a companion's fall close the live episode only; floors and exits
+    /// resolve the sealed ones too.
+    pub fn live_only(&self) -> bool {
+        matches!(self, Resolution::FirstBoss { .. } | Resolution::BossSlain { .. } | Resolution::Fell { .. })
+    }
+    pub fn is_exit(&self) -> bool {
+        matches!(self, Resolution::Banked { .. } | Resolution::Returned | Resolution::Lost | Resolution::Died { .. })
+    }
+}
+
+/// A closed (or sealed) episode.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Episode {
+    pub t: u32,
+    pub depth: u32,
+    pub setup: Setup,
+    pub low_hp: i32,
+    pub max_hp: i32,
+    /// Foe kinds present at the low point, the boss first, then the most numerous; a hazard
+    /// (`gas`) or a situation (`shrine`, `nest`, `stray`, `vault`) when no foe was.
+    pub threat: Vec<(String, u32)>,
+    pub cornered: bool,
+    pub chased: bool,
+    pub act: Act,
+    pub trait_: Trait,
+    /// `shrine | vault | nest | stray` when a situation shaped the episode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub situation: Option<String>,
+    /// The vault item's label (`a mail`), the stray's kind.
+    #[serde(default)]
+    pub detail: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub items_used: Vec<String>,
+    #[serde(default)]
+    pub allies_lost: Vec<String>,
+    pub resolution: Resolution,
+}
+
+/// The live episode (`Run.arc`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Arc {
+    pub start_t: u32,
+    /// (hp, tick) of the low-water mark since the last resolution.
+    pub low: Option<(i32, u32)>,
+    pub max_hp: i32,
+    pub threat: Vec<(String, u32)>,
+    pub cause: String,
+    pub cornered: bool,
+    pub chased: bool,
+    /// The first action after the low point, and whether it is still awaited.
+    pub row: Option<Act>,
+    pub row_pending: bool,
+    /// The last hero action (the row when the episode has no low).
+    pub last: Option<Act>,
+    pub items_used: Vec<String>,
+    pub allies_lost: Vec<String>,
+    pub situation: Option<String>,
+    pub detail: String,
+    pub voiced_low: bool,
+    /// Sealed lows awaiting a resolution.
+    pub sealed: Vec<Episode>,
+}
+
+impl Arc {
+    pub fn has_low(&self) -> bool {
+        self.low.is_some()
+    }
+    fn low_pct(&self) -> i32 {
+        match self.low {
+            Some((hp, _)) => hp * 100 / self.max_hp.max(1),
+            None => 100,
+        }
+    }
+    fn reset(&mut self, t: u32) {
+        let sealed = std::mem::take(&mut self.sealed);
+        *self = Arc { start_t: t, sealed, ..Arc::default() };
+    }
+    fn to_episode(&self, run: &Run, res: Resolution) -> Episode {
+        let (low_hp, setup) = match self.low {
+            Some((hp, _)) => (hp, Setup::Hurt),
+            None => (run.hero.hp, Setup::Untouched),
+        };
+        Episode {
+            t: run.turn,
+            depth: run.depth,
+            setup,
+            low_hp,
+            max_hp: if self.low.is_some() { self.max_hp } else { run.hero.max_hp },
+            threat: self.threat.clone(),
+            cornered: self.cornered,
+            chased: self.chased,
+            act: self.row.clone().or_else(|| self.last.clone()).unwrap_or_default(),
+            trait_: run.trait_,
+            situation: self.situation.clone(),
+            detail: self.detail.clone(),
+            name: String::new(),
+            items_used: self.items_used.clone(),
+            allies_lost: self.allies_lost.clone(),
+            resolution: res,
+        }
+    }
+}
+
+// ---------------------------------------------------------------- tracking hooks
+
+/// Foe kinds in view, the boss first, then the most numerous, then by name.
+pub fn threat_now(run: &Run) -> Vec<(String, u32)> {
+    let map = &run.floor.map;
+    let mut v: Vec<(String, u32)> = Vec::new();
+    for m in run.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && !m.dormant && map.is_visible(m.pos)) {
+        let key = if m.nest { "nest".to_string() } else if m.stray { "stray".to_string() } else { m.kind.clone() };
+        match v.iter_mut().find(|(k, _)| *k == key) {
+            Some(e) => e.1 += 1,
+            None => v.push((key, 1)),
+        }
+    }
+    v.sort_by(|a, b| {
+        let boss = |k: &str| crate::defs::monster_def(k).boss && crate::defs::MONSTERS.iter().any(|m| m.kind == k);
+        boss(&b.0).cmp(&boss(&a.0)).then(b.1.cmp(&a.1)).then(a.0.cmp(&b.0))
+    });
+    v
+}
+
+/// The hero was hurt (hp > 0 after the blow). A new low since the last resolution records the
+/// threat, the cause and waits for the row that answers it. Returns true when this is the
+/// first time the live arc fell to `LOW_PCT` (the voice's `low` moment).
+pub fn on_hurt(run: &mut Run, cause: &str, flag: Option<&str>) -> bool {
+    let hp = run.hero.hp;
+    if run.arc.low.is_some_and(|(h, _)| hp >= h) {
+        return false;
+    }
+    let mut threat = threat_now(run);
+    let key = match flag {
+        Some(f) => f.to_string(),
+        None => cause.to_string(),
+    };
+    if threat.is_empty() {
+        threat.push((key.clone(), 1));
+    } else if let Some(i) = threat.iter().position(|(k, _)| *k == key) {
+        // The kind that drew blood leads unless a boss is present.
+        if i > 0 && !crate::defs::monster_def(&threat[0].0).boss {
+            let e = threat.remove(i);
+            threat.insert(0, e);
+        }
+    }
+    let hp_pos = run.hero.pos;
+    let adj = run.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && m.pos.adjacent(hp_pos)).count();
+    let fast = crate::defs::MONSTERS.iter().any(|m| m.kind == cause && m.tags.contains(&"fast"));
+    let fleeing = run.arc.last.as_ref().is_some_and(|a| matches!(a.verb.v.as_str(), "retreat" | "back_corridor" | "kite" | "blink"));
+    let a = &mut run.arc;
+    a.low = Some((hp, run.turn));
+    a.max_hp = run.hero.max_hp;
+    a.threat = threat;
+    a.cause = cause.to_string();
+    a.cornered = adj >= 2;
+    a.chased = fast || fleeing;
+    a.row = None;
+    a.row_pending = true;
+    a.situation = match flag {
+        Some(f) => Some(f.to_string()),
+        None if cause == "shrine" => Some("shrine".into()),
+        None => None,
+    };
+    if a.situation.is_some() {
+        a.detail = cause.to_string();
+    }
+    let low = a.low_pct() <= LOW_PCT;
+    if low && !a.voiced_low {
+        a.voiced_low = true;
+        return true;
+    }
+    false
+}
+
+/// The hero acted: record it (the row at the low point when one is awaited). Returns true
+/// when the action recovered the hero past `RECOVER_PCT` after a low at `LOW_PCT` (the
+/// episode is sealed; the voice's `resolved` moment).
+pub fn on_action(run: &mut Run, row: i32, verb: &Verb) {
+    let target = run.last_target.and_then(|id| run.monsters.iter().find(|m| m.id == id)).map(|m| (m.kind.clone(), m.is_boss()));
+    let act = Act { row, verb: verb.clone(), target: target.as_ref().map(|t| t.0.clone()), boss: target.is_some_and(|t| t.1) };
+    let turn = run.turn;
+    let a = &mut run.arc;
+    if a.row_pending {
+        a.row = Some(act.clone());
+        a.row_pending = false;
+    }
+    // A situation opened this action (a stray tamed) takes the action as its turn beat.
+    for e in a.sealed.iter_mut().filter(|e| e.t == turn && e.setup == Setup::Stray && e.act == Act::default()) {
+        e.act = act.clone();
+    }
+    a.last = Some(act);
+}
+
+/// Recovered past `RECOVER_PCT` after a low at `LOW_PCT`: the episode is sealed.
+pub fn recovered(run: &Run) -> bool {
+    run.arc.has_low() && run.arc.low_pct() <= LOW_PCT && run.hero.hp_pct() > RECOVER_PCT && !run.arc.row_pending
+}
+
+/// Seal the live episode (resolution pending) and start a fresh one.
+pub fn seal(run: &mut Run) {
+    if !run.arc.has_low() {
+        return;
+    }
+    let ep = run.arc.to_episode(run, Resolution::Pending);
+    push_sealed(run, ep);
+    let t = run.turn;
+    run.arc.reset(t);
+}
+
+fn push_sealed(run: &mut Run, ep: Episode) {
+    run.arc.sealed.push(ep);
+    if run.arc.sealed.len() > SEALED_MAX {
+        // Keep the deepest lows.
+        let pct = |e: &Episode| if e.setup == Setup::Hurt { e.low_hp * 100 / e.max_hp.max(1) } else { 50 };
+        let i = (0..run.arc.sealed.len()).max_by_key(|&i| pct(&run.arc.sealed[i])).unwrap();
+        run.arc.sealed.remove(i);
+    }
+}
+
+/// A situation opened a low-less episode of its own (a vault chosen, a stray tamed).
+pub fn open_situation(run: &mut Run, setup: Setup, situation: &str, detail: &str, name: &str) {
+    let mut ep = run.arc.to_episode(run, Resolution::Pending);
+    ep.setup = setup;
+    ep.low_hp = run.hero.hp;
+    ep.max_hp = run.hero.max_hp;
+    ep.threat = vec![(situation.to_string(), 1)];
+    ep.situation = Some(situation.to_string());
+    ep.detail = detail.to_string();
+    ep.name = name.to_string();
+    ep.act = run.arc.last.clone().unwrap_or_default();
+    push_sealed(run, ep);
+}
+
+/// A resolution reached: the live episode closes (and the sealed ones, unless the
+/// resolution is a boss kill or a companion's fall). An exit with nothing to tell closes an
+/// `Untouched` episode so every run has a closing line.
+pub fn resolve(run: &mut Run, res: Resolution) {
+    let mut out: Vec<Episode> = Vec::new();
+    if !res.live_only() {
+        for mut e in std::mem::take(&mut run.arc.sealed) {
+            e.resolution = res.clone();
+            e.t = run.turn;
+            out.push(e);
+        }
+    }
+    let always = matches!(res, Resolution::Died { .. } | Resolution::Fell { .. } | Resolution::FirstBoss { .. } | Resolution::BossSlain { .. });
+    if run.arc.has_low() || always || (res.is_exit() && out.is_empty()) {
+        let mut e = run.arc.to_episode(run, res.clone());
+        // A boss or a killer names the threat when nothing has drawn blood yet.
+        if e.threat.is_empty() {
+            e.threat = match &res {
+                Resolution::FirstBoss { kind } | Resolution::BossSlain { kind } => vec![(kind.clone(), 1)],
+                Resolution::Died { cause } => vec![(cause.clone(), 1)],
+                _ => threat_now(run),
+            };
+        }
+        if let Resolution::Died { cause } = &res {
+            if e.setup == Setup::Untouched {
+                // One blow from full health.
+                e.setup = Setup::Hurt;
+                e.low_hp = 0;
+                if e.threat.is_empty() {
+                    e.threat = vec![(cause.clone(), 1)];
+                }
+            }
+        }
+        if matches!(res, Resolution::FirstBoss { .. } | Resolution::BossSlain { .. }) {
+            // The boss leads its own episode.
+            let kind = match &res {
+                Resolution::FirstBoss { kind } | Resolution::BossSlain { kind } => kind.clone(),
+                _ => String::new(),
+            };
+            if let Some(i) = e.threat.iter().position(|(k, _)| *k == kind) {
+                let b = e.threat.remove(i);
+                e.threat.insert(0, b);
+            } else {
+                e.threat.insert(0, (kind, 1));
+            }
+        }
+        out.push(e);
+    }
+    let t = run.turn;
+    run.arc.reset(t);
+    run.episodes.extend(out);
+}
+
+// ---------------------------------------------------------------- the grammar
+
+/// Verb → past tense (every hero verb, chore and companion verb; cards below).
+pub const PAST: &[(&str, &str)] = &[
+    ("attack", "attacked"),
+    ("retreat", "retreated"),
+    ("back_corridor", "took the corridor"),
+    ("drink", "drank"),
+    ("read", "read"),
+    ("throw", "threw"),
+    ("descend", "went down"),
+    ("bank", "banked"),
+    ("return", "returned"),
+    ("rest", "rested"),
+    ("pick_up", "picked up"),
+    ("free_captive", "freed the captive"),
+    ("shield_bash", "bashed"),
+    ("vanish", "vanished"),
+    ("tame", "tamed"),
+    ("recall", "recalled"),
+    ("send", "sent the pack"),
+    ("shoot", "shot"),
+    ("burst", "burst"),
+    ("steal", "stole"),
+    ("split", "split"),
+    ("flank", "flanked"),
+    ("drain", "drained"),
+    ("follow", "followed"),
+    ("cleave", "cleaved"),
+    ("taunt", "taunted"),
+    ("second_wind", "caught breath"),
+    ("bulwark", "raised the bulwark"),
+    ("backstab", "backstabbed"),
+    ("smoke", "smoked"),
+    ("ambush", "ambushed"),
+    ("shadowstep", "shadowstepped"),
+    ("kite", "kited"),
+    ("volley", "loosed a volley"),
+    ("trap", "set a trap"),
+    ("mark", "marked"),
+    ("double_shot", "double-shot"),
+    ("bolt", "bolted"),
+    ("ward", "warded"),
+    ("blink", "blinked"),
+    ("slow", "slowed"),
+    ("nova", "cast nova"),
+    ("hold", "held"),
+    ("pray", "prayed"),
+    ("mimic", "mimicked"),
+    // chores
+    ("explore", "explored"),
+    ("wait", "waited"),
+    ("shuffle", "shuffled"),
+    ("paralysed", "froze"),
+    ("stumble", "stumbled"),
+    ("stuck", "stalled"),
+    ("cornered", "stood"),
+];
+
+/// Tactic card → past tense.
+pub const CARD_PAST: &[(&str, &str)] = &[
+    ("corridor_fighting", "held the corridor"),
+    ("kite_archers", "kited"),
+    ("stair_dance", "danced the stairs"),
+    ("gas_step", "stepped clear"),
+    ("pack_break", "broke the pack"),
+    ("thief_guard", "guarded the pack"),
+    ("boss_focus", "aimed"),
+    ("last_stand", "stood"),
+    ("cadence", "changed cadence"),
+    ("noise_discipline", "kept quiet"),
+    ("reflect_read", "read the mirror"),
+    ("deep_march", "marched"),
+    ("phalanx", "held the line"),
+    ("hit_and_fade", "hit and faded"),
+    ("hawkeye", "aimed"),
+    ("archmage", "cast"),
+];
+
+/// Short past forms for the multi-word ones (the row beat's last resort).
+pub const PAST_SHORT: &[(&str, &str)] = &[
+    ("back_corridor", "backed"),
+    ("descend", "descended"),
+    ("pick_up", "looted"),
+    ("free_captive", "freed"),
+    ("send", "sent"),
+    ("second_wind", "breathed"),
+    ("bulwark", "braced"),
+    ("volley", "volleyed"),
+    ("trap", "trapped"),
+    ("nova", "cast"),
+    ("corridor_fighting", "held"),
+    ("stair_dance", "danced"),
+    ("gas_step", "sidestepped"),
+    ("pack_break", "broke"),
+    ("thief_guard", "guarded"),
+    ("cadence", "varied"),
+    ("noise_discipline", "hushed"),
+    ("reflect_read", "read"),
+    ("phalanx", "held"),
+    ("hit_and_fade", "faded"),
+];
+
+/// Trait phrases (row −1): the trait as a noun and what it did.
+pub const TRAIT_PAST: &[&str] = &["took the gold", "grabbed", "ran", "held", "drank", "read", "tried it"];
+/// Chore beats that name no verb.
+pub const NO_ROW: &[&str] = &["no row fired", "paralysed, no row", "confused, no row"];
+
+pub fn past_tense(verb: &Verb) -> String {
+    past_tense_form(verb, false)
+}
+
+/// `short`: the one-word form of a multi-word past (`held` for `held the corridor`).
+pub fn past_tense_form(verb: &Verb, short: bool) -> String {
+    let key = if verb.v == "tactic" { verb.a.as_deref().unwrap_or("") } else { verb.v.as_str() };
+    if short {
+        if let Some((_, p)) = PAST_SHORT.iter().find(|(k, _)| *k == key) {
+            return p.to_string();
+        }
+    }
+    let table: &[(&str, &str)] = if verb.v == "tactic" { CARD_PAST } else { PAST };
+    table.iter().find(|(k, _)| *k == key).map(|(_, p)| p.to_string()).unwrap_or_else(|| "acted".into())
+}
+
+/// Every past-tense form the turn beat may carry (the gate's table).
+pub fn past_forms() -> Vec<&'static str> {
+    let mut v: Vec<&str> = PAST.iter().map(|(_, p)| *p).collect();
+    v.extend(CARD_PAST.iter().map(|(_, p)| *p));
+    v.extend(PAST_SHORT.iter().map(|(_, p)| *p));
+    v.extend(TRAIT_PAST);
+    v.push("acted");
+    v
+}
+
+pub fn boss_short(kind: &str) -> &'static str {
+    match kind {
+        "goblin_warlord" => "Warlord",
+        "bloat_mother" => "Mother",
+        "lich" => "Lich",
+        "foundry_master" => "Master",
+        "lurker_queen" => "Queen",
+        "mirror_king" => "King",
+        _ => "boss",
+    }
+}
+
+fn is_boss(kind: &str) -> bool {
+    crate::defs::MONSTERS.iter().any(|m| m.kind == kind && m.boss)
+}
+
+fn is_monster(kind: &str) -> bool {
+    crate::defs::MONSTERS.iter().any(|m| m.kind == kind)
+}
+
+pub fn plural(title: &str) -> String {
+    let (head, last) = match title.rfind(' ') {
+        Some(i) => (&title[..=i], &title[i + 1..]),
+        None => ("", title),
+    };
+    let p = if last.ends_with('y') && !last.ends_with("ey") && !last.ends_with("ay") {
+        format!("{}ies", &last[..last.len() - 1])
+    } else if last.ends_with('s') || last.ends_with('x') || last.ends_with("ch") || last.ends_with("sh") {
+        format!("{last}es")
+    } else {
+        format!("{last}s")
+    };
+    format!("{head}{p}")
+}
+
+fn article(title: &str) -> &'static str {
+    match title.chars().next().map(|c| c.to_ascii_lowercase()) {
+        Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
+        _ => "a",
+    }
+}
+
+fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
         None => String::new(),
     }
 }
 
-/// `first_kills`: kinds killed in this run for the first time in the lineage. Cut 4: every
-/// line is setup + turn + end in ≤ 8 words (`Down to 2 HP, then banked $313.`); `bones` and
-/// `first_kill` keep their shape.
-pub fn sift_with(run: &Run, first_kills: &[String]) -> Vec<Highlight> {
-    let mut out = Vec::new();
-    let alive_end = run.over.is_some_and(|t| t != crate::engine::ExitTier::Death);
-    let end = end_phrase(run);
-    let then = |s: &str| if end.is_empty() { format!("{s}.") } else { format!("{s}, then {end}.") };
-    let comma = |s: &str| if end.is_empty() { format!("{s}.") } else { format!("{s}, {end}.") };
-    let mut near: Vec<u32> = run.near_deaths.clone();
-    if alive_end {
-        if let Some(t) = run.low10_t {
-            near.push(t);
+fn number_word(n: u32) -> &'static str {
+    match n {
+        2 => "Two",
+        3 => "Three",
+        4 => "Four",
+        5 => "Five",
+        6 => "Six",
+        7 => "Seven",
+        8 => "Eight",
+        9 => "Nine",
+        _ => "Many",
+    }
+}
+
+/// `gas` · `the Warlord` · `a jackal` · `an ogre` — how a cause reads after `died to` or
+/// `fell to`.
+pub fn cause_phrase(cause: &str) -> String {
+    match cause {
+        "gas" | "burst" => "gas".into(),
+        "fire" | "poison" => cause.into(),
+        "shrine" => "the shrine".into(),
+        "nest" => "the nest".into(),
+        "stray" => "a stray".into(),
+        k if is_boss(k) => format!("the {}", boss_short(k)),
+        k if is_monster(k) => {
+            let t = kind_title(k);
+            format!("{} {t}", article(&t))
         }
+        other => other.replace('_', " "),
     }
-    let low_hp = if run.low_hp == i32::MAX { 1 } else { run.low_hp.max(1) };
-    for t in near {
-        out.push(hl(run, "near_death", NEAR_DEATH, t, then(&format!("Down to {low_hp} HP"))));
-    }
-    if let Some(t20) = run.low20_t.or(run.low10_t) {
-        for (bt, kind) in &run.boss_kills {
-            if *bt > t20 {
-                out.push(hl(run, "comeback", COMEBACK, *bt, comma(&format!("Brink, slew the {}", kind_title(kind)))));
+}
+
+/// The threat as a subject: `Two jackals` · `The Warlord` · `Gas` · `The nest`.
+fn subject(ep: &Episode, short: bool) -> String {
+    let Some((kind, n)) = ep.threat.first() else { return "Something".into() };
+    let n = *n;
+    match kind.as_str() {
+        "gas" | "burst" => "Gas".into(),
+        "fire" => "Fire".into(),
+        "poison" => "Poison".into(),
+        "shrine" => "The shrine".into(),
+        "nest" => "The nest".into(),
+        "vault" => "The vault".into(),
+        "stray" => {
+            if short {
+                "The stray".into()
+            } else {
+                format!("A stray {}", kind_title(&ep.detail))
+            }
+        }
+        "none" => "Nothing".into(),
+        k if is_boss(k) => {
+            if short {
+                boss_short(k).into()
+            } else {
+                format!("The {}", boss_short(k))
+            }
+        }
+        k => {
+            let t = kind_title(k);
+            if n == 1 {
+                // Short: the title's last word (`An archer` for a goblin archer).
+                let t = if short { t.rsplit(' ').next().unwrap_or(&t).to_string() } else { t };
+                format!("{} {t}", capitalize(article(&t)))
+            } else if short {
+                capitalize(&plural(&t))
+            } else {
+                format!("{} {}", number_word(n), plural(&t))
             }
         }
     }
-    for (t, kind, _) in &run.kills {
-        if kind.starts_with("spectral_") {
-            continue; // summons are not a first kill
+}
+
+fn setup_phrase(ep: &Episode, short: bool) -> String {
+    match ep.setup {
+        Setup::Vault => "The vault held three".into(),
+        Setup::Stray => {
+            if short {
+                format!("{} came back", ep.name)
+            } else {
+                format!("{} the {} came back", ep.name, kind_title(&ep.detail))
+            }
         }
-        if first_kills.contains(kind) && !out.iter().any(|h| h.pattern == "first_kill" && h.text.contains(&kind_title(kind))) {
-            out.push(hl(run, "first_kill", FIRST_KILL, *t, format!("First kill: {}.", kind_title(kind))));
+        Setup::Untouched => {
+            if ep.threat.is_empty() || short {
+                "Untouched".into()
+            } else {
+                format!("Untouched by {}", lower_first(&subject(ep, false)))
+            }
+        }
+        Setup::Hurt => {
+            let subj = subject(ep, short);
+            if ep.low_hp <= 0 {
+                format!("{subj} took him down")
+            } else {
+                let v = if ep.cornered {
+                    "cornered"
+                } else if ep.chased {
+                    "chased"
+                } else {
+                    "took"
+                };
+                format!("{subj} {v} him to {} HP", ep.low_hp)
+            }
         }
     }
-    for (t, kind) in &run.ally_lost {
-        out.push(hl(run, "ally_lost", ALLY_LOST, *t, comma(&format!("Lost the {} on D{}", kind_title(kind), run.depth))));
+}
+
+/// `A jackal` → `a jackal` (the subject's leading article or number word).
+fn lower_first(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        Some(f) => f.to_lowercase().collect::<String>() + c.as_str(),
+        None => String::new(),
     }
-    for (t, kind, mal) in &run.gambles {
-        let survived = *mal && (run.gambles_survived.iter().any(|(gt, _)| gt == t) || alive_end);
-        let score = GAMBLE + if survived { 2 } else { 0 };
-        let text = if *mal { comma(&format!("Gambled, survived the {}", kind.replace('_', " "))) } else { comma(&format!("Gambled: it was {}", kind.replace('_', " "))) };
-        out.push(hl(run, "gamble", score, *t, text));
+}
+
+fn turn_phrase(ep: &Episode, short: bool) -> String {
+    if ep.setup == Setup::Vault {
+        return format!("he took the {}", ep.detail);
     }
-    for (t, label) in &run.stolen {
-        out.push(hl(run, "stolen", STOLEN, *t, comma(&format!("A monkey stole the {label}"))));
-    }
-    for (t, kind) in &run.boss_kills {
-        out.push(hl(run, "boss", BOSS, *t, comma(&format!("Slew the {}", kind_title(kind)))));
-    }
-    out.sort_by(|a, b| b.score.cmp(&a.score).then(a.t.cmp(&b.t)));
-    // One entry per pattern per run: the highest-scoring instance (earliest on ties).
-    let mut seen: Vec<String> = Vec::new();
-    out.retain(|h| {
-        if seen.contains(&h.pattern) {
-            false
-        } else {
-            seen.push(h.pattern.clone());
-            true
+    let a = &ep.act;
+    let past = past_tense_form(&a.verb, short);
+    if a.row >= 0 {
+        let base = format!("R{} {past}", a.row + 1);
+        if !short && a.boss && crate::turn::targets_foes(&a.verb) {
+            return format!("{base} him");
         }
-    });
+        return base;
+    }
+    if a.row == -1 {
+        return match (ep.trait_, a.verb.v.as_str()) {
+            (Trait::Greedy, "pick_up") => if short { "greed grabbed" } else { "greed took the gold" }.into(),
+            (Trait::Greedy, _) => format!("greed {past}"),
+            (Trait::Cowardly, "retreat") => "cowardice ran".into(),
+            (Trait::Cowardly, _) => format!("cowardice {past}"),
+            (Trait::Brave, "attack" | "hold") => "bravery held".into(),
+            (Trait::Brave, _) => format!("bravery {past}"),
+            (Trait::Curious, "drink") => "curiosity drank".into(),
+            (Trait::Curious, "read") => "curiosity read".into(),
+            (Trait::Curious, _) => format!("curiosity {past}"),
+        };
+    }
+    match a.verb.v.as_str() {
+        "wait" | "cornered" | "stuck" | "shuffle" | "" => "no row fired".into(),
+        "paralysed" => "paralysed, no row".into(),
+        "stumble" => "confused, no row".into(),
+        _ if short => "no row fired".into(),
+        _ => format!("the chores {past}"),
+    }
+}
+
+pub fn resolution_phrase(res: &Resolution, short: bool) -> String {
+    resolution_form(res, if short { 2 } else { 0 })
+}
+
+/// `level` 0 long (`died to a goblin archer`), 1 mid (`died to archer`), 2 short (`died`).
+fn resolution_form(res: &Resolution, level: u8) -> String {
+    match res {
+        Resolution::Pending => "…".into(),
+        Resolution::Banked { gold } => format!("banked ${}", gold.max(&0)),
+        Resolution::Reached { depth } => format!("reached D{depth}"),
+        Resolution::FirstBoss { .. } => "first boss".into(),
+        Resolution::BossSlain { .. } => "boss slain".into(),
+        Resolution::Returned => "returned".into(),
+        Resolution::Lost => if level > 0 { "returned" } else { "lost the thread" }.into(),
+        Resolution::Died { cause } => match level {
+            0 => format!("died to {}", cause_phrase(cause)),
+            1 => {
+                let c = cause_phrase(cause);
+                format!("died to {}", c.rsplit(' ').next().unwrap_or(&c))
+            }
+            _ => "died".into(),
+        },
+        Resolution::Fell { kind, name } => {
+            if level > 0 {
+                format!("{name} fell")
+            } else {
+                format!("{} {name} fell", kind_title(kind))
+            }
+        }
+    }
+}
+
+/// The story line: three beats, ≤ 12 words; each beat has a short form used in turn (the
+/// threat, then the resolution, then the row — the turn beat is what the line is for) when
+/// the long ones overflow.
+pub fn story_line(ep: &Episode) -> String {
+    let mut s = String::new();
+    for (rs, ts, es) in [(false, false, 0), (false, true, 0), (false, true, 1), (true, true, 1), (true, true, 2)] {
+        s = format!("{}; {}; {}.", setup_phrase(ep, ts), turn_phrase(ep, rs), resolution_form(&ep.resolution, es));
+        if word_count(&s) <= STORY_WORDS {
+            return s;
+        }
+    }
+    crate::chronicle::clamp_words(&s, STORY_WORDS)
+}
+
+/// The gate's check: three beats, ≤ 12 words, a setup form, a turn beat with a table verb
+/// (or a no-row beat), a resolution from the set.
+pub fn story_ok(text: &str) -> bool {
+    let Some(body) = text.strip_suffix('.') else { return false };
+    let beats: Vec<&str> = body.split("; ").collect();
+    if beats.len() != 3 || word_count(text) > STORY_WORDS {
+        return false;
+    }
+    let setup = beats[0];
+    let setup_ok = setup == "Untouched"
+        || setup.starts_with("Untouched by ")
+        || setup == "The vault held three"
+        || setup.ends_with(" came back")
+        || setup.ends_with(" took him down")
+        || (setup.ends_with(" HP") && [" took him to ", " cornered him to ", " chased him to "].iter().any(|v| setup.contains(v)));
+    let turn = beats[1];
+    let forms = past_forms();
+    let turn_ok = NO_ROW.contains(&turn) || (setup == "The vault held three" && turn.starts_with("he took the ")) || {
+        let (head, rest) = match turn.split_once(' ') {
+            Some(x) => x,
+            None => return false,
+        };
+        let rest = rest.strip_suffix(" him").unwrap_or(rest);
+        let head_ok = (head.starts_with('R') && head[1..].chars().all(|c| c.is_ascii_digit()) && head.len() > 1)
+            || ["greed", "cowardice", "bravery", "curiosity"].contains(&head)
+            || (head == "the" && rest.starts_with("chores "));
+        let rest = rest.strip_prefix("chores ").unwrap_or(rest);
+        head_ok && forms.contains(&rest)
+    };
+    let end = beats[2];
+    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "died"].iter().any(|k| end.starts_with(k)) || end.ends_with(" fell");
+    setup_ok && turn_ok && end_ok
+}
+
+/// Does the line name a row, a trait or a companion (the tell-a-friend proxy)?
+pub fn names_agent(h: &Highlight) -> bool {
+    let Some(body) = h.text.strip_suffix('.') else { return false };
+    let beats: Vec<&str> = body.split("; ").collect();
+    if beats.len() != 3 {
+        return false;
+    }
+    let turn = beats[1];
+    let row = turn.starts_with('R') && turn.chars().nth(1).is_some_and(|c| c.is_ascii_digit());
+    let trait_ = ["greed ", "cowardice ", "bravery ", "curiosity "].iter().any(|t| turn.starts_with(t));
+    let companion = beats[2].ends_with(" fell") || beats[0].ends_with(" came back");
+    row || trait_ || companion
+}
+
+// ---------------------------------------------------------------- scoring and the reel
+
+/// Resolution weight (deaths of heirs with deeds and first bosses weigh most).
+fn weight(res: &Resolution, named: bool) -> i32 {
+    match res {
+        Resolution::Pending => 1,
+        Resolution::Banked { .. } => 3,
+        Resolution::Reached { .. } => 2,
+        Resolution::FirstBoss { .. } => 5,
+        Resolution::BossSlain { .. } => 2,
+        Resolution::Returned | Resolution::Lost => 1,
+        Resolution::Died { .. } => {
+            if named {
+                5
+            } else {
+                3
+            }
+        }
+        Resolution::Fell { .. } => 3,
+    }
+}
+
+/// Score = low-point depth (1–5) × resolution weight, +2 for a situation.
+pub fn score(ep: &Episode, named: bool) -> i32 {
+    let depth = match ep.setup {
+        Setup::Hurt => {
+            let pct = (ep.low_hp * 100 / ep.max_hp.max(1)).clamp(0, 100);
+            1 + (100 - pct) / 25
+        }
+        _ => 1,
+    };
+    depth * weight(&ep.resolution, named) + if ep.situation.is_some() { 2 } else { 0 }
+}
+
+pub fn threat_key(ep: &Episode) -> String {
+    match ep.setup {
+        Setup::Vault => "vault".into(),
+        Setup::Stray => "stray".into(),
+        _ => ep.threat.first().map(|(k, _)| k.clone()).unwrap_or_else(|| "none".into()),
+    }
+}
+
+/// The resolution without its number (`banked $` · `reached D` · `fell`), for the pair test.
+pub fn res_key(resolution: &str) -> String {
+    if resolution.ends_with(" fell") {
+        return "fell".into();
+    }
+    if resolution.starts_with("died") {
+        return "died".into();
+    }
+    resolution.trim_end_matches(|c: char| c.is_ascii_digit()).to_string()
+}
+
+pub fn pair(h: &Highlight) -> Option<(String, String)> {
+    h.arc.as_ref().map(|a| (a.threat.clone(), res_key(&a.resolution)))
+}
+
+pub fn to_highlight(run: &Run, ep: &Episode, named: bool) -> Highlight {
+    Highlight {
+        pattern: "episode".into(),
+        score: score(ep, named),
+        t: ep.t,
+        run_id: run.id,
+        text: story_line(ep),
+        arc: Some(HighlightArc { low_hp: ep.low_hp.max(0) as u32, row: ep.act.row, threat: threat_key(ep), resolution: resolution_phrase(&ep.resolution, false) }),
+    }
+}
+
+/// A finished run's episodes as highlights. `named`: the heir has deeds (its death weighs
+/// more). Unresolved sealed episodes (none after an exit) are dropped.
+pub fn sift_with(run: &Run, named: bool) -> Vec<Highlight> {
+    run.episodes.iter().filter(|e| e.resolution != Resolution::Pending).map(|e| to_highlight(run, e, named)).collect()
+}
+
+/// Highlights for a finished run against the lineage.
+pub fn sift(run: &Run, l: &LineageState) -> Vec<Highlight> {
+    let named = !l.heir_deeds.is_empty() || !run.boss_kills.is_empty();
+    sift_with(run, named)
+}
+
+/// The reel: the top three episodes by score (never two with the same (threat, resolution)),
+/// plus the closing episode of the run that reached the best depth; other highlights
+/// (`bones`) fill to four.
+pub fn reel(highlights: &[Highlight], best_run: Option<u32>) -> Vec<Highlight> {
+    let mut eps: Vec<&Highlight> = highlights.iter().filter(|h| h.arc.is_some()).collect();
+    eps.sort_by(|a, b| b.score.cmp(&a.score).then(a.run_id.cmp(&b.run_id)).then(a.t.cmp(&b.t)));
+    let mut out: Vec<Highlight> = Vec::new();
+    let mut seen: Vec<(String, String)> = Vec::new();
+    for h in &eps {
+        if out.len() >= 3 {
+            break;
+        }
+        let p = pair(h).unwrap();
+        if seen.contains(&p) || out.iter().any(|o| o.text == h.text) {
+            continue;
+        }
+        seen.push(p);
+        out.push((*h).clone());
+    }
+    if let Some(r) = best_run {
+        if !out.iter().any(|h| h.run_id == r) {
+            let mut mine: Vec<&Highlight> = eps.iter().copied().filter(|h| h.run_id == r).collect();
+            // The closing episode first, then the run's others by score.
+            mine.sort_by_key(|b| std::cmp::Reverse(b.t));
+            if let Some(c) = mine.iter().find(|h| !seen.contains(&pair(h).unwrap())) {
+                seen.push(pair(c).unwrap());
+                out.push((*c).clone());
+            }
+        }
+    }
+    let mut rest: Vec<&Highlight> = highlights.iter().filter(|h| h.arc.is_none()).collect();
+    rest.sort_by(|a, b| b.score.cmp(&a.score).then(a.run_id.cmp(&b.run_id)));
+    for h in rest {
+        if out.len() >= 4 {
+            break;
+        }
+        out.push(h.clone());
+    }
     out
 }
 
-/// Highlights for a finished run against the lineage before its kills were banked.
-pub fn sift(run: &Run, l: &LineageState) -> Vec<Highlight> {
-    let first: Vec<String> = run.kills.iter().map(|(_, k, _)| k.clone()).filter(|k| !l.kills.contains(k)).collect();
-    sift_with(run, &first)
+// ---------------------------------------------------------------- §3 the hero's voice
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Moment {
+    Low,
+    Resolved,
+    GoldWithFoes,
+    UnknownDrink,
+    BossSeen,
 }
 
-pub fn reel(highlights: &[Highlight]) -> Vec<Highlight> {
-    let mut v = highlights.to_vec();
-    v.sort_by(|a, b| b.score.cmp(&a.score).then(a.run_id.cmp(&b.run_id)).then(a.t.cmp(&b.t)));
-    v.truncate(5);
-    v
+/// Trait × moment, ≤ 3 words each.
+pub fn voice_line(trait_: Trait, m: Moment) -> &'static str {
+    match (trait_, m) {
+        (Trait::Greedy, Moment::Low) => "not the gold",
+        (Trait::Greedy, Moment::Resolved) => "still mine",
+        (Trait::Greedy, Moment::GoldWithFoes) => "worth it",
+        (Trait::Greedy, Moment::UnknownDrink) => "free, so",
+        (Trait::Greedy, Moment::BossSeen) => "big purse",
+        (Trait::Cowardly, Moment::Low) => "not today",
+        (Trait::Cowardly, Moment::Resolved) => "still here",
+        (Trait::Cowardly, Moment::GoldWithFoes) => "quick, quick",
+        (Trait::Cowardly, Moment::UnknownDrink) => "hold my nose",
+        (Trait::Cowardly, Moment::BossSeen) => "oh no",
+        (Trait::Brave, Moment::Low) => "come on then",
+        (Trait::Brave, Moment::Resolved) => "next",
+        (Trait::Brave, Moment::GoldWithFoes) => "mine now",
+        (Trait::Brave, Moment::UnknownDrink) => "bottoms up",
+        (Trait::Brave, Moment::BossSeen) => "there you are",
+        (Trait::Curious, Moment::Low) => "interesting",
+        (Trait::Curious, Moment::Resolved) => "noted",
+        (Trait::Curious, Moment::GoldWithFoes) => "shiny",
+        (Trait::Curious, Moment::UnknownDrink) => "let's see",
+        (Trait::Curious, Moment::BossSeen) => "so that's you",
+    }
+}
+
+/// The hero speaks: at most once per `VOICE_EVERY` ticks, never in a fight's first ten.
+pub fn voice(run: &mut Run, cx: &mut Ctx, m: Moment) -> bool {
+    if run.voice_t.is_some_and(|t| run.turn < t + VOICE_EVERY) || run.fight_t.is_some_and(|t| run.turn < t + VOICE_FIGHT_QUIET) {
+        return false;
+    }
+    run.voice_t = Some(run.turn);
+    crate::chronicle::callout(run, cx, voice_line(run.trait_, m));
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn ep(threat: &[(&str, u32)], low: i32, row: i32, verb: &str, res: Resolution) -> Episode {
+        Episode {
+            t: 1,
+            depth: 2,
+            setup: Setup::Hurt,
+            low_hp: low,
+            max_hp: 36,
+            threat: threat.iter().map(|(k, n)| (k.to_string(), *n)).collect(),
+            act: Act { row, verb: Verb::new(verb), target: None, boss: false },
+            trait_: Trait::Greedy,
+            resolution: res,
+            ..Default::default()
+        }
+    }
+    #[test]
+    fn story_lines_follow_the_grammar() {
+        let e = ep(&[("jackal", 2)], 3, 1, "drink", Resolution::Banked { gold: 58 });
+        assert_eq!(story_line(&e), "Two jackals took him to 3 HP; R2 drank; banked $58.");
+        let mut b = ep(&[("goblin_warlord", 1), ("goblin", 2)], 9, 3, "shield_bash", Resolution::FirstBoss { kind: "goblin_warlord".into() });
+        b.act.boss = true;
+        assert_eq!(story_line(&b), "The Warlord took him to 9 HP; R4 bashed him; first boss.");
+        let g = ep(&[("jackal", 1)], 12, -1, "pick_up", Resolution::Fell { kind: "jackal".into(), name: "Uleth".into() });
+        assert_eq!(story_line(&g), "A jackal took him to 12 HP; greed grabbed; Uleth fell.");
+        let g2 = ep(&[("gas", 1)], 12, -1, "pick_up", Resolution::Banked { gold: 12 });
+        assert_eq!(story_line(&g2), "Gas took him to 12 HP; greed took the gold; banked $12.");
+        let d = ep(&[("gas", 1)], 4, -2, "wait", Resolution::Died { cause: "gas".into() });
+        assert_eq!(story_line(&d), "Gas took him to 4 HP; no row fired; died to gas.");
+        let long = ep(&[("goblin_archer", 3)], 3, 2, "tactic", Resolution::Died { cause: "goblin_archer".into() });
+        let mut long = long;
+        long.act.verb = Verb::arg("tactic", "corridor_fighting");
+        long.cornered = true;
+        let s = story_line(&long);
+        assert!(word_count(&s) <= STORY_WORDS, "{s}");
+        assert!(story_ok(&s), "{s}");
+        for e in [&e, &b, &g, &d] {
+            assert!(story_ok(&story_line(e)), "{}", story_line(e));
+        }
+        assert!(!story_ok("Down to 2 HP, then banked $313."));
+        assert!(!story_ok("Two jackals took him to 3 HP; R2 flew; banked $58."));
+    }
+    #[test]
+    fn plurals_and_causes() {
+        assert_eq!(plural("jackal"), "jackals");
+        assert_eq!(plural("pink jelly"), "pink jellies");
+        assert_eq!(plural("goblin archer"), "goblin archers");
+        assert_eq!(cause_phrase("ogre"), "an ogre");
+        assert_eq!(cause_phrase("lich"), "the Lich");
+        assert_eq!(cause_phrase("burst"), "gas");
+    }
+    #[test]
+    fn voice_lines_are_three_words() {
+        for t in Trait::ALL {
+            for m in [Moment::Low, Moment::Resolved, Moment::GoldWithFoes, Moment::UnknownDrink, Moment::BossSeen] {
+                assert!(word_count(voice_line(t, m)) <= 3, "{}", voice_line(t, m));
+            }
+        }
+    }
 }

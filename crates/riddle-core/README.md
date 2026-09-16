@@ -1,7 +1,7 @@
 # riddle-core
 
 Deterministic roguelike sim, rule engine, facts, forecast, offline batch, chronicle, sifter,
-meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4). All game truth lives here; `riddle-wasm` is a JSON bridge.
+meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4, Cut 5). All game truth lives here; `riddle-wasm` is a JSON bridge.
 
 ## Wire deviations
 
@@ -14,7 +14,7 @@ fields). Where the contract left a choice open, this is what the engine does:
   when `known`, otherwise `"potion"` or `"scroll"` (label `"blue potion?"`, `hint` when the
   hero got one). Gear and gold are always known.
 - **`Ev.rule` is also emitted for chores** (`row: -2`, verbs `explore | descend | pick_up |
-  wait | shuffle | paralysed | stumble | stuck | cornered`) and traits (`row: -1`, text starts with the trait).
+  wait | shuffle | paralysed | stumble | stuck | cornered`, Cut 5 `return` for a bail) and traits (`row: -1`, text starts with the trait).
 - **`throw` argument** is `"K"` or `"K,nearest"` or `"K,tag:T"` (one `a` string).
   **`tactic`** is a verb `{v:"tactic", a:"corridor_fighting"}`. `hold` is a valid verb
   (stay put) used by tests; the editor never offers it.
@@ -350,6 +350,130 @@ fields). Where the contract left a choice open, this is what the engine does:
   computing call is separate from `unlocks()`.
 - **`Lineage.ascended: string[]`** — the variants the lineage has finished the dungeon with.
 
+
+## Cut 5 (the story of a run) — deviations and additions
+
+- **Episodes** (`sifter.rs`, rewritten). `Run.arc` is the live episode: the hp low-water mark
+  since the last resolution with its tick, the foes in view when it was hit (the boss first,
+  then the most numerous, then by name; a hazard or a situation when none was), the cause,
+  whether the hero was cornered (two adjacent) or chased (a `fast` kind, or the hero fleeing),
+  the first hero action after the low (`Act {row, verb, target, boss}`; row −1 trait, −2
+  chores), the last action, items used, allies lost. `sifter::on_hurt` runs on every blow the
+  hero survives, `on_action` after every action. It closes on: hp recovering past
+  `RECOVER_PCT` 60 after a low ≤ `LOW_PCT` 25 (**sealed**: the episode keeps its low and its
+  row and takes the run's *next* resolution — a floor, a boss, an exit — as its own, so a
+  scare and what it bought are one line; at most `SEALED_MAX` 2 wait, the deepest kept), a
+  boss dying (`first boss` the first time the lineage kills the kind, else `boss slain`), the
+  floor changing after a low (`reached Dn`), a companion dying (`<kind> <Name> fell`), an exit
+  (`banked $N` · `returned` · `lost the thread` for the run cap · `died to <cause>`). Boss
+  kills and a companion's fall close the live episode only; floors and exits also resolve the
+  sealed ones. A boss's first sight seals whatever was live, so the boss fight is its own
+  episode. An exit with nothing to tell closes an `Untouched` episode, so every run has a
+  closing line. A death from full health reads `took him down`.
+- **Story lines**: `<setup>; <turn>; <end>.` from tables, ≤ `STORY_WORDS` 12 words
+  (`sifter::story_line`; `story_ok` is the gate's check). Setup: `Two jackals took|cornered|
+  chased him to 3 HP` (`A jackal`, `An archer`, `The Warlord` — bosses by their short name —
+  `Gas`, `The shrine`, `The nest`, `A stray jackal`), `The vault held three`, `Uleth the
+  jackal came back`, `Untouched` / `Untouched by two rats`. Turn: `R2 drank` (`PAST`, every
+  verb and chore; `CARD_PAST` for tactic cards, `PAST_SHORT` one-word forms), `R4 bashed him`
+  for a blow on a boss, traits `greed took the gold` / `greed grabbed` · `cowardice ran` ·
+  `bravery held` · `curiosity drank`, chores `the chores explored` or `no row fired` (waits,
+  cornered, stuck), `paralysed, no row`, `confused, no row`; a vault's `he took the mail`.
+  When the long forms overflow twelve words the beats shorten in turn: the threat (`Jackals`,
+  `An archer`), then the resolution (`died to archer`, then `died`; `Uleth fell`), then the
+  row (`greed grabbed`, `R3 held`, `no row fired`) — the turn beat is what the line is for.
+- **Score** = low-point depth (1 + (100 − low%)/25, so 1–5; 1 for a vault, a stray or an
+  untouched run) × resolution weight (`first boss` 5, a death 3 — 5 for an heir with deeds —
+  `banked` 3, a companion's fall 3, `reached` 2, `boss slain` 2, `returned` 1) + 2 for a
+  situation. Episode scores feed renown as the Cut 1 highlights did (a scare-and-bank ≈ 12,
+  a quiet return 1).
+- **Reel** (`sifter::reel(highlights, best_run)`): the top three episodes by score, never two
+  with the same (threat key, resolution key) — `HighlightArc.threat` (`jackal`,
+  `goblin_warlord`, `gas`, `nest`, `shrine`, `vault`, `stray`, `none`) and the resolution
+  with its number and a death's cause dropped (`banked $`, `reached D`, `died`, `fell`) — nor
+  two identical texts; then the closing episode of the run that reached the best depth
+  (`Batch.best_run`; its best other episode when the closing pair is already shown); `bones`
+  highlights fill to four. `Highlight.arc {low_hp, row, threat, resolution}` is on every
+  episode line and absent on `bones`. `Game.reel` (the lifetime top 50) is unchanged.
+- **Lineage chronicle** (`Lineage.chronicle`, cap `CHRONICLE_CAP` 40, oldest first): one line
+  per heir on its end, `♟3 the greedy fighter · D7 · "corridor" set · took the Warlord · fell to
+  gas · left bones on D7.` — the heir's best depth (`LineageState.heir_best`), the active
+  set's name when set, up to two deeds (`took the <Boss>` first kills first, `freed a
+  captive`, `tamed a jackal`, `found ♟3's bones`; `LineageState.heir_deeds`), the end
+  (`fell to <cause>` · `retired at rank N` when the heir reached the bottom · `ascended`) and
+  `left bones on Dn` when a pile was left. Written once per heir (`chronicled`): the heir who
+  retires at the bottom gets no second line on a later death.
+- **Hero voice** (`sifter::voice`, `Moment`): trait × {low, resolved, gold with foes in view,
+  an unknown drunk or read, boss first seen}, ≤ 3 words each (`voice_line`), as `callout`
+  events; at most one per `VOICE_EVERY` 100 ticks and never in a fight's first
+  `VOICE_FIGHT_QUIET` 10 ticks (`Run.fight_t` is the tick a hostile last came into view after
+  none). The Cut 1–4 callouts (`near death`, `boss down`, …) are unchanged.
+- **Situations on D1–5** (`engine::place_situations`, rooms only; the Warrens). D1 always
+  holds one, in one of the three rooms nearest the entrance; D2–5 hold one at 80 % and a
+  second at 30 % (weights nest 3 / vault 3 / shrine 3; on D1 nest 2 / vault 4 / shrine 4).
+  Placement draws from a side stream (`Rng::side`), so the floor's own stream is Cut 4's.
+  Tiles `shrine | vault | vault_open | nest` are passable; facts `shrine vault nest stray`
+  are learned on sight (a note each), and `Run.situations` counts what the run met (the
+  gate). Tokens: `on_see: nest | shrine | vault` (`{k:"on_see", t}`) holds while such a tile
+  is in view and live (a den asleep, an altar not prayed at, a cage unopened) — gated by the
+  fact alone, not by `cond_on_see`.
+  - **Nest**: a `nest` tile with a gold pile (`12 × depth + 4–12`) and three sleeping jackals
+    (four from D4) on the tiles around it. Sleepers are D1 jackals (no depth bonus) and
+    **scenery until they wake**: not foes for `foes>=`, `attack` or the pack, never woken by
+    sight, and the chores keep two tiles clear of a seen den and leave its gold alone (like
+    water and known mirrors; when the only way on runs through the den, they go through). The
+    den wakes when the hero steps within two tiles, or on a blow — a melee row with nothing
+    awake to fight may raid it (`on_see: nest → attack nearest` is the raid), a `pick_up` row
+    fetches its gold, and a greedy heir with the gold in view is **tempted** (`Run.tempted`,
+    the chores walk in; trait text `greedy → the den`). They stir one a turn apart (`stun` 0,
+    10, 20…): a fight that builds, not a wall that lands. Callout `the nest wakes`. (A den
+    that woke on sight, or that `foes>=1 → attack` walked into, cut DEFAULT's runs by a
+    floor and put the expeditions gate at 16.6; as a choice it changes the runs that choose it.)
+  - **Vault**: a `vault` tile with a three-item cage (`Run.vault_cage`: a weapon — sword,
+    bow, an axe from D3 —, an armour — leather, mail from D3 —, both +1, and heal / strength /
+    a teleport scroll; never an enchant scroll: the quartermaster keeps the best weapon for
+    life and a scroll a run stacked FULL's sword to +12 by the Sanctum). The chores walk to a
+    seen vault while the hero is above half health (`explore` chore). Standing on it opens
+    it: the tile becomes `vault_open`, `Snapshot.vault_choice {items}` carries the three, and
+    **`choose(itemId)`** takes one (the rest vanish; `Ev::pickup`, a note). Unanswered for
+    `VAULT_GRACE` 50 ticks — watched or not, so a verdict replay stays faithful — the
+    **`Lineage.vault_pref`** (`weapon | armour | potion | scroll`, `setVaultPref`, default
+    `weapon`) picks. The choice is an episode (`The vault held three; he took the mail; …`).
+  - **Shrine**: a `shrine` tile; verb **`pray row | trait`** enters the vocabulary with the
+    `shrine` fact. The row walks to the altar seen on this floor and prays once per run:
+    −`PRAY_COST_PCT` 20 % max HP for the run (`max_hp_base` too, so floors do not refund it),
+    and `pray row` **lends a row** — the first row of the player's other saved sets that the
+    active set lacks, appended last for the run (`Run.lent_row`; the editor cannot write past
+    the cap, so the shrine lends from what the player wrote elsewhere) — or, with nothing to
+    lend, and always for `pray trait`, **swaps the trait** for the run (`Trait::swap`: greed ↔
+    curiosity, cowardice ↔ bravery). Blocked reasons `prayed` / `no shrine`. The prayer is a
+    hurt with cause `shrine`, so it opens its own episode (`The shrine took him to 29 HP; R3
+    prayed; reached D2`).
+  - **Stray**: when a companion dies on an expedition it joins `LineageState.lost` (kind,
+    name, gen, heir; six kept) and a later run places it, wild and asleep, on one D1–5 floor
+    (50 % per floor, always by D5; `Monster.stray`, its old name). It fights like its kind;
+    **`tame`** takes it at `STRAY_TAME` 60 % whatever its wounds, and it comes back as a
+    companion with its name and generation (`Run.strays_tamed`; the lost list forgets it at
+    home). The return is an episode (`Uleth the jackal came back; R1 tamed; …`).
+- **Bail** (`bail()`, wasm `bail`): a `return` fires on the hero's next action as a chore
+  (`Ev.rule` row −2, verb `return`, text `bail → return`; `Run.exit_row` stays unset, so it is
+  not a stall row); the rules are untouched. The client's row-prepend still works.
+- **Mirror King**: a paralysed turn no longer enters his verb ring (a sentinel's gaze was
+  resetting the mirror for the hero — the wall read 77 % without the cadence row once FULL
+  had the vault's gear; 100 % with the fix), and he mirrors the pack as he mirrors the hero
+  (`Monster.verb_ring`: an ally's third blow of a kind comes back and heals him).
+- **Death verdict**: a `rest` candidate family (`hp<N → rest`, first in the list, when no
+  rest row fired in the trace) — a set that never rests wanders worn, and the honest patch
+  for a death a reseeded replay mostly survives is the rest, not the escape. DEFAULT's
+  population dice fell 6.1 % → 5.8 % with it. The gate table's dice and gap shares are now
+  **death-weighted**: the verdicts are a sample of eight per seed, which weighted a FULL
+  bot's dozen boss-wall deaths (dice by design) thirty times over against DEFAULT's 470; the
+  per-bot rate × the bot's deaths is the unbiased estimate (4.4 % here, 3.9 % at the Cut 4
+  head under the same estimator; `--verdicts 100000` verdicts every death: 3.8 %, and 3.6 %
+  with the situations off). The bar is unchanged.
+- **Examples**: `stories [seeds] [hours]` prints reels, episodes, chronicle lines and the
+  situation counts of DEFAULT and EDITED absences (the Cut 5 probe).
+
 ## Additions to the `Engine` interface (all JSON strings)
 
 `unlocks()` → `UnlockInfo[] {id,cost,owned,available,needs?}` · `setClass(class)` → Lineage ·
@@ -358,7 +482,8 @@ fields). Where the contract left a choice open, this is what the engine does:
 `fromSave(json)` (static constructor) · `setKeepPref(pref)` → Lineage ·
 Addendum A: `setParty(idsJson)`, `setCompanionRules(id, setJson)`, `breed(a,b)`, `hatch(eggId)`,
 `companionVocabulary(id)` · Addendum B: `buySupply(kind)`, `clearSupplies()`,
-`supplyCatalogue()` → `{kind,price,label}[]` · Addendum D: `keep(idsJson)` · Cut 3: `ascend(variant)` → Lineage.
+`supplyCatalogue()` → `{kind,price,label}[]` · Addendum D: `keep(idsJson)` · Cut 3: `ascend(variant)` → Lineage ·
+Cut 5: `bail()` · `choose(itemId)` → Snapshot · `setVaultPref(pref)` → Lineage.
 Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion verbs
 `attack shoot burst steal split flank drain follow recall`. Hero scope cond `{k:"party",t:kind}`,
 `{k:"party_hp<",n}`, verb `tame` (`nearest | tag:T`).
@@ -371,12 +496,57 @@ tests). `examples/cli.rs` playtest; `examples/metrics.rs` gates; `examples/bench
 counter, every unlock assumed). `examples/dayplayer.rs` is the 14-day player simulation
 (`--gate` checks the Cut 2/3 bars; `--verbose` logs purchases and bests; after the ending it
 ascends with `no_rest`). `examples/probe.rs --full` and `examples/watch.rs` are the Cut 3
-survey tools.
+survey tools; `examples/stories.rs` the Cut 5 story probe.
 
 ```
 cargo run --release --example cli -- --seed 1 --rules presets/good.json --runs 3 [--verbose] [--all-deaths]
 cargo run --release --example metrics [-- --seeds 30 --hours 8]
 ```
+
+## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`, Cut 5; `node tools/gates.mjs --full`)
+
+```
+DEFAULT dies by ≤ D6 ≥ 80% of seeds                                100%  PASS
+EDITED reaches ≥ D10 ≥ 50% of seeds                                 93%  PASS
+EDITED − DEFAULT (≥ D10) ≥ 15 pts                                93 pts  PASS
+RANDOM loses 100%                                                  100%  PASS
+PASSIVE loses by ≤ D3 100%                                         100%  PASS
+LEARNED mean depth ≤ DEFAULT + 2                           4.70 vs 4.58  PASS
+PETS dies by ≤ D8 ≥ 80% of seeds                                   100%  PASS
+LEVELLED dies by ≤ D9 ≥ 80% of seeds                               100%  PASS
+TRIVIAL never passes D5 ≥ 90% of seeds                              97%  PASS
+COUNTERED reaches ≥ D11 ≥ 50% of seeds                              70%  PASS
+FULL reaches ≥ D26 ≥ 50% of seeds (3 × 8 h)                         97%  PASS
+FULL−D20 never passes D20 ≥ 90% of seeds                           100%  PASS
+FULL−D25 never passes D25 ≥ 90% of seeds                           100%  PASS
+FULL−D30 never passes D30 ≥ 90% of seeds                           100%  PASS
+Unfair deaths (dice) ≤ 5% (n=2177, death-weighted)                 4.4%  PASS
+Deaths tracing to a row (gap) ≥ 70%                               95.6%  PASS
+Top death cause share < 35% (goblin)                              27.1%  PASS
+Events per 600 ticks (renderable) ≥ 6                              44.0  PASS
+Replay hash identical (seed+rules+elapsed)             7e0865b3c8f23ecf  PASS
+Forecast known_to == best_depth + 1                                 all  PASS
+Expeditions per 8 h (DEFAULT, EDITED) in 6–16               15.6 · 12.4  PASS
+DEFAULT yields 0 xp/gold over 8 h                                     0  PASS
+EDITED banks ≥ 3 runs per 8 h                                       8.0  PASS
+Patches whose row fired in ≥ 50% of replays (n=278)                100%  PASS
+Verdict time ≤ 0.4 s (mean of 2177)                              0.34 s  PASS
+Per-tick cost ≤ 6 µs (quiet, DEFAULT/EDITED/FULL)               2.87 µs  PASS
+Offline 8 h: learned ≥ 1 and pending ≥ 1 every seed              min 19  PASS
+Story lines ≤ 12 words, table verb (n=73459)                     100.0%  PASS
+Reel ≥ 2 distinct (threat, resolution) pairs per 8 h (n=180)               100%  PASS
+Top reel line names a row, trait or companion ≥ 80%                 94%  PASS
+Situations: ≥ 1 per run on D1–5 ≥ 90% (n=6611)                    95.1%  PASS
+```
+
+Cut 5 measured: FULL 97 % of seeds to D26 (83 % at the Cut 4 head: the vault's +1 gear and
+the dens' tames), the boss walls 100 / 100 / 100 %. Dice 4.4 % death-weighted (3.9 % at the
+head under the same estimator; every death verdicted 3.8 %). DEFAULT's runs are the Cut 4
+shape (D4 reach 94.9 % vs 95.3 % without the situations; expeditions 15.6 vs 15.7). The
+14-day player (`dayplayer --gate --seeds 3`): marks unspent ≤ 8 (6), empty check-ins 0 %,
+L10 on day 11 — PASS; days with a purchase 7.7 / 14 (bar 10) and the longest counter-known
+stall 8 days (bar 3; 5 at the Cut 4 head) — FAIL, the Cut 2–4 deviation (the model's boss
+play).
 
 ## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`, Cut 4; `node tools/gates.mjs --full`)
 

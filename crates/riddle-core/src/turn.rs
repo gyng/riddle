@@ -4,7 +4,8 @@ use crate::ai;
 use crate::chronicle::{callout, note};
 use crate::defs::{monster_def, Cat};
 use crate::descent::{biome_for, ENDING_DEPTH};
-use crate::engine::{populate_floor, Ctx, ExitTier, Run, ACT_ENERGY, HERO_ID, TICKS_PER_TURN};
+use crate::engine::{populate_floor, Ctx, ExitTier, Run, ACT_ENERGY, HERO_ID, TICKS_PER_TURN, VAULT_GRACE};
+use crate::sifter::{self, Moment, Resolution};
 use crate::facts::{learn, learn_tag, tag_known};
 use crate::gen::generate;
 use crate::geom::{Pos, DIRS8};
@@ -30,13 +31,15 @@ pub struct View {
 }
 
 /// Foes in view. `foes` is every visible hostile; `engage` the ones a melee row may chase.
+/// Cut 5 §4: a sleeping den is scenery, not a foe, until it wakes (`on_see: nest`, greed or a
+/// `pick_up` row are the ways in).
 pub fn view(run: &Run) -> View {
     let map = &run.floor.map;
     let hp = run.hero.pos;
     let mut foes: Vec<usize> = (0..run.monsters.len())
         .filter(|&i| {
             let m = &run.monsters[i];
-            m.hp > 0 && m.hostile() && map.is_visible(m.pos)
+            m.hp > 0 && m.hostile() && !m.dormant && map.is_visible(m.pos)
         })
         .collect();
     foes.sort_by_key(|&i| (run.monsters[i].pos.cheb(hp), run.monsters[i].id));
@@ -69,6 +72,11 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
     }
     run.turn += 1;
     run.floor_turn += 1;
+    // Cut 5 §4: an opened vault waits `VAULT_GRACE` ticks for `choose` (the client's sheet),
+    // then the preference picks — watched or not, so a verdict replay stays faithful.
+    if run.vault_choice.as_ref().is_some_and(|(t0, _)| run.turn >= t0 + VAULT_GRACE) {
+        vault_take(run, cx, None);
+    }
     run.hero.energy += run.hero.speed();
     for m in run.monsters.iter_mut() {
         if m.hp > 0 {
@@ -153,8 +161,18 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
         .filter(|m| m.hp > 0 && m.hostile() && m.reflects_melee() && map.is_visible(m.pos) && tag_known(cx.facts, &m.kind, "reflect_melee"))
         .map(|m| m.pos)
         .collect();
+    // Cut 5 §4: sleeping dens the hero has seen are terrain too (kept two tiles clear).
+    run.dens = run.monsters.iter().filter(|m| m.hp > 0 && m.nest && m.dormant && map.is_seen(m.pos)).map(|m| m.pos).collect();
     oscillation_guard(run, cx);
+    // Cut 5 §4: a den wakes when the hero comes within two tiles of it.
+    wake_nest(run, cx);
     let v = view(run);
+    // Cut 5 §3: the fight clock (no hero lines in a fight's first ten ticks).
+    if v.foes.is_empty() {
+        run.fight_t = None;
+    } else if run.fight_t.is_none() {
+        run.fight_t = Some(run.turn);
+    }
     let hp_before = run.hero.hp;
     let inv_before = run.hero.inv.len() + run.hero.weapon.is_some() as usize + run.hero.armour.is_some() as usize;
     run.last_hit_verb = None;
@@ -171,10 +189,25 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
         }
     }
     let (row, verb) = choose_and_act(run, cx, &v);
+    // Cut 5 §1: the episode records the action (the row at the low point when one is awaited)
+    // and seals itself once the hero has recovered from a low.
+    sifter::on_action(run, row, &verb);
+    if sifter::recovered(run) {
+        sifter::seal(run);
+        sifter::voice(run, cx, Moment::Resolved);
+    }
+    // Cut 5 §4: standing on the vault opens it; situations in view are facts.
+    if run.over.is_none() {
+        if run.floor.map.get(run.hero.pos) == Tile::Vault {
+            vault_open(run, cx);
+        }
+        situations_seen(run, cx);
+    }
     // Cut 3: the Mirror King remembers the hero's last three verbs while he watches — the verb
-    // of the hit landed (attack, shoot, cleave…), else the action itself.
+    // of the hit landed (attack, shoot, cleave…), else the action itself. Cut 5: a paralysed
+    // turn is no action (a sentinel's gaze was resetting his mirror for the hero).
     let king_watching = run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.kind == "mirror_king" && run.floor.map.is_visible(m.pos));
-    if king_watching {
+    if king_watching && verb.v != "paralysed" {
         let used = run.last_hit_verb.take().unwrap_or_else(|| verb.v.clone());
         run.verb_ring.push(used);
         while run.verb_ring.len() > 3 {
@@ -245,6 +278,14 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         emit_rule(run, cx, -2, &verb, "confused → stumble");
         return (-2, verb);
     }
+    // Cut 5 §5: bail — a queued `return`, the rules untouched.
+    if run.bail {
+        run.bail = false;
+        let verb = Verb::new("return");
+        end_run(run, cx, ExitTier::Return);
+        emit_rule(run, cx, -2, &verb, "bail → return");
+        return (-2, verb);
+    }
     let foes = v.foes.len() as i32;
     let hp_pct = run.hero.hp_pct();
     let tr = run.trait_;
@@ -264,6 +305,20 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         run.cowardly_streak = 0;
     }
     let trait_ok = trait_ready && hp_pct >= 25;
+    // Cut 5 §4: a den's gold in view tempts a greedy heir — from here on the chores walk in.
+    if tr == Trait::Greedy && trait_ok && !run.tempted && !run.dens.is_empty() {
+        let map = &run.floor.map;
+        let gold_seen = run.items.iter().any(|fi| fi.item.kind == "gold" && map.is_visible(fi.pos) && run.dens.iter().any(|d| d.cheb(fi.pos) <= 2));
+        if gold_seen {
+            run.tempted = true;
+            if ai::den_gold_step(run, cx) {
+                run.trait_last = Some(run.actions);
+                let verb = Verb::new("pick_up");
+                emit_rule(run, cx, -1, &verb, "greedy → the den");
+                return (-1, verb);
+            }
+        }
+    }
     if tr == Trait::Greedy && trait_ok && !run.items_ignored() {
         let hp = run.hero.pos;
         let target = DIRS8
@@ -292,7 +347,11 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             return (-2, verb);
         }
     }
-    let rows: Vec<crate::rules::Row> = cx.rules.rows.iter().take(cx.max_rows).cloned().collect();
+    let mut rows: Vec<crate::rules::Row> = cx.rules.rows.iter().take(cx.max_rows).cloned().collect();
+    // Cut 5 §4: the row a shrine lent for this run (last, lowest priority).
+    if let Some(r) = &run.lent_row {
+        rows.push(r.clone());
+    }
     let mut brave_said = false;
     let stuck = run.stuck_until > run.actions;
     let suppressed = if run.row_suppressed.1 > run.actions { run.row_suppressed.0 } else { -9 };
@@ -431,6 +490,11 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
     let n = c.n.unwrap_or(0);
     let t = c.t.as_deref().unwrap_or("");
     let h = &run.hero;
+    // Cut 5 §4: `on_see: nest | shrine | vault` — a situation tile in view (gated by its fact,
+    // not by the `cond_on_see` unlock).
+    if c.k == "on_see" && !t.is_empty() {
+        return cx.facts.contains(t) && run.sees_situation(t);
+    }
     // Cut 2 §3: some condition tokens are unlocks; a row using one the lineage does not own
     // never fires.
     if crate::meta::cond_unlock(&c.k).is_some_and(|u| !cx.unlocks.contains(u)) {
@@ -586,6 +650,23 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     let pct = run.hero.hp_pct();
     if run.hero.hp > 0 {
         run.low_hp = run.low_hp.min(run.hero.hp);
+        // Cut 5 §1: the episode's low point (and the hero's word on it).
+        let flag = match src {
+            Src::Mon(i) | Src::Reflect(i) => {
+                let m = &run.monsters[*i];
+                if m.nest {
+                    Some("nest")
+                } else if m.stray {
+                    Some("stray")
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        if sifter::on_hurt(run, cause, flag) {
+            sifter::voice(run, cx, Moment::Low);
+        }
         if pct <= 10 && run.low10_t.is_none() {
             run.low10_t = Some(run.turn);
             let hp = run.hero.hp;
@@ -702,6 +783,10 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         run.stuck_until = 0;
         run.row_suppressed = (-9, 0);
     }
+    // Cut 5 §4: a blow on a sleeper wakes the whole den.
+    if run.monsters[mi].dormant {
+        wake_den(run, cx);
+    }
     run.monsters[mi].hp -= dmg;
     if run.monsters[mi].kind == "bloat_mother" && run.monsters[mi].hp > 0 && matches!(src, Src::Hero { ranged: false }) {
         let at = run.monsters[mi].pos;
@@ -753,7 +838,11 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             let name = run.companion(cid).map(|c| c.name.clone()).unwrap_or_else(|| kind.clone());
             run.lost_companions.push((run.turn, name.clone()));
             note(run, cx, format!("{name} the {} fell.", crate::engine::kind_title(&kind)));
+            // Cut 5 §1: a companion's fall closes the episode.
+            run.arc.allies_lost.push(name.clone());
+            sifter::resolve(run, Resolution::Fell { kind: kind.clone(), name });
         } else {
+            run.arc.allies_lost.push(kind.clone());
             note(run, cx, format!("The {} fell.", crate::engine::kind_title(&kind)));
         }
     } else if !m.neutral {
@@ -766,6 +855,11 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             run.boss_kills.push((run.turn, kind.clone()));
             note(run, cx, format!("Slew the {}.", m.title()));
             callout(run, cx, "boss down");
+            // Cut 5 §1: a boss dying closes the episode (`first boss` the first time the
+            // lineage kills the kind).
+            let first = cx.kill_counts.get(&kind).copied().unwrap_or(0) <= 1;
+            let res = if first { Resolution::FirstBoss { kind: kind.clone() } } else { Resolution::BossSlain { kind: kind.clone() } };
+            sifter::resolve(run, res);
             if !run.hurt_since_boss && !run.trophies_run.contains(&"boss_untouched".to_string()) {
                 run.trophies_run.push("boss_untouched".into());
                 note(run, cx, "Trophy: boss untouched.".into());
@@ -1068,6 +1162,12 @@ fn tick_alert(run: &mut Run, cx: &mut Ctx) {
 /// Go down a floor (or reach the ending).
 pub fn descend(run: &mut Run, cx: &mut Ctx) {
     note_saved(run, cx);
+    // Cut 5 §1: the floor changing after a low resolves the episode; §4: an open vault is
+    // settled by the preference before the stairs.
+    if run.vault_choice.is_some() {
+        vault_take(run, cx, None);
+    }
+    sifter::resolve(run, Resolution::Reached { depth: run.depth + 1 });
     if let Some(t) = run.low10_t.take() {
         run.near_deaths.push(t);
     }
@@ -1147,7 +1247,11 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.noise = None;
     run.verb_ring.clear();
     run.blind_seen.clear();
+    run.vault_cage.clear();
+    run.dens.clear();
+    run.tempted = false;
     populate_floor(run, cx.grudges, cx.forge, cx.hunter);
+    crate::engine::place_situations(run, cx.lost);
     crate::engine::place_bones(run);
     if cx.facts.contains(&format!("chalk:{next}")) {
         let s = run.floor.stairs_down;
@@ -1197,12 +1301,179 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
     }
     run.over = Some(tier);
     let loot_kept = if run.timed_out { 0 } else { run.loot * tier.pct() / 100 };
+    // Cut 5 §1: the exit resolves every open episode.
+    let res = match tier {
+        ExitTier::Bank => Resolution::Banked { gold: loot_kept },
+        ExitTier::Return if run.timed_out => Resolution::Lost,
+        ExitTier::Return => Resolution::Returned,
+        ExitTier::Death => Resolution::Died { cause: run.death_cause.clone().unwrap_or_else(|| "unknown".into()) },
+    };
+    sifter::resolve(run, res);
     cx.events.push(Ev::Exit { t: run.turn, tier: tier.name().into(), loot_kept });
     match tier {
         ExitTier::Bank => note(run, cx, format!("Banked ${loot_kept}.")),
         ExitTier::Return => note(run, cx, format!("Returned with ${loot_kept}.")),
         ExitTier::Death => {}
     }
+}
+
+// ---------------------------------------------------------------- Cut 5 §4 situations
+
+/// Situations in view become facts (`shrine`, `vault`, `nest`, `stray`) and count for the run.
+fn situations_seen(run: &mut Run, cx: &mut Ctx) {
+    if run.depth > 5 {
+        return;
+    }
+    let map = &run.floor.map;
+    let mut seen: Vec<&str> = Vec::new();
+    for (i, t) in map.tiles.iter().enumerate() {
+        if !map.visible[i] {
+            continue;
+        }
+        let k = match t {
+            Tile::Shrine => "shrine",
+            Tile::Vault | Tile::VaultOpen => "vault",
+            Tile::Nest => "nest",
+            _ => continue,
+        };
+        if !seen.contains(&k) {
+            seen.push(k);
+        }
+    }
+    let stray = run.monsters.iter().find(|m| m.stray && m.hp > 0 && map.is_visible(m.pos)).map(|m| (m.name.clone().unwrap_or_default(), m.kind.clone()));
+    for k in seen {
+        if run.met_situation(k) {
+            let note_text = match k {
+                "shrine" => "A shrine. Pray, at a price.",
+                "vault" => "A vault: three under a cage.",
+                _ => "A den. Something sleeps.",
+            };
+            note(run, cx, note_text.into());
+            learn(run, cx, k.into());
+        }
+    }
+    if let Some((name, kind)) = stray {
+        if run.met_situation("stray") {
+            note(run, cx, format!("{name} the {}, gone wild.", crate::engine::kind_title(&kind)));
+            learn(run, cx, "stray".into());
+        }
+    }
+}
+
+/// The den wakes when the hero steps within two tiles of a sleeper.
+fn wake_nest(run: &mut Run, cx: &mut Ctx) {
+    let hp = run.hero.pos;
+    let near = run.monsters.iter().any(|m| m.nest && m.dormant && m.hp > 0 && m.pos.cheb(hp) <= 2);
+    if near {
+        wake_den(run, cx);
+    }
+}
+
+/// Every sleeper of the den on this floor wakes (the hero's step, or a blow on one of them).
+pub fn wake_den(run: &mut Run, cx: &mut Ctx) {
+    let hp = run.hero.pos;
+    // They stir one after another (the first bites at once, the rest a turn apart): a den is
+    // a fight that builds, not a wall that lands — a worn hero still gets to answer it.
+    let mut n = 0;
+    for m in run.monsters.iter_mut().filter(|m| m.nest && m.dormant && m.hp > 0) {
+        m.dormant = false;
+        m.awake = true;
+        m.last_seen = Some(hp);
+        m.stun = n * TICKS_PER_TURN as i32;
+        n += 1;
+    }
+    if n > 0 {
+        run.met_situation("nest");
+        note(run, cx, "The nest wakes.".into());
+        callout(run, cx, "the nest wakes");
+        learn(run, cx, "nest".into());
+    }
+}
+
+/// The hero stands on the vault: the cage opens. Watched, the choice waits for `choose`
+/// (`Snapshot.vault_choice`); otherwise the preference picks on the next tick.
+fn vault_open(run: &mut Run, cx: &mut Ctx) {
+    let here = run.hero.pos;
+    run.floor.map.set(here, Tile::VaultOpen);
+    let cage = std::mem::take(&mut run.vault_cage);
+    if cage.is_empty() {
+        return;
+    }
+    run.met_situation("vault");
+    learn(run, cx, "vault".into());
+    run.vault_choice = Some((run.turn, cage));
+    note(run, cx, "The vault opens: choose one.".into());
+    callout(run, cx, "choose one");
+}
+
+/// Take one item from the opened vault (`id`, or the preference's pick); the rest vanish.
+pub fn vault_take(run: &mut Run, cx: &mut Ctx, id: Option<u32>) {
+    let Some((_, items)) = run.vault_choice.take() else { return };
+    let pref_cat = match cx.vault_pref {
+        "armour" => Cat::Armour,
+        "potion" => Cat::Potion,
+        "scroll" => Cat::Scroll,
+        _ => Cat::Weapon,
+    };
+    let pick = id.and_then(|id| items.iter().position(|i| i.id == id)).or_else(|| items.iter().position(|i| i.cat() == pref_cat)).unwrap_or(0);
+    let Some(it) = items.into_iter().nth(pick) else { return };
+    let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
+    let here = run.hero.pos;
+    run.loot_add(it.value());
+    let replaced = if run.hero.inv_full() && !item_replaces_gear(&run.hero, &it) {
+        drop_near(run, here, it);
+        None
+    } else {
+        run.hero.auto_equip(it)
+    };
+    if let Some(old) = replaced {
+        if !run.hero.inv.iter().any(|i| i.id == old.id) {
+            if run.hero.inv_full() {
+                drop_near(run, here, old);
+            } else {
+                run.hero.inv.push(old);
+            }
+        }
+    }
+    cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label.clone() });
+    note(run, cx, format!("Took the {label} from the vault."));
+    sifter::open_situation(run, crate::sifter::Setup::Vault, "vault", &label, "");
+}
+
+/// `pray`: at the shrine, a fifth of max HP for the run buys a row (lent from the player's
+/// other saved sets: the first row there the active set lacks) or a trait swap; `pray trait`
+/// always swaps, `pray row` swaps when no row can be lent.
+pub fn pray(run: &mut Run, cx: &mut Ctx, want_row: bool) {
+    run.prayed = true;
+    let cost = run.hero.max_hp * crate::engine::PRAY_COST_PCT / 100;
+    run.hero.max_hp = (run.hero.max_hp - cost).max(1);
+    run.hero.max_hp_base = (run.hero.max_hp_base - cost).max(1);
+    run.hero.hp = run.hero.hp.min(run.hero.max_hp);
+    // The shrine's price opens an episode of its own.
+    if run.arc.has_low() {
+        sifter::seal(run);
+    }
+    sifter::on_hurt(run, "shrine", None);
+    let lent = if want_row {
+        let active = &cx.sets[cx.active_set.min(cx.sets.len() - 1)];
+        cx.sets.iter().enumerate().filter(|(i, _)| *i != cx.active_set).flat_map(|(_, s)| s.rows.iter()).find(|r| !active.rows.contains(r)).cloned()
+    } else {
+        None
+    };
+    let what = match lent {
+        Some(r) => {
+            run.lent_row = Some(r);
+            "a row lent".to_string()
+        }
+        None => {
+            run.trait_ = run.trait_.swap();
+            format!("now {}", run.trait_.name())
+        }
+    };
+    run.met_situation("shrine");
+    learn(run, cx, "shrine".into());
+    note(run, cx, format!("Prayed: {what}, −{cost} max HP."));
+    callout(run, cx, "prayed");
 }
 
 /// Pick up whatever lies on the hero's tile.
@@ -1220,6 +1491,10 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         let it = run.items.remove(ii).item;
         run.loot_add(it.amount);
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: format!("gold ({})", it.amount) });
+        // Cut 5 §3: gold under a foe's nose.
+        if !view(run).foes.is_empty() {
+            sifter::voice(run, cx, Moment::GoldWithFoes);
+        }
         return;
     }
     if crate::defs::FACT_MISC.contains(&item.kind.as_str()) && !run.hero.inv_full() {

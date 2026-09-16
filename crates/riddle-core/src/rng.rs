@@ -35,6 +35,11 @@ impl Rng {
     pub fn derive(seed: u64, tag: u64) -> Rng {
         Rng::new(splitmix(seed) ^ splitmix(tag.rotate_left(17)).wrapping_mul(3))
     }
+    /// A side stream from this one's current state and a tag, leaving this stream untouched
+    /// (Cut 5: situation placement draws from it so the floor's own stream is unchanged).
+    pub fn side(&self, tag: u64) -> Rng {
+        Rng::derive(self.s, tag)
+    }
     pub fn next_u64(&mut self) -> u64 {
         let mut x = self.s;
         x ^= x >> 12;

@@ -177,7 +177,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         found: b.found.iter().map(|i| to_inv(i, &game.lineage.facts, &game.lineage.flavours)).collect(),
         deaths,
         pending,
-        reel: crate::sifter::reel(&b.highlights),
+        reel: crate::sifter::reel(&b.highlights, b.best_run.map(|(_, id)| id)),
         marks_earned: b.marks,
         worst_death,
         worst_death_id,

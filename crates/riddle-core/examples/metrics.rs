@@ -89,6 +89,14 @@ struct SeedResult {
     death_secs: Vec<f64>,
     /// Cut 3: microseconds per simulated tick of the offline batch (rest ticks excluded).
     tick_us: f64,
+    // Cut 5
+    /// Per absence: distinct (threat, resolution) pairs in the reel, and whether its top line
+    /// names a row, a trait or a companion.
+    reel_pairs: Vec<usize>,
+    reel_names: Vec<bool>,
+    /// (story lines, of which in the grammar) and (real runs, of which met a situation on D1–5).
+    stories: (u32, u32),
+    situations: (u32, u32),
 }
 
 fn good() -> RuleSet {
@@ -237,6 +245,18 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
         r.xp += report.xp.gained;
         r.rested_s += report.rested_s;
         r.run_ticks.extend(g.batch.run_ticks.iter().copied());
+        // Cut 5 gates: the reel and the story lines of this absence, the situations met.
+        let pairs: std::collections::BTreeSet<_> = report.reel.iter().filter_map(riddle_core::sifter::pair).collect();
+        r.reel_pairs.push(pairs.len());
+        r.reel_names.push(report.reel.first().is_some_and(riddle_core::sifter::names_agent));
+        for h in g.batch.highlights.iter().filter(|h| h.arc.is_some()) {
+            r.stories.0 += 1;
+            if riddle_core::sifter::story_ok(&h.text) {
+                r.stories.1 += 1;
+            }
+        }
+        r.situations.0 += g.batch.run_outcomes.len() as u32;
+        r.situations.1 += g.batch.situation_runs;
         for (d, c) in &g.batch.run_outcomes {
             r.run_depths.push(*d);
             if let Some(c) = c {
@@ -356,7 +376,7 @@ fn main() {
     let ns = seeds as usize;
     let mut rows: Vec<(String, String, bool)> = Vec::new();
     // Per-bot summary.
-    println!("bot        best-depth mean  ≤D6  ≥D10  ≥D20  ≥D26  mean-death-depth  runs  deaths");
+    println!("bot        best-depth mean  ≤D6  ≥D10  ≥D20  ≥D26  mean-death-depth  runs  deaths   dice");
     for bot in BOTS {
         let rs = per_bot(bot);
         let mean_best = rs.iter().map(|r| r.best_depth as f64).sum::<f64>() / ns as f64;
@@ -368,7 +388,9 @@ fn main() {
         let mdd = depths.iter().sum::<u32>() as f64 / depths.len().max(1) as f64;
         let runs: u32 = rs.iter().map(|r| r.runs).sum();
         let deaths: usize = rs.iter().map(|r| r.causes.len()).sum();
-        println!("{:<10} {:>15.2} {:>4} {:>5} {:>5} {:>5} {:>17.2} {:>5} {:>7}", bot.name(), mean_best, le6, ge10, ge20, ge26, mdd, runs, deaths);
+        let vs: Vec<&String> = rs.iter().flat_map(|r| r.verdicts.iter()).collect();
+        let dice = pct(vs.iter().filter(|v| v.as_str() == "dice").count(), vs.len());
+        println!("{:<10} {:>15.2} {:>4} {:>5} {:>5} {:>5} {:>17.2} {:>5} {:>7} {:>5.1}%", bot.name(), mean_best, le6, ge10, ge20, ge26, mdd, runs, deaths, dice);
     }
     println!("\nrun depth histogram (% of runs ending at depth ≥ d):");
     for bot in BOTS {
@@ -437,12 +459,33 @@ fn main() {
         let held = pct(rs.iter().filter(|r| r.best_depth <= boss).count(), ns);
         rows.push((format!("{} never passes D{boss} ≥ 90% of seeds", bot.name()), format!("{held:.0}%"), held >= 90.0));
     }
-    // Verdicts and causes across bots.
+    // Verdicts and causes across bots. The verdicts are a per-seed sample (`verdicts_per_seed`
+    // of each seed's deaths), so the share of all deaths is estimated per bot and weighted by
+    // the bot's deaths: a FULL bot dies a dozen times in 3 × 8 h and every one is sampled,
+    // while DEFAULT's 470 deaths yield the same eight — the raw share of sampled verdicts
+    // weighted the boss walls' deaths (dice by design) thirty times over. `--verdicts 100000`
+    // verdicts every death and the two numbers agree.
     let all: Vec<&SeedResult> = BOTS.iter().flat_map(|b| per_bot(*b)).collect();
     let verdicts: Vec<&String> = all.iter().flat_map(|r| r.verdicts.iter()).collect();
-    let dice = pct(verdicts.iter().filter(|v| v.as_str() == "dice").count(), verdicts.len());
-    let gap = pct(verdicts.iter().filter(|v| v.as_str() == "gap").count(), verdicts.len());
-    rows.push((format!("Unfair deaths (dice) ≤ 5% (n={})", verdicts.len()), format!("{dice:.1}%"), dice <= 5.0));
+    let raw_dice = pct(verdicts.iter().filter(|v| v.as_str() == "dice").count(), verdicts.len());
+    let weighted = |which: &str| -> f64 {
+        let (mut num, mut den) = (0.0, 0usize);
+        for bot in BOTS {
+            let rs = per_bot(bot);
+            let vs: Vec<&String> = rs.iter().flat_map(|r| r.verdicts.iter()).collect();
+            let deaths: usize = rs.iter().map(|r| r.causes.len()).sum();
+            if vs.is_empty() || deaths == 0 {
+                continue;
+            }
+            num += deaths as f64 * vs.iter().filter(|v| v.as_str() == which).count() as f64 / vs.len() as f64;
+            den += deaths;
+        }
+        100.0 * num / den.max(1) as f64
+    };
+    let dice = weighted("dice");
+    let gap = weighted("gap");
+    println!("verdict sample: {} verdicts, raw dice share {raw_dice:.1}% · death-weighted {dice:.1}%", verdicts.len());
+    rows.push((format!("Unfair deaths (dice) ≤ 5% (n={}, death-weighted)", verdicts.len()), format!("{dice:.1}%"), dice <= 5.0));
     rows.push(("Deaths tracing to a row (gap) ≥ 70%".into(), format!("{gap:.1}%"), gap >= 70.0));
     let mut causes: BTreeMap<&str, usize> = BTreeMap::new();
     let mut n_causes = 0;
@@ -527,6 +570,19 @@ fn main() {
     let off_ok = player_bots.iter().all(|r| r.learned >= 1 && r.pending >= 1);
     let off_min = player_bots.iter().map(|r| r.learned.min(r.pending)).min().unwrap_or(0);
     rows.push((format!("Offline {hours} h: learned ≥ 1 and pending ≥ 1 every seed"), format!("min {off_min}"), off_ok));
+    // Cut 5 gates (docs/CUT5.md): story lines in the grammar, reels with a turn in them, a
+    // top line that names a row/trait/companion, situations on the first floors. The story
+    // and situation counts run over every bot; the reel gates over the player-shaped ones.
+    let (st_n, st_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stories.0, a.1 + r.stories.1));
+    rows.push((format!("Story lines ≤ 12 words, table verb (n={st_n})"), format!("{:.1}%", pct(st_ok as usize, st_n as usize)), st_ok == st_n));
+    let absences: Vec<(usize, bool)> = player_bots.iter().flat_map(|r| r.reel_pairs.iter().copied().zip(r.reel_names.iter().copied())).collect();
+    let pairs_ok = pct(absences.iter().filter(|(p, _)| *p >= 2).count(), absences.len());
+    rows.push((format!("Reel ≥ 2 distinct (threat, resolution) pairs per 8 h (n={})", absences.len()), format!("{pairs_ok:.0}%"), pairs_ok >= 90.0));
+    let names_ok = pct(absences.iter().filter(|(_, n)| *n).count(), absences.len());
+    rows.push(("Top reel line names a row, trait or companion ≥ 80%".into(), format!("{names_ok:.0}%"), names_ok >= 80.0));
+    let (si_runs, si_with): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.situations.0, a.1 + r.situations.1));
+    let si_pct = pct(si_with as usize, si_runs as usize);
+    rows.push((format!("Situations: ≥ 1 per run on D1–5 ≥ 90% (n={si_runs})"), format!("{si_pct:.1}%"), si_pct >= 90.0));
     println!();
     println!("{:<52} {:>18}  result", "gate", "value");
     let mut fails = 0;

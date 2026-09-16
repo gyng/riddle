@@ -7,7 +7,8 @@ use crate::hero::{mastery_card, xp_to_next, Class, Hero, Trait};
 use crate::item::{describe, to_inv, Flavours, FloorItemWire, InvItem, Item};
 use crate::monster::Monster;
 use crate::rng::{hash_str, Rng};
-use crate::rules::{RuleSet, Vocabulary};
+use crate::rules::{Row, RuleSet, Vocabulary};
+use crate::sifter::{Arc, Episode};
 use crate::tiles::Overlay;
 use crate::wire::*;
 use serde::{Deserialize, Serialize};
@@ -48,6 +49,15 @@ pub const EGG_RESTS: u32 = 3;
 pub const BONES_MAX: usize = 3;
 /// Cut 2 §5: kills of a kind before it counts as studied.
 pub const STUDIED_KILLS: u32 = 5;
+/// Cut 5 §2: lineage chronicle lines kept (one per ended heir).
+pub const CHRONICLE_CAP: usize = 40;
+/// Cut 5 §4: a watched run's opened vault waits this many ticks for `choose` before the
+/// preference picks; offline and simulated runs pick at once.
+pub const VAULT_GRACE: u32 = 50;
+/// Cut 5 §4: a stray (a lost heir's companion gone wild) tames at this chance.
+pub const STRAY_TAME: u32 = 60;
+/// Cut 5 §4: the shrine's price — a fifth of max HP for the run.
+pub const PRAY_COST_PCT: i32 = 20;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -272,9 +282,84 @@ pub struct Run {
     pub blocked_now: Option<String>,
     #[serde(default)]
     pub blocked_last: Option<String>,
+    // Cut 5
+    /// §1: the live episode and the closed ones.
+    #[serde(default)]
+    pub arc: Arc,
+    #[serde(default)]
+    pub episodes: Vec<Episode>,
+    /// §3: the hero's last line and the tick the current fight began (no lines in its first ten).
+    #[serde(default)]
+    pub voice_t: Option<u32>,
+    #[serde(default)]
+    pub fight_t: Option<u32>,
+    /// §4: situations met this run (`shrine | vault | nest | stray`, with the tick).
+    #[serde(default)]
+    pub situations: Vec<(u32, String)>,
+    /// §4: this floor's vault cage (three items) and, once opened, the choice waiting
+    /// (tick opened, items) for `choose` or the preference.
+    #[serde(default)]
+    pub vault_cage: Vec<Item>,
+    #[serde(default)]
+    pub vault_choice: Option<(u32, Vec<Item>)>,
+    /// §4: the shrine was used this run; the row it lent (`pray row`).
+    #[serde(default)]
+    pub prayed: bool,
+    #[serde(default)]
+    pub lent_row: Option<Row>,
+    /// §4: a stray was placed this run; strays tamed (their names, back from the lost list).
+    #[serde(default)]
+    pub stray_placed: bool,
+    #[serde(default)]
+    pub strays_tamed: Vec<String>,
+    /// §5: `bail()` queued a `return` for the next hero action.
+    #[serde(default)]
+    pub bail: bool,
+    /// §4: sleeping dens the hero has seen (the chores keep two tiles clear of them, and
+    /// their gold is not the chores' to fetch) — unless greed has been tempted this floor.
+    #[serde(skip)]
+    pub dens: Vec<Pos>,
+    #[serde(default)]
+    pub tempted: bool,
 }
 
 impl Run {
+    /// Cut 5 §4: a tile the chores keep out of — within two of a sleeping den — while the
+    /// hero is not tempted.
+    pub fn in_den_zone(&self, p: Pos) -> bool {
+        !self.tempted && self.dens.iter().any(|d| d.cheb(p) <= 2)
+    }
+    /// Cut 5 §4: the first tile of a kind on this floor.
+    pub fn tile_pos(&self, t: crate::tiles::Tile) -> Option<Pos> {
+        let map = &self.floor.map;
+        map.tiles.iter().position(|x| *x == t).map(|i| map.pos(i))
+    }
+    /// Cut 5 §4: a situation tile of that kind is in view (`on_see: nest | shrine | vault`):
+    /// a den still asleep, an altar not yet prayed at, a cage not yet opened.
+    pub fn sees_situation(&self, what: &str) -> bool {
+        use crate::tiles::Tile;
+        let map = &self.floor.map;
+        let tile = match what {
+            "nest" => Tile::Nest,
+            "shrine" => Tile::Shrine,
+            "vault" => Tile::Vault,
+            _ => return false,
+        };
+        let seen = map.tiles.iter().enumerate().any(|(i, x)| *x == tile && map.visible[i]);
+        seen && match what {
+            "nest" => self.monsters.iter().any(|m| m.nest && m.dormant && m.hp > 0),
+            "shrine" => !self.prayed,
+            _ => true,
+        }
+    }
+    /// Cut 5 §4: note a situation met this run (once each per floor).
+    pub fn met_situation(&mut self, what: &str) -> bool {
+        if self.situations.iter().any(|(t, s)| s == what && *t >= self.turn.saturating_sub(self.floor_turn)) {
+            return false;
+        }
+        self.situations.push((self.turn, what.into()));
+        true
+    }
     /// Cut 4: loot is counted in gold at pickup. `raw` is the item value (gold pile amount,
     /// item value); `loot` is `loot_raw / GOLD_DIVISOR`, so the HUD stake, the exit note,
     /// `Ev::Exit.loot_kept` and the lineage's gold all agree.
@@ -393,6 +478,22 @@ pub struct Ctx<'a> {
     /// Cut 3: the ascension variant ("" at level 0) and the `hunted` stalker.
     pub variant: &'a str,
     pub hunter: Option<&'a Grudge>,
+    /// Cut 5 §4: the vault preference; the lineage's lost companions (strays); the saved
+    /// sets (a shrine lends a row).
+    pub vault_pref: &'a str,
+    pub lost: &'a [Lost],
+    pub sets: &'a [RuleSet],
+    pub active_set: usize,
+}
+
+/// Cut 5 §4: a companion that died on an expedition (its kennel entry is gone); a later run
+/// may meet it gone wild on D1–5, tameable at `STRAY_TAME`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Lost {
+    pub kind: String,
+    pub name: String,
+    pub gen: u32,
+    pub heir: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -478,6 +579,26 @@ pub struct LineageState {
     /// Cut 4: depths banked from at least once (the first bank at a depth is a mark).
     #[serde(default)]
     pub banked_depths: BTreeSet<u32>,
+    // Cut 5
+    /// §2: one line per ended heir (cap `CHRONICLE_CAP`); the heir last written; the live
+    /// heir's deeds and best depth.
+    #[serde(default)]
+    pub chronicle: Vec<String>,
+    #[serde(default)]
+    pub chronicled: u32,
+    #[serde(default)]
+    pub heir_deeds: Vec<String>,
+    #[serde(default)]
+    pub heir_best: u32,
+    /// §4: companions lost on expeditions (strays), newest last; the vault preference.
+    #[serde(default)]
+    pub lost: Vec<Lost>,
+    #[serde(default = "default_vault_pref")]
+    pub vault_pref: String,
+}
+
+fn default_vault_pref() -> String {
+    "weapon".into()
 }
 
 impl LineageState {
@@ -538,6 +659,42 @@ impl LineageState {
             ascended: Vec::new(),
             banked_depths: BTreeSet::new(),
             hunter: None,
+            chronicle: Vec::new(),
+            chronicled: 0,
+            heir_deeds: Vec::new(),
+            heir_best: 0,
+            lost: Vec::new(),
+            vault_pref: default_vault_pref(),
+        }
+    }
+    /// Cut 5 §2: the heir's chronicle line, written once when the heir ends (`end` = `fell to
+    /// gas` · `retired at rank 3` · `ascended`; `tail` = `left bones on D7`).
+    pub fn chronicle_heir(&mut self, end: &str, tail: Option<String>) {
+        if self.chronicled == self.heir {
+            return;
+        }
+        self.chronicled = self.heir;
+        let mut parts = vec![format!("♟{} the {} {}", self.heir, self.trait_.name(), self.class.name()), format!("D{}", self.heir_best)];
+        if let Some(name) = self.rules().name.as_deref().filter(|n| !n.trim().is_empty()) {
+            parts.push(format!("\"{}\" set", name.trim()));
+        }
+        // Bosses first, then the rest, two at most.
+        let mut deeds: Vec<String> = self.heir_deeds.iter().filter(|d| d.starts_with("took the")).cloned().collect();
+        deeds.extend(self.heir_deeds.iter().filter(|d| !d.starts_with("took the")).cloned());
+        parts.extend(deeds.into_iter().take(2));
+        parts.push(end.to_string());
+        if let Some(t) = tail {
+            parts.push(t);
+        }
+        self.chronicle.push(format!("{}.", parts.join(" · ")));
+        while self.chronicle.len() > CHRONICLE_CAP {
+            self.chronicle.remove(0);
+        }
+    }
+    /// A deed of the live heir (first boss kills, captives freed, tames, bones found).
+    pub fn heir_deed(&mut self, deed: String) {
+        if !self.heir_deeds.contains(&deed) && self.heir_deeds.len() < 6 {
+            self.heir_deeds.push(deed);
         }
     }
     pub fn variant_is(&self, v: &str) -> bool {
@@ -582,6 +739,8 @@ impl LineageState {
             bones: self.bones.iter().map(|b| BonesPile { depth: b.depth, heir: b.heir, items: b.items.len() as u32 }).collect(),
             ascension: Ascension { level: self.ascension, variant: self.variant.clone() },
             ascended: self.ascended.clone(),
+            chronicle: self.chronicle.clone(),
+            vault_pref: self.vault_pref.clone(),
         }
     }
     pub fn vault_slots(&self) -> usize {
@@ -734,6 +893,10 @@ pub struct Batch {
     pub run_ticks: Vec<u32>,
     /// Runs ended by each rule row (`return` / `bank`), row index → count.
     pub exit_rows: BTreeMap<i32, u32>,
+    /// Cut 5: the run that reached the best depth this absence (depth, run id), and the
+    /// real runs that met a situation on D1–5 (§4 gate).
+    pub best_run: Option<(u32, u32)>,
+    pub situation_runs: u32,
 }
 
 /// The stall verdict's window: runs since the last death, new best depth or rule edit, the
@@ -889,6 +1052,37 @@ impl Game {
         Ok(())
     }
 
+    /// Cut 5 §4: what an unwatched vault choice takes.
+    pub fn set_vault_pref(&mut self, pref: &str) -> Result<(), String> {
+        if !["weapon", "armour", "potion", "scroll"].contains(&pref) {
+            return Err("unknown vault_pref".into());
+        }
+        self.lineage.vault_pref = pref.into();
+        Ok(())
+    }
+
+    /// Cut 5 §5: bail — a `return` fires on the hero's next action, the rules untouched.
+    pub fn bail(&mut self) {
+        if let Some(run) = self.run.as_mut() {
+            if run.over.is_none() {
+                run.bail = true;
+            }
+        }
+    }
+
+    /// Cut 5 §4: take one item of the opened vault (`Snapshot.vault_choice`); the rest vanish.
+    pub fn choose(&mut self, item_id: u32) -> Result<(), String> {
+        let (run, mut cx) = self.ctx();
+        if run.vault_choice.is_none() {
+            return Err("no vault open".into());
+        }
+        if !run.vault_choice.as_ref().unwrap().1.iter().any(|i| i.id == item_id) {
+            return Err("not in the vault".into());
+        }
+        crate::turn::vault_take(run, &mut cx, Some(item_id));
+        Ok(())
+    }
+
     pub fn loadout(&mut self, ids: Vec<u32>) {
         if self.lineage.variant_is("bones_only") {
             self.loadout.clear();
@@ -921,6 +1115,12 @@ impl Game {
         self.last_snapshot = None;
         self.loadout.clear();
         let l = &mut self.lineage;
+        // Cut 5 §2: the ascending heir's line.
+        l.chronicle_heir("ascended", None);
+        l.heir_deeds.clear();
+        l.heir_best = 0;
+        l.chronicled = 0;
+        l.lost.clear();
         l.ascension += 1;
         l.variant = variant.into();
         l.ended = false;
@@ -1135,6 +1335,20 @@ impl Game {
             blind_seen: Vec::new(),
             bow_swap: None,
             mirrors: Vec::new(),
+            arc: Arc::default(),
+            episodes: Vec::new(),
+            voice_t: None,
+            fight_t: None,
+            situations: Vec::new(),
+            vault_cage: Vec::new(),
+            vault_choice: None,
+            prayed: false,
+            lent_row: None,
+            stray_placed: false,
+            strays_tamed: Vec::new(),
+            bail: false,
+            dens: Vec::new(),
+            tempted: false,
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
@@ -1150,6 +1364,7 @@ impl Game {
             }
         }
         populate_floor(&mut run, &self.lineage.grudges, &self.lineage.forge, self.lineage.hunter.as_ref());
+        place_situations(&mut run, &self.lineage.lost);
         place_bones(&mut run);
         spawn_party(&mut run, &self.lineage.party);
         let vision = run.vision(&self.lineage.unlocks);
@@ -1170,6 +1385,10 @@ impl Game {
         let set = lineage.active_set.min(lineage.sets.len() - 1);
         let max_rows = lineage.max_rows();
         let cx = Ctx {
+            vault_pref: &lineage.vault_pref,
+            lost: &lineage.lost,
+            sets: &lineage.sets,
+            active_set: set,
             facts: &mut lineage.facts,
             kill_counts: &mut lineage.kill_counts,
             flavours: &lineage.flavours,
@@ -1354,6 +1573,7 @@ impl Game {
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn },
             stake: Stake { loot: run.loot, brought, return_row },
             vision: run.vision(&l.unlocks),
+            vault_choice: run.vault_choice.as_ref().map(|(_, items)| VaultChoice { items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect() }),
         }
     }
 
@@ -1381,6 +1601,23 @@ impl Game {
         self.batch.run_outcomes.push((run.depth, if tier == ExitTier::Death { run.death_cause.clone() } else { None }));
         self.batch.run_ticks.push(run.turn);
         self.batch.renderable_events += run.renderable_events;
+        // Cut 5: the best-depth run anchors the reel; situations met on D1–5 are the §4 gate.
+        if self.batch.best_run.is_none_or(|(d, _)| run.max_depth > d) {
+            self.batch.best_run = Some((run.max_depth, run.id));
+        }
+        if !run.situations.is_empty() {
+            self.batch.situation_runs += 1;
+        }
+        self.lineage.heir_best = self.lineage.heir_best.max(run.max_depth);
+        if !run.ally_freed.is_empty() {
+            self.lineage.heir_deed("freed a captive".into());
+        }
+        for name in &run.strays_tamed {
+            self.lineage.lost.retain(|l| l.name != *name);
+        }
+        if let Some((_, k)) = run.tamed.first() {
+            self.lineage.heir_deed(format!("tamed a {}", kind_title(k)));
+        }
         match tier {
             ExitTier::Bank => {
                 self.batch.banked += 1;
@@ -1438,6 +1675,7 @@ impl Game {
                 let boss = crate::defs::monster_def(kind).boss;
                 if boss {
                     marks += 3;
+                    self.lineage.heir_deed(format!("took the {}", crate::sifter::boss_short(kind)));
                 }
                 bests.push(if boss { format!("boss: {kind}") } else { format!("first kill: {kind}") });
             }
@@ -1509,6 +1747,13 @@ impl Game {
                 let eid = self.lineage.new_comp_id();
                 self.lineage.eggs.push(Egg { id: eid, kind: rec.kind.clone(), tags: rec.tags.clone(), gen: rec.gen, hatch_in: egg_rests, from_loss: true });
                 self.lineage.eggs_laid += 1;
+                // Cut 5 §4: the lost companion may be met again, gone wild, by a later heir.
+                let heir = run.heir;
+                self.lineage.lost.retain(|l| l.name != rec.name);
+                self.lineage.lost.push(Lost { kind: rec.kind.clone(), name: rec.name.clone(), gen: rec.gen, heir });
+                while self.lineage.lost.len() > 6 {
+                    self.lineage.lost.remove(0);
+                }
                 if !run.lost_companions.iter().any(|(_, n)| *n == rec.name) {
                     self.batch.lost.push(rec.name.clone());
                 }
@@ -1587,9 +1832,10 @@ impl Game {
             if let Some(i) = self.lineage.bones.iter().position(|b| b.heir == *heir) {
                 let b = self.lineage.bones.remove(i);
                 self.batch.bones_found.push(format!("heir {} · D{} · {} items", b.heir, b.depth, b.items.len()));
+                self.lineage.heir_deed(format!("found ♟{}'s bones", b.heir));
                 if b.named {
                     let text = format!("Recovered heir {}'s bones on D{}.", b.heir, b.depth);
-                    highlights.push(Highlight { pattern: "bones".into(), score: crate::sifter::BONES, t, run_id: run.id, text });
+                    highlights.push(Highlight { pattern: "bones".into(), score: crate::sifter::BONES, t, run_id: run.id, text, arc: None });
                 }
             }
         }
@@ -1679,7 +1925,13 @@ impl Game {
                 let name = crate::descent::grudge_name(&mut self.lineage.rng);
                 self.lineage.grudges.push(Grudge { kind: cause.clone(), name, depth: run.depth, heir: run.heir });
             }
+            // Cut 5 §2: the heir's line in the lineage chronicle.
+            let bones_left = self.lineage.bones.last().is_some_and(|b| b.heir == run.heir);
+            let tail = bones_left.then(|| format!("left bones on D{}", run.depth));
+            self.lineage.chronicle_heir(&format!("fell to {}", crate::sifter::cause_phrase(&cause)), tail);
             self.lineage.heir += 1;
+            self.lineage.heir_deeds.clear();
+            self.lineage.heir_best = 0;
             self.lineage.trait_ = Trait::ALL[self.lineage.rng.below(4) as usize];
             if !self.sim {
                 let rec = crate::trace::death_record(self, &run);
@@ -1689,6 +1941,11 @@ impl Game {
                     self.deaths.remove(&k);
                 }
             }
+        }
+        if run.ended && tier != ExitTier::Death {
+            // Cut 5 §2: the heir who reached the bottom retires from the chronicle at its rank.
+            let rank = self.lineage.rank;
+            self.lineage.chronicle_heir(&format!("retired at rank {rank}"), None);
         }
         self.history.clear();
         outcome.new_facts = (self.lineage.facts.len().saturating_sub(self.facts_at_run_start)) as u32;
@@ -2298,6 +2555,158 @@ pub fn place_bones(run: &mut Run) {
         it.amount = heir as i32;
         run.items.push(FloorItem { pos, item: it });
     }
+}
+
+/// Cut 5 §4: the first five floors hold situations — a shrine (`pray`), a vault (a
+/// three-item cage), a nest (four sleeping jackals round a gold pile) and, when a previous
+/// heir lost a companion, a stray (that companion gone wild). D1 always has one, in a room near
+/// the entrance; D2–5 have one (80 %) or two (30 %). Rooms only (the Warrens).
+pub fn place_situations(run: &mut Run, lost: &[Lost]) {
+    use crate::tiles::Tile;
+    let depth = run.depth;
+    if depth > 5 || run.floor.rooms.is_empty() {
+        return;
+    }
+    // A side stream: the floor's own rng is untouched by what the situations draw.
+    let mut rng = run.rng.side(hash_str("situations") ^ depth as u64);
+    let hero = run.hero.pos;
+    let dist = run.floor.map.bfs(hero, false, &|_| false);
+    // Candidate rooms: not the stairs rooms, ordered by path distance from the entrance.
+    let mut rooms: Vec<(i32, usize)> = run
+        .floor
+        .rooms
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| !r.contains(run.floor.stairs_up) && !r.contains(run.floor.stairs_down))
+        .map(|(i, r)| (dist[run.floor.map.idx(r.centre())], i))
+        .filter(|(d, _)| *d > 0)
+        .collect();
+    rooms.sort();
+    if rooms.is_empty() {
+        return;
+    }
+    let mut n = if depth == 1 { 1 } else { rng.chance(80) as usize };
+    if depth >= 2 && rng.chance(30) {
+        n += 1;
+    }
+    let mut kinds: Vec<&str> = Vec::new();
+    // The doorstep leans to the cage and the altar; dens are the D2+ surprise.
+    let weights = |k: &str| match k {
+        "nest" => if depth == 1 { 2u32 } else { 3 },
+        "vault" => if depth == 1 { 4 } else { 3 },
+        "shrine" => if depth == 1 { 4 } else { 3 },
+        _ => 0,
+    };
+    let pool = ["nest", "vault", "shrine"];
+    for _ in 0..n {
+        let w: Vec<u32> = pool.iter().map(|k| if kinds.contains(k) { 0 } else { weights(k) }).collect();
+        if w.iter().all(|x| *x == 0) {
+            break;
+        }
+        kinds.push(pool[rng.weighted(&w)]);
+    }
+    let stray = !run.stray_placed && !lost.is_empty() && (rng.chance(50) || depth == 5);
+    let mut used: Vec<usize> = Vec::new();
+    let pick_room = |rng: &mut Rng, near: bool, used: &mut Vec<usize>| -> Option<usize> {
+        let free: Vec<usize> = rooms.iter().filter(|(_, i)| !used.contains(i)).map(|(_, i)| *i).collect();
+        if free.is_empty() {
+            return None;
+        }
+        // Near: one of the three closest rooms to the entrance; else any.
+        let i = if near { free[rng.below(free.len().min(3) as u32) as usize] } else { free[rng.below(free.len() as u32) as usize] };
+        used.push(i);
+        Some(i)
+    };
+    let interior = |run: &Run, ri: usize| -> Option<Pos> {
+        let r = run.floor.rooms[ri];
+        let mut cands: Vec<Pos> = Vec::new();
+        for y in r.y..r.y + r.h {
+            for x in r.x..r.x + r.w {
+                let p = Pos::new(x, y);
+                let inner = x > r.x && y > r.y && x < r.x + r.w - 1 && y < r.y + r.h - 1;
+                if run.floor.map.get(p) == Tile::Floor && !run.occupied(p) && run.item_at(p).is_none() && (inner || r.w <= 2 || r.h <= 2) {
+                    cands.push(p);
+                }
+            }
+        }
+        if cands.is_empty() {
+            let c = r.centre();
+            return (run.floor.map.get(c) == Tile::Floor).then_some(c);
+        }
+        Some(cands[(cands.len() / 2).min(cands.len() - 1)])
+    };
+    for (k, kind) in kinds.iter().enumerate() {
+        let near = depth == 1 && k == 0;
+        let Some(ri) = pick_room(&mut rng, near, &mut used) else { break };
+        let Some(p) = interior(run, ri) else { continue };
+        // Nothing else stands on the tile (monsters and items may have landed there).
+        run.items.retain(|fi| fi.pos != p);
+        run.monsters.retain(|m| m.pos != p);
+        match *kind {
+            "shrine" => run.floor.map.set(p, Tile::Shrine),
+            "vault" => {
+                run.floor.map.set(p, Tile::Vault);
+                run.vault_cage = vault_cage(run, &mut rng, depth);
+            }
+            _ => {
+                run.floor.map.set(p, Tile::Nest);
+                let mut gold = Item::new(run.new_item_id(), "gold");
+                gold.amount = 12 * depth as i32 + rng.range(4, 12);
+                run.items.push(FloorItem { pos: p, item: gold });
+                let mut placed = 0;
+                let mut spots: Vec<Pos> = p.neighbours8().into_iter().filter(|q| run.floor.map.get(*q) == Tile::Floor && !run.occupied(*q)).collect();
+                rng.shuffle(&mut spots);
+                // Three sleepers to D3, four below; a den's jackals are D1 jackals (no depth
+                // bonus): the surprise is the shape — four at once round the gold — not the
+                // numbers (DEFAULT must still last ten minutes a run).
+                let sleepers = if depth <= 3 { 3 } else { 4 };
+                for q in spots.into_iter().take(sleepers) {
+                    let id = run.new_id();
+                    let mut m = Monster::spawn(id, "jackal", q, 1);
+                    m.nest = true;
+                    m.dormant = true;
+                    run.monsters.push(m);
+                    placed += 1;
+                }
+                if placed == 0 {
+                    run.floor.map.set(p, Tile::Floor);
+                }
+            }
+        }
+    }
+    if stray {
+        if let Some(l) = lost.last() {
+            if let Some(ri) = pick_room(&mut rng, false, &mut used) {
+                if let Some(p) = interior(run, ri) {
+                    let id = run.new_id();
+                    let mut m = Monster::spawn(id, &l.kind, p, depth);
+                    m.stray = true;
+                    m.name = Some(l.name.clone());
+                    m.level = 1;
+                    run.monsters.push(m);
+                    run.stray_placed = true;
+                }
+            }
+        }
+    }
+}
+
+/// The vault's three items: a weapon, an armour and a consumable, a cut above the floor.
+/// Never an enchant scroll: the quartermaster keeps the best weapon for life, and a scroll a
+/// run stacked a FULL fighter's sword to +12 by the Sanctum (the Mirror King's wall fell).
+fn vault_cage(run: &mut Run, rng: &mut Rng, depth: u32) -> Vec<Item> {
+    let weapon = if depth >= 3 && rng.chance(40) { "axe" } else if rng.chance(30) { "bow" } else { "sword" };
+    let armour = if depth >= 3 && rng.chance(50) { "mail" } else { "leather" };
+    let consumable = if rng.chance(50) { "heal" } else if rng.chance(50) { "strength" } else { "teleport" };
+    let mut out = Vec::new();
+    for k in [weapon, armour, consumable] {
+        let mut it = Item::new(run.new_item_id(), k);
+        if it.cat() == Cat::Weapon || it.cat() == Cat::Armour {
+            it.enchant = 1;
+        }
+        out.push(it);
+    }
+    out
 }
 
 pub fn item_wire(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> InvItem {

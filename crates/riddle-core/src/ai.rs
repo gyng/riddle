@@ -57,7 +57,7 @@ fn hero_bfs(run: &Run) -> (Vec<i32>, Vec<i32>) {
 fn hero_bfs_water(run: &Run, avoid: bool) -> (Vec<i32>, Vec<i32>) {
     let map = &run.floor.map;
     let hp = run.hero.pos;
-    map.bfs_parent(hp, true, &|p| avoid && p != hp && (map.get(p) == Tile::Water || run.mirrors.iter().any(|m| m.cheb(p) <= 1)))
+    map.bfs_parent(hp, true, &|p| avoid && p != hp && (map.get(p) == Tile::Water || run.mirrors.iter().any(|m| m.cheb(p) <= 1) || run.in_den_zone(p)))
 }
 
 /// A path step toward `goal`, avoiding water when possible.
@@ -137,17 +137,27 @@ pub fn explore_step(run: &mut Run, cx: &mut Ctx) -> bool {
     false
 }
 
-fn nearest_item_step(run: &mut Run, cx: &mut Ctx, only_adjacent_free: bool) -> bool {
+/// `chore`: the chores leave a sleeping den's gold alone (a `pick_up` row does not).
+fn nearest_item_step(run: &mut Run, cx: &mut Ctx, chore: bool) -> bool {
     let cands: Vec<Pos> = run
         .items
         .iter()
-        .filter(|fi| run.floor.map.is_seen(fi.pos) && crate::turn::can_take(&run.hero, &fi.item))
+        .filter(|fi| run.floor.map.is_seen(fi.pos) && crate::turn::can_take(&run.hero, &fi.item) && !(chore && run.in_den_zone(fi.pos)))
         .map(|fi| fi.pos)
         .collect();
     if cands.is_empty() {
         return false;
     }
-    let _ = only_adjacent_free;
+    if let Some((goal, parent)) = nearest_tile(run, &|p| cands.contains(&p)) {
+        return step_towards(run, cx, goal, &parent);
+    }
+    false
+}
+
+/// Cut 5 §4: a step toward the nearest den gold in view (greed's temptation).
+pub fn den_gold_step(run: &mut Run, cx: &mut Ctx) -> bool {
+    let map = &run.floor.map;
+    let cands: Vec<Pos> = run.items.iter().filter(|fi| fi.item.kind == "gold" && map.is_visible(fi.pos)).map(|fi| fi.pos).collect();
     if let Some((goal, parent)) = nearest_tile(run, &|p| cands.contains(&p)) {
         return step_towards(run, cx, goal, &parent);
     }
@@ -247,8 +257,13 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     if v.adj == 0 && cx.facts.contains(&format!("chalk:{}", run.depth)) && !stairs_sealed(run) && chalk_step(run, cx) {
         return Verb::new("descend");
     }
-    if v.adj == 0 && !run.items_ignored() && nearest_item_step(run, cx, false) {
+    if v.adj == 0 && !run.items_ignored() && nearest_item_step(run, cx, true) {
         return Verb::new("pick_up");
+    }
+    // Cut 5 §4: a vault seen on this floor is worth the walk — for a hero above half health
+    // (a worn one crossing a floor for loot met every wanderer on the way; those deaths were dice).
+    if v.adj == 0 && run.hero.hp_pct() >= 50 && vault_step(run, cx) {
+        return Verb::new("explore");
     }
     // Cut 2 §3 `bone_sense`: the hero paths to the bones on this floor, seen or not.
     if v.adj == 0 && cx.unlocks.contains("bone_sense") && bones_step(run, cx) {
@@ -266,7 +281,7 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     if descend_step(run, cx) {
         return Verb::new("descend");
     }
-    if !run.items_ignored() && nearest_item_step(run, cx, false) {
+    if !run.items_ignored() && nearest_item_step(run, cx, true) {
         return Verb::new("pick_up");
     }
     // Everything is walled off by foes for a while: path through them and bump whoever
@@ -373,6 +388,13 @@ pub fn block_reason(run: &Run, verb: &Verb, v: &View) -> &'static str {
         }
         "rest" => "not safe",
         "descend" => "no stairs",
+        "pray" => {
+            if run.prayed {
+                "prayed"
+            } else {
+                "no shrine"
+            }
+        }
         "return" | "bank" | "recall" => "no way",
         _ if crate::turn::targets_foes(verb) => {
             if v.engage.is_empty() {
@@ -385,6 +407,19 @@ pub fn block_reason(run: &Run, verb: &Verb, v: &View) -> &'static str {
         }
         _ => "no use",
     }
+}
+
+/// Cut 5 §4: step toward this floor's unopened vault once it has been seen.
+fn vault_step(run: &mut Run, cx: &mut Ctx) -> bool {
+    if run.vault_cage.is_empty() {
+        return false;
+    }
+    let Some(goal) = run.tile_pos(Tile::Vault) else { return false };
+    if !run.floor.map.is_seen(goal) || run.hero.pos == goal {
+        return false;
+    }
+    let (_, parent) = hero_bfs(run);
+    step_towards(run, cx, goal, &parent)
 }
 
 fn bones_step(run: &mut Run, cx: &mut Ctx) -> bool {
@@ -652,6 +687,8 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
         }
         "tactic" => verb_tactic(run, cx, &a, v),
         "hold" => true,
+        // Cut 5 §4: the shrine.
+        "pray" => cx.facts.contains("shrine") && verb_pray(run, cx, &a),
         // Cut 2 §4: ranger
         "shoot" => class_has_verb(run.hero.class, run.hero.level, "shoot") && verb_shoot(run, cx, &a, v),
         "kite" => class_has_verb(run.hero.class, run.hero.level, "kite") && verb_kite(run, cx, v),
@@ -690,6 +727,23 @@ fn verb_rest(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     }
 }
 
+/// Cut 5 §4: `pray row|trait` — walk to the shrine seen on this floor and pray once per run.
+fn verb_pray(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
+    if run.prayed {
+        return false;
+    }
+    let Some(goal) = run.tile_pos(Tile::Shrine) else { return false };
+    if !run.floor.map.is_seen(goal) {
+        return false;
+    }
+    if run.hero.pos == goal {
+        crate::turn::pray(run, cx, a != "trait");
+        return true;
+    }
+    let (_, parent) = hero_bfs(run);
+    step_towards(run, cx, goal, &parent)
+}
+
 /// Cut 3: the Mirror King reflects a verb used three times running (the ring holds the last
 /// two; `verb` would be the third).
 fn mirror_reflects(run: &Run, mi: usize, verb: &str) -> bool {
@@ -708,6 +762,34 @@ fn mirror_learn(run: &mut Run, cx: &mut Ctx, mi: usize) {
 fn mirror_heal(run: &mut Run, mi: usize, dmg: i32) {
     let m = &mut run.monsters[mi];
     m.hp = (m.hp + dmg.max(0)).min(m.max_hp);
+}
+
+/// Cut 5: the Mirror King mirrors the pack too — an ally's third blow of a kind in a row
+/// comes back on it (and heals him). Returns true when the blow was sent back.
+fn ally_mirror(run: &mut Run, cx: &mut Ctx, mi: usize, ti: usize, verb: &str, hit: bool, dmg: i32) -> bool {
+    if run.monsters[ti].kind != "mirror_king" {
+        return false;
+    }
+    let ring = &mut run.monsters[mi].verb_ring;
+    let n = ring.len();
+    let third = n >= 2 && ring[n - 1] == verb && ring[n - 2] == verb;
+    ring.push(verb.to_string());
+    while ring.len() > 3 {
+        ring.remove(0);
+    }
+    if !third {
+        return false;
+    }
+    let (src, dst) = (run.monsters[ti].id, run.monsters[mi].id);
+    cx.events.push(Ev::Attack { t: run.turn, src, dst, dmg, hit, verb: Some("mirror".into()) });
+    if run.floor.map.is_visible(run.monsters[ti].pos) {
+        mirror_learn(run, cx, ti);
+    }
+    if hit {
+        mirror_heal(run, ti, dmg);
+        damage_monster(run, cx, mi, dmg, &Src::Reflect(ti));
+    }
+    true
 }
 
 // ---------------------------------------------------------------- ranger (Cut 2 §4)
@@ -978,7 +1060,15 @@ fn pick_target(run: &mut Run, a: &str, v: &View) -> Option<usize> {
 }
 
 fn pick_melee_target(run: &mut Run, a: &str, v: &View) -> Option<usize> {
-    let mi = pick_target_from(run, a, &v.engage);
+    let mut mi = pick_target_from(run, a, &v.engage);
+    // Cut 5 §4: with nothing awake to fight, a melee row may raid a sleeping den (a free
+    // blow, and the den wakes) — `on_see: nest → attack` is the raid; `foes>=` never sees
+    // sleepers, so the default set walks past.
+    if mi.is_none() && v.engage.is_empty() {
+        let map = &run.floor.map;
+        let sleepers: Vec<usize> = (0..run.monsters.len()).filter(|&i| run.monsters[i].hp > 0 && run.monsters[i].hostile() && run.monsters[i].dormant && map.is_visible(run.monsters[i].pos)).collect();
+        mi = pick_target_from(run, a, &sleepers);
+    }
     run.last_target = mi.map(|i| run.monsters[i].id);
     mi
 }
@@ -1313,7 +1403,11 @@ fn identify_used(run: &mut Run, cx: &mut Ctx, item: &Item) -> bool {
         run.gambles.push((run.turn, item.kind.clone(), mal));
         let (_, _, label) = crate::item::describe(item, cx.facts, cx.flavours);
         note(run, cx, format!("Gambled: {label}."));
+        // Cut 5 §3: a word before the unknown goes down.
+        crate::sifter::voice(run, cx, crate::sifter::Moment::UnknownDrink);
     }
+    // Cut 5 §1: the episode remembers what was used.
+    run.arc.items_used.push(item.kind.clone());
     was_unknown
 }
 
@@ -2576,6 +2670,10 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
         return;
     }
     let hp = run.hero.pos;
+    // Cut 5 §4: a den's sleepers wake to the hero's step (two tiles), not to sight.
+    if run.monsters[mi].dormant {
+        return;
+    }
     let sees = can_see_hero(run, mi);
     if sees {
         run.monsters[mi].awake = true;
@@ -2968,13 +3066,16 @@ fn ally_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
         .monsters
         .iter()
         .enumerate()
-        .filter(|(j, o)| *j != mi && o.hp > 0 && o.hostile() && o.pos.adjacent(mp))
+        .filter(|(j, o)| *j != mi && o.hp > 0 && o.hostile() && !o.dormant && o.pos.adjacent(mp))
         .min_by_key(|(_, o)| (o.hp, o.id))
         .map(|(j, _)| j);
     if let Some(ti) = target {
         let atk = run.monsters[mi].atk;
         let def = run.monsters[ti].effective_def();
         let (hit, dmg) = roll_hit(&mut run.rng, atk, def);
+        if ally_mirror(run, cx, mi, ti, "attack", hit, dmg) {
+            return;
+        }
         let (src, dst) = (run.monsters[mi].id, run.monsters[ti].id);
         cx.events.push(Ev::Attack { t: run.turn, src, dst, dmg, hit, verb: Some("attack".into()) });
         if hit {
@@ -3013,7 +3114,8 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
     let sel = if a.is_empty() { "nearest" } else { a };
     let cand = v.foes.iter().copied().find(|&i| {
         let m = &run.monsters[i];
-        let weak = m.hp * 100 / m.max_hp.max(1) < 25;
+        // Cut 5 §4: a stray (a lost heir's companion) takes the leash whatever its wounds.
+        let weak = m.hp * 100 / m.max_hp.max(1) < 25 || m.stray;
         let tag_ok = match sel.strip_prefix("tag:") {
             Some(t) => m.has_tag(t),
             None => true,
@@ -3039,14 +3141,19 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         run.hero.inv.remove(li);
     }
     let kind = run.monsters[mi].kind.clone();
-    let chance = crate::engine::tame_chance(cx.facts, &kind);
+    let stray = run.monsters[mi].stray;
+    let chance = if stray { crate::engine::STRAY_TAME } else { crate::engine::tame_chance(cx.facts, &kind) };
     let ok = run.rng.chance(chance);
     let id = run.monsters[mi].id;
     cx.events.push(Ev::Tame { t: run.turn, id, kind: kind.clone(), ok });
     if ok {
         let n = run.tamed.len() as u32;
         let cid = 1_000_000 + run.id * 100 + n;
-        let name = crate::descent::grudge_name(&mut run.rng);
+        // A stray keeps the name a previous heir gave it.
+        let name = match run.monsters[mi].name.clone().filter(|_| stray) {
+            Some(n) => n,
+            None => crate::descent::grudge_name(&mut run.rng),
+        };
         {
             let m = &mut run.monsters[mi];
             m.ally = true;
@@ -3059,7 +3166,14 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
             m.stolen = None;
             m.last_seen = None;
         }
-        let rec = crate::engine::new_companion(cid, &run.monsters[mi], name.clone());
+        let mut rec = crate::engine::new_companion(cid, &run.monsters[mi], name.clone());
+        if stray {
+            run.monsters[mi].stray = false;
+            rec.gen = cx.lost.iter().find(|l| l.name == name).map(|l| l.gen).unwrap_or(0);
+            run.strays_tamed.push(name.clone());
+            run.met_situation("stray");
+            crate::sifter::open_situation(run, crate::sifter::Setup::Stray, "stray", &kind, &name);
+        }
         run.companions.push(rec);
         run.tamed.push((run.turn, kind.clone()));
         learn(run, cx, format!("tamed:{kind}"));
@@ -3091,7 +3205,8 @@ fn companion_view(run: &Run, mi: usize) -> View {
     let mut foes: Vec<usize> = (0..run.monsters.len())
         .filter(|&i| {
             let m = &run.monsters[i];
-            i != mi && m.hp > 0 && m.hostile() && (map.is_visible(m.pos) || m.pos.adjacent(mp))
+            // Cut 5 §4: a sleeping den is scenery to the pack as to the hero.
+            i != mi && m.hp > 0 && m.hostile() && !m.dormant && (map.is_visible(m.pos) || m.pos.adjacent(mp))
         })
         .collect();
     foes.sort_by_key(|&i| (run.monsters[i].pos.cheb(mp), run.monsters[i].id));
@@ -3119,6 +3234,9 @@ fn companion_melee(run: &mut Run, cx: &mut Ctx, mi: usize, ti: usize, verb: &str
     let atk = (atk.0 * mult_num / 2, atk.1 * mult_num / 2);
     let def = run.monsters[ti].effective_def();
     let (hit, dmg) = roll_hit(&mut run.rng, atk, def);
+    if ally_mirror(run, cx, mi, ti, verb, hit, dmg) {
+        return 0;
+    }
     let (src, dst) = (run.monsters[mi].id, run.monsters[ti].id);
     cx.events.push(Ev::Attack { t: run.turn, src, dst, dmg, hit, verb: Some(verb.into()) });
     if hit {

@@ -492,6 +492,10 @@ fn monkey_steals_then_flees_and_drops_on_death() {
                 sim: true,
                 variant: "",
                 hunter: None,
+                vault_pref: "weapon",
+                lost: &lineage.lost,
+                sets: &lineage.sets,
+                active_set: set,
             },
         )
     };
@@ -1094,11 +1098,12 @@ fn offline_samples_after_twenty_stalled_runs() {
 /// stall — the return row is named, and at least one patch moves the forecast at depth + 1.
 #[test]
 fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
+    // Cut 5: 12 h (situations on D1–5 gave this seed a new best on its 17th run of 8 h).
     let mut g = Game::new(5);
     let mut set = g.lineage.rules().clone();
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")));
     g.set_rules(set).unwrap();
-    let r = g.run_offline(8 * 3600);
+    let r = g.run_offline(12 * 3600);
     let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
     let stall = r.stall.unwrap_or_else(|| panic!("no stall: {} runs · {deaths} deaths · bests {:?}", r.runs, r.bests));
     assert_eq!(deaths, 0);
@@ -1115,7 +1120,7 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")));
     q.set_rules(set).unwrap();
     let mut last = None;
-    for _ in 0..16 {
+    for _ in 0..24 {
         last = crate::offline::run_offline_quick(&mut q, 1800).stall;
     }
     let chunked = last.expect("the last quick slice carries the stall");
@@ -1215,41 +1220,203 @@ fn hopeless_death_is_dice() {
     assert!(d.patches.is_empty());
 }
 
-// ---------------------------------------------------------------- sifter
+// ---------------------------------------------------------------- sifter (Cut 5 §1 episodes)
 
+/// A low point (two jackals, 3 HP), the row that answered it, a recovery that seals the
+/// episode, and the exit that resolves it: one story line in the three-beat grammar.
 #[test]
-fn sifter_scores_patterns() {
-    let g = arena();
-    let mut run = g.run.as_ref().unwrap().clone();
-    run.over = Some(ExitTier::Bank);
-    run.near_deaths.push(10);
-    run.low20_t = Some(20);
-    run.boss_kills.push((30, "goblin_warlord".into()));
-    run.kills.push((30, "goblin_warlord".into(), 5));
-    run.kills.push((5, "rat".into(), 1));
-    run.ally_lost.push((40, "captive".into()));
-    run.gambles.push((50, "poison".into(), true));
-    run.gambles_survived.push((50, "poison".into()));
-    run.gambles.push((55, "heal".into(), false));
-    run.stolen.push((60, "sword".into()));
-    let hs = crate::sifter::sift_with(&run, &["rat".to_string()]);
-    let score = |p: &str| hs.iter().find(|h| h.pattern == p).map(|h| h.score).unwrap_or(-1);
-    assert_eq!(score("near_death"), 5);
-    assert_eq!(score("comeback"), 8);
-    assert_eq!(score("first_kill"), 3);
-    assert_eq!(score("ally_lost"), 4);
-    assert_eq!(score("boss"), 6);
-    assert_eq!(score("stolen"), 2);
-    let gambles: Vec<i32> = hs.iter().filter(|h| h.pattern == "gamble").map(|h| h.score).collect();
-    assert_eq!(gambles, vec![4], "one entry per pattern: the best gamble");
-    assert!(hs.iter().all(|h| word_count(&h.text) <= 8));
-    let reel = crate::sifter::reel(&hs);
-    assert_eq!(reel.len(), 5);
-    assert_eq!(reel[0].pattern, "comeback");
-    let mut run2 = run.clone();
-    run2.kills.push((7, "spectral_blade".into(), 2));
-    let hs2 = crate::sifter::sift_with(&run2, &["spectral_blade".to_string(), "rat".to_string()]);
-    assert!(!hs2.iter().any(|h| h.text.contains("spectral")), "summons are never a first kill");
+fn episodes_close_on_a_low_a_recovery_and_the_exit() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().loot_add(58 * crate::engine::GOLD_DIVISOR);
+    let a = add_monster(&mut g, "jackal", 5, 5);
+    let _b = add_monster(&mut g, "jackal", 5, 6);
+    attack_rules(&mut g);
+    {
+        let (run, mut cx) = g.ctx();
+        for m in run.monsters.iter_mut() {
+            m.stun = 500; // they bit once; the story is what follows
+        }
+        run.floor.map.update_vision(run.hero.pos, VISION);
+        let ai = run.monsters.iter().position(|m| m.id == a).unwrap();
+        let hp = run.hero.hp;
+        crate::turn::damage_hero(run, &mut cx, hp - 3, &crate::turn::Src::Mon(ai));
+        assert_eq!(run.arc.low, Some((3, run.turn)));
+        assert_eq!(run.arc.threat[0], ("jackal".to_string(), 2));
+        assert!(run.arc.row_pending);
+    }
+    // The next action is the row at the low point.
+    ticks(&mut g, 10);
+    let run = g.run.as_ref().unwrap();
+    assert_eq!(run.arc.row.as_ref().map(|a| a.row), Some(0), "{:?}", run.arc);
+    assert_eq!(run.arc.row.as_ref().unwrap().verb.v, "attack");
+    // Recovery past 60 % seals it; the exit resolves it.
+    {
+        let run = g.run.as_mut().unwrap();
+        run.hero.hp = run.hero.max_hp;
+        run.monsters.clear();
+    }
+    ticks(&mut g, 10);
+    assert_eq!(g.run.as_ref().unwrap().arc.sealed.len(), 1, "sealed after recovery");
+    assert!(!g.run.as_ref().unwrap().arc.has_low());
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    let run = g.run.as_ref().unwrap();
+    assert_eq!(run.episodes.len(), 1, "{:?}", run.episodes);
+    let hs = crate::sifter::sift_with(run, false);
+    assert_eq!(hs[0].text, "Two jackals cornered him to 3 HP; R1 attacked; banked $58.");
+    assert!(crate::sifter::story_ok(&hs[0].text));
+    let arc = hs[0].arc.as_ref().unwrap();
+    assert_eq!((arc.low_hp, arc.row, arc.threat.as_str(), arc.resolution.as_str()), (3, 0, "jackal", "banked $58"));
+    assert_eq!(hs[0].score, 4 * 3, "low-point depth 4 × banked 3");
+    // A quiet run still closes on its exit.
+    let mut g2 = arena();
+    attack_rules(&mut g2);
+    ticks(&mut g2, 2);
+    let (run, mut cx) = g2.ctx();
+    crate::turn::end_run(run, &mut cx, ExitTier::Return);
+    let hs = crate::sifter::sift_with(run, false);
+    assert_eq!(hs.len(), 1);
+    assert!(hs[0].text.starts_with("Untouched; ") && hs[0].text.ends_with("; returned."), "{}", hs[0].text);
+    assert!(crate::sifter::story_ok(&hs[0].text));
+}
+
+/// A boss dying and a companion falling close the live episode on their own; a death names
+/// its cause; the trait beat reads `greed took the gold`.
+#[test]
+fn episodes_close_on_bosses_companions_and_deaths() {
+    use crate::sifter::Resolution;
+    let mut g = arena();
+    let w = add_monster(&mut g, "goblin_warlord", 6, 5);
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "tag:boss"))]);
+    g.lineage.facts.insert("foe:goblin_warlord:boss".into());
+    g.run.as_mut().unwrap().monsters.iter_mut().for_each(|m| m.stun = 500);
+    ticks(&mut g, 10);
+    {
+        let (run, mut cx) = g.ctx();
+        let wi = run.monsters.iter().position(|m| m.id == w).unwrap();
+        crate::turn::damage_hero(run, &mut cx, 27, &crate::turn::Src::Mon(wi));
+    }
+    ticks(&mut g, 10);
+    {
+        let (run, mut cx) = g.ctx();
+        let wi = run.monsters.iter().position(|m| m.id == w).unwrap();
+        run.aimed = true;
+        crate::turn::damage_monster(run, &mut cx, wi, 99, &crate::turn::Src::Hero { ranged: false });
+    }
+    let run = g.run.as_ref().unwrap();
+    let boss = run.episodes.iter().find(|e| matches!(e.resolution, Resolution::FirstBoss { .. })).expect("boss episode");
+    let text = crate::sifter::story_line(boss);
+    assert_eq!(text, "The Warlord took him to 9 HP; R1 attacked him; first boss.", "{boss:?}");
+    assert!(crate::sifter::story_ok(&text));
+    // A companion's fall.
+    let mut g = arena();
+    let party = crate::probes::pets_party();
+    crate::engine::spawn_party(g.run.as_mut().unwrap(), &party);
+    let j = add_monster(&mut g, "jackal", 6, 6);
+    {
+        let (run, mut cx) = g.ctx();
+        let ji = run.monsters.iter().position(|m| m.id == j).unwrap();
+        crate::turn::damage_hero(run, &mut cx, 30, &crate::turn::Src::Mon(ji));
+        let ci = run.monsters.iter().position(|m| m.is_companion()).unwrap();
+        crate::turn::damage_monster(run, &mut cx, ci, 99, &crate::turn::Src::Mon(ji));
+    }
+    let run = g.run.as_ref().unwrap();
+    let fell = run.episodes.last().unwrap();
+    assert!(matches!(fell.resolution, Resolution::Fell { .. }), "{fell:?}");
+    let text = crate::sifter::story_line(fell);
+    assert!(text.ends_with(" fell."), "{text}");
+    assert!(crate::sifter::story_ok(&text), "{text}");
+    assert!(crate::sifter::names_agent(&crate::sifter::to_highlight(run, fell, false)));
+    // A death, with the greedy trait's beat.
+    let mut g = arena();
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Greedy;
+    let r = add_monster(&mut g, "rat", 6, 5);
+    {
+        let (run, mut cx) = g.ctx();
+        let ri = run.monsters.iter().position(|m| m.id == r).unwrap();
+        crate::turn::damage_hero(run, &mut cx, 33, &crate::turn::Src::Mon(ri));
+        crate::sifter::on_action(run, -1, &Verb::new("pick_up"));
+        crate::turn::damage_hero(run, &mut cx, 99, &crate::turn::Src::Gas);
+    }
+    let run = g.run.as_ref().unwrap();
+    let died = run.episodes.last().unwrap();
+    assert_eq!(crate::sifter::story_line(died), "A rat took him to 3 HP; greed grabbed; died to gas.", "the cause outranks the trait's long form");
+    assert!(crate::sifter::names_agent(&crate::sifter::to_highlight(run, died, false)));
+    assert!(crate::sifter::score(died, true) > crate::sifter::score(died, false), "a named heir's death weighs more");
+}
+
+/// The reel: the top three by score, never two with the same (threat, resolution), plus the
+/// best-depth run's closing episode.
+#[test]
+fn reel_is_three_distinct_pairs_plus_the_best_run() {
+    let h = |score: i32, run_id: u32, t: u32, threat: &str, res: &str| Highlight {
+        pattern: "episode".into(),
+        score,
+        t,
+        run_id,
+        text: format!("{threat}; R1 attacked; {res}."),
+        arc: Some(HighlightArc { low_hp: 3, row: 0, threat: threat.into(), resolution: res.into() }),
+    };
+    let hs = vec![
+        h(20, 1, 10, "jackal", "banked $58"),
+        h(18, 2, 10, "jackal", "banked $70"),
+        h(15, 3, 10, "goblin", "died to a goblin"),
+        h(12, 4, 10, "gas", "reached D3"),
+        h(9, 5, 10, "rat", "returned"),
+        h(2, 6, 5, "ogre", "reached D4"),
+        h(1, 6, 50, "none", "banked $12"),
+        Highlight { pattern: "bones".into(), score: 6, t: 1, run_id: 7, text: "Recovered heir 2's bones on D3.".into(), arc: None },
+    ];
+    let reel = crate::sifter::reel(&hs, Some(6));
+    let ids: Vec<u32> = reel.iter().map(|h| h.run_id).collect();
+    assert_eq!(ids, vec![1, 3, 4, 6], "{reel:?}");
+    assert_eq!(reel[3].t, 50, "the best run's closing episode");
+    let pairs: std::collections::BTreeSet<_> = reel.iter().filter_map(crate::sifter::pair).collect();
+    assert_eq!(pairs.len(), 4);
+    // Without a best run the fourth slot takes the bones highlight.
+    let reel = crate::sifter::reel(&hs, None);
+    assert_eq!(reel.len(), 4);
+    assert_eq!(reel[3].pattern, "bones");
+}
+
+/// Gate: over 100 real runs every story line is three beats in ≤ 12 words with a table verb,
+/// and every run closes at least one episode.
+#[test]
+fn story_lines_over_a_hundred_runs_follow_the_grammar() {
+    let mut lines = 0;
+    let mut runs = 0;
+    for seed in 1..=4u64 {
+        for edited in [false, true] {
+            let mut g = Game::new(seed);
+            g.sim = true;
+            if edited {
+                for u in ["row5", "row6", "row7", "row8", "throw"] {
+                    g.lineage.unlocks.insert(u.into());
+                }
+                g.set_rules(crate::probes::good()).unwrap();
+            }
+            for _ in 0..13 {
+                g.lineage.rest_left = 0;
+                g.start_run(None);
+                g.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
+                let run = g.run.as_ref().unwrap();
+                let hs = crate::sifter::sift(run, &g.lineage);
+                assert!(!hs.is_empty(), "run {} closed no episode: {:?}", run.id, run.arc);
+                for h in &hs {
+                    assert!(crate::sifter::story_ok(&h.text), "seed {seed} run {}: {}", run.id, h.text);
+                    assert!(word_count(&h.text) <= crate::sifter::STORY_WORDS, "{}", h.text);
+                }
+                lines += hs.len();
+                runs += 1;
+                g.finish_run();
+                g.auto_keep();
+                g.events.clear();
+            }
+        }
+    }
+    assert!(runs >= 100 && lines >= runs, "{runs} runs, {lines} lines");
 }
 
 // ---------------------------------------------------------------- marks and meta
@@ -1804,8 +1971,9 @@ fn seed_3_floors_do_not_deadlock() {
         assert!(t < 3000, "run 2 spent {t} ticks on D3 (was ~20 000 before the guards)");
     }
     // 4000 before Cut 3; the larger flavour pool reseeds the lineage and a D5 (Warlord) floor
-    // now lands at ~4000 on this seed. A deadlock is 20 000.
-    assert!(longest < 4500, "longest floor took {longest} ticks: {floors:?}");
+    // now lands at ~4000 on this seed; Cut 5's situations add a detour (4600). A deadlock is
+    // 20 000.
+    assert!(longest < 5000, "longest floor took {longest} ticks: {floors:?}");
 }
 
 #[test]
@@ -3200,48 +3368,6 @@ fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
     assert!(g.lineage.supplies.is_empty());
 }
 
-/// Cut 4 §7: every reel line is setup + turn + end in ≤ 8 words and carries how the run ended
-/// (`Down to 2 HP, then banked $313.`); `bones` and `first_kill` keep their shape.
-#[test]
-fn reel_lines_carry_the_turn_and_the_end_in_eight_words() {
-    let mut g = arena();
-    let run = g.run.as_mut().unwrap();
-    run.loot_add(313 * crate::engine::GOLD_DIVISOR);
-    run.low_hp = 2;
-    run.near_deaths.push(10);
-    run.low20_t = Some(20);
-    run.boss_kills.push((30, "goblin_warlord".into()));
-    run.kills.push((30, "goblin_warlord".into(), 5));
-    run.kills.push((5, "rat".into(), 1));
-    run.ally_lost.push((40, "captive".into()));
-    run.gambles.push((50, "poison".into(), true));
-    run.gambles_survived.push((50, "poison".into()));
-    run.stolen.push((60, "sword".into()));
-    run.over = Some(ExitTier::Bank);
-    let hs = crate::sifter::sift_with(run, &["rat".to_string()]);
-    let text = |p: &str| hs.iter().find(|h| h.pattern == p).map(|h| h.text.clone()).unwrap_or_default();
-    assert_eq!(text("near_death"), "Down to 2 HP, then banked $313.");
-    assert_eq!(text("comeback"), "Brink, slew the Goblin Warlord, banked $313.");
-    assert_eq!(text("boss"), "Slew the Goblin Warlord, banked $313.");
-    assert_eq!(text("first_kill"), "First kill: rat.");
-    assert!(text("ally_lost").ends_with(", banked $313."), "{}", text("ally_lost"));
-    assert!(text("gamble").ends_with(", banked $313."));
-    assert!(text("stolen").ends_with(", banked $313."));
-    for h in &hs {
-        assert!(word_count(&h.text) <= 8, "{}", h.text);
-        assert!(h.pattern == "first_kill" || h.text.contains("banked $313"), "{}", h.text);
-    }
-    // The end follows the exit: a death names the floor, a return the 60 %.
-    run.over = Some(ExitTier::Death);
-    run.depth = 4;
-    let hs = crate::sifter::sift_with(run, &[]);
-    assert_eq!(hs.iter().find(|h| h.pattern == "near_death").unwrap().text, "Down to 2 HP, then fell on D4.");
-    run.over = Some(ExitTier::Return);
-    let hs = crate::sifter::sift_with(run, &[]);
-    assert_eq!(hs.iter().find(|h| h.pattern == "near_death").unwrap().text, "Down to 2 HP, then returned with $187.");
-    assert!(hs.iter().all(|h| word_count(&h.text) <= 8));
-}
-
 /// Cut 4 §7: when a row caught the hero (≤ 20 % HP, then the floor survived), the chronicle
 /// names it.
 #[test]
@@ -3365,4 +3491,339 @@ fn catalogue_delta_cost_by_depth() {
         let open = g.unlock_deltas().iter().filter(|u| u.delta.is_some()).count();
         eprintln!("best D{} open cards {open}: catalogue {:.2}s", g.lineage.best_depth, t.elapsed().as_secs_f64());
     }
+}
+
+// ---------------------------------------------------------------- Cut 5 §2–§5
+
+/// §2: an heir's end writes one chronicle line in the contract's grammar; a heir is written
+/// once; the cap holds.
+#[test]
+fn the_lineage_chronicle_has_one_line_per_ended_heir() {
+    let mut g = arena();
+    g.lineage.trait_ = crate::hero::Trait::Greedy;
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Greedy;
+    g.lineage.sets[0].name = Some("corridor".into());
+    g.run.as_mut().unwrap().max_depth = 7;
+    g.run.as_mut().unwrap().depth = 7;
+    g.run.as_mut().unwrap().kills.push((5, "goblin_warlord".into(), 5));
+    g.run.as_mut().unwrap().boss_kills.push((5, "goblin_warlord".into()));
+    give(&mut g, "sword");
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::damage_hero(run, &mut cx, 99, &crate::turn::Src::Gas);
+    }
+    g.finish_run();
+    assert_eq!(g.lineage.chronicle, vec!["♟1 the greedy fighter · D7 · \"corridor\" set · took the Warlord · fell to gas · left bones on D7.".to_string()]);
+    assert_eq!(g.lineage.heir, 2);
+    assert!(g.lineage.heir_deeds.is_empty() && g.lineage.heir_best == 0, "the next heir starts clean");
+    // The wire carries it; the cap holds.
+    assert_eq!(g.lineage().chronicle.len(), 1);
+    for _ in 0..50 {
+        g.lineage.heir += 1;
+        g.lineage.chronicle_heir("fell to a rat", None);
+    }
+    assert_eq!(g.lineage.chronicle.len(), crate::engine::CHRONICLE_CAP);
+    assert!(g.lineage.chronicle.last().unwrap().starts_with("♟52 "));
+    // Ascension writes the live heir's line once.
+    let mut g = Game::new(3);
+    g.lineage.ended = true;
+    g.lineage.heir = 4;
+    g.lineage.heir_best = 31;
+    g.ascend("no_rest").unwrap();
+    assert_eq!(g.lineage.chronicle, vec!["♟4 the curious fighter · D31 · \"fighter\" set · ascended.".to_string()]);
+}
+
+/// §4: D1 always holds a situation in a room near the entrance; every run meets one on D1–5
+/// in the gate's measure (`Batch.situation_runs`).
+#[test]
+fn the_first_floors_hold_situations() {
+    use crate::tiles::Tile;
+    let mut with = 0;
+    for seed in 1..=20u64 {
+        let mut g = Game::new(seed);
+        g.sim = true;
+        g.start_run(None);
+        let run = g.run.as_ref().unwrap();
+        let tiles = &run.floor.map.tiles;
+        let n = tiles.iter().filter(|t| matches!(t, Tile::Shrine | Tile::Vault | Tile::Nest)).count();
+        assert!(n >= 1, "seed {seed}: no situation on D1");
+        if let Some(p) = run.tile_pos(Tile::Nest) {
+            let sleepers = run.monsters.iter().filter(|m| m.nest && m.dormant).count();
+            assert!((2..=3).contains(&sleepers), "{sleepers} sleepers on D1");
+            assert!(run.items.iter().any(|i| i.pos == p && i.item.kind == "gold"), "a gold pile on the nest");
+        }
+        if run.tile_pos(Tile::Vault).is_some() {
+            assert_eq!(run.vault_cage.len(), 3);
+        }
+        g.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
+        g.finish_run();
+        with += g.batch.situation_runs;
+    }
+    assert!(with >= 18, "runs that met a situation: {with}/20");
+}
+
+/// §4 nest: sleepers ignore sight; the hero's step within two tiles wakes the den, learns
+/// `nest`, and the fight is the episode (`The nest ...`).
+#[test]
+fn the_nest_wakes_when_the_hero_comes_close() {
+    use crate::tiles::Tile;
+    let mut g = arena();
+    let ids: Vec<u32> = (0..4).map(|k| add_monster(&mut g, "jackal", 12, 3 + k)).collect();
+    {
+        let run = g.run.as_mut().unwrap();
+        run.floor.map.set(Pos::new(11, 5), Tile::Nest);
+        for m in run.monsters.iter_mut() {
+            m.nest = true;
+            m.dormant = true;
+            m.awake = false;
+        }
+    }
+    hold_rules(&mut g);
+    ticks(&mut g, 40);
+    assert!(ids.iter().all(|id| !monster(&g, *id).unwrap().awake), "seen from seven tiles: still asleep");
+    assert!(g.lineage.facts.contains("nest"), "the den in view is a fact");
+    assert!(g.run.as_ref().unwrap().sees_situation("nest"));
+    {
+        let (run, cx) = g.ctx();
+        let v = crate::turn::view(run);
+        assert!(crate::turn::cond_holds(run, &cx, &v, &Cond::t("on_see", "nest")));
+        assert!(!crate::turn::cond_holds(run, &cx, &v, &Cond::t("on_see", "shrine")));
+    }
+    g.run.as_mut().unwrap().hero.pos = Pos::new(10, 5);
+    g.run.as_mut().unwrap().hero_dist_pos = None;
+    let evs = ticks(&mut g, 10);
+    assert!(ids.iter().all(|id| monster(&g, *id).is_none_or(|m| m.awake && !m.dormant)), "within two tiles: the den wakes");
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "the nest wakes")));
+    assert!(!g.run.as_ref().unwrap().sees_situation("nest"), "awake, the den is no longer a token");
+    attack_rules(&mut g);
+    ticks(&mut g, 120);
+    let run = g.run.as_ref().unwrap();
+    // The fight is the episode, its threat the den (resolved by now or still live).
+    let threat = run.episodes.iter().filter_map(|e| e.threat.first()).chain(run.arc.threat.first()).map(|(k, _)| k.clone()).next();
+    assert_eq!(threat.as_deref(), Some("nest"), "{:?} / {:?}", run.episodes, run.arc);
+}
+
+/// §4 vault: stepping on the cage opens it; watched, the choice waits for `choose` within
+/// the grace; unwatched or offline the preference picks; the tile becomes `vault_open` and
+/// the choice is an episode.
+#[test]
+fn the_vault_waits_for_a_choice_when_watched_and_picks_by_preference_otherwise() {
+    use crate::tiles::Tile;
+    let cage = |g: &mut Game| {
+        let run = g.run.as_mut().unwrap();
+        run.floor.map.set(Pos::new(5, 5), Tile::Vault);
+        run.vault_cage = ["sword", "mail", "heal"].iter().enumerate().map(|(i, k)| Item::new(900 + i as u32, k)).collect();
+    };
+    let mut g = arena();
+    cage(&mut g);
+    hold_rules(&mut g);
+    g.run.as_mut().unwrap().hero.pos = Pos::new(5, 5);
+    let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "choose one")));
+    let snap = g.snapshot();
+    let vc = snap.vault_choice.as_ref().expect("the choice is on the snapshot");
+    assert_eq!(vc.items.len(), 3);
+    assert_eq!(g.run.as_ref().unwrap().floor.map.get(Pos::new(5, 5)), Tile::VaultOpen);
+    assert!(g.lineage.facts.contains("vault"));
+    ticks(&mut g, 20);
+    assert!(g.run.as_ref().unwrap().vault_choice.is_some(), "watched: still waiting");
+    g.choose(901).unwrap();
+    assert!(g.run.as_ref().unwrap().vault_choice.is_none());
+    assert_eq!(hero(&g).armour.as_ref().map(|a| a.kind.as_str()), Some("mail"));
+    assert!(g.choose(902).is_err(), "the rest vanished");
+    assert!(g.snapshot().vault_choice.is_none());
+    let ep = g.run.as_ref().unwrap().arc.sealed.last().expect("the vault is an episode");
+    assert_eq!(ep.setup, crate::sifter::Setup::Vault);
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Return);
+    }
+    let hs = crate::sifter::sift_with(g.run.as_ref().unwrap(), false);
+    let line = hs.iter().find(|h| h.arc.as_ref().unwrap().threat == "vault").unwrap();
+    assert_eq!(line.text, "The vault held three; he took the mail; returned.");
+    assert!(crate::sifter::story_ok(&line.text));
+    // Unanswered past the grace: the preference picks.
+    let mut g = arena();
+    g.set_vault_pref("potion").unwrap();
+    cage(&mut g);
+    hold_rules(&mut g);
+    g.run.as_mut().unwrap().hero.pos = Pos::new(5, 5);
+    ticks(&mut g, 10 + crate::engine::VAULT_GRACE);
+    assert!(g.run.as_ref().unwrap().vault_choice.is_none());
+    assert!(hero(&g).inv.iter().any(|i| i.kind == "heal"), "{:?}", hero(&g).inv);
+    // Offline: the same grace (a verdict replay stays faithful), the same preference.
+    let mut g = arena();
+    g.offline = true;
+    cage(&mut g);
+    hold_rules(&mut g);
+    g.run.as_mut().unwrap().hero.pos = Pos::new(5, 5);
+    ticks(&mut g, 11);
+    assert!(g.run.as_ref().unwrap().vault_choice.is_some());
+    ticks(&mut g, crate::engine::VAULT_GRACE);
+    assert!(g.run.as_ref().unwrap().vault_choice.is_none());
+    assert_eq!(hero(&g).weapon.as_ref().map(|w| w.kind.as_str()), Some("sword"), "weapon by default");
+    assert!(g.set_vault_pref("gold").is_err());
+}
+
+/// §4 shrine: `pray row` walks to the altar, costs a fifth of max HP and lends a row from
+/// another saved set (or swaps the trait); once per run; the fact gates the verb.
+#[test]
+fn the_shrine_lends_a_row_or_swaps_the_trait_for_a_fifth_of_max_hp() {
+    use crate::tiles::Tile;
+    let mut g = arena();
+    g.lineage.facts.insert("shrine".into());
+    g.lineage.sets[1] = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest"))], name: None };
+    g.run.as_mut().unwrap().floor.map.set(Pos::new(8, 5), Tile::Shrine);
+    rules(&mut g, vec![Row::new(vec![Cond::t("on_see", "shrine")], Verb::arg("pray", "row"))]);
+    assert!(g.vocabulary().verbs.contains(&Verb::arg("pray", "row")));
+    assert!(g.vocabulary().conds.contains(&Cond::t("on_see", "shrine")));
+    let evs = ticks(&mut g, 80);
+    let run = g.run.as_ref().unwrap();
+    assert!(run.prayed, "{:?}", run.trace);
+    assert_eq!(run.hero.max_hp, 36 - 7);
+    assert_eq!(run.lent_row.as_ref().map(|r| r.verb.v.as_str()), Some("rest"));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "prayed")));
+    assert!(run.arc.threat.first().is_some_and(|(k, _)| k == "shrine"), "{:?}", run.arc);
+    assert!(!run.sees_situation("shrine"), "prayed: the altar is no longer a token");
+    // The lent row fires as R2 (after the set's one row).
+    g.run.as_mut().unwrap().hero.hp = 10;
+    let evs = ticks(&mut g, 30);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Rule { row: 1, verb, .. } if verb.v == "rest")), "{:?}", ev_kinds(&evs));
+    // `pray trait` with nothing to lend swaps the trait; a second prayer is blocked.
+    let mut g = arena();
+    g.lineage.facts.insert("shrine".into());
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Cowardly;
+    g.run.as_mut().unwrap().floor.map.set(Pos::new(8, 5), Tile::Shrine);
+    rules(&mut g, vec![Row::new(vec![], Verb::arg("pray", "trait"))]);
+    ticks(&mut g, 80);
+    assert_eq!(g.run.as_ref().unwrap().trait_, crate::hero::Trait::Brave);
+    ticks(&mut g, 10);
+    let blocked = g.run.as_ref().unwrap().trace.last().unwrap().blocked.clone();
+    assert_eq!(blocked.as_deref(), Some("R1 pray trait ✗ prayed"));
+    // Without the fact the verb is not offered and never fires.
+    let mut g = arena();
+    g.run.as_mut().unwrap().floor.map.set(Pos::new(8, 5), Tile::Shrine);
+    rules(&mut g, vec![Row::new(vec![], Verb::arg("pray", "row"))]);
+    assert!(!g.vocabulary().verbs.iter().any(|v| v.v == "pray"));
+    ticks(&mut g, 40);
+    assert!(!g.run.as_ref().unwrap().prayed);
+}
+
+/// §4 stray: a lost companion of a previous heir turns up wild on D1–5 with its old name;
+/// `tame` takes it at 60 % whatever its wounds, and it comes back as a companion.
+#[test]
+fn a_lost_companion_returns_as_a_stray_and_tames_at_sixty_percent() {
+    let mut g = arena();
+    g.lineage.lost.push(crate::engine::Lost { kind: "jackal".into(), name: "Uleth".into(), gen: 2, heir: 1 });
+    g.lineage.unlocks.insert("tame".into());
+    g.lineage.facts.insert("item:leash".into());
+    let id = add_monster(&mut g, "jackal", 6, 5);
+    {
+        let run = g.run.as_mut().unwrap();
+        let m = run.monsters.iter_mut().find(|m| m.id == id).unwrap();
+        m.stray = true;
+        m.name = Some("Uleth".into());
+        m.awake = false;
+    }
+    give(&mut g, "leash");
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("tame", "nearest"))]);
+    let evs = ticks(&mut g, 10);
+    assert!(g.lineage.facts.contains("stray"));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Note { text, .. } if text == "Uleth the jackal, gone wild.")), "{evs:?}");
+    // 60 % whatever its wounds: over many tries the leash lands.
+    let mut tamed = 0;
+    let mut tries = 0;
+    for seed in 1..=30u64 {
+        let mut g = arena_seed(seed);
+        g.lineage.lost.push(crate::engine::Lost { kind: "jackal".into(), name: "Uleth".into(), gen: 2, heir: 1 });
+        g.lineage.unlocks.insert("tame".into());
+        let id = add_monster(&mut g, "jackal", 5, 5);
+        {
+            let run = g.run.as_mut().unwrap();
+            let m = run.monsters.iter_mut().find(|m| m.id == id).unwrap();
+            m.stray = true;
+            m.name = Some("Uleth".into());
+            m.stun = 500;
+        }
+        give(&mut g, "leash");
+        rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("tame", "nearest"))]);
+        let evs = ticks(&mut g, 10);
+        let t = evs.iter().find_map(|e| if let Ev::Tame { ok, .. } = e { Some(*ok) } else { None });
+        if let Some(ok) = t {
+            tries += 1;
+            if ok {
+                tamed += 1;
+                let run = g.run.as_ref().unwrap();
+                let c = run.companions.last().unwrap();
+                assert_eq!((c.name.as_str(), c.gen), ("Uleth", 2));
+                assert_eq!(run.strays_tamed, vec!["Uleth".to_string()]);
+                let ep = run.arc.sealed.last().expect("the return is an episode");
+                assert_eq!(ep.setup, crate::sifter::Setup::Stray);
+                let mut ep = ep.clone();
+                ep.resolution = crate::sifter::Resolution::Reached { depth: 3 };
+                assert_eq!(crate::sifter::story_line(&ep), "Uleth the jackal came back; R1 tamed; reached D3.");
+                assert!(crate::sifter::story_ok(&crate::sifter::story_line(&ep)));
+                // Home, the lost list forgets it.
+                {
+                    let (run, mut cx) = g.ctx();
+                    crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+                }
+                g.finish_run();
+                assert!(g.lineage.lost.is_empty());
+            }
+        }
+    }
+    assert!(tries >= 25, "{tries}");
+    assert!((10..=26).contains(&tamed), "tamed {tamed}/{tries} at 60 %");
+}
+
+/// §5: `bail()` queues a `return` for the hero's next action without touching the rules.
+#[test]
+fn bail_queues_a_return_for_the_next_action() {
+    let mut g = arena();
+    attack_rules(&mut g);
+    let before = g.lineage.rules().clone();
+    ticks(&mut g, 5);
+    g.bail();
+    let evs = ticks(&mut g, 10);
+    assert_eq!(g.run.as_ref().unwrap().over, Some(ExitTier::Return));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Rule { row: -2, verb, text, .. } if verb.v == "return" && text == "bail → return")), "{:?}", ev_kinds(&evs));
+    assert_eq!(g.lineage.rules(), &before);
+    assert!(g.run.as_ref().unwrap().exit_row.is_none(), "not a row's exit");
+    // No run: a no-op.
+    g.finish_run();
+    g.bail();
+}
+
+/// §3: the hero speaks from the trait × moment table, at most once per 100 ticks and never
+/// in a fight's first ten.
+#[test]
+fn the_hero_speaks_sparingly() {
+    use crate::sifter::{voice, voice_line, Moment};
+    let mut g = arena();
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Cowardly;
+    {
+        let (run, mut cx) = g.ctx();
+        run.fight_t = Some(run.turn);
+        assert!(!voice(run, &mut cx, Moment::Low), "a fight's first ten ticks are silent");
+        run.turn += 10;
+        assert!(voice(run, &mut cx, Moment::Low));
+        assert!(matches!(cx.events.last(), Some(Ev::Callout { text, .. }) if text == voice_line(crate::hero::Trait::Cowardly, Moment::Low)));
+        run.turn += 50;
+        assert!(!voice(run, &mut cx, Moment::Resolved), "one per hundred ticks");
+        run.turn += 50;
+        assert!(voice(run, &mut cx, Moment::Resolved));
+    }
+    // A low point in play: the line follows the `near death` callout family.
+    let mut g = arena();
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Brave;
+    let r = add_monster(&mut g, "rat", 5, 5);
+    g.run.as_mut().unwrap().monsters.iter_mut().for_each(|m| m.stun = 500);
+    hold_rules(&mut g);
+    ticks(&mut g, 20);
+    let (run, mut cx) = g.ctx();
+    run.turn += 20;
+    let ri = run.monsters.iter().position(|m| m.id == r).unwrap();
+    crate::turn::damage_hero(run, &mut cx, 30, &crate::turn::Src::Mon(ri));
+    assert!(cx.events.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "come on then")), "{:?}", cx.events);
 }

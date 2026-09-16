@@ -71,6 +71,16 @@ pub struct Snapshot {
     /// Cut 3 (addition): the hero's sight radius on this floor (the Deep is dark).
     #[serde(default = "default_vision")]
     pub vision: i32,
+    /// Cut 5 §4: an opened vault waiting for `choose(itemId)` (watched runs only; offline
+    /// and unwatched runs pick by `Lineage.vault_pref`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vault_choice: Option<VaultChoice>,
+}
+
+/// Cut 5 §4: the three items of an opened vault; `choose(id)` takes one, the rest vanish.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VaultChoice {
+    pub items: Vec<InvItem>,
 }
 
 fn default_vision() -> i32 {
@@ -263,6 +273,21 @@ pub struct Highlight {
     pub t: u32,
     pub run_id: u32,
     pub text: String,
+    /// Cut 5 §1: the episode behind a story line (absent on `bones`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arc: Option<HighlightArc>,
+}
+
+/// Cut 5 §1: an episode's shape — the low-water HP, the row that fired at it (−1 trait, −2
+/// chores), the threat key (`jackal`, `goblin_warlord`, `gas`, `nest`, `shrine`, `vault`,
+/// `stray`, `none`) and the resolution text (`banked $58`, `reached D6`, `first boss`,
+/// `boss slain`, `returned`, `lost the thread`, `died to gas`, `jackal Uleth fell`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HighlightArc {
+    pub low_hp: u32,
+    pub row: i32,
+    pub threat: String,
+    pub resolution: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -429,6 +454,12 @@ pub struct Lineage {
     /// Cut 4: variants the lineage has already finished the dungeon with.
     #[serde(default)]
     pub ascended: Vec<String>,
+    /// Cut 5 §2: one line per ended heir, oldest first (cap 40).
+    #[serde(default)]
+    pub chronicle: Vec<String>,
+    /// Cut 5 §4: what an unwatched vault choice takes (`weapon | armour | potion | scroll`).
+    #[serde(default)]
+    pub vault_pref: String,
 }
 
 /// Cut 3: `{level, variant}`; `variant` is one of `no_rest short_list bones_only hunted`.

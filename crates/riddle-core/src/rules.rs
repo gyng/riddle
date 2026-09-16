@@ -55,6 +55,8 @@ pub const VERB_KEYS: &[&str] = &[
     "kite", "volley", "trap", "mark", "double_shot", "bolt", "ward", "blink", "slow", "nova",
     // hold position (always executes; not offered by the editor)
     "hold",
+    // Cut 5 §4: the shrine (`pray row` / `pray trait`)
+    "pray",
 ];
 
 impl Cond {
@@ -89,7 +91,10 @@ impl Cond {
             "turns>" => format!("turns {n}+"),
             "on_hurt" => "hurt".into(),
             "on_kill" => "kill".into(),
-            "on_see" => "see".into(),
+            "on_see" => match &self.t {
+                Some(t) => format!("see {t}"),
+                None => "see".into(),
+            },
             "party" => self.t.clone().unwrap_or_default(),
             "party_hp<" => format!("pet<{n}%"),
             "self_hp<" => format!("self<{n}%"),
@@ -130,6 +135,7 @@ impl Verb {
             "free_captive" => "free".into(),
             "double_shot" => "double shot".into(),
             "tactic" => a.replace('_', " "),
+            "pray" => format!("pray {a}").trim().to_string(),
             other => other.to_string(),
         }
     }

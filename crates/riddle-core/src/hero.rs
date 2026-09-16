@@ -89,12 +89,13 @@ pub fn mastery_card(class: Class) -> &'static str {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Trait {
     Greedy,
     Cowardly,
     Curious,
+    #[default]
     Brave,
 }
 
@@ -106,6 +107,15 @@ impl Trait {
             Trait::Cowardly => "cowardly",
             Trait::Curious => "curious",
             Trait::Brave => "brave",
+        }
+    }
+    /// Cut 5 §4: the shrine's trait swap (`pray trait`): greed ↔ curiosity, cowardice ↔ bravery.
+    pub fn swap(self) -> Trait {
+        match self {
+            Trait::Greedy => Trait::Curious,
+            Trait::Curious => Trait::Greedy,
+            Trait::Cowardly => Trait::Brave,
+            Trait::Brave => Trait::Cowardly,
         }
     }
 }
