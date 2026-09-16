@@ -1,0 +1,153 @@
+{
+  "$comment": "Blind rater G card. Seed 71, build 1cb869d, served from pnpm preview :5230, GPU harness 400x800@3. Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK.md 1-3, the template. Did not open PLAN.md, research/, CUT*.md, INTEGRATION.md, other cards or source. Deaths read: two full deaths (goblin captain D5, gas D6) plus one run-ending stall verdict ('lost thread keeps 0%'); the 15 offline runs produced no deaths, so a third true death did not occur inside the horizon.",
+  "game": "Riddle",
+  "build": "1cb869d",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterG",
+  "horizon": {
+    "activeMinutes": 53,
+    "absences": [
+      "8h simulated via ?dev=1&absent=8h after 37 min of cold play; ~16 min active on return"
+    ],
+    "runsWatched": 7,
+    "runsOffline": 15,
+    "ruleEdits": 12
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: My cowardly fighter went down with a return-at-25% rule and two heal potions, drank an unknown potion at 13 HP on D4 and came up to 26, then tamed a rat called Skix with my 'foe: pack → tame nearest' row. He walked into D6, 'the air stings: bloats ahead', took an ogre wind-up to 4/36, and my return rule yanked him home with $113, keeping $67. Skix did not make it, and the report listed him under LOST."
+  },
+  "idleProbes": {
+    "return": "I came back to '15 RUNS · D8 BEST · ◆+18 · 0 DEATHS', eight lines of '$165 carried · return keeps 60% → $99', a STALL box 'R2 return ended 4 runs at D8' with one patch 'foe: boss → attack boss · reach +8%', and a learned list with goblin warlord 'boss · buffer · summoner · telegraph'. I decided to buy +1 party, +1 row and auto: restock, and wrote 'foe: boss + hp < 50% → drink heal' and 'foe: boss → attack boss'. I would not rather have stayed; fifteen D7-D8 runs would have been an hour of watching. I wanted to come back before I saw it (noted before loading the absence).",
+    "attribution": "Death 1: I put 'hp < 25% → return' below the pack-break card, and the morgue showed the card is 'always', so it ate every turn with foes present ('R2 card passed · R3 hp not <25%' only when foes 0); my ordering, my death. Death 2: I dropped return to 10% and put the gas-step card below the pack card again; the trace read 'R1 no item · R2 hp not <10%' at hp 4/40, which is exactly 10%; mine again. The stall: my reordered gas card's 'foe: gas → hold' line kept him standing until 'Stalled. Came home empty-handed.' Pronouns in my retelling: I/my ×6, he/him ×5."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "The HUD line '$116 · keeps $69 · return at 25%' and the morgue trace ('R2 card passed · R3 hp not <25%') told me exactly what my rules were doing; but tapping × in the condition sheet deleted the condition instead of closing the sheet, unlock tiles buy on one tap with no description (◆7→◆5 for 'verb: throw' and I still do not know what throw does), the forecast only shows reach so my safety rule looked like a loss, and the stalled run's '$65 carried · lost thread keeps 0% → $0' named no rule."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Return at 25% (D6 12%, safe money) versus 10% (D6 60%, 'gas 80%' of deaths) was a trade I argued with myself over and would defend either way; deleting the default 'foes ≥ 1 → attack nearest' because the pack card's last line already covers it was a real find. Lapse: the forecast shows reach only, so the other half of every safety trade (expected gold home, survival) is invisible and the bars fluctuate between reads with no edit (D4 86% then 71%)."
+    },
+    {
+      "id": "mastery",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "An hour ago I did not know that a card row is 'always' and must sit last, that 'hp < 10%' does not fire at 4/40, or that a 'hold' line can stall a run; each was taught by a trace line ('R2 always → pack break', 'R2 hp not <10%'). New vocabulary kept arriving from facts (foe: gas, on see lock, party: rat). Lapse: the stall taught me nothing on screen; I inferred the 'hold' cause myself."
+    },
+    {
+      "id": "tension",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "'$106 · death: lose all' at 5/36 on D5 made me hit bail with sweaty hands, and 'death keeps 0% → $0 · bones: 10 items on D5' after the captain fight hurt; losing Krak and Ulak to gas in one tick stung more than the $116. Lapse: at slow speed most of a floor is 'pick up' ticks with nothing at stake (a 32 s stretch on D4 with no event)."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "The fight frame zooms in with 'R2 ATTACK JACKAL' in big pixel caps, hp bars over both bodies and a '−2 jackal' hit line; that reads well. But at 1x I logged 20–32 s stretches where the only change was 'pick up', and the forecast takes ~5 s to catch up to an edit. Audio unassessed (there is none)."
+    },
+    {
+      "id": "surprise",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "'greedy → the den' on D1 (34→15 hp in three ticks) made me write 'on see den → descend'; 'Gambled: caustic potion' came from my own drink-unknown row; 'A thief snatched the heal potion' ×3 made me look at thief guard; 'The air stings: bloats ahead' sent me to the gas-step card; 'cowardly → retreat' overrode my rules on heir 2. Lapse: D1–D5 replay the same rat/jackal/monkey/goblin sequence every run."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "'yours: 3 of 6 rows' and the chronicle's '\"fighter\" set' say the set is mine: return-at-20%, boss-heal, attack-boss, gas step above pack break, plus the drink-unknown gambler I later dropped. But two of six rows are bought cards identical for anyone who buys them, and most of my identity is threshold numbers."
+    },
+    {
+      "id": "story",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "The chronicle line '♟2 the cowardly fighter · D8 · tamed a rat · found ♟1's bones · fell to gas · left bones on D6' has a road and an end, and the reel's 'A goblin took him to 11 HP; R1 drank; jackal Asheth fell' has a turn. But the reel is an event list; the turn of my best run (13→26 from an unknown potion) never appeared in it."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-run: at 1x dead stretches of 20–32 s ('pick up' only); at fast a floor is ~40 s and ▶▶| gets a whole run in ~70 s. Check-in: the return screen to a new send took me 7 min including three purchases and two edits, and ended on a chosen point. Cadence: 8 h gave 15 runs and a STALL to solve, 20 min gave one run; distinct. The 1x watch is the lapse."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "'goblin captain · D5 · 2 over · 6 unknown unused · gap', then a five-tick trace (R2 card pack break, hp 13→10→6→4→2, foes 2/3/3/2/1), then 'R1 no item', then three patches priced in survival ('hp < 40% → return · survives 100% · base 25% · reach −25%'). Named lapse: the stalled run ended with 'Stalled. Came home empty-handed.' and no rule or line named."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0 (idle-roguelike preset). Observed anyway: pets have names (Skix, Asheth, Krak, Ulak, Zeleth) and die, 'Ular the Goblin Captain is avenged', but nothing developed between me and any of them."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I chose to tame ('foe: pack → tame nearest') and to gamble on unknown potions when nothing asked me to; depth versus money was my call. Route freedom is just descend/return; no goal other than deeper is offered."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Within-run: fighter L1→L3, $ carried. Between runs: ◆ marks bought +1 row ×2, +1 party, three cards, and the condition sheet grew from 'hp <, foes ≥ …' to 'foe: gas, foe: boss, on see lock, party: rat' by learning facts; renown ★0→★4, rank 4, trophies. Automation: 'auto: restock' bought once in the hour and kept supplies at 3/3. Lapse: restock silently charged ($902→$732 across one run) and tiles carry no description."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Dark stone rooms, a shield-and-sword hero sprite, two running jackals, and terse monospace UI ('$128 carried · death keeps 0% → $0') hold together; the fight zoom is the only moment the place comes alive. I would not sit in it doing nothing."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Six seconds after loading the absence: '15 RUNS · D8 BEST · ◆+18', eight '$… carried · return keeps 60%' lines totalling about $570 against ~$260 from my 37 active minutes, a STALL that named my own rule ('R2 return ended 4 runs at D8') with a priced patch, and 'rested 287m'. Lapse: PENDING said 'R1 never fired: HP<30% → drink heal' while the reel two lines down said 'R1 drank'. Scored the same session as the simulated absence; noted per protocol."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "Both deaths trace to rows I wrote or ordered: the morgue's 'R2 always → pack break' and 'R3 hp not <25%' put death 1 on my ordering, and 'R2 hp not <10%' at hp 4/40 put death 2 on my threshold; the D8 stall was credited to 'R2 return', my row. Lapse: the final 'lost thread' stall named nothing, so I had to guess it was my gas card's 'hold' line."
+    }
+  ]
+}
