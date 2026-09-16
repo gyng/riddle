@@ -264,3 +264,5 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .vault-choice .chips { gap: 10px; }
 .vault-choice .chip.item { min-height: 52px; padding: 0 18px; font-size: 17px; }
 .vault-choice .glyph { color: var(--acc); font-weight: 400; }
+
+.morgue-text { white-space: pre-wrap; font-size: 12px; line-height: 1.35; margin: 0; max-height: 70vh; overflow: auto; }

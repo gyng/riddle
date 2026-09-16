@@ -330,7 +330,10 @@ export function renderWatch(app: App): Mounted {
     const guard = window.setTimeout(() => { if (!disposed && app.view.kind === "watch") { console.warn("exit flow stalled; falling back to camp"); app.go({ kind: "camp" }); } }, 20_000);
     try {
       if (prepended) await bounded(app.engine.setRules(app.rules), 8000, /* copy:none */ "setRules after bail");
-      if (pendingExit && pendingExit.items.length) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, () => { done = false; void finish(tier); }); return; }
+      // The keep sheet is a decision only when there is a free vault slot; otherwise the engine keeps by preference.
+      const freeSlots = Math.max(0, vaultSlots(app.lineage.unlocks) - app.lineage.vault.length);
+      if (pendingExit && pendingExit.items.length && freeSlots > 0) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, () => { done = false; void finish(tier); }); return; }
+      if (pendingExit) { pendingExit = undefined; await bounded(app.engine.keep([]), 8000, "keep by preference"); }
       pendingExit = undefined;
       // (`refresh` resolves void, so a sentinel tells a timeout from success)
       if (!(await bounded(app.refresh().then(() => true), 8000, "refresh at exit")) && !disposed) { clearTimeout(guard); app.go({ kind: "camp" }); return; }

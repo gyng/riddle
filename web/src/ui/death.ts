@@ -1,8 +1,9 @@
 // Death: cause line · last-5 trace (hero actions, t = tick) · candidate patches (tap to insert) · edit · morgue.
 import type { App, Mounted } from "../app";
 import type { Death } from "../engine/types";
-import { h, copyText, items, replace } from "./dom";
+import { h, copyText, items } from "./dom";
 import { patchRows } from "./patches";
+import { openSheet } from "./sheet";
 import { verbLabel } from "./tokens";
 
 const TRACE_ROWS = 5;
@@ -22,7 +23,11 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
     ))));
   // Fractions 0..1 from the core: baseline (survival of the unpatched rules) is on every row (Cut 4 §2).
   const patches = patchRows(app, d.patches, d.baseline ?? 0);
-  const morgue = h("button", { class: "btn", onclick: async () => { const ok = await copyText(d.morgue); replace(morgue, ok ? "✓" : "×"); setTimeout(() => replace(morgue, /* copy:button */ "morgue"), 900); } }, /* copy:button */ "morgue");
+  // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
+  const morgue = h("button", { class: "btn", onclick: () => {
+    void copyText(d.morgue);
+    openSheet(() => h("div", { class: "morgue" }, h("pre", { class: "morgue-text" }, d.morgue)));
+  } }, /* copy:button */ "morgue");
   const edit = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "edit");
   const eggs = lost.length ? h("div", { class: "chips eggs" }, ...lost.map((k) => h("span", { class: "chip egg" }, "◯ ", k.replace(/_/g, " ")))) : null;
   // Cut 2 §2: what this death left on the floor — the pile whose heir the matching grave names; silent when absent
