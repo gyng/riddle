@@ -120,7 +120,7 @@ fn setup(bot: Bot, seed: u64) -> Game {
     g
 }
 
-fn run_seed(bot: Bot, seed: u64, hours: u64) -> SeedResult {
+fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedResult {
     let mut g = setup(bot, seed);
     let report = g.run_offline(hours * 3600);
     let mut r = SeedResult {
@@ -139,9 +139,12 @@ fn run_seed(bot: Bot, seed: u64, hours: u64) -> SeedResult {
             r.causes.push(c.clone());
         }
     }
+    // Verdicts cost ~1.2 s each (candidates × reseeded replays); sample evenly across the seed's
+    // deaths. 8 per seed × seeds × bots is plenty for the unfair/gap shares.
     let ids: Vec<u32> = g.deaths.keys().copied().collect();
-    for id in ids {
-        if let Some(v) = riddle_core::trace::verdict(&mut g, id) {
+    let step = (ids.len() / verdicts_per_seed).max(1);
+    for id in ids.iter().step_by(step).take(verdicts_per_seed) {
+        if let Some(v) = riddle_core::trace::verdict(&mut g, *id) {
             r.verdicts.push(v);
         }
     }
@@ -161,8 +164,13 @@ fn pct(n: usize, d: usize) -> f64 {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let get = |k: &str, d: u64| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(d);
-    let seeds = get("--seeds", 30);
+    // --quick: 8 seeds × 8 h × 3 verdicts (≈ 30 s; depth gates are 8 h tail gates, so hours stay).
+    // Full: 30 × 8 h × 8 (≈ 2 min) is the number that counts. Never weaken bars.
+    let quick = args.iter().any(|a| a == "--quick");
+    let seeds = get("--seeds", if quick { 8 } else { 30 });
     let hours = get("--hours", 8);
+    let verdicts_per_seed = get("--verdicts", if quick { 3 } else { 8 }) as usize;
+    let t_start = std::time::Instant::now();
     let results: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let jobs: Vec<(usize, u64)> = BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| (bi, s))).collect();
     let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(32);
@@ -174,7 +182,7 @@ fn main() {
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some((bi, seed)) = job else { break };
-            let r = run_seed(BOTS[bi], seed, hours);
+            let r = run_seed(BOTS[bi], seed, hours, verdicts_per_seed);
             results.lock().unwrap().insert((bi, seed), r);
         }));
     }
@@ -324,6 +332,7 @@ fn main() {
     }
     println!("\ncauses: {}", cv.iter().take(8).map(|(c, n)| format!("{c} {:.0}%", pct(*n, n_causes))).collect::<Vec<_>>().join(" · "));
     let _ = ExitTier::Bank;
+    println!("gates: {} ({} seeds × {} h × {} verdicts/seed, {:.0}s)", if fails > 0 { "FAIL" } else { "all PASS" }, seeds, hours, verdicts_per_seed, t_start.elapsed().as_secs_f64());
     if fails > 0 {
         eprintln!("{fails} gate(s) FAIL");
         std::process::exit(1);

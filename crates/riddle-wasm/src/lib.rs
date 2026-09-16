@@ -90,6 +90,12 @@ impl Game {
         js(&self.inner.run_offline(elapsed_s.max(0.0) as u64))
     }
 
+    /// Offline batch without the worst-death verdict (report carries `worst_death_id`).
+    #[wasm_bindgen(js_name = runOfflineQuick)]
+    pub fn run_offline_quick(&mut self, elapsed_s: f64) -> String {
+        js(&riddle_core::offline::run_offline_quick(&mut self.inner, elapsed_s.max(0.0) as u64))
+    }
+
     pub fn death(&mut self, run_id: u32) -> Result<String, JsError> {
         self.inner.death(run_id).map(|d| js(&d)).ok_or_else(|| err(format!("no death record for run {run_id}")))
     }

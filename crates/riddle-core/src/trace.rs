@@ -9,6 +9,8 @@ use std::collections::BTreeSet;
 
 pub const REPLAYS: u32 = 20;
 pub const SURVIVE_BAR: f64 = 0.6;
+/// How many survival-ranked candidates get a full forecast delta before the final cut to three.
+pub const DELTA_CANDIDATES: usize = 6;
 /// A patch must beat the unpatched baseline by this much to count as the fix.
 pub const PATCH_MARGIN: f64 = 0.15;
 pub const TRACE_LEN: usize = 10;
@@ -278,6 +280,10 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     }
     let depth = (rec.death.depth + 1).min(game.lineage.best_depth + 1).max(1);
     let sims = crate::forecast::DELTA_SIMS;
+    // Forecasts cost ~20 sims each: rank by survival edge first and only forecast the top few.
+    let baseline0 = rec.death.baseline;
+    rec.death.patches.sort_by(|a, b| (b.survive - baseline0).partial_cmp(&(a.survive - baseline0)).unwrap().then(a.row.conds.len().cmp(&b.row.conds.len()).reverse()));
+    rec.death.patches.truncate(DELTA_CANDIDATES);
     let base = crate::forecast::reach_with(game, &rec.rules, depth, sims, 0xDE17A);
     for p in rec.death.patches.iter_mut() {
         let mut rules = rec.rules.clone();

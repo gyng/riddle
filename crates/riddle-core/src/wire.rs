@@ -225,6 +225,8 @@ pub struct ReturnReport {
     pub marks_earned: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worst_death: Option<Death>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worst_death_id: Option<u32>,
     pub live: Snapshot,
     pub tamed: Vec<String>,
     pub hatched: Vec<String>,

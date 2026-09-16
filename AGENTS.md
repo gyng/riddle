@@ -30,18 +30,30 @@ docs/                  FUN_EVAL_IDLE.md, CUT*.md
 research/              the four research reports behind the plan
 ```
 
-## Commands
+## Commands (iteration tiers — use the cheapest that answers the question)
 
 ```sh
-tools/verify.sh [--quick]                       # tests → clippy → wasm → tsc → build → copy-lint → gates
-cargo test --workspace
-cargo run -p riddle-core --release --example metrics          # THE GATE TABLE
-cargo run -p riddle-core --example cli -- --seed 1 --rules crates/riddle-core/presets/good.json --runs 3
-wasm-pack build crates/riddle-wasm --target web --out-dir ../../web/src/engine/pkg
-cd web && pnpm dev -- --port 5177 --strictPort  # ?engine=fake for UI without wasm
-python3 art/pack.py && python3 tools/art-qc.py
+tools/verify.sh --quick        # tests (fast profile) → tsc → copy-lint            ~10 s
+tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~1.5 min
+tools/verify.sh --full         # + shipping wasm → full gate table                  ~4 min
+cargo test -q --workspace --profile fast                     # 5 s incremental; never plain `cargo test` (7× slower)
+node tools/gates.mjs [--full]                                # quick: 8 seeds × 8 h × 3 verdicts (~50 s); full: 30 × 8 × 8
+tools/wasm.sh [--ship]                                       # fast wasm (~15 s incremental) / wasm-pack release (~40 s)
+cargo run -q --profile fast -p riddle-core --example cli -- --seed 1 --rules crates/riddle-core/presets/good.json --runs 3
+cargo run -q --profile fast -p riddle-core --example timing -- 1 8   # where a gate job spends its time
+tools/dev.sh                                                 # ensure the Vite dev server on :5219 (never restart a running one)
+node tools/playtest.mjs [--seed N] [--absent 8h] [--out dir] # scripted walk of every screen, text + screenshots, on the GPU harness
+node tools/browser.mjs --probe                               # must print D3D12 (NVIDIA …)
+python3 art/pack.py && python3 art/art-qc.py
 eval/score.sh eval/cards/<card>.json
 ```
+
+Dev URL params (dev build only): `?seed=N&fresh=1`, `?absent=8h`, `?rules=<text>`, `?speed=4`,
+`?autosend=1`, `?engine=fake`. Game at `http://localhost:5219/`.
+
+Cost facts: a death verdict is ~1.2 s native (candidates × 20 reseeded replays); the gate table
+samples verdicts (3–8 per seed) for that reason. `runOfflineQuick` skips it per slice; the client
+calls `death(id)` once at the end of an absence.
 
 ## How work gets done
 

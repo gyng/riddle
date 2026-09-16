@@ -9,6 +9,16 @@ pub const STALL_RUNS: u32 = 20;
 pub const SAMPLE_RUNS: u32 = 20;
 
 pub fn run_offline(game: &mut Game, elapsed_s: u64) -> ReturnReport {
+    run_offline_with(game, elapsed_s, true)
+}
+
+/// Same batch, but the worst death is returned by id only (no verdict or patch forecasts, which
+/// cost ~3 s); the client calls `death(id)` once at the end of a chunked absence.
+pub fn run_offline_quick(game: &mut Game, elapsed_s: u64) -> ReturnReport {
+    run_offline_with(game, elapsed_s, false)
+}
+
+fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport {
     let budget: u64 = elapsed_s * TICKS_PER_SECOND;
     game.batch = Batch::default();
     game.events.clear();
@@ -87,12 +97,13 @@ pub fn run_offline(game: &mut Game, elapsed_s: u64) -> ReturnReport {
         }
     }
     game.stall_runs = stall;
-    report(game, elapsed_s, &facts_before, &class, rank_before, sampled)
+    report(game, elapsed_s, &facts_before, &class, rank_before, sampled, full)
 }
 
-fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTreeSet<String>, class: &str, rank_before: u32, sampled: bool) -> ReturnReport {
+fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTreeSet<String>, class: &str, rank_before: u32, sampled: bool, full: bool) -> ReturnReport {
     let learned: Vec<String> = game.lineage.facts.difference(facts_before).cloned().collect();
-    let worst_death = game.batch.worst_death.and_then(|id| crate::trace::death(game, id));
+    let worst_death_id = game.batch.worst_death;
+    let worst_death = if full { worst_death_id.and_then(|id| crate::trace::death(game, id)) } else { None };
     let pending = crate::meta::pending(game);
     let live = game.send();
     game.events.clear();
@@ -112,6 +123,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         reel: crate::sifter::reel(&b.highlights),
         marks_earned: b.marks,
         worst_death,
+        worst_death_id,
         live,
         tamed: b.tamed.clone(),
         hatched: b.hatched.clone(),

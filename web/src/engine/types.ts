@@ -61,7 +61,7 @@ export type Highlight = { pattern: string; score: number; t: number; run_id: num
 export type ReturnReport = {
   elapsed_s: number; runs: number; sampled: boolean;
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
-  pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; live: Snapshot;
+  pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; worst_death_id?: number; live: Snapshot;
   tamed: string[]; hatched: string[]; lost: string[];                        // Addendum A
   xp: { class: string; gained: number; level_ups: number };                 // Addendum C
   salvaged: { kind: string; n: number; gold: number }[];                    // Addendum D
@@ -92,6 +92,7 @@ export interface Engine {
   send(): Snapshot;                    // start (or resume) an expedition
   step(turns: number): StepResult;     // advance live view
   runOffline(elapsedS: number): ReturnReport;
+  runOfflineQuick(elapsedS: number): ReturnReport;   // no worst-death verdict (~3 s saved per slice)
   death(runId: number): Death;
   buy(unlock: string): Lineage;
   lineage(): Lineage;

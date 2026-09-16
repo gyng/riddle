@@ -1,7 +1,12 @@
 #!/usr/bin/env node
-// Runs the Rust bot-gate table (examples/metrics.rs) in release and fails on any FAIL line.
+// Bot gate table (examples/metrics.rs) on the `fast` cargo profile.
+//   node tools/gates.mjs          quick: 10 seeds × 2 h × 4 verdicts (~30 s)
+//   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts (~2 min); the number that counts
 import { spawnSync } from "node:child_process";
-const r = spawnSync("cargo", ["run", "-q", "-p", "riddle-core", "--release", "--example", "metrics", "--", ...process.argv.slice(2)], { stdio: ["ignore", "pipe", "inherit"], encoding: "utf8" });
+const full = process.argv.includes("--full");
+const extra = process.argv.slice(2).filter((a) => a !== "--full");
+const b = spawnSync("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", "--example", "metrics"], { stdio: "inherit" });
+if (b.status !== 0) process.exit(b.status ?? 1);
+const r = spawnSync("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), ...extra], { stdio: ["ignore", "pipe", "inherit"], encoding: "utf8" });
 process.stdout.write(r.stdout ?? "");
-if (r.status !== 0 || /\bFAIL\b/.test(r.stdout ?? "")) { console.error("gates: FAIL"); process.exit(1); }
-console.log("gates: all PASS");
+if (r.status !== 0 || !/gates: all PASS/.test(r.stdout ?? "")) { console.error("gates: FAIL"); process.exit(1); }

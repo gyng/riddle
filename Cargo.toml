@@ -2,7 +2,23 @@
 members = ["crates/*"]
 resolver = "2"
 
+# Shipping profile (wasm-pack --release): fat LTO, single codegen unit. Slow to build (~40 s).
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
+
+# Iteration profile for tests, examples and the gate table: optimised sim, fast incremental builds.
+#   cargo test --profile fast    cargo build --profile fast --examples
+[profile.fast]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true
+debug = 1
+
+# `cargo test` (debug) still optimises the sim crate so heavy tests do not crawl.
+[profile.dev.package.riddle-core]
+opt-level = 2
+[profile.test.package.riddle-core]
+opt-level = 2

@@ -44,6 +44,7 @@ export class WasmEngine implements Engine {
   send(): Snapshot { return this.call("send"); }
   step(turns: number): StepResult { return this.call("step", turns); }
   runOffline(elapsedS: number): ReturnReport { return this.call("runOffline", elapsedS); }
+  runOfflineQuick(elapsedS: number): ReturnReport { return this.call("runOfflineQuick", elapsedS); }
   death(runId: number): Death { return this.call("death", runId); }
   buy(unlock: string): Lineage { return this.call("buy", unlock); }
   lineage(): Lineage { return this.call("lineage"); }
