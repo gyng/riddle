@@ -235,13 +235,28 @@ export function renderWatch(app: App): Mounted {
     for (let l = before.level; l < c.level; l++) g += xpToNext(l);
     return Math.max(0, g);
   }
+  /** An engine call that hangs must never strand the player on the black exit screen. */
+  function bounded<T>(p: Promise<T>, ms: number, what: string): Promise<T | undefined> {
+    return new Promise((res) => {
+      const t = window.setTimeout(() => { console.warn(`${what}: no answer in ${ms} ms`); res(undefined); }, ms);
+      p.then((v) => { clearTimeout(t); res(v); }, (e) => { clearTimeout(t); console.warn(what, e); res(undefined); });
+    });
+  }
   async function finish(tier: Tier): Promise<void> {
     if (done) return;
     done = true; clearInterval(pumpTimer);
-    if (overridden) await app.engine.setRules(app.rules).catch(() => { /* rules restored on next camp edit */ });
-    if (pendingExit && pendingExit.items.length) { const p = pendingExit; pendingExit = undefined; exitSheet(p, () => { done = false; void finish(tier); }); return; }
-    pendingExit = undefined;
-    await app.refresh();
+    // whatever happens below, the player reaches a screen with buttons
+    const guard = window.setTimeout(() => { if (!disposed && app.view.kind === "watch") { console.warn("exit flow stalled; falling back to camp"); app.go({ kind: "camp" }); } }, 20_000);
+    try {
+      if (overridden) await bounded(app.engine.setRules(app.rules), 8000, "setRules after bail");
+      if (pendingExit && pendingExit.items.length) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, () => { done = false; void finish(tier); }); return; }
+      pendingExit = undefined;
+      if ((await bounded(app.refresh(), 8000, "refresh at exit")) === undefined && !disposed) { clearTimeout(guard); app.go({ kind: "camp" }); return; }
+    } finally { /* guard cleared on every normal path below */ }
+    await finishAfterRefresh(tier, guard);
+  }
+  async function finishAfterRefresh(tier: Tier, guard: number): Promise<void> {
+    clearTimeout(guard);
     app.runsSeen += 1;
     if (disposed) return;
     tamed.push(...tamedIds.map(compLabel));
