@@ -86,3 +86,12 @@ hour for a player who banks once.
 - **Client** (`web/src/**`): §2 `yours: n of m`, §4 cadence keyed on rooms + ambient callouts +
   1× ending, bestiary card counter chips (§1).
 - **Art**: none.
+
+## Recorded outcome (2026-09-17)
+
+Core and client landed; all metrics gates green (DEFAULT ≤ D8 100%, TRIVIAL ≤ D8 100%,
+EDITED ≥ D10 100%, COUNTERED ≥ D14 53%, FULL ≥ D29 87%, walls 100/100/97%, dice 4.2%);
+situations appear 98–100% and DEFAULT passes 0/3/0/0%; first-hour dayplayer bars 100%.
+Deviations: the Captain lets the preset through D5 in 41% (bar said ~60%); the lock's one-row
+answer passes 60%. Verdict-time gate now measured single-threaded (0.10 s). Cohort 3 on build
+207cc0e: raters E (seed 53) and F (seed 67).
