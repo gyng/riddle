@@ -5113,9 +5113,11 @@ fn pending_counts_a_silent_row_over_the_absence() {
     let line = r.pending.iter().find(|p| p.starts_with("R1 fired 0 of ")).unwrap_or_else(|| panic!("{:?}", r.pending));
     assert!(line.starts_with(&format!("R1 fired 0 of {runs} runs: ")), "{line}");
     assert!(!r.pending.iter().any(|p| p.contains("never")), "{:?}", r.pending);
-    // The attack row fires every run: no line.
+    // Every row gets its numbers (the client sums slices and shows the quiet ones): the attack
+    // row fires in every run.
     let attack = g.lineage.rules().rows.iter().position(|r| r.verb.v == "attack").unwrap();
-    assert!(!r.pending.iter().any(|p| p.starts_with(&format!("R{} fired", attack + 1))), "{:?}", r.pending);
+    let al = r.pending.iter().find(|p| p.starts_with(&format!("R{} fired", attack + 1))).unwrap_or_else(|| panic!("{:?}", r.pending));
+    assert!(al.starts_with(&format!("R{} fired {runs} of {runs} runs", attack + 1)), "{al}");
 }
 
 /// §10: forge rows carry the ladder's next rung.

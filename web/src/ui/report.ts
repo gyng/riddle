@@ -59,7 +59,9 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
   const pendingBody = h("div", null);
   const pendingSec = section(/* copy:label */ "pending", pendingBody);
   const paintPending = (affordable: ReturnType<typeof visible>): void => {
-    const pendingLines = affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending;
+    // `R1 fired n of m runs` lines come for every row (summed across slices); only the quiet ones are decisions
+    const quiet = (p: string): boolean => { const m = /^R\d+ fired (\d+) of (\d+) runs/.exec(p); return !m || Number(m[1]) * 3 < Number(m[2]); };
+    const pendingLines = (affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending).filter(quiet);
     pendingBody.replaceChildren();
     const ul = lines(pendingLines); if (ul) pendingBody.appendChild(ul);
     // Cut 9 §2: the card opens its sheet; the buy is there, and the report repaints itself after one

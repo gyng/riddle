@@ -1050,6 +1050,8 @@ pub struct Batch {
     pub best_score: u32,
     pub bones_found: Vec<String>,
     pub row_fired: Vec<u32>,
+    /// Runs in which each row fired at least once (Cut 9 §8: `R1 fired n of m runs`).
+    pub row_runs: Vec<u32>,
     pub renderable_events: u32,
     pub turns: u32,
     /// Real (simulated) runs: (final depth, death cause).
@@ -1914,9 +1916,15 @@ impl Game {
         if self.batch.row_fired.len() < MAX_ROWS {
             self.batch.row_fired = vec![0; MAX_ROWS];
         }
+        if self.batch.row_runs.len() < MAX_ROWS {
+            self.batch.row_runs = vec![0; MAX_ROWS];
+        }
         for (i, n) in run.row_fired.iter().enumerate() {
             if i < MAX_ROWS {
                 self.batch.row_fired[i] += n;
+                if *n > 0 {
+                    self.batch.row_runs[i] += 1;
+                }
             }
         }
         // Camp rest (Cut 2 §1): as long as the expedition, capped; a death is a fixed wake.

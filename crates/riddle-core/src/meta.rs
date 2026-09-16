@@ -314,12 +314,13 @@ pub fn pending(game: &Game) -> Vec<String> {
     }
     // Cut 9 §8: over the absence's real runs (the same window as the reel), in numbers:
     // `R1 fired 0 of 15 runs: HP<30% → drink heal`.
+    // Every row gets its line so a chunked absence can add the numbers up client-side; the
+    // client shows the rows that fired in under a third of the runs.
     let real_runs = game.batch.run_ticks.len() as u32;
     if real_runs > 0 {
         for (i, r) in rules.rows.iter().enumerate().take(l.max_rows()) {
-            if game.batch.row_fired.get(i).copied().unwrap_or(1) == 0 {
-                out.push(format!("R{} fired 0 of {real_runs} runs: {}", i + 1, r.describe()));
-            }
+            let n = game.batch.row_runs.get(i).copied().unwrap_or(0);
+            out.push(format!("R{} fired {n} of {real_runs} runs: {}", i + 1, r.describe()));
         }
     }
     if let Some(id) = game.batch.worst_death {

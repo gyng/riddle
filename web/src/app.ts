@@ -427,6 +427,15 @@ export class App {
   }
 }
 
+/** `R1 fired 0 of 15 runs: …` lines are per slice (Cut 9); the same row's counts add up across an absence. */
+function mergePending(a: string[], b: string[]): string[] {
+  const re = /^(R\d+) fired (\d+) of (\d+) runs(.*)$/;
+  const sums = new Map<string, [number, number, string]>();
+  for (const line of [...a, ...b]) { const m = re.exec(line); if (!m) continue; const cur = sums.get(m[1]) ?? [0, 0, m[4]]; sums.set(m[1], [cur[0] + Number(m[2]), cur[1] + Number(m[3]), m[4]]); }
+  const out: string[] = [];
+  for (const line of b) { const m = re.exec(line); if (!m) { out.push(line); continue; } const [f, n, rest] = sums.get(m[1])!; out.push(`${m[1]} fired ${f} of ${n} runs${rest}`); }
+  return out;
+}
 /** Merge two offline reports (a then b): sums, unions in order, reel top 5, worst = deeper (ties: later). */
 export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const union = (x: string[], y: string[]): string[] => [...new Set([...x, ...y])];
@@ -457,7 +466,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     learned: union(a.learned, b.learned), bests: collapseBests(union(a.bests, b.bests)),
     found: [...a.found, ...b.found],
     deaths: [...deaths].map(([cause, n]) => ({ cause, n })).sort((x, y) => y.n - x.n),
-    pending: b.pending,                                   // decisions waiting now (a state, not a delta)
+    pending: mergePending(a.pending, b.pending),          // state lines from the last slice; `R1 fired n of m runs` summed across slices
     stall: b.stall,                                       // likewise: the window is on the game, the last slice knows
     reel: [...a.reel, ...b.reel].sort((x, y) => y.score - x.score).slice(0, 5),
     marks_earned: a.marks_earned + b.marks_earned, worst_death: worst, live: b.live,
