@@ -13,7 +13,9 @@ Outputs:
                                  tile in {floor, floor_alt, wall, door,
                                           stairs_down, stairs_up, water, chasm}
   art/tiles/gas_0/1.png, fire_0/1.png   RGBA overlays, 2 frames each
-  art/tiles/potion|scroll|weapon|armour|gold.png   RGBA item glyphs
+  art/tiles/potion|scroll|weapon|armour|gold|bones.png   RGBA item glyphs
+  art/tiles/<biome>_bones_0/1.png   RGBA prop, 2 frames (skull + bones on nothing;
+                                    frame 1 adds a glint) in the biome ramp
   art/tiles/_sheet.png           4x review sheet
 
 Run: python3 art/make_tiles.py
@@ -34,6 +36,12 @@ PALETTES: dict[str, list[str]] = {
     "fens": ["#0c1416", "#1a2b2e", "#24443f", "#2f6a5a", "#4d8a72", "#6f9f8a", "#9dbfa8", "#d6e6da"],
     "crypt": ["#0b0a14", "#1c1a30", "#33304f", "#4f4d6d", "#77738c", "#a39fae", "#d3cfc9", "#f1ede0"],
 }
+
+# One-shot palette flash (CUT2 §7, boss sighted): the viewer swaps the biome ramp for this
+# ramp for a frame or two. Same shape as a biome ramp (index 0 darkest .. 7 lightest) so the
+# tint pass needs no special case; crimson-to-white-hot so every biome flashes "alarm".
+# Shipped in atlas.json meta.palettes["boss_flash"]; no tiles are authored in it.
+BOSS_FLASH = ["#1a0608", "#4a0d12", "#8c1a1e", "#c8321a", "#f08a1e", "#ffd85a", "#fff3b0", "#ffffff"]
 
 BAYER4 = [
     [0, 8, 2, 10],
@@ -317,6 +325,45 @@ ITEMS = {
     ],
 }
 
+# Bones prop (CUT2): a dead heir's pile. Drawn ON NOTHING ('.' = transparent) so it sits over
+# any floor; ramp-indexed so each biome gets its own bone colour. Skull upper-left (rounded
+# crown, two socket texels, tooth row), one long bone falling diagonally to the lower-left,
+# a chip at the bottom-right. Frame 1 = same pile + one lit sparkle texel above the bone and
+# the near socket catching light (the "slight glint" that says "something is here").
+BONES = [
+    [
+        ".000....",
+        "0777....",  # crown, lit from upper-left
+        "0171..00",
+        "0666..07",
+        ".000.070",
+        "...0070.",
+        "..0600..",
+        "..00.00.",
+    ],
+    [
+        ".000....",
+        "0777.7..",  # sparkle texel
+        "0131..00",  # near socket catches the light
+        "0666..07",
+        ".000.070",
+        "...0070.",
+        "..0600..",
+        "..00.00.",
+    ],
+]
+BONES_PAL = {"k": "#1a1410", "w": "#f1ede0", "b": "#c9c0a8", "e": "#3a3020", "g": "#7a7060"}
+BONES_ITEM = [  # generic item glyph (same drawing as frame 0, own palette)
+    ".kkk....",
+    "kwwwk...",
+    "kekek.kk",
+    "kbbbk.kw",
+    ".kkk.kwk",
+    "...kkwk.",
+    "..kbkk..",
+    "..kk.kk.",
+]
+
 
 def resolve(ch: str, x: int, y: int) -> int | None:
     """Map a template character to a ramp index (None = transparent)."""
@@ -339,6 +386,17 @@ def ramp_tile(rows: list[str], ramp: list[str]) -> Image.Image:
         for x, ch in enumerate(row):
             idx = resolve(ch, x, y)
             px[x, y] = (*hex_rgb(ramp[idx]), 255)
+    return im
+
+
+def ramp_keyed_tile(rows: list[str], ramp: list[str]) -> Image.Image:
+    """Ramp-indexed like ramp_tile, but '.' is transparent (props drawn on nothing)."""
+    im = Image.new("RGBA", (T, T), (0, 0, 0, 0))
+    px = im.load()
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch != ".":
+                px[x, y] = (*hex_rgb(ramp[int(ch)]), 255)
     return im
 
 
@@ -371,19 +429,23 @@ def build() -> dict[str, Image.Image]:
         }
         for name, rows in spec.items():
             tiles[f"{biome}_{name}"] = ramp_tile(rows, ramp)
+        for i, rows in enumerate(BONES):
+            tiles[f"{biome}_bones_{i}"] = ramp_keyed_tile(rows, ramp)
     for i, rows in enumerate(GAS):
         tiles[f"gas_{i}"] = keyed_tile(rows, GAS_PAL)
     for i, rows in enumerate(FIRE):
         tiles[f"fire_{i}"] = keyed_tile(rows, FIRE_PAL)
     for name, rows in ITEMS.items():
         tiles[name] = keyed_tile(rows, ITEM_PALS[name])
+    tiles["bones"] = keyed_tile(BONES_ITEM, BONES_PAL)
     return tiles
 
 
 def sheet(tiles: dict[str, Image.Image], scale: int = 4) -> Image.Image:
     """4x review sheet: one row per biome, then overlays + items over each floor."""
     order = ["floor", "floor_alt", "wall", "door", "stairs_down", "stairs_up", "water", "chasm"]
-    extras = ["gas_0", "gas_1", "fire_0", "fire_1", "potion", "scroll", "weapon", "armour", "gold"]
+    extras = ["gas_0", "gas_1", "fire_0", "fire_1", "potion", "scroll", "weapon", "armour", "gold",
+              "bones", "{b}_bones_0", "{b}_bones_1"]
     cell = T * scale
     pad = 6
     label_h = 12
@@ -405,11 +467,12 @@ def sheet(tiles: dict[str, Image.Image], scale: int = 4) -> Image.Image:
         d.text((pad, y), "over floor", fill=(180, 170, 150, 255))
         floor = tiles[f"{biome}_floor"]
         for i, name in enumerate(extras):
+            name = name.format(b=biome)
             x = 80 + pad + i * (cell + pad)
             comp = floor.copy()
             comp.alpha_composite(tiles[name])
             im.paste(comp.resize((cell, cell), Image.Resampling.NEAREST), (x, y + label_h))
-            d.text((x, y), name, fill=(180, 170, 150, 255))
+            d.text((x, y), name.replace(f"{biome}_", "")[:10], fill=(180, 170, 150, 255))
         y += cell + label_h + pad
     # a 3x3 sample room per biome at 4x, walls around floors, to judge the rim rule
     d.text((pad, y), "room", fill=(230, 220, 200, 255))

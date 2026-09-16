@@ -21,6 +21,24 @@
       "description": "Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px."
     },
     {
+      "id": "hero_ranger",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch."
+    },
+    {
+      "id": "hero_caster",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger."
+    },
+    {
       "id": "rat",
       "kind": "monster",
       "bg": "keyed",
@@ -36,7 +54,7 @@
       "gen": "1024x1024",
       "master_h": 48,
       "texel_h": 24,
-      "description": "A lean dungeon jackal facing right mid-lope: low horizontal body, ribs showing, big pointed ears, narrow snout with a snarl, tail straight out behind. Sandy-tan and dusty umber washes, one flat shadow mass. Tag: LOW, LEAN and FAST — the silhouette is a stretched horizontal dash with ears. Reads at 32 px."
+      "description": "A lean dungeon jackal facing right mid-lope: low horizontal body, ribs showing, big pointed ears, narrow snout with a snarl, tail straight out behind. Sandy-tan and dusty umber washes, one flat shadow mass. Tag: LOW, LEAN and FAST \u2014 the silhouette is a stretched horizontal dash with ears. Reads at 32 px."
     },
     {
       "id": "goblin",
@@ -54,7 +72,7 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A goblin archer facing right, DRAWING A BOW: tall crude recurve bow held out front with the string pulled fully back to the cheek and an arrow nocked, quiver on the back. Same olive skin and ochre rags as the plain goblin, plus a leather cap. The drawn bow is the tag — it must be a big clear arc in the silhouette at 40 px, wider than the body."
+      "description": "A goblin archer facing right, DRAWING A BOW: tall crude recurve bow held out front with the string pulled fully back to the cheek and an arrow nocked, quiver on the back. Same olive skin and ochre rags as the plain goblin, plus a leather cap. The drawn bow is the tag \u2014 it must be a big clear arc in the silhouette at 40 px, wider than the body."
     },
     {
       "id": "goblin_conjurer",
@@ -90,7 +108,7 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A bloat: one swollen, taut, floating sac of sickly yellow-green gas, veined, with a few tiny dangling tendrils and a small puckered mouth. No limbs, no face beyond the mouth. Tag: SWOLLEN SAC — a single fat teardrop/balloon silhouette, glowing faintly from within. Reads as 'balloon about to pop' at 40 px. Yellow-green, never blue."
+      "description": "A bloat: one swollen, taut, floating sac of sickly yellow-green gas, veined, with a few tiny dangling tendrils and a small puckered mouth. No limbs, no face beyond the mouth. Tag: SWOLLEN SAC \u2014 a single fat teardrop/balloon silhouette, glowing faintly from within. Reads as 'balloon about to pop' at 40 px. Yellow-green, never blue."
     },
     {
       "id": "pink_jelly",
@@ -99,7 +117,7 @@
       "gen": "1024x1024",
       "master_h": 48,
       "texel_h": 24,
-      "description": "A pink jelly: a low translucent quivering blob of rose-pink watercolour, dome-shaped with a wobbly lower edge, a few suspended darker pink flecks inside, a wet highlight upper-left. No face, no limbs. Tag: TRANSLUCENT BLOB — a squat dome silhouette. Reads at 32 px. Pink, magenta and ivory only."
+      "description": "A pink jelly: a low translucent quivering blob of rose-pink watercolour, dome-shaped with a wobbly lower edge, a few suspended darker pink flecks inside, a wet highlight upper-left. No face, no limbs. Tag: TRANSLUCENT BLOB \u2014 a squat dome silhouette. Reads at 32 px. Pink, magenta and ivory only."
     },
     {
       "id": "eel",
@@ -117,7 +135,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A walking skeleton warrior facing right: all bone, upright, ribcage and skull clearly drawn, holding a rusted notched sword, a few rags of grave-cloth. Bone-white paper with warm ivory washes and one flat indigo shadow side; dark ink between every bone. Tag: ALL BONE — the gappy ribcage silhouette. Reads at 48 px."
+      "description": "A walking skeleton warrior facing right: all bone, upright, ribcage and skull clearly drawn, holding a rusted notched sword, a few rags of grave-cloth. Bone-white paper with warm ivory washes and one flat indigo shadow side; dark ink between every bone. Tag: ALL BONE \u2014 the gappy ribcage silhouette. Reads at 48 px."
     },
     {
       "id": "ghoul",
@@ -126,7 +144,7 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A ghoul facing right: hunched, gaunt, grey-green corpse flesh, arms out front ending in long clawed hands, jaw hanging open, hair in lank strands. Tag: HUNCHED with CLAWS reaching forward — the silhouette leans forward with two claw shapes leading. Distinct from the upright skeleton at 40 px."
+      "description": "A ghoul facing right: hunched, gaunt, grey-green corpse flesh, arms out front ending in long clawed hands, jaw hanging open, hair in lank strands. Tag: HUNCHED with CLAWS reaching forward \u2014 the silhouette leans forward with two claw shapes leading. Distinct from the upright skeleton at 40 px."
     },
     {
       "id": "wraith",
@@ -135,7 +153,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A wraith facing right: a tall floating tattered shroud with no legs, the hem torn into trailing ribbons, a hooded void where the face should be with two pale points of light, long thin reaching hand. Ash-violet and blue-black washes (all channels low, never saturated blue), ivory-pale edges. Tag: TATTERED and FLOATING — ragged hem, no feet. Reads at 48 px."
+      "description": "A wraith facing right: a tall floating tattered shroud with no legs, the hem torn into trailing ribbons, a hooded void where the face should be with two pale points of light, long thin reaching hand. Ash-violet and blue-black washes (all channels low, never saturated blue), ivory-pale edges. Tag: TATTERED and FLOATING \u2014 ragged hem, no feet. Reads at 48 px."
     },
     {
       "id": "captive",
@@ -144,7 +162,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A captive facing right: an anime adventurer kneeling or slumped with heavy iron manacles and a thick chain visibly wrapping the wrists and trailing to the floor edge of the figure, torn tunic, hopeful anime face looking up. Warm ivory skin, dull red tunic, iron-grey chain with ink links. Tag: IN CHAINS — the chain must be a bold dark line in the silhouette at 48 px. No floor drawn."
+      "description": "A captive facing right: an anime adventurer kneeling or slumped with heavy iron manacles and a thick chain visibly wrapping the wrists and trailing to the floor edge of the figure, torn tunic, hopeful anime face looking up. Warm ivory skin, dull red tunic, iron-grey chain with ink links. Tag: IN CHAINS \u2014 the chain must be a bold dark line in the silhouette at 48 px. No floor drawn."
     },
     {
       "id": "boss_goblin_warlord",
@@ -153,7 +171,7 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Goblin Warlord facing right, LARGER than any goblin: broad, armoured in scavenged iron plates and a fur mantle, a jagged iron CROWN, a huge cleaver in one hand and a raised fist in the other, a red war-banner strip trailing. Olive skin, iron grey, red banner. Tag: BOSS — crowned, big, banner. Reads as 'the big crowned goblin' at 64 px."
+      "description": "The Goblin Warlord facing right, LARGER than any goblin: broad, armoured in scavenged iron plates and a fur mantle, a jagged iron CROWN, a huge cleaver in one hand and a raised fist in the other, a red war-banner strip trailing. Olive skin, iron grey, red banner. Tag: BOSS \u2014 crowned, big, banner. Reads as 'the big crowned goblin' at 64 px."
     },
     {
       "id": "boss_bloat_mother",
@@ -162,7 +180,7 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Bloat Mother: an enormous swollen sac of sickly yellow-green gas, ringed with a crown of bone spines around the top, dozens of tiny bloat-buds budding from her sides, a wide puckered maw, taut veins. Tag: BOSS — huge, spine-crowned, budding. The silhouette is a giant balloon with a spiky crown; reads at 64 px. Yellow-green and bone, never blue."
+      "description": "The Bloat Mother: an enormous swollen sac of sickly yellow-green gas, ringed with a crown of bone spines around the top, dozens of tiny bloat-buds budding from her sides, a wide puckered maw, taut veins. Tag: BOSS \u2014 huge, spine-crowned, budding. The silhouette is a giant balloon with a spiky crown; reads at 64 px. Yellow-green and bone, never blue."
     },
     {
       "id": "boss_lich",
@@ -171,7 +189,7 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Lich facing right: a tall gaunt robed skeleton king in tattered indigo-black robes with a tall bone SKULL-CROWN, one hand raising a crooked staff topped with a pale skull, the other hand open with a cold teal-white flame. Bone-white skull, blue-black robes (all channels low, never saturated blue), teal-white flame. Tag: BOSS — crowned skull, staff, flame. Reads at 64 px."
+      "description": "The Lich facing right: a tall gaunt robed skeleton king in tattered indigo-black robes with a tall bone SKULL-CROWN, one hand raising a crooked staff topped with a pale skull, the other hand open with a cold teal-white flame. Bone-white skull, blue-black robes (all channels low, never saturated blue), teal-white flame. Tag: BOSS \u2014 crowned skull, staff, flame. Reads at 64 px."
     },
     {
       "id": "spectral_blade",

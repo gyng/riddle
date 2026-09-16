@@ -29,7 +29,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from make_tiles import PALETTES  # noqa: E402  single source of truth for biome ramps
+from make_tiles import BOSS_FLASH, PALETTES  # noqa: E402  single source of truth for ramps
 
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "generated"
@@ -208,7 +208,7 @@ def main(argv: list[str]) -> int:
             "tile": 8,
             "sprites": meta_sprites,
             "tiles": tile_ids,
-            "palettes": PALETTES,
+            "palettes": {**PALETTES, "boss_flash": BOSS_FLASH},
         },
     }
     (DST / "atlas.json").write_text(json.dumps(data, indent=1, sort_keys=True) + "\n")
