@@ -1,0 +1,154 @@
+{
+  "$comment": "Blind rater card. Rater A, seed 11, build 6e691ec, phone 400x800@3 via tools/browser.mjs. Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK.md 1-3, the template. Did not open PLAN.md, research/, CUT*.md, INTEGRATION.md, other cards or source. Audio: none in build, unassessed. Notes and 73 screenshots in the rater scratchpad (raterA/notes.txt, raterA/shots/).",
+  "game": "Riddle",
+  "build": "6e691ec",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterA",
+  "horizon": {
+    "activeMinutes": 110,
+    "absences": [
+      "FIRST ATTEMPT (voided by coordinator, harness fault): ?absent=8h on the production build at 12:38 after 40 min cold play; the return screen was the unchanged camp.",
+      "REDO: ?dev=1&absent=8h loaded once at 13:30 on a fresh dev lineage (seed 11) after a 14-min replay to a comparable rule set (hero 4 was on D1 with $5 when I left); return session 13:30-13:51 (cut off by the API limit mid-run) and 18:17-18:29 on the same browser and save, about 33 min on return in total."
+    ],
+    "runsWatched": 10,
+    "runsOffline": 17,
+    "ruleEdits": 17,
+    "$detail": "10 heroes sent (runs 1-10; run 9 bailed and re-sent after a patch evicted the attack rule). Runs 1 and 2 watched at 1x for 9 and 5 minutes, the rest at 4x with event-skip. 7 deaths read (warlord D5 x3, gas D6, archer D5, goblin D5 x2). 2 rule-driven returns at D5 with vault/summary. 1 run resolved offline during the absence with no visible output. Edits: 8 of my own (potion-ID rule, corridor pair, depth>=5 return, alert>=4 descend, depth>=8 push, rebuild after eviction x2, retreat threshold 30%->50%) + 4 offered patches tapped (drink unknown, attack boss x2, retreat). Purchases: path: bones, +1 row x2, cond: alert, card: gas step, class: ranger, heal potion x2. Active: 40 min cold (11:58-12:38) + 16 min on return (12:38-12:54) + 7 min on return after the interruption (13:12-13:19).",
+    "interruption": "An API usage limit cut the rater off at 12:53, mid return-session, after 16 min on return; resumed 13:12. The GPU browser and its localStorage survived (same lineage #cef170c8, hero 6's death card was waiting on screen), so no replay was needed; the remaining return minutes were played 13:12-13:20 on the same save. Hero 6 ran unattended in the 19-minute gap; that gap is not counted as an absence.",
+    "redo": "Coordinator correction after my first report: the preview is a production build that ignores ?absent=8h without dev=1, so the empty return I scored was a harness fault. The original browser context had been closed, so I rebuilt from ?dev=1&seed=11&fresh=1 in 14 min with my own decisions (4 heroes: warlord death, poison death from my own drink-unknown rule, jackal death, then a rule-driven return at D5 with 'Returned with 194 loot'; rules on leaving: hp<30% return, foes>=1 attack, depth>=5 return, foes>=3·corridor attack, foes>=3 to corridor; bought +1 row, path: bones), loaded ?dev=1&absent=8h once, and played the return. Only return, pacing, progression, decisions, the criterion probes and the returnWithNothingToDecide flag were revised; every other award and note is as first written. Two things seen only in the redo, recorded here rather than on untouched axes: (1) the death-card patches in the dev lineage read 'foe: boss → attack boss · survives 67% · base 67% · reach +30%' instead of the '100% +0%' I saw all morning, which is the readable version; (2) one hang: after 'R2 · return' fired at D3 (9/38, $161) the map went black with 'rest 20m' and no vault sheet, all buttons dead, for 4.5 h of wall-clock until I reloaded; the save survived (camp showed $720, supplies restocked) but that run's summary was never shown. A second API cut-off hit at 13:51 during the redo return session; resumed 18:17 on the same save."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false,
+    "$comment": "REVISED after redo: returnWithNothingToDecide is false. The dev-mode ?absent=8h return screen read '17 RUNS · D5 BEST · ◆+6 MARKS · 0 BANKED · 17 RETURNED · 0 DEATHS · rested 340m · STALL: R1 return ended 10 runs at D5 · PENDING: R1 never fired: HP<30% → return / R4 never fired: foes 3+ · corridor → attack / R5 never fired: foes 3+ → corridor / bones: 1 on the floor', with $812 and 10 diamonds to spend; I changed the depth rule to 8 because of the STALL line. First-attempt note kept for the record: on the production build without dev=1 the same load returned the unchanged camp. defaultRulesBeatEveryEdit false because the forecast at D5 moved 42% -> 66% -> 84% with my edits and the boss patch got hero 4 past the D5 warlord for the first time. Unfair deaths: 0 of 10 across both lineages; every death was answerable with a chip on the sheet. No money-skippable wait: 'rest 20m' displayed but send was never blocked. crashOrDataLoss stays false: the D3-return hang needed a reload but the save was intact."
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 5,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: I sent hero 4, the curious one, with the boss patch on top and my corridor pair under it, carrying a heal potion I bought with the last return's money. On D5 the warlord rallied five goblins around him and he fell to 8 HP, drank my heal, read an unknown scroll on his own account and next thing I saw he was on D6 at 26/36 with the boss behind him. On D6 something popped, my foes>=1 rule kept him swinging at 2 HP because no rule of mine said leave, and the card read 'gas · D6 · 3 over · gap'."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Probe: I always knew the goal (deeper, home with loot) and the forecast bars redrew on every chip tap ('D5 42%' -> 'D5 66%' when I added the corridor pair), which is the best feedback in the game. But I misread often: the HUD said '$442' and camp paid '+$64' with 'Returned with 199 loot' in between and I still cannot say which I banked; tapping a patch at 6/6 rows silently deleted my last rule; 'card: gas step' took 3 diamonds and changed nothing I could see; 'morgue' does nothing; every death badge says 'gap' even when my rule fired on the last line. First rule edit at minute 12. The eviction happened three times out of four patch taps (rows 5/5 or 6/6 each time); the third time it removed 'foes >= 1 -> attack nearest', the forecast fell to 'D2 28% / D4 0% rat 50%', and I sent the hero anyway before looking."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Probe: I put 'foes >= 3 -> to corridor' above attack and the forecast collapsed to 'D3 4%' because he never fought; adding 'foes >= 3 · corridor -> attack nearest' above it brought D5 to 66%, and I would do it again. Return at D5 (bank) versus depth >= 8 (push with $442 at risk) was a real trade-off both ways, as was 'path: bones' (forecast dropped to 42% because it walks you into the warlord). Lapse: the offered patches all read '100% +0%' so choosing between them was a coin flip, and one of them evicted a rule I would have kept. On the last check-in the retreat patch ('100% −30%') evicted the attack rule for the third time; whether to trust a patch is now itself the decision. REVISED after redo: the overnight report changed what I decided — 'STALL: R1 return ended 10 runs at D5' and 'R4 never fired: foes 3+ · corridor → attack' sent me to raise the depth rule to 8 and to reorder the heal above the return, and the dev lineage's patch cards read 'survives 67% · base 67% · reach +30%', which makes choosing between patches a real comparison instead of a coin flip. Award stays 0.8: the row-eviction lapse remains (it happened again on the redo when 'hp < 30% → return' evicted 'foes ≥ 1 → attack nearest')."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Probe: after an hour I know rule order is priority, that a verb with no target stalls the forecast to 'D4 0%', that potions identified by a dead hero stay identified ('heal potion $40' appeared in supplies after hero 2 drank them), and that the D5 warlord needs 'attack boss'. Best depth went D5, D5, D5, D6, D5, D5, D5 — the warlord floor is a wall I learned to survive once and not again. What I still cannot do is read why 'D6 0%' became 'D6 60%' from one patch, so the learning is trial and forecast rather than understanding."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Probe: I sweated on run 7 at 4x when the header read '$314 · death: lose all' and the HP line went 8 -> 26 -> 14 -> 0 with 'rallied!' / 'shields up' every other tick; I chose that stake by swapping 'return at D5' for 'return at D8'. The game noticed only in the sense that the header colour changed from amber 'return at D5' to red 'death: lose all'. Watched at 1x the same fights are a number dropping next to an empty room, so the tension lives in the text log, not the screen."
+    },
+    {
+      "id": "feel",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Audio: unassessed (none in build). Probe: what felt good was the chip editor, every tap redrawing the forecast under my thumb. What I saw in the run view at 400x800 was a hero sprite and olive tiles; in roughly fifteen screenshots taken the instant 'R5 · attack nearest' appeared I never saw a foe, an item or the captive, while at 1280x800 a goblin was drawn beside him. HP dropped 18 -> 6 on D4 over 40 s with no callout at all. Events per minute at 1x: one callout every 30-60 s on D1-D2."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Probe: 'stolen!' on D2, 'archer draws', 'ogre winds up' taking 16 -> 7, 'Warlord rallies' summoning to foes 5, 'pops!' then gas on D6, and the hero's own trait lines 'cowardly -> retreat', 'curious -> read ?', 'greedy -> pick up' each changed what I configured (corridor pair after the pack, boss patch after the rallies, gas step after the pop). Fifth death was new too: 'goblin archer · D5' with a '◯ spectral hound' badge for a foe I never saw. Repeat: three of five deaths were the same goblin warlord on D5 and every run's D1-D4 read 'pick up, pick up, descend'."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "Probe, to a friend: mine is a coward who drinks at 30%, fights packs of three only from a corridor, leaves any floor whose alert hits four bells, and walks home at D5 with the bag. Two of six rows are the defaults, two are patches the game wrote, and the boss patch overwrote my 'depth >= 8 -> return' without asking, so about half the set is recognisably mine."
+    },
+    {
+      "id": "story",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Probe: the reel after a return reads 'Met a captive. captive: ally. D5: the Warrens. Trophy: no heal to D5. Returned with 163 loot.' — fragments with no turn, and I never saw the captive. The one run with a real turn (hero 4 reading an unknown scroll at 8 HP mid-boss and surfacing on D6) I reconstructed from callouts in my own log; the death card for it was a five-row table ending 'R6 attack nearest 2 1'. Six of eight runs had no anecdote."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "REVISED after redo. In-run at 1x: D1 alone took four minutes with 30-60 s stretches of the same 'pick up' callout, so I switched to 4x and never went back. Check-in: read death or return, edit, send took 2-8 minutes and ended on a chosen point. Cadence: the 8 h absence now produced a distinct experience (a 17-run stall report with a levelled hero) that a 20-second one does not. Administration lapses: after the first rule-driven return the map went black with 'rest 20m' for four minutes before I found the vault sheet below the fold, and in the redo a return hung with dead buttons until I reloaded. First-attempt cadence evidence ('the 8 h absence produced nothing') voided."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Probe: I lost because 'R5 attack nearest' kept firing at hp 2 with foes 3 and no rule of mine said leave; the card said 'goblin warlord · D5 · 2 over · 4 unknown unused' with t/R/hp/foes/tele rows ending 'goblin_warlord rallies', so cause, margin and the rule are on one screen and the next hero is one tap away. Seven of seven deaths traced to a rule I wrote or a gap I left. Lapse: the numbers under the patches contradict the trace — 'gap' on every death including ones where my rule matched, '+0%' on all three patches twice, then '−15%' on all three after the gas death."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0"
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "Probe: the game never asked me to bank money; I wrote 'depth >= 5 -> return' to get the ~$300 the first two heroes lost, then swapped it for 'depth >= 8' on my own initiative. I chose what to carry (heal potion, leather in the vault) and found the ledger bestiary and the three rule tabs by poking. Order and pace of check-ins were mine; the route inside the dungeon is not."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "REVISED after redo. Within-run: $ 0 -> 442 and 'fighter +18 · L1' per run. Persistent: diamonds after each death bought 'path: bones', '+1 row' (price 2 -> 4 -> 7), 'cond: alert', 'card: gas step', 'class: ranger'; potion identities persisted ('heal potion $40' in supplies, 'drink heal', 'has: heal' chips appeared); renown '★1 ↑1'. Overnight the same layers moved legibly: 'fighter +244 · L2 ↑1', 'RENOWN +674 · ★2 ↑2', '◆+6', a 23-line SALVAGED list that turned the supplies shop from 4 items to 15 (blink, identify, recall scrolls; regen, clarity potions). Automation layer observed: after buying 'auto: restock' the hero came home and 'SUPPLIES 3/3 · sword · leather · regen potion' were already back in the bag with the cost taken from camp. Lapse: 'card: gas step' and 'auto: restock' change nothing visible on the rule rows or the forecast, so I only know they worked from the money and the bag."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Audio unassessed. Probe: the place is a dark olive stone maze with a decent pixel fighter and a monospace dashboard; I would not sit in it, because at phone size it is mostly black with an empty room and nothing to look at between callouts."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "REVISED after redo. Probe: I came back to '17 RUNS · D5 BEST · ◆+6 MARKS · 17 RETURNED · 0 DEATHS · rested 340m', a STALL line 'R1 return ended 10 runs at D5', three rules flagged 'never fired', 'fighter +244 · L2 ↑1', 'RENOWN +674 · ★2 ↑2', a 23-line SALVAGED list and a reel of 'A monkey stole the dagger. ×2 / A monkey stole the identify scroll.'; I decided to push the depth rule from 5 to 8 and spent ◆10 and $120 on +1 row, auto: restock, cond: alert, sword, leather and a regen potion within two minutes; I would not have rather stayed (17 runs for 8 h versus my 1 run per 4 min active). I wanted to come back before I looked. Lapse: a check-in return hung on a black 'rest 20m' screen with dead buttons until reload and its summary was lost, and the money still does not reconcile ('0 BANKED' beside $67 -> $812; '$203 · return at 30%' on the HUD then camp $729 -> $654). First-attempt evidence, voided: on the production build the same URL returned the unchanged camp."
+    },
+    {
+      "id": "attribution",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "Probe: 'He walked into gas on D6 while my foes >= 1 rule kept him swinging at 2 HP; nothing of mine said leave, so that one is mine.' I can trace all seven deaths to my rule, my gap, or a patch I accepted (death 5: 'R1 attack boss hp 9 -> 2' while 'goblin_archer draws' three times — the boss patch I tapped made him tunnel while archers shot him), and 'R1 · drink heal' at 16 HP was my potion and my rule. The wins are murkier: hero 4 got past the warlord and I never saw 'attack boss' fire, and 'cowardly -> retreat' / 'curious -> read ?' are the hero acting on traits I did not pick. Pronouns in my retelling: I x4, he x5. Death 7 (ranger, no potion bought because I had $1): 'R1 retreat hp 1 foes 3' three times then 'R5 to corridor hp 1' — my retreat rule fired, just with nowhere to go, which is on me."
+    }
+  ]
+}
