@@ -74,8 +74,8 @@ export function openLedger(app: App): void {
     const L = app.lineage;
     const dot = (on: boolean): HTMLElement => h("span", { class: `dot${on ? " on" : ""}` }, on ? "●" : "○");
     const rows = L.ledger.map((r) => h("div", { class: `lrow${r.seen ? "" : " dim"}` },
-      h("span", { class: "k" }, r.seen ? nice(r.kind) : "?"), dot(r.seen), dot(r.known), dot(r.tamed), dot(r.bred)));
-    const headRow = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), /* copy:label */ ...["seen", "known", "tamed", "bred"].map((s) => h("span", { class: "dot-h" }, s)));
+      h("span", { class: "k" }, r.seen ? nice(r.kind) : "?"), dot(r.seen), dot(r.known), dot(!!r.studied), dot(r.tamed), dot(r.bred)));
+    const headRow = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), /* copy:label */ ...["seen", "known", "studied", "tamed", "bred"].map((s) => h("span", { class: "dot-h" }, s)));
     const trophies = L.trophies.filter((t) => t.startsWith("ledger:"));
     return h("div", { class: "sheet-body ledger" }, headRow, ...rows,
       trophies.length ? h("div", { class: "chips" }, ...trophies.map((t) => h("span", { class: "chip fact" }, "★ ", nice(t.slice(7))))) : "");

@@ -1,5 +1,6 @@
-// Wire types. Transcribed from docs/CUT1.md ("Wire types"); Rust mirrors with serde, snake_case JSON.
-// Do not edit here without editing the contract.
+// Wire types. Transcribed from docs/CUT1.md ("Wire types") and docs/CUT2.md ("Wire additions"); Rust mirrors
+// with serde, snake_case JSON. Do not edit here without editing the contract. Cut 2 fields are optional on the
+// client so the UI runs against a Cut 1 core.
 
 export type Cond = { k: string; n?: number; t?: string };          // {k:"hp<",n:40} {k:"foe_tag",t:"pack"}
 export type Verb = { v: string; a?: string };                      // {v:"drink",a:"heal"} {v:"attack",a:"tag:caster"}
@@ -19,7 +20,10 @@ export type Snapshot = {
   overlays: Overlay[]; hero: Entity & { inv: InvItem[]; weapon?: string; armour?: string; class: string; trait: string };
   entities: Entity[]; items: FloorItem[]; alert: number; turn: number; loot: number;
   run: { id: number; heir: number; started_turn: number };
+  stake?: Stake;                                                          // Cut 2 §7: what is on the line right now
 };
+/** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any. */
+export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent" };
 
 export type Ev =
@@ -44,7 +48,10 @@ export type Ev =
   | { t: number; k: "hatch"; kind: string }                                 // Addendum A
   | { t: number; k: "level"; class: string; level: number }                 // Addendum C
   | { t: number; k: "rank"; rank: number }                                  // Addendum D
-  | { t: number; k: "projectile"; src: number; dst: number; path: [number, number][] }; // Addendum E: 1 tile per tick along path
+  | { t: number; k: "projectile"; src: number; dst: number; path: [number, number][] } // Addendum E: 1 tile per tick along path
+  | { t: number; k: "rest"; seconds: number }                               // Cut 2 §1: emitted at exit; the viewer shows `rest Nm`
+  | { t: number; k: "bones"; heir: number; items: number }                  // Cut 2 §2: a bones pile (left on death, or recovered by a later heir)
+  | { t: number; k: "see"; id: number; e?: Entity };                        // Cut 2 §7: first sight of an entity (renderer flashes on a boss); not emitted by the core yet
 
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            exit_pending?: { items: InvItem[]; tier: string } };                                       // Addendum D
@@ -66,6 +73,7 @@ export type ReturnReport = {
   xp: { class: string; gained: number; level_ups: number };                 // Addendum C
   salvaged: { kind: string; n: number; gold: number }[];                    // Addendum D
   renown: { gained: number; rank: number; ranks_up: number };               // Addendum D
+  rested_s?: number; banked?: number; returned?: number; bones_found?: string[]; // Cut 2 §1–2
 };
 export type Lineage = { seed: number; heir: number; trait: string; class: string; best_depth: number; marks: number;
                         facts: string[]; unlocks: string[]; vault: InvItem[]; graveyard: { heir: number; depth: number; cause: string; deeds: string[] }[];
@@ -74,13 +82,16 @@ export type Lineage = { seed: number; heir: number; trait: string; class: string
                         gold: number; supplies: InvItem[]; insured?: number[];                                                              // Addendum B
                         classes: { [cls: string]: { level: number; xp: number } };                                     // Addendum C
                         forge: { [kind: string]: { salvaged: number; craftable: boolean; tier: number } };               // Addendum D
-                        renown: number; rank: number; keep_pref: string };                                              // Addendum D
+                        renown: number; rank: number; keep_pref: string;                                               // Addendum D
+                        rest_left_s?: number; bones?: BonesPile[] };                                                    // Cut 2 §1–2
+/** Cut 2 §2 — a dead heir's kit on the floor (per lineage, max 3; oldest expires). */
+export type BonesPile = { depth: number; heir: number; items: number };
 
 // Addendum A — Companions
 export type Companion = { id: number; kind: string; name: string; level: number; tags: string[]; gen: number;
                           rules: RuleSet; max_rows: number; hp: number; max_hp: number };
 export type Egg = { id: number; kind: string; tags: string[]; gen: number; hatch_in: number; from_loss: boolean };
-export type LedgerRow = { kind: string; seen: boolean; known: boolean; tamed: boolean; bred: boolean };
+export type LedgerRow = { kind: string; seen: boolean; known: boolean; tamed: boolean; bred: boolean; studied?: boolean }; // studied: Cut 2 §5
 
 export interface Engine {
   newLineage(seed: number): Lineage;
@@ -111,7 +122,7 @@ export interface Engine {
   setClass(cls: string): Lineage;       // switch class (rogue needs the `rogue` unlock)
   selectSet(i: number): Lineage;        // pick one of the three saved sets; setRules writes the active one
 }
-export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean };
+export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string };  // needs: Cut 2 §3, the gate still missing (absent once met)
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */
 export type AsyncEngine = { [K in keyof Engine]: Engine[K] extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };

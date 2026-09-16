@@ -1,7 +1,7 @@
 // Death: cause line · last-5 trace (hero actions, t = tick) · candidate patches (tap to insert) · edit · morgue.
 import type { App, Mounted } from "../app";
 import type { Death } from "../engine/types";
-import { h, copyText, pct, replace } from "./dom";
+import { h, copyText, items, pct, replace } from "./dom";
 import { rowLabel, verbLabel } from "./tokens";
 
 const TRACE_ROWS = 5;
@@ -32,6 +32,11 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
   const morgue = h("button", { class: "btn", onclick: async () => { const ok = await copyText(d.morgue); replace(morgue, ok ? "✓" : "×"); setTimeout(() => replace(morgue, /* copy:button */ "morgue"), 900); } }, /* copy:button */ "morgue");
   const edit = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "edit");
   const eggs = lost.length ? h("div", { class: "chips eggs" }, ...lost.map((k) => h("span", { class: "chip egg" }, "◯ ", k.replace(/_/g, " ")))) : null;
-  const el = h("main", { class: "death" }, line, eggs, table, patches, base, h("div", { class: "btn-row" }, morgue, edit));
+  // Cut 2 §2: what this death left on the floor — the pile whose heir the matching grave names; silent when absent
+  const L = app.lineage;
+  const grave = [...(L.graveyard ?? [])].reverse().find((g) => g.depth === d.depth && g.cause === d.cause);
+  const pile = (L.bones ?? []).find((b) => (grave ? b.heir === grave.heir : false) && b.depth === d.depth);
+  const bones = pile ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(pile.items)}`) : null;
+  const el = h("main", { class: "death" }, line, eggs, bones, table, patches, base, h("div", { class: "btn-row" }, morgue, edit));
   return { el };
 }

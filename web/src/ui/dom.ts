@@ -27,3 +27,7 @@ export function flash(el: HTMLElement, cls = "hl", ms = 1600): void { el.classLi
 export async function copyText(text: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
+/** `1 item` / `4 items` (tagged at the call site). */
+export const items = (n: number): string => `${n} item${n === 1 ? "" : "s"}`;
+/** Seconds → `12m` (whole minutes up); under a minute `40s`. */
+export const spanOf = (s: number): string => (s >= 60 ? `${Math.ceil(s / 60)}m` : `${Math.max(0, Math.round(s))}s`);

@@ -1,19 +1,31 @@
 // Return report: learned · bests · found · deaths · pending · reel · marks. Delta, not totals.
 import type { App, Mounted } from "../app";
 import type { ReturnReport } from "../engine/types";
-import { h } from "./dom";
+import { h, items, spanOf } from "./dom";
 import { visible } from "./unlocks";
 
 export function renderReport(app: App, r: ReturnReport): Mounted {
   const L = app.lineage;
   const deathsN = r.deaths.reduce((n, d) => n + d.n, 0);
   const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile" }, h("b", { class: "num" }, n), h("span", { class: "label" }, label));
-  const tiles = h("div", { class: "tiles" },
+  // Cut 2 §1: `banked · returned · deaths` as a second row of three when the core reports exits; else the Cut 1 four
+  const exits = r.banked !== undefined || r.returned !== undefined;
+  const tiles = h("div", { class: `tiles${exits ? " six" : ""}` },
     tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"),
-    tile(`${deathsN}`, /* copy:label */ "deaths"),
+    exits ? null : tile(`${deathsN}`, /* copy:label */ "deaths"),
     tile(`D${L.best_depth}`, /* copy:label */ "best"),
     tile(`◆${r.marks_earned > 0 ? "+" : ""}${r.marks_earned}`, /* copy:label */ "marks"),
+    exits ? tile(`${r.banked ?? 0}`, /* copy:label */ "banked") : null,
+    exits ? tile(`${r.returned ?? 0}`, /* copy:label */ "returned") : null,
+    exits ? tile(`${deathsN}`, /* copy:label */ "deaths") : null,
   );
+  const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
+  // Cut 2 §2: `bones D7 · 4 items · ♟3` per pile recovered (the core sends `heir 3 · D7 · 4 items`; `bones:7:4` too)
+  const bonesLine = (x: string): string => {
+    const m = /^bones:(\d+):(\d+)$/.exec(x); if (m) return /* copy:callout */ `bones D${m[1]} · ${items(+m[2])}`;
+    const c = /^heir (\d+) · (D\d+) · (\d+) items?$/.exec(x); if (c) return /* copy:callout */ `bones ${c[2]} · ${items(+c[3])} · ♟${c[1]}`;
+    return /^bones\b/.test(x) ? x : /* copy:label */ `bones ${x}`;
+  };
   const section = (label: string, body: Node | null): HTMLElement | null => body ? h("section", { class: "rsec" }, h("div", { class: "label" }, label), body) : null;
   const nice = (x: string): string => x.replace(/_/g, " ");
   // repeats (three goblin archers tamed) collapse to one chip with a count
@@ -44,7 +56,7 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
   const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }, /* copy:button */ "open") : null;
   const camp = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "camp");
   const el = h("main", { class: "report" },
-    tiles,
+    tiles, rested,
     section(/* copy:label */ "learned", factChips(r.learned)),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),
@@ -52,6 +64,7 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
     section(/* copy:label */ "bests", lines(collapseBests(r.bests))),
     r.xp && r.xp.gained > 0 ? section(/* copy:label */ "xp", h("div", { class: "xp-line num" }, `${r.xp.class} +${r.xp.gained}`, " · ", /* copy:label */ `L${L.classes?.[r.xp.class]?.level ?? 1}`, r.xp.level_ups > 0 ? h("b", null, ` ↑${r.xp.level_ups}`) : "")) : null,
     section(/* copy:label */ "found", chips(r.found.map((i) => i.label))),
+    section(/* copy:label */ "bones", lines((r.bones_found ?? []).map(bonesLine))),
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
     section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...r.salvaged.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),
     section(/* copy:label */ "renown", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "") : null),
@@ -75,6 +88,8 @@ function factChips(facts: string[]): HTMLElement | null {
     if (it) { rest.push(h("span", { class: "chip fact" }, nice(it[2]), h("small", null, ` ${it[1]}`))); continue; }
     const b = /^biome:(.+)$/.exec(f);
     if (b) { rest.push(h("span", { class: "chip fact" }, nice(b[1]))); continue; }
+    const bn = /^bones:(\d+)$/.exec(f);
+    if (bn) { rest.push(h("span", { class: "chip fact" }, /* copy:label */ "bones", h("small", null, ` D${bn[1]}`))); continue; }
     const c = /^boss:([^:]+):counter$/.exec(f);
     if (c) { rest.push(h("span", { class: "chip fact" }, nice(c[1]), h("small", null, /* copy:label */ " counter"))); continue; }
     rest.push(h("span", { class: "chip fact" }, nice(f)));

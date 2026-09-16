@@ -1,11 +1,11 @@
 // Camp: lineage strip · set tabs · rule editor · forecast · vault loadout · unlocks · send.
 import type { App, Mounted } from "../app";
-import { h, clear, replace } from "./dom";
+import { h, clear, replace, spanOf } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
-import { visible, vaultSlots } from "./unlocks";
+import { classList, supplyCap, visible, vaultSlots } from "./unlocks";
 import { salvageValue } from "./salvage";
 import { xpToNext } from "../engine/classes";
 import { openSheet } from "./sheet";
@@ -20,7 +20,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const supplies = h("section", { class: "supplies" });
   const unlocks = h("section", { class: "unlocks" });
   const send = h("button", { class: "btn primary send", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send");
-  const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, party.el, vault, supplies, unlocks, h("div", { class: "send-bar" }, send));
+  const rest = h("span", { class: "rest num" });
+  const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, party.el, vault, supplies, unlocks, h("div", { class: "send-bar" }, rest, send));
 
   function paintStrip(): void {
     const L = app.lineage; const lvl = L.classes?.[L.class] ?? { level: 1, xp: 0 };
@@ -35,6 +36,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       h("span", { class: "num marks" }, `◆${L.marks}`),
       h("button", { class: "gear", onclick: () => openSettings(app) }, "⚙"),
     );
+    // Cut 2 §1: camp rest remaining; `send` skips it, so the number just disappears
+    const restS = L.rest_left_s ?? 0;
+    replace(rest, /* copy:label */ "rest", " ", spanOf(restS));
+    rest.hidden = restS <= 0;
   }
   function openForge(app2: App): void {
     openSheet(() => {
@@ -45,13 +50,18 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "⚒" : "○"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "·"))));
     });
   }
+  // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster)
   function pickClass(): void {
     openSheet((close) => {
       const L = app.lineage; const grid = h("div", { class: "grid" });
-      for (const c of ["fighter", "rogue"]) {
-        const owned = c === "fighter" || L.unlocks.includes(c); const lv = L.classes?.[c] ?? { level: 1, xp: 0 };
-        grid.appendChild(h("button", { class: `chip verb${c === L.class ? " on" : ""}${owned ? "" : " off"}`, disabled: !owned, onclick: () => { void app.setClass(c); close(); } }, c, " ", h("b", { class: "num" }, `${lv.level}`)));
-      }
+      const paint = (cat: Parameters<typeof classList>[1]): void => {
+        clear(grid);
+        for (const { cls, owned, level } of classList(L, cat)) {
+          grid.appendChild(h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned ? "" : " off"}`, disabled: !owned, onclick: () => { void app.setClass(cls); close(); } }, cls, " ", h("b", { class: "num" }, `L${level}`)));
+        }
+      };
+      paint(unlockCat);
+      if (!unlockCat) void app.engine.unlocks().then((cat) => paint(cat)).catch(() => { /* ladders only */ });
       return h("div", { class: "sheet-body" }, grid);
     });
   }
@@ -86,9 +96,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     vault.appendChild(prefs);
   }
   function paintSupplies(): void {
-    const L = app.lineage; const picks = L.supplies ?? []; const full = picks.length >= 3;
+    const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
     clear(supplies);
-    supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/3`),
+    supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/${cap}`),
       picks.length ? h("button", { class: "mini", onclick: () => void app.mutate(() => app.engine.clearSupplies()) }, "×") : ""));
     const chips = h("div", { class: "chips" });
     for (const p of picks) chips.appendChild(h("span", { class: "chip item on" }, p.label));
@@ -103,18 +113,23 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     }).catch((e) => console.warn("catalogue", e));
   }
   let supplyGen = 0, unlockGen = 0;
+  let unlockCat: Parameters<typeof classList>[1];
   function paintUnlocks(): void {
     const gen = ++unlockGen;
     void app.engine.unlocks().then((cat) => {
       if (gen !== unlockGen) return;
+      unlockCat = cat;
       clear(unlocks);
       const list = visible(cat);
       if (!list.length) return;
       unlocks.appendChild(h("div", { class: "label" }, /* copy:label */ "unlocks"));
       const grid = h("div", { class: "cards" });
       for (const u of list) {
-        // `available` = prerequisite + fact gate + affordable (engine truth); greyed otherwise
-        grid.appendChild(h("button", { class: `card${u.available ? "" : " off"}`, disabled: !u.available, onclick: () => void app.buy(u.id) }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)));
+        // `available` = prerequisite + fact gate + affordable (engine truth). Two dims: gated (the `needs` line
+        // is what is missing, marks are there) and unaffordable.
+        grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, disabled: !u.available, onclick: () => void app.buy(u.id) },
+          h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : ""),
+          h("span", { class: "num cost" }, `◆${u.cost}`)));
       }
       unlocks.appendChild(grid);
     }).catch((e) => console.warn("unlocks", e));

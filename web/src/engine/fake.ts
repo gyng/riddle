@@ -1,10 +1,10 @@
 // Fake Engine: a tiny deterministic mini-sim with canned-shaped output so the UI can be built and
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
-  Companion, Cond, Death, Engine, Entity, Ev, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
+  BonesPile, Companion, Cond, Death, Engine, Entity, Ev, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   ReturnReport, Row, RuleSet, Snapshot, StepResult, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary,
 } from "./types";
-import { XP_LEVEL_CAP, verbsAt, verbsUpTo, xpToNext } from "./classes";
+import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 
 type Rng = () => number;
 function mulberry32(seed: number): Rng {
@@ -54,12 +54,35 @@ const TRAITS = ["curious", "greedy", "cowardly", "brave"];
 const WEAPONS: Record<string, [number, number]> = { dagger: [2, 4], sword: [3, 7], axe: [4, 9], bow: [2, 6] };
 const ARMOUR: Record<string, number> = { leather: 1, mail: 3, plate: 5 };
 
-export const UNLOCK_COST: Record<string, number> = {
-  row5: 2, row6: 3, row7: 4, row8: 5, rogue: 4, vault2: 3, vault3: 5,
-  corridor_fighting: 3, kite_archers: 3, stair_dance: 3, throw: 2,
-  tame: 2, party_slot_2: 4,
+// Cut 2 §3 catalogue: cost in marks; `needs` = the fact/trophy gate as the player reads it, `gate` decides it.
+type UnlockDef = { cost: number; needs?: string; gate?: (L: Lineage) => boolean };
+const bossKills = (L: Lineage): number => L.trophies.filter((t) => t.startsWith("boss:")).length;
+const hasFact = (re: RegExp) => (L: Lineage): boolean => L.facts.some((f) => re.test(f));
+export const UNLOCKS: Record<string, UnlockDef> = {
+  row5: { cost: 2 }, row6: { cost: 4 }, row7: { cost: 7 }, row8: { cost: 11 },
+  party_slot_2: { cost: 4, needs: "tamed ≥ 1", gate: (L) => L.ledger.filter((r) => r.tamed).length >= 1 },
+  party_slot_3: { cost: 9, needs: "tamed ≥ 3", gate: (L) => L.ledger.filter((r) => r.tamed).length >= 3 },
+  vault2: { cost: 3 }, vault3: { cost: 6 }, vault4: { cost: 10 },
+  rogue: { cost: 4 }, ranger: { cost: 6, needs: "boss 1", gate: (L) => bossKills(L) >= 1 }, caster: { cost: 8, needs: "boss 2", gate: (L) => bossKills(L) >= 2 },
+  tame: { cost: 2, needs: "item: leash", gate: hasFact(/^item:leash$/) }, throw: { cost: 2 },
+  cond_alert: { cost: 2, needs: "foe: any", gate: hasFact(/^foe:/) }, cond_turns: { cost: 2, needs: "D3", gate: (L) => L.best_depth >= 3 },
+  cond_loot: { cost: 2, needs: "D2", gate: (L) => L.best_depth >= 2 }, cond_on_kill: { cost: 2, needs: "foe: any", gate: hasFact(/^foe:/) },
+  cond_on_see: { cost: 2, needs: "foe: any", gate: hasFact(/^foe:/) }, cond_party_hp: { cost: 2, needs: "tamed ≥ 1", gate: (L) => L.ledger.some((r) => r.tamed) },
+  corridor_fighting: { cost: 3, needs: "foe: pack", gate: hasFact(/^foe:[a-z_]+:pack$/) }, kite_archers: { cost: 3, needs: "foe: ranged", gate: hasFact(/^foe:[a-z_]+:ranged$/) },
+  stair_dance: { cost: 3, needs: "D3", gate: (L) => L.best_depth >= 3 }, gas_step: { cost: 3, needs: "foe: gas", gate: hasFact(/^foe:[a-z_]+:gas$/) },
+  pack_break: { cost: 3, needs: "foe: pack", gate: hasFact(/^foe:[a-z_]+:pack$/) }, thief_guard: { cost: 3, needs: "foe: thief", gate: hasFact(/^foe:[a-z_]+:thief$/) },
+  boss_focus: { cost: 3, needs: "boss 1", gate: (L) => bossKills(L) >= 1 }, last_stand: { cost: 3, needs: "D5", gate: (L) => L.best_depth >= 5 },
+  quartermaster: { cost: 5 }, auto_supply: { cost: 4 }, auto_insure: { cost: 6 },
+  incubator: { cost: 4, needs: "egg ≥ 1", gate: (L) => L.eggs.length >= 1 }, supply_cap_5: { cost: 3 },
+  bone_sense: { cost: 3, needs: "bones", gate: hasFact(/^bones:/) }, third_tag: { cost: 6, needs: "bred ≥ 1", gate: (L) => L.ledger.some((r) => r.bred) },
 }; // ids as the core's meta::UNLOCKS
-const UNLOCK_PREREQ: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", vault3: "vault2" };
+export const UNLOCK_COST: Record<string, number> = Object.fromEntries(Object.entries(UNLOCKS).map(([k, v]) => [k, v.cost]));
+const UNLOCK_PREREQ: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", vault3: "vault2", vault4: "vault3", party_slot_3: "party_slot_2" };
+const TACTIC_CARDS = ["corridor_fighting", "kite_archers", "stair_dance", "gas_step", "pack_break", "thief_guard", "boss_focus", "last_stand"];
+const COND_UNLOCK: Record<string, string> = { "alert>=": "cond_alert", "turns>": "cond_turns", "loot>=": "cond_loot", on_kill: "cond_on_kill", on_see: "cond_on_see", "party_hp<": "cond_party_hp" };
+const REST_CAP_S = 30 * 60, WAKE_S = 20 * 60, BONES_MAX = 3, STUDIED_KILLS = 5;
+// UI dev knob: `?engine=fake&fake_depth=5` starts every run on D5 (boss floor) so the boss HUD can be seen.
+const DEV_START_DEPTH = Math.max(1, (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_depth"))) || 1);
 const SALVAGE: Record<string, number> = { dagger: 10, sword: 20, axe: 30, bow: 20, leather: 15, mail: 25, plate: 40, leash: 5 };
 const salvageOf = (kind: string): number => SALVAGE[kind] ?? (POTIONS.includes(kind) ? 8 : SCROLLS.includes(kind) ? 12 : 0);
 const TAG_VERB: Record<string, string> = { ranged: "shoot", gas: "burst", thief: "steal", splitter: "split", pack: "flank", undead: "drain" };
@@ -124,6 +147,7 @@ type Run = {
   party: Companion[]; recalled: Mon[]; tamed: Mon[]; lostC: Companion[];
   level: number; killXp: number; windUsed: boolean; bulwark: number; cleaveCd: number;
   gear: InvItem[]; score: number;
+  bonesFound: BonesPile[]; bonesPiles: BonesPile[]; rest_s: number; insured: Set<number>; broughtItems: InvItem[];
 };
 type RunLog = { seed: number; rules: RuleSet; depth: number; cause?: string; turns: number; exit: string; known: string[]; cls: string; trait: string; heir: number; hpMargin: number };
 
@@ -217,29 +241,31 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
 }
 
 // --- sim ---
-type SimCtx = { rules: RuleSet; unlocks: Set<string>; flav: (k: string) => string; kindOfFlav: (f: string) => string | undefined; tier: (kind: string) => number };
+type SimCtx = { rules: RuleSet; unlocks: Set<string>; flav: (k: string) => string; kindOfFlav: (f: string) => string | undefined; tier: (kind: string) => number;
+  bones: BonesPile[]; insured: Set<number> };
 
 function makeRun(id: number, heir: number, seed: number, cls: string, trait: string, known: Set<string>, brought: InvItem[], ctx: SimCtx, party: Companion[] = [], level = 1): Run {
   const rng = mulberry32(seed);
   const atkBonus = [3, 6, 9].filter((l) => level >= l).length;
-  const base = (cls === "rogue" ? 16 : 20) + 2 * (level - 1);
+  const base = ({ rogue: 16, ranger: 16, caster: 14 } as Record<string, number>)[cls] ?? 20;
+  const hp = base + 2 * (level - 1);
   const hero: Hero = {
-    x: 0, y: 0, hp: base, max_hp: base, atk: cls === "rogue" ? [2 + atkBonus, 4 + atkBonus] : [2 + atkBonus, 5 + atkBonus], def: 0,
+    x: 0, y: 0, hp, max_hp: hp, atk: cls === "fighter" ? [2 + atkBonus, 5 + atkBonus] : [2 + atkBonus, 4 + atkBonus], def: 0,
     inv: [], invis: 0, stun: 0, bashCd: 0, vanishCd: 0, speedT: 0,
   };
   for (const it of brought) applyItem(hero, it, ctx.tier(it.kind));
-  if (!hero.weapon) { hero.weapon = "dagger"; hero.atk = WEAPONS.dagger; }
+  if (!hero.weapon) { const w = cls === "ranger" ? "bow" : "dagger"; hero.weapon = w; hero.atk = WEAPONS[w]; }
   hero.atk = [hero.atk[0] + atkBonus, hero.atk[1] + atkBonus];
   const run: Run = {
     id, heir, seed, rng, depth: 0, turn: 0, started_turn: 0, floorTurn: 0, floor: undefined as unknown as Floor, hero, loot: 0, alert: 0,
     trace: [], over: false, kills: {}, hl: [], facts: [], known: new Set(known), hurt: false, killed: false, saw: false,
     nextId: 0, picked: [], nearDeath: false, kindsSeen: new Set(), brought: brought.map((b) => b.id), cls, trait, loot_kept: 0,
     party: party.map((c) => ({ ...c, tags: [...c.tags], rules: { rows: c.rules.rows.map((r) => ({ conds: r.conds.map((x) => ({ ...x })), verb: { ...r.verb } })) } })), recalled: [], tamed: [], lostC: [],
-    level, killXp: 0, windUsed: false, bulwark: 0, cleaveCd: 0, gear: [], score: 0,
+    level, killXp: 0, windUsed: false, bulwark: 0, cleaveCd: 0, gear: [], score: 0, bonesFound: [], bonesPiles: ctx.bones, rest_s: 0, insured: ctx.insured, broughtItems: brought.map((b) => ({ ...b })),
   };
   run.nextId = 1000;
   run.recalled = run.party.map((c) => companionMon(run, c));
-  descendTo(run, 1, ctx, []);
+  descendTo(run, DEV_START_DEPTH, ctx, []);
   return run;
 }
 function companionMon(run: Run, c: Companion): Mon {
@@ -266,6 +292,11 @@ function descendTo(run: Run, depth: number, ctx: SimCtx, ev: Ev[]): void {
   const up = run.floor.tiles.indexOf("stairs_up");
   run.hero.x = up % W; run.hero.y = Math.floor(up / W);
   placeAllies(run);
+  // Cut 2 §2: a dead heir's kit lies where it fell; a later heir that steps on it recovers it
+  for (const b of ctx.bones) if (b.depth === depth && !run.bonesFound.includes(b)) {
+    const room = run.floor.rooms[run.floor.rooms.length - 1]; const x = room.x + Math.floor(room.w / 2), y = room.y + Math.floor(room.h / 2);
+    run.floor.items.push({ id: run.nextId++, x, y, kind: "bones", known: true, label: `bones ♟${b.heir}` });
+  }
   ev.push({ t: run.turn, k: "descend", depth, biome: biomeOf(depth) });
   ev.push({ t: run.turn, k: "callout", text: `D${depth} ${biomeOf(depth)}` });
   const bf = `biome:${biomeOf(depth)}`;
@@ -469,7 +500,16 @@ function exec(run: Run, v: Verb, ctx: SimCtx, ev: Ev[]): boolean {
     case "smoke": if (!has("smoke") || !foes.length) return false; for (const m of foes) m.stun = 3; ev.push({ t: run.turn, k: "callout", text: "smoke" }); return true;
     case "ambush": { if (!has("ambush") || h.invis <= 0) return false; const m = adjFoes(run)[0]; if (!m) return false; heroAttack(run, m, ev, "ambush", 3); return true; }
     case "shadowstep": if (!has("shadowstep") || !foes.length) return false; return stepAway(run, foes, ev, false);
-    case "card": {
+    // Cut 2 §4 ranger / caster ladders (approximations: the core is the truth)
+    case "shoot": case "bolt": case "volley": case "double_shot": { if (!has(v.v)) return false; const m = target(run, v.a ?? "nearest"); if (!m || cheb(m.x, m.y, h.x, h.y) > 5) return false; const w = h.weapon; h.weapon = "bow"; heroAttack(run, m, ev, v.v, v.v === "volley" || v.v === "double_shot" ? 2 : 1); h.weapon = w; return true; }
+    case "kite": { if (!has("kite")) return false; const m = adjFoes(run)[0]; if (!m) return false; return stepAway(run, [m], ev, false); }
+    case "trap": case "slow": { if (!has(v.v) || !foes.length) return false; const m = target(run, "nearest"); if (!m || cheb(m.x, m.y, h.x, h.y) > 3) return false; m.stun = v.v === "trap" ? 2 : 1; return true; }
+    case "mark": { if (!has("mark")) return false; const m = target(run, "nearest"); if (!m) return false; heroAttack(run, m, ev, "mark", 1.5); return true; }
+    case "ward": if (!has("ward") || run.bulwark > 0 || !foes.length) return false; run.bulwark = 3; h.def += 2; return true;
+    case "blink": if (!has("blink") || !foes.length) return false; return stepAway(run, foes, ev, false);
+    case "nova": { if (!has("nova") || run.cleaveCd > 0) return false; const adj = adjFoes(run); if (!adj.length) return false; run.cleaveCd = 15; for (const m of adj) heroAttack(run, m, ev, "nova"); return true; }
+    case "drain": { if (!has("drain")) return false; const m = adjFoes(run)[0]; if (!m) return false; heroAttack(run, m, ev, "drain"); h.hp = Math.min(h.max_hp, h.hp + 5); return true; }
+    case "tactic": case "card": {
       if (!ctx.unlocks.has(v.a ?? "")) return false;
       if (v.a === "corridor_fighting") { if (foes.length < 2) return false; return exec(run, { v: "back_corridor" }, ctx, ev); }
       if (v.a === "kite_archers") { const m = adjFoes(run)[0]; if (!m || !foes.length) return false; if (stepAway(run, [m], ev, false)) return true; return exec(run, { v: "attack" }, ctx, ev); }
@@ -483,6 +523,15 @@ function pickUp(run: Run, it: FloorItem, ev: Ev[]): void {
   run.floor.items = run.floor.items.filter((x) => x !== it);
   ev.push({ t: run.turn, k: "pickup", id: it.id, item: it.label });
   if (it.kind === "gold") { run.loot += +it.label.split(" ")[1]; return; }
+  if (it.kind === "bones") {
+    const heir = +it.label.slice(it.label.indexOf("♟") + 1); const pile = run.bonesPiles.find((b) => b.heir === heir && b.depth === run.depth);
+    if (!pile) return;
+    run.bonesFound.push(pile); run.loot += pile.items * 8;
+    ev.push({ t: run.turn, k: "bones", heir, items: pile.items });
+    ev.push({ t: run.turn, k: "note", text: `found the bones of ♟${heir}` }); ev.push({ t: run.turn, k: "callout", text: `bones ♟${heir}` });
+    run.hl.push({ pattern: "bones", score: 6, t: run.turn, run_id: run.id, text: `Found ♟${heir}'s bones on D${run.depth}: ${pile.items} item${pile.items === 1 ? "" : "s"}.` });
+    return;
+  }
   if (it.kind === "leash") learn(run, "item:leash", ev);
   const inv: InvItem = { id: it.id, kind: it.kind, known: it.known, label: it.label };
   if (!it.known && run.rng() < 0.5) inv.hint = ["poison", "caustic", "fire", "confusion", "aggravate"].includes(it.kind) ? "malevolent" : "benevolent";
@@ -494,8 +543,11 @@ function pickUp(run: Run, it: FloorItem, ev: Ev[]): void {
 }
 function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   run.over = true; run.exit = tier;
-  run.loot_kept = Math.round(run.loot * (tier === "bank" ? 1 : tier === "return" ? 0.6 : 0.3));
+  run.loot_kept = Math.round(run.loot * (tier === "bank" ? 1 : tier === "return" ? 0.6 : 0));   // Cut 2 §2: death 0%
   ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept });
+  // Cut 2 §1: camp rest as long as the expedition (one turn ≈ 1 s), capped; a death is a fixed wake
+  run.rest_s = tier === "death" ? WAKE_S : Math.min(REST_CAP_S, run.turn);
+  ev.push({ t: run.turn, k: "rest", seconds: run.rest_s });
 }
 
 function heroTurn(run: Run, ctx: SimCtx, ev: Ev[]): void {
@@ -648,9 +700,15 @@ function die(run: Run, ev: Ev[]): void {
   ev.push({ t: run.turn, k: "die", id: 0, cause });
   ev.push({ t: run.turn, k: "note", text: `died to ${cause} on D${run.depth}` });
   ev.push({ t: run.turn, k: "callout", text: cause });
+  const kit = bonesKit(run); if (kit.length) ev.push({ t: run.turn, k: "bones", heir: run.heir, items: kit.length });
   endRun(run, "death", ev);
 }
-function snapshot(run: Run): Snapshot {
+/** What a death leaves on the floor: everything carried plus the equipped kit (insured brought items excepted). */
+function bonesKit(run: Run): InvItem[] {
+  const out = [...run.gear, ...run.hero.inv, ...run.broughtItems].filter((i, k, a) => a.findIndex((x) => x.id === i.id) === k);
+  return out.filter((i) => !(run.brought.includes(i.id) && run.insured.has(i.id)));
+}
+function snapshot(run: Run, rules?: RuleSet): Snapshot {
   const h = run.hero;
   return {
     depth: run.depth, biome: biomeOf(run.depth), w: W, h: H, tiles: run.floor.tiles.slice(), seen: run.floor.seen.slice(), visible: run.floor.visible.slice(),
@@ -658,14 +716,21 @@ function snapshot(run: Run): Snapshot {
     hero: { id: 0, kind: `hero_${run.cls}`, x: h.x, y: h.y, hp: h.hp, max_hp: h.max_hp, tags: h.invis ? ["invisible"] : [], inv: h.inv.map((i) => ({ ...i })), weapon: h.weapon, armour: h.armour, class: run.cls, trait: run.trait },
     entities: run.floor.mons.map(ent), items: run.floor.items.map((i) => ({ ...i })), alert: run.alert, turn: run.turn, loot: run.loot,
     run: { id: run.id, heir: run.heir, started_turn: run.started_turn },
+    stake: stakeOf(run, rules),
   };
+}
+/** Cut 2 §7: loot on the hero, brought items (insured = safe), the first row that would bank or return. */
+function stakeOf(run: Run, rules?: RuleSet): Snapshot["stake"] {
+  const brought = run.broughtItems.map((i) => ({ label: i.label, insured: run.insured.has(i.id) }));
+  const rows = rules?.rows ?? []; const ri = rows.findIndex((r) => r.verb.v === "return" || r.verb.v === "bank");
+  return { loot: run.loot, brought, return_row: ri >= 0 ? ri : undefined };
 }
 function runToEnd(run: Run, ctx: SimCtx, maxTurns = 3000): void { while (!run.over && run.turn < maxTurns) simTurn(run, ctx); if (!run.over) endRun(run, "return", []); }
 
 // --- engine ---
 type State = {
   lineage: Lineage; rules: RuleSet; loadout: number[]; killed: string[]; runCounter: number; logs: Record<number, RunLog>; nextItem: number;
-  tamedKinds: string[]; bredKinds: string[]; nextCid: number;
+  tamedKinds: string[]; bredKinds: string[]; nextCid: number; killCounts: Record<string, number>;
 };
 
 export class FakeEngine implements Engine {
@@ -682,10 +747,11 @@ export class FakeEngine implements Engine {
   }
   private ctx(rules = this.s.rules): SimCtx {
     const fm = this.flavourMap(); const inv = new Map([...fm].map(([k, v]) => [v, k]));
-    return { rules, unlocks: new Set(this.s.lineage.unlocks), flav: (k) => fm.get(k) ?? k, kindOfFlav: (f) => inv.get(f), tier: (k) => this.s.lineage.forge?.[k]?.tier ?? 0 };
+    return { rules, unlocks: new Set(this.s.lineage.unlocks), flav: (k) => fm.get(k) ?? k, kindOfFlav: (f) => inv.get(f), tier: (k) => this.s.lineage.forge?.[k]?.tier ?? 0,
+      bones: this.s.lineage.bones ?? [], insured: new Set(this.s.lineage.insured ?? []) };
   }
   private maxRows(): number { return 4 + ["row5", "row6", "row7", "row8"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
-  private vaultSlots(): number { return 1 + ["vault2", "vault3"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
+  private vaultSlots(): number { return 1 + ["vault2", "vault3", "vault4"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
 
   newLineage(seed: number): Lineage {
     const trait = TRAITS[(seed >>> 3) % TRAITS.length];
@@ -695,10 +761,11 @@ export class FakeEngine implements Engine {
         seed, heir: 1, trait, class: "fighter", best_depth: 0, marks: 0, facts: [], unlocks: [], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
         party: [], kennel: [mkCompanion(1, "jackal", 2, ["pack", "fast"], 0), mkCompanion(2, "goblin_archer", 1, ["ranged"], 0)],
         eggs: [{ id: 3, kind: "bloat", tags: ["gas"], gen: 1, hatch_in: 3, from_loss: false }], party_slots: 1, ledger: [],
-        gold: 120, supplies: [], classes: { fighter: { level: 1, xp: 0 }, rogue: { level: 1, xp: 0 } },
+        gold: 120, supplies: [], classes: Object.fromEntries(CLASSES.map((c) => [c, { level: 1, xp: 0 }])),
         forge: { dagger: { salvaged: 6, craftable: true, tier: 0 } }, renown: 0, rank: 0, keep_pref: "best_weapon",
+        rest_left_s: 0, bones: [],
       },
-      rules: copy(), loadout: [], killed: [], runCounter: 0, logs: {}, nextItem: 50000, tamedKinds: ["jackal", "goblin_archer"], bredKinds: ["bloat"], nextCid: 10,
+      rules: copy(), loadout: [], killed: [], runCounter: 0, logs: {}, nextItem: 50000, tamedKinds: ["jackal", "goblin_archer"], bredKinds: ["bloat"], nextCid: 10, killCounts: {},
     };
     this.live = null; this.lastDeath = {};
     return this.lineage();
@@ -709,21 +776,22 @@ export class FakeEngine implements Engine {
     L.party ??= []; L.kennel ??= []; L.eggs ??= []; L.party_slots ??= 1; L.ledger ??= []; L.gold ??= 0; L.supplies ??= [];
     L.classes ??= { fighter: { level: 1, xp: 0 }, rogue: { level: 1, xp: 0 } };
     L.forge ??= {}; L.renown ??= 0; L.rank ??= 0; L.keep_pref ??= "best_weapon";
-    p.tamedKinds ??= []; p.bredKinds ??= []; p.nextCid ??= 10;
+    L.rest_left_s ??= 0; L.bones ??= []; for (const c of CLASSES) L.classes[c] ??= { level: 1, xp: 0 };
+    p.tamedKinds ??= []; p.bredKinds ??= []; p.nextCid ??= 10; p.killCounts ??= {};
     return this.lineage();
   }
   save(): string { return JSON.stringify(this.s); }
   lineage(): Lineage { this.s.lineage.ledger = this.ledger(); return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage; }
   private ledger(): LedgerRow[] {
     const F = this.s.lineage.facts;
-    return LEDGER_KINDS.map((kind) => ({ kind, seen: F.includes(`foe:${kind}`), known: F.includes(`foe:${kind}`) && MON[kind].tags.filter((t) => t !== "boss").every((t) => F.includes(`foe:${kind}:${t}`)), tamed: this.s.tamedKinds.includes(kind), bred: this.s.bredKinds.includes(kind) }));
+    return LEDGER_KINDS.map((kind) => ({ kind, seen: F.includes(`foe:${kind}`), known: F.includes(`foe:${kind}`) && MON[kind].tags.filter((t) => t !== "boss").every((t) => F.includes(`foe:${kind}:${t}`)), studied: F.includes(`foe:${kind}:studied`), tamed: this.s.tamedKinds.includes(kind), bred: this.s.bredKinds.includes(kind) }));
   }
   private classLevel(cls = this.s.lineage.class): number { return this.s.lineage.classes[cls]?.level ?? 1; }
   private partySlots(): number { return this.s.lineage.unlocks.includes("party_slot_2") ? 2 : 1; }
   setParty(ids: number[]): Lineage {
     const L = this.s.lineage; const all = [...L.kennel, ...L.party];
     const chosen = ids.map((id) => all.find((c) => c.id === id)).filter((c): c is Companion => !!c).slice(0, this.partySlots());
-    L.party = chosen; L.kennel = all.filter((c) => !chosen.includes(c)); L.party_slots = this.partySlots();
+    L.party = chosen; L.kennel = all.filter((c) => !chosen.includes(c)); L.party_slots = this.partySlots(); this.dropIdleRun();
     return this.lineage();
   }
   setCompanionRules(id: number, set: RuleSet): void {
@@ -784,6 +852,8 @@ export class FakeEngine implements Engine {
     for (const k of kinds) conds.push({ k: "item", t: k });
     conds.push({ k: "unknown_item" }, { k: "floor_seen>=" }, { k: "depth>=" }, { k: "alert>=" }, { k: "in_corridor" }, { k: "path_stairs" }, { k: "ally" }, { k: "loot>=" }, { k: "turns>" }, { k: "on_hurt" }, { k: "on_kill" }, { k: "on_see" });
     if (L.party.length || L.kennel.length) { conds.push({ k: "party_hp<" }); for (const k of new Set([...L.party, ...L.kennel].map((c) => c.kind))) conds.push({ k: "party", t: k }); }
+    // Cut 2 §3: condition tokens are unlocks now
+    const gated = conds.filter((c) => !COND_UNLOCK[c.k] || L.unlocks.includes(COND_UNLOCK[c.k]));
     const verbs: Verb[] = [{ v: "attack", a: "nearest" }, { v: "attack", a: "lowest" }];
     for (const t of tags) verbs.push({ v: "attack", a: `tag:${t}` });
     verbs.push({ v: "retreat" }, { v: "back_corridor" });
@@ -796,14 +866,16 @@ export class FakeEngine implements Engine {
     for (const v of verbsUpTo(L.class, this.classLevel())) if (v !== "throw") verbs.push({ v });
     if (L.unlocks.includes("tame")) { verbs.push({ v: "tame", a: "nearest" }); for (const t of tags) verbs.push({ v: "tame", a: `tag:${t}` }); }
     if (L.party.length) { verbs.push({ v: "recall" }, { v: "send" }); }
-    for (const c of ["corridor_fighting", "kite_archers", "stair_dance"]) if (L.unlocks.includes(c)) verbs.push({ v: "tactic", a: c });
-    return { conds, verbs, max_rows: this.maxRows() };
+    for (const c of TACTIC_CARDS) if (L.unlocks.includes(c)) verbs.push({ v: "tactic", a: c });
+    return { conds: gated, verbs, max_rows: this.maxRows() };
   }
   setRules(set: RuleSet): void {
     this.s.rules = { rows: set.rows.slice(0, this.maxRows()).map((r) => ({ conds: r.conds.slice(0, 2).map((c) => ({ ...c })), verb: { ...r.verb } })), name: set.name };
     this.s.lineage.sets[this.s.lineage.active_set] = JSON.parse(JSON.stringify(this.s.rules)) as RuleSet;
   }
-  loadout(itemIds: number[]): void { this.s.loadout = itemIds.filter((id) => this.s.lineage.vault.some((v) => v.id === id)); }
+  loadout(itemIds: number[]): void { this.s.loadout = itemIds.filter((id) => this.s.lineage.vault.some((v) => v.id === id)); this.dropIdleRun(); }
+  /** A live run that has not taken a turn yet (the report's `live` peek) is rebuilt on the next send, so loadout/class/party changes land. */
+  private dropIdleRun(): void { if (this.live && !this.live.over && this.live.turn === 0 && this.live !== this.pending) this.live = null; }
 
   private known(): Set<string> { return new Set(this.s.lineage.facts); }
   private brought(): InvItem[] { return [...this.s.lineage.vault.filter((v) => this.s.loadout.includes(v.id)), ...this.s.lineage.supplies].map((v) => ({ ...v })); }
@@ -831,7 +903,7 @@ export class FakeEngine implements Engine {
     this.s.logs[id] = { seed, rules: JSON.parse(JSON.stringify(this.s.rules)) as RuleSet, depth: 1, turns: 0, exit: "", known: [...this.known()], cls: L.class, trait: L.trait, heir: L.heir, hpMargin: 0 };
     return run;
   }
-  send(): Snapshot { if (!this.live || this.live.over) this.live = this.startRun(); const snap = snapshot(this.live); snap.turn *= 10; return snap; }
+  send(): Snapshot { this.s.lineage.rest_left_s = 0; if (!this.live || this.live.over) this.live = this.startRun(); const snap = snapshot(this.live, this.s.rules); snap.turn *= 10; return snap; }
   // The fake sims one hero action per turn; `step` takes ticks (Addendum E: 10 per action) so the
   // viewer's clock reads it at the real pace. Event `t` and `snapshot.turn` are scaled ×10.
   private tickAcc = 0;
@@ -842,13 +914,13 @@ export class FakeEngine implements Engine {
     for (let i = 0; i < turns && !this.live.over; i++) events.push(...simTurn(this.live, ctx));
     let exit_pending: StepResult["exit_pending"];
     if (this.live.over && !this.pending && !this.settled.has(this.live.id)) {
-      const items = this.carried(this.live);
+      const items = this.live.exit === "death" ? [] : this.carried(this.live);   // Cut 2 §2: a death leaves bones, nothing to keep
       if (items.length) { this.pending = this.live; exit_pending = { items, tier: this.live.exit ?? "death" }; }
       else { const r = this.settle(this.live, true); for (const level of r.levels) events.push({ t: this.live.turn, k: "level", class: this.live.cls, level }); for (const rank of r.ranks) events.push({ t: this.live.turn, k: "rank", rank }); }
       this.settled.add(this.live.id);
     }
     for (const e of events) e.t *= 10;
-    const snap = snapshot(this.live); snap.turn *= 10;
+    const snap = snapshot(this.live, ctx.rules); snap.turn *= 10;
     return { events, snapshot: snap, run_over: this.live.over, exit_pending };
   }
   // apply a finished run to the lineage; returns [newFacts, newBests, marks]
@@ -867,6 +939,15 @@ export class FakeEngine implements Engine {
     const facts: string[] = []; const bests: string[] = []; let marks = 0;
     const tamed: string[] = [], lost: string[] = [], hatched: string[] = [];
     L.gold += run.loot_kept; L.supplies = [];
+    L.rest_left_s = run.rest_s;                                             // Cut 2 §1: camp rest after every expedition (send skips it)
+    // Cut 2 §2: bones recovered this run leave the lineage; a death leaves a new pile (max 3, oldest expires)
+    L.bones = (L.bones ?? []).filter((b) => !run.bonesFound.some((f) => f.heir === b.heir && f.depth === b.depth));
+    if (run.exit === "death") {
+      const kit = bonesKit(run).length; if (kit) { L.bones.push({ depth: run.depth, heir: run.heir, items: kit }); while (L.bones.length > BONES_MAX) L.bones.shift(); }
+      const bf = `bones:${run.depth}`; if (!L.facts.includes(bf)) { L.facts.push(bf); facts.push(bf); }
+    }
+    // Cut 2 §5: a kind is studied after 5 kills
+    for (const [k, n] of Object.entries(run.kills)) { const c = (this.s.killCounts[k] = (this.s.killCounts[k] ?? 0) + n); const sf = `foe:${k}:studied`; if (c >= STUDIED_KILLS && !L.facts.includes(sf)) { L.facts.push(sf); facts.push(sf); } }
     // companions: party members and tamed foes
     const survivors = run.floor ? [...companions(run), ...run.recalled] : [...run.recalled];
     const egg = (c: Companion): void => { L.eggs.push({ id: this.s.nextCid++, kind: c.kind, tags: [...c.tags], gen: c.gen, hatch_in: 5, from_loss: true }); lost.push(c.kind); };
@@ -877,8 +958,8 @@ export class FakeEngine implements Engine {
       for (const m of run.tamed) if (survivors.includes(m)) { L.kennel.push(mkCompanion(this.s.nextCid++, m.kind, 1, [...m.tags], 0)); tamed.push(m.kind); if (!this.s.tamedKinds.includes(m.kind)) this.s.tamedKinds.push(m.kind); }
     }
     this.tickEggs(hatched);
-    // class xp (Addendum C)
-    const tier = run.exit === "bank" ? 1 : run.exit === "return" ? 0.6 : 0.3;
+    // class xp (Addendum C; Cut 2 §2: death 0)
+    const tier = run.exit === "bank" ? 1 : run.exit === "return" ? 0.6 : 0;
     const xp = Math.round((run.killXp + 5 * run.depth) * tier);
     const cl = (L.classes[run.cls] ??= { level: 1, xp: 0 }); cl.xp += xp; const levels: number[] = [];
     while (cl.level < XP_LEVEL_CAP && cl.xp >= xpToNext(cl.level)) { cl.xp -= xpToNext(cl.level); cl.level++; levels.push(cl.level); for (const v of verbsAt(run.cls, cl.level)) facts.push(`verb:${v}`); }
@@ -886,19 +967,20 @@ export class FakeEngine implements Engine {
     for (const f of run.facts) if (!L.facts.includes(f)) { L.facts.push(f); facts.push(f); }
     for (let d = L.best_depth + 1; d <= run.depth; d++) { marks += 1; bests.push(`D${d}`); }
     if (run.depth > L.best_depth) L.best_depth = run.depth;
-    for (const k of Object.keys(run.kills)) if (!this.s.killed.includes(k)) { this.s.killed.push(k); const boss = MON[k]?.tags.includes("boss"); marks += boss ? 3 : 1; bests.push(`first kill ${k.replace(/_/g, " ")}`); run.hl.push({ pattern: "first_kill", score: 3, t: run.turn, run_id: run.id, text: `First ${k.replace(/_/g, " ")} killed, D${run.depth}.` }); }
+    // Cut 2 §2: no first-kill marks; a boss kill is a trophy (3 marks) and first kills stay in bests
+    for (const k of Object.keys(run.kills)) if (!this.s.killed.includes(k)) { this.s.killed.push(k); const boss = MON[k]?.tags.includes("boss"); if (boss) { marks += 3; L.trophies.push(`boss:${k}`); } bests.push(`first kill ${k.replace(/_/g, " ")}`); run.hl.push({ pattern: "first_kill", score: 3, t: run.turn, run_id: run.id, text: `First ${k.replace(/_/g, " ")} killed, D${run.depth}.` }); }
     if (run.depth >= 5 && !this.s.rules.rows.some((r) => r.verb.v === "drink") && !L.trophies.includes("no_heal_D5")) { L.trophies.push("no_heal_D5"); marks += 2; bests.push("trophy no_heal_D5"); }
     L.marks += marks;
     if (run.exit === "death") {
       L.graveyard.push({ heir: run.heir, depth: run.depth, cause: run.cause ?? "?", deeds: bests.slice(0, 3) });
-      L.vault = L.vault.filter((v) => !run.brought.includes(v.id)); this.s.loadout = [];
+      L.vault = L.vault.filter((v) => !run.brought.includes(v.id) || run.insured.has(v.id)); L.insured = (L.insured ?? []).filter((id) => !run.brought.includes(id)); this.s.loadout = [];
       L.heir += 1; L.trait = TRAITS[(L.seed + L.heir * 7) % TRAITS.length];
     } else {
     }
-    // Addendum D: keep into free vault slots, salvage the rest
-    const tierMul = run.exit === "bank" ? 1 : run.exit === "return" ? 0.6 : 0.3;
+    // Addendum D: keep into free vault slots, salvage the rest (Cut 2 §2: a death's kit is bones, not salvage)
+    const tierMul = run.exit === "bank" ? 1 : 0.6;
     const salv: Record<string, { n: number; gold: number }> = {};
-    for (const it of this.carried(run)) {
+    for (const it of run.exit === "death" ? [] : this.carried(run)) {
       if (keepIds.includes(it.id) && L.vault.length < this.vaultSlots()) { L.vault.push({ ...it, id: this.s.nextItem++ }); continue; }
       const g = Math.round(salvageOf(it.kind) * tierMul); L.gold += g;
       const f = (L.forge[it.kind] ??= { salvaged: 0, craftable: false, tier: 0 }); f.salvaged++; f.craftable = f.salvaged >= 5; f.tier = f.salvaged >= 40 ? 2 : f.salvaged >= 15 ? 1 : 0;
@@ -922,6 +1004,10 @@ export class FakeEngine implements Engine {
   runOffline(elapsedS: number): ReturnReport {
     const L = this.s.lineage;
     let budget = Math.max(0, Math.floor(elapsedS)); let runs = 0, stall = 0, sampled = false, turnsTotal = 0;
+    let rested = 0, banked = 0, returned = 0; const bonesFound: string[] = [];
+    // Cut 2 §1: the rest (or wake) after each expedition comes out of the same clock; what is left waits in camp
+    const rest = (run: Run): void => { const r = Math.min(run.rest_s, budget); rested += r; budget -= r; L.rest_left_s = run.rest_s - r; if (run.exit === "bank") banked++; else if (run.exit === "return") returned++; for (const b of run.bonesFound) bonesFound.push(`heir ${b.heir} · D${b.depth} · ${b.items} items`); };
+    if ((L.rest_left_s ?? 0) > 0) { const r = Math.min(L.rest_left_s ?? 0, budget); rested += r; budget -= r; L.rest_left_s = (L.rest_left_s ?? 0) - r; }
     const learned: string[] = [], bests: string[] = [], found: InvItem[] = [], deaths: Record<string, number> = {}; let marks = 0; let reel: Highlight[] = [];
     const tamed: string[] = [], hatched: string[] = [], lost: string[] = []; let xpGained = 0, levelUps = 0, renownGained = 0, ranksUp = 0;
     const salvMap: Record<string, { n: number; gold: number }> = {};
@@ -931,7 +1017,7 @@ export class FakeEngine implements Engine {
     };
     if (this.pending) { const run = this.pending; this.pending = null; take(this.settle(run, true, this.autoKeep(run))); this.live = null; }
     let worst: { id: number; depth: number } | null = null;
-    if (this.live && !this.live.over) { const ctx = this.ctx(); while (!this.live.over && budget > 0) { simTurn(this.live, ctx); budget--; } if (this.live.over) { const r = this.settle(this.live, true, this.autoKeep(this.live)); this.settled.add(this.live.id); take(r); learned.push(...r.facts); bests.push(...r.bests); marks += r.marks; runs++; if (this.live.exit === "death") { deaths[this.live.cause ?? "?"] = 1; worst = { id: this.live.id, depth: this.live.depth }; } reel.push(...this.live.hl); this.live = null; } }
+    if (this.live && !this.live.over) { const ctx = this.ctx(); while (!this.live.over && budget > 0) { simTurn(this.live, ctx); budget--; } if (this.live.over) { const r = this.settle(this.live, true, this.autoKeep(this.live)); this.settled.add(this.live.id); take(r); learned.push(...r.facts); bests.push(...r.bests); marks += r.marks; runs++; if (this.live.exit === "death") { deaths[this.live.cause ?? "?"] = 1; worst = { id: this.live.id, depth: this.live.depth }; } reel.push(...this.live.hl); rest(this.live); this.live = null; } }
     while (budget > 0 && stall < 20 && runs < 80 && !L.ended) {
       const run = this.startRun(); const ctx = this.ctx();
       while (!run.over && budget > 0) { simTurn(run, ctx); budget--; }
@@ -943,6 +1029,7 @@ export class FakeEngine implements Engine {
       for (const p of run.picked) if ((WEAPONS[p.kind] || ARMOUR[p.kind] !== undefined) && !found.some((f) => f.kind === p.kind)) found.push(p);
       if (run.exit === "death") { deaths[run.cause ?? "?"] = (deaths[run.cause ?? "?"] ?? 0) + 1; if (!worst || run.depth < worst.depth) worst = { id: run.id, depth: run.depth }; }
       reel.push(...run.hl);
+      rest(run);
     }
     if (budget > 0 && stall >= 20 && turnsTotal > 0) { const extra = Math.floor(budget / (turnsTotal / runs)); if (extra > 0) { sampled = true; const scale = (runs + extra) / runs; for (const k of Object.keys(deaths)) deaths[k] = Math.round(deaths[k] * scale); runs += extra; } }
     reel = reel.sort((a, b) => b.score - a.score).slice(0, 5);
@@ -951,13 +1038,17 @@ export class FakeEngine implements Engine {
     const worstDeath = worst ? this.death(worst.id) : undefined;
     if (worstDeath?.verdict === "gap") pending.push(`patch D${worstDeath.depth} ${worstDeath.cause}`);
     if (!pending.length) pending.push("rules");
-    return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live: this.send(), tamed, hatched, lost, xp: { class: L.class, gained: xpGained, level_ups: levelUps },
-      salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp } };
+    const restLeft = L.rest_left_s ?? 0;
+    const live = this.send(); L.rest_left_s = restLeft;                    // `live` is a peek, not a send: the rest stands
+    return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live, tamed, hatched, lost, xp: { class: L.class, gained: xpGained, level_ups: levelUps },
+      salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp },
+      rested_s: rested, banked, returned, bones_found: bonesFound };
   }
   private unlockVisible(u: string): boolean {
-    const L = this.s.lineage.unlocks;
-    const pre = UNLOCK_PREREQ[u]; if (pre && !L.includes(pre)) return false;
-    if (u === "tame") return this.s.lineage.facts.includes("item:leash"); return true;
+    const L = this.s.lineage;
+    const pre = UNLOCK_PREREQ[u]; if (pre && !L.unlocks.includes(pre)) return false;
+    L.ledger = this.ledger();
+    return UNLOCKS[u]?.gate?.(L) ?? true;
   }
 
   death(runId: number): Death {
@@ -997,17 +1088,18 @@ export class FakeEngine implements Engine {
     if (L.unlocks.includes(unlock)) throw new Error("already owned");
     if (!this.unlockVisible(unlock)) throw new Error("prerequisite missing");
     if (L.marks < cost) throw new Error("not enough marks");
-    L.marks -= cost; L.unlocks.push(unlock); if (unlock === "party_slot_2") L.party_slots = 2;
+    L.marks -= cost; L.unlocks.push(unlock); if (unlock === "party_slot_2") L.party_slots = 2; if (unlock === "party_slot_3") L.party_slots = 3;
     return this.lineage();
   }
   unlocks(): UnlockInfo[] {
     const L = this.s.lineage;
-    return Object.entries(UNLOCK_COST).map(([id, cost]) => { const owned = L.unlocks.includes(id); return { id, cost, owned, available: !owned && this.unlockVisible(id) && L.marks >= cost }; });
+    L.ledger = this.ledger();
+    return Object.entries(UNLOCKS).map(([id, u]) => { const owned = L.unlocks.includes(id); const met = u.gate?.(L) ?? true; return { id, cost: u.cost, owned, available: !owned && this.unlockVisible(id) && L.marks >= u.cost, needs: met ? undefined : u.needs }; });
   }
   setClass(cls: string): Lineage {
-    if (cls !== "fighter" && cls !== "rogue") throw new Error("unknown class");
-    if (cls === "rogue" && !this.s.lineage.unlocks.includes("rogue")) throw new Error("rogue not unlocked");
-    this.s.lineage.class = cls; return this.lineage();
+    if (!(CLASSES as readonly string[]).includes(cls)) throw new Error("unknown class");
+    if (!isFreeClass(cls) && !this.s.lineage.unlocks.includes(cls)) throw new Error(`${cls} not unlocked`);
+    this.s.lineage.class = cls; this.dropIdleRun(); return this.lineage();
   }
   selectSet(i: number): Lineage {
     const L = this.s.lineage; L.active_set = Math.max(0, Math.min(L.sets.length - 1, i));

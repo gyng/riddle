@@ -18,6 +18,8 @@ const VERB: Record<string, string> = {
   split: "split", flank: "flank", drain: "drain",
   cleave: "cleave", taunt: "taunt", second_wind: "second wind", bulwark: "bulwark", backstab: "backstab", smoke: "smoke",
   ambush: "ambush", shadowstep: "shadowstep",
+  kite: "kite", volley: "volley", trap: "trap", mark: "mark", double_shot: "double shot",
+  bolt: "bolt", ward: "ward", blink: "blink", slow: "slow", nova: "nova", tactic: "card",
 };
 export const PCT = new Set(["hp<", "hp>", "foe_hp<", "self_hp<", "party_hp<", "floor_seen>="]);
 export const NUMS: Record<string, number[]> = {
