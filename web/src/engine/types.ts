@@ -136,6 +136,7 @@ export interface Engine {
   insure(id: number): Lineage;          // core addition: gold bet that keeps a brought vault item on death
   // core additions (crates/riddle-core/README.md)
   unlocks(): UnlockInfo[];              // the catalogue; `available` = prereq + fact gate + affordable
+  unlockDeltas(): UnlockInfo[];         // Cut 4: same catalogue with forecast `delta` computed (0.3–2 s); call after paint
   setClass(cls: string): Lineage;       // switch class (rogue needs the `rogue` unlock)
   selectSet(i: number): Lineage;        // pick one of the three saved sets; setRules writes the active one
   ascend(variant: string): Lineage;     // Cut 3: after the ending, a new lineage under a variant (keeps classes, kennel, vault, facts, rules)

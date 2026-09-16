@@ -1150,6 +1150,7 @@ export class FakeEngine implements Engine {
     L.marks -= cost; L.unlocks.push(unlock); if (unlock === "party_slot_2") L.party_slots = 2; if (unlock === "party_slot_3") L.party_slots = 3;
     return this.lineage();
   }
+  unlockDeltas(): UnlockInfo[] { return this.unlocks(); }
   unlocks(): UnlockInfo[] {
     const L = this.s.lineage;
     L.ledger = this.ledger();

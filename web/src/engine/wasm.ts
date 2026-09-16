@@ -66,6 +66,7 @@ export class WasmEngine implements Engine {
   insure(id: number): Lineage { return this.call("insure", id); }
   // core additions
   unlocks(): UnlockInfo[] { return this.call("unlocks"); }
+  unlockDeltas(): UnlockInfo[] { return this.call("unlockDeltas"); }
   setClass(cls: string): Lineage { return this.call("setClass", cls); }
   selectSet(i: number): Lineage { return this.call("selectSet", i); }
   // Cut 3

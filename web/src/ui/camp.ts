@@ -1,5 +1,6 @@
 // Camp: lineage strip · set tabs · rule editor · forecast · vault loadout · unlocks · send.
 import type { App, Mounted } from "../app";
+import type { UnlockInfo } from "../engine/types";
 import { h, clear, replace, spanOf } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
@@ -142,6 +143,15 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     void app.engine.unlocks().then((cat) => {
       if (gen !== unlockGen) return;
       unlockCat = cat;
+      // forecast deltas arrive later (0.3–2 s of sims); repaint once with them, never blocking the shelf
+      if (!cat.some((u) => u.delta !== undefined)) {
+        void app.engine.unlockDeltas().then((withDeltas) => { if (gen === unlockGen && withDeltas.some((u) => u.delta)) { unlockGen++; paintFrom(withDeltas); } }).catch(() => { /* deltas are optional */ });
+      }
+      paintFrom(cat);
+    }).catch((e) => console.warn("unlocks", e));
+  }
+  function paintFrom(cat: UnlockInfo[]): void {
+    {
       clear(unlocks);
       const list = visible(cat);
       if (!list.length) return;
@@ -158,7 +168,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           h("span", { class: "num cost" }, `◆${u.cost}`)));
       }
       unlocks.appendChild(grid);
-    }).catch((e) => console.warn("unlocks", e));
+    }
   }
   // Cut 4 §1: `send` waits while the set is over budget (the editor shows which row to drop)
   function paintSend(): void { send.disabled = app.overBudget; paintTabs(); }
