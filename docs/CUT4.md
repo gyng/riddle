@@ -36,3 +36,20 @@ Everything below is what both raters said independently, with their quotes.*
 - **Client/renderer** (`web/src/**`): 1, 2 (display), 3 (render), 4, 8, 9 (display). Starts now.
 - **Core** (`crates/**`): 2 (verdict), 3 (`remembered`, callout), 5, 6, 7, 9 (`delta`). Starts
   when the Cut 3 core lands (same files).
+
+## Cohort 1 result (build 6e691ec, after the absence redo)
+
+| Rater | Seed | Total | Verdict | Gates |
+|---|---|---|---|---|
+| A | 11 | 62.4 | promising | story |
+| B | 23 | 64.9 | promising | none |
+
+Krippendorff α = 0.887 over 16 axes (decision-grade). Disagreements: story (0.3 / 0.6),
+progression (0.8 / 0.6), attribution (0.6 / 0.8). Lost weight, ranked: **story** (1.65),
+surprise / pacing / expression / clarity (1.20 each), progression, attribution (0.90), tension.
+
+Evidence the raters gave, by axis: *story* "the reel is fragments with no turn in them";
+*pacing* "1× watching is dead; bail is a black rest screen"; *clarity* "money never
+reconciles"; *surprise* "D1–5 monsters repeat"; *expression* "two sets seen"; *attribution*
+"my retreat rule did not fire and nothing said why". Kill flag cleared for both after the
+harness fix. Rater A also hit a stranded exit screen (fixed: bounded exit flow).
