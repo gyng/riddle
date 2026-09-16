@@ -1,0 +1,143 @@
+{
+  "name": "full",
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 35
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 20
+        },
+        {
+          "k": "depth>=",
+          "n": 5
+        }
+      ],
+      "verb": {
+        "v": "return"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        },
+        {
+          "k": "depth>=",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "tactic",
+        "a": "cadence"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "summoned"
+        },
+        {
+          "k": "depth>=",
+          "n": 25
+        }
+      ],
+      "verb": {
+        "v": "read",
+        "a": "silence"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "reflect_melee"
+        }
+      ],
+      "verb": {
+        "v": "tactic",
+        "a": "reflect_read"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "buffer"
+        },
+        {
+          "k": "depth>=",
+          "n": 16
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:buffer"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "tactic",
+        "a": "boss_focus"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 3
+        },
+        {
+          "k": "hp<",
+          "n": 70
+        }
+      ],
+      "verb": {
+        "v": "back_corridor"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 90
+        }
+      ],
+      "verb": {
+        "v": "tactic",
+        "a": "noise_discipline"
+      }
+    }
+  ]
+}

@@ -35,6 +35,13 @@ pub struct Floor {
     pub stairs_up: Pos,
     pub stairs_down: Pos,
     pub rooms: Vec<Rect>,
+    /// Cut 3: the hero's sight radius on this floor (the Deep is dark: 4; lit biomes 7).
+    #[serde(default = "default_vision")]
+    pub vision: i32,
+}
+
+fn default_vision() -> i32 {
+    crate::descent::VISION_LIT
 }
 
 impl Floor {
@@ -55,11 +62,9 @@ impl Floor {
 
 pub fn generate(rng: &mut Rng, biome: Biome, depth: u32) -> Floor {
     for attempt in 0..8 {
-        let f = match biome {
-            Biome::Fens => gen_cave(rng, depth),
-            _ => gen_rooms(rng, biome, depth),
-        };
-        if let Some(f) = f {
+        let f = if biome.is_cave() { gen_cave(rng, depth) } else { gen_rooms(rng, biome, depth) };
+        if let Some(mut f) = f {
+            f.vision = biome.vision();
             let d = f.map.bfs(f.stairs_up, false, &|_| false);
             if d[f.map.idx(f.stairs_down)] > 0 || attempt == 7 {
                 return f;
@@ -149,7 +154,7 @@ fn gen_rooms(rng: &mut Rng, biome: Biome, depth: u32) -> Option<Floor> {
     }
     map.set(stairs_down, Tile::StairsDown);
     map.compute_corridors(&room_mask);
-    Some(Floor { map, stairs_up, stairs_down, rooms })
+    Some(Floor { map, stairs_up, stairs_down, rooms, vision: biome.vision() })
 }
 
 fn carve_l(map: &mut Map, room_mask: &[bool], rng: &mut Rng, a: Pos, b: Pos) {
@@ -239,7 +244,7 @@ fn gen_cave(rng: &mut Rng, depth: u32) -> Option<Floor> {
     }
     // Water: random-walk blobs, never on the stairs.
     let open: Vec<Pos> = (0..n).filter(|i| map.tiles[*i] == Tile::Floor).map(|i| map.pos(i)).collect();
-    let blobs = 5 + (depth as i32 - 6).clamp(0, 3);
+    let blobs = 5 + (depth as i32 % 10 - 6).clamp(0, 3);
     for _ in 0..blobs {
         let mut p = *rng.pick(&open);
         for _ in 0..rng.range(8, 16) {
@@ -270,7 +275,7 @@ fn gen_cave(rng: &mut Rng, depth: u32) -> Option<Floor> {
     map.set(stairs_up, Tile::StairsUp);
     map.set(far, Tile::StairsDown);
     map.compute_corridors(&[]);
-    Some(Floor { map, stairs_up, stairs_down: far, rooms: Vec::new() })
+    Some(Floor { map, stairs_up, stairs_down: far, rooms: Vec::new(), vision: crate::descent::VISION_LIT })
 }
 
 #[cfg(test)]
@@ -280,7 +285,7 @@ mod tests {
     fn rooms_connected_and_bounded() {
         for seed in 0..40u64 {
             let mut rng = Rng::new(seed);
-            for (biome, depth) in [(Biome::Warrens, 1), (Biome::Crypt, 12)] {
+            for (biome, depth) in [(Biome::Warrens, 1), (Biome::Crypt, 12), (Biome::Foundry, 17), (Biome::Sanctum, 28)] {
                 let f = generate(&mut rng, biome, depth);
                 assert!(f.map.w <= MAX_W && f.map.h <= MAX_H);
                 let d = f.map.bfs(f.stairs_up, false, &|_| false);
@@ -299,6 +304,10 @@ mod tests {
             let d = f.map.bfs(f.stairs_up, false, &|_| false);
             assert!(d[f.map.idx(f.stairs_down)] > 0, "seed {seed} cave unconnected");
             assert!(!f.water_tiles().is_empty(), "seed {seed} no water");
+            assert_eq!(f.vision, 7);
+            let deep = generate(&mut rng, Biome::Deep, 22);
+            assert_eq!(deep.vision, 4, "the Deep is dark");
+            assert!(!deep.water_tiles().is_empty(), "seed {seed} deep has no water");
         }
     }
     #[test]

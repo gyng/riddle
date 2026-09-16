@@ -1,7 +1,7 @@
 # riddle-core
 
 Deterministic roguelike sim, rule engine, facts, forecast, offline batch, chronicle, sifter,
-meta (Cut 1 + Addenda A–E, Cut 2). All game truth lives here; `riddle-wasm` is a JSON bridge.
+meta (Cut 1 + Addenda A–E, Cut 2, Cut 3). All game truth lives here; `riddle-wasm` is a JSON bridge.
 
 ## Wire deviations
 
@@ -37,7 +37,7 @@ fields). Where the contract left a choice open, this is what the engine does:
   companions are lone when no friend is within 2 tiles.
 - **Companion ids**: tamed on the floor get `1_000_000 + run_id*100 + n`; hatched ones use the
   lineage counter (small ints). Ids are unique for the lineage.
-- **Unlock ids** (`buy`, Cut 2 §3, 35 entries): `row5 row6 row7 row8 · party_slot_2
+- **Unlock ids** (`buy`, Cut 2 §3, 35 entries; Cut 3 adds ten, see below): `row5 row6 row7 row8 · party_slot_2
   party_slot_3 · vault2 vault3 vault4 · rogue ranger caster · tame throw · cond_alert cond_turns
   cond_loot cond_on_kill cond_on_see cond_party_hp · corridor_fighting kite_archers stair_dance
   gas_step pack_break thief_guard boss_focus last_stand · quartermaster auto_supply auto_insure
@@ -63,7 +63,8 @@ fields). Where the contract left a choice open, this is what the engine does:
   {seconds}` follows `exit`. Offline, rest ticks come out of the same 10/s budget (`rested_s`
   in the report); online, `step` consumes rest first while the run has not begun; `send`
   zeroes it. The stall sampler counts rest in its per-run mean.
-- **Run cap 40 000 ticks** (was 20 000: a D10 run on 32×32 floors takes ~25 000). A capped
+- **Run cap 120 000 ticks** (Cut 3; was 40 000, and 20 000 before that: a D10 run on 32×32
+  floors takes ~25 000, a D30 run ~75 000). A capped
   run comes home as `return` with **no yield** (`loot_kept 0`, no gold/XP/renown/salvage; the
   pack still comes home) — a stalemate is not a policy, and DEFAULT must yield nothing.
 - **Yield follows the exit (Cut 2 §2).** `ExitTier::pct` bank 100 / return 60 / death 0 for
@@ -173,6 +174,86 @@ fields). Where the contract left a choice open, this is what the engine does:
   (DEFAULT, EDITED, PETS, LEVELLED). LEARNED knows every fact by construction; RANDOM and
   PASSIVE are probes.
 
+## Cut 3 (biomes 4–6, items, tier 2, ascension) — deviations and additions
+
+- **Ending at D31**; `biome_for`: Foundry 16–20, Deep 21–25, Sanctum 26–30; bosses
+  `foundry_master` D20, `lurker_queen` D25, `mirror_king` D30. Sprite keys are the kind names
+  in `docs/CUT3.md`. Tags (facts and tokens): Foundry `reflect_melee fire thief alarm heavy
+  buffer`, Deep `blind water regen aura mirror`, Sanctum `reflect_melee reflect healer echo
+  gaze`. Tag names not in the contract's prose: the forge imp's potion theft is the `thief`
+  tag (potions only), the siren's confusion aura is `aura`, the sentinel's stun is `gaze`, the
+  acolyte's healing is `healer`, the mirror shade's copy is `mirror` (the Mirror King's tag).
+- **`Floor.vision`** (Deep 4, else 7) and **`Snapshot.vision`** (addition): the hero's radius
+  on this floor, +2 with a lantern in the pack or `lantern_rig`. Monsters in the dark see the
+  floor's radius too; `blind` kinds never see and go to the last noise they heard.
+- **Noise.** `rest` (radius 8), every melee blow on or by the hero (6), a bell (40, at the
+  landing tile), a bell sentinel's alarm (40). Blind hunters within the radius wake and path to
+  the tile; the Lurker Queen within it telegraphs `listens` and calls two lurkers (cooldown
+  30). `silence` (100 ticks) swallows every noise. `Run.noise` is the last one (diagnostic).
+- **`reflect_melee`**: a melee blow (the hero's, or an ally's) lands on the attacker instead
+  (`Src::Reflect`, never re-reflected); arrows, bolts, thrown potions and hazards land. The
+  warden flips faces every 40 ticks (`shifts`): `Monster.warden_ranged` decides which of
+  `reflect_melee` / `reflect` holds. `Monster::reflects_melee()` / `reflects_ranged()`.
+- **Mirror King**: `Run.verb_ring` holds the hero's last three verbs while he is in view — the
+  verb of the hit landed (`attack shoot bolt cleave shield_bash throw`), else the action's
+  (`tactic`, `rest`, chores). A hit whose verb equals the last two is reflected; he telegraphs
+  `mirrors` on his first sight and on every repeat (both learn `boss:mirror_king:counter`).
+- **Iron golems** are slow (4), see four tiles and forget what they cannot see; the chores
+  path around a golem whose `reflect_melee` tag is known as they path around water
+  (`Run.mirrors`). The Foundry stocks three throwables per floor and a bow on D16 and D20.
+- **Drain recovers a floor at a time** (`Hero.max_hp_base`, +5 per descent): the Crypt's
+  wraiths and the Lich left a 54-HP fighter at 19 by D16, which no 30-floor run survives.
+- **Depth growth freezes at D16** (`depth_hp_bonus`/`depth_atk_bonus`) and the group count at
+  nine (D15): the new kinds carry the difficulty on their own numbers.
+- **Items.** `recall` banks from anywhere (tier bank, 100 %); `recall_sense` reads it at
+  `hp<15%` as a free row (`Ev.rule` row −2, text `recall sense`). `earthquake` turns walls
+  within 2 into floor, never the rim (connectivity can only grow); the snapshot carries the new
+  tiles (no tile event). `chalk` is spent on descending: `chalk:<depth>` is learned and every
+  later visit of that depth starts with the stairs known and the chores walking straight to
+  them (permanent, one depth per chalk). `bell` needs no target (lands 3–6 tiles off, away from
+  the foes). `salt`, `clarity` are thrown at a target (`throw salt` / `throw clarity`).
+  `mirror` (scroll) reflects the next blow taken (`Hero.mirror_charge`). `mirror_shard` in the
+  vault is spent by `breed` to add the `mirror` tag; a `mirror` companion has the verb `mimic`
+  (the hero's class verb: bash / backstab / shoot / bolt). Misc finds are facts
+  (`item:lantern bell salt chalk mirror_shard`) and `item:recall` is learned on identifying
+  recall; they gate `lantern_rig` / `recall_sense` and the tokens.
+- **Chores added.** An identified enchant scroll (with a weapon) or strength potion is used
+  when nothing is in view (a pack full of them blocked every throwable). A full pack keeps one
+  spare weapon and one spare armour; a second spare makes way for a consumable, and any spare
+  melee weapon for a bow. Fire and gas are not thrown at an adjacent target by the cards.
+- **Cards.** `cadence`: two of a verb, then another (bash, cleave, a throw, volley, drain, a
+  melee swing for casters, else a `feint`). `noise_discipline`: rests only while no blind foe
+  seen on this floor still lives (`Run.blind_seen`), else keeps moving. `reflect_read`: shoots
+  (a pack bow goes up for an action and comes back down by itself, `Run.bow_swap`), throws at a
+  reflecting boss or when cornered, fights the others, routes around mirrors, steps clear,
+  holds. `deep_march`: at vision ≤ 4 and ≥ 40 % seen, the stairs.
+- **Unlocks** (45): the tier-2 rows as the contract. `bosses_slain()` counts kinds.
+  `studied_all_<biome>` trophies are three marks; `ledger:<biome>` covers all six biomes.
+- **Rows**: `MAX_ROWS` 10 (`RuleSet::validate`, `row_fired`); `short_list` caps `max_rows` at 6.
+- **Ascension** (`ascend(variant)`, wasm `ascend`): only after the ending. Keeps classes,
+  kennel (the party goes home to it), vault, ledger/facts, forge, trophies, rules. Resets
+  marks, gold, heir, best depth, renown/rank, graveyard, grudges, bones, supplies, insurance,
+  rest. **Unlocks start over** (the contract lists what carries and they are not on it; the
+  second act re-buys them, which is what the dayplayer's purchase-day bar needs) except the
+  class doors (`rogue ranger caster`), the mastery cards, and under `short_list` the tactic
+  cards. `Lineage.ascension {level, variant}`; the ending under a variant records it in
+  `LineageState.ascended`. All four variants are offered at every ascension (the contract's
+  "more unlock by finishing with each" is not enforced; `ascended` is exposed for the client
+  to shade chips). `no_rest`: `rest` never executes and leaves the vocabulary, camp rest and
+  wake are halved (`Game::rest_after`). `bones_only`: `vault_slots()` 0, `loadout` ignored,
+  `keep` salvages everything. `hunted`: `LineageState.hunter` = the deepest grudge of the old
+  lineage, spawned awake on every floor from D3.
+- **Run cap 120 000 ticks** (was 40 000; a D30 run needs ~75 000). Forecast sims stop at the
+  depth asked (`known_to`, or a delta's target) and a forecast stops launching sims past a
+  tick budget (400 000; deltas and stall patches 150 000; at least 5 sims): a D20 lineage's
+  sims run ~40 000 ticks each, and the stall verdict's four forecasts took 6 s without the
+  budget. Shallow lineages stay under the budgets (unchanged numbers).
+- **Examples**: `metrics` has the FULL bots (`presets/full.json`, three 8 h batches, and the
+  same set minus one boss counter row each) and measures the quiet per-tick cost before the
+  parallel jobs; `dayplayer` ascends with `no_rest` after the ending and keeps counting;
+  `probe --full` surveys a set's exits by depth; `watch [seed] [depth] [--survey]` traces one
+  FULL run from a depth or summarises every run's last floor.
+
 ## Additions to the `Engine` interface (all JSON strings)
 
 `unlocks()` → `UnlockInfo[] {id,cost,owned,available,needs?}` · `setClass(class)` → Lineage ·
@@ -180,7 +261,7 @@ fields). Where the contract left a choice open, this is what the engine does:
 `fromSave(json)` (static constructor) · `setKeepPref(pref)` → Lineage ·
 Addendum A: `setParty(idsJson)`, `setCompanionRules(id, setJson)`, `breed(a,b)`, `hatch(eggId)`,
 `companionVocabulary(id)` · Addendum B: `buySupply(kind)`, `clearSupplies()`,
-`supplyCatalogue()` → `{kind,price,label}[]` · Addendum D: `keep(idsJson)`.
+`supplyCatalogue()` → `{kind,price,label}[]` · Addendum D: `keep(idsJson)` · Cut 3: `ascend(variant)` → Lineage.
 Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion verbs
 `attack shoot burst steal split flank drain follow recall`. Hero scope cond `{k:"party",t:kind}`,
 `{k:"party_hp<",n}`, verb `tame` (`nearest | tag:T`).
@@ -189,13 +270,64 @@ Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion ver
 
 `src/` per `docs/CUT1.md` plus `wire.rs` (the wire structs) and `tests.rs` (integration
 tests). `examples/cli.rs` playtest; `examples/metrics.rs` gates; `examples/bench.rs` timing.
-`presets/{fighter,rogue,ranger,caster,good}.json`. `examples/dayplayer.rs` is the 14-day
-player simulation (`--gate` checks the Cut 2 bars; `--verbose` logs purchases and bests).
+`presets/{fighter,rogue,ranger,caster,good,full}.json` (`full` is the Cut 3 FULL bot: every
+counter, every unlock assumed). `examples/dayplayer.rs` is the 14-day player simulation
+(`--gate` checks the Cut 2/3 bars; `--verbose` logs purchases and bests; after the ending it
+ascends with `no_rest`). `examples/probe.rs --full` and `examples/watch.rs` are the Cut 3
+survey tools.
 
 ```
 cargo run --release --example cli -- --seed 1 --rules presets/good.json --runs 3 [--verbose] [--all-deaths]
 cargo run --release --example metrics [-- --seeds 30 --hours 8]
 ```
+
+## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`, Cut 3; `node tools/gates.mjs --full`)
+
+```
+DEFAULT dies by ≤ D6 ≥ 80% of seeds                                100%  PASS
+EDITED reaches ≥ D10 ≥ 50% of seeds                                 93%  PASS
+EDITED − DEFAULT (≥ D10) ≥ 15 pts                                93 pts  PASS
+RANDOM loses 100%                                                  100%  PASS
+PASSIVE loses by ≤ D3 100%                                         100%  PASS
+LEARNED mean depth ≤ DEFAULT + 2                           4.75 vs 4.57  PASS
+PETS dies by ≤ D8 ≥ 80% of seeds                                   100%  PASS
+LEVELLED dies by ≤ D9 ≥ 80% of seeds                               100%  PASS
+TRIVIAL never passes D5 ≥ 90% of seeds                             100%  PASS
+COUNTERED reaches ≥ D11 ≥ 50% of seeds                              80%  PASS
+FULL reaches ≥ D26 ≥ 50% of seeds (3 × 8 h)                         87%  PASS
+FULL−D20 never passes D20 ≥ 90% of seeds                           100%  PASS
+FULL−D25 never passes D25 ≥ 90% of seeds                           100%  PASS
+FULL−D30 never passes D30 ≥ 90% of seeds                            97%  PASS
+Unfair deaths (dice) ≤ 5% (n=2227)                                 0.4%  PASS
+Deaths tracing to a row (gap) ≥ 70%                               99.6%  PASS
+Top death cause share < 35% (goblin)                              28.6%  PASS
+Events per 600 ticks (renderable) ≥ 6                              44.3  PASS
+Replay hash identical (seed+rules+elapsed)                               PASS
+Forecast known_to == best_depth + 1                                 all  PASS
+Expeditions per 8 h (DEFAULT, EDITED) in 6–16               15.8 · 12.2  PASS
+DEFAULT yields 0 xp/gold over 8 h                                     0  PASS
+EDITED banks ≥ 3 runs per 8 h                                       7.2  PASS
+Patches whose row fired in ≥ 50% of replays (n=297)                100%  PASS
+Verdict time ≤ 0.4 s (mean of 2227)                              0.15 s  PASS
+Per-tick cost ≤ 6 µs (quiet, DEFAULT/EDITED/FULL)               3.01 µs  PASS
+Offline 8 h: learned ≥ 1 and pending ≥ 1 every seed              min 19  PASS
+```
+
+FULL (three 8 h batches, 30 seeds): best depth mean 30.2, 26 of 30 seeds reach D26; per run
+D10 81 %, D15 60 %, D20 38 %, D25 28 %, D26 9 %, D31 8.6 %; 6.3 expeditions per 8 h, run
+length p10 / median / p90 7 140 / 25 067 / 53 445 ticks. Quiet per-tick cost DEFAULT 1.9 µs,
+EDITED 2.3 µs, FULL 2.9 µs (the contended batch number, reports included, is ~8 µs).
+
+The 14-day player (`examples/dayplayer.rs --gate --seeds 3`): marks unspent ≤ 8, empty
+check-ins 0 %, L10 on day 10 — PASS; **days with a purchase 8.0 / 14 (bar 10) and the longest
+counter-known stall 5 days (bar 3) — FAIL.** The simulated player reaches D19–20 in 14 days
+and stalls at the Foundry Master; it buys the cheap catalogue in the first three days and then
+earns ~2 marks a day (ranks) while the tier-2 items cost 14–18, so purchase days stop at 8; it
+never reaches the ending, so the ascension (the second act's re-buy) never starts. The Cut 2
+notes said these two bars assume the 30-floor dungeon; they assume more than that — a player
+who beats the Foundry Master by day 9, which needs a bow and the `reflect_read` card in the
+first four rows. Content, not bars, was tuned; the remaining lever is the sim's player model
+(it keeps `hp<50 → return` and never rearms its rows for the Foundry), which is a design call.
 
 ## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`, Cut 2)
 
@@ -234,6 +366,35 @@ The 14-day player (`examples/dayplayer.rs --gate`, 3 check-ins a day): marks uns
 10) and the longest counter-known stall 4 days (bar 3) — FAIL, see the tuning notes.
 
 ## Tuning notes (how the gates were met, in order of importance)
+
+Cut 3 (content to the bottom), before the Cut 2 and Cut 1 notes below:
+
+0. **Melee is reflected — so the fighter needs a bow.** The Foundry's golems and the Foundry
+   Master are unbeatable by a set that only swings; the first FULL bot danced beside golems for
+   a hundred actions and went home at 20 % HP. Three things made the Foundry passable: golems
+   are slow (speed 4), see four tiles and forget what they cannot see, and the chores route
+   around a golem whose tag is known; `reflect_read` puts a pack bow up (the Foundry stocks one
+   on D16 and D20) and only spends throwables on a boss or when cornered; a full pack gives a
+   spare melee weapon's slot to a bow. Golem damage per run fell from 40–94 to single digits.
+1. **The pack is the run.** A D16 pack was `leash, sword, strength ×3, enchant ×5` — every
+   throwable and every silence scroll walked past. Identified enchant and strength are used as
+   chores; a second spare piece of gear, or a third copy of a consumable, makes way for a kind
+   the pack lacks (never for something cheaper: a third poison and an aggravate scroll swapped
+   for ever, 120 000 ticks of `pick_up`); silence is worth 18 so it displaces a 14. Drained max
+   HP comes back five a floor (the Crypt left the L10 fighter at 19 HP by D16).
+2. **The Queen is a storm, not a duel.** With her hearing the whole floor, FULL never saw her
+   before the storm broke; with her calling only within twelve tiles and her called lurkers
+   fading after 150 ticks, silence read *when called lurkers show* (`foe_tag:summoned`) lets
+   the storm pass and the hero close. Silence is 200 ticks (the contract's 100 ran out before
+   a fighter could finish her); she mends 2 per 10 ticks while a called lurker lives and her
+   own row (`boss_focus`) kills the adjacent ones first. Without the scroll row FULL passes
+   her in 0 of 23 D25 runs; with it about half. The Mirror King heals what he sends back and
+   has 80 HP, which is what made the `cadence` row load-bearing (100 % held).
+3. **Forecasts of a deep lineage need a budget.** The stall verdict's four 20-sim forecasts at
+   D17 cost 6 s (24 µs per batch tick against 2.6 µs for the tick itself); sims now stop at
+   the depth asked and a forecast stops launching sims past 400 000 ticks (deltas 150 000).
+   The gate measures the quiet tick (one run to its end per bot, single-threaded).
+
 
 Cut 2 (pacing), before the Cut 1 notes below:
 

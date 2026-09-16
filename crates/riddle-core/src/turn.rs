@@ -12,7 +12,7 @@ use crate::hero::Trait;
 use crate::item::{is_identified, Item};
 use crate::monster::Monster;
 use crate::rules::{Cond, Verb};
-use crate::tiles::{Overlay, OverlayKind, Tile, VISION};
+use crate::tiles::{Overlay, OverlayKind, Tile};
 use crate::wire::{Ev, TraceTurn};
 
 /// What the hero can see this action.
@@ -70,7 +70,8 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
         run.hero.energy -= ACT_ENERGY;
         hero_action(run, cx);
         acted = true;
-        run.floor.map.update_vision(run.hero.pos, VISION);
+        let vision = run.vision(cx.unlocks);
+        run.floor.map.update_vision(run.hero.pos, vision);
         crate::facts::on_vision(run, cx);
         for m in run.monsters.iter_mut() {
             m.acts_since_hero = 0;
@@ -114,6 +115,10 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
         if run.over.is_some() {
             return;
         }
+        tick_regen_and_auras(run, cx);
+        if run.over.is_some() {
+            return;
+        }
     }
     // The floor clock runs from the descend, not from a multiple of ten ticks.
     tick_alert(run, cx);
@@ -129,11 +134,42 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
 fn hero_action(run: &mut Run, cx: &mut Ctx) {
     run.actions += 1;
     run.note_foes();
+    // Cut 3: known mirrors (visible, `reflect_melee` fact) are terrain to the chores.
+    let map = &run.floor.map;
+    run.mirrors = run
+        .monsters
+        .iter()
+        .filter(|m| m.hp > 0 && m.hostile() && m.reflects_melee() && map.is_visible(m.pos) && tag_known(cx.facts, &m.kind, "reflect_melee"))
+        .map(|m| m.pos)
+        .collect();
     oscillation_guard(run, cx);
     let v = view(run);
     let hp_before = run.hero.hp;
     let inv_before = run.hero.inv.len() + run.hero.weapon.is_some() as usize + run.hero.armour.is_some() as usize;
+    run.last_hit_verb = None;
+    // Cut 3 `reflect_read`: the bow goes back in the pack once no mirror is in view (free).
+    if run.bow_swap.is_some() && !v.foes.iter().any(|&i| run.monsters[i].reflects_melee()) {
+        let melee = run.bow_swap.take().unwrap();
+        if let Some(bow) = run.hero.weapon.replace(melee) {
+            if run.hero.inv_full() {
+                let here = run.hero.pos;
+                drop_near(run, here, bow);
+            } else {
+                run.hero.inv.push(bow);
+            }
+        }
+    }
     let (row, verb) = choose_and_act(run, cx, &v);
+    // Cut 3: the Mirror King remembers the hero's last three verbs while he watches — the verb
+    // of the hit landed (attack, shoot, cleave…), else the action itself.
+    let king_watching = run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.kind == "mirror_king" && run.floor.map.is_visible(m.pos));
+    if king_watching {
+        let used = run.last_hit_verb.take().unwrap_or_else(|| verb.v.clone());
+        run.verb_ring.push(used);
+        while run.verb_ring.len() > 3 {
+            run.verb_ring.remove(0);
+        }
+    }
     // Same-row loop guard: one row firing 40 actions straight with no blood drawn either way
     // is a stalemate (a bloat that follows a retreating hero forever); rest it for 30 actions.
     if row == -1 {
@@ -235,6 +271,14 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         let verb = Verb::new("explore");
         emit_rule(run, cx, -2, &verb, "hazard → step out");
         return (-2, verb);
+    }
+    // Cut 3 `recall_sense`: below 15% with a recall scroll in the pack, read it (a free row).
+    if hp_pct < 15 && cx.unlocks.contains("recall_sense") && run.hero.inv.iter().any(|i| i.kind == "recall") {
+        let verb = Verb::arg("read", "recall");
+        if ai::try_verb(run, cx, &verb, v) {
+            emit_rule(run, cx, -2, &verb, "recall sense");
+            return (-2, verb);
+        }
     }
     let rows: Vec<crate::rules::Row> = cx.rules.rows.iter().take(cx.max_rows).cloned().collect();
     let mut brave_said = false;
@@ -384,13 +428,15 @@ pub enum Src {
     Fire,
     Poison,
     Burst,
+    /// Cut 3: a blow sent back by a reflecting monster (never reflected again).
+    Reflect(usize),
 }
 
 impl Src {
     pub fn cause(&self, run: &Run) -> String {
         match self {
             Src::Hero { .. } => "hero".into(),
-            Src::Mon(i) => run.monsters[*i].kind.clone(),
+            Src::Mon(i) | Src::Reflect(i) => run.monsters[*i].kind.clone(),
             Src::Gas => "gas".into(),
             Src::Fire => "fire".into(),
             Src::Poison => "poison".into(),
@@ -401,6 +447,7 @@ impl Src {
         match self {
             Src::Hero { ranged } => *ranged && tag == "ranged",
             Src::Mon(i) => run.monsters[*i].has_tag(tag),
+            Src::Reflect(_) => false,
             Src::Gas | Src::Burst => tag == "gas",
             Src::Fire => tag == "fire",
             Src::Poison => tag == "poison",
@@ -452,8 +499,22 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     if let Some((a, b)) = counter {
         learn(run, cx, crate::defs::counter_fact(&a, &b));
     }
+    // Cut 3: fire resistance shrugs off fire (hazard or fire-tagged bites).
+    let dmg = if run.hero.resist_fire_t > 0 && src.has_tag(run, "fire") { 0 } else { dmg };
     if dmg <= 0 {
         return;
+    }
+    // Cut 3: a mirror scroll sends the next blow back to whoever struck.
+    if run.hero.mirror_charge > 0 {
+        if let Src::Mon(i) = src {
+            let i = *i;
+            run.hero.mirror_charge -= 1;
+            let mid = run.monsters[i].id;
+            cx.events.push(Ev::Attack { t: run.turn, src: HERO_ID, dst: mid, dmg, hit: true, verb: Some("mirror".into()) });
+            callout(run, cx, "mirrored");
+            damage_monster(run, cx, i, dmg, &Src::Reflect(i));
+            return;
+        }
     }
     run.hero.hp -= dmg;
     run.hurt_since_action = true;
@@ -531,6 +592,37 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             }
         }
     }
+    // Cut 3: `reflect_melee` — a melee blow (the hero's, or an ally's) lands on the attacker.
+    if run.monsters[mi].reflects_melee() && dmg > 0 {
+        let reflected = match src {
+            Src::Hero { ranged: false } => run.monsters[mi].pos.cheb(run.hero.pos) <= 2,
+            Src::Mon(j) => run.monsters[*j].ally,
+            _ => false,
+        };
+        if reflected {
+            let kind = run.monsters[mi].kind.clone();
+            let id = run.monsters[mi].id;
+            let visible = run.floor.map.is_visible(run.monsters[mi].pos);
+            if visible {
+                learn_tag(run, cx, &kind, "reflect_melee");
+                callout(run, cx, "reflected!");
+            }
+            match src {
+                Src::Hero { .. } => {
+                    cx.events.push(Ev::Attack { t: run.turn, src: id, dst: HERO_ID, dmg, hit: true, verb: Some("reflect".into()) });
+                    damage_hero(run, cx, dmg, &Src::Reflect(mi));
+                }
+                Src::Mon(j) => {
+                    let j = *j;
+                    let jid = run.monsters[j].id;
+                    cx.events.push(Ev::Attack { t: run.turn, src: id, dst: jid, dmg, hit: true, verb: Some("reflect".into()) });
+                    damage_monster(run, cx, j, dmg, &Src::Reflect(mi));
+                }
+                _ => {}
+            }
+            return false;
+        }
+    }
     let cause = src.cause(run);
     let cause = cause.as_str();
     let dmg = dmg.max(0);
@@ -563,7 +655,9 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
     cx.events.push(Ev::Hurt { t: run.turn, id, dmg, hp: hp.max(0), cause: cause.into() });
     let visible = run.floor.map.is_visible(pos);
     if hp > 0 {
-        if run.monsters[mi].has_tag("splitter") && hp > 4 && dmg > 0 && !run.monsters[mi].ally {
+        // Cut 3: an echo splits on a ranged hit (arrow, bolt, thrown potion), like a jelly on any.
+        let echo = run.monsters[mi].has_tag("echo") && matches!(src, Src::Hero { ranged: true });
+        if (run.monsters[mi].has_tag("splitter") || echo) && hp > 4 && dmg > 0 && !run.monsters[mi].ally {
             let half = hp / 2;
             run.monsters[mi].hp = hp - half;
             let free = pos.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q));
@@ -580,7 +674,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
                 cx.events.push(Ev::Spawn { t: run.turn, e });
                 if visible {
                     callout(run, cx, "splits!");
-                    learn_tag(run, cx, &kind, "splitter");
+                    learn_tag(run, cx, &kind, if echo { "echo" } else { "splitter" });
                 }
             }
         }
@@ -715,6 +809,80 @@ fn tick_poison(run: &mut Run, cx: &mut Ctx) {
     }
 }
 
+/// Cut 3, every 10 ticks: `regen` monsters heal 2 unless poisoned; the hero's regen potion
+/// heals 2; a siren's aura (2 tiles) confuses the hero unless clarity holds.
+fn tick_regen_and_auras(run: &mut Run, cx: &mut Ctx) {
+    if run.hero.regen_t > 0 && run.hero.hp < run.hero.max_hp {
+        run.hero.hp = (run.hero.hp + 2).min(run.hero.max_hp);
+    }
+    // The Lurker Queen mends 2 while any lurker she called still lives.
+    let called = run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.summoned && m.kind == "lurker");
+    if called {
+        for m in run.monsters.iter_mut().filter(|m| m.kind == "lurker_queen" && m.hp > 0 && m.hp < m.max_hp) {
+            m.hp = (m.hp + 2).min(m.max_hp);
+        }
+    }
+    let hp = run.hero.pos;
+    let mut aura = false;
+    for mi in 0..run.monsters.len() {
+        let m = &run.monsters[mi];
+        if m.hp <= 0 {
+            continue;
+        }
+        if m.has_tag("regen") && m.poison.1 == 0 && m.hp < m.max_hp && m.hostile() {
+            let visible = run.floor.map.is_visible(m.pos);
+            let kind = m.kind.clone();
+            let m = &mut run.monsters[mi];
+            m.hp = (m.hp + 2).min(m.max_hp);
+            if visible {
+                learn_tag(run, cx, &kind, "regen");
+            }
+        }
+        let m = &run.monsters[mi];
+        if m.has_tag("aura") && m.hostile() && m.awake && m.pos.cheb(hp) <= 2 && run.floor.map.los(m.pos, hp) {
+            aura = true;
+            if run.floor.map.is_visible(m.pos) {
+                let kind = m.kind.clone();
+                learn_tag(run, cx, &kind, "aura");
+            }
+        }
+    }
+    if aura && run.hero.clarity_t == 0 {
+        if run.hero.confused == 0 {
+            callout(run, cx, "confused");
+        }
+        run.hero.confused = run.hero.confused.max(12);
+    }
+}
+
+/// Cut 3: a noise at `at` heard `radius` tiles around. Blind hunters go there; the Lurker
+/// Queen calls her lurkers. Silence (the scroll) swallows every noise near the hero.
+pub fn noise(run: &mut Run, cx: &mut Ctx, at: Pos, radius: i32) {
+    if run.hero.silence_t > 0 {
+        return;
+    }
+    run.noise = Some((at, run.turn));
+    // The Queen hears twelve tiles around and keeps up to six called lurkers in the hunt
+    // (they fade after 150 ticks: silence lets the storm pass).
+    let called = run.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && m.summoned && m.kind == "lurker").count();
+    const QUEEN_PACK: usize = 6;
+    for mi in 0..run.monsters.len() {
+        let m = &run.monsters[mi];
+        let queen = m.kind == "lurker_queen";
+        let hears = if queen { 12 } else { radius };
+        if m.hp <= 0 || !m.hostile() || !m.is_blind() || m.pos.cheb(at) > hears {
+            continue;
+        }
+        let m = &mut run.monsters[mi];
+        m.awake = true;
+        m.last_seen = Some(at);
+        if queen && m.cooldown == 0 && m.pending.is_none() && called < QUEEN_PACK {
+            m.cooldown = 15;
+            ai::telegraph(run, cx, mi, "listens", crate::monster::Pending::Call);
+        }
+    }
+}
+
 fn tick_statuses(run: &mut Run, cx: &mut Ctx) {
     if run.hero.poison.1 > 0 {
         run.hero.poison.1 -= 1;
@@ -744,8 +912,11 @@ fn tick_statuses(run: &mut Run, cx: &mut Ctx) {
 pub const REST_ALERT_EVERY: u32 = 8;
 
 /// Resting raises the alert every `REST_ALERT_EVERY` rests; from alert 5 a pack comes.
+/// Cut 3: every rest is a noise (radius 8) — the Deep's hunters come for it.
 pub fn rest_clock(run: &mut Run, cx: &mut Ctx) {
     run.rests += 1;
+    let at = run.hero.pos;
+    noise(run, cx, at, 8);
     if !run.rests.is_multiple_of(REST_ALERT_EVERY) {
         return;
     }
@@ -848,6 +1019,17 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
         note(run, cx, "Trophy: pacifist floor.".into());
     }
     let next = run.depth + 1;
+    // Cut 3: chalk in the pack marks the floor left behind (`chalk:<depth>`): the next heir here
+    // goes straight for the stairs.
+    if let Some(i) = run.hero.inv.iter().position(|i| i.kind == "chalk") {
+        let it = &mut run.hero.inv[i];
+        it.amount -= 1;
+        if it.amount <= 0 {
+            run.hero.inv.remove(i);
+        }
+        let d = run.depth;
+        learn(run, cx, format!("chalk:{d}"));
+    }
     if next >= ENDING_DEPTH {
         run.depth = next;
         run.max_depth = run.max_depth.max(next);
@@ -892,9 +1074,21 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.pickup_streak = 0;
     run.gambles.clear();
     run.hero.second_wind_used = false;
-    populate_floor(run, cx.grudges, cx.forge);
+    // Cut 3: drained max HP (wraiths, the Lich) comes back a floor at a time — a floor's debt,
+    // not the run's (a 30-floor descent would otherwise arrive in the Foundry at 19 HP).
+    run.hero.max_hp = (run.hero.max_hp + 5).min(run.hero.max_hp_base);
+    run.noise = None;
+    run.verb_ring.clear();
+    run.blind_seen.clear();
+    populate_floor(run, cx.grudges, cx.forge, cx.hunter);
     crate::engine::place_bones(run);
-    run.floor.map.update_vision(run.hero.pos, VISION);
+    if cx.facts.contains(&format!("chalk:{next}")) {
+        let s = run.floor.stairs_down;
+        let i = run.floor.map.idx(s);
+        run.floor.map.seen[i] = true;
+    }
+    let vision = run.vision(cx.unlocks);
+    run.floor.map.update_vision(run.hero.pos, vision);
     cx.events.push(Ev::Descend { t: run.turn, depth: next, biome: biome.name().into() });
     if biome_for(next - 1) != biome {
         learn(run, cx, format!("biome:{}", biome.name()));
@@ -944,6 +1138,17 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: format!("gold ({})", it.amount) });
         return;
     }
+    if crate::defs::FACT_MISC.contains(&item.kind.as_str()) && !run.hero.inv_full() {
+        // Cut 3: a found tool is a fact (tokens and unlocks open on it).
+        let it = run.items.remove(ii).item;
+        let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
+        let kind = it.kind.clone();
+        run.loot += it.value();
+        run.hero.inv.push(it);
+        cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
+        learn(run, cx, format!("item:{kind}"));
+        return;
+    }
     if item.kind == "leash" {
         let it = run.items.remove(ii).item;
         match run.hero.inv.iter_mut().find(|i| i.kind == "leash") {
@@ -964,8 +1169,38 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         return;
     }
     if run.hero.inv_full() && !item_replaces_gear(&run.hero, item) {
-        // A full pack swaps its cheapest consumable for a dearer one (a chore, silently).
-        let swap = run.hero.inv.iter().enumerate().filter(|(_, i)| i.is_consumable()).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, i)| (k, i.value()));
+        // Cut 3: a full pack keeps one spare weapon and one spare armour; a second spare makes
+        // way for a consumable or a bow (spares are salvage; potions and scrolls are the run).
+        // A bow (the answer to reflected melee) takes the slot of any spare melee weapon.
+        let wants_slot = item.is_consumable() || item.def().ranged;
+        if wants_slot {
+            let need = if item.def().ranged && !run.hero.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
+            let spare = |cat: Cat| -> Option<usize> {
+                let spares: Vec<usize> = run.hero.inv.iter().enumerate().filter(|(_, i)| i.cat() == cat && !i.def().ranged).map(|(k, _)| k).collect();
+                if spares.len() >= need {
+                    spares.into_iter().min_by_key(|&k| (run.hero.inv[k].value(), run.hero.inv[k].id))
+                } else {
+                    None
+                }
+            };
+            if let Some(k) = spare(Cat::Weapon).or_else(|| spare(Cat::Armour)) {
+                let dropped = run.hero.inv.remove(k);
+                let here = run.hero.pos;
+                let it = run.items.remove(ii).item;
+                let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
+                run.loot += it.value() - dropped.value();
+                run.hero.inv.push(it);
+                run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
+                cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
+                return;
+            }
+        }
+        // A full pack swaps its cheapest consumable for a dearer one (a chore, silently);
+        // Cut 3: a third copy of a kind makes way for a kind the pack lacks (a full pack of
+        // summons and recalls walked past every silence scroll in the Deep).
+        let dup = duplicate_slot(&run.hero, item);
+        let swap = dup.or_else(|| run.hero.inv.iter().enumerate().filter(|(_, i)| i.is_consumable()).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
+        let swap = swap.map(|k| (k, if dup.is_some() { i32::MIN } else { run.hero.inv[k].value() }));
         match swap {
             Some((k, v)) if item.is_consumable() && item.value() > v => {
                 let dropped = run.hero.inv.remove(k);
@@ -1022,11 +1257,29 @@ fn recover_bones(run: &mut Run, cx: &mut Ctx, ii: usize) {
 }
 
 /// Drop an item on the nearest free floor tile around `at` (its own tile if none).
-fn drop_near(run: &mut Run, at: Pos, it: Item) {
+pub fn drop_near(run: &mut Run, at: Pos, it: Item) {
     let free = std::iter::once(at)
         .chain(at.neighbours8())
         .find(|q| run.floor.map.in_bounds(*q) && run.floor.map.get(*q) == Tile::Floor && run.item_at(*q).is_none());
     run.items.push(crate::engine::FloorItem { pos: free.unwrap_or(at), item: it });
+}
+
+/// Cut 3: the pack slot a third copy of a consumable kind gives up for a kind not held twice.
+fn duplicate_slot(h: &crate::hero::Hero, item: &Item) -> Option<usize> {
+    if !item.is_consumable() {
+        return None;
+    }
+    let count = |k: &str| h.inv.iter().filter(|i| i.kind == k).count();
+    if count(&item.kind) >= 2 {
+        return None;
+    }
+    // Never for something cheaper (an aggravate scroll and a third poison swapped for ever).
+    h.inv
+        .iter()
+        .enumerate()
+        .filter(|(_, i)| i.is_consumable() && count(&i.kind) >= 3 && item.value() >= i.value())
+        .min_by_key(|(_, i)| (i.value(), i.id))
+        .map(|(k, _)| k)
 }
 
 /// Would picking this up change anything (gold, leash, room in the pack, or better gear)?
@@ -1037,11 +1290,15 @@ pub fn can_take(h: &crate::hero::Hero, item: &Item) -> bool {
     if item.kind == "bones" {
         return true;
     }
+    let need = if item.def().ranged && !h.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
+    let second_spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged).count() >= need;
     matches!(item.cat(), Cat::Gold)
         || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash"))
         || !h.inv_full()
         || item_replaces_gear(h, item)
         || (item.is_consumable() && h.inv.iter().filter(|i| i.is_consumable()).map(|i| i.value()).min().is_some_and(|v| item.value() > v))
+        || ((item.is_consumable() || item.def().ranged) && (second_spare(Cat::Weapon) || second_spare(Cat::Armour)))
+        || duplicate_slot(h, item).is_some()
 }
 
 fn item_replaces_gear(h: &crate::hero::Hero, item: &Item) -> bool {

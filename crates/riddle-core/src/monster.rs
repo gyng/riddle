@@ -12,6 +12,13 @@ pub enum Pending {
     Rally,
     Swell,
     Chant,
+    // Cut 3: the sentinel's stun gaze, the warden's reflect flip, the Lurker Queen's call, the
+    // Mirror King's mirror, the Foundry Master's hammer.
+    Gaze,
+    Flip,
+    Call,
+    Mirror,
+    Hammer,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -71,6 +78,12 @@ pub struct Monster {
     pub marked: i32,
     #[serde(default)]
     pub slow_t: i32,
+    /// Cut 3: the warden's current face — reflecting ranged (true) or melee (false).
+    #[serde(default)]
+    pub warden_ranged: bool,
+    /// Cut 3: a boss has shown its opening telegraph.
+    #[serde(default)]
+    pub introduced: bool,
 }
 
 impl Monster {
@@ -118,6 +131,8 @@ impl Monster {
             acts_since_hero: 0,
             marked: 0,
             slow_t: 0,
+            warden_ranged: false,
+            introduced: false,
         }
     }
     pub fn def(&self) -> &'static MonsterDef {
@@ -169,6 +184,19 @@ impl Monster {
     }
     pub fn hostile(&self) -> bool {
         !self.ally && !self.neutral
+    }
+    /// Cut 3: melee hits on this monster land on the attacker instead (the warden only on its
+    /// blade face).
+    pub fn reflects_melee(&self) -> bool {
+        self.has_tag("reflect_melee") && !(self.kind == "warden" && self.warden_ranged)
+    }
+    /// Arrows and thrown potions come back (the Lich; the warden on its arrow face).
+    pub fn reflects_ranged(&self) -> bool {
+        self.has_tag("reflect") && (self.kind != "warden" || self.warden_ranged)
+    }
+    /// Cut 3: hunts by noise, never by sight.
+    pub fn is_blind(&self) -> bool {
+        self.has_tag("blind")
     }
     pub fn tick_statuses(&mut self) {
         if self.stun > 0 {

@@ -8,7 +8,7 @@ use crate::item::{describe, to_inv, Flavours, FloorItemWire, InvItem, Item};
 use crate::monster::Monster;
 use crate::rng::{hash_str, Rng};
 use crate::rules::{RuleSet, Vocabulary};
-use crate::tiles::{Overlay, VISION};
+use crate::tiles::Overlay;
 use crate::wire::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -20,9 +20,13 @@ pub const HERO_ID: u32 = 1;
 /// half its HP (up to this many turns back), so slow bleeds are attributable to a row, not to dice.
 pub const HISTORY_TURNS: usize = 30;
 pub const HISTORY_STRIDE: u32 = 10;
-/// A run that cannot finish in this many ticks (≈ 67 min at 1×) comes home empty-handed
-/// (tier `return`, yield ×0: a stalemate is not a policy).
-pub const MAX_TURNS_PER_RUN: u32 = 40_000;
+/// A run that cannot finish in this many ticks (≈ 3 h 20 min at 1×) comes home empty-handed
+/// (tier `return`, yield ×0: a stalemate is not a policy). Cut 3: a D30 run needs ~75 000.
+pub const MAX_TURNS_PER_RUN: u32 = 120_000;
+/// Cut 3: rule rows with every row unlock (`row5`–`row10`).
+pub const MAX_ROWS: usize = 10;
+/// Cut 3: the ascension variants, in the order they are offered.
+pub const VARIANTS: [&str; 4] = ["no_rest", "short_list", "bones_only", "hunted"];
 /// Energy needed to act; actors gain `speed` per tick.
 pub const ACT_ENERGY: i32 = 100;
 pub const TICKS_PER_TURN: u32 = 10;
@@ -221,6 +225,27 @@ pub struct Run {
     /// The rule row whose verb ended the run (`return` / `bank`), for the stall verdict.
     #[serde(default)]
     pub exit_row: Option<i32>,
+    // Cut 3
+    /// The last noise on the floor (tile, tick): rests, melee and shouts. Blind hunters go there.
+    #[serde(default)]
+    pub noise: Option<(Pos, u32)>,
+    /// The hero's last three verbs while the Mirror King watched (his `mirror`).
+    #[serde(default)]
+    pub verb_ring: Vec<String>,
+    /// The verb of the hit the current action landed, if any (fills the ring).
+    #[serde(default)]
+    pub last_hit_verb: Option<String>,
+    /// Blind foes seen on this floor (ids), for `noise_discipline`.
+    #[serde(default)]
+    pub blind_seen: Vec<u32>,
+    /// `reflect_read` put the pack's bow up: the melee weapon set aside, back once no mirror
+    /// is in view.
+    #[serde(default)]
+    pub bow_swap: Option<Item>,
+    /// Visible hostiles whose `reflect_melee` tag is known: the chores path around them
+    /// (never within a tile), as they path around water. Refreshed each hero action.
+    #[serde(default)]
+    pub mirrors: Vec<Pos>,
 }
 
 impl Run {
@@ -277,6 +302,16 @@ impl Run {
         }
         self.known_foes.values().any(|(q, at)| *q == p && self.actions.saturating_sub(*at) < 30)
     }
+    /// Cut 3: the hero's sight radius here — the floor's, +2 with a lantern in the pack or the
+    /// `lantern_rig` automation.
+    pub fn vision(&self, unlocks: &BTreeSet<String>) -> i32 {
+        let lantern = self.hero.inv.iter().any(|i| i.kind == "lantern") || unlocks.contains("lantern_rig");
+        self.floor.vision + if lantern { 2 } else { 0 }
+    }
+    /// A blind foe seen on this floor is still alive (`noise_discipline` holds the rest).
+    pub fn blind_foe_known(&self) -> bool {
+        self.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.is_blind() && self.blind_seen.contains(&m.id))
+    }
     /// Remember where the visible hostiles are (called at each hero action).
     pub fn note_foes(&mut self) {
         let actions = self.actions;
@@ -302,6 +337,9 @@ pub struct Ctx<'a> {
     pub max_rows: usize,
     pub events: &'a mut Vec<Ev>,
     pub sim: bool,
+    /// Cut 3: the ascension variant ("" at level 0) and the `hunted` stalker.
+    pub variant: &'a str,
+    pub hunter: Option<&'a Grudge>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -372,6 +410,18 @@ pub struct LineageState {
     pub runs_returned: u32,
     #[serde(default)]
     pub runs_died: u32,
+    // Cut 3: ascension.
+    /// Times the lineage has ascended, and the variant it plays under ("" at level 0).
+    #[serde(default)]
+    pub ascension: u32,
+    #[serde(default)]
+    pub variant: String,
+    /// Variants the lineage has finished the dungeon with.
+    #[serde(default)]
+    pub ascended: Vec<String>,
+    /// `hunted`: the grudge that stalks every floor from D3.
+    #[serde(default)]
+    pub hunter: Option<Grudge>,
 }
 
 impl LineageState {
@@ -427,7 +477,14 @@ impl LineageState {
             runs_banked: 0,
             runs_returned: 0,
             runs_died: 0,
+            ascension: 0,
+            variant: String::new(),
+            ascended: Vec::new(),
+            hunter: None,
         }
+    }
+    pub fn variant_is(&self, v: &str) -> bool {
+        self.variant == v
     }
     pub fn rules(&self) -> &RuleSet {
         &self.sets[self.active_set.min(self.sets.len() - 1)]
@@ -466,16 +523,26 @@ impl LineageState {
             insured: self.insured.clone(),
             rest_left_s: self.rest_left.div_ceil(crate::offline::TICKS_PER_SECOND as u32),
             bones: self.bones.iter().map(|b| BonesPile { depth: b.depth, heir: b.heir, items: b.items.len() as u32 }).collect(),
+            ascension: Ascension { level: self.ascension, variant: self.variant.clone() },
         }
     }
     pub fn vault_slots(&self) -> usize {
-        1 + ["vault2", "vault3", "vault4"].iter().filter(|u| self.unlocks.contains(**u)).count()
+        if self.variant_is("bones_only") {
+            return 0;
+        }
+        1 + ["vault2", "vault3", "vault4", "vault5"].iter().filter(|u| self.unlocks.contains(**u)).count()
     }
+    /// Rows the rules may use: 4 plus the row unlocks (cap 10); `short_list` caps at 6.
     pub fn max_rows(&self) -> usize {
-        4 + ["row5", "row6", "row7", "row8"].iter().filter(|u| self.unlocks.contains(**u)).count()
+        let n = 4 + ["row5", "row6", "row7", "row8", "row9", "row10"].iter().filter(|u| self.unlocks.contains(**u)).count();
+        if self.variant_is("short_list") {
+            n.min(6)
+        } else {
+            n
+        }
     }
     pub fn party_slots(&self) -> u32 {
-        1 + self.unlocks.contains("party_slot_2") as u32 + self.unlocks.contains("party_slot_3") as u32
+        1 + self.unlocks.contains("party_slot_2") as u32 + self.unlocks.contains("party_slot_3") as u32 + self.unlocks.contains("party_slot_4") as u32
     }
     /// Supplies per expedition (Cut 2 §3 `supply_cap_5`).
     pub fn supply_cap(&self) -> usize {
@@ -751,7 +818,91 @@ impl Game {
     }
 
     pub fn loadout(&mut self, ids: Vec<u32>) {
+        if self.lineage.variant_is("bones_only") {
+            self.loadout.clear();
+            return;
+        }
         self.loadout = ids.into_iter().filter(|id| self.lineage.vault.iter().any(|v| v.id == *id)).collect();
+    }
+
+    /// Cut 3: a new lineage after the ending that keeps classes (levels), kennel, vault, ledger,
+    /// forge and facts; marks, gold, heirs, the descent and the unlocks start over (the second
+    /// act re-buys them; class unlocks and mastery cards stay with the classes). The rules stay.
+    /// Variants add a system each: `no_rest` (no rest verb, camp rest halved), `short_list`
+    /// (six rows; tactic cards carry), `bones_only` (no vault), `hunted` (a grudge from the last
+    /// lineage stalks every floor from D3).
+    pub fn ascend(&mut self, variant: &str) -> Result<(), String> {
+        if !self.lineage.ended {
+            return Err("the dungeon has a bottom: reach it first".into());
+        }
+        if !VARIANTS.contains(&variant) {
+            return Err(format!("unknown variant {variant}"));
+        }
+        self.run = None;
+        self.pending_exit = None;
+        self.history.clear();
+        self.deaths.clear();
+        self.reel.clear();
+        self.batch = Batch::default();
+        self.stall = StallTally::default();
+        self.stall_cache = None;
+        self.last_snapshot = None;
+        self.loadout.clear();
+        let l = &mut self.lineage;
+        l.ascension += 1;
+        l.variant = variant.into();
+        l.ended = false;
+        l.heir = 1;
+        l.marks = 0;
+        l.gold = 0;
+        l.gold_carry = 0;
+        l.best_depth = 0;
+        l.renown = 0;
+        l.rank = 0;
+        l.graveyard.clear();
+        l.bones.clear();
+        l.insured.clear();
+        l.supplies.clear();
+        l.last_supplies.clear();
+        l.rest_left = 0;
+        l.runs_banked = 0;
+        l.runs_returned = 0;
+        l.runs_died = 0;
+        l.trait_ = Trait::ALL[l.rng.below(4) as usize];
+        // The hunter: the deepest grudge of the last lineage (or its last killer).
+        l.hunter = if variant == "hunted" { l.grudges.iter().max_by_key(|g| (g.depth, g.heir)).cloned() } else { None };
+        l.grudges.clear();
+        // Unlocks start over; the classes keep their doors and their mastery cards, and the
+        // short list keeps its tactic cards.
+        let keep: BTreeSet<String> = l
+            .unlocks
+            .iter()
+            .filter(|u| {
+                Class::ALL.iter().any(|c| c.unlock() == Some(u.as_str()))
+                    || crate::meta::MASTERY_CARDS.contains(&u.as_str())
+                    || (variant == "short_list" && crate::meta::TACTIC_CARDS.contains(&u.as_str()))
+                    || (variant == "short_list" && crate::meta::TIER2_CARDS.contains(&u.as_str()))
+            })
+            .cloned()
+            .collect();
+        l.unlocks = keep;
+        if variant == "bones_only" {
+            l.vault.clear();
+        }
+        // Party members come home to the kennel; the player fields them again.
+        let mut party = std::mem::take(&mut l.party);
+        l.kennel.append(&mut party);
+        Ok(())
+    }
+
+    /// Cut 3: camp rest after a run (`no_rest` halves it).
+    pub fn rest_after(&self, turns: u32, tier: ExitTier) -> u32 {
+        let r = crate::offline::rest_after(turns, tier);
+        if self.lineage.variant_is("no_rest") {
+            r / 2
+        } else {
+            r
+        }
     }
 
     pub fn run_seed(&self, run_id: u32) -> u64 {
@@ -864,7 +1015,7 @@ impl Game {
             melee_used: false,
             boss_seen_t: None,
             hurt_since_boss: false,
-            row_fired: vec![0; 8],
+            row_fired: vec![0; MAX_ROWS],
             renderable_events: 0,
             ended: false,
             max_depth: 1,
@@ -902,6 +1053,12 @@ impl Game {
             kills_counted: 0,
             timed_out: false,
             exit_row: None,
+            noise: None,
+            verb_ring: Vec::new(),
+            last_hit_verb: None,
+            blind_seen: Vec::new(),
+            bow_swap: None,
+            mirrors: Vec::new(),
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
@@ -916,10 +1073,11 @@ impl Game {
                 run.hero.auto_equip(it);
             }
         }
-        populate_floor(&mut run, &self.lineage.grudges, &self.lineage.forge);
+        populate_floor(&mut run, &self.lineage.grudges, &self.lineage.forge, self.lineage.hunter.as_ref());
         place_bones(&mut run);
         spawn_party(&mut run, &self.lineage.party);
-        run.floor.map.update_vision(run.hero.pos, VISION);
+        let vision = run.vision(&self.lineage.unlocks);
+        run.floor.map.update_vision(run.hero.pos, vision);
         self.history.clear();
         self.facts_at_run_start = self.lineage.facts.len();
         self.run = Some(run);
@@ -946,6 +1104,8 @@ impl Game {
             max_rows,
             events,
             sim: *sim,
+            variant: &lineage.variant,
+            hunter: lineage.hunter.as_ref(),
         };
         (run, cx)
     }
@@ -1026,6 +1186,10 @@ impl Game {
         self.lineage.total_turns += 1;
         if self.run.as_ref().unwrap().depth >= ENDING_DEPTH {
             self.lineage.ended = true;
+            let v = self.lineage.variant.clone();
+            if !v.is_empty() && !self.lineage.ascended.contains(&v) {
+                self.lineage.ascended.push(v);
+            }
         }
     }
 
@@ -1104,6 +1268,7 @@ impl Game {
             loot: run.loot,
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn },
             stake: Stake { loot: run.loot, brought, return_row },
+            vision: run.vision(&l.unlocks),
         }
     }
 
@@ -1142,16 +1307,16 @@ impl Game {
             }
             ExitTier::Death => self.lineage.runs_died += 1,
         }
-        if self.batch.row_fired.len() < 8 {
-            self.batch.row_fired = vec![0; 8];
+        if self.batch.row_fired.len() < MAX_ROWS {
+            self.batch.row_fired = vec![0; MAX_ROWS];
         }
         for (i, n) in run.row_fired.iter().enumerate() {
-            if i < 8 {
+            if i < MAX_ROWS {
                 self.batch.row_fired[i] += n;
             }
         }
         // Camp rest (Cut 2 §1): as long as the expedition, capped; a death is a fixed wake.
-        let rest = crate::offline::rest_after(run.turn, tier);
+        let rest = self.rest_after(run.turn, tier);
         self.lineage.rest_left = rest;
         self.events.push(Ev::Rest { t, seconds: rest.div_ceil(crate::offline::TICKS_PER_SECOND as u32) });
         // Marks (Cut 2 §2): new depth, boss, trophy, rank. First kills stay in bests and the ledger.
@@ -1308,13 +1473,20 @@ impl Game {
                 bests.push(format!("trophy: {tr}"));
             }
         }
-        for biome in [Biome::Warrens, Biome::Fens, Biome::Crypt] {
+        for biome in Biome::ALL {
             let tr = format!("ledger:{}", biome.name());
             if !self.lineage.trophies.contains(&tr)
                 && crate::defs::biome_kinds(biome).iter().all(|k| self.lineage.facts.contains(&format!("tamed:{k}")))
             {
                 self.lineage.trophies.push(tr.clone());
                 marks += 2;
+                bests.push(format!("trophy: {tr}"));
+            }
+            // Cut 3: every kind of a biome studied (five kills each) — three marks.
+            let tr = format!("studied_all_{}", biome.name());
+            if !self.lineage.trophies.contains(&tr) && crate::defs::biome_kinds(biome).iter().all(|k| self.lineage.studied(k)) {
+                self.lineage.trophies.push(tr.clone());
+                marks += 3;
                 bests.push(format!("trophy: {tr}"));
             }
         }
@@ -1488,7 +1660,8 @@ impl Game {
         let slots = self.lineage.vault_slots();
         let mut salvage: Vec<Item> = Vec::new();
         for it in p.items {
-            if !ids.contains(&it.id) {
+            // `bones_only`: nothing enters the vault; only bones piles carry gear.
+            if !ids.contains(&it.id) || slots == 0 {
                 salvage.push(it);
                 continue;
             }
@@ -1608,6 +1781,13 @@ impl Game {
         if tags.len() < cap {
             if let Some(t) = cb.tags.iter().find(|t| !tags.contains(t)) {
                 tags.push(t.clone());
+            }
+        }
+        // Cut 3: a mirror shard in the vault breeds the `mirror` tag into the egg.
+        if !tags.iter().any(|t| t == "mirror") {
+            if let Some(i) = self.lineage.vault.iter().position(|v| v.kind == "mirror_shard") {
+                self.lineage.vault.remove(i);
+                tags.push("mirror".into());
             }
         }
         for id in [a, b] {
@@ -1738,7 +1918,7 @@ pub fn kill_value(kind: &str) -> u32 {
 }
 
 /// Fill a freshly generated floor with monsters and items for the run's depth.
-pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String, ForgeRow>) {
+pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String, ForgeRow>, hunter: Option<&Grudge>) {
     let depth = run.depth;
     let biome = run.biome();
     let mut open = run.floor.open_tiles();
@@ -1772,7 +1952,7 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             captive_placed = true;
         }
         let n = run.rng.range(gmin, gmax);
-        let anchor = if kind == "eel" && !water.is_empty() { *run.rng.pick(&water) } else { take(&mut run.rng, &open, &mut cursor) };
+        let anchor = if crate::defs::monster_def(kind).tags.contains(&"water") && !water.is_empty() { *run.rng.pick(&water) } else { take(&mut run.rng, &open, &mut cursor) };
         for k in 0..n {
             let pos = if k == 0 {
                 anchor
@@ -1805,6 +1985,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         let escort = match boss {
             "goblin_warlord" => "goblin",
             "bloat_mother" => "bloat",
+            "foundry_master" => "smith",
+            "lurker_queen" => "lurker",
+            "mirror_king" => "mirror_shade",
             _ => "skeleton",
         };
         for q in pos.neighbours8() {
@@ -1814,8 +1997,10 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             }
         }
     }
-    // Grudge monsters live on the floor they killed on.
-    for g in grudges.iter().filter(|g| g.depth == depth) {
+    // Grudge monsters live on the floor they killed on; the `hunted` stalker is on every floor
+    // from D3, awake and already on the hero's trail.
+    let hunted = hunter.filter(|_| depth >= 3);
+    for g in grudges.iter().filter(|g| g.depth == depth).chain(hunted) {
         let pos = take(&mut run.rng, &open, &mut cursor);
         if run.occupied(pos) {
             continue;
@@ -1823,23 +2008,16 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         let id = run.new_id();
         let mut m = Monster::spawn(id, &g.kind, pos, depth);
         m.make_grudge(&g.name);
+        if hunted.is_some_and(|h| std::ptr::eq(h, g)) {
+            m.awake = true;
+            m.last_seen = Some(hero);
+        }
         run.monsters.push(m);
     }
     // Items.
     let budget = crate::defs::item_budget(depth);
     let kinds: Vec<&crate::defs::ItemDef> = crate::defs::ITEMS.iter().filter(|i| i.weight > 0).collect();
-    let iw: Vec<u32> = kinds
-        .iter()
-        .map(|i| {
-            let mut w = i.weight;
-            match i.kind {
-                "axe" | "bow" | "mail" if depth < 4 => w = 0,
-                "plate" if depth < 8 => w = 0,
-                _ => {}
-            }
-            w
-        })
-        .collect();
+    let iw: Vec<u32> = kinds.iter().map(|i| if depth < crate::defs::item_min_depth(i.kind) { 0 } else { i.weight }).collect();
     let mut open_items = run.floor.open_tiles();
     run.rng.shuffle(&mut open_items);
     let mut ic = 0usize;
@@ -1858,14 +2036,39 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         }
         place(run, it);
     }
-    // The Fens stock the Bloat Mother's answer: three throwables per floor.
-    if biome == Biome::Fens {
-        for k in ["fire", "poison", if depth.is_multiple_of(2) { "fire" } else { "poison" }] {
-            let iid = run.new_item_id();
-            let mut it = Item::new(iid, k);
-            it.enchant = forge.get(k).map(|f| f.tier as i32).unwrap_or(0);
-            place(run, it);
+    // The Fens stock the Bloat Mother's answer: three throwables per floor. Cut 3: so does the
+    // Foundry (melee is reflected there); the Deep stocks a silence scroll per floor and a
+    // lantern on its doorstep; the Sanctum a mirror scroll per floor.
+    let stock: Vec<&str> = match biome {
+        Biome::Fens => vec!["fire", "poison", if depth.is_multiple_of(2) { "fire" } else { "poison" }],
+        Biome::Foundry => {
+            // The smiths' rack: a bow on the doorstep (melee is reflected here).
+            if depth == 16 {
+                vec!["fire", "poison", "caustic", "bow"]
+            } else if depth == 20 {
+                // The Master's own stockpile, for whoever reaches him.
+                vec!["fire", "fire", "poison", "caustic", "bow"]
+            } else {
+                vec!["fire", "poison", if depth.is_multiple_of(2) { "caustic" } else { "poison" }]
+            }
         }
+        Biome::Deep => {
+            if depth == 21 {
+                vec!["silence", "silence", "lantern", "regen"]
+            } else if depth < 25 {
+                vec!["silence", "silence", "regen"]
+            } else {
+                vec!["silence", "regen"]
+            }
+        }
+        Biome::Sanctum => vec!["mirror", "fire"],
+        _ => Vec::new(),
+    };
+    for k in stock {
+        let iid = run.new_item_id();
+        let mut it = Item::new(iid, k);
+        it.enchant = forge.get(k).map(|f| f.tier as i32).unwrap_or(0);
+        place(run, it);
     }
     if depth >= 2 && run.rng.chance(50) {
         let iid = run.new_item_id();

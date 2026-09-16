@@ -1,7 +1,11 @@
 //! The persistent descent: biome order, bosses, grudge monsters. Floors regenerate per run.
 use serde::{Deserialize, Serialize};
 
-pub const ENDING_DEPTH: u32 = 16;
+/// Cut 3: reaching D31's stairs is the ending (D16 was v1's placeholder).
+pub const ENDING_DEPTH: u32 = 31;
+/// Cut 3: the hero's sight radius in a lit biome; the Deep is dark (`vision_for`).
+pub const VISION_LIT: i32 = 7;
+pub const VISION_DARK: i32 = 4;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -9,6 +13,10 @@ pub enum Biome {
     Warrens,
     Fens,
     Crypt,
+    // Cut 3: biomes 4–6, each breaking the program that cleared the last one.
+    Foundry,
+    Deep,
+    Sanctum,
 }
 
 impl Biome {
@@ -17,6 +25,9 @@ impl Biome {
             Biome::Warrens => "warrens",
             Biome::Fens => "fens",
             Biome::Crypt => "crypt",
+            Biome::Foundry => "foundry",
+            Biome::Deep => "deep",
+            Biome::Sanctum => "sanctum",
         }
     }
     pub fn title(self) -> &'static str {
@@ -24,6 +35,21 @@ impl Biome {
             Biome::Warrens => "the Warrens",
             Biome::Fens => "the Fens",
             Biome::Crypt => "the Crypt",
+            Biome::Foundry => "the Foundry",
+            Biome::Deep => "the Deep",
+            Biome::Sanctum => "the Sanctum",
+        }
+    }
+    pub const ALL: [Biome; 6] = [Biome::Warrens, Biome::Fens, Biome::Crypt, Biome::Foundry, Biome::Deep, Biome::Sanctum];
+    /// Cave floors (cellular, with water): the Fens and the Deep.
+    pub fn is_cave(self) -> bool {
+        matches!(self, Biome::Fens | Biome::Deep)
+    }
+    /// Sight radius on this biome's floors (Cut 3: the Deep is dark).
+    pub fn vision(self) -> i32 {
+        match self {
+            Biome::Deep => VISION_DARK,
+            _ => VISION_LIT,
         }
     }
 }
@@ -32,7 +58,10 @@ pub fn biome_for(depth: u32) -> Biome {
     match depth {
         0..=5 => Biome::Warrens,
         6..=10 => Biome::Fens,
-        _ => Biome::Crypt,
+        11..=15 => Biome::Crypt,
+        16..=20 => Biome::Foundry,
+        21..=25 => Biome::Deep,
+        _ => Biome::Sanctum,
     }
 }
 
@@ -41,6 +70,9 @@ pub fn boss_for(depth: u32) -> Option<&'static str> {
         5 => Some("goblin_warlord"),
         10 => Some("bloat_mother"),
         15 => Some("lich"),
+        20 => Some("foundry_master"),
+        25 => Some("lurker_queen"),
+        30 => Some("mirror_king"),
         _ => None,
     }
 }
@@ -74,5 +106,14 @@ mod tests {
         assert_eq!(boss_for(10), Some("bloat_mother"));
         assert_eq!(boss_for(15), Some("lich"));
         assert_eq!(boss_for(7), None);
+        assert_eq!(biome_for(16), Biome::Foundry);
+        assert_eq!(biome_for(21), Biome::Deep);
+        assert_eq!(biome_for(30), Biome::Sanctum);
+        assert_eq!(boss_for(20), Some("foundry_master"));
+        assert_eq!(boss_for(25), Some("lurker_queen"));
+        assert_eq!(boss_for(30), Some("mirror_king"));
+        assert_eq!(ENDING_DEPTH, 31);
+        assert_eq!(Biome::Deep.vision(), 4);
+        assert_eq!(Biome::Sanctum.vision(), 7);
     }
 }

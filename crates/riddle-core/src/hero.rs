@@ -155,6 +155,21 @@ pub struct Hero {
     pub blink_cd: i32,
     #[serde(default)]
     pub nova_cd: i32,
+    // Cut 3: silence (no noise), regen (+2 per 10 ticks), fire resistance, clarity (immune to
+    // confusion), and the mirror scroll's charge (the next hit taken comes back), in ticks.
+    #[serde(default)]
+    pub silence_t: i32,
+    #[serde(default)]
+    pub regen_t: i32,
+    #[serde(default)]
+    pub resist_fire_t: i32,
+    #[serde(default)]
+    pub clarity_t: i32,
+    #[serde(default)]
+    pub mirror_charge: i32,
+    /// Cut 3: max HP before any drain (the level's), recovered a floor at a time.
+    #[serde(default)]
+    pub max_hp_base: i32,
 }
 
 impl Hero {
@@ -191,6 +206,12 @@ impl Hero {
             ward_cd: 0,
             blink_cd: 0,
             nova_cd: 0,
+            silence_t: 0,
+            regen_t: 0,
+            resist_fire_t: 0,
+            clarity_t: 0,
+            mirror_charge: 0,
+            max_hp_base: max_hp,
         }
     }
     /// Apply a class level: +2 max_hp per level past 1, +1 atk at L3/L6/L9.
@@ -198,6 +219,7 @@ impl Hero {
         self.level = level.clamp(1, 10);
         let extra = 2 * (self.level as i32 - 1);
         self.max_hp += extra;
+        self.max_hp_base = self.max_hp;
         self.hp = self.max_hp;
         self.str_bonus += [3, 6, 9].iter().filter(|l| self.level >= **l).count() as i32;
     }
@@ -317,7 +339,18 @@ impl Hero {
         if self.bulwark_cd > 0 {
             self.bulwark_cd -= 1;
         }
-        for c in [&mut self.volley_cd, &mut self.double_cd, &mut self.ward_t, &mut self.ward_cd, &mut self.blink_cd, &mut self.nova_cd] {
+        for c in [
+            &mut self.volley_cd,
+            &mut self.double_cd,
+            &mut self.ward_t,
+            &mut self.ward_cd,
+            &mut self.blink_cd,
+            &mut self.nova_cd,
+            &mut self.silence_t,
+            &mut self.regen_t,
+            &mut self.resist_fire_t,
+            &mut self.clarity_t,
+        ] {
             if *c > 0 {
                 *c -= 1;
             }
@@ -349,7 +382,26 @@ impl Hero {
         if self.ward_t > 0 {
             t.push("warded".into());
         }
+        if self.silence_t > 0 {
+            t.push("silent".into());
+        }
+        if self.regen_t > 0 {
+            t.push("regen".into());
+        }
+        if self.resist_fire_t > 0 {
+            t.push("fireproof".into());
+        }
+        if self.clarity_t > 0 {
+            t.push("clear".into());
+        }
+        if self.mirror_charge > 0 {
+            t.push("mirrored".into());
+        }
         t
+    }
+    /// Cut 3: the wielded weapon's kind.
+    pub fn weapon_kind(&self) -> &str {
+        self.weapon.as_ref().map(|w| w.kind.as_str()).unwrap_or("")
     }
 }
 

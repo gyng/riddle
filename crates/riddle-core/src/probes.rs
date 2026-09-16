@@ -59,6 +59,28 @@ pub fn good() -> RuleSet {
     }
 }
 
+/// Cut 3: the shipped best set (FULL bot) — every boss counter, every unlock assumed. Shipped
+/// as presets/full.json. Rows 3–5 are the Cut 3 boss counters (the gate removes each in turn):
+/// `cadence` for the Mirror King, `silence` for the Lurker Queen (read when her called
+/// lurkers show, before she is seen), `reflect_read` for the Foundry Master (smiths first).
+pub fn full() -> RuleSet {
+    RuleSet {
+        name: Some("full".into()),
+        rows: vec![
+            Row::new(vec![Cond::n("hp<", 35)], Verb::arg("drink", "heal")),
+            Row::new(vec![Cond::n("hp<", 20), Cond::n("depth>=", 5)], Verb::new("return")),
+            Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 30)], Verb::arg("tactic", "cadence")),
+            Row::new(vec![Cond::t("foe_tag", "summoned"), Cond::n("depth>=", 25)], Verb::arg("read", "silence")),
+            Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read")),
+            Row::new(vec![Cond::t("foe_tag", "buffer"), Cond::n("depth>=", 16)], Verb::arg("attack", "tag:buffer")),
+            Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("tactic", "boss_focus")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+            Row::new(vec![Cond::n("foes>=", 3), Cond::n("hp<", 70)], Verb::new("back_corridor")),
+            Row::new(vec![Cond::n("hp<", 90)], Verb::arg("tactic", "noise_discipline")),
+        ],
+    }
+}
+
 /// The four-row set from the browser playtest that once reached the ending (TRIVIAL bot).
 pub fn trivial() -> RuleSet {
     RuleSet {
@@ -150,14 +172,21 @@ pub fn learn_everything(g: &mut crate::engine::Game) {
         g.lineage.facts.insert(format!("foe:{}:studied", m.kind));
     }
     g.lineage.facts.insert("alert:rising".into());
+    for k in ["goblin", "skeleton", "lurker"] {
+        g.lineage.facts.insert(format!("foe:{k}:summoned"));
+    }
     for i in crate::defs::ITEMS {
         if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, i.kind) {
             g.lineage.facts.insert(f);
         }
     }
-    for b in ["warrens", "fens", "crypt"] {
-        g.lineage.facts.insert(format!("biome:{b}"));
+    for b in crate::descent::Biome::ALL {
+        g.lineage.facts.insert(format!("biome:{}", b.name()));
     }
+    for k in crate::defs::FACT_MISC {
+        g.lineage.facts.insert(format!("item:{k}"));
+    }
+    g.lineage.facts.insert("item:recall".into());
     for (a, b, _) in crate::defs::COUNTERS {
         g.lineage.facts.insert(crate::defs::counter_fact(a, b));
     }
@@ -198,6 +227,8 @@ mod tests {
         }
         assert!(good().validate().is_ok());
         assert!(good().rows.len() <= 8);
+        assert!(full().validate().is_ok());
+        assert!(full().rows.len() <= crate::engine::MAX_ROWS);
     }
     #[test]
     fn companion_rows_capped_by_level() {

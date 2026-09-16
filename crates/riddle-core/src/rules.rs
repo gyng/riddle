@@ -165,8 +165,8 @@ impl RuleSet {
         Ok(set)
     }
     pub fn validate(&self) -> Result<(), String> {
-        if self.rows.len() > 8 {
-            return Err("more than 8 rows".into());
+        if self.rows.len() > crate::engine::MAX_ROWS {
+            return Err(format!("more than {} rows", crate::engine::MAX_ROWS));
         }
         for (i, r) in self.rows.iter().enumerate() {
             if r.conds.len() > 2 {

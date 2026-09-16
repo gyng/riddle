@@ -7,9 +7,9 @@ use crate::geom::{Pos, DIRS8};
 use crate::item::{ident_fact, is_identified, Hint, Item};
 use crate::monster::{Monster, Pending};
 use crate::rules::Verb;
+use crate::hero::{class_has_verb, Class};
 use crate::tiles::{OverlayKind, Tile, VISION};
-use crate::hero::class_has_verb;
-use crate::turn::{cond_holds, damage_hero, damage_monster, descend, end_run, hero_dist, pickup_here, place_overlay, view, Src, View};
+use crate::turn::{cond_holds, damage_hero, damage_monster, descend, end_run, hero_dist, noise, pickup_here, place_overlay, view, Src, View};
 use crate::wire::Ev;
 
 pub const THROW_RANGE: i32 = 6;
@@ -54,9 +54,10 @@ fn hero_bfs(run: &Run) -> (Vec<i32>, Vec<i32>) {
 /// Chores and approaches path through monsters (a hostile on the first step simply stops the
 /// step; the rules decide what to do about it). Paths never depend on what is in view, so
 /// explore and descend cannot disagree about which corridor is open.
-fn hero_bfs_water(run: &Run, avoid_water: bool) -> (Vec<i32>, Vec<i32>) {
+fn hero_bfs_water(run: &Run, avoid: bool) -> (Vec<i32>, Vec<i32>) {
     let map = &run.floor.map;
-    map.bfs_parent(run.hero.pos, true, &|p| avoid_water && map.get(p) == Tile::Water && p != run.hero.pos)
+    let hp = run.hero.pos;
+    map.bfs_parent(hp, true, &|p| avoid && p != hp && (map.get(p) == Tile::Water || run.mirrors.iter().any(|m| m.cheb(p) <= 1)))
 }
 
 /// A path step toward `goal`, avoiding water when possible.
@@ -209,10 +210,38 @@ pub fn escape_hazard(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     }
 }
 
+/// Cut 3 chore: an identified enchant scroll or strength potion has no downside — the hero
+/// uses it when nothing is in view rather than carry it (a full pack of them blocked every
+/// throwable in the Foundry).
+fn use_boosts(run: &mut Run, cx: &mut Ctx) -> Option<Verb> {
+    let enchant_known = is_identified(cx.facts, cx.flavours, "enchant");
+    let strength_known = is_identified(cx.facts, cx.flavours, "strength");
+    if enchant_known && run.hero.weapon.is_some() && run.hero.inv.iter().any(|i| i.kind == "enchant") {
+        let v = view(run);
+        if verb_read(run, cx, "enchant", &v) {
+            return Some(Verb::arg("read", "enchant"));
+        }
+    }
+    if strength_known && run.hero.inv.iter().any(|i| i.kind == "strength") && verb_drink(run, cx, "strength") {
+        return Some(Verb::arg("drink", "strength"));
+    }
+    None
+}
+
 /// Engine chore: out of hazards → items → explore → descend. Returns the verb performed.
 pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     if escape_hazard(run, cx, v) {
         return Verb::new("explore");
+    }
+    if v.foes.is_empty() {
+        if let Some(verb) = use_boosts(run, cx) {
+            return verb;
+        }
+    }
+    // Cut 3: a chalked floor (`chalk:<depth>`) is walked straight to its stairs (whatever lies
+    // on the way is picked up in passing).
+    if v.adj == 0 && cx.facts.contains(&format!("chalk:{}", run.depth)) && !stairs_sealed(run) && chalk_step(run, cx) {
+        return Verb::new("descend");
     }
     if v.adj == 0 && !run.items_ignored() && nearest_item_step(run, cx, false) {
         return Verb::new("pick_up");
@@ -256,6 +285,102 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
 /// Step toward a bones pile on this floor over the whole map (`bone_sense`).
 fn bones_step(run: &mut Run, cx: &mut Ctx) -> bool {
     let Some(goal) = run.items.iter().find(|fi| fi.item.kind == "bones").map(|fi| fi.pos) else { return false };
+    let map = &run.floor.map;
+    let (_, parent) = map.bfs_parent(run.hero.pos, false, &|p| map.get(p) == Tile::Water && p != run.hero.pos);
+    if map.first_step(&parent, run.hero.pos, goal).is_none() {
+        let (_, parent) = map.bfs_parent(run.hero.pos, false, &|_| false);
+        return step_towards(run, cx, goal, &parent);
+    }
+    step_towards(run, cx, goal, &parent)
+}
+
+/// Cut 3: a chore step (the stairs when known and open, else the nearest frontier) along a path
+/// that never comes within a tile of the monsters in `avoid`. False when no such path exists.
+fn route_around(run: &mut Run, cx: &mut Ctx, avoid: &[usize]) -> bool {
+    let hp = run.hero.pos;
+    let spots: Vec<Pos> = avoid.iter().map(|&i| run.monsters[i].pos).collect();
+    let map = &run.floor.map;
+    let (dist, parent) = map.bfs_parent(hp, true, &|p| spots.iter().any(|m| m.cheb(p) <= 1) || (map.get(p) == Tile::Water && p != hp));
+    let stairs = run.floor.stairs_down;
+    let mut goal: Option<(i32, Pos)> = None;
+    if map.is_seen(stairs) && !stairs_sealed(run) && dist[map.idx(stairs)] > 0 && !cx.rules.rows.is_empty() && map.seen_pct() >= CHORE_DESCEND_SEEN {
+        goal = Some((dist[map.idx(stairs)], stairs));
+    }
+    if goal.is_none() {
+        for (i, d) in dist.iter().enumerate() {
+            if *d <= 0 {
+                continue;
+            }
+            let p = map.pos(i);
+            if is_frontier(run, p) && goal.is_none_or(|(gd, _)| *d < gd) {
+                goal = Some((*d, p));
+            }
+        }
+    }
+    if goal.is_none() && map.is_seen(stairs) && !stairs_sealed(run) && dist[map.idx(stairs)] > 0 {
+        goal = Some((dist[map.idx(stairs)], stairs));
+    }
+    let Some((_, goal)) = goal else { return false };
+    if goal == stairs && hp == stairs {
+        descend(run, cx);
+        return true;
+    }
+    step_towards(run, cx, goal, &parent)
+}
+
+fn near_of(run: &Run, idx: &[usize], hp: Pos) -> usize {
+    idx.iter().copied().min_by_key(|&i| (run.monsters[i].pos.cheb(hp), run.monsters[i].id)).unwrap()
+}
+
+fn can_step_clear_of(run: &Run, mi: usize) -> bool {
+    clear_step(run, mi).is_some()
+}
+
+/// Cut 3: a step that gains ground on monster `mi` without walking into a dead end — the
+/// neighbour farthest from it by path whose side of the map (with the monster's tile blocked)
+/// still has room. False when no neighbour gains anything.
+fn step_clear_of(run: &mut Run, cx: &mut Ctx, mi: usize) -> bool {
+    match clear_step(run, mi) {
+        Some(q) => {
+            move_hero(run, cx, q);
+            true
+        }
+        None => false,
+    }
+}
+
+fn clear_step(run: &Run, mi: usize) -> Option<Pos> {
+    let hp = run.hero.pos;
+    let mp = run.monsters[mi].pos;
+    let map = &run.floor.map;
+    let from_foe = map.bfs(mp, false, &|_| false);
+    let cur = from_foe[map.idx(hp)];
+    let mut best: Option<(i32, Pos)> = None;
+    for d in DIRS8 {
+        let q = hp.step(d);
+        if !map.can_step(hp, q) || run.occupied(q) || in_hazard(run, q) {
+            continue;
+        }
+        let far = from_foe[map.idx(q)];
+        if far < 0 || far < cur {
+            continue;
+        }
+        let room = map.bfs(q, false, &|p| p == mp || run.monster_at(p).is_some_and(|k| run.monsters[k].hostile())).iter().filter(|x| **x >= 0).count() as i32;
+        let score = far * 100 + room.min(60) - if map.is_corridor(q) { 5 } else { 0 };
+        if room >= 12 && best.is_none_or(|(b, _)| score > b) {
+            best = Some((score, q));
+        }
+    }
+    best.map(|(_, q)| q).filter(|q| *q != hp)
+}
+
+/// Cut 3: straight to the stairs over the whole map (a chalked floor); descends on arrival.
+fn chalk_step(run: &mut Run, cx: &mut Ctx) -> bool {
+    let goal = run.floor.stairs_down;
+    if run.hero.pos == goal {
+        descend(run, cx);
+        return true;
+    }
     let map = &run.floor.map;
     let (_, parent) = map.bfs_parent(run.hero.pos, false, &|p| map.get(p) == Tile::Water && p != run.hero.pos);
     if map.first_step(&parent, run.hero.pos, goal).is_none() {
@@ -405,15 +530,7 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
             end_run(run, cx, ExitTier::Return);
             true
         }
-        "rest" => {
-            if run.hero.hp < run.hero.max_hp && v.foes.is_empty() && run.hero.poison.1 == 0 && !in_hazard(run, run.hero.pos) {
-                run.hero.hp = (run.hero.hp + 4).min(run.hero.max_hp);
-                crate::turn::rest_clock(run, cx);
-                true
-            } else {
-                false
-            }
-        }
+        "rest" => cx.variant != "no_rest" && verb_rest(run, cx, v),
         "pick_up" => !run.items_ignored() && nearest_item_step(run, cx, false),
         "free_captive" => verb_free_captive(run, cx),
         "vanish" => {
@@ -456,6 +573,37 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
         "drain" => class_has_verb(run.hero.class, run.hero.level, "drain") && verb_drain(run, cx, v),
         _ => false,
     }
+}
+
+/// Rest: +4 HP with no foe in view, not poisoned, not in a hazard. Every rest is a noise.
+fn verb_rest(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
+    if run.hero.hp < run.hero.max_hp && v.foes.is_empty() && run.hero.poison.1 == 0 && !in_hazard(run, run.hero.pos) {
+        run.hero.hp = (run.hero.hp + 4).min(run.hero.max_hp);
+        crate::turn::rest_clock(run, cx);
+        true
+    } else {
+        false
+    }
+}
+
+/// Cut 3: the Mirror King reflects a verb used three times running (the ring holds the last
+/// two; `verb` would be the third).
+fn mirror_reflects(run: &Run, mi: usize, verb: &str) -> bool {
+    let n = run.verb_ring.len();
+    run.monsters[mi].kind == "mirror_king" && n >= 2 && run.verb_ring[n - 1] == verb && run.verb_ring[n - 2] == verb
+}
+
+/// The blow comes back and the mirror keeps its measure: he heals what he sent back.
+fn mirror_learn(run: &mut Run, cx: &mut Ctx, mi: usize) {
+    let kind = run.monsters[mi].kind.clone();
+    learn_tag(run, cx, &kind, "mirror");
+    learn(run, cx, format!("boss:{kind}:counter"));
+    callout(run, cx, "mirrored!");
+}
+
+fn mirror_heal(run: &mut Run, mi: usize, dmg: i32) {
+    let m = &mut run.monsters[mi];
+    m.hp = (m.hp + dmg.max(0)).min(m.max_hp);
 }
 
 // ---------------------------------------------------------------- ranger (Cut 2 §4)
@@ -610,7 +758,17 @@ fn verb_bolt(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View) -> bool {
         let def = run.monsters[mi].effective_def();
         let (hit, dmg) = roll_hit(&mut run.rng, (BOLT_ATK.0 + run.hero.str_bonus, BOLT_ATK.1 + run.hero.str_bonus), def);
         let id = run.monsters[mi].id;
+        run.last_hit_verb = Some("bolt".into());
         projectile(run, cx, HERO_ID, id, hp, mp);
+        if mirror_reflects(run, mi, "bolt") {
+            cx.events.push(Ev::Attack { t: run.turn, src: id, dst: HERO_ID, dmg, hit, verb: Some("mirror".into()) });
+            mirror_learn(run, cx, mi);
+            if hit {
+                mirror_heal(run, mi, dmg);
+                damage_hero(run, cx, dmg, &Src::Reflect(mi));
+            }
+            return true;
+        }
         cx.events.push(Ev::Attack { t: run.turn, src: HERO_ID, dst: id, dmg, hit, verb: Some("bolt".into()) });
         if hit {
             let dmg = if run.monsters[mi].marked > 0 { dmg * 3 / 2 } else { dmg };
@@ -740,7 +898,9 @@ fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bo
     let Some(mi) = pick_target(run, a, v) else { return false };
     let hp = run.hero.pos;
     let mp = run.monsters[mi].pos;
-    if mp.adjacent(hp) {
+    // Cut 3: a spear reaches two tiles.
+    let reach = mp.adjacent(hp) || (!bash && run.hero.weapon_kind() == "spear" && mp.cheb(hp) == 2 && run.floor.map.los(hp, mp));
+    if reach {
         run.chase = None;
         // An aimed strike (`attack tag:boss`) or a bash goes through the Warlord's guards.
         run.aimed = a == "tag:boss" || bash;
@@ -866,20 +1026,35 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
     let def = run.monsters[mi].effective_def();
     let (hit, dmg) = roll_hit(&mut run.rng, atk, def);
     let id = run.monsters[mi].id;
+    run.last_hit_verb = Some(verb.into());
     if verb == "shoot" {
         let (from, to) = (run.hero.pos, run.monsters[mi].pos);
         projectile(run, cx, HERO_ID, id, from, to);
-        if run.monsters[mi].has_tag("reflect") {
+        if run.monsters[mi].reflects_ranged() {
             // The arrow comes back.
             let kind = run.monsters[mi].kind.clone();
             cx.events.push(Ev::Attack { t: run.turn, src: id, dst: HERO_ID, dmg, hit, verb: Some("reflect".into()) });
             learn_tag(run, cx, &kind, "reflect");
             callout(run, cx, "reflected!");
             if hit {
-                damage_hero(run, cx, dmg, &Src::Mon(mi));
+                damage_hero(run, cx, dmg, &Src::Reflect(mi));
             }
             return;
         }
+    } else {
+        // Cut 3: a swing is a noise (the Deep's hunters come for it).
+        let at = run.hero.pos;
+        noise(run, cx, at, 6);
+    }
+    // Cut 3: the Mirror King throws the third of a kind back.
+    if mirror_reflects(run, mi, verb) {
+        cx.events.push(Ev::Attack { t: run.turn, src: id, dst: HERO_ID, dmg, hit, verb: Some("mirror".into()) });
+        mirror_learn(run, cx, mi);
+        if hit {
+            mirror_heal(run, mi, dmg);
+            damage_hero(run, cx, dmg, &Src::Reflect(mi));
+        }
+        return;
     }
     cx.events.push(Ev::Attack { t: run.turn, src: HERO_ID, dst: id, dmg, hit, verb: Some(verb.into()) });
     if verb != "shoot" {
@@ -896,6 +1071,11 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
         if bash {
             run.monsters[mi].stun = 10;
             callout(run, cx, "bash");
+        }
+        // Cut 3: a mace stuns one hit in ten.
+        if !bash && verb != "shoot" && run.hero.weapon_kind() == "mace" && run.rng.chance(10) {
+            run.monsters[mi].stun = 10;
+            callout(run, cx, "stunned");
         }
         let dmg = if run.monsters[mi].marked > 0 { dmg * 3 / 2 } else { dmg };
         damage_monster(run, cx, mi, dmg, &Src::Hero { ranged: verb == "shoot" });
@@ -1011,6 +1191,10 @@ fn identify_used(run: &mut Run, cx: &mut Ctx, item: &Item) -> bool {
     if let Some(f) = ident_fact(cx.flavours, &item.kind) {
         learn(run, cx, f);
     }
+    if item.kind == "recall" {
+        // Cut 3: knowing the recall scroll gates `recall_sense`.
+        learn(run, cx, "item:recall".into());
+    }
     if was_unknown {
         let mal = !item.def().benevolent;
         run.gambles.push((run.turn, item.kind.clone(), mal));
@@ -1072,6 +1256,20 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
             place_overlay(run, cx, p, 1, OverlayKind::Fire, 20);
             "fire".into()
         }
+        // Cut 3
+        "regen" => {
+            run.hero.regen_t = 60 * boost / 100;
+            "regen".into()
+        }
+        "resist_fire" => {
+            run.hero.resist_fire_t = 60 * boost / 100;
+            "fireproof".into()
+        }
+        "clarity" => {
+            run.hero.clarity_t = 60 * boost / 100;
+            run.hero.confused = 0;
+            "clear".into()
+        }
         _ => "nothing".into(),
     };
     cx.events.push(Ev::Use { t: run.turn, item: format!("{kind} potion"), outcome });
@@ -1086,8 +1284,21 @@ fn scroll_useless(run: &Run, cx: &Ctx, kind: &str, v: &View) -> bool {
         "fear" | "darkness" | "teleport" | "blink" => v.foes.is_empty(),
         "summon_ally" => run.allies().next().is_some(),
         "aggravate" => true,
+        // Cut 3
+        "silence" => run.hero.silence_t > 0,
+        "mirror" => run.hero.mirror_charge > 0,
+        "earthquake" => {
+            let hp = run.hero.pos;
+            let map = &run.floor.map;
+            !(-2..=2).any(|dy| (-2..=2).any(|dx| quakeable(map, hp.step((dx, dy)))))
+        }
         _ => false,
     }
+}
+
+/// Cut 3: a wall the earthquake may open (never the map's rim).
+fn quakeable(map: &crate::tiles::Map, p: Pos) -> bool {
+    map.in_bounds(p) && map.get(p) == Tile::Wall && p.x > 0 && p.y > 0 && p.x < map.w - 1 && p.y < map.h - 1
 }
 
 fn verb_read(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
@@ -1195,6 +1406,42 @@ fn verb_read(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
             callout(run, cx, "aggravated!");
             "aggravated".into()
         }
+        // Cut 3
+        "recall" => {
+            // Home from anywhere, with everything: the escape of the deep.
+            callout(run, cx, "recalled");
+            end_run(run, cx, ExitTier::Bank);
+            "recalled".into()
+        }
+        "silence" => {
+            // 200 ticks: twenty quiet actions, a boss fight's worth (the contract's 100 left
+            // the Lurker Queen calling again before a fighter could close and finish her).
+            run.hero.silence_t = 200;
+            callout(run, cx, "silence");
+            "silent".into()
+        }
+        "earthquake" => {
+            let hp = run.hero.pos;
+            let mut opened = 0;
+            for dy in -2..=2 {
+                for dx in -2..=2 {
+                    let q = hp.step((dx, dy));
+                    if quakeable(&run.floor.map, q) {
+                        run.floor.map.set(q, Tile::Floor);
+                        opened += 1;
+                    }
+                }
+            }
+            run.floor.map.compute_corridors(&[]);
+            run.hero_dist_pos = None;
+            callout(run, cx, "quake!");
+            format!("{opened} walls fell")
+        }
+        "mirror" => {
+            run.hero.mirror_charge = 1;
+            callout(run, cx, "mirror");
+            "mirrored".into()
+        }
         _ => "nothing".into(),
     };
     cx.events.push(Ev::Use { t: run.turn, item: format!("{kind} scroll"), outcome });
@@ -1205,25 +1452,72 @@ fn verb_throw(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
     let mut parts = a.split(',');
     let kind = parts.next().unwrap_or("").trim();
     let target_sel = parts.next().unwrap_or("nearest").trim();
-    let Some(ii) = find_consumable_for(run, cx, Cat::Potion, kind, true) else { return false };
+    // Cut 3: a bell needs no target — it is thrown away from the foes to lure the hunters.
+    if kind == "bell" {
+        return throw_bell(run, cx, v);
+    }
+    let ii = if crate::defs::THROWABLE_MISC.contains(&kind) {
+        run.hero.inv.iter().position(|i| i.kind == kind)
+    } else {
+        find_consumable_for(run, cx, Cat::Potion, kind, true)
+    };
+    let Some(ii) = ii else { return false };
     let Some(mi) = pick_target(run, target_sel, v) else { return false };
+    throw_item_at(run, cx, ii, mi)
+}
+
+/// Cut 3: a bell lands up to six tiles away, on the far side from the foes: +3 alert there
+/// and a noise the whole floor hears — the blind hunters go to it, not to the hero.
+fn throw_bell(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
+    let Some(ii) = run.hero.inv.iter().position(|i| i.kind == "bell") else { return false };
+    let hp = run.hero.pos;
+    let map = &run.floor.map;
+    let mut cands: Vec<Pos> = Vec::new();
+    for dy in -THROW_RANGE..=THROW_RANGE {
+        for dx in -THROW_RANGE..=THROW_RANGE {
+            let q = hp.step((dx, dy));
+            if q.cheb(hp) >= 3 && map.in_bounds(q) && map.passable(q) && map.los(hp, q) {
+                cands.push(q);
+            }
+        }
+    }
+    let Some(land) = cands.iter().copied().max_by_key(|q| (min_foe_dist(run, v, *q), q.cheb(hp), -q.x, -q.y)) else { return false };
+    run.hero.inv.remove(ii);
+    projectile(run, cx, HERO_ID, 0, hp, land);
+    run.alert = (run.alert + 3).min(8);
+    run.hero.silence_t = 0;
+    noise(run, cx, land, 40);
+    callout(run, cx, "bell!");
+    cx.events.push(Ev::Use { t: run.turn, item: "bell".into(), outcome: "rang".into() });
+    true
+}
+
+/// Throw pack item `ii` at monster `mi` (within range and sight), with the potion's effect.
+fn throw_item_at(run: &mut Run, cx: &mut Ctx, ii: usize, mi: usize) -> bool {
     let hp = run.hero.pos;
     let mut land = run.monsters[mi].pos;
     if land.cheb(hp) > THROW_RANGE || !run.floor.map.los(hp, land) {
         return false;
     }
     let item = run.hero.inv.remove(ii);
-    identify_used(run, cx, &item);
+    if item.cat() == Cat::Potion {
+        identify_used(run, cx, &item);
+    }
     let pkind = item.kind.clone();
     let boost = 100 + 25 * item.enchant.max(0);
+    run.last_hit_verb = Some("throw".into());
     projectile(run, cx, HERO_ID, run.monsters[mi].id, hp, land);
     let mut reflected = false;
-    if run.monsters[mi].has_tag("reflect") {
+    if run.monsters[mi].reflects_ranged() {
         land = hp;
         reflected = true;
         let k = run.monsters[mi].kind.clone();
         learn_tag(run, cx, &k, "reflect");
         callout(run, cx, "reflected!");
+    } else if mirror_reflects(run, mi, "throw") {
+        land = hp;
+        reflected = true;
+        mirror_learn(run, cx, mi);
     }
     let victim = if reflected { None } else { Some(mi) };
     let outcome = match pkind.as_str() {
@@ -1268,9 +1562,36 @@ fn verb_throw(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
             }
             "wasted".into()
         }
+        // Cut 3
+        "clarity" => {
+            // Clears confusion in the 3×3 around the landing tile (the hero's own included).
+            if run.hero.pos.cheb(land) <= 1 {
+                run.hero.confused = 0;
+            }
+            for m in run.monsters.iter_mut() {
+                if m.pos.cheb(land) <= 1 {
+                    m.confused = 0;
+                }
+            }
+            "cleared".into()
+        }
+        "salt" => {
+            let mut routed = 0;
+            for m in run.monsters.iter_mut() {
+                if m.hostile() && m.has_tag("undead") && m.pos.cheb(land) <= 1 {
+                    m.fear = 50;
+                    routed += 1;
+                }
+            }
+            if routed > 0 {
+                callout(run, cx, "undead flee");
+            }
+            format!("{routed} fled")
+        }
         _ => "wasted".into(),
     };
-    cx.events.push(Ev::Use { t: run.turn, item: format!("{pkind} potion"), outcome });
+    let label = if item.cat() == Cat::Potion { format!("{pkind} potion") } else { pkind.clone() };
+    cx.events.push(Ev::Use { t: run.turn, item: label, outcome });
     true
 }
 
@@ -1497,6 +1818,15 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                     }
                     verb_attack(run, cx, "tag:boss", v, false)
                 }
+                // Cut 3: the Queen mends while her called lurkers live — the adjacent ones first.
+                "lurker_queen" => {
+                    let hp = run.hero.pos;
+                    if let Some(i) = v.foes.iter().copied().find(|&i| run.monsters[i].summoned && run.monsters[i].kind == "lurker" && run.monsters[i].pos.adjacent(hp)) {
+                        hero_attack(run, cx, i, "attack", false);
+                        return true;
+                    }
+                    verb_attack(run, cx, "tag:boss", v, false)
+                }
                 _ => verb_attack(run, cx, "tag:boss", v, false),
             }
         }
@@ -1525,6 +1855,145 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                 }
             }
             verb_attack(run, cx, "lowest", v, false)
+        }
+        // Cut 3 tier 2. cadence: two of a verb, then another — the Mirror King reflects the
+        // third of a kind. The off-beat still hurts when it can (bash, cleave, a throw, the
+        // class's specials), else it is a feint.
+        "cadence" => {
+            if v.foes.is_empty() {
+                return false;
+            }
+            let n = run.verb_ring.len();
+            let repeat = n >= 2 && run.verb_ring[n - 1] == run.verb_ring[n - 2];
+            let last = run.verb_ring.last().cloned().unwrap_or_default();
+            let basic = match run.hero.class {
+                Class::Caster => "bolt",
+                _ if run.hero.ranged() => "shoot",
+                _ => "attack",
+            };
+            if !(repeat && last == basic) {
+                return match basic {
+                    "bolt" => verb_bolt(run, cx, "nearest", v),
+                    _ => verb_attack(run, cx, "nearest", v, false),
+                };
+            }
+            let hp = run.hero.pos;
+            if last != "shield_bash" && class_has_verb(run.hero.class, run.hero.level, "shield_bash") && run.hero.bash_cd == 0 && v.adj >= 1 && verb_attack(run, cx, "nearest", v, true) {
+                return true;
+            }
+            if last != "cleave" && class_has_verb(run.hero.class, run.hero.level, "cleave") && verb_cleave(run, cx, v) {
+                return true;
+            }
+            if last != "throw" {
+                for k in ["fire", "poison", "caustic", "confusion"] {
+                    if verb_throw(run, cx, &format!("{k},nearest"), v) {
+                        return true;
+                    }
+                }
+            }
+            if last != "shoot" && (verb_volley(run, cx, v) || verb_double_shot(run, cx, "nearest", v)) {
+                return true;
+            }
+            if last != "drain" && class_has_verb(run.hero.class, run.hero.level, "drain") && verb_drain(run, cx, v) {
+                return true;
+            }
+            if basic != "attack" && last != "attack" && v.foes.iter().any(|&i| run.monsters[i].pos.adjacent(hp)) {
+                let i = v.foes.iter().copied().find(|&i| run.monsters[i].pos.adjacent(hp)).unwrap();
+                hero_attack(run, cx, i, "attack", false);
+                return true;
+            }
+            callout(run, cx, "feint");
+            true
+        }
+        // noise_discipline: rest only while no blind hunter seen on this floor still lives;
+        // otherwise keep moving (the stairs if known, else the frontier) instead of resting.
+        "noise_discipline" => {
+            if run.blind_foe_known() {
+                if v.foes.is_empty() && run.hero.hp < run.hero.max_hp {
+                    return descend_step(run, cx) || explore_step(run, cx);
+                }
+                return false;
+            }
+            verb_rest(run, cx, v)
+        }
+        // reflect_read: never melee a foe that reflects it — shoot or throw at it, fight the
+        // others (a warden on its arrow face is one of them), back off from one adjacent,
+        // and walk away from one that is not.
+        "reflect_read" => {
+            let hp = run.hero.pos;
+            let refl: Vec<usize> = v.foes.iter().copied().filter(|&i| run.monsters[i].reflects_melee()).collect();
+            if refl.is_empty() {
+                return false;
+            }
+            let shootable = |run: &Run, i: usize| {
+                let mp = run.monsters[i].pos;
+                !run.monsters[i].reflects_ranged() && mp.cheb(hp) <= BOW_RANGE && run.floor.map.los(hp, mp)
+            };
+            if run.hero.ranged() {
+                if let Some(i) = refl.iter().copied().find(|&i| shootable(run, i)) {
+                    hero_attack(run, cx, i, "shoot", false);
+                    return true;
+                }
+            } else if let Some(bi) = run.hero.inv.iter().position(|i| i.def().ranged) {
+                // A bow in the pack goes up (an action); it comes back down by itself once no
+                // mirror is in view.
+                if refl.iter().any(|&i| shootable(run, i)) {
+                    let bow = run.hero.inv.remove(bi);
+                    run.bow_swap = run.hero.weapon.replace(bow);
+                    callout(run, cx, "bow up");
+                    return true;
+                }
+            }
+            // Throwables go to a boss, or to a mirror that has the hero cornered; fire and gas
+            // only from two tiles off (the blast is 3×3).
+            let cornered = refl.iter().any(|&i| run.monsters[i].pos.adjacent(hp)) && !can_step_clear_of(run, near_of(run, &refl, hp));
+            for k in ["poison", "confusion", "fire", "caustic"] {
+                let Some(ii) = find_consumable_for(run, cx, Cat::Potion, k, true) else { continue };
+                let blast = matches!(k, "fire" | "caustic");
+                let target = refl
+                    .iter()
+                    .copied()
+                    .filter(|&i| !run.monsters[i].reflects_ranged() && (!blast || run.monsters[i].pos.cheb(hp) >= 2 || run.hero.resist_fire_t > 0))
+                    .find(|&i| run.monsters[i].is_boss() || cornered);
+                if let Some(i) = target {
+                    if throw_item_at(run, cx, ii, i) {
+                        return true;
+                    }
+                }
+            }
+            // A boss with the hero in its reach and fire in the pack: step back first, then throw.
+            if refl.iter().any(|&i| run.monsters[i].is_boss() && run.monsters[i].pos.adjacent(hp))
+                && ["fire", "caustic"].iter().any(|k| find_consumable_for(run, cx, Cat::Potion, k, true).is_some())
+                && step_clear_of(run, cx, near_of(run, &refl, hp))
+            {
+                return true;
+            }
+            if let Some(other) = v.foes.iter().copied().find(|&i| !run.monsters[i].reflects_melee() && run.monsters[i].pos.adjacent(hp)) {
+                hero_attack(run, cx, other, "attack", false);
+                return true;
+            }
+            // Nothing to throw: the mirror is not worth a swing. It is terrain now — the chores'
+            // goals (the stairs, the frontier) are walked around it, never within a tile of it;
+            // with no way around, gain ground on it (it is slow and forgets what it cannot
+            // see). Items wait: they lure the hero into corners.
+            run.items_until = run.items_until.max(run.actions + 10);
+            let near = near_of(run, &refl, hp);
+            if route_around(run, cx, &refl) {
+                return true;
+            }
+            if step_clear_of(run, cx, near) {
+                return true;
+            }
+            // Boxed in: hold. It comes on slowly and forgets what it cannot see; the
+            // oscillation guard opens the chores again if this drags on.
+            true
+        }
+        // deep_march: in the dark (vision ≤ 4) the way down is taken at 40% seen.
+        "deep_march" => {
+            if run.vision(cx.unlocks) > 4 || run.floor.map.seen_pct() < 40 || stairs_sealed(run) || !v.foes.is_empty() {
+                return false;
+            }
+            descend_step(run, cx)
         }
         // Mastery cards (class L10). hawkeye: the ranger's whole ladder in one row.
         "hawkeye" => {
@@ -1562,8 +2031,17 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
 // ---------------------------------------------------------------- monsters
 
 fn move_monster(run: &mut Run, cx: &mut Ctx, mi: usize, q: Pos) {
-    let was_visible = run.floor.map.is_visible(run.monsters[mi].pos);
+    let from = run.monsters[mi].pos;
+    let was_visible = run.floor.map.is_visible(from);
     run.monsters[mi].pos = q;
+    // Cut 3: a slag crawler leaves fire where it crawled (no spread).
+    if run.monsters[mi].kind == "slag_crawler" && run.floor.map.get(from) == Tile::Floor && !run.overlays.iter().any(|o| o.x == from.x && o.y == from.y) {
+        run.overlays.push(crate::tiles::Overlay { x: from.x, y: from.y, k: OverlayKind::Fire, ttl: 20, spread: false });
+        cx.events.push(Ev::Overlay { t: run.turn, x: from.x, y: from.y, ov: OverlayKind::Fire, ttl: 20 });
+        if was_visible {
+            learn_tag(run, cx, "slag_crawler", "fire");
+        }
+    }
     if was_visible || run.floor.map.is_visible(q) {
         let id = run.monsters[mi].id;
         cx.events.push(Ev::Move { t: run.turn, id, x: q.x, y: q.y });
@@ -1585,14 +2063,15 @@ fn move_monster(run: &mut Run, cx: &mut Ctx, mi: usize, q: Pos) {
 fn can_see_hero(run: &Run, mi: usize) -> bool {
     let m = &run.monsters[mi];
     let h = &run.hero;
-    if m.blind > 0 || h.untargetable() {
+    if m.blind > 0 || m.is_blind() || h.untargetable() {
         return false;
     }
     let d = m.pos.cheb(h.pos);
     if h.invis_t > 0 {
         return d <= 1;
     }
-    d <= VISION && run.floor.map.los(m.pos, h.pos)
+    // Cut 3: the dark cuts everyone's sight (the floor's radius), not only the hero's.
+    d <= run.floor.vision && run.floor.map.los(m.pos, h.pos)
 }
 
 fn approach(run: &mut Run, cx: &mut Ctx, mi: usize) -> bool {
@@ -1702,8 +2181,15 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
         return;
     }
     let cause = kind.clone();
+    if verb != "shoot" {
+        // Cut 3: blows on the hero are noise too (fights draw the Deep's hunters).
+        let at = run.hero.pos;
+        noise(run, cx, at, 6);
+    }
     if run.monsters[mi].has_tag("thief") && dmg > 0 && run.monsters[mi].stolen.is_none() {
-        let stealable: Vec<usize> = (0..run.hero.inv.len()).collect();
+        // A forge imp only steals potions.
+        let potions_only = kind == "forge_imp";
+        let stealable: Vec<usize> = (0..run.hero.inv.len()).filter(|&i| !potions_only || run.hero.inv[i].cat() == Cat::Potion).collect();
         if !stealable.is_empty() {
             let ii = stealable[run.rng.below(stealable.len() as u32) as usize];
             let it = run.hero.inv.remove(ii);
@@ -1713,7 +2199,7 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
             run.monsters[mi].fleeing = true;
             cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone() });
             run.stolen.push((run.turn, label.clone()));
-            note(run, cx, format!("The monkey stole the {label}."));
+            note(run, cx, format!("The {} stole the {label}.", crate::engine::kind_title(&kind)));
             callout(run, cx, "stolen!");
             learn_tag(run, cx, &kind, "thief");
         }
@@ -1778,7 +2264,7 @@ fn summon_near(run: &mut Run, cx: &mut Ctx, at: Pos, kind: &str, n: usize, ttl: 
     made
 }
 
-fn telegraph(run: &mut Run, cx: &mut Ctx, mi: usize, what: &str, pending: Pending) {
+pub fn telegraph(run: &mut Run, cx: &mut Ctx, mi: usize, what: &str, pending: Pending) {
     run.monsters[mi].telegraph = Some(what.into());
     run.monsters[mi].pending = Some(pending);
     let id = run.monsters[mi].id;
@@ -1856,9 +2342,77 @@ fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending) {
                 callout(run, cx, "skeletons!");
             }
         }
+        // Cut 3. The sentinel's gaze: the hero within two tiles and in sight is stunned.
+        Pending::Gaze => {
+            if mp.cheb(hp) <= 2 && run.floor.map.los(mp, hp) && !run.hero.untargetable() {
+                run.hero.paralysed = 12;
+                if visible {
+                    callout(run, cx, "stunned");
+                    learn_tag(run, cx, &kind, "gaze");
+                }
+            }
+            if engaged(run, mi) {
+                monster_attack(run, cx, mi, 1, "attack");
+            }
+        }
+        // The warden turns its other face.
+        Pending::Flip => {
+            run.monsters[mi].warden_ranged = !run.monsters[mi].warden_ranged;
+            if visible {
+                callout(run, cx, if run.monsters[mi].warden_ranged { "mirrors arrows" } else { "mirrors blades" });
+                learn_tag(run, cx, &kind, "reflect_melee");
+                learn_tag(run, cx, &kind, "reflect");
+            }
+        }
+        // The Lurker Queen calls two lurkers to the noise she heard.
+        Pending::Call => {
+            let before = run.monsters.len();
+            summon_near(run, cx, mi_pos(run, mi), "lurker", 2, Some(150));
+            let heard = run.noise.map(|(p, _)| p);
+            for m in run.monsters[before..].iter_mut() {
+                m.last_seen = heard;
+            }
+            if visible {
+                learn_tag(run, cx, &kind, "summoner");
+                callout(run, cx, "lurkers!");
+            }
+        }
+        // The Mirror King's warning: the next of a kind comes back. He strikes meanwhile.
+        Pending::Mirror => {
+            if engaged(run, mi) {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else {
+                approach(run, cx, mi);
+            }
+        }
+        // The Foundry Master's hammer: a double blow, like the ogre's.
+        Pending::Hammer => {
+            if engaged(run, mi) {
+                monster_attack(run, cx, mi, 2, "hammer");
+            } else {
+                approach(run, cx, mi);
+            }
+        }
     }
     if run.monsters[mi].is_boss() && run.over.is_none() && visible {
         learn(run, cx, format!("boss:{kind}:counter"));
+    }
+}
+
+/// Cut 3: +`def` for `ticks` to every hostile in the buffer's view (itself included).
+fn buff_allies(run: &mut Run, cx: &mut Ctx, mi: usize, def: i32, ticks: i32, word: &str) {
+    let mp = run.monsters[mi].pos;
+    let kind = run.monsters[mi].kind.clone();
+    let mut any = false;
+    for m in run.monsters.iter_mut() {
+        if m.hostile() && m.hp > 0 && m.pos.cheb(mp) <= VISION && m.buff_def.1 < ticks {
+            m.buff_def = (def.max(m.buff_def.0), ticks);
+            any = true;
+        }
+    }
+    if any && run.floor.map.is_visible(mp) {
+        learn_tag(run, cx, &kind, "buffer");
+        callout(run, cx, word);
     }
 }
 
@@ -2060,6 +2614,193 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
                     run.hero.hp = run.hero.hp.min(run.hero.max_hp);
                 }
             } else if summons == 0 || dist > 4 {
+                chase(run, cx, mi, sees);
+            }
+        }
+        // ---- Cut 3, the Foundry
+        // An iron golem is a slow wall: it presses while it sees the hero and forgets at once
+        // when it does not (walking away from it works; nothing else does without range).
+        "iron_golem" => {
+            if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else if sees && dist <= 4 {
+                approach(run, cx, mi);
+            } else {
+                run.monsters[mi].last_seen = None;
+                if run.rng.chance(15) {
+                    wander(run, cx, mi);
+                }
+            }
+        }
+        // A bell sentinel rings on sight: +2 alert, and the whole floor hears it.
+        "bell_sentinel" => {
+            if sees && cooldown == 0 {
+                run.monsters[mi].cooldown = 200;
+                run.alert = (run.alert + 2).min(8);
+                if run.floor.map.is_visible(mp) {
+                    callout(run, cx, "bell!");
+                    learn_tag(run, cx, kind, "alarm");
+                }
+                noise(run, cx, mp, 40);
+            } else if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else if sees && dist < 3 {
+                step_away(run, cx, mi, hp, false);
+            } else {
+                chase(run, cx, mi, sees);
+            }
+        }
+        // A slag crawler winds up like an ogre; the fire it leaves is in `move_monster`.
+        "slag_crawler" => {
+            if adjacent && mp.adjacent(hp) {
+                telegraph(run, cx, mi, "heaves", Pending::HeavyHit);
+            } else if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else {
+                chase(run, cx, mi, sees);
+            }
+        }
+        // A smith armours every ally in view (+3 def, 30 ticks) and keeps its distance.
+        "smith" => {
+            if sees && cooldown == 0 {
+                run.monsters[mi].cooldown = 30;
+                buff_allies(run, cx, mi, 3, 30, "armours");
+            } else if adjacent && !(run.rng.chance(50) && step_away(run, cx, mi, hp, false)) {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else if !adjacent && (dist > 3 || !sees) {
+                chase(run, cx, mi, sees);
+            }
+        }
+        // ---- the Deep
+        // A mirror shade copies the hero's class verb: bash, backstab, shoot or bolt.
+        "mirror_shade" => {
+            let class = run.hero.class;
+            let ranged_copy = matches!(class, Class::Ranger | Class::Caster);
+            if ranged_copy && sees && (2..=BOW_RANGE).contains(&dist) {
+                let id = run.monsters[mi].id;
+                projectile(run, cx, id, HERO_ID, mp, hp);
+                monster_attack(run, cx, mi, 1, if class == Class::Ranger { "shoot" } else { "bolt" });
+                if run.floor.map.is_visible(mp) {
+                    learn_tag(run, cx, kind, "mirror");
+                }
+            } else if adjacent {
+                match class {
+                    Class::Fighter => {
+                        monster_attack(run, cx, mi, 1, "bash");
+                        if run.over.is_none() && run.rng.chance(25) {
+                            run.hero.paralysed = 12;
+                            callout(run, cx, "bashed");
+                        }
+                    }
+                    Class::Rogue => {
+                        let unaware = run.hero.confused > 0 || run.hero.paralysed > 0 || run.monsters.iter().filter(|o| o.hp > 0 && o.hostile() && o.pos.adjacent(hp)).count() >= 2;
+                        monster_attack(run, cx, mi, if unaware { 2 } else { 1 }, "backstab");
+                    }
+                    _ => monster_attack(run, cx, mi, 1, "attack"),
+                }
+                if run.floor.map.is_visible(mp) {
+                    learn_tag(run, cx, kind, "mirror");
+                }
+            } else {
+                chase(run, cx, mi, sees);
+            }
+        }
+        // A siren's aura (2 tiles, in `tick_regen_and_auras`) does the work; it closes and bites.
+        "siren" => {
+            if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else {
+                chase(run, cx, mi, sees);
+            }
+        }
+        // ---- the Sanctum
+        // A warden flips its face every 40 ticks, announced.
+        "warden" => {
+            if sees && cooldown == 0 {
+                run.monsters[mi].cooldown = 40;
+                telegraph(run, cx, mi, "shifts", Pending::Flip);
+            } else if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else {
+                chase(run, cx, mi, sees);
+            }
+        }
+        // An acolyte heals the most hurt ally in reach (5 HP every 30 ticks) and hangs back.
+        "acolyte" => {
+            let hurt = run
+                .monsters
+                .iter()
+                .enumerate()
+                .filter(|(j, o)| *j != mi && o.hp > 0 && o.hostile() && o.hp < o.max_hp && o.pos.cheb(mp) <= 5)
+                .min_by_key(|(_, o)| (o.hp * 100 / o.max_hp.max(1), o.id))
+                .map(|(j, _)| j);
+            if let Some(j) = hurt.filter(|_| cooldown == 0) {
+                run.monsters[mi].cooldown = 30;
+                let m = &mut run.monsters[j];
+                m.hp = (m.hp + 5).min(m.max_hp);
+                if run.floor.map.is_visible(mp) {
+                    callout(run, cx, "heals");
+                    learn_tag(run, cx, kind, "healer");
+                }
+            } else if adjacent && !(sees && step_away(run, cx, mi, hp, false)) {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else if !adjacent && (dist > 3 || !sees) {
+                chase(run, cx, mi, sees);
+            }
+        }
+        // A sentinel's gaze, telegraphed, stuns whoever stands within two tiles.
+        "sentinel" => {
+            if sees && dist <= 2 && cooldown == 0 {
+                run.monsters[mi].cooldown = 60;
+                telegraph(run, cx, mi, "gazes", Pending::Gaze);
+            } else if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else {
+                chase(run, cx, mi, sees);
+            }
+        }
+        // ---- Cut 3 bosses
+        // The Foundry Master: melee comes back at the hero (`reflect_melee`, in
+        // `damage_monster`); his smiths keep him armoured; hurt, he armours himself. The counter
+        // is the smiths first, then range or throws.
+        "foundry_master" => {
+            let hurt = run.monsters[mi].hurt_since_action;
+            run.monsters[mi].hurt_since_action = false;
+            if sees && !run.monsters[mi].introduced {
+                run.monsters[mi].introduced = true;
+                telegraph(run, cx, mi, "hammers", Pending::Hammer);
+            } else if hurt && cooldown == 0 {
+                run.monsters[mi].cooldown = 40;
+                buff_allies(run, cx, mi, 2, 40, "armours");
+            } else if adjacent && mp.adjacent(hp) && run.rng.chance(30) {
+                telegraph(run, cx, mi, "hammers", Pending::Hammer);
+            } else if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else {
+                chase(run, cx, mi, sees);
+            }
+        }
+        // The Lurker Queen is blind: she goes to the last noise and calls lurkers to it
+        // (`noise` → `Pending::Call`). Silence, or a fast kill, is the counter.
+        "lurker_queen" => {
+            if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else {
+                chase(run, cx, mi, false);
+            }
+        }
+        // The Mirror King: a verb used three times running comes back (`mirror_reflects`);
+        // he warns on the first repeat, and on his first sight of the hero.
+        "mirror_king" => {
+            let n = run.verb_ring.len();
+            let repeat = n >= 2 && run.verb_ring[n - 1] == run.verb_ring[n - 2];
+            if sees && cooldown == 0 && (repeat || !run.monsters[mi].introduced) {
+                run.monsters[mi].introduced = true;
+                run.monsters[mi].cooldown = 20;
+                telegraph(run, cx, mi, "mirrors", Pending::Mirror);
+            } else if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else {
                 chase(run, cx, mi, sees);
             }
         }
@@ -2408,6 +3149,38 @@ fn try_companion_verb(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &Verb, v: &V
                 m.hp = (m.hp + dmg).min(m.max_hp);
             }
             true
+        }
+        // Cut 3: a bred `mirror` companion copies the hero's class verb — the fighter's bash
+        // (stun), the rogue's backstab (×1.5), the ranger's shot and the caster's bolt at range.
+        "mimic" => {
+            if !run.monsters[mi].has_tag("mirror") {
+                return false;
+            }
+            match run.hero.class {
+                Class::Ranger | Class::Caster => {
+                    let target = v.foes.iter().copied().find(|&i| {
+                        let tp = run.monsters[i].pos;
+                        (1..=BOW_RANGE).contains(&tp.cheb(mp)) && run.floor.map.los(mp, tp)
+                    });
+                    let Some(ti) = target else { return false };
+                    let (src, dst, tp) = (run.monsters[mi].id, run.monsters[ti].id, run.monsters[ti].pos);
+                    projectile(run, cx, src, dst, mp, tp);
+                    companion_melee(run, cx, mi, ti, if run.hero.class == Class::Ranger { "shoot" } else { "bolt" }, 2);
+                    true
+                }
+                Class::Fighter => {
+                    let Some(ti) = adj_target else { return false };
+                    if companion_melee(run, cx, mi, ti, "bash", 2) > 0 && run.monsters.get(ti).is_some_and(|m| m.hp > 0) {
+                        run.monsters[ti].stun = 10;
+                    }
+                    true
+                }
+                Class::Rogue => {
+                    let Some(ti) = adj_target else { return false };
+                    companion_melee(run, cx, mi, ti, "backstab", 3);
+                    true
+                }
+            }
         }
         "follow" => {
             if mp.cheb(run.hero.pos) > 2 {

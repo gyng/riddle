@@ -47,11 +47,24 @@ pub const UNLOCKS: &[UnlockDef] = &[
     UnlockDef { id: "supply_cap_5", cost: 3, prereq: None },
     UnlockDef { id: "bone_sense", cost: 3, prereq: None },
     UnlockDef { id: "third_tag", cost: 6, prereq: None },
+    // Cut 3: tier 2 (needs a boss).
+    UnlockDef { id: "row9", cost: 14, prereq: Some("row8") },
+    UnlockDef { id: "row10", cost: 18, prereq: Some("row9") },
+    UnlockDef { id: "vault5", cost: 14, prereq: Some("vault4") },
+    UnlockDef { id: "party_slot_4", cost: 14, prereq: Some("party_slot_3") },
+    UnlockDef { id: "cadence", cost: 5, prereq: None },
+    UnlockDef { id: "noise_discipline", cost: 5, prereq: None },
+    UnlockDef { id: "reflect_read", cost: 5, prereq: None },
+    UnlockDef { id: "deep_march", cost: 5, prereq: None },
+    UnlockDef { id: "lantern_rig", cost: 6, prereq: None },
+    UnlockDef { id: "recall_sense", cost: 8, prereq: None },
 ];
 
 /// The eight tactic cards (Cut 2 §3) plus the four mastery cards (class L10).
 pub const TACTIC_CARDS: [&str; 8] = ["corridor_fighting", "kite_archers", "stair_dance", "gas_step", "pack_break", "thief_guard", "boss_focus", "last_stand"];
 pub const MASTERY_CARDS: [&str; 4] = ["phalanx", "hit_and_fade", "hawkeye", "archmage"];
+/// Cut 3: the tier-2 tactic cards.
+pub const TIER2_CARDS: [&str; 4] = ["cadence", "noise_discipline", "reflect_read", "deep_march"];
 
 /// Condition tokens that are unlocks (Cut 2 §3): (token, unlock id).
 pub const COND_UNLOCKS: [(&str, &str); 6] = [
@@ -92,6 +105,16 @@ pub fn gate(l: &LineageState, id: &str) -> Option<String> {
         "incubator" => need(l.eggs_laid >= 1 || !l.eggs.is_empty(), "an egg"),
         "bone_sense" => need(l.facts.iter().any(|f| f.starts_with("bones:")), "a death"),
         "third_tag" => need(!l.bred.is_empty(), "breed once"),
+        // Cut 3 tier 2.
+        "row9" | "vault5" => need(l.bosses_slain() >= 3, "slay 3 bosses"),
+        "row10" => need(l.bosses_slain() >= 4, "slay 4 bosses"),
+        "party_slot_4" => need(l.tamed_kinds() >= 6, "tame 6"),
+        "cadence" => need(has_tag_fact(&l.facts, "mirror"), "fact: mirror"),
+        "noise_discipline" => need(has_tag_fact(&l.facts, "blind"), "fact: blind"),
+        "reflect_read" => need(has_tag_fact(&l.facts, "reflect_melee"), "fact: reflect_melee"),
+        "deep_march" => need(l.facts.contains("biome:deep"), "enter the Deep"),
+        "lantern_rig" => need(l.facts.contains("item:lantern"), "find a lantern"),
+        "recall_sense" => need(l.facts.contains("item:recall"), "read a recall"),
         _ => None,
     }
 }
@@ -178,16 +201,24 @@ mod tests {
     use super::*;
     #[test]
     fn catalogue_matches_the_contract() {
-        assert_eq!(UNLOCKS.len(), 35);
+        assert_eq!(UNLOCKS.len(), 45, "35 (Cut 2) + 10 (Cut 3 tier 2)");
         let ids: Vec<&str> = UNLOCKS.iter().map(|u| u.id).collect();
-        for c in TACTIC_CARDS {
-            assert!(ids.contains(&c), "{c}");
+        for c in TACTIC_CARDS.iter().chain(TIER2_CARDS.iter()) {
+            assert!(ids.contains(c), "{c}");
         }
         for (_, u) in COND_UNLOCKS {
             assert!(ids.contains(&u), "{u}");
         }
         let cost: u32 = UNLOCKS.iter().map(|u| u.cost).sum();
-        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 4 + 6 + 8 + 2 + 2 + 12 + 24 + 5 + 4 + 6 + 4 + 3 + 3 + 6);
+        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 4 + 6 + 8 + 2 + 2 + 12 + 24 + 5 + 4 + 6 + 4 + 3 + 3 + 6 + 14 + 18 + 14 + 14 + 20 + 6 + 8);
+        let by = |id: &str| UNLOCKS.iter().find(|u| u.id == id).unwrap();
+        assert_eq!(by("row9").prereq, Some("row8"));
+        assert_eq!(by("row10").cost, 18);
+        let l = LineageState::new(2);
+        let cat = catalogue(&l);
+        assert_eq!(cat.iter().find(|u| u.id == "row9").unwrap().needs.as_deref(), Some("slay 3 bosses"));
+        assert_eq!(cat.iter().find(|u| u.id == "cadence").unwrap().needs.as_deref(), Some("fact: mirror"));
+        assert_eq!(cat.iter().find(|u| u.id == "lantern_rig").unwrap().needs.as_deref(), Some("find a lantern"));
         let l = LineageState::new(1);
         let cat = catalogue(&l);
         let kite = cat.iter().find(|u| u.id == "kite_archers").unwrap();

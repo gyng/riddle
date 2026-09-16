@@ -20,9 +20,17 @@ enum Bot {
     Levelled,
     Trivial,
     Countered,
+    // Cut 3: the shipped best set with every counter and unlock, and the same set minus one
+    // boss counter row each (D20 reflect_read, D25 silence, D30 cadence). 3 × 8 h batches.
+    Full,
+    FullNo20,
+    FullNo25,
+    FullNo30,
 }
 
-const BOTS: [Bot; 9] = [Bot::Default, Bot::Edited, Bot::Random, Bot::Passive, Bot::Learned, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered];
+const BOTS: [Bot; 13] = [Bot::Default, Bot::Edited, Bot::Random, Bot::Passive, Bot::Learned, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered, Bot::Full, Bot::FullNo20, Bot::FullNo25, Bot::FullNo30];
+/// Cut 3: the FULL bots play three 8 h absences.
+const FULL_BATCHES: u64 = 3;
 
 impl Bot {
     fn name(self) -> &'static str {
@@ -36,6 +44,20 @@ impl Bot {
             Bot::Levelled => "LEVELLED",
             Bot::Trivial => "TRIVIAL",
             Bot::Countered => "COUNTERED",
+            Bot::Full => "FULL",
+            Bot::FullNo20 => "FULL−D20",
+            Bot::FullNo25 => "FULL−D25",
+            Bot::FullNo30 => "FULL−D30",
+        }
+    }
+    fn is_full(self) -> bool {
+        matches!(self, Bot::Full | Bot::FullNo20 | Bot::FullNo25 | Bot::FullNo30)
+    }
+    fn batches(self) -> u64 {
+        if self.is_full() {
+            FULL_BATCHES
+        } else {
+            1
         }
     }
 }
@@ -65,11 +87,20 @@ struct SeedResult {
     patches_fresh: (u32, u32),
     verdict_secs: Vec<f64>,
     death_secs: Vec<f64>,
+    /// Cut 3: microseconds per simulated tick of the offline batch (rest ticks excluded).
+    tick_us: f64,
 }
 
 fn good() -> RuleSet {
     let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/presets/good.json")).expect("presets/good.json");
     RuleSet::parse(&text).expect("good.json parses")
+}
+
+fn full() -> RuleSet {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/presets/full.json")).expect("presets/full.json");
+    let set = RuleSet::parse(&text).expect("full.json parses");
+    assert_eq!(set, riddle_core::probes::full(), "presets/full.json is probes::full()");
+    set
 }
 
 fn setup(bot: Bot, seed: u64) -> Game {
@@ -132,6 +163,27 @@ fn setup(bot: Bot, seed: u64) -> Game {
             }
             g.set_rules(if bot == Bot::Trivial { riddle_core::probes::trivial() } else { riddle_core::probes::countered() }).unwrap();
         }
+        Bot::Full | Bot::FullNo20 | Bot::FullNo25 | Bot::FullNo30 => {
+            // Everything a finished lineage has: every unlock, every fact, a mastered fighter.
+            for u in riddle_core::meta::UNLOCKS {
+                g.lineage.unlocks.insert(u.id.into());
+            }
+            riddle_core::probes::learn_everything(&mut g);
+            g.lineage.classes.insert(Class::Fighter.name().into(), riddle_core::wire::ClassProg { level: 10, xp: 0 });
+            g.lineage.unlocks.insert(riddle_core::hero::mastery_card(Class::Fighter).into());
+            let mut set = full();
+            let drop = |set: &mut RuleSet, verb: &str, arg: &str| {
+                let i = set.rows.iter().position(|r| r.verb.v == verb && r.verb.a.as_deref() == Some(arg)).expect("counter row present");
+                set.rows.remove(i);
+            };
+            match bot {
+                Bot::FullNo20 => drop(&mut set, "tactic", "reflect_read"),
+                Bot::FullNo25 => drop(&mut set, "read", "silence"),
+                Bot::FullNo30 => drop(&mut set, "tactic", "cadence"),
+                _ => {}
+            }
+            g.set_rules(set).expect("full rules");
+        }
     }
     g
 }
@@ -169,28 +221,32 @@ fn patch_fired(g: &Game, rec: &riddle_core::engine::DeathRec, rules: &RuleSet, r
 
 fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedResult {
     let mut g = setup(bot, seed);
-    let report = riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
-    let mut r = SeedResult {
-        best_depth: g.lineage.best_depth,
-        learned: report.learned.len(),
-        pending: report.pending.len(),
-        events: g.batch.renderable_events,
-        ticks: g.batch.turns,
-        runs: report.runs,
-        banked: report.banked,
-        returned: report.returned,
-        xp: report.xp.gained,
-        gold: g.lineage.gold,
-        rested_s: report.rested_s,
-        ..Default::default()
-    };
-    r.run_ticks = g.batch.run_ticks.clone();
-    for (d, c) in &g.batch.run_outcomes {
-        r.run_depths.push(*d);
-        if let Some(c) = c {
-            r.causes.push(c.clone());
+    let mut r = SeedResult::default();
+    let mut secs = 0.0;
+    for _ in 0..bot.batches() {
+        let t = Instant::now();
+        let report = riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
+        secs += t.elapsed().as_secs_f64();
+        r.learned += report.learned.len();
+        r.pending += report.pending.len();
+        r.events += g.batch.renderable_events;
+        r.ticks += g.batch.turns;
+        r.runs += report.runs;
+        r.banked += report.banked;
+        r.returned += report.returned;
+        r.xp += report.xp.gained;
+        r.rested_s += report.rested_s;
+        r.run_ticks.extend(g.batch.run_ticks.iter().copied());
+        for (d, c) in &g.batch.run_outcomes {
+            r.run_depths.push(*d);
+            if let Some(c) = c {
+                r.causes.push(c.clone());
+            }
         }
     }
+    r.best_depth = g.lineage.best_depth;
+    r.gold = g.lineage.gold;
+    r.tick_us = secs * 1e6 / r.ticks.max(1) as f64;
     // Verdicts cost ~1.2 s each (candidates × reseeded replays); sample evenly across the seed's
     // deaths. 8 per seed × seeds × bots is plenty for the unfair/gap shares.
     let ids: Vec<u32> = g.deaths.keys().copied().collect();
@@ -251,6 +307,29 @@ fn main() {
     let hours = get("--hours", 8);
     let verdicts_per_seed = get("--verdicts", if quick { 3 } else { 8 }) as usize;
     let t_start = std::time::Instant::now();
+    // Cut 3: the quiet per-tick cost — one run to its end per bot, single-threaded, before the
+    // parallel jobs (the FULL run reaches the deep biomes' floors).
+    let quiet_ticks: Vec<(&str, f64)> = [Bot::Default, Bot::Edited, Bot::Full]
+        .iter()
+        .map(|b| {
+            let mut g = setup(*b, 1);
+            g.sim = true;
+            let mut ticks = 0u64;
+            let t = Instant::now();
+            for _ in 0..3 {
+                g.lineage.rest_left = 0;
+                g.start_run(None);
+                while g.run.as_ref().is_some_and(|r| r.over.is_none()) && ticks < 200_000 {
+                    g.tick();
+                    g.events.clear();
+                    ticks += 1;
+                }
+                g.finish_run();
+                g.auto_keep();
+            }
+            (b.name(), t.elapsed().as_secs_f64() * 1e6 / ticks.max(1) as f64)
+        })
+        .collect();
     let results: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let jobs: Vec<(usize, u64)> = BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| (bi, s))).collect();
     let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(32);
@@ -277,29 +356,33 @@ fn main() {
     let ns = seeds as usize;
     let mut rows: Vec<(String, String, bool)> = Vec::new();
     // Per-bot summary.
-    println!("bot        best-depth mean  ≤D6  ≥D10  mean-death-depth  runs  deaths");
+    println!("bot        best-depth mean  ≤D6  ≥D10  ≥D20  ≥D26  mean-death-depth  runs  deaths");
     for bot in BOTS {
         let rs = per_bot(bot);
         let mean_best = rs.iter().map(|r| r.best_depth as f64).sum::<f64>() / ns as f64;
         let le6 = rs.iter().filter(|r| r.best_depth <= 6).count();
         let ge10 = rs.iter().filter(|r| r.best_depth >= 10).count();
+        let ge20 = rs.iter().filter(|r| r.best_depth >= 20).count();
+        let ge26 = rs.iter().filter(|r| r.best_depth >= 26).count();
         let depths: Vec<u32> = rs.iter().flat_map(|r| r.run_depths.iter().copied()).collect();
         let mdd = depths.iter().sum::<u32>() as f64 / depths.len().max(1) as f64;
         let runs: u32 = rs.iter().map(|r| r.runs).sum();
         let deaths: usize = rs.iter().map(|r| r.causes.len()).sum();
-        println!("{:<10} {:>15.2} {:>4} {:>5} {:>17.2} {:>5} {:>7}", bot.name(), mean_best, le6, ge10, mdd, runs, deaths);
+        println!("{:<10} {:>15.2} {:>4} {:>5} {:>5} {:>5} {:>17.2} {:>5} {:>7}", bot.name(), mean_best, le6, ge10, ge20, ge26, mdd, runs, deaths);
     }
     println!("\nrun depth histogram (% of runs ending at depth ≥ d):");
     for bot in BOTS {
         let rs = per_bot(bot);
         let depths: Vec<u32> = rs.iter().flat_map(|r| r.run_depths.iter().copied()).collect();
         let n = depths.len().max(1);
-        let cells: Vec<String> = (1..=12).map(|d| format!("D{d} {:>4.1}", pct(depths.iter().filter(|x| **x >= d).count(), n))).collect();
+        let cols: Vec<u32> = if bot.is_full() { vec![5, 10, 15, 16, 20, 21, 25, 26, 30, 31] } else { (1..=12).collect() };
+        let cells: Vec<String> = cols.iter().map(|d| format!("D{d} {:>4.1}", pct(depths.iter().filter(|x| *x >= d).count(), n))).collect();
         println!("{:<9} {}", bot.name(), cells.join(" │ "));
     }
     println!("\nrun length (ticks): p10 / median / p90 / max, share in 3600–7200 (6–12 min) · per 8 h: runs · banked · returned · rest share");
-    for bot in [Bot::Default, Bot::Edited, Bot::Learned, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered] {
+    for bot in [Bot::Default, Bot::Edited, Bot::Learned, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered, Bot::Full] {
         let rs = per_bot(bot);
+        let hours = hours * bot.batches();
         let mut t: Vec<u32> = rs.iter().flat_map(|r| r.run_ticks.iter().copied()).collect();
         t.sort();
         let q = |f: f64| t.get(((t.len() as f64 - 1.0) * f) as usize).copied().unwrap_or(0);
@@ -344,6 +427,16 @@ fn main() {
     let ctr = per_bot(Bot::Countered);
     let ctr_ge11 = pct(ctr.iter().filter(|r| r.best_depth >= 11).count(), ns);
     rows.push(("COUNTERED reaches ≥ D11 ≥ 50% of seeds".into(), format!("{ctr_ge11:.0}%"), ctr_ge11 >= 50.0));
+    // Cut 3 gates (docs/CUT3.md): the shipped best set reaches the Sanctum; each new boss's
+    // counter row is load-bearing.
+    let full = per_bot(Bot::Full);
+    let full_ge26 = pct(full.iter().filter(|r| r.best_depth >= 26).count(), ns);
+    rows.push((format!("FULL reaches ≥ D26 ≥ 50% of seeds ({FULL_BATCHES} × 8 h)"), format!("{full_ge26:.0}%"), full_ge26 >= 50.0));
+    for (bot, boss) in [(Bot::FullNo20, 20u32), (Bot::FullNo25, 25), (Bot::FullNo30, 30)] {
+        let rs = per_bot(bot);
+        let held = pct(rs.iter().filter(|r| r.best_depth <= boss).count(), ns);
+        rows.push((format!("{} never passes D{boss} ≥ 90% of seeds", bot.name()), format!("{held:.0}%"), held >= 90.0));
+    }
     // Verdicts and causes across bots.
     let all: Vec<&SeedResult> = BOTS.iter().flat_map(|b| per_bot(*b)).collect();
     let verdicts: Vec<&String> = all.iter().flat_map(|r| r.verdicts.iter()).collect();
@@ -420,7 +513,16 @@ fn main() {
     let dsecs: Vec<f64> = all.iter().flat_map(|r| r.death_secs.iter().copied()).collect();
     let dmean = dsecs.iter().sum::<f64>() / dsecs.len().max(1) as f64;
     println!("death() with forecast deltas: mean {dmean:.2} s over {}", dsecs.len());
-    // Player-shaped lineages only: LEARNED knows everything by construction, RANDOM/PASSIVE are probes.
+    // Cut 3: per-tick cost. The batches' own number (report and verdicts included, `threads`
+    // jobs at once) is printed for reference; the gate is the quiet one measured above.
+    let mut tus: Vec<f64> = [Bot::Default, Bot::Edited, Bot::Full].iter().flat_map(|b| per_bot(*b)).map(|r| r.tick_us).filter(|x| x.is_finite() && *x > 0.0).collect();
+    tus.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let tick_med = tus.get(tus.len() / 2).copied().unwrap_or(0.0);
+    println!("per-tick cost: quiet {} · batches incl. reports, contended: median {tick_med:.2} µs over {} ({threads} threads)", quiet_ticks.iter().map(|(b, us)| format!("{b} {us:.2} µs")).collect::<Vec<_>>().join(" · "), tus.len());
+    let quiet_max = quiet_ticks.iter().map(|(_, us)| *us).fold(0.0, f64::max);
+    rows.push(("Per-tick cost ≤ 6 µs (quiet, DEFAULT/EDITED/FULL)".into(), format!("{quiet_max:.2} µs"), quiet_max <= 6.0));
+    // Player-shaped lineages only: LEARNED and the FULL bots know everything by construction,
+    // RANDOM/PASSIVE are probes.
     let player_bots: Vec<&SeedResult> = [Bot::Default, Bot::Edited, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered].iter().flat_map(|b| per_bot(*b)).collect();
     let off_ok = player_bots.iter().all(|r| r.learned >= 1 && r.pending >= 1);
     let off_min = player_bots.iter().map(|r| r.learned.min(r.pending)).min().unwrap_or(0);

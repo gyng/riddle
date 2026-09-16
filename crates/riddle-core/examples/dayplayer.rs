@@ -29,6 +29,8 @@ struct Day {
     bones: usize,
     xp: u32,
     counter: bool,
+    /// Cut 3: the lineage ascended this day (the second act starts).
+    ascended: bool,
 }
 
 struct SeedOut {
@@ -39,21 +41,41 @@ struct SeedOut {
     /// the stall was not at a boss wall at all).
     stall: usize,
     rules: String,
+    /// Cut 3: ascension level at the end of the fortnight.
+    ascension: u32,
 }
 
 fn boss_at(depth: u32) -> Option<&'static str> {
     riddle_core::descent::boss_for(depth)
 }
 
-/// The row a human who read the boss fact would add (fighter vocabulary).
+/// The row a human who read the boss fact would add (fighter vocabulary). Cut 3: the Foundry
+/// Master wants the smiths first and no melee on him (`reflect_read`), the Lurker Queen a
+/// silence read on sight, the Mirror King the `cadence` card.
 fn counter_rows(boss: &str) -> Vec<Row> {
     match boss {
         "goblin_warlord" => vec![Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss"))],
         "bloat_mother" => vec![Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 6)], Verb::arg("throw", "fire,tag:boss"))],
-        _ => vec![
+        "lich" => vec![
             Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:summoned")),
             Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")),
         ],
+        "foundry_master" => vec![
+            Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read")),
+            Row::new(vec![Cond::t("foe_tag", "buffer"), Cond::n("depth>=", 16)], Verb::arg("attack", "tag:buffer")),
+        ],
+        "lurker_queen" => vec![Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 25)], Verb::arg("read", "silence"))],
+        "mirror_king" => vec![Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 30)], Verb::arg("tactic", "cadence"))],
+        _ => vec![Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss"))],
+    }
+}
+
+/// The unlock a counter row needs (a tactic card, or `throw`), if any.
+fn row_unlock(row: &Row) -> Option<String> {
+    match (row.verb.v.as_str(), row.verb.a.as_deref()) {
+        ("tactic", Some(card)) => Some(card.to_string()),
+        ("throw", _) => Some("throw".into()),
+        _ => None,
     }
 }
 
@@ -94,6 +116,22 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
             d.deaths += rep.deaths.iter().map(|x| x.n).sum::<u32>();
             d.xp += rep.xp.gained;
             let mut decided = false;
+            // 0. Cut 3: the ending reached — ascend with `no_rest` and keep counting. The
+            //    descent, marks and unlocks start over; the rules stay.
+            if g.lineage.ended {
+                let variant = "no_rest";
+                if g.ascend(variant).is_ok() {
+                    if verbose {
+                        eprintln!("  day {} ascended ({variant}); unlocks kept {:?}", day + 1, g.lineage.unlocks);
+                    }
+                    d.ascended = true;
+                    decided = true;
+                    last_best = 0;
+                    stalled_days = 0;
+                    stall_cur = 0;
+                    counters_done.clear();
+                }
+            }
             // 1. The worst death: patch if the top candidate clearly beats the baseline.
             if let Some(id) = rep.worst_death_id {
                 if let Some(death) = g.death(id) {
@@ -113,11 +151,22 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
             if let Some(boss) = boss_at(best) {
                 let fact = format!("boss:{boss}:counter");
                 if stalled_days >= 2 && g.lineage.facts.contains(&fact) && !counters_done.contains(&boss.to_string()) {
-                    let vocab = g.vocabulary();
                     let rows = counter_rows(boss);
                     // The editor offers `throw fire` and lets the player aim it; `attack tag:T` needs the tag known.
-                    let has_verb = |r: &Row| vocab.verbs.iter().any(|v| v.v == r.verb.v && v.a.as_deref().map(|a| a.split(',').next().unwrap_or(a)) == r.verb.a.as_deref().map(|a| a.split(',').next().unwrap_or(a)));
-                    let usable = rows.iter().all(|r| has_verb(r) && r.conds.iter().all(|c| vocab.conds.iter().any(|v| v.k == c.k && v.t == c.t)));
+                    let usable_now = |g: &Game| {
+                        let vocab = g.vocabulary();
+                        let has_verb = |r: &Row| vocab.verbs.iter().any(|v| v.v == r.verb.v && v.a.as_deref().map(|a| a.split(',').next().unwrap_or(a)) == r.verb.a.as_deref().map(|a| a.split(',').next().unwrap_or(a)));
+                        rows.iter().all(|r| has_verb(r) && r.conds.iter().all(|c| vocab.conds.iter().any(|v| v.k == c.k && v.t == c.t)))
+                    };
+                    // A counter that needs an unlock (a card, `throw`) is bought before anything else.
+                    let missing: Vec<String> = rows.iter().filter_map(row_unlock).filter(|u| !g.lineage.unlocks.contains(u)).collect();
+                    for u in &missing {
+                        if g.buy(u).is_ok() {
+                            d.unlocks += 1;
+                            decided = true;
+                        }
+                    }
+                    let usable = usable_now(&g);
                     if usable {
                         for (i, r) in rows.into_iter().enumerate() {
                             insert_row(&mut g, r, i);
@@ -126,10 +175,25 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                         d.edits += 1;
                         d.counter = true;
                         decided = true;
-                    } else if boss == "bloat_mother" && !g.lineage.unlocks.contains("throw") && g.buy("throw").is_ok() {
-                        // The counter needs `throw`: buy it before anything else.
-                        d.unlocks += 1;
-                        decided = true;
+                    } else if boss == "lurker_queen" {
+                        // Silence not yet identified: no rest on her floor (`noise_discipline`)
+                        // does what a human who read the fact would do; the identified scroll
+                        // row goes in when the flavour is known.
+                        let rest = g.lineage.rules().rows.iter().position(|r| r.verb.v == "rest");
+                        if g.lineage.unlocks.contains("noise_discipline") || g.buy("noise_discipline").is_ok() {
+                            let row = Row::new(vec![Cond::n("hp<", 90)], Verb::arg("tactic", "noise_discipline"));
+                            let mut rules = g.lineage.rules().clone();
+                            if let Some(i) = rest {
+                                rules.rows[i] = row;
+                                if g.set_rules(rules).is_ok() {
+                                    d.edits += 1;
+                                    decided = true;
+                                }
+                            } else if insert_row(&mut g, row, usize::MAX) {
+                                d.edits += 1;
+                                decided = true;
+                            }
+                        }
                     } else if boss == "bloat_mother" && g.lineage.unlocks.contains("throw") {
                         // `throw fire` needs fire identified: meanwhile throw whatever is in the
                         // pack at her (the throw identifies it).
@@ -196,6 +260,9 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                 let gated: Vec<String> = g.unlocks().into_iter().filter(|u| !u.owned).map(|u| format!("{}:{}{}", u.id, u.cost, u.needs.as_ref().map(|n| format!("[{n}]")).unwrap_or_default())).collect();
                 eprintln!("  day {} marks {} unspent; catalogue: {}", day + 1, g.lineage.marks, gated.join(" "));
             }
+            // 3b. Bring the vault (a human sends the heir out with what it has).
+            let ids: Vec<u32> = g.lineage.vault.iter().map(|i| i.id).collect();
+            g.loadout(ids);
             // 4. Field the kennel.
             let slots = g.lineage.party_slots() as usize;
             if g.lineage.party.len() < slots && !g.lineage.kennel.is_empty() {
@@ -231,8 +298,8 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
             l10_day = Some(day + 1);
         }
         // Stall bookkeeping: a wall whose counter is still unknown is not the player's fault,
-        // and the bottom (D16) is the ending, not a stall.
-        if d.best >= riddle_core::descent::ENDING_DEPTH || d.best > last_best {
+        // and the bottom (D31) is the ending, not a stall.
+        if d.best >= riddle_core::descent::ENDING_DEPTH || d.best > last_best || d.ascended {
             last_best = d.best;
             stalled_days = 0;
             stall_cur = 0;
@@ -251,7 +318,7 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
         }
         table.push(d);
     }
-    SeedOut { table, l10_day, stall: stall_best, rules: g.export_rules().replace('\n', " ").split_whitespace().collect::<Vec<_>>().join(" ") }
+    SeedOut { table, l10_day, stall: stall_best, rules: g.export_rules().replace('\n', " ").split_whitespace().collect::<Vec<_>>().join(" "), ascension: g.lineage.ascension }
 }
 
 fn main() {
@@ -263,9 +330,13 @@ fn main() {
     let gate = a.iter().any(|x| x == "--gate");
     let t0 = std::time::Instant::now();
     let verbose = a.iter().any(|x| x == "--verbose");
-    let outs: Vec<SeedOut> = (1..=seeds).map(|s| play(s, days, checkins, verbose)).collect();
+    // Seeds in parallel (each is ~4 min of simulation).
+    let outs: Vec<SeedOut> = std::thread::scope(|sc| {
+        let hs: Vec<_> = (1..=seeds).map(|s| sc.spawn(move || play(s, days, checkins, verbose))).collect();
+        hs.into_iter().map(|h| h.join().unwrap()).collect()
+    });
     for (i, o) in outs.iter().enumerate() {
-        println!("seed {}: rules now = {}", i + 1, o.rules);
+        println!("seed {}: ascension {} · rules now = {}", i + 1, o.ascension, o.rules);
         println!("day  best  unl  edit  empty/ci  runs  bank  deaths  marks  max  gold  facts  L  rank  rows  pets  bones  xp");
         for (i, d) in o.table.iter().enumerate() {
             println!(
@@ -274,7 +345,13 @@ fn main() {
                 d.best,
                 d.unlocks,
                 d.edits,
-                if d.counter { "*" } else { " " },
+                if d.ascended {
+                    "^"
+                } else if d.counter {
+                    "*"
+                } else {
+                    " "
+                },
                 d.empty,
                 d.checkins,
                 d.runs,
@@ -306,7 +383,8 @@ fn main() {
     let final_best: Vec<u32> = outs.iter().map(|o| o.table.last().map(|d| d.best).unwrap_or(0)).collect();
     let runs_day: f64 = outs.iter().map(|o| o.table.iter().map(|d| d.runs as f64).sum::<f64>() / days as f64).sum::<f64>() / n;
     println!("\nprobes over {seeds} seeds × {days} days × {checkins}/day  ({:.0}s)", t0.elapsed().as_secs_f64());
-    println!("  final best depth per seed       {final_best:?}   ending at 16");
+    let asc: Vec<u32> = outs.iter().map(|o| o.ascension).collect();
+    println!("  final best depth per seed       {final_best:?}   ending at {} · ascensions {asc:?}", riddle_core::descent::ENDING_DEPTH);
     println!("  expeditions per day (mean)      {runs_day:.1}");
     println!("  days with ≥1 unlock per seed    {unlock_days:?}");
     let bars: Vec<(String, String, bool)> = vec![

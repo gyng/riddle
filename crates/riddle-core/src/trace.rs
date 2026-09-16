@@ -68,7 +68,7 @@ pub fn death_record(game: &Game, run: &Run) -> DeathRec {
         .filter(|(i, _)| i + MIN_WINDOW <= n)
         .filter(|(_, (r, _))| r.hero.hp_pct() >= 50)
         .map(|(i, _)| i)
-        .last()
+        .next_back()
         .unwrap_or(0);
     let (t10, t10_facts) = match game.history.get(pick) {
         Some((r, f)) => (Some(r.clone()), f.clone()),
@@ -593,7 +593,7 @@ mod tests_trace {
         map.set(up, Tile::StairsUp);
         map.set(down, Tile::StairsDown);
         map.compute_corridors(&[]);
-        run.floor = Floor { map, stairs_up: up, stairs_down: down, rooms: Vec::new() };
+        run.floor = Floor { map, stairs_up: up, stairs_down: down, rooms: Vec::new(), vision: VISION };
         run.monsters.clear();
         run.items.clear();
         run.overlays.clear();

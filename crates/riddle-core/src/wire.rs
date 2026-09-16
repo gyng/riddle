@@ -65,6 +65,13 @@ pub struct Snapshot {
     /// Cut 2 §7: what is on the line right now.
     #[serde(default)]
     pub stake: Stake,
+    /// Cut 3 (addition): the hero's sight radius on this floor (the Deep is dark).
+    #[serde(default = "default_vision")]
+    pub vision: i32,
+}
+
+fn default_vision() -> i32 {
+    crate::descent::VISION_LIT
 }
 
 /// Cut 2 §7: loot on the hero, brought vault items (insured = kept on death), and the row
@@ -409,6 +416,16 @@ pub struct Lineage {
     /// Cut 2 §2: dead heirs' kit waiting on the floor (max 3, oldest expires).
     #[serde(default)]
     pub bones: Vec<BonesPile>,
+    /// Cut 3: ascension level and variant ("" at level 0).
+    #[serde(default)]
+    pub ascension: Ascension,
+}
+
+/// Cut 3: `{level, variant}`; `variant` is one of `no_rest short_list bones_only hunted`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Ascension {
+    pub level: u32,
+    pub variant: String,
 }
 
 /// Cut 2 §2: a bones pile on the wire.

@@ -85,13 +85,13 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
                 for _ in 0..SAMPLE_RUNS {
                     game.lineage.rest_left = 0;
                     game.start_run(None);
-                    game.run_to_end(crate::forecast::SIM_MAX_TICKS);
+                    game.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
                     let (turns, tier, cause) = {
                         let r = game.run.as_ref().unwrap();
                         (r.turn, r.over.unwrap_or(ExitTier::Return), if r.over == Some(ExitTier::Death) { r.death_cause.clone() } else { None })
                     };
                     ticks += turns as u64;
-                    rested += rest_after(turns, tier) as u64;
+                    rested += game.rest_after(turns, tier) as u64;
                     match tier {
                         ExitTier::Bank => banked += 1,
                         ExitTier::Return => returned += 1,

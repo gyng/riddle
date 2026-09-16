@@ -6,7 +6,7 @@ use crate::item::is_identified;
 use crate::rules::{Cond, Verb, Vocabulary};
 use crate::wire::Companion;
 
-pub use crate::meta::{MASTERY_CARDS, TACTIC_CARDS};
+pub use crate::meta::{MASTERY_CARDS, TACTIC_CARDS, TIER2_CARDS};
 
 pub fn known_tags(l: &LineageState) -> Vec<&'static str> {
     all_tags().into_iter().filter(|t| has_tag_fact(&l.facts, t)).collect()
@@ -59,6 +59,12 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
     if l.facts.contains("item:leash") {
         conds.push(Cond::t("item", "leash"));
     }
+    // Cut 3: misc items are tokens once found.
+    for k in crate::defs::FACT_MISC {
+        if l.facts.contains(&format!("item:{k}")) {
+            conds.push(Cond::t("item", k));
+        }
+    }
     if l.all_companions().next().is_some() && owned("party_hp<") {
         conds.push(Cond::n("party_hp<", 50));
     }
@@ -86,12 +92,22 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
     if crate::hero::class_has_verb(l.class, l.class_level(), "throw") || l.unlocks.contains("throw") {
         verbs.push(Verb::arg("throw", "unknown"));
         for k in identified_kinds(l, Cat::Potion) {
-            if !item_def(k).benevolent {
+            // Cut 3: clarity is thrown to clear confusion around a foe.
+            if !item_def(k).benevolent || k == "clarity" {
+                verbs.push(Verb::arg("throw", k));
+            }
+        }
+        for k in crate::defs::THROWABLE_MISC {
+            if l.facts.contains(&format!("item:{k}")) {
                 verbs.push(Verb::arg("throw", k));
             }
         }
     }
     for v in ["descend", "bank", "return", "rest", "pick_up", "free_captive"] {
+        // Cut 3 `no_rest`: rest is not a verb.
+        if v == "rest" && l.variant_is("no_rest") {
+            continue;
+        }
         verbs.push(Verb::new(v));
     }
     let level = l.class_level();
@@ -111,7 +127,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
             _ => verbs.push(Verb::new(verb)),
         }
     }
-    for card in TACTIC_CARDS.iter().copied().chain(MASTERY_CARDS) {
+    for card in TACTIC_CARDS.iter().copied().chain(MASTERY_CARDS).chain(TIER2_CARDS) {
         if l.unlocks.contains(card) {
             verbs.push(Verb::arg("tactic", card));
         }

@@ -34,6 +34,27 @@ pub const MONSTERS: &[MonsterDef] = &[
     MonsterDef { kind: "goblin_warlord", title: "Goblin Warlord", hp: 24, atk: (2, 5), def: 0, speed: 10, tags: &["boss", "summoner", "buffer", "telegraph"], boss: true },
     MonsterDef { kind: "bloat_mother", title: "Bloat Mother", hp: 20, atk: (2, 3), def: 0, speed: 7, tags: &["boss", "gas", "telegraph"], boss: true },
     MonsterDef { kind: "lich", title: "Lich", hp: 50, atk: (3, 5), def: 2, speed: 10, tags: &["boss", "undead", "reflect", "summoner", "telegraph"], boss: true },
+    // Cut 3 — the Foundry (D16–20): melee is reflected, bells raise the clock.
+    MonsterDef { kind: "iron_golem", title: "iron golem", hp: 24, atk: (3, 6), def: 1, speed: 4, tags: &["reflect_melee"], boss: false },
+    MonsterDef { kind: "forge_imp", title: "forge imp", hp: 9, atk: (1, 3), def: 0, speed: 13, tags: &["fire", "thief"], boss: false },
+    MonsterDef { kind: "bell_sentinel", title: "bell sentinel", hp: 10, atk: (1, 2), def: 0, speed: 10, tags: &["alarm"], boss: false },
+    MonsterDef { kind: "slag_crawler", title: "slag crawler", hp: 26, atk: (2, 5), def: 0, speed: 7, tags: &["heavy", "fire", "telegraph"], boss: false },
+    MonsterDef { kind: "smith", title: "smith", hp: 12, atk: (2, 4), def: 0, speed: 10, tags: &["buffer"], boss: false },
+    // The Deep (D21–25): dark, hunters track noise, regen.
+    MonsterDef { kind: "lurker", title: "lurker", hp: 10, atk: (2, 5), def: 0, speed: 12, tags: &["blind"], boss: false },
+    MonsterDef { kind: "deep_eel", title: "deep eel", hp: 16, atk: (4, 7), def: 0, speed: 12, tags: &["water"], boss: false },
+    MonsterDef { kind: "cave_troll", title: "cave troll", hp: 34, atk: (3, 6), def: 0, speed: 8, tags: &["regen"], boss: false },
+    MonsterDef { kind: "siren", title: "siren", hp: 14, atk: (1, 3), def: 0, speed: 10, tags: &["aura"], boss: false },
+    MonsterDef { kind: "mirror_shade", title: "mirror shade", hp: 14, atk: (2, 4), def: 0, speed: 10, tags: &["mirror"], boss: false },
+    // The Sanctum (D26–30): variety is enforced.
+    MonsterDef { kind: "warden", title: "warden", hp: 30, atk: (3, 6), def: 1, speed: 9, tags: &["reflect_melee", "reflect", "telegraph"], boss: false },
+    MonsterDef { kind: "acolyte", title: "acolyte", hp: 12, atk: (1, 3), def: 0, speed: 10, tags: &["healer"], boss: false },
+    MonsterDef { kind: "echo", title: "echo", hp: 16, atk: (2, 5), def: 0, speed: 10, tags: &["echo"], boss: false },
+    MonsterDef { kind: "sentinel", title: "sentinel", hp: 26, atk: (3, 6), def: 1, speed: 8, tags: &["gaze", "telegraph"], boss: false },
+    // Cut 3 bosses.
+    MonsterDef { kind: "foundry_master", title: "Foundry Master", hp: 42, atk: (3, 6), def: 1, speed: 8, tags: &["boss", "reflect_melee", "buffer", "telegraph"], boss: true },
+    MonsterDef { kind: "lurker_queen", title: "Lurker Queen", hp: 60, atk: (4, 7), def: 0, speed: 10, tags: &["boss", "blind", "summoner", "telegraph"], boss: true },
+    MonsterDef { kind: "mirror_king", title: "Mirror King", hp: 80, atk: (3, 6), def: 1, speed: 10, tags: &["boss", "mirror", "telegraph"], boss: true },
 ];
 
 pub fn monster_def(kind: &str) -> &'static MonsterDef {
@@ -98,21 +119,49 @@ pub fn spawn_table(biome: Biome, depth: u32) -> Vec<(&'static str, u32, i32, i32
             t.push(("bloat", 6, 1, 1));
             t.push(("captive", 5, 1, 1));
         }
+        // Cut 3.
+        Biome::Foundry => {
+            t.push(("iron_golem", 10, 1, 1));
+            t.push(("forge_imp", 18, 1, 2));
+            t.push(("bell_sentinel", 12, 1, 1));
+            t.push(("slag_crawler", 12, 1, 1));
+            t.push(("smith", 14, 1, 2));
+            t.push(("skeleton", 8, 1, 2));
+            t.push(("captive", 5, 1, 1));
+        }
+        Biome::Deep => {
+            t.push(("lurker", 24, 1, 2));
+            t.push(("deep_eel", 12, 1, 1));
+            t.push(("cave_troll", 12, 1, 1));
+            t.push(("siren", 12, 1, 1));
+            t.push(("mirror_shade", 14, 1, 2));
+            t.push(("captive", 5, 1, 1));
+        }
+        Biome::Sanctum => {
+            t.push(("warden", 16, 1, 1));
+            t.push(("acolyte", 14, 1, 2));
+            t.push(("echo", 18, 1, 2));
+            t.push(("sentinel", 14, 1, 1));
+            t.push(("mirror_shade", 10, 1, 1));
+            t.push(("captive", 5, 1, 1));
+        }
     }
     t
 }
 
-/// Number of spawn groups on a floor (32×32 floors, Cut 2 §1).
+/// Number of spawn groups on a floor (32×32 floors, Cut 2 §1). Cut 3: the count stops
+/// growing past D15 (nine groups); the deep biomes' kinds carry the difficulty, not the crowd.
 pub fn group_budget(depth: u32) -> i32 {
-    1 + (depth as i32 + 1) / 2
+    1 + (depth.min(15) as i32 + 1) / 2
 }
 
-/// Small linear stat growth with depth: +1 hp per 2 floors, +1 max atk per 6 floors.
+/// Small linear stat growth with depth: +1 hp per 2 floors, +1 max atk per 6 floors, both
+/// frozen from D16 (Cut 3: the new kinds are tuned on their own numbers).
 pub fn depth_hp_bonus(depth: u32) -> i32 {
-    (depth as i32) / 2
+    (depth.min(16) as i32) / 2
 }
 pub fn depth_atk_bonus(depth: u32) -> i32 {
-    (depth as i32) / 6
+    (depth.min(16) as i32) / 6
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -168,7 +217,42 @@ pub const ITEMS: &[ItemDef] = &[
     // Cut 2: a dead heir's kit on the floor (§2) and the ranger's trap (§4). Never loot.
     ItemDef { kind: "bones", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 0, benevolent: true, weight: 0 },
     ItemDef { kind: "trap", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 0, benevolent: true, weight: 0 },
+    // Cut 3: 15 dual-use items. Gear appears from the Crypt on (`populate_floor` gates it).
+    ItemDef { kind: "spear", cat: Cat::Weapon, a: (3, 6), speed: 0, ranged: false, value: 28, benevolent: true, weight: 2 },
+    ItemDef { kind: "mace", cat: Cat::Weapon, a: (4, 8), speed: 0, ranged: false, value: 32, benevolent: true, weight: 2 },
+    ItemDef { kind: "scale", cat: Cat::Armour, a: (4, 0), speed: -1, ranged: false, value: 38, benevolent: true, weight: 2 },
+    ItemDef { kind: "regen", cat: Cat::Potion, a: (0, 0), speed: 0, ranged: false, value: 14, benevolent: true, weight: 2 },
+    ItemDef { kind: "resist_fire", cat: Cat::Potion, a: (0, 0), speed: 0, ranged: false, value: 10, benevolent: true, weight: 2 },
+    ItemDef { kind: "clarity", cat: Cat::Potion, a: (0, 0), speed: 0, ranged: false, value: 10, benevolent: true, weight: 2 },
+    ItemDef { kind: "recall", cat: Cat::Scroll, a: (0, 0), speed: 0, ranged: false, value: 20, benevolent: true, weight: 2 },
+    ItemDef { kind: "silence", cat: Cat::Scroll, a: (0, 0), speed: 0, ranged: false, value: 18, benevolent: true, weight: 2 },
+    ItemDef { kind: "earthquake", cat: Cat::Scroll, a: (0, 0), speed: 0, ranged: false, value: 12, benevolent: true, weight: 1 },
+    ItemDef { kind: "mirror", cat: Cat::Scroll, a: (0, 0), speed: 0, ranged: false, value: 14, benevolent: true, weight: 2 },
+    ItemDef { kind: "lantern", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 12, benevolent: true, weight: 2 },
+    ItemDef { kind: "bell", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 8, benevolent: true, weight: 2 },
+    ItemDef { kind: "salt", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 8, benevolent: true, weight: 2 },
+    ItemDef { kind: "chalk", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 6, benevolent: true, weight: 2 },
+    ItemDef { kind: "mirror_shard", cat: Cat::Misc, a: (0, 0), speed: 0, ranged: false, value: 16, benevolent: true, weight: 1 },
 ];
+
+/// Cut 3: misc items the hero can throw (`throw bell` lures hunters, `throw salt` routs undead).
+pub const THROWABLE_MISC: [&str; 2] = ["bell", "salt"];
+/// Cut 3: misc items whose pickup is a fact (`item:<kind>`), gating unlocks and tokens.
+pub const FACT_MISC: [&str; 5] = ["lantern", "bell", "salt", "chalk", "mirror_shard"];
+
+/// The depth from which a Cut 3 item may appear (0 = anywhere).
+pub fn item_min_depth(kind: &str) -> u32 {
+    match kind {
+        "axe" | "bow" | "mail" => 4,
+        "plate" => 8,
+        "spear" => 10,
+        "mace" | "scale" | "salt" | "chalk" => 12,
+        "lantern" | "bell" => 14,
+        "mirror_shard" => 18,
+        "regen" | "resist_fire" | "clarity" | "recall" | "silence" | "earthquake" | "mirror" => 6,
+        _ => 0,
+    }
+}
 
 /// Counters (Addendum A): (winner, loser, immune). For the first three the winner is the
 /// attacker's tag; for the last two the winner is the defender's tag against the attack's tag.
@@ -193,6 +277,8 @@ pub fn tag_verb(tag: &str) -> Option<&'static str> {
         "splitter" => Some("split"),
         "pack" => Some("flank"),
         "undead" => Some("drain"),
+        // Cut 3: a bred `mirror` tag copies the hero's class verb.
+        "mirror" => Some("mimic"),
         _ => None,
     }
 }
@@ -200,7 +286,7 @@ pub fn tag_verb(tag: &str) -> Option<&'static str> {
 /// Kinds a biome's ledger needs tamed (tameable spawns only).
 pub fn biome_kinds(biome: Biome) -> Vec<&'static str> {
     let mut v: Vec<&str> = Vec::new();
-    for d in 1..=15u32 {
+    for d in 1..=30u32 {
         if crate::descent::biome_for(d) != biome {
             continue;
         }
@@ -217,8 +303,8 @@ pub fn item_def(kind: &str) -> &'static ItemDef {
     ITEMS.iter().find(|i| i.kind == kind).unwrap_or(&ITEMS[0])
 }
 
-pub const POTION_FLAVOURS: [&str; 8] = ["blue", "murky", "red", "amber", "green", "violet", "black", "clear"];
-pub const SCROLL_FLAVOURS: [&str; 9] = ["runed", "torn", "sealed", "ashen", "crimson", "folded", "mossy", "silver", "burnt"];
+pub const POTION_FLAVOURS: [&str; 11] = ["blue", "murky", "red", "amber", "green", "violet", "black", "clear", "smoky", "pearly", "oily"];
+pub const SCROLL_FLAVOURS: [&str; 13] = ["runed", "torn", "sealed", "ashen", "crimson", "folded", "mossy", "silver", "burnt", "waxen", "inked", "brittle", "gilded"];
 
 pub fn potion_kinds() -> Vec<&'static str> {
     ITEMS.iter().filter(|i| i.cat == Cat::Potion).map(|i| i.kind).collect()
@@ -237,15 +323,20 @@ mod tests {
     use super::*;
     #[test]
     fn content_counts() {
-        assert_eq!(MONSTERS.iter().filter(|m| !m.boss && !m.tags.contains(&"summoned")).count(), 14);
-        assert_eq!(MONSTERS.iter().filter(|m| m.boss).count(), 3);
-        assert_eq!(ITEMS.len(), 28, "25 items + the leash (Addendum A) + bones and trap (Cut 2)");
-        assert_eq!(potion_kinds().len(), 8);
-        assert_eq!(scroll_kinds().len(), 9);
+        assert_eq!(MONSTERS.iter().filter(|m| !m.boss && !m.tags.contains(&"summoned")).count(), 28, "14 + the Cut 3 biomes' 14");
+        assert_eq!(MONSTERS.iter().filter(|m| m.boss).count(), 6);
+        assert_eq!(ITEMS.len(), 43, "25 items + the leash (Addendum A) + bones and trap (Cut 2) + 15 (Cut 3)");
+        assert_eq!(potion_kinds().len(), 11);
+        assert_eq!(scroll_kinds().len(), 13);
+        assert!(POTION_FLAVOURS.len() >= potion_kinds().len());
+        assert!(SCROLL_FLAVOURS.len() >= scroll_kinds().len());
+        for k in ["iron_golem", "forge_imp", "bell_sentinel", "slag_crawler", "smith", "lurker", "deep_eel", "cave_troll", "siren", "mirror_shade", "warden", "acolyte", "echo", "sentinel", "foundry_master", "lurker_queen", "mirror_king"] {
+            assert_eq!(monster_def(k).kind, k, "{k} is a sprite key");
+        }
     }
     #[test]
     fn every_biome_has_spawns() {
-        for d in 1..=15 {
+        for d in 1..=30 {
             let t = spawn_table(crate::descent::biome_for(d), d);
             assert!(!t.is_empty());
             for (k, ..) in t {

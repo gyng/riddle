@@ -34,7 +34,7 @@ fn arena_seed(seed: u64) -> Game {
     map.set(up, Tile::StairsUp);
     map.set(down, Tile::StairsDown);
     map.compute_corridors(&[]);
-    run.floor = Floor { map, stairs_up: up, stairs_down: down, rooms: Vec::new() };
+    run.floor = Floor { map, stairs_up: up, stairs_down: down, rooms: Vec::new(), vision: VISION };
     run.monsters.clear();
     run.items.clear();
     run.overlays.clear();
@@ -490,6 +490,8 @@ fn monkey_steals_then_flees_and_drops_on_death() {
                 max_rows,
                 events: &mut cx_events,
                 sim: true,
+                variant: "",
+                hunter: None,
             },
         )
     };
@@ -948,15 +950,25 @@ fn bones_piles_cap_at_three_and_bone_sense_paths_to_them() {
 }
 
 #[test]
-fn reaching_d16_is_the_ending() {
+fn reaching_d31_is_the_ending_and_d16_is_the_foundry() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().depth = 30;
+    g.run.as_mut().unwrap().hero.pos = Pos::new(14, 10);
+    rules(&mut g, vec![Row::new(vec![], Verb::new("descend"))]);
+    let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 31, .. })));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "bank")));
+    assert!(g.lineage.ended);
+    // Cut 3: D16 is the Foundry's doorstep, not an ending.
     let mut g = arena();
     g.run.as_mut().unwrap().depth = 15;
     g.run.as_mut().unwrap().hero.pos = Pos::new(14, 10);
     rules(&mut g, vec![Row::new(vec![], Verb::new("descend"))]);
     let evs = ticks(&mut g, 10);
-    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 16, .. })));
-    assert!(evs.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "bank")));
-    assert!(g.lineage.ended);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 16, biome, .. } if biome == "foundry")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "biome:foundry")));
+    assert!(!g.lineage.ended);
+    assert_eq!(g.run.as_ref().unwrap().depth, 16);
 }
 
 #[test]
@@ -1789,7 +1801,9 @@ fn seed_3_floors_do_not_deadlock() {
     if let Some(t) = run2_d3 {
         assert!(t < 3000, "run 2 spent {t} ticks on D3 (was ~20 000 before the guards)");
     }
-    assert!(longest < 4000, "longest floor took {longest} ticks: {floors:?}");
+    // 4000 before Cut 3; the larger flavour pool reseeds the lineage and a D5 (Warlord) floor
+    // now lands at ~4000 on this seed. A deadlock is 20 000.
+    assert!(longest < 4500, "longest floor took {longest} ticks: {floors:?}");
 }
 
 #[test]
@@ -2053,3 +2067,888 @@ fn patches_offer_the_id_policy_when_unknown_potions_went_unused() {
     }
 }
 
+
+// ---------------------------------------------------------------- Cut 3: biomes 4–6
+
+fn add_sleeping(g: &mut Game, kind: &str, x: i32, y: i32) -> u32 {
+    let id = add_monster(g, kind, x, y);
+    let run = g.run.as_mut().unwrap();
+    let m = run.monsters.iter_mut().find(|m| m.id == id).unwrap();
+    m.awake = false;
+    m.last_seen = None;
+    id
+}
+
+fn unlock(g: &mut Game, u: &str) {
+    g.lineage.unlocks.insert(u.into());
+}
+
+fn identify(g: &mut Game, kind: &str) {
+    if let Some(f) = ident_fact(&g.lineage.flavours, kind) {
+        g.lineage.facts.insert(f);
+    }
+}
+
+#[test]
+fn iron_golem_reflects_melee_but_not_arrows() {
+    let mut g = arena();
+    let id = add_monster(&mut g, "iron_golem", 5, 5);
+    attack_rules(&mut g);
+    let hp0 = hero(&g).hp;
+    let evs = ticks(&mut g, 40);
+    let m = monster(&g, id).expect("the golem stands");
+    assert_eq!(m.hp, m.max_hp, "melee never lands on a golem");
+    assert!(hero(&g).hp < hp0, "the swings came back");
+    assert!(evs.iter().any(|e| matches!(e, Ev::Attack { verb: Some(v), dst: HERO_ID, .. } if v == "reflect")));
+    assert!(g.lineage.facts.contains("foe:iron_golem:reflect_melee"));
+    // Arrows land.
+    let mut g = arena();
+    let id = add_monster(&mut g, "iron_golem", 9, 5);
+    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "bow"));
+    attack_rules(&mut g);
+    ticks(&mut g, 60);
+    assert!(monster(&g, id).is_none_or(|m| m.hp < m.max_hp), "a shot golem is hurt");
+}
+
+#[test]
+fn bell_sentinel_rings_the_alarm_on_sight() {
+    let mut g = arena();
+    add_monster(&mut g, "bell_sentinel", 8, 5);
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 20);
+    assert_eq!(g.run.as_ref().unwrap().alert, 2, "+2 alert on sight");
+    assert!(g.lineage.facts.contains("foe:bell_sentinel:alarm"));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "bell!")));
+    assert!(g.run.as_ref().unwrap().noise.is_some(), "the whole floor heard it");
+}
+
+#[test]
+fn forge_imp_steals_only_potions() {
+    let mut g = arena();
+    give(&mut g, "sword");
+    give(&mut g, "heal");
+    let id = add_monster(&mut g, "forge_imp", 5, 5);
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 80);
+    let stolen: Vec<&Ev> = evs.iter().filter(|e| matches!(e, Ev::Steal { .. })).collect();
+    assert_eq!(stolen.len(), 1, "one theft");
+    assert!(hero(&g).inv.iter().any(|i| i.kind == "sword"), "the sword stays");
+    assert!(!hero(&g).inv.iter().any(|i| i.kind == "heal"), "the potion went");
+    assert!(monster(&g, id).is_some_and(|m| m.fleeing));
+    // No potion: nothing to steal.
+    let mut g = arena();
+    give(&mut g, "sword");
+    add_monster(&mut g, "forge_imp", 5, 5);
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 80);
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Steal { .. })));
+}
+
+#[test]
+fn slag_crawler_leaves_fire_where_it_crawled() {
+    let mut g = arena();
+    add_monster(&mut g, "slag_crawler", 10, 5);
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 40);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Overlay { ov: OverlayKind::Fire, .. })), "a fire trail");
+    assert!(g.lineage.facts.contains("foe:slag_crawler:fire"));
+}
+
+#[test]
+fn smith_armours_its_allies() {
+    let mut g = arena();
+    add_monster(&mut g, "smith", 8, 5);
+    let gob = add_monster(&mut g, "goblin", 9, 5);
+    hold_rules(&mut g);
+    ticks(&mut g, 15);
+    assert_eq!(monster(&g, gob).unwrap().buff_def.0, 3, "+3 def from the smith");
+    assert!(g.lineage.facts.contains("foe:smith:buffer"));
+}
+
+#[test]
+fn deep_floors_are_dark_and_a_lantern_helps() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().floor.vision = 4;
+    hold_rules(&mut g);
+    ticks(&mut g, 10);
+    let map = &g.run.as_ref().unwrap().floor.map;
+    assert!(map.is_visible(Pos::new(8, 5)), "four tiles away is seen");
+    assert!(!map.is_visible(Pos::new(10, 5)), "six tiles away is dark");
+    assert_eq!(g.snapshot().vision, 4);
+    give(&mut g, "lantern");
+    ticks(&mut g, 10);
+    assert!(g.run.as_ref().unwrap().floor.map.is_visible(Pos::new(10, 5)), "a lantern reaches six");
+    assert_eq!(g.snapshot().vision, 6);
+    g.run.as_mut().unwrap().hero.inv.retain(|i| i.kind != "lantern");
+    unlock(&mut g, "lantern_rig");
+    ticks(&mut g, 10);
+    assert_eq!(g.snapshot().vision, 6, "lantern_rig: the light without the slot");
+    // Monsters in the dark see as far as the floor allows.
+    let mut g = arena();
+    g.run.as_mut().unwrap().floor.vision = 4;
+    let id = add_sleeping(&mut g, "goblin", 10, 5);
+    hold_rules(&mut g);
+    ticks(&mut g, 40);
+    assert!(!monster(&g, id).unwrap().awake, "six tiles off in the dark: unseen");
+}
+
+#[test]
+fn rest_is_a_noise_that_blind_hunters_follow_and_silence_swallows() {
+    let mut g = arena();
+    let id = add_sleeping(&mut g, "lurker", 12, 5);
+    g.run.as_mut().unwrap().hero.hp = 10;
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest"))]);
+    ticks(&mut g, 60);
+    let m = monster(&g, id).unwrap();
+    assert!(m.awake, "the lurker heard the rest");
+    assert!(m.pos.cheb(Pos::new(4, 5)) < 8, "and came for it: {:?}", m.pos);
+    // Under silence nothing is heard.
+    let mut g = arena();
+    let id = add_sleeping(&mut g, "lurker", 12, 5);
+    g.run.as_mut().unwrap().hero.hp = 10;
+    g.run.as_mut().unwrap().hero.silence_t = 200;
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest"))]);
+    ticks(&mut g, 60);
+    assert!(!monster(&g, id).unwrap().awake, "silence: the lurker sleeps on");
+    assert!(g.run.as_ref().unwrap().noise.is_none());
+}
+
+#[test]
+fn a_thrown_bell_lures_hunters_and_raises_the_alert() {
+    let mut g = arena();
+    give(&mut g, "bell");
+    let id = add_sleeping(&mut g, "lurker", 13, 9);
+    unlock(&mut g, "throw");
+    rules(&mut g, vec![Row::new(vec![], Verb::arg("throw", "bell"))]);
+    let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Use { item, .. } if item == "bell")));
+    assert_eq!(g.run.as_ref().unwrap().alert, 3);
+    let m = monster(&g, id).unwrap();
+    assert!(m.awake);
+    let heard = m.last_seen.expect("goes to the bell");
+    assert!(heard != Pos::new(4, 5), "the bell rang away from the hero");
+}
+
+#[test]
+fn cave_troll_regenerates_unless_poisoned() {
+    let mut g = arena();
+    let id = add_monster(&mut g, "cave_troll", 10, 5);
+    {
+        let run = g.run.as_mut().unwrap();
+        let m = run.monsters.iter_mut().find(|m| m.id == id).unwrap();
+        m.hp = 10;
+        m.awake = false;
+        m.last_seen = None;
+    }
+    hold_rules(&mut g);
+    ticks(&mut g, 20);
+    assert_eq!(monster(&g, id).unwrap().hp, 14, "+2 every 10 ticks");
+    assert!(g.lineage.facts.contains("foe:cave_troll:regen"));
+    g.run.as_mut().unwrap().monsters.iter_mut().find(|m| m.id == id).unwrap().poison = (1, 100);
+    ticks(&mut g, 20);
+    assert!(monster(&g, id).unwrap().hp <= 14, "poison stops it");
+}
+
+#[test]
+fn siren_aura_confuses_within_two_tiles_unless_clear() {
+    let mut g = arena();
+    add_monster(&mut g, "siren", 6, 5);
+    hold_rules(&mut g);
+    ticks(&mut g, 10);
+    assert!(hero(&g).confused > 0, "confused by the aura");
+    assert!(g.lineage.facts.contains("foe:siren:aura"));
+    let mut g = arena();
+    add_monster(&mut g, "siren", 6, 5);
+    g.run.as_mut().unwrap().hero.clarity_t = 100;
+    hold_rules(&mut g);
+    ticks(&mut g, 10);
+    assert_eq!(hero(&g).confused, 0, "clarity holds");
+}
+
+#[test]
+fn mirror_shade_copies_the_class_verb() {
+    // A ranger's shade shoots from range.
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.class = Class::Ranger;
+    let id = add_monster(&mut g, "mirror_shade", 8, 5);
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 20);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Projectile { src, dst: HERO_ID, .. } if *src == id)));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Attack { verb: Some(v), .. } if v == "shoot")));
+    assert!(g.lineage.facts.contains("foe:mirror_shade:mirror"));
+    // A fighter's shade bashes.
+    let mut g = arena();
+    add_monster(&mut g, "mirror_shade", 5, 5);
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 30);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Attack { verb: Some(v), .. } if v == "bash")));
+}
+
+#[test]
+fn warden_alternates_its_faces_with_a_telegraph() {
+    let m = Monster::spawn(1, "warden", Pos::new(1, 1), 26);
+    assert!(m.reflects_melee() && !m.reflects_ranged(), "blade face first");
+    let mut r = m.clone();
+    r.warden_ranged = true;
+    assert!(!r.reflects_melee() && r.reflects_ranged());
+    let mut g = arena();
+    let id = add_monster(&mut g, "warden", 6, 5);
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 30);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { what, .. } if what == "shifts")));
+    assert!(monster(&g, id).unwrap().warden_ranged, "flipped after the telegraph");
+    assert!(g.lineage.facts.contains("foe:warden:reflect"));
+}
+
+#[test]
+fn acolyte_heals_the_most_hurt_ally() {
+    let mut g = arena();
+    add_monster(&mut g, "acolyte", 8, 5);
+    let gob = add_monster(&mut g, "goblin", 9, 5);
+    g.run.as_mut().unwrap().monsters.iter_mut().find(|m| m.id == gob).unwrap().hp = 1;
+    hold_rules(&mut g);
+    ticks(&mut g, 12);
+    assert!(monster(&g, gob).unwrap().hp >= 6, "healed 5");
+    assert!(g.lineage.facts.contains("foe:acolyte:healer"));
+}
+
+#[test]
+fn echo_splits_on_ranged_hits_only() {
+    let count = |g: &Game| g.run.as_ref().unwrap().monsters.iter().filter(|m| m.kind == "echo" && m.hp > 0).count();
+    let mut g = arena();
+    add_monster(&mut g, "echo", 9, 5);
+    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "bow"));
+    attack_rules(&mut g);
+    let mut split = false;
+    for _ in 0..60 {
+        ticks(&mut g, 1);
+        if count(&g) >= 2 {
+            split = true;
+            break;
+        }
+    }
+    assert!(split, "an arrow split the echo");
+    assert!(g.lineage.facts.contains("foe:echo:echo"));
+    let mut g = arena();
+    add_monster(&mut g, "echo", 5, 5);
+    attack_rules(&mut g);
+    for _ in 0..60 {
+        ticks(&mut g, 1);
+        assert!(count(&g) <= 1, "a sword never splits it");
+    }
+}
+
+#[test]
+fn sentinel_gazes_then_stuns() {
+    let mut g = arena();
+    add_monster(&mut g, "sentinel", 6, 5);
+    hold_rules(&mut g);
+    let mut stunned = false;
+    let mut telegraphed = false;
+    for _ in 0..40 {
+        let evs = ticks(&mut g, 1);
+        telegraphed |= evs.iter().any(|e| matches!(e, Ev::Telegraph { what, .. } if what == "gazes"));
+        if hero(&g).paralysed > 0 {
+            stunned = true;
+            break;
+        }
+    }
+    assert!(telegraphed && stunned, "telegraph {telegraphed}, stunned {stunned}");
+    assert!(g.lineage.facts.contains("foe:sentinel:gaze"));
+}
+
+#[test]
+fn mirror_king_reflects_the_third_of_a_kind_and_cadence_never_repeats() {
+    let mut g = arena();
+    add_monster(&mut g, "mirror_king", 5, 5);
+    attack_rules(&mut g);
+    let evs = ticks(&mut g, 60);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Attack { verb: Some(v), dst: HERO_ID, .. } if v == "mirror")), "the third swing came back");
+    assert!(g.lineage.facts.contains("boss:mirror_king:counter"));
+    assert!(g.lineage.facts.contains("foe:mirror_king:mirror"));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { what, .. } if what == "mirrors")));
+    // Cadence: two of a kind, then another; nothing comes back and the King bleeds.
+    let mut g = arena();
+    let id = add_monster(&mut g, "mirror_king", 5, 5);
+    g.run.as_mut().unwrap().hero.hp = 500;
+    g.run.as_mut().unwrap().hero.max_hp = 500;
+    unlock(&mut g, "cadence");
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("tactic", "cadence"))]);
+    let evs = ticks(&mut g, 200);
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Attack { verb: Some(v), dst: HERO_ID, .. } if v == "mirror")), "cadence never repeats thrice");
+    assert!(monster(&g, id).is_none_or(|m| m.hp < m.max_hp));
+    let ring = &g.run.as_ref().unwrap().verb_ring;
+    assert!(ring.len() < 3 || !(ring[0] == ring[1] && ring[1] == ring[2]), "{ring:?}");
+}
+
+#[test]
+fn lurker_queen_calls_lurkers_to_a_noise() {
+    let mut g = arena();
+    add_sleeping(&mut g, "lurker_queen", 12, 5);
+    g.run.as_mut().unwrap().hero.hp = 10;
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest"))]);
+    let evs = ticks(&mut g, 12);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { what, .. } if what == "listens")), "she heard the rest");
+    assert!(evs.iter().any(|e| matches!(e, Ev::Spawn { e, .. } if e.kind == "lurker")), "lurkers came");
+    assert!(!g.lineage.facts.contains("boss:lurker_queen:counter"), "unseen in the dark: no fact yet");
+    // A bell rung in her sight: the call, seen, is the counter fact.
+    hold_rules(&mut g);
+    ticks(&mut g, 40);
+    g.run.as_mut().unwrap().hero.pos = Pos::new(9, 5);
+    give(&mut g, "bell");
+    unlock(&mut g, "throw");
+    rules(&mut g, vec![Row::new(vec![], Verb::arg("throw", "bell"))]);
+    ticks(&mut g, 12);
+    assert!(g.lineage.facts.contains("boss:lurker_queen:counter"));
+}
+
+#[test]
+fn foundry_master_telegraphs_his_hammer_and_learns_the_counter() {
+    let mut g = arena();
+    add_monster(&mut g, "foundry_master", 5, 5);
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 30);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { what, .. } if what == "hammers")));
+    assert!(g.lineage.facts.contains("boss:foundry_master:counter"));
+    let m = g.run.as_ref().unwrap().monsters.iter().find(|m| m.kind == "foundry_master").unwrap();
+    assert!(m.reflects_melee());
+}
+
+#[test]
+fn boss_escorts_and_stock_for_the_new_biomes() {
+    for (depth, boss, escort) in [(20u32, "foundry_master", "smith"), (25, "lurker_queen", "lurker"), (30, "mirror_king", "mirror_shade")] {
+        let mut found_escort = false;
+        for seed in 1..=6u64 {
+            let mut g = Game::new(seed);
+            g.start_run(Some(seed));
+            let run = g.run.as_mut().unwrap();
+            run.depth = depth - 1;
+            run.hero.pos = run.floor.stairs_down;
+            {
+                let (run, mut cx) = g.ctx();
+                crate::turn::descend(run, &mut cx);
+            }
+            let run = g.run.as_ref().unwrap();
+            assert_eq!(run.depth, depth);
+            assert!(run.monsters.iter().any(|m| m.kind == boss), "seed {seed}: {boss} on D{depth}");
+            found_escort |= run.monsters.iter().any(|m| m.kind == escort);
+        }
+        assert!(found_escort, "{escort} escorts the {boss}");
+    }
+    let mut g = Game::new(3);
+    g.start_run(Some(3));
+    let run = g.run.as_mut().unwrap();
+    run.depth = 20;
+    run.hero.pos = run.floor.stairs_down;
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::descend(run, &mut cx);
+    }
+    let run = g.run.as_ref().unwrap();
+    assert_eq!(run.biome(), crate::descent::Biome::Deep);
+    assert_eq!(run.floor.vision, 4);
+    assert!(run.items.iter().any(|i| i.item.kind == "silence"), "the Deep stocks silence");
+    assert!(run.items.iter().any(|i| i.item.kind == "lantern"), "and a lantern on its doorstep");
+}
+
+// ---------------------------------------------------------------- Cut 3: items
+
+#[test]
+fn recall_scroll_banks_from_anywhere() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().depth = 12;
+    give(&mut g, "recall");
+    identify(&mut g, "recall");
+    rules(&mut g, vec![Row::new(vec![], Verb::arg("read", "recall"))]);
+    let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "bank")));
+    assert_eq!(g.run.as_ref().unwrap().over, Some(ExitTier::Bank));
+    assert!(g.lineage.facts.contains("item:recall"), "knowing recall gates recall_sense");
+}
+
+#[test]
+fn recall_sense_reads_recall_below_fifteen_percent() {
+    let mut g = arena();
+    give(&mut g, "recall");
+    identify(&mut g, "recall");
+    unlock(&mut g, "recall_sense");
+    g.run.as_mut().unwrap().hero.hp = 4;
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Rule { text, .. } if text == "recall sense")));
+    assert_eq!(g.run.as_ref().unwrap().over, Some(ExitTier::Bank));
+}
+
+#[test]
+fn earthquake_opens_walls_and_keeps_the_floor_connected() {
+    let mut quaked = false;
+    for seed in 1..=12u64 {
+        let mut g = Game::new(seed);
+        g.start_run(Some(seed * 11));
+        let hp = hero(&g).pos;
+        let map = &g.run.as_ref().unwrap().floor.map;
+        let walls = (-2..=2)
+            .flat_map(|dy| (-2..=2).map(move |dx| (dx, dy)))
+            .map(|d| hp.step(d))
+            .filter(|p| map.get(*p) == Tile::Wall && p.x > 0 && p.y > 0 && p.x < map.w - 1 && p.y < map.h - 1)
+            .count();
+        if walls == 0 {
+            continue;
+        }
+        give(&mut g, "earthquake");
+        identify(&mut g, "earthquake");
+        rules(&mut g, vec![Row::new(vec![], Verb::arg("read", "earthquake"))]);
+        let evs = ticks(&mut g, 10);
+        assert!(evs.iter().any(|e| matches!(e, Ev::Use { item, .. } if item == "earthquake scroll")));
+        let run = g.run.as_ref().unwrap();
+        let map = &run.floor.map;
+        for dy in -2..=2 {
+            for dx in -2..=2 {
+                let p = hp.step((dx, dy));
+                if map.in_bounds(p) && p.x > 0 && p.y > 0 && p.x < map.w - 1 && p.y < map.h - 1 {
+                    assert_ne!(map.get(p), Tile::Wall, "wall at {p:?} fell");
+                }
+            }
+        }
+        for x in 0..map.w {
+            assert_eq!(map.get(Pos::new(x, 0)), Tile::Wall, "the rim holds");
+            assert_eq!(map.get(Pos::new(x, map.h - 1)), Tile::Wall);
+        }
+        let d = map.bfs(run.floor.stairs_up, false, &|_| false);
+        assert!(d[map.idx(run.floor.stairs_down)] > 0, "still connected");
+        quaked = true;
+        break;
+    }
+    assert!(quaked, "some seed had walls to open");
+}
+
+#[test]
+fn chalk_marks_the_floor_left_and_the_next_visit_walks_to_the_stairs() {
+    let mut g = arena();
+    give(&mut g, "chalk");
+    g.run.as_mut().unwrap().depth = 3;
+    g.run.as_mut().unwrap().hero.pos = Pos::new(14, 10);
+    rules(&mut g, vec![Row::new(vec![], Verb::new("descend"))]);
+    let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "chalk:3")));
+    assert!(!hero(&g).inv.iter().any(|i| i.kind == "chalk"), "the chalk is spent");
+    // A chalked depth: the stairs are known on arrival and the chores go straight for them.
+    let mut g = arena();
+    g.lineage.facts.insert("chalk:4".into());
+    g.run.as_mut().unwrap().depth = 3;
+    g.run.as_mut().unwrap().hero.pos = Pos::new(14, 10);
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 99)], Verb::arg("attack", "nearest"))]);
+    ticks(&mut g, 10);
+    let run = g.run.as_ref().unwrap();
+    assert_eq!(run.depth, 4);
+    assert!(run.floor.map.is_seen(run.floor.stairs_down), "chalk: the way down is known");
+    let evs = ticks(&mut g, 30);
+    let chores: Vec<String> = evs.iter().filter_map(|e| match e { Ev::Rule { row: -2, verb, .. } => Some(verb.v.clone()), _ => None }).collect();
+    assert!(chores.iter().any(|v| v == "descend"), "{chores:?}");
+}
+
+#[test]
+fn mirror_scroll_sends_the_next_blow_back() {
+    let mut g = arena();
+    let id = add_monster(&mut g, "goblin", 5, 5);
+    give(&mut g, "mirror");
+    identify(&mut g, "mirror");
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("read", "mirror"))]);
+    let evs = ticks(&mut g, 60);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Attack { verb: Some(v), src: HERO_ID, .. } if v == "mirror")), "the blow came back");
+    assert!(monster(&g, id).is_none_or(|m| m.hp < m.max_hp));
+    assert_eq!(hero(&g).mirror_charge, 0);
+}
+
+#[test]
+fn salt_routs_the_undead() {
+    let mut g = arena();
+    let id = add_monster(&mut g, "skeleton", 6, 5);
+    give(&mut g, "salt");
+    unlock(&mut g, "throw");
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("throw", "salt"))]);
+    ticks(&mut g, 10);
+    assert!(monster(&g, id).unwrap().fear > 0, "the skeleton flees");
+    assert!(!hero(&g).inv.iter().any(|i| i.kind == "salt"));
+}
+
+#[test]
+fn new_potions_take_effect() {
+    let mut g = arena();
+    for k in ["regen", "resist_fire", "clarity"] {
+        give(&mut g, k);
+        identify(&mut g, k);
+    }
+    g.run.as_mut().unwrap().hero.hp = 10;
+    g.run.as_mut().unwrap().hero.confused = 30;
+    rules(&mut g, vec![
+        Row::new(vec![Cond::t("item", "clarity")], Verb::arg("drink", "clarity")),
+        Row::new(vec![Cond::t("item", "regen")], Verb::arg("drink", "regen")),
+        Row::new(vec![Cond::t("item", "resist_fire")], Verb::arg("drink", "resist_fire")),
+    ]);
+    ticks(&mut g, 30);
+    let h = hero(&g);
+    assert_eq!(h.confused, 0);
+    assert!(h.regen_t > 0 && h.resist_fire_t > 0 && h.clarity_t > 0, "{:?}", h.status_tags());
+    assert!(h.hp > 10, "regen ticked");
+    // Fire does nothing to a fireproof hero.
+    let hp = hero(&g).hp;
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::damage_hero(run, &mut cx, 5, &crate::turn::Src::Fire);
+    }
+    assert_eq!(hero(&g).hp, hp);
+}
+
+#[test]
+fn spear_reaches_two_tiles_and_mace_stuns_sometimes() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "spear"));
+    add_monster(&mut g, "goblin", 6, 5);
+    attack_rules(&mut g);
+    let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Attack { src: HERO_ID, .. })), "struck from two tiles");
+    assert_eq!(hero(&g).pos, Pos::new(4, 5), "without stepping");
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "mace"));
+    g.run.as_mut().unwrap().hero.hp = 9999;
+    g.run.as_mut().unwrap().hero.max_hp = 9999;
+    let id = add_monster(&mut g, "ogre", 5, 5);
+    {
+        let run = g.run.as_mut().unwrap();
+        let m = run.monsters.iter_mut().find(|m| m.id == id).unwrap();
+        m.hp = 5000;
+        m.max_hp = 5000;
+    }
+    attack_rules(&mut g);
+    let evs = ticks(&mut g, 1200);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "stunned")), "one hit in ten stuns");
+}
+
+#[test]
+fn found_tools_are_facts_and_tokens() {
+    let mut g = arena();
+    let run = g.run.as_mut().unwrap();
+    let id = run.new_item_id();
+    run.items.push(crate::engine::FloorItem { pos: Pos::new(5, 5), item: Item::new(id, "bell") });
+    rules(&mut g, vec![Row::new(vec![], Verb::new("pick_up"))]);
+    ticks(&mut g, 30);
+    assert!(g.lineage.facts.contains("item:bell"));
+    g.lineage.unlocks.insert("throw".into());
+    let v = g.vocabulary();
+    assert!(v.verbs.contains(&Verb::arg("throw", "bell")));
+    assert!(v.conds.contains(&Cond::t("item", "bell")));
+}
+
+#[test]
+fn mirror_shard_breeds_the_mirror_tag() {
+    let mut g = Game::new(1);
+    let mut a = crate::probes::pets_party()[0].clone();
+    let mut b = crate::probes::pets_party()[1].clone();
+    a.level = 2;
+    b.level = 2;
+    g.lineage.kennel.push(a.clone());
+    g.lineage.kennel.push(b.clone());
+    g.lineage.vault.push(Item::new(100_001, "mirror_shard"));
+    g.breed(a.id, b.id).unwrap();
+    let egg = g.lineage.eggs.last().unwrap();
+    assert!(egg.tags.iter().any(|t| t == "mirror"), "{:?}", egg.tags);
+    assert!(!g.lineage.vault.iter().any(|i| i.kind == "mirror_shard"), "the shard is spent");
+    assert_eq!(crate::defs::tag_verb("mirror"), Some("mimic"));
+}
+
+// ---------------------------------------------------------------- Cut 3: unlocks and cards
+
+#[test]
+fn tier_two_unlocks_need_bosses_and_open_rows_to_ten() {
+    let mut g = Game::new(1);
+    for u in ["row5", "row6", "row7", "row8"] {
+        g.lineage.unlocks.insert(u.into());
+    }
+    g.lineage.marks = 100;
+    assert!(g.buy("row9").is_err(), "three bosses first");
+    for k in ["goblin_warlord", "bloat_mother", "lich"] {
+        g.lineage.kills.insert(k.into());
+    }
+    g.buy("row9").unwrap();
+    assert_eq!(g.lineage.max_rows(), 9);
+    assert!(g.buy("row10").is_err(), "four bosses for the tenth row");
+    g.lineage.kills.insert("foundry_master".into());
+    g.buy("row10").unwrap();
+    assert_eq!(g.lineage.max_rows(), 10);
+    assert_eq!(g.lineage.marks, 100 - 14 - 18);
+    let ten: Vec<Row> = (0..10).map(|_| Row::new(vec![], Verb::new("hold"))).collect();
+    assert!(g.set_rules(RuleSet { rows: ten.clone(), name: None }).is_ok());
+    assert_eq!(g.lineage.rules().rows.len(), 10);
+    let mut eleven = ten;
+    eleven.push(Row::new(vec![], Verb::new("hold")));
+    assert!(RuleSet { rows: eleven, name: None }.validate().is_err());
+    assert!(g.buy("cadence").is_err(), "needs the mirror fact");
+    g.lineage.facts.insert("foe:mirror_shade:mirror".into());
+    g.buy("cadence").unwrap();
+    assert!(g.vocabulary().verbs.contains(&Verb::arg("tactic", "cadence")));
+}
+
+#[test]
+fn noise_discipline_holds_the_rest_while_a_blind_foe_lives() {
+    let mut g = arena();
+    let id = add_monster(&mut g, "lurker", 8, 5);
+    unlock(&mut g, "noise_discipline");
+    hold_rules(&mut g);
+    ticks(&mut g, 1);
+    assert!(g.run.as_ref().unwrap().blind_foe_known());
+    // Out of sight but alive: no rest.
+    g.run.as_mut().unwrap().monsters.iter_mut().find(|m| m.id == id).unwrap().pos = Pos::new(14, 10);
+    g.run.as_mut().unwrap().hero.hp = 10;
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 90)], Verb::arg("tactic", "noise_discipline"))]);
+    ticks(&mut g, 30);
+    assert_eq!(hero(&g).hp, 10, "no rest with a lurker known on the floor");
+    assert!(g.run.as_ref().unwrap().noise.is_none());
+    // Dead: the card rests.
+    g.run.as_mut().unwrap().monsters.iter_mut().find(|m| m.id == id).unwrap().hp = 0;
+    ticks(&mut g, 30);
+    assert!(hero(&g).hp > 10, "rested once the hunter is gone");
+}
+
+#[test]
+fn reflect_read_never_swings_at_a_mirror() {
+    let mut g = arena();
+    add_monster(&mut g, "iron_golem", 5, 5);
+    give(&mut g, "fire");
+    identify(&mut g, "fire");
+    unlock(&mut g, "reflect_read");
+    unlock(&mut g, "throw");
+    g.lineage.facts.insert("foe:iron_golem:reflect_melee".into());
+    rules(&mut g, vec![Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+    let evs = ticks(&mut g, 200);
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Attack { src: HERO_ID, verb: Some(v), .. } if v == "attack")), "no melee on the golem");
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Attack { verb: Some(v), .. } if v == "reflect")));
+    // With a bow in the pack it goes up and the golem is shot.
+    let mut g = arena();
+    let id = add_monster(&mut g, "iron_golem", 7, 5);
+    give(&mut g, "bow");
+    unlock(&mut g, "reflect_read");
+    g.lineage.facts.insert("foe:iron_golem:reflect_melee".into());
+    rules(&mut g, vec![Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read"))]);
+    let evs = ticks(&mut g, 100);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "bow up")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Attack { src: HERO_ID, verb: Some(v), .. } if v == "shoot")));
+    assert!(monster(&g, id).is_none_or(|m| m.hp < m.max_hp));
+    // Once no mirror is in view the sword comes back.
+    g.run.as_mut().unwrap().monsters.clear();
+    ticks(&mut g, 10);
+    assert_eq!(hero(&g).weapon_kind(), "sword");
+    assert!(g.run.as_ref().unwrap().bow_swap.is_none());
+}
+
+#[test]
+fn deep_march_descends_at_forty_percent_only_in_the_dark() {
+    let mut g = arena();
+    {
+        let run = g.run.as_mut().unwrap();
+        run.floor.vision = 4;
+        for s in run.floor.map.seen.iter_mut() {
+            *s = false;
+        }
+        run.floor.map.update_vision(run.hero.pos, 4);
+        // A known way down: an L of seen tiles to the stairs.
+        for x in 4..=14 {
+            let i = run.floor.map.idx(Pos::new(x, 5));
+            run.floor.map.seen[i] = true;
+        }
+        for y in 5..=10 {
+            let i = run.floor.map.idx(Pos::new(14, y));
+            run.floor.map.seen[i] = true;
+        }
+    }
+    unlock(&mut g, "deep_march");
+    rules(&mut g, vec![Row::new(vec![], Verb::arg("tactic", "deep_march"))]);
+    let seen = g.run.as_ref().unwrap().floor.map.seen_pct();
+    assert!((40..60).contains(&seen), "seen {seen}%");
+    let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Rule { row: 0, .. })), "the card fires in the dark");
+    let mut g = arena();
+    unlock(&mut g, "deep_march");
+    rules(&mut g, vec![Row::new(vec![], Verb::arg("tactic", "deep_march"))]);
+    let evs = ticks(&mut g, 10);
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Rule { row: 0, .. })), "lit: the card falls through");
+}
+
+#[test]
+fn studied_all_biome_is_a_three_mark_trophy() {
+    let mut g = Game::new(1);
+    for k in crate::defs::biome_kinds(crate::descent::Biome::Warrens) {
+        g.lineage.facts.insert(format!("foe:{k}:studied"));
+    }
+    g.start_run(None);
+    let marks = g.lineage.marks;
+    finish_with(&mut g, ExitTier::Return);
+    assert!(g.lineage.trophies.contains(&"studied_all_warrens".to_string()));
+    assert!(g.lineage.marks >= marks + 3);
+}
+
+// ---------------------------------------------------------------- Cut 3: ascension
+
+fn finished_lineage() -> Game {
+    let mut g = Game::new(5);
+    g.lineage.ended = true;
+    g.lineage.marks = 12;
+    g.lineage.gold = 300;
+    g.lineage.heir = 9;
+    g.lineage.best_depth = 31;
+    for u in ["row5", "row6", "row7", "row8", "row9", "cadence", "throw", "rogue", "phalanx"] {
+        g.lineage.unlocks.insert(u.into());
+    }
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 7, xp: 10 });
+    g.lineage.kennel.push(crate::probes::pets_party()[0].clone());
+    g.lineage.party.push(crate::probes::pets_party()[1].clone());
+    g.lineage.vault.push(Item::new(100_001, "plate"));
+    g.lineage.facts.insert("foe:lich:boss".into());
+    g.lineage.forge.insert("sword".into(), ForgeRow { salvaged: 20, craftable: true, tier: 1 });
+    g.lineage.grudges.push(crate::descent::Grudge { kind: "ogre".into(), name: "Grak".into(), depth: 7, heir: 3 });
+    g.lineage.graveyard.push(Grave { heir: 3, depth: 7, cause: "ogre".into(), deeds: vec![] });
+    g.set_rules(crate::probes::good()).unwrap();
+    g
+}
+
+#[test]
+fn ascension_keeps_the_meta_and_restarts_the_descent() {
+    let mut g = Game::new(1);
+    assert!(g.ascend("no_rest").is_err(), "not before the ending");
+    let mut g = finished_lineage();
+    assert!(g.ascend("nonsense").is_err());
+    g.ascend("no_rest").unwrap();
+    let l = &g.lineage;
+    assert_eq!(l.ascension, 1);
+    assert_eq!(l.variant, "no_rest");
+    assert!(!l.ended);
+    assert_eq!((l.marks, l.gold, l.heir, l.best_depth), (0, 0, 1, 0));
+    assert_eq!(l.classes["fighter"].level, 7, "classes carry");
+    assert_eq!(l.kennel.len(), 2, "kennel carries (the party home in it)");
+    assert!(l.party.is_empty());
+    assert_eq!(l.vault.len(), 1, "vault carries");
+    assert!(l.facts.contains("foe:lich:boss"), "facts carry");
+    assert_eq!(l.forge["sword"].tier, 1, "forge carries");
+    assert!(l.graveyard.is_empty() && l.grudges.is_empty());
+    assert_eq!(l.rules(), &crate::probes::good(), "rules stay");
+    assert!(!l.unlocks.contains("row5") && !l.unlocks.contains("cadence"), "unlocks start over");
+    assert!(l.unlocks.contains("rogue") && l.unlocks.contains("phalanx"), "class doors and mastery stay");
+    assert_eq!(l.max_rows(), 4);
+    let w = g.lineage();
+    assert_eq!(w.ascension, Ascension { level: 1, variant: "no_rest".into() });
+    let json = serde_json::to_string(&w).unwrap();
+    assert!(json.contains(r#""ascension":{"level":1,"variant":"no_rest"}"#));
+    // The save carries it.
+    let g2 = Game::load(&g.save()).unwrap();
+    assert_eq!(g2.lineage.variant, "no_rest");
+    assert_eq!(g2.lineage.ascension, 1);
+}
+
+#[test]
+fn no_rest_removes_the_verb_and_halves_camp_rest() {
+    let mut g = finished_lineage();
+    g.ascend("no_rest").unwrap();
+    assert!(!g.vocabulary().verbs.iter().any(|v| v.v == "rest"));
+    assert_eq!(g.rest_after(6000, ExitTier::Return), crate::offline::rest_after(6000, ExitTier::Return) / 2);
+    assert_eq!(g.rest_after(6000, ExitTier::Death), crate::engine::WAKE_TICKS / 2);
+    g.start_run(Some(9));
+    g.run.as_mut().unwrap().monsters.clear();
+    g.run.as_mut().unwrap().hero.hp = 10;
+    g.set_rules(RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest"))], name: None }).unwrap();
+    ticks(&mut g, 50);
+    assert_eq!(hero(&g).hp, 10, "rest is not a verb");
+}
+
+#[test]
+fn short_list_caps_rows_at_six_and_keeps_the_cards() {
+    let mut g = finished_lineage();
+    g.ascend("short_list").unwrap();
+    assert!(g.lineage.unlocks.contains("cadence"), "tactic cards carry");
+    for u in ["row5", "row6", "row7", "row8"] {
+        g.lineage.unlocks.insert(u.into());
+    }
+    assert_eq!(g.lineage.max_rows(), 6);
+    assert_eq!(g.vocabulary().max_rows, 6);
+}
+
+#[test]
+fn bones_only_has_no_vault() {
+    let mut g = finished_lineage();
+    g.ascend("bones_only").unwrap();
+    assert!(g.lineage.vault.is_empty());
+    assert_eq!(g.lineage.vault_slots(), 0);
+    g.loadout(vec![100_001]);
+    assert!(g.loadout.is_empty());
+    g.start_run(Some(4));
+    g.run.as_mut().unwrap().hero.inv.push(Item::new(77, "mail"));
+    finish_with(&mut g, ExitTier::Bank);
+    g.keep(vec![77]).unwrap();
+    assert!(g.lineage.vault.is_empty(), "nothing enters the vault");
+    assert!(g.lineage.gold > 0, "salvaged instead");
+}
+
+#[test]
+fn hunted_puts_the_grudge_on_every_floor_from_d3() {
+    let mut g = finished_lineage();
+    g.ascend("hunted").unwrap();
+    let h = g.lineage.hunter.clone().expect("a hunter");
+    assert_eq!(h.name, "Grak");
+    g.start_run(Some(2));
+    assert!(!g.run.as_ref().unwrap().monsters.iter().any(|m| m.grudge), "not on D1");
+    for target in [2u32, 3, 4] {
+        let run = g.run.as_mut().unwrap();
+        run.hero.pos = run.floor.stairs_down;
+        let (run, mut cx) = g.ctx();
+        crate::turn::descend(run, &mut cx);
+        let run = g.run.as_ref().unwrap();
+        assert_eq!(run.depth, target);
+        let stalks = run.monsters.iter().any(|m| m.grudge && m.name.as_deref() == Some("Grak") && m.awake);
+        assert_eq!(stalks, target >= 3, "D{target}");
+    }
+}
+
+#[test]
+fn the_ending_after_an_ascension_records_the_variant() {
+    let mut g = finished_lineage();
+    g.ascend("no_rest").unwrap();
+    g.start_run(Some(1));
+    let run = g.run.as_mut().unwrap();
+    run.depth = 30;
+    run.hero.pos = run.floor.stairs_down;
+    run.monsters.clear();
+    g.set_rules(RuleSet { rows: vec![Row::new(vec![], Verb::new("descend"))], name: None }).unwrap();
+    ticks(&mut g, 20);
+    assert!(g.lineage.ended);
+    assert_eq!(g.lineage.ascended, vec!["no_rest".to_string()]);
+    assert!(g.ascend("short_list").is_ok(), "again, under another variant");
+    assert_eq!(g.lineage.ascension, 2);
+}
+
+#[test]
+fn full_preset_is_the_probe_and_reaches_the_new_biomes_facts() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/presets/full.json")).unwrap();
+    let set = RuleSet::parse(&text).unwrap();
+    assert_eq!(set, crate::probes::full());
+    let mut g = Game::new(1);
+    for u in crate::meta::UNLOCKS {
+        g.lineage.unlocks.insert(u.id.into());
+    }
+    crate::probes::learn_everything(&mut g);
+    g.set_rules(set).unwrap();
+    let v = g.vocabulary();
+    for r in &g.lineage.rules().rows {
+        assert!(v.verbs.iter().any(|x| x.v == r.verb.v && x.a.as_deref().map(|a| a.split(',').next().unwrap()) == r.verb.a.as_deref().map(|a| a.split(',').next().unwrap())), "{:?} in the vocabulary", r.verb);
+    }
+}
+
+#[test]
+fn forecast_stops_at_known_to_and_the_run_cap_is_long() {
+    assert_eq!(crate::engine::MAX_TURNS_PER_RUN, 120_000);
+    let mut g = Game::new(3);
+    g.lineage.best_depth = 2;
+    let f = g.forecast();
+    assert_eq!(f.known_to, 3);
+    assert_eq!(f.depths.len(), 3);
+    let r = crate::forecast::simulate(&g, g.lineage.rules(), 3, 7, 1);
+    assert!(r.iter().all(|s| s.max_depth <= 1), "sims stop at the depth asked");
+}

@@ -48,6 +48,12 @@ fn fact_note(fact: &str) -> String {
         ["biome", b] => format!("Entered the {b}."),
         ["boss", kind, "counter"] => format!("{}: counter learned.", crate::engine::kind_title(kind)),
         ["item", "leash"] => "Found a leash.".into(),
+        ["item", "lantern"] => "Found a lantern.".into(),
+        ["item", "bell" | "salt" | "chalk"] => format!("Found {}.", parts[1]),
+        ["item", "mirror_shard"] => "Found a mirror shard.".into(),
+        ["item", "recall"] => "Recall: a way home.".into(),
+        ["chalk", d] => format!("D{d} is chalked."),
+        ["ascended", v] => format!("Ascended: {}.", v.replace('_', " ")),
         ["tamed", kind] => format!("Tamed a {}.", crate::engine::kind_title(kind)),
         ["counter", rest] => format!("Learned: {}.", rest.replace('>', " beats ")),
         ["item", rest] => {
@@ -121,6 +127,10 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
     for &i in &visible {
         let id = run.monsters[i].id;
         run.seen_ids.insert(id);
+        // Cut 3: a blind hunter seen on this floor holds `noise_discipline`'s rest.
+        if run.monsters[i].hostile() && run.monsters[i].is_blind() && !run.blind_seen.contains(&id) {
+            run.blind_seen.push(id);
+        }
     }
     if new_seen {
         run.new_seen = true;

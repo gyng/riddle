@@ -206,4 +206,13 @@ impl Game {
         self.inner.set_keep_pref(pref).map_err(err)?;
         Ok(js(&self.inner.lineage()))
     }
+
+    // ---- Cut 3: ascension
+
+    /// After the ending: a new lineage under `variant` (`no_rest | short_list | bones_only |
+    /// hunted`); returns the Lineage.
+    pub fn ascend(&mut self, variant: &str) -> Result<String, JsError> {
+        self.inner.ascend(variant).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
 }
