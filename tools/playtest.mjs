@@ -100,8 +100,15 @@ async function attempt() {
     await waitFor((s) => s?.screen === "watch", "watch");
     const tw = Date.now(); const mids = [...MID_SHOTS_MS];
     let finalBase = null, lastFinal = 0, lastSkip = 0, presses = 0, s;
+    let vaults = 0;
     for (;;) {
       s = await state();
+      // a mid-run vault choice (Cut 5) opens a sheet over the watch: pick the first item and carry on
+      if (s?.screen === "exit" && await page.locator(".sheet-wrap .vault-choice .chip").count()) {
+        if (vaults++ === 0) await dump("vault");
+        await page.locator(".sheet-wrap .vault-choice .chip").first().click().catch(() => {});
+        await sleep(300); continue;
+      }
       if (s?.screen !== "watch") break;
       const el = Date.now() - tw;
       if (el > WATCH_MAX_MS) throw new Error(`run still going after ${secs(WATCH_MAX_MS)}`);

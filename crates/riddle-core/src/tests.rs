@@ -4198,7 +4198,7 @@ fn boss_deaths_show_the_counter_row_first() {
         // The counter is known; the boss tag is what the sight teaches (learned in play).
         g.lineage.facts.insert(crate::facts::boss_counter_fact("goblin_warlord"));
         let mut rows = vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))];
-        if seed % 2 == 0 {
+        if seed.is_multiple_of(2) {
             rows.insert(0, Row::new(vec![Cond::n("hp<", 10)], Verb::new("return")));
         }
         rules(&mut g, rows);
