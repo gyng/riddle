@@ -104,3 +104,19 @@ and Loop Hero are 74–75. A 95 is above every calibration title; the campaign's
 is "fun" (≥ 72) with no gates, and the two moves above are what stands between 65 and that.
 Beyond it, the remaining weight is feel/aesthetic (audio, a world worth sitting in), which is a
 third move (sound design, a camp scene) and a different kind of work.
+
+## Cohort 4 (build 1cb869d: fight frame + roster) — the plateau broke
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| G | 71 | 71.9 | none |
+| H | 83 | 67.6 | none |
+
+α = 0.901. Mean **69.8** (63.7 → 66.0 → 65.0 → 69.8). Criterion probes moved for the first
+time: fun 5/5, play again 5/5, recommend 6/6 (cohorts 1–2: 4/4/5). Feel 0.30 → 0.60,
+aesthetic 0.30 → 0.60, tension/decisions/attribution 0.80, mastery 0.70. Both raters name the
+fight frame and the chronicle unprompted ("the fight frame shouts R1 TAME JACKAL — TAMED!";
+"you tame a rat called Skix who then dies").
+
+Remaining lost weight (1.2 each): story, pacing, expression, clarity. Their evidence is now
+small and specific (below), not structural.
