@@ -218,6 +218,9 @@ pub struct Run {
     /// Hit the run cap: comes home as `return` with no yield.
     #[serde(default)]
     pub timed_out: bool,
+    /// The rule row whose verb ended the run (`return` / `bank`), for the stall verdict.
+    #[serde(default)]
+    pub exit_row: Option<i32>,
 }
 
 impl Run {
@@ -595,6 +598,18 @@ pub struct Batch {
     pub run_outcomes: Vec<(u32, Option<String>)>,
     /// Ticks per real run.
     pub run_ticks: Vec<u32>,
+    /// Runs ended by each rule row (`return` / `bank`), row index → count.
+    pub exit_rows: BTreeMap<i32, u32>,
+}
+
+/// The stall verdict's window: runs since the last death, new best depth or rule edit, the
+/// deepest floor they reached and the rows that ended them. Lives on the game (not the batch)
+/// so a chunked absence (30-minute slices, ~1 run each) still adds up.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct StallTally {
+    pub runs: u32,
+    pub depth: u32,
+    pub exit_rows: BTreeMap<i32, u32>,
 }
 
 /// What a finished run contributed (for offline accounting).
@@ -631,6 +646,12 @@ pub struct Game {
     /// Inside an offline batch: renown settles once per absence (Cut 2 §2).
     #[serde(default)]
     pub offline: bool,
+    /// Runs since the last death / new best / rule edit (the stall verdict's window).
+    #[serde(default)]
+    pub stall: StallTally,
+    /// The stall patches last forecast, keyed by (row, depth, rules, vocabulary); the text is cheap.
+    #[serde(skip)]
+    pub stall_cache: Option<(String, Vec<Patch>)>,
 }
 
 fn default_max_deaths() -> usize {
@@ -656,6 +677,8 @@ impl Game {
             facts_at_run_start: 0,
             max_deaths: 40,
             offline: false,
+            stall: StallTally::default(),
+            stall_cache: None,
         }
     }
 
@@ -678,6 +701,8 @@ impl Game {
             facts_at_run_start: self.lineage.facts.len(),
             max_deaths: 0,
             offline: false,
+            stall: StallTally::default(),
+            stall_cache: None,
         }
     }
 
@@ -692,11 +717,17 @@ impl Game {
         set.rows.truncate(self.lineage.max_rows());
         set.validate()?;
         let i = self.lineage.active_set.min(self.lineage.sets.len() - 1);
+        if self.lineage.sets[i] != set {
+            self.stall = StallTally::default();
+        }
         self.lineage.sets[i] = set;
         Ok(())
     }
 
     pub fn select_set(&mut self, i: usize) {
+        if self.lineage.active_set != i.min(self.lineage.sets.len() - 1) {
+            self.stall = StallTally::default();
+        }
         self.lineage.active_set = i.min(self.lineage.sets.len() - 1);
     }
 
@@ -870,6 +901,7 @@ impl Game {
             bones_found: Vec::new(),
             kills_counted: 0,
             timed_out: false,
+            exit_row: None,
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
@@ -1125,6 +1157,19 @@ impl Game {
         // Marks (Cut 2 §2): new depth, boss, trophy, rank. First kills stay in bests and the ledger.
         let mut marks = 0;
         let mut bests: Vec<String> = Vec::new();
+        // Stall verdict window: a death or a new depth closes it; an exit row extends it.
+        if let Some(r) = run.exit_row {
+            *self.batch.exit_rows.entry(r).or_insert(0) += 1;
+        }
+        if tier == ExitTier::Death || run.max_depth > self.lineage.best_depth {
+            self.stall = StallTally::default();
+        } else {
+            self.stall.runs += 1;
+            self.stall.depth = self.stall.depth.max(run.max_depth);
+            if let Some(r) = run.exit_row {
+                *self.stall.exit_rows.entry(r).or_insert(0) += 1;
+            }
+        }
         if run.max_depth > self.lineage.best_depth {
             marks += run.max_depth - self.lineage.best_depth;
             self.lineage.best_depth = run.max_depth;

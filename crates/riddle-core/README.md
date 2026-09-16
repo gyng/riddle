@@ -148,9 +148,23 @@ fields). Where the contract left a choice open, this is what the engine does:
   keeps a brought vault item on death (`Lineage.insured`, addition).
 - **Patches**: candidates cover every family (ID policy `hp<N → drink/read unknown`, escape
   `hp<N → return`, retreat, targeting); a patch must beat the baseline by 0.15 or move the
-  forecast by 0.02, an unconditioned row must beat it by 0.30; ranked by (survive − baseline)
-  then delta, conditioned rows first on ties; only verbs the hero could have executed from the
-  checkpoint's inventory are tried.
+  forecast by 0.02, an unconditioned row must beat it by 0.30; ranked by forecast delta when
+  any patch moves it (> 0.02), else by (survive − baseline); a patch below −0.05 sinks under
+  all others; only verbs the hero could have executed from the checkpoint's inventory are tried.
+- **Stall verdict** (`ReturnReport.stall?: {row, fired, text, patches}`): present when the
+  last ≥ 4 runs (since the last death, new depth or rule edit — a window on the game, so the
+  client's 30-minute quick slices add up; state, not a delta: take the last slice's) all came
+  home. `row` is the rule row that ended most of them (`Run.exit_row`, counted in
+  `Batch.exit_rows`), `text` ≤ 12 words (`R1 return ended 16 runs at D5`), `patches` ≤ 3 with
+  real forecast deltas at the stall depth + 1 (20 sims each; `survive` on these is the patched
+  reach at that depth), kept when Δ > 0.02, ranked by Δ. Candidates: the ending row 10 points
+  deeper (`hp<20 → hp<10`, `depth>=N → N+1`, `loot>=N → N×2`) as `replace`, that row as
+  `remove`, `foe_tag:boss → attack tag:boss` / `throw <known>,tag:boss` on a boss floor once the
+  boss or its counter is known, `hp<90 → rest` when the set never rests. The forecasts run
+  once per (row, depth, rules, vocabulary) and are cached.
+- **`Patch.replace?` / `Patch.remove?`** (stall patches only): `replace` swaps the row at
+  `insert_at` for `row`; `remove` deletes the row at `insert_at` (`row` echoes it). Absent =
+  insert before `insert_at`, as on the death screen.
 - **Sifter**: one highlight per pattern per run (highest score); summons (`spectral_*`) are
   never a first kill or a best.
 - **Thrown poison stacks** (each dose adds 40 ticks of 2/10). A full pack swaps its cheapest

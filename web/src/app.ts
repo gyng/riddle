@@ -1,6 +1,6 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
-import type { AsyncEngine, Death, Forecast, Lineage, ReturnReport, Row, RuleSet, Vocabulary } from "./engine/types";
+import type { AsyncEngine, Death, Forecast, Lineage, Patch, ReturnReport, Row, RuleSet, Vocabulary } from "./engine/types";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
 import { renderCamp } from "./ui/camp";
@@ -241,6 +241,14 @@ export class App {
     this.rulesChanged();
     return i;
   }
+  /** A patch from the death screen or the report's stall: insert before `insert_at`, or (stall) replace / remove the row
+   *  there. Returns the row to highlight in the camp (none after a removal). */
+  applyPatch(p: Patch): number | undefined {
+    const rows = this.rules.rows;
+    if (p.remove) { if (p.insert_at < rows.length) rows.splice(p.insert_at, 1); this.rulesChanged(); return undefined; }
+    if (p.replace && p.insert_at < rows.length) { rows[p.insert_at] = cloneRow(p.row); this.rulesChanged(); return p.insert_at; }
+    return this.insertRow(p.row, p.insert_at);
+  }
   async setRulesText(text: string): Promise<void> {
     const set = await this.engine.importRules(text);
     this.sets[this.active] = { rows: set.rows.map(cloneRow) };
@@ -356,6 +364,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     found: [...a.found, ...b.found],
     deaths: [...deaths].map(([cause, n]) => ({ cause, n })).sort((x, y) => y.n - x.n),
     pending: b.pending,                                   // decisions waiting now (a state, not a delta)
+    stall: b.stall,                                       // likewise: the window is on the game, the last slice knows
     reel: [...a.reel, ...b.reel].sort((x, y) => y.score - x.score).slice(0, 5),
     marks_earned: a.marks_earned + b.marks_earned, worst_death: worst, live: b.live,
     tamed: [...a.tamed, ...b.tamed], hatched: [...a.hatched, ...b.hatched], lost: [...a.lost, ...b.lost],

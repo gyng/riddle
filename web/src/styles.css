@@ -134,6 +134,10 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .trace .tele { color: var(--warn); }
 .trace tr:last-child td { color: var(--hp); }
 .patches { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.stall .patches { margin-top: 10px; }
+.stall-line { margin-top: 6px; }
+.patch .target { margin-right: 2px; }
+.patch.remove { border-style: dashed; }
 .patch { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 56px; padding: 8px 14px; border-radius: var(--radius); border: 1px solid #34506f; background: var(--cond); text-align: left; }
 .delta.up { color: var(--ok); }
 .delta.down { color: var(--hp); }

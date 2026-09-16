@@ -1,13 +1,19 @@
 //! Offline batch: consumes ticks at 10/s across consecutive expeditions and the camp rests
 //! between them (Cut 2 §1), samples when stalled.
-use crate::engine::{Batch, ExitTier, Game, REST_CAP_TICKS, REST_MIN_TICKS, WAKE_TICKS};
+use crate::engine::{Batch, ExitTier, Game, StallTally, REST_CAP_TICKS, REST_MIN_TICKS, WAKE_TICKS};
 use crate::item::to_inv;
+use crate::rules::{Cond, Row, RuleSet, Verb};
 use crate::wire::*;
 use std::collections::BTreeMap;
 
 pub const TICKS_PER_SECOND: u64 = 10;
 pub const STALL_RUNS: u32 = 20;
 pub const SAMPLE_RUNS: u32 = 20;
+/// Stall verdict: this many runs home in a row with no death and no new depth.
+pub const STALL_MIN_RUNS: u32 = 4;
+/// A stall patch must move the forecast at the stall depth + 1 by more than this.
+pub const STALL_DELTA: f64 = 0.02;
+pub const STALL_SHOWN: usize = 3;
 
 pub fn run_offline(game: &mut Game, elapsed_s: u64) -> ReturnReport {
     run_offline_with(game, elapsed_s, true)
@@ -75,6 +81,7 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
                 let mut deaths: BTreeMap<String, u32> = BTreeMap::new();
                 let mut banked = 0u32;
                 let mut returned = 0u32;
+                let exits_before = game.batch.exit_rows.clone();
                 for _ in 0..SAMPLE_RUNS {
                     game.lineage.rest_left = 0;
                     game.start_run(None);
@@ -110,6 +117,19 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
                     }
                     game.batch.banked += share(banked);
                     game.batch.returned += share(returned);
+                    // The extrapolated runs end the way the sample did: same exit rows, same stall.
+                    let exits: Vec<(i32, u32)> = game.batch.exit_rows.iter().map(|(r, n)| (*r, n - exits_before.get(r).copied().unwrap_or(0))).filter(|(_, n)| *n > 0).collect();
+                    for (r, k) in &exits {
+                        *game.batch.exit_rows.entry(*r).or_insert(0) += share(*k);
+                    }
+                    if deaths.is_empty() {
+                        game.stall.runs += extra as u32;
+                        for (r, k) in &exits {
+                            *game.stall.exit_rows.entry(*r).or_insert(0) += share(*k);
+                        }
+                    } else {
+                        game.stall = StallTally::default();
+                    }
                     game.batch.rested += extra * (rested / SAMPLE_RUNS as u64);
                     consumed = budget - remaining % mean;
                     game.lineage.total_turns += extra * mean;
@@ -141,6 +161,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
     let worst_death_id = game.batch.worst_death;
     let worst_death = if full { worst_death_id.and_then(|id| crate::trace::death(game, id)) } else { None };
     let pending = crate::meta::pending(game);
+    let stall = stall_verdict(game);
     let live = game.ensure_run();
     game.events.clear();
     let b = &game.batch;
@@ -171,5 +192,123 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         banked: b.banked,
         returned: b.returned,
         bones_found: b.bones_found.clone(),
+        stall,
     }
+}
+
+// ---------------------------------------------------------------- stall verdict
+
+/// The stall verdict: when the last ≥ 4 runs all came home (no death, no new depth) the row that
+/// ended most of them is named and up to three patches are forecast at the stall depth + 1.
+/// The patches are cached per (row, depth, rules, vocabulary): a chunked absence asks every slice.
+pub fn stall_verdict(game: &mut Game) -> Option<Stall> {
+    let t = &game.stall;
+    if t.runs < STALL_MIN_RUNS {
+        return None;
+    }
+    let (&row, &fired) = t.exit_rows.iter().filter(|(r, _)| **r >= 0).max_by_key(|(r, n)| (**n, std::cmp::Reverse(**r)))?;
+    let rules = game.lineage.rules().clone();
+    let ending = rules.rows.get(row as usize)?.clone();
+    let depth = t.depth.max(1);
+    let text = format!("R{} {} ended {} runs at D{}", row + 1, ending.verb.short(), fired, depth);
+    let vocab = game.vocabulary();
+    let key = format!("{row}:{depth}:{}:{}:{}", serde_json::to_string(&rules).unwrap_or_default(), vocab.conds.len(), vocab.verbs.len());
+    let patches = match &game.stall_cache {
+        Some((k, p)) if *k == key => p.clone(),
+        _ => {
+            let p = stall_patches(game, &rules, row as usize, &ending, depth);
+            game.stall_cache = Some((key, p.clone()));
+            p
+        }
+    };
+    Some(Stall { row: row as usize, fired, text, patches })
+}
+
+/// `rules` with a stall patch applied (replace / remove / insert), cut to the row cap like the editor.
+pub fn apply_patch(rules: &RuleSet, p: &Patch, max_rows: usize) -> RuleSet {
+    let mut r = rules.clone();
+    if p.remove {
+        if p.insert_at < r.rows.len() {
+            r.rows.remove(p.insert_at);
+        }
+    } else if p.replace && p.insert_at < r.rows.len() {
+        r.rows[p.insert_at] = p.row.clone();
+    } else {
+        r.rows.insert(p.insert_at.min(r.rows.len()), p.row.clone());
+        r.rows.truncate(max_rows.max(1));
+    }
+    r
+}
+
+/// Candidates: the ending row pushed 10 points deeper, that row removed, the boss counter when
+/// the stall floor is a boss floor and the boss is known, `hp<90 → rest` when absent. Kept
+/// when the forecast at depth + 1 moves by more than `STALL_DELTA`, ranked by delta.
+fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: u32) -> Vec<Patch> {
+    let target = depth + 1;
+    let sims = crate::forecast::DELTA_SIMS;
+    let max_rows = game.lineage.max_rows();
+    let vocab = game.vocabulary();
+    let has_verb = |v: &Verb| vocab.verbs.contains(v);
+    let has_cond = |k: &str, t: Option<&str>| vocab.conds.iter().any(|c| c.k == k && (t.is_none() || c.t.as_deref() == t));
+    let present = |r: &Row| rules.rows.contains(r);
+    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at, survive: 0.0, forecast_delta: 0.0, replace, remove };
+    let mut cands: Vec<Patch> = Vec::new();
+    // (a) the ending row, its threshold pushed deeper.
+    let mut deeper = ending.clone();
+    let mut changed = false;
+    for c in deeper.conds.iter_mut() {
+        match (c.k.as_str(), c.n) {
+            ("hp<", Some(n)) if n > 10 => {
+                c.n = Some(n - 10);
+                changed = true;
+            }
+            ("depth>=", Some(n)) => {
+                c.n = Some(n + 1);
+                changed = true;
+            }
+            ("loot>=", Some(n)) if n > 0 => {
+                c.n = Some(n * 2);
+                changed = true;
+            }
+            _ => {}
+        }
+    }
+    if changed && !present(&deeper) {
+        cands.push(patch(deeper, row, true, false));
+    }
+    // (b) the ending row removed.
+    cands.push(patch(ending.clone(), row, false, true));
+    // (c) the boss counter on a boss floor the hero has met.
+    if let Some(kind) = crate::descent::boss_for(depth) {
+        let facts = &game.lineage.facts;
+        let known = facts.contains(&format!("boss:{kind}:counter")) || facts.contains(&format!("foe:{kind}"));
+        if known && has_cond("foe_tag", Some("boss")) {
+            let boss = Cond::t("foe_tag", "boss");
+            let attack = Row::new(vec![boss.clone()], Verb::arg("attack", "tag:boss"));
+            if has_verb(&attack.verb) && !present(&attack) {
+                cands.push(patch(attack, 0, false, false));
+            }
+            if let Some(k) = vocab.verbs.iter().filter(|v| v.v == "throw").filter_map(|v| v.a.as_deref()).find(|a| *a != "unknown") {
+                let throw = Row::new(vec![boss], Verb::arg("throw", &format!("{k},tag:boss")));
+                if !present(&throw) {
+                    cands.push(patch(throw, 0, false, false));
+                }
+            }
+        }
+    }
+    // (d) rest when the set never rests.
+    let rest = Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest"));
+    if !rules.rows.iter().any(|r| r.verb.v == "rest") && has_verb(&rest.verb) && has_cond("hp<", None) {
+        cands.push(patch(rest, 0, false, false));
+    }
+    let base = crate::forecast::reach_with(game, rules, target, sims, 0x57A11);
+    for p in cands.iter_mut() {
+        let r = crate::forecast::reach_with(game, &apply_patch(rules, p, max_rows), target, sims, 0x57A11);
+        p.survive = r;
+        p.forecast_delta = r - base;
+    }
+    cands.retain(|p| p.forecast_delta > STALL_DELTA);
+    cands.sort_by(|a, b| b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap());
+    cands.truncate(STALL_SHOWN);
+    cands
 }

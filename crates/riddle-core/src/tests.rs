@@ -1075,6 +1075,72 @@ fn offline_samples_after_twenty_stalled_runs() {
     assert!(g.run.is_some());
 }
 
+// ---------------------------------------------------------------- stall verdict
+
+/// `hp<20 → return` on top of the default set: the hero always comes home, so an absence is a
+/// stall — the return row is named, and at least one patch moves the forecast at depth + 1.
+#[test]
+fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
+    let mut g = Game::new(5);
+    let mut set = g.lineage.rules().clone();
+    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")));
+    g.set_rules(set).unwrap();
+    let r = g.run_offline(8 * 3600);
+    let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
+    let stall = r.stall.unwrap_or_else(|| panic!("no stall: {} runs · {deaths} deaths · bests {:?}", r.runs, r.bests));
+    assert_eq!(deaths, 0);
+    assert_eq!(stall.row, 0);
+    assert!(stall.fired >= 4, "{}", stall.text);
+    assert!(stall.text.starts_with("R1 return ended"), "{}", stall.text);
+    assert!(crate::rules::word_count(&stall.text) <= 12, "{}", stall.text);
+    assert!(!stall.patches.is_empty() && stall.patches.len() <= 3);
+    assert!(stall.patches.iter().all(|p| p.forecast_delta > crate::offline::STALL_DELTA), "{:?}", stall.patches);
+    assert!(stall.patches.windows(2).all(|w| w[0].forecast_delta >= w[1].forecast_delta));
+    // The client's path: 30-minute quick slices; the last slice carries the same stall.
+    let mut q = Game::new(5);
+    let mut set = q.lineage.rules().clone();
+    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")));
+    q.set_rules(set).unwrap();
+    let mut last = None;
+    for _ in 0..16 {
+        last = crate::offline::run_offline_quick(&mut q, 1800).stall;
+    }
+    let chunked = last.expect("the last quick slice carries the stall");
+    assert_eq!(chunked.row, 0);
+    assert!(chunked.fired >= 4, "{}", chunked.text);
+    assert!(!chunked.patches.is_empty(), "{}", chunked.text);
+    // The verdict is a state: a second look (no runs, same rules) repeats it from the cache.
+    let again = crate::offline::stall_verdict(&mut g).expect("still stalled");
+    assert_eq!(again.patches, stall.patches);
+    // Editing the rules opens a fresh window.
+    let mut set = g.lineage.rules().clone();
+    set.rows.remove(0);
+    g.set_rules(set).unwrap();
+    assert!(crate::offline::stall_verdict(&mut g).is_none());
+}
+
+#[test]
+fn a_set_that_dies_has_no_stall() {
+    let mut g = Game::new(5);
+    let r = g.run_offline(8 * 3600);
+    assert!(r.deaths.iter().map(|d| d.n).sum::<u32>() > 0, "the default set dies");
+    assert!(r.stall.is_none());
+}
+
+#[test]
+fn stall_patches_apply_as_replace_remove_or_insert() {
+    use crate::offline::apply_patch;
+    let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")), Row::new(vec![], Verb::new("attack"))], name: None };
+    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at, survive: 0.0, forecast_delta: 0.0, replace, remove };
+    let deeper = Row::new(vec![Cond::n("hp<", 10)], Verb::new("return"));
+    let r = apply_patch(&rules, &mk(deeper.clone(), 0, true, false), 8);
+    assert_eq!(r.rows, vec![deeper.clone(), rules.rows[1].clone()]);
+    let r = apply_patch(&rules, &mk(rules.rows[0].clone(), 0, false, true), 8);
+    assert_eq!(r.rows, vec![rules.rows[1].clone()]);
+    let r = apply_patch(&rules, &mk(deeper.clone(), 0, false, false), 2);
+    assert_eq!(r.rows, vec![deeper, rules.rows[0].clone()], "an insert into a full set drops the last row");
+}
+
 // ---------------------------------------------------------------- verdict and patches
 
 #[test]
@@ -1986,3 +2052,4 @@ fn patches_offer_the_id_policy_when_unknown_potions_went_unused() {
         assert!(!p.row.conds.is_empty() || p.survive - d.baseline >= 0.3);
     }
 }
+

@@ -2,7 +2,7 @@
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
   BonesPile, Companion, Cond, Death, Engine, Entity, Ev, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
-  ReturnReport, Row, RuleSet, Snapshot, StepResult, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary,
+  Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 
@@ -870,6 +870,7 @@ export class FakeEngine implements Engine {
     return { conds: gated, verbs, max_rows: this.maxRows() };
   }
   setRules(set: RuleSet): void {
+    this.home = 0;                                                           // a rule edit opens a fresh stall window
     this.s.rules = { rows: set.rows.slice(0, this.maxRows()).map((r) => ({ conds: r.conds.slice(0, 2).map((c) => ({ ...c })), verb: { ...r.verb } })), name: set.name };
     this.s.lineage.sets[this.s.lineage.active_set] = JSON.parse(JSON.stringify(this.s.rules)) as RuleSet;
   }
@@ -1026,6 +1027,7 @@ export class FakeEngine implements Engine {
       const r = this.settle(run, true, this.autoKeep(run)); this.settled.add(run.id); take(r);
       learned.push(...r.facts); bests.push(...r.bests); marks += r.marks;
       stall = r.facts.length || r.bests.length ? 0 : stall + 1;
+      this.home = run.exit === "death" || r.bests.some((b) => /^D\d+$/.test(b)) ? 0 : this.home + 1;
       for (const p of run.picked) if ((WEAPONS[p.kind] || ARMOUR[p.kind] !== undefined) && !found.some((f) => f.kind === p.kind)) found.push(p);
       if (run.exit === "death") { deaths[run.cause ?? "?"] = (deaths[run.cause ?? "?"] ?? 0) + 1; if (!worst || run.depth < worst.depth) worst = { id: run.id, depth: run.depth }; }
       reel.push(...run.hl);
@@ -1038,11 +1040,38 @@ export class FakeEngine implements Engine {
     const worstDeath = worst ? this.death(worst.id) : undefined;
     if (worstDeath?.verdict === "gap") pending.push(`patch D${worstDeath.depth} ${worstDeath.cause}`);
     if (!pending.length) pending.push("rules");
+    const verdictStall = this.stall(this.home);
     const restLeft = L.rest_left_s ?? 0;
     const live = this.send(); L.rest_left_s = restLeft;                    // `live` is a peek, not a send: the rest stands
     return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live, tamed, hatched, lost, xp: { class: L.class, gained: xpGained, level_ups: levelUps },
       salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp },
-      rested_s: rested, banked, returned, bones_found: bonesFound };
+      rested_s: rested, banked, returned, bones_found: bonesFound, stall: verdictStall };
+  }
+  /** Stall verdict (core README) so the report's section can be seen: a `return` / `bank` row that sent ≥ 4 runs home with no
+   *  new depth is named; the candidates (row 10 points deeper as `replace`, the row as `remove`, `hp<90 → rest`) carry the
+   *  fake's own 8-sim reach at best + 1. Not game truth: the fake keeps every candidate, the core keeps Δ > 0.02. */
+  /** Runs since the last death or new depth: the stall window, on the engine like the core's so 30-minute slices add up. */
+  private home = 0;
+  private stall(home: number): Stall | undefined {
+    const L = this.s.lineage; const rules = this.s.rules;
+    const at = rules.rows.findIndex((r) => r.verb.v === "return" || r.verb.v === "bank");
+    if (at < 0 || home < 4) return undefined;
+    const row = rules.rows[at]; const depth = Math.max(1, L.best_depth); const known = this.known();
+    const reach = (rs: RuleSet): number => { let ok = 0; for (let i = 0; i < 8; i++) if (this.simOne(hash(`stall:${L.seed}:${i}`), rs, known).depth > depth) ok++; return ok / 8; };
+    const base = reach(rules);
+    const deeper: Row = { conds: row.conds.map((c) => c.k === "hp<" && c.n ? { ...c, n: Math.max(5, c.n - 10) } : c.k === "depth>=" && c.n ? { ...c, n: c.n + 1 } : c.k === "loot>=" && c.n ? { ...c, n: c.n * 2 } : { ...c }), verb: { ...row.verb } };
+    const cands: Patch[] = [
+      { row: deeper, insert_at: at, survive: 0, forecast_delta: 0, replace: true },
+      { row, insert_at: at, survive: 0, forecast_delta: 0, remove: true },
+    ];
+    if (!rules.rows.some((r) => r.verb.v === "rest")) cands.push({ row: { conds: [{ k: "hp<", n: 90 }], verb: { v: "rest" } }, insert_at: 0, survive: 0, forecast_delta: 0 });
+    for (const p of cands) {
+      const rows = rules.rows.map((r) => JSON.parse(JSON.stringify(r)) as Row);
+      if (p.remove) rows.splice(p.insert_at, 1); else if (p.replace) rows[p.insert_at] = p.row; else { rows.splice(p.insert_at, 0, p.row); rows.length = Math.min(rows.length, this.maxRows()); }
+      p.survive = reach({ rows }); p.forecast_delta = Math.round((p.survive - base) * 100) / 100;
+    }
+    cands.sort((a, b) => b.forecast_delta - a.forecast_delta);
+    return { row: at, fired: home, text: `R${at + 1} ${row.verb.v} ended ${home} runs at D${depth}`, patches: cands.slice(0, 3) };
   }
   private unlockVisible(u: string): boolean {
     const L = this.s.lineage;

@@ -261,6 +261,9 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             if i < run.row_fired.len() {
                 run.row_fired[i] += 1;
             }
+            if run.over.is_some() && run.exit_row.is_none() {
+                run.exit_row = Some(i as i32);
+            }
             if matches!(row.verb.v.as_str(), "recall" | "send") {
                 continue; // party orders are free actions
             }

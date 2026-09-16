@@ -204,6 +204,27 @@ pub struct Patch {
     pub insert_at: usize,
     pub survive: f64,
     pub forecast_delta: f64,
+    /// Stall patches (addition): `replace` swaps the row at `insert_at` for `row`; `remove`
+    /// deletes the row at `insert_at` (`row` echoes it). Absent = insert before `insert_at`.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub replace: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub remove: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+/// Stall verdict (addition): a batch of ≥ 4 runs with no death and no new depth names the
+/// row that ended most of them and offers patches with forecast deltas at the stall depth + 1
+/// (`survive` on these is the patched reach at that depth).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Stall {
+    pub row: usize,
+    pub fired: u32,
+    pub text: String,
+    pub patches: Vec<Patch>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -269,6 +290,9 @@ pub struct ReturnReport {
     /// Cut 2 §2: bones piles recovered this absence ("heir 3 · D4 · 5 items").
     #[serde(default)]
     pub bones_found: Vec<String>,
+    /// Stall verdict (addition): present when the last ≥ 4 runs all came home with no new depth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stall: Option<Stall>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]

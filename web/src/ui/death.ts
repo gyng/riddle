@@ -2,7 +2,8 @@
 import type { App, Mounted } from "../app";
 import type { Death } from "../engine/types";
 import { h, copyText, items, pct, replace } from "./dom";
-import { rowLabel, verbLabel } from "./tokens";
+import { patchRows } from "./patches";
+import { verbLabel } from "./tokens";
 
 const TRACE_ROWS = 5;
 
@@ -19,15 +20,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
       h("td", null, `${t.foes}`),
       h("td", { class: "tele" }, t.telegraphs.join(" · ")),
     ))));
-  // Fractions 0..1 from the core: survive, forecast_delta, baseline (survival of the unpatched rules).
-  const patches = h("div", { class: "patches" }, ...d.patches.map((p) => {
-    const delta = Math.round(p.forecast_delta * 100);
-    return h("button", { class: "patch", onclick: () => { const i = app.insertRow(p.row, p.insert_at); app.go({ kind: "camp", highlight: i }); } },
-      h("span", { class: "chips-inline" }, rowLabel(p.row)),
-      h("span", { class: "patch-nums" },
-        h("span", { class: "num surv" }, pct(p.survive)),
-        h("span", { class: `num delta ${delta >= 0 ? "up" : "down"}` }, `${delta >= 0 ? "+" : "−"}${Math.abs(delta)}%`)));
-  }));
+  // Fractions 0..1 from the core: baseline (survival of the unpatched rules); the rows carry survive and forecast_delta.
+  const patches = patchRows(app, d.patches);
   const base = d.patches.length ? h("div", { class: "baseline dim num" }, /* copy:label */ "base", " ", pct(d.baseline ?? 0)) : null;
   const morgue = h("button", { class: "btn", onclick: async () => { const ok = await copyText(d.morgue); replace(morgue, ok ? "✓" : "×"); setTimeout(() => replace(morgue, /* copy:button */ "morgue"), 900); } }, /* copy:button */ "morgue");
   const edit = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "edit");

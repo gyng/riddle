@@ -2,6 +2,7 @@
 import type { App, Mounted } from "../app";
 import type { ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
+import { patchRows } from "./patches";
 import { visible } from "./unlocks";
 
 export function renderReport(app: App, r: ReturnReport): Mounted {
@@ -20,6 +21,12 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
     exits ? tile(`${deathsN}`, /* copy:label */ "deaths") : null,
   );
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
+  // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
+  // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
+  const stall = r.stall ? h("section", { class: "rsec stall" },
+    h("div", { class: "label" }, /* copy:label */ "stall"),
+    h("div", { class: "stall-line num" }, r.stall.text),
+    r.stall.patches.length ? patchRows(app, r.stall.patches) : null) : null;
   // Cut 2 §2: `bones D7 · 4 items · ♟3` per pile recovered (the core sends `heir 3 · D7 · 4 items`; `bones:7:4` too)
   const bonesLine = (x: string): string => {
     const m = /^bones:(\d+):(\d+)$/.exec(x); if (m) return /* copy:callout */ `bones D${m[1]} · ${items(+m[2])}`;
@@ -56,7 +63,7 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
   const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }, /* copy:button */ "open") : null;
   const camp = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "camp");
   const el = h("main", { class: "report" },
-    tiles, rested,
+    tiles, rested, stall,
     section(/* copy:label */ "learned", factChips(r.learned)),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),

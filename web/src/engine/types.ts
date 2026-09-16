@@ -59,10 +59,17 @@ export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
 export type Forecast = { depths: { depth: number; reach: number }[]; causes: { cause: string; share: number }[];
                          known_to: number };
 export type Trace = { turns: { t: number; row: number; verb: Verb; hp: number; foes: number; telegraphs: string[] }[] };
+/** A candidate row. Death patches insert before `insert_at`; stall patches (core README) may instead `replace` the row at
+ *  `insert_at` or `remove` it (`row` echoes the removed row). */
+export type Patch = { row: Row; insert_at: number; survive: number; forecast_delta: number; replace?: boolean; remove?: boolean };
 export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice";
                       baseline: number;                                                   // core addition: survival of the unpatched rules, 0..1
-                      trace: Trace; patches: { row: Row; insert_at: number; survive: number; forecast_delta: number }[];
+                      trace: Trace; patches: Patch[];
                       morgue: string };
+/** Core addition: the last ≥ 4 runs all came home with no new depth — the row that ended them, how many, a ≤ 12-word line,
+ *  and up to 3 patches with forecast deltas at the stall depth + 1 (`survive` = the patched reach there). A state: the
+ *  last slice's wins on merge. */
+export type Stall = { row: number; fired: number; text: string; patches: Patch[] };
 // Fractions: Forecast.depths[].reach, causes[].share, Death.baseline, patches[].survive and forecast_delta are 0..1.
 export type Highlight = { pattern: string; score: number; t: number; run_id: number; text: string };
 export type ReturnReport = {
@@ -74,6 +81,7 @@ export type ReturnReport = {
   salvaged: { kind: string; n: number; gold: number }[];                    // Addendum D
   renown: { gained: number; rank: number; ranks_up: number };               // Addendum D
   rested_s?: number; banked?: number; returned?: number; bones_found?: string[]; // Cut 2 §1–2
+  stall?: Stall;                                                              // core addition: stall verdict
 };
 export type Lineage = { seed: number; heir: number; trait: string; class: string; best_depth: number; marks: number;
                         facts: string[]; unlocks: string[]; vault: InvItem[]; graveyard: { heir: number; depth: number; cause: string; deeds: string[] }[];

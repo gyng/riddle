@@ -480,7 +480,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     if scored.first().is_some_and(|best| best.0 >= SURVIVE_BAR) {
         rec.death.verdict = "gap".into();
     }
-    let patches = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos, survive: rate, forecast_delta: 0.0 }).collect();
+    let patches = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos, survive: rate, forecast_delta: 0.0, replace: false, remove: false }).collect();
     rec.death.patches = one_per_family(patches);
 }
 
@@ -508,16 +508,14 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
         p.forecast_delta = r - base;
     }
     // A patch must beat the baseline by 0.15 or move the forecast by 0.02; an unconditioned row
-    // must beat the baseline by 0.30. Rank by (survive − baseline), then by the delta; show
-    // three, never two of one family.
+    // must beat the baseline by 0.30. Rank by the forecast delta when any patch moves it, else
+    // by (survive − baseline); show three, never two of one family.
     let pre_retain = rec.death.patches.clone();
     rec.death.patches.retain(|p| {
         let edge = p.survive - baseline;
-        (edge > PATCH_MARGIN || p.forecast_delta > 0.02) && (!p.row.conds.is_empty() || edge >= 0.3)
+        (edge > PATCH_MARGIN || p.forecast_delta > DELTA_BAR) && (!p.row.conds.is_empty() || edge >= 0.3)
     });
-    rec.death.patches.sort_by(|a, b| {
-        (b.survive - baseline).partial_cmp(&(a.survive - baseline)).unwrap().then(b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap())
-    });
+    rank_patches(&mut rec.death.patches, baseline);
     let patches = std::mem::take(&mut rec.death.patches);
     rec.death.patches = one_per_family(patches);
     rec.death.patches.truncate(SHOWN);
@@ -528,6 +526,25 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
         rec.death.patches = one_per_family(all);
         rec.death.patches.truncate(SHOWN);
     }
+}
+
+/// A patch moves the forecast when its delta is above this; below `DELTA_SINK` it is demoted
+/// under every other patch (a row that survives the moment but costs floors).
+pub const DELTA_BAR: f64 = 0.02;
+pub const DELTA_SINK: f64 = -0.05;
+
+/// Rank by the forecast delta first when any patch moves it, then by the survival edge over the
+/// baseline (so `hp<20 → return` at Δ0 no longer beats `hp<20 → drink unknown` at Δ+5%); a
+/// patch below `DELTA_SINK` sinks below all others.
+pub fn rank_patches(patches: &mut [Patch], baseline: f64) {
+    let by_delta = patches.iter().any(|p| p.forecast_delta > DELTA_BAR);
+    let edge = |p: &Patch| p.survive - baseline;
+    patches.sort_by(|a, b| {
+        let sink = (a.forecast_delta < DELTA_SINK).cmp(&(b.forecast_delta < DELTA_SINK));
+        let delta = b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap();
+        let surv = edge(b).partial_cmp(&edge(a)).unwrap();
+        sink.then(if by_delta { delta.then(surv) } else { surv.then(delta) })
+    });
 }
 
 /// The full death for a run id, computing verdict and deltas on first request.
@@ -737,6 +754,25 @@ mod tests_trace {
         uniq.sort();
         uniq.dedup();
         assert_eq!(uniq.len(), fams.len(), "{fams:?}");
+    }
+
+    fn patch(verb: Verb, survive: f64, delta: f64) -> Patch {
+        Patch { row: Row::new(vec![Cond::n("hp<", 20)], verb), insert_at: 0, survive, forecast_delta: delta, replace: false, remove: false }
+    }
+
+    #[test]
+    fn a_patch_that_moves_the_forecast_outranks_a_safer_one_that_does_not() {
+        let mut ps = vec![patch(Verb::new("return"), 1.0, 0.0), patch(Verb::arg("drink", "unknown"), 0.4, 0.05)];
+        rank_patches(&mut ps, 0.0);
+        assert_eq!(ps[0].row.verb, Verb::arg("drink", "unknown"));
+        // No patch moves the forecast: the survival edge decides.
+        let mut ps = vec![patch(Verb::arg("drink", "unknown"), 0.4, 0.01), patch(Verb::new("return"), 1.0, 0.0)];
+        rank_patches(&mut ps, 0.0);
+        assert_eq!(ps[0].row.verb, Verb::new("return"));
+        // A patch that costs floors sinks below everything, whatever its survival.
+        let mut ps = vec![patch(Verb::new("return"), 1.0, -0.2), patch(Verb::new("retreat"), 0.7, 0.0), patch(Verb::arg("drink", "unknown"), 0.4, 0.05)];
+        rank_patches(&mut ps, 0.0);
+        assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["drink", "retreat", "return"]);
     }
 
     #[test]
