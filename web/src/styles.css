@@ -83,6 +83,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .bar.unknown { color: var(--dim); }
 .bar.next { grid-template-columns: 44px 1fr auto; }
 .bar.next .n small { font-size: 12px; }
+.fc-yours { margin-top: 8px; font-size: 13px; }   /* Cut 7 §2: `yours: 3 of 5 rows` */
 .fc-causes { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 13px; color: var(--dim); }
 .fc-causes b { color: var(--hp); font-weight: 400; }
 
@@ -137,6 +138,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .ticker { position: absolute; left: 0; right: 0; bottom: calc(76px + env(safe-area-inset-bottom)); text-align: center; font-size: 20px; color: var(--acc); text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .ticker.show { opacity: 1; }
 .ticker.hurt { color: var(--hp); }
+.ticker.ambient { color: var(--fg); }   /* Cut 7 §4: `D3 · 4 rooms` · `$47` · `alert 3` at 8× */
 
 /* death */
 .death-line { font-size: 18px; font-weight: 400; margin: 18px 0 14px; line-height: 1.4; }
@@ -209,6 +211,8 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .ledger .lrow.head { color: var(--dim); font-size: 9px; letter-spacing: .02em; text-transform: uppercase; }
 .ledger .dot, .ledger .dot-h { text-align: center; color: var(--dim); }
 .ledger .dot.on { color: var(--acc); }
+.ledger .lrow.counter { display: block; padding: 6px 0 8px; }   /* Cut 7 §1: a boss's counter row as a chip */
+.ledger .lrow.counter .chip { min-height: 36px; }
 
 /* supplies */
 .gold { color: #e8c24a; }

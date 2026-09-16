@@ -17,6 +17,16 @@
 // Cut 5 §4 — the vault choice: a step whose snapshot carries `vault_choice` opens a sheet with the three items
 // as chips and holds the clock at 1×; a tap is `choose(id)`. The engine's 50-tick grace runs watched or not, so
 // an unanswered sheet closes on its own when `vault_choice` leaves the snapshot (the lineage's `vault_pref` took).
+//
+// Cut 7 §4 — rooms are scenes: a step whose `snapshot.room` holds ≥ SCENE_FOES awake hostiles (absent `room`: that many
+// hostiles in view) opens a scene, and auto holds 1× until the room is clear or the hero leaves it (the id changes),
+// AUTO_TAIL after; corridors and empty rooms run at 8×, telegraphs / attacks / hp loss still hold 1× on their own. A
+// hostile in view or an item near no longer slows on its own (that was "30–60 s of pick up"). Ambient callouts keep the
+// fast stretches legible: `D3 · 4 rooms` on a floor, `$47` on gold, `alert 3` when the clock ticks — one per 10 s,
+// shown at 4× and up (the floor line at any speed). The run's end plays at 1×: a batch carrying the `exit` is held
+// back from the viewer until its clock is ENDING_TICKS from the exit (so no dead-air jump swallows the walk-out), and
+// auto runs 1× from there (a core `ending` marker sets the same point). At 8× the pump keeps the engine ≥ LEAD_FAST
+// ticks ahead so the exit is seen in time.
 import type { App, Mounted } from "../app";
 import type { Ev, ExitLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, VaultChoice } from "../engine/types";
 import { h, items, replace, spanOf } from "./dom";
@@ -31,11 +41,14 @@ type Tier = "bank" | "return" | "death";
 const INTERESTING = new Set(["hurt", "die", "telegraph", "pickup", "use", "fact", "steal", "ally", "descend", "exit", "spawn", "tame"]);
 const LEAD = 12, BATCH = 10;        // ticks: pump when the engine is < LEAD ahead; step BATCH at a time
 const BATCH_FAST = 12;              // at 8× the viewer eats 4 ticks per pump; a bigger batch keeps the queue fed through a slow step
+const LEAD_FAST = 32;               // Cut 7 §4: at 8× the engine stays ≥ ENDING_TICKS ahead, so an exit is seen before its last 30 ticks
+const ENDING_TICKS = 30;            // Cut 7 §4: the last ticks before any exit play at 1×
+const SCENE_FOES = 2;               // Cut 7 §4: awake hostiles in the hero's room that make it a scene
+const AMBIENT_MS = 10_000, AMBIENT_SHOW_MS = 1500;   // Cut 7 §4: one ambient callout per 10 s, shown 1.5 s whatever the speed
 const PUMP_MS = 50;
 type Mode = "slow" | "fast" | "auto";
 const RATE: Record<Mode, number> = { slow: 1, fast: 4, auto: 8 };
 const AUTO_FAST = 8, AUTO_TAIL = 20; // auto: 8× when nothing is near; 1× until AUTO_TAIL ticks after the last sighting / hp change
-const ITEM_NEAR = 3;                // tiles: an item this close to the hero keeps auto at 1×
 const EXIT_GRACE_MS = 4000;         // wait for the viewer to drain after an exit, at most this long
 const PERSIST_MS = 5000;
 const BOSS_BANNER_MS = 3000;        // Cut 2 §7: `boss · counter: known|unknown` on first sight
@@ -69,6 +82,11 @@ export function renderWatch(app: App): Mounted {
 
   let viewer: Viewer | null = null;
   let mode: Mode = "auto", paused = false, slowUntil = -Infinity, lastHp = NaN;
+  // Cut 7 §4: the scene's room (null = none) and the tick auto may run fast again after one ends; the ending's first tick;
+  // the exit batch held back until the viewer is ENDING_TICKS from the exit; the ambient callout limiter; the last alert
+  let scene: number | null = null, sceneUntil = -Infinity, endingFrom = Infinity;
+  let held: { evs: Ev[]; snap: Snapshot; tier: Tier } | null = null;
+  let lastAmbient = -Infinity, ambientUntil = 0, lastAlert = 0;
   let speed = AUTO_FAST, done = false, disposed = false, overridden = false, tickerTimer = 0, bannerTimer = 0, pumpTimer = 0;
   // Cut 2: rest after the exit, bones left (death) / found, bosses already announced
   let restS: number | undefined, restUntil = 0, bonesLeft: number | undefined;
@@ -156,6 +174,7 @@ export function renderWatch(app: App): Mounted {
     }
   }
   function callout(text: string, cls = "", ms = 1800 / Math.max(1, speed)): void {
+    if (cls !== "ambient" && cls !== "hurt" && performance.now() < ambientUntil) return;   // Cut 7 §4: an ambient keeps the ticker for its 1.5 s
     lastShown = text;
     replace(ticker, text); ticker.className = `ticker show ${cls}`;
     clearTimeout(tickerTimer); tickerTimer = window.setTimeout(() => ticker.classList.remove("show"), ms);
@@ -164,6 +183,14 @@ export function renderWatch(app: App): Mounted {
     if (ev.row >= 0) return `R${ev.row + 1} · ${verbLabel(ev.verb)}`;
     if (ev.row === -1) return ev.text;                       // trait deviation, e.g. "cowardly → retreat"
     return CHORE_CALLOUT[ev.verb.v] ?? null;                  // chores are silent (pillar 2)
+  }
+  // Cut 7 §4: ambient callouts — at most one per AMBIENT_MS, only while the clock runs fast; the floor line shows at any
+  // speed and is never skipped for an earlier one (it still starts the 10 s)
+  function ambient(text: string, always = false): void {
+    const now = performance.now();
+    if (!always && (speed < RATE.fast || now - lastAmbient < AMBIENT_MS)) return;
+    lastAmbient = now; ambientUntil = now + AMBIENT_SHOW_MS;
+    callout(text, "ambient", AMBIENT_SHOW_MS);
   }
   function at(t: number, f: () => void): void { timed.push({ t, f }); }
   function release(upTo: number): void {
@@ -186,7 +213,11 @@ export function renderWatch(app: App): Mounted {
           break;
         }
         case "hurt": if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) callout(`−${ev.dmg} ${oneWord(ev.cause)}`, "hurt", HURT_MS); }); break;
-        case "descend": at(ev.t, () => { hud.depth = ev.depth; paintHud(); }); break;
+        case "descend": {
+          const rooms = s.depth === ev.depth ? s.rooms : undefined;   // Cut 7 §4: `D3 · 4 rooms` when the snapshot counts them
+          at(ev.t, () => { hud.depth = ev.depth; paintHud(); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
+          break;
+        }
         case "fact": {
           learned.push(ev.fact);
           // Cut 6 §5: the counter learned mid-fight (the boss's first telegraph) names itself: `boss · counter: attack boss`
@@ -196,9 +227,15 @@ export function renderWatch(app: App): Mounted {
           }); });
           break;
         }
-        case "pickup": if (ev.id === heroId) found.push({ id: ev.id, kind: ev.item, known: true, label: ev.item }); break;
+        case "pickup": {
+          if (ev.id === heroId) found.push({ id: ev.id, kind: ev.item, known: true, label: ev.item });
+          const gold = /^gold\b\D*(\d+)/.exec(ev.item);   // Cut 7 §4: `$47` on a gold pickup (`gold (47)` core, `gold 47` fake)
+          if (gold) at(ev.t, () => ambient(`$${gold[1]}`));
+          break;
+        }
         case "note": notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text }); break;
-        case "exit": exit = ev.tier; exitLine = ev.line ?? exitLine; break;
+        case "exit": exit = ev.tier; exitLine = ev.line ?? exitLine; endingFrom = Math.min(endingFrom, ev.t - ENDING_TICKS); break;   // Cut 7 §4
+        case "ending": endingFrom = Math.min(endingFrom, ev.t); break;                                                                // Cut 7 §4: the core's marker
         case "tame": if (ev.ok) { tamedIds.push(ev.id); kinds.set(ev.id, ev.kind); } break;
         case "ally": if (ev.state === "lost") lostIds.push(ev.id); break;
         case "spawn": note_(ev.e); break;
@@ -214,30 +251,43 @@ export function renderWatch(app: App): Mounted {
     }
     return exit;
   }
-  // Cut 5 §5: what holds auto at 1× — a hostile in view, an item within ITEM_NEAR tiles, the hero's hp moving
+  // Cut 5 §5 / Cut 7 §4: what holds auto at 1× — a scene (a room with SCENE_FOES awake hostiles), the hero's hp moving
   const hostile = (e: { ally?: boolean; kind: string; tags: string[] }): boolean => !e.ally && e.kind !== "bones" && e.kind !== "captive" && !e.tags.includes("captive") && !e.tags.includes("ally");
-  function nearNow(s: Snapshot): boolean {
-    if (s.entities.some((e) => hostile(e) && s.visible[e.y * s.w + e.x])) return true;
-    const hx = s.hero.x, hy = s.hero.y;
-    return s.items.some((it) => Math.max(Math.abs(it.x - hx), Math.abs(it.y - hy)) <= ITEM_NEAR);
+  /** Cut 7 §4: the hero's room and its awake hostiles; without `room` in the wire, the hostiles in view stand in (one "room"). */
+  function roomOf(s: Snapshot): { id: number; hostiles: number } {
+    return s.room ?? { id: -1, hostiles: s.entities.filter((e) => hostile(e) && !e.remembered && s.visible[e.y * s.w + e.x]).length };
+  }
+  function sceneFrom(s: Snapshot): void {
+    const r = roomOf(s);
+    const open = r.hostiles >= SCENE_FOES || (scene !== null && r.id === scene && r.hostiles > 0);
+    if (open) { scene = r.id; sceneUntil = Infinity; }
+    else if (scene !== null) { scene = null; sceneUntil = s.turn + AUTO_TAIL; }
+    el.dataset.scene = scene === null ? "0" : "1";   // dev: tools sample the cadence off the DOM
   }
   function near(t: number): void { slowUntil = Math.max(slowUntil, t + AUTO_TAIL); }
   function handle(r: StepResult): void {
     const s = r.snapshot;
     engineTick = s.turn;
     for (const e of s.entities) note_(e);
-    if (nearNow(s) || s.hero.hp < lastHp) near(s.turn);   // hp lost by any means; a rest's +1 per turn is a dead stretch, a drink is a `use` event
+    sceneFrom(s);
+    if (s.hero.hp < lastHp) near(s.turn);   // hp lost by any means; a rest's +1 per turn is a dead stretch, a drink is a `use` event
     lastHp = s.hero.hp;
+    if (s.alert > lastAlert) { const n = s.alert; at(s.turn, () => ambient(/* copy:callout */ `alert ${n}`)); }   // Cut 7 §4
+    lastAlert = s.alert;
     const exit = absorb(r.events, s);
-    const di = r.events.findIndex((e) => e.k === "descend");
-    if (viewer && di >= 0) { viewer.apply(r.events.slice(0, di + 1)); pendingLoad = { snap: s, rest: r.events.slice(di + 1) }; }
-    else { viewer?.apply(r.events); if (viewer?.sync) { const v = viewer; at(s.turn, () => v.sync!(s)); } } // Cut 4 §3: remembered foes
     snap = s;
     hud.maxHp = s.hero.max_hp; paintHud(); paintStake(s); bossSighted(s);
     vaultFrom(s);
     if (r.exit_pending) pendingExit = r.exit_pending;
-    if (exit) { exitTier = exit; exitAt = performance.now() + EXIT_GRACE_MS; }
+    // Cut 7 §4: the exit batch waits (pump) until the viewer is ENDING_TICKS from the exit, then plays at 1×
+    if (exit) { held = { evs: r.events, tier: exit, snap: s }; el.dataset.ending = "1"; return; }
+    feed(r.events, s);
     if (performance.now() - lastPersist > PERSIST_MS) { lastPersist = performance.now(); app.persist(); }
+  }
+  function feed(evs: Ev[], s: Snapshot): void {
+    const di = evs.findIndex((e) => e.k === "descend");
+    if (viewer && di >= 0) { viewer.apply(evs.slice(0, di + 1)); pendingLoad = { snap: s, rest: evs.slice(di + 1) }; }
+    else { viewer?.apply(evs); if (viewer?.sync) { const v = viewer; at(s.turn, () => v.sync!(s)); } } // Cut 4 §3: remembered foes
   }
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
@@ -250,6 +300,13 @@ export function renderWatch(app: App): Mounted {
       if (viewerIdle()) { const p = pendingLoad; pendingLoad = null; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
       return;
     }
+    if (held) {
+      // Cut 7 §4: the clock runs on (8× through dead air) to the ending, then the exit batch plays and the exit flow waits for it
+      if (now < endingFrom) return;
+      const hb = held; held = null; feed(hb.evs, hb.snap);
+      exitTier = hb.tier; exitAt = performance.now() + EXIT_GRACE_MS;
+      return;
+    }
     if (exitTier) {
       if (!(viewerIdle() || performance.now() > exitAt)) return;
       release(Infinity);
@@ -258,17 +315,20 @@ export function renderWatch(app: App): Mounted {
       if (performance.now() < restUntil) return;
       void finish(exitTier); return;
     }
-    if (speed <= 0 || inflight || engineTick - now >= LEAD) return;
+    if (speed <= 0 || inflight || engineTick - now >= (speed >= AUTO_FAST ? LEAD_FAST : LEAD)) return;
     inflight = true;
     app.engine.step(speed >= AUTO_FAST ? BATCH_FAST : BATCH).then((r) => { inflight = false; if (!disposed && !done) handle(r); })
       .catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; });
   }
-  /** The rate the clock should run at right now: the mode's, or for auto 8× / 1× by what is near (flat 8× while bailing). */
+  /** The rate the clock should run at right now: the mode's, or for auto 8× / 1× by what is near (flat 8× while bailing).
+   *  Cut 7 §4: 1× through a scene and through the run's last ENDING_TICKS (bailing too: the walk-out is still the end). */
   function rate(): number {
     if (paused) return 0;
     if (vaultClose) return 1;                 // Cut 5 §4: the vault sheet holds the clock at 1× while the engine's grace runs
     if (mode !== "auto") return RATE[mode];
-    return overridden || viewerTick() >= slowUntil ? AUTO_FAST : 1;
+    const v = viewerTick();
+    if (v >= endingFrom) return 1;
+    return overridden || (v >= slowUntil && v >= sceneUntil) ? AUTO_FAST : 1;
   }
   function applySpeed(): void {
     const n = rate();
@@ -286,7 +346,7 @@ export function renderWatch(app: App): Mounted {
   function togglePause(): void { paused = !paused; paintPause(); applySpeed(); }
   function paintPause(): void { pause.classList.toggle("on", paused); replace(pause, paused ? "▶" : "⏸"); }
   async function skipToEvent(): Promise<void> {
-    if (done || inflight || !viewer || exitTier || pendingLoad) return;
+    if (done || inflight || !viewer || exitTier || pendingLoad || held) return;
     inflight = true;
     try {
       let hit = false;
@@ -294,11 +354,11 @@ export function renderWatch(app: App): Mounted {
         const r = await app.engine.step(BATCH);
         hit = r.run_over || r.events.some((e) => INTERESTING.has(e.k));
         handle(r);
-        if (pendingLoad) break;
+        if (pendingLoad || held) break;
       }
     } catch (e) { console.warn("skip failed", e); }
     inflight = false;
-    if (!pendingLoad) { viewer.skipToEvent(); fbTick = engineTick; release(viewerTick()); }
+    if (!pendingLoad && !held) { viewer.skipToEvent(); fbTick = engineTick; release(viewerTick()); }
   }
   // Cut 5 §5: `return` fires on the next hero action as a chore (`engine.bail()`, the rules untouched); the run plays out to
   // the exit at 8× under `returning`, then the exit sheet. An engine without `bail` gets the row prepend, restored at the exit.
@@ -428,7 +488,7 @@ export function renderWatch(app: App): Mounted {
     if (disposed) { v.dispose(); return; }
     viewer = v; v.resize?.(); v.load(s); v.setSpeed(speed); el.dataset.speed = String(speed); fbTick = s.turn; fbAt = performance.now();
     if ("__riddle" in window) (window as unknown as { __viewer: Viewer }).__viewer = v;   // dev inspection
-    lastHp = s.hero.hp; if (nearNow(s)) near(s.turn);
+    lastHp = s.hero.hp; lastAlert = s.alert; sceneFrom(s);
     pumpTimer = window.setInterval(pump, PUMP_MS);
   }
   void init();

@@ -1,10 +1,12 @@
 // Party strip: kennel cards (kind · L · tags · g), tap → party (≤ party_slots), ≡ → its own rows,
 // eggs with hatch_in, hatch (◆2) for eggs from a loss, breed (two level ≥ 2), ledger sheet.
+// Cut 7 §1: a boss row of the ledger whose counter is known carries the counter row as a chip; a tap inserts it at
+// the top of the active set the way a patch does (overflow rules apply) and opens the camp on it.
 import type { App } from "../app";
-import type { Companion, RuleSet } from "../engine/types";
+import type { Companion, Row, RuleSet } from "../engine/types";
 import { h, clear } from "./dom";
 import { renderEditor } from "./editor";
-import { openSheet } from "./sheet";
+import { closeAllSheets, openSheet } from "./sheet";
 import { cloneSet } from "../app";
 import { openChronicle } from "./chronicle";
 
@@ -71,12 +73,26 @@ function openRules(app: App, c: Companion): void {
   })).catch((e) => console.warn("companion vocabulary", e));
 }
 
+const sameRow = (a: Row, b: Row): boolean =>
+  a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length &&
+  a.conds.every((c, i) => c.k === b.conds[i].k && (c.n ?? "") === (b.conds[i].n ?? "") && (c.t ?? "") === (b.conds[i].t ?? ""));
+
 export function openLedger(app: App): void {
   openSheet(() => {
     const L = app.lineage;
     const dot = (on: boolean): HTMLElement => h("span", { class: `dot${on ? " on" : ""}` }, on ? "●" : "○");
-    const rows = L.ledger.map((r) => h("div", { class: `lrow${r.seen ? "" : " dim"}` },
-      h("span", { class: "k" }, r.seen ? nice(r.kind) : "?"), dot(r.seen), dot(r.known), dot(!!r.studied), dot(r.tamed), dot(r.bred)));
+    const rows = L.ledger.flatMap((r) => {
+      const row = h("div", { class: `lrow${r.seen ? "" : " dim"}` },
+        h("span", { class: "k" }, r.seen ? nice(r.kind) : "?"), dot(r.seen), dot(r.known), dot(!!r.studied), dot(r.tamed), dot(r.bred));
+      if (!r.counter) return [row];
+      // Cut 7 §1: the counter row as a chip; lit when the active set already holds it
+      const c = r.counter; const held = app.rules.rows.some((x) => sameRow(x, c.row));
+      const chip = h("button", { class: `chip verb counter${held ? " on" : ""}`, disabled: held, onclick: () => {
+        const i = app.applyPatch({ row: c.row, insert_at: 0, survive: 0, forecast_delta: 0 });
+        closeAllSheets(); app.go({ kind: "camp", highlight: i });
+      } }, h("small", { class: "dim" }, /* copy:rule_token */ "[counter]"), " ", c.text);
+      return [row, h("div", { class: "lrow counter" }, chip)];
+    });
     const headRow = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), /* copy:label */ ...["seen", "known", "studied", "tamed", "bred"].map((s) => h("span", { class: "dot-h" }, s)));
     const trophies = L.trophies.filter((t) => t.startsWith("ledger:"));
     return h("div", { class: "sheet-body ledger" }, headRow, ...rows,

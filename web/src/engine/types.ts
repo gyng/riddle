@@ -4,7 +4,10 @@
 
 export type Cond = { k: string; n?: number; t?: string };          // {k:"hp<",n:40} {k:"foe_tag",t:"pack"}
 export type Verb = { v: string; a?: string };                      // {v:"drink",a:"heal"} {v:"attack",a:"tag:caster"}
-export type Row  = { conds: Cond[]; verb: Verb };
+/** Cut 7 §2 — where a row came from (optional; the core may tag, else the client infers: the shipped rows at boot are
+ *  `preset`, `applyPatch` rows `patch`, bought card rows `card`, anything the player adds or edits a token of `player`). */
+export type RowOrigin = "preset" | "patch" | "card" | "player";
+export type Row  = { conds: Cond[]; verb: Verb; origin?: RowOrigin };
 export type RuleSet = { rows: Row[]; name?: string };
 
 export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number };  // what the editor may offer
@@ -25,6 +28,8 @@ export type Snapshot = {
   stake?: Stake;                                                          // Cut 2 §7: what is on the line right now
   vision?: number;                                                        // Cut 3: the hero's sight radius on this floor (Deep 4, else 7; +2 lantern)
   vault_choice?: VaultChoice;                                             // Cut 5 §4: an opened vault waiting for `choose(itemId)` (50-tick grace, then `vault_pref` picks)
+  room?: { id: number; hostiles: number };                                // Cut 7 §4: the room the hero is in (0 = corridor); awake hostiles in it (optional)
+  rooms?: number;                                                         // Cut 7 §4: rooms on this floor, for `D3 · 4 rooms` (optional)
 };
 /** Cut 5 §4 — the three items of an opened vault; `choose(id)` takes one, the rest vanish. */
 export type VaultChoice = { items: InvItem[] };
@@ -65,7 +70,8 @@ export type Ev =
   | { t: number; k: "projectile"; src: number; dst: number; path: [number, number][] } // Addendum E: 1 tile per tick along path
   | { t: number; k: "rest"; seconds: number }                               // Cut 2 §1: emitted at exit; the viewer shows `rest Nm`
   | { t: number; k: "bones"; heir: number; items: number }                  // Cut 2 §2: a bones pile (left on death, or recovered by a later heir)
-  | { t: number; k: "see"; id: number; e?: Entity };                        // Cut 2 §7: first sight of an entity (renderer flashes on a boss); not emitted by the core yet
+  | { t: number; k: "see"; id: number; e?: Entity }                         // Cut 2 §7: first sight of an entity (renderer flashes on a boss); not emitted by the core yet
+  | { t: number; k: "ending"; ticks: number };                              // Cut 7 §4: the last `ticks` before an exit start here (optional; else the client infers exit − 30)
 
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            exit_pending?: { items: InvItem[]; tier: string } };                                       // Addendum D
@@ -128,7 +134,8 @@ export type BonesPile = { depth: number; heir: number; items: number };
 export type Companion = { id: number; kind: string; name: string; level: number; tags: string[]; gen: number;
                           rules: RuleSet; max_rows: number; hp: number; max_hp: number };
 export type Egg = { id: number; kind: string; tags: string[]; gen: number; hatch_in: number; from_loss: boolean };
-export type LedgerRow = { kind: string; seen: boolean; known: boolean; tamed: boolean; bred: boolean; studied?: boolean }; // studied: Cut 2 §5
+export type LedgerRow = { kind: string; seen: boolean; known: boolean; tamed: boolean; bred: boolean; studied?: boolean;   // studied: Cut 2 §5
+                          counter?: { row: Row; text: string } };                                                         // Cut 7 §1: a boss's known counter as a row (a chip on the bestiary card)
 
 export interface Engine {
   newLineage(seed: number): Lineage;

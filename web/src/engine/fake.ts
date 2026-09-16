@@ -815,7 +815,14 @@ function snapshot(run: Run, rules?: RuleSet): Snapshot {
     items: run.floor.items.map((i) => ({ ...i })), alert: run.alert, turn: run.turn, loot: run.loot,
     run: { id: run.id, heir: run.heir, started_turn: run.started_turn },
     stake: stakeOf(run, rules), vision: DEV_VISION,
+    room: roomOf(run), rooms: run.floor.rooms.length,   // Cut 7 §4
   };
+}
+/** Cut 7 §4: the room the hero stands in (0 = corridor) and the hostiles in it (the fake has no sleep: all awake). */
+function roomOf(run: Run): Snapshot["room"] {
+  const r = run.floor.roomOf[idx(run.hero.x, run.hero.y)];
+  if (r < 0) return { id: 0, hostiles: 0 };
+  return { id: r + 1, hostiles: run.floor.mons.filter((m) => !m.ally && m.hp > 0 && run.floor.roomOf[idx(m.x, m.y)] === r).length };
 }
 /** Cut 2 §7: loot on the hero, brought items (insured = safe), the first row that would bank or return. */
 function stakeOf(run: Run, rules?: RuleSet): Snapshot["stake"] {
@@ -900,7 +907,9 @@ export class FakeEngine implements Engine {
   }
   private ledger(): LedgerRow[] {
     const F = this.s.lineage.facts;
-    return LEDGER_KINDS.map((kind) => ({ kind, seen: F.includes(`foe:${kind}`), known: F.includes(`foe:${kind}`) && MON[kind].tags.filter((t) => t !== "boss").every((t) => F.includes(`foe:${kind}:${t}`)), studied: F.includes(`foe:${kind}:studied`), tamed: this.s.tamedKinds.includes(kind), bred: this.s.bredKinds.includes(kind) }));
+    const known = new Set([...F, ...(this.live?.facts ?? [])]);   // Cut 7 §1: the live run's counter fact counts, as in `counters()`
+    return LEDGER_KINDS.map((kind) => ({ kind, seen: F.includes(`foe:${kind}`), known: F.includes(`foe:${kind}`) && MON[kind].tags.filter((t) => t !== "boss").every((t) => F.includes(`foe:${kind}:${t}`)), studied: F.includes(`foe:${kind}:studied`), tamed: this.s.tamedKinds.includes(kind), bred: this.s.bredKinds.includes(kind),
+      counter: known.has(`boss:${kind}:counter`) && COUNTER[kind] ? { row: COUNTER[kind].row, text: COUNTER[kind].text } : undefined }));   // Cut 7 §1
   }
   private classLevel(cls = this.s.lineage.class): number { return this.s.lineage.classes[cls]?.level ?? 1; }
   private partySlots(): number { return this.s.lineage.unlocks.includes("party_slot_2") ? 2 : 1; }

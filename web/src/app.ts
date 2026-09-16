@@ -1,6 +1,6 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
-import type { AsyncEngine, Death, Forecast, Lineage, Patch, ReturnReport, Row, RuleSet, UnlockInfo, Vocabulary } from "./engine/types";
+import type { AsyncEngine, Death, Forecast, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, UnlockInfo, Vocabulary } from "./engine/types";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
 import { renderCamp } from "./ui/camp";
@@ -75,6 +75,10 @@ export class App {
   /** Cut 6 §6: the unlock catalogue as last fetched by the camp; a card's rows back the editor's `[card]` sheet. */
   unlockCat: UnlockInfo[] = [];
   cardRows(id: string): Row[] | undefined { return this.unlockCat.find((u) => u.id === id)?.rows; }
+  /** Cut 7 §2: row origins from the save blob, consumed by the first `adoptSets` (the engine's sets carry none). */
+  private savedOrigins: string[][] | null = null;
+  /** Cut 7 §2: the rows of the active set that are the player's own (`yours: 3 of 5 rows`). */
+  playerRows(): number { return this.rules.rows.filter((r) => (r.origin ?? "player") === "player").length; }
 
   constructor(root: HTMLElement, dev: DevOptions | null = null) { this.root = root; this.dev = dev; }
 
@@ -91,6 +95,7 @@ export class App {
         this.lineage = await this.engine.load(blob.engine);
         this.loadout = blob.loadout;
         this.runsSeen = blob.runs ?? 0;
+        this.savedOrigins = blob.origins ?? null;
         elapsed = Math.max(0, (Date.now() - blob.last_seen) / 1000);
         loaded = true;
       } catch (e) { console.warn("save rejected, new lineage", e); }
@@ -217,9 +222,27 @@ export class App {
     this.lineage = await this.engine.newLineage(seed ?? randomSeed());
     this.loadout = [];
   }
-  /** Take the editing copies from the engine's lineage (the engine is the source of truth). */
+  /** Take the editing copies from the engine's lineage (the engine is the source of truth).
+   *  Cut 7 §2: the engine's rows carry no origin (unless the core tags them), so each adopted row inherits the origin of
+   *  the row it replaces — by index when the text matches, else the first unclaimed row with that text — from the
+   *  previous editing copy, or from the save blob on the first adopt. A row nothing accounts for is the shipped preset
+   *  on the first adopt (a fresh lineage, a pre-Cut 7 save) and the player's afterwards. */
   private adoptSets(): void {
-    this.sets = (this.lineage.sets ?? []).map(cloneSet);
+    const prev = this.sets, saved = this.savedOrigins; this.savedOrigins = null;
+    const first = !prev.length;
+    this.sets = (this.lineage.sets ?? []).map((s, i) => {
+      const set = cloneSet(s);
+      if (first) { set.rows.forEach((r, j) => { r.origin ??= asOrigin(saved?.[i]?.[j]) ?? "preset"; }); return set; }
+      const was = prev[i]?.rows ?? []; const claimed = new Set<number>();
+      set.rows.forEach((r, j) => {
+        if (r.origin) return;
+        const key = rowKey(r);
+        const k = was[j] && !claimed.has(j) && rowKey(was[j]) === key ? j : was.findIndex((w, x) => !claimed.has(x) && rowKey(w) === key);
+        if (k >= 0) claimed.add(k);
+        r.origin = (k >= 0 ? was[k].origin : undefined) ?? "player";
+      });
+      return set;
+    });
     while (this.sets.length < SETS) this.sets.push(this.sets[0] ? cloneSet(this.sets[0]) : { rows: [] });
     this.sets = this.sets.slice(0, SETS);
     this.active = this.lineage.active_set ?? 0;
@@ -287,11 +310,12 @@ export class App {
     this.rulesChanged();
     this.emitChange();
   }
-  /** Inserts even when the set is full (Cut 4 §1: overflow is the player's decision, see `overBudget`). */
-  insertRow(row: Row, at: number): number {
+  /** Inserts even when the set is full (Cut 4 §1: overflow is the player's decision, see `overBudget`).
+   *  Cut 7 §2: a row without an origin is the player's. */
+  insertRow(row: Row, at: number, origin: RowOrigin = row.origin ?? "player"): number {
     const rows = this.rules.rows;
     const i = Math.max(0, Math.min(rows.length, at));
-    rows.splice(i, 0, cloneRow(row));
+    rows.splice(i, 0, { ...cloneRow(row), origin });
     this.rulesChanged();
     return i;
   }
@@ -300,12 +324,12 @@ export class App {
   applyPatch(p: Patch): number | undefined {
     const rows = this.rules.rows;
     if (p.remove) { if (p.insert_at < rows.length) rows.splice(p.insert_at, 1); this.rulesChanged(); return undefined; }
-    if (p.replace && p.insert_at < rows.length) { rows[p.insert_at] = cloneRow(p.row); this.rulesChanged(); return p.insert_at; }
-    return this.insertRow(p.row, p.insert_at);
+    if (p.replace && p.insert_at < rows.length) { rows[p.insert_at] = { ...cloneRow(p.row), origin: p.row.origin ?? "patch" }; this.rulesChanged(); return p.insert_at; }
+    return this.insertRow(p.row, p.insert_at, p.row.origin ?? "patch");
   }
   async setRulesText(text: string): Promise<void> {
     const set = await this.engine.importRules(text);
-    this.sets[this.active] = { rows: set.rows.map(cloneRow), name: this.sets[this.active]?.name };
+    this.sets[this.active] = { rows: set.rows.map((r) => ({ ...cloneRow(r), origin: r.origin ?? "player" })), name: this.sets[this.active]?.name };
     this.rulesChanged();
     this.emitChange();
   }
@@ -327,7 +351,7 @@ export class App {
   async buy(id: string): Promise<boolean> {
     const ok = await this.mutate(() => this.engine.buy(id));
     if (ok && this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id) && !this.rules.rows.some((r) => r.verb.v === "tactic" && r.verb.a === id)) {
-      this.insertRow({ conds: [], verb: { v: "tactic", a: id } }, this.rules.rows.length);
+      this.insertRow({ conds: [], verb: { v: "tactic", a: id } }, this.rules.rows.length, "card");
       this.emitChange();
     }
     return ok;
@@ -337,6 +361,7 @@ export class App {
   async resetLineage(): Promise<void> {
     clearBlob();
     await this.fresh();
+    this.sets = [];   // Cut 7 §2: a fresh lineage's rows are the preset again
     this.adoptSets();
     await this.engine.setRules(this.rules);
     this.vocab = await this.engine.vocabulary();
@@ -353,7 +378,7 @@ export class App {
   }
   /** pagehide/visibilitychange cannot await the worker: write the last save string fetched. */
   private flushSync(): void { if (this.lastSave) writeBlob(this.blob()); }
-  private blob(): SaveBlob { return { v: 2, engine: this.lastSave, loadout: this.loadout, last_seen: Date.now(), runs: this.runsSeen }; }
+  private blob(): SaveBlob { return { v: 2, engine: this.lastSave, loadout: this.loadout, last_seen: Date.now(), runs: this.runsSeen, origins: this.sets.map((s) => s.rows.map((r) => r.origin ?? "player")) }; }
   exportSave(): string { return JSON.stringify(this.blob()); }
   async importSave(text: string): Promise<boolean> {
     try {
@@ -361,6 +386,7 @@ export class App {
       if (!b || typeof b.engine !== "string") return false;
       this.lineage = await this.engine.load(b.engine);
       this.loadout = b.loadout ?? []; this.runsSeen = b.runs ?? 0;
+      this.savedOrigins = b.origins ?? null; this.sets = [];   // Cut 7 §2: the imported blob's origins, not the old sets'
       this.adoptSets();
       await this.engine.setRules(this.rules); await this.engine.loadout(this.loadout);
       this.vocab = await this.engine.vocabulary();
@@ -438,7 +464,10 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   };
 }
 
-export const cloneRow = (r: Row): Row => ({ conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } });
+export const cloneRow = (r: Row): Row => ({ conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb }, ...(r.origin ? { origin: r.origin } : {}) });
+/** Cut 7 §2: a row's identity for origin carry-over (tokens only, never the origin). */
+const rowKey = (r: Row): string => `${r.conds.map((c) => `${c.k}|${c.n ?? ""}|${c.t ?? ""}`).join(" ")} → ${r.verb.v}|${r.verb.a ?? ""}`;
+const asOrigin = (o: unknown): RowOrigin | undefined => (o === "preset" || o === "patch" || o === "card" || o === "player" ? o : undefined);
 export const cloneSet = (s: RuleSet): RuleSet => ({ rows: s.rows.map(cloneRow), name: s.name });
 
 /** `dev` is non-null in dev builds or with `?dev=1` (main.ts): boot options plus `window.__riddle` for inspection

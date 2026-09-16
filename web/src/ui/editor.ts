@@ -46,6 +46,8 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
 
   function rows(): Row[] { return bind.rules().rows; }
   function commit(): void { bind.changed(); refresh(); }
+  /** Cut 7 §2: a row the player edits any token of (or adds) is the player's, whatever offered it. */
+  function edited(row: Row): void { row.origin = "player"; commit(); }
 
   function refresh(): void {
     clear(list); clear(foot);
@@ -62,7 +64,7 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
 
   function defaultRow(): Row {
     const V = vocab(); const v = V.verbs[0] ?? { v: "attack" }; const c = V.conds[0] ?? { k: "hp<" };
-    return { conds: [{ ...c, n: needsN(c.k) ? 50 : undefined }], verb: { ...v } };
+    return { conds: [{ ...c, n: needsN(c.k) ? 50 : undefined }], verb: { ...v }, origin: "player" };
   }
 
   function rowEl(row: Row, i: number, drop = false): HTMLElement {
@@ -96,12 +98,12 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
         if (row.conds.some((rc, j) => j !== ci && sameCond(rc, c))) continue;
         const on = existing && sameCond(existing, c);
         grid.appendChild(h("button", { class: `chip cond${on ? " on" : ""}`, onclick: () => {
-          if (needsN(c.k)) { pickN(body, c, (n) => { row.conds[ci] = { ...c, n }; commit(); close(); }, existing && sameCond(existing, c) ? existing.n : undefined); return; }
-          row.conds[ci] = { ...c }; commit(); close();
+          if (needsN(c.k)) { pickN(body, c, (n) => { row.conds[ci] = { ...c, n }; edited(row); close(); }, existing && sameCond(existing, c) ? existing.n : undefined); return; }
+          row.conds[ci] = { ...c }; edited(row); close();
         } }, condName(c.k) + (c.t ? ` ${c.t.replace(/_/g, " ")}` : "")));
       }
       body.appendChild(grid);
-      if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); commit(); close(); } }, "×"));
+      if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); edited(row); close(); } }, "×"));
       return body;
     });
   }
@@ -118,7 +120,7 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
       const grid = h("div", { class: "grid" });
       for (const v of vocab().verbs) {
         const on = sameVerb(row.verb, v);
-        grid.appendChild(h("button", { class: `chip verb${on ? " on" : ""}`, onclick: () => { row.verb = { ...v } as Verb; commit(); close(); } }, verbLabel(v)));
+        grid.appendChild(h("button", { class: `chip verb${on ? " on" : ""}`, onclick: () => { row.verb = { ...v } as Verb; edited(row); close(); } }, verbLabel(v)));
       }
       return h("div", { class: "sheet-body" }, grid);
     });
