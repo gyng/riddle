@@ -6,6 +6,7 @@ import { h, clear } from "./dom";
 import { renderEditor } from "./editor";
 import { openSheet } from "./sheet";
 import { cloneSet } from "../app";
+import { openChronicle } from "./chronicle";
 
 const nice = (s: string): string => s.replace(/_/g, " ");
 
@@ -20,11 +21,11 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     const L = app.lineage; const slots = L.party_slots || 1;
     clear(head); clear(cards); clear(eggs);
     const all = [...L.party, ...L.kennel];
-    if (!all.length && !L.eggs.length) { head.append(/* copy:label */ "party", " ", h("span", { class: "num dim" }, `0/${slots}`), ledgerBtn()); return; }
+    if (!all.length && !L.eggs.length) { head.append(/* copy:label */ "party", " ", h("span", { class: "num dim" }, `0/${slots}`), ledgerBtn(), chronicleBtn()); return; }
     const canBreed = L.kennel.filter((c) => c.level >= 2).length >= 2;
     head.append(/* copy:label */ "party", " ", h("span", { class: "num dim" }, `${L.party.length}/${slots}`),
       canBreed ? h("button", { class: `mini${breeding ? " on" : ""}`, onclick: () => { breeding = breeding ? null : []; refresh(); } }, /* copy:button */ "breed") : "",
-      ledgerBtn());
+      ledgerBtn(), chronicleBtn());
     for (const c of all) cards.appendChild(card(c, L.party.includes(c)));
     for (const e of L.eggs) {
       eggs.appendChild(h("span", { class: "chip egg" }, "◯ ", nice(e.kind), h("small", { class: "dim" }, ` ${e.tags.map(nice).join(" ")} g${e.gen}`),
@@ -32,6 +33,7 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     }
   }
   function ledgerBtn(): HTMLElement { return h("button", { class: "mini", onclick: () => openLedger(app) }, /* copy:button */ "ledger"); }
+  function chronicleBtn(): HTMLElement { return h("button", { class: "mini", onclick: () => openChronicle(app) }, /* copy:button */ "chronicle"); }
 
   function card(c: Companion, inParty: boolean): HTMLElement {
     const picked = breeding?.includes(c.id);

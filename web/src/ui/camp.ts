@@ -7,8 +7,12 @@ import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
 import { classList, supplyCap, visible, vaultSlots } from "./unlocks";
 import { salvageValue } from "./salvage";
-import { xpToNext } from "../engine/classes";
+import { CLASS_VERBS, xpToNext } from "../engine/classes";
+import { verbLabel } from "./tokens";
 import { openSheet } from "./sheet";
+
+const SET_NAME_MAX = 12;
+export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
 export function renderCamp(app: App, highlight?: number): Mounted {
   const strip = h("header", { class: "strip" });
@@ -52,14 +56,18 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "⚒" : "○"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "·"))));
     });
   }
-  // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster)
+  // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
+  // Cut 5 §6: each row carries the class's verb ladder as chips (`L1 shield bash · L3 cleave · …`), reached rungs lit.
   function pickClass(): void {
     openSheet((close) => {
-      const L = app.lineage; const grid = h("div", { class: "grid" });
+      const L = app.lineage; const grid = h("div", { class: "classes" });
       const paint = (cat: Parameters<typeof classList>[1]): void => {
         clear(grid);
         for (const { cls, owned, level } of classList(L, cat)) {
-          grid.appendChild(h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned ? "" : " off"}`, disabled: !owned, onclick: () => { void app.setClass(cls); close(); } }, cls, " ", h("b", { class: "num" }, `L${level}`)));
+          const ladder = Object.entries(CLASS_VERBS[cls] ?? {}).flatMap(([l, vs]) => vs.map((v) => h("span", { class: `chip rung num${Number(l) <= level && owned ? " on" : ""}` }, `L${l} `, verbLabel({ v }))));
+          grid.appendChild(h("div", { class: "class-row" },
+            h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned ? "" : " off"}`, disabled: !owned, onclick: () => { void app.setClass(cls); close(); } }, cls, " ", h("b", { class: "num" }, `L${level}`)),
+            ladder.length ? h("div", { class: "chips ladder" }, ...ladder) : ""));
         }
       };
       paint(unlockCat);
@@ -67,9 +75,22 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       return h("div", { class: "sheet-body" }, grid);
     });
   }
+  // Cut 5 §6: sets carry a player-typed name (≤ 12 chars, the game's only free text; default `1 · 2 · 3`); ✎ on the active tab renames
   function paintTabs(): void {
     clear(tabs);
-    app.sets.forEach((s, i) => tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) }, `${i + 1}`, h("small", { class: "dim" }, ` ${s.rows.length}`))));
+    app.sets.forEach((s, i) => {
+      tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) }, setName(s, i), h("small", { class: "dim" }, ` ${s.rows.length}`)));
+      if (i === app.active) tabs.appendChild(h("button", { class: "tab edit", onclick: () => renameSet(i) }, "✎"));
+    });
+  }
+  function renameSet(i: number): void {
+    openSheet((close) => {
+      const input = h("input", { class: "name-input", type: "text", maxlength: SET_NAME_MAX, autocomplete: "off", spellcheck: "false", value: app.sets[i].name ?? "", placeholder: `${i + 1}` });
+      const commit = (): void => { app.renameSet(i, input.value); close(); };
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
+      setTimeout(() => input.focus(), 0);
+      return h("div", { class: "sheet-body" }, input, h("button", { class: "btn primary wide", onclick: commit }, /* copy:button */ "ok"));
+    });
   }
   function paintVault(): void {
     const L = app.lineage; const slots = vaultSlots(L.unlocks);

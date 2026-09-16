@@ -1,10 +1,18 @@
-// Watch: viewer canvas full-bleed; HUD (hp, depth, alert), speed 1× 4× ▶▶| ⏸, callout ticker, bail.
+// Watch: viewer canvas full-bleed; HUD (hp, depth, alert), speed slow · fast · auto, ▶▶| skip, ⏸, callout ticker, bail.
 //
 // Pacing (Addendum E): the viewer owns the clock (10 ticks/s × speed). The engine worker is pumped in
 // 10-tick batches whenever it is fewer than LEAD ticks ahead of the viewer, so events always arrive
 // before the viewer needs them and the engine never runs far ahead (≤ 22 ticks, under the viewer's
 // dead-air threshold). HUD hp/depth and the ticker are queued by tick and released at the viewer's
 // clock, so what the numbers say matches what the sprites do.
+//
+// Cut 5 §5 — auto cadence (the default): the clock runs at 8× through dead stretches and drops to 1× while
+// anything is near. "Near" is read off the engine, which is ≤ 22 ticks ahead of the viewer: a hostile in view
+// or an item within 3 tiles in a step's snapshot, a telegraph / attack / hero hp change in its events. Each
+// sighting holds 1× until AUTO_TAIL ticks after it (so hp unchanged for 20 ticks is the fast condition), and the
+// viewer slows *before* the foe walks into frame because the engine saw it first. At 8× the pump runs the same
+// LEAD with a 50 ms interval and a larger batch, so the engine still never runs dry or far ahead. Bail (§5)
+// turns the auto rate into a flat 8× and the stake line reads `returning` until the exit sheet.
 import type { App, Mounted } from "../app";
 import type { Ev, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult } from "../engine/types";
 import { h, items, replace, spanOf } from "./dom";
@@ -18,7 +26,12 @@ import { verbLabel } from "./tokens";
 type Tier = "bank" | "return" | "death";
 const INTERESTING = new Set(["hurt", "die", "telegraph", "pickup", "use", "fact", "steal", "ally", "descend", "exit", "spawn", "tame"]);
 const LEAD = 12, BATCH = 10;        // ticks: pump when the engine is < LEAD ahead; step BATCH at a time
-const PUMP_MS = 100;
+const BATCH_FAST = 12;              // at 8× the viewer eats 4 ticks per pump; a bigger batch keeps the queue fed through a slow step
+const PUMP_MS = 50;
+type Mode = "slow" | "fast" | "auto";
+const RATE: Record<Mode, number> = { slow: 1, fast: 4, auto: 8 };
+const AUTO_FAST = 8, AUTO_TAIL = 20; // auto: 8× when nothing is near; 1× until AUTO_TAIL ticks after the last sighting / hp change
+const ITEM_NEAR = 3;                // tiles: an item this close to the hero keeps auto at 1×
 const EXIT_GRACE_MS = 4000;         // wait for the viewer to drain after an exit, at most this long
 const PERSIST_MS = 5000;
 const BOSS_BANNER_MS = 3000;        // Cut 2 §7: `boss · counter: known|unknown` on first sight
@@ -37,18 +50,22 @@ export function renderWatch(app: App): Mounted {
   const ticker = h("div", { class: "ticker" });
   const stake = h("div", { class: "stake num" });
   const banner = h("div", { class: "banner num" });
-  const pause = h("button", { class: "hud-btn", onclick: () => setSpeed(speed ? 0 : 1) }, "⏸");
-  const s1 = h("button", { class: "hud-btn on", onclick: () => setSpeed(1) }, "1×");
-  const s4 = h("button", { class: "hud-btn", onclick: () => setSpeed(4) }, "4×");
+  const pause = h("button", { class: "hud-btn", onclick: () => togglePause() }, "⏸");
+  const modeBtn: Record<Mode, HTMLButtonElement> = {
+    slow: h("button", { class: "hud-btn", onclick: () => setMode("slow") }, /* copy:button */ "slow"),
+    fast: h("button", { class: "hud-btn", onclick: () => setMode("fast") }, /* copy:button */ "fast"),
+    auto: h("button", { class: "hud-btn on", onclick: () => setMode("auto") }, /* copy:button */ "auto"),
+  };
   const skip = h("button", { class: "hud-btn", onclick: () => skipToEvent() }, "▶▶|");
   const bail = h("button", { class: "hud-btn bail", onclick: () => doBail() }, /* copy:button */ "bail");
   const el = h("main", { class: "watch" }, canvas,
     h("div", { class: "hud top" }, h("div", { class: "hp" }, h("span", { class: "track" }, hpFill), hpText), depth, alert, pause, stake),
     banner, ticker,
-    h("div", { class: "hud bottom" }, s1, s4, skip, bail));
+    h("div", { class: "hud bottom" }, modeBtn.slow, modeBtn.fast, modeBtn.auto, skip, bail));
 
   let viewer: Viewer | null = null;
-  let speed = 1, done = false, disposed = false, overridden = false, tickerTimer = 0, bannerTimer = 0, pumpTimer = 0;
+  let mode: Mode = "auto", paused = false, slowUntil = -Infinity, lastHp = NaN;
+  let speed = AUTO_FAST, done = false, disposed = false, overridden = false, tickerTimer = 0, bannerTimer = 0, pumpTimer = 0;
   // Cut 2: rest after the exit, bones left (death) / found, bosses already announced
   let restS: number | undefined, restUntil = 0, bonesLeft: number | undefined;
   const bonesFound: string[] = []; const bossSeen = new Set<number>();
@@ -96,7 +113,7 @@ export function renderWatch(app: App): Mounted {
     const parts: (string | HTMLElement)[] = [`$${st.loot}`];
     for (const b of st.brought) parts.push(" · ", h("span", { class: b.insured ? "" : "risk" }, b.label, b.insured ? "" : "⚠"));
     if (st.return_row === undefined) parts.push(" · ", h("span", { class: "lose" }, /* copy:callout */ "death: lose all"));
-    else parts.push(" · ", overridden ? verbLabel({ v: "return" }) : returnAt(app.rules.rows[st.return_row], st.return_row));
+    else parts.push(" · ", overridden ? h("span", { class: "returning" }, /* copy:callout */ "returning") : returnAt(app.rules.rows[st.return_row], st.return_row));
     replace(stake, ...parts);
   }
   function returnAt(row: Row | undefined, i: number): string {
@@ -138,6 +155,7 @@ export function renderWatch(app: App): Mounted {
     let exit: Tier | null = null;
     const heroId = s.hero.id;
     for (const ev of evs) {
+      if (ev.k === "telegraph" || ev.k === "attack" || ev.k === "use" || (ev.k === "hurt" && ev.id === heroId)) near(ev.t);   // Cut 5 §5: always at 1×
       switch (ev.k) {
         case "callout": if (ev.text !== "explore") at(ev.t, () => callout(ev.text)); break;
         case "rule": {
@@ -167,10 +185,20 @@ export function renderWatch(app: App): Mounted {
     }
     return exit;
   }
+  // Cut 5 §5: what holds auto at 1× — a hostile in view, an item within ITEM_NEAR tiles, the hero's hp moving
+  const hostile = (e: { ally?: boolean; kind: string; tags: string[] }): boolean => !e.ally && e.kind !== "bones" && e.kind !== "captive" && !e.tags.includes("captive") && !e.tags.includes("ally");
+  function nearNow(s: Snapshot): boolean {
+    if (s.entities.some((e) => hostile(e) && s.visible[e.y * s.w + e.x])) return true;
+    const hx = s.hero.x, hy = s.hero.y;
+    return s.items.some((it) => Math.max(Math.abs(it.x - hx), Math.abs(it.y - hy)) <= ITEM_NEAR);
+  }
+  function near(t: number): void { slowUntil = Math.max(slowUntil, t + AUTO_TAIL); }
   function handle(r: StepResult): void {
     const s = r.snapshot;
     engineTick = s.turn;
     for (const e of s.entities) note_(e);
+    if (nearNow(s) || s.hero.hp < lastHp) near(s.turn);   // hp lost by any means; a rest's +1 per turn is a dead stretch, a drink is a `use` event
+    lastHp = s.hero.hp;
     const exit = absorb(r.events, s);
     const di = r.events.findIndex((e) => e.k === "descend");
     if (viewer && di >= 0) { viewer.apply(r.events.slice(0, di + 1)); pendingLoad = { snap: s, rest: r.events.slice(di + 1) }; }
@@ -183,7 +211,9 @@ export function renderWatch(app: App): Mounted {
   }
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
+    applySpeed();
     const now = viewerTick();
+    el.dataset.tick = String(now);            // dev: tools sample the cadence off the DOM
     release(now);
     if (pendingLoad) {
       if (viewerIdle()) { const p = pendingLoad; pendingLoad = null; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
@@ -199,16 +229,30 @@ export function renderWatch(app: App): Mounted {
     }
     if (speed <= 0 || inflight || engineTick - now >= LEAD) return;
     inflight = true;
-    app.engine.step(BATCH).then((r) => { inflight = false; if (!disposed && !done) handle(r); })
+    app.engine.step(speed >= AUTO_FAST ? BATCH_FAST : BATCH).then((r) => { inflight = false; if (!disposed && !done) handle(r); })
       .catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; });
   }
-  function setSpeed(n: number): void {
-    speed = n;
-    for (const [b, v] of [[s1, 1], [s4, 4]] as const) b.classList.toggle("on", n === v);
-    pause.classList.toggle("on", n === 0);
-    replace(pause, n === 0 ? "▶" : "⏸");
-    viewer?.setSpeed(n);
+  /** The rate the clock should run at right now: the mode's, or for auto 8× / 1× by what is near (flat 8× while bailing). */
+  function rate(): number {
+    if (paused) return 0;
+    if (mode !== "auto") return RATE[mode];
+    return overridden || viewerTick() >= slowUntil ? AUTO_FAST : 1;
   }
+  function applySpeed(): void {
+    const n = rate();
+    if (n === speed) return;
+    if (!viewer?.tick) viewerTick();          // placeholder clock: bank the ticks run at the old rate first
+    speed = n; viewer?.setSpeed(n);
+    el.dataset.speed = String(n);
+    modeBtn.auto.classList.toggle("slowed", mode === "auto" && n === 1);
+  }
+  function setMode(m: Mode): void {
+    mode = m; paused = false;
+    for (const k of Object.keys(modeBtn) as Mode[]) modeBtn[k].classList.toggle("on", k === m);
+    paintPause(); applySpeed();
+  }
+  function togglePause(): void { paused = !paused; paintPause(); applySpeed(); }
+  function paintPause(): void { pause.classList.toggle("on", paused); replace(pause, paused ? "▶" : "⏸"); }
   async function skipToEvent(): Promise<void> {
     if (done || inflight || !viewer || exitTier || pendingLoad) return;
     inflight = true;
@@ -224,11 +268,13 @@ export function renderWatch(app: App): Mounted {
     inflight = false;
     if (!pendingLoad) { viewer.skipToEvent(); fbTick = engineTick; release(viewerTick()); }
   }
+  // Cut 5 §5: `return` fires on the next hero action; the run plays out to the exit at 8× under `returning`, then the exit sheet
   function doBail(): void {
     if (done || overridden) return;
-    overridden = true; bail.classList.add("on"); if (snap) paintStake(snap);
+    overridden = true; bail.classList.add("on"); bail.disabled = true; if (snap) paintStake(snap);
+    callout(/* copy:callout */ "returning", "", 1800);
     void app.engine.setRules({ rows: [{ conds: [], verb: { v: "return" } }, ...app.rules.rows] }).catch((e) => console.warn("bail", e));
-    if (speed === 0) setSpeed(1);
+    setMode("auto");
   }
   function xpGained(): number {
     const c = app.lineage.classes?.[cls] ?? { level: 1, xp: 0 }; let g = c.xp - before.xp;
@@ -248,10 +294,11 @@ export function renderWatch(app: App): Mounted {
     // whatever happens below, the player reaches a screen with buttons
     const guard = window.setTimeout(() => { if (!disposed && app.view.kind === "watch") { console.warn("exit flow stalled; falling back to camp"); app.go({ kind: "camp" }); } }, 20_000);
     try {
-      if (overridden) await bounded(app.engine.setRules(app.rules), 8000, "setRules after bail");
+      if (overridden) await bounded(app.engine.setRules(app.rules), 8000, /* copy:none */ "setRules after bail");
       if (pendingExit && pendingExit.items.length) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, () => { done = false; void finish(tier); }); return; }
       pendingExit = undefined;
-      if ((await bounded(app.refresh(), 8000, "refresh at exit")) === undefined && !disposed) { clearTimeout(guard); app.go({ kind: "camp" }); return; }
+      // (`refresh` resolves void, so a sentinel tells a timeout from success)
+      if (!(await bounded(app.refresh().then(() => true), 8000, "refresh at exit")) && !disposed) { clearTimeout(guard); app.go({ kind: "camp" }); return; }
     } finally { /* guard cleared on every normal path below */ }
     await finishAfterRefresh(tier, guard);
   }
@@ -317,7 +364,9 @@ export function renderWatch(app: App): Mounted {
     hudFrom(s);
     const { viewer: v } = await makeViewer(canvas);
     if (disposed) { v.dispose(); return; }
-    viewer = v; v.resize?.(); v.load(s); v.setSpeed(speed); fbTick = s.turn; fbAt = performance.now();
+    viewer = v; v.resize?.(); v.load(s); v.setSpeed(speed); el.dataset.speed = String(speed); fbTick = s.turn; fbAt = performance.now();
+    if ("__riddle" in window) (window as unknown as { __viewer: Viewer }).__viewer = v;   // dev inspection
+    lastHp = s.hero.hp; if (nearNow(s)) near(s.turn);
     pumpTimer = window.setInterval(pump, PUMP_MS);
   }
   void init();

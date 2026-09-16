@@ -26,7 +26,7 @@ export type DevOptions = {
   fresh?: boolean;    // clear the save first
   absent?: number;    // seconds: treat last_seen as that far back, so the offline report runs
   rules?: string;     // rule-set text for `importRules`, applied to the active set before anything else
-  speed?: number;     // watch speed to press on entering a run (1 | 4)
+  speed?: number;     // watch speed to press on entering a run (1 slow | 4 fast | 8 auto, the default)
   autosend?: boolean; // send straight from boot (the camp is skipped so its forecast does not queue ahead of `send`)
 };
 /** What a rater or script sees: the mounted screen, or `exit` while the exit sheet is up over a run. */
@@ -246,6 +246,16 @@ export class App {
     finally { this.fcInFlight = false; }
     if (this.fcDirty) await this.emitForecast();
   }
+  /** Cut 5 §6: the set's name (≤ 12 chars; empty clears it to the default). It rides the RuleSet through `setRules`, so the
+   *  engine save carries it and the core can quote it in the chronicle. Renaming a set that is not active selects it first. */
+  renameSet(i: number, name: string): void {
+    if (i < 0 || i >= this.sets.length) return;
+    const n = name.trim().slice(0, 12);
+    this.sets[i].name = n || undefined;
+    if (i !== this.active) { this.selectSet(i); return; }
+    this.rulesChanged();
+    this.emitChange();
+  }
   selectSet(i: number): void {
     if (i === this.active || i < 0 || i >= this.sets.length) return;
     this.active = i;
@@ -271,7 +281,7 @@ export class App {
   }
   async setRulesText(text: string): Promise<void> {
     const set = await this.engine.importRules(text);
-    this.sets[this.active] = { rows: set.rows.map(cloneRow) };
+    this.sets[this.active] = { rows: set.rows.map(cloneRow), name: this.sets[this.active]?.name };
     this.rulesChanged();
     this.emitChange();
   }
@@ -355,9 +365,9 @@ export class App {
     this.root.dataset.screen = screen.kind;
     window.scrollTo(0, 0);
     this.persist();
-    // dev `?speed=4`: press the matching HUD speed button as the run mounts (the watch owns its clock)
+    // dev `?speed=4`: press the matching HUD speed button as the run mounts (the watch owns its clock; 1 slow · 4 fast · 8 auto)
     if (screen.kind === "watch" && this.dev?.speed) {
-      const want = `${this.dev.speed}×`;
+      const want = ({ 1: "slow", 4: "fast", 8: "auto" } as Record<number, string>)[this.dev.speed] ?? `${this.dev.speed}×`;
       for (const b of m.el.querySelectorAll<HTMLButtonElement>("button.hud-btn")) if (b.textContent === want) { b.click(); break; }
     }
   }

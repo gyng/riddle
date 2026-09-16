@@ -33,6 +33,7 @@ export type EntState = {
   glyph: string | null; glyphT: number;
   ringFrom: number;                // companion ring shown once clock ≥ ringFrom
   remembered: boolean;             // Cut 4 §3: pursued but unseen; drawn dimmed at its last seen tile, never tweened
+  neutral: boolean;                // a captive: not a hostile, so the leading camera (index.ts) ignores it
 };
 
 export type Callout = { text: string; until: number }; // real-time ms
@@ -40,6 +41,7 @@ export type Leash = { from: number; to: number; t0: number; ok: boolean };
 export type Projectile = { path: [number, number][]; t0: number };
 
 const INTERESTING = new Set<string>(["attack", "die", "telegraph", "use", "exit", "tame"]);
+export const PROPS = new Set<string>(["shrine", "vault", "vault_open", "nest"]); // Cut 5 §4: floor-standing props in `tiles`
 
 export class ReplayState {
   w = 0; h = 0; biome = "warrens"; depth = 1;
@@ -62,6 +64,7 @@ export class ReplayState {
   cameraSnap = false; // index.ts snaps the camera to the hero and clears this
   bossFlashUntil = -Infinity; // clock < this → index.ts renders with the `boss_flash` palette
   vision = VISION_R;  // presentation LOS radius and the fog bands (index.ts) follow the floor's vision
+  nestWoken = new Set<number>(); // Cut 5 §4: tile indices of nests shown awake (a `nest` fact, or a hostile spawned adjacent)
   private snap: Snapshot | null = null;
   private queue: Ev[] = [];
   private log: Ev[] = [];     // applied since load, in order (for seek)
@@ -96,6 +99,7 @@ export class ReplayState {
     this.callout = null;
     this.leash = null;
     this.projectiles = [];
+    this.nestWoken.clear();
     this.loaded = true;
     this.computeVision();
   }
@@ -106,6 +110,7 @@ export class ReplayState {
       move: null, lunge: null, shake: null, flashUntil: -Infinity, fade: 0, dying: null, spawning: null,
       hp: e.hp, maxHp: e.max_hp, flip: false, glyph: e.telegraph ? "!" : null, glyphT: this.clock,
       ringFrom: -Infinity, remembered: !!e.remembered,
+      neutral: e.kind === "captive" || (e.tags ?? []).includes("captive"),
     };
     this.ents.set(e.id, st);
     return st;
@@ -128,10 +133,13 @@ export class ReplayState {
 
   /** Cut 4 §3: adopt `remembered` from a step's snapshot of this floor. A flagged entity sits at the snapshot's
    *  (last seen) tile with no tween; one the snapshot no longer flags is unflagged and snapped to where the
-   *  snapshot puts it, so the moves that follow tween from the right tile. Unknown remembered ones are added. */
+   *  snapshot puts it, so the moves that follow tween from the right tile. Entities the viewer has never seen
+   *  (remembered or newly in view) are added at the snapshot's tile. */
   sync(s: Snapshot): void {
     if (!this.loaded || s.depth !== this.depth) return;
     if (s.vision !== undefined && s.vision !== this.vision) { this.vision = s.vision; this.visionDirty = true; } // a lantern picked up
+    // Cut 5 §4: a prop that changed (vault → vault_open) or a tile the floor rewrote lands as is; no tween
+    if (s.tiles.length === this.tiles.length) for (let i = 0; i < s.tiles.length; i++) if (s.tiles[i] !== this.tiles[i]) this.tiles[i] = s.tiles[i]!;
     const flagged = new Map<number, Entity>();
     for (const e of s.entities) if (e.id !== this.heroId) flagged.set(e.id, e);
     for (const [id, e] of this.ents) {
@@ -143,7 +151,12 @@ export class ReplayState {
       if (se) { e.x = e.px = se.x; e.y = e.py = se.y; }
       e.move = null; e.lunge = null; e.glyph = null;
     }
-    for (const se of flagged.values()) if (se.remembered && !this.ents.has(se.id)) this.addEntity(se, false);
+    // newcomers: a remembered foe, or one the core lists for the first time (its snapshot carries only entities in
+    // view, and first sight has no event of its own: a sleeper in the next room would otherwise never be drawn)
+    for (const se of flagged.values()) if (!this.ents.has(se.id)) this.addEntity(se, false);
+    // likewise floor items: the snapshot lists the seen ones, so an item first seen after the load lands here
+    const known = new Set(this.items.map((i) => i.id));
+    for (const it of s.items) if (!known.has(it.id)) this.items.push({ ...it });
   }
 
   idle(): boolean { return this.queue.length === 0 && this.clock >= this.lastT + IDLE_TAIL; }
@@ -301,8 +314,12 @@ export class ReplayState {
         e.spawning = { t0: t };
         e.fade = 1;
         if (ev.e.tags?.includes("boss")) this.bossFlashUntil = t + BOSS_FLASH_T;
+        if (!e.ally && !e.neutral) this.wakeNests(e.x, e.y);
         break;
       }
+      case "fact":
+        if (/nest/.test(ev.fact)) this.wakeNests();
+        break;
       case "steal": {
         const h = this.hero;
         if (h) h.flashUntil = t + HURT_T;
@@ -335,6 +352,14 @@ export class ReplayState {
         break;
       default:
         break; // rule, fact, note, level, …: nothing to draw
+    }
+  }
+
+  // Cut 5 §4: nests within one tile of (x, y) wake; with no point, every nest on the floor (a `nest` fact was learned).
+  private wakeNests(x?: number, y?: number): void {
+    for (let ty = 0; ty < this.h; ty++) for (let tx = 0; tx < this.w; tx++) {
+      if (this.tiles[ty * this.w + tx] !== "nest") continue;
+      if (x === undefined || y === undefined || Math.max(Math.abs(tx - x), Math.abs(ty - y)) <= 1) this.nestWoken.add(ty * this.w + tx);
     }
   }
 

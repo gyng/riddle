@@ -8,7 +8,7 @@ start(readDevParams());
  *    ?fresh=1       clear the save first
  *    ?absent=8h     treat last_seen as 30m | 8h | 3d ago, so the offline report runs
  *    ?rules=<text>  url-encoded rule text for importRules, applied to the active set before anything else
- *    ?speed=4       start the watch at 4×
+ *    ?speed=4       start the watch at `fast` (1 slow · 4 fast · 8 auto, the default)
  *    ?autosend=1    send straight from boot
  *    ?fake_depth=N  with ?engine=fake: every run starts on depth N (boss floor at 5) — read in engine/fake.ts
  *  The one-shot ones (fresh, absent, rules, autosend) are stripped from the address bar so a reload does not

@@ -13,6 +13,7 @@ export interface Viewer {
   idle?(): boolean;   // queue drained and tails played out (real renderer)
   tick?(): number;    // current tick of the playback clock (real renderer)
   sync?(snap: Snapshot): void; // Cut 4 §3: adopt `remembered` flags (and last-seen tiles) from a step's snapshot
+  stats?(): unknown;   // renderer diagnostics (dev: `window.__viewer.stats()` while a run is mounted)
 }
 type RenderMod = { createViewer(canvas: HTMLCanvasElement, opts?: { baseTexels?: number }): Viewer };
 const mods = import.meta.glob<RenderMod>("../render/index.ts");

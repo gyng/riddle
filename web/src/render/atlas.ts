@@ -4,7 +4,8 @@
 // Every id gets a procedural fallback drawn on first request (lazy shelf packing), so the viewer is
 // fully usable with no art. An external atlas (`atlas.json` {frames:{id:{x,y,w,h}}} + `atlas.png`)
 // overrides slots by id:  `<biome>_<tile>` → tile, entity kind → entity, `gas`/`fire`(`_0`/`_1`,
-// or `ov_` prefix) → overlay, `item_<kind>` (or a bare unknown id) → item.
+// or `ov_` prefix) → overlay, `<biome>_shrine_0/1`, `<biome>_vault[_open]`, `<biome>_nest_0/1` → prop (Cut 5
+// §4 situations, env density in the tiles layer), `item_<kind>` (or a bare unknown id) → item.
 import * as THREE from "three";
 import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, paletteFor, setPalettes, TILE_IDS, type Rgb } from "./palette";
 import { FONT_CELL_H, FONT_CELL_W, FONT_H, FONT_W, glyphBits } from "./font";
@@ -105,6 +106,12 @@ export class Atlas {
   font(ch: string): Slot { return this.envSlot(`font:${ch.toUpperCase()}`); }
   shadow(width: number, ally = false): Slot { return this.envSlot(`${ally ? "ring" : "shadow"}:${Math.max(6, Math.round(width))}`); }
   dot(): Slot { return this.envSlot("dot:2"); }
+  // Cut 5 §4 props: shrine (2 frames at 1 Hz), vault / vault_open, nest (frame 0 asleep, 1 woken). Per-biome atlas
+  // art when present, else a procedural altar / barred square / mound (`drawProp`).
+  prop(biome: string, tile: string, frame: number): Slot {
+    const id = tile === "shrine" || tile === "nest" ? `${tile}_${frame & 1}` : tile;
+    return this.env.get(`tile:${biome}_${id}`) ?? this.env.get(`tile:${biome}_${tile}_0`) ?? this.envSlot(`prop:${id}`);
+  }
   // bones pile (Cut 2 §2): per-biome 2-frame tile art if the atlas has it, else the `bones` item
   // glyph (atlas or procedural). Env density, 8×8, no shadow.
   bones(biome: string, frame: number): Slot {
@@ -126,6 +133,7 @@ export class Atlas {
       return slot;
     }
     if (cat === "item") { const slot = g.alloc(id, 8, 8); drawItem(g.ctx, slot, rest); return slot; }
+    if (cat === "prop") { const slot = g.alloc(id, 8, 8); drawProp(g.ctx, slot, rest); return slot; }
     if (cat === "ov") {
       const i = rest.lastIndexOf("_");
       const slot = g.alloc(id, 8, 8);
@@ -203,7 +211,7 @@ export class Atlas {
     } else if (ovm) {
       const frames = ovm[2] === undefined ? [0, 1] : [Number(ovm[2])];
       for (const f of frames) put(this.env, `ov:${ovm[1]}_${f}`, 8, 8);
-    } else if (TILE_IDS.some((t) => id.endsWith(`_${t}`) || id.endsWith(`_${t}_alt`)) || /_bones_[01]$/.test(id)) {
+    } else if (TILE_IDS.some((t) => id.endsWith(`_${t}`) || id.endsWith(`_${t}_alt`)) || /_(bones|shrine|nest)_[01]$|_vault(_open)?$/.test(id)) {
       put(this.env, `tile:${id}`, 8, 8);
     } else {
       put(this.env, `item:${id.replace(/^item_/, "")}`, 8, 8);
@@ -297,6 +305,34 @@ function drawItem(c: Ctx, s: Slot, kind: string): void {
     }
     if (col) px(c, s, x, y, col);
   }
+}
+
+// Cut 5 §4 prop fallbacks, 8×8 over a transparent ground: shrine = a small altar (plinth + a candle whose flame
+// flickers between frames), vault = a barred square (bars lifted when open), nest = a mound (a glint when woken).
+function drawProp(c: Ctx, s: Slot, id: string): void {
+  const D = "#1a1410", S = "#8a8090", L = "#c8c0b0", G = "#f0c840";
+  if (id.startsWith("shrine")) {
+    const f = id.endsWith("1");
+    for (let x = 1; x <= 6; x++) { px(c, s, x, 7, D); px(c, s, x, 6, S); }
+    for (let x = 2; x <= 5; x++) { px(c, s, x, 5, S); px(c, s, x, 4, L); }
+    px(c, s, 3, 3, L); px(c, s, 4, 3, L);
+    px(c, s, f ? 4 : 3, 2, G); px(c, s, f ? 3 : 4, 1, "#e07020");
+    return;
+  }
+  if (id.startsWith("vault")) {
+    const open = id.endsWith("open");
+    for (let i = 0; i < 8; i++) { px(c, s, i, 0, D); px(c, s, i, 7, D); px(c, s, 0, i, D); px(c, s, 7, i, D); }
+    for (let y = 1; y <= 6; y++) for (let x = 1; x <= 6; x++) px(c, s, x, y, open ? "#2a2420" : "#3a3028");
+    if (!open) for (const x of [2, 4, 6]) for (let y = 1; y <= 6; y++) px(c, s, x, y, S);
+    else for (const x of [2, 4, 6]) px(c, s, x, 1, S);
+    if (open) px(c, s, 3, 4, G);
+    return;
+  }
+  // nest: a mound of straw, a glint when woken
+  const woke = id.endsWith("1");
+  for (let y = 3; y < 8; y++) { const r = y - 3; for (let x = 1 + Math.max(0, 2 - r); x <= 6 - Math.max(0, 2 - r); x++) px(c, s, x, y, ((x + y) & 1) ? "#8a6a3a" : "#6a4a2a"); }
+  px(c, s, 3, 5, D); px(c, s, 4, 5, D);
+  if (woke) { px(c, s, 3, 5, "#e03030"); px(c, s, 4, 5, "#e03030"); }
 }
 
 function drawOverlay(c: Ctx, s: Slot, kind: string, frame: number): void {

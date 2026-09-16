@@ -9,7 +9,8 @@ export type RuleSet = { rows: Row[]; name?: string };
 
 export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number };  // what the editor may offer
 
-export type Tile = "floor"|"wall"|"door"|"stairs_down"|"stairs_up"|"water"|"chasm";
+export type Tile = "floor"|"wall"|"door"|"stairs_down"|"stairs_up"|"water"|"chasm"
+                 | "shrine"|"vault"|"vault_open"|"nest";                 // Cut 5 §4 situations: floor-standing props (renderer tolerates them absent)
 export type Overlay = { x: number; y: number; k: "gas"|"fire"; ttl: number };
 export type Entity = { id: number; kind: string; name?: string; x: number; y: number;
                        hp: number; max_hp: number; tags: string[]; ally?: boolean; telegraph?: string;
@@ -94,7 +95,9 @@ export type Lineage = { seed: number; heir: number; trait: string; class: string
                         forge: { [kind: string]: { salvaged: number; craftable: boolean; tier: number } };               // Addendum D
                         renown: number; rank: number; keep_pref: string;                                               // Addendum D
                         rest_left_s?: number; bones?: BonesPile[];                                                      // Cut 2 §1–2
-                        ascension?: Ascension };                                                                        // Cut 3
+                        ascension?: Ascension;                                                                         // Cut 3
+                        chronicle?: string[];                                                                          // Cut 5 §2: one line per ended heir, oldest first (cap 40)
+                        ascended?: string[] };                                                                         // Cut 5: variants the lineage has finished the dungeon with
 /** Cut 3: times the lineage ascended and the variant it plays under (`""` at level 0). */
 export type Ascension = { level: number; variant: string };
 export const VARIANTS = ["no_rest", "short_list", "bones_only", "hunted"] as const;

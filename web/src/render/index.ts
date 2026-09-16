@@ -13,6 +13,11 @@
 // sampling into a viewport of exactly iw*k × ih*k device px (any sliver left by floor() shows
 // the palette's darkest colour).
 //
+// Camera (Cut 5 §5). The target is the hero's body; while a hostile is in view or remembered it is the
+// midpoint of the hero and the nearest such hostile, clamped so the hero stays inside the middle third of the
+// viewport (|hero − target| ≤ iw/6 × ih/6). A critically damped spring follows the target, and the settled
+// position snaps to the env-texel grid as before.
+//
 // Palette split. Everything renders into ONE target with depth; the target's alpha channel tags
 // the layer (env quads write a=1, sprite quads a=0.5; blending is off). The blit quantises a=1
 // pixels to the biome palette with 4×4 Bayer dither indexed by world texel, and blends a=0.5
@@ -26,7 +31,7 @@ import { QuadLayer } from "./layers";
 import { GpuTimer, Hist } from "./gputimer";
 import { paletteFor } from "./palette";
 import { FONT_ADVANCE, FONT_CELL_H, FONT_CELL_W } from "./font";
-import { ReplayState, type EntState } from "./state";
+import { PROPS, ReplayState, type EntState } from "./state";
 import type { Ev, Snapshot } from "./types";
 
 export type { Ev, Snapshot } from "./types";
@@ -50,6 +55,8 @@ export type ViewerStats = {
   device: [number, number]; envTexels: [number, number]; target: [number, number]; pending: number; tick: number;
   hero: [number, number]; // render position in tiles
   projectiles: number;
+  ents: number; drawn: number; // entities known to the viewer, and how many are on screen this frame (in view or remembered)
+  camera: [number, number]; // camera target in world units (env texels)
   // timing (see docs/RENDER_PERF.md): cpuMs = build + render wall time this frame; gpuMs = GPU
   // elapsed time for the whole pipeline (NaN without EXT_disjoint_timer_query_webgl2); p95 over
   // the last 120 frames; fps over the last second of rAF callbacks.
@@ -91,7 +98,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   const atlas = new Atlas();
   const env = atlas.env.texture, spr = atlas.sprite.texture;
   const L = {
-    tiles: new QuadLayer(env, 24 * 24, 1, 0),
+    tiles: new QuadLayer(env, 32 * 32 + 64, 1, 0), // a fully seen 32×32 floor plus its props
     overlays: new QuadLayer(env, 512, 0.5, 1), // tagged as sprite so gas/fire keep their hue
     items: new QuadLayer(env, 128, 1, 2),
     shadows: new QuadLayer(env, 128, 1, 3),
@@ -105,7 +112,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
   const st = new ReplayState();
   const cam = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0 };
-  const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, hero: [0, 0], projectiles: 0,
+  const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, hero: [0, 0], projectiles: 0, ents: 0, drawn: 0, camera: [0, 0],
     cpuMs: NaN, cpuP95: NaN, buildMs: NaN, gpuMs: NaN, gpuP95: NaN, gpuTimer: gpu.available, fps: NaN };
   let k = 1, iw = 1, ih = 1, W = 3, H = 3, devW = 0, devH = 0, dpr = 1;
   let lastCss = "";
@@ -144,9 +151,30 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     return [Math.round(e.px * TILE) + TILE / 2 + lx, -Math.round(e.py * TILE) - TILE + 1 - ly];
   }
 
+  // the nearest hostile the player can see (in view, or remembered at its last seen tile); dying ones let the camera go
+  function nearestHostile(h: EntState): EntState | null {
+    let best: EntState | null = null, bd = Infinity;
+    for (const e of st.ents.values()) {
+      if (e.hero || e.ally || e.neutral || e.dying || e.kind === "bones") continue;
+      if (!e.remembered && !st.visible[e.y * st.w + e.x]) continue;
+      const d = Math.max(Math.abs(e.x - h.x), Math.abs(e.y - h.y));
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+  }
   function updateCamera(dt: number, snapNow: boolean): void {
     const h = st.hero;
-    if (h) { const [fx, fy] = feet(h); cam.tx = fx; cam.ty = fy + TILE; }
+    if (h) {
+      const [fx, fy] = feet(h);
+      const hx = fx, hy = fy + TILE;
+      const foe = nearestHostile(h);
+      if (foe) {
+        const [ex, ey] = feet(foe);
+        const mx = (hx + ex) / 2, my = (hy + ey + TILE) / 2, lx = iw / 6, ly = ih / 6;
+        cam.tx = Math.max(hx - lx, Math.min(hx + lx, mx));
+        cam.ty = Math.max(hy - ly, Math.min(hy + ly, my));
+      } else { cam.tx = hx; cam.ty = hy; }
+    }
     if (snapNow) { cam.x = cam.tx; cam.y = cam.ty; cam.vx = cam.vy = 0; return; }
     // critically damped spring (ζ = 1), semi-implicit Euler, then snap when settled
     const w0 = 9, s = Math.min(dt, 0.05);
@@ -165,14 +193,22 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     clear.setRGB(p[0]![0], p[0]![1], p[0]![2]);
     const b = st.biome;
 
-    // tiles: one instance per seen tile; visible ones full, remembered ones dimmed
+    // tiles: one instance per seen tile; visible ones full, remembered ones dimmed. Cut 5 §4 props (shrine, vault,
+    // nest) stand on a floor tile in the same layer: shrine flames flicker at 1 Hz, a nest shows awake once woken.
+    const propFrame = Math.floor(now / 1000) & 1;
     L.tiles.begin();
     for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) {
       const i = y * st.w + x;
       if (!st.seen[i]) continue;
       const t = st.tiles[i]!;
-      const s = atlas.tile(b, t, ((x * 7 + y * 13) % 11) < 2);
-      L.tiles.push(x * TILE + TILE / 2, -(y + 1) * TILE, 0, TILE, TILE, s.u0, s.v0, s.u1, s.v1, st.visible[i] ? 1 : 0.6);
+      const prop = PROPS.has(t);
+      const s = atlas.tile(b, prop ? "floor" : t, ((x * 7 + y * 13) % 11) < 2);
+      const dim = st.visible[i] ? 1 : 0.6;
+      L.tiles.push(x * TILE + TILE / 2, -(y + 1) * TILE, 0, TILE, TILE, s.u0, s.v0, s.u1, s.v1, dim);
+      if (prop) {
+        const p = atlas.prop(b, t, t === "nest" ? (st.nestWoken.has(i) ? 1 : 0) : propFrame);
+        L.tiles.push(x * TILE + TILE / 2, -(y + 1) * TILE, 0.1, TILE, TILE, p.u0, p.v0, p.u1, p.v1, dim);
+      }
     }
     L.tiles.end();
 
@@ -208,10 +244,12 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // entities (sprite density: 1 sprite texel = 0.5 world), shadows, glyphs. A remembered foe (Cut 4 §3) is drawn
     // at its last seen tile dimmed like a memory tile: no shadow, no flash, no telegraph glyph.
     L.shadows.begin(); L.ents.begin(); L.glyphs.begin();
+    stats.ents = st.ents.size; stats.drawn = 0;
     for (const e of st.ents.values()) {
       if (e.kind === "bones") continue; // drawn in the items layer above
       const vi = e.y * st.w + e.x;
       if (!e.hero && !st.visible[vi] && !e.remembered) continue;
+      stats.drawn++;
       const [fx, fy] = feet(e);
       const s = atlas.entity(e.kind);
       const w = s.w / 2, h = s.h / 2; // world units (env texels)
@@ -282,7 +320,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     frameTimes.push(now);
     while (frameTimes.length > 2 && now - frameTimes[0]! > 1000) frameTimes.shift();
     if (frameTimes.length > 1) stats.fps = (frameTimes.length - 1) / ((now - frameTimes[0]!) / 1000);
-    const dt = Math.min(250, now - last); // clamp long stalls (tab switch) but keep 4-fps devices on time
+    // clamp long stalls (tab switch) but keep 4-fps devices on time; never negative (a rAF stamp can precede
+    // the `performance.now()` the viewer was created at, which at 8× would wind the clock back seconds)
+    const dt = Math.max(0, Math.min(250, now - last));
     last = now;
     const resized = measure();
     st.tick(dt, now);
@@ -331,6 +371,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     stats.pending = st.pending();
     stats.tick = st.tickNow();
     if (hero) stats.hero = [hero.px, hero.py];
+    stats.camera = [cam.tx, cam.ty];
     stats.projectiles = st.projectilePositions().length;
   }
 

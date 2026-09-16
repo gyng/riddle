@@ -4,6 +4,7 @@ import type { Viewer } from "./viewer";
 
 const TILE_COLOUR: Record<string, string> = {
   floor: "#2a2d34", wall: "#111317", door: "#5a4a2a", stairs_down: "#c9a227", stairs_up: "#7a8a9a", water: "#1f3f6b", chasm: "#05060a",
+  shrine: "#6a5a8a", vault: "#5a5a5a", vault_open: "#3a3a3a", nest: "#6a4a2a",
 };
 const BIOME_TINT: Record<string, string> = { warrens: "#3a3020", fens: "#1e3a2e", crypt: "#2a2038" };
 

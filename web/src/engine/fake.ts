@@ -51,6 +51,24 @@ const SCROLLS = ["teleport", "blink", "fear", "mapping", "identify", "enchant", 
 const RUNES = ["ZELGO", "FOOBIE", "ELBIB", "VERR", "KIRJE", "DAIYEN", "LEP", "PRATYAVAYAH", "TEMOV"];
 const THROWABLE = new Set(["poison", "caustic", "confusion", "fire"]);
 const TRAITS = ["curious", "greedy", "cowardly", "brave"];
+// Cut 5 §2 chronicle line, the contract's grammar: `♟3 the greedy fighter · D7 · took the Warlord · fell to gas · left bones on D7.`
+const CHRONICLE_CAP = 40;
+function chronicleLine(heir: number, trait: string, cls: string, depth: number, deed: string | undefined, end: string, tail: string | undefined, set?: string): string {
+  const parts = [`♟${heir} the ${trait} ${cls}`, `D${depth}`];
+  if (set) parts.push(`"${set}" set`);
+  if (deed) parts.push(deed);
+  parts.push(end);
+  if (tail) parts.push(tail);
+  return `${parts.join(" · ")}.`;
+}
+const SEED_CHRONICLE: [string, string, number, string | undefined, string, string | undefined][] = [
+  ["curious", "fighter", 3, undefined, "fell to a jackal pack", "left bones on D3"],
+  ["greedy", "fighter", 5, "took the Warlord", "banked $140", undefined],
+  ["brave", "fighter", 7, "freed a captive", "fell to gas", "left bones on D7"],
+  ["cowardly", "rogue", 6, "found ♟3's bones", "returned twice", undefined],
+  ["greedy", "rogue", 9, "tamed a jackal", "fell to an ogre", "left bones on D9"],
+  ["curious", "ranger", 10, "took the Bloat Mother", "fell to a ghoul", "left bones on D10"],
+];
 const WEAPONS: Record<string, [number, number]> = { dagger: [2, 4], sword: [3, 7], axe: [4, 9], bow: [2, 6] };
 const ARMOUR: Record<string, number> = { leather: 1, mail: 3, plate: 5 };
 
@@ -212,6 +230,8 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
     for (let k = 0; k < 20; k++) { const x = ri(rng, r.x, r.x + r.w - 1), y = ri(rng, r.y, r.y + r.h - 1); if (tiles[idx(x, y)] === "floor") return [x, y]; }
     return [r.x, r.y];
   };
+  // Cut 5 §4 situations as props the renderer draws (the fake's hero walks over them): a shrine, a vault, a nest on D1–5
+  if (depth <= 5) for (const t of ["shrine", "vault", "nest"] as const) { if (rng() < 0.7 && rooms.length > 2) { const r = pick(rng, rooms.slice(1, -1)); const [x, y] = spot(r); tiles[idx(x, y)] = t; } }
   const items: FloorItem[] = [];
   const nItems = ri(rng, 2, 4);
   for (let i = 0; i < nItems; i++) {
@@ -762,12 +782,13 @@ export class FakeEngine implements Engine {
     const copy = (): RuleSet => ({ rows: PRESET_FIGHTER.rows.map((r) => ({ conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } })) });
     this.s = {
       lineage: {
-        seed, heir: 1, trait, class: "fighter", best_depth: 0, marks: 0, facts: [], unlocks: [], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
+        seed, heir: 1 + SEED_CHRONICLE.length, trait, class: "fighter", best_depth: 0, marks: 0, facts: [], unlocks: [], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
         party: [], kennel: [mkCompanion(1, "jackal", 2, ["pack", "fast"], 0), mkCompanion(2, "goblin_archer", 1, ["ranged"], 0)],
         eggs: [{ id: 3, kind: "bloat", tags: ["gas"], gen: 1, hatch_in: 3, from_loss: false }], party_slots: 1, ledger: [],
         gold: 120, supplies: [], classes: Object.fromEntries(CLASSES.map((c) => [c, { level: 1, xp: 0 }])),
         forge: { dagger: { salvaged: 6, craftable: true, tier: 0 } }, renown: 0, rank: 0, keep_pref: "best_weapon",
         rest_left_s: 0, bones: [],
+        chronicle: SEED_CHRONICLE.map(([trait, cls, depth, deed, end, tail], i) => chronicleLine(i + 1, trait, cls, depth, deed, end, tail)),
       },
       rules: copy(), loadout: [], killed: [], runCounter: 0, logs: {}, nextItem: 50000, tamedKinds: ["jackal", "goblin_archer"], bredKinds: ["bloat"], nextCid: 10, killCounts: {},
     };
@@ -978,6 +999,11 @@ export class FakeEngine implements Engine {
     L.marks += marks;
     if (run.exit === "death") {
       L.graveyard.push({ heir: run.heir, depth: run.depth, cause: run.cause ?? "?", deeds: bests.slice(0, 3) });
+      // Cut 5 §2: the heir's chronicle line (the set's name, its best deed, its end, its bones)
+      const kit = bonesKit(run).length;
+      const deed = L.trophies.filter((t) => t.startsWith("boss:")).slice(-1).map((t) => `took the ${t.slice(5).replace(/_/g, " ")}`)[0] ?? bests.find((b) => b.startsWith("first kill"))?.replace(/^first kill /, "first ");
+      (L.chronicle ??= []).push(chronicleLine(run.heir, L.trait, run.cls, run.depth, deed, `fell to ${run.cause ?? "?"}`, kit ? `left bones on D${run.depth}` : undefined, this.s.rules.name));
+      while (L.chronicle.length > CHRONICLE_CAP) L.chronicle.shift();
       L.vault = L.vault.filter((v) => !run.brought.includes(v.id) || run.insured.has(v.id)); L.insured = (L.insured ?? []).filter((id) => !run.brought.includes(id)); this.s.loadout = [];
       L.heir += 1; L.trait = TRAITS[(L.seed + L.heir * 7) % TRAITS.length];
     } else {
