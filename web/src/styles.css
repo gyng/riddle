@@ -228,7 +228,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 /* forge / rank / keep pref */
 .rank { color: var(--info); }
 .prefs { margin-top: 10px; align-items: center; }
-.prefs .chip { min-height: 36px; padding: 0 12px; font-size: 13px; }
+.prefs .chip { min-height: 36px; padding: 0 10px; font-size: 13px; }   /* four vault chips + the word fit 360px */
 .forge .lrow { grid-template-columns: 1fr repeat(3, 60px); }
 .ledger .up, .report .up { color: var(--ok); }
 
@@ -260,3 +260,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .ending .variants .chip { min-height: 52px; }
 .strip .asc { color: var(--info); }
 #app[inert] { opacity: .55; }
+/* Cut 5 §4: the vault choice sheet — three items, one tap */
+.vault-choice .chips { gap: 10px; }
+.vault-choice .chip.item { min-height: 52px; padding: 0 18px; font-size: 17px; }
+.vault-choice .glyph { color: var(--acc); font-weight: 400; }

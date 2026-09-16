@@ -22,6 +22,8 @@ const VERB: Record<string, string> = {
   bolt: "bolt", ward: "ward", blink: "blink", slow: "slow", nova: "nova", tactic: "card",
   // Cut 3: chores the trace names, a mirror companion's copy, the cadence card's filler
   hold: "hold", wait: "wait", shuffle: "shuffle", paralysed: "paralysed", stumble: "stumble", mimic: "mimic", feint: "feint",
+  // Cut 5: the shrine's verb (`pray row` lends a row, `pray trait` swaps the trait)
+  pray: "pray",
 };
 /* copy:rule_token */
 /** Verb arguments and condition targets (cards, item kinds, foe tags) — Cut 3 names the ones an underscore→space
@@ -32,7 +34,18 @@ const ARG: Record<string, string> = {
   spear: "spear", mace: "mace", scale: "scale", regen: "regen", resist_fire: "resist fire", clarity: "clarity", recall: "recall",
   silence: "silence", earthquake: "earthquake", mirror: "mirror", lantern: "lantern", bell: "bell", salt: "salt", chalk: "chalk", mirror_shard: "mirror shard",
   reflect_melee: "reflects melee", reflect: "reflects", alarm: "alarm", blind: "blind", aura: "aura", gaze: "gaze", healer: "healer", echo: "echo", buffer: "buffer",
+  // Cut 5 §4: situations (`on_see: nest`, `pray row`) and the stray — plain words
+  nest: "nest", shrine: "shrine", vault: "vault", stray: "stray", row: "row", trait: "trait",
 };
+/** Cut 5 §4: an item kind's glyph for the vault choice — weapon · armour · potion · scroll. */
+const WEAPON_KINDS = new Set(["dagger", "sword", "axe", "bow", "spear", "mace"]), ARMOUR_KINDS = new Set(["leather", "mail", "plate", "scale"]);
+const POTION_KINDS = new Set(["heal", "strength", "speed", "invisibility", "poison", "caustic", "confusion", "fire", "potion"]);
+export function kindGlyph(kind: string): string {
+  if (WEAPON_KINDS.has(kind)) return "⚔";
+  if (ARMOUR_KINDS.has(kind)) return "⛨";
+  if (POTION_KINDS.has(kind)) return "⚗";
+  return "▤";
+}
 export const PCT = new Set(["hp<", "hp>", "foe_hp<", "self_hp<", "party_hp<", "floor_seen>="]);
 export const NUMS: Record<string, number[]> = {
   "hp<": [10, 20, 25, 30, 40, 50, 60, 75], "hp>": [25, 50, 75, 90], "foes>=": [1, 2, 3, 4], "adj>=": [1, 2, 3],

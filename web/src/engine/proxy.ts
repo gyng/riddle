@@ -7,6 +7,7 @@ const METHODS: (keyof Engine)[] = [
   "newLineage", "load", "save", "vocabulary", "setRules", "loadout", "forecast", "send", "step", "runOffline", "death",
   "buy", "lineage", "exportRules", "importRules", "setParty", "setCompanionRules", "breed", "hatch", "companionVocabulary",
   "buySupply", "clearSupplies", "supplyCatalogue", "keep", "setKeepPref", "insure", "runOfflineQuick", "unlocks", "unlockDeltas", "setClass", "selectSet", "ascend",
+  "bail", "choose", "setVaultPref",
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

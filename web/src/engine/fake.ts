@@ -786,7 +786,7 @@ export class FakeEngine implements Engine {
         party: [], kennel: [mkCompanion(1, "jackal", 2, ["pack", "fast"], 0), mkCompanion(2, "goblin_archer", 1, ["ranged"], 0)],
         eggs: [{ id: 3, kind: "bloat", tags: ["gas"], gen: 1, hatch_in: 3, from_loss: false }], party_slots: 1, ledger: [],
         gold: 120, supplies: [], classes: Object.fromEntries(CLASSES.map((c) => [c, { level: 1, xp: 0 }])),
-        forge: { dagger: { salvaged: 6, craftable: true, tier: 0 } }, renown: 0, rank: 0, keep_pref: "best_weapon",
+        forge: { dagger: { salvaged: 6, craftable: true, tier: 0 } }, renown: 0, rank: 0, keep_pref: "best_weapon", vault_pref: "weapon",
         rest_left_s: 0, bones: [],
         chronicle: SEED_CHRONICLE.map(([trait, cls, depth, deed, end, tail], i) => chronicleLine(i + 1, trait, cls, depth, deed, end, tail)),
       },
@@ -800,7 +800,7 @@ export class FakeEngine implements Engine {
     const L = p.lineage; // older fake saves: fill addendum fields
     L.party ??= []; L.kennel ??= []; L.eggs ??= []; L.party_slots ??= 1; L.ledger ??= []; L.gold ??= 0; L.supplies ??= [];
     L.classes ??= { fighter: { level: 1, xp: 0 }, rogue: { level: 1, xp: 0 } };
-    L.forge ??= {}; L.renown ??= 0; L.rank ??= 0; L.keep_pref ??= "best_weapon";
+    L.forge ??= {}; L.renown ??= 0; L.rank ??= 0; L.keep_pref ??= "best_weapon"; L.vault_pref ??= "weapon";
     L.rest_left_s ??= 0; L.bones ??= []; for (const c of CLASSES) L.classes[c] ??= { level: 1, xp: 0 };
     p.tamedKinds ??= []; p.bredKinds ??= []; p.nextCid ??= 10; p.killCounts ??= {};
     return this.lineage();
@@ -937,6 +937,8 @@ export class FakeEngine implements Engine {
     if (!this.live) this.live = this.startRun();
     const ctx = this.ctx(); const events: Ev[] = [];
     this.tickAcc += ticks; const turns = Math.floor(this.tickAcc / 10); this.tickAcc -= turns * 10;
+    // Cut 5 §5: a bail fires `return` on the hero's next action as a chore (the rules untouched)
+    if (this.bailed && turns > 0 && !this.live.over) { this.bailed = false; this.live.turn++; events.push({ t: this.live.turn, k: "rule", row: -2, verb: { v: "return" }, text: "bail → return" }); endRun(this.live, "return", events); }
     for (let i = 0; i < turns && !this.live.over; i++) events.push(...simTurn(this.live, ctx));
     let exit_pending: StepResult["exit_pending"];
     if (this.live.over && !this.pending && !this.settled.has(this.live.id)) {
@@ -1029,6 +1031,11 @@ export class FakeEngine implements Engine {
     this.pending = null; this.settle(run, true, ids); return this.lineage();
   }
   setKeepPref(pref: string): Lineage { if (["best_weapon", "best_armour", "none"].includes(pref)) this.s.lineage.keep_pref = pref; return this.lineage(); }
+  // Cut 5 stand-ins: the fake places no vaults, so `choose` only answers with the live snapshot; `bail` ends the run on the next step
+  private bailed = false;
+  bail(): void { if (this.live && !this.live.over) this.bailed = true; }
+  choose(_itemId: number): Snapshot { if (!this.live) this.live = this.startRun(); const snap = snapshot(this.live, this.s.rules); snap.turn *= 10; return snap; }
+  setVaultPref(pref: string): Lineage { if (["weapon", "armour", "potion", "scroll"].includes(pref)) this.s.lineage.vault_pref = pref; return this.lineage(); }
   insure(id: number): Lineage { const L = this.s.lineage; L.insured = [...(L.insured ?? []), id]; return this.lineage(); }
 
   runOfflineQuick(elapsedS: number): ReturnReport { const r = this.runOffline(elapsedS); return { ...r, worst_death_id: r.worst_death?.run_id, worst_death: undefined }; }

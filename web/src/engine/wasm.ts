@@ -71,6 +71,10 @@ export class WasmEngine implements Engine {
   selectSet(i: number): Lineage { return this.call("selectSet", i); }
   // Cut 3
   ascend(variant: string): Lineage { return this.call("ascend", variant); }
+  // Cut 5
+  bail(): void { this.game.bail(); }
+  choose(itemId: number): Snapshot { return this.call("choose", itemId); }
+  setVaultPref(pref: string): Lineage { return this.call("setVaultPref", pref); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

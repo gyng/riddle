@@ -24,7 +24,10 @@ export type Snapshot = {
   run: { id: number; heir: number; started_turn: number };
   stake?: Stake;                                                          // Cut 2 §7: what is on the line right now
   vision?: number;                                                        // Cut 3: the hero's sight radius on this floor (Deep 4, else 7; +2 lantern)
+  vault_choice?: VaultChoice;                                             // Cut 5 §4: an opened vault waiting for `choose(itemId)` (50-tick grace, then `vault_pref` picks)
 };
+/** Cut 5 §4 — the three items of an opened vault; `choose(id)` takes one, the rest vanish. */
+export type VaultChoice = { items: InvItem[] };
 /** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any. */
 export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent" };
@@ -97,6 +100,7 @@ export type Lineage = { seed: number; heir: number; trait: string; class: string
                         rest_left_s?: number; bones?: BonesPile[];                                                      // Cut 2 §1–2
                         ascension?: Ascension;                                                                         // Cut 3
                         chronicle?: string[];                                                                          // Cut 5 §2: one line per ended heir, oldest first (cap 40)
+                        vault_pref?: string;                                                                           // Cut 5 §4: what an unwatched vault choice takes (`weapon | armour | potion | scroll`)
                         ascended?: string[] };                                                                         // Cut 5: variants the lineage has finished the dungeon with
 /** Cut 3: times the lineage ascended and the variant it plays under (`""` at level 0). */
 export type Ascension = { level: number; variant: string };
@@ -140,6 +144,10 @@ export interface Engine {
   setClass(cls: string): Lineage;       // switch class (rogue needs the `rogue` unlock)
   selectSet(i: number): Lineage;        // pick one of the three saved sets; setRules writes the active one
   ascend(variant: string): Lineage;     // Cut 3: after the ending, a new lineage under a variant (keeps classes, kennel, vault, facts, rules)
+  // Cut 5
+  bail(): void;                         // §5: a `return` fires on the hero's next action as a chore; the rules are untouched
+  choose(itemId: number): Snapshot;     // §4: take one item of the opened vault (`Snapshot.vault_choice.items[].id`)
+  setVaultPref(pref: string): Lineage;  // §4: `weapon | armour | potion | scroll` — what an unanswered vault choice takes
 }
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
                            delta?: number };                                                                // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards

@@ -13,15 +13,19 @@
 // viewer slows *before* the foe walks into frame because the engine saw it first. At 8× the pump runs the same
 // LEAD with a 50 ms interval and a larger batch, so the engine still never runs dry or far ahead. Bail (§5)
 // turns the auto rate into a flat 8× and the stake line reads `returning` until the exit sheet.
+//
+// Cut 5 §4 — the vault choice: a step whose snapshot carries `vault_choice` opens a sheet with the three items
+// as chips and holds the clock at 1×; a tap is `choose(id)`. The engine's 50-tick grace runs watched or not, so
+// an unanswered sheet closes on its own when `vault_choice` leaves the snapshot (the lineage's `vault_pref` took).
 import type { App, Mounted } from "../app";
-import type { Ev, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult } from "../engine/types";
+import type { Ev, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, VaultChoice } from "../engine/types";
 import { h, items, replace, spanOf } from "./dom";
 import { makeViewer, type Viewer } from "./viewer";
 import { verbsAt, xpToNext } from "../engine/classes";
 import { openSheet } from "./sheet";
 import { salvageValue } from "./salvage";
 import { vaultSlots } from "./unlocks";
-import { verbLabel } from "./tokens";
+import { kindGlyph, verbLabel } from "./tokens";
 
 type Tier = "bank" | "return" | "death";
 const INTERESTING = new Set(["hurt", "die", "telegraph", "pickup", "use", "fact", "steal", "ally", "descend", "exit", "spawn", "tame"]);
@@ -74,6 +78,9 @@ export function renderWatch(app: App): Mounted {
   let pendingLoad: { snap: Snapshot; rest: Ev[] } | null = null;
   let exitTier: Tier | null = null, exitAt = 0;
   let pendingExit: { items: InvItem[]; tier: string } | undefined;
+  // Cut 5 §4: the open vault sheet's close, and the cage it was opened for (a dismissed sheet is not reopened)
+  let vaultClose: (() => void) | null = null, vaultKey = "";
+  let prepended = false;              // bail fell back to the row prepend (an engine without `bail`)
   const cls = app.lineage.class;
   const before = { best: app.lineage.best_depth, marks: app.lineage.marks, level: app.lineage.classes?.[cls]?.level ?? 1, xp: app.lineage.classes?.[cls]?.xp ?? 0, renown: app.lineage.renown ?? 0, rank: app.lineage.rank ?? 0 };
   const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [], tamed: string[] = [], lost: string[] = [];
@@ -112,8 +119,9 @@ export function renderWatch(app: App): Mounted {
     if (!st) return;
     const parts: (string | HTMLElement)[] = [`$${st.loot}`];
     for (const b of st.brought) parts.push(" · ", h("span", { class: b.insured ? "" : "risk" }, b.label, b.insured ? "" : "⚠"));
-    if (st.return_row === undefined) parts.push(" · ", h("span", { class: "lose" }, /* copy:callout */ "death: lose all"));
-    else parts.push(" · ", overridden ? h("span", { class: "returning" }, /* copy:callout */ "returning") : returnAt(app.rules.rows[st.return_row], st.return_row));
+    if (overridden) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "returning"));
+    else if (st.return_row === undefined) parts.push(" · ", h("span", { class: "lose" }, /* copy:callout */ "death: lose all"));
+    else parts.push(" · ", returnAt(app.rules.rows[st.return_row], st.return_row));
     replace(stake, ...parts);
   }
   function returnAt(row: Row | undefined, i: number): string {
@@ -205,12 +213,14 @@ export function renderWatch(app: App): Mounted {
     else { viewer?.apply(r.events); if (viewer?.sync) { const v = viewer; at(s.turn, () => v.sync!(s)); } } // Cut 4 §3: remembered foes
     snap = s;
     hud.maxHp = s.hero.max_hp; paintHud(); paintStake(s); bossSighted(s);
+    vaultFrom(s);
     if (r.exit_pending) pendingExit = r.exit_pending;
     if (exit) { exitTier = exit; exitAt = performance.now() + EXIT_GRACE_MS; }
     if (performance.now() - lastPersist > PERSIST_MS) { lastPersist = performance.now(); app.persist(); }
   }
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
+    if (vaultClose && !document.querySelector(".vault-choice")) vaultClose = null;   // dismissed by backdrop / Escape: the engine's grace decides
     applySpeed();
     const now = viewerTick();
     el.dataset.tick = String(now);            // dev: tools sample the cadence off the DOM
@@ -235,6 +245,7 @@ export function renderWatch(app: App): Mounted {
   /** The rate the clock should run at right now: the mode's, or for auto 8× / 1× by what is near (flat 8× while bailing). */
   function rate(): number {
     if (paused) return 0;
+    if (vaultClose) return 1;                 // Cut 5 §4: the vault sheet holds the clock at 1× while the engine's grace runs
     if (mode !== "auto") return RATE[mode];
     return overridden || viewerTick() >= slowUntil ? AUTO_FAST : 1;
   }
@@ -268,13 +279,37 @@ export function renderWatch(app: App): Mounted {
     inflight = false;
     if (!pendingLoad) { viewer.skipToEvent(); fbTick = engineTick; release(viewerTick()); }
   }
-  // Cut 5 §5: `return` fires on the next hero action; the run plays out to the exit at 8× under `returning`, then the exit sheet
+  // Cut 5 §5: `return` fires on the next hero action as a chore (`engine.bail()`, the rules untouched); the run plays out to
+  // the exit at 8× under `returning`, then the exit sheet. An engine without `bail` gets the row prepend, restored at the exit.
   function doBail(): void {
     if (done || overridden) return;
     overridden = true; bail.classList.add("on"); bail.disabled = true; if (snap) paintStake(snap);
     callout(/* copy:callout */ "returning", "", 1800);
-    void app.engine.setRules({ rows: [{ conds: [], verb: { v: "return" } }, ...app.rules.rows] }).catch((e) => console.warn("bail", e));
+    app.engine.bail().catch((e) => {
+      console.warn("bail", e); prepended = true;
+      void app.engine.setRules({ rows: [{ conds: [], verb: { v: "return" } }, ...app.rules.rows] }).catch((e2) => console.warn("bail", e2));
+    });
     setMode("auto");
+  }
+  // Cut 5 §4: the vault choice sheet — opens once per cage, closes when the engine's snapshot no longer carries it
+  function vaultFrom(s: Snapshot): void {
+    const vc = s.vault_choice;
+    if (!vc || !vc.items.length) { if (vaultClose) { vaultClose(); vaultClose = null; } return; }
+    const key = vc.items.map((it) => it.id).join(",");
+    if (vaultClose || key === vaultKey) return;
+    vaultKey = key; vaultSheet(vc);
+  }
+  function vaultSheet(vc: VaultChoice): void {
+    let sent = false;
+    openSheet((close) => {
+      vaultClose = () => { vaultClose = null; close(); applySpeed(); };
+      const chips = h("div", { class: "chips" }, ...vc.items.map((it) => h("button", { class: "chip item", onclick: () => {
+        if (sent) return; sent = true;
+        app.engine.choose(it.id).catch((e) => console.warn("choose", e)).finally(() => vaultClose?.());   // the next step's snapshot carries the pickup
+      } }, h("b", { class: "glyph" }, kindGlyph(it.kind)), " ", it.label)));
+      return h("div", { class: "sheet-body vault-choice" }, h("div", { class: "label row-label" }, /* copy:label */ "vault"), chips);
+    });
+    applySpeed();
   }
   function xpGained(): number {
     const c = app.lineage.classes?.[cls] ?? { level: 1, xp: 0 }; let g = c.xp - before.xp;
@@ -294,7 +329,7 @@ export function renderWatch(app: App): Mounted {
     // whatever happens below, the player reaches a screen with buttons
     const guard = window.setTimeout(() => { if (!disposed && app.view.kind === "watch") { console.warn("exit flow stalled; falling back to camp"); app.go({ kind: "camp" }); } }, 20_000);
     try {
-      if (overridden) await bounded(app.engine.setRules(app.rules), 8000, /* copy:none */ "setRules after bail");
+      if (prepended) await bounded(app.engine.setRules(app.rules), 8000, /* copy:none */ "setRules after bail");
       if (pendingExit && pendingExit.items.length) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, () => { done = false; void finish(tier); }); return; }
       pendingExit = undefined;
       // (`refresh` resolves void, so a sentinel tells a timeout from success)
@@ -374,6 +409,7 @@ export function renderWatch(app: App): Mounted {
   window.addEventListener("resize", onResize);
   return { el, dispose: () => {
     disposed = true; window.removeEventListener("resize", onResize); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); viewer?.dispose();
-    if (overridden && !done) void app.engine.setRules(app.rules);
+    if (vaultClose) { const c = vaultClose; vaultClose = null; c(); }
+    if (prepended && !done) void app.engine.setRules(app.rules);
   } };
 }

@@ -118,6 +118,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       /* copy:label */ ...[["best_weapon", "weapon"], ["best_armour", "armour"], ["none", "none"]].map(([id, lbl]) =>
         h("button", { class: `chip${(L.keep_pref ?? "best_weapon") === id ? " on" : ""}`, onclick: () => void app.mutate(() => app.engine.setKeepPref(id)) }, lbl)));
     vault.appendChild(prefs);
+    // Cut 5 §4: what an unanswered vault choice takes (offline, or the 50-tick grace on a watched run)
+    const vprefs = h("div", { class: "chips prefs" }, h("span", { class: "dim" }, /* copy:label */ "vault"),
+      /* copy:label */ ...["weapon", "armour", "potion", "scroll"].map((id) =>
+        h("button", { class: `chip${(L.vault_pref ?? "weapon") === id ? " on" : ""}`, onclick: () => void app.mutate(() => app.engine.setVaultPref(id)) }, id)));
+    vault.appendChild(vprefs);
   }
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
