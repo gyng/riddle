@@ -1,0 +1,83 @@
+{
+  "$comment": "Blind rater I card, build be954f5, seed 97. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md. One quoted observation per axis. bot stays na (caps applied later). Criterion + idle probes answered before awarding. Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK.md 1-3, the template; did not open PLAN.md, research/, CUT*.md, other cards or source.",
+  "game": "Riddle",
+  "build": "be954f5",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterI",
+  "horizon": {
+    "activeMinutes": 55,
+    "absences": ["8h simulated via ?dev=1&absent=8h after 34 min of cold play (one browser context, seed 97, fresh lineage); 21 min on return"],
+    "runsWatched": 8,
+    "runsOffline": 16,
+    "ruleEdits": 14,
+    "$note": "Only 1 death occurred across 24 runs because my own hp<30% -> return rule never let the hero die; I read that death (trace + 3 patches + morgue) plus 7 non-death exit traces (1 bail, 5 stalls 'lost thread', 1 return). Deaths read: 1, short of the 3 the brief asks for. Screenshots kept under scratchpad/raterI (001 first minute, 019 first edit, 067-071 return screen, 075 first edit after return, 081 first death)."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false,
+    "$note": "Editing mattered both ways: buying 'card: corridor fighting' dropped the forecast (D5 20% -> 12%) and caused 5 of 16 offline runs to end 'lost thread keeps 0% -> $0' with trace 'R3 stuck'; removing it and adding heals + 'foes >= 1 -> attack nearest' raised the forecast to 'D4 100% D5 94%'. An empty rule sheet (slot '2 0') forecast 'D5 21%' vs my 4-rule sheet 'D5 22%' at one point, which is close to the kill line, but later edits opened a 70-point gap. 'rest 20m' is a wait but sending skipped it with the hero at full HP and nothing is for money. The 8h absence returned 16 runs, +$484, +8 marks and a stall to fix."
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: I put the corridor-fighting card I had just bought at R2 and sent the fighter down; on D2 a monkey snatched the leash, then the invisibility potion, then the sword I had kept in the vault. At 15 HP on D3 he stopped fighting and the trace read 'trait retreat, pick up, trait retreat' with every one of my rules marked 'trait first'. The reel said 'Stalled. Came home empty-handed.' and the $24 he carried became $0."
+  },
+  "probes": {
+    "return": "I came back to '16 RUNS · D6 BEST · +8 MARKS · 0 DEATHS', eight exit lines of which five read '$59 carried · lost thread keeps 0% -> $0', '$558' in the purse and 'R1 fired 4 of 16 runs: HP<30% -> return'; I opened two TRACEs, both said 'R3 stuck', and I deleted the card. I would not rather have stayed: the 16 runs took the sim a few seconds and gave me the stall pattern I could not have seen in one run.",
+    "attribution": "The last run ended 'goblin · D5 · 2 over · 6 unknown unused · gap' after I had deleted my hp<20% return rule to go greedy; that was my decision and the trace line 'R1 no item · R2 hp not >75% · R3 loot not >=200 · R4 adj not >=2' told me none of my rules could have caught it. Pronouns in my retelling: I, my (5), he/him for the hero (4).",
+    "clarity": "I did not know that 'rest 20m' was informational until I tapped it and read 'send skips rest', and I bought '+1 row' for 2 marks while the sheet already showed '2/4' rows free.",
+    "decisions": "Changing R1 from 'drink heal' to 'drink unknown' moved the forecast to 'D6 20% ±8 · poison' with 'poison 27% fire 15% gas 15%', so I set it to 'return' instead (D5 38%); I would make it again.",
+    "mastery": "An hour in I knew to put 'unknown item · hp > 75% -> drink unknown' above the attack rule so heals get identified while safe, and after the return I raised the forecast from 'D5 18%' to 'D5 94%' by removing the card and adding two heal potions.",
+    "tension": "Run 1 at '3/36 D4 · $77 · death: lose all' with the hero still choosing 'descend' is where I sweated and hit bail; the game noticed with 'return keeps 60% -> $46'.",
+    "feel": "The pixel callout 'R3 CORRIDOR FIGHTING' and the red '-2 jackal' line at the bottom felt good, but in every fight screenshot only the hero is drawn; I never saw a jackal, rat or archer on the map.",
+    "surprise": "'A thief snatched the sword' (the one I had vaulted) made me stop carrying the vault weapon, and after the death the heir came back as '♟2 greedy' instead of 'cowardly'; 'D5: the Warrens' and 'Trophy: no heal to D5' repeated on four reels.",
+    "expression": "My sheet was a banker: 'hp < 30% -> return', 'loot >= 100 -> return', identify potions only above 75% HP, shield bash when two are adjacent; 'yours: 4 of 5 rows'.",
+    "story": "Run 3: the monkey stole the leash, the invisibility potion and the sword, the hero stalled at 15 HP, 'Stalled. Came home empty-handed. Returned with $0.'",
+    "pacing": "In-run at 1x a D5 run took about 3.5-4 min with a status change every 3-5 s and one dead stretch of ~25 s ('pick up' x3); the return check-in was 3 min of reading and 6 min of fixing; 'fast' looked no faster than 'auto' while '▶▶|' skipped to the end.",
+    "failure": "'goblin · D5 · 2 over · 6 unknown unused · gap' plus 'R1 no item · R2 hp not >75%' plus three patches each with 'survives 100% · base 67% · reach -25%' told me cause, margin and rule gap on one screen; the stalls only said 'lost thread keeps 0%' until I opened TRACE ('R3 stuck').",
+    "social": "weight 0",
+    "autonomy": "I bailed by hand at 3 HP on D5 in run 1 and later deleted my own safety rule to see D7; nothing asked me to.",
+    "progression": "Within a run the fighter went 36/36 to 38/38 at L2; between runs I spent marks on '+1 row', 'cond: loot', 'card: corridor fighting', 'auto: restock' and '+1 row' again, renown went ★0 -> ★2; 'auto: restock · auto rebuys last supplies' was the first thing I no longer had to do.",
+    "aesthetic": "Dark olive brick rooms, a two-tile-tall fighter with a round shield, monospace panels; I would not sit in it doing nothing.",
+    "sixteen_probes_note": "One sentence each, quoting what I saw; answered after the return and before awarding."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "First edit at ~9 min after the forecast answered every change ('D6 20% ±8 · poison' for drink unknown). Misreads: bought '+1 row' with '2/4' rows free; my × tap removed R1's condition so R1 read '+ -> return' and the forecast went 'D2 0%'; the card's × sat off the 400px edge; a transient forecast showed 'D3 0% · rat 64%' for 5 s; run 6 R2 'drink heal' never fired at 15/38 and the trace omitted its reason line." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Return-at-30% (D5 38%) vs drink-unknown (D5 18%, poison 27%) vs return-at-20% (D6 75%, 'gas 100%') were all defensible across runs and the forecast priced each. Lapse: 'card: corridor fighting' promised 'reach +5%' and was dominated (forecast fell, 'R3 stuck' in 5 traces), and one of 5-6 rows is always spent on the mandatory 'foes >= 1 -> attack nearest'." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Learned rule order ('card R2 first'), identify-while-healthy, and read 'R3 stuck' to fix stalls; forecast D5 18% -> 94% after return. But 23 of 24 runs ended by my return rule, so the death->edit loop barely ran, and 25+ unlocks read '⊘ ◆N more'." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'3/36 D4 · $77 · death: lose all' with 'descend' chosen made me bail; the greedy run watched '3/38 near death' then '0/38'. With the return rule on, watched fights mostly could not change anything I owned." },
+    { "id": "feel", "human": 0.3, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Audio: none, unassessed. Status text changed every 3-5 s at 1x, the big pixel callout 'R5 ATTACK SPECTRAL' and '-2 jackal' land, but no foe sprite was ever drawn in 80 screenshots and the hero is two tiles tall; 'fast' was indistinguishable from 'auto'." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Thief monkey ('A thief snatched the sword'), conjurer summoning a spectral blade, 'archer draws', 'The air stings: bloats ahead', the heir turning 'greedy' - each changed a rule or purchase. Reels repeated 'D5: the Warrens' / 'Trophy: no heal to D5' four times and jackals were the fight in most runs." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "'hp < 30% -> return', 'loot >= 100 -> return', 'unknown item · hp > 75% -> drink unknown', 'adjacent >= 2 -> shield bash' is recognisably a cautious banker. But 'cowardly -> retreat' overrode all of it ('R1 trait first ... R5 trait first') and 5-6 rows fill immediately." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Run 3's reel carried the turn: 'A thief snatched the leash. A thief snatched the invisibility potion. A thief snatched the sword. Stalled. Came home empty-handed.' The chronicle wrote '♟1 the opener fighter · D6 · fell to a goblin · left bones on D5'. The offline reel was five copies of 'A jackal chased him to 15 HP; R3 held; reached D4.'" },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 3.5-4 min to D5 at 1x, one ~25 s stretch of 'pick up'. Check-in: return read in 3 min, fix in 6, left on a chosen stopping point. Cadence: only the 8h absence observed (16 runs); the 20 min and 4 h cadences untested; 'rest 20m' confused me for a minute." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Death screen: 'goblin · D5 · 2 over · 6 unknown unused · gap', trace 'R1 no item · R2 hp not >75% · R3 loot not >=200 · R4 adj not >=2', three patches with 'survives 100% · base 67% · reach -25%', a full morgue file; next run starts on 'send'. Lapse: stall exits show only 'lost thread keeps 0% -> $0' on the summary; the cause 'R3 stuck' needs a TRACE tap per run." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Bailed by hand at 3 HP, three named sheets ('fighter 5', '2 0', '3 0'), chose greedy over safe; the dungeon order and the hero's trait are not mine." },
+    { "id": "progression", "human": 0.6, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run: L1 -> L2, 36 -> 38 HP, items. Between-run: 5 unlocks in 55 min (+1 row x2, cond: loot, a card, auto: restock), verbs grew from identified potions ('drink strength', 'attack summoner'), renown ★0 -> ★2, FORGE salvage counts ('sword 2/5 -> craftable'). Automation: 'auto rebuys last supplies' once. Marks were scarce (+7, +1, 0, 0, 0 then +8 over 16 offline runs) and the forge stayed untested." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Olive-brick rooms under a dark vignette, a good fighter sprite, terse monospace panels; moody but no foes to look at and one palette." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Returned to '16 RUNS · D6 · +8 MARKS', '$74' -> '$558', 'rested 333m', 'R1 fired 4 of 16 runs', new facts 'ogre heavy · telegraph', 'goblin captain summoner', and five 'lost thread keeps 0% -> $0' lines; first meaningful action (delete the card) within 3 min. Lapse: 5 of 16 runs lost everything to a stall the summary named only as 'lost thread'; the card had to be diagnosed via TRACE. Scored the same day as the absence, against the idle protocol's advice." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Trace 'R1 return' at 10 HP, 'R3 stuck' x5, the death 'gap' after I removed my own return rule, 'R2 fired 5 of 16 runs: HP<50% -> drink heal'; I told the story in the first person. Lapse: 'cowardly -> retreat' pre-empted every rule ('R1 trait first ... R5 trait first') and caused run 3's stall, and the mid-run 'VAULT · choose one' resolved itself." }
+  ],
+  "audio": "unassessed (no audio in build)",
+  "gripes": [
+    "Foes are never drawn: '-2 jackal' and 'archer draws' happen to a hero alone on the map.",
+    "Stalls ('lost thread keeps 0% -> $0') cost as much as a death but the summary never says why; five of my sixteen overnight runs went that way before I found 'R3 stuck' in a trace.",
+    "The card I bought for 3 marks ('reach +5%') made the hero worse and needed reordering by drag; the sheet fills at 5-6 rows with one row always spent on the catch-all attack."
+  ],
+  "tellAFriend": [
+    "You write five if-then rules for a roguelike hero and a forecast bar reprices every edit before you send him ('D6 20% ±8 · poison' if you let him drink unknown potions).",
+    "Deaths and stalls come back as a trace that names the rule that fired and why every other rule did not ('R1 no item · R2 hp not >75%'), with three patches priced by survival and reach.",
+    "Leave it overnight and it plays sixteen runs, hands you the money, the facts and the pattern that is breaking your sheet."
+  ]
+}
