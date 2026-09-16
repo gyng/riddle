@@ -139,6 +139,8 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .ticker.show { opacity: 1; }
 .ticker.hurt { color: var(--hp); }
 .ticker.ambient { color: var(--fg); }   /* Cut 7 §4: `D3 · 4 rooms` · `$47` · `alert 3` at 8× */
+/* Cut 8A: in the fight frame the firing row is a caption inside the frame; the ticker keeps only hurts and ambients */
+.watch[data-frame="fight"] .ticker.show:not(.hurt):not(.ambient) { opacity: 0; }
 
 /* death */
 .death-line { font-size: 18px; font-weight: 400; margin: 18px 0 14px; line-height: 1.4; }
@@ -292,3 +294,10 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .card .cost.takes { display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
 .card .cost.takes small { font-size: 10px; letter-spacing: .04em; }
 button.chip.locked { cursor: pointer; }
+
+/* Cut 8B §4: a card's rows inline under the `[card]` chip; a combo's bracket on the pair's first row, reaching the second */
+.card-inline { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; padding: 2px 0 0 8px; border-left: 2px dashed var(--line); opacity: .55; }
+.card-inline .chip { min-height: 28px; padding: 0 8px; font-size: 12px; }
+.row.combo-a { border-bottom-color: var(--acc); }
+.row.combo-b { border-top-color: var(--acc); }
+.row.combo-a::after { content: "⌐ " attr(data-combo); position: absolute; right: 40px; top: calc(100% - 9px); z-index: 1; padding: 0 6px; font: 11px var(--mono); line-height: 18px; color: var(--acc); background: var(--bg); border: 1px solid var(--acc); border-radius: 6px; white-space: nowrap; pointer-events: none; }

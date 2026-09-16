@@ -27,6 +27,12 @@
 // back from the viewer until its clock is ENDING_TICKS from the exit (so no dead-air jump swallows the walk-out), and
 // auto runs 1× from there (a core `ending` marker sets the same point). At 8× the pump keeps the engine ≥ LEAD_FAST
 // ticks ahead so the exit is seen in time.
+//
+// Cut 8A — the fight frame (docs/PLATEAU.md §A): the viewer cuts to its close fight framing (`setFrame("fight")`) when a
+// scene opens, when any hostile stands adjacent to the hero, or when a boss is in view, and cuts back to the map AUTO_TAIL
+// ticks after the last of those stops holding. Entry and exit are released at the viewer's clock (the engine runs ahead),
+// so the cut lands when the foes are on screen. The fight frame runs at 1× whatever the mode; the map frame keeps the
+// cadence above. `data-frame="map|fight"` on the element for tooling.
 import type { App, Mounted } from "../app";
 import type { Ev, ExitLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, VaultChoice } from "../engine/types";
 import { h, items, replace, spanOf } from "./dom";
@@ -38,6 +44,9 @@ import { vaultSlots } from "./unlocks";
 import { kindGlyph, verbLabel } from "./tokens";
 
 type Tier = "bank" | "return" | "death";
+type FrameName = "map" | "fight";
+/** Cut 8A: the real renderer's frame cut (web/src/render/index.ts); the placeholder viewer has none. */
+type FrameViewer = Viewer & { setFrame?(frame: FrameName, focus?: { x: number; y: number; radius: number }): void };
 const INTERESTING = new Set(["hurt", "die", "telegraph", "pickup", "use", "fact", "steal", "ally", "descend", "exit", "spawn", "tame"]);
 const LEAD = 12, BATCH = 10;        // ticks: pump when the engine is < LEAD ahead; step BATCH at a time
 const BATCH_FAST = 12;              // at 8× the viewer eats 4 ticks per pump; a bigger batch keeps the queue fed through a slow step
@@ -85,6 +94,8 @@ export function renderWatch(app: App): Mounted {
   // Cut 7 §4: the scene's room (null = none) and the tick auto may run fast again after one ends; the ending's first tick;
   // the exit batch held back until the viewer is ENDING_TICKS from the exit; the ambient callout limiter; the last alert
   let scene: number | null = null, sceneUntil = -Infinity, endingFrom = Infinity;
+  // Cut 8A: the fight frame — whether the engine's latest snapshot holds it, the viewer ticks it spans, the frame shown
+  let fightOn = false, fightFrom = Infinity, fightUntil = -Infinity, frame: FrameName = "map";
   let held: { evs: Ev[]; snap: Snapshot; tier: Tier } | null = null;
   let lastAmbient = -Infinity, ambientUntil = 0, lastAlert = 0;
   let speed = AUTO_FAST, done = false, disposed = false, overridden = false, tickerTimer = 0, bannerTimer = 0, pumpTimer = 0;
@@ -263,6 +274,26 @@ export function renderWatch(app: App): Mounted {
     if (open) { scene = r.id; sceneUntil = Infinity; }
     else if (scene !== null) { scene = null; sceneUntil = s.turn + AUTO_TAIL; }
     el.dataset.scene = scene === null ? "0" : "1";   // dev: tools sample the cadence off the DOM
+    fightFrom_(s, open);
+  }
+  /** Cut 8A: the fight frame holds while a scene is open, a hostile is adjacent to the hero, or a boss is in view; it lets
+   *  go AUTO_TAIL ticks after. Ticks are the engine's; `applyFrame` cuts at the viewer's clock. */
+  function fightFrom_(s: Snapshot, sceneOpen: boolean): void {
+    const hx = s.hero.x, hy = s.hero.y;
+    const seen = (e: { x: number; y: number; remembered?: boolean }): boolean => !e.remembered && !!s.visible[e.y * s.w + e.x];
+    const adjacent = s.entities.some((e) => hostile(e) && seen(e) && Math.max(Math.abs(e.x - hx), Math.abs(e.y - hy)) <= 1);
+    const boss = s.entities.some((e) => e.tags.includes("boss") && hostile(e) && seen(e));
+    const on = sceneOpen || adjacent || boss;
+    if (on) { if (!fightOn && viewerTick() >= fightUntil) fightFrom = s.turn; fightUntil = Infinity; }
+    else if (fightOn) fightUntil = s.turn + AUTO_TAIL;
+    fightOn = on;
+  }
+  function applyFrame(): void {
+    const v = viewerTick();
+    const want: FrameName = v >= fightFrom && v < fightUntil ? "fight" : "map";
+    if (want === frame) return;
+    frame = want; (viewer as FrameViewer | null)?.setFrame?.(want);
+    el.dataset.frame = want;
   }
   function near(t: number): void { slowUntil = Math.max(slowUntil, t + AUTO_TAIL); }
   function handle(r: StepResult): void {
@@ -292,6 +323,7 @@ export function renderWatch(app: App): Mounted {
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
     if (vaultClose && !document.querySelector(".vault-choice")) vaultClose = null;   // dismissed by backdrop / Escape: the engine's grace decides
+    applyFrame();
     applySpeed();
     const now = viewerTick();
     el.dataset.tick = String(now);            // dev: tools sample the cadence off the DOM
@@ -325,6 +357,7 @@ export function renderWatch(app: App): Mounted {
   function rate(): number {
     if (paused) return 0;
     if (vaultClose) return 1;                 // Cut 5 §4: the vault sheet holds the clock at 1× while the engine's grace runs
+    if (frame === "fight") return 1;          // Cut 8A: a fight is watched at 1×, whatever the mode
     if (mode !== "auto") return RATE[mode];
     const v = viewerTick();
     if (v >= endingFrom) return 1;
@@ -336,7 +369,7 @@ export function renderWatch(app: App): Mounted {
     if (!viewer?.tick) viewerTick();          // placeholder clock: bank the ticks run at the old rate first
     speed = n; viewer?.setSpeed(n);
     el.dataset.speed = String(n);
-    modeBtn.auto.classList.toggle("slowed", mode === "auto" && n === 1);
+    for (const m of Object.keys(modeBtn) as Mode[]) modeBtn[m].classList.toggle("slowed", m === mode && m !== "slow" && n === 1);
   }
   function setMode(m: Mode): void {
     mode = m; paused = false;
@@ -486,7 +519,7 @@ export function renderWatch(app: App): Mounted {
     hudFrom(s);
     const { viewer: v } = await makeViewer(canvas);
     if (disposed) { v.dispose(); return; }
-    viewer = v; v.resize?.(); v.load(s); v.setSpeed(speed); el.dataset.speed = String(speed); fbTick = s.turn; fbAt = performance.now();
+    viewer = v; v.resize?.(); v.load(s); v.setSpeed(speed); el.dataset.speed = String(speed); el.dataset.frame = frame; fbTick = s.turn; fbAt = performance.now();
     if ("__riddle" in window) (window as unknown as { __viewer: Viewer }).__viewer = v;   // dev inspection
     lastHp = s.hero.hp; lastAlert = s.alert; sceneFrom(s);
     pumpTimer = window.setInterval(pump, PUMP_MS);

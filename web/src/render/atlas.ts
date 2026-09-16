@@ -106,6 +106,8 @@ export class Atlas {
   font(ch: string): Slot { return this.envSlot(`font:${ch.toUpperCase()}`); }
   shadow(width: number, ally = false): Slot { return this.envSlot(`${ally ? "ring" : "shadow"}:${Math.max(6, Math.round(width))}`); }
   dot(): Slot { return this.envSlot("dot:2"); }
+  // Cut 8A: a 2×2 flat colour (`#rrggbb`) for the fight frame's hp bars; the hud layer stretches it to any texel size
+  solid(hex: string): Slot { return this.envSlot(`solid:${hex.replace("#", "")}`); }
   // Cut 5 §4 props: shrine (2 frames at 1 Hz), vault / vault_open, nest (frame 0 asleep, 1 woken). Per-biome atlas
   // art when present, else a procedural altar / barred square / mound (`drawProp`).
   prop(biome: string, tile: string, frame: number): Slot {
@@ -143,6 +145,7 @@ export class Atlas {
     if (cat === "glyph") { const slot = g.alloc(id, 8, 8); drawGlyph(g.ctx, slot, rest); return slot; }
     if (cat === "font") { const slot = g.alloc(id, FONT_CELL_W, FONT_CELL_H); drawFontCell(g.ctx, slot, rest); return slot; }
     if (cat === "dot") { const slot = g.alloc(id, 2, 2); g.ctx.fillStyle = "#f4ecd8"; g.ctx.fillRect(slot.x, slot.y, 2, 2); return slot; }
+    if (cat === "solid") { const slot = g.alloc(id, 2, 2); g.ctx.fillStyle = `#${rest}`; g.ctx.fillRect(slot.x, slot.y, 2, 2); return slot; }
     // shadow:<w>: w×2 ellipse (top row w-2 wide, bottom row w-4), one slot per exact width so
     // no quad is ever stretched to a non-integer texel size. ring:<w>: the same ellipse inside a
     // 1-texel light ring (companion marker), w×3.

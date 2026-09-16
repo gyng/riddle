@@ -13,6 +13,8 @@ import type { Ev, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
 export const TICKS_PER_S = 10;
 export const VISION_R = 7; // default sight radius; a snapshot's `vision` (Cut 3: the Deep is 4) overrides per floor
 const LUNGE_T = 2, HURT_T = 1.5, DIE_T = 4, SPAWN_T = 2, LEASH_T = 4, SHAKE_T = 3, GLYPH_T = 15;
+const FIGHT_HURT_T = 2, FIGHT_SHAKE_T = 3; // Cut 8A: in the fight frame a hit flashes 2 ticks and the screen shakes 3
+const CAPTION_MS = 1500, NAME_MAX = 12;   // Cut 8A: the firing row as a caption (real time); names under hostiles
 const MOVE_DEFAULT = 10, MOVE_MIN = 3, MOVE_MAX = 20;
 const IDLE_TAIL = 6; // ticks after the last event before idle() reports true
 const BOSS_FLASH_T = 6; // ticks the palette flashes to `boss_flash` when a boss is first seen/spawned
@@ -34,9 +36,20 @@ export type EntState = {
   ringFrom: number;                // companion ring shown once clock ≥ ringFrom
   remembered: boolean;             // Cut 4 §3: pursued but unseen; drawn dimmed at its last seen tile, never tweened
   neutral: boolean;                // a captive: not a hostile, so the leading camera (index.ts) ignores it
+  boss: boolean;
+  name: string;                    // Cut 8A: the label under a hostile in the fight frame (`goblin`, `Morog`), ≤ NAME_MAX chars
 };
 
+/** Cut 8A: what a hostile is called under its sprite: its given name, else its kind as words; over NAME_MAX chars the last word. */
+export function entityName(e: { kind: string; name?: string }): string {
+  if (e.name && e.name.length <= NAME_MAX) return e.name;
+  const words = e.kind.replace(/^boss_/, "").split("_");
+  const full = words.join(" ");
+  return (full.length <= NAME_MAX ? full : words[words.length - 1]!).slice(0, NAME_MAX);
+}
+
 export type Callout = { text: string; until: number }; // real-time ms
+export type ScreenShake = { t0: number; amp: number };  // Cut 8A: ticks; amp in env texels
 export type Leash = { from: number; to: number; t0: number; ok: boolean };
 export type Projectile = { path: [number, number][]; t0: number };
 
@@ -65,6 +78,10 @@ export class ReplayState {
   bossFlashUntil = -Infinity; // clock < this → index.ts renders with the `boss_flash` palette
   vision = VISION_R;  // presentation LOS radius and the fog bands (index.ts) follow the floor's vision
   nestWoken = new Set<number>(); // Cut 5 §4: tile indices of nests shown awake (a `nest` fact, or a hostile spawned adjacent)
+  // Cut 8A: the fight frame (index.ts sets it). While up: hits flash longer, hurts shake the screen, the firing row is a caption.
+  fight = false;
+  caption: Callout | null = null;
+  screenShake: ScreenShake | null = null;
   private snap: Snapshot | null = null;
   private queue: Ev[] = [];
   private log: Ev[] = [];     // applied since load, in order (for seek)
@@ -97,6 +114,8 @@ export class ReplayState {
     this.fade = this.fadeTarget = 0;
     this.bossFlashUntil = -Infinity;
     this.callout = null;
+    this.caption = null;
+    this.screenShake = null;
     this.leash = null;
     this.projectiles = [];
     this.nestWoken.clear();
@@ -111,6 +130,8 @@ export class ReplayState {
       hp: e.hp, maxHp: e.max_hp, flip: false, glyph: e.telegraph ? "!" : null, glyphT: this.clock,
       ringFrom: -Infinity, remembered: !!e.remembered,
       neutral: e.kind === "captive" || (e.tags ?? []).includes("captive"),
+      boss: (e.tags ?? []).includes("boss"),
+      name: entityName(e),
     };
     this.ents.set(e.id, st);
     return st;
@@ -170,6 +191,7 @@ export class ReplayState {
     const fs = (dt / 350) * Math.max(this.speed, 0.5);
     this.fade += Math.sign(this.fadeTarget - this.fade) * Math.min(fs, Math.abs(this.fadeTarget - this.fade));
     if (this.callout && now > this.callout.until) this.callout = null;
+    if (this.caption && now > this.caption.until) this.caption = null;
     if (this.speed <= 0) return;
     this.drain(this.clock);
     this.settle();
@@ -269,7 +291,21 @@ export class ReplayState {
         const e = this.ents.get(ev.id);
         if (!e) break;
         e.hp = ev.hp;
-        e.flashUntil = t + HURT_T;
+        e.flashUntil = t + (this.fight ? FIGHT_HURT_T : HURT_T);
+        // Cut 8A: the screen shakes ±2 env texels for the hero being hurt, ±1 for anyone else; a bigger one wins
+        if (this.fight && ev.dmg > 0) {
+          const amp = e.hero ? 2 : 1;
+          if (!this.screenShake || this.clock >= this.screenShake.t0 + FIGHT_SHAKE_T || amp >= this.screenShake.amp) this.screenShake = { t0: t, amp };
+        }
+        break;
+      }
+      case "rule": {
+        // Cut 8A: the firing row as a caption at the top of the fight frame: `R2 attack goblin`; a trait deviation reads as
+        // its own text (`cowardly > retreat`); chores (row -2) stay silent (pillar 2)
+        if (ev.row < -1) break;
+        const tail = ev.text.includes("→") ? ev.text.slice(ev.text.lastIndexOf("→") + 1).trim() : ev.text;
+        const text = (ev.row >= 0 ? `R${ev.row + 1} ${tail}` : ev.text.replace(/→/g, ">")).slice(0, 24);
+        this.caption = { text, until: performance.now() + CAPTION_MS };
         break;
       }
       case "die": {
@@ -380,6 +416,7 @@ export class ReplayState {
     for (const [id, e] of this.ents) if (e.dying) this.ents.delete(id);
     this.projectiles = [];
     this.leash = null;
+    this.screenShake = null;
     if (this.fadeTarget === 1) this.fade = 1;
   }
 
@@ -432,6 +469,14 @@ export class ReplayState {
   }
 
   flashing(e: EntState): boolean { return e.flashUntil > this.clock; }
+
+  // Cut 8A: the fight frame's screen shake in env texels, alternating each half tick for FIGHT_SHAKE_T ticks.
+  shakeOffset(): [number, number] {
+    const s = this.screenShake;
+    if (!s || this.clock < s.t0 || this.clock >= s.t0 + FIGHT_SHAKE_T) return [0, 0];
+    const f = Math.floor((this.clock - s.t0) * 2);
+    return [f % 2 === 0 ? s.amp : -s.amp, f % 4 === 1 ? s.amp : f % 4 === 3 ? -s.amp : 0];
+  }
   ringShown(e: EntState): boolean { return e.ally && !e.hero && this.clock >= e.ringFrom; }
 
   // Leash progress 0..1 while the arc is being drawn, or null.

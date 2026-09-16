@@ -118,5 +118,8 @@ export class QuadLayer {
 
   get count(): number { return this.n; }
 
+  // the colour a `flash` param mixes toward (Cut 8A: the fight frame flashes hurt sprites to the palette's brightest)
+  setFlash(r: number, g: number, b: number): void { ((this.mesh.material as THREE.ShaderMaterial).uniforms.uFlash!.value as THREE.Color).setRGB(r, g, b); }
+
   dispose(): void { this.geom.dispose(); (this.mesh.material as THREE.Material).dispose(); }
 }

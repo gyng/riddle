@@ -24,6 +24,14 @@
 // pixels 50% toward their nearest palette colour without dither. One target, one blit.
 // Tiles, items, shadows, glyphs and callout text are env (a=1); entities and the gas/fire
 // overlays are sprite-tagged (a=0.5) so they keep a readable hue in every biome.
+//
+// Cut 8A — the fight frame (docs/PLATEAU.md §A): a second camera on the same event stream. `setFrame("fight")` doubles k
+// (sprite texel = 1 target px still, so the ink line thickens rather than blurs), frames the hero + the hostiles in view
+// (their bounding box, the hero held inside the middle half of the viewport) and adds, in this frame only: hp bars over
+// every combatant (`hud` layer, env density), names under hostiles and the firing row as a caption (text layer), a
+// 2-tick flash to the palette's brightest on a hit, a 3-tick screen shake (±2 env texels for the hero, ±1 for a foe),
+// telegraph glyphs at 2× size. A frame change is a cut (two dark frames), never a tween. An explicit `focus` fixes the
+// camera on a tile and fits its radius (never below the map's k, never above 2×).
 import * as THREE from "three";
 import { Atlas } from "./atlas";
 import { Blit } from "./blit";
@@ -34,7 +42,12 @@ import { FONT_ADVANCE, FONT_CELL_H, FONT_CELL_W } from "./font";
 import { PROPS, ReplayState, type EntState } from "./state";
 import type { Ev, Snapshot } from "./types";
 
+const cssHex = (c: readonly number[]): string => "#" + c.slice(0, 3).map((v) => Math.round(v * 255).toString(16).padStart(2, "0")).join("");
+
 export type { Ev, Snapshot } from "./types";
+
+export type Frame = "map" | "fight";
+export type Focus = { x: number; y: number; radius: number }; // tiles: centre and half-extent of the square to frame
 
 export type Viewer = {
   load(snap: Snapshot): void;   // full floor state; clears the queue; resets camera to hero
@@ -43,6 +56,8 @@ export type Viewer = {
   skipToEvent(): void;          // fast-forward to the next attack/die/telegraph/use/exit/tame
   seek(t: number): void;        // tick scrub: rebuild from the last snapshot up to tick t (O(n))
   sync(snap: Snapshot): void;   // Cut 4 §3: adopt `remembered` flags from a step's snapshot (no reload)
+  setFrame(frame: Frame, focus?: Focus): void; // Cut 8A: cut between the map and the fight frame (focus: fix the fight camera)
+  frame(): Frame;
   tick(): number;               // current tick
   idle(): boolean;              // queue drained and tails played out
   resize(): void;
@@ -52,6 +67,8 @@ export type Viewer = {
 
 export type ViewerStats = {
   calls: number; triangles: number; k: number; dpr: number;
+  frame: Frame; kMap: number; // Cut 8A: the frame up and the map frame's k (the fight frame's is `k`)
+  shake: [number, number]; glyphs: number; caption: string | null; // Cut 8A: this frame's screen shake, glyph quads, caption
   device: [number, number]; envTexels: [number, number]; target: [number, number]; pending: number; tick: number;
   hero: [number, number]; // render position in tiles
   projectiles: number;
@@ -65,6 +82,10 @@ export type ViewerStats = {
 
 const TILE = 8;
 const REMEMBERED_DIM = 0.5; // Cut 4 §3: a remembered foe, like a memory tile
+const CUT_FRAMES = 2;       // Cut 8A: dark frames on a frame change (a cut, not a tween)
+const BAR_W = 8;            // Cut 8A: hp bar width in env texels (1 tall)
+const BAR_RED = "#c8302c"; // the missing part of an hp bar; the rest is the palette's brightest
+const FIGHT_TOP_CSS = 96;   // Cut 8A: the caption sits this many CSS px below the top edge (under the DOM hud)
 const BASE_TEXELS = 200; // was 270: phone hero read at 1/25 of screen height; 200 gives ~24 tiles across at 400 CSS px
 
 export type ViewerOpts = {
@@ -104,7 +125,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     shadows: new QuadLayer(env, 128, 1, 3),
     ents: new QuadLayer(spr, 128, 0.5, 4),
     glyphs: new QuadLayer(env, 128, 1, 5),
-    text: new QuadLayer(env, 64, 1, 6),
+    text: new QuadLayer(env, 192, 1, 6),  // Cut 8A: callout + caption + a name under each hostile
+    hud: new QuadLayer(env, 128, 0.5, 7), // Cut 8A: hp bars (sprite-tagged so the red keeps its hue in every biome)
   };
   for (const l of Object.values(L)) scene.add(l.mesh);
   const blit = new Blit(rt.texture);
@@ -112,10 +134,12 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
   const st = new ReplayState();
   const cam = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0 };
-  const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, hero: [0, 0], projectiles: 0, ents: 0, drawn: 0, camera: [0, 0],
+  const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, frame: "map", kMap: 1, shake: [0, 0], glyphs: 0, caption: null, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, hero: [0, 0], projectiles: 0, ents: 0, drawn: 0, camera: [0, 0],
     cpuMs: NaN, cpuP95: NaN, buildMs: NaN, gpuMs: NaN, gpuP95: NaN, gpuTimer: gpu.available, fps: NaN };
-  let k = 1, iw = 1, ih = 1, W = 3, H = 3, devW = 0, devH = 0, dpr = 1;
+  let k = 1, kMap = 1, iw = 1, ih = 1, W = 3, H = 3, devW = 0, devH = 0, dpr = 1;
   let lastCss = "";
+  let mode: Frame = "map", fixedFocus: Focus | null = null, cutFrames = 0; // Cut 8A
+  let camSX = 0, camSY = 0; // the snapped camera centre this frame (build() places the caption from it)
   let raf = 0;
   let last = performance.now();
   let disposed = false;
@@ -131,7 +155,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     dpr = d;
     devW = Math.max(1, Math.round(cw * d));
     devH = Math.max(1, Math.round(ch * d));
-    k = Math.max(1, Math.floor(Math.min(devW, devH) / baseTexels));
+    kMap = Math.max(1, Math.floor(Math.min(devW, devH) / baseTexels));
+    k = mode === "fight" ? fightK() : kMap;
     iw = Math.floor(devW / k);
     ih = Math.floor(devH / k);
     W = iw + 2; H = ih + 2;
@@ -141,8 +166,16 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     camera.updateProjectionMatrix();
     blit.material.uniforms.uUvScale!.value.set(iw / W, ih / H);
     blit.material.uniforms.uTargetEnv!.value.set(W, H);
-    stats.k = k; stats.dpr = dpr; stats.device = [devW, devH]; stats.envTexels = [iw, ih]; stats.target = [W * 2, H * 2];
+    stats.k = k; stats.kMap = kMap; stats.frame = mode; stats.dpr = dpr; stats.device = [devW, devH]; stats.envTexels = [iw, ih]; stats.target = [W * 2, H * 2];
     return true;
+  }
+  // Cut 8A: the fight frame's k — 2× the map's; with a fixed focus, the largest even k that fits the (2r+1)-tile square on
+  // the short axis, never below the map's k (odd k would split sprite texels across device pixels)
+  function fightK(): number {
+    const kf = 2 * kMap;
+    if (!fixedFocus) return kf;
+    const fit = Math.floor(Math.min(devW, devH) / ((2 * Math.max(1, fixedFocus.radius) + 1) * TILE));
+    return Math.max(kMap, Math.min(kf, fit - (fit & 1)));
   }
 
   // world position of an entity's feet (bottom-centre), snapped to env texels
@@ -162,13 +195,38 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
     return best;
   }
+  // Cut 8A: a combatant the fight frame keeps in the picture (hostiles in view or remembered; dying ones too)
+  function inFight(e: EntState): boolean {
+    if (e.hero || e.ally || e.neutral || e.kind === "bones") return false;
+    return e.remembered || !!st.visible[e.y * st.w + e.x];
+  }
+  // Cut 8A: the fight camera's target — the fixed focus, else the centre of the hero + hostiles bounding box — clamped so
+  // the hero stays inside the middle half of the viewport
+  function fightTarget(hx: number, hy: number): void {
+    let cx: number, cy: number;
+    if (fixedFocus) { cx = fixedFocus.x * TILE + TILE / 2; cy = -fixedFocus.y * TILE - TILE / 2; }
+    else {
+      let x0 = hx, x1 = hx, y0 = hy, y1 = hy;
+      for (const e of st.ents.values()) {
+        if (!inFight(e)) continue;
+        const [ex, ey] = feet(e);
+        const cy2 = ey + TILE;
+        if (ex < x0) x0 = ex; if (ex > x1) x1 = ex; if (cy2 < y0) y0 = cy2; if (cy2 > y1) y1 = cy2;
+      }
+      cx = (x0 + x1) / 2; cy = (y0 + y1) / 2;
+    }
+    const lx = iw / 4, ly = ih / 4;
+    cam.tx = Math.max(hx - lx, Math.min(hx + lx, cx));
+    cam.ty = Math.max(hy - ly, Math.min(hy + ly, cy));
+  }
   function updateCamera(dt: number, snapNow: boolean): void {
     const h = st.hero;
     if (h) {
       const [fx, fy] = feet(h);
       const hx = fx, hy = fy + TILE;
-      const foe = nearestHostile(h);
-      if (foe) {
+      const foe = mode === "fight" ? null : nearestHostile(h);
+      if (mode === "fight") fightTarget(hx, hy);
+      else if (foe) {
         const [ex, ey] = feet(foe);
         const mx = (hx + ex) / 2, my = (hy + ey + TILE) / 2, lx = iw / 6, ly = ih / 6;
         cam.tx = Math.max(hx - lx, Math.min(hx + lx, mx));
@@ -192,6 +250,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     blit.setPalette(p);
     clear.setRGB(p[0]![0], p[0]![1], p[0]![2]);
     const b = st.biome;
+    const fight = mode === "fight";
+    const bright = p[p.length - 1]!;
+    // Cut 8A: a hit flashes to the palette's brightest in the fight frame; the map keeps its paper white
+    if (fight) L.ents.setFlash(bright[0], bright[1], bright[2]); else L.ents.setFlash(0.98, 0.95, 0.9);
 
     // tiles: one instance per seen tile; visible ones full, remembered ones dimmed. Cut 5 §4 props (shrine, vault,
     // nest) stand on a floor tile in the same layer: shrine flames flicker at 1 Hz, a nest shows awake once woken.
@@ -243,8 +305,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
     // entities (sprite density: 1 sprite texel = 0.5 world), shadows, glyphs. A remembered foe (Cut 4 §3) is drawn
     // at its last seen tile dimmed like a memory tile: no shadow, no flash, no telegraph glyph.
-    L.shadows.begin(); L.ents.begin(); L.glyphs.begin();
+    L.shadows.begin(); L.ents.begin(); L.glyphs.begin(); L.hud.begin(); L.text.begin();
     stats.ents = st.ents.size; stats.drawn = 0;
+    const barBg = fight ? atlas.solid(BAR_RED) : null, barFg = fight ? atlas.solid(cssHex(bright)) : null;
+    const gs = fight ? TILE * 2 : TILE; // Cut 8A: telegraph glyphs at 2× in the fight frame
     for (const e of st.ents.values()) {
       if (e.kind === "bones") continue; // drawn in the items layer above
       const vi = e.y * st.w + e.x;
@@ -266,9 +330,19 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
       const flash = st.flashing(e) ? 1 : 0;
       L.ents.push(fx, fy, z, s.w / 2, s.h / 2, s.u0, s.v0, s.u1, s.v1, e.ally && !e.hero ? 1.1 : 1, flash, e.fade, e.flip ? 1 : 0);
+      // Cut 8A: in the fight frame every combatant carries an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
+      // above its sprite; a hostile has its name under its feet; glyphs sit above the bar
+      let top = fy + h + 2;
+      if (fight && barBg && barFg && !e.dying && !e.neutral && e.maxHp > 0) {
+        const fill = Math.max(0, Math.min(BAR_W, Math.round((BAR_W * e.hp) / e.maxHp)));
+        L.hud.push(fx, fy + h + 1, 3.7, BAR_W, 1, barBg.u0, barBg.v0, barBg.u1, barBg.v1);
+        if (fill > 0) L.hud.push(fx - BAR_W / 2 + fill / 2, fy + h + 1, 3.8, fill, 1, barFg.u0, barFg.v0, barFg.u1, barFg.v1);
+        top = fy + h + 4;
+        if (!e.hero && !e.ally) drawText(e.name, fx, fy - FONT_CELL_H / 2 - 2, 4, 0.5);
+      }
       if (e.glyph) {
         const g = atlas.glyph(e.glyph);
-        L.glyphs.push(fx, fy + h + 2, 3.5, TILE, TILE, g.u0, g.v0, g.u1, g.v1);
+        L.glyphs.push(fx, top, 3.5, gs, gs, g.u0, g.v0, g.u1, g.v1);
       }
     }
     // tame leash: dots along an arc from the hero's chest to the target, revealed over the leash time
@@ -294,24 +368,35 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         L.glyphs.push(Math.round(px * TILE) + TILE / 2, -Math.round(py * TILE) - TILE / 2 - 1, 3.6, 2, 2, d.u0, d.v0, d.u1, d.v1);
       }
     }
-    L.shadows.end(); L.ents.end(); L.glyphs.end();
+    L.shadows.end(); L.ents.end(); L.glyphs.end(); L.hud.end();
 
     // callout: bitmap text above the hero (env density)
-    L.text.begin();
     const hero = st.hero;
     if (st.callout && hero) {
-      const text = st.callout.text.toUpperCase();
       const [fx, fy] = feet(hero);
-      const width = text.length * FONT_ADVANCE + 1;
-      let x = Math.round(fx - width / 2);
-      const y = fy + atlas.entity(hero.kind).h / 2 + 6;
-      for (const ch of text) {
-        const g = atlas.font(ch);
-        L.text.push(x + FONT_CELL_W / 2, y, 4, FONT_CELL_W, FONT_CELL_H, g.u0, g.v0, g.u1, g.v1);
-        x += FONT_ADVANCE;
-      }
+      // in the fight frame the callout clears the hp bar and, when up, the 2× glyph above it
+      drawText(st.callout.text, fx, fy + atlas.entity(hero.kind).h / 2 + (fight ? (hero.glyph ? gs + 6 : 5) : 6), 4);
+    }
+    // Cut 8A: the firing row as a caption at the top of the fight frame (`R2 attack goblin`), under the DOM hud
+    if (fight && st.caption) {
+      const chars = Math.max(1, Math.floor((iw - 2) / FONT_ADVANCE));
+      drawText(st.caption.text.slice(0, chars), camSX, camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - FONT_CELL_H, 4.1);
     }
     L.text.end();
+  }
+
+  // bitmap text centred on x, its baseline (cell bottom) at y. scale 1 = env density; 0.5 = sprite density (one font
+  // texel per target px, half the size on screen: the fight frame's names), positions snapped to that grid
+  function drawText(text: string, cx: number, y: number, z: number, scale = 1): void {
+    const t = text.toUpperCase();
+    const adv = FONT_ADVANCE * scale, cw = FONT_CELL_W * scale, chh = FONT_CELL_H * scale;
+    const width = t.length * adv + scale;
+    let x = Math.round((cx - width / 2) / scale) * scale;
+    for (const ch of t) {
+      const g = atlas.font(ch);
+      L.text.push(x + cw / 2, y, z, cw, chh, g.u0, g.v0, g.u1, g.v1);
+      x += adv;
+    }
   }
 
   function frame(now: number): void {
@@ -331,12 +416,15 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     updateCamera(dt / 1000, snapCam);
     if (!st.loaded) return;
     const t0 = performance.now();
+    // snap camera to the env-texel grid; remainder → blit UV offset quantised to device px. Cut 8A: the fight frame's
+    // screen shake displaces the snapped centre by whole texels
+    const [shx, shy] = mode === "fight" ? st.shakeOffset() : [0, 0];
+    const sx = Math.round(cam.x) + shx, sy = Math.round(cam.y) + shy;
+    camSX = sx; camSY = sy;
     build(now);
     const t1 = performance.now();
 
-    // snap camera to the env-texel grid; remainder → blit UV offset quantised to device px
-    const sx = Math.round(cam.x), sy = Math.round(cam.y);
-    const fx = Math.round((cam.x - sx) * k) / k, fy = Math.round((cam.y - sy) * k) / k;
+    const fx = Math.round((cam.x + shx - sx) * k) / k, fy = Math.round((cam.y + shy - sy) * k) / k;
     camera.position.set(sx, sy, 100);
     camera.updateMatrixWorld();
     const u = blit.material.uniforms;
@@ -344,7 +432,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     u.uCam!.value.set(sx, sy);
     const hero = st.hero;
     if (hero) { const [hx, hy] = feet(hero); u.uHero!.value.set(hx, hy + TILE / 2); }
-    u.uFade!.value = st.fade;
+    u.uFade!.value = cutFrames > 0 ? 1 : st.fade; // Cut 8A: a frame change is a cut through dark
+    if (cutFrames > 0) cutFrames--;
     u.uFog!.value.set(st.vision - 1, st.vision + 0.5); // fog bands follow the floor's vision (Cut 3: the Deep is 4)
 
     renderer.info.reset();
@@ -373,6 +462,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     if (hero) stats.hero = [hero.px, hero.py];
     stats.camera = [cam.tx, cam.ty];
     stats.projectiles = st.projectilePositions().length;
+    stats.shake = [shx, shy]; stats.glyphs = L.glyphs.count; stats.caption = st.caption?.text ?? null;
   }
 
   measure();
@@ -388,6 +478,16 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     skipToEvent() { st.skipToEvent(); },
     seek(t) { st.seek(t); },
     sync(snap) { st.sync(snap); },
+    setFrame(f, focus) {
+      const changed = f !== mode;
+      if (!changed && !focus && !fixedFocus) return;
+      mode = f; fixedFocus = f === "fight" && focus ? { ...focus } : null;
+      st.fight = f === "fight";
+      lastCss = ""; measure();
+      cutFrames = CUT_FRAMES;
+      updateCamera(0, true);
+    },
+    frame() { return mode; },
     tick() { return st.tickNow(); },
     idle() { return st.idle(); },
     resize() { lastCss = ""; measure(); },
