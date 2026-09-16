@@ -154,3 +154,14 @@ row (a human who read the fact would); buys the cheapest affordable unlock; fiel
 
 Each track reports: what changed, tests/gates output, wire deviations recorded in
 `crates/riddle-core/README.md`.
+
+## Recorded outcome (2026-09-16)
+
+All metrics gates pass on 30 seeds (expeditions per 8 h: DEFAULT 15.8, EDITED 12.8 with 7.2
+banked; verdict 0.06 s; patches fired ≥ 50%: 100%). Dayplayer: marks-unspent, empty-check-ins
+and L10-not-before-day-7 pass. **Deviation:** "days with ≥ 1 unlock ≥ 10/14" (8.5) and "stall
+≤ 3 days" (4) fail because a competent simulated player finishes the 16-floor v1 dungeon on day
+4–9 and then has little left to buy. The bars assume the 30-floor dungeon; boss HP was not
+inflated to hide it (anti-pillar). They are printed by `tools/gates.mjs` and re-enforced when M7
+content (5 biomes, depth 30) or ascension variants land. Rest floor (20–30 min) and the 40 000
+tick run cap are recorded in the core README.
