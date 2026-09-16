@@ -1,0 +1,71 @@
+{
+  "$comment": "Blind Tier-1 card, rater C, seed 37, build 186d0ac, phone 400x800@3 via tools/browser.mjs, one browser context for the whole horizon. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md 1-3, the template. Did not open PLAN.md, research/, CUT*.md, INTEGRATION.md, other cards or source (skimmed the header comment of tools/playtest.mjs for usage only). Audio: none in the build, unassessed. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md. bot stays na (caps applied by the coordinator).",
+  "game": "Riddle",
+  "build": "186d0ac",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterC",
+  "horizon": {
+    "activeMinutes": 68,
+    "absences": ["8h simulated once via ?dev=1&absent=8h after 48 min of cold play; 19 min on return"],
+    "runsWatched": 7,
+    "runsOffline": 15,
+    "ruleEdits": 9,
+    "$notes": "Runs watched: r1 bailed at D5 11/36 with $84; r2 died D5 to a goblin archer with $144; r3 returned on my hp<20% rule with $177; r4 returned $91; r5-r7 died D5 to the goblin warlord. Deaths read: 4 (archer, warlord x3). Own edits: unknown item+hp>75% -> drink unknown; foes>=2 -> to corridor (dragged above attack nearest); 75% -> 50%; foes>=2/corridor -> foe: ranged/attack ranged; unknown -> foe: fast + hp>50% -> tame fast; deleted hp<20% return; foe: boss -> cleave (dragged to R2); reordered tame above attack. Offered patches tapped: 1 (hp<20% -> return). Cards bought: kite archers (later deleted to re-enable send), boss focus. Screenshots in scratchpad/raterC: s01 first minute, s31 first death, s16/s19 first edit, s41-s43 return screen, s45 first edit after return."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false,
+    "$notes": "darkPattern: a 'rest 20m' label sits next to send after every run but never blocked a send and nothing is sold to skip it; death costs about $110 of banked gold (1173 -> 1063 -> 953) that no screen states, which is a stake I did not explicitly choose but it is not a wait. defaultRules: the forecast for D5 went 56% (defaults) -> 98-100% with my edits. unfair: all four deaths were addressable in the vocabulary (foe: boss verbs, return/retreat). return: 15 runs, a STALL diagnosis and ~6 affordable unlocks were waiting."
+  },
+  "criterion": {
+    "fun_1to7": 4,
+    "playAgainTomorrow_1to7": 4,
+    "recommend_0to10": 5,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: I let the second hero push past D4 with $103 on the line instead of bailing like I had the first time, and my drink-unknown rule paid off twice when the heal it had identified fired at 7 HP. On D5 the header went to !!! and 'boss · counter: unknown', and my own foes>=2 -> to corridor rule kept walking him away from a goblin archer that just kept drawing. He died at $144 with '8 unknown unused', the trace showed 'R2 to corridor hp 3 foes 6 goblin_archer draws' three times, and I knew exactly which line of mine did it."
+  },
+  "probes": {
+    "clarity": "I never knew why 'Returned with $50' followed a bail with $84 in the header, why the send button went grey at '6/5' rows, or why 'R1 hp<30% drink heal' sat still while the trace read hp 3 with two heal potions bought.",
+    "decisions": "At 11/36 with '$84 · death: lose all' I bailed; next run at 19/36 with $103 I pushed, and the live FORECAST (D5 56% -> 60% -> 50%) told me which rule edits were worth keeping.",
+    "mastery": "An hour in I knew that unknown potions never heal you, that rule order is execution order (my tame rule below attack nearest never fired), and that 'hp<20% -> return' is a cap, because the game said 'R1 return ended 16 runs at D5'.",
+    "tension": "I sweated at D5 with 11/36 and $84 in red text, and when I pushed instead the game answered with '!!!', 'near death' and then 'goblin archer · D5 · 2 over'.",
+    "feel": "Callouts flick past ('archer draws', 'blades!', '-2 warlord') and the '!' to '!!!!!' escalation reads well, but a hit is a number in the header and the hero sprite barely moves; audio unassessed.",
+    "surprise": "Monkeys made my gold go down ('$4 -> $1', '-2 monkey'), a shrine said 'Pray, at a price', run 3 found 'heir 1's bones: 12 items', and the warlord's 'shields up / rallied!' loop repeated identically on four D5 visits.",
+    "expression": "Mine is 'unknown item + hp>50% -> drink unknown', 'foe: fast + hp>50% -> tame fast', 'foe: boss -> cleave' on a greedy L3 fighter, but every offered patch tried to hand me 'hp<20% -> return'.",
+    "story": "'Three jackals cornered him to 10 HP; R2 drank; reached D5' and 'Found heir 1's bones: 12 items' are lines I would repeat; the five REEL lines after the night all follow the same template.",
+    "pacing": "At slow speed there were 40-second stretches of 'pick up' with 36/36 unchanged; auto fixed that; a camp check-in was 3-5 minutes and ended on send; ▶▶| needed ~150 presses to finish one run and stalls behind the in-run VAULT sheet.",
+    "failure": "'goblin archer · D5 · 2 over · 8 unknown unused · gap' with a five-row trace of t/R/hp/foes/tele and three patches quoting 'survives 100% · base 8%' told me the cause, the margin and my rule; it never said why drink heal stayed silent at 3 HP.",
+    "social": "weight 0.",
+    "autonomy": "I chose to bail at 11/36, to keep the leash instead of the axe, and to delete the return rule and risk a hero on purpose; where he walks is his.",
+    "progression": "Within a run: $0 -> $177 and axe +1; between runs: fighter L1 -> L3 across three heirs, ★0 -> ★4, the supplies shelf growing from one leash to eight named potions as I identified them; automation: 'hp<20% -> return' replaced my manual bail and 'auto: restock' cost ◆4.",
+    "aesthetic": "A dark room of olive tiles with a hero, a rat and a jackal drawn well enough; walls read as static and nothing moves when nobody is fighting; I would not sit in it.",
+    "return": "I came back to '15 RUNS · D5 BEST · ◆+14 · 0 DEATHS · rested 300m', a STALL card saying 'R1 return ended 16 runs at D5' with a patch offered, 'R2 never fired', $1209 and ◆21; I decided to swap corridor for attack ranged, buy six unlocks and later delete R1; I did not want to stay.",
+    "attribution": "The last run ended because my R5 attack nearest kept swinging at a shielded warlord at 3 HP; the archer death was my corridor rule; the D5 cap was my return rule; the heal that never fired I cannot place on anyone."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.3, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Rules, forecast and rule-named callouts are readable, but in an ordinary session I could not explain the gold ('$84' in the run, 'Returned with $50', '$68' in camp), the grey send at '6/5' rows with no message, 'rest 20m', what a bought card does when tapped, or why 'hp<30% drink heal' never fired at 3 HP in three deaths." },
+    { "id": "decisions", "human": 0.6, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Bail-or-push with '$84 · death: lose all' and rule edits scored by a live forecast are real trade-offs I would defend; but the forecast jitters (D5 56/60/50 with no edit), D6 stayed '0%' whatever I wrote, the vault 'choose one' at 'VAULT 0/0' discarded my leash, and the offered patches were three flavours of give up." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "D5 forecast went 56% -> 98-100% through my own edits and I learned rule order and the unknown-potion trick; the next thing to learn (how to pass the warlord, 'boss · counter: known') is never shown, so I died to him three times the same way." },
+    { "id": "tension", "human": 0.8, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Stakes I chose: bailed at 11/36 with $84, pushed at 19/36 with $103 and lost $144 at 'near death'; the header restated my rule as the stake ('$1 · return at 20%'). Lapse: after the night $1209 banked made a $139 run feel free." },
+    { "id": "feel", "human": 0.3, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Buttons and the ≡ drag respond at once; hits are '-2 goblin' in the header and the sprite does not sell them; no sound (unassessed)." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Archers drawing, monkeys stealing ('$4 -> $1'), a shrine, a den, heir bones and a named monkey 'Morog' all appeared and three of them changed my rules; D5 was the same warlord fight four times." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My six rows are recognisably mine and the trait line (cowardly/greedy/curious) colours callouts; bought cards land as opaque '[card] kite archers' rows and the patch shelf pushes one shape." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "The trace plus 'Found heir 1's bones: 12 items' gave me a run with a turn; the REEL is five identical-template one-liners and the CHRONICLE sheet opened empty ('·') after a bail." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 40 s of 'pick up' at slow, fine on auto; check-in: 3-5 min ending on send; cadence: overnight distinct. Friction: ▶▶| advances a few turns per press and is blocked by the VAULT sheet; the skip loop for one run took minutes." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "'goblin warlord · D5 · 4 over · 2 unknown unused · gap', five rows of t/R/hp/foes/tele and patches with 'survives 100% · base 0%' on one screen, next heir in seconds. Lapse: the trace lists only rules that fired, so 'hp<30% drink heal' not firing at 3 HP is invisible, and 'morgue' does nothing." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Bail, keep, vault-pref chips and deleting the safety rule on purpose were mine; the route is the hero's." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "All three layers seen: in-run gold/items, persistent L1 -> L3, ★4, identified potions on the shelf, ◆ unlocks every run (+7, +5, +14); automation: 'hp<20% -> return' and 'auto: restock'. Lapse: after the night $1209 had nothing to buy but $40 potions while ◆ prices climbed (+1 row ◆2 -> ◆7)." },
+    { "id": "aesthetic", "human": 0.3, "bot": "na", "proxy": "none", "note": "Moody olive pixel rooms with a decent hero and jackal, but walls are a tile mush and nothing lives in the frame between fights; no sound." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "'15 RUNS · ◆+14 · rested 300m', STALL 'R1 return ended 16 runs at D5' with a patch, 'R2 never fired', $1209/◆21 and six affordable unlocks; first edit within a minute. Lapse: sixteen identical D5 returns and a five-line template REEL make the night volume, not a story; 'rested 300m' unexplained." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Retelling counts nine first-person pronouns: my drink-unknown made the heal fire, my corridor rule got him shot, my return rule capped 16 runs (the game said so), my ordering starved tame fast. Lapse: the silent heal rule across three deaths belongs to nobody I can name." }
+  ]
+}
