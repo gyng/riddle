@@ -378,20 +378,56 @@ export function renderWatch(app: App): Mounted {
   }
   function togglePause(): void { paused = !paused; paintPause(); applySpeed(); }
   function paintPause(): void { pause.classList.toggle("on", paused); replace(pause, paused ? "▶" : "⏸"); }
+  let skipQueued = false;
   async function skipToEvent(): Promise<void> {
-    if (done || inflight || !viewer || exitTier || pendingLoad || held) return;
+    if (done || !viewer || exitTier) return;
+    // a floor change waits for the viewer to drain; a skip drains it now instead of at 1×
+    if (pendingLoad) {
+      // drain the old floor, apply the new one, and drop its queued events straight into place
+      const p = pendingLoad; pendingLoad = null;
+      const fv = viewer as Viewer & { seek?: (t: number) => void };
+      viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest);
+      if (fv.seek) fv.seek(engineTick);
+      fbTick = engineTick; release(viewerTick());
+      return;
+    }
+    // a press while a step is in flight is not lost: one skip is queued behind it
+    if (inflight) { skipQueued = true; return; }
+    if (held) { endingFrom = 0; return; } // skip overrides the ending hold: the pump releases the exit batch now
     inflight = true;
+    let inFight = false;
     try {
+      // In a fight, every blow is "interesting"; a skip pressed there means "past this fight":
+      // step until the fight closes (or the run ends), then to the next interesting event.
+      // judged on the engine's own snapshot (the viewer lags it): a fight is any awake hostile
+      // within 2 tiles of the hero, or a scene room with ≥ 2 hostiles
+      const fighting = (sn: Snapshot): boolean => {
+        const hx = sn.hero.x, hy = sn.hero.y;
+        if ((sn.room?.hostiles ?? 0) >= 2) return true;
+        return sn.entities.some((e) => hostile(e) && !e.remembered && Math.max(Math.abs(e.x - hx), Math.abs(e.y - hy)) <= 2);
+      };
+      inFight = snap ? fighting(snap) : false;
       let hit = false;
-      for (let i = 0; i < 30 && !hit && !disposed; i++) {
+      for (let i = 0; i < (inFight ? 120 : 30) && !hit && !disposed; i++) {
         const r = await app.engine.step(BATCH);
-        hit = r.run_over || r.events.some((e) => INTERESTING.has(e.k));
+        const stillFighting = fighting(r.snapshot);
+        hit = r.run_over || (!stillFighting && (!inFight || i > 0) && r.events.some((e) => INTERESTING.has(e.k)));
+        if (inFight && !stillFighting) hit = true;   // the fight closed: stop here so the player sees the map again
         handle(r);
         if (pendingLoad || held) break;
       }
     } catch (e) { console.warn("skip failed", e); }
     inflight = false;
-    if (!pendingLoad && !held) { viewer.skipToEvent(); fbTick = engineTick; release(viewerTick()); }
+    if (!pendingLoad && !held) {
+      // past a fight the viewer must land where the engine is, not at the next blow; otherwise
+      // 120 engine batches leave the viewer replaying the whole fight at 1×
+      // land the viewer where the engine stopped (just before the interesting event it found);
+      // replaying the skipped span at 1× is what made ▶▶| feel dead in a fight
+      const fv = viewer as Viewer & { seek?: (t: number) => void };
+      if (fv.seek) fv.seek(Math.max(viewerTick(), engineTick - BATCH)); else viewer.skipToEvent();
+      fbTick = Math.max(fbTick, engineTick - BATCH); release(viewerTick());
+    }
+    if (skipQueued) { skipQueued = false; void skipToEvent(); }
   }
   // Cut 5 §5: `return` fires on the next hero action as a chore (`engine.bail()`, the rules untouched); the run plays out to
   // the exit at 8× under `returning`, then the exit sheet. An engine without `bail` gets the row prepend, restored at the exit.
