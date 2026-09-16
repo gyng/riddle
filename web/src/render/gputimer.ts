@@ -58,7 +58,9 @@ export class GpuTimer {
     const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT) as boolean;
     while (this.tail < this.head) {
       const q = this.ring[this.tail % RING]!;
-      if (!gl.getQueryParameter(q, ext.QUERY_RESULT_AVAILABLE_EXT)) break;
+      const avail = gl.getQueryParameter(q, ext.QUERY_RESULT_AVAILABLE_EXT);
+      if (gl.getError() === gl.INVALID_ENUM) { this.ext = null; return; }   // harness without real query support: stop, no console spam
+      if (!avail) break;
       if (!disjoint) {
         const ns = gl.getQueryParameter(q, ext.QUERY_RESULT_EXT) as number;
         this.ms = ns / 1e6;

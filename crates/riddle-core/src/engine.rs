@@ -16,7 +16,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 pub const SAVE_VERSION: u32 = 1;
 pub const HERO_ID: u32 = 1;
 /// History entries kept for verdict replays (one per 10 ticks ⇒ ≈ 100 ticks back).
-pub const HISTORY_TURNS: usize = 10;
+/// Hero turns kept for verdicts. The replay starts at the last checkpoint where the hero still had
+/// half its HP (up to this many turns back), so slow bleeds are attributable to a row, not to dice.
+pub const HISTORY_TURNS: usize = 30;
 pub const HISTORY_STRIDE: u32 = 10;
 /// A run that cannot finish in this many ticks (≈ 67 min at 1×) comes home empty-handed
 /// (tier `return`, yield ×0: a stalemate is not a policy).

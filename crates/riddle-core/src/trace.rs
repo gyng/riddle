@@ -14,6 +14,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const REPLAYS: u32 = 12;
 pub const SURVIVE_BAR: f64 = 0.6;
+/// The verdict replay starts at least this many hero turns before death.
+pub const MIN_WINDOW: usize = 8;
 /// A patch row must fire in this share of its replays to count as tested at all.
 pub const FIRED_BAR: f64 = 0.5;
 /// How many survival-ranked candidates get a full forecast delta before the final cut.
@@ -56,7 +58,19 @@ pub fn death_record(game: &Game, run: &Run) -> DeathRec {
         patches: Vec::new(),
         morgue: morgue(game, run, &rules),
     };
-    let (t10, t10_facts) = match game.history.front() {
+    // Checkpoint: the most recent history entry where the hero still had ≥ 50% HP, but at least
+    // MIN_WINDOW turns before death so a patch has room to act; else the oldest entry.
+    let n = game.history.len();
+    let pick = game
+        .history
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| i + MIN_WINDOW <= n)
+        .filter(|(_, (r, _))| r.hero.hp_pct() >= 50)
+        .map(|(i, _)| i)
+        .last()
+        .unwrap_or(0);
+    let (t10, t10_facts) = match game.history.get(pick) {
         Some((r, f)) => (Some(r.clone()), f.clone()),
         None => (None, BTreeSet::new()),
     };
@@ -496,6 +510,7 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     // A patch must beat the baseline by 0.15 or move the forecast by 0.02; an unconditioned row
     // must beat the baseline by 0.30. Rank by (survive − baseline), then by the delta; show
     // three, never two of one family.
+    let pre_retain = rec.death.patches.clone();
     rec.death.patches.retain(|p| {
         let edge = p.survive - baseline;
         (edge > PATCH_MARGIN || p.forecast_delta > 0.02) && (!p.row.conds.is_empty() || edge >= 0.3)
@@ -506,6 +521,13 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     let patches = std::mem::take(&mut rec.death.patches);
     rec.death.patches = one_per_family(patches);
     rec.death.patches.truncate(SHOWN);
+    // A `gap` never shows an empty list: fall back to the best survivors even without an edge.
+    if rec.death.patches.is_empty() && rec.death.verdict == "gap" {
+        let mut all = pre_retain;
+        all.sort_by(|a, b| b.survive.partial_cmp(&a.survive).unwrap().then(b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap()));
+        rec.death.patches = one_per_family(all);
+        rec.death.patches.truncate(SHOWN);
+    }
 }
 
 /// The full death for a run id, computing verdict and deltas on first request.
