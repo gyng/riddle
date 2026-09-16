@@ -64,9 +64,33 @@ pub fn forecast(game: &Game) -> Forecast {
     forecast_with(game, game.lineage.rules(), FORECAST_SIMS)
 }
 
+/// Cut 6 §9: the same forecast at `REFINE_SIMS` sims — the same seeds first, then as many
+/// again (a second, quieter pass the client runs once the rule set has been still for 2 s).
+pub fn forecast_refine(game: &Game) -> Forecast {
+    forecast_with(game, game.lineage.rules(), REFINE_SIMS)
+}
+
+pub const REFINE_SIMS: u32 = 2 * FORECAST_SIMS;
+
+/// Cut 6 §9: the forecast's seeds are a function of (rules, lineage seed, depth) — re-reading
+/// the same set gives the same number, and nothing transient (marks, renown, the rest clock,
+/// the run in progress) moves it. The lineage state a sim starts from (facts, gold, class…)
+/// still does: `reach_with`'s fingerprint is the same idea.
+pub fn forecast_tag(game: &Game, rules: &RuleSet, depth: u32) -> u64 {
+    let mut h: u64 = 0x5EED_F0C4;
+    for b in serde_json::to_string(rules).unwrap_or_default().bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    splitmix(h ^ game.lineage.seed.rotate_left(17) ^ ((depth as u64) << 40))
+}
+
 pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let known_to = game.lineage.best_depth + 1;
-    let results = simulate(game, rules, sims, 0x5EED_F0C4, known_to);
+    let tag = forecast_tag(game, rules, known_to);
+    // The refine pass runs twice the sims under twice the tick budget (the same seeds first).
+    let budget = FORECAST_TICK_BUDGET * (sims as u64).div_ceil(FORECAST_SIMS as u64).max(1);
+    let results = simulate_budget(game, rules, sims, tag, known_to, budget);
     let n = results.len().max(1) as f64;
     let depths = (1..=known_to)
         .map(|d| ForecastDepth { depth: d, reach: results.iter().filter(|r| r.max_depth >= d).count() as f64 / n })

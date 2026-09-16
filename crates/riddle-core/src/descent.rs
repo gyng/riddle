@@ -65,6 +65,9 @@ pub fn biome_for(depth: u32) -> Biome {
     }
 }
 
+/// The boss floors in order (Cut 6 §5: `Lineage.counters` walks them).
+pub const BOSS_DEPTHS: [(&str, u32); 6] = [("goblin_warlord", 5), ("bloat_mother", 10), ("lich", 15), ("foundry_master", 20), ("lurker_queen", 25), ("mirror_king", 30)];
+
 pub fn boss_for(depth: u32) -> Option<&'static str> {
     match depth {
         5 => Some("goblin_warlord"),

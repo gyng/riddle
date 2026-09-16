@@ -129,9 +129,49 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             let prereq_ok = u.prereq.is_none_or(|p| l.unlocks.contains(p));
             let needs = gate(l, u.id).or_else(|| if prereq_ok { None } else { u.prereq.map(|p| p.to_string()) });
             let available = !owned && prereq_ok && needs.is_none() && l.marks >= u.cost;
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs: if owned { None } else { needs }, delta: None }
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs: if owned { None } else { needs }, delta: None, rows: unlock_rows(u.id) }
         })
         .collect()
+}
+
+/// Cut 6 §6: what a tactic card does, as rows (its sub-rows in order, the vocabulary's own
+/// tokens), or an automation's effect as one row-like entry (`{conds: [], verb: {v: "auto",
+/// a: "keeps best weapon+armour"}}`). `None` for rows, vaults, slots, classes, conditions and
+/// verbs. Rows are the language: no sentences.
+pub fn unlock_rows(id: &str) -> Option<Vec<Row>> {
+    let tag = |t: &str| Cond::t("foe_tag", t);
+    let n = Cond::n;
+    let row = |conds: Vec<Cond>, v: &str| Row::new(conds, Verb::new(v));
+    let rowa = |conds: Vec<Cond>, v: &str, a: &str| Row::new(conds, Verb::arg(v, a));
+    let auto = |what: &str| Some(vec![Row::new(vec![], Verb::arg("auto", what))]);
+    match id {
+        "corridor_fighting" => Some(vec![row(vec![n("foes>=", 2)], "back_corridor"), rowa(vec![Cond::flag("in_corridor"), n("adj>=", 1)], "attack", "nearest"), row(vec![Cond::flag("in_corridor"), n("foes>=", 1)], "hold"), rowa(vec![n("foes>=", 1)], "attack", "nearest")]),
+        "kite_archers" => Some(vec![row(vec![tag("ranged"), tag("telegraph")], "retreat"), rowa(vec![tag("ranged")], "attack", "tag:ranged")]),
+        "stair_dance" => Some(vec![row(vec![n("hp<", 50), n("foes>=", 1)], "descend"), row(vec![n("foes>=", 2), Cond::flag("path_stairs")], "descend"), rowa(vec![n("adj>=", 1)], "attack", "nearest")]),
+        "gas_step" => Some(vec![rowa(vec![tag("gas"), n("adj>=", 1)], "shoot", "tag:gas"), row(vec![tag("gas"), n("adj>=", 1), n("hp<", 60)], "retreat"), rowa(vec![tag("gas"), n("adj>=", 1)], "attack", "tag:gas"), row(vec![tag("gas")], "hold")]),
+        "pack_break" => Some(vec![row(vec![n("foes>=", 2)], "back_corridor"), rowa(vec![n("adj>=", 1)], "attack", "lowest"), row(vec![n("foes>=", 2)], "hold"), rowa(vec![n("foes>=", 1)], "attack", "nearest")]),
+        "thief_guard" => Some(vec![rowa(vec![tag("thief"), n("adj>=", 1)], "attack", "tag:thief"), rowa(vec![tag("thief")], "shoot", "tag:thief"), rowa(vec![tag("thief")], "throw", "fire,tag:thief"), row(vec![tag("thief")], "back_corridor")]),
+        "boss_focus" => Some(vec![rowa(vec![tag("boss")], "attack", "tag:boss"), rowa(vec![tag("boss"), tag("gas")], "throw", "fire,tag:boss"), rowa(vec![tag("summoned")], "attack", "tag:summoned")]),
+        "last_stand" => Some(vec![rowa(vec![n("hp<", 30), n("adj>=", 1)], "drink", "heal"), row(vec![n("hp<", 30), n("adj>=", 1)], "second_wind"), rowa(vec![n("hp<", 30), n("adj>=", 1)], "drink", "unknown"), rowa(vec![n("hp<", 30), n("adj>=", 1)], "throw", "fire,nearest"), rowa(vec![n("hp<", 30), n("adj>=", 1)], "attack", "lowest")]),
+        "cadence" => Some(vec![rowa(vec![n("foes>=", 1)], "attack", "nearest"), row(vec![n("foes>=", 1)], "shield_bash"), row(vec![n("foes>=", 1)], "cleave"), rowa(vec![n("foes>=", 1)], "throw", "fire,nearest"), row(vec![n("foes>=", 1)], "hold")]),
+        "noise_discipline" => Some(vec![row(vec![n("hp<", 90)], "rest"), row(vec![tag("blind"), n("hp<", 90)], "descend")]),
+        "reflect_read" => Some(vec![rowa(vec![tag("reflect_melee")], "shoot", "tag:reflect_melee"), rowa(vec![tag("reflect_melee"), tag("boss")], "throw", "fire,tag:boss"), rowa(vec![tag("reflect_melee"), n("adj>=", 1)], "attack", "nearest"), row(vec![tag("reflect_melee")], "retreat")]),
+        "deep_march" => Some(vec![row(vec![n("floor_seen>=", 40)], "descend")]),
+        "phalanx" => Some(vec![row(vec![n("foes>=", 2)], "back_corridor"), row(vec![n("foes>=", 1)], "taunt"), rowa(vec![n("adj>=", 1)], "attack", "nearest")]),
+        "hit_and_fade" => Some(vec![row(vec![n("adj>=", 1)], "backstab"), row(vec![n("adj>=", 1)], "vanish"), rowa(vec![n("adj>=", 1)], "attack", "nearest")]),
+        "hawkeye" => Some(vec![row(vec![n("adj>=", 1)], "kite"), row(vec![n("foes>=", 2)], "volley"), rowa(vec![n("foes>=", 1)], "double_shot", "nearest"), rowa(vec![n("foes>=", 1)], "shoot", "nearest")]),
+        "archmage" => Some(vec![row(vec![n("adj>=", 2)], "nova"), row(vec![n("adj>=", 1)], "ward"), row(vec![n("adj>=", 1), n("hp<", 50)], "blink"), rowa(vec![n("foes>=", 1)], "bolt", "nearest")]),
+        "quartermaster" => auto("keeps best weapon+armour"),
+        "auto_supply" => auto("rebuys last supplies"),
+        "auto_insure" => auto("insures brought items"),
+        "incubator" => auto("eggs hatch 1 rest"),
+        "supply_cap_5" => auto("5 supplies"),
+        "bone_sense" => auto("paths to bones"),
+        "third_tag" => auto("breeds 3 tags"),
+        "lantern_rig" => auto("+2 vision"),
+        "recall_sense" => Some(vec![rowa(vec![n("hp<", 15)], "read", "recall")]),
+        _ => None,
+    }
 }
 
 /// Cut 4 §9: the row a tactic card or a verb unlock would add (its natural place, at the top
@@ -307,5 +347,39 @@ mod tests {
         assert_eq!(kite.needs.as_deref(), Some("fact: ranged"));
         assert!(cat.iter().find(|u| u.id == "row6").unwrap().needs.as_deref() == Some("row5"));
         assert!(cat.iter().find(|u| u.id == "cond_turns").unwrap().needs.is_none());
+    }
+
+    /// Cut 6 §6: every card and automation carries rows; rows, vaults, slots, classes,
+    /// conditions and verbs do not. Card rows use real tokens (≤ 3 conds); automations are
+    /// one `auto` row with a ≤ 4-word effect.
+    #[test]
+    fn cards_and_automations_carry_rows() {
+        let l = LineageState::new(1);
+        let cat = catalogue(&l);
+        for u in &cat {
+            let card = TACTIC_CARDS.contains(&u.id.as_str()) || TIER2_CARDS.contains(&u.id.as_str());
+            let auto = matches!(u.id.as_str(), "quartermaster" | "auto_supply" | "auto_insure" | "incubator" | "supply_cap_5" | "bone_sense" | "third_tag" | "lantern_rig" | "recall_sense");
+            match &u.rows {
+                Some(rows) => {
+                    assert!(card || auto, "{} carries rows", u.id);
+                    assert!(!rows.is_empty() && rows.len() <= 5, "{}", u.id);
+                    for r in rows {
+                        assert!(r.conds.len() <= 3, "{}: {r:?}", u.id);
+                        for c in &r.conds {
+                            assert!(c.valid(), "{}: {c:?}", u.id);
+                        }
+                        if r.verb.v == "auto" {
+                            assert!(crate::rules::word_count(r.verb.a.as_deref().unwrap_or("")) <= 4, "{}: {r:?}", u.id);
+                        } else {
+                            assert!(r.verb.valid(), "{}: {r:?}", u.id);
+                        }
+                    }
+                }
+                None => assert!(!card && !auto, "{} has no rows", u.id),
+            }
+        }
+        for m in MASTERY_CARDS {
+            assert!(unlock_rows(m).is_some(), "{m}");
+        }
     }
 }

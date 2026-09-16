@@ -72,7 +72,7 @@ fn main() {
                         Ev::Callout { t, text } => println!("{t:>6}   [{text}]"),
                         Ev::Use { t, item, outcome } => println!("{t:>6}   use {item}: {outcome}"),
                         Ev::Descend { t, depth, biome } => println!("{t:>6} === D{depth} {biome}"),
-                        Ev::Exit { t, tier, loot_kept } => println!("{t:>6} === exit {tier} loot {loot_kept}"),
+                        Ev::Exit { t, tier, loot_kept, .. } => println!("{t:>6} === exit {tier} loot {loot_kept}"),
                         Ev::Spawn { t, e } => println!("{t:>6}   spawn {} #{}", e.kind, e.id),
                         Ev::Telegraph { t, id, what } => println!("{t:>6}   #{id} telegraphs {what}"),
                         Ev::Move { t, id, x, y } if *id == 1 || args.iter().any(|a| a == "--moves") => println!("{t:>6}   move #{id} → ({x},{y})"),

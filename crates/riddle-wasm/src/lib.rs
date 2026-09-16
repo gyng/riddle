@@ -77,6 +77,12 @@ impl Game {
         js(&self.inner.forecast())
     }
 
+    /// Cut 6 §9: the same forecast at 100 sims (same seeds first), the client's refine pass.
+    #[wasm_bindgen(js_name = forecastRefine)]
+    pub fn forecast_refine(&self) -> String {
+        js(&self.inner.forecast_refine())
+    }
+
     pub fn send(&mut self) -> String {
         js(&self.inner.send())
     }

@@ -1,7 +1,7 @@
 # riddle-core
 
 Deterministic roguelike sim, rule engine, facts, forecast, offline batch, chronicle, sifter,
-meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4, Cut 5). All game truth lives here; `riddle-wasm` is a JSON bridge.
+meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4, Cut 5, Cut 6). All game truth lives here; `riddle-wasm` is a JSON bridge.
 
 ## Wire deviations
 
@@ -474,7 +474,90 @@ fields). Where the contract left a choice open, this is what the engine does:
 - **Examples**: `stories [seeds] [hours]` prints reels, episodes, chronicle lines and the
   situation counts of DEFAULT and EDITED absences (the Cut 5 probe).
 
-## Additions to the `Engine` interface (all JSON strings)
+## Cut 6 (clarity: every number reconciles, every silence speaks) — deviations and additions
+
+- **The ledger line** (§1). Every exit settles into an `ExitLine {carried, keep_pct, kept,
+  spent, spent_on, text}`: `carried` is the run's gold on the hero, `kept = carried ×
+  keep_pct / 100` (bank 100 / return 60 / death 0 / a capped run 0), `spent` what the
+  automations bought on coming home (`auto_supply`'s restock; `spent_on` the kinds), `text`
+  ≤ 14 words: `$84 carried · return keeps 60% → $50`, a death `$144 carried · death keeps 0% →
+  $0 · bones: 7 items on D5` (the bones clause only when a pile was left), a capped run `lost
+  thread keeps 0%`. It rides on `Ev::exit.line` (attached by `step` once the exit settled, so
+  the event's line already knows the restock; offline runs discard events), on `Death.line`,
+  and `ReturnReport.exits` lists the absence's last `EXITS_CAP` 5, oldest first
+  (`Batch.exits`). **Salvage is not in the line**: it is its own ledger movement (an exit's
+  gold delta is `kept + salvage − spent`; the test reconciles all three on every exit over 30
+  seeds).
+- **`Lineage.gold_ledger`** (§1; the contract's `Lineage.ledger`, renamed because `ledger` is
+  the bestiary): the last `GOLD_LEDGER_CAP` 20 movements `{t, delta, why}`, oldest first,
+  `t` the lineage tick, `why` ≤ 3 words. Every gold change goes through
+  `LineageState::gold_move`: `returned D5` · `banked D5` · `died D5` (kept even at `+0`, so a
+  death's yield is on the sheet) · `lost thread D5` · `salvage` (one line per settlement) ·
+  `heal` / `leash` (a purchase, by kind) · `refund heal` · `insure sword` · `hatch` ·
+  `ascended` (the reset; the ledger starts over). Same tick + same reason merges into one line.
+- **`Snapshot.stake.kept`** (§1): what the first `return`/`bank` row would bring home now
+  (`loot × 60 or 100 %`), absent without such a row.
+- **`Item.known`** (§2; serde default false, skipped when false): set on `buy_supply` (also
+  the forge's crafted kinds) and on entering the vault (`keep`). `Item::is_known(facts,
+  flavours)` = `known || is_identified`; `find_consumable("heal")`, the `item:` token, the
+  full-HP heal sanity, the "Gambled" note and the ID-policy searches (`drink unknown`,
+  `read identify`, the curious trait) all use it, and the wire label names a known item. The
+  shop itself only lists identified potions and scrolls, so the rater's shape reaches the
+  engine through a *vaulted* potion (kept unidentified, brought back later): before Cut 6
+  `drink heal` could not find it (the trace read `no use`); now it drinks. A found, unnamed
+  potion of the row's kind reads `unknown item` (a new block reason). The other way a
+  `drink heal` row stays silent at 3 HP is a pre-emption — `cowardly → retreat` (three per
+  fight below 50 %), paralysis, a hazard step — which the row accounting (§3) now names.
+- **Row accounting** (§3): `TraceTurn.rows?: [{row, why}]` lists every row above the one that
+  acted (all rows when a trait or a chore acted; absent when R1 acted) with a reason from the
+  fixed table `turn::ROW_REASONS` (≤ 3 words; `turn::row_reason_ok` is the gate's check): the
+  first failing condition (`hp not <30%`, `foes not ≥2`, `not in view`, `none held`, `no
+  unknown`, `depth not ≥5`, `locked cond` …), the Cut 4 block reason when the conditions held
+  (`no path`, `no target`, `cooldown`, `no item`, `unknown item` …), `card passed` (a tactic
+  card that fell through), `brave held`, `fired, free` (a `recall`/`send` row that fired and
+  let the list run on), the guards (`stuck`, `row guard`) and the pre-emptions (`trait first`,
+  `hazard first`, `recall sense`, `paralysed`, `confused`, `bail`). Every turn of the trace
+  carries it (the morgue prints it per turn); sims and replays skip the accounting (no trace
+  is ever shown from them). A hunting row whose conditions lapsed still walks and counts as
+  the fired row.
+- **Counter facts carry the row** (§5): the telegraph fact is now
+  `boss:goblin_warlord:counter=attack tag:boss` (`facts::boss_counter_fact`; the old key is
+  its prefix, so `has_boss_counter` and the `stair_dance` gate still match). Rows per boss
+  (`facts::counter_row`): Warlord `foe_tag:boss → attack tag:boss`, Bloat Mother `foe_tag:boss
+  → throw fire,tag:boss`, Lich `foe_tag:summoned → attack tag:summoned`, Foundry Master
+  `foe_tag:reflect_melee → tactic reflect_read`, Lurker Queen `foe_tag:boss → read silence`,
+  Mirror King `foe_tag:boss → tactic cadence`. `Lineage.counters: [{boss, row, text}]` lists
+  the known ones in floor order with ≤ 3-word texts (`attack boss`, `throw fire, boss`,
+  `attack summoned`, `reflect read`, `read silence`, `cadence`). A save's old-form facts are
+  upgraded on load (`facts::upgrade_counter_facts`). **Clients that matched
+  `boss:<kind>:counter` exactly must prefix-match** (`facts::boss_counter_known`).
+- **Boss deaths** (§5/§8): `DeathRec.boss` is the boss the hero died under (the cause, or a
+  boss in view / awake within 8 tiles). When its counter is known, not already in the rules,
+  in the death's vocabulary and fired in ≥ `FIRED_BAR` of the replays, the counter row is
+  **pinned first** among the patches whatever its survival (`DeathRec.counter`; measured over
+  the same 12 replays, exempt from the edge/delta cut, kept through the delta candidates).
+  On any boss death the escape family (`return`, `bank`, `read teleport`) is ordered after the
+  rest, and a lone escape patch is joined by the best other scored candidate (`trace::
+  boss_order`). Not met when the counter row is not executable from the checkpoint (no fire
+  potion for the Mother, no `throw`): the counter still shows on the banner and the forecast
+  through `Lineage.counters`, and the patches are the ordinary ones.
+- **`UnlockInfo.rows`** (§6; `meta::unlock_rows`): a tactic card's sub-rows in order, in the
+  real vocabulary (`corridor_fighting`: `foes 2+ → corridor`, `corridor · adj 1+ → attack`,
+  `corridor · foes 1+ → hold`, `foes 1+ → attack`; ≤ 5 rows, ≤ 3 conds), the mastery cards
+  too; an automation is one row `{conds: [], verb: {v: "auto", a: "keeps best
+  weapon+armour"}}` (`rebuys last supplies`, `insures brought items`, `eggs hatch 1 rest`, `5
+  supplies`, `paths to bones`, `breeds 3 tags`, `+2 vision`); `recall_sense` is its real row
+  `HP<15% → read recall`. Absent for rows, vaults, slots, classes, conditions and verbs.
+- **Forecast determinism** (§9): the forecast's seeds are `forecast::forecast_tag(rules,
+  lineage seed, depth)` (was one constant for every set), so re-reading the same set on the
+  same lineage gives the same number and nothing transient (marks, renown, the rest clock, a
+  run in progress) moves it — the lineage a sim starts from (facts, gold, class, trait, heir)
+  still does, as it should. **`forecast_refine()`** (wasm `forecastRefine`) is the same
+  forecast at `REFINE_SIMS` 100 sims — the same 50 seeds first, then 50 more — under twice
+  the tick budget; the 50-sim default is unchanged. Patch deltas and the catalogue keep their
+  paired constant tags.
+
+
 
 `unlocks()` → `UnlockInfo[] {id,cost,owned,available,needs?}` · `setClass(class)` → Lineage ·
 `selectSet(i)` → Lineage (three saved sets; `setRules` writes the active one) ·
@@ -483,7 +566,8 @@ fields). Where the contract left a choice open, this is what the engine does:
 Addendum A: `setParty(idsJson)`, `setCompanionRules(id, setJson)`, `breed(a,b)`, `hatch(eggId)`,
 `companionVocabulary(id)` · Addendum B: `buySupply(kind)`, `clearSupplies()`,
 `supplyCatalogue()` → `{kind,price,label}[]` · Addendum D: `keep(idsJson)` · Cut 3: `ascend(variant)` → Lineage ·
-Cut 5: `bail()` · `choose(itemId)` → Snapshot · `setVaultPref(pref)` → Lineage.
+Cut 5: `bail()` · `choose(itemId)` → Snapshot · `setVaultPref(pref)` → Lineage ·
+Cut 6: `forecastRefine()` → Forecast (100 sims).
 Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion verbs
 `attack shoot burst steal split flank drain follow recall`. Hero scope cond `{k:"party",t:kind}`,
 `{k:"party_hp<",n}`, verb `tame` (`nearest | tag:T`).
@@ -502,6 +586,54 @@ survey tools; `examples/stories.rs` the Cut 5 story probe.
 cargo run --release --example cli -- --seed 1 --rules presets/good.json --runs 3 [--verbose] [--all-deaths]
 cargo run --release --example metrics [-- --seeds 30 --hours 8]
 ```
+
+## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`, Cut 6; `node tools/gates.mjs --full`)
+
+```
+DEFAULT dies by ≤ D6 ≥ 80% of seeds                                100%  PASS
+EDITED reaches ≥ D10 ≥ 50% of seeds                                 93%  PASS
+EDITED − DEFAULT (≥ D10) ≥ 15 pts                                93 pts  PASS
+RANDOM loses 100%                                                  100%  PASS
+PASSIVE loses by ≤ D3 100%                                         100%  PASS
+LEARNED mean depth ≤ DEFAULT + 2                           4.70 vs 4.58  PASS
+PETS dies by ≤ D8 ≥ 80% of seeds                                   100%  PASS
+LEVELLED dies by ≤ D9 ≥ 80% of seeds                               100%  PASS
+TRIVIAL never passes D5 ≥ 90% of seeds                              97%  PASS
+COUNTERED reaches ≥ D11 ≥ 50% of seeds                              70%  PASS
+FULL reaches ≥ D26 ≥ 50% of seeds (3 × 8 h)                         97%  PASS
+FULL−D20 never passes D20 ≥ 90% of seeds                           100%  PASS
+FULL−D25 never passes D25 ≥ 90% of seeds                           100%  PASS
+FULL−D30 never passes D30 ≥ 90% of seeds                           100%  PASS
+Unfair deaths (dice) ≤ 5% (n=2177, death-weighted)                 4.4%  PASS
+Deaths tracing to a row (gap) ≥ 70%                               95.6%  PASS
+Top death cause share < 35% (goblin)                              27.1%  PASS
+Events per 600 ticks (renderable) ≥ 6                              44.0  PASS
+Replay hash identical (seed+rules+elapsed)             0b69289ba09d19c4  PASS
+Forecast known_to == best_depth + 1                                 all  PASS
+Expeditions per 8 h (DEFAULT, EDITED) in 6–16               15.6 · 12.4  PASS
+DEFAULT yields 0 xp/gold over 8 h                                     0  PASS
+EDITED banks ≥ 3 runs per 8 h                                       8.0  PASS
+Patches whose row fired in ≥ 50% of replays (n=280)                100%  PASS
+Verdict time ≤ 0.4 s (mean of 2177)                              0.35 s  PASS
+Per-tick cost ≤ 6 µs (quiet, DEFAULT/EDITED/FULL)               2.83 µs  PASS
+Offline 8 h: learned ≥ 1 and pending ≥ 1 every seed              min 19  PASS
+Story lines ≤ 12 words, table verb (n=73459)                     100.0%  PASS
+Reel ≥ 2 distinct (threat, resolution) pairs per 8 h (n=180)               100%  PASS
+Top reel line names a row, trait or companion ≥ 80%                 94%  PASS
+Situations: ≥ 1 per run on D1–5 ≥ 90% (n=6611)                    95.1%  PASS
+```
+
+Cut 6 changes no run outcome (the sims are byte-identical: same depths, deaths, expeditions);
+the replay hash moved because `Ev::exit` carries the ledger line and the counter fact carries
+its row. Verdict time 0.35 s (the counter pin is 12 more replays on boss deaths), per-tick
+2.83 µs (the row accounting is skipped in sims). Cut 6 unit gates: ledger reconciles on every
+exit over 30 seeds (`ledger_line_reconciles_on_every_exit`), a bought heal fires
+(`bought_heal_is_drunk_by_name`), 100 deaths' traces account for every row above the fired
+one on every turn (`death_traces_account_for_every_row_above_the_fired_one`), 30 Warlord
+deaths show the counter row first and never a lone `return`
+(`boss_deaths_show_the_counter_row_first`), the forecast is deterministic
+(`forecast_is_deterministic_per_rules_and_lineage`). The dayplayer bars are unchanged (7.0
+purchase days, 4-day stall — the Cut 2–5 deviation).
 
 ## Gate table (30 seeds × 8 h offline, `examples/metrics.rs`, Cut 5; `node tools/gates.mjs --full`)
 

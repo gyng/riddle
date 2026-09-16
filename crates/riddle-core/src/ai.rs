@@ -348,14 +348,19 @@ fn class_cooldown(run: &Run, verb: &Verb) -> bool {
 }
 
 /// Cut 4: why a row whose conditions held could not act (≤ 2 words).
-pub fn block_reason(run: &Run, verb: &Verb, v: &View) -> &'static str {
+pub fn block_reason(run: &Run, cx: &Ctx, verb: &Verb, v: &View) -> &'static str {
     let holds = |kind: &str| run.hero.inv.iter().any(|i| i.kind == kind);
+    // Cut 6 §2/§3: an item of the kind in the pack that the hero cannot name (a found
+    // potion, flavour unidentified) reads `unknown item`, not `no item`.
+    let held_known = |kind: &str| run.hero.inv.iter().any(|i| i.kind == kind && i.is_known(cx.facts, cx.flavours));
     match verb.v.as_str() {
         "retreat" | "back_corridor" | "blink" | "shadowstep" | "vanish" | "smoke" => "no path",
         "drink" | "read" => {
             let a = verb.a.as_deref().unwrap_or("");
-            if a.is_empty() || a == "unknown" || holds(a) {
+            if a.is_empty() || a == "unknown" || held_known(a) {
                 "no use"
+            } else if holds(a) {
+                "unknown item"
             } else {
                 "no item"
             }
@@ -755,7 +760,7 @@ fn mirror_reflects(run: &Run, mi: usize, verb: &str) -> bool {
 fn mirror_learn(run: &mut Run, cx: &mut Ctx, mi: usize) {
     let kind = run.monsters[mi].kind.clone();
     learn_tag(run, cx, &kind, "mirror");
-    learn(run, cx, format!("boss:{kind}:counter"));
+    crate::facts::learn_boss_counter(run, cx, &kind);
     callout(run, cx, "mirrored!");
 }
 
@@ -1367,7 +1372,7 @@ fn find_consumable_for(run: &Run, cx: &Ctx, cat: Cat, a: &str, to_throw: bool) -
     if a == "unknown" || a.is_empty() {
         let mut best: Option<(i32, usize)> = None;
         for (i, it) in run.hero.inv.iter().enumerate() {
-            if it.cat() != cat || is_identified(cx.facts, cx.flavours, &it.kind) {
+            if it.cat() != cat || it.is_known(cx.facts, cx.flavours) {
                 continue;
             }
             let rank = match it.hint {
@@ -1382,15 +1387,14 @@ fn find_consumable_for(run: &Run, cx: &Ctx, cat: Cat, a: &str, to_throw: bool) -
         }
         best.map(|(_, i)| i)
     } else {
-        if !is_identified(cx.facts, cx.flavours, a) {
-            return None;
-        }
-        run.hero.inv.iter().position(|it| it.cat() == cat && it.kind == a)
+        // Cut 6 §2: named by the row — an item bought, crafted or vaulted by that name is
+        // usable before its flavour is identified; a found one needs the flavour fact.
+        run.hero.inv.iter().position(|it| it.cat() == cat && it.kind == a && it.is_known(cx.facts, cx.flavours))
     }
 }
 
 fn identify_used(run: &mut Run, cx: &mut Ctx, item: &Item) -> bool {
-    let was_unknown = !is_identified(cx.facts, cx.flavours, &item.kind);
+    let was_unknown = !item.is_known(cx.facts, cx.flavours);
     if let Some(f) = ident_fact(cx.flavours, &item.kind) {
         learn(run, cx, f);
     }
@@ -1415,7 +1419,7 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
     let Some(ii) = find_consumable(run, cx, Cat::Potion, a) else { return false };
     let kind = run.hero.inv[ii].kind.clone();
     // Sanity: no drinking a known heal at full HP.
-    if kind == "heal" && is_identified(cx.facts, cx.flavours, "heal") && run.hero.hp >= run.hero.max_hp {
+    if kind == "heal" && run.hero.inv[ii].is_known(cx.facts, cx.flavours) && run.hero.hp >= run.hero.max_hp {
         return false;
     }
     let item = run.hero.inv.remove(ii);
@@ -1486,7 +1490,7 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
 fn scroll_useless(run: &Run, cx: &Ctx, kind: &str, v: &View) -> bool {
     match kind {
         "mapping" => run.floor.map.seen_pct() >= 95,
-        "identify" => !run.hero.inv.iter().any(|i| i.is_consumable() && !is_identified(cx.facts, cx.flavours, &i.kind)),
+        "identify" => !run.hero.inv.iter().any(|i| i.is_consumable() && !i.is_known(cx.facts, cx.flavours)),
         "enchant" => run.hero.weapon.is_none() && run.hero.armour.is_none(),
         "fear" | "darkness" | "teleport" | "blink" => v.foes.is_empty(),
         "summon_ally" => run.allies().next().is_some(),
@@ -1555,7 +1559,7 @@ fn verb_read(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
             "mapped".into()
         }
         "identify" => {
-            let target = run.hero.inv.iter().position(|i| i.is_consumable() && !is_identified(cx.facts, cx.flavours, &i.kind));
+            let target = run.hero.inv.iter().position(|i| i.is_consumable() && !i.is_known(cx.facts, cx.flavours));
             match target {
                 Some(ti) => {
                     let k = run.hero.inv[ti].kind.clone();
@@ -1840,7 +1844,7 @@ pub fn curious_use(run: &mut Run, cx: &mut Ctx) -> Option<Verb> {
         .hero
         .inv
         .iter()
-        .position(|i| i.is_consumable() && !is_identified(cx.facts, cx.flavours, &i.kind) && i.hint != Some(Hint::Malevolent))?;
+        .position(|i| i.is_consumable() && !i.is_known(cx.facts, cx.flavours) && i.hint != Some(Hint::Malevolent))?;
     let cat = run.hero.inv[pick].cat();
     let v = view(run);
     let verb = if cat == Cat::Potion { Verb::arg("drink", "unknown") } else { Verb::arg("read", "unknown") };
@@ -2483,7 +2487,7 @@ pub fn telegraph(run: &mut Run, cx: &mut Ctx, mi: usize, what: &str, pending: Pe
         learn_tag(run, cx, &kind, "telegraph");
         if run.monsters[mi].is_boss() {
             // Every boss telegraphs its mechanic on the first turn; seeing it is the counter fact.
-            learn(run, cx, format!("boss:{kind}:counter"));
+            crate::facts::learn_boss_counter(run, cx, &kind);
         }
     }
 }
@@ -2602,7 +2606,7 @@ fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending) {
         }
     }
     if run.monsters[mi].is_boss() && run.over.is_none() && visible {
-        learn(run, cx, format!("boss:{kind}:counter"));
+        crate::facts::learn_boss_counter(run, cx, &kind);
     }
 }
 

@@ -179,8 +179,7 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
             //    per boss) and buys the card or verb it needs if affordable.
             let best = g.lineage.best_depth;
             if let Some(boss) = boss_at(best) {
-                let fact = format!("boss:{boss}:counter");
-                if stalled_days >= 1 && g.lineage.facts.contains(&fact) && !counters_done.contains(&boss.to_string()) {
+                if stalled_days >= 1 && riddle_core::facts::boss_counter_known(&g.lineage.facts, boss) && !counters_done.contains(&boss.to_string()) {
                     let rows = counter_rows(boss);
                     // The editor offers `throw fire` and lets the player aim it; `attack tag:T` needs the tag known.
                     let usable_now = |g: &Game| {
@@ -345,7 +344,7 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
         } else {
             stalled_days += 1;
             let counts = match boss_at(d.best) {
-                Some(boss) => g.lineage.facts.contains(&format!("boss:{boss}:counter")),
+                Some(boss) => riddle_core::facts::boss_counter_known(&g.lineage.facts, boss),
                 None => true,
             };
             if counts {

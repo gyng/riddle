@@ -21,11 +21,19 @@ pub struct Item {
     pub amount: i32,
     #[serde(default)]
     pub enchant: i32,
+    /// Cut 6 §2: bought, crafted or vaulted by name — usable by its kind (`drink heal`) even
+    /// while the flavour is unidentified. Found items are known only through their flavour.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub known: bool,
 }
 
 impl Item {
     pub fn new(id: u32, kind: &str) -> Item {
-        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0 }
+        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false }
+    }
+    /// Cut 6 §2: known by name (bought, crafted, vaulted) or by an identified flavour.
+    pub fn is_known(&self, facts: &BTreeSet<String>, flavours: &Flavours) -> bool {
+        self.known || is_identified(facts, flavours, &self.kind)
     }
     pub fn def(&self) -> &'static ItemDef {
         item_def(&self.kind)
@@ -124,7 +132,7 @@ pub fn describe(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> (
         }
         Cat::Potion | Cat::Scroll => {
             let cat = if d.cat == Cat::Potion { "potion" } else { "scroll" };
-            if is_identified(facts, flavours, &item.kind) {
+            if item.is_known(facts, flavours) {
                 (true, item.kind.clone(), format!("{} {}", item.kind.replace('_', " "), cat))
             } else {
                 let fl = flavours.flavour_of(&item.kind).unwrap_or("odd");

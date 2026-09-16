@@ -193,6 +193,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         returned: b.returned,
         bones_found: b.bones_found.clone(),
         stall,
+        exits: b.exits.clone(),
     }
 }
 
@@ -281,7 +282,7 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     // (c) the boss counter on a boss floor the hero has met.
     if let Some(kind) = crate::descent::boss_for(depth) {
         let facts = &game.lineage.facts;
-        let known = facts.contains(&format!("boss:{kind}:counter")) || facts.contains(&format!("foe:{kind}"));
+        let known = crate::facts::boss_counter_known(facts, kind) || facts.contains(&format!("foe:{kind}"));
         if known && has_cond("foe_tag", Some("boss")) {
             let boss = Cond::t("foe_tag", "boss");
             let attack = Row::new(vec![boss.clone()], Verb::arg("attack", "tag:boss"));

@@ -321,6 +321,10 @@ pub struct Run {
     pub dens: Vec<Pos>,
     #[serde(default)]
     pub tempted: bool,
+    /// Cut 6 §3: why each row above the one that acted did not fire this action (moved onto
+    /// the trace turn by `hero_action`).
+    #[serde(default)]
+    pub rows_why: Vec<RowWhy>,
 }
 
 impl Run {
@@ -595,7 +599,16 @@ pub struct LineageState {
     pub lost: Vec<Lost>,
     #[serde(default = "default_vault_pref")]
     pub vault_pref: String,
+    // Cut 6
+    /// §1: the last `GOLD_LEDGER_CAP` gold movements, oldest first.
+    #[serde(default)]
+    pub gold_ledger: Vec<GoldLine>,
 }
+
+/// Cut 6 §1: gold movements kept on the lineage.
+pub const GOLD_LEDGER_CAP: usize = 20;
+/// Cut 6 §1: exit lines kept per absence (`ReturnReport.exits`).
+pub const EXITS_CAP: usize = 5;
 
 fn default_vault_pref() -> String {
     "weapon".into()
@@ -665,7 +678,37 @@ impl LineageState {
             heir_best: 0,
             lost: Vec::new(),
             vault_pref: default_vault_pref(),
+            gold_ledger: Vec::new(),
         }
+    }
+    /// Cut 6 §1: every gold movement goes through here — the amount and a ≤ 3-word reason
+    /// land in the ledger (a movement with the same tick and reason as the last line merges
+    /// into it: an exit's salvage is one line). A zero movement is kept only for an exit
+    /// (`why` starting with the tier word), so `+$0 died D5` explains what a death yields.
+    pub fn gold_move(&mut self, delta: i32, why: &str) {
+        self.gold += delta;
+        let exit = why.starts_with("returned") || why.starts_with("banked") || why.starts_with("died") || why.starts_with("lost");
+        if delta == 0 && !exit {
+            return;
+        }
+        let t = self.total_turns;
+        if let Some(last) = self.gold_ledger.last_mut() {
+            if last.t == t && last.why == why && !exit {
+                last.delta += delta;
+                return;
+            }
+        }
+        self.gold_ledger.push(GoldLine { t, delta, why: why.into() });
+        while self.gold_ledger.len() > GOLD_LEDGER_CAP {
+            self.gold_ledger.remove(0);
+        }
+    }
+    /// Cut 6 §5: bosses whose counter is known, each with its counter row and text.
+    pub fn counters(&self) -> Vec<Counter> {
+        crate::descent::BOSS_DEPTHS
+            .iter()
+            .filter_map(|(kind, _)| crate::facts::boss_counter_row(&self.facts, kind).map(|row| Counter { boss: kind.to_string(), text: crate::facts::counter_text(&row), row }))
+            .collect()
     }
     /// Cut 5 §2: the heir's chronicle line, written once when the heir ends (`end` = `fell to
     /// gas` · `retired at rank 3` · `ascended`; `tail` = `left bones on D7`).
@@ -741,6 +784,8 @@ impl LineageState {
             ascended: self.ascended.clone(),
             chronicle: self.chronicle.clone(),
             vault_pref: self.vault_pref.clone(),
+            gold_ledger: self.gold_ledger.clone(),
+            counters: self.counters(),
         }
     }
     pub fn vault_slots(&self) -> usize {
@@ -840,6 +885,13 @@ pub struct DeathRec {
     /// Cut 4: the tick the killing blow landed (the replay window's end).
     #[serde(default)]
     pub death_tick: u32,
+    /// Cut 6 §5: the boss this death was fought under (in view, awake and near, or the cause),
+    /// and its counter row when the fact is known and the row was executable in the replays
+    /// (pinned first among the patches).
+    #[serde(default)]
+    pub boss: Option<String>,
+    #[serde(default)]
+    pub counter: Option<Row>,
 }
 
 /// The vault decision waiting at an exit (Addendum D).
@@ -897,6 +949,9 @@ pub struct Batch {
     /// real runs that met a situation on D1–5 (§4 gate).
     pub best_run: Option<(u32, u32)>,
     pub situation_runs: u32,
+    /// Cut 6 §1: the ledger lines of the last `EXITS_CAP` exits, oldest first.
+    #[serde(default)]
+    pub exits: Vec<ExitLine>,
 }
 
 /// The stall verdict's window: runs since the last death, new best depth or rule edit, the
@@ -952,6 +1007,9 @@ pub struct Game {
     /// Cut 4: `forecast::reach_with` results keyed by (lineage, rules, depth, sims, tag).
     #[serde(skip)]
     pub forecast_cache: std::cell::RefCell<BTreeMap<String, f64>>,
+    /// Cut 6 §1: the ledger line of the last settled exit (`step` attaches it to `Ev::Exit`).
+    #[serde(default)]
+    pub last_exit: Option<ExitLine>,
 }
 
 fn default_max_deaths() -> usize {
@@ -977,6 +1035,7 @@ impl Game {
             facts_at_run_start: 0,
             max_deaths: 40,
             offline: false,
+            last_exit: None,
             stall: StallTally::default(),
             stall_cache: None,
             forecast_cache: Default::default(),
@@ -1005,6 +1064,7 @@ impl Game {
             stall: StallTally::default(),
             stall_cache: None,
             forecast_cache: Default::default(),
+            last_exit: None,
         }
     }
 
@@ -1126,7 +1186,9 @@ impl Game {
         l.ended = false;
         l.heir = 1;
         l.marks = 0;
-        l.gold = 0;
+        let gold = l.gold;
+        l.gold_ledger.clear();
+        l.gold_move(-gold, "ascended");
         l.gold_carry = 0;
         l.best_depth = 0;
         l.banked_depths.clear();
@@ -1349,6 +1411,7 @@ impl Game {
             bail: false,
             dens: Vec::new(),
             tempted: false,
+            rows_why: Vec::new(),
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
@@ -1443,6 +1506,12 @@ impl Game {
         if run_over {
             self.finish_run();
             events.append(&mut self.events);
+            // Cut 6 §1: the exit event carries the settled ledger line.
+            if let Some(line) = self.last_exit.take() {
+                if let Some(Ev::Exit { line: l, .. }) = events.iter_mut().rev().find(|e| matches!(e, Ev::Exit { .. })) {
+                    *l = Some(line);
+                }
+            }
         }
         self.last_snapshot = Some(snapshot.clone());
         let exit_pending = if run_over { self.exit_pending_wire() } else { None };
@@ -1555,6 +1624,11 @@ impl Game {
             }
         }
         let return_row = l.rules().rows.iter().take(l.max_rows()).position(|r| matches!(r.verb.v.as_str(), "return" | "bank"));
+        // Cut 6 §1: what that row would bring home now (the kept number, not the carried one).
+        let kept = return_row.map(|i| {
+            let tier = if l.rules().rows[i].verb.v == "bank" { ExitTier::Bank } else { ExitTier::Return };
+            run.loot.max(0) * tier.pct() / 100
+        });
         Snapshot {
             depth: run.depth,
             biome: run.biome().name().into(),
@@ -1571,7 +1645,7 @@ impl Game {
             turn: run.turn,
             loot: run.loot,
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn },
-            stake: Stake { loot: run.loot, brought, return_row },
+            stake: Stake { loot: run.loot, brought, return_row, kept },
             vision: run.vision(&l.unlocks),
             vault_choice: run.vault_choice.as_ref().map(|(_, items)| VaultChoice { items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect() }),
         }
@@ -1859,7 +1933,14 @@ impl Game {
         // Cut 4: `run.loot` is already gold (÷ 4 at pickup); the same number the exit note
         // and `Ev::Exit.loot_kept` carried.
         let loot_kept = run.loot.max(0) * pct / 100;
-        self.lineage.gold += loot_kept;
+        let gold_before = self.lineage.gold;
+        let exit_why = match tier {
+            _ if run.timed_out => format!("lost thread D{}", run.max_depth),
+            ExitTier::Bank => format!("banked D{}", run.max_depth),
+            ExitTier::Return => format!("returned D{}", run.max_depth),
+            ExitTier::Death => format!("died D{}", run.depth),
+        };
+        self.lineage.gold_move(loot_kept, &exit_why);
         let mut all: Vec<Item> = run.hero.inv.clone();
         if let Some(w) = &run.hero.weapon {
             all.push(w.clone());
@@ -1955,7 +2036,23 @@ impl Game {
         if self.sim {
             self.auto_keep();
         }
-        self.restock();
+        let spent_on = self.restock();
+        // Cut 6 §1: the ledger line — carried × keep% → kept, what the automations spent on
+        // coming home, and where the kit went on a death.
+        let spent: i32 = self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.delta < 0 && !g.why.starts_with("salvage")).map(|g| -g.delta).sum();
+        let bones_n = if tier == ExitTier::Death { self.lineage.bones.last().filter(|b| b.heir == run.heir).map(|b| b.items.len()).unwrap_or(0) } else { 0 };
+        let line = exit_line(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, bones_n, run.depth);
+        debug_assert!(self.lineage.gold - gold_before == loot_kept - spent + self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.why.starts_with("salvage")).map(|g| g.delta).sum::<i32>());
+        if tier == ExitTier::Death {
+            if let Some(rec) = self.deaths.get_mut(&run.id) {
+                rec.death.line = Some(line.clone());
+            }
+        }
+        self.batch.exits.push(line.clone());
+        while self.batch.exits.len() > EXITS_CAP {
+            self.batch.exits.remove(0);
+        }
+        self.last_exit = Some(line);
         Some(outcome)
     }
 
@@ -1987,7 +2084,7 @@ impl Game {
             self.lineage.gold_carry += cents;
             let gold = self.lineage.gold_carry / 100;
             self.lineage.gold_carry %= 100;
-            self.lineage.gold += gold;
+            self.lineage.gold_move(gold, "salvage");
             let f = self.lineage.forge.entry(it.kind.clone()).or_default();
             f.salvaged += it.amount.max(1) as u32;
             f.craftable = f.salvaged >= 5;
@@ -2020,6 +2117,8 @@ impl Game {
                 v.id = self.lineage.next_vault_id;
                 self.lineage.next_vault_id += 1;
             }
+            // Cut 6 §2: a vaulted item is known by name from here on.
+            v.known = true;
             self.lineage.vault.push(v.clone());
             self.lineage.vault.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
             if self.lineage.vault.len() > slots {
@@ -2162,7 +2261,7 @@ impl Game {
         if self.lineage.gold < 50 {
             return Err("50 gold needed".into());
         }
-        self.lineage.gold -= 50;
+        self.lineage.gold_move(-50, "hatch");
         let e = self.lineage.eggs.remove(i);
         self.hatch_egg(e);
         Ok(())
@@ -2208,11 +2307,13 @@ impl Game {
         if self.lineage.gold < entry.price {
             return Err("not enough gold".into());
         }
-        self.lineage.gold -= entry.price;
+        self.lineage.gold_move(-entry.price, &kind.replace('_', " "));
         let id = self.lineage.next_vault_id;
         self.lineage.next_vault_id += 1;
         let mut it = Item::new(id, kind);
         it.enchant = self.lineage.forge_tier(kind);
+        // Cut 6 §2: bought (or forge-crafted) by name: usable as such.
+        it.known = true;
         if kind == "leash" {
             it.amount = 1;
         }
@@ -2230,7 +2331,8 @@ impl Game {
         if self.lineage.gold < cost {
             return Err("not enough gold".into());
         }
-        self.lineage.gold -= cost;
+        let why = format!("insure {}", it.kind.replace('_', " "));
+        self.lineage.gold_move(-cost, &why);
         self.lineage.insured.push(id);
         Ok(())
     }
@@ -2239,7 +2341,8 @@ impl Game {
         let cat = self.supply_catalogue();
         for s in std::mem::take(&mut self.lineage.supplies) {
             if let Some(e) = cat.iter().find(|e| e.kind == s.kind) {
-                self.lineage.gold += e.price;
+                let why = format!("refund {}", s.kind.replace('_', " "));
+                self.lineage.gold_move(e.price, &why);
             }
         }
         // Cut 4: clearing the shelf is an order; the automation does not undo it.
@@ -2251,18 +2354,31 @@ impl Game {
     /// after the vault decision brought the salvage in), so the camp's shelf shows the restock
     /// before the next send — restocking only at `start_run` moved the supplies straight into
     /// the pack and the shelf never showed them.
-    pub fn restock(&mut self) -> u32 {
+    pub fn restock(&mut self) -> Vec<String> {
         if !self.lineage.unlocks.contains("auto_supply") || !self.lineage.supplies.is_empty() {
-            return 0;
+            return Vec::new();
         }
-        let mut n = 0;
+        let mut bought = Vec::new();
         for kind in self.lineage.last_supplies.clone() {
             if self.buy_supply(&kind).is_ok() {
-                n += 1;
+                bought.push(kind.replace('_', " "));
             }
         }
-        n
+        bought
     }
+}
+
+/// Cut 6 §1: the exit's ledger line, ≤ 14 words (`$84 carried · return keeps 60% → $50`;
+/// death: `$144 carried · death keeps 0% → $0 · bones: 7 items on D5`; a run that hit the cap:
+/// `lost thread keeps 0%`).
+#[allow(clippy::too_many_arguments)]
+pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: Vec<String>, tier: ExitTier, timed_out: bool, bones: usize, depth: u32) -> ExitLine {
+    let word = if timed_out { "lost thread" } else { tier.name() };
+    let mut text = format!("${carried} carried · {word} keeps {keep_pct}% → ${kept}");
+    if bones > 0 {
+        text.push_str(&format!(" · bones: {bones} items on D{depth}"));
+    }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text }
 }
 
 /// Salvage value per kind (Addendum D).

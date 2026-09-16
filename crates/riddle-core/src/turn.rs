@@ -10,11 +10,11 @@ use crate::facts::{learn, learn_tag, tag_known};
 use crate::gen::generate;
 use crate::geom::{Pos, DIRS8};
 use crate::hero::Trait;
-use crate::item::{is_identified, Item};
+use crate::item::Item;
 use crate::monster::Monster;
 use crate::rules::{Cond, Verb};
 use crate::tiles::{Overlay, OverlayKind, Tile};
-use crate::wire::{Ev, TraceTurn};
+use crate::wire::{Ev, RowWhy, TraceTurn};
 
 /// What the hero can see this action.
 #[derive(Clone, Debug, Default)]
@@ -255,7 +255,10 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
         .filter_map(|&i| run.monsters.get(i).and_then(|m| m.telegraph.as_ref().map(|t| format!("{} {}", m.kind, t))))
         .collect();
     let blocked = run.blocked_now.take();
-    run.trace.push(TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: v.foes.len() as i32, telegraphs, blocked });
+    // Cut 6 §3: every row above the one that acted, with its reason (none when R1 acted).
+    let whys = std::mem::take(&mut run.rows_why);
+    let rows = if whys.is_empty() { None } else { Some(whys) };
+    run.trace.push(TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: v.foes.len() as i32, telegraphs, blocked, rows });
     if run.trace.len() > 16 {
         run.trace.remove(0);
     }
@@ -267,15 +270,18 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
 }
 
 fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
+    run.rows_why.clear();
     if run.hero.paralysed > 0 {
         let verb = Verb::new("paralysed");
         emit_rule(run, cx, -2, &verb, "paralysed");
+        all_rows_why(run, cx, "paralysed");
         return (-2, verb);
     }
     if run.hero.confused > 0 && run.rng.chance(50) {
         ai::random_step(run, cx);
         let verb = Verb::new("stumble");
         emit_rule(run, cx, -2, &verb, "confused → stumble");
+        all_rows_why(run, cx, "confused");
         return (-2, verb);
     }
     // Cut 5 §5: bail — a queued `return`, the rules untouched.
@@ -284,6 +290,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         let verb = Verb::new("return");
         end_run(run, cx, ExitTier::Return);
         emit_rule(run, cx, -2, &verb, "bail → return");
+        all_rows_why(run, cx, "bail");
         return (-2, verb);
     }
     let foes = v.foes.len() as i32;
@@ -298,6 +305,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             run.cowardly_streak += 1;
             run.trait_last = Some(run.actions);
             emit_rule(run, cx, -1, &verb, "cowardly → retreat");
+            all_rows_why(run, cx, "trait first");
             return (-1, verb);
         }
     }
@@ -315,6 +323,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 run.trait_last = Some(run.actions);
                 let verb = Verb::new("pick_up");
                 emit_rule(run, cx, -1, &verb, "greedy → the den");
+                all_rows_why(run, cx, "trait first");
                 return (-1, verb);
             }
         }
@@ -330,6 +339,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             run.trait_last = Some(run.actions);
             let verb = Verb::new("pick_up");
             emit_rule(run, cx, -1, &verb, "greedy → pick up");
+            all_rows_why(run, cx, "trait first");
             return (-1, verb);
         }
     }
@@ -337,6 +347,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     if v.adj == 0 && ai::escape_hazard(run, cx, v) {
         let verb = Verb::new("explore");
         emit_rule(run, cx, -2, &verb, "hazard → step out");
+        all_rows_why(run, cx, "hazard first");
         return (-2, verb);
     }
     // Cut 3 `recall_sense`: below 15% with a recall scroll in the pack, read it (a free row).
@@ -344,6 +355,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         let verb = Verb::arg("read", "recall");
         if ai::try_verb(run, cx, &verb, v) {
             emit_rule(run, cx, -2, &verb, "recall sense");
+            all_rows_why(run, cx, "recall sense");
             return (-2, verb);
         }
     }
@@ -358,15 +370,27 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     run.last_target = None;
     run.blocked_now = None;
     for (i, row) in rows.iter().enumerate() {
-        if (stuck && targets_foes(&row.verb)) || i as i32 == suppressed {
+        if stuck && targets_foes(&row.verb) {
+            row_why(run, cx, i, "stuck");
             continue;
         }
-        let holds = row.conds.iter().all(|c| cond_holds(run, cx, v, c));
+        if i as i32 == suppressed {
+            row_why(run, cx, i, "row guard");
+            continue;
+        }
+        // Cut 6 §3: the first condition that does not hold names the reason (a hunting row
+        // still walks, below, with its conditions lapsed).
+        let failing = row.conds.iter().find(|c| !cond_holds(run, cx, v, c));
+        let holds = failing.is_none();
+        if let Some(c) = failing.filter(|_| !cx.sim) {
+            row_why(run, cx, i, &cond_reason(run, cx, c));
+        }
         if holds && tr == Trait::Brave && foes == 1 && matches!(row.verb.v.as_str(), "retreat" | "back_corridor") {
             if !brave_said {
                 emit_rule(run, cx, -1, &Verb::new("attack"), "brave → hold");
                 brave_said = true;
             }
+            row_why(run, cx, i, "brave held");
             continue;
         }
         let scope = row.conds.iter().find(|c| c.k == "party").and_then(|c| c.t.clone());
@@ -385,6 +409,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 run.saved_by = Some(i as i32);
             }
             if matches!(row.verb.v.as_str(), "recall" | "send") {
+                row_why(run, cx, i, "fired, free");
                 continue; // party orders are free actions
             }
             // Cut 4: the foe this row acted on is hunted when it steps out of view.
@@ -399,19 +424,30 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 if i < run.row_fired.len() {
                     run.row_fired[i] += 1;
                 }
+                if !holds && !cx.sim {
+                    run.rows_why.pop();
+                }
                 return (i as i32, row.verb.clone());
             }
         }
+        if !holds {
+            continue;
+        }
         // Cut 4: a row whose conditions hold but whose verb cannot execute is shown as such
         // (`R1 retreat ✗ no path`), the first such row per action; cards fall through by design.
-        if holds && run.blocked_now.is_none() && row.verb.v != "tactic" {
-            let reason = ai::block_reason(run, &row.verb, v);
-            run.blocked_now = Some(format!("R{} {} ✗ {reason}", i + 1, row.verb.short()));
-            let short = format!("{} ✗ {reason}", row.verb.v.split('_').next().unwrap_or(&row.verb.v));
-            if run.blocked_last.as_deref() != Some(&short) {
-                crate::chronicle::callout(run, cx, &short);
+        if row.verb.v == "tactic" {
+            row_why(run, cx, i, "card passed");
+        } else {
+            let reason = ai::block_reason(run, cx, &row.verb, v);
+            row_why(run, cx, i, reason);
+            if run.blocked_now.is_none() {
+                run.blocked_now = Some(format!("R{} {} ✗ {reason}", i + 1, row.verb.short()));
+                let short = format!("{} ✗ {reason}", row.verb.v.split('_').next().unwrap_or(&row.verb.v));
+                if run.blocked_last.as_deref() != Some(&short) {
+                    crate::chronicle::callout(run, cx, &short);
+                }
+                run.blocked_last = Some(short);
             }
-            run.blocked_last = Some(short);
         }
     }
     if run.blocked_now.is_none() {
@@ -428,6 +464,87 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     let text = if verb.v == "cornered" { "cornered, no orders".to_string() } else { format!("chore → {}", verb.short()) };
     emit_rule(run, cx, -2, &verb, &text);
     (-2, verb)
+}
+
+/// Cut 6 §3: the reason table — every `TraceTurn.rows[].why` is one of these shapes, ≤ 3
+/// words.
+///
+/// Conditions: `hp not <N%`, `hp not >N%`, `foes not ≥N`, `adj not ≥N`, `not in view` (a foe
+/// tag), `no weak foe`, `none held`, `no unknown`, `seen not ≥N%`, `depth not ≥N`, `alert not
+/// ≥N`, `not corridor`, `no path`, `no ally`, `loot not ≥N`, `turns not >N`, `not hurt`, `no
+/// kill`, `nothing new`, `no <tile> seen`, `no <kind>`, `party hp ok`, `locked cond`.
+///
+/// Verbs whose conditions held: `ai::block_reason` (`no path`, `no target`, `no line`, `no
+/// bow`, `cooldown`, `no item`, `unknown item`, `no use`, `no leash`, `none weak`, `not safe`,
+/// `no stairs`, `no way`, `prayed`, `no shrine`), `card passed`, `brave held`, `fired, free`.
+///
+/// Guards and pre-emptions: `stuck`, `row guard`, `trait first`, `hazard first`, `recall
+/// sense`, `paralysed`, `confused`, `bail`.
+pub const ROW_REASONS: &[&str] = &[
+    "hp not <", "hp not >", "foes not ≥", "adj not ≥", "not in view", "no weak foe", "none held", "no unknown", "seen not ≥",
+    "depth not ≥", "alert not ≥", "not corridor", "no path", "no ally", "loot not ≥", "turns not >", "not hurt", "no kill",
+    "nothing new", "no ", "party hp ok", "locked cond", "no target", "no line", "no bow", "cooldown", "no item", "no use",
+    "no leash", "none weak", "not safe", "no stairs", "no way", "prayed", "no shrine", "unknown item", "card passed", "brave held", "fired, free",
+    "stuck", "row guard", "trait first", "hazard first", "recall sense", "paralysed", "confused", "bail",
+];
+
+/// A reason is from the table (a prefix match: the numbered shapes carry their number).
+pub fn row_reason_ok(why: &str) -> bool {
+    crate::rules::word_count(why) <= 3 && ROW_REASONS.iter().any(|r| why.starts_with(r))
+}
+
+/// The reason a condition does not hold, ≤ 3 words (`hp not <30%` reads `hp 8% ≥ 30%`).
+fn cond_reason(run: &Run, cx: &Ctx, c: &Cond) -> String {
+    let n = c.n.unwrap_or(0);
+    let t = c.t.as_deref().unwrap_or("");
+    if crate::meta::cond_unlock(&c.k).is_some_and(|u| !cx.unlocks.contains(u)) {
+        return "locked cond".into();
+    }
+    match c.k.as_str() {
+        "hp<" => format!("hp not <{n}%"),
+        "hp>" => format!("hp not >{n}%"),
+        "foes>=" => format!("foes not ≥{n}"),
+        "adj>=" => format!("adj not ≥{n}"),
+        "foe_tag" => "not in view".into(),
+        "foe_hp<" => "no weak foe".into(),
+        "item" => "none held".into(),
+        "unknown_item" => "no unknown".into(),
+        "floor_seen>=" => format!("seen not ≥{n}%"),
+        "depth>=" => format!("depth not ≥{n}"),
+        "alert>=" => format!("alert not ≥{n}"),
+        "in_corridor" => "not corridor".into(),
+        "path_stairs" => "no path".into(),
+        "ally" => "no ally".into(),
+        "loot>=" => format!("loot not ≥{n}"),
+        "turns>" => format!("turns not >{n}"),
+        "on_hurt" => "not hurt".into(),
+        "on_kill" => "no kill".into(),
+        "on_see" if t.is_empty() => "nothing new".into(),
+        "on_see" => format!("no {t} seen"),
+        "party" => format!("no {}", crate::engine::kind_title(t).to_lowercase()),
+        "party_hp<" => "party hp ok".into(),
+        _ => {
+            let _ = run;
+            "locked cond".into()
+        }
+    }
+}
+
+/// One row's reason. Sims (forecasts, verdict replays) never show a trace: no accounting.
+fn row_why(run: &mut Run, cx: &Ctx, i: usize, why: &str) {
+    if !cx.sim {
+        run.rows_why.push(RowWhy { row: i, why: why.into() });
+    }
+}
+
+/// Every row (the unlocked ones plus a lent row) with one reason: the action was decided
+/// before the rules were read (a trait, a hazard step, paralysis, the bail).
+fn all_rows_why(run: &mut Run, cx: &Ctx, why: &str) {
+    if cx.sim {
+        return;
+    }
+    let n = cx.rules.rows.len().min(cx.max_rows) + run.lent_row.is_some() as usize;
+    run.rows_why = (0..n).map(|i| RowWhy { row: i, why: why.into() }).collect();
 }
 
 /// If the last 12 actions visited ≤ 2 tiles with no damage dealt or taken, give up on the
@@ -514,8 +631,8 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
             let m = &run.monsters[i];
             crate::facts::is_studied(cx.facts, &m.kind) && m.hp * 100 / m.max_hp.max(1) < n
         }),
-        "item" => h.has_kind(t) && is_identified(cx.facts, cx.flavours, t),
-        "unknown_item" => h.inv.iter().any(|i| i.is_consumable() && !is_identified(cx.facts, cx.flavours, &i.kind)),
+        "item" => h.inv.iter().chain(h.weapon.iter()).chain(h.armour.iter()).any(|i| i.kind == t && i.is_known(cx.facts, cx.flavours)),
+        "unknown_item" => h.inv.iter().any(|i| i.is_consumable() && !i.is_known(cx.facts, cx.flavours)),
         "floor_seen>=" => run.floor.map.seen_pct() >= n,
         "depth>=" => run.depth as i32 >= n,
         "alert>=" => run.alert >= n,
@@ -1309,7 +1426,7 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
         ExitTier::Death => Resolution::Died { cause: run.death_cause.clone().unwrap_or_else(|| "unknown".into()) },
     };
     sifter::resolve(run, res);
-    cx.events.push(Ev::Exit { t: run.turn, tier: tier.name().into(), loot_kept });
+    cx.events.push(Ev::Exit { t: run.turn, tier: tier.name().into(), loot_kept, line: None });
     match tier {
         ExitTier::Bank => note(run, cx, format!("Banked ${loot_kept}.")),
         ExitTier::Return => note(run, cx, format!("Returned with ${loot_kept}.")),

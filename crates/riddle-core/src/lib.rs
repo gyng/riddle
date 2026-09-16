@@ -33,6 +33,10 @@ impl Game {
     pub fn forecast(&self) -> Forecast {
         forecast::forecast(self)
     }
+    /// Cut 6 §9: the forecast at 100 sims (the same seeds first), for the client's second pass.
+    pub fn forecast_refine(&self) -> Forecast {
+        forecast::forecast_refine(self)
+    }
     pub fn run_offline(&mut self, elapsed_s: u64) -> ReturnReport {
         offline::run_offline(self, elapsed_s)
     }

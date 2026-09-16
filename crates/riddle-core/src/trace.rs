@@ -6,7 +6,7 @@
 //! items in the checkpoint pack, tags among the foes it met in its last ten actions.
 use crate::defs::{monster_def, Cat};
 use crate::engine::{DeathRec, ExitTier, Game, Run};
-use crate::item::{is_identified, Flavours};
+use crate::item::Flavours;
 use crate::rng::{splitmix, Rng};
 use crate::rules::{Cond, Row, RuleSet, Vocabulary};
 use crate::wire::{Death, Ev, Patch, Trace};
@@ -41,10 +41,10 @@ pub fn death_record(game: &Game, run: &Run) -> DeathRec {
     let mut margin = format!("{} over", run.death_blow.max(0));
     let facts = &game.lineage.facts;
     let fl = &game.lineage.flavours;
-    if run.hero.inv.iter().any(|i| i.kind == "heal" && is_identified(facts, fl, "heal")) {
+    if run.hero.inv.iter().any(|i| i.kind == "heal" && i.is_known(facts, fl)) {
         margin.push_str(" · heal unused");
     }
-    let unknown = run.hero.inv.iter().filter(|i| i.is_consumable() && !is_identified(facts, fl, &i.kind)).count();
+    let unknown = run.hero.inv.iter().filter(|i| i.is_consumable() && !i.is_known(facts, fl)).count();
     if unknown > 0 {
         margin.push_str(&format!(" · {unknown} unknown unused"));
     }
@@ -60,6 +60,7 @@ pub fn death_record(game: &Game, run: &Run) -> DeathRec {
         trace: Trace { turns },
         patches: Vec::new(),
         morgue: morgue(game, run, &rules),
+        line: None,
     };
     // Checkpoint: the most recent history entry where the hero still had ≥ 50% HP, but at least
     // MIN_WINDOW turns before death so a patch has room to act; else the oldest entry.
@@ -77,7 +78,22 @@ pub fn death_record(game: &Game, run: &Run) -> DeathRec {
         Some((r, f)) => (Some(r.clone()), f.clone()),
         None => (None, BTreeSet::new()),
     };
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn }
+    let boss = boss_of(run, &cause);
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None }
+}
+
+/// Cut 6 §5: the boss the hero died under — the cause when it is a boss kind, else a living
+/// boss in view or awake within `CONTEXT_RANGE`.
+fn boss_of(run: &Run, cause: &str) -> Option<String> {
+    if monster_def(cause).boss {
+        return Some(cause.to_string());
+    }
+    let map = &run.floor.map;
+    let hp = run.hero.pos;
+    run.monsters
+        .iter()
+        .find(|m| m.hp > 0 && m.is_boss() && (map.is_visible(m.pos) || (m.awake && m.pos.cheb(hp) <= CONTEXT_RANGE)))
+        .map(|m| m.kind.clone())
 }
 
 fn morgue(game: &Game, run: &Run, rules: &RuleSet) -> String {
@@ -103,7 +119,9 @@ fn morgue(game: &Game, run: &Run, rules: &RuleSet) -> String {
             -2 => "chore".to_string(),
             r => format!("R{}", r + 1),
         };
-        s.push_str(&format!("  t{} {} {} hp {} foes {} {}\n", t.t, row, t.verb.short(), t.hp, t.foes, t.telegraphs.join(",")));
+        // Cut 6 §3: the rows above the one that acted, with their reasons.
+        let rows = t.rows.as_ref().map(|r| r.iter().map(|w| format!("R{} {}", w.row + 1, w.why)).collect::<Vec<_>>().join(" · ")).unwrap_or_default();
+        s.push_str(&format!("  t{} {} {} hp {} foes {} {} {}\n", t.t, row, t.verb.short(), t.hp, t.foes, t.telegraphs.join(","), rows));
     }
     s.push_str("notes:\n");
     for (t, n) in run.notes.iter().rev().take(8).rev() {
@@ -207,7 +225,7 @@ pub fn candidates(vocab: &Vocabulary, state: &Run, facts: &BTreeSet<String>, fla
     let max_foes = trace.turns.iter().map(|t| t.foes).max().unwrap_or(0);
     let pack = if max_foes >= 2 { 2 } else { 1 };
     let held = |cat: Cat| state.hero.inv.iter().filter(move |i| i.cat() == cat);
-    let known = |kind: &str| is_identified(facts, flavours, kind);
+    let known = |i: &crate::item::Item| i.is_known(facts, flavours);
     let mut out: Vec<Row> = Vec::new();
     // Rest (Cut 5): a set that never rests wanders worn; `hp<N → rest` is the honest patch for
     // a death a reseeded replay mostly survives (the encounter was luck, the low hp was not).
@@ -226,7 +244,7 @@ pub fn candidates(vocab: &Vocabulary, state: &Run, facts: &BTreeSet<String>, fla
         }
     }
     // Consumables: hp<N → drink heal, else another known benevolent potion in the pack.
-    let potions: Vec<String> = held(Cat::Potion).filter(|i| known(&i.kind) && i.def().benevolent).map(|i| i.kind.clone()).collect();
+    let potions: Vec<String> = held(Cat::Potion).filter(|i| known(i) && i.def().benevolent).map(|i| i.kind.clone()).collect();
     if let Some(k) = potions.iter().find(|k| *k == "heal").or(potions.first()) {
         if let Some(v) = verb("drink", Some(k)) {
             out.push(Row::new(vec![low.clone()], v));
@@ -236,7 +254,7 @@ pub fn candidates(vocab: &Vocabulary, state: &Run, facts: &BTreeSet<String>, fla
     if let Some(v) = verb("return", None) {
         out.push(Row::new(vec![low.clone()], v));
     }
-    let scrolls: Vec<String> = held(Cat::Scroll).filter(|i| known(&i.kind)).map(|i| i.kind.clone()).collect();
+    let scrolls: Vec<String> = held(Cat::Scroll).filter(|i| known(i)).map(|i| i.kind.clone()).collect();
     if let Some(k) = ["teleport", "blink"].iter().find(|k| scrolls.iter().any(|s| s == *k)) {
         if let Some(v) = verb("read", Some(k)) {
             out.push(Row::new(vec![low.clone()], v));
@@ -273,12 +291,12 @@ pub fn candidates(vocab: &Vocabulary, state: &Run, facts: &BTreeSet<String>, fla
     }
     // ID policy: hp<N → drink | read unknown, only when unknown items were held.
     if has_cond("hp<") {
-        if held(Cat::Potion).any(|i| !known(&i.kind)) {
+        if held(Cat::Potion).any(|i| !known(i)) {
             if let Some(v) = verb("drink", Some("unknown")) {
                 out.push(Row::new(vec![low.clone()], v));
             }
         }
-        if held(Cat::Scroll).any(|i| !known(&i.kind)) {
+        if held(Cat::Scroll).any(|i| !known(i)) {
             if let Some(v) = verb("read", Some("unknown")) {
                 out.push(Row::new(vec![low.clone()], v));
             }
@@ -448,6 +466,54 @@ fn score(rp: &mut Replayer, row: &Row, pos: usize, bar: f64) -> Option<(f64, f64
     (rate >= bar && fired >= FIRED_BAR).then_some((rate, fired))
 }
 
+/// Cut 6 §5: (survive share, fired share) of a row over all replays, no early exit — for the
+/// boss counter row, which is shown whatever its numbers once it proves executable.
+fn measure(rp: &mut Replayer, row: &Row, pos: usize) -> (f64, f64) {
+    let (mut survived, mut fired) = (0u32, 0u32);
+    for i in 0..REPLAYS {
+        let (s, f) = rp.replay(row_nonce(row, pos, i), pos as i32);
+        survived += s as u32;
+        fired += f as u32;
+    }
+    (survived as f64 / REPLAYS as f64, fired as f64 / REPLAYS as f64)
+}
+
+/// Cut 6 §5: on a boss death with the counter known, the counter row (when not already in the
+/// rules and executable — its verb in the death's vocabulary, fired in ≥ `FIRED_BAR` of the
+/// replays) is pinned first among the patches: it is, by construction, the best candidate.
+fn pin_counter(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Option<Patch> {
+    let kind = rec.boss.clone()?;
+    let row = crate::facts::boss_counter_row(&game.lineage.facts, &kind)?;
+    if rec.rules.rows.contains(&row) || !rec.vocab.verbs.contains(&row.verb) {
+        return None;
+    }
+    let mut rp = Replayer::new(base, &patched(rec, &row, 0), ticks)?;
+    let (survive, fired) = measure(&mut rp, &row, 0);
+    if fired < FIRED_BAR {
+        return None;
+    }
+    rec.counter = Some(row.clone());
+    Some(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false })
+}
+
+/// Cut 6 §8: on a boss death the escape family ranks below targeting (the counter first when
+/// pinned), and a `return`/`bank` patch is never shown alone.
+fn boss_order(rec: &mut DeathRec) {
+    if rec.boss.is_none() {
+        return;
+    }
+    let escape = |p: &Patch| family(&p.row) == "escape";
+    let counter = rec.counter.clone();
+    let is_counter = |p: &Patch| counter.as_ref() == Some(&p.row);
+    let mut ps = std::mem::take(&mut rec.death.patches);
+    let mut ordered: Vec<Patch> = ps.iter().filter(|p| is_counter(p)).cloned().collect();
+    ps.retain(|p| !is_counter(p));
+    let (esc, rest): (Vec<Patch>, Vec<Patch>) = ps.into_iter().partition(escape);
+    ordered.extend(rest);
+    ordered.extend(esc);
+    rec.death.patches = ordered;
+}
+
 /// The survival a scored candidate must reach: the baseline plus the margin, capped at
 /// `SURVIVE_BAR` (so at a high baseline the forecast can still decide).
 pub fn survive_bar(baseline: f64) -> f64 {
@@ -523,8 +589,14 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
             .then(a.2.cmp(&b.2))
     });
     let edge_gap = scored.first().is_some_and(|best| best.0 - baseline >= PATCH_MARGIN - 1e-9);
-    let patches = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos, survive: rate, forecast_delta: 0.0, replace: false, remove: false }).collect();
+    let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos, survive: rate, forecast_delta: 0.0, replace: false, remove: false }).collect();
+    // Cut 6 §5: the boss's counter row leads (its own family's first).
+    if let Some(c) = pin_counter(game, rec, &base, ticks) {
+        patches.retain(|p| p.row != c.row);
+        patches.insert(0, c);
+    }
     rec.death.patches = one_per_family(patches);
+    boss_order(rec);
     if edge_gap {
         rec.death.verdict = "gap".into();
     } else {
@@ -552,6 +624,11 @@ fn forecast_deltas(game: &Game, rec: &mut DeathRec, limit: usize, until_gap: boo
     if rec.deltas_n == 0 {
         // Forecasts cost ~20 sims each: rank by survival edge first and only forecast the top few.
         rec.death.patches.sort_by(|a, b| (b.survive - baseline).partial_cmp(&(a.survive - baseline)).unwrap().then(a.row.conds.len().cmp(&b.row.conds.len()).reverse()));
+        // Cut 6 §5: the pinned counter row keeps its place at the head (and gets a delta).
+        if let Some(i) = rec.counter.as_ref().and_then(|c| rec.death.patches.iter().position(|p| p.row == *c)) {
+            let c = rec.death.patches.remove(i);
+            rec.death.patches.insert(0, c);
+        }
         rec.death.patches.truncate(DELTA_CANDIDATES);
     }
     let base = crate::forecast::reach_with(game, &rec.rules, depth, sims, 0xDE17A);
@@ -592,20 +669,32 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     // must beat the baseline by 0.30. Rank by the forecast delta when any patch moves it, else
     // by (survive − baseline); show three, never two of one family.
     let pre_retain = rec.death.patches.clone();
+    let counter = rec.counter.clone();
     rec.death.patches.retain(|p| {
         let edge = p.survive - baseline;
-        (edge >= PATCH_MARGIN - 1e-9 || p.forecast_delta >= DELTA_BAR - 1e-9) && (!p.row.conds.is_empty() || edge >= 0.3)
+        counter.as_ref() == Some(&p.row) || ((edge >= PATCH_MARGIN - 1e-9 || p.forecast_delta >= DELTA_BAR - 1e-9) && (!p.row.conds.is_empty() || edge >= 0.3))
     });
     rank_patches(&mut rec.death.patches, baseline);
+    boss_order(rec);
     let patches = std::mem::take(&mut rec.death.patches);
     rec.death.patches = one_per_family(patches);
     rec.death.patches.truncate(SHOWN);
     // A `gap` never shows an empty list: fall back to the best survivors even without an edge.
     if rec.death.patches.is_empty() && rec.death.verdict == "gap" {
-        let mut all = pre_retain;
+        let mut all = pre_retain.clone();
         all.sort_by(|a, b| b.survive.partial_cmp(&a.survive).unwrap().then(b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap()));
         rec.death.patches = one_per_family(all);
+        boss_order(rec);
         rec.death.patches.truncate(SHOWN);
+    }
+    // Cut 6 §8: on a boss death a `return` is never the only patch — the best other scored
+    // candidate joins it (giving up is not the answer to a wall).
+    if rec.boss.is_some() && rec.death.patches.len() == 1 && family(&rec.death.patches[0].row) == "escape" {
+        let mut others: Vec<Patch> = pre_retain.into_iter().filter(|p| family(&p.row) != "escape").collect();
+        others.sort_by(|a, b| b.survive.partial_cmp(&a.survive).unwrap().then(b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap()));
+        if let Some(o) = others.into_iter().next() {
+            rec.death.patches.insert(0, o);
+        }
     }
 }
 

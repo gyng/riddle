@@ -95,6 +95,49 @@ pub struct Stake {
     pub brought: Vec<StakeItem>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub return_row: Option<usize>,
+    /// Cut 6 §1: the gold the `return_row` would bring home right now (`$84 · keeps $50`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kept: Option<i32>,
+}
+
+/// Cut 6 §1: the ledger line of an exit — one arithmetic line the player can check.
+/// `text` ≤ 14 words: `$84 carried · return keeps 60% → $50` (death: `$144 carried · death
+/// keeps 0% → $0 · bones: 7 items on D5`). `spent` / `spent_on` are the automations' purchases
+/// on coming home (`auto_supply`); salvage is its own ledger movement (`Lineage.gold_ledger`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ExitLine {
+    pub carried: i32,
+    pub keep_pct: i32,
+    pub kept: i32,
+    pub spent: i32,
+    pub spent_on: Vec<String>,
+    pub text: String,
+}
+
+/// Cut 6 §1: one gold movement (`+50 returned D5`, `−40 heal`, `−8 insure sword`, `+3
+/// salvage`, `−50 hatch`); `why` ≤ 3 words; `t` is the lineage tick.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GoldLine {
+    pub t: u64,
+    pub delta: i32,
+    pub why: String,
+}
+
+/// Cut 6 §5: a boss whose counter row is known (`Lineage.counters`): the row and its ≤ 3-word
+/// text (`attack boss`, `throw fire, boss`, `read silence`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Counter {
+    pub boss: String,
+    pub row: Row,
+    pub text: String,
+}
+
+/// Cut 6 §3: why a row above the fired one did not fire this action (≤ 3 words from
+/// `turn::ROW_REASONS`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RowWhy {
+    pub row: usize,
+    pub why: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -120,7 +163,14 @@ pub enum Ev {
     Steal { t: u32, id: u32, item: String },
     Ally { t: u32, id: u32, state: String },
     Descend { t: u32, depth: u32, biome: String },
-    Exit { t: u32, tier: String, loot_kept: i32 },
+    Exit {
+        t: u32,
+        tier: String,
+        loot_kept: i32,
+        /// Cut 6 §1: the ledger line (filled once the exit is settled).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        line: Option<ExitLine>,
+    },
     Note { t: u32, text: String },
     Callout { t: u32, text: String },
     Tame { t: u32, id: u32, kind: String, ok: bool },
@@ -215,6 +265,10 @@ pub struct TraceTurn {
     /// execute (`R1 retreat ✗ no path`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub blocked: Option<String>,
+    /// Cut 6 §3: every row above the fired one (all rows when a trait or a chore acted) with
+    /// the reason it did not fire (`none held` · `no path` · `not in view` · `hp not <30%`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rows: Option<Vec<RowWhy>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -264,6 +318,9 @@ pub struct Death {
     pub trace: Trace,
     pub patches: Vec<Patch>,
     pub morgue: String,
+    /// Cut 6 §1: the death's ledger line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<ExitLine>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -332,6 +389,9 @@ pub struct ReturnReport {
     /// Stall verdict (addition): present when the last ≥ 4 runs all came home with no new depth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stall: Option<Stall>,
+    /// Cut 6 §1: the ledger lines of the absence's last five exits, oldest first.
+    #[serde(default)]
+    pub exits: Vec<ExitLine>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -460,6 +520,12 @@ pub struct Lineage {
     /// Cut 5 §4: what an unwatched vault choice takes (`weapon | armour | potion | scroll`).
     #[serde(default)]
     pub vault_pref: String,
+    /// Cut 6 §1: the last 20 gold movements, oldest first (`ledger` is the bestiary).
+    #[serde(default)]
+    pub gold_ledger: Vec<GoldLine>,
+    /// Cut 6 §5: bosses whose counter row is known, with the row and its ≤ 3-word text.
+    #[serde(default)]
+    pub counters: Vec<Counter>,
 }
 
 /// Cut 3: `{level, variant}`; `variant` is one of `no_rest short_list bones_only hunted`.
@@ -499,6 +565,10 @@ pub struct UnlockInfo {
     /// reach delta at `best_depth + 1` if it were owned and its row added (0..1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delta: Option<f64>,
+    /// Cut 6 §6: a tactic card's rows (what the card does, as rows), or an automation's effect
+    /// as one row-like entry (`{conds: [], verb: {v: "auto", a: "keeps best weapon+armour"}}`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rows: Option<Vec<Row>>,
 }
 
 #[cfg(test)]

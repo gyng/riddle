@@ -167,7 +167,7 @@ pub fn learn_everything(g: &mut crate::engine::Game) {
             g.lineage.facts.insert(format!("foe:{}:{}", m.kind, t));
         }
         if m.boss {
-            g.lineage.facts.insert(format!("boss:{}:counter", m.kind));
+            g.lineage.facts.insert(crate::facts::boss_counter_fact(m.kind));
         }
         g.lineage.facts.insert(format!("foe:{}:studied", m.kind));
     }

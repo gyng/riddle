@@ -6,9 +6,11 @@ pub fn save(game: &Game) -> String {
 }
 
 pub fn load(text: &str) -> Result<Game, String> {
-    let g: Game = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    let mut g: Game = serde_json::from_str(text).map_err(|e| e.to_string())?;
     if g.version != SAVE_VERSION {
         return Err(format!("save version {} unsupported", g.version));
     }
+    // Cut 6 §5: counter facts carry their row.
+    crate::facts::upgrade_counter_facts(&mut g.lineage.facts);
     Ok(g)
 }

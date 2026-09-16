@@ -566,7 +566,7 @@ fn warlord_rallies_summons_and_buffs() {
     let evs = ticks(&mut g, 40);
     assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == w && what == "rallies")));
     assert!(evs.iter().filter(|e| matches!(e, Ev::Spawn { e, .. } if e.kind == "goblin")).count() >= 2);
-    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "boss:goblin_warlord:counter")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact.starts_with("boss:goblin_warlord:counter"))));
     assert!(g.run.as_ref().unwrap().monsters.iter().any(|m| m.kind == "goblin" && m.buff_def.1 > 0));
 }
 
@@ -579,7 +579,7 @@ fn bloat_mother_swells_and_pops_a_big_cloud() {
     let b = add_monster(&mut g, "bloat_mother", 6, 5);
     let evs = ticks(&mut g, 40);
     assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == b && what == "swells")), "she telegraphs on the first turn");
-    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "boss:bloat_mother:counter")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact.starts_with("boss:bloat_mother:counter"))));
     assert!(evs.iter().any(|e| matches!(e, Ev::Overlay { ov: OverlayKind::Gas, .. })));
     // Melee hits vent a 5×5 cloud and she heals in it: melee-only cannot win.
     g.run.as_mut().unwrap().overlays.clear();
@@ -2138,7 +2138,7 @@ fn warlord_wall_shields_him_and_aimed_strikes_go_through() {
     attack_rules(&mut g);
     let evs = ticks(&mut g, 300);
     assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == w && what == "rallies")));
-    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "boss:goblin_warlord:counter")), "the first telegraph teaches the counter");
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact.starts_with("boss:goblin_warlord:counter"))), "the first telegraph teaches the counter");
     assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "shielded")));
     assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "shields up")));
     assert!(monster(&g, w).is_some(), "the Warlord survives 30 actions of attack-nearest");
@@ -2167,7 +2167,7 @@ fn lich_reflects_arrows_and_keeps_chanting_while_summons_stand() {
     attack_rules(&mut g);
     let evs = ticks(&mut g, 150);
     assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == l && what == "chants")));
-    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "boss:lich:counter")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact.starts_with("boss:lich:counter"))));
     assert!(evs.iter().any(|e| matches!(e, Ev::Attack { verb, dst, .. } if verb.as_deref() == Some("reflect") && *dst == HERO_ID)), "arrows come back");
     let chants = evs.iter().filter(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == l && what == "chants")).count();
     assert!(chants >= 2, "re-chants while skeletons stand: {chants}");
@@ -2535,7 +2535,7 @@ fn mirror_king_reflects_the_third_of_a_kind_and_cadence_never_repeats() {
     attack_rules(&mut g);
     let evs = ticks(&mut g, 60);
     assert!(evs.iter().any(|e| matches!(e, Ev::Attack { verb: Some(v), dst: HERO_ID, .. } if v == "mirror")), "the third swing came back");
-    assert!(g.lineage.facts.contains("boss:mirror_king:counter"));
+    assert!(crate::facts::boss_counter_known(&g.lineage.facts, "mirror_king"));
     assert!(g.lineage.facts.contains("foe:mirror_king:mirror"));
     assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { what, .. } if what == "mirrors")));
     // Cadence: two of a kind, then another; nothing comes back and the King bleeds.
@@ -2561,7 +2561,7 @@ fn lurker_queen_calls_lurkers_to_a_noise() {
     let evs = ticks(&mut g, 12);
     assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { what, .. } if what == "listens")), "she heard the rest");
     assert!(evs.iter().any(|e| matches!(e, Ev::Spawn { e, .. } if e.kind == "lurker")), "lurkers came");
-    assert!(!g.lineage.facts.contains("boss:lurker_queen:counter"), "unseen in the dark: no fact yet");
+    assert!(!crate::facts::boss_counter_known(&g.lineage.facts, "lurker_queen"), "unseen in the dark: no fact yet");
     // A bell rung in her sight: the call, seen, is the counter fact.
     hold_rules(&mut g);
     ticks(&mut g, 40);
@@ -2570,7 +2570,7 @@ fn lurker_queen_calls_lurkers_to_a_noise() {
     unlock(&mut g, "throw");
     rules(&mut g, vec![Row::new(vec![], Verb::arg("throw", "bell"))]);
     ticks(&mut g, 12);
-    assert!(g.lineage.facts.contains("boss:lurker_queen:counter"));
+    assert!(crate::facts::boss_counter_known(&g.lineage.facts, "lurker_queen"));
 }
 
 #[test]
@@ -2580,7 +2580,7 @@ fn foundry_master_telegraphs_his_hammer_and_learns_the_counter() {
     hold_rules(&mut g);
     let evs = ticks(&mut g, 30);
     assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { what, .. } if what == "hammers")));
-    assert!(g.lineage.facts.contains("boss:foundry_master:counter"));
+    assert!(crate::facts::boss_counter_known(&g.lineage.facts, "foundry_master"));
     let m = g.run.as_ref().unwrap().monsters.iter().find(|m| m.kind == "foundry_master").unwrap();
     assert!(m.reflects_melee());
 }
@@ -3826,4 +3826,435 @@ fn the_hero_speaks_sparingly() {
     let ri = run.monsters.iter().position(|m| m.id == r).unwrap();
     crate::turn::damage_hero(run, &mut cx, 30, &crate::turn::Src::Mon(ri));
     assert!(cx.events.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "come on then")), "{:?}", cx.events);
+}
+
+// ---------------------------------------------------------------- Cut 6
+
+/// §1: the ledger reconciles on every exit — the exit's own movement is `carried × keep%`,
+/// the automations' spending is `spent`, salvage is its own line, and the lineage's gold
+/// moved by exactly their sum. 30 seeds of DEFAULT and EDITED runs, every exit checked; the
+/// exit line reads as the contract's arithmetic.
+#[test]
+fn ledger_line_reconciles_on_every_exit() {
+    let mut exits = 0;
+    let mut deaths = 0;
+    let mut spent_any = false;
+    for seed in 1..=30u64 {
+        let mut g = Game::new(seed);
+        if seed % 2 == 0 {
+            g.set_rules(crate::probes::good()).unwrap();
+        }
+        // Half the seeds own the automations, so `spent` is exercised.
+        if seed % 3 == 0 {
+            g.lineage.unlocks.insert("auto_supply".into());
+            g.lineage.gold_move(200, "gift");
+            g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+            g.buy_supply("heal").unwrap();
+        }
+        for _ in 0..6 {
+            g.lineage.rest_left = 0;
+            g.start_run(None);
+            g.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
+            let (carried, tier, timed_out, depth, heir) = {
+                let r = g.run.as_ref().unwrap();
+                (r.loot.max(0), r.over.unwrap(), r.timed_out, r.depth, r.heir)
+            };
+            let before = g.lineage.gold;
+            let lines_before = g.lineage.gold_ledger.len();
+            g.finish_run();
+            g.auto_keep();
+            let after = g.lineage.gold;
+            let line = g.batch.exits.last().cloned().expect("an exit line");
+            let pct = if timed_out { 0 } else { tier.pct() };
+            assert_eq!(line.carried, carried, "seed {seed}");
+            assert_eq!(line.keep_pct, pct, "seed {seed}");
+            assert_eq!(line.kept, carried * pct / 100, "seed {seed}");
+            assert!(word_count(&line.text) <= 14, "{}", line.text);
+            assert!(line.text.starts_with(&format!("${carried} carried · ")), "{}", line.text);
+            assert!(line.text.contains(&format!("keeps {pct}% → ${}", line.kept)), "{}", line.text);
+            if tier == ExitTier::Death {
+                deaths += 1;
+                assert!(line.text.contains("death keeps 0% → $0"), "{}", line.text);
+                match g.lineage.bones.last().filter(|b| b.heir == heir) {
+                    Some(b) => assert!(line.text.contains(&format!("bones: {} items on D{depth}", b.items.len())), "{}", line.text),
+                    None => assert!(!line.text.contains("bones"), "{}", line.text),
+                }
+                let d = g.deaths.values().last().unwrap();
+                assert_eq!(d.death.line.as_ref(), Some(&line), "the death carries its line");
+            }
+            // The ledger since the exit: the exit movement, salvage, the automations' spending.
+            let tail: Vec<GoldLine> = g.lineage.gold_ledger.iter().skip(lines_before.min(g.lineage.gold_ledger.len().saturating_sub(1))).cloned().collect();
+            let t = g.lineage.total_turns;
+            let since: Vec<&GoldLine> = g.lineage.gold_ledger.iter().filter(|l| l.t == t).collect();
+            assert!(!since.is_empty(), "seed {seed}: no ledger line for the exit ({tail:?})");
+            let exit_line = since.iter().find(|l| l.why.starts_with("returned") || l.why.starts_with("banked") || l.why.starts_with("died") || l.why.starts_with("lost")).expect("exit movement");
+            assert_eq!(exit_line.delta, line.kept, "seed {seed}: {since:?}");
+            assert!(word_count(&exit_line.why) <= 3, "{}", exit_line.why);
+            let salvage: i32 = since.iter().filter(|l| l.why == "salvage").map(|l| l.delta).sum();
+            let spent: i32 = since.iter().filter(|l| l.delta < 0).map(|l| -l.delta).sum();
+            assert_eq!(line.spent, spent, "seed {seed}: {since:?}");
+            assert_eq!(after - before, line.kept + salvage - line.spent, "seed {seed}: gold delta vs ledger {since:?}");
+            assert_eq!(after - before, since.iter().map(|l| l.delta).sum::<i32>(), "seed {seed}: the ledger sums to the delta");
+            if line.spent > 0 {
+                spent_any = true;
+                assert!(!line.spent_on.is_empty());
+            }
+            for l in &g.lineage.gold_ledger {
+                assert!(word_count(&l.why) <= 3, "{}", l.why);
+            }
+            assert!(g.lineage.gold_ledger.len() <= crate::engine::GOLD_LEDGER_CAP);
+            exits += 1;
+        }
+        assert!(g.batch.exits.len() <= crate::engine::EXITS_CAP);
+        let lw = g.lineage();
+        assert_eq!(lw.gold_ledger, g.lineage.gold_ledger);
+    }
+    assert!(exits >= 150 && deaths >= 20, "{exits} exits, {deaths} deaths");
+    assert!(spent_any, "no seed spent on the way home");
+}
+
+/// §1: the exit event carries the settled line; the HUD stake shows what the return row
+/// would keep; the report lists the batch's last five exits; purchases are ledger lines.
+#[test]
+fn exit_event_stake_and_report_carry_the_ledger() {
+    let mut g = arena_seed(3);
+    {
+        let run = g.run.as_mut().unwrap();
+        let mut gold = Item::new(70, "gold");
+        gold.amount = 400;
+        run.items.push(crate::engine::FloorItem { pos: Pos::new(5, 5), item: gold });
+    }
+    rules(&mut g, vec![Row::new(vec![Cond::n("loot>=", 50)], Verb::new("return"))]);
+    g.lineage.unlocks.insert("cond_loot".into());
+    let mut line = None;
+    for _ in 0..40 {
+        let r = g.step(10);
+        if r.snapshot.stake.loot > 0 && !r.run_over {
+            assert_eq!(r.snapshot.stake.return_row, Some(0));
+            assert_eq!(r.snapshot.stake.kept, Some(r.snapshot.stake.loot * 60 / 100), "the kept number, not the carried one");
+        }
+        if let Some(l) = r.events.iter().find_map(|e| if let Ev::Exit { line, .. } = e { line.clone() } else { None }) {
+            line = Some(l);
+            break;
+        }
+    }
+    let line = line.expect("an exit line on the exit event");
+    assert_eq!(line.keep_pct, 60);
+    assert_eq!(line.kept, line.carried * 60 / 100);
+    assert!(line.text.contains("return keeps 60%"), "{}", line.text);
+    assert_eq!(g.batch.exits.last(), Some(&line));
+    // Purchases, insurance, a refund and a hatch are ledger lines with ≤ 3-word reasons.
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    let before = g.lineage.gold;
+    g.buy_supply("heal").unwrap();
+    assert_eq!(g.lineage.gold_ledger.last().map(|l| (l.delta, l.why.as_str())), Some((-40, "heal")));
+    g.clear_supplies();
+    assert_eq!(g.lineage.gold_ledger.last().map(|l| (l.delta, l.why.as_str())), Some((40, "refund heal")));
+    assert_eq!(g.lineage.gold, before);
+    g.lineage.vault.push(Item::new(100_001, "sword"));
+    g.lineage.gold_move(500, "gift");
+    g.insure(100_001).unwrap();
+    let last = g.lineage.gold_ledger.last().unwrap();
+    assert_eq!(last.why, "insure sword");
+    assert_eq!(last.delta, -crate::engine::insure_cost("sword"));
+    // The report carries the exits of its batch (≤ 5, oldest first).
+    let rep = g.run_offline(3600);
+    assert!(!rep.exits.is_empty() && rep.exits.len() <= 5, "{:?}", rep.exits);
+    for e in &rep.exits {
+        assert!(word_count(&e.text) <= 14, "{}", e.text);
+    }
+}
+
+/// §2: a heal bought by name is drunk by `hp<30% → drink heal` at 3 HP — bought, crafted and
+/// vaulted items are known by name whatever their flavour; a found one still needs the fact.
+#[test]
+fn bought_heal_is_drunk_by_name() {
+    for identified in [true, false] {
+        let mut g = arena_seed(5);
+        g.lineage.gold_move(100, "gift");
+        if identified {
+            g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+            g.buy_supply("heal").unwrap();
+        } else {
+            // Unidentified: the shop will not list it, so it is a vaulted (kept) potion.
+            assert!(g.buy_supply("heal").is_err());
+            let mut it = Item::new(100_010, "heal");
+            it.known = true;
+            g.lineage.vault.push(it);
+        }
+        let supplies: Vec<Item> = if identified { std::mem::take(&mut g.lineage.supplies) } else { g.lineage.vault.clone() };
+        assert!(supplies.iter().all(|s| s.known), "bought/vaulted items are known by name");
+        // The potion goes into the live run's pack as `start_run` would place it.
+        for it in supplies {
+            g.run.as_mut().unwrap().hero.auto_equip(it);
+        }
+        rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+        g.run.as_mut().unwrap().hero.hp = 3;
+        add_monster(&mut g, "rat", 12, 9);
+        let snap = g.snapshot();
+        let potion = snap.hero.inv.iter().find(|i| i.kind == "heal").expect("the wire names the potion");
+        assert!(potion.known && potion.label == "heal potion", "{potion:?}");
+        let evs = ticks(&mut g, 20);
+        assert!(evs.iter().any(|e| matches!(e, Ev::Rule { row: 0, verb, .. } if verb.v == "drink")), "identified {identified}: {:?}", ev_kinds(&evs));
+        assert!(evs.iter().any(|e| matches!(e, Ev::Use { item, .. } if item == "heal potion")));
+        assert!(hero(&g).hp > 3);
+        assert!(!evs.iter().any(|e| matches!(e, Ev::Note { text, .. } if text.starts_with("Gambled"))), "a named potion is no gamble");
+    }
+    // A found heal (no flavour fact, not known by name) is not `drink heal`'s.
+    let mut g = arena_seed(5);
+    give(&mut g, "heal");
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal"))]);
+    g.run.as_mut().unwrap().hero.hp = 3;
+    let evs = ticks(&mut g, 20);
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Rule { row: 0, .. })));
+    let t = g.run.as_ref().unwrap().trace.last().unwrap();
+    assert_eq!(t.rows.as_ref().unwrap()[0].why, "unknown item", "{:?}", t.rows);
+    // A save round-trips the flag.
+    let mut it = Item::new(1, "heal");
+    it.known = true;
+    let j = serde_json::to_string(&it).unwrap();
+    assert!(j.contains("\"known\":true"));
+    let back: Item = serde_json::from_str(r#"{"id":1,"kind":"heal"}"#).unwrap();
+    assert!(!back.known);
+}
+
+/// §3: every death trace's turns account for every row above the one that acted, with a
+/// reason from the fixed table (≤ 3 words); 100 deaths over the offline batches.
+#[test]
+fn death_traces_account_for_every_row_above_the_fired_one() {
+    let mut deaths = 0;
+    let mut turns = 0;
+    let mut reasons: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for seed in 1..=30u64 {
+        let mut g = Game::new(seed);
+        g.max_deaths = 1000;
+        if seed % 2 == 0 {
+            g.set_rules(crate::probes::good()).unwrap();
+        }
+        crate::offline::run_offline_quick(&mut g, 4 * 3600);
+        let n_rows = g.lineage.rules().rows.len().min(g.lineage.max_rows());
+        for rec in g.deaths.values() {
+            deaths += 1;
+            for t in &rec.death.trace.turns {
+                turns += 1;
+                let above = if t.row >= 0 { t.row as usize } else { n_rows };
+                let rows = t.rows.clone().unwrap_or_default();
+                assert_eq!(rows.len(), above, "seed {seed} run {}: t{} row {} {:?}", rec.death.run_id, t.t, t.row, rows);
+                for (i, w) in rows.iter().enumerate() {
+                    assert_eq!(w.row, i);
+                    assert!(crate::turn::row_reason_ok(&w.why), "reason off the table: {}", w.why);
+                    reasons.insert(w.why.split(|c: char| c.is_ascii_digit()).next().unwrap_or("").trim().to_string());
+                }
+            }
+        }
+        if deaths >= 100 {
+            break;
+        }
+    }
+    assert!(deaths >= 100, "{deaths} deaths");
+    assert!(turns >= 500);
+    assert!(reasons.len() >= 3, "{reasons:?}");
+}
+
+/// §3: the reasons name the failing condition and the blocked verb in play: `hp not <30%`,
+/// `foes not ≥2`, `not in view`, `none held`, the Cut 4 block reason, `card passed`, a free
+/// action, a trait pre-empting the list.
+#[test]
+fn row_reasons_name_the_condition_or_the_block() {
+    let mut g = arena_seed(2);
+    g.lineage.unlocks.insert("gas_step".into());
+    g.lineage.unlocks.extend(["row5", "row6", "row7"].map(String::from));
+    g.lineage.facts.insert("foe:jackal:pack".into());
+    rules(
+        &mut g,
+        vec![
+            Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "unknown")),
+            Row::new(vec![Cond::n("foes>=", 2)], Verb::new("retreat")),
+            Row::new(vec![Cond::t("foe_tag", "pack")], Verb::arg("attack", "tag:pack")),
+            Row::new(vec![Cond::t("item", "heal")], Verb::arg("drink", "heal")),
+            Row::new(vec![Cond::t("foe_tag", "gas")], Verb::arg("tactic", "gas_step")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::new("retreat")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+        ],
+    );
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Brave;
+    add_monster(&mut g, "rat", 5, 5);
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    assert_eq!(t.row, 6, "{t:?}");
+    let whys: Vec<&str> = t.rows.as_ref().unwrap().iter().map(|w| w.why.as_str()).collect();
+    assert_eq!(whys, ["hp not <30%", "foes not ≥2", "not in view", "none held", "not in view", "brave held"], "{t:?}");
+    // A card that passes, an unknown-item row with nothing unknown, a locked token.
+    let mut g = arena_seed(2);
+    g.lineage.unlocks.insert("gas_step".into());
+    rules(
+        &mut g,
+        vec![
+            Row::new(vec![], Verb::arg("tactic", "gas_step")),
+            Row::new(vec![Cond::flag("unknown_item")], Verb::arg("drink", "unknown")),
+            Row::new(vec![Cond::n("loot>=", 1)], Verb::new("return")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+        ],
+    );
+    add_monster(&mut g, "rat", 5, 5);
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    assert_eq!(t.row, 3, "{t:?}");
+    let whys: Vec<&str> = t.rows.as_ref().unwrap().iter().map(|w| w.why.as_str()).collect();
+    assert_eq!(whys, ["card passed", "no unknown", "locked cond"], "{t:?}");
+    // A chore: every row accounted for; a pre-empting trait: every row `trait first`.
+    let mut g = arena_seed(2);
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")), Row::new(vec![Cond::n("hp<", 50)], Verb::new("rest"))]);
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    assert_eq!(t.row, -2);
+    let whys: Vec<&str> = t.rows.as_ref().unwrap().iter().map(|w| w.why.as_str()).collect();
+    assert_eq!(whys, ["foes not ≥1", "hp not <50%"]);
+    let mut g = arena_seed(2);
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Cowardly;
+    g.run.as_mut().unwrap().hero.hp = 10;
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+    add_monster(&mut g, "rat", 5, 5);
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    assert_eq!(t.row, -1, "{t:?}");
+    assert_eq!(t.rows.as_ref().unwrap()[0].why, "trait first");
+    // Row 1 acting: nothing above it, no list.
+    let mut g = arena_seed(2);
+    attack_rules(&mut g);
+    add_monster(&mut g, "rat", 5, 5);
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    assert_eq!(t.row, 0);
+    assert!(t.rows.is_none());
+    for r in crate::turn::ROW_REASONS {
+        assert!(word_count(r) <= 3, "{r}");
+    }
+}
+
+/// §5: the counter facts carry the row, the lineage lists the known counters with ≤ 3-word
+/// texts, old-form facts in a save are upgraded, and the gates that read the old key still
+/// match.
+#[test]
+fn counter_facts_carry_the_row() {
+    let mut g = arena();
+    hold_rules(&mut g);
+    g.run.as_mut().unwrap().hero.max_hp = 500;
+    g.run.as_mut().unwrap().hero.hp = 499;
+    add_monster(&mut g, "goblin_warlord", 8, 5);
+    let evs = ticks(&mut g, 40);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "boss:goblin_warlord:counter=attack tag:boss")), "{:?}", ev_kinds(&evs));
+    assert_eq!(g.lineage.facts.iter().filter(|f| f.starts_with("boss:goblin_warlord:counter")).count(), 1);
+    let l = g.lineage();
+    assert_eq!(l.counters.len(), 1);
+    assert_eq!(l.counters[0].boss, "goblin_warlord");
+    assert_eq!(l.counters[0].text, "attack boss");
+    assert_eq!(l.counters[0].row, Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")));
+    // The `stair_dance` gate ("a boss counter") reads the new form.
+    assert!(g.unlocks().iter().find(|u| u.id == "stair_dance").unwrap().needs.is_none());
+    // An old save's fact is upgraded on load.
+    g.lineage.facts.insert("boss:lich:counter".into());
+    let g2 = Game::load(&g.save()).unwrap();
+    assert!(g2.lineage.facts.contains("boss:lich:counter=attack tag:summoned"));
+    assert!(!g2.lineage.facts.contains("boss:lich:counter"));
+    let l = g2.lineage();
+    assert_eq!(l.counters.iter().map(|c| c.text.as_str()).collect::<Vec<_>>(), ["attack boss", "attack summoned"]);
+    for c in &l.counters {
+        assert!(word_count(&c.text) <= 3);
+    }
+}
+
+/// §5/§8: a boss death with the counter known shows the counter row first; a `return` patch
+/// is never the only patch on a boss death. 30 Warlord deaths.
+#[cfg(not(debug_assertions))]
+#[test]
+fn boss_deaths_show_the_counter_row_first() {
+    let mut deaths = 0;
+    let mut lone_return = 0;
+    let mut seed = 100u64;
+    while deaths < 30 {
+        seed += 1;
+        let mut g = arena_seed(seed);
+        g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+        {
+            // D5 (the Warlord's floor); `max_depth` stays 1 so the patch forecasts, which run to
+            // `best_depth + 1`, stay cheap — the test is about the pin, not the deltas.
+            let run = g.run.as_mut().unwrap();
+            run.depth = 5;
+            run.hero.hp = 12 + (seed % 5) as i32;
+        }
+        add_monster(&mut g, "goblin_warlord", 7 + (seed % 3) as i32, 5);
+        add_monster(&mut g, "goblin", 6, 4);
+        add_monster(&mut g, "goblin", 6, 6);
+        add_monster(&mut g, "goblin", 5, 7);
+        // The counter is known; the boss tag is what the sight teaches (learned in play).
+        g.lineage.facts.insert(crate::facts::boss_counter_fact("goblin_warlord"));
+        let mut rows = vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))];
+        if seed % 2 == 0 {
+            rows.insert(0, Row::new(vec![Cond::n("hp<", 10)], Verb::new("return")));
+        }
+        rules(&mut g, rows);
+        let mut died = None;
+        for _ in 0..800 {
+            g.tick();
+            g.events.clear();
+            if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+                let r = g.run.as_ref().unwrap();
+                if r.over == Some(ExitTier::Death) {
+                    died = Some(r.id);
+                }
+                g.finish_run();
+                break;
+            }
+        }
+        let Some(id) = died else { continue };
+        let d = g.death(id).unwrap();
+        let rec = g.deaths.get(&id).unwrap();
+        assert_eq!(rec.boss.as_deref(), Some("goblin_warlord"), "seed {seed}");
+        deaths += 1;
+        assert!(!d.patches.is_empty(), "seed {seed}: no patch on a boss death");
+        let counter = crate::facts::counter_row("goblin_warlord");
+        assert_eq!(d.patches[0].row, counter, "seed {seed}: {:?}", d.patches);
+        assert!(d.line.is_some());
+        if d.patches.len() == 1 && d.patches[0].row.verb.v == "return" {
+            lone_return += 1;
+        }
+    }
+    assert_eq!(lone_return, 0);
+}
+
+/// §9: the forecast is a function of (rules, lineage seed, depth) and the lineage a sim starts
+/// from — re-reading it gives the same numbers, transient state moves nothing, and the refine
+/// pass at 100 sims is as deterministic.
+#[test]
+fn forecast_is_deterministic_per_rules_and_lineage() {
+    let mut g = Game::new(11);
+    g.set_rules(crate::probes::good()).unwrap();
+    let a = g.forecast();
+    let b = g.forecast();
+    assert_eq!(a, b);
+    // Transient state: marks, renown, the rest clock, a run in progress.
+    g.lineage.marks += 5;
+    g.lineage.renown += 100;
+    g.lineage.rest_left = 300;
+    g.send();
+    g.step(30);
+    let c = g.forecast();
+    assert_eq!(a, c, "transient state moved the forecast");
+    let r1 = g.forecast_refine();
+    let r2 = g.forecast_refine();
+    assert_eq!(r1, r2);
+    assert_eq!(r1.known_to, a.known_to);
+    // A second game with the same seed and rules reads the same forecast; the seeds are the
+    // forecast's own (a different rule set draws its own seeds).
+    let mut h = Game::new(11);
+    h.set_rules(crate::probes::good()).unwrap();
+    assert_eq!(h.forecast(), a);
+    let t1 = crate::forecast::forecast_tag(&g, g.lineage.rules(), 1);
+    let t2 = crate::forecast::forecast_tag(&g, &crate::probes::preset(Class::Fighter), 1);
+    let t3 = crate::forecast::forecast_tag(&g, g.lineage.rules(), 2);
+    assert!(t1 != t2 && t1 != t3);
+    // Through the save: identical.
+    let g3 = Game::load(&g.save()).unwrap();
+    assert_eq!(g3.forecast(), a);
 }

@@ -85,7 +85,7 @@ fn main() {
             match e {
                 Ev::Note { t, text } => println!("  t{t:<5} {text}"),
                 Ev::Descend { t, depth, biome } => println!("  t{t:<5} ↓ D{depth} {biome}"),
-                Ev::Exit { t, tier, loot_kept } => println!("  t{t:<5} exit {tier} · loot {loot_kept}"),
+                Ev::Exit { t, tier, loot_kept, line } => println!("  t{t:<5} exit {tier} · loot {loot_kept}{}", line.as_ref().map(|l| format!(" · {}", l.text)).unwrap_or_default()),
                 Ev::Rule { t, row, text, .. } if verbose => {
                     let label = match row {
                         -1 => "trait".to_string(),
@@ -127,7 +127,12 @@ fn main() {
                     -2 => "chore".to_string(),
                     r => format!("R{}", r + 1),
                 };
-                println!("    t{:<5} {:<6} {:<14} hp {:<3} foes {} {}", t.t, row, t.verb.short(), t.hp, t.foes, t.telegraphs.join(", "));
+                // Cut 6 §3: the rows above the one that acted, with their reasons.
+                let rows = t.rows.as_ref().map(|r| r.iter().map(|w| format!("R{} {}", w.row + 1, w.why)).collect::<Vec<_>>().join(" · ")).unwrap_or_default();
+                println!("    t{:<5} {:<6} {:<14} hp {:<3} foes {} {} {}", t.t, row, t.verb.short(), t.hp, t.foes, t.telegraphs.join(", "), rows);
+            }
+            if let Some(l) = &d.line {
+                println!("  {}", l.text);
             }
             for p in &d.patches {
                 println!("  patch @{}: {}  survive {:.0}%  forecast Δ {:+.0}%", p.insert_at, p.row.describe(), p.survive * 100.0, p.forecast_delta * 100.0);

@@ -1,5 +1,6 @@
 //! Facts: what the hero learns by observation. Facts gate condition tokens.
 use crate::engine::{Ctx, Run};
+use crate::rules::{Cond, Row, Verb};
 use crate::wire::Ev;
 use std::collections::BTreeSet;
 
@@ -38,6 +39,12 @@ pub fn is_studied(facts: &BTreeSet<String>, kind: &str) -> bool {
 }
 
 fn fact_note(fact: &str) -> String {
+    // Cut 6 §5: the counter fact carries a row (`boss:<kind>:counter=attack tag:boss`).
+    if let Some(rest) = fact.strip_prefix("boss:") {
+        if let Some((kind, _)) = rest.split_once(":counter") {
+            return format!("{}: counter learned.", crate::engine::kind_title(kind));
+        }
+    }
     let parts: Vec<&str> = fact.split(':').collect();
     match parts.as_slice() {
         ["foe", kind] => format!("Met a {}.", crate::engine::kind_title(kind)),
@@ -46,7 +53,6 @@ fn fact_note(fact: &str) -> String {
         ["bones", d] => format!("Bones lie on D{d}."),
         ["alert", "rising"] => "The dungeon listens.".into(),
         ["biome", b] => format!("Entered the {b}."),
-        ["boss", kind, "counter"] => format!("{}: counter learned.", crate::engine::kind_title(kind)),
         ["item", "leash"] => "Found a leash.".into(),
         ["item", "lantern"] => "Found a lantern.".into(),
         ["item", "bell" | "salt" | "chalk"] => format!("Found {}.", parts[1]),
@@ -78,7 +84,83 @@ pub fn tag_known(facts: &BTreeSet<String>, kind: &str, tag: &str) -> bool {
 }
 
 pub fn has_boss_counter(facts: &BTreeSet<String>) -> bool {
-    facts.iter().any(|f| f.starts_with("boss:") && f.ends_with(":counter"))
+    facts.iter().any(|f| f.starts_with("boss:") && f.contains(":counter"))
+}
+
+// ---------------------------------------------------------------- Cut 6 §5: counter rows
+
+/// The counter row of a boss kind: what beats it, as one row the player can write.
+pub fn counter_row(kind: &str) -> Row {
+    let boss = Cond::t("foe_tag", "boss");
+    match kind {
+        "bloat_mother" => Row::new(vec![boss], Verb::arg("throw", "fire,tag:boss")),
+        "lich" => Row::new(vec![Cond::t("foe_tag", "summoned")], Verb::arg("attack", "tag:summoned")),
+        "foundry_master" => Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read")),
+        "lurker_queen" => Row::new(vec![boss], Verb::arg("read", "silence")),
+        "mirror_king" => Row::new(vec![boss], Verb::arg("tactic", "cadence")),
+        _ => Row::new(vec![boss], Verb::arg("attack", "tag:boss")),
+    }
+}
+
+/// The row as it reads in the fact: `attack tag:boss` · `throw fire,tag:boss` · `read silence`.
+pub fn counter_row_key(row: &Row) -> String {
+    match &row.verb.a {
+        Some(a) => format!("{} {a}", row.verb.v),
+        None => row.verb.v.clone(),
+    }
+}
+
+/// ≤ 3 words: `attack boss` · `throw fire, boss` · `read silence` · `reflect read` · `cadence`.
+pub fn counter_text(row: &Row) -> String {
+    let a = row.verb.a.as_deref().unwrap_or("");
+    match row.verb.v.as_str() {
+        "attack" => format!("attack {}", a.trim_start_matches("tag:")),
+        "throw" => {
+            let mut it = a.split(',');
+            let k = it.next().unwrap_or("");
+            match it.next() {
+                Some(sel) => format!("throw {k}, {}", sel.trim_start_matches("tag:")),
+                None => format!("throw {k}"),
+            }
+        }
+        "tactic" => a.replace('_', " "),
+        v => format!("{v} {a}").trim().to_string(),
+    }
+}
+
+/// The fact a boss's telegraph teaches: `boss:goblin_warlord:counter=attack tag:boss` (the old
+/// key `boss:<kind>:counter` stays its prefix, so gates and `needs` strings still match).
+pub fn boss_counter_fact(kind: &str) -> String {
+    format!("boss:{kind}:counter={}", counter_row_key(&counter_row(kind)))
+}
+
+/// The counter of `kind` is known (either fact form).
+pub fn boss_counter_known(facts: &BTreeSet<String>, kind: &str) -> bool {
+    let key = format!("boss:{kind}:counter");
+    facts.iter().any(|f| f.starts_with(&key))
+}
+
+/// The known counter row of `kind`, if its fact is held.
+pub fn boss_counter_row(facts: &BTreeSet<String>, kind: &str) -> Option<Row> {
+    boss_counter_known(facts, kind).then(|| counter_row(kind))
+}
+
+/// Learn a boss's counter (once, whatever the fact's form).
+pub fn learn_boss_counter(run: &mut Run, cx: &mut Ctx, kind: &str) -> bool {
+    if boss_counter_known(cx.facts, kind) {
+        return false;
+    }
+    learn(run, cx, boss_counter_fact(kind))
+}
+
+/// Cut 6 §5: a save's old-form counter facts (`boss:<kind>:counter`) take the row.
+pub fn upgrade_counter_facts(facts: &mut BTreeSet<String>) {
+    let old: Vec<String> = facts.iter().filter(|f| f.starts_with("boss:") && f.ends_with(":counter")).cloned().collect();
+    for f in old {
+        let kind = f.trim_start_matches("boss:").trim_end_matches(":counter").to_string();
+        facts.remove(&f);
+        facts.insert(boss_counter_fact(&kind));
+    }
 }
 
 /// Sight-based facts, called after every vision update. Cheap when nothing changed.
@@ -168,10 +250,22 @@ mod tests {
         assert!(!has_boss_counter(&f));
         f.insert("boss:lich:counter".into());
         assert!(has_boss_counter(&f));
+        assert!(boss_counter_known(&f, "lich"));
+        upgrade_counter_facts(&mut f);
+        assert!(f.contains("boss:lich:counter=attack tag:summoned"), "{f:?}");
+        assert!(boss_counter_known(&f, "lich") && has_boss_counter(&f) && !boss_counter_known(&f, "goblin_warlord"));
+        assert_eq!(boss_counter_fact("goblin_warlord"), "boss:goblin_warlord:counter=attack tag:boss");
+        assert_eq!(boss_counter_fact("bloat_mother"), "boss:bloat_mother:counter=throw fire,tag:boss");
+        for k in ["goblin_warlord", "bloat_mother", "lich", "foundry_master", "lurker_queen", "mirror_king"] {
+            let t = counter_text(&counter_row(k));
+            assert!(crate::rules::word_count(&t) <= 3, "{t}");
+        }
+        assert_eq!(counter_text(&counter_row("bloat_mother")), "throw fire, boss");
+        assert_eq!(counter_text(&counter_row("lurker_queen")), "read silence");
     }
     #[test]
     fn notes_are_short() {
-        for f in ["foe:jackal", "foe:jackal:pack", "biome:fens", "boss:lich:counter", "item:blue=heal"] {
+        for f in ["foe:jackal", "foe:jackal:pack", "biome:fens", "boss:lich:counter", "boss:lich:counter=attack tag:summoned", "item:blue=heal"] {
             let n = fact_note(f);
             assert!(crate::rules::word_count(&n) <= 8, "{n}");
         }
