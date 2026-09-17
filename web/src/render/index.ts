@@ -64,6 +64,8 @@ export type Viewer = {
   dispose(): void;
   stats(): ViewerStats;
   debugEnts?(): unknown[];
+  debugPos?(): unknown[];
+  atlasInfo?(): unknown;
   preload?(snap: Snapshot): void;   // add unknown entities before a batch's events
 };
 
@@ -316,7 +318,20 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const vi = e.y * st.w + e.x;
       if (!e.hero && !st.visible[vi] && !e.remembered) continue;
       stats.drawn++;
-      const [fx, fy] = feet(e);
+      let [fx, fy] = feet(e);
+      // Fight frame: a hostile on the tile straight above the hero would vanish behind the hero's tall
+      // sprite (its whole body covers that tile). Nudge it half a tile sideways, away from the hero's
+      // facing, so both silhouettes read; the shadow stays on the true tile.
+      {
+        // any hostile whose feet land within one tile above the hero (tweened positions) is nudged
+        // sideways so the hero's tall body does not cover it; direction away from the hero's facing
+        const hh = st.hero;
+        if (fight && !e.hero && hh && !e.dying) {
+          const dx = e.px - hh.px, dy = hh.py - e.py;
+          // side by side is how every auto-battler frames a melee: clear the hero's sprite width, not a tile
+          if (Math.abs(dx) < 0.75 && dy > 0.25 && dy < 1.75) { const hw = atlas.entity(hh.kind).w / 2; fx += (hh.flip ? 1 : -1) * (hw / 2 + 4); }
+        }
+      }
       const s = atlas.entity(e.kind);
       const w = s.w / 2, h = s.h / 2; // world units (env texels)
       const z = 2 + Math.min(1, e.py / Math.max(1, st.h));
@@ -504,6 +519,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       renderer.dispose();
     },
     preload(snap) { st.preload(snap); },
+    atlasInfo() { const out: Record<string, unknown> = {}; for (const k of ["hero_fighter", "monkey", "goblin", "jackal"]) { const e = atlas.entity(k); out[k] = { w: e.w, h: e.h, u0: +e.u0.toFixed(3), v0: +e.v0.toFixed(3), u1: +e.u1.toFixed(3), v1: +e.v1.toFixed(3), fallback: (e as { fallback?: boolean }).fallback ?? "?" }; } return out; },
+    debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
     stats() { return { ...stats }; },
     /** dev: every entity the state holds and whether the draw loop would show it */
     debugEnts() { return [...st.ents.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.x, y: e.y, hero: !!e.hero, rem: !!e.remembered, dying: !!e.dying, vis: !!st.visible[e.y * st.w + e.x], seen: !!st.seen[e.y * st.w + e.x] })); },

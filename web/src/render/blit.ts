@@ -72,7 +72,7 @@ export class Blit {
         uPal: { value: this.palArr },
         uPalN: { value: 8 },
         uDither: { value: 0.09 },
-        uTint: { value: 0.5 },
+        uTint: { value: 0.3 },   // was 0.5: monsters lost their painted contrast on same-hue floors
         uFade: { value: 0 },
         uFog: { value: new THREE.Vector2(5, 7.5) },
       },
