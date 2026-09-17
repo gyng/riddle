@@ -647,6 +647,21 @@ fn main() {
         rows.push((format!("DEFAULT passes the {what} ≤ 20% of seeds"), format!("{p_pass:.0}%"), p_pass <= 20.0));
     }
     println!("situations (Cut 7 §3):\n  {}", sit_lines.join("\n  "));
+    // Cut 10 §2: the wall as a ramp — on a lineage that knows the Warlord's counter and whose
+    // set lacks it, the forecast's D9 row names the counter and inserting it at the top lifts
+    // D9's reach by ≥ 0.3 on every seed (`probes::counter_trial`; the end placement is printed
+    // beside it: position is the point).
+    let trials: Vec<(u64, (bool, f64, f64, f64))> = std::thread::scope(|sc| {
+        let hs: Vec<_> = (1..=seeds).map(|s| sc.spawn(move || (s, riddle_core::probes::counter_trial(s)))).collect();
+        hs.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+    let named = trials.iter().filter(|(_, t)| t.0).count();
+    let lifted = trials.iter().filter(|(_, t)| t.2 - t.1 >= 0.3).count();
+    let mean = |xs: Vec<f64>| xs.iter().sum::<f64>() / ns.max(1) as f64;
+    let (m_base, m_top, m_end) = (mean(trials.iter().map(|(_, t)| t.1).collect()), mean(trials.iter().map(|(_, t)| t.2).collect()), mean(trials.iter().map(|(_, t)| t.3).collect()));
+    println!("counter try (Cut 10 §2): D9 reach {m_base:.2} → top {m_top:.2} · end {m_end:.2} (mean of {ns}); named {named}/{ns}; lifted ≥ 0.3 {lifted}/{ns}");
+    rows.push(("Forecast names the absent counter (D9 try)".into(), format!("{}/{ns}", named), named == ns));
+    rows.push(("Counter at the top lifts D9 reach ≥ 0.3".into(), format!("{}/{ns}", lifted), lifted == ns));
     println!();
     println!("{:<52} {:>18}  result", "gate", "value");
     let mut fails = 0;

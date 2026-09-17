@@ -269,6 +269,51 @@ pub fn floor_trial(seed: u64, depth: u32, set: RuleSet) -> crate::engine::Game {
     g
 }
 
+/// Cut 10 §2: the sims a `try` row's forecast runs (the gate's own number; the camp's
+/// forecast runs `FORECAST_SIMS`).
+pub const COUNTER_TRIAL_SIMS: u32 = 16;
+
+/// Cut 10 §2 gate probe: a lineage that has met the Warlord (best D8, his counter fact
+/// known, level 4 in +1 mail) with `good.json` minus its boss rows — a set that walks to D8
+/// and cannot pass him. Returns (the forecast's D9 row names the counter, D9 reach as is,
+/// with the counter row at the top, with it at the end).
+pub fn counter_trial(seed: u64) -> (bool, f64, f64, f64) {
+    let mut g = crate::engine::Game::new(seed);
+    g.lineage.best_depth = 8;
+    for u in ["row5", "row6", "row7", "row8"] {
+        g.lineage.unlocks.insert(u.into());
+    }
+    g.lineage.classes.insert("fighter".into(), crate::wire::ClassProg { level: 4, xp: 0 });
+    g.lineage.facts.insert(crate::facts::boss_counter_fact("goblin_warlord"));
+    g.lineage.facts.insert("foe:goblin_warlord:boss".into());
+    if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "heal") {
+        g.lineage.facts.insert(f);
+    }
+    let id = g.lineage.next_vault_id;
+    g.lineage.next_vault_id += 1;
+    let mut it = crate::item::Item::new(id, "mail");
+    it.enchant = 1;
+    g.lineage.vault.push(it);
+    g.loadout(vec![id]);
+    let mut set = good();
+    set.rows.retain(|r| !matches!(r.verb.a.as_deref(), Some("tag:boss") | Some("fire,tag:boss")));
+    let reach9 = |g: &mut crate::engine::Game, set: RuleSet| -> crate::wire::ForecastDepth {
+        g.set_rules(set).expect("trial rules");
+        let f = crate::forecast::forecast_with(g, g.lineage.rules(), COUNTER_TRIAL_SIMS);
+        f.depths.into_iter().find(|d| d.depth == 9).expect("known to D9")
+    };
+    let base = reach9(&mut g, set.clone());
+    let counter = crate::facts::counter_row("goblin_warlord");
+    let named = base.try_.as_ref().is_some_and(|t| t.row == counter && t.boss == "goblin_warlord" && t.text == "attack boss");
+    let mut top = set.clone();
+    top.rows.insert(0, counter.clone());
+    let with_top = reach9(&mut g, top);
+    let mut end = set;
+    end.rows.push(counter);
+    let with_end = reach9(&mut g, end);
+    (named, base.reach, with_top.reach, with_end.reach)
+}
+
 /// Two level-3 bred companions with default rows (PETS bot).
 pub fn pets_party() -> Vec<crate::wire::Companion> {
     let mk = |id: u32, kind: &str, name: &str, tags: &[&str]| {

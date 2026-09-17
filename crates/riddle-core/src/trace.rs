@@ -38,7 +38,9 @@ pub const ENCOUNTER_TICKS: u32 = 300;
 pub fn death_record(game: &Game, run: &Run) -> DeathRec {
     let turns: Vec<_> = run.trace.iter().rev().take(TRACE_LEN).rev().cloned().collect();
     let cause = run.death_cause.clone().unwrap_or_else(|| "unknown".into());
-    let mut margin = format!("{} over", run.death_blow.max(0));
+    // Cut 10 §3: `3 hp short` (was `3 over`, which no rater could read): the HP that would have
+    // kept the hero standing through the killing blow.
+    let mut margin = format!("{} hp short", run.death_short.max(1));
     let facts = &game.lineage.facts;
     let fl = &game.lineage.flavours;
     if run.hero.inv.iter().any(|i| i.kind == "heal" && i.is_known(facts, fl)) {
@@ -90,22 +92,47 @@ fn boss_of(run: &Run, cause: &str) -> Option<String> {
     }
     let map = &run.floor.map;
     let hp = run.hero.pos;
-    run.monsters
+    let near = run
+        .monsters
         .iter()
         .find(|m| m.hp > 0 && m.is_boss() && (map.is_visible(m.pos) || (m.awake && m.pos.cheb(hp) <= CONTEXT_RANGE)))
-        .map(|m| m.kind.clone())
+        .map(|m| m.kind.clone());
+    // Cut 10 §2: a death on a boss's own floor while the boss lives is a wall death whatever
+    // took the blow (his rallied goblins, out of his sight) — the counter still gets its pin.
+    near.or_else(|| run.monsters.iter().find(|m| m.hp > 0 && m.is_boss() && crate::descent::boss_depth(&m.kind) == Some(run.depth)).map(|m| m.kind.clone()))
+}
+
+/// Cut 10 §2: the boss counter row a death's patches pin at the top, when the boss is known,
+/// its counter fact held, its verb in the lineage's vocabulary (the whole of it, not the
+/// death's context cut — a boss out of sight at the end is exactly the death whose answer is
+/// his row) and no row of the set already carries that verb (a set that has the row
+/// somewhere is not patched with a second copy). Whether it fires from the checkpoint is the
+/// replays' call (`FIRED_BAR`).
+pub fn pinnable_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
+    let kind = rec.boss.clone()?;
+    let row = crate::facts::boss_counter_row(&game.lineage.facts, &kind)?;
+    if has_counter_verb(&rec.rules, &row) || !game.vocabulary().verbs.contains(&row.verb) {
+        return None;
+    }
+    Some(row)
+}
+
+/// A row with the counter's verb (`attack tag:boss` under any conditions) is in the set.
+pub fn has_counter_verb(rules: &RuleSet, counter: &Row) -> bool {
+    rules.rows.iter().any(|r| r.verb == counter.verb)
 }
 
 fn morgue(game: &Game, run: &Run, rules: &RuleSet) -> String {
     let mut s = String::new();
     s.push_str(&format!("Riddle morgue · seed {} · heir {} · run {}\n", game.lineage.seed, run.heir, run.id));
     s.push_str(&format!(
-        "D{} ({}) · tick {} · slain by {} · {} HP over\n",
+        "D{} ({}) · tick {} · slain by {} · blow {} · {} hp short\n",
         run.depth,
         run.biome().name(),
         run.turn,
         run.death_cause.clone().unwrap_or_default(),
-        run.death_blow
+        run.death_blow,
+        run.death_short.max(1)
     ));
     s.push_str(&format!("class {} L{} · trait {}\n", run.hero.class.name(), run.hero.level, run.trait_.name()));
     s.push_str("rules:\n");
@@ -482,11 +509,7 @@ fn measure(rp: &mut Replayer, row: &Row, pos: usize) -> (f64, f64) {
 /// rules and executable — its verb in the death's vocabulary, fired in ≥ `FIRED_BAR` of the
 /// replays) is pinned first among the patches: it is, by construction, the best candidate.
 fn pin_counter(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Option<Patch> {
-    let kind = rec.boss.clone()?;
-    let row = crate::facts::boss_counter_row(&game.lineage.facts, &kind)?;
-    if rec.rules.rows.contains(&row) || !rec.vocab.verbs.contains(&row.verb) {
-        return None;
-    }
+    let row = pinnable_counter(game, rec)?;
     let mut rp = Replayer::new(base, &patched(rec, &row, 0), ticks)?;
     let (survive, fired) = measure(&mut rp, &row, 0);
     if fired < FIRED_BAR {
@@ -569,8 +592,15 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
         Some(t10) => candidates(&rec.vocab, t10, &rec.t10_facts, &game.lineage.flavours, &rec.death.trace),
         None => Vec::new(),
     };
+    // Cut 10 §2: the boss's counter row is only ever measured at the top (`pin_counter`); tried
+    // "before the row that fired most" as well, that placement could outscore the top on the
+    // moment's replays and hide the placement that passes the wall (cohort 6, rater K).
+    let pinnable = pinnable_counter(game, rec);
     let mut scored: Vec<(f64, Row, usize)> = Vec::new();
     for row in &cands {
+        if pinnable.as_ref() == Some(row) {
+            continue;
+        }
         for &pos in &positions {
             let Some(mut rp) = Replayer::new(&base, &patched(rec, row, pos), ticks) else { continue };
             if let Some((rate, _fired)) = score(&mut rp, row, pos, bar) {
@@ -588,10 +618,12 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
             .then(a.1.conds.len().cmp(&b.1.conds.len()))
             .then(a.2.cmp(&b.2))
     });
-    let edge_gap = scored.first().is_some_and(|best| best.0 - baseline >= PATCH_MARGIN - 1e-9);
+    let mut edge_gap = scored.first().is_some_and(|best| best.0 - baseline >= PATCH_MARGIN - 1e-9);
     let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos, survive: rate, forecast_delta: 0.0, replace: false, remove: false }).collect();
-    // Cut 6 §5: the boss's counter row leads (its own family's first).
+    // Cut 6 §5: the boss's counter row leads (its own family's first). Cut 10 §2: its edge
+    // at the top counts for the verdict like any scored candidate's.
     if let Some(c) = pin_counter(game, rec, &base, ticks) {
+        edge_gap |= c.survive - baseline >= PATCH_MARGIN - 1e-9;
         patches.retain(|p| p.row != c.row);
         patches.insert(0, c);
     }

@@ -135,7 +135,16 @@ pub fn gate(l: &LineageState, id: &str) -> Option<String> {
 pub fn needs(l: &LineageState, u: &UnlockDef) -> Option<String> {
     gate(l, u.id)
         .or_else(|| u.prereq.filter(|p| !l.unlocks.contains(*p)).map(|p| p.to_string()))
+        .or_else(|| (is_row_unlock(u.id) && l.rules().rows.len() < l.max_rows()).then(|| "rows full".to_string()))
         .or_else(|| (l.marks < u.cost).then(|| format!("◆{} more", u.cost - l.marks)))
+}
+
+/// Cut 10 §3: a row unlock (`row5`…`row10`) reads `needs: rows full` while the active set
+/// still has a free row — the card is dimmed, not bought by mistake (cohort 6, rater L: "2/4
+/// rows made me waste ◆2 on +1 row"). `buy` does not refuse it (the bots buy rows ahead of
+/// writing them); the client checks `available` as the core does.
+pub fn is_row_unlock(id: &str) -> bool {
+    id.strip_prefix("row").is_some_and(|n| n.parse::<u32>().is_ok())
 }
 
 pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
@@ -226,11 +235,17 @@ fn unlock_row_untagged(l: &LineageState, id: &str) -> Option<Row> {
 }
 
 /// Cut 4 §9: the catalogue with `delta` filled in for every card or verb not yet owned whose
-/// gate is open: the forecast reach at `best_depth + 1` with the unlock owned and its row at
-/// the top, minus the reach without (`DELTA_SIMS` paired sims under `CATALOGUE_TICK_BUDGET`,
+/// gate is open: the forecast reach at `best_depth + 1` with the unlock owned and its row
+/// added, minus the reach without (`DELTA_SIMS` paired sims under `CATALOGUE_TICK_BUDGET`,
 /// memoised on the game per lineage/rules/depth like every `reach_with`). With `compute`
 /// false only deltas already memoised are filled (no sims: `unlocks()` stays instant;
 /// `unlock_deltas()` pays once per camp visit).
+///
+/// Cut 10 §3: a tactic card's row is the bare `[card]` row the client appends on `buy`
+/// (`{conds: [], verb: tactic <id>}` at the **end** of the set, truncated to `max_rows` like
+/// the set itself), so the chip's number is the number the buy produces (cohort 6, rater L:
+/// "gas step reach +47% did not move the forecast when bought"); a verb unlock's canonical
+/// row (`throw`, `tame`), which the player writes, still goes at the top.
 pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
     let l = &game.lineage;
     let mut cat = catalogue(l);
@@ -251,7 +266,7 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         if u.owned || gated {
             continue;
         }
-        let Some(row) = unlock_row(l, &u.id) else { continue };
+        let Some((row, at)) = delta_row(l, &u.id) else { continue };
         if rules.rows.contains(&row) {
             continue;
         }
@@ -259,7 +274,7 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         let mut g = game.sim_clone();
         g.lineage.unlocks.insert(u.id.clone());
         let mut patched = rules.clone();
-        patched.rows.insert(0, row);
+        patched.rows.insert(at.min(patched.rows.len()), row);
         patched.rows.truncate(max_rows.max(1));
         // The sim game's lookups (its own fingerprint) go through the parent's cache.
         g.forecast_cache = game.forecast_cache.clone();
@@ -277,6 +292,18 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         u.delta = Some(r - base_reach);
     }
     cat
+}
+
+/// Cut 10 §3: the row a card's delta simulates and where it goes — a tactic card as the bare
+/// `[card]` row at the end of the set (what `buy` inserts), a verb unlock's canonical row at
+/// the top. `None` for anything without a row.
+pub fn delta_row(l: &LineageState, id: &str) -> Option<(Row, usize)> {
+    let row = unlock_row(l, id)?;
+    if row.verb.v == "tactic" {
+        Some((Row::new(vec![], Verb::arg("tactic", id)).from("card"), l.rules().rows.len()))
+    } else {
+        Some((row, 0))
+    }
 }
 
 pub fn buy(game: &mut Game, id: &str) -> Result<(), String> {

@@ -2,7 +2,7 @@
 use crate::engine::{ExitTier, Game};
 use crate::rng::splitmix;
 use crate::rules::RuleSet;
-use crate::wire::{Forecast, ForecastCause, ForecastDepth};
+use crate::wire::{Forecast, ForecastCause, ForecastDepth, ForecastTry};
 use std::collections::BTreeMap;
 
 pub const FORECAST_SIMS: u32 = 50;
@@ -95,7 +95,7 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let depths = (1..=known_to)
         .map(|d| {
             let reach = results.iter().filter(|r| r.max_depth >= d).count() as f64 / n;
-            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, results.len())) }
+            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, results.len())), try_: try_row(game, rules, d) }
         })
         .collect();
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
@@ -112,6 +112,19 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     cv.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     let causes = cv.into_iter().take(3).map(|(c, k)| ForecastCause { cause: c, share: k as f64 / deaths.max(1) as f64 }).collect();
     Forecast { depths, causes, known_to }
+}
+
+/// Cut 10 §2: the `try` of a forecast row — reaching `depth` means passing the boss on the
+/// floor above it; when that boss's counter fact is known and no row of `rules` carries the
+/// counter's verb, the row names it (`D9 0% · warlord · try: attack boss`). Position is the
+/// point: the client inserts it at the top, and the gate measures that placement.
+pub fn try_row(game: &Game, rules: &RuleSet, depth: u32) -> Option<ForecastTry> {
+    let kind = crate::descent::boss_for(depth.checked_sub(1)?)?;
+    let row = crate::facts::boss_counter_row(&game.lineage.facts, kind)?;
+    if crate::trace::has_counter_verb(rules, &row) {
+        return None;
+    }
+    Some(ForecastTry { boss: kind.to_string(), text: crate::facts::counter_text(&row), row })
 }
 
 /// Cut 9 §3: the 95 % binomial half-width of a share `p` over `n` sims (`1.96·√(p(1−p)/n)`).

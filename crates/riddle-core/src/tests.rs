@@ -3958,11 +3958,17 @@ fn ledger_line_reconciles_on_every_exit() {
             assert_eq!(line.keep_pct, pct, "seed {seed}");
             assert_eq!(line.kept, carried * pct / 100, "seed {seed}");
             assert!(word_count(&line.text) <= 14, "{}", line.text);
-            assert!(line.text.starts_with(&format!("${carried} carried · ")), "{}", line.text);
-            assert!(line.text.contains(&format!("keeps {pct}% → ${}", line.kept)), "{}", line.text);
+            // Cut 10 §3: the verb and what came home lead (`returned $50 · $84 carried · keeps 60%`).
+            let verb = match tier {
+                ExitTier::Bank => "banked",
+                ExitTier::Return => "returned",
+                ExitTier::Death => "died",
+            };
+            assert!(line.text.starts_with(&format!("{verb} ${} · ${carried} carried · keeps {pct}%", line.kept)), "{}", line.text);
+            assert_eq!(line.text.contains("lost thread"), timed_out, "{}", line.text);
             if tier == ExitTier::Death {
                 deaths += 1;
-                assert!(line.text.contains("death keeps 0% → $0"), "{}", line.text);
+                assert!(line.text.starts_with("died $0 · "), "{}", line.text);
                 match g.lineage.bones.last().filter(|b| b.heir == heir) {
                     Some(b) => assert!(line.text.contains(&format!("bones: {} items on D{depth}", b.items.len())), "{}", line.text),
                     None => assert!(!line.text.contains("bones"), "{}", line.text),
@@ -4033,7 +4039,7 @@ fn exit_event_stake_and_report_carry_the_ledger() {
     let line = line.expect("an exit line on the exit event");
     assert_eq!(line.keep_pct, 60);
     assert_eq!(line.kept, line.carried * 60 / 100);
-    assert!(line.text.contains("return keeps 60%"), "{}", line.text);
+    assert!(line.text.starts_with(&format!("returned ${} · ", line.kept)) && line.text.contains("keeps 60%"), "{}", line.text);
     assert_eq!(g.batch.exits.last().map(|l| ExitLine { trace: None, ..l.clone() }), Some(line.clone()));
     assert!(g.batch.exits.last().unwrap().trace.is_some(), "the report's exit line carries the trace");
     // Purchases, insurance, a refund and a hatch are ledger lines with ≤ 3-word reasons.
@@ -4895,11 +4901,21 @@ fn every_unavailable_unlock_carries_needs() {
     check(&g, "fresh");
     let by = |g: &Game, id: &str| g.unlocks().into_iter().find(|u| u.id == id).unwrap();
     assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame once"));
-    assert_eq!(by(&g, "row5").needs.as_deref(), Some("◆2 more"));
+    // Cut 10 §3: a row unlock is dimmed while the set has a free row (the preset is two of four).
+    assert_eq!(by(&g, "row5").needs.as_deref(), Some("rows full"));
     assert_eq!(by(&g, "row6").needs.as_deref(), Some("row5"));
     g.lineage.marks = 100;
     check(&g, "rich");
-    assert!(by(&g, "row5").available && by(&g, "row5").needs.is_none());
+    assert_eq!(by(&g, "row5").needs.as_deref(), Some("rows full"), "marks do not open a row the set cannot use");
+    assert!(g.buy("row5").is_ok(), "`rows full` is the card's dimming, not a refusal (the bots buy rows ahead)");
+    g.lineage.unlocks.remove("row5");
+    g.lineage.marks = 100;
+    g.set_rules_raw(crate::probes::good()).unwrap();
+    assert_eq!(g.lineage.rules().rows.len(), 4, "the set is truncated to its four rows");
+    assert!(by(&g, "row5").available && by(&g, "row5").needs.is_none(), "{:?}", by(&g, "row5"));
+    g.lineage.marks = 0;
+    assert_eq!(by(&g, "row5").needs.as_deref(), Some("◆2 more"));
+    g.lineage.marks = 100;
     assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame once"));
     let mut g = finished_lineage();
     g.ascend("short_list").unwrap();
@@ -5009,7 +5025,11 @@ fn every_exit_carries_a_five_turn_trace_with_row_accounting() {
                     assert!(rows.iter().all(|w| crate::turn::row_reason_ok(&w.why)), "{rows:?}");
                 }
             }
-            tiers.insert(line.text.split(" keeps ").next().unwrap().rsplit(' ').next().unwrap().to_string());
+            tiers.insert(match line.text.split(' ').next().unwrap() {
+                "banked" => "bank",
+                "returned" => "return",
+                _ => "death",
+            }.to_string());
         }
         // A death's record has its own, longer trace; its line leaves it out.
         for rec in g.deaths.values() {
@@ -5185,4 +5205,281 @@ fn a_new_heir_wakes_with_enough_for_one_supply() {
     // whatever the runs yielded, the purse after any death is at least the wake pay minus what
     // auto-supply may have spent (a fresh lineage owns no automations)
     assert!(g.lineage.gold >= WAKE_PAY || g.lineage.gold_ledger.iter().any(|l| l.why == "wake pay"), "gold {} ledger {:?}", g.lineage.gold, g.lineage.gold_ledger);
+}
+
+// ---------------------------------------------------------------- Cut 10 (the wall as a ramp, clarity)
+
+/// §2: the forecast row a boss wall gates (his floor + 1) names the known-but-absent counter
+/// (`try`), and only then: not without the fact, not when a row of the set already carries
+/// the counter's verb (under any conditions), never on another depth.
+#[test]
+fn forecast_try_names_the_known_but_absent_counter() {
+    let mut g = Game::new(3);
+    g.lineage.best_depth = 8;
+    let mut set = crate::probes::good();
+    set.rows.retain(|r| !matches!(r.verb.a.as_deref(), Some("tag:boss") | Some("fire,tag:boss")));
+    g.set_rules_raw(set.clone()).unwrap();
+    assert!(crate::forecast::try_row(&g, &set, 9).is_none(), "no fact, no try");
+    g.lineage.facts.insert(crate::facts::boss_counter_fact("goblin_warlord"));
+    let t = crate::forecast::try_row(&g, &set, 9).expect("D9 is gated by the Warlord on D8");
+    assert_eq!(t.boss, "goblin_warlord");
+    assert_eq!(t.row, crate::facts::counter_row("goblin_warlord"));
+    assert_eq!(t.text, "attack boss");
+    assert!(word_count(&t.text) <= 3);
+    for d in [1, 2, 7, 8, 10] {
+        assert!(crate::forecast::try_row(&g, &set, d).is_none(), "D{d} is not the Warlord's ramp");
+    }
+    // A row with the counter's verb, whatever its conditions, is the row: no try.
+    let mut with = set.clone();
+    with.rows.push(Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "tag:boss")));
+    assert!(crate::forecast::try_row(&g, &with, 9).is_none());
+    // The Bloat Mother's ramp is D14 and her counter is the throw.
+    g.lineage.facts.insert(crate::facts::boss_counter_fact("bloat_mother"));
+    assert_eq!(crate::forecast::try_row(&g, &set, 14).map(|t| t.text), Some("throw fire, boss".into()));
+    assert!(crate::forecast::try_row(&g, &crate::probes::good(), 14).is_none(), "good.json throws at bosses");
+    // On the wire: the forecast's D9 row carries it and D8's does not.
+    let f = crate::forecast::forecast_with(&g, &set, crate::forecast::MIN_SIMS);
+    let d = |n: u32| f.depths.iter().find(|d| d.depth == n).unwrap();
+    assert_eq!(d(9).try_.as_ref().map(|t| t.text.as_str()), Some("attack boss"));
+    assert!(d(8).try_.is_none());
+    let json = serde_json::to_value(d(9)).unwrap();
+    assert_eq!(json["try"]["text"], "attack boss");
+    assert!(serde_json::to_value(d(8)).unwrap().get("try").is_none(), "absent, not null");
+}
+
+/// §2 gate (the 30-seed number is `metrics.rs`): a lineage that knows the Warlord's counter
+/// with a set that lacks it — the forecast names it on D9 and the counter row at the top
+/// lifts D9's reach by ≥ 0.3; at the end of the set (under `foes 1+ → attack nearest`) it
+/// lifts nothing, which is why the row inserts at the top.
+#[cfg(not(debug_assertions))]
+#[test]
+fn counter_at_the_top_lifts_the_wall_floor() {
+    for seed in 1..=4 {
+        let (named, base, top, end) = crate::probes::counter_trial(seed);
+        assert!(named, "seed {seed}: the D9 row does not name the counter");
+        assert!(top - base >= 0.3, "seed {seed}: D9 {base:.2} → {top:.2} at the top");
+        assert!(top - end >= 0.3, "seed {seed}: the end placement ({end:.2}) is not the answer; the top ({top:.2}) is");
+    }
+}
+
+/// §2: on a boss death the counter row is measured at the top only and pinned there — never
+/// offered "before the row that fired most" — whoever landed the blow; and a death on the
+/// boss's floor to his goblins with him out of sight is his death too (`DeathRec.boss`; the
+/// pin then depends on his showing up in the replays). 12 Warlord-floor deaths.
+#[cfg(not(debug_assertions))]
+#[test]
+fn boss_counter_patch_is_pinned_at_the_top_only() {
+    let counter = crate::facts::counter_row("goblin_warlord");
+    let floor = |seed: u64, warlord_at: (i32, i32)| -> Option<Game> {
+        let mut g = arena_seed(seed);
+        {
+            let run = g.run.as_mut().unwrap();
+            run.depth = 8;
+            run.hero.hp = 10 + (seed % 5) as i32;
+            run.hero.pos = Pos::new(2, 2);
+            run.floor.map.update_vision(run.hero.pos, VISION);
+        }
+        add_monster(&mut g, "goblin_warlord", warlord_at.0, warlord_at.1);
+        add_monster(&mut g, "goblin", 3, 2);
+        add_monster(&mut g, "goblin", 3, 3);
+        add_monster(&mut g, "goblin", 2, 3);
+        g.lineage.facts.insert(crate::facts::boss_counter_fact("goblin_warlord"));
+        g.lineage.facts.insert("foe:goblin_warlord:boss".into());
+        rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 6)], Verb::new("retreat")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+        for _ in 0..800 {
+            g.tick();
+            g.events.clear();
+            if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+                let died = g.run.as_ref().unwrap().over == Some(ExitTier::Death);
+                g.finish_run();
+                return died.then_some(g);
+            }
+        }
+        None
+    };
+    let mut deaths = 0;
+    let mut pinned = 0;
+    let mut seed = 300u64;
+    while deaths < 12 {
+        seed += 1;
+        // The Warlord in view five tiles off; his goblins are on the hero.
+        let Some(mut g) = floor(seed, (7, 2)) else { continue };
+        let id = *g.deaths.keys().last().unwrap();
+        let d = g.death(id).unwrap();
+        let rec = g.deaths.get(&id).unwrap();
+        assert_eq!(rec.boss.as_deref(), Some("goblin_warlord"), "seed {seed}");
+        deaths += 1;
+        for p in &d.patches {
+            if p.row.verb == counter.verb {
+                assert_eq!(p.insert_at, 0, "seed {seed}: the counter is only ever at the top: {:?}", d.patches);
+            }
+        }
+        if rec.counter.is_some() {
+            pinned += 1;
+            assert_eq!(d.patches[0].row, counter, "seed {seed}: pinned first");
+            assert_eq!(d.patches[0].insert_at, 0);
+        }
+        assert!(d.margin.starts_with(|c: char| c.is_ascii_digit()) && d.margin.contains(" hp short"), "{}", d.margin);
+    }
+    assert!(pinned >= 6, "the counter fired at the top and was pinned on {pinned} of {deaths} deaths");
+    // Out of sight in the far corner (twelve tiles off), the death is still his.
+    let mut seed = 400u64;
+    let g = loop {
+        seed += 1;
+        if let Some(g) = floor(seed, (14, 10)) {
+            break g;
+        }
+    };
+    let rec = g.deaths.values().last().unwrap();
+    assert_eq!(rec.death.cause, "goblin");
+    assert_eq!(rec.boss.as_deref(), Some("goblin_warlord"), "a death on his floor while he lives is his");
+    assert!(crate::trace::pinnable_counter(&g, rec).is_some(), "the counter is pinnable though he was never in the death's context");
+}
+
+/// §3: `Death.margin` reads `N hp short` — the HP that would have kept the hero through the
+/// killing blow — and the morgue carries both numbers.
+#[test]
+fn death_margin_reads_hp_short() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().hero.hp = 3;
+    g.run.as_mut().unwrap().hero.armour = None;
+    for (x, y) in [(5, 5), (5, 4), (5, 6)] {
+        add_monster(&mut g, "ogre", x, y);
+    }
+    hold_rules(&mut g);
+    let evs = ticks(&mut g, 400);
+    let blow = evs.iter().rev().find_map(|e| match e {
+        Ev::Hurt { id, dmg, .. } if *id == HERO_ID => Some(*dmg),
+        _ => None,
+    });
+    let run = g.run.as_ref().unwrap();
+    assert_eq!(run.over, Some(ExitTier::Death));
+    let blow = blow.expect("the killing blow");
+    assert_eq!(run.death_blow, blow);
+    assert!(run.death_short >= 1 && run.death_short <= blow, "short {} of a {blow} blow", run.death_short);
+    let id = run.id;
+    let short = run.death_short;
+    g.finish_run();
+    let d = g.death(id).unwrap();
+    assert!(d.margin.starts_with(&format!("{short} hp short")), "{}", d.margin);
+    assert!(!d.margin.contains(" over"), "{}", d.margin);
+    assert!(d.morgue.contains(&format!("blow {blow} · {short} hp short")), "{}", d.morgue);
+}
+
+/// §3: a theft says what it cost the loot — `Ev::steal.amount` is the item's value and the
+/// callout reads `stolen $16` (the run's gold dropped by that much).
+#[test]
+fn theft_carries_its_amount() {
+    let mut g = arena();
+    hold_rules(&mut g);
+    give(&mut g, "sword");
+    g.run.as_mut().unwrap().loot_add(160);
+    let before = g.run.as_ref().unwrap().loot;
+    assert_eq!(before, 40);
+    let value = before - (160 - hero(&g).inv[0].value()) / crate::engine::GOLD_DIVISOR;
+    assert!(value > 0);
+    let m = add_monster(&mut g, "monkey", 5, 5);
+    let evs = ticks(&mut g, 60);
+    let amount = evs.iter().find_map(|e| match e {
+        Ev::Steal { id, amount, .. } if *id == m => Some(*amount),
+        _ => None,
+    });
+    assert_eq!(amount, Some(Some(value)), "the steal event carries the gold it took");
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if *text == format!("stolen ${value}"))), "{:?}", ev_kinds(&evs));
+    assert_eq!(g.run.as_ref().unwrap().loot, before - value, "the amount is the loot's drop");
+    let json = serde_json::to_string(evs.iter().find(|e| matches!(e, Ev::Steal { .. })).unwrap()).unwrap();
+    assert!(json.contains(&format!("\"amount\":{value}")), "{json}");
+}
+
+/// §3: a companion's fall calls out with the chronicle's verb (`Ashar fell`, ≤ 3 words), not
+/// the client's `slain`; an unnamed ally reads `jackal fell`.
+#[test]
+fn companion_death_calls_out_fell() {
+    let mut g = arena();
+    let party = crate::probes::pets_party();
+    crate::engine::spawn_party(g.run.as_mut().unwrap(), &party);
+    let j = add_monster(&mut g, "jackal", 6, 6);
+    let (name, cid) = {
+        let run = g.run.as_ref().unwrap();
+        let c = run.monsters.iter().find(|m| m.is_companion()).unwrap();
+        (run.companion(c.cid.unwrap()).unwrap().name.clone(), c.id)
+    };
+    {
+        let (run, mut cx) = g.ctx();
+        let ji = run.monsters.iter().position(|m| m.id == j).unwrap();
+        let ci = run.monsters.iter().position(|m| m.id == cid).unwrap();
+        crate::turn::damage_monster(run, &mut cx, ci, 99, &crate::turn::Src::Mon(ji));
+    }
+    let evs = std::mem::take(&mut g.events);
+    let want = format!("{name} fell");
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if *text == want)), "{evs:?}");
+    assert!(word_count(&want) <= 3);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Ally { id, state, .. } if *id == cid && state == "lost")));
+    // A freed captive (no companion record) falls by its kind.
+    let mut g = arena();
+    let c = add_monster(&mut g, "captive", 6, 5);
+    rules(&mut g, vec![Row::new(vec![], Verb::new("free_captive")), Row::new(vec![], Verb::new("rest"))]);
+    ticks(&mut g, 30);
+    assert!(monster(&g, c).unwrap().ally);
+    let r = add_monster(&mut g, "rat", 7, 5);
+    {
+        let (run, mut cx) = g.ctx();
+        let ri = run.monsters.iter().position(|m| m.id == r).unwrap();
+        let ci = run.monsters.iter().position(|m| m.id == c).unwrap();
+        crate::turn::damage_monster(run, &mut cx, ci, 99, &crate::turn::Src::Mon(ri));
+    }
+    assert!(g.events.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "captive fell")), "{:?}", g.events);
+}
+
+/// §3: the exit line leads with the verb and what came home (`returned $50 · $84 carried ·
+/// keeps 60%`), so the report's exit lines read `returned $61`, not `$61`.
+#[test]
+fn exit_line_leads_with_the_verb() {
+    let line = |tier: ExitTier, timed_out: bool, bones: usize| -> String { crate::engine::exit_line(84, tier.pct(), 84 * tier.pct() / 100, 0, vec![], tier, timed_out, bones, 5).text };
+    assert_eq!(line(ExitTier::Return, false, 0), "returned $50 · $84 carried · keeps 60%");
+    assert_eq!(line(ExitTier::Bank, false, 0), "banked $84 · $84 carried · keeps 100%");
+    assert_eq!(line(ExitTier::Death, false, 7), "died $0 · $84 carried · keeps 0% · bones: 7 items on D5");
+    assert_eq!(line(ExitTier::Return, true, 0), "returned $50 · $84 carried · keeps 60% · lost thread");
+    for t in [line(ExitTier::Return, true, 0), line(ExitTier::Death, false, 7)] {
+        assert!(word_count(&t) <= 14, "{t}");
+    }
+}
+
+/// §3: a tactic card's delta is the buy's own number — the bare `[card]` row appended at the
+/// end of the set (truncated to `max_rows` like the set), not a conditioned row at the top; a
+/// verb unlock's canonical row still goes at the top.
+#[test]
+fn card_delta_is_measured_at_the_end_of_the_set() {
+    let mut g = Game::new(2);
+    g.lineage.facts.insert("foe:jackal:pack".into());
+    g.lineage.facts.insert("foe:bloat:gas".into());
+    g.lineage.best_depth = 1;
+    g.set_rules_raw(RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))], name: None }).unwrap();
+    let l = &g.lineage;
+    let (row, at) = crate::meta::delta_row(l, "gas_step").unwrap();
+    assert_eq!(row, Row::new(vec![], Verb::arg("tactic", "gas_step")), "the bare card row the client appends");
+    assert_eq!(row.origin.as_deref(), Some("card"));
+    assert_eq!(at, 2, "at the end of the two-row set");
+    let (row, at) = crate::meta::delta_row(l, "throw").unwrap();
+    assert_eq!((row.verb.v.as_str(), at), ("throw", 0), "a verb's canonical row goes at the top");
+    assert!(crate::meta::delta_row(l, "row5").is_none());
+    // The delta is exactly the paired reach of that appended set minus the base.
+    let cat = g.unlock_deltas();
+    let card = cat.iter().find(|u| u.id == "gas_step").unwrap();
+    let delta = card.delta.expect("open card");
+    let rules = g.lineage.rules().clone();
+    let depth = g.lineage.best_depth + 1;
+    let tag = crate::forecast::forecast_tag(&g, &rules, depth);
+    let (base, n) = crate::forecast::reach_counted(&g, &rules, depth, crate::forecast::FORECAST_SIMS, tag, crate::forecast::CATALOGUE_TICK_BUDGET);
+    let mut appended = rules.clone();
+    appended.rows.push(Row::new(vec![], Verb::arg("tactic", "gas_step")).from("card"));
+    let mut sim = g.sim_clone();
+    sim.lineage.unlocks.insert("gas_step".into());
+    let r = crate::forecast::reach_paired(&sim, &appended, depth, n, tag);
+    assert!((delta - (r - base)).abs() < 1e-9, "delta {delta} vs appended {r} − base {base}");
+    let mut top = rules.clone();
+    top.rows.insert(0, Row::new(vec![Cond::t("foe_tag", "gas")], Verb::arg("tactic", "gas_step")).from("card"));
+    let r_top = crate::forecast::reach_paired(&sim, &top, depth, n, tag);
+    // (informational: the two placements may or may not agree on this seed; the number shown is the buy's)
+    let _ = r_top;
 }

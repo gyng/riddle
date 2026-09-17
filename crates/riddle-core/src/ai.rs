@@ -2450,13 +2450,20 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
                 run.den_stolen.push(it.id);
             }
             let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
+            // Cut 10 §3: a theft says what it cost the loot (`$26 → $10` read as a bug without
+            // it): the gold `loot_add` takes off the run for the item's value.
+            let before = run.loot;
             run.loot_add(-it.value());
+            let amount = (before > run.loot).then(|| before - run.loot);
             run.monsters[mi].stolen = Some(it);
             run.monsters[mi].fleeing = true;
-            cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone() });
+            cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone(), amount });
             run.stolen.push((run.turn, label.clone()));
             note(run, cx, format!("The {} stole the {label}.", crate::engine::kind_title(&kind)));
-            callout(run, cx, "stolen!");
+            match amount {
+                Some(g) => callout(run, cx, &format!("stolen ${g}")),
+                None => callout(run, cx, "stolen!"),
+            }
             learn_tag(run, cx, &kind, "thief");
         }
     }
@@ -3393,7 +3400,7 @@ fn try_companion_verb(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &Verb, v: &V
                 run.loot_add(gold);
                 run.monsters[mi].stole_from.push(tid);
                 let id = run.monsters[mi].id;
-                cx.events.push(Ev::Steal { t: run.turn, id, item: format!("gold ({gold})") });
+                cx.events.push(Ev::Steal { t: run.turn, id, item: format!("gold ({gold})"), amount: Some(gold) });
             }
             true
         }

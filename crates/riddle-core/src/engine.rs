@@ -143,6 +143,10 @@ pub struct Run {
     pub over: Option<ExitTier>,
     pub death_cause: Option<String>,
     pub death_blow: i32,
+    /// Cut 10 §3: the HP the hero was short of taking the killing blow (`Death.margin`: `3 hp
+    /// short` — the blow overshot by two, one more would have held).
+    #[serde(default)]
+    pub death_short: i32,
     pub hurt_since_action: bool,
     pub hurt_last: bool,
     pub kill_since_action: bool,
@@ -1498,6 +1502,7 @@ impl Game {
             over: None,
             death_cause: None,
             death_blow: 0,
+            death_short: 0,
             hurt_since_action: false,
             hurt_last: false,
             kill_since_action: false,
@@ -2630,8 +2635,18 @@ pub fn exit_trace(run: &Run) -> Trace {
 
 #[allow(clippy::too_many_arguments)]
 pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: Vec<String>, tier: ExitTier, timed_out: bool, bones: usize, depth: u32) -> ExitLine {
-    let word = if timed_out { "lost thread" } else { tier.name() };
-    let mut text = format!("${carried} carried · {word} keeps {keep_pct}% → ${kept}");
+    // Cut 10 §3: the line leads with the verb and what came home (`returned $50 · $84
+    // carried · keeps 60%`; the report's exit lines read `returned $61`, not `$61`), the
+    // arithmetic after it; a run that timed out says so at the end.
+    let verb = match tier {
+        ExitTier::Bank => "banked",
+        ExitTier::Return => "returned",
+        ExitTier::Death => "died",
+    };
+    let mut text = format!("{verb} ${kept} · ${carried} carried · keeps {keep_pct}%");
+    if timed_out {
+        text.push_str(" · lost thread");
+    }
     if bones > 0 {
         text.push_str(&format!(" · bones: {bones} items on D{depth}"));
     }

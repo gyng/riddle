@@ -813,6 +813,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         }
     }
     if run.hero.hp <= 0 {
+        run.death_short = 1 - run.hero.hp;
         run.hero.hp = 0;
         run.death_cause = Some(cause.to_string());
         run.death_blow = dmg;
@@ -979,12 +980,15 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             let name = run.companion(cid).map(|c| c.name.clone()).unwrap_or_else(|| kind.clone());
             run.lost_companions.push((run.turn, name.clone()));
             note(run, cx, format!("{name} the {} fell.", crate::engine::kind_title(&kind)));
+            // Cut 10 §3: the callout uses the chronicle's verb (`Ashar slain` read as a foe).
+            callout(run, cx, &format!("{name} fell"));
             // Cut 5 §1: a companion's fall closes the episode.
             run.arc.allies_lost.push(name.clone());
             sifter::resolve(run, Resolution::Fell { kind: kind.clone(), name });
         } else {
             run.arc.allies_lost.push(kind.clone());
             note(run, cx, format!("The {} fell.", crate::engine::kind_title(&kind)));
+            callout(run, cx, &format!("{} fell", crate::engine::kind_title(&kind).to_lowercase()));
         }
     } else if m.neutral && m.situation.as_deref() == Some("captive") {
         // Cut 7 §3: the coward's way through the gate.

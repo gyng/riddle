@@ -179,7 +179,10 @@ pub enum Ev {
     Fact { t: u32, fact: String },
     Overlay { t: u32, x: i32, y: i32, ov: OverlayKind, ttl: i32 },
     Spawn { t: u32, e: Entity },
-    Steal { t: u32, id: u32, item: String },
+    /// Cut 10 §3: `amount` is the gold the theft took off the run's loot (`$26 → $10`; the
+    /// callout reads `stolen $16`) — or, on a companion's theft from a foe, the gold it
+    /// brought; absent when the loot did not move.
+    Steal { t: u32, id: u32, item: String, #[serde(default, skip_serializing_if = "Option::is_none")] amount: Option<i32> },
     Ally { t: u32, id: u32, state: String },
     Descend { t: u32, depth: u32, biome: String },
     Exit {
@@ -269,6 +272,20 @@ pub struct ForecastDepth {
     /// 0..1), so a wobble inside it reads as noise (`D4 71% ±6`). The refine pass narrows it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pm: Option<f64>,
+    /// Cut 10 §2: on the row a boss wall gates (the boss's floor + 1) whose counter fact is
+    /// known and whose verb no row of the set carries: the counter row and its ≤ 3-word text
+    /// (`D9 0% · warlord · try: attack boss`); the client inserts it at the **top**.
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "try")]
+    pub try_: Option<ForecastTry>,
+}
+
+/// Cut 10 §2: a forecast row's `try` — the known-but-absent counter of the boss whose floor
+/// sits just above this depth (`boss` is the kind, `text` from `facts::counter_text`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ForecastTry {
+    pub boss: String,
+    pub row: Row,
+    pub text: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

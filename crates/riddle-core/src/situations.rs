@@ -322,14 +322,19 @@ fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
     };
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     run.den_stolen.push(it.id);
+    let before = run.loot;
     run.loot_add(-it.value());
+    let amount = (before > run.loot).then(|| before - run.loot);
     let id = run.monsters[mi].id;
     run.monsters[mi].stolen = Some(it);
     run.monsters[mi].fleeing = true;
-    cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone() });
+    cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone(), amount });
     run.stolen.push((run.turn, label.clone()));
     note(run, cx, format!("A thief snatched the {label}."));
-    callout(run, cx, "stolen!");
+    match amount {
+        Some(g) => callout(run, cx, &format!("stolen ${g}")),
+        None => callout(run, cx, "stolen!"),
+    }
     crate::facts::learn_tag(run, cx, "monkey", "thief");
 }
 

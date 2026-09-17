@@ -1,7 +1,7 @@
 # riddle-core
 
 Deterministic roguelike sim, rule engine, facts, forecast, offline batch, chronicle, sifter,
-meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4, Cut 5, Cut 6, Cut 7, Cut 8B, Cut 9). All game truth lives here; `riddle-wasm` is a JSON bridge.
+meta (Cut 1 + Addenda A–E, Cut 2, Cut 3, Cut 4, Cut 5, Cut 6, Cut 7, Cut 8B, Cut 9, Cut 10). All game truth lives here; `riddle-wasm` is a JSON bridge.
 
 ## Wire deviations
 
@@ -797,6 +797,79 @@ Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion ver
   prints 0.000 over 30 seeds). `tools/gates.mjs` (quick) reads the same 237 verdicts as the
   Cut 8B head (dice 5.4 % on the quick sample; see the Cut 8B gate note for the full-table
   number).
+
+## Cut 10 (the wall as a ramp, clarity) — deviations and additions
+
+- **The counter is measured at the top only** (§2; `trace::pinnable_counter`): on a boss
+  death the counter row is never among the scored candidates at "before the row that fired
+  most" — `candidates()` still produces it (`foe_tag:boss → attack tag:boss` is the boss-first
+  targeting row) and it is skipped there; `pin_counter` measures it at position 0 over the
+  same 12 replays and pins it first with *that* placement's `survive` and `insert_at: 0`.
+  What made K's answer disappear: the row scored higher on the moment's replays one slot
+  above `attack nearest` than at the top, and the higher score was shown. The pin's verb
+  check now reads the lineage's whole vocabulary, not the death's context cut (a boss out of
+  sight at the end is exactly the death whose answer is his row); whether the row fires from
+  the checkpoint stays the replays' call (`FIRED_BAR`, so the "patches whose row fired ≥
+  50 %" gate holds). `DeathRec.boss` also names the floor's living boss on his own floor
+  (`descent::boss_depth`), so a death to the Warlord's rallied goblins with him twelve tiles
+  off is his death (the pin then depends on his showing up in the replays; the test's far
+  corner rarely does). A set that already carries the counter's *verb* under any conditions
+  (`trace::has_counter_verb`) is not patched with a second copy — the wire has no "move";
+  `try` is not shown for it either.
+- **`Forecast.depths[].try`** (§2; `forecast::try_row`): `{boss, row, text}` on the row a
+  boss wall gates — his floor **+ 1** (D9 for the Warlord: reaching D9 is passing him) — when
+  his counter fact is held and no row of the set carries the counter's verb. `text` is
+  `facts::counter_text` (≤ 3 words); `boss` is the kind, an addition to the contract's
+  `{row, text}` so the client need not know the boss depths. Absent otherwise (not `null`).
+  The gate (`probes::counter_trial`, `metrics.rs`): a lineage that met the Warlord (best D8,
+  level 4, +1 mail, his fact) with `good.json` minus its boss rows — D9 reach 0.00 → **0.96**
+  with the counter at the top, **0.00** with it at the end of the set (under `foes 1+ →
+  attack nearest` it never fires); named 30/30, lifted ≥ 0.3 30/30 at 16 sims (full table,
+  162 s; every other gate as at the Cut 9 head, dice 4.0 % over 2116 verdicts, replay hash
+  `1f14f0e22007fa94`).
+- **`Death.margin`** (§3): `3 hp short` — the HP that would have kept the hero through the
+  killing blow (`Run.death_short = 1 − hp after the blow`; serde default 0 for old saves),
+  not the blow's damage (`death_blow`, which the morgue still prints as `blow 5 · 3 hp short`).
+  `· heal unused` / `· 2 unknown unused` follow as before.
+- **`Ev::steal.amount`** (§3): the gold the theft took off the run's loot (`$26 → $10`: the
+  item's value through `GOLD_DIVISOR`), or the gold a companion's `steal` brought; absent when
+  the loot did not move. The callout reads **`stolen $16`** (was `stolen!`, kept for a theft
+  that cost nothing). Den thefts (`situations::snatch`) carry it too.
+- **Companion deaths call out `Ashar fell`** (§3): the chronicle's verb (`Resolution::Fell`
+  already read `jackal Ashar fell`), emitted as `Ev::callout` beside the `Ally lost` event so
+  the viewer need not derive it from `die` (which read `Ashar slain`, a foe's line). A freed
+  captive or an unnamed ally reads `captive fell` / `jackal fell`.
+- **`ExitLine.text` leads with the verb** (§3): `returned $50 · $84 carried · keeps 60%`,
+  `banked $84 · …`, `died $0 · $144 carried · keeps 0% · bones: 7 items on D5`; a run that
+  timed out ends `· lost thread` (was `$84 carried · lost thread keeps 60% → $50`). The
+  numbers (`carried`, `keep_pct`, `kept`, `spent`) are unchanged; the report's exit lines read
+  `returned $61`, not `$61`. The death screen shows the same line.
+- **Card deltas at the buy's own position** (§3; `meta::delta_row`): a tactic card's delta
+  now simulates the bare `[card]` row the client appends on `buy` — `{conds: [], verb: tactic
+  <id>}` at the **end** of the set, truncated to `max_rows` like the set itself — so the chip
+  reads the number the buy produces (L's `gas step +47%` was the conditioned row at the top;
+  on a full set the appended row is truncated and the chip reads 0, which is what the buy
+  does). A verb unlock's canonical row (`throw`, `tame`), which the player writes, still goes
+  at the top. `unlocks()` / `unlock_deltas()` both.
+- **`needs: rows full`** (§3; `meta::is_row_unlock`): `row5`…`row10` read it while the
+  active set has a free row (after the fact/trophy gate and the prerequisite, before the
+  marks), so `available` is false and the card dims; `buy` still accepts it (the bots buy
+  rows ahead of writing them; the client checks `available`). The dayplayer buys a row only
+  once its set is full; its bars are unchanged against the Cut 10 head (quick probe: unlock
+  days 5.0, stall 12 d, both pre-existing, hard bars pass).
+- **Not done here**: the watched-run report's death count (`1 RUNS · 0 DEATHS`) — that
+  report is built by the client (`watch.ts finishAfterRefresh`, `deaths: []`); the engine's
+  `ReturnReport` only comes from `run_offline`, whose `Batch` is reset at the start of each
+  absence, so a watched death is in no engine report by design (it is the death screen's).
+- **Tests**: 237 (+8): `forecast_try_names_the_known_but_absent_counter`,
+  `counter_at_the_top_lifts_the_wall_floor` (4 seeds of the gate probe),
+  `boss_counter_patch_is_pinned_at_the_top_only` (12 Warlord-floor deaths, pinned ≥ 6, the
+  unseen-boss case), `death_margin_reads_hp_short`, `theft_carries_its_amount`,
+  `companion_death_calls_out_fell`, `exit_line_leads_with_the_verb`,
+  `card_delta_is_measured_at_the_end_of_the_set`; `every_unavailable_unlock_carries_needs`
+  covers `rows full`. Two gate rows (`Forecast names the absent counter (D9 try)`, `Counter
+  at the top lifts D9 reach ≥ 0.3`) join the table; the replay hash moved (the steal event
+  and the exit line carry more).
 
 ## Layout
 
