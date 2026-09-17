@@ -901,7 +901,11 @@ fn death_keeps_nothing_and_leaves_bones() {
     g.run.as_mut().unwrap().brought.push(brought);
     g.run.as_mut().unwrap().hero.hp = 0;
     finish_with(&mut g, ExitTier::Death);
-    assert_eq!(g.lineage.gold, 0, "Cut 2 §2: death yields nothing");
+    // Cut 2 §2: the death itself yields nothing; the purse is then topped up to the wake pay
+    // (a new heir's one potion), which is its own ledger line, never loot.
+    let died = g.lineage.gold_ledger.iter().find(|l| l.why.starts_with("died")).expect("death line");
+    assert_eq!(died.delta, 0, "Cut 2 §2: death yields nothing");
+    assert_eq!(g.lineage.gold, crate::engine::WAKE_PAY.min(g.lineage.gold.max(crate::engine::WAKE_PAY)), "wake pay tops the purse up, never beyond");
     let p = g.pending_exit.as_ref().unwrap();
     assert!(p.items.is_empty());
     assert_eq!(g.lineage.heir, 2);
@@ -3421,7 +3425,22 @@ fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
     g.clear_supplies();
     g.start_run(None);
     assert!(g.run.as_ref().unwrap().supplies.is_empty(), "cleared stays cleared");
-    // Without the gold, nothing is bought and nothing breaks.
+    // Without the gold, nothing is bought and nothing breaks (a return: no wake pay arrives).
+    let mut g = Game::new(6);
+    g.lineage.unlocks.insert("auto_supply".into());
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    g.lineage.gold = 100;
+    g.buy_supply("heal").unwrap();
+    g.start_run(None);
+    g.lineage.gold = 0;
+    {
+        let (run, mut cx) = g.ctx();
+        run.loot = 0;
+        crate::turn::end_run(run, &mut cx, ExitTier::Return);
+    }
+    g.finish_run();
+    assert!(g.lineage.supplies.iter().all(|s| s.free), "nothing bought; only the kennel's leash");
+    // After a death the wake pay covers one potion, so the restock does happen (cohort 5, rater J).
     let mut g = Game::new(6);
     g.lineage.unlocks.insert("auto_supply".into());
     g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
@@ -3434,7 +3453,7 @@ fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
         crate::turn::end_run(run, &mut cx, ExitTier::Death);
     }
     g.finish_run();
-    assert!(g.lineage.supplies.iter().all(|s| s.free), "nothing bought; only the kennel's leash");
+    assert!(g.lineage.supplies.iter().any(|s| s.kind == "heal" && !s.free), "wake pay lets auto_supply rebuy the heal");
 }
 
 /// Cut 4 §7: when a row caught the hero (≤ 20 % HP, then the floor survived), the chronicle
@@ -3961,9 +3980,10 @@ fn ledger_line_reconciles_on_every_exit() {
             assert_eq!(exit_line.delta, line.kept, "seed {seed}: {since:?}");
             assert!(word_count(&exit_line.why) <= 3, "{}", exit_line.why);
             let salvage: i32 = since.iter().filter(|l| l.why == "salvage").map(|l| l.delta).sum();
+            let wake: i32 = since.iter().filter(|l| l.why == "wake pay").map(|l| l.delta).sum();
             let spent: i32 = since.iter().filter(|l| l.delta < 0).map(|l| -l.delta).sum();
             assert_eq!(line.spent, spent, "seed {seed}: {since:?}");
-            assert_eq!(after - before, line.kept + salvage - line.spent, "seed {seed}: gold delta vs ledger {since:?}");
+            assert_eq!(after - before, line.kept + salvage + wake - line.spent, "seed {seed}: gold delta vs ledger {since:?}");
             assert_eq!(after - before, since.iter().map(|l| l.delta).sum::<i32>(), "seed {seed}: the ledger sums to the delta");
             if line.spent > 0 {
                 spent_any = true;
@@ -5150,4 +5170,19 @@ fn forge_rows_carry_the_next_rung() {
     let f = &g.lineage.forge["sword"];
     assert!(f.salvaged >= 5 && f.craftable, "{f:?}");
     assert_eq!(f.next.as_ref().map(|x| x.need), Some(15));
+}
+
+/// Cohort 5 (rater J): a lineage that never banks and spends its purse on supplies that die
+/// with the hero must not be locked out of the shop; each heir wakes with one potion's worth.
+#[test]
+fn a_new_heir_wakes_with_enough_for_one_supply() {
+    use crate::engine::WAKE_PAY;
+    let mut g = Game::new(9);
+    g.lineage.gold = 0;
+    let before = g.lineage.heir;
+    let _ = g.run_offline(3 * 3600);
+    assert!(g.lineage.heir > before, "no heir change in 3 h");
+    // whatever the runs yielded, the purse after any death is at least the wake pay minus what
+    // auto-supply may have spent (a fresh lineage owns no automations)
+    assert!(g.lineage.gold >= WAKE_PAY || g.lineage.gold_ledger.iter().any(|l| l.why == "wake pay"), "gold {} ledger {:?}", g.lineage.gold, g.lineage.gold_ledger);
 }

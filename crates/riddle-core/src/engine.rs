@@ -29,6 +29,8 @@ pub const REMEMBER_ACTIONS: u32 = 10;
 pub const MAX_TURNS_PER_RUN: u32 = 120_000;
 /// Oscillation-guard firings on one floor before the run ends as `stalled` and gets a verdict.
 pub const STALL_FIRES: u32 = 3;
+/// A new heir's purse is topped up to this (one potion) so the camp is never at $0 after a death.
+pub const WAKE_PAY: i32 = 40;
 /// Cut 3: rule rows with every row unlock (`row5`–`row10`).
 pub const MAX_ROWS: usize = 10;
 /// Cut 3: the ascension variants, in the order they are offered.
@@ -1037,6 +1039,8 @@ pub struct Batch {
     pub xp_gained: u32,
     pub level_ups: u32,
     pub salvaged: BTreeMap<String, (u32, i32)>,
+    /// Gold earned this batch by exits (kept loot) — the policy's yield, exclusive of stipends.
+    pub gold_earned: i32,
     pub renown_gained: u32,
     pub ranks_up: u32,
     pub worst_death: Option<u32>,
@@ -2164,6 +2168,7 @@ impl Game {
             ExitTier::Death => format!("died D{}", run.depth),
         };
         self.lineage.gold_move(loot_kept, &exit_why);
+        self.batch.gold_earned += loot_kept;
         let mut all: Vec<Item> = run.hero.inv.clone();
         if let Some(w) = &run.hero.weapon {
             all.push(w.clone());
@@ -2238,6 +2243,14 @@ impl Game {
             self.lineage.heir_deeds.clear();
             self.lineage.heir_best = 0;
             self.lineage.trait_ = Trait::ALL[self.lineage.rng.below(4) as usize];
+            // Wake pay: a new heir arrives with enough for one cheap supply, so a lineage that has
+            // never banked is not gold-locked out of the shop after a death (cohort 5, rater J:
+            // "$0 after death, seven identical deaths overnight"). Bounded: tops the purse up to
+            // WAKE_PAY, never adds on top of it.
+            if self.lineage.gold < WAKE_PAY {
+                let top = WAKE_PAY - self.lineage.gold;
+                self.lineage.gold_move(top, "wake pay");
+            }
             if !self.sim {
                 let rec = crate::trace::death_record(self, &run);
                 self.deaths.insert(run.id, rec);
