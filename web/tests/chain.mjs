@@ -112,6 +112,7 @@ try {
   check(new RegExp(`D${fl.depth + 1} · t${outT}$`).test(chain[1]?.at ?? ""), `R2's line ends with the depth and tick instead: "${chain[1]?.at}"`);
   check(/fired$/.test(chain[2]?.text ?? "") && chain[2].cls.includes("fired"), `the fired row closes the rows: "${chain[2]?.text}"`);
   check(/never found a scroll/.test(chain[3]?.text ?? "") && chain[3].cls.includes("extra"), `Death.chain entries beyond the rows follow: "${chain[3]?.text}"`);
+  check(chain[3]?.watch === false && !chain[3]?.at, `a \`never\` entry has no watch chip and no tick: "${chain[3]?.text}"`);
   check(death.rowsN >= 2, `the active set has rows for verb labels (${death.rowsN})`);
 
   // patches: root marker in the accent colour, below-bar dimming, the unlock pseudo-patch

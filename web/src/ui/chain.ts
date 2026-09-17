@@ -56,6 +56,7 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
  *  does not name the floor). */
 function link(b: Because, runId: number | undefined): (HTMLElement | string)[] {
   const out: (HTMLElement | string)[] = [h("span", { class: "because" }, "← ", b.text)];
+  if (/^never /.test(b.text)) return out;   // `never found` / `never met`: there is no moment (the core stamps the death tick)
   if (replayable(runId, b)) {
     const log = lastRun()!;
     out.push(h("button", { class: "chip mini link", "data-t": b.t, onclick: () => openReplay(log, b) }, /* copy:button */ "watch"));
