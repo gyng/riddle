@@ -83,6 +83,11 @@ calls `death(id)` once at the end of an absence.
   detached (`setsid nohup`).
 - After editing Rust, rebuild `web/src/engine/pkg`; the PWA precache is versioned, so verify
   frontend changes on a fresh port.
+- `tools/ship.sh` takes ~6 min (fat-LTO wasm); run it in the foreground with a long timeout
+  or in the background and poll `curl localhost:5230` + `web/dist` mtimes. Never wait on it
+  with `pgrep -f tools/ship.sh`: the waiter's own command line matches.
+- A stale Vite dev server from a previous day can serve stale transforms; `tools/dev.sh`
+  reuses whatever is on the port, so kill it by pid when a walk shows old UI.
 
 ## Browser harness (GPU under WSLg)
 

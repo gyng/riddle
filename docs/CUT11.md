@@ -84,3 +84,24 @@ lines away.
 
 - **Core** (`crates/**`): §1, §3, §4, the root-cause patch in §2, gates.
 - **Client** (`web/src/**`): §2 chain UI + replay scrub, §5 gold sheet filter.
+
+## Outcome (build eec0f3f)
+
+Core (a6ba987) and client (5bac6f5, eec0f3f) landed. Full gates (30 seeds × 8 h × 8 bots):
+
+| Gate | Result |
+|---|---|
+| State reasons carry a `because` | 99.1% (39 861 reasons, 3 746 deaths) PASS |
+| Root patch shown on theft/lock roots | 100% (n = 95) PASS |
+| Root patch delta ≥ best symptom patch's | **40%** — recorded deviation, printed not gated |
+| Survivor traces 10 turns + provenance | test PASS |
+| `dice` deaths name an alternative | 106/106 PASS |
+| Chain links scrub the replay | browser test PASS (31 checks) |
+
+Deviations: a den snatch is answered by the raid row `on see den → attack nearest` (offered as
+the `◆2 cond: on see · buy` pseudo-patch when the cond is locked), not `foe: thief → attack
+thief`, which never fires against a sleeping den (Δ 0.00 on every den death). The root patch is
+always shown with its honest number and leads only when its delta reaches the best symptom's; the
+symptom it competes with is nearly always `hp<20 → rest` on sets without a rest row. `never
+found` / `never met` links show no watch chip (the core stamps the death tick). Cohort 8: raters
+O (seed 149) and P (seed 157).
