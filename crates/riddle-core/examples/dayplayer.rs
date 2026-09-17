@@ -175,7 +175,13 @@ fn first_hour(seed: u64) -> (u32, usize, u32, usize) {
     (g.lineage.best_depth, player_rows(&g), g.lineage.class_level(), g.lineage.tamed_kinds())
 }
 
-fn insert_row(g: &mut Game, row: Row, at: usize) -> bool {
+fn insert_row(g: &mut Game, row: Row, at: i32) -> bool {
+    // Cut 11 §2: the lock pseudo-patch (`insert_at` −1) is an unlock, not a row; the
+    // dayplayer's purchases are its own.
+    if at < 0 {
+        return false;
+    }
+    let at = at as usize;
     let max_rows = g.vocabulary().max_rows;
     let mut rules = g.lineage.rules().clone();
     if rules.rows.contains(&row) {
@@ -299,7 +305,7 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                     let usable = usable_now(&g);
                     if usable {
                         for (i, r) in rows.into_iter().enumerate() {
-                            insert_row(&mut g, r, i);
+                            insert_row(&mut g, r, i as i32);
                         }
                         counters_done.push(boss.to_string());
                         d.edits += 1;
@@ -319,7 +325,7 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                                     d.edits += 1;
                                     decided = true;
                                 }
-                            } else if insert_row(&mut g, row, usize::MAX) {
+                            } else if insert_row(&mut g, row, i32::MAX) {
                                 d.edits += 1;
                                 decided = true;
                             }
@@ -344,7 +350,7 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                 let has_rest = rules.rows.iter().any(|r| r.verb.v == "rest");
                 if !has_rest && rep.deaths.is_empty() {
                     let at = rules.rows.len();
-                    if insert_row(&mut g, Row::new(vec![Cond::n("hp<", 70)], Verb::new("rest")), at) {
+                    if insert_row(&mut g, Row::new(vec![Cond::n("hp<", 70)], Verb::new("rest")), at as i32) {
                         d.edits += 1;
                         decided = true;
                         stalled_days = 0;

@@ -157,6 +157,22 @@ pub struct Counter {
 pub struct RowWhy {
     pub row: usize,
     pub why: String,
+    /// Cut 11 §1: the event that put the state there (`none held` → `den took the heal, D3`;
+    /// `no path` → `gas cloud, this room`; `not in view` → `last seen D6 (17,3)`; `cooldown`
+    /// → `cooldown 12 ticks left`; `locked cond` → `◆2 cond: alert`), ≤ 8 words, with the
+    /// tick to scrub the replay to. Absent for a condition reason (`hp not <30%`) and when
+    /// the run has no such event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub because: Option<Because>,
+}
+
+/// Cut 11 §1: a cause's cause — `text` ≤ 8 words, `t` the run tick it happened at, `depth` the
+/// floor. On `RowWhy.because`, `Trace.provenance`, `Death.chain`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Because {
+    pub text: String,
+    pub t: u32,
+    pub depth: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -322,12 +338,19 @@ pub struct TraceTurn {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Trace {
     pub turns: Vec<TraceTurn>,
+    /// Cut 11 §3: the run's provenance log — every `because` event of the run (thefts, uses,
+    /// finds, targets lost, path blocks, cooldown starts), oldest first, ≤ `PROV_CAP`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Vec<Because>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Patch {
     pub row: Row,
-    pub insert_at: usize,
+    /// Cut 11 §2: `-1` on the lock pseudo-patch (`root` = `◆2 cond: alert`): nothing is
+    /// inserted; `row` is the set's own locked row and `survive` its measured survival with
+    /// the condition unlocked. The client renders it as an unlock button.
+    pub insert_at: i32,
     pub survive: f64,
     pub forecast_delta: f64,
     /// Stall patches (addition): `replace` swaps the row at `insert_at` for `row`; `remove`
@@ -336,6 +359,20 @@ pub struct Patch {
     pub replace: bool,
     #[serde(default, skip_serializing_if = "is_false")]
     pub remove: bool,
+    /// Cut 11 §2: the candidate addresses a `because`-root of the killing turn (`den took the
+    /// heal` → `foe_tag:thief → attack tag:thief`; `◆2 cond: alert` → the unlock), ≤ 6 words.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root: Option<PatchRoot>,
+    /// Cut 11 §4: on a `dice` death, a candidate kept with its measured survival although it
+    /// is under the bar (`survives 40% · dice`).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub below_bar: bool,
+}
+
+/// Cut 11 §2: what a root-cause patch answers.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PatchRoot {
+    pub text: String,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -372,6 +409,10 @@ pub struct Death {
     /// Cut 6 §1: the death's ledger line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line: Option<ExitLine>,
+    /// Cut 11 §2: the `because` entries of the killing turn's rows, in row order, deduped by
+    /// text — the chain under the trace. Absent when no row had one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chain: Option<Vec<Because>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

@@ -322,6 +322,7 @@ fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
     };
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     run.den_stolen.push(it.id);
+    crate::provenance::stolen(run, cx, &it.kind, "monkey", true, &label);
     let before = run.loot;
     run.loot_add(-it.value());
     let amount = (before > run.loot).then(|| before - run.loot);

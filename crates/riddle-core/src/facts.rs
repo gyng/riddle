@@ -172,6 +172,20 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
     if ids == run.last_visible {
         return;
     }
+    // Cut 11 §1: a hostile that stepped out of view leaves its last tile in the provenance
+    // log (`not in view` → `last seen D6 (17,3)`).
+    if !cx.sim {
+        let lost: Vec<(String, i32, i32)> = run
+            .last_visible
+            .iter()
+            .filter(|id| !ids.contains(id))
+            .filter_map(|id| run.monsters.iter().find(|m| m.id == *id && m.hp > 0 && m.hostile()))
+            .map(|m| (m.kind.clone(), m.pos.x, m.pos.y))
+            .collect();
+        for (kind, x, y) in lost {
+            crate::provenance::seen(run, cx, &kind, x, y);
+        }
+    }
     run.last_visible = ids;
     let mut sight_facts: Vec<String> = Vec::new();
     let mut new_seen = false;

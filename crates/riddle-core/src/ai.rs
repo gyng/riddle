@@ -938,6 +938,7 @@ fn verb_double_shot(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View) -> bool {
         return false;
     }
     run.hero.double_cd = 40;
+    crate::provenance::cooldown(run, cx, "double_shot");
     callout(run, cx, "double shot");
     hero_attack(run, cx, mi, "shoot", false);
     if run.monsters.get(mi).is_some_and(|m| m.hp > 0) {
@@ -1302,6 +1303,7 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
     }
     if bash {
         run.hero.bash_cd = 50;
+        crate::provenance::cooldown(run, cx, "shield_bash");
     }
     if hit {
         if bash || (run.monsters[mi].kind == "goblin_warlord" && run.aimed) {
@@ -1457,6 +1459,8 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
         return false;
     }
     let item = run.hero.inv.remove(ii);
+    let hp = run.hero.hp;
+    crate::provenance::used(run, cx, "drunk", &kind, hp);
     identify_used(run, cx, &item);
     // Forge tier: +25% effect per tier (Addendum D).
     let boost = 100 + 25 * item.enchant.max(0);
@@ -1553,6 +1557,8 @@ fn verb_read(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         return false;
     }
     let item = run.hero.inv.remove(ii);
+    let hp = run.hero.hp;
+    crate::provenance::used(run, cx, "read", &kind, hp);
     identify_used(run, cx, &item);
     let outcome = match kind.as_str() {
         "teleport" => {
@@ -1728,6 +1734,8 @@ fn throw_bell(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     }
     let Some(land) = cands.iter().copied().max_by_key(|q| (min_foe_dist(run, v, *q), q.cheb(hp), -q.x, -q.y)) else { return false };
     run.hero.inv.remove(ii);
+    let hero_hp = run.hero.hp;
+    crate::provenance::used(run, cx, "thrown", "bell", hero_hp);
     projectile(run, cx, HERO_ID, 0, hp, land);
     run.alert = (run.alert + 3).min(8);
     run.hero.silence_t = 0;
@@ -1745,6 +1753,8 @@ fn throw_item_at(run: &mut Run, cx: &mut Ctx, ii: usize, mi: usize) -> bool {
         return false;
     }
     let item = run.hero.inv.remove(ii);
+    let hero_hp = run.hero.hp;
+    crate::provenance::used(run, cx, "thrown", &item.kind, hero_hp);
     if item.cat() == Cat::Potion {
         identify_used(run, cx, &item);
     }
@@ -2191,6 +2201,7 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                 // mirror is in view.
                 if refl.iter().any(|&i| shootable(run, i)) {
                     let bow = run.hero.inv.remove(bi);
+                    crate::provenance::spent(run, cx, &bow.kind, "bow up, in hand".into());
                     run.bow_swap = run.hero.weapon.replace(bow);
                     callout(run, cx, "bow up");
                     return true;
@@ -2450,6 +2461,8 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
                 run.den_stolen.push(it.id);
             }
             let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
+            let by_den = run.monsters[mi].situation.as_deref() == Some("den");
+            crate::provenance::stolen(run, cx, &it.kind, &kind, by_den, &label);
             // Cut 10 §3: a theft says what it cost the loot (`$26 → $10` read as a bug without
             // it): the gold `loot_add` takes off the run for the item's value.
             let before = run.loot;
@@ -3219,6 +3232,7 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
     run.hero.inv[li].amount -= 1;
     if run.hero.inv[li].amount <= 0 {
         run.hero.inv.remove(li);
+        crate::provenance::spent(run, cx, "leash", "leash spent on tame".into());
     }
     let kind = run.monsters[mi].kind.clone();
     let stray = run.monsters[mi].stray;
@@ -3568,6 +3582,7 @@ fn verb_cleave(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     let hp = run.hero.pos;
     let targets: Vec<usize> = v.foes.iter().copied().filter(|&i| run.monsters[i].pos.adjacent(hp)).collect();
     run.hero.cleave_cd = 60;
+    crate::provenance::cooldown(run, cx, "cleave");
     callout(run, cx, "cleave");
     for mi in targets {
         if run.monsters[mi].hp > 0 {

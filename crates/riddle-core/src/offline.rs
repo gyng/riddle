@@ -239,14 +239,19 @@ pub fn stall_verdict(game: &mut Game) -> Option<Stall> {
 /// `rules` with a stall patch applied (replace / remove / insert), cut to the row cap like the editor.
 pub fn apply_patch(rules: &RuleSet, p: &Patch, max_rows: usize) -> RuleSet {
     let mut r = rules.clone();
+    // Cut 11 §2: the lock pseudo-patch (`insert_at` −1) changes no row — it is an unlock.
+    if p.insert_at < 0 {
+        return r;
+    }
+    let at = p.insert_at as usize;
     if p.remove {
-        if p.insert_at < r.rows.len() {
-            r.rows.remove(p.insert_at);
+        if at < r.rows.len() {
+            r.rows.remove(at);
         }
-    } else if p.replace && p.insert_at < r.rows.len() {
-        r.rows[p.insert_at] = p.row.clone();
+    } else if p.replace && at < r.rows.len() {
+        r.rows[at] = p.row.clone();
     } else {
-        r.rows.insert(p.insert_at.min(r.rows.len()), p.row.clone());
+        r.rows.insert(at.min(r.rows.len()), p.row.clone());
         r.rows.truncate(max_rows.max(1));
     }
     r
@@ -263,7 +268,7 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     let has_verb = |v: &Verb| vocab.verbs.contains(v);
     let has_cond = |k: &str, t: Option<&str>| vocab.conds.iter().any(|c| c.k == k && (t.is_none() || c.t.as_deref() == t));
     let present = |r: &Row| rules.rows.contains(r);
-    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at, survive: 0.0, forecast_delta: 0.0, replace, remove };
+    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false };
     let mut cands: Vec<Patch> = Vec::new();
     // (a) the ending row, its threshold pushed deeper.
     let mut deeper = ending.clone();

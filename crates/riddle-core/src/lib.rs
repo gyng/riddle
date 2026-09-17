@@ -15,6 +15,7 @@ pub mod meta;
 pub mod monster;
 pub mod offline;
 pub mod probes;
+pub mod provenance;
 pub mod rng;
 pub mod rules;
 pub mod save;

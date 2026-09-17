@@ -382,11 +382,11 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     run.blocked_now = None;
     for (i, row) in rows.iter().enumerate() {
         if stuck && targets_foes(&row.verb) {
-            row_why(run, cx, i, "stuck");
+            row_why(run, cx, i, "stuck", None, None);
             continue;
         }
         if i as i32 == suppressed {
-            row_why(run, cx, i, "row guard");
+            row_why(run, cx, i, "row guard", None, None);
             continue;
         }
         // Cut 6 §3: the first condition that does not hold names the reason (a hunting row
@@ -394,14 +394,14 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         let failing = row.conds.iter().find(|c| !cond_holds(run, cx, v, c));
         let holds = failing.is_none();
         if let Some(c) = failing.filter(|_| !cx.sim) {
-            row_why(run, cx, i, &cond_reason(run, cx, c));
+            row_why(run, cx, i, &cond_reason(run, cx, c), Some(row), Some(c));
         }
         if holds && tr == Trait::Brave && foes == 1 && matches!(row.verb.v.as_str(), "retreat" | "back_corridor") {
             if !brave_said {
                 emit_rule(run, cx, -1, &Verb::new("attack"), "brave → hold");
                 brave_said = true;
             }
-            row_why(run, cx, i, "brave held");
+            row_why(run, cx, i, "brave held", None, None);
             continue;
         }
         let scope = row.conds.iter().find(|c| c.k == "party").and_then(|c| c.t.clone());
@@ -421,7 +421,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 run.saved_by = Some(i as i32);
             }
             if matches!(row.verb.v.as_str(), "recall" | "send") {
-                row_why(run, cx, i, "fired, free");
+                row_why(run, cx, i, "fired, free", None, None);
                 continue; // party orders are free actions
             }
             // Cut 4: the foe this row acted on is hunted when it steps out of view.
@@ -448,10 +448,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         // Cut 4: a row whose conditions hold but whose verb cannot execute is shown as such
         // (`R1 retreat ✗ no path`), the first such row per action; cards fall through by design.
         if row.verb.v == "tactic" {
-            row_why(run, cx, i, "card passed");
+            row_why(run, cx, i, "card passed", None, None);
         } else {
             let reason = ai::block_reason(run, cx, &row.verb, v);
-            row_why(run, cx, i, reason);
+            row_why(run, cx, i, reason, Some(row), None);
             if run.blocked_now.is_none() {
                 run.blocked_now = Some(format!("R{} {} ✗ {reason}", i + 1, row.verb.short()));
                 let short = format!("{} ✗ {reason}", row.verb.v.split('_').next().unwrap_or(&row.verb.v));
@@ -543,9 +543,13 @@ fn cond_reason(run: &Run, cx: &Ctx, c: &Cond) -> String {
 }
 
 /// One row's reason. Sims (forecasts, verdict replays) never show a trace: no accounting.
-fn row_why(run: &mut Run, cx: &Ctx, i: usize, why: &str) {
+/// Cut 11 §1: a state reason (`no item`, `none held`, `no path`, `not in view`, `cooldown`,
+/// `locked cond`) carries its `because` from the provenance log; `row` is the row (a verb
+/// block), `cond` the failing condition.
+fn row_why(run: &mut Run, cx: &mut Ctx, i: usize, why: &str, row: Option<&crate::rules::Row>, cond: Option<&Cond>) {
     if !cx.sim {
-        run.rows_why.push(RowWhy { row: i, why: why.into() });
+        let because = crate::provenance::because_for(run, cx, why, row, cond);
+        run.rows_why.push(RowWhy { row: i, why: why.into(), because });
     }
 }
 
@@ -556,7 +560,7 @@ fn all_rows_why(run: &mut Run, cx: &Ctx, why: &str) {
         return;
     }
     let n = cx.rules.rows.len().min(cx.max_rows) + run.lent_row.is_some() as usize;
-    run.rows_why = (0..n).map(|i| RowWhy { row: i, why: why.into() }).collect();
+    run.rows_why = (0..n).map(|i| RowWhy { row: i, why: why.into(), because: None }).collect();
 }
 
 /// If the last 12 actions visited ≤ 2 tiles with no damage dealt or taken, give up on the
@@ -1358,10 +1362,14 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     if let Some(i) = run.hero.inv.iter().position(|i| i.kind == "chalk") {
         let it = &mut run.hero.inv[i];
         it.amount -= 1;
-        if it.amount <= 0 {
+        let gone = it.amount <= 0;
+        if gone {
             run.hero.inv.remove(i);
         }
         let d = run.depth;
+        if gone {
+            crate::provenance::spent(run, cx, "chalk", format!("chalk marked D{d}"));
+        }
         learn(run, cx, format!("chalk:{d}"));
     }
     if next >= ENDING_DEPTH {
@@ -1625,6 +1633,7 @@ pub fn vault_take(run: &mut Run, cx: &mut Ctx, id: Option<u32>) {
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     let here = run.hero.pos;
     run.loot_add(it.value());
+    crate::provenance::found(run, cx, &it.kind);
     let replaced = if run.hero.inv_full() && !item_replaces_gear(&run.hero, &it) {
         drop_near(run, here, it);
         None
@@ -1715,6 +1724,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         run.loot_add(it.value());
         run.hero.inv.push(it);
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
+        crate::provenance::found(run, cx, &kind);
         learn(run, cx, format!("item:{kind}"));
         return;
     }
@@ -1734,6 +1744,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         }
         run.loot_add(5);
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: "leash".into() });
+        crate::provenance::found(run, cx, "leash");
         learn(run, cx, "item:leash".into());
         return;
     }
@@ -1758,6 +1769,8 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
                 let it = run.items.remove(ii).item;
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
                 run.loot_add(it.value() - dropped.value());
+                crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
+                crate::provenance::found(run, cx, &it.kind);
                 run.hero.inv.push(it);
                 run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
                 cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
@@ -1777,6 +1790,8 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
                 let it = run.items.remove(ii).item;
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
                 run.loot_add(it.value() - dropped.value());
+                crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
+                crate::provenance::found(run, cx, &it.kind);
                 run.hero.inv.push(it);
                 run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
                 cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
@@ -1788,6 +1803,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
     let it = run.items.remove(ii).item;
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     run.loot_add(it.value());
+    crate::provenance::found(run, cx, &it.kind);
     run.hero.auto_equip(it);
     cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
 }
@@ -1811,6 +1827,7 @@ fn recover_bones(run: &mut Run, cx: &mut Ctx, ii: usize) {
         };
         if taken {
             run.loot_add(value);
+            crate::provenance::found(run, cx, &it.kind);
         } else {
             drop_near(run, here, it);
         }

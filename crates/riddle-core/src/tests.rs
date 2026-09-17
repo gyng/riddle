@@ -482,6 +482,7 @@ fn monkey_steals_then_flees_and_drops_on_death() {
     let run = g.run.as_mut().unwrap();
     let mi = run.monsters.iter().position(|mm| mm.id == m).unwrap();
     let mut cx_events = Vec::new();
+    let mut cx_prov = Vec::new();
     let (run, mut cx) = {
         let Game { run, lineage, .. } = &mut g;
         let run = run.as_mut().unwrap();
@@ -500,6 +501,7 @@ fn monkey_steals_then_flees_and_drops_on_death() {
                 max_rows,
                 events: &mut cx_events,
                 sim: true,
+                prov: &mut cx_prov,
                 variant: "",
                 hunter: None,
                 vault_pref: "weapon",
@@ -1175,7 +1177,7 @@ fn a_set_that_dies_has_no_stall() {
 fn stall_patches_apply_as_replace_remove_or_insert() {
     use crate::offline::apply_patch;
     let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")), Row::new(vec![], Verb::new("attack"))], name: None };
-    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at, survive: 0.0, forecast_delta: 0.0, replace, remove };
+    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false };
     let deeper = Row::new(vec![Cond::n("hp<", 10)], Verb::new("return"));
     let r = apply_patch(&rules, &mk(deeper.clone(), 0, true, false), 8);
     assert_eq!(r.rows, vec![deeper.clone(), rules.rows[1].clone()]);
@@ -5500,4 +5502,482 @@ fn choose_after_the_run_ended_is_an_error_not_a_panic() {
     g.finish_run();
     assert!(g.choose(1).is_err(), "no run");
     let _ = g.lineage(); // the engine still answers
+}
+
+// ---------------------------------------------------------------- Cut 11: the chain
+
+/// Cut 11 §1: `no item` / `none held` carry the slot's last emptying event — the theft with
+/// its tick, the drink with the HP it went down at — or `never found`; a fill is not a because.
+#[test]
+fn because_names_the_theft_the_drink_or_never_found() {
+    // Never found.
+    let mut g = arena();
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 90)], Verb::arg("drink", "heal")), Row::new(vec![Cond::t("item", "speed")], Verb::arg("drink", "speed")), Row::new(vec![], Verb::new("hold"))]);
+    g.run.as_mut().unwrap().hero.hp = 5;
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    let rows = t.rows.clone().unwrap();
+    assert_eq!(rows[0].why, "no item");
+    assert_eq!(rows[0].because.as_ref().map(|b| b.text.as_str()), Some("never found"), "{rows:?}");
+    assert_eq!(rows[1].why, "none held");
+    assert_eq!(rows[1].because.as_ref().map(|b| b.text.as_str()), Some("never found"));
+    // The theft: a monkey's blow takes the heal; the row's because names it with the tick.
+    let mut g = arena();
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    hold_rules(&mut g);
+    give(&mut g, "heal");
+    let m = add_monster(&mut g, "monkey", 5, 5);
+    let evs = ticks(&mut g, 80);
+    let stole_t = evs.iter().find_map(|e| match e {
+        Ev::Steal { id, t, .. } if *id == m => Some(*t),
+        _ => None,
+    });
+    let stole_t = stole_t.expect("the monkey stole");
+    assert!(hero(&g).inv.is_empty());
+    let prov = &g.prov;
+    let theft = prov.iter().find(|p| p.kind == crate::provenance::ProvKind::Stolen).expect("a theft entry");
+    assert_eq!(theft.text, "monkey took the heal, D1");
+    assert_eq!((theft.t, theft.key.as_str()), (stole_t, "item:heal"));
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 99)], Verb::arg("drink", "heal")), Row::new(vec![], Verb::new("hold"))]);
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    let w = &t.rows.as_ref().unwrap()[0];
+    assert_eq!(w.why, "no item");
+    let b = w.because.as_ref().expect("the theft is the because");
+    assert_eq!((b.text.as_str(), b.t, b.depth), ("monkey took the heal, D1", stole_t, 1));
+    assert!(crate::provenance::because_ok(&b.text));
+    // The drink: the next action's `no item` reads the HP the heal went down at.
+    let mut g = arena();
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    give(&mut g, "heal");
+    g.run.as_mut().unwrap().hero.hp = 4;
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 99)], Verb::arg("drink", "heal")), Row::new(vec![], Verb::new("hold"))]);
+    let evs = ticks(&mut g, 10);
+    let drank_t = evs.iter().find_map(|e| if let Ev::Use { t, .. } = e { Some(*t) } else { None }).expect("drank");
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    let w = &t.rows.as_ref().unwrap()[0];
+    assert_eq!(w.why, "no item", "hp {} trace {:?}", hero(&g).hp, g.run.as_ref().unwrap().trace);
+    let b = w.because.as_ref().unwrap();
+    assert_eq!((b.text.as_str(), b.t), (format!("drunk heal at 4/{} hp", hero(&g).max_hp).as_str(), drank_t));
+    // A fill after the emptying event is not a because (the item left some way the log did
+    // not see).
+    {
+        let (run, mut cx) = g.ctx();
+        crate::provenance::found(run, &mut cx, "heal");
+        run.hero.hp = 4;
+    }
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    let w = &t.rows.as_ref().unwrap()[0];
+    assert_eq!(w.why, "no item");
+    assert!(w.because.is_none(), "{w:?}");
+}
+
+/// Cut 11 §1: `not in view` carries the tagged foe's last-seen tile once it has stepped out
+/// of view; `cooldown` the ticks left and the tick the use started it; `locked cond` the
+/// unlock and its cost; `no path` the blocker (a captive chained on the stairs).
+#[test]
+fn because_names_the_lost_target_the_cooldown_the_lock_and_the_blocker() {
+    // Lost target: a jackal seen then gone (moved beyond the vision radius).
+    let mut g = arena();
+    g.lineage.facts.insert("foe:jackal:pack".into());
+    rules(&mut g, vec![Row::new(vec![Cond::t("foe_tag", "pack")], Verb::arg("attack", "tag:pack")), Row::new(vec![], Verb::new("hold"))]);
+    let j = add_monster(&mut g, "jackal", 6, 5);
+    g.run.as_mut().unwrap().monsters.iter_mut().for_each(|m| m.awake = false);
+    ticks(&mut g, 10);
+    assert!(g.run.as_ref().unwrap().last_visible.contains(&j));
+    // Walled off: the jackal is moved far beyond sight (a 16-wide room; vision 7).
+    {
+        let run = g.run.as_mut().unwrap();
+        let m = run.monsters.iter_mut().find(|m| m.id == j).unwrap();
+        m.pos = Pos::new(14, 10);
+        m.awake = false;
+        m.paralysed = 100;
+    }
+    ticks(&mut g, 20);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    let w = &t.rows.as_ref().unwrap()[0];
+    assert_eq!(w.why, "not in view", "{t:?}");
+    let b = w.because.as_ref().expect("last seen");
+    assert!(b.text.starts_with("jackal last seen D1 ("), "{b:?}");
+    assert!(crate::provenance::because_ok(&b.text));
+    // Cooldown: a fighter's shield bash used, then blocked by its cooldown.
+    let mut g = arena();
+    g.lineage.unlocks.insert("row5".into());
+    rules(&mut g, vec![Row::new(vec![Cond::n("adj>=", 1)], Verb::new("shield_bash")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+    add_monster(&mut g, "ogre", 5, 5);
+    let evs = ticks(&mut g, 10);
+    let bashed_t = evs.iter().find_map(|e| match e {
+        Ev::Rule { t, verb, .. } if verb.v == "shield_bash" => Some(*t),
+        _ => None,
+    });
+    let bashed_t = bashed_t.expect("bashed");
+    let prov = &g.prov;
+    assert!(prov.iter().any(|p| p.key == "cooldown:shield_bash" && p.t == bashed_t), "{prov:?}");
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    let w = &t.rows.as_ref().unwrap()[0];
+    assert_eq!(w.why, "cooldown", "{t:?}");
+    let b = w.because.as_ref().unwrap();
+    assert!(b.text.starts_with("cooldown ") && b.text.ends_with(" ticks left"), "{b:?}");
+    assert_eq!(b.t, bashed_t);
+    // Locked condition: the unlock and its cost.
+    let mut g = arena();
+    rules(&mut g, vec![Row::new(vec![Cond::n("alert>=", 1)], Verb::new("retreat")), Row::new(vec![], Verb::new("hold"))]);
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    let w = &t.rows.as_ref().unwrap()[0];
+    assert_eq!(w.why, "locked cond");
+    assert_eq!(w.because.as_ref().map(|b| b.text.as_str()), Some("◆2 cond: alert"));
+    // A captive chained on the stairs: `path_stairs` fails with `no path` and the chain names it.
+    let mut g = arena();
+    rules(&mut g, vec![Row::new(vec![Cond::flag("path_stairs")], Verb::new("descend")), Row::new(vec![], Verb::new("hold"))]);
+    {
+        let run = g.run.as_mut().unwrap();
+        let down = run.floor.stairs_down;
+        let id = run.new_id();
+        let mut m = Monster::spawn(id, "captive", down, run.depth);
+        m.situation = Some("captive".into());
+        m.neutral = true;
+        run.monsters.push(m);
+        run.floor.map.seen.iter_mut().for_each(|s| *s = true);
+    }
+    ticks(&mut g, 10);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    let w = &t.rows.as_ref().unwrap()[0];
+    assert_eq!(w.why, "no path", "{t:?}");
+    assert_eq!(w.because.as_ref().map(|b| b.text.as_str()), Some("captive chained the way"));
+    // The blocker is one provenance entry, not one per action.
+    ticks(&mut g, 30);
+    let prov = &g.prov;
+    assert_eq!(prov.iter().filter(|p| p.key == "path").count(), 1, "{prov:?}");
+}
+
+/// Cut 11 §1: the provenance log is capped at `PROV_CAP` (oldest out), thefts and uses
+/// append, finds replace their slot's last find; sims and verdict replays record nothing.
+#[test]
+fn provenance_is_capped_and_sims_record_nothing() {
+    let mut g = arena();
+    {
+        let (run, mut cx) = g.ctx();
+        assert!(!cx.sim);
+        for i in 0..100 {
+            crate::provenance::used(run, &mut cx, "drunk", &format!("k{i}"), 10);
+        }
+        assert_eq!(cx.prov.len(), crate::provenance::PROV_CAP);
+        assert_eq!(cx.prov[0].key, "item:k36", "the oldest were evicted");
+        cx.prov.clear();
+        crate::provenance::found(run, &mut cx, "heal");
+        crate::provenance::found(run, &mut cx, "heal");
+        crate::provenance::used(run, &mut cx, "drunk", "heal", 3);
+        crate::provenance::used(run, &mut cx, "drunk", "heal", 2);
+        assert_eq!(cx.prov.iter().map(|p| p.text.as_str()).collect::<Vec<_>>(), ["found heal on D1", "drunk heal at 3/36 hp", "drunk heal at 2/36 hp"]);
+        for p in cx.prov.iter() {
+            assert!(crate::provenance::because_ok(&p.text), "{p:?}");
+        }
+    }
+    // A sim clone ticks with nothing logged; the death's replays neither.
+    let mut s = g.sim_clone();
+    s.prov.clear();
+    give(&mut s, "heal");
+    s.lineage.facts.insert(ident_fact(&s.lineage.flavours, "heal").unwrap());
+    s.run.as_mut().unwrap().hero.hp = 3;
+    s.set_rules(RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "heal")), Row::new(vec![], Verb::new("hold"))], name: None }).unwrap();
+    for _ in 0..20 {
+        s.tick();
+        s.events.clear();
+    }
+    assert!(s.run.as_ref().unwrap().hero.inv.is_empty(), "the sim drank");
+    assert!(s.prov.is_empty(), "sims log nothing");
+    assert!(s.run.as_ref().unwrap().trace.last().unwrap().rows.is_none(), "sims account for nothing");
+    // Same seed, same log: the log is part of the run's determinism.
+    let mut a = Game::new(11);
+    let mut b = Game::new(11);
+    a.run_offline(1800);
+    b.run_offline(1800);
+    assert_eq!(serde_json::to_string(&a.batch.exits).unwrap(), serde_json::to_string(&b.batch.exits).unwrap());
+    assert!(a.batch.exits.iter().any(|l| l.trace.as_ref().is_some_and(|t| t.provenance.is_some())), "an exit trace carries the provenance");
+}
+
+/// Cut 11 §2: a theft in the killing turn's chain is the death's root; the patch list
+/// carries `foe_tag:thief → attack tag:thief` with `root` (the `thief_guard` card when owned),
+/// always shown, at the head when its forecast delta reaches the best symptom patch's.
+#[test]
+fn theft_root_offers_the_thief_row_with_its_root() {
+    let mut g = arena_seed(3);
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    hold_rules(&mut g);
+    give(&mut g, "heal");
+    let m = add_monster(&mut g, "monkey", 5, 5);
+    ticks(&mut g, 80);
+    assert!(hero(&g).inv.is_empty(), "the monkey took the heal");
+    // The thief runs off with it; the hero then meets a pack it cannot hold at low HP.
+    g.run.as_mut().unwrap().monsters.retain(|x| x.id != m);
+    g.run.as_mut().unwrap().hero.hp = 6;
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "heal")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+    for (x, y) in [(5, 5), (5, 6), (6, 4), (3, 6)] {
+        add_monster(&mut g, "goblin", x, y);
+    }
+    let mut id = None;
+    for _ in 0..600 {
+        g.tick();
+        g.events.clear();
+        if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            id = Some(g.run.as_ref().unwrap().id);
+            assert_eq!(g.run.as_ref().unwrap().over, Some(ExitTier::Death));
+            g.finish_run();
+            break;
+        }
+    }
+    let id = id.expect("died");
+    let rec = g.deaths.get(&id).unwrap().clone();
+    let root = rec.root.clone().expect("a theft root");
+    assert_eq!((root.kind.as_str(), root.text.as_str(), root.row), ("theft", "monkey took the heal", 0));
+    assert!(word_count(&root.text) <= crate::trace::ROOT_WORDS);
+    let chain = rec.death.chain.clone().expect("the chain");
+    assert_eq!(chain.len(), 1);
+    assert_eq!(chain[0].text, "monkey took the heal, D1");
+    let d = g.death(id).unwrap();
+    let r = d.patches.iter().find(|p| p.root.is_some()).unwrap_or_else(|| panic!("the root patch is shown: {:?}", d.patches));
+    assert_eq!(r.root.as_ref().unwrap().text, "monkey took the heal");
+    assert_eq!(r.row, Row::new(vec![Cond::t("foe_tag", "thief")], Verb::arg("attack", "tag:thief")));
+    assert_eq!(r.insert_at, 0);
+    let best_symptom = d.patches.iter().filter(|p| p.root.is_none()).map(|p| p.forecast_delta).fold(f64::NEG_INFINITY, f64::max);
+    if r.forecast_delta >= best_symptom - 1e-9 {
+        assert_eq!(d.patches[0].row, r.row, "the root leads when its delta reaches the symptom's: {:?}", d.patches);
+    } else {
+        assert_eq!(d.patches.last().unwrap().row, r.row, "else it takes the last slot: {:?}", d.patches);
+    }
+    assert!(d.patches.len() <= crate::trace::SHOWN);
+    // The card, when owned and not in the set, is the row.
+    let mut g2 = g.clone();
+    g2.lineage.unlocks.insert("thief_guard".into());
+    let card = crate::trace::thief_row(&g2, &rec.rules, false).unwrap().0;
+    assert_eq!(card.verb, Verb::arg("tactic", "thief_guard"));
+    // A set that already carries the answer gets no root patch.
+    let mut with = rec.rules.clone();
+    with.rows.insert(0, Row::new(vec![Cond::t("foe_tag", "thief")], Verb::arg("attack", "tag:thief")));
+    assert!(crate::trace::thief_row(&g, &with, false).is_none());
+}
+
+/// Cut 11 §2: a den's snatch is answered by the raid row (`on_see: den → attack nearest`):
+/// a writable row when `cond_on_see` is owned, else the unlock pseudo-patch (`insert_at`
+/// −1, `root` `◆2 cond: on see`) measured with the condition unlocked and the row at the top.
+#[test]
+fn den_theft_root_offers_the_raid_or_its_unlock() {
+    let build = |on_see: bool| -> (Game, u32) {
+        let mut g = arena_seed(4);
+        g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+        g.lineage.facts.insert("den".into());
+        if on_see {
+            g.lineage.unlocks.insert("cond_on_see".into());
+        }
+        hold_rules(&mut g);
+        give(&mut g, "heal");
+        let m = add_monster(&mut g, "monkey", 5, 5);
+        g.run.as_mut().unwrap().monsters.iter_mut().find(|x| x.id == m).unwrap().situation = Some("den".into());
+        ticks(&mut g, 80);
+        assert!(hero(&g).inv.is_empty(), "the den took the heal");
+        g.run.as_mut().unwrap().monsters.retain(|x| x.id != m);
+        g.run.as_mut().unwrap().hero.hp = 6;
+        rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "heal")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+        for (x, y) in [(5, 5), (5, 6), (6, 4), (3, 6)] {
+            add_monster(&mut g, "goblin", x, y);
+        }
+        for _ in 0..600 {
+            g.tick();
+            g.events.clear();
+            if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+                let id = g.run.as_ref().unwrap().id;
+                assert_eq!(g.run.as_ref().unwrap().over, Some(ExitTier::Death));
+                g.finish_run();
+                return (g, id);
+            }
+        }
+        panic!("the hero did not die");
+    };
+    let raid = crate::probes::situation_answer("den");
+    // Without the unlock: the pseudo-patch.
+    let (mut g, id) = build(false);
+    let rec = g.deaths.get(&id).unwrap().clone();
+    assert_eq!(rec.root.as_ref().map(|r| r.text.as_str()), Some("den took the heal"));
+    let d = g.death(id).unwrap();
+    let r = d.patches.iter().find(|p| p.root.is_some()).unwrap_or_else(|| panic!("{:?}", d.patches));
+    assert_eq!(r.insert_at, -1);
+    assert_eq!(r.root.as_ref().unwrap().text, "◆2 cond: on see");
+    assert_eq!(r.row, raid);
+    assert!((0.0..=1.0).contains(&r.survive));
+    assert_eq!(g.deaths.get(&id).unwrap().root.as_ref().unwrap().unlock.as_deref(), Some("cond_on_see"));
+    let json = serde_json::to_string(r).unwrap();
+    assert!(json.contains(r#""insert_at":-1"#) && json.contains(r#""root":{"text":"◆2 cond: on see"}"#), "{json}");
+    assert!(!json.contains("below_bar"));
+    // The pseudo-patch changes no row for the bots; its fired rate is measured on the row at
+    // the top with the token unlocked.
+    assert_eq!(crate::offline::apply_patch(&rec.rules, r, 8), rec.rules);
+    let rules = crate::trace::patched_rules(&rec.rules, r, 8);
+    assert_eq!(rules.rows[0], raid);
+    let _ = crate::trace::patch_fired_rate(&g, &rec, r);
+    // With the unlock: a writable row at the top, the root it answers as its text.
+    let (mut g, id) = build(true);
+    let d = g.death(id).unwrap();
+    let r = d.patches.iter().find(|p| p.root.is_some()).unwrap_or_else(|| panic!("{:?}", d.patches));
+    assert_eq!(r.insert_at, 0);
+    assert_eq!(r.root.as_ref().unwrap().text, "den took the heal");
+    assert_eq!(r.row, raid);
+}
+
+/// Cut 11 §2: a row above the fired one that read `locked cond` is a lock root: the patch
+/// list gains the set's own row at `insert_at` −1 with `root` `◆2 cond: alert` and its
+/// survival measured with the condition unlocked.
+#[test]
+fn lock_root_offers_the_unlock_pseudo_patch() {
+    let mut g = arena_seed(5);
+    g.run.as_mut().unwrap().hero.hp = 8;
+    let locked = Row::new(vec![Cond::n("alert>=", 1)], Verb::new("return"));
+    rules(&mut g, vec![locked.clone(), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+    g.run.as_mut().unwrap().alert = 5;
+    for (x, y) in [(5, 5), (5, 6), (6, 4), (3, 6)] {
+        add_monster(&mut g, "goblin", x, y);
+    }
+    let mut id = None;
+    for _ in 0..600 {
+        g.tick();
+        g.events.clear();
+        if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            id = Some(g.run.as_ref().unwrap().id);
+            g.finish_run();
+            break;
+        }
+    }
+    let id = id.expect("died");
+    let rec = g.deaths.get(&id).unwrap().clone();
+    let root = rec.root.clone().expect("a lock root");
+    assert_eq!((root.kind.as_str(), root.text.as_str(), root.row, root.unlock.as_deref()), ("lock", "◆2 cond: alert", 0, Some("cond_alert")));
+    assert_eq!(rec.death.chain.as_ref().unwrap()[0].text, "◆2 cond: alert");
+    let d = g.death(id).unwrap();
+    let r = d.patches.iter().find(|p| p.root.is_some()).unwrap_or_else(|| panic!("{:?}", d.patches));
+    assert_eq!((r.insert_at, r.root.as_ref().unwrap().text.as_str()), (-1, "◆2 cond: alert"));
+    assert_eq!(r.row, locked);
+    // With the alert at 5 and the row unlocked, the return fires in the replays: it survives.
+    assert!(r.survive >= 0.5, "{r:?}");
+    assert_eq!(crate::trace::patched_rules(&rec.rules, r, 8), rec.rules, "the set's own row: nothing inserted");
+}
+
+/// Cut 11 §4: a `dice` death still names its alternative — the best candidates measured in
+/// full and flagged `below_bar`, the telegraph retreat among them when a telegraph preceded
+/// the blow and the lineage knows the tag.
+#[test]
+fn dice_death_names_an_alternative_below_the_bar() {
+    let mut found = None;
+    for seed in 1..=24u64 {
+        let mut g = Game::new(seed);
+        g.max_deaths = 1000;
+        for m in crate::defs::MONSTERS.iter().filter(|m| m.tags.contains(&"telegraph")) {
+            g.lineage.facts.insert(format!("foe:{}:telegraph", m.kind));
+        }
+        g.run_offline(4 * 3600);
+        let ids: Vec<u32> = g.deaths.keys().copied().collect();
+        for id in ids {
+            if crate::trace::verdict(&mut g, id).as_deref() == Some("dice") {
+                let d = g.death(id).unwrap();
+                assert!(!d.patches.is_empty(), "seed {seed} run {id}: a dice death with no alternative: {:?}", d);
+                for p in &d.patches {
+                    assert!(p.below_bar || p.survive >= crate::trace::survive_bar(d.baseline) - 1e-9, "{p:?}");
+                    assert!((0.0..=1.0).contains(&p.survive));
+                }
+                let telegraphed = d.trace.turns.iter().any(|t| !t.telegraphs.is_empty());
+                if telegraphed && found.is_none() {
+                    let rec = g.deaths.get(&id).unwrap();
+                    if crate::trace::telegraph_row(&rec.vocab, &d.trace).is_some() {
+                        let cands = crate::trace::candidates(&rec.vocab, rec.t10.as_ref().unwrap(), &rec.t10_facts, &g.lineage.flavours, &d.trace);
+                        found = Some((seed, id, d.clone(), cands));
+                    }
+                }
+            }
+        }
+        if found.is_some() {
+            break;
+        }
+    }
+    let (seed, id, d, cands) = found.expect("a telegraphed dice death in 24 seeds");
+    let tele = Row::new(vec![Cond::t("foe_tag", "telegraph")], Verb::new("retreat"));
+    // The telegraph retreat is among the measured candidates of a telegraphed death; it is
+    // shown (first) when it fires in the replays — a `retreat` at range often cannot.
+    assert!(cands.contains(&tele), "seed {seed} run {id}: {cands:?}");
+    assert!(!d.patches.is_empty(), "seed {seed} run {id}");
+    let json = serde_json::to_string(&d).unwrap();
+    assert!(json.contains(r#""below_bar":true"#) || d.patches.iter().all(|p| !p.below_bar), "{json}");
+}
+
+/// Cut 11 §3: survivor exits carry the last ten hero turns and the run's provenance; the
+/// stall trace too; the death's own trace carries the provenance and the chain.
+#[test]
+fn survivor_traces_carry_ten_turns_and_provenance() {
+    assert_eq!(crate::engine::EXIT_TRACE_LEN, 10);
+    let mut longest = 0;
+    let mut with_prov = 0;
+    let mut exits = 0;
+    for seed in 1..=6u64 {
+        let mut g = Game::new(seed);
+        let r = crate::offline::run_offline_quick(&mut g, 3 * 3600);
+        for line in &r.exits {
+            exits += 1;
+            let tr = line.trace.as_ref().unwrap();
+            assert!(tr.turns.len() <= 10);
+            longest = longest.max(tr.turns.len());
+            if let Some(p) = &tr.provenance {
+                with_prov += 1;
+                assert!(!p.is_empty() && p.len() <= crate::provenance::PROV_CAP);
+                assert!(p.windows(2).all(|w| w[0].t <= w[1].t), "oldest first");
+                for b in p {
+                    assert!(crate::provenance::because_ok(&b.text), "{b:?}");
+                }
+            }
+        }
+        for rec in g.deaths.values() {
+            for t in &rec.death.trace.turns {
+                for w in t.rows.iter().flatten() {
+                    if let Some(b) = &w.because {
+                        assert!(crate::provenance::because_ok(&b.text), "{b:?}");
+                        assert!(b.t <= t.t);
+                    }
+                }
+            }
+            if let Some(chain) = &rec.death.chain {
+                let mut texts: Vec<&str> = chain.iter().map(|b| b.text.as_str()).collect();
+                texts.dedup();
+                assert_eq!(texts.len(), chain.len(), "deduped by text: {chain:?}");
+            }
+        }
+        if let Some(stall) = &r.stall {
+            if let Some(tr) = &stall.trace {
+                assert!(tr.turns.len() <= 10);
+            }
+        }
+    }
+    assert!(exits >= 6);
+    assert_eq!(longest, 10, "a long run's exit shows ten turns");
+    assert!(with_prov >= exits / 2, "{with_prov} of {exits} exits carry provenance");
+}
+
+/// Cut 11: the wire — `because` absent when none, `chain` absent when none, `provenance`
+/// absent on a trace without events; a `RowWhy` round-trips.
+#[test]
+fn cut11_wire_is_optional_and_snake_case() {
+    let w = RowWhy { row: 1, why: "hp not <30%".into(), because: None };
+    assert_eq!(serde_json::to_string(&w).unwrap(), r#"{"row":1,"why":"hp not <30%"}"#);
+    let w = RowWhy { row: 0, why: "no item".into(), because: Some(Because { text: "den took the heal, D3".into(), t: 2140, depth: 3 }) };
+    let s = serde_json::to_string(&w).unwrap();
+    assert_eq!(s, r#"{"row":0,"why":"no item","because":{"text":"den took the heal, D3","t":2140,"depth":3}}"#);
+    assert_eq!(serde_json::from_str::<RowWhy>(&s).unwrap(), w);
+    let t = Trace { turns: vec![], provenance: None };
+    assert_eq!(serde_json::to_string(&t).unwrap(), r#"{"turns":[]}"#);
+    let old: Trace = serde_json::from_str(r#"{"turns":[]}"#).unwrap();
+    assert_eq!(old, t);
+    let mut g = arena();
+    hold_rules(&mut g);
+    let d = crate::trace::death_record(&g, g.run.as_ref().unwrap()).death;
+    let s = serde_json::to_string(&d).unwrap();
+    assert!(!s.contains("\"chain\"") && !s.contains("\"provenance\""), "{s}");
 }

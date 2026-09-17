@@ -60,8 +60,9 @@ pub const CHRONICLE_CAP: usize = 40;
 pub const VAULT_GRACE: u32 = 50;
 /// Cut 8B §3: share of lineages whose first stray waits on D2 or D3.
 pub const FIRST_STRAY_PCT: u32 = 80;
-/// Cut 9 §5: hero turns on an exit's trace (bank / return / death lines alike).
-pub const EXIT_TRACE_LEN: usize = 5;
+/// Cut 9 §5: hero turns on an exit's trace (bank / return / death lines alike). Cut 11 §3:
+/// 10 (was 5; "survivor runs keep only five turns").
+pub const EXIT_TRACE_LEN: usize = 10;
 /// Cut 9 §7: deaths whose record the graveyard still points at (`Grave.death_id`); the
 /// engine keeps at least this many records through a save.
 pub const KEPT_DEATHS: usize = 5;
@@ -544,6 +545,8 @@ pub struct Ctx<'a> {
     pub max_rows: usize,
     pub events: &'a mut Vec<Ev>,
     pub sim: bool,
+    /// Cut 11 §1: the live run's provenance log (`Game.prov`; sims never write it).
+    pub prov: &'a mut Vec<crate::provenance::Prov>,
     /// Cut 3: the ascension variant ("" at level 0) and the `hunted` stalker.
     pub variant: &'a str,
     pub hunter: Option<&'a Grudge>,
@@ -1011,6 +1014,25 @@ pub struct DeathRec {
     pub boss: Option<String>,
     #[serde(default)]
     pub counter: Option<Row>,
+    /// Cut 11 §2: the killing turn's root cause when it is a theft or a locked condition —
+    /// what the root-cause patch answers (`trace::root_of`).
+    #[serde(default)]
+    pub root: Option<Root>,
+}
+
+/// Cut 11 §2: a death's root — `theft` (a `because` of the killing turn is a theft: the patch
+/// is the den's raid row, the `thief_guard` card or `foe_tag:thief → attack tag:thief`) or
+/// `lock` (a row above the fired one read `locked cond`: the patch is the unlock, `row` the
+/// locked row's index). `unlock` is the unlock id the root patch needs (the lock's condition;
+/// `cond_on_see` for a den raid the lineage cannot write yet), set when the patch is built.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Root {
+    pub kind: String,
+    /// ≤ 6 words (`Patch.root.text`).
+    pub text: String,
+    pub row: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unlock: Option<String>,
 }
 
 /// The vault decision waiting at an exit (Addendum D).
@@ -1122,6 +1144,11 @@ pub struct Game {
     pub loadout: Vec<u32>,
     pub sim: bool,
     pub history: VecDeque<(Run, BTreeSet<String>)>,
+    /// Cut 11 §1: the live run's provenance log (`provenance.rs`; cap `PROV_CAP`) — the
+    /// events a row reason's `because` points at. Cleared at `start_run`; off the run so the
+    /// history ring's clones do not carry it; empty on sims.
+    #[serde(default)]
+    pub prov: Vec<crate::provenance::Prov>,
     pub reel: Vec<Highlight>,
     pub last_snapshot: Option<Snapshot>,
     pub events: Vec<Ev>,
@@ -1167,6 +1194,7 @@ impl Game {
             loadout: Vec::new(),
             sim: false,
             history: VecDeque::new(),
+            prov: Vec::new(),
             reel: Vec::new(),
             last_snapshot: None,
             events: Vec::new(),
@@ -1194,6 +1222,7 @@ impl Game {
             loadout: self.loadout.clone(),
             sim: true,
             history: VecDeque::new(),
+            prov: Vec::new(),
             reel: Vec::new(),
             last_snapshot: None,
             events: Vec::new(),
@@ -1452,6 +1481,7 @@ impl Game {
 
     pub fn start_run(&mut self, seed_override: Option<u64>) {
         self.auto_keep();
+        self.prov.clear();
         let id = self.lineage.next_run_id;
         self.lineage.next_run_id += 1;
         let seed = seed_override.unwrap_or_else(|| self.run_seed(id));
@@ -1637,7 +1667,7 @@ impl Game {
 
     /// Borrow the run and a context together.
     pub fn ctx(&mut self) -> (&mut Run, Ctx<'_>) {
-        let Game { run, lineage, events, sim, .. } = self;
+        let Game { run, lineage, events, sim, prov, .. } = self;
         let run = run.as_mut().expect("no live run");
         let set = lineage.active_set.min(lineage.sets.len() - 1);
         let max_rows = lineage.max_rows();
@@ -1656,6 +1686,7 @@ impl Game {
             max_rows,
             events,
             sim: *sim,
+            prov,
             variant: &lineage.variant,
             hunter: lineage.hunter.as_ref(),
         };
@@ -1959,7 +1990,7 @@ impl Game {
             self.stall.depth = self.stall.depth.max(run.max_depth);
             if let Some(r) = run.exit_row {
                 *self.stall.exit_rows.entry(r).or_insert(0) += 1;
-                self.stall.traces.insert(r, exit_trace(&run));
+                self.stall.traces.insert(r, exit_trace(&run, &self.prov));
             }
         }
         if run.max_depth > self.lineage.best_depth {
@@ -2294,7 +2325,7 @@ impl Game {
         let mut line = exit_line(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, bones_n, run.depth);
         // Cut 9 §5: every exit carries its last five hero turns (read off the run's own trace
         // ring: nothing more per tick).
-        line.trace = Some(exit_trace(&run));
+        line.trace = Some(exit_trace(&run, &self.prov));
         debug_assert!(self.lineage.gold - gold_before == loot_kept - spent + self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.why.starts_with("salvage")).map(|g| g.delta).sum::<i32>());
         if tier == ExitTier::Death {
             if let Some(rec) = self.deaths.get_mut(&run.id) {
@@ -2633,9 +2664,10 @@ impl Game {
 /// Cut 6 §1: the exit's ledger line, ≤ 14 words (`$84 carried · return keeps 60% → $50`;
 /// death: `$144 carried · death keeps 0% → $0 · bones: 7 items on D5`; a run that hit the cap:
 /// `lost thread keeps 0%`).
-/// Cut 9 §5: the last `EXIT_TRACE_LEN` hero turns of a run, from its trace ring.
-pub fn exit_trace(run: &Run) -> Trace {
-    Trace { turns: run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect() }
+/// Cut 9 §5: the last `EXIT_TRACE_LEN` hero turns of a run, from its trace ring. Cut 11 §3:
+/// plus the run's provenance log (every `because` event), when it has one.
+pub fn exit_trace(run: &Run, prov: &[crate::provenance::Prov]) -> Trace {
+    Trace { turns: run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect(), provenance: crate::provenance::all(prov) }
 }
 
 #[allow(clippy::too_many_arguments)]
