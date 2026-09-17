@@ -192,3 +192,52 @@ row needed) would be the thing no other roguelike does.
 
 The weight-1 axes (feel, aesthetic, autonomy at 0.6) are worth 2.7 points each in total; even
 at 1.0 they add ~3. The remaining ten points live in the 0.8 → 1.0 step on the weight-3 axes.
+
+## Cohort 8 (build eec0f3f: Cut 11 — the death screen traces the chain)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| O | 149 | 75.1 | none |
+| P | 157 | 72.4 | none |
+
+α = 0.877. Mean **73.8** (cohort 7: 75.5). Failure and attribution 0.8 from both; the chain was
+praised by both unprompted (O: "a because-link whose WATCH replay showed my own rule drinking the
+potion — you always know whose fault it was"; P: "a per-rule why-not, a WATCH link and
+odds-labelled patches"). The cohort 8 gate (a first 1.0) was not met.
+
+Trajectory: 63.7 → 66.0 → 65.0 → 69.8 → 67.9 → 74.6 → 75.5 → **73.8**.
+
+### The second plateau, and what it is made of
+
+Four cohorts at 74–76 with α ≥ 0.85. The lost weight (9.7 of 37) splits three ways:
+
+1. **expression 0.6 · 0.6, every cohort** (1.2 lost, the largest single item). O: "two rows are
+   the game's cards and two are its defaults; the patch list steered me toward the same shapes
+   every death"; P: "three of six rows are prefab cards and only two are my own sentences". O's
+   first gripe: "rows are the choke point — every patch tap lands as `7/6 · drop one`, +1 row
+   climbed to ◆11, cards I bought auto-insert as rows". The roster (Cut 8B) made rows *readable*
+   as identity; it did not make room for the player's own sentences.
+2. **Nine axes at 0.8 · 0.8 with a named lapse each** (5.4 lost). This cohort's lapses are, by
+   count, *defects*: the first send after a night resumed a run the batch had left at D2 with an
+   empty pack (P: "`no item ← never found` beside 5/5 supplies"); a patch offered `foe: boss →
+   attack boss` while it sat at R2 (O); cards insert at the bottom below `attack nearest` where
+   they never fire (P) and re-adding one glues an uneditable `hp < 50%` onto it (P); `+1 row ⊘
+   rows full` stays dimmed at 4/4 (P); `▶▶|` inert on four tries (P); the swap chore dropped a
+   bought heal for a poison (O: "no row of mine could touch it"); the thief guard card does not
+   stop a den (O). Two of these are fixed already (the night's run, the duplicate patch). The
+   1.0 anchor is "no material lapse across the horizon"; a build that ships with seven defects a
+   rater meets in an hour cannot earn it on any axis, whatever its design does.
+3. **The middle floors repeat** (surprise 0.6 for O, tension 0.6 and pacing 0.6 for P): "the same
+   D3 den, the D6 archer corridor four times, `jackal · D4` killed heroes 1 and 2 identically";
+   "runs 4–8 repeated the D4–D6 archer/jackal loop with near-identical `returned $NN` endings".
+   And the night: "rested 287m — the hero idled for five of the eight hours" (P).
+
+### The read
+
+Cut 11 was the right feature and it was found and praised; it could not move an anchor because
+the anchor above 0.8 is not "better feature" but "no lapse". The campaign's method (cut → ship →
+blind cohort) finds lapses *after* shipping, two raters at a time. The next cut adds a step:
+**a QA cohort plays the rater protocol on the build before the blind cohort does**, files lapses
+only (no scores), and the build ships to raters only when that list is empty. Alongside it, the
+one structural item still at 0.6 from every rater: the player's rows are theirs, and the game's
+(cards, defaults) do not crowd them out.
