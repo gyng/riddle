@@ -1,0 +1,69 @@
+{
+  "$comment": "Blind rater J card. Seed 103, build be954f5, phone 400x800@3 via tools/browser.mjs, one browser context for the whole session. Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK.md s1-3, the template, and presets.json for weights. Did not open PLAN.md, research/, CUT*.md, INTEGRATION.md, other cards or source. Idle-doc anti-bias note: return was scored the same sitting as the simulated absence because the Tier 1 harness requires it; I wrote down before looking that I wanted to come back (to see whether the telegraph rule saved heir 4 from the ogre).",
+  "game": "Riddle",
+  "build": "be954f5",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterJ",
+  "horizon": {
+    "activeMinutes": 60,
+    "absences": ["8h simulated via ?dev=1&absent=8h after 40 min cold; return screen reported 'rested 259m', 13 runs, 12 deaths, 1 banked"],
+    "runsWatched": 7,
+    "runsOffline": 13,
+    "ruleEdits": 9
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: Heir 3 went deeper than anyone, D8 with $239 on him and 'death: lose all' in red, and walked into the Goblin Warlord, who rallied goblins around him while my rules kept hitting the nearest goblin instead of the boss because I had no boss verb yet. At 12/38 HP I hit bail, sweated through the 'returning' walk, and he came home with $143, the fact that heal is the smoky potion, and the warlord's counter (attack boss). That money bought the three heal potions and the boss-focus card that every later heir carried."
+  },
+  "probes": {
+    "clarity": "The forecast bar answered every edit within a second: moving 'foes >= 3 -> to corridor' above 'attack nearest' changed 'D6 80% +-11' to 'D6 66% +-13' and the top death cause from 'fire 30%' to 'fire 40%'.",
+    "decisions": "At D8 with '$239 . death: lose all' and 12/38 HP against the Warlord I chose bail over pushing; the game paid it as 'return keeps 60% -> $143', and the potions that money bought defined the next three heirs.",
+    "mastery": "An hour ago I sent the default two rows; now I read 'R2 no path' in a trace and know that retreat fails when cornered, and swapping that verb to 'shield bash' moved D9 from 54% to 92% and dropped 'ogre 61%' off the death list entirely.",
+    "tension": "The 'returning' walk after bail, 10/38 HP on D8 with $239 counted in orange, was the only minute I could not look away from; earlier floors carry '$3 . death: lose all', which is no stake at all.",
+    "feel": "Drag-reordering rows worked but took three attempts when the handle sat under the sticky send bar; watching at 1x the hero sprite stands still for 10-20 s between captions like '-1 jackal' and 'pick up', with foes barely visible except the boss ('RALLIED!' banner, name tags). Audio: none, unassessed.",
+    "surprise": "'A den of thieves ... A thief snatched the heal potion' x3 and then 'Slain by fire on D4' from his own last-stand card; 'The nest wakes' with foes 2 -> 6; 'Gambled: speed potion' then 'Gambled: poison potion' from my drink-unknown rule, which I deleted because of it.",
+    "expression": "My fighter: heal under 30%, shield-bash any heavy thing that winds up, boss focus, last stand, then plain attack and rest; the game labelled my pairs 'gambler' and 'chokepoint', and 'yours: 3 of 7 rows' is honest about how much is mine versus cards.",
+    "story": "Chronicle line: 'the gambler fighter . D5 . found heir 1's bones . fell to a jackal . left bones on D5'; reel line after the night: 'A jelly cornered him to 2 HP; R2 retreated; died to ogre.'",
+    "pacing": "In-run at 1x: one floor per 45-90 s with 20+ s dead stretches (run 3 sat 90 s at D3 flipping between 'descend' and 'R3 . to corridor' at 16-19 HP); check-in death -> trace -> edit -> send is about two minutes; 'fast' and '>>|' produced no visible change in speed.",
+    "failure": "'jackal . D5 . 1 over . 10 unknown unused . gap' with a trace showing 'R1 unknown item' next to every tick at hp 1, and three patches each with 'survives 92% . base 17%'; but the ogre death labelled 'dice' offered no patch although 'ogre winds up' sat in the tele column.",
+    "social": "Nobody; heirs have trait names (greedy, brave, cowardly, curious) that never changed anything I saw. weight 0.",
+    "autonomy": "I gambled unknown potions, bailed a boss, ignored two offered patches to write my own rule, and chose which unlock the marks went to; the dungeon order and goal (depth, gold) are fixed.",
+    "progression": "Within a run: L1 -> L2, '$239 carried', vault 'axe +1'; between runs: rows 2 -> 7 (price climbing 2, 4, 7, 11 marks), cards, 'supplies 3 -> 5', 'foe: telegraph' unlocking after the warlord telegraphed; automation: 'auto: restock' rebought three heal potions on its own the next morning.",
+    "aesthetic": "Dark olive pixel warrens with one large fighter sprite and notes like 'The air stings: bloats ahead.'; one watched frame was fully black at 17/38 D3; moody but not somewhere I would sit.",
+    "return": "I came back to '13 RUNS . D9 BEST . +15 MARKS . 1 BANKED . 12 DEATHS', $331 in the purse, 'ogre x7' in the deaths list, eight traces and a five-line reel; I decided to swap retreat for shield bash on heavy telegraphs, buy auto-restock, five heals and last stand; I would not rather have stayed. Unexplained: 'rested 259m' of 480, and how the one banked run happened.",
+    "attribution": "Heir 17 died because the patch I tapped went in as R1 and hit the ogre instead of my shield bash ('R3 not in view'), after thieves took the potions I bought; heir 2 died to my gamble ('Gambled: poison potion'); the offline D9 heir died with my retreat firing five times, 'no path'. Deaths 1, 3, 4 and most of the ogre x7 ended in the default attack row or a 'pick up' chore I could not write a rule against. Pronouns in my retelling: I bailed, my rules, my gamble."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Forecast bars make every edit's effect visible within a second ('D6 80% +-11' -> '66% +-13'); friction: 'rest 20m' button never explained, 'fast' and '>>|' produced no visible speed change, the tapped patch inserted itself above 'drink heal' as R1 and left me at '8/7 . drop one' without saying why, and 'hp <' was absent from the second-condition picker." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Bail at D8 with $239 vs push (return keeps 60%); 'hp < 25% -> drink unknown' bought 'reach +25%' at the price of 'poison 33%' as top death cause; corridor above or below attack; which of 20 unlocks the 9 marks go to. Lapse: forecast noise (+-13) turned the corridor-order comparison into a coin flip, D6 80 -> 74 -> 66 for the same set." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Learned that order beats content, that retreat dies to 'no path' when cornered, that shield bash answers 'winds up' (D9 54% -> 92%), that unknown potions become shop stock once gambled; but my watched heroes still died at D4-D6 in the last three runs and the D9 best came offline." },
+    { "id": "tension", "human": 0.8, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "The bail at 12/38 HP on D8 with '$239 . death: lose all' and the Warlord's 'RALLIED!' banner, resolved by 'returning ... return keeps 60% -> $143'. Lapse: gold resets to $0 on death, so the first five floors of every run carry '$3 . death: lose all', which is no stake at all." },
+    { "id": "feel", "human": 0.3, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Pointer input was immediate and the boss fight had juice ('R4 ATTACK GOBLIN', 'RALLIED!', name tags), but at 1x the hero stands still 10-20 s between captions, foes are barely visible on the warrens tiles, one frame rendered fully black, and drag-reorder needed three attempts when the handle was under the send bar. Audio unassessed (none)." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "'The nest wakes' (foes 2 -> 6), 'The monkey stole the leash', 'A thief snatched the heal potion' x3 then 'Slain by fire' from his own last stand, 'Gambled: poison potion', the Warlord rallying goblins; each changed what I configured (deleted the gamble, bought boss focus, swapped retreat for bash). Lapse: the overnight batch died the same way seven times ('ogre x7', every trace 'ogre winds up ... R1 no item')." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "'yours: 3 of 7 rows . card R3 first' is accurate: the bash-on-wind-up row and the row order are mine, the game named my pairs 'gambler' and 'chokepoint', but two of the seven rows are prefab cards and the run that banked overnight did so on the default attack loop." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "The D8 Warlord bail has a setup ('$239 . death: lose all'), a turn ('Warlord rallies', my rules hitting the wrong goblin, bail at 12/38) and an end ('Returned with $143', 'heal smoky' learned); the reel writes lines like 'A jelly cornered him to 2 HP; R2 retreated; died to ogre.' Lapse: the one run that banked overnight has no line anywhere, so the best offline story is missing." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: a floor per 45-90 s at 1x with captions every ~10 s and dead stretches over 20 s (90 s of 'descend'/'to corridor' flip-flop on D3). Check-in: death -> trace -> edit -> send in about two minutes, ending on send. Cadence: 8 h gave 13 runs and a reel; 'rest 20m' per heir means a 20-min absence would give about one run. 'fast' and '>>|' did not visibly change the watch speed." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Every death screen names foe, depth, margin ('1 over'), unused items, 'gap' or 'dice', a per-tick trace with why each other row did not fire ('R1 no item . R2 no path . R7 not safe') and patches with 'survives 92% . base 17%'; the next heir is one tap away ('send skips rest'). Lapse: the ogre death labelled 'dice' offered no patch although 'ogre winds up' was in the tele column and a telegraph rule existed." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I bailed a boss the game wanted me to counter, gambled unknown potions, refused offered patches to write my own rows, and picked unlocks freely; but there is one dungeon, one direction (down) and one goal, and the 'rest 20m' timer between heirs is the game's pace, not mine." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run: L1 -> L2, gold, vault 'axe +1'; persistent: rows 2 -> 7, four cards, 'supplies 3 -> 5', 'foe: telegraph' appearing in the picker after the Warlord telegraphed, the shop filling with identified potions; automation: 'auto: restock' rebought heals by itself, 'path: bones'. About one unlock per ten active minutes. Lapse: '+1 row' climbed 2 -> 4 -> 7 -> 11 marks while a run earns 2-6, so the row economy will stall soon." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Olive-and-black pixel warrens, one large fighter sprite, terse notes ('The air stings: bloats ahead.', 'A vault: three under a cage.'); consistent and readable, but sparse, and one watched frame was solid black at 17/38 D3." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Returned to '13 RUNS . D9 BEST . +15 MARKS . 1 BANKED . 12 DEATHS', $331, 'ogre x7', eight traces, a five-line reel and 'R3 fired 1 of 7 runs'; first meaningful action (open the D9 trace) within a minute; four decisions made from it. Lapse: 'rested 259m' of a 480-minute absence is unexplained and the one banked run, the best thing that happened, is not narrated anywhere." },
+    { "id": "attribution", "human": 0.6, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Three of the eight deaths I read end in a row I wrote or chose ('Gambled: poison potion'; the tapped patch hitting the ogre while my bash was 'not in view'; 'R2 retreated ... no path' on D9) and I retell them as mine; the other five end in the default attack row, a 'pick up' chore at 1 HP or a 'dice' label with no row I could have written." }
+  ]
+}
