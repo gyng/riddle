@@ -213,9 +213,11 @@ export function renderWatch(app: App): Mounted {
     for (const x of timed) { if (x.t <= upTo) x.f(); else keep.push(x); }
     timed.length = 0; timed.push(...keep);
   }
+  const victims = new Map<number, string>();   // id → label, remembered across batches so a kill inside a batch still has a name
   function absorb(evs: Ev[], s: Snapshot): Tier | null {
     let exit: Tier | null = null;
     const heroId = s.hero.id;
+    for (const e of s.entities) if (!e.ally && e.id !== heroId) victims.set(e.id, (e.name ?? e.kind).replace(/_/g, " "));
     for (const ev of evs) {
       if (ev.k === "telegraph" || ev.k === "attack" || ev.k === "use" || (ev.k === "hurt" && ev.id === heroId)) near(ev.t);   // Cut 5 §5: always at 1×
       switch (ev.k) {
@@ -227,6 +229,8 @@ export function renderWatch(app: App): Mounted {
           break;
         }
         case "hurt": if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) callout(`−${ev.dmg} ${oneWord(ev.cause)}`, "hurt", HURT_MS); }); break;
+        // the kill gets its own line (cohort 5: "−3 goblin" was still up after the goblin had dissolved)
+        case "die": { const v = ev.id === heroId ? null : victims.get(ev.id); if (v) at(ev.t, () => callout(/* copy:callout */ `${v} slain`, "kill", HURT_MS)); break; }
         case "descend": {
           const rooms = s.depth === ev.depth ? s.rooms : undefined;   // Cut 7 §4: `D3 · 4 rooms` when the snapshot counts them
           at(ev.t, () => { hud.depth = ev.depth; paintHud(); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
@@ -319,6 +323,9 @@ export function renderWatch(app: App): Mounted {
     if (performance.now() - lastPersist > PERSIST_MS) { lastPersist = performance.now(); app.persist(); }
   }
   function feed(evs: Ev[], s: Snapshot): void {
+    // entities that appear inside this batch must exist before their events apply (they are not tweened in;
+    // the first event they own places them)
+    (viewer as Viewer & { preload?: (x: Snapshot) => void } | null)?.preload?.(s);
     const di = evs.findIndex((e) => e.k === "descend");
     if (viewer && di >= 0) { viewer.apply(evs.slice(0, di + 1)); pendingLoad = { snap: s, rest: evs.slice(di + 1) }; }
     else { viewer?.apply(evs); if (viewer?.sync) { const v = viewer; at(s.turn, () => v.sync!(s)); } } // Cut 4 §3: remembered foes

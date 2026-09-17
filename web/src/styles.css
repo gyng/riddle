@@ -138,6 +138,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .ticker { position: absolute; left: 0; right: 0; bottom: calc(76px + env(safe-area-inset-bottom)); text-align: center; font-size: 20px; color: var(--acc); text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .ticker.show { opacity: 1; }
 .ticker.hurt { color: var(--hp); }
+.ticker.kill { color: var(--acc); }
 .ticker.ambient { color: var(--fg); }   /* Cut 7 §4: `D3 · 4 rooms` · `$47` · `alert 3` at 8× */
 /* Cut 8A: in the fight frame the firing row is a caption inside the frame; the ticker keeps only hurts and ambients */
 .watch[data-frame="fight"] .ticker.show:not(.hurt):not(.ambient) { opacity: 0; }

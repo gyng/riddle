@@ -12,7 +12,7 @@ import type { Ev, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
 
 export const TICKS_PER_S = 10;
 export const VISION_R = 7; // default sight radius; a snapshot's `vision` (Cut 3: the Deep is 4) overrides per floor
-const LUNGE_T = 2, HURT_T = 1.5, DIE_T = 4, SPAWN_T = 2, LEASH_T = 4, SHAKE_T = 3, GLYPH_T = 15;
+const LUNGE_T = 2, HURT_T = 1.5, DIE_T = 12, SPAWN_T = 2, LEASH_T = 4, SHAKE_T = 3, GLYPH_T = 15;
 const FIGHT_HURT_T = 2, FIGHT_SHAKE_T = 3; // Cut 8A: in the fight frame a hit flashes 2 ticks and the screen shakes 3
 const CAPTION_MS = 1500, NAME_MAX = 12;   // Cut 8A: the firing row as a caption (real time); names under hostiles
 const MOVE_DEFAULT = 10, MOVE_MIN = 3, MOVE_MAX = 20;
@@ -35,6 +35,7 @@ export type EntState = {
   glyph: string | null; glyphT: number;
   ringFrom: number;                // companion ring shown once clock ≥ ringFrom
   remembered: boolean;             // Cut 4 §3: pursued but unseen; drawn dimmed at its last seen tile, never tweened
+  fresh?: boolean;                 // preloaded from a snapshot before its events: the first move places it
   neutral: boolean;                // a captive: not a hostile, so the leading camera (index.ts) ignores it
   boss: boolean;
   name: string;                    // Cut 8A: the label under a hostile in the fight frame (`goblin`, `Morog`), ≤ NAME_MAX chars
@@ -74,6 +75,8 @@ export class ReplayState {
   projectiles: Projectile[] = [];
   loaded = false;
   visionDirty = true;
+  /** Tiles the engine reported visible in the latest step (unioned into `visible` after each LOS pass). */
+  engineVisible = new Uint8Array(0);
   cameraSnap = false; // index.ts snaps the camera to the hero and clears this
   bossFlashUntil = -Infinity; // clock < this → index.ts renders with the `boss_flash` palette
   vision = VISION_R;  // presentation LOS radius and the fog bands (index.ts) follow the floor's vision
@@ -102,6 +105,7 @@ export class ReplayState {
     this.tiles = s.tiles.slice();
     this.seen = Uint8Array.from(s.seen, (b) => (b ? 1 : 0));
     this.visible = Uint8Array.from(s.visible, (b) => (b ? 1 : 0));
+    this.engineVisible = Uint8Array.from(s.visible, (b) => (b ? 1 : 0));
     this.overlays = s.overlays.map((o) => ({ ...o }));
     this.items = s.items.map((i) => ({ ...i }));
     this.ents.clear();
@@ -159,6 +163,10 @@ export class ReplayState {
   sync(s: Snapshot): void {
     if (!this.loaded || s.depth !== this.depth) return;
     if (s.vision !== undefined && s.vision !== this.vision) { this.vision = s.vision; this.visionDirty = true; } // a lantern picked up
+    // The engine's visibility is truth; the presentation LOS (computed from the hero's tweened tile, which lags)
+    // only ever adds to it. Without this union a foe that hits the hero from a tile the lagging LOS has not
+    // reached yet is culled from the draw (cohort 5: "foes are never drawn" in a fight frame).
+    if (s.visible.length === this.visible.length) { for (let i = 0; i < s.visible.length; i++) { const v = s.visible[i] ? 1 : 0; this.engineVisible[i] = v; if (v) this.seen[i] = 1; } this.visionDirty = true; }
     // Cut 5 §4: a prop that changed (vault → vault_open) or a tile the floor rewrote lands as is; no tween
     if (s.tiles.length === this.tiles.length) for (let i = 0; i < s.tiles.length; i++) if (s.tiles[i] !== this.tiles[i]) this.tiles[i] = s.tiles[i]!;
     const flagged = new Map<number, Entity>();
@@ -176,6 +184,16 @@ export class ReplayState {
     // view, and first sight has no event of its own: a sleeper in the next room would otherwise never be drawn)
     for (const se of flagged.values()) if (!this.ents.has(se.id)) this.addEntity(se, false);
     // likewise floor items: the snapshot lists the seen ones, so an item first seen after the load lands here
+    const known = new Set(this.items.map((i) => i.id));
+    for (const it of s.items) if (!known.has(it.id)) this.items.push({ ...it });
+  }
+
+  /** Add entities (and items) the viewer has never held, at their snapshot tile, WITHOUT touching known ones.
+   *  Called before a batch's events so a monster that appears and fights inside the batch receives its own
+   *  move/attack/hurt events (cohort 5: foes attacked and killed between two syncs were never drawn). */
+  preload(s: Snapshot): void {
+    if (!this.loaded || s.depth !== this.depth) return;
+    for (const se of s.entities) if (se.id !== this.heroId && !this.ents.has(se.id)) { const e = this.addEntity(se, false); e.fresh = true; }
     const known = new Set(this.items.map((i) => i.id));
     for (const it of s.items) if (!known.has(it.id)) this.items.push({ ...it });
   }
@@ -267,7 +285,7 @@ export class ReplayState {
         if (!e) break;
         // start from wherever the previous tween would be at t (chained moves stay continuous); a remembered
         // foe is never tweened (Cut 4 §3): it lands on the tile
-        if (e.remembered) { e.move = null; e.px = ev.x; e.py = ev.y; }
+        if (e.remembered || e.fresh) { e.move = null; e.px = ev.x; e.py = ev.y; e.fresh = false; }   // preloaded: its first move places it, no tween from the end tile
         else {
           const [sx, sy] = this.posAt(e, t);
           e.move = { fx: sx, fy: sy, tx: ev.x, ty: ev.y, t0: t, dur: this.moveDur(ev.id, t) };
@@ -513,6 +531,7 @@ export class ReplayState {
       if (tx < 0 || ty < 0 || tx >= this.w || ty >= this.h) continue;
       if (this.los(h.x, h.y, tx, ty)) { const i = ty * this.w + tx; this.visible[i] = 1; this.seen[i] = 1; }
     }
+    if (this.engineVisible.length === this.visible.length) for (let i = 0; i < this.visible.length; i++) if (this.engineVisible[i]) this.visible[i] = 1;
   }
 
   private los(x0: number, y0: number, x1: number, y1: number): boolean {

@@ -63,6 +63,8 @@ export type Viewer = {
   resize(): void;
   dispose(): void;
   stats(): ViewerStats;
+  debugEnts?(): unknown[];
+  preload?(snap: Snapshot): void;   // add unknown entities before a batch's events
 };
 
 export type ViewerStats = {
@@ -501,6 +503,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       env.dispose(); spr.dispose();
       renderer.dispose();
     },
+    preload(snap) { st.preload(snap); },
     stats() { return { ...stats }; },
+    /** dev: every entity the state holds and whether the draw loop would show it */
+    debugEnts() { return [...st.ents.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.x, y: e.y, hero: !!e.hero, rem: !!e.remembered, dying: !!e.dying, vis: !!st.visible[e.y * st.w + e.x], seen: !!st.seen[e.y * st.w + e.x] })); },
   };
 }
