@@ -10,7 +10,7 @@ export type RowOrigin = "preset" | "patch" | "card" | "player";
 export type Row  = { conds: Cond[]; verb: Verb; origin?: RowOrigin };
 export type RuleSet = { rows: Row[]; name?: string };
 
-export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number;
+export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number;   // max_rows: Cut 12 §1, the cap on the player's OWN rows; card rows (verb.v === "tactic") sit outside it, one per owned card
                            combos?: Combo[];                                // Cut 8B §1: the combo table (adjacent-row verb pairs the engine names)
                            locked?: LockedCond[] };                         // Cut 9 §1: gated conds the sheet shows dim with their gate, never selectable
 /** Cut 9 §1 — a condition the lineage cannot use yet and the gate as the player reads it (`foe: any`, `◆2`). */
@@ -39,6 +39,7 @@ export type Snapshot = {
   vault_choice?: VaultChoice;                                             // Cut 5 §4: an opened vault waiting for `choose(itemId)` (50-tick grace, then `vault_pref` picks)
   room?: { id: number; hostiles: number };                                // Cut 7 §4: the room the hero is in (0 = corridor); awake hostiles in it (optional)
   rooms?: number;                                                         // Cut 7 §4: rooms on this floor, for `D3 · 4 rooms` (optional)
+  floor_twist?: string;                                                   // Cut 12 §4: the floor's one situation, one word (`nest`), for `D4 · 9 rooms · a nest` (optional; absent on D1–D2)
 };
 /** Cut 5 §4 — the three items of an opened vault; `choose(id)` takes one, the rest vanish. */
 export type VaultChoice = { items: InvItem[] };
@@ -87,7 +88,8 @@ export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            exit_pending?: { items: InvItem[]; tier: string } };                                       // Addendum D
 
 export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry }[]; causes: { cause: string; share: number }[];
-                         known_to: number };                             // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`)
+                         known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`)
+                         ends?: { bank: number; return: number; death: number; gold: number } };   // Cut 12 §3: how a send ends over the same sims (rates 0..1 summing to 1) and the mean gold brought home per send
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
 export type ForecastTry = { row: Row; text: string; boss?: string };
@@ -202,7 +204,8 @@ export interface Engine {
 }
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
                            delta?: number;                                                                 // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards
-                           rows?: Row[] };                                                                  // Cut 6 §6: a card's rows / an automation's effect as a row
+                           rows?: Row[];                                                                   // Cut 6 §6: a card's rows / an automation's effect as a row
+                           insert_at?: number };                                                            // Cut 12 §1: where a bought card's row goes — before the set's engagement row (first `attack`/`shoot`), else the end; its `delta` is measured there
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */
 export type AsyncEngine = { [K in keyof Engine]: NonNullable<Engine[K]> extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };
