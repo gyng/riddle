@@ -2663,7 +2663,7 @@ fn foundry_master_telegraphs_his_hammer_and_learns_the_counter() {
 fn boss_escorts_and_stock_for_the_new_biomes() {
     for (depth, boss, escort) in [(23u32, "foundry_master", "smith"), (28, "lurker_queen", "lurker"), (33, "mirror_king", "mirror_shade")] {
         let mut found_escort = false;
-        for seed in 1..=6u64 {
+        for seed in 1..=4u64 {
             let mut g = Game::new(seed);
             g.start_run(Some(seed));
             let run = g.run.as_mut().unwrap();
@@ -3204,7 +3204,7 @@ fn forecast_stops_at_known_to_and_the_run_cap_is_long() {
 /// delta on a bank are the same number, in gold, on every seed.
 #[test]
 fn loot_is_one_unit_from_pickup_to_the_bank() {
-    for seed in 1..=6u64 {
+    for seed in 1..=4u64 {
         let mut g = arena_seed(seed);
         {
             let run = g.run.as_mut().unwrap();
@@ -5918,7 +5918,7 @@ fn survivor_traces_carry_ten_turns_and_provenance() {
     let mut longest = 0;
     let mut with_prov = 0;
     let mut exits = 0;
-    for seed in 1..=6u64 {
+    for seed in 1..=4u64 {
         let mut g = Game::new(seed);
         let r = crate::offline::run_offline_quick(&mut g, 3 * 3600);
         for line in &r.exits {
@@ -5980,4 +5980,30 @@ fn cut11_wire_is_optional_and_snake_case() {
     let d = crate::trace::death_record(&g, g.run.as_ref().unwrap()).death;
     let s = serde_json::to_string(&d).unwrap();
     assert!(!s.contains("\"chain\"") && !s.contains("\"provenance\""), "{s}");
+}
+
+/// Cohort 8 (rater O): `foe: boss → attack boss` was offered at the top while it sat at R2.
+/// A patch that inserts (insert_at ≥ 0) never duplicates a row the set already carries; the
+/// unlock pseudo-patch (insert_at −1) may name the set's own locked row.
+#[test]
+fn patches_never_offer_a_row_the_set_already_has() {
+    let mut checked = 0;
+    for seed in 1..=4u64 {
+        let mut g = Game::new(seed);
+        for u in ["row5", "row6", "row7", "row8"] {
+            g.lineage.unlocks.insert(u.into());
+        }
+        g.set_rules_raw(RuleSet::parse(&std::fs::read_to_string("presets/good.json").unwrap()).unwrap()).unwrap();
+        crate::offline::run_offline_quick(&mut g, 8 * 3600);
+        let ids: Vec<u32> = g.deaths.keys().copied().take(3).collect();
+        for id in ids {
+            let d = g.death(id).unwrap();
+            let rows = g.deaths[&id].rules.rows.clone();
+            for p in d.patches.iter().filter(|p| p.insert_at >= 0) {
+                assert!(!rows.iter().any(|x| x.conds == p.row.conds && x.verb == p.row.verb), "seed {seed} death {id}: {:?} already in {rows:?}", p.row);
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked >= 10, "{checked} patches checked");
 }

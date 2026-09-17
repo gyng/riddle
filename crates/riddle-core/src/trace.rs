@@ -767,10 +767,13 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     };
     rec.death.baseline = baseline;
     let bar = survive_bar(baseline);
-    let cands = match &rec.t10 {
+    let mut cands = match &rec.t10 {
         Some(t10) => candidates(&rec.vocab, t10, &rec.t10_facts, &game.lineage.flavours, &rec.death.trace),
         None => Vec::new(),
     };
+    // A row the set already carries is not a patch (cohort 8, rater O: `foe: boss → attack
+    // boss` offered at the top while it sat at R2). Moving a row is the editor's job.
+    cands.retain(|r| !rec.rules.rows.iter().any(|x| x.conds == r.conds && x.verb == r.verb));
     // Cut 10 §2: the boss's counter row is only ever measured at the top (`pin_counter`); tried
     // "before the row that fired most" as well, that placement could outscore the top on the
     // moment's replays and hide the placement that passes the wall (cohort 6, rater K).
@@ -1008,6 +1011,9 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
     // The candidate list, one family each (the telegraph retreat keeps its family), measured
     // in order until `DICE_CANDIDATES` have fired in half their replays.
     for r in candidates(&rec.vocab, &t10, &rec.t10_facts, &game.lineage.flavours, &rec.death.trace) {
+        if rec.rules.rows.iter().any(|x| x.conds == r.conds && x.verb == r.verb) {
+            continue;
+        }
         if !rows.iter().any(|x| family(x) == family(&r)) {
             rows.push(r);
         }
