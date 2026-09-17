@@ -1304,6 +1304,11 @@ impl Game {
 
     /// Cut 5 §4: take one item of the opened vault (`Snapshot.vault_choice`); the rest vanish.
     pub fn choose(&mut self, item_id: u32) -> Result<(), String> {
+        // A choice after the run ended (the hero died on the vault tile) must be an error, not a
+        // panic: `ctx()` expects a live run and a wasm panic poisons the whole engine object.
+        if self.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            return Err("no run".into());
+        }
         let (run, mut cx) = self.ctx();
         if run.vault_choice.is_none() {
             return Err("no vault open".into());

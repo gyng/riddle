@@ -5483,3 +5483,21 @@ fn card_delta_is_measured_at_the_end_of_the_set() {
     // (informational: the two placements may or may not agree on this seed; the number shown is the buy's)
     let _ = r_top;
 }
+
+/// Cut 10 (client finding): `choose` after the run ended returned a wasm panic and poisoned the
+/// engine; it must be a plain error.
+#[test]
+fn choose_after_the_run_ended_is_an_error_not_a_panic() {
+    let mut g = Game::new(12);
+    assert!(g.choose(1).is_err(), "no run yet");
+    let _ = g.send();
+    {
+        let (run, mut cx) = g.ctx();
+        run.hero.hp = 0;
+        crate::turn::end_run(run, &mut cx, ExitTier::Death);
+    }
+    assert!(g.choose(1).is_err(), "run over");
+    g.finish_run();
+    assert!(g.choose(1).is_err(), "no run");
+    let _ = g.lineage(); // the engine still answers
+}
