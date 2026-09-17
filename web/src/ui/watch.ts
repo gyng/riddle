@@ -1,5 +1,15 @@
-// Watch: viewer canvas full-bleed; HUD (hp, depth, alert), speed auto · fast, ▶▶| skip, ⏸, callout ticker, bail.
-// Cut 9 §9: `slow` is gone (auto already runs fights at 1× and travel at 8×); `?speed=1` maps to auto (app.ts).
+// Watch: viewer canvas full-bleed; HUD (hp, depth, alert), speed fights · fast, ▶▶| skip, ⏸, callout ticker, bail.
+// Cut 9 §9: `slow` is gone; Cut 10 §1: `auto` is now `fast` (8× through dead stretches, 1× near) and the default is `fights`.
+//
+// Cut 10 §1 — the watch is the fights. In `fights` mode the map is never watched: while the frame is the map, an
+// interstitial card (`D3 · 4 rooms · $47`, the ambient line) covers the viewer for at least CARD_MS while the engine runs
+// the travel at 16× underneath (bigger batches, a longer lead, a faster pump); the moment a scene opens the fight frame cuts
+// in at 1× on the fight's first tick (the viewer is seeked back if its clock overshot under the card). Tapping the card holds
+// the map at 8× (the old auto) until the next fight. `▶▶|` in `fights` steps the engine to the next fight (judged on its
+// snapshots, floors drained on the way) and seeks the viewer to that first frame in one press; inside a fight it jumps to
+// the fight's end. `data-mode`, `data-card` and `data-fights` (fights shown so far) on the element for tooling.
+// Cut 10 §4 — cues (web/src/audio.ts) fire as their events are released at the viewer's clock: hit · slay · rule · telegraph
+// · exit · level; the combat ones only while the fight frame is up or the clock runs at 1×.
 // Cut 9 §5: the exit event's trace (every tier) rides on the exit sheet as a `trace` chip and on the report's exit line.
 //
 // Pacing (Addendum E): the viewer owns the clock (10 ticks/s × speed). The engine worker is pumped in
@@ -45,6 +55,7 @@ import { salvageValue } from "./salvage";
 import { vaultSlots } from "./unlocks";
 import { kindGlyph, verbLabel } from "./tokens";
 import { traceChip } from "./trace";
+import { audio } from "../audio";
 
 type Tier = "bank" | "return" | "death";
 type FrameName = "map" | "fight";
@@ -54,19 +65,29 @@ const INTERESTING = new Set(["hurt", "die", "telegraph", "pickup", "use", "fact"
 const LEAD = 12, BATCH = 10;        // ticks: pump when the engine is < LEAD ahead; step BATCH at a time
 const BATCH_FAST = 12;              // at 8× the viewer eats 4 ticks per pump; a bigger batch keeps the queue fed through a slow step
 const LEAD_FAST = 32;               // Cut 7 §4: at 8× the engine stays ≥ ENDING_TICKS ahead, so an exit is seen before its last 30 ticks
+const BATCH_FIGHTS = 16;            // Cut 10 §1: under the card the engine steps this many ticks per call, chained flat out (≈ 1 ms a call)
+const CARD_MS = 1500, CARD_BEAT_MS = 500;   // Cut 10 §1: the interstitial's minimum on a new floor (`D4 · 17 rooms`), and between fights on the same floor
+const FIGHT_TAIL = 12;              // Cut 10 §1: in `fights` the frame lets go this many ticks after the last hold (the kill's dissolve), not AUTO_TAIL
+const BLOW_TICKS = 20;              // Cut 10 §1: in `fights` the frame holds on an adjacent hostile, a blow in the last 20 ticks, or a boss in view
+// Cut 10 §1: under the card the engine runs each fight to its end first and only a fight that cost something is shown — the hero
+// hurt ≥ SHOW_HURT hp in it, or under SHOW_HP of max hp, a boss, a companion fallen, a theft, or the run ending in it; the rest
+// pass under the card (a DEFAULT run's fights alone ran ~110 s at 1×; the gate is 90 s with ≥ 3 shown)
+const SHOW_HURT = 4, SHOW_HP = 0.25;
+const SKIP_FIGHT_BATCHES = 400;     // Cut 10 §1: ▶▶| steps at most this many BATCHes looking for the next fight (≈ 4000 ticks)
 const ENDING_TICKS = 30;            // Cut 7 §4: the last ticks before any exit play at 1×
 const SCENE_FOES = 2;               // Cut 7 §4: awake hostiles in the hero's room that make it a scene
 const AMBIENT_MS = 10_000, AMBIENT_SHOW_MS = 1500;   // Cut 7 §4: one ambient callout per 10 s, shown 1.5 s whatever the speed
-const PUMP_MS = 50;
-type Mode = "fast" | "auto";
-const RATE: Record<Mode, number> = { fast: 4, auto: 8 };
-const AUTO_FAST = 8, AUTO_TAIL = 20; // auto: 8× when nothing is near; 1× until AUTO_TAIL ticks after the last sighting / hp change
+const PUMP_MS = 25;
+type Mode = "fights" | "fast";
+const RATE: Record<Mode, number> = { fights: 16, fast: 8 };   // fights: the map when it shows without a hold (draining to an exit); fast: the old auto's dead-stretch rate
+const AUTO_FAST = 8, AUTO_TAIL = 20; // fast: 8× when nothing is near; 1× until AUTO_TAIL ticks after the last sighting / hp change. A tapped card holds the map at 8× too.
 const EXIT_GRACE_MS = 4000;         // wait for the viewer to drain after an exit, at most this long
 const PERSIST_MS = 5000;
 const BOSS_BANNER_MS = 3000;        // Cut 2 §7: `boss · counter: known|unknown` on first sight
 const REST_BEAT_MS = 1400;          // Cut 2 §1: `rest 12m` after the exit, before the exit flow continues
 const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "descend", pick_up: /* copy:callout */ "pick up" }; // explore never (Cut 4 §4)
 const HURT_MS = 600;                // Cut 4 §4: `−7 archer` in red
+const FELL_MS = 1400;               // Cut 10 §3: `jackal Ashar fell` stays long enough to read a name
 /** The cause of a `hurt` as one word: `goblin_archer` → `archer`. */
 const oneWord = (cause: string): string => cause.replace(/_/g, " ").trim().split(/\s+/).pop() ?? "";
 
@@ -81,26 +102,36 @@ export function renderWatch(app: App): Mounted {
   const banner = h("div", { class: "banner num" });
   const pause = h("button", { class: "hud-btn", onclick: () => togglePause() }, "⏸");
   const modeBtn: Record<Mode, HTMLButtonElement> = {
-    auto: h("button", { class: "hud-btn on", onclick: () => setMode("auto") }, /* copy:button */ "auto"),
+    fights: h("button", { class: "hud-btn on", onclick: () => setMode("fights") }, /* copy:button */ "fights"),
     fast: h("button", { class: "hud-btn", onclick: () => setMode("fast") }, /* copy:button */ "fast"),
   };
   const skip = h("button", { class: "hud-btn", onclick: () => skipToEvent() }, "▶▶|");
   const bail = h("button", { class: "hud-btn bail", onclick: () => doBail() }, /* copy:button */ "bail");
-  const el = h("main", { class: "watch" }, canvas,
+  // Cut 10 §1: the interstitial — the ambient line over the map while the travel runs underneath; a tap holds the map at 8×
+  const card = h("button", { class: "interstitial num", hidden: true, onclick: () => holdMap() });
+  const el = h("main", { class: "watch" }, canvas, card,
     h("div", { class: "hud top" }, h("div", { class: "hp" }, h("span", { class: "track" }, hpFill), hpText), depth, alert, pause, stake),
     banner, ticker,
-    h("div", { class: "hud bottom" }, modeBtn.auto, modeBtn.fast, skip, bail));
+    h("div", { class: "hud bottom" }, modeBtn.fights, modeBtn.fast, skip, bail));
 
   let viewer: Viewer | null = null;
-  let mode: Mode = "auto", paused = false, slowUntil = -Infinity, lastHp = NaN;
+  let mode: Mode = "fights", paused = false, slowUntil = -Infinity, lastHp = NaN;
+  // Cut 10 §1: the card's state — up, since when (its minimum), a tap holding the map, a fight waiting on the minimum; fights shown
+  let cardUp = false, cardSince = 0, cardMin = CARD_MS, cardDepth = 0, cardText = "", mapHold = false, cardWait = false, fights = 0;
+  el.dataset.mode = mode; el.dataset.fights = "0";
+  const allies = new Set<number>();   // Cut 10 §3: ids the snapshot flags as allies, so a companion's death reads `jackal Ashar fell`
+  let fell: { t: number; name: string; kind: string } | null = null;   // the companion whose death the core's own callout (`Ashar fell`) names next
+  let heroCause: string | undefined;  // the hero's `die` cause (the client-built report counts the death it came from)
   // Cut 7 §4: the scene's room (null = none) and the tick auto may run fast again after one ends; the ending's first tick;
   // the exit batch held back until the viewer is ENDING_TICKS from the exit; the ambient callout limiter; the last alert
-  let scene: number | null = null, sceneUntil = -Infinity, endingFrom = Infinity;
+  let scene: number | null = null, sceneUntil = -Infinity, endingFrom = Infinity, endingCue = -Infinity;
   // Cut 8A: the fight frame — whether the engine's latest snapshot holds it, the viewer ticks it spans, the frame shown
-  let fightOn = false, fightFrom = Infinity, fightUntil = -Infinity, frame: FrameName = "map";
+  let fightOn = false, fightFrom = Infinity, fightUntil = -Infinity, frame: FrameName = "map", lastBlow = -Infinity;
+  // Cut 10 §1: the fight the engine is running through under the card (its cost so far), and whether the found fight is to be shown
+  let probe: { hurt: number; low: boolean; boss: boolean; ally: boolean; steal: boolean } | null = null, fightShow = false;
   let held: { evs: Ev[]; snap: Snapshot; tier: Tier } | null = null;
   let lastAmbient = -Infinity, ambientUntil = 0, lastAlert = 0;
-  let speed = AUTO_FAST, done = false, disposed = false, overridden = false, tickerTimer = 0, bannerTimer = 0, pumpTimer = 0;
+  let speed = 1, done = false, disposed = false, overridden = false, tickerTimer = 0, bannerTimer = 0, pumpTimer = 0;
   // Cut 2: rest after the exit, bones left (death) / found, bosses already announced
   let restS: number | undefined, restUntil = 0, bonesLeft: number | undefined;
   let exitLine: ExitLine | undefined;   // Cut 6 §1: the exit's ledger line (exit sheet, report, death)
@@ -187,7 +218,8 @@ export function renderWatch(app: App): Mounted {
       });
     }
   }
-  function callout(text: string, cls = "", ms = 1800 / Math.max(1, speed)): void {
+  function callout(text: string, cls = "", ms: number = 1800 / Math.max(1, speed)): void {
+    if (cardUp) return;                                                                    // Cut 10 §1: nothing under the card is watched
     if (cls !== "ambient" && cls !== "hurt" && performance.now() < ambientUntil) return;   // Cut 7 §4: an ambient keeps the ticker for its 1.5 s
     lastShown = text;
     replace(ticker, text); ticker.className = `ticker show ${cls}`;
@@ -202,7 +234,8 @@ export function renderWatch(app: App): Mounted {
   // speed and is never skipped for an earlier one (it still starts the 10 s)
   function ambient(text: string, always = false): void {
     const now = performance.now();
-    if (!always && (speed < RATE.fast || now - lastAmbient < AMBIENT_MS)) return;
+    if (cardUp) return;   // Cut 10 §1: the card is the ambient line
+    if (!always && (speed < AUTO_FAST || now - lastAmbient < AMBIENT_MS)) return;
     lastAmbient = now; ambientUntil = now + AMBIENT_SHOW_MS;
     callout(text, "ambient", AMBIENT_SHOW_MS);
   }
@@ -217,20 +250,36 @@ export function renderWatch(app: App): Mounted {
   function absorb(evs: Ev[], s: Snapshot): Tier | null {
     let exit: Tier | null = null;
     const heroId = s.hero.id;
-    for (const e of s.entities) if (!e.ally && e.id !== heroId) victims.set(e.id, (e.name ?? e.kind).replace(/_/g, " "));
+    for (const e of s.entities) { if (e.ally) allies.add(e.id); else if (e.id !== heroId) victims.set(e.id, (e.name ?? e.kind).replace(/_/g, " ")); }
     for (const ev of evs) {
       if (ev.k === "telegraph" || ev.k === "attack" || ev.k === "use" || (ev.k === "hurt" && ev.id === heroId)) near(ev.t);   // Cut 5 §5: always at 1×
       switch (ev.k) {
-        case "callout": if (ev.text !== "explore") at(ev.t, () => callout(ev.text)); break;
+        // Cut 10 §3: the core's companion-death callout (`Ashar fell`) gets its kind in front: `jackal Ashar fell`
+        case "callout": {
+          if (ev.text === "explore") break;
+          const f = fell && fell.t === ev.t && ev.text === `${fell.name} fell` && fell.kind ? `${fell.kind} ${fell.name} fell` : ev.text;
+          at(ev.t, () => callout(f, f !== ev.text ? "hurt" : "", f !== ev.text ? FELL_MS : undefined));
+          break;
+        }
         case "rule": {
           const text = ruleCallout(ev);
           // a chore (`pick up`) shows once per streak: not again until another callout intervened
           if (text) at(ev.t, () => { const now = performance.now(); if (ev.row === -2 ? text !== lastShown : text !== lastRuleText || now - lastRuleAt > 4000) callout(text); lastRuleText = text; lastRuleAt = now; });
+          if (ev.row >= 0) at(ev.t, () => cue("rule"));   // Cut 10 §4: a player row, never a chore or a trait
           break;
         }
-        case "hurt": if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) callout(`−${ev.dmg} ${oneWord(ev.cause)}`, "hurt", HURT_MS); }); break;
+        case "hurt": if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) { callout(`−${ev.dmg} ${oneWord(ev.cause)}`, "hurt", HURT_MS); cue("hit", { dmg: ev.dmg }); } }); break;
         // the kill gets its own line (cohort 5: "−3 goblin" was still up after the goblin had dissolved)
-        case "die": { const v = ev.id === heroId ? null : victims.get(ev.id); if (v) at(ev.t, () => callout(/* copy:callout */ `${v} slain`, "kill", HURT_MS)); break; }
+        case "die": {
+          if (ev.id === heroId) { heroCause = ev.cause; break; }
+          // Cut 10 §3: a companion's death (the snapshot's ally flag) is the core's callout to name; the kill line is for hostiles
+          if (allies.has(ev.id)) { fell = { t: ev.t, name: names.get(ev.id) ?? "", kind: (kinds.get(ev.id) ?? "").replace(/_/g, " ") }; break; }
+          const v = victims.get(ev.id); if (v) at(ev.t, () => { callout(/* copy:callout */ `${v} slain`, "kill", HURT_MS); cue("slay"); });
+          break;
+        }
+        case "telegraph": at(ev.t, () => cue("telegraph")); break;
+        // Cut 10 §3: a theft names its amount when the engine sends one (`stolen $16`)
+        case "steal": if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
         case "descend": {
           const rooms = s.depth === ev.depth ? s.rooms : undefined;   // Cut 7 §4: `D3 · 4 rooms` when the snapshot counts them
           at(ev.t, () => { hud.depth = ev.depth; paintHud(); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
@@ -252,12 +301,19 @@ export function renderWatch(app: App): Mounted {
           break;
         }
         case "note": notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text }); break;
-        case "exit": exit = ev.tier; exitLine = ev.line ?? exitLine; exitTrace = ev.trace ?? ev.line?.trace ?? exitTrace; endingFrom = Math.min(endingFrom, ev.t - ENDING_TICKS); break;   // Cut 7 §4
-        case "ending": endingFrom = Math.min(endingFrom, ev.t); break;                                                                // Cut 7 §4: the core's marker
-        case "tame": if (ev.ok) { tamedIds.push(ev.id); kinds.set(ev.id, ev.kind); } break;
-        case "ally": if (ev.state === "lost") lostIds.push(ev.id); break;
+        case "exit": {
+          exit = ev.tier; exitLine = ev.line ?? exitLine; exitTrace = ev.trace ?? ev.line?.trace ?? exitTrace;
+          // Cut 7 §4: the last ENDING_TICKS play at 1×; the core's `ending` marker counts only when the exit follows it closely
+          // (Cut 10 §1: a foreseen death the hero survived held the map at 1× for minutes)
+          endingFrom = Math.min(endingFrom, ev.t - ENDING_TICKS, endingCue >= ev.t - 100 ? endingCue : Infinity);
+          const tier = ev.tier; at(ev.t, () => audio.cue(tier === "bank" ? "exit_bank" : tier === "return" ? "exit_return" : "exit_death"));           // Cut 10 §4
+          break;
+        }
+        case "ending": endingCue = ev.t; break;                                                                                       // Cut 7 §4: the core's marker (see `exit`)
+        case "tame": if (ev.ok) { tamedIds.push(ev.id); kinds.set(ev.id, ev.kind); allies.add(ev.id); victims.delete(ev.id); } break;
+        case "ally": if (ev.state === "lost") lostIds.push(ev.id); else { allies.add(ev.id); victims.delete(ev.id); } break;
         case "spawn": note_(ev.e); break;
-        case "level": for (const v of verbsAt(ev.class, ev.level)) learned.push(`verb:${v}`); at(ev.t, () => callout(`${ev.class} L${ev.level}`)); break;
+        case "level": for (const v of verbsAt(ev.class, ev.level)) learned.push(`verb:${v}`); at(ev.t, () => { callout(`${ev.class} L${ev.level}`); audio.cue("level"); }); break;
         case "rank": at(ev.t, () => callout(`★${ev.rank}`)); break;
         case "rest": restS = ev.seconds; break;
         case "bones":
@@ -269,45 +325,95 @@ export function renderWatch(app: App): Mounted {
     }
     return exit;
   }
+  /** Cut 10 §4: a combat cue, only while the fight is watched (the fight frame up, or the clock at 1×). */
+  function cue(name: "hit" | "slay" | "rule" | "telegraph", opts?: { dmg?: number }): void { if (frame === "fight" || speed <= 1) audio.cue(name, opts); }
   // Cut 5 §5 / Cut 7 §4: what holds auto at 1× — a scene (a room with SCENE_FOES awake hostiles), the hero's hp moving
   const hostile = (e: { ally?: boolean; kind: string; tags: string[] }): boolean => !e.ally && e.kind !== "bones" && e.kind !== "captive" && !e.tags.includes("captive") && !e.tags.includes("ally");
   /** Cut 7 §4: the hero's room and its awake hostiles; without `room` in the wire, the hostiles in view stand in (one "room"). */
   function roomOf(s: Snapshot): { id: number; hostiles: number } {
     return s.room ?? { id: -1, hostiles: s.entities.filter((e) => hostile(e) && !e.remembered && s.visible[e.y * s.w + e.x]).length };
   }
-  function sceneFrom(s: Snapshot): void {
+  function sceneFrom(s: Snapshot, evs: Ev[] = []): void {
     const r = roomOf(s);
     const open = r.hostiles >= SCENE_FOES || (scene !== null && r.id === scene && r.hostiles > 0);
     if (open) { scene = r.id; sceneUntil = Infinity; }
     else if (scene !== null) { scene = null; sceneUntil = s.turn + AUTO_TAIL; }
     el.dataset.scene = scene === null ? "0" : "1";   // dev: tools sample the cadence off the DOM
-    fightFrom_(s, open);
+    fightFrom_(s, open, evs);
   }
   /** Cut 8A: the fight frame holds while a scene is open, a hostile is adjacent to the hero, or a boss is in view; it lets
-   *  go AUTO_TAIL ticks after. Ticks are the engine's; `applyFrame` cuts at the viewer's clock. */
-  function fightFrom_(s: Snapshot, sceneOpen: boolean): void {
+   *  go AUTO_TAIL ticks after. Ticks are the engine's; `applyFrame` cuts at the viewer's clock. Cut 10 §1: the frame starts
+   *  at the batch's first blow (attack, telegraph, hero hurt) when it has one, else at the batch's end — the fight's first frame. */
+  function fightFrom_(s: Snapshot, sceneOpen: boolean, evs: Ev[]): void {
     const hx = s.hero.x, hy = s.hero.y;
     const seen = (e: { x: number; y: number; remembered?: boolean }): boolean => !e.remembered && !!s.visible[e.y * s.w + e.x];
-    const adjacent = s.entities.some((e) => hostile(e) && seen(e) && Math.max(Math.abs(e.x - hx), Math.abs(e.y - hy)) <= 1);
+    const within = (r: number): boolean => s.entities.some((e) => hostile(e) && seen(e) && Math.max(Math.abs(e.x - hx), Math.abs(e.y - hy)) <= r);
     const boss = s.entities.some((e) => e.tags.includes("boss") && hostile(e) && seen(e));
-    const on = sceneOpen || adjacent || boss;
-    if (on) { if (!fightOn && viewerTick() >= fightUntil) fightFrom = s.turn; fightUntil = Infinity; }
-    else if (fightOn) fightUntil = s.turn + AUTO_TAIL;
+    const blow = evs.find((e) => e.k === "attack" || e.k === "telegraph" || (e.k === "hurt" && e.id === s.hero.id));
+    if (blow) lastBlow = Math.max(lastBlow, ...evs.filter((e) => e.k === "attack" || e.k === "telegraph" || (e.k === "hurt" && e.id === s.hero.id)).map((e) => e.t));
+    // Cut 10 §1: `fights` frames the blows — an adjacent hostile, a blow in the last BLOW_TICKS, a boss in view — not the whole scene
+    // (a room's approach ran at 1× and cost the gate; the wire has no awake flag, so a sleeper two tiles off would hold it too);
+    // `fast` keeps Cut 8A's scene / adjacent / boss
+    const on = mode === "fights" ? within(1) || s.turn - lastBlow <= BLOW_TICKS || boss : sceneOpen || within(1) || boss;
+    if (on) {
+      if (!fightOn && viewerTick() >= fightUntil) { fightFrom = Math.min(s.turn, blow?.t ?? s.turn); fightShow = false; }
+      fightUntil = Infinity;
+    }
+    else if (fightOn) fightUntil = s.turn + (mode === "fights" ? FIGHT_TAIL : AUTO_TAIL);
     fightOn = on;
   }
+  /** The pending floor load, taken (a helper: TypeScript narrows `pendingLoad` to null across the awaited loop). */
+  function takeLoad(): { snap: Snapshot; rest: Ev[] } | null { const p = pendingLoad; pendingLoad = null; return p; }
+  /** Land the viewer's clock on tick t (both directions; the placeholder viewer's wall clock too). */
+  function seekTo(t: number): void {
+    const fv = viewer as (Viewer & { seek?: (t: number) => void }) | null;
+    if (fv?.seek) fv.seek(t); else fv?.skipToEvent();
+    fbTick = t; fbAt = performance.now();
+  }
+  /** Cut 10 §1: under the card the engine has found the next fight ahead of the viewer's clock (the cut seeks the viewer there). */
+  const fightAhead = (v: number): boolean => cardUp && fightShow && fightFrom < Infinity && v < fightFrom;
   function applyFrame(): void {
     const v = viewerTick();
-    const want: FrameName = v >= fightFrom && v < fightUntil ? "fight" : "map";
-    if (want === frame) return;
+    // Cut 10 §1: under the card only a fight the probe chose is wanted (the viewer's clock holds there; the cut seeks to it)
+    const wantFight = mode === "fights" && cardUp && !mapHold ? fightShow && fightFrom < Infinity && v < fightUntil : v >= fightFrom && v < fightUntil;
+    let want: FrameName = wantFight ? "fight" : "map";
+    // Cut 10 §1: a fight waits for the card's minimum (the clock holds at 0 meanwhile; the seek below lands on the first frame)
+    cardWait = mode === "fights" && wantFight && frame === "map" && cardUp && performance.now() < cardSince + cardMin;
+    if (cardWait) want = "map";
+    el.dataset.span = `${fightFrom}:${fightUntil}:${fightOn ? 1 : 0}:${fightShow ? 1 : 0}:${engineTick}`;   // dev: the fight span the frame follows
+    if (want === frame) { paintCard(want); return; }
+    if (want === "fight") {
+      fights++; el.dataset.fights = String(fights); mapHold = false;
+      // the viewer lands on the fight's first frame: back if its clock overshot under the card, forward if the engine ran ahead
+      // (the travel's queued HUD updates are released under the card, so the ticker is clean at the cut)
+      if (mode === "fights" && Math.abs(v - fightFrom) > 1) { seekTo(fightFrom); release(fightFrom); }
+    }
+    paintCard(want);
     frame = want; (viewer as FrameViewer | null)?.setFrame?.(want);
     el.dataset.frame = want;
   }
+  /** Cut 10 §1: the interstitial is up while `fights` shows the map, unless a tap holds the map, the vault sheet is up, or the
+   *  run's ending plays. Its line is the ambient one: `D3 · 4 rooms · $47`. */
+  function paintCard(want: FrameName): void {
+    const up = mode === "fights" && want === "map" && !mapHold && !vaultClose && !done && !exitTier && viewerTick() < endingFrom;
+    if (up !== cardUp) {
+      cardUp = up; card.hidden = !up; el.dataset.card = up ? "1" : "0";
+      // a card per floor: the full minimum when the floor is new, a beat between fights on the same floor
+      if (up) { cardSince = performance.now(); cardMin = hud.depth !== cardDepth ? CARD_MS : CARD_BEAT_MS; cardDepth = hud.depth; ticker.classList.remove("show"); }
+    }
+    if (!up) return;
+    // the engine's floor (it runs ahead under the card: the line describes where the next fight is), not the HUD's
+    const d = snap?.depth ?? hud.depth, rooms = snap?.rooms;
+    const text = /* copy:callout */ `D${d}${rooms ? ` · ${rooms} rooms` : ""} · $${snap?.stake?.loot ?? snap?.loot ?? 0}`;
+    if (text !== cardText) { cardText = text; replace(card, text); }
+  }
+  function holdMap(): void { if (!cardUp) return; mapHold = true; cardWait = false; paintCard("map"); applySpeed(); }
   function near(t: number): void { slowUntil = Math.max(slowUntil, t + AUTO_TAIL); }
   function handle(r: StepResult): void {
     const s = r.snapshot;
     engineTick = s.turn;
     for (const e of s.entities) note_(e);
-    sceneFrom(s);
+    sceneFrom(s, r.events);
     if (s.hero.hp < lastHp) near(s.turn);   // hp lost by any means; a rest's +1 per turn is a dead stretch, a drink is a `use` event
     lastHp = s.hero.hp;
     if (s.alert > lastAlert) { const n = s.alert; at(s.turn, () => ambient(/* copy:callout */ `alert ${n}`)); }   // Cut 7 §4
@@ -315,10 +421,10 @@ export function renderWatch(app: App): Mounted {
     const exit = absorb(r.events, s);
     snap = s;
     hud.maxHp = s.hero.max_hp; paintHud(); paintStake(s); bossSighted(s);
-    vaultFrom(s);
+    if (!exit) vaultFrom(s);   // no choice on a run that just ended
     if (r.exit_pending) pendingExit = r.exit_pending;
     // Cut 7 §4: the exit batch waits (pump) until the viewer is ENDING_TICKS from the exit, then plays at 1×
-    if (exit) { held = { evs: r.events, tier: exit, snap: s }; el.dataset.ending = "1"; return; }
+    if (exit) { held = { evs: r.events, tier: exit, snap: s }; el.dataset.ending = "1"; if (vaultClose) { vaultClose(); vaultClose = null; } return; }
     feed(r.events, s);
     if (performance.now() - lastPersist > PERSIST_MS) { lastPersist = performance.now(); app.persist(); }
   }
@@ -335,15 +441,18 @@ export function renderWatch(app: App): Mounted {
     if (vaultClose && !document.querySelector(".vault-choice")) vaultClose = null;   // dismissed by backdrop / Escape: the engine's grace decides
     applyFrame();
     applySpeed();
-    const now = viewerTick();
+    let now = viewerTick();
     el.dataset.tick = String(now);            // dev: tools sample the cadence off the DOM
-    release(now);
+    release(cardWait ? Math.min(now, fightFrom) : now);   // Cut 10 §1: a fight waiting on the card keeps its HUD at the first frame
     if (pendingLoad) {
-      if (viewerIdle()) { const p = pendingLoad; pendingLoad = null; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+      // Cut 10 §1: under the card the floor changes at once (nothing is watched); otherwise the viewer drains first
+      if (cardUp || viewerIdle()) { const p = pendingLoad; pendingLoad = null; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
       return;
     }
     if (held) {
       // Cut 7 §4: the clock runs on (8× through dead air) to the ending, then the exit batch plays and the exit flow waits for it
+      // Cut 10 §1: under the card the viewer jumps to the ending (the walk-out plays at 1×; the card hides there)
+      if (cardUp && now < endingFrom) { release(endingFrom); seekTo(endingFrom); now = endingFrom; applyFrame(); applySpeed(); }
       if (now < endingFrom) return;
       const hb = held; held = null; feed(hb.evs, hb.snap);
       exitTier = hb.tier; exitAt = performance.now() + EXIT_GRACE_MS;
@@ -357,20 +466,62 @@ export function renderWatch(app: App): Mounted {
       if (performance.now() < restUntil) return;
       void finish(exitTier); return;
     }
-    if (speed <= 0 || inflight || engineTick - now >= (speed >= AUTO_FAST ? LEAD_FAST : LEAD)) return;
+    if (inflight) return;
+    // Cut 10 §1: travel under the card — the engine steps flat out (chained calls) until it finds the next fight or the exit
+    if (travelling()) { inflight = true; travel(); return; }
+    // Cut 10 §1: through a shown fight's tail the engine waits at its close, so the next fight opens under the card (and is costed
+    // there) instead of merging into this one at 1×
+    if (mode === "fights" && !mapHold && !vaultClose && !fightOn && Number.isFinite(fightUntil) && now < fightUntil) return;
+    const lead = speed >= AUTO_FAST ? LEAD_FAST : LEAD;
+    if (speed <= 0 || engineTick - now >= lead) return;
     inflight = true;
-    app.engine.step(speed >= AUTO_FAST ? BATCH_FAST : BATCH).then((r) => { inflight = false; if (!disposed && !done) handle(r); })
+    app.engine.step(speed >= AUTO_FAST ? BATCH_FAST : BATCH).then((r) => { inflight = false; if (!disposed && !done) handle(r); if (skipQueued) { skipQueued = false; void skipToEvent(); } })
       .catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; });
   }
-  /** The rate the clock should run at right now: the mode's, or for auto 8× / 1× by what is near (flat 8× while bailing).
-   *  Cut 7 §4: 1× through a scene and through the run's last ENDING_TICKS (bailing too: the walk-out is still the end). */
+  /** Cut 10 §1: is the engine free to run ahead under the card — `fights`, the card up and not held, no fight found yet, no exit. */
+  function travelling(): boolean {
+    return mode === "fights" && cardUp && !cardWait && !mapHold && !held && !exitTier && !done && !disposed && !fightAhead(viewerTick());
+  }
+  function travel(): void {
+    app.engine.step(BATCH_FIGHTS).then((r) => {
+      if (disposed || done) { inflight = false; return; }
+      handle(r);
+      probeFight(r);
+      if (pendingLoad && viewer) { const p = pendingLoad; pendingLoad = null; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+      if (travelling()) travel(); else inflight = false;
+    }).catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; });
+  }
+  /** Cut 10 §1: the fight the engine is running through under the card, costed as it goes; at its close (or the run's end
+   *  inside it) the fight is either shown — the viewer cuts to its first frame — or dropped (the frame span is cleared). */
+  function probeFight(r: StepResult): void {
+    const s = r.snapshot, heroId = s.hero.id;
+    if (fightOn || held) {
+      probe ??= { hurt: 0, low: false, boss: false, ally: false, steal: false };
+      for (const ev of r.events) {
+        if (ev.k === "hurt" && ev.id === heroId) probe.hurt += ev.dmg;
+        else if (ev.k === "die" && allies.has(ev.id)) probe.ally = true;
+        else if (ev.k === "steal") probe.steal = true;
+      }
+      if (s.hero.max_hp > 0 && s.hero.hp / s.hero.max_hp < SHOW_HP) probe.low = true;
+      if (s.entities.some((e) => e.tags.includes("boss") && hostile(e) && !e.remembered && s.visible[e.y * s.w + e.x])) probe.boss = true;
+      if (!held) return;
+    }
+    if (!probe) return;
+    const show = held || probe.hurt >= SHOW_HURT || probe.low || probe.boss || probe.ally || probe.steal;
+    probe = null;
+    if (show && fightFrom < Infinity) fightShow = true;
+    else { fightFrom = Infinity; fightUntil = -Infinity; }
+  }
+  /** The rate the clock should run at right now. `fights`: 16× under the card (8× when a tap holds the map, 0 while a fight
+   *  waits for the card's minimum); `fast`: 8× / 1× by what is near (flat 8× while bailing). Cut 7 §4: 1× through a scene and
+   *  through the run's last ENDING_TICKS (bailing too: the walk-out is still the end). */
   function rate(): number {
     if (paused) return 0;
     if (vaultClose) return 1;                 // Cut 5 §4: the vault sheet holds the clock at 1× while the engine's grace runs
     if (frame === "fight") return 1;          // Cut 8A: a fight is watched at 1×, whatever the mode
-    if (mode !== "auto") return RATE[mode];
     const v = viewerTick();
     if (v >= endingFrom) return 1;
+    if (mode === "fights") return cardWait || cardUp ? 0 : mapHold ? AUTO_FAST : RATE.fights;   // the clock holds under the card: the cut seeks
     return overridden || (v >= slowUntil && v >= sceneUntil) ? AUTO_FAST : 1;
   }
   function applySpeed(): void {
@@ -382,9 +533,9 @@ export function renderWatch(app: App): Mounted {
     for (const m of Object.keys(modeBtn) as Mode[]) modeBtn[m].classList.toggle("slowed", m === mode && n === 1);
   }
   function setMode(m: Mode): void {
-    mode = m; paused = false;
+    mode = m; paused = false; mapHold = false; el.dataset.mode = m;
     for (const k of Object.keys(modeBtn) as Mode[]) modeBtn[k].classList.toggle("on", k === m);
-    paintPause(); applySpeed();
+    paintPause(); paintCard(frame); applySpeed();
   }
   function togglePause(): void { paused = !paused; paintPause(); applySpeed(); }
   function paintPause(): void { pause.classList.toggle("on", paused); replace(pause, paused ? "▶" : "⏸"); }
@@ -401,11 +552,31 @@ export function renderWatch(app: App): Mounted {
       fbTick = engineTick; release(viewerTick());
       return;
     }
+    // Cut 10 §1: under the card the engine is already running to the next fight (or has found it): the press waives the card's minimum
+    if (mode === "fights" && cardUp && !mapHold) { cardSince = -Infinity; if (inflight) return; applyFrame(); applySpeed(); return; }
     // a press while a step is in flight is not lost: one skip is queued behind it
     if (inflight) { skipQueued = true; return; }
     if (held) { endingFrom = 0; return; } // skip overrides the ending hold: the pump releases the exit batch now
     inflight = true;
     let inFight = false;
+    // Cut 10 §1: in `fights` a press outside a fight means "the next fight, now": the engine steps until its snapshot opens
+    // the fight frame (the frame's own predicate), floors drained on the way, and the viewer lands on that first frame
+    const toFight = mode === "fights";
+    let landed = false;
+    // Cut 10 §1: inside a shown fight the press means its end — the span's close is known (the engine ran ahead) or is stepped to
+    if (toFight && frame === "fight") {
+      try {
+        for (let i = 0; i < 120 && fightOn && !Number.isFinite(fightUntil) && !disposed; i++) {
+          const r = await app.engine.step(BATCH); handle(r);
+          if (held) break;
+          const p = takeLoad(); if (p) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+        }
+      } catch (e) { console.warn("skip failed", e); }
+      inflight = false;
+      if (!held) { const t = Number.isFinite(fightUntil) ? fightUntil : Math.max(viewerTick(), engineTick); seekTo(t); release(t); applyFrame(); applySpeed(); }
+      if (skipQueued) { skipQueued = false; void skipToEvent(); }
+      return;
+    }
     try {
       // In a fight, every blow is "interesting"; a skip pressed there means "past this fight":
       // step until the fight closes (or the run ends), then to the next interesting event.
@@ -416,16 +587,27 @@ export function renderWatch(app: App): Mounted {
         if ((sn.room?.hostiles ?? 0) >= 2) return true;
         return sn.entities.some((e) => hostile(e) && !e.remembered && Math.max(Math.abs(e.x - hx), Math.abs(e.y - hy)) <= 2);
       };
-      inFight = snap ? fighting(snap) : false;
+      // Cut 10 §1: in `fights` the frame's own predicate (`fightOn`, judged per batch in `handle`) says what a fight is
+      inFight = snap ? (toFight ? fightOn : fighting(snap)) : false;
       let hit = false;
-      for (let i = 0; i < (inFight ? 120 : 30) && !hit && !disposed; i++) {
+      const max = inFight ? 120 : toFight ? SKIP_FIGHT_BATCHES : 30;
+      for (let i = 0; i < max && !hit && !disposed; i++) {
         const r = await app.engine.step(BATCH);
         const stillFighting = fighting(r.snapshot);
-        hit = r.run_over || (!stillFighting && (!inFight || i > 0) && r.events.some((e) => INTERESTING.has(e.k)));
-        if (inFight && !stillFighting) hit = true;   // the fight closed: stop here so the player sees the map again
         handle(r);
-        if (pendingLoad || held) break;
+        if (toFight) hit = r.run_over || (inFight ? !fightOn : fightOn);
+        else {
+          hit = r.run_over || (!stillFighting && (!inFight || i > 0) && r.events.some((e) => INTERESTING.has(e.k)));
+          if (inFight && !stillFighting) hit = true;   // the fight closed: stop here so the player sees the map again
+        }
+        if (held) break;
+        if (pendingLoad) {
+          if (!toFight) break;
+          // a floor change on the way: load it now (the skip is the drain), the queued events straight into place
+          const p = takeLoad(); if (p) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+        }
       }
+      landed = toFight && !inFight && fightOn && fightFrom > viewerTick();
     } catch (e) { console.warn("skip failed", e); }
     inflight = false;
     if (!pendingLoad && !held) {
@@ -433,9 +615,10 @@ export function renderWatch(app: App): Mounted {
       // 120 engine batches leave the viewer replaying the whole fight at 1×
       // land the viewer where the engine stopped (just before the interesting event it found);
       // replaying the skipped span at 1× is what made ▶▶| feel dead in a fight
-      const fv = viewer as Viewer & { seek?: (t: number) => void };
-      if (fv.seek) fv.seek(Math.max(viewerTick(), engineTick - BATCH)); else viewer.skipToEvent();
-      fbTick = Math.max(fbTick, engineTick - BATCH); release(viewerTick());
+      // Cut 10 §1: on the next fight's first frame in `fights`, the card's minimum waived (the press asked for it)
+      const t = landed ? fightFrom : Math.max(viewerTick(), engineTick - BATCH);
+      seekTo(t); release(viewerTick());
+      if (landed) { cardSince = -Infinity; applyFrame(); applySpeed(); }
     }
     if (skipQueued) { skipQueued = false; void skipToEvent(); }
   }
@@ -449,27 +632,31 @@ export function renderWatch(app: App): Mounted {
       console.warn("bail", e); prepended = true;
       void app.engine.setRules({ rows: [{ conds: [], verb: { v: "return" } }, ...app.rules.rows] }).catch((e2) => console.warn("bail", e2));
     });
-    setMode("auto");
+    setMode(mode);
   }
   // Cut 5 §4: the vault choice sheet — opens once per cage, closes when the engine's snapshot no longer carries it
   function vaultFrom(s: Snapshot): void {
     const vc = s.vault_choice;
-    if (!vc || !vc.items.length) { if (vaultClose) { vaultClose(); vaultClose = null; } return; }
+    // a choice on a run that has ended is no choice (a `choose` after the exit trips the core: seed 12's death on a vault tile)
+    if (!vc || !vc.items.length || held || exitTier || done) { if (vaultClose) { vaultClose(); vaultClose = null; } return; }
     const key = vc.items.map((it) => it.id).join(",");
     if (vaultClose || key === vaultKey) return;
-    vaultKey = key; vaultSheet(vc);
+    vaultKey = key;
+    // Cut 10 §1: found under the card, the viewer joins the engine at the vault (the grace runs at 1× from here)
+    if (cardUp) { release(s.turn); seekTo(s.turn); }
+    vaultSheet(vc);
   }
   function vaultSheet(vc: VaultChoice): void {
     let sent = false;
     openSheet((close) => {
-      vaultClose = () => { vaultClose = null; close(); applySpeed(); };
+      vaultClose = () => { vaultClose = null; close(); paintCard(frame); applySpeed(); };
       const chips = h("div", { class: "chips" }, ...vc.items.map((it) => h("button", { class: "chip item", onclick: () => {
         if (sent) return; sent = true;
         app.engine.choose(it.id).catch((e) => console.warn("choose", e)).finally(() => vaultClose?.());   // the next step's snapshot carries the pickup
       } }, h("b", { class: "glyph" }, kindGlyph(it.kind)), " ", it.label)));
       return h("div", { class: "sheet-body vault-choice" }, h("div", { class: "label row-label" }, /* copy:label */ "vault"), chips);
     });
-    applySpeed();
+    paintCard(frame); applySpeed();
   }
   function xpGained(): number {
     const c = app.lineage.classes?.[cls] ?? { level: 1, xp: 0 }; let g = c.xp - before.xp;
@@ -485,7 +672,7 @@ export function renderWatch(app: App): Mounted {
   }
   async function finish(tier: Tier): Promise<void> {
     if (done) return;
-    done = true; clearInterval(pumpTimer);
+    done = true; clearInterval(pumpTimer); card.hidden = true; cardUp = false; el.dataset.card = "0";
     // whatever happens below, the player reaches a screen with buttons
     const guard = window.setTimeout(() => { if (!disposed && app.view.kind === "watch") { console.warn("exit flow stalled; falling back to camp"); app.go({ kind: "camp" }); } }, 20_000);
     try {
@@ -512,13 +699,14 @@ export function renderWatch(app: App): Mounted {
         const death = await app.busy(/* copy:label */ "verdict", () => app.engine.death(runId));
         death.line ??= exitLine;   // Cut 6 §1: the verdict may lack the line; the exit event carried it
         if (!disposed) app.go({ kind: "death", death, lost });
-      } catch (e) { console.warn("no death record", e); app.go({ kind: "camp" }); }
-      return;
+        return;
+      } catch (e) { console.warn("no death record; the report counts the death", e); }   // Cut 10 §3: never `1 runs · 0 deaths` after a death
     }
     const L = app.lineage;
     const bests: string[] = []; for (let d = before.best + 1; d <= L.best_depth; d++) bests.push(`D${d}`);
     const report: ReturnReport = {
-      elapsed_s: Math.round((engineTick - startTick) / 10), runs: 1, sampled: false, learned, bests, found, deaths: [], pending: [],
+      elapsed_s: Math.round((engineTick - startTick) / 10), runs: 1, sampled: false, learned, bests, found, pending: [],
+      deaths: tier === "death" ? [{ cause: heroCause ?? exitLine?.text ?? /* copy:label */ "death", n: 1 }] : [],   // Cut 10 §3: the death it came from
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,
       xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
       salvaged: [], renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
@@ -566,7 +754,8 @@ export function renderWatch(app: App): Mounted {
     hudFrom(s);
     const { viewer: v } = await makeViewer(canvas);
     if (disposed) { v.dispose(); return; }
-    viewer = v; v.resize?.(); v.load(s); v.setSpeed(speed); el.dataset.speed = String(speed); el.dataset.frame = frame; fbTick = s.turn; fbAt = performance.now();
+    viewer = v; v.resize?.(); v.load(s); el.dataset.frame = frame; fbTick = s.turn; fbAt = performance.now();
+    speed = -1; applyFrame(); applySpeed();   // Cut 10 §1: the card and the mode's rate (fights: 16× under it) from the first frame
     if ("__riddle" in window) (window as unknown as { __viewer: Viewer }).__viewer = v;   // dev inspection
     lastHp = s.hero.hp; lastAlert = s.alert; sceneFrom(s);
     pumpTimer = window.setInterval(pump, PUMP_MS);

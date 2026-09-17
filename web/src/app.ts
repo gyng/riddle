@@ -11,12 +11,13 @@ import { renderReport } from "./ui/report";
 import { renderEnding } from "./ui/ending";
 import { closeAllSheets } from "./ui/sheet";
 import { showBusy } from "./ui/progress";
+import { audio } from "./audio";
 
 export type Screen =
   | { kind: "camp"; highlight?: number }
   | { kind: "watch" }
   | { kind: "death"; death: Death; lost?: string[] }
-  | { kind: "report"; report: ReturnReport }
+  | { kind: "report"; report: ReturnReport; absence?: boolean }   // absence: Cut 10 §3, the tiles fade in (the merged report is complete)
   | { kind: "ending" };
 
 export type Mounted = { el: HTMLElement; dispose?: () => void };
@@ -27,7 +28,7 @@ export type DevOptions = {
   fresh?: boolean;    // clear the save first
   absent?: number;    // seconds: treat last_seen as that far back, so the offline report runs
   rules?: string;     // rule-set text for `importRules`, applied to the active set before anything else
-  speed?: number;     // watch speed to press on entering a run (4 fast | 8 auto, the default; Cut 9 §9: 1 maps to auto, `slow` is gone)
+  speed?: number | string;   // watch mode to press on entering a run: `fights` (the default) | `fast`; numbers map 1 · 4 · 8 → fast, 16 → fights (Cut 10 §1)
   autosend?: boolean; // send straight from boot (the camp is skipped so its forecast does not queue ahead of `send`)
 };
 /** What a rater or script sees: the mounted screen, or `exit` while the exit sheet is up over a run. */
@@ -125,7 +126,7 @@ export class App {
       const report = await this.runOfflineChunked(Math.floor(elapsed));
       await this.refresh();
       this.adoptSets();
-      this.go({ kind: "report", report });
+      this.go({ kind: "report", report, absence: true });
     } else this.go({ kind: dev?.autosend ? "watch" : "camp" });
     await this.flush();
     this.booted = true;
@@ -148,7 +149,8 @@ export class App {
     try { return await fn(); } finally { b.done(); }
   }
 
-  /** `runOfflineQuick` in 30-minute slices, reports merged client-side, progress label `runs N · best Dk`; then one
+  /** `runOfflineQuick` in 30-minute slices, reports merged client-side under the bare `offline` bar (Cut 10 §3: no running
+   *  numbers — a partial count read as a broken report; the tiles fade in once the merged report is complete); then one
    *  `death(id)` for the deepest slice's worst death (deepest, ties → later: the core's own ordering, read off the
    *  graveyard entries each slice adds) becomes the merged report's `worst_death`. */
   async runOfflineChunked(elapsedS: number): Promise<ReturnReport> {
@@ -180,8 +182,6 @@ export class App {
           graves = L.graveyard.length;
           if (!worst || depth >= worst.depth) worst = { id: r.worst_death_id, depth };
         }
-        const best = Math.max(this.lineage.best_depth, ...merged.bests.map((x) => Number(/^D(\d+)$/.exec(x)?.[1] ?? 0)));
-        b.set(`runs ${merged.runs} · best D${best}`);
       }
       if (worst && !merged!.worst_death) {
         b.set(/* copy:label */ "verdict");
@@ -353,6 +353,7 @@ export class App {
    *  a row: `{v:"tactic", a:<id>}`), so the player sees where it sits; over a full set that is an overflow decision. */
   async buy(id: string): Promise<boolean> {
     const ok = await this.mutate(() => this.engine.buy(id));
+    if (ok) audio.cue("unlock");   // Cut 10 §4
     if (ok && this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id) && !this.rules.rows.some((r) => r.verb.v === "tactic" && r.verb.a === id)) {
       this.insertRow({ conds: [], verb: { v: "tactic", a: id } }, this.rules.rows.length, "card");
       this.emitChange();
@@ -411,17 +412,18 @@ export class App {
       case "ending": m = renderEnding(this); break;
       case "watch": m = renderWatch(this); break;
       case "death": m = renderDeath(this, screen.death, screen.lost ?? []); break;
-      case "report": m = renderReport(this, screen.report); break;
+      case "report": m = renderReport(this, screen.report, screen.absence); break;
     }
     this.mounted = m;
     this.root.replaceChildren(m.el);
     this.root.dataset.screen = screen.kind;
     window.scrollTo(0, 0);
     this.persist();
-    // dev `?speed=4`: press the matching HUD speed button as the run mounts (the watch owns its clock; 4 fast · 8 auto;
-    // Cut 9 §9: 1 maps to auto, which already runs fights at 1×)
+    // dev `?speed=fast|fights|N`: press the matching HUD mode button as the run mounts (the watch owns its clock; Cut 10 §1:
+    // `fights` is the default, `fast` is the old auto; 1 · 4 · 8 map to fast, 16 to fights)
     if (screen.kind === "watch" && this.dev?.speed) {
-      const want = ({ 1: "auto", 4: "fast", 8: "auto" } as Record<number, string>)[this.dev.speed] ?? `${this.dev.speed}×`;
+      const sp = this.dev.speed;
+      const want = typeof sp === "number" ? ({ 1: "fast", 4: "fast", 8: "fast", 16: "fights" } as Record<number, string>)[sp] ?? "fights" : sp;
       for (const b of m.el.querySelectorAll<HTMLButtonElement>("button.hud-btn")) if (b.textContent === want) { b.click(); break; }
     }
   }
@@ -489,7 +491,8 @@ export function start(dev: DevOptions | null = null): void {
   const root = document.getElementById("app") ?? document.body.appendChild(document.createElement("div"));
   root.id = "app";
   const app = new App(root, dev);
-  if (dev) (window as unknown as { __riddle: App }).__riddle = app;
+  audio.arm();   // Cut 10 §4: the WebAudio context opens on the first gesture
+  if (dev) { (window as unknown as { __riddle: App }).__riddle = app; (window as unknown as { __audio: typeof audio }).__audio = audio; }
   void app.boot().catch((e) => console.error("boot failed", e));
   if (import.meta.env.PROD && "serviceWorker" in navigator) {
     window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline-first is best effort */ }); });

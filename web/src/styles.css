@@ -34,7 +34,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 
 /* editor */
 .rows { display: flex; flex-direction: column; gap: 8px; }
-.row { display: grid; grid-template-columns: 40px 1fr 36px; align-items: center; gap: 4px; min-height: 56px; padding: 6px 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); position: relative; transition: box-shadow .15s; }
+.row { display: grid; grid-template-columns: 40px 30px 1fr 36px; align-items: center; gap: 4px; min-height: 56px; padding: 6px 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); position: relative; transition: box-shadow .15s; }
 .row.dragging { z-index: 2; box-shadow: 0 8px 24px #000; opacity: .95; }
 .row.before { box-shadow: 0 -3px 0 var(--acc); }
 .row.after { box-shadow: 0 3px 0 var(--acc); }
@@ -289,6 +289,12 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .gold-sheet .lrow.up .k { color: var(--ok); }
 .gold-sheet .why { color: var(--dim); }
 .card-rows .row { grid-template-columns: 1fr; padding: 6px 10px; margin-bottom: 6px; }
+/* Cut 10 §3: ▲▼ beside the grip — two 44 px targets stacked; off at the ends of the list */
+.updown { display: flex; flex-direction: column; align-items: stretch; }
+.updown .step { min-height: var(--tap); width: 30px; font-size: 12px; color: var(--dim); line-height: 1; }
+.updown .step:disabled { opacity: .25; }
+.updown .step:not(:disabled):active { color: var(--acc); }
+.row.locked .updown .step { color: var(--dim); }
 .chips.owned { margin-top: 8px; }
 .chip.owned { margin-left: 0; text-transform: none; letter-spacing: 0; font-size: 13px; }
 .send-bar .rest.chip { min-height: 36px; padding: 0 12px; border-style: dashed; background: transparent; cursor: pointer; }
@@ -325,3 +331,25 @@ button.chip.locked { cursor: pointer; }
 /* Cut 9 §7: a chronicle line with a kept death is a button */
 .chronicle button.cline { display: block; width: 100%; text-align: left; color: inherit; }
 .chronicle button.cline:active { background: var(--panel2); }
+
+/* Cut 10 §1: the interstitial over the map in `fights` — the ambient line; a tap holds the map at 8× until the next fight */
+.interstitial { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #0b0c0f; color: var(--fg); font-size: 26px; letter-spacing: .04em; text-align: center; z-index: 1; }
+.interstitial[hidden] { display: none; }
+.interstitial::after { content: ""; position: absolute; left: 50%; bottom: calc(112px + env(safe-area-inset-bottom)); width: 60px; height: 2px; margin-left: -30px; background: var(--line); }
+.hud, .banner, .ticker { z-index: 2; }
+/* Cut 10 §2: the `try` bar is a button (a tap inserts the counter row at the top) */
+button.bar.try { width: 100%; text-align: left; font: inherit; cursor: pointer; border-radius: 6px; }
+button.bar.try:active { background: var(--panel2); }
+.bar .try { color: var(--acc); font-size: 12px; }
+/* Cut 10 §3: a greyed supply says why under its price */
+.chip.buy .buy-main { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; padding: 4px 0; }
+.chip.buy .why { font-size: 10px; letter-spacing: .04em; }
+/* Cut 10 §3: exit lines lead with `returned $61`; after an absence the tiles fade in only once the merged report is complete */
+.exit-lines .lead { color: var(--fg); font-weight: 400; }
+.tiles.fade-in { animation: fadein .6s ease-out; }
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+/* Cut 10 §4: the mute toggle */
+.btn.mute.on { border-color: var(--acc); color: var(--acc); }
+.btn.mute.on::before { content: "✓ "; }
+.bar.try .n { white-space: normal; }
+.bar.try .try { display: block; white-space: nowrap; }

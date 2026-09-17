@@ -8,8 +8,11 @@ import { patchRows } from "./patches";
 import { openSheet } from "./sheet";
 import { traceTable } from "./trace";
 
+/** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
+export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
+
 export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
-  const line = h("h1", { class: "death-line" }, /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth} · ${d.margin} · `, h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
+  const line = h("h1", { class: "death-line" }, /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth} · ${marginText(d.margin)} · `, h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
   // Cut 6 §1: the exit's arithmetic, verbatim from the engine (`$144 carried · death keeps 0% → $0 · bones: 7 items on D5`)
   const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, d.line.text) : null;
   // The trace holds one row per hero action (~10 ticks apart at base speed); the last five, with the row accounting of
@@ -23,7 +26,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
     openSheet(() => h("div", { class: "morgue" }, h("pre", { class: "morgue-text" }, d.morgue)));
   } }, /* copy:button */ "morgue");
   const edit = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "edit");
-  const eggs = lost.length ? h("div", { class: "chips eggs" }, ...lost.map((k) => h("span", { class: "chip egg" }, "◯ ", k.replace(/_/g, " ")))) : null;
+  const eggs = lost.length ? h("div", { class: "chips eggs" }, ...lost.map((k) => h("span", { class: "chip egg" }, "◯ ", k.replace(/_/g, " ").replace(" · ", " "), /* copy:callout */ " fell"))) : null;   // Cut 10 §3
   // Cut 2 §2: what this death left on the floor — the pile whose heir the matching grave names; silent when absent
   const L = app.lineage;
   const grave = [...(L.graveyard ?? [])].reverse().find((g) => g.depth === d.depth && g.cause === d.cause);

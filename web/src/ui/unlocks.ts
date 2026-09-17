@@ -29,6 +29,11 @@ const LABEL: Record<string, string> = {
 const AFTER: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", row9: "row8", row10: "row9", vault3: "vault2", vault4: "vault3", vault5: "vault4", party_slot_3: "party_slot_2", party_slot_4: "party_slot_3" };
 
 export type UnlockCard = UnlockInfo & { label: string; gated: boolean };
+/** Cut 10 §3: a `+1 row` card waits until the set is full (`rows full`): a client-side gate when the core sends none. */
+export function withRowsGate(u: UnlockCard, rows: number, max: number): UnlockCard {
+  if (!/^row\d+$/.test(u.id) || u.owned || rows >= max) return u;
+  return { ...u, available: false, gated: true, needs: /* copy:unlock_card */ "rows full" };   // over `◆2 more`: the marks would be wasted either way
+}
 
 /** Catalogue entries worth showing: not owned, and the previous step of a chain owned.
  *  `gated`: unavailable with a `needs` gate still missing (the core sends `needs` only while unmet). */
@@ -53,7 +58,7 @@ export function openUnlockSheet(app: App, u: UnlockCard, full = false, after?: (
       h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`)),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))) : "",
       u.needs ? h("div", { class: "needs-line dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
-      d ? h("div", { class: `num delta ${d > 0 ? "up" : "down"}` }, /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%`) : "",
+      d ? h("div", { class: `num delta ${d > 0 ? "up" : "down"}` }, /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%${isCard(u) ? " at end" : ""}`) : "",   // Cut 10 §3
       takesRow ? h("div", { class: "num dim" }, /* copy:unlock_card */ "takes a row") : "",
       buy);
   });

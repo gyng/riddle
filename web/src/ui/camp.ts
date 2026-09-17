@@ -3,21 +3,24 @@
 // `6/5 · drop one` and a card's buy reads `◆3 · takes a row` on a full set (§4); owned cards and automations stay on the
 // shelf as chips that open their rows (§6); `rest 12m` is a chip that answers `send skips rest` (§7).
 // Cut 9: an unlock card opens its sheet, the buy is there (§2); the forge sheet shows each kind's ladder (§10).
+// Cut 10 §3: the rest chip reads `rest 20m · send skips` permanently; a greyed supply says why under its price (`3/3 slots`,
+// the engine's `needs`, `$12 short`); the `+1 row` card is dimmed `rows full` while free rows exist; a card's reach delta is
+// labelled `at end` (a bought card becomes the last row). Cut 10 §4: the camp drone (biome of the next floor) while mounted.
 import type { App, Mounted } from "../app";
 import type { UnlockInfo } from "../engine/types";
-import { h, clear, flash, replace, spanOf } from "./dom";
+import { h, clear, replace, spanOf } from "./dom";
 import { heroBinding, openRowsSheet, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
-import { classList, isCard, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots } from "./unlocks";
+import { classList, isCard, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
+import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS, xpToNext } from "../engine/classes";
 import { verbLabel } from "./tokens";
 import { openSheet } from "./sheet";
 
 const SET_NAME_MAX = 12;
-const REST_BEAT_MS = 1400;   // Cut 6 §7: how long the rest chip reads `send skips rest`
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
 export function renderCamp(app: App, highlight?: number): Mounted {
@@ -30,12 +33,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const supplies = h("section", { class: "supplies" });
   const unlocks = h("section", { class: "unlocks" });
   const send = h("button", { class: "btn primary send", onclick: () => { if (!app.overBudget) app.go({ kind: "watch" }); } }, /* copy:button */ "send");
-  // Cut 6 §7: the rest chip answers for a beat, then reads `rest 12m` again
-  let restTimer = 0;
-  const rest = h("button", { class: "rest chip num", onclick: () => {
-    clearTimeout(restTimer); replace(rest, /* copy:callout */ "send skips rest"); flash(rest, "on", REST_BEAT_MS);
-    restTimer = window.setTimeout(paintRest, REST_BEAT_MS);
-  } });
+  // Cut 10 §3: the rest chip says what it means all the time (`rest 20m · send skips`), no tap needed
+  const rest = h("span", { class: "rest chip num" });
   const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, party.el, vault, supplies, unlocks, h("div", { class: "send-bar" }, rest, send));
 
   function paintStrip(): void {
@@ -53,12 +52,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       h("span", { class: "num marks" }, `◆${L.marks}`),
       h("button", { class: "gear", onclick: () => openSettings(app) }, "⚙"),
     );
-    clearTimeout(restTimer); paintRest();
+    paintRest();
   }
   // Cut 2 §1: camp rest remaining; `send` skips it, so the number just disappears
   function paintRest(): void {
     const restS = app.lineage.rest_left_s ?? 0;
-    replace(rest, /* copy:label */ "rest", " ", spanOf(restS));
+    replace(rest, /* copy:callout */ `rest ${spanOf(restS)} · send skips`);
     rest.hidden = restS <= 0;
   }
   // Cut 6 §1: the last 20 gold movements, newest first, one per line: `+$50 returned D5` · `−$40 heal` (engine data, no prose)
@@ -167,8 +166,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     void app.engine.supplyCatalogue().then((cat) => {
       if (gen !== supplyGen) return;
       for (const e of cat) {
-        const can = !full && L.gold >= e.price;
-        chips.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind)) }, e.label, " ", h("b", { class: "num gold" }, `$${e.price}`)));
+        const can = !full && !e.needs && L.gold >= e.price;
+        // Cut 10 §3: a greyed supply says why under its price — the slots, the engine's gate, or the gold missing
+        const why = full ? /* copy:callout */ `${picks.length}/${cap} slots` : e.needs ? e.needs.replace(/_/g, " ") : L.gold < e.price ? /* copy:callout */ `$${e.price - L.gold} short` : "";
+        chips.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind)) },
+          h("span", { class: "buy-main" }, h("span", null, e.label, " ", h("b", { class: "num gold" }, `$${e.price}`)), why ? h("small", { class: "why num dim" }, why) : "")));
       }
     }).catch((e) => console.warn("catalogue", e));
   }
@@ -190,7 +192,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function paintFrom(cat: UnlockInfo[]): void {
     {
       clear(unlocks);
-      const list = visible(cat);
+      // Cut 10 §3: `+1 row` waits for the rows to fill (a client-side gate; the core may send the same `needs`)
+      const list = visible(cat).map((u) => withRowsGate(u, app.rules.rows.length, app.vocab.max_rows));
       // Cut 6 §6: owned cards and automations stay on the shelf as chips that open their rows
       const owned = ownedRows(cat);
       if (!list.length && !owned.length) return;
@@ -208,7 +211,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         // still opens it (the `needs` line is the answer), so nothing on the shelf is disabled.
         grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u, full) },
           h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
-            d ? h("small", { class: `num delta ${d > 0 ? "up" : "down"}` }, /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%`) : ""),
+            d ? h("small", { class: `num delta ${d > 0 ? "up" : "down"}` }, /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%${isCard(u) ? " at end" : ""}`) : ""),   // Cut 10 §3: a card goes in last
           h("span", { class: `num cost${takesRow ? " takes" : ""}` }, `◆${u.cost}`, takesRow ? h("small", { class: "dim" }, /* copy:unlock_card */ " · takes a row") : "")));
       }
       unlocks.appendChild(grid);
@@ -222,8 +225,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // a card's buy reads `takes a row` only while the set is full
   }
-  function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }
+  function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend);
-  return { el, dispose: () => { off(); offRules(); fc.dispose(); } };
+  return { el, dispose: () => { off(); offRules(); fc.dispose(); audio.drone(null); } };
 }

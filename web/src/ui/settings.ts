@@ -1,7 +1,9 @@
 // Settings sheet: save export/import, rules export/import, engine badge, reset lineage (double tap).
+// Cut 10 §4: `sound` row with a `mute` toggle (persisted in localStorage; no cue and no drone while muted).
 import type { App } from "../app";
 import { h, copyText, replace } from "./dom";
 import { openSheet } from "./sheet";
+import { audio } from "../audio";
 
 export function openSettings(app: App): void {
   openSheet((close) => {
@@ -21,7 +23,12 @@ export function openSettings(app: App): void {
       armed = Date.now(); replace(reset, /* copy:button */ "again"); setTimeout(() => replace(reset, /* copy:button */ "reset"), 2500);
     } }, /* copy:button */ "reset");
 
+    const mute = h("button", { class: `btn mute${audio.muted ? " on" : ""}`, "aria-pressed": audio.muted ? "true" : "false", onclick: () => {
+      audio.unlock(); audio.setMuted(!audio.muted); mute.classList.toggle("on", audio.muted); mute.setAttribute("aria-pressed", audio.muted ? "true" : "false");
+    } }, /* copy:button */ "mute");
+
     body.append(
+      row(/* copy:label */ "sound", mute),
       row(/* copy:label */ "save", saveOut, saveIn),
       row(/* copy:label */ "rules", rulesOut, rulesIn),
       area,

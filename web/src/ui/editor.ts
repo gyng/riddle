@@ -10,6 +10,7 @@
 // combo's name to the right of the pair (`⌐ opener`), repainted on every edit.
 // Cut 9 §1: the cond sheet shows the vocabulary's `locked` tokens dim with their `needs` text and no handler. Cut 9 §4: a
 // `[card]` chip carries the card's trigger (`[card] pack break · foes ≥ 2`, the first inline row's conds).
+// Cut 10 §3: `▲▼` chips (44 px each) beside the drag handle move a row one step; the first row's ▲ and the last row's ▼ are off.
 import type { App } from "../app";
 import type { Cond, Row, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash } from "./dom";
@@ -112,8 +113,13 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
       chips.appendChild(h("button", { class: "chip verb", onclick: () => pickVerb(row) }, verbLabel(row.verb)));
     }
     const grip = h("button", { class: "grip", onpointerdown: (e) => startDrag(e as PointerEvent, i) }, "≡", h("small", { class: "rn num" }, `R${i + 1}`));
+    const n = rows().length;
+    const swap = (to: number): void => { const rs = rows(); const [r] = rs.splice(i, 1); rs.splice(to, 0, r); hl = to; hlUntil = performance.now() + 1600; commit(); };
+    const updown = h("div", { class: "updown" },
+      h("button", { class: "step up", disabled: i === 0, onclick: () => swap(i - 1) }, "▲"),
+      h("button", { class: "step down", disabled: i >= n - 1, onclick: () => swap(i + 1) }, "▼"));
     const x = h("button", { class: "x", onclick: () => { rows().splice(i, 1); commit(); } }, "×");
-    return h("div", { class: `row${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, chips, x);
+    return h("div", { class: `row${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, updown, chips, x);
   }
 
   // --- sheets ---

@@ -6,10 +6,25 @@
 // repainted on every edit (the forecast itself waits for the engine).
 // Cut 9 §3: a bar reads `D4 71% ±6` when the engine sends `pm` (the binomial half-width), so a wobble reads as noise.
 // Cut 9 §4: the `yours` line appends `· card R2 first` when a card row sits above any of the player's rows.
+// Cut 10 §2: a boss floor whose counter is known and whose row is absent reads `D9 0% · warlord · try: attack boss` (the
+// engine's `try`, or the client's read of `Lineage.counters` against the set); tapping the bar inserts the row at the top.
 import type { App } from "../app";
-import type { Forecast } from "../engine/types";
+import type { Forecast, ForecastTry, Row } from "../engine/types";
 import { h, clear, pct, replace } from "./dom";
 import { cardAbovePlayer } from "./editor";
+import { closeAllSheets } from "./sheet";
+
+const sameRow = (a: Row, b: Row): boolean =>
+  a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length &&
+  a.conds.every((c, i) => c.k === b.conds[i].k && (c.n ?? "") === (b.conds[i].n ?? "") && (c.t ?? "") === (b.conds[i].t ?? ""));
+/** Cut 10 §2: the known-but-absent counter for a boss cause, from `Lineage.counters` (a client fallback for the wire's `try`). */
+export function clientTry(app: App, cause: string | undefined): ForecastTry | undefined {
+  if (!cause) return undefined;
+  const key = cause.replace(/ pack$/, "").trim().replace(/ /g, "_");
+  const c = (app.lineage.counters ?? []).find((k) => k.boss === key || key.endsWith(k.boss));
+  if (!c || !c.row || typeof c.row === "string") return undefined;
+  return app.rules.rows.some((r) => sameRow(r, c.row as Row)) ? undefined : { row: c.row, text: c.text };
+}
 
 /** Cut 9 §3: the half-width (a 0..1 fraction like `reach`) in percentage points, never `±0` — a forecast is never exact. */
 export const pmPts = (pm: number): number => Math.max(1, Math.round(pm * 100));
@@ -38,14 +53,22 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     const next = app.lineage.best_depth + 1;
     for (const d of f.depths) {
       const cause = d.cause ?? (d.depth === next ? f.causes[0]?.cause : undefined);
-      // Cut 6 §5: `D6 0% · goblin warlord · counter: attack boss` when the top cause is a boss whose counter row is known
-      const counter = cause && d.depth === next ? counterFor(cause) : undefined;
-      bars.appendChild(h("div", { class: `bar${cause ? " next" : ""}` },
+      // Cut 10 §2: the known-but-absent counter — the wire's `try`, else the client's read of the counters against the set
+      const tr = d.try ?? (d.depth === next ? clientTry(app, cause) : undefined);
+      // Cut 6 §5: `D6 0% · goblin warlord · counter: attack boss` when the top cause is a boss whose counter row is known (and held)
+      const counter = cause && d.depth === next && !tr ? counterFor(cause) : undefined;
+      const inner = [
         h("span", { class: "d num" }, `D${d.depth}`),
         h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(d.reach * 100)}%` })),
         h("span", { class: "n num" }, pct(d.reach), d.pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pmPts(d.pm)}`) : "",
           cause ? h("small", { class: "dim" }, ` · ${cause.replace(/_/g, " ")}`) : "",
-          counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "")));
+          counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "",
+          tr ? h("small", { class: "try" }, /* copy:none */ ` · try: ${tr.text}`) : ""),
+      ];
+      // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
+      bars.appendChild(tr
+        ? h("button", { class: `bar next try`, onclick: () => { const i = app.applyPatch({ row: tr.row, insert_at: 0, survive: 0, forecast_delta: 0 }); closeAllSheets(); app.go({ kind: "camp", highlight: i }); } }, ...inner)
+        : h("div", { class: `bar${cause ? " next" : ""}` }, ...inner));
     }
     bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, `D${f.known_to + 1}+`), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
     for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, c.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, pct(c.share))));

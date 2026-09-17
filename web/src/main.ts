@@ -8,7 +8,7 @@ start(readDevParams());
  *    ?fresh=1       clear the save first
  *    ?absent=8h     treat last_seen as 30m | 8h | 3d ago, so the offline report runs
  *    ?rules=<text>  url-encoded rule text for importRules, applied to the active set before anything else
- *    ?speed=4       start the watch at `fast` (1 slow · 4 fast · 8 auto, the default)
+ *    ?speed=fast    start the watch in that mode (`fights`, the default · `fast`; numbers: 1 · 4 · 8 → fast, 16 → fights)
  *    ?autosend=1    send straight from boot
  *    ?fake_depth=N  with ?engine=fake: every run starts on depth N (boss floor at 5) — read in engine/fake.ts
  *  The one-shot ones (fresh, absent, rules, autosend) are stripped from the address bar so a reload does not
@@ -21,7 +21,8 @@ function readDevParams(): DevOptions | null {
   if (q.get("fresh") === "1") o.fresh = true;
   const absent = parseSpan(q.get("absent")); if (absent) o.absent = absent;
   const rules = q.get("rules"); if (rules) o.rules = rules;
-  const speed = Number(q.get("speed")); if (q.has("speed") && speed > 0) o.speed = speed;
+  const speedQ = q.get("speed"), speed = Number(speedQ);
+  if (speedQ && speed > 0) o.speed = speed; else if (speedQ === "fights" || speedQ === "fast") o.speed = speedQ;
   if (q.get("autosend") === "1") o.autosend = true;
   let strip = false;
   for (const k of ["fresh", "absent", "rules", "autosend"]) if (q.has(k)) { q.delete(k); strip = true; }

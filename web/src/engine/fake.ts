@@ -435,7 +435,7 @@ function loseCompanion(run: Run, m: Mon, cause: string, ev: Ev[]): void {
   ev.push({ t: run.turn, k: "die", id: m.id, cause });
   ev.push({ t: run.turn, k: "ally", id: m.id, state: "lost" });
   ev.push({ t: run.turn, k: "note", text: `${nameOf(m)} lost to ${cause}` });
-  ev.push({ t: run.turn, k: "callout", text: `${nameOf(m)} lost` });
+  ev.push({ t: run.turn, k: "callout", text: `${nameOf(m)} fell` });   // Cut 10 §3: the core's line (`Ashar fell`); the client prefixes the kind off the ally flag
   const c = run.party.find((p) => p.id === m.cid) ?? { id: m.cid ?? 0, kind: m.kind, name: nameOf(m), level: 1, tags: [...m.tags], gen: 0, rules: { rows: [] }, max_rows: 2, hp: m.max_hp, max_hp: m.max_hp };
   run.lostC.push(c);
   run.hl.push({ pattern: "ally_lost", score: 4, t: run.turn, run_id: run.id, text: `${nameOf(m)} fell on D${run.depth}.` });
@@ -713,7 +713,12 @@ function monsterTurn(run: Run, m: Mon, ev: Ev[]): void {
     m.drawn = false; const r = hitRoll(run.rng, m.atk, h.def); ev.push({ t: run.turn, k: "attack", src: m.id, dst: 0, dmg: r.dmg, hit: r.hit, verb: "shoot" }); if (r.hit && r.dmg) hurtHero(run, r.dmg, nameOf(m), ev); return;
   }
   if (d <= 1) {
-    if (m.tags.includes("thief")) { const it = h.inv[0]; if (it) { h.inv.shift(); ev.push({ t: run.turn, k: "steal", id: m.id, item: it.label }); ev.push({ t: run.turn, k: "note", text: `monkey stole ${it.label}` }); ev.push({ t: run.turn, k: "callout", text: "monkey steals" }); run.hl.push({ pattern: "stolen", score: 2, t: run.turn, run_id: run.id, text: `A monkey took the ${it.label}.` }); learn(run, `foe:${m.kind}:thief`, ev); run.floor.mons = run.floor.mons.filter((x) => x !== m); return; } }
+    if (m.tags.includes("thief")) {
+      const it = h.inv[0];
+      if (it) { h.inv.shift(); ev.push({ t: run.turn, k: "steal", id: m.id, item: it.label }); ev.push({ t: run.turn, k: "note", text: `monkey stole ${it.label}` }); ev.push({ t: run.turn, k: "callout", text: "monkey steals" }); run.hl.push({ pattern: "stolen", score: 2, t: run.turn, run_id: run.id, text: `A monkey took the ${it.label}.` }); learn(run, `foe:${m.kind}:thief`, ev); run.floor.mons = run.floor.mons.filter((x) => x !== m); return; }
+      // Cut 10 §3: nothing to pocket — gold goes instead, the amount on the wire (`stolen $16`)
+      if (run.loot > 0) { const amount = Math.max(1, Math.round(run.loot * 0.4)); run.loot -= amount; ev.push({ t: run.turn, k: "steal", id: m.id, item: "gold", amount }); ev.push({ t: run.turn, k: "note", text: `monkey stole $${amount}` }); run.hl.push({ pattern: "stolen", score: 2, t: run.turn, run_id: run.id, text: `A monkey took $${amount}.` }); learn(run, `foe:${m.kind}:thief`, ev); run.floor.mons = run.floor.mons.filter((x) => x !== m); return; }
+    }
     if (m.tags.includes("heavy")) { if (!m.wind) { m.wind = 1; ev.push({ t: run.turn, k: "telegraph", id: m.id, what: "winds up" }); learn(run, `foe:${m.kind}:heavy`, ev); return; } m.wind = 0; const r = hitRoll(run.rng, m.atk, h.def); const dmg = r.dmg * 2; ev.push({ t: run.turn, k: "attack", src: m.id, dst: 0, dmg, hit: r.hit, verb: "smash" }); if (r.hit && dmg) hurtHero(run, dmg, nameOf(m), ev); return; }
     const r = hitRoll(run.rng, m.atk, h.def); ev.push({ t: run.turn, k: "attack", src: m.id, dst: 0, dmg: r.dmg, hit: r.hit });
     if (r.hit && r.dmg) {
@@ -1042,8 +1047,14 @@ export class FakeEngine implements Engine {
       if (r.exit === "death") causes[r.cause ?? "?"] = (causes[r.cause ?? "?"] ?? 0) + 1;
     }
     // Cut 9 §3: `pm` = the binomial half-width (1.96 σ, a fraction like `reach`), so a wobble between reads reads as noise
-    const depths = []; for (let d = 1; d <= Math.min(15, known_to); d++) { const p = reach[d] / N; depths.push({ depth: d, reach: p, pm: 1.96 * Math.sqrt((p * (1 - p)) / N) }); }
+    const depths: Forecast["depths"] = []; for (let d = 1; d <= Math.min(15, known_to); d++) { const p = reach[d] / N; depths.push({ depth: d, reach: p, pm: 1.96 * Math.sqrt((p * (1 - p)) / N) }); }
     const top = Object.entries(causes).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([cause, n]) => ({ cause, share: n / N }));
+    // Cut 10 §2: a boss floor whose counter fact is known and whose row is absent from the set names it: `try: attack boss`
+    for (const d of depths) {
+      const boss = BOSS[d.depth]; const c = boss && COUNTER[boss];
+      if (!c || !this.known().has(`boss:${boss}:counter`) || this.s.rules.rows.some((r) => rowText(r) === rowText(c.row))) continue;
+      d.cause ??= boss; d.try = { row: JSON.parse(JSON.stringify(c.row)) as Row, text: c.text };
+    }
     return { depths, causes: top, known_to };
   }
 

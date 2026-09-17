@@ -1,33 +1,44 @@
 // Return report: learned · bests · found · deaths · pending · reel · marks. Delta, not totals.
+// Cut 10 §3: the exit tiles read `banked · returned · deaths`, `returned` first when it is the larger; each exit line leads
+// with its tier and the kept sum (`returned $61`) before the engine's arithmetic; a lost companion reads `jackal Ashar fell`;
+// after an absence the tiles fade in (the merged report is complete by the time this mounts).
 import type { App, Mounted } from "../app";
-import type { Counter, ReturnReport } from "../engine/types";
+import type { Counter, ExitLine, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
-import { openUnlockSheet, visible } from "./unlocks";
+import { openUnlockSheet, visible, withRowsGate } from "./unlocks";
 import { traceChip } from "./trace";
 
 const EXITS_SHOW = 8;
 
-export function renderReport(app: App, r: ReturnReport): Mounted {
+/** Cut 10 §3: an exit line's lead — the tier from its keep share and the sum kept: `returned $61` · `banked $84` · `died $0`. */
+export function exitLead(x: ExitLine): string {
+  const tier = x.keep_pct >= 100 ? /* copy:label */ "banked" : x.keep_pct <= 0 ? /* copy:label */ "died" : /* copy:label */ "returned";
+  return `${tier} $${x.kept}`;
+}
+
+export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
   const L = app.lineage;
   const deathsN = r.deaths.reduce((n, d) => n + d.n, 0);
   const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile" }, h("b", { class: "num" }, n), h("span", { class: "label" }, label));
   // Cut 2 §1: `banked · returned · deaths` as a second row of three when the core reports exits; else the Cut 1 four
   const exits = r.banked !== undefined || r.returned !== undefined;
-  const tiles = h("div", { class: `tiles${exits ? " six" : ""}` },
+  const banked = tile(`${r.banked ?? 0}`, /* copy:label */ "banked"), returned = tile(`${r.returned ?? 0}`, /* copy:label */ "returned");
+  const tiles = h("div", { class: `tiles${exits ? " six" : ""}${absence ? " fade-in" : ""}` },
     tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"),
     exits ? null : tile(`${deathsN}`, /* copy:label */ "deaths"),
     tile(`D${L.best_depth}`, /* copy:label */ "best"),
     tile(`◆${r.marks_earned > 0 ? "+" : ""}${r.marks_earned}`, /* copy:label */ "marks"),
-    exits ? tile(`${r.banked ?? 0}`, /* copy:label */ "banked") : null,
-    exits ? tile(`${r.returned ?? 0}`, /* copy:label */ "returned") : null,
+    // Cut 10 §3: `returned` leads when it is the larger (fourteen returns beside `banked 0` read as a contradiction)
+    ...(exits ? ((r.returned ?? 0) > (r.banked ?? 0) ? [returned, banked] : [banked, returned]) : []),
     exits ? tile(`${deathsN}`, /* copy:label */ "deaths") : null,
   );
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
   // Cut 6 §1: one ledger line per exit, verbatim from the engine, under the tiles (oldest first; the core keeps the last 5
   // per slice and the client merges slices, so a long absence shows its last EXITS_SHOW)
   // Cut 9 §5: an exit that carries its trace gets a `trace` chip after the line
-  const exitLines = r.exits?.length ? h("div", { class: "exit-lines" }, ...r.exits.slice(-EXITS_SHOW).map((x) => h("div", { class: "ledger-line num dim" }, x.text, traceChip(x.trace)))) : null;
+  // Cut 10 §3: `returned $61` leads each line, the engine's arithmetic after it
+  const exitLines = r.exits?.length ? h("div", { class: "exit-lines" }, ...r.exits.slice(-EXITS_SHOW).map((x) => h("div", { class: "ledger-line num dim" }, h("b", { class: "lead" }, exitLead(x)), " · ", x.text, traceChip(x.trace)))) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
   const stall = r.stall ? h("section", { class: "rsec stall" },
@@ -46,7 +57,7 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
   const chips = (xs: string[], cls = "chip"): HTMLElement | null => {
     const n = new Map<string, number>(); for (const x of xs) n.set(x, (n.get(x) ?? 0) + 1);
     // "kind · name" (companions) renders the name small
-    const label = (x: string): (string | HTMLElement)[] => { const i = x.indexOf(" · "); return i < 0 ? [nice(x)] : [nice(x.slice(0, i)), h("small", { class: "dim" }, ` ${x.slice(i + 3)}`)]; };
+    const label = (x: string): (string | HTMLElement)[] => { const i = x.indexOf(" · "); return i < 0 ? [nice(x)] : [nice(x.slice(0, i)), h("small", { class: "dim" }, ` ${x.slice(i + 3).replace(/ · fell$/, " fell")}`)]; };
     return n.size ? h("div", { class: "chips" }, ...[...n].map(([x, k]) => h("span", { class: cls }, ...label(x), k > 1 ? h("b", { class: "num" }, ` ×${k}`) : ""))) : null;
   };
   const lines = (xs: string[]): HTMLElement | null => xs.length ? h("ul", { class: "lines" }, ...xs.map((x) => h("li", null, nice(x)))) : null;
@@ -66,6 +77,7 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
     const ul = lines(pendingLines); if (ul) pendingBody.appendChild(ul);
     // Cut 9 §2: the card opens its sheet; the buy is there, and the report repaints itself after one
     const full = app.rules.rows.length >= app.vocab.max_rows;
+    affordable = affordable.map((u) => withRowsGate(u, app.rules.rows.length, app.vocab.max_rows)).filter((u) => u.available);   // Cut 10 §3
     if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => openUnlockSheet(app, u, full, () => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)))));
     if (pendingSec) pendingSec.hidden = !pendingBody.childElementCount;
   };
@@ -78,7 +90,7 @@ export function renderReport(app: App, r: ReturnReport): Mounted {
     section(/* copy:label */ "learned", factChips(r.learned, L.counters ?? [])),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),
-    section(/* copy:label */ "lost", chips((r.lost ?? []).map((k) => `◯ ${k}`), "chip egg")),
+    section(/* copy:label */ "lost", chips((r.lost ?? []).map((k) => /* copy:callout */ `◯ ${k} · fell`), "chip egg")),   // Cut 10 §3: `jackal Ashar fell`
     section(/* copy:label */ "bests", lines(collapseBests(r.bests))),
     r.xp && r.xp.gained > 0 ? section(/* copy:label */ "xp", h("div", { class: "xp-line num" }, `${r.xp.class} +${r.xp.gained}`, " · ", /* copy:label */ `L${L.classes?.[r.xp.class]?.level ?? 1}`, r.xp.level_ups > 0 ? h("b", null, ` ↑${r.xp.level_ups}`) : "")) : null,
     section(/* copy:label */ "found", chips(r.found.map((i) => i.label))),

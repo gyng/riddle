@@ -67,7 +67,7 @@ export type Ev =
   | { t: number; k: "fact"; fact: string }
   | { t: number; k: "overlay"; x: number; y: number; ov: "gas"|"fire"; ttl: number }
   | { t: number; k: "spawn"; e: Entity }
-  | { t: number; k: "steal"; id: number; item: string }
+  | { t: number; k: "steal"; id: number; item: string; amount?: number }   // amount: Cut 10 §3, gold stolen (`stolen $16`)
   | { t: number; k: "ally"; id: number; state: "freed"|"lost" }
   | { t: number; k: "descend"; depth: number; biome: string }
   | { t: number; k: "exit"; tier: "bank"|"return"|"death"; loot_kept: number; line?: ExitLine; trace?: Trace }   // line: Cut 6 §1; trace: Cut 9 §5
@@ -86,8 +86,11 @@ export type Ev =
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            exit_pending?: { items: InvItem[]; tier: string } };                                       // Addendum D
 
-export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number }[]; causes: { cause: string; share: number }[];
+export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry }[]; causes: { cause: string; share: number }[];
                          known_to: number };                             // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`)
+/** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
+ *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
+export type ForecastTry = { row: Row; text: string; boss?: string };
 /** Cut 4: `blocked` = the first row whose conds held but whose verb could not execute. Cut 6 §3: `rows` = every row above the
  *  fired one with one reason why it did not fire (`none held`, `no path`, `not in view`, `hp 8% ≥ 30%`). */
 export type TraceTurn = { t: number; row: number; verb: Verb; hp: number; foes: number; telegraphs: string[];
@@ -193,4 +196,5 @@ export type UnlockInfo = { id: string; cost: number; owned: boolean; available: 
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */
 export type AsyncEngine = { [K in keyof Engine]: NonNullable<Engine[K]> extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };
-export type SupplyEntry = { kind: string; price: number; label: string };                                             // Addendum B
+export type SupplyEntry = { kind: string; price: number; label: string;
+                            needs?: string };                                                                         // Addendum B; needs: Cut 10 §3, why a supply is greyed (`◆ identify`), optional
