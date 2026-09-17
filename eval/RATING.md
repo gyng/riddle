@@ -42,6 +42,16 @@ tentative, ≥ 0.80 decision). This file is the precommitted contract for a rati
    That list is the next cut's contract.
 4. Never rewrite a raw card. Cards are the evidence trail.
 
+## QA cohort (from Cut 12)
+
+The 1.0 anchor needs no material lapse across the horizon; blind cohorts kept finding defects
+after shipping. Before every blind cohort, two **QA players** (agents, not blind to the goal,
+no scores) play the full rater protocol on fresh seeds from `eval/QA_PROMPT.md` and file every
+lapse as `eval/qa/<build>.<qa>.md`: anything misread, anything inert, any number that does not
+reconcile, any copy they could not explain, with the screen text or screenshot that shows it.
+Every item is fixed or recorded as a deviation with a reason; the build reships; only then the
+blind cohort. The QA reports are evidence, not scores; they never touch a card.
+
 ## Re-anchoring
 
 Before a cohort, the coordinator re-scores Loop Hero on `eval/presets.json` in the same
