@@ -1,0 +1,172 @@
+{
+  "$comment": "Blind card, rater M, seed 131, build a7c47e9, served from pnpm preview :5230, phone 400x800@3 via tools/browser.mjs (one browser context for the whole session). Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK.md 1-3, the template. Did not open PLAN.md, research/, CUT*.md, other cards or source. Audio: window.__audio was null on this build and I cannot hear the harness, so audio is unassessed on feel and aesthetic. Screenshots and notes under the raterM scratchpad.",
+  "game": "Riddle",
+  "build": "a7c47e9",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterM",
+  "horizon": {
+    "activeMinutes": 54,
+    "absences": [
+      "8h simulated via ?dev=1&absent=8h after 34 min cold (11:46-12:20); 20 min on return (12:20-12:41)"
+    ],
+    "runsWatched": 11,
+    "runsOffline": 16,
+    "ruleEdits": 16,
+    "$note": "10 deaths read (9 watched live, 1 opened from the overnight report); 2 banked runs watched; 0 offered patches tapped, every edit was my own; seed 131 fresh lineage; first 10 minutes without notes."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: I sent the seventeenth heir down with my new rule 'foe: gas -> throw fire' because the forecast rated it the same as retreating and I thought it was funnier. He took the axe +1 from my vault, walked over the bones of three of my overnight heirs, avenged Asheth the goblin archer, and reached D6 with $120 where 'the air stings: bloats ahead'. At 5 hp my rule threw a fire potion at an adjacent bloat and the fire killed him one hp short, so I rewrote it to retreat, and the next heir's brave trait refused to obey ('R1 brave held') and died to the same gas."
+  },
+  "idleProbes": {
+    "return": "I came back to '16 RUNS · D8 BEST · ◆+10 MARKS · 6 BANKED · 0 RETURNED · 10 DEATHS', $606 banked, 'rested 318m', a nudge 'R1 fired 1 of 16 runs: HP>75% -> drink ?', DEATHS 'goblin x3 ogre x2 gas x2...' and an 'open' button onto the worst death 'gas · D6 · 3 hp short · gap'; I decided to replace the dead identify rule with a gas rule, raise my bank line from 100 to 200 and buy auto: restock; I would not rather have stayed, 16 runs of the same D4-D6 fights is 30 minutes I did not need to watch.",
+    "attribution": "The last run ended 'gas · D6 · 1 hp short' with $185 carried against my own 'loot >= 200 -> bank' line and 'R1 not safe' because my rest rule cannot fire in a fight; that was my decision, twice over (I raised the bank line, I put rest where a retreat should be). Earlier I deleted my thief rule to fit 'foe: heavy -> throw fire' and the morgue said 'A thief snatched the heal potion. A thief snatched the fire potion.'"
+  },
+  "humanProbes": {
+    "clarity": "The forecast re-rolled on every chip tap: changing R1 to 'drink unknown' flipped the killer list to 'fire 32% / poison 23%' before I ever sent him; I did not know what '⌐ opener' or '1 combo' meant, and the VAULT tray that appears mid-run was never explained.",
+    "decisions": "On 'foe: telegraph' I compared shield bash (D5 68%, ogre 63%) against retreat (D5 58%, ogre 52%) and kept bash; on the bank line I compared 100 (D7 2%) against 200 (D7 12%) and chose 100 after losing $300, then 200 once I had $896; I would make both again.",
+    "mastery": "An hour ago I did not know that 'drink heal' needs an identified potion, that 'rest' says 'not safe' in a fight, that bash has a cooldown, that thieves take the potion I bought, or that a brave heir ignores a retreat rule; now my heirs bank $100 at D4-D5 instead of dying at D4 with 9 unknown potions unused.",
+    "tension": "'$300 · death: lose all' on the HUD at D8 with a warlord pack on screen and 'SHIELD ? COOL' - I did not tap bail, he died 1 hp short; later 'COME ON THEN' at 9/40 with a goblin captain adjacent, and the game noticed with '!!!' on the HUD.",
+    "feel": "Chip taps and row reorders answered at once and the forecast bars slid to their new values a beat later; the big callouts 'R4 ATTACK GOBLIN', '-2 goblin', 'OGRE WINDS UP' read from across the room, but on death 2 the screen was black around the hero with 'OGRE WINDS UP' and no ogre drawn; sound unassessed (window.__audio null, no audible setup).",
+    "surprise": "'The den wakes: thieves on every side' took both potions I had bought and changed my rule set; a fire potion thrown at an adjacent bloat killed my own heir; 'Asheth the goblin archer is avenged' and 'Thul the ogre is avenged' named the monsters that had killed earlier heirs; after ~8 runs the D4-D6 cast (goblin, jackal, ogre, archer, bloat) repeated and I never saw past D8.",
+    "expression": "Seven rows I wrote: bash telegraphs, corridor when swarmed under 40%, hit thieves first, bank at $200, rest under 25%; the chronicle called my heirs 'the chokepoint fighter' and 'the greedy fighter' from those rows; every heir was still the same 'fighter' set because ranger and caster sit behind 'slay a boss'.",
+    "story": "Heir 4 killed Thul the ogre on D5 who had eaten heirs 2 and 3, walked to D8 with $300 and 'death: lose all' on the HUD, and was swarmed by a goblin warlord's summoned pack with his shield on cooldown; the reel retold overnight deaths as 'The lock took him to 1 HP; R5 attacked; died to gas. x2'.",
+    "pacing": "In-run (fights mode): a callout every 5-6 s, runs of 1-3 minutes, one 55 s stretch of walking with nothing when I tried 'fast' mode; check-in: death sheet -> edit -> send took 2-4 minutes and ended on 'send'; cadence: 8 h produced 16 runs and a report in ~10 s, but that report is one scroll of about 60 chips ('SALVAGED teleport x9 · $27 ...').",
+    "failure": "'ogre · D4 · 1 hp short · 4 unknown unused · gap' with the trace 'R1 hp not >75% · R2 no item · R3 cooldown · R4 foes not >=2' and three patches with survive %; the next heir was one tap away; but why 'R2 no item' - 'A thief snatched the heal potion' - was only in the morgue text, and death 3 was tagged 'dice' with no patch.",
+    "social": "weight 0 - nobody else; the named monsters ('Grak the jackal is avenged') are chronicle flavour, not a relationship.",
+    "autonomy": "I chose to bank at 100 instead of tapping any patch, to vault the sword +1 rather than sell it, to buy +1 row over the cards, and to leave the hero mid-run for the night; the dungeon route itself is the hero's, not mine, and I never found what 'home:D3' did to the start depth.",
+    "progression": "Within a run: 36 -> 40 hp, sword +1 -> sword +2, $0 -> $185; between runs: rows 4 -> 7, vault 1 -> 2, 'fighter L1' -> 'L3', renown ★0 -> ★3, LEDGER rat/jackal/ogre 'studied'; automation: 'auto: restock' rebought 'heal potion · fire potion · fire potion' by itself after the next death and 'path: bones' walked heirs over 'Found heir 5's bones: 8 items'; ◆ income was opaque (◆4 after death 1, ◆0 after death 2).",
+    "aesthetic": "Dark olive brick, a red-caped fighter with a round shield, a green bloat that swells, blocky uppercase callouts, 'D4: the Warrens', 'A shrine. Pray, at a price.'; I would sit in the watch screen, not in the camp, which is a form; sound unassessed.",
+    "return": "see idleProbes.return",
+    "attribution": "see idleProbes.attribution"
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Forecast + killer list answered every edit ('fire 32% / poison 23%' the moment R1 became drink unknown); death sheets give cause, margin and a why-not per rule. Lapse: the decisive cause of deaths 3 and 5 ('A thief snatched the heal potion') was only in the morgue text, and '⌐ opener' / '1 combo' / the mid-run VAULT tray were never explained."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Bash vs retreat on telegraph (68 vs 58%), bank at 100 vs 200 (D7 2% vs 12%), throw fire vs retreat on gas (equal forecast, opposite outcome), +1 row vs a card: each had two defensible sides with numbers. Lapse: the 'cards' all 'take a row', so with 4-7 rows every card was dominated by writing the rule myself, and 'foes >= 1 -> attack nearest' never left the set."
+    },
+    {
+      "id": "mastery",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "I learned unknown vs identified potions, 'not safe' rest, bash cooldown, thieves, traits overriding rules, and the game kept offering the next thing ('R1 fired 1 of 16 runs'). Lapse: results did not follow - the four runs after the return all died at D5-D6 within '1-3 hp short'."
+    },
+    {
+      "id": "tension",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "'$300 · death: lose all' at D8, '$185 carried' against my own 200 bank line, 'COME ON THEN' at 9/40; release when the HUD turned to 'keeps $106 · bank R6'. Lapse: the stake I could carry into the absence was only the bank threshold; every run ends in about two minutes so the doubt never lasts."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Chips answer instantly; callouts 'R3 · shield bash', '-2 goblin', 'R3 bash caught him' land on the beat; forecast lags a few seconds; one black frame with 'OGRE WINDS UP' and no ogre; 'leash $30' bought on a single tap with no confirm. Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Thief den, monkey theft, brave trait holding, self-immolation by fire potion, warlord summons, bloat gas, named avenged monsters, a captive ally, bones of overnight heirs - each changed a rule I wrote. Lapse: after ~8 runs the D4-D6 cast repeats and the killer list narrowed to goblin/archer/gas."
+    },
+    {
+      "id": "expression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "My 7-row set (identify at full hp, bash telegraphs, corridor under 40% when swarmed, hit thieves, bank at 200, rest under 25%) is describable without the game and the chronicle named heirs 'the chokepoint fighter' / 'the greedy fighter' from it. Lapse: 19 heirs, all 'fighter set'; other classes gated behind bosses I never killed; no way to say 'gas but not adjacent'."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "The fire-potion death and the $300 warlord death both have a setup, a turn and an end I can retell; 'Thul the ogre is avenged' pays off two earlier deaths. Lapse: reel lines are one template ('X took him to 1 HP; R5 attacked; died to Y') and the morgue notes window is 8 lines, so the turn (the theft) sometimes falls off."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-run: an event every 5-6 s in fights mode, runs 1-3 min; check-in: 2-4 min ending on send; overnight: 8 h -> 16 runs, report in ~10 s. Not strong: the return report is one ~60-chip scroll with duplicated lines ('died $0 · died $0'), 'fast' mode showed 55 s of walking with nothing, and the 20 min / 4 h cadences were not tested in this horizon (one simulated absence only)."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Every death: cause, 'N hp short', 5-row trace, per-rule why-not ('R2 not safe', 'R3 cooldown', 'R1 brave held'), patches with survive %, next heir one tap away. Lapse: 'R2 no item' hides the theft that caused it; 'dice' deaths offer nothing."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0"
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I set my own goal (bank first, then push), chose what to vault, ignored every patch, found the class sheet and forge by tapping; the route and start depth are the hero's."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "All three layers observed: hp/level/items within a run, rows/vault/renown/class level/bestiary across runs, and 'auto: restock' + 'path: bones' as things I no longer do. Lapse: ◆ income is opaque, 'cards' were dead buys, forge/eggs/breed never reached."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Olive-brick warrens, the swelling bloat, blocky callouts and 'A shrine. Pray, at a price.' make the watch screen a place; the camp is a form. Sound unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Came back to 16 runs, $606 banked, 10 deaths, a dead-rule nudge, an openable worst death and bones to recover; first meaningful edit within a minute. Lapse: nothing before leaving told me what 8 h would yield, and the report duplicates every run line and does not name the killer per line."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "9 of 10 deaths read end in a rule I wrote or deleted (thief rule removed -> potions stolen; throw fire -> burned; bank 200 -> died at $185; retreat vs archer); saves credited on screen ('R2 · drink heal', 'bank R6'). Lapse: 'brave held' and 'dice' are the game's, not mine, and I could not predict the trait override from the editor."
+    }
+  ]
+}
