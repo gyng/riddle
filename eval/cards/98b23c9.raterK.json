@@ -1,0 +1,69 @@
+{
+  "$comment": "Blind rater K card. Seed 109, build 98b23c9, phone 400x800@3 via tools/browser.mjs, one browser context for the whole session (never closed between phases). Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK.md s1-3, the template, presets.json (weights). Did not open PLAN.md, research/, CUT*.md, INTEGRATION.md or source. DISCLOSURE: while checking the card file shape I ran `head -30` on eval/cards/be954f5.raterJ.json and saw its $comment, horizon block and the four criterion numbers before I had typed mine; my own criterion answers (5/5/6/5) were already decided in my notes before that glimpse and I did not change them, and I saw none of J's probes, awards or notes. Anti-bias: return scored the same sitting as the simulated absence because Tier 1 harness requires it; I wrote down before loading absent=8h that I wanted to come back (to see whether the corridor rule and the D8 bank held up, and whether the D6 bones got picked up).",
+  "game": "Riddle",
+  "build": "98b23c9",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterK",
+  "horizon": {
+    "activeMinutes": 60,
+    "absences": ["8h simulated via ?dev=1&absent=8h after ~40 min cold; return summary read '12 RUNS · D8 BEST · ◆+12 · 10 BANKED · 0 RETURNED · 2 DEATHS · rested 245m · STALL: R7 bank ended 8 runs at D8'; then ~20 min on return"],
+    "runsWatched": 8,
+    "runsOffline": 12,
+    "ruleEdits": 14
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: I sent my third heir, the cowardly rogue, down with a corridor rule I had dragged above 'attack nearest' and a bank rule set to D8 even though the forecast only gave D7 a 48% chance. On D5 the trait callout 'cowardly → retreat' fired at 8/28 and I was sure I was going to lose the $127 he carried, then on D6 a bloat popped for '−3 gas', my gas rule pulled him out, and my caster rule killed the goblin conjurer before its blades got him. He found heir 2's bones with 11 items on the way, walked into D8 and banked $186, which unlocked eight marks and the rogue's second level."
+  },
+  "probes": {
+    "clarity": "I always knew the loop (edit rows, send, read the death), and the forecast bar answered every edit within a second ('D5 56% ±14' became '96% ±5' when I added rest), but I never learned what 'rest 20m' does, why '$26' became '$10' between D3 and D4 on run 1, or why 'heal potion $40' was greyed out while I held $165.",
+  "decisions": "My bank rule was the real dial: 'depth ≥ 3 → bank' made the forecast read 'D4 0%' so I moved it to 5, then 8, then 10 to meet the warlord, and each step traded gold I could lose ('$120 carried · death keeps 0% → $0') against the STALL line that told me 'R7 bank ended 8 runs at D8'.",
+    "mastery": "An hour in I knew that 'drink heal' never fires on unidentified potions ('R1 no item'), that rule position matters (the boss patch quoted 'survives 8%' at the top but the same 'foe: boss → attack boss' placed above 'attack nearest' forecast 'D9 58% ±17'), and that a rest rule beats a return rule; I still had not beaten a floor past D8.",
+    "tension": "I sweated when the cowardly rogue read '3/28 · near death' on D6 with $120 in his pocket and my only lever was the 'bail' button, and again when heir 5 walked into the warlord on D8 with 'Warlord rallies' twice and the hp strip going 17, 8, 5, 0.",
+    "feel": "The fight frame is the good part: big pixel text 'R2 ATTACK GOBLIN', the hero flashing white when hit, the jackal ally with its own hp bar; the rest of a 1x run is a lone sprite walking dim corridors with the callout stuck on 'pick up', and 'fast' was maybe twice as fast, not fast. Audio: none, unassessed.",
+    "surprise": "'The monkey stole the poison potion', 'The air stings: bloats ahead', a warlord on D8 when the forecast had promised him on D9, jackals that hatched overnight ('HATCHED jackal ×2'), and a 'choose one' vault that my 'vault: weapon' preference answered for me; the gas and boss facts each became a rule I wrote.",
+    "expression": "By the end the editor said 'yours: 6 of 7 rows · 1 combo' with a 'chokepoint' badge across my corridor rule, and the chronicle called my heirs 'the chokepoint rogue' three times in a row; the set was still named 'fighter' though I had switched to rogue on run 3.",
+    "story": "The reel wrote 'A Captain took him to 2 HP; the chokepoint landed; died.' and the morgue kept a line-by-line notes list ('t9044 The monkey stole the poison potion.'), and the chronicle reads as a lineage ('♟5 the chokepoint rogue · D8 · found ♟4's bones · fell to a spectral blade · left bones on D8').",
+    "pacing": "In-run at 1x a floor took about a minute with 20-30 s stretches where the only callout was 'pick up'; a check-in was 2-5 minutes and always ended on 'send'; the overnight produced something distinct (12 runs, a STALL verdict, hatched pets), the 20-min return produced two watched runs, and I never tried a 4 h gap.",
+    "failure": "Every death was one screen: 'burst · D6 · 3 over · heal unused · 4 unknown unused · gap', a five-tick trace with the rule that fired ('R3 attack nearest hp 12 → 6 → 3'), the rules that did not ('R1 not in view · R2 not in view'), and three patches with 'survives 100% · base 25%'; the next heir was ready with $40 wake pay on the same screen.",
+    "social": "weight 0",
+    "autonomy": "Nobody told me to walk into the warlord; I set bank to D10 with the forecast reading 'D9 0% ±1 · goblin warlord' because I wanted the boss fact, and I chose rogue over fighter and 'vault: weapon' over potion on my own; the only direction is down, though.",
+    "progression": "Within a run the hero levelled ('rogue +112 · L2 ↑1') and looted 'bow +1'; between runs I bought '+1 row' four times at ◆2, ◆4, ◆7, ◆11, the rogue class, 'verb: throw', 'cond: on kill' and 'auto: restock' ('auto rebuys last supplies buy'), and renown went ★0 → ★5; the only automation I earned in an hour was restock.",
+    "aesthetic": "A dim olive-and-black warren with square pixel rooms, a nice cloaked rogue sprite and a running jackal, and a big horned WARLORD sprite in the boss frame; the floor tiles are so low-contrast that most of the map reads as darkness and I would not sit in it for its own sake.",
+    "return": "I came back to '12 RUNS · 10 BANKED · 2 DEATHS · ◆+12', a purse of $517, two hatched jackals and a STALL line naming my own rule ('R7 bank ended 8 runs at D8'); because of it I moved bank to D10, added a jackal to the party and spent 12 marks, all inside a minute; I would not rather have stayed, the night out-earned my whole active hour.",
+    "attribution": "Heir 2 died to a bloat with 'heal unused' because I had swapped the heal row for a tame row; heir 5 died to the warlord because I pushed bank to D10 without a boss rule; heir 3 banked $186 because my caster rule read 'R3 · attack caster → goblin conjurer slain'; the only death I could not pin on myself was heir 1's, on the default set."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Forecast feedback is immediate and the death screen is one page, but several things stayed unexplained across the horizon: 'rest 20m' (later 'rest 25m'), 'heal potion $40' greyed out at $165, a '$26 → $10' drop on run 1, the summary tile '1 RUNS · 0 DEATHS' after a death, the leash bought on tap with no description. Adequate, not strong." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Bank depth (safe D8 farm vs D10 warlord), rule order (dragging 'foe: boss → attack boss' above 'attack nearest' moved D9 from 0% to 58%), and what to spend marks on were all defensible either way and the forecast made the trade-offs foreseeable. Lapse: the card unlocks ('card: pack break ◆3 · takes a row') are bought blind with no description, so those choices were guesses." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "I learned the potion-identification trap, rule ordering and the rest-vs-return trade; but my last two watched runs died on D8 and D6, no deeper than before the absence, and the warlord is still a wall I have only a forecast number for." },
+    { "id": "tension", "human": 0.8, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'3/28 · near death' on D6 with $120 carried, the warlord fight going 17, 8, 5, 0, and the 'death keeps 0% → $0' line made every deep push a bet I chose. Lapse: outside fights the watch is stakes-free walking, and mid-run the only lever is 'bail'." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Fight frames ('R2 ATTACK GOBLIN', white hit flash, hp bars, boss labels) amplify the moment; but 'fast' barely changed the pace, labels overlapped ('CONJURERLINGOBLIN'), and long stretches showed only 'pick up'. Audio unassessed (none)." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Monkey theft, bloats, a summoner's blades, a warlord one floor early, overnight hatched jackals, found bones — each of gas/boss/caster became a rule I wrote. Lapse: one biome ('the Warrens') and the same six foes for the whole horizon; D10+ never seen." },
+    { "id": "expression", "human": 0.8, "bot": "na", "proxy": "rule-set diversity across clears", "note": "'yours: 6 of 7 rows · 1 combo', the 'chokepoint' badge, heirs named 'the chokepoint rogue' after my rule, a rogue with a jackal. Lapse: the set is still labelled 'fighter' after the class switch and most rows are the generic hp/attack/rest spine." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Reel lines carry a turn ('A Captain took him to 2 HP; the chokepoint landed; died.'), morgue notes read like a log, the chronicle is a lineage with bones passed down. Lapse: 12 overnight runs got only five reel lines and the lines are formulaic." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: ~1 floor/min at 1x with 20-30 s dead stretches; 'fast' ~2x and '▶▶|' not an instant skip, so a D8 run costs 6-8 minutes of screen time. Check-in: 2-5 min ending on 'send', good. Cadence: overnight distinct; 20 min return fine; the in-run loop drags." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "All four read deaths named cause, margin ('1 over'), the firing rule, the silent rules and the gap ('heal unused'), with patches quoting survival odds; the next heir starts on the same screen with $40. Lapse: heir 1's trace showed 'foes 0' for 50 ticks while a conjurer summoned the blade that killed him, so the table did not show the killer until the notes." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goals (bank once for rogue, meet the warlord for the boss fact) and the game never nagged; but the only direction is deeper in one dungeon." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run: levels and +1 gear. Between-run: rows, class, verbs, conds, cards, renown ★0 → ★5, potions identified in the shop. Automation: one earned ('auto: restock') in the hour, 'auto: keep weapon+armour' and 'auto: insure' visible. Lapse: row cost escalates ◆2 → ◆4 → ◆7 → ◆11 fast, and the cards are opaque." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Good sprites (rogue, jackal, warlord) and a coherent olive palette, but the dungeon is so dark that most of the screen is black and the mood does not invite lingering." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "The overnight gave 12 runs, $517, ◆12, hatched pets and a STALL verdict naming my rule, with three decisions pending and the first action under a minute. Lapse: the return landed on the camp with a small 'VERDICT' chip and a stale '$125' header; the summary was a scroll away, and the night out-earned my active hour by a wide margin (10 banks vs 3), so absence may dominate." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Three of four read deaths trace to something I did (removed heal row; no boss rule at D10; attack-nearest with no ranged rule), the best bank was my caster and corridor rules by name, and I retell the runs in the first person. Lapse: the two overnight deaths reached me only as one-liners I could not trace to a row." }
+  ]
+}
