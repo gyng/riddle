@@ -120,3 +120,43 @@ fight frame and the chronicle unprompted ("the fight frame shouts R1 TAME JACKAL
 
 Remaining lost weight (1.2 each): story, pacing, expression, clarity. Their evidence is now
 small and specific (below), not structural.
+
+## Cohorts 5–6 — "fun"
+
+| Cohort | Build | Cards | α | Mean | Verdict |
+|---|---|---|---|---|---|
+| 5 | be954f5 (Cut 9) | 65.7 · 70.0 | 0.855 | 67.9 | promising |
+| 6 | 98b23c9 (watch fix + wake pay) | 74.1 · 75.1 | 0.969 | **74.6** | **fun**, no gates |
+
+Cohort 5 did not move because both raters still saw foes vanish at the hit; measurement found
+three renderer faults (a 4-tick corpse under a 0.6 s hit line; entities that appeared mid-batch
+unknown to the viewer until the end sync; a foe north of the hero hidden behind the hero's
+48-texel sprite in the fight frame) and the fix took attack-callout frames with no drawn foe from
+41/198 to 0/99. Cohort 6 then landed both raters in the fun band with the highest agreement of the
+campaign. On the same rubric: Loop Hero 74.1, Cookie Clicker 75.5, Into the Breach 83.6, Celeste
+85.9, Hades and Balatro 90.3.
+
+Trajectory: 63.7 → 66.0 → 65.0 → 69.8 → 67.9 → **74.6**. Since cohort 1: story 0.45 → 0.80,
+expression 0.60 → 0.80, surprise 0.60 → 0.80, tension 0.60 → 0.80, feel and aesthetic 0.30 → 0.60,
+progression 0.70 → 0.80. Unmoved: pacing 0.60, clarity 0.60. Criterion probes for both raters:
+fun 5/7, play again 5/7, recommend 6/10, check in unprompted 5/7 (cohort 1: 4–5 / 4–5 / 4–5 / 2–4).
+
+## What stands between 74.6 and the greats
+
+The two unmoved load-bearing axes carry the same evidence in every cohort:
+
+- **pacing 0.6**: "~1 floor per minute at 1×, 20–30 s stretches of pick up; fast is ~2×; ▶▶| is
+  not an instant skip; a D8 run costs 6–8 minutes of screen time" (K); "no move-up/down, only
+  drag" (L). The in-run half is *travel*. The fix that is not polish: travel is not watched at all.
+  The watch becomes fights only (the fight frame) with a map *interstitial* between them ("D3 ·
+  4 rooms · 40 s") that the player can expand; a run's screen time becomes its fights.
+- **clarity 0.6**: "rest 20m never explained", "heal potion $40 greyed out with $165", "1 RUNS · 0
+  DEATHS right after a death", "Ashar slain read as a foe when it was my jackal", "BANKED 0 beside
+  fourteen $61 return lines", "3 over never explained", "the patch's position hid the real answer".
+  Each is one line of copy or one number; none is structural.
+- **mastery 0.7**: "the warlord is a wall with no ramp: D9 0% on every configuration except the
+  one I found" (K). The counter is discoverable but the forecast reads as a cliff. A forecast row
+  that names the *known counter row* when the shown depth is a boss floor and the set lacks it
+  (`D9 0% · warlord · try: attack boss`) turns the wall into a ramp.
+
+Those three, plus audio (feel/aesthetic are weight 1 and have no sound at all), are the next cut.
