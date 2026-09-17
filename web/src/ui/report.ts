@@ -8,6 +8,7 @@ import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
 import { openUnlockSheet, visible, withRowsGate } from "./unlocks";
 import { traceChip } from "./trace";
+import { openGoldSheet } from "./gold";
 
 const EXITS_SHOW = 8;
 
@@ -38,7 +39,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // per slice and the client merges slices, so a long absence shows its last EXITS_SHOW)
   // Cut 9 §5: an exit that carries its trace gets a `trace` chip after the line
   // Cut 10 §3: `returned $61` leads each line, the engine's arithmetic after it
-  const exitLines = r.exits?.length ? h("div", { class: "exit-lines" }, ...r.exits.slice(-EXITS_SHOW).map((x) => h("div", { class: "ledger-line num dim" }, h("b", { class: "lead" }, exitLead(x)), " · ", x.text, traceChip(x.trace)))) : null;
+  // Cut 11 §5: the line is tappable — the gold sheet filtered to that run (an exit claims the newest matching ledger exit the
+  // exits after it in this report have not); its `trace` chip shows the chain (§3)
+  const shown = r.exits?.slice(-EXITS_SHOW) ?? [];
+  const exitLines = shown.length ? h("div", { class: "exit-lines" }, ...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
+    h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, h("b", { class: "lead" }, exitLead(x)), " · ", x.text),
+    traceChip(x.trace, "chip mini", { rows: app.rules.rows })))) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
   const stall = r.stall ? h("section", { class: "rsec stall" },

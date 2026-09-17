@@ -10,6 +10,7 @@ import { renderDeath } from "./ui/death";
 import { renderReport } from "./ui/report";
 import { renderEnding } from "./ui/ending";
 import { closeAllSheets } from "./ui/sheet";
+import { lastRun, type RunLog } from "./ui/runlog";
 import { showBusy } from "./ui/progress";
 import { audio } from "./audio";
 
@@ -83,6 +84,8 @@ export class App {
   playerRows(): number { return this.rules.rows.filter((r) => (r.origin ?? "player") === "player").length; }
   /** Cut 8B §1: the active set's combos as the editor sees them now (the vocabulary's table over the editing copy). */
   combos(): ComboHit[] { return combosIn(this.rules.rows, this.vocab?.combos); }
+  /** Cut 11 §2: the last watched run's event log (ui/runlog.ts), which the death screen's chain links replay. */
+  runLog(): RunLog | null { return lastRun(); }
 
   constructor(root: HTMLElement, dev: DevOptions | null = null) { this.root = root; this.dev = dev; }
 

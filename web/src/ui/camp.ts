@@ -19,6 +19,7 @@ import { salvageValue } from "./salvage";
 import { CLASS_VERBS, xpToNext } from "../engine/classes";
 import { verbLabel } from "./tokens";
 import { openSheet } from "./sheet";
+import { openGoldSheet } from "./gold";
 
 const SET_NAME_MAX = 12;
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
@@ -60,17 +61,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     replace(rest, /* copy:callout */ `rest ${spanOf(restS)} · send skips`);
     rest.hidden = restS <= 0;
   }
-  // Cut 6 §1: the last 20 gold movements, newest first, one per line: `+$50 returned D5` · `−$40 heal` (engine data, no prose)
-  function openGold(): void {
-    openSheet(() => {
-      const L = app.lineage; const lines = [...(L.gold_ledger ?? [])].reverse();
-      const fmt = (d: number): string => `${d < 0 ? "−" : d > 0 ? "+" : ""}$${Math.abs(d)}`;
-      return h("div", { class: "sheet-body gold-sheet" },
-        h("div", { class: "label row-label" }, /* copy:label */ "gold", " ", h("span", { class: "num gold" }, `$${L.gold}`)),
-        ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}` }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, g.why.replace(/_/g, " ")))),
-        lines.length ? "" : h("div", { class: "lrow num dim" }, "·"));
-    });
-  }
+  // Cut 6 §1: the last 20 gold movements, newest first (ui/gold.ts; Cut 11 §5: exit lines open it filtered to their run)
+  function openGold(): void { openGoldSheet(app); }
   // Cut 9 §10: each kind shows its ladder — `sword · salvaged 3/5 → craftable` (the engine's `next` rung); at the top, the count alone
   function openForge(app2: App): void {
     openSheet(() => {

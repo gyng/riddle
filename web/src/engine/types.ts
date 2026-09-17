@@ -94,16 +94,26 @@ export type ForecastTry = { row: Row; text: string; boss?: string };
 /** Cut 4: `blocked` = the first row whose conds held but whose verb could not execute. Cut 6 §3: `rows` = every row above the
  *  fired one with one reason why it did not fire (`none held`, `no path`, `not in view`, `hp 8% ≥ 30%`). */
 export type TraceTurn = { t: number; row: number; verb: Verb; hp: number; foes: number; telegraphs: string[];
-                          blocked?: string; rows?: { row: number; why: string }[] };
-export type Trace = { turns: TraceTurn[] };
+                          blocked?: string; rows?: { row: number; why: string; because?: Because }[] };   // because: Cut 11 §1
+/** Cut 11 §1 — why a state reason held: the most recent event that put it there (`den took the heal, D3`, ≤ 8 words),
+ *  its tick and floor. The client scrubs the run's replay to `t` when it still holds the run's events. */
+export type Because = { text: string; t: number; depth: number };
+export type Trace = { turns: TraceTurn[];
+                      provenance?: Because[] };                                              // Cut 11 §3: every `because` event of the run (exit traces)
 /** A candidate row. Death patches insert before `insert_at`; stall patches (core README) may instead `replace` the row at
- *  `insert_at` or `remove` it (`row` echoes the removed row). */
-export type Patch = { row: Row; insert_at: number; survive: number; forecast_delta: number; replace?: boolean; remove?: boolean };
+ *  `insert_at` or `remove` it (`row` echoes the removed row).
+ *  Cut 11 §2: `root` names the chain's root the row answers (`den took the heal`); `insert_at: -1` is an unlock pseudo-patch
+ *  (`root.text` = `◆2 cond: alert`; the client buys the cond's unlock, then inserts the row at the top); `below_bar` marks a
+ *  §4 candidate under the verdict bar (`survives 40% · below bar`), shown dimmed. */
+export type Patch = { row: Row; insert_at: number; survive: number; forecast_delta: number; replace?: boolean; remove?: boolean;
+                      root?: { text: string }; below_bar?: boolean;
+                      unlock?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
 export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice";
                       baseline: number;                                                   // core addition: survival of the unpatched rules, 0..1
                       trace: Trace; patches: Patch[];
                       morgue: string;
-                      line?: ExitLine };                                                     // Cut 6 §1: the death's ledger line
+                      line?: ExitLine;                                                       // Cut 6 §1: the death's ledger line
+                      chain?: Because[] };                                                   // Cut 11 §2: the death's chain, root first (the rows' `because`s, deduplicated)
 /** Core addition: the last ≥ 4 runs all came home with no new depth — the row that ended them, how many, a ≤ 12-word line,
  *  and up to 3 patches with forecast deltas at the stall depth + 1 (`survive` = the patched reach there). A state: the
  *  last slice's wins on merge. */

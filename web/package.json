@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "node tests/patch-overflow.mjs && node tests/locked-cond.mjs && node tests/audio.mjs && node tests/fights.mjs && node tests/clarity.mjs"
+    "test": "node tests/patch-overflow.mjs && node tests/locked-cond.mjs && node tests/audio.mjs && node tests/fights.mjs && node tests/clarity.mjs && node tests/chain.mjs"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",

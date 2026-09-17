@@ -353,3 +353,26 @@ button.bar.try:active { background: var(--panel2); }
 .btn.mute.on::before { content: "✓ "; }
 .bar.try .n { white-space: normal; }
 .bar.try .try { display: block; white-space: nowrap; }
+
+/* Cut 11 — the chain under the trace, root patches, the replay sheet, tappable ledger lines */
+.chain { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 12px; font-size: 13px; line-height: 1.4; }
+.chain-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 24px; }
+.chain-row .r { min-width: 30px; }
+.chain-row .why { color: var(--dim); }
+.chain-row .because { color: var(--fg); }
+.chain-row .because::first-letter { color: var(--acc); }
+.chain-row .at { font-size: 12px; }
+.chain-row.fired .why { color: var(--ok); }
+.chain-row .chip.mini.link { margin-left: 0; min-height: 28px; color: var(--acc); border-color: #4d4020; }
+.patch-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; flex: 1; }
+.patch .root { color: var(--acc); font-size: 12px; }
+.patch.below { opacity: .55; border-style: dashed; }
+.patch.unlock { border-color: #4d4020; background: #2a2412; }
+.patch.unlock .unlock-label b { color: var(--acc); font-weight: 400; }
+.ledger-btn { text-align: left; color: inherit; font: inherit; }
+.ledger-btn:active { color: var(--acc); }
+.replay .row-label { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; text-transform: none; letter-spacing: 0; font-size: 13px; }
+.replay .because::first-letter { color: var(--acc); }
+.replay-view { display: block; width: 100%; height: 44dvh; max-height: 360px; background: #07080a; border-radius: 8px; }
+.gold-sheet .row-label .chip.mini { margin-left: auto; }
+.gold-sheet .row-label { display: flex; align-items: center; gap: 8px; }

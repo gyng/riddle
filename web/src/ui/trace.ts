@@ -1,16 +1,20 @@
-// The last-5 trace as a table (hero actions, t = tick) with the row accounting of the last action under it
+// The trace as a table (hero actions, t = tick) with the row accounting of the last action under it
 // (Cut 6 §3: `R1 none held · R2 no path`, engine data). Cut 9 §5: shared by the death screen, the exit sheet's
 // `trace` chip and the report's exit lines — every exit has one now, not only a death.
+// Cut 11 §2–3: when the wire carries a `because`, the accounting is the chain (ui/chain.ts: `R1 drink heal · no item ←
+// den took the heal, D3 [watch]`); exit traces show their last 10 turns, the death screen keeps 5 above its chain.
 import type { Trace } from "../engine/types";
+import { chainOf, type ChainCtx } from "./chain";
 import { h } from "./dom";
 import { openSheet } from "./sheet";
 import { verbLabel } from "./tokens";
 
 export const TRACE_ROWS = 5;
+export const EXIT_TRACE_ROWS = 10;
 
-/** The table and, when the last turn carries row accounting, the dim `R1 why · R2 why` line. */
-export function traceTable(trace: Trace): HTMLElement[] {
-  const turns = trace.turns.slice(-TRACE_ROWS);
+/** The table and, under it, the chain (Cut 11) or the dim `R1 why · R2 why` line when the trace carries no `because`. */
+export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS): HTMLElement[] {
+  const turns = trace.turns.slice(-rows);
   const table = h("table", { class: "trace num" },
     h("thead", null, h("tr", null, /* copy:label */ ...["t", "R", "hp", "foes", "tele"].map((s) => h("th", null, s)))),
     h("tbody", null, ...turns.map((t) => h("tr", null,
@@ -20,12 +24,15 @@ export function traceTable(trace: Trace): HTMLElement[] {
       h("td", null, `${t.foes}`),
       h("td", { class: "tele" }, t.telegraphs.join(" · ")),
     ))));
+  const chain = chainOf(trace, ctx);
+  if (chain) return [table, chain];
   const lastRows = turns[turns.length - 1]?.rows ?? [];
   const rowsLine = lastRows.length ? h("div", { class: "rows-line num dim" }, lastRows.map((r) => `R${r.row + 1} ${r.why}`).join(" · ")) : null;
   return rowsLine ? [table, rowsLine] : [table];
 }
-/** Cut 9 §5: a `trace` chip; tapping it opens the table in a sheet. `null` when the exit carries no trace. */
-export function traceChip(trace: Trace | undefined, cls = "chip mini"): HTMLElement | null {
+/** Cut 9 §5: a `trace` chip; tapping it opens the table (Cut 11 §3: the last 10 turns and the chain) in a sheet.
+ *  `null` when the exit carries no trace. */
+export function traceChip(trace: Trace | undefined, cls = "chip mini", ctx: ChainCtx = {}): HTMLElement | null {
   if (!trace?.turns.length) return null;
-  return h("button", { class: cls, onclick: () => openSheet(() => h("div", { class: "sheet-body trace-sheet" }, ...traceTable(trace))) }, /* copy:button */ "trace");
+  return h("button", { class: cls, onclick: () => openSheet(() => h("div", { class: "sheet-body trace-sheet" }, ...traceTable(trace, { ...ctx, provenance: true }, EXIT_TRACE_ROWS))) }, /* copy:button */ "trace");
 }

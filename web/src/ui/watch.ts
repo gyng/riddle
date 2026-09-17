@@ -55,6 +55,7 @@ import { salvageValue } from "./salvage";
 import { vaultSlots } from "./unlocks";
 import { kindGlyph, verbLabel } from "./tokens";
 import { traceChip } from "./trace";
+import { markEnd, recordRun } from "./runlog";
 import { audio } from "../audio";
 
 type Tier = "bank" | "return" | "death";
@@ -303,6 +304,7 @@ export function renderWatch(app: App): Mounted {
         case "note": notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text }); break;
         case "exit": {
           exit = ev.tier; exitLine = ev.line ?? exitLine; exitTrace = ev.trace ?? ev.line?.trace ?? exitTrace;
+          markEnd(runId, ev.t);   // Cut 11 §2: the run log's last replayable tick
           // Cut 7 §4: the last ENDING_TICKS play at 1×; the core's `ending` marker counts only when the exit follows it closely
           // (Cut 10 §1: a foreseen death the hero survived held the map at 1× for minutes)
           endingFrom = Math.min(endingFrom, ev.t - ENDING_TICKS, endingCue >= ev.t - 100 ? endingCue : Infinity);
@@ -734,7 +736,7 @@ export function renderWatch(app: App): Mounted {
       paint();
       const bones = p.tier === "death" && bonesLeft !== undefined ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(bonesLeft)}`) : null;
       const ledger = exitLine?.text ? h("div", { class: "ledger-line num dim" }, exitLine.text) : null;   // Cut 6 §1: engine data, verbatim
-      const trace = traceChip(exitTrace ?? exitLine?.trace);                                              // Cut 9 §5: the last-5 trace, on a chip
+      const trace = traceChip(exitTrace ?? exitLine?.trace, "chip mini", { rows: app.rules.rows, runId });   // Cut 9 §5: the trace on a chip; Cut 11 §3: with its chain
       return h("div", { class: "sheet-body" },
         h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", count, trace),
         chips, bones, ledger,
@@ -752,8 +754,10 @@ export function renderWatch(app: App): Mounted {
     snap = s; runId = s.run.id; engineTick = startTick = s.turn;
     for (const e of s.entities) note_(e);
     hudFrom(s);
-    const { viewer: v } = await makeViewer(canvas);
-    if (disposed) { v.dispose(); return; }
+    const { viewer: v0 } = await makeViewer(canvas);
+    if (disposed) { v0.dispose(); return; }
+    // Cut 11 §2: every floor load and event batch is kept in the run log, so the death screen's chain can scrub a replay
+    const v = recordRun(v0, runId, s.run.started_turn);
     viewer = v; v.resize?.(); v.load(s); el.dataset.frame = frame; fbTick = s.turn; fbAt = performance.now();
     speed = -1; applyFrame(); applySpeed();   // Cut 10 §1: the card and the mode's rate (fights: 16× under it) from the first frame
     if ("__riddle" in window) (window as unknown as { __viewer: Viewer }).__viewer = v;   // dev inspection
