@@ -33,3 +33,19 @@ raters' evidence is small and specific; this cut is those items, verbatim, and n
 
 - **Core** (`crates/**`): 1 (`Vocabulary.locked`), 2 (`needs` everywhere), 3, 5, 6, 7, 8, 10.
 - **Client** (`web/src/**`): 1, 2, 4, 5 (exit trace chip), 7 (chronicle → death), 9, 10.
+
+## Cohort 5 result (build be954f5)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| I | 97 | 65.7 | none |
+| J | 103 | 70.0 | none |
+
+α = 0.855. Mean 67.9 (cohort 4: 69.8). No movement: Cut 9's items were all found and praised
+in passing ("R1 fired 4 of 16 runs", "D6 20% ±8", the row accounting), but both raters' first
+gripe was the watch again: "foes are never drawn" (I), "foes are barely visible" (J). Measured
+on I's seed: 41 of 198 attack-callout frames drew no foe. Cause: the corpse dissolved in 4 ticks
+while the hit line stayed 0.6 s, and entities that appeared inside a batch were unknown to the
+viewer until the batch's end sync. Fixed after the cohort (12-tick dissolve, `goblin slain`
+callout, preload before events, engine visibility unioned): 1 of 98 frames. Also from J:
+gold-locked after death → wake pay. These land in the cohort 6 build.
