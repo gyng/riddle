@@ -1,0 +1,71 @@
+{
+  "$comment": "Blind rater L card. Build 98b23c9, seed 127, phone 400x800@3 via tools/browser.mjs in one persistent context. Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK.md s1-3, the template and eval/presets.json (for weights). Did not open PLAN.md, research/, CUT*.md, INTEGRATION.md, other cards or source. Notes and 60+ screenshots in the scratchpad (raterL/). Absence was the simulated ?dev=1&absent=8h, taken once at 09:12 with the hero mid-run on D3; return was scored the same sitting (the protocol's next-day rule could not be honoured with a simulated absence).",
+  "game": "Riddle",
+  "build": "98b23c9",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterL",
+  "horizon": {
+    "activeMinutes": 56,
+    "absences": ["8h simulated overnight (?dev=1&absent=8h) after 39 active minutes; 17 active minutes on return"],
+    "runsWatched": 7,
+    "runsOffline": 16,
+    "ruleEdits": 14,
+    "$detail": "runs 1,2,3,4,6 watched at 1x for 1-9 min each, run 5 watched 2.5 min then left for the absence, run 7 skipped with the fast-forward button; 4 deaths read (goblin D2, goblin D4, gas D6, overnight gas D6 via 'open'); 14 own chip edits across four rule-set versions plus 2 offered patches tapped and 1 tactic card bought; unlocks bought: +1 row x2, verb: throw, cond: loot, card: gas step, auto: restock, +1 party, supplies 3->5"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false,
+    "$notes": "The 'rest 20m' chip between runs is skipped for free ('send skips rest'); nothing waited for money. Default rules died on D2 with $0 kept; my edited set returned 14 of 16 overnight runs at ~$61 each and reached D7. All four deaths I read had a rule answer (drink heal, retreat ordering, gas card ordering)."
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: I sent my second heir with a tame rule I had written on a hunch, and she leashed two jackals, Ashar and Zelog, before an ogre took her to 5 of 36 on D5. My retreat rule pulled her clear, both jackals fell covering her, and she climbed back to 18 with $126 in her purse and the alert at three bangs. I bailed rather than push, took the 60% cut to $75, and vaulted the sword +1; that was my call and I would make it again."
+  },
+  "probes": {
+    "clarity": "I mostly knew what to do, but I spent my first two marks on '+1 row' when '2/4' already meant two spare slots, read 'Ashar slain' as a foe when it was my own jackal, and never learned what '3 over' on every death line means.",
+    "decisions": "Bailing on D5 at 18/36 with '$126 carried · return keeps 60% → $75' versus pushing for D6 at 'D6 18% ±11', and later dropping my own retreat rule when the send button became '7/6 · drop one', were both choices I would defend and would make again.",
+    "mastery": "An hour ago my hero died on D2 with 'R1 no item'; now I can write a set that came home fourteen times in a night at '$102 carried · return keeps 60% → $61' and reached D7, because I learned that 'tame ✗ none weak' means weaken first, that 'heal unused' means say drink heal not drink unknown, and that a rule below 'foes ≥ 1 → attack' never fires.",
+    "tension": "I sweated at '5/36 D5 !!' with an ogre one tile away and 'death: lose all' in red, and again at '4/40 D5' with 'ARCHER DRAWS' across the screen; the game noticed with the alert bangs climbing '!' to '!!!' and a 'cowardly → retreat' callout.",
+    "feel": "Taps landed instantly and the pixel banners ('R2 ATTACK JACKAL', 'TAME ? NONE WEAK') hit at the right moments, but the 'fast' button looked no faster than 'auto' at my sampling, I never once saw my party members on the map, and there is no audio to assess.",
+    "surprise": "The 'choose one' vault sheet popping up mid-run, a monkey stealing my sword ('The monkey stole the sword.'), 'they stir' from a den, a bloat's 'it swells', and the hero taming a goblin captain overnight each changed what I bought or wrote (a gas card, a heal potion, a leash every run).",
+    "expression": "My set is a tamer-banker: 'foe: pack → tame nearest', 'loot ≥ 100 → return', a gas card first, and a kennel of named jackals (Ulog, Skusk, Drar, Grak, Zelog) plus Krar the goblin captain; the forecast footer reads 'yours: 4 of 6 rows · card R4 first'.",
+    "story": "The reel wrote 'R1 retreat caught him. Returned with $75.' and the chronicle wrote '♟2 the cowardly fighter · D5 · tamed a jackal · found ♟1's bones · fell to a goblin · left bones on D4', and my own best run has a turn in it (5 HP, two jackals dead, bail).",
+    "pacing": "At 1x a callout came every 5-10 s and a run took 5-9 min; the only dead patch was 'they stir' repeating for 30 s; check-ins were 3-8 min except the return, which was a fair 15 min because there was a lot to read; the admin friction is reordering rules by delete-and-re-add and condition sheets that stack and stay open.",
+    "failure": "Every death gave cause, margin and trace on one screen ('gas · D6 · 3 over · heal unused · 1 unknown unused · gap', then 'R1 no use · R2 not in view') with patches carrying odds ('hp < 50% → drink heal  survives 100% · base 17%'), and the next run is one tap away; it was my rule each time.",
+    "social": "weight 0 in this preset; the named pets that die (Ashar, Zelog, Krar) and 'Zelog' coming back as a hatchling are the only relationships, and they never developed beyond a name and a loss line.",
+    "autonomy": "I chose to bail, to carry $100 before returning instead of $200, to leave the gas card in for a night, and to send Krar the captain rather than a jackal; the dungeon route itself is never mine.",
+    "progression": "Within a run the hero went 36→40 HP and L1→L3; between runs marks bought rows, verbs, a card and 'auto: restock' ('auto rebuys last supplies', my first 'no longer need to' after ~50 minutes); renown went ★0 → ★4 and the verb sheet grew from 22 entries to 60 as facts were learned.",
+    "aesthetic": "A dark olive warren with a readable red-cloaked fighter, an archer whose bow actually draws, and lines like 'The dungeon listens.' and 'The air stings: bloats ahead.'; I would not sit in it doing nothing, but I liked looking at the fight frames.",
+    "return": "I came back to '16 RUNS · D6 BEST · ◆+11 · 14 RETURNED · 2 DEATHS', $1154, a hatched kennel and a PENDING line 'R6 fired 0 of 16 runs: always → gas step'; I decided to reorder the card above attack, buy auto: restock and a second party slot, and I would not rather have stayed, though for 15 s the screen showed only 'RUNS 9 · BEST D6' and $0 and I thought the night had produced nothing.",
+    "attribution": "The last run I watched ended 'Returned with $65' because my loot ≥ 100 rule fired on D7; the deaths were mine too: I put retreat at 30% with three foes on me, I wrote drink unknown when the hero carried a heal, and I left the gas card under attack so it fired 0 of 16 runs; my retelling above uses 'I' or 'my' seven times."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "First edit within 8 min and the forecast recomputes on every chip so I always saw what an edit did ('delete attack → D2 28% ±12'); but I misread '2/4' and wasted ◆2, read 'Ashar slain' as a foe, '3 over' is never explained, 'card: gas step reach +47%' did not move the forecast at all, and the overnight 'R6 fired 0 of 16 runs' never said it was shadowed by R3. Adequate, not strong." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Real trade-offs at every check-in: bail at '$126 carried · return keeps 60% → $75' vs push at 'D6 18%'; throw (+21%) vs last stand (+21%) vs +1 row with ◆8; '7/6 · drop one' forced me to cut my own retreat rule; loot ≥ 100 vs 200. Lapse: the forecast only measures depth, so adding 'loot ≥ 100 → return' read as a penalty ('D4 90 → 78') and the gold side of the bank-or-push choice had to be judged blind." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Bests went D2 → D5 → D4 → D6 → D7 as I learned 'tame ✗ none weak', 'heal unused', and rule order; my final set came home 14 of 16 runs overnight versus the default's D2 death. Lapse: rule-shadowing (a card under 'foes ≥ 1 → attack' fires 0 times) is learnable only by inference from the trace, the game never states it." },
+    { "id": "tension", "human": 0.8, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'5/36 D5 !!' next to an ogre with 'death: lose all' and '$116 carried', then '4/40 D5' under 'ARCHER DRAWS'; the bail was a stake I chose and it paid. Lapse: once 'loot ≥ 100 → return' is written the overnight stakes are mostly resolved by rule (14 of 16 came home) and the report reads as routine." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Instant taps, one callout per 5-10 s at 1x, hit numbers ('−3 archer') and full-width pixel banners at the moments that matter. Not strong: 'fast' looked no faster than 'auto', party members were never visible on the map, 'they stir' ran 30 s with nothing else, and audio is unassessed (none)." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Mid-run 'choose one' vault, thieves ('The monkey stole the sword.'), dens ('they stir'), bloats ('it swells'), summoners, a tamed goblin captain, a shrine ('Pray, at a price.') — each changed what I bought or wrote. Lapse: by runs 6-7 the same warren beats repeat (goblin, archer, bloat on D4-D7, 'D7: the Warrens')." },
+    { "id": "expression", "human": 0.8, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Tamer-banker set ('foe: pack → tame nearest', 'loot ≥ 100 → return', gas card first) with a named kennel; 'yours: 4 of 6 rows · card R4 first' tracks ownership. Lapse: two of six rows are the game's words (a tapped patch and a preset card bundle) and the class is still 'fighter' — rogue/ranger/caster stayed locked all horizon." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "My best run retells with setup, turn and end (see delayedRecall); the reel line 'R1 retreat caught him. Returned with $75.' and the chronicle's 'found ♟1's bones' carry the lineage. Lapse: the overnight reel is five lines of the same mould ('A goblin took him to X HP; R3 attacked; ...')." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 5-9 min at 1x with a callout every 5-10 s, one 30 s 'they stir' lull. Check-in: 3-8 min, ending on a chosen send; return check-in 15 min, justified. Admin: reordering rules only by delete-and-re-add, condition sheets stack and stay open, the morgue sheet covers the edit button, ▶▶| needs ~40 taps to skip a run. Cadence: only one absence taken, so 20 min / 4 h / overnight are untested. Adequate." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "'goblin · D4 · 3 over · 5 unknown unused · gap' with the last five ticks ('R1 retreat  hp 6  foes 3'), the morgue's 'R1 no item', and patches with odds ('survives 100% · base 58% · reach +8%'); recovery is one tap. Lapse: '3 over' is never defined and the overnight worst death did not say why R6 never fired." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goal (bank $100 a run rather than reach depth), bailed when I chose, picked Krar over a jackal; the route through each floor and the biome are never mine." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "All three layers observed: within-run L1→L3 and 36→40 HP; between-run ◆ unlocks with the shop showing 'reach +21%' per card, renown ★0→★4, verb sheet 22→60 entries as facts were studied; automation 'auto: restock (auto rebuys last supplies)' after ~50 min. Lapse: after one night I held $1067 with only five supply slots to spend it on — money outran sinks." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Readable olive-and-black warren, good fight frames (archer drawing, ogre looming), terse lines ('The dungeon listens.'); no audio; every floor looked the same." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "The night produced '16 RUNS · 14 RETURNED · 2 DEATHS', $1154 (vs ~$75 per 8-min watched run), ◆11, hatched pets, 'R6 fired 0 of 16 runs' and a worst death to 'open'; three decisions followed (reorder, restock, party). Lapse: the first ~15 s showed the bare camp with 'RUNS 9 · BEST D6' and $0 ◆0, and the report's 'BANKED 0' beside fourteen '$61' lines confused what banking means. Note: scored the same sitting as the simulated absence." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "All four deaths I read end in a rule I wrote or ordered (retreat at 30% into three foes; drink unknown while a heal sat unused; the gas card shadowed by my attack row), and the fourteen returns were my 'loot ≥ 100 → return'; my retelling uses first person seven times. Lapse: the two rows I fixed deaths with were the game's offered patches, and the report's 'R6 fired 0 of 16 runs' leaves the why to me." }
+  ]
+}
