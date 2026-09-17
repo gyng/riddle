@@ -160,3 +160,35 @@ The two unmoved load-bearing axes carry the same evidence in every cohort:
   (`D9 0% · warlord · try: attack boss`) turns the wall into a ramp.
 
 Those three, plus audio (feel/aesthetic are weight 1 and have no sound at all), are the next cut.
+
+## Cohort 7 (build a7c47e9: Cut 10 — fights mode, the wall as a ramp, clarity rows, sound)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| M | 131 | 76.8 | none |
+| N | 137 | 74.1 | none |
+
+α = 0.878. Mean **75.5** (cohort 6: 74.6). Nine axes at 0.8 (decisions, surprise, story,
+failure, progression, return, attribution, mastery for one rater, pacing for one, clarity for
+one). Nothing below 0.6. Criterion for both: fun 5, play again 5, recommend 6, check in 5.
+
+Trajectory: 63.7 → 66.0 → 65.0 → 69.8 → 67.9 → 74.6 → **75.5**.
+
+### The honest read
+
+Every load-bearing axis has now been awarded 0.8 by at least one blind rater, and the 0.8
+anchor ("strong throughout, one named lapse") is where a rater lands when the thing is *good but
+not the best they know*. The next anchor, 1.0, requires "no material lapse across the horizon and
+a named genre benchmark does not do it better". No rater has awarded a 1.0 on any axis, and the
+calibration greats (84–91) are games that earn several. The step from 75 to 85 is not the sum of
+more one-line fixes; it is an axis where Riddle becomes the reference title. The two candidates,
+from what raters *praise* unprompted in every cohort, are `failure` ("the death screen is the
+game") and `attribution` ("every death is yours and it tells you why"). Those are already 0.8
+everywhere and never 1.0 because of the same named lapse: **the decisive cause is sometimes hidden**
+(M: "'R2 no item' while 'A thief snatched the heal potion' lives only in the morgue"; N: "monkeys
+stole my heal potions for five runs and the trace only ever said 'R1 no item'"). A death screen
+that traced the *chain* (the theft three floors earlier that emptied the potion slot the drink
+row needed) would be the thing no other roguelike does.
+
+The weight-1 axes (feel, aesthetic, autonomy at 0.6) are worth 2.7 points each in total; even
+at 1.0 they add ~3. The remaining ten points live in the 0.8 → 1.0 step on the weight-3 axes.
