@@ -1,0 +1,81 @@
+{
+  "$comment": "Blind rater P. Seed 157, phone 400x800@3 via tools/browser.mjs GPU harness, one browser context for the whole session. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md s1-3, the template. Did not open PLAN.md, research/, docs/CUT*, PLATEAU, INTEGRATION, other cards, or source. Notes and screenshots in scratchpad/raterP/. Audio unassessed (cannot hear; window.__audio.log showed rule/hit/slay/telegraph/unlock/exit cues firing, many sharing one timestamp in bursts).",
+  "game": "Riddle",
+  "build": "eec0f3f",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterP",
+  "horizon": {
+    "activeMinutes": 57,
+    "absences": ["8h simulated (?dev=1&absent=8h) after 39 min cold; then 18 min on return"],
+    "runsWatched": 9,
+    "runsOffline": 13,
+    "ruleEdits": 15,
+    "$note": "3 deaths read (goblin archer/gap, gas/dice, goblin archer/gap); 14 edits were my own (quaff-ID at hp>75%, rest, bank at D5, bank at D8, return at 25%, on-see-den, card reorders, row drops), 1 was a tapped patch (hp<30% -> return). Watched runs at the default 'fights' pace and at 'fast'; both take 1-4 min wall clock per run."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false,
+    "$note": "'rest 20m · send skips' is shown but never enforced; no money skips anything. Default rules forecast D6 46%; my set forecast D6 79% and reached D9 where the default died on D6. Of 3 deaths one was 'dice' (gas at 6 hp before I had any gas vocabulary) - 1 of 3 but n is tiny and 'adjacent >= 1 -> retreat' existed, so not counted as unfair."
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: I sent heir 4 down with my return-at-30% rule and the boss-focus card I had just moved above 'attack nearest', and he hit the Goblin Warlord on D8 at 13/40 with $256 in his pack while the HUD read 'boss · counter: attack boss'. My card fired ('R4 · card boss focus'), the Warlord rallied and put shields up, and then the goblin fell and the ranger class unlocked in the same breath. He walked down into D9, a new place called the fens with eels and a chained captive crying in the dark, dropped to 9/40, and my R2 sent him home with $159."
+  },
+  "probes": {
+    "clarity": "The watch HUD told me the whole stake in one line, '$49 · keeps $49 · bank at D5', but '+1 row ⊘ rows full' stayed locked while I sat at 4/4 rows, and after the absence a trace said 'R1 drink heal: no item ← never found' when camp showed the two heal potions I had packed still sitting at 5/5.",
+    "decisions": "I moved 'drink unknown' from 'hp < 30%' to 'hp > 75% + unknown item' because the forecast flipped from 'gas 24% · poison 22% · fire 16%' at D6 22% to D6 62%; and when the patch made the list '7/6 · drop one' I dropped 'depth ≥ 8 → bank' rather than the gas card. I would make both again.",
+    "mastery": "An hour ago I did not know a card placed below 'foes ≥ 1 → attack nearest' never fires; now I move every card above it and read 'card R5 first' in the forecast, and I know resting at 30% was worth D7 22% → 38% and kiting archers is worth −10.",
+    "tension": "I sweated at 13/40 on D8 with '$256 · keeps $153' in the HUD and 'Warlord rallies' on screen, and overnight I carried the question of whether 'return at 30%' would hold against the D6 archers; it did, 13 times, 0 deaths.",
+    "feel": "Hits flash the goblin to a white silhouette under a huge 'R2 ATTACK GOBLIN' callout and the HP bar drops in step; something changed on screen every 4 s at the default pace. The ▶▶| button did nothing on four tries. Audio unassessed.",
+    "surprise": "'The monkey stole the blink scroll', then 'den took the heal, D3', made me buy thief guard; a bloat's '−3 gas' made me buy gas step; 'goblin warlord · boss · buffer · summoner · telegraph' made me buy boss focus; D9 opened 'the fens' with 'Met a eel' and 'A cry from the dark: a captive, chained.' Runs 4-8 all ended the same way at D6 though.",
+    "expression": "Heal, then go home at 30%, then thief guard, boss focus, gas step in front of a plain 'attack nearest' - a cautious fighter who identifies potions when healthy and banks by running away. Two rows are mine; three are bought cards; the forecast says 'yours: 3 of 6 rows'.",
+    "story": "The reel gave me 'The lock took him to 10 HP; R1 drank; reached D7' and 'Trophy: no heal to D5'; the morgue wrote 'The dungeon listens.' and 'The air stings: bloats ahead.' Run 9 (warlord, fens, home with $159) is a real anecdote with a turn.",
+    "pacing": "In-run: a run is 1-4 min, a callout every 4 s, no dead time but exploration is a blur. Check-in: read death → edit → buy → send took 5-10 min and ended on 'send'. Cadence: the 8 h absence gave 13 runs, then 'rested 287m' - five of the eight hours produced nothing.",
+    "failure": "'goblin archer · D6 · 1 hp short · 3 unknown unused · gap', then a five-row trace, then 'R1 drink heal: no item ← drunk heal at 10/36 hp' with a WATCH link and three patches with 'survives 92% · base 58% · reach +17%'. My fault: I wrote no rule for hp 4 with two foes. Tapping a patch inserted it at R1 above 'drink heal' and made the list 7/6.",
+    "social": "weight 0",
+    "autonomy": "I chose to bank at D5 once to see what banking was, then chose D8, then chose 'return' instead; the hero's route is his own and the goal ladder (bank once, slay a boss, enter the Deep) is the game's.",
+    "progression": "Within a run: L1 → L3, 'sword +2', floors. Between runs: rows 2 → 6, vault 1 → 2, supplies 3 → 5, rogue and ranger classes, 5 potions identified ('strength=amber'), bestiary 10/38, renown ★0 → ★4, 'trophy: studied all warrens'. Automation: bought 'path: bones' and 'auto 5 supplies'; 'auto: restock / insure' still pending. ◆ income was 0 on two ordinary returns while $1276 piles up with little to spend on.",
+    "aesthetic": "Dark stone, olive brick, a red-caped fighter with a round shield, rats and archers with name tags; biomes are 'the Warrens' and 'the fens'. The watch view is mostly black around a small map; I would not sit in it idle. Audio unassessed.",
+    "return": "I came back to '13 RUNS · D8 BEST · ◆+12 · 13 RETURNED · 0 DEATHS', $50 → $1204, a STALL line 'R3 return ended 11 runs at D8', and 'R2 fired 0 of 4 runs' flags; I dropped those two rows and bought thief guard and boss focus within a minute. I would rather have been away than watching, except that the hero idled 287 of 480 minutes.",
+    "attribution": "The last run ended because my R2 'hp < 30% → return' fired at 9/40 on D9 after my boss card killed the warlord; the run before that ended at D4 because a den took the heal I packed and my return rule fired early. Both were my rules; the overnight stall was named as my R3. Pronouns in my retelling: I ×2, my ×5."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "HUD, death line and per-rule 'not safe' / 'hp not >75%' reasons were clear; '⊘ rows full' locked at 4/4, a trace saying 'never found' for packed heals, supplies showing a leash I never bought, an inert ▶▶| and a forecast that cannot tell 'went home' from 'died' are four separate misreads in one hour." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "quaff-ID at >75% vs <30% (D6 62% vs 22%), bank at D5 vs push, 'drop one' at 7/6, gas card vs den rule ('gas 100%' when removed) were all defensible either way and foreseeable in the forecast. Lapse: the forecast shows survival only, so the bank/return-vs-push trade is made half blind to gold." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "D6 → D9 in the horizon by learning card ordering, resting, and quaff-ID; the forecast made each lesson visible ('card R4 first'). Lapse: 'kite archers', sold as the archer answer, made archers 43% of deaths and I still have no archer answer." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'death: lose all' vs 'keeps 60%' is a chosen stake and the warlord fight at 13/40 with $256 carried had me watching; but most watched runs resolved the same way (return at D6) and the pace blurs the doubt into a 4-second HP tick." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Big pixel callouts and hit-flash silhouettes read instantly; a change every ~4 s. ▶▶| never responded; 'fast' is still 'slowed' on fights so it changed nothing I could see. Audio unassessed." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Bloat gas, monkey/den theft, the Goblin Warlord, dungeon vaults, the fens, 'the lock', nests each changed a rule or a purchase. Lapse: runs 4-8 repeated the D4-D6 archer/jackal loop with near-identical 'returned $NN' endings." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "A cautious identify-then-run-home fighter is describable, but three of six rows are prefab cards and only two are my own sentences; class stayed fighter." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Reel lines carry road + peak + end in one sentence ('The lock took him to 10 HP; R1 drank; reached D7'); the warlord-to-fens run is a real anecdote. Lapse: routine returns read 'D6: the Warrens. Returned with $54.'" },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "Check-ins were bounded (5-10 min, ended on send) and runs are 1-4 min with no dead time; but the card-insert-at-bottom and no-undo editor added friction on every check-in, and the overnight stalled after 13 runs with 'rested 287m'." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Every death gave cause, margin ('1 hp short'), verdict, a per-rule why-not, a WATCH link and odds-labelled patches; next run is one tap. Lapse: the tapped patch inserted above 'drink heal' and overflowed the list to 7/6, and the 'dice' gas death offered only reach −25% patches." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own depth to bank and my own hp to leave; route, exploration and the unlock ladder are the game's." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "All three layers observed: in-run levels/kit, persistent rows/cards/classes/vault/facts/bestiary/renown, and two automations bought in an hour. Lapse: ◆ went to 0 on two ordinary returns while gold outran anything to buy." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Good sprites and terse morgue prose ('The dungeon listens.'), but the watch screen is a small map in a black field. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "13 runs, $1150, a STALL diagnosis naming my rule and two dead-row flags gave me decisions within a minute of arriving. Lapse: 'rested 287m' - the hero idled for five of the eight hours." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Deaths and returns named my rows ('R3 rest: not safe', 'R2 return fired', 'R3 return ended 11 runs at D8') and I retell them in the first person. Lapse: one post-return run said 'never found' for a heal I had packed, breaking the chain for that run." }
+  ],
+  "gripes": [
+    "Cards always insert at the bottom below 'attack nearest' where they never fire, and re-adding an owned card via the verb picker glues an uneditable 'hp < 50%' onto it.",
+    "I cannot tell what the hero actually carries: a trace said 'never found' for two packed heals, and supplies later showed a leash I never bought.",
+    "The overnight stalled after 13 runs ('rested 287m'); the STALL line explained it, but five hours produced nothing."
+  ],
+  "tellAFriend": [
+    "Every death is a five-row trace that tells you which of your rules fired, which didn't and why ('not safe', 'hp not >75%'), plus patches with survival odds.",
+    "The forecast re-runs live as you edit, so you feel a bad rule (drink unknown at low hp → 'gas 24% · poison 22% · fire 16%') before you send.",
+    "Come back to a morning report with a reel like 'The monkey stole the blink scroll' and a STALL line that names the rule holding you back."
+  ]
+}

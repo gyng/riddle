@@ -67,6 +67,16 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
             game.events.clear();
             consumed += 1;
         }
+        // Cut 12: a begun run finishes past the budget (≤ one run), so an absence always ends
+        // at camp and the next send packs what the player bought and runs the rules they
+        // edited (cohort 8: a return's first run resumed a night-old run from D2 with an
+        // empty pack, and its trace read `no item ← never found` beside 5/5 supplies).
+        if game.run.as_ref().is_some_and(|r| r.over.is_none() && r.turn > 0) {
+            let before = game.run.as_ref().unwrap().turn;
+            game.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
+            game.events.clear();
+            consumed += (game.run.as_ref().unwrap().turn - before) as u64;
+        }
         if game.run.as_ref().is_some_and(|r| r.over.is_some()) {
             let outcome = game.finish_run().unwrap_or_default();
             game.auto_keep();
@@ -133,20 +143,10 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
                         game.stall = StallTally::default();
                     }
                     game.batch.rested += extra * (rested / SAMPLE_RUNS as u64);
-                    consumed = budget - remaining % mean;
                     game.lineage.total_turns += extra * mean;
                 }
                 sampled = true;
-                // Leave the hero mid-run where the budget ran out.
-                if consumed < budget {
-                    game.lineage.rest_left = 0;
-                    game.start_run(None);
-                    while game.run.as_ref().is_some_and(|r| r.over.is_none()) && consumed < budget {
-                        game.tick();
-                        game.events.clear();
-                        consumed += 1;
-                    }
-                }
+                // The extrapolation covered the rest of the budget; the hero is at camp.
                 break;
             }
         }
@@ -164,7 +164,10 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
     let worst_death = if full { worst_death_id.and_then(|id| crate::trace::death(game, id)) } else { None };
     let pending = crate::meta::pending(game);
     let stall = stall_verdict(game);
-    let live = game.ensure_run();
+    // Cut 12: no run is started here — an idle run at turn 0 would have packed the supplies
+    // before the player bought them at camp (`start_run` packs). `live` is the run in
+    // progress only when one exists (never after an absence; kept on the wire as optional).
+    let live = game.run.as_ref().map(|_| game.snapshot());
     game.events.clear();
     // Cut 9 §6: the reel skips the pairs of the last three absences' reels and remembers its
     // own.

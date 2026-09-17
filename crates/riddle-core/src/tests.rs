@@ -1078,15 +1078,16 @@ fn forecast_is_bounded_by_best_depth_plus_one() {
 // ---------------------------------------------------------------- offline
 
 #[test]
-fn offline_consumes_the_budget_and_leaves_the_hero_mid_run() {
+fn offline_consumes_the_budget_and_ends_at_camp() {
     let mut g = Game::new(4);
     let r = g.run_offline(300);
     assert_eq!(r.elapsed_s, 300);
-    assert!(g.lineage.total_turns >= 3000 && g.lineage.total_turns <= 3010, "{}", g.lineage.total_turns);
-    assert!(g.run.as_ref().is_some_and(|r| r.over.is_none()), "hero left mid-run");
+    // Cut 12: the begun run finishes past the budget (≤ one run), the hero is at camp.
+    assert!(g.lineage.total_turns >= 3000, "{}", g.lineage.total_turns);
+    assert!(g.run.is_none(), "an absence ends at camp");
+    assert!(r.live.is_none());
     assert!(!r.sampled);
     assert!(!r.learned.is_empty());
-    assert_eq!(r.live.turn, g.run.as_ref().unwrap().turn);
     let r = g.run_offline(3600);
     assert!(!r.pending.is_empty(), "an hour away leaves a decision: {:?}", r.pending);
 }
@@ -1109,7 +1110,7 @@ fn offline_samples_after_twenty_stalled_runs() {
     let r = g.run_offline(30 * 3600);
     assert!(r.sampled, "a walled passive policy stalls and is sampled");
     assert!(r.runs > 40);
-    assert!(g.run.is_some());
+    assert!(g.run.is_none(), "an absence ends at camp (Cut 12)");
 }
 
 // ---------------------------------------------------------------- stall verdict
@@ -1975,9 +1976,9 @@ fn a_full_lineage_plays_through_many_runs_without_panics() {
     g.lineage.unlocks.insert("party_slot_2".into());
     let r = g.run_offline(1200);
     assert!(r.runs >= 1);
-    assert!(r.live.turn > 0 || g.lineage.rest_left > 0, "mid-run, or resting at camp");
+    assert!(r.live.is_none() && g.run.is_none(), "an absence ends at camp");
     let v = serde_json::to_value(&r).unwrap();
-    for k in ["elapsed_s", "runs", "sampled", "learned", "bests", "found", "deaths", "pending", "reel", "marks_earned", "live", "tamed", "hatched", "lost", "xp", "salvaged", "renown"] {
+    for k in ["elapsed_s", "runs", "sampled", "learned", "bests", "found", "deaths", "pending", "reel", "marks_earned", "tamed", "hatched", "lost", "xp", "salvaged", "renown"] {
         assert!(v.get(k).is_some(), "report missing {k}");
     }
 }
@@ -6006,4 +6007,23 @@ fn patches_never_offer_a_row_the_set_already_has() {
         }
     }
     assert!(checked >= 10, "{checked} patches checked");
+}
+
+/// Cut 12 (cohort 8, rater P): supplies bought at camp after an absence are in the pack of
+/// the next send, and that send starts a fresh run under the rules edited at camp.
+#[test]
+fn the_first_send_after_an_absence_packs_what_was_bought_at_camp() {
+    let mut g = Game::new(9);
+    g.run_offline(2 * 3600);
+    assert!(g.run.is_none());
+    g.lineage.gold += 500;
+    let kind = "heal";
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, kind).unwrap());
+    let before = g.lineage.supplies.len();
+    g.buy_supply(kind).expect("a heal is for sale");
+    assert_eq!(g.lineage.supplies.len(), before + 1);
+    let s = g.send();
+    assert_eq!(s.turn, 0, "a fresh run");
+    let run = g.run.as_ref().unwrap();
+    assert!(run.hero.inv.iter().any(|i| i.kind == kind), "the bought heal is in the pack: {:?}", run.hero.inv.iter().map(|i| &i.kind).collect::<Vec<_>>());
 }
