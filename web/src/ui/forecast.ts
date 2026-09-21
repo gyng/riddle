@@ -85,7 +85,11 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   };
   // until the first forecast arrives (≈1 s in the worker): the unknown row only
   bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, "…"), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
-  const off = app.onForecast(paint), offRules = app.onRules(paintYours), offChange = app.onChange(paintYours);
+  // a rule edit (or a set switch) dims the numbers until the engine's next forecast paints — an empty set's takes seconds and
+  // the old set's bars read as the new one's meanwhile (QA on 952e306: "set '2 0' showed set 1's D4 72%")
+  const stale = (): void => { paintYours(); el.classList.add("stale"); };
+  const fresh = (f: Forecast): void => { el.classList.remove("stale"); paint(f); };
+  const off = app.onForecast(fresh), offRules = app.onRules(stale), offChange = app.onChange(paintYours);
   paintYours();
   // the first forecast posts after the camp's own fetches (the worker answers in order: a forecast posted first held the
   // supply shop and the unlock shelf behind it — QA B on 952e306: "while FORECAST shows '…' the shop chips and UNLOCKS are gone")
