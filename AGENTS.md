@@ -33,13 +33,14 @@ research/              the four research reports behind the plan
 ## Commands (iteration tiers — use the cheapest that answers the question)
 
 ```sh
-tools/verify.sh --quick        # tests (fast profile) → tsc → copy-lint            ~20 s
+tools/verify.sh --quick        # tests (fast profile) ∥ tsc + copy-lint            ~13 s
 tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~2 min
 tools/verify.sh --full         # + shipping wasm → full gate table                  ~5 min
 cargo test -q --workspace --profile fast                     # ~9 s warm; never plain `cargo test` (7× slower)
 node tools/gates.mjs [--full]                                # quick: 8 seeds × 8 h × 3 verdicts + dayplayer 2 seeds alongside (~75 s); full: 30 × 8 × 8
 (cd web && pnpm -s test)                                     # the client gates, all at once, headless (~30 s); `node tests/run.mjs fights cut12` for a few
 tools/wasm.sh [--ship]                                       # fast wasm (~15 s incremental) / wasm-pack release (~40 s)
+tools/ship.sh [--preview]                                    # cohort build on :5230 (fat LTO, ~2 min); --preview: fast wasm, ~25 s, for QA rounds
 cargo run -q --profile fast -p riddle-core --example cli -- --seed 1 --rules crates/riddle-core/presets/good.json --runs 3
 cargo run -q --profile fast -p riddle-core --example timing -- 1 8   # where a gate job spends its time
 tools/dev.sh                                                 # ensure the Vite dev server on :5219 (never restart a running one)
@@ -89,9 +90,12 @@ third of it the chores' floods).
   detached (`setsid nohup`).
 - After editing Rust, rebuild `web/src/engine/pkg`; the PWA precache is versioned, so verify
   frontend changes on a fresh port.
-- `tools/ship.sh` takes ~6 min (fat-LTO wasm); run it in the foreground with a long timeout
-  or in the background and poll `curl localhost:5230` + `web/dist` mtimes. Never wait on it
-  with `pgrep -f tools/ship.sh`: the waiter's own command line matches.
+- `tools/ship.sh` takes ~2 min (fat-LTO wasm + wasm-opt; `--preview` ~25 s). Never pipe it
+  (`ship.sh | tail`): the detached preview holds the pipe and the call never returns — redirect
+  to a file and poll `curl localhost:5230` (+ a marker string in the served JS). Never wait on
+  it with `pgrep -f tools/ship.sh`: the waiter's own command line matches.
+- `docs/ITERATION_SPEED.md` ranks what to speed up next (mechanical QA, compound driver ops,
+  the history ring, a table cache).
 - A stale Vite dev server from a previous day can serve stale transforms; `tools/dev.sh`
   reuses whatever is on the port, so kill it by pid when a walk shows old UI.
 

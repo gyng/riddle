@@ -3,6 +3,7 @@
 //   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds alongside (~50 s)
 //   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts, dayplayer 3 seeds (~2.5 min); the number that counts
 import { spawn, spawnSync } from "node:child_process";
+import os from "node:os";
 const full = process.argv.includes("--full");
 const extra = process.argv.slice(2).filter((a) => a !== "--full");
 const b = spawnSync("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", "--example", "metrics", "--example", "dayplayer"], { stdio: "inherit" });
@@ -14,10 +15,13 @@ const run = (bin, args) => new Promise((resolve) => {
   let out = ""; p.stdout.on("data", (d) => (out += d));
   p.on("close", (status) => resolve({ status, stdout: out }));
 });
-const [r, p] = await Promise.all([
-  run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), ...extra]),
-  run("target/fast/examples/dayplayer", ["--gate", "--seeds", full ? "3" : "2"]),
-]);
+// The dayplayer's chains are the critical path: they start first and the table leaves them
+// their cores (docs/ITERATION_SPEED.md §3.2).
+const seeds = full ? 3 : 2;
+const cores = os.availableParallelism();
+const dayplayer = run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds)]);
+const table = run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - seeds - 1)), ...extra]);
+const [r, p] = await Promise.all([table, dayplayer]);
 process.stdout.write(r.stdout ?? "");
 if (r.status !== 0 || !/gates: all PASS/.test(r.stdout ?? "")) { console.error("gates: FAIL"); process.exit(1); }
 // Fourteen-day pacing probe. Two of its bars (unlock days ≥ 10/14, stall ≤ 3 d) assume the full

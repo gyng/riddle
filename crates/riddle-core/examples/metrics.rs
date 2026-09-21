@@ -428,7 +428,9 @@ fn main() {
         .collect();
     let results: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let jobs: Vec<(usize, u64)> = BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| (bi, s))).collect();
-    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(32);
+    // `--threads N` leaves cores to whatever runs beside the table (gates.mjs: the dayplayer's
+    // sequential chains, which the full 32 starved — docs/ITERATION_SPEED.md §3.2).
+    let threads = get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(4).min(32)) as usize;
     let jobs = Arc::new(Mutex::new(jobs));
     let mut handles = Vec::new();
     for _ in 0..threads {
