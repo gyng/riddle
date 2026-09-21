@@ -147,11 +147,11 @@ pub fn card_insert_at(rules: &crate::rules::RuleSet) -> usize {
 pub fn needs(l: &LineageState, u: &UnlockDef) -> Option<String> {
     gate(l, u.id)
         .or_else(|| u.prereq.filter(|p| !l.unlocks.contains(*p)).map(|p| p.to_string()))
-        .or_else(|| (is_row_unlock(u.id) && l.rules().own_rows() < l.max_rows()).then(|| "rows full".to_string()))
+        .or_else(|| (is_row_unlock(u.id) && l.rules().own_rows() < l.max_rows()).then(|| "fill rows".to_string()))
         .or_else(|| (l.marks < u.cost).then(|| format!("◆{} more", u.cost - l.marks)))
 }
 
-/// Cut 10 §3: a row unlock (`row5`…`row10`) reads `needs: rows full` while the active set
+/// Cut 10 §3: a row unlock (`row5`…`row10`) reads `needs: fill rows` (a requirement, not a state — both QA players on 952e306 read `rows full` as one) while the active set
 /// still has a free row — the card is dimmed, not bought by mistake (cohort 6, rater L: "2/4
 /// rows made me waste ◆2 on +1 row"). `buy` does not refuse it (the bots buy rows ahead of
 /// writing them); the client checks `available` as the core does.

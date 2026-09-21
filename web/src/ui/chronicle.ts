@@ -2,6 +2,8 @@
 // newest first, monospace, nothing added. A core without the field shows an empty sheet.
 // Cut 9 §7: a line whose heir's grave carries `death_id` (the core keeps the last 5 deaths' traces) is a button that opens
 // that death (trace + patches, `engine.death(id)`); every other line stays plain text.
+// QA on 952e306 ("chronicle empty: only '·'"; "old death screen, no back/close, Escape inert"): the sheet carries its label
+// and nothing else while empty; a kept death opens with `kept`, so Escape (and `edit`) lead back to the camp.
 import type { App } from "../app";
 import type { Lineage } from "../engine/types";
 import { h } from "./dom";
@@ -19,13 +21,13 @@ export function openChronicle(app: App): void {
   openSheet(() => {
     const L = app.lineage;
     const lines = [...(L.chronicle ?? [])].reverse();
-    return h("div", { class: "sheet-body chronicle" }, ...lines.map((line) => {
+    return h("div", { class: "sheet-body" }, h("div", { class: "label" }, /* copy:label */ "chronicle"), h("div", { class: "chronicle" }, ...lines.map((line) => {
       const id = keptDeath(L, line);
       if (id === undefined) return h("div", { class: "cline" }, line);
       return h("button", { class: "cline kept", onclick: () => {
-        void app.busy(/* copy:label */ "verdict", () => app.engine.death(id)).then((death) => { closeAllSheets(); app.go({ kind: "death", death }); })
+        void app.busy(/* copy:label */ "verdict", () => app.engine.death(id)).then((death) => { closeAllSheets(); app.go({ kind: "death", death, kept: true }); })
           .catch((e) => console.warn("kept death", e));
       } }, line, h("small", { class: "dim" }, " ▸"));
-    }));
+    })));
   });
 }

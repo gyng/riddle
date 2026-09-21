@@ -33,7 +33,8 @@ export function openSettings(app: App): void {
       row(/* copy:label */ "rules", rulesOut, rulesIn),
       area,
       row(/* copy:label */ "engine", h("span", { class: "badge num" }, app.kind === "wasm" ? `wasm ${app.version}` : app.kind)),
-      row(/* copy:label */ "lineage", h("span", { class: "num dim" }, `#${app.lineage.seed.toString(16)}`), reset),
+      // the seed in decimal (both QA players on 952e306 decoded `#d3` as 211 in hex)
+      row(/* copy:label */ "lineage", h("span", { class: "num dim" }, /* copy:label */ `seed ${app.lineage.seed}`), reset),
     );
     return body;
   });

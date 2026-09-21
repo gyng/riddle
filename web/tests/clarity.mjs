@@ -4,7 +4,7 @@
 //   §2  the forecast's boss floor reads `D5 0% · goblin warlord · try: attack boss` when the counter fact is known and the row
 //       is absent; tapping it inserts the row at the top of the active set (and the bestiary chip inserts at the top too)
 //   §3  `rest 20m · send skips` permanently · a greyed supply says why under its price · `▲▼` chips (44 px) move a row ·
-//       the `+1 row` card is dimmed `rows full` while free rows exist · `3 over` reads `3 hp short` · the report's tiles read
+//       the `+1 row` card is dimmed `⊘ fill rows` while free rows exist · `3 over` reads `3 hp short` · the report's tiles read
 //       `returned · banked · deaths` when returns outnumber banks, its exit lines lead with `returned $61`, a lost companion reads
 //       `jackal Ashar fell` · a card's delta reads `reach +N% at R2` (Cut 12: where it goes) · the tiles fade in after an absence
 //
@@ -57,15 +57,15 @@ try {
     const back = await rowTexts();
     check(back[0] === rows[0] && back[1] === rows[1], "▲ on R2 puts it back");
   }
-  // §3 `+1 row` dimmed `rows full` while free rows exist (a fresh fake set has fewer rows than max_rows)
+  // §3 `+1 row` dimmed `⊘ fill rows` while free rows exist (a fresh fake set has fewer rows than max_rows)
   {
     const info = await page.evaluate(() => { const r = window.__riddle; const card = [...document.querySelectorAll(".unlocks .card")].find((c) => /^\+1 row/.test(c.textContent)); return { rows: r.rules.rows.length, max: r.vocab.max_rows, has: !!card, gated: card?.classList.contains("gated"), needs: card?.querySelector(".needs")?.textContent.trim() }; });
-    check(info.rows < info.max && info.has && info.gated && /rows full$/.test(info.needs ?? ""), `the +1 row card is dimmed (${info.rows}/${info.max} rows): "${info.needs}"`);
+    check(info.rows < info.max && info.has && info.gated && /fill rows$/.test(info.needs ?? ""), `the +1 row card is dimmed (${info.rows}/${info.max} rows): "${info.needs}"`);
     // fill the set: the card's gate lifts (the fake's own gate then decides)
     await page.evaluate(() => { const r = window.__riddle; while (r.rules.rows.length < r.vocab.max_rows) r.rules.rows.push({ conds: [{ k: "hp<", n: 30 }], verb: { v: "retreat" }, origin: "player" }); r.rulesChanged(); r.go({ kind: "camp" }); });
     await settle();
     const full = await page.evaluate(() => { const card = [...document.querySelectorAll(".unlocks .card")].find((c) => /^\+1 row/.test(c.textContent)); return card?.querySelector(".needs")?.textContent.trim() ?? ""; });
-    check(!/rows full/.test(full), `with the set full the card no longer says rows full ("${full}")`);
+    check(!/fill rows|rows full/.test(full), `with the set full the card no longer says fill rows ("${full}")`);
   }
   // §3 a card's reach delta says where the card goes — Cut 12 §1: `at R2` (before the engagement row, the catalogue's `insert_at`), else `at end`
   {

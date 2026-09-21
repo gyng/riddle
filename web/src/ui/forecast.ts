@@ -5,7 +5,8 @@
 // Cut 7 §2: `yours: 3 of 5 rows` under the bars — the rows of the active set the player wrote or edited (`Row.origin`),
 // repainted on every edit (the forecast itself waits for the engine).
 // Cut 9 §3: a bar reads `D4 71% ±6` when the engine sends `pm` (the binomial half-width), so a wobble reads as noise.
-// Cut 9 §4: the `yours` line appends `· card R2 first` when a card row sits above any of the player's rows.
+// Cut 9 §4 appended `· card R2 first` to the `yours` line; gone since Cut 12 §1 put a card before the engagement row on purpose
+// (both QA players on 952e306: "what 'first' means for a row that sits third").
 // Cut 10 §2: a boss floor whose counter is known and whose row is absent reads `D9 0% · warlord · try: attack boss` (the
 // engine's `try`, or the client's read of `Lineage.counters` against the set); tapping the bar inserts the row at the top.
 // Cut 12 §1: `yours: n of m rows` counts own rows (card rows sit outside `max_rows`); §3: one line under the depths says how a
@@ -13,7 +14,6 @@
 import type { App } from "../app";
 import type { Forecast, ForecastTry, Row } from "../engine/types";
 import { h, clear, pct, replace } from "./dom";
-import { cardAbovePlayer } from "./editor";
 import { closeAllSheets } from "./sheet";
 
 const sameRow = (a: Row, b: Row): boolean =>
@@ -38,14 +38,11 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const ends = h("div", { class: "fc-ends num dim", hidden: true });
   const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast"), bars, ends, yours, causes);
   // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
-  // Cut 9 §4: `· card R2 first` when a `[card]` row sits above any of the player's rows (a card is an always-row that
-  // takes the turn while its trigger holds)
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
-    const n = app.playerRows(), m = app.ownRows(), combos = app.combos(), card = cardAbovePlayer(app.rules.rows);
+    const n = app.playerRows(), m = app.ownRows(), combos = app.combos();
     replace(yours, h("span", { class: n ? "" : "dim" }, /* copy:callout */ `yours: ${n} of ${m} row${m === 1 ? "" : "s"}`),
-      combos.length ? h("span", { class: "combos" }, ` · ${combos.map((c) => c.name).join(" · ")}`) : "",
-      card ? h("span", { class: "card-first" }, /* copy:callout */ ` · card R${card} first`) : "");
+      combos.length ? h("span", { class: "combos" }, ` · ${combos.map((c) => c.name).join(" · ")}`) : "");
   };
   // Cut 12 §3: `bank 40% · return 35% · death 25% · ~$54` — the three shown always so the trade reads; absent on an older core
   const paintEnds = (f: Forecast): void => {
@@ -90,6 +87,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, "…"), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
   const off = app.onForecast(paint), offRules = app.onRules(paintYours), offChange = app.onChange(paintYours);
   paintYours();
-  void app.emitForecast();
+  // the first forecast posts after the camp's own fetches (the worker answers in order: a forecast posted first held the
+  // supply shop and the unlock shelf behind it — QA B on 952e306: "while FORECAST shows '…' the shop chips and UNLOCKS are gone")
+  setTimeout(() => void app.emitForecast(), 0);
   return { el, dispose: () => { off(); offRules(); offChange(); } };
 }

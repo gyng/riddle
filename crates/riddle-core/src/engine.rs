@@ -25,7 +25,8 @@ pub const HISTORY_STRIDE: u32 = 10;
 /// for this many hero actions after it was last seen.
 pub const REMEMBER_ACTIONS: u32 = 10;
 /// A run that cannot finish in this many ticks (≈ 3 h 20 min at 1×) comes home empty-handed
-/// (tier `return`, yield ×0: a stalemate is not a policy). Cut 3: a D30 run needs ~75 000.
+/// (tier `return`, yield ×0: a stalemate is not a policy; the DEFAULT set must yield nothing
+/// over 8 h, and a stall that kept the return's share paid it). Cut 3: a D30 run needs ~75 000.
 pub const MAX_TURNS_PER_RUN: u32 = 120_000;
 /// Oscillation-guard firings on one floor before the run ends as `stalled` and gets a verdict.
 pub const STALL_FIRES: u32 = 3;
@@ -1823,7 +1824,10 @@ impl Game {
         }
         // A run that keeps shuffling on one floor is a policy failure, not a wait: end it as a
         // return with nothing kept so the stall verdict names the row (rater F: minutes of
-        // `to corridor` ↔ `pick up` at frozen HP with no trace and no patch).
+        // `to corridor` ↔ `pick up` at frozen HP with no trace and no patch). Keeping the
+        // return's share was tried (QA on 952e306: four stalls in an hour, $72–$145 forfeited)
+        // and let the DEFAULT set profit over 8 h, a gated invariant; the line says `stalled`
+        // and counts the unused supplies instead.
         if run.stuck_fires >= STALL_FIRES && run.over.is_none() {
             run.timed_out = true;
             crate::chronicle::note(run, &mut cx, "Stalled. Came home empty-handed.".into());
@@ -2078,7 +2082,7 @@ impl Game {
             if !self.lineage.trophies.contains(tr) {
                 self.lineage.trophies.push(tr.clone());
                 marks += 2;
-                bests.push(format!("trophy: {tr}"));
+                bests.push(format!("trophy: {}", trophy_label(tr)));
             }
         }
         // Class XP (Addendum C, Cut 2 §2): only banked and returned runs feed it. Cut 7 §5: a
@@ -2108,7 +2112,7 @@ impl Game {
             if !self.lineage.trophies.contains(&tr) {
                 self.lineage.trophies.push(tr.clone());
                 marks += 2;
-                bests.push(format!("trophy: {tr}"));
+                bests.push(format!("trophy: {}", trophy_label(&tr)));
                 self.lineage.unlocks.insert(mastery_card(class).into());
             }
         }
@@ -2205,7 +2209,7 @@ impl Game {
             if ok && !self.lineage.trophies.contains(&tr) {
                 self.lineage.trophies.push(tr.clone());
                 marks += 2;
-                bests.push(format!("trophy: {tr}"));
+                bests.push(format!("trophy: {}", trophy_label(&tr)));
             }
         }
         for biome in Biome::ALL {
@@ -2215,14 +2219,14 @@ impl Game {
             {
                 self.lineage.trophies.push(tr.clone());
                 marks += 2;
-                bests.push(format!("trophy: {tr}"));
+                bests.push(format!("trophy: {}", trophy_label(&tr)));
             }
             // Cut 3: every kind of a biome studied (five kills each) — three marks.
             let tr = format!("studied_all_{}", biome.name());
             if !self.lineage.trophies.contains(&tr) && crate::defs::biome_kinds(biome).iter().all(|k| self.lineage.studied(k)) {
                 self.lineage.trophies.push(tr.clone());
                 marks += 3;
-                bests.push(format!("trophy: {tr}"));
+                bests.push(format!("trophy: {}", trophy_label(&tr)));
             }
         }
         // Bones recovered this run (Cut 2 §2): the piles leave the lineage; their items are now
@@ -2783,6 +2787,22 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
         text.push_str(&format!(" · {unused} {} unused", if unused == 1 { "supply" } else { "supplies" }));
     }
     ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None }
+}
+
+/// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:
+/// studied:5` — no screen explains trophies"): `studied:5` → `5 studied`, `home:10` → `10
+/// homecomings`, `slain:100` → `100 slain`, `bones:1` → `first bones`, `ledger:warrens` →
+/// `warrens ledger`, a run trophy's snake case as words (`no heal D5`).
+pub fn trophy_label(id: &str) -> String {
+    match id.split_once(':') {
+        Some(("studied", n)) => format!("{n} studied"),
+        Some(("home", n)) => format!("{n} homecomings"),
+        Some(("slain", n)) => format!("{n} slain"),
+        Some(("bones", _)) => "first bones".into(),
+        Some(("ledger", biome)) => format!("{biome} ledger"),
+        Some((a, b)) => format!("{a} {b}").replace('_', " "),
+        None => id.replace('_', " "),
+    }
 }
 
 /// Salvage value per kind (Addendum D).

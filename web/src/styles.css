@@ -50,7 +50,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .chip.verb { background: var(--verb); border-color: #6b4d2a; }
 .chip.add { color: var(--dim); background: transparent; border-style: dashed; padding: 0 12px; }
 .chip.on { outline: 2px solid var(--acc); outline-offset: -2px; }
-.chip.empty { color: var(--dim); border-style: dashed; background: transparent; min-width: 60px; justify-content: center; }
+.chip.empty { color: var(--dim); border-style: dotted; background: transparent; min-width: 60px; justify-content: center; opacity: .55; pointer-events: none; }   /* an empty vault slot: not a tap target (QA: "vault slot '·' tap: nothing happened") */
 .chip.risk { border-color: var(--warn); color: #ffd7a8; }
 .chip.fact { background: #1f3a2b; border-color: #2f5c40; }
 .arrow { color: var(--acc); padding: 0 2px; }
@@ -66,6 +66,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .btn.primary { background: var(--acc); color: #1a1400; border-color: var(--acc); font-weight: 700; }
 .btn.ghost { border-style: dashed; color: var(--dim); background: transparent; min-width: var(--tap); }
 .btn.wide { width: 100%; margin-top: 10px; }
+.sheet-body > .btn.wide:first-child { margin: 0 0 10px; }   /* the cond picker's `×` leads the sheet */
 .btn.danger { border-color: var(--hp); color: #ffb3b3; }
 .btn-row { display: flex; gap: 10px; margin-top: 20px; }
 .btn-row .btn { flex: 1; }
@@ -106,6 +107,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .sheet-wrap { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; z-index: 10; }
 .sheet { width: 100%; max-width: 520px; margin: 0 auto; max-height: 72dvh; overflow: auto; background: var(--panel); border-radius: 16px 16px 0 0; border-top: 1px solid var(--line); padding: 14px 12px calc(20px + env(safe-area-inset-bottom)); }
 .sheet-head { color: var(--dim); font-size: 13px; margin: 0 0 10px; }
+.sheet-body > .label:first-child { margin-top: 0; }   /* a sheet's one-word title (`ledger` · `forge` · `chronicle`) sits at the top */
 .grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .grid.nums .chip { min-width: 64px; justify-content: center; }
 .settings .srow { display: flex; align-items: center; gap: 10px; min-height: var(--tap); }
@@ -204,7 +206,6 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 
 /* chronicle (Cut 5 §2): one heir per line, newest first */
 .chronicle .cline { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
-.chronicle:empty::after { content: "·"; color: var(--dim); }
 
 /* class picker (Cut 5 §6): a class and its verb ladder */
 .classes { display: flex; flex-direction: column; gap: 10px; }
@@ -325,9 +326,8 @@ button.chip.locked { cursor: pointer; }
 .unlock-sheet .needs-line { font-size: 13px; margin: 4px 0; }
 .unlock-sheet .delta { font-size: 13px; margin: 4px 0; }
 .unlock-sheet .buy.off { opacity: .4; cursor: default; }
-/* Cut 9 §4: the card's trigger on its chip; `· card R2 first` on the forecast's yours line */
+/* Cut 9 §4: the card's trigger on its chip */
 .chip .trigger { font-size: 11px; }
-.fc-yours .card-first { color: var(--warn); }
 /* Cut 9 §3: `±6` after the reach */
 .bar .pm { font-size: 11px; }
 /* Cut 9 §5: the trace chip on an exit line / the exit sheet; the trace in a sheet */

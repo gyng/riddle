@@ -4,19 +4,19 @@
 // shelf as chips that open their rows (§6); `rest 12m` is a chip that answers `send skips rest` (§7).
 // Cut 9: an unlock card opens its sheet, the buy is there (§2); the forge sheet shows each kind's ladder (§10).
 // Cut 10 §3: the rest chip reads `rest 20m · send skips` permanently; a greyed supply says why under its price (`3/3 slots`,
-// the engine's `needs`, `$12 short`); the `+1 row` card is dimmed `rows full` while free rows exist; a card's reach delta is
+// the engine's `needs`, `$12 short`); the `+1 row` card is dimmed `fill rows` while free rows exist; a card's reach delta is
 // labelled `at end` (a bought card becomes the last row). Cut 10 §4: the camp drone (biome of the next floor) while mounted.
-// Cut 12 §1: rows are own rows — `rows full` and `5/4 · drop one` count them against `max_rows`; a card never takes a row (it
+// Cut 12 §1: rows are own rows — `fill rows` and `5/4 · drop one` count them against `max_rows`; a card never takes a row (it
 // sits outside the cap) and its reach delta is labelled where it goes (`at R3`, the catalogue's `insert_at`). §6: the unlock
 // shelf refetches when a rule edit crosses `max_rows` (`app.onShelf`); a supply line has its own `×`; a free line reads `· kennel`.
 import type { App, Mounted } from "../app";
-import type { UnlockInfo } from "../engine/types";
+import type { SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, replace, spanOf } from "./dom";
-import { heroBinding, openRowsSheet, renderEditor } from "./editor";
+import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
-import { classList, deltaLabel, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
+import { classList, deltaLabel, openOwnedSheet, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS, xpToNext } from "../engine/classes";
@@ -71,7 +71,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     openSheet(() => {
       const L = app2.lineage; const rows = Object.entries(L.forge ?? {}).sort((a, b) => b[1].salvaged - a[1].salvaged);
       const head = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), h("span", null, ""), /* copy:label */ ...["craft", "tier"].map((s) => h("span", { class: "dot-h" }, s)));
-      return h("div", { class: "sheet-body ledger forge" }, head, ...rows.map(([kind, f]) => h("div", { class: "lrow" },
+      // the sheet's title (QA on 952e306: "forge: 'CRAFT TIER' header only")
+      return h("div", { class: "sheet-body ledger forge" }, h("div", { class: "label" }, /* copy:label */ "forge"), head, ...rows.map(([kind, f]) => h("div", { class: "lrow" },
         h("span", { class: "k" }, kind.replace(/_/g, " ")),
         h("span", { class: "ladder num dim" }, /* copy:label */ "salvaged", " ", f.next ? h("span", null, `${f.salvaged}/${f.next.need}`, " → ", h("span", { class: "rung" }, f.next.label.replace(/_/g, " "))) : `${f.salvaged}`),
         h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "⚒" : "○"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "·"))));
@@ -136,7 +137,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           onclick: () => void app.mutate(() => app.engine.insure(it.id)) }, ins ? /* copy:label */ "insured" : `$${price}`));
       }
     }
-    for (let i = L.vault.length; i < slots; i++) chips.appendChild(h("span", { class: "chip empty" }, "·"));
+    // an empty slot is a plain marker, never a tap target (QA on 952e306: "vault slot '·' tap: nothing happened")
+    for (let i = L.vault.length; i < slots; i++) chips.appendChild(h("span", { class: "chip empty", "aria-hidden": "true" }, "·"));
     vault.appendChild(chips);
     // keep preference for offline exits
     const prefs = h("div", { class: "chips prefs" }, h("span", { class: "dim" }, /* copy:label */ "keep"),
@@ -159,9 +161,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       isFreeSupply(L, p) ? h("small", { class: "dim found" }, /* copy:callout */ " · kennel") : "",
       h("button", { class: "x", onclick: () => void app.dropSupply(p.id) }, "×")));
     supplies.appendChild(chips);
-    const gen = ++supplyGen;
-    void app.engine.supplyCatalogue().then((cat) => {
-      if (gen !== supplyGen) return;
+    // the shop from the last catalogue at once, the engine's replacing it when it arrives (QA B on 952e306: "while FORECAST
+    // shows '…' the SUPPLIES shop chips are gone"); the gold and the slots are read live either way
+    const shop = (cat: SupplyEntry[]): void => {
+      for (const b of [...chips.querySelectorAll(".chip.buy")]) b.remove();
       for (const e of cat) {
         const can = !full && !e.needs && L.gold >= e.price;
         // Cut 10 §3: a greyed supply says why under its price — the slots, the engine's gate, or the gold missing
@@ -169,12 +172,20 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         chips.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind)) },
           h("span", { class: "buy-main" }, h("span", null, e.label, " ", h("b", { class: "num gold" }, `$${e.price}`)), why ? h("small", { class: "why num dim" }, why) : "")));
       }
+    };
+    if (app.supplyCat.length) shop(app.supplyCat);
+    const gen = ++supplyGen;
+    void app.engine.supplyCatalogue().then((cat) => {
+      if (gen !== supplyGen) return;
+      app.supplyCat = cat; shop(cat);
     }).catch((e) => console.warn("catalogue", e));
   }
   let supplyGen = 0, unlockGen = 0;
   let unlockCat: Parameters<typeof classList>[1];
   function paintUnlocks(): void {
     const gen = ++unlockGen;
+    // the shelf from the last catalogue at once (QA B on 952e306: "the whole UNLOCKS list is gone"); the engine's replaces it
+    if (!unlockCat && app.unlockCat.length) { unlockCat = app.unlockCat; paintFrom(unlockCat); }
     void app.engine.unlocks().then((cat) => {
       if (gen !== unlockGen) return;
       unlockCat = cat; app.unlockCat = cat;
@@ -210,7 +221,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           h("span", { class: "num cost" }, `◆${u.cost}`)));
       }
       unlocks.appendChild(grid);
-      if (owned.length) unlocks.appendChild(h("div", { class: "chips owned" }, ...owned.map((u) => h("button", { class: "chip mini owned", onclick: () => openRowsSheet(u.rows!) }, u.label))));
+      // an owned chip reads `card: thief guard · owned` (QA on 952e306: "bought card appears at the end with no cost"); its sheet
+      // carries the title and, for a card whose row was dropped, `insert`
+      if (owned.length) unlocks.appendChild(h("div", { class: "chips owned" }, ...owned.map((u) => h("button", { class: "chip mini owned", onclick: () => openOwnedSheet(app, u) }, u.label, h("small", { class: "dim" }, /* copy:callout */ " · owned")))));
     }
   }
   // Cut 4 §1: `send` waits while the set is over budget (the editor shows which row to drop). Cut 6 §4: it says so: `6/5 · drop one`.
@@ -218,11 +231,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     send.disabled = app.overBudget;
     replace(send, app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one` : /* copy:button */ "send");   // Cut 12 §1: own rows
     paintTabs();
-    if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `rows full` only while a free own row exists
+    if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }
   function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
-  // Cut 12 §6: `+1 row ⊘ rows full` is the engine's read of its own set — refetched once an edit crossed `max_rows`
+  // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
   return { el, dispose: () => { off(); offRules(); offShelf(); fc.dispose(); audio.drone(null); } };
 }

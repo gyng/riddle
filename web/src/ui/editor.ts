@@ -43,13 +43,6 @@ export function cardTrigger(cardRows: Row[] | undefined): string | undefined {
   if (!first) return undefined;
   return first.conds.length ? first.conds.map(condLabel).join(" · ") : /* copy:rule_token */ "always";
 }
-/** Cut 9 §4: the 1-based index of the first `[card]` row that sits above any of the player's rows (every non-card row: a
- *  card eats the turn from whatever is under it, whoever offered that row), else undefined. */
-export function cardAbovePlayer(rows: Row[]): number | undefined {
-  const last = rows.map((r) => r.verb.v !== "tactic").lastIndexOf(true);
-  const i = rows.findIndex((r, k) => r.verb.v === "tactic" && k < last);
-  return i >= 0 ? i + 1 : undefined;
-}
 /** Cut 6 §4: which rows an over-budget set marks to drop. Cut 12 §1: the last own rows (card rows never count). */
 export function dropRows(rows: Row[], max: number): Set<number> {
   const out = new Set<number>(); let n = ownRowCount(rows) - max;
@@ -130,6 +123,8 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
     const existing = row.conds[ci];
     openSheet((close) => {
       const body = h("div", { class: "sheet-body" });
+      // the row's `×` (remove this cond) sits at the top, above the ~90 tokens (QA on 952e306: "× at the very bottom of a ~90-entry list")
+      if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); edited(row); close(); } }, "×"));
       const grid = h("div", { class: "grid" });
       for (const c of vocab().conds) {
         if (row.conds.some((rc, j) => j !== ci && sameCond(rc, c))) continue;
@@ -146,7 +141,6 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
         grid.appendChild(h("span", { class: "chip cond locked off", "aria-disabled": "true" }, "⊘ ", condName(l.cond.k) + (l.cond.t ? ` ${l.cond.t.replace(/_/g, " ")}` : ""), h("small", { class: "needs dim" }, l.needs.replace(/_/g, " "))));
       }
       body.appendChild(grid);
-      if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); edited(row); close(); } }, "×"));
       return body;
     });
   }

@@ -53,14 +53,18 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 11 §5: the line is tappable — the gold sheet filtered to that run (an exit claims the newest matching ledger exit the
   // exits after it in this report have not); its `trace` chip shows the chain (§3)
   const shown = r.exits?.slice(-EXITS_SHOW) ?? [];
+  // the lines are the absence's last few; the runs the tiles count beyond them are said so (QA on 952e306: "17 RUNS ·
+  // 17 RETURNED but only 8 lines")
+  const beyond = Math.max(0, r.runs - shown.length);
   const exitLines = shown.length ? h("div", { class: "exit-lines" }, ...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
     h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
-    traceChip(x.trace, "chip mini", { rows: app.rules.rows })))) : null;
+    traceChip(x.trace, "chip mini", { rows: app.rules.rows }))),
+    beyond > 0 ? h("div", { class: "ledger-line num dim" }, /* copy:callout */ `· ${beyond} more`) : "") : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
   const stall = r.stall ? h("section", { class: "rsec stall" },
     h("div", { class: "label" }, /* copy:label */ "stall"),
-    h("div", { class: "stall-line num" }, r.stall.text, traceChip(r.stall.trace)),   // Cut 9 §5: the trace of the last run the row ended
+    h("div", { class: "stall-line num" }, r.stall.text, traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb)
     r.stall.patches.length ? patchRows(app, r.stall.patches) : null) : null;
   // Cut 2 §2: `bones D7 · 4 items · ♟3` per pile recovered (the core sends `heir 3 · D7 · 4 items`; `bones:7:4` too)
   const bonesLine = (x: string): string => {

@@ -244,7 +244,7 @@ fn rows_beyond_unlocked_count_are_ignored() {
 /// Cut 12 §1: a card brings its row — a 4-row lineage holds 4 own rows and 2 card rows; a
 /// fifth own row is refused, a second row for the same card is refused, an unowned card's row
 /// is refused; the rows in play carry their set indices (the card rows fire as `R2`/`R5`);
-/// `needs: rows full` counts own rows; `insert_at` sits before the engagement row and the
+/// `needs: fill rows` counts own rows; `insert_at` sits before the engagement row and the
 /// card's delta row goes there.
 #[test]
 fn card_rows_sit_outside_the_cap() {
@@ -279,9 +279,9 @@ fn card_rows_sit_outside_the_cap() {
     assert_eq!(fit.rows.len(), 6);
     assert_eq!(fit.card_rows(), 2);
     assert!(!fit.rows.contains(&own(40)) && fit.rows.contains(&own(5)));
-    // `needs: rows full` reads the own rows: four own rows fill a 4-row lineage.
+    // `needs: fill rows` reads the own rows: four own rows fill a 4-row lineage.
     let cat = crate::meta::catalogue(&g.lineage);
-    assert_ne!(cat.iter().find(|u| u.id == "row5").unwrap().needs.as_deref(), Some("rows full"));
+    assert_ne!(cat.iter().find(|u| u.id == "row5").unwrap().needs.as_deref(), Some("fill rows"));
     // `insert_at`: before the first `attack`/`shoot`, else the end; the delta row goes there.
     let mut with_attack = rows.clone();
     with_attack[2] = Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"));
@@ -5022,11 +5022,11 @@ fn every_unavailable_unlock_carries_needs() {
     let by = |g: &Game, id: &str| g.unlocks().into_iter().find(|u| u.id == id).unwrap();
     assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame once"));
     // Cut 10 §3: a row unlock is dimmed while the set has a free row (the preset is two of four).
-    assert_eq!(by(&g, "row5").needs.as_deref(), Some("rows full"));
+    assert_eq!(by(&g, "row5").needs.as_deref(), Some("fill rows"));
     assert_eq!(by(&g, "row6").needs.as_deref(), Some("row5"));
     g.lineage.marks = 100;
     check(&g, "rich");
-    assert_eq!(by(&g, "row5").needs.as_deref(), Some("rows full"), "marks do not open a row the set cannot use");
+    assert_eq!(by(&g, "row5").needs.as_deref(), Some("fill rows"), "marks do not open a row the set cannot use");
     assert!(g.buy("row5").is_ok(), "`rows full` is the card's dimming, not a refusal (the bots buy rows ahead)");
     g.lineage.unlocks.remove("row5");
     g.lineage.marks = 100;

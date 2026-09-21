@@ -1,6 +1,6 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
-import type { AsyncEngine, ComboHit, Death, Forecast, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, UnlockInfo, Vocabulary } from "./engine/types";
+import type { AsyncEngine, ComboHit, Death, Forecast, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary } from "./engine/types";
 import { combosIn, isCardRow, isFreeSupply, ownRowCount } from "./ui/tokens";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
@@ -9,7 +9,7 @@ import { renderWatch } from "./ui/watch";
 import { renderDeath } from "./ui/death";
 import { renderReport } from "./ui/report";
 import { renderEnding } from "./ui/ending";
-import { closeAllSheets } from "./ui/sheet";
+import { closeAllSheets, onEscapeIdle } from "./ui/sheet";
 import { lastRun, type RunLog } from "./ui/runlog";
 import { showBusy } from "./ui/progress";
 import { audio } from "./audio";
@@ -17,7 +17,7 @@ import { audio } from "./audio";
 export type Screen =
   | { kind: "camp"; highlight?: number }
   | { kind: "watch" }
-  | { kind: "death"; death: Death; lost?: string[] }
+  | { kind: "death"; death: Death; lost?: string[]; kept?: boolean }   // kept: an old death opened from the chronicle (Cut 9 §7); Escape leads back to the camp
   | { kind: "report"; report: ReturnReport; absence?: boolean }   // absence: Cut 10 §3, the tiles fade in (the merged report is complete)
   | { kind: "ending" };
 
@@ -80,6 +80,9 @@ export class App {
   runsSeen = 0;
   /** Cut 6 §6: the unlock catalogue as last fetched by the camp; a card's rows back the editor's `[card]` sheet. */
   unlockCat: UnlockInfo[] = [];
+  /** The supply catalogue as last fetched by the camp: the shop paints from it at once on the next camp, then refetches (the
+   *  worker answers in order, so a fetch behind a forecast is seconds away — QA B on 952e306: "the shop chips are gone"). */
+  supplyCat: SupplyEntry[] = [];
   cardRows(id: string): Row[] | undefined { return this.unlockCat.find((u) => u.id === id)?.rows; }
   /** Cut 7 §2: row origins from the save blob, consumed by the first `adoptSets` (the engine's sets carry none). */
   private savedOrigins: string[][] | null = null;
@@ -95,7 +98,11 @@ export class App {
   /** Cut 11 §2: the last watched run's event log (ui/runlog.ts), which the death screen's chain links replay. */
   runLog(): RunLog | null { return lastRun(); }
 
-  constructor(root: HTMLElement, dev: DevOptions | null = null) { this.root = root; this.dev = dev; }
+  constructor(root: HTMLElement, dev: DevOptions | null = null) {
+    this.root = root; this.dev = dev;
+    // QA on 952e306 ("old death screen, no back/close, Escape inert"): Escape with no sheet open leaves a kept death for the camp
+    onEscapeIdle(() => { if (this.view.kind === "death" && this.view.kept) this.go({ kind: "camp" }); });
+  }
 
   async boot(): Promise<void> {
     const dev = this.dev;
@@ -279,7 +286,7 @@ export class App {
     void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) this.shelfCheck(); }).catch((e) => console.warn("rules rejected", e));
     this.fcTimer = window.setTimeout(() => void this.emitForecast(), 250);
   }
-  /** Cut 12 §6: the unlock shelf's `+1 row ⊘ rows full` is the engine's read of its own set, so it repaints once a rule edit
+  /** Cut 12 §6: the unlock shelf's `+1 row ⊘ fill rows` is the engine's read of its own set, so it repaints once a rule edit
    *  crosses `max_rows` — after `setRules` resolved (the rules listeners fire before the engine call). */
   private shelfCheck(): void {
     const full = this.rowsFull;
@@ -380,11 +387,17 @@ export class App {
     const at = this.unlockCat.find((u) => u.id === id)?.insert_at;
     const ok = await this.mutate(() => this.engine.buy(id));
     if (ok) audio.cue("unlock");   // Cut 10 §4
-    if (ok && this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id) && !this.rules.rows.some((r) => r.verb.v === "tactic" && r.verb.a === id)) {
-      this.insertRow({ conds: [], verb: { v: "tactic", a: id } }, at ?? engagementRow(this.rules.rows), "card");
-      this.emitChange();
-    }
+    if (ok && this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id) && !this.holdsCard(id)) { this.insertCard(id, at); this.emitChange(); }
     return ok;
+  }
+  /** Cut 12 §1: does the active set hold this card's row? */
+  holdsCard(id: string): boolean { return this.rules.rows.some((r) => isCardRow(r) && r.verb.a === id); }
+  /** A card's row into the active set where it acts: at `at` (the catalogue's `insert_at`, which the core sends only while the
+   *  card is unowned), else before the engagement row — the client's mirror of the core's `card_insert_at` over the editing copy.
+   *  Also the owned card's `insert` after the player dropped its row (QA on 952e306: "no way to re-insert a dropped card (◆3
+   *  spent)"). Returns the row's index. */
+  insertCard(id: string, at?: number): number {
+    return this.insertRow({ conds: [], verb: { v: "tactic", a: id } }, at ?? engagementRow(this.rules.rows), "card");
   }
   /** Cut 12 §6: one supply off the shelf. An engine without `dropSupply` clears the shelf and rebuys the other bought
    *  lines in order (a free line — the kennel's leash — comes back at the next exit). */

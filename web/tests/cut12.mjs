@@ -5,7 +5,7 @@
 //       card rows never count against `max_rows` (four own rows + two cards send; the fifth own row is `5/4 · drop one`, the
 //       drop mark on an own row); picking a card verb clears the row's conds; a card another row holds is not offered
 //   §3  the forecast panel's ends line: `bank 40% · return 35% · death 25% · ~$54`
-//   §6  `+1 row ⊘ rows full` lifts once a rule edit fills the rows (no run needed); a free supply reads `leash · kennel`; a
+//   §6  `+1 row ⊘ fill rows` (a requirement, never `rows full`) lifts once a rule edit fills the rows (no run needed); a free supply reads `leash · kennel`; a
 //       supply line's `×` removes that line only; the combo is named (`gambler`), not counted
 //
 //   node web/tests/cut12.mjs        (part of `pnpm test` in web/)
@@ -69,7 +69,7 @@ try {
   check(c.count === "2/4" && c.rows.length === 2, `the preset reads ${c.count}, ${c.rows.length} rows`);
   check(/^yours: 0 of 2 rows · gambler$/.test(c.yours), `the yours line names the combo: "${c.yours}"`);
   check(/^bank \d+% · return \d+%( · stall \d+%)? · death \d+% · ~\$\d+$/.test(c.ends), `the forecast's ends line: "${c.ends}"`);
-  check(/⊘ rows full/.test(c.rowCard), `+1 row waits on the rows at 2/4: "${c.rowCard}"`);
+  check(/⊘ fill rows/.test(c.rowCard) && !/rows full/.test(c.rowCard), `+1 row waits on the rows at 2/4, as a requirement: "${c.rowCard}"`);
   check(c.supplies.length === 1 && /^leash · kennel ×$/.test(c.supplies[0]), `the kennel's leash reads kennel: "${c.supplies[0]}"`);
 
   // §1: a bought card's row goes before the engagement row (the attack row), and never counts
@@ -80,7 +80,7 @@ try {
   c = await camp();
   check(c.rows.length === 3 && c.rows[1].card && /thief guard/.test(c.rows[1].text) && /attack/.test(c.rows[2].text), `the card sits at R2, above attack: ${c.rows.map((r) => r.text.slice(0, 24)).join(" | ")}`);
   check(c.count === "2/4 · 1 card", `the chip counts own rows and the card beside: "${c.count}"`);
-  check(/^yours: 0 of 2 rows/.test(c.yours) && /card R2 first/.test(c.yours), `yours counts own rows: "${c.yours}"`);
+  check(/^yours: 0 of 2 rows/.test(c.yours) && !/card R\d+ first/.test(c.yours), `yours counts own rows, no "card R2 first" (a card sits before attack on purpose): "${c.yours}"`);
   await page.evaluate(() => window.__riddle.buy("pack_break"));
   await sleep(700);
   c = await camp();
@@ -96,7 +96,7 @@ try {
   c = await camp();
   check(/^bank \d+% · return [1-9]\d*%( · stall \d+%)? · death \d+% · ~\$\d+$/.test(c.ends), `with a return row the ends line shows a return share: "${c.ends}"`);
   check(c.count === "4/4 · 2 cards" && !c.countRed && c.sendDisabled === false && !c.plus, `4 own + 2 cards: "${c.count}", send enabled, no +`);
-  check(!/rows full/.test(c.rowCard) && /\+1 row/.test(c.rowCard), `+1 row lifted at 4/4 without a run: "${c.rowCard}"`);
+  check(!/fill rows|rows full/.test(c.rowCard) && /\+1 row/.test(c.rowCard), `+1 row lifted at 4/4 without a run: "${c.rowCard}"`);
   const engineRows = await page.evaluate(async () => (await window.__riddle.engine.lineage()).sets[window.__riddle.active].rows.length);
   check(engineRows === 6, `the engine took all six rows (${engineRows})`);
   await shot("02-four-own-two-cards");

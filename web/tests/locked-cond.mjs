@@ -9,7 +9,7 @@
 // dim, carrying its `needs` text and `⊘`, and is not a button → clicking one changes nothing (the sheet stays open, the row's
 // text is unchanged, the engine's set is unchanged) → every offered token is a button and none of them is a locked one →
 // the same on the `+` (second cond) sheet. Then the Cut 9 §4 card trigger: a `[card]` row reads `[card] pack break ·
-// foe: pack` and, above a player row, the forecast's yours line reads `· card R1 first`. Exit 1 on any failed assertion,
+// foe: pack`; the forecast's yours line never says `· card R1 first` (gone with Cut 12 §1). Exit 1 on any failed assertion,
 // console error or page error.
 import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
@@ -88,7 +88,7 @@ try {
   }
   check(lockedNames.size > 0, "locked set non-empty");
 
-  // Cut 9 §4: a card row's trigger on its chip, and `· card R1 first` on the yours line when it sits above a player row
+  // Cut 9 §4: a card row's trigger on its chip; the yours line no longer says `· card R1 first` (Cut 12 §1: a card sits above on purpose)
   await page.evaluate(async () => {
     const r = window.__riddle;
     r.unlockCat = await r.engine.unlocks();
@@ -99,7 +99,7 @@ try {
   const cardRow = await rowText(0);
   check(/\[card\] pack break · foe: pack/.test(cardRow), `card chip reads its trigger: "${cardRow.split("\n")[0].slice(0, 60)}"`);
   const yours = await page.evaluate(() => document.querySelector(".fc-yours")?.textContent ?? "");
-  check(/· card R1 first/.test(yours), `yours line: "${yours}"`);
+  check(/^yours: 1 of 1 row/.test(yours) && !/card R\d+ first/.test(yours), `yours line, no card-first suffix: "${yours}"`);
   // the card below the player row: no warning
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows.reverse(); r.rulesChanged(); });
   await sleep(200);

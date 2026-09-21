@@ -1,6 +1,7 @@
 // Death: cause line · ledger line (Cut 6 §1) · last-5 trace (hero actions, t = tick) · row accounting of the last action
 // (Cut 6 §3: `R1 none held · R2 no path`, engine data) · candidate patches (tap to insert) · edit · morgue.
-// Cut 9 §7: also reached from the chronicle sheet for a kept death (`engine.death(id)`); `edit` leads back to the camp.
+// Cut 9 §7: also reached from the chronicle sheet for a kept death (`engine.death(id)`, `Screen.kept`); `edit` leads back to
+// the camp, and so does Escape with no sheet open (app.ts; QA on 952e306: "old death screen, no back/close, Escape inert").
 // Cut 11 §2: under the trace the row accounting is the chain (ui/chain.ts) — each `because` links the replay when this
 // session watched the run; root patches and unlock pseudo-patches (ui/patches.ts). §5: the ledger line opens the gold
 // sheet filtered to this run.

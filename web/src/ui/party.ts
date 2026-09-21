@@ -95,7 +95,8 @@ export function openLedger(app: App): void {
     });
     const headRow = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), /* copy:label */ ...["seen", "known", "studied", "tamed", "bred"].map((s) => h("span", { class: "dot-h" }, s)));
     const trophies = L.trophies.filter((t) => t.startsWith("ledger:"));
-    return h("div", { class: "sheet-body ledger" }, headRow, ...rows,
+    // the sheet's title (QA on 952e306: "ledger: 36 rows of '? ○○○○○', no title")
+    return h("div", { class: "sheet-body ledger" }, h("div", { class: "label" }, /* copy:label */ "ledger"), headRow, ...rows,
       trophies.length ? h("div", { class: "chips" }, ...trophies.map((t) => h("span", { class: "chip fact" }, "★ ", nice(t.slice(7))))) : "");
   });
 }

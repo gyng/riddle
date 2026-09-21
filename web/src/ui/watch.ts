@@ -156,6 +156,10 @@ export function renderWatch(app: App): Mounted {
   let pendingLoad: { snap: Snapshot; rest: Ev[] } | null = null;
   let exitTier: Tier | null = null, exitAt = 0;
   let pendingExit: { items: InvItem[]; tier: string; worth?: number[] } | undefined;
+  // what the exit sheet let go, at the engine's worth — the report's `salvaged` rows (QA on 952e306: "camp $76 after
+  // 'Returned with $57'; only the gold sheet shows +$19 salvage"); the deepest floor this send reached (its `deepest` tile)
+  let salvagedRows: { kind: string; n: number; gold: number }[] = [];
+  let deepest = 0;
   // Cut 5 §4: the open vault sheet's close, and the cage it was opened for (a dismissed sheet is not reopened)
   let vaultClose: (() => void) | null = null, vaultKey = "";
   let prepended = false;              // bail fell back to the row prepend (an engine without `bail`)
@@ -189,7 +193,7 @@ export function renderWatch(app: App): Mounted {
     replace(depth, `D${hud.depth}`);
     if (snap) replace(alert, "!".repeat(Math.max(0, Math.min(5, snap.alert))));
   }
-  function hudFrom(s: Snapshot): void { hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; paintHud(); paintStake(s); }
+  function hudFrom(s: Snapshot): void { hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
   function paintStake(s: Snapshot): void {
     const st = s.stake;
@@ -719,7 +723,7 @@ export function renderWatch(app: App): Mounted {
       deaths: tier === "death" ? [{ cause: heroCause ?? exitLine?.text ?? /* copy:label */ "death", n: 1 }] : [],   // Cut 10 §3: the death it came from
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,
       xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
-      salvaged: [], renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
+      salvaged: salvagedRows, deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
       banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, bones_found: bonesFound,   // rest is still ahead: the camp shows it
       exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
     };
@@ -750,6 +754,9 @@ export function renderWatch(app: App): Mounted {
         chips, bones, ledger,
         h("button", { class: "btn primary wide", onclick: () => {
           if (sent) return; sent = true;
+          const rows = new Map<string, { kind: string; n: number; gold: number }>();
+          p.items.forEach((it, i) => { if (keep.has(it.id)) return; const r = rows.get(it.kind) ?? { kind: it.kind, n: 0, gold: 0 }; r.n++; r.gold += p.worth?.[i] ?? salvageValue(it.kind, p.tier); rows.set(it.kind, r); });
+          salvagedRows = [...rows.values()].filter((r) => r.gold > 0);
           app.engine.keep([...keep]).then((L) => { app.lineage = L; }).catch((e) => console.warn("keep", e)).finally(() => { close(); then(); });
         } }, /* copy:button */ "keep"));
     });

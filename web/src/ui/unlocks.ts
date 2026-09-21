@@ -29,10 +29,15 @@ const LABEL: Record<string, string> = {
 const AFTER: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", row9: "row8", row10: "row9", vault3: "vault2", vault4: "vault3", vault5: "vault4", party_slot_3: "party_slot_2", party_slot_4: "party_slot_3" };
 
 export type UnlockCard = UnlockInfo & { label: string; gated: boolean };
-/** Cut 10 §3: a `+1 row` card waits until the set is full (`rows full`): a client-side gate when the core sends none. */
+/** Cut 10 §3: a `+1 row` card waits until the set is full: a client-side gate when the core sends none. The gate reads as a
+ *  requirement, `⊘ fill rows` — both QA players on 952e306 read the core's `rows full` as a state ("rows full vs 2/4?"), so the
+ *  core's own text is rewritten too. */
+const ROWS_GATE = /* copy:unlock_card */ "fill rows";
 export function withRowsGate(u: UnlockCard, rows: number, max: number): UnlockCard {
-  if (!/^row\d+$/.test(u.id) || u.owned || rows >= max) return u;
-  return { ...u, available: false, gated: true, needs: /* copy:unlock_card */ "rows full" };   // over `◆2 more`: the marks would be wasted either way
+  if (!/^row\d+$/.test(u.id) || u.owned) return u;
+  if (u.needs === "rows full") u = { ...u, needs: ROWS_GATE };
+  if (rows >= max) return u;
+  return { ...u, available: false, gated: true, needs: ROWS_GATE };   // over `◆2 more`: the marks would be wasted either way
 }
 
 /** Catalogue entries worth showing: not owned, and the previous step of a chain owned.
@@ -54,21 +59,42 @@ export function deltaLabel(u: UnlockInfo, d: number): string {
 export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): void {
   openSheet((close) => {
     const d = u.delta === undefined ? 0 : Math.round(u.delta * 100);
+    // the gate as of now, not as of the card's paint: a card painted before a buy or a report can carry a stale `available`
+    // (QA B on 952e306: "CLASS: RANGER ◆6 · ⊘ ◆2 more has an active buy; tapping it did nothing"); any `needs` or a marks
+    // shortfall against the live lineage turns `buy` off
+    const short = Math.max(0, u.cost - app.lineage.marks);
+    const needs = u.needs ?? (short ? /* copy:unlock_card */ `◆${short} more` : undefined);
+    const can = u.available && !needs;
     let sent = false;
-    const buy = h("button", { class: `btn primary wide buy${u.available ? "" : " off"}`, disabled: !u.available, onclick: () => {
+    const buy = h("button", { class: `btn primary wide buy${can ? "" : " off"}`, disabled: !can, onclick: () => {
       if (sent) return; sent = true;
       void app.buy(u.id).then((ok) => { close(); if (ok) after?.(); });
     } }, /* copy:button */ "buy");
     return h("div", { class: "sheet-body unlock-sheet" },
       h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`)),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))) : "",
-      u.needs ? h("div", { class: "needs-line dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
+      needs ? h("div", { class: "needs-line dim" }, "⊘ ", needs.replace(/_/g, " ")) : "",
       d ? h("div", { class: `num delta ${d > 0 ? "up" : "down"}` }, deltaLabel(u, d)) : "",   // Cut 10 §3 / Cut 12 §1
       buy);
   });
 }
 /** Cut 6 §4: a tactic card (it becomes a row when bought). */
 export const isCard = (u: UnlockInfo): boolean => /^card:/.test(LABEL[u.id] ?? "");
+/** The sheet behind an owned shelf chip: the buy sheet's title line, the rows, and — for a card whose row the set no longer
+ *  holds — `insert`, which puts the card's row back where a buy would (before the engagement row: `app.insertCard`; the
+ *  catalogue carries `insert_at` only while unowned) and opens the camp on it (QA on 952e306: "owned card chip opens a
+ *  titleless read-only sheet, no way to re-insert a dropped card (◆3 spent)"). */
+export function openOwnedSheet(app: App, u: UnlockCard): void {
+  openSheet((close) => {
+    const insert = isCard(u) && !app.holdsCard(u.id)
+      ? h("button", { class: "btn primary wide", onclick: () => { close(); const i = app.insertCard(u.id); app.go({ kind: "camp", highlight: i }); } }, /* copy:button */ "insert")
+      : "";
+    return h("div", { class: "sheet-body unlock-sheet" },
+      h("div", { class: "label row-label" }, u.label),
+      u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))) : "",
+      insert);
+  });
+}
 /** Cut 6 §6: owned entries that carry rows (cards, automations) — the shelf keeps them as chips that open their rows. */
 export function ownedRows(catalogue: UnlockInfo[]): UnlockCard[] {
   return catalogue.filter((u) => u.owned && u.rows?.length).map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " "), gated: false }));
