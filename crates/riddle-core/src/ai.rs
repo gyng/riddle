@@ -149,7 +149,7 @@ fn nearest_item_step(run: &mut Run, cx: &mut Ctx, chore: bool) -> bool {
     let cands: Vec<Pos> = run
         .items
         .iter()
-        .filter(|fi| run.floor.map.is_seen(fi.pos) && crate::turn::can_take(&run.hero, &fi.item) && !(chore && run.in_den_zone(fi.pos)))
+        .filter(|fi| run.floor.map.is_seen(fi.pos) && crate::turn::would_take(run, cx, &fi.item) && !(chore && run.in_den_zone(fi.pos)))
         .map(|fi| fi.pos)
         .collect();
     if cands.is_empty() {

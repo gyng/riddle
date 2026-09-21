@@ -321,7 +321,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             return (-1, verb);
         }
     }
-    if foes == 0 {
+    // The streak resets once the coward has been clear of foes for the trait's five actions,
+    // not on every clear action: retreat → foe out of view → chore walks back → retreat …
+    // reset the count every other action and looped to a stall (cohort 9).
+    if foes == 0 && trait_ready {
         run.cowardly_streak = 0;
     }
     let trait_ok = trait_ready && hp_pct >= 25;
@@ -345,7 +348,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         let target = DIRS8
             .iter()
             .map(|d| hp.step(*d))
-            .find(|q| run.item_at(*q).is_some_and(|ii| can_take(&run.hero, &run.items[ii].item)) && !run.occupied(*q) && run.floor.map.can_step(hp, *q));
+            .find(|q| run.item_at(*q).is_some_and(|ii| would_take(run, cx, &run.items[ii].item)) && !run.occupied(*q) && run.floor.map.can_step(hp, *q));
         if let Some(q) = target {
             ai::move_hero(run, cx, q);
             run.trait_last = Some(run.actions);
@@ -600,8 +603,10 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     if ids.is_empty() {
         return;
     }
+    // Until the floor changes (`u32::MAX`, blood does not lift it): thirty actions let the
+    // same unreachable foe pull the hero back into the pacing, three guards a stall.
     for id in ids {
-        run.ignore(id, 30);
+        run.ignore(id, u32::MAX);
     }
     run.stuck_until = run.actions + 30;
     run.stuck_fires += 1;
@@ -1904,6 +1909,32 @@ fn duplicate_slot(h: &crate::hero::Hero, item: &Item) -> Option<usize> {
 }
 
 /// Would picking this up change anything (gold, leash, room in the pack, or better gear)?
+/// `can_take` as `pickup_here` will actually decide it — with a full pack, only when the swap
+/// it would make touches nothing a row needs (Cut 12 §2). The chores path by this: by
+/// `can_take` alone a hero stood on a scroll its full pack would never take and read
+/// `pick up` every action until the stall guard ended the run (cohort 9, both raters' first
+/// gripe: "the most expensive outcome in the game").
+pub fn would_take(run: &Run, cx: &Ctx, item: &Item) -> bool {
+    let h = &run.hero;
+    if !can_take(h, item) {
+        return false;
+    }
+    if !h.inv_full() || item.kind == "bones" || item.cat() == Cat::Gold || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash")) || item_replaces_gear(h, item) {
+        return true;
+    }
+    if item.is_consumable() || item.def().ranged {
+        let need = if item.def().ranged && !h.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
+        let spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged && !row_needs(run, cx, i)).count() >= need;
+        if spare(Cat::Weapon) || spare(Cat::Armour) {
+            return true;
+        }
+    }
+    let dup = duplicate_slot(h, item).filter(|&k| !row_needs(run, cx, &h.inv[k]));
+    let swap = dup.or_else(|| h.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
+    let swap = swap.map(|k| if dup.is_some() { i32::MIN } else { h.inv[k].value() });
+    matches!(swap, Some(v) if item.is_consumable() && item.value() > v)
+}
+
 pub fn can_take(h: &crate::hero::Hero, item: &Item) -> bool {
     if item.kind == "trap" {
         return false;

@@ -395,7 +395,9 @@ export class App {
     if (ok && this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id) && !this.holdsCard(id)) { this.insertCard(id, at); this.emitChange(); }
     // a verb unlock's `reach +21%` was measured with its canonical row at the top (the catalogue sends `rows` + `insert_at`
     // for it); the buy inserts that row so the number holds (QA on e0f87e7: "bought, forecast identical")
-    else if (ok && u?.rows?.length === 1 && u.rows[0].verb.v !== "tactic" && u.rows[0].verb.v !== "auto" && u.insert_at !== undefined && !this.rules.rows.some((r) => sameRowShape(r, u.rows![0]))) {
+    // …only while the set has room for it: over the cap it is the sheet's row to add by hand (rater R on 39def99: `6/5 · drop one`
+    // after a verb purchase)
+    else if (ok && u?.rows?.length === 1 && u.rows[0].verb.v !== "tactic" && u.rows[0].verb.v !== "auto" && u.insert_at !== undefined && !this.rowsFull && !this.rules.rows.some((r) => sameRowShape(r, u.rows![0]))) {
       this.insertRow(cloneRow(u.rows[0]), u.insert_at, "patch"); this.emitChange();
     }
     return ok;

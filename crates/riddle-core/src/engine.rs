@@ -500,14 +500,17 @@ impl Run {
         self.ignored.get(&id).is_some_and(|until| *until > self.actions)
     }
     pub fn ignore(&mut self, id: u32, actions: u32) {
-        let until = self.actions + actions;
+        let until = self.actions.saturating_add(actions);
         self.ignored.insert(id, until);
     }
-    /// Cut 4: blood drawn on the hero ends the stalemate guards and every ignore.
+    /// Cut 4: blood drawn on the hero ends the stalemate guards and every ignore — except the
+    /// oscillation guard's (`u32::MAX`: a foe the hero paced in front of and could not reach
+    /// stays ignored until the floor changes; an arrow from it lifting the ignore was the
+    /// loop that ended runs as stalls — cohort 9: "the most expensive outcome in the game").
     pub fn unstick(&mut self) {
         self.stuck_until = 0;
         self.row_suppressed = (-9, 0);
-        self.ignored.clear();
+        self.ignored.retain(|_, until| *until == u32::MAX);
     }
     /// Cut 4: hostiles the hero remembers but cannot see — alive, out of view, seen within
     /// `REMEMBER_ACTIONS` — with the tile they were last seen on.
