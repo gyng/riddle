@@ -52,6 +52,13 @@ reconcile, any copy they could not explain, with the screen text or screenshot t
 Every item is fixed or recorded as a deviation with a reason; the build reships; only then the
 blind cohort. The QA reports are evidence, not scores; they never touch a card.
 
+From Cut 13 the round is mechanical first (`docs/ITERATION_SPEED.md` §1): the wire invariants
+(`examples/qa.rs`, in the gate table) and the screen lint (`web/tests/screens.mjs`, in `pnpm
+test`) run before any player; then one **transcript-first** player (`eval/QA_TRANSCRIPT_PROMPT.md`:
+reads a scripted walk's dumps, reproduces, plays the decisions the walk did not — ~15 min) and
+one interactive player (`eval/QA_PROMPT.md`, the full hour). The blind cohort only after the
+list is empty.
+
 ## Re-anchoring
 
 Before a cohort, the coordinator re-scores Loop Hero on `eval/presets.json` in the same
