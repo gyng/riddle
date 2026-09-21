@@ -181,9 +181,16 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
             ForecastDepth { depth: d, reach, pm: Some(half_width(reach, results.len())), try_: try_row(game, rules, d) }
         })
         .collect();
+    // Cut 12 §3: how the sends end, and what they bring home. The reach panel stops a sim at
+    // `known_to` (the depth it asks about), so its exits are not a send's: a sim cut off at
+    // D(best+1) read as a "return" (`return 100% · death 0%` on a fresh camp). The ends come
+    // from their own small panel that runs every send to its exit — `ENDS_SIMS` under the
+    // delta budget, so an edit still answers at once. The killers are read off the same
+    // panel (QA on e0f87e7: `death 0%` beside `jackal 50% · ogre 25%` from the reach panel).
+    let ended = simulate_budget(game, rules, ENDS_SIMS, tag ^ ENDS_TAG, u32::MAX, DELTA_TICK_BUDGET);
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
     let mut deaths = 0u32;
-    for r in &results {
+    for r in &ended {
         if r.tier == ExitTier::Death {
             deaths += 1;
             if let Some(c) = &r.cause {
@@ -194,12 +201,6 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let mut cv: Vec<(String, u32)> = causes.into_iter().collect();
     cv.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     let causes = cv.into_iter().take(3).map(|(c, k)| ForecastCause { cause: c, share: k as f64 / deaths.max(1) as f64 }).collect();
-    // Cut 12 §3: how the sends end, and what they bring home. The reach panel stops a sim at
-    // `known_to` (the depth it asks about), so its exits are not a send's: a sim cut off at
-    // D(best+1) read as a "return" (`return 100% · death 0%` on a fresh camp). The ends come
-    // from their own small panel that runs every send to its exit — `ENDS_SIMS` under the
-    // delta budget (~30 k ticks on a fresh lineage), so an edit still answers at once.
-    let ended = simulate_budget(game, rules, ENDS_SIMS, tag ^ ENDS_TAG, u32::MAX, DELTA_TICK_BUDGET);
     let m = ended.len().max(1) as f64;
     // A stall (the run cap, a floor shuffled) came home by nothing in the rules: its own
     // share, not a return's (QA on 952e306: "`return 70%` — no return verb in my rules").
@@ -211,7 +212,7 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
 }
 
 /// The ends panel: sends run to their exit, not to `known_to` (see `forecast_with`).
-pub const ENDS_SIMS: u32 = 12;
+pub const ENDS_SIMS: u32 = 20;
 const ENDS_TAG: u64 = 0xE4D5_0F5E_4D5E_4D50;
 
 /// Cut 10 §2: the `try` of a forecast row — reaching `depth` means passing the boss on the

@@ -228,7 +228,9 @@ pub fn stall_verdict(game: &mut Game) -> Option<Stall> {
     let rules = game.lineage.rules().clone();
     let ending = rules.rows.get(row as usize)?.clone();
     let depth = t.depth.max(1);
-    let text = format!("R{} {} ended {} runs at D{}", row + 1, ending.verb.short(), fired, depth);
+    // `depth` is the deepest those runs reached: "at D12" read as where they ended (QA on
+    // e0f87e7: "nothing ended at D12"); the stall is that none got past it.
+    let text = format!("R{} {} ended {} runs, none past D{}", row + 1, ending.verb.short(), fired, depth);
     let vocab = game.vocabulary();
     let key = format!("{row}:{depth}:{}:{}:{}", serde_json::to_string(&rules).unwrap_or_default(), vocab.conds.len(), vocab.verbs.len());
     let patches = match &game.stall_cache {

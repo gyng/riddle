@@ -140,6 +140,10 @@ pub struct ExitLine {
     /// (QA on e0f87e7: `SALVAGED $6` beside the ledger's `+$12 salvage`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub salvaged: Vec<SalvageRow>,
+    /// The run, so a report's trace links can open its replay (the return sheet's could; a
+    /// report's could not — QA on e0f87e7).
+    #[serde(default)]
+    pub run_id: u32,
 }
 
 /// Cut 6 §1: one gold movement (`+50 returned D5`, `−40 heal`, `−8 insure sword`, `+3

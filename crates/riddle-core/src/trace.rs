@@ -169,7 +169,9 @@ pub fn pinnable_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
 
 /// A row with the counter's verb (`attack tag:boss` under any conditions) is in the set.
 pub fn has_counter_verb(rules: &RuleSet, counter: &Row) -> bool {
-    rules.rows.iter().any(|r| r.verb == counter.verb)
+    // A card row counts by the rows it carries (QA on e0f87e7: `try: attack boss` beside an
+    // owned `boss focus` whose first row is `foe: boss → attack boss`).
+    rules.rows.iter().any(|r| r.verb == counter.verb || r.card().and_then(crate::meta::unlock_rows).is_some_and(|rows| rows.iter().any(|x| x.verb == counter.verb)))
 }
 
 fn morgue(game: &Game, run: &Run, rules: &RuleSet) -> String {

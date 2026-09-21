@@ -1305,7 +1305,7 @@ export class FakeEngine implements Engine {
       p.survive = reach({ rows }); p.forecast_delta = Math.round((p.survive - base) * 100) / 100;
     }
     cands.sort((a, b) => b.forecast_delta - a.forecast_delta);
-    return { row: at, fired: home, text: `R${at + 1} ${row.verb.v} ended ${home} runs at D${depth}`, patches: cands.slice(0, 3) };
+    return { row: at, fired: home, text: `R${at + 1} ${row.verb.v} ended ${home} runs, none past D${depth}`, patches: cands.slice(0, 3) };
   }
   private unlockVisible(u: string): boolean {
     const L = this.s.lineage;

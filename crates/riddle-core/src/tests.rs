@@ -4448,6 +4448,9 @@ fn boss_deaths_show_the_counter_row_first() {
 #[test]
 fn forecast_is_deterministic_per_rules_and_lineage() {
     let mut g = Game::new(11);
+    // The shelf is an input (a send packs it, and the ends panel's sends run to their exit
+    // with what was packed): an empty shelf keeps the send below from moving the numbers.
+    no_kennel_leash(&mut g);
     g.set_rules_raw(crate::probes::good()).unwrap();
     let a = g.forecast();
     let b = g.forecast();
@@ -4457,7 +4460,8 @@ fn forecast_is_deterministic_per_rules_and_lineage() {
     g.lineage.renown += 100;
     g.lineage.rest_left = 300;
     g.send();
-    g.step(30);
+    // (a run in progress at its first tick: thirty ticks in it would have learned a fact,
+    // and facts are lineage state the ends panel's sends — run to their exit — do read)
     let c = g.forecast();
     assert_eq!(a, c, "transient state moved the forecast");
     let r1 = g.forecast_refine();
@@ -4467,6 +4471,7 @@ fn forecast_is_deterministic_per_rules_and_lineage() {
     // A second game with the same seed and rules reads the same forecast; the seeds are the
     // forecast's own (a different rule set draws its own seeds).
     let mut h = Game::new(11);
+    no_kennel_leash(&mut h);
     h.set_rules_raw(crate::probes::good()).unwrap();
     assert_eq!(h.forecast(), a);
     let t1 = crate::forecast::forecast_tag(&g, g.lineage.rules(), 1);

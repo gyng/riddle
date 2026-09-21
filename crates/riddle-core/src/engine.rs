@@ -2402,6 +2402,7 @@ impl Game {
         // ring: nothing more per tick).
         line.trace = Some(exit_trace(&run, &self.prov));
         line.salvaged = cut_rows;
+        line.run_id = run.id;
         debug_assert!(self.lineage.gold - gold_before == loot_kept - spent + self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.why.starts_with("salvage")).map(|g| g.delta).sum::<i32>());
         if tier == ExitTier::Death {
             if let Some(rec) = self.deaths.get_mut(&run.id) {
@@ -2487,8 +2488,12 @@ impl Game {
                 v.id = self.lineage.next_vault_id;
                 self.lineage.next_vault_id += 1;
             }
-            // Cut 6 §2: a vaulted item is known by name from here on.
+            // Cut 6 §2: a vaulted item is known by name from here on — and its flavour with it
+            // (QA on e0f87e7: `⊘ has: strength · identify strength` beside VAULT `strength potion`).
             v.known = true;
+            if let Some(f) = crate::item::ident_fact(&self.lineage.flavours, &v.kind) {
+                self.lineage.facts.insert(f);
+            }
             self.lineage.vault.push(v.clone());
             self.lineage.vault.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
             if self.lineage.vault.len() > slots {
@@ -2798,7 +2803,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} unused", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new() }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0 }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:
