@@ -55,7 +55,7 @@ export type GoldLine = { t: number; delta: number; why: string };
 /** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */
 export type Counter = { boss: string; row?: Row | string; text: string };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent";
-                        free?: boolean };                                   // Cut 12 §6 (client-proposed, core item): a supply the camp gave (the kennel's leash) reads `leash · found`; absent = bought
+                        free?: boolean };                                   // Cut 12 §6: a supply the camp gave (the kennel's leash) reads `leash · kennel`; the core always sends it
 
 export type Ev =
   | { t: number; k: "move"; id: number; x: number; y: number }

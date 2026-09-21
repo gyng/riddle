@@ -8,7 +8,7 @@
 // labelled `at end` (a bought card becomes the last row). Cut 10 §4: the camp drone (biome of the next floor) while mounted.
 // Cut 12 §1: rows are own rows — `rows full` and `5/4 · drop one` count them against `max_rows`; a card never takes a row (it
 // sits outside the cap) and its reach delta is labelled where it goes (`at R3`, the catalogue's `insert_at`). §6: the unlock
-// shelf refetches when a rule edit crosses `max_rows` (`app.onShelf`); a supply line has its own `×`; a free line reads `· found`.
+// shelf refetches when a rule edit crosses `max_rows` (`app.onShelf`); a supply line has its own `×`; a free line reads `· kennel`.
 import type { App, Mounted } from "../app";
 import type { UnlockInfo } from "../engine/types";
 import { h, clear, replace, spanOf } from "./dom";
@@ -154,9 +154,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     clear(supplies);
     supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/${cap}`)));
     const chips = h("div", { class: "chips" });
-    // Cut 12 §6: each line carries its own `×` (the header's cleared the whole shelf: "I lost the leash"); a free line reads `· found`
+    // Cut 12 §6: each line carries its own `×` (the header's cleared the whole shelf: "I lost the leash"); a free line reads `· kennel`
     for (const p of picks) chips.appendChild(h("span", { class: "chip item on" }, p.label,
-      isFreeSupply(L, p) ? h("small", { class: "dim found" }, /* copy:callout */ " · found") : "",
+      isFreeSupply(L, p) ? h("small", { class: "dim found" }, /* copy:callout */ " · kennel") : "",
       h("button", { class: "x", onclick: () => void app.dropSupply(p.id) }, "×")));
     supplies.appendChild(chips);
     const gen = ++supplyGen;

@@ -6243,6 +6243,37 @@ fn forecast_ends_name_how_a_send_ends() {
     assert!(e.death > 0.5 && e.bank == 0.0, "{e:?}");
 }
 
+/// Cut 12 §6: `×` on one supply line takes that line only — a bought line is refunded and
+/// leaves `last_supplies`, the kennel's leash is put back for nothing (it returns at the next
+/// exit); the wire says which line is the kennel's (`free`), so a bought leash beside it is not
+/// mistaken for it (QA on 952e306: "−$40 heal · +$40 refund heal · −$40 heal" from the client's
+/// clear-and-rebuy fallback, "bought one labelled found").
+#[test]
+fn drop_supply_takes_one_line_and_refunds_a_bought_one() {
+    let mut g = Game::new(5);
+    g.lineage.gold = 200;
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    let cat = g.supply_catalogue();
+    let heal = cat.iter().find(|e| e.kind == "heal").expect("heal for sale").price;
+    g.buy_supply("heal").unwrap();
+    g.buy_supply("leash").unwrap();
+    let wire = g.lineage();
+    let kennel: Vec<&crate::item::InvItem> = wire.supplies.iter().filter(|s| s.free).collect();
+    assert_eq!(kennel.len(), 1, "one free line, the kennel's: {:?}", wire.supplies);
+    assert!(wire.supplies.iter().any(|s| s.kind == "leash" && !s.free), "the bought leash is not free");
+    let gold = g.lineage.gold;
+    let heal_id = g.lineage.supplies.iter().find(|s| s.kind == "heal").unwrap().id;
+    g.drop_supply(heal_id).unwrap();
+    assert_eq!(g.lineage.gold, gold + heal, "the heal is refunded");
+    assert_eq!(g.lineage.supplies.len(), 2, "the two leashes stay");
+    assert!(g.lineage.gold_ledger.iter().any(|e| e.why == "refund heal"), "{:?}", g.lineage.gold_ledger);
+    let kennel_id = g.lineage.supplies.iter().find(|s| s.free).unwrap().id;
+    g.drop_supply(kennel_id).unwrap();
+    assert_eq!(g.lineage.gold, gold + heal, "the kennel's leash refunds nothing");
+    assert_eq!(g.lineage.supplies.len(), 1);
+    assert!(g.drop_supply(999).is_err());
+}
+
 /// Cut 12 §2: the thief guard card answers the den — over 30 seeds the den's snatches with
 /// the card are ≤ 20% of those without (the gate's probe, `den_guard_trial`).
 #[test]

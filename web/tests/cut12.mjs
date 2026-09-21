@@ -5,7 +5,7 @@
 //       card rows never count against `max_rows` (four own rows + two cards send; the fifth own row is `5/4 · drop one`, the
 //       drop mark on an own row); picking a card verb clears the row's conds; a card another row holds is not offered
 //   §3  the forecast panel's ends line: `bank 40% · return 35% · death 25% · ~$54`
-//   §6  `+1 row ⊘ rows full` lifts once a rule edit fills the rows (no run needed); a free supply reads `leash · found`; a
+//   §6  `+1 row ⊘ rows full` lifts once a rule edit fills the rows (no run needed); a free supply reads `leash · kennel`; a
 //       supply line's `×` removes that line only; the combo is named (`gambler`), not counted
 //
 //   node web/tests/cut12.mjs        (part of `pnpm test` in web/)
@@ -70,7 +70,7 @@ try {
   check(/^yours: 0 of 2 rows · gambler$/.test(c.yours), `the yours line names the combo: "${c.yours}"`);
   check(/^bank \d+% · return \d+% · death \d+% · ~\$\d+$/.test(c.ends), `the forecast's ends line: "${c.ends}"`);
   check(/⊘ rows full/.test(c.rowCard), `+1 row waits on the rows at 2/4: "${c.rowCard}"`);
-  check(c.supplies.length === 1 && /^leash · found ×$/.test(c.supplies[0]), `the kennel's leash reads found: "${c.supplies[0]}"`);
+  check(c.supplies.length === 1 && /^leash · kennel ×$/.test(c.supplies[0]), `the kennel's leash reads kennel: "${c.supplies[0]}"`);
 
   // §1: a bought card's row goes before the engagement row (the attack row), and never counts
   const at = await page.evaluate(() => window.__riddle.unlockCat.find((u) => u.id === "thief_guard")?.insert_at);
@@ -140,7 +140,7 @@ try {
   await page.locator(".supplies .chip.item", { hasText: "heal potion" }).locator(".x").click({ timeout: 5000 });
   await sleep(400);
   c = await camp();
-  check(c.supplies.length === 2 && /leash · found/.test(c.supplies[0]) && /strength/.test(c.supplies[1]), `× took the heal only: ${c.supplies.join(" / ")}`);
+  check(c.supplies.length === 2 && /leash · kennel/.test(c.supplies[0]) && /strength/.test(c.supplies[1]), `× took the heal only: ${c.supplies.join(" / ")}`);
   await shot("05-supplies-one-line");
   await page.evaluate(() => { window.__riddle.engine.dropSupply = () => Promise.reject(new Error("wasm: dropSupply")); });
   await page.locator(".supplies .chip.item", { hasText: "strength" }).locator(".x").click({ timeout: 5000 });

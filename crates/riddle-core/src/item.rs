@@ -111,6 +111,10 @@ pub struct InvItem {
     pub label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hint: Option<Hint>,
+    /// Cut 12 §6: a supply the camp gave (the kennel's leash; `leash · kennel`), never bought —
+    /// always on the wire so a bought leash on the same shelf is not mistaken for it.
+    #[serde(default)]
+    pub free: bool,
 }
 
 /// Wire: item on the floor.
@@ -148,7 +152,7 @@ pub fn describe(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> (
 
 pub fn to_inv(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> InvItem {
     let (known, kind, label) = describe(item, facts, flavours);
-    InvItem { id: item.id, kind, known, label, hint: if known { None } else { item.hint } }
+    InvItem { id: item.id, kind, known, label, hint: if known { None } else { item.hint }, free: item.free }
 }
 
 #[cfg(test)]

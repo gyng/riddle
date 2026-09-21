@@ -2679,6 +2679,24 @@ impl Game {
         Ok(())
     }
 
+    /// Cut 12 §6: one line off the shelf (rater O: the header's `×` cleared the whole list —
+    /// "I lost the leash"). A bought supply is refunded; the kennel's leash (free) is simply
+    /// put back — it returns at the next exit while the lineage has never tamed.
+    pub fn drop_supply(&mut self, id: u32) -> Result<(), String> {
+        let i = self.lineage.supplies.iter().position(|s| s.id == id).ok_or("not on the shelf")?;
+        let s = self.lineage.supplies.remove(i);
+        if !s.free {
+            if let Some(e) = self.supply_catalogue().iter().find(|e| e.kind == s.kind) {
+                let why = format!("refund {}", s.kind.replace('_', " "));
+                self.lineage.gold_move(e.price, &why);
+            }
+            if let Some(k) = self.lineage.last_supplies.iter().position(|k| *k == s.kind) {
+                self.lineage.last_supplies.remove(k);
+            }
+        }
+        Ok(())
+    }
+
     pub fn clear_supplies(&mut self) {
         let cat = self.supply_catalogue();
         for s in std::mem::take(&mut self.lineage.supplies) {

@@ -82,6 +82,7 @@ export function lostLabel(k: string): string {
  *  tamed carries one free leash; the core sends no flag yet). */
 export function isFreeSupply(L: Lineage, it: InvItem): boolean {
   if (it.free !== undefined) return it.free;
+  // an engine without the flag (an old save): the kennel's leash is the only free line, and only before a tame
   return it.kind === "leash" && !(L.ledger ?? []).some((r) => r.tamed);
 }
 /** Cut 12 §1: a tactic card's row (`{v:"tactic"}`) — outside `max_rows`, one per owned card. */

@@ -188,6 +188,12 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    #[wasm_bindgen(js_name = dropSupply)]
+    pub fn drop_supply(&mut self, id: u32) -> Result<String, JsError> {
+        self.inner.drop_supply(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     #[wasm_bindgen(js_name = clearSupplies)]
     pub fn clear_supplies(&mut self) -> String {
         self.inner.clear_supplies();
