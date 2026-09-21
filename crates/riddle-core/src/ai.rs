@@ -380,7 +380,14 @@ pub fn block_reason(run: &Run, cx: &Ctx, verb: &Verb, v: &View) -> &'static str 
         "retreat" | "back_corridor" | "blink" | "shadowstep" | "vanish" | "smoke" => "no path",
         "drink" | "read" => {
             let a = verb.a.as_deref().unwrap_or("");
-            if a.is_empty() || a == "unknown" || held_known(a) {
+            let cat = if verb.v == "drink" { Cat::Potion } else { Cat::Scroll };
+            // `drink unknown` with no unknown potion in the pack is `no item` (QA on 952e306:
+            // `R4 no use` beside `5 unknown unused` — the unknowns were scrolls); `no use`
+            // is the verb's own refusal of something held (a known heal at full HP).
+            let holds_unknown = run.hero.inv.iter().any(|i| i.cat() == cat && !i.is_known(cx.facts, cx.flavours));
+            if a.is_empty() || a == "unknown" {
+                if holds_unknown { "no use" } else { "no item" }
+            } else if held_known(a) {
                 "no use"
             } else if holds(a) {
                 "unknown item"

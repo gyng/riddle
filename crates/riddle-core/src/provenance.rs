@@ -94,10 +94,28 @@ pub fn stolen(run: &Run, cx: &mut Ctx, kind: &str, by: &str, by_den: bool, label
     log(run, cx, ProvKind::Stolen, format!("item:{kind}"), text, false);
 }
 
-/// A use: `drunk heal at 2/36 hp` (`read` / `thrown` alike); `hp` is the HP before the effect.
+/// A use: `R4 drank heal at 33/36 hp` when a row's verb did it (QA on 952e306: "which rule
+/// drank it? R4 not named"), `drunk heal at 2/36 hp` from a chore or a trait (`read` /
+/// `thrown` alike); `hp` is the HP before the effect.
 pub fn used(run: &Run, cx: &mut Ctx, verb: &str, kind: &str, hp: i32) {
-    let text = format!("{verb} {} at {hp}/{} hp", kind.replace('_', " "), run.hero.max_hp.max(1));
+    let kind_word = kind.replace('_', " ");
+    let text = if run.acting_row >= 0 {
+        let did = match verb {
+            "drunk" => "drank",
+            "thrown" => "threw",
+            v => v,
+        };
+        format!("R{} {did} {kind_word} at {hp}/{} hp", run.acting_row + 1, run.hero.max_hp.max(1))
+    } else {
+        format!("{verb} {kind_word} at {hp}/{} hp", run.hero.max_hp.max(1))
+    };
     log(run, cx, ProvKind::Used, format!("item:{kind}"), text, false);
+}
+
+/// The oscillation guard fired: `paced 12 turns, foes ignored` (the rows' `stuck` reason
+/// links to it; one entry per guard).
+pub fn stuck(run: &Run, cx: &mut Ctx) {
+    log(run, cx, ProvKind::Path, "stuck".into(), "paced 12 turns, foes ignored".into(), true);
 }
 
 /// A find: `found heal on D2` (replaces the slot's last find).
@@ -164,6 +182,7 @@ pub fn because_for(run: &mut Run, cx: &mut Ctx, why: &str, row: Option<&Row>, co
             let cost = crate::meta::unlock_cost(id);
             Some(Because { text: format!("◆{cost} cond: {}", cond_word(&c.k)), t: run.turn, depth: run.depth })
         }
+        "stuck" => last(cx.prov, "stuck").map(Prov::because),
         "no path" => {
             let text = path_blocker(run)?;
             // One entry per block: the tick points at the first action the blocker held.

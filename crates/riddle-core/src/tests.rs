@@ -5680,7 +5680,7 @@ fn because_names_the_theft_the_drink_or_never_found() {
     let w = &t.rows.as_ref().unwrap()[0];
     assert_eq!(w.why, "no item", "hp {} trace {:?}", hero(&g).hp, g.run.as_ref().unwrap().trace);
     let b = w.because.as_ref().unwrap();
-    assert_eq!((b.text.as_str(), b.t), (format!("drunk heal at 4/{} hp", hero(&g).max_hp).as_str(), drank_t));
+    assert_eq!((b.text.as_str(), b.t), (format!("R1 drank heal at 4/{} hp", hero(&g).max_hp).as_str(), drank_t), "the row that drank is named");
     // A fill after the emptying event is not a because (the item left some way the log did
     // not see).
     {

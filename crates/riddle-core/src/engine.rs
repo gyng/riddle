@@ -379,6 +379,10 @@ pub struct Run {
     /// raid the sleeping thieves. Any other row walks past them.
     #[serde(skip)]
     pub raiding: bool,
+    /// The row whose verb is acting right now (−1 between rows: a chore, a trait), so a
+    /// provenance entry can name it (`R4 drank heal at 33/36 hp`).
+    #[serde(skip)]
+    pub acting_row: i32,
     /// §3: the den's sleepers (tiles the chores walk round; a blow on one is a raid).
     #[serde(skip)]
     pub sleepers: Vec<Pos>,
@@ -1671,6 +1675,7 @@ impl Game {
             passed: Vec::new(),
             lock_tiles: Vec::new(),
             raiding: false,
+            acting_row: -1,
             floor_twist: None,
             last_twist: None,
             seed,

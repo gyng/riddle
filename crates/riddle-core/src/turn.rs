@@ -409,7 +409,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         }
         let scope = row.conds.iter().find(|c| c.k == "party").and_then(|c| c.t.clone());
         run.raiding = row.conds.iter().any(|c| (c.k == "on_see" && c.t.as_deref() == Some("den")) || (c.k == "foe_tag" && c.t.as_deref() == Some("thief")));
-        if holds && ai::try_verb_scoped(run, cx, &row.verb, v, scope.as_deref()) {
+        run.acting_row = i as i32;
+        let acted = holds && ai::try_verb_scoped(run, cx, &row.verb, v, scope.as_deref());
+        run.acting_row = -1;
+        if acted {
             let text = rule_text(run, row, hp_pct);
             emit_rule(run, cx, i as i32, &row.verb, &text);
             if i < run.row_fired.len() {
@@ -598,6 +601,9 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     run.stuck_fires += 1;
     run.recent_pos.clear();
     run.chase = None;
+    // The rows that read `stuck` for the next 30 actions link back here (QA on 952e306:
+    // "`stuck` unexplained"): `← paced 12 turns, foes ignored · t`.
+    crate::provenance::stuck(run, cx);
     let verb = Verb::new("stuck");
     emit_rule(run, cx, -2, &verb, "stuck → chores");
 }
