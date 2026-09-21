@@ -74,8 +74,8 @@ P: "`rested 287m` — the hero idled for five of the eight hours".
 |---|---|
 | P: "`▶▶\|` did nothing on four tries" (fast mode, a return run) | reproduce in `fast`; fix; the fights test covers both modes |
 | P: "`fast` is still slowed on fights" | `fast`: fights 2×, travel 16× (`fights` keeps 1× fights) |
-| P: "`+1 row ⊘ rows full` stays dimmed at 4/4" | the unlock shelf repaints when a rule edit crosses `max_rows` |
-| P: "supplies showed `1/5 leash` I never bought" | a free supply reads `leash · found` |
+| P: "`+1 row ⊘ rows full` stays dimmed at 4/4" | the unlock shelf repaints when a rule edit crosses `max_rows`; the gate reads `⊘ fill rows` (both QA players read `rows full` as a state) |
+| P: "supplies showed `1/5 leash` I never bought" | a free supply reads `leash · kennel` (was `· found` — the kennel gives it; QA: "bought one labelled found") |
 | O: "the supplies `×` clears the whole list (I lost the leash)" | `×` removes one line |
 | O: "`drink ✗ no use` fired every few seconds" | a sanity refusal callout shows once per row per floor |
 | O: "`◯ spectral hound fell`, `rallied!`, `1 combo` never explained" | `ally hound fell` · `warlord rallies` · the combo's name |
@@ -90,6 +90,18 @@ not blind to the goal, no scores) play the full rater protocol on fresh seeds an
 lapse: anything misread, anything inert, any number that does not reconcile, any copy they
 could not explain. Everything on the list is fixed or recorded as a deviation with a reason;
 the build reships; only then the blind cohort. `eval/RATING.md` gains the step.
+
+### 8. The QA cohort's list (952e306 → the reship)
+
+Two QA players on 952e306 filed 131 lines (`eval/qa/952e306.qaA.md`, `.qaB.md`); the triage
+(`eval/qa/952e306.triage.md`) closes each as a fix or a deviation. The fixes that were
+contract-level: the forecast's ends from a run-to-exit panel with a `stall` share; gold in one
+unit (a pile's amount is coins; the exit sheet prices at the engine's worth); `drop_supply`
+in core (the client's clear-and-rebuy fallback wrote refund/rebuy pairs); the report's tile
+is the send's `deepest`; exits say `stalled` and count unused supplies; the accounting links
+`stuck` to its moment and names the row that drank; a held patch inserts nothing. Deviations
+kept: stalls forfeit the loot (a gated invariant — `DEFAULT yields 0 xp/gold`), `▶▶|` is
+next-fight, the trace is the state before each action.
 
 ## Gates
 
