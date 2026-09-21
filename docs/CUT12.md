@@ -103,6 +103,15 @@ is the send's `deepest`; exits say `stalled` and count unused supplies; the acco
 kept: stalls forfeit the loot (a gated invariant — `DEFAULT yields 0 xp/gold`), `▶▶|` is
 next-fight, the trace is the state before each action.
 
+A second pair on the reship (`eval/qa/e0f87e7.qaC.md`, `.qaD.md`; triage `.triage.md`):
+round 1's fixes held; the round's own list (`▶▶|` to the next fight *or the end*, a foe at the
+elbow inside the stuck window, SALVAGED reconciled to the ledger on every path, `· N more`
+that expands, the keep sheet's `keep 0/1`, the mode remembered, the card following the HUD,
+report traces with `watch`, the clip holding its last frame, `found ♟3's bones`, `none past
+D12`, the `try:` hint reading card rows, a vaulted kind identified, killers from the ends
+panel, a verb unlock's buy inserting its measured row) is fixed; stalls' forfeit and the
+absence's vault churn stay recorded.
+
 ## Gates
 
 | Gate | Bar |
