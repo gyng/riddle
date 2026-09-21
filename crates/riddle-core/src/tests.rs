@@ -6240,7 +6240,7 @@ fn forecast_ends_name_how_a_send_ends() {
     assert_eq!(f.depths.iter().find(|d| d.depth == 9).unwrap().reach, 0.0);
     // A fresh lineage with no return row: its sends end in deaths, never in "returns" the
     // reach panel cut off at D1 (the ends panel runs every send to its exit).
-    let mut g = Game::new(7);
+    let g = Game::new(7);
     let set = g.lineage.rules().clone();
     assert!(!set.rows.iter().any(|r| r.verb.v == "return" || r.verb.v == "bank"));
     let e = g.forecast().ends.expect("ends");
