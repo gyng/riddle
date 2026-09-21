@@ -93,6 +93,9 @@ calls `death(id)` once at the end of an absence.
 
 Headless Chromium here runs on SwiftShader. Use `tools/browser.mjs` (headed Chromium under
 WSLg with Mesa's D3D12 driver forced via `/usr/lib/wsl/lib`), which reaches the real GPU:
-`node tools/browser.mjs --probe` should print `D3D12 (NVIDIA …)`. Every render playtest,
+`node tools/browser.mjs --probe` should print `D3D12 (NVIDIA …)` and `native scale 1.5`. WSLg's
+GDK_SCALE=2 × Xft.dpi=144 made Chromium think the 4K screen was 1280×720 at 3×; `launchGpu()` pins
+GDK_SCALE=1 and forces the Windows scale (`Xft.dpi/96`, override with `WSL_SCALE=`), and hides the
+15 px classic scrollbar that made full-page shots 385 CSS px wide. Every render playtest,
 frame-time measurement and screenshot goes through `launchGpu()` from that file. The
 Playwright MCP tools are headless/SwiftShader; do not use them for performance claims.
