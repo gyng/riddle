@@ -210,6 +210,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         bones_found: b.bones_found.clone(),
         stall,
         deepest: b.run_outcomes.iter().map(|(d, _)| *d).max().unwrap_or(0),
+        spent: Vec::new(),
         exits: b.exits.clone(),
     }
 }

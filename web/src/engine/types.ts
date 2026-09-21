@@ -45,7 +45,8 @@ export type Snapshot = {
 export type VaultChoice = { items: InvItem[] };
 /** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any.
  *  Cut 6 §1: `kept` = what that row would bring home now (`$84 · keeps $50`). */
-export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number };
+export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number;
+                      stalling?: boolean };                                          // Cut 13 §1: the guard has fired this floor — a stall pays nothing (`keeps $0 · stalling`)
 /** Cut 6 §1 — the ledger line of an exit: one arithmetic line the player can check, `text` is shown verbatim
  *  (`$84 carried · return keeps 60% → $50 · supplies −$12 → $68`). Fractions: `keep_pct` 0..100. */
 export type ExitLine = { carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string;
@@ -92,7 +93,8 @@ export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
 
 export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry }[]; causes: { cause: string; share: number }[];
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`)
-                         ends?: { bank: number; return: number; death: number; stall?: number; gold: number } };   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
+                         ends?: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number };
+                         refined?: boolean };                                                                  // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
 export type ForecastTry = { row: Row; text: string; boss?: string };
@@ -119,7 +121,8 @@ export type Death = { run_id: number; depth: number; cause: string; margin: stri
                       morgue: string;
                       line?: ExitLine;                                                       // Cut 6 §1: the death's ledger line
                       chain?: Because[];                                                     // Cut 11 §2: the death's chain, root first (the rows' `because`s, deduplicated)
-                      rules?: RuleSet };                                                     // the rules the run died under (the accounting's row labels; else the morgue's lines)
+                      rules?: RuleSet;                                                       // the rules the run died under (the accounting's row labels; else the morgue's lines)
+                      notes?: string[] };                                                    // Cut 13 §4: the run's last two chronicle notes, under the headline
 /** Core addition: the last ≥ 4 runs all came home with no new depth — the row that ended them, how many, a ≤ 12-word line,
  *  and up to 3 patches with forecast deltas at the stall depth + 1 (`survive` = the patched reach there). A state: the
  *  last slice's wins on merge. */
@@ -129,6 +132,7 @@ export type Highlight = { pattern: string; score: number; t: number; run_id: num
 export type ReturnReport = {
   elapsed_s: number; runs: number; sampled: boolean;
   deepest?: number;                                                            // the send's deepest floor (a delta, like the tiles beside it); absent on an old wire
+  spent?: { kind: string; n: number; gold: number }[];                         // Cut 13 §3: what the automations bought this absence, per kind (the SPENT section)
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; worst_death_id?: number; live?: Snapshot;
   tamed: string[]; hatched: string[]; lost: string[];                        // Addendum A
@@ -139,7 +143,7 @@ export type ReturnReport = {
   stall?: Stall;                                                              // core addition: stall verdict
   exits?: ExitLine[];                                                         // Cut 6 §1: one ledger line per exit in the batch
 };
-export type Lineage = { seed: number; heir: number; trait: string; class: string; best_depth: number; marks: number;
+export type Lineage = { seed: number; heir: number; trait: string; trait_offer?: string[]; class: string; best_depth: number; marks: number;   // Cut 13 §2: `trait_offer` — two traits a new heir may wake with; `setTrait(name)` picks
                         facts: string[]; unlocks: string[]; vault: InvItem[];
                         graveyard: { heir: number; depth: number; cause: string; deeds: string[]; death_id?: number }[];   // death_id: Cut 9 §7, a kept death (`death(id)` answers)
                         trophies: string[]; sets: RuleSet[]; active_set: number; ended: boolean;
@@ -211,7 +215,8 @@ export interface Engine {
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
                            delta?: number;                                                                 // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards
                            rows?: Row[];                                                                   // Cut 6 §6: a card's rows / an automation's effect as a row
-                           insert_at?: number };                                                            // Cut 12 §1: where a bought card's row goes — before the set's engagement row (first `attack`/`shoot`), else the end; its `delta` is measured there
+                           insert_at?: number;                                                             // Cut 12 §1: where a bought card's row goes — before the set's engagement row (first `attack`/`shoot`), else the end; its `delta` is measured there
+                           pm?: number };                                                                   // Cut 13 §5: the half-width of `delta`; within it the client reads `reach ~0`
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */
 export type AsyncEngine = { [K in keyof Engine]: NonNullable<Engine[K]> extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };

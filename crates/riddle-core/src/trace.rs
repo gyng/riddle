@@ -75,6 +75,7 @@ pub fn death_record(game: &Game, run: &Run) -> DeathRec {
         line: None,
         chain,
         rules: Some(rules.clone()),
+        notes: run.notes.iter().rev().take(2).rev().map(|(_, n)| n.clone()).collect(),
     };
     // Checkpoint: the most recent history entry where the hero still had ≥ 50% HP, but at least
     // MIN_WINDOW turns before death so a patch has room to act; else the oldest entry.

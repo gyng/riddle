@@ -117,6 +117,10 @@ pub struct Stake {
     /// Cut 6 §1: the gold the `return_row` would bring home right now (`$84 · keeps $50`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kept: Option<i32>,
+    /// Cut 13 §1: the oscillation guard has fired this floor (`run.stuck_fires > 0`): the
+    /// run is stalling and a stall pays nothing — the HUD reads `keeps $0 · stalling`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub stalling: bool,
 }
 
 /// Cut 6 §1: the ledger line of an exit — one arithmetic line the player can check.
@@ -336,6 +340,10 @@ pub struct Forecast {
     /// brought home per send (`bank 40% · return 35% · death 25% · ~$54`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ends: Option<ForecastEnds>,
+    /// Cut 13 §5: this forecast is the refine pass (100 sims); a first paint (50) is marked
+    /// `…` by the client so a re-read does not look like a re-roll.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub refined: bool,
 }
 
 /// Cut 12 §3: how a send ends — `bank` / `return` / `death` as shares of a panel of sends run
@@ -351,6 +359,9 @@ pub struct ForecastEnds {
     #[serde(default)]
     pub stall: f64,
     pub gold: f64,
+    /// Cut 13 §5: the half-width of the death share over the ends panel (`death 5% ±4`).
+    #[serde(default)]
+    pub pm: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -454,6 +465,10 @@ pub struct Death {
     /// before this the client parsed the morgue's short forms — `R1 drink ?`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rules: Option<RuleSet>,
+    /// Cut 13 §4: the run's last two chronicle notes (≤ 8 words each: `The green one: fire.
+    /// Gambled: fire potion.`), under the headline — the beat the morgue alone carried.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -523,6 +538,11 @@ pub struct ReturnReport {
     /// Stall verdict (addition): present when the last ≥ 4 runs all came home with no new depth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stall: Option<Stall>,
+    /// Cut 13 §3: what the automations bought during the absence, per kind in coins
+    /// (`heal ×16 · −$640`), the report's SPENT section; `banked + returned + salvage − spent`
+    /// is the header's delta.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spent: Vec<SalvageRow>,
     /// The deepest floor any run of this absence reached (the report's `deepest` tile: a
     /// delta like the tiles beside it; the lineage best is the header's — QA on 952e306:
     /// "`1 RUNS · D4 BEST` for a run that peaked at D2").
@@ -667,6 +687,11 @@ pub struct Lineage {
     pub heir: u32,
     #[serde(rename = "trait")]
     pub trait_: String,
+    /// Cut 13 §2: the two traits a new heir may wake with (drawn from the lineage seed, never
+    /// the last heir's); empty once chosen or sent. `set_trait(name)` picks one; a send without
+    /// a pick keeps the first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trait_offer: Vec<String>,
     pub class: String,
     pub best_depth: u32,
     pub marks: u32,
@@ -766,6 +791,10 @@ pub struct UnlockInfo {
     /// `attack` / `shoot`), else the end; the card's `delta` is measured there. Tactic cards only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub insert_at: Option<usize>,
+    /// Cut 13 §5: the half-width of `delta` (the paired panel's); a delta within it reads
+    /// `reach ~0` on the client.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pm: Option<f64>,
 }
 
 #[cfg(test)]

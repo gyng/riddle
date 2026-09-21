@@ -207,8 +207,9 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let share = |t: ExitTier| ended.iter().filter(|r| r.tier == t && !r.timed_out).count() as f64 / m;
     let stall = ended.iter().filter(|r| r.timed_out).count() as f64 / m;
     let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / m;
-    let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death: share(ExitTier::Death), stall, gold });
-    Forecast { depths, causes, known_to, ends }
+    let death = share(ExitTier::Death);
+    let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()) });
+    Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS }
 }
 
 /// The ends panel: sends run to their exit, not to `known_to` (see `forecast_with`).
