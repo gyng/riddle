@@ -1449,7 +1449,7 @@ fn identify_used(run: &mut Run, cx: &mut Ctx, item: &Item) -> bool {
         let mal = !item.def().benevolent;
         run.gambles.push((run.turn, item.kind.clone(), mal));
         let (_, _, label) = crate::item::describe(item, cx.facts, cx.flavours);
-        note(run, cx, format!("Gambled: {label}."));
+        note(run, cx, format!("Gambled: {label}{}", if label.ends_with('?') { "" } else { "." }));
         // Cut 5 §3: a word before the unknown goes down.
         crate::sifter::voice(run, cx, crate::sifter::Moment::UnknownDrink);
     }
@@ -2495,7 +2495,8 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
             run.monsters[mi].fleeing = true;
             cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone(), amount });
             run.stolen.push((run.turn, label.clone()));
-            note(run, cx, format!("The {} stole the {label}.", crate::engine::kind_title(&kind)));
+            // An unknown's label ends in `?`; the note takes no second stop (`black potion?.`).
+            note(run, cx, format!("The {} stole the {label}{}", crate::engine::kind_title(&kind), if label.ends_with('?') { "" } else { "." }));
             match amount {
                 Some(g) => callout(run, cx, &format!("stolen ${g}")),
                 None => callout(run, cx, "stolen!"),

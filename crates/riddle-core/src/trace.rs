@@ -470,7 +470,9 @@ pub fn stall_candidates(vocab: &Vocabulary, state: &Run) -> Vec<Row> {
         }
         if has_cond("floor_seen>=") {
             let seen = state.floor.map.seen_pct();
-            let n = [80, 60, 40, 20].into_iter().find(|n| seen >= *n).unwrap_or(20);
+            // The editor's own thresholds (`floor_seen>=` 25 · 50 · 75 · 100): a patch at 60 %
+            // could not be set by hand (QA on 50bb162).
+            let n = [100, 75, 50, 25].into_iter().find(|n| seen >= *n).unwrap_or(25);
             out.push(Row::new(vec![Cond::n("floor_seen>=", n)], v));
         }
     }

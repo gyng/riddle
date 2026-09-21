@@ -2458,7 +2458,22 @@ impl Game {
                 self.events.push(Ev::Fact { t, fact: f });
             }
         } else {
-            all.retain(|i| !run.supplies.contains(&i.id));
+            // A packed supply the send did not use goes back on the shelf (never into the
+            // vault, never salvaged): a $40 heal salvaged for $2 and rebought for $40 on
+            // every banked run read as the shop robbing the player (QA on 50bb162, both
+            // players). The kennel's leash is the kennel's (`kennel_leash` puts it back).
+            let (back, rest): (Vec<Item>, Vec<Item>) = all.into_iter().partition(|i| run.supplies.contains(&i.id) && i.kind != "leash");
+            all = rest;
+            let cap = self.lineage.supply_cap();
+            for mut it in back {
+                if self.lineage.supplies.len() >= cap {
+                    break;
+                }
+                it.free = false;
+                if !self.lineage.supplies.iter().any(|s| s.id == it.id) {
+                    self.lineage.supplies.push(it);
+                }
+            }
         }
         // A return keeps the dearest 60 %; what the vault sent along is the player's already
         // and comes first, whatever it is worth (QA on 952e306: a vaulted poison potion,
@@ -3004,7 +3019,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
         text.push_str(&format!(" · bones: {bones} items on D{depth}"));
     }
     if unused > 0 && tier != ExitTier::Death {
-        text.push_str(&format!(" · {unused} {} unused", if unused == 1 { "supply" } else { "supplies" }));
+        text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
     ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0 }
 }

@@ -3524,7 +3524,9 @@ fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
     assert_eq!(g.run.as_ref().unwrap().supplies.len(), 2);
     let gold_before = g.lineage.gold;
     {
+        // Cut 13: the send used both (an unused one would come back on its own, unbought).
         let (run, mut cx) = g.ctx();
+        run.hero.inv.retain(|i| i.kind != "heal");
         crate::turn::end_run(run, &mut cx, ExitTier::Bank);
     }
     g.finish_run();
@@ -3559,6 +3561,7 @@ fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
     {
         let (run, mut cx) = g.ctx();
         run.loot = 0;
+        run.hero.inv.retain(|i| i.kind != "heal"); // used (Cut 13: an unused one would come back)
         crate::turn::end_run(run, &mut cx, ExitTier::Return);
     }
     g.finish_run();
@@ -5571,7 +5574,7 @@ fn exit_line_leads_with_the_verb() {
     assert_eq!(line(ExitTier::Return, true, 0), "returned $50 · $84 carried · keeps 60% · lost thread");
     // A stall says so (the chronicle's "Stalled."), and a supply the send spent unused is counted.
     let stalled = crate::engine::exit_line_of(15, 0, 0, 0, vec![], ExitTier::Return, true, true, 1, 0, 2).text;
-    assert_eq!(stalled, "returned $0 · $15 carried · keeps 0% · stalled · 1 supply unused");
+    assert_eq!(stalled, "returned $0 · $15 carried · keeps 0% · stalled · 1 supply back");
     for t in [line(ExitTier::Return, true, 0), line(ExitTier::Death, false, 7), stalled] {
         assert!(word_count(&t) <= 14, "{t}");
     }
@@ -6285,6 +6288,29 @@ fn drop_supply_takes_one_line_and_refunds_a_bought_one() {
     assert_eq!(g.lineage.gold, gold + heal, "the kennel's leash refunds nothing");
     assert_eq!(g.lineage.supplies.len(), 1);
     assert!(g.drop_supply(999).is_err());
+}
+
+/// Cut 13: a packed supply the send did not use comes back to the shelf, not to the salvage
+/// (QA on 50bb162: a $40 heal salvaged for $2 and rebought for $40 on every banked run).
+#[test]
+fn an_unused_supply_comes_back_to_the_shelf() {
+    let mut g = Game::new(5);
+    no_kennel_leash(&mut g);
+    g.lineage.unlocks.insert("auto_supply".into());
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    g.lineage.gold = 100;
+    g.buy_supply("heal").unwrap();
+    let gold = g.lineage.gold;
+    g.start_run(None);
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Return);
+    }
+    g.finish_run();
+    g.keep(vec![]).unwrap();
+    assert_eq!(g.lineage.supplies.iter().filter(|s| s.kind == "heal").count(), 1, "the unused heal is back");
+    assert_eq!(g.lineage.gold, gold + g.batch.gold_earned + g.batch.salvage_gold, "nothing bought, nothing salvaged for it: {:?}", g.lineage.gold_ledger);
+    assert!(g.batch.exits.last().is_some_and(|l| l.text.contains("1 supply back")), "{:?}", g.batch.exits.last().map(|l| l.text.clone()));
 }
 
 /// Cut 12 §2: the thief guard card answers the den — over 30 seeds the den's snatches with

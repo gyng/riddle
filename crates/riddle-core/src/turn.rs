@@ -1715,7 +1715,7 @@ pub fn vault_take(run: &mut Run, cx: &mut Ctx, id: Option<u32>) {
         }
     }
     cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label.clone() });
-    note(run, cx, format!("Took the {label} from the cage."));
+    note(run, cx, format!("Took the {label} from the cage{}", if label.ends_with('?') { "" } else { "." }));
     sifter::open_situation(run, crate::sifter::Setup::Vault, "vault", &label, "");
 }
 
