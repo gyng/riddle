@@ -379,8 +379,16 @@ export class App {
   async refresh(): Promise<void> { this.lineage = await this.engine.lineage(); this.vocab = await this.engine.vocabulary(); this.emitChange(); }
   onChange(fn: () => void): () => void { this.changeListeners.add(fn); return () => this.changeListeners.delete(fn); }
   private emitChange(): void { for (const fn of this.changeListeners) fn(); }
-  /** After an engine call that returned a new Lineage: refresh vocab, persist, repaint, re-forecast. */
-  async afterLineage(): Promise<void> { this.vocab = await this.engine.vocabulary(); this.persist(); this.emitChange(); this.rulesChanged(); }
+  /** After an engine call that returned a new Lineage: repaint from it at once, then refresh vocab (a second repaint when it
+   *  changed), persist, re-forecast. The vocabulary round-trip queues behind whatever the worker is on (a forecast is ~1.5 s),
+   *  and the strip used to wait for it: the `◆` read one purchase behind on four buys in a row (QA on 50bb162). */
+  async afterLineage(): Promise<void> {
+    this.persist(); this.emitChange();
+    const before = JSON.stringify(this.vocab);
+    this.vocab = await this.engine.vocabulary();
+    if (JSON.stringify(this.vocab) !== before) this.emitChange();
+    this.rulesChanged();
+  }
   /** Runs an engine call that returns a Lineage and adopts it. Errors (unaffordable, locked) are swallowed after a warn. */
   async mutate(fn: () => Promise<Lineage>): Promise<boolean> {
     try { this.lineage = await fn(); } catch (e) { console.warn("engine refused", e); return false; }
@@ -534,7 +542,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const sum = (x?: number, y?: number): number | undefined => x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0);
   const cat = <T,>(x?: T[], y?: T[]): T[] | undefined => x === undefined && y === undefined ? undefined : [...(x ?? []), ...(y ?? [])];
   return {
-    rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned),
+    rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned), stalled: sum(a.stalled, b.stalled),
     bones_found: cat(a.bones_found, b.bones_found),
     exits: cat(a.exits, b.exits),                          // Cut 6 §1: one ledger line per exit
     elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,

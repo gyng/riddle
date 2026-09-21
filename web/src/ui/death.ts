@@ -55,11 +55,12 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
   const edit = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "edit");
   // Cut 10 §3: `◯ jackal Ashar fell` (a companion leaves an egg); Cut 12 §6: a summoned ally reads `ally hound fell`, no egg
   const eggs = lost.length ? h("div", { class: "chips eggs" }, ...lost.map((k) => h("span", { class: "chip egg" }, k.includes(" · ") ? "◯ " : "", lostLabel(k)))) : null;
-  // Cut 2 §2: what this death left on the floor — the pile whose heir the matching grave names; silent when absent
+  // Cut 2 §2: what this death left on the floor — the pile whose heir the matching grave names; silent when absent, and silent
+  // when the exit line already says it (`… · bones: 8 items on D4`; two QA players on 50bb162 read the pair as two piles)
   const L = app.lineage;
   const grave = [...(L.graveyard ?? [])].reverse().find((g) => g.depth === d.depth && g.cause === d.cause);
   const pile = (L.bones ?? []).find((b) => (grave ? b.heir === grave.heir : false) && b.depth === d.depth);
-  const bones = pile ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(pile.items)}`) : null;
+  const bones = pile && !/\bbones:/.test(d.line?.text ?? "") ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(pile.items)}`) : null;
   const el = h("main", { class: "death" }, line, notes, forecastLine, ledger, eggs, bones, ...trace, patches, h("div", { class: "btn-row" }, morgue, edit));
   return { el };
 }

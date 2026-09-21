@@ -72,13 +72,15 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
       const tr = d.try ?? (d.depth === next ? clientTry(app, cause) : undefined);
       // Cut 6 §5: `D6 0% · goblin warlord · counter: attack boss` when the top cause is a boss whose counter row is known (and held)
       const counter = cause && d.depth === next && !tr ? counterFor(cause) : undefined;
+      // the try hint rides the track, on the depth's own line, the track as wide as every other row's (QA on 50bb162: `D9 0% ±1`
+      // wrapped `· try: attack boss` under it with a shorter bar)
+      const track = h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(d.reach * 100)}%` }));
       const inner = [
         h("span", { class: "d num" }, `D${d.depth}`),
-        h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(d.reach * 100)}%` })),
+        tr ? h("span", { class: "track-cell" }, track, h("small", { class: "try" }, /* copy:none */ `try: ${tr.text}`)) : track,
         h("span", { class: "n num" }, pct(d.reach), d.pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pmPts(d.pm)}${first}`) : "",
           cause ? h("small", { class: "dim" }, ` · ${cause.replace(/_/g, " ")}`) : "",
-          counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "",
-          tr ? h("small", { class: "try" }, /* copy:none */ ` · try: ${tr.text}`) : ""),
+          counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : ""),
       ];
       // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
       bars.appendChild(tr

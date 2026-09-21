@@ -49,10 +49,13 @@ export function runRange(ledger: GoldLine[], x: ExitLine, skip = 0): [number, nu
 const sameExit = (a: ExitLine, b: ExitLine): boolean => tierWord(a).source === tierWord(b).source && a.kept === b.kept;
 
 /** Open the gold sheet; with `only`, filtered to that exit's run (`newer` = the exits after it in the same report, so a
- *  repeated `returned $0` claims its own line). */
+ *  repeated `returned $0` claims its own line). The filter is named: two chips, the run's own ledger word (`died D4`, the exit
+ *  line's `why`) and `all`, the one in force `on` — the header's `$40` over an unnamed run list read as the list's sum
+ *  (QA on 50bb162: "+$30 wake pay · $0 died D4 · −$30 leash sums to $0"). */
 export function openGoldSheet(app: App, only?: ExitLine, newer: ExitLine[] = []): void {
   const L = app.lineage; const ledger = L.gold_ledger ?? [];
   const range = only ? runRange(ledger, only, newer.filter((y) => sameExit(y, only)).length) : undefined;
+  const runWord = range ? ledger.slice(range[0], range[1] + 1).filter(isExit).at(-1)?.why.replace(/_/g, " ") : undefined;
   openSheet(() => {
     const fmt = (d: number): string => `${d < 0 ? "−" : d > 0 ? "+" : ""}$${Math.abs(d)}`;
     const list = h("div", { class: "gold-lines" });
@@ -60,9 +63,12 @@ export function openGoldSheet(app: App, only?: ExitLine, newer: ExitLine[] = [])
     const paint = (filtered: boolean): void => {
       const lines = (filtered && range ? ledger.slice(range[0], range[1] + 1) : ledger).slice().reverse();
       body.dataset.filter = filtered && range ? `${range[0]}-${range[1]}` : "";
-      const all = filtered && range ? h("button", { class: "chip mini", onclick: () => paint(false) }, /* copy:button */ "all") : "";
+      const chips = range ? [
+        h("button", { class: `chip mini run${filtered ? " on" : ""}`, onclick: () => paint(true) }, runWord ?? /* copy:label */ "run"),
+        h("button", { class: `chip mini${filtered ? "" : " on"}`, onclick: () => paint(false) }, /* copy:button */ "all"),
+      ] : [];
       body.replaceChildren(
-        h("div", { class: "label row-label" }, /* copy:label */ "gold", " ", h("span", { class: "num gold" }, `$${L.gold}`), all),
+        h("div", { class: "label row-label" }, /* copy:label */ "gold", " ", h("span", { class: "num gold" }, `$${L.gold}`), ...chips),
         list);
       list.replaceChildren(
         ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, g.why.replace(/_/g, " ")))),

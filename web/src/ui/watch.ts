@@ -19,10 +19,10 @@
 // the captive, the stray, a heir's bones) opens the fight frame for SCENE_MS in `fights` and `fast` alike, the note as the
 // callout (engine data, verbatim, its own `.beat` line); two callouts on one tick queue; the ticker wraps, never clips.
 //
-// Cut 12 §6 — `fast` is faster: travel at 16×, a fight at 2× (`fights` keeps its fights at 1×). `▶▶|` in `fast` is the same
-// press as in `fights`: the next fight's first frame (the mode's own frame predicate, floors drained on the way) or, inside a
-// fight, its end — it used to seek "the next interesting event", which on a busy floor sat inside the engine's ≤ 32-tick lead,
-// so the seek landed where the viewer already was (rater P: "did nothing on four tries"). §4: the card names the floor's
+// Cut 12 §6 — `fast` is faster: travel at 16×, a fight at 2× (`fights` keeps its fights at 1×). `▶▶|` in `fast` is the run's
+// END: the engine steps to `run_over` and the ending plays as it does after any skip (the last ENDING_TICKS at 1×, then the
+// exit flow) — it used to reach the next fight, as in `fights`, and five players read it as "plays faster" (QA on 50bb162:
+// ">2 min to the death screen"); in `fights` the press stays "the next fight or the end" (Cut 10 §1). §4: the card names the floor's
 // situation (`D4 · 9 rooms · a nest`, `Snapshot.floor_twist`). A sanity refusal (`drink ✗ no use`) shows once per floor; a
 // summoned ally's fall reads `ally hound fell`; the boss's rally names the boss (`warlord rallies`, from its telegraph).
 //
@@ -87,6 +87,7 @@ const BLOW_TICKS = 20;              // Cut 10 §1: in `fights` the frame holds o
 // hurt ≥ SHOW_HURT hp in it, or under SHOW_HP of max hp, a boss, a companion fallen, a theft, or the run ending in it; the rest
 // pass under the card (a DEFAULT run's fights alone ran ~110 s at 1×; the gate is 90 s with ≥ 3 shown)
 const SHOW_HURT = 4, SHOW_HP = 0.25;
+const SKIP_END_BATCH = 100;         // ▶▶| in `fast` steps to the run's end in batches this size: a step's cost is its snapshot, not its ticks (≈ 30 ms a call on the fast wasm build, so 10-tick batches took 15 s to a D5 death)
 const SKIP_FIGHT_BATCHES = 12_000;  // Cut 10 §1: ▶▶| steps to the next fight or the run's end (the run cap in BATCHes; ≈ 4 000 ticks
                                     // landed on a paced stretch that looked the same — "inert", three QA players on Cut 12)
 const ENDING_TICKS = 30;            // Cut 7 §4: the last ticks before any exit play at 1×
@@ -106,6 +107,7 @@ const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "des
 const HURT_MS = 600;                // Cut 4 §4: `−7 archer` in red
 const FELL_MS = 1400;               // Cut 10 §3: `jackal Ashar fell` stays long enough to read a name
 const SCENE_MS = 4000, SCENE_TICKS = 40;   // Cut 13 §4: a situation's beat holds the fight frame this long (~4 s at 1×)
+const BEAT_MAX_MS = 6000;                  // a beat's line is gone after this whatever the clock did, and at a floor change (QA on 50bb162: `A den.` over D2→D4 for 15 s)
 const CALLOUT_QUEUE = 3, SAME_TICK_MS = 40;   // Cut 13 §4: callouts that land on one tick (one pump pass) wait their turn, at most this many
 /** Cut 13 §4: the notes that are beats — the core's situation lines (verbatim), a theft, the stray, a heir's bones. */
 const BEAT_RE = /^(A den\.|A cage:|A shrine\.|The cage opens|A cry from the dark|The air stings|The nest wakes|The den wakes|Found heir \d+'s bones|found the bones|Freed the captive|Cut the captive|Lit the shrine)|snatched|\bstole\b|, gone wild\.$|is avenged/i;
@@ -210,7 +212,7 @@ export function renderWatch(app: App): Mounted {
     replace(depth, `D${hud.depth}`);
     if (snap) replace(alert, "!".repeat(Math.max(0, Math.min(5, snap.alert))));
   }
-  function hudFrom(s: Snapshot): void { hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
+  function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
   function paintStake(s: Snapshot): void {
     const st = s.stake;
@@ -279,6 +281,11 @@ export function renderWatch(app: App): Mounted {
     const shownFor = performance.now() - tickerAt;
     const wait = Math.max(0, (tickerQueue.length ? CALLOUT_MIN_MS : tickerMs) - shownFor);
     tickerTimer = window.setTimeout(() => { if (disposed) return; const q = tickerQueue.shift(); if (q) showTicker(q.text, q.cls, q.ms); else ticker.classList.remove("show"); }, wait);
+  }
+  /** The beat's line off the ticker (and out of the queue): a floor change, or BEAT_MAX_MS after it showed. */
+  function hideBeat(): void {
+    for (let i = tickerQueue.length - 1; i >= 0; i--) if (tickerQueue[i].cls === "beat") tickerQueue.splice(i, 1);
+    if (ticker.classList.contains("beat") && ticker.classList.contains("show")) { ticker.classList.remove("show"); scheduleTicker(); }
   }
   /** Cut 13 §4: a situation's note opens the fight frame for SCENE_TICKS from its tick (or rides a fight already framed there);
    *  its text is the callout, shown once the frame is up. */
@@ -358,7 +365,7 @@ export function renderWatch(app: App): Mounted {
         case "steal": if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
         case "descend": {
           const rooms = s.depth === ev.depth ? s.rooms : undefined;   // Cut 7 §4: `D3 · 4 rooms` when the snapshot counts them
-          at(ev.t, () => { hud.depth = ev.depth; paintHud(); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
+          at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
           break;
         }
         case "fact": {
@@ -532,6 +539,7 @@ export function renderWatch(app: App): Mounted {
     if (vaultClose && !document.querySelector(".vault-choice")) vaultClose = null;   // dismissed by backdrop / Escape: the engine's grace decides
     applyFrame();
     applySpeed();
+    if (ticker.classList.contains("beat") && ticker.classList.contains("show") && performance.now() - tickerAt > BEAT_MAX_MS) hideBeat();
     let now = viewerTick();
     el.dataset.tick = String(now);            // dev: tools sample the cadence off the DOM
     release(cardWait ? Math.min(now, fightFrom) : now);   // Cut 10 §1: a fight waiting on the card keeps its HUD at the first frame
@@ -644,7 +652,7 @@ export function renderWatch(app: App): Mounted {
       viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest);
       if (fv.seek) fv.seek(engineTick);
       fbTick = engineTick; release(viewerTick());
-      return;
+      if (mode !== "fast") return;   // `fast`: the drain is on the way to the end, not the press's whole answer
     }
     // Cut 10 §1: under the card the engine is already running to the next fight (or has found it): the press waives the card's minimum
     if (mode === "fights" && cardUp && !mapHold) { cardSince = -Infinity; if (inflight) return; applyFrame(); applySpeed(); return; }
@@ -652,6 +660,22 @@ export function renderWatch(app: App): Mounted {
     if (inflight) { skipQueued = true; return; }
     if (held) { endingFrom = 0; return; } // skip overrides the ending hold: the pump releases the exit batch now
     inflight = true;
+    // in `fast` the press means the run's end: the engine steps to `run_over` (floors drained on the way, a vault choice left to
+    // its grace) and the viewer lands at the ending, which plays as after any skip (QA on 50bb162: the press "plays faster")
+    if (mode === "fast") {
+      try {
+        for (let i = 0; i < SKIP_FIGHT_BATCHES && !held && !disposed; i++) {
+          const r = await app.engine.step(SKIP_END_BATCH); handle(r);
+          if (held || r.run_over) break;
+          const p = takeLoad(); if (p) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+        }
+      } catch (e) { console.warn("skip failed", e); }
+      inflight = false;
+      if (held) toEnding();
+      else if (!pendingLoad) { const t = Math.max(viewerTick(), engineTick - BATCH); seekTo(t); release(viewerTick()); letGo(t); applyFrame(); applySpeed(); }
+      if (skipQueued) { skipQueued = false; void skipToEvent(); }
+      return;
+    }
     // Cut 10 §1: inside a shown fight the press means its end — the span's close is known (the engine ran ahead) or is stepped to
     if (frame === "fight") {
       try {
@@ -669,8 +693,7 @@ export function renderWatch(app: App): Mounted {
     }
     // Cut 10 §1: a press outside a fight means "the next fight, now": the engine steps until its snapshot opens the fight frame
     // (`fightOn`, the mode's own predicate, judged per batch in `handle`), floors drained on the way, and the viewer lands on that
-    // first frame. Cut 12 §6: `fast` too — its old target, "the next interesting event" (a pickup, a fact, a spawn), sat inside the
-    // engine's ≤ 32-tick lead on a busy floor, so the seek landed where the viewer already was and the press read as inert.
+    // first frame (`fights`; `fast` took the end above).
     let landed = false;
     try {
       // a fight the engine opened ahead of the viewer's clock is the one to land on (no stepping); one the viewer is inside is
@@ -828,7 +851,7 @@ export function renderWatch(app: App): Mounted {
       xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
       salvaged: reconcileSalvage(mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), L.gold_ledger ?? []), deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
       spent: spentRows(L.gold_ledger ?? []),   // Cut 13 §3: what the automations bought at this exit (`heal ×1 · −$40`)
-      banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, bones_found: bonesFound,   // rest is still ahead: the camp shows it
+      banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, stalled: tier === "return" && /· stalled$/.test(exitLine?.text ?? "") ? 1 : 0, bones_found: bonesFound,   // rest is still ahead: the camp shows it
       exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
     };
     app.go({ kind: "report", report });
@@ -885,7 +908,9 @@ export function renderWatch(app: App): Mounted {
         } }, it.label, " ", keep.has(it.id) ? h("b", null, "⌂") : h("b", { class: "num gold" }, `$${p.worth?.[i] ?? salvageValue(it.kind, p.tier)}`))));   // the engine's worth at this exit (its old client table read 4×)
       };
       paint();
-      const bones = p.tier === "death" && bonesLeft !== undefined ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(bonesLeft)}`) : null;
+      // the pile once: the exit line carries `bones: 8 items on D4` (the core's), so the client's `bones left` line only stands in
+      // for an exit line without it (two QA players on 50bb162: "bones: 8 items on D4 ... bones left · 8 items")
+      const bones = p.tier === "death" && bonesLeft !== undefined && !/\bbones:/.test(exitLine?.text ?? "") ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(bonesLeft)}`) : null;
       const ledger = exitLine?.text ? h("div", { class: "ledger-line num dim" }, exitLine.text) : null;   // Cut 6 §1: engine data, verbatim
       const trace = traceChip(exitTrace ?? exitLine?.trace, "chip mini", { rows: app.rules.rows, runId });   // Cut 9 §5: the trace on a chip; Cut 11 §3: with its chain
       // the sheet counts picks against free slots, so its label is `keep 0/1`, not the camp's `vault 1/2` (QA on e0f87e7:

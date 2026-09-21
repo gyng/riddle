@@ -14,6 +14,10 @@
 //       the death screen shows `Death.notes`; a 40-char callout renders whole at 400 px; two callouts on one tick queue
 //   §5  an unlock delta within its ± reads `reach ~0`, otherwise `reach +5% ±3`; the first forecast paint's ± trails `…`, the
 //       refine's does not; the ends line carries `death 5% ±4`; a `dice` death says `forecast said D4 100%` (the camp's reach, verbatim)
+//   QA on 50bb162 (qaF): a card row's chips wrap inside 400 px with its × reachable; the forecast's `try` hint rides the track on
+//       the depth's own line; the busy label has its own strip under the header; the ◆ readout repaints as a buy's lineage lands;
+//       ▶▶| in `fast` is the run's end; a beat's line clears at a floor change and within 6 s; the gold sheet names its run
+//       filter (`died D4` on · `all` off); the report counts stalls apart (`returned 2 · stalled 1`); a death's pile is named once
 //   QA on 50bb162 (qaE): the report's TRACE sheet carries the exit line as its header and caps the provenance (the chain's own
 //       links, the last 8 by tick, `· N earlier`); an empty forge reads `nothing salvaged`; a long LEARNED chip wraps at 400 px
 //       and `alert:rising` reads `alert · rising`; every patch shows its reach (`reach ~0`); the rule-set tabs read `set 2 · 0`;
@@ -205,6 +209,12 @@ try {
   const BEAT = /^(A den\. Something sleeps\.|A cage: three inside, one to take\.|A shrine\. Pray, at a price\.)$/;
   check(BEAT.test(beatText.text) && /\bbeat\b/.test(beatText.cls) && beatVis !== "0", `the note is the callout, verbatim, visible in the frame: "${beatText.text}" (${beatText.cls}, opacity ${beatVis})`);
   await shot("06-beat-fast");
+  // QA on 50bb162: the beat's line is gone within 6 s of showing (`A den.` sat 15 s over three floors)
+  {
+    const t0 = Date.now(); let gone = null;
+    while (Date.now() - t0 < 8000) { const up = await page.evaluate(() => { const el = document.querySelector(".ticker"); return !!el && el.classList.contains("beat") && el.classList.contains("show"); }); if (!up) { gone = Date.now() - t0; break; } await sleep(50); }
+    check(gone !== null && gone <= 6500, `the beat's line is gone within 6 s (${gone === null ? "still up at 8 s" : `${gone} ms`})`);
+  }
   // in `fights`: the beat cuts in from under the card
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fights", "the fights run");
@@ -390,6 +400,156 @@ try {
   check(fs.fade !== null && fs.fade <= 0.3 + 1e-6, `the floor stays lit at the end (fade ${fs.fade})`);
   await shot("death-frame");
   await waitFor((x) => x?.screen === "death", "the death screen after the verdict", 30_000);
+
+  // ---- QA on 50bb162 (qaF): the camp at 400 px
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await waitFor((x) => x?.booted && x.screen === "camp", "camp for qaF");
+  // marks, the card gates met, a boss counter known past the best (the forecast's `try` row)
+  await page.evaluate(async () => {
+    const r = window.__riddle; const b = JSON.parse(r.exportSave()); const e = JSON.parse(b.engine);
+    e.lineage.marks = 20; e.lineage.gold = 300; e.lineage.best_depth = 5;
+    e.lineage.facts.push("foe:goblin_archer:ranged", "boss:goblin_warlord:counter");
+    b.engine = JSON.stringify(e);
+    return r.importSave(JSON.stringify(b));
+  });
+  await page.waitForFunction(() => window.__riddle.unlockCat.length > 0, null, { timeout: 10_000 });
+  await sleep(600);
+  // a card row fits the phone: the chips wrap inside the row, the × stays inside the viewport (it sat at x=500 on a 523 px row)
+  await page.evaluate(() => window.__riddle.buy("kite_archers"));
+  await sleep(800);
+  const cardRow = await page.evaluate(() => {
+    const r = document.querySelector(".editor .row.locked"); if (!r) return null;
+    const b = r.getBoundingClientRect(), x = r.querySelector(".x").getBoundingClientRect();
+    return { right: b.right, xRight: x.right, xLeft: x.left, chipsRight: Math.max(...[...r.querySelectorAll(".chip")].map((c) => c.getBoundingClientRect().right)), scrollW: document.documentElement.scrollWidth, text: r.querySelector(".chips").innerText.replace(/\s+/g, " ").trim() };
+  });
+  check(!!cardRow && cardRow.right <= 400 && cardRow.xRight <= 400 && cardRow.chipsRight <= cardRow.xLeft && cardRow.scrollW <= 400, `a card row fits 400 px, its × inside (row right ${cardRow?.right}, × ${cardRow?.xLeft}–${cardRow?.xRight}, chips to ${cardRow?.chipsRight}, page ${cardRow?.scrollW}): "${cardRow?.text}"`);
+  await shot("qaF-card-row");
+  // the forecast's `try` row: one line per depth — the hint rides the track, the track keeps the row's width
+  await page.waitForFunction(() => !!document.querySelector(".forecast .bar.try .try"), null, { timeout: 15_000 });
+  const tryRow = await page.evaluate(() => {
+    const bar = document.querySelector(".forecast .bar.try"); const plain = document.querySelector(".forecast .bar:not(.try):not(.unknown)");
+    const b = bar.getBoundingClientRect(), t = bar.querySelector(".try").getBoundingClientRect(), n = bar.querySelector(".n").getBoundingClientRect(), tr = bar.querySelector(".track").getBoundingClientRect();
+    return { h: b.height, plainH: plain.getBoundingClientRect().height, sameLine: t.top < n.bottom && n.top < t.bottom, hintInTrack: t.left >= tr.left - 1 && t.right <= tr.right + 1, hintRight: t.right, trackW: tr.width, text: bar.innerText.replace(/\s+/g, " ").trim() };
+  });
+  check(tryRow.sameLine && tryRow.hintInTrack && tryRow.h <= tryRow.plainH + 6 && tryRow.hintRight <= 400, `the try hint sits on the depth's own line, on the track (row ${tryRow.h} px vs ${tryRow.plainH}, track ${Math.round(tryRow.trackW)} px): "${tryRow.text}"`);
+  await shot("qaF-forecast-try");
+  // the engine's busy label in its own strip: under the header, above the tabs, never over `D4 ★0` or a bar
+  await page.evaluate(() => { const r = window.__riddle; const orig = r.engine.forecast.bind(r.engine); window.__origForecast = orig; r.engine.forecast = () => new Promise((res) => setTimeout(() => orig().then(res), 2500)); r.insertRow({ conds: [{ k: "hp<", n: 30 }], verb: { v: "retreat" } }, 0); r.go({ kind: "camp" }); });
+  await sleep(600);
+  const busyStrip = await page.evaluate(() => { const st = document.querySelector(".busy-strip"), hd = document.querySelector("header.strip"), tabs = document.querySelector(".tabs"), lb = document.querySelector(".busy-label"); return { text: st?.textContent ?? null, top: st?.getBoundingClientRect().top, bottom: st?.getBoundingClientRect().bottom, header: hd?.getBoundingClientRect().bottom, tabs: tabs?.getBoundingClientRect().top, labelHidden: lb ? lb.hidden : null, bar: !!document.querySelector(".busy") }; });
+  check(busyStrip.bar && busyStrip.text === "forecast" && busyStrip.top >= busyStrip.header && busyStrip.bottom <= busyStrip.tabs && busyStrip.labelHidden === true, `the busy label has its own strip between the header and the tabs ("${busyStrip.text}", ${busyStrip.header} ≤ ${busyStrip.top}..${busyStrip.bottom} ≤ ${busyStrip.tabs}, corner label hidden ${busyStrip.labelHidden})`);
+  await shot("qaF-busy-strip");
+  await page.waitForFunction(() => !window.__riddle.engineBusy, null, { timeout: 10_000 });
+  await page.evaluate(() => { window.__riddle.engine.forecast = window.__origForecast; });
+  // the ◆ readout repaints from the returned lineage at once, not after the vocabulary round-trip (1.5 s behind a forecast)
+  const marksRead = await page.evaluate(async () => {
+    const r = window.__riddle; const orig = r.engine.vocabulary.bind(r.engine);
+    r.engine.vocabulary = () => new Promise((res) => setTimeout(() => orig().then(res), 1500));
+    const before = document.querySelector(".strip .marks").textContent; const t0 = performance.now();
+    const p = r.buy("row5");
+    let after = before; while (performance.now() - t0 < 3000) { after = document.querySelector(".strip .marks").textContent; if (after !== before) break; await new Promise((x) => setTimeout(x, 20)); }
+    const dt = Math.round(performance.now() - t0); await p; r.engine.vocabulary = orig;
+    return { before, after, dt, marks: r.lineage.marks };
+  });
+  check(marksRead.after === `◆${marksRead.marks}` && marksRead.after !== marksRead.before && marksRead.dt < 600, `the header's ◆ repaints as the buy's lineage lands (${marksRead.before} → ${marksRead.after} in ${marksRead.dt} ms, vocabulary held 1.5 s)`);
+
+  // ---- QA on 50bb162 (qaF): the watch — ▶▶| in `fast` is the run's end; a beat's line clears at a floor change and within 6 s
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for the beat's clearing");
+  // a den note on a quiet map batch, then a floor change (the same floor's snapshot) on the batch after: the beat's line goes
+  await page.evaluate(() => {
+    const e = window.__riddle.engine; const real = e.step.bind(e); let phase = 0;
+    e.step = async (n) => {
+      const r = await real(n); const w = document.querySelector(".watch");
+      const hx = r.snapshot.hero.x, hy = r.snapshot.hero.y;
+      const adjacent = r.snapshot.entities.some((x) => !x.ally && x.id !== r.snapshot.hero.id && Math.max(Math.abs(x.x - hx), Math.abs(x.y - hy)) <= 1);
+      if (phase === 0 && !adjacent && w?.dataset.frame === "map" && !r.run_over) { phase = 1; r.events.push({ t: r.snapshot.turn, k: "note", text: "A den. Something stirs." }); window.__beatTick = r.snapshot.turn; }
+      else if (phase === 1 && !r.run_over) { phase = 2; r.events.push({ t: r.snapshot.turn, k: "descend", depth: r.snapshot.depth }); window.__descendTick = r.snapshot.turn; window.__descendAt = performance.now(); }
+      return r;
+    };
+  });
+  s = await waitFor((x) => x?.screen !== "watch" || x.beats >= 1, "the beat for the clearing test", 20_000);
+  // the fake writes its own situation notes too (a shrine, a cage, its own den): the injected line's wording is its own
+  let beatSeen = false, beatGoneBy = null, beatAfterDescend = null, beatLongest = 0, firstSeen = 0;
+  for (let i = 0; i < 200 && s.screen === "watch"; i++) {
+    const t = await page.evaluate(() => { const el = document.querySelector(".ticker"), w = document.querySelector(".watch"); return { beat: !!el && el.classList.contains("beat") && el.classList.contains("show"), text: el?.textContent ?? "", tick: Number(w?.dataset.tick), descendTick: window.__descendTick ?? null, descendAt: window.__descendAt ?? null, now: performance.now() }; });
+    const same = t.beat && t.text === "A den. Something stirs.";
+    if (same && !beatSeen) { beatSeen = true; firstSeen = t.now; }
+    if (same) beatLongest = Math.max(beatLongest, t.now - firstSeen);
+    if (beatSeen && !same && beatGoneBy === null) beatGoneBy = t.now - firstSeen;
+    // after the descend has both reached the client (its batch answered ≥ 200 ms ago) and been released at the viewer's clock
+    if (t.descendAt !== null && t.now - t.descendAt >= 200 && t.tick >= t.descendTick + 3 && beatAfterDescend === null) beatAfterDescend = same;
+    if (beatGoneBy !== null && beatAfterDescend !== null) break;
+    await sleep(40);
+    s = await state();
+  }
+  check(beatSeen && beatGoneBy !== null && beatGoneBy <= 6500, `the beat's line is gone within 6 s (shown ${Math.round(beatLongest)} ms, gone by ${beatGoneBy === null ? "never" : Math.round(beatGoneBy)} ms)`);
+  check(beatAfterDescend === false, `the beat's line clears at the floor change (the den's beat shown after descend: ${beatAfterDescend})`);
+  // ▶▶| in `fast`: one press reaches the run's end (the ending, or the screen after it) — not the next fight
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for ▶▶|");
+  await sleep(1500);
+  const t0 = Date.now();
+  const endState = () => page.evaluate(() => ({ screen: window.__riddle.screen, ending: document.querySelector(".watch")?.dataset.ending === "1", tick: Number(document.querySelector(".watch")?.dataset.tick) }));
+  let es = await endState(); const tick0 = es.tick, wasEnding = es.ending;
+  await page.evaluate(() => { for (const b of document.querySelectorAll("main.watch button.hud-btn")) if (b.textContent === "▶▶|") b.click(); });
+  while (Date.now() - t0 < 20_000 && es.screen === "watch" && !es.ending) { await sleep(60); es = await endState(); }
+  check(!wasEnding && (es.ending || es.screen !== "watch") && es.tick > tick0, `one ▶▶| in fast reaches the run's end (${es.screen}${es.ending ? ", ending" : ""}, tick ${tick0} → ${es.tick}, after ${Date.now() - t0} ms)`);
+  check(Date.now() - t0 < 15_000, `the end comes within seconds (${Date.now() - t0} ms)`);
+  // the ending plays out, then the exit flow: the keep sheet or the verdict
+  s = await waitFor((x) => x && x.screen !== "watch", "the screen after the skip", 60_000);
+  if (s.screen === "exit") { await page.locator(".sheet-wrap button.btn.primary.wide").first().click({ timeout: 5000 }); s = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit" && !x.busy, "the screen after keep", 30_000); }
+  else s = await waitFor((x) => x && !x.busy, "the verdict after the skip", 30_000);
+  check(["death", "report", "camp"].includes(s.screen), `the run ended (${s.screen})`);
+  // the gold sheet from an exit line names its filter: the run's ledger word on, `all` off; a tap swaps them
+  if (s.screen === "death") {
+    await sleep(200);
+    const hasLine = await page.evaluate(() => !!document.querySelector(".death .ledger-btn"));
+    if (hasLine) {
+      await page.locator(".death .ledger-btn").first().click({ timeout: 5000 });
+      await sleep(200);
+      const goldChips = () => page.evaluate(() => ({ filter: document.querySelector(".gold-sheet")?.dataset.filter ?? null, chips: [...document.querySelectorAll(".gold-sheet .row-label .chip.mini")].map((c) => ({ text: c.textContent, on: c.classList.contains("on") })), lines: document.querySelectorAll(".gold-sheet .lrow").length }));
+      let gc = await goldChips();
+      if (gc.filter) {
+        check(gc.chips.length === 2 && /^(died|returned|banked|stalled|lost thread) D\d+$/.test(gc.chips[0].text) && gc.chips[0].on && gc.chips[1].text === "all" && !gc.chips[1].on, `the run-filtered gold sheet names its filter: ${gc.chips.map((c) => `${c.text}${c.on ? " (on)" : ""}`).join(" · ")}`);
+        await shot("qaF-gold-run");
+        await page.locator(".gold-sheet .row-label .chip.mini", { hasText: /^all$/ }).first().click({ timeout: 5000 });
+        await sleep(150);
+        const all = await goldChips();
+        check(all.filter === "" && all.chips[1].on && !all.chips[0].on && all.lines >= gc.lines, `all: the whole ledger, the all chip on (${all.lines} lines ≥ ${gc.lines})`);
+      } else out.push("     (the exit's line has left the ledger: no run filter to name)");
+      await page.keyboard.press("Escape"); await sleep(100);
+    }
+  }
+
+  // ---- QA on 50bb162 (qaF): the report's stall count, the death screen's bones line
+  const tilesOf = () => page.evaluate(() => [...document.querySelectorAll(".report .tiles .tile")].map((t) => `${t.querySelector(".label")?.textContent} ${t.querySelector("b")?.textContent}`));
+  await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 4, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, stalled: 1 } }); });
+  await sleep(150);
+  let tiles = await tilesOf();
+  check(tiles.slice(3).join(" · ") === "returned 2 · stalled 1 · deaths 1", `no banks: the stall tile takes banked's place, returned counts the rest (${tiles.slice(3).join(" · ")})`);
+  await shot("qaF-report-stalled");
+  await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 6, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 2, returned: 3, stalled: 1 } }); });
+  await sleep(150);
+  tiles = await tilesOf();
+  check(tiles.slice(3).join(" · ") === "returned 2 · banked 2 · stalled 1 · deaths 1" || tiles.slice(3).join(" · ") === "banked 2 · returned 2 · stalled 1 · deaths 1", `with banks nothing is dropped (${tiles.slice(3).join(" · ")})`);
+  await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3 } }); });
+  await sleep(150);
+  tiles = await tilesOf();
+  check(tiles.slice(3).join(" · ") === "returned 3 · banked 0 · deaths 0", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
+  const fakeStalled = await page.evaluate(async () => { const rep = await window.__riddle.engine.runOfflineQuick(600); return typeof rep.stalled; });
+  check(fakeStalled === "number", `the fake's report carries stalled (${fakeStalled})`);
+  // the pile once: the exit line's `bones: 8 items on D4` stands alone; the client's `bones left` line only without it
+  await page.evaluate(() => { const L = window.__riddle.lineage; L.graveyard = [...(L.graveyard ?? []), { heir: 9, depth: 3, cause: "goblin_archer", t: 0 }]; L.bones = [{ heir: 9, depth: 3, items: 8 }]; });
+  await fakeDeath({ line: { carried: 37, keep_pct: 0, kept: 0, spent: 0, spent_on: [], text: "died $0 · $37 carried · keeps 0% · bones: 8 items on D3" } });
+  await waitFor((x) => x?.screen === "death", "a death whose line carries the bones");
+  const bonesLines = () => page.evaluate(() => ({ ledger: document.querySelector(".death .ledger-line")?.textContent ?? "", bones: document.querySelector(".death .bones-line")?.textContent ?? null }));
+  let bl = await bonesLines();
+  check(/bones: 8 items on D3/.test(bl.ledger) && bl.bones === null, `the pile is named once, on the exit line ("${bl.ledger}" · bones line ${bl.bones === null ? "gone" : `"${bl.bones}"`})`);
+  await fakeDeath({ line: { carried: 37, keep_pct: 0, kept: 0, spent: 0, spent_on: [], text: "died $0 · $37 carried · keeps 0%" } });
+  await waitFor((x) => x?.screen === "death", "a death whose line has no bones");
+  bl = await bonesLines();
+  check(bl.bones === "bones left · 8 items", `without it on the line the pile's own line stands ("${bl.bones}")`);
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

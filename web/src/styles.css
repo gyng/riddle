@@ -50,6 +50,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .card.comp .grip { cursor: pointer; }
 .x { min-height: var(--tap); color: var(--dim); font-size: 20px; }
 .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.row > .chips { min-width: 0; }   /* the grid column shrinks to the row, never the row to a chip (QA on 50bb162: a 523 px card row on a 400 px phone, its × at x=500) */
 .chip { display: inline-flex; align-items: center; gap: .4em; min-height: var(--tap); padding: 0 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel2); white-space: nowrap; }
 .chip.cond { background: var(--cond); border-color: #34506f; }
 .chip.verb { background: var(--verb); border-color: #6b4d2a; }
@@ -64,6 +65,8 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .rows-foot .over { color: var(--hp); font-weight: 700; }
 .row.drop { border-style: dashed; border-color: var(--hp); }
 .chip.locked { border-style: dashed; cursor: default; }
+/* a `[card]` chip wraps inside the row — `[card] kite archers` then `· foe: ranged · foe: telegraph` under it — instead of running past the × */
+.row > .chips > .chip.verb.locked { flex-wrap: wrap; row-gap: 0; max-width: 100%; white-space: normal; text-align: left; padding-block: 6px; line-height: 1.25; }
 .send:disabled { opacity: .35; }
 
 /* buttons */
@@ -269,6 +272,12 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .busy-fill { position: absolute; top: 0; bottom: 0; width: 30%; background: var(--acc); animation: busy 1.1s ease-in-out infinite; }
 @keyframes busy { 0% { left: -30%; } 100% { left: 100%; } }
 .busy-label { position: absolute; top: 5px; right: 12px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.busy-label[hidden] { display: none; }
+/* the camp hosts the label in its own strip between the header and the tabs — it drew over `D4 ★0` and the forecast's `94% ±5`
+   from the fixed bar (QA on 50bb162); the strip keeps its height while idle so the page never jumps */
+.busy-strip { height: 18px; line-height: 18px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); text-align: right; }
+.busy-strip:empty::after { content: ""; }
+.strip + .busy-strip + .tabs { padding-top: 2px; }
 
 /* death: patch numbers + baseline */
 .patch-nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 13px; }
@@ -360,7 +369,7 @@ button.chip.locked { cursor: pointer; }
 .interstitial::after { content: ""; position: absolute; left: 50%; bottom: calc(112px + env(safe-area-inset-bottom)); width: 60px; height: 2px; margin-left: -30px; background: var(--line); }
 .hud, .banner, .ticker { z-index: 2; }
 /* Cut 10 §2: the `try` bar is a button (a tap inserts the counter row at the top) */
-button.bar.try { width: 100%; text-align: left; font: inherit; cursor: pointer; border-radius: 6px; }
+button.bar.try { width: 100%; text-align: left; font: inherit; font-size: 13px; cursor: pointer; border-radius: 6px; }   /* the row's size, not the button's inherited 16px (`D9` read larger than `D8`) */
 button.bar.try:active { background: var(--panel2); }
 .bar .try { color: var(--acc); font-size: 12px; }
 /* Cut 10 §3: a greyed supply says why under its price */
@@ -373,8 +382,11 @@ button.bar.try:active { background: var(--panel2); }
 /* Cut 10 §4: the mute toggle */
 .btn.mute.on { border-color: var(--acc); color: var(--acc); }
 .btn.mute.on::before { content: "✓ "; }
-.bar.try .n { white-space: normal; }
-.bar.try .try { display: block; white-space: nowrap; }
+/* QA on 50bb162: `D9 0% ±1` wrapped `· try: attack boss` under it with a shorter bar — the hint sits on the track instead, one line
+   per depth, the track as wide as every other row's; a long hint is cut with an ellipsis */
+.bar .track-cell { position: relative; display: block; min-width: 0; }
+.bar .track-cell .track { display: block; }
+.bar.try .try { position: absolute; right: 0; top: 50%; transform: translateY(-50%); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 6px; border-radius: 8px; font-size: 11px; line-height: 14px; background: var(--panel); border: 1px solid var(--line); }
 
 /* Cut 11 — the chain under the trace, root patches, the replay sheet, tappable ledger lines */
 .chain { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 12px; font-size: 13px; line-height: 1.4; }
@@ -400,6 +412,7 @@ button.bar.try:active { background: var(--panel2); }
 .replay .because::first-letter { color: var(--acc); }
 .replay-view { display: block; width: 100%; height: 44dvh; max-height: 360px; background: #07080a; border-radius: 8px; }
 .gold-sheet .row-label .chip.mini { margin-left: auto; }
+.gold-sheet .row-label .chip.mini + .chip.mini { margin-left: 0; }   /* `died D4 | all`: the filter's own name on, `all` off (QA on 50bb162: the header's $40 read as the run list's sum) */
 .gold-sheet .row-label { display: flex; align-items: center; gap: 8px; }
 
 /* a forecast waiting on the engine after a rule edit: the old numbers dim until the new ones land */

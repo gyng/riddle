@@ -4,18 +4,30 @@ import { h } from "./dom";
 
 let bar: HTMLElement | null = null;
 let label: HTMLElement | null = null;
+let host: HTMLElement | null = null;
 const active = new Map<number, string>();
 let next = 1;
 
 function paint(): void {
   const texts = [...active.values()];
+  const text = texts.length ? texts[texts.length - 1] : "";
+  // a mounted host (the camp's own strip) carries the label; the fixed bar keeps only its line there
+  if (host) host.textContent = text;
   if (!texts.length) { bar?.remove(); bar = null; label = null; return; }
   if (!bar) {
     label = h("span", { class: "busy-label" });
     bar = h("div", { class: "busy", role: "progressbar" }, h("span", { class: "busy-fill" }), label);
     document.body.appendChild(bar);
   }
-  label!.textContent = texts[texts.length - 1];
+  label!.textContent = text;
+  label!.hidden = !!host;
+}
+/** A screen's own strip for the label (the camp's, between its header and tabs — the fixed corner label drew over `D4 ★0` and a
+ *  forecast bar: QA on 50bb162); null hands the label back to the fixed bar. */
+export function setBusyHost(el: HTMLElement | null): void {
+  if (host && host !== el) host.textContent = "";
+  host = el;
+  paint();
 }
 
 export type Busy = { done(): void; set(text: string): void };

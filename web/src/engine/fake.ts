@@ -1291,9 +1291,9 @@ export class FakeEngine implements Engine {
   runOffline(elapsedS: number): ReturnReport {
     const L = this.s.lineage;
     let budget = Math.max(0, Math.floor(elapsedS)); let runs = 0, stall = 0, sampled = false, turnsTotal = 0;
-    let rested = 0, banked = 0, returned = 0; const bonesFound: string[] = []; const exits: ExitLine[] = [];
+    let rested = 0, banked = 0, returned = 0, stalled = 0; const bonesFound: string[] = []; const exits: ExitLine[] = [];
     // Cut 2 §1: the rest (or wake) after each expedition comes out of the same clock; what is left waits in camp
-    const rest = (run: Run): void => { if (run.line) { exits.push(run.line); while (exits.length > EXITS_CAP) exits.shift(); } const r = Math.min(run.rest_s, budget); rested += r; budget -= r; L.rest_left_s = run.rest_s - r; if (run.exit === "bank") banked++; else if (run.exit === "return") returned++; for (const b of run.bonesFound) bonesFound.push(`heir ${b.heir} · D${b.depth} · ${b.items} items`); };
+    const rest = (run: Run): void => { if (run.line) { exits.push(run.line); while (exits.length > EXITS_CAP) exits.shift(); } const r = Math.min(run.rest_s, budget); rested += r; budget -= r; L.rest_left_s = run.rest_s - r; if (run.exit === "bank") banked++; else if (run.exit === "return") { returned++; if (run.stalled) stalled++; } for (const b of run.bonesFound) bonesFound.push(`heir ${b.heir} · D${b.depth} · ${b.items} items`); };
     if ((L.rest_left_s ?? 0) > 0) { const r = Math.min(L.rest_left_s ?? 0, budget); rested += r; budget -= r; L.rest_left_s = (L.rest_left_s ?? 0) - r; }
     const learned: string[] = [], bests: string[] = [], found: InvItem[] = [], deaths: Record<string, number> = {}; let marks = 0; let reel: Highlight[] = [];
     const tamed: string[] = [], hatched: string[] = [], lost: string[] = []; let xpGained = 0, levelUps = 0, renownGained = 0, ranksUp = 0;
@@ -1336,7 +1336,7 @@ export class FakeEngine implements Engine {
     return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live, tamed, hatched, lost, xp: { class: L.class, gained: xpGained, level_ups: levelUps },
       salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp },
       spent: Object.entries(spentMap).map(([kind, v]) => ({ kind, ...v })),   // Cut 13 §3
-      rested_s: rested, banked, returned, bones_found: bonesFound, stall: verdictStall, deepest, exits };
+      rested_s: rested, banked, returned, stalled, bones_found: bonesFound, stall: verdictStall, deepest, exits };   // Cut 13 §1: the stalls, counted inside `returned`
   }
   /** Stall verdict (core README) so the report's section can be seen: a `return` / `bank` row that sent ≥ 4 runs home with no
    *  new depth is named; the candidates (row 10 points deeper as `replace`, the row as `remove`, `hp<90 → rest`) carry the

@@ -5,7 +5,8 @@
 // `fast` is the old auto. Runs on the GPU harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219) with the
 // fake engine (`?engine=fake&dev=1`; the fake's fights are frequent and its hero takes hits, so fights are shown).
 // Cut 12 §4: from D3 the card names the floor's situation (`D4 · 9 rooms · a nest`). Cut 12 §6: a second run in `fast` — travel
-// at 16×, a fight at 2×, and `▶▶|` reaches the next fight (or, inside one, its end) in one press, in `fast` as in `fights`.
+// at 16×, a fight at 2×. QA on 50bb162: `▶▶|` in `fast` reaches the run's END in one press (the engine steps to `run_over`, the
+// ending plays at 1×) — five players read the old "next fight" press as "plays faster"; in `fights` it stays the next fight.
 //
 //   node web/tests/fights.mjs        (part of `pnpm test` in web/)
 //
@@ -81,7 +82,7 @@ try {
   s = await waitFor((x) => x && x.screen !== "watch", "the run's end", 120_000);
   check(["exit", "death", "report", "camp"].includes(s.screen), `the run reached its end (${s.screen})`);
 
-  // Cut 12 §6: a second run in `fast` (seed 157, rater P's): travel 16×, fights 2×, and ▶▶| does something on every press
+  // Cut 12 §6: a second run in `fast` (seed 157, rater P's): travel 16×, fights 2×; QA on 50bb162: ▶▶| reaches the END
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && inRun(x) && x.mode === "fast", "the fast run");
   check(s.mode === "fast" && s.card === "0", `fast from boot (card ${s.card})`);
@@ -89,22 +90,18 @@ try {
   check(s.speed === 16, `fast travels at 16× (speed ${s.speed})`);
   s = await waitFor((x) => !inRun(x) || x.frame === "fight", "a fight in fast", 30_000);
   check(inRun(s) && s.frame === "fight" && s.speed === 2, `fast watches a fight at 2× (speed ${s.speed}, frame ${s.frame})`);
-  // ▶▶| six times, wherever the run is: inside a fight the press ends it (the map within 2 s); on the map it reaches the next
-  // fight's first frame or jumps the clock — no press is inert
-  let moved = 0, presses = 0;
-  for (let k = 0; k < 6 && inRun(s); k++) {
-    const before = s.tick, f0 = s.fights, inFight = s.frame === "fight"; presses++;
+  // ▶▶| once, inside the fight: the run's end — the viewer lands at the ending (its last 30 ticks play at 1×, `ending`), then
+  // the exit flow; the press used to reach the fight's end / the next fight (read as "plays faster" by five players)
+  if (inRun(s)) {
+    const before = s.tick, t = Date.now();
     await press("▶▶|");
-    // a press that finds the run's end inside the fight lands on the ending (its last 30 ticks play at 1×): `ending` counts
-    if (inFight) s = await waitFor((x) => !inRun(x) || x.frame === "map" || x.ending, "the map after ▶▶| in a fight", 3000).catch(() => s);
-    else s = await waitFor((x) => !inRun(x) || x.frame === "fight" || x.ending || x.tick - before > 60, "a visible jump after ▶▶|", 4000).catch(() => s);
-    const ok = !inRun(s) || s.ending || (inFight ? s.frame === "map" : s.frame === "fight" || s.fights > f0 || s.tick - before > 60);
-    if (ok) moved++;
-    out.push(`     press ${k + 1} ${inFight ? "in a fight" : "on the map"}: tick ${before} → ${s.tick}, frame ${s.frame}, fights ${f0} → ${s.fights}${s.ending ? ", ending" : ""}${inRun(s) ? "" : `, ${s.screen}`}`);
-    await sleep(300);
-    s = await state();
+    s = await waitFor((x) => !inRun(x) || x.ending, "the ending after ▶▶| in fast", 20_000).catch(() => s);
+    check(!inRun(s) || s.ending, `one ▶▶| in fast reaches the run's end (tick ${before} → ${s.tick}, ${s.ending ? "ending" : s.screen}, ${Date.now() - t} ms)`);
+    check(!inRun(s) || s.tick > before, `the clock jumped to the ending (${before} → ${s.tick})`);
+    s = await waitFor((x) => x && x.screen !== "watch", "the end of the fast run", 60_000);
+    check(["exit", "death", "report", "camp"].includes(s.screen), `the fast run left the watch (${s.screen})`);
   }
-  check(presses === 0 || moved === presses, `every ▶▶| on the fast map moved the run (${moved}/${presses})`);
+  // in `fights` the press stays the next fight (checked above on seed 5)
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

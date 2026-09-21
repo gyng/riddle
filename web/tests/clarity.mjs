@@ -98,7 +98,7 @@ try {
     });
     await settle();
     const bar = await page.evaluate(() => { const b = document.querySelector(".fc-bars .bar.try"); return b ? { tag: b.tagName, text: [...b.children].map((c) => c.textContent.replace(/\s+/g, " ").trim()).filter(Boolean).join(" ") } : null; });
-    check(!!bar && bar.tag === "BUTTON" && /^D5 \d+%( ±\d+…?)? · goblin warlord · try: attack boss$/.test(bar.text), `the boss floor names the counter: "${bar?.text}"`);
+    check(!!bar && bar.tag === "BUTTON" && /^D5 try: attack boss \d+%( ±\d+…?)? · goblin warlord$/.test(bar.text), `the boss floor names the counter: "${bar?.text}"`);   // QA on 50bb162: the hint rides the track, before the number
     const before = await rowTexts();
     await page.locator(".fc-bars .bar.try").click({ timeout: 5000 });
     await waitFor((s) => s?.screen === "camp", "camp"); await settle();

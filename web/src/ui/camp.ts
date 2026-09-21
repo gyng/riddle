@@ -26,6 +26,7 @@ import { CLASS_VERBS, xpToNext } from "../engine/classes";
 import { isFreeSupply, verbLabel } from "./tokens";
 import { openSheet } from "./sheet";
 import { openGoldSheet } from "./gold";
+import { setBusyHost } from "./progress";
 
 const SET_NAME_MAX = 12;
 /** Cut 13 §2: each trait's one-line rule, ≤ 3 words (the core's: cowardly retreats under 50 % hp with foes in view; brave holds a
@@ -46,7 +47,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const send = h("button", { class: "btn primary send", onclick: () => { if (!app.overBudget) app.go({ kind: "watch" }); } }, /* copy:button */ "send");
   // Cut 10 §3: the rest chip says what it means all the time (`rest 20m · send skips`), no tap needed
   const rest = h("span", { class: "rest chip num" });
-  const el = h("main", { class: "camp" }, strip, tabs, editor.el, fc.el, party.el, vault, supplies, unlocks, h("div", { class: "send-bar" }, rest, send));
+  // the engine's busy label (`forecast` · `offline`) in its own strip under the header (QA on 50bb162: it drew over `D4 ★0`)
+  const busyStrip = h("div", { class: "busy-strip num" });
+  const el = h("main", { class: "camp" }, strip, busyStrip, tabs, editor.el, fc.el, party.el, vault, supplies, unlocks, h("div", { class: "send-bar" }, rest, send));
+  setBusyHost(busyStrip);
 
   function paintStrip(): void {
     const L = app.lineage; const lvl = L.classes?.[L.class] ?? { level: 1, xp: 0 };
@@ -259,5 +263,5 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
-  return { el, dispose: () => { off(); offRules(); offShelf(); fc.dispose(); audio.drone(null); } };
+  return { el, dispose: () => { off(); offRules(); offShelf(); fc.dispose(); audio.drone(null); setBusyHost(null); } };
 }

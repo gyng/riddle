@@ -36,7 +36,18 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile" }, h("b", { class: "num" }, n), h("span", { class: "label" }, label));
   // Cut 2 §1: `banked · returned · deaths` as a second row of three when the core reports exits; else the Cut 1 four
   const exits = r.banked !== undefined || r.returned !== undefined;
-  const banked = tile(`${r.banked ?? 0}`, /* copy:label */ "banked"), returned = tile(`${r.returned ?? 0}`, /* copy:label */ "returned");
+  // a stall is inside the core's `returned` (a return that kept nothing); the tiles count it apart — `returned` is the returns
+  // that came home with something, `stalled` its own tile when there were any (a QA player on 50bb162 read `1 RETURNED` for a
+  // run whose line said `returned $0 · … · stalled`). With no banks the stall tile takes `banked`'s place so the row stays three.
+  const stalledN = r.stalled ?? 0, bankedN = r.banked ?? 0, returnedN = Math.max(0, (r.returned ?? 0) - stalledN);
+  const banked = tile(`${bankedN}`, /* copy:label */ "banked"), returned = tile(`${returnedN}`, /* copy:label */ "returned");
+  const stalled = stalledN > 0 ? tile(`${stalledN}`, /* copy:label */ "stalled") : null;
+  const exitTiles = (): (HTMLElement | null)[] => {
+    // Cut 10 §3: `returned` leads when it is the larger (fourteen returns beside `banked 0` read as a contradiction)
+    const lead = returnedN > bankedN ? [returned, banked] : [banked, returned];
+    if (stalled && bankedN === 0) return [returned, stalled];
+    return [...lead, stalled];
+  };
   const tiles = h("div", { class: `tiles${exits ? " six" : ""}${absence ? " fade-in" : ""}` },
     tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"),
     exits ? null : tile(`${deathsN}`, /* copy:label */ "deaths"),
@@ -44,8 +55,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // `1 RUNS · D4 BEST` as this send's); an old wire without it shows the lineage best
     r.deepest !== undefined ? tile(`D${r.deepest}`, /* copy:label */ "deepest") : tile(`D${L.best_depth}`, /* copy:label */ "best"),
     tile(`◆${r.marks_earned > 0 ? "+" : ""}${r.marks_earned}`, /* copy:label */ "marks"),
-    // Cut 10 §3: `returned` leads when it is the larger (fourteen returns beside `banked 0` read as a contradiction)
-    ...(exits ? ((r.returned ?? 0) > (r.banked ?? 0) ? [returned, banked] : [banked, returned]) : []),
+    ...(exits ? exitTiles() : []),
     exits ? tile(`${deathsN}`, /* copy:label */ "deaths") : null,
   );
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;

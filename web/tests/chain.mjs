@@ -202,7 +202,7 @@ try {
   check(!!gs && gs.lines.length === expect.length && gs.lines.length >= 1, `the filtered sheet shows the run's ${expect.length} line(s) (${gs?.lines.length}): ${gs?.lines.map((l) => l.text).join(" | ")}`);
   check(!!gs && gs.lines.every((l) => l.text.includes(lastExit.why) || l.t >= (prevExit?.t ?? 0)), "every shown line is inside the run's slice");
   await shot("chain-gold.png");
-  await page.locator(".sheet-wrap .gold-sheet button.chip.mini").click({ timeout: 5000 });
+  await page.locator(".sheet-wrap .gold-sheet button.chip.mini", { hasText: /^all$/ }).click({ timeout: 5000 });   // QA on 50bb162: the run's own chip sits beside `all`
   await sleep(200);
   const gsAll = await page.evaluate(() => { const b = document.querySelector(".sheet-wrap .gold-sheet"); return b ? { filter: b.dataset.filter, n: b.querySelectorAll(".lrow[data-t]").length } : null; });
   check(!!gsAll && gsAll.filter === "" && gsAll.n === ledger.length, `all lifts the filter to the whole ledger (${gsAll?.n} of ${ledger.length})`);
