@@ -100,6 +100,10 @@ two on the GPU stays the decision. Cost: a day once §1.2 and §2 exist.
 
 ## 2. A tool server for the players (MCP or the driver's HTTP) — do now, with two profiles
 
+*Done (driver ops, 2026-09-22): `state`, `act` (settles on `!busy`, not 600 ms) and `watch`
+(lines that appeared per sample + evenly spaced shots) in `tools/driver.mjs`; the briefs name
+them. `send_and_watch`, `sheets` and the profiles: still open.*
+
 The driver is already an HTTP/JSON tool; each op costs a Bash turn and a JSON blob in context.
 The transport is not the cost, the op granularity is. Compound ops, exposed as MCP tools
 (`.mcp.json`, ~150 lines over `driver.mjs`) or as new driver ops:
