@@ -88,6 +88,41 @@ Not this cut: expression (0.6 for six cohorts). Its answer is content — a seco
 playing, a card that changes the archetype — and it needs its own cut with the dayplayer's
 content bars (M7).
 
+### 6. The world runs on the wall clock (client; return, tension, autonomy)
+
+The idler's contract: the world advances whether or not you look. Today the viewer owns the
+clock and pumps the engine ≤ 22 ticks ahead, so pausing the watch pauses the run, and a
+hidden tab stalls it. Every idler that lasts (Cookie Clicker, AdVenture Capitalist, Trimps,
+NGU, Melvor, Antimatter Dimensions) has no pause of the world; the return beat only lands if
+the player believes it kept happening.
+
+- **Two clocks.** The *world* clock advances the engine on wall time at the mode's rate
+  (the same `rate()` decisions — fight 2×/4×, near, scene, flat 16× through dead stretches —
+  read off the engine's own tick, not the viewer's) and never stops while a run is live:
+  `⏸` freezes the *picture*; the world goes on and the gap grows. A hidden tab (`visibilitychange`)
+  catches the world up on return in one step (elapsed × rate, to the run's end at most), the
+  way the absence does.
+- **The viewer is a DVR.** The playhead replays the engine's events at the viewer's rate;
+  `▶▶|` jumps it to the frontier (live); resuming from `⏸` replays from where it stopped.
+  The run's end (exit, death) is a world event: when the frontier reaches it, the viewer
+  finishes its replay to the end and the exit flow runs — nothing is skipped blind.
+- **Text-free live signal.** A thin scrub strip under the canvas: the playhead where the
+  viewer is, a dot at the right where the world is, the gap between them the "behind live"
+  every DVR viewer reads; the dot beats once per engine batch (it flutters at 16×, beats at
+  1×, and keeps beating while paused — that is what says the run did not stop). Hidden while
+  no run is live.
+- **Speeds are skips, never a slower world.** The world's rate is ≥ 1× always; `fights` and
+  `fast` decide how it skips, not whether it runs. `slowdowns: off` (§4) applies to the world
+  clock too (flat rate).
+- Not this cut: leaving the watch for the camp mid-run (the camp header's hero pill ticking);
+  the rest-skip on `send` (in idler terms a free time warp on the real gate) — noted for the
+  cut that touches the idle cadence.
+- Gate: `clarity.mjs`: paused, the frontier advances and the strip's dot moves while the
+  playhead holds; `▶▶|` lands on the frontier; a hidden tab for 5 s (fake `visibilitychange`)
+  advances the world ≥ 40 ticks at 1×; a run that ends while paused still shows its exit
+  after the replay. Determinism: the replay-hash gate holds (the engine's ticks are the same
+  ticks in the same order).
+
 ## Gates
 
 | Gate | Bar |
@@ -97,11 +132,12 @@ content bars (M7).
 | No `dice` death's margin names an unused item | 30 seeds (`examples/qa.rs`) |
 | Map frame: foe ≥ 24 CSS px; stacks fan; bank/return beats; 60 fps on the GPU harness | fights.mjs, playtest.mjs |
 | Trace chips labelled; stall tile carries its cost; coalesced callouts | screens.mjs, clarity.mjs |
+| World clock: paused picture, moving frontier; hidden-tab catch-up; `▶▶|` to live; the strip's dot beats | clarity.mjs |
 | Bots hold: DEFAULT dies by D6, EDITED ≥ +15, RANDOM/PASSIVE lose, LEARNED ≤ 2 floors, dice ≤ 5 %, stalls ≤ 1 % on DEFAULT and every cohort set | `node tools/gates.mjs --full` |
 | Cohort 11: mean ≥ 78; decisions or failure at 1.0 from one rater; α ≥ 0.80 | two blind cards |
 
 ## Tracks
 
 - **Core**: §1, §2, the two `qa.rs` invariants, the paired-delta test.
-- **Client**: §3, §4, their tests.
+- **Client**: §3, §4, §6, their tests.
 - **Coordinator**: §5.
