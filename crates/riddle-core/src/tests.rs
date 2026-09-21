@@ -6231,10 +6231,16 @@ fn forecast_ends_name_how_a_send_ends() {
     let e = f.ends.expect("ends");
     assert!(e.bank > 0.0, "{e:?}");
     assert!(e.gold > 0.0, "{e:?}");
-    let d8 = f.depths.iter().find(|d| d.depth == 8).unwrap().reach;
-    assert!((e.bank - d8).abs() < 1e-9, "every sim that reaches D8 banks there: bank {} vs reach D8 {d8}", e.bank);
+    assert!((e.bank + e.return_ + e.death - 1.0).abs() < 1e-9, "{e:?}");
     // Nothing reaches D9 past the bank row.
     assert_eq!(f.depths.iter().find(|d| d.depth == 9).unwrap().reach, 0.0);
+    // A fresh lineage with no return row: its sends end in deaths, never in "returns" the
+    // reach panel cut off at D1 (the ends panel runs every send to its exit).
+    let mut g = Game::new(7);
+    let set = g.lineage.rules().clone();
+    assert!(!set.rows.iter().any(|r| r.verb.v == "return" || r.verb.v == "bank"));
+    let e = g.forecast().ends.expect("ends");
+    assert!(e.death > 0.5 && e.bank == 0.0, "{e:?}");
 }
 
 /// Cut 12 §2: the thief guard card answers the den — over 30 seeds the den's snatches with

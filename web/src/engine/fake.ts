@@ -675,7 +675,8 @@ function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   run.loot_kept = Math.round(run.loot * keep_pct / 100);   // Cut 2 §2: death 0%
   // Cut 6 §1: one arithmetic line the player can check (supplies were paid in camp; a death names its bones instead)
   const spent = run.spent.reduce((n, x) => n + x.price, 0);
-  const parts = [`$${run.loot} carried`, `${tier} keeps ${keep_pct}% → $${run.loot_kept}`];
+  // Cut 10 §3 (as the core): the line leads with the verb and what came home
+  const parts = [`${tier === "bank" ? "banked" : tier === "return" ? "returned" : "died"} $${run.loot_kept}`, `$${run.loot} carried`, `keeps ${keep_pct}%`];
   if (tier === "death") { const kit = bonesKit(run).length; if (kit) parts.push(`bones: ${kit} item${kit === 1 ? "" : "s"} on D${run.depth}`); }
   else if (spent) parts.push(`supplies −$${spent}`);
   // Cut 9 §5: every exit carries its last-5 trace (row accounting included), on the event and on the ledger line
@@ -1354,7 +1355,7 @@ export class FakeEngine implements Engine {
     patches = patches.slice(0, 4);
     const margin = `${Math.max(1, log.hpMargin)} hp short`;
     const morgue = [`riddle · seed ${L.seed} · heir ${log.heir} · ${log.cls} · ${log.trait}`, `D${log.depth} · ${replay.cause ?? "?"} · ${margin} · ${verdict} · turn ${log.turns}`, "", ...log.rules.rows.map((r, i) => `R${i + 1} ${rowText(r)}`), "", ...replay.trace.map((t) => `t${t.t * 10} R${t.row + 1} ${verbText(t.verb)} hp${t.hp} foes${t.foes}${t.telegraphs.length ? " " + t.telegraphs.join(",") : ""}`), ...chain.map((c) => `← ${c.text} t${c.t * 10}`)].join("\n");
-    const d: Death = { run_id: runId, depth: log.depth, cause: replay.cause ?? log.cause ?? "?", margin, verdict, baseline: base, trace: { turns: scaleTrace(replay.trace) }, patches, morgue, line: log.line ?? replay.line,
+    const d: Death = { run_id: runId, depth: log.depth, cause: replay.cause ?? log.cause ?? "?", margin, verdict, baseline: base, trace: { turns: scaleTrace(replay.trace) }, patches, morgue, line: log.line ?? replay.line, rules: log.rules,
       chain: chain.length ? chain.map((c) => ({ text: c.text, t: c.t * 10, depth: c.depth })) : undefined };
     this.lastDeath[runId] = d; return d;
   }

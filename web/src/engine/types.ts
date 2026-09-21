@@ -116,7 +116,8 @@ export type Death = { run_id: number; depth: number; cause: string; margin: stri
                       trace: Trace; patches: Patch[];
                       morgue: string;
                       line?: ExitLine;                                                       // Cut 6 §1: the death's ledger line
-                      chain?: Because[] };                                                   // Cut 11 §2: the death's chain, root first (the rows' `because`s, deduplicated)
+                      chain?: Because[];                                                     // Cut 11 §2: the death's chain, root first (the rows' `because`s, deduplicated)
+                      rules?: RuleSet };                                                     // the rules the run died under (the accounting's row labels; else the morgue's lines)
 /** Core addition: the last ≥ 4 runs all came home with no new depth — the row that ended them, how many, a ≤ 12-word line,
  *  and up to 3 patches with forecast deltas at the stall depth + 1 (`survive` = the patched reach there). A state: the
  *  last slice's wins on merge. */

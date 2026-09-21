@@ -7,7 +7,7 @@ import type { Counter, ExitLine, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
 import { openUnlockSheet, visible, withRowsGate } from "./unlocks";
-import { lostLabel } from "./tokens";
+import { lostLabel, rowLabel } from "./tokens";
 import { traceChip } from "./trace";
 import { openGoldSheet } from "./gold";
 
@@ -17,6 +17,14 @@ const EXITS_SHOW = 8;
 export function exitLead(x: ExitLine): string {
   const tier = x.keep_pct >= 100 ? /* copy:label */ "banked" : x.keep_pct <= 0 ? /* copy:label */ "died" : /* copy:label */ "returned";
   return `${tier} $${x.kept}`;
+}
+
+/** The ledger line with its lead in bold: the engine's text leads with `died $0 · …` (Cut 10 §3) and is split there; a text
+ *  without a lead (an older slice) gets one in front — never two (`died $0 · died $0 · $190 carried` on every real report). */
+export function ledgerText(x: ExitLine): (string | HTMLElement)[] {
+  const m = /^((?:banked|returned|died) \$-?\d+)(?: · )?(.*)$/s.exec(x.text);
+  if (m) return [h("b", { class: "lead" }, m[1]), m[2] ? " · " : "", m[2]];
+  return [h("b", { class: "lead" }, exitLead(x)), " · ", x.text];
 }
 
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
@@ -44,7 +52,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // exits after it in this report have not); its `trace` chip shows the chain (§3)
   const shown = r.exits?.slice(-EXITS_SHOW) ?? [];
   const exitLines = shown.length ? h("div", { class: "exit-lines" }, ...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
-    h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, h("b", { class: "lead" }, exitLead(x)), " · ", x.text),
+    h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
     traceChip(x.trace, "chip mini", { rows: app.rules.rows })))) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
@@ -60,6 +68,13 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   };
   const section = (label: string, body: Node | null): HTMLElement | null => body ? h("section", { class: "rsec" }, h("div", { class: "label" }, label), body) : null;
   const nice = (x: string): string => x.replace(/_/g, " ");
+  // `R1 fired 3 of 16 runs: HP<50% → drink ?` names the row in the engine's short form; the report spells it as the
+  // editor and the death screen do (`hp < 50% → drink unknown`) when the row is still in the set
+  const rowSpelt = (x: string): string => {
+    const m = /^R(\d+) fired (\d+) of (\d+) runs: (.*)$/.exec(x);
+    const row = m && app.rules.rows[Number(m[1]) - 1];
+    return row ? /* copy:death_line */ `R${m[1]} fired ${m[2]} of ${m[3]} runs: ${rowLabel(row)}` : x;
+  };
   // repeats (three goblin archers tamed) collapse to one chip with a count
   const chips = (xs: string[], cls = "chip"): HTMLElement | null => {
     const n = new Map<string, number>(); for (const x of xs) n.set(x, (n.get(x) ?? 0) + 1);
@@ -67,7 +82,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     const label = (x: string): (string | HTMLElement)[] => { const i = x.indexOf(" · "); return i < 0 ? [nice(x)] : [nice(x.slice(0, i)), h("small", { class: "dim" }, ` ${x.slice(i + 3).replace(/ · fell$/, " fell")}`)]; };
     return n.size ? h("div", { class: "chips" }, ...[...n].map(([x, k]) => h("span", { class: cls }, ...label(x), k > 1 ? h("b", { class: "num" }, ` ×${k}`) : ""))) : null;
   };
-  const lines = (xs: string[]): HTMLElement | null => xs.length ? h("ul", { class: "lines" }, ...xs.map((x) => h("li", null, nice(x)))) : null;
+  const lines = (xs: string[]): HTMLElement | null => xs.length ? h("ul", { class: "lines" }, ...xs.map((x) => h("li", null, nice(rowSpelt(x))))) : null;
   // identical reel lines (the same pattern in several runs) collapse to one with a count
   const reel = (xs: string[]): HTMLElement | null => {
     const n = new Map<string, number>(); for (const x of xs) n.set(x, (n.get(x) ?? 0) + 1);

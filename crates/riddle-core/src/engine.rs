@@ -2431,9 +2431,14 @@ impl Game {
             let f = self.lineage.forge.entry(it.kind.clone()).or_default();
             f.salvaged += it.amount.max(1) as u32;
             f.settle();
-            let e = self.batch.salvaged.entry(it.kind.clone()).or_insert((0, 0));
-            e.0 += 1;
-            e.1 += cents;
+            // The report's `salvaged` lines: what came home as gold. A death salvages at 0 %
+            // (the forge still counts the kit; the bones hold it), so it has no line — `sword
+            // ×2 · $0` beside `bones: 12 items on D7` read as a kit sold for nothing.
+            if pct > 0 {
+                let e = self.batch.salvaged.entry(it.kind.clone()).or_insert((0, 0));
+                e.0 += 1;
+                e.1 += cents;
+            }
         }
     }
 

@@ -192,12 +192,22 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let mut cv: Vec<(String, u32)> = causes.into_iter().collect();
     cv.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     let causes = cv.into_iter().take(3).map(|(c, k)| ForecastCause { cause: c, share: k as f64 / deaths.max(1) as f64 }).collect();
-    // Cut 12 §3: how the sends end, and what they bring home, over the same sims.
-    let share = |t: ExitTier| results.iter().filter(|r| r.tier == t).count() as f64 / n;
-    let gold = results.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
-    let ends = (!results.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death: share(ExitTier::Death), gold });
+    // Cut 12 §3: how the sends end, and what they bring home. The reach panel stops a sim at
+    // `known_to` (the depth it asks about), so its exits are not a send's: a sim cut off at
+    // D(best+1) read as a "return" (`return 100% · death 0%` on a fresh camp). The ends come
+    // from their own small panel that runs every send to its exit — `ENDS_SIMS` under the
+    // delta budget (~30 k ticks on a fresh lineage), so an edit still answers at once.
+    let ended = simulate_budget(game, rules, ENDS_SIMS, tag ^ ENDS_TAG, u32::MAX, DELTA_TICK_BUDGET);
+    let m = ended.len().max(1) as f64;
+    let share = |t: ExitTier| ended.iter().filter(|r| r.tier == t).count() as f64 / m;
+    let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / m;
+    let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death: share(ExitTier::Death), gold });
     Forecast { depths, causes, known_to, ends }
 }
+
+/// The ends panel: sends run to their exit, not to `known_to` (see `forecast_with`).
+pub const ENDS_SIMS: u32 = 12;
+const ENDS_TAG: u64 = 0xE4D5_0F5E_4D5E_4D50;
 
 /// Cut 10 §2: the `try` of a forecast row — reaching `depth` means passing the boss on the
 /// floor above it; when that boss's counter fact is known and no row of `rules` carries the

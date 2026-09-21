@@ -2555,7 +2555,8 @@ pub fn telegraph(run: &mut Run, cx: &mut Ctx, mi: usize, what: &str, pending: Pe
     cx.events.push(Ev::Telegraph { t: run.turn, id, what: what.into() });
     if run.floor.map.is_visible(run.monsters[mi].pos) {
         let kind = run.monsters[mi].kind.clone();
-        let title = run.monsters[mi].def().title.split_whitespace().last().unwrap_or("foe").to_string();
+        // The title's last word, lowercase as every callout is (`warlord rallies`, `bloat swells`).
+        let title = run.monsters[mi].def().title.split_whitespace().last().unwrap_or("foe").to_lowercase();
         callout(run, cx, &format!("{title} {what}"));
         learn_tag(run, cx, &kind, "telegraph");
         if run.monsters[mi].is_boss() {

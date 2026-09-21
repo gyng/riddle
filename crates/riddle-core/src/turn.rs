@@ -264,7 +264,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     let telegraphs: Vec<String> = v
         .foes
         .iter()
-        .filter_map(|&i| run.monsters.get(i).and_then(|m| m.telegraph.as_ref().map(|t| format!("{} {}", m.def().title.split_whitespace().last().unwrap_or("foe"), t))))
+        .filter_map(|&i| run.monsters.get(i).and_then(|m| m.telegraph.as_ref().map(|t| format!("{} {}", m.def().title.split_whitespace().last().unwrap_or("foe").to_lowercase(), t))))
         .collect();
     let blocked = run.blocked_now.take();
     // Cut 6 §3: every row above the one that acted, with its reason (none when R1 acted).

@@ -25,7 +25,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
   // The trace holds one row per hero action (~10 ticks apart at base speed); the last five, with the row accounting of
   // the last action under it (Cut 6 §3). Cut 9 §5: the table lives in ui/trace.ts, shared with every exit.
   // Cut 11 §2: the accounting is the chain; the rules that ran label its rows (the morgue's, else the editing copy)
-  const trace = traceTable(d.trace, { rows: app.rules.rows, verbs: morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain });
+  // The run's own rules label the accounting (`R1 drink unknown · no use`, as the editor spells it); a death from before
+  // the wire carried them falls back to the morgue's short forms
+  const trace = traceTable(d.trace, { rows: d.rules?.rows ?? app.rules.rows, verbs: d.rules ? undefined : morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain });
   // Fractions 0..1 from the core: baseline (survival of the unpatched rules) is on every row (Cut 4 §2).
   const patches = patchRows(app, d.patches, d.baseline ?? 0);
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).

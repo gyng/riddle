@@ -325,9 +325,9 @@ pub struct Forecast {
     pub ends: Option<ForecastEnds>,
 }
 
-/// Cut 12 §3: the exits of the forecast's sims — `bank` / `return` / `death` as shares of the
-/// sims (a sim stopped at the run cap or at `known_to` counts as a return) and `gold`, the
-/// mean loot kept per send by the exit's own share (bank 100% · return 60% · death 0%).
+/// Cut 12 §3: how a send ends — `bank` / `return` / `death` as shares of a panel of sends run
+/// to their exit (`forecast::ENDS_SIMS`; a run at the cap is a return that keeps nothing) and
+/// `gold`, the mean loot kept per send by the exit's own share (bank 100% · return 60% · death 0%).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ForecastEnds {
     pub bank: f64,
@@ -433,6 +433,11 @@ pub struct Death {
     /// text — the chain under the trace. Absent when no row had one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chain: Option<Vec<Because>>,
+    /// The rules the run died under, so the trace's row accounting is labelled with the run's
+    /// own rows in the editor's words (an old death from the chronicle keeps its rules;
+    /// before this the client parsed the morgue's short forms — `R1 drink ?`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rules: Option<RuleSet>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
