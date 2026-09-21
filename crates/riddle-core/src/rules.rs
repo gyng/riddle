@@ -269,15 +269,85 @@ impl Row {
     }
 }
 
+impl Row {
+    /// Cut 12 §1: a card's row (`tactic <card>`) — it sits outside the player's row cap, one
+    /// per owned card.
+    pub fn is_card(&self) -> bool {
+        self.verb.v == "tactic"
+    }
+    /// The card a card row carries (`thief_guard`), if it is one.
+    pub fn card(&self) -> Option<&str> {
+        self.is_card().then(|| self.verb.a.as_deref().unwrap_or("")).filter(|c| !c.is_empty())
+    }
+}
+
 impl RuleSet {
     pub fn parse(text: &str) -> Result<RuleSet, String> {
         let set: RuleSet = serde_json::from_str(text).map_err(|e| e.to_string())?;
         set.validate()?;
         Ok(set)
     }
+    /// Cut 12 §1: the player's own rows — every row that is not a card's.
+    pub fn own_rows(&self) -> usize {
+        self.rows.iter().filter(|r| !r.is_card()).count()
+    }
+    /// Cut 12 §1: the card rows (one per card once validated).
+    pub fn card_rows(&self) -> usize {
+        self.rows.iter().filter(|r| r.is_card()).count()
+    }
+    /// Cut 12 §1: the rows in play under a cap on the player's own rows — every card row
+    /// (the first per card) and the first `max_rows` own rows, in the set's order, with their
+    /// indices in the set. A validated set passes through whole; a patched or replayed one
+    /// is cut like the editor cuts it (the last own row falls off).
+    pub fn active(&self, max_rows: usize) -> impl Iterator<Item = (usize, &Row)> + '_ {
+        let mut own = 0;
+        let mut cards: Vec<&str> = Vec::new();
+        self.rows.iter().enumerate().filter(move |(_, r)| match r.card() {
+            Some(c) => {
+                if cards.contains(&c) {
+                    false
+                } else {
+                    cards.push(c);
+                    true
+                }
+            }
+            None => {
+                own += 1;
+                own <= max_rows
+            }
+        })
+    }
+    /// Cut 12 §1: the set cut to `max_rows` own rows (`active`, materialised).
+    pub fn fit(&self, max_rows: usize) -> RuleSet {
+        RuleSet { rows: self.active(max_rows).map(|(_, r)| r.clone()).collect(), name: self.name.clone() }
+    }
+    /// Cut 12 §1: the door's check for a player's set — at most `max_rows` own rows (a card's
+    /// row is the card's, outside the cap), one row per card, every card owned. Errors ≤ 6
+    /// words, the number first (`5 own rows, 4 allowed`).
+    pub fn check_rows(&self, max_rows: usize, owned: &std::collections::BTreeSet<String>) -> Result<(), String> {
+        let own = self.own_rows();
+        if own > max_rows {
+            return Err(format!("{own} own rows, {max_rows} allowed"));
+        }
+        let mut cards: Vec<&str> = Vec::new();
+        for r in &self.rows {
+            let Some(c) = r.card() else { continue };
+            if cards.contains(&c) {
+                return Err(format!("two rows for {}", c.replace('_', " ")));
+            }
+            if !owned.contains(c) {
+                return Err(format!("card not owned: {}", c.replace('_', " ")));
+            }
+            cards.push(c);
+        }
+        Ok(())
+    }
     pub fn validate(&self) -> Result<(), String> {
-        if self.rows.len() > crate::engine::MAX_ROWS {
+        if self.own_rows() > crate::engine::MAX_ROWS {
             return Err(format!("more than {} rows", crate::engine::MAX_ROWS));
+        }
+        if self.rows.len() > crate::engine::ROWS_TOTAL {
+            return Err(format!("more than {} rows with cards", crate::engine::ROWS_TOTAL));
         }
         for (i, r) in self.rows.iter().enumerate() {
             if r.conds.len() > 2 {

@@ -25,11 +25,14 @@ pub fn run_offline_quick(game: &mut Game, elapsed_s: u64) -> ReturnReport {
     run_offline_with(game, elapsed_s, false)
 }
 
-/// Rest that follows a run of `turns` ticks ending in `tier` (Cut 2 §1).
+/// Rest that follows a run of `turns` ticks ending in `tier` (Cut 2 §1). Cut 12 §5: after a
+/// return or a bank, **half** the run's length (was: the run's; rater P: "`rested 287m` — the
+/// hero idled for five of the eight hours"), still never under `REST_MIN_TICKS` nor over the
+/// cap; the wake after a death stays.
 pub fn rest_after(turns: u32, tier: ExitTier) -> u32 {
     match tier {
         ExitTier::Death => WAKE_TICKS,
-        _ => turns.clamp(REST_MIN_TICKS, REST_CAP_TICKS),
+        _ => (turns / 2).clamp(REST_MIN_TICKS, REST_CAP_TICKS),
     }
 }
 
@@ -255,7 +258,8 @@ pub fn apply_patch(rules: &RuleSet, p: &Patch, max_rows: usize) -> RuleSet {
         r.rows[at] = p.row.clone();
     } else {
         r.rows.insert(at.min(r.rows.len()), p.row.clone());
-        r.rows.truncate(max_rows.max(1));
+        // Cut 12 §1: the cap is on the player's own rows; a card row never falls off.
+        r = r.fit(max_rows.max(1));
     }
     r
 }

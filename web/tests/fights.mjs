@@ -4,6 +4,8 @@
 // next fight in one press; `▶▶|` inside a fight jumps to its end; tapping the card holds the map at 8× until the next fight;
 // `fast` is the old auto. Runs on the GPU harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219) with the
 // fake engine (`?engine=fake&dev=1`; the fake's fights are frequent and its hero takes hits, so fights are shown).
+// Cut 12 §4: from D3 the card names the floor's situation (`D4 · 9 rooms · a nest`). Cut 12 §6: a second run in `fast` — travel
+// at 16×, a fight at 2×, and `▶▶|` reaches the next fight (or, inside one, its end) in one press, in `fast` as in `fights`.
 //
 //   node web/tests/fights.mjs        (part of `pnpm test` in web/)
 //
@@ -27,7 +29,7 @@ page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
 const state = () => page.evaluate(() => {
   const r = window.__riddle, w = document.querySelector(".watch");
-  return r ? { screen: r.screen, booted: r.booted, mode: w?.dataset.mode, frame: w?.dataset.frame, card: w?.dataset.card, speed: Number(w?.dataset.speed), fights: Number(w?.dataset.fights ?? 0), tick: Number(w?.dataset.tick), cardText: document.querySelector(".interstitial")?.textContent ?? "", cardShown: !!document.querySelector(".interstitial:not([hidden])"), buttons: [...document.querySelectorAll(".hud.bottom .hud-btn")].map((b) => b.textContent), on: [...document.querySelectorAll(".hud.bottom .hud-btn.on")].map((b) => b.textContent), vault: !!document.querySelector(".sheet-wrap .vault-choice .chip") } : null;
+  return r ? { screen: r.screen, booted: r.booted, mode: w?.dataset.mode, frame: w?.dataset.frame, card: w?.dataset.card, speed: Number(w?.dataset.speed), fights: Number(w?.dataset.fights ?? 0), tick: Number(w?.dataset.tick), ending: w?.dataset.ending === "1", cardText: document.querySelector(".interstitial")?.textContent ?? "", cardShown: !!document.querySelector(".interstitial:not([hidden])"), buttons: [...document.querySelectorAll(".hud.bottom .hud-btn")].map((b) => b.textContent), on: [...document.querySelectorAll(".hud.bottom .hud-btn.on")].map((b) => b.textContent), vault: !!document.querySelector(".sheet-wrap .vault-choice .chip") } : null;
 });
 async function waitFor(pred, label, timeout = 20_000) {
   const t = Date.now(); let s = null;
@@ -49,7 +51,7 @@ try {
   check(s.buttons.join(" ") === "fights fast ▶▶| bail", `the buttons read fights · fast · ▶▶| · bail (${s.buttons.join(" · ")})`);
   // the card: the ambient line over the map, the clock held; then the first fight at 1×
   s = await waitFor((x) => !inRun(x) || x.card === "1", "the interstitial", 8000);
-  check(s.card === "1" && s.cardShown && /^D\d+( · \d+ rooms)? · \$\d+$/.test(s.cardText), `the interstitial reads the ambient line: "${s.cardText}"`);
+  check(s.card === "1" && s.cardShown && /^D\d+( · \d+ rooms)? · (\$\d+|an? [a-z]+)$/.test(s.cardText), `the interstitial reads the ambient line: "${s.cardText}"`);
   check(s.speed === 0, `the clock holds under the card (speed ${s.speed})`);
   // a tap on the card holds the map at 8× until the next fight (shown whatever it costs)
   await page.locator(".interstitial").click({ timeout: 2000 });
@@ -66,11 +68,11 @@ try {
   await press("▶▶|");
   s = await waitFor((x) => !inRun(x) || x.frame === "fight", "the next fight after one press", 4000);
   check(!inRun(s) || (s.frame === "fight" && s.fights === f1 + 1 && Date.now() - t < 2500), `one ▶▶| under the card reaches the next fight (${s.frame}, fights ${f1} → ${s.fights}, ${Date.now() - t} ms, tick ${tick0} → ${s.tick})`);
-  // `fast`: the old auto — no card, 8× through dead stretches and 1× near
+  // `fast`: no card, 16× through dead stretches and 2× near (Cut 12 §6)
   if (inRun(s)) {
     await press("fast");
     s = await waitFor((x) => !inRun(x) || (x.mode === "fast" && x.card === "0"), "fast mode", 2000);
-    check(s.mode === "fast" && s.on.join() === "fast" && s.card === "0" && (s.speed === 8 || s.speed === 1), `fast: the card is gone and the clock runs 8× / 1× (speed ${s.speed})`);
+    check(s.mode === "fast" && s.on.join() === "fast" && s.card === "0" && (s.speed === 16 || s.speed === 2 || s.speed === 1), `fast: the card is gone and the clock runs 16× / 2× (speed ${s.speed})`);
     await press("fights");
     s = await waitFor((x) => !inRun(x) || x.mode === "fights", "fights mode again", 2000);
     check(s.mode === "fights" && s.on.join() === "fights", "fights again");
@@ -78,6 +80,31 @@ try {
   // the run ends on its own within the budget
   s = await waitFor((x) => x && x.screen !== "watch", "the run's end", 120_000);
   check(["exit", "death", "report", "camp"].includes(s.screen), `the run reached its end (${s.screen})`);
+
+  // Cut 12 §6: a second run in `fast` (seed 157, rater P's): travel 16×, fights 2×, and ▶▶| does something on every press
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  s = await waitFor((x) => x?.booted && inRun(x) && x.mode === "fast", "the fast run");
+  check(s.mode === "fast" && s.card === "0", `fast from boot (card ${s.card})`);
+  s = await waitFor((x) => !inRun(x) || x.speed === 16, "16× travel", 8000);
+  check(s.speed === 16, `fast travels at 16× (speed ${s.speed})`);
+  s = await waitFor((x) => !inRun(x) || x.frame === "fight", "a fight in fast", 30_000);
+  check(inRun(s) && s.frame === "fight" && s.speed === 2, `fast watches a fight at 2× (speed ${s.speed}, frame ${s.frame})`);
+  // ▶▶| six times, wherever the run is: inside a fight the press ends it (the map within 2 s); on the map it reaches the next
+  // fight's first frame or jumps the clock — no press is inert
+  let moved = 0, presses = 0;
+  for (let k = 0; k < 6 && inRun(s); k++) {
+    const before = s.tick, f0 = s.fights, inFight = s.frame === "fight"; presses++;
+    await press("▶▶|");
+    // a press that finds the run's end inside the fight lands on the ending (its last 30 ticks play at 1×): `ending` counts
+    if (inFight) s = await waitFor((x) => !inRun(x) || x.frame === "map" || x.ending, "the map after ▶▶| in a fight", 3000).catch(() => s);
+    else s = await waitFor((x) => !inRun(x) || x.frame === "fight" || x.ending || x.tick - before > 60, "a visible jump after ▶▶|", 4000).catch(() => s);
+    const ok = !inRun(s) || s.ending || (inFight ? s.frame === "map" : s.frame === "fight" || s.fights > f0 || s.tick - before > 60);
+    if (ok) moved++;
+    out.push(`     press ${k + 1} ${inFight ? "in a fight" : "on the map"}: tick ${before} → ${s.tick}, frame ${s.frame}, fights ${f0} → ${s.fights}${s.ending ? ", ending" : ""}${inRun(s) ? "" : `, ${s.screen}`}`);
+    await sleep(300);
+    s = await state();
+  }
+  check(presses === 0 || moved === presses, `every ▶▶| on the fast map moved the run (${moved}/${presses})`);
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

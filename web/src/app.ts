@@ -1,7 +1,7 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
 import type { AsyncEngine, ComboHit, Death, Forecast, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, UnlockInfo, Vocabulary } from "./engine/types";
-import { combosIn } from "./ui/tokens";
+import { combosIn, isCardRow, isFreeSupply, ownRowCount } from "./ui/tokens";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
 import { renderCamp } from "./ui/camp";
@@ -72,6 +72,9 @@ export class App {
   private fcListeners = new Set<(f: Forecast) => void>();
   private changeListeners = new Set<() => void>();
   private rulesListeners = new Set<() => void>();
+  private shelfListeners = new Set<() => void>();
+  private shelfFull: boolean | null = null;
+  private rulesSeq = 0;
   private offlineRunning = false;
   /** Runs seen by this client (the wire Lineage has no run counter); persisted in the blob. */
   runsSeen = 0;
@@ -80,8 +83,13 @@ export class App {
   cardRows(id: string): Row[] | undefined { return this.unlockCat.find((u) => u.id === id)?.rows; }
   /** Cut 7 §2: row origins from the save blob, consumed by the first `adoptSets` (the engine's sets carry none). */
   private savedOrigins: string[][] | null = null;
-  /** Cut 7 §2: the rows of the active set that are the player's own (`yours: 3 of 5 rows`). */
-  playerRows(): number { return this.rules.rows.filter((r) => (r.origin ?? "player") === "player").length; }
+  /** Cut 7 §2: the rows of the active set that are the player's own (`yours: 3 of 5 rows`). Cut 12 §1: card rows never count. */
+  playerRows(): number { return this.rules.rows.filter((r) => !isCardRow(r) && (r.origin ?? "player") === "player").length; }
+  /** Cut 12 §1: the rows `max_rows` caps — every row that is not a card's (`{v:"tactic"}`). */
+  ownRows(): number { return ownRowCount(this.rules.rows); }
+  cardRowCount(): number { return this.rules.rows.length - this.ownRows(); }
+  /** Cut 12 §1: the set has no free own row (`+1 row` opens; `5/4 · drop one` past it). */
+  get rowsFull(): boolean { return this.ownRows() >= this.vocab.max_rows; }
   /** Cut 8B §1: the active set's combos as the editor sees them now (the vocabulary's table over the editing copy). */
   combos(): ComboHit[] { return combosIn(this.rules.rows, this.vocab?.combos); }
   /** Cut 11 §2: the last watched run's event log (ui/runlog.ts), which the death screen's chain links replay. */
@@ -259,18 +267,30 @@ export class App {
 
   // --- rules ---
   /** Cut 4 §1: more rows than the vocabulary allows. A patch never evicts a row; the editor shows `5/4` and `send`
-   *  and the forecast wait until the player removes one. The engine keeps its last valid set meanwhile. */
-  get overBudget(): boolean { return this.rules.rows.length > this.vocab.max_rows; }
+   *  and the forecast wait until the player removes one. The engine keeps its last valid set meanwhile.
+   *  Cut 12 §1: own rows against `max_rows`; card rows sit outside the cap. */
+  get overBudget(): boolean { return this.ownRows() > this.vocab.max_rows; }
   rulesChanged(): void {
     this.persist();
     clearTimeout(this.fcTimer); clearTimeout(this.refineTimer); this.refineSeq++;
     for (const fn of this.rulesListeners) fn();
     if (this.overBudget) return;
-    void this.engine.setRules(this.rules).catch((e) => console.warn("rules rejected", e));
+    const seq = ++this.rulesSeq;
+    void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) this.shelfCheck(); }).catch((e) => console.warn("rules rejected", e));
     this.fcTimer = window.setTimeout(() => void this.emitForecast(), 250);
+  }
+  /** Cut 12 §6: the unlock shelf's `+1 row ⊘ rows full` is the engine's read of its own set, so it repaints once a rule edit
+   *  crosses `max_rows` — after `setRules` resolved (the rules listeners fire before the engine call). */
+  private shelfCheck(): void {
+    const full = this.rowsFull;
+    if (full === this.shelfFull) return;
+    this.shelfFull = full;
+    for (const fn of this.shelfListeners) fn();
   }
   /** Fires on every rule edit (the camp gates `send` on `overBudget`); `onChange` is for lineage changes. */
   onRules(fn: () => void): () => void { this.rulesListeners.add(fn); return () => this.rulesListeners.delete(fn); }
+  /** Cut 12 §6: fires after the engine took a set that crossed `max_rows` (the unlock shelf refetches its catalogue). */
+  onShelf(fn: () => void): () => void { this.shelfFull = this.rowsFull; this.shelfListeners.add(fn); return () => this.shelfListeners.delete(fn); }
   onForecast(fn: (f: Forecast) => void): () => void { this.fcListeners.add(fn); return () => this.fcListeners.delete(fn); }
   async emitForecast(): Promise<void> {
     if (!this.fcListeners.size) return;
@@ -352,16 +372,29 @@ export class App {
     await this.afterLineage();
     return true;
   }
-  /** Cut 4 §9: a bought tactic card becomes a row `[card] <name>` at the end of the active set (the card only acts as
-   *  a row: `{v:"tactic", a:<id>}`), so the player sees where it sits; over a full set that is an overflow decision. */
+  /** Cut 4 §9: a bought tactic card becomes a row `[card] <name>` in the active set (the card only acts as a row:
+   *  `{v:"tactic", a:<id>}`), so the player sees where it sits. Cut 12 §1: it sits where it acts — at the catalogue's
+   *  `insert_at` when the engine sends one, else before the set's engagement row (the first `attack` / `shoot`), else the
+   *  end; card rows sit outside `max_rows`, so a card never overflows the set. */
   async buy(id: string): Promise<boolean> {
+    const at = this.unlockCat.find((u) => u.id === id)?.insert_at;
     const ok = await this.mutate(() => this.engine.buy(id));
     if (ok) audio.cue("unlock");   // Cut 10 §4
     if (ok && this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id) && !this.rules.rows.some((r) => r.verb.v === "tactic" && r.verb.a === id)) {
-      this.insertRow({ conds: [], verb: { v: "tactic", a: id } }, this.rules.rows.length, "card");
+      this.insertRow({ conds: [], verb: { v: "tactic", a: id } }, at ?? engagementRow(this.rules.rows), "card");
       this.emitChange();
     }
     return ok;
+  }
+  /** Cut 12 §6: one supply off the shelf. An engine without `dropSupply` clears the shelf and rebuys the other bought
+   *  lines in order (a free line — the kennel's leash — comes back at the next exit). */
+  async dropSupply(id: number): Promise<boolean> {
+    const picks = this.lineage.supplies ?? [];
+    const it = picks.find((p) => p.id === id); if (!it) return false;
+    try { this.lineage = await this.engine.dropSupply!(id); await this.afterLineage(); return true; }   // the proxy always has it; an engine without it rejects
+    catch (e) { console.warn("dropSupply unavailable, clear + rebuy", e); }
+    const rest = picks.filter((p) => p.id !== id && !isFreeSupply(this.lineage, p)).map((p) => p.kind);
+    return this.mutate(async () => { let L = await this.engine.clearSupplies(); for (const k of rest) L = await this.engine.buySupply(k); return L; });
   }
   setClass(cls: string): Promise<boolean> { return this.mutate(() => this.engine.setClass(cls)); }
   setLoadout(ids: number[]): void { this.loadout = ids; void this.engine.loadout(ids); this.persist(); this.emitChange(); }
@@ -482,6 +515,8 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   };
 }
 
+/** Cut 12 §1: the set's engagement row — the first `attack` / `shoot` — where a bought card goes; the end when there is none. */
+export function engagementRow(rows: Row[]): number { const i = rows.findIndex((r) => r.verb.v === "attack" || r.verb.v === "shoot"); return i < 0 ? rows.length : i; }
 export const cloneRow = (r: Row): Row => ({ conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb }, ...(r.origin ? { origin: r.origin } : {}) });
 /** Cut 7 §2: a row's identity for origin carry-over (tokens only, never the origin). */
 const rowKey = (r: Row): string => `${r.conds.map((c) => `${c.k}|${c.n ?? ""}|${c.t ?? ""}`).join(" ")} → ${r.verb.v}|${r.verb.a ?? ""}`;

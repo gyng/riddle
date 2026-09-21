@@ -11,6 +11,7 @@ import { h, copyText, items } from "./dom";
 import { openGoldSheet } from "./gold";
 import { patchRows } from "./patches";
 import { openSheet } from "./sheet";
+import { lostLabel } from "./tokens";
 import { traceTable } from "./trace";
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
@@ -33,7 +34,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
     openSheet(() => h("div", { class: "morgue" }, h("pre", { class: "morgue-text" }, d.morgue)));
   } }, /* copy:button */ "morgue");
   const edit = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "edit");
-  const eggs = lost.length ? h("div", { class: "chips eggs" }, ...lost.map((k) => h("span", { class: "chip egg" }, "◯ ", k.replace(/_/g, " ").replace(" · ", " "), /* copy:callout */ " fell"))) : null;   // Cut 10 §3
+  // Cut 10 §3: `◯ jackal Ashar fell` (a companion leaves an egg); Cut 12 §6: a summoned ally reads `ally hound fell`, no egg
+  const eggs = lost.length ? h("div", { class: "chips eggs" }, ...lost.map((k) => h("span", { class: "chip egg" }, k.includes(" · ") ? "◯ " : "", lostLabel(k)))) : null;
   // Cut 2 §2: what this death left on the floor — the pile whose heir the matching grave names; silent when absent
   const L = app.lineage;
   const grave = [...(L.graveyard ?? [])].reverse().find((g) => g.depth === d.depth && g.cause === d.cause);

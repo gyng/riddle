@@ -208,7 +208,10 @@ type Run = {
   lastRows?: { row: number; why: string }[];                                                  // Cut 6 §3: row accounting of the last action
   prov: Record<string, Prov>;                                                                 // Cut 11 §1: per slot (`item:heal`, `path`), the last event that emptied / blocked it
   startedTotal: number;                                                                       // Cut 11 §5: the lineage tick this run started at (`Snapshot.run.started_turn`)
+  twist?: string;                                                                             // Cut 12 §4: the floor's one situation from D3 (`nest`), never the previous floor's kind
 };
+/** Cut 12 §4: the situation kinds a floor rolls one of from D3 (the core's bands; the fake draws from the whole list). */
+const TWISTS = ["den", "lock", "captive", "nest", "shrine", "vault", "stray", "hunger"];
 /** Cut 11 §1: a provenance entry — the wire's `because` (turn units here, ×10 on the wire) and what kind of event it was. */
 type Prov = Because & { kind: "theft" | "use" | "gas" };
 type RunLog = { seed: number; rules: RuleSet; depth: number; cause?: string; turns: number; exit: string; known: string[]; cls: string; trait: string; heir: number; hpMargin: number; line?: ExitLine };
@@ -352,6 +355,8 @@ function applyItem(h: Hero, it: InvItem, tier = 0): void {
 }
 function descendTo(run: Run, depth: number, ctx: SimCtx, ev: Ev[]): void {
   run.depth = depth; run.floorTurn = 0; run.alert = 0; run.goal = undefined; run.windUsed = false;
+  // Cut 12 §4: from D3 every floor rolls one situation, never the previous floor's kind
+  run.twist = depth >= 3 ? pick(run.rng, TWISTS.filter((t) => t !== run.twist)) : undefined;
   if (run.floor) for (const m of run.floor.mons) if (m.ally && m.cid !== undefined) run.recalled.push(m);
   run.floor = genFloor(run.rng, depth, ctx.flav, run.known, () => run.nextId++);
   const up = run.floor.tiles.indexOf("stairs_up");
@@ -865,6 +870,7 @@ function snapshot(run: Run, rules?: RuleSet): Snapshot {
     run: { id: run.id, heir: run.heir, started_turn: run.startedTotal },   // Cut 11 §5: the lineage tick this run started at
     stake: stakeOf(run, rules), vision: DEV_VISION,
     room: roomOf(run), rooms: run.floor.rooms.length,   // Cut 7 §4
+    ...(run.twist ? { floor_twist: run.twist } : {}),   // Cut 12 §4
   };
 }
 /** Cut 7 §4: the room the hero stands in (0 = corridor) and the hostiles in it (the fake has no sleep: all awake). */
@@ -908,7 +914,11 @@ export class FakeEngine implements Engine {
       bones: this.s.lineage.bones ?? [], insured: new Set(this.s.lineage.insured ?? []),
       gold: this.s.lineage.gold, spent: (this.s.lineage.supplies ?? []).map((it) => ({ label: it.label, price: cat.find((c) => c.kind === it.kind)?.price ?? 0 })) };
   }
+  /** Cut 12 §1: the cap on the player's OWN rows; card rows (`{v:"tactic"}`) sit outside it, one per owned card. */
   private maxRows(): number { return 4 + ["row5", "row6", "row7", "row8"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
+  private supplyCap(): number { return this.s.lineage.unlocks.includes("supply_cap_5") ? 5 : 3; }
+  /** Cut 12 §1: where a bought card's row goes — before the set's engagement row (the first `attack` / `shoot`), else the end. */
+  private cardInsertAt(): number { const i = this.s.rules.rows.findIndex((r) => r.verb.v === "attack" || r.verb.v === "shoot"); return i < 0 ? this.s.rules.rows.length : i; }
   private vaultSlots(): number { return 1 + ["vault2", "vault3", "vault4"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
 
   newLineage(seed: number): Lineage {
@@ -919,7 +929,7 @@ export class FakeEngine implements Engine {
         seed, heir: 1 + SEED_CHRONICLE.length, trait, class: "fighter", best_depth: 0, marks: 0, facts: ["item:leash"], unlocks: ["tame"], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
         party: [], kennel: [mkCompanion(1, "jackal", 2, ["pack", "fast"], 0), mkCompanion(2, "goblin_archer", 1, ["ranged"], 0)],
         eggs: [{ id: 3, kind: "bloat", tags: ["gas"], gen: 1, hatch_in: 3, from_loss: false }], party_slots: 1, ledger: [],
-        gold: 120, supplies: [{ id: 49_999, kind: "leash", known: true, label: "leash" }], classes: Object.fromEntries(CLASSES.map((c) => [c, { level: 1, xp: 0 }])),   // Cut 8B §3: the kennel's leash
+        gold: 120, supplies: [{ id: 49_999, kind: "leash", known: true, label: "leash", free: true }], classes: Object.fromEntries(CLASSES.map((c) => [c, { level: 1, xp: 0 }])),   // Cut 8B §3: the kennel's leash
         forge: { dagger: { salvaged: 6, craftable: true, tier: 0 } }, renown: 0, rank: 0, keep_pref: "best_weapon", vault_pref: "weapon",
         rest_left_s: 0, bones: [],
         chronicle: SEED_CHRONICLE.map(([trait, cls, depth, deed, end, tail], i) => chronicleLine(i + 1, trait, cls, depth, deed, end, tail)),
@@ -1004,10 +1014,16 @@ export class FakeEngine implements Engine {
   }
   buySupply(kind: string): Lineage {
     const L = this.s.lineage; const e = this.supplyCatalogue().find((x) => x.kind === kind);
-    if (e && L.supplies.length < 3 && L.gold >= e.price) { this.gold(-e.price, e.label); L.supplies.push({ id: this.s.nextItem++, kind: e.kind, known: true, label: e.label }); }
+    if (e && L.supplies.length < this.supplyCap() && L.gold >= e.price) { this.gold(-e.price, e.label); L.supplies.push({ id: this.s.nextItem++, kind: e.kind, known: true, label: e.label }); }
     return this.lineage();
   }
-  clearSupplies(): Lineage { const L = this.s.lineage; for (const s of L.supplies) this.gold(this.supplyCatalogue().find((x) => x.kind === s.kind)?.price ?? 0, `refund ${s.label}`); L.supplies = []; return this.lineage(); }
+  clearSupplies(): Lineage { const L = this.s.lineage; for (const s of L.supplies) if (!s.free) this.gold(this.supplyCatalogue().find((x) => x.kind === s.kind)?.price ?? 0, `refund ${s.label}`); L.supplies = []; return this.lineage(); }
+  /** Cut 12 §6: one line off the shelf, refunded unless it was free. */
+  dropSupply(id: number): Lineage {
+    const L = this.s.lineage; const s = L.supplies.find((x) => x.id === id); if (!s) return this.lineage();
+    if (!s.free) this.gold(this.supplyCatalogue().find((x) => x.kind === s.kind)?.price ?? 0, `refund ${s.label}`);
+    L.supplies = L.supplies.filter((x) => x !== s); return this.lineage();
+  }
   companionVocabulary(id: number): Vocabulary {
     const c = [...this.s.lineage.kennel, ...this.s.lineage.party].find((x) => x.id === id);
     const base = this.vocabulary();
@@ -1051,8 +1067,13 @@ export class FakeEngine implements Engine {
     return { conds: gated, verbs, max_rows: this.maxRows(), combos: COMBOS, locked };
   }
   setRules(set: RuleSet): void {
+    // Cut 12 §1: own rows ≤ max_rows and card rows ≤ cards owned (one per card) — refused, never truncated
+    const own = set.rows.filter((r) => r.verb.v !== "tactic").length; if (own > this.maxRows()) throw new Error(`${own} rows over ${this.maxRows()}`);
+    const cards = set.rows.filter((r) => r.verb.v === "tactic").map((r) => r.verb.a ?? "");
+    if (new Set(cards).size !== cards.length) throw new Error("a card twice");
+    for (const c of cards) if (!this.s.lineage.unlocks.includes(c)) throw new Error(`card ${c} not owned`);
     this.home = 0;                                                           // a rule edit opens a fresh stall window
-    this.s.rules = { rows: set.rows.slice(0, this.maxRows()).map((r) => ({ conds: r.conds.slice(0, 2).map((c) => ({ ...c })), verb: { ...r.verb } })), name: set.name };
+    this.s.rules = { rows: set.rows.map((r) => ({ conds: (r.verb.v === "tactic" ? [] : r.conds.slice(0, 2)).map((c) => ({ ...c })), verb: { ...r.verb } })), name: set.name };
     this.s.lineage.sets[this.s.lineage.active_set] = JSON.parse(JSON.stringify(this.s.rules)) as RuleSet;
   }
   loadout(itemIds: number[]): void { this.s.loadout = itemIds.filter((id) => this.s.lineage.vault.some((v) => v.id === id)); this.dropIdleRun(); }
@@ -1071,10 +1092,12 @@ export class FakeEngine implements Engine {
   private forecastN(N: number): Forecast {
     const L = this.s.lineage; const known_to = L.best_depth + 1;
     const reach = new Array(16).fill(0); const causes: Record<string, number> = {};
+    const ends = { bank: 0, return: 0, death: 0, gold: 0 };   // Cut 12 §3: how a send ends, and the mean gold brought home
     for (let i = 0; i < N; i++) {
       const r = this.simOne(hash(`fc:${L.seed}:${i}`), this.s.rules, this.known());
       for (let d = 1; d <= r.depth; d++) reach[d]++;
       if (r.exit === "death") causes[r.cause ?? "?"] = (causes[r.cause ?? "?"] ?? 0) + 1;
+      ends[r.exit ?? "death"] += 1; ends.gold += r.loot_kept;
     }
     // Cut 9 §3: `pm` = the binomial half-width (1.96 σ, a fraction like `reach`), so a wobble between reads reads as noise
     const depths: Forecast["depths"] = []; for (let d = 1; d <= Math.min(15, known_to); d++) { const p = reach[d] / N; depths.push({ depth: d, reach: p, pm: 1.96 * Math.sqrt((p * (1 - p)) / N) }); }
@@ -1085,7 +1108,7 @@ export class FakeEngine implements Engine {
       if (!c || !this.known().has(`boss:${boss}:counter`) || this.s.rules.rows.some((r) => rowText(r) === rowText(c.row))) continue;
       d.cause ??= boss; d.try = { row: JSON.parse(JSON.stringify(c.row)) as Row, text: c.text };
     }
-    return { depths, causes: top, known_to };
+    return { depths, causes: top, known_to, ends: { bank: ends.bank / N, return: ends.return / N, death: ends.death / N, gold: ends.gold / N } };
   }
 
   private startRun(): Run {
@@ -1276,7 +1299,7 @@ export class FakeEngine implements Engine {
     if (!rules.rows.some((r) => r.verb.v === "rest")) cands.push({ row: { conds: [{ k: "hp<", n: 90 }], verb: { v: "rest" } }, insert_at: 0, survive: 0, forecast_delta: 0 });
     for (const p of cands) {
       const rows = rules.rows.map((r) => JSON.parse(JSON.stringify(r)) as Row);
-      if (p.remove) rows.splice(p.insert_at, 1); else if (p.replace) rows[p.insert_at] = p.row; else { rows.splice(p.insert_at, 0, p.row); rows.length = Math.min(rows.length, this.maxRows()); }
+      if (p.remove) rows.splice(p.insert_at, 1); else if (p.replace) rows[p.insert_at] = p.row; else { rows.splice(p.insert_at, 0, p.row); while (rows.filter((r) => r.verb.v !== "tactic").length > this.maxRows()) rows.splice(rows.map((r) => r.verb.v !== "tactic").lastIndexOf(true), 1); }   // Cut 12 §1: own rows over the cap drop from the end
       p.survive = reach({ rows }); p.forecast_delta = Math.round((p.survive - base) * 100) / 100;
     }
     cands.sort((a, b) => b.forecast_delta - a.forecast_delta);
@@ -1355,7 +1378,8 @@ export class FakeEngine implements Engine {
       const needs = owned ? undefined : !met ? u.needs : !this.unlockVisible(id) ? UNLOCK_PREREQ[id]?.replace(/_/g, " ") : L.marks < u.cost ? `◆${u.cost - L.marks} more` : undefined;
       return { id, cost: u.cost, owned, available: !owned && needs === undefined, needs,
       delta: TACTIC_CARDS.includes(id) && !owned ? ((Math.abs(hash(id)) % 9) - 2) / 100 : undefined,   // delta: Cut 4 §9 stand-in (`reach +4%` on a card)
-      rows: UNLOCK_ROWS[id] };                                                                          // Cut 6 §6
+      rows: UNLOCK_ROWS[id],                                                                             // Cut 6 §6
+      ...(TACTIC_CARDS.includes(id) ? { insert_at: this.cardInsertAt() } : {}) };                        // Cut 12 §1
     });
   }
   setClass(cls: string): Lineage {

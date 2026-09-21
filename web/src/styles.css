@@ -84,6 +84,11 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .bar.next { grid-template-columns: 44px 1fr auto; }
 .bar.next .n small { font-size: 12px; }
 .fc-yours { margin-top: 8px; font-size: 13px; }   /* Cut 7 §2: `yours: 3 of 5 rows` */
+.fc-ends { margin-top: 8px; font-size: 13px; }    /* Cut 12 §3: `bank 40% · return 35% · death 25% · ~$54` */
+.fc-ends .gold { color: var(--fg); }
+.rows-foot .num { white-space: nowrap; }  .rows-foot .cards { font-size: 12px; }   /* Cut 12 §1: `3/4 · 2 cards` on one line */
+.supplies .chip.item .x { margin-left: 2px; padding: 0 6px; background: none; border: 0; color: var(--dim); font-size: 16px; }   /* Cut 12 §6: one line off the shelf */
+.supplies .chip.item .found { font-size: 12px; }
 .fc-causes { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 13px; color: var(--dim); }
 .fc-causes b { color: var(--hp); font-weight: 400; }
 

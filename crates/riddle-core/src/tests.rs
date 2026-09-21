@@ -218,19 +218,92 @@ fn no_row_fires_means_chore_explores() {
     assert!(evs.iter().any(|e| matches!(e, Ev::Move { id, .. } if *id == HERO_ID)));
 }
 
+/// Cut 12 §1: the cap is on the player's own rows. A fifth own row on a 4-row lineage is
+/// refused at the door with a ≤ 6-word error (Cut 2 truncated it silently); a sim's set is cut
+/// like the editor cuts it (the last own row falls off, and never fires); with `row5` the
+/// same five rows are taken and the fifth fires.
 #[test]
 fn rows_beyond_unlocked_count_are_ignored() {
     let mut g = arena();
     let mut rows: Vec<Row> = (0..4).map(|_| Row::new(vec![Cond::n("hp<", 0)], Verb::new("rest"))).collect();
     rows.push(Row::new(vec![], Verb::new("return")));
+    let err = g.set_rules(RuleSet { rows: rows.clone(), name: None }).unwrap_err();
+    assert_eq!(err, "5 own rows, 4 allowed");
+    assert!(word_count(&err) <= 6, "{err}");
     rules(&mut g, rows.clone());
-    assert_eq!(g.lineage.rules().rows.len(), 4, "a fifth row is dropped at set time without the row5 unlock (Cut 2)");
+    assert_eq!(g.lineage.rules().rows.len(), 4, "a sim's fifth own row is cut without the row5 unlock");
     let evs = ticks(&mut g, 10);
     assert!(!evs.iter().any(|e| matches!(e, Ev::Exit { .. })), "row 5 must not fire without the row5 unlock");
     g.lineage.unlocks.insert("row5".into());
-    rules(&mut g, rows);
+    g.set_rules(RuleSet { rows: rows.clone(), name: None }).unwrap();
     assert_eq!(g.lineage.rules().rows.len(), 5);
     let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "return")));
+}
+
+/// Cut 12 §1: a card brings its row — a 4-row lineage holds 4 own rows and 2 card rows; a
+/// fifth own row is refused, a second row for the same card is refused, an unowned card's row
+/// is refused; the rows in play carry their set indices (the card rows fire as `R2`/`R5`);
+/// `needs: rows full` counts own rows; `insert_at` sits before the engagement row and the
+/// card's delta row goes there.
+#[test]
+fn card_rows_sit_outside_the_cap() {
+    let mut g = Game::new(5);
+    g.lineage.unlocks.insert("thief_guard".into());
+    g.lineage.unlocks.insert("boss_focus".into());
+    let own = |n: i32| Row::new(vec![Cond::n("hp<", n)], Verb::arg("drink", "heal"));
+    let card = |c: &str| Row::new(vec![], Verb::arg("tactic", c));
+    let rows = vec![own(10), card("thief_guard"), own(20), own(30), card("boss_focus"), own(40)];
+    g.set_rules(RuleSet { rows: rows.clone(), name: None }).unwrap();
+    let set = g.lineage.rules();
+    assert_eq!((set.rows.len(), set.own_rows(), set.card_rows()), (6, 4, 2));
+    assert_eq!(g.vocabulary().max_rows, 4, "the wire's cap is the own-row cap");
+    assert_eq!(set.active(4).map(|(i, _)| i).collect::<Vec<_>>(), vec![0, 1, 2, 3, 4, 5]);
+    // A fifth own row: refused, the set unchanged.
+    let mut five = rows.clone();
+    five.push(own(50));
+    assert_eq!(g.set_rules(RuleSet { rows: five, name: None }).unwrap_err(), "5 own rows, 4 allowed");
+    assert_eq!(g.lineage.rules().rows.len(), 6);
+    // A second row for a card the set already carries: refused.
+    let mut twice = rows.clone();
+    twice.push(card("thief_guard"));
+    assert_eq!(g.set_rules(RuleSet { rows: twice, name: None }).unwrap_err(), "two rows for thief guard");
+    // A card the lineage does not own: refused.
+    let mut unowned = rows.clone();
+    unowned.push(card("gas_step"));
+    assert_eq!(g.set_rules(RuleSet { rows: unowned, name: None }).unwrap_err(), "card not owned: gas step");
+    // A sim cuts the last own row and keeps every card row.
+    let mut five = rows.clone();
+    five.insert(0, own(5));
+    let fit = RuleSet { rows: five, name: None }.fit(4);
+    assert_eq!(fit.rows.len(), 6);
+    assert_eq!(fit.card_rows(), 2);
+    assert!(!fit.rows.contains(&own(40)) && fit.rows.contains(&own(5)));
+    // `needs: rows full` reads the own rows: four own rows fill a 4-row lineage.
+    let cat = crate::meta::catalogue(&g.lineage);
+    assert_ne!(cat.iter().find(|u| u.id == "row5").unwrap().needs.as_deref(), Some("rows full"));
+    // `insert_at`: before the first `attack`/`shoot`, else the end; the delta row goes there.
+    let mut with_attack = rows.clone();
+    with_attack[2] = Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"));
+    g.set_rules(RuleSet { rows: with_attack, name: None }).unwrap();
+    g.lineage.facts.insert("foe:bloat:gas".into());
+    let cat = crate::meta::catalogue(&g.lineage);
+    let gas = cat.iter().find(|u| u.id == "gas_step").unwrap();
+    assert_eq!(gas.insert_at, Some(2));
+    assert_eq!(crate::meta::delta_row(&g.lineage, "gas_step").unwrap().1, 2);
+    assert_eq!(cat.iter().find(|u| u.id == "thief_guard").unwrap().insert_at, None, "an owned card has no place to go");
+    assert_eq!(cat.iter().find(|u| u.id == "throw").unwrap().insert_at, None, "a verb unlock's row is the player's");
+    g.set_rules(RuleSet { rows, name: None }).unwrap();
+    assert_eq!(crate::meta::catalogue(&g.lineage).iter().find(|u| u.id == "gas_step").unwrap().insert_at, Some(6), "no engagement row: the end");
+    // The rows in play: an own row fires with its set index (`R6` = `hp<40`; indices are 0-based).
+    let mut g = arena();
+    g.lineage.unlocks.insert("thief_guard".into());
+    g.lineage.unlocks.insert("boss_focus".into());
+    let rows = vec![own(0), card("thief_guard"), own(0), own(0), card("boss_focus"), Row::new(vec![], Verb::new("return"))];
+    g.set_rules_raw(RuleSet { rows, name: None }).unwrap();
+    assert_eq!(g.lineage.rules().rows.len(), 6);
+    let evs = ticks(&mut g, 10);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Rule { row: 5, .. })), "the fourth own row is the set's sixth: {evs:?}");
     assert!(evs.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "return")));
 }
 
@@ -1246,7 +1319,10 @@ fn hopeless_death_is_dice() {
     }
     let d = g.death(id.expect("died")).unwrap();
     assert_eq!(d.verdict, "dice");
-    assert!(d.patches.is_empty());
+    // Cut 11 §4: a dice death is never empty — the alternative is named below the bar even
+    // when no row could act (it survives the baseline's share, and says so).
+    assert!(!d.patches.is_empty(), "{d:?}");
+    assert!(d.patches.iter().all(|p| p.below_bar && (0.0..=1.0).contains(&p.survive)), "{:?}", d.patches);
 }
 
 // ---------------------------------------------------------------- sifter (Cut 5 §1 episodes)
@@ -1299,7 +1375,8 @@ fn episodes_close_on_a_low_a_recovery_and_the_exit() {
     let arc = hs[0].arc.as_ref().unwrap();
     assert_eq!((arc.low_hp, arc.row, arc.threat.as_str(), arc.resolution.as_str()), (3, 0, "jackal", "banked $58"));
     assert_eq!(hs[0].score, 4 * 3, "low-point depth 4 × banked 3");
-    // A quiet run still closes on its exit.
+    // A quiet run still closes on its exit — Cut 12 §4: as the routine line, the floor and
+    // what it brought (`D1: returned $0.`; the arena's D1 has no situation word).
     let mut g2 = arena();
     attack_rules(&mut g2);
     ticks(&mut g2, 2);
@@ -1307,8 +1384,47 @@ fn episodes_close_on_a_low_a_recovery_and_the_exit() {
     crate::turn::end_run(run, &mut cx, ExitTier::Return);
     let hs = crate::sifter::sift_with(run, false);
     assert_eq!(hs.len(), 1);
-    assert!(hs[0].text.starts_with("Untouched; ") && hs[0].text.ends_with("; returned."), "{}", hs[0].text);
+    assert_eq!(hs[0].text, "D1: returned $0.");
     assert!(crate::sifter::story_ok(&hs[0].text));
+    assert!(!crate::sifter::names_agent(&hs[0]));
+}
+
+/// Cut 12 §4: the routine line — a send with nothing to tell reads its floor, its situation,
+/// the row that ended it and what it brought; the gate's grammar accepts it, and the line
+/// names a row when a row brought the hero home.
+#[test]
+fn routine_line_reads_the_floor_and_its_twist() {
+    use crate::sifter::{names_agent, routine_line, story_line, story_ok, Act, Episode, Resolution, Setup};
+    let ep = |depth: u32, twist: Option<&str>, act: Act, res: Resolution| Episode { depth, setup: Setup::Untouched, act, resolution: res, twist: twist.map(String::from), max_hp: 30, low_hp: 30, ..Default::default() };
+    let ret = |row: i32| Act { row, verb: Verb::new("return"), target: None, boss: false };
+    let e = ep(6, Some("nest"), ret(2), Resolution::Returned { gold: 54 });
+    assert_eq!(story_line(&e), "D6, the nest: R3 returned $54.");
+    let e = ep(2, None, Act::default(), Resolution::Returned { gold: 8 });
+    assert_eq!(story_line(&e), "D2: returned $8.");
+    let e = ep(5, Some("vault"), ret(0), Resolution::Lost);
+    assert_eq!(story_line(&e), "D5, the vault: lost the thread.");
+    let e = ep(7, Some("lock"), Act { row: 1, verb: Verb::new("bank"), target: None, boss: false }, Resolution::Banked { gold: 120 });
+    assert_eq!(story_line(&e), "D7, the lock: R2 banked $120.");
+    // An attack row that happened to be the last act is not credited with the exit.
+    let e = ep(7, Some("den"), Act { row: 1, verb: Verb::arg("attack", "nearest"), target: None, boss: false }, Resolution::Returned { gold: 3 });
+    assert_eq!(story_line(&e), "D7, the den: returned $3.");
+    // A low point is never routine.
+    let mut e = ep(6, Some("nest"), ret(2), Resolution::Returned { gold: 54 });
+    e.setup = Setup::Hurt;
+    e.low_hp = 4;
+    e.threat = vec![("jackal".into(), 2)];
+    assert_eq!(routine_line(&e), None);
+    assert_eq!(story_line(&e), "Two jackals took him to 4 HP; R3 returned; returned.");
+    for t in ["D6, the nest: R3 returned $54.", "D2: returned $8.", "D5, the vault: lost the thread.", "D7, the lock: R2 banked $120."] {
+        assert!(story_ok(t), "{t}");
+        assert!(word_count(t) <= crate::sifter::STORY_WORDS);
+    }
+    for t in ["D6, the pit: returned $54.", "D6, the nest: returned.", "the nest: returned $54.", "D6: R3 returned $54"] {
+        assert!(!story_ok(t), "{t}");
+    }
+    let h = |text: &str| Highlight { pattern: "episode".into(), score: 1, t: 0, run_id: 1, text: text.into(), arc: Some(HighlightArc { low_hp: 30, row: 2, threat: "none".into(), resolution: "returned".into() }) };
+    assert!(names_agent(&h("D6, the nest: R3 returned $54.")));
+    assert!(!names_agent(&h("D6, the nest: returned $54.")));
 }
 
 /// A boss dying and a companion falling close the live episode on their own; a death names
@@ -4556,7 +4672,7 @@ fn situations_are_facts_tokens_and_answers() {
         let row = if coward { Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")) } else { Row::new(vec![Cond::t("on_see", "captive")], Verb::new("free_captive")) };
         g.set_rules(RuleSet { rows: vec![row], name: None }).unwrap();
         g.start_run(Some(4));
-        g.descend_to(9);
+        g.descend_to_twist(9, "captive");
         {
             let run = g.run.as_mut().unwrap();
             run.monsters.retain(|m| m.situation.is_some());
@@ -4584,7 +4700,7 @@ fn situations_are_facts_tokens_and_answers() {
     }
     g.set_rules(RuleSet { rows: vec![Row::new(vec![Cond::t("on_see", "hunger")], Verb::arg("pray", "row"))], name: None }).unwrap();
     g.start_run(Some(5));
-    g.descend_to(12);
+    g.descend_to_twist(12, "hunger");
     {
         let run = g.run.as_mut().unwrap();
         run.prayed = true;
@@ -4744,7 +4860,7 @@ fn story_lines_credit_a_combo_that_landed_at_the_low_point() {
     assert_eq!(crate::sifter::story_line(&ep), "An ogre took him to 5 HP; the hit-and-fade landed; reached D4.", "the short form is one word");
     ep.threat = vec![("gas".into(), 1)];
     ep.low_hp = 0;
-    ep.resolution = crate::sifter::Resolution::Returned;
+    ep.resolution = crate::sifter::Resolution::Returned { gold: 0 };
     assert_eq!(crate::sifter::story_line(&ep), "Gas took him down; the hit and fade landed; returned.");
     assert!(crate::sifter::story_ok(&crate::sifter::story_line(&ep)));
     ep.act.row = -1;
@@ -5448,11 +5564,11 @@ fn exit_line_leads_with_the_verb() {
     }
 }
 
-/// §3: a tactic card's delta is the buy's own number — the bare `[card]` row appended at the
-/// end of the set (truncated to `max_rows` like the set), not a conditioned row at the top; a
-/// verb unlock's canonical row still goes at the top.
+/// §3: a tactic card's delta is the buy's own number — the bare `[card]` row where the buy
+/// puts it (Cut 12 §1: before the engagement row, `insert_at`; it was the end), not a
+/// conditioned row at the top; a verb unlock's canonical row still goes at the top.
 #[test]
-fn card_delta_is_measured_at_the_end_of_the_set() {
+fn card_delta_is_measured_where_the_buy_puts_it() {
     let mut g = Game::new(2);
     g.lineage.facts.insert("foe:jackal:pack".into());
     g.lineage.facts.insert("foe:bloat:gas".into());
@@ -5462,7 +5578,7 @@ fn card_delta_is_measured_at_the_end_of_the_set() {
     let (row, at) = crate::meta::delta_row(l, "gas_step").unwrap();
     assert_eq!(row, Row::new(vec![], Verb::arg("tactic", "gas_step")), "the bare card row the client appends");
     assert_eq!(row.origin.as_deref(), Some("card"));
-    assert_eq!(at, 2, "at the end of the two-row set");
+    assert_eq!(at, 1, "before the set's `attack nearest` (Cut 12 §1)");
     let (row, at) = crate::meta::delta_row(l, "throw").unwrap();
     assert_eq!((row.verb.v.as_str(), at), ("throw", 0), "a verb's canonical row goes at the top");
     assert!(crate::meta::delta_row(l, "row5").is_none());
@@ -5475,7 +5591,7 @@ fn card_delta_is_measured_at_the_end_of_the_set() {
     let tag = crate::forecast::forecast_tag(&g, &rules, depth);
     let (base, n) = crate::forecast::reach_counted(&g, &rules, depth, crate::forecast::FORECAST_SIMS, tag, crate::forecast::CATALOGUE_TICK_BUDGET);
     let mut appended = rules.clone();
-    appended.rows.push(Row::new(vec![], Verb::arg("tactic", "gas_step")).from("card"));
+    appended.rows.insert(1, Row::new(vec![], Verb::arg("tactic", "gas_step")).from("card"));
     let mut sim = g.sim_clone();
     sim.lineage.unlocks.insert("gas_step".into());
     let r = crate::forecast::reach_paired(&sim, &appended, depth, n, tag);
@@ -6026,4 +6142,115 @@ fn the_first_send_after_an_absence_packs_what_was_bought_at_camp() {
     assert_eq!(s.turn, 0, "a fresh run");
     let run = g.run.as_ref().unwrap();
     assert!(run.hero.inv.iter().any(|i| i.kind == kind), "the bought heal is in the pack: {:?}", run.hero.inv.iter().map(|i| &i.kind).collect::<Vec<_>>());
+}
+
+/// Cut 12 §2: the pickup swap chores never take what a row needs — on 30 seeds with
+/// `hp<30 → drink heal` in the set and a heal packed at camp, no `swapped for` provenance
+/// line names the heal (rater O: "`swapped for the poison` named an engine chore no row of
+/// mine could touch"). The chore still runs on other kinds.
+#[test]
+fn swap_chores_never_take_what_a_row_needs() {
+    let mut swaps = 0;
+    let mut heals_packed = 0;
+    for seed in 1..=30u64 {
+        let mut g = Game::new(seed);
+        g.max_deaths = 1000;
+        g.lineage.unlocks.insert("row5".into());
+        // A heal bought by name (usable before its flavour is known), on the shelf.
+        let id = g.lineage.next_vault_id;
+        g.lineage.next_vault_id += 1;
+        let mut heal = Item::new(id, "heal");
+        heal.known = true;
+        g.lineage.supplies.push(heal);
+        let rows = vec![
+            Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+            Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest")),
+            Row::new(vec![Cond::n("floor_seen>=", 60)], Verb::new("descend")),
+        ];
+        g.set_rules_raw(RuleSet { rows, name: None }).unwrap();
+        g.send();
+        heals_packed += g.run.as_ref().unwrap().hero.inv.iter().filter(|i| i.kind == "heal").count();
+        let mut n = 0;
+        while g.run.as_ref().is_some_and(|r| r.over.is_none()) && n < 400 {
+            g.step(50);
+            n += 1;
+            for p in g.prov.iter().filter(|p| p.kind == crate::provenance::ProvKind::Spent && p.text.starts_with("swapped for")) {
+                assert_ne!(p.key, "item:heal", "seed {seed}: the row's heal was swapped away: {}", p.text);
+                swaps += 1;
+            }
+            g.prov.retain(|p| !(p.kind == crate::provenance::ProvKind::Spent && p.text.starts_with("swapped for")));
+        }
+    }
+    assert_eq!(heals_packed, 30, "every send packs its heal");
+    assert!(swaps >= 5, "the chore still swaps other kinds ({swaps})");
+}
+
+/// Cut 12 §5: the rest after a return or a bank is half the run's length (rater P: "rested
+/// 287m"), never under the 20-minute floor nor over the 30-minute cap; the wake after a death
+/// stays 20 minutes; the online exit and the offline batch use the same function.
+#[test]
+fn rest_after_a_return_is_half_the_run() {
+    use crate::engine::{REST_CAP_TICKS, REST_MIN_TICKS, WAKE_TICKS};
+    use crate::offline::rest_after;
+    assert_eq!(rest_after(60 * 60 * 10, ExitTier::Return), 30 * 60 * 10, "an hour's run rests thirty minutes");
+    assert_eq!(rest_after(50 * 60 * 10, ExitTier::Bank), 25 * 60 * 10);
+    assert_eq!(rest_after(80 * 60 * 10, ExitTier::Return), REST_CAP_TICKS, "capped");
+    assert_eq!(rest_after(10 * 60 * 10, ExitTier::Return), REST_MIN_TICKS, "never under the floor");
+    assert_eq!(rest_after(50 * 60 * 10, ExitTier::Death), WAKE_TICKS, "the death wake is unchanged");
+    let g = Game::new(1);
+    assert_eq!(g.rest_after(50 * 60 * 10, ExitTier::Return), 25 * 60 * 10, "the exit's rest is the same function");
+}
+
+/// Cut 12 §3: `Forecast.ends` — how the sends end over the same sims (the rates sum to 1)
+/// and the mean gold brought home (bank 100% · return 60% · death 0% of the loot); two reads
+/// of an unchanged set are identical; a set with `depth>=8 → bank` on a lineage that reaches
+/// D8 shows bank > 0 and its gold.
+#[test]
+fn forecast_ends_name_how_a_send_ends() {
+    let mut g = Game::new(11);
+    g.set_rules_raw(crate::probes::good()).unwrap();
+    let a = g.forecast();
+    let e = a.ends.clone().expect("ends over the sims");
+    assert!((e.bank + e.return_ + e.death - 1.0).abs() < 1e-9, "{e:?}");
+    assert!(e.gold >= 0.0);
+    assert_eq!(g.forecast().ends, a.ends, "two reads agree");
+    let json = serde_json::to_string(&a).unwrap();
+    assert!(json.contains(r#""ends":{"bank":"#) && json.contains(r#""return":"#) && json.contains(r#""death":"#) && json.contains(r#""gold":"#), "{json}");
+    // A lineage that reaches D8, a set that banks there.
+    let mut g = Game::new(11);
+    crate::probes::learn_everything(&mut g);
+    g.lineage.unlocks.extend(["row5", "row6", "row7", "row8", "throw"].map(String::from));
+    g.lineage.best_depth = 8;
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 6, xp: 0 });
+    let mut set = crate::probes::good();
+    set.rows.retain(|r| r.verb.v != "bank");
+    set.rows.insert(0, Row::new(vec![Cond::n("depth>=", 8)], Verb::new("bank")));
+    g.set_rules_raw(set).unwrap();
+    let f = g.forecast();
+    let e = f.ends.expect("ends");
+    assert!(e.bank > 0.0, "{e:?}");
+    assert!(e.gold > 0.0, "{e:?}");
+    let d8 = f.depths.iter().find(|d| d.depth == 8).unwrap().reach;
+    assert!((e.bank - d8).abs() < 1e-9, "every sim that reaches D8 banks there: bank {} vs reach D8 {d8}", e.bank);
+    // Nothing reaches D9 past the bank row.
+    assert_eq!(f.depths.iter().find(|d| d.depth == 9).unwrap().reach, 0.0);
+}
+
+/// Cut 12 §2: the thief guard card answers the den — over 30 seeds the den's snatches with
+/// the card are ≤ 20% of those without (the gate's probe, `den_guard_trial`).
+#[test]
+fn thief_guard_cuts_den_snatches() {
+    let (mut without, mut with) = (0u32, 0u32);
+    for seed in 1..=30u64 {
+        let (a, b) = crate::probes::den_guard_trial(seed);
+        without += a;
+        with += b;
+    }
+    assert!(without >= 30, "the preset is robbed ({without} snatches over 30 seeds)");
+    assert!(with * 5 <= without, "with the card {with} vs without {without}");
+    // The card's sheet leads with the raid.
+    let rows = crate::meta::unlock_rows("thief_guard").unwrap();
+    assert_eq!(rows.len(), 5);
+    assert_eq!(rows[0], Row::new(vec![Cond::t("on_see", "den")], Verb::arg("attack", "nearest")));
 }

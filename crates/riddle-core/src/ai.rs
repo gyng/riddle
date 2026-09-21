@@ -2031,9 +2031,17 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             foes >= 1 && verb_attack(run, cx, "nearest", v, false)
         }
         // thief_guard: a thief in view is killed first while it is adjacent; one that flees
-        // with the loot is shot or pelted; nothing else is chased.
+        // with the loot is shot or pelted; nothing else is chased. Cut 12 §2: a sleeping den
+        // in view is raided first (`on see den → attack nearest`: a free blow, and the
+        // thieves bolt empty-handed) — the card answers the den, not only the thief.
         "thief_guard" => {
             let hp = run.hero.pos;
+            if v.engage.is_empty() && crate::situations::sees(run, "den") && run.monsters.iter().any(|m| m.hp > 0 && m.dormant && m.situation.as_deref() == Some("den")) {
+                run.raiding = true;
+                if verb_attack(run, cx, "nearest", v, false) {
+                    return true;
+                }
+            }
             let thief = v.foes.iter().copied().find(|&i| run.monsters[i].has_tag("thief"));
             let Some(i) = thief else { return false };
             if run.monsters[i].pos.adjacent(hp) {

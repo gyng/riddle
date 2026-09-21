@@ -6,6 +6,9 @@
 // Cut 10 §3: the rest chip reads `rest 20m · send skips` permanently; a greyed supply says why under its price (`3/3 slots`,
 // the engine's `needs`, `$12 short`); the `+1 row` card is dimmed `rows full` while free rows exist; a card's reach delta is
 // labelled `at end` (a bought card becomes the last row). Cut 10 §4: the camp drone (biome of the next floor) while mounted.
+// Cut 12 §1: rows are own rows — `rows full` and `5/4 · drop one` count them against `max_rows`; a card never takes a row (it
+// sits outside the cap) and its reach delta is labelled where it goes (`at R3`, the catalogue's `insert_at`). §6: the unlock
+// shelf refetches when a rule edit crosses `max_rows` (`app.onShelf`); a supply line has its own `×`; a free line reads `· found`.
 import type { App, Mounted } from "../app";
 import type { UnlockInfo } from "../engine/types";
 import { h, clear, replace, spanOf } from "./dom";
@@ -13,11 +16,11 @@ import { heroBinding, openRowsSheet, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
-import { classList, isCard, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
+import { classList, deltaLabel, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS, xpToNext } from "../engine/classes";
-import { verbLabel } from "./tokens";
+import { isFreeSupply, verbLabel } from "./tokens";
 import { openSheet } from "./sheet";
 import { openGoldSheet } from "./gold";
 
@@ -149,10 +152,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
     clear(supplies);
-    supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/${cap}`),
-      picks.length ? h("button", { class: "mini", onclick: () => void app.mutate(() => app.engine.clearSupplies()) }, "×") : ""));
+    supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/${cap}`)));
     const chips = h("div", { class: "chips" });
-    for (const p of picks) chips.appendChild(h("span", { class: "chip item on" }, p.label));
+    // Cut 12 §6: each line carries its own `×` (the header's cleared the whole shelf: "I lost the leash"); a free line reads `· found`
+    for (const p of picks) chips.appendChild(h("span", { class: "chip item on" }, p.label,
+      isFreeSupply(L, p) ? h("small", { class: "dim found" }, /* copy:callout */ " · found") : "",
+      h("button", { class: "x", onclick: () => void app.dropSupply(p.id) }, "×")));
     supplies.appendChild(chips);
     const gen = ++supplyGen;
     void app.engine.supplyCatalogue().then((cat) => {
@@ -185,26 +190,24 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     {
       clear(unlocks);
       // Cut 10 §3: `+1 row` waits for the rows to fill (a client-side gate; the core may send the same `needs`)
-      const list = visible(cat).map((u) => withRowsGate(u, app.rules.rows.length, app.vocab.max_rows));
+      const list = visible(cat).map((u) => withRowsGate(u, app.ownRows(), app.vocab.max_rows));   // Cut 12 §1: own rows
       // Cut 6 §6: owned cards and automations stay on the shelf as chips that open their rows
       const owned = ownedRows(cat);
       if (!list.length && !owned.length) return;
       unlocks.appendChild(h("div", { class: "label" }, /* copy:label */ "unlocks"));
       const grid = h("div", { class: "cards" });
-      const full = app.rules.rows.length >= app.vocab.max_rows;
       for (const u of list) {
         // `available` = prerequisite + fact gate + affordable (engine truth). Two dims: gated (the `needs` line
         // is what is missing, marks are there) and unaffordable.
         // Cut 4 §9: the forecast delta of buying (tactic cards), only when the catalogue carries one and it is not 0
         const d = u.delta === undefined ? 0 : Math.round(u.delta * 100);
-        // Cut 6 §4: a card bought onto a full set is an overflow decision; its buy says so
-        const takesRow = full && u.available && isCard(u);
         // Cut 9 §2: the tap opens the sheet (rows, cost, needs, reach); the buy is on the sheet. A gated or unaffordable card
         // still opens it (the `needs` line is the answer), so nothing on the shelf is disabled.
-        grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u, full) },
+        // Cut 12 §1: a card's delta is measured where it goes — `at R3` (the catalogue's `insert_at`), else `at end`
+        grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u) },
           h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
-            d ? h("small", { class: `num delta ${d > 0 ? "up" : "down"}` }, /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%${isCard(u) ? " at end" : ""}`) : ""),   // Cut 10 §3: a card goes in last
-          h("span", { class: `num cost${takesRow ? " takes" : ""}` }, `◆${u.cost}`, takesRow ? h("small", { class: "dim" }, /* copy:unlock_card */ " · takes a row") : "")));
+            d ? h("small", { class: `num delta ${d > 0 ? "up" : "down"}` }, deltaLabel(u, d)) : ""),
+          h("span", { class: "num cost" }, `◆${u.cost}`)));
       }
       unlocks.appendChild(grid);
       if (owned.length) unlocks.appendChild(h("div", { class: "chips owned" }, ...owned.map((u) => h("button", { class: "chip mini owned", onclick: () => openRowsSheet(u.rows!) }, u.label))));
@@ -213,12 +216,13 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 4 §1: `send` waits while the set is over budget (the editor shows which row to drop). Cut 6 §4: it says so: `6/5 · drop one`.
   function paintSend(): void {
     send.disabled = app.overBudget;
-    replace(send, app.overBudget ? /* copy:callout */ `${app.rules.rows.length}/${app.vocab.max_rows} · drop one` : /* copy:button */ "send");
+    replace(send, app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one` : /* copy:button */ "send");   // Cut 12 §1: own rows
     paintTabs();
-    if (unlockCat) paintFrom(unlockCat);   // a card's buy reads `takes a row` only while the set is full
+    if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `rows full` only while a free own row exists
   }
   function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
-  const off = app.onChange(paintAll), offRules = app.onRules(paintSend);
-  return { el, dispose: () => { off(); offRules(); fc.dispose(); audio.drone(null); } };
+  // Cut 12 §6: `+1 row ⊘ rows full` is the engine's read of its own set — refetched once an edit crossed `max_rows`
+  const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
+  return { el, dispose: () => { off(); offRules(); offShelf(); fc.dispose(); audio.drone(null); } };
 }

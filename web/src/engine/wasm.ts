@@ -77,6 +77,8 @@ export class WasmEngine implements Engine {
   setVaultPref(pref: string): Lineage { return this.call("setVaultPref", pref); }
   // Cut 6 §9: throws `wasm: forecastRefine` on a build without it (the client stops asking)
   forecastRefine(): Forecast { return this.call("forecastRefine"); }
+  // Cut 12 §6: throws `wasm: dropSupply` on a build without it (the client clears and rebuys the rest)
+  dropSupply(id: number): Lineage { return this.call("dropSupply", id); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

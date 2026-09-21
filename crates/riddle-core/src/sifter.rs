@@ -84,7 +84,11 @@ pub enum Resolution {
     BossSlain {
         kind: String,
     },
-    Returned,
+    Returned {
+        /// Cut 12 §4: the gold brought home (the routine line reads `returned $54`).
+        #[serde(default)]
+        gold: i32,
+    },
     Lost,
     Died {
         cause: String,
@@ -102,7 +106,7 @@ impl Resolution {
         matches!(self, Resolution::FirstBoss { .. } | Resolution::BossSlain { .. } | Resolution::Fell { .. })
     }
     pub fn is_exit(&self) -> bool {
-        matches!(self, Resolution::Banked { .. } | Resolution::Returned | Resolution::Lost | Resolution::Died { .. })
+        matches!(self, Resolution::Banked { .. } | Resolution::Returned { .. } | Resolution::Lost | Resolution::Died { .. })
     }
 }
 
@@ -138,6 +142,10 @@ pub struct Episode {
     /// (`the bait landed` is the turn beat instead of the single row).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub combo: Option<String>,
+    /// Cut 12 §4: the floor's one situation (`nest`) when the episode closed, for the routine
+    /// line (`D6, the nest: returned $54.`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub twist: Option<String>,
 }
 
 /// The live episode (`Run.arc`).
@@ -213,6 +221,7 @@ impl Arc {
             allies_lost: self.allies_lost.clone(),
             resolution: res,
             combo: self.combo.clone(),
+            twist: run.floor_twist.clone(),
         }
     }
     /// Cut 8B §1: two adjacent rows (`a` then `b`, in row order) fired within the three hero
@@ -793,7 +802,7 @@ fn resolution_form(res: &Resolution, level: u8) -> String {
         Resolution::Reached { depth } => format!("reached D{depth}"),
         Resolution::FirstBoss { .. } => "first boss".into(),
         Resolution::BossSlain { .. } => "boss slain".into(),
-        Resolution::Returned => "returned".into(),
+        Resolution::Returned { .. } => "returned".into(),
         Resolution::Lost => if level > 0 { "returned" } else { "lost the thread" }.into(),
         Resolution::Died { cause } => match level {
             0 => format!("died to {}", cause_phrase(cause)),
@@ -817,6 +826,9 @@ fn resolution_form(res: &Resolution, level: u8) -> String {
 /// threat, then the resolution, then the row — the turn beat is what the line is for) when
 /// the long ones overflow.
 pub fn story_line(ep: &Episode) -> String {
+    if let Some(line) = routine_line(ep) {
+        return line;
+    }
     let mut s = String::new();
     for (rs, ts, es) in [(false, false, 0), (false, true, 0), (false, true, 1), (true, true, 1), (true, true, 2)] {
         s = format!("{}; {}; {}.", setup_phrase(ep, ts), turn_phrase(ep, rs), resolution_form(&ep.resolution, es));
@@ -827,9 +839,48 @@ pub fn story_line(ep: &Episode) -> String {
     crate::chronicle::clamp_words(&s, STORY_WORDS)
 }
 
+/// Cut 12 §4: the routine line — a send that came home with nothing to tell (no low point)
+/// reads the floor and its situation, the row that ended it, and what it brought:
+/// `D6, the nest: R3 returned $54.` · `D2: returned $8.` · `D5, the vault: lost the thread.`
+/// (rater P: "runs 4–8 repeated the D4–D6 archer/jackal loop with near-identical `returned
+/// $NN` endings" — the floors now differ, and the line says how). `None` for any other episode.
+pub fn routine_line(ep: &Episode) -> Option<String> {
+    if ep.setup != Setup::Untouched {
+        return None;
+    }
+    let res = match &ep.resolution {
+        Resolution::Returned { gold } => format!("returned ${}", gold.max(&0)),
+        Resolution::Banked { gold } => format!("banked ${}", gold.max(&0)),
+        Resolution::Lost => "lost the thread".into(),
+        _ => return None,
+    };
+    let home = matches!(ep.resolution, Resolution::Returned { .. } | Resolution::Banked { .. });
+    let row = if home && ep.act.row >= 0 && matches!(ep.act.verb.v.as_str(), "return" | "bank") { format!("R{} ", ep.act.row + 1) } else { String::new() };
+    let twist = ep.twist.as_deref().map(|t| format!(", the {t}")).unwrap_or_default();
+    Some(format!("D{}{twist}: {row}{res}.", ep.depth))
+}
+
+/// Cut 12 §4: is this a routine line (`D6, the nest: R3 returned $54.`)? Its shape check.
+pub fn routine_ok(text: &str) -> bool {
+    let Some(body) = text.strip_suffix('.') else { return false };
+    let Some((head, tail)) = body.split_once(": ") else { return false };
+    let (depth, twist) = head.split_once(", the ").map(|(d, t)| (d, Some(t))).unwrap_or((head, None));
+    let depth_ok = depth.strip_prefix('D').is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()));
+    let twist_ok = twist.is_none_or(|t| crate::situations::TWISTS.contains(&t));
+    let tail = match tail.split_once(' ') {
+        Some((r, rest)) if r.starts_with('R') && r[1..].chars().all(|c| c.is_ascii_digit()) && r.len() > 1 => rest,
+        _ => tail,
+    };
+    let res_ok = tail == "lost the thread" || ["returned $", "banked $"].iter().any(|k| tail.strip_prefix(k).is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())));
+    depth_ok && twist_ok && res_ok && word_count(text) <= STORY_WORDS
+}
+
 /// The gate's check: three beats, ≤ 12 words, a setup form, a turn beat with a table verb
-/// (or a no-row beat), a resolution from the set.
+/// (or a no-row beat), a resolution from the set — or a routine line (Cut 12 §4).
 pub fn story_ok(text: &str) -> bool {
+    if routine_ok(text) {
+        return true;
+    }
     let Some(body) = text.strip_suffix('.') else { return false };
     let beats: Vec<&str> = body.split("; ").collect();
     if beats.len() != 3 || word_count(text) > STORY_WORDS {
@@ -863,8 +914,16 @@ pub fn story_ok(text: &str) -> bool {
     setup_ok && turn_ok && end_ok
 }
 
+/// Cut 12 §4: the row a routine line credits (`D6, the nest: R3 returned $54.`), if any.
+fn routine_row(text: &str) -> bool {
+    routine_ok(text) && text.split_once(": ").is_some_and(|(_, tail)| tail.starts_with('R') && tail.chars().nth(1).is_some_and(|c| c.is_ascii_digit()))
+}
+
 /// Does the line name a row, a trait or a companion (the tell-a-friend proxy)?
 pub fn names_agent(h: &Highlight) -> bool {
+    if routine_ok(&h.text) {
+        return routine_row(&h.text);
+    }
     let Some(body) = h.text.strip_suffix('.') else { return false };
     let beats: Vec<&str> = body.split("; ").collect();
     if beats.len() != 3 {
@@ -888,7 +947,7 @@ fn weight(res: &Resolution, named: bool) -> i32 {
         Resolution::Reached { .. } => 2,
         Resolution::FirstBoss { .. } => 5,
         Resolution::BossSlain { .. } => 2,
-        Resolution::Returned | Resolution::Lost => 1,
+        Resolution::Returned { .. } | Resolution::Lost => 1,
         Resolution::Died { .. } => {
             if named {
                 5
@@ -962,6 +1021,9 @@ pub fn sift(run: &Run, l: &LineageState) -> Vec<Highlight> {
 /// Cut 9 §6: does the highlight's turn beat name a row or a combo (`R2 drank`, `the bait
 /// landed`) rather than a trait or `no row fired`?
 pub fn names_row(h: &Highlight) -> bool {
+    if routine_ok(&h.text) {
+        return routine_row(&h.text);
+    }
     let Some(body) = h.text.strip_suffix('.') else { return false };
     let beats: Vec<&str> = body.split("; ").collect();
     if beats.len() != 3 {

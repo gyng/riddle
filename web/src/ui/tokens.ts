@@ -1,5 +1,5 @@
 // Player-facing labels for rule tokens. Nouns and numbers; every label is a rule_token (≤ 3 words).
-import type { Combo, ComboHit, Cond, Row, Verb } from "../engine/types";
+import type { Combo, ComboHit, Cond, InvItem, Lineage, Row, Verb } from "../engine/types";
 
 /* copy:rule_token */
 const COND: Record<string, string> = {
@@ -70,6 +70,23 @@ export function verbLabel(v: Verb): string {
   const a = parts.filter((x, i) => i === 0 || x !== "nearest").map((x) => nice(x.startsWith("tag:") ? x.slice(4) : x)).join(" ");
   return `${name} ${a}`;
 }
+/** Cut 12 §6: a lost ally as the death screen and the report name it — a companion `jackal Ashar fell` (the watch's
+ *  `kind · name`), a summoned ally with no name `ally hound fell`. */
+export function lostLabel(k: string): string {
+  const i = k.indexOf(" · ");
+  if (i >= 0) return /* copy:callout */ `${k.slice(0, i).replace(/_/g, " ")} ${k.slice(i + 3)} fell`;
+  const w = k.replace(/_/g, " ").trim().split(/\s+/).pop() ?? k;
+  return /* copy:callout */ `ally ${w} fell`;
+}
+/** Cut 12 §6: a supply the camp gave rather than sold — the wire's `free`, else the kennel's leash (a lineage that has never
+ *  tamed carries one free leash; the core sends no flag yet). */
+export function isFreeSupply(L: Lineage, it: InvItem): boolean {
+  if (it.free !== undefined) return it.free;
+  return it.kind === "leash" && !(L.ledger ?? []).some((r) => r.tamed);
+}
+/** Cut 12 §1: a tactic card's row (`{v:"tactic"}`) — outside `max_rows`, one per owned card. */
+export const isCardRow = (r: Row): boolean => r.verb.v === "tactic";
+export const ownRowCount = (rows: Row[]): number => rows.filter((r) => !isCardRow(r)).length;
 export function rowLabel(r: Row): string { return `${r.conds.map(condLabel).join(" · ")} → ${verbLabel(r.verb)}`; }
 export const sameCond = (a: Cond, b: Cond): boolean => a.k === b.k && a.t === b.t;
 export const sameVerb = (a: Verb, b: Verb): boolean => a.v === b.v && a.a === b.a;

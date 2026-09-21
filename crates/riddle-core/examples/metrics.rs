@@ -688,13 +688,18 @@ fn main() {
     // `probes::situation_trial`); the one-row answer's rate is printed beside it.
     let (c_reached, c_left): (u32, u32) = default.iter().fold((0, 0), |a, r| (a.0 + r.captain.0, a.1 + r.captain.1));
     println!("captain: DEFAULT left D5 alive in {:.0}% of {} runs that reached it", pct(c_left as usize, c_reached as usize), c_reached);
+    // Cut 12 §4: a band's situation sits on one of the band's floors (drawn from the run's
+    // seed), so "appears" is measured on the runs that passed the band's last floor it can sit
+    // on; the trials force it onto its Cut 7 floor.
     let band: Vec<&riddle_core::engine::BandRun> = all.iter().flat_map(|r| r.band.iter()).collect();
     let mut sit_lines: Vec<String> = Vec::new();
     for (what, depth) in riddle_core::descent::SITUATION_DEPTHS {
-        let reached: Vec<&&riddle_core::engine::BandRun> = band.iter().filter(|b| b.depth >= depth).collect();
+        let b = riddle_core::situations::band(depth).expect("a band");
+        let passed = (b.first..=b.last).filter(|d| riddle_core::descent::boss_for(*d).is_none()).max().unwrap_or(b.last) + 1;
+        let reached: Vec<&&riddle_core::engine::BandRun> = band.iter().filter(|b| b.depth >= passed).collect();
         let met = reached.iter().filter(|b| b.met.iter().any(|m| m == what)).count();
         let appear = pct(met, reached.len());
-        rows.push((format!("Situation {what} (D{depth}) appears when reached ≥ 90% (n={})", reached.len()), format!("{appear:.0}%"), appear >= 90.0 || reached.is_empty()));
+        rows.push((format!("Situation {what} (D{}–{}) met by D{passed} ≥ 90% (n={})", b.first, passed - 1, reached.len()), format!("{appear:.0}%"), appear >= 90.0 || reached.is_empty()));
         let trials: Vec<(bool, bool, bool)> = (1..=seeds).map(|s| riddle_core::probes::situation_trial(s, what, false)).collect();
         let answered: Vec<(bool, bool, bool)> = (1..=seeds).map(|s| riddle_core::probes::situation_trial(s, what, true)).collect();
         let p_pass = pct(trials.iter().filter(|t| t.1).count(), ns);
@@ -705,6 +710,37 @@ fn main() {
         rows.push((format!("DEFAULT passes the {what} ≤ 20% of seeds"), format!("{p_pass:.0}%"), p_pass <= 20.0));
     }
     println!("situations (Cut 7 §3):\n  {}", sit_lines.join("\n  "));
+    // Cut 12 §2: the thief guard card answers the den — snatches with the card ≤ 20% of
+    // those without, over the seeds (`probes::den_guard_trial`, the preset on a den floor).
+    let den: Vec<(u32, u32)> = (1..=seeds).map(riddle_core::probes::den_guard_trial).collect();
+    let (den_without, den_with): (u32, u32) = den.iter().fold((0, 0), |a, (w, c)| (a.0 + w, a.1 + c));
+    let den_pct = pct(den_with as usize, den_without as usize);
+    println!("thief guard (Cut 12 §2): den snatches without the card {den_without} · with it {den_with} ({den_pct:.0}%) over {ns} seeds");
+    rows.push((format!("Thief guard cuts den snatches ≤ 20% of without (n={den_without})"), format!("{den_pct:.0}%"), den_pct <= 20.0 && den_without > 0));
+    // Cut 12 §4: from D3 every floor rolls one situation, never the previous floor's kind, and
+    // D3–10 hold ≥ 4 kinds on every seed (`probes::twist_sequence`).
+    let seqs: Vec<Vec<Option<String>>> = (1..=seeds).map(riddle_core::probes::twist_sequence).collect();
+    let mut tw_kinds_min = usize::MAX;
+    let mut tw_gaps = 0usize;
+    let mut tw_repeats = 0usize;
+    let mut tw_counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for seq in &seqs {
+        let kinds: std::collections::BTreeSet<&str> = seq.iter().filter_map(|t| t.as_deref()).collect();
+        tw_kinds_min = tw_kinds_min.min(kinds.len());
+        for (i, t) in seq.iter().enumerate() {
+            let depth = 3 + i as u32;
+            match t {
+                Some(k) => *tw_counts.entry(k.clone()).or_insert(0) += 1,
+                None if riddle_core::descent::boss_for(depth).is_none() => tw_gaps += 1,
+                None => {}
+            }
+            if i > 0 && t.is_some() && *t == seq[i - 1] {
+                tw_repeats += 1;
+            }
+        }
+    }
+    println!("twists (Cut 12 §4): D3–10 over {ns} seeds · kinds min {tw_kinds_min} · floors without one {tw_gaps} · repeats {tw_repeats} · {}", tw_counts.iter().map(|(k, n)| format!("{k} {n}")).collect::<Vec<_>>().join(" · "));
+    rows.push(("Twists D3–10: ≥ 4 kinds every seed, one per floor, none twice".into(), format!("min {tw_kinds_min} · {tw_gaps} gaps · {tw_repeats} rep"), tw_kinds_min >= 4 && tw_gaps == 0 && tw_repeats == 0));
     // Cut 10 §2: the wall as a ramp — on a lineage that knows the Warlord's counter and whose
     // set lacks it, the forecast's D9 row names the counter and inserting it at the top lifts
     // D9's reach by ≥ 0.3 on every seed (`probes::counter_trial`; the end placement is printed

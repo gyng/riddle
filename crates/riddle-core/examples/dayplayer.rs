@@ -113,7 +113,7 @@ fn write_own_rows_full(g: &mut Game, bank: bool) -> (u32, u32) {
         if !ok || g.lineage.rules().rows.contains(&row) {
             continue;
         }
-        if g.lineage.rules().rows.len() >= g.vocabulary().max_rows {
+        if g.lineage.rules().own_rows() >= g.vocabulary().max_rows {
             blocked += 1;
         } else if insert_row(g, row, 0) {
             n += 1;
@@ -187,10 +187,12 @@ fn insert_row(g: &mut Game, row: Row, at: i32) -> bool {
     if rules.rows.contains(&row) {
         return false;
     }
-    if rules.rows.len() >= max_rows {
-        // Make room from the bottom, but never throw away the plain attack row (the set's spine).
+    // Cut 12 §1: a card's row sits outside the cap; an own row into a full set makes room
+    // from the bottom among the own rows, but never throws away the plain attack row (the
+    // set's spine).
+    if !row.is_card() && rules.own_rows() >= max_rows {
         let plain = |r: &Row| r.verb.v == "attack" && !r.verb.a.as_deref().is_some_and(|a| a.starts_with("tag:"));
-        let drop = (0..rules.rows.len()).rev().find(|&i| !plain(&rules.rows[i])).unwrap_or(rules.rows.len() - 1);
+        let drop = (0..rules.rows.len()).rev().find(|&i| !rules.rows[i].is_card() && !plain(&rules.rows[i])).unwrap_or(rules.rows.len() - 1);
         rules.rows.remove(drop);
     }
     let at = at.min(rules.rows.len());
@@ -391,12 +393,11 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                 bought += 1;
                 d.unlocks += 1;
                 decided = true;
-                // Cut 4: a bought card is a row (the editor renders it as one): it goes in at
-                // the top when the set has a free slot — a human does not throw a rule away
-                // for it unprompted.
-                if let Some(row) = riddle_core::meta::unlock_row(&g.lineage, &u.id) {
-                    let free = g.lineage.rules().rows.len() < g.vocabulary().max_rows;
-                    if u.id != "throw" && u.id != "tame" && free && insert_row(&mut g, row, 0) {
+                // Cut 4: a bought card is a row (the editor renders it as one). Cut 12 §1: the
+                // card brings its own row, bare, before the engagement row (`insert_at`) — it
+                // needs no free slot; a verb unlock's row (`throw`, `tame`) is the player's to write.
+                if let Some((row, at)) = riddle_core::meta::delta_row(&g.lineage, &u.id) {
+                    if std::env::var("DP_NO_CARDS").is_err() && row.is_card() && insert_row(&mut g, row, at as i32) {
                         d.edits += 1;
                     }
                 }

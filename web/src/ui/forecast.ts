@@ -8,6 +8,8 @@
 // Cut 9 §4: the `yours` line appends `· card R2 first` when a card row sits above any of the player's rows.
 // Cut 10 §2: a boss floor whose counter is known and whose row is absent reads `D9 0% · warlord · try: attack boss` (the
 // engine's `try`, or the client's read of `Lineage.counters` against the set); tapping the bar inserts the row at the top.
+// Cut 12 §1: `yours: n of m rows` counts own rows (card rows sit outside `max_rows`); §3: one line under the depths says how a
+// send ends when the engine sends `ends` (`bank 40% · return 35% · death 25% · ~$54`); §6: a combo is named, not counted.
 import type { App } from "../app";
 import type { Forecast, ForecastTry, Row } from "../engine/types";
 import { h, clear, pct, replace } from "./dom";
@@ -33,15 +35,24 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const bars = h("div", { class: "fc-bars" });
   const causes = h("div", { class: "fc-causes" });
   const yours = h("div", { class: "fc-yours num" });
-  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast"), bars, yours, causes);
+  const ends = h("div", { class: "fc-ends num dim", hidden: true });
+  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast"), bars, ends, yours, causes);
   // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
   // Cut 9 §4: `· card R2 first` when a `[card]` row sits above any of the player's rows (a card is an always-row that
   // takes the turn while its trigger holds)
+  // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
-    const n = app.playerRows(), m = app.rules.rows.length, k = app.combos().length, card = cardAbovePlayer(app.rules.rows);
+    const n = app.playerRows(), m = app.ownRows(), combos = app.combos(), card = cardAbovePlayer(app.rules.rows);
     replace(yours, h("span", { class: n ? "" : "dim" }, /* copy:callout */ `yours: ${n} of ${m} row${m === 1 ? "" : "s"}`),
-      k ? h("span", { class: "combos" }, /* copy:label */ ` · ${k} combo${k === 1 ? "" : "s"}`) : "",
+      combos.length ? h("span", { class: "combos" }, ` · ${combos.map((c) => c.name).join(" · ")}`) : "",
       card ? h("span", { class: "card-first" }, /* copy:callout */ ` · card R${card} first`) : "");
+  };
+  // Cut 12 §3: `bank 40% · return 35% · death 25% · ~$54` — the three shown always so the trade reads; absent on an older core
+  const paintEnds = (f: Forecast): void => {
+    const e = f.ends;
+    ends.hidden = !e;
+    if (!e) return;
+    replace(ends, /* copy:callout */ `bank ${pct(e.bank)} · return ${pct(e.return)} · death ${pct(e.death)}`, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -49,7 +60,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     return (app.lineage.counters ?? []).find((c) => c.boss === key || key.endsWith(c.boss))?.text;
   };
   const paint = (f: Forecast): void => {
-    clear(bars); clear(causes);
+    clear(bars); clear(causes); paintEnds(f);
     const next = app.lineage.best_depth + 1;
     for (const d of f.depths) {
       const cause = d.cause ?? (d.depth === next ? f.causes[0]?.cause : undefined);

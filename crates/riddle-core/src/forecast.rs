@@ -2,7 +2,7 @@
 use crate::engine::{ExitTier, Game};
 use crate::rng::splitmix;
 use crate::rules::RuleSet;
-use crate::wire::{Forecast, ForecastCause, ForecastDepth, ForecastTry};
+use crate::wire::{Forecast, ForecastCause, ForecastDepth, ForecastEnds, ForecastTry};
 use std::collections::BTreeMap;
 
 pub const FORECAST_SIMS: u32 = 50;
@@ -25,6 +25,9 @@ pub struct SimResult {
     pub max_depth: u32,
     pub tier: ExitTier,
     pub cause: Option<String>,
+    /// Cut 12 §3: the gold this send brings home — the loot by the exit's share (`ExitTier::pct`;
+    /// a run that timed out keeps nothing, as the exit's own maths has it).
+    pub loot_kept: i32,
 }
 
 /// Simulate `sims` fresh expeditions from the current lineage with `rules`, each stopping once
@@ -81,7 +84,9 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32)
         n += 1;
     }
     let run = g.run.as_ref().unwrap();
-    (n, SimResult { max_depth: run.max_depth, tier: run.over.unwrap_or(ExitTier::Return), cause: run.death_cause.clone() })
+    let tier = run.over.unwrap_or(ExitTier::Return);
+    let loot_kept = if run.timed_out { 0 } else { run.loot.max(0) * tier.pct() / 100 };
+    (n, SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept })
 }
 
 /// `f` over every job, results in job order. Natively (and unless `set_parallel_sims(false)`)
@@ -187,7 +192,11 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let mut cv: Vec<(String, u32)> = causes.into_iter().collect();
     cv.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     let causes = cv.into_iter().take(3).map(|(c, k)| ForecastCause { cause: c, share: k as f64 / deaths.max(1) as f64 }).collect();
-    Forecast { depths, causes, known_to }
+    // Cut 12 §3: how the sends end, and what they bring home, over the same sims.
+    let share = |t: ExitTier| results.iter().filter(|r| r.tier == t).count() as f64 / n;
+    let gold = results.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
+    let ends = (!results.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death: share(ExitTier::Death), gold });
+    Forecast { depths, causes, known_to, ends }
 }
 
 /// Cut 10 §2: the `try` of a forecast row — reaching `depth` means passing the boss on the

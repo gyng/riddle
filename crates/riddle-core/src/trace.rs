@@ -510,14 +510,13 @@ fn insert_positions(rules: &RuleSet, trace: &Trace) -> Vec<usize> {
 }
 
 fn max_rows(rec: &DeathRec) -> usize {
-    rec.vocab.max_rows.max(rec.rules.rows.len() + 1)
+    rec.vocab.max_rows.max(rec.rules.own_rows() + 1)
 }
 
 fn patched(rec: &DeathRec, row: &Row, pos: usize) -> RuleSet {
     let mut rules = rec.rules.clone();
     rules.rows.insert(pos.min(rules.rows.len()), row.clone());
-    rules.rows.truncate(max_rows(rec));
-    rules
+    rules.fit(max_rows(rec))
 }
 
 /// Cut 11 §2: a patch's rule set — the row inserted at `insert_at`; on an unlock
@@ -529,8 +528,7 @@ pub fn patched_rules(rules: &RuleSet, p: &Patch, max_rows: usize) -> RuleSet {
         return rules;
     }
     rules.rows.insert((p.insert_at.max(0) as usize).min(rules.rows.len()), p.row.clone());
-    rules.rows.truncate(max_rows.max(1));
-    rules
+    rules.fit(max_rows.max(1))
 }
 
 /// The replay seed for a row at a position: a function of the row itself, so a patch's fired
@@ -656,15 +654,16 @@ pub fn unlock_label(id: &str) -> String {
 /// set already carries the answer or the lineage lacks the fact.
 pub fn thief_row(game: &Game, rules: &RuleSet, den: bool) -> Option<(Row, Option<String>)> {
     let l = &game.lineage;
+    let has_card = rules.rows.iter().any(|r| r.verb.v == "tactic" && r.verb.a.as_deref() == Some("thief_guard"));
     if den {
-        if !l.facts.contains("den") || rules.rows.iter().any(|r| r.conds.iter().any(|c| c.k == "on_see" && c.t.as_deref() == Some("den"))) {
+        // Cut 12 §2: the thief guard card raids the den too (its first row).
+        if !l.facts.contains("den") || has_card || rules.rows.iter().any(|r| r.conds.iter().any(|c| c.k == "on_see" && c.t.as_deref() == Some("den"))) {
             return None;
         }
         let row = crate::probes::situation_answer("den");
         let unlock = (!l.unlocks.contains("cond_on_see")).then(|| "cond_on_see".to_string());
         return Some((row, unlock));
     }
-    let has_card = rules.rows.iter().any(|r| r.verb.v == "tactic" && r.verb.a.as_deref() == Some("thief_guard"));
     let has_row = rules.rows.iter().any(|r| r.verb.a.as_deref() == Some("tag:thief"));
     if has_card || has_row {
         return None;
@@ -1028,8 +1027,12 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
     let mut out: Vec<Patch> = measured.iter().filter(|(_, f)| *f >= FIRED_BAR).map(|(p, _)| p.clone()).collect();
     if out.is_empty() {
         // Pure dice (the baseline survives, nothing gets to fire): the row that fired most,
-        // if any did — the one alternative the moment even reached.
-        if let Some((p, _)) = measured.iter().filter(|(_, f)| *f > 0.0).max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()) {
+        // if any did — the one alternative the moment even reached. Cut 12: when none did
+        // (a 3-HP descent into a pack: ten turns with nothing a row could do), the
+        // best-surviving candidate is still named, flagged below the bar — Cut 11 §4, a dice
+        // death is never empty. (Its survival is the baseline's; the honest fix for such a
+        // death is a checkpoint before the descent, not a row at the moment.)
+        if let Some((p, _)) = measured.iter().filter(|(_, f)| *f > 0.0).max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).or_else(|| measured.iter().max_by(|a, b| a.0.survive.partial_cmp(&b.0.survive).unwrap())) {
             out.push(p.clone());
         }
     }

@@ -33,6 +33,10 @@ pub const STALL_FIRES: u32 = 3;
 pub const WAKE_PAY: i32 = 40;
 /// Cut 3: rule rows with every row unlock (`row5`–`row10`).
 pub const MAX_ROWS: usize = 10;
+/// Cut 12 §1: card rows sit outside the player's cap — one per owned card (8 tactic, 4 tier 2,
+/// 4 mastery); the per-row tallies are sized for both.
+pub const MAX_CARD_ROWS: usize = 16;
+pub const ROWS_TOTAL: usize = MAX_ROWS + MAX_CARD_ROWS;
 /// Cut 3: the ascension variants, in the order they are offered.
 pub const VARIANTS: [&str; 4] = ["no_rest", "short_list", "bones_only", "hunted"];
 /// Energy needed to act; actors gain `speed` per tick.
@@ -41,9 +45,10 @@ pub const TICKS_PER_TURN: u32 = 10;
 pub const MAX_LEVEL: u32 = 10;
 /// Gold from loot and salvage is divided by this (Addendum B/D economy pass).
 pub const GOLD_DIVISOR: i32 = 4;
-/// Cut 2 §1: camp rest after an expedition lasts as long as it did, capped at 30 min and never
-/// shorter than the wake (a two-minute `hp<50 → return` sortie would otherwise farm hundreds
-/// of runs a day); a death is followed by a fixed 20-minute wake. Ticks (10/s).
+/// Cut 2 §1: camp rest after an expedition lasts half as long as it did (Cut 12 §5; Cut 2: as
+/// long), capped at 30 min and never shorter than the wake (a two-minute `hp<50 → return`
+/// sortie would otherwise farm hundreds of runs a day); a death is followed by a fixed
+/// 20-minute wake. Ticks (10/s).
 pub const REST_CAP_TICKS: u32 = 30 * 60 * 10;
 pub const REST_MIN_TICKS: u32 = 20 * 60 * 10;
 pub const WAKE_TICKS: u32 = 20 * 60 * 10;
@@ -377,6 +382,19 @@ pub struct Run {
     /// §3: the den's sleepers (tiles the chores walk round; a blow on one is a raid).
     #[serde(skip)]
     pub sleepers: Vec<Pos>,
+    // Cut 12
+    /// §4: the floor's one situation from D3 (`nest` · `den` · `lock` · `captive` · `shrine`
+    /// · `vault` · `stray` · `hunger`), the previous floor's (never rolled twice running),
+    /// the run's seed (each band's flagship floor is drawn from it), and a kind forced on
+    /// the next floor (trials and probes; never saved).
+    #[serde(default)]
+    pub floor_twist: Option<String>,
+    #[serde(default)]
+    pub last_twist: Option<String>,
+    #[serde(default)]
+    pub seed: u64,
+    #[serde(skip)]
+    pub next_twist: Option<String>,
 }
 
 impl Run {
@@ -1244,11 +1262,25 @@ impl Game {
         self.lineage.to_wire()
     }
 
-    /// Rows beyond the unlocked count are dropped (a patch inserted into a full set pushes
-    /// the last row out, which is what the player would do); the rest is validated.
+    /// Cut 12 §1: a player's set is validated at the door — at most `max_rows` own rows (a
+    /// card's row is the card's, outside the cap), one row per card, every card owned — and
+    /// refused with a ≤ 6-word error otherwise (it was truncated). A set the lineage already
+    /// holds over the cap (the rules stay through an ascension, which resets the row unlocks)
+    /// may be edited but never grown: the rows in play are `RuleSet::active`. A sim's set (a
+    /// patch replay, a forecast candidate) is cut like the editor cuts it: the last own row
+    /// falls off (`RuleSet::fit`).
     pub fn set_rules(&mut self, set: RuleSet) -> Result<(), String> {
         let mut set = set;
-        set.rows.truncate(self.lineage.max_rows());
+        let max_rows = self.lineage.max_rows();
+        if self.sim {
+            set = set.fit(max_rows);
+        } else {
+            let held = self.lineage.rules();
+            let cap = max_rows.max(held.own_rows());
+            let mut owned = self.lineage.unlocks.clone();
+            owned.extend(held.rows.iter().filter_map(|r| r.card().map(String::from)));
+            set.check_rows(cap, &owned)?;
+        }
         set.validate()?;
         // Cut 9 §1: a locked token is refused at the door (the sheet never offers it; a sim
         // replays what the lineage already holds, locks and all).
@@ -1558,7 +1590,7 @@ impl Game {
             melee_used: false,
             boss_seen_t: None,
             hurt_since_boss: false,
-            row_fired: vec![0; MAX_ROWS],
+            row_fired: vec![0; ROWS_TOTAL],
             renderable_events: 0,
             ended: false,
             max_depth: 1,
@@ -1634,6 +1666,10 @@ impl Game {
             passed: Vec::new(),
             lock_tiles: Vec::new(),
             raiding: false,
+            floor_twist: None,
+            last_twist: None,
+            seed,
+            next_twist: None,
             sleepers: Vec::new(),
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
@@ -1651,7 +1687,6 @@ impl Game {
         }
         populate_floor(&mut run, &self.lineage.grudges, &self.lineage.forge, self.lineage.hunter.as_ref());
         place_situations(&mut run, &self.lineage.lost);
-        crate::situations::place(&mut run);
         place_bones(&mut run);
         spawn_party(&mut run, &self.lineage.party);
         let vision = run.vision(&self.lineage.unlocks);
@@ -1804,6 +1839,17 @@ impl Game {
         self.events.clear();
     }
 
+    /// Cut 12 §4: `descend_to` with the floor's situation chosen (trials, probes, tests):
+    /// the floor above is reached first, then `depth` rolls `kind` (a kind the floor cannot
+    /// hold falls through to the band's roll).
+    pub fn descend_to_twist(&mut self, depth: u32, kind: &str) {
+        self.descend_to(depth.saturating_sub(1));
+        if let Some(run) = self.run.as_mut() {
+            run.next_twist = Some(kind.into());
+        }
+        self.descend_to(depth);
+    }
+
     /// Run the live expedition to its end (used by forecasts and the offline batch).
     pub fn run_to_end(&mut self, max_turns: u32) {
         let mut n = 0;
@@ -1870,7 +1916,7 @@ impl Game {
                 brought.push(StakeItem { label, insured: l.insured.contains(id) });
             }
         }
-        let return_row = l.rules().rows.iter().take(l.max_rows()).position(|r| matches!(r.verb.v.as_str(), "return" | "bank"));
+        let return_row = l.rules().active(l.max_rows()).find(|(_, r)| matches!(r.verb.v.as_str(), "return" | "bank")).map(|(i, _)| i);
         // Cut 6 §1: what that row would bring home now (the kept number, not the carried one).
         let kept = return_row.map(|i| {
             let tier = if l.rules().rows[i].verb.v == "bank" { ExitTier::Bank } else { ExitTier::Return };
@@ -1897,6 +1943,7 @@ impl Game {
             vault_choice: run.vault_choice.as_ref().map(|(_, items)| VaultChoice { items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect() }),
             room: Some(run.room_ref()),
             rooms: Some(run.floor.rooms.len() as u32),
+            floor_twist: run.floor_twist.clone(),
         }
     }
 
@@ -1958,11 +2005,11 @@ impl Game {
             }
             ExitTier::Death => self.lineage.runs_died += 1,
         }
-        if self.batch.row_fired.len() < MAX_ROWS {
-            self.batch.row_fired = vec![0; MAX_ROWS];
+        if self.batch.row_fired.len() < ROWS_TOTAL {
+            self.batch.row_fired = vec![0; ROWS_TOTAL];
         }
-        if self.batch.row_runs.len() < MAX_ROWS {
-            self.batch.row_runs = vec![0; MAX_ROWS];
+        if self.batch.row_runs.len() < ROWS_TOTAL {
+            self.batch.row_runs = vec![0; ROWS_TOTAL];
         }
         for (i, n) in run.row_fired.iter().enumerate() {
             if i < MAX_ROWS {
@@ -2985,34 +3032,26 @@ pub fn place_bones(run: &mut Run) {
     }
 }
 
-/// Cut 5 §4: the first five floors hold situations — a shrine (`pray`), a vault (a
+/// Cut 5 §4: the doorstep (D1–2) holds situations at a rate — a shrine (`pray`), a vault (a
 /// three-item cage), a nest (four sleeping jackals round a gold pile) and, when a previous
 /// heir lost a companion, a stray (that companion gone wild). D1 always has one, in a room near
-/// the entrance; D2–5 have one (80 %) or two (30 %). Rooms only (the Warrens).
+/// the entrance; D2 has one (80 %) or two (30 %). Rooms only (the Warrens).
+///
+/// Cut 12 §4: from D3 every floor rolls **one** situation of its band (`situations::place_twist`:
+/// den, lock, captive, nest, shrine, vault, stray, hunger), never the previous floor's kind;
+/// `Run.floor_twist` names it for the interstitial and the reel.
 pub fn place_situations(run: &mut Run, lost: &[Lost]) {
-    use crate::tiles::Tile;
-    let depth = run.depth;
-    if depth > 5 || run.floor.rooms.is_empty() {
+    run.last_twist = run.floor_twist.take();
+    if run.depth >= 3 {
+        crate::situations::place_twist(run, lost);
         return;
     }
+    if run.floor.rooms.is_empty() {
+        return;
+    }
+    let depth = run.depth;
     // A side stream: the floor's own rng is untouched by what the situations draw.
     let mut rng = run.rng.side(hash_str("situations") ^ depth as u64);
-    let hero = run.hero.pos;
-    let dist = run.floor.map.bfs(hero, false, &|_| false);
-    // Candidate rooms: not the stairs rooms, ordered by path distance from the entrance.
-    let mut rooms: Vec<(i32, usize)> = run
-        .floor
-        .rooms
-        .iter()
-        .enumerate()
-        .filter(|(_, r)| !r.contains(run.floor.stairs_up) && !r.contains(run.floor.stairs_down))
-        .map(|(i, r)| (dist[run.floor.map.idx(r.centre())], i))
-        .filter(|(d, _)| *d > 0)
-        .collect();
-    rooms.sort();
-    if rooms.is_empty() {
-        return;
-    }
     let mut n = if depth == 1 { 1 } else { rng.chance(80) as usize };
     if depth >= 2 && rng.chance(30) {
         n += 1;
@@ -3033,91 +3072,164 @@ pub fn place_situations(run: &mut Run, lost: &[Lost]) {
         }
         kinds.push(pool[rng.weighted(&w)]);
     }
-    let stray = !run.stray_placed && !lost.is_empty() && (rng.chance(50) || depth == 5);
+    let stray = !run.stray_placed && !lost.is_empty() && rng.chance(50);
     // Cut 8B §3: the first stray waits on its floor (a jackal, named once per lineage).
     let first = run.first_stray.clone().filter(|(d, _)| *d == depth && !run.stray_placed && !stray);
     let mut used: Vec<usize> = Vec::new();
-    let pick_room = |rng: &mut Rng, near: bool, used: &mut Vec<usize>| -> Option<usize> {
-        let free: Vec<usize> = rooms.iter().filter(|(_, i)| !used.contains(i)).map(|(_, i)| *i).collect();
-        if free.is_empty() {
-            return None;
-        }
-        // Near: one of the three closest rooms to the entrance; else any.
-        let i = if near { free[rng.below(free.len().min(3) as u32) as usize] } else { free[rng.below(free.len() as u32) as usize] };
-        used.push(i);
-        Some(i)
-    };
-    let interior = |run: &Run, ri: usize| -> Option<Pos> {
-        let r = run.floor.rooms[ri];
-        let mut cands: Vec<Pos> = Vec::new();
-        for y in r.y..r.y + r.h {
-            for x in r.x..r.x + r.w {
-                let p = Pos::new(x, y);
-                let inner = x > r.x && y > r.y && x < r.x + r.w - 1 && y < r.y + r.h - 1;
-                if run.floor.map.get(p) == Tile::Floor && !run.occupied(p) && run.item_at(p).is_none() && (inner || r.w <= 2 || r.h <= 2) {
-                    cands.push(p);
-                }
-            }
-        }
-        if cands.is_empty() {
-            let c = r.centre();
-            return (run.floor.map.get(c) == Tile::Floor).then_some(c);
-        }
-        Some(cands[(cands.len() / 2).min(cands.len() - 1)])
-    };
     for (k, kind) in kinds.iter().enumerate() {
         let near = depth == 1 && k == 0;
-        let Some(ri) = pick_room(&mut rng, near, &mut used) else { break };
-        let Some(p) = interior(run, ri) else { continue };
-        // Nothing else stands on the tile (monsters and items may have landed there).
-        run.items.retain(|fi| fi.pos != p);
-        run.monsters.retain(|m| m.pos != p);
-        match *kind {
-            "shrine" => run.floor.map.set(p, Tile::Shrine),
-            "vault" => {
-                run.floor.map.set(p, Tile::Vault);
-                run.vault_cage = vault_cage(run, &mut rng, depth);
-            }
-            _ => {
-                run.floor.map.set(p, Tile::Nest);
-                let mut gold = Item::new(run.new_item_id(), "gold");
-                gold.amount = 12 * depth as i32 + rng.range(4, 12);
-                run.items.push(FloorItem { pos: p, item: gold });
-                let mut placed = 0;
-                let mut spots: Vec<Pos> = p.neighbours8().into_iter().filter(|q| run.floor.map.get(*q) == Tile::Floor && !run.occupied(*q)).collect();
-                rng.shuffle(&mut spots);
-                // Three sleepers to D3, four below; a den's jackals are D1 jackals (no depth
-                // bonus): the surprise is the shape — four at once round the gold — not the
-                // numbers (DEFAULT must still last ten minutes a run).
-                let sleepers = if depth <= 3 { 3 } else { 4 };
-                for q in spots.into_iter().take(sleepers) {
-                    let id = run.new_id();
-                    let mut m = Monster::spawn(id, "jackal", q, 1);
-                    m.nest = true;
-                    m.dormant = true;
-                    run.monsters.push(m);
-                    placed += 1;
-                }
-                if placed == 0 {
-                    run.floor.map.set(p, Tile::Floor);
-                }
-            }
-        }
+        place_room_kind(run, &mut rng, kind, near, &mut used);
     }
     let wild = if stray { lost.last().map(|l| (l.kind.clone(), l.name.clone())) } else { first.map(|(_, name)| ("jackal".to_string(), name)) };
     if let Some((kind, name)) = wild {
-        if let Some(ri) = pick_room(&mut rng, false, &mut used) {
-            if let Some(p) = interior(run, ri) {
-                let id = run.new_id();
-                let mut m = Monster::spawn(id, &kind, p, depth);
-                m.stray = true;
-                m.name = Some(name);
-                m.level = 1;
-                run.monsters.push(m);
-                run.stray_placed = true;
+        place_stray(run, &mut rng, &kind, &name, &mut used);
+    }
+}
+
+/// Candidate rooms for a situation: not the stairs rooms, ordered by path distance from the
+/// entrance.
+fn situation_rooms(run: &Run) -> Vec<(i32, usize)> {
+    let hero = run.hero.pos;
+    let dist = run.floor.map.bfs(hero, false, &|_| false);
+    let mut rooms: Vec<(i32, usize)> = run
+        .floor
+        .rooms
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| !r.contains(run.floor.stairs_up) && !r.contains(run.floor.stairs_down))
+        .map(|(i, r)| (dist[run.floor.map.idx(r.centre())], i))
+        .filter(|(d, _)| *d > 0)
+        .collect();
+    rooms.sort();
+    rooms
+}
+
+/// A free candidate room: one of the three closest to the entrance when `near`, else any.
+fn pick_room(run: &Run, rng: &mut Rng, near: bool, used: &mut Vec<usize>) -> Option<usize> {
+    let rooms = situation_rooms(run);
+    let free: Vec<usize> = rooms.iter().filter(|(_, i)| !used.contains(i)).map(|(_, i)| *i).collect();
+    if free.is_empty() {
+        return None;
+    }
+    let i = if near { free[rng.below(free.len().min(3) as u32) as usize] } else { free[rng.below(free.len() as u32) as usize] };
+    used.push(i);
+    Some(i)
+}
+
+/// Cut 12 §4: a spot for a situation — a free room's interior, or on a cave (no rooms) an
+/// open tile at least six steps from the entrance and two from the stairs with room to
+/// breathe (five open neighbours), drawn from the floor's side stream.
+fn situation_spot(run: &Run, rng: &mut Rng, near: bool, used: &mut Vec<usize>) -> Option<Pos> {
+    use crate::tiles::Tile;
+    if !run.floor.rooms.is_empty() {
+        let ri = pick_room(run, rng, near, used)?;
+        return room_interior(run, ri);
+    }
+    let map = &run.floor.map;
+    let dist = map.bfs(run.hero.pos, false, &|_| false);
+    let mut cands: Vec<Pos> = (0..map.tiles.len())
+        .filter(|&i| map.tiles[i] == Tile::Floor && dist[i] >= 6)
+        .map(|i| map.pos(i))
+        .filter(|p| !run.occupied(*p) && run.item_at(*p).is_none() && p.cheb(run.floor.stairs_down) > 2 && p.neighbours8().into_iter().filter(|q| map.in_bounds(*q) && map.get(*q) == Tile::Floor && !run.occupied(*q)).count() >= 5)
+        .collect();
+    cands.sort_by_key(|p| (p.y, p.x));
+    if cands.is_empty() {
+        return None;
+    }
+    Some(cands[rng.below(cands.len() as u32) as usize])
+}
+
+/// An interior floor tile of a room with nothing on it (the centre when the room is tiny).
+fn room_interior(run: &Run, ri: usize) -> Option<Pos> {
+    use crate::tiles::Tile;
+    let r = run.floor.rooms[ri];
+    let mut cands: Vec<Pos> = Vec::new();
+    for y in r.y..r.y + r.h {
+        for x in r.x..r.x + r.w {
+            let p = Pos::new(x, y);
+            let inner = x > r.x && y > r.y && x < r.x + r.w - 1 && y < r.y + r.h - 1;
+            if run.floor.map.get(p) == Tile::Floor && !run.occupied(p) && run.item_at(p).is_none() && (inner || r.w <= 2 || r.h <= 2) {
+                cands.push(p);
             }
         }
     }
+    if cands.is_empty() {
+        let c = r.centre();
+        return (run.floor.map.get(c) == Tile::Floor).then_some(c);
+    }
+    Some(cands[(cands.len() / 2).min(cands.len() - 1)])
+}
+
+/// Cut 5 §4 / Cut 12 §4: a room situation — `shrine`, `vault` or `nest` — in a free room.
+/// Returns whether it was placed (a floor without a free room places nothing).
+pub fn place_room_kind(run: &mut Run, rng: &mut Rng, kind: &str, near: bool, used: &mut Vec<usize>) -> bool {
+    use crate::tiles::Tile;
+    let depth = run.depth;
+    let Some(p) = situation_spot(run, rng, near, used) else { return false };
+    // Nothing else stands on the tile (monsters and items may have landed there).
+    run.items.retain(|fi| fi.pos != p);
+    run.monsters.retain(|m| m.pos != p);
+    match kind {
+        "shrine" => run.floor.map.set(p, Tile::Shrine),
+        "vault" => {
+            run.floor.map.set(p, Tile::Vault);
+            run.vault_cage = vault_cage(run, rng, depth);
+        }
+        _ => {
+            run.floor.map.set(p, Tile::Nest);
+            let mut gold = Item::new(run.new_item_id(), "gold");
+            gold.amount = 12 * depth as i32 + rng.range(4, 12);
+            run.items.push(FloorItem { pos: p, item: gold });
+            let mut placed = 0;
+            let mut spots: Vec<Pos> = p.neighbours8().into_iter().filter(|q| run.floor.map.get(*q) == Tile::Floor && !run.occupied(*q)).collect();
+            rng.shuffle(&mut spots);
+            // Three sleepers to D3, four below; a den's jackals are D1 jackals (no depth
+            // bonus): the surprise is the shape — four at once round the gold — not the
+            // numbers (DEFAULT must still last ten minutes a run).
+            let sleepers = if depth <= 3 { 3 } else { 4 };
+            for q in spots.into_iter().take(sleepers) {
+                let id = run.new_id();
+                let mut m = Monster::spawn(id, "jackal", q, 1);
+                m.nest = true;
+                m.dormant = true;
+                run.monsters.push(m);
+                placed += 1;
+            }
+            if placed == 0 {
+                run.floor.map.set(p, Tile::Floor);
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Cut 5 §4: a stray — a lost companion gone wild (or Cut 8B §3's first jackal) — in a free
+/// room. Returns whether it was placed.
+pub fn place_stray(run: &mut Run, rng: &mut Rng, kind: &str, name: &str, used: &mut Vec<usize>) -> bool {
+    let Some(p) = situation_spot(run, rng, false, used) else { return false };
+    let id = run.new_id();
+    let mut m = Monster::spawn(id, kind, p, run.depth);
+    m.stray = true;
+    m.name = Some(name.to_string());
+    m.level = 1;
+    run.monsters.push(m);
+    run.stray_placed = true;
+    true
+}
+
+/// Cut 12 §4: the stray a twist floor would place — the lineage's first jackal on its floor,
+/// else the last companion lost — while none has been placed this run.
+pub fn wild_for(run: &Run, lost: &[Lost]) -> Option<(String, String)> {
+    if run.stray_placed {
+        return None;
+    }
+    if let Some((d, name)) = &run.first_stray {
+        if *d == run.depth {
+            return Some(("jackal".into(), name.clone()));
+        }
+    }
+    lost.last().map(|l| (l.kind.clone(), l.name.clone()))
 }
 
 /// The vault's three items: a weapon, an armour and a consumable, a cut above the floor.

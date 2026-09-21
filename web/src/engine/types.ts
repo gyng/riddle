@@ -54,7 +54,8 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
 export type GoldLine = { t: number; delta: number; why: string };
 /** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */
 export type Counter = { boss: string; row?: Row | string; text: string };
-export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent" };
+export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent";
+                        free?: boolean };                                   // Cut 12 §6 (client-proposed, core item): a supply the camp gave (the kennel's leash) reads `leash · found`; absent = bought
 
 export type Ev =
   | { t: number; k: "move"; id: number; x: number; y: number }
@@ -185,6 +186,7 @@ export interface Engine {
   breed(a: number, b: number): Lineage;  hatch(eggId: number): Lineage;  companionVocabulary(id: number): Vocabulary;
   // Addendum B
   buySupply(kind: string): Lineage;  clearSupplies(): Lineage;  supplyCatalogue(): SupplyEntry[];
+  dropSupply?(id: number): Lineage;     // Cut 12 §6 (client-proposed, core item): the supplies `×` removes one line; absent → the client clears and rebuys the rest
   // Addendum D
   keep(ids: number[]): Lineage;
   setKeepPref(pref: string): Lineage;   // core addition (README): keep preference for offline exits

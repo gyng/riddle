@@ -7,6 +7,7 @@ import type { Counter, ExitLine, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
 import { openUnlockSheet, visible, withRowsGate } from "./unlocks";
+import { lostLabel } from "./tokens";
 import { traceChip } from "./trace";
 import { openGoldSheet } from "./gold";
 
@@ -82,9 +83,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     pendingBody.replaceChildren();
     const ul = lines(pendingLines); if (ul) pendingBody.appendChild(ul);
     // Cut 9 §2: the card opens its sheet; the buy is there, and the report repaints itself after one
-    const full = app.rules.rows.length >= app.vocab.max_rows;
-    affordable = affordable.map((u) => withRowsGate(u, app.rules.rows.length, app.vocab.max_rows)).filter((u) => u.available);   // Cut 10 §3
-    if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => openUnlockSheet(app, u, full, () => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)))));
+    affordable = affordable.map((u) => withRowsGate(u, app.ownRows(), app.vocab.max_rows)).filter((u) => u.available);   // Cut 10 §3; Cut 12 §1: own rows
+    if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => openUnlockSheet(app, u, () => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)))));
     if (pendingSec) pendingSec.hidden = !pendingBody.childElementCount;
   };
   paintPending([]);
@@ -96,7 +96,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "learned", factChips(r.learned, L.counters ?? [])),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),
-    section(/* copy:label */ "lost", chips((r.lost ?? []).map((k) => /* copy:callout */ `◯ ${k} · fell`), "chip egg")),   // Cut 10 §3: `jackal Ashar fell`
+    // Cut 10 §3: a companion `◯ jackal · Ashar fell` (the name small); Cut 12 §6: a summoned ally `ally hound fell`
+    section(/* copy:label */ "lost", chips((r.lost ?? []).map((k) => k.includes(" · ") ? /* copy:callout */ `◯ ${k} fell` : lostLabel(k)), "chip egg")),
     section(/* copy:label */ "bests", lines(collapseBests(r.bests))),
     r.xp && r.xp.gained > 0 ? section(/* copy:label */ "xp", h("div", { class: "xp-line num" }, `${r.xp.class} +${r.xp.gained}`, " · ", /* copy:label */ `L${L.classes?.[r.xp.class]?.level ?? 1}`, r.xp.level_ups > 0 ? h("b", null, ` ↑${r.xp.level_ups}`) : "")) : null,
     section(/* copy:label */ "found", chips(r.found.map((i) => i.label))),

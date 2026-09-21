@@ -11,11 +11,14 @@
 // Cut 9 §1: the cond sheet shows the vocabulary's `locked` tokens dim with their `needs` text and no handler. Cut 9 §4: a
 // `[card]` chip carries the card's trigger (`[card] pack break · foes ≥ 2`, the first inline row's conds).
 // Cut 10 §3: `▲▼` chips (44 px each) beside the drag handle move a row one step; the first row's ▲ and the last row's ▼ are off.
+// Cut 12 §1: the rows are the player's — `max_rows` caps own rows only, card rows sit outside it (the chip reads `3/4 · 2 cards`,
+// over budget marks the last own rows, `+` waits on own rows); picking a card verb clears the row's conds (a card row carries
+// none) and the picker never offers a card another row already holds.
 import type { App } from "../app";
 import type { Cond, Row, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash } from "./dom";
 import { openSheet } from "./sheet";
-import { NUMS, PCT, combosIn, condLabel, condName, needsN, sameCond, sameVerb, verbLabel } from "./tokens";
+import { NUMS, PCT, combosIn, condLabel, condName, isCardRow, needsN, ownRowCount, sameCond, sameVerb, verbLabel } from "./tokens";
 
 export type Editor = { el: HTMLElement; refresh(): void };
 /** What the editor edits: the hero's active set, or a companion's own rows. */
@@ -47,11 +50,10 @@ export function cardAbovePlayer(rows: Row[]): number | undefined {
   const i = rows.findIndex((r, k) => r.verb.v === "tactic" && k < last);
   return i >= 0 ? i + 1 : undefined;
 }
-/** Cut 6 §4: which rows an over-budget set marks to drop: card rows (newest) first, then the last rows. */
+/** Cut 6 §4: which rows an over-budget set marks to drop. Cut 12 §1: the last own rows (card rows never count). */
 export function dropRows(rows: Row[], max: number): Set<number> {
-  const out = new Set<number>(); let n = rows.length - max;
-  for (let i = rows.length - 1; i >= 0 && n > 0; i--) if (rows[i].verb.v === "tactic") { out.add(i); n--; }
-  for (let i = rows.length - 1; i >= 0 && n > 0; i--) if (!out.has(i)) { out.add(i); n--; }
+  const out = new Set<number>(); let n = ownRowCount(rows) - max;
+  for (let i = rows.length - 1; i >= 0 && n > 0; i--) if (!isCardRow(rows[i])) { out.add(i); n--; }
   return out;
 }
 
@@ -70,7 +72,7 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
 
   function refresh(): void {
     clear(list); clear(foot);
-    const n = rows().length, max = vocab().max_rows, over = n > max;
+    const n = ownRowCount(rows()), cards = rows().length - n, max = vocab().max_rows, over = n > max;
     const drop = over ? dropRows(rows(), max) : new Set<number>();
     rows().forEach((row, i) => list.appendChild(rowEl(row, i, drop.has(i))));
     // Cut 8B §4: the bracket sits on the pair's first row and reaches the second (`data-combo` is the name, engine data)
@@ -79,8 +81,9 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
       if (!a || !b) continue;
       a.classList.add("combo-a"); b.classList.add("combo-b"); a.dataset.combo = c.name;
     }
+    // Cut 12 §1: own rows against the cap, the card rows counted beside (`3/4 · 2 cards`)
     foot.append(
-      h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`),
+      h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`, cards ? h("small", { class: "dim cards" }, /* copy:callout */ ` · ${cards} card${cards === 1 ? "" : "s"}`) : ""),
       n < max ? h("button", { class: "btn ghost", onclick: () => { rows().push(defaultRow()); commit(); } }, "+") : "",
     );
     if (hl !== undefined && performance.now() < hlUntil) { const r = list.children[hl] as HTMLElement | undefined; if (r) { flash(r, "hl", Math.max(600, hlUntil - performance.now())); r.scrollIntoView({ block: "center" }); } }
@@ -160,7 +163,15 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
       const grid = h("div", { class: "grid" });
       for (const v of vocab().verbs) {
         const on = sameVerb(row.verb, v);
-        grid.appendChild(h("button", { class: `chip verb${on ? " on" : ""}`, onclick: () => { row.verb = { ...v } as Verb; edited(row); close(); } }, verbLabel(v)));
+        // Cut 12 §1: a set holds one row per card — a card another row already carries is not offered
+        if (v.v === "tactic" && rows().some((r) => r !== row && isCardRow(r) && r.verb.a === v.a)) continue;
+        grid.appendChild(h("button", { class: `chip verb${on ? " on" : ""}`, onclick: () => {
+          row.verb = { ...v } as Verb;
+          // Cut 12 §1: a card row carries no condition — picking a card verb clears the row's conds (they read as an
+          // uneditable prefix otherwise) and the row is the card's, not the player's
+          if (v.v === "tactic") { row.conds = []; row.origin = "card"; commit(); } else edited(row);
+          close();
+        } }, verbLabel(v)));
       }
       return h("div", { class: "sheet-body" }, grid);
     });

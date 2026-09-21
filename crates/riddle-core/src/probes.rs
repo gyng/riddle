@@ -227,19 +227,62 @@ pub fn situation_trial(seed: u64, what: &str, answered: bool) -> (bool, bool, bo
     if answered {
         set.rows.insert(0, situation_answer(what));
     }
-    let g = floor_trial(seed, depth, set);
+    let g = floor_trial_twist(seed, depth, set, Some(what));
     let run = g.run.as_ref().expect("the run is live or over");
     let met = run.situations.iter().any(|(_, s)| s == what);
     let passed = run.passed.iter().any(|s| s == what);
     (met, passed, run.depth > depth)
 }
 
+/// Cut 12 §2 gate probe: the den's snatches on one seed — the shipped preset alone, and the
+/// preset with the thief guard card's bare row where `buy` puts it (before `attack nearest`).
+/// Returns (snatches without the card, snatches with it).
+pub fn den_guard_trial(seed: u64) -> (u32, u32) {
+    let set = preset(Class::Fighter);
+    let g = floor_trial_with(seed, 3, set.clone(), Some("den"), &[]);
+    let without = g.run.as_ref().map(|r| r.stolen.len() as u32).unwrap_or(0);
+    let mut carded = set;
+    let at = crate::meta::card_insert_at(&carded);
+    carded.rows.insert(at, Row::new(vec![], Verb::arg("tactic", "thief_guard")).from("card"));
+    let g = floor_trial_with(seed, 3, carded, Some("den"), &["thief_guard"]);
+    let with = g.run.as_ref().map(|r| r.stolen.len() as u32).unwrap_or(0);
+    (without, with)
+}
+
+/// Cut 12 §4 gate probe: the situation words of D3–10 on one seed (a fresh run walked down
+/// the stairs), for the distinct-kinds and no-repeat bars.
+pub fn twist_sequence(seed: u64) -> Vec<Option<String>> {
+    let mut g = crate::engine::Game::new(seed);
+    g.sim = true;
+    g.start_run(Some(seed));
+    let mut out = Vec::new();
+    for d in 3..=10u32 {
+        g.descend_to(d);
+        out.push(g.run.as_ref().and_then(|r| r.floor_twist.clone()));
+    }
+    out
+}
+
 /// Cut 7: a shaped fighter plays one floor with `set` (the situation trial's engine; also the
 /// Captain's floor measure). Returns the game with the run live or over.
 pub fn floor_trial(seed: u64, depth: u32, set: RuleSet) -> crate::engine::Game {
+    floor_trial_twist(seed, depth, set, None)
+}
+
+/// Cut 12 §4: `floor_trial` with the floor's situation chosen (`twist`), since a band's
+/// situation now sits on a floor drawn from the run's seed.
+pub fn floor_trial_twist(seed: u64, depth: u32, set: RuleSet, twist: Option<&str>) -> crate::engine::Game {
+    floor_trial_with(seed, depth, set, twist, &[])
+}
+
+/// Cut 12 §2: `floor_trial_twist` on a lineage that owns `unlocks` (a card's trial).
+pub fn floor_trial_with(seed: u64, depth: u32, set: RuleSet, twist: Option<&str>, unlocks: &[&str]) -> crate::engine::Game {
     let mut g = crate::engine::Game::new(seed);
     for f in ["den", "lock", "captive", "hunger", "shrine", "foe:bloat:gas", "foe:monkey:thief"] {
         g.lineage.facts.insert(f.into());
+    }
+    for u in unlocks {
+        g.lineage.unlocks.insert((*u).into());
     }
     g.set_rules(set).expect("trial rules");
     let level = match depth {
@@ -259,7 +302,10 @@ pub fn floor_trial(seed: u64, depth: u32, set: RuleSet) -> crate::engine::Game {
     }
     g.sim = true;
     g.start_run(Some(seed ^ 0x51));
-    g.descend_to(depth);
+    match twist {
+        Some(t) => g.descend_to_twist(depth, t),
+        None => g.descend_to(depth),
+    }
     let mut n = 0;
     while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.depth == depth) && n < 6000 {
         g.tick();

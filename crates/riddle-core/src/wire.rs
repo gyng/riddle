@@ -82,6 +82,10 @@ pub struct Snapshot {
     /// Cut 7 §4: the floor's room count (0 on a cave), for the `D3 · 4 rooms` ambient.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rooms: Option<u32>,
+    /// Cut 12 §4: the floor's one situation, one word (`nest`), for `D4 · 9 rooms · a nest`;
+    /// absent on a floor without one (D1–2, a boss's cave floor, the bottom).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub floor_twist: Option<String>,
 }
 
 /// Cut 7 §4: a room as a scene — the viewer holds 1× while a room with ≥ 2 hostiles is not
@@ -315,6 +319,22 @@ pub struct Forecast {
     pub depths: Vec<ForecastDepth>,
     pub causes: Vec<ForecastCause>,
     pub known_to: u32,
+    /// Cut 12 §3: how a send ends over the same sims (rates summing to 1) and the mean gold
+    /// brought home per send (`bank 40% · return 35% · death 25% · ~$54`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ends: Option<ForecastEnds>,
+}
+
+/// Cut 12 §3: the exits of the forecast's sims — `bank` / `return` / `death` as shares of the
+/// sims (a sim stopped at the run cap or at `known_to` counts as a return) and `gold`, the
+/// mean loot kept per send by the exit's own share (bank 100% · return 60% · death 0%).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ForecastEnds {
+    pub bank: f64,
+    #[serde(rename = "return")]
+    pub return_: f64,
+    pub death: f64,
+    pub gold: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -716,6 +736,10 @@ pub struct UnlockInfo {
     /// as one row-like entry (`{conds: [], verb: {v: "auto", a: "keeps best weapon+armour"}}`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rows: Option<Vec<Row>>,
+    /// Cut 12 §1: where a bought card's row goes — before the set's engagement row (the first
+    /// `attack` / `shoot`), else the end; the card's `delta` is measured there. Tactic cards only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub insert_at: Option<usize>,
 }
 
 #[cfg(test)]

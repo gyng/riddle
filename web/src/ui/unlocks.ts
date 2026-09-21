@@ -43,12 +43,17 @@ export function visible(catalogue: UnlockInfo[]): UnlockCard[] {
     .filter((u) => !u.owned && (!AFTER[u.id] || owned.has(AFTER[u.id])))
     .map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " "), gated: !u.available && !!u.needs }));
 }
-/** Cut 9 §2: the sheet behind an unlock card. `full` = the active set is at max_rows (a card then `takes a row`, Cut 6 §4);
- *  `after` runs once a buy went through (the report repaints itself with it). */
-export function openUnlockSheet(app: App, u: UnlockCard, full = false, after?: () => void): void {
+/** Cut 10 §3 / Cut 12 §1: a card's reach delta says where the card goes — `reach +4% at R3` (the catalogue's `insert_at`), else
+ *  `at end`; other unlocks carry the bare delta. */
+export function deltaLabel(u: UnlockInfo, d: number): string {
+  const where = !isCard(u) ? "" : u.insert_at !== undefined ? /* copy:unlock_card */ ` at R${u.insert_at + 1}` : /* copy:unlock_card */ " at end";
+  return /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%${where}`;
+}
+/** Cut 9 §2: the sheet behind an unlock card; `after` runs once a buy went through (the report repaints itself with it).
+ *  Cut 12 §1: a card never takes a row (card rows sit outside `max_rows`). */
+export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): void {
   openSheet((close) => {
     const d = u.delta === undefined ? 0 : Math.round(u.delta * 100);
-    const takesRow = full && isCard(u);
     let sent = false;
     const buy = h("button", { class: `btn primary wide buy${u.available ? "" : " off"}`, disabled: !u.available, onclick: () => {
       if (sent) return; sent = true;
@@ -58,8 +63,7 @@ export function openUnlockSheet(app: App, u: UnlockCard, full = false, after?: (
       h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`)),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))) : "",
       u.needs ? h("div", { class: "needs-line dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
-      d ? h("div", { class: `num delta ${d > 0 ? "up" : "down"}` }, /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%${isCard(u) ? " at end" : ""}`) : "",   // Cut 10 §3
-      takesRow ? h("div", { class: "num dim" }, /* copy:unlock_card */ "takes a row") : "",
+      d ? h("div", { class: `num delta ${d > 0 ? "up" : "down"}` }, deltaLabel(u, d)) : "",   // Cut 10 §3 / Cut 12 §1
       buy);
   });
 }

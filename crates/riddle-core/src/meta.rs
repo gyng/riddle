@@ -130,12 +130,24 @@ pub fn gate(l: &LineageState, id: &str) -> Option<String> {
     }
 }
 
+/// Cut 12 §1: a tactic card (its row is `tactic <id>`).
+pub fn is_tactic_card(id: &str) -> bool {
+    TACTIC_CARDS.contains(&id) || TIER2_CARDS.contains(&id) || MASTERY_CARDS.contains(&id)
+}
+
+/// Cut 12 §1: where a card's row sits when bought — before the set's engagement row (the
+/// first `attack` / `shoot`), else the end. Both cohort-8 raters moved every card up by hand
+/// from the bottom, where it never fired below `attack nearest`.
+pub fn card_insert_at(rules: &crate::rules::RuleSet) -> usize {
+    rules.rows.iter().position(|r| matches!(r.verb.v.as_str(), "attack" | "shoot")).unwrap_or(rules.rows.len())
+}
+
 /// Cut 9 §2: the gate still shut on an unlock — its fact/trophy gate, else its prerequisite,
 /// else (`◆2 more`) the marks it is short of. `None` when it is buyable now.
 pub fn needs(l: &LineageState, u: &UnlockDef) -> Option<String> {
     gate(l, u.id)
         .or_else(|| u.prereq.filter(|p| !l.unlocks.contains(*p)).map(|p| p.to_string()))
-        .or_else(|| (is_row_unlock(u.id) && l.rules().rows.len() < l.max_rows()).then(|| "rows full".to_string()))
+        .or_else(|| (is_row_unlock(u.id) && l.rules().own_rows() < l.max_rows()).then(|| "rows full".to_string()))
         .or_else(|| (l.marks < u.cost).then(|| format!("◆{} more", u.cost - l.marks)))
 }
 
@@ -156,7 +168,9 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             // prerequisite, or the marks it is short of), so no card sits disabled unexplained.
             let needs = if owned { None } else { needs(l, u) };
             let available = !owned && needs.is_none();
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id) }
+            // Cut 12 §1: a tactic card says where its row goes (before the engagement row).
+            let insert_at = (!owned && is_tactic_card(u.id)).then(|| card_insert_at(l.rules()));
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at }
         })
         .collect()
 }
@@ -177,7 +191,10 @@ pub fn unlock_rows(id: &str) -> Option<Vec<Row>> {
         "stair_dance" => Some(vec![row(vec![n("hp<", 50), n("foes>=", 1)], "descend"), row(vec![n("foes>=", 2), Cond::flag("path_stairs")], "descend"), rowa(vec![n("adj>=", 1)], "attack", "nearest")]),
         "gas_step" => Some(vec![rowa(vec![tag("gas"), n("adj>=", 1)], "shoot", "tag:gas"), row(vec![tag("gas"), n("adj>=", 1), n("hp<", 60)], "retreat"), rowa(vec![tag("gas"), n("adj>=", 1)], "attack", "tag:gas"), row(vec![tag("gas")], "hold")]),
         "pack_break" => Some(vec![row(vec![n("foes>=", 2)], "back_corridor"), rowa(vec![n("adj>=", 1)], "attack", "lowest"), row(vec![n("foes>=", 2)], "hold"), rowa(vec![n("foes>=", 1)], "attack", "nearest")]),
-        "thief_guard" => Some(vec![rowa(vec![tag("thief"), n("adj>=", 1)], "attack", "tag:thief"), rowa(vec![tag("thief")], "shoot", "tag:thief"), rowa(vec![tag("thief")], "throw", "fire,tag:thief"), row(vec![tag("thief")], "back_corridor")]),
+        // Cut 12 §2: the raid first (`on see den → attack nearest`), so the thief answer
+        // answers the den (rater O: "the thief guard card changed nothing — the monkey still
+        // took the heal").
+        "thief_guard" => Some(vec![rowa(vec![Cond::t("on_see", "den")], "attack", "nearest"), rowa(vec![tag("thief"), n("adj>=", 1)], "attack", "tag:thief"), rowa(vec![tag("thief")], "shoot", "tag:thief"), rowa(vec![tag("thief")], "throw", "fire,tag:thief"), row(vec![tag("thief")], "back_corridor")]),
         "boss_focus" => Some(vec![rowa(vec![tag("boss")], "attack", "tag:boss"), rowa(vec![tag("boss"), tag("gas")], "throw", "fire,tag:boss"), rowa(vec![tag("summoned")], "attack", "tag:summoned")]),
         "last_stand" => Some(vec![rowa(vec![n("hp<", 30), n("adj>=", 1)], "drink", "heal"), row(vec![n("hp<", 30), n("adj>=", 1)], "second_wind"), rowa(vec![n("hp<", 30), n("adj>=", 1)], "drink", "unknown"), rowa(vec![n("hp<", 30), n("adj>=", 1)], "throw", "fire,nearest"), rowa(vec![n("hp<", 30), n("adj>=", 1)], "attack", "lowest")]),
         "cadence" => Some(vec![rowa(vec![n("foes>=", 1)], "attack", "nearest"), row(vec![n("foes>=", 1)], "shield_bash"), row(vec![n("foes>=", 1)], "cleave"), rowa(vec![n("foes>=", 1)], "throw", "fire,nearest"), row(vec![n("foes>=", 1)], "hold")]),
@@ -241,9 +258,9 @@ fn unlock_row_untagged(l: &LineageState, id: &str) -> Option<Row> {
 /// false only deltas already memoised are filled (no sims: `unlocks()` stays instant;
 /// `unlock_deltas()` pays once per camp visit).
 ///
-/// Cut 10 §3: a tactic card's row is the bare `[card]` row the client appends on `buy`
-/// (`{conds: [], verb: tactic <id>}` at the **end** of the set, truncated to `max_rows` like
-/// the set itself), so the chip's number is the number the buy produces (cohort 6, rater L:
+/// Cut 10 §3: a tactic card's row is the bare `[card]` row the client inserts on `buy`
+/// (`{conds: [], verb: tactic <id>}` at `insert_at` — Cut 12 §1: before the engagement row;
+/// a card row sits outside `max_rows`), so the chip's number is the number the buy produces (cohort 6, rater L:
 /// "gas step reach +47% did not move the forecast when bought"); a verb unlock's canonical
 /// row (`throw`, `tame`), which the player writes, still goes at the top.
 pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
@@ -275,7 +292,7 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         g.lineage.unlocks.insert(u.id.clone());
         let mut patched = rules.clone();
         patched.rows.insert(at.min(patched.rows.len()), row);
-        patched.rows.truncate(max_rows.max(1));
+        patched = patched.fit(max_rows.max(1));
         // The sim game's lookups (its own fingerprint) go through the parent's cache.
         g.forecast_cache = game.forecast_cache.clone();
         if !compute {
@@ -295,12 +312,12 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
 }
 
 /// Cut 10 §3: the row a card's delta simulates and where it goes — a tactic card as the bare
-/// `[card]` row at the end of the set (what `buy` inserts), a verb unlock's canonical row at
-/// the top. `None` for anything without a row.
+/// `[card]` row where `buy` puts it (Cut 12 §1: `card_insert_at`, before the engagement
+/// row), a verb unlock's canonical row at the top. `None` for anything without a row.
 pub fn delta_row(l: &LineageState, id: &str) -> Option<(Row, usize)> {
     let row = unlock_row(l, id)?;
     if row.verb.v == "tactic" {
-        Some((Row::new(vec![], Verb::arg("tactic", id)).from("card"), l.rules().rows.len()))
+        Some((Row::new(vec![], Verb::arg("tactic", id)).from("card"), card_insert_at(l.rules())))
     } else {
         Some((row, 0))
     }
@@ -345,7 +362,7 @@ pub fn pending(game: &Game) -> Vec<String> {
     // client shows the rows that fired in under a third of the runs.
     let real_runs = game.batch.run_ticks.len() as u32;
     if real_runs > 0 {
-        for (i, r) in rules.rows.iter().enumerate().take(l.max_rows()) {
+        for (i, r) in rules.active(l.max_rows()) {
             let n = game.batch.row_runs.get(i).copied().unwrap_or(0);
             out.push(format!("R{} fired {n} of {real_runs} runs: {}", i + 1, r.describe()));
         }

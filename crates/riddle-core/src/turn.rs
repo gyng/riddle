@@ -259,11 +259,12 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     if run.recent_pos.len() > 12 {
         run.recent_pos.remove(0);
     }
-    // Trace records the state at the start of the action.
+    // Trace records the state at the start of the action. A telegraph reads as its callout
+    // does (`warlord rallies`, the title's last word), never the kind (`goblin_warlord`).
     let telegraphs: Vec<String> = v
         .foes
         .iter()
-        .filter_map(|&i| run.monsters.get(i).and_then(|m| m.telegraph.as_ref().map(|t| format!("{} {}", m.kind, t))))
+        .filter_map(|&i| run.monsters.get(i).and_then(|m| m.telegraph.as_ref().map(|t| format!("{} {}", m.def().title.split_whitespace().last().unwrap_or("foe"), t))))
         .collect();
     let blocked = run.blocked_now.take();
     // Cut 6 §3: every row above the one that acted, with its reason (none when R1 acted).
@@ -370,17 +371,19 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             return (-2, verb);
         }
     }
-    let mut rows: Vec<crate::rules::Row> = cx.rules.rows.iter().take(cx.max_rows).cloned().collect();
-    // Cut 5 §4: the row a shrine lent for this run (last, lowest priority).
+    // Cut 12 §1: the rows in play — every card row and the first `max_rows` own rows, each
+    // with its index in the set (`R3` is the set's third row wherever the cards sit).
+    let mut rows: Vec<(usize, crate::rules::Row)> = cx.rules.active(cx.max_rows).map(|(i, r)| (i, r.clone())).collect();
+    // Cut 5 §4: the row a shrine lent for this run (last, lowest priority; index past the set).
     if let Some(r) = &run.lent_row {
-        rows.push(r.clone());
+        rows.push((cx.rules.rows.len(), r.clone()));
     }
     let mut brave_said = false;
     let stuck = run.stuck_until > run.actions;
     let suppressed = if run.row_suppressed.1 > run.actions { run.row_suppressed.0 } else { -9 };
     run.last_target = None;
     run.blocked_now = None;
-    for (i, row) in rows.iter().enumerate() {
+    for (i, row) in rows.iter().map(|(i, r)| (*i, r)) {
         if stuck && targets_foes(&row.verb) {
             row_why(run, cx, i, "stuck", None, None);
             continue;
@@ -559,8 +562,11 @@ fn all_rows_why(run: &mut Run, cx: &Ctx, why: &str) {
     if cx.sim {
         return;
     }
-    let n = cx.rules.rows.len().min(cx.max_rows) + run.lent_row.is_some() as usize;
-    run.rows_why = (0..n).map(|i| RowWhy { row: i, why: why.into(), because: None }).collect();
+    let mut idx: Vec<usize> = cx.rules.active(cx.max_rows).map(|(i, _)| i).collect();
+    if run.lent_row.is_some() {
+        idx.push(cx.rules.rows.len());
+    }
+    run.rows_why = idx.into_iter().map(|i| RowWhy { row: i, why: why.into(), because: None }).collect();
 }
 
 /// If the last 12 actions visited ≤ 2 tiles with no damage dealt or taken, give up on the
@@ -1430,7 +1436,6 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.tempted = false;
     populate_floor(run, cx.grudges, cx.forge, cx.hunter);
     crate::engine::place_situations(run, cx.lost);
-    crate::situations::place(run);
     crate::engine::place_bones(run);
     if cx.facts.contains(&format!("chalk:{next}")) {
         let s = run.floor.stairs_down;
@@ -1517,7 +1522,7 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
     let res = match tier {
         ExitTier::Bank => Resolution::Banked { gold: loot_kept },
         ExitTier::Return if run.timed_out => Resolution::Lost,
-        ExitTier::Return => Resolution::Returned,
+        ExitTier::Return => Resolution::Returned { gold: loot_kept },
         ExitTier::Death => Resolution::Died { cause: run.death_cause.clone().unwrap_or_else(|| "unknown".into()) },
     };
     sifter::resolve(run, res);
@@ -1756,7 +1761,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         if wants_slot {
             let need = if item.def().ranged && !run.hero.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
             let spare = |cat: Cat| -> Option<usize> {
-                let spares: Vec<usize> = run.hero.inv.iter().enumerate().filter(|(_, i)| i.cat() == cat && !i.def().ranged).map(|(k, _)| k).collect();
+                let spares: Vec<usize> = run.hero.inv.iter().enumerate().filter(|(_, i)| i.cat() == cat && !i.def().ranged && !row_needs(run, cx, i)).map(|(k, _)| k).collect();
                 if spares.len() >= need {
                     spares.into_iter().min_by_key(|&k| (run.hero.inv[k].value(), run.hero.inv[k].id))
                 } else {
@@ -1780,8 +1785,11 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         // A full pack swaps its cheapest consumable for a dearer one (a chore, silently);
         // Cut 3: a third copy of a kind makes way for a kind the pack lacks (a full pack of
         // summons and recalls walked past every silence scroll in the Deep).
-        let dup = duplicate_slot(&run.hero, item);
-        let swap = dup.or_else(|| run.hero.inv.iter().enumerate().filter(|(_, i)| i.is_consumable()).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
+        // Cut 12 §2: never what a row needs — a kind a `drink` / `read` / `throw` row names,
+        // or a supply packed at camp (rater O: `swapped for the poison` took the bought heal
+        // `hp<30 → drink heal` was written for).
+        let dup = duplicate_slot(&run.hero, item).filter(|&k| !row_needs(run, cx, &run.hero.inv[k]));
+        let swap = dup.or_else(|| run.hero.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
         let swap = swap.map(|k| (k, if dup.is_some() { i32::MIN } else { run.hero.inv[k].value() }));
         match swap {
             Some((k, v)) if item.is_consumable() && item.value() > v => {
@@ -1851,6 +1859,21 @@ pub fn drop_near(run: &mut Run, at: Pos, it: Item) {
 }
 
 /// Cut 3: the pack slot a third copy of a consumable kind gives up for a kind not held twice.
+/// Cut 12 §2: does a row need this item? The kinds a `drink` / `read` / `throw` row of the
+/// set names (a card's sheet rows and the lent row too, `recall` under `recall_sense`), and
+/// every supply packed at camp (by id). The pickup swap chores never drop one.
+pub fn row_needs(run: &Run, cx: &Ctx, it: &Item) -> bool {
+    if run.supplies.contains(&it.id) {
+        return true;
+    }
+    let kind = it.kind.as_str();
+    if kind == "recall" && cx.unlocks.contains("recall_sense") {
+        return true;
+    }
+    let names = |r: &crate::rules::Row| matches!(r.verb.v.as_str(), "drink" | "read" | "throw") && r.verb.a.as_deref().and_then(|a| a.split(',').next()) == Some(kind);
+    cx.rules.active(cx.max_rows).map(|(_, r)| r).chain(run.lent_row.iter()).any(|r| names(r) || r.card().and_then(crate::meta::unlock_rows).is_some_and(|rows| rows.iter().any(names)))
+}
+
 fn duplicate_slot(h: &crate::hero::Hero, item: &Item) -> Option<usize> {
     if !item.is_consumable() {
         return None;

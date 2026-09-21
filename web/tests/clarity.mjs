@@ -6,7 +6,7 @@
 //   §3  `rest 20m · send skips` permanently · a greyed supply says why under its price · `▲▼` chips (44 px) move a row ·
 //       the `+1 row` card is dimmed `rows full` while free rows exist · `3 over` reads `3 hp short` · the report's tiles read
 //       `returned · banked · deaths` when returns outnumber banks, its exit lines lead with `returned $61`, a lost companion reads
-//       `jackal Ashar fell` · a card's delta reads `reach +N% at end` · the tiles fade in after an absence
+//       `jackal Ashar fell` · a card's delta reads `reach +N% at R2` (Cut 12: where it goes) · the tiles fade in after an absence
 //
 //   node web/tests/clarity.mjs        (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
@@ -67,10 +67,10 @@ try {
     const full = await page.evaluate(() => { const card = [...document.querySelectorAll(".unlocks .card")].find((c) => /^\+1 row/.test(c.textContent)); return card?.querySelector(".needs")?.textContent.trim() ?? ""; });
     check(!/rows full/.test(full), `with the set full the card no longer says rows full ("${full}")`);
   }
-  // §3 a card's reach delta reads `at end`
+  // §3 a card's reach delta says where the card goes — Cut 12 §1: `at R2` (before the engagement row, the catalogue's `insert_at`), else `at end`
   {
     const delta = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((d) => d.textContent.trim()));
-    check(delta.length > 0 && delta.every((d) => /^reach [+−]\d+% at end$/.test(d)), `card deltas read at end: ${delta.slice(0, 2).join(" · ")}`);
+    check(delta.length > 0 && delta.every((d) => /^reach [+−]\d+% at (R\d+|end)$/.test(d)), `card deltas say where the card goes: ${delta.slice(0, 2).join(" · ")}`);
   }
   // §3 a greyed supply says why under its price
   {
