@@ -1,5 +1,5 @@
 //! Tiles, overlays and the floor map with vision bookkeeping.
-use crate::geom::{line, Pos, DIRS4, DIRS8};
+use crate::geom::{Pos, DIRS4, DIRS8};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -113,17 +113,36 @@ impl Map {
         }
         true
     }
+    /// Line of sight: no sight-blocking tile strictly between `a` and `b` along `geom::line`
+    /// (walked in place; the hot loop of `update_vision`, ~225 calls per hero move).
     pub fn los(&self, a: Pos, b: Pos) -> bool {
         if a == b {
             return true;
         }
-        let l = line(a, b);
-        for p in &l[1..l.len() - 1] {
-            if self.get(*p).blocks_sight() {
+        let (mut x0, mut y0) = (a.x, a.y);
+        let (x1, y1) = (b.x, b.y);
+        let dx = (x1 - x0).abs();
+        let dy = -(y1 - y0).abs();
+        let sx = if x0 < x1 { 1 } else { -1 };
+        let sy = if y0 < y1 { 1 } else { -1 };
+        let mut err = dx + dy;
+        loop {
+            let e2 = 2 * err;
+            if e2 >= dy {
+                err += dy;
+                x0 += sx;
+            }
+            if e2 <= dx {
+                err += dx;
+                y0 += sy;
+            }
+            if x0 == x1 && y0 == y1 {
+                return true;
+            }
+            if self.get(Pos::new(x0, y0)).blocks_sight() {
                 return false;
             }
         }
-        true
     }
     pub fn count_passable(&self) -> usize {
         self.tiles.iter().filter(|t| t.passable()).count()
@@ -176,63 +195,58 @@ impl Map {
     /// BFS distances over passable tiles from `start`; `blocked(p)` marks extra obstacles.
     /// `seen_only` restricts to seen tiles. Unreachable = -1.
     pub fn bfs(&self, start: Pos, seen_only: bool, blocked: &dyn Fn(Pos) -> bool) -> Vec<i32> {
-        let n = self.tiles.len();
-        let mut dist = vec![-1i32; n];
-        let mut queue = std::collections::VecDeque::with_capacity(n);
-        if !self.in_bounds(start) {
-            return dist;
-        }
-        dist[self.idx(start)] = 0;
-        queue.push_back(start);
-        while let Some(p) = queue.pop_front() {
-            let d = dist[self.idx(p)];
-            for dir in DIRS8 {
-                let q = p.step(dir);
-                if !self.in_bounds(q) || !self.can_step(p, q) {
-                    continue;
-                }
-                if seen_only && !self.seen[self.idx(q)] {
-                    continue;
-                }
-                let qi = self.idx(q);
-                if dist[qi] >= 0 || blocked(q) {
-                    continue;
-                }
-                dist[qi] = d + 1;
-                queue.push_back(q);
-            }
-        }
-        dist
+        self.bfs_core(start, seen_only, blocked, None)
     }
     /// BFS with parents, for first-step extraction. Returns (dist, parent index or -1).
     pub fn bfs_parent(&self, start: Pos, seen_only: bool, blocked: &dyn Fn(Pos) -> bool) -> (Vec<i32>, Vec<i32>) {
+        let mut parent = vec![-1i32; self.tiles.len()];
+        let dist = self.bfs_core(start, seen_only, blocked, Some(&mut parent));
+        (dist, parent)
+    }
+    /// The shared flood: 8-connected without cutting wall corners (`can_step`), FIFO in `DIRS8`
+    /// order, so distances and parents are exactly those of a step-by-step walk. Index
+    /// arithmetic throughout — this is the sim's hottest loop (every chore paths the floor).
+    fn bfs_core(&self, start: Pos, seen_only: bool, blocked: &dyn Fn(Pos) -> bool, mut parent: Option<&mut Vec<i32>>) -> Vec<i32> {
         let n = self.tiles.len();
         let mut dist = vec![-1i32; n];
-        let mut parent = vec![-1i32; n];
-        let mut queue = std::collections::VecDeque::with_capacity(n);
         if !self.in_bounds(start) {
-            return (dist, parent);
+            return dist;
         }
-        dist[self.idx(start)] = 0;
-        queue.push_back(start);
-        while let Some(p) = queue.pop_front() {
-            let pi = self.idx(p);
-            let d = dist[pi];
-            for dir in DIRS8 {
-                let q = p.step(dir);
-                if !self.in_bounds(q) || !self.can_step(p, q) {
+        let (w, h) = (self.w, self.h);
+        let tiles = &self.tiles[..];
+        let mut queue: Vec<usize> = Vec::with_capacity(n);
+        let si = self.idx(start);
+        dist[si] = 0;
+        queue.push(si);
+        let mut head = 0;
+        while head < queue.len() {
+            let pi = queue[head];
+            head += 1;
+            let d = dist[pi] + 1;
+            let (px, py) = (pi as i32 % w, pi as i32 / w);
+            for (dx, dy) in DIRS8 {
+                let (qx, qy) = (px + dx, py + dy);
+                if qx < 0 || qy < 0 || qx >= w || qy >= h {
                     continue;
                 }
-                let qi = self.idx(q);
-                if (seen_only && !self.seen[qi]) || dist[qi] >= 0 || blocked(q) {
+                let qi = (qy * w + qx) as usize;
+                if !tiles[qi].passable() {
                     continue;
                 }
-                dist[qi] = d + 1;
-                parent[qi] = pi as i32;
-                queue.push_back(q);
+                if dx != 0 && dy != 0 && (tiles[(py * w + qx) as usize] == Tile::Wall || tiles[(qy * w + px) as usize] == Tile::Wall) {
+                    continue;
+                }
+                if (seen_only && !self.seen[qi]) || dist[qi] >= 0 || blocked(Pos::new(qx, qy)) {
+                    continue;
+                }
+                dist[qi] = d;
+                if let Some(parent) = parent.as_deref_mut() {
+                    parent[qi] = pi as i32;
+                }
+                queue.push(qi);
             }
         }
-        (dist, parent)
+        dist
     }
     /// First step from `start` toward `goal` along BFS parents (None if unreachable or equal).
     pub fn first_step(&self, parent: &[i32], start: Pos, goal: Pos) -> Option<Pos> {

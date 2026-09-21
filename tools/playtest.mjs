@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Scripted walk of the whole loop through the GPU harness (tools/browser.mjs) against the dev server
+// Scripted walk of the whole loop through the browser harness (tools/browser.mjs; headless by default,
+// `--headed` for the GPU window when the walk is about how it looks or feels) against the dev server
 // (tools/dev.sh, port 5219). Every screen is dumped as <out>/NN-<screen>.txt (innerText) + .png, one summary
 // line per dump, total wall time at the end (also in <out>/summary.txt). Exit 1 on any console error, page
 // error or unexpected reload. A Vite full reload from a parallel edit (pkg/, engine/, ui/) kills a walk: it is
 // reported, and the walk is retried once from scratch.
 //
-//   node tools/playtest.mjs [--seed N] [--absent 8h] [--rules file.txt] [--out dir] [--wide]
+//   node tools/playtest.mjs [--seed N] [--absent 8h] [--rules file.txt] [--out dir] [--wide] [--headed] [--dpr N]
 //
 // Walk: boot fresh(seed[, rules]) → camp → send → watch at 4× (two mid-run shots, then ▶▶| until the exit,
 // the last frame kept as the final watch dump) → exit sheet (keep) → death (tap the first patch) | report (camp)
@@ -15,17 +16,17 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { launchGpu } from "./browser.mjs";
+import { launchBrowser } from "./browser.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const USAGE = "usage: node tools/playtest.mjs [--seed N] [--absent 8h] [--rules file.txt] [--out dir] [--wide]";
+const USAGE = "usage: node tools/playtest.mjs [--seed N] [--absent 8h] [--rules file.txt] [--out dir] [--wide] [--headed] [--dpr N]";
 const MID_SHOTS_MS = [2500, 6000];   // two mid-run dumps at 4×, then ▶▶| to the exit
 const SKIP_EVERY_MS = 40;            // ▶▶| cadence (a press while the pump is in flight is a no-op)
 const FINAL_EVERY_MS = 1500;         // rolling "final frame" of the run
 const WATCH_MAX_MS = 120_000, OFFLINE_MAX_MS = 180_000, STEP_MAX_MS = 30_000, SETTLE_MAX_MS = 10_000;
 const ATTEMPTS = 2;                  // one retry, only after an unexpected reload
 
-const opt = { seed: 1, absent: "8h", rules: null, out: null, wide: false };
+const opt = { seed: 1, absent: "8h", rules: null, out: null, wide: false, headed: undefined, dpr: undefined };
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i], v = process.argv[i + 1];
   if (a === "--seed") { opt.seed = Number(v); i++; }
@@ -33,6 +34,9 @@ for (let i = 2; i < process.argv.length; i++) {
   else if (a === "--rules") { opt.rules = readFileSync(resolve(v), "utf8"); i++; }
   else if (a === "--out") { opt.out = resolve(v); i++; }
   else if (a === "--wide") opt.wide = true;
+  else if (a === "--headed") opt.headed = true;
+  else if (a === "--headless") opt.headed = false;
+  else if (a === "--dpr") { opt.dpr = Number(v); i++; }
   else if (a === "--help" || a === "-h") { console.log(USAGE); process.exit(0); }
   else { console.error(`unknown argument ${a}\n${USAGE}`); process.exit(2); }
 }
@@ -53,8 +57,12 @@ const log = (line) => { console.log(line); summary.push(line); };
 
 async function attempt() {
   let navigating = false;
-  const browser = await launchGpu();
-  const page = await browser.newPage(opt.wide ? { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } : { viewport: { width: 400, height: 800 }, deviceScaleFactor: 3 });
+  const headed = opt.headed ?? (process.env.RIDDLE_BROWSER === "headed");
+  const browser = await launchBrowser({ headed });
+  // Headless WebGL is SwiftShader and pixel-bound (14 fps at 3×, 32 at 2×, 60 at 1× on a 400×800
+  // watch); the phone walk renders at 2× headless, 3× on the GPU — the same layout either way.
+  const dpr = opt.dpr ?? (headed ? 3 : 2);
+  const page = await browser.newPage(opt.wide ? { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } : { viewport: { width: 400, height: 800 }, deviceScaleFactor: dpr });
   page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); else if (m.type() === "warning") warnings.push(m.text()); });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("framenavigated", (f) => { if (f === page.mainFrame() && !navigating) errors.push(`unexpected reload at ${secs(Date.now() - walkStart)} (a Vite full reload from a parallel edit?) → ${f.url()}`); });

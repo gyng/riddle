@@ -14,7 +14,7 @@
 import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { launchGpu } from "../../tools/browser.mjs";
+import { launchBrowser } from "../../tools/browser.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -23,7 +23,7 @@ const errors = [], out = [];
 let failed = 0;
 const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
 
-const browser = await launchGpu();
+const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 3 });
 page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));

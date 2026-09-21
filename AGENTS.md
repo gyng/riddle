@@ -33,17 +33,19 @@ research/              the four research reports behind the plan
 ## Commands (iteration tiers — use the cheapest that answers the question)
 
 ```sh
-tools/verify.sh --quick        # tests (fast profile) → tsc → copy-lint            ~10 s
-tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~1.5 min
-tools/verify.sh --full         # + shipping wasm → full gate table                  ~4 min
-cargo test -q --workspace --profile fast                     # 5 s incremental; never plain `cargo test` (7× slower)
-node tools/gates.mjs [--full]                                # quick: 8 seeds × 8 h × 3 verdicts (~50 s); full: 30 × 8 × 8
+tools/verify.sh --quick        # tests (fast profile) → tsc → copy-lint            ~20 s
+tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~2 min
+tools/verify.sh --full         # + shipping wasm → full gate table                  ~5 min
+cargo test -q --workspace --profile fast                     # ~9 s warm; never plain `cargo test` (7× slower)
+node tools/gates.mjs [--full]                                # quick: 8 seeds × 8 h × 3 verdicts + dayplayer 2 seeds alongside (~75 s); full: 30 × 8 × 8
+(cd web && pnpm -s test)                                     # the client gates, all at once, headless (~30 s); `node tests/run.mjs fights cut12` for a few
 tools/wasm.sh [--ship]                                       # fast wasm (~15 s incremental) / wasm-pack release (~40 s)
 cargo run -q --profile fast -p riddle-core --example cli -- --seed 1 --rules crates/riddle-core/presets/good.json --runs 3
 cargo run -q --profile fast -p riddle-core --example timing -- 1 8   # where a gate job spends its time
 tools/dev.sh                                                 # ensure the Vite dev server on :5219 (never restart a running one)
-node tools/playtest.mjs [--seed N] [--absent 8h] [--out dir] # scripted walk of every screen, text + screenshots, on the GPU harness
-node tools/browser.mjs --probe                               # must print D3D12 (NVIDIA …)
+node tools/playtest.mjs [--seed N] [--absent 8h] [--out dir] # scripted walk of every screen, text + screenshots, headed on the GPU (~30 s; --headless ~65 s)
+node tools/driver.mjs --dir scratchpad/<who> --port 5347 [--headed] &   # one browser context across an agent session; tools/drive.sh 5347 '{"op":"text"}'
+node tools/browser.mjs --probe                               # must print D3D12 (NVIDIA …); --headless prints SwiftShader
 python3 art/pack.py && python3 art/art-qc.py
 eval/score.sh eval/cards/<card>.json
 ```
@@ -51,9 +53,13 @@ eval/score.sh eval/cards/<card>.json
 Dev URL params (dev build only): `?seed=N&fresh=1`, `?absent=8h`, `?rules=<text>`, `?speed=4`,
 `?autosend=1`, `?engine=fake`. Game at `http://localhost:5219/`.
 
-Cost facts: a death verdict is ~1.2 s native (candidates × 20 reseeded replays); the gate table
-samples verdicts (3–8 per seed) for that reason. `runOfflineQuick` skips it per slice; the client
-calls `death(id)` once at the end of an absence.
+Cost facts: a death verdict is ~0.1 s native single-threaded (candidates × 12 reseeded replays;
+~0.02 s across the cores, `forecast::par_map`), ~1 s in wasm; the gate table samples verdicts
+(3–8 per seed) for that reason. `runOfflineQuick` skips it per slice; the client calls `death(id)`
+once at the end of an absence. Forecast panels and verdict replays run on all cores natively
+(`forecast::parallel_sims`; `metrics.rs` turns it off because it fills the machine by seed);
+results are bit-identical to the sequential order. 8 h offline ≈ 0.4 s of ticks (3 µs/tick, a
+third of it the chores' floods).
 
 ## How work gets done
 
@@ -89,13 +95,20 @@ calls `death(id)` once at the end of an absence.
 - A stale Vite dev server from a previous day can serve stale transforms; `tools/dev.sh`
   reuses whatever is on the port, so kill it by pid when a walk shows old UI.
 
-## Browser harness (GPU under WSLg)
+## Browser harness (hybrid: headless for text, headed GPU for render)
 
-Headless Chromium here runs on SwiftShader. Use `tools/browser.mjs` (headed Chromium under
-WSLg with Mesa's D3D12 driver forced via `/usr/lib/wsl/lib`), which reaches the real GPU:
-`node tools/browser.mjs --probe` should print `D3D12 (NVIDIA …)` and `native scale 1.5`. WSLg's
-GDK_SCALE=2 × Xft.dpi=144 made Chromium think the 4K screen was 1280×720 at 3×; `launchGpu()` pins
-GDK_SCALE=1 and forces the Windows scale (`Xft.dpi/96`, override with `WSL_SCALE=`), and hides the
-15 px classic scrollbar that made full-page shots 385 CSS px wide. Every render playtest,
-frame-time measurement and screenshot goes through `launchGpu()` from that file. The
-Playwright MCP tools are headless/SwiftShader; do not use them for performance claims.
+`tools/browser.mjs` has two paths. `launchBrowser()` is headless Chromium (SwiftShader WebGL):
+the client gates (`pnpm test`, seven at once), QA sessions and anything that reads text and
+clicks — fast to start, parallel-safe, no desktop window, audio muted. `launchGpu()` /
+`launchBrowser({ gpu: true })` is headed Chromium under WSLg with Mesa's D3D12 driver forced via
+`/usr/lib/wsl/lib`, which reaches the real GPU (`--probe` prints `D3D12 (NVIDIA …)` and `native
+scale 1.5`): frame times, render QA, blind raters (feel is rated) and the playtest walk, whose
+watch pump is per-frame — headless is pixel-bound (14 fps at 3×, 32 at 2×; the walk takes 65 s
+headless vs 26 s headed), so headless sessions render at 2×. `RIDDLE_BROWSER=headed|headless`
+overrides callers that pass nothing. Headless cannot reach the GPU whatever the flags (probed:
+`--headless=new` + the Mesa env still reports SwiftShader/llvmpipe). WSLg's GDK_SCALE=2 ×
+Xft.dpi=144 made headed Chromium think the 4K screen was 1280×720 at 3×; the launch pins
+GDK_SCALE=1 and forces the Windows scale (`Xft.dpi/96`, override with `WSL_SCALE=`), hides the
+15 px classic scrollbar that made full-page shots 385 CSS px wide, and mutes audio (`--mute-audio`;
+WebAudio still schedules, `window.__audio` still sees cues). The Playwright MCP tools are
+headless/SwiftShader; do not use them for performance claims.

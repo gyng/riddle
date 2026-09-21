@@ -6,11 +6,15 @@ You are a blind fun rater for a browser game called Riddle. You have never seen 
 Do NOT open `PLAN.md`, `research/`, `docs/CUT*.md`, `docs/INTEGRATION.md`, other cards, or the
 source code; if you did by accident, say so on the card.
 
-Setup: the game is served at `{URL}`. Play it through the GPU browser harness:
-`import { launchGpu } from "/home/g/p/riddle/tools/browser.mjs"` in a Node script (root package
-has playwright), phone viewport 400×800 at deviceScaleFactor 3; take screenshots to look at the
-screens (`page.screenshot`), read text with `document.body.innerText`, click buttons by their
-visible label. Your seed: open `{URL}?seed={SEED}&fresh=1` once at the start. The dev harness
+Setup: the game is served at `{URL}`. Play it through the browser driver, headed on the GPU
+(you rate feel and pacing, so the watch must run at full frame rate): from /home/g/p/riddle,
+`node tools/driver.mjs --dir scratchpad/{RATER} --port {PORT} --headed &` keeps one phone
+viewport (400×800, 3×) open for the whole session; command it with
+`tools/drive.sh {PORT} '{"op":"text"}'` (ops: goto, text, shot, click by visible label, tap,
+type, press, eval, js, wait, buttons, log, quit — the file's header lists them). Take screenshots
+to look at the screens, read text with `text`, click buttons by their visible label. (A Node
+script of your own with `launchBrowser({ gpu: true })` from `tools/browser.mjs` is allowed
+too.) Your seed: open `{URL}?seed={SEED}&fresh=1` once at the start. The dev harness
 `node tools/playtest.mjs` exists but you must make the decisions yourself (which rule to add,
 which patch to tap, what to bring, what to buy); use it only for a first orientation screenshot
 set if you like.

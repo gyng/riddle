@@ -13,7 +13,7 @@ tentative, ≥ 0.80 decision). This file is the precommitted contract for a rati
 | Tier | 1 (one hour plus one absence) unless stated |
 | Horizon | 40 min active cold, then `?absent=8h` (simulated overnight), then 20 min on return; at least 3 deaths read, at least 2 rule edits attempted |
 | Audio | none in the build → `feel` audio unassessed, not scored |
-| Input | pointer at phone size 400×800@3 via the GPU harness (`tools/browser.mjs`); desktop 1280×800 allowed for the editor |
+| Input | pointer at phone size 400×800 via the browser driver (`tools/driver.mjs`): raters headed on the GPU at 3× (feel and pacing are rated), QA headless at 2× (text and numbers; SwiftShader is pixel-bound); desktop 1280×800 allowed for the editor |
 | Tools | the rater may use `node tools/playtest.mjs` for screenshots but must play the decisions itself; the CLI (`examples/cli.rs`) is allowed as a second view of the same lineage |
 | Telemetry | none until the card is locked; bot caps (`node tools/gates.mjs`) are applied by the coordinator afterwards |
 | Blindness | raters do not read `PLAN.md`, `research/`, `docs/CUT*.md`, other cards or the coordinator's card; they read only this file, `docs/FUN_EVAL_IDLE.md`, `../eval-fun/docs/FRAMEWORK.md` §1–3, and the template |

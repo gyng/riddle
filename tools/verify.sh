@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # Green = cut done.
-#   tools/verify.sh --quick   tests (fast profile) → tsc → copy-lint                 (~10 s warm)
-#   tools/verify.sh           + clippy → wasm (fast) → web build → quick gates       (~1 min warm)
-#   tools/verify.sh --full    + shipping wasm (wasm-pack --release) → full gate table (~4 min)
+#   tools/verify.sh --quick   tests (fast profile) → tsc → copy-lint                 (~20 s warm)
+#   tools/verify.sh           + clippy → wasm (fast) → web build → quick gates       (~2 min warm)
+#   tools/verify.sh --full    + shipping wasm (wasm-pack --release) → full gate table (~5 min)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mode=${1:-}
 t0=$(date +%s)
-cargo test -q --workspace --profile fast 2>&1 | grep -E "test result|error|panicked|FAILED" | grep -v "0 passed" || true
-cargo test -q --workspace --profile fast >/dev/null
+# One test run: its output is kept for the summary lines, its status decides.
+log=$(mktemp); cargo test -q --workspace --profile fast >"$log" 2>&1 && ok=1 || ok=0
+grep -E "test result|error|panicked|FAILED" "$log" | grep -v "0 passed" || true
+[ "$ok" = 1 ] || { grep -E "^(failures:|    [a-z_:]+$|thread .* panicked)" "$log" | head -20; rm -f "$log"; exit 1; }
+rm -f "$log"
 ( cd web && pnpm -s exec tsc --noEmit )
 node tools/copy-lint.mjs
 if [ "$mode" != "--quick" ]; then

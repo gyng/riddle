@@ -35,29 +35,105 @@ pub fn simulate(game: &Game, rules: &RuleSet, sims: u32, tag: u64, stop_depth: u
 }
 
 pub fn simulate_budget(game: &Game, rules: &RuleSet, sims: u32, tag: u64, stop_depth: u32, budget: u64) -> Vec<SimResult> {
-    let mut out = Vec::with_capacity(sims as usize);
+    // Every sim is a pure function of (lineage, rules, tag, i); the tick budget only decides
+    // how many of them count, in order. Natively they run on all cores and the budget is
+    // applied to the ordered results afterwards, so the answer is the sequential one exactly.
+    let ran: Vec<(u32, SimResult)> = if parallel_sims() && sims > 1 {
+        par_map(game, (0..sims).collect(), |base, &i| simulate_one(base, rules, tag, stop_depth, i))
+    } else {
+        let mut out = Vec::with_capacity(sims as usize);
+        let mut spent: u64 = 0;
+        for i in 0..sims {
+            if i >= MIN_SIMS && spent >= budget {
+                break;
+            }
+            let r = simulate_one(game, rules, tag, stop_depth, i);
+            spent += r.0 as u64;
+            out.push(r);
+        }
+        out
+    };
+    let mut out = Vec::with_capacity(ran.len());
     let mut spent: u64 = 0;
-    for i in 0..sims {
-        if i >= MIN_SIMS && spent >= budget {
+    for (i, (n, r)) in ran.into_iter().enumerate() {
+        if i as u32 >= MIN_SIMS && spent >= budget {
             break;
         }
-        let mut g = game.sim_clone();
-        g.run = None;
-        g.pending_exit = None;
-        g.history.clear();
-        let _ = g.set_rules(rules.clone());
-        let seed = splitmix(game.lineage.seed ^ splitmix(tag ^ (i as u64 + 1).wrapping_mul(0xA24B_AED4_963E_E407)));
-        g.start_run(Some(seed));
-        let mut n = 0;
-        while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.max_depth < stop_depth) && n < SIM_MAX_TICKS {
-            g.tick();
-            n += 1;
-        }
         spent += n as u64;
-        let run = g.run.as_ref().unwrap();
-        out.push(SimResult { max_depth: run.max_depth, tier: run.over.unwrap_or(ExitTier::Return), cause: run.death_cause.clone() });
+        out.push(r);
     }
     out
+}
+
+/// One fresh expedition (`i`-th of the panel) under `rules`, to `stop_depth` or its end:
+/// (ticks spent, result).
+fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32) -> (u32, SimResult) {
+    let mut g = game.sim_clone();
+    g.run = None;
+    g.pending_exit = None;
+    g.history.clear();
+    let _ = g.set_rules(rules.clone());
+    let seed = splitmix(game.lineage.seed ^ splitmix(tag ^ (i as u64 + 1).wrapping_mul(0xA24B_AED4_963E_E407)));
+    g.start_run(Some(seed));
+    let mut n = 0;
+    while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.max_depth < stop_depth) && n < SIM_MAX_TICKS {
+        g.tick();
+        n += 1;
+    }
+    let run = g.run.as_ref().unwrap();
+    (n, SimResult { max_depth: run.max_depth, tier: run.over.unwrap_or(ExitTier::Return), cause: run.death_cause.clone() })
+}
+
+/// `f` over every job, results in job order. Natively (and unless `set_parallel_sims(false)`)
+/// the jobs are spread over the cores, each worker holding its own `sim_clone` of `game` —
+/// `Game` is not `Sync`, and a sim reads only what a `sim_clone` carries (lineage, run,
+/// loadout), so `f` sees the same inputs on every path. On wasm, one after another.
+pub fn par_map<T: Send + Sync, R: Send>(game: &Game, jobs: Vec<T>, f: impl Fn(&Game, &T) -> R + Sync) -> Vec<R> {
+    if !parallel_sims() || jobs.len() <= 1 {
+        return jobs.iter().map(|j| f(game, j)).collect();
+    }
+    par_map_threads(game, jobs, f)
+}
+
+thread_local! {
+    /// Set on a worker: a job that itself forecasts (a patch's delta) runs its sims in place —
+    /// one level of threads, never threads of threads.
+    static IN_WORKER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn par_map_threads<T: Send + Sync, R: Send>(game: &Game, jobs: Vec<T>, f: impl Fn(&Game, &T) -> R + Sync) -> Vec<R> {
+    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(jobs.len());
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let mut slots: Vec<Option<R>> = (0..jobs.len()).map(|_| None).collect();
+    let slots_ref = std::sync::Mutex::new(&mut slots);
+    let bases: Vec<Game> = (0..threads).map(|_| game.sim_clone()).collect();
+    let (next, slots_ref, jobs, f) = (&next, &slots_ref, &jobs, &f);
+    std::thread::scope(|sc| {
+        for base in bases {
+            sc.spawn(move || loop {
+                IN_WORKER.with(|w| w.set(true));
+                let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if i >= jobs.len() {
+                    break;
+                }
+                let r = f(&base, &jobs[i]);
+                slots_ref.lock().unwrap()[i] = Some(r);
+            });
+        }
+    });
+    slots.into_iter().map(|r| r.expect("every job ran")).collect()
+}
+
+/// Whether a panel's sims run on all cores (native default) or one after another (wasm, and
+/// callers that already fill the machine seed by seed — `examples/metrics.rs`).
+static PARALLEL_SIMS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(!cfg!(target_arch = "wasm32"));
+
+pub fn parallel_sims() -> bool {
+    PARALLEL_SIMS.load(std::sync::atomic::Ordering::Relaxed) && !IN_WORKER.with(|w| w.get())
+}
+
+pub fn set_parallel_sims(on: bool) {
+    PARALLEL_SIMS.store(on && !cfg!(target_arch = "wasm32"), std::sync::atomic::Ordering::Relaxed);
 }
 
 pub fn forecast(game: &Game) -> Forecast {

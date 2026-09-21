@@ -778,18 +778,16 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     // "before the row that fired most" as well, that placement could outscore the top on the
     // moment's replays and hide the placement that passes the wall (cohort 6, rater K).
     let pinnable = pinnable_counter(game, rec);
-    let mut scored: Vec<(f64, Row, usize)> = Vec::new();
-    for row in &cands {
-        if pinnable.as_ref() == Some(row) {
-            continue;
-        }
-        for &pos in &positions {
-            let Some(mut rp) = Replayer::new(&base, &patched(rec, row, pos), ticks) else { continue };
-            if let Some((rate, _fired)) = score(&mut rp, row, pos, bar) {
-                scored.push((rate, row.clone(), pos));
-            }
-        }
-    }
+    // Each (row, position) is scored on its own replays; natively they run on all cores
+    // (`forecast::par_map`), collected in the same order as the loop they replace.
+    let jobs: Vec<(usize, usize)> = cands.iter().enumerate().filter(|(_, r)| pinnable.as_ref() != Some(*r)).flat_map(|(ci, _)| positions.iter().map(move |&pos| (ci, pos))).collect();
+    let rec_ref: &DeathRec = rec;
+    let scored: Vec<Option<(f64, Row, usize)>> = crate::forecast::par_map(&base, jobs, |base, &(ci, pos)| {
+        let row = &cands[ci];
+        let mut rp = Replayer::new(base, &patched(rec_ref, row, pos), ticks)?;
+        score(&mut rp, row, pos, bar).map(|(rate, _fired)| (rate, row.clone(), pos))
+    });
+    let mut scored: Vec<(f64, Row, usize)> = scored.into_iter().flatten().collect();
     // Rank by how much the row beats the unpatched baseline; ties: a conditioned row (a policy)
     // beats an unconditioned one, then fewer conditions, then the top position.
     scored.sort_by(|a, b| {

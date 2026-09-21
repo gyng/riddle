@@ -9,12 +9,14 @@ explain from what the game showed you, anything that contradicts what the game s
 Read `eval/RATING.md` (the protocol) and `docs/FUN_EVAL_IDLE.md` §"human probes" so you know
 what a rater looks at. Do not read PLAN.md, research/, docs/CUT*.md or eval/cards/.
 
-Setup: the game is served at `{URL}`. Play it through the GPU browser harness:
-`import { launchGpu } from "/home/g/p/riddle/tools/browser.mjs"` in a Node script run from
-/home/g/p/riddle (the root package has playwright), phone viewport 400×800 at
-deviceScaleFactor 3; one browser context for the whole session; screenshots to look, `document.body.innerText`
-to read, click buttons by their visible label. Scripts, notes and screenshots under
-`scratchpad/{QA}/`. Open `{URL}?dev=1&seed={SEED}&fresh=1` once at the start.
+Setup: the game is served at `{URL}`. Play it through the browser driver, headless (you file
+lapses in text and numbers, not feel): from /home/g/p/riddle,
+`node tools/driver.mjs --dir scratchpad/{QA} --port {PORT} &` keeps one phone viewport
+(400×800, 2×) open for the whole session; command it with `tools/drive.sh {PORT} '{"op":"text"}'`
+(ops: goto, text, shot, click by visible label, tap, type, press, eval, js, wait, buttons, log,
+quit — the file's header lists them). Screenshots to look, `text` to read, click buttons by their
+visible label; add `--headed` only if a lapse is about the render itself. Notes and screenshots
+under `scratchpad/{QA}/`. Open `{URL}?dev=1&seed={SEED}&fresh=1` once at the start.
 
 Horizon: 40 minutes of active play from a fresh lineage (send, watch two runs in `fights` and
 two in `fast`, use `▶▶|` in both, read every death and every because-link, tap `watch` on one,

@@ -392,6 +392,8 @@ fn pct(n: usize, d: usize) -> f64 {
 }
 
 fn main() {
+    // The table fills the machine seed by seed; a panel's sims stay sequential inside a job.
+    riddle_core::forecast::set_parallel_sims(false);
     let args: Vec<String> = std::env::args().collect();
     let get = |k: &str, d: u64| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(d);
     // --quick: 8 seeds × 8 h × 3 verdicts (≈ 30 s; depth gates are 8 h tail gates, so hours stay).
