@@ -204,7 +204,8 @@ pub fn locked_conds(l: &LineageState, open: &[Cond]) -> Vec<LockedCond> {
     }
     for i in ITEMS {
         if matches!(i.cat, Cat::Potion | Cat::Scroll) {
-            lock(Cond::t("item", i.kind), format!("identify {}", i.kind));
+            // `identify identify` read as a typo (QA on 56f2a1d): the identify scroll says `know`.
+            lock(Cond::t("item", i.kind), if i.kind == "identify" { "know identify".into() } else { format!("identify {}", i.kind) });
         }
     }
     lock(Cond::t("item", "leash"), "find: leash".into());

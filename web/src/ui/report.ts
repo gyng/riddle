@@ -119,7 +119,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
       h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
       traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))))),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
-      hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} more`) : "",
+      hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} earlier`) : "",
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
   };
   paintExits(false);
@@ -143,9 +143,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // `R1 fired 3 of 16 runs: HP<50% → drink ?` names the row in the engine's short form; the report spells it as the
   // editor and the death screen do (`hp < 50% → drink unknown`) when the row is still in the set
   const rowSpelt = (x: string): string => {
-    const m = /^R(\d+) fired (\d+) of (\d+) runs: (.*)$/.exec(x);
+    const m = /^R(\d+) fired (\d+) of (\d+) runs: (.*?)( · \w+ unknown)?$/.exec(x);   // the trailing ` · heal unknown` is the engine's reason for a never-fired drink row
     const row = m && app.rules.rows[Number(m[1]) - 1];
-    return row ? /* copy:death_line */ `R${m[1]} fired ${m[2]} of ${m[3]} runs: ${rowLabel(row)}` : x;
+    return row ? /* copy:death_line */ `R${m[1]} fired ${m[2]} of ${m[3]} runs: ${rowLabel(row)}${m[5] ?? ""}` : x;
   };
   // repeats (three goblin archers tamed) collapse to one chip with a count
   const chips = (xs: string[], cls = "chip"): HTMLElement | null => {
@@ -197,7 +197,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...r.salvaged.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),
     // Cut 13 §3: what the automations bought this absence, per kind (`heal ×16 · −$640`)
     section(/* copy:label */ "spent", r.spent?.length ? h("ul", { class: "lines" }, ...r.spent.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num down" }, `−$${s.gold}`)))) : null),
-    section(/* copy:label */ "renown", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "") : null),
+    section(/* copy:label */ "renown", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "") : null),   // a rank pays a mark: the tiles' ◆ reconciles with the rows (QA on 56f2a1d: ◆+9 vs rows ◆+6)
     pendingSec,
     section(/* copy:label */ "reel", reel(r.reel.map((x) => x.text))),
     h("div", { class: "btn-row" }, open, camp),

@@ -5823,7 +5823,7 @@ fn because_names_the_theft_the_drink_or_never_found() {
     // not see).
     {
         let (run, mut cx) = g.ctx();
-        crate::provenance::found(run, &mut cx, "heal");
+        crate::provenance::found(run, &mut cx, "heal", "heal potion");
         run.hero.hp = 4;
     }
     ticks(&mut g, 10);
@@ -5927,8 +5927,8 @@ fn provenance_is_capped_and_sims_record_nothing() {
         assert_eq!(cx.prov.len(), crate::provenance::PROV_CAP);
         assert_eq!(cx.prov[0].key, "item:k36", "the oldest were evicted");
         cx.prov.clear();
-        crate::provenance::found(run, &mut cx, "heal");
-        crate::provenance::found(run, &mut cx, "heal");
+        crate::provenance::found(run, &mut cx, "heal", "heal potion");
+        crate::provenance::found(run, &mut cx, "heal", "heal potion");
         crate::provenance::used(run, &mut cx, "drunk", "heal", 3);
         crate::provenance::used(run, &mut cx, "drunk", "heal", 2);
         assert_eq!(cx.prov.iter().map(|p| p.text.as_str()).collect::<Vec<_>>(), ["found heal on D1", "drunk heal at 3/36 hp", "drunk heal at 2/36 hp"]);

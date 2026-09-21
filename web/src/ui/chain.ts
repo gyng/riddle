@@ -13,7 +13,8 @@ import { verbLabel } from "./tokens";
 /** What a chain needs beyond the trace: the rules that ran (verb labels: `verbs` as the engine wrote them, else `rows` —
  *  the editing copy, right after the run), the run (replay), extra links. */
 export type ChainCtx = { rows?: Row[]; verbs?: string[]; runId?: number; chain?: Because[];
-                         provenance?: boolean };   // §3: also list the trace's provenance log (the exit sheet; the death screen keeps to its chain)
+                         provenance?: boolean;     // §3: also list the trace's provenance log (the exit sheet; the death screen keeps to its chain)
+                         home?: boolean };         // Cut 14: the trace of a bank/return — its last row is the way home, not the killing blow (QA on 56f2a1d: painted red)
 
 /** Cut 11 §2: the verbs of the rules that ran, off a morgue's `R1 HP<40% → drink heal` lines (core and fake write them), so an
  *  old death from the chronicle labels its chain with its own rules, not the current set's. Undefined without such lines. */

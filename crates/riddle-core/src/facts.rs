@@ -47,7 +47,7 @@ fn fact_note(fact: &str) -> String {
     }
     let parts: Vec<&str> = fact.split(':').collect();
     match parts.as_slice() {
-        ["foe", kind] => format!("Met a {}.", crate::engine::kind_title(kind)),
+        ["foe", kind] => { let t = crate::engine::kind_title(kind); format!("Met {} {t}.", if t.starts_with(|c: char| "aeiouAEIOU".contains(c)) { "an" } else { "a" }) }
         ["foe", kind, "studied"] => format!("{}: studied.", crate::engine::kind_title(kind)),
         ["foe", kind, tag] => format!("{}: {}.", crate::engine::kind_title(kind), tag),
         ["bones", d] => format!("Bones lie on D{d}."),

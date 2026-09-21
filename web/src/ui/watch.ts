@@ -915,7 +915,11 @@ export function renderWatch(app: App): Mounted {
         if (sent) return; sent = true;
         app.engine.choose(it.id).catch((e) => console.warn("choose", e)).finally(() => vaultClose?.());   // the next step's snapshot carries the pickup
       } }, h("b", { class: "glyph" }, kindGlyph(it.kind)), " ", it.label)));
-      return h("div", { class: "sheet-body vault-choice" }, h("div", { class: "label row-label" }, /* copy:label */ "vault"), chips);
+      // the grace as a shrinking bar (QA on 56f2a1d: "closes by itself ~2–4 s later with no timer"): the engine's ticks
+      // left at 1× wall time (the sheet holds the clock at 1×), width 100% → 0 over that span
+      const left = Math.max(1, vc.left ?? 50), grace = h("div", { class: "grace" }, h("i", { style: `transition-duration:${left / 10}s` }));
+      requestAnimationFrame(() => requestAnimationFrame(() => { (grace.firstElementChild as HTMLElement).style.width = "0%"; }));
+      return h("div", { class: "sheet-body vault-choice" }, h("div", { class: "label row-label" }, /* copy:label */ "vault"), chips, grace);
     });
     paintCard(frame); applySpeed();
   }
@@ -1073,7 +1077,7 @@ export function renderWatch(app: App): Mounted {
       // for an exit line without it (two QA players on 50bb162: "bones: 8 items on D4 ... bones left · 8 items")
       const bones = p.tier === "death" && bonesLeft !== undefined && !/\bbones:/.test(exitLine?.text ?? "") ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(bonesLeft)}`) : null;
       const ledger = exitLine?.text ? h("div", { class: "ledger-line num dim" }, exitLine.text) : null;   // Cut 6 §1: engine data, verbatim
-      const trace = traceChip(exitTrace ?? exitLine?.trace, "chip mini", { rows: app.rules.rows, runId });   // Cut 9 §5: the trace on a chip; Cut 11 §3: with its chain
+      const trace = traceChip(exitTrace ?? exitLine?.trace, "chip mini", { rows: app.rules.rows, runId, home: p.tier !== "death" });   // Cut 9 §5: the trace on a chip; Cut 11 §3: with its chain; Cut 14: a home trace's last row is not red
       // the sheet counts picks against free slots, so its label is `keep 0/1`, not the camp's `vault 1/2` (QA on e0f87e7:
       // "VAULT 0/1 while camp shows VAULT 1/2 · same counter")
       return h("div", { class: "sheet-body" },

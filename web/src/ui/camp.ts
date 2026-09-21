@@ -132,7 +132,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     app.sets.forEach((s, i) => {
       const named = !!(s.name ?? "").trim();
       tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) },
-        named ? setName(s, i) : /* copy:label */ `set ${i + 1}`, h("small", { class: "dim" }, named ? ` ${s.rows.length}` : ` · ${s.rows.length}`)));
+        named ? setName(s, i) : /* copy:label */ `set ${i + 1}`, h("small", { class: "dim" }, ` · ${s.rows.length}`)));   // `fighter · 3` like `set 2 · 0` (QA on 56f2a1d: `fighter 3` read as a hero number)
       if (i === app.active) tabs.appendChild(h("button", { class: "tab edit", onclick: () => renameSet(i) }, "✎"));
     });
   }
@@ -164,7 +164,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       }
     }
     // an empty slot is a plain marker, never a tap target (QA on 952e306: "vault slot '·' tap: nothing happened")
-    for (let i = L.vault.length; i < slots; i++) chips.appendChild(h("span", { class: "chip empty", "aria-hidden": "true" }, "·"));
+    for (let i = L.vault.length; i < slots; i++) chips.appendChild(h("span", { class: "chip empty", "aria-hidden": "true" }, ""));   // an empty slot is an empty chip (QA on 56f2a1d: `·` read as a chip that says `·`)
     vault.appendChild(chips);
     // keep preference for offline exits
     const prefs = h("div", { class: "chips prefs" }, h("span", { class: "dim" }, /* copy:label */ "keep"),

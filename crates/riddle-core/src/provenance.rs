@@ -122,11 +122,14 @@ pub fn stuck(run: &Run, cx: &mut Ctx) {
     log(run, cx, ProvKind::Path, "stuck".into(), "paced 12 turns, foes ignored".into(), true);
 }
 
-/// A find: `found heal on D2` (replaces the slot's last find).
-pub fn found(run: &Run, cx: &mut Ctx, kind: &str) {
-    let text = format!("found {} on D{}", kind.replace('_', " "), run.depth);
+/// A find: `found heal on D2` (replaces the slot's last find). `label` is what the hero
+/// can call it (`smoky potion?` while the flavour is unknown — QA on 56f2a1d: the trace named
+/// a `heal` the keep sheet still called `smoky potion?`).
+pub fn found(run: &Run, cx: &mut Ctx, kind: &str, label: &str) {
+    let text = format!("found {} on D{}", short_label(label), run.depth);
     log(run, cx, ProvKind::Found, format!("item:{kind}"), text, true);
 }
+
 
 /// A pack item spent some other way: `chalk marked D3`, `leash spent on tame`, `swapped for
 /// a heal potion`.
@@ -146,8 +149,12 @@ pub fn seen(run: &Run, cx: &mut Ctx, kind: &str, x: i32, y: i32) {
     log(run, cx, ProvKind::Seen, format!("seen:{kind}"), text, true);
 }
 
-/// `heal potion` → `heal`, `teleport scroll` → `teleport`; anything else as is.
+/// `heal potion` → `heal`, `teleport scroll` → `teleport`; an unknown flavour (`smoky
+/// potion?`) and anything else as is.
 fn short_label(label: &str) -> String {
+    if label.ends_with('?') {
+        return label.to_string();
+    }
     label.trim_end_matches(" potion").trim_end_matches(" scroll").to_string()
 }
 

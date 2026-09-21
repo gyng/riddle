@@ -100,6 +100,10 @@ pub struct RoomRef {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct VaultChoice {
     pub items: Vec<InvItem>,
+    /// Cut 14 (QA on 56f2a1d: the sheet "closes by itself with no timer"): ticks of the grace
+    /// left at this snapshot; the sheet shows them as a shrinking bar.
+    #[serde(default)]
+    pub left: u32,
 }
 
 fn default_vision() -> i32 {

@@ -20,7 +20,8 @@ export function openReplay(log: RunLog, b: Because): void {
   const from = Math.max(floor.snap.turn, b.t - LEAD), to = from + WINDOW;
   openSheet(() => {
     const canvas = h("canvas", { class: "replay-view" });
-    const at = h("span", { class: "num dim" }, /* copy:none */ `D${b.depth} · t${b.t}`);
+    const named = new RegExp(/* copy:none */ `\\bD${b.depth}\\b`).test(b.text);   // `found sword on D4` names its floor (QA on 56f2a1d: `on D4 D4 · t3930`)
+    const at = h("span", { class: "num dim" }, /* copy:none */ `${named ? "" : `D${b.depth} · `}t${b.t}`);
     const body = h("div", { class: "sheet-body replay", "data-t": b.t },
       h("div", { class: "label row-label" }, h("span", { class: "because" }, "← ", b.text), " ", at),
       canvas);

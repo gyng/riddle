@@ -1702,7 +1702,7 @@ pub fn vault_take(run: &mut Run, cx: &mut Ctx, id: Option<u32>) {
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     let here = run.hero.pos;
     run.loot_add(it.value());
-    crate::provenance::found(run, cx, &it.kind);
+    crate::provenance::found(run, cx, &it.kind, &label);
     let replaced = if run.hero.inv_full() && !item_replaces_gear(&run.hero, &it) {
         drop_near(run, here, it);
         None
@@ -1792,8 +1792,8 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         let kind = it.kind.clone();
         run.loot_add(it.value());
         run.hero.inv.push(it);
+        crate::provenance::found(run, cx, &kind, &label);
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
-        crate::provenance::found(run, cx, &kind);
         learn(run, cx, format!("item:{kind}"));
         return;
     }
@@ -1813,7 +1813,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         }
         run.loot_add(5);
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: "leash".into() });
-        crate::provenance::found(run, cx, "leash");
+        crate::provenance::found(run, cx, "leash", "leash");
         learn(run, cx, "item:leash".into());
         return;
     }
@@ -1839,7 +1839,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
                 run.loot_add(it.value() - dropped.value());
                 crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
-                crate::provenance::found(run, cx, &it.kind);
+                crate::provenance::found(run, cx, &it.kind, &label);
                 run.hero.inv.push(it);
                 run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
                 cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
@@ -1863,7 +1863,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
                 run.loot_add(it.value() - dropped.value());
                 crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
-                crate::provenance::found(run, cx, &it.kind);
+                crate::provenance::found(run, cx, &it.kind, &label);
                 run.hero.inv.push(it);
                 run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
                 cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
@@ -1875,7 +1875,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
     let it = run.items.remove(ii).item;
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     run.loot_add(it.value());
-    crate::provenance::found(run, cx, &it.kind);
+    crate::provenance::found(run, cx, &it.kind, &label);
     run.hero.auto_equip(it);
     cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
 }
@@ -1899,7 +1899,8 @@ fn recover_bones(run: &mut Run, cx: &mut Ctx, ii: usize) {
         };
         if taken {
             run.loot_add(value);
-            crate::provenance::found(run, cx, &it.kind);
+            let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
+            crate::provenance::found(run, cx, &it.kind, &label);
         } else {
             drop_near(run, here, it);
         }

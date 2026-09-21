@@ -733,6 +733,10 @@ pub struct LineageState {
     /// empties it.
     #[serde(default)]
     pub trait_offer: Vec<Trait>,
+    /// QA on 56f2a1d: the kennel's free leash, dropped from the shelf, came back after every
+    /// run. A drop declines the kennel until a leash is bought or a kind is tamed.
+    #[serde(default)]
+    pub kennel_declined: bool,
     /// §3: kinds the last run used to no effect — `restock` skips them once.
     #[serde(default)]
     pub last_wasted: Vec<String>,
@@ -815,6 +819,7 @@ impl LineageState {
             gold_ledger: Vec::new(),
             reel_pairs: Vec::new(),
             trait_offer: offer.to_vec(),
+            kennel_declined: false,
             last_wasted: Vec::new(),
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
@@ -827,7 +832,7 @@ impl LineageState {
     /// Cut 8B §3: the kennel's leash — while the lineage has never tamed, a free, known leash
     /// sits on the shelf (never refunded, never rebought; one at a time).
     pub fn kennel_leash(&mut self) {
-        if self.tamed_kinds() > 0 || self.supplies.iter().any(|s| s.kind == "leash") || self.supplies.len() >= self.supply_cap() {
+        if self.kennel_declined || self.tamed_kinds() > 0 || self.supplies.iter().any(|s| s.kind == "leash") || self.supplies.len() >= self.supply_cap() {
             return;
         }
         let id = self.next_vault_id;
@@ -2125,7 +2130,7 @@ impl Game {
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn },
             stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0 },
             vision: run.vision(&l.unlocks),
-            vault_choice: run.vault_choice.as_ref().map(|(_, items)| VaultChoice { items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect() }),
+            vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice { items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(), left: (t0 + VAULT_GRACE).saturating_sub(run.turn) }),
             room: Some(run.room_ref()),
             rooms: Some(run.floor.rooms.len() as u32),
             floor_twist: run.floor_twist.as_deref().map(|t| crate::situations::twist_word(t).to_string()),
@@ -2483,7 +2488,9 @@ impl Game {
             // every banked run read as the shop robbing the player (QA on 50bb162, both
             // players). The kennel's leash is the kennel's (`kennel_leash` puts it back).
             let (back, rest): (Vec<Item>, Vec<Item>) = all.into_iter().partition(|i| run.supplies.contains(&i.id) && i.kind != "leash");
-            all = rest;
+            // The kennel's own leash goes back to the kennel, not to salvage (QA on 56f2a1d:
+            // `leash ×1 · $1` salvaged, `leash 1/5` at the forge, the leash still on the shelf).
+            all = rest.into_iter().filter(|i| !(i.kind == "leash" && i.free && run.supplies.contains(&i.id))).collect();
             let cap = self.lineage.supply_cap();
             for mut it in back {
                 if self.lineage.supplies.len() >= cap {
@@ -2920,6 +2927,7 @@ impl Game {
         it.known = true;
         if kind == "leash" {
             it.amount = 1;
+            self.lineage.kennel_declined = false;
         }
         self.lineage.supplies.push(it);
         Ok(())
@@ -2947,6 +2955,9 @@ impl Game {
     pub fn drop_supply(&mut self, id: u32) -> Result<(), String> {
         let i = self.lineage.supplies.iter().position(|s| s.id == id).ok_or("not on the shelf")?;
         let s = self.lineage.supplies.remove(i);
+        if s.free && s.kind == "leash" {
+            self.lineage.kennel_declined = true;
+        }
         if !s.free {
             if let Some(e) = self.supply_catalogue().iter().find(|e| e.kind == s.kind) {
                 let why = format!("refund {}", s.kind.replace('_', " "));

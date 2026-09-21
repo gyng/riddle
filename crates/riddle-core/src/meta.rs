@@ -394,7 +394,14 @@ pub fn pending(game: &Game) -> Vec<String> {
     if real_runs > 0 {
         for (i, r) in rules.active(l.max_rows()) {
             let n = game.batch.row_runs.get(i).copied().unwrap_or(0);
-            out.push(format!("R{} fired {n} of {real_runs} runs: {}", i + 1, r.describe()));
+            // A drink/read row that never fired because the kind is still unidentified says so
+            // (QA on 56f2a1d: `R1 fired 0 of 17 runs: hp < 50% → drink heal` beside `heal ×16`
+            // salvaged, with no reason on screen).
+            let unknown = n == 0
+                && matches!(r.verb.v.as_str(), "drink" | "read")
+                && r.verb.a.as_deref().is_some_and(|k| k != "unknown" && !crate::item::is_identified(&l.facts, &l.flavours, k));
+            let why = if unknown { format!(" · {} unknown", r.verb.a.as_deref().unwrap_or_default()) } else { String::new() };
+            out.push(format!("R{} fired {n} of {real_runs} runs: {}{why}", i + 1, r.describe()));
         }
     }
     if let Some(id) = game.batch.worst_death {

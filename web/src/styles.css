@@ -183,6 +183,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .trace td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .trace .tele { color: var(--warn); }
 .trace tr:last-child td { color: var(--hp); }
+.trace.home tr:last-child td { color: var(--acc); }   /* a bank/return's last turn is the way home, not the blow */
 .patches { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
 .stall .patches { margin-top: 10px; }
 .stall-line { margin-top: 6px; }
@@ -314,6 +315,8 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .vault-choice .chips { gap: 10px; }
 .vault-choice .chip.item { min-height: 52px; padding: 0 18px; font-size: 17px; }
 .vault-choice .glyph { color: var(--acc); font-weight: 400; }
+.vault-choice .grace { height: 3px; margin-top: 12px; background: var(--line, #2a2f3a); border-radius: 2px; overflow: hidden; }
+.vault-choice .grace i { display: block; height: 100%; width: 100%; background: var(--acc); transition-property: width; transition-timing-function: linear; }
 
 .morgue-text { white-space: pre-wrap; font-size: 12px; line-height: 1.35; margin: 0; max-height: 70vh; overflow: auto; }
 

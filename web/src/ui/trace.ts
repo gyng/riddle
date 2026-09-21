@@ -15,7 +15,7 @@ export const EXIT_TRACE_ROWS = 10;
 /** The table and, under it, the chain (Cut 11) or the dim `R1 why · R2 why` line when the trace carries no `because`. */
 export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS): HTMLElement[] {
   const turns = trace.turns.slice(-rows);
-  const table = h("table", { class: "trace num" },
+  const table = h("table", { class: `trace num${ctx.home ? " home" : ""}` },
     h("thead", null, h("tr", null, /* copy:label */ ...["t", "R", "hp", "foes", "tele"].map((s) => h("th", null, s)))),
     h("tbody", null, ...turns.map((t) => h("tr", null,
       h("td", null, `${t.t}`),
@@ -36,8 +36,9 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
 export function traceChip(trace: Trace | undefined, cls = "chip mini", ctx: ChainCtx = {}, head?: string, label?: string): HTMLElement | null {
   if (!trace?.turns.length) return null;
   // Cut 14 §4: `label` names the chip's exit (`D5 · died · trace`, ui/report.ts); the plain chip stays `trace`
+  const home = !!head && /^(banked|returned)\b/.test(head);   // the exit line's first word is the tier (engine data)
   return h("button", { class: cls, onclick: () => openSheet(() => h("div", { class: "sheet-body trace-sheet" },
     h("div", { class: "label row-label" }, /* copy:label */ "trace"),
     head ? h("div", { class: "trace-head ledger-line num dim" }, head) : null,
-    ...traceTable(trace, { ...ctx, provenance: true }, EXIT_TRACE_ROWS))) }, label ?? /* copy:button */ "trace");
+    ...traceTable(trace, { ...ctx, provenance: true, home }, EXIT_TRACE_ROWS))) }, label ?? /* copy:button */ "trace");
 }

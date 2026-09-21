@@ -42,7 +42,7 @@ export type Snapshot = {
   floor_twist?: string;                                                   // Cut 12 §4: the floor's one situation, one word (`nest`), for `D4 · 9 rooms · a nest` (optional; absent on D1–D2)
 };
 /** Cut 5 §4 — the three items of an opened vault; `choose(id)` takes one, the rest vanish. */
-export type VaultChoice = { items: InvItem[] };
+export type VaultChoice = { items: InvItem[]; left?: number };   // Cut 14: ticks of the 50-tick grace left at this snapshot (the sheet's shrinking bar)
 /** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any.
  *  Cut 6 §1: `kept` = what that row would bring home now (`$84 · keeps $50`). */
 export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number;

@@ -356,7 +356,7 @@ try {
   await page.evaluate(() => window.__riddle.renameSet(1, "tank"));
   await sleep(200);
   const tabsN = await page.evaluate(() => [...document.querySelectorAll(".tabs .tab:not(.edit)")].map((t) => t.textContent.replace(/\s+/g, " ").trim()));
-  check(/^tank \d+$/.test(tabsN[1] ?? ""), `a named set keeps \`name N\`: [${tabsN.join(" | ")}]`);
+  check(/^tank · \d+$/.test(tabsN[1] ?? ""), `a named set reads \`name · N\`: [${tabsN.join(" | ")}]`);
   await page.locator(".tabs .tab", { hasText: /^set 3/ }).first().click({ timeout: 5000 }); await sleep(200);
   check((await page.evaluate(() => window.__riddle.active)) === 2, "tapping `set 3` selects the third set");
   await page.evaluate(() => window.__riddle.selectSet(0)); await sleep(100);
