@@ -1,0 +1,149 @@
+{
+  "$comment": "Blind rater card. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md. One quoted observation per axis. bot: green|amber|red|na is a cap, never an award. Criterion + idle probes answered BEFORE awarding. Blindness kept: read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md sections 1-3, eval/SCORECARD.template.json and the header comment of tools/driver.mjs (op list). Did not open PLAN.md, research/, docs/CUT*.md, docs/PLATEAU.md, docs/ITERATION_SPEED.md, eval/qa/, eval/presets.json, other cards or source. Audio unassessed (headed Chromium under WSLg; window.__audio.log showed rule/hit/slay cues firing, many with identical timestamps, but nothing could be heard). Notes: scratchpad/raterQ/notes.md, screenshots: scratchpad/raterQ/shots/.",
+  "game": "Riddle",
+  "build": "39def99",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterQ (blind, seed 401, phone 400x800 at 3x on the GPU, tools/driver.mjs headed)",
+  "horizon": {
+    "activeMinutes": 46,
+    "absences": ["8h simulated once via ?dev=1&absent=8h after 36 min cold; then 10 min of play plus reading on return"],
+    "runsWatched": 16,
+    "runsOffline": 16,
+    "ruleEdits": 8,
+    "$detail": "16 runs watched at 1x in the default 'fights' watch mode (25 s to 3 min each; the mode jumps floors with no fights in 2 s). 3 deaths read on the death screen plus the morgue text. 8 rule edits of my own (bank depth 3 -> 5 -> 8 -> 10 -> 8; return threshold 20% -> 10% -> 20%; wrote 'foe: ranged -> attack ranged', 'foe: telegraph -> retreat', 'hp < 50% -> rest'), 2 offered patches tapped ('to corridor', 'hp<20% -> return'), 1 card bought and later removed (kite archers). Unlocks bought: kite archers, class rogue, +1 row x3, auto keep weapon+armour, path bones, auto restock, supplies 3->5. Bests: D4 -> D5 -> D7 -> D8; banked $231 and $184 at D8. Frame time during a 1x watch: median 16.7 ms, p95 16.8 ms over 595 frames."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false,
+    "$notes": "'rest 20m . send skips' is a wait but skippable for free, not money. The overnight gold drain ($142 -> $6) was my own 'auto: restock' rebuying two potions 16 times, so not a punishment for absence, but the return report never said it. Default rules died on D4 (run 1); my edited set banked at D8 twice, so editing is not pointless. All three deaths I read were addressable by the vocabulary (potion/return/threshold). Three of 16 offline runs 'stalled' with $255/$100/$82 carried and kept $0; those are not deaths and the trace said 'stuck . paced 12 turns, foes ignored' on every row, so I could not name a fix; recorded under failure/return, not as a kill."
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: I sent the brave fighter down with bank set at 8, and on D5 an ogre wound up twice and took him from 24 to 13 before he cut it down, then a conjurer's spectral blade and a second ogre on D7 had him at 4/38 with $106 on him and the whole screen flashing '!!'. He drank the heal my R2 row bought him, a bloat gassed him to 3, and my 10% return line walked him out with $63 and 'Trophy: no heal to D5' in the reel. Two runs later the same rule set, with bank still at 8, hit D8 at 10/38 and banked $231, which is the number I'd been aiming at for twenty minutes."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Probe 'did you ever not know what to do or what just happened': the forecast answered every edit in under 3 s ('bank 100% . return 0% . death 0% . ~$40' the instant I set depth>=3 -> bank; 'bank 0% . return 80% . stall 20%' when I tried depth 10) so I always knew what my last edit did; first own edit at 7 min. Lapse: 'stall' is never defined anywhere and cost me a $255 run overnight, the HUD said 'keeps $28' seconds before a stall paid $0, '1 unknown unused' and the forge's craft icon (tapped, nothing happened) are unexplained, and the camp button labelled LEDGER is the bestiary while the gold ledger hides behind the '$6' counter."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Probe 'name a choice and why': bank at 3 (95% bank, ~$35) vs bank at 5 (60% bank, 40% death, ~$50) vs bank at 8 (11% bank, 84% return) were all defensible over several runs and I ran each; buying a heal potion moved the forecast from death 40% to 25% for $40 while a second one moved nothing, so I stopped buying; removing the kite archers card took stall 15% -> 5%, and I chose to write 'foe: ranged -> attack ranged' myself instead of any card after that. Lapse: the forecast digits wobble +-10 between re-rolls of the same rules (unlock deltas read 'pack break +7%' then '-14%' a minute apart), and class was a no-brainer (rogue L1 collapsed the forecast to death 10% / ~$34 next to fighter's ~$65)."
+    },
+    {
+      "id": "mastery",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Probe 'what can you do now that you couldn't an hour ago': at 16:56 I did not know order mattered; by 17:38 I placed 'hp < 50% -> rest' below attack nearest and above bank on purpose so it only fires when the room is clear, and the next-but-one run banked $184 at D8 after the report had said 'R1 return ended 14 runs, none past D7'; bests went D4 -> D5 -> D7 -> D8 and my rows went from 0 of 2 to 5 of 7. Lapse: 'stall' is the one mechanic I never learned to counter (three overnight, one for $255)."
+    },
+    {
+      "id": "tension",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Probe 'where did you sweat': D7 at '4/38 !!' with $106 carried and only my 10% return line between him and 'keeps 0%', and the run 11 HUD at '10/38 D7 . $231 . keeps $138' with bank at 8 one floor away; the game noticed with the '!!!!!' alert marks and 'Down to 4 HP' in the reel. Lapse: stretches where nothing I owned could change ('-1 captain' twelve samples in a row for 30 s at 27/38 hp, 'R4 . retreat' six times in a row) and the stall outcome, which resolves stakes I chose into $0 with no fight."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Probe 'what did you actually see': a locked 60 fps watch (median 16.7 ms, p95 16.8 ms over 595 frames), the goblin dissolving into pixel dust under 'R4 ATTACK GOBLIN', Grul flashing white on the hit, the hp bar sliding 24 -> 4 while 'ogre winds up' sat in the callout; an event line every ~2 s at 1x. Kept from strong: the 'fights' mode jumps 'D1 -> D4 . 14 rooms . a den' in 2 s so I never saw D2-D3 of most runs, callouts clip at the right edge ('R3 HIT RANGED GOBL'), two jackal labels overlapped into 'JACKALCKAL', the clip sheet's '<-' did not close it (Escape did) and a patch tap was swallowed by the replay canvas under an open sheet. Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Probe 'what directly surprised you and changed your decisions': 'The den wakes: thieves on every side. A thief snatched the heal potion. A thief snatched the sword.' (run 3, why R2 had 'no item'), the kite archers card ping-ponging with an archer's draw cadence until 'Stalled. Came home empty-handed.' (I removed the card), 'ogre winds up' telegraphs (I wrote foe: telegraph -> retreat), 'R4 retreat brave held' (the hero's trait overrode my row), 'Grul the goblin archer is avenged' and Grul returning on D4 two runs later, a conjurer's 'spectral blade summoned', gas bloats making D6-D7 the new wall. Lapse: one biome ('the Warrens') and the same eight foes for the whole horizon, and D1-D4 played out near-identically fifteen times."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "Probe 'describe your build to a friend': 'walk home at 20%, drink at 30%, shoot archers first, step back when the big one winds up, otherwise hit whatever's nearest, sit down and rest when clear under half, and only bank once he's on D8' -- the camp reads 'yours: 5 of 7 rows'. Adequate rather than strong because most of that is the shape anyone would land on (return/heal/attack/bank) and the two rows that are really mine (telegraph retreat, rest) came from patches the game had already hinted at; the three rule-set slots ('fighter 7 / 2 0 / 3 0') stayed empty."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Probe 'one run in three sentences': see delayedRecall; the reel wrote it for me as 'Met a bloat. bloat: gas. Down to 4 HP. R2 drink heal caught him. Returned with $63.' and the return-screen reel carried five one-line runs ('The lock took him to 8 HP; the chores explored; reached D7.'). Lapse: the best beats -- the thieves, 'Grul the goblin archer is avenged', 'A vault: three under a cage' -- live only in the reel or the morgue text dump, never on the screen while it happened."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-run: 25 s to 3 min per run with a callout every ~2 s, but dead stretches of 12-30 s ('-1 captain' x12, 'R4 . retreat' x6, '. pick up' loops) and the fights mode skipping whole floors. Check-in: arrive -> read report -> edit -> buy -> send took 2-4 min and ended on a chosen send every time; the 40-item unlock list under the rules makes the camp a long scroll on a phone. Cadence: only the 8 h absence was taken; it produced 16 runs ('rested 320m'), which is a different experience from a live send, but I could not test 20 min vs 4 h. Adequate: the loop is bounded, the repetition is the watch."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Probe 'why did you lose, whose fault': death 3 read 'ogre . D5 . 1 hp short . 8 unknown unused . gap' with a line per row -- 'R1 return hp not <10%', 'R2 drink heal no item <- den took the heal, D4', 'R3 attack ranged not in view', 'R4 retreat brave held', 'R5 attack nearest fired' -- and three patches with 'survives 100% . base 75%'; my 10% line was literally the 1 hp. Recovery is a tap ('edit' -> new heir already at camp). Lapse: death 2's real cause ('A thief snatched the heal potion') was only in the morgue text, and stalls get no patch and no cause beyond 'stuck . paced 12 turns, foes ignored' on every row."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0 assumed for idle-roguelike: no other people; 'Grul the goblin archer is avenged' and Grul reappearing on D4 is a named-foe bark that supports story, not a relationship."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "Probe 'what did you decide that the game didn't ask for': I set myself 'get Grul' and 'bank once at 8 before the night' and both happened; I tried the rogue and went back; I chose to remove a card I'd paid for rather than take its patch. But the dungeon route is the hero's, every run starts at D1 in the same Warrens, and my only order/pace levers are the depth and hp numbers in the pickers (depth offers 2/3/5/8/10/12, no 4)."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Probe 'what grew within the run, what persisted, which layer': within-run 'fighter L4' callout, 'VAULT sword +1 . mail +1' picked mid-run, floors D1-D8; persistent: rows 4 -> 7, the condition picker growing from 'foe: ranged/telegraph' to 'foe: gas/summoner/heavy' and 'on see den/lock/shrine' as facts were learned, class rogue, renown *0 -> *5, forge 'teleport salvaged 5/15'; automation: 'auto keeps best weapon+armour', 'auto rebuys last supplies', 'auto paths to bones' -- three 'no longer need to' in one hour, and the keep sheet stopped appearing after the first. Lapse: auto-restock silently spent ~$1280 overnight (ledger: '-$40 strength . -$40 heal' x16) and the marks cadence is opaque (+4, +1, +9, 0, +2 with no rule I could see)."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Probe 'describe the place': a sepia-and-olive warren under a black fog, brick tiles, a red-tunic pixel fighter with a round shield, foes labelled in a chunky pixel font, the camp a black sheet of monospace chips; 'A den. Something sleeps.' and 'The air stings: bloats ahead.' give it a voice. I would not sit in it doing nothing: one biome for the whole horizon and no sound I could assess."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Probe 'what did you come back to, what did you decide, would you rather have stayed': '16 RUNS . D7 . 16 RETURNED . 0 BANKED . 0 DEATHS . rested 320m', a STALL box saying 'R1 return ended 14 runs, none past D7' with a suggested 'hp < 90% -> rest', PENDING opening with 'R6 fired 0 of 16 runs: depth >= 8 -> bank', a 23-line salvage list, 'found (hero)3's bones . D5 . 11 items', and five reel lines; I decided to write 'hp < 50% -> rest' and the second run after banked $184 at D8; first meaningful action ~4 min after load. I would not rather have stayed (16 x 80 s of watching). Lapse: I left with $142 and came back to $6 and the report never said where it went (the gold ledger did: my own restock), and three stalls returned $437 carried as $0 with nothing to tap. Scored on the same day as the absence (simulated), noted."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "Probe 'how did the last run end, whose decision': 'I set return at 10% to squeeze D8 and he died on D5 with 5/40 -- 12.5% -- one hit from an ogre I'd told him to retreat from; the screen said 1 hp short and it was my 1 hp.' Of three deaths: #1 traced to the trait ('curious drank heal at 19/36') and no return row, #2 to my corridor patch ping-ponging with the attack row after thieves took the potion, #3 to my 10% number; both D8 banks fired my depth>=8 row after my rest row. Counting my own retelling: 'I' for every configuration, 'he' for the hero, which is how it felt. Lapse: 'R4 retreat brave held' and the stalls end in the hero or the engine, not in any row I could have written."
+    }
+  ]
+}

@@ -241,3 +241,52 @@ blind cohort) finds lapses *after* shipping, two raters at a time. The next cut 
 only (no scores), and the build ships to raters only when that list is empty. Alongside it, the
 one structural item still at 0.6 from every rater: the player's rows are theirs, and the game's
 (cards, defaults) do not crowd them out.
+
+## Cohort 9 (build 39def99: Cut 12 — your rows, no lapse; two QA rounds before it)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| Q | 401 | 75.1 | none |
+| R | 402 | 72.4 | none |
+
+α = 0.938 (the highest on record). Mean **73.8** — the same number as cohort 8. Nine axes at
+0.8 from both (decisions, mastery, surprise, story, failure, progression, return, attribution;
+clarity and tension 0.8 from Q only); expression 0.6 · 0.6 for the fifth cohort. The Cut 12 gate
+(mean ≥ 78, expression ≥ 0.8 from one rater, any axis at 1.0) was not met.
+
+Trajectory: 63.7 → 66.0 → 65.0 → 69.8 → 67.9 → 74.6 → 75.5 → 73.8 → **73.8**.
+
+### What the two QA rounds bought, and what they did not
+
+The QA cohort worked as a lapse-finder: 131 lines on the first build, 52 defects on the reship,
+every one closed before the raters played (`eval/qa/*.triage.md`). The raters' cards carry none
+of cohort 8's defects, and the praise is specific ("every death tells you exactly which line you
+wrote killed him"; "the forecast answers every edit in three seconds"; "a locked 60 fps watch").
+The number did not move because the lapses the raters name are not defects — they are one
+mechanic and three designs:
+
+1. **Stalls** (Q: clarity, mastery, tension, failure, return, attribution; R: failure,
+   attribution — six axes name it). "Three of 16 overnight runs stalled and paid $0 on
+   $255/$100/$82 carried"; "kept 0 % of $134 … contradictory, punitive, and not a stake I
+   chose". Measured after the cohort: the DEFAULT set stalled on 5.2 % of sends; three engine
+   loops caused nearly all of them (a chore pathing to an item the full pack would never take, a
+   guard's ignore lifted by the ignored foe's own arrow, the coward's retreat streak resetting
+   every other action). Fixed in cffa2d9: 0.5 %. The forfeit itself stays (a gated invariant).
+2. **Traits overriding rows** (attribution, both: "R4 retreat — brave held", "curious drank heal
+   at 24/36 hp"; Q's build description ends "the hero's trait can override your rule"). Legible,
+   and still a loss the player cannot own.
+3. **The night's economy is opaque** (progression, return: "I left with $142 and came back to
+   $6 and the report never said where it went"; "$2131 after the night had almost nothing to
+   buy"). The restock's spending is only in the ledger; the strength potion the trait drinks at
+   full HP is rebought sixteen times.
+4. **The beats are not on screen** (story, failure, pacing): "the thieves, 'Grul is avenged',
+   'A vault: three under a cage' live only in the reel or the morgue"; "the fights mode skipping
+   whole floors"; "death 2's real cause ('A thief snatched the heal potion') was only in the
+   morgue text". And the forecast's noise (decisions, both: "±10 between re-rolls", "±15 made
+   some comparisons coin flips"; mastery R: "'95 % bank' then 'spectral blade · dice'").
+
+### The read
+
+The QA step is now part of the method (it removed the defect class from the cards). What is
+left at 0.8 is design, and the four items above are the next contract's — the stall mechanic
+first, because it is the one thing both raters would tell a friend about *against* the game.
