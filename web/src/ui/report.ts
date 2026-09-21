@@ -52,25 +52,37 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 10 §3: `returned $61` leads each line, the engine's arithmetic after it
   // Cut 11 §5: the line is tappable — the gold sheet filtered to that run (an exit claims the newest matching ledger exit the
   // exits after it in this report have not); its `trace` chip shows the chain (§3)
-  const shown = r.exits?.slice(-EXITS_SHOW) ?? [];
-  // the lines are the absence's last few; the runs the tiles count beyond them are said so (QA on 952e306: "17 RUNS ·
-  // 17 RETURNED but only 8 lines")
-  const beyond = Math.max(0, r.runs - shown.length);
-  const exitLines = shown.length ? h("div", { class: "exit-lines" }, ...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
-    h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
-    traceChip(x.trace, "chip mini", { rows: app.rules.rows }))),
-    beyond > 0 ? h("div", { class: "ledger-line num dim" }, /* copy:callout */ `· ${beyond} more`) : "") : null;
+  const allExits = r.exits ?? [];
+  // the client merges the absence's slices, so the report can hold more lines than EXITS_SHOW: the last EXITS_SHOW show and
+  // `· N more` is a button that expands to every line (QA on e0f87e7: "`· 8 more` is inert text"); runs the tiles count that
+  // have no line at all (the core keeps the last few per slice) are `· N unlisted`, dim and inert, so the count and the list
+  // agree (QA on 952e306: "17 RUNS · 17 RETURNED but only 8 lines")
+  const exitLines = allExits.length ? h("div", { class: "exit-lines" }) : null;
+  const paintExits = (all: boolean): void => {
+    if (!exitLines) return;
+    const shown = all ? allExits : allExits.slice(-EXITS_SHOW);
+    const hidden = allExits.length - shown.length, unlisted = Math.max(0, r.runs - allExits.length);
+    exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
+      h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
+      traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }))),   // Cut 11 §2: with the run, the chain's links get `watch`
+      hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} more`) : "",
+      unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
+  };
+  paintExits(false);
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
   const stall = r.stall ? h("section", { class: "rsec stall" },
     h("div", { class: "label" }, /* copy:label */ "stall"),
-    h("div", { class: "stall-line num" }, r.stall.text, traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb)
+    h("div", { class: "stall-line num" }, r.stall.text, traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r) })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb); its run: the exit whose trace it is (QA on e0f87e7: no `watch` from a report)
     r.stall.patches.length ? patchRows(app, r.stall.patches) : null) : null;
-  // Cut 2 §2: `bones D7 · 4 items · ♟3` per pile recovered (the core sends `heir 3 · D7 · 4 items`; `bones:7:4` too)
+  // Cut 2 §2: one line per pile recovered this send (the core sends `heir 3 · D7 · 4 items`, `bones:7:4` too; the watch
+  // `D5 · 7 items`). Every line says it was found — `found ♟3's bones · D7 · 4 items` — since `bones D8 · 11 items · ♟3` read
+  // as a pile still lying there (QA on e0f87e7: "survived 16 offline runs", "persisted through run 3")
   const bonesLine = (x: string): string => {
-    const m = /^bones:(\d+):(\d+)$/.exec(x); if (m) return /* copy:callout */ `bones D${m[1]} · ${items(+m[2])}`;
-    const c = /^heir (\d+) · (D\d+) · (\d+) items?$/.exec(x); if (c) return /* copy:callout */ `bones ${c[2]} · ${items(+c[3])} · ♟${c[1]}`;
-    return /^bones\b/.test(x) ? x : /* copy:label */ `bones ${x}`;
+    const m = /^bones:(\d+):(\d+)$/.exec(x); if (m) return /* copy:callout */ `found bones · D${m[1]} · ${items(+m[2])}`;
+    const c = /^heir (\d+) · (D\d+) · (\d+) items?$/.exec(x); if (c) return /* copy:callout */ `found ♟${c[1]}'s bones · ${c[2]} · ${items(+c[3])}`;
+    const w = /^(D\d+) · (.*)$/.exec(x); if (w) return /* copy:callout */ `found bones · ${w[1]} · ${w[2]}`;
+    return /^found\b/.test(x) ? x : /* copy:callout */ `found bones · ${x.replace(/^bones\s*/, "")}`;
   };
   const section = (label: string, body: Node | null): HTMLElement | null => body ? h("section", { class: "rsec" }, h("div", { class: "label" }, label), body) : null;
   const nice = (x: string): string => x.replace(/_/g, " ");
@@ -131,6 +143,14 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     h("div", { class: "btn-row" }, open, camp),
   );
   return { el };
+}
+
+/** The run a stall's trace belongs to: the exit line that carries the same trace (the stall has no run id on the wire; the
+ *  same turns, tick for tick, name the run), so its chain links can open the replay when the client holds that run. */
+function stallRun(r: ReturnReport): number | undefined {
+  const t = r.stall?.trace; if (!t) return undefined;
+  const key = JSON.stringify(t.turns);
+  return r.exits?.find((x) => x.trace && JSON.stringify(x.trace.turns) === key)?.run_id;
 }
 
 /** Facts grouped for reading: `foe:x`, `foe:x:t1`, `foe:x:t2` → one chip "x · t1 · t2"; `item:f=k` → "k (f)";

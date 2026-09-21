@@ -2,7 +2,8 @@
 // log, seeked to `because.t − LEAD` in the fight frame, played 40 ticks at 1×, then paused. A tap on the canvas plays the
 // same 40 ticks again. The renderer's `seek(t)` rebuilds from the floor's loaded snapshot and replays the log up to `t`,
 // so only floors the watch loaded can be scrubbed (`runlog.ts`); the Canvas-2D placeholder has no clock and no seek — it
-// shows the floor at the end of the window instead.
+// shows the floor at the end of the window instead. At the pause the viewer keeps drawing its last frame (nothing is
+// disposed or cleared until the sheet closes), and the floor's fade-to-dark events are not replayed.
 import type { Because } from "../engine/types";
 import { h } from "./dom";
 import { floorFor, floorSnapshot, type RunLog } from "./runlog";
@@ -36,7 +37,10 @@ export function openReplay(log: RunLog, b: Because): void {
       void makeViewer(canvas).then(({ viewer: v }) => {
         if (!document.contains(canvas)) { v.dispose(); return; }
         viewer = v; v.resize?.();
-        v.load(floorSnapshot(floor)); v.apply(floor.evs);
+        // the floor's `descend` / `exit` fade the renderer to dark (the watch's walk-out); a clip whose window reaches the
+        // floor's end went black at that event and stayed black through the pause (QA on e0f87e7: "played ~3 s then the canvas
+        // went fully black"). The clip holds its last frame instead: the fades are left out of what it replays.
+        v.load(floorSnapshot(floor)); v.apply(floor.evs.filter((e) => e.k !== "descend" && e.k !== "exit"));
         viewer.setFrame?.("fight");
         play();
         if ("__riddle" in window) (window as unknown as { __replay: Viewer }).__replay = v;   // dev: tests read `tick()`

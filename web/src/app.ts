@@ -78,6 +78,9 @@ export class App {
   private offlineRunning = false;
   /** Runs seen by this client (the wire Lineage has no run counter); persisted in the blob. */
   runsSeen = 0;
+  /** The last chosen watch mode; the next watch starts in it (persisted in the blob — QA on e0f87e7: "`fast` chosen in run 3
+   *  was not remembered"). */
+  watchMode: "fights" | "fast" = "fights";
   /** Cut 6 §6: the unlock catalogue as last fetched by the camp; a card's rows back the editor's `[card]` sheet. */
   unlockCat: UnlockInfo[] = [];
   /** The supply catalogue as last fetched by the camp: the shop paints from it at once on the next camp, then refetches (the
@@ -117,6 +120,7 @@ export class App {
         this.lineage = await this.engine.load(blob.engine);
         this.loadout = blob.loadout;
         this.runsSeen = blob.runs ?? 0;
+        this.watchMode = blob.watch === "fast" ? "fast" : "fights";
         this.savedOrigins = blob.origins ?? null;
         elapsed = Math.max(0, (Date.now() - blob.last_seen) / 1000);
         loaded = true;
@@ -384,10 +388,16 @@ export class App {
    *  `insert_at` when the engine sends one, else before the set's engagement row (the first `attack` / `shoot`), else the
    *  end; card rows sit outside `max_rows`, so a card never overflows the set. */
   async buy(id: string): Promise<boolean> {
-    const at = this.unlockCat.find((u) => u.id === id)?.insert_at;
+    const u = this.unlockCat.find((x) => x.id === id);
+    const at = u?.insert_at;
     const ok = await this.mutate(() => this.engine.buy(id));
     if (ok) audio.cue("unlock");   // Cut 10 §4
     if (ok && this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id) && !this.holdsCard(id)) { this.insertCard(id, at); this.emitChange(); }
+    // a verb unlock's `reach +21%` was measured with its canonical row at the top (the catalogue sends `rows` + `insert_at`
+    // for it); the buy inserts that row so the number holds (QA on e0f87e7: "bought, forecast identical")
+    else if (ok && u?.rows?.length === 1 && u.rows[0].verb.v !== "tactic" && u.rows[0].verb.v !== "auto" && u.insert_at !== undefined && !this.rules.rows.some((r) => sameRowShape(r, u.rows![0]))) {
+      this.insertRow(cloneRow(u.rows[0]), u.insert_at, "patch"); this.emitChange();
+    }
     return ok;
   }
   /** Cut 12 §1: does the active set hold this card's row? */
@@ -431,14 +441,14 @@ export class App {
   }
   /** pagehide/visibilitychange cannot await the worker: write the last save string fetched. */
   private flushSync(): void { if (this.lastSave) writeBlob(this.blob()); }
-  private blob(): SaveBlob { return { v: 2, engine: this.lastSave, loadout: this.loadout, last_seen: Date.now(), runs: this.runsSeen, origins: this.sets.map((s) => s.rows.map((r) => r.origin ?? "player")) }; }
+  private blob(): SaveBlob { return { v: 2, engine: this.lastSave, loadout: this.loadout, last_seen: Date.now(), runs: this.runsSeen, origins: this.sets.map((s) => s.rows.map((r) => r.origin ?? "player")), watch: this.watchMode }; }
   exportSave(): string { return JSON.stringify(this.blob()); }
   async importSave(text: string): Promise<boolean> {
     try {
       const b = JSON.parse(text) as SaveBlob;
       if (!b || typeof b.engine !== "string") return false;
       this.lineage = await this.engine.load(b.engine);
-      this.loadout = b.loadout ?? []; this.runsSeen = b.runs ?? 0;
+      this.loadout = b.loadout ?? []; this.runsSeen = b.runs ?? 0; this.watchMode = b.watch === "fast" ? "fast" : "fights";
       this.savedOrigins = b.origins ?? null; this.sets = [];   // Cut 7 §2: the imported blob's origins, not the old sets'
       this.adoptSets();
       await this.engine.setRules(this.rules); await this.engine.loadout(this.loadout);
@@ -488,6 +498,11 @@ function mergePending(a: string[], b: string[]): string[] {
   return out;
 }
 /** Merge two offline reports (a then b): sums, unions in order, reel top 5, worst = deeper (ties: later). */
+/** The same conds (key, tag, number) and verb: a row the set already carries. */
+function sameRowShape(a: Row, b: Row): boolean {
+  return a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length && a.conds.every((c, i) => c.k === b.conds[i].k && (c.t ?? "") === (b.conds[i].t ?? "") && c.n === b.conds[i].n);
+}
+
 export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const union = (x: string[], y: string[]): string[] => [...new Set([...x, ...y])];
   // `rank 1 … rank 9` and `fighter L2 … L5` collapse to the highest of each ladder

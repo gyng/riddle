@@ -113,9 +113,11 @@ export function renderWatch(app: App): Mounted {
   const stake = h("div", { class: "stake num" });
   const banner = h("div", { class: "banner num" });
   const pause = h("button", { class: "hud-btn", onclick: () => togglePause() }, "⏸");
+  // the last chosen mode is the next run's (app.watchMode, persisted — QA on e0f87e7: "`fast` chosen in run 3 was not remembered")
+  const mode0: Mode = app.watchMode === "fast" ? "fast" : "fights";
   const modeBtn: Record<Mode, HTMLButtonElement> = {
-    fights: h("button", { class: "hud-btn on", onclick: () => setMode("fights") }, /* copy:button */ "fights"),
-    fast: h("button", { class: "hud-btn", onclick: () => setMode("fast") }, /* copy:button */ "fast"),
+    fights: h("button", { class: `hud-btn${mode0 === "fights" ? " on" : ""}`, onclick: () => setMode("fights") }, /* copy:button */ "fights"),
+    fast: h("button", { class: `hud-btn${mode0 === "fast" ? " on" : ""}`, onclick: () => setMode("fast") }, /* copy:button */ "fast"),
   };
   const skip = h("button", { class: "hud-btn", onclick: () => skipToEvent() }, "▶▶|");
   const bail = h("button", { class: "hud-btn bail", onclick: () => doBail() }, /* copy:button */ "bail");
@@ -127,7 +129,7 @@ export function renderWatch(app: App): Mounted {
     h("div", { class: "hud bottom" }, modeBtn.fights, modeBtn.fast, skip, bail));
 
   let viewer: Viewer | null = null;
-  let mode: Mode = "fights", paused = false, slowUntil = -Infinity, lastHp = NaN;
+  let mode: Mode = mode0, paused = false, slowUntil = -Infinity, lastHp = NaN;
   // Cut 10 §1: the card's state — up, since when (its minimum), a tap holding the map, a fight waiting on the minimum; fights shown
   let cardUp = false, cardSince = 0, cardMin = CARD_MS, cardDepth = 0, cardText = "", mapHold = false, cardWait = false, fights = 0;
   el.dataset.mode = mode; el.dataset.fights = "0"; el.dataset.card = "0";
@@ -452,6 +454,10 @@ export function renderWatch(app: App): Mounted {
     const exit = absorb(r.events, s);
     snap = s;
     hud.maxHp = s.hero.max_hp; paintHud(); paintStake(s); bossSighted(s);
+    // the card follows the step at once: under ▶▶|'s step loop and the travel chain the engine's answers starve the pump's
+    // timer, and the card (painted only there) named the floor before the one the HUD's load had just painted (QA on
+    // e0f87e7: "`D1 · 16 rooms · $18` while the HUD reads `32/40 D2`")
+    if (cardUp) paintCard("map");
     if (!exit) vaultFrom(s);   // no choice on a run that just ended
     if (r.exit_pending) pendingExit = r.exit_pending;
     // Cut 7 §4: the exit batch waits (pump) until the viewer is ENDING_TICKS from the exit, then plays at 1×
@@ -564,6 +570,7 @@ export function renderWatch(app: App): Mounted {
     for (const m of Object.keys(modeBtn) as Mode[]) modeBtn[m].classList.toggle("slowed", m === mode && n <= FAST_NEAR);
   }
   function setMode(m: Mode): void {
+    if (app.watchMode !== m) { app.watchMode = m; app.persist(); }   // remembered for the next run
     mode = m; paused = false; mapHold = false; el.dataset.mode = m;
     for (const k of Object.keys(modeBtn) as Mode[]) modeBtn[k].classList.toggle("on", k === m);
     paintPause(); paintCard(frame); applySpeed();
@@ -695,12 +702,28 @@ export function renderWatch(app: App): Mounted {
       // The keep sheet is a decision only when there is a free vault slot; otherwise the engine keeps by preference.
       const freeSlots = Math.max(0, vaultSlots(app.lineage.unlocks) - app.lineage.vault.length);
       if (pendingExit && pendingExit.items.length && freeSlots > 0) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, () => { done = false; void finish(tier); }); return; }
-      if (pendingExit) { pendingExit = undefined; await bounded(app.engine.keep([]), 8000, "keep by preference"); }
-      pendingExit = undefined;
+      // the sheet skipped (the vault full): the engine keeps by preference and the rest is salvage all the same — its rows
+      // are built here too (QA on e0f87e7: "no SALVAGED block at all when the vault is full … yet the gold sheet shows +$16
+      // salvage"); what the vault gained across the keep is what was kept, matched to the pending items by kind
+      const skipped = pendingExit; pendingExit = undefined;
+      const vaultBefore = new Set(app.lineage.vault.map((v) => v.id));
+      if (skipped) await bounded(app.engine.keep([]), 8000, "keep by preference");
       // (`refresh` resolves void, so a sentinel tells a timeout from success)
       if (!(await bounded(app.refresh().then(() => true), 8000, "refresh at exit")) && !disposed) { clearTimeout(guard); app.go({ kind: "camp" }); return; }
+      if (skipped) {
+        const kept = new Set<number>();
+        const gained = app.lineage.vault.filter((v) => !vaultBefore.has(v.id)).map((v) => v.kind);
+        for (const kind of gained) { const it = skipped.items.find((x) => x.kind === kind && !kept.has(x.id)); if (it) kept.add(it.id); }
+        salvagedRows = letGoRows(skipped, kept);
+      }
     } finally { /* guard cleared on every normal path below */ }
     await finishAfterRefresh(tier, guard);
+  }
+  /** What an exit let go, per kind at the engine's worth at this exit (`salvageValue` when the wire has none). */
+  function letGoRows(p: { items: InvItem[]; tier: string; worth?: number[] }, kept: Set<number>): { kind: string; n: number; gold: number }[] {
+    const rows = new Map<string, { kind: string; n: number; gold: number }>();
+    p.items.forEach((it, i) => { if (kept.has(it.id)) return; const r = rows.get(it.kind) ?? { kind: it.kind, n: 0, gold: 0 }; r.n++; r.gold += p.worth?.[i] ?? salvageValue(it.kind, p.tier); rows.set(it.kind, r); });
+    return [...rows.values()].filter((r) => r.gold > 0);
   }
   async function finishAfterRefresh(tier: Tier, guard: number): Promise<void> {
     clearTimeout(guard);
@@ -732,7 +755,7 @@ export function renderWatch(app: App): Mounted {
       deaths: tier === "death" ? [{ cause: heroCause ?? exitLine?.text ?? /* copy:label */ "death", n: 1 }] : [],   // Cut 10 §3: the death it came from
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,
       xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
-      salvaged: mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
+      salvaged: reconcileSalvage(mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), L.gold_ledger ?? []), deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
       banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, bones_found: bonesFound,   // rest is still ahead: the camp shows it
       exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
     };
@@ -745,6 +768,19 @@ export function renderWatch(app: App): Mounted {
     for (const r of [...a, ...b]) { const x = m.get(r.kind) ?? { kind: r.kind, n: 0, gold: 0 }; x.n += r.n; x.gold += r.gold; m.set(r.kind, x); }
     return [...m.values()].filter((r) => r.gold > 0);
   }
+  /** The rows' gold made to sum to the ledger's salvage for this exit — the `salvage` lines after the newest exit line (the
+   *  gold sheet's own slicing, ui/gold.ts) — by moving the difference onto the largest row(s); without a salvage line the rows
+   *  stand. The report's SALVAGED then reconciles with the gold sheet by construction (QA on e0f87e7: "SALVAGED $12 vs +$17
+   *  salvage"; "$5 vs +$8": items the sheet never listed, and worths the client's table read differently). */
+  function reconcileSalvage(rows: { kind: string; n: number; gold: number }[], ledger: { t: number; delta: number; why: string }[]): { kind: string; n: number; gold: number }[] {
+    let i = ledger.length - 1; while (i >= 0 && !/^(returned|banked|died|lost|stalled)\b/.test(ledger[i].why)) i--;
+    const lines = ledger.slice(i + 1).filter((g) => /^salvage/.test(g.why));
+    if (!lines.length || !rows.length) return rows;
+    let diff = lines.reduce((a, g) => a + g.delta, 0) - rows.reduce((a, r) => a + r.gold, 0);
+    const out = rows.map((r) => ({ ...r })).sort((a, b) => b.gold - a.gold);
+    for (const r of out) { if (!diff) break; const take = Math.max(-r.gold, diff); r.gold += take; diff -= take; }
+    return out.filter((r) => r.gold > 0);
+  }
   // Addendum D: choose what to keep before the run settles
   function exitSheet(p: { items: InvItem[]; tier: string; worth?: number[] }, then: () => void): void {
     const free = Math.max(0, vaultSlots(app.lineage.unlocks) - app.lineage.vault.length);
@@ -756,7 +792,10 @@ export function renderWatch(app: App): Mounted {
       const paint = (): void => {
         replace(count, `${keep.size}/${free}`);
         replace(chips, ...p.items.map((it, i) => h("button", { class: `chip item${keep.has(it.id) ? " on" : ""}`, onclick: () => {
-          if (keep.has(it.id)) keep.delete(it.id); else if (keep.size < free) keep.add(it.id);
+          // the picks full: the next chip swaps in for the oldest pick (a Set keeps insertion order) — QA on e0f87e7:
+          // "VAULT 1/1 after picking one item: tapping a second chip does nothing"
+          if (keep.has(it.id)) keep.delete(it.id);
+          else { if (keep.size >= free) { const oldest = keep.values().next().value; if (oldest === undefined) return; keep.delete(oldest); } keep.add(it.id); }
           paint();
         } }, it.label, " ", keep.has(it.id) ? h("b", null, "⌂") : h("b", { class: "num gold" }, `$${p.worth?.[i] ?? salvageValue(it.kind, p.tier)}`))));   // the engine's worth at this exit (its old client table read 4×)
       };
@@ -764,14 +803,14 @@ export function renderWatch(app: App): Mounted {
       const bones = p.tier === "death" && bonesLeft !== undefined ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(bonesLeft)}`) : null;
       const ledger = exitLine?.text ? h("div", { class: "ledger-line num dim" }, exitLine.text) : null;   // Cut 6 §1: engine data, verbatim
       const trace = traceChip(exitTrace ?? exitLine?.trace, "chip mini", { rows: app.rules.rows, runId });   // Cut 9 §5: the trace on a chip; Cut 11 §3: with its chain
+      // the sheet counts picks against free slots, so its label is `keep 0/1`, not the camp's `vault 1/2` (QA on e0f87e7:
+      // "VAULT 0/1 while camp shows VAULT 1/2 · same counter")
       return h("div", { class: "sheet-body" },
-        h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", count, trace),
+        h("div", { class: "label row-label" }, /* copy:label */ "keep", " ", count, trace),
         chips, bones, ledger,
         h("button", { class: "btn primary wide", onclick: () => {
           if (sent) return; sent = true;
-          const rows = new Map<string, { kind: string; n: number; gold: number }>();
-          p.items.forEach((it, i) => { if (keep.has(it.id)) return; const r = rows.get(it.kind) ?? { kind: it.kind, n: 0, gold: 0 }; r.n++; r.gold += p.worth?.[i] ?? salvageValue(it.kind, p.tier); rows.set(it.kind, r); });
-          salvagedRows = [...rows.values()].filter((r) => r.gold > 0);
+          salvagedRows = letGoRows(p, keep);
           app.engine.keep([...keep]).then((L) => { app.lineage = L; }).catch((e) => console.warn("keep", e)).finally(() => { close(); then(); });
         } }, /* copy:button */ "keep"));
     });

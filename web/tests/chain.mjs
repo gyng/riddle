@@ -159,6 +159,31 @@ try {
   const gone = await page.evaluate(() => ({ sheet: !!document.querySelector(".sheet-wrap .replay"), viewer: "__replay" in window }));
   check(!gone.sheet && !gone.viewer, "escape closes the replay and disposes its viewer");
 
+  // QA on e0f87e7 (D): a clip whose window reaches the run's end "played ~3 s then the canvas went fully black and stayed
+  // black" — the floor log's `exit` / `descend` faded the renderer to dark. The clip holds its last frame: the canvas is lit
+  // 1 s and 5 s after the link opens (read inside a rAF, after the renderer's own, so the WebGL buffer is this frame's).
+  const endT = log.endTick ?? fl.to;
+  const lastFl = log.floors[log.floors.length - 1];
+  const lit = () => page.evaluate(() => new Promise((res) => requestAnimationFrame(() => {
+    const c = document.querySelector(".sheet-wrap .replay canvas"); if (!c) return res(-1);
+    const o = document.createElement("canvas"); o.width = c.width; o.height = c.height;
+    const g = o.getContext("2d"); g.drawImage(c, 0, 0);
+    const d = g.getImageData(0, 0, o.width, o.height).data; let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 60) n++;
+    res(n);
+  })));
+  await page.evaluate(({ t, depth }) => { const r = window.__riddle; const d = r.__death; d.chain = [{ text: "the walk-out", t, depth }]; d.trace.turns[1].rows[0].because = { text: "the walk-out", t, depth }; r.go({ kind: "death", death: d }); }, { t: Math.max(lastFl.from, endT - 5), depth: lastFl.depth });
+  await sleep(300);
+  await page.locator(".chain button.link").first().click({ timeout: 5000 });
+  await sleep(1000);
+  const lit1 = await lit();
+  await sleep(4000);
+  const lit5 = await lit();
+  const endTick = await page.evaluate(() => window.__replay?.tick?.() ?? null);
+  check(lit1 > 0 && lit5 > 0, `a clip that reaches the run's end holds its last frame: ${lit1} lit px at 1 s, ${lit5} at 5 s (paused at t${endTick}, exit t${endT})`);
+  await shot("chain-replay-end.png");
+  await page.keyboard.press("Escape"); await sleep(300);
+
   // §5: the death's ledger line opens the gold sheet filtered to the run
   const ledger = await page.evaluate(() => (window.__riddle.lineage.gold_ledger ?? []).map((g) => ({ t: g.t, delta: g.delta, why: g.why })));
   const exits = ledger.map((g, i) => ({ ...g, i })).filter((g) => /^(returned|banked|died|lost)\b/.test(g.why));
@@ -194,6 +219,27 @@ try {
   await sleep(300);
   const gsR = await page.evaluate(() => { const b = document.querySelector(".sheet-wrap .gold-sheet"); return b ? { filter: b.dataset.filter, n: b.querySelectorAll(".lrow[data-t]").length } : null; });
   check(!!gsR && gsR.filter === gs?.filter, `the report's exit line opens the same filtered sheet (${gsR?.filter})`);
+  await page.keyboard.press("Escape"); await sleep(200);
+
+  // QA on e0f87e7 (D): "because-links in a report's TRACE have no WATCH button; the return sheet's had them" — an exit line
+  // that carries its `run_id` (the core sends it) gives its trace chip the run, so the chain's in-range links get `watch`;
+  // the stall's trace, matched to the exit whose trace it is, too
+  const watchN = await page.evaluate(({ runId, inT, depth }) => {
+    const r = window.__riddle; const L = r.lineage;
+    const trace = { turns: [{ t: inT + 30, row: 0, verb: { v: "attack", a: "nearest" }, hp: 3, foes: 2, telegraphs: [], rows: [{ row: 0, why: "no item", because: { text: "den took the heal, D3", t: inT, depth } }] }] };
+    const line = { carried: 30, keep_pct: 60, kept: 18, spent: 0, spent_on: [], text: "returned $18 · $30 carried · keeps 60%", trace, run_id: runId };
+    const stall = { row: 0, fired: 3, text: "R1 return ended 3 runs at D4", patches: [], trace: JSON.parse(JSON.stringify(trace)) };
+    r.go({ kind: "report", report: { elapsed_s: 60, runs: 1, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 1, exits: [line], stall } });
+    return { chips: document.querySelectorAll(".report .exit-lines .chip.mini").length + document.querySelectorAll(".report .stall .chip.mini").length };
+  }, { runId: log.runId, inT, depth: fl.depth });
+  check(watchN.chips === 2, `the report's exit line and the stall carry trace chips (${watchN.chips})`);
+  await page.locator(".report .exit-lines .chip.mini").first().click({ timeout: 5000 }); await sleep(300);
+  const exitLinks = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .chain .chain-row")].map((el) => ({ text: el.innerText.replace(/\s+/g, " ").trim(), watch: !!el.querySelector("button.link") })));
+  check(exitLinks.length >= 1 && exitLinks[0].watch, `a report exit line's trace has watch on its in-range link: ${JSON.stringify(exitLinks[0])}`);
+  await page.keyboard.press("Escape"); await sleep(200);
+  await page.locator(".report .stall .chip.mini").first().click({ timeout: 5000 }); await sleep(300);
+  const stallLinks = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .chain .chain-row")].map((el) => ({ text: el.innerText.replace(/\s+/g, " ").trim(), watch: !!el.querySelector("button.link") })));
+  check(stallLinks.length >= 1 && stallLinks[0].watch, `the stall's trace (the same run's) has watch too: ${JSON.stringify(stallLinks[0])}`);
   await page.keyboard.press("Escape");
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);

@@ -12,6 +12,15 @@
 //   8  the supply shop and the unlock shelf stay painted while the forecast computes (from the last catalogue, the fetches ahead of the forecast)
 //   9  an unlock sheet's `buy` is off while gated — the engine's `needs`, or the marks short against the live lineage (a stale `available`)
 //  10  the yours line has no `· card RN first` suffix (a card sits before the engagement row on purpose)
+// QA lapses on build e0f87e7 (scratchpad/qaC, qaD):
+//  11  the report's `· N more` is a button that expands to every exit line; runs without a line read `· N unlisted` (dim,
+//      inert); a recovered bones pile reads `found ♟3's bones · D8 · 11 items` (never a pile still lying there)
+//  12  the watch mode chosen (`fast`) is remembered: the save blob carries it and the next watch starts in it
+//  13  the exit sheet's counter is `keep 0/1` (picks against free slots, not the camp's `vault 1/2`); a tap past the free
+//      slots swaps the oldest pick out
+//  14  SALVAGED agrees with the gold sheet: the report's rows sum to the ledger's salvage lines of that exit — with the sheet
+//      (the kept item absent from the rows) and with the vault full (no sheet; the rows are still built)
+//  15  in `fights` the interstitial names the HUD's floor whenever both show (the card repaints as each step lands)
 //
 //   node web/tests/qa9.mjs        (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
@@ -203,6 +212,98 @@ try {
   await sleep(300);
   during = await page.evaluate(() => ({ shop: document.querySelectorAll(".supplies .chip.buy").length, cards: document.querySelectorAll(".unlocks .card").length }));
   check(during.shop > 0 && during.cards > 0, `from the last catalogue with the fetches hung: ${during.shop} shop chips, ${during.cards} unlock cards`);
+
+  // 11: `· N more` expands the exit lines; `· N unlisted` names the runs with no line; bones piles read as found
+  await page.evaluate(() => {
+    const r = window.__riddle; const L = r.lineage;
+    const exits = Array.from({ length: 12 }, (_, i) => ({ carried: 10 + i, keep_pct: 60, kept: 6 + i, spent: 0, spent_on: [], text: `returned $${6 + i} · $${10 + i} carried · keeps 60%` }));
+    r.go({ kind: "report", report: { elapsed_s: 3600, runs: 15, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 15, exits, bones_found: ["heir 3 · D8 · 11 items", "D5 · 7 items", "bones:6:4"] }, absence: true });
+  });
+  await sleep(300);
+  const exitsDom = () => page.evaluate(() => ({
+    lines: document.querySelectorAll(".report .exit-lines .ledger-line button.ledger-btn").length,
+    more: document.querySelector(".report .exit-lines button.ledger-more")?.textContent ?? null,
+    unlisted: [...document.querySelectorAll(".report .exit-lines .ledger-line.unlisted")].map((e) => ({ text: e.textContent, tag: e.tagName, dim: e.classList.contains("dim") })),
+    bones: [...document.querySelectorAll(".report .rsec")].find((s) => s.querySelector(".label")?.textContent === "bones")?.querySelectorAll("li") ?? [],
+  }));
+  let ex = await exitsDom();
+  check(ex.lines === 8 && ex.more === "· 4 more", `12 exits over 15 runs: 8 lines and a more button (${ex.lines} lines, "${ex.more}")`);
+  check(ex.unlisted.length === 1 && ex.unlisted[0].text === "· 3 unlisted" && ex.unlisted[0].tag === "DIV" && ex.unlisted[0].dim, `the runs with no line: "${ex.unlisted[0]?.text}" (${ex.unlisted[0]?.tag}, dim ${ex.unlisted[0]?.dim})`);
+  await page.locator(".report .exit-lines button.ledger-more").click({ timeout: 5000 }); await sleep(200);
+  ex = await exitsDom();
+  check(ex.lines === 12 && ex.more === null && ex.unlisted.length === 1, `more expands to every line, the unlisted count stays (${ex.lines} lines, more ${ex.more}, ${ex.unlisted.length} unlisted)`);
+  const bones = await page.evaluate(() => [...document.querySelectorAll(".report .rsec")].filter((s) => s.querySelector(".label")?.textContent === "bones").flatMap((s) => [...s.querySelectorAll("li")].map((l) => l.textContent)));
+  check(bones.length === 3 && bones[0] === "found ♟3's bones · D8 · 11 items" && bones[1] === "found bones · D5 · 7 items" && bones[2] === "found bones · D6 · 4 items", `bones piles read as found: ${JSON.stringify(bones)}`);
+  // no line without a line: 8 exits over 8 runs show neither `more` nor `unlisted`
+  await page.evaluate(() => {
+    const r = window.__riddle; const L = r.lineage;
+    const exits = Array.from({ length: 8 }, (_, i) => ({ carried: 10 + i, keep_pct: 60, kept: 6 + i, spent: 0, spent_on: [], text: `returned $${6 + i} · $${10 + i} carried · keeps 60%` }));
+    r.go({ kind: "report", report: { elapsed_s: 3600, runs: 8, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 8, exits } });
+  });
+  await sleep(200);
+  ex = await exitsDom();
+  check(ex.lines === 8 && ex.more === null && ex.unlisted.length === 0, `8 exits over 8 runs: no more, no unlisted (${ex.lines} lines)`);
+
+  // 12 · 13 · 14: a fake run that returns with items (seed 13, return at D3), watched in `fast`
+  const rules = encodeURIComponent("depth>=3 → return\nfoes>=1 → attack nearest");
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=13&rules=${rules}&autosend=1`, { waitUntil: "domcontentloaded" });
+  await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
+  // 15: in `fights` the interstitial names the HUD's floor whenever both show (QA on e0f87e7: "`D1 · 16 rooms · $18` while the
+  // HUD reads `32/40 D2`") — sampled through the drive below, ▶▶| pressed every 300 ms as the QA player did
+  const cardSample = () => page.evaluate(() => { const c = document.querySelector(".interstitial"); const card = c && !c.hidden ? c.textContent : null; const hud = document.querySelector(".hud .depth")?.textContent ?? ""; return { card, hud, mismatch: !!card && !!hud && !card.startsWith(`${hud} `) }; });
+  const cardSamples = [];
+  const ledgerSalvage = () => page.evaluate(() => {
+    const g = window.__riddle.lineage.gold_ledger ?? []; let i = g.length - 1;
+    while (i >= 0 && !/^(returned|banked|died|lost|stalled)\b/.test(g[i].why)) i--;
+    return { exit: g[i]?.why ?? null, salvage: g.slice(i + 1).filter((x) => /^salvage/.test(x.why)).reduce((a, x) => a + x.delta, 0) };
+  });
+  const reportSalvaged = () => page.evaluate(() => [...document.querySelectorAll(".report .rsec")].filter((s) => s.querySelector(".label")?.textContent === "salvaged").flatMap((s) => [...s.querySelectorAll("li")].map((l) => ({ text: l.textContent.replace(/\s+/g, " ").trim(), gold: Number(/\$(\d+)/.exec(l.textContent)?.[1] ?? 0) }))));
+  const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); await page.locator(".hud.bottom .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {}); await sleep(300); } return state(); };
+  let s2 = await drive(true);
+  check(s2?.screen === "exit", `the run ended on the keep sheet (${s2?.screen})`);
+  const shownCards = cardSamples.filter((c) => c.card), mism = cardSamples.filter((c) => c.mismatch);
+  check(shownCards.length > 0 && mism.length === 0, `the card named the HUD's floor in every sample it showed (${shownCards.length} samples${mism.length ? `; off: ${mism.map((m) => `${m.card} | ${m.hud}`).join(", ")}` : ""})`);
+  // 12: `fast` chosen here (under the sheet: a DOM click) is the next run's mode
+  await page.evaluate(() => { for (const b of document.querySelectorAll("main.watch .hud.bottom .hud-btn")) if (b.textContent === "fast") b.click(); }); await sleep(200);
+  const saved = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, blob: JSON.parse(window.__riddle.exportSave()).watch }));
+  check(saved.mode === "fast" && saved.blob === "fast", `fast chosen: the watch is in it and the save blob carries it (${saved.mode}, ${saved.blob})`);
+  const keepSheet = () => page.evaluate(() => { const w = [...document.querySelectorAll(".sheet-wrap")].pop(); const lab = w?.querySelector(".label.row-label"); return { label: lab?.firstChild?.textContent?.trim() ?? "", count: lab?.querySelector(".num")?.textContent ?? "", on: [...(w?.querySelectorAll(".chips .chip.item") ?? [])].map((c) => c.classList.contains("on")), n: w?.querySelectorAll(".chips .chip.item").length ?? 0 }; });
+  let ks = await keepSheet();
+  check(ks.label === "keep" && ks.count === "0/1" && ks.n >= 3, `the sheet counts picks against free slots as keep: "${ks.label} ${ks.count}" over ${ks.n} chips`);
+  const kchip = (i) => page.locator(".sheet-wrap .chips .chip.item").nth(i);
+  await kchip(0).click({ timeout: 5000 }); await sleep(100); ks = await keepSheet();
+  check(ks.count === "1/1" && ks.on[0] && !ks.on[1], `one pick: "${ks.count}", chip 1 on`);
+  await kchip(1).click({ timeout: 5000 }); await sleep(100); ks = await keepSheet();
+  check(ks.count === "1/1" && !ks.on[0] && ks.on[1], `a tap past the free slots swaps the oldest pick out: "${ks.count}", chip 2 on, chip 1 off`);
+  await kchip(1).click({ timeout: 5000 }); await sleep(100); ks = await keepSheet();
+  check(ks.count === "0/1" && !ks.on.some(Boolean), `a tap on a pick lets it go: "${ks.count}"`);
+  const keptKind = await page.evaluate(() => document.querySelector(".sheet-wrap .chips .chip.item")?.textContent.replace(/\s+\$\d+$/, "").trim().split(" ")[0]);
+  await kchip(0).click({ timeout: 5000 }); await sleep(100);
+  await page.locator(".sheet-wrap button.btn.primary.wide").first().click({ timeout: 5000 });
+  s2 = await waitFor((x) => x && x.screen === "report" && !x.busy, "the report after keep", 30_000);
+  await sleep(300);
+  let ls = await ledgerSalvage(), sv = await reportSalvaged();
+  let sum = sv.reduce((a, r) => a + r.gold, 0);
+  check(ls.salvage > 0 && sv.length > 0 && sum === ls.salvage, `with the sheet: SALVAGED sums to the ledger's salvage after "${ls.exit}" ($${sum} vs $${ls.salvage}): ${sv.map((r) => r.text).join(" · ")}`);
+  check(keptKind && !sv.some((r) => r.text.startsWith(keptKind)), `the kept ${keptKind} is not among the salvaged rows`);
+  const vaultN = await page.evaluate(() => window.__riddle.lineage.vault.length);
+  check(vaultN === 1, `the vault holds the kept item (${vaultN}/1: full)`);
+  // 12: the next watch starts in `fast`; 14: with the vault full the sheet is skipped and SALVAGED is still built
+  await page.evaluate(() => window.__riddle.go({ kind: "watch" }));
+  await waitFor((s) => s?.screen === "watch", "the second watch");
+  const mode2 = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, on: [...document.querySelectorAll(".hud.bottom .hud-btn.on")].map((b) => b.textContent) }));
+  check(mode2.mode === "fast" && mode2.on.join() === "fast", `the next watch starts in the remembered mode (${mode2.mode}, on: ${mode2.on.join()})`);
+  // the fake's worths equal the client's table, so the ledger is skewed through the lineage the client refreshes at the exit:
+  // one more `+$9 salvage` line at the exit's tick — the rows must move to it (the largest row takes the difference)
+  await page.evaluate(() => { const e = window.__riddle.engine; const real = e.lineage.bind(e); e.lineage = async () => { const L = await real(); const g = L.gold_ledger ?? []; const last = g[g.length - 1]; if (last && /^salvage/.test(last.why) && !g.some((x) => x.why === "salvage")) g.push({ t: last.t, delta: 9, why: "salvage" }); return L; }; });
+  s2 = await drive();
+  check(s2?.screen === "report", `the vault full: the run went straight to the report (${s2?.screen})`);
+  await waitFor((x) => x && !x.busy, "the engine idle", 30_000); await sleep(300);
+  ls = await ledgerSalvage(); sv = await reportSalvaged(); sum = sv.reduce((a, r) => a + r.gold, 0);
+  check(ls.salvage > 0 && sv.length > 0 && sum === ls.salvage, `vault full, no sheet: SALVAGED sums to the ledger's salvage after "${ls.exit}" ($${sum} vs $${ls.salvage}): ${sv.map((r) => r.text).join(" · ")}`);
+  // seed 13's second run lets go teleport ×2 ($14 at the table) · sword $12 · aggravate $7 · enchant $7 · fire $5: the +$9 lands on the teleports
+  const top = [...sv].sort((a, b) => b.gold - a.gold)[0];
+  check(top?.text === "teleport ×2 · $23" && sv.find((r) => r.text.startsWith("sword"))?.gold === 12, `the skew (+$9) landed on the largest row alone: ${sv.map((r) => r.text).join(" · ")}`);
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

@@ -2,7 +2,9 @@
 // set tabs; the engine's saved sets are the truth now, so v1 is read but its sets are ignored.)
 // Cut 7 §2: `origins` = each saved set's row origins (`preset | patch | card | player`, by row index), a client-side
 // tag the engine save does not carry.
-export type SaveBlob = { v: 1 | 2; engine: string; loadout: number[]; last_seen: number; runs?: number; origins?: string[][] };
+// `watch`: the last chosen watch mode (`fights | fast`), so the next run starts in it (QA on e0f87e7: "`fast` chosen in run 3
+// was not remembered: run 4 started on fights").
+export type SaveBlob = { v: 1 | 2; engine: string; loadout: number[]; last_seen: number; runs?: number; origins?: string[][]; watch?: "fights" | "fast" };
 const KEY = "riddle.save";
 
 export function readBlob(): SaveBlob | null {
