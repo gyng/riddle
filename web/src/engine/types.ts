@@ -49,7 +49,8 @@ export type Stake = { loot: number; brought: { label: string; insured: boolean }
 /** Cut 6 §1 — the ledger line of an exit: one arithmetic line the player can check, `text` is shown verbatim
  *  (`$84 carried · return keeps 60% → $50 · supplies −$12 → $68`). Fractions: `keep_pct` 0..100. */
 export type ExitLine = { carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string;
-                         trace?: Trace };                                                                    // Cut 9 §5: the exit's last-5 trace (every tier)
+                         trace?: Trace;                                                                     // Cut 9 §5: the exit's last-5 trace (every tier)
+                         salvaged?: { kind: string; n: number; gold: number }[] };                          // what the exit salvaged before the keep sheet (a return's 40 % cut), per kind in coins
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
 export type GoldLine = { t: number; delta: number; why: string };
 /** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */

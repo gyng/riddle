@@ -384,7 +384,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     run.last_target = None;
     run.blocked_now = None;
     for (i, row) in rows.iter().map(|(i, r)| (*i, r)) {
-        if stuck && targets_foes(&row.verb) {
+        // The guard ignores the foes at range it paced in front of; one at the hero's elbow
+        // is always worth a row (QA on e0f87e7: ten `pick up` rows with a jackal adjacent and
+        // `foes ≥ 1 → attack nearest` reading `stuck`).
+        if stuck && v.adj == 0 && targets_foes(&row.verb) {
             row_why(run, cx, i, "stuck", None, None);
             continue;
         }

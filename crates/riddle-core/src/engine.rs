@@ -2317,6 +2317,14 @@ impl Game {
         let eligible: Vec<Item> = all.iter().take(n_keep).cloned().collect();
         let rest_items: Vec<Item> = all.into_iter().skip(n_keep).collect();
         self.salvage(&rest_items, pct);
+        // Per kind, the coins the cut brought (as the batch report rounds them).
+        let mut cut: std::collections::BTreeMap<String, (u32, i32)> = std::collections::BTreeMap::new();
+        for it in &rest_items {
+            let e = cut.entry(it.kind.clone()).or_insert((0, 0));
+            e.0 += 1;
+            e.1 += salvage_value(&it.kind) * pct / GOLD_DIVISOR;
+        }
+        let cut_rows: Vec<crate::wire::SalvageRow> = cut.into_iter().map(|(k, (n, c))| crate::wire::SalvageRow { kind: k, n, gold: (c + 50) / 100 }).filter(|r| r.gold > 0).collect();
         self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible, pct });
         // Death: graveyard, grudge, heir, record.
         if tier == ExitTier::Death {
@@ -2393,6 +2401,7 @@ impl Game {
         // Cut 9 §5: every exit carries its last five hero turns (read off the run's own trace
         // ring: nothing more per tick).
         line.trace = Some(exit_trace(&run, &self.prov));
+        line.salvaged = cut_rows;
         debug_assert!(self.lineage.gold - gold_before == loot_kept - spent + self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.why.starts_with("salvage")).map(|g| g.delta).sum::<i32>());
         if tier == ExitTier::Death {
             if let Some(rec) = self.deaths.get_mut(&run.id) {
@@ -2789,7 +2798,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} unused", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new() }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:

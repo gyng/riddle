@@ -135,6 +135,11 @@ pub struct ExitLine {
     /// a death's own `Death.trace` is longer, so its line leaves this out).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trace: Option<Trace>,
+    /// What the exit salvaged before the keep sheet (the 40 % a return cuts), per kind in
+    /// coins — the watched report's `salvaged` lines are these plus what the sheet let go
+    /// (QA on e0f87e7: `SALVAGED $6` beside the ledger's `+$12 salvage`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub salvaged: Vec<SalvageRow>,
 }
 
 /// Cut 6 §1: one gold movement (`+50 returned D5`, `−40 heal`, `−8 insure sword`, `+3

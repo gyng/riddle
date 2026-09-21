@@ -731,13 +731,19 @@ export function renderWatch(app: App): Mounted {
       deaths: tier === "death" ? [{ cause: heroCause ?? exitLine?.text ?? /* copy:label */ "death", n: 1 }] : [],   // Cut 10 §3: the death it came from
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,
       xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
-      salvaged: salvagedRows, deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
+      salvaged: mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
       banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, bones_found: bonesFound,   // rest is still ahead: the camp shows it
       exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
     };
     app.go({ kind: "report", report });
   }
 
+  /** The exit's own cut (on the line, from the engine) plus what the keep sheet let go, per kind. */
+  function mergeSalvage(a: { kind: string; n: number; gold: number }[], b: { kind: string; n: number; gold: number }[]): { kind: string; n: number; gold: number }[] {
+    const m = new Map<string, { kind: string; n: number; gold: number }>();
+    for (const r of [...a, ...b]) { const x = m.get(r.kind) ?? { kind: r.kind, n: 0, gold: 0 }; x.n += r.n; x.gold += r.gold; m.set(r.kind, x); }
+    return [...m.values()].filter((r) => r.gold > 0);
+  }
   // Addendum D: choose what to keep before the run settles
   function exitSheet(p: { items: InvItem[]; tier: string; worth?: number[] }, then: () => void): void {
     const free = Math.max(0, vaultSlots(app.lineage.unlocks) - app.lineage.vault.length);
