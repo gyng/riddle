@@ -29,7 +29,12 @@ export function patchRows(app: App, patches: Patch[], baseline?: number): HTMLEl
     const delta = Math.round(p.forecast_delta * 100);
     const unlock = p.insert_at < 0;
     const target = p.remove || p.replace ? h("small", { class: "dim target" }, `R${p.insert_at + 1} ${p.remove ? "−" : "↻"} `) : "";
-    const line = p.below_bar
+    // A row the set already holds (an old death opened from the chronicle, a patch tapped twice) is not inserted again:
+    // the row reads `at R2` and the tap opens the camp on it (QA: "tapped patch → R1 inserted AGAIN → 5/4")
+    const held = unlock || p.remove || p.replace ? -1 : app.rules.rows.findIndex((r) => sameRow(r, p.row));
+    const line = held >= 0
+      ? /* copy:callout */ `at R${held + 1}`
+      : p.below_bar
       ? /* copy:callout */ `survives ${pct(p.survive)} · below bar`
       : baseline === undefined
         ? /* copy:callout */ `reach ${pct(p.survive)} · base ${pct(Math.max(0, p.survive - p.forecast_delta))}`
@@ -44,11 +49,13 @@ export function patchRows(app: App, patches: Patch[], baseline?: number): HTMLEl
           const i = have >= 0 ? have : app.insertRow(p.row, 0, "patch");
           app.go({ kind: "camp", highlight: i });
         }
-      : (): void => { const i = app.applyPatch(p); app.go({ kind: "camp", highlight: i }); };
+      : held >= 0
+        ? (): void => app.go({ kind: "camp", highlight: held })
+        : (): void => { const i = app.applyPatch(p); app.go({ kind: "camp", highlight: i }); };
     const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : rowLabel(p.row));
     // an unlock's second line is the row it inserts once bought; a root patch's is the chain's root it answers
     const root = unlock ? (p.root ? h("small", { class: "dim" }, rowLabel(p.row)) : "") : p.root ? h("small", { class: "root" }, "← ", p.root.text) : "";
-    return h("button", { class: `patch${p.remove ? " remove" : ""}${p.below_bar ? " below" : ""}${unlock ? " unlock" : ""}`, onclick },
+    return h("button", { class: `patch${p.remove ? " remove" : ""}${p.below_bar || held >= 0 ? " below" : ""}${unlock ? " unlock" : ""}`, onclick },
       h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
         h("span", { class: "num surv" }, line),

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Cut 4 §1 gate: tapping a patch with full rows never changes any existing row and disables `send` until a
-// row is removed. Runs on the GPU harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219)
+// row is removed; a patch the set already holds reads `at R1` and inserts nothing. Runs on the browser harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219)
 // with the fake engine (`?engine=fake&dev=1`; the fake's max_rows is 4 without row unlocks).
 //
 //   node web/tests/patch-overflow.mjs        (or `pnpm test` in web/)
@@ -91,6 +91,21 @@ try {
   check(fixed.rows.length === max && fixed.count === `${max}/${max}` && !fixed.countRed, `after ×: ${fixed.count}, not red`);
   check(fixed.sendDisabled === false, "send enabled again");
   check(JSON.stringify(fixed.rows) === JSON.stringify([over.rows[0], ...full.rows.slice(0, max - 1)]), "the remaining rows are the patch + the first max−1 originals");
+
+  // the same death opened again (the chronicle's old death, a second look): its patch row is already R1 — the tap opens the
+  // camp on it and inserts nothing (QA on 952e306: "tapped patch → R1 inserted AGAIN → 5/4")
+  await page.evaluate((p) => {
+    const r = window.__riddle;
+    r.go({ kind: "death", death: { run_id: 0, depth: 3, cause: "goblin_archer", margin: "3 hp short", verdict: "gap", baseline: 0.25, trace: { turns: [] }, patches: [p], morgue: "" } });
+  }, patch);
+  await waitFor((s) => s?.screen === "death", "death again");
+  const heldText = await page.locator("button.patch .surv").first().innerText();
+  check(heldText === "at R1", `a held patch reads where it sits: "${heldText}"`);
+  await page.locator("button.patch").first().click({ timeout: 5000 });
+  await waitFor((s) => s?.screen === "camp", "camp after the second tap");
+  await sleep(200);
+  const again = await editor();
+  check(JSON.stringify(again.rows) === JSON.stringify(fixed.rows) && again.count === `${max}/${max}`, `the second tap inserted nothing: ${again.count}`);
 
   // a stall-style replace patch on a full set never overflows
   const rep = { row: { conds: [{ k: "hp<", n: 30 }], verb: { v: "return" } }, insert_at: 1, survive: 0.6, forecast_delta: 0.03, replace: true };
