@@ -718,6 +718,14 @@ export function renderWatch(app: App): Mounted {
     }
     const L = app.lineage;
     const bests: string[] = []; for (let d = before.best + 1; d <= L.best_depth; d++) bests.push(`D${d}`);
+    // a find labelled at pickup by its flavour (`red potion?`) reads by its kind once the same send learned it
+    // (`item:red=confusion` in `learned`; QA on 952e306: "LEARNED confusion red, FOUND still red potion?")
+    const idents = new Map(learned.map((f) => /^item:([a-z_]+)=([a-z_]+)$/.exec(f)).filter((m): m is RegExpExecArray => !!m).map((m) => [m[1], m[2]]));
+    for (const it of found) {
+      const m = /^([a-z_]+) (potion|scroll)\?$/.exec(it.label);
+      const kind = m && idents.get(m[1]);
+      if (kind) { it.label = `${kind.replace(/_/g, " ")} ${m![2]}`; it.kind = kind; }
+    }
     const report: ReturnReport = {
       elapsed_s: Math.round((engineTick - startTick) / 10), runs: 1, sampled: false, learned, bests, found, pending: [],
       deaths: tier === "death" ? [{ cause: heroCause ?? exitLine?.text ?? /* copy:label */ "death", n: 1 }] : [],   // Cut 10 §3: the death it came from

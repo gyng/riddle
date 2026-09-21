@@ -2305,7 +2305,10 @@ impl Game {
         } else {
             all.retain(|i| !run.supplies.contains(&i.id));
         }
-        all.sort_by(|a, b| b.value().cmp(&a.value()).then(a.id.cmp(&b.id)));
+        // A return keeps the dearest 60 %; what the vault sent along is the player's already
+        // and comes first, whatever it is worth (QA on 952e306: a vaulted poison potion,
+        // cheapest in the pack, was cut on a bail — `VAULT 1/1 → 0/1` with no line).
+        all.sort_by(|a, b| run.brought.contains(&b.id).cmp(&run.brought.contains(&a.id)).then(b.value().cmp(&a.value())).then(a.id.cmp(&b.id)));
         let n_keep = match tier {
             ExitTier::Bank => all.len(),
             ExitTier::Return => (all.len() * 60).div_ceil(100),
