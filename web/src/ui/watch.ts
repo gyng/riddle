@@ -80,7 +80,8 @@ const BLOW_TICKS = 20;              // Cut 10 §1: in `fights` the frame holds o
 // hurt ≥ SHOW_HURT hp in it, or under SHOW_HP of max hp, a boss, a companion fallen, a theft, or the run ending in it; the rest
 // pass under the card (a DEFAULT run's fights alone ran ~110 s at 1×; the gate is 90 s with ≥ 3 shown)
 const SHOW_HURT = 4, SHOW_HP = 0.25;
-const SKIP_FIGHT_BATCHES = 400;     // Cut 10 §1: ▶▶| steps at most this many BATCHes looking for the next fight (≈ 4000 ticks)
+const SKIP_FIGHT_BATCHES = 12_000;  // Cut 10 §1: ▶▶| steps to the next fight or the run's end (the run cap in BATCHes; ≈ 4 000 ticks
+                                    // landed on a paced stretch that looked the same — "inert", three QA players on Cut 12)
 const ENDING_TICKS = 30;            // Cut 7 §4: the last ticks before any exit play at 1×
 const SCENE_FOES = 2;               // Cut 7 §4: awake hostiles in the hero's room that make it a scene
 const AMBIENT_MS = 10_000, AMBIENT_SHOW_MS = 1500;   // Cut 7 §4: one ambient callout per 10 s, shown 1.5 s whatever the speed
