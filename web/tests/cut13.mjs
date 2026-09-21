@@ -1,0 +1,294 @@
+#!/usr/bin/env node
+// Cut 13 gates, client side (docs/CUT13.md §1–§5), on the fake engine (`?engine=fake&dev=1`) through the browser harness
+// (tools/browser.mjs; `--shots` runs headed on the GPU and writes scratchpad/cut13/*.png at 400×800×3) against the dev
+// server (tools/dev.sh, :5219):
+//   §1  the stake reads `keeps $0 · stalling` while the guard has fired (`Stake.stalling`, the fake's `?fake_stall=N` chore loop);
+//       a run that comes home stalled gets the verdict screen: the `stall` pill, the headline, the notes, the trace, the patches;
+//       an engine without the record falls back to the report (the exit line reads `returned $0 · … · stalled`); the report's
+//       `open` shows a stall verdict too
+//   §2  a new heir's trait is chosen: two chips beside `♟N`, the chosen one on, each with its rule under the name; a tap is
+//       `setTrait`; the send empties the offer and the chips vanish
+//   §3  the report's `spent` section (`heal ×16 · −$640`) and the gold line under the tiles (`+$412 banked · +$96 returned ·
+//       +$45 salvage · −$640 spent`); the fake's `auto: restock` fills `spent` across an absence
+//   §4  a situation's note cuts the fight frame in for SCENE_MS outside a fight (`fights` and `fast`), the note as the callout;
+//       the death screen shows `Death.notes`; a 40-char callout renders whole at 400 px; two callouts on one tick queue
+//   §5  an unlock delta within its ± reads `reach ~0`, otherwise `reach +5% ±3`; the first forecast paint's ± trails `…`, the
+//       refine's does not; the ends line carries `death 5% ±4`; a `dice` death says `forecast said N%`
+//
+//   node web/tests/cut13.mjs [--shots]       (part of `pnpm test` in web/)
+import { execFileSync } from "node:child_process";
+import { mkdirSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { launchBrowser, launchGpu } from "../../tools/browser.mjs";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
+const shots = process.argv.includes("--shots") ? resolve(ROOT, "scratchpad/cut13") : null;
+if (shots) mkdirSync(shots, { recursive: true });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const errors = [], out = [];
+let failed = 0;
+const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
+
+const browser = shots ? await launchGpu() : await launchBrowser();
+const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: shots ? 3 : 2 });
+page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
+page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+
+const state = () => page.evaluate(() => {
+  const r = window.__riddle, w = document.querySelector(".watch");
+  return r ? { screen: r.screen, booted: r.booted, busy: r.engineBusy, frame: w?.dataset.frame, mode: w?.dataset.mode, beats: Number(w?.dataset.beats ?? 0), tick: Number(w?.dataset.tick ?? 0), stake: document.querySelector(".stake")?.textContent ?? "", vault: !!document.querySelector(".sheet-wrap .vault-choice .chip") } : null;
+});
+async function waitFor(pred, label, timeout = 20_000) {
+  const t = Date.now(); let s = null;
+  while (Date.now() - t < timeout) {
+    s = await state();
+    if (s?.screen === "exit" && s.vault) { await page.locator(".sheet-wrap .vault-choice .chip").first().click({ timeout: 2000 }).catch(() => {}); await sleep(100); continue; }
+    if (pred(s)) return s;
+    await sleep(60);
+  }
+  throw new Error(`timeout waiting for ${label} (screen=${s?.screen} booted=${s?.booted} frame=${s?.frame})`);
+}
+const shot = async (name) => { if (shots) await page.screenshot({ path: `${shots}/${name}.png`, fullPage: !/beat|stall-hud/.test(name) }); };
+/** The death screen as text: the headline, the pill, the notes, the forecast line, the patches. */
+const deathScreen = () => page.evaluate(() => ({
+  line: document.querySelector(".death-line")?.textContent.replace(/\s+/g, " ").trim() ?? "",
+  pill: document.querySelector(".death-line .verdict")?.textContent ?? "", pillClass: document.querySelector(".death-line .verdict")?.className ?? "",
+  notes: [...document.querySelectorAll(".death-notes .note")].map((n) => n.textContent),
+  said: document.querySelector(".forecast-said")?.textContent ?? null,
+  trace: document.querySelectorAll(".death .trace tr, .death .trace-row, .death .trace li").length, patches: document.querySelectorAll("button.patch").length,
+  ledger: document.querySelector(".death .ledger-line")?.textContent ?? "",
+}));
+const emptyReport = (L, extra = {}) => ({ elapsed_s: 3600, runs: 1, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, ...extra });
+const fakeDeath = (extra) => page.evaluate((extra) => {
+  window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 3, cause: "goblin_archer", margin: "3 hp short", verdict: "gap", baseline: 0.25, trace: { turns: [] }, patches: [], morgue: "t10 a line", ...extra } });
+}, extra);
+
+try {
+  // ---- §1: the stake while stalling, then the stall verdict screen (the fake's chore loop after 20 turns on the floor)
+  const stallRules = encodeURIComponent("depth>=9 → return\nfoes>=1 → attack nearest");
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=21&fake_stall=20&rules=${stallRules}&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  let s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "the stalling run");
+  s = await waitFor((x) => x?.screen !== "watch" || /stalling/.test(x.stake), "the stalling stake", 30_000);
+  check(s.screen === "watch" && /keeps \$0 · stalling/.test(s.stake) && !/keeps \$[1-9]/.test(s.stake), `the stake reads keeps $0 · stalling while the guard has fired: "${s.stake}"`);
+  await shot("01-stall-hud");
+  s = await waitFor((x) => x && x.screen !== "watch", "the stalled run's end", 60_000);
+  if (s.screen === "exit") {   // the keep sheet still runs (a stall is a return with items in hand)
+    check(!!(await page.locator(".sheet-wrap .label.row-label").first().textContent().catch(() => "")).startsWith("keep"), "the keep sheet ran before the verdict");
+    await page.locator(".sheet-wrap button.btn.primary.wide").first().click({ timeout: 5000 });
+    s = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit" && !x.busy, "the screen after keep", 30_000);
+  } else s = await waitFor((x) => x && !x.busy, "the verdict", 30_000);
+  await sleep(200);
+  let d = await deathScreen();
+  check(s.screen === "death" && d.pill === "stall" && /verdict stall/.test(d.pillClass), `a stalled run opens the verdict screen with the stall pill (${s.screen}, pill "${d.pill}")`);
+  check(/^stalled · D\d+ · no path · stall$/.test(d.line), `the headline is the stall's cause: "${d.line}"`);
+  check(d.notes.length >= 1 && d.notes.at(-1) === "Stalled. Came home empty-handed." && d.notes.length <= 2, `the run's last notes sit under the headline (verbatim): ${JSON.stringify(d.notes)}`);
+  check(/returned \$0 · .* · keeps 0% · stalled/.test(d.ledger), `the stall's ledger line pays nothing: "${d.ledger}"`);
+  check(d.patches >= 1, `patches are measured like a death's (${d.patches})`);
+  await shot("02-stall-verdict");
+  // the fallback: an engine whose `death(id)` has no record → today's report, its exit line `returned $0 · … · stalled`
+  await page.evaluate(() => { window.__riddle.engine.death = () => Promise.reject(new Error("no record")); window.__riddle.go({ kind: "watch" }); });
+  s = await waitFor((x) => x?.screen === "watch", "the second stalling run");
+  s = await waitFor((x) => x && x.screen !== "watch", "its end", 60_000);
+  if (s.screen === "exit") { await page.locator(".sheet-wrap button.btn.primary.wide").first().click({ timeout: 5000 }); s = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit" && !x.busy, "the screen after keep", 30_000); }
+  await sleep(200);
+  const exitLine = await page.evaluate(() => document.querySelector(".report .exit-lines .ledger-btn")?.textContent ?? "");
+  check(s.screen === "report" && /^returned \$0 · .* · stalled/.test(exitLine), `without a stall record the report shows the run (${s.screen}: "${exitLine}")`);
+  // the report's `open` shows a stall verdict too
+  await page.evaluate(() => {
+    const r = window.__riddle; const L = r.lineage;
+    const worst = { run_id: 0, depth: 2, cause: "stalled", margin: "archer, no path", verdict: "stall", baseline: 0.1, trace: { turns: [] }, patches: [], morgue: "", notes: ["A den. Something sleeps.", "Stalled. Came home empty-handed."] };
+    r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, worst_death: worst } });
+  });
+  await sleep(200);
+  await page.locator("main.report button.btn", { hasText: /^open$/ }).first().click({ timeout: 5000 });
+  await waitFor((x) => x?.screen === "death", "the worst stall from the report");
+  d = await deathScreen();
+  check(d.pill === "stall" && d.line === "stalled · D2 · archer, no path · stall" && d.notes.length === 2, `the report's open shows the stall verdict: "${d.line}"`);
+
+  // ---- §2: the heir's trait is chosen
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await waitFor((x) => x?.booted && x.screen === "camp", "camp");
+  await sleep(300);
+  const traits = () => page.evaluate(() => ({
+    chips: [...document.querySelectorAll(".strip .chip.trait")].map((c) => ({ name: c.querySelector("span")?.textContent ?? "", rule: c.querySelector(".rule")?.textContent ?? "", on: c.classList.contains("on"), disabled: c.disabled })),
+    trait: window.__riddle.lineage.trait, offer: window.__riddle.lineage.trait_offer ?? null, plain: [...document.querySelectorAll(".strip > span:not(.num):not(.chips)")].map((e) => e.textContent),
+  }));
+  let tr = await traits();
+  check(tr.chips.length === 2 && tr.offer?.length === 2 && tr.chips.map((c) => c.name).join() === tr.offer.join(), `two trait chips beside ♟N: ${tr.chips.map((c) => c.name).join(" | ")}`);
+  check(tr.chips.filter((c) => c.on).length === 1 && tr.chips.find((c) => c.on)?.name === tr.trait && tr.chips.find((c) => c.on)?.disabled === true, `the chosen one is on (${tr.trait}) and inert`);
+  check(tr.chips.every((c) => c.rule && c.rule.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 3), `each chip carries its rule under the name (≤ 3 words): ${tr.chips.map((c) => `"${c.rule}"`).join(" · ")}`);
+  await shot("03-trait-offer");
+  const other = tr.chips.find((c) => !c.on).name;
+  await page.locator(".strip .chip.trait", { hasText: other }).first().click({ timeout: 5000 });
+  await sleep(400);
+  tr = await traits();
+  check(tr.trait === other && tr.chips.find((c) => c.on)?.name === other, `a tap picks the trait (${tr.trait})`);
+  // the send takes the offer: the chips vanish, the plain trait shows
+  await page.evaluate(() => window.__riddle.go({ kind: "watch" }));
+  await waitFor((x) => x?.screen === "watch", "the watch");
+  await sleep(800);
+  await page.evaluate(async () => { await window.__riddle.refresh(); window.__riddle.go({ kind: "camp" }); });
+  await waitFor((x) => x?.screen === "camp", "camp again");
+  await sleep(200);
+  tr = await traits();
+  check(tr.chips.length === 0 && tr.offer === null && tr.plain.includes(other), `after the send the chips are gone and the strip reads the chosen trait (${tr.plain.join(", ")})`);
+
+  // ---- §3: the night's ledger
+  await page.evaluate(() => {
+    const r = window.__riddle; const L = r.lineage;
+    const exits = [{ carried: 412, keep_pct: 100, kept: 412, spent: 0, spent_on: [], text: "banked $412 · $412 carried · keeps 100%" }, { carried: 160, keep_pct: 60, kept: 96, spent: 0, spent_on: [], text: "returned $96 · $160 carried · keeps 60%" }];
+    r.go({ kind: "report", report: { elapsed_s: 3600, runs: 2, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [{ kind: "sword", n: 2, gold: 45 }], spent: [{ kind: "heal", n: 16, gold: 640 }], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 1, returned: 1, exits } });
+  });
+  await sleep(200);
+  const rep = () => page.evaluate(() => ({
+    spent: [...document.querySelectorAll(".report .rsec")].filter((s) => s.querySelector(".label")?.textContent === "spent").flatMap((s) => [...s.querySelectorAll("li")].map((l) => l.textContent.replace(/\s+/g, " ").trim())),
+    gold: document.querySelector(".report .gold-line")?.textContent ?? null,
+  }));
+  let rp = await rep();
+  check(rp.spent.length === 1 && rp.spent[0] === "heal ×16 · −$640", `the spent section: ${JSON.stringify(rp.spent)}`);
+  check(rp.gold === "+$412 banked · +$96 returned · +$45 salvage · −$640 spent", `the gold line reconciles the tiles: "${rp.gold}"`);
+  await shot("04-report-ledger");
+  await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 60, runs: 1, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 } } }); });
+  await sleep(150);
+  rp = await rep();
+  check(rp.spent.length === 0 && rp.gold === null, "nothing bought, nothing salvaged: no spent section, no gold line");
+  // the fake's `auto: restock` across an absence: the leash packed is rebought at each return, the report's SPENT says so
+  const restocked = await page.evaluate(async () => {
+    const r = window.__riddle; const b = JSON.parse(r.exportSave()); const e = JSON.parse(b.engine);
+    e.lineage.gold = 900; e.lineage.unlocks.push("auto_supply"); e.lineage.trait_offer = undefined;
+    b.engine = JSON.stringify(e);
+    if (!(await r.importSave(JSON.stringify(b)))) return false;
+    await r.mutate(() => r.engine.buySupply("leash"));
+    await r.flush();   // the buy is debounced into the save; the reload below must find it
+    return r.lineage.supplies.some((s) => s.kind === "leash" && !s.free);
+  });
+  check(restocked, "the lineage packed a bought leash under auto: restock");
+  await page.goto(`${url}?dev=1&engine=fake&absent=2h`, { waitUntil: "domcontentloaded" });
+  s = await waitFor((x) => x?.booted && x.screen === "report" && !x.busy, "the 2 h report", 120_000);
+  await sleep(300);
+  rp = await rep();
+  const spentLeash = rp.spent.find((l) => /^leash ×\d+ · −\$\d+$/.test(l));
+  check(!!spentLeash && /spent/.test(rp.gold ?? ""), `the absence's report carries the restock: ${JSON.stringify(rp.spent)} · "${rp.gold}"`);
+  await shot("05-report-absence");
+
+  // ---- §4: the beats are on screen (fast, then fights), the death notes, the ticker
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "the fast run");
+  // a den note injected on the next quiet batch (no hostile adjacent, the frame on the map): the frame cuts in for its beat
+  const inject = (note) => page.evaluate((note) => {
+    const e = window.__riddle.engine; const real = e.step.bind(e); let done = false;
+    e.step = async (n) => {
+      const r = await real(n);
+      const w = document.querySelector(".watch");
+      const hx = r.snapshot.hero.x, hy = r.snapshot.hero.y;
+      const adjacent = r.snapshot.entities.some((x) => !x.ally && x.id !== r.snapshot.hero.id && Math.max(Math.abs(x.x - hx), Math.abs(x.y - hy)) <= 1);
+      if (!done && !adjacent && w?.dataset.frame === "map" && !r.run_over) { done = true; r.events.push({ t: r.snapshot.turn, k: "note", text: note }); window.__beatTick = r.snapshot.turn; }
+      return r;
+    };
+  }, note);
+  await inject("A den. Something sleeps.");
+  s = await waitFor((x) => x?.screen !== "watch" || x.beats >= 1, "the beat", 20_000);
+  check(s.beats >= 1, `a den note outside a fight is a beat (beats ${s.beats})`);
+  s = await waitFor((x) => x?.screen !== "watch" || x.frame === "fight", "the frame cut", 8000);
+  const beatText = await page.evaluate(() => ({ text: document.querySelector(".ticker")?.textContent ?? "", cls: document.querySelector(".ticker")?.className ?? "" }));
+  await sleep(250);   // the ticker's fade-in
+  const beatVis = await page.evaluate(() => { const t = document.querySelector(".ticker"); return t.classList.contains("beat") ? getComputedStyle(t).opacity : "gone"; });
+  check(s.frame === "fight", `the fight frame opens on the beat in fast (frame ${s.frame})`);
+  // the fake writes its own situation notes too (a vault or a shrine in view), any of which may be the first beat
+  const BEAT = /^(A den\. Something sleeps\.|A vault: three under a cage\.|A shrine\. Pray, at a price\.)$/;
+  check(BEAT.test(beatText.text) && /\bbeat\b/.test(beatText.cls) && beatVis !== "0", `the note is the callout, verbatim, visible in the frame: "${beatText.text}" (${beatText.cls}, opacity ${beatVis})`);
+  await shot("06-beat-fast");
+  // in `fights`: the beat cuts in from under the card
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+  s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fights", "the fights run");
+  await inject("A vault: three under a cage.");
+  s = await waitFor((x) => x?.screen !== "watch" || (x.beats >= 1 && x.frame === "fight"), "the beat's cut in fights", 20_000);
+  const beat2 = await page.evaluate(() => ({ text: document.querySelector(".ticker")?.textContent ?? "", card: document.querySelector(".watch")?.dataset.card, tick: Number(document.querySelector(".watch")?.dataset.tick), at: window.__beatTick }));
+  check(s.frame === "fight" && beat2.card === "0" && BEAT.test(beat2.text), `in fights the beat cuts in from under the card (frame ${s.frame}, card ${beat2.card}): "${beat2.text}"`);
+  check(beat2.text !== "A vault: three under a cage." || Math.abs(beat2.tick - beat2.at) <= 12, `the cut lands on the beat's tick (${beat2.tick} vs ${beat2.at})`);
+  await shot("07-beat-fights");
+  // the beat lets go after its ~4 s (the card is back) — unless a real fight took over
+  s = await waitFor((x) => x?.screen !== "watch" || x.frame === "map" || x.tick - beat2.at > 60, "the beat's release", 12_000).catch(() => null);
+  check(!!s, "the frame moved on after the beat");
+  // the ticker: a 40-char callout renders whole at 400 px; two callouts on one tick both show, one after the other — injected
+  // in `fast` on the map (no card to swallow them) on a batch whose ticker is idle (an ambient line holds it for its 1.5 s)
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for the ticker");
+  const long = "the goblin conjurer summons three blades"; // 40 chars
+  // the two land at the viewer's own tick and the clock is paused in the same task, so nothing else competes for the ticker
+  // (at 16× on the map a callout a turn evicts a queue — that regime is a flicker either way)
+  await page.evaluate((long) => {
+    const e = window.__riddle.engine; const real = e.step.bind(e); let done = 0;
+    e.step = async (n) => {
+      const r = await real(n); const w = document.querySelector(".watch"), t = document.querySelector(".ticker");
+      if (done < 1 && w?.dataset.frame === "map" && !t?.classList.contains("show") && !r.run_over) {
+        done++; const at = Number(w.dataset.tick);
+        r.events.push({ t: at, k: "callout", text: long }, { t: at, k: "callout", text: "second of two on one tick" });
+        for (const b of document.querySelectorAll("main.watch .hud-btn")) if (b.textContent === "⏸") b.click();
+      }
+      return r;
+    };
+  }, long);
+  const seen = new Set(); let clipped = false, joined = false;
+  for (let i = 0; i < 160; i++) {
+    const t = await page.evaluate(() => { const el = document.querySelector(".ticker"); if (!el || !el.classList.contains("show")) return null; const r = el.getBoundingClientRect(); return { text: el.textContent, right: r.right, left: r.left, scrollW: el.scrollWidth, clientW: el.clientWidth }; });
+    if (t) { seen.add(t.text); if (t.right > 400.5 || t.left < -0.5 || t.scrollW > t.clientW + 1) clipped = true; if (t.text.includes(long) && t.text !== long) joined = true; }
+    if (seen.has(long) && seen.has("second of two on one tick")) break;
+    await sleep(50);
+  }
+  check(seen.has(long) && !clipped, `a 40-char callout renders whole at 400 px (seen: ${[...seen].map((x) => `"${x}"`).join(", ")})`);
+  check(seen.has("second of two on one tick") && !joined, "two callouts on one tick queue: both show, never on one line");
+  // the death screen shows the notes
+  await fakeDeath({ notes: ["The green one: fire.", "Gambled: fire potion."] });
+  await waitFor((x) => x?.screen === "death", "a death with notes");
+  d = await deathScreen();
+  check(d.notes.join(" | ") === "The green one: fire. | Gambled: fire potion." && d.said === null, `the death screen shows the run's last two notes verbatim (a gap death says no forecast): ${JSON.stringify(d.notes)}`);
+  await shot("08-death-notes");
+
+  // ---- §5: the forecast's noise shown as noise
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await waitFor((x) => x?.booted && x.screen === "camp", "camp");
+  const fc = () => page.evaluate(() => ({ refined: document.querySelector(".forecast")?.dataset.refined, pms: [...document.querySelectorAll(".fc-bars .pm")].map((e) => e.textContent), ends: document.querySelector(".fc-ends:not([hidden])")?.textContent ?? "", stale: document.querySelector(".forecast")?.classList.contains("stale") }));
+  await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "0", null, { timeout: 15_000 });
+  let f = await fc();
+  check(f.refined === "0" && f.pms.length > 0 && f.pms.every((p) => /^ ±\d+…$/.test(p)), `the first paint's ± trail …: ${f.pms.join(",")}`);
+  check(/ · death \d+% ±\d+… · ~\$\d+$/.test(f.ends), `the ends line carries its own ± (first paint): "${f.ends}"`);
+  await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "1", null, { timeout: 15_000 });
+  f = await fc();
+  check(f.refined === "1" && f.pms.length > 0 && f.pms.every((p) => /^ ±\d+$/.test(p)), `after the refine the … is gone: ${f.pms.join(",")}`);
+  check(/ · death \d+% ±\d+ · ~\$\d+$/.test(f.ends), `the ends line after the refine: "${f.ends}"`);
+  // the unlock deltas: within their ± → `reach ~0`; otherwise with the ±
+  await page.waitForFunction(() => document.querySelectorAll(".unlocks .card .delta").length > 0, null, { timeout: 15_000 });
+  const deltas = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((e) => ({ text: e.textContent, cls: e.className })));
+  check(deltas.length > 0 && deltas.every((x) => /^reach (~0|[+−]\d+% ±\d+) at (R\d+|end)$/.test(x.text)), `card deltas carry their ± or read ~0: ${deltas.map((x) => x.text).join(" · ")}`);
+  check(deltas.some((x) => /~0/.test(x.text) && /flat/.test(x.cls)) && deltas.some((x) => /±/.test(x.text)), "both forms occur on the fake's catalogue (a ~0 is flat, not up or down)");
+  await page.locator(".unlocks .card").filter({ hasText: "reach ~0" }).first().click({ timeout: 5000 }); await sleep(200);
+  const sheetDelta = await page.evaluate(() => document.querySelector(".sheet-wrap .delta")?.textContent ?? "");
+  check(/^reach ~0 at (R\d+|end)$/.test(sheetDelta), `the unlock sheet reads the same: "${sheetDelta}"`);
+  await shot("09-forecast-noise");
+  await page.keyboard.press("Escape"); await sleep(100);
+  // a dice death says what the forecast said for its depth (reach[d] − reach[d+1]); a gap death does not
+  await page.evaluate(() => { window.__riddle.lastForecast = { depths: [{ depth: 1, reach: 1 }, { depth: 2, reach: 0.8 }, { depth: 3, reach: 0.3 }], causes: [], known_to: 3 }; });
+  await fakeDeath({ verdict: "dice", depth: 2 });
+  await waitFor((x) => x?.screen === "death", "a dice death");
+  d = await deathScreen();
+  check(d.said === "forecast said 50%" && d.pill === "dice", `a dice death names the forecast's death share at D2: "${d.said}"`);
+  await shot("10-dice-forecast-said");
+  await fakeDeath({ verdict: "dice", depth: 3 });
+  await sleep(100); d = await deathScreen();
+  check(d.said === "forecast said 30%", `at the frontier the drop to nothing: "${d.said}"`);
+  await fakeDeath({ verdict: "dice", depth: 5 });
+  await sleep(100); d = await deathScreen();
+  check(d.said === null, "past the forecast's floors nothing is claimed");
+} catch (e) {
+  errors.push(`walk aborted: ${e.message}`);
+} finally {
+  await browser.close().catch(() => {});
+}
+
+for (const l of out) console.log(l);
+for (const e of errors) console.error(e);
+if (failed || errors.length) { console.error(`cut13: FAIL (${failed} assertion(s), ${errors.length} error(s))`); process.exit(1); }
+console.log(`cut13: ok (${out.length} checks)`);

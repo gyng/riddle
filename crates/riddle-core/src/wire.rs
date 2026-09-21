@@ -543,6 +543,11 @@ pub struct ReturnReport {
     /// is the header's delta.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub spent: Vec<SalvageRow>,
+    /// Cut 13 §3: the absence's gold movements to the coin — what the exits brought home
+    /// (banked + returned), the salvage, the heirs' wake pay — so the report's gold line
+    /// reconciles the header on a long absence too (the exit lines are capped per slice).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gold: Option<GoldSummary>,
     /// The deepest floor any run of this absence reached (the report's `deepest` tile: a
     /// delta like the tiles beside it; the lineage best is the header's — QA on 952e306:
     /// "`1 RUNS · D4 BEST` for a run that peaked at D2").
@@ -558,6 +563,15 @@ pub struct XpReport {
     pub class: String,
     pub gained: u32,
     pub level_ups: u32,
+}
+
+/// Cut 13 §3: `home + salvage + wake − spent` is the purse's delta over the absence.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct GoldSummary {
+    pub home: i32,
+    pub salvage: i32,
+    pub wake: i32,
+    pub spent: i32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

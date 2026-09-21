@@ -112,6 +112,13 @@ struct SeedResult {
     roots: (u32, u32, u32),
     /// §4: sampled `dice` deaths, of which name an alternative (non-empty patches).
     dice_named: (u32, u32),
+    // Cut 13 §1
+    /// (real runs, of which stalled); sampled stall records (≤ 2 per batch), of which carry a
+    /// `stall` verdict with ≥ 1 patch that fired in ≥ 50 % of its replays; and of which the
+    /// run's reel line names the trace's cause.
+    stalls: (u32, u32),
+    stall_verdicts: (u32, u32),
+    stall_reel: (u32, u32),
 }
 
 fn good() -> RuleSet {
@@ -285,6 +292,28 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
                 r.causes.push(c.clone());
             }
         }
+        // Cut 13 §1: stalls per send; every sampled stall's verdict names a row that fires and
+        // leaves the floor, and its reel line says what its trace says (Q: "no patch is
+        // offered"; R: "the reel blamed `R3 drink heal caught him` while the trace said `R1
+        // throw unknown stuck`").
+        r.stalls.0 += g.batch.run_outcomes.len() as u32;
+        r.stalls.1 += g.batch.stalls;
+        let stall_ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| rec.stall).map(|(id, _)| *id).filter(|id| g.batch.highlights.iter().any(|h| h.run_id == *id)).take(2).collect();
+        for id in stall_ids {
+            let Some(d) = g.death(id) else { continue };
+            let rec = g.deaths.get(&id).cloned().unwrap();
+            r.stall_verdicts.0 += 1;
+            let fires = d.verdict == "stall" && d.patches.iter().any(|p| riddle_core::trace::patch_fired_rate(&g, &rec, p) >= 0.5);
+            r.stall_verdicts.1 += fires as u32;
+            r.stall_reel.0 += 1;
+            let cause = d.cause.strip_prefix("stalled · ").unwrap_or(&d.cause);
+            let want = format!("stalled, {}", riddle_core::sifter::stall_short(cause));
+            let same = g.batch.highlights.iter().filter(|h| h.run_id == id).filter_map(|h| h.arc.as_ref()).any(|a| a.resolution == want);
+            r.stall_reel.1 += same as u32;
+            if (!fires || !same) && std::env::var("STALL_DEBUG").is_ok() {
+                eprintln!("STALL {} seed {seed} run {id} D{} cause {} verdict {} patches {:?} reel {:?}", bot.name(), d.depth, d.cause, d.verdict, d.patches.iter().map(|p| p.row.describe()).collect::<Vec<_>>(), g.batch.highlights.iter().filter(|h| h.run_id == id).map(|h| h.text.clone()).collect::<Vec<_>>());
+            }
+        }
     }
     r.best_depth = g.lineage.best_depth;
     // Earned gold only: exits and salvage. Wake pay (a new heir's potion) is a stipend, not a
@@ -293,7 +322,9 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
     r.tick_us = secs * 1e6 / r.ticks.max(1) as f64;
     // Verdicts cost ~1.2 s each (candidates × reseeded replays); sample evenly across the seed's
     // deaths. 8 per seed × seeds × bots is plenty for the unfair/gap shares.
-    let ids: Vec<u32> = g.deaths.keys().copied().collect();
+    // Cut 13 §1: stall records live beside the deaths (`DeathRec.stall`); the death gates
+    // sample the deaths alone.
+    let ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| !rec.stall).map(|(id, _)| *id).collect();
     let step = (ids.len() / verdicts_per_seed).max(1);
     for id in ids.iter().step_by(step).take(verdicts_per_seed) {
         let t = Instant::now();
@@ -340,7 +371,7 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
     // may legitimately have none (no such foe on the floor; a block the log cannot name), so
     // the gate reads the slot reasons and the rest is printed.
     let state = ["no item", "none held", "no path", "not in view", "cooldown", "locked cond"];
-    for rec in g.deaths.values() {
+    for rec in g.deaths.values().filter(|rec| !rec.stall) {
         r.because_deaths += 1;
         for t in &rec.death.trace.turns {
             for w in t.rows.iter().flatten() {
@@ -353,7 +384,7 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
     }
     // Cut 11 §2: root-cause patches on the player-shaped bots (≤ 3 root deaths per seed).
     if matches!(bot, Bot::Default | Bot::Edited | Bot::Pets | Bot::Levelled) {
-        let root_ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| rec.root.is_some()).map(|(id, _)| *id).take(3).collect();
+        let root_ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| rec.root.is_some() && !rec.stall).map(|(id, _)| *id).take(3).collect();
         for id in root_ids {
             let Some(d) = g.death(id) else { continue };
             r.roots.0 += 1;
@@ -777,6 +808,22 @@ fn main() {
     rows.push((format!("Root patch shown on theft/lock roots ≥ 80% (n={rt_n})"), format!("{rt_shown_pct:.0}%"), rt_shown_pct >= 80.0 || rt_n == 0));
     let (dn_n, dn_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.dice_named.0, a.1 + r.dice_named.1));
     rows.push((format!("Dice deaths name an alternative 100% (n={dn_n})"), format!("{}/{dn_n}", dn_ok), dn_ok == dn_n));
+    // Cut 13 §1 gates (docs/CUT13.md): stalls ≤ 1 % of sends on DEFAULT (EDITED plays
+    // `probes::good()`, FULL `probes::full()` — printed beside it); every sampled stall has a
+    // verdict with a patch that fired in ≥ 50 % of its replays; the reel's cause is the trace's.
+    let stall_pct = |rs: &[&SeedResult]| {
+        let (n, k): (u32, u32) = rs.iter().fold((0, 0), |a, r| (a.0 + r.stalls.0, a.1 + r.stalls.1));
+        (pct(k as usize, n as usize), n, k)
+    };
+    let (d_stall, d_sends, d_stalls) = stall_pct(&default);
+    let (e_stall, e_sends, e_stalls) = stall_pct(&edited);
+    let (f_stall, f_sends, f_stalls) = stall_pct(&full);
+    println!("stalls (Cut 13 §1): DEFAULT {d_stalls}/{d_sends} ({d_stall:.1}%) · EDITED (good) {e_stalls}/{e_sends} ({e_stall:.1}%) · FULL {f_stalls}/{f_sends} ({f_stall:.1}%)");
+    rows.push((format!("Stalls ≤ 1% of sends on DEFAULT (n={d_sends})"), format!("{d_stall:.1}%"), d_stall <= 1.0));
+    let (sv_n, sv_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_verdicts.0, a.1 + r.stall_verdicts.1));
+    rows.push((format!("Stall verdicts: ≥ 1 patch fired ≥ 50% (n={sv_n})"), format!("{sv_ok}/{sv_n}"), sv_ok == sv_n));
+    let (sr_n, sr_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_reel.0, a.1 + r.stall_reel.1));
+    rows.push((format!("Stall reel line's cause == the trace's (n={sr_n})"), format!("{sr_ok}/{sr_n}"), sr_ok == sr_n));
     println!();
     println!("{:<52} {:>18}  result", "gate", "value");
     let mut fails = 0;

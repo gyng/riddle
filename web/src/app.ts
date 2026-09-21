@@ -83,6 +83,8 @@ export class App {
   watchMode: "fights" | "fast" = "fights";
   /** Cut 6 §6: the unlock catalogue as last fetched by the camp; a card's rows back the editor's `[card]` sheet. */
   unlockCat: UnlockInfo[] = [];
+  /** Cut 13 §5: the last forecast painted (the refine when it landed), so a `dice` death can say what it said for that depth. */
+  lastForecast: Forecast | null = null;
   /** The supply catalogue as last fetched by the camp: the shop paints from it at once on the next camp, then refetches (the
    *  worker answers in order, so a fetch behind a forecast is seconds away — QA B on 952e306: "the shop chips are gone"). */
   supplyCat: SupplyEntry[] = [];
@@ -309,6 +311,7 @@ export class App {
     this.fcInFlight = true; this.fcDirty = false;
     try {
       const f = await this.busy(/* copy:label */ "forecast", () => this.engine.forecast());
+      this.lastForecast = f;
       for (const fn of this.fcListeners) fn(f);
       this.scheduleRefine();
     } catch (e) { console.warn("forecast failed", e); }
@@ -326,6 +329,7 @@ export class App {
       try {
         const f = await this.engine.forecastRefine!();
         if (seq !== this.refineSeq) return;
+        this.lastForecast = f;
         for (const fn of this.fcListeners) fn(f);
       } catch (e) { this.refineOff = true; console.warn("forecastRefine unavailable", e); }
     }, REFINE_MS);
@@ -522,6 +526,9 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   for (const d of [...a.deaths, ...b.deaths]) deaths.set(d.cause, (deaths.get(d.cause) ?? 0) + d.n);
   const salv = new Map<string, { n: number; gold: number }>();
   for (const s of [...a.salvaged, ...b.salvaged]) { const m = salv.get(s.kind) ?? { n: 0, gold: 0 }; m.n += s.n; m.gold += s.gold; salv.set(s.kind, m); }
+  // Cut 13 §3: the night's purchases add up across slices like the salvage; absent only when both sides lack the field
+  const spent = a.spent === undefined && b.spent === undefined ? undefined : new Map<string, { n: number; gold: number }>();
+  if (spent) for (const s of [...(a.spent ?? []), ...(b.spent ?? [])]) { const m = spent.get(s.kind) ?? { n: 0, gold: 0 }; m.n += s.n; m.gold += s.gold; spent.set(s.kind, m); }
   const worst = !a.worst_death ? b.worst_death : !b.worst_death ? a.worst_death : b.worst_death.depth >= a.worst_death.depth ? b.worst_death : a.worst_death;
   // Cut 2 fields: the report picks its layout by presence, so they stay undefined only when both sides lack them
   const sum = (x?: number, y?: number): number | undefined => x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0);
@@ -532,6 +539,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     exits: cat(a.exits, b.exits),                          // Cut 6 §1: one ledger line per exit
     elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,
     deepest: a.deepest === undefined && b.deepest === undefined ? undefined : Math.max(a.deepest ?? 0, b.deepest ?? 0),
+    gold: a.gold || b.gold ? { home: (a.gold?.home ?? 0) + (b.gold?.home ?? 0), salvage: (a.gold?.salvage ?? 0) + (b.gold?.salvage ?? 0), wake: (a.gold?.wake ?? 0) + (b.gold?.wake ?? 0), spent: (a.gold?.spent ?? 0) + (b.gold?.spent ?? 0) } : undefined,
     learned: union(a.learned, b.learned), bests: collapseBests(union(a.bests, b.bests)),
     found: [...a.found, ...b.found],
     deaths: [...deaths].map(([cause, n]) => ({ cause, n })).sort((x, y) => y.n - x.n),
@@ -542,6 +550,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     tamed: [...a.tamed, ...b.tamed], hatched: [...a.hatched, ...b.hatched], lost: [...a.lost, ...b.lost],
     xp: { class: b.xp.class, gained: a.xp.gained + b.xp.gained, level_ups: a.xp.level_ups + b.xp.level_ups },
     salvaged: [...salv].map(([kind, v]) => ({ kind, ...v })),
+    spent: spent ? [...spent].map(([kind, v]) => ({ kind, ...v })) : undefined,
     renown: { gained: a.renown.gained + b.renown.gained, rank: b.renown.rank, ranks_up: a.renown.ranks_up + b.renown.ranks_up },
   };
 }

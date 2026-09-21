@@ -49,16 +49,29 @@ export function visible(catalogue: UnlockInfo[]): UnlockCard[] {
     .map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " "), gated: !u.available && !!u.needs }));
 }
 /** Cut 10 §3 / Cut 12 §1: a card's reach delta says where the card goes — `reach +4% at R3` (the catalogue's `insert_at`), else
- *  `at end`; other unlocks carry the bare delta. */
+ *  `at end`; other unlocks carry the bare delta. Cut 13 §5: the `±` rides the delta when the catalogue sends `pm`
+ *  (`reach +7% ±5`); a delta within its own half-width reads `reach ~0` — noise shown as noise. */
 export function deltaLabel(u: UnlockInfo, d: number): string {
   const where = !isCard(u) ? "" : u.insert_at !== undefined ? /* copy:unlock_card */ ` at R${u.insert_at + 1}` : /* copy:unlock_card */ " at end";
-  return /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%${where}`;
+  if (deltaIsNoise(u)) return /* copy:unlock_card */ `reach ~0${where}`;
+  const pm = u.pm !== undefined ? ` ±${Math.max(1, Math.round(u.pm * 100))}` : "";
+  return /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%${pm}${where}`;
 }
+/** Cut 13 §5: |delta| within its half-width. */
+export const deltaIsNoise = (u: UnlockInfo): boolean => u.delta !== undefined && u.pm !== undefined && Math.abs(u.delta) <= u.pm;
+/** The delta in whole points as the shelf shows it; 0 = nothing to show (no delta, or a bare 0 without a `pm` to call it noise). */
+export function deltaPts(u: UnlockInfo): number {
+  if (u.delta === undefined) return 0;
+  const d = Math.round(u.delta * 100);
+  return d || (deltaIsNoise(u) ? 1e-9 : 0);   // a `~0` still paints (a truthy non-integer the label never prints)
+}
+/** The delta's class: `up` · `down` · `flat` (`~0`). */
+export const deltaClass = (u: UnlockInfo, d: number): string => (deltaIsNoise(u) ? "flat" : d > 0 ? "up" : "down");
 /** Cut 9 §2: the sheet behind an unlock card; `after` runs once a buy went through (the report repaints itself with it).
  *  Cut 12 §1: a card never takes a row (card rows sit outside `max_rows`). */
 export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): void {
   openSheet((close) => {
-    const d = u.delta === undefined ? 0 : Math.round(u.delta * 100);
+    const d = deltaPts(u);
     // the gate as of now, not as of the card's paint: a card painted before a buy or a report can carry a stale `available`
     // (QA B on 952e306: "CLASS: RANGER ◆6 · ⊘ ◆2 more has an active buy; tapping it did nothing"); any `needs` or a marks
     // shortfall against the live lineage turns `buy` off
@@ -74,7 +87,7 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`)),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))) : "",
       needs ? h("div", { class: "needs-line dim" }, "⊘ ", needs.replace(/_/g, " ")) : "",
-      d ? h("div", { class: `num delta ${d > 0 ? "up" : "down"}` }, deltaLabel(u, d)) : "",   // Cut 10 §3 / Cut 12 §1
+      d ? h("div", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : "",   // Cut 10 §3 / Cut 12 §1 / Cut 13 §5
       buy);
   });
 }

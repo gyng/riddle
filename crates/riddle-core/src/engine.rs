@@ -226,9 +226,24 @@ pub struct Run {
     /// Oscillation guard: rows that target foes are suppressed until this action.
     #[serde(default)]
     pub stuck_until: u32,
+    /// Cut 13 §1: the tick of the first guard on this floor (the stall verdict's checkpoint)
+    /// and the guard's moment (`goblin archer, no path`) — the stall's cause, on the record,
+    /// the reel line and the chronicle alike.
+    #[serde(default)]
+    pub stuck_first_t: Option<u32>,
+    #[serde(default)]
+    pub stuck_cause: Option<String>,
     /// Trait pre-emption clock: the action of the last trait deviation.
     #[serde(default)]
     pub trait_last: Option<u32>,
+    /// Cut 13 §2: trait deviations on this floor (a trait overrides a row at most once per
+    /// floor; reset at the stairs).
+    #[serde(default)]
+    pub trait_floor: u32,
+    /// Cut 13 §3: kinds this run used to no effect (`Ev::Use` outcome `nothing`, a heal drunk
+    /// at full HP): `restock` does not rebuy them for the next run.
+    #[serde(default)]
+    pub wasted_kinds: Vec<String>,
     /// Consecutive pick_up choices and the inventory size when they started.
     #[serde(default)]
     pub pickup_streak: u32,
@@ -707,6 +722,15 @@ pub struct LineageState {
     /// the next reel skips them.
     #[serde(default)]
     pub reel_pairs: Vec<Vec<(String, String)>>,
+    // Cut 13
+    /// §2: the two traits the new heir may wake with (drawn from the seed and the heir
+    /// number, never the last heir's); `trait_` is the first until `set_trait` picks; a send
+    /// empties it.
+    #[serde(default)]
+    pub trait_offer: Vec<Trait>,
+    /// §3: kinds the last run used to no effect — `restock` skips them once.
+    #[serde(default)]
+    pub last_wasted: Vec<String>,
 }
 
 /// Cut 6 §1: gold movements kept on the lineage.
@@ -722,7 +746,8 @@ impl LineageState {
     pub fn new(seed: u64) -> LineageState {
         let mut rng = Rng::derive(seed, hash_str("lineage"));
         let flavours = Flavours::roll(&mut rng);
-        let trait_ = Trait::ALL[rng.below(4) as usize];
+        let offer = trait_offer(seed, 1, None, Trait::ALL[rng.below(4) as usize]);
+        let trait_ = offer[0];
         let mut classes = BTreeMap::new();
         for c in Class::ALL {
             classes.insert(c.name().to_string(), ClassProg { level: 1, xp: 0 });
@@ -784,6 +809,8 @@ impl LineageState {
             vault_pref: default_vault_pref(),
             gold_ledger: Vec::new(),
             reel_pairs: Vec::new(),
+            trait_offer: offer.to_vec(),
+            last_wasted: Vec::new(),
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -899,7 +926,7 @@ impl LineageState {
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
-            trait_offer: Vec::new(),
+            trait_offer: self.trait_offer.iter().map(|t| t.name().to_string()).collect(),
             class: self.class.name().into(),
             best_depth: self.best_depth,
             marks: self.marks,
@@ -1018,6 +1045,40 @@ impl LineageState {
     pub fn forge_tier(&self, kind: &str) -> i32 {
         self.forge.get(kind).map(|f| f.tier as i32).unwrap_or(0)
     }
+    /// Cut 13 §2: the next heir wakes — the heir number moves on, the deeds clear, and the
+    /// camp offers two traits (`trait_offer`); the first is the heir's until `set_trait`.
+    pub fn new_heir(&mut self) {
+        let last = self.trait_;
+        self.heir += 1;
+        self.heir_deeds.clear();
+        self.heir_best = 0;
+        let first = Trait::ALL[self.rng.below(4) as usize];
+        let offer = trait_offer(self.seed, self.heir + 1000 * self.ascension, Some(last), first);
+        self.trait_ = offer[0];
+        self.trait_offer = offer.to_vec();
+    }
+    /// Cut 13 §2: pick one of the offered traits (the chip beside `♟3`); refused when it is
+    /// not on offer (a send without a pick keeps the first).
+    pub fn set_trait(&mut self, name: &str) -> Result<(), String> {
+        let t = self.trait_offer.iter().copied().find(|t| t.name() == name).ok_or_else(|| "not on offer".to_string())?;
+        self.trait_ = t;
+        Ok(())
+    }
+}
+
+/// Cut 13 §2: the two traits offered to heir `heir` of lineage `seed`. `first` is the
+/// lineage rng's draw (the trait the heir wore before this cut, so a seed's heirs keep their
+/// traits) — unless it is the last heir's, when the offer's own rng (derived from the seed and
+/// the heir number; an ascended lineage's heirs count from 1000 × its ascension) redraws it;
+/// the second is drawn from that rng, distinct from both. The same offer on every device and
+/// after a load.
+pub fn trait_offer(seed: u64, heir: u32, last: Option<Trait>, first: Trait) -> [Trait; 2] {
+    let mut rng = Rng::derive(seed, hash_str("trait_offer") ^ heir as u64);
+    let pool: Vec<Trait> = Trait::ALL.iter().copied().filter(|t| Some(*t) != last).collect();
+    let a = if Some(first) == last { pool[rng.below(pool.len() as u32) as usize] } else { first };
+    let rest: Vec<Trait> = pool.into_iter().filter(|t| *t != a).collect();
+    let b = rest[rng.below(rest.len() as u32) as usize];
+    [a, b]
 }
 
 /// A recorded death: the wire `Death` plus what is needed to compute its verdict lazily.
@@ -1050,6 +1111,49 @@ pub struct DeathRec {
     /// what the root-cause patch answers (`trace::root_of`).
     #[serde(default)]
     pub root: Option<Root>,
+    /// Cut 13 §1: this record is a stall's (`Death.verdict` `stall`): its replays count a
+    /// survival when the hero leaves the floor or the guard stays quiet, not when it lives.
+    #[serde(default)]
+    pub stall: bool,
+    /// Cut 13: the kill counts at the checkpoint (the death-time counts less the run's kills
+    /// after it), so a replay learns `studied` on the same tick the run did — the counts were
+    /// the death's, and a fifth kill inside the window learned the fact a tick early in the
+    /// replay, spoke a note, and spent the rng (the faithful-replay test caught it once the
+    /// content moved). Absent on older records: the death-time counts stand in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub t10_kill_counts: Option<BTreeMap<String, u32>>,
+    /// Cut 13: the lineage state a floor generated inside the replay window reads
+    /// (`populate_floor`: grudges, forge, the hunter; `place_situations`: the lost; the
+    /// vision and the vault preference), as it stood at the death — a verdict read after the
+    /// next runs (or a purchase) generated a different D4 in the window and the replay no
+    /// longer reproduced the death. Absent on older records.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub t10_lineage: Option<CheckpointLineage>,
+}
+
+/// Cut 13: what a replay's floor generation reads off the lineage (see `DeathRec.t10_lineage`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct CheckpointLineage {
+    pub grudges: Vec<Grudge>,
+    pub forge: BTreeMap<String, ForgeRow>,
+    pub hunter: Option<Grudge>,
+    pub lost: Vec<Lost>,
+    pub unlocks: BTreeSet<String>,
+    pub vault_pref: String,
+}
+
+impl CheckpointLineage {
+    pub fn of(l: &LineageState) -> CheckpointLineage {
+        CheckpointLineage { grudges: l.grudges.clone(), forge: l.forge.clone(), hunter: l.hunter.clone(), lost: l.lost.clone(), unlocks: l.unlocks.clone(), vault_pref: l.vault_pref.clone() }
+    }
+    pub fn apply(&self, l: &mut LineageState) {
+        l.grudges = self.grudges.clone();
+        l.forge = self.forge.clone();
+        l.hunter = self.hunter.clone();
+        l.lost = self.lost.clone();
+        l.unlocks = self.unlocks.clone();
+        l.vault_pref = self.vault_pref.clone();
+    }
 }
 
 /// Cut 11 §2: a death's root — `theft` (a `because` of the killing turn is a theft: the patch
@@ -1132,6 +1236,22 @@ pub struct Batch {
     /// Cut 6 §1: the ledger lines of the last `EXITS_CAP` exits, oldest first.
     #[serde(default)]
     pub exits: Vec<ExitLine>,
+    // Cut 13
+    /// §1: real runs that ended as `stalled`, and whether `worst_death` points at a stall
+    /// record (a death at the same depth takes its place).
+    #[serde(default)]
+    pub stalls: u32,
+    #[serde(default)]
+    pub worst_stall: bool,
+    /// §3: what the automations bought this batch, per kind → (n, coins); the exact coins of
+    /// salvage and of wake pay, so the night's gold reconciles to the coin
+    /// (`gold_earned + salvage_gold + wake_pay − spent == the purse's delta`).
+    #[serde(default)]
+    pub spent: BTreeMap<String, (u32, i32)>,
+    #[serde(default)]
+    pub salvage_gold: i32,
+    #[serde(default)]
+    pub wake_pay: i32,
 }
 
 /// Cut 7 §3: what a run met and answered of the band situations.
@@ -1455,7 +1575,11 @@ impl Game {
         l.runs_banked = 0;
         l.runs_returned = 0;
         l.runs_died = 0;
-        l.trait_ = Trait::ALL[l.rng.below(4) as usize];
+        // Cut 13 §2: the ascended lineage's first heir is a new heir — two traits on offer.
+        let first = Trait::ALL[l.rng.below(4) as usize];
+        let offer = trait_offer(l.seed, l.heir + 1000 * l.ascension, Some(l.trait_), first);
+        l.trait_ = offer[0];
+        l.trait_offer = offer.to_vec();
         // The hunter: the deepest grudge of the last lineage (or its last killer).
         l.hunter = if variant == "hunted" { l.grudges.iter().max_by_key(|g| (g.depth, g.heir)).cloned() } else { None };
         l.grudges.clear();
@@ -1506,6 +1630,11 @@ impl Game {
         self.ensure_run()
     }
 
+    /// Cut 13 §2: pick the heir's trait from the camp's offer (`Lineage.trait_offer`).
+    pub fn set_trait(&mut self, name: &str) -> Result<(), String> {
+        self.lineage.set_trait(name)
+    }
+
     /// A live run for the snapshot without touching the rest clock (reports, replays).
     pub fn ensure_run(&mut self) -> Snapshot {
         self.auto_keep();
@@ -1528,6 +1657,8 @@ impl Game {
     pub fn start_run(&mut self, seed_override: Option<u64>) {
         self.auto_keep();
         self.prov.clear();
+        // Cut 13 §2: the send settles the heir's trait; the offer is spent.
+        self.lineage.trait_offer.clear();
         let id = self.lineage.next_run_id;
         self.lineage.next_run_id += 1;
         let seed = seed_override.unwrap_or_else(|| self.run_seed(id));
@@ -1545,7 +1676,14 @@ impl Game {
         // auto_supply restocks the last expedition's supplies.
         if self.lineage.unlocks.contains("auto_insure") {
             for id in loadout.clone() {
-                let _ = self.insure(id);
+                let gold = self.lineage.gold;
+                let kind = self.lineage.vault.iter().find(|v| v.id == id).map(|v| v.kind.replace('_', " "));
+                if self.insure(id).is_ok() {
+                    // Cut 13 §3: the night's ledger counts the automation's premiums.
+                    let e = self.batch.spent.entry(format!("insure {}", kind.unwrap_or_default())).or_insert((0, 0));
+                    e.0 += 1;
+                    e.1 += gold - self.lineage.gold;
+                }
             }
         }
         self.restock();
@@ -1629,7 +1767,11 @@ impl Game {
             last_damage_action: 0,
             stuck_fires: 0,
             stuck_until: 0,
+            stuck_first_t: None,
+            stuck_cause: None,
             trait_last: None,
+            trait_floor: 0,
+            wasted_kinds: Vec::new(),
             pickup_streak: 0,
             pickup_inv: 0,
             items_until: 0,
@@ -1834,7 +1976,10 @@ impl Game {
         // and counts the unused supplies instead.
         if run.stuck_fires >= STALL_FIRES && run.over.is_none() {
             run.timed_out = true;
-            crate::chronicle::note(run, &mut cx, "Stalled. Came home empty-handed.".into());
+            // Cut 13 §1: the note names the guard's moment, as the record and the reel do
+            // (`Stalled: the archer, no path. Came home empty-handed.`).
+            let cause = crate::sifter::stall_note_cause(run.stuck_cause.as_deref().unwrap_or("paced"));
+            crate::chronicle::note(run, &mut cx, format!("Stalled: {cause}. Came home empty-handed."));
             crate::turn::end_run(run, &mut cx, ExitTier::Return);
         }
         self.lineage.total_turns += 1;
@@ -1975,6 +2120,9 @@ impl Game {
         let tier = run.over.unwrap_or(ExitTier::Return);
         // Yield follows the exit (Cut 2 §2); a timed-out run yields nothing.
         let pct: i32 = if run.timed_out { 0 } else { tier.pct() };
+        // Cut 13 §1: a stall (the guard fired `STALL_FIRES` times on one floor) is a run the
+        // player can read: it gets a death-style record below.
+        let stalled = run.timed_out && run.stuck_fires >= STALL_FIRES;
         let t = run.turn;
         let mut outcome = RunOutcome {
             run_id: run.id,
@@ -1987,6 +2135,7 @@ impl Game {
         };
         self.batch.runs += 1;
         self.batch.turns += run.turn;
+        self.batch.stalls += stalled as u32;
         self.batch.run_outcomes.push((run.depth, if tier == ExitTier::Death { run.death_cause.clone() } else { None }));
         self.batch.run_ticks.push(run.turn);
         self.batch.renderable_events += run.renderable_events;
@@ -2334,9 +2483,12 @@ impl Game {
         if tier == ExitTier::Death {
             let cause = run.death_cause.clone().unwrap_or_else(|| "unknown".into());
             *self.batch.deaths.entry(cause.clone()).or_insert(0) += 1;
+            // The worst death: the deepest, the latest on a tie; Cut 13 §1: a stall at the
+            // same depth yields to it (`worst_stall`).
             if run.depth >= self.batch.worst_depth {
                 self.batch.worst_depth = run.depth;
                 self.batch.worst_death = Some(run.id);
+                self.batch.worst_stall = false;
             }
             let mut deeds: Vec<String> = self.batch.bests.iter().rev().take(3).cloned().collect();
             for (_, k) in &run.boss_kills {
@@ -2346,6 +2498,10 @@ impl Game {
                 }
             }
             deeds.truncate(3);
+            // The record is taken before this death's grudge joins the lineage: a floor the
+            // verdict's replay generates inside its window would otherwise hold a grudge the
+            // run never met (Cut 13: `DeathRec.t10_lineage`).
+            let rec = (!self.sim).then(|| crate::trace::death_record(self, &run));
             // Cut 9 §7: the grave points at its death record while the engine keeps it.
             self.lineage.graveyard.push(Grave { heir: run.heir, depth: run.depth, cause: cause.clone(), deeds, death_id: (!self.sim).then_some(run.id) });
             if crate::defs::MONSTERS.iter().any(|m| m.kind == cause && !m.boss && !m.tags.contains(&"summoned"))
@@ -2358,10 +2514,8 @@ impl Game {
             let bones_left = self.lineage.bones.last().is_some_and(|b| b.heir == run.heir);
             let tail = bones_left.then(|| format!("left bones on D{}", run.depth));
             self.lineage.chronicle_heir(&format!("fell to {}", crate::sifter::cause_phrase(&cause)), tail);
-            self.lineage.heir += 1;
-            self.lineage.heir_deeds.clear();
-            self.lineage.heir_best = 0;
-            self.lineage.trait_ = Trait::ALL[self.lineage.rng.below(4) as usize];
+            // Cut 13 §2: the next heir wakes with two traits on offer.
+            self.lineage.new_heir();
             // Wake pay: a new heir arrives with enough for one cheap supply, so a lineage that has
             // never banked is not gold-locked out of the shop after a death (cohort 5, rater J:
             // "$0 after death, seven identical deaths overnight"). Bounded: tops the purse up to
@@ -2369,9 +2523,9 @@ impl Game {
             if self.lineage.gold < WAKE_PAY {
                 let top = WAKE_PAY - self.lineage.gold;
                 self.lineage.gold_move(top, "wake pay");
+                self.batch.wake_pay += top;
             }
-            if !self.sim {
-                let rec = crate::trace::death_record(self, &run);
+            if let Some(rec) = rec {
                 self.deaths.insert(run.id, rec);
                 while self.deaths.len() > self.max_deaths.max(KEPT_DEATHS) {
                     let k = *self.deaths.keys().next().unwrap();
@@ -2379,6 +2533,24 @@ impl Game {
                 }
                 self.prune_graves();
             }
+        }
+        // Cut 13 §1: the stall's record — the guard's moment as the cause, the trace, the
+        // patches measured from the first guard (`trace::stall_record`); `death(id)` returns
+        // it. It is a worst candidate below a death at its depth or deeper: the deepest stall
+        // leads the report only when no death reached its floor.
+        if stalled && !self.sim {
+            if run.depth > self.batch.worst_depth || (run.depth == self.batch.worst_depth && (self.batch.worst_stall || self.batch.worst_death.is_none())) {
+                self.batch.worst_depth = run.depth;
+                self.batch.worst_death = Some(run.id);
+                self.batch.worst_stall = true;
+            }
+            let rec = crate::trace::stall_record(self, &run);
+            self.deaths.insert(run.id, rec);
+            while self.deaths.len() > self.max_deaths.max(KEPT_DEATHS) {
+                let k = *self.deaths.keys().next().unwrap();
+                self.deaths.remove(&k);
+            }
+            self.prune_graves();
         }
         if run.ended && tier != ExitTier::Death {
             // Cut 5 §2: the heir who reached the bottom retires from the chronicle at its rank.
@@ -2393,6 +2565,8 @@ impl Game {
         if self.sim {
             self.auto_keep();
         }
+        // Cut 13 §3: what this run used to no effect is not rebought for the next.
+        self.lineage.last_wasted = run.wasted_kinds.clone();
         let spent_on = self.restock();
         // Cut 8B §3: the kennel's leash is back on the shelf while nothing has been tamed.
         self.lineage.kennel_leash();
@@ -2408,9 +2582,9 @@ impl Game {
         line.salvaged = cut_rows;
         line.run_id = run.id;
         debug_assert!(self.lineage.gold - gold_before == loot_kept - spent + self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.why.starts_with("salvage")).map(|g| g.delta).sum::<i32>());
-        if tier == ExitTier::Death {
+        if tier == ExitTier::Death || stalled {
             if let Some(rec) = self.deaths.get_mut(&run.id) {
-                // The death's own trace is longer; its line does not repeat it.
+                // The death's (or the stall's) own trace is longer; its line does not repeat it.
                 rec.death.line = Some(ExitLine { trace: None, ..line.clone() });
             }
         }
@@ -2462,6 +2636,7 @@ impl Game {
             let gold = self.lineage.gold_carry / 100;
             self.lineage.gold_carry %= 100;
             self.lineage.gold_move(gold, "salvage");
+            self.batch.salvage_gold += gold;
             let f = self.lineage.forge.entry(it.kind.clone()).or_default();
             f.salvaged += it.amount.max(1) as u32;
             f.settle();
@@ -2664,8 +2839,11 @@ impl Game {
             };
             let identified = crate::item::is_identified(&self.lineage.facts, &self.lineage.flavours, d.kind);
             let craftable = self.lineage.forge.get(d.kind).is_some_and(|f| f.craftable);
+            // Cut 13 §3: the shop grows with the night — a potion or scroll the forge can craft
+            // is for sale at its base price whether or not the hero has drunk one (rater R:
+            // "$2131 after the night had almost nothing to buy"); it comes at the forge's tier.
             let price = match (base, craftable, identified) {
-                (Some(p), _, true) => p,
+                (Some(p), _, true) | (Some(p), true, _) => p,
                 (None, true, _) if d.cat != Cat::Gold && d.kind != "leash" => 2 * salvage_value(d.kind),
                 _ => continue,
             };
@@ -2760,9 +2938,19 @@ impl Game {
             return Vec::new();
         }
         let mut bought = Vec::new();
+        // Cut 13 §3: a kind the last run used to no effect is not rebought (rater R: "the
+        // strength potion the trait drinks at full HP is rebought sixteen times").
+        let wasted = self.lineage.last_wasted.clone();
         for kind in self.lineage.last_supplies.clone() {
+            if wasted.contains(&kind) {
+                continue;
+            }
+            let gold = self.lineage.gold;
             if self.buy_supply(&kind).is_ok() {
                 bought.push(kind.replace('_', " "));
+                let e = self.batch.spent.entry(kind.clone()).or_insert((0, 0));
+                e.0 += 1;
+                e.1 += gold - self.lineage.gold;
             }
         }
         bought

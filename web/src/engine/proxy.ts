@@ -10,6 +10,7 @@ const METHODS: (keyof Engine)[] = [
   "bail", "choose", "setVaultPref",
   "forecastRefine",   // Cut 6: optional on the engine; the proxy rejects when the engine lacks it (the client treats that as "no refine")
   "dropSupply",       // Cut 12 §6: optional likewise (the client falls back to clear + rebuy)
+  "setTrait",         // Cut 13 §2: optional likewise (no offer without it)
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

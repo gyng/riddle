@@ -2,6 +2,9 @@
 // Cut 10 §3: the exit tiles read `banked · returned · deaths`, `returned` first when it is the larger; each exit line leads
 // with its tier and the kept sum (`returned $61`) before the engine's arithmetic; a lost companion reads `jackal Ashar fell`;
 // after an absence the tiles fade in (the merged report is complete by the time this mounts).
+// Cut 13 §3: the night's ledger — a `spent` section beside `salvaged` (`heal ×16 · −$640`, `ReturnReport.spent`) and one dim
+// `gold` line under the tiles that reconciles the header's delta: `+$412 banked · +$96 returned · +$45 salvage · −$640 spent`
+// (the banked / returned sums are the exit lines'; numbers only, a piece shows only when it is not zero).
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
@@ -46,6 +49,22 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     exits ? tile(`${deathsN}`, /* copy:label */ "deaths") : null,
   );
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
+  // Cut 13 §3: the gold line — what the exits brought (banked / returned, off the exit lines), the salvage, the automations' spending
+  const goldLine = (): HTMLElement | null => {
+    if (!r.spent && !r.salvaged && !r.gold) return null;
+    const ex = r.exits ?? [];
+    const bankedG = ex.filter((x) => x.keep_pct >= 100).reduce((a, x) => a + x.kept, 0), returnedG = ex.filter((x) => x.keep_pct > 0 && x.keep_pct < 100).reduce((a, x) => a + x.kept, 0);
+    const salvageG = (r.salvaged ?? []).reduce((a, x) => a + x.gold, 0), spentG = (r.spent ?? []).reduce((a, x) => a + x.gold, 0);
+    const pieces: (string | HTMLElement)[] = [];
+    const WORD = /* copy:callout */ { banked: "banked", returned: "returned", home: "home", salvage: "salvage", wake: "wake", spent: "spent" };
+    const piece = (n: number, sign: string, word: string, cls: string): void => { if (n > 0) pieces.push(h("span", { class: cls }, `${sign}$${n} ${word}`)); };
+    // the core's summary is to the coin over every run of the absence (the exit lines are capped per slice): it wins
+    if (r.gold) { piece(r.gold.home, "+", WORD.home, "up"); piece(r.gold.salvage, "+", WORD.salvage, "up"); piece(r.gold.wake, "+", WORD.wake, "up"); piece(r.gold.spent, "−", WORD.spent, "down"); }
+    else { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); piece(salvageG, "+", WORD.salvage, "up"); piece(spentG, "−", WORD.spent, "down"); }
+    if (!pieces.length) return null;
+    const out: (string | HTMLElement)[] = []; pieces.forEach((p, i) => { if (i) out.push(" · "); out.push(p); });
+    return h("div", { class: "gold-line dim num" }, ...out);
+  };
   // Cut 6 §1: one ledger line per exit, verbatim from the engine, under the tiles (oldest first; the core keeps the last 5
   // per slice and the client merges slices, so a long absence shows its last EXITS_SHOW)
   // Cut 9 §5: an exit that carries its trace gets a `trace` chip after the line
@@ -125,7 +144,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }, /* copy:button */ "open") : null;
   const camp = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "camp");
   const el = h("main", { class: "report" },
-    tiles, exitLines, rested, stall,
+    tiles, goldLine(), exitLines, rested, stall,
     section(/* copy:label */ "learned", factChips(r.learned, L.counters ?? [])),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),
@@ -137,6 +156,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "bones", lines((r.bones_found ?? []).map(bonesLine))),
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
     section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...r.salvaged.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),
+    // Cut 13 §3: what the automations bought this absence, per kind (`heal ×16 · −$640`)
+    section(/* copy:label */ "spent", r.spent?.length ? h("ul", { class: "lines" }, ...r.spent.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num down" }, `−$${s.gold}`)))) : null),
     section(/* copy:label */ "renown", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "") : null),
     pendingSec,
     section(/* copy:label */ "reel", reel(r.reel.map((x) => x.text))),

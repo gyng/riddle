@@ -89,10 +89,16 @@ pub enum Resolution {
         #[serde(default)]
         gold: i32,
     },
-    /// The run hit the turn cap (`lost the thread`) or shuffled on one floor (`stalled`).
+    /// The run hit the turn cap (`lost the thread`). `stalled` is Cut 7's flag, kept for
+    /// saved episodes; since Cut 13 §1 a stall resolves as `Stalled` below.
     Lost {
         #[serde(default)]
         stalled: bool,
+    },
+    /// Cut 13 §1: the run shuffled on one floor; `cause` is the guard's moment (`goblin
+    /// archer, no path` · `paced`) — the same words as the stall record's trace.
+    Stalled {
+        cause: String,
     },
     Died {
         cause: String,
@@ -110,7 +116,7 @@ impl Resolution {
         matches!(self, Resolution::FirstBoss { .. } | Resolution::BossSlain { .. } | Resolution::Fell { .. })
     }
     pub fn is_exit(&self) -> bool {
-        matches!(self, Resolution::Banked { .. } | Resolution::Returned { .. } | Resolution::Lost { .. } | Resolution::Died { .. })
+        matches!(self, Resolution::Banked { .. } | Resolution::Returned { .. } | Resolution::Lost { .. } | Resolution::Stalled { .. } | Resolution::Died { .. })
     }
 }
 
@@ -808,6 +814,8 @@ fn resolution_form(res: &Resolution, level: u8) -> String {
         Resolution::BossSlain { .. } => "boss slain".into(),
         Resolution::Returned { .. } => "returned".into(),
         Resolution::Lost { stalled } => if level > 0 { "returned" } else if *stalled { "stalled" } else { "lost the thread" }.into(),
+        // Cut 13 §1: `stalled, archer no path`; the short form is the word alone.
+        Resolution::Stalled { cause } => if level > 1 { "stalled".into() } else { format!("stalled, {}", stall_short(cause)) },
         Resolution::Died { cause } => match level {
             0 => format!("died to {}", cause_phrase(cause)),
             1 => {
@@ -862,6 +870,7 @@ pub fn routine_line(ep: &Episode) -> Option<String> {
         Resolution::Returned { gold } => format!("returned ${}", gold.max(&0)),
         Resolution::Banked { gold } => format!("banked ${}", gold.max(&0)),
         Resolution::Lost { stalled } => if *stalled { "stalled" } else { "lost the thread" }.into(),
+        Resolution::Stalled { cause } => format!("stalled, {}", stall_short(cause)),
         _ => return None,
     };
     let home = matches!(ep.resolution, Resolution::Returned { .. } | Resolution::Banked { .. });
@@ -881,8 +890,39 @@ pub fn routine_ok(text: &str) -> bool {
         Some((r, rest)) if r.starts_with('R') && r[1..].chars().all(|c| c.is_ascii_digit()) && r.len() > 1 => rest,
         _ => tail,
     };
-    let res_ok = tail == "lost the thread" || tail == "stalled" || ["returned $", "banked $"].iter().any(|k| tail.strip_prefix(k).is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())));
+    let res_ok = tail == "lost the thread" || stalled_ok(tail) || ["returned $", "banked $"].iter().any(|k| tail.strip_prefix(k).is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())));
     depth_ok && twist_ok && res_ok && word_count(text) <= STORY_WORDS
+}
+
+/// Cut 13 §1: the stall's cause as the reel line reads it — `goblin archer, no path` →
+/// `archer no path` (the title's last word, the reason), `paced` as is.
+pub fn stall_short(cause: &str) -> String {
+    match cause.split_once(", ") {
+        Some((kind, why)) => format!("{} {why}", kind.rsplit(' ').next().unwrap_or(kind)),
+        None => cause.to_string(),
+    }
+}
+
+/// Cut 13 §1: the cause as the chronicle note reads it — `the archer, no path` · `paced`.
+pub fn stall_note_cause(cause: &str) -> String {
+    match cause.split_once(", ") {
+        Some((kind, why)) => format!("the {}, {why}", kind.rsplit(' ').next().unwrap_or(kind)),
+        None => cause.to_string(),
+    }
+}
+
+/// Cut 13 §1: the grammar's stall resolution — `stalled` alone, or `stalled, <word> no path`
+/// / `stalled, <word> across water` with a monster title's last word, or `stalled, paced`.
+pub fn stalled_ok(end: &str) -> bool {
+    if end == "stalled" {
+        return true;
+    }
+    let Some(cause) = end.strip_prefix("stalled, ") else { return false };
+    if cause == "paced" {
+        return true;
+    }
+    let Some(word) = cause.strip_suffix(" no path").or_else(|| cause.strip_suffix(" across water")) else { return false };
+    crate::defs::MONSTERS.iter().any(|m| kind_title(m.kind).to_lowercase().rsplit(' ').next() == Some(word))
 }
 
 /// The gate's check: three beats, ≤ 12 words, a setup form, a turn beat with a table verb
@@ -920,7 +960,7 @@ pub fn story_ok(text: &str) -> bool {
         head_ok && forms.contains(&rest)
     };
     let end = beats[2];
-    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "stalled", "died"].iter().any(|k| end.starts_with(k)) || end.ends_with(" fell");
+    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "died"].iter().any(|k| end.starts_with(k)) || stalled_ok(end) || end.ends_with(" fell");
     setup_ok && turn_ok && end_ok
 }
 
@@ -957,7 +997,7 @@ fn weight(res: &Resolution, named: bool) -> i32 {
         Resolution::Reached { .. } => 2,
         Resolution::FirstBoss { .. } => 5,
         Resolution::BossSlain { .. } => 2,
-        Resolution::Returned { .. } | Resolution::Lost { .. } => 1,
+        Resolution::Returned { .. } | Resolution::Lost { .. } | Resolution::Stalled { .. } => 1,
         Resolution::Died { .. } => {
             if named {
                 5

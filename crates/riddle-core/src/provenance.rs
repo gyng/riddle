@@ -187,6 +187,8 @@ pub fn because_for(run: &mut Run, cx: &mut Ctx, why: &str, row: Option<&Row>, co
             Some(Because { text: format!("◆{cost} cond: {}", cond_word(&c.k)), t: run.turn, depth: run.depth })
         }
         "stuck" => last(cx.prov, "stuck").map(Prov::because),
+        // Cut 13 §2: the row bravery held links to the hold (`← brave held it, D4 · t3120`).
+        "brave held" => Some(Because { text: "brave held it".into(), t: run.turn, depth: run.depth }),
         "no path" => {
             let text = path_blocker(run)?;
             // One entry per block: the tick points at the first action the blocker held.

@@ -115,7 +115,7 @@ export type Trace = { turns: TraceTurn[];
 export type Patch = { row: Row; insert_at: number; survive: number; forecast_delta: number; replace?: boolean; remove?: boolean;
                       root?: { text: string }; below_bar?: boolean;
                       unlock?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
-export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice";
+export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall";   // stall: Cut 13 §1, a stalled run's verdict (client-side widening; the Rust side is a String)
                       baseline: number;                                                   // core addition: survival of the unpatched rules, 0..1
                       trace: Trace; patches: Patch[];
                       morgue: string;
@@ -133,6 +133,7 @@ export type ReturnReport = {
   elapsed_s: number; runs: number; sampled: boolean;
   deepest?: number;                                                            // the send's deepest floor (a delta, like the tiles beside it); absent on an old wire
   spent?: { kind: string; n: number; gold: number }[];                         // Cut 13 §3: what the automations bought this absence, per kind (the SPENT section)
+  gold?: { home: number; salvage: number; wake: number; spent: number };       // Cut 13 §3: the absence's movements to the coin (home + salvage + wake − spent = the header's delta)
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; worst_death_id?: number; live?: Snapshot;
   tamed: string[]; hatched: string[]; lost: string[];                        // Addendum A
@@ -195,6 +196,7 @@ export interface Engine {
   // Addendum B
   buySupply(kind: string): Lineage;  clearSupplies(): Lineage;  supplyCatalogue(): SupplyEntry[];
   dropSupply?(id: number): Lineage;     // Cut 12 §6 (client-proposed, core item): the supplies `×` removes one line; absent → the client clears and rebuys the rest
+  setTrait?(name: string): Lineage;     // Cut 13 §2: pick one of `Lineage.trait_offer` for the new heir (optional; an older core has no offer)
   // Addendum D
   keep(ids: number[]): Lineage;
   setKeepPref(pref: string): Lineage;   // core addition (README): keep preference for offline exits

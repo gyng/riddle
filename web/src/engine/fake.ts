@@ -204,17 +204,27 @@ type Run = {
   level: number; killXp: number; windUsed: boolean; bulwark: number; cleaveCd: number;
   gear: InvItem[]; score: number;
   bonesFound: BonesPile[]; bonesPiles: BonesPile[]; rest_s: number; insured: Set<number>; broughtItems: InvItem[];
-  gold: number; spent: { label: string; price: number }[]; line?: ExitLine;                  // Cut 6 §1: the ledger line at the exit
+  gold: number; spent: { label: string; price: number; kind: string }[]; line?: ExitLine;    // Cut 6 §1: the ledger line at the exit
   lastRows?: { row: number; why: string }[];                                                  // Cut 6 §3: row accounting of the last action
   prov: Record<string, Prov>;                                                                 // Cut 11 §1: per slot (`item:heal`, `path`), the last event that emptied / blocked it
   startedTotal: number;                                                                       // Cut 11 §5: the lineage tick this run started at (`Snapshot.run.started_turn`)
   twist?: string;                                                                             // Cut 12 §4: the floor's one situation from D3 (`nest`), never the previous floor's kind
+  stuckFires: number; lastSig: string; stalled: boolean;                                      // Cut 13 §1: the guard — a row (or a frozen chore) that changed nothing, counted; at STALL_FIRES the run ends stalled
+  noted: Set<string>; notes: string[];                                                        // Cut 13 §4: situations noted on this floor (`A den. Something sleeps.`); the run's last two notes (`Death.notes`)
 };
+/** Cut 13 §1: the fake's guard — this many fires with nothing changed end the run as a stall (the core's `STALL_FIRES`). */
+const STALL_FIRES = 30;
+// UI dev knob: `?engine=fake&fake_stall=N` freezes the hero's chores after N turns on a floor (the chore loop the core's guard
+// catches), so a run stalls: `keeps $0 · stalling` on the HUD, then the stall verdict screen.
+const DEV_STALL = (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_stall"))) || 0;
+/** Cut 13 §4: the situation notes the core writes on first sight (verbatim; the client cuts the fight frame in on them). */
+const PROP_NOTE: Record<string, string> = { shrine: "A shrine. Pray, at a price.", vault: "A vault: three under a cage.", nest: "A den. Something sleeps." };
 /** Cut 12 §4: the situation kinds a floor rolls one of from D3 (the core's bands; the fake draws from the whole list). */
 const TWISTS = ["den", "lock", "captive", "nest", "shrine", "vault", "stray", "hunger"];
 /** Cut 11 §1: a provenance entry — the wire's `because` (turn units here, ×10 on the wire) and what kind of event it was. */
 type Prov = Because & { kind: "theft" | "use" | "gas" };
-type RunLog = { seed: number; rules: RuleSet; depth: number; cause?: string; turns: number; exit: string; known: string[]; cls: string; trait: string; heir: number; hpMargin: number; line?: ExitLine };
+type RunLog = { seed: number; rules: RuleSet; depth: number; cause?: string; turns: number; exit: string; known: string[]; cls: string; trait: string; heir: number; hpMargin: number; line?: ExitLine;
+                stalled?: boolean; notes?: string[] };   // Cut 13 §1: a stalled run keeps a verdict like a death's; §4: its last two notes
 
 const idx = (x: number, y: number): number => y * W + x;
 const inb = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < W && y < H;
@@ -309,7 +319,7 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
 
 // --- sim ---
 type SimCtx = { rules: RuleSet; unlocks: Set<string>; flav: (k: string) => string; kindOfFlav: (f: string) => string | undefined; tier: (kind: string) => number;
-  bones: BonesPile[]; insured: Set<number>; gold: number; spent: { label: string; price: number }[] };
+  bones: BonesPile[]; insured: Set<number>; gold: number; spent: { label: string; price: number; kind: string }[] };
 
 function makeRun(id: number, heir: number, seed: number, cls: string, trait: string, known: Set<string>, brought: InvItem[], ctx: SimCtx, party: Companion[] = [], level = 1): Run {
   const rng = mulberry32(seed);
@@ -330,6 +340,7 @@ function makeRun(id: number, heir: number, seed: number, cls: string, trait: str
     party: party.map((c) => ({ ...c, tags: [...c.tags], rules: { rows: c.rules.rows.map((r) => ({ conds: r.conds.map((x) => ({ ...x })), verb: { ...r.verb } })) } })), recalled: [], tamed: [], lostC: [],
     level, killXp: 0, windUsed: false, bulwark: 0, cleaveCd: 0, gear: [], score: 0, bonesFound: [], bonesPiles: ctx.bones, rest_s: 0, insured: ctx.insured, broughtItems: brought.map((b) => ({ ...b })),
     gold: ctx.gold, spent: ctx.spent, prov: {}, startedTotal: 0,
+    stuckFires: 0, lastSig: "", stalled: false, noted: new Set(), notes: [],
   };
   run.nextId = 1000;
   run.recalled = run.party.map((c) => companionMon(run, c));
@@ -355,6 +366,7 @@ function applyItem(h: Hero, it: InvItem, tier = 0): void {
 }
 function descendTo(run: Run, depth: number, ctx: SimCtx, ev: Ev[]): void {
   run.depth = depth; run.floorTurn = 0; run.alert = 0; run.goal = undefined; run.windUsed = false;
+  run.stuckFires = 0; run.noted = new Set();   // Cut 13 §1: a new floor is progress; §4: its situations are noted afresh
   // Cut 12 §4: from D3 every floor rolls one situation, never the previous floor's kind
   run.twist = depth >= 3 ? pick(run.rng, TWISTS.filter((t) => t !== run.twist)) : undefined;
   if (run.floor) for (const m of run.floor.mons) if (m.ally && m.cid !== undefined) run.recalled.push(m);
@@ -671,12 +683,14 @@ function pickUp(run: Run, it: FloorItem, ev: Ev[]): void {
 }
 function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   run.over = true; run.exit = tier;
-  const keep_pct = tier === "bank" ? 100 : tier === "return" ? 60 : 0;
+  // Cut 13 §1: a stalled run comes home as a return that keeps nothing (`returned $0 · $84 carried · keeps 0% · stalled`)
+  const keep_pct = run.stalled ? 0 : tier === "bank" ? 100 : tier === "return" ? 60 : 0;
   run.loot_kept = Math.round(run.loot * keep_pct / 100);   // Cut 2 §2: death 0%
   // Cut 6 §1: one arithmetic line the player can check (supplies were paid in camp; a death names its bones instead)
   const spent = run.spent.reduce((n, x) => n + x.price, 0);
   // Cut 10 §3 (as the core): the line leads with the verb and what came home
   const parts = [`${tier === "bank" ? "banked" : tier === "return" ? "returned" : "died"} $${run.loot_kept}`, `$${run.loot} carried`, `keeps ${keep_pct}%`];
+  if (run.stalled) parts.push("stalled");
   if (tier === "death") { const kit = bonesKit(run).length; if (kit) parts.push(`bones: ${kit} item${kit === 1 ? "" : "s"} on D${run.depth}`); }
   else if (spent) parts.push(`supplies −$${spent}`);
   // Cut 9 §5: every exit carries its last-5 trace (row accounting included), on the event and on the ledger line
@@ -716,7 +730,9 @@ function heroTurn(run: Run, ctx: SimCtx, ev: Ev[]): void {
   if (rows.length) tr.rows = rows;
   if (!done && run.trait === "curious" && !foes.length) { const u = h.inv.find((i) => !i.known); if (u) { useItem(run, u, ctx, ev); fire(-1, { v: POTIONS.includes(u.kind) ? "drink" : "read", a: "unknown" }, "curious: tries unknown"); ev.push({ t: run.turn, k: "callout", text: "curious: tries it" }); done = true; } }
   if (!done && run.trait === "greedy" && foes.length) { const it = run.floor.items.find((i) => cheb(i.x, i.y, h.x, h.y) <= 1); if (it) { if (it.x === h.x && it.y === h.y) pickUp(run, it, ev); else moveHero(run, it.x, it.y, ev); fire(-1, { v: "pick_up" }, "greedy: takes it"); ev.push({ t: run.turn, k: "callout", text: "greedy: grabs it" }); done = true; } }
-  if (!done) {
+  let frozen = false;
+  if (!done && DEV_STALL && run.floorTurn > DEV_STALL) { frozen = true; tr.blocked ??= "chore pick up ✗ no path"; }   // the dev knob: the chore loop
+  if (!done && !frozen) {
     // chores: pick up here → explore nearest unseen → descend
     const here = run.floor.items.find((i) => i.x === h.x && i.y === h.y);
     if (here) { pickUp(run, here, ev); tr.verb = { v: "pick_up" }; }
@@ -728,6 +744,15 @@ function heroTurn(run: Run, ctx: SimCtx, ev: Ev[]): void {
     }
   }
   run.trace.push(tr); if (run.trace.length > TRACE_TURNS) run.trace.shift();   // Cut 11 §3: the last 10 hero turns
+  // Cut 13 §1: the guard — a fired row (or a frozen chore) that left the world as it was counts; anything that moved resets it
+  const sig = `${run.depth}|${h.x},${h.y}|${h.hp}|${run.loot}|${h.inv.length}|${run.floor.mons.reduce((a, m) => a + m.hp, 0)}|${run.floor.items.length}`;
+  if (!run.over && (tr.row >= 0 || frozen) && sig === run.lastSig) run.stuckFires++; else run.stuckFires = 0;
+  run.lastSig = sig;
+  if (!run.over && run.stuckFires >= STALL_FIRES) {
+    run.stalled = true;
+    ev.push({ t: run.turn, k: "note", text: "Stalled. Came home empty-handed." }); ev.push({ t: run.turn, k: "callout", text: "stalled" });
+    endRun(run, "return", ev);
+  }
 }
 function monsterTurn(run: Run, m: Mon, ev: Ev[]): void {
   const h = run.hero;
@@ -809,6 +834,11 @@ function companionTurn(run: Run, m: Mon, ev: Ev[]): void {
 }
 
 function simTurn(run: Run, ctx: SimCtx): Ev[] {
+  const ev = simTurn_(run, ctx);
+  for (const e of ev) if (e.k === "note") { run.notes.push(e.text); while (run.notes.length > 2) run.notes.shift(); }   // Cut 13 §4: `Death.notes`, whatever ended the turn
+  return ev;
+}
+function simTurn_(run: Run, ctx: SimCtx): Ev[] {
   const ev: Ev[] = [];
   if (run.over) return ev;
   run.turn++; run.floorTurn++;
@@ -839,6 +869,8 @@ function simTurn(run: Run, ctx: SimCtx): Ev[] {
   if (run.hero.invis > 0) run.hero.invis--; if (run.hero.bashCd > 0) run.hero.bashCd--; if (run.hero.vanishCd > 0) run.hero.vanishCd--; if (run.cleaveCd > 0) run.cleaveCd--;
   if (run.bulwark > 0) { run.bulwark--; if (run.bulwark === 0) run.hero.def -= 3; }
   bossInView(run, ev);                      // Cut 6 §5: a boss that walked into view this turn
+  // Cut 13 §4: a situation in view is noted once per floor, the core's line verbatim (the client cuts the fight frame in on it)
+  if (!run.over) for (const [k, text] of Object.entries(PROP_NOTE)) { if (run.noted.has(k)) continue; const i = run.floor.tiles.findIndex((t, j) => t === k && run.floor.visible[j]); if (i >= 0) { run.noted.add(k); ev.push({ t: run.turn, k: "note", text }); } }
   if (run.hero.hp <= 0) die(run, ev);
   else if (hp0 <= run.hero.max_hp * 0.2 && run.hero.hp > hp0 && visibleFoes(run).length === 0) { run.hl.push({ pattern: "near_death", score: 5, t: run.turn, run_id: run.id, text: `Down to ${hp0} hp on D${run.depth}. Lived.` }); ev.push({ t: run.turn, k: "note", text: `survived at ${hp0} hp` }); }
   return ev;
@@ -885,7 +917,8 @@ function stakeOf(run: Run, rules?: RuleSet): Snapshot["stake"] {
   const brought = run.broughtItems.map((i) => ({ label: i.label, insured: run.insured.has(i.id) }));
   const rows = rules?.rows ?? []; const ri = rows.findIndex((r) => r.verb.v === "return" || r.verb.v === "bank");
   // Cut 6 §1: what that row would bring home now (the kept number, not the carried one)
-  return { loot: run.loot, brought, return_row: ri >= 0 ? ri : undefined, kept: ri >= 0 ? Math.round(run.loot * (rows[ri].verb.v === "bank" ? 1 : 0.6)) : undefined };
+  return { loot: run.loot, brought, return_row: ri >= 0 ? ri : undefined, kept: ri >= 0 ? Math.round(run.loot * (rows[ri].verb.v === "bank" ? 1 : 0.6)) : undefined,
+           stalling: run.stuckFires > 0 };   // Cut 13 §1: the guard has fired — `keeps $0 · stalling`
 }
 function runToEnd(run: Run, ctx: SimCtx, maxTurns = 3000): void { while (!run.over && run.turn < maxTurns) simTurn(run, ctx); if (!run.over) endRun(run, "return", []); }
 
@@ -913,7 +946,7 @@ export class FakeEngine implements Engine {
     const cat = this.supplyCatalogue();
     return { rules, unlocks: new Set(this.s.lineage.unlocks), flav: (k) => fm.get(k) ?? k, kindOfFlav: (f) => inv.get(f), tier: (k) => this.s.lineage.forge?.[k]?.tier ?? 0,
       bones: this.s.lineage.bones ?? [], insured: new Set(this.s.lineage.insured ?? []),
-      gold: this.s.lineage.gold, spent: (this.s.lineage.supplies ?? []).map((it) => ({ label: it.label, price: cat.find((c) => c.kind === it.kind)?.price ?? 0 })) };
+      gold: this.s.lineage.gold, spent: (this.s.lineage.supplies ?? []).filter((it) => !it.free).map((it) => ({ label: it.label, kind: it.kind, price: cat.find((c) => c.kind === it.kind)?.price ?? 0 })) };
   }
   /** Cut 12 §1: the cap on the player's OWN rows; card rows (`{v:"tactic"}`) sit outside it, one per owned card. */
   private maxRows(): number { return 4 + ["row5", "row6", "row7", "row8"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
@@ -924,10 +957,11 @@ export class FakeEngine implements Engine {
 
   newLineage(seed: number): Lineage {
     const trait = TRAITS[(seed >>> 3) % TRAITS.length];
+    const trait_offer = [trait, TRAITS[(((seed >>> 3) % TRAITS.length) + 1 + ((seed >>> 7) % (TRAITS.length - 1))) % TRAITS.length]];   // Cut 13 §2: two traits, the first the default
     const copy = (): RuleSet => ({ rows: PRESET_FIGHTER.rows.map((r) => ({ conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } })) });
     this.s = {
       lineage: {
-        seed, heir: 1 + SEED_CHRONICLE.length, trait, class: "fighter", best_depth: 0, marks: 0, facts: ["item:leash"], unlocks: ["tame"], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
+        seed, heir: 1 + SEED_CHRONICLE.length, trait, trait_offer, class: "fighter", best_depth: 0, marks: 0, facts: ["item:leash"], unlocks: ["tame"], vault: [], graveyard: [], trophies: [], sets: [copy(), copy(), copy()], active_set: 0, ended: false,
         party: [], kennel: [mkCompanion(1, "jackal", 2, ["pack", "fast"], 0), mkCompanion(2, "goblin_archer", 1, ["ranged"], 0)],
         eggs: [{ id: 3, kind: "bloat", tags: ["gas"], gen: 1, hatch_in: 3, from_loss: false }], party_slots: 1, ledger: [],
         gold: 120, supplies: [{ id: 49_999, kind: "leash", known: true, label: "leash", free: true }], classes: Object.fromEntries(CLASSES.map((c) => [c, { level: 1, xp: 0 }])),   // Cut 8B §3: the kennel's leash
@@ -1087,9 +1121,9 @@ export class FakeEngine implements Engine {
     const ctx = this.ctx(rules); const run = makeRun(0, this.s.lineage.heir, seed, cls, trait, known, brought, ctx, [], this.classLevel(cls)); runToEnd(run, ctx); return run;
   }
 
-  forecast(): Forecast { return this.forecastN(20); }
+  forecast(): Forecast { return { ...this.forecastN(20), refined: false }; }   // Cut 13 §5: the first paint is marked (`±6…`)
   /** Cut 6 §9: the same forecast at 100 sims (the client asks 2 s after a quiet paint). Same seeds ⇒ the first 20 agree. */
-  forecastRefine(): Forecast { return this.forecastN(100); }
+  forecastRefine(): Forecast { return { ...this.forecastN(100), refined: true }; }
   private forecastN(N: number): Forecast {
     const L = this.s.lineage; const known_to = L.best_depth + 1;
     const reach = new Array(16).fill(0); const causes: Record<string, number> = {};
@@ -1109,7 +1143,8 @@ export class FakeEngine implements Engine {
       if (!c || !this.known().has(`boss:${boss}:counter`) || this.s.rules.rows.some((r) => rowText(r) === rowText(c.row))) continue;
       d.cause ??= boss; d.try = { row: JSON.parse(JSON.stringify(c.row)) as Row, text: c.text };
     }
-    return { depths, causes: top, known_to, ends: { bank: ends.bank / N, return: ends.return / N, death: ends.death / N, gold: ends.gold / N } };
+    const death = ends.death / N;
+    return { depths, causes: top, known_to, ends: { bank: ends.bank / N, return: ends.return / N, death, gold: ends.gold / N, pm: 1.96 * Math.sqrt((death * (1 - death)) / N) } };   // Cut 13 §5: the ends line's own ±
   }
 
   private startRun(): Run {
@@ -1120,7 +1155,15 @@ export class FakeEngine implements Engine {
     this.s.logs[id] = { seed, rules: JSON.parse(JSON.stringify(this.s.rules)) as RuleSet, depth: 1, turns: 0, exit: "", known: [...this.known()], cls: L.class, trait: L.trait, heir: L.heir, hpMargin: 0 };
     return run;
   }
-  send(): Snapshot { this.s.lineage.rest_left_s = 0; if (!this.live || this.live.over) this.live = this.startRun(); const snap = snapshot(this.live, this.s.rules); snap.turn *= 10; return snap; }
+  send(): Snapshot { this.s.lineage.rest_left_s = 0; delete this.s.lineage.trait_offer; return this.peek(); }   // Cut 13 §2: the send settles the heir's trait
+  /** The live run's first frame without a send (the report's `live`): the trait offer stands. */
+  private peek(): Snapshot { if (!this.live || this.live.over) this.live = this.startRun(); const snap = snapshot(this.live, this.s.rules); snap.turn *= 10; return snap; }
+  /** Cut 13 §2: pick one of the offered traits; an idle live run is rebuilt so the next send wakes with it. */
+  setTrait(name: string): Lineage {
+    const L = this.s.lineage;
+    if (!(L.trait_offer ?? []).includes(name)) throw new Error(`no trait ${name} on offer`);
+    L.trait = name; this.dropIdleRun(); return this.lineage();
+  }
   // The fake sims one hero action per turn; `step` takes ticks (Addendum E: 10 per action) so the
   // viewer's clock reads it at the real pace. Event `t` and `snapshot.turn` are scaled ×10.
   private tickAcc = 0;
@@ -1151,13 +1194,20 @@ export class FakeEngine implements Engine {
     if (pref === "best_armour") return pickBest((i) => ARMOUR[i.kind] ?? 0);
     return [];
   }
-  private settle(run: Run, real: boolean, keepIds: number[] = []): { facts: string[]; bests: string[]; marks: number; tamed: string[]; lost: string[]; hatched: string[]; xp: number; levels: number[]; salvaged: { kind: string; n: number; gold: number }[]; score: number; ranks: number[] } {
+  private settle(run: Run, real: boolean, keepIds: number[] = []): { facts: string[]; bests: string[]; marks: number; tamed: string[]; lost: string[]; hatched: string[]; xp: number; levels: number[]; salvaged: { kind: string; n: number; gold: number }[]; score: number; ranks: number[]; spent: { kind: string; n: number; gold: number }[] } {
     const L = this.s.lineage; const log = this.s.logs[run.id];
-    if (log) { log.depth = run.depth; log.cause = run.cause; log.turns = run.turn; log.exit = run.exit ?? ""; log.line = run.line; log.hpMargin = run.lastHurt ? run.lastHurt.dmg - run.lastHurt.hpBefore + 1 : 0; if (run.exit === "death") log.turns = run.turn; }
-    if (!real) return { facts: [], bests: [], marks: 0, tamed: [], lost: [], hatched: [], xp: 0, levels: [], salvaged: [], score: 0, ranks: [] };
+    if (log) { log.depth = run.depth; log.cause = run.cause; log.turns = run.turn; log.exit = run.exit ?? ""; log.line = run.line; log.hpMargin = run.lastHurt ? run.lastHurt.dmg - run.lastHurt.hpBefore + 1 : 0; if (run.exit === "death") log.turns = run.turn; log.stalled = run.stalled; log.notes = [...run.notes]; }
+    if (!real) return { facts: [], bests: [], marks: 0, tamed: [], lost: [], hatched: [], xp: 0, levels: [], salvaged: [], score: 0, ranks: [], spent: [] };
     const facts: string[] = []; const bests: string[] = []; let marks = 0;
     const tamed: string[] = [], lost: string[] = [], hatched: string[] = [];
-    this.gold(run.loot_kept, `${run.exit === "bank" ? "banked" : run.exit === "return" ? "returned" : "died"} D${run.depth}`); L.supplies = [];
+    this.gold(run.loot_kept, `${run.stalled ? "stalled" : run.exit === "bank" ? "banked" : run.exit === "return" ? "returned" : "died"} D${run.depth}`); L.supplies = [];
+    // Cut 13 §3: `auto: restock` rebuys what the run packed, at the return, when the gold allows (the report's SPENT rows)
+    const spent: { kind: string; n: number; gold: number }[] = [];
+    if (L.unlocks.includes("auto_supply")) for (const p of run.spent) {
+      if (L.gold < p.price || L.supplies.length >= this.supplyCap()) continue;
+      this.gold(-p.price, p.label); L.supplies.push({ id: this.s.nextItem++, kind: p.kind, known: true, label: p.label });
+      const row = spent.find((x) => x.kind === p.kind) ?? (spent.push({ kind: p.kind, n: 0, gold: 0 }), spent[spent.length - 1]); row.n++; row.gold += p.price;
+    }
     L.rest_left_s = run.rest_s;                                             // Cut 2 §1: camp rest after every expedition (send skips it)
     // Cut 2 §2: bones recovered this run leave the lineage; a death leaves a new pile (max 3, oldest expires)
     L.bones = (L.bones ?? []).filter((b) => !run.bonesFound.some((f) => f.heir === b.heir && f.depth === b.depth));
@@ -1198,8 +1248,9 @@ export class FakeEngine implements Engine {
       (L.chronicle ??= []).push(chronicleLine(run.heir, L.trait, run.cls, run.depth, deed, `fell to ${run.cause ?? "?"}`, kit ? `left bones on D${run.depth}` : undefined, this.s.rules.name));
       while (L.chronicle.length > CHRONICLE_CAP) L.chronicle.shift();
       L.vault = L.vault.filter((v) => !run.brought.includes(v.id) || run.insured.has(v.id)); L.insured = (L.insured ?? []).filter((id) => !run.brought.includes(id)); this.s.loadout = [];
-      L.heir += 1; L.trait = TRAITS[(L.seed + L.heir * 7) % TRAITS.length];
-    } else {
+      // Cut 13 §2: the new heir wakes with two traits on offer (never the last one); the first is the default until `setTrait`
+      const last = L.trait; const pool = TRAITS.filter((t) => t !== last); const a = (L.seed + L.heir * 7) % pool.length;
+      L.heir += 1; L.trait_offer = [pool[a], pool[(a + 1 + ((L.seed >>> 5) % (pool.length - 1))) % pool.length]]; L.trait = L.trait_offer[0];
     }
     // Addendum D: keep into free vault slots, salvage the rest (Cut 2 §2: a death's kit is bones, not salvage)
     const tierMul = run.exit === "bank" ? 1 : 0.6;
@@ -1214,7 +1265,7 @@ export class FakeEngine implements Engine {
     // renown
     const score = 10 * run.depth + run.score + run.hl.reduce((a, b) => a + b.score, 0); L.renown += score; const ranks: number[] = [];
     while (L.renown >= 100 * (L.rank + 1) * (L.rank + 1)) { L.rank++; L.marks++; ranks.push(L.rank); }
-    return { facts, bests, marks, tamed, lost, hatched, xp, levels, salvaged, score, ranks };
+    return { facts, bests, marks, tamed, lost, hatched, xp, levels, salvaged, score, ranks, spent };
   }
   private pending: Run | null = null;
   keep(ids: number[]): Lineage {
@@ -1244,13 +1295,15 @@ export class FakeEngine implements Engine {
     if ((L.rest_left_s ?? 0) > 0) { const r = Math.min(L.rest_left_s ?? 0, budget); rested += r; budget -= r; L.rest_left_s = (L.rest_left_s ?? 0) - r; }
     const learned: string[] = [], bests: string[] = [], found: InvItem[] = [], deaths: Record<string, number> = {}; let marks = 0; let reel: Highlight[] = [];
     const tamed: string[] = [], hatched: string[] = [], lost: string[] = []; let xpGained = 0, levelUps = 0, renownGained = 0, ranksUp = 0;
-    const salvMap: Record<string, { n: number; gold: number }> = {};
-    const take = (r: { tamed: string[]; lost: string[]; hatched: string[]; xp: number; levels: number[]; salvaged: { kind: string; n: number; gold: number }[]; score: number; ranks: number[] }): void => {
+    const salvMap: Record<string, { n: number; gold: number }> = {}, spentMap: Record<string, { n: number; gold: number }> = {};
+    const take = (r: { tamed: string[]; lost: string[]; hatched: string[]; xp: number; levels: number[]; salvaged: { kind: string; n: number; gold: number }[]; score: number; ranks: number[]; spent: { kind: string; n: number; gold: number }[] }): void => {
       tamed.push(...r.tamed); lost.push(...r.lost); hatched.push(...r.hatched); xpGained += r.xp; levelUps += r.levels.length; renownGained += r.score; ranksUp += r.ranks.length;
       for (const s of r.salvaged) { const m = (salvMap[s.kind] ??= { n: 0, gold: 0 }); m.n += s.n; m.gold += s.gold; }
+      for (const s of r.spent) { const m = (spentMap[s.kind] ??= { n: 0, gold: 0 }); m.n += s.n; m.gold += s.gold; }   // Cut 13 §3
     };
     if (this.pending) { const run = this.pending; this.pending = null; take(this.settle(run, true, this.autoKeep(run))); this.live = null; }
     let worst: { id: number; depth: number } | null = null;
+    let stalledRun: number | null = null;                                  // Cut 13 §1: a stall's verdict opens from the report when no death does
     let deepest = 0;                                                       // the send's deepest floor (the report's `deepest` tile)
     if (this.live && !this.live.over) { const ctx = this.ctx(); while (!this.live.over && budget > 0) { simTurn(this.live, ctx); budget--; this.s.totalTurns += 10; } if (this.live.over) { const r = this.settle(this.live, true, this.autoKeep(this.live)); this.settled.add(this.live.id); take(r); learned.push(...r.facts); bests.push(...r.bests); marks += r.marks; runs++; if (this.live.exit === "death") { deaths[this.live.cause ?? "?"] = 1; worst = { id: this.live.id, depth: this.live.depth }; } reel.push(...this.live.hl); rest(this.live); this.live = null; } }
     while (budget > 0 && stall < 20 && runs < 80 && !L.ended) {
@@ -1264,6 +1317,7 @@ export class FakeEngine implements Engine {
       this.home = run.exit === "death" || r.bests.some((b) => /^D\d+$/.test(b)) ? 0 : this.home + 1;
       for (const p of run.picked) if ((WEAPONS[p.kind] || ARMOUR[p.kind] !== undefined) && !found.some((f) => f.kind === p.kind)) found.push(p);
       if (run.exit === "death") { deaths[run.cause ?? "?"] = (deaths[run.cause ?? "?"] ?? 0) + 1; if (!worst || run.depth < worst.depth) worst = { id: run.id, depth: run.depth }; }
+      else if (run.stalled) stalledRun ??= run.id;
       reel.push(...run.hl);
       rest(run);
     }
@@ -1271,14 +1325,15 @@ export class FakeEngine implements Engine {
     reel = reel.sort((a, b) => b.score - a.score).slice(0, 5);
     const pending: string[] = [];
     for (const [u, c] of Object.entries(UNLOCK_COST)) if (!L.unlocks.includes(u) && L.marks >= c && this.unlockVisible(u)) pending.push(`unlock ${u} (${c})`);
-    const worstDeath = worst ? this.death(worst.id) : undefined;
+    const worstDeath = worst ? this.death(worst.id) : stalledRun !== null ? this.death(stalledRun) : undefined;
     if (worstDeath?.verdict === "gap") pending.push(`patch D${worstDeath.depth} ${worstDeath.cause}`);
     if (!pending.length) pending.push("rules");
     const verdictStall = this.stall(this.home);
     const restLeft = L.rest_left_s ?? 0;
-    const live = this.send(); L.rest_left_s = restLeft;                    // `live` is a peek, not a send: the rest stands
+    const live = this.peek(); L.rest_left_s = restLeft;                    // `live` is a peek, not a send: the rest and the trait offer stand
     return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live, tamed, hatched, lost, xp: { class: L.class, gained: xpGained, level_ups: levelUps },
       salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp },
+      spent: Object.entries(spentMap).map(([kind, v]) => ({ kind, ...v })),   // Cut 13 §3
       rested_s: rested, banked, returned, bones_found: bonesFound, stall: verdictStall, deepest, exits };
   }
   /** Stall verdict (core README) so the report's section can be seen: a `return` / `bank` row that sent ≥ 4 runs home with no
@@ -1321,7 +1376,8 @@ export class FakeEngine implements Engine {
     const known = new Set(log.known);
     const replay = makeRun(runId, log.heir, log.seed, log.cls, log.trait, known, [], this.ctx(log.rules)); runToEnd(replay, this.ctx(log.rules));
     const N = 8;
-    const survive = (rules: RuleSet): number => { let ok = 0; for (let i = 0; i < N; i++) { const r = this.simOne(hash(`p:${log.seed}:${i}`), rules, known, log.cls, log.trait); if (r.depth > log.depth || r.exit !== "death") ok++; } return ok / N; };
+    // Cut 13 §1: a stall's checkpoint is the guard — a candidate survives when the replay leaves the floor or comes home unstalled
+    const survive = (rules: RuleSet): number => { let ok = 0; for (let i = 0; i < N; i++) { const r = this.simOne(hash(`p:${log.seed}:${i}`), rules, known, log.cls, log.trait); if (r.depth > log.depth || (log.stalled ? !r.stalled : r.exit !== "death")) ok++; } return ok / N; };
     const base = survive(log.rules);
     const vocab = this.vocabulary(); const hasTag = (t: string): boolean => vocab.conds.some((c) => c.k === "foe_tag" && c.t === t);
     const heal = vocab.verbs.some((v) => v.v === "drink" && v.a === "heal");
@@ -1348,16 +1404,17 @@ export class FakeEngine implements Engine {
     const rootPatches: Patch[] = roots.filter((r) => fresh(r.row)).map((r) => ({ ...score(r.row), root: { text: r.root } }));
     const rootTexts = new Set(rootPatches.map((p) => rowText(p.row)));
     const scored = cands.filter((c) => fresh(c) && !rootTexts.has(rowText(c))).map(score).sort((a, b) => b.survive - a.survive).slice(0, 3);
-    const verdict: "gap" | "dice" = [...rootPatches, ...scored].some((p) => p.survive >= 0.6) ? "gap" : "dice";
+    const verdict: Death["verdict"] = log.stalled ? "stall" : [...rootPatches, ...scored].some((p) => p.survive >= 0.6) ? "gap" : "dice";
     // Cut 11 §4: a candidate under the bar is still named, dimmed (`survives 40% · below bar`); `dice` never shows an empty list
     let patches: Patch[] = [...rootPatches, ...scored].map((p) => (p.survive < 0.6 ? { ...p, below_bar: true } : p));
     // Cut 11 §2: a locked-condition root — the unlock as a pseudo-patch (`◆2 cond: alert`, insert_at −1): the client buys, then inserts the row
     if (!L.unlocks.includes("cond_alert") && replay.alert >= 1) { const row: Row = { conds: [{ k: "alert>=", n: 3 }], verb: { v: "return" } }; const sv = survive({ rows: [row, ...log.rules.rows] }); patches.push({ row, insert_at: -1, survive: sv, forecast_delta: Math.round((sv - base) * 100) / 100, root: { text: `◆${UNLOCK_COST.cond_alert} cond: alert` }, ...(sv < 0.6 ? { below_bar: true } : {}) }); }
     patches = patches.slice(0, 4);
-    const margin = `${Math.max(1, log.hpMargin)} hp short`;
+    const margin = log.stalled ? "no path" : `${Math.max(1, log.hpMargin)} hp short`;   // a stall's headline: the guard's reason, not an hp margin
     const morgue = [`riddle · seed ${L.seed} · heir ${log.heir} · ${log.cls} · ${log.trait}`, `D${log.depth} · ${replay.cause ?? "?"} · ${margin} · ${verdict} · turn ${log.turns}`, "", ...log.rules.rows.map((r, i) => `R${i + 1} ${rowText(r)}`), "", ...replay.trace.map((t) => `t${t.t * 10} R${t.row + 1} ${verbText(t.verb)} hp${t.hp} foes${t.foes}${t.telegraphs.length ? " " + t.telegraphs.join(",") : ""}`), ...chain.map((c) => `← ${c.text} t${c.t * 10}`)].join("\n");
-    const d: Death = { run_id: runId, depth: log.depth, cause: replay.cause ?? log.cause ?? "?", margin, verdict, baseline: base, trace: { turns: scaleTrace(replay.trace) }, patches, morgue, line: log.line ?? replay.line, rules: log.rules,
-      chain: chain.length ? chain.map((c) => ({ text: c.text, t: c.t * 10, depth: c.depth })) : undefined };
+    const d: Death = { run_id: runId, depth: log.depth, cause: log.stalled ? "stalled" : replay.cause ?? log.cause ?? "?", margin, verdict, baseline: base, trace: { turns: scaleTrace(replay.trace) }, patches, morgue, line: log.line ?? replay.line, rules: log.rules,
+      chain: chain.length ? chain.map((c) => ({ text: c.text, t: c.t * 10, depth: c.depth })) : undefined,
+      notes: (log.notes ?? replay.notes).slice(-2) };   // Cut 13 §4
     this.lastDeath[runId] = d; return d;
   }
 
@@ -1380,6 +1437,7 @@ export class FakeEngine implements Engine {
       const needs = owned ? undefined : !met ? u.needs : !this.unlockVisible(id) ? UNLOCK_PREREQ[id]?.replace(/_/g, " ") : L.marks < u.cost ? `◆${u.cost - L.marks} more` : undefined;
       return { id, cost: u.cost, owned, available: !owned && needs === undefined, needs,
       delta: TACTIC_CARDS.includes(id) && !owned ? ((Math.abs(hash(id)) % 9) - 2) / 100 : undefined,   // delta: Cut 4 §9 stand-in (`reach +4%` on a card)
+      ...(TACTIC_CARDS.includes(id) && !owned ? { pm: 0.03 } : {}),                                     // Cut 13 §5: its half-width — within it the client reads `reach ~0`
       rows: UNLOCK_ROWS[id],                                                                             // Cut 6 §6
       ...(TACTIC_CARDS.includes(id) ? { insert_at: this.cardInsertAt() } : {}) };                        // Cut 12 §1
     });

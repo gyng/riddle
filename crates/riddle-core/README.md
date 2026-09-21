@@ -983,6 +983,94 @@ Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion ver
   2 116 verdicts, replay hash `b01377859a60bd6b` (exit lines carry ten turns and the
   provenance; `Patch.insert_at` is an i32).
 
+## Cut 13 (no stake the player did not choose) — deviations and additions
+
+- **A stall is a run the player can read** (§1). `Stake.stalling` (the HUD's `keeps $0 ·
+  stalling`) is `run.stuck_fires > 0`. A stalled run (`timed_out && stuck_fires >=
+  STALL_FIRES`) gets a death-style record (`trace::stall_record`, a `DeathRec` with `stall:
+  true` in `Game.deaths`; `death(id)` returns it): `Death.verdict` **`stall`** (never `gap` /
+  `dice`), `cause` = the guard's moment — `stalled · goblin archer, no path` (`Run.stuck_cause`,
+  set by every guard: the nearest foe it gave up on, `across water` when it stands in water) or
+  `stalled · paced` — `margin` `keeps $0`, the trace, the row accounting, the chain, the
+  notes, the exit line. Its patches come from `trace::stall_candidates` (`path_stairs →
+  descend`, `floor_seen ≥ N → descend` at the threshold the checkpoint's floor met, `depth ≥
+  D → return` / `bank`; never a targeting row — the foe was unreachable), scored by the same
+  replays as a death's: the checkpoint is the last history entry at or before the **first
+  guard's tick** (`Run.stuck_first_t`; the ring holds `HISTORY_TURNS × HISTORY_STRIDE` ticks
+  and the three guards span ≥ 60 actions, so in practice the oldest entry stands in), the
+  window ends at the stall tick (no encounter extension), and a replay **survives** when it
+  leaves the floor (descends, returns or banks without timing out) or ends the stall (no
+  guard fires before the window's end); the baseline likewise. `worst_death`: a stall is a
+  worst candidate below a death at its depth or deeper (`Batch.worst_stall`) — the deepest
+  stall leads the report only when no death reached its floor. `Batch.stalls` counts them;
+  they stay `returned` in the report's tallies and never enter `deaths`. The chronicle note
+  reads `Stalled: the archer, no path. Came home empty-handed.` (`sifter::stall_note_cause`).
+  `Resolution::Stalled { cause }` (the old `Lost { stalled }` stays for saved episodes) makes
+  the reel line read the trace's cause: `D4, the den: stalled, archer no path.` /
+  `…; stalled, archer no path.` (`sifter::stall_short`); the grammar gate takes `stalled`
+  alone or `stalled, <a monster title's last word> no path | across water` or `stalled,
+  paced` (`sifter::stalled_ok`) and nothing looser. The ≥ 4-run stall report
+  (`offline::stall_verdict`) is unchanged. Three gate rows: `Stalls ≤ 1 % of sends on DEFAULT`
+  (EDITED = `probes::good()` and FULL = `probes::full()` printed beside it), `Stall verdicts:
+  ≥ 1 patch fired ≥ 50 %`, `Stall reel line's cause == the trace's`; the death gates sample
+  the deaths alone (`DeathRec.stall` excluded).
+- **The heir's trait is chosen** (§2). `Lineage.trait_offer` (two names) on every new heir —
+  the first heir, each wake after a death, an ascension's first heir — from
+  `engine::trait_offer(seed, heir, last, first)`: the lineage rng's draw stays the first (so
+  every seed's heirs keep the traits they had; the cohort seeds too) unless it is the last
+  heir's, when the offer's own rng (`Rng::derive(seed, "trait_offer" ^ heir)`, an ascended
+  lineage's heirs counted from 1000 × its ascension) redraws it, and the second comes from
+  that rng, distinct from both. `trait_` is the first until `Game::set_trait(name)` (wasm
+  `setTrait` → Lineage) picks; `start_run` empties the offer; both persist (`LineageState.
+  trait_offer`). **One trait deviation per floor** (`Run.trait_floor`, reset at the stairs):
+  cowardice's retreat, greed's grab and den walk, curiosity's drink, bravery's hold — the
+  five-action spacing and the 25 % floor stay. Every deviation that holds a row leaves a
+  `because` on it: `brave held` ← `brave held it` (`provenance::because_for`), `trait first` ←
+  `cowardly ran first` / `greedy went first` (`turn::all_rows_why` now carries one).
+- **The night's ledger** (§3). `ReturnReport.spent`: per kind, what `restock` (and
+  `auto_insure`, as `insure <kind>`) bought during the batch, in coins (`Batch.spent`); the
+  batch also keeps the exact coins of salvage and wake pay (`salvage_gold`, `wake_pay`) so
+  `gold_earned + salvage_gold + wake_pay − spent == the purse's delta` holds to the coin
+  (test, 20 seeds × 8 h; `examples/qa.rs`, 30 seeds). *Deviation from the contract's
+  `banked + returned + salvage − spent`*: wake pay is a real movement of the night and is in
+  the ledger the client reads; the client's tiles reconcile with it. `restock` skips a kind
+  the last run used to no effect (`Run.wasted_kinds` → `LineageState.last_wasted`: an
+  `Ev::Use` outcome `nothing`, a heal drunk at full HP). The supply catalogue offers a potion
+  or scroll the forge can craft at its base price whether or not it is identified (at the
+  forge's tier, as before).
+- **Forecast noise** (§5). `UnlockInfo.pm` = `meta::delta_pm(base, patched, n)` =
+  `√(half_width(base, n)² + half_width(patched, n)²)` over the paired panel's `n` seeds (the
+  independent bound; the paired difference is no wider), on the computed and the memoised
+  read alike. `ForecastEnds.pm` and `Forecast.refined` were pinned with the wire.
+- **`examples/qa.rs`** (§6): the wire invariants as a native QA player, seeds 1..=30 in
+  parallel (~8 s): gold header == ledger sum (while the ledger has not evicted a line), report
+  `runs == deaths + banked + returned`, ends sum to 1 and `death 0 ⇒ no killers`, a learned
+  flavour never labels `?` (exit sheet, report), a gate's `needs` never names a held fact,
+  camp supplies == the run's packed kinds, `brought` == the loadout, no patch already in the
+  set, the top patch applies through `set_rules`, an available unlock buys, a dropped
+  supply's refund == its price, `ExitPending.worth` == the salvage arithmetic and a keep of
+  nothing salvages Σ worth ± rounding, the night's gold reconciles, every stall's verdict
+  names a firing patch and its reel cause is its trace's, save/load round-trips. One line
+  per invariant with counts; exit 1 on a failure; `tools/gates.mjs` runs it beside the table
+  and the dayplayer. The extrapolated runs of a sampled absence are now apportioned by
+  largest remainder (`offline::apportion`) so `runs == deaths + banked + returned` holds to
+  the run (rounding each share alone left the report a run short).
+- **Replay fidelity** (found by `replay_without_reseed_reproduces_the_death` once the content
+  moved): a verdict replay whose window crosses a descent generated the new floor from the
+  lineage as it stood at `death()` time — with the death's own grudge already pushed, the
+  kill counts (and so the `studied` tick) of every run since, and whatever the player bought
+  in between. The record now takes `t10_kill_counts` (the death-time counts less the run's
+  kills after the checkpoint) and `t10_lineage` (`CheckpointLineage`: grudges, forge, hunter,
+  lost, unlocks, vault preference), and `finish_run` takes the record before the grudge
+  joins; `replay_base` applies both. Older records replay as before.
+- **Tests**: 261 (+5): `a_stalled_run_gets_a_verdict_whose_cause_the_reel_repeats` (a chasm
+  arena: the guard fires three times, the record, the patch, the reel line, the note, the
+  save), `a_new_heir_chooses_between_two_offered_traits` (40 seeds), `a_trait_deviates_at_
+  most_once_per_floor_and_says_so_on_the_row` (30 seeds' first runs), `the_nights_ledger_
+  reconciles_and_a_wasted_kind_is_not_rebought` (20 seeds × 8 h, parallel),
+  `a_catalogue_delta_carries_its_half_width`; the faithful-replay test accepts a stall
+  record (it replays to the same stall).
+
 ## Layout
 
 `src/` per `docs/CUT1.md` plus `wire.rs` (the wire structs), `situations.rs` (the Cut 7 band

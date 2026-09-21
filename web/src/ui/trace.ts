@@ -34,5 +34,5 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
  *  `null` when the exit carries no trace. */
 export function traceChip(trace: Trace | undefined, cls = "chip mini", ctx: ChainCtx = {}): HTMLElement | null {
   if (!trace?.turns.length) return null;
-  return h("button", { class: cls, onclick: () => openSheet(() => h("div", { class: "sheet-body trace-sheet" }, ...traceTable(trace, { ...ctx, provenance: true }, EXIT_TRACE_ROWS))) }, /* copy:button */ "trace");
+  return h("button", { class: cls, onclick: () => openSheet(() => h("div", { class: "sheet-body trace-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "trace"), ...traceTable(trace, { ...ctx, provenance: true }, EXIT_TRACE_ROWS))) }, /* copy:button */ "trace");
 }

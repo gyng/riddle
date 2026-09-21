@@ -112,8 +112,8 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
                         ExitTier::Return => returned += 1,
                         ExitTier::Death => {}
                     }
-                    if let Some(c) = cause {
-                        *deaths.entry(c).or_insert(0) += 1;
+                    if tier == ExitTier::Death {
+                        *deaths.entry(cause.unwrap_or_else(|| "unknown".into())).or_insert(0) += 1;
                     }
                     game.finish_run();
                     game.auto_keep();
@@ -126,12 +126,21 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
                     let remaining = budget - consumed;
                     let extra = remaining / mean;
                     game.batch.runs += extra as u32;
-                    let share = |k: u32| (extra as f64 * k as f64 / SAMPLE_RUNS as f64).round() as u32;
-                    for (c, k) in &deaths {
-                        *game.batch.deaths.entry(c.clone()).or_insert(0) += share(*k);
+                    // Cut 13 §6: the extrapolated runs are apportioned so `runs == deaths +
+                    // banked + returned` holds to the run (largest remainder over the sample's
+                    // exits; rounding each share alone left the report a run short).
+                    let mut cats: Vec<(String, u32)> = deaths.iter().map(|(c, k)| (c.clone(), *k)).collect();
+                    cats.push(("\0bank".into(), banked));
+                    cats.push(("\0return".into(), returned));
+                    let shares = apportion(extra as u32, &cats.iter().map(|(_, k)| *k).collect::<Vec<u32>>());
+                    for ((c, _), n) in cats.iter().zip(shares) {
+                        match c.as_str() {
+                            "\0bank" => game.batch.banked += n,
+                            "\0return" => game.batch.returned += n,
+                            _ => *game.batch.deaths.entry(c.clone()).or_insert(0) += n,
+                        }
                     }
-                    game.batch.banked += share(banked);
-                    game.batch.returned += share(returned);
+                    let share = |k: u32| (extra as f64 * k as f64 / SAMPLE_RUNS as f64).round() as u32;
                     // The extrapolated runs end the way the sample did: same exit rows, same stall.
                     let exits: Vec<(i32, u32)> = game.batch.exit_rows.iter().map(|(r, n)| (*r, n - exits_before.get(r).copied().unwrap_or(0))).filter(|(_, n)| *n > 0).collect();
                     for (r, k) in &exits {
@@ -157,6 +166,23 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
     game.stall_runs = stall;
     game.offline = false;
     report(game, elapsed_s, &facts_before, &class, rank_before, sampled, full)
+}
+
+/// Cut 13 §6: `total` split in proportion to `weights` (largest remainder), summing to
+/// `total` exactly; all zeros when the weights are.
+pub fn apportion(total: u32, weights: &[u32]) -> Vec<u32> {
+    let sum: u32 = weights.iter().sum();
+    if sum == 0 || weights.is_empty() {
+        return vec![0; weights.len()];
+    }
+    let mut out: Vec<u32> = weights.iter().map(|w| (total as u64 * *w as u64 / sum as u64) as u32).collect();
+    let mut rem: Vec<(u64, usize)> = weights.iter().enumerate().map(|(i, w)| ((total as u64 * *w as u64) % sum as u64, i)).collect();
+    rem.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    let short = total - out.iter().sum::<u32>();
+    for (_, i) in rem.into_iter().take(short as usize) {
+        out[i] += 1;
+    }
+    out
 }
 
 fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTreeSet<String>, class: &str, rank_before: u32, sampled: bool, full: bool) -> ReturnReport {
@@ -210,7 +236,9 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         bones_found: b.bones_found.clone(),
         stall,
         deepest: b.run_outcomes.iter().map(|(d, _)| *d).max().unwrap_or(0),
-        spent: Vec::new(),
+        // Cut 13 §3: the night's ledger — what the automations bought, per kind in coins.
+        spent: b.spent.iter().map(|(k, (n, g))| SalvageRow { kind: k.replace('_', " "), n: *n, gold: *g }).filter(|r| r.gold > 0).collect(),
+        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum() }),
         exits: b.exits.clone(),
     }
 }

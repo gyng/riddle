@@ -22,6 +22,11 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: var(--tap); padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; white-space: nowrap; }
 .strip > * { flex: 0 0 auto; }
 .strip .marks { color: var(--acc); margin-left: auto; }
+/* Cut 13 §2: the heir's trait offer — two chips beside ♟N, each with its rule under the name; the chosen one is on (and inert) */
+.strip .chips.traits { display: inline-flex; gap: 4px; }
+.chip.trait { flex-direction: column; align-items: flex-start; gap: 0; min-height: 36px; padding: 3px 10px; line-height: 1.15; font-size: 13px; }
+.chip.trait .rule { font-size: 10px; letter-spacing: .02em; }
+.chip.trait:disabled { opacity: 1; }
 .gear { min-width: 36px; min-height: var(--tap); font-size: 20px; color: var(--dim); }
 
 /* tabs */
@@ -142,19 +147,24 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .hud-btn.on.slowed { background: rgba(242,193,78,.16); }
 .stake .returning { color: #ffd7a8; }
 .hud.top .hud-btn { margin-left: auto; }
-.ticker { position: absolute; left: 0; right: 0; bottom: calc(76px + env(safe-area-inset-bottom)); text-align: center; font-size: 20px; color: var(--acc); text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.ticker { position: absolute; left: 0; right: 0; bottom: calc(76px + env(safe-area-inset-bottom)); padding: 0 12px; text-align: center; font-size: 20px; line-height: 1.2; color: var(--acc); text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity .2s; pointer-events: none; overflow-wrap: anywhere; }   /* Cut 13 §4: wraps, never clips */
 .ticker.show { opacity: 1; }
 .ticker.hurt { color: var(--hp); }
 .ticker.kill { color: var(--acc); }
 .ticker.ambient { color: var(--fg); }   /* Cut 7 §4: `D3 · 4 rooms` · `$47` · `alert 3` at 8× */
 /* Cut 8A: in the fight frame the firing row is a caption inside the frame; the ticker keeps only hurts and ambients */
-.watch[data-frame="fight"] .ticker.show:not(.hurt):not(.ambient) { opacity: 0; }
+.watch[data-frame="fight"] .ticker.show:not(.hurt):not(.ambient):not(.beat) { opacity: 0; }
+.ticker.beat { color: var(--fg); font-size: 18px; }   /* Cut 13 §4: a situation's line at the cut (engine data, verbatim) */
+.stake .stalling { color: var(--warn); }              /* Cut 13 §1: `keeps $0 · stalling` */
 
 /* death */
 .death-line { font-size: 18px; font-weight: 400; margin: 18px 0 14px; line-height: 1.4; }
 .verdict { padding: 2px 8px; border-radius: 6px; font-weight: 700; }
 .verdict.gap { background: var(--acc); color: #1a1400; }
 .verdict.dice { background: var(--panel2); color: var(--dim); }
+.verdict.stall { background: var(--warn); color: #1a1400; }   /* Cut 13 §1: a stalled run's verdict */
+.death-notes { margin: -6px 0 10px; font-size: 13px; line-height: 1.4; }   /* Cut 13 §4: the run's last two notes */
+.forecast-said { margin: -4px 0 10px; font-size: 13px; }               /* Cut 13 §5: `forecast said 5%` on a dice death */
 .trace { width: 100%; border-collapse: collapse; font-size: 13px; }
 .trace th { text-align: left; font-weight: 400; color: var(--dim); padding: 4px 6px; border-bottom: 1px solid var(--line); }
 .trace td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -168,6 +178,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .patch { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 56px; padding: 8px 14px; border-radius: var(--radius); border: 1px solid #34506f; background: var(--cond); text-align: left; }
 .delta.up { color: var(--ok); }
 .delta.down { color: var(--hp); }
+.delta.flat { color: var(--dim); }   /* Cut 13 §5: `reach ~0` — a delta within its ± */
 
 /* report */
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
@@ -246,6 +257,9 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .forge .ladder { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .forge .ladder .rung { color: var(--fg); }
 .ledger .up, .report .up { color: var(--ok); }
+.report .down { color: var(--hp); }
+.gold-line { margin: 2px 0 8px; font-size: 13px; line-height: 1.5; }
+.gold-line span { white-space: nowrap; }   /* a piece wraps whole, never `−` on one line and `$640 spent` on the next */   /* Cut 13 §3: `+$412 banked · +$96 returned · +$45 salvage · −$640 spent` */
 
 /* busy bar (engine worker: offline batch, forecast, verdict) */
 .busy { position: fixed; top: env(safe-area-inset-top); left: 0; right: 0; height: 3px; background: var(--panel2); z-index: 20; pointer-events: none; }

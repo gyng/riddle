@@ -35,7 +35,7 @@ export function rowChips(row: Row): HTMLElement {
 }
 /** Cut 6 §6: the sheet behind a `[card]` row or an owned automation: its rows as chips, nothing else. */
 export function openRowsSheet(rows: Row[]): void {
-  openSheet(() => h("div", { class: "sheet-body card-rows" }, ...rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))));
+  openSheet(() => h("div", { class: "sheet-body card-rows" }, h("div", { class: "label row-label" }, /* copy:label */ "card"), ...rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))));
 }
 /** Cut 9 §4: a card's trigger as text — the conds of its first row (`foes ≥ 2 · corridor`); `always` when that row has none. */
 export function cardTrigger(cardRows: Row[] | undefined): string | undefined {
@@ -122,7 +122,7 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
   function pickCond(row: Row, ci: number): void {
     const existing = row.conds[ci];
     openSheet((close) => {
-      const body = h("div", { class: "sheet-body" });
+      const body = h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "cond"));   // Cut 13 §6: every sheet is titled
       // the row's `×` (remove this cond) sits at the top, above the ~90 tokens (QA on 952e306: "× at the very bottom of a ~90-entry list")
       if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); edited(row); close(); } }, "×"));
       const grid = h("div", { class: "grid" });
@@ -147,6 +147,7 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
   function pickN(body: HTMLElement, c: Cond, done: (n: number) => void, cur?: number): void {
     clear(body);
     const pctish = PCT.has(c.k);
+    body.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "cond"));
     body.appendChild(h("div", { class: "sheet-head" }, condName(c.k)));
     const grid = h("div", { class: "grid nums" });
     for (const n of NUMS[c.k]) grid.appendChild(h("button", { class: `chip num${n === cur ? " on" : ""}`, onclick: () => done(n) }, `${n}${pctish ? "%" : ""}`));
@@ -167,7 +168,7 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
           close();
         } }, verbLabel(v)));
       }
-      return h("div", { class: "sheet-body" }, grid);
+      return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "verb"), grid);
     });
   }
 

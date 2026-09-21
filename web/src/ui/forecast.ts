@@ -11,6 +11,8 @@
 // engine's `try`, or the client's read of `Lineage.counters` against the set); tapping the bar inserts the row at the top.
 // Cut 12 §1: `yours: n of m rows` counts own rows (card rows sit outside `max_rows`); §3: one line under the depths says how a
 // send ends when the engine sends `ends` (`bank 40% · return 35% · death 25% · ~$54`); §6: a combo is named, not counted.
+// Cut 13 §5: the first paint (`Forecast.refined` false) carries `…` after each `±` so the refine's landing does not read as a
+// re-roll; the ends line has its own `±` on the death share (`death 5% ±4`, `ForecastEnds.pm`).
 import type { App } from "../app";
 import type { Forecast, ForecastTry, Row } from "../engine/types";
 import { h, clear, pct, replace } from "./dom";
@@ -51,7 +53,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     if (!e) return;
     // a stall share only when there is one: `bank 0% · return 20% · stall 50% · death 30% · ~$25`
     const stall = e.stall && Math.round(e.stall * 100) > 0 ? /* copy:callout */ ` · stall ${pct(e.stall)}` : "";
-    replace(ends, /* copy:callout */ `bank ${pct(e.bank)} · return ${pct(e.return)}`, stall, /* copy:callout */ ` · death ${pct(e.death)}`, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
+    const pm = e.pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pmPts(e.pm)}${f.refined === false ? "…" : ""}`) : "";
+    replace(ends, /* copy:callout */ `bank ${pct(e.bank)} · return ${pct(e.return)}`, stall, /* copy:callout */ ` · death ${pct(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -60,6 +63,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   };
   const paint = (f: Forecast): void => {
     clear(bars); clear(causes); paintEnds(f);
+    el.dataset.refined = f.refined === undefined ? "" : f.refined ? "1" : "0";   // dev: tools read which pass painted
+    const first = f.refined === false ? "…" : "";   // Cut 13 §5: the first paint's ± trails `…`; the refine's does not
     const next = app.lineage.best_depth + 1;
     for (const d of f.depths) {
       const cause = d.cause ?? (d.depth === next ? f.causes[0]?.cause : undefined);
@@ -70,7 +75,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
       const inner = [
         h("span", { class: "d num" }, `D${d.depth}`),
         h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(d.reach * 100)}%` })),
-        h("span", { class: "n num" }, pct(d.reach), d.pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pmPts(d.pm)}`) : "",
+        h("span", { class: "n num" }, pct(d.reach), d.pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pmPts(d.pm)}${first}`) : "",
           cause ? h("small", { class: "dim" }, ` · ${cause.replace(/_/g, " ")}`) : "",
           counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "",
           tr ? h("small", { class: "try" }, /* copy:none */ ` · try: ${tr.text}`) : ""),

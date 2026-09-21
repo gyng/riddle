@@ -12,6 +12,13 @@
 // · exit · level; the combat ones only while the fight frame is up or the clock runs at 1×.
 // Cut 9 §5: the exit event's trace (every tier) rides on the exit sheet as a `trace` chip and on the report's exit line.
 //
+// Cut 13 §1 — a stall is a run the player can read: the stake reads `keeps $0 · stalling` while the guard has fired
+// (`Stake.stalling`), and a run that comes home stalled (`… · stalled` on its line) gets the verdict screen like a death
+// (`engine.death(runId)` answers with `verdict: "stall"`; an older core without the record falls back to the report).
+// Cut 13 §4 — the beats are on screen: a `note` whose text is a situation's (`A den. Something sleeps.`, a theft, the vault,
+// the captive, the stray, a heir's bones) opens the fight frame for SCENE_MS in `fights` and `fast` alike, the note as the
+// callout (engine data, verbatim, its own `.beat` line); two callouts on one tick queue; the ticker wraps, never clips.
+//
 // Cut 12 §6 — `fast` is faster: travel at 16×, a fight at 2× (`fights` keeps its fights at 1×). `▶▶|` in `fast` is the same
 // press as in `fights`: the next fight's first frame (the mode's own frame predicate, floors drained on the way) or, inside a
 // fight, its end — it used to seek "the next interesting event", which on a busy floor sat inside the engine's ≤ 32-tick lead,
@@ -98,6 +105,10 @@ const REST_BEAT_MS = 1400;          // Cut 2 §1: `rest 12m` after the exit, bef
 const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "descend", pick_up: /* copy:callout */ "pick up" }; // explore never (Cut 4 §4)
 const HURT_MS = 600;                // Cut 4 §4: `−7 archer` in red
 const FELL_MS = 1400;               // Cut 10 §3: `jackal Ashar fell` stays long enough to read a name
+const SCENE_MS = 4000, SCENE_TICKS = 40;   // Cut 13 §4: a situation's beat holds the fight frame this long (~4 s at 1×)
+const CALLOUT_QUEUE = 3, SAME_TICK_MS = 40;   // Cut 13 §4: callouts that land on one tick (one pump pass) wait their turn, at most this many
+/** Cut 13 §4: the notes that are beats — the core's situation lines (verbatim), a theft, the stray, a heir's bones. */
+const BEAT_RE = /^(A den\.|A vault:|A shrine\.|The vault opens|A cry from the dark|The air stings|The nest wakes|The den wakes|Found heir \d+'s bones|found the bones|Freed the captive|Cut the captive|Lit the shrine)|snatched|\bstole\b|, gone wild\.$|is avenged/i;
 /** The cause of a `hurt` as one word: `goblin_archer` → `archer`. */
 const oneWord = (cause: string): string => cause.replace(/_/g, " ").trim().split(/\s+/).pop() ?? "";
 /** Cut 12 §4: `nest` → `a nest`, `orchard` → `an orchard` (one word after the article). */
@@ -141,6 +152,8 @@ export function renderWatch(app: App): Mounted {
   let scene: number | null = null, sceneUntil = -Infinity, endingFrom = Infinity, endingCue = -Infinity;
   // Cut 8A: the fight frame — whether the engine's latest snapshot holds it, the viewer ticks it spans, the frame shown
   let fightOn = false, fightFrom = Infinity, fightUntil = -Infinity, frame: FrameName = "map", lastBlow = -Infinity;
+  // Cut 13 §4: the situation beat the frame is holding for (engine ticks), its text shown once at the cut; beats shown so far
+  let beat: { from: number; until: number; text: string; shown: boolean } | null = null, beats = 0;
   // Cut 10 §1: the fight the engine is running through under the card (its cost so far), and whether the found fight is to be shown
   let probe: { hurt: number; low: boolean; boss: boolean; ally: boolean; steal: boolean } | null = null, fightShow = false;
   let held: { evs: Ev[]; snap: Snapshot; tier: Tier } | null = null;
@@ -148,6 +161,7 @@ export function renderWatch(app: App): Mounted {
   const refused = new Set<string>();  // Cut 12 §6: sanity refusals shown (`drink ✗ no use@3`): once per text per floor
   let rallyBy: string | undefined;    // Cut 12 §6: the kind whose `rallies` telegraph came last, so the core's `rallied!` names it
   let speed = 1, done = false, disposed = false, overridden = false, tickerTimer = 0, bannerTimer = 0, pumpTimer = 0;
+  let tickerAt = 0, tickerMs = 0; const tickerQueue: { text: string; cls: string; ms: number }[] = [];   // Cut 13 §4: callouts waiting their turn
   // Cut 2: rest after the exit, bones left (death) / found, bosses already announced
   let restS: number | undefined, restUntil = 0, bonesLeft: number | undefined;
   let exitLine: ExitLine | undefined;   // Cut 6 §1: the exit's ledger line (exit sheet, report, death)
@@ -204,7 +218,9 @@ export function renderWatch(app: App): Mounted {
     if (!st) return;
     const parts: (string | HTMLElement)[] = [`$${st.loot}`];
     // Cut 6 §1: the kept number while a return/bank row exists (`$84 · keeps $50`)
-    if (st.kept !== undefined && !overridden) parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `keeps $${st.kept}`));
+    // Cut 13 §1: while the guard has fired a stall pays nothing, and the line says so before it is lost (`keeps $0 · stalling`)
+    if (st.stalling && !overridden) parts.push(" · ", h("span", { class: "kept stalling" }, /* copy:callout */ "keeps $0 · stalling"));
+    else if (st.kept !== undefined && !overridden) parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `keeps $${st.kept}`));
     for (const b of st.brought) parts.push(" · ", h("span", { class: b.insured ? "" : "risk" }, b.label, b.insured ? "" : "⚠"));
     if (overridden) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "returning"));
     else if (st.return_row === undefined) parts.push(" · ", h("span", { class: "lose" }, /* copy:callout */ "death: lose all"));
@@ -240,10 +256,44 @@ export function renderWatch(app: App): Mounted {
   }
   function callout(text: string, cls = "", ms: number = Math.max(CALLOUT_MIN_MS, 1800 / Math.max(1, speed))): void {
     if (cardUp) return;                                                                    // Cut 10 §1: nothing under the card is watched
-    if (cls !== "ambient" && cls !== "hurt" && performance.now() < ambientUntil) return;   // Cut 7 §4: an ambient keeps the ticker for its 1.5 s
-    lastShown = text;
+    if (cls !== "ambient" && cls !== "hurt" && cls !== "beat" && performance.now() < ambientUntil) return;   // Cut 7 §4: an ambient keeps the ticker for its 1.5 s
+    // Cut 13 §4: a second callout on the same tick (one pump pass) waits its turn instead of replacing the first before it was
+    // read (rater Q: two labels on one line); while a queue is pending later ones join it in order (the oldest drops past the
+    // cap); otherwise a later tick's callout takes the ticker at once, as before
+    const showing = ticker.classList.contains("show");
+    if (showing && text !== lastShown && (performance.now() - tickerAt < SAME_TICK_MS || tickerQueue.length)) {
+      tickerQueue.push({ text, cls, ms: Math.min(ms, CALLOUT_MIN_MS) }); while (tickerQueue.length > CALLOUT_QUEUE) tickerQueue.shift();
+      scheduleTicker(); return;
+    }
+    tickerQueue.length = 0;
+    showTicker(text, cls, ms);
+  }
+  function showTicker(text: string, cls: string, ms: number): void {
+    lastShown = text; tickerAt = performance.now(); tickerMs = ms;
     replace(ticker, text); ticker.className = `ticker show ${cls}`;
-    clearTimeout(tickerTimer); tickerTimer = window.setTimeout(() => ticker.classList.remove("show"), ms);
+    scheduleTicker();
+  }
+  /** The ticker's next move: the queued callout once the current has had CALLOUT_MIN_MS, else the hide at the current's end. */
+  function scheduleTicker(): void {
+    clearTimeout(tickerTimer);
+    const shownFor = performance.now() - tickerAt;
+    const wait = Math.max(0, (tickerQueue.length ? CALLOUT_MIN_MS : tickerMs) - shownFor);
+    tickerTimer = window.setTimeout(() => { if (disposed) return; const q = tickerQueue.shift(); if (q) showTicker(q.text, q.cls, q.ms); else ticker.classList.remove("show"); }, wait);
+  }
+  /** Cut 13 §4: a situation's note opens the fight frame for SCENE_TICKS from its tick (or rides a fight already framed there);
+   *  its text is the callout, shown once the frame is up. */
+  function beatAt(t: number, text: string): void {
+    const v = viewerTick();
+    const framed = fightOn || (v < fightUntil && t >= fightFrom);
+    if (!framed) { fightFrom = t; fightUntil = t + SCENE_TICKS; fightShow = true; }
+    else if (Number.isFinite(fightUntil)) fightUntil = Math.max(fightUntil, t + SCENE_TICKS);
+    beat = { from: t, until: t + SCENE_TICKS, text, shown: false };
+    el.dataset.beats = String(++beats);   // dev: tools count the beats cut in
+    at(t, () => showBeat());
+  }
+  function showBeat(): void {
+    if (!beat || beat.shown || frame !== "fight") return;
+    beat.shown = true; callout(beat.text, "beat", SCENE_MS);
   }
   function ruleCallout(ev: Extract<Ev, { k: "rule" }>): string | null {
     if (ev.row >= 0) return `R${ev.row + 1} · ${verbLabel(ev.verb)}`;
@@ -326,7 +376,10 @@ export function renderWatch(app: App): Mounted {
           if (gold) at(ev.t, () => ambient(`$${gold[1]}`));
           break;
         }
-        case "note": notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text }); break;
+        case "note":
+          notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text });
+          if (BEAT_RE.test(ev.text)) beatAt(ev.t, ev.text);   // Cut 13 §4: the situations cut in like fights
+          break;
         case "exit": {
           exit = ev.tier; exitLine = ev.line ?? exitLine; exitTrace = ev.trace ?? ev.line?.trace ?? exitTrace;
           markEnd(runId, ev.t);   // Cut 11 §2: the run log's last replayable tick
@@ -418,6 +471,7 @@ export function renderWatch(app: App): Mounted {
     paintCard(want);
     frame = want; (viewer as FrameViewer | null)?.setFrame?.(want);
     el.dataset.frame = want;
+    if (want === "fight") showBeat();   // Cut 13 §4: the beat's line at the cut
   }
   /** Cut 10 §1: the interstitial is up while `fights` shows the map, unless a tap holds the map, the vault sheet is up, or the
    *  run's ending plays. Its line is the ambient one: `D3 · 4 rooms · $47`. */
@@ -508,7 +562,7 @@ export function renderWatch(app: App): Mounted {
     if (travelling()) { inflight = true; travel(); return; }
     // Cut 10 §1: through a shown fight's tail the engine waits at its close, so the next fight opens under the card (and is costed
     // there) instead of merging into this one at 1×
-    if (mode === "fights" && !mapHold && !vaultClose && !fightOn && Number.isFinite(fightUntil) && now < fightUntil) return;
+    if (mode === "fights" && !mapHold && !vaultClose && !fightOn && Number.isFinite(fightUntil) && now < fightUntil && !(beat && now < beat.until)) return;   // Cut 13 §4: a beat plays on at 1×
     const lead = speed >= AUTO_FAST ? LEAD_FAST : LEAD;
     if (speed <= 0 || engineTick - now >= lead) return;
     inflight = true;
@@ -547,6 +601,7 @@ export function renderWatch(app: App): Mounted {
     const show = held || probe.hurt >= SHOW_HURT || probe.low || probe.boss || probe.ally || probe.steal;
     probe = null;
     if (show && fightFrom < Infinity) fightShow = true;
+    else if (beat && viewerTick() < beat.until && fightFrom <= beat.from) fightUntil = beat.until;   // Cut 13 §4: the beat keeps its frame
     else { fightFrom = Infinity; fightUntil = -Infinity; }
   }
   /** The rate the clock should run at right now. `fights`: 16× under the card (8× when a tap holds the map, 0 while a fight
@@ -731,14 +786,18 @@ export function renderWatch(app: App): Mounted {
     if (disposed) return;
     tamed.push(...tamedIds.map(compLabel));
     lost.push(...lostIds.map(compLabel));
-    if (tier === "death") {
-      for (const c of partyAtStart) if (!lost.some((l) => l === c || l.endsWith(c.slice(c.indexOf(" · "))))) lost.push(c);
+    // Cut 13 §1: a run that came home stalled (`… · stalled` on its line; the stake was `stalling` at the exit) gets a verdict screen
+    // like a death's — the core records the stall, `death(runId)` answers `verdict: "stall"`; an older core falls back to the report
+    const stalled = tier === "return" && (/\bstalled\b/.test(exitLine?.text ?? "") || (!!snap?.stake?.stalling && (exitLine?.kept ?? 1) === 0));
+    if (tier === "death") for (const c of partyAtStart) if (!lost.some((l) => l === c || l.endsWith(c.slice(c.indexOf(" · "))))) lost.push(c);
+    if (tier === "death" || stalled) {
       try {
         const death = await app.busy(/* copy:label */ "verdict", () => app.engine.death(runId));
+        if (stalled && death.verdict !== "stall") throw new Error(`no stall verdict (${death.verdict})`);
         death.line ??= exitLine;   // Cut 6 §1: the verdict may lack the line; the exit event carried it
         if (!disposed) app.go({ kind: "death", death, lost });
         return;
-      } catch (e) { console.warn("no death record; the report counts the death", e); }   // Cut 10 §3: never `1 runs · 0 deaths` after a death
+      } catch (e) { console.warn(stalled ? "no stall record; the report shows the run" : "no death record; the report counts the death", e); }   // Cut 10 §3: never `1 runs · 0 deaths` after a death
     }
     const L = app.lineage;
     const bests: string[] = []; for (let d = before.best + 1; d <= L.best_depth; d++) bests.push(`D${d}`);
@@ -756,6 +815,7 @@ export function renderWatch(app: App): Mounted {
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,
       xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
       salvaged: reconcileSalvage(mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), L.gold_ledger ?? []), deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
+      spent: spentRows(L.gold_ledger ?? []),   // Cut 13 §3: what the automations bought at this exit (`heal ×1 · −$40`)
       banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, bones_found: bonesFound,   // rest is still ahead: the camp shows it
       exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
     };
@@ -780,6 +840,19 @@ export function renderWatch(app: App): Mounted {
     const out = rows.map((r) => ({ ...r })).sort((a, b) => b.gold - a.gold);
     for (const r of out) { if (!diff) break; const take = Math.max(-r.gold, diff); r.gold += take; diff -= take; }
     return out.filter((r) => r.gold > 0);
+  }
+  /** Cut 13 §3: the automations' purchases at this exit — the ledger's outgoings after the newest exit line that are not salvage
+   *  (`−$40 heal potion` → `heal potion ×1 · −$40`), per line text. Empty when nothing was bought. */
+  function spentRows(ledger: { t: number; delta: number; why: string }[]): { kind: string; n: number; gold: number }[] {
+    let i = ledger.length - 1; while (i >= 0 && !/^(returned|banked|died|lost|stalled)\b/.test(ledger[i].why)) i--;
+    if (i < 0) return [];
+    const rows = new Map<string, { kind: string; n: number; gold: number }>();
+    for (const g of ledger.slice(i + 1)) {
+      if (g.delta >= 0 || /^(salvage|wake pay|insure)/.test(g.why)) continue;
+      const kind = g.why.replace(/^(bought|restock)\s+/, "");
+      const r = rows.get(kind) ?? { kind, n: 0, gold: 0 }; r.n++; r.gold += -g.delta; rows.set(kind, r);
+    }
+    return [...rows.values()];
   }
   // Addendum D: choose what to keep before the run settles
   function exitSheet(p: { items: InvItem[]; tier: string; worth?: number[] }, then: () => void): void {

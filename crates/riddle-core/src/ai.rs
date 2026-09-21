@@ -1528,6 +1528,11 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
         }
         _ => "nothing".into(),
     };
+    // Cut 13 §3: a use to no effect (a heal at full HP, a kind with nothing to do) is not
+    // rebought by the restock.
+    if outcome == "nothing" || (kind == "heal" && hp >= run.hero.max_hp) {
+        run.wasted_kinds.push(kind.clone());
+    }
     cx.events.push(Ev::Use { t: run.turn, item: format!("{kind} potion"), outcome });
     true
 }
@@ -1702,6 +1707,9 @@ fn verb_read(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         }
         _ => "nothing".into(),
     };
+    if outcome == "nothing" {
+        run.wasted_kinds.push(kind.clone());
+    }
     cx.events.push(Ev::Use { t: run.turn, item: format!("{kind} scroll"), outcome });
     true
 }

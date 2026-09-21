@@ -69,7 +69,7 @@ function openRules(app: App, c: Companion): void {
       vocab: () => vocab,
       changed: () => { void app.engine.setCompanionRules(c.id, local).catch((e) => console.warn("companion rules", e)); c.rules = cloneSet(local); app.persist(); },
     });
-    return h("div", { class: "sheet-body" }, h("div", { class: "sheet-head" }, nice(c.kind), " ", c.name, " ", h("b", { class: "num" }, `L${c.level}`)), ed.el);
+    return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "rules"), h("div", { class: "sheet-head" }, nice(c.kind), " ", c.name, " ", h("b", { class: "num" }, `L${c.level}`)), ed.el);
   })).catch((e) => console.warn("companion vocabulary", e));
 }
 

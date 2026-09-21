@@ -9,6 +9,9 @@
 // Cut 12 §1: rows are own rows — `fill rows` and `5/4 · drop one` count them against `max_rows`; a card never takes a row (it
 // sits outside the cap) and its reach delta is labelled where it goes (`at R3`, the catalogue's `insert_at`). §6: the unlock
 // shelf refetches when a rule edit crosses `max_rows` (`app.onShelf`); a supply line has its own `×`; a free line reads `· kennel`.
+// Cut 13 §2: a new heir's trait is chosen — while `Lineage.trait_offer` holds two names the strip shows two chips beside `♟3`
+// (`brave | curious`, the chosen one `on`, each with its rule as a small under-label); a tap is `setTrait(name)`; the chips
+// vanish once the offer is empty (the send took it).
 import type { App, Mounted } from "../app";
 import type { SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, replace, spanOf } from "./dom";
@@ -16,7 +19,7 @@ import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { renderForecast } from "./forecast";
 import { openSettings } from "./settings";
-import { classList, deltaLabel, openOwnedSheet, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
+import { classList, deltaClass, deltaLabel, deltaPts, openOwnedSheet, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS, xpToNext } from "../engine/classes";
@@ -25,6 +28,10 @@ import { openSheet } from "./sheet";
 import { openGoldSheet } from "./gold";
 
 const SET_NAME_MAX = 12;
+/** Cut 13 §2: each trait's one-line rule, ≤ 3 words (the core's: cowardly retreats under 50 % hp with foes in view; brave holds a
+ *  retreat row; curious drinks an unknown when clear; greedy steps onto adjacent loot). */
+/* copy:callout */
+const TRAIT_RULE: Record<string, string> = { cowardly: "flees under 50%", brave: "holds a retreat", curious: "drinks unknowns", greedy: "grabs loot" };
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
 export function renderCamp(app: App, highlight?: number): Mounted {
@@ -47,7 +54,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       h("span", { class: "num" }, `♟${L.heir}`),
       // Cut 3: `↑2 no rest` once ascended
       (L.ascension?.level ?? 0) > 0 ? h("span", { class: "num asc" }, `↑${L.ascension!.level} ${L.ascension!.variant.replace(/_/g, " ")}`) : "",
-      h("span", null, L.trait),
+      // Cut 13 §2: the offer as chips while it stands; the plain trait once the send took it
+      (L.trait_offer?.length ?? 0) >= 2
+        ? h("span", { class: "chips traits" }, ...L.trait_offer!.map((t) => h("button", { class: `chip trait${t === L.trait ? " on" : ""}`, disabled: t === L.trait, onclick: () => void pickTrait(t) },
+            h("span", null, t), TRAIT_RULE[t] ? h("small", { class: "rule dim" }, TRAIT_RULE[t]) : "")))
+        : h("span", null, L.trait),
       h("button", { class: "cls", onclick: () => pickClass() }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
         h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round((lvl.xp / xpToNext(lvl.level)) * 100)}%` }))),
       h("span", { class: "num" }, `D${L.best_depth}`),
@@ -57,6 +68,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       h("button", { class: "gear", onclick: () => openSettings(app) }, "⚙"),
     );
     paintRest();
+  }
+  /** Cut 13 §2: the tap picks the heir's trait (`setTrait`); an engine without it keeps the default (the first offered). */
+  async function pickTrait(name: string): Promise<void> {
+    if (!app.engine.setTrait) return;
+    await app.mutate(() => app.engine.setTrait!(name));
   }
   // Cut 2 §1: camp rest remaining; `send` skips it, so the number just disappears
   function paintRest(): void {
@@ -99,7 +115,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       };
       paint(unlockCat);
       if (!unlockCat) void app.engine.unlocks().then((cat) => paint(cat)).catch(() => { /* ladders only */ });
-      return h("div", { class: "sheet-body" }, grid);
+      return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "class"), grid);
     });
   }
   // Cut 5 §6: sets carry a player-typed name (≤ 12 chars, the game's only free text; default `1 · 2 · 3`); ✎ on the active tab renames
@@ -116,7 +132,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       const commit = (): void => { app.renameSet(i, input.value); close(); };
       input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
       setTimeout(() => input.focus(), 0);
-      return h("div", { class: "sheet-body" }, input, h("button", { class: "btn primary wide", onclick: commit }, /* copy:button */ "ok"));
+      return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "name"), input, h("button", { class: "btn primary wide", onclick: commit }, /* copy:button */ "ok"));
     });
   }
   function paintVault(): void {
@@ -211,13 +227,13 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         // `available` = prerequisite + fact gate + affordable (engine truth). Two dims: gated (the `needs` line
         // is what is missing, marks are there) and unaffordable.
         // Cut 4 §9: the forecast delta of buying (tactic cards), only when the catalogue carries one and it is not 0
-        const d = u.delta === undefined ? 0 : Math.round(u.delta * 100);
+        const d = deltaPts(u);   // Cut 13 §5: a delta within its ± paints as `reach ~0`
         // Cut 9 §2: the tap opens the sheet (rows, cost, needs, reach); the buy is on the sheet. A gated or unaffordable card
         // still opens it (the `needs` line is the answer), so nothing on the shelf is disabled.
         // Cut 12 §1: a card's delta is measured where it goes — `at R3` (the catalogue's `insert_at`), else `at end`
         grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u) },
           h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
-            d ? h("small", { class: `num delta ${d > 0 ? "up" : "down"}` }, deltaLabel(u, d)) : ""),
+            d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : ""),
           h("span", { class: "num cost" }, `◆${u.cost}`)));
       }
       unlocks.appendChild(grid);

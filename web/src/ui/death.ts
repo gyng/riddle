@@ -5,6 +5,9 @@
 // Cut 11 §2: under the trace the row accounting is the chain (ui/chain.ts) — each `because` links the replay when this
 // session watched the run; root patches and unlock pseudo-patches (ui/patches.ts). §5: the ledger line opens the gold
 // sheet filtered to this run.
+// Cut 13 §1: a stalled run's verdict (`verdict: "stall"`) mounts here too — the guard's moment as the headline, the trace and
+// the patches like a death's. §4: the run's last two notes (`Death.notes`, engine data verbatim) sit under the headline.
+// §5: a `dice` death names what the forecast said for that depth (`forecast said 5%`) when the last forecast is known.
 import type { App, Mounted } from "../app";
 import type { Death } from "../engine/types";
 import { morgueVerbs } from "./chain";
@@ -19,7 +22,14 @@ import { traceTable } from "./trace";
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
 
 export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
-  const line = h("h1", { class: "death-line" }, /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth} · ${marginText(d.margin)} · `, h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
+  // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
+  const margin = d.margin ? ` · ${marginText(d.margin)}` : "";
+  const line = h("h1", { class: "death-line" }, /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${margin} · `, h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));   // the pill: one word, engine data (`gap` · `dice` · `stall`)
+  // Cut 13 §4: the run's last two notes, engine data verbatim (`The green one: fire. Gambled: fire potion.`)
+  const notes = d.notes?.length ? h("div", { class: "death-notes num dim" }, ...d.notes.slice(-2).map((n) => h("div", { class: "note" }, n))) : null;
+  // Cut 13 §5: a `dice` death says what the forecast said for that depth — the share of forecast runs that end there
+  const said = d.verdict === "dice" ? forecastSaid(app, d.depth) : undefined;
+  const forecastLine = said !== undefined ? h("div", { class: "forecast-said num dim" }, /* copy:callout */ `forecast said ${said}%`) : null;
   // Cut 6 §1: the exit's arithmetic, verbatim from the engine (`$144 carried · death keeps 0% → $0 · bones: 7 items on D5`)
   // Cut 11 §5: tappable — the gold sheet filtered to this run's movements
   const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, d.line) }, d.line.text)) : null;
@@ -34,7 +44,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
   const morgue = h("button", { class: "btn", onclick: () => {
     void copyText(d.morgue);
-    openSheet(() => h("div", { class: "morgue" }, h("pre", { class: "morgue-text" }, d.morgue)));
+    openSheet(() => h("div", { class: "morgue" }, h("div", { class: "label row-label" }, /* copy:label */ "morgue"), h("pre", { class: "morgue-text" }, d.morgue)));
   } }, /* copy:button */ "morgue");
   const edit = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "edit");
   // Cut 10 §3: `◯ jackal Ashar fell` (a companion leaves an egg); Cut 12 §6: a summoned ally reads `ally hound fell`, no egg
@@ -44,6 +54,15 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
   const grave = [...(L.graveyard ?? [])].reverse().find((g) => g.depth === d.depth && g.cause === d.cause);
   const pile = (L.bones ?? []).find((b) => (grave ? b.heir === grave.heir : false) && b.depth === d.depth);
   const bones = pile ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(pile.items)}`) : null;
-  const el = h("main", { class: "death" }, line, ledger, eggs, bones, ...trace, patches, h("div", { class: "btn-row" }, morgue, edit));
+  const el = h("main", { class: "death" }, line, notes, forecastLine, ledger, eggs, bones, ...trace, patches, h("div", { class: "btn-row" }, morgue, edit));
   return { el };
+}
+
+/** Cut 13 §5: the last forecast's death share at `depth` in whole points — the runs that reach the floor and not the next
+ *  (`reach[d] − reach[d+1]`, the frontier's drop when d is the last known floor); undefined without a forecast or past it. */
+export function forecastSaid(app: App, depth: number): number | undefined {
+  const f = app.lastForecast; if (!f) return undefined;
+  const at = f.depths.find((x) => x.depth === depth); if (!at) return undefined;
+  const next = f.depths.find((x) => x.depth === depth + 1);
+  return Math.max(0, Math.round((at.reach - (next?.reach ?? 0)) * 100));
 }

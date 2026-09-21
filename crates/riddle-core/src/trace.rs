@@ -43,21 +43,38 @@ pub const DICE_CANDIDATES: usize = 3;
 pub const ROOT_WORDS: usize = 6;
 
 pub fn death_record(game: &Game, run: &Run) -> DeathRec {
+    record(game, run, false)
+}
+
+/// Cut 13 §1: a stalled run's record — a death-style screen for the most expensive outcome
+/// in the game (both cohort-9 raters). The cause is the guard's moment (`stalled · goblin
+/// archer, no path`), the margin `keeps $0`, the trace and the row accounting the run's; the
+/// checkpoint is the first guard's tick and a replay "survives" when it leaves the floor or
+/// the guard stays quiet (`Replayer`). `Death.verdict` reads `stall`, never `gap` / `dice`.
+pub fn stall_record(game: &Game, run: &Run) -> DeathRec {
+    record(game, run, true)
+}
+
+fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let turns: Vec<_> = run.trace.iter().rev().take(TRACE_LEN).rev().cloned().collect();
     let provenance = crate::provenance::all(&game.prov);
     let chain = chain_of(turns.last());
-    let root = root_of(&game.prov, game.lineage.rules(), turns.last());
-    let cause = run.death_cause.clone().unwrap_or_else(|| "unknown".into());
+    let root = if stall { None } else { root_of(&game.prov, game.lineage.rules(), turns.last()) };
+    let cause = if stall {
+        format!("stalled · {}", run.stuck_cause.as_deref().unwrap_or("paced"))
+    } else {
+        run.death_cause.clone().unwrap_or_else(|| "unknown".into())
+    };
     // Cut 10 §3: `3 hp short` (was `3 over`, which no rater could read): the HP that would have
-    // kept the hero standing through the killing blow.
-    let mut margin = format!("{} hp short", run.death_short.max(1));
+    // kept the hero standing through the killing blow. A stall keeps nothing: `keeps $0`.
+    let mut margin = if stall { "keeps $0".to_string() } else { format!("{} hp short", run.death_short.max(1)) };
     let facts = &game.lineage.facts;
     let fl = &game.lineage.flavours;
-    if run.hero.inv.iter().any(|i| i.kind == "heal" && i.is_known(facts, fl)) {
+    if !stall && run.hero.inv.iter().any(|i| i.kind == "heal" && i.is_known(facts, fl)) {
         margin.push_str(" · heal unused");
     }
     let unknown = run.hero.inv.iter().filter(|i| i.is_consumable() && !i.is_known(facts, fl)).count();
-    if unknown > 0 {
+    if !stall && unknown > 0 {
         margin.push_str(&format!(" · {unknown} unknown unused"));
     }
     let rules = game.lineage.rules().clone();
@@ -67,34 +84,55 @@ pub fn death_record(game: &Game, run: &Run) -> DeathRec {
         depth: run.depth,
         cause: cause.clone(),
         margin,
-        verdict: "dice".into(),
+        verdict: if stall { "stall" } else { "dice" }.into(),
         baseline: 0.0,
         trace: Trace { turns, provenance },
         patches: Vec::new(),
-        morgue: morgue(game, run, &rules),
+        morgue: morgue(game, run, &rules, stall),
         line: None,
         chain,
         rules: Some(rules.clone()),
         notes: run.notes.iter().rev().take(2).rev().map(|(_, n)| n.clone()).collect(),
     };
-    // Checkpoint: the most recent history entry where the hero still had ≥ 50% HP, but at least
-    // MIN_WINDOW turns before death so a patch has room to act; else the oldest entry.
     let n = game.history.len();
-    let pick = game
-        .history
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| i + MIN_WINDOW <= n)
-        .filter(|(_, (r, _))| r.hero.hp_pct() >= 50)
-        .map(|(i, _)| i)
-        .next_back()
-        .unwrap_or(0);
+    let pick = if stall {
+        // Cut 13 §1: the stall's checkpoint is the first guard's tick — the last history entry
+        // at or before it. The ring holds `HISTORY_TURNS × HISTORY_STRIDE` ticks and the three
+        // guards span ≥ 60 hero actions, so the first guard is usually older than the ring:
+        // the oldest entry stands in for it (the replay still starts inside the pacing).
+        let first = run.stuck_first_t.unwrap_or(0);
+        game.history.iter().rposition(|(r, _)| r.turn <= first).unwrap_or(0).min(n.saturating_sub(MIN_WINDOW))
+    } else {
+        // Checkpoint: the most recent history entry where the hero still had ≥ 50% HP, but at
+        // least MIN_WINDOW turns before death so a patch has room to act; else the oldest entry.
+        game.history
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| i + MIN_WINDOW <= n)
+            .filter(|(_, (r, _))| r.hero.hp_pct() >= 50)
+            .map(|(i, _)| i)
+            .next_back()
+            .unwrap_or(0)
+    };
     let (t10, t10_facts) = match game.history.get(pick) {
         Some((r, f)) => (Some(r.clone()), f.clone()),
         None => (None, BTreeSet::new()),
     };
-    let boss = boss_of(run, &cause);
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root }
+    // The kill counts as they stood at the checkpoint: the lineage's now, less this run's
+    // kills after it (`Run.kills` carries the tick of each).
+    let t10_kill_counts = t10.as_ref().map(|c| {
+        let mut counts = game.lineage.kill_counts.clone();
+        for (t, kind, _) in run.kills.iter().filter(|(t, _, _)| *t > c.turn) {
+            let _ = t;
+            if let Some(n) = counts.get_mut(kind) {
+                *n = n.saturating_sub(1);
+            }
+        }
+        counts
+    });
+    let t10_lineage = t10.as_ref().map(|_| crate::engine::CheckpointLineage::of(&game.lineage));
+    let boss = if stall { None } else { boss_of(run, &cause) };
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage }
 }
 
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
@@ -175,18 +213,22 @@ pub fn has_counter_verb(rules: &RuleSet, counter: &Row) -> bool {
     rules.rows.iter().any(|r| r.verb == counter.verb || r.card().and_then(crate::meta::unlock_rows).is_some_and(|rows| rows.iter().any(|x| x.verb == counter.verb)))
 }
 
-fn morgue(game: &Game, run: &Run, rules: &RuleSet) -> String {
+fn morgue(game: &Game, run: &Run, rules: &RuleSet, stall: bool) -> String {
     let mut s = String::new();
     s.push_str(&format!("Riddle morgue · seed {} · heir {} · run {}\n", game.lineage.seed, run.heir, run.id));
-    s.push_str(&format!(
-        "D{} ({}) · tick {} · slain by {} · blow {} · {} hp short\n",
-        run.depth,
-        run.biome().name(),
-        run.turn,
-        run.death_cause.clone().unwrap_or_default(),
-        run.death_blow,
-        run.death_short.max(1)
-    ));
+    if stall {
+        s.push_str(&format!("D{} ({}) · tick {} · stalled · {} · ${} carried, kept $0\n", run.depth, run.biome().name(), run.turn, run.stuck_cause.as_deref().unwrap_or("paced"), run.loot.max(0)));
+    } else {
+        s.push_str(&format!(
+            "D{} ({}) · tick {} · slain by {} · blow {} · {} hp short\n",
+            run.depth,
+            run.biome().name(),
+            run.turn,
+            run.death_cause.clone().unwrap_or_default(),
+            run.death_blow,
+            run.death_short.max(1)
+        ));
+    }
     s.push_str(&format!("class {} L{} · trait {}\n", run.hero.class.name(), run.hero.level, run.trait_.name()));
     s.push_str("rules:\n");
     for (i, r) in rules.rows.iter().enumerate() {
@@ -410,6 +452,35 @@ pub fn telegraph_row(vocab: &Vocabulary, trace: &Trace) -> Option<Row> {
     has_tag.then(|| Row::new(vec![Cond::t("foe_tag", "telegraph")], v.clone()))
 }
 
+/// Cut 13 §1: a stall's candidates — the rows that leave the floor the hero paced on: the
+/// dive (`path_stairs → descend`; `floor_seen ≥ N → descend` at the threshold the
+/// checkpoint's floor already met) and the escape (`depth ≥ D → return` / `bank`, D the
+/// stall's floor: the run pays out instead of forfeiting). Every token from the vocabulary;
+/// a targeting row is never offered (the foe the guard gave up on was unreachable).
+pub fn stall_candidates(vocab: &Vocabulary, state: &Run) -> Vec<Row> {
+    let has_cond = |k: &str| vocab.conds.iter().any(|c| c.k == k);
+    let verb = |v: &str| vocab.verbs.iter().find(|x| x.v == v && x.a.is_none()).cloned();
+    let mut out: Vec<Row> = Vec::new();
+    if let Some(v) = verb("descend") {
+        if has_cond("path_stairs") {
+            out.push(Row::new(vec![Cond::flag("path_stairs")], v.clone()));
+        }
+        if has_cond("floor_seen>=") {
+            let seen = state.floor.map.seen_pct();
+            let n = [80, 60, 40, 20].into_iter().find(|n| seen >= *n).unwrap_or(20);
+            out.push(Row::new(vec![Cond::n("floor_seen>=", n)], v));
+        }
+    }
+    if has_cond("depth>=") {
+        for v in ["return", "bank"] {
+            if let Some(v) = verb(v) {
+                out.push(Row::new(vec![Cond::n("depth>=", state.depth as i32)], v));
+            }
+        }
+    }
+    out
+}
+
 // ---------------------------------------------------------------- replays
 
 /// Replays of the checkpoint under one rule set. The game is cloned once; each replay resets
@@ -424,13 +495,18 @@ struct Replayer {
     ended: bool,
     ticks: u32,
     seed: u64,
+    /// Cut 13 §1: a stall's replays — (the checkpoint's depth, its guard count): a replay
+    /// survives when it leaves the floor (descends, returns or banks) or ends the stall (no
+    /// guard fires before the window's end).
+    stall: Option<(u32, u32)>,
 }
 
 impl Replayer {
-    fn new(base: &Game, rules: &RuleSet, ticks: u32) -> Option<Replayer> {
+    fn new(base: &Game, rules: &RuleSet, ticks: u32, stall: bool) -> Option<Replayer> {
         let mut g = base.sim_clone();
         g.set_rules(rules.clone()).ok()?;
         let run = base.run.clone()?;
+        let stall = stall.then_some((run.depth, run.stuck_fires));
         Some(Replayer {
             g,
             run,
@@ -440,6 +516,7 @@ impl Replayer {
             ended: base.lineage.ended,
             ticks,
             seed: base.lineage.seed,
+            stall,
         })
     }
 
@@ -462,7 +539,8 @@ impl Replayer {
             if n >= self.ticks + ENCOUNTER_TICKS {
                 break;
             }
-            if n >= self.ticks && !self.g.run.as_ref().is_some_and(|r| crate::turn::view(r).foes.iter().any(|&i| r.monsters[i].awake)) {
+            // A stall's window ends where the stall did (the unreachable foe stays in view).
+            if n >= self.ticks && (self.stall.is_some() || !self.g.run.as_ref().is_some_and(|r| crate::turn::view(r).foes.iter().any(|&i| r.monsters[i].awake))) {
                 break;
             }
             self.g.tick();
@@ -475,7 +553,14 @@ impl Replayer {
                 break;
             }
         }
-        let survived = self.g.run.as_ref().is_some_and(|r| r.over != Some(ExitTier::Death));
+        let survived = match self.stall {
+            None => self.g.run.as_ref().is_some_and(|r| r.over != Some(ExitTier::Death)),
+            Some((depth, fires)) => self.g.run.as_ref().is_some_and(|r| match r.over {
+                Some(ExitTier::Death) => false,
+                Some(_) => !r.timed_out,
+                None => r.depth > depth || r.stuck_fires <= fires,
+            }),
+        };
         (survived, fired)
     }
 }
@@ -485,6 +570,12 @@ fn replay_base(game: &Game, rec: &DeathRec) -> Option<(Game, u32)> {
     let t10 = rec.t10.clone()?;
     let mut base = game.sim_clone();
     base.lineage.facts = rec.t10_facts.clone();
+    if let Some(k) = &rec.t10_kill_counts {
+        base.lineage.kill_counts = k.clone();
+    }
+    if let Some(l) = &rec.t10_lineage {
+        l.apply(&mut base.lineage);
+    }
     base.lineage.heir = t10.heir;
     base.lineage.trait_ = t10.trait_;
     base.lineage.class = t10.hero.class;
@@ -591,7 +682,7 @@ fn measure(rp: &mut Replayer, row: &Row, pos: usize) -> (f64, f64) {
 /// replays, no early exit (tests and probes).
 pub fn measure_row(game: &Game, rec: &DeathRec, row: &Row) -> Option<(f64, f64)> {
     let (base, ticks) = replay_base(game, rec)?;
-    let mut rp = Replayer::new(&base, &patched(rec, row, 0), ticks)?;
+    let mut rp = Replayer::new(&base, &patched(rec, row, 0), ticks, rec.stall)?;
     Some(measure(&mut rp, row, 0))
 }
 
@@ -600,7 +691,7 @@ pub fn measure_row(game: &Game, rec: &DeathRec, row: &Row) -> Option<(f64, f64)>
 /// replays) is pinned first among the patches: it is, by construction, the best candidate.
 fn pin_counter(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Option<Patch> {
     let row = pinnable_counter(game, rec)?;
-    let mut rp = Replayer::new(base, &patched(rec, &row, 0), ticks)?;
+    let mut rp = Replayer::new(base, &patched(rec, &row, 0), ticks, rec.stall)?;
     let (survive, fired) = measure(&mut rp, &row, 0);
     if fired < FIRED_BAR {
         return None;
@@ -637,7 +728,7 @@ fn root_patch(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Optio
     let patch = Patch { row: row.clone(), insert_at, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: Some(PatchRoot { text }), below_bar: false };
     let rules = patched_rules(&rec.rules, &patch, max_rows(rec));
     let pos = rules.rows.iter().position(|r| *r == row).unwrap_or(0);
-    let mut rp = Replayer::new(&b, &rules, ticks)?;
+    let mut rp = Replayer::new(&b, &rules, ticks, rec.stall)?;
     let (survive, _fired) = measure(&mut rp, &row, pos);
     Some(Patch { survive, ..patch })
 }
@@ -717,7 +808,7 @@ pub fn patch_fired_rate(game: &Game, rec: &DeathRec, p: &Patch) -> f64 {
     }
     let rules = patched_rules(&rec.rules, p, max_rows(rec));
     let pos = rules.rows.iter().position(|r| *r == p.row).unwrap_or(0);
-    let Some(mut rp) = Replayer::new(&base, &rules, ticks) else { return 0.0 };
+    let Some(mut rp) = Replayer::new(&base, &rules, ticks, rec.stall) else { return 0.0 };
     let fired = (0..REPLAYS).filter(|&i| rp.replay(row_nonce(&p.row, pos, i), pos as i32).1).count();
     fired as f64 / REPLAYS as f64
 }
@@ -764,13 +855,14 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     let positions = insert_positions(&rec.rules, &rec.death.trace);
     // Baseline: the unpatched rules under the same reseeded replays. If they survive most of
     // the time the death was the dice, not the policy; a patch must beat the baseline clearly.
-    let baseline = match Replayer::new(&base, &rec.rules, ticks) {
+    let baseline = match Replayer::new(&base, &rec.rules, ticks, rec.stall) {
         Some(mut rp) => (0..REPLAYS).filter(|&i| rp.replay(0xBA5E_0000 | i as u64, -99).0).count() as f64 / REPLAYS as f64,
         None => 0.0,
     };
     rec.death.baseline = baseline;
     let bar = survive_bar(baseline);
     let mut cands = match &rec.t10 {
+        Some(t10) if rec.stall => stall_candidates(&rec.vocab, t10),
         Some(t10) => candidates(&rec.vocab, t10, &rec.t10_facts, &game.lineage.flavours, &rec.death.trace),
         None => Vec::new(),
     };
@@ -787,7 +879,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     let rec_ref: &DeathRec = rec;
     let scored: Vec<Option<(f64, Row, usize)>> = crate::forecast::par_map(&base, jobs, |base, &(ci, pos)| {
         let row = &cands[ci];
-        let mut rp = Replayer::new(base, &patched(rec_ref, row, pos), ticks)?;
+        let mut rp = Replayer::new(base, &patched(rec_ref, row, pos), ticks, rec_ref.stall)?;
         score(&mut rp, row, pos, bar).map(|(rate, _fired)| (rate, row.clone(), pos))
     });
     let mut scored: Vec<(f64, Row, usize)> = scored.into_iter().flatten().collect();
@@ -819,7 +911,11 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     }
     rec.death.patches = one_per_family(patches);
     boss_order(rec);
-    if edge_gap {
+    if rec.stall {
+        // Cut 13 §1: a stall is its own verdict; its patches are ranked by the forecast like
+        // a death's, but the word on the screen is `stall`.
+        rec.death.verdict = "stall".into();
+    } else if edge_gap {
         rec.death.verdict = "gap".into();
     } else {
         // No patch survives the moment clearly: the forecast decides (a row that costs no
@@ -988,7 +1084,7 @@ fn dice_telegraph(game: &Game, rec: &mut DeathRec) {
         return;
     }
     let Some((base, ticks)) = replay_base(game, rec) else { return };
-    let Some(mut rp) = Replayer::new(&base, &patched(rec, &row, 0), ticks) else { return };
+    let Some(mut rp) = Replayer::new(&base, &patched(rec, &row, 0), ticks, rec.stall) else { return };
     let (survive, fired) = measure(&mut rp, &row, 0);
     if fired < FIRED_BAR {
         return;
@@ -1024,7 +1120,7 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
         if measured.iter().filter(|(_, f)| *f >= FIRED_BAR).count() >= DICE_CANDIDATES {
             break;
         }
-        let Some(mut rp) = Replayer::new(&base, &patched(rec, &row, 0), ticks) else { continue };
+        let Some(mut rp) = Replayer::new(&base, &patched(rec, &row, 0), ticks, rec.stall) else { continue };
         let (survive, fired) = measure(&mut rp, &row, 0);
         measured.push((Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: true }, fired));
     }
@@ -1357,7 +1453,7 @@ mod tests_faithful {
         for id in &ids {
             let rec = g.deaths.get(id).unwrap().clone();
             let (base, ticks) = replay_base(&g, &rec).expect("checkpoint");
-            let mut rp = Replayer::new(&base, &rec.rules, ticks).expect("replayer");
+            let mut rp = Replayer::new(&base, &rec.rules, ticks, rec.stall).expect("replayer");
             rp.g.run = Some(rp.run.clone());
             rp.g.lineage.facts = rp.facts.clone();
             rp.g.lineage.kill_counts = rp.kill_counts.clone();
@@ -1371,7 +1467,10 @@ mod tests_faithful {
                 }
             }
             let r = rp.g.run.as_ref().unwrap();
-            assert_eq!(r.over, Some(ExitTier::Death), "death {id}: checkpoint t{} replay ended at t{} hp {} (death tick {})", rp.run.turn, r.turn, r.hero.hp, rec.death_tick);
+            // Cut 13 §1: a stall record replays to the same stall.
+            let want = if rec.stall { Some(ExitTier::Return) } else { Some(ExitTier::Death) };
+            assert_eq!(r.over, want, "death {id}: checkpoint t{} D{} replay ended at t{} D{} hp {} (death tick {} D{})", rp.run.turn, rp.run.depth, r.turn, r.depth, r.hero.hp, rec.death_tick, rec.death.depth);
+            assert!(!rec.stall || (r.timed_out && r.stuck_fires >= crate::engine::STALL_FIRES), "stall {id} did not replay as a stall");
             assert_eq!(r.turn, rec.death_tick, "death {id}");
         }
     }

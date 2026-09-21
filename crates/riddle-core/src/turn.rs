@@ -14,7 +14,7 @@ use crate::item::Item;
 use crate::monster::Monster;
 use crate::rules::{Cond, Verb};
 use crate::tiles::{Overlay, OverlayKind, Tile};
-use crate::wire::{Ev, RowWhy, TraceTurn};
+use crate::wire::{Because, Ev, RowWhy, TraceTurn};
 
 /// What the hero can see this action.
 #[derive(Clone, Debug, Default)]
@@ -217,8 +217,10 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     // Cut 3: the Mirror King remembers the hero's last three verbs while he watches — the verb
     // of the hit landed (attack, shoot, cleave…), else the action itself. Cut 5: a paralysed
     // turn is no action (a sentinel's gaze was resetting his mirror for the hero).
+    // Cut 13: a trait's deviation (row −1) is not the hero's rhythm — the King mirrors what the
+    // rules do; a coward's step back between two blows was passing D33 without the cadence card.
     let king_watching = run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.kind == "mirror_king" && run.floor.map.is_visible(m.pos));
-    if king_watching && verb.v != "paralysed" {
+    if king_watching && verb.v != "paralysed" && row != -1 {
         let used = run.last_hit_verb.take().unwrap_or_else(|| verb.v.clone());
         run.verb_ring.push(used);
         while run.verb_ring.len() > 3 {
@@ -286,14 +288,14 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     if run.hero.paralysed > 0 {
         let verb = Verb::new("paralysed");
         emit_rule(run, cx, -2, &verb, "paralysed");
-        all_rows_why(run, cx, "paralysed");
+        all_rows_why(run, cx, "paralysed", None);
         return (-2, verb);
     }
     if run.hero.confused > 0 && run.rng.chance(50) {
         ai::random_step(run, cx);
         let verb = Verb::new("stumble");
         emit_rule(run, cx, -2, &verb, "confused → stumble");
-        all_rows_why(run, cx, "confused");
+        all_rows_why(run, cx, "confused", None);
         return (-2, verb);
     }
     // Cut 5 §5: bail — a queued `return`, the rules untouched.
@@ -302,22 +304,25 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         let verb = Verb::new("return");
         end_run(run, cx, ExitTier::Return);
         emit_rule(run, cx, -2, &verb, "bail → return");
-        all_rows_why(run, cx, "bail");
+        all_rows_why(run, cx, "bail", None);
         return (-2, verb);
     }
     let foes = v.foes.len() as i32;
     let hp_pct = run.hero.hp_pct();
     let tr = run.trait_;
     // Trait deviations, announced: at most one per 5 actions, and never below 25% HP
-    // (cowardice excepted, since fleeing at low HP is its point).
-    let trait_ready = run.trait_last.is_none_or(|t| run.actions >= t + 5);
-    if tr == Trait::Cowardly && hp_pct < 50 && foes >= 1 && run.cowardly_streak < 3 {
+    // (cowardice excepted, since fleeing at low HP is its point). Cut 13 §2: and at most
+    // one per floor (`trait_floor`) — both cohort-9 raters: "R4 retreat — brave held",
+    // "curious drank heal at 24/36 hp", "two losses I could not own".
+    let trait_ready = run.trait_last.is_none_or(|t| run.actions >= t + 5) && run.trait_floor == 0;
+    if tr == Trait::Cowardly && hp_pct < 50 && foes >= 1 && run.cowardly_streak < 3 && run.trait_floor == 0 {
         let verb = Verb::new("retreat");
         if ai::try_verb(run, cx, &verb, v) {
             run.cowardly_streak += 1;
             run.trait_last = Some(run.actions);
+            run.trait_floor += 1;
             emit_rule(run, cx, -1, &verb, "cowardly → retreat");
-            all_rows_why(run, cx, "trait first");
+            all_rows_why(run, cx, "trait first", Some(trait_because(run, "cowardly ran first")));
             return (-1, verb);
         }
     }
@@ -336,9 +341,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             run.tempted = true;
             if ai::den_gold_step(run, cx) {
                 run.trait_last = Some(run.actions);
+                run.trait_floor += 1;
                 let verb = Verb::new("pick_up");
                 emit_rule(run, cx, -1, &verb, "greedy → the den");
-                all_rows_why(run, cx, "trait first");
+                all_rows_why(run, cx, "trait first", Some(trait_because(run, "greedy went first")));
                 return (-1, verb);
             }
         }
@@ -352,9 +358,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         if let Some(q) = target {
             ai::move_hero(run, cx, q);
             run.trait_last = Some(run.actions);
+            run.trait_floor += 1;
             let verb = Verb::new("pick_up");
             emit_rule(run, cx, -1, &verb, "greedy → pick up");
-            all_rows_why(run, cx, "trait first");
+            all_rows_why(run, cx, "trait first", Some(trait_because(run, "greedy went first")));
             return (-1, verb);
         }
     }
@@ -362,7 +369,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     if v.adj == 0 && ai::escape_hazard(run, cx, v) {
         let verb = Verb::new("explore");
         emit_rule(run, cx, -2, &verb, "hazard → step out");
-        all_rows_why(run, cx, "hazard first");
+        all_rows_why(run, cx, "hazard first", None);
         return (-2, verb);
     }
     // Cut 3 `recall_sense`: below 15% with a recall scroll in the pack, read it (a free row).
@@ -370,7 +377,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         let verb = Verb::arg("read", "recall");
         if ai::try_verb(run, cx, &verb, v) {
             emit_rule(run, cx, -2, &verb, "recall sense");
-            all_rows_why(run, cx, "recall sense");
+            all_rows_why(run, cx, "recall sense", None);
             return (-2, verb);
         }
     }
@@ -405,8 +412,12 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         if let Some(c) = failing.filter(|_| !cx.sim) {
             row_why(run, cx, i, &cond_reason(run, cx, c), Some(row), Some(c));
         }
-        if holds && tr == Trait::Brave && foes == 1 && matches!(row.verb.v.as_str(), "retreat" | "back_corridor") {
+        // Cut 13 §2: bravery holds a retreat once per floor, and the held row says so
+        // (`brave held` ← `brave held it, D4 · t3120`).
+        if holds && tr == Trait::Brave && foes == 1 && matches!(row.verb.v.as_str(), "retreat" | "back_corridor") && (brave_said || run.trait_floor == 0) {
             if !brave_said {
+                run.trait_floor += 1;
+                run.trait_last = Some(run.actions);
                 emit_rule(run, cx, -1, &Verb::new("attack"), "brave → hold");
                 brave_said = true;
             }
@@ -483,6 +494,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         run.acting_row = -1;
         if let Some(verb) = used {
             run.trait_last = Some(run.actions);
+            run.trait_floor += 1;
             emit_rule(run, cx, -1, &verb, &format!("curious → {}", verb.short()));
             return (-1, verb);
         }
@@ -569,8 +581,9 @@ fn row_why(run: &mut Run, cx: &mut Ctx, i: usize, why: &str, row: Option<&crate:
 }
 
 /// Every row (the unlocked ones plus a lent row) with one reason: the action was decided
-/// before the rules were read (a trait, a hazard step, paralysis, the bail).
-fn all_rows_why(run: &mut Run, cx: &Ctx, why: &str) {
+/// before the rules were read (a trait, a hazard step, paralysis, the bail). Cut 13 §2: a
+/// trait's pre-emption carries its `because` (`cowardly ran first`) on every row it held.
+fn all_rows_why(run: &mut Run, cx: &Ctx, why: &str, because: Option<Because>) {
     if cx.sim {
         return;
     }
@@ -578,7 +591,13 @@ fn all_rows_why(run: &mut Run, cx: &Ctx, why: &str) {
     if run.lent_row.is_some() {
         idx.push(cx.rules.rows.len());
     }
-    run.rows_why = idx.into_iter().map(|i| RowWhy { row: i, why: why.into(), because: None }).collect();
+    run.rows_why = idx.into_iter().map(|i| RowWhy { row: i, why: why.into(), because: because.clone() }).collect();
+}
+
+/// Cut 13 §2: the because a trait deviation leaves on the rows it held, ≤ 8 words, at the
+/// tick it happened.
+fn trait_because(run: &Run, text: &str) -> Because {
+    Because { text: text.into(), t: run.turn, depth: run.depth }
 }
 
 /// If the last 12 actions visited ≤ 2 tiles with no damage dealt or taken, give up on the
@@ -602,6 +621,17 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     let ids: Vec<u32> = v.foes.iter().map(|&i| run.monsters[i].id).collect();
     if ids.is_empty() {
         return;
+    }
+    // Cut 13 §1: the guard's moment — the nearest foe it gave up on and why (`goblin archer,
+    // no path` · `eel, across water`) — is the stall's cause on the record, the reel line and
+    // the chronicle note; the first guard's tick is the verdict's checkpoint.
+    if let Some(&i) = v.foes.first() {
+        let m = &run.monsters[i];
+        let why = if run.floor.map.get(m.pos) == crate::tiles::Tile::Water { "across water" } else { "no path" };
+        run.stuck_cause = Some(format!("{}, {why}", crate::engine::kind_title(&m.kind).to_lowercase()));
+    }
+    if run.stuck_fires == 0 {
+        run.stuck_first_t = Some(run.turn);
     }
     // Until the floor changes (`u32::MAX`, blood does not lift it): thirty actions let the
     // same unreachable foe pull the hero back into the pacing, three guards a stall.
@@ -1438,6 +1468,9 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.recent_pos.clear();
     run.stuck_until = 0;
     run.stuck_fires = 0;
+    run.stuck_first_t = None;
+    run.stuck_cause = None;
+    run.trait_floor = 0;
     run.items_until = 0;
     run.pickup_streak = 0;
     run.gambles.clear();
@@ -1538,7 +1571,9 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
     // Cut 5 §1: the exit resolves every open episode.
     let res = match tier {
         ExitTier::Bank => Resolution::Banked { gold: loot_kept },
-        ExitTier::Return if run.timed_out => Resolution::Lost { stalled: run.stuck_fires >= crate::engine::STALL_FIRES },
+        // Cut 13 §1: a stall names its cause (the reel line reads what the trace does).
+        ExitTier::Return if run.timed_out && run.stuck_fires >= crate::engine::STALL_FIRES => Resolution::Stalled { cause: run.stuck_cause.clone().unwrap_or_else(|| "paced".into()) },
+        ExitTier::Return if run.timed_out => Resolution::Lost { stalled: false },
         ExitTier::Return => Resolution::Returned { gold: loot_kept },
         ExitTier::Death => Resolution::Died { cause: run.death_cause.clone().unwrap_or_else(|| "unknown".into()) },
     };

@@ -2,11 +2,13 @@
 // Bot gate table (examples/metrics.rs) on the `fast` cargo profile.
 //   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds alongside (~50 s)
 //   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts, dayplayer 3 seeds (~2.5 min); the number that counts
+// Cut 13 §6: the wire invariants (examples/qa.rs, 30 seeds, ~40 s on 4 threads) run beside both as a third job;
+// the run fails if they do.
 import { spawn, spawnSync } from "node:child_process";
 import os from "node:os";
 const full = process.argv.includes("--full");
 const extra = process.argv.slice(2).filter((a) => a !== "--full");
-const b = spawnSync("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", "--example", "metrics", "--example", "dayplayer"], { stdio: "inherit" });
+const b = spawnSync("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", "--example", "metrics", "--example", "dayplayer", "--example", "qa"], { stdio: "inherit" });
 if (b.status !== 0) process.exit(b.status ?? 1);
 // The table fills every core seed by seed for ~40 s; the fourteen-day probe is a few long
 // sequential chains (one per seed) that would otherwise run alone afterwards — they overlap.
@@ -20,10 +22,15 @@ const run = (bin, args) => new Promise((resolve) => {
 const seeds = full ? 3 : 2;
 const cores = os.availableParallelism();
 const dayplayer = run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds)]);
-const table = run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - seeds - 1)), ...extra]);
-const [r, p] = await Promise.all([table, dayplayer]);
+// The invariants take four threads (~40 s): more would contend the table's quiet per-tick measurement.
+const qaThreads = 4;
+const qa = run("target/fast/examples/qa", ["--seeds", "30", "--threads", String(qaThreads)]);
+const table = run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - seeds - qaThreads - 1)), ...extra]);
+const [r, p, q] = await Promise.all([table, dayplayer, qa]);
 process.stdout.write(r.stdout ?? "");
 if (r.status !== 0 || !/gates: all PASS/.test(r.stdout ?? "")) { console.error("gates: FAIL"); process.exit(1); }
+process.stdout.write(q.stdout ?? "");
+if (q.status !== 0 || !/qa: all PASS/.test(q.stdout ?? "")) { console.error("qa invariants: FAIL"); process.exit(1); }
 // Fourteen-day pacing probe. Two of its bars (unlock days ≥ 10/14, stall ≤ 3 d) assume the full
 // 30-floor dungeon; with v1's 16 floors a competent player finishes on day 4–9, so until M7 content
 // lands the probe is printed and only its remaining bars fail the run (docs/CUT2.md deviation).

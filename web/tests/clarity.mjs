@@ -70,7 +70,7 @@ try {
   // §3 a card's reach delta says where the card goes — Cut 12 §1: `at R2` (before the engagement row, the catalogue's `insert_at`), else `at end`
   {
     const delta = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((d) => d.textContent.trim()));
-    check(delta.length > 0 && delta.every((d) => /^reach [+−]\d+% at (R\d+|end)$/.test(d)), `card deltas say where the card goes: ${delta.slice(0, 2).join(" · ")}`);
+    check(delta.length > 0 && delta.every((d) => /^reach ([+−]\d+%( ±\d+)?|~0) at (R\d+|end)$/.test(d)), `card deltas say where the card goes: ${delta.slice(0, 2).join(" · ")}`);
   }
   // §3 a greyed supply says why under its price
   {
@@ -98,7 +98,7 @@ try {
     });
     await settle();
     const bar = await page.evaluate(() => { const b = document.querySelector(".fc-bars .bar.try"); return b ? { tag: b.tagName, text: [...b.children].map((c) => c.textContent.replace(/\s+/g, " ").trim()).filter(Boolean).join(" ") } : null; });
-    check(!!bar && bar.tag === "BUTTON" && /^D5 \d+%( ±\d+)? · goblin warlord · try: attack boss$/.test(bar.text), `the boss floor names the counter: "${bar?.text}"`);
+    check(!!bar && bar.tag === "BUTTON" && /^D5 \d+%( ±\d+…?)? · goblin warlord · try: attack boss$/.test(bar.text), `the boss floor names the counter: "${bar?.text}"`);
     const before = await rowTexts();
     await page.locator(".fc-bars .bar.try").click({ timeout: 5000 });
     await waitFor((s) => s?.screen === "camp", "camp"); await settle();

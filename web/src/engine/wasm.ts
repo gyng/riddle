@@ -79,6 +79,8 @@ export class WasmEngine implements Engine {
   forecastRefine(): Forecast { return this.call("forecastRefine"); }
   // Cut 12 §6: throws `wasm: dropSupply` on a build without it (the client clears and rebuys the rest)
   dropSupply(id: number): Lineage { return this.call("dropSupply", id); }
+  // Cut 13 §2: throws `wasm: setTrait` on a build without it (the camp shows no chips without an offer anyway)
+  setTrait(name: string): Lineage { return this.call("setTrait", name); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

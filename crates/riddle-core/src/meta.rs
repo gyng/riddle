@@ -305,8 +305,9 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         if !compute {
             let b = game.forecast_cache.borrow().get(&crate::forecast::reach_key(game, &rules, depth, sims, tag, budget)).copied();
             let r = b.and_then(|(_, n)| crate::forecast::reach_cached(&g, &patched, depth, n.max(1), tag, u64::MAX));
-            if let (Some((b, _)), Some(r)) = (b, r) {
+            if let (Some((b, n)), Some(r)) = (b, r) {
                 u.delta = Some(r - b);
+                u.pm = Some(delta_pm(b, r, n as usize));
             }
             continue;
         }
@@ -314,8 +315,20 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         let r = crate::forecast::reach_paired(&g, &patched, depth, n, tag);
         game.forecast_cache.borrow_mut().extend(g.forecast_cache.into_inner());
         u.delta = Some(r - base_reach);
+        u.pm = Some(delta_pm(base_reach, r, n as usize));
     }
     cat
+}
+
+/// Cut 13 §5: the half-width of a catalogue delta — the base and patched reaches are shares
+/// over the same `n` panel seeds; their half-widths (`forecast::half_width`) combine in
+/// quadrature (`√(pm_base² + pm_patched²)`, the independent bound; the paired difference is
+/// no wider). A delta inside it reads `reach ~0` on the client (both cohort-9 raters: "pack
+/// break +7 % then −14 % a minute apart").
+pub fn delta_pm(base: f64, patched: f64, n: usize) -> f64 {
+    let a = crate::forecast::half_width(base, n);
+    let b = crate::forecast::half_width(patched, n);
+    (a * a + b * b).sqrt()
 }
 
 /// Cut 10 §3: the row a card's delta simulates and where it goes — a tactic card as the bare

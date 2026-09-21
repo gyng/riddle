@@ -3737,8 +3737,9 @@ fn the_lineage_chronicle_has_one_line_per_ended_heir() {
     g.lineage.ended = true;
     g.lineage.heir = 4;
     g.lineage.heir_best = 31;
+    let trait_ = g.lineage.trait_.name();
     g.ascend("no_rest").unwrap();
-    assert_eq!(g.lineage.chronicle, vec!["♟4 the curious fighter · D31 · \"fighter\" set · ascended.".to_string()]);
+    assert_eq!(g.lineage.chronicle, vec![format!("♟4 the {trait_} fighter · D31 · \"fighter\" set · ascended.")]);
 }
 
 /// §4: D1 always holds a situation in a room near the entrance; every run meets one on D1–5
@@ -6300,3 +6301,246 @@ fn thief_guard_cuts_den_snatches() {
     assert_eq!(rows.len(), 5);
     assert_eq!(rows[0], Row::new(vec![Cond::t("on_see", "den")], Verb::arg("attack", "nearest")));
 }
+
+// ---------------------------------------------------------------- Cut 13
+
+/// Cut 13 §1: an arena whose stairs and one goblin sit behind a chasm — the hero paces before
+/// a foe it cannot reach until the oscillation guard has fired `STALL_FIRES` times and the run
+/// ends as `stalled`.
+fn stall_arena() -> Game {
+    let mut g = arena_seed(13);
+    attack_rules(&mut g);
+    let run = g.run.as_mut().unwrap();
+    for y in 1..11 {
+        run.floor.map.set(Pos::new(9, y), Tile::Chasm);
+    }
+    run.floor.map.reveal_all();
+    run.hero_dist_pos = None;
+    let id = run.new_id();
+    let mut m = Monster::spawn(id, "goblin", Pos::new(12, 5), 1);
+    m.awake = true;
+    run.monsters.push(m);
+    g
+}
+
+/// Cut 13 §1 (Q: "'stall' is never explained … no patch is offered"; R: "the reel blamed
+/// `R3 drink heal caught him` while the trace said `R1 throw unknown stuck`"): a stalled run
+/// gets a death-style record whose cause is the guard's moment, `keeps $0`, the trace, a
+/// `stall` verdict with a patch that fires and leaves the floor; the reel line, the record and
+/// the chronicle note name the same cause; the HUD's stake reads `stalling` from the first
+/// guard on; the batch counts it as a return, never a death.
+#[test]
+fn a_stalled_run_gets_a_verdict_whose_cause_the_reel_repeats() {
+    let mut g = stall_arena();
+    assert!(!g.snapshot().stake.stalling);
+    let mut n = 0;
+    while g.run.as_ref().is_some_and(|r| r.over.is_none()) && n < 3000 {
+        g.tick();
+        g.events.clear();
+        n += 1;
+        if g.run.as_ref().unwrap().stuck_fires == 1 {
+            assert!(g.snapshot().stake.stalling, "the stake says so from the first guard");
+        }
+    }
+    let run = g.run.as_ref().unwrap();
+    assert!(run.timed_out && run.stuck_fires >= crate::engine::STALL_FIRES, "stalled after {n} ticks: fires {}", run.stuck_fires);
+    assert_eq!(run.stuck_cause.as_deref(), Some("goblin, no path"));
+    assert!(run.notes.iter().any(|(_, s)| s == "Stalled: the goblin, no path. Came home empty-handed."), "{:?}", run.notes);
+    let id = run.id;
+    g.finish_run();
+    assert_eq!((g.batch.stalls, g.batch.returned, g.batch.deaths.len()), (1, 1, 0));
+    assert_eq!(g.batch.worst_death, Some(id), "the stall is the worst candidate when no death is");
+    let d = g.death(id).expect("a stall record");
+    assert_eq!((d.verdict.as_str(), d.cause.as_str(), d.margin.as_str()), ("stall", "stalled · goblin, no path", "keeps $0"));
+    assert!(d.line.as_ref().is_some_and(|l| l.text.contains("stalled")), "{:?}", d.line);
+    assert!(!d.trace.turns.is_empty() && d.notes.iter().any(|s| s.starts_with("Stalled:")), "{:?}", d.notes);
+    assert!(!d.patches.is_empty(), "a stall names a row");
+    let rec = g.deaths.get(&id).unwrap().clone();
+    assert!(rec.stall && rec.t10.is_some());
+    let fired = d.patches.iter().map(|p| crate::trace::patch_fired_rate(&g, &rec, p)).fold(0.0, f64::max);
+    assert!(fired >= 0.5, "no patch fires: {:?}", d.patches);
+    assert!(d.patches.iter().any(|p| matches!(p.row.verb.v.as_str(), "return" | "bank" | "descend")), "{:?}", d.patches);
+    // The reel line reads the trace's cause, in the grammar.
+    let h = g.batch.highlights.iter().find(|h| h.run_id == id && h.arc.is_some()).expect("the run's line");
+    assert_eq!(h.arc.as_ref().unwrap().resolution, "stalled, goblin no path");
+    assert!(h.text.ends_with("stalled, goblin no path."), "{}", h.text);
+    assert!(crate::sifter::story_ok(&h.text), "{}", h.text);
+    assert_eq!(crate::sifter::stall_short(&d.cause["stalled · ".len()..]), "goblin no path");
+    // The grammar takes a stall's cause and nothing looser.
+    assert!(crate::sifter::stalled_ok("stalled, archer no path") && crate::sifter::stalled_ok("stalled, eel across water") && crate::sifter::stalled_ok("stalled, paced"));
+    assert!(!crate::sifter::stalled_ok("stalled, R3 drink heal") && !crate::sifter::stalled_ok("stalled, dragon no path"));
+    // The record survives a save; a second read is the same verdict.
+    let mut h2 = Game::load(&g.save()).unwrap();
+    assert_eq!(h2.death(id).unwrap(), d);
+}
+
+/// Cut 13 §2 (both raters: "R4 retreat — brave held", "two losses I could not own"): a new
+/// heir is offered two distinct traits, drawn from the seed and the heir number (the same on
+/// every read), never the last heir's; the heir's trait is the first until `set_trait` picks
+/// the other, which sticks through a save; a name not on offer is refused; the send spends
+/// the offer.
+#[test]
+fn a_new_heir_chooses_between_two_offered_traits() {
+    let g = Game::new(21);
+    let offer = g.lineage().trait_offer;
+    assert_eq!(offer.len(), 2);
+    assert_ne!(offer[0], offer[1]);
+    assert_eq!(g.lineage.trait_.name(), offer[0], "the first is the heir's until a pick");
+    assert_eq!(Game::new(21).lineage().trait_offer, offer, "deterministic");
+    use crate::hero::Trait;
+    let o = crate::engine::trait_offer(7, 2, Some(Trait::Brave), Trait::Brave);
+    assert!(o[0] != Trait::Brave && o[1] != Trait::Brave && o[0] != o[1], "{o:?}: the last heir's trait is redrawn");
+    assert_eq!(o, crate::engine::trait_offer(7, 2, Some(Trait::Brave), Trait::Brave), "a pure draw");
+    assert_eq!(crate::engine::trait_offer(7, 2, Some(Trait::Brave), Trait::Greedy)[0], Trait::Greedy, "the lineage's draw leads when it may");
+    for seed in 1..=40u64 {
+        let mut g = arena_seed(seed);
+        let last = g.lineage.trait_;
+        {
+            let (run, mut cx) = g.ctx();
+            crate::turn::damage_hero(run, &mut cx, 99, &crate::turn::Src::Gas);
+        }
+        g.finish_run();
+        let l = g.lineage();
+        assert_eq!(l.heir, 2);
+        assert_eq!(l.trait_offer.len(), 2, "seed {seed}");
+        assert!(!l.trait_offer.contains(&last.name().to_string()), "seed {seed}: the last heir's {} offered again", last.name());
+        assert_eq!(l.trait_, l.trait_offer[0]);
+        assert_eq!(g.set_trait("nobody").unwrap_err(), "not on offer");
+        let pick = l.trait_offer[1].clone();
+        g.set_trait(&pick).unwrap();
+        assert_eq!(g.lineage().trait_, pick);
+        let mut h = Game::load(&g.save()).unwrap();
+        assert_eq!((h.lineage().trait_, h.lineage().trait_offer.clone()), (pick.clone(), l.trait_offer.clone()), "the pick and the offer survive a save");
+        h.send();
+        assert!(h.lineage().trait_offer.is_empty(), "the send spends the offer");
+        assert_eq!(h.run.as_ref().unwrap().trait_.name(), pick, "the run wears the pick");
+    }
+}
+
+/// Cut 13 §2: a trait overrides a row at most once per floor — over 30 seeds' first runs no
+/// floor carries two `row −1` events — and every override leaves a `because` on the rows it
+/// held (`brave held it` · `cowardly ran first` · `greedy went first`, ≤ 8 words).
+#[test]
+fn a_trait_deviates_at_most_once_per_floor_and_says_so_on_the_row() {
+    let mut deviations = 0;
+    let mut becauses = 0;
+    for seed in 1..=30u64 {
+        let mut g = Game::new(seed);
+        g.send();
+        let mut depth = 1;
+        let mut per_floor = 0;
+        for _ in 0..600 {
+            let r = g.step(50);
+            for e in &r.events {
+                match e {
+                    Ev::Descend { depth: d, .. } => {
+                        depth = *d;
+                        per_floor = 0;
+                    }
+                    Ev::Rule { row: -1, text, t, .. } => {
+                        per_floor += 1;
+                        deviations += 1;
+                        assert!(per_floor <= 1, "seed {seed} D{depth} t{t}: a second trait deviation ({text})");
+                    }
+                    _ => {}
+                }
+            }
+            for t in g.run.as_ref().map(|r| r.trace.clone()).unwrap_or_default() {
+                for w in t.rows.iter().flatten().filter(|w| w.why == "brave held" || w.why == "trait first") {
+                    let b = w.because.as_ref().unwrap_or_else(|| panic!("seed {seed}: `{}` without a because", w.why));
+                    assert!(crate::provenance::because_ok(&b.text) && (b.text == "brave held it" || b.text.ends_with(" first")), "{b:?}");
+                    becauses += 1;
+                }
+            }
+            if r.run_over {
+                break;
+            }
+        }
+    }
+    assert!(deviations >= 10, "traits still act ({deviations} deviations)");
+    assert!(becauses >= 1, "no trait because seen");
+}
+
+/// Cut 13 §3 (Q: "I left with $142 and came back to $6 and the report never said where it
+/// went"): the night's ledger — `ReturnReport.spent` is what the restock bought, per kind in
+/// coins, and the purse reconciles to the coin over 8 h on 20 seeds: exits + salvage + wake
+/// pay − spent == the delta. And a kind the last run used to no effect is not rebought.
+#[test]
+fn the_nights_ledger_reconciles_and_a_wasted_kind_is_not_rebought() {
+    let night = |seed: u64| -> bool {
+        let mut g = Game::new(seed);
+        g.lineage.unlocks.insert("auto_supply".into());
+        g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+        g.lineage.gold = 400;
+        g.buy_supply("heal").unwrap();
+        g.buy_supply("heal").unwrap();
+        let before = g.lineage.gold;
+        let r = crate::offline::run_offline_quick(&mut g, 8 * 3600);
+        let b = &g.batch;
+        let spent: i32 = b.spent.values().map(|(_, c)| *c).sum();
+        assert_eq!(b.gold_earned + b.salvage_gold + b.wake_pay - spent, g.lineage.gold - before, "seed {seed}: earned {} salvage {} wake {} spent {spent}", b.gold_earned, b.salvage_gold, b.wake_pay);
+        assert_eq!(r.spent.iter().map(|s| s.gold).sum::<i32>(), spent, "the report's SPENT rows are the batch's");
+        r.spent.iter().find(|s| s.kind == "heal").inspect(|row| assert!(row.n >= 1 && row.gold == 40 * row.n as i32, "{row:?}")).is_some()
+    };
+    let spent_seen = std::thread::scope(|sc| (1..=20u64).map(|seed| sc.spawn(move || night(seed))).collect::<Vec<_>>().into_iter().filter_map(|h| h.join().unwrap().then_some(())).count());
+    assert!(spent_seen >= 10, "the restock bought heals on {spent_seen} seeds");
+    // A heal drunk at full HP is a use to no effect: the heal is skipped by the next restock,
+    // the strength potion beside it is rebought.
+    let mut g = arena_seed(5);
+    no_kennel_leash(&mut g);
+    g.lineage.unlocks.insert("auto_supply".into());
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "strength").unwrap());
+    g.lineage.gold = 1000;
+    g.lineage.last_supplies = vec!["heal".into(), "strength".into()];
+    give(&mut g, "heal");
+    rules(&mut g, vec![Row::new(vec![], Verb::arg("drink", "unknown"))]);
+    let evs = ticks(&mut g, 30);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Use { item, .. } if item == "heal potion")), "{:?}", ev_kinds(&evs));
+    assert_eq!(g.run.as_ref().unwrap().wasted_kinds, vec!["heal".to_string()]);
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.finish_run();
+    let kinds: Vec<&str> = g.lineage.supplies.iter().map(|s| s.kind.as_str()).collect();
+    assert_eq!(kinds, vec!["strength"], "the wasted heal is not rebought");
+    assert_eq!(g.batch.spent.get("strength"), Some(&(1, 40)));
+    // The shop grows with the forge: a craftable potion is for sale before the hero drank one.
+    let mut g = Game::new(5);
+    assert!(!g.supply_catalogue().iter().any(|s| s.kind == "strength"));
+    g.lineage.forge.insert("strength".into(), ForgeRow::at(5));
+    let entry = g.supply_catalogue().into_iter().find(|s| s.kind == "strength").expect("craftable strength on the shelf");
+    assert_eq!((entry.price, entry.label.as_str()), (40, "strength potion"));
+}
+
+/// Cut 13 §5 (both raters: "±10 between re-rolls", "pack break +7 % then −14 %"): a catalogue
+/// delta carries its half-width (`UnlockInfo.pm`, the base's and the patched reach's combined)
+/// whenever it carries a delta; the ends line carries its `±`; the refine pass says so and
+/// two reads of it agree.
+#[test]
+fn a_catalogue_delta_carries_its_half_width() {
+    let mut g = Game::new(11);
+    g.lineage.facts.insert("foe:jackal:pack".into());
+    g.lineage.marks = 9;
+    g.lineage.best_depth = 3;
+    let cat = g.unlock_deltas();
+    let with: Vec<&UnlockInfo> = cat.iter().filter(|u| u.delta.is_some()).collect();
+    assert!(with.len() >= 2, "{}", with.len());
+    for u in &with {
+        let pm = u.pm.unwrap_or_else(|| panic!("{}: delta without pm", u.id));
+        assert!((0.0..0.5).contains(&pm), "{}: pm {pm}", u.id);
+    }
+    assert!(with.iter().any(|u| u.pm.unwrap() > 0.0), "a fractional reach has a width");
+    assert!(cat.iter().filter(|u| u.delta.is_none()).all(|u| u.pm.is_none()));
+    assert_eq!(g.unlocks().iter().map(|u| (u.delta, u.pm)).collect::<Vec<_>>(), cat.iter().map(|u| (u.delta, u.pm)).collect::<Vec<_>>(), "the memoised read carries the same numbers");
+    assert!((crate::meta::delta_pm(0.5, 0.5, 50) - (2.0f64).sqrt() * crate::forecast::half_width(0.5, 50)).abs() < 1e-12);
+    let f = g.forecast();
+    assert!(!f.refined && f.ends.as_ref().is_some_and(|e| e.pm >= 0.0));
+    let a = g.forecast_refine();
+    assert!(a.refined, "the refine pass is marked");
+    assert_eq!(g.forecast_refine(), a, "two refine reads agree");
+}
+
+
+
+

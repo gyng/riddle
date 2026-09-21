@@ -4,7 +4,7 @@
 //   §1  the editor chip counts own rows (`2/4 · 2 cards`); a bought card's row goes before the engagement row (`insert_at`);
 //       card rows never count against `max_rows` (four own rows + two cards send; the fifth own row is `5/4 · drop one`, the
 //       drop mark on an own row); picking a card verb clears the row's conds; a card another row holds is not offered
-//   §3  the forecast panel's ends line: `bank 40% · return 35% · death 25% · ~$54`
+//   §3  the forecast panel's ends line: `bank 40% · return 35% · death 25% · ~$54` (Cut 13 §5: `death 25% ±4…` with its ± and the first paint's `…`)
 //   §6  `+1 row ⊘ fill rows` (a requirement, never `rows full`) lifts once a rule edit fills the rows (no run needed); a free supply reads `leash · kennel`; a
 //       supply line's `×` removes that line only; the combo is named (`gambler`), not counted
 //
@@ -68,7 +68,7 @@ try {
   let c = await camp();
   check(c.count === "2/4" && c.rows.length === 2, `the preset reads ${c.count}, ${c.rows.length} rows`);
   check(/^yours: 0 of 2 rows · gambler$/.test(c.yours), `the yours line names the combo: "${c.yours}"`);
-  check(/^bank \d+% · return \d+%( · stall \d+%)? · death \d+% · ~\$\d+$/.test(c.ends), `the forecast's ends line: "${c.ends}"`);
+  check(/^bank \d+% · return \d+%( · stall \d+%)? · death \d+%( ±\d+…?)? · ~\$\d+$/.test(c.ends), `the forecast's ends line: "${c.ends}"`);
   check(/⊘ fill rows/.test(c.rowCard) && !/rows full/.test(c.rowCard), `+1 row waits on the rows at 2/4, as a requirement: "${c.rowCard}"`);
   check(c.supplies.length === 1 && /^leash · kennel ×$/.test(c.supplies[0]), `the kennel's leash reads kennel: "${c.supplies[0]}"`);
 
@@ -94,7 +94,7 @@ try {
   await page.waitForFunction(() => window.__riddle.unlockCat.length > 0, null, { timeout: 10_000 });
   await sleep(1200);
   c = await camp();
-  check(/^bank \d+% · return [1-9]\d*%( · stall \d+%)? · death \d+% · ~\$\d+$/.test(c.ends), `with a return row the ends line shows a return share: "${c.ends}"`);
+  check(/^bank \d+% · return [1-9]\d*%( · stall \d+%)? · death \d+%( ±\d+…?)? · ~\$\d+$/.test(c.ends), `with a return row the ends line shows a return share: "${c.ends}"`);
   check(c.count === "4/4 · 2 cards" && !c.countRed && c.sendDisabled === false && !c.plus, `4 own + 2 cards: "${c.count}", send enabled, no +`);
   check(!/fill rows|rows full/.test(c.rowCard) && /\+1 row/.test(c.rowCard), `+1 row lifted at 4/4 without a run: "${c.rowCard}"`);
   const engineRows = await page.evaluate(async () => (await window.__riddle.engine.lineage()).sets[window.__riddle.active].rows.length);

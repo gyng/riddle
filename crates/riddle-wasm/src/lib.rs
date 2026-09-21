@@ -150,6 +150,14 @@ impl Game {
         js(&self.inner.lineage())
     }
 
+    /// Cut 13 §2: pick the new heir's trait from `Lineage.trait_offer` (before the first
+    /// send; a send without a pick keeps the first); returns the Lineage.
+    #[wasm_bindgen(js_name = setTrait)]
+    pub fn set_trait(&mut self, name: &str) -> Result<String, JsError> {
+        self.inner.set_trait(name).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     // ---- Addendum A: companions
 
     #[wasm_bindgen(js_name = setParty)]

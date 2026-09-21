@@ -109,7 +109,7 @@ try {
   // 7: the cond picker's × leads the sheet; it removes the cond
   await page.locator(".editor .row").first().locator(".chip.cond").first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
-  check(/^<button class="btn ghost wide"/.test(s?.first ?? "") && s.buttons[0] === "×", `the cond picker's × is its first control: ${s?.first}`);
+  check(s?.label === "cond" && s.buttons[0] === "×", `the cond picker's × is its first control (under the sheet's title): ${s?.first} · [${s?.buttons[0]}]`);   // Cut 13 §6: every sheet is titled
   await page.locator(".sheet-wrap .sheet-body > button.btn.ghost.wide").first().click({ timeout: 5000 }); await sleep(300);
   let rs = await rows();
   check((await sheets()) === 0 && rs[0].conds === 0, `× removed R1's cond: "${rs[0].text}"`);

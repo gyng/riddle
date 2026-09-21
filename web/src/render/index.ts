@@ -311,6 +311,17 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // at its last seen tile dimmed like a memory tile: no shadow, no flash, no telegraph glyph.
     L.shadows.begin(); L.ents.begin(); L.glyphs.begin(); L.hud.begin(); L.text.begin();
     stats.ents = st.ents.size; stats.drawn = 0;
+    // Cut 13 §4: the callout's box (clamped inside the frame, see `textX`), so a hostile's name never shares its line (rater Q's
+    // `JACKALCKAL`: the callout above the hero and the name under a foe one tile up, on one row)
+    const heroEnt = st.hero;
+    let calloutBox: [number, number, number, number] | null = null;   // x0, y0, x1, y1 (world; y up)
+    if (st.callout && heroEnt) {
+      const [hx, hy] = feet(heroEnt);
+      const width = st.callout.text.length * FONT_ADVANCE + 1;
+      const cy = hy + atlas.entity(heroEnt.kind).h / 2 + (fight ? (heroEnt.glyph ? (fight ? TILE * 2 : TILE) + 6 : 5) : 6);
+      const cx = textX(width, hx);
+      calloutBox = [cx - width / 2, cy - 1, cx + width / 2, cy + FONT_CELL_H + 1];
+    }
     const barBg = fight ? atlas.solid(BAR_RED) : null, barFg = fight ? atlas.solid(cssHex(bright)) : null;
     const gs = fight ? TILE * 2 : TILE; // Cut 8A: telegraph glyphs at 2× in the fight frame
     for (const e of st.ents.values()) {
@@ -355,7 +366,11 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         L.hud.push(fx, fy + h + 1, 3.7, BAR_W, 1, barBg.u0, barBg.v0, barBg.u1, barBg.v1);
         if (fill > 0) L.hud.push(fx - BAR_W / 2 + fill / 2, fy + h + 1, 3.8, fill, 1, barFg.u0, barFg.v0, barFg.u1, barFg.v1);
         top = fy + h + 4;
-        if (!e.hero && !e.ally) drawText(e.name, fx, fy - FONT_CELL_H / 2 - 2, 4, 0.5);
+        if (!e.hero && !e.ally) {
+          const ny = fy - FONT_CELL_H / 2 - 2, nw = e.name.length * FONT_ADVANCE * 0.5 + 0.5;
+          const clash = calloutBox && fx + nw / 2 > calloutBox[0] && fx - nw / 2 < calloutBox[2] && ny + FONT_CELL_H / 2 > calloutBox[1] && ny - FONT_CELL_H / 2 < calloutBox[3];
+          if (!clash) drawText(e.name, fx, ny, 4, 0.5);   // Cut 13 §4: the callout has the line for its second
+        }
       }
       if (e.glyph) {
         const g = atlas.glyph(e.glyph);
@@ -392,7 +407,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     if (st.callout && hero) {
       const [fx, fy] = feet(hero);
       // in the fight frame the callout clears the hp bar and, when up, the 2× glyph above it
-      drawText(st.callout.text, fx, fy + atlas.entity(hero.kind).h / 2 + (fight ? (hero.glyph ? gs + 6 : 5) : 6), 4);
+      // Cut 13 §4: centred on the hero but kept inside the frame — a hero at the edge used to lose its callout's right half
+      drawText(st.callout.text, textX(st.callout.text.length * FONT_ADVANCE + 1, fx), fy + atlas.entity(hero.kind).h / 2 + (fight ? (hero.glyph ? gs + 6 : 5) : 6), 4);
     }
     // Cut 8A: the firing row as a caption at the top of the fight frame (`R2 attack goblin`), under the DOM hud
     if (fight && st.caption) {
@@ -402,6 +418,12 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     L.text.end();
   }
 
+  /** Cut 13 §4: the centre x for a text `width` wide that wants `cx`, kept inside the frame's iw texels (1-texel margin);
+   *  a text wider than the frame stays centred on the frame. */
+  function textX(width: number, cx: number): number {
+    const half = width / 2, lo = camSX - iw / 2 + 1 + half, hi = camSX + iw / 2 - 1 - half;
+    return lo > hi ? camSX : Math.max(lo, Math.min(hi, cx));
+  }
   // bitmap text centred on x, its baseline (cell bottom) at y. scale 1 = env density; 0.5 = sprite density (one font
   // texel per target px, half the size on screen: the fight frame's names), positions snapped to that grid
   function drawText(text: string, cx: number, y: number, z: number, scale = 1): void {
