@@ -5,6 +5,9 @@
 // Cut 13 §3: the night's ledger — a `spent` section beside `salvaged` (`heal ×16 · −$640`, `ReturnReport.spent`) and one dim
 // `gold` line under the tiles that reconciles the header's delta: `+$412 banked · +$96 returned · +$45 salvage · −$640 spent`
 // (the banked / returned sums are the exit lines'; numbers only, a piece shows only when it is not zero).
+// Cut 14 §4: every exit's `trace` chip carries its exit (`D5 · died · trace`; the depth off the ledger line the exit claims, else
+// off the line's own text) — rater S: "the seventh unlabelled TRACE button"; the stalled tile carries what the stalls cost
+// (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
@@ -12,9 +15,26 @@ import { patchRows } from "./patches";
 import { openUnlockSheet, visible, withRowsGate } from "./unlocks";
 import { lostLabel, rowLabel } from "./tokens";
 import { traceChip } from "./trace";
-import { openGoldSheet } from "./gold";
+import { openGoldSheet, runRange } from "./gold";
 
 const EXITS_SHOW = 8;
+
+/** Cut 14 §4: the floor an exit ended on — the ledger's exit line it claims (`returned D5`, the gold sheet's own match), else
+ *  the line's own `bones: 7 items on D5`; undefined when neither knows. `newer` = the exits after it in the same report. */
+export function exitDepth(app: App, x: ExitLine, newer: ExitLine[] = []): number | undefined {
+  const ledger = app.lineage.gold_ledger ?? [];
+  const same = (a: ExitLine, b: ExitLine): boolean => a.kept === b.kept && /^(banked|returned|died)/.exec(a.text)?.[1] === /^(banked|returned|died)/.exec(b.text)?.[1];
+  const range = runRange(ledger, x, newer.filter((y) => same(y, x)).length);
+  const why = range ? ledger.slice(range[0], range[1] + 1).map((g) => g.why).find((w) => /^(returned|banked|died|lost|stalled)\b.*\bD\d+/.test(w)) : undefined;
+  const m = /\bD(\d+)\b/.exec(why ?? "") ?? /\bon D(\d+)\b/.exec(x.text);
+  return m ? Number(m[1]) : undefined;
+}
+/** Cut 14 §4: a trace chip's label, ≤ 3 words: `D5 · died · trace` (`died · trace` without a depth). */
+export function traceLabel(app: App, x: ExitLine, newer: ExitLine[] = []): string {
+  const tier = /^(banked|returned|died)/.exec(x.text)?.[1] ?? exitLead(x).split(" ")[0];
+  const d = exitDepth(app, x, newer);
+  return /* copy:callout */ `${d !== undefined ? `D${d} · ` : ""}${tier} · trace`;
+}
 
 /** Cut 10 §3: an exit line's lead — the tier from its keep share and the sum kept: `returned $61` · `banked $84` · `died $0`. */
 export function exitLead(x: ExitLine): string {
@@ -41,7 +61,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // run whose line said `returned $0 · … · stalled`). With no banks the stall tile takes `banked`'s place so the row stays three.
   const stalledN = r.stalled ?? 0, bankedN = r.banked ?? 0, returnedN = Math.max(0, (r.returned ?? 0) - stalledN);
   const banked = tile(`${bankedN}`, /* copy:label */ "banked"), returned = tile(`${returnedN}`, /* copy:label */ "returned");
+  // Cut 14 §4: the stalls' cost — what the stalled runs carried home for nothing (their lines' `carried`; lines the slices
+  // dropped are not counted, so the sum is a floor) — `2 STALLED · $161 lost` (rater T: "`2 STALLED` says nothing about what the
+  // stalls cost")
+  const stallLost = (r.exits ?? []).filter((x) => /\bstalled\b/.test(x.text)).reduce((a, x) => a + Math.max(0, x.carried), 0);
   const stalled = stalledN > 0 ? tile(`${stalledN}`, /* copy:label */ "stalled") : null;
+  if (stalled) stalled.appendChild(h("span", { class: "num cost down" }, /* copy:callout */ `$${stallLost} lost`));
   const exitTiles = (): (HTMLElement | null)[] => {
     // Cut 10 §3: `returned` leads when it is the larger (fourteen returns beside `banked 0` read as a contradiction)
     const lead = returnedN > bankedN ? [returned, banked] : [banked, returned];
@@ -93,7 +118,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     const hidden = allExits.length - shown.length, unlisted = Math.max(0, r.runs - allExits.length);
     exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
       h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
-      traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text))),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line
+      traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))))),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
       hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} more`) : "",
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
   };
@@ -150,6 +175,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     if (pendingSec) pendingSec.hidden = !pendingBody.childElementCount;
   };
   paintPending([]);
+  // Cut 14 §4: the absence's usage lines are the death screen's least-fired row (`↑ R3`); a watched run's report has none and
+  // leaves the watch's own counts
+  const usage = r.pending.map((p) => /^R(\d+) fired (\d+) of \d+ runs/.exec(p)).filter((m): m is RegExpExecArray => !!m);
+  if (usage.length) { const fires = app.rules.rows.map(() => 0); for (const m of usage) if (Number(m[1]) - 1 < fires.length) fires[Number(m[1]) - 1] = Number(m[2]); app.rowFires = fires; }
   void app.engine.unlocks().then((cat) => paintPending(visible(cat).filter((u) => u.available))).catch(() => { /* lines only */ });
   const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }, /* copy:button */ "open") : null;
   const camp = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "camp");

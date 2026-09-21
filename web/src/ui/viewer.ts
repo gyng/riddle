@@ -23,10 +23,10 @@ export async function makeViewer(canvas: HTMLCanvasElement): Promise<{ viewer: V
   if (loader && new URLSearchParams(location.search).get("view") !== "2d") {
     try {
       const m = await loader();
-      // phones: 150 env texels along the short axis (k = 8 at dpr 3 → 21 CSS-px tiles, ~19 across,
-      // hero ≈ 1/12 of the height); desktop keeps the renderer's default 200
+      // phones: 120 env texels along the short axis (Cut 14 §3, was 150: k = 10 at dpr 3 → 27 CSS-px tiles,
+      // ~15 across, a rat 27 px tall in the map frame; k = 6 at dpr 2); desktop takes the renderer's default
       const short = Math.min(canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight);
-      return { viewer: m.createViewer(canvas, { baseTexels: short < 600 ? 150 : 200 }), real: true };
+      return { viewer: m.createViewer(canvas, short < 600 ? { baseTexels: 120 } : {}), real: true };
     }
     catch (e) { console.warn("renderer unavailable, placeholder view", e); }
   }

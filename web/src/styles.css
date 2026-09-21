@@ -136,6 +136,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .banner { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); padding: 8px 18px; border-radius: var(--radius); background: rgba(11,12,15,.82); border: 1px solid var(--line); white-space: nowrap; text-align: center; font-size: 22px; color: var(--acc); text-shadow: 0 2px 10px #000; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .banner.show { opacity: 1; }
 .banner.boss { color: #ff8a8c; border-color: var(--hp); }
+.banner.rest { top: auto; bottom: calc(112px + env(safe-area-inset-bottom)); }   /* Cut 14 §4: `rest 20m` sits low, off the death frame's callout line */
 .hud.bottom { bottom: env(safe-area-inset-bottom); justify-content: center; }
 .hp { display: flex; align-items: center; gap: 8px; flex: 1; max-width: 220px; }
 .hp .track { flex: 1; height: 12px; background: rgba(255,255,255,.12); border-radius: 6px; overflow: hidden; }
@@ -152,6 +153,13 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .hud-btn.on.slowed { background: rgba(242,193,78,.16); }
 .stake .returning { color: #ffd7a8; }
 .hud.top .hud-btn { margin-left: auto; }
+/* Cut 14 §6: the scrub strip — the playhead (the viewer's share of the run) and the frontier's dot, which beats once per engine batch */
+.scrub { position: absolute; left: 16px; right: 16px; bottom: calc(68px + env(safe-area-inset-bottom)); height: 3px; background: rgba(255,255,255,.14); border-radius: 2px; pointer-events: none; z-index: 2; }
+.scrub[hidden] { display: none; }
+.scrub .head { position: absolute; top: -3px; width: 3px; height: 9px; margin-left: -1px; background: var(--acc); border-radius: 2px; left: 0; }
+.scrub .dot { position: absolute; right: -3px; top: -2px; width: 7px; height: 7px; border-radius: 50%; background: var(--fg); opacity: .55; }
+.scrub .dot.beat { animation: scrub-beat .45s ease-out; }
+@keyframes scrub-beat { 0% { transform: scale(1.9); opacity: 1; } 100% { transform: scale(1); opacity: .55; } }
 .ticker { position: absolute; left: 0; right: 0; bottom: calc(76px + env(safe-area-inset-bottom)); padding: 0 12px; text-align: center; font-size: 20px; line-height: 1.2; color: var(--acc); text-shadow: 0 2px 8px #000; opacity: 0; transition: opacity .2s; pointer-events: none; overflow-wrap: anywhere; }   /* Cut 13 §4: wraps, never clips */
 .ticker.show { opacity: 1; }
 .ticker.hurt { color: var(--hp); }
@@ -193,6 +201,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 6px; text-align: center; }
 .tile b { display: block; font-size: 22px; font-weight: 400; }
 .tile .label { margin: 4px 0 0; }
+.tile .cost { display: block; margin-top: 2px; font-size: 12px; }   /* Cut 14 §4: `2 STALLED · $161 lost` */
 .rsec .label { margin-top: 16px; }
 .lines { list-style: none; margin: 0; padding: 0; }
 .lines li { padding: 8px 0; border-bottom: 1px solid var(--line); }

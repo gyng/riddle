@@ -1,15 +1,17 @@
 #!/usr/bin/env node
-// Cut 4 §1 gate: tapping a patch with full rows never changes any existing row and disables `send` until a
-// row is removed; a patch the set already holds reads `at R1` and inserts nothing. Runs on the browser harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219)
-// with the fake engine (`?engine=fake&dev=1`; the fake's max_rows is 4 without row unlocks).
+// Cut 4 §1 gate, rewritten for Cut 14 §4: tapping an insert patch on a full set never leaves the set over `max_rows` — the
+// chip reads `↑ R3` (the own row that fired least: the run's counts, else the trace's fired rows, the lowest among equals) and the
+// tap drops that row and lands the patch where it was measured; a patch the set already holds reads `at R1` and inserts nothing.
+// Runs on the browser harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219) with the fake engine
+// (`?engine=fake&dev=1`; the fake's max_rows is 4 without row unlocks).
 //
 //   node web/tests/patch-overflow.mjs        (or `pnpm test` in web/)
 //
-// Walk: boot fresh → fill the active set to max_rows → open a death screen carrying one insert patch (the death
-// object is fabricated: the screen and the tap are the code under test) → tap the patch → assert on the camp:
-// max+1 rows, every prior row's text unchanged, the counter reads `5/4` in red, the last row is marked `drop`,
-// `send` is disabled → tap that row's × → `4/4`, `send` enabled. Then a stall-style replace patch on a full set:
-// still max rows, never over. Exit 1 on any failed assertion, console error or page error.
+// Walk: boot fresh → fill the active set to max_rows → open a death screen carrying one insert patch (the death object is
+// fabricated: the screen and the tap are the code under test) → the chip names the last row (nothing fired) → tap → assert on
+// the camp: max rows, the named row gone, the patch at R1, the counter `4/4`, `send` enabled → a death whose trace shows R1, R2
+// and R4 firing names R3 → tap → R3 gone. Then a held patch (`at R1`, inserts nothing) and a stall-style replace patch on a
+// full set: still max rows, never over. Exit 1 on any failed assertion, console error or page error.
 import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,52 +62,62 @@ try {
   check(full.sendDisabled === false, "send enabled on a full set");
   check(!full.plus, "no + on a full set");
 
-  // a death screen with one insert patch (insert_at 0) and one that would insert at the end
+  // a death screen with one insert patch (insert_at 0); nothing is known to have fired, so the chip names the last row
   const patch = { row: { conds: [{ k: "hp<", n: 40 }], verb: { v: "drink", a: "heal" } }, insert_at: 0, survive: 0.75, forecast_delta: 0.05 };
-  await page.evaluate((p) => {
-    const r = window.__riddle;
-    r.go({ kind: "death", death: { run_id: 0, depth: 3, cause: "goblin_archer", margin: "3 hp short", verdict: "gap", baseline: 0.25, trace: { turns: [] }, patches: [p], morgue: "" } });
-  }, patch);
+  const death = (p, turns = []) => ({ run_id: 0, depth: 3, cause: "goblin_archer", margin: "3 hp short", verdict: "gap", baseline: 0.25, trace: { turns }, patches: [p], morgue: "" });
+  await page.evaluate((d) => { window.__riddle.rowFires = null; window.__riddle.go({ kind: "death", death: d }); }, death(patch));
   await waitFor((s) => s?.screen === "death", "death");
   const shown = await page.locator("button.patch").count();
   check(shown === 1, `death screen offers ${shown} patch on a full set`);
+  const chip = await page.evaluate(() => ({ target: document.querySelector("button.patch .target")?.textContent.trim(), drop: document.querySelector("button.patch")?.dataset.drop }));
+  check(chip.target === `↑ R${max}` && chip.drop === String(max - 1), `the chip names the row it replaces: "${chip.target}"`);
   await page.locator("button.patch").first().click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "camp", "camp after the patch");
   await sleep(200);
   const over = await editor();
-  check(over.rows.length === max + 1, `after the tap: ${over.rows.length} rows (${max} + 1), nothing evicted`);
-  check(JSON.stringify(over.rows.slice(1)) === JSON.stringify(full.rows), "every existing row's text unchanged (shifted down by one)");
+  check(over.rows.length === max, `after the tap: ${over.rows.length} rows (${max}), never over`);
+  check(JSON.stringify(over.rows.slice(1)) === JSON.stringify(full.rows.slice(0, max - 1)), `the named row went; the others' text unchanged (shifted down by one)`);
   check(over.rows[0].includes("hp < 40%") && over.rows[0].includes("drink heal"), `the patch row is R1: "${over.rows[0]}"`);
-  check(over.count === `${max + 1}/${max}` && over.countRed, `counter reads ${over.count} in red`);
-  check(over.drop.length === max + 1 && over.drop[max] === true && over.drop.slice(0, max).every((d) => !d), "only the last row is marked as the one the engine would drop");
-  check(over.sendDisabled === true, "send disabled while over budget");
-  check(!over.plus, "no + while over budget");
-  // the engine still holds a valid set (the forecast is not refreshed with an over-budget one)
+  check(over.count === `${max}/${max}` && !over.countRed, `counter reads ${over.count}, not red`);
+  check(over.drop.every((d) => !d), "no row is marked to drop");
+  check(over.sendDisabled === false, "send enabled");
   const engineRows = await page.evaluate(async () => (await window.__riddle.engine.lineage()).sets[window.__riddle.active].rows.length);
-  check(engineRows <= max, `engine kept a valid set (${engineRows} rows)`);
+  check(engineRows === max, `the engine took the set (${engineRows} rows)`);
+  const fixed = over;
 
-  // resolve: × on the marked row
-  await page.locator(".editor .row.drop .x").first().click({ timeout: 5000 });
+  // a second patch (a different row) on a death whose trace shows R1, R2 and R4 firing: R3 fired least and is the one named
+  const patch2 = { row: { conds: [{ k: "foes>=", n: 2 }], verb: { v: "retreat" } }, insert_at: 1, survive: 0.7, forecast_delta: 0.04 };
+  const turn = (row) => ({ t: 10 * row, row, verb: { v: "attack" }, hp: 20, foes: 1, telegraphs: [] });
+  await page.evaluate((d) => { window.__riddle.rowFires = null; window.__riddle.go({ kind: "death", death: d }); }, death(patch2, [turn(0), turn(1), turn(3), turn(0)]));
+  await waitFor((s) => s?.screen === "death", "the second death");
+  const chip2 = await page.evaluate(() => document.querySelector("button.patch .target")?.textContent.trim());
+  check(chip2 === "↑ R3", `with R1 · R2 · R4 in the trace the chip names R3: "${chip2}"`);
+  await page.locator("button.patch").first().click({ timeout: 5000 });
+  await waitFor((s) => s?.screen === "camp", "camp after the second patch");
   await sleep(200);
-  const fixed = await editor();
-  check(fixed.rows.length === max && fixed.count === `${max}/${max}` && !fixed.countRed, `after ×: ${fixed.count}, not red`);
-  check(fixed.sendDisabled === false, "send enabled again");
-  check(JSON.stringify(fixed.rows) === JSON.stringify([over.rows[0], ...full.rows.slice(0, max - 1)]), "the remaining rows are the patch + the first max−1 originals");
+  const second = await editor();
+  check(second.rows.length === max && second.count === `${max}/${max}` && !second.countRed, `still ${second.count}`);
+  check(second.rows[1].includes("foes") && second.rows[1].includes("retreat") && second.rows[0] === fixed.rows[0] && second.rows[2] === fixed.rows[1] && second.rows[3] === fixed.rows[3], `R3 went and the patch sits at R2: "${second.rows[1]}"`);
+  // the watched run's counts win over the trace: R1 never fired → `↑ R1`
+  await page.evaluate((d) => { window.__riddle.rowFires = [0, 5, 3, 2]; window.__riddle.go({ kind: "death", death: d }); }, death({ ...patch2, row: { conds: [{ k: "alert>=", n: 3 }], verb: { v: "retreat" } } }, [turn(0)]));
+  await waitFor((s) => s?.screen === "death", "the third death");
+  const chip3 = await page.evaluate(() => document.querySelector("button.patch .target")?.textContent.trim());
+  check(chip3 === "↑ R1", `the run's own counts name the row that never fired: "${chip3}"`);
+  await page.evaluate(() => window.__riddle.go({ kind: "camp" }));
+  await waitFor((s) => s?.screen === "camp", "camp");
 
   // the same death opened again (the chronicle's old death, a second look): its patch row is already R1 — the tap opens the
   // camp on it and inserts nothing (QA on 952e306: "tapped patch → R1 inserted AGAIN → 5/4")
-  await page.evaluate((p) => {
-    const r = window.__riddle;
-    r.go({ kind: "death", death: { run_id: 0, depth: 3, cause: "goblin_archer", margin: "3 hp short", verdict: "gap", baseline: 0.25, trace: { turns: [] }, patches: [p], morgue: "" } });
-  }, patch);
+  await page.evaluate((d) => window.__riddle.go({ kind: "death", death: d }), death(patch));
   await waitFor((s) => s?.screen === "death", "death again");
   const heldText = await page.locator("button.patch .surv").first().innerText();
-  check(heldText === "at R1", `a held patch reads where it sits: "${heldText}"`);
+  const heldTarget = await page.evaluate(() => document.querySelector("button.patch .target")?.textContent.trim() ?? "");
+  check(heldText === "at R1" && heldTarget === "", `a held patch reads where it sits: "${heldText}" (no ↑)`);
   await page.locator("button.patch").first().click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "camp", "camp after the second tap");
   await sleep(200);
   const again = await editor();
-  check(JSON.stringify(again.rows) === JSON.stringify(fixed.rows) && again.count === `${max}/${max}`, `the second tap inserted nothing: ${again.count}`);
+  check(JSON.stringify(again.rows) === JSON.stringify(second.rows) && again.count === `${max}/${max}`, `the second tap inserted nothing: ${again.count}`);
 
   // a stall-style replace patch on a full set never overflows
   const rep = { row: { conds: [{ k: "hp<", n: 30 }], verb: { v: "return" } }, insert_at: 1, survive: 0.6, forecast_delta: 0.03, replace: true };
@@ -117,7 +129,7 @@ try {
   const replaced = await editor();
   check(replaced.rows.length === max && !replaced.countRed && replaced.sendDisabled === false, `replace on a full set: ${replaced.count}, send enabled`);
   check(replaced.rows[1].includes("hp < 30%") && replaced.rows[1].includes("return"), `R2 replaced: "${replaced.rows[1]}"`);
-  check(replaced.rows[0] === fixed.rows[0] && replaced.rows[2] === fixed.rows[2], "the other rows untouched by the replace");
+  check(replaced.rows[0] === second.rows[0] && replaced.rows[2] === second.rows[2], "the other rows untouched by the replace");
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

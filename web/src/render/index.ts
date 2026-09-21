@@ -32,6 +32,12 @@
 // 2-tick flash to the palette's brightest on a hit, a 3-tick screen shake (±2 env texels for the hero, ±1 for a foe),
 // telegraph glyphs at 2× size. A frame change is a cut (two dark frames), never a tween. An explicit `focus` fixes the
 // camera on a tile and fits its radius (never below the map's k, never above 2×).
+//
+// Cut 14 §3 — the map frame carries the fight: BASE_TEXELS 200 → 160 (a bigger read; the phone bridge in ui/viewer.ts keeps
+// its own 150); a stack (≥ 2 entities on one tile) fans ±⅓ tile sideways in both frames and each member's name has its own
+// row (the map frame names a stack's members only; the fight frame names every hostile as before); the room the hero stands
+// in is lit whole once seen (`roomLit`: a 4-connected flood over room tiles — passable tiles inside a 2×2 passable block, so
+// a one-wide corridor and a door end it — recomputed on a hero tile change); `debugRects` / `debugLabels` for the gates.
 import * as THREE from "three";
 import { Atlas } from "./atlas";
 import { Blit } from "./blit";
@@ -65,9 +71,14 @@ export type Viewer = {
   stats(): ViewerStats;
   debugEnts?(): unknown[];
   debugPos?(): unknown[];
+  debugRects?(): DebugRect[];     // Cut 14 §3: every entity drawn this frame, its on-screen rect in CSS px (the gates measure a foe's height)
+  debugLabels?(): DebugLabel[];   // Cut 14 §3: every name drawn this frame (text, its row's bottom in CSS px)
   atlasInfo?(): unknown;
   preload?(snap: Snapshot): void;   // add unknown entities before a batch's events
 };
+
+export type DebugRect = { id: number; kind: string; hero: boolean; x: number; y: number; w: number; h: number; stack: number };   // CSS px; `stack`: members on its tile
+export type DebugLabel = { text: string; x: number; y: number; id: number };   // CSS px: the label's centre x and its cell's bottom y
 
 export type ViewerStats = {
   calls: number; triangles: number; k: number; dpr: number;
@@ -91,7 +102,10 @@ const CUT_FRAMES = 2;       // Cut 8A: dark frames on a frame change (a cut, not
 const BAR_W = 8;            // Cut 8A: hp bar width in env texels (1 tall)
 const BAR_RED = "#c8302c"; // the missing part of an hp bar; the rest is the palette's brightest
 const FIGHT_TOP_CSS = 96;   // Cut 8A: the caption sits this many CSS px below the top edge (under the DOM hud)
-const BASE_TEXELS = 200; // was 270: phone hero read at 1/25 of screen height; 200 gives ~24 tiles across at 400 CSS px
+const BASE_TEXELS = 160; // Cut 14 §3 (was 200, before that 270): ~20 tiles across at 400 CSS px, a 40-texel foe ≥ 24 CSS px tall
+const STACK_SPREAD = TILE * 2 / 3; // Cut 14 §3: a stack's members fan over ±⅓ tile
+const ROOM_MAX = 600;              // Cut 14 §3: the room flood's cap in tiles (a cave floor is not one room)
+const HERO_TEXELS = 24;            // Cut 14 §3: the hero sprite's height in env texels (48 sprite texels); the fight k keeps it ≤ 1/5 of the screen
 
 export type ViewerOpts = {
   atlasUrl?: string;   // default "/art/atlas.json" (+ atlas.png beside it)
@@ -145,6 +159,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   let lastCss = "";
   let mode: Frame = "map", fixedFocus: Focus | null = null, cutFrames = 0; // Cut 8A
   let camSX = 0, camSY = 0; // the snapped camera centre this frame (build() places the caption from it)
+  // Cut 14 §3: the hero's room, lit whole once seen — a flood from the hero's tile over room tiles (index → 1), recomputed when
+  // the hero's logical tile changes (or the floor reloads); empty in a corridor
+  let roomLit = new Uint8Array(0), roomKey = "";
+  const rects: DebugRect[] = [], labels: DebugLabel[] = [];   // Cut 14 §3: what this frame drew, for the gates
   let raf = 0;
   let last = performance.now();
   let disposed = false;
@@ -177,7 +195,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   // Cut 8A: the fight frame's k — 2× the map's; with a fixed focus, the largest even k that fits the (2r+1)-tile square on
   // the short axis, never below the map's k (odd k would split sprite texels across device pixels)
   function fightK(): number {
-    const kf = 2 * kMap;
+    // Cut 14 §3: never so big that the hero is over a fifth of the screen's height (even k, never below the map's)
+    const cap = Math.floor(devH / (5 * HERO_TEXELS));
+    const kf = Math.max(kMap, Math.min(2 * kMap, cap - (cap & 1)));
     if (!fixedFocus) return kf;
     const fit = Math.floor(Math.min(devW, devH) / ((2 * Math.max(1, fixedFocus.radius) + 1) * TILE));
     return Math.max(kMap, Math.min(kf, fit - (fit & 1)));
@@ -250,12 +270,53 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
   }
 
+  // Cut 14 §3: a room tile is a passable tile inside some 2×2 passable block (a one-wide corridor has none); a door is not passable
+  // here, so the flood ends at the door. The flood is 4-connected from the hero's tile, capped at ROOM_MAX tiles.
+  function passable(i: number): boolean { const t = st.tiles[i]; return t !== undefined && t !== "wall" && t !== "door"; }
+  function roomTile(x: number, y: number): boolean {
+    const w = st.w, h = st.h;
+    if (x < 0 || y < 0 || x >= w || y >= h || !passable(y * w + x)) return false;
+    for (const [dx, dy] of [[-1, -1], [0, -1], [-1, 0], [0, 0]] as const) {
+      const x0 = x + dx, y0 = y + dy;
+      if (x0 < 0 || y0 < 0 || x0 + 1 >= w || y0 + 1 >= h) continue;
+      if (passable(y0 * w + x0) && passable(y0 * w + x0 + 1) && passable((y0 + 1) * w + x0) && passable((y0 + 1) * w + x0 + 1)) return true;
+    }
+    return false;
+  }
+  function updateRoom(): void {
+    const hh = st.hero;
+    const key = hh ? `${st.depth}:${st.w}x${st.h}:${hh.x},${hh.y}` : "";
+    if (key === roomKey) return;
+    roomKey = key;
+    if (roomLit.length !== st.w * st.h) roomLit = new Uint8Array(st.w * st.h); else roomLit.fill(0);
+    if (!hh || !roomTile(hh.x, hh.y)) return;
+    const w = st.w, stack = [hh.y * w + hh.x];
+    roomLit[stack[0]!] = 1;
+    let n = 0;
+    while (stack.length && n < ROOM_MAX) {
+      const i = stack.pop()!, x = i % w, y = (i - x) / w;
+      n++;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const nx = x + dx, ny = y + dy, j = ny * w + nx;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= st.h || roomLit[j] || !roomTile(nx, ny)) continue;
+        roomLit[j] = 1; stack.push(j);
+      }
+    }
+    if (n >= ROOM_MAX) roomLit.fill(0);   // not a room: a cave; the memory dim stands
+  }
+  /** Cut 14 §3: a seen tile's light — 1 in view or inside the hero's room, else the memory's 0.6. */
+  const light = (i: number): number => (st.visible[i] || roomLit[i] ? 1 : 0.6);
+  /** Cut 14 §3: world → CSS px (the viewport's top-left is the canvas's; the sub-texel blit offset is ignored, ≤ 1 texel). */
+  const toCss = (wx: number, wy: number): [number, number] => [((wx - (camSX - iw / 2)) * k) / dpr, (((camSY + ih / 2) - wy) * k) / dpr];
+
   function build(now: number): void {
     const p = paletteFor(st.clock < st.bossFlashUntil ? "boss_flash" : st.biome);
     blit.setPalette(p);
     clear.setRGB(p[0]![0], p[0]![1], p[0]![2]);
     const b = st.biome;
     const fight = mode === "fight";
+    updateRoom();
+    rects.length = 0; labels.length = 0;
     const bright = p[p.length - 1]!;
     // Cut 8A: a hit flashes to the palette's brightest in the fight frame; the map keeps its paper white
     if (fight) L.ents.setFlash(bright[0], bright[1], bright[2]); else L.ents.setFlash(0.98, 0.95, 0.9);
@@ -270,7 +331,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const t = st.tiles[i]!;
       const prop = PROPS.has(t);
       const s = atlas.tile(b, prop ? "floor" : t, ((x * 7 + y * 13) % 11) < 2);
-      const dim = st.visible[i] ? 1 : 0.6;
+      const dim = light(i);   // Cut 14 §3: the hero's room stays lit
       L.tiles.push(x * TILE + TILE / 2, -(y + 1) * TILE, 0, TILE, TILE, s.u0, s.v0, s.u1, s.v1, dim);
       if (prop) {
         const p = atlas.prop(b, t, t === "nest" ? (st.nestWoken.has(i) ? 1 : 0) : propFrame);
@@ -297,14 +358,14 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const i = it.y * st.w + it.x;
       if (!st.seen[i]) continue;
       const s = it.kind === "bones" ? atlas.bones(b, bonesFrame) : atlas.item(it.known ? it.kind : /scroll/.test(it.label) ? "scroll" : "potion");
-      L.items.push(it.x * TILE + TILE / 2, -(it.y + 1) * TILE, 1, TILE, TILE, s.u0, s.v0, s.u1, s.v1, st.visible[i] ? 1 : 0.6);
+      L.items.push(it.x * TILE + TILE / 2, -(it.y + 1) * TILE, 1, TILE, TILE, s.u0, s.v0, s.u1, s.v1, light(i));
     }
     for (const e of st.ents.values()) {
       if (e.kind !== "bones") continue;
       const i = e.y * st.w + e.x;
       if (!st.seen[i]) continue;
       const s = atlas.bones(b, bonesFrame);
-      L.items.push(e.x * TILE + TILE / 2, -(e.y + 1) * TILE, 1, TILE, TILE, s.u0, s.v0, s.u1, s.v1, st.visible[i] ? 1 : 0.6);
+      L.items.push(e.x * TILE + TILE / 2, -(e.y + 1) * TILE, 1, TILE, TILE, s.u0, s.v0, s.u1, s.v1, light(i));
     }
     L.items.end();
 
@@ -325,12 +386,26 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
     const barBg = fight ? atlas.solid(BAR_RED) : null, barFg = fight ? atlas.solid(cssHex(bright)) : null;
     const gs = fight ? TILE * 2 : TILE; // Cut 8A: telegraph glyphs at 2× in the fight frame
+    // Cut 14 §3: a stack — the drawn entities that share a logical tile (the hero's tile included: a foe on it fans off him).
+    // Member i of n fans (i/(n−1) − ½) × ⅔ tile sideways, whole texels, and its name takes row i (rater S: "five foes on one
+    // tile rendered as one smear", the labels on one line)
+    const stacks = new Map<number, number[]>();
+    for (const e of st.ents.values()) {
+      if (e.kind === "bones" || e.dying) continue;
+      const vi = e.y * st.w + e.x;
+      if (!e.hero && !st.visible[vi] && !e.remembered) continue;
+      const g = stacks.get(vi); if (g) g.push(e.id); else stacks.set(vi, [e.id]);
+    }
+    const nameScale = fight ? 0.5 : 1;   // the map frame's k is half the fight frame's: the same size on screen
+    const nameRow = FONT_CELL_H * nameScale + 1;
     for (const e of st.ents.values()) {
       if (e.kind === "bones") continue; // drawn in the items layer above
       const vi = e.y * st.w + e.x;
       if (!e.hero && !st.visible[vi] && !e.remembered) continue;
       stats.drawn++;
       let [fx, fy] = feet(e);
+      const group = stacks.get(vi), stackN = group?.length ?? 1, stackI = group ? group.indexOf(e.id) : 0;
+      if (stackN > 1 && stackI >= 0) fx += Math.round((stackI / (stackN - 1) - 0.5) * STACK_SPREAD);
       // Fight frame: a hostile on the tile straight above the hero would vanish behind the hero's tall
       // sprite (its whole body covers that tile). Nudge it half a tile sideways, away from the hero's
       // facing, so both silhouettes read; the shadow stays on the true tile.
@@ -346,7 +421,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
       const s = atlas.entity(e.kind);
       const w = s.w / 2, h = s.h / 2; // world units (env texels)
-      const z = 2 + Math.min(1, e.py / Math.max(1, st.h));
+      const z = 2 + Math.min(1, e.py / Math.max(1, st.h)) + (stackN > 1 ? stackI * 0.001 : 0);   // a stack's members never z-fight
+      { const [cx, cy] = toCss(fx - w / 2, fy + h); rects.push({ id: e.id, kind: e.kind, hero: !!e.hero, x: cx, y: cy, w: (w * k) / dpr, h: (h * k) / dpr, stack: stackN }); }
       if (e.remembered) {
         L.ents.push(fx, fy, z, s.w / 2, s.h / 2, s.u0, s.v0, s.u1, s.v1, REMEMBERED_DIM, 0, e.fade, e.flip ? 1 : 0);
         continue;
@@ -367,10 +443,16 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         L.hud.push(fx, fy + h + 1, 3.7, BAR_W, 1, barBg.u0, barBg.v0, barBg.u1, barBg.v1);
         if (fill > 0) L.hud.push(fx - BAR_W / 2 + fill / 2, fy + h + 1, 3.8, fill, 1, barFg.u0, barFg.v0, barFg.u1, barFg.v1);
         top = fy + h + 4;
-        if (!e.hero && !e.ally) {
-          const ny = fy - FONT_CELL_H / 2 - 2, nw = e.name.length * FONT_ADVANCE * 0.5 + 0.5;
-          const clash = calloutBox && fx + nw / 2 > calloutBox[0] && fx - nw / 2 < calloutBox[2] && ny + FONT_CELL_H / 2 > calloutBox[1] && ny - FONT_CELL_H / 2 < calloutBox[3];
-          if (!clash) drawText(e.name, fx, ny, 4, 0.5);   // Cut 13 §4: the callout has the line for its second
+      }
+      // Cut 8A: a hostile's name under its feet in the fight frame; Cut 14 §3: in the map frame too when it stands in a stack, and a
+      // stack's i-th member takes the i-th row down so no two names share a row
+      if (!e.hero && !e.ally && !e.neutral && !e.dying && (fight || stackN > 1)) {
+        const ny = fy - FONT_CELL_H * nameScale - 2 - (stackN > 1 && stackI > 0 ? stackI * nameRow : 0), nw = e.name.length * FONT_ADVANCE * nameScale + nameScale;
+        const clash = calloutBox && fx + nw / 2 > calloutBox[0] && fx - nw / 2 < calloutBox[2] && ny + FONT_CELL_H * nameScale > calloutBox[1] && ny < calloutBox[3];
+        if (!clash) {   // Cut 13 §4: the callout has the line for its second
+          const nx = textX(nw, fx);
+          drawText(e.name, nx, ny, 4, nameScale);
+          const [cx, cy] = toCss(nx, ny); labels.push({ text: e.name, x: cx, y: cy, id: e.id });
         }
       }
       if (e.glyph) {
@@ -409,16 +491,27 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const [fx, fy] = feet(hero);
       // in the fight frame the callout clears the hp bar and, when up, the 2× glyph above it
       // Cut 13 §4: centred on the hero but kept inside the frame — a hero at the edge used to lose its callout's right half
-      drawText(st.callout.text, textX(st.callout.text.length * FONT_ADVANCE + 1, fx), fy + atlas.entity(hero.kind).h / 2 + (fight ? (hero.glyph ? gs + 6 : 5) : 6), 4);
+      fitText(st.callout.text, fx, fy + atlas.entity(hero.kind).h / 2 + (fight ? (hero.glyph ? gs + 6 : 5) : 6), 4, true);
     }
     // Cut 8A: the firing row as a caption at the top of the fight frame (`R2 attack goblin`), under the DOM hud
-    if (fight && st.caption) {
-      const chars = Math.max(1, Math.floor((iw - 2) / FONT_ADVANCE));
-      drawText(st.caption.text.slice(0, chars), camSX, camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - FONT_CELL_H, 4.1);
-    }
+    if (fight && st.caption) fitText(st.caption.text, camSX, camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - FONT_CELL_H, 4.1, false);
     L.text.end();
   }
 
+  /** Cut 14 §3: text that never clips — at env density when it fits the frame's width, else at sprite density (half size), else
+   *  two rows at half size split at the last space that fits (the caption at a big fight k read `R2 ATTACK JACK`). `y` is the
+   *  bottom row's baseline; `follow`: the text wants `cx` and is kept inside the frame (`textX`), else it is centred on `cx`. */
+  function fitText(text: string, cx: number, y: number, z: number, follow: boolean): void {
+    const room = iw - 2;
+    const width = (t: string, sc: number): number => t.length * FONT_ADVANCE * sc + sc;
+    const place = (t: string, sc: number, yy: number): void => drawText(t, follow ? textX(width(t, sc), cx) : cx, yy, z, sc);
+    if (width(text, 1) <= room) { place(text, 1, y); return; }
+    if (width(text, 0.5) <= room) { place(text, 0.5, y); return; }
+    const max = Math.max(1, Math.floor((room - 0.5) / (FONT_ADVANCE * 0.5)));
+    let cut = text.lastIndexOf(" ", max); if (cut <= 0) cut = max;
+    const a = text.slice(0, cut).trimEnd(), b = text.slice(cut).trimStart().slice(0, max);
+    place(a, 0.5, y + FONT_CELL_H * 0.5 + 1); if (b) place(b, 0.5, y);
+  }
   /** Cut 13 §4: the centre x for a text `width` wide that wants `cx`, kept inside the frame's iw texels (1-texel margin);
    *  a text wider than the frame stays centred on the frame. */
   function textX(width: number, cx: number): number {
@@ -543,6 +636,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     },
     preload(snap) { st.preload(snap); },
     atlasInfo() { const out: Record<string, unknown> = {}; for (const k of ["hero_fighter", "monkey", "goblin", "jackal"]) { const e = atlas.entity(k); out[k] = { w: e.w, h: e.h, u0: +e.u0.toFixed(3), v0: +e.v0.toFixed(3), u1: +e.u1.toFixed(3), v1: +e.v1.toFixed(3), fallback: (e as { fallback?: boolean }).fallback ?? "?" }; } return out; },
+    debugRects() { return rects.map((r) => ({ ...r })); },
+    debugLabels() { return labels.map((l) => ({ ...l })); },
     debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
     stats() { return { ...stats }; },
     /** dev: every entity the state holds and whether the draw loop would show it */

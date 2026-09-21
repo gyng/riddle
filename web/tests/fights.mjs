@@ -7,6 +7,9 @@
 // Cut 12 §4: from D3 the card names the floor's situation (`D4 · 9 rooms · a nest`). Cut 12 §6: a second run in `fast` — travel
 // at 16×, a fight at 2×. QA on 50bb162: `▶▶|` in `fast` reaches the run's END in one press (the engine steps to `run_over`, the
 // ending plays at 1×) — five players read the old "next fight" press as "plays faster"; in `fights` it stays the next fight.
+// Cut 14: the fight frame runs at 2× in `fights` and 4× in `fast` (the slowdowns were "way too slow").
+// Cut 14 §3: a stack (two foes on one tile) fans sideways in the map frame with a name per row, a foe there is ≥ 24 CSS px tall
+// (`__viewer.debugRects` / `debugLabels`); a bank exit opens the fight frame with `BANKED $N` as its callout before the sheet.
 //
 //   node web/tests/fights.mjs        (part of `pnpm test` in web/)
 //
@@ -59,7 +62,7 @@ try {
   s = await waitFor((x) => !inRun(x) || (x.card === "0" && x.frame === "map"), "the map after tapping the card", 2000);
   check(s.card === "0" && s.frame === "map" && s.speed === 8, `tapping the card shows the map at 8× (speed ${s.speed}, card ${s.card})`);
   s = await waitFor((x) => !inRun(x) || x.frame === "fight", "the next fight after the hold", 30_000);
-  check(inRun(s) && s.frame === "fight" && s.fights === 1 && s.speed === 1 && s.card === "0", `the held map cuts to the next fight at 1× (fights ${s.fights}, speed ${s.speed})`);
+  check(inRun(s) && s.frame === "fight" && s.fights === 1 && s.speed === 2 && s.card === "0", `the held map cuts to the next fight at 2× (fights ${s.fights}, speed ${s.speed})`);   // Cut 14: 2×, was 1×
   // ▶▶| inside a fight: the fight's end, the card back up within 2 s
   await press("▶▶|");
   s = await waitFor((x) => !inRun(x) || x.frame === "map", "the map after skipping a fight", 3000);
@@ -73,7 +76,7 @@ try {
   if (inRun(s)) {
     await press("fast");
     s = await waitFor((x) => !inRun(x) || (x.mode === "fast" && x.card === "0"), "fast mode", 2000);
-    check(s.mode === "fast" && s.on.join() === "fast" && s.card === "0" && (s.speed === 16 || s.speed === 2 || s.speed === 1), `fast: the card is gone and the clock runs 16× / 2× (speed ${s.speed})`);
+    check(s.mode === "fast" && s.on.join() === "fast" && s.card === "0" && (s.speed === 16 || s.speed === 4 || s.speed === 1), `fast: the card is gone and the clock runs 16× / 4× (speed ${s.speed})`);
     await press("fights");
     s = await waitFor((x) => !inRun(x) || x.mode === "fights", "fights mode again", 2000);
     check(s.mode === "fights" && s.on.join() === "fights", "fights again");
@@ -89,7 +92,7 @@ try {
   s = await waitFor((x) => !inRun(x) || x.speed === 16, "16× travel", 8000);
   check(s.speed === 16, `fast travels at 16× (speed ${s.speed})`);
   s = await waitFor((x) => !inRun(x) || x.frame === "fight", "a fight in fast", 30_000);
-  check(inRun(s) && s.frame === "fight" && s.speed === 2, `fast watches a fight at 2× (speed ${s.speed}, frame ${s.frame})`);
+  check(inRun(s) && s.frame === "fight" && s.speed === 4, `fast watches a fight at 4× (speed ${s.speed}, frame ${s.frame})`);   // Cut 14: 4×, was 2×
   // ▶▶| once, inside the fight: the run's end — the viewer lands at the ending (its last 30 ticks play at 1×, `ending`), then
   // the exit flow; the press used to reach the fight's end / the next fight (read as "plays faster" by five players)
   if (inRun(s)) {
@@ -102,6 +105,53 @@ try {
     check(["exit", "death", "report", "camp"].includes(s.screen), `the fast run left the watch (${s.screen})`);
   }
   // in `fights` the press stays the next fight (checked above on seed 5)
+
+  // Cut 14 §3: a stack fans in the map frame and its names take two rows — two foes put on the hero's tile in the viewer (the
+  // fake keeps its monsters apart), the clock paused, the viewer sought so the spawns apply; then the labels the frame drew
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  // the map frame, paused (a fight can open between the sample and the press: unpause and wait for the map again)
+  for (let tries = 0; tries < 6; tries++) {
+    s = await waitFor((x) => x?.booted && inRun(x) && x.frame === "map" && x.tick > 30, "the map frame in fast", 20_000);
+    await press("⏸"); await sleep(150);
+    if ((await state())?.frame === "map") break;
+    await press("▶"); await sleep(300);
+  }
+  const stack = await page.evaluate(async () => {
+    const v = window.__viewer, hero = v.debugPos().find((e) => e.hero), t = v.tick();
+    const mk = (id, kind, name) => ({ t: t - 5, k: "spawn", e: { id, kind, name, x: hero.x, y: hero.y, hp: 5, max_hp: 5, tags: [] } });
+    v.apply([mk(90001, "goblin"), mk(90002, "monkey", "Tain")]); v.seek(t);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const w = document.querySelector(".watch"), st = v.stats();
+    return { frame: w.dataset.frame, texel: st.k / st.dpr, rects: v.debugRects().filter((r) => r.id >= 90000), labels: v.debugLabels().filter((l) => l.id >= 90000) };
+  });
+  // the hero shares the tile (a 3-stack: −⅓ · 0 · +⅓ tile), so two neighbours in the fan sit ≥ 2 texels apart
+  const [ga, gb] = stack.rects;
+  check(stack.frame === "map" && stack.rects.length === 2 && ga.stack >= 3 && Math.abs((ga.x + ga.w / 2) - (gb.x + gb.w / 2)) >= 2 * stack.texel, `two foes on one tile fan sideways in the map frame (${stack.rects.map((r) => `${r.kind} @${Math.round(r.x + r.w / 2)}`).join(" · ")}, texel ${stack.texel} px)`);
+  const rows = stack.labels.map((l) => Math.round(l.y));
+  check(stack.labels.length === 2 && new Set(rows).size === 2 && Math.abs(rows[0] - rows[1]) >= 10, `their names sit on two rows (${stack.labels.map((l) => `${l.text} y${Math.round(l.y)}`).join(" · ")})`);
+  check(stack.rects.every((r) => r.h >= 24), `a foe in the map frame is ≥ 24 CSS px tall (${stack.rects.map((r) => `${r.kind} ${Math.round(r.h)} px`).join(" · ")})`);
+
+  // Cut 14 §3: a bank is a beat — the fight frame opens on the stairs with `BANKED $N` as the callout before the exit sheet (the
+  // hero starts on the up stairs, so `depth>=1 → bank` banks on its first action), in `fights`
+  const bankRules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=1 → bank");
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
+  const ticker = () => page.evaluate(() => document.querySelector(".ticker.show")?.textContent ?? "");
+  let beat = null;
+  const tb = Date.now();
+  while (Date.now() - tb < 20_000) {
+    const st = await state(); const tk = await ticker();
+    if (st?.screen !== "watch" && st?.screen !== "exit") break;
+    if (/^BANKED \$\d+$/.test(tk) && st.frame === "fight") { beat = { text: tk, frame: st.frame, at: Date.now() }; break; }
+    await sleep(40);
+  }
+  check(!!beat, `a bank opens the fight frame with the sum as its callout (${beat ? `"${beat.text}"` : "never seen"})`);
+  if (beat) {
+    await sleep(2500);
+    const st = await state(); const tk = await ticker();
+    check(st?.screen === "watch" && st.frame === "fight" && tk === beat.text, `the beat holds the frame for its scene (${tk || "gone"} after 2.5 s, ${st?.screen})`);
+    s = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit", "the report after the bank", 20_000);
+    check(s.screen === "report", `then the exit flow (${s.screen})`);
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

@@ -11,6 +11,7 @@
 //   · the camp header's `$` equals the gold sheet's total
 // Itinerary: fresh → camp (its sheets) → send (fights) → ▶▶| → exit/keep → death (patch) | report (camp) → camp → edit two
 // rows → buy the first affordable unlock and open its sheet → drop a supply → `?absent=8h` → report (open the worst death).
+// Cut 14 §4: the report's trace chips carry their exit (`D5 · died · trace`); the stalled tile carries its cost (`2 STALLED · $201 lost`).
 //
 //   node web/tests/screens.mjs [--verbose]        (part of `pnpm test` in web/; ~60 s)
 import { execFileSync } from "node:child_process";
@@ -237,6 +238,14 @@ try {
   await settle();
   await lintScreen("report (8 h)");
   if (s.screen === "report") {
+    // Cut 14 §4: every exit's trace chip names its exit (`D5 · died · trace`; the depth off the ledger line the exit claims)
+    // (the walk's picker edits can leave a set that returns on its first action — a traceless exit has no chip; step 11 checks
+    // the label on fabricated lines whatever the walk did)
+    const chips = await page.evaluate(() => [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => c.textContent.replace(/\s+/g, " ").trim()));
+    const traced = await page.evaluate(() => (window.__riddle.view.report?.exits ?? []).some((x) => x.trace?.turns.length));
+    const labelled = chips.filter((c) => /^D\d+ · (banked|returned|died) · trace$/.test(c)).length;
+    if (traced || chips.length) check(chips.length > 0 && chips.every((c) => /^(D\d+ · )?(banked|returned|died) · trace$/.test(c)) && labelled * 2 >= chips.length, `the ${chips.length} trace chips carry their exit (${chips.slice(0, 3).join(" · ")}${labelled < chips.length ? ` · ${chips.length - labelled} without a depth` : ""})`);
+    else note("report (8 h): no traced exit to label (the walk's set returns at once)");
     await lintButtons("report (8 h)", "report");
     if (await page.locator("main.report button.btn", { hasText: /^open$/ }).count()) {
       await page.locator("main.report button.btn", { hasText: /^open$/ }).click({ timeout: 5000 });
@@ -244,6 +253,20 @@ try {
       await lintScreen("death (worst)");
       await lintButtons("death (worst)", "death");
     } else note("no worst death to open");
+  }
+  // 11. Cut 14 §4: the stalled tile carries what the stalls cost — the stalled lines' `carried` (a fabricated report: the tile is
+  // the code under test); the lines' trace chips read `returned · trace` without a ledger line to take a depth from
+  {
+    const turns = [{ t: 10, row: 0, verb: { v: "explore" }, hp: 20, foes: 0, telegraphs: [] }];
+    const ex = (text, carried, kept, keep_pct) => ({ text, carried, kept, keep_pct, spent: 0, spent_on: [], trace: { turns } });
+    await page.evaluate((exits) => { const r = window.__riddle; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: r.lineage.live ?? null, tamed: [], hatched: [], lost: [], xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, stalled: 2, exits } }); },
+      [ex("returned $0 · $161 carried · keeps 0% · stalled", 161, 0, 0), ex("returned $30 · $50 carried · keeps 60%", 50, 30, 60), ex("returned $0 · $40 carried · keeps 0% · stalled", 40, 0, 0)]);
+    await waitFor((x) => x?.screen === "report", "the fabricated report"); await sleep(200);
+    const t = await page.evaluate(() => { const tile = [...document.querySelectorAll(".report .tile")].find((x) => x.querySelector(".label")?.textContent === "stalled"); return { tile: tile && [...tile.children].map((c) => c.textContent.trim()).join(" "), chips: [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => c.textContent.trim()) }; });
+    check(t.tile === "2 stalled $201 lost", `the stalled tile carries its cost: "${t.tile}"`);
+    // (a fabricated line can still claim a real ledger line of the same tier and sum, and then carries its depth)
+    check(t.chips.length === 3 && t.chips.every((c) => /^(D\d+ · )?returned · trace$/.test(c)), `the lines' chips read their exit: ${t.chips.join(" · ")}`);
+    await lintScreen("report (stalls)");
   }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);

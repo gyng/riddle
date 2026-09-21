@@ -46,7 +46,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
   // the wire carried them falls back to the morgue's short forms
   const trace = traceTable(d.trace, { rows: d.rules?.rows ?? app.rules.rows, verbs: d.rules ? undefined : morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain });
   // Fractions 0..1 from the core: baseline (survival of the unpatched rules) is on every row (Cut 4 §2).
-  const patches = patchRows(app, d.patches, d.baseline ?? 0);
+  const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace);   // Cut 14 §4: the trace names the least-fired row on a full set
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
   const morgue = h("button", { class: "btn", onclick: () => {
     void copyText(d.morgue);

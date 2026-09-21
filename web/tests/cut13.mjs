@@ -336,7 +336,7 @@ try {
   check(!!warlord && /boss · buffer · summoner · telegraph$/.test(warlord.text) && warlord.right <= 400.5 && !warlord.over, `a long LEARNED chip wraps inside the viewport: "${warlord?.text}" right ${warlord?.right}`);
   check(chipsQ.some((c) => c.text === "alert · rising") && !chipsQ.some((c) => /:/.test(c.text)), `alert:rising reads with a dot: ${chipsQ.map((c) => `"${c.text}"`).join(", ")}`);
   await shot("11-report-chips");
-  await page.locator(".report .exit-lines .chip.mini", { hasText: /^trace$/ }).first().click({ timeout: 5000 }); await sleep(200);
+  await page.locator(".report .exit-lines .chip.mini", { hasText: /\btrace$/ }).first().click({ timeout: 5000 }); await sleep(200);   // Cut 14 §4: the chip reads `D5 · died · trace`
   const traceSheet = await page.evaluate(() => {
     const w = document.querySelector(".sheet-wrap"); if (!w) return null;
     return { head: w.querySelector(".trace-head")?.textContent ?? null, rows: [...w.querySelectorAll(".chain-row")].map((r) => r.textContent.replace(/\s+/g, " ").trim()) };

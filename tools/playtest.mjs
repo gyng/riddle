@@ -8,6 +8,9 @@
 //
 //   node tools/playtest.mjs [--seed N] [--absent 8h] [--rules file.txt] [--out dir] [--wide] [--headed] [--dpr N]
 //
+// Cut 14 §3: every watch dump's summary line carries the entity-rect measure — the tallest foe on screen in CSS px, the frame
+// and its k (`foe goblin 50 px · map k5`, `__viewer.debugRects`) — the gate is a foe ≥ 24 CSS px in the map frame at 400×800.
+//
 // Walk: boot fresh(seed[, rules]) → camp → send → watch at 4× (two mid-run shots, then ▶▶| until the exit,
 // the last frame kept as the final watch dump) → exit sheet (keep) → death (tap the first patch) | report (camp)
 // → camp → reload ?absent → report (offline wait timed) → open the worst death → done.
@@ -87,11 +90,20 @@ async function attempt() {
   /** Write NN-<screen>.txt + .png and print the summary line. Full-page unless it is the run or a sheet. */
   async function dump(screen, { base = name(screen), full = screen !== "watch" && screen !== "exit", note = "" } = {}) {
     const tx = await text();
+    if (screen === "watch") { const m = await foeRect(); if (m) note = note ? `${note} · ${m}` : m; }   // Cut 14 §3: the frame's tallest foe, in CSS px
     writeFileSync(`${base}.txt`, tx);
     await page.screenshot({ path: `${base}.png`, fullPage: full });
     log(`${base.slice(out.length + 1).padEnd(14)} +${secs(Date.now() - walkStart).padStart(6)}  ${String(tx.length).padStart(5)} ch  ${first(tx)}${note ? `  [${note}]` : ""}`);
     return base;
   }
+  /** Cut 14 §3: the entity rect measure — the tallest foe the frame drew (`__viewer.debugRects`, CSS px), the frame and its k;
+   *  `foe goblin 50 px · map k5` (empty when no foe is on screen or the viewer is the placeholder). */
+  const foeRect = () => page.evaluate(() => {
+    const v = window.__viewer; if (!v?.debugRects) return "";
+    const foes = v.debugRects().filter((r) => !r.hero); if (!foes.length) return "";
+    const top = foes.reduce((a, r) => (r.h > a.h ? r : a)); const st = v.stats();
+    return `foe ${top.kind} ${Math.round(top.h)} px · ${st.frame} k${st.k}`;
+  });
   const press = (label) => page.evaluate((l) => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === l) { b.click(); return true; } return false; }, label);
   const clickBtn = async (sel, label) => { const loc = label ? page.locator(sel).filter({ hasText: new RegExp(`^${label}$`) }).first() : page.locator(sel).first(); await loc.click({ timeout: 5000 }); };
 

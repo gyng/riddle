@@ -1,5 +1,6 @@
 // Settings sheet: save export/import, rules export/import, engine badge, reset lineage (double tap).
 // Cut 10 §4: `sound` row with a `mute` toggle (persisted in localStorage; no cue and no drone while muted).
+// Cut 14: `slowdowns` row — `on` / `off` (`app.slowdowns`, persisted): the watch's fight / near / scene holds, or the flat rate.
 import type { App } from "../app";
 import { h, copyText, replace } from "./dom";
 import { openSheet } from "./sheet";
@@ -27,8 +28,13 @@ export function openSettings(app: App): void {
       audio.unlock(); audio.setMuted(!audio.muted); mute.classList.toggle("on", audio.muted); mute.setAttribute("aria-pressed", audio.muted ? "true" : "false");
     } }, /* copy:button */ "mute");
 
+    const slow = h("button", { class: `btn slowdowns${app.slowdowns ? " on" : ""}`, "aria-pressed": app.slowdowns ? "true" : "false", onclick: () => {
+      app.setSlowdowns(!app.slowdowns); slow.classList.toggle("on", app.slowdowns); slow.setAttribute("aria-pressed", app.slowdowns ? "true" : "false"); replace(slow, app.slowdowns ? /* copy:button */ "on" : /* copy:button */ "off");
+    } }, app.slowdowns ? /* copy:button */ "on" : /* copy:button */ "off");
+
     body.append(
       row(/* copy:label */ "sound", mute),
+      row(/* copy:label */ "slowdowns", slow),
       row(/* copy:label */ "save", saveOut, saveIn),
       row(/* copy:label */ "rules", rulesOut, rulesIn),
       area,

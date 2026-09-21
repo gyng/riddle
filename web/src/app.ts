@@ -43,6 +43,8 @@ const SAVE_DEBOUNCE_MS = 1000;
 // without it, the full call is used with slices that grow with the absence (80 min for 8 h, 2 h cap).
 const OFFLINE_SLICE_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES = 6;
 const REFINE_MS = 2000;
+const SLOWDOWNS_KEY = "riddle.slowdowns";
+function readSlowdowns(): boolean { try { return localStorage.getItem(SLOWDOWNS_KEY) !== "0"; } catch { return true; } }
 
 export class App {
   engine!: AsyncEngine;
@@ -85,6 +87,14 @@ export class App {
   unlockCat: UnlockInfo[] = [];
   /** Cut 13 §5: the last forecast painted (the refine when it landed), so a `dice` death can say what it said for that depth. */
   lastForecast: Forecast | null = null;
+  /** Cut 14: the watch's dynamic slowdowns (the fight frame's 2× / 4×, the near and scene holds); off, the clock runs the mode's
+   *  flat rate. Persisted in localStorage like `mute` (`riddle.slowdowns`), on by default; the settings sheet toggles it. */
+  slowdowns = readSlowdowns();
+  setSlowdowns(on: boolean): void { this.slowdowns = on; try { localStorage.setItem(SLOWDOWNS_KEY, on ? "1" : "0"); } catch { /* private mode: not persisted */ } }
+  /** Cut 14 §4: how often each row of the active set fired, as last measured — the watched run's `rule` events (ui/watch.ts) or
+   *  the absence's `R1 fired n of m runs` lines (ui/report.ts); the death screen's patch chip names the least-fired row on a
+   *  full set (`↑ R3`). Cleared by any rule edit: the counts are the set that ran. */
+  rowFires: number[] | null = null;
   /** The supply catalogue as last fetched by the camp: the shop paints from it at once on the next camp, then refetches (the
    *  worker answers in order, so a fetch behind a forecast is seconds away — QA B on 952e306: "the shop chips are gone"). */
   supplyCat: SupplyEntry[] = [];
@@ -284,6 +294,7 @@ export class App {
    *  Cut 12 §1: own rows against `max_rows`; card rows sit outside the cap. */
   get overBudget(): boolean { return this.ownRows() > this.vocab.max_rows; }
   rulesChanged(): void {
+    this.rowFires = null;   // Cut 14 §4: the counts were the set that ran
     this.persist();
     clearTimeout(this.fcTimer); clearTimeout(this.refineTimer); this.refineSeq++;
     for (const fn of this.rulesListeners) fn();
@@ -367,6 +378,14 @@ export class App {
     if (p.remove) { if (p.insert_at < rows.length) rows.splice(p.insert_at, 1); this.rulesChanged(); return undefined; }
     if (p.replace && p.insert_at < rows.length) { rows[p.insert_at] = { ...cloneRow(p.row), origin: p.row.origin ?? "patch" }; this.rulesChanged(); return p.insert_at; }
     return this.insertRow(p.row, p.insert_at, p.row.origin ?? "patch");
+  }
+  /** Cut 14 §4: a patch onto a full set — row `drop` goes and the patch row lands where it was measured (`insert_at`, one up
+   *  when the dropped row sat above it), so the set never crosses `max_rows` (rater S: "an offered patch pushed me to `6/5 ·
+   *  drop one` with no warning"). Returns the patch row's index. */
+  applyPatchOver(p: Patch, drop: number): number {
+    const rows = this.rules.rows;
+    if (drop >= 0 && drop < rows.length) rows.splice(drop, 1);
+    return this.insertRow(p.row, drop >= 0 && drop < p.insert_at ? p.insert_at - 1 : p.insert_at, p.row.origin ?? "patch");
   }
   async setRulesText(text: string): Promise<void> {
     const set = await this.engine.importRules(text);
@@ -578,7 +597,9 @@ export function start(dev: DevOptions | null = null): void {
   root.id = "app";
   const app = new App(root, dev);
   audio.arm();   // Cut 10 §4: the WebAudio context opens on the first gesture
-  if (dev) { (window as unknown as { __riddle: App }).__riddle = app; (window as unknown as { __audio: typeof audio }).__audio = audio; }
+  if (dev) (window as unknown as { __riddle: App }).__riddle = app;
+  // Cut 14 §4: the cue log is readable on every build (a rater assesses sound on the cohort build); the App stays dev-only
+  Object.defineProperty(window, "__audio", { value: audio, writable: false, configurable: true });
   void app.boot().catch((e) => console.error("boot failed", e));
   if (import.meta.env.PROD && "serviceWorker" in navigator) {
     window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline-first is best effort */ }); });

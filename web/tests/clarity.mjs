@@ -7,6 +7,10 @@
 //       the `+1 row` card is dimmed `⊘ fill rows` while free rows exist · `3 over` is not on the headline · the report's tiles read
 //       `returned · banked · deaths` when returns outnumber banks, its exit lines lead with `returned $61`, a lost companion reads
 //       `jackal Ashar fell` · a card's delta reads `reach +N% at R2` (Cut 12: where it goes) · the tiles fade in after an absence
+//   Cut 14 §6  paused, the frontier runs and the dot beats while the playhead holds · ▶▶| lands live · a hidden tab runs the world ·
+//              a run that ends while paused shows its exit after the replay
+//   Cut 14     the `slowdowns` toggle: off, the clock keeps the mode's flat rate through a fight; on, a fight in fast runs at 4×
+//   Cut 14 §4  a repeated chore callout coalesces (`pick up ×8`) · the `rest 20m` banner sits under the death frame's callout line
 //
 //   node web/tests/clarity.mjs        (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
@@ -146,6 +150,136 @@ try {
     await sleep(200);
     const rep2 = await page.evaluate(() => ({ labels: [...document.querySelectorAll(".report .tiles .tile .label")].map((l) => l.textContent.trim()), fade: document.querySelector(".report .tiles")?.classList.contains("fade-in") }));
     check(rep2.labels.join(" ") === "runs best marks banked returned deaths" && rep2.fade === false, `banked leads when it is the larger; a watched run's tiles do not fade (${rep2.labels.slice(3).join(" · ")})`);
+  }
+  // Cut 14 §4: a repeated chore callout coalesces on its line — `pick up ×8` — instead of eight `pick up` reads (the fake emits
+  // no chore rows, so every engine batch gets one appended; the ticker is sampled every 40 ms through the run)
+  {
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
+    await page.evaluate(() => {
+      const r = window.__riddle, orig = r.engine.step.bind(r.engine);
+      r.engine.step = async (n) => { const res = await orig(n); res.events.push({ t: res.snapshot.turn, k: "rule", row: -2, verb: { v: "pick_up" }, text: "pick up" }); return res; };
+    });
+    const seen = new Set(); let best = 0; const t0 = Date.now();
+    while (Date.now() - t0 < 12_000) {
+      const tk = await page.evaluate(() => document.querySelector(".ticker.show")?.textContent ?? "");
+      if (tk) seen.add(tk);
+      const m = /^pick up ×(\d+)$/.exec(tk); if (m) best = Math.max(best, Number(m[1]));
+      if (best >= 4) break;
+      if ((await state())?.screen !== "watch") break;
+      await sleep(40);
+    }
+    const plain = [...seen].filter((x) => x === "pick up").length;
+    check(best >= 4 && plain <= 1, `a repeated chore reads with a count: pick up ×${best} (lines: ${[...seen].filter((x) => /^pick up/.test(x)).slice(0, 4).join(" · ")})`);
+  }
+  // Cut 14: the `slowdowns` toggle off (settings; `riddle.slowdowns`) — the clock stays at the mode's flat 16× through a fake fight in
+  // `fast` (the fight frame still opens); on again, the fight runs at 4×
+  {
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && s.screen === "camp", "camp");
+    await page.locator("button.gear").click({ timeout: 5000 }); await sleep(250);
+    const before = await page.evaluate(() => { const b = document.querySelector(".sheet-wrap .btn.slowdowns"); return { text: b?.textContent.trim(), on: b?.classList.contains("on"), row: b?.closest(".srow")?.querySelector(".label")?.textContent.trim() }; });
+    await page.locator(".sheet-wrap .btn.slowdowns").click({ timeout: 5000 }); await sleep(150);
+    const after = await page.evaluate(() => { const b = document.querySelector(".sheet-wrap .btn.slowdowns"); return { text: b?.textContent.trim(), on: b?.classList.contains("on"), stored: localStorage.getItem("riddle.slowdowns"), app: window.__riddle.slowdowns }; });
+    check(before.row === "slowdowns" && before.text === "on" && before.on && after.text === "off" && !after.on && after.stored === "0" && after.app === false, `the settings row toggles slowdowns: ${before.text} → ${after.text} (stored ${after.stored})`);
+    await page.keyboard.press("Escape"); await sleep(150);
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
+    const watch = () => page.evaluate(() => { const w = document.querySelector(".watch"); return { frame: w?.dataset.frame, speed: Number(w?.dataset.speed), ending: w?.dataset.ending === "1", slow: window.__riddle.slowdowns }; });
+    let fightSpeeds = [], seenFight = false; const t0 = Date.now();
+    while (Date.now() - t0 < 30_000) {
+      const s = await state(); if (s?.screen !== "watch") break;
+      const w = await watch(); if (w.ending) break;
+      if (w.frame === "fight") { seenFight = true; fightSpeeds.push(w.speed); if (fightSpeeds.length >= 8) break; }
+      await sleep(60);
+    }
+    check(seenFight && fightSpeeds.length > 0 && fightSpeeds.every((x) => x === 16), `slowdowns off: the fight frame opens and the clock stays at 16× (${[...new Set(fightSpeeds)].join("/") || "no fight"})`);
+    // on again — a fresh run (the first may have ended by now), the toggle persisted
+    await page.evaluate(() => window.__riddle.setSlowdowns(true));
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && s.screen === "watch", "the watch again");
+    fightSpeeds = []; const t1 = Date.now();
+    while (Date.now() - t1 < 30_000) {
+      const s = await state(); if (s?.screen !== "watch") break;
+      const w = await watch(); if (w.ending) break;
+      if (w.frame === "fight") { fightSpeeds.push(w.speed); if (fightSpeeds.length >= 8) break; }
+      await sleep(60);
+    }
+    check(fightSpeeds.length > 0 && fightSpeeds.every((x) => x === 4), `slowdowns on: a fight in fast runs at 4× (${[...new Set(fightSpeeds)].join("/") || "no fight"})`);
+  }
+  // Cut 14 §6: the world runs on the wall clock — paused, the frontier (`data-frontier`) advances and the strip's dot beats
+  // (`data-pulses`) while the playhead (`data-tick`, the strip's head) holds; `▶▶|` from behind lands on the frontier; a faked
+  // hidden tab for 5 s advances the world ≥ 40 ticks; a run that ends while paused still shows its exit after the replay
+  {
+    const watch = () => page.evaluate(() => { const w = document.querySelector(".watch"), h = document.querySelector(".scrub .head"); return { screen: window.__riddle.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), tick: Number(w?.dataset.tick), frontier: Number(w?.dataset.frontier), pulses: Number(w?.dataset.pulses), ending: w?.dataset.ending === "1", card: w?.dataset.card, head: h ? parseFloat(h.style.left) : NaN, strip: !!document.querySelector(".scrub:not([hidden])") }; });
+    const press = (l) => page.evaluate((l) => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === l) { b.click(); return true; } return false; }, l);
+    // paused in a shown fight (`fights`): the picture holds, the world goes on
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
+    let w = null; const t0 = Date.now();
+    while (Date.now() - t0 < 30_000) { w = await watch(); if (w.screen !== "watch" || (w.frame === "fight" && w.tick > 0)) break; await sleep(50); }
+    check(w?.frame === "fight" && w.strip, `a fight is up and the strip shows (frame ${w?.frame}, strip ${w?.strip})`);
+    await press("⏸"); await sleep(200);
+    const p0 = await watch(); await sleep(3000); const p1 = await watch();
+    check(p0.speed === 0 && p1.tick === p0.tick && p1.frontier >= p0.frontier + 40 && p1.pulses > p0.pulses && p1.head < p0.head, `paused: the playhead holds at ${p0.tick} while the frontier runs ${p0.frontier} → ${p1.frontier} (dot beats ${p0.pulses} → ${p1.pulses}, head ${p0.head.toFixed(1)}% → ${p1.head.toFixed(1)}%)`);
+    // ▶▶| lands on the frontier (live) — and plays on
+    const F = p1.frontier;
+    await press("▶▶|"); await sleep(400);
+    const l1 = await watch();
+    check(l1.tick >= F - 1 && (l1.speed > 0 || l1.card === "1"), `▶▶| from behind lands on the frontier (tick ${l1.tick} ≥ ${F}, speed ${l1.speed}, card ${l1.card})`);
+    // a hidden tab: the picture freezes, the world runs on wall time; back, the viewer is live again
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && s.screen === "watch", "the fast watch");
+    await sleep(1500);
+    const setHidden = (v) => page.evaluate((v) => { Object.defineProperty(document, "hidden", { value: v, configurable: true }); document.dispatchEvent(new Event("visibilitychange")); }, v);
+    await setHidden(true); await sleep(200);
+    const h0 = await watch(); await sleep(5000); const h1 = await watch();
+    await setHidden(false); await sleep(1200);
+    const h2 = await watch();
+    check(h1.tick === h0.tick && h1.frontier >= h0.frontier + 40, `hidden 5 s: the picture held at ${h0.tick} while the world ran ${h0.frontier} → ${h1.frontier}`);
+    check(h2.speed > 0 && h2.frontier - h2.tick <= 60, `back, the viewer is live (tick ${h2.tick}, frontier ${h2.frontier}, speed ${h2.speed})`);
+    // a run that ends while paused (seed 157's default set dies on D1): the world reaches the exit; the exit waits for the replay
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && s.screen === "watch", "the dying watch");
+    const t1 = Date.now(); let e = null;
+    while (Date.now() - t1 < 10_000) { e = await watch(); if (e.screen !== "watch" || e.tick >= 30) break; await sleep(20); }
+    await press("⏸"); await sleep(100);
+    const e0 = await watch();
+    const t2 = Date.now(); let e1 = e0;
+    while (Date.now() - t2 < 40_000) { e1 = await watch(); if (e1.screen !== "watch" || e1.ending) break; await sleep(100); }
+    await sleep(1500); const e2 = await watch();
+    check(e0.screen === "watch" && e2.screen === "watch" && e2.tick === e0.tick && e2.ending && e2.frontier > e0.frontier, `the run ended while paused (frontier ${e0.frontier} → ${e2.frontier}, ending ${e2.ending}) and the exit waits (tick ${e2.tick}, ${e2.screen})`);
+    // resumed, the replay runs at the viewer's rate (a fight-heavy 375 ticks takes its time); `▶▶|` lands on the ending's start
+    // and the last ENDING_TICKS play at 1× before the exit flow
+    await press("▶"); await sleep(1500);
+    const r1 = await watch();
+    check(r1.screen === "watch" && r1.tick > e2.tick && r1.tick < e2.frontier - 20, `resumed, the replay plays on (tick ${e2.tick} → ${r1.tick} of ${e2.frontier})`);
+    await press("▶▶|"); await sleep(300);
+    const r2 = await watch();
+    check(r2.screen === "watch" && r2.tick >= e2.frontier - 22 && r2.speed === 1, `▶▶| lands on the ending's start (tick ${r2.tick}, frontier ${e2.frontier}, speed ${r2.speed})`);
+    const s2 = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit", "the exit after the walk-out", 30_000);
+    check(s2.screen === "death", `then the exit flow (${s2.screen})`);
+  }
+  // Cut 14 §4: the `rest 20m` banner never covers the death frame's callout line — it sits low (`.banner.rest`), under every
+  // sprite and name the frame drew (rater S: `rest 20m` over `OGRE WINDS UP`)
+  {
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
+    await sleep(500);
+    await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); });
+    let rest = null; const t0 = Date.now();
+    while (Date.now() - t0 < 40_000) {
+      rest = await page.evaluate(() => {
+        const b = document.querySelector(".banner.show.rest"); if (!b) return null;
+        const v = window.__viewer, r = b.getBoundingClientRect();
+        const drawn = [...v.debugRects().map((x) => x.y + x.h), ...v.debugLabels().map((l) => l.y)];
+        return { text: b.textContent, top: r.top, frame: document.querySelector(".watch")?.dataset.frame, lowest: Math.max(0, ...drawn), h: innerHeight };
+      });
+      if (rest) break;
+      const s = await state(); if (s?.screen !== "watch" && s?.screen !== "exit") break;
+      await sleep(40);
+    }
+    check(!!rest && /^rest \S+$/.test(rest.text) && rest.top > rest.lowest && rest.top >= rest.h * 0.75, `the rest banner sits under the frame's sprites and names (${rest ? `"${rest.text}" top ${Math.round(rest.top)} · drawn to ${Math.round(rest.lowest)} · ${rest.frame} frame` : "never seen"})`);
   }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
