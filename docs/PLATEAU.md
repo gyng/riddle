@@ -290,3 +290,77 @@ mechanic and three designs:
 The QA step is now part of the method (it removed the defect class from the cards). What is
 left at 0.8 is design, and the four items above are the next contract's — the stall mechanic
 first, because it is the one thing both raters would tell a friend about *against* the game.
+
+## Cohort 10 (build 2cb9e88: Cut 13 — no stake the player did not choose; a mechanical QA round before it)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| S | 601 | 72.4 | none |
+| T | 602 | 72.4 | none |
+
+α = 0.755 (two cards; tentative). Mean **72.4** — the lowest since cohort 6. Neither card's
+gate was met (mean ≥ 78, attribution or failure at 1.0 from one rater, α ≥ 0.80). The two
+totals agree and the axes do not: S is at 0.6 on clarity, tension, feel, pacing; T is at 0.8 on
+all four and at 0.3 on feel and aesthetic. Attribution and failure hold 0.8 · 0.8 for the
+third cohort; expression 0.6 · 0.6 for the sixth.
+
+Trajectory: 63.7 → 66.0 → 65.0 → 69.8 → 67.9 → 74.6 → 75.5 → 73.8 → 73.8 → **72.4**.
+
+### What Cut 13 bought, and what it did not
+
+The stall verdict, the chosen trait, the ledger's SPENT and the beats on screen all landed
+without a lapse: no card names a trait override, a missing night's gold, or a beat the reel
+kept to itself; both retell a run in the first person ("Zelak the Goblin Captain is avenged"
+after S's summoner row; "Ashusk the ogre is avenged" two heirs after the ogre killed T's heir
+5). The QA round before the cohort held (22 wire invariants, 95 screen checks, two QA
+players): the cards carry no reconciliation lapse. What kept the number where it is:
+
+1. **Stalls, still** (T: clarity, tension, pacing, failure, attribution — five axes; "three
+   stalls ended runs by fiat"; "every row marked `stuck ← paced 12 turns, foes ignored`, which
+   I could not fix or explain"; "30–50 s stalling loops eat a third of some watches"). The
+   verdict screen exists now and T read it three times; it did not help, because the loop was
+   not a missing row. Reproduced after the cohort on seed 602 with T's own set: the den's
+   monkeys circle the hero on the D4 stairs, `foes ≥ 2 → to corridor` fires on alternate
+   actions and the descend chore steps back each time, so the hero never gets an action *on*
+   the stairs. Fixed in 10b59b9 (the step that lands on the stairs takes them in the same
+   action, after the den's pounce): 24 sends, 0 stalls; DEFAULT 0.0 % over 462 sends. The
+   lesson is the one cohort 9 taught: a stall is an engine loop until proven otherwise, and
+   the verdict's patches cannot name an engine loop.
+2. **The forecast's noise** (S: clarity, decisions; T: decisions — "the same six rows read
+   94/6, then 79/21, then 72/28"; "±22 … a 10-point edit is unreadable"; a patch offered
+   "worse than base (survives 42 % · base 50 %)"). §5 put the `±` on the wire; the raters
+   read the swing anyway, because 100 sims on a set whose runs end D3–D8 have a half-width of
+   ±10 and consecutive edits re-seed. The number itself has to settle: same seeds across
+   edits (paired sims, so an edit's delta is a difference, not two draws), and a patch below
+   base is not offered.
+3. **Feel and aesthetic** (S 0.6 · 0.6; T 0.3 · 0.3 — "in ten screenshots of fights I never
+   saw a foe sprite"; "five foes on one tile rendered as one smear"; "a black screen with a
+   lit patch of olive tiles and one well-drawn hero"; "the bank moment is a sheet, not an
+   event"). The fight frame reads through callouts; the render does not carry the fight. This
+   is `PLATEAU.md` move A again, unpaid since cohort 4: foe sprites at the hero's scale, a
+   stack that fans, the map lit beyond the hero's view, the bank as a beat.
+4. **The preset's first death** (S: clarity, failure, attribution — "death 1 read as a rule
+   gap (7 unknown unused, heal row inert) but was stamped `dice`"). The dice fallback (Cut 11
+   §4) is right that no candidate row survived; it is wrong to say `dice` when the screen's
+   own margin line names eight unused unknowns. A death with `N unknown unused` and a drink
+   row that never fired is a `gap` (`drink unknown`), whatever the replays say.
+5. **Expression** (both 0.6: "after an hour the set is what any fighter converges on"; T:
+   "only 3 of 6 rows are mine; the rows the game wrote are the ones that fire most"). Sixth
+   cohort at 0.6; the patches and cards win the set. Move B's roster is in; what is missing
+   is a reason to diverge (a second class played, a card that changes the archetype).
+
+Smaller, all fixable in a round: the report's TRACE buttons unlabelled in a 16-row list under
+the salvage table (S); `6/5 · drop one` after an offered patch with no warning (S); L1 runs
+30–100 s, "too short to watch for minutes" (S); eight consecutive `pick up` reads (T);
+D1–3 watched from full hp on every run (T); the `rest 20m` overlay over the telegraph line
+at the death frame (S); audio unassessed by both (`window.__audio` null on the production
+build — the probe hook is dev-only).
+
+### The read
+
+The mechanic both raters named first in cohort 9 is at 0.0 % on the sets we can measure, and
+was still the first thing T named — because T's own set found a loop the gate's sets did
+not. The gate now carries the cohort's sets, and the next cohort's sets go in after it. The
+remaining points are two designs (a settled forecast; the fight the render can show), one
+verdict rule (`gap` when unknowns sat unused), and the sixth 0.6 on expression, which no
+polish has moved and which the next contract has to address with content, not chrome.
