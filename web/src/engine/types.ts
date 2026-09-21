@@ -90,7 +90,7 @@ export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
 
 export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry }[]; causes: { cause: string; share: number }[];
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`)
-                         ends?: { bank: number; return: number; death: number; gold: number } };   // Cut 12 §3: how a send ends over the same sims (rates 0..1 summing to 1) and the mean gold brought home per send
+                         ends?: { bank: number; return: number; death: number; stall?: number; gold: number } };   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
 export type ForecastTry = { row: Row; text: string; boss?: string };

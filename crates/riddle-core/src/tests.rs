@@ -6216,7 +6216,7 @@ fn forecast_ends_name_how_a_send_ends() {
     g.set_rules_raw(crate::probes::good()).unwrap();
     let a = g.forecast();
     let e = a.ends.clone().expect("ends over the sims");
-    assert!((e.bank + e.return_ + e.death - 1.0).abs() < 1e-9, "{e:?}");
+    assert!((e.bank + e.return_ + e.death + e.stall - 1.0).abs() < 1e-9, "{e:?}");
     assert!(e.gold >= 0.0);
     assert_eq!(g.forecast().ends, a.ends, "two reads agree");
     let json = serde_json::to_string(&a).unwrap();
@@ -6235,7 +6235,7 @@ fn forecast_ends_name_how_a_send_ends() {
     let e = f.ends.expect("ends");
     assert!(e.bank > 0.0, "{e:?}");
     assert!(e.gold > 0.0, "{e:?}");
-    assert!((e.bank + e.return_ + e.death - 1.0).abs() < 1e-9, "{e:?}");
+    assert!((e.bank + e.return_ + e.death + e.stall - 1.0).abs() < 1e-9, "{e:?}");
     // Nothing reaches D9 past the bank row.
     assert_eq!(f.depths.iter().find(|d| d.depth == 9).unwrap().reach, 0.0);
     // A fresh lineage with no return row: its sends end in deaths, never in "returns" the

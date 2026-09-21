@@ -338,6 +338,9 @@ pub struct ForecastEnds {
     #[serde(rename = "return")]
     pub return_: f64,
     pub death: f64,
+    /// Sends that came home by the turn cap or a stall — nothing in the rules returned them.
+    #[serde(default)]
+    pub stall: f64,
     pub gold: f64,
 }
 

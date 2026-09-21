@@ -28,6 +28,8 @@ pub struct SimResult {
     /// Cut 12 §3: the gold this send brings home — the loot by the exit's share (`ExitTier::pct`;
     /// a run that timed out keeps nothing, as the exit's own maths has it).
     pub loot_kept: i32,
+    /// The send hit the turn cap or stalled: a return by nothing in the rules (its own share).
+    pub timed_out: bool,
 }
 
 /// Simulate `sims` fresh expeditions from the current lineage with `rules`, each stopping once
@@ -86,7 +88,7 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32)
     let run = g.run.as_ref().unwrap();
     let tier = run.over.unwrap_or(ExitTier::Return);
     let loot_kept = if run.timed_out { 0 } else { run.loot.max(0) * tier.pct() / 100 };
-    (n, SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept })
+    (n, SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out })
 }
 
 /// `f` over every job, results in job order. Natively (and unless `set_parallel_sims(false)`)
@@ -199,9 +201,12 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     // delta budget (~30 k ticks on a fresh lineage), so an edit still answers at once.
     let ended = simulate_budget(game, rules, ENDS_SIMS, tag ^ ENDS_TAG, u32::MAX, DELTA_TICK_BUDGET);
     let m = ended.len().max(1) as f64;
-    let share = |t: ExitTier| ended.iter().filter(|r| r.tier == t).count() as f64 / m;
+    // A stall (the run cap, a floor shuffled) came home by nothing in the rules: its own
+    // share, not a return's (QA on 952e306: "`return 70%` — no return verb in my rules").
+    let share = |t: ExitTier| ended.iter().filter(|r| r.tier == t && !r.timed_out).count() as f64 / m;
+    let stall = ended.iter().filter(|r| r.timed_out).count() as f64 / m;
     let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / m;
-    let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death: share(ExitTier::Death), gold });
+    let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death: share(ExitTier::Death), stall, gold });
     Forecast { depths, causes, known_to, ends }
 }
 

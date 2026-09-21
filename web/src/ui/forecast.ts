@@ -52,7 +52,9 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     const e = f.ends;
     ends.hidden = !e;
     if (!e) return;
-    replace(ends, /* copy:callout */ `bank ${pct(e.bank)} · return ${pct(e.return)} · death ${pct(e.death)}`, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
+    // a stall share only when there is one: `bank 0% · return 20% · stall 50% · death 30% · ~$25`
+    const stall = e.stall && Math.round(e.stall * 100) > 0 ? /* copy:callout */ ` · stall ${pct(e.stall)}` : "";
+    replace(ends, /* copy:callout */ `bank ${pct(e.bank)} · return ${pct(e.return)}`, stall, /* copy:callout */ ` · death ${pct(e.death)}`, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
