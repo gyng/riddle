@@ -107,6 +107,10 @@ pub enum Resolution {
         kind: String,
         name: String,
     },
+    /// Cut 14 (QA on 56f2a1d): a sealed low point the hero walked away from, in a run that
+    /// later died — `An ogre took him to 1 HP; R3 attacked; lived.` The death is its own
+    /// episode's; two `died to` lines for one death made the reel disagree with the tally.
+    Survived,
 }
 
 impl Resolution {
@@ -404,7 +408,7 @@ pub fn resolve(run: &mut Run, res: Resolution) {
     let mut out: Vec<Episode> = Vec::new();
     if !res.live_only() {
         for mut e in std::mem::take(&mut run.arc.sealed) {
-            e.resolution = res.clone();
+            e.resolution = if matches!(res, Resolution::Died { .. }) { Resolution::Survived } else { res.clone() };
             e.t = run.turn;
             out.push(e);
         }
@@ -831,6 +835,7 @@ fn resolution_form(res: &Resolution, level: u8) -> String {
                 format!("{} {name} fell", kind_title(kind))
             }
         }
+        Resolution::Survived => "lived".into(),
     }
 }
 
@@ -960,7 +965,7 @@ pub fn story_ok(text: &str) -> bool {
         head_ok && forms.contains(&rest)
     };
     let end = beats[2];
-    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "died"].iter().any(|k| end.starts_with(k)) || stalled_ok(end) || end.ends_with(" fell");
+    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "died", "lived"].iter().any(|k| end.starts_with(k)) || stalled_ok(end) || end.ends_with(" fell");
     setup_ok && turn_ok && end_ok
 }
 
@@ -997,7 +1002,7 @@ fn weight(res: &Resolution, named: bool) -> i32 {
         Resolution::Reached { .. } => 2,
         Resolution::FirstBoss { .. } => 5,
         Resolution::BossSlain { .. } => 2,
-        Resolution::Returned { .. } | Resolution::Lost { .. } | Resolution::Stalled { .. } => 1,
+        Resolution::Returned { .. } | Resolution::Lost { .. } | Resolution::Stalled { .. } | Resolution::Survived => 1,
         Resolution::Died { .. } => {
             if named {
                 5
