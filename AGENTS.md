@@ -37,7 +37,7 @@ tools/verify.sh --quick        # tests (fast profile) ∥ tsc + copy-lint       
 tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~2 min
 tools/verify.sh --full         # + shipping wasm → full gate table                  ~5 min
 cargo test -q --workspace --profile fast                     # ~9 s warm; never plain `cargo test` (7× slower)
-node tools/gates.mjs [--full]                                # quick: 8 seeds × 8 h × 3 verdicts + dayplayer 2 seeds alongside (~75 s); full: 30 × 8 × 8
+node tools/gates.mjs [--full] [--fresh]                      # quick: 8 seeds × 8 h × 3 verdicts + dayplayer + the wire invariants (examples/qa.rs) alongside (~90 s); full: 30 × 8 × 8 (~3.5 min); cached by binary hash — a client-only change reprints in 0.2 s
 (cd web && pnpm -s test)                                     # the client gates, all at once, headless (~30 s); `node tests/run.mjs fights cut12` for a few
 tools/wasm.sh [--ship]                                       # fast wasm (~15 s incremental) / wasm-pack release (~40 s)
 tools/ship.sh [--preview]                                    # cohort build on :5230 (fat LTO, ~2 min); --preview: fast wasm, ~25 s, for QA rounds
