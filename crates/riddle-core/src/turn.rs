@@ -1521,7 +1521,7 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
     // Cut 5 §1: the exit resolves every open episode.
     let res = match tier {
         ExitTier::Bank => Resolution::Banked { gold: loot_kept },
-        ExitTier::Return if run.timed_out => Resolution::Lost,
+        ExitTier::Return if run.timed_out => Resolution::Lost { stalled: run.stuck_fires >= crate::engine::STALL_FIRES },
         ExitTier::Return => Resolution::Returned { gold: loot_kept },
         ExitTier::Death => Resolution::Died { cause: run.death_cause.clone().unwrap_or_else(|| "unknown".into()) },
     };

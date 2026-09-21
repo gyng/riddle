@@ -1402,7 +1402,7 @@ fn routine_line_reads_the_floor_and_its_twist() {
     assert_eq!(story_line(&e), "D6, the nest: R3 returned $54.");
     let e = ep(2, None, Act::default(), Resolution::Returned { gold: 8 });
     assert_eq!(story_line(&e), "D2: returned $8.");
-    let e = ep(5, Some("vault"), ret(0), Resolution::Lost);
+    let e = ep(5, Some("vault"), ret(0), Resolution::Lost { stalled: false });
     assert_eq!(story_line(&e), "D5, the vault: lost the thread.");
     let e = ep(7, Some("lock"), Act { row: 1, verb: Verb::new("bank"), target: None, boss: false }, Resolution::Banked { gold: 120 });
     assert_eq!(story_line(&e), "D7, the lock: R2 banked $120.");
@@ -4085,7 +4085,7 @@ fn ledger_line_reconciles_on_every_exit() {
                 ExitTier::Death => "died",
             };
             assert!(line.text.starts_with(&format!("{verb} ${} · ${carried} carried · keeps {pct}%", line.kept)), "{}", line.text);
-            assert_eq!(line.text.contains("lost thread"), timed_out, "{}", line.text);
+            assert_eq!(line.text.contains("lost thread") || line.text.contains("stalled"), timed_out, "{}", line.text);
             if tier == ExitTier::Death {
                 deaths += 1;
                 assert!(line.text.starts_with("died $0 · "), "{}", line.text);
@@ -4101,8 +4101,8 @@ fn ledger_line_reconciles_on_every_exit() {
             let tail: Vec<GoldLine> = g.lineage.gold_ledger.iter().skip(lines_before.min(g.lineage.gold_ledger.len().saturating_sub(1))).cloned().collect();
             let t = g.lineage.total_turns;
             let since: Vec<&GoldLine> = g.lineage.gold_ledger.iter().filter(|l| l.t == t).collect();
-            assert!(!since.is_empty(), "seed {seed}: no ledger line for the exit ({tail:?})");
-            let exit_line = since.iter().find(|l| l.why.starts_with("returned") || l.why.starts_with("banked") || l.why.starts_with("died") || l.why.starts_with("lost")).expect("exit movement");
+            assert!(!since.is_empty(), "seed {seed}: no ledger line for the exit at t {t} ({tail:?}; last 4: {:?})", g.lineage.gold_ledger.iter().rev().take(4).collect::<Vec<_>>());
+            let exit_line = since.iter().find(|l| l.why.starts_with("returned") || l.why.starts_with("banked") || l.why.starts_with("died") || l.why.starts_with("lost") || l.why.starts_with("stalled")).expect("exit movement");
             assert_eq!(exit_line.delta, line.kept, "seed {seed}: {since:?}");
             assert!(word_count(&exit_line.why) <= 3, "{}", exit_line.why);
             let salvage: i32 = since.iter().filter(|l| l.why == "salvage").map(|l| l.delta).sum();
@@ -5560,7 +5560,10 @@ fn exit_line_leads_with_the_verb() {
     assert_eq!(line(ExitTier::Bank, false, 0), "banked $84 · $84 carried · keeps 100%");
     assert_eq!(line(ExitTier::Death, false, 7), "died $0 · $84 carried · keeps 0% · bones: 7 items on D5");
     assert_eq!(line(ExitTier::Return, true, 0), "returned $50 · $84 carried · keeps 60% · lost thread");
-    for t in [line(ExitTier::Return, true, 0), line(ExitTier::Death, false, 7)] {
+    // A stall says so (the chronicle's "Stalled."), and a supply the send spent unused is counted.
+    let stalled = crate::engine::exit_line_of(15, 0, 0, 0, vec![], ExitTier::Return, true, true, 1, 0, 2).text;
+    assert_eq!(stalled, "returned $0 · $15 carried · keeps 0% · stalled · 1 supply unused");
+    for t in [line(ExitTier::Return, true, 0), line(ExitTier::Death, false, 7), stalled] {
         assert!(word_count(&t) <= 14, "{t}");
     }
 }

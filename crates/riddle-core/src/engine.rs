@@ -818,7 +818,7 @@ impl LineageState {
     /// (`why` starting with the tier word), so `+$0 died D5` explains what a death yields.
     pub fn gold_move(&mut self, delta: i32, why: &str) {
         self.gold += delta;
-        let exit = why.starts_with("returned") || why.starts_with("banked") || why.starts_with("died") || why.starts_with("lost");
+        let exit = why.starts_with("returned") || why.starts_with("banked") || why.starts_with("died") || why.starts_with("lost") || why.starts_with("stalled");
         if delta == 0 && !exit {
             return;
         }
@@ -2256,6 +2256,7 @@ impl Game {
         let loot_kept = run.loot.max(0) * pct / 100;
         let gold_before = self.lineage.gold;
         let exit_why = match tier {
+            _ if run.timed_out && run.stuck_fires >= STALL_FIRES => format!("stalled D{}", run.max_depth),
             _ if run.timed_out => format!("lost thread D{}", run.max_depth),
             ExitTier::Bank => format!("banked D{}", run.max_depth),
             ExitTier::Return => format!("returned D{}", run.max_depth),
@@ -2375,7 +2376,8 @@ impl Game {
         // coming home, and where the kit went on a death.
         let spent: i32 = self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.delta < 0 && !g.why.starts_with("salvage")).map(|g| -g.delta).sum();
         let bones_n = if tier == ExitTier::Death { self.lineage.bones.last().filter(|b| b.heir == run.heir).map(|b| b.items.len()).unwrap_or(0) } else { 0 };
-        let mut line = exit_line(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, bones_n, run.depth);
+        let unused = run.hero.inv.iter().filter(|i| run.supplies.contains(&i.id) && i.kind != "leash").count();
+        let mut line = exit_line_of(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, run.stuck_fires >= STALL_FIRES, unused, bones_n, run.depth);
         // Cut 9 §5: every exit carries its last five hero turns (read off the run's own trace
         // ring: nothing more per tick).
         line.trace = Some(exit_trace(&run, &self.prov));
@@ -2748,6 +2750,15 @@ pub fn exit_trace(run: &Run, prov: &[crate::provenance::Prov]) -> Trace {
 
 #[allow(clippy::too_many_arguments)]
 pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: Vec<String>, tier: ExitTier, timed_out: bool, bones: usize, depth: u32) -> ExitLine {
+    exit_line_of(carried, keep_pct, kept, spent, spent_on, tier, timed_out, false, 0, bones, depth)
+}
+
+/// `exit_line` with the two things a stalled or supplied run has to say: `stalled` (the run
+/// shuffled on one floor; `lost thread` is the turn cap) and `N supplies unused` (a supply
+/// packed at camp is spent by the send whether it was used or not — QA on 952e306: "the $40
+/// heal potion is gone (never drunk)").
+#[allow(clippy::too_many_arguments)]
+pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: Vec<String>, tier: ExitTier, timed_out: bool, stalled: bool, unused: usize, bones: usize, depth: u32) -> ExitLine {
     // Cut 10 §3: the line leads with the verb and what came home (`returned $50 · $84
     // carried · keeps 60%`; the report's exit lines read `returned $61`, not `$61`), the
     // arithmetic after it; a run that timed out says so at the end.
@@ -2758,10 +2769,13 @@ pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: V
     };
     let mut text = format!("{verb} ${kept} · ${carried} carried · keeps {keep_pct}%");
     if timed_out {
-        text.push_str(" · lost thread");
+        text.push_str(if stalled { " · stalled" } else { " · lost thread" });
     }
     if bones > 0 {
         text.push_str(&format!(" · bones: {bones} items on D{depth}"));
+    }
+    if unused > 0 && tier != ExitTier::Death {
+        text.push_str(&format!(" · {unused} {} unused", if unused == 1 { "supply" } else { "supplies" }));
     }
     ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None }
 }

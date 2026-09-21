@@ -3,7 +3,7 @@
 // run's movements only — `−$40 heal · −$30 leash · +$36 returned D5 · +$8 salvage` — with an `all` chip for the whole ledger.
 //
 // Which lines are a run's: the ledger is oldest first and every exit lands one line whose `why` starts with its tier word
-// (`returned D5`, `banked D8`, `died D3`, `lost thread D3`) at the exit's lineage tick; camp purchases sit between it and
+// (`returned D5`, `banked D8`, `died D3`, `lost thread D3`, `stalled D2`) at the exit's lineage tick; camp purchases sit between it and
 // the previous exit's line (the core charges supplies at `start_run`, the fake at the buy, both after the previous exit),
 // its salvage and a death's wake pay follow it at the same tick. So a run is the slice after the previous exit's tail up
 // to its own tail — an index range, which also holds when `GoldLine.t` is a coarser clock than the run's ticks. The exit line is matched to the ledger by its tier
@@ -15,10 +15,14 @@ import type { ExitLine, GoldLine } from "../engine/types";
 import { h } from "./dom";
 import { openSheet } from "./sheet";
 
-/** The tier word the core's exit line starts with, from the exit's keep share (as `exitLead` reads it); a timed-out
- *  return is `lost thread D3`. */
-const tierWord = (x: ExitLine): RegExp => (x.keep_pct >= 100 ? /^banked\b/ : x.keep_pct <= 0 ? /^died\b/ : /^(returned|lost)\b/);
-const isExit = (g: GoldLine): boolean => /^(returned|banked|died|lost)\b/.test(g.why);
+/** The ledger word of the exit `x` ended with: read off the line's own lead (`returned $0 · … · stalled` is a return that
+ *  kept nothing — its keep share alone would say `died`); a timed-out return's ledger line is `lost thread D3` or
+ *  `stalled D2`. */
+const tierWord = (x: ExitLine): RegExp => {
+  const lead = /^(banked|returned|died)\b/.exec(x.text)?.[1] ?? (x.keep_pct >= 100 ? "banked" : x.keep_pct <= 0 ? "died" : "returned");
+  return lead === "banked" ? /^banked\b/ : lead === "died" ? /^died\b/ : /^(returned|lost|stalled)\b/;
+};
+const isExit = (g: GoldLine): boolean => /^(returned|banked|died|lost|stalled)\b/.test(g.why);
 /** An exit's tail: its salvage and a death's wake pay, at the exit's tick (a supply bought in camp at that tick is the next run's). */
 const isTail = (g: GoldLine, exit: GoldLine): boolean => g.t === exit.t && /^(salvage|wake pay)\b/.test(g.why);
 

@@ -89,7 +89,11 @@ pub enum Resolution {
         #[serde(default)]
         gold: i32,
     },
-    Lost,
+    /// The run hit the turn cap (`lost the thread`) or shuffled on one floor (`stalled`).
+    Lost {
+        #[serde(default)]
+        stalled: bool,
+    },
     Died {
         cause: String,
     },
@@ -106,7 +110,7 @@ impl Resolution {
         matches!(self, Resolution::FirstBoss { .. } | Resolution::BossSlain { .. } | Resolution::Fell { .. })
     }
     pub fn is_exit(&self) -> bool {
-        matches!(self, Resolution::Banked { .. } | Resolution::Returned { .. } | Resolution::Lost | Resolution::Died { .. })
+        matches!(self, Resolution::Banked { .. } | Resolution::Returned { .. } | Resolution::Lost { .. } | Resolution::Died { .. })
     }
 }
 
@@ -803,7 +807,7 @@ fn resolution_form(res: &Resolution, level: u8) -> String {
         Resolution::FirstBoss { .. } => "first boss".into(),
         Resolution::BossSlain { .. } => "boss slain".into(),
         Resolution::Returned { .. } => "returned".into(),
-        Resolution::Lost => if level > 0 { "returned" } else { "lost the thread" }.into(),
+        Resolution::Lost { stalled } => if level > 0 { "returned" } else if *stalled { "stalled" } else { "lost the thread" }.into(),
         Resolution::Died { cause } => match level {
             0 => format!("died to {}", cause_phrase(cause)),
             1 => {
@@ -857,7 +861,7 @@ pub fn routine_line(ep: &Episode) -> Option<String> {
     let res = match &ep.resolution {
         Resolution::Returned { gold } => format!("returned ${}", gold.max(&0)),
         Resolution::Banked { gold } => format!("banked ${}", gold.max(&0)),
-        Resolution::Lost => "lost the thread".into(),
+        Resolution::Lost { stalled } => if *stalled { "stalled" } else { "lost the thread" }.into(),
         _ => return None,
     };
     let home = matches!(ep.resolution, Resolution::Returned { .. } | Resolution::Banked { .. });
@@ -877,7 +881,7 @@ pub fn routine_ok(text: &str) -> bool {
         Some((r, rest)) if r.starts_with('R') && r[1..].chars().all(|c| c.is_ascii_digit()) && r.len() > 1 => rest,
         _ => tail,
     };
-    let res_ok = tail == "lost the thread" || ["returned $", "banked $"].iter().any(|k| tail.strip_prefix(k).is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())));
+    let res_ok = tail == "lost the thread" || tail == "stalled" || ["returned $", "banked $"].iter().any(|k| tail.strip_prefix(k).is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())));
     depth_ok && twist_ok && res_ok && word_count(text) <= STORY_WORDS
 }
 
@@ -916,7 +920,7 @@ pub fn story_ok(text: &str) -> bool {
         head_ok && forms.contains(&rest)
     };
     let end = beats[2];
-    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "died"].iter().any(|k| end.starts_with(k)) || end.ends_with(" fell");
+    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "stalled", "died"].iter().any(|k| end.starts_with(k)) || end.ends_with(" fell");
     setup_ok && turn_ok && end_ok
 }
 
@@ -953,7 +957,7 @@ fn weight(res: &Resolution, named: bool) -> i32 {
         Resolution::Reached { .. } => 2,
         Resolution::FirstBoss { .. } => 5,
         Resolution::BossSlain { .. } => 2,
-        Resolution::Returned { .. } | Resolution::Lost => 1,
+        Resolution::Returned { .. } | Resolution::Lost { .. } => 1,
         Resolution::Died { .. } => {
             if named {
                 5
