@@ -587,7 +587,21 @@ fn descend_step(run: &mut Run, cx: &mut Ctx) -> bool {
         return false;
     }
     let (_, parent) = hero_bfs(run);
-    step_towards(run, cx, s, &parent)
+    if !step_towards(run, cx, s, &parent) {
+        return false;
+    }
+    // The step that lands on the stairs goes down in the same action: with two den thieves
+    // circling at one and two tiles, `foes ≥ 2 → to corridor` took every other action and the
+    // hero never had the stairs' turn (cohort 10, rater T: the stall on D4).
+    if run.hero.pos == s && run.over.is_none() {
+        // The den's pounce is "before the hero acts on the stairs": it gets its moment here.
+        let snatched = run.stolen.len();
+        crate::situations::before_action(run, cx);
+        if run.stolen.len() == snatched && run.over.is_none() {
+            descend(run, cx);
+        }
+    }
+    true
 }
 
 // ---------------------------------------------------------------- hero verbs

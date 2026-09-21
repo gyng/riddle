@@ -1205,7 +1205,9 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     let r = g.run_offline(16 * 3600);
     let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
     let stall = r.stall.unwrap_or_else(|| panic!("no stall: {} runs · {deaths} deaths · bests {:?}", r.runs, r.bests));
-    assert_eq!(deaths, 0);
+    // Cut 13: the stairs are taken on arrival (`ai::descend_step`), which moved this seed's
+    // dice; the one death it gets now is a bloat's burst at 9 hp — `dice`, no row to name.
+    assert!(g.deaths.values().all(|d| d.death.verdict == "dice"), "a row-named death: {:?}", g.deaths.values().map(|d| (&d.death.cause, &d.death.verdict)).collect::<Vec<_>>());
     assert_eq!(stall.row, 0);
     assert!(stall.fired >= 4, "{}", stall.text);
     assert!(stall.text.starts_with("R1 return ended"), "{}", stall.text);
