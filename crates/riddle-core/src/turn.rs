@@ -475,7 +475,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         run.blocked_last = None;
     }
     if tr == Trait::Curious && trait_ok && foes == 0 && hp_pct >= 50 {
-        if let Some(verb) = ai::curious_use(run, cx) {
+        run.acting_row = -3; // a trait's use names the trait in the log (`curious drank heal at …`)
+        let used = ai::curious_use(run, cx);
+        run.acting_row = -1;
+        if let Some(verb) = used {
             run.trait_last = Some(run.actions);
             emit_rule(run, cx, -1, &verb, &format!("curious → {}", verb.short()));
             return (-1, verb);

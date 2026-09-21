@@ -99,13 +99,17 @@ pub fn stolen(run: &Run, cx: &mut Ctx, kind: &str, by: &str, by_den: bool, label
 /// `thrown` alike); `hp` is the HP before the effect.
 pub fn used(run: &Run, cx: &mut Ctx, verb: &str, kind: &str, hp: i32) {
     let kind_word = kind.replace('_', " ");
+    let did = match verb {
+        "drunk" => "drank",
+        "thrown" => "threw",
+        v => v,
+    };
     let text = if run.acting_row >= 0 {
-        let did = match verb {
-            "drunk" => "drank",
-            "thrown" => "threw",
-            v => v,
-        };
         format!("R{} {did} {kind_word} at {hp}/{} hp", run.acting_row + 1, run.hero.max_hp.max(1))
+    } else if run.acting_row == -3 {
+        // A trait's use (QA on e0f87e7: `drunk heal at 23/36 hp` under a rule `hp < 30%` read
+        // as the row firing at 64 %).
+        format!("{} {did} {kind_word} at {hp}/{} hp", run.trait_.name(), run.hero.max_hp.max(1))
     } else {
         format!("{verb} {kind_word} at {hp}/{} hp", run.hero.max_hp.max(1))
     };
