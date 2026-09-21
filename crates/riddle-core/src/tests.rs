@@ -1294,7 +1294,11 @@ fn death_with_an_unused_heal_is_a_gap_with_a_drink_patch() {
     let id = id.expect("the hero died");
     let d = g.death(id).unwrap();
     assert_eq!(d.verdict, "gap");
-    assert!(d.margin.contains("heal unused"));
+    // Cut 14 §2: the margin calls the heal unused only when drinking it would have saved him
+    // (its row survives ≥ `MARGIN_BAR` of the replays); here the heal row is offered at 17 %
+    // beside a return at 100 %, so the line stays silent about it.
+    let heal = d.patches.iter().find(|p| p.row.verb.v == "drink" && p.row.verb.a.as_deref() == Some("heal")).expect("the heal row is a patch");
+    assert_eq!(d.margin.contains("heal unused"), heal.survive >= crate::trace::MARGIN_BAR, "{} vs {:?}", d.margin, heal);
     assert!(d.trace.turns.len() <= 10 && !d.trace.turns.is_empty());
     assert!(!d.patches.is_empty() && d.patches.len() <= 3);
     assert!(d.patches.iter().all(|p| p.survive >= crate::trace::survive_bar(d.baseline) || p.forecast_delta >= crate::trace::DELTA_BAR), "{:?}", d.patches);
@@ -2402,6 +2406,39 @@ fn insurance_keeps_a_brought_item_on_death() {
     finish_with(&mut g, ExitTier::Death);
     assert!(g.lineage.vault.iter().any(|v| v.id == 100_001), "the insured plate came home");
     assert!(g.lineage.insured.is_empty(), "the policy is spent");
+}
+
+/// Cut 14 §2: `heal unused` is on the margin when the heal-drinking row survives ≥ half the
+/// replays (the same fight as the id-policy test, the potions known): the verdict is `gap`
+/// and the drink row is among the patches — the line never contradicts the verdict.
+#[test]
+fn margin_names_the_heal_when_drinking_it_saves_him() {
+    let mut g = arena_seed(4);
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    g.run.as_mut().unwrap().hero.hp = 12;
+    for _ in 0..3 {
+        give(&mut g, "heal");
+    }
+    for (x, y) in [(5, 5), (5, 6), (4, 6)] {
+        add_monster(&mut g, "goblin", x, y);
+    }
+    attack_rules(&mut g);
+    let mut id = None;
+    for _ in 0..400 {
+        g.tick();
+        g.events.clear();
+        if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            id = Some(g.run.as_ref().unwrap().id);
+            g.finish_run();
+            break;
+        }
+    }
+    let d = g.death(id.expect("died")).unwrap();
+    let heal = d.patches.iter().find(|p| p.row.verb.v == "drink" && p.row.verb.a.as_deref() == Some("heal")).expect("the heal row is a patch");
+    assert!(heal.survive >= crate::trace::MARGIN_BAR, "{heal:?}");
+    assert_eq!(d.verdict, "gap");
+    assert!(d.margin.contains("heal unused"), "{}", d.margin);
+    assert!(!d.margin.contains("unknown"), "{}", d.margin);
 }
 
 #[test]
@@ -3677,6 +3714,26 @@ fn unlock_catalogue_carries_a_forecast_delta_for_open_cards() {
     eprintln!("catalogue deltas at D3: {first:.3}s");
 }
 
+/// Cut 14 §1: a condition unlock carries a delta when a row of the set waits on it (the
+/// same rules on a lineage that owns the condition, against the base) — where a death's
+/// lock root sends its number once nothing under the baseline is offered on the death
+/// screen; a condition no row uses has nothing to measure.
+#[test]
+fn cond_unlock_carries_the_locked_rows_delta() {
+    let mut g = Game::new(2);
+    g.lineage.facts.insert("den".into());
+    g.lineage.facts.insert("foe:jackal:pack".into()); // the gate: a foe met
+    g.lineage.best_depth = 2;
+    let mut rules = g.lineage.rules().clone();
+    rules.rows.insert(0, Row::new(vec![Cond::t("on_see", "den")], Verb::arg("attack", "nearest")));
+    g.set_rules_raw(rules).unwrap();
+    let cat = g.unlock_deltas();
+    let by = |id: &str| cat.iter().find(|u| u.id == id).unwrap().clone();
+    let on_see = by("cond_on_see");
+    assert!(!on_see.owned && on_see.delta.is_some() && on_see.pm.is_some(), "{on_see:?}");
+    assert!(by("cond_alert").delta.is_none(), "no row waits on it: {:?}", by("cond_alert"));
+}
+
 /// Cut 4: `Lineage.ascended` lists the variants already finished.
 #[test]
 fn lineage_wire_carries_ascended_variants() {
@@ -4400,6 +4457,7 @@ fn counter_facts_carry_the_row() {
 fn boss_deaths_show_the_counter_row_first() {
     let mut deaths = 0;
     let mut lone_return = 0;
+    let mut under = 0;
     let mut seed = 100u64;
     while deaths < 30 {
         seed += 1;
@@ -4443,13 +4501,24 @@ fn boss_deaths_show_the_counter_row_first() {
         deaths += 1;
         assert!(!d.patches.is_empty(), "seed {seed}: no patch on a boss death");
         let counter = crate::facts::counter_row("goblin_warlord");
-        assert_eq!(d.patches[0].row, counter, "seed {seed}: {:?}", d.patches);
+        // Cut 14 §1: nothing under the baseline is offered, the pinned counter included — it
+        // leads whenever its measured survival is at or over the unpatched replays'.
+        let measured = crate::trace::measure_row(&g, rec, &counter).expect("the counter row replays");
+        if measured.0 >= d.baseline - 1e-9 {
+            assert_eq!(d.patches[0].row, counter, "seed {seed}: {:?}", d.patches);
+        } else {
+            under += 1;
+            assert!(d.patches.iter().all(|p| p.row != counter), "seed {seed}: the counter under the baseline ({} vs {}) is shown: {:?}", measured.0, d.baseline, d.patches);
+        }
         assert!(d.line.is_some());
         if d.patches.len() == 1 && d.patches[0].row.verb.v == "return" {
             lone_return += 1;
         }
     }
     assert_eq!(lone_return, 0);
+    // (a hero at 12–16 hp who turns on the Warlord dies every replay on some seeds: the
+    // counter's number there is the wall's, on the forecast's try row, not the moment's)
+    assert!(under * 3 <= 30, "the counter fell under the baseline on {under} of 30 boss deaths");
 }
 
 /// §9: the forecast is a function of (rules, lineage seed, depth) and the lineage a sim starts
@@ -4478,19 +4547,73 @@ fn forecast_is_deterministic_per_rules_and_lineage() {
     let r2 = g.forecast_refine();
     assert_eq!(r1, r2);
     assert_eq!(r1.known_to, a.known_to);
+    // Cut 14 §1: the refine's ends line runs `REFINE_ENDS_SIMS` (its `±` ≤ 14 at 50 %); the
+    // first paint's runs `ENDS_SIMS`.
+    assert!(r1.refined && !a.refined);
+    let (e1, e0) = (r1.ends.as_ref().expect("ends"), a.ends.as_ref().expect("ends"));
+    assert!(e1.pm <= 0.14 + 1e-9, "refined ends ±{:.3}", e1.pm);
+    assert_eq!(e1.pm, crate::forecast::half_width(e1.death, crate::forecast::REFINE_ENDS_SIMS as usize), "the refined ends ran short of {}", crate::forecast::REFINE_ENDS_SIMS);
+    assert_eq!(e0.pm, crate::forecast::half_width(e0.death, crate::forecast::ENDS_SIMS as usize));
     // A second game with the same seed and rules reads the same forecast; the seeds are the
-    // forecast's own (a different rule set draws its own seeds).
+    // forecast's own.
     let mut h = Game::new(11);
     no_kennel_leash(&mut h);
     h.set_rules_raw(crate::probes::good()).unwrap();
     assert_eq!(h.forecast(), a);
-    let t1 = crate::forecast::forecast_tag(&g, g.lineage.rules(), 1);
-    let t2 = crate::forecast::forecast_tag(&g, &crate::probes::preset(Class::Fighter), 1);
-    let t3 = crate::forecast::forecast_tag(&g, g.lineage.rules(), 2);
-    assert!(t1 != t2 && t1 != t3);
+    // Cut 14 §1: the seeds are the lineage's per depth, whatever the set — a different rule
+    // set is measured on the same dungeons (a paired difference), a different depth on its own.
+    let t1 = crate::forecast::forecast_tag(&g, 1);
+    let t3 = crate::forecast::forecast_tag(&g, 2);
+    assert!(t1 != t3);
     // Through the save: identical.
     let g3 = Game::load(&g.save()).unwrap();
     assert_eq!(g3.forecast(), a);
+}
+
+/// Cut 14 §1: the forecast is a paired measurement — every set a lineage forecasts plays the
+/// same dungeons (`forecast_tag` hashes the lineage seed and the depth, not the rules), so a
+/// one-notch edit (the good set's `hp<35 → drink heal` at `hp<30`) reads as a small delta at
+/// D5: |Δ| ≤ 0.08 on ≥ 90 % of 30 lineage seeds. (Two independent draws at 50 sims read ±14
+/// each — "the same six rows read 94/6, then 79/21", cohort 10.)
+#[test]
+fn paired_forecast_one_notch_edit_is_a_small_delta() {
+    let good = crate::probes::good();
+    let mut edited = good.clone();
+    let i = edited.rows.iter().position(|r| r.verb.v == "drink" && r.conds.iter().any(|c| c.k == "hp<" && c.n == Some(35))).expect("the good set's heal row");
+    edited.rows[i].conds[0].n = Some(30);
+    let seeds = 30u64;
+    let mut small = 0;
+    let mut deltas = Vec::new();
+    for seed in 1..=seeds {
+        // The EDITED bot's lineage (`examples/metrics.rs`): eight rows, the heal known, two
+        // on the shelf — the row fires, so the edit is load-bearing.
+        let mut g = Game::new(seed);
+        no_kennel_leash(&mut g);
+        for u in ["row5", "row6", "row7", "row8"] {
+            g.lineage.unlocks.insert(u.into());
+        }
+        g.lineage.facts.insert(crate::item::ident_fact(&g.lineage.flavours, "heal").unwrap());
+        g.lineage.gold_move(100, "test");
+        g.buy_supply("heal").unwrap();
+        g.buy_supply("heal").unwrap();
+        g.set_rules_raw(good.clone()).unwrap();
+        assert_eq!(g.lineage.rules().rows.len(), good.rows.len());
+        // The panel's own seeds at D5 (`forecast_tag`), run to D8 so one panel answers D5
+        // (the contract's depth; the good set is near its ceiling there) and D8 (where its
+        // reach is mid-range and a second draw would spread).
+        let tag = crate::forecast::forecast_tag(&g, 5);
+        let n = crate::forecast::FORECAST_SIMS;
+        let panel = |rules: &RuleSet, tag: u64| crate::forecast::simulate_budget(&g, rules, n, tag, 8, u64::MAX);
+        let reach = |rs: &[crate::forecast::SimResult], d: u32| rs.iter().filter(|r| r.max_depth >= d).count() as f64 / n as f64;
+        let (b, e) = (panel(&good, tag), panel(&edited, tag));
+        assert_eq!((b.len(), e.len()), (n as usize, n as usize));
+        let (d5, d8) = (reach(&e, 5) - reach(&b, 5), reach(&e, 8) - reach(&b, 8));
+        deltas.push((d5, d8));
+        if d5.abs() <= 0.08 + 1e-9 && d8.abs() <= 0.08 + 1e-9 {
+            small += 1;
+        }
+    }
+    assert!(small * 10 >= seeds * 9, "|Δ| ≤ 0.08 at D5 and D8 on {small}/{seeds}: {deltas:?}");
 }
 
 // ---------------------------------------------------------------- Cut 7
@@ -5110,7 +5233,7 @@ fn forecast_pm_and_refine_share_the_panel_seeds() {
     g.set_rules(dive.clone()).unwrap();
     g.lineage.best_depth = 2;
     let rules = g.lineage.rules().clone();
-    let tag = crate::forecast::forecast_tag(&g, &rules, 3);
+    let tag = crate::forecast::forecast_tag(&g, 3);
     let a = crate::forecast::simulate_budget(&g, &rules, 50, tag, 3, u64::MAX);
     let b = crate::forecast::simulate_budget(&g, &rules, 100, tag, 3, u64::MAX);
     assert_eq!(b.len(), 100);
@@ -5607,7 +5730,7 @@ fn card_delta_is_measured_where_the_buy_puts_it() {
     let delta = card.delta.expect("open card");
     let rules = g.lineage.rules().clone();
     let depth = g.lineage.best_depth + 1;
-    let tag = crate::forecast::forecast_tag(&g, &rules, depth);
+    let tag = crate::forecast::forecast_tag(&g, depth);
     let (base, n) = crate::forecast::reach_counted(&g, &rules, depth, crate::forecast::FORECAST_SIMS, tag, crate::forecast::CATALOGUE_TICK_BUDGET);
     let mut appended = rules.clone();
     appended.rows.insert(1, Row::new(vec![], Verb::arg("tactic", "gas_step")).from("card"));

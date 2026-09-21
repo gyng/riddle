@@ -155,22 +155,20 @@ pub fn forecast_refine(game: &Game) -> Forecast {
 
 pub const REFINE_SIMS: u32 = 2 * FORECAST_SIMS;
 
-/// Cut 6 §9: the forecast's seeds are a function of (rules, lineage seed, depth) — re-reading
-/// the same set gives the same number, and nothing transient (marks, renown, the rest clock,
-/// the run in progress) moves it. The lineage state a sim starts from (facts, gold, class…)
-/// still does: `reach_with`'s fingerprint is the same idea.
-pub fn forecast_tag(game: &Game, rules: &RuleSet, depth: u32) -> u64 {
-    let mut h: u64 = 0x5EED_F0C4;
-    for b in serde_json::to_string(rules).unwrap_or_default().bytes() {
-        h ^= b as u64;
-        h = h.wrapping_mul(0x0100_0000_01b3);
-    }
-    splitmix(h ^ game.lineage.seed.rotate_left(17) ^ ((depth as u64) << 40))
+/// Cut 6 §9: the forecast's seeds are a function of (lineage seed, depth) — re-reading the
+/// same set gives the same number, and nothing transient (marks, renown, the rest clock, the
+/// run in progress) moves it. The lineage state a sim starts from (facts, gold, class…)
+/// still does: `reach_with`'s fingerprint is the same idea. Cut 14 §1: the rules are not in
+/// the hash — every set a lineage forecasts plays the same dungeons (seed × depth × sim
+/// index), so an edit's delta is a paired difference, not two draws (cohort 10: "the same
+/// six rows read 94/6, then 79/21"; "a 10-point edit is unreadable").
+pub fn forecast_tag(game: &Game, depth: u32) -> u64 {
+    splitmix(0x5EED_F0C4 ^ game.lineage.seed.rotate_left(17) ^ ((depth as u64) << 40))
 }
 
 pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let known_to = game.lineage.best_depth + 1;
-    let tag = forecast_tag(game, rules, known_to);
+    let tag = forecast_tag(game, known_to);
     // The refine pass runs twice the sims under twice the tick budget (the same seeds first).
     let budget = FORECAST_TICK_BUDGET * (sims as u64).div_ceil(FORECAST_SIMS as u64).max(1);
     let results = simulate_budget(game, rules, sims, tag, known_to, budget);
@@ -187,7 +185,11 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     // from their own small panel that runs every send to its exit — `ENDS_SIMS` under the
     // delta budget, so an edit still answers at once. The killers are read off the same
     // panel (QA on e0f87e7: `death 0%` beside `jackal 50% · ogre 25%` from the reach panel).
-    let ended = simulate_budget(game, rules, ENDS_SIMS, tag ^ ENDS_TAG, u32::MAX, DELTA_TICK_BUDGET);
+    // Cut 14 §1: the refine pass runs the ends at `REFINE_ENDS_SIMS` (±14 at 50 % instead of
+    // ±22) under the budget scaled to match; `pm` reflects the count that ran.
+    let ends_sims = if sims > FORECAST_SIMS { REFINE_ENDS_SIMS } else { ENDS_SIMS };
+    let ends_budget = DELTA_TICK_BUDGET * ends_sims as u64 / ENDS_SIMS as u64;
+    let ended = simulate_budget(game, rules, ends_sims, tag ^ ENDS_TAG, u32::MAX, ends_budget);
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
     let mut deaths = 0u32;
     for r in &ended {
@@ -214,6 +216,8 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
 
 /// The ends panel: sends run to their exit, not to `known_to` (see `forecast_with`).
 pub const ENDS_SIMS: u32 = 20;
+/// Cut 14 §1: the ends panel's count on the refine pass (`forecast_refine`).
+pub const REFINE_ENDS_SIMS: u32 = 50;
 const ENDS_TAG: u64 = 0xE4D5_0F5E_4D5E_4D50;
 
 /// Cut 10 §2: the `try` of a forecast row — reaching `depth` means passing the boss on the

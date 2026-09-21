@@ -67,16 +67,14 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     };
     // Cut 10 §3: `3 hp short` (was `3 over`, which no rater could read): the HP that would have
     // kept the hero standing through the killing blow. A stall keeps nothing: `keeps $0`.
-    let mut margin = if stall { "keeps $0".to_string() } else { format!("{} hp short", run.death_short.max(1)) };
+    // Cut 14 §2: `heal unused` / `N unknown unused` are the verdict's to add (`margin_lines`):
+    // only when the candidate that drinks it survived the replays — a `dice` death's margin
+    // never names an item the replays say would not have saved him (cohort 10, rater S).
+    let margin = if stall { "keeps $0".to_string() } else { format!("{} hp short", run.death_short.max(1)) };
     let facts = &game.lineage.facts;
     let fl = &game.lineage.flavours;
-    if !stall && run.hero.inv.iter().any(|i| i.kind == "heal" && i.is_known(facts, fl)) {
-        margin.push_str(" · heal unused");
-    }
-    let unknown = run.hero.inv.iter().filter(|i| i.is_consumable() && !i.is_known(facts, fl)).count();
-    if !stall && unknown > 0 {
-        margin.push_str(&format!(" · {unknown} unknown unused"));
-    }
+    let heal_held = !stall && run.hero.inv.iter().any(|i| i.kind == "heal" && i.is_known(facts, fl));
+    let unknown_held = if stall { 0 } else { run.hero.inv.iter().filter(|i| i.is_consumable() && !i.is_known(facts, fl)).count() as u32 };
     let rules = game.lineage.rules().clone();
     let vocab = context_vocab(game, run);
     let death = Death {
@@ -135,7 +133,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     });
     let t10_lineage = t10.as_ref().map(|_| crate::engine::CheckpointLineage::of(&game.lineage));
     let boss = if stall { None } else { boss_of(run, &cause) };
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage }
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, root_under_base: false }
 }
 
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
@@ -888,6 +886,11 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
         score(&mut rp, row, pos, bar).map(|(rate, _fired)| (rate, row.clone(), pos))
     });
     let mut scored: Vec<(f64, Row, usize)> = scored.into_iter().flatten().collect();
+    // Cut 14 §2: did the item's own row save him? (the margin's `heal unused` / `N unknown
+    // unused`, written below once the verdict is known)
+    let uses = |row: &Row, a: &str| matches!(row.verb.v.as_str(), "drink" | "read") && row.verb.a.as_deref() == Some(a);
+    let heal_saves = scored.iter().any(|(rate, row, _)| uses(row, "heal") && *rate >= MARGIN_BAR - 1e-9);
+    let unknown_saves = scored.iter().any(|(rate, row, _)| uses(row, "unknown") && *rate >= MARGIN_BAR - 1e-9);
     // Rank by how much the row beats the unpatched baseline; ties: a conditioned row (a policy)
     // beats an unconditioned one, then fewer conditions, then the top position.
     scored.sort_by(|a, b| {
@@ -904,6 +907,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     // scored like any other (its edge counts for the verdict; its delta is simulated first).
     if let Some(r) = root_patch(game, rec, &base, ticks) {
         edge_gap |= r.survive - baseline >= PATCH_MARGIN - 1e-9;
+        rec.root_under_base = r.survive < baseline - 1e-9;
         patches.retain(|p| p.row != r.row);
         patches.insert(0, r);
     }
@@ -926,10 +930,45 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
         // No patch survives the moment clearly: the forecast decides (a row that costs no
         // survival here but gains floors is still a gap in the policy).
         forecast_deltas(game, rec, VERDICT_DELTA_CANDIDATES, true);
-        if rec.death.patches.iter().any(|p| p.forecast_delta >= DELTA_BAR - 1e-9) {
+        // Cut 14 §1: a row under the baseline is never offered (`drop_under_base`), so its
+        // floors make a gap only while something at or over the baseline is left to show —
+        // else the moment was the dice, and the dice fallback names what was tried.
+        let offered = rec.death.patches.iter().any(|p| p.survive >= baseline - 1e-9);
+        if offered && rec.death.patches.iter().any(|p| p.forecast_delta >= DELTA_BAR - 1e-9) {
             rec.death.verdict = "gap".into();
         }
     }
+    margin_lines(rec, heal_saves, unknown_saves);
+}
+
+/// Cut 14 §2: the margin's `· heal unused` and `· N unknown unused` — only on a `gap`, and
+/// only when the candidate that uses the item (`hp<N → drink heal`, `→ drink | read unknown`)
+/// survived at least `MARGIN_BAR` of the replays and reached the death's bar (it is among the
+/// patches): the line then never contradicts the verdict. A `dice` death's margin is the HP
+/// line alone; what would have helped is the patch the screen names (Cut 11 §4).
+fn margin_lines(rec: &mut DeathRec, heal_saves: bool, unknown_saves: bool) {
+    if rec.death.verdict != "gap" {
+        return;
+    }
+    if rec.heal_held && heal_saves {
+        rec.death.margin.push_str(" · heal unused");
+    }
+    if rec.unknown_held > 0 && unknown_saves {
+        rec.death.margin.push_str(&format!(" · {} unknown unused", rec.unknown_held));
+    }
+}
+
+/// Cut 14 §2: the survival a consumable's row must reach for the margin to call it unused.
+pub const MARGIN_BAR: f64 = 0.5;
+
+/// Cut 14 §1: nothing under the baseline is offered (cohort 10, rater S: "a patch worse than
+/// base — survives 42 % · base 50 % — was offered first") — the root patch and the pinned
+/// counter included (a lock root's number is the unlock sheet's delta, `meta::
+/// catalogue_with_deltas`). A `dice` death's candidates kept under the bar (Cut 11 §4,
+/// `below_bar`) stay: the client renders them as what was tried, not as advice.
+fn drop_under_base(rec: &mut DeathRec) {
+    let base = rec.death.baseline;
+    rec.death.patches.retain(|p| p.below_bar || p.survive >= base - 1e-9);
 }
 
 /// Simulate the candidates' forecast deltas at the death's depth (`DELTA_SIMS` paired sims
@@ -985,8 +1024,11 @@ fn forecast_deltas(game: &Game, rec: &mut DeathRec, limit: usize, until_gap: boo
 }
 
 /// Candidates whose forecast delta the verdict itself simulates when no patch has a survival
-/// edge (the best by edge; the death screen fills in the rest).
-pub const VERDICT_DELTA_CANDIDATES: usize = 3;
+/// edge (the best by edge). Cut 14 §1: the same six the death screen measures — with
+/// nothing under the baseline in the list, a high-baseline death's few remaining rows (a
+/// `rest` or `descend` that never fires in the window, at the baseline exactly) are the
+/// ones whose floors decide it, and three by edge did not always reach them.
+pub const VERDICT_DELTA_CANDIDATES: usize = DELTA_CANDIDATES;
 
 /// Fill in each patch's full-forecast delta at the death's depth and shape the shown list.
 pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
@@ -994,6 +1036,7 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
         return;
     }
     rec.shaped = true;
+    drop_under_base(rec);
     // Cut 11 §4: a `dice` death with nothing over the bar still names its alternative — the
     // best candidates measured in full, flagged `below_bar`, with their deltas.
     if rec.death.verdict == "dice" {
@@ -1064,7 +1107,9 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
                 rec.death.patches.truncate(SHOWN);
             }
         }
-        let bar = survive_bar(baseline);
+        // Under the bar — or under the baseline itself (a bar capped at `SURVIVE_BAR` sits
+        // under a high baseline): either way the screen says `nothing beats base`.
+        let bar = survive_bar(baseline).max(baseline);
         for p in rec.death.patches.iter_mut() {
             p.below_bar = p.survive < bar - 1e-9;
         }

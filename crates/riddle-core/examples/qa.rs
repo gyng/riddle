@@ -81,6 +81,17 @@ fn check_forecast(t: &mut Tally, g: &Game, seed: u64) {
     }
 }
 
+/// Cut 14 §1–2: a death screen offers nothing under its baseline (a `dice` death's candidates
+/// kept under the bar are flagged `below_bar`), and a `dice` margin names no unused item.
+fn check_death(t: &mut Tally, seed: u64, d: &riddle_core::Death) {
+    for p in &d.patches {
+        t.check("no death screen carries a patch under its baseline (unless below_bar)", p.below_bar || p.survive >= d.baseline - 1e-9, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2} · {}", d.run_id, p.row.describe(), p.survive, d.baseline, d.verdict));
+    }
+    if d.verdict == "dice" {
+        t.check("no dice death's margin names an unused item", !d.margin.contains("unused"), || format!("seed {seed} run {}: `{}`", d.run_id, d.margin));
+    }
+}
+
 fn play(seed: u64) -> Tally {
     let mut t = Tally::default();
     let mut g = Game::new(seed);
@@ -136,6 +147,7 @@ fn play(seed: u64) -> Tally {
             t.check("no patch already in the set", !dup, || format!("seed {seed} run {id}: {} is R{}", p.row.describe(), rules.rows.iter().position(|r| *r == p.row).map(|i| i + 1).unwrap_or(0)));
         }
         t.check("a death has a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice") && !d.trace.turns.is_empty(), || format!("seed {seed} run {id}: {} · {} turns", d.verdict, d.trace.turns.len()));
+        check_death(&mut t, seed, &d);
         if let Some(p) = d.patches.iter().find(|p| p.insert_at >= 0) {
             let patched = riddle_core::offline::apply_patch(&rules, p, g.lineage.max_rows());
             t.check("the top patch applies through set_rules", g.set_rules(patched).is_ok(), || format!("seed {seed}: {}", p.row.describe()));
@@ -165,6 +177,13 @@ fn play(seed: u64) -> Tally {
     check_forecast(&mut t, &g, seed);
     if let Some(d) = &r.worst_death {
         t.check("worst death carries a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "stall") && !d.trace.turns.is_empty(), || format!("seed {seed}: {}", d.verdict));
+        check_death(&mut t, seed, d);
+    }
+    // One more of the night's deaths (the last one that is not the worst), in full.
+    if let Some(id) = g.deaths.iter().rev().find(|(id, rec)| !rec.stall && Some(**id) != r.worst_death_id).map(|(id, _)| *id) {
+        if let Some(d) = g.death(id) {
+            check_death(&mut t, seed, &d);
+        }
     }
     // Every stall record: its verdict, a firing patch, the reel's cause == the trace's.
     let stall_ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| rec.stall).map(|(id, _)| *id).collect();
@@ -173,6 +192,7 @@ fn play(seed: u64) -> Tally {
         let rec = g.deaths.get(&id).cloned().unwrap();
         let fires = d.patches.iter().any(|p| riddle_core::trace::patch_fired_rate(&g, &rec, p) >= 0.5);
         t.check("a stall's verdict names a firing patch", d.verdict == "stall" && fires, || format!("seed {seed} run {id}: {} {:?}", d.verdict, d.patches.iter().map(|p| p.row.describe()).collect::<Vec<_>>()));
+        check_death(&mut t, seed, &d);
         let cause = d.cause.strip_prefix("stalled · ").unwrap_or(&d.cause);
         let want = format!("stalled, {}", riddle_core::sifter::stall_short(cause));
         let lines: Vec<&riddle_core::Highlight> = g.batch.highlights.iter().filter(|h| h.run_id == id && h.arc.is_some()).collect();

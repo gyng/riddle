@@ -107,9 +107,13 @@ struct SeedResult {
     /// how many deaths were looked at.
     because: (u32, u32),
     because_deaths: u32,
-    /// §2: deaths with a theft/lock root (player-shaped bots, ≤ 3 per seed), of which show a
-    /// root patch, of which the root patch's forecast delta reaches the best symptom's.
+    /// §2: deaths with a theft/lock root (player-shaped bots, ≤ 3 per seed) whose root patch
+    /// measured at or over the baseline, of which show a root patch, of which the root
+    /// patch's forecast delta reaches the best symptom's.
     roots: (u32, u32, u32),
+    /// Cut 14 §1: root deaths whose root patch measured under the baseline (not offered; the
+    /// unlock sheet carries its number).
+    roots_under: u32,
     /// §4: sampled `dice` deaths, of which name an alternative (non-empty patches).
     dice_named: (u32, u32),
     // Cut 13 §1
@@ -430,6 +434,10 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
         let root_ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| rec.root.is_some() && !rec.stall).map(|(id, _)| *id).take(3).collect();
         for id in root_ids {
             let Some(d) = g.death(id) else { continue };
+            if g.deaths.get(&id).is_some_and(|rec| rec.root_under_base) {
+                r.roots_under += 1;
+                continue;
+            }
             r.roots.0 += 1;
             if let Some(p) = d.patches.iter().find(|p| p.root.is_some()) {
                 r.roots.1 += 1;
@@ -866,8 +874,11 @@ fn main() {
     // with is nearly always `hp<20 → rest` (+0.17 on a set that never rests), the largest
     // generic gain there is, and a den raid on D3 does not out-forecast it at D5 (docs/CUT11.md
     // deviation, README "Cut 11"). The root patch is shown regardless, ranked by its number.
-    println!("root patches (Cut 11 §2): {rt_n} theft/lock deaths · root patch shown {rt_shown} ({rt_shown_pct:.0}%) · its delta ≥ the best symptom's {rt_beats} ({rt_beats_pct:.0}%; bar 80%, informational — deviation)");
-    rows.push((format!("Root patch shown on theft/lock roots ≥ 80% (n={rt_n})"), format!("{rt_shown_pct:.0}%"), rt_shown_pct >= 80.0 || rt_n == 0));
+    // Cut 14 §1: a root patch measured under the baseline is not offered (nothing under it
+    // is); those deaths are counted out of the gate and printed beside it.
+    let rt_under: u32 = all.iter().map(|r| r.roots_under).sum();
+    println!("root patches (Cut 11 §2): {rt_n} theft/lock deaths · root patch shown {rt_shown} ({rt_shown_pct:.0}%) · its delta ≥ the best symptom's {rt_beats} ({rt_beats_pct:.0}%; bar 80%, informational — deviation) · {rt_under} more with the root under the baseline (Cut 14 §1: not offered)");
+    rows.push((format!("Root patch shown on theft/lock roots ≥ 80% (n={rt_n}, +{rt_under} under base)"), format!("{rt_shown_pct:.0}%"), rt_shown_pct >= 80.0 || rt_n == 0));
     let (dn_n, dn_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.dice_named.0, a.1 + r.dice_named.1));
     rows.push((format!("Dice deaths name an alternative 100% (n={dn_n})"), format!("{}/{dn_n}", dn_ok), dn_ok == dn_n));
     // Cut 13 §1 gates (docs/CUT13.md): stalls ≤ 1 % of sends on DEFAULT (EDITED plays

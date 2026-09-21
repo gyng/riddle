@@ -1134,6 +1134,21 @@ pub struct DeathRec {
     /// longer reproduced the death. Absent on older records.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub t10_lineage: Option<CheckpointLineage>,
+    /// Cut 14 §2: what the pack held at the death — a known heal, and how many unknown
+    /// consumables — for the margin's `heal unused` / `N unknown unused`, which the verdict
+    /// writes only when the candidate that uses it survived the replays (`trace::margin_lines`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub heal_held: bool,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub unknown_held: u32,
+    /// Cut 14 §1: the root patch measured under the baseline — not offered on the death
+    /// screen (its number is the unlock sheet's delta); the gate table counts it out.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub root_under_base: bool,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 /// Cut 13: what a replay's floor generation reads off the lineage (see `DeathRec.t10_lineage`).

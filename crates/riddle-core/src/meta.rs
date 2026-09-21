@@ -274,7 +274,7 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
     let sims = crate::forecast::FORECAST_SIMS;
     let budget = crate::forecast::CATALOGUE_TICK_BUDGET;
     let rules = l.rules().clone();
-    let tag = crate::forecast::forecast_tag(game, &rules, depth);
+    let tag = crate::forecast::forecast_tag(game, depth);
     let max_rows = l.max_rows();
     let mut base: Option<(f64, u32)> = None;
     for u in cat.iter_mut() {
@@ -283,23 +283,33 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         if u.owned || gated {
             continue;
         }
-        let Some((row, at)) = delta_row(l, &u.id) else { continue };
-        if rules.rows.contains(&row) {
-            continue;
-        }
-        // A verb unlock carries no delta: its canonical row at the top is nobody's policy
-        // (`foes ≥ 2 → throw unknown` read `reach −92% ±11` — QA on 50bb162; `+21%` bought and
-        // nothing moved — QA on e0f87e7). A verb is a word for the player's own rows; a
-        // card's delta is the card's rows where the buy puts them.
-        if row.verb.v != "tactic" {
-            continue;
-        }
-        // The sim lineage owns the unlock (the verb must be in its vocabulary to fire).
+        // Cut 14 §1: a condition unlock's delta is the set's own locked rows waking — the same
+        // rules on a lineage that owns the condition, against the base. It is where a death's
+        // lock root sends its number when the root patch sits under the baseline (nothing
+        // under it is offered on the death screen; here it reads as information).
+        let wakes_a_row = u.id.starts_with("cond_") && rules.rows.iter().any(|r| r.conds.iter().any(|c| cond_unlock(&c.k) == Some(u.id.as_str())));
+        let patched = if wakes_a_row {
+            rules.clone()
+        } else {
+            let Some((row, at)) = delta_row(l, &u.id) else { continue };
+            if rules.rows.contains(&row) {
+                continue;
+            }
+            // A verb unlock carries no delta: its canonical row at the top is nobody's policy
+            // (`foes ≥ 2 → throw unknown` read `reach −92% ±11` — QA on 50bb162; `+21%` bought and
+            // nothing moved — QA on e0f87e7). A verb is a word for the player's own rows; a
+            // card's delta is the card's rows where the buy puts them.
+            if row.verb.v != "tactic" {
+                continue;
+            }
+            let mut patched = rules.clone();
+            patched.rows.insert(at.min(patched.rows.len()), row);
+            patched.fit(max_rows.max(1))
+        };
+        // The sim lineage owns the unlock (the verb must be in its vocabulary to fire; a
+        // locked condition wakes).
         let mut g = game.sim_clone();
         g.lineage.unlocks.insert(u.id.clone());
-        let mut patched = rules.clone();
-        patched.rows.insert(at.min(patched.rows.len()), row);
-        patched = patched.fit(max_rows.max(1));
         // The sim game's lookups (its own fingerprint) go through the parent's cache.
         g.forecast_cache = game.forecast_cache.clone();
         if !compute {
