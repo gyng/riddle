@@ -92,7 +92,10 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         line: None,
         chain,
         rules: Some(rules.clone()),
-        notes: run.notes.iter().rev().take(2).rev().map(|(_, n)| n.clone()).collect(),
+        // The beat the morgue alone carried — not the headline's own notes (`Slain by …`,
+        // `Down to 2 HP.`, `Returned with $0.`), which the screen already says; a stall's note
+        // stays (it says what the stall paid).
+        notes: run.notes.iter().rev().filter(|(_, n)| !(n.starts_with("Slain by") || n.starts_with("Down to ") || n.starts_with("Returned with") || n.starts_with("Lost the thread"))).take(2).map(|(_, n)| n.clone()).collect::<Vec<_>>().into_iter().rev().collect(),
     };
     let n = game.history.len();
     let pick = if stall {
