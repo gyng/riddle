@@ -71,8 +71,11 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
     // Cut 5 §4: situations seen are tokens (`on_see: nest`), gated by their fact alone.
     // Cut 7 §3: the band situations are tokens the same way.
     // Cut 8B §3: the stray too (`on_see: stray` → `tame`), once one has been seen.
+    // A situation met by its kind's fact too: the captive is a kind the ledger marks SEEN
+    // while the situation's own fact waits on the cry (QA on e0f87e7: "`⊘ see: captive`
+    // beside LEDGER captive SEEN ●").
     for k in SITUATION_TOKENS {
-        if l.facts.contains(k) {
+        if l.facts.contains(k) || l.facts.contains(&format!("foe:{k}")) {
             conds.push(Cond::t("on_see", k));
         }
     }
