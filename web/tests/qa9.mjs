@@ -258,15 +258,20 @@ try {
     return { exit: g[i]?.why ?? null, salvage: g.slice(i + 1).filter((x) => /^salvage/.test(x.why)).reduce((a, x) => a + x.delta, 0) };
   });
   const reportSalvaged = () => page.evaluate(() => [...document.querySelectorAll(".report .rsec")].filter((s) => s.querySelector(".label")?.textContent === "salvaged").flatMap((s) => [...s.querySelectorAll("li")].map((l) => ({ text: l.textContent.replace(/\s+/g, " ").trim(), gold: Number(/\$(\d+)/.exec(l.textContent)?.[1] ?? 0) }))));
-  const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); await page.locator(".hud.bottom .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {}); await sleep(300); } return state(); };
+  // 12: `fast` is chosen during the run (a DOM click) once two cards have shown: the run's end kills the mode buttons
+  // (QA on 50bb162: "fights · fast · ▶▶| · bail still live on a dead hero"), so the choice cannot come from the exit sheet
+  let picked = false;
+  const pickFast = () => page.evaluate(() => { for (const b of document.querySelectorAll("main.watch .hud.bottom .hud-btn")) if (b.textContent === "fast" && !b.disabled) b.click(); });
+  const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); if (sample && !picked && cardSamples.filter((c) => c.card).length >= 2) { picked = true; await pickFast(); } await page.locator(".hud.bottom .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {}); await sleep(300); } return state(); };
   let s2 = await drive(true);
   check(s2?.screen === "exit", `the run ended on the keep sheet (${s2?.screen})`);
   const shownCards = cardSamples.filter((c) => c.card), mism = cardSamples.filter((c) => c.mismatch);
   check(shownCards.length > 0 && mism.length === 0, `the card named the HUD's floor in every sample it showed (${shownCards.length} samples${mism.length ? `; off: ${mism.map((m) => `${m.card} | ${m.hud}`).join(", ")}` : ""})`);
-  // 12: `fast` chosen here (under the sheet: a DOM click) is the next run's mode
-  await page.evaluate(() => { for (const b of document.querySelectorAll("main.watch .hud.bottom .hud-btn")) if (b.textContent === "fast") b.click(); }); await sleep(200);
-  const saved = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, blob: JSON.parse(window.__riddle.exportSave()).watch }));
-  check(saved.mode === "fast" && saved.blob === "fast", `fast chosen: the watch is in it and the save blob carries it (${saved.mode}, ${saved.blob})`);
+  // 12: the `fast` chosen mid-run is the next run's mode; at the exit the mode buttons are dead
+  if (!picked) await pickFast();   // the run ended before three cards showed: the click then lands on a dead button (the check says so)
+  const saved = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, blob: JSON.parse(window.__riddle.exportSave()).watch, dead: [...document.querySelectorAll("main.watch .hud.bottom .hud-btn")].every((b) => b.disabled) }));
+  check(saved.mode === "fast" && saved.blob === "fast", `fast chosen mid-run: the watch is in it and the save blob carries it (${saved.mode}, ${saved.blob}, picked ${picked})`);
+  check(saved.dead, "at the exit the mode buttons, ▶▶| and bail are dead");
   const keepSheet = () => page.evaluate(() => { const w = [...document.querySelectorAll(".sheet-wrap")].pop(); const lab = w?.querySelector(".label.row-label"); return { label: lab?.firstChild?.textContent?.trim() ?? "", count: lab?.querySelector(".num")?.textContent ?? "", on: [...(w?.querySelectorAll(".chips .chip.item") ?? [])].map((c) => c.classList.contains("on")), n: w?.querySelectorAll(".chips .chip.item").length ?? 0 }; });
   let ks = await keepSheet();
   check(ks.label === "keep" && ks.count === "0/1" && ks.n >= 3, `the sheet counts picks against free slots as keep: "${ks.label} ${ks.count}" over ${ks.n} chips`);

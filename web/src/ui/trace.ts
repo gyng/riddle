@@ -31,8 +31,12 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
   return rowsLine ? [table, rowsLine] : [table];
 }
 /** Cut 9 §5: a `trace` chip; tapping it opens the table (Cut 11 §3: the last 10 turns and the chain) in a sheet.
- *  `null` when the exit carries no trace. */
-export function traceChip(trace: Trace | undefined, cls = "chip mini", ctx: ChainCtx = {}): HTMLElement | null {
+ *  `null` when the exit carries no trace. `head` is the sheet's header line under the label — the exit's ledger line, engine
+ *  data verbatim (QA on 50bb162: "TRACE sheet from the ledger: no header"). */
+export function traceChip(trace: Trace | undefined, cls = "chip mini", ctx: ChainCtx = {}, head?: string): HTMLElement | null {
   if (!trace?.turns.length) return null;
-  return h("button", { class: cls, onclick: () => openSheet(() => h("div", { class: "sheet-body trace-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "trace"), ...traceTable(trace, { ...ctx, provenance: true }, EXIT_TRACE_ROWS))) }, /* copy:button */ "trace");
+  return h("button", { class: cls, onclick: () => openSheet(() => h("div", { class: "sheet-body trace-sheet" },
+    h("div", { class: "label row-label" }, /* copy:label */ "trace"),
+    head ? h("div", { class: "trace-head ledger-line num dim" }, head) : null,
+    ...traceTable(trace, { ...ctx, provenance: true }, EXIT_TRACE_ROWS))) }, /* copy:button */ "trace");
 }

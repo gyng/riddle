@@ -24,12 +24,19 @@ export function morgueVerbs(morgue: string | undefined): string[] | undefined {
 }
 
 const sameLink = (a: Because, b: Because): boolean => a.text === b.text && a.t === b.t;
+/** The provenance log under an exit sheet's chain is capped: the links the chain's rows carry, then the last this many by
+ *  tick, then `· N earlier` (QA on 50bb162: "R4 fired followed by ~70 `← found X on Dn` lines"). */
+export const PROVENANCE_SHOW = 8;
 
 /** The chain of a trace's last turn, or null when nothing on the wire carries a `because`. */
 export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
   const last = trace.turns[trace.turns.length - 1];
   const rows = last?.rows ?? [];
-  const extra = [...(ctx.chain ?? []), ...(ctx.provenance ? trace.provenance ?? [] : [])];
+  const rowLinks = rows.flatMap((r) => r.because ? [r.because] : []);
+  let prov = ctx.provenance ? (trace.provenance ?? []).filter((b) => !rowLinks.some((s) => sameLink(s, b))) : [];
+  let earlier = 0;
+  if (prov.length > PROVENANCE_SHOW) { prov = [...prov].sort((a, b) => a.t - b.t); earlier = prov.length - PROVENANCE_SHOW; prov = prov.slice(-PROVENANCE_SHOW); }
+  const extra = [...(ctx.chain ?? []), ...prov];
   if (!rows.some((r) => r.because) && !extra.length) return null;
   const shown: Because[] = [];
   const verbOf = (i: number): string | undefined => { const v = ctx.verbs?.[i]; if (v) return v; const r = ctx.rows?.[i]; return r ? verbLabel(r.verb) : undefined; };
@@ -49,6 +56,7 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
     shown.push(b);
     lines.push(h("div", { class: "chain-row extra" }, ...link(b, ctx.runId)));
   }
+  if (earlier > 0) lines.push(h("div", { class: "chain-row extra earlier dim" }, /* copy:callout */ `· ${earlier} earlier`));
   return h("div", { class: "chain num" }, ...lines);
 }
 

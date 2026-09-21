@@ -4,7 +4,7 @@
 //   §2  the forecast's boss floor reads `D5 0% · goblin warlord · try: attack boss` when the counter fact is known and the row
 //       is absent; tapping it inserts the row at the top of the active set (and the bestiary chip inserts at the top too)
 //   §3  `rest 20m · send skips` permanently · a greyed supply says why under its price · `▲▼` chips (44 px) move a row ·
-//       the `+1 row` card is dimmed `⊘ fill rows` while free rows exist · `3 over` reads `3 hp short` · the report's tiles read
+//       the `+1 row` card is dimmed `⊘ fill rows` while free rows exist · `3 over` is not on the headline · the report's tiles read
 //       `returned · banked · deaths` when returns outnumber banks, its exit lines lead with `returned $61`, a lost companion reads
 //       `jackal Ashar fell` · a card's delta reads `reach +N% at R2` (Cut 12: where it goes) · the tiles fade in after an absence
 //
@@ -117,12 +117,13 @@ try {
     const viaChip = await rowTexts();
     check(/^foe: boss \+? ?→ attack boss$/.test(viaChip[0]) && viaChip.length === after.length, `the bestiary chip inserts at the top too: "${viaChip[0]}"`);
   }
-  // §3 `3 over` → `3 hp short` on the death line; a lost companion reads `jackal Ashar fell`
+  // §3 `3 over` → `3 hp short` in the morgue's reading (`marginText`); the headline drops the hp margin altogether (QA on
+  //    50bb162: four readers took `1 hp short` for the hp left); a lost companion reads `jackal Ashar fell`
   {
     await page.evaluate(() => { const r = window.__riddle; r.go({ kind: "death", death: { run_id: 1, depth: 3, cause: "goblin_pack", margin: "3 over", verdict: "gap", baseline: 0.4, trace: { turns: [] }, patches: [], morgue: "" }, lost: ["jackal · Ashar"] }); });
     await sleep(300);
     const d = await page.evaluate(() => ({ line: document.querySelector(".death-line")?.textContent.replace(/\s+/g, " ").trim(), egg: document.querySelector(".death .chip.egg")?.textContent.replace(/\s+/g, " ").trim() }));
-    check(/goblin pack · D3 · 3 hp short · gap/.test(d.line ?? ""), `the death line reads "${d.line}"`);
+    check(/^goblin pack · D3 · gap$/.test(d.line ?? ""), `the death line reads "${d.line}" (no hp margin)`);
     check(d.egg === "◯ jackal Ashar fell", `the lost companion reads "${d.egg}"`);
   }
   // §3 the report: `returned · banked · deaths` when returns outnumber banks; exit lines lead with `returned $61`; lost chips `fell`;

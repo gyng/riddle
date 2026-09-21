@@ -83,7 +83,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     const hidden = allExits.length - shown.length, unlisted = Math.max(0, r.runs - allExits.length);
     exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
       h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
-      traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }))),   // Cut 11 §2: with the run, the chain's links get `watch`
+      traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text))),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line
       hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} more`) : "",
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
   };
@@ -192,6 +192,9 @@ function factChips(facts: string[], counters: Counter[] = []): HTMLElement | nul
     if (bn) { rest.push(h("span", { class: "chip fact" }, /* copy:label */ "bones", h("small", null, ` D${bn[1]}`))); continue; }
     const c = /^boss:([^:]+):counter(?:=.*)?$/.exec(f);
     if (c) { const text = counters.find((k) => k.boss === c[1])?.text; rest.push(h("span", { class: "chip fact" }, nice(c[1]), h("small", null, /* copy:label */ " counter", text ? `: ${text}` : ""))); continue; }
+    // any other `kind:detail` fact reads like the foe chips (`alert · rising`, not `alert:rising`; QA on 50bb162)
+    const kv = /^([^:]+):(.+)$/.exec(f);
+    if (kv) { rest.push(h("span", { class: "chip fact" }, nice(kv[1]), h("small", null, ` · ${kv[2].split(":").map(nice).join(" · ")}`))); continue; }
     rest.push(h("span", { class: "chip fact" }, nice(f)));
   }
   const out = [...foes].map(([k, tags]) => h("span", { class: "chip fact" }, nice(k), tags.length ? h("small", null, ` ${tags.map(nice).join(" · ")}`) : ""));

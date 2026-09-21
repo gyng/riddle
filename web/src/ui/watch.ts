@@ -15,7 +15,7 @@
 // Cut 13 §1 — a stall is a run the player can read: the stake reads `keeps $0 · stalling` while the guard has fired
 // (`Stake.stalling`), and a run that comes home stalled (`… · stalled` on its line) gets the verdict screen like a death
 // (`engine.death(runId)` answers with `verdict: "stall"`; an older core without the record falls back to the report).
-// Cut 13 §4 — the beats are on screen: a `note` whose text is a situation's (`A den. Something sleeps.`, a theft, the vault,
+// Cut 13 §4 — the beats are on screen: a `note` whose text is a situation's (`A den. Something sleeps.`, a theft, the cage,
 // the captive, the stray, a heir's bones) opens the fight frame for SCENE_MS in `fights` and `fast` alike, the note as the
 // callout (engine data, verbatim, its own `.beat` line); two callouts on one tick queue; the ticker wraps, never clips.
 //
@@ -108,7 +108,7 @@ const FELL_MS = 1400;               // Cut 10 §3: `jackal Ashar fell` stays lon
 const SCENE_MS = 4000, SCENE_TICKS = 40;   // Cut 13 §4: a situation's beat holds the fight frame this long (~4 s at 1×)
 const CALLOUT_QUEUE = 3, SAME_TICK_MS = 40;   // Cut 13 §4: callouts that land on one tick (one pump pass) wait their turn, at most this many
 /** Cut 13 §4: the notes that are beats — the core's situation lines (verbatim), a theft, the stray, a heir's bones. */
-const BEAT_RE = /^(A den\.|A vault:|A shrine\.|The vault opens|A cry from the dark|The air stings|The nest wakes|The den wakes|Found heir \d+'s bones|found the bones|Freed the captive|Cut the captive|Lit the shrine)|snatched|\bstole\b|, gone wild\.$|is avenged/i;
+const BEAT_RE = /^(A den\.|A cage:|A shrine\.|The cage opens|A cry from the dark|The air stings|The nest wakes|The den wakes|Found heir \d+'s bones|found the bones|Freed the captive|Cut the captive|Lit the shrine)|snatched|\bstole\b|, gone wild\.$|is avenged/i;
 /** The cause of a `hurt` as one word: `goblin_archer` → `archer`. */
 const oneWord = (cause: string): string => cause.replace(/_/g, " ").trim().split(/\s+/).pop() ?? "";
 /** Cut 12 §4: `nest` → `a nest`, `orchard` → `an orchard` (one word after the article). */
@@ -547,6 +547,7 @@ export function renderWatch(app: App): Mounted {
       if (now < endingFrom) return;
       const hb = held; held = null; feed(hb.evs, hb.snap);
       exitTier = hb.tier; exitAt = performance.now() + EXIT_GRACE_MS;
+      endControls();
       return;
     }
     if (exitTier) {
@@ -567,7 +568,7 @@ export function renderWatch(app: App): Mounted {
     if (speed <= 0 || engineTick - now >= lead) return;
     inflight = true;
     app.engine.step(speed >= AUTO_FAST ? BATCH_FAST : BATCH).then((r) => { inflight = false; if (!disposed && !done) handle(r); if (skipQueued) { skipQueued = false; void skipToEvent(); } })
-      .catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; });
+      .catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; endControls(); });
   }
   /** Cut 10 §1: is the engine free to run ahead under the card — `fights`, the card up and not held, no fight found yet, no exit. */
   function travelling(): boolean {
@@ -580,7 +581,7 @@ export function renderWatch(app: App): Mounted {
       probeFight(r);
       if (pendingLoad && viewer) { const p = pendingLoad; pendingLoad = null; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
       if (travelling()) travel(); else inflight = false;
-    }).catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; });
+    }).catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; endControls(); });
   }
   /** Cut 10 §1: the fight the engine is running through under the card, costed as it goes; at its close (or the run's end
    *  inside it) the fight is either shown — the viewer cuts to its first frame — or dropped (the frame span is cleared). */
@@ -747,9 +748,20 @@ export function renderWatch(app: App): Mounted {
       p.then((v) => { clearTimeout(t); res(v); }, (e) => { clearTimeout(t); console.warn(what, e); res(undefined); });
     });
   }
+  /** The run is over (the exit batch is on the viewer): the mode buttons, ▶▶| and bail have nothing left to act on and go
+   *  disabled; ⏸ goes (unpaused first, so the walk-out drains) and leaves the top-right to the `verdict` busy label
+   *  (QA on 50bb162: "fights · fast · ▶▶| · bail still live on a dead hero; VERDICT sits over the pause button"). */
+  function endControls(): void {
+    if (el.dataset.over === "1") return;
+    el.dataset.over = "1";
+    if (paused) { paused = false; paintPause(); applySpeed(); }
+    pause.hidden = true;
+    for (const b of [modeBtn.fights, modeBtn.fast, skip, bail]) b.disabled = true;
+  }
   async function finish(tier: Tier): Promise<void> {
     if (done) return;
     done = true; clearInterval(pumpTimer); card.hidden = true; cardUp = false; el.dataset.card = "0";
+    endControls();
     // whatever happens below, the player reaches a screen with buttons
     const guard = window.setTimeout(() => { if (!disposed && app.view.kind === "watch") { console.warn("exit flow stalled; falling back to camp"); app.go({ kind: "camp" }); } }, 20_000);
     try {

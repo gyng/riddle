@@ -7,11 +7,12 @@
 // sheet filtered to this run.
 // Cut 13 §1: a stalled run's verdict (`verdict: "stall"`) mounts here too — the guard's moment as the headline, the trace and
 // the patches like a death's. §4: the run's last two notes (`Death.notes`, engine data verbatim) sit under the headline.
-// §5: a `dice` death names what the forecast said for that depth (`forecast said 5%`) when the last forecast is known.
+// §5: a `dice` death names what the forecast said for that depth — the camp's own reach line, verbatim (`forecast said D4 100%`)
+// when the last forecast knows the floor (QA on 50bb162: "`forecast said 36%` while the camp forecast read `D4 100% ±1`").
 import type { App, Mounted } from "../app";
 import type { Death } from "../engine/types";
 import { morgueVerbs } from "./chain";
-import { h, copyText, items } from "./dom";
+import { h, copyText, items, pct } from "./dom";
 import { openGoldSheet } from "./gold";
 import { patchRows } from "./patches";
 import { openSheet } from "./sheet";
@@ -21,15 +22,20 @@ import { traceTable } from "./trace";
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
 
+/** The headline's margin segment: a stall's is the guard's reason (`no path`); an hp margin (`3 over` / `3 hp short`) is left
+ *  out — four QA players read `1 hp short` as the hp left (the morgue still carries it); an empty margin is no segment. */
+export const headlineMargin = (m: string): string => /^\d+ (over|hp short)$/.test(m) ? "" : marginText(m);
+
 export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
-  const margin = d.margin ? ` · ${marginText(d.margin)}` : "";
+  const seg = headlineMargin(d.margin ?? "");
+  const margin = seg ? ` · ${seg}` : "";
   const line = h("h1", { class: "death-line" }, /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${margin} · `, h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));   // the pill: one word, engine data (`gap` · `dice` · `stall`)
   // Cut 13 §4: the run's last two notes, engine data verbatim (`The green one: fire. Gambled: fire potion.`)
   const notes = d.notes?.length ? h("div", { class: "death-notes num dim" }, ...d.notes.slice(-2).map((n) => h("div", { class: "note" }, n))) : null;
-  // Cut 13 §5: a `dice` death says what the forecast said for that depth — the share of forecast runs that end there
+  // Cut 13 §5: a `dice` death says what the forecast said for that depth — the reach the camp showed for the floor, verbatim
   const said = d.verdict === "dice" ? forecastSaid(app, d.depth) : undefined;
-  const forecastLine = said !== undefined ? h("div", { class: "forecast-said num dim" }, /* copy:callout */ `forecast said ${said}%`) : null;
+  const forecastLine = said !== undefined ? h("div", { class: "forecast-said num dim" }, /* copy:callout */ `forecast said D${d.depth} ${pct(said)}`) : null;
   // Cut 6 §1: the exit's arithmetic, verbatim from the engine (`$144 carried · death keeps 0% → $0 · bones: 7 items on D5`)
   // Cut 11 §5: tappable — the gold sheet filtered to this run's movements
   const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, d.line) }, d.line.text)) : null;
@@ -58,11 +64,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
   return { el };
 }
 
-/** Cut 13 §5: the last forecast's death share at `depth` in whole points — the runs that reach the floor and not the next
- *  (`reach[d] − reach[d+1]`, the frontier's drop when d is the last known floor); undefined without a forecast or past it. */
+/** Cut 13 §5: the last forecast's reach at `depth` (a 0..1 fraction, the number the camp's bar showed); undefined without a
+ *  forecast, or when the floor is past what it knew (`known_to`). */
 export function forecastSaid(app: App, depth: number): number | undefined {
-  const f = app.lastForecast; if (!f) return undefined;
-  const at = f.depths.find((x) => x.depth === depth); if (!at) return undefined;
-  const next = f.depths.find((x) => x.depth === depth + 1);
-  return Math.max(0, Math.round((at.reach - (next?.reach ?? 0)) * 100));
+  const f = app.lastForecast; if (!f || depth > f.known_to) return undefined;
+  return f.depths.find((x) => x.depth === depth)?.reach;
 }

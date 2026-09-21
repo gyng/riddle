@@ -74,6 +74,7 @@ export type ViewerStats = {
   frame: Frame; kMap: number; // Cut 8A: the frame up and the map frame's k (the fight frame's is `k`)
   shake: [number, number]; glyphs: number; caption: string | null; // Cut 8A: this frame's screen shake, glyph quads, caption
   device: [number, number]; envTexels: [number, number]; target: [number, number]; pending: number; tick: number;
+  fade: number;           // the global fade this frame (0 lit, 1 dark; ≤ EXIT_DIM once the run has ended)
   hero: [number, number]; // render position in tiles
   projectiles: number;
   ents: number; drawn: number; // entities known to the viewer, and how many are on screen this frame (in view or remembered)
@@ -138,7 +139,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
   const st = new ReplayState();
   const cam = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0 };
-  const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, frame: "map", kMap: 1, shake: [0, 0], glyphs: 0, caption: null, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, hero: [0, 0], projectiles: 0, ents: 0, drawn: 0, camera: [0, 0],
+  const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, frame: "map", kMap: 1, shake: [0, 0], glyphs: 0, caption: null, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, fade: 0, hero: [0, 0], projectiles: 0, ents: 0, drawn: 0, camera: [0, 0],
     cpuMs: NaN, cpuP95: NaN, buildMs: NaN, gpuMs: NaN, gpuP95: NaN, gpuTimer: gpu.available, fps: NaN };
   let k = 1, kMap = 1, iw = 1, ih = 1, W = 3, H = 3, devW = 0, devH = 0, dpr = 1;
   let lastCss = "";
@@ -496,7 +497,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     if ((++frameNo & 31) === 0) { stats.cpuP95 = cpuHist.pct(0.95); stats.gpuP95 = gpu.pct(0.95); }
     stats.calls = renderer.info.render.calls;
     stats.triangles = renderer.info.render.triangles;
-    stats.pending = st.pending();
+    stats.pending = st.pending(); stats.fade = u.uFade!.value as number;
     stats.tick = st.tickNow();
     if (hero) stats.hero = [hero.px, hero.py];
     stats.camera = [cam.tx, cam.ty];

@@ -55,6 +55,8 @@ export type Leash = { from: number; to: number; t0: number; ok: boolean };
 export type Projectile = { path: [number, number][]; t0: number };
 
 const INTERESTING = new Set<string>(["attack", "die", "telegraph", "use", "exit", "tame"]);
+/** The global fade at the run's end: the last frame stays lit, dimmed at most this much. */
+export const EXIT_DIM = 0.3;
 export const PROPS = new Set<string>(["shrine", "vault", "vault_open", "nest"]); // Cut 5 §4: floor-standing props in `tiles`
 
 export class ReplayState {
@@ -68,7 +70,7 @@ export class ReplayState {
   heroId = -1;
   clock = 0;          // ticks (float)
   speed = 1;
-  fadeTarget = 0;     // global fade (0 = visible, 1 = dark)
+  fadeTarget = 0;     // global fade (0 = visible, 1 = dark; EXIT_DIM at the run's end)
   fade = 0;
   callout: Callout | null = null;
   leash: Leash | null = null;
@@ -385,8 +387,12 @@ export class ReplayState {
         break;
       }
       case "descend":
-      case "exit":
         this.fadeTarget = 1;
+        break;
+      case "exit":
+        // the run's end keeps its last frame lit: the corpse's floor, dimmed a little, never black (QA on 50bb162:
+        // "map is black at death"); the next floor's load resets the fade
+        this.fadeTarget = EXIT_DIM;
         break;
       case "callout":
         this.callout = { text: ev.text.slice(0, 24), until: performance.now() + 1000 };
@@ -435,7 +441,7 @@ export class ReplayState {
     this.projectiles = [];
     this.leash = null;
     this.screenShake = null;
-    if (this.fadeTarget === 1) this.fade = 1;
+    if (this.fadeTarget > 0) this.fade = this.fadeTarget;
   }
 
   // Per-frame evaluation of tweens from the tick clock.

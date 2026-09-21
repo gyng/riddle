@@ -13,7 +13,12 @@
 //   §4  a situation's note cuts the fight frame in for SCENE_MS outside a fight (`fights` and `fast`), the note as the callout;
 //       the death screen shows `Death.notes`; a 40-char callout renders whole at 400 px; two callouts on one tick queue
 //   §5  an unlock delta within its ± reads `reach ~0`, otherwise `reach +5% ±3`; the first forecast paint's ± trails `…`, the
-//       refine's does not; the ends line carries `death 5% ±4`; a `dice` death says `forecast said N%`
+//       refine's does not; the ends line carries `death 5% ±4`; a `dice` death says `forecast said D4 100%` (the camp's reach, verbatim)
+//   QA on 50bb162 (qaE): the report's TRACE sheet carries the exit line as its header and caps the provenance (the chain's own
+//       links, the last 8 by tick, `· N earlier`); an empty forge reads `nothing salvaged`; a long LEARNED chip wraps at 400 px
+//       and `alert:rising` reads `alert · rising`; every patch shows its reach (`reach ~0`); the rule-set tabs read `set 2 · 0`;
+//       the death headline drops `N hp short`; a verdict screen offers `morgue` and `edit` only; at a run's end the floor
+//       stays lit (fade ≤ 0.3), the mode buttons / ▶▶| / bail are dead and ⏸ is gone (the `verdict` label has the corner)
 //
 //   node web/tests/cut13.mjs [--shots]       (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
@@ -50,7 +55,7 @@ async function waitFor(pred, label, timeout = 20_000) {
   }
   throw new Error(`timeout waiting for ${label} (screen=${s?.screen} booted=${s?.booted} frame=${s?.frame})`);
 }
-const shot = async (name) => { if (shots) await page.screenshot({ path: `${shots}/${name}.png`, fullPage: !/beat|stall-hud/.test(name) }); };
+const shot = async (name) => { if (shots) await page.screenshot({ path: `${shots}/${name}.png`, fullPage: !/beat|stall-hud|death-frame/.test(name) }); };
 /** The death screen as text: the headline, the pill, the notes, the forecast line, the patches. */
 const deathScreen = () => page.evaluate(() => ({
   line: document.querySelector(".death-line")?.textContent.replace(/\s+/g, " ").trim() ?? "",
@@ -197,17 +202,17 @@ try {
   const beatVis = await page.evaluate(() => { const t = document.querySelector(".ticker"); return t.classList.contains("beat") ? getComputedStyle(t).opacity : "gone"; });
   check(s.frame === "fight", `the fight frame opens on the beat in fast (frame ${s.frame})`);
   // the fake writes its own situation notes too (a vault or a shrine in view), any of which may be the first beat
-  const BEAT = /^(A den\. Something sleeps\.|A vault: three under a cage\.|A shrine\. Pray, at a price\.)$/;
+  const BEAT = /^(A den\. Something sleeps\.|A cage: three inside, one to take\.|A shrine\. Pray, at a price\.)$/;
   check(BEAT.test(beatText.text) && /\bbeat\b/.test(beatText.cls) && beatVis !== "0", `the note is the callout, verbatim, visible in the frame: "${beatText.text}" (${beatText.cls}, opacity ${beatVis})`);
   await shot("06-beat-fast");
   // in `fights`: the beat cuts in from under the card
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fights", "the fights run");
-  await inject("A vault: three under a cage.");
+  await inject("A cage: three inside, one to take.");
   s = await waitFor((x) => x?.screen !== "watch" || (x.beats >= 1 && x.frame === "fight"), "the beat's cut in fights", 20_000);
   const beat2 = await page.evaluate(() => ({ text: document.querySelector(".ticker")?.textContent ?? "", card: document.querySelector(".watch")?.dataset.card, tick: Number(document.querySelector(".watch")?.dataset.tick), at: window.__beatTick }));
   check(s.frame === "fight" && beat2.card === "0" && BEAT.test(beat2.text), `in fights the beat cuts in from under the card (frame ${s.frame}, card ${beat2.card}): "${beat2.text}"`);
-  check(beat2.text !== "A vault: three under a cage." || Math.abs(beat2.tick - beat2.at) <= 12, `the cut lands on the beat's tick (${beat2.tick} vs ${beat2.at})`);
+  check(beat2.text !== "A cage: three inside, one to take." || Math.abs(beat2.tick - beat2.at) <= 12, `the cut lands on the beat's tick (${beat2.tick} vs ${beat2.at})`);
   await shot("07-beat-fights");
   // the beat lets go after its ~4 s (the card is back) — unless a real fight took over
   s = await waitFor((x) => x?.screen !== "watch" || x.frame === "map" || x.tick - beat2.at > 60, "the beat's release", 12_000).catch(() => null);
@@ -274,14 +279,117 @@ try {
   await fakeDeath({ verdict: "dice", depth: 2 });
   await waitFor((x) => x?.screen === "death", "a dice death");
   d = await deathScreen();
-  check(d.said === "forecast said 50%" && d.pill === "dice", `a dice death names the forecast's death share at D2: "${d.said}"`);
+  check(d.said === "forecast said D2 80%" && d.pill === "dice", `a dice death names the reach the forecast showed for its floor, verbatim: "${d.said}"`);
   await shot("10-dice-forecast-said");
   await fakeDeath({ verdict: "dice", depth: 3 });
   await sleep(100); d = await deathScreen();
-  check(d.said === "forecast said 30%", `at the frontier the drop to nothing: "${d.said}"`);
+  check(d.said === "forecast said D3 30%", `at the frontier the same: "${d.said}"`);
   await fakeDeath({ verdict: "dice", depth: 5 });
   await sleep(100); d = await deathScreen();
   check(d.said === null, "past the forecast's floors nothing is claimed");
+  await page.evaluate(() => { window.__riddle.lastForecast = { depths: [{ depth: 1, reach: 1 }, { depth: 2, reach: 0.8 }, { depth: 3, reach: 0.3 }], causes: [], known_to: 2 }; });
+  await fakeDeath({ verdict: "dice", depth: 3 });
+  await sleep(100); d = await deathScreen();
+  check(d.said === null, "a floor past known_to is not claimed either, even with a bar");
+
+  // ---- QA on 50bb162 (qaE)
+  // the death headline: no `N hp short` (read as the hp left by four players); a stall's reason stays; morgue and edit only
+  await fakeDeath({ margin: "1 hp short" });
+  await sleep(100); d = await deathScreen();
+  const btns = await page.evaluate(() => [...document.querySelectorAll("main.death .btn-row button")].map((b) => b.textContent.trim()));
+  check(d.line === "goblin archer · D3 · gap", `the headline drops the hp margin: "${d.line}"`);
+  check(btns.join() === "morgue,edit", `the verdict screen's buttons are morgue and edit only: [${btns.join(", ")}]`);
+  await fakeDeath({ margin: "3 over" });
+  await sleep(100); d = await deathScreen();
+  check(d.line === "goblin archer · D3 · gap", `the core's \`3 over\` is dropped too: "${d.line}"`);
+  await fakeDeath({ cause: "stalled", margin: "archer, no path", verdict: "stall" });
+  await sleep(100); d = await deathScreen();
+  check(d.line === "stalled · D3 · archer, no path · stall", `a stall keeps the guard's reason: "${d.line}"`);
+  // every patch shows its reach: `reach ~0` when the delta rounds to 0
+  const row = { conds: [{ k: "hp<", n: 20 }], verb: { v: "rest" } };
+  await fakeDeath({ patches: [{ row, insert_at: 0, survive: 0.5, forecast_delta: 0.002 }, { row: { ...row, verb: { v: "attack" } }, insert_at: 0, survive: 0.6, forecast_delta: 0.25 }] });
+  await sleep(100);
+  const reaches = await page.evaluate(() => [...document.querySelectorAll("button.patch")].map((p) => ({ delta: p.querySelector(".delta")?.textContent ?? null, cls: p.querySelector(".delta")?.className ?? "" })));
+  check(reaches.length === 2 && reaches[0].delta === "reach ~0" && /flat/.test(reaches[0].cls) && reaches[1].delta === "reach +25%", `every patch carries a reach line: ${reaches.map((r) => r.delta).join(" · ")}`);
+  // the report: the LEARNED chips wrap and `alert:rising` reads `alert · rising`; the TRACE sheet from a ledger line
+  await page.evaluate(() => {
+    const r = window.__riddle; const L = r.lineage;
+    const link = (i) => ({ text: `found item ${i} on D1`, t: i * 10, depth: 1 });
+    const because = { text: "den took the heal, D3", t: 5, depth: 3 };
+    const trace = { turns: [{ t: 120, row: 1, verb: { v: "attack" }, hp: 4, foes: 2, telegraphs: [], rows: [{ row: 0, why: "no item", because }] }], provenance: [because, ...Array.from({ length: 12 }, (_, i) => link(i + 1))] };
+    const exits = [{ carried: 117, keep_pct: 0, kept: 0, spent: 0, spent_on: [], text: "died $0 · $117 carried · keeps 0%", run_id: 0, trace }];
+    r.go({ kind: "report", report: { elapsed_s: 3600, runs: 1, sampled: false, learned: ["foe:goblin_warlord:boss", "foe:goblin_warlord:buffer", "foe:goblin_warlord:summoner", "foe:goblin_warlord:telegraph", "alert:rising", "biome:warrens"], bests: [], found: [], deaths: [{ cause: "goblin_warlord", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 0, exits } });
+  });
+  await sleep(200);
+  const chipsQ = await page.evaluate(() => [...document.querySelectorAll(".report .chip.fact")].map((c) => { const b = c.getBoundingClientRect(); return { text: c.textContent.replace(/\s+/g, " ").trim(), right: b.right, over: c.scrollWidth > c.clientWidth + 1 }; }));
+  const warlord = chipsQ.find((c) => /goblin warlord/.test(c.text));
+  check(!!warlord && /boss · buffer · summoner · telegraph$/.test(warlord.text) && warlord.right <= 400.5 && !warlord.over, `a long LEARNED chip wraps inside the viewport: "${warlord?.text}" right ${warlord?.right}`);
+  check(chipsQ.some((c) => c.text === "alert · rising") && !chipsQ.some((c) => /:/.test(c.text)), `alert:rising reads with a dot: ${chipsQ.map((c) => `"${c.text}"`).join(", ")}`);
+  await shot("11-report-chips");
+  await page.locator(".report .exit-lines .chip.mini", { hasText: /^trace$/ }).first().click({ timeout: 5000 }); await sleep(200);
+  const traceSheet = await page.evaluate(() => {
+    const w = document.querySelector(".sheet-wrap"); if (!w) return null;
+    return { head: w.querySelector(".trace-head")?.textContent ?? null, rows: [...w.querySelectorAll(".chain-row")].map((r) => r.textContent.replace(/\s+/g, " ").trim()) };
+  });
+  check(traceSheet?.head === "died $0 · $117 carried · keeps 0%", `the TRACE sheet's header is the exit line, verbatim: "${traceSheet?.head}"`);
+  const extras = (traceSheet?.rows ?? []).filter((r) => /^← found item/.test(r));
+  check(extras.length === 8 && /item 5 /.test(extras[0]) && /item 12 /.test(extras[7]), `the provenance under the chain is the last 8 by tick: ${extras.length} (${extras[0]} … ${extras[7]})`);
+  check((traceSheet?.rows ?? []).at(-1) === "· 4 earlier" && (traceSheet?.rows ?? []).some((r) => /^R1 .*no item.*← den took the heal/.test(r)), `the rest is one dim line, the row's own link stays: ${JSON.stringify(traceSheet?.rows)}`);
+  await shot("12-trace-sheet");
+  await page.keyboard.press("Escape"); await sleep(100);
+  // the camp: the rule-set tabs, the empty forge
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await waitFor((x) => x?.booted && x.screen === "camp", "camp");
+  await sleep(300);
+  const tabsT = await page.evaluate(() => [...document.querySelectorAll(".tabs .tab:not(.edit)")].map((t) => t.textContent.replace(/\s+/g, " ").trim()));
+  check(tabsT.length >= 2 && tabsT.slice(1).every((t) => /^set \d+ · \d+$/.test(t)), `an unnamed set's tab reads \`set 2 · 0\`: [${tabsT.join(" | ")}]`);
+  await page.evaluate(() => window.__riddle.renameSet(1, "tank"));
+  await sleep(200);
+  const tabsN = await page.evaluate(() => [...document.querySelectorAll(".tabs .tab:not(.edit)")].map((t) => t.textContent.replace(/\s+/g, " ").trim()));
+  check(/^tank \d+$/.test(tabsN[1] ?? ""), `a named set keeps \`name N\`: [${tabsN.join(" | ")}]`);
+  await page.locator(".tabs .tab", { hasText: /^set 3/ }).first().click({ timeout: 5000 }); await sleep(200);
+  check((await page.evaluate(() => window.__riddle.active)) === 2, "tapping `set 3` selects the third set");
+  await page.evaluate(() => window.__riddle.selectSet(0)); await sleep(100);
+  // a lineage that has salvaged nothing yet (the fake seeds a rung or two)
+  check(await page.evaluate(async () => { const r = window.__riddle; const b = JSON.parse(r.exportSave()); const e = JSON.parse(b.engine); e.lineage.forge = {}; b.engine = JSON.stringify(e); return r.importSave(JSON.stringify(b)); }), "the lineage took an empty forge");
+  await waitFor((x) => x?.booted && x.screen === "camp", "camp with an empty forge"); await sleep(300);
+  await page.locator("button.mini", { hasText: /^forge$/ }).first().click({ timeout: 5000 }); await sleep(200);
+  const forgeT = await page.evaluate(() => { const w = document.querySelector(".sheet-wrap"); return w ? { text: w.innerText.replace(/\s+/g, " ").trim(), heads: w.querySelectorAll(".lrow.head").length, empty: w.querySelector(".forge .empty-line")?.textContent ?? null } : null; });
+  check(forgeT?.empty === "nothing salvaged" && forgeT.heads === 0 && /^forge nothing salvaged$/i.test(forgeT.text), `an empty forge says so under its label: "${forgeT?.text}"`);
+  await shot("13-forge-empty");
+  await page.keyboard.press("Escape"); await sleep(100);
+  // the death frame: at the run's end the floor stays lit, the run controls are dead, ⏸ is gone while `verdict` runs
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for the death frame");
+  await page.evaluate(() => {
+    const e = window.__riddle.engine; const real = e.step.bind(e); let done = false;
+    // the next quiet map batch ends the run in a death; the verdict then takes 4 s (the busy label's window)
+    e.step = async (n) => {
+      const r = await real(n);
+      if (!done && document.querySelector(".watch")?.dataset.frame === "map" && !r.run_over) {
+        done = true; const t = r.snapshot.turn, hero = r.snapshot.hero;
+        r.events.push({ t, k: "die", id: hero.id, cause: "jackal" }, { t, k: "exit", tier: "death", loot_kept: 0, line: { carried: 12, keep_pct: 0, kept: 0, spent: 0, spent_on: [], text: "died $0 · $12 carried · keeps 0%" } });
+        r.run_over = true;
+        e.death = () => new Promise((res) => setTimeout(() => res({ run_id: r.snapshot.run.id, depth: r.snapshot.depth, cause: "jackal", margin: "1 hp short", verdict: "gap", baseline: 0.5, trace: { turns: [] }, patches: [], morgue: "" }), 4000));
+      }
+      return r;
+    };
+  });
+  const frameState = () => page.evaluate(() => {
+    const w = document.querySelector(".watch"); const v = window.__viewer;
+    const btn = (t) => [...document.querySelectorAll("main.watch .hud-btn")].find((b) => b.textContent === t);
+    return { screen: window.__riddle.screen, busy: window.__riddle.engineBusy, over: w?.dataset.over ?? "0", fade: v?.stats?.().fade ?? null,
+      dead: ["fights", "fast", "▶▶|", "bail"].map((t) => btn(t)?.disabled ?? null), pause: btn("⏸")?.hidden ?? btn("▶")?.hidden ?? "gone", label: document.querySelector(".busy-label")?.textContent ?? "" };
+  });
+  s = await waitFor((x) => x?.screen !== "watch" || x.busy, "the verdict's busy window", 40_000);
+  await sleep(600);   // the walk-out drained: the fade has settled at its target
+  const fs = await frameState();
+  check(fs.screen === "watch" && fs.busy && fs.label === "verdict", `the verdict runs over the final frame (screen ${fs.screen}, busy ${fs.busy}, "${fs.label}")`);
+  check(fs.over === "1" && fs.dead.every((d) => d === true), `fights · fast · ▶▶| · bail are dead on a dead hero: [${fs.dead.join(", ")}]`);
+  check(fs.pause === true, `⏸ is gone at the end (the label has the corner): ${fs.pause}`);
+  check(fs.fade !== null && fs.fade <= 0.3 + 1e-6, `the floor stays lit at the end (fade ${fs.fade})`);
+  await shot("death-frame");
+  await waitFor((x) => x?.screen === "death", "the death screen after the verdict", 30_000);
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

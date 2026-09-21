@@ -23,7 +23,8 @@ export function unlockOf(app: App, p: Patch): string | undefined {
 
 /** Fractions 0..1 from the core: survive, forecast_delta. A stall patch marks its target row: `R1 ↻` replaces it, `R1 −` removes it.
  *  Cut 4 §2: a row reads `survives 100% · base 75%` (death: `baseline` is the unpatched survival) or `reach 40% · base 35%`
- *  (stall: `survive` is the patched reach, base = survive − delta), then `reach +5%` only when the delta is not 0. */
+ *  (stall: `survive` is the patched reach, base = survive − delta), then `reach +5%`, or `reach ~0` when the delta rounds to 0
+ *  (QA on 50bb162: "reach missing on some patches"; the unlock cards say it that way). */
 export function patchRows(app: App, patches: Patch[], baseline?: number): HTMLElement {
   return h("div", { class: "patches" }, ...patches.map((p) => {
     const delta = Math.round(p.forecast_delta * 100);
@@ -59,6 +60,6 @@ export function patchRows(app: App, patches: Patch[], baseline?: number): HTMLEl
       h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
         h("span", { class: "num surv" }, line),
-        delta ? h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, /* copy:callout */ `reach ${delta > 0 ? "+" : "−"}${Math.abs(delta)}%`) : ""));
+        delta ? h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, /* copy:callout */ `reach ${delta > 0 ? "+" : "−"}${Math.abs(delta)}%`) : h("span", { class: "num delta flat" }, /* copy:callout */ "reach ~0")));
   }));
 }

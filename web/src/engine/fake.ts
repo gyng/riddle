@@ -218,7 +218,9 @@ const STALL_FIRES = 30;
 // catches), so a run stalls: `keeps $0 · stalling` on the HUD, then the stall verdict screen.
 const DEV_STALL = (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_stall"))) || 0;
 /** Cut 13 §4: the situation notes the core writes on first sight (verbatim; the client cuts the fight frame in on them). */
-const PROP_NOTE: Record<string, string> = { shrine: "A shrine. Pray, at a price.", vault: "A vault: three under a cage.", nest: "A den. Something sleeps." };
+// the three-item room is the `vault` inside and the *cage* to the player (core situations.rs `twist_word`; QA on 50bb162)
+const PROP_NOTE: Record<string, string> = { shrine: "A shrine. Pray, at a price.", vault: "A cage: three inside, one to take.", nest: "A den. Something sleeps." };
+const twistWord = (t: string): string => (t === "vault" ? "cage" : t);
 /** Cut 12 §4: the situation kinds a floor rolls one of from D3 (the core's bands; the fake draws from the whole list). */
 const TWISTS = ["den", "lock", "captive", "nest", "shrine", "vault", "stray", "hunger"];
 /** Cut 11 §1: a provenance entry — the wire's `because` (turn units here, ×10 on the wire) and what kind of event it was. */
@@ -903,7 +905,7 @@ function snapshot(run: Run, rules?: RuleSet): Snapshot {
     run: { id: run.id, heir: run.heir, started_turn: run.startedTotal },   // Cut 11 §5: the lineage tick this run started at
     stake: stakeOf(run, rules), vision: DEV_VISION,
     room: roomOf(run), rooms: run.floor.rooms.length,   // Cut 7 §4
-    ...(run.twist ? { floor_twist: run.twist } : {}),   // Cut 12 §4
+    ...(run.twist ? { floor_twist: twistWord(run.twist) } : {}),   // Cut 12 §4; the cage's word on the wire
   };
 }
 /** Cut 7 §4: the room the hero stands in (0 = corridor) and the hostiles in it (the fake has no sleep: all awake). */

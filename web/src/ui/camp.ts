@@ -87,7 +87,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     openSheet(() => {
       const L = app2.lineage; const rows = Object.entries(L.forge ?? {}).sort((a, b) => b[1].salvaged - a[1].salvaged);
       const head = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), h("span", null, ""), /* copy:label */ ...["craft", "tier"].map((s) => h("span", { class: "dot-h" }, s)));
-      // the sheet's title (QA on 952e306: "forge: 'CRAFT TIER' header only")
+      // the sheet's title (QA on 952e306: "forge: 'CRAFT TIER' header only"); with nothing salvaged yet, one dim line says so
+      // instead of bare headers (QA on 50bb162: "FORGE sheet shows only the headers")
+      if (!rows.length) return h("div", { class: "sheet-body ledger forge" }, h("div", { class: "label" }, /* copy:label */ "forge"), h("div", { class: "empty-line dim" }, /* copy:callout */ "nothing salvaged"));
       return h("div", { class: "sheet-body ledger forge" }, h("div", { class: "label" }, /* copy:label */ "forge"), head, ...rows.map(([kind, f]) => h("div", { class: "lrow" },
         h("span", { class: "k" }, kind.replace(/_/g, " ")),
         h("span", { class: "ladder num dim" }, /* copy:label */ "salvaged", " ", f.next ? h("span", null, `${f.salvaged}/${f.next.need}`, " → ", h("span", { class: "rung" }, f.next.label.replace(/_/g, " "))) : `${f.salvaged}`),
@@ -118,11 +120,15 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "class"), grid);
     });
   }
-  // Cut 5 §6: sets carry a player-typed name (≤ 12 chars, the game's only free text; default `1 · 2 · 3`); ✎ on the active tab renames
+  // Cut 5 §6: sets carry a player-typed name (≤ 12 chars, the game's only free text; default `1 · 2 · 3`); ✎ on the active tab renames.
+  // An unnamed set's tab reads `set 2 · 0` — the word, then the row count small (QA on 50bb162, the fourth reader of `2 0` as a
+  // party or class count); a named one keeps `fighter 2`
   function paintTabs(): void {
     clear(tabs);
     app.sets.forEach((s, i) => {
-      tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) }, setName(s, i), h("small", { class: "dim" }, ` ${s.rows.length}`)));
+      const named = !!(s.name ?? "").trim();
+      tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) },
+        named ? setName(s, i) : /* copy:label */ `set ${i + 1}`, h("small", { class: "dim" }, named ? ` ${s.rows.length}` : ` · ${s.rows.length}`)));
       if (i === app.active) tabs.appendChild(h("button", { class: "tab edit", onclick: () => renameSet(i) }, "✎"));
     });
   }
