@@ -1713,8 +1713,8 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
     }
     if item.cat() == Cat::Gold {
         let it = run.items.remove(ii).item;
-        run.loot_add(it.amount);
-        cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: format!("gold ({})", it.amount) });
+        run.loot_add_gold(it.amount);
+        cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: format!("gold ${}", it.amount) });
         // Cut 5 §3: gold under a foe's nose.
         if !view(run).foes.is_empty() {
             sifter::voice(run, cx, Moment::GoldWithFoes);

@@ -895,8 +895,9 @@ fn gold_adds_loot_and_unknown_items_hint() {
     }
     rules(&mut g, vec![]);
     ticks(&mut g, 40);
-    assert_eq!(g.run.as_ref().unwrap().loot_raw, 25 + 14);
-    assert_eq!(g.run.as_ref().unwrap().loot, (25 + 14) / crate::engine::GOLD_DIVISOR, "loot is counted in gold at pickup (Cut 4)");
+    // A pile's amount is coins and is added whole; an item adds its value before the divisor.
+    assert_eq!(g.run.as_ref().unwrap().loot_raw, 25 * crate::engine::GOLD_DIVISOR + 14);
+    assert_eq!(g.run.as_ref().unwrap().loot, 25 + 14 / crate::engine::GOLD_DIVISOR, "loot is counted in gold at pickup (Cut 4); a pile of $25 is $25");
     let snap = g.snapshot();
     let inv = &snap.hero.inv[0];
     assert!(!inv.known);

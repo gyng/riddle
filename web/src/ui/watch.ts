@@ -155,7 +155,7 @@ export function renderWatch(app: App): Mounted {
   let runId = -1, engineTick = 0, startTick = 0, inflight = false, lastPersist = performance.now();
   let pendingLoad: { snap: Snapshot; rest: Ev[] } | null = null;
   let exitTier: Tier | null = null, exitAt = 0;
-  let pendingExit: { items: InvItem[]; tier: string } | undefined;
+  let pendingExit: { items: InvItem[]; tier: string; worth?: number[] } | undefined;
   // Cut 5 §4: the open vault sheet's close, and the cage it was opened for (a dismissed sheet is not reopened)
   let vaultClose: (() => void) | null = null, vaultKey = "";
   let prepended = false;              // bail fell back to the row prepend (an engine without `bail`)
@@ -727,7 +727,7 @@ export function renderWatch(app: App): Mounted {
   }
 
   // Addendum D: choose what to keep before the run settles
-  function exitSheet(p: { items: InvItem[]; tier: string }, then: () => void): void {
+  function exitSheet(p: { items: InvItem[]; tier: string; worth?: number[] }, then: () => void): void {
     const free = Math.max(0, vaultSlots(app.lineage.unlocks) - app.lineage.vault.length);
     const keep = new Set<number>();
     let sent = false;
@@ -736,10 +736,10 @@ export function renderWatch(app: App): Mounted {
       const count = h("span", { class: "num dim" });
       const paint = (): void => {
         replace(count, `${keep.size}/${free}`);
-        replace(chips, ...p.items.map((it) => h("button", { class: `chip item${keep.has(it.id) ? " on" : ""}`, onclick: () => {
+        replace(chips, ...p.items.map((it, i) => h("button", { class: `chip item${keep.has(it.id) ? " on" : ""}`, onclick: () => {
           if (keep.has(it.id)) keep.delete(it.id); else if (keep.size < free) keep.add(it.id);
           paint();
-        } }, it.label, " ", keep.has(it.id) ? h("b", null, "⌂") : h("b", { class: "num gold" }, `$${salvageValue(it.kind, p.tier)}`))));
+        } }, it.label, " ", keep.has(it.id) ? h("b", null, "⌂") : h("b", { class: "num gold" }, `$${p.worth?.[i] ?? salvageValue(it.kind, p.tier)}`))));   // the engine's worth at this exit (its old client table read 4×)
       };
       paint();
       const bones = p.tier === "death" && bonesLeft !== undefined ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(bonesLeft)}`) : null;

@@ -455,6 +455,11 @@ impl Run {
         self.loot_raw += raw;
         self.loot = self.loot_raw / GOLD_DIVISOR;
     }
+    /// A gold pile's amount is coins (what the label says, what the stake rises by): it is
+    /// added whole. Items add their value before `GOLD_DIVISOR` (`loot_add`).
+    pub fn loot_add_gold(&mut self, coins: i32) {
+        self.loot_add(coins * GOLD_DIVISOR);
+    }
     pub fn monster_at(&self, p: Pos) -> Option<usize> {
         self.monsters.iter().position(|m| m.hp > 0 && m.pos == p)
     }
@@ -1785,6 +1790,7 @@ impl Game {
         self.pending_exit.as_ref().map(|p| ExitPending {
             items: p.items.iter().map(|i| to_inv(i, &self.lineage.facts, &self.lineage.flavours)).collect(),
             tier: p.tier.name().into(),
+            worth: p.items.iter().map(|i| (salvage_value(&i.kind) * p.pct / GOLD_DIVISOR + 50) / 100).collect(),
         })
     }
 
@@ -2948,7 +2954,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
     for _ in 0..6 {
         let iid = run.new_item_id();
         let mut it = Item::new(iid, "gold");
-        it.amount = run.rng.range(3, 7) * depth as i32;
+        // Coins (the pile reads `gold $2` and the stake rises by 2): the raw draw of
+        // 3–6 × depth over `GOLD_DIVISOR`, rounded, never empty.
+        it.amount = ((run.rng.range(3, 7) * depth as i32 + GOLD_DIVISOR / 2) / GOLD_DIVISOR).max(1);
         place(run, it);
     }
 }
@@ -3201,7 +3209,7 @@ pub fn place_room_kind(run: &mut Run, rng: &mut Rng, kind: &str, near: bool, use
         _ => {
             run.floor.map.set(p, Tile::Nest);
             let mut gold = Item::new(run.new_item_id(), "gold");
-            gold.amount = 12 * depth as i32 + rng.range(4, 12);
+            gold.amount = (12 * depth as i32 + rng.range(4, 12) + GOLD_DIVISOR / 2) / GOLD_DIVISOR;
             run.items.push(FloorItem { pos: p, item: gold });
             let mut placed = 0;
             let mut spots: Vec<Pos> = p.neighbours8().into_iter().filter(|q| run.floor.map.get(*q) == Tile::Floor && !run.occupied(*q)).collect();

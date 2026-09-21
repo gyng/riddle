@@ -86,7 +86,7 @@ export type Ev =
   | { t: number; k: "ending"; ticks: number };                              // Cut 7 §4: the last `ticks` before an exit start here (optional; else the client infers exit − 30)
 
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
-                           exit_pending?: { items: InvItem[]; tier: string } };                                       // Addendum D
+                           exit_pending?: { items: InvItem[]; tier: string; worth?: number[] } };                     // Addendum D; `worth`: each item's salvage at this exit, in coins
 
 export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry }[]; causes: { cause: string; share: number }[];
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`)

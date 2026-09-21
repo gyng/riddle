@@ -273,6 +273,10 @@ impl Ev {
 pub struct ExitPending {
     pub items: Vec<InvItem>,
     pub tier: String,
+    /// What each item (by position) salvages at this exit, in coins — the engine's own
+    /// arithmetic (`salvage_value × pct ÷ GOLD_DIVISOR`; the client's old table read 4× it).
+    #[serde(default)]
+    pub worth: Vec<i32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

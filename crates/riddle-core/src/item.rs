@@ -132,7 +132,7 @@ pub struct FloorItemWire {
 pub fn describe(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> (bool, String, String) {
     let d = item.def();
     match d.cat {
-        Cat::Gold => (true, "gold".into(), format!("gold ({})", item.amount)),
+        Cat::Gold => (true, "gold".into(), format!("gold ${}", item.amount)),
         Cat::Misc => (true, item.kind.clone(), if item.amount > 1 { format!("{} ({})", item.kind, item.amount) } else { item.kind.clone() }),
         Cat::Weapon | Cat::Armour => {
             let label = if item.enchant > 0 { format!("{} +{}", item.kind, item.enchant) } else { item.kind.clone() };

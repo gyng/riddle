@@ -3419,11 +3419,11 @@ fn try_companion_verb(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &Verb, v: &V
             let dmg = companion_melee(run, cx, mi, ti, "steal", 2);
             if dmg > 0 && run.monsters.get(ti).is_some() {
                 let tid = run.monsters[ti].id;
-                let gold = 3 * run.depth as i32;
-                run.loot_add(gold);
+                let gold = (3 * run.depth as i32 + crate::engine::GOLD_DIVISOR / 2) / crate::engine::GOLD_DIVISOR;
+                run.loot_add_gold(gold);
                 run.monsters[mi].stole_from.push(tid);
                 let id = run.monsters[mi].id;
-                cx.events.push(Ev::Steal { t: run.turn, id, item: format!("gold ({gold})"), amount: Some(gold) });
+                cx.events.push(Ev::Steal { t: run.turn, id, item: format!("gold ${gold}"), amount: Some(gold) });
             }
             true
         }
