@@ -58,6 +58,16 @@ pub fn at(run: &Run) -> Option<&str> {
 pub const BAND_KINDS: [&str; 4] = ["den", "lock", "captive", "hunger"];
 /// Cut 12 §4: every kind a floor can roll, the one word the interstitial and the reel use.
 pub const TWISTS: [&str; 8] = ["den", "lock", "captive", "nest", "shrine", "vault", "stray", "hunger"];
+
+/// Cut 13: a situation's word on screen. The three-item cage is the `vault` inside (facts,
+/// tokens, tiles) and the *cage* to the player: four QA players and a rater read `A vault:
+/// three under a cage` / `Took the X from the vault` as the camp's VAULT.
+pub fn twist_word(id: &str) -> &str {
+    match id {
+        "vault" => "cage",
+        other => other,
+    }
+}
 /// The room kinds (a room's interior tile): the only ones a boss floor rolls.
 const ROOM_KINDS: [&str; 3] = ["nest", "vault", "shrine"];
 

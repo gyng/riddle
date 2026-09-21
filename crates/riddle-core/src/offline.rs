@@ -207,7 +207,13 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         game.lineage.reel_pairs.remove(0);
     }
     let b = &game.batch;
-    let mut deaths: Vec<DeathCount> = b.deaths.iter().map(|(c, n)| DeathCount { cause: c.clone(), n: *n }).collect();
+    // The reel says `died to gas` where the tally said `burst ×1`: one word per cause, the
+    // reel's (`cause_phrase` merges a bloat's burst into gas).
+    let mut tally: std::collections::BTreeMap<String, u32> = std::collections::BTreeMap::new();
+    for (c, n) in &b.deaths {
+        *tally.entry(crate::sifter::cause_key(c)).or_insert(0) += n;
+    }
+    let mut deaths: Vec<DeathCount> = tally.into_iter().map(|(cause, n)| DeathCount { cause, n }).collect();
     deaths.sort_by(|a, b| b.n.cmp(&a.n).then(a.cause.cmp(&b.cause)));
     let salvaged = b.salvaged.iter().map(|(k, (n, g))| SalvageRow { kind: k.clone(), n: *n, gold: (*g + 50) / 100 }).collect();
     ReturnReport {

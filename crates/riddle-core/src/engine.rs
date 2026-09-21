@@ -55,8 +55,9 @@ pub const REST_MIN_TICKS: u32 = 20 * 60 * 10;
 pub const WAKE_TICKS: u32 = 20 * 60 * 10;
 /// Cut 2 §1: an egg hatches after this many rests (1 with the incubator).
 pub const EGG_RESTS: u32 = 3;
-/// Cut 2 §2: bones piles kept per lineage (oldest expires).
-pub const BONES_MAX: usize = 3;
+/// Cut 2 §2: bones piles kept per lineage (oldest expires). Cut 13: eight — three read as
+/// `bones: 3 on the floor` under a chronicle of seventeen heirs who each left some.
+pub const BONES_MAX: usize = 8;
 /// Cut 2 §5: kills of a kind before it counts as studied.
 pub const STUDIED_KILLS: u32 = 5;
 /// Cut 5 §2: lineage chronicle lines kept (one per ended heir).
@@ -2107,7 +2108,7 @@ impl Game {
             vault_choice: run.vault_choice.as_ref().map(|(_, items)| VaultChoice { items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect() }),
             room: Some(run.room_ref()),
             rooms: Some(run.floor.rooms.len() as u32),
-            floor_twist: run.floor_twist.clone(),
+            floor_twist: run.floor_twist.as_deref().map(|t| crate::situations::twist_word(t).to_string()),
         }
     }
 
@@ -2193,6 +2194,7 @@ impl Game {
         self.events.push(Ev::Rest { t, seconds: rest.div_ceil(crate::offline::TICKS_PER_SECOND as u32) });
         // Marks (Cut 2 §2): new depth, boss, trophy, rank. First kills stay in bests and the ledger.
         let mut marks = 0;
+        let mut wake_top = 0;
         let mut bests: Vec<String> = Vec::new();
         // Stall verdict window: a death or a new depth closes it; an exit row extends it.
         if let Some(r) = run.exit_row {
@@ -2524,6 +2526,7 @@ impl Game {
                 let top = WAKE_PAY - self.lineage.gold;
                 self.lineage.gold_move(top, "wake pay");
                 self.batch.wake_pay += top;
+                wake_top = top;
             }
             if let Some(rec) = rec {
                 self.deaths.insert(run.id, rec);
@@ -2576,6 +2579,14 @@ impl Game {
         let bones_n = if tier == ExitTier::Death { self.lineage.bones.last().filter(|b| b.heir == run.heir).map(|b| b.items.len()).unwrap_or(0) } else { 0 };
         let unused = run.hero.inv.iter().filter(|i| run.supplies.contains(&i.id) && i.kind != "leash").count();
         let mut line = exit_line_of(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, run.stuck_fires >= STALL_FIRES, unused, bones_n, run.depth);
+        // What the run earned besides gold, on its own line (QA on 50bb162: `◆7` and `$40` at
+        // the camp after a death with no source on the death screen).
+        if marks > 0 {
+            line.text.push_str(&format!(" · ◆+{marks}"));
+        }
+        if wake_top > 0 {
+            line.text.push_str(&format!(" · +${wake_top} wake"));
+        }
         // Cut 9 §5: every exit carries its last five hero turns (read off the run's own trace
         // ring: nothing more per tick).
         line.trace = Some(exit_trace(&run, &self.prov));

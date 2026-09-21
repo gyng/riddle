@@ -680,7 +680,7 @@ fn subject(ep: &Episode, short: bool) -> String {
         "poison" => "Poison".into(),
         "shrine" => "The shrine".into(),
         "nest" => "The nest".into(),
-        "vault" => "The vault".into(),
+        "vault" => "The cage".into(),
         "den" => "The den".into(),
         "lock" => "The lock".into(),
         "captive" => "The captive".into(),
@@ -717,7 +717,7 @@ fn subject(ep: &Episode, short: bool) -> String {
 
 fn setup_phrase(ep: &Episode, short: bool) -> String {
     match ep.setup {
-        Setup::Vault => "The vault held three".into(),
+        Setup::Vault => "The cage held three".into(),
         Setup::Captive => "A captive, chained".into(),
         Setup::Stray => {
             if short {
@@ -875,7 +875,7 @@ pub fn routine_line(ep: &Episode) -> Option<String> {
     };
     let home = matches!(ep.resolution, Resolution::Returned { .. } | Resolution::Banked { .. });
     let row = if home && ep.act.row >= 0 && matches!(ep.act.verb.v.as_str(), "return" | "bank") { format!("R{} ", ep.act.row + 1) } else { String::new() };
-    let twist = ep.twist.as_deref().map(|t| format!(", the {t}")).unwrap_or_default();
+    let twist = ep.twist.as_deref().map(|t| format!(", the {}", crate::situations::twist_word(t))).unwrap_or_default();
     Some(format!("D{}{twist}: {row}{res}.", ep.depth))
 }
 
@@ -885,7 +885,7 @@ pub fn routine_ok(text: &str) -> bool {
     let Some((head, tail)) = body.split_once(": ") else { return false };
     let (depth, twist) = head.split_once(", the ").map(|(d, t)| (d, Some(t))).unwrap_or((head, None));
     let depth_ok = depth.strip_prefix('D').is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()));
-    let twist_ok = twist.is_none_or(|t| crate::situations::TWISTS.contains(&t));
+    let twist_ok = twist.is_none_or(|t| crate::situations::TWISTS.iter().any(|k| crate::situations::twist_word(k) == t));
     let tail = match tail.split_once(' ') {
         Some((r, rest)) if r.starts_with('R') && r[1..].chars().all(|c| c.is_ascii_digit()) && r.len() > 1 => rest,
         _ => tail,
@@ -939,7 +939,7 @@ pub fn story_ok(text: &str) -> bool {
     let setup = beats[0];
     let setup_ok = setup == "Untouched"
         || setup.starts_with("Untouched by ")
-        || setup == "The vault held three"
+        || setup == "The cage held three"
         || setup == "A captive, chained"
         || setup.ends_with(" came back")
         || setup.ends_with(" took him down")
@@ -947,7 +947,7 @@ pub fn story_ok(text: &str) -> bool {
     let turn = beats[1];
     let forms = past_forms();
     let combo_ok = crate::rules::COMBOS.iter().any(|c| turn == format!("the {} landed", c.name) || turn == format!("the {} landed", crate::rules::combo_slug(c.name)));
-    let turn_ok = NO_ROW.contains(&turn) || combo_ok || (setup == "The vault held three" && turn.starts_with("he took the ")) || {
+    let turn_ok = NO_ROW.contains(&turn) || combo_ok || (setup == "The cage held three" && turn.starts_with("he took the ")) || {
         let (head, rest) = match turn.split_once(' ') {
             Some(x) => x,
             None => return false,
@@ -1019,6 +1019,14 @@ pub fn score(ep: &Episode, named: bool) -> i32 {
         _ => 1,
     };
     depth * weight(&ep.resolution, named) + if ep.situation.is_some() { 2 } else { 0 }
+}
+
+/// Cut 13: the tally's word for a death cause — a bloat's `burst` is `gas`, as the reel says.
+pub fn cause_key(cause: &str) -> String {
+    match cause {
+        "burst" => "gas".into(),
+        other => other.into(),
+    }
 }
 
 pub fn threat_key(ep: &Episode) -> String {

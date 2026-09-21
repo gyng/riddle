@@ -477,7 +477,9 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             row_why(run, cx, i, reason, Some(row), None);
             if run.blocked_now.is_none() {
                 run.blocked_now = Some(format!("R{} {} ✗ {reason}", i + 1, row.verb.short()));
-                let short = format!("{} ✗ {reason}", row.verb.v.split('_').next().unwrap_or(&row.verb.v));
+                // The verb's own short word (`corridor ✗ no path`), never the id's first half
+                // (`back ✗ no path` named no row — QA on 50bb162).
+                let short = format!("{} ✗ {reason}", row.verb.short().split(' ').next().unwrap_or(&row.verb.v));
                 if run.blocked_last.as_deref() != Some(&short) {
                     crate::chronicle::callout(run, cx, &short);
                 }
@@ -637,6 +639,12 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     // same unreachable foe pull the hero back into the pacing, three guards a stall.
     for id in ids {
         run.ignore(id, u32::MAX);
+    }
+    // A pacing made of `pick up` chores (an item the hero steps toward and away from) gives
+    // the floor's items up as well, for the floor: the last DEFAULT stalls were all this.
+    let pickups = run.trace.iter().rev().take(12).filter(|t| t.row == -2 && t.verb.v == "pick_up").count();
+    if pickups >= 6 {
+        run.items_until = u32::MAX;
     }
     run.stuck_until = run.actions + 30;
     run.stuck_fires += 1;
@@ -1615,7 +1623,7 @@ fn situations_seen(run: &mut Run, cx: &mut Ctx) {
         if run.met_situation(k) {
             let note_text = match k {
                 "shrine" => "A shrine. Pray, at a price.",
-                "vault" => "A vault: three under a cage.",
+                "vault" => "A cage: three inside, one to take.",
                 _ => "A den. Something sleeps.",
             };
             note(run, cx, note_text.into());
@@ -1672,7 +1680,7 @@ fn vault_open(run: &mut Run, cx: &mut Ctx) {
     run.met_situation("vault");
     learn(run, cx, "vault".into());
     run.vault_choice = Some((run.turn, cage));
-    note(run, cx, "The vault opens: choose one.".into());
+    note(run, cx, "The cage opens: one is his.".into());
     callout(run, cx, "choose one");
 }
 
@@ -1707,7 +1715,7 @@ pub fn vault_take(run: &mut Run, cx: &mut Ctx, id: Option<u32>) {
         }
     }
     cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label.clone() });
-    note(run, cx, format!("Took the {label} from the vault."));
+    note(run, cx, format!("Took the {label} from the cage."));
     sifter::open_situation(run, crate::sifter::Setup::Vault, "vault", &label, "");
 }
 

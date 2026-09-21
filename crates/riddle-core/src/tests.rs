@@ -1015,21 +1015,24 @@ fn death_keeps_nothing_and_leaves_bones() {
 }
 
 #[test]
-fn bones_piles_cap_at_three_and_bone_sense_paths_to_them() {
+fn bones_piles_cap_at_bones_max_and_bone_sense_paths_to_them() {
+    let cap = crate::engine::BONES_MAX as u32;
     let mut g = arena();
-    for heir in 1..=4u32 {
+    for heir in 1..=cap + 1 {
         g.lineage.bones.push(crate::engine::Bones { heir, depth: 1, items: vec![Item::new(500 + heir, "dagger")], named: false });
     }
     give(&mut g, "sword");
     g.run.as_mut().unwrap().hero.hp = 0;
     finish_with(&mut g, ExitTier::Death);
-    assert_eq!(g.lineage.bones.len(), 3, "oldest expires");
-    assert_eq!(g.lineage.bones.iter().map(|b| b.heir).collect::<Vec<_>>(), vec![3, 4, 1]);
+    assert_eq!(g.lineage.bones.len(), cap as usize, "oldest expires");
+    let mut want: Vec<u32> = (3..=cap + 1).collect();
+    want.push(1);
+    assert_eq!(g.lineage.bones.iter().map(|b| b.heir).collect::<Vec<_>>(), want);
     // bone_sense: the chores walk to unseen bones.
     g.lineage.unlocks.insert("bone_sense".into());
     g.auto_keep();
     g.start_run(None);
-    assert!(g.run.as_ref().unwrap().items.iter().filter(|i| i.item.kind == "bones").count() == 3);
+    assert!(g.run.as_ref().unwrap().items.iter().filter(|i| i.item.kind == "bones").count() == cap as usize);
     g.set_rules(RuleSet::default()).unwrap();
     let mut found = false;
     for _ in 0..3000 {
@@ -1403,7 +1406,7 @@ fn routine_line_reads_the_floor_and_its_twist() {
     let e = ep(2, None, Act::default(), Resolution::Returned { gold: 8 });
     assert_eq!(story_line(&e), "D2: returned $8.");
     let e = ep(5, Some("vault"), ret(0), Resolution::Lost { stalled: false });
-    assert_eq!(story_line(&e), "D5, the vault: lost the thread.");
+    assert_eq!(story_line(&e), "D5, the cage: lost the thread.");
     let e = ep(7, Some("lock"), Act { row: 1, verb: Verb::new("bank"), target: None, boss: false }, Resolution::Banked { gold: 120 });
     assert_eq!(story_line(&e), "D7, the lock: R2 banked $120.");
     // An attack row that happened to be the last act is not credited with the exit.
@@ -1416,7 +1419,7 @@ fn routine_line_reads_the_floor_and_its_twist() {
     e.threat = vec![("jackal".into(), 2)];
     assert_eq!(routine_line(&e), None);
     assert_eq!(story_line(&e), "Two jackals took him to 4 HP; R3 returned; returned.");
-    for t in ["D6, the nest: R3 returned $54.", "D2: returned $8.", "D5, the vault: lost the thread.", "D7, the lock: R2 banked $120."] {
+    for t in ["D6, the nest: R3 returned $54.", "D2: returned $8.", "D5, the cage: lost the thread.", "D7, the lock: R2 banked $120."] {
         assert!(story_ok(t), "{t}");
         assert!(word_count(t) <= crate::sifter::STORY_WORDS);
     }
@@ -3644,7 +3647,7 @@ fn unlock_catalogue_carries_a_forecast_delta_for_open_cards() {
     assert!(by("pack_break").delta.is_some());
     assert!(by("kite_archers").delta.is_none(), "gated on the ranged fact");
     assert!(by("row5").delta.is_none(), "rows have no row to add");
-    assert!(by("throw").delta.is_some(), "verbs get a canonical row");
+    assert!(by("throw").delta.is_none(), "Cut 13: a verb carries no delta — its canonical row is nobody's policy (QA on 50bb162: `reach −92% ±11`)");
     assert!(by("tame").owned && by("tame").delta.is_none(), "Cut 8B: tame is owned from the start");
     for u in &cat {
         if let Some(d) = u.delta {
@@ -3849,7 +3852,7 @@ fn the_vault_waits_for_a_choice_when_watched_and_picks_by_preference_otherwise()
     }
     let hs = crate::sifter::sift_with(g.run.as_ref().unwrap(), false);
     let line = hs.iter().find(|h| h.arc.as_ref().unwrap().threat == "vault").unwrap();
-    assert_eq!(line.text, "The vault held three; he took the mail; returned.");
+    assert_eq!(line.text, "The cage held three; he took the mail; returned.");
     assert!(crate::sifter::story_ok(&line.text));
     // Unanswered past the grace: the preference picks.
     let mut g = arena();
@@ -6521,6 +6524,7 @@ fn the_nights_ledger_reconciles_and_a_wasted_kind_is_not_rebought() {
 fn a_catalogue_delta_carries_its_half_width() {
     let mut g = Game::new(11);
     g.lineage.facts.insert("foe:jackal:pack".into());
+    g.lineage.facts.insert("foe:goblin_archer:ranged".into());
     g.lineage.marks = 9;
     g.lineage.best_depth = 3;
     let cat = g.unlock_deltas();
