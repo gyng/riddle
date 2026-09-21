@@ -1,4 +1,4 @@
-// Cut 6 §1: the `gold` sheet — the last 20 gold movements, newest first, one per line: `+$50 returned D5` · `−$40 heal`
+// Cut 6 §1: the `gold` sheet — the last 80 gold movements (the core's GOLD_LEDGER_CAP), newest first, one per line: `+$50 returned D5` · `−$40 heal`
 // (engine data, no prose). Cut 11 §5: opened from an exit line (the report, the death screen's ledger line) it shows that
 // run's movements only — `−$40 heal · −$30 leash · +$36 returned D5 · +$8 salvage` — with an `all` chip for the whole ledger.
 //
@@ -8,7 +8,7 @@
 // its salvage and a death's wake pay follow it at the same tick. So a run is the slice after the previous exit's tail up
 // to its own tail — an index range, which also holds when `GoldLine.t` is a coarser clock than the run's ticks. The exit line is matched to the ledger by its tier
 // and kept sum (`ExitLine.kept` = the line's delta), the newest match first; report exits (oldest first) claim matches
-// from the newest backwards so two identical exits map to two different lines. An exit whose line has left the 20-line
+// from the newest backwards so two identical exits map to two different lines. An exit whose line has left the 80-line
 // ledger opens the sheet unfiltered.
 import type { App } from "../app";
 import type { ExitLine, GoldLine } from "../engine/types";

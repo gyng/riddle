@@ -707,7 +707,7 @@ pub struct LineageState {
 }
 
 /// Cut 6 §1: gold movements kept on the lineage.
-pub const GOLD_LEDGER_CAP: usize = 20;
+pub const GOLD_LEDGER_CAP: usize = 80;   // a night of 16 runs writes ~50 lines; 20 could not be reconciled (QA on 952e306)
 /// Cut 6 §1: exit lines kept per absence (`ReturnReport.exits`).
 pub const EXITS_CAP: usize = 5;
 
