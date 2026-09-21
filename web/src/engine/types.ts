@@ -126,6 +126,7 @@ export type Stall = { row: number; fired: number; text: string; patches: Patch[]
 export type Highlight = { pattern: string; score: number; t: number; run_id: number; text: string };
 export type ReturnReport = {
   elapsed_s: number; runs: number; sampled: boolean;
+  deepest?: number;                                                            // the send's deepest floor (a delta, like the tiles beside it); absent on an old wire
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; worst_death_id?: number; live?: Snapshot;
   tamed: string[]; hatched: string[]; lost: string[];                        // Addendum A

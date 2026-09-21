@@ -37,7 +37,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const tiles = h("div", { class: `tiles${exits ? " six" : ""}${absence ? " fade-in" : ""}` },
     tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"),
     exits ? null : tile(`${deathsN}`, /* copy:label */ "deaths"),
-    tile(`D${L.best_depth}`, /* copy:label */ "best"),
+    // the send's deepest floor, a delta like the tiles beside it (the lineage best is in the header; both QA players read
+    // `1 RUNS · D4 BEST` as this send's); an old wire without it shows the lineage best
+    r.deepest !== undefined ? tile(`D${r.deepest}`, /* copy:label */ "deepest") : tile(`D${L.best_depth}`, /* copy:label */ "best"),
     tile(`◆${r.marks_earned > 0 ? "+" : ""}${r.marks_earned}`, /* copy:label */ "marks"),
     // Cut 10 §3: `returned` leads when it is the larger (fourteen returns beside `banked 0` read as a contradiction)
     ...(exits ? ((r.returned ?? 0) > (r.banked ?? 0) ? [returned, banked] : [banked, returned]) : []),

@@ -507,6 +507,11 @@ pub struct ReturnReport {
     /// Stall verdict (addition): present when the last ≥ 4 runs all came home with no new depth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stall: Option<Stall>,
+    /// The deepest floor any run of this absence reached (the report's `deepest` tile: a
+    /// delta like the tiles beside it; the lineage best is the header's — QA on 952e306:
+    /// "`1 RUNS · D4 BEST` for a run that peaked at D2").
+    #[serde(default)]
+    pub deepest: u32,
     /// Cut 6 §1: the ledger lines of the absence's last five exits, oldest first.
     #[serde(default)]
     pub exits: Vec<ExitLine>,

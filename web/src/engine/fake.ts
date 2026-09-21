@@ -1251,12 +1251,13 @@ export class FakeEngine implements Engine {
     };
     if (this.pending) { const run = this.pending; this.pending = null; take(this.settle(run, true, this.autoKeep(run))); this.live = null; }
     let worst: { id: number; depth: number } | null = null;
+    let deepest = 0;                                                       // the send's deepest floor (the report's `deepest` tile)
     if (this.live && !this.live.over) { const ctx = this.ctx(); while (!this.live.over && budget > 0) { simTurn(this.live, ctx); budget--; this.s.totalTurns += 10; } if (this.live.over) { const r = this.settle(this.live, true, this.autoKeep(this.live)); this.settled.add(this.live.id); take(r); learned.push(...r.facts); bests.push(...r.bests); marks += r.marks; runs++; if (this.live.exit === "death") { deaths[this.live.cause ?? "?"] = 1; worst = { id: this.live.id, depth: this.live.depth }; } reel.push(...this.live.hl); rest(this.live); this.live = null; } }
     while (budget > 0 && stall < 20 && runs < 80 && !L.ended) {
       const run = this.startRun(); const ctx = this.ctx();
       while (!run.over && budget > 0) { simTurn(run, ctx); budget--; this.s.totalTurns += 10; }
       if (!run.over) { this.live = run; break; }
-      runs++; turnsTotal += run.turn;
+      runs++; turnsTotal += run.turn; deepest = Math.max(deepest, run.depth);
       const r = this.settle(run, true, this.autoKeep(run)); this.settled.add(run.id); take(r);
       learned.push(...r.facts); bests.push(...r.bests); marks += r.marks;
       stall = r.facts.length || r.bests.length ? 0 : stall + 1;
@@ -1278,7 +1279,7 @@ export class FakeEngine implements Engine {
     const live = this.send(); L.rest_left_s = restLeft;                    // `live` is a peek, not a send: the rest stands
     return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live, tamed, hatched, lost, xp: { class: L.class, gained: xpGained, level_ups: levelUps },
       salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp },
-      rested_s: rested, banked, returned, bones_found: bonesFound, stall: verdictStall, exits };
+      rested_s: rested, banked, returned, bones_found: bonesFound, stall: verdictStall, deepest, exits };
   }
   /** Stall verdict (core README) so the report's section can be seen: a `return` / `bank` row that sent ≥ 4 runs home with no
    *  new depth is named; the candidates (row 10 points deeper as `replace`, the row as `remove`, `hp<90 → rest`) carry the
