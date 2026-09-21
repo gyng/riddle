@@ -287,6 +287,13 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         if rules.rows.contains(&row) {
             continue;
         }
+        // A verb unlock's delta is its canonical row at the top: the row and its place ride
+        // along so the buy can insert it and the number holds (QA on e0f87e7: "`verb: throw ·
+        // reach +21%` bought; the forecast identical"). A card's `rows` are what it does.
+        if row.verb.v != "tactic" {
+            u.rows = Some(vec![row.clone()]);
+            u.insert_at = Some(at);
+        }
         // The sim lineage owns the unlock (the verb must be in its vocabulary to fire).
         let mut g = game.sim_clone();
         g.lineage.unlocks.insert(u.id.clone());
