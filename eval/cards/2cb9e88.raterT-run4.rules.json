@@ -1,0 +1,70 @@
+{
+  "name": "raterT run 4 (from notes)",
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 20
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "unknown"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 3
+        }
+      ],
+      "verb": {
+        "v": "back_corridor"
+      }
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "kite_archers"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "depth>=",
+          "n": 5
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      }
+    }
+  ]
+}

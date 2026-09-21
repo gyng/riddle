@@ -42,7 +42,11 @@ pub fn view(run: &Run) -> View {
             // Cut 7 §3: a captive chained across the stairs is a foe once the hero stands
             // beside it (the coward's way through the gate).
             let chained = m.neutral && m.situation.as_deref() == Some("captive") && m.pos.adjacent(hp);
-            m.hp > 0 && (m.hostile() || chained) && !m.dormant && map.is_visible(m.pos)
+            // A thief running with its loot is not a threat to hide from (`foes ≥ 3 → to
+            // corridor` held a corridor against three fleeing monkeys, cohort 10); it stays
+            // a `foe: thief` target.
+            let running = m.fleeing && m.stolen.is_some() && !m.pos.adjacent(hp);
+            m.hp > 0 && (m.hostile() || chained) && !m.dormant && !running && map.is_visible(m.pos)
         })
         .collect();
     foes.sort_by_key(|&i| (run.monsters[i].pos.cheb(hp), run.monsters[i].id));

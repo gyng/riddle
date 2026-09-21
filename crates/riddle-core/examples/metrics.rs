@@ -133,6 +133,49 @@ fn full() -> RuleSet {
     set
 }
 
+/// Cut 13 §1: the cohorts' own rule sets (`eval/cards/<build>.<rater>[-<tag>].rules.json`:
+/// a rater's export, or a set reconstructed from a rater's notes) — the stall gate runs over
+/// them too, because the loop rater T hit on 2cb9e88 was one no bot's set carried.
+fn cohort_sets() -> Vec<(String, RuleSet)> {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../eval/cards");
+    let Ok(rd) = std::fs::read_dir(dir) else { return Vec::new() };
+    let mut out: Vec<(String, RuleSet)> = rd
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            let stem = name.strip_suffix(".rules.json")?.to_string();
+            let text = std::fs::read_to_string(e.path()).ok()?;
+            let set = RuleSet::parse(&text).unwrap_or_else(|err| panic!("{name}: {err}"));
+            Some((stem, set))
+        })
+        .collect();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+/// (set index, seed) → (sends, stalls).
+type CohortStalls = BTreeMap<(usize, u64), (u32, u32)>;
+
+/// A lineage that owns what a cohort set needs (its cards, its condition tokens, eight
+/// rows, the common facts), playing that set: (sends, stalls) over `hours`.
+fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32) {
+    let mut g = setup(Bot::Edited, seed);
+    for r in &set.rows {
+        if let Some(c) = r.card() {
+            g.lineage.unlocks.insert(c.into());
+        }
+        for c in &r.conds {
+            if let Some(u) = riddle_core::meta::cond_unlock(&c.k) {
+                g.lineage.unlocks.insert(u.into());
+            }
+        }
+    }
+    // `_raw`: the lineage has not met what a token's lock needs (`see: captive`); the run has.
+    g.set_rules_raw(set.clone()).unwrap_or_else(|e| panic!("cohort set {:?}: {e}", set.name));
+    riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
+    (g.batch.run_outcomes.len() as u32, g.batch.stalls)
+}
+
 fn setup(bot: Bot, seed: u64) -> Game {
     let mut g = Game::new(seed);
     g.max_deaths = 100_000;
@@ -477,6 +520,25 @@ fn main() {
     for h in handles {
         h.join().unwrap();
     }
+    // The cohort sets' stalls, on the same pool: one job per (set, seed), 4 h each (≈ 12 sends).
+    let sets = Arc::new(cohort_sets());
+    let cohort: Arc<Mutex<CohortStalls>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let cjobs: Vec<(usize, u64)> = (0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| (si, s))).collect();
+    let cjobs = Arc::new(Mutex::new(cjobs));
+    let mut handles = Vec::new();
+    for _ in 0..threads {
+        let (cjobs, cohort, sets) = (Arc::clone(&cjobs), Arc::clone(&cohort), Arc::clone(&sets));
+        handles.push(std::thread::spawn(move || loop {
+            let job = cjobs.lock().unwrap().pop();
+            let Some((si, seed)) = job else { break };
+            let r = cohort_stalls(&sets[si].1, seed, 4);
+            cohort.lock().unwrap().insert((si, seed), r);
+        }));
+    }
+    for h in handles {
+        h.join().unwrap();
+    }
+    let cohort = cohort.lock().unwrap();
     let results = results.lock().unwrap();
     let per_bot = |bot: Bot| -> Vec<&SeedResult> {
         let bi = BOTS.iter().position(|b| *b == bot).unwrap();
@@ -820,6 +882,22 @@ fn main() {
     let (f_stall, f_sends, f_stalls) = stall_pct(&full);
     println!("stalls (Cut 13 §1): DEFAULT {d_stalls}/{d_sends} ({d_stall:.1}%) · EDITED (good) {e_stalls}/{e_sends} ({e_stall:.1}%) · FULL {f_stalls}/{f_sends} ({f_stall:.1}%)");
     rows.push((format!("Stalls ≤ 1% of sends on DEFAULT (n={d_sends})"), format!("{d_stall:.1}%"), d_stall <= 1.0));
+    // … and on the cohorts' own sets (`eval/cards/*.rules.json`), each over `seeds` × 4 h.
+    let (mut c_sends, mut c_stalls, mut worst) = (0u32, 0u32, (0.0f64, String::new()));
+    for (si, (name, _)) in sets.iter().enumerate() {
+        let (n, k) = (1..=seeds).fold((0u32, 0u32), |a, s| { let r = cohort[&(si, s)]; (a.0 + r.0, a.1 + r.1) });
+        let p = pct(k as usize, n as usize);
+        println!("  cohort set {name}: {k}/{n} ({p:.1}%)");
+        c_sends += n;
+        c_stalls += k;
+        if p > worst.0 {
+            worst = (p, name.clone());
+        }
+    }
+    if !sets.is_empty() {
+        let c_pct = pct(c_stalls as usize, c_sends as usize);
+        rows.push((format!("Stalls ≤ 1% of sends on every cohort set ({} sets, n={c_sends})", sets.len()), format!("{c_pct:.1}% · worst {:.1}%", worst.0), worst.0 <= 1.0));
+    }
     let (sv_n, sv_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_verdicts.0, a.1 + r.stall_verdicts.1));
     rows.push((format!("Stall verdicts: ≥ 1 patch fired ≥ 50% (n={sv_n})"), format!("{sv_ok}/{sv_n}"), sv_ok == sv_n));
     let (sr_n, sr_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_reel.0, a.1 + r.stall_reel.1));

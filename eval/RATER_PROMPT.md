@@ -30,6 +30,10 @@ then one quoted sentence of evidence per axis, then awards on the five anchors (
 0.8 / 1.0; 0.8 needs a named lapse, 1.0 needs "no lapse across the horizon" and a named genre
 benchmark it beats). Fill the `horizon` block honestly. Weight-0 axes get 0 and "weight 0".
 `bot` stays "na" on every axis (caps are applied later). The build has sound (WebAudio cues and a camp drone; unmuted after your first tap, `mute` in settings). The GPU harness runs headed Chromium under WSLg, which has an audio sink, but you cannot hear it; you may inspect `window.__audio` in dev builds to see which cues fired and when. If you cannot verify a cue landed at the right moment, mark audio unassessed rather than praising or faulting it.
+Before you close the driver, save your final rule set: open `{URL}?dev=1` (it keeps your
+save), then
+`tools/drive.sh {PORT} '{"op":"js","body":"return await page.evaluate(() => window.__riddle.engine.exportRules())"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' > eval/cards/{BUILD}.{RATER}.rules.json`
+(the gate table plays every cohort's sets; a stall only your set finds is one the bots cannot).
 Finish the card with a three-sentence retelling of your best run in `criterion.delayedRecall`
 prefixed "same-day: ". Then run `eval/score.sh eval/cards/{BUILD}.{RATER}.json` and paste the
 total in your report, plus your three biggest gripes as a player and the three things you would

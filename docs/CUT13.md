@@ -103,7 +103,7 @@ Both: "±10 between re-rolls", "±15 made some comparisons coin flips", "'95 % b
 
 | Gate | Bar |
 |---|---|
-| Stalls ≤ 1 % of sends on DEFAULT and the cohort-9 sets; every stall has a verdict with a firing patch; reel cause == trace cause | 30 seeds |
+| Stalls ≤ 1 % of sends on DEFAULT and on every cohort set (`eval/cards/*.rules.json`: a rater's export, or a set reconstructed from the notes); every stall has a verdict with a firing patch; reel cause == trace cause | 30 seeds |
 | A chosen trait sticks; ≤ 1 trait deviation per floor | test, 30 seeds |
 | Report gold reconciles: banked + returned + salvage − spent == delta | test, 30 seeds |
 | Situations cut in; death notes shown; no clipped callout | fights.mjs, clarity.mjs |

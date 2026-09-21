@@ -189,6 +189,10 @@ pub struct Run {
     pub supplies: Vec<u32>,
     /// Taunt: foes ignore companions for this many ticks.
     pub taunt_t: i32,
+    /// Cut 13: the archer the `kite archers` card last broke line of sight from, and when —
+    /// the card charges it the second time inside `KITE_WINDOW` (it held its ground).
+    #[serde(default)]
+    pub kited: Option<(u32, u32)>,
     /// Cached BFS field from the hero (recomputed when the hero moves).
     #[serde(skip)]
     pub hero_dist: Vec<i32>,
@@ -1754,6 +1758,7 @@ impl Game {
             lost_companions: Vec::new(),
             supplies: Vec::new(),
             taunt_t: 0,
+            kited: None,
             hero_dist: Vec::new(),
             hero_dist_pos: None,
             last_visible: vec![u32::MAX],

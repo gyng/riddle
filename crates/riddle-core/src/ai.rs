@@ -1935,6 +1935,9 @@ pub fn curious_use(run: &mut Run, cx: &mut Ctx) -> Option<Verb> {
 }
 
 /// Step out of the line of sight of `from`, if a neighbouring tile does that.
+/// Ticks inside which kiting the same archer again means it is not coming (`kite_archers`).
+const KITE_WINDOW: u32 = 40;
+
 fn break_los_step(run: &mut Run, cx: &mut Ctx, from: Pos) -> bool {
     let hp = run.hero.pos;
     let map = &run.floor.map;
@@ -1971,9 +1974,17 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
         "kite_archers" => {
             let drawing = v.foes.iter().copied().find(|&i| run.monsters[i].telegraph.as_deref() == Some("draws") && !run.monsters[i].pos.adjacent(run.hero.pos));
             if let Some(i) = drawing {
-                let from = run.monsters[i].pos;
-                if break_los_step(run, cx, from) {
-                    return true;
+                let id = run.monsters[i].id;
+                // An archer kited once inside `KITE_WINDOW` that is drawing again has held its
+                // ground while a chore walked the hero back into its view (cohort 10: the
+                // card and the pick-up chore alternated for 12 turns); this time, close.
+                let held = run.kited.is_some_and(|(kid, t)| kid == id && run.turn.saturating_sub(t) <= KITE_WINDOW);
+                if !held {
+                    let from = run.monsters[i].pos;
+                    if break_los_step(run, cx, from) {
+                        run.kited = Some((id, run.turn));
+                        return true;
+                    }
                 }
             }
             if v.foes.iter().any(|&i| run.monsters[i].has_tag("ranged")) {

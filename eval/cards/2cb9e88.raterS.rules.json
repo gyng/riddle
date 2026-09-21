@@ -1,0 +1,91 @@
+{
+  "name": "raterS final (from notes)",
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        }
+      ],
+      "verb": {
+        "v": "rest"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "ranged"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:ranged"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "summoner"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:summoner"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 40
+        },
+        {
+          "k": "depth>=",
+          "n": 6
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      }
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      }
+    }
+  ]
+}

@@ -1197,10 +1197,11 @@ fn offline_samples_after_twenty_stalled_runs() {
 #[test]
 fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     // Cut 5: 12 h (situations on D1–5 gave this seed a new best on its 17th run of 8 h);
-    // Cut 8B: 16 h (the first stray on D2 moved the bests again).
+    // Cut 8B: 16 h (the first stray on D2 moved the bests again). Cut 13: `hp < 35 %` (at
+    // 20 % the set died three times in 16 h once running thieves stopped counting as foes).
     let mut g = Game::new(5);
     let mut set = g.lineage.rules().clone();
-    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")));
+    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 35)], Verb::new("return")));
     g.set_rules(set).unwrap();
     let r = g.run_offline(16 * 3600);
     let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
@@ -1222,7 +1223,7 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     // The client's path: 30-minute quick slices; the last slice carries the same stall.
     let mut q = Game::new(5);
     let mut set = q.lineage.rules().clone();
-    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")));
+    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 35)], Verb::new("return")));
     q.set_rules(set).unwrap();
     let mut last = None;
     for _ in 0..32 {
