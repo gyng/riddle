@@ -831,7 +831,13 @@ pub fn story_line(ep: &Episode) -> String {
     }
     let mut s = String::new();
     for (rs, ts, es) in [(false, false, 0), (false, true, 0), (false, true, 1), (true, true, 1), (true, true, 2)] {
-        s = format!("{}; {}; {}.", setup_phrase(ep, ts), turn_phrase(ep, rs), resolution_form(&ep.resolution, es));
+        // A death from full health has its killer in the setup (`An ogre took him down`); the
+        // exit then says where, not who again (`died on D7`, not `died to an ogre`).
+        let end = match &ep.resolution {
+            Resolution::Died { .. } if ep.setup == Setup::Hurt && ep.low_hp <= 0 => format!("died on D{}", ep.depth),
+            res => resolution_form(res, es),
+        };
+        s = format!("{}; {}; {}.", setup_phrase(ep, ts), turn_phrase(ep, rs), end);
         if word_count(&s) <= STORY_WORDS {
             return s;
         }
