@@ -538,6 +538,10 @@ pub struct ReturnReport {
     /// Stall verdict (addition): present when the last ≥ 4 runs all came home with no new depth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stall: Option<Stall>,
+    /// Cut 13 §1: sends that stalled (they are among `returned`, keeping nothing): the tiles
+    /// count them apart — `1 RETURNED` for a stall read as a return to two QA players.
+    #[serde(default)]
+    pub stalled: u32,
     /// Cut 13 §3: what the automations bought during the absence, per kind in coins
     /// (`heal ×16 · −$640`), the report's SPENT section; `banked + returned + salvage − spent`
     /// is the header's delta.

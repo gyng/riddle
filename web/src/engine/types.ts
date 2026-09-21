@@ -132,6 +132,7 @@ export type Highlight = { pattern: string; score: number; t: number; run_id: num
 export type ReturnReport = {
   elapsed_s: number; runs: number; sampled: boolean;
   deepest?: number;                                                            // the send's deepest floor (a delta, like the tiles beside it); absent on an old wire
+  stalled?: number;                                                            // Cut 13 §1: sends that stalled (among `returned`, keeping nothing); the tiles count them apart
   spent?: { kind: string; n: number; gold: number }[];                         // Cut 13 §3: what the automations bought this absence, per kind (the SPENT section)
   gold?: { home: number; salvage: number; wake: number; spent: number };       // Cut 13 §3: the absence's movements to the coin (home + salvage + wake − spent = the header's delta)
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
