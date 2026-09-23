@@ -589,6 +589,52 @@ fn monkey_steals_then_flees_and_drops_on_death() {
     assert!(run.items.iter().any(|i| i.item.kind == "sword"));
 }
 
+/// QA on 3d71c33: a watched run read `$-3 · keeps $0` after a monkey took a brought item on
+/// D1 — a theft took the item's value off loot that never held it. The carried gold never goes
+/// below 0 (any `loot_add`), and a theft or swap takes off only what the item added: a brought
+/// item or a packed supply takes nothing, a found one takes its value back.
+#[test]
+fn carried_gold_never_goes_below_zero() {
+    // A brought item stolen with $3 carried: the $3 stay.
+    let mut g = arena();
+    hold_rules(&mut g);
+    let id = give(&mut g, "sword");
+    g.run.as_mut().unwrap().brought.push(id);
+    g.run.as_mut().unwrap().loot_add_gold(3);
+    let m = add_monster(&mut g, "monkey", 5, 5);
+    let evs = ticks(&mut g, 60);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Steal { id, amount: None, .. } if *id == m)), "a brought item's theft costs the stake nothing");
+    assert_eq!(g.run.as_ref().unwrap().loot, 3);
+    // An item given with nothing carried (never counted): the stake stays at $0, not below.
+    let mut g = arena();
+    hold_rules(&mut g);
+    give(&mut g, "sword");
+    add_monster(&mut g, "monkey", 5, 5);
+    ticks(&mut g, 60);
+    assert!(hero(&g).inv.is_empty(), "the monkey stole it");
+    let run = g.run.as_ref().unwrap();
+    assert!(run.loot >= 0 && run.loot_raw >= 0, "loot {} raw {}", run.loot, run.loot_raw);
+    let s = g.snapshot();
+    assert!(s.stake.loot >= 0 && s.stake.kept.unwrap_or(0) >= 0, "{:?}", s.stake.loot);
+    // A found item's theft takes back exactly what it added.
+    let mut g = arena();
+    hold_rules(&mut g);
+    let id = give(&mut g, "sword");
+    let v = g.run.as_ref().unwrap().hero.inv.iter().find(|i| i.id == id).unwrap().value();
+    g.run.as_mut().unwrap().loot_add(v);
+    g.run.as_mut().unwrap().loot_add_gold(2);
+    add_monster(&mut g, "monkey", 5, 5);
+    ticks(&mut g, 60);
+    assert!(hero(&g).inv.is_empty());
+    assert_eq!(g.run.as_ref().unwrap().loot, 2);
+    // Any `loot_add`, however large the take: floored at 0.
+    let run = g.run.as_mut().unwrap();
+    run.loot_add(-1_000_000);
+    assert_eq!((run.loot, run.loot_raw), (0, 0));
+    run.loot_add_gold(4);
+    assert_eq!(run.loot, 4);
+}
+
 #[test]
 fn ghoul_paralyses_sometimes() {
     let mut g = arena();
@@ -4658,13 +4704,13 @@ fn forecast_is_deterministic_per_rules_and_lineage() {
     let r2 = g.forecast_refine();
     assert_eq!(r1, r2);
     assert_eq!(r1.known_to, a.known_to);
-    // Cut 14 §1: the refine's ends line runs `REFINE_ENDS_SIMS` (its `±` ≤ 14 at 50 %); the
-    // first paint's runs `ENDS_SIMS`.
+    // Cut 14 §1: the refine's ends line is quieter (its `±` ≤ 14 at 50 %). QA on 3d71c33: the
+    // ends are the bars' own panel — the refine's 100 sims, the first paint's 50.
     assert!(r1.refined && !a.refined);
     let (e1, e0) = (r1.ends.as_ref().expect("ends"), a.ends.as_ref().expect("ends"));
     assert!(e1.pm <= 0.14 + 1e-9, "refined ends ±{:.3}", e1.pm);
-    assert_eq!(e1.pm, crate::forecast::half_width(e1.death, crate::forecast::REFINE_ENDS_SIMS as usize), "the refined ends ran short of {}", crate::forecast::REFINE_ENDS_SIMS);
-    assert_eq!(e0.pm, crate::forecast::half_width(e0.death, crate::forecast::ENDS_SIMS as usize));
+    assert_eq!(e1.pm, crate::forecast::half_width(e1.death, crate::forecast::REFINE_SIMS as usize), "the refined ends ran short of {}", crate::forecast::REFINE_SIMS);
+    assert_eq!(e0.pm, crate::forecast::half_width(e0.death, crate::forecast::FORECAST_SIMS as usize));
     // A second game with the same seed and rules reads the same forecast; the seeds are the
     // forecast's own.
     let mut h = Game::new(11);
@@ -6457,6 +6503,51 @@ fn rest_after_a_return_is_half_the_run() {
     assert_eq!(g.rest_after(50 * 60 * 10, ExitTier::Return), 25 * 60 * 10, "the exit's rest is the same function");
 }
 
+/// QA on 3d71c33: the forecast's ends line is what a send from this camp does. A set banking at
+/// `depth ≥ 8` / `depth ≥ 10` on a lineage that reaches D8–D10: the bank share never exceeds
+/// the reach of the bank row's depth (the same sims), and it agrees with sends actually played
+/// from this state (the real engine, the night's own run seeds) within the pooled 95 % band of
+/// the two samples. (It said `bank 42%` for a set that then banked 0 of 16: its ends came
+/// from a 5–10-sim panel of other seeds.) An 8 h night climbs past it as the heir levels and
+/// learns (examples/qa.rs checks the per-send agreement on 30 seeds).
+#[test]
+fn forecast_bank_share_is_a_send_from_this_camp() {
+    let mut g = Game::new(11);
+    crate::probes::learn_everything(&mut g);
+    g.lineage.unlocks.extend(["row5", "row6", "row7", "row8", "throw"].map(String::from));
+    g.lineage.best_depth = 9;
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 4, xp: 0 });
+    for d in [8u32, 10] {
+        let mut set = crate::probes::good();
+        set.rows.retain(|r| r.verb.v != "bank");
+        set.rows.insert(1, Row::new(vec![Cond::n("depth>=", d as i32)], Verb::new("bank")));
+        g.set_rules_raw(set).unwrap();
+        let f = g.forecast();
+        let e = f.ends.clone().expect("ends");
+        if let Some(r) = f.depths.iter().find(|x| x.depth == d) {
+            assert!(e.bank <= r.reach + 1e-9, "depth ≥ {d}: bank {:.2} over reach {:.2}", e.bank, r.reach);
+        }
+        let n = crate::forecast::simulate_budget(&g, g.lineage.rules(), crate::forecast::FORECAST_SIMS, 1, u32::MAX, u64::MAX).len();
+        assert_eq!(n, crate::forecast::FORECAST_SIMS as usize);
+        let k = 40u32;
+        let banked = crate::forecast::par_map(&g, (0..k).collect(), |base, &j| {
+            let mut h = base.clone();
+            h.lineage.next_run_id += 500 + j;
+            h.start_run(None);
+            h.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
+            h.run.as_ref().unwrap().over == Some(ExitTier::Bank)
+        })
+        .into_iter()
+        .filter(|b| *b)
+        .count();
+        let real = banked as f64 / k as f64;
+        let m = 50.0;
+        let p = (e.bank * m + banked as f64) / (m + k as f64);
+        let band = 1.96 * (p * (1.0 - p) * (1.0 / m + 1.0 / k as f64)).sqrt();
+        assert!((e.bank - real).abs() <= band + 1e-9, "depth ≥ {d}: forecast bank {:.2} vs {banked}/{k} sends ({real:.2}), band ±{band:.2}", e.bank);
+    }
+}
+
 /// Cut 12 §3: `Forecast.ends` — how the sends end over the same sims (the rates sum to 1)
 /// and the mean gold brought home (bank 100% · return 60% · death 0% of the loot); two reads
 /// of an unchanged set are identical; a set with `depth>=8 → bank` on a lineage that reaches
@@ -6489,6 +6580,9 @@ fn forecast_ends_name_how_a_send_ends() {
     assert!((e.bank + e.return_ + e.death + e.stall - 1.0).abs() < 1e-9, "{e:?}");
     // Nothing reaches D9 past the bank row.
     assert_eq!(f.depths.iter().find(|d| d.depth == 9).unwrap().reach, 0.0);
+    // QA on 3d71c33 (`D8 44% · bank 57%`): the ends are the bars' own sims, so a bank at
+    // `depth ≥ 8` is among the sims that reached D8.
+    assert!(e.bank <= f.depths.iter().find(|d| d.depth == 8).unwrap().reach + 1e-9, "bank {} over reach(D8) {:?}", e.bank, f.depths);
     // A fresh lineage with no return row: its sends end in deaths, never in "returns" the
     // reach panel cut off at D1 (the ends panel runs every send to its exit).
     let g = Game::new(7);

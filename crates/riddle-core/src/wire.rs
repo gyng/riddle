@@ -351,7 +351,7 @@ pub struct Forecast {
 }
 
 /// Cut 12 §3: how a send ends — `bank` / `return` / `death` as shares of a panel of sends run
-/// to their exit (`forecast::ENDS_SIMS`; a run at the cap is a return that keeps nothing) and
+/// to their exit (the bars' own panel — QA on 3d71c33; a run at the cap is a stall) and
 /// `gold`, the mean loot kept per send by the exit's own share (bank 100% · return 60% · death 0%).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ForecastEnds {

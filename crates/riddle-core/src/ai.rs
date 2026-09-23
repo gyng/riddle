@@ -2514,7 +2514,7 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
             // Cut 10 §3: a theft says what it cost the loot (`$26 → $10` read as a bug without
             // it): the gold `loot_add` takes off the run for the item's value.
             let before = run.loot;
-            run.loot_add(-it.value());
+            run.loot_add(-run.loot_value(&it));
             let amount = (before > run.loot).then(|| before - run.loot);
             run.monsters[mi].stolen = Some(it);
             run.monsters[mi].fleeing = true;

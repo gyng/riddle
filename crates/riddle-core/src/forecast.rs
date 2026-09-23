@@ -169,27 +169,26 @@ pub fn forecast_tag(game: &Game, depth: u32) -> u64 {
 pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let known_to = game.lineage.best_depth + 1;
     let tag = forecast_tag(game, known_to);
-    // The refine pass runs twice the sims under twice the tick budget (the same seeds first).
-    let budget = FORECAST_TICK_BUDGET * (sims as u64).div_ceil(FORECAST_SIMS as u64).max(1);
-    let results = simulate_budget(game, rules, sims, tag, known_to, budget);
-    let n = results.len().max(1) as f64;
+    // QA on 3d71c33: one panel for the bars and the ends. The ends used to come from their own
+    // small panel (20 sims on other seeds, cut by the delta budget to ~5–10 on a D8+ lineage)
+    // while the bars stopped each sim at `known_to`: `D8 44% · bank 57%` under
+    // `depth ≥ 8 → bank`, and `bank 42%` for a set that then banked 0 of 16 overnight. Every
+    // sim now runs to its exit — its reach at any depth ≤ `known_to` is the one a sim stopped
+    // there reads, and a sim that stops short of `known_to` costs the same — so a bank at
+    // `depth ≥ d` is counted among the sims that reached `d` (bank ≤ reach(d), exactly), and
+    // the killers are the bars' own. The budget is the two old panels' together (the reach
+    // panel's and the ends'); the refine pass runs twice the sims under twice that (the same
+    // seeds first). A sim cut off at D(best+1) no longer reads as a "return" (Cut 12 §3).
+    let k = (sims as u64).div_ceil(FORECAST_SIMS as u64).max(1);
+    let budget = (FORECAST_TICK_BUDGET + DELTA_TICK_BUDGET) * k;
+    let ended = simulate_budget(game, rules, sims, tag, u32::MAX, budget);
+    let n = ended.len().max(1) as f64;
     let depths = (1..=known_to)
         .map(|d| {
-            let reach = results.iter().filter(|r| r.max_depth >= d).count() as f64 / n;
-            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, results.len())), try_: try_row(game, rules, d) }
+            let reach = ended.iter().filter(|r| r.max_depth >= d).count() as f64 / n;
+            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_: try_row(game, rules, d) }
         })
         .collect();
-    // Cut 12 §3: how the sends end, and what they bring home. The reach panel stops a sim at
-    // `known_to` (the depth it asks about), so its exits are not a send's: a sim cut off at
-    // D(best+1) read as a "return" (`return 100% · death 0%` on a fresh camp). The ends come
-    // from their own small panel that runs every send to its exit — `ENDS_SIMS` under the
-    // delta budget, so an edit still answers at once. The killers are read off the same
-    // panel (QA on e0f87e7: `death 0%` beside `jackal 50% · ogre 25%` from the reach panel).
-    // Cut 14 §1: the refine pass runs the ends at `REFINE_ENDS_SIMS` (±14 at 50 % instead of
-    // ±22) under the budget scaled to match; `pm` reflects the count that ran.
-    let ends_sims = if sims > FORECAST_SIMS { REFINE_ENDS_SIMS } else { ENDS_SIMS };
-    let ends_budget = DELTA_TICK_BUDGET * ends_sims as u64 / ENDS_SIMS as u64;
-    let ended = simulate_budget(game, rules, ends_sims, tag ^ ENDS_TAG, u32::MAX, ends_budget);
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
     let mut deaths = 0u32;
     for r in &ended {
@@ -203,22 +202,15 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let mut cv: Vec<(String, u32)> = causes.into_iter().collect();
     cv.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     let causes = cv.into_iter().take(3).map(|(c, k)| ForecastCause { cause: c, share: k as f64 / deaths.max(1) as f64 }).collect();
-    let m = ended.len().max(1) as f64;
     // A stall (the run cap, a floor shuffled) came home by nothing in the rules: its own
     // share, not a return's (QA on 952e306: "`return 70%` — no return verb in my rules").
-    let share = |t: ExitTier| ended.iter().filter(|r| r.tier == t && !r.timed_out).count() as f64 / m;
-    let stall = ended.iter().filter(|r| r.timed_out).count() as f64 / m;
-    let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / m;
+    let share = |t: ExitTier| ended.iter().filter(|r| r.tier == t && !r.timed_out).count() as f64 / n;
+    let stall = ended.iter().filter(|r| r.timed_out).count() as f64 / n;
+    let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
     let death = share(ExitTier::Death);
     let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()) });
     Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS }
 }
-
-/// The ends panel: sends run to their exit, not to `known_to` (see `forecast_with`).
-pub const ENDS_SIMS: u32 = 20;
-/// Cut 14 §1: the ends panel's count on the refine pass (`forecast_refine`).
-pub const REFINE_ENDS_SIMS: u32 = 50;
-const ENDS_TAG: u64 = 0xE4D5_0F5E_4D5E_4D50;
 
 /// Cut 10 §2: the `try` of a forecast row — reaching `depth` means passing the boss on the
 /// floor above it; when that boss's counter fact is known and no row of `rules` carries the

@@ -465,7 +465,7 @@ fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
     run.den_stolen.push(it.id);
     crate::provenance::stolen(run, cx, &it.kind, "monkey", true, &label);
     let before = run.loot;
-    run.loot_add(-it.value());
+    run.loot_add(-run.loot_value(&it));
     let amount = (before > run.loot).then(|| before - run.loot);
     let id = run.monsters[mi].id;
     run.monsters[mi].stolen = Some(it);

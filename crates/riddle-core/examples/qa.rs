@@ -5,6 +5,8 @@
 //!   cargo run --profile fast --example qa [-- --seeds 30 --threads 4]
 use riddle_core::engine::{salvage_value, GOLD_DIVISOR, GOLD_LEDGER_CAP};
 use riddle_core::item::{is_identified, to_inv};
+use riddle_core::engine::ExitTier;
+use riddle_core::rules::{Cond, Row, Verb};
 use riddle_core::{Ev, Game};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -81,6 +83,63 @@ fn check_forecast(t: &mut Tally, g: &Game, seed: u64) {
     }
 }
 
+/// QA on 3d71c33 (`D8 44% · bank 57%` under `depth ≥ 8 → bank`; `bank 42%`, then 0 of 16
+/// banked overnight): on a copy of the lineage running the good set with its bank row at
+/// `depth ≥ d` (d = the good set's own 5, 8 and the lineage's best), the forecast's bank
+/// share is never above the reach of D`d` when the bars show it, and — summed over the seeds
+/// (`BankTally`) — it is what sends from this camp do: `SENDS` real sends on the night's own
+/// run seeds per set.
+fn check_forecast_bank(t: &mut Tally, bank: &mut BankTally, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    h.lineage.unlocks.extend(["row5", "row6", "row7", "row8", "throw"].map(String::from));
+    let mut depths = vec![5, 8, h.lineage.best_depth.max(1)];
+    depths.sort();
+    depths.dedup();
+    for d in depths {
+        let mut set = riddle_core::probes::good();
+        let at = set.rows.iter().position(|r| r.verb.v == "bank").expect("the good set banks");
+        if d != 5 {
+            set.rows[at] = Row::new(vec![Cond::n("depth>=", d as i32)], Verb::new("bank"));
+        }
+        if h.set_rules_raw(set).is_err() {
+            continue;
+        }
+        // `BANK_SIMS` of the forecast's own panel (its first seeds; the bars and the ends are
+        // one panel at any count), to keep the job's time.
+        let f = riddle_core::forecast::forecast_with(&h, h.lineage.rules(), BANK_SIMS);
+        let Some(e) = f.ends.clone() else { continue };
+        if let Some(r) = f.depths.iter().find(|x| x.depth == d) {
+            t.check("forecast bank ≤ reach at the bank row's depth", e.bank <= r.reach + 1e-9, || format!("seed {seed} depth ≥ {d}: bank {:.2} · D{d} {:.2}", e.bank, r.reach));
+        }
+        // The panel's nominal count (a budget-cut panel ran fewer: the band is then narrower
+        // than its own, the stricter reading).
+        let n = BANK_SIMS as f64;
+        let mut banked = 0u32;
+        for j in 0..SENDS {
+            let mut s = h.clone();
+            s.lineage.next_run_id += j;
+            s.lineage.rest_left = 0;
+            s.start_run(None);
+            s.run_to_end(riddle_core::engine::MAX_TURNS_PER_RUN);
+            banked += (s.run.as_ref().unwrap().over == Some(ExitTier::Bank)) as u32;
+        }
+        let k = if d == 5 { 0 } else { 1 };
+        bank.0[k].0 += e.bank * n;
+        bank.0[k].1 += n;
+        bank.0[k].2 += banked as f64;
+        bank.0[k].3 += SENDS as f64;
+    }
+}
+
+/// Real sends per set per seed for the forecast-vs-sends check, and the forecast's sims.
+const SENDS: u32 = 6;
+const BANK_SIMS: u32 = 20;
+
+/// Σ over seeds, per [the good set, its bank-depth variants]: (forecast banks, forecast sims,
+/// real banks, real sends).
+#[derive(Default, Clone)]
+struct BankTally([(f64, f64, f64, f64); 2]);
+
 /// Cut 14 §1–2: a death screen offers nothing under its baseline (a `dice` death's candidates
 /// kept under the bar are flagged `below_bar`), and a `dice` margin names no unused item.
 fn check_death(t: &mut Tally, seed: u64, d: &riddle_core::Death) {
@@ -118,8 +177,9 @@ fn check_gold_buy(t: &mut Tally, g: &Game, seed: u64) {
     check_gold(t, &h, seed, "after a gold buy");
 }
 
-fn play(seed: u64) -> Tally {
+fn play(seed: u64) -> (Tally, BankTally) {
     let mut t = Tally::default();
+    let mut bank = BankTally::default();
     let mut g = Game::new(seed);
     check_gold(&mut t, &g, seed, "new");
     check_needs(&mut t, &g, seed);
@@ -205,6 +265,7 @@ fn play(seed: u64) -> Tally {
     check_gold(&mut t, &g, seed, "after the night");
     check_needs(&mut t, &g, seed);
     check_forecast(&mut t, &g, seed);
+    check_forecast_bank(&mut t, &mut bank, &g, seed);
     if let Some(d) = &r.worst_death {
         t.check("worst death carries a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "stall") && !d.trace.turns.is_empty(), || format!("seed {seed}: {}", d.verdict));
         check_death(&mut t, seed, d);
@@ -247,7 +308,7 @@ fn play(seed: u64) -> Tally {
     // A save round-trips the lineage.
     let h = Game::load(&g.save()).expect("load");
     t.check("save/load round-trips the lineage", h.lineage() == g.lineage(), || format!("seed {seed}"));
-    t
+    (t, bank)
 }
 
 fn main() {
@@ -258,6 +319,7 @@ fn main() {
     let t0 = std::time::Instant::now();
     let jobs = Arc::new(Mutex::new((1..=seeds).collect::<Vec<u64>>()));
     let out = Arc::new(Mutex::new(Tally::default()));
+    let banks = Arc::new(Mutex::new(BankTally::default()));
     // `--threads N` leaves cores to what runs beside it (gates.mjs: the table's quiet
     // per-tick measurement and the dayplayer's chains).
     let threads = (get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(4)) as usize).min(seeds as usize).max(1);
@@ -265,18 +327,35 @@ fn main() {
         .map(|_| {
             let jobs = Arc::clone(&jobs);
             let out = Arc::clone(&out);
+            let banks = Arc::clone(&banks);
             std::thread::spawn(move || loop {
                 let seed = jobs.lock().unwrap().pop();
                 let Some(seed) = seed else { break };
-                let t = play(seed);
+                let (t, b) = play(seed);
                 out.lock().unwrap().merge(t);
+                let mut all = banks.lock().unwrap();
+                for (a, x) in all.0.iter_mut().zip(b.0) {
+                    a.0 += x.0;
+                    a.1 += x.1;
+                    a.2 += x.2;
+                    a.3 += x.3;
+                }
             })
         })
         .collect();
     for h in hs {
         h.join().unwrap();
     }
-    let t = out.lock().unwrap();
+    let mut t = out.lock().unwrap().clone();
+    // The forecast's bank share, summed over the seeds, within the pooled 95 % band of the
+    // real sends' (the two samples' binomial ±).
+    for (name, (fb, fn_, rb, rn)) in ["forecast bank ≈ real sends (good set, Σ seeds)", "forecast bank ≈ real sends (depth ≥ d → bank, Σ seeds)"].into_iter().zip(banks.lock().unwrap().0) {
+        let (pf, pr) = (fb / fn_.max(1.0), rb / rn.max(1.0));
+        let p = (fb + rb) / (fn_ + rn).max(1.0);
+        let band = 1.96 * (p * (1.0 - p) * (1.0 / fn_.max(1.0) + 1.0 / rn.max(1.0))).sqrt();
+        t.check(name, (pf - pr).abs() <= band + 1e-9, || format!("forecast {pf:.3} over {fn_} sims vs sends {pr:.3} over {rn}, band ±{band:.3}"));
+        println!("{name}: forecast {pf:.3} ({fn_} sims) · sends {pr:.3} ({rn}) · ±{band:.3}");
+    }
     let mut fails = 0;
     println!("{:<58} {:>8}  result", "invariant", "checks");
     for (name, (n, f, d)) in &t.0 {

@@ -476,9 +476,21 @@ impl Run {
     /// Cut 4: loot is counted in gold at pickup. `raw` is the item value (gold pile amount,
     /// item value); `loot` is `loot_raw / GOLD_DIVISOR`, so the HUD stake, the exit note,
     /// `Ev::Exit.loot_kept` and the lineage's gold all agree.
+    /// QA on 3d71c33: the carried gold never goes below 0 (`$-3 · keeps $0` after a monkey
+    /// took a brought item on D1): whatever is taken off, the stake floors at nothing.
     pub fn loot_add(&mut self, raw: i32) {
-        self.loot_raw += raw;
+        self.loot_raw = (self.loot_raw + raw).max(0);
         self.loot = self.loot_raw / GOLD_DIVISOR;
+    }
+    /// What an item in the pack counts for in the loot (raw, before `GOLD_DIVISOR`): its value
+    /// when it was found on this run, nothing when it never counted — the starting arms, a
+    /// brought vault item, a packed supply. A theft or a swap takes off only what was added.
+    pub fn loot_value(&self, it: &Item) -> i32 {
+        if it.id == 1 || self.brought.contains(&it.id) || self.supplies.contains(&it.id) {
+            0
+        } else {
+            it.value()
+        }
     }
     /// A gold pile's amount is coins (what the label says, what the stake rises by): it is
     /// added whole. Items add their value before `GOLD_DIVISOR` (`loot_add`).

@@ -1857,7 +1857,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
                 let here = run.hero.pos;
                 let it = run.items.remove(ii).item;
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
-                run.loot_add(it.value() - dropped.value());
+                run.loot_add(it.value() - run.loot_value(&dropped));
                 crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
                 crate::provenance::found(run, cx, &it.kind, &label);
                 run.hero.inv.push(it);
@@ -1881,7 +1881,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
                 let here = run.hero.pos;
                 let it = run.items.remove(ii).item;
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
-                run.loot_add(it.value() - dropped.value());
+                run.loot_add(it.value() - run.loot_value(&dropped));
                 crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
                 crate::provenance::found(run, cx, &it.kind, &label);
                 run.hero.inv.push(it);
