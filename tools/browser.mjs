@@ -51,13 +51,16 @@ export const GPU_ARGS = [
 ];
 
 export const HEADLESS_ARGS = ["--hide-scrollbars", "--mute-audio"];
+// Muted anyway, so no sound server either: a wedged WSLg PulseAudio socket made Chromium's first
+// mouse-down wait ~5 s on it (Playwright's click timeout; 5 of 10 client gates failed on it).
+const NO_PULSE = { PULSE_SERVER: "unix:/nonexistent" };
 
 /// Headed on the GPU when `gpu` is set or RIDDLE_BROWSER=headed; headless otherwise.
 export function launchBrowser({ gpu = false, headed, ...extra } = {}) {
   const env = process.env.RIDDLE_BROWSER;
   const useHeaded = headed ?? (env === "headed" ? true : env === "headless" ? false : gpu);
-  if (useHeaded) return chromium.launch({ headless: false, args: GPU_ARGS, env: { ...process.env, ...GPU_ENV }, ...extra });
-  return chromium.launch({ headless: true, args: HEADLESS_ARGS, ...extra });
+  if (useHeaded) return chromium.launch({ headless: false, args: GPU_ARGS, env: { ...process.env, ...GPU_ENV, ...NO_PULSE }, ...extra });
+  return chromium.launch({ headless: true, args: HEADLESS_ARGS, env: { ...process.env, ...NO_PULSE }, ...extra });
 }
 
 /// The GPU path: headed Chromium on D3D12. For frame times, render QA and anything a person would feel.

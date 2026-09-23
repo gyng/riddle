@@ -233,12 +233,16 @@ try {
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for the ticker");
   const long = "the goblin conjurer summons three blades"; // 40 chars
   // the two land at the viewer's own tick and the clock is paused in the same task, so nothing else competes for the ticker
-  // (at 16× on the map a callout a turn evicts a queue — that regime is a flicker either way)
+  // (at 16× on the map a callout a turn evicts a queue — that regime is a flicker either way); Cut 14 §6: ⏸ freezes the ticker
+  // with the picture, so the pair is released on the thaw (▶), in one pass — the same tick — on a dead stretch (16×), and the
+  // batches after it are stripped of their callouts so nothing evicts the queue
   await page.evaluate((long) => {
     const e = window.__riddle.engine; const real = e.step.bind(e); let done = 0;
     e.step = async (n) => {
       const r = await real(n); const w = document.querySelector(".watch"), t = document.querySelector(".ticker");
-      if (done < 1 && w?.dataset.frame === "map" && !t?.classList.contains("show") && !r.run_over) {
+      // after the pair, the batches the world steps meanwhile carry no line of their own (they would evict the queue at 16×)
+      if (done >= 1) r.events = r.events.filter((x) => !["callout", "rule", "hurt", "die", "note", "pickup", "level", "rank", "steal", "telegraph", "bones"].includes(x.k));
+      if (done < 1 && w?.dataset.frame === "map" && w.dataset.speed === "16" && !t?.classList.contains("show") && !r.run_over) {
         done++; const at = Number(w.dataset.tick);
         r.events.push({ t: at, k: "callout", text: long }, { t: at, k: "callout", text: "second of two on one tick" });
         for (const b of document.querySelectorAll("main.watch .hud-btn")) if (b.textContent === "⏸") b.click();
@@ -247,6 +251,9 @@ try {
     };
   }, long);
   const seen = new Set(); let clipped = false, joined = false;
+  await page.waitForFunction(() => document.querySelector("main.watch .hud-btn.on")?.textContent === "▶" || window.__riddle.screen !== "watch", null, { timeout: 20_000 });
+  await sleep(200);
+  await page.evaluate(() => { for (const b of document.querySelectorAll("main.watch .hud-btn")) if (b.textContent === "▶") b.click(); });
   for (let i = 0; i < 160; i++) {
     const t = await page.evaluate(() => { const el = document.querySelector(".ticker"); if (!el || !el.classList.contains("show")) return null; const r = el.getBoundingClientRect(); return { text: el.textContent, right: r.right, left: r.left, scrollW: el.scrollWidth, clientW: el.clientWidth }; });
     if (t) { seen.add(t.text); if (t.right > 400.5 || t.left < -0.5 || t.scrollW > t.clientW + 1) clipped = true; if (t.text.includes(long) && t.text !== long) joined = true; }

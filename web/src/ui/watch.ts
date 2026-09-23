@@ -43,7 +43,9 @@
 // the exit flow waits for the replay to get there. The scrub strip (`.scrub`) under the canvas: the playhead at the viewer's
 // share of the run, a dot at the frontier that beats once per engine batch; `data-frontier` · `data-world` · `data-pulses` for
 // tooling. `slowdowns: off` flattens the world rate too. Fight spans the viewer has yet to reach are kept (`spans`) so a paused
-// or behind viewer still cuts to each fight in `fast`.
+// or behind viewer still cuts to each fight in `fast`. (QA on 56f2a1d) A frozen picture is frozen whole: no floor load, no
+// release, no frame cut, no travel under the card, the ticker's timer stopped; the batches wait (`frozenFeed`) for the thaw. The
+// card names the HUD's floor and the stake's loot (`paintCardText`), never the engine's latest snapshot.
 //
 // Cut 14 §3 — a bank or a return is a beat: the exit event opens the fight frame on the stairs for SCENE_MS with `BANKED $N` /
 // `RETURNED $N` as its callout (`beatAt`, the exit flow waits `exitBeatUntil`), in `fights` and `fast` alike. §4: a repeated chore
@@ -211,6 +213,11 @@ export function renderWatch(app: App): Mounted {
   // after a catch-up, the engine batches landed (the dot's beats), fight spans the viewer has yet to reach
   let worldT = 0, lastPumpMs = performance.now(), hidden = false, goLiveOwed = false, pulses = 0, lastPulseMs = 0;
   const spans: { from: number; until: number }[] = [];
+  // Cut 14 §6 (QA on 56f2a1d: the HUD ran D1 → D3 and a fight cut in after the tap): while the picture is frozen (⏸, a hidden tab)
+  // nothing reaches the viewer, the HUD or the ticker — the engine's batches wait here (in order) and are fed on the thaw; the
+  // pump neither drains a floor, releases a queued HUD item, cuts a frame nor travels under the card; the world steps on its clock
+  const frozenFeed: { evs: Ev[]; s: Snapshot }[] = [];
+  let frozenAt = 0;
   // Cut 14 §6: the near and scene holds as the PLAYHEAD meets them — every near tick and every scene's span (engine ticks), so a
   // viewer behind the world slows where the events are, not where the engine is (`slowUntil` / `sceneUntil` stay the world's)
   const nearTicks: number[] = [], scenes: { from: number; until: number }[] = [];
@@ -233,6 +240,11 @@ export function renderWatch(app: App): Mounted {
   const note_ = (e: { id: number; kind: string; name?: string }): void => { kinds.set(e.id, e.kind); if (e.name) names.set(e.id, e.name); };
   // HUD updates released at the viewer's clock
   const hud = { hp: 0, maxHp: 1, depth: 1 };
+  // the snapshot the stake line was last painted from (the card's loot is the stake's), and each floor's rooms / situation as the
+  // engine reported them (the card names the HUD's floor, which may be behind the engine's — QA on 56f2a1d: HUD `17/40 D4` under
+  // `D5 · 15 rooms · a shrine`, `$6 · keeps $3` under `D2 · 16 rooms · $13`)
+  let hudSnap: Snapshot | null = null;
+  const floors = new Map<number, { rooms?: number; twist?: string }>();
   const timed: { t: number; f: () => void }[] = [];
   let lastRuleText = "", lastRuleAt = 0, lastShown = "";
   // placeholder viewer (no clock): a wall clock at 10 ticks/s × speed stands in
@@ -252,10 +264,13 @@ export function renderWatch(app: App): Mounted {
     replace(hpText, `${Math.max(0, hud.hp)}/${hud.maxHp}`);
     replace(depth, `D${hud.depth}`);
     if (snap) replace(alert, "!".repeat(Math.max(0, Math.min(5, snap.alert))));
+    if (cardUp) paintCardText();
   }
   function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
   function paintStake(s: Snapshot): void {
+    hudSnap = s;
+    if (cardUp) paintCardText();
     const st = s.stake;
     stake.hidden = !st;
     if (!st) return;
@@ -583,11 +598,15 @@ export function renderWatch(app: App): Mounted {
       // a card per floor: the full minimum when the floor is new, a beat between fights on the same floor
       if (up) { cardSince = performance.now(); cardMin = hud.depth !== cardDepth ? CARD_MS : CARD_BEAT_MS; cardDepth = hud.depth; ticker.classList.remove("show"); }
     }
-    if (!up) return;
-    // the engine's floor (it runs ahead under the card: the line describes where the next fight is), not the HUD's
-    // Cut 12 §4: the floor's one situation, one word after its article (`D4 · 9 rooms · a nest`); the gold line when there is none
-    const d = snap?.depth ?? hud.depth, rooms = snap?.rooms, twist = snap?.floor_twist;
-    const text = /* copy:callout */ `D${d}${rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `$${snap?.stake?.loot ?? snap?.loot ?? 0}`}`;
+    if (up) paintCardText();
+  }
+  /** The card's line — one position on screen with the HUD: the HUD's floor (its rooms and situation as the engine reported that
+   *  floor) and the stake's loot, never the engine's latest snapshot (the DVR queue and the viewer's clock keep the HUD behind it;
+   *  the HUD's own paints repaint the card). Cut 12 §4: the floor's one situation, one word after its article
+   *  (`D4 · 9 rooms · a nest`); the gold line when there is none. */
+  function paintCardText(): void {
+    const d = hud.depth, f = floors.get(d), rooms = f?.rooms, twist = f?.twist;
+    const text = /* copy:callout */ `D${d}${rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `$${hudSnap?.stake?.loot ?? hudSnap?.loot ?? 0}`}`;
     if (text !== cardText) { cardText = text; replace(card, text); }
   }
   function holdMap(): void { if (!cardUp) return; mapHold = true; cardWait = false; paintCard("map"); applySpeed(); }
@@ -611,6 +630,7 @@ export function renderWatch(app: App): Mounted {
   function handle(r: StepResult): void {
     const s = r.snapshot;
     engineTick = s.turn;
+    floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist });
     for (const e of s.entities) note_(e);
     sceneFrom(s, r.events);
     if (s.hero.hp < lastHp) near(s.turn);   // hp lost by any means; a rest's +1 per turn is a dead stretch, a drink is a `use` event
@@ -625,10 +645,9 @@ export function renderWatch(app: App): Mounted {
     // chain lands a batch a millisecond, and a reflow each would starve the page)
     pulses++; el.dataset.pulses = String(pulses);
     if (performance.now() - lastPulseMs >= PULSE_MS) { lastPulseMs = performance.now(); scrubDot.classList.remove("beat"); void scrubDot.offsetWidth; scrubDot.classList.add("beat"); }
-    // the card follows the step at once: under ▶▶|'s step loop and the travel chain the engine's answers starve the pump's
-    // timer, and the card (painted only there) named the floor before the one the HUD's load had just painted (QA on
-    // e0f87e7: "`D1 · 16 rooms · $18` while the HUD reads `32/40 D2`")
-    if (cardUp) paintCard("map");
+    // the card names the HUD's floor (QA on e0f87e7: "`D1 · 16 rooms · $18` while the HUD reads `32/40 D2`"; on 56f2a1d the
+    // reverse, the card ahead of the HUD): the HUD's paints repaint it; here only a floor's rooms / situation first reported
+    if (cardUp && !frozen()) paintCardText();
     if (!exit) vaultFrom(s);   // no choice on a run that just ended
     if (r.exit_pending) pendingExit = r.exit_pending;
     // Cut 7 §4: the exit batch waits (pump) until the viewer is ENDING_TICKS from the exit, then plays at 1×
@@ -638,6 +657,7 @@ export function renderWatch(app: App): Mounted {
     if (performance.now() - lastPersist > PERSIST_MS) { lastPersist = performance.now(); app.persist(); }
   }
   function feed(evs: Ev[], s: Snapshot): void {
+    if (frozen()) { frozenFeed.push({ evs, s }); return; }   // Cut 14 §6: the picture is frozen; fed on the thaw
     // a batch may hold several floors when the world is catching up: the snapshot is the last one's, so the split is at the last
     // descend (the floors between are not watched — the wire carries one snapshot per step)
     let di = -1; for (let i = evs.length - 1; i >= 0; i--) if (evs[i].k === "descend") { di = i; break; }
@@ -671,9 +691,10 @@ export function renderWatch(app: App): Mounted {
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
     if (vaultClose && !document.querySelector(".vault-choice")) vaultClose = null;   // dismissed by backdrop / Escape: the engine's grace decides
-    applyFrame();
+    const still = frozen();   // Cut 14 §6: a frozen picture — no cut, no release, no floor load; the world below steps on
+    if (!still) applyFrame();
     applySpeed();
-    if (ticker.classList.contains("beat") && ticker.classList.contains("show") && performance.now() - tickerAt > BEAT_MAX_MS) hideBeat();
+    if (!still && ticker.classList.contains("beat") && ticker.classList.contains("show") && performance.now() - tickerAt > BEAT_MAX_MS) hideBeat();
     let now = viewerTick();
     el.dataset.tick = String(now);            // dev: tools sample the cadence off the DOM
     // Cut 14 §6: the world clock — wall time at the world's rate; the live playhead pulls it along (it is never behind the picture)
@@ -684,11 +705,12 @@ export function renderWatch(app: App): Mounted {
     else worldT += (dtMs / 1000) * 10 * worldRate();
     worldT = Math.max(worldT, now);
     paintScrub(now);
-    release(cardWait ? Math.min(now, fightFrom) : now);   // Cut 10 §1: a fight waiting on the card keeps its HUD at the first frame
-    if (loads.length) {
+    if (!still) release(cardWait ? Math.min(now, fightFrom) : now);   // Cut 10 §1: a fight waiting on the card keeps its HUD at the first frame
+    if (still) { /* the picture is frozen: straight to the world's step below */ }
+    else if (loads.length) {
       // Cut 10 §1: under the card the floor changes at once (nothing is watched); otherwise the viewer drains first (Cut 14 §6:
       // never while the picture is frozen; the world below steps on regardless)
-      if (cardUp || (!paused && !hidden && viewerIdle())) { const p = takeLoad()!; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+      if (cardUp || viewerIdle()) { const p = takeLoad()!; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
     }
     else if (goLiveOwed && !inflight && (worldT - engineTick <= LEAD_FAST || held)) { goLiveOwed = false; goLive(); now = viewerTick(); }   // Cut 14 §6: back from a hidden tab, the world caught up
     else if (held) {
@@ -734,7 +756,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** Cut 10 §1: is the engine free to run ahead under the card — `fights`, the card up and not held, no fight found yet, no exit. */
   function travelling(): boolean {
-    return mode === "fights" && cardUp && !cardWait && !mapHold && !held && !exitTier && !done && !disposed && !fightAhead(viewerTick());
+    return mode === "fights" && cardUp && !cardWait && !mapHold && !frozen() && !held && !exitTier && !done && !disposed && !fightAhead(viewerTick());
   }
   function travel(): void {
     app.engine.step(BATCH_FIGHTS).then((r) => {
@@ -792,13 +814,25 @@ export function renderWatch(app: App): Mounted {
   function setMode(m: Mode): void {
     if (app.watchMode !== m) { app.watchMode = m; app.persist(); }   // remembered for the next run
     const wasCard = cardUp;
-    mode = m; paused = false; mapHold = false; el.dataset.mode = m;
+    mode = m; freeze(false, hidden); mapHold = false; el.dataset.mode = m;
     // Cut 14 §6: leaving the card (`fights` → `fast`) lands live — the travel under it was the world's skip, not a replay owed
     if (wasCard && m === "fast" && !held && !exitTier) goLive();
     for (const k of Object.keys(modeBtn) as Mode[]) modeBtn[k].classList.toggle("on", k === m);
     paintPause(); paintCard(frame); applySpeed();
   }
-  function togglePause(): void { paused = !paused; paintPause(); applySpeed(); }
+  function togglePause(): void { freeze(!paused, hidden); paintPause(); applySpeed(); }
+  const frozen = (): boolean => paused || hidden;
+  /** Cut 14 §6: ⏸ and a hidden tab freeze the picture: the ticker's timer stops (its line and queue resume where they were), and
+   *  the thaw feeds the batches the world stepped meanwhile. */
+  function freeze(p: boolean, hid: boolean): void {
+    const was = frozen(); paused = p; hidden = hid;
+    if (!was && frozen()) { frozenAt = performance.now(); clearTimeout(tickerTimer); }
+    else if (was && !frozen()) {
+      const d = performance.now() - frozenAt; tickerAt += d; ambientUntil += d; if (exitBeatUntil > frozenAt) exitBeatUntil += d;
+      if (ticker.classList.contains("show") || tickerQueue.length) scheduleTicker();
+      for (const x of frozenFeed.splice(0)) feed(x.evs, x.s);
+    }
+  }
   function paintPause(): void { pause.classList.toggle("on", paused); replace(pause, paused ? "▶" : "⏸"); }
   let skipQueued = false;
   async function skipToEvent(): Promise<void> {
@@ -806,7 +840,7 @@ export function renderWatch(app: App): Mounted {
     // Cut 14 §6: `▶▶|` is "live": a frozen picture resumes; a viewer behind the frontier (a pause, a hidden tab, a slow fight while
     // the world ran on) lands on it first — the ending's start at most, so the walk-out plays — and the press then means what it
     // meant live: the fight's end or the next fight in `fights`, the run's end in `fast`, landing on the new frontier
-    if (paused) { paused = false; paintPause(); }
+    if (paused) { freeze(false, hidden); paintPause(); }
     const behind = held ? viewerTick() < endingFrom : loads.length > 0 || engineTick - viewerTick() > LEAD_FAST + BATCH_FAST;   // past the live lead
     if (behind && !(mode === "fights" && cardUp && !mapHold)) goLive();   // …then the mode's own skip runs from live
     // Cut 10 §1: under the card the engine is already running to the next fight (or has found it): the press waives the card's minimum
@@ -902,6 +936,7 @@ export function renderWatch(app: App): Mounted {
     if (!vc || !vc.items.length || held || exitTier || done) { if (vaultClose) { vaultClose(); vaultClose = null; } return; }
     const key = vc.items.map((it) => it.id).join(",");
     if (vaultClose || key === vaultKey) return;
+    if (frozen()) return;   // Cut 14 §6: not over a frozen picture (a later snapshot inside the grace opens it on the thaw)
     vaultKey = key;
     // Cut 10 §1: found under the card, the viewer joins the engine at the vault (the grace runs at 1× from here)
     if (cardUp) { release(s.turn); seekTo(s.turn); }
@@ -941,7 +976,7 @@ export function renderWatch(app: App): Mounted {
   function endControls(): void {
     if (el.dataset.over === "1") return;
     el.dataset.over = "1";
-    if (paused) { paused = false; paintPause(); applySpeed(); }
+    if (paused) { freeze(false, hidden); paintPause(); applySpeed(); }
     pause.hidden = true;
     for (const b of [modeBtn.fights, modeBtn.fast, skip, bail]) b.disabled = true;
   }
@@ -1113,7 +1148,7 @@ export function renderWatch(app: App): Mounted {
   const onResize = (): void => viewer?.resize?.();
   window.addEventListener("resize", onResize);
   // Cut 14 §6: a hidden tab freezes the picture; back, the world (whose clock ran on wall time) is caught up and the viewer goes live
-  const onVisibility = (): void => { hidden = document.hidden; if (!hidden) goLiveOwed = true; applySpeed(); };
+  const onVisibility = (): void => { freeze(paused, document.hidden); if (!hidden) goLiveOwed = true; applySpeed(); };
   document.addEventListener("visibilitychange", onVisibility);
   return { el, dispose: () => {
     disposed = true; window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); viewer?.dispose();

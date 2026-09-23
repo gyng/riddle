@@ -8,7 +8,8 @@
 //       `returned · banked · deaths` when returns outnumber banks, its exit lines lead with `returned $61`, a lost companion reads
 //       `jackal Ashar fell` · a card's delta reads `reach +N% at R2` (Cut 12: where it goes) · the tiles fade in after an absence
 //   Cut 14 §6  paused, the frontier runs and the dot beats while the playhead holds · ▶▶| lands live · a hidden tab runs the world ·
-//              a run that ends while paused shows its exit after the replay
+//              a run that ends while paused shows its exit after the replay · ⏸ holds the HUD, the card, the ticker and the tick
+//              (under the card too) · the card names the HUD's floor and loot on every 100 ms sample
 //   Cut 14     the `slowdowns` toggle: off, the clock keeps the mode's flat rate through a fight; on, a fight in fast runs at 4×
 //   Cut 14 §4  a repeated chore callout coalesces (`pick up ×8`) · the `rest 20m` banner sits under the death frame's callout line
 //
@@ -259,6 +260,58 @@ try {
     check(r2.screen === "watch" && r2.tick >= e2.frontier - 22 && r2.speed === 1, `▶▶| lands on the ending's start (tick ${r2.tick}, frontier ${e2.frontier}, speed ${r2.speed})`);
     const s2 = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit", "the exit after the walk-out", 30_000);
     check(s2.screen === "death", `then the exit flow (${s2.screen})`);
+  }
+  // Cut 14 §6 (QA on 56f2a1d): `⏸` freezes the picture on the tap — the HUD, the card, the ticker and the viewer's tick stay as
+  // they were for 1.5 s whatever the world does underneath (seed 516 in `fights`: the HUD ran `D1 34/36 $23` → `D3 31/36 $52` → a
+  // beat after the tap: a card/travel drain and a fight cut kept moving the picture); sampled every 100 ms, three taps a run
+  {
+    const pic = () => page.evaluate(() => {
+      const w = document.querySelector(".watch"), top = document.querySelector(".hud.top"), card = document.querySelector(".interstitial");
+      return { screen: window.__riddle.screen, over: w?.dataset.over === "1", key: [top ? [...top.querySelectorAll(".num, .stake")].map((x) => x.textContent).join("|") : "", card && !card.hidden ? card.textContent : "", document.querySelector(".ticker")?.textContent ?? "", w?.dataset.tick, w?.dataset.frame].join(" ¦ "), frontier: Number(w?.dataset.frontier) };
+    });
+    const press = (l) => page.evaluate((l) => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === l) { b.click(); return true; } return false; }, l);
+    for (const seed of [516, 5]) {
+      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+      await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
+      for (const wait of [3000, "card", 1200, "card", 700]) {
+        // a number: a tap that long after the last; "card": a tap while the floor card is up (the travel runs under it)
+        if (wait === "card") { const t = Date.now(); while (Date.now() - t < 8000 && (await page.evaluate(() => document.querySelector(".watch")?.dataset.card)) !== "1") await sleep(20); }
+        else await sleep(wait);
+        const a = await pic(); if (a.screen !== "watch" || a.over) break;
+        await press("⏸");
+        const k0 = (await pic()).key; const moved = []; let last = null;
+        for (let i = 0; i < 15; i++) { await sleep(100); last = await pic(); if (last.key !== k0) moved.push(last.key); }
+        if (last.over) break;   // the run's end unpauses (endControls)
+        check(moved.length === 0 && last.frontier > a.frontier, `seed ${seed}${wait === "card" ? " (card)" : ""}: ⏸ holds the picture 1.5 s (${k0}${moved.length ? ` → ${moved[0]}` : ""}; frontier ${a.frontier} → ${last.frontier})`);
+        await press("▶");
+      }
+    }
+  }
+  // Cut 14 (QA on 56f2a1d): one position on screen — the floor card names the floor the HUD shows (and its loot is the stake's):
+  // HUD `17/40 D4` under `D5 · 15 rooms · a shrine`, `$6 · keeps $3` under `D2 · 16 rooms · $13`; sampled every 100 ms through
+  // a `fights` run
+  {
+    for (const seed of [516, 7]) {
+      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+      await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
+      let samples = 0, cards = 0; const bad = []; const t0 = Date.now();
+      while (Date.now() - t0 < 20_000) {
+        const x = await page.evaluate(() => {
+          const card = document.querySelector(".interstitial");
+          return { screen: window.__riddle.screen, depth: document.querySelector(".hud .depth")?.textContent ?? "", stake: document.querySelector(".hud .stake")?.textContent ?? "", card: card && !card.hidden ? card.textContent : null };
+        });
+        if (x.screen !== "watch") break;
+        samples++;
+        if (x.card !== null) {
+          cards++;
+          const cd = /^D(\d+)/.exec(x.card)?.[1], hd = /^D(\d+)$/.exec(x.depth)?.[1];
+          const cl = /· \$(\d+)$/.exec(x.card)?.[1], sl = /^\$(\d+)/.exec(x.stake)?.[1];
+          if (cd !== hd || (cl !== undefined && sl !== undefined && cl !== sl)) bad.push(`${x.depth} ${x.stake.split(" · ")[0]} vs "${x.card}"`);
+        }
+        await sleep(100);
+      }
+      check(cards >= 5 && bad.length === 0, `seed ${seed}: the card names the HUD's floor and loot on every sample (${cards}/${samples} with the card up${bad.length ? `; ${bad.length} off: ${bad.slice(0, 3).join(" · ")}` : ""})`);
+    }
   }
   // Cut 14 §4: the `rest 20m` banner never covers the death frame's callout line — it sits low (`.banner.rest`), under every
   // sprite and name the frame drew (rater S: `rest 20m` over `OGRE WINDS UP`)
