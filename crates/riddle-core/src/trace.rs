@@ -1111,7 +1111,7 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
         // under a high baseline): either way the screen says `nothing beats base`.
         let bar = survive_bar(baseline).max(baseline);
         for p in rec.death.patches.iter_mut() {
-            p.below_bar = p.survive < bar - 1e-9;
+            p.below_bar = p.survive < bar - 1e-9 || (p.root.is_none() && p.survive <= baseline + 1e-9);   // equal to base is not better (QA on 56f2a1d: `survives 100% · base 100%` offered)
         }
     }
     // Cut 6 §8: on a boss death a `return` is never the only patch — the best other scored
@@ -1139,7 +1139,7 @@ fn dice_telegraph(game: &Game, rec: &mut DeathRec) {
     if fired < FIRED_BAR {
         return;
     }
-    let below_bar = survive < survive_bar(rec.death.baseline) - 1e-9;
+    let below_bar = survive < survive_bar(rec.death.baseline) - 1e-9 || survive <= rec.death.baseline + 1e-9;
     rec.death.patches.push(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar });
     rec.deltas_done = false;
 }

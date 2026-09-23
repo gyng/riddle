@@ -1083,7 +1083,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             sifter::resolve(run, res);
             if !run.hurt_since_boss && !run.trophies_run.contains(&"boss_untouched".to_string()) {
                 run.trophies_run.push("boss_untouched".into());
-                note(run, cx, "Trophy: boss untouched.".into());
+                if !cx.trophies.iter().any(|t| t == "boss_untouched") { note(run, cx, "Trophy: boss untouched.".into()); }
             }
         } else if m.grudge {
             note(run, cx, format!("{} is avenged.", m.title()));
@@ -1417,7 +1417,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     }
     if run.kills_floor == 0 && run.depth >= 2 && !run.trophies_run.contains(&"pacifist_floor".to_string()) {
         run.trophies_run.push("pacifist_floor".into());
-        note(run, cx, "Trophy: pacifist floor.".into());
+        if !cx.trophies.iter().any(|t| t == "pacifist_floor") { note(run, cx, "Trophy: pacifist floor.".into()); }
     }
     // Cut 7 §3: the band's situation is judged as the floor is left.
     crate::situations::on_leave_floor(run, cx);
@@ -1514,11 +1514,11 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     if next == 5 {
         if !run.drank_heal && !run.trophies_run.contains(&"no_heal_D5".to_string()) {
             run.trophies_run.push("no_heal_D5".into());
-            note(run, cx, "Trophy: no heal to D5.".into());
+            if !cx.trophies.iter().any(|t| t == "no_heal_D5") { note(run, cx, "Trophy: no heal to D5.".into()); }
         }
         if !run.melee_used && !run.trophies_run.contains(&"ranged_only_D5".to_string()) {
             run.trophies_run.push("ranged_only_D5".into());
-            note(run, cx, "Trophy: ranged only to D5.".into());
+            if !cx.trophies.iter().any(|t| t == "ranged_only_D5") { note(run, cx, "Trophy: ranged only to D5.".into()); }
         }
     }
     crate::facts::on_vision(run, cx);

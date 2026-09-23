@@ -26,7 +26,7 @@ export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* co
  *  out — four QA players read `1 hp short` as the hp left (the morgue still carries it); an empty margin is no segment. */
 export const headlineMargin = (m: string): string => /^\d+ (over|hp short)$/.test(m) ? "" : marginText(m);
 
-export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
+export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false): Mounted {
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
   const seg = headlineMargin(d.margin ?? "");
   const margin = seg ? ` · ${seg}` : "";
@@ -34,7 +34,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = []): Mounted {
   // Cut 13 §4: the run's last two notes, engine data verbatim (`The green one: fire. Gambled: fire potion.`)
   const notes = d.notes?.length ? h("div", { class: "death-notes num dim" }, ...d.notes.slice(-2).map((n) => h("div", { class: "note" }, n))) : null;
   // Cut 13 §5: a `dice` death says what the forecast said for that depth — the reach the camp showed for the floor, verbatim
-  const said = d.verdict === "dice" ? forecastSaid(app, d.depth) : undefined;
+  // an old death (the chronicle) was sent under another forecast: today's would be a false number (QA on 56f2a1d: `forecast said D7 0%`)
+  const said = d.verdict === "dice" && !kept ? forecastSaid(app, d.depth) : undefined;
   const forecastLine = said !== undefined ? h("div", { class: "forecast-said num dim" }, /* copy:callout */ `forecast said D${d.depth} ${pct(said)}`) : null;
   // Cut 6 §1: the exit's arithmetic, verbatim from the engine (`$144 carried · death keeps 0% → $0 · bones: 7 items on D5`)
   // Cut 11 §5: tappable — the gold sheet filtered to this run's movements

@@ -503,7 +503,7 @@ export class App {
       case "camp": m = renderCamp(this, screen.highlight); break;
       case "ending": m = renderEnding(this); break;
       case "watch": m = renderWatch(this); break;
-      case "death": m = renderDeath(this, screen.death, screen.lost ?? []); break;
+      case "death": m = renderDeath(this, screen.death, screen.lost ?? [], !!screen.kept); break;
       case "report": m = renderReport(this, screen.report, screen.absence); break;
     }
     this.mounted = m;

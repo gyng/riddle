@@ -586,6 +586,9 @@ impl Run {
 /// Per-turn context borrowed from the game.
 pub struct Ctx<'a> {
     pub facts: &'a mut BTreeSet<String>,
+    /// The lineage's trophies: a trophy's note is said the first time only (QA on 56f2a1d:
+    /// `Trophy: no heal to D5.` in the reel of every D5 run).
+    pub trophies: &'a [String],
     /// Cut 2 §5: lineage kills per kind (the `studied` tier).
     pub kill_counts: &'a mut BTreeMap<String, u32>,
     pub flavours: &'a Flavours,
@@ -1894,6 +1897,7 @@ impl Game {
             lost: &lineage.lost,
             sets: &lineage.sets,
             active_set: set,
+            trophies: &lineage.trophies,
             facts: &mut lineage.facts,
             kill_counts: &mut lineage.kill_counts,
             flavours: &lineage.flavours,

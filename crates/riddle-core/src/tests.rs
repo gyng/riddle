@@ -581,6 +581,7 @@ fn monkey_steals_then_flees_and_drops_on_death() {
                 lost: &lineage.lost,
                 sets: &lineage.sets,
                 active_set: set,
+                trophies: &[],
             },
         )
     };
