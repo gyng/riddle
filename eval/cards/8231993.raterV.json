@@ -1,0 +1,80 @@
+{
+  "$comment": "Blind rater V, seed 702, production build on :5230, headed GPU driver at 400x800 3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, eval-fun FRAMEWORK.md sections 1-3, the template, and the header of tools/driver.mjs (for the ops). No PLAN/research/CUT/source/other cards opened. Notes: scratchpad/raterV/notes.md; shots: scratchpad/raterV/shots/.",
+  "game": "Riddle",
+  "build": "8231993",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterV",
+  "horizon": {
+    "activeMinutes": 56,
+    "absences": ["simulated 8h via ?dev=1&absent=8h (loaded once, after ~37 min cold play); no real-time absence taken"],
+    "runsWatched": 18,
+    "runsOffline": 16,
+    "ruleEdits": 17,
+    "$note": "Every run was watched live, mostly in the default 'fights' mode (one run in 'fast'); ~40-110 s wall each. 16 own rule edits (conds, thresholds, verbs, reorders, a second cond on a row) plus 1 tapped patch. 4 deaths read (D6 archer, D6 fire potion, D7 gas, D9 ogre) plus the return screen's gas death. Audio: unassessed (never inspected window.__audio, could not hear)."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: My fighter kept banking at D8 until the return screen said 'R5 bank ended 7 runs, none past D8', so I pushed the bank to D10 and he got stuck under a Goblin Warlord's 'shields up' and ran home at 5 HP. That taught me 'counter: attack boss'; I swapped my never-fired drink-unknown row for 'foe: boss → attack boss', and the next run he dropped to 11 HP, drank, and the warlord went down. He walked into D9, 'the Fens', past eels and a pink jelly that split, and banked $244 on D10."
+  },
+  "probes": {
+    "clarity": "Mostly: the forecast updated as I edited ('bank 0% · return 35% · death 65%'), but I could not parse 'R1 hazard first · R2 hazard first · … R7 hazard first' under death 3, 'The lock took him to 1 HP', or the reel's 'R1 drink heal caught him.' on a run he survived.",
+    "decisions": "Moving the bank from 'depth ≥ 5' ('bank 85% … ~$64') to 'depth ≥ 8' ('bank 29% · return 65% · death 6% · ~$95') is a push-or-bank choice I'd defend, and I made it again after the warlord, taking it to D10.",
+    "mastery": "An hour ago I didn't know row order kills you. Now I know the drink-unknown row at R2 drank a fire potion at 7 HP before my return row could fire, and a gas-retreat at R1 kept retreating at 4 HP from an ogre.",
+    "tension": "I sweated at '4/38 … R1 · drink heal' on D6 with $211 carried and at 'Down to 2 HP. Returned with $87'. But most runs ended with the return rule pulling him out at D5–D6, so the outcome was rarely in doubt.",
+    "feel": "Fights read well at 1x ('ogre winds up', '−6 ogre', '−1 captain'), but name tags collide ('CAPTIMONKEY', 'CONJUREJACKAL') and there are 10-11 s stretches of nothing but 'pick up ×3 … pick up ×6'. Audio unassessed.",
+    "surprise": "The D8 Goblin Warlord was the wall behind 'D9 0% ±1', and past it the Fens (eels, 'pink jelly: splitter'). The pet I lost, Morak, came back as 'Morak the jackal, gone wild.' and my next hero killed him. Monkeys stealing gear showed up almost every run and stopped surprising me.",
+    "expression": "My set ended as 'hp<30 drink heal / foe: boss → attack boss / hp<25 return / depth≥10 bank / foe: heavy → attack heavy / foe: ranged → attack ranged / attack nearest'. It's mine, but I suspect most players would land near it.",
+    "story": "'Morul the goblin archer is avenged.' came right after 'Found heir 1's bones: 12 items.' on the run where heir 3 banked $264 at D8. That and the warlord arc are stories I'd tell.",
+    "pacing": "In a run: 40–110 s at 1x, with dead pick-up stretches. Admin: every buy waits ~3.5 s for the forecast, and the cage 'choose one' sheet timed out before I could pick every time. Loop: send → read → edit → send was tight, and I wanted one more run often.",
+    "failure": "Every death named a cause, the rule and the gap: 'fire · D6 · gap / Gambled: fire potion.' with R2 drink unknown fired at 9 and 7 hp. Death 3's 'hazard first' footer and '· explore' at 3 hp were the exception.",
+    "social": "none; weight 0",
+    "autonomy": "I chose to tame ('foe: fast → tame nearest') at a forecast cost of ~$80→~$57 just to unlock '+1 party'. I also tried a ranger build, which the forecast talked me out of.",
+    "progression": "Within a run: L1→L4, D5→D10, cleave. Between runs: rows 4→7, vault, party slots, restock/keep automations, ranger. But ◆ dried up ('+1 row ◆11' with ◆0–1 after most returns) while money piled up with nothing to spend it on ($1488).",
+    "aesthetic": "The dark pixel dungeon and the chunky hero sprite are pleasant, and 'The air stings: bloats ahead.' has tone. The camp is a long monospace list of chips.",
+    "return": "I came back to '16 RUNS · 9 BANKED · 6 RETURNED · 1 DEATHS', 'PLATEAU / R5 bank ended 7 runs, none past D8', and 'R3 fired 0 of 16 runs: hp < 50% → drink unknown'. Both lines pointed at my own rows, and I acted on both. Unexplained: 'SPENT heal ×32 · −$1280'.",
+    "attribution": "'I put the gas retreat above my heal, so he retreated at 4 HP from an ogre and died on D9 with $244'. Deaths 2 and 4 were mine and I can say which row. A tapped patch silently replaced my least-fired row, which was my D8 bank row."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "The first edit took under 2 min and every chip change reprices the forecast live. Misreads: 'R1 hazard first ×7' (death 3), 'The lock took him to 1 HP', 'R1 drink heal caught him.' on a survived run, header '◆+7' vs RENOWN '◆+3', 3 heals bought but 'SPENT heal ×1 · −$120'." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "'depth ≥ 5 → bank' ('bank 85% … ~$64') vs 'depth ≥ 8' ('bank 29% · return 65% · death 6% · ~$95') were both defensible across runs, and so was curious+drink-unknown vs not. Lapse: money is a dominated resource (auto-restock spends it, $1488 idle), so shop choices stopped mattering." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "I learned row priority, then two-cond rows, then the boss counter, and deepest went D6→D8→D10. Lapse: after the warlord, runs slid back to D5–D6 returns and nothing new was left to learn in the last 15 min." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'4/38 … R1 · drink heal' with $211 carried and 'Down to 2 HP. Returned with $87' were real sweats. But the return row made most runs a foregone D5–D6 homecoming, and the forecast's ± numbers drained the doubt." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "At 1x a fight ticks readably ('ogre winds up', '−6 ogre', hp bar), and the shots were smooth on the GPU. Name tags overlap ('CAPTIMONKEY', 'CONJUREJACKAL'), there are 10-11 s dead 'pick up ×N' stretches, and the cage sheet expired before I could tap. Audio unassessed." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "The warlord behind 'D9 0% ±1', the Fens (eels = water, pink jelly = splitter), my dead pets coming back 'gone wild', heir 1's bones. All of these changed my rules. Lapse: monkey thefts ('A thief snatched the …') in nearly every run became wallpaper." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My 7 rows are recognisably mine (boss counter, heavy counter, D10 bank), but the forecast steers toward one obvious set. The ranger was forecast-rejected at L1 ('~$19 · stall 9%'), so I never built a second identity." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "'Found heir 1's bones' then 'Morul the goblin archer is avenged.' then 'Banked $264'. Plateau → warlord → 'Slew the Goblin Warlord.' → Fens. Lapse: tamed pets die as one line ('jackal Morak fell') in the first 16 s, so the bond that feeds 'gone wild' never lands." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 40–110 s, with dead pick-up stretches up to 11 s. Admin: ~3.5 s wait per purchase, the missed cage picks, and scrolling a very long unlock list. The whole loop still pulled me into another run most times." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Each death has cause · depth · gap, a 5-row trace with R-numbers, and priced patches ('survives 100% · base 25% · reach +25%'). Recovery is instant: a new heir and traits. Lapse: death 3 ended in '· explore' at 3 hp under 'R1..R7 hazard first', which I could not act on." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goals: a tame run to unlock party slots, a ranger experiment, pushing past D8. Route and floor order are the dungeon's, not mine." },
+    { "id": "progression", "human": 0.6, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Vocabulary grew with facts (attack heavy/gas/boss/splitter/water, drink strength…), plus rows 4→7, auto: restock and keep, party, ranger. But ◆ went dry after the first 20 min ('+1 row ◆11', ◆0 per return), and money stopped meaning anything ($1488, restock burned '−$1280')." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Moody olive-brown pixel tiles, a good hero sprite, terse flavour ('A den. Something sleeps.', 'The air stings: bloats ahead.'). The camp is a utilitarian chip list. Audio not assessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "The 8 h return gave '16 RUNS · 9 BANKED · 6 RETURNED · 1 DEATHS', a PLATEAU line naming my R5, 'R3 fired 0 of 16 runs', hatched pets and trophies. It led straight to my best run. Lapse: 'SPENT heal ×32 · −$1280' ate 65% of the take with no explanation, and 'The lock took him…' reel lines were cryptic." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Deaths 2 (my drink-unknown outranking return) and 4 (my gas-retreat above heal) were first-person mine, and the boss win was mine. Lapse: tapping a patch silently removed my least-fired row (the D8 bank) and I only noticed by reading the list." }
+  ],
+  "gripes": [
+    "Money is meaningless and ◆ is a trickle: $1488 banked with nothing to buy, auto-restock quietly spent $1280 on heals (and kept re-buying a one-off bow), while '+1 row' needs ◆11 and returns pay ◆0.",
+    "Pets and cages don't let me care. Tamed or bought pets die as a one-liner in the first minute of most runs, and the 'choose one' cage sheet expires before I can tap it.",
+    "Some text is opaque exactly where it matters: 'R1 hazard first ×7' on a death, 'The lock took him to 1 HP', 'R1 retreat caught him.' on a run he survived. Also a patch that silently deletes one of my rows."
+  ],
+  "tellAFriend": [
+    "You write a 7-line if-then list for a dungeon hero and watch it play out, and when he dies it shows the exact line that killed him. Usually the culprit is the line you were proud of.",
+    "The camp forecast re-simulates as you edit ('bank 29% · return 65% · death 6%'), so every tweak is a readable bet.",
+    "Leave it overnight and it tells you where you're stuck ('R5 bank ended 7 runs, none past D8'). Push past that and there's a boss, a new rule to learn and a new biome."
+  ]
+}

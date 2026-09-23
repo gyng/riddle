@@ -1,0 +1,150 @@
+{
+  "$comment": "Copy me per build and rater. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md. One quoted observation per axis. bot: green|amber|red|na is a cap, never an award. Answer criterion + idle probes BEFORE awarding.",
+  "game": "Riddle",
+  "build": "8231993",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterU (blind agent, seed 701, headed GPU 400x800 3x)",
+  "horizon": {
+    "activeMinutes": 50,
+    "absences": [
+      "8h simulated via ?dev=1&absent=8h (taken once, after ~33 min cold play)"
+    ],
+    "runsWatched": 14,
+    "runsOffline": 16,
+    "ruleEdits": 13
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: After the overnight report told me 'R1 return ended 17 runs, none past D8', I added my own row 'foe: boss → attack boss' and the forecast's D9 bar jumped from 0% to 80%. The next hero walked into the D8 boss room, the ticker read 'boss · counter: attack boss', 'shields up', 'ogre slain', and he slew the Goblin Warlord and went down into a new teal biome, the Fens, meeting pink jellies, eels and a wraith. He got to D12 at 7/40 and my return rule brought him home with $148, the deepest any of my heirs went."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Probe: I mostly knew what to do; the death screen ('R1 drink heal · no item ← monkey took the heal, D3') always told me what just happened. Lapses: the first forecast read 'D1 100% ±1 · death 100%' and the hero then reached D5; the 'fights'/'fast' chips never told me which speed I was in; 'rogue ⊘ bank once' — I never found out how to bank; I carried a leash all session and never learned how to tame; with no return row the forecast still said 'return 94% · ~$72'."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Probe: I added 'hp < 20% → return' and watched the forecast flip to 'return 100% · death 0% · ~$76', then later dropped it to 10% for 'return 80% · death 20% · ~$111' — a real depth-vs-safety trade I would defend; 'foe: boss → attack boss' took D9 from 0% to 80%. Named lapse: after the absence I had $600+ and nothing worth buying (supplies 5/5 refused a teleport scroll silently), and every card read 'reach ~0', so shop/unlock choices stopped being choices."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Probe: now I know row order matters — 'hp<50% · foes≥2 → to corridor' at the bottom made the forecast say 'stall 70%', moved above attack it read 'chokepoint'; and that bosses need an explicit counter row. But three of five deaths were at D4 with the same monkey/archer mix, and my improvements came from reading the forecast's 'try: attack boss' hint more than from skill I could feel growing."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Probe: I sweated at 'D7 · 2/38 · $173 · death: lose all · archer draws' and tapped bail; again at D9 'Down to 3 HP. R5 drink heal caught him.' But bail at 2 HP in front of a drawing archer returned '$103' within ~3 s with no risk, and once the return rule was in, 16 offline runs were 16 returns and 0 deaths — the stakes flatten fast."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Probe: the big pixel sprites with 'R2 ATTACK JACKAL' callouts over the fight read well and the hp bar/'keeps $64 · return at 20%' line updates live. Lapses: many 1x screenshots landed on a full black floor card ('D2 · 16 rooms · $12'), captions pile up ('ARCHER DRAWS' over the HP bar, 'R7 ATTACK GOBLIN ARCHER' over the sprites), and the replay WATCH sheet framed the archer but not the hero. Audio unassessed (cues logged in window.__audio: rule, slay; I could not hear them)."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Probe: 'Ashak the jackal, gone wild', 'The nest wakes. Thul the goblin archer is avenged.' then a later heir's 'Thul slain', monkeys stealing my heal potion two runs running (which made me write 'foe: thief → attack thief'), 'Found heir 1's bones: 11 items', and the Fens biome after the boss all changed what I did. But D1–D6 played the same every run ('D4: the Warrens.'), and I saw 'the Warrens' for ~30 minutes before anything new."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "Probe: my set is 'return at 10%, kill the boss, kill casters, kill thieves, drink at 30%, retreat from gas, else hit the nearest' — the game even tagged rows 'gambler' and 'chokepoint'. Lapses: accepted patches replaced my rows (the caster patch took my gambler row), set 2/set 3 stayed empty, and I ended on roughly what the patches pointed at."
+    },
+    {
+      "id": "story",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Probe: the reel and chronicle give lineage lines ('♟2 the gambler fighter · D8 · found ♟1's bones · fell to a goblin') and the Thul revenge arc was a real beat. But the best moment — the Goblin Warlord kill — reached me as ticker text in a few seconds ('boss · counter: attack boss', 'shields up', 'boss down'), not as a scene, and most reels are 'Returned with $N.'"
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "Probe: in-run a 1x run is 35 s to ~4 min with a line every ~5 s; camp check-in (read death → tap edit → tweak → send) took 1–3 minutes, and the return report was readable in ~30 s. Drag: black floor cards, D1–D6 were ~90 s of nothing at stake once the hero was strong, and editing rows through stacked bottom sheets is fiddly (chip → sheet → value → ▲ ×4 to move a row)."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Probe: every death screen named killer, depth, margin and the rows: 'goblin captain · D5 · 1 hp short · 6 unknown unused · gap', a trace table 't R hp foes tele', per-row reasons ('R4 to corridor · no path ← foes hold the way') and patches with 'survives 75% · base 33%'. Recovery is instant (new heir, '+$40 wake'). Named lapse: my 'foe: ranged → attack ranged' chased an unreachable archer ('no path ← chase given up') and the verdict still said 'dice · forecast said D4 99%'; several offered patches were 'survives 0% · base 0%'."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0"
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "Probe: I set my own goal — get past the D9 boss wall the forecast showed as 'try: attack boss 0%' — and chose risk (return at 20% vs 10%, bail at 2 HP). The dungeon order is fixed (always down), so freedom lives only in rules and loadout."
+    },
+    {
+      "id": "progression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Probe: within-run: depth, gold, vault picks; between runs: ◆ unlocks (+1 row ×2, +1 vault, verb throw, auto: restock, path: bones, auto: keep weapon+armour, class: ranger), ★5, fighter L4, a ledger with 5 '?' rows; automation: restock and bones-pathing removed chores. Lapse: ◆ came mostly from deaths ('◆+7', '◆+8') and returns paid '◆0', so once I played safe the unlock track stalled; gold became meaningless after the absence ($681 unspent)."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Probe: the Fens at D11 — teal tiles with a soft lit circle round the hero — was the one place I'd sit in; the warrior/jackal/archer sprites are handsome. The Warrens are one olive palette for eight floors, captions clutter the frame, and camp is a long dark list. Sound unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Probe: I came back to '16 RUNS · D8 DEEPEST · 16 RETURNED · 0 DEATHS', '+$1065 home · +$307 salvage · −$760 spent', trophies, ♟2's bones found, and 'PLATEAU · R1 return ended 17 runs, none past D8' — which pointed straight at a decision; I added the boss row and the next run reached D12. I did not wish I'd stayed. Named lapse: 'rested 321m' of the 8 h, all 16 runs are identical return lines, and the salvage block is a long noisy list."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "Probe (retelling, pronouns counted): 'My summoner rule killed him — R3 attack summoner fired five times while hp went 19→2 with four goblins on him'; 'my boss row got him past D8'. The trace ends in my rows most of the time. Named lapse: patches rewrite my rows and one 'dice' verdict landed on a death I'd blame on my own chase rule, which muddied whose call it was."
+    }
+  ],
+  "raterNotes": "Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md §1–3, the template, and eval/presets.json (the idle-roguelike weights the template points to); also read the header of tools/driver.mjs and tools/drive.sh for the op list. Did not open PLAN.md, research/, docs/CUT*.md, other cards or source. Wall-clock was compressed: ~33 min cold + ~16 min after return (agent turns are faster than a human's reading); 14 runs watched live (about 10 at 1x, the rest at fast), 5 deaths read. Screenshots in scratchpad/raterU/shots (first minute watch-*/01-first, first death 03-death1, first edit 06-verbpick, return 29-return, first edit after return: boss row in notes)."
+}

@@ -1,0 +1,94 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 10
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "caster"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:caster"
+      },
+      "origin": "patch"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "thief"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:thief"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "preset"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "gas"
+        }
+      ],
+      "verb": {
+        "v": "retreat"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "preset"
+    }
+  ],
+  "name": "fighter"
+}

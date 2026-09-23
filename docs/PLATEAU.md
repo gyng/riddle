@@ -364,3 +364,44 @@ not. The gate now carries the cohort's sets, and the next cohort's sets go in af
 remaining points are two designs (a settled forecast; the fight the render can show), one
 verdict rule (`gap` when unknowns sat unused), and the sixth 0.6 on expression, which no
 polish has moved and which the next contract has to address with content, not chrome.
+
+## Cohort 11 (build 8231993: Cut 14 — paired forecast, the fight on screen, the world on the wall clock)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| U | 701 | 66.5 | none |
+| V | 702 | 70.8 | none |
+
+α = 0.897 (reliable). Mean **68.7** — down 3.7 from cohort 10. Both raters' sets stall 0.0 %
+(added to the gate table). Decisions, failure, return and attribution hold 0.8 from both;
+**progression falls to 0.6 from both** (0.8 in cohorts 9 and 10), clarity 0.6 · 0.6, and
+expression is at 0.6 for the seventh cohort.
+
+Trajectory: … 73.8 → 73.8 → 72.4 → **68.7**.
+
+### The read
+
+Cut 14 did what it said (no card names forecast noise, a clipped caption, an unlabelled
+trace, a stall), and the number fell, because the next layer down is now visible and both
+raters found the same one first:
+
+1. **The economy has no pull** (progression, tension, return — both). U: "bail at 2/38 hp →
+   home with $103 in ~3 s, zero risk"; a return row made all 16 night runs come home; "returns
+   paid ◆0 while deaths paid ◆+7/+8, so playing safe stalled the unlock track"; "$600+ and
+   nothing worth buying". V: "$1488 banked with nothing worth buying"; restock "heal ×32 ·
+   −$1280" overnight; "+1 row costs ◆11 and most returns pay ◆0". Marks come from new depths,
+   first kills and trophies — a safe set earns none; gold buys supplies only. The idle loop's
+   two currencies do not meet a decision.
+2. **Ownership leaks through the Cut 14 patch rule** (U, V): `↑ R3` replaced "my D8 bank
+   row" / "my drink unknown row" silently. The least-fired row is not the least-wanted row.
+3. **The watch still hides its peaks** (feel, pacing): the Warlord kill "only as ticker text in
+   a few seconds"; many 1× frames are the black floor card; name tags collide (`CAPTIMONKEY`);
+   11 s of `pick up`; the speed chips never show the rate.
+4. **Companions and cages do not matter** (V): pets fall early as one line; the cage sheet
+   "expired before I could tap it every time".
+5. Smaller: `hazard first` on every row of a death footer; `R1 retreat caught him.` on a run he
+   survived; `survives 0% · base 0%` still shown (dimmed, below bar); a death U caused with a
+   chase rule stamped `dice`; the forecast's bank % above what late runs delivered.
+
+Next contract: the economy first (a bank/return that earns marks, gold with a sink that
+changes play, a restock that asks), then patch ownership, then the watch's peaks.
