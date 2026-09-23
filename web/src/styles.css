@@ -115,6 +115,10 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .sheet-wrap { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; z-index: 10; }
 .sheet { width: 100%; max-width: 520px; margin: 0 auto; max-height: 72dvh; overflow: auto; background: var(--panel); border-radius: 16px 16px 0 0; border-top: 1px solid var(--line); padding: 14px 12px calc(20px + env(safe-area-inset-bottom)); }
 .sheet-head { color: var(--dim); font-size: 13px; margin: 0 0 10px; }
+/* a modeless sheet (the watch's cage): taps pass the backdrop to the HUD; the panel floats above the bottom HUD row (QA on 3d71c33) */
+.sheet-wrap.modeless { pointer-events: none; background: rgba(0,0,0,.3); padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+.sheet-wrap.modeless .sheet { pointer-events: auto; border-radius: 16px; border: 1px solid var(--line); padding-bottom: 14px; }
+.sheet-x { float: right; min-width: 36px; min-height: 36px; margin: -10px -6px 0 0; padding: 0 8px; font-size: 22px; line-height: 1; background: none; border: 0; letter-spacing: 0; }
 .sheet-body > .label:first-child { margin-top: 0; }   /* a sheet's one-word title (`ledger` · `forge` · `chronicle`) sits at the top */
 .grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .grid.nums .chip { min-width: 64px; justify-content: center; }
@@ -152,7 +156,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .watch[data-over="1"] .hud-btn:disabled { opacity: .4; pointer-events: none; }   /* the run is over: the controls are dead, the verdict label has the top-right (QA on 50bb162) */
 .hud-btn.on.slowed { background: rgba(242,193,78,.16); }
 /* Cut 15 §4: the lit chip's clock as small digits (`fast 16`, `fights 2`); a pseudo-element, so the chip's text stays its word */
-.hud-btn[data-rate]::after { content: attr(data-rate); margin-left: 4px; font: 10px var(--mono); opacity: .85; vertical-align: 1px; }
+.hud-btn[data-rate]::after { content: attr(data-rate) "×"; margin-left: 4px; font: 10px var(--mono); opacity: .85; vertical-align: 1px; }
 .stake .returning { color: #ffd7a8; }
 .hud.top .hud-btn { margin-left: auto; }
 /* Cut 14 §6: the scrub strip — the playhead (the viewer's share of the run) and the frontier's dot, which beats once per engine batch */
@@ -317,6 +321,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .vault-choice .chips { gap: 10px; }
 .vault-choice .chip.item { min-height: 52px; padding: 0 18px; font-size: 17px; }
 .vault-choice .glyph { color: var(--acc); font-weight: 400; }
+.vault-choice .vault-full { font-size: 13px; margin: -4px 0 8px; }   /* the pick is salvaged at the exit (QA on 3d71c33) */
 .vault-choice .grace { height: 3px; margin-top: 12px; background: var(--line, #2a2f3a); border-radius: 2px; overflow: hidden; }
 .vault-choice .grace i { display: block; height: 100%; width: 100%; background: var(--acc); transition-property: width; transition-timing-function: linear; }
 
@@ -365,12 +370,13 @@ button.chip.locked { cursor: pointer; }
 .unlock-sheet .card-rows { margin: 4px 0 8px; }
 .unlock-sheet .needs-line { font-size: 13px; margin: 4px 0; }
 .unlock-sheet .delta { font-size: 13px; margin: 4px 0; }
-.unlock-sheet .buy.off { opacity: .4; cursor: default; }
+.unlock-sheet .gold-short { text-align: right; }
 /* Cut 15 §2: `◆3 · $450` and the two buys, marks (primary) · gold */
 .unlock-sheet .gold-price { color: #e8c24a; }
 .unlock-sheet .buy-pair { display: flex; gap: 10px; margin-top: 10px; }
 .unlock-sheet .buy-pair .btn { flex: 1; }
 .unlock-sheet .buy.gold { color: #e8c24a; border-color: #e8c24a; }
+.unlock-sheet .buy.off { opacity: .4; cursor: default; background: none; color: var(--dim); border-color: var(--line); }   /* both buys, off, look alike: no accent fill, no gold outline (QA on 3d71c33: a disabled `◆ buy` was brighter than an enabled `$ buy`) */
 /* Cut 9 §4: the card's trigger on its chip */
 .chip .trigger { font-size: 11px; }
 /* Cut 9 §3: `±6` after the reach */

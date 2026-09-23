@@ -643,7 +643,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     atlasInfo() { const out: Record<string, unknown> = {}; for (const k of ["hero_fighter", "monkey", "goblin", "jackal"]) { const e = atlas.entity(k); out[k] = { w: e.w, h: e.h, u0: +e.u0.toFixed(3), v0: +e.v0.toFixed(3), u1: +e.u1.toFixed(3), v1: +e.v1.toFixed(3), fallback: (e as { fallback?: boolean }).fallback ?? "?" }; } return out; },
     debugRects() { return rects.map((r) => ({ ...r })); },
     debugLabels() { return labels.map((l) => ({ ...l })); },
-    debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
+    debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, ally: !!e.ally, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
     stats() { return { ...stats }; },
     /** dev: every entity the state holds and whether the draw loop would show it */
     debugEnts() { return [...st.ents.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.x, y: e.y, hero: !!e.hero, rem: !!e.remembered, dying: !!e.dying, vis: !!st.visible[e.y * st.w + e.x], seen: !!st.seen[e.y * st.w + e.x] })); },

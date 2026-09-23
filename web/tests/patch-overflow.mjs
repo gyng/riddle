@@ -78,7 +78,7 @@ try {
   check((await state()).screen === "death" && rows.length === max, `the tap opens the drop sheet on the death screen (${rows.length} rows)`);
   check((await setNow()) === set0, "no row left before a row is tapped");
   check(rows.every((r, i) => r.row === i && r.text.startsWith(`R${i + 1} `) && r.fired === ""), `the sheet lists the set's rows, no count when none is known (${rows.map((r) => r.text.slice(0, 18)).join(" · ")})`);
-  check(rows.filter((r) => r.least).length === 1 && rows[max - 1].least, "nothing fired: the last row is marked least-fired");
+  check(rows.filter((r) => r.least).length === 0, "nothing fired: all rows tie, none is marked (QA on 3d71c33: the last row was an arbitrary pick)");
   // dismissed: the set whole, the death screen up
   await page.keyboard.press("Escape"); await sleep(200);
   check((await openSheets()) === 0 && (await state()).screen === "death" && (await setNow()) === set0, "Escape closes the sheet; the set is whole and the death screen stays");

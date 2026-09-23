@@ -6,7 +6,7 @@
 // disposed or cleared until the sheet closes), and the floor's fade-to-dark events are not replayed.
 import type { Because } from "../engine/types";
 import { h } from "./dom";
-import { floorFor, floorSnapshot, type RunLog } from "./runlog";
+import { clipWindow, floorFor, floorSnapshot, type RunLog } from "./runlog";
 import { openSheet } from "./sheet";
 import { makeViewer, type Viewer } from "./viewer";
 
@@ -17,12 +17,12 @@ type SeekViewer = Viewer & { seek?(t: number): void; setFrame?(frame: "map" | "f
 export function openReplay(log: RunLog, b: Because): void {
   const floor = floorFor(log, b);
   if (!floor) return;
-  const from = Math.max(floor.snap.turn, b.t - LEAD), to = from + WINDOW;
+  const { from, to } = clipWindow(floor, b.t, LEAD, WINDOW);   // QA on 3d71c33: the link's tick inside the window, on its own floor
   openSheet(() => {
     const canvas = h("canvas", { class: "replay-view" });
     const named = new RegExp(/* copy:none */ `\\bD${b.depth}\\b`).test(b.text);   // `found sword on D4` names its floor (QA on 56f2a1d: `on D4 D4 · t3930`)
     const at = h("span", { class: "num dim" }, /* copy:none */ `${named ? "" : `D${b.depth} · `}t${b.t}`);
-    const body = h("div", { class: "sheet-body replay", "data-t": b.t },
+    const body = h("div", { class: "sheet-body replay", "data-t": b.t, "data-depth": floor.snap.depth, "data-from": from, "data-to": to },
       h("div", { class: "label row-label" }, h("span", { class: "because" }, "← ", b.text), " ", at),
       canvas);
     let viewer: SeekViewer | null = null, timer = 0, playing = false;

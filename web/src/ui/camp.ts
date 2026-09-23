@@ -23,7 +23,7 @@ import { classList, deltaClass, deltaLabel, deltaPts, openOwnedSheet, openUnlock
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS, xpToNext } from "../engine/classes";
-import { isFreeSupply, verbLabel } from "./tokens";
+import { isFreeSupply, ownRowCount, verbLabel } from "./tokens";
 import { openSheet } from "./sheet";
 import { openGoldSheet } from "./gold";
 import { setBusyHost } from "./progress";
@@ -132,7 +132,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     app.sets.forEach((s, i) => {
       const named = !!(s.name ?? "").trim();
       tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) },
-        named ? setName(s, i) : /* copy:label */ `set ${i + 1}`, h("small", { class: "dim" }, ` · ${s.rows.length}`)));   // `fighter · 3` like `set 2 · 0` (QA on 56f2a1d: `fighter 3` read as a hero number)
+        named ? setName(s, i) : /* copy:label */ `set ${i + 1}`, h("small", { class: "dim" }, ` · ${ownRowCount(s.rows)}`)));   // `fighter · 3` like `set 2 · 0` (QA on 56f2a1d: `fighter 3` read as a hero number); own rows, the editor's `6/6` (QA on 3d71c33: `fighter · 8` beside `6/6 · 3 cards`)
       if (i === app.active) tabs.appendChild(h("button", { class: "tab edit", onclick: () => renameSet(i) }, "✎"));
     });
   }

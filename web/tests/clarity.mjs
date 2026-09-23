@@ -336,7 +336,7 @@ try {
     }
     check(!!rest && /^rest \S+$/.test(rest.text) && rest.top > rest.lowest && rest.top >= rest.h * 0.75, `the rest banner sits under the frame's sprites and names (${rest ? `"${rest.text}" top ${Math.round(rest.top)} · drawn to ${Math.round(rest.lowest)} · ${rest.frame} frame` : "never seen"})`);
   }
-  // Cut 15 §4: the lit mode chip carries its clock as small digits (`data-rate`, drawn by `::after`; the chip's text stays its word):
+  // Cut 15 §4: the lit mode chip carries its clock as small digits (`data-rate`, drawn by `::after` with a trailing `×` — QA on 3d71c33; the chip's text stays its word):
   // `fast 16` on the travel, `fast 4` in a fight; `fights 2` in a fight; the other chip carries none
   {
     const chip = () => page.evaluate(() => { const w = document.querySelector(".watch"), on = document.querySelector(".hud.bottom .hud-btn.on"), off = [...document.querySelectorAll(".hud.bottom .hud-btn")].filter((b) => b !== on && b.dataset.rate); return { screen: window.__riddle.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), card: w?.dataset.card, text: on?.textContent, rate: on?.dataset.rate ?? "", after: on ? getComputedStyle(on, "::after").content : "", others: off.length }; });
@@ -347,7 +347,7 @@ try {
       while (Date.now() - t0 < 25_000 && !(seen.has("fight") && seen.has("map"))) {
         const c = await chip(); if (c.screen !== "watch") break;
         const want = c.speed > 0 ? String(c.speed) : c.card === "1" ? "16" : "";
-        if (c.rate !== want || c.text !== mode || c.others || (c.rate && c.after !== `"${c.rate}"`)) bad ??= c;
+        if (c.rate !== want || c.text !== mode || c.others || (c.rate && c.after !== `"${c.rate}×"`)) bad ??= c;
         if (c.rate && c.frame) seen.set(c.frame, `${c.text} ${c.rate}`);
         await sleep(50);
       }

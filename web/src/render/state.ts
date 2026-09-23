@@ -49,7 +49,7 @@ export function entityName(e: { kind: string; name?: string }): string {
   return (full.length <= NAME_MAX ? full : words[words.length - 1]!).slice(0, NAME_MAX);
 }
 
-export type Callout = { text: string; until: number }; // real-time ms
+export type Callout = { text: string; until: number; t?: number }; // real-time ms; t: the event's tick (a seek drops the ones before it)
 export type ScreenShake = { t0: number; amp: number };  // Cut 8A: ticks; amp in env texels
 export type Leash = { from: number; to: number; t0: number; ok: boolean };
 export type Projectile = { path: [number, number][]; t0: number };
@@ -255,6 +255,10 @@ export class ReplayState {
     }
     this.clock = t;
     this.wholeTick = Math.floor(t);
+    // the replayed past sets no text: a caption or callout from an event before the landing tick is stale (QA on 3d71c33: a chain
+    // clip opened on `R5 ATTACK GOBLIN`, a row fired before its window, over the den it links to)
+    if (this.caption && (this.caption.t ?? -Infinity) < t) this.caption = null;
+    if (this.callout && (this.callout.t ?? -Infinity) < t) this.callout = null;
     this.settle();
     this.cameraSnap = true;
   }
@@ -325,7 +329,7 @@ export class ReplayState {
         if (ev.row < -1) break;
         const tail = ev.text.includes("→") ? ev.text.slice(ev.text.lastIndexOf("→") + 1).trim() : ev.text;
         const text = (ev.row >= 0 ? `R${ev.row + 1} ${tail}` : ev.text.replace(/→/g, ">")).slice(0, 24);
-        this.caption = { text, until: performance.now() + CAPTION_MS };
+        this.caption = { text, until: performance.now() + CAPTION_MS, t };
         break;
       }
       case "die": {
@@ -395,7 +399,7 @@ export class ReplayState {
         this.fadeTarget = EXIT_DIM;
         break;
       case "callout":
-        this.callout = { text: ev.text.slice(0, 24), until: performance.now() + 1000 };
+        this.callout = { text: ev.text.slice(0, 24), until: performance.now() + 1000, t };
         break;
       case "tame": {
         // leash arc hero → target over LEASH_T ticks, then flash + ring (ok) or shake (fail)
@@ -408,7 +412,7 @@ export class ReplayState {
         break;
       }
       case "hatch":
-        this.callout = { text: ev.kind.replace(/_/g, " ").slice(0, 24), until: performance.now() + 1000 };
+        this.callout = { text: ev.kind.replace(/_/g, " ").slice(0, 24), until: performance.now() + 1000, t };
         break;
       default:
         break; // rule, fact, note, level, …: nothing to draw

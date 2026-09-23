@@ -47,16 +47,27 @@ export function floorSnapshot(f: Floor): Snapshot {
 /** The run's exit tick, once known (chain links past it are never replayable). */
 export function markEnd(runId: number, t: number): void { if (last && last.runId === runId) last.endTick = t; }
 
+/** A floor's first tick: its snapshot is the END of the batch that reached it (a skip steps 100–200 ticks at a time), so the
+ *  events after the descend can start before `snap.turn`. */
+export const floorStart = (f: Floor): number => Math.min(f.snap.turn, f.evs.length ? f.evs[0].t : f.snap.turn);
+const floorEnd = (f: Floor): number => (f.evs.length ? f.evs[f.evs.length - 1].t : f.snap.turn);
+
 /** The floor entry a `because` happened on: the one loaded for its depth whose ticks bracket `t` (a depth revisited — the
- *  fake never does — picks the bracketing one), else any floor whose ticks bracket `t`. Undefined when the run does not hold
- *  that tick (before the first load, after the exit, or another run). */
+ *  fake never does — picks the bracketing one), else that depth's floor nearest `t`. Never another depth's floor (QA on 3d71c33:
+ *  a D3 link's clip showed a floor a batch off, captioned by an earlier row); a `because` without a depth takes whichever floor
+ *  brackets `t`. Undefined when the run does not hold that tick (before the first load, after the exit, or another run). */
 export function floorFor(log: RunLog, b: Because): Floor | undefined {
   if (log.endTick !== undefined && b.t > log.endTick) return undefined;
-  const lastT = (f: Floor): number => (f.evs.length ? f.evs[f.evs.length - 1].t : f.snap.turn);
-  const brackets = (f: Floor): boolean => b.t >= f.snap.turn && b.t <= lastT(f);
-  return log.floors.find((f) => f.snap.depth === b.depth && brackets(f))
-    ?? log.floors.find((f) => brackets(f))
-    ?? (b.depth > 0 ? log.floors.filter((f) => f.snap.depth === b.depth).find((f) => b.t >= f.snap.turn) : undefined);
+  const brackets = (f: Floor): boolean => b.t >= floorStart(f) && b.t <= floorEnd(f);
+  if (b.depth <= 0) return log.floors.find(brackets);
+  const same = log.floors.filter((f) => f.snap.depth === b.depth);
+  return same.find(brackets) ?? same.filter((f) => b.t >= floorStart(f)).pop();
+}
+/** Cut 11 §2 (QA on 3d71c33): a clip's window on its floor — from `t − lead` (never before the floor's first tick) to at least
+ *  `t + lead`, `window` ticks long at least, so the link's own tick is always inside it. */
+export function clipWindow(f: Floor, t: number, lead: number, window: number): { from: number; to: number } {
+  const from = Math.max(floorStart(f), Math.min(t, floorEnd(f)) - lead);
+  return { from, to: Math.max(from + window, t + lead) };
 }
 /** Can the death screen scrub this run's replay to `b`? */
 export function replayable(runId: number | undefined, b: Because): boolean {

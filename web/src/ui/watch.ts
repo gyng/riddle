@@ -197,6 +197,9 @@ export function renderWatch(app: App): Mounted {
   let cardUp = false, cardSince = 0, cardMin = CARD_MS, cardDepth = 0, cardText = "", mapHold = false, cardWait = false, fights = 0;
   // Cut 15 §4: when the card last went up (the cap's clock: `cardSince` is waived by a press), and the live map the cap gave way to
   let cardShownAt = 0, cardLive = false;
+  // QA on 3d71c33: the floor's card shows once per floor entry — a card between fights on a floor already carded is a ghost (the
+  // travel still runs under it, the picture holds, nothing is drawn over the map: `data-ghost`)
+  let cardGhost = false;
   const foeSpans: { from: number; until: number }[] = [];   // Cut 15 §4: engine-tick spans with a hostile near (the fight frame's slow clock in `fights`)
   const bossIds = new Set<number>();                          // Cut 15 §4: entities tagged `boss` (a kill of one is a beat)
   el.dataset.mode = mode; el.dataset.fights = "0"; el.dataset.card = "0";
@@ -251,6 +254,14 @@ export function renderWatch(app: App): Mounted {
   let deepest = 0;
   // Cut 5 §4: the open vault sheet's close, and the cage it was opened for (a dismissed sheet is not reopened)
   let vaultClose: (() => void) | null = null, vaultKey = "", vaultAt = 0;   // Cut 15 §5: vaultAt — when the sheet opened (wall ms)
+  let graceBar: HTMLElement | null = null;   // the cage sheet's shrinking bar (held while the picture is frozen)
+  /** The bar at its share of the wait left, standing (⏸) or running out over the rest of it. */
+  function graceHold(): void { if (!graceBar) return; const left = Math.max(0, 1 - (performance.now() - vaultAt) / VAULT_WAIT_MS); graceBar.style.transitionDuration = "0s"; graceBar.style.width = `${(left * 100).toFixed(1)}%`; }
+  function graceRun(): void {
+    const bar = graceBar; if (!bar) return;
+    const leftMs = Math.max(0, VAULT_WAIT_MS - (performance.now() - vaultAt));
+    requestAnimationFrame(() => { bar.style.transitionDuration = `${(leftMs / 1000).toFixed(2)}s`; bar.style.width = "0%"; });
+  }
   let prepended = false;              // bail fell back to the row prepend (an engine without `bail`)
   const cls = app.lineage.class;
   const before = { best: app.lineage.best_depth, marks: app.lineage.marks, level: app.lineage.classes?.[cls]?.level ?? 1, xp: app.lineage.classes?.[cls]?.xp ?? 0, renown: app.lineage.renown ?? 0, rank: app.lineage.rank ?? 0 };
@@ -376,12 +387,19 @@ export function renderWatch(app: App): Mounted {
     if (!framed) { fightFrom = t; fightUntil = t + SCENE_TICKS; fightShow = true; }
     else if (Number.isFinite(fightUntil)) fightUntil = Math.max(fightUntil, t + SCENE_TICKS);
     if (exit) fightUntil = Infinity;   // Cut 14 §3: the run is over — the frame holds; the exit flow's own clock (SCENE_MS, real time) lets go
-    beat = { from: t, until: t + SCENE_TICKS, text, shown: false, exit, hold };
+    // an earlier beat the playhead has yet to reach keeps its place; this one takes over at its own tick (QA on 3d71c33: a den's
+    // release showed the later `BANKED $13`, which had overwritten it, on D2 ~15 s before the bank)
+    const b = { from: t, until: t + SCENE_TICKS, text, shown: false, exit, hold };
+    if (!(beat && !beat.shown && beat.from < t)) beat = b;
     el.dataset.beats = String(++beats);   // dev: tools count the beats cut in
-    at(t, () => showBeat());
+    at(t, () => { if (b.shown) return; beat = b; showBeat(true); });
   }
-  function showBeat(): void {
+  /** The beat's line, once the frame is up and the PLAYHEAD has reached the beat's tick (`reached`: released at the viewer's clock).
+   *  A fight cut before it (a kept span the viewer replays behind the frontier) never carries a later beat's line (QA on 3d71c33:
+   *  `BANKED $13` over a D2 fight in `fast`, ~15 s before the bank at D5). */
+  function showBeat(reached = false): void {
     if (!beat || beat.shown || frame !== "fight") return;
+    if (!reached && viewerTick() < beat.from - 1) return;
     beat.shown = true;
     // Cut 14 §3: the exit's beat takes the line at once and keeps it (the bank row's own callout lands on the same tick) until
     // the exit flow moves on; a situation's beat queues like any callout
@@ -601,6 +619,9 @@ export function renderWatch(app: App): Mounted {
     const inBeat = !!beat && v >= beat.from && v < beat.until;
     const wantFight = mode === "fights" && cardUp && !mapHold ? (fightShow && fightFrom < Infinity && v < fightUntil) || !!next : (v >= fightFrom && v < fightUntil) || inSpan || inBeat;
     let want: FrameName = wantFight ? "fight" : "map";
+    // QA on 3d71c33 (a floor card between `drink ✗ no item` and `−2 blade`): in `fights` the frame never gives way to the card while
+    // the fight is still on at the playhead — a hostile near, a blow's hold, a beat (`choreAt` false)
+    if (mode === "fights" && frame === "fight" && want === "map" && !cardUp && !mapHold && app.slowdowns && v < endingFrom && !choreAt(v)) want = "fight";
     // Cut 10 §1: a fight waits for the card's minimum (the clock holds at 0 meanwhile; the seek below lands on the first frame)
     // Cut 15 §4: a beat waits on the card no longer than CARD_BEAT_MS (its frame is the beat's: a boss's kill, a situation, the bank)
     const beatDue = !!beat && !beat.shown && beat.from >= fightFrom && beat.from < fightUntil;
@@ -627,9 +648,11 @@ export function renderWatch(app: App): Mounted {
   function paintCard(want: FrameName): void {
     const up = mode === "fights" && want === "map" && !mapHold && !vaultClose && !done && !exitTier && viewerTick() < endingFrom;
     if (up !== cardUp) {
-      cardUp = up; card.hidden = !up; el.dataset.card = up ? "1" : "0";
-      // a card per floor: the full minimum when the floor is new, a beat between fights on the same floor
-      if (up) { cardSince = cardShownAt = performance.now(); cardMin = hud.depth !== cardDepth ? CARD_MS : CARD_BEAT_MS; cardDepth = hud.depth; ticker.classList.remove("show"); }
+      cardUp = up; el.dataset.card = up ? "1" : "0";
+      // a card per floor: the full minimum when the floor is new, a beat between fights on the same floor — drawn only on a new floor
+      // (QA on 3d71c33: `D6 · 16 rooms · a cage` 4× on one floor); the one between fights is a ghost
+      if (up) { cardSince = cardShownAt = performance.now(); cardGhost = hud.depth === cardDepth; cardMin = cardGhost ? CARD_BEAT_MS : CARD_MS; cardDepth = hud.depth; ticker.classList.remove("show"); }
+      card.hidden = !up || cardGhost; el.dataset.ghost = up && cardGhost ? "1" : "0";
     }
     if (up) paintCardText();
   }
@@ -639,6 +662,8 @@ export function renderWatch(app: App): Mounted {
    *  (`D4 · 9 rooms · a nest`); the gold line when there is none. */
   function paintCardText(): void {
     const d = hud.depth, f = floors.get(d), rooms = f?.rooms, twist = f?.twist;
+    // the floor changed under the card (the travel drained a load): this is the new floor's card, drawn
+    if (cardUp && d !== cardDepth) { cardDepth = d; if (cardGhost) { cardGhost = false; card.hidden = false; el.dataset.ghost = "0"; } }
     const text = /* copy:callout */ `D${d}${rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `$${hudSnap?.stake?.loot ?? hudSnap?.loot ?? 0}`}`;
     if (text !== cardText) { cardText = text; replace(card, text); }
   }
@@ -733,7 +758,7 @@ export function renderWatch(app: App): Mounted {
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
     if (vaultClose && !document.querySelector(".vault-choice")) vaultClose = null;   // dismissed by backdrop / Escape: the engine's grace decides
-    if (vaultClose && performance.now() - vaultAt > VAULT_WAIT_MS) vaultClose();    // Cut 15 §5: the wait is over; the engine's grace and preference proceed
+    if (vaultClose && !frozen() && performance.now() - vaultAt > VAULT_WAIT_MS) vaultClose();    // Cut 15 §5: the wait is over; the engine's grace and preference proceed (⏸ stops the wait)
     const still = frozen();   // Cut 14 §6: a frozen picture — no cut, no release, no floor load; the world below steps on
     if (!still && cardUp && !cardWait && !mapHold && !held && performance.now() - cardShownAt > CARD_MAX_MS && !fightAhead(viewerTick())) cardExpired();   // Cut 15 §4
     if (!still) applyFrame();
@@ -884,9 +909,9 @@ export function renderWatch(app: App): Mounted {
    *  the thaw feeds the batches the world stepped meanwhile. */
   function freeze(p: boolean, hid: boolean): void {
     const was = frozen(); paused = p; hidden = hid;
-    if (!was && frozen()) { frozenAt = performance.now(); clearTimeout(tickerTimer); }
+    if (!was && frozen()) { frozenAt = performance.now(); clearTimeout(tickerTimer); if (vaultClose) graceHold(); }
     else if (was && !frozen()) {
-      const d = performance.now() - frozenAt; tickerAt += d; ambientUntil += d; if (exitBeatUntil > frozenAt) exitBeatUntil += d; if (holdLineUntil > frozenAt) holdLineUntil += d;
+      const d = performance.now() - frozenAt; tickerAt += d; ambientUntil += d; if (vaultClose) { vaultAt += d; graceRun(); } if (exitBeatUntil > frozenAt) exitBeatUntil += d; if (holdLineUntil > frozenAt) holdLineUntil += d;   // the cage's wait stood still too
       cardShownAt += d; cardSince += d;   // Cut 15 §4: a frozen card's time does not count
       if (ticker.classList.contains("show") || tickerQueue.length) scheduleTicker();
       for (const x of frozenFeed.splice(0)) feed(x.evs, x.s);
@@ -896,6 +921,8 @@ export function renderWatch(app: App): Mounted {
   let skipQueued = false;
   async function skipToEvent(): Promise<void> {
     if (done || !viewer || exitTier) return;
+    // QA on 3d71c33: under the cage sheet ▶▶| picks nothing — the sheet goes and the engine's grace and the preference decide
+    if (vaultClose) vaultClose();
     // Cut 14 §6: `▶▶|` is "live": a frozen picture resumes; a viewer behind the frontier (a pause, a hidden tab, a slow fight while
     // the world ran on) lands on it first — the ending's start at most, so the walk-out plays — and the press then means what it
     // meant live: the fight's end or the next fight in `fights`, the run's end in `fast`, landing on the new frontier
@@ -1004,18 +1031,25 @@ export function renderWatch(app: App): Mounted {
   function vaultSheet(vc: VaultChoice): void {
     let sent = false;
     vaultAt = performance.now();
+    // QA on 3d71c33: a full vault salvages the pick at the exit — the sheet says so
+    const full = app.lineage.vault.length >= vaultSlots(app.lineage.unlocks);
+    // the cage is modeless: the HUD stays live around it (⏸ keeps it, ▶▶| lets it go — QA on 3d71c33: "click intercepted")
     openSheet((close) => {
-      vaultClose = () => { vaultClose = null; close(); paintCard(frame); applySpeed(); };
+      vaultClose = () => { vaultClose = null; graceBar = null; close(); paintCard(frame); applySpeed(); };
       const chips = h("div", { class: "chips" }, ...vc.items.map((it) => h("button", { class: "chip item", onclick: () => {
         if (sent) return; sent = true;
         app.engine.choose(it.id).catch((e) => console.warn("choose", e)).finally(() => vaultClose?.());   // the next step's snapshot carries the pickup
       } }, h("b", { class: "glyph" }, kindGlyph(it.kind)), " ", it.label)));
       // the wait as a shrinking bar (QA on 56f2a1d: "closes by itself ~2–4 s later with no timer"): Cut 15 §5, the wall-clock wait
       // (VAULT_WAIT_MS; the world stands meanwhile), width 100% → 0 over it — `vc.left` is the engine's own grace, after that
-      const grace = h("div", { class: "grace" }, h("i", { style: `transition-duration:${VAULT_WAIT_MS / 1000}s` }));
-      requestAnimationFrame(() => requestAnimationFrame(() => { (grace.firstElementChild as HTMLElement).style.width = "0%"; }));
-      return h("div", { class: "sheet-body vault-choice" }, h("div", { class: "label row-label" }, /* copy:label */ "vault"), chips, grace);
-    });
+      const bar = h("i", { style: `transition-duration:${VAULT_WAIT_MS / 1000}s` });
+      graceBar = bar;
+      const grace = h("div", { class: "grace" }, bar);
+      requestAnimationFrame(() => requestAnimationFrame(() => { if (frozen()) graceHold(); else bar.style.width = "0%"; }));
+      // the three-item room is the cage to the player (the core's `twist_word`; QA on 3d71c33: "a sheet titled VAULT")
+      return h("div", { class: "sheet-body vault-choice" }, h("div", { class: "label row-label" }, /* copy:label */ "cage"),
+        full ? h("div", { class: "vault-full dim num" }, /* copy:callout */ "vault full") : "", chips, grace);
+    }, { modeless: true });
     paintCard(frame); applySpeed();
   }
   function xpGained(): number {

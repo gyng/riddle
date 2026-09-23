@@ -84,6 +84,8 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
     const can = (u.available || (!!u.needs && !gateNeeds)) && !needs;
     // gold buys past a marks shortfall, never past another gate (a fact, a prerequisite, `fill rows`)
     const gold = goldPrice(u), canGold = gold > 0 && !gateNeeds && app.lineage.gold >= gold;
+    // a short `$ buy` says by how much, as a supply chip does (QA on 3d71c33: "`$ buy` disabled at $210 vs $300 with no `$90 short`")
+    const goldShort = gold > 0 && !gateNeeds && app.lineage.gold < gold ? gold - app.lineage.gold : 0;
     let sent = false;
     const go = (withGold: boolean) => (): void => {
       if (sent) return; sent = true;
@@ -96,7 +98,8 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))) : "",
       needs ? h("div", { class: "needs-line dim" }, "⊘ ", needs.replace(/_/g, " ")) : "",
       d ? h("div", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : "",   // Cut 10 §3 / Cut 12 §1 / Cut 13 §5
-      h("div", { class: "buy-pair" }, buy, buyGold));
+      h("div", { class: "buy-pair" }, buy, buyGold),
+      goldShort ? h("div", { class: "needs-line dim num gold-short" }, /* copy:callout */ `$${goldShort} short`) : "");
   });
 }
 /** Cut 6 §4: a tactic card (it becomes a row when bought). */

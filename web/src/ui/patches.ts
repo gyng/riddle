@@ -6,12 +6,12 @@
 // `below_bar` candidate renders dimmed with `survives 40% · below bar` — the named alternative of a `dice` death.
 // Cut 14 §4's silent `↑ R3` is withdrawn (Cut 15 §3: "the caster patch replaced my drink unknown row"): on a full set an insert
 // patch reads `+ drop one` and the tap opens a sheet of the set's own rows (card rows never), each with its fired count when known
-// (`R5 depth ≥ 8 → bank · 0/16`), the least-fired marked; tapping a row drops it and the patch lands where it was measured
-// (`App.applyPatchOver`); dismissing the sheet leaves the set whole and the death screen up.
+// (`R5 depth ≥ 8 → bank · 0/16`), the least-fired marked when it is the only one at its count; tapping a row drops it and the patch
+// lands where it was measured (`App.applyPatchOver`); dismissing the sheet (`×`, Escape, the backdrop) leaves the set whole and the death screen up.
 import type { App } from "../app";
 import type { Patch, Row, Trace } from "../engine/types";
 import { h, pct } from "./dom";
-import { openSheet } from "./sheet";
+import { closeX, openSheet } from "./sheet";
 import { isCardRow, rowLabel, sameCond, sameVerb } from "./tokens";
 
 const sameRow = (a: Row, b: Row): boolean => a.conds.length === b.conds.length && a.conds.every((c, i) => sameCond(c, b.conds[i]) && c.n === b.conds[i].n) && sameVerb(a.verb, b.verb);
@@ -34,12 +34,23 @@ export function unlockOf(app: App, p: Patch): string | undefined {
  *  watched run's rule events, or the absence's usage lines), else the rows the trace shows firing; among equals the lowest in
  *  the list (the one the rows above it overshadow). −1 when the set has no own row. */
 export function leastFiredRow(app: App, trace?: Trace): number {
-  const rows = app.rules.rows;
-  const fires: number[] = app.rowFires ? [...app.rowFires] : rows.map(() => 0);
-  if (!app.rowFires && trace) for (const t of trace.turns) if (t.row >= 0) fires[t.row] = (fires[t.row] ?? 0) + 1;
+  const rows = app.rules.rows, fires = firesOf(app, trace);
   let best = -1;
   rows.forEach((r, i) => { if (isCardRow(r)) return; if (best < 0 || (fires[i] ?? 0) <= (fires[best] ?? 0)) best = i; });
   return best;
+}
+
+/** The least-fired own row when its count is unique among the own rows, else −1 (the drop sheet's `↓`). */
+function uniqueLeast(app: App, trace?: Trace): number {
+  const least = leastFiredRow(app, trace); if (least < 0) return -1;
+  const fires = firesOf(app, trace), n = (i: number): number => fires[i] ?? 0;
+  return app.rules.rows.some((r, i) => i !== least && !isCardRow(r) && n(i) === n(least)) ? -1 : least;
+}
+/** Each row's fires: `app.rowFires`, else the rows the trace shows firing. */
+function firesOf(app: App, trace?: Trace): number[] {
+  const fires: number[] = app.rowFires ? [...app.rowFires] : app.rules.rows.map(() => 0);
+  if (!app.rowFires && trace) for (const t of trace.turns) if (t.row >= 0) fires[t.row] = (fires[t.row] ?? 0) + 1;
+  return fires;
 }
 
 export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace): HTMLElement {
@@ -88,13 +99,16 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
 
 /** Cut 15 §3: the drop sheet — the set's own rows (a card's row never; it sits outside `max_rows`), `R5 <row> · 0/16` with the
  *  run's fired count out of all fires when it is known (the watched run's rule events, or the absence's `R5 fired 0 of 16 runs`),
- *  the least-fired row marked (`.least`, `↓`). A tap drops that row and inserts the patch at its measured place; the backdrop or
- *  Escape closes the sheet and nothing changes. */
+ *  the least-fired row marked (`.least`, `↓`) when its count is unique. A tap drops that row and inserts the patch at its measured
+ *  place; the `×`, the backdrop or Escape closes the sheet and nothing changes. */
 export function openDropSheet(app: App, p: Patch, trace?: Trace): void {
-  const rows = app.rules.rows, least = leastFiredRow(app, trace);
+  const rows = app.rules.rows;
   const fires = app.rowFires, total = app.rowFiresOf ?? (fires ? fires.reduce((a, b) => a + b, 0) : 0);
+  // QA on 3d71c33: the `↓` marks the least-fired row only when it is the only one at that count — among ties (nothing fired, two
+  // rows at 0) no row is singled out (the lowest in the list was an arbitrary pick)
+  const least = uniqueLeast(app, trace);
   openSheet((close) => h("div", { class: "sheet-body drop-sheet" },
-    h("div", { class: "label row-label" }, /* copy:label */ "drop", " ", h("small", { class: "dim" }, rowLabel(p.row))),
+    h("div", { class: "label row-label" }, /* copy:label */ "drop", " ", h("small", { class: "dim" }, rowLabel(p.row)), closeX(close)),
     ...rows.map((r, i) => isCardRow(r) ? null : h("button", {
       class: `drop-row${i === least ? " least" : ""}`, "data-row": String(i),
       onclick: () => { close(); const at = app.applyPatchOver(p, i); app.go({ kind: "camp", highlight: at }); },
