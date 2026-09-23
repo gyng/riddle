@@ -84,6 +84,10 @@ pub struct Monster {
     /// Cut 3: a boss has shown its opening telegraph.
     #[serde(default)]
     pub introduced: bool,
+    /// Cut 16: rallies a boss has made — the Warlord's reserves are finite (`WARLORD_RESERVES`):
+    /// an endless wall with heal potions cycling was a 7-minute loop (rater X on 238bd67).
+    #[serde(default)]
+    pub rallies: u32,
     /// Cut 4: the companion verb last announced (`<kind>: flank`, once per streak).
     #[serde(default)]
     pub last_verb: String,
@@ -153,6 +157,7 @@ impl Monster {
             slow_t: 0,
             warden_ranged: false,
             introduced: false,
+            rallies: 0,
             last_verb: String::new(),
             nest: false,
             stray: false,

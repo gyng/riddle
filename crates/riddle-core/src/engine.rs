@@ -531,6 +531,10 @@ impl Run {
     pub fn is_ignored(&self, id: u32) -> bool {
         self.ignored.get(&id).is_some_and(|until| *until > self.actions)
     }
+    /// The oscillation guard gave up on this foe for the floor (`ignore(id, u32::MAX)`).
+    pub fn given_up(&self, id: u32) -> bool {
+        self.ignored.get(&id).is_some_and(|until| *until == u32::MAX)
+    }
     pub fn ignore(&mut self, id: u32, actions: u32) {
         let until = self.actions.saturating_add(actions);
         self.ignored.insert(id, until);

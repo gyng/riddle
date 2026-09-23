@@ -6920,3 +6920,91 @@ fn buying_a_kind_by_name_identifies_it() {
     g.buy_supply("heal").unwrap();
     assert!(crate::item::is_identified(&g.lineage.facts, &g.lineage.flavours, "heal"), "a bought heal is a known kind");
 }
+
+// ---------------------------------------------------------------- stalls (rater X on 238bd67)
+
+/// The first row event of the next hero action.
+fn first_rule(g: &mut Game) -> i32 {
+    for _ in 0..40 {
+        g.tick();
+        let evs = std::mem::take(&mut g.events);
+        if let Some(r) = evs.iter().find_map(|e| if let Ev::Rule { row, .. } = e { Some(*row) } else { None }) {
+            return r;
+        }
+    }
+    panic!("the hero never acted");
+}
+
+/// A retreat does not run from foes the oscillation guard gave up on for the floor: three
+/// holding at range kept `foes ≥ 3 → to corridor` pulling the hero into a corridor the chores
+/// walked it back out of, and the guard fired until the run stalled.
+#[test]
+fn a_retreat_ignores_foes_given_up_on() {
+    for given_up in [false, true] {
+        let mut g = arena();
+        rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 3)], Verb::new("retreat"))]);
+        let ids: Vec<u32> = (0..3).map(|i| add_monster(&mut g, "goblin", 10, 3 + i * 2)).collect();
+        if given_up {
+            let run = g.run.as_mut().unwrap();
+            for id in ids {
+                run.ignore(id, u32::MAX);
+            }
+        }
+        let row = first_rule(&mut g);
+        assert_eq!(row == 0, !given_up, "given up {given_up}: row {row}");
+    }
+}
+
+/// A boss holds the stairs: with no hero in sight it walks back to its post (a Warlord 20
+/// tiles off left the hero waiting at the sealed wall until the run stalled).
+#[test]
+fn a_boss_with_no_hero_to_chase_returns_to_the_stairs() {
+    let mut g = arena();
+    hold_rules(&mut g);
+    {
+        let run = g.run.as_mut().unwrap();
+        // A wall down the middle, open at the bottom row: the hero on the right, out of sight.
+        for y in 1..10 {
+            run.floor.map.set(Pos::new(8, y), Tile::Wall);
+        }
+        run.hero.pos = Pos::new(12, 2);
+        run.hero_dist_pos = None;
+        run.floor.map.update_vision(run.hero.pos, VISION);
+    }
+    let id = add_monster(&mut g, "goblin_warlord", 2, 2);
+    g.run.as_mut().unwrap().monsters.iter_mut().find(|m| m.id == id).unwrap().last_seen = None;
+    let stairs = g.run.as_ref().unwrap().floor.stairs_down;
+    let mut closest = 99;
+    for _ in 0..400 {
+        ticks(&mut g, 1);
+        if let Some(m) = monster(&g, id) {
+            closest = closest.min(m.pos.cheb(stairs));
+        }
+    }
+    assert!(closest <= 3, "the Warlord never came back to the stairs: {closest}");
+}
+
+/// The shield wall has no hole: a Warlord boxed in with no tile for a reserve turns an
+/// unaimed blow aside (four `attack nearest` swings at a cornered Warlord let TRIVIAL pass D8).
+#[test]
+fn a_boxed_in_warlord_turns_unaimed_blows_aside() {
+    let mut g = arena();
+    attack_rules(&mut g);
+    {
+        let run = g.run.as_mut().unwrap();
+        let mut map = Map::new(16, 12, Tile::Wall);
+        map.set(Pos::new(4, 5), Tile::Floor);
+        map.set(Pos::new(5, 5), Tile::Floor);
+        map.compute_corridors(&[]);
+        run.floor.map = map;
+        run.hero.pos = Pos::new(4, 5);
+        run.hero_dist_pos = None;
+        run.floor.map.update_vision(run.hero.pos, VISION);
+    }
+    let id = add_monster(&mut g, "goblin_warlord", 5, 5);
+    let max = monster(&g, id).unwrap().max_hp;
+    let evs = ticks(&mut g, 60);
+    let swings = evs.iter().filter(|e| matches!(e, Ev::Attack { src, dst, hit: true, .. } if *src == HERO_ID && *dst == id)).count();
+    assert!(swings > 0, "the hero never hit him");
+    assert_eq!(monster(&g, id).map(|m| m.hp), Some(max), "an unaimed blow landed on a boxed-in Warlord");
+}

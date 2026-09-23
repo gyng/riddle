@@ -1349,13 +1349,23 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
     }
 }
 
+/// Cut 16: the foes a retreat runs from — every foe in view but those the oscillation guard
+/// gave up on for the floor (one at the hero's elbow always counts). A conjurer, a lurking
+/// jackal and a thief holding at three tiles kept `foes ≥ 3 → to corridor` pulling the hero
+/// into a corridor the chores walked it back out of, after the guard had given up on all three
+/// — the guard fired again and again, a stall (rater X on 238bd67, seeds 11 and 28).
+fn threats(run: &Run, v: &View) -> Vec<usize> {
+    let hp = run.hero.pos;
+    v.foes.iter().copied().filter(|&i| run.monsters[i].pos.adjacent(hp) || !run.given_up(run.monsters[i].id)).collect()
+}
+
 fn min_foe_dist(run: &Run, v: &View, p: Pos) -> i32 {
     v.foes.iter().map(|&i| run.monsters[i].pos.cheb(p)).min().unwrap_or(99)
 }
 
 /// Move to maximise distance from foes, preferring corridors and stairs.
 fn verb_retreat(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
-    if v.foes.is_empty() {
+    if threats(run, v).is_empty() {
         return false;
     }
     let hp = run.hero.pos;
@@ -1395,7 +1405,10 @@ fn verb_back_corridor(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     if run.floor.map.is_corridor(hp) {
         return false;
     }
-    let foes: Vec<Pos> = v.foes.iter().map(|&i| run.monsters[i].pos).collect();
+    let foes: Vec<Pos> = threats(run, v).iter().map(|&i| run.monsters[i].pos).collect();
+    if foes.is_empty() && !v.foes.is_empty() {
+        return false;
+    }
     let (dist, parent) = hero_bfs(run);
     let map = &run.floor.map;
     let mut best: Option<(i32, Pos)> = None;
@@ -2441,6 +2454,32 @@ fn wander(run: &mut Run, cx: &mut Ctx, mi: usize) {
     }
 }
 
+/// A boss holds the stairs (it is placed within 3 of them and its life seals them): with no
+/// hero to chase it walks back to its post rather than wander off. A Warlord drifting 20 tiles
+/// from the stairs left the hero waiting at a sealed wall with nothing in view — `wait` for
+/// 5000 ticks, a stall (rater X on 238bd67, seed 9). False when it is at its post.
+fn boss_to_post(run: &mut Run, cx: &mut Ctx, mi: usize) -> bool {
+    let m = &run.monsters[mi];
+    let post = run.floor.stairs_down;
+    if !m.is_boss() || !m.hostile() || m.pos.cheb(post) <= 3 {
+        return false;
+    }
+    let map = &run.floor.map;
+    let home = map.bfs(post, false, &|_| false);
+    if let Some(q) = map.step_down(&home, m.pos, &|q| run.occupied(q)) {
+        move_monster(run, cx, mi, q);
+        return true;
+    }
+    false
+}
+
+/// `wander`, except that a boss off its post goes back to it.
+fn drift(run: &mut Run, cx: &mut Ctx, mi: usize) {
+    if !boss_to_post(run, cx, mi) {
+        wander(run, cx, mi);
+    }
+}
+
 fn adjacent_ally(run: &Run, mi: usize) -> Option<usize> {
     if run.taunt_t > 0 {
         return None;
@@ -2608,6 +2647,9 @@ pub fn telegraph(run: &mut Run, cx: &mut Ctx, mi: usize, what: &str, pending: Pe
 }
 
 /// Living summons that belong to a boss (goblins for the Warlord, skeletons for the Lich).
+/// Rallies the Warlord has in him (two goblins each): past these he fights alone.
+const WARLORD_RESERVES: u32 = 6;
+
 fn boss_summons(run: &Run, kind: &str) -> usize {
     let esc = match kind {
         "goblin_warlord" => "goblin",
@@ -2644,6 +2686,7 @@ fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending) {
             // Cut 7 §1: the Captain's one rally brings a single goblin.
             let n = if kind == "goblin_captain" { 1 } else { 2 };
             summon_near(run, cx, mi_pos(run, mi), "goblin", n, None);
+            run.monsters[mi].rallies += 1;
             if kind == "goblin_warlord" {
                 warlord_buff(run, cx, mi);
             }
@@ -2826,7 +2869,7 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
     }
     if !awake {
         if run.rng.chance(15) {
-            wander(run, cx, mi);
+            drift(run, cx, mi);
         }
         return;
     }
@@ -2912,7 +2955,8 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
             let in_view = run.monsters.iter().filter(|o| o.hp > 0 && o.hostile() && o.kind == "goblin" && o.pos.cheb(mp) <= VISION).count();
             let hurt = run.monsters[mi].hurt_since_action;
             run.monsters[mi].hurt_since_action = false;
-            if ((sees && guards < 2) || hurt) && in_view < 4 {
+            let reserves = run.monsters[mi].rallies < WARLORD_RESERVES;
+            if ((sees && guards < 2) || hurt) && in_view < 4 && reserves {
                 if guards == 0 && boss_summons(run, "goblin_warlord") > 0 {
                     // Caught unguarded after the first rally: the reserves are already
                     // there, they step in at once (no window for incidental swings).
@@ -3175,13 +3219,13 @@ fn chase(run: &mut Run, cx: &mut Ctx, mi: usize, sees: bool) {
         return;
     }
     let Some(target) = run.monsters[mi].last_seen else {
-        wander(run, cx, mi);
+        drift(run, cx, mi);
         return;
     };
     let mp = run.monsters[mi].pos;
     if mp.cheb(target) <= 1 {
         run.monsters[mi].last_seen = None;
-        wander(run, cx, mi);
+        drift(run, cx, mi);
         return;
     }
     // Greedy step toward the last seen position.

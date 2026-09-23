@@ -936,8 +936,14 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
                 .min_by_key(|(_, o)| (o.pos.cheb(wp), o.id))
                 .map(|(k, _)| k);
             let guard = nearest.or_else(|| {
-                // No goblin left in view: a reserve steps in from behind him to take the blow.
-                let q = wp.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q))?;
+                // No goblin left in view: a reserve steps in from behind him to take the blow —
+                // squeezing in two tiles out when he stands boxed in (a Warlord cornered in a
+                // corridor took four unaimed swings and died to `attack nearest`: TRIVIAL
+                // passed D8).
+                let free = |q: &Pos| run.floor.map.passable(*q) && !run.occupied(*q);
+                let q = wp.neighbours8().into_iter().find(free).or_else(|| {
+                    (-2..=2).flat_map(|dy| (-2..=2).map(move |dx| wp.step((dx, dy)))).find(|q| q.cheb(wp) == 2 && free(q) && run.floor.map.los(wp, *q))
+                })?;
                 let id = run.new_id();
                 let depth = run.depth;
                 let mut g = Monster::spawn(id, "goblin", q, depth);
@@ -950,11 +956,13 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
                 cx.events.push(Ev::Spawn { t: run.turn, e });
                 Some(run.monsters.len() - 1)
             });
-            if let Some(g) = guard {
-                if run.floor.map.is_visible(wp) {
-                    callout(run, cx, "shielded");
-                }
-                mi = g;
+            if run.floor.map.is_visible(wp) {
+                callout(run, cx, "shielded");
+            }
+            match guard {
+                Some(g) => mi = g,
+                // Nowhere for a reserve to stand: the shield turns the blow aside.
+                None => return false,
             }
         }
     }
