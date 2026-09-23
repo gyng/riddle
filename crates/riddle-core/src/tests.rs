@@ -6907,3 +6907,16 @@ fn a_catalogue_delta_carries_its_half_width() {
 
 
 
+
+/// Rater W on 238bd67: a potion bought by name (the forge made it craftable before the hero
+/// ever drank one) teaches the lineage its flavour — `drink heal` executes on a found heal.
+#[test]
+fn buying_a_kind_by_name_identifies_it() {
+    let mut g = Game::new(901);
+    g.lineage.gold = 500;
+    g.lineage.forge.entry("heal".into()).or_default().craftable = true;
+    assert!(!crate::item::is_identified(&g.lineage.facts, &g.lineage.flavours, "heal"));
+    assert!(g.supply_catalogue().iter().any(|s| s.kind == "heal"), "the forge puts heal on the shelf");
+    g.buy_supply("heal").unwrap();
+    assert!(crate::item::is_identified(&g.lineage.facts, &g.lineage.flavours, "heal"), "a bought heal is a known kind");
+}

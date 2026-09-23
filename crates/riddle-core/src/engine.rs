@@ -2961,8 +2961,15 @@ impl Game {
         self.lineage.next_vault_id += 1;
         let mut it = Item::new(id, kind);
         it.enchant = self.lineage.forge_tier(kind);
-        // Cut 6 §2: bought (or forge-crafted) by name: usable as such.
+        // Cut 6 §2: bought (or forge-crafted) by name: usable as such. And the lineage now
+        // knows the kind (rater W on 238bd67: the shop sold `heal potion` off the forge while
+        // `drink heal` read `unknown item` and 28 found heals were salvaged unknown).
         it.known = true;
+        if let Some(f) = crate::item::ident_fact(&self.lineage.flavours, kind) {
+            if self.lineage.facts.insert(f.clone()) {
+                self.events.push(Ev::Fact { t: 0, fact: f });
+            }
+        }
         if kind == "leash" {
             it.amount = 1;
             self.lineage.kennel_declined = false;
