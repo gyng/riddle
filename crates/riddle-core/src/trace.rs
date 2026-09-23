@@ -1114,10 +1114,17 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
             p.below_bar = p.survive < bar - 1e-9 || (p.root.is_none() && p.survive <= baseline + 1e-9);   // equal to base is not better (QA on 56f2a1d: `survives 100% · base 100%` offered)
         }
     }
+    // Cut 15 §6: a below-the-bar candidate that survives 0 % is not shown (U: `survives 0% ·
+    // base 0%`): the dice screen names only alternatives that survive.
+    // 0 % candidates go (U: `survives 0% · base 0%`) — unless nothing else survives: a dice
+    // death still names its alternative (Cut 11 §4), even a hopeless one.
+    if rec.death.patches.iter().any(|p| !(p.below_bar && p.survive <= 1e-9)) {
+        rec.death.patches.retain(|p| !(p.below_bar && p.survive <= 1e-9));
+    }
     // Cut 6 §8: on a boss death a `return` is never the only patch — the best other scored
     // candidate joins it (giving up is not the answer to a wall).
     if rec.boss.is_some() && rec.death.patches.len() == 1 && family(&rec.death.patches[0].row) == "escape" {
-        let mut others: Vec<Patch> = pre_retain.into_iter().filter(|p| family(&p.row) != "escape").collect();
+        let mut others: Vec<Patch> = pre_retain.into_iter().filter(|p| family(&p.row) != "escape" && !(p.below_bar && p.survive <= 1e-9)).collect();
         others.sort_by(|a, b| b.survive.partial_cmp(&a.survive).unwrap().then(b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap()));
         if let Some(o) = others.into_iter().next() {
             rec.death.patches.insert(0, o);
@@ -1167,12 +1174,18 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
     }
     let mut measured: Vec<(Patch, f64)> = Vec::new();
     for row in rows {
-        if measured.iter().filter(|(_, f)| *f >= FIRED_BAR).count() >= DICE_CANDIDATES {
+        // Cut 15 §6: only a candidate that survives counts toward the list (a 0 % one is
+        // dropped below), so the search goes on down the candidates past them.
+        if measured.iter().filter(|(p, f)| *f >= FIRED_BAR && p.survive > 1e-9).count() >= DICE_CANDIDATES {
             break;
         }
         let Some(mut rp) = Replayer::new(&base, &patched(rec, &row, 0), ticks, rec.stall) else { continue };
         let (survive, fired) = measure(&mut rp, &row, 0);
         measured.push((Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: true }, fired));
+    }
+    // Cut 15 §6: a candidate that survives 0 % is no alternative (U: `survives 0% · base 0%`).
+    if measured.iter().any(|(p, _)| p.survive > 1e-9) {
+        measured.retain(|(p, _)| p.survive > 1e-9);
     }
     let mut out: Vec<Patch> = measured.iter().filter(|(_, f)| *f >= FIRED_BAR).map(|(p, _)| p.clone()).collect();
     if out.is_empty() {

@@ -370,10 +370,17 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         }
     }
     // Sanity: nobody stands in gas or fire with no foe adjacent.
+    let hz = {
+        let hp = run.hero.pos;
+        run.overlays.iter().find(|o| o.x == hp.x && o.y == hp.y).map(|o| match o.k {
+            crate::tiles::OverlayKind::Gas => "gas",
+            crate::tiles::OverlayKind::Fire => "fire",
+        })
+    };
     if v.adj == 0 && ai::escape_hazard(run, cx, v) {
         let verb = Verb::new("explore");
         emit_rule(run, cx, -2, &verb, "hazard → step out");
-        all_rows_why(run, cx, "hazard first", None);
+        once_rows_why(run, cx, &format!("hazard first · {}", hz.unwrap_or("gas")));
         return (-2, verb);
     }
     // Cut 3 `recall_sense`: below 15% with a recall scroll in the pack, read it (a free row).
@@ -598,6 +605,17 @@ fn all_rows_why(run: &mut Run, cx: &Ctx, why: &str, because: Option<Because>) {
         idx.push(cx.rules.rows.len());
     }
     run.rows_why = idx.into_iter().map(|i| RowWhy { row: i, why: why.into(), because: because.clone() }).collect();
+}
+
+/// Cut 15 §6: a pre-emption that held every row, said once — one `RowWhy` on the first
+/// active row (`R1 hazard first · gas`) instead of the same words on each (V: "`hazard
+/// first` on every row reads as nothing"). The client renders `rows` verbatim, so the footer
+/// reads it once; a trace turn whose `rows` is this single entry stands for all of them.
+fn once_rows_why(run: &mut Run, cx: &Ctx, why: &str) {
+    if cx.sim {
+        return;
+    }
+    run.rows_why = cx.rules.active(cx.max_rows).map(|(i, _)| i).next().map(|i| RowWhy { row: i, why: why.into(), because: None }).into_iter().collect();
 }
 
 /// Cut 13 §2: the because a trait deviation leaves on the rows it held, ≤ 8 words, at the
@@ -1558,14 +1576,16 @@ fn foresee_ending(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View) {
 }
 
 /// Cut 4: the hero fell to ≤ 20 % on this floor and lived to leave it — the chronicle names
-/// the row that caught it (`R3 rest caught him`).
+/// the row that saved him (`R3 rest saved him`). Cut 15 §6: `saved`, not `caught` — the note
+/// is only written when he lived (a descend or a home exit), and `caught him` on a run he
+/// survived read as the row's fault (V).
 fn note_saved(run: &mut Run, cx: &mut Ctx) {
     if run.low20_t.is_none() && run.low10_t.is_none() {
         return;
     }
     if let Some(r) = run.saved_by.take() {
         if let Some(row) = cx.rules.rows.get(r as usize) {
-            let text = format!("R{} {} caught him.", r + 1, row.verb.short());
+            let text = format!("R{} {} saved him.", r + 1, row.verb.short());
             note(run, cx, text);
         }
     }

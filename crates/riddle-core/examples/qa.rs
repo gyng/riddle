@@ -87,9 +87,33 @@ fn check_death(t: &mut Tally, seed: u64, d: &riddle_core::Death) {
     for p in &d.patches {
         t.check("no death screen carries a patch under its baseline (unless below_bar)", p.below_bar || p.survive >= d.baseline - 1e-9, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2} · {}", d.run_id, p.row.describe(), p.survive, d.baseline, d.verdict));
     }
+    for p in d.patches.iter().filter(|p| p.below_bar) {
+        t.check("no below-bar candidate survives 0 %", p.survive > 0.0, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2}", d.run_id, p.row.describe(), p.survive, d.baseline));
+    }
     if d.verdict == "dice" {
         t.check("no dice death's margin names an unused item", !d.margin.contains("unused"), || format!("seed {seed} run {}: `{}`", d.run_id, d.margin));
     }
+}
+
+/// Cut 15 §2: on a copy of the lineage given gold, the first gold-buyable unlock buys with
+/// gold at `UnlockInfo.gold` — gold down by the price (a ledger line `unlock <id>`), marks
+/// untouched — and the next gold price of every other card climbs by a quarter of its first.
+fn check_gold_buy(t: &mut Tally, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    h.lineage.gold_move(100_000, "test");
+    let before = h.unlocks();
+    let Some(u) = before.iter().find(|u| !u.owned && u.gold > 0 && u.needs.as_deref().is_none_or(|n| n.starts_with('◆'))) else { return };
+    let (gold, marks, buys) = (h.lineage.gold, h.lineage.marks, h.lineage.gold_buys);
+    let ok = h.buy_unlock_gold(&u.id).is_ok();
+    let line = h.lineage.gold_ledger.last().map(|l| (l.delta, l.why.clone()));
+    let after = h.unlocks();
+    let climbed = before.iter().filter(|b| b.id != u.id && !b.owned && b.gold > 0).all(|b| after.iter().any(|a| a.id == b.id && a.gold == riddle_core::meta::gold_price(b.cost, buys + 1) && a.gold > b.gold));
+    t.check(
+        "a gold buy spends gold not marks and raises the next price",
+        ok && h.lineage.unlocks.contains(&u.id) && h.lineage.gold == gold - u.gold as i32 && h.lineage.marks == marks && line == Some((-(u.gold as i32), format!("unlock {}", u.id))) && climbed,
+        || format!("seed {seed}: {} ◆{} ${} · ok {ok} · gold {gold} → {} · marks {marks} → {} · {line:?} · climbed {climbed}", u.id, u.cost, u.gold, h.lineage.gold, h.lineage.marks),
+    );
+    check_gold(t, &h, seed, "after a gold buy");
 }
 
 fn play(seed: u64) -> Tally {
@@ -159,6 +183,7 @@ fn play(seed: u64) -> Tally {
         t.check("an available unlock buys", g.buy(&u.id).is_ok() && g.lineage.marks == marks - u.cost, || format!("seed {seed}: {}", u.id));
     }
     check_needs(&mut t, &g, seed);
+    check_gold_buy(&mut t, &g, seed);
     // The night.
     let before = g.lineage.gold;
     let r = g.run_offline(8 * 3600);

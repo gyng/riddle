@@ -81,6 +81,9 @@ struct SeedResult {
     returned: u32,
     xp: u32,
     gold: i32,
+    /// Cut 15 §1: marks earned over the absence (lineage delta) and the frontier banks among them.
+    marks: u32,
+    frontier: u32,
     rested_s: u64,
     /// (patches shown, patches whose row fired in ≥ 50% of replays)
     patches: (u32, u32),
@@ -312,6 +315,8 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
         r.banked += report.banked;
         r.returned += report.returned;
         r.xp += report.xp.gained;
+        r.marks += g.batch.marks;
+        r.frontier += g.batch.frontier_banks;
         r.rested_s += report.rested_s;
         r.run_ticks.extend(g.batch.run_ticks.iter().copied());
         // Cut 5 gates: the reel and the story lines of this absence, the situations met.
@@ -729,6 +734,9 @@ fn main() {
     rows.push(("Expeditions per 8 h (DEFAULT, EDITED) in 6–16".into(), format!("{d8:.1} · {e8:.1}"), (6.0..=16.0).contains(&d8) && (6.0..=16.0).contains(&e8)));
     let d_yield = default.iter().map(|r| r.xp as u64 + r.gold.max(0) as u64).sum::<u64>();
     rows.push(("DEFAULT yields 0 xp/gold over 8 h".into(), format!("{d_yield}"), d_yield == 0));
+    // Cut 15 §1: marks per 8 h (printed, not gated) and the frontier banks' share of them.
+    let per8 = |rs: &[&SeedResult], f: &dyn Fn(&SeedResult) -> u32| rs.iter().map(|r| f(r) as f64 * 8.0 / hours as f64).sum::<f64>() / ns as f64;
+    println!("marks per 8 h (Cut 15 §1): DEFAULT {:.1} ({:.1} frontier) · EDITED {:.1} ({:.1} frontier)", per8(&default, &|r| r.marks), per8(&default, &|r| r.frontier), per8(&edited, &|r| r.marks), per8(&edited, &|r| r.frontier));
     let e_banked = edited.iter().map(|r| r.banked as f64 * 8.0 / hours as f64).sum::<f64>() / ns as f64;
     rows.push(("EDITED banks ≥ 3 runs per 8 h".into(), format!("{e_banked:.1}"), e_banked >= 3.0));
     let (shown, fired): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.patches.0, a.1 + r.patches.1));

@@ -170,7 +170,8 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             let available = !owned && needs.is_none();
             // Cut 12 §1: a tactic card says where its row goes (before the engagement row).
             let insert_at = (!owned && is_tactic_card(u.id)).then(|| card_insert_at(l.rules()));
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None }
+            let gold = if owned { 0 } else { gold_price(u.cost, l.gold_buys) };
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold }
         })
         .collect()
 }
@@ -369,6 +370,44 @@ pub fn buy(game: &mut Game, id: &str) -> Result<(), String> {
         return Err("not enough marks".into());
     }
     l.marks -= def.cost;
+    l.unlocks.insert(id.into());
+    Ok(())
+}
+
+/// Cut 15 §2: gold per mark of an unlock's cost, at the first gold buy.
+pub const GOLD_PER_MARK: u32 = 150;
+
+/// Cut 15 §2: an unlock's gold price — `GOLD_PER_MARK × cost × (1 + gold_buys / 4)`, in
+/// integers (`× (4 + gold_buys) / 4`): ◆3 is $450 at the first gold buy, $900 once four have
+/// been made. A free unlock (cost 0) has no gold price (0: not gold-buyable).
+pub fn gold_price(cost: u32, gold_buys: u32) -> u32 {
+    GOLD_PER_MARK * cost * (4 + gold_buys) / 4
+}
+
+/// Cut 15 §2: buy an unlock with gold instead of marks — the same gates as `buy` (owned,
+/// prerequisite, fact/trophy gate), the gold price instead of the marks; the marks are left
+/// alone, the ledger reads `unlock <id>`, and the next gold price climbs.
+pub fn buy_gold(game: &mut Game, id: &str) -> Result<(), String> {
+    let def = UNLOCKS.iter().find(|u| u.id == id).ok_or("unknown unlock")?;
+    let l = &mut game.lineage;
+    if l.unlocks.contains(id) {
+        return Err("already owned".into());
+    }
+    if def.cost == 0 {
+        return Err("not for gold".into());
+    }
+    if def.prereq.is_some_and(|p| !l.unlocks.contains(p)) {
+        return Err("prerequisite missing".into());
+    }
+    if let Some(n) = gate(l, id) {
+        return Err(format!("needs {n}"));
+    }
+    let price = gold_price(def.cost, l.gold_buys);
+    if l.gold < price as i32 {
+        return Err("not enough gold".into());
+    }
+    l.gold_move(-(price as i32), &format!("unlock {id}"));
+    l.gold_buys += 1;
     l.unlocks.insert(id.into());
     Ok(())
 }

@@ -743,6 +743,10 @@ pub struct LineageState {
     /// §3: kinds the last run used to no effect — `restock` skips them once.
     #[serde(default)]
     pub last_wasted: Vec<String>,
+    /// Cut 15 §2: unlocks bought with gold so far; each raises the next gold price by a quarter
+    /// of the first (`meta::gold_price`).
+    #[serde(default)]
+    pub gold_buys: u32,
 }
 
 /// Cut 6 §1: gold movements kept on the lineage.
@@ -824,6 +828,7 @@ impl LineageState {
             trait_offer: offer.to_vec(),
             kennel_declined: false,
             last_wasted: Vec::new(),
+            gold_buys: 0,
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -1218,6 +1223,9 @@ fn default_pct() -> i32 {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Batch {
     pub runs: u32,
+    /// Cut 15 §1: banks from depth ≥ the lineage's best − 1 this batch (each paid ◆1).
+    #[serde(default)]
+    pub frontier_banks: u32,
     pub bests: Vec<String>,
     pub found: Vec<Item>,
     pub deaths: BTreeMap<String, u32>,
@@ -2239,6 +2247,14 @@ impl Game {
                 self.stall.traces.insert(r, exit_trace(&run, &self.prov));
             }
         }
+        // Cut 15 §1: a bank near the frontier pays a mark — from depth ≥ the lineage's best
+        // *before this run* − 1 (so a new-best bank qualifies, on top of its depth marks). A
+        // return, a shallower bank and a stall (timed out) pay nothing.
+        let frontier = tier == ExitTier::Bank && !run.timed_out && run.max_depth > 0 && run.max_depth + 1 >= self.lineage.best_depth;
+        if frontier {
+            marks += 1;
+            self.batch.frontier_banks += 1;
+        }
         if run.max_depth > self.lineage.best_depth {
             marks += run.max_depth - self.lineage.best_depth;
             self.lineage.best_depth = run.max_depth;
@@ -2627,8 +2643,14 @@ impl Game {
         let mut line = exit_line_of(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, run.stuck_fires >= STALL_FIRES, unused, bones_n, run.depth);
         // What the run earned besides gold, on its own line (QA on 50bb162: `◆7` and `$40` at
         // the camp after a death with no source on the death screen).
+        // Cut 15 §1: a frontier bank's mark is part of the total and named once: `◆+1
+        // frontier` alone, `◆+3 (1 frontier)` beside a new depth's marks.
         if marks > 0 {
-            line.text.push_str(&format!(" · ◆+{marks}"));
+            match (frontier, marks) {
+                (true, 1) => line.text.push_str(" · ◆+1 frontier"),
+                (true, _) => line.text.push_str(&format!(" · ◆+{marks} (1 frontier)")),
+                _ => line.text.push_str(&format!(" · ◆+{marks}")),
+            }
         }
         if wake_top > 0 {
             line.text.push_str(&format!(" · +${wake_top} wake"));

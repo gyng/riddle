@@ -1071,6 +1071,32 @@ Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion ver
   `a_catalogue_delta_carries_its_half_width`; the faithful-replay test accepts a stall
   record (it replays to the same stall).
 
+## Cut 15 (the two currencies meet a decision) — core half
+
+- **Frontier banks** (§1). A bank (not timed out) with `run.max_depth ≥ best_depth − 1`, the
+  best measured *before* this run's update, pays ◆1 on top of the new-depth and first-bank
+  marks (so a new-best bank qualifies too). Returns, stalls and shallower banks pay nothing.
+  The mark is part of the exit line's total, named once: `· ◆+1 frontier` alone, `· ◆+3 (1
+  frontier)` beside other marks. `Batch.frontier_banks` counts them; `examples/metrics.rs`
+  prints marks per 8 h (DEFAULT, EDITED; the frontier's share beside each).
+- **Gold buys** (§2). `UnlockInfo.gold` = `meta::gold_price(cost, gold_buys)` =
+  `GOLD_PER_MARK (150) × cost × (4 + gold_buys) / 4` (integer; 0 when owned or free).
+  `Game::buy_unlock_gold(id)` (wasm `buyUnlockGold` → Lineage) takes the same gates as `buy`
+  (owned, prerequisite, fact/trophy gate; a cost-0 unlock is refused `not for gold`), spends
+  the price through `gold_move` (`unlock <id>`), leaves the marks, increments
+  `LineageState.gold_buys` (serde default 0). `examples/qa.rs`: `a gold buy spends gold not
+  marks and raises the next price` (30 seeds, on a copy given gold). The dayplayer makes one
+  gold buy per check-in — the cheapest card short only of marks — when the purse holds twice
+  its price (`DP_NO_GOLD=1` turns it off).
+- **Small** (§6). A hazard pre-emption fills one `RowWhy` on the first active row, `hazard
+  first · gas` / `· fire` (`turn::once_rows_why`), instead of the same words on every row; the
+  row-accounting test takes that single entry as standing for all of them. The other
+  pre-emptions (`paralysed`, `trait first`, …) still fill every row. The chronicle note of a
+  row that pulled the hero back from ≤ 20 % reads `R1 retreat saved him.` (it is written only
+  on a descend or a home exit). A `below_bar` candidate surviving 0 % is dropped
+  (`dice_fallback` and the tail of the shaping); a dice death whose every candidate survives
+  0 % now shows none (`hopeless_death_is_dice`).
+
 ## Layout
 
 `src/` per `docs/CUT1.md` plus `wire.rs` (the wire structs), `situations.rs` (the Cut 7 band

@@ -1331,10 +1331,10 @@ fn hopeless_death_is_dice() {
     }
     let d = g.death(id.expect("died")).unwrap();
     assert_eq!(d.verdict, "dice");
-    // Cut 11 §4: a dice death is never empty — the alternative is named below the bar even
-    // when no row could act (it survives the baseline's share, and says so).
-    assert!(!d.patches.is_empty(), "{d:?}");
-    assert!(d.patches.iter().all(|p| p.below_bar && (0.0..=1.0).contains(&p.survive)), "{:?}", d.patches);
+    // Cut 11 §4: a dice death names the alternative below the bar. Cut 15 §6: 0 % candidates
+    // go when anything survives; a paralysed 1-HP hero ringed by ogres has nothing that does,
+    // so the hopeless alternatives stay (the gate: never empty).
+    assert!(!d.patches.is_empty() && d.patches.iter().all(|p| p.below_bar && p.survive <= 1.0), "{:?}", d.patches);
 }
 
 // ---------------------------------------------------------------- sifter (Cut 5 §1 episodes)
@@ -1625,7 +1625,7 @@ fn marks_are_earned_on_new_bests_only() {
     g.run.as_mut().unwrap().max_depth = 3;
     g.run.as_mut().unwrap().kills.push((1, "rat".into(), 1));
     finish_with(&mut g, ExitTier::Bank);
-    assert_eq!(g.lineage.marks, 4, "D1..D3 (3) + first bank from D3 (Cut 4); first kills no longer mark (Cut 2 §2)");
+    assert_eq!(g.lineage.marks, 5, "D1..D3 (3) + first bank from D3 (Cut 4) + the frontier (Cut 15 §1); first kills no longer mark (Cut 2 §2)");
     assert!(g.batch.bests.iter().any(|b| b == "first kill: rat"), "but stay in bests");
     assert!(g.batch.bests.iter().any(|b| b == "home:D3"));
     g.auto_keep();
@@ -1634,13 +1634,13 @@ fn marks_are_earned_on_new_bests_only() {
     g2.run.as_mut().unwrap().max_depth = 3;
     g2.run.as_mut().unwrap().kills.push((1, "rat".into(), 1));
     finish_with(&mut g2, ExitTier::Bank);
-    assert_eq!(g2.lineage.marks, 4, "no new best, no marks");
+    assert_eq!(g2.lineage.marks, 6, "no new best, no marks but the frontier's (Cut 15 §1: D3 banked at a best of D3)");
     let mut g3 = arena();
     g3.lineage = g2.lineage.clone();
     g3.run.as_mut().unwrap().kills.push((1, "goblin_warlord".into(), 5));
     g3.run.as_mut().unwrap().trophies_run.push("pacifist_floor".into());
     finish_with(&mut g3, ExitTier::Bank);
-    assert_eq!(g3.lineage.marks, 4 + 3 + 2 + 1, "boss 3, trophy 2, first bank from D1 1");
+    assert_eq!(g3.lineage.marks, 6 + 3 + 2 + 1, "boss 3, trophy 2, first bank from D1 1 (D1 is not the frontier of D3)");
 }
 
 #[test]
@@ -3409,7 +3409,7 @@ fn first_bank_at_each_depth_is_a_mark() {
     let mut g = arena();
     g.run.as_mut().unwrap().depth = 3;
     g.run.as_mut().unwrap().max_depth = 3;
-    g.lineage.best_depth = 3; // already reached: no depth mark
+    g.lineage.best_depth = 6; // already reached: no depth mark (and D3 is not the frontier: Cut 15 §1)
     let marks = g.lineage.marks;
     finish_with(&mut g, ExitTier::Bank);
     g.keep(vec![]).unwrap();
@@ -3430,6 +3430,110 @@ fn first_bank_at_each_depth_is_a_mark() {
     g.keep(vec![]).unwrap();
     assert_eq!(g.lineage.marks, marks + 1, "a return is not a bank");
     assert!(!g.batch.bests.iter().any(|b| b == "home:D4"));
+}
+
+/// Cut 15 §1: a bank from depth ≥ the lineage's best (before the run) − 1 pays ◆1 on top of
+/// whatever else it earns, named on the exit line; a shallower bank and a return pay nothing.
+#[test]
+fn a_frontier_bank_pays_a_mark() {
+    let exit_text = |g: &Game| g.last_exit.as_ref().map(|l| l.text.clone()).unwrap_or_default();
+    let mut g = arena();
+    g.lineage.rank = 50; // no rank-up mark from the watched run's renown
+    g.lineage.best_depth = 8;
+    g.lineage.banked_depths.insert(7); // not a first bank from D7
+    g.run.as_mut().unwrap().depth = 7;
+    g.run.as_mut().unwrap().max_depth = 7;
+    let marks = g.lineage.marks;
+    finish_with(&mut g, ExitTier::Bank);
+    g.keep(vec![]).unwrap();
+    assert_eq!(g.lineage.marks, marks + 1, "D7 against a best of D8 is the frontier");
+    assert_eq!(g.batch.frontier_banks, 1);
+    assert!(exit_text(&g).ends_with(" · ◆+1 frontier"), "{}", exit_text(&g));
+    // A shallower bank (D6 < 8 − 1): nothing.
+    g.start_run(Some(9));
+    g.lineage.banked_depths.insert(6);
+    g.run.as_mut().unwrap().depth = 6;
+    g.run.as_mut().unwrap().max_depth = 6;
+    finish_with(&mut g, ExitTier::Bank);
+    g.keep(vec![]).unwrap();
+    assert_eq!(g.lineage.marks, marks + 1, "a shallow bank pays nothing: {:?} {}", g.batch.bests, exit_text(&g));
+    assert!(!exit_text(&g).contains('◆'), "{}", exit_text(&g));
+    // A return from the frontier: nothing.
+    g.start_run(Some(10));
+    g.run.as_mut().unwrap().depth = 8;
+    g.run.as_mut().unwrap().max_depth = 8;
+    finish_with(&mut g, ExitTier::Return);
+    g.keep(vec![]).unwrap();
+    assert_eq!(g.lineage.marks, marks + 1, "a return pays nothing");
+    // A new-best bank (D10 from a best of D8): two depth marks, the first bank from D10, and
+    // the frontier's — measured against the best *before* this run.
+    g.start_run(Some(11));
+    g.run.as_mut().unwrap().depth = 10;
+    g.run.as_mut().unwrap().max_depth = 10;
+    finish_with(&mut g, ExitTier::Bank);
+    g.keep(vec![]).unwrap();
+    assert_eq!(g.lineage.marks, marks + 1 + 2 + 1 + 1);
+    assert!(exit_text(&g).ends_with(" · ◆+4 (1 frontier)"), "{}", exit_text(&g));
+    assert_eq!(g.batch.frontier_banks, 2);
+}
+
+/// Cut 15 §6: a hazard pre-emption is said once — one `RowWhy` on the first row, naming the
+/// hazard (`hazard first · gas`), not the same words on every row.
+#[test]
+fn a_hazard_preemption_is_said_once_with_its_name() {
+    let mut g = arena();
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")), Row::new(vec![Cond::n("hp<", 30)], Verb::new("rest"))]);
+    let hp = g.run.as_ref().unwrap().hero.pos;
+    g.run.as_mut().unwrap().overlays.push(crate::tiles::Overlay { x: hp.x, y: hp.y, k: OverlayKind::Gas, ttl: 20, spread: false });
+    let mut found = None;
+    for _ in 0..40 {
+        ticks(&mut g, 1);
+        if let Some(t) = g.run.as_ref().unwrap().trace.iter().find(|t| t.row == -2) {
+            found = Some(t.clone());
+            break;
+        }
+    }
+    let t = found.expect("the hazard pre-empted");
+    let rows = t.rows.clone().unwrap_or_default();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!((rows[0].row, rows[0].why.as_str()), (0, "hazard first · gas"));
+    assert!(crate::turn::row_reason_ok(&rows[0].why));
+}
+
+/// Cut 15 §2: a gold buy spends gold (a ledger line `unlock <id>`), leaves the marks, owns the
+/// unlock and raises the next gold price by a quarter of the first; a free unlock, an owned
+/// one or a shut gate is refused.
+#[test]
+fn a_gold_buy_spends_gold_and_raises_the_price() {
+    let mut g = Game::new(3);
+    let price = |g: &Game, id: &str| g.unlocks().into_iter().find(|u| u.id == id).unwrap().gold;
+    assert_eq!(price(&g, "vault2"), 450, "◆3 × 150");
+    assert_eq!(price(&g, "row5"), 300);
+    assert_eq!(price(&g, "rogue"), 0, "a free unlock has no gold price");
+    assert!(g.buy_unlock_gold("rogue").is_err());
+    assert!(g.buy_unlock_gold("vault2").is_err(), "no gold yet");
+    g.lineage.gold_move(20000, "test");
+    g.lineage.marks = 1;
+    g.buy_unlock_gold("vault2").unwrap();
+    assert!(g.lineage.unlocks.contains("vault2"));
+    assert_eq!(g.lineage.marks, 1, "marks untouched");
+    assert_eq!(g.lineage.gold, 20000 - 450);
+    assert_eq!(g.lineage.gold_ledger.last().map(|l| (l.delta, l.why.as_str())), Some((-450, "unlock vault2")));
+    assert_eq!(g.lineage.gold_buys, 1);
+    assert_eq!(price(&g, "vault2"), 0, "owned");
+    assert_eq!(price(&g, "row5"), 150 * 2 * 5 / 4, "the second gold buy costs a quarter more");
+    assert!(g.buy_unlock_gold("vault2").is_err(), "already owned");
+    assert!(g.buy_unlock_gold("row7").is_err(), "prerequisite missing");
+    assert!(g.buy_unlock_gold("caster").is_err(), "a shut gate");
+    for _ in 0..3 {
+        let id = g.unlocks().into_iter().find(|u| !u.owned && u.gold > 0 && g.buy_unlock_gold(&u.id.clone()).is_ok()).map(|u| u.id);
+        assert!(id.is_some());
+    }
+    assert_eq!(g.lineage.gold_buys, 4);
+    assert_eq!(crate::meta::gold_price(3, g.lineage.gold_buys), 900, "the fifth gold buy costs double the first");
+    // The save round-trips the count; an old save without it reads 0.
+    let back = Game::load(&g.save()).unwrap();
+    assert_eq!(back.lineage.gold_buys, 4);
 }
 
 /// Cut 4 §3: a row that acted on a foe keeps hunting it when it steps out of view: the
@@ -3656,7 +3760,8 @@ fn the_chronicle_names_the_row_that_caught_the_hero() {
         evs.append(cx.events);
     }
     let notes: Vec<&String> = evs.iter().filter_map(|e| if let Ev::Note { text, .. } = e { Some(text) } else { None }).collect();
-    let caught = notes.iter().find(|n| n.contains("caught him")).unwrap_or_else(|| panic!("{notes:?}"));
+    let caught = notes.iter().find(|n| n.contains("saved him")).unwrap_or_else(|| panic!("{notes:?}"));
+    assert!(!notes.iter().any(|n| n.contains("caught him")), "Cut 15 §6: `saved`, not `caught`: {notes:?}");
     assert!(caught.starts_with(&format!("R{} ", saved.unwrap() + 1)), "{caught}");
     assert!(word_count(caught) <= 8);
     let bank = notes.iter().find(|n| n.starts_with("Banked $")).expect("the exit note");
@@ -3669,7 +3774,7 @@ fn the_chronicle_names_the_row_that_caught_the_hero() {
     attack_rules(&mut g);
     let (run, mut cx) = g.ctx();
     crate::turn::end_run(run, &mut cx, ExitTier::Death);
-    assert!(!cx.events.iter().any(|e| matches!(e, Ev::Note { text, .. } if text.contains("caught"))));
+    assert!(!cx.events.iter().any(|e| matches!(e, Ev::Note { text, .. } if text.contains("caught") || text.contains("saved"))));
 }
 
 /// Cut 4 §9: `unlocks()` carries `delta` for a card or verb whose gate is open and that is not
@@ -4326,6 +4431,11 @@ fn death_traces_account_for_every_row_above_the_fired_one() {
                 turns += 1;
                 let above = if t.row >= 0 { t.row as usize } else { n_rows };
                 let rows = t.rows.clone().unwrap_or_default();
+                // Cut 15 §6: a hazard pre-emption is said once, on the first row, for all of them.
+                if rows.len() == 1 && rows[0].why.starts_with("hazard first") {
+                    assert!(t.row < 0 && crate::turn::row_reason_ok(&rows[0].why), "{rows:?}");
+                    continue;
+                }
                 assert_eq!(rows.len(), above, "seed {seed} run {}: t{} row {} {:?}", rec.death.run_id, t.t, t.row, rows);
                 for (i, w) in rows.iter().enumerate() {
                     assert_eq!(w.row, i);
@@ -6144,6 +6254,8 @@ fn dice_death_names_an_alternative_below_the_bar() {
                 assert!(!d.patches.is_empty(), "seed {seed} run {id}: a dice death with no alternative: {:?}", d);
                 for p in &d.patches {
                     assert!(p.below_bar || p.survive >= crate::trace::survive_bar(d.baseline) - 1e-9, "{p:?}");
+                    // Cut 15 §6: nothing below the bar that survives 0 %.
+                    assert!(!p.below_bar || p.survive > 0.0, "{p:?}");
                     assert!((0.0..=1.0).contains(&p.survive));
                 }
                 let telegraphed = d.trace.turns.iter().any(|t| !t.telegraphs.is_empty());

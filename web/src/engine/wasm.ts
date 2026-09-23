@@ -47,6 +47,7 @@ export class WasmEngine implements Engine {
   runOfflineQuick(elapsedS: number): ReturnReport { return this.call("runOfflineQuick", elapsedS); }
   death(runId: number): Death { return this.call("death", runId); }
   buy(unlock: string): Lineage { return this.call("buy", unlock); }
+  buyUnlockGold(unlock: string): Lineage { return this.call("buyUnlockGold", unlock); }   // Cut 15 §2
   lineage(): Lineage { return this.call("lineage"); }
   exportRules(): string { const r = this.game.exportRules(); return typeof r === "string" ? r : JSON.stringify(r); }
   importRules(text: string): RuleSet { return this.call("importRules", text); }

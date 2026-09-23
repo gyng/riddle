@@ -48,6 +48,10 @@ impl Game {
     pub fn buy(&mut self, unlock: &str) -> Result<(), String> {
         meta::buy(self, unlock)
     }
+    /// Cut 15 §2: buy an unlock with gold at its climbing price (`UnlockInfo.gold`); marks untouched.
+    pub fn buy_unlock_gold(&mut self, unlock: &str) -> Result<(), String> {
+        meta::buy_gold(self, unlock)
+    }
     /// The unlock catalogue; Cut 4 §9: cards and verbs carry `delta` once `unlock_deltas`
     /// computed them for this lineage state (no sims here).
     pub fn unlocks(&self) -> Vec<UnlockInfo> {

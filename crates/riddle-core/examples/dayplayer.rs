@@ -33,6 +33,8 @@ struct Day {
     counter: bool,
     /// Cut 3: the lineage ascended this day (the second act starts).
     ascended: bool,
+    /// Cut 15 §2: unlocks bought with gold this day (counted in `unlocks` too).
+    gold_buys: u32,
 }
 
 struct SeedOut {
@@ -402,6 +404,28 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                     }
                 }
             }
+            // 3a. Cut 15 §2: gold is the patient path — one gold buy per visit, the cheapest
+            //     card short only of marks, when the purse holds twice its price (the shelf
+            //     still needs restocking).
+            if std::env::var("DP_NO_GOLD").is_err() {
+                let mut opts: Vec<_> = g.unlocks().into_iter().filter(|u| !u.owned && u.gold > 0 && u.needs.as_deref().is_none_or(|n| n.starts_with('◆')) && g.lineage.gold >= 2 * u.gold as i32).collect();
+                opts.sort_by(|a, b| a.gold.cmp(&b.gold).then(a.id.cmp(&b.id)));
+                if let Some(u) = opts.first() {
+                    if g.buy_unlock_gold(&u.id).is_ok() {
+                        if verbose {
+                            eprintln!("  day {} gold buy {} (${}) gold left {}", day + 1, u.id, u.gold, g.lineage.gold);
+                        }
+                        d.unlocks += 1;
+                        d.gold_buys += 1;
+                        decided = true;
+                        if let Some((row, at)) = riddle_core::meta::delta_row(&g.lineage, &u.id) {
+                            if std::env::var("DP_NO_CARDS").is_err() && row.is_card() && insert_row(&mut g, row, at as i32) {
+                                d.edits += 1;
+                            }
+                        }
+                    }
+                }
+            }
             if verbose && g.lineage.marks > 8 {
                 let gated: Vec<String> = g.unlocks().into_iter().filter(|u| !u.owned).map(|u| format!("{}:{}{}", u.id, u.cost, u.needs.as_ref().map(|n| format!("[{n}]")).unwrap_or_default())).collect();
                 eprintln!("  day {} marks {} unspent; catalogue: {}", day + 1, g.lineage.marks, gated.join(" "));
@@ -547,6 +571,8 @@ fn main() {
     println!("  final best depth per seed       {final_best:?}   ending at {} · ascensions {asc:?}", riddle_core::descent::ENDING_DEPTH);
     println!("  expeditions per day (mean)      {runs_day:.1}");
     println!("  days with ≥1 unlock per seed    {unlock_days:?}");
+    let gold_buys: Vec<u32> = outs.iter().map(|o| o.table.iter().map(|d| d.gold_buys).sum()).collect();
+    println!("  gold buys per seed (Cut 15 §2)  {gold_buys:?}");
     let bars: Vec<(String, String, bool)> = vec![
         (format!("Days with ≥ 1 unlock ≥ 10 / {days} (mean)"), format!("{unlock_mean:.1}"), unlock_mean >= 10.0),
         ("Marks unspent at any check-in after day 2 ≤ 8".into(), format!("{marks_max}"), marks_max <= 8),

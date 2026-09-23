@@ -817,6 +817,11 @@ pub struct UnlockInfo {
     /// `reach ~0` on the client.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pm: Option<f64>,
+    /// Cut 15 §2: the price in gold today (`meta::gold_price`: `150 × cost × (4 + gold_buys) / 4`);
+    /// 0 for a free unlock (not gold-buyable). The gates in `needs` other than `◆N more` hold
+    /// for a gold buy too (`buyUnlockGold`).
+    #[serde(default)]
+    pub gold: u32,
 }
 
 #[cfg(test)]

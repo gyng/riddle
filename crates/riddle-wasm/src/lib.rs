@@ -111,6 +111,13 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 15 §2: buy with gold at `UnlockInfo.gold` (marks untouched); returns the lineage.
+    #[wasm_bindgen(js_name = buyUnlockGold)]
+    pub fn buy_unlock_gold(&mut self, unlock: &str) -> Result<String, JsError> {
+        self.inner.buy_unlock_gold(unlock).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     pub fn lineage(&self) -> String {
         js(&self.inner.lineage())
     }

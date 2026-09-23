@@ -189,6 +189,7 @@ export interface Engine {
   runOfflineQuick(elapsedS: number): ReturnReport;   // no worst-death verdict (~3 s saved per slice)
   death(runId: number): Death;
   buy(unlock: string): Lineage;
+  buyUnlockGold?(unlock: string): Lineage;   // Cut 15 §2: the same gates as `buy`, paid in gold at `UnlockInfo.gold` (marks untouched, ledger `unlock <id>`, the next gold price climbs); absent on an old build
   lineage(): Lineage;
   exportRules(): string;  importRules(text: string): RuleSet;
   // Addendum A
@@ -219,7 +220,8 @@ export type UnlockInfo = { id: string; cost: number; owned: boolean; available: 
                            delta?: number;                                                                 // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards
                            rows?: Row[];                                                                   // Cut 6 §6: a card's rows / an automation's effect as a row
                            insert_at?: number;                                                             // Cut 12 §1: where a bought card's row goes — before the set's engagement row (first `attack`/`shoot`), else the end; its `delta` is measured there
-                           pm?: number };                                                                   // Cut 13 §5: the half-width of `delta`; within it the client reads `reach ~0`
+                           pm?: number;                                                                     // Cut 13 §5: the half-width of `delta`; within it the client reads `reach ~0`
+                           gold?: number };                                                                 // Cut 15 §2: today's gold price (`150 × cost × (4 + gold buys) / 4`); 0 when owned or free (not gold-buyable). A card short only of marks (`needs` = `◆N more`) buys with gold when the lineage has it
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */
 export type AsyncEngine = { [K in keyof Engine]: NonNullable<Engine[K]> extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };

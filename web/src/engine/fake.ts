@@ -931,11 +931,15 @@ type State = {
   totalTurns: number;   // Cut 11 §5: the lineage tick (×10 like the events): `GoldLine.t` and `Snapshot.run.started_turn`, as the core's `total_turns`
 };
 
+/** Cut 15 §2: the core's `meta::gold_price` — `150 × cost × (4 + gold_buys) / 4`, integer; 0 for a free unlock. */
+const goldPrice = (cost: number, goldBuys: number): number => Math.floor(150 * cost * (4 + goldBuys) / 4);
+
 export class FakeEngine implements Engine {
   private s!: State;
   private live: Run | null = null;
   private lastDeath: Record<number, Death> = {};
   private settled = new Set<number>();
+  private goldBuys = 0;   // Cut 15 §2: gold buys so far (the core's `LineageState.gold_buys`)
 
   private flavourMap(): Map<string, string> {
     const r = mulberry32(this.s.lineage.seed ^ 0x5eed); const f = [...FLAVOURS], m = new Map<string, string>();
@@ -1429,6 +1433,20 @@ export class FakeEngine implements Engine {
     L.marks -= cost; L.unlocks.push(unlock); if (unlock === "party_slot_2") L.party_slots = 2; if (unlock === "party_slot_3") L.party_slots = 3;
     return this.lineage();
   }
+  /** Cut 15 §2: the same gates as `buy`, paid in gold at `UnlockInfo.gold`; marks untouched; ledger `unlock <id>`. */
+  buyUnlockGold(unlock: string): Lineage {
+    const L = this.s.lineage; const cost = UNLOCK_COST[unlock];
+    if (cost === undefined) throw new Error("unknown unlock");
+    if (L.unlocks.includes(unlock)) throw new Error("already owned");
+    if (cost === 0) throw new Error("not for gold");
+    if (!this.unlockVisible(unlock)) throw new Error("prerequisite missing");
+    const u = UNLOCKS[unlock]; if (u?.gate && !u.gate(L)) throw new Error(`needs ${u.needs}`);
+    const price = goldPrice(cost, this.goldBuys);
+    if (L.gold < price) throw new Error("not enough gold");
+    this.gold(-price, `unlock ${unlock}`); this.goldBuys++;
+    L.unlocks.push(unlock); if (unlock === "party_slot_2") L.party_slots = 2; if (unlock === "party_slot_3") L.party_slots = 3;
+    return this.lineage();
+  }
   unlockDeltas(): UnlockInfo[] { return this.unlocks(); }
   unlocks(): UnlockInfo[] {
     const L = this.s.lineage;
@@ -1437,7 +1455,7 @@ export class FakeEngine implements Engine {
     return Object.entries(UNLOCKS).map(([id, u]) => {
       const owned = L.unlocks.includes(id); const met = u.gate?.(L) ?? true;
       const needs = owned ? undefined : !met ? u.needs : !this.unlockVisible(id) ? UNLOCK_PREREQ[id]?.replace(/_/g, " ") : L.marks < u.cost ? `◆${u.cost - L.marks} more` : undefined;
-      return { id, cost: u.cost, owned, available: !owned && needs === undefined, needs,
+      return { id, cost: u.cost, owned, available: !owned && needs === undefined, needs, gold: owned ? 0 : goldPrice(u.cost, this.goldBuys),   // gold: Cut 15 §2
       delta: TACTIC_CARDS.includes(id) && !owned ? ((Math.abs(hash(id)) % 9) - 2) / 100 : undefined,   // delta: Cut 4 §9 stand-in (`reach +4%` on a card)
       ...(TACTIC_CARDS.includes(id) && !owned ? { pm: 0.03 } : {}),                                     // Cut 13 §5: its half-width — within it the client reads `reach ~0`
       rows: UNLOCK_ROWS[id],                                                                             // Cut 6 §6
