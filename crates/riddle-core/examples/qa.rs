@@ -89,8 +89,8 @@ fn check_death(t: &mut Tally, seed: u64, d: &riddle_core::Death) {
     }
     // Cut 15 §6: 0 % candidates show only when nothing survives (a dice death is never empty).
     let any_survives = d.patches.iter().any(|p| p.survive > 0.0);
-    for p in d.patches.iter().filter(|p| p.below_bar) {
-        t.check("no below-bar candidate survives 0 % beside one that survives", !any_survives || p.survive > 0.0, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2}", d.run_id, p.row.describe(), p.survive, d.baseline));
+    for p in d.patches.iter().filter(|p| p.insert_at >= 0) {
+        t.check("no patch survives 0 % beside one that survives", !any_survives || p.survive > 0.0, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2}", d.run_id, p.row.describe(), p.survive, d.baseline));
     }
     if d.verdict == "dice" {
         t.check("no dice death's margin names an unused item", !d.margin.contains("unused"), || format!("seed {seed} run {}: `{}`", d.run_id, d.margin));
@@ -191,6 +191,9 @@ fn play(seed: u64) -> Tally {
     let r = g.run_offline(8 * 3600);
     let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
     t.check("report runs == deaths + banked + returned", r.runs == deaths + r.banked + r.returned, || format!("seed {seed}: {} runs · {deaths} deaths · {} banked · {} returned", r.runs, r.banked, r.returned));
+    let rows: i32 = r.salvaged.iter().map(|x| x.gold).sum();
+    let head = r.gold.as_ref().map(|x| x.salvage).unwrap_or(0);
+    t.check("report SALVAGED rows sum to the header's salvage", rows == head, || format!("seed {seed}: rows ${rows} vs +${head}"));
     let b = &g.batch;
     let spent: i32 = b.spent.values().map(|(_, c)| *c).sum();
     t.check("night gold: earned + salvage + wake pay − spent == delta", b.gold_earned + b.salvage_gold + b.wake_pay - spent == g.lineage.gold - before, || format!("seed {seed}: {} + {} + {} − {spent} vs {}", b.gold_earned, b.salvage_gold, b.wake_pay, g.lineage.gold - before));

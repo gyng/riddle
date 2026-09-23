@@ -215,7 +215,20 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
     }
     let mut deaths: Vec<DeathCount> = tally.into_iter().map(|(cause, n)| DeathCount { cause, n }).collect();
     deaths.sort_by(|a, b| b.n.cmp(&a.n).then(a.cause.cmp(&b.cause)));
-    let salvaged = b.salvaged.iter().map(|(k, (n, g))| SalvageRow { kind: k.clone(), n: *n, gold: (*g + 50) / 100 }).collect();
+    // The rows add up to the header (QA on 3d71c33: rows rounded one by one read $275 under
+    // `+$263 salvage`): each row floors its cents, the rounded total's remainder goes to the
+    // largest fractions.
+    let total = b.salvage_gold;   // the header's coins (the ledger's per-exit rounding)
+    let mut salvaged: Vec<SalvageRow> = b.salvaged.iter().map(|(k, (n, g))| SalvageRow { kind: k.clone(), n: *n, gold: g / 100 }).collect();
+    let mut order: Vec<(i32, usize)> = b.salvaged.values().enumerate().map(|(i, (_, g))| (g % 100, i)).collect();
+    order.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    let short = total - salvaged.iter().map(|r| r.gold).sum::<i32>();
+    for &(_, i) in order.iter().take(short.max(0) as usize) {
+        salvaged[i].gold += 1;
+    }
+    for &(_, i) in order.iter().rev().filter(|&&(_, i)| salvaged[i].gold > 0).take((-short).max(0) as usize).collect::<Vec<_>>() {
+        salvaged[i].gold -= 1;
+    }
     ReturnReport {
         elapsed_s,
         runs: b.runs,

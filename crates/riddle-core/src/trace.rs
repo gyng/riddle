@@ -1118,8 +1118,11 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     // base 0%`): the dice screen names only alternatives that survive.
     // 0 % candidates go (U: `survives 0% · base 0%`) — unless nothing else survives: a dice
     // death still names its alternative (Cut 11 §4), even a hopeless one.
-    if rec.death.patches.iter().any(|p| !(p.below_bar && p.survive <= 1e-9)) {
-        rec.death.patches.retain(|p| !(p.below_bar && p.survive <= 1e-9));
+    // … and any 0 % row (the pinned boss counter too — QA on 3d71c33: `attack boss · survives
+    // 0%` beside a 100 % candidate); the root's unlock pseudo-patch is measured apart.
+    let hopeless = |p: &Patch| p.insert_at >= 0 && p.survive <= 1e-9;
+    if rec.death.patches.iter().any(|p| !hopeless(p)) {
+        rec.death.patches.retain(|p| !hopeless(p));
     }
     // Cut 6 §8: on a boss death a `return` is never the only patch — the best other scored
     // candidate joins it (giving up is not the answer to a wall).
