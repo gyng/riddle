@@ -1,0 +1,71 @@
+{
+  "$comment": "Blind rater X, seed 902, production build on :5230, headed GPU driver 400x800 @3x. Did not open PLAN.md, research/, docs/CUT*.md, other cards or source. Read eval/presets.json only to confirm which axes are weight 0. The brief's first URL (?seed=902&fresh=1, no dev=1) gave an unpinned fresh camp; I reloaded once with ?dev=1&seed=902&fresh=1 before playing. Audio unassessed (cannot hear; did not inspect window.__audio). Notes: scratchpad/raterX/notes.md.",
+  "game": "Riddle",
+  "build": "238bd67",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterX",
+  "horizon": {
+    "activeMinutes": 55,
+    "absences": [{ "kind": "simulated", "duration": "8h", "via": "?dev=1&absent=8h", "activeBefore": 34, "activeAfter": 21 }],
+    "runsWatched": 13,
+    "runsOffline": 16,
+    "ruleEdits": 14,
+    "deathsRead": 2,
+    "deviation": "Only 2 deaths occurred in the whole horizon (0 of 16 offline runs, 0 of 4 after return), so I read 2 death screens plus one full return trace (the D6 'stalling' run) and the PLATEAU diagnosis instead of a third death. Cold phase was ~34 min, not 40."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: After the overnight report told me 'R3 return ended 9 runs, none past D10' I took its rest patch, dropped my never-fired drink-unknown row, and moved my boss row above the other attacks. On the next send the Goblin Warlord, who had ground my hero down for seven minutes the day before, went down in seconds ('GOBLIN WARLORD DOWN'), and the hero walked on into the Fens killing eels on D10-D12. He banked $454 at D12, my deepest, and it felt like my fix, not luck."
+  },
+  "probes": {
+    "clarity": "The first death said 'ogre · D5 · 3 hp short · 8 unknown unused · gap' and 'R1 unknown item', so I knew instantly my heal row never fired because the potion was unidentified; but 'D9 0% · fire' sat on the forecast for three runs and nothing I could tap said what fire was, and I bought 'class: rogue' and 'class: ranger' and never found where to use them.",
+    "decisions": "Moving my bank row from depth ≥ 5 to depth ≥ 8 changed the forecast from 'bank 92% ~$90' to 'bank 46% · return 50% ~$141', a real push-your-luck call I made and would make again.",
+    "mastery": "An hour in I know row order is everything: 'foe: boss → attack boss' did nothing at the bottom and took D9 from 0% to 28% when moved to R5.",
+    "tension": "Watching '$218 · keeps $130 · return at 20%' while the hero sat at 7/36 in gas on D7 made me sweat, but after the rest patch I had zero deaths in 20 runs.",
+    "feel": "The big pixel callout 'R5 HIT TELEGRAPH GOBLIN' naming my row over the fight felt good; the warlord fight looped 'shields up / shielded / warlord rallies' for about seven minutes at 2x with sprites piled on each other until I hit ▶▶|.",
+    "surprise": "'Found heir 1's bones: 10 items.' on D5 (my first dead hero's loot), 'The monkey stole the heal potion.', a wraith draining max hp 44→33, and the Fens on D11 all changed what I bought or wrote.",
+    "expression": "The chronicle called my second hero '♟2 the gambler fighter' because of my drink-unknown row, and rows get tags like 'gambler' and 'chokepoint'.",
+    "story": "'The Warlord cornered him to 12 HP; R1 drank; first boss.' is a real three-beat line I could retell.",
+    "pacing": "Runs were 1-2 minutes of steady events at 1-2x and check-ins short, but one boss fight ran ~7 minutes of the same four callouts and the camp's unlock wall (~35 tiles) was slow to read.",
+    "failure": "Each death came with a 5-tick trace and patches with numbers ('hp < 20% → drink unknown · survives 100% · base 17%'), though the second death's only patch ('seen ≥ 60% → descend · below bar') had nothing to do with the poison that killed him.",
+    "social": "No other people; named monsters ('Morak the ogre is avenged', 'Ulim the jackal, gone wild') are flavour, not relationships.",
+    "autonomy": "I set my own goal ('go see what fire on D9 is') by moving the bank row to 10 and accepting 'return 92%'.",
+    "progression": "Rows went 2→8, hero L1→L5, axe +2→+5 in one run, and I bought restock/keep/insure automation, but $2486 piled up with nothing to spend gold on except supplies.",
+    "aesthetic": "Moody olive pixel dungeon with a detailed warrior sprite; crowded fights turn into overlapping sprites and stacked name tags.",
+    "return": "I came back to '16 RUNS · D10 · ◆+25 · 9 RETURNED 7 BANKED 0 DEATHS', a PLATEAU line with a patch, and 'R2 fired 0 of 16 runs' — I made two decisions within a minute; the one sour note was 'SPENT heal ×45 · −$1800' from auto-restock that I hadn't anticipated.",
+    "attribution": "'R1 drink heal saved him.' and 'R5 hit telegraph saved him.' credit my rows, and I died on D3 to my own gambler row drinking poison — but the single biggest jump came from the game's offered rest patch, not a rule I thought of."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "\"ogre · D5 · 3 hp short · 8 unknown unused · gap\" + \"R1 unknown item\" read instantly; lapses: 'D9 0% · fire' never explained, bought classes with no visible way to switch, a mail +1 I wanted was salvaged with no keep prompt, spent vs carried supplies did not reconcile for me (\"heal ×2 · −$120\" at $40 each)." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "\"bank 92% ~$90\" vs \"bank 46% · return 50% ~$141\" for depth ≥ 5 vs 8, and 'retreat' vs 'attack telegraph' on telegraph (forecast showed 'stall 14%' for retreat). Lapse: the ~35-tile unlock wall was bought on hunch, and gold had no decisions attached ($2486 idle)." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Learned row order ('foe: boss → attack boss' D9 0%→28% only when moved up) and threshold tuning; but the breakthrough (rest at hp<90%) was handed to me by the plateau patch, and cold runs regressed D8→D7→D6→D5 before the absence." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "\"$218 · keeps $130 · return at 20%\" at 7/36 in gas on D7 was real stakes; after the rest patch 0 deaths in 20 runs and pushing return to 10% still banked — stakes evaporated." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Visual only (audio unassessed). Callout 'R5 HIT TELEGRAPH GOBLIN' and 'GOBLIN WARLORD DOWN' land; events every 1-2 s in normal runs; lapse: ~7 min warlord loop and overlapping sprites/name tags in crowded fights." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "\"Found heir 1's bones: 10 items.\", monkey thefts, wraith max-hp drain, the Fens at D11, a captive chained; but 'Morak the ogre is avenged.' and 'The air stings: bloats ahead.' repeated most runs." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "\"♟2 the gambler fighter\" epithet from my rule; tags 'gambler', 'chokepoint'; my set ended half preset/patch/cards, half mine." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "\"The Warlord cornered him to 12 HP; R1 drank; first boss.\" has a turn; most reels are 'D7: the Warrens. Returned with $76.'" },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 1-2 min per run, no dead stretches except one ~7 min boss loop. Check-in: death→edit→send under a minute; camp admin is long (unlock wall, supplies list of ~20 items). Cadence: overnight gave a distinct plateau read." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Death screen = cause, margin ('3 hp short'), 5-tick trace with rule ids, 'gap', and patches with survive/base/reach numbers; next run starts from one tap. Lapse: death 2's only patch ('seen ≥ 60% → descend · below bar') did not address the poison that killed him." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I chose to scout D9 at 'return 92%' and to push return to 10%; depth picker capped at 12 and bank/return are the only goals." },
+    { "id": "progression", "human": 0.6, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run: axe +2→+5, L1→L5. Persistent: rows 2→8, 2 cards, vault 1→3, verbs grew (attack caster/summoner/boss). Automation: restock, keep weapon+armour, insure. Lapse: $2486 gold with no sink, two classes bought but unusable to me." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Olive/umber pixel dungeon, detailed hero sprite, clean monospace camp; crowded fights turn to sprite soup. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "\"16 RUNS · D10 · ◆+25\", \"PLATEAU R3 return ended 9 runs, none past D10\" + patch, \"R2 fired 0 of 16 runs\" → two decisions in the first minute; first boss kill waiting for me. Lapse: \"SPENT heal ×45 · −$1800\" from auto-restock, unforeseen." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "\"R1 drink heal saved him.\", \"R5 hit telegraph saved him.\", death by my gambler row ('Gambled: poison potion.'), trace naming 'R4 card gas step' holding in a pack. Lapse: the decisive depth jump came from the game's rest patch, which I accepted rather than authored." }
+  ]
+}

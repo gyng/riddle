@@ -405,3 +405,40 @@ raters found the same one first:
 
 Next contract: the economy first (a bank/return that earns marks, gold with a sink that
 changes play, a restock that asks), then patch ownership, then the watch's peaks.
+
+## Cohort 12 (build 238bd67: Cut 15 — frontier marks, gold buys, patches ask, the watch's peaks)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| W | 901 | 69.2 | none |
+| X | 902 | 66.5 | none |
+
+α = 0.859 (reliable). Mean **67.9**. Progression back to 0.8 from W (0.6 from X); decisions,
+failure, return, attribution hold 0.8; everything else 0.6 for both.
+
+Trajectory: … 73.8 → 73.8 → 72.4 → 68.7 → **67.9**.
+
+### The read
+
+Three cohorts down. Each cut closed what the last cards named, and the cards moved to the
+next layer without the total moving up; the lapse-driven loop has stopped paying.
+
+1. **A defect that hid in plain sight** (W): the forge put `heal potion` on the shelf before
+   heal was identified; `drink heal` read `unknown item` all night and 28 found heals were
+   salvaged. Fixed after the cohort (1951fe7).
+2. **The Warlord fight loops** (X: ~7 min of `shields up · warlord rallies · goblin slain`
+   at 2× with heal potions cycling hp 11 ↔ 30; QA J: 4+ min). X's set stalls 2.3 % in the
+   gate table (the cohort-set gate caught it on its first run).
+3. **Gold still has no pull** (X: $2486 with only supplies to buy; restock spent $2400 of the
+   night's $3090 without asking). Gold buys exist but read as a hunch on a 35-tile wall.
+4. **Tension leaves once a safe set is found** (X: no deaths in 20 runs after the rest patch;
+   W: 0 deaths in 16). A set that returns at 10 % hp never dies.
+5. Unexplained walls (`D9 0% · fire`), classes bought with nowhere to use them, the stale
+   `counter: attack boss` banner, repeated `avenged` lines, cages still expiring (W: three).
+
+What the four 0.8 axes share — decisions, failure, return, attribution — is the core loop:
+write a row, read the forecast, read the death. What is stuck at 0.6 for every cohort —
+feel, aesthetic, pacing, expression, autonomy, clarity, surprise — is the game around it:
+what the watch looks like, what there is to want, how a run differs from the last. The next
+cut cannot be another lapse list; it has to change what a night *is* (a reason to want the
+second class, a floor that is not the Warrens again, a boss that is a fight, not a loop).

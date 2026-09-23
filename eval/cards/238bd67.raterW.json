@@ -1,0 +1,63 @@
+{
+  "$comment": "Blind rater W, seed 901, production build on :5230, headed GPU driver 400x800 at 3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, eval-fun FRAMEWORK.md sections 1-3, the template and eval/presets.json (weights only, for social). Did not open PLAN.md, research/, docs/CUT*.md, other cards or source. Deviations: (1) the simulated 8h absence was taken after ~15 min of active play, not 40 (I misjudged the clock); I compensated with ~40 min of play after the return, so total active is about 55 min but the pre/post split is inverted. (2) Only 2 deaths were read inside the horizon (plus the morgue sheet of the first); the lineage stopped dying once the return rules were right and 16 offline runs had 0 deaths. (3) Audio unassessed (cannot hear). Notes: scratchpad/raterW/notes.md.",
+  "game": "Riddle",
+  "build": "238bd67",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterW (blind agent)",
+  "horizon": { "activeMinutes": 55, "absences": ["simulated 8h via ?dev=1&absent=8h after ~15 active minutes (early; see $comment)"], "runsWatched": 12, "runsOffline": 16, "ruleEdits": 9 },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "probes": {
+    "clarity": "Mostly yes: the death header 'goblin captain · D5 · 1 hp short · 7 unknown unused · gap' told me at once; but the shop sold 'heal potion $40' while my trace said 'R1 drink heal · unknown item' and 'drink heal' was missing from the verb list, and a run 'BANKED $219' on D9 with my bank row set to depth ≥ 12, which I never understood.",
+    "decisions": "Moving the bank row from depth ≥ 5 to 8 to 12 and the return from 40% to 25% to 10% each moved the forecast ('bank 43% · return 57% · death 0%' vs 'bank 57% · return 21% · death 21%'), and I would make the greedy 10% return again because it produced D9 and D11.",
+    "mastery": "An hour ago my hero died on D5 with a heal row that never fired; now I know to put return below heal, identify heal before relying on it, and buy the boss-focus card for the D8 boss, and my deepest went D5 → D6 → D8 → D9 → D11.",
+    "tension": "I sweated through a minute at '5/42 D8' and another at '3/42 D11 near death' before 'RETURNED $205' — and losing '$172 carried · keeps 0%' on run 3 made the carried number mean something.",
+    "feel": "At 1x a new line landed every 2-4 s ('pops!', 'ogre winds up', 'quick, quick'), chunky sprites and 'NEAR DEATH' banner read well, but the 'boss · counter: attack boss' caption stayed on screen from D8 through D11, pack name tags stacked ('JACKAL JACKAL'), and I missed three cages because the 30 s bar ran out while I looked away.",
+    "surprise": "A thief snatching my leash, a den waking 'thieves on every side', bloats that pop for 15 hp, and 'Skim the Goblin Captain is avenged' changed what I wrote; but 'Moreth the jackal, gone wild' and 'Skim slain' repeated nearly every run, even after 'avenged'.",
+    "expression": "My set reads like me: a greedy fighter who returns at 10%, banks only past D12, throws poison at telegraphers, falls back to corridors when two are adjacent, plus boss-focus and gas-step cards.",
+    "story": "The reel told it back: 'R5 corridor saved him. D11: the Fens. Down to 4 HP. R7 gas step saved him. Returned with $205.' and the chronicle had '♟2 the brave fighter · found ♟1's bones · fell to fire'.",
+    "pacing": "Runs were 20-110 s at 1x, a check-in (read report, one edit, one buy, send) took 2-4 minutes, but the unlock wall (~40 entries) is long to scroll and some buys were slow to confirm on screen.",
+    "failure": "Death 1 was perfect ('R1 drink heal no item ← never found', patch 'hp < 40% → return survives 100%'); death 2 was my own row-order mistake (drink unknown above return) yet it was labelled 'dice' and the patches offered ('seen ≥ 60% → descend', 'foe: pack → attack pack') had nothing to do with it.",
+    "social": "weight 0 — nobody else; the named nemeses are barks, not relationships.",
+    "autonomy": "I chose to try a ranger set on my own, which failed ('shoot ✗ no bow') and I went back to fighter; order of unlocks was mine.",
+    "progression": "Within a run: kit from cages, fighter L1→L4; between runs: ★0→★5, rows 4→8, vault, supplies 3→5, classes rogue/ranger, cards; automation: 'auto: restock' and 'auto: keep weapon+armour' bought, both named as things I no longer do.",
+    "aesthetic": "Dark olive pixel dungeon with big hero sprite and bitmap captions; readable and moody, I would watch it, but not sit in it for its own sake. Audio unassessed.",
+    "return": "I came back to '16 RUNS · D8 DEEPEST · +$1129 home', a PLATEAU card ('R2 return ended 5 runs, none past D5') and 'R1 fired 0 of 16 runs: drink heal · heal unknown' next to 'heal ×28' salvaged — I decided to restack thresholds, buy restock and heal potions; I would not rather have stayed.",
+    "attribution": "The last run: I kept him in at 10% HP, my corridor row and my gas-step card saved him on D11, and my return row pulled him out at 3 HP — that was my decision; the fire death on D6 was also mine (I ordered drink-unknown above return)."
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: My cowardly fighter, running a greedy set that only turns back at 10% HP, beat the D8 boss with the boss-focus card I had just bought and kept going through D9 and D10 on single-digit HP. On D11, the Fens, a corridor row and the gas-step card saved him twice while the alert climbed to four bangs. At 3 HP, 'near death', my return row pulled him out with $205 of $343, a new deepest."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "\"goblin captain · D5 · 1 hp short · 7 unknown unused · gap\" read instantly; lapses: shop sells 'heal potion' while 'drink heal' is 'unknown item' and absent from the verb list; unexplained BANKED on D9 with depth ≥ 12; threshold edit needs re-picking 'hp <'." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "\"bank 43% · return 57% · death 0%\" vs \"bank 57% · return 21% · death 21%\": return threshold, bank depth and row order were real, defensible trade-offs I revisited across runs. Named lapse: purchases were mostly buy-what-is-affordable (unlock wall is strictly ordered by price/prereq), not trade-offs." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Deepest D5 → D6 → D8 → D9 → D11 as I learned row order, heal identification and boss counters; but much of the jump came from overnight money and a bought card rather than insight." },
+    { "id": "tension", "human": 0.8, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "\"3/42 D11 ... near death ... RETURNED $205\" and \"died $0 · $172 carried · keeps 0%\" — I chose to carry risk with a 10% return. Named lapse: the 16 offline runs had 0 deaths, so the absence carried no stakes." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "A line every 2-4 s at 1x ('pops!', 'ogre winds up', 'NEAR DEATH' banner) on smooth GPU frames; lapses: stale 'boss · counter: attack boss' caption D8-D11, stacked 'JACKAL JACKAL' tags, 30-s cage timer I kept missing. Audio unassessed." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "\"The den wakes: thieves on every side.\", bloats that pop, a thief taking my leash changed rules; but 'Moreth the jackal, gone wild' / 'Skim slain' repeated almost every run, even after 'avenged'." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "\"yours: 7 of 8 rows · hit and fade\" — a greedy 10%-return corridor fighter with two cards is recognisably mine, but the vocabulary I actually used was ~8 verbs and the combo names were given, not made." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "\"R5 corridor saved him. D11: the Fens. Down to 4 HP. R7 gas step saved him. Returned with $205.\" plus '♟2 ... found ♟1's bones · fell to fire'. Named lapse: the nemesis thread contradicts itself ('Skim ... is avenged', then 'Skim slain' again)." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "Runs 20-110 s at 1x with little dead time, check-ins 2-4 min; lapses: long D11 bleed with a frozen caption, a ~40-entry unlock wall to scroll every check-in." },
+    { "id": "failure", "human": 0.6, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Death 1: \"R1 drink heal no item ← never found\" + a patch with survives/reach — excellent. Death 2 was my row order (drink unknown above return) but was labelled 'dice' and its patches were unrelated; recovery is cheap (next heir, bones)." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goals (break the D8 wall, try a ranger set) and chose unlock order; the dungeon route itself is not mine." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "★0 → ★5, rows 4 → 8, classes, cards, 'auto: restock — auto rebuys last supplies' and 'auto: keep weapon+armour' (automation as reward) within an hour. Named lapse: +1 row priced at $1650 swallowed an overnight's gold." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Olive-and-black pixel dungeon, big hero sprite, bitmap 'NEAR DEATH' banners; coherent and readable, not a place I'd idle in. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "\"PLATEAU R2 return ended 5 runs, none past D5\" and \"R1 fired 0 of 16 runs: drink heal · heal unknown\" gave me two decisions in 30 s. Named lapse: the offline yield ($1129 + $330) dwarfed a watched run (~$150), so absence dominated." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "\"R5 corridor saved him ... R7 gas step saved him\" and \"R2 drink unknown fired\" on my fire death — I narrate both in first person. Named lapse: the game called my own ordering mistake 'dice', which pushed ownership away." }
+  ]
+}
