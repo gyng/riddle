@@ -258,11 +258,12 @@ try {
     return { exit: g[i]?.why ?? null, salvage: g.slice(i + 1).filter((x) => /^salvage/.test(x.why)).reduce((a, x) => a + x.delta, 0) };
   });
   const reportSalvaged = () => page.evaluate(() => [...document.querySelectorAll(".report .rsec")].filter((s) => s.querySelector(".label")?.textContent === "salvaged").flatMap((s) => [...s.querySelectorAll("li")].map((l) => ({ text: l.textContent.replace(/\s+/g, " ").trim(), gold: Number(/\$(\d+)/.exec(l.textContent)?.[1] ?? 0) }))));
-  // 12: `fast` is chosen during the run (a DOM click) once two cards have shown: the run's end kills the mode buttons
+  // 12: `fast` is chosen during the run (a DOM click) once two cards have shown (Cut 15 §4: the card is ≤ 1.2 s, so one card and
+  // four samples do too): the run's end kills the mode buttons
   // (QA on 50bb162: "fights · fast · ▶▶| · bail still live on a dead hero"), so the choice cannot come from the exit sheet
   let picked = false;
   const pickFast = () => page.evaluate(() => { for (const b of document.querySelectorAll("main.watch .hud.bottom .hud-btn")) if (b.textContent === "fast" && !b.disabled) b.click(); });
-  const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); if (sample && !picked && cardSamples.filter((c) => c.card).length >= 2) { picked = true; await pickFast(); } await page.locator(".hud.bottom .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {}); await sleep(300); } return state(); };
+  const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); if (sample && !picked && (cardSamples.filter((c) => c.card).length >= 2 || (cardSamples.some((c) => c.card) && cardSamples.length >= 4))) { picked = true; await pickFast(); } await page.locator(".hud.bottom .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {}); await sleep(300); } return state(); };
   let s2 = await drive(true);
   check(s2?.screen === "exit", `the run ended on the keep sheet (${s2?.screen})`);
   const shownCards = cardSamples.filter((c) => c.card), mism = cardSamples.filter((c) => c.mismatch);

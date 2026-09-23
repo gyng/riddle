@@ -93,8 +93,10 @@ export class App {
   setSlowdowns(on: boolean): void { this.slowdowns = on; try { localStorage.setItem(SLOWDOWNS_KEY, on ? "1" : "0"); } catch { /* private mode: not persisted */ } }
   /** Cut 14 §4: how often each row of the active set fired, as last measured — the watched run's `rule` events (ui/watch.ts) or
    *  the absence's `R1 fired n of m runs` lines (ui/report.ts); the death screen's patch chip names the least-fired row on a
-   *  full set (`↑ R3`). Cleared by any rule edit: the counts are the set that ran. */
+   *  full set (Cut 15 §3: the drop sheet's counts and its least-fired mark). Cleared by any rule edit: the counts are the set that ran. */
   rowFires: number[] | null = null;
+  /** Cut 15 §3: the denominator of `rowFires` (the absence's `of 16 runs`); undefined = the sum of the counts (a watched run's fires). */
+  rowFiresOf: number | undefined = undefined;
   /** The supply catalogue as last fetched by the camp: the shop paints from it at once on the next camp, then refetches (the
    *  worker answers in order, so a fetch behind a forecast is seconds away — QA B on 952e306: "the shop chips are gone"). */
   supplyCat: SupplyEntry[] = [];
@@ -294,7 +296,7 @@ export class App {
    *  Cut 12 §1: own rows against `max_rows`; card rows sit outside the cap. */
   get overBudget(): boolean { return this.ownRows() > this.vocab.max_rows; }
   rulesChanged(): void {
-    this.rowFires = null;   // Cut 14 §4: the counts were the set that ran
+    this.rowFires = null; this.rowFiresOf = undefined;   // Cut 14 §4: the counts were the set that ran
     this.persist();
     clearTimeout(this.fcTimer); clearTimeout(this.refineTimer); this.refineSeq++;
     for (const fn of this.rulesListeners) fn();
@@ -418,10 +420,11 @@ export class App {
    *  `{v:"tactic", a:<id>}`), so the player sees where it sits. Cut 12 §1: it sits where it acts — at the catalogue's
    *  `insert_at` when the engine sends one, else before the set's engagement row (the first `attack` / `shoot`), else the
    *  end; card rows sit outside `max_rows`, so a card never overflows the set. */
-  async buy(id: string): Promise<boolean> {
+  async buy(id: string, gold = false): Promise<boolean> {
     const u = this.unlockCat.find((x) => x.id === id);
     const at = u?.insert_at;
-    const ok = await this.mutate(() => this.engine.buy(id));
+    // Cut 15 §2: `gold` pays the catalogue's gold price instead of marks (the returned lineage repaints the header's $ and ◆)
+    const ok = await this.mutate(() => (gold ? this.engine.buyUnlockGold!(id) : this.engine.buy(id)));
     if (ok) audio.cue("unlock");   // Cut 10 §4
     if (ok && this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id) && !this.holdsCard(id)) { this.insertCard(id, at); this.emitChange(); }
     // a verb unlock's `reach +21%` was measured with its canonical row at the top (the catalogue sends `rows` + `insert_at`

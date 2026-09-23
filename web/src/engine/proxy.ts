@@ -11,6 +11,7 @@ const METHODS: (keyof Engine)[] = [
   "forecastRefine",   // Cut 6: optional on the engine; the proxy rejects when the engine lacks it (the client treats that as "no refine")
   "dropSupply",       // Cut 12 §6: optional likewise (the client falls back to clear + rebuy)
   "setTrait",         // Cut 13 §2: optional likewise (no offer without it)
+  "buyUnlockGold",    // Cut 15 §2: optional likewise (the sheet's `$ buy` is off without a gold price)
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

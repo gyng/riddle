@@ -175,10 +175,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     if (pendingSec) pendingSec.hidden = !pendingBody.childElementCount;
   };
   paintPending([]);
-  // Cut 14 §4: the absence's usage lines are the death screen's least-fired row (`↑ R3`); a watched run's report has none and
+  // Cut 14 §4: the absence's usage lines are the death screen's drop sheet counts (Cut 15 §3); a watched run's report has none and
   // leaves the watch's own counts
-  const usage = r.pending.map((p) => /^R(\d+) fired (\d+) of \d+ runs/.exec(p)).filter((m): m is RegExpExecArray => !!m);
-  if (usage.length) { const fires = app.rules.rows.map(() => 0); for (const m of usage) if (Number(m[1]) - 1 < fires.length) fires[Number(m[1]) - 1] = Number(m[2]); app.rowFires = fires; }
+  const usage = r.pending.map((p) => /^R(\d+) fired (\d+) of (\d+) runs/.exec(p)).filter((m): m is RegExpExecArray => !!m);
+  if (usage.length) { const fires = app.rules.rows.map(() => 0); for (const m of usage) if (Number(m[1]) - 1 < fires.length) fires[Number(m[1]) - 1] = Number(m[2]); app.rowFires = fires; app.rowFiresOf = Number(usage[0][3]); }
   void app.engine.unlocks().then((cat) => paintPending(visible(cat).filter((u) => u.available))).catch(() => { /* lines only */ });
   const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }, /* copy:button */ "open") : null;
   const camp = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "camp");

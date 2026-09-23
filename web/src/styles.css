@@ -151,6 +151,8 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .hud-btn[hidden] { display: none; }
 .watch[data-over="1"] .hud-btn:disabled { opacity: .4; pointer-events: none; }   /* the run is over: the controls are dead, the verdict label has the top-right (QA on 50bb162) */
 .hud-btn.on.slowed { background: rgba(242,193,78,.16); }
+/* Cut 15 §4: the lit chip's clock as small digits (`fast 16`, `fights 2`); a pseudo-element, so the chip's text stays its word */
+.hud-btn[data-rate]::after { content: attr(data-rate); margin-left: 4px; font: 10px var(--mono); opacity: .85; vertical-align: 1px; }
 .stake .returning { color: #ffd7a8; }
 .hud.top .hud-btn { margin-left: auto; }
 /* Cut 14 §6: the scrub strip — the playhead (the viewer's share of the run) and the frontier's dot, which beats once per engine batch */
@@ -364,6 +366,11 @@ button.chip.locked { cursor: pointer; }
 .unlock-sheet .needs-line { font-size: 13px; margin: 4px 0; }
 .unlock-sheet .delta { font-size: 13px; margin: 4px 0; }
 .unlock-sheet .buy.off { opacity: .4; cursor: default; }
+/* Cut 15 §2: `◆3 · $450` and the two buys, marks (primary) · gold */
+.unlock-sheet .gold-price { color: #e8c24a; }
+.unlock-sheet .buy-pair { display: flex; gap: 10px; margin-top: 10px; }
+.unlock-sheet .buy-pair .btn { flex: 1; }
+.unlock-sheet .buy.gold { color: #e8c24a; border-color: #e8c24a; }
 /* Cut 9 §4: the card's trigger on its chip */
 .chip .trigger { font-size: 11px; }
 /* Cut 9 §3: `±6` after the reach */
@@ -413,6 +420,12 @@ button.bar.try:active { background: var(--panel2); }
 .patch-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; flex: 1; }
 .patch .root { color: var(--acc); font-size: 12px; }
 .patch.below { opacity: .55; border-style: dashed; }
+/* Cut 15 §3: the drop sheet — the set's own rows, the fired count, the least-fired marked */
+.drop-sheet .drop-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 8px; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel2); text-align: left; }
+.drop-sheet .drop-row .chips-inline { flex: 1; min-width: 0; }
+.drop-sheet .drop-row .fired { font-size: 12px; white-space: nowrap; }
+.drop-sheet .drop-row.least { border-color: var(--acc); }
+.drop-sheet .drop-row .mark { color: var(--acc); }
 .patch.unlock { border-color: #4d4020; background: #2a2412; }
 .patch.unlock .unlock-label b { color: var(--acc); font-weight: 400; }
 .ledger-btn { text-align: left; color: inherit; font: inherit; }

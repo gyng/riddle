@@ -67,8 +67,11 @@ export function deltaPts(u: UnlockInfo): number {
 }
 /** The delta's class: `up` · `down` · `flat` (`~0`). */
 export const deltaClass = (u: UnlockInfo, d: number): string => (deltaIsNoise(u) ? "flat" : d > 0 ? "up" : "down");
+/** Cut 15 §2: the card's gold price as the catalogue sends it (0: owned, free, or an old core without gold prices). */
+export const goldPrice = (u: UnlockInfo): number => (u.owned ? 0 : u.gold ?? 0);
 /** Cut 9 §2: the sheet behind an unlock card; `after` runs once a buy went through (the report repaints itself with it).
- *  Cut 12 §1: a card never takes a row (card rows sit outside `max_rows`). */
+ *  Cut 12 §1: a card never takes a row (card rows sit outside `max_rows`). Cut 15 §2: both prices on the title line
+ *  (`◆3 · $450`) and two buttons, `◆ buy` (marks) and `$ buy` (gold, the price climbing per gold buy), each off when short. */
 export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): void {
   openSheet((close) => {
     const d = deltaPts(u);
@@ -76,19 +79,24 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
     // (QA B on 952e306: "CLASS: RANGER ◆6 · ⊘ ◆2 more has an active buy; tapping it did nothing"); any `needs` or a marks
     // shortfall against the live lineage turns `buy` off
     const short = Math.max(0, u.cost - app.lineage.marks);
-    const needs = u.needs ?? (short ? /* copy:unlock_card */ `◆${short} more` : undefined);
-    const can = u.available && !needs;
+    const gateNeeds = u.needs && !/^◆\d+ more$/.test(u.needs) ? u.needs : undefined;   // a gate that is not the marks
+    const needs = gateNeeds ?? (short ? /* copy:unlock_card */ `◆${short} more` : undefined);
+    const can = (u.available || (!!u.needs && !gateNeeds)) && !needs;
+    // gold buys past a marks shortfall, never past another gate (a fact, a prerequisite, `fill rows`)
+    const gold = goldPrice(u), canGold = gold > 0 && !gateNeeds && app.lineage.gold >= gold;
     let sent = false;
-    const buy = h("button", { class: `btn primary wide buy${can ? "" : " off"}`, disabled: !can, onclick: () => {
+    const go = (withGold: boolean) => (): void => {
       if (sent) return; sent = true;
-      void app.buy(u.id).then((ok) => { close(); if (ok) after?.(); });
-    } }, /* copy:button */ "buy");
+      void app.buy(u.id, withGold).then((ok) => { close(); if (ok) after?.(); });
+    };
+    const buy = h("button", { class: `btn primary buy marks${can ? "" : " off"}`, disabled: !can, onclick: go(false) }, "◆ ", /* copy:button */ "buy");
+    const buyGold = gold ? h("button", { class: `btn buy gold${canGold ? "" : " off"}`, disabled: !canGold, onclick: go(true) }, "$ ", /* copy:button */ "buy") : "";
     return h("div", { class: "sheet-body unlock-sheet" },
-      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`)),
+      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`, gold ? h("span", { class: "gold-price" }, ` · $${gold}`) : "")),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))) : "",
       needs ? h("div", { class: "needs-line dim" }, "⊘ ", needs.replace(/_/g, " ")) : "",
       d ? h("div", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : "",   // Cut 10 §3 / Cut 12 §1 / Cut 13 §5
-      buy);
+      h("div", { class: "buy-pair" }, buy, buyGold));
   });
 }
 /** Cut 6 §4: a tactic card (it becomes a row when bought). */

@@ -219,11 +219,35 @@ try {
   const bought = (await card.innerText()).split("\n")[0].trim();
   await card.click({ timeout: 5000 }); await sleep(200);
   await lintSheet(`unlock sheet · ${bought}`);
-  await page.locator(".sheet-wrap button.buy").click({ timeout: 5000 });
+  // Cut 15 §2: both prices on the title (`◆3 · $450`) and two buys, `◆ buy` · `$ buy`
+  const pair = await page.evaluate(() => ({ cost: document.querySelector(".sheet-wrap .unlock-sheet .cost")?.textContent.trim(), buys: [...document.querySelectorAll(".sheet-wrap .buy-pair button")].map((b) => b.textContent.trim()) }));
+  check(/^◆\d+ · \$\d+$/.test(pair.cost ?? "") && pair.buys.join(" | ") === "◆ buy | $ buy", `the sheet shows both prices and two buys ("${pair.cost}": ${pair.buys.join(" | ")})`);
+  await page.locator(".sheet-wrap button.buy.marks").click({ timeout: 5000 });
   await waitFor((x) => x?.sheets === 0, "the buy sheet closed"); await settle();
   const marksAfter = await page.evaluate(() => window.__riddle.lineage.marks);
   check(marksAfter < 12, `bought "${bought}" (marks ${marksAfter})`);
   await lintScreen("camp (bought)");
+  // Cut 15 §2: a gold buy — the lineage gets $5000; the next card's `$ buy` spends gold, not marks, and the header's $ and ◆ read
+  // the returned lineage; the next gold price climbs
+  {
+    await page.evaluate(async () => { const r = window.__riddle; const save = JSON.parse(await r.engine.save()); save.lineage.gold = 5000; r.lineage = await r.engine.load(JSON.stringify(save)); r.go({ kind: "camp" }); });
+    await settle();
+    const head = () => page.evaluate(() => ({ gold: document.querySelector(".strip .gold")?.textContent.trim(), marks: document.querySelector(".strip .marks")?.textContent.trim(), L: { gold: window.__riddle.lineage.gold, marks: window.__riddle.lineage.marks } }));
+    const h0 = await head();
+    const gcard = page.locator(".unlocks .card").filter({ hasNot: page.locator(".needs") }).first();
+    const any = (await gcard.count()) ? gcard : page.locator(".unlocks .card").first();
+    await any.click({ timeout: 5000 }); await sleep(200);
+    const price = await page.evaluate(() => Number(/\$(\d+)/.exec(document.querySelector(".sheet-wrap .unlock-sheet .gold-price")?.textContent ?? "")?.[1] ?? NaN));
+    const enabled = await page.evaluate(() => !document.querySelector(".sheet-wrap button.buy.gold")?.disabled);
+    await lintSheet("unlock sheet (gold)");
+    if (enabled) await page.locator(".sheet-wrap button.buy.gold").click({ timeout: 5000 });
+    await waitFor((x) => x?.sheets === 0, "the gold buy sheet closed"); await settle();
+    const h1 = await head();
+    check(enabled && h1.L.gold === h0.L.gold - price && h1.L.marks === h0.L.marks && h1.gold === `$${h1.L.gold}` && h1.marks === `◆${h1.L.marks}`, `$ buy spent $${price}, not marks: header ${h0.gold} ${h0.marks} → ${h1.gold} ${h1.marks}`);
+    const next = await page.evaluate(async () => (await window.__riddle.engine.unlocks()).find((u) => !u.owned && u.gold)?.gold ?? 0);
+    const cost0 = await page.evaluate(async () => { const u = (await window.__riddle.engine.unlocks()).find((x) => !x.owned && x.gold); return u ? 150 * u.cost : 0; });
+    check(next > cost0, `the next gold price climbs ($${next} > $${cost0} at the base rate)`);
+  }
   if (await page.locator(".unlocks .chip.owned").count()) { await openAndLint(".unlocks .chip.owned", "owned sheet"); await closeSheets(); }
   // 9. drop a supply (the button lint may have dropped the leash already: buy one from the shop first then)
   if (!(await page.locator(".supplies .chip.item").count())) { await page.locator(".supplies .chip.buy:not(.off)").first().click({ timeout: 5000 }); await settle(); }

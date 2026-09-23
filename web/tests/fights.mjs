@@ -10,6 +10,8 @@
 // Cut 14: the fight frame runs at 2× in `fights` and 4× in `fast` (the slowdowns were "way too slow").
 // Cut 14 §3: a stack (two foes on one tile) fans sideways in the map frame with a name per row, a foe there is ≥ 24 CSS px tall
 // (`__viewer.debugRects` / `debugLabels`); a bank exit opens the fight frame with `BANKED $N` as its callout before the sheet.
+// Cut 15 §4: a boss's kill opens (holds) the fight frame with `GOBLIN WARLORD DOWN` in `fast` and `fights`; two name tags whose
+// boxes would intersect draw on two rows (no two tags drawn in a frame intersect).
 //
 //   node web/tests/fights.mjs        (part of `pnpm test` in web/)
 //
@@ -54,11 +56,21 @@ try {
   check(s.mode === "fights" && s.on.join() === "fights", `fights is the default mode (on: ${s.on.join(", ")})`);
   check(s.buttons.join(" ") === "fights fast ▶▶| bail", `the buttons read fights · fast · ▶▶| · bail (${s.buttons.join(" · ")})`);
   // the card: the ambient line over the map, the clock held; then the first fight at 1×
-  s = await waitFor((x) => !inRun(x) || x.card === "1", "the interstitial", 8000);
+  // Cut 15 §4: the card is short (≤ 1.2 s; 0.5 s before a beat — seed 5 opens on a situation), so the tap is made in the page the
+  // frame the card is seen
+  s = await page.evaluate(() => new Promise((res) => {
+    const t0 = performance.now();
+    const poll = () => {
+      const w = document.querySelector(".watch"), c = document.querySelector(".interstitial");
+      if (w?.dataset.card === "1" && c && !c.hidden) { const seen = { card: "1", cardShown: true, cardText: c.textContent, speed: Number(w.dataset.speed) }; c.click(); res(seen); return; }
+      if (performance.now() - t0 > 8000) { res({ card: w?.dataset.card, cardShown: false, cardText: "", speed: NaN }); return; }
+      requestAnimationFrame(poll);
+    };
+    poll();
+  }));
   check(s.card === "1" && s.cardShown && /^D\d+( · \d+ rooms)? · (\$\d+|an? [a-z]+)$/.test(s.cardText), `the interstitial reads the ambient line: "${s.cardText}"`);
   check(s.speed === 0, `the clock holds under the card (speed ${s.speed})`);
-  // a tap on the card holds the map at 8× until the next fight (shown whatever it costs)
-  await page.locator(".interstitial").click({ timeout: 2000 });
+  // a tap on the card holds the map at 8× until the next fight (shown whatever it costs) — tapped above
   s = await waitFor((x) => !inRun(x) || (x.card === "0" && x.frame === "map"), "the map after tapping the card", 2000);
   check(s.card === "0" && s.frame === "map" && s.speed === 8, `tapping the card shows the map at 8× (speed ${s.speed}, card ${s.card})`);
   s = await waitFor((x) => !inRun(x) || x.frame === "fight", "the next fight after the hold", 30_000);
@@ -152,6 +164,64 @@ try {
     s = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit", "the report after the bank", 20_000);
     check(s.screen === "report", `then the exit flow (${s.screen})`);
   }
+
+  // Cut 15 §4: a boss's kill is a beat — the fight frame opens (or holds) with `GOBLIN WARLORD DOWN` as its callout and holds
+  // ~SCENE_MS, in `fast` and in `fights` (under the card: the beat never waits on it). The fake has no boss kill on D1, so the
+  // engine's next batch after tick 20 carries a warlord's spawn beside the hero and its `die`.
+  for (const mode of ["fast", "fights"]) {
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+    await waitFor((x) => x?.booted && inRun(x) && x.mode === mode, `the ${mode} run for the boss kill`);
+    await page.evaluate(() => {
+      const r = window.__riddle, orig = r.engine.step.bind(r.engine); let done = false;
+      r.engine.step = async (n) => {
+        const res = await orig(n);
+        if (!done && res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit")) {
+          done = true; const hh = res.snapshot.hero, t = res.snapshot.turn;
+          res.events.push({ t: t - 4, k: "spawn", e: { id: 95001, kind: "goblin_warlord", x: hh.x + 1, y: hh.y, hp: 1, max_hp: 30, tags: ["boss"] } }, { t: t - 1, k: "die", id: 95001, cause: "hero" });
+          res.events.sort((a, b) => a.t - b.t);
+        }
+        return res;
+      };
+    });
+    const both = () => page.evaluate(() => ({ screen: window.__riddle.screen, frame: document.querySelector(".watch")?.dataset.frame, speed: Number(document.querySelector(".watch")?.dataset.speed), tk: document.querySelector(".ticker.show")?.textContent ?? "" }));
+    let seen = null; const t0 = Date.now();
+    while (Date.now() - t0 < 20_000) {
+      const st = await both(), tk = st.tk;
+      if (st?.screen !== "watch" && st?.screen !== "exit") break;
+      if (tk === "GOBLIN WARLORD DOWN") { seen = { frame: st.frame, speed: st.speed, at: Date.now() }; break; }
+      await sleep(40);
+    }
+    check(!!seen && seen.frame === "fight", `${mode}: a boss kill opens the fight frame with "GOBLIN WARLORD DOWN" (${seen ? `${seen.frame} frame, speed ${seen.speed}` : "never seen"})`);
+    if (seen) {
+      await sleep(2000);
+      const st = await both(), tk = st.tk;
+      check(st?.frame === "fight" && tk === "GOBLIN WARLORD DOWN", `${mode}: the beat holds the frame and the line 2 s on (${st?.frame}, "${tk}", speed ${st?.speed})`);
+    }
+  }
+
+  // Cut 15 §4: name tags never overlap — two hostiles with 12-letter names on adjacent tiles of one row in the fight frame (their
+  // tags would share a row and intersect) draw on two rows, their boxes apart
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  for (let tries = 0; tries < 6; tries++) {
+    s = await waitFor((x) => x?.booted && inRun(x) && x.frame === "fight", "a fight frame for the tags", 30_000);
+    await press("⏸"); await sleep(150);
+    if ((await state())?.frame === "fight") break;
+    await press("▶"); await sleep(300);
+  }
+  const tags = await page.evaluate(async () => {
+    const v = window.__viewer, hero = v.debugPos().find((e) => e.hero), t = v.tick();
+    const mk = (id, x, name) => ({ t: t - 5, k: "spawn", e: { id, kind: "goblin", name, x, y: hero.y, hp: 5, max_hp: 5, tags: [] } });
+    v.apply([mk(90011, hero.x - 1, "Captain Tain"), mk(90012, hero.x - 2, "Ashar Monkey")]); v.seek(t);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return { frame: document.querySelector(".watch").dataset.frame, labels: v.debugLabels() };
+  });
+  const [ta, tb2] = tags.labels.filter((l) => l.id >= 90011);
+  const boxes = (l) => [l.x - l.w / 2, l.y - l.h, l.x + l.w / 2, l.y];
+  const inter = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+  const hOverlap = ta && tb2 && Math.abs(ta.x - tb2.x) < (ta.w + tb2.w) / 2;
+  check(tags.frame === "fight" && !!ta && !!tb2 && hOverlap && Math.abs(ta.y - tb2.y) >= ta.h, `two tags on intersecting spans draw on two rows (${[ta, tb2].filter(Boolean).map((l) => `${l.text} x${Math.round(l.x)} y${Math.round(l.y)}`).join(" · ")})`);
+  const all = tags.labels.map(boxes);
+  check(all.every((a, i) => all.every((b, j) => i === j || !inter(a, b))), `no two tags drawn this frame intersect (${tags.labels.length} tags)`);
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

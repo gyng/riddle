@@ -4,11 +4,14 @@
 // an unlock pseudo-patch (`◆2 cond: alert · buy`): the tap buys the cond's unlock, then opens the camp on the row (the
 // set's own locked row, or the patch's row inserted at the top when the set lacks it); §4: a
 // `below_bar` candidate renders dimmed with `survives 40% · below bar` — the named alternative of a `dice` death.
-// Cut 14 §4: on a full set an insert patch reads `↑ R3` — the own row that fired least (`leastFiredRow`) goes and the patch
-// lands where it was measured (`App.applyPatchOver`), so the tap never leaves the editor at `6/5 · drop one` (rater S).
+// Cut 14 §4's silent `↑ R3` is withdrawn (Cut 15 §3: "the caster patch replaced my drink unknown row"): on a full set an insert
+// patch reads `+ drop one` and the tap opens a sheet of the set's own rows (card rows never), each with its fired count when known
+// (`R5 depth ≥ 8 → bank · 0/16`), the least-fired marked; tapping a row drops it and the patch lands where it was measured
+// (`App.applyPatchOver`); dismissing the sheet leaves the set whole and the death screen up.
 import type { App } from "../app";
 import type { Patch, Row, Trace } from "../engine/types";
 import { h, pct } from "./dom";
+import { openSheet } from "./sheet";
 import { isCardRow, rowLabel, sameCond, sameVerb } from "./tokens";
 
 const sameRow = (a: Row, b: Row): boolean => a.conds.length === b.conds.length && a.conds.every((c, i) => sameCond(c, b.conds[i]) && c.n === b.conds[i].n) && sameVerb(a.verb, b.verb);
@@ -27,7 +30,7 @@ export function unlockOf(app: App, p: Patch): string | undefined {
  *  Cut 4 §2: a row reads `survives 100% · base 75%` (death: `baseline` is the unpatched survival) or `reach 40% · base 35%`
  *  (stall: `survive` is the patched reach, base = survive − delta), then `reach +5%`, or `reach ~0` when the delta rounds to 0
  *  (QA on 50bb162: "reach missing on some patches"; the unlock cards say it that way). */
-/** Cut 14 §4: the row a patch replaces on a full set — the own row (never a card's) that fired least: `app.rowFires` (the
+/** Cut 14 §4 (Cut 15 §3: the row the drop sheet marks): the row a patch replaces on a full set — the own row (never a card's) that fired least: `app.rowFires` (the
  *  watched run's rule events, or the absence's usage lines), else the rows the trace shows firing; among equals the lowest in
  *  the list (the one the rows above it overshadow). −1 when the set has no own row. */
 export function leastFiredRow(app: App, trace?: Trace): number {
@@ -46,10 +49,10 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     // A row the set already holds (an old death opened from the chronicle, a patch tapped twice) is not inserted again:
     // the row reads `at R2` and the tap opens the camp on it (QA: "tapped patch → R1 inserted AGAIN → 5/4")
     const held = unlock || p.remove || p.replace ? -1 : app.rules.rows.findIndex((r) => sameRow(r, p.row));
-    // Cut 14 §4: an insert onto a full set replaces the least-fired own row, and says which (`↑ R3`)
-    const drop = !unlock && !p.remove && !p.replace && held < 0 && app.rowsFull ? leastFiredRow(app, trace) : -1;
+    // Cut 15 §3: an insert onto a full set asks which own row to drop (`+ drop one`)
+    const full = !unlock && !p.remove && !p.replace && held < 0 && app.rowsFull && app.rules.rows.some((r) => !isCardRow(r));
     const target = p.remove || p.replace ? h("small", { class: "dim target" }, `R${p.insert_at + 1} ${p.remove ? "−" : "↻"} `)
-      : drop >= 0 ? h("small", { class: "dim target" }, /* copy:callout */ `↑ R${drop + 1} `) : "";
+      : full ? h("small", { class: "dim target" }, /* copy:callout */ "+ drop one", " ") : "";
     const line = held >= 0
       ? /* copy:callout */ `at R${held + 1}`
       : p.below_bar
@@ -69,16 +72,34 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
         }
       : held >= 0
         ? (): void => app.go({ kind: "camp", highlight: held })
-        : drop >= 0
-          ? (): void => { const i = app.applyPatchOver(p, drop); app.go({ kind: "camp", highlight: i }); }
+        : full
+          ? (): void => openDropSheet(app, p, trace)
           : (): void => { const i = app.applyPatch(p); app.go({ kind: "camp", highlight: i }); };
     const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : rowLabel(p.row));
     // an unlock's second line is the row it inserts once bought; a root patch's is the chain's root it answers
     const root = unlock ? (p.root ? h("small", { class: "dim" }, rowLabel(p.row)) : "") : p.root ? h("small", { class: "root" }, "← ", p.root.text) : "";
-    return h("button", { class: `patch${p.remove ? " remove" : ""}${p.below_bar || held >= 0 ? " below" : ""}${unlock ? " unlock" : ""}`, onclick, ...(drop >= 0 ? { "data-drop": String(drop) } : {}) },
+    return h("button", { class: `patch${p.remove ? " remove" : ""}${p.below_bar || held >= 0 ? " below" : ""}${unlock ? " unlock" : ""}`, onclick, ...(full ? { "data-full": "1" } : {}) },
       h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
         h("span", { class: "num surv" }, line),
         delta ? h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, /* copy:callout */ `reach ${delta > 0 ? "+" : "−"}${Math.abs(delta)}%`) : h("span", { class: "num delta flat" }, /* copy:callout */ "reach ~0")));
   }));
+}
+
+/** Cut 15 §3: the drop sheet — the set's own rows (a card's row never; it sits outside `max_rows`), `R5 <row> · 0/16` with the
+ *  run's fired count out of all fires when it is known (the watched run's rule events, or the absence's `R5 fired 0 of 16 runs`),
+ *  the least-fired row marked (`.least`, `↓`). A tap drops that row and inserts the patch at its measured place; the backdrop or
+ *  Escape closes the sheet and nothing changes. */
+export function openDropSheet(app: App, p: Patch, trace?: Trace): void {
+  const rows = app.rules.rows, least = leastFiredRow(app, trace);
+  const fires = app.rowFires, total = app.rowFiresOf ?? (fires ? fires.reduce((a, b) => a + b, 0) : 0);
+  openSheet((close) => h("div", { class: "sheet-body drop-sheet" },
+    h("div", { class: "label row-label" }, /* copy:label */ "drop", " ", h("small", { class: "dim" }, rowLabel(p.row))),
+    ...rows.map((r, i) => isCardRow(r) ? null : h("button", {
+      class: `drop-row${i === least ? " least" : ""}`, "data-row": String(i),
+      onclick: () => { close(); const at = app.applyPatchOver(p, i); app.go({ kind: "camp", highlight: at }); },
+    },
+    h("b", { class: "num" }, `R${i + 1}`), " ", h("span", { class: "chips-inline" }, rowLabel(r)),
+    fires ? h("span", { class: "num fired dim" }, ` · ${fires[i] ?? 0}/${total}`) : "",
+    i === least ? h("span", { class: "num mark" }, "↓") : ""))));
 }

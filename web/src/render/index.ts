@@ -78,7 +78,7 @@ export type Viewer = {
 };
 
 export type DebugRect = { id: number; kind: string; hero: boolean; x: number; y: number; w: number; h: number; stack: number };   // CSS px; `stack`: members on its tile
-export type DebugLabel = { text: string; x: number; y: number; id: number };   // CSS px: the label's centre x and its cell's bottom y
+export type DebugLabel = { text: string; x: number; y: number; id: number; w?: number; h?: number };   // CSS px: the label's centre x and its cell's bottom y; w · h its box (Cut 15 §4)
 
 export type ViewerStats = {
   calls: number; triangles: number; k: number; dpr: number;
@@ -398,6 +398,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
     const nameScale = fight ? 0.5 : 1;   // the map frame's k is half the fight frame's: the same size on screen
     const nameRow = FONT_CELL_H * nameScale + 1;
+    const tagBoxes: [number, number, number, number][] = [];   // Cut 15 §4: the name tags drawn so far this frame (world x0, y0, x1, y1)
     for (const e of st.ents.values()) {
       if (e.kind === "bones") continue; // drawn in the items layer above
       const vi = e.y * st.w + e.x;
@@ -447,12 +448,16 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // Cut 8A: a hostile's name under its feet in the fight frame; Cut 14 §3: in the map frame too when it stands in a stack, and a
       // stack's i-th member takes the i-th row down so no two names share a row
       if (!e.hero && !e.ally && !e.neutral && !e.dying && (fight || stackN > 1)) {
-        const ny = fy - FONT_CELL_H * nameScale - 2 - (stackN > 1 && stackI > 0 ? stackI * nameRow : 0), nw = e.name.length * FONT_ADVANCE * nameScale + nameScale;
-        const clash = calloutBox && fx + nw / 2 > calloutBox[0] && fx - nw / 2 < calloutBox[2] && ny + FONT_CELL_H * nameScale > calloutBox[1] && ny < calloutBox[3];
+        let ny = fy - FONT_CELL_H * nameScale - 2 - (stackN > 1 && stackI > 0 ? stackI * nameRow : 0);
+        const nw = e.name.length * FONT_ADVANCE * nameScale + nameScale, nx = textX(nw, fx), th = FONT_CELL_H * nameScale;
+        // Cut 15 §4: a tag whose box would intersect a tag already drawn moves down a row (rater V: `CAPTIMONKEY`), in both frames
+        const hits = (y: number): boolean => tagBoxes.some((b) => nx - nw / 2 < b[2] && nx + nw / 2 > b[0] && y < b[3] && y + th > b[1]);
+        for (let i = 0; i < 8 && hits(ny); i++) ny -= nameRow;
+        const clash = calloutBox && nx + nw / 2 > calloutBox[0] && nx - nw / 2 < calloutBox[2] && ny + th > calloutBox[1] && ny < calloutBox[3];
         if (!clash) {   // Cut 13 §4: the callout has the line for its second
-          const nx = textX(nw, fx);
           drawText(e.name, nx, ny, 4, nameScale);
-          const [cx, cy] = toCss(nx, ny); labels.push({ text: e.name, x: cx, y: cy, id: e.id });
+          tagBoxes.push([nx - nw / 2, ny, nx + nw / 2, ny + th]);
+          const [cx, cy] = toCss(nx, ny); labels.push({ text: e.name, x: cx, y: cy, id: e.id, w: (nw * k) / dpr, h: (th * k) / dpr });
         }
       }
       if (e.glyph) {

@@ -12,6 +12,8 @@
 //              (under the card too) · the card names the HUD's floor and loot on every 100 ms sample
 //   Cut 14     the `slowdowns` toggle: off, the clock keeps the mode's flat rate through a fight; on, a fight in fast runs at 4×
 //   Cut 14 §4  a repeated chore callout coalesces (`pick up ×8`) · the `rest 20m` banner sits under the death frame's callout line
+//   Cut 15 §4  the lit mode chip carries its rate (`fast 16`, `fights 2`) · the floor card is up ≤ 1.2 s a time, never over a fight
+//   Cut 15 §5  a watched vault sheet holds the world (8 s open: the frontier still) with a 30 s bar; a chip still takes the tap
 //
 //   node web/tests/clarity.mjs        (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
@@ -333,6 +335,72 @@ try {
       await sleep(40);
     }
     check(!!rest && /^rest \S+$/.test(rest.text) && rest.top > rest.lowest && rest.top >= rest.h * 0.75, `the rest banner sits under the frame's sprites and names (${rest ? `"${rest.text}" top ${Math.round(rest.top)} · drawn to ${Math.round(rest.lowest)} · ${rest.frame} frame` : "never seen"})`);
+  }
+  // Cut 15 §4: the lit mode chip carries its clock as small digits (`data-rate`, drawn by `::after`; the chip's text stays its word):
+  // `fast 16` on the travel, `fast 4` in a fight; `fights 2` in a fight; the other chip carries none
+  {
+    const chip = () => page.evaluate(() => { const w = document.querySelector(".watch"), on = document.querySelector(".hud.bottom .hud-btn.on"), off = [...document.querySelectorAll(".hud.bottom .hud-btn")].filter((b) => b !== on && b.dataset.rate); return { screen: window.__riddle.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), card: w?.dataset.card, text: on?.textContent, rate: on?.dataset.rate ?? "", after: on ? getComputedStyle(on, "::after").content : "", others: off.length }; });
+    for (const mode of ["fast", "fights"]) {
+      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+      await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);
+      const seen = new Map(); let bad = null; const t0 = Date.now();
+      while (Date.now() - t0 < 25_000 && !(seen.has("fight") && seen.has("map"))) {
+        const c = await chip(); if (c.screen !== "watch") break;
+        const want = c.speed > 0 ? String(c.speed) : c.card === "1" ? "16" : "";
+        if (c.rate !== want || c.text !== mode || c.others || (c.rate && c.after !== `"${c.rate}"`)) bad ??= c;
+        if (c.rate && c.frame) seen.set(c.frame, `${c.text} ${c.rate}`);
+        await sleep(50);
+      }
+      check(!bad && seen.has("fight") && [...seen.values()].every((x) => new RegExp(`^${mode} \\d+$`).test(x)), `${mode}: the lit chip carries its rate (${[...seen].map(([f, x]) => `${f}: ${x}`).join(" · ")}${bad ? `; off: ${JSON.stringify(bad)}` : ""})`);
+    }
+  }
+  // Cut 15 §4: the floor card is short — every span it is up lasts ≤ 1.2 s of wall time, and it is never up over the fight frame
+  // (a MutationObserver on the watch's `data-card` / `data-frame`, two `fights` runs of 20 s)
+  {
+    for (const seed of [516, 7]) {
+      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+      await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
+      await page.evaluate(() => {
+        const w = document.querySelector(".watch"); const log = window.__cardLog = { spans: [], over: 0, since: w.dataset.card === "1" ? performance.now() : null };
+        new MutationObserver(() => {
+          const up = w.dataset.card === "1", now = performance.now();
+          if (up && w.dataset.frame === "fight") log.over++;
+          if (up && log.since === null) log.since = now;
+          else if (!up && log.since !== null) { log.spans.push(now - log.since); log.since = null; }
+        }).observe(w, { attributes: true, attributeFilter: ["data-card", "data-frame"] });
+      });
+      const t0 = Date.now();
+      while (Date.now() - t0 < 20_000) { if ((await state())?.screen !== "watch") break; await sleep(200); }
+      const log = await page.evaluate(() => window.__cardLog);
+      const max = Math.max(0, ...log.spans);
+      check(log.spans.length >= 3 && max <= 1200 && log.over === 0, `seed ${seed}: the floor card is up ≤ 1.2 s a time (${log.spans.length} cards, longest ${Math.round(max)} ms, over a fight ${log.over})`);
+    }
+  }
+  // Cut 15 §5: a watched cage waits for the tap — the vault sheet open 8 s: the frontier does not move; the bar runs 30 s; a chip
+  // still takes the tap and the world goes on. The fake has no vaults: one engine batch after tick 20 carries a `vault_choice`.
+  {
+    for (const mode of ["fast", "fights"]) {
+      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+      await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);
+      await page.evaluate(() => {
+        const r = window.__riddle, orig = r.engine.step.bind(r.engine), origChoose = r.engine.choose.bind(r.engine); let done = false;
+        r.__chosen = null;
+        r.engine.step = async (n) => { const res = await orig(n); if (!done && res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit")) { done = true; res.snapshot.vault_choice = { items: [{ id: 9901, kind: "sword", known: true, label: "sword" }, { id: 9902, kind: "mail", known: true, label: "mail" }, { id: 9903, kind: "heal", known: true, label: "heal potion" }], left: 50 }; } return res; };
+        r.engine.choose = async (id) => { r.__chosen = id; return origChoose(id); };
+      });
+      const w = () => page.evaluate(() => { const x = document.querySelector(".watch"); const g = document.querySelector(".sheet-wrap .vault-choice .grace i"); return { screen: window.__riddle.screen, frontier: Number(x?.dataset.frontier), tick: Number(x?.dataset.tick), sheet: !!document.querySelector(".sheet-wrap .vault-choice .chip"), bar: g ? g.style.transitionDuration : "" }; });
+      let a = null; const t0 = Date.now();
+      while (Date.now() - t0 < 20_000) { a = await w(); if (a.sheet || (a.screen !== "watch" && a.screen !== "exit")) break; await sleep(50); }
+      if (!a?.sheet) { check(false, `${mode}: the vault sheet opened (${a?.screen})`); continue; }
+      await sleep(300); const f0 = await w();
+      await sleep(8000); const f1 = await w();
+      check(f1.sheet && f1.frontier === f0.frontier, `${mode}: the sheet open 8 s, the world waits (frontier ${f0.frontier} → ${f1.frontier}, playhead ${f1.tick})`);
+      check(f0.bar === "30s", `${mode}: the sheet's bar runs the 30 s wait (${f0.bar})`);
+      await page.locator(".sheet-wrap .vault-choice .chip").first().click({ timeout: 2000 });
+      await sleep(1500);
+      const f2 = await w(); const chosen = await page.evaluate(() => window.__riddle.__chosen);
+      check(chosen === 9901 && !f2.sheet && (f2.frontier > f1.frontier || f2.screen !== "watch"), `${mode}: a chip still takes the tap (chose ${chosen}), the world goes on (frontier ${f1.frontier} → ${f2.frontier})`);
+    }
   }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
