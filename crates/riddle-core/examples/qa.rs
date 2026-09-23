@@ -87,8 +87,10 @@ fn check_death(t: &mut Tally, seed: u64, d: &riddle_core::Death) {
     for p in &d.patches {
         t.check("no death screen carries a patch under its baseline (unless below_bar)", p.below_bar || p.survive >= d.baseline - 1e-9, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2} · {}", d.run_id, p.row.describe(), p.survive, d.baseline, d.verdict));
     }
+    // Cut 15 §6: 0 % candidates show only when nothing survives (a dice death is never empty).
+    let any_survives = d.patches.iter().any(|p| p.survive > 0.0);
     for p in d.patches.iter().filter(|p| p.below_bar) {
-        t.check("no below-bar candidate survives 0 %", p.survive > 0.0, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2}", d.run_id, p.row.describe(), p.survive, d.baseline));
+        t.check("no below-bar candidate survives 0 % beside one that survives", !any_survives || p.survive > 0.0, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2}", d.run_id, p.row.describe(), p.survive, d.baseline));
     }
     if d.verdict == "dice" {
         t.check("no dice death's margin names an unused item", !d.margin.contains("unused"), || format!("seed {seed} run {}: `{}`", d.run_id, d.margin));
