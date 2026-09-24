@@ -23,7 +23,7 @@ shots and the end screen's text; `"skip":true` taps `▶▶|` as you would; the 
 — your game is untouched). They read only what the page shows. Take screenshots
 to look at the screens, read text with `text`, click buttons by their visible label. (A Node
 script of your own with `launchBrowser({ gpu: true })` from `tools/browser.mjs` is allowed
-too.) Your seed: open `{URL}?seed={SEED}&fresh=1` once at the start. The dev harness
+too.) Your seed: open `{URL}?dev=1&seed={SEED}&fresh=1` once at the start. The dev harness
 `node tools/playtest.mjs` exists but you must make the decisions yourself (which rule to add,
 which patch to tap, what to bring, what to buy); use it only for a first orientation screenshot
 set if you like.
