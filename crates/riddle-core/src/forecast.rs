@@ -152,8 +152,33 @@ pub fn set_parallel_sims(on: bool) {
 /// to the coarser number (`refined` says which one it is).
 pub fn forecast(game: &Game) -> Forecast {
     let rules = game.lineage.rules();
-    let sims = if game.panel_cache.borrow().contains_key(&panel_key(game, rules, REFINE_SIMS)) { REFINE_SIMS } else { FORECAST_SIMS };
-    forecast_with(game, rules, sims)
+    forecast_with(game, rules, camp_sims(game, rules))
+}
+
+/// The camp's sims for `rules` now: `REFINE_SIMS` once that panel was refined for this
+/// (lineage, rules) — whether or not the panel is still in the cache (QA on 1a2a4a9, qaO:
+/// the cage picker's three panels filled the cache, its clear-all dropped the refined panel,
+/// and the next read went back to the first pass: `D4 68%±13` ↔ `67%±9` on opening the
+/// vault) — else `FORECAST_SIMS`.
+pub fn camp_sims(game: &Game, rules: &RuleSet) -> u32 {
+    let key = panel_key(game, rules, REFINE_SIMS);
+    if game.panel_cache.borrow().contains_key(&key) || game.refined_panels.borrow().contains(&key) {
+        REFINE_SIMS
+    } else {
+        FORECAST_SIMS
+    }
+}
+
+/// Memoise a camp panel: a full cache keeps the active set's own panels (both passes) and
+/// drops the rest — the panel the camp shows is never the one evicted.
+pub fn panel_insert(game: &Game, key: String, v: Vec<SimResult>) {
+    let full = game.panel_cache.borrow().len() >= PANEL_CACHE_MAX;
+    if full {
+        let rules = game.lineage.rules();
+        let keep = [panel_key(game, rules, FORECAST_SIMS), panel_key(game, rules, REFINE_SIMS)];
+        game.panel_cache.borrow_mut().retain(|k, _| keep.contains(k));
+    }
+    game.panel_cache.borrow_mut().insert(key, v);
 }
 
 /// Cut 6 §9: the same forecast at `REFINE_SIMS` sims — the same seeds first, then as many
@@ -191,13 +216,19 @@ pub fn camp_panel(game: &Game, rules: &RuleSet, sims: u32) -> Vec<SimResult> {
         return v.clone();
     }
     let ended = simulate_budget(game, rules, sims, tag, u32::MAX, budget);
-    let mut cache = game.panel_cache.borrow_mut();
-    if cache.len() >= PANEL_CACHE_MAX {
-        cache.clear();
+    if sims >= REFINE_SIMS {
+        let mut r = game.refined_panels.borrow_mut();
+        if r.len() >= REFINED_MAX {
+            r.clear();
+        }
+        r.insert(key.clone());
     }
-    cache.insert(key, ended.clone());
+    panel_insert(game, key, ended.clone());
     ended
 }
+
+/// How many refined (lineage, rules) keys a game remembers (`camp_sims`).
+pub const REFINED_MAX: usize = 256;
 
 /// Cut 19 §1: 32 (was 16) — the cage picker adds three panels per rule set.
 pub const PANEL_CACHE_MAX: usize = 32;
@@ -210,7 +241,7 @@ pub const PANEL_CACHE_MAX: usize = 32;
 /// fingerprint, which carries the preference).
 pub fn cage_forecast(game: &Game) -> Vec<crate::wire::CageOption> {
     let rules = game.lineage.rules().clone();
-    let sims = if game.panel_cache.borrow().contains_key(&panel_key(game, &rules, REFINE_SIMS)) { REFINE_SIMS } else { FORECAST_SIMS };
+    let sims = camp_sims(game, &rules);
     // The bar the reach is read at: the set's bank row's depth (`depth ≥ d → bank`), else the
     // lineage's best depth.
     let bank_depth = rules.rows.iter().filter(|r| r.verb.v == "bank").filter_map(|r| r.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n)).map(|n| n.max(1) as u32).min();
@@ -244,12 +275,8 @@ pub fn cage_forecast(game: &Game) -> Vec<crate::wire::CageOption> {
             base
         } else {
             let (r, panels) = m.next().expect("one panel per other preference");
-            let mut cache = game.panel_cache.borrow_mut();
             for (k, v) in panels {
-                if cache.len() >= PANEL_CACHE_MAX {
-                    cache.clear();
-                }
-                cache.insert(k, v);
+                panel_insert(game, k, v);
             }
             r
         };
@@ -277,9 +304,18 @@ fn panel_budget(sims: u32) -> u64 {
 }
 
 /// The memo key of the camp's panel for `rules` at `sims` (`camp_panel`).
-fn panel_key(game: &Game, rules: &RuleSet, sims: u32) -> String {
+pub fn panel_key(game: &Game, rules: &RuleSet, sims: u32) -> String {
     let tag = forecast_tag(game, game.lineage.best_depth + 1);
-    format!("{}:{sims}:{tag}:{}:{}", lineage_key(game), panel_budget(sims), serde_json::to_string(rules).unwrap_or_default())
+    format!("{}:{sims}:{tag}:{}:{}", lineage_key(game), panel_budget(sims), rules_key(rules))
+}
+
+/// QA on 1a2a4a9: what of a set a sim plays — each row's conditions and verb. A row's
+/// `origin` (the client re-tags rows `player` / `patch` as the editor opens and edits) and
+/// the set's name are not played, so a `setRules` of the same rows re-tagged is the same
+/// panel, not a new first pass.
+pub fn rules_key(rules: &RuleSet) -> String {
+    let rows: Vec<(&Vec<crate::rules::Cond>, &crate::rules::Verb)> = rules.rows.iter().map(|r| (&r.conds, &r.verb)).collect();
+    serde_json::to_string(&rows).unwrap_or_default()
 }
 
 /// The camp bar at `depth` for `rules` (`camp_panel` at `FORECAST_SIMS`): (reach, sims).
@@ -427,7 +463,7 @@ pub fn reach_cached(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u6
 }
 
 pub fn reach_key(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, budget: u64) -> String {
-    format!("{}:{depth}:{sims}:{tag}:{budget}:{}", lineage_key(game), serde_json::to_string(rules).unwrap_or_default())
+    format!("{}:{depth}:{sims}:{tag}:{budget}:{}", lineage_key(game), rules_key(rules))
 }
 
 /// A fingerprint of what a sim starts from: the lineage fields a fresh run reads (facts,
@@ -453,7 +489,11 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&format!("{:?}", l.facts));
     feed(&format!("{:?}", l.unlocks));
     feed(&serde_json::to_string(&l.vault).unwrap_or_default());
-    feed(&format!("{:?}", game.loadout));
+    // (the send sorts and de-duplicates the loadout: `[5, 3]` and `[3, 5]` pack the same)
+    let mut loadout = game.loadout.clone();
+    loadout.sort();
+    loadout.dedup();
+    feed(&format!("{loadout:?}"));
     feed(&serde_json::to_string(&l.party).unwrap_or_default());
     feed(&serde_json::to_string(&l.supplies).unwrap_or_default());
     feed(&format!("{:?}", l.last_supplies));
@@ -478,7 +518,7 @@ pub fn lineage_key(game: &Game) -> u64 {
     // and the camp that applies it read one panel)
     let active = l.active_set.min(l.sets.len().saturating_sub(1));
     for (i, set) in l.sets.iter().enumerate().filter(|(i, _)| *i != active) {
-        feed(&format!("{i}:{}", serde_json::to_string(set).unwrap_or_default()));
+        feed(&format!("{i}:{}", rules_key(set)));
     }
     feed(&format!("{:?}", l.trophies));
     h

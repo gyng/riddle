@@ -92,8 +92,31 @@ fn trace_seen(run: &mut Run, sight: Option<i32>) {
         return;
     }
     let n = seen_foes(run, sight);
+    let rose = run.trace.last().is_some_and(|t| n > t.foes);
+    // A thief running now is counted apart from one that stepped into view (QA on 1a2a4a9).
+    let running = if rose { (n - view(run).foes.len() as i32).max(0) } else { 0 };
     if let Some(t) = run.trace.last_mut() {
         t.foes = t.foes.max(n);
+        if rose {
+            foe_reasons(t, running);
+        }
+    }
+}
+
+/// QA on 1a2a4a9 (qaO: `hp 3 foes 2 · R2 foes not ≥1` under `foes ≥ 1 → attack`): the `foes`
+/// column is every hostile seen until the next action, the rules count what was in view and
+/// not running with loot when they were read (`TraceTurn.rule_foes`). A `foes not ≥N` beside
+/// a column of N or more says why the foes did not count: `foes fleeing` (thieves running
+/// with loot) or `foes appeared after` (they came into view after the rows were read).
+fn foe_reasons(t: &mut TraceTurn, running: i32) {
+    let (foes, counted) = (t.foes, t.rule_foes);
+    let Some(rows) = t.rows.as_mut() else { return };
+    for w in rows.iter_mut() {
+        let Some(n) = w.why.strip_prefix("foes not ≥").and_then(|x| x.parse::<i32>().ok()) else { continue };
+        if foes >= n && n > counted {
+            w.why = if counted + running >= n { "foes fleeing" } else { "foes appeared after" }.into();
+            w.because = None;
+        }
     }
 }
 
@@ -311,7 +334,9 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     // Cut 6 §3: every row above the one that acted, with its reason (none when R1 acted).
     let whys = std::mem::take(&mut run.rows_why);
     let rows = if whys.is_empty() { None } else { Some(whys) };
-    run.trace.push(TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows });
+    let mut turn = TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows };
+    foe_reasons(&mut turn, (seen_before - v.foes.len() as i32).max(0));
+    run.trace.push(turn);
     if run.trace.len() > 16 {
         run.trace.remove(0);
     }
@@ -484,6 +509,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             if run.over.is_some() && run.exit_row.is_none() {
                 run.exit_row = Some(i as i32);
             }
+            if run.over.is_none() && run.homeward.is_none() && matches!(row.verb.v.as_str(), "return" | "bank") {
+                run.homeward = Some(i as i32);
+                run.homeward_bank = row.verb.v == "bank";
+            }
             // Cut 4: the first row to act after the hero fell to ≤ 20 % is the one the
             // chronicle credits if the floor is survived.
             if run.saved_by.is_none() && (run.low20_t.is_some() || run.low10_t.is_some()) {
@@ -556,22 +585,23 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
 /// Cut 6 §3: the reason table — every `TraceTurn.rows[].why` is one of these shapes, ≤ 3
 /// words.
 ///
-/// Conditions: `hp not <N%`, `hp not >N%`, `foes not ≥N`, `adj not ≥N`, `not in view` (a foe
+/// Conditions: `hp not <N%`, `hp not >N%`, `foes not ≥N` (`foes fleeing` / `foes appeared
+/// after` when the trace's `foes` column reaches N: `foe_reasons`), `adj not ≥N`, `not in view` (a foe
 /// tag), `no weak foe`, `none held`, `no unknown`, `seen not ≥N%`, `depth not ≥N`, `alert not
 /// ≥N`, `not corridor`, `no path`, `no ally`, `loot not ≥N`, `turns not >N`, `not hurt`, `no
 /// kill`, `nothing new`, `no <tile> seen`, `no <kind>`, `party hp ok`, `locked cond`.
 ///
 /// Verbs whose conditions held: `ai::block_reason` (`no path`, `no target`, `no line`, `no
 /// bow`, `cooldown`, `no item`, `unknown item`, `no unknown`, `no use`, `no leash`, `none weak`, `not safe`,
-/// `no stairs`, `no way`, `prayed`, `no shrine`), `card passed`, `brave held`, `fired, free`.
+/// `no stairs`, `no way`, `going home`, `prayed`, `no shrine`), `card passed`, `brave held`, `fired, free`.
 ///
 /// Guards and pre-emptions: `stuck`, `row guard`, `trait first`, `hazard first`, `recall
 /// sense`, `paralysed`, `confused`, `bail`.
 pub const ROW_REASONS: &[&str] = &[
-    "hp not <", "hp not >", "foes not ≥", "adj not ≥", "not in view", "no weak foe", "none held", "no unknown", "seen not ≥",
+    "hp not <", "hp not >", "foes not ≥", "foes fleeing", "foes appeared after", "adj not ≥", "not in view", "no weak foe", "none held", "no unknown", "seen not ≥",
     "depth not ≥", "alert not ≥", "not corridor", "no path", "no ally", "loot not ≥", "turns not >", "not hurt", "no kill",
     "nothing new", "no ", "party hp ok", "locked cond", "no target", "no line", "no bow", "cooldown", "no item", "no use",
-    "no leash", "none weak", "not safe", "no stairs", "no way", "prayed", "no shrine", "unknown item", "card passed", "brave held", "fired, free",
+    "no leash", "none weak", "not safe", "no stairs", "no way", "going home", "prayed", "no shrine", "unknown item", "card passed", "brave held", "fired, free",
     "stuck", "row guard", "trait first", "hazard first", "recall sense", "paralysed", "confused", "bail",
 ];
 

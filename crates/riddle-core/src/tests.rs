@@ -7918,6 +7918,7 @@ fn forecast_is_the_same_across_the_camps_sheet_reads() {
     // The same numbers from a cold cache: nothing but the lineage and the rules feeds them.
     g.panel_cache.borrow_mut().clear();
     g.forecast_cache.borrow_mut().clear();
+    g.refined_panels.borrow_mut().clear();
     assert_eq!(g.forecast(), first);
     assert_eq!(g.forecast_refine(), refined);
 }
@@ -8165,6 +8166,43 @@ fn a_return_walks_home_and_can_die_on_the_way() {
     assert_ne!(run.hero.pos, run.floor.stairs_up, "bail does not walk");
 }
 
+/// QA on 1a2a4a9 (qaP: `returning` at 6/38, the hp came back, the row stopped holding and he
+/// went on down to D8): once the return row acts the walk home is the chore until the exit —
+/// at full health, with the return row's condition false, he still walks home; a `descend`
+/// row above it refuses `going home`; the stake says `returning`.
+#[test]
+fn a_return_is_a_commitment() {
+    let mut g = arena();
+    {
+        let run = g.run.as_mut().unwrap();
+        run.hero.hp = 3;
+    }
+    let low = Row::new(vec![Cond::n("hp<", 50)], Verb::new("return"));
+    let down = Row::new(vec![Cond::n("hp>", 60)], Verb::new("descend"));
+    rules(&mut g, vec![down, low, Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+    // One action: the return row fires and commits.
+    for _ in 0..40 {
+        g.tick();
+        if g.run.as_ref().unwrap().homeward.is_some() {
+            break;
+        }
+    }
+    let run = g.run.as_mut().unwrap();
+    assert_eq!(run.homeward, Some(1), "R2 return acted: committed");
+    // Full health again: the return row's condition no longer reads true, the descend row's does.
+    run.hero.hp = run.hero.max_hp;
+    let depth = run.depth;
+    assert!(g.snapshot().stake.returning, "the HUD reads `returning`");
+    let evs = ticks(&mut g, 400);
+    let run = g.run.as_ref().unwrap();
+    assert_eq!(run.over, Some(ExitTier::Return), "he walked home");
+    assert_eq!(run.depth, depth, "never down a floor on the way");
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Rule { row: 0, .. })), "R1 descend never acted");
+    assert!(run.trace.iter().any(|t| t.rows.as_ref().is_some_and(|r| r.iter().any(|w| w.row == 0 && w.why == "going home"))), "R1 reads `going home`");
+    assert!(run.trace.iter().any(|t| t.row == -2 && t.verb.v == "return"), "the walk is the chore once R2 no longer holds");
+    assert_eq!(run.exit_row, Some(1), "the exit credits the committing row");
+}
+
 /// Cut 19 §4: the dying action was a row the player wrote, and the set without it survives
 /// the replays: the verdict is `row`, naming it, and the first patch cuts it.
 #[test]
@@ -8272,10 +8310,55 @@ fn an_insert_on_a_full_set_drops_the_least_fired_row() {
     let rec = g.deaths.get(&id).unwrap();
     assert_eq!(rec.rules.own_rows(), rec.vocab.max_rows, "a full set");
     for p in d.patches.iter().filter(|p| p.insert_at >= 0 && !p.remove && !p.replace) {
-        let at = p.drops.expect("an insert on a full set names its drop") as usize;
+        // QA on 1a2a4a9: never an exit row, never a row with the patch's own verb.
+        let eligible = |i: usize| !matches!(rec.rules.rows[i].verb.v.as_str(), "return" | "bank") && rec.rules.rows[i].verb.v != p.row.verb.v;
+        let Some(at) = p.drops.map(|d| d as usize) else {
+            assert!(!(0..rec.rules.rows.len()).any(eligible), "{}: an eligible row and no drop", p.row.describe());
+            continue;
+        };
+        assert!(eligible(at), "{} drops R{} ({})", p.row.describe(), at + 1, rec.rules.rows[at].describe());
         let fires = |i: usize| rec.row_fired.get(i).copied().unwrap_or(0);
-        assert!((0..rec.rules.rows.len()).all(|i| fires(at) <= fires(i)), "R{} is not the least fired: {:?}", at + 1, rec.row_fired);
+        assert!((0..rec.rules.rows.len()).filter(|&i| eligible(i)).all(|i| fires(at) <= fires(i)), "R{} is not the least fired: {:?}", at + 1, rec.row_fired);
         assert_ne!(at, 0, "the attack row fired every turn");
+    }
+}
+
+/// QA on 1a2a4a9 (qaP: `+ drop R1` on every patch, R1 his return row): `drops` never names an
+/// exit row nor a row with the patch's own verb; with nothing else to drop it is `None`.
+#[test]
+fn a_patch_never_drops_the_exit_row() {
+    let mut g = arena_seed(2);
+    g.run.as_mut().unwrap().hero.hp = 14;
+    for (x, y) in [(5, 5), (5, 6), (4, 6), (3, 6), (3, 4)] {
+        add_monster(&mut g, "goblin", x, y);
+    }
+    let full: Vec<Row> = vec![
+        Row::new(vec![Cond::n("depth>=", 9)], Verb::new("return")),
+        Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+        Row::new(vec![Cond::n("foes>=", 9)], Verb::new("hold")),
+        Row::new(vec![Cond::n("depth>=", 12)], Verb::new("bank")),
+    ];
+    self::rules(&mut g, full);
+    let mut id = None;
+    for _ in 0..400 {
+        g.tick();
+        g.events.clear();
+        if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            id = Some(g.run.as_ref().unwrap().id);
+            g.finish_run();
+            break;
+        }
+    }
+    let id = id.expect("the hero died");
+    let d = g.death(id).unwrap();
+    let inserts: Vec<&Patch> = d.patches.iter().filter(|p| p.insert_at >= 0 && !p.remove && !p.replace).collect();
+    assert!(!inserts.is_empty(), "{:?}", d.patches);
+    for p in inserts {
+        let rows = &g.deaths.get(&id).unwrap().rules.rows;
+        if let Some(at) = p.drops {
+            let r = &rows[at as usize];
+            assert!(!matches!(r.verb.v.as_str(), "return" | "bank") && r.verb.v != p.row.verb.v, "{} drops {}", p.row.describe(), r.describe());
+        }
     }
 }
 
@@ -8408,6 +8491,64 @@ fn the_loadout_repeats_unless_cleared() {
     let cat = crate::meta::catalogue(&g.lineage);
     assert_eq!(cat.iter().filter(|u| u.pinned).map(|u| u.id.as_str()).collect::<Vec<_>>(), ["row6"]);
     assert!(!cat.iter().any(|u| u.id == "auto_supply"), "the repeat is the free default, not an unlock");
+}
+
+/// QA on 1a2a4a9 (qaP: `repeat · $40` with a heal and a mapping scroll packed, then
+/// `−$60 repeat mapping · −$40 repeat heal`; after a $26 stall the heal was not re-packed and
+/// nothing said so): the badge's price is what the re-pack charges, and a re-pack short of gold
+/// buys what it can and says `repeat short`.
+#[test]
+fn the_repeat_badge_is_the_repack_price() {
+    let mut g = Game::new(5);
+    no_kennel_leash(&mut g);
+    identify(&mut g, "heal");
+    identify(&mut g, "mapping");
+    g.lineage.gold = 1000;
+    g.buy_supply("heal").unwrap();
+    let price = |g: &Game, k: &str| g.supply_catalogue().iter().find(|e| e.kind == k).unwrap().price;
+    assert_eq!(g.lineage().repeat_gold, price(&g, "heal"));
+    g.buy_supply("mapping").unwrap();
+    let want = price(&g, "heal") + price(&g, "mapping");
+    assert_eq!(g.lineage().repeat_gold, want, "the shelf is the next send's pack");
+    g.start_run(None);
+    {
+        let (run, mut cx) = g.ctx();
+        run.hero.inv.retain(|i| i.kind != "heal" && i.kind != "mapping");
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    let before = g.lineage.gold;
+    g.finish_run();
+    let charged: i32 = g.lineage.gold_ledger.iter().filter(|l| l.why.starts_with("repeat ") && l.delta < 0).map(|l| -l.delta).sum();
+    assert_eq!(charged, want, "the re-pack charged the badge: {:?}", g.lineage.gold_ledger.iter().rev().take(4).collect::<Vec<_>>());
+    let _ = before;
+    // Only the heal used: the mapping scroll comes back, the heal alone is bought again.
+    assert_eq!(g.lineage().repeat_gold, want);
+    g.start_run(None);
+    {
+        let (run, mut cx) = g.ctx();
+        run.hero.inv.retain(|i| i.kind != "heal");
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    let n = g.lineage.gold_ledger.len();
+    g.finish_run();
+    let charged: i32 = g.lineage.gold_ledger[n.min(g.lineage.gold_ledger.len())..].iter().filter(|l| l.why.starts_with("repeat ") && l.delta < 0).map(|l| -l.delta).sum();
+    assert_eq!(charged, price(&g, "heal"), "a top-up: {:?}", g.lineage.gold_ledger.iter().rev().take(4).collect::<Vec<_>>());
+    let mut kinds: Vec<&str> = g.lineage.supplies.iter().filter(|s| !s.free).map(|s| s.kind.as_str()).collect();
+    kinds.sort();
+    assert_eq!(kinds, ["heal", "mapping"]);
+    // Short of gold: what it can, and a `repeat short` line.
+    let refund: Vec<u32> = g.lineage.supplies.iter().filter(|s| !s.free).map(|s| s.id).collect();
+    for id in refund {
+        g.drop_supply(id).unwrap();
+    }
+    g.lineage.last_supplies = vec!["mapping".into(), "heal".into()];
+    let gold = g.lineage.gold;
+    g.lineage.gold_move(price(&g, "heal") + 1 - gold, "test");
+    g.restock();
+    assert_eq!(g.lineage.supplies.iter().filter(|s| !s.free).map(|s| s.kind.as_str()).collect::<Vec<_>>(), ["heal"], "the heal it could pay for");
+    assert_eq!(g.lineage.repeat_short, ["mapping"]);
+    assert_eq!(g.lineage().repeat_short, ["mapping"]);
+    assert!(g.lineage.gold_ledger.iter().any(|l| l.why == "repeat short" && l.delta == 0), "{:?}", g.lineage.gold_ledger.iter().rev().take(3).collect::<Vec<_>>());
 }
 
 /// Cut 19 §3: an absence's repeat never spends more than the absence brought home.

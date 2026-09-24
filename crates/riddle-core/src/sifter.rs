@@ -429,8 +429,14 @@ pub fn resolve(run: &mut Run, res: Resolution) {
                 // One blow from full health.
                 e.setup = Setup::Hurt;
                 e.low_hp = 0;
-                if e.threat.is_empty() {
-                    e.threat = vec![(cause.clone(), 1)];
+                // `X took him down` names the killer (QA on 1a2a4a9: the threat in view led
+                // — `A goblin took him down; …; died on D8` — whoever landed the blow).
+                match e.threat.iter().position(|(k, _)| cause_key(k) == cause_key(cause)) {
+                    Some(i) => {
+                        let k = e.threat.remove(i);
+                        e.threat.insert(0, k);
+                    }
+                    None => e.threat.insert(0, (cause.clone(), 1)),
                 }
             }
         }
@@ -560,7 +566,7 @@ pub const PAST_SHORT: &[(&str, &str)] = &[
 /// Trait phrases (row −1): the trait as a noun and what it did.
 pub const TRAIT_PAST: &[&str] = &["took the gold", "grabbed", "ran", "held", "drank", "read", "tried it"];
 /// Chore beats that name no verb.
-pub const NO_ROW: &[&str] = &["no row fired", "paralysed, no row", "confused, no row"];
+pub const NO_ROW: &[&str] = &["no row fired", "paralysed, no row", "confused, no row", NO_ROW_SHORT[0], NO_ROW_SHORT[1], NO_ROW_SHORT[2]];
 
 pub fn past_tense(verb: &Verb) -> String {
     past_tense_form(verb, false)
@@ -846,21 +852,43 @@ pub fn story_line(ep: &Episode) -> String {
     if let Some(line) = routine_line(ep) {
         return line;
     }
+    // QA on 1a2a4a9 (qaO: `The lock took him to 4 HP; no row fired; died.` · `Spectral blades
+    // cornered him to 5 HP; no row fired; died.` beside DEATHS `fire ×1`): a death whose
+    // killer is not the setup's threat keeps its killer — the end never shortens to a bare
+    // `died`; the no-row beat shortens to `no row` first.
+    let killer_named = match &ep.resolution {
+        Resolution::Died { cause } => ep.threat.first().is_some_and(|(k, _)| cause_key(k) == cause_key(cause)),
+        _ => true,
+    };
     let mut s = String::new();
     for (rs, ts, es) in [(false, false, 0), (false, true, 0), (false, true, 1), (true, true, 1), (true, true, 2)] {
+        let es = if killer_named { es } else { es.min(1) };
         // A death from full health has its killer in the setup (`An ogre took him down`); the
         // exit then says where, not who again (`died on D7`, not `died to an ogre`).
         let end = match &ep.resolution {
-            Resolution::Died { .. } if ep.setup == Setup::Hurt && ep.low_hp <= 0 => format!("died on D{}", ep.depth),
+            Resolution::Died { .. } if ep.setup == Setup::Hurt && ep.low_hp <= 0 && killer_named => format!("died on D{}", ep.depth),
             res => resolution_form(res, es),
         };
-        s = format!("{}; {}; {}.", setup_phrase(ep, ts), turn_phrase(ep, rs), end);
+        let mut turn = turn_phrase(ep, rs);
+        if !killer_named && rs {
+            if let Some(i) = NO_ROW[..3].iter().position(|x| *x == turn) {
+                turn = NO_ROW_SHORT[i].into();
+            } else if ep.combo.is_some() && ep.act.row >= 0 {
+                // (the combo's `the chokepoint landed` gives way to its row's `R3 held`)
+                turn = turn_phrase(&Episode { combo: None, ..ep.clone() }, rs);
+            }
+        }
+        s = format!("{}; {turn}; {end}.", setup_phrase(ep, ts));
         if word_count(&s) <= STORY_WORDS {
             return s;
         }
     }
     crate::chronicle::clamp_words(&s, STORY_WORDS)
 }
+
+/// The no-row beats' short forms (`NO_ROW`'s first three, in order), for a death line that
+/// must still name its killer.
+pub const NO_ROW_SHORT: [&str; 3] = ["no row", "paralysed", "confused"];
 
 /// Cut 12 §4: the routine line — a send that came home with nothing to tell (no low point)
 /// reads the floor and its situation, the row that ended it, and what it brought:
@@ -1220,6 +1248,29 @@ mod tests {
             resolution: res,
             ..Default::default()
         }
+    }
+    /// QA on 1a2a4a9 (qaO): a death line whose setup names another threat still names the
+    /// killer — never a bare `died`.
+    #[test]
+    fn a_death_line_names_its_killer() {
+        let mut blades = ep(&[("spectral_blade", 2)], 5, -2, "wait", Resolution::Died { cause: "fire".into() });
+        blades.cornered = true;
+        assert_eq!(story_line(&blades), "Spectral blades cornered him to 5 HP; no row; died to fire.");
+        let lock = ep(&[("lock", 1)], 4, -2, "wait", Resolution::Died { cause: "gas".into() });
+        assert_eq!(story_line(&lock), "The lock took him to 4 HP; no row; died to gas.");
+        let mut monkey = ep(&[("monkey", 1)], 2, -2, "wait", Resolution::Died { cause: "goblin_archer".into() });
+        monkey.chased = true;
+        let s = story_line(&monkey);
+        assert!(s.ends_with("died to archer.") || s.ends_with("died to a goblin archer."), "{s}");
+        let mut held = ep(&[("hunger", 1)], 1, -2, "paralysed", Resolution::Died { cause: "ghoul".into() });
+        held.cornered = true;
+        assert_eq!(story_line(&held), "The hunger cornered him to 1 HP; paralysed; died to ghoul.");
+        for e in [&blades, &lock, &monkey, &held] {
+            assert!(story_ok(&story_line(e)), "{}", story_line(e));
+        }
+        // the killer's own line may still shorten to `died`
+        let own = ep(&[("gas", 1)], 4, -2, "wait", Resolution::Died { cause: "burst".into() });
+        assert!(story_line(&own).starts_with("Gas took him to 4 HP;"), "{}", story_line(&own));
     }
     #[test]
     fn story_lines_follow_the_grammar() {

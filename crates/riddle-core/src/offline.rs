@@ -223,7 +223,8 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
     // QA on 92eb880: the coins the ledger paid per kind, when the batch recorded them (a save
     // from before carries cents only, apportioned below) — the exit sheet's own numbers.
     let paid = b.salvaged.keys().all(|k| b.salvaged_coins.contains_key(k));
-    let mut salvaged: Vec<SalvageRow> = b.salvaged.iter().map(|(k, (n, g))| SalvageRow { kind: k.clone(), n: *n, gold: if paid { b.salvaged_coins[k] } else { g / 100 } }).collect();
+    // QA on 1a2a4a9: an unidentified kind reads as its flavour (`LineageState::wire_name`).
+    let mut salvaged: Vec<SalvageRow> = b.salvaged.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k), n: *n, gold: if paid { b.salvaged_coins[k] } else { g / 100 } }).collect();
     let mut order: Vec<(i32, usize)> = if paid { Vec::new() } else { b.salvaged.values().enumerate().map(|(i, (_, g))| (g % 100, i)).collect() };
     order.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
     let short = total - salvaged.iter().map(|r| r.gold).sum::<i32>();
@@ -261,11 +262,12 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         deepest: b.run_outcomes.iter().map(|(d, _)| *d).max().unwrap_or(0),
         // Cut 13 §3: the night's ledger — what the automations bought, per kind in coins.
         stalled: b.stalls,
-        spent: b.spent.iter().map(|(k, (n, g))| SalvageRow { kind: k.replace('_', " "), n: *n, gold: *g }).filter(|r| r.gold > 0).collect(),
+        spent: b.spent.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).filter(|r| r.gold > 0).collect(),
         gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum() }),
         exits: b.exits.clone(),
         picked: game.lineage.picked_clean(),
         restock_capped: b.restock_capped,
+        repeat_short: b.repeat_short,
     }
 }
 

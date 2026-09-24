@@ -57,6 +57,48 @@ fn check_labels(t: &mut Tally, g: &Game, seed: u64, items: &[riddle_core::item::
     }
 }
 
+/// QA on 1a2a4a9 (qaO: the keep sheet's `sold blink $2 · fear ×2 $3`, the report's SALVAGED
+/// `teleport ×9 · identify ×4` while the forge said `brittle scroll?`): no item label on the
+/// wire names a potion or scroll kind the lineage has not identified. `names` are the wire's
+/// item labels (salvage and spent rows, `spent_on`, found and pending items, forge rows).
+fn check_names<'a>(t: &mut Tally, g: &Game, seed: u64, names: impl IntoIterator<Item = &'a str>, at: &str) {
+    let l = &g.lineage;
+    let hidden: Vec<String> = l.flavours.potion.keys().chain(l.flavours.scroll.keys()).filter(|k| !is_identified(&l.facts, &l.flavours, k)).map(|k| k.replace('_', " ")).collect();
+    for name in names {
+        let n = name.replace('_', " ");
+        let n = n.strip_suffix(" potion").or_else(|| n.strip_suffix(" scroll")).unwrap_or(&n).to_string();
+        t.check("no wire label names an unidentified kind", !hidden.contains(&n), || format!("seed {seed} {at}: `{name}`"));
+    }
+}
+
+/// The exit lines' and the report's item labels (`check_names`).
+fn check_report_names(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::ReturnReport, at: &str) {
+    let mut names: Vec<&str> = Vec::new();
+    names.extend(r.salvaged.iter().map(|x| x.kind.as_str()));
+    names.extend(r.spent.iter().map(|x| x.kind.as_str()));
+    names.extend(r.found.iter().map(|x| x.label.as_str()));
+    for x in &r.exits {
+        names.extend(x.salvaged.iter().map(|s| s.kind.as_str()));
+        names.extend(x.spent_on.iter().map(|s| s.as_str()));
+    }
+    let forge: Vec<String> = g.lineage().forge.keys().cloned().collect();
+    names.extend(forge.iter().map(|s| s.as_str()));
+    check_names(t, g, seed, names, at);
+}
+
+/// QA on 1a2a4a9 (qaO: `hp 3 foes 2 · R2 foes not ≥1` under `foes ≥ 1 → attack`): a trace
+/// turn never gives `foes not ≥N` beside a `foes` column of N or more — the reason says why
+/// they did not count (`foes fleeing` / `foes appeared after`).
+fn check_foe_reasons(t: &mut Tally, seed: u64, trace: &riddle_core::Trace, at: &str) {
+    for x in &trace.turns {
+        for w in x.rows.iter().flatten() {
+            let n = w.why.strip_prefix("foes not ≥").and_then(|n| n.parse::<i32>().ok());
+            t.check("no `foes not ≥N` beside a foes column of N+", n.is_none_or(|n| x.foes < n), || format!("seed {seed} {at}: t{} foes {} (rules {}) · R{} {}", x.t, x.foes, x.rule_foes, w.row + 1, w.why));
+            t.check("a row reason is from the table", riddle_core::turn::row_reason_ok(&w.why), || format!("seed {seed} {at}: `{}`", w.why));
+        }
+    }
+}
+
 /// A gate's `needs` never names a fact the lineage holds.
 fn check_needs(t: &mut Tally, g: &Game, seed: u64) {
     let l = &g.lineage;
@@ -71,6 +113,22 @@ fn check_needs(t: &mut Tally, g: &Game, seed: u64) {
         };
         t.check("a gate's `needs` never names a held fact", !held, || format!("seed {seed}: {} needs `{n}`", u.id));
     }
+}
+
+/// QA on 1a2a4a9 (qaP: the short list reshuffled between two opens; PENDING and UNLOCKS named
+/// different cards): the short list is the same from `unlocks()`, `unlock_deltas()` and
+/// `unlocks()` again, holds at most `SHORT_LIST` cards and the pinned one, and the report's
+/// unlock lines are its available cards.
+fn check_short(t: &mut Tally, g: &Game, seed: u64) {
+    let pick = |c: Vec<riddle_core::UnlockInfo>| c.into_iter().filter(|u| u.short).map(|u| u.id).collect::<Vec<_>>();
+    let a = pick(g.unlocks());
+    let b = pick(g.unlock_deltas());
+    let c = pick(g.unlocks());
+    let pinned: Vec<String> = g.unlocks().into_iter().filter(|u| u.pinned).map(|u| u.id).collect();
+    t.check("the unlock short list is stable across reads", a == b && b == c && a.len() <= riddle_core::meta::SHORT_LIST.max(pinned.len()) && pinned.iter().all(|p| a.contains(p)), || format!("seed {seed}: {a:?} · {b:?} · {c:?} · pinned {pinned:?}"));
+    let pending: Vec<String> = riddle_core::meta::pending(g).into_iter().filter_map(|l| l.strip_prefix("unlock ").and_then(|x| x.split(' ').next()).map(String::from)).collect();
+    let avail: Vec<String> = g.unlocks().into_iter().filter(|u| u.short && u.available).map(|u| u.id).collect();
+    t.check("PENDING's unlocks are the short list's available cards", pending == avail, || format!("seed {seed}: {pending:?} vs {avail:?}"));
 }
 
 /// The forecast's ends sum to 1 and a 0 % death share lists no killers.
@@ -142,7 +200,12 @@ const BANK_SIMS: u32 = 20;
 /// Σ over seeds, per [the good set, its bank-depth variants]: (forecast banks, forecast sims,
 /// real banks, real sends).
 #[derive(Default, Clone)]
-struct BankTally([(f64, f64, f64, f64); 2]);
+struct BankTally([(f64, f64, f64, f64); 2], StallSum);
+
+/// QA on 1a2a4a9 (qaP): Σ over the stall leg's records — (the unpatched set's forecast stall
+/// share, the top patch's set's, records).
+#[derive(Default, Clone, Copy)]
+struct StallSum(f64, f64, u32);
 
 /// Cut 14 §1–2: a death screen offers nothing under its baseline (a `dice` death's candidates
 /// kept under the bar are flagged `below_bar`), and a `dice` margin names no unused item.
@@ -163,6 +226,18 @@ fn check_death(t: &mut Tally, seed: u64, d: &riddle_core::Death) {
     }
     if d.verdict == "dice" {
         t.check("no dice death's margin names an unused item", !d.margin.contains("unused"), || format!("seed {seed} run {}: `{}`", d.run_id, d.margin));
+    }
+    // QA on 1a2a4a9 (qaO: `heal unused · 1 unknown unused` beside `R1 no unknown`).
+    let said_none = d.trace.turns.last().and_then(|x| x.rows.as_ref()).is_some_and(|rows| rows.iter().any(|w| w.why == "no unknown"));
+    t.check("a margin's unknown count never contradicts a row's `no unknown`", !(said_none && d.margin.contains("unknown unused")), || format!("seed {seed} run {}: `{}`", d.run_id, d.margin));
+    check_foe_reasons(t, seed, &d.trace, &format!("run {} death trace", d.run_id));
+    // QA on 1a2a4a9 (qaP: `+ drop R1` on every patch, R1 the return row).
+    if let Some(rules) = &d.rules {
+        for p in d.patches.iter().filter(|p| p.drops.is_some()) {
+            let r = p.drops.and_then(|i| rules.rows.get(i as usize));
+            let ok = r.is_some_and(|r| !r.is_card() && !matches!(r.verb.v.as_str(), "return" | "bank") && r.verb.v != p.row.verb.v);
+            t.check("a patch's `drops` is never an exit row or its own verb's", ok, || format!("seed {seed} run {}: {} drops {:?}", d.run_id, p.row.describe(), r.map(|r| r.describe())));
+        }
     }
 }
 
@@ -204,9 +279,28 @@ fn check_forecast_reads(t: &mut Tally, g: &mut Game, seed: u64, died: Option<u32
             let _ = g.death(id);
         }
         let r = g.lineage.rules().clone();
-        let _ = g.set_rules(r);
+        let _ = g.set_rules(r.clone());
         let l = g.loadout.clone();
         g.loadout(l);
+        // QA on 1a2a4a9 (qaO: `death 17% ↔ 13%`, `D4 68%±13 ↔ 67%±9` on opening the vault,
+        // `D5 82%±11 → 85%±7` on opening `edit`): what the camp's panels send when opened or
+        // re-applied — the cage picker's panels, the same preferences and repeat again, the
+        // loadout in another order, the same rows re-tagged by the editor.
+        let _ = g.cage_forecast();
+        let (vp, kp, rep) = (g.lineage.vault_pref.clone(), g.lineage.keep_pref.clone(), g.lineage().repeat);
+        let _ = g.set_vault_pref(&vp);
+        let _ = g.set_keep_pref(&kp);
+        g.set_restock(rep);
+        let mut l = g.loadout.clone();
+        l.reverse();
+        g.loadout(l);
+        // (each pass re-tags every row the other way: `player` ↔ `patch`)
+        let mut tagged = r;
+        for row in tagged.rows.iter_mut() {
+            row.origin = Some(if row.origin.as_deref() == Some("player") { "patch" } else { "player" }.into());
+        }
+        let _ = g.set_rules(tagged);
+        let _ = g.cage_forecast();
     };
     let first = g.forecast();
     reads(g);
@@ -217,11 +311,18 @@ fn check_forecast_reads(t: &mut Tally, g: &mut Game, seed: u64, died: Option<u32
     }
     let refined = g.forecast_refine();
     reads(g);
+    // A session's other panels (patch deltas, edited sets, the cage's) fill the memo: a full
+    // one never drops the panel the camp shows (the cage picker's clear-all did — qaO).
+    for i in 0..riddle_core::forecast::PANEL_CACHE_MAX {
+        g.panel_cache.borrow_mut().insert(format!("qa filler {i}"), Vec::new());
+    }
+    let _ = g.cage_forecast();
     let after = g.forecast();
     t.check("after the refine a forecast read is the refined panel", after == refined, || format!("seed {seed}: refined {:?} read {:?}", refined.depths.iter().map(|d| d.reach).collect::<Vec<_>>(), after.depths.iter().map(|d| d.reach).collect::<Vec<_>>()));
     let cold = g.clone();
     cold.panel_cache.borrow_mut().clear();
     cold.forecast_cache.borrow_mut().clear();
+    cold.refined_panels.borrow_mut().clear();
     t.check("a cold cache reads the same two passes", cold.forecast() == first && cold.forecast_refine() == refined, || format!("seed {seed}"));
 }
 
@@ -261,6 +362,102 @@ fn check_shadowed_on(t: &mut Tally, g: &Game, seed: u64) {
     }
 }
 
+/// QA on 1a2a4a9 (qaO: `The lock took him to 4 HP; no row fired; died.` · `Spectral blades
+/// cornered him to 5 HP; no row fired; died.` beside DEATHS `fire ×1`): every reel line that
+/// ends in a death names the run's killer — its arc's resolution is `died to <the record's
+/// cause>`, and the line's end is `died to <the cause, or its last word>`, or `died on D<n>` /
+/// a bare `died` only when the setup's threat is the killer.
+fn check_reel(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::ReturnReport) {
+    use riddle_core::sifter::{cause_key, cause_phrase};
+    for h in &r.reel {
+        let Some(arc) = &h.arc else { continue };
+        if !arc.resolution.starts_with("died") {
+            continue;
+        }
+        let Some(rec) = g.deaths.get(&h.run_id).filter(|x| !x.stall) else { continue };
+        let cause = &rec.death.cause;
+        let phrase = cause_phrase(cause);
+        let end = h.text.strip_suffix('.').and_then(|b| b.rsplit("; ").next()).unwrap_or("");
+        let killer_led = cause_key(&arc.threat) == cause_key(cause);
+        let ok = arc.resolution == format!("died to {phrase}")
+            && match end.strip_prefix("died to ") {
+                Some(w) => phrase.ends_with(w),
+                None => (end == "died" || end.starts_with("died on D")) && killer_led,
+            };
+        t.check("a reel `died` line names the run's death cause", ok, || format!("seed {seed} run {}: `{}` · arc {} / {} · cause {cause}", h.run_id, h.text, arc.threat, arc.resolution));
+        t.check("a reel line is a story line", riddle_core::sifter::story_ok(&h.text), || format!("seed {seed} run {}: `{}`", h.run_id, h.text));
+    }
+}
+
+/// The label check with salvage in it: a copy of the lineage with `hp < 50% → return` on top
+/// (a return cuts 40 % of the pack to salvage before the sheet) for two hours offline.
+fn check_salvage_leg(t: &mut Tally, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    h.lineage.unlocks.extend(["row5", "row6", "row7", "row8"].map(String::from));
+    let mut set = g.lineage.rules().clone();
+    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 50)], Verb::new("return")));
+    if h.set_rules_raw(set).is_err() {
+        return;
+    }
+    let r = h.run_offline(2 * 3600);
+    check_report_names(t, &h, seed, &r, "return leg");
+    // (and one watched exit's sheet and cut)
+    h.send();
+    for _ in 0..4000 {
+        let s = h.step(50);
+        if s.run_over {
+            if let Some(pe) = &s.exit_pending {
+                check_names(t, &h, seed, pe.items.iter().map(|i| i.label.as_str()), "return leg sheet");
+            }
+            if let Some(x) = h.last_exit.clone() {
+                check_names(t, &h, seed, x.salvaged.iter().map(|s| s.kind.as_str()), "return leg cut");
+            }
+            break;
+        }
+    }
+}
+
+/// QA on 1a2a4a9 (qaP): a copy of the lineage that knows every tag and plays a set that
+/// paces (`foe: ranged → retreat` over the engagement row) for four hours; each stall record's
+/// top patch (a cut, a swap or an insert) is applied, and the two sets' forecast stall shares
+/// go into the pooled check (`StallSum`). The record's verdict and its patches are checked
+/// as the night's stalls are.
+fn check_stall_leg(t: &mut Tally, sum: &mut StallSum, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    riddle_core::probes::learn_everything(&mut h);
+    h.lineage.unlocks.insert("row5".into());
+    let set = riddle_core::RuleSet {
+        rows: vec![
+            Row::new(vec![Cond::n("hp<", 40)], Verb::arg("drink", "heal")),
+            Row::new(vec![Cond::t("foe_tag", "ranged")], Verb::new("retreat")),
+            Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+        ],
+        name: None,
+    };
+    if h.set_rules_raw(set).is_err() {
+        return;
+    }
+    h.run_offline(4 * 3600);
+    let ids: Vec<u32> = h.deaths.iter().filter(|(_, rec)| rec.stall).map(|(id, _)| *id).collect();
+    for id in ids {
+        let Some(d) = h.death(id) else { continue };
+        check_death(t, seed, &d);
+        let Some(p) = d.patches.iter().find(|p| p.insert_at >= 0 && !p.below_bar) else { continue };
+        let before = h.forecast();
+        let mut k = h.clone();
+        if k.set_rules_raw(riddle_core::trace::patched_rules(h.lineage.rules(), p, h.lineage.max_rows())).is_err() {
+            continue;
+        }
+        let after = k.forecast();
+        if let (Some(a), Some(b)) = (before.ends, after.ends) {
+            sum.0 += a.stall;
+            sum.1 += b.stall;
+            sum.2 += 1;
+        }
+    }
+}
+
 fn play(seed: u64) -> (Tally, BankTally) {
     let mut t = Tally::default();
     let mut bank = BankTally::default();
@@ -297,6 +494,7 @@ fn play(seed: u64) -> (Tally, BankTally) {
                 let cents: i32 = p.items.iter().map(|i| salvage_value(&i.kind) * p.pct / GOLD_DIVISOR).sum();
                 t.check("`ExitPending.worth` == the salvage arithmetic", pe.worth == want && want.iter().sum::<i32>() == (g.lineage.gold_carry + cents).max(0) / 100, || format!("seed {seed}: worth {:?} vs {want:?}", pe.worth));
                 check_labels(&mut t, &g, seed, &p.items, "exit sheet");
+                check_names(&mut t, &g, seed, pe.items.iter().map(|i| i.label.as_str()), "exit sheet");
                 let (gold, head) = (g.lineage.gold, g.batch.salvage_gold);
                 g.keep(vec![]).unwrap();
                 let sum: i32 = want.iter().sum();
@@ -388,6 +586,16 @@ fn play(seed: u64) -> (Tally, BankTally) {
         t.check("report `found` never labels `?` when known", !f.known || !f.label.contains('?'), || format!("seed {seed}: {f:?}"));
     }
     check_gold(&mut t, &g, seed, "after the night");
+    check_short(&mut t, &g, seed);
+    check_report_names(&mut t, &g, seed, &r, "report");
+    for x in &r.exits {
+        if let Some(tr) = &x.trace {
+            check_foe_reasons(&mut t, seed, tr, &format!("run {} exit trace", x.run_id));
+        }
+    }
+    check_reel(&mut t, &g, seed, &r);
+    check_salvage_leg(&mut t, &g, seed);
+    check_stall_leg(&mut t, &mut bank.1, &g, seed);
     check_needs(&mut t, &g, seed);
     check_forecast(&mut t, &g, seed);
     check_shadowed(&mut t, &g, seed);
@@ -466,6 +674,9 @@ fn main() {
                     a.2 += x.2;
                     a.3 += x.3;
                 }
+                all.1 .0 += b.1 .0;
+                all.1 .1 += b.1 .1;
+                all.1 .2 += b.1 .2;
             })
         })
         .collect();
@@ -482,6 +693,12 @@ fn main() {
         t.check(name, (pf - pr).abs() <= band + 1e-9, || format!("forecast {pf:.3} over {fn_} sims vs sends {pr:.3} over {rn}, band ±{band:.3}"));
         println!("{name}: forecast {pf:.3} ({fn_} sims) · sends {pr:.3} ({rn}) · ±{band:.3}");
     }
+    // QA on 1a2a4a9 (qaP: the stall patch `survives 100%`, the next run stalled in the same
+    // loop, and the camp showed no stall line): over the stall leg's records, the top patch's
+    // set forecasts fewer stalls than the set that stalled.
+    let StallSum(base, patched, n) = banks.lock().unwrap().1;
+    t.check("a stall's top patch forecasts fewer stalls (Σ records)", n > 0 && patched < base, || format!("{n} records: stall share Σ {base:.2} → {patched:.2}"));
+    println!("stall leg: {n} records · forecast stall share Σ {base:.2} → {patched:.2} with the top patch");
     let mut fails = 0;
     println!("{:<58} {:>8}  result", "invariant", "checks");
     for (name, (n, f, d)) in &t.0 {

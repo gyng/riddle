@@ -287,7 +287,25 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     }
     // Cut 3: a chalked floor (`chalk:<depth>`) is walked straight to its stairs (whatever lies
     // on the way is picked up in passing).
-    if v.adj == 0 && cx.facts.contains(&format!("chalk:{}", run.depth)) && !stairs_sealed(run) && chalk_step(run, cx) {
+    // QA on 1a2a4a9: walking home (`Run.homeward`), the walk is the chore — to the up-stairs
+    // and out at the committing row's tier — and the chores never take him down a floor.
+    let home = run.homeward.is_some();
+    if home {
+        let verb = Verb::new(if run.homeward_bank { "bank" } else { "return" });
+        let s = run.floor.stairs_up;
+        if run.hero.pos == s {
+            if run.exit_row.is_none() {
+                run.exit_row = run.homeward;
+            }
+            end_run(run, cx, if run.homeward_bank { ExitTier::Bank } else { ExitTier::Return });
+            return verb;
+        }
+        let parent = hero_path_home(run, s);
+        if step_towards(run, cx, s, &parent) {
+            return verb;
+        }
+    }
+    if v.adj == 0 && !home && cx.facts.contains(&format!("chalk:{}", run.depth)) && !stairs_sealed(run) && chalk_step(run, cx) {
         return Verb::new("descend");
     }
     if v.adj == 0 && !run.items_ignored() && nearest_item_step(run, cx, true) {
@@ -305,13 +323,13 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     // The chore threshold for `descend` is 60% seen (Cut 2 §1): once that much of the floor
     // is known and the way down is too, the chores go down rather than sweep the rest. A
     // heir with no rows at all has no orders and only wanders (the chores never carry it).
-    if !cx.rules.rows.is_empty() && run.floor.map.seen_pct() >= CHORE_DESCEND_SEEN && !stairs_sealed(run) && descend_step(run, cx) {
+    if !home && !cx.rules.rows.is_empty() && run.floor.map.seen_pct() >= CHORE_DESCEND_SEEN && !stairs_sealed(run) && descend_step(run, cx) {
         return Verb::new("descend");
     }
     if explore_step(run, cx) {
         return Verb::new("explore");
     }
-    if descend_step(run, cx) {
+    if !home && descend_step(run, cx) {
         return Verb::new("descend");
     }
     if !run.items_ignored() && nearest_item_step(run, cx, true) {
@@ -434,6 +452,7 @@ pub fn block_reason(run: &Run, cx: &Ctx, verb: &Verb, v: &View) -> &'static str 
             }
         }
         "rest" => "not safe",
+        "descend" if run.homeward.is_some() => "going home",
         "descend" => "no stairs",
         "pray" => {
             if run.prayed {
@@ -705,7 +724,7 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
         }
         "shadowstep" => class_has_verb(run.hero.class, run.hero.level, "shadowstep") && verb_shadowstep(run, cx, v),
         "descend" => {
-            if stairs_sealed(run) {
+            if stairs_sealed(run) || run.homeward.is_some() {
                 false
             } else if run.hero.pos == run.floor.stairs_down {
                 descend(run, cx);

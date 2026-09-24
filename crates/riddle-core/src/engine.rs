@@ -30,6 +30,8 @@ pub const REMEMBER_ACTIONS: u32 = 10;
 pub const MAX_TURNS_PER_RUN: u32 = 120_000;
 /// Oscillation-guard firings on one floor before the run ends as `stalled` and gets a verdict.
 pub const STALL_FIRES: u32 = 3;
+/// QA on 1a2a4a9: the ledger's zero line when the re-pack ran short of gold.
+pub const REPEAT_SHORT: &str = "repeat short";
 /// A new heir's purse is topped up to this (one potion) so the camp is never at $0 after a death.
 pub const WAKE_PAY: i32 = 40;
 /// Cut 3: rule rows with every row unlock (`row5`–`row10`).
@@ -251,6 +253,24 @@ pub struct Run {
     /// 1), for the stall verdict's first patch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stuck_row: Option<i32>,
+    /// QA on 1a2a4a9 (qaP: `returning` at 6/38, then hp came back, the row stopped holding
+    /// and he went on down to D8): a return is a commitment. The row (set index) whose
+    /// `return` / `bank` acted: from then on the walk home replaces the chores — when no row
+    /// acts, the hero steps toward the up-stairs and exits there at that row's tier
+    /// (`ai::chore`) — while every row still acts as written (a heal, a fight on the way; the
+    /// return row itself walks when it holds), and nothing takes him down a floor (a
+    /// `descend` refuses `going home`; the chores never descend). Until he exits or dies.
+    /// Sims and verdict replays play the same rule (it is the run's own state).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub homeward: Option<i32>,
+    /// The committing row was a `bank` (the walk exits at 100 %), else a `return`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub homeward_bank: bool,
+    /// QA on 1a2a4a9: the kinds the send's re-pack could not pay for (`LineageState::
+    /// repeat_short` at the send) — a row that reaches for one reads `repeat short`, not
+    /// `never found`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repeat_short: Vec<String>,
     /// Trait pre-emption clock: the action of the last trait deviation.
     #[serde(default)]
     pub trait_last: Option<u32>,
@@ -791,6 +811,10 @@ pub struct LineageState {
     /// §3: kinds the last run used to no effect — `restock` skips them once.
     #[serde(default)]
     pub last_wasted: Vec<String>,
+    /// QA on 1a2a4a9 (qaP: `repeat · $100`, $26 in the purse, the heal not re-packed and no
+    /// word): the kinds the last re-pack could not pay for (it buys what it can, in order).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repeat_short: Vec<String>,
     /// Cut 15 §2: unlocks bought with gold so far; each raises the next gold price by a quarter
     /// of the first (`meta::gold_price`).
     #[serde(default)]
@@ -907,6 +931,7 @@ impl LineageState {
             trait_offer: offer.to_vec(),
             kennel_declined: false,
             last_wasted: Vec::new(),
+            repeat_short: Vec::new(),
             gold_buys: 0,
             picked: BTreeMap::new(),
             night_runs: 0,
@@ -956,7 +981,8 @@ impl LineageState {
     pub fn gold_move(&mut self, delta: i32, why: &str) {
         self.gold += delta;
         let exit = why.starts_with("returned") || why.starts_with("banked") || why.starts_with("died") || why.starts_with("lost") || why.starts_with("stalled");
-        if delta == 0 && !exit {
+        // QA on 1a2a4a9: a re-pack the purse could not pay says so (`$0 repeat short`).
+        if delta == 0 && !exit && why != REPEAT_SHORT {
             return;
         }
         let t = self.total_turns;
@@ -1071,6 +1097,7 @@ impl LineageState {
             shadowed_by: self.shadowed_by(self.rules()),
             repeat: !self.restock_off,
             repeat_kinds: self.last_supplies.iter().filter(|k| !self.last_wasted.contains(k)).cloned().collect(),
+            repeat_short: self.repeat_short.clone(),
             // (priced on the shelf by `Game::lineage`)
             repeat_gold: 0,
         }
@@ -1108,6 +1135,18 @@ impl LineageState {
     pub fn forge_name(&self, kind: &str) -> String {
         let (known, _, label) = describe(&Item::new(0, kind), &self.facts, &self.flavours);
         if known { kind.to_string() } else { label }
+    }
+    /// QA on 1a2a4a9 (qaO: the keep sheet's `sold blink $2 · fear ×2 $3`, the report's
+    /// SALVAGED `teleport ×9 · identify ×4` while the forge and the cond list still said
+    /// `brittle scroll?`): a kind on a wire line (salvage rows, the cut's `sold`, the spent
+    /// rows) is its flavour (`brittle scroll?`) until the lineage identifies it; any other
+    /// kind (gear, a leash, an `insure sword` line) passes through.
+    pub fn wire_name(&self, kind: &str) -> String {
+        if self.flavours.flavour_of(kind).is_some() && !crate::item::is_identified(&self.facts, &self.flavours, kind) {
+            self.forge_name(kind)
+        } else {
+            kind.to_string()
+        }
     }
     /// The categories an unwatched exit keeps, in order (`Game::auto_keep`).
     pub fn keep_auto(&self) -> Vec<String> {
@@ -1341,6 +1380,10 @@ pub struct DeathRec {
     pub heal_held: bool,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub unknown_held: u32,
+    /// QA on 1a2a4a9: how many of `unknown_held` are scrolls (the rest are potions) — the
+    /// margin counts the kind a `drink unknown` / `read unknown` row would have used.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub unknown_scrolls: u32,
     /// Cut 14 §1: the root patch measured under the baseline — not offered on the death
     /// screen (its number is the unlock sheet's delta); the gate table counts it out.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -1503,6 +1546,9 @@ pub struct Batch {
     /// reached its income (`Game::restock`).
     #[serde(default)]
     pub restock_capped: bool,
+    /// QA on 1a2a4a9: a re-pack of this absence ran short of gold (`repeat short`).
+    #[serde(default)]
+    pub repeat_short: bool,
 }
 
 impl Batch {
@@ -1594,6 +1640,10 @@ pub struct Game {
     /// camp after a tap is a lookup.
     #[serde(skip)]
     pub panel_cache: std::cell::RefCell<BTreeMap<String, Vec<crate::forecast::SimResult>>>,
+    /// QA on 1a2a4a9: the panel keys refined at `REFINE_SIMS` (`forecast::camp_sims`) — a
+    /// refined panel evicted from `panel_cache` is recomputed refined, never read coarser.
+    #[serde(skip)]
+    pub refined_panels: std::cell::RefCell<std::collections::BTreeSet<String>>,
     /// Cut 6 §1: the ledger line of the last settled exit (`step` attaches it to `Ev::Exit`).
     #[serde(default)]
     pub last_exit: Option<ExitLine>,
@@ -1633,6 +1683,7 @@ impl Game {
             stall_cache: None,
             forecast_cache: Default::default(),
             panel_cache: Default::default(),
+            refined_panels: Default::default(),
         }
     }
 
@@ -1660,6 +1711,7 @@ impl Game {
             stall_cache: None,
             forecast_cache: Default::default(),
             panel_cache: Default::default(),
+            refined_panels: Default::default(),
             last_exit: None,
             watched: false,
         }
@@ -1667,7 +1719,9 @@ impl Game {
 
     pub fn lineage(&self) -> Lineage {
         let mut l = self.lineage.to_wire();
-        l.repeat_gold = self.repeat_plan().1;
+        let (kinds, gold) = self.repeat_plan();
+        l.repeat_kinds = kinds;
+        l.repeat_gold = gold;
         l
     }
 
@@ -1767,6 +1821,11 @@ impl Game {
     /// re-packed supplies are refunded at their price and no send re-packs until it is on
     /// again (the kinds are kept); on: the shelf is re-packed now if it is empty.
     pub fn set_restock(&mut self, on: bool) {
+        // QA on 1a2a4a9: the same value again is no order — it neither re-packs an emptied
+        // shelf nor refunds what the player bought by hand (the camp's forecast inputs stay).
+        if self.lineage.restock_off != on {
+            return;
+        }
         self.lineage.restock_off = !on;
         if on {
             self.restock();
@@ -1785,9 +1844,15 @@ impl Game {
 
     /// Cut 19 §3: what the repeat packs at the next send — the last send's kinds less the
     /// ones it wasted — and their price on the shelf today.
+    ///
+    /// QA on 1a2a4a9 (qaP: `repeat · $40` with a heal and a mapping scroll on the shelf, then
+    /// `−$60 repeat mapping · −$40 repeat heal`): a shelf holding bought supplies is what the
+    /// send packs, and so what the re-pack after it buys again (`start_run` makes it the last
+    /// send's); an empty shelf re-packs the last send's kinds at the send.
     pub fn repeat_plan(&self) -> (Vec<String>, i32) {
         let cat = self.supply_catalogue();
-        let kinds: Vec<String> = self.lineage.last_supplies.iter().filter(|k| !self.lineage.last_wasted.contains(k)).cloned().collect();
+        let shelf: Vec<String> = self.lineage.supplies.iter().filter(|s| !s.free).map(|s| s.kind.clone()).collect();
+        let kinds: Vec<String> = if !shelf.is_empty() { shelf } else { self.lineage.last_supplies.iter().filter(|k| !self.lineage.last_wasted.contains(k)).cloned().collect() };
         let gold = kinds.iter().filter_map(|k| cat.iter().find(|e| e.kind == *k).map(|e| e.price)).sum();
         (kinds, gold)
     }
@@ -1990,6 +2055,7 @@ impl Game {
                 }
             }
         }
+        self.lineage.repeat_short.clear();
         self.restock();
         self.lineage.last_supplies = self.lineage.supplies.iter().filter(|i| !i.free).map(|i| i.kind.clone()).collect();
         for id in loadout {
@@ -2077,6 +2143,9 @@ impl Game {
             stuck_first_t: None,
             stuck_cause: None,
             stuck_row: None,
+            homeward: None,
+            homeward_bank: false,
+            repeat_short: self.lineage.repeat_short.clone(),
             trait_last: None,
             trait_floor: 0,
             wasted_kinds: Vec::new(),
@@ -2416,7 +2485,7 @@ impl Game {
             turn: run.turn,
             loot: run.loot,
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn },
-            stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0 },
+            stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some() },
             vision: run.vision(&l.unlocks),
             vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice {
                 items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
@@ -2838,7 +2907,7 @@ impl Game {
             e.0 += 1;
             e.1 += c;
         }
-        let cut_rows: Vec<crate::wire::SalvageRow> = cut.into_iter().map(|(k, (n, c))| crate::wire::SalvageRow { kind: k, n, gold: c }).filter(|r| r.gold > 0).collect();
+        let cut_rows: Vec<crate::wire::SalvageRow> = cut.into_iter().map(|(k, (n, c))| crate::wire::SalvageRow { kind: self.lineage.wire_name(&k), n, gold: c }).filter(|r| r.gold > 0).collect();
         let brought: Vec<u32> = eligible.iter().filter(|i| run.brought.contains(&i.id)).map(|i| i.id).collect();
         self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible, pct, brought });
         // Death: graveyard, grudge, heir, record.
@@ -3355,15 +3424,25 @@ impl Game {
     /// restock overnight): an absence's restock never spends more than the absence brought
     /// home (`Batch::income`); a kind it could not afford under that cap sets
     /// `Batch.restock_capped` (the report's `restock capped`).
+    ///
+    /// QA on 1a2a4a9 (qaP): the re-pack tops the shelf up to the last send's kinds — what came
+    /// back unused stays and is not bought again, what was used is — so it never charges more
+    /// than the badge (`repeat_plan`, the whole pack's price).
     pub fn restock(&mut self) -> Vec<String> {
-        if self.lineage.restock_off || self.lineage.supplies.iter().any(|s| !s.free) {
+        if self.lineage.restock_off {
             return Vec::new();
         }
+        let mut on_shelf: Vec<String> = self.lineage.supplies.iter().filter(|s| !s.free).map(|s| s.kind.clone()).collect();
         let mut bought = Vec::new();
+        let mut short = Vec::new();
         // Cut 13 §3: a kind the last run used to no effect is not rebought (rater R: "the
         // strength potion the trait drinks at full HP is rebought sixteen times").
         let wasted = self.lineage.last_wasted.clone();
         for kind in self.lineage.last_supplies.clone() {
+            if let Some(i) = on_shelf.iter().position(|k| *k == kind) {
+                on_shelf.remove(i);
+                continue;
+            }
             if wasted.contains(&kind) {
                 continue;
             }
@@ -3375,13 +3454,23 @@ impl Game {
                 }
             }
             let gold = self.lineage.gold;
-            if self.buy_supply_as(&kind, &format!("repeat {}", kind.replace('_', " "))).is_ok() {
-                bought.push(kind.replace('_', " "));
-                let e = self.batch.spent.entry(kind.clone()).or_insert((0, 0));
-                e.0 += 1;
-                e.1 += gold - self.lineage.gold;
+            match self.buy_supply_as(&kind, &format!("repeat {}", kind.replace('_', " "))) {
+                Ok(()) => {
+                    bought.push(kind.replace('_', " "));
+                    let e = self.batch.spent.entry(kind.clone()).or_insert((0, 0));
+                    e.0 += 1;
+                    e.1 += gold - self.lineage.gold;
+                }
+                // QA on 1a2a4a9: short of gold — the rest is still bought, and it says so.
+                Err(e) if e == "not enough gold" => short.push(kind.clone()),
+                Err(_) => {}
             }
         }
+        if !short.is_empty() {
+            self.lineage.gold_move(0, REPEAT_SHORT);
+            self.batch.repeat_short = true;
+        }
+        self.lineage.repeat_short = short;
         bought
     }
 }

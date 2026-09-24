@@ -159,7 +159,7 @@ pub fn is_row_unlock(id: &str) -> bool {
 }
 
 pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
-    UNLOCKS
+    let mut cat: Vec<UnlockInfo> = UNLOCKS
         .iter()
         .map(|u| {
             let owned = l.unlocks.contains(u.id);
@@ -172,9 +172,43 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             let gold = if owned { 0 } else { gold_price(u.cost, l.gold_buys) };
             // Cut 19 §3: the next row unlock is pinned to the short list.
             let pinned = !owned && is_row_unlock(u.id) && u.prereq.is_none_or(|p| l.unlocks.contains(p));
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned }
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned, short: false }
         })
-        .collect()
+        .collect();
+    mark_short(l, &mut cat);
+    cat
+}
+
+/// Cards on the camp's short list and the report's PENDING (`UnlockInfo.short`).
+pub const SHORT_LIST: usize = 3;
+
+/// QA on 1a2a4a9 (qaP: "+1 row · verb: throw · card: boss focus", then a minute later `verb:
+/// throw` and `cond: alert` gone for `card: corridor fighting` and `card: stair dance`; the
+/// report's PENDING and the camp's UNLOCKS named different cards): the short list is the
+/// core's, a function of the lineage alone — never of a sim's delta, which a cache eviction
+/// or a second pass moves. The next `+1 row` (pinned) and then, among the cards on offer (not
+/// owned, the chain's previous step owned), what can be bought now (marks or gold), then what
+/// only a gate shuts, then what is short of marks — each the cheaper first, then the
+/// catalogue's order.
+fn mark_short(l: &LineageState, cat: &mut [UnlockInfo]) {
+    let offered = |u: &UnlockInfo| !u.owned && UNLOCKS.iter().find(|d| d.id == u.id).and_then(|d| d.prereq).is_none_or(|p| l.unlocks.contains(p));
+    let marks_only = |u: &UnlockInfo| u.needs.as_deref().is_none_or(|n| n.starts_with('◆'));
+    let rank = |u: &UnlockInfo| -> u32 {
+        if u.available || (marks_only(u) && u.gold > 0 && l.gold >= u.gold as i32) {
+            0
+        } else if !marks_only(u) {
+            1
+        } else {
+            2
+        }
+    };
+    let mut order: Vec<usize> = (0..cat.len()).filter(|&i| offered(&cat[i]) && !cat[i].pinned).collect();
+    order.sort_by_key(|&i| (rank(&cat[i]), cat[i].cost, i));
+    let pins: Vec<usize> = (0..cat.len()).filter(|&i| cat[i].pinned).collect();
+    let room = SHORT_LIST.saturating_sub(pins.len());
+    for i in order.into_iter().take(room).chain(pins) {
+        cat[i].short = true;
+    }
 }
 
 /// Cut 6 §6: what a tactic card does, as rows (its sub-rows in order, the vocabulary's own
@@ -529,8 +563,9 @@ pub fn buy_gold(game: &mut Game, id: &str) -> Result<(), String> {
 pub fn pending(game: &Game) -> Vec<String> {
     let l = &game.lineage;
     let mut out = Vec::new();
+    // QA on 1a2a4a9: the report's unlocks are the camp's short list (`UnlockInfo.short`).
     for u in catalogue(l) {
-        if u.available {
+        if u.available && u.short {
             out.push(format!("unlock {} ({})", u.id, u.cost));
         }
     }

@@ -551,7 +551,9 @@ pub fn hunger_tick(run: &mut Run, cx: &mut Ctx) {
         learn(run, cx, "hunger".into());
         crate::sifter::on_hurt(run, "hunger", Some("hunger"));
     }
-    callout(run, cx, "hunger");
+    // QA on 1a2a4a9: the bite names what it took (`hunger −1 max`, an `Ev::MaxHp`).
+    callout(run, cx, "hunger −1 max");
+    cx.events.push(Ev::MaxHp { t: run.turn, id: crate::engine::HERO_ID, max: run.hero.max_hp, delta: -1, cause: "hunger".into() });
     cx.events.push(Ev::Hurt { t: run.turn, id: crate::engine::HERO_ID, dmg: 0, hp: run.hero.hp, cause: "hunger".into() });
 }
 

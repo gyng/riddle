@@ -35,8 +35,9 @@ pub const SHOWN: usize = 3;
 /// Cut 4: a replay runs on past the killing blow while an awake hostile is in view, at most
 /// this many ticks (surviving the moment of the blow is not surviving the fight).
 pub const ENCOUNTER_TICKS: u32 = 300;
-/// Cut 19 §2: how far past its window a stall's replay may walk home (`Replayer::replay`).
-pub const HOME_TICKS: u32 = 1500;
+/// QA on 1a2a4a9: how long past the stall's own window a stall replay may take to leave the
+/// floor, a walk home included (Cut 19 §2's `HOME_TICKS` was the walk's alone).
+pub const LEAVE_TICKS: u32 = 1500;
 /// Cut 11 §4: on a `dice` death with no patch over the bar, candidates are measured in full
 /// (no early exit), one family each, until this many have fired in half their replays; the
 /// best are kept, flagged `below_bar`.
@@ -77,6 +78,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let fl = &game.lineage.flavours;
     let heal_held = !stall && run.hero.inv.iter().any(|i| i.kind == "heal" && i.is_known(facts, fl));
     let unknown_held = if stall { 0 } else { run.hero.inv.iter().filter(|i| i.is_consumable() && !i.is_known(facts, fl)).count() as u32 };
+    let unknown_scrolls = if stall { 0 } else { run.hero.inv.iter().filter(|i| i.cat() == crate::defs::Cat::Scroll && !i.is_known(facts, fl)).count() as u32 };
     let rules = game.lineage.rules().clone();
     let vocab = context_vocab(game, run);
     let death = Death {
@@ -141,7 +143,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let boss = if stall { None } else { boss_of(run, &cause) };
     let loop_row = if stall { run.stuck_row.and_then(|r| usize::try_from(r).ok()).filter(|&r| r < rules.rows.len()) } else { None };
     let row_fired = run.row_fired.clone();
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, root_under_base: false, camp_key: 0, loop_row, row_fired }
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired }
 }
 
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
@@ -559,16 +561,22 @@ impl Replayer {
         // fight, and a boss wall scored 0.9+ baselines that way.
         let mut n = 0;
         loop {
-            // Cut 19 §2: a stall's replay walking home (its last action a `return` / `bank` step)
-            // runs on until he is home, up to `HOME_TICKS` — a return walks now, and a walk cut
-            // off at the window's end is not the stall going on.
-            let walking_home = self.stall.is_some() && self.g.run.as_ref().is_some_and(|r| r.trace.last().is_some_and(|t| t.row >= 0 && matches!(t.verb.v.as_str(), "return" | "bank")));
-            if n >= self.ticks + if walking_home { HOME_TICKS } else { ENCOUNTER_TICKS } {
-                break;
-            }
-            // A stall's window ends where the stall did (the unreachable foe stays in view).
-            if n >= self.ticks && ((self.stall.is_some() && !walking_home) || (self.stall.is_none() && !self.g.run.as_ref().is_some_and(|r| crate::turn::view(r).foes.iter().any(|&i| r.monsters[i].awake)))) {
-                break;
+            // QA on 1a2a4a9 (qaP: `R2 ↻ foe: gas · adjacent ≥ 1 → retreat · survives 100%`, and
+            // the next run stalled in the same loop): a stall's replay survives only by leaving
+            // the floor (Cut 13 §1) — it runs on past the stall's own window, up to
+            // `LEAVE_TICKS`, until he goes down, comes home or the guard ends the run; a guard
+            // that merely stayed quiet to the window's end is not the loop broken.
+            if let Some((depth, _)) = self.stall {
+                if n >= self.ticks + LEAVE_TICKS || self.g.run.as_ref().is_some_and(|r| r.depth > depth) {
+                    break;
+                }
+            } else {
+                if n >= self.ticks + ENCOUNTER_TICKS {
+                    break;
+                }
+                if n >= self.ticks && !self.g.run.as_ref().is_some_and(|r| crate::turn::view(r).foes.iter().any(|&i| r.monsters[i].awake)) {
+                    break;
+                }
             }
             self.g.tick();
             n += 1;
@@ -582,10 +590,10 @@ impl Replayer {
         }
         let survived = match self.stall {
             None => self.g.run.as_ref().is_some_and(|r| r.over != Some(ExitTier::Death)),
-            Some((depth, fires)) => self.g.run.as_ref().is_some_and(|r| match r.over {
+            Some((depth, _)) => self.g.run.as_ref().is_some_and(|r| match r.over {
                 Some(ExitTier::Death) => false,
                 Some(_) => !r.timed_out,
-                None => r.depth > depth || r.stuck_fires <= fires,
+                None => r.depth > depth,
             }),
         };
         (survived, fired)
@@ -838,17 +846,30 @@ fn row_cause(rec: &DeathRec, base: &Game, ticks: u32, baseline: f64) -> Option<P
 /// Cut 19 §4: `Patch.drops` on every insert of the shown list when the set's own rows are at
 /// the cap — the own row that fired least in the dead run (`DeathRec.row_fired`; ties: the
 /// lowest in the list, the row the editor's cut would take).
+///
+/// QA on 1a2a4a9 (qaP: `+ drop R1 …` on all three patches, R1 his return row — an exit row
+/// fires once a run, so it was always the least fired): never an exit row (`return` /
+/// `bank`), never the row the patch is about (one with the patch's own verb, the row the
+/// verdict names, the root's row); the least fired of the rest, else no `drops` (the client's
+/// drop sheet decides).
 fn set_drops(rec: &mut DeathRec) {
     let full = rec.rules.own_rows() >= rec.vocab.max_rows;
-    let least = full
-        .then(|| {
-            rec.rules.rows.iter().enumerate().filter(|(_, r)| !r.is_card()).map(|(i, _)| (rec.row_fired.get(i).copied().unwrap_or(0), i)).fold(None, |best: Option<(u32, usize)>, x| if best.is_none_or(|b| x.0 <= b.0) { Some(x) } else { best })
-        })
-        .flatten()
-        .map(|(_, i)| i as i32);
+    let about = [rec.death.cause_row.map(|r| r as usize), rec.root.as_ref().map(|r| r.row)];
+    let rules = rec.rules.clone();
+    let fired = rec.row_fired.clone();
+    let least = |p: &Patch| -> Option<i32> {
+        rules
+            .rows
+            .iter()
+            .enumerate()
+            .filter(|(i, r)| !r.is_card() && !matches!(r.verb.v.as_str(), "return" | "bank") && r.verb.v != p.row.verb.v && !about.contains(&Some(*i)))
+            .map(|(i, _)| (fired.get(i).copied().unwrap_or(0), i))
+            .fold(None, |best: Option<(u32, usize)>, x| if best.is_none_or(|b| x.0 <= b.0) { Some(x) } else { best })
+            .map(|(_, i)| i as i32)
+    };
     for p in rec.death.patches.iter_mut() {
         let inserts = if p.insert_at < 0 { !rec.rules.rows.contains(&p.row) } else { !(p.replace || p.remove) };
-        p.drops = if inserts { least } else { None };
+        p.drops = if inserts && full { least(p) } else { None };
     }
 }
 
@@ -1024,7 +1045,10 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     // unused`, written below once the verdict is known)
     let uses = |row: &Row, a: &str| matches!(row.verb.v.as_str(), "drink" | "read") && row.verb.a.as_deref() == Some(a);
     let heal_saves = scored.iter().any(|(rate, row, _)| uses(row, "heal") && *rate >= MARGIN_BAR - 1e-9);
-    let unknown_saves = scored.iter().any(|(rate, row, _)| uses(row, "unknown") && *rate >= MARGIN_BAR - 1e-9);
+    // QA on 1a2a4a9: per kind — a `drink unknown` that saved him speaks for the potions, a
+    // `read unknown` for the scrolls.
+    let unknown_saves = |verb: &str| scored.iter().any(|(rate, row, _)| row.verb.v == verb && uses(row, "unknown") && *rate >= MARGIN_BAR - 1e-9);
+    let unknown_saves = (unknown_saves("drink"), unknown_saves("read"));
     // Rank by how much the row beats the unpatched baseline; ties: a conditioned row (a policy)
     // beats an unconditioned one, then fewer conditions, then the top position.
     scored.sort_by(|a, b| {
@@ -1096,16 +1120,44 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
 /// survived at least `MARGIN_BAR` of the replays and reached the death's bar (it is among the
 /// patches): the line then never contradicts the verdict. A `dice` death's margin is the HP
 /// line alone; what would have helped is the patch the screen names (Cut 11 §4).
-fn margin_lines(rec: &mut DeathRec, heal_saves: bool, unknown_saves: bool) {
+///
+/// QA on 1a2a4a9 (qaO: `heal unused · 1 unknown unused` beside `R1 no unknown`, R1 `drink
+/// unknown` and the one unknown a scroll): the count is of the unknowns the set could have
+/// used — potions when a row drinks unknowns, scrolls when one reads them (either, while the
+/// set has no such row) — and only the kind whose own candidate saved him; and never beside a
+/// row the death's last turn says had `no unknown`. `heal unused` needs a known heal held.
+fn margin_lines(rec: &mut DeathRec, heal_saves: bool, unknown_saves: (bool, bool)) {
     if rec.death.verdict != "gap" {
         return;
     }
     if rec.heal_held && heal_saves {
         rec.death.margin.push_str(" · heal unused");
     }
-    if rec.unknown_held > 0 && unknown_saves {
-        rec.death.margin.push_str(&format!(" · {} unknown unused", rec.unknown_held));
+    let n = unknown_unused(rec, unknown_saves);
+    if n > 0 {
+        rec.death.margin.push_str(&format!(" · {n} unknown unused"));
     }
+}
+
+/// The margin's `N unknown unused` count (`margin_lines`).
+fn unknown_unused(rec: &DeathRec, (potion_saves, scroll_saves): (bool, bool)) -> u32 {
+    let reads = |v: &str| rec.rules.rows.iter().any(|r| r.verb.v == v && r.verb.a.as_deref() == Some("unknown"));
+    let (drinks, reads) = (reads("drink"), reads("read"));
+    let any_row = drinks || reads;
+    let said_none = rec.death.trace.turns.last().and_then(|t| t.rows.as_ref()).is_some_and(|rows| rows.iter().any(|w| w.why == "no unknown"));
+    if said_none {
+        return 0;
+    }
+    let scrolls = rec.unknown_scrolls.min(rec.unknown_held);
+    let potions = rec.unknown_held - scrolls;
+    let mut n = 0;
+    if potion_saves && (drinks || !any_row) {
+        n += potions;
+    }
+    if scroll_saves && (reads || !any_row) {
+        n += scrolls;
+    }
+    n
 }
 
 /// Cut 14 §2: the survival a consumable's row must reach for the margin to call it unused.
@@ -1512,12 +1564,8 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
     rerank_free(rec);
     // The camp reads these panels next (the base, the tapped patch's set).
     for c in [g, unlocked] {
-        let mut cache = game.panel_cache.borrow_mut();
         for (k, v) in c.panel_cache.into_inner() {
-            if cache.len() >= crate::forecast::PANEL_CACHE_MAX {
-                cache.clear();
-            }
-            cache.insert(k, v);
+            crate::forecast::panel_insert(game, k, v);
         }
     }
 }

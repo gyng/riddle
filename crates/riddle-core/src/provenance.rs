@@ -238,7 +238,8 @@ fn view_because(run: &Run, cx: &Ctx, tag: &str) -> Because {
     now("never met")
 }
 
-/// The last event that emptied a slot; `never found` when the run has no event for the kind;
+/// The last event that emptied a slot; `never found` when the run has no event for the kind
+/// (`repeat short` when the send's re-pack could not pay for it — QA on 1a2a4a9);
 /// nothing when the last event filled it (the item left some way the log did not see).
 fn item_because(run: &Run, cx: &Ctx, kind: &str) -> Option<Because> {
     if kind.is_empty() || kind == "unknown" {
@@ -247,6 +248,7 @@ fn item_because(run: &Run, cx: &Ctx, kind: &str) -> Option<Because> {
     match last(cx.prov, &format!("item:{kind}")) {
         Some(p) if p.kind == ProvKind::Found => None,
         Some(p) => Some(p.because()),
+        None if run.repeat_short.iter().any(|k| k == kind) => Some(Because { text: crate::engine::REPEAT_SHORT.into(), t: run.turn, depth: run.depth }),
         None => Some(Because { text: "never found".into(), t: run.turn, depth: run.depth }),
     }
 }

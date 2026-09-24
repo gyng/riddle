@@ -69,7 +69,7 @@ pub fn good() -> RuleSet {
 }
 
 /// Cut 3: the shipped best set (FULL bot) — every boss counter, every unlock assumed. Shipped
-/// as presets/full.json. Rows 3–5 are the Cut 3 boss counters (the gate removes each in turn):
+/// as presets/full.json. Rows 4–6 are the Cut 3 boss counters (the gate removes each in turn):
 /// `cadence` for the Mirror King (Cut 7: D33), `silence` for the Lurker Queen (D28; read when
 /// her called lurkers show, before she is seen), `reflect_read` for the Foundry Master (D23;
 /// smiths first).
@@ -78,7 +78,12 @@ pub fn full() -> RuleSet {
         name: Some("full".into()),
         rows: vec![
             Row::new(vec![Cond::n("hp<", 35)], Verb::arg("drink", "heal")),
-            Row::new(vec![Cond::n("hp<", 40), Cond::n("depth>=", 5)], Verb::new("return")),
+            // QA on 1a2a4a9: a return is a commitment (`Run.homeward`) — the old `hp < 40 % ·
+            // D5+ → return` went home from every scratch the heal had not answered (FULL ≥ D29
+            // 63 % → 43 %). It held the walls by walking off and turning back; a retreat does
+            // that now, and the return is the way out at 20 %.
+            Row::new(vec![Cond::n("hp<", 40), Cond::n("depth>=", 5)], Verb::new("retreat")),
+            Row::new(vec![Cond::n("hp<", 20), Cond::n("depth>=", 5)], Verb::new("return")),
             Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 33)], Verb::arg("tactic", "cadence")),
             Row::new(vec![Cond::t("foe_tag", "summoned"), Cond::n("depth>=", 28)], Verb::arg("read", "silence")),
             Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read")),
@@ -416,7 +421,9 @@ mod tests {
         assert!(good().validate().is_ok());
         assert!(good().rows.len() <= 8);
         assert!(full().validate().is_ok());
-        assert!(full().rows.len() <= crate::engine::MAX_ROWS);
+        // Cut 12 §1: the cap is on own rows; a card's row sits outside it (FULL: 7 + 4 cards).
+        assert!(full().own_rows() <= crate::engine::MAX_ROWS);
+        assert!(full().rows.len() <= crate::engine::ROWS_TOTAL);
     }
     #[test]
     fn companion_rows_capped_by_level() {

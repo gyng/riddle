@@ -150,6 +150,10 @@ pub struct Stake {
     /// run is stalling and a stall pays nothing — the HUD reads `keeps $0 · stalling`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub stalling: bool,
+    /// QA on 1a2a4a9: a return (or bank) row has acted and the hero is walking home — the walk
+    /// replaces the chores until the exit (`Run.homeward`); the HUD's `returning`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub returning: bool,
 }
 
 /// Cut 6 §1: the ledger line of an exit — one arithmetic line the player can check.
@@ -284,6 +288,10 @@ pub enum Ev {
     /// bottom's stairs within three steps (30 ticks), or death in the air (hp ≤ 15% with a
     /// hostile adjacent; once per 100 ticks). An instant exit (`bail`, recall) says 0; a `return` walks to the up-stairs (Cut 19 §2).
     Ending { t: u32, ticks: u32 },
+    /// QA on 1a2a4a9 (qaP: `12/38 → 6/16 → 3/16 → 0/15` on D12 with no line until the death):
+    /// the hero's max HP moved — `delta` (−1 per hunger bite on an unlit hunger floor), `max`
+    /// after it, `cause` (`hunger`). The callout beside it reads `hunger −1 max`.
+    MaxHp { t: u32, id: u32, max: i32, delta: i32, cause: String },
 }
 
 impl Ev {
@@ -306,6 +314,7 @@ impl Ev {
             | Ev::Exit { t, .. }
             | Ev::Note { t, .. }
             | Ev::Callout { t, .. }
+            | Ev::MaxHp { t, .. }
             | Ev::Tame { t, .. }
             | Ev::Hatch { t, .. }
             | Ev::Level { t, .. }
@@ -669,6 +678,10 @@ pub struct ReturnReport {
     /// it brought home (`restock capped`).
     #[serde(default, skip_serializing_if = "is_false")]
     pub restock_capped: bool,
+    /// QA on 1a2a4a9: a re-pack of the absence ran short of gold and bought only what it could
+    /// (`repeat short`).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub repeat_short: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -901,6 +914,10 @@ pub struct Lineage {
     pub repeat_kinds: Vec<String>,
     #[serde(default)]
     pub repeat_gold: i32,
+    /// QA on 1a2a4a9: the kinds the last re-pack could not pay for (`repeat short`; the ledger
+    /// has a `$0 repeat short` line at that exit). Empty once a re-pack paid for everything.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repeat_short: Vec<String>,
 }
 
 /// Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id
@@ -984,6 +1001,11 @@ pub struct UnlockInfo {
     /// (the client's top-three cut had dropped it behind cheaper cards).
     #[serde(default, skip_serializing_if = "is_false")]
     pub pinned: bool,
+    /// QA on 1a2a4a9: on the short list (`meta::SHORT_LIST` cards, the pinned one included) —
+    /// the core's choice from the lineage alone, so two opens of an unchanged camp, the
+    /// report's PENDING and the camp's UNLOCKS show the same cards (`meta::mark_short`).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub short: bool,
 }
 
 #[cfg(test)]
