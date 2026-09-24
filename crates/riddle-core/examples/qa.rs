@@ -3,7 +3,7 @@
 //! reconciled by hand. One line per invariant with counts; exit 1 on any failure. Runs in
 //! seconds; `tools/gates.mjs` runs it beside the gate table.
 //!   cargo run --profile fast --example qa [-- --seeds 30 --threads 4]
-use riddle_core::engine::{salvage_value, GOLD_DIVISOR, GOLD_LEDGER_CAP};
+use riddle_core::engine::{salvage_coins, salvage_value, GOLD_DIVISOR, GOLD_LEDGER_CAP};
 use riddle_core::item::{is_identified, to_inv};
 use riddle_core::engine::ExitTier;
 use riddle_core::rules::{Cond, Row, Verb};
@@ -143,6 +143,12 @@ struct BankTally([(f64, f64, f64, f64); 2]);
 /// Cut 14 §1–2: a death screen offers nothing under its baseline (a `dice` death's candidates
 /// kept under the bar are flagged `below_bar`), and a `dice` margin names no unused item.
 fn check_death(t: &mut Tally, seed: u64, d: &riddle_core::Death) {
+    // QA on 92eb880 (qaM: `R2 attack saved him.` on the death of a hero R2 was fighting for).
+    t.check("a death's notes never say `saved him`", d.notes.iter().all(|n| !n.contains("saved him")), || format!("seed {seed} run {}: {:?}", d.run_id, d.notes));
+    // QA on 92eb880 (qaM: `DICE` over three `survives 100% · below bar`): a dice death whose
+    // patches none beat the base says so, and only then.
+    let beaten = d.patches.iter().any(|p| p.survive > d.baseline + 1e-9);
+    t.check("`nothing_beats_base` ⇔ a dice death no patch beats", d.nothing_beats_base == (d.verdict == "dice" && !d.patches.is_empty() && !beaten), || format!("seed {seed} run {}: {} base {:.2} flag {}", d.run_id, d.verdict, d.baseline, d.nothing_beats_base));
     for p in &d.patches {
         t.check("no death screen carries a patch under its baseline (unless below_bar)", p.below_bar || p.survive >= d.baseline - 1e-9, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2} · {}", d.run_id, p.row.describe(), p.survive, d.baseline, d.verdict));
     }
@@ -177,6 +183,78 @@ fn check_gold_buy(t: &mut Tally, g: &Game, seed: u64) {
     check_gold(t, &h, seed, "after a gold buy");
 }
 
+/// QA on 92eb880 (qaM: "D6 32 → 38 → 50 just from opening sheets"): the camp's forecast is a
+/// function of what the player controls — a forecast, then every engine read the camp's
+/// sheets make (lineage, vocabulary, the unlock shelf and its deltas, the supply shop, the
+/// death screen, the same rules and loadout set again), then a forecast: identical. After the
+/// refine pass a read is the refined panel (never back to the first pass), and from a cold
+/// cache both passes are what they were. Every third seed runs the refine leg (100 sims).
+fn check_forecast_reads(t: &mut Tally, g: &mut Game, seed: u64, died: Option<u32>) {
+    let reads = |g: &mut Game| {
+        let _ = g.lineage();
+        let _ = g.vocabulary();
+        let _ = g.unlocks();
+        let _ = g.unlock_deltas();
+        let _ = g.supply_catalogue();
+        if let Some(id) = died {
+            let _ = g.death(id);
+        }
+        let r = g.lineage.rules().clone();
+        let _ = g.set_rules(r);
+        let l = g.loadout.clone();
+        g.loadout(l);
+    };
+    let first = g.forecast();
+    reads(g);
+    let again = g.forecast();
+    t.check("forecast → every sheet's reads → forecast: identical", again == first, || format!("seed {seed}: {:?} → {:?}", first.depths.iter().map(|d| d.reach).collect::<Vec<_>>(), again.depths.iter().map(|d| d.reach).collect::<Vec<_>>()));
+    if !seed.is_multiple_of(3) {
+        return;
+    }
+    let refined = g.forecast_refine();
+    reads(g);
+    let after = g.forecast();
+    t.check("after the refine a forecast read is the refined panel", after == refined, || format!("seed {seed}: refined {:?} read {:?}", refined.depths.iter().map(|d| d.reach).collect::<Vec<_>>(), after.depths.iter().map(|d| d.reach).collect::<Vec<_>>()));
+    let cold = g.clone();
+    cold.panel_cache.borrow_mut().clear();
+    cold.forecast_cache.borrow_mut().clear();
+    t.check("a cold cache reads the same two passes", cold.forecast() == first && cold.forecast_refine() == refined, || format!("seed {seed}"));
+}
+
+/// QA on 92eb880 (qaM: `R3 fired 0 of 16 runs: hp < 30% → drink heal · heal unknown` under R1
+/// `hp < 30% → return`): after the night, a row that never fired and that an earlier row
+/// shadows names it on its pending line, and a shadowed row never fires.
+fn check_shadowed(t: &mut Tally, g: &Game, seed: u64) {
+    check_shadowed_on(t, g, seed);
+    // The qaM set on a copy: `hp < 30% → return` on top, the lineage's rows, `hp < 20% → drink
+    // heal` under them (shadowed by R1), one hour offline.
+    let mut h = g.clone();
+    h.lineage.unlocks.extend(["row5", "row6", "row7", "row8"].map(String::from));
+    let mut set = g.lineage.rules().clone();
+    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 30)], Verb::new("return")));
+    set.rows.push(Row::new(vec![Cond::n("hp<", 20)], Verb::arg("drink", "heal")));
+    if h.set_rules_raw(set).is_err() {
+        return;
+    }
+    h.run_offline(3600);
+    let last = h.lineage.rules().rows.len() - 1;
+    t.check("the qaM shadow is found (R1 return over the last row)", h.lineage.shadowed_by(h.lineage.rules()).get(last).copied().flatten() == Some(0), || format!("seed {seed}"));
+    check_shadowed_on(t, &h, seed);
+}
+
+fn check_shadowed_on(t: &mut Tally, g: &Game, seed: u64) {
+    let rules = g.lineage.rules();
+    let shadowed = g.lineage.shadowed_by(rules);
+    let pending = riddle_core::meta::pending(g);
+    for (i, by) in shadowed.iter().enumerate() {
+        let Some(by) = by else { continue };
+        let n = g.batch.row_runs.get(i).copied().unwrap_or(0);
+        t.check("a shadowed row never fires", n == 0, || format!("seed {seed}: R{} (shadowed by R{}) fired in {n} runs", i + 1, by + 1));
+        let line = pending.iter().find(|l| l.starts_with(&format!("R{} fired ", i + 1)));
+        t.check("a shadowed row's pending line names its shadow", line.is_none_or(|l| l.ends_with(&format!(" · shadowed by R{}", by + 1))), || format!("seed {seed}: {line:?}"));
+    }
+}
+
 fn play(seed: u64) -> (Tally, BankTally) {
     let mut t = Tally::default();
     let mut bank = BankTally::default();
@@ -207,15 +285,17 @@ fn play(seed: u64) -> (Tally, BankTally) {
                 died = Some(r.snapshot.run.id);
             }
             if let (Some(p), Some(pe)) = (g.pending_exit.clone(), r.exit_pending.as_ref()) {
-                // `ExitPending.worth` is the engine's salvage arithmetic, item by item.
-                let want: Vec<i32> = p.items.iter().map(|i| (salvage_value(&i.kind) * p.pct / GOLD_DIVISOR + 50) / 100).collect();
-                t.check("`ExitPending.worth` == the salvage arithmetic", pe.worth == want, || format!("seed {seed}: worth {:?} vs {want:?}", pe.worth));
+                // `ExitPending.worth` is the engine's salvage arithmetic, item by item: the
+                // whole's coins (`(carry + Σ cents) ÷ 100`) apportioned by largest remainder.
+                let want = salvage_coins(&p.items, p.pct, g.lineage.gold_carry);
+                let cents: i32 = p.items.iter().map(|i| salvage_value(&i.kind) * p.pct / GOLD_DIVISOR).sum();
+                t.check("`ExitPending.worth` == the salvage arithmetic", pe.worth == want && want.iter().sum::<i32>() == (g.lineage.gold_carry + cents).max(0) / 100, || format!("seed {seed}: worth {:?} vs {want:?}", pe.worth));
                 check_labels(&mut t, &g, seed, &p.items, "exit sheet");
-                let gold = g.lineage.gold;
+                let (gold, head) = (g.lineage.gold, g.batch.salvage_gold);
                 g.keep(vec![]).unwrap();
-                let got = g.lineage.gold_ledger.iter().rev().take_while(|l| l.t == g.lineage.total_turns).filter(|l| l.why == "salvage").map(|l| l.delta).sum::<i32>();
                 let sum: i32 = want.iter().sum();
-                t.check("keep-nothing salvages ≈ Σ worth (± rounding)", (got - sum).abs() <= want.len() as i32 && g.lineage.gold >= gold, || format!("seed {seed}: salvaged ${got} vs Σ worth ${sum}"));
+                // QA on 92eb880 (qaM: the sheet's `aggravate $2`, the report's `$1`): exact.
+                t.check("keep-nothing salvages Σ worth exactly", g.lineage.gold - gold == sum && g.batch.salvage_gold - head == sum, || format!("seed {seed}: salvaged ${} vs Σ worth ${sum}", g.lineage.gold - gold));
             }
             break;
         }
@@ -261,6 +341,7 @@ fn play(seed: u64) -> (Tally, BankTally) {
             }
         }
     }
+    check_forecast_reads(&mut t, &mut g, seed, died);
     // Buy the first affordable unlock.
     if let Some(u) = g.unlocks().into_iter().find(|u| u.available && u.cost <= g.lineage.marks) {
         let marks = g.lineage.marks;
@@ -287,6 +368,7 @@ fn play(seed: u64) -> (Tally, BankTally) {
     check_gold(&mut t, &g, seed, "after the night");
     check_needs(&mut t, &g, seed);
     check_forecast(&mut t, &g, seed);
+    check_shadowed(&mut t, &g, seed);
     check_forecast_bank(&mut t, &mut bank, &g, seed);
     if let Some(d) = &r.worst_death {
         t.check("worst death carries a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "stall") && !d.trace.turns.is_empty(), || format!("seed {seed}: {}", d.verdict));

@@ -997,6 +997,7 @@ export class FakeEngine implements Engine {
     this.s.lineage.ledger = this.ledger();
     this.s.lineage.counters = this.counters();
     this.s.lineage.combos = combosIn(this.s.rules.rows, COMBOS);   // Cut 8B §1
+    this.s.lineage.shadowed_by = shadowField(this.s.rules.rows).shadowed_by;   // QA 92eb880
     { const L = this.s.lineage; const qm = L.unlocks.includes("quartermaster");   // QA 23ed91f: what an unwatched exit keeps
       L.keep_auto = L.keep_pref === "best_armour" ? (qm ? ["armour", "weapon"] : ["armour"]) : L.keep_pref === "best_weapon" ? (qm ? ["weapon", "armour"] : ["weapon"]) : []; }
     // Cut 16 §2: the wake's class chips (owned classes, the current first) while the trait offer stands
@@ -1136,9 +1137,9 @@ export class FakeEngine implements Engine {
     const ctx = this.ctx(rules); const run = makeRun(0, this.s.lineage.heir, seed, cls, trait, known, brought, ctx, [], this.classLevel(cls)); runToEnd(run, ctx); return run;
   }
 
-  forecast(): Forecast { return { ...this.forecastN(20), refined: false }; }   // Cut 13 §5: the first paint is marked (`±6…`)
+  forecast(): Forecast { return { ...this.forecastN(20), refined: false, ...shadowField(this.s.rules.rows) }; }   // Cut 13 §5: the first paint is marked (`±6…`)
   /** Cut 6 §9: the same forecast at 100 sims (the client asks 2 s after a quiet paint). Same seeds ⇒ the first 20 agree. */
-  forecastRefine(): Forecast { return { ...this.forecastN(100), refined: true }; }
+  forecastRefine(): Forecast { return { ...this.forecastN(100), refined: true, ...shadowField(this.s.rules.rows) }; }
   private forecastN(N: number): Forecast {
     const L = this.s.lineage; const known_to = L.best_depth + 1;
     const reach = new Array(16).fill(0); const causes: Record<string, number> = {};
@@ -1435,7 +1436,8 @@ export class FakeEngine implements Engine {
     const morgue = [`riddle · seed ${L.seed} · heir ${log.heir} · ${log.cls} · ${log.trait}`, `D${log.depth} · ${replay.cause ?? "?"} · ${margin} · ${verdict} · turn ${log.turns}`, "", ...log.rules.rows.map((r, i) => `R${i + 1} ${rowText(r)}`), "", ...replay.trace.map((t) => `t${t.t * 10} R${t.row + 1} ${verbText(t.verb)} hp${t.hp} foes${t.foes}${t.telegraphs.length ? " " + t.telegraphs.join(",") : ""}`), ...chain.map((c) => `← ${c.text} t${c.t * 10}`)].join("\n");
     const d: Death = { run_id: runId, depth: log.depth, cause: log.stalled ? "stalled" : replay.cause ?? log.cause ?? "?", margin, verdict, baseline: base, trace: { turns: scaleTrace(replay.trace) }, patches, morgue, line: log.line ?? replay.line, rules: log.rules,
       chain: chain.length ? chain.map((c) => ({ text: c.text, t: c.t * 10, depth: c.depth })) : undefined,
-      notes: (log.notes ?? replay.notes).slice(-2) };   // Cut 13 §4
+      notes: (log.notes ?? replay.notes).slice(-2).filter((n) => !n.includes("saved him")),   // Cut 13 §4; never a `saved him` (QA 92eb880)
+      ...(verdict === "dice" && patches.length && patches.every((p) => p.survive <= base) ? { nothing_beats_base: true } : {}) };
     this.lastDeath[runId] = d; return d;
   }
 
@@ -1502,3 +1504,25 @@ export class FakeEngine implements Engine {
 }
 
 export function createFakeEngine(): Engine { return new FakeEngine(); }
+
+/** QA 92eb880 — the core's `RuleSet::shadowed_by` (every condition usable here): row A above shadows B when A's conditions
+ *  hold whenever B's do (plus a foe in view for a striking verb or a foe condition) and A always acts (`return`, `hold`)
+ *  or is B's own verb. `{}` when no row is shadowed (the wire omits the field). */
+function shadowField(rows: Row[]): { shadowed_by?: (number | null)[] } {
+  const strict = (k: string): number => (["hp<", "foe_hp<", "party_hp<", "self_hp<"].includes(k) ? -1 : ["hp>", "self_hp>", "turns>", "foes>=", "adj>=", "floor_seen>=", "depth>=", "alert>=", "loot>="].includes(k) ? 1 : 0);
+  const implies = (b: Row["conds"][number], a: Row["conds"][number]): boolean => {
+    if (b.k !== a.k || (b.t ?? null) !== (a.t ?? null)) return false;
+    const d = strict(a.k); const nb = b.n ?? 0, na = a.n ?? 0;
+    return d < 0 ? nb <= na : d > 0 ? nb >= na : nb === na;
+  };
+  const scope = (r: Row): string => JSON.stringify(r.conds.filter((c) => c.k === "party" || (c.k === "on_see" && c.t === "den") || (c.k === "foe_tag" && c.t === "thief")).map((c) => [c.k, c.t ?? "", c.n ?? 0]).sort());
+  const shadows = (a: Row, b: Row): boolean => {
+    const same = a.verb.v === b.verb.v && (a.verb.a ?? null) === (b.verb.a ?? null) && scope(a) === scope(b);
+    if (!(a.verb.v === "return" || a.verb.v === "hold" || same)) return false;
+    const eff = [...b.conds];
+    if (["attack", "shield_bash", "cleave", "backstab", "taunt"].includes(b.verb.v) || b.conds.some((c) => c.k === "foe_tag" || c.k === "foe_hp<")) eff.push({ k: "foes>=", n: 1 });
+    return a.conds.every((ca) => eff.some((cb) => implies(cb, ca)));
+  };
+  const out = rows.map((b, j) => { const i = rows.slice(0, j).findIndex((a) => shadows(a, b)); return i >= 0 ? i : null; });
+  return out.some((x) => x !== null) ? { shadowed_by: out } : {};
+}

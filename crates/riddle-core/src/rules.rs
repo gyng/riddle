@@ -299,6 +299,24 @@ impl RuleSet {
     /// (the first per card) and the first `max_rows` own rows, in the set's order, with their
     /// indices in the set. A validated set passes through whole; a patched or replayed one
     /// is cut like the editor cuts it (the last own row falls off).
+    /// QA on 92eb880 (qaM: `R3 fired 0 of 16 runs: hp < 30% → drink heal · heal unknown` under
+    /// R1 `hp < 30% → return`; a new row `hp < 50% → attack nearest` under `foes ≥ 1 → attack
+    /// nearest`, neither marked): per row of the set (by index), the earlier row in play that
+    /// takes every moment it could fire — `None` when none does, or the row is not in play.
+    /// Row A shadows a later row B when every condition of A holds whenever B's do (B's own
+    /// conditions, plus a foe in view when B's verb strikes one), A's conditions are all
+    /// usable (`usable`: owned, not locked), and A acts whenever it holds: its verb always
+    /// executes (`return`, `hold`), or it is B's verb with the same scope (where A's attempt
+    /// fails, B's same attempt fails too).
+    pub fn shadowed_by(&self, max_rows: usize, usable: impl Fn(&Cond) -> bool) -> Vec<Option<usize>> {
+        let act: Vec<(usize, &Row)> = self.active(max_rows).collect();
+        let mut out = vec![None; self.rows.len()];
+        for (k, &(j, b)) in act.iter().enumerate() {
+            out[j] = act[..k].iter().find(|(_, a)| shadows(a, b, &usable)).map(|(i, _)| *i);
+        }
+        out
+    }
+
     pub fn active(&self, max_rows: usize) -> impl Iterator<Item = (usize, &Row)> + '_ {
         let mut own = 0;
         let mut cards: Vec<&str> = Vec::new();
@@ -375,6 +393,45 @@ impl RuleSet {
 
 pub fn word_count(s: &str) -> usize {
     s.split_whitespace().filter(|w| w.chars().any(|c| c.is_alphanumeric())).count()
+}
+
+/// QA on 92eb880: does `a` (above) take every moment `b` (below) could fire? See
+/// `RuleSet::shadowed_by`.
+pub fn shadows(a: &Row, b: &Row, usable: &impl Fn(&Cond) -> bool) -> bool {
+    if !a.conds.iter().all(usable) {
+        return false;
+    }
+    // What changes how a verb acts besides its argument: the party scope and the den raid.
+    let scope = |r: &Row| -> Vec<Cond> {
+        let mut v: Vec<Cond> = r.conds.iter().filter(|c| c.k == "party" || (c.k == "on_see" && c.t.as_deref() == Some("den")) || (c.k == "foe_tag" && c.t.as_deref() == Some("thief"))).cloned().collect();
+        v.sort_by(|x, y| (&x.k, &x.t, x.n).cmp(&(&y.k, &y.t, y.n)));
+        v.dedup();
+        v
+    };
+    let always = matches!(a.verb.v.as_str(), "return" | "hold");
+    if !(always || (a.verb == b.verb && scope(a) == scope(b))) {
+        return false;
+    }
+    // B's moments: its conditions, and a foe in view when its verb strikes one or a
+    // condition reads one.
+    let mut eff: Vec<Cond> = b.conds.clone();
+    if matches!(b.verb.v.as_str(), "attack" | "shield_bash" | "cleave" | "backstab" | "taunt") || b.conds.iter().any(|c| matches!(c.k.as_str(), "foe_tag" | "foe_hp<")) {
+        eff.push(Cond::n("foes>=", 1));
+    }
+    a.conds.iter().all(|ca| eff.iter().any(|cb| cond_implies(cb, ca)))
+}
+
+/// Whenever `b` holds, `a` holds (the same token, a threshold at least as strict).
+pub fn cond_implies(b: &Cond, a: &Cond) -> bool {
+    if !b.same_token(a) {
+        return false;
+    }
+    let (nb, na) = (b.n.unwrap_or(0), a.n.unwrap_or(0));
+    match a.k.as_str() {
+        "hp<" | "foe_hp<" | "party_hp<" | "self_hp<" => nb <= na,
+        "hp>" | "self_hp>" | "turns>" | "foes>=" | "adj>=" | "floor_seen>=" | "depth>=" | "alert>=" | "loot>=" => nb >= na,
+        _ => nb == na,
+    }
 }
 
 #[cfg(test)]

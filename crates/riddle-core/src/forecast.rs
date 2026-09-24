@@ -144,8 +144,16 @@ pub fn set_parallel_sims(on: bool) {
     PARALLEL_SIMS.store(on && !cfg!(target_arch = "wasm32"), std::sync::atomic::Ordering::Relaxed);
 }
 
+/// QA on 92eb880 (qaM: "D6 32 %±13 → 38 %±10 on opening edit, 42 → 50 on opening the cond
+/// sheet" — no rule edited): the camp's two passes (`FORECAST_SIMS`, then `REFINE_SIMS` on the
+/// same seeds first) were the only thing moving, and any repaint after the refine (a sheet's
+/// lineage refresh re-forecasts) went back to the first pass, then forward again. Once the
+/// refined panel for this (lineage, rules) exists it *is* the forecast: a read never goes back
+/// to the coarser number (`refined` says which one it is).
 pub fn forecast(game: &Game) -> Forecast {
-    forecast_with(game, game.lineage.rules(), FORECAST_SIMS)
+    let rules = game.lineage.rules();
+    let sims = if game.panel_cache.borrow().contains_key(&panel_key(game, rules, REFINE_SIMS)) { REFINE_SIMS } else { FORECAST_SIMS };
+    forecast_with(game, rules, sims)
 }
 
 /// Cut 6 §9: the same forecast at `REFINE_SIMS` sims — the same seeds first, then as many
@@ -177,9 +185,8 @@ pub const CAMP_TICK_BUDGET: u64 = FORECAST_TICK_BUDGET + DELTA_TICK_BUDGET;
 pub fn camp_panel(game: &Game, rules: &RuleSet, sims: u32) -> Vec<SimResult> {
     let known_to = game.lineage.best_depth + 1;
     let tag = forecast_tag(game, known_to);
-    let k = (sims as u64).div_ceil(FORECAST_SIMS as u64).max(1);
-    let budget = CAMP_TICK_BUDGET * k;
-    let key = format!("{}:{sims}:{tag}:{budget}:{}", lineage_key(game), serde_json::to_string(rules).unwrap_or_default());
+    let budget = panel_budget(sims);
+    let key = panel_key(game, rules, sims);
     if let Some(v) = game.panel_cache.borrow().get(&key) {
         return v.clone();
     }
@@ -193,6 +200,16 @@ pub fn camp_panel(game: &Game, rules: &RuleSet, sims: u32) -> Vec<SimResult> {
 }
 
 pub const PANEL_CACHE_MAX: usize = 16;
+
+fn panel_budget(sims: u32) -> u64 {
+    CAMP_TICK_BUDGET * (sims as u64).div_ceil(FORECAST_SIMS as u64).max(1)
+}
+
+/// The memo key of the camp's panel for `rules` at `sims` (`camp_panel`).
+fn panel_key(game: &Game, rules: &RuleSet, sims: u32) -> String {
+    let tag = forecast_tag(game, game.lineage.best_depth + 1);
+    format!("{}:{sims}:{tag}:{}:{}", lineage_key(game), panel_budget(sims), serde_json::to_string(rules).unwrap_or_default())
+}
 
 /// The camp bar at `depth` for `rules` (`camp_panel` at `FORECAST_SIMS`): (reach, sims).
 pub fn camp_reach(game: &Game, rules: &RuleSet, depth: u32) -> (f64, u32) {
@@ -243,7 +260,7 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
     let death = share(ExitTier::Death);
     let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()) });
-    Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS }
+    Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules) }
 }
 
 /// Cut 10 §2: the `try` of a forecast row — reaching `depth` means passing the boss on the
@@ -334,7 +351,7 @@ pub fn reach_key(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, 
 
 /// A fingerprint of what a sim starts from: the lineage fields a fresh run reads (facts,
 /// unlocks, class and level, vault and loadout, party, supplies, gold, forge, grudges, bones,
-/// insurance, keep preference, trait, heir, variant, hunter) — not marks, renown or the rest
+/// insurance, keep preference, trait, heir, variant, hunter, freshness, the other sets, trophies) — not marks, renown or the rest
 /// clock, so a purchase or a rank does not spill the cache.
 pub fn lineage_key(game: &Game) -> u64 {
     let l = &game.lineage;
@@ -372,5 +389,16 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&serde_json::to_string(&l.hunter).unwrap_or_default());
     feed(&format!("{:?}", l.kill_counts));
     feed(&l.ended.to_string());
+    // QA on 92eb880: what else a sim's run reads — the floors' freshness (`picked`, Cut 16
+    // §1), the other sets (a shrine lends one of their rows), the trophies (the turn's
+    // context) — so a memoised panel is never a stale one.
+    feed(&format!("{:?}", l.picked));
+    // (the active set is the sims' own rules, keyed apart: a patch measured on the death screen
+    // and the camp that applies it read one panel)
+    let active = l.active_set.min(l.sets.len().saturating_sub(1));
+    for (i, set) in l.sets.iter().enumerate().filter(|(i, _)| *i != active) {
+        feed(&format!("{i}:{}", serde_json::to_string(set).unwrap_or_default()));
+    }
+    feed(&format!("{:?}", l.trophies));
     h
 }

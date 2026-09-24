@@ -219,8 +219,11 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
     // `+$263 salvage`): each row floors its cents, the rounded total's remainder goes to the
     // largest fractions.
     let total = b.salvage_gold;   // the header's coins (the ledger's per-exit rounding)
-    let mut salvaged: Vec<SalvageRow> = b.salvaged.iter().map(|(k, (n, g))| SalvageRow { kind: k.clone(), n: *n, gold: g / 100 }).collect();
-    let mut order: Vec<(i32, usize)> = b.salvaged.values().enumerate().map(|(i, (_, g))| (g % 100, i)).collect();
+    // QA on 92eb880: the coins the ledger paid per kind, when the batch recorded them (a save
+    // from before carries cents only, apportioned below) — the exit sheet's own numbers.
+    let paid = b.salvaged.keys().all(|k| b.salvaged_coins.contains_key(k));
+    let mut salvaged: Vec<SalvageRow> = b.salvaged.iter().map(|(k, (n, g))| SalvageRow { kind: k.clone(), n: *n, gold: if paid { b.salvaged_coins[k] } else { g / 100 } }).collect();
+    let mut order: Vec<(i32, usize)> = if paid { Vec::new() } else { b.salvaged.values().enumerate().map(|(i, (_, g))| (g % 100, i)).collect() };
     order.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
     let short = total - salvaged.iter().map(|r| r.gold).sum::<i32>();
     for &(_, i) in order.iter().take(short.max(0) as usize) {

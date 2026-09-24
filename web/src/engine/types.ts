@@ -94,7 +94,8 @@ export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
 export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry; wall?: string }[]; causes: { cause: string; share: number }[];
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
                          ends?: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number };
-                         refined?: boolean };                                                                  // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
+                         refined?: boolean;
+                         shadowed_by?: (number | null)[] };                                                    // QA 92eb880: per row of the set (by index), the earlier row (0-based) that takes every moment it could fire — mark it `shadowed by R{n+1}`; null = free; absent = none shadowed   // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
 export type ForecastTry = { row: Row; text: string; boss?: string };
@@ -124,7 +125,8 @@ export type Death = { run_id: number; depth: number; cause: string; margin: stri
                       line?: ExitLine;                                                       // Cut 6 §1: the death's ledger line
                       chain?: Because[];                                                     // Cut 11 §2: the death's chain, root first (the rows' `because`s, deduplicated)
                       rules?: RuleSet;                                                       // the rules the run died under (the accounting's row labels; else the morgue's lines)
-                      notes?: string[] };                                                    // Cut 13 §4: the run's last two chronicle notes, under the headline
+                      notes?: string[];                                                      // Cut 13 §4: the run's last two chronicle notes, under the headline (never a `saved him` — QA 92eb880)
+                      nothing_beats_base?: boolean };                                        // QA 92eb880: a `dice` death none of whose patches survives more than `baseline` (a 100 % base: the replays win the fight he lost) — say `nothing beats base · base N%`, not `below bar`
 /** Core addition: the last ≥ 4 runs all came home with no new depth — the row that ended them, how many, a ≤ 12-word line,
  *  and up to 3 patches with forecast deltas at the stall depth + 1 (`survive` = the patched reach there). A state: the
  *  last slice's wins on merge. */
@@ -168,7 +170,8 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         counters?: Counter[];                                                                         // Cut 6 §5: bosses whose counter row is known
                         combos?: ComboHit[];                                                                          // Cut 8B §1: the active set's combos, in row order (recomputed on setRules)
                         picked?: number[];                                                                            // Cut 16 §1: depths picked clean now (as ReturnReport.picked)
-                        class_offer?: ClassChip[] };                                                                  // Cut 16 §2: the wake's class chips — owned classes, current first; present while trait_offer is and ≥ 2 are owned; `setClass(name)` picks (sticks until changed)
+                        class_offer?: ClassChip[];                                                                    // Cut 16 §2: the wake's class chips — owned classes, current first; present while trait_offer is and ≥ 2 are owned; `setClass(name)` picks (sticks until changed)
+                        shadowed_by?: (number | null)[] };                                                            // QA 92eb880: the active set's shadowed rows, as Forecast.shadowed_by (absent when none)
 /** Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id (`shield_bash | vanish | mark | slow`);
  *  `level` the class's level; `opens` the level the signature opens at (`mark L7` while level < opens).
  *  §4 (no new wire): the Warlord's break is a callout `warlord breaks` + a note `The Warlord breaks.` (visible only), once, at ≤ 50 % hp.

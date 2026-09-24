@@ -1043,7 +1043,17 @@ impl LineageState {
             combos: self.rules().combos(),
             picked: self.picked_clean(),
             class_offer: self.class_offer(),
+            shadowed_by: self.shadowed_by(self.rules()),
         }
+    }
+    /// QA on 92eb880: `rules`' shadowed rows for this lineage (a row whose condition it does not
+    /// own never fires, so it shadows nothing); empty when none is shadowed.
+    pub fn shadowed_by(&self, rules: &RuleSet) -> Vec<Option<u32>> {
+        let v = rules.shadowed_by(self.max_rows(), |c| crate::meta::cond_unlock(&c.k).is_none_or(|u| self.unlocks.contains(u)) && (c.k != "on_see" || c.t.as_deref().is_none_or(|t| t.is_empty() || self.facts.contains(t))));
+        if v.iter().all(|x| x.is_none()) {
+            return Vec::new();
+        }
+        v.into_iter().map(|x| x.map(|i| i as u32)).collect()
     }
     /// Cut 16 §2: the wake's class chips (see `Lineage.class_offer`).
     pub fn class_offer(&self) -> Vec<crate::wire::ClassChip> {
@@ -1402,6 +1412,9 @@ pub struct Batch {
     pub xp_gained: u32,
     pub level_ups: u32,
     pub salvaged: BTreeMap<String, (u32, i32)>,
+    /// QA on 92eb880: per kind, the coins the ledger paid for `salvaged` (the report's rows).
+    #[serde(default)]
+    pub salvaged_coins: BTreeMap<String, i32>,
     /// Gold earned this batch by exits (kept loot) — the policy's yield, exclusive of stipends.
     pub gold_earned: i32,
     pub renown_gained: u32,
@@ -2156,7 +2169,7 @@ impl Game {
         self.pending_exit.as_ref().map(|p| ExitPending {
             items: p.items.iter().map(|i| to_inv(i, &self.lineage.facts, &self.lineage.flavours)).collect(),
             tier: p.tier.name().into(),
-            worth: p.items.iter().map(|i| (salvage_value(&i.kind) * p.pct / GOLD_DIVISOR + 50) / 100).collect(),
+            worth: salvage_coins(&p.items, p.pct, self.lineage.gold_carry),
             auto_keep: auto_keep_plan(p, &self.lineage.vault, self.lineage.vault_slots(), &self.lineage.keep_pref, self.lineage.unlocks.contains("quartermaster")).0,
         })
     }
@@ -2714,15 +2727,16 @@ impl Game {
         };
         let eligible: Vec<Item> = all.iter().take(n_keep).cloned().collect();
         let rest_items: Vec<Item> = all.into_iter().skip(n_keep).collect();
-        self.salvage(&rest_items, pct);
-        // Per kind, the coins the cut brought (as the batch report rounds them).
+        let cut_coins = self.salvage(&rest_items, pct);
+        // Per kind, the coins the cut brought — the ledger's own (QA on 92eb880: `sold
+        // aggravate $2` on the keep sheet, `aggravate ×1 · $1` in the report).
         let mut cut: std::collections::BTreeMap<String, (u32, i32)> = std::collections::BTreeMap::new();
-        for it in &rest_items {
+        for (it, c) in rest_items.iter().zip(&cut_coins) {
             let e = cut.entry(it.kind.clone()).or_insert((0, 0));
             e.0 += 1;
-            e.1 += salvage_value(&it.kind) * pct / GOLD_DIVISOR;
+            e.1 += c;
         }
-        let cut_rows: Vec<crate::wire::SalvageRow> = cut.into_iter().map(|(k, (n, c))| crate::wire::SalvageRow { kind: k, n, gold: (c + 50) / 100 }).filter(|r| r.gold > 0).collect();
+        let cut_rows: Vec<crate::wire::SalvageRow> = cut.into_iter().map(|(k, (n, c))| crate::wire::SalvageRow { kind: k, n, gold: c }).filter(|r| r.gold > 0).collect();
         let brought: Vec<u32> = eligible.iter().filter(|i| run.brought.contains(&i.id)).map(|i| i.id).collect();
         self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible, pct, brought });
         // Death: graveyard, grudge, heir, record.
@@ -2889,13 +2903,21 @@ impl Game {
     }
 
     /// Salvage items: gold by tier, forge ledger by full count (Addendum D).
-    fn salvage(&mut self, items: &[Item], pct: i32) {
-        for it in items {
+    /// Salvage `items` at `pct`: each pays its coins by `salvage_coins` (the exit sheet's
+    /// `worth`, the cut's `sold` rows and the report's rows are these very coins). Returns them.
+    fn salvage(&mut self, items: &[Item], pct: i32) -> Vec<i32> {
+        let coins = salvage_coins(items, pct, self.lineage.gold_carry);
+        self.salvage_paid(items, pct, &coins);
+        coins
+    }
+
+    /// Salvage `items`, item `i` paying `coins[i]`; the hundredths it leaves (or overdraws) stay
+    /// in the carry, so the lineage's salvage over time is the cents' sum whatever the split.
+    fn salvage_paid(&mut self, items: &[Item], pct: i32, coins: &[i32]) {
+        for (it, &gold) in items.iter().zip(coins) {
             // hundredths of a coin: value × tier% ÷ divisor, carried so cheap items still add up
             let cents = salvage_value(&it.kind) * pct / GOLD_DIVISOR;
-            self.lineage.gold_carry += cents;
-            let gold = self.lineage.gold_carry / 100;
-            self.lineage.gold_carry %= 100;
+            self.lineage.gold_carry += cents - gold * 100;
             self.lineage.gold_move(gold, "salvage");
             self.batch.salvage_gold += gold;
             let f = self.lineage.forge.entry(it.kind.clone()).or_default();
@@ -2908,6 +2930,7 @@ impl Game {
                 let e = self.batch.salvaged.entry(it.kind.clone()).or_insert((0, 0));
                 e.0 += 1;
                 e.1 += cents;
+                *self.batch.salvaged_coins.entry(it.kind.clone()).or_insert(0) += gold;
             }
         }
     }
@@ -2916,11 +2939,15 @@ impl Game {
     pub fn keep(&mut self, ids: Vec<u32>) -> Result<(), String> {
         let Some(p) = self.pending_exit.take() else { return Err("nothing to keep".into()) };
         let slots = self.lineage.vault_slots();
+        // QA on 92eb880 (qaM: the sheet's `aggravate $2`, the report's `aggravate ×1 · $1`): an
+        // unkept item pays exactly the coins the sheet showed for it (`ExitPending.worth`).
+        let worth = salvage_coins(&p.items, p.pct, self.lineage.gold_carry);
+        let mut paid: Vec<(Item, i32)> = Vec::new();
         let mut salvage: Vec<Item> = Vec::new();
-        for it in p.items {
+        for (it, coin) in p.items.into_iter().zip(worth) {
             // `bones_only`: nothing enters the vault; only bones piles carry gear.
             if !ids.contains(&it.id) || slots == 0 {
-                salvage.push(it);
+                paid.push((it, coin));
                 continue;
             }
             let mut v = it;
@@ -2939,7 +2966,7 @@ impl Game {
             if self.lineage.vault.len() > slots {
                 if let Some(d) = self.lineage.vault.pop() {
                     if d.id == v.id {
-                        salvage.push(d);
+                        paid.push((d, coin));
                         continue;
                     }
                     salvage.push(d);
@@ -2947,6 +2974,8 @@ impl Game {
             }
             self.batch.found.push(v);
         }
+        let (items, coins): (Vec<Item>, Vec<i32>) = paid.into_iter().unzip();
+        self.salvage_paid(&items, p.pct, &coins);
         self.salvage(&salvage, p.pct);
         self.restock();
         self.lineage.kennel_leash();
@@ -3294,6 +3323,58 @@ pub fn trophy_label(id: &str) -> String {
 }
 
 /// Salvage value per kind (Addendum D).
+/// QA on 92eb880: the coins each of `items` pays when they are salvaged together at `pct` with
+/// `carry` hundredths already banked — the whole's floor (`(carry + Σ cents) ÷ 100`, as the
+/// ledger always paid) apportioned by largest remainder (ties to the earlier item). The exit
+/// sheet's `worth`, the ledger and the report's rows all read these.
+pub fn salvage_coins(items: &[Item], pct: i32, carry: i32) -> Vec<i32> {
+    // A death's kit salvages at 0 %: no coins, whatever the carry holds.
+    if pct <= 0 {
+        return vec![0; items.len()];
+    }
+    let cents: Vec<i32> = items.iter().map(|i| salvage_value(&i.kind) * pct / GOLD_DIVISOR).collect();
+    apportion_cents(&cents, carry)
+}
+
+/// `cents` (hundredths) to whole coins summing to `(carry + Σ cents) ÷ 100` (never below 0):
+/// each floors, the remainder goes to the largest fractions (ties to the earlier), an
+/// overdrawn carry takes from the smallest.
+pub fn apportion_cents(cents: &[i32], carry: i32) -> Vec<i32> {
+    let total = (carry + cents.iter().sum::<i32>()).max(0) / 100;
+    let mut out: Vec<i32> = cents.iter().map(|c| c.max(&0) / 100).collect();
+    if out.is_empty() {
+        return out;
+    }
+    let mut order: Vec<usize> = (0..cents.len()).collect();
+    order.sort_by(|&a, &b| (cents[b].max(0) % 100).cmp(&(cents[a].max(0) % 100)).then(a.cmp(&b)));
+    let mut short = total - out.iter().sum::<i32>();
+    while short > 0 {
+        for &i in &order {
+            if short == 0 {
+                break;
+            }
+            out[i] += 1;
+            short -= 1;
+        }
+    }
+    while short < 0 {
+        let before = short;
+        for &i in order.iter().rev() {
+            if short == 0 {
+                break;
+            }
+            if out[i] > 0 {
+                out[i] -= 1;
+                short += 1;
+            }
+        }
+        if short == before {
+            break;
+        }
+    }
+    out
+}
+
 pub fn salvage_value(kind: &str) -> i32 {
     let d = crate::defs::item_def(kind);
     match d.cat {

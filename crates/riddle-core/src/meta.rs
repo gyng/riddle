@@ -484,8 +484,16 @@ pub fn pending(game: &Game) -> Vec<String> {
     // client shows the rows that fired in under a third of the runs.
     let real_runs = game.batch.run_ticks.len() as u32;
     if real_runs > 0 {
+        let shadowed = l.shadowed_by(rules);
         for (i, r) in rules.active(l.max_rows()) {
             let n = game.batch.row_runs.get(i).copied().unwrap_or(0);
+            // QA on 92eb880 (qaM: `R3 fired 0 of 16 runs: hp < 30% → drink heal · heal unknown`
+            // under R1 `hp < 30% → return`): a row an earlier one shadows names that row — the
+            // kind being unknown was never why it did not fire.
+            if let Some(by) = shadowed.get(i).copied().flatten().filter(|_| n == 0) {
+                out.push(format!("R{} fired {n} of {real_runs} runs: {} · shadowed by R{}", i + 1, r.describe(), by + 1));
+                continue;
+            }
             // A drink/read row that never fired because the kind is still unidentified says so
             // (QA on 56f2a1d: `R1 fired 0 of 17 runs: hp < 50% → drink heal` beside `heal ×16`
             // salvaged, with no reason on screen).

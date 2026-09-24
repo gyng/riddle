@@ -359,6 +359,11 @@ pub struct Forecast {
     /// `…` by the client so a re-read does not look like a re-roll.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub refined: bool,
+    /// QA on 92eb880: per row of the forecast's set (by index), the earlier row that takes
+    /// every moment it could fire (`RuleSet::shadowed_by`) — the editor marks it; `null` for a
+    /// row nothing shadows. Empty when no row is shadowed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shadowed_by: Vec<Option<u32>>,
 }
 
 /// Cut 12 §3: how a send ends — `bank` / `return` / `death` as shares of a panel of sends run
@@ -505,6 +510,13 @@ pub struct Death {
     /// Gambled: fire potion.`), under the headline — the beat the morgue alone carried.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
+    /// QA on 92eb880 (qaM, the worst death: `DICE` above three patches all `survives 100% ·
+    /// below bar`): a `dice` death whose unpatched rules already survive the replays as well as
+    /// any candidate does — no shown patch survives more than `baseline` (a hero who won the
+    /// same fight 12 of 12 times reseeded died to the rolls). The screen says nothing beats
+    /// base (`base 100%`) rather than calling equal rows "below bar".
+    #[serde(default)]
+    pub nothing_beats_base: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -810,6 +822,10 @@ pub struct Lineage {
     /// Cut 16 §1: depths picked clean now (as `ReturnReport.picked`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub picked: Vec<u32>,
+    /// QA on 92eb880: the active set's shadowed rows, as `Forecast.shadowed_by` (per row by
+    /// index, the earlier row that takes all its moments; empty when none is shadowed).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shadowed_by: Vec<Option<u32>>,
     /// Cut 16 §2: the classes the new heir may wake as — the owned ones, the current first —
     /// while the wake is open (`trait_offer` non-empty) and ≥ 2 are owned; `set_class(name)`
     /// picks (it sticks to every run until changed).

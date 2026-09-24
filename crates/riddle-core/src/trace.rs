@@ -92,8 +92,11 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         rules: Some(rules.clone()),
         // The beat the morgue alone carried — not the headline's own notes (`Slain by …`,
         // `Down to 2 HP.`, `Returned with $0.`), which the screen already says; a stall's note
-        // stays (it says what the stall paid).
-        notes: run.notes.iter().rev().filter(|(_, n)| !(n.starts_with("Slain by") || n.starts_with("Down to ") || n.starts_with("Returned with") || n.starts_with("Lost the thread") || n.ends_with(": studied.") || n.starts_with("Met a ") || n.starts_with("Met an ") || n.starts_with("Learned"))).take(2).map(|(_, n)| n.clone()).collect::<Vec<_>>().into_iter().rev().collect(),
+        // stays (it says what the stall paid). QA on 92eb880 (qaM: `R2 attack saved him.` above
+        // a GAP on the hero's death): a floor he lived through earlier is not this screen's beat —
+        // a `saved him` note never reaches a death's notes.
+        notes: run.notes.iter().rev().filter(|(_, n)| !(n.ends_with(" saved him.") || n.starts_with("Slain by") || n.starts_with("Down to ") || n.starts_with("Returned with") || n.starts_with("Lost the thread") || n.ends_with(": studied.") || n.starts_with("Met a ") || n.starts_with("Met an ") || n.starts_with("Learned"))).take(2).map(|(_, n)| n.clone()).collect::<Vec<_>>().into_iter().rev().collect(),
+        nothing_beats_base: false,
     };
     let n = game.history.len();
     let pick = if stall {
@@ -1198,6 +1201,9 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
             rec.death.patches.insert(0, o);
         }
     }
+    // QA on 92eb880: a dice death none of whose shown patches survives more than the
+    // unpatched rules (a 100 % baseline: the replays win the fight he lost) says so.
+    rec.death.nothing_beats_base = is_dice && !rec.death.patches.is_empty() && rec.death.patches.iter().all(|p| p.survive <= baseline + 1e-9);
 }
 
 /// Cut 11 §4: on a `dice` death after a telegraph, `foe_tag:telegraph → retreat` is measured

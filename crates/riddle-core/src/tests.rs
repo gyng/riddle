@@ -7710,3 +7710,244 @@ fn a_boss_wall_names_the_boss_until_the_set_passes_him() {
     assert_eq!(wall_at(8, 0.0, 0.8), None, "no boss above D8");
     assert!(serde_json::to_value(ForecastDepth { depth: 4, reach: 0.5, pm: None, try_: None, wall: None }).unwrap().get("wall").is_none());
 }
+
+// ---------------------------------------------------------------- QA on 92eb880 (qaM, seed 1215)
+
+/// Seed 1215's default first send to its death (the QA's live L1–L2): the game, the run id.
+fn qam_first_death() -> (Game, u32) {
+    let mut g = Game::new(1215);
+    g.send();
+    loop {
+        let r = g.step(50);
+        if r.run_over {
+            let died = r.events.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "death"));
+            if g.pending_exit.is_some() {
+                g.keep(vec![]).unwrap();
+            }
+            assert!(died, "seed 1215's first send dies (the QA's D6 jackal)");
+            return (g, r.snapshot.run.id);
+        }
+    }
+}
+
+/// qaM: "D6 32 %±13 → 38 %±10 on opening edit … 26 %±12 → 34 %±9 on opening loadout" with no
+/// rule edited — the first pass, then the refine, then (on any repaint) the first pass again.
+/// Every read the camp's sheets make leaves the forecast as it was, and once the refined panel
+/// exists a forecast read is that panel (never back to the coarser one).
+#[test]
+fn forecast_is_the_same_across_the_camps_sheet_reads() {
+    let (mut g, id) = qam_first_death();
+    let _ = g.death(id);
+    let ps = g.death_deltas(id).unwrap();
+    let rules = g.lineage.rules().clone();
+    g.set_rules(crate::offline::apply_patch(&rules, &ps[0], g.lineage.max_rows())).unwrap();
+    let first = g.forecast();
+    assert!(!first.refined);
+    let reads = |g: &mut Game| {
+        let _ = g.lineage();
+        let _ = g.vocabulary();
+        let _ = g.unlocks();
+        let _ = g.unlock_deltas();
+        let _ = g.supply_catalogue();
+        let _ = g.death(id);
+        let r = g.lineage.rules().clone();
+        g.set_rules(r).unwrap();
+        let l = g.loadout.clone();
+        g.loadout(l);
+    };
+    reads(&mut g);
+    assert_eq!(g.forecast(), first, "a sheet read moved the first pass");
+    let refined = g.forecast_refine();
+    assert!(refined.refined);
+    assert_eq!(g.forecast(), refined, "a read after the refine went back to the first pass");
+    reads(&mut g);
+    assert_eq!(g.forecast(), refined);
+    // The same numbers from a cold cache: nothing but the lineage and the rules feeds them.
+    g.panel_cache.borrow_mut().clear();
+    g.forecast_cache.borrow_mut().clear();
+    assert_eq!(g.forecast(), first);
+    assert_eq!(g.forecast_refine(), refined);
+}
+
+/// qaM: `R2 attack saved him.` on the death screen of a hero who died while R2 fired (a note
+/// from the floor above). No death's notes carry a `saved him` line.
+#[test]
+fn a_deaths_notes_never_say_saved_him() {
+    let (mut g, id) = qam_first_death();
+    let d = g.death(id).unwrap();
+    assert!(d.morgue.contains(" saved him."), "the run wrote the note (the repro): {}", d.morgue);
+    assert!(d.notes.iter().all(|n| !n.contains("saved him")), "{:?}", d.notes);
+    g.run_offline(8 * 3600);
+    let ids: Vec<u32> = g.deaths.keys().copied().collect();
+    for id in ids {
+        let d = g.death(id).unwrap();
+        assert!(d.notes.iter().all(|n| !n.contains("saved him")), "run {id}: {:?}", d.notes);
+    }
+}
+
+/// qaM dump 09 (the worst death): `DICE` over three patches all `survives 100% · below bar` —
+/// the unpatched rules win the same fight 12 of 12 times reseeded (the ogre at 2 HP when he
+/// fell), so nothing can beat the base; the death says so (`nothing_beats_base`), and a dice
+/// death with a patch surviving more than the base does not.
+#[test]
+fn a_dice_death_at_a_full_base_says_nothing_beats_it() {
+    let (mut g, id) = qam_first_death();
+    let _ = g.death(id);
+    let ps = g.death_deltas(id).unwrap();
+    let rules = g.lineage.rules().clone();
+    g.set_rules(crate::offline::apply_patch(&rules, &ps[0], g.lineage.max_rows())).unwrap();
+    let r = g.run_offline(8 * 3600);
+    let d = r.worst_death.expect("a worst death");
+    assert_eq!((d.verdict.as_str(), d.depth), ("dice", 8), "the QA's D8 ogre");
+    assert!(d.baseline >= 1.0 - 1e-9 && d.patches.iter().all(|p| p.survive <= d.baseline + 1e-9));
+    assert!(d.nothing_beats_base, "{:?}", d.patches.iter().map(|p| (p.row.describe(), p.survive)).collect::<Vec<_>>());
+    let ids: Vec<u32> = g.deaths.keys().copied().collect();
+    for id in ids {
+        let d = g.death(id).unwrap();
+        let beaten = d.patches.iter().any(|p| p.survive > d.baseline + 1e-9);
+        assert_eq!(d.nothing_beats_base, d.verdict == "dice" && !d.patches.is_empty() && !beaten, "run {id}: {} base {:.2}", d.verdict, d.baseline);
+    }
+}
+
+/// The apportionment: whole coins summing to the floor of the total, largest fractions first.
+#[test]
+fn salvage_coins_sum_to_the_ledgers_floor() {
+    use crate::engine::apportion_cents;
+    assert_eq!(apportion_cents(&[180, 180, 120], 0), vec![2, 1, 1]);
+    assert_eq!(apportion_cents(&[180, 180, 120], 60), vec![2, 2, 1]);
+    assert_eq!(apportion_cents(&[120], -90), vec![0]);
+    assert_eq!(apportion_cents(&[], 50), Vec::<i32>::new());
+    for carry in [-150, -20, 0, 37, 99, 180, 350] {
+        let c = [5, 99, 180, 240, 12];
+        let out = apportion_cents(&c, carry);
+        assert_eq!(out.iter().sum::<i32>(), (carry + c.iter().sum::<i32>()).max(0) / 100, "carry {carry}: {out:?}");
+        assert!(out.iter().all(|x| *x >= 0));
+    }
+}
+
+/// qaM: the keep sheet's `sold aggravate $2 · blink $2`, the report's `aggravate ×1 · $1`. The
+/// exit sheet's per-item `worth` is what the ledger pays for that item when it is let go (all
+/// of them, or any part), and the cut's `sold` rows and the report's rows are the ledger's
+/// coins per kind.
+#[test]
+fn the_keep_sheets_prices_are_the_ledgers() {
+    let checked: u32 = par_seeds(1..=16u64, |seed| {
+        let mut n = 0;
+        let mut g = Game::new(seed);
+        g.lineage.unlocks.extend(["row5", "row6", "row7", "row8", "throw"].map(String::from));
+        g.set_rules_raw(crate::probes::good()).unwrap();
+        for send in 0..6u32 {
+            g.lineage.rest_left = 0;
+            let coins0 = g.batch.salvaged_coins.clone();
+            let head0 = g.batch.salvage_gold;
+            g.send();
+            let mut line = None;
+            let r = loop {
+                let r = g.step(200);
+                for e in &r.events {
+                    if let Ev::Exit { line: Some(l), .. } = e {
+                        line = Some(l.clone());
+                    }
+                }
+                if r.run_over {
+                    break r;
+                }
+            };
+            // The cut (a return's 40 %) was sold before the sheet: its rows are the ledger's.
+            let paid_cut: i32 = g.batch.salvage_gold - head0;
+            if let Some(l) = &line {
+                assert_eq!(l.salvaged.iter().map(|s| s.gold).sum::<i32>(), paid_cut, "seed {seed}: cut rows vs ledger");
+                for s in &l.salvaged {
+                    assert_eq!(g.batch.salvaged_coins.get(&s.kind).copied().unwrap_or(0) - coins0.get(&s.kind).copied().unwrap_or(0), s.gold, "seed {seed}: cut {}", s.kind);
+                }
+            }
+            let (Some(pe), Some(p)) = (r.exit_pending.clone(), g.pending_exit.clone()) else { continue };
+
+            if p.pct == 0 || p.items.is_empty() {
+                g.keep(vec![]).unwrap();
+                continue;
+            }
+            // Keep the first item when the vault has room: each unkept one pays its sheet
+            // price, exactly.
+            let keep: Vec<u32> = p.items.iter().take(usize::from(g.lineage.vault.len() < g.lineage.vault_slots())).map(|i| i.id).collect();
+            let want: i32 = p.items.iter().zip(&pe.worth).filter(|(i, _)| !keep.contains(&i.id)).map(|(_, w)| *w).sum();
+            let (gold, head, coins1) = (g.lineage.gold, g.batch.salvage_gold, g.batch.salvaged_coins.clone());
+            let slots_before = g.lineage.vault.len();
+            g.keep(keep.clone()).unwrap();
+            // (a full vault evicts: those pay too — only the no-eviction case is exact)
+            if g.lineage.vault.len() == slots_before + keep.len() {
+                assert_eq!(g.lineage.gold - gold, want, "seed {seed} send {send}: sheet {:?} kept {keep:?}", pe.worth);
+                assert_eq!(g.batch.salvage_gold - head, want);
+                let mut per: std::collections::BTreeMap<String, i32> = Default::default();
+                for (i, w) in p.items.iter().zip(&pe.worth).filter(|(i, _)| !keep.contains(&i.id)) {
+                    *per.entry(i.kind.clone()).or_insert(0) += w;
+                }
+                for (k, w) in per {
+                    assert_eq!(g.batch.salvaged_coins.get(&k).copied().unwrap_or(0) - coins1.get(&k).copied().unwrap_or(0), w, "seed {seed}: {k}");
+                }
+                n += 1;
+            }
+        }
+        // The report's rows are the ledger's coins per kind, summing to its header.
+        let rep = g.run_offline(0);
+        let rows: i32 = rep.salvaged.iter().map(|x| x.gold).sum();
+        assert_eq!(rows, rep.gold.as_ref().map(|x| x.salvage).unwrap_or(0), "seed {seed}");
+        for row in &rep.salvaged {
+            assert_eq!(row.gold, *g.batch.salvaged_coins.get(&row.kind).unwrap_or(&row.gold), "seed {seed}: {}", row.kind);
+        }
+        n
+    })
+    .into_iter()
+    .sum();
+    assert!(checked >= 5, "only {checked} partial keeps checked");
+}
+
+/// qaM: R3 `hp < 30% → drink heal` under R1 `hp < 30% → return` "fired 0 of 16 runs · heal
+/// unknown"; a new `hp < 50% → attack nearest` under `foes ≥ 1 → attack nearest`, unmarked.
+#[test]
+fn shadowed_rows_are_named() {
+    let all = |_: &Cond| true;
+    let set = RuleSet {
+        rows: vec![
+            Row::new(vec![Cond::n("hp<", 30)], Verb::new("return")),
+            Row::new(vec![Cond::n("hp<", 50)], Verb::new("rest")),
+            Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+            Row::new(vec![Cond::n("hp<", 50)], Verb::arg("attack", "nearest")),
+            Row::new(vec![Cond::n("hp<", 20)], Verb::arg("drink", "heal")),
+        ],
+        ..Default::default()
+    };
+    // R3 by R1 (return always acts); R5 by R4 (the same strike, which needs a foe in view);
+    // R6 by R1 (hp < 20 is hp < 30). R2 (rest) and R4 are free: rest fails where return is
+    // not written for it, and nothing above R4 holds whenever a foe is in view.
+    assert_eq!(set.shadowed_by(8, all), vec![None, None, Some(0), None, Some(3), Some(0)]);
+    // Not shadowed: a looser threshold below, a verb that can fail above, another scope.
+    let free = RuleSet {
+        rows: vec![
+            Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")),
+            Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")),
+            Row::new(vec![Cond::n("hp<", 25)], Verb::new("retreat")),
+            Row::new(vec![Cond::n("foes>=", 2)], Verb::arg("attack", "nearest")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+        ],
+        ..Default::default()
+    };
+    assert_eq!(free.shadowed_by(8, all), vec![None; 5]);
+    // A row whose condition the lineage cannot use never fires, so it shadows nothing.
+    let locked = RuleSet { rows: vec![Row::new(vec![Cond::n("alert>=", 1)], Verb::new("return")), Row::new(vec![Cond::n("alert>=", 2)], Verb::new("rest"))], ..Default::default() };
+    assert_eq!(locked.shadowed_by(8, |c: &Cond| c.k != "alert>="), vec![None, None]);
+    assert_eq!(locked.shadowed_by(8, all), vec![None, Some(0)]);
+    // On the wire (lineage and forecast), and in the report's pending line.
+    let mut g = Game::new(1215);
+    g.set_rules(RuleSet { rows: set.rows[..4].to_vec(), ..Default::default() }).unwrap();
+    assert_eq!(g.lineage().shadowed_by, vec![None, None, Some(0), None]);
+    assert_eq!(crate::forecast::forecast_with(&g, &g.lineage.rules().clone(), 5).shadowed_by, vec![None, None, Some(0), None]);
+    g.set_rules(RuleSet { rows: set.rows[3..4].to_vec(), ..Default::default() }).unwrap();
+    assert!(g.lineage().shadowed_by.is_empty(), "nothing shadowed: the field is absent");
+    g.set_rules(RuleSet { rows: set.rows[..4].to_vec(), ..Default::default() }).unwrap();
+    g.run_offline(2 * 3600);
+    let p = crate::meta::pending(&g);
+    let r3 = p.iter().find(|l| l.starts_with("R3 fired")).expect("an R3 line");
+    assert!(r3.starts_with("R3 fired 0 of") && r3.ends_with(" · shadowed by R1") && !r3.contains("unknown"), "{r3}");
+}
