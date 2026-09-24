@@ -14,6 +14,7 @@ import { mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { editRows, openPanel } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -53,6 +54,7 @@ const shot = async (name) => { if (shots) await page.screenshot({ path: `${shots
 try {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
+  await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   // a lineage with marks, the card gates met, a potion identified (so the supply catalogue sells it) and gold
   const ok = await page.evaluate(async () => {
     const r = window.__riddle; const b = JSON.parse(r.exportSave()); const e = JSON.parse(b.engine);
@@ -64,8 +66,12 @@ try {
   check(ok, "the lineage took marks, facts and gold");
   await waitFor((s) => s?.screen === "camp", "camp again");
   await page.waitForFunction(() => window.__riddle.unlockCat.length > 0, null, { timeout: 10_000 });
+  // Cut 17: the unlock panel lists the whole catalogue from here on (`more`, remembered); the panel closes over the tablets
+  await openPanel(page, "unlocks", { all: true }); await page.keyboard.press("Escape");
   await sleep(600);
+  await openPanel(page, "loadout");   // the shelf is read as the player sees it, in its panel
   let c = await camp();
+  await page.keyboard.press("Escape"); await sleep(100);   // the panel closes over the tablets
   check(c.count === "2/4" && c.rows.length === 2, `the preset reads ${c.count}, ${c.rows.length} rows`);
   check(/^yours: 0 of 2 rows · gambler$/.test(c.yours), `the yours line names the combo: "${c.yours}"`);
   check(/^bank \d+% · return \d+%( · stall \d+%)? · death \d+%( ±\d+…?)? · ~\$\d+$/.test(c.ends), `the forecast's ends line: "${c.ends}"`);
@@ -131,6 +137,7 @@ try {
   await shot("04-card-verb-cleared-conds");
 
   // §6: a supply line's × removes that line only (the fake has `dropSupply`); the fallback (an engine without it) rebuys the rest
+  await openPanel(page, "loadout");   // Cut 17: the supplies are the loadout panel
   await page.locator(".supplies .chip.buy", { hasText: "heal potion" }).first().click({ timeout: 5000 });
   await sleep(400);
   await page.locator(".supplies .chip.buy", { hasText: "strength potion" }).first().click({ timeout: 5000 });

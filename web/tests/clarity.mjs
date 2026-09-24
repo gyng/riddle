@@ -20,6 +20,7 @@ import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { editRows, openPanel } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -46,7 +47,10 @@ const engineRows = () => page.evaluate(async () => (await window.__riddle.engine
 try {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
+  await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   await settle();
+  // Cut 17: the unlock panel lists the whole catalogue from here on (`more`, remembered); the panel closes over the tablets
+  await openPanel(page, "unlocks", { all: true }); await page.keyboard.press("Escape"); await sleep(100);
 
   // §3 ▲▼: two 44 px chips beside the grip; ▼ on R1 swaps R1 and R2 in the editor and in the engine's set; R1's ▲ is off
   {
@@ -90,7 +94,7 @@ try {
   {
     await page.evaluate(() => { const r = window.__riddle; r.lineage.rest_left_s = 1200; r.go({ kind: "camp" }); });
     await sleep(300);
-    const rest = await page.evaluate(() => { const el = document.querySelector(".send-bar .rest"); return { text: el?.textContent.trim(), hidden: el?.hidden, tag: el?.tagName }; });
+    const rest = await page.evaluate(() => { const el = document.querySelector(".rest-line .rest"); return { text: el?.textContent.trim(), hidden: el?.hidden, tag: el?.tagName }; });
     check(rest.text === "rest 20m · send skips" && !rest.hidden, `the rest chip reads "${rest.text}"`);
   }
   // §2 the try row: the counter fact known, the row absent → `D5 0% · goblin warlord · try: attack boss`; a tap inserts it at the top
@@ -107,6 +111,7 @@ try {
     const bar = await page.evaluate(() => { const b = document.querySelector(".fc-bars .bar.try"); return b ? { tag: b.tagName, text: [...b.children].map((c) => c.textContent.replace(/\s+/g, " ").trim()).filter(Boolean).join(" ") } : null; });
     check(!!bar && bar.tag === "BUTTON" && /^D5 try: attack boss \d+%( ±\d+…?)? · goblin warlord$/.test(bar.text), `the boss floor names the counter: "${bar?.text}"`);   // QA on 50bb162: the hint rides the track, before the number
     const before = await rowTexts();
+    await openPanel(page, "forecast");   // Cut 17: the bars live in the forecast panel behind the shaft
     await page.locator(".fc-bars .bar.try").click({ timeout: 5000 });
     await waitFor((s) => s?.screen === "camp", "camp"); await settle();
     const after = await rowTexts(), eng = await engineRows();
@@ -116,7 +121,7 @@ try {
     // the bestiary counter chip inserts at the top too (Cut 7 §1 chip, Cut 10 §2 position)
     await page.evaluate(() => { const r = window.__riddle; r.rules.rows.shift(); r.rulesChanged(); r.go({ kind: "camp" }); });
     await settle();
-    await page.locator(".party .mini").filter({ hasText: /^ledger$/ }).click({ timeout: 5000 }); await sleep(300);
+    await page.locator(".cmd .tile[data-tile=ledger]").click({ timeout: 5000 }); await sleep(300);   // Cut 17: the ledger is a console tile
     const chip = page.locator(".sheet-wrap .chip.counter");
     check((await chip.count()) === 1, "the bestiary shows the counter chip");
     await chip.click({ timeout: 5000 });
@@ -300,7 +305,7 @@ try {
       while (Date.now() - t0 < 20_000) {
         const x = await page.evaluate(() => {
           const card = document.querySelector(".interstitial");
-          return { screen: window.__riddle.screen, depth: document.querySelector(".hud .depth")?.textContent ?? "", stake: document.querySelector(".hud .stake")?.textContent ?? "", card: card && !card.hidden ? card.textContent : null };
+          return { screen: window.__riddle.screen, depth: document.querySelector(".watch .depth")?.textContent ?? "", stake: document.querySelector(".watch .stake")?.textContent ?? "", card: card && !card.hidden ? card.textContent : null };
         });
         if (x.screen !== "watch") break;
         samples++;
@@ -326,9 +331,10 @@ try {
     while (Date.now() - t0 < 40_000) {
       rest = await page.evaluate(() => {
         const b = document.querySelector(".banner.show.rest"); if (!b) return null;
-        const v = window.__viewer, r = b.getBoundingClientRect();
+        // Cut 17: the view is the stage between the bar and the console — the banner's place is read in the canvas's frame
+        const v = window.__viewer, r = b.getBoundingClientRect(), c = document.querySelector(".watch .view").getBoundingClientRect();
         const drawn = [...v.debugRects().map((x) => x.y + x.h), ...v.debugLabels().map((l) => l.y)];
-        return { text: b.textContent, top: r.top, frame: document.querySelector(".watch")?.dataset.frame, lowest: Math.max(0, ...drawn), h: innerHeight };
+        return { text: b.textContent, top: r.top - c.top, frame: document.querySelector(".watch")?.dataset.frame, lowest: Math.max(0, ...drawn), h: c.height };
       });
       if (rest) break;
       const s = await state(); if (s?.screen !== "watch" && s?.screen !== "exit") break;
@@ -339,7 +345,7 @@ try {
   // Cut 15 §4: the lit mode chip carries its clock as small digits (`data-rate`, drawn by `::after` with a trailing `×` — QA on 3d71c33; the chip's text stays its word):
   // `fast 16` on the travel, `fast 4` in a fight; `fights 2` in a fight; the other chip carries none
   {
-    const chip = () => page.evaluate(() => { const w = document.querySelector(".watch"), on = document.querySelector(".hud.bottom .hud-btn.on"), off = [...document.querySelectorAll(".hud.bottom .hud-btn")].filter((b) => b !== on && b.dataset.rate); return { screen: window.__riddle.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), card: w?.dataset.card, text: on?.textContent, rate: on?.dataset.rate ?? "", after: on ? getComputedStyle(on, "::after").content : "", others: off.length }; });
+    const chip = () => page.evaluate(() => { const w = document.querySelector(".watch"), on = document.querySelector(".cmd .hud-btn.on"), off = [...document.querySelectorAll(".cmd .hud-btn")].filter((b) => b !== on && b.dataset.rate); return { screen: window.__riddle.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), card: w?.dataset.card, text: on?.textContent, rate: on?.dataset.rate ?? "", after: on ? getComputedStyle(on, "::after").content : "", others: off.length }; });
     for (const mode of ["fast", "fights"]) {
       await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);

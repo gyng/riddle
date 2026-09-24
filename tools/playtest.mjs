@@ -153,10 +153,10 @@ async function attempt() {
     if (s.screen === "death") {
       await dump("death");
       if (await page.locator("button.patch").count()) { await clickBtn("button.patch"); await waitFor((x) => x?.screen === "camp", "camp after the patch"); await settle(); await dump("camp", { note: "patched" }); }
-      else { await clickBtn("button.btn.primary", "edit"); await waitFor((x) => x?.screen === "camp", "camp after edit"); await settle(); await dump("camp", { note: "no patch offered" }); }
+      else { await clickBtn("main.death button", "edit"); await waitFor((x) => x?.screen === "camp", "camp after edit"); await settle(); await dump("camp", { note: "no patch offered" }); }
     } else if (s.screen === "report") {
       await dump("report", { note: "returned" });
-      await clickBtn("button.btn.primary", "camp"); await waitFor((x) => x?.screen === "camp", "camp after the report"); await settle(); await dump("camp");
+      await clickBtn("main.report .gem", "camp"); await waitFor((x) => x?.screen === "camp", "camp after the report"); await settle(); await dump("camp");
     } else if (s.screen === "ending") await dump("ending");
     else await dump(s.screen, { note: "unexpected" });
 

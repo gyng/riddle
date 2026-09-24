@@ -50,7 +50,7 @@ try {
   while (Date.now() - t0 < 150_000) {
     const s = await state();
     if (!s || s.screen !== "watch") break;
-    await page.locator(".hud.bottom .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {});
+    await page.locator(".cmd .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {});
     await sleep(400);
   }
   let s = await waitFor((x) => x && x.screen !== "watch", "the run's end", 30_000);

@@ -1,0 +1,92 @@
+{
+ "frames": {
+  "bar": {
+   "w": 512,
+   "h": 64,
+   "slice": 20
+  },
+  "console": {
+   "w": 512,
+   "h": 256,
+   "slice": 48
+  },
+  "panel": {
+   "w": 256,
+   "h": 256,
+   "slice": 28
+  },
+  "tablet": {
+   "w": 512,
+   "h": 80,
+   "slice": 24
+  },
+  "tablet_card": {
+   "w": 512,
+   "h": 80,
+   "slice": 24
+  },
+  "tile": {
+   "w": 128,
+   "h": 128,
+   "slice": 24
+  },
+  "tile_pressed": {
+   "w": 128,
+   "h": 128,
+   "slice": 24
+  },
+  "well": {
+   "w": 192,
+   "h": 192
+  },
+  "gem": {
+   "w": 192,
+   "h": 192
+  },
+  "gem_red": {
+   "w": 192,
+   "h": 192
+  },
+  "banner": {
+   "w": 384,
+   "h": 512
+  },
+  "gauge": {
+   "w": 256,
+   "h": 24,
+   "slice": 8
+  },
+  "stud": {
+   "w": 96,
+   "h": 96
+  },
+  "seal": {
+   "w": 128,
+   "h": 128
+  }
+ },
+ "icons": [
+  "bail",
+  "camp",
+  "chronicle",
+  "depth",
+  "edit",
+  "fast",
+  "fights",
+  "forge",
+  "gold",
+  "ledger",
+  "loadout",
+  "mark",
+  "morgue",
+  "party",
+  "pause",
+  "play",
+  "renown",
+  "settings",
+  "skip",
+  "trace",
+  "unlocks",
+  "vault"
+ ]
+}

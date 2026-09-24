@@ -13,6 +13,7 @@ import { closeAllSheets, onEscapeIdle } from "./ui/sheet";
 import { lastRun, type RunLog } from "./ui/runlog";
 import { showBusy } from "./ui/progress";
 import { audio } from "./audio";
+import { applySkin } from "./ui/skin";
 
 export type Screen =
   | { kind: "camp"; highlight?: number }
@@ -44,6 +45,7 @@ const SAVE_DEBOUNCE_MS = 1000;
 const OFFLINE_SLICE_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES = 6;
 const REFINE_MS = 2000;
 const SLOWDOWNS_KEY = "riddle.slowdowns";
+const EDITING_KEY = "riddle.editing";
 function readSlowdowns(): boolean { try { return localStorage.getItem(SLOWDOWNS_KEY) !== "0"; } catch { return true; } }
 
 export class App {
@@ -83,6 +85,12 @@ export class App {
   /** The last chosen watch mode; the next watch starts in it (persisted in the blob — QA on e0f87e7: "`fast` chosen in run 3
    *  was not remembered"). */
   watchMode: "fights" | "fast" = "fights";
+  /** Cut 17 §2: the camp's tablets carry the editor (chips, ▲▼, ×) while on; off, each row is one carved tablet (the targets'
+   *  camp). Off by default; the `edit` tile toggles it, a tap on a tablet or the death's `edit` turns it on. A per-viewer
+   *  preference (localStorage `riddle.editing`). */
+  get editing(): boolean { try { return localStorage.getItem(EDITING_KEY) === "1"; } catch { return this.editingMem; } }
+  set editing(on: boolean) { this.editingMem = on; try { localStorage.setItem(EDITING_KEY, on ? "1" : "0"); } catch { /* private mode: this session only */ } }
+  private editingMem = false;
   /** Cut 6 §6: the unlock catalogue as last fetched by the camp; a card's rows back the editor's `[card]` sheet. */
   unlockCat: UnlockInfo[] = [];
   /** Cut 13 §5: the last forecast painted (the refine when it landed), so a `dice` death can say what it said for that depth. */
@@ -512,6 +520,7 @@ export class App {
     this.mounted = m;
     this.root.replaceChildren(m.el);
     this.root.dataset.screen = screen.kind;
+    document.body.classList.toggle("framed", screen.kind !== "ending");   // Cut 17: sheets unfold above the console
     window.scrollTo(0, 0);
     this.persist();
     // dev `?speed=fast|fights|N`: press the matching HUD mode button as the run mounts (the watch owns its clock; Cut 10 §1:
@@ -599,6 +608,7 @@ export const cloneSet = (s: RuleSet): RuleSet => ({ rows: s.rows.map(cloneRow), 
 export function start(dev: DevOptions | null = null): void {
   const root = document.getElementById("app") ?? document.body.appendChild(document.createElement("div"));
   root.id = "app";
+  applySkin();   // Cut 17: the frames packed in web/public/ui (tools/ui-skin.py); absent ones keep the flat CSS
   const app = new App(root, dev);
   audio.arm();   // Cut 10 §4: the WebAudio context opens on the first gesture
   if (dev) (window as unknown as { __riddle: App }).__riddle = app;

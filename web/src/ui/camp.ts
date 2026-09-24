@@ -17,21 +17,28 @@
 // row stands in for the class button while it is up.
 import type { App, Mounted } from "../app";
 import type { SupplyEntry, UnlockInfo } from "../engine/types";
-import { h, clear, replace, spanOf } from "./dom";
+import { h, clear, flash, replace, spanOf } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
-import { renderForecast } from "./forecast";
-import { openSettings } from "./settings";
+import { renderForecast, renderShaft } from "./forecast";
+import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
+import { revealed, type Step } from "./reveal";
+import { openLedger } from "./party";
+import { openChronicle } from "./chronicle";
 import { classList, deltaClass, deltaLabel, deltaPts, openOwnedSheet, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS, xpToNext } from "../engine/classes";
 import { isFreeSupply, ownRowCount, verbLabel } from "./tokens";
-import { openSheet } from "./sheet";
-import { openGoldSheet } from "./gold";
+import { openSheet, setPanelEscape } from "./sheet";
 import { setBusyHost } from "./progress";
 
 const SET_NAME_MAX = 12;
+/** Cut 17 §3: which step carves each console tile (the tile glints on its first appearance). */
+const STEP_OF: Record<string, Step> = { edit: "edit", loadout: "loadout", unlocks: "unlocks", vault: "vault", forge: "forge", party: "party", ledger: "heirs", chronicle: "heirs" };
+const ALL_KEY = "riddle.unlocks.all";
+const unlocksAll = (): boolean => { try { return localStorage.getItem(ALL_KEY) === "1"; } catch { return false; } };
+const setUnlocksAll = (on: boolean): void => { try { localStorage.setItem(ALL_KEY, on ? "1" : "0"); } catch { /* a per-viewer convenience */ } };
 /** Cut 13 §2: each trait's one-line rule, ≤ 3 words (the core's: cowardly retreats under 50 % hp with foes in view; brave holds a
  *  retreat row; curious drinks an unknown when clear; greedy steps onto adjacent loot). */
 /* copy:callout */
@@ -39,45 +46,96 @@ const TRAIT_RULE: Record<string, string> = { cowardly: "flees under 50%", brave:
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
 export function renderCamp(app: App, highlight?: number): Mounted {
-  const strip = h("header", { class: "strip" });
+  // Cut 17: the frame — the bar (the strip: heir, `$`, `◆`, `★`, best, the stud; the wake's offers under it), the well (the
+  // tablets and the depth shaft; the set tabs from the 5th heir; the panels over it), the console (the portrait, the command
+  // card as revealed, the gem `send`)
+  const bar = renderBar(app, { live: true });
+  const strip = bar.el;
   const tabs = h("nav", { class: "tabs" });
-  const editor = renderEditor(heroBinding(app), highlight);
+  // editing (`app.editing`): the tablets carry the editor (chips, ▲▼, ×, `+`); off, each is one carved tablet
+  const editor = renderEditor(heroBinding(app), highlight, {
+    compact: () => !app.editing,
+    onTablet: (i) => { app.editing = true; closePanel(); editor.refresh(); paintTiles(); flashRow(i); },
+  });
   const party = renderParty(app);
   const fc = renderForecast(app);
+  const shaft = renderShaft(app, () => togglePanel("forecast"), () => revealed(app).has("gems"));
   const vault = h("section", { class: "vault" });
   const supplies = h("section", { class: "supplies" });
   const unlocks = h("section", { class: "unlocks" });
-  const send = h("button", { class: "btn primary send", onclick: () => { if (!app.overBudget) app.go({ kind: "watch" }); } }, /* copy:button */ "send");
+  const send = gem({ label: /* copy:button */ "send", cls: "send", pulse: true, onclick: () => { if (!app.overBudget) app.go({ kind: "watch" }); } });
   // Cut 10 §3: the rest chip says what it means all the time (`rest 20m · send skips`), no tap needed
   const rest = h("span", { class: "rest chip num" });
   // the engine's busy label (`forecast` · `offline`) in its own strip under the header (QA on 50bb162: it drew over `D4 ★0`)
   const busyStrip = h("div", { class: "busy-strip num" });
-  const el = h("main", { class: "camp" }, strip, busyStrip, tabs, editor.el, fc.el, party.el, vault, supplies, unlocks, h("div", { class: "send-bar" }, rest, send));
+  // Cut 17 §2: the camp's secondary objects are panels over the well, one at a time, each opened by its console tile (the
+  // forecast's by the shaft), each with a close stud; Escape closes the open one
+  const PANELS: Record<string, HTMLElement> = { forecast: fc.el, loadout: supplies, unlocks, vault, party: party.el };
+  const panelHost = h("div", { class: "panel-host" });
+  // a closed panel's content waits in the DOM, unrendered (its engine fetches keep painting it; it is not on screen, so not in the
+  // page's text either — a rater's text view reads what the player sees)
+  const panelStore = h("div", { class: "panel-store", hidden: true, inert: true }, ...Object.values(PANELS));
+  let open: string | null = null;
+  function closePanel(): void { if (!open) return; open = null; panelStore.append(...Object.values(PANELS)); panelHost.replaceChildren(); panelHost.classList.remove("open"); paintTiles(); }
+  function togglePanel(name: string): void {
+    if (open === name) { closePanel(); return; }
+    if (open) panelStore.append(...Object.values(PANELS));
+    open = name;
+    panelHost.replaceChildren(h("section", { class: "panel", "data-panel": name }, stud(closePanel), h("div", { class: "panel-body" }, PANELS[name])));
+    panelHost.classList.add("open");
+    paintTiles();
+  }
+  setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
+  // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
+  const vista = h("div", { class: "vista", "aria-hidden": "true" });
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, editor.el, shaft.el), h("div", { class: "rest-line" }, rest));
+  const face = portrait(app, { label: "" });
+  const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
+  const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, panelHost, panelStore), cons.el);
   setBusyHost(busyStrip);
+  function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
+
+  /** Cut 17 §1/§3: the command card as revealed — edit · loadout · unlocks · vault · forge · party · ledger · chronicle. */
+  function paintTiles(): void {
+    const R = revealed(app);
+    const t = (id: string, label: string, ico: string, onclick: () => void, on = false): HTMLElement => tile({ id, label, icon: ico, onclick, on, fresh: R.fresh(STEP_OF[id]) });
+    cons.setTiles([
+      R.has("edit") && t("edit", /* copy:button */ "edit", "edit", () => { app.editing = !app.editing; editor.refresh(); paintTiles(); }, app.editing),
+      R.has("loadout") && t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout"),
+      R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
+      R.has("vault") && t("vault", /* copy:button */ "vault", "vault", () => togglePanel("vault"), open === "vault"),
+      R.has("forge") && t("forge", /* copy:button */ "forge", "forge", () => openForge(app)),
+      R.has("party") && t("party", /* copy:button */ "party", "party", () => togglePanel("party"), open === "party"),
+      R.has("heirs") && t("ledger", /* copy:button */ "ledger", "ledger", () => openLedger(app)),
+      R.has("heirs") && t("chronicle", /* copy:button */ "chronicle", "chronicle", () => openChronicle(app)),
+    ]);
+    shaft.el.classList.toggle("on", open === "forecast");
+  }
 
   function paintStrip(): void {
     const L = app.lineage; const lvl = L.classes?.[L.class] ?? { level: 1, xp: 0 };
-    replace(strip,
-      h("span", { class: "num" }, `♟${L.heir}`),
-      // Cut 3: `↑2 no rest` once ascended
-      (L.ascension?.level ?? 0) > 0 ? h("span", { class: "num asc" }, `↑${L.ascension!.level} ${L.ascension!.variant.replace(/_/g, " ")}`) : "",
-      // Cut 13 §2: the offer as chips while it stands; the plain trait once the send took it
-      (L.trait_offer?.length ?? 0) >= 2
-        ? h("span", { class: "chips traits" }, ...L.trait_offer!.map((t) => h("button", { class: `chip trait${t === L.trait ? " on" : ""}`, disabled: t === L.trait, onclick: () => void pickTrait(t) },
-            h("span", null, t), TRAIT_RULE[t] ? h("small", { class: "rule dim" }, TRAIT_RULE[t]) : "")))
-        : h("span", null, L.trait),
-      (L.class_offer?.length ?? 0) >= 2
-        ? h("span", { class: "chips classes-offer" }, ...L.class_offer!.map((c) => h("button", { class: `chip cls-offer${c.class === L.class ? " on" : ""}`, disabled: c.class === L.class, "data-class": c.class, onclick: () => void app.setClass(c.class) },
-            h("span", null, c.class, " ", h("b", { class: "num" }, `L${c.level}`)),
-            c.signature ? h("small", { class: `rule dim${c.level < c.opens ? " locked" : ""}` }, verbLabel({ v: c.signature }), c.level < c.opens ? ` L${c.opens}` : "") : "")))
-        : h("button", { class: "cls", onclick: () => pickClass() }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
-            h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round((lvl.xp / xpToNext(lvl.level)) * 100)}%` }))),
-      h("span", { class: "num" }, `D${L.best_depth}`),
-      h("span", { class: "num rank" }, `★${L.rank ?? 0}`),
-      h("button", { class: "num gold", onclick: () => openGold() }, `$${L.gold}`),
-      h("span", { class: "num marks" }, `◆${L.marks}`),
-      h("button", { class: "gear", onclick: () => openSettings(app) }, "⚙"),
-    );
+    bar.paint();
+    // Cut 13 §2: the offer as chips while it stands (the bar's plain trait otherwise); Cut 16 §2: the class chips beside them
+    const traits = (L.trait_offer?.length ?? 0) >= 2
+      ? h("span", { class: "chips traits" }, ...L.trait_offer!.map((t) => h("button", { class: `chip trait${t === L.trait ? " on" : ""}`, disabled: t === L.trait, onclick: () => void pickTrait(t) },
+          h("span", null, t), TRAIT_RULE[t] ? h("small", { class: "rule dim" }, TRAIT_RULE[t]) : "")))
+      : "";
+    const offer = (L.class_offer?.length ?? 0) >= 2;
+    const classes = offer
+      ? h("span", { class: "chips classes-offer" }, ...L.class_offer!.map((c) => h("button", { class: `chip cls-offer${c.class === L.class ? " on" : ""}`, disabled: c.class === L.class, "data-class": c.class, onclick: () => void app.setClass(c.class) },
+          h("span", null, c.class, " ", h("b", { class: "num" }, `L${c.level}`)),
+          c.signature ? h("small", { class: `rule dim${c.level < c.opens ? " locked" : ""}` }, verbLabel({ v: c.signature }), c.level < c.opens ? ` L${c.opens}` : "") : "")))
+      : "";
+    replace(bar.offers, traits, classes);
+    bar.offers.hidden = !traits && !classes;
+    // the portrait: the class and its level, the xp under it; a tap opens the class picker once classes can be had (the chip
+    // row stands in for it while the wake's class offer is up)
+    const R = revealed(app);
+    const picker = !offer && (R.has("edit") || R.has("unlocks"));   // from the first death (a second heir may take another class)
+    const next = portrait(app, { hp: 1, cls: picker ? "cls" : "", onclick: picker ? () => pickClass() : undefined,
+      label: h("span", { class: "plabel-in" }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
+        h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round((lvl.xp / xpToNext(lvl.level)) * 100)}%` }))) });
+    face.el.replaceWith(next.el); face.el = next.el;
     paintRest();
   }
   /** Cut 13 §2: the tap picks the heir's trait (`setTrait`); an engine without it keeps the default (the first offered). */
@@ -91,8 +149,6 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     replace(rest, /* copy:callout */ `rest ${spanOf(restS)} · send skips`);
     rest.hidden = restS <= 0;
   }
-  // Cut 6 §1: the last 20 gold movements, newest first (ui/gold.ts; Cut 11 §5: exit lines open it filtered to their run)
-  function openGold(): void { openGoldSheet(app); }
   // Cut 9 §10: each kind shows its ladder — `sword · salvaged 3/5 → craftable` (the engine's `next` rung); at the top, the count alone
   function openForge(app2: App): void {
     openSheet(() => {
@@ -136,6 +192,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // party or class count); a named one keeps `fighter 2`
   function paintTabs(): void {
     clear(tabs);
+    // Cut 17 §3: the set tabs are carved with the 5th heir (a fresh lineage writes one set)
+    tabs.hidden = !revealed(app).has("heirs") && app.active === 0;
+    if (tabs.hidden) return;
     app.sets.forEach((s, i) => {
       const named = !!(s.name ?? "").trim();
       tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) },
@@ -155,8 +214,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function paintVault(): void {
     const L = app.lineage; const slots = vaultSlots(L.unlocks);
     clear(vault);
-    vault.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", h("span", { class: "num dim" }, `${L.vault.length}/${slots}`),
-      h("button", { class: "mini", onclick: () => openForge(app) }, /* copy:button */ "forge")));
+    vault.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", h("span", { class: "num dim" }, `${L.vault.length}/${slots}`)));   // Cut 17: `forge` is its console tile
     const chips = h("div", { class: "chips" });
     for (const it of L.vault) {
       const on = app.loadout.includes(it.id);
@@ -240,7 +298,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       if (!list.length && !owned.length) return;
       unlocks.appendChild(h("div", { class: "label" }, /* copy:label */ "unlocks"));
       const grid = h("div", { class: "cards" });
-      for (const u of list) {
+      // Cut 17 §3: a short list, not a wall — the next three (affordable first, then gated, then short of marks; the larger reach
+      // gain, then the cheaper, then the catalogue's order); `more` opens the whole catalogue (remembered for this viewer)
+      const rank = (u: typeof list[number]): number => (u.available ? 0 : u.gated ? 1 : 2);
+      const next = list.map((u, i) => ({ u, i })).sort((a, b) => rank(a.u) - rank(b.u) || (b.u.delta ?? 0) - (a.u.delta ?? 0) || a.u.cost - b.u.cost || a.i - b.i).slice(0, 3).map((x) => x.u);
+      const shown = unlocksAll() || list.length <= 3 ? list : list.filter((u) => next.includes(u));
+      for (const u of shown) {
         // `available` = prerequisite + fact gate + affordable (engine truth). Two dims: gated (the `needs` line
         // is what is missing, marks are there) and unaffordable.
         // Cut 4 §9: the forecast delta of buying (tactic cards), only when the catalogue carries one and it is not 0
@@ -254,6 +317,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           h("span", { class: "num cost" }, `◆${u.cost}`)));
       }
       unlocks.appendChild(grid);
+      if (shown.length < list.length) unlocks.appendChild(h("button", { class: "mini more", onclick: () => { setUnlocksAll(true); paintFrom(cat); } }, /* copy:button */ "more"));
       // an owned chip reads `card: thief guard · owned` (QA on 952e306: "bought card appears at the end with no cost"); its sheet
       // carries the title and, for a card whose row was dropped, `insert`
       if (owned.length) unlocks.appendChild(h("div", { class: "chips owned" }, ...owned.map((u) => h("button", { class: "chip mini owned", onclick: () => openOwnedSheet(app, u) }, u.label, h("small", { class: "dim" }, /* copy:callout */ " · owned")))));
@@ -262,13 +326,15 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 4 §1: `send` waits while the set is over budget (the editor shows which row to drop). Cut 6 §4: it says so: `6/5 · drop one`.
   function paintSend(): void {
     send.disabled = app.overBudget;
+    send.classList.toggle("pulse", !app.overBudget);
+    send.classList.toggle("small", app.overBudget);
     replace(send, app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one` : /* copy:button */ "send");   // Cut 12 §1: own rows
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }
-  function paintAll(): void { paintStrip(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  function paintAll(): void { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
-  return { el, dispose: () => { off(); offRules(); offShelf(); fc.dispose(); audio.drone(null); setBusyHost(null); } };
+  return { el, dispose: () => { off(); offRules(); offShelf(); fc.dispose(); shaft.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

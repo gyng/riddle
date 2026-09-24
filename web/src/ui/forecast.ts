@@ -108,3 +108,41 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   setTimeout(() => void app.emitForecast(), 0);
   return { el, dispose: () => { off(); offRules(); offChange(); } };
 }
+
+/** Cut 17 §2 — the depth shaft at the camp well's right edge (docs/UI.md §2's minimap): one notch per depth D1 … D(best+1), lit by
+ *  its reach (amber alpha = reach, the `±` a thin halo), `?` past what the forecast knows; under it (from a 3rd row on, the reveal
+ *  ladder) three gems — bank · return · death — with their shares and `~$N`. The shaft is one button: it opens the forecast panel
+ *  (`onOpen`), where the bars, the causes and the `try` rows live. */
+export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolean): { el: HTMLElement; dispose(): void; paint(): void } {
+  const notches = h("div", { class: "notches" });
+  const ends = h("div", { class: "shaft-ends num", hidden: true });
+  const el = h("button", { class: "shaft", onclick: () => onOpen() }, notches, ends);
+  let last: Forecast | null = app.lastForecast;
+  const MAX = 9;   // notches shown: the deepest ones, down to best+1
+  const paint = (): void => {
+    const next = app.lineage.best_depth + 1, from = Math.max(1, next - MAX + 1);
+    const byDepth = new Map((last?.depths ?? []).map((d) => [d.depth, d]));
+    const known = last?.known_to ?? 0;
+    replace(notches, ...Array.from({ length: next - from + 1 }, (_, k) => {
+      const depth = from + k, d = byDepth.get(depth);
+      const reach = d ? d.reach : depth <= known ? 1 : 0;
+      const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}`, "data-d": depth },
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`), h("small", { class: "dp" }, d ? pct(d.reach) : "?"));
+      n.style.setProperty("--reach", reach.toFixed(3));
+      if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
+      return n;
+    }));
+    const e = last?.ends;
+    ends.hidden = !e || !showEnds();
+    if (e && !ends.hidden) replace(ends,
+      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, pct(e.bank))),
+      h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, pct(e.return))),
+      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, pct(e.death))),
+      h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`));
+  };
+  paint();
+  const off = app.onForecast((f) => { last = f; el.classList.remove("stale"); paint(); });
+  const offRules = app.onRules(() => el.classList.add("stale"));
+  const offChange = app.onChange(paint);
+  return { el, paint, dispose: () => { off(); offRules(); offChange(); } };
+}

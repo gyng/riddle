@@ -63,7 +63,7 @@ try {
   await sleep(300);
   const classes = () => page.evaluate(() => ({
     chips: [...document.querySelectorAll(".strip .chip.cls-offer")].map((c) => ({ cls: c.dataset.class, top: c.querySelector("span")?.textContent ?? "", sig: c.querySelector(".rule")?.textContent ?? "", on: c.classList.contains("on"), disabled: c.disabled })),
-    traits: document.querySelectorAll(".strip .chip.trait").length, clsBtn: !!document.querySelector(".strip .cls"),
+    traits: document.querySelectorAll(".strip .chip.trait").length, clsBtn: !!document.querySelector("button.cls"),
     cls: window.__riddle.lineage.class, offer: window.__riddle.lineage.class_offer ?? null,
   }));
   let c = await classes();

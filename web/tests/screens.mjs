@@ -18,6 +18,7 @@ import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { editRows, openPanel } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -31,7 +32,7 @@ const note = (what) => { if (verbose) out.push(`     ${what}`); };
 // buttons the itinerary walks (they lead to another screen) and the documented toggles (a click need not change the text)
 const NAV = new Set(["send", "keep", "edit", "camp", "open", "buy", "insert", "ok", "import", "export", "reset", "again", "trace", "watch"]);
 const TOGGLES = new Set(["mute", "fights", "fast", "⏸", "▶", "▶▶|", "bail", "▲", "▼", "≡"]);
-const INERT_SEL = ".grip, .interstitial, .prefs .chip.on, .tabs .tab.on, .classes .chip.on, .chip.trait.on, .chip.cls-offer.on, button.patch, .cline.kept, .chip.mini.trace, .bar.try";
+const INERT_SEL = ".gem.patch-gem, .grip, .interstitial, .prefs .chip.on, .tabs .tab.on, .classes .chip.on, .chip.trait.on, .chip.cls-offer.on, button.patch, .cline.kept, .chip.mini.trace, .bar.try";
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 2 });
@@ -146,6 +147,7 @@ try {
   // 1. fresh camp (marks and gold so the shelf and the shop have something to sell)
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
+  await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   const seeded = await page.evaluate(async () => {
     const r = window.__riddle; const b = JSON.parse(r.exportSave()); const e = JSON.parse(b.engine);
     e.lineage.marks = 12; e.lineage.gold = 300; e.lineage.facts.push("item:red=heal");
@@ -158,13 +160,17 @@ try {
   await settle();
   await lintScreen("camp");
   // 2. the camp's sheets
-  for (const [sel, label, has] of [["button.mini", "chronicle", "chronicle"], ["button.mini", "ledger", "ledger"], ["button.mini", "forge", "forge"], ["button.gear", "settings"], ["button.cls", "class"], [".strip button.gold", "gold"], [".editor .row .chip.cond", "cond picker"], [".editor .row .chip.verb", "verb picker"], [".unlocks .card", "unlock card"], [".tabs .tab.edit", "rename"]]) {
+  for (const [sel, label, has] of [[".cmd .tile[data-tile=chronicle]", "chronicle"], [".cmd .tile[data-tile=ledger]", "ledger"], [".cmd .tile[data-tile=forge]", "forge"], ["button.gear", "settings"], ["button.cls", "class"], [".strip button.gold", "gold"], [".editor .row .chip.cond", "cond picker"], [".editor .row .chip.verb", "verb picker"], [".unlocks .card", "unlock card"], [".tabs .tab.edit", "rename"]]) {
     if (label === "gold") {
       await openAndLint(sel, label, has);
       const g = await page.evaluate(() => ({ header: document.querySelector(".strip button.gold")?.textContent, sheet: document.querySelector(".sheet-wrap .label .gold")?.textContent, lineage: `$${window.__riddle.lineage.gold}` }));
       check(g.header === g.sheet && g.sheet === g.lineage, `the header's ${g.header} equals the gold sheet's ${g.sheet}`);
-    } else await openAndLint(sel, label, has);
+    } else {
+      if (label === "unlock card") await openPanel(page, "unlocks");   // Cut 17: the unlock shelf is a panel over the well
+      await openAndLint(sel, label, has);
+    }
     await closeSheets();
+    if (label === "unlock card") { await page.keyboard.press("Escape"); await sleep(120); }   // the panel closes over the tablets
   }
   // 3. every button on the camp
   await lintButtons("camp", "camp");
@@ -191,15 +197,16 @@ try {
     await lintScreen("death");
     await lintButtons("death", "death");
     if (await page.locator("button.patch").count()) { await page.locator("button.patch").first().click({ timeout: 5000 }); await waitFor((x) => x?.screen === "camp", "camp after the patch"); }
-    else { await page.locator("main.death button.btn.primary", { hasText: "edit" }).click({ timeout: 5000 }); await waitFor((x) => x?.screen === "camp", "camp after edit"); }
+    else { await page.locator("main.death button", { hasText: /^edit$/ }).click({ timeout: 5000 }); await waitFor((x) => x?.screen === "camp", "camp after edit"); }
   } else if (s.screen === "report") {
     await lintScreen("report (a run)");
     await lintButtons("report", "report");
-    await page.locator("main.report button.btn.primary", { hasText: "camp" }).click({ timeout: 5000 }); await waitFor((x) => x?.screen === "camp", "camp after the report");
+    await page.locator("main.report .gem", { hasText: "camp" }).click({ timeout: 5000 }); await waitFor((x) => x?.screen === "camp", "camp after the report");
   } else check(false, `an unexpected screen after the run: ${s.screen}`);
   await settle();
   await lintScreen("camp (after the run)");
   // 7. edit two rows: R1's first cond through the picker, R2's verb through the picker
+  await editRows(page);   // the button lint toggled the \`edit\` tile; the tablets carry their chips again
   const before = await rowsText();
   if (!(await page.locator(".editor .row").count())) { await page.locator(".rows-foot .btn.ghost").click({ timeout: 5000 }); await sleep(200); }
   if ((await page.locator(".editor .row").count()) < 2) { await page.locator(".rows-foot .btn.ghost").click({ timeout: 5000 }); await sleep(200); }
@@ -214,6 +221,7 @@ try {
   check((await state())?.sheets === 0 && after[0] !== before[0] && after[1] !== before[1], `two rows edited through the pickers: "${after[0]}" · "${after[1]}"`);
   await settle(); await lintScreen("camp (edited)");
   // 8. buy the first affordable unlock, open its sheet (the owned chip's, when it has rows)
+  await openPanel(page, "unlocks", { all: true });
   const card = page.locator(".unlocks .card:not(.off):not(.gated)").first();
   check(await card.count() > 0, "an affordable unlock is on the shelf");
   const bought = (await card.innerText()).split("\n")[0].trim();
@@ -234,6 +242,7 @@ try {
     await settle();
     const head = () => page.evaluate(() => ({ gold: document.querySelector(".strip .gold")?.textContent.trim(), marks: document.querySelector(".strip .marks")?.textContent.trim(), L: { gold: window.__riddle.lineage.gold, marks: window.__riddle.lineage.marks } }));
     const h0 = await head();
+    await openPanel(page, "unlocks", { all: true });
     const gcard = page.locator(".unlocks .card").filter({ hasNot: page.locator(".needs") }).first();
     const any = (await gcard.count()) ? gcard : page.locator(".unlocks .card").first();
     await any.click({ timeout: 5000 }); await sleep(200);
@@ -248,7 +257,8 @@ try {
     const cost0 = await page.evaluate(async () => { const u = (await window.__riddle.engine.unlocks()).find((x) => !x.owned && x.gold); return u ? 150 * u.cost : 0; });
     check(next > cost0, `the next gold price climbs ($${next} > $${cost0} at the base rate)`);
   }
-  if (await page.locator(".unlocks .chip.owned").count()) { await openAndLint(".unlocks .chip.owned", "owned sheet"); await closeSheets(); }
+  if (await page.locator(".unlocks .chip.owned").count()) { await openPanel(page, "unlocks"); await openAndLint(".unlocks .chip.owned", "owned sheet"); await closeSheets(); }
+  await openPanel(page, "loadout");
   // 9. drop a supply (the button lint may have dropped the leash already: buy one from the shop first then)
   if (!(await page.locator(".supplies .chip.item").count())) { await page.locator(".supplies .chip.buy:not(.off)").first().click({ timeout: 5000 }); await settle(); }
   const supplies = await page.locator(".supplies .chip.item").count();
@@ -271,8 +281,8 @@ try {
     if (traced || chips.length) check(chips.length > 0 && chips.every((c) => /^(D\d+ · )?(banked|returned|died) · trace$/.test(c)) && labelled * 2 >= chips.length, `the ${chips.length} trace chips carry their exit (${chips.slice(0, 3).join(" · ")}${labelled < chips.length ? ` · ${chips.length - labelled} without a depth` : ""})`);
     else note("report (8 h): no traced exit to label (the walk's set returns at once)");
     await lintButtons("report (8 h)", "report");
-    if (await page.locator("main.report button.btn", { hasText: /^open$/ }).count()) {
-      await page.locator("main.report button.btn", { hasText: /^open$/ }).click({ timeout: 5000 });
+    if (await page.locator("main.report button", { hasText: /^open$/ }).count()) {
+      await page.locator("main.report button", { hasText: /^open$/ }).click({ timeout: 5000 });
       await waitFor((x) => x?.screen === "death", "the worst death"); await settle();
       await lintScreen("death (worst)");
       await lintButtons("death (worst)", "death");
@@ -286,7 +296,7 @@ try {
     await page.evaluate((exits) => { const r = window.__riddle; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: r.lineage.live ?? null, tamed: [], hatched: [], lost: [], xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, stalled: 2, exits } }); },
       [ex("returned $0 · $161 carried · keeps 0% · stalled", 161, 0, 0), ex("returned $30 · $50 carried · keeps 60%", 50, 30, 60), ex("returned $0 · $40 carried · keeps 0% · stalled", 40, 0, 0)]);
     await waitFor((x) => x?.screen === "report", "the fabricated report"); await sleep(200);
-    const t = await page.evaluate(() => { const tile = [...document.querySelectorAll(".report .tile")].find((x) => x.querySelector(".label")?.textContent === "stalled"); return { tile: tile && [...tile.children].map((c) => c.textContent.trim()).join(" "), chips: [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => c.textContent.trim()) }; });
+    const t = await page.evaluate(() => { const tile = [...document.querySelectorAll(".report .tile")].find((x) => x.querySelector(".label")?.textContent === "stalled"); return { tile: tile && [...tile.children].map((c) => c.textContent.trim()).filter(Boolean).join(" "), chips: [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => c.textContent.trim()) }; });
     check(t.tile === "2 stalled $201 lost", `the stalled tile carries its cost: "${t.tile}"`);
     // (a fabricated line can still claim a real ledger line of the same tier and sum, and then carries its depth)
     check(t.chips.length === 3 && t.chips.every((c) => /^(D\d+ · )?returned · trace$/.test(c)), `the lines' chips read their exit: ${t.chips.join(" · ")}`);

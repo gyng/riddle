@@ -15,6 +15,7 @@ import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { editRows } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -51,6 +52,7 @@ const engineRows = () => page.evaluate(async () => JSON.stringify((await window.
 try {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
+  await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   const vocab = await page.evaluate(() => { const v = window.__riddle.vocab; return { locked: (v.locked ?? []).map((l) => ({ k: l.cond.k, needs: l.needs })), offered: v.conds.map((c) => c.k) }; });
   check(vocab.locked.length >= 1, `fake vocabulary carries ${vocab.locked.length} locked cond(s): ${vocab.locked.map((l) => `${l.k} (${l.needs})`).join(", ")}`);
   check(vocab.locked.every((l) => l.needs), "every locked cond carries a needs text");

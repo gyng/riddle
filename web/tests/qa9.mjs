@@ -27,6 +27,7 @@ import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { editRows, openPanel } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -50,7 +51,7 @@ const sheets = () => page.evaluate(() => document.querySelectorAll(".sheet-wrap"
 /** The top sheet as text: its title label, its buttons, its body text. */
 const sheet = () => page.evaluate(() => {
   const w = [...document.querySelectorAll(".sheet-wrap")].pop(); if (!w) return null;
-  return { label: w.querySelector(".label")?.textContent.trim() ?? "", buttons: [...w.querySelectorAll("button")].map((b) => b.textContent.trim()), text: w.innerText.replace(/\s+/g, " ").trim(), first: w.querySelector(".sheet-body")?.firstElementChild?.outerHTML.slice(0, 60) ?? "" };
+  return { label: w.querySelector(".label")?.textContent.trim() ?? "", buttons: [...w.querySelectorAll("button:not(.close-stud)")].map((b) => b.textContent.trim()), text: w.innerText.replace(/\s+/g, " ").trim(), first: w.querySelector(".sheet-body")?.firstElementChild?.outerHTML.slice(0, 60) ?? "" };
 });
 const rows = () => page.evaluate(() => [...document.querySelectorAll(".editor .row")].map((r) => ({ text: r.querySelector(".chips").innerText.replace(/\s+/g, " ").trim(), card: r.classList.contains("locked"), conds: r.querySelector(".chips").querySelectorAll(":scope > .chip.cond:not(.add)").length })));
 const count = () => page.evaluate(() => document.querySelector(".rows-foot .num")?.textContent ?? "");
@@ -72,21 +73,24 @@ const fakeDeath = (kept) => page.evaluate((kept) => {
 try {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
+  await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   check(await setLineage([], false), "the lineage took marks, gold, the thief fact and an empty chronicle");
   await waitFor((s) => s?.screen === "camp", "camp again");
   await page.waitForFunction(() => window.__riddle.unlockCat.length > 0, null, { timeout: 10_000 });
+  // Cut 17: the unlock panel lists the whole catalogue from here on (`more`, remembered); the panel closes over the tablets
+  await openPanel(page, "unlocks", { all: true }); await page.keyboard.press("Escape");
   await sleep(600);
 
   // 4 · 5 · 6: sheet titles, the empty chronicle, the seed, the empty vault slot
-  await page.locator("button.mini", { hasText: "chronicle" }).first().click({ timeout: 5000 }); await sleep(200);
+  await page.locator(".cmd .tile[data-tile=chronicle]").first().click({ timeout: 5000 }); await sleep(200);
   let s = await sheet();
   check(s?.label === "chronicle" && !/·/.test(s.text.replace("chronicle", "")) && s.buttons.length === 0, `an empty chronicle shows its label and nothing else: "${s?.text}"`);
   await page.keyboard.press("Escape"); await sleep(150);
-  await page.locator("button.mini", { hasText: "ledger" }).first().click({ timeout: 5000 }); await sleep(200);
+  await page.locator(".cmd .tile[data-tile=ledger]").first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
   check(s?.label === "ledger" && /seen/i.test(s.text), `the ledger sheet is titled: "${s?.label}"`);
   await page.keyboard.press("Escape"); await sleep(150);
-  await page.locator("button.mini", { hasText: "forge" }).first().click({ timeout: 5000 }); await sleep(200);
+  await page.locator(".cmd .tile[data-tile=forge]").first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
   check(s?.label === "forge" && /craft/i.test(s.text), `the forge sheet is titled: "${s?.label}"`);
   await page.keyboard.press("Escape"); await sleep(150);
@@ -98,6 +102,7 @@ try {
   check(slot && slot.tag === "SPAN" && slot.pe === "none" && !slot.inButton, `the empty vault slot is a plain marker (${slot?.tag}, pointer-events ${slot?.pe})`);
 
   // 3: the gate on the card and in its sheet
+  await openPanel(page, "unlocks");
   const rowCard = page.locator(".unlocks .card", { hasText: "+1 row" }).first();
   const cardText = (await rowCard.innerText()).replace(/\s+/g, " ");
   check(/⊘ fill rows/.test(cardText) && !/rows full/.test(cardText), `the +1 row card reads a requirement: "${cardText}"`);
@@ -105,6 +110,7 @@ try {
   s = await sheet();
   check(/⊘ fill rows/.test(s?.text ?? "") && !/rows full/.test(s?.text ?? ""), `so does its sheet: "${s?.text}"`);
   await page.keyboard.press("Escape"); await sleep(150);
+  await page.keyboard.press("Escape"); await sleep(150);   // the panel
 
   // 7: the cond picker's × leads the sheet; it removes the cond
   await page.locator(".editor .row").first().locator(".chip.cond").first().click({ timeout: 5000 }); await sleep(200);
@@ -119,6 +125,7 @@ try {
   await sleep(800);
   rs = await rows();
   check(rs.length === 3 && rs[1].card && /thief guard/.test(rs[1].text), `the bought card sits at R2: ${rs.map((r) => r.text.slice(0, 20)).join(" | ")}`);
+  await openPanel(page, "unlocks");
   const chip = page.locator(".unlocks .chip.owned", { hasText: "thief guard" }).first();
   const chipText = (await chip.innerText()).replace(/\s+/g, " ").trim();
   check(chipText === "card: thief guard · owned", `the owned chip reads owned: "${chipText}"`);
@@ -126,9 +133,11 @@ try {
   s = await sheet();
   check(s?.label === "card: thief guard" && !s.buttons.includes("insert") && !s.buttons.includes("buy"), `the owned sheet is titled, no insert while the set holds the row: [${s?.buttons.join(", ")}]`);
   await page.keyboard.press("Escape"); await sleep(150);
+  await page.keyboard.press("Escape"); await sleep(150);   // the panel
   await page.locator(".editor .row").nth(1).locator(".x").click({ timeout: 5000 }); await sleep(400);
   rs = await rows();
   check(rs.length === 2 && !rs.some((r) => r.card), "the card row dropped");
+  await openPanel(page, "unlocks");
   await page.locator(".unlocks .chip.owned", { hasText: "thief guard" }).first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
   check(s?.label === "card: thief guard" && s.buttons.includes("insert"), `the owned sheet offers insert once the row is gone: [${s?.buttons.join(", ")}]`);
@@ -142,11 +151,11 @@ try {
 
   // 1: a screen change closes every sheet; Escape on a kept death goes to the camp, on a fresh death it stays
   await page.locator("button.gear").click({ timeout: 5000 }); await sleep(150);
-  await page.locator("button.mini", { hasText: "forge" }).first().click({ timeout: 5000 }).catch(() => {});   // under the settings sheet: the backdrop takes it
+  await page.locator(".cmd .tile[data-tile=forge]").first().click({ timeout: 5000 }).catch(() => {});   // under the settings sheet: the backdrop takes it
   await fakeDeath(false);
   await waitFor((s) => s?.screen === "death", "death");
   check((await sheets()) === 0, "the settings sheet closed with the screen change");
-  await page.locator("button.btn", { hasText: "morgue" }).first().click({ timeout: 5000 }); await sleep(150);
+  await page.locator("main.death button", { hasText: /^morgue$/ }).first().click({ timeout: 5000 }); await sleep(150);
   check((await sheets()) === 1, "the morgue sheet is up");
   await page.keyboard.press("Escape"); await sleep(150);
   check((await sheets()) === 0 && (await state()).screen === "death", "Escape closed the morgue; a fresh death stays");
@@ -159,14 +168,14 @@ try {
   check(await setLineage(["♟1 the curious fighter · D3 · fell to a jackal · left bones on D3."], true), "the lineage took a chronicle line whose heir keeps its death");
   await waitFor((s) => s?.screen === "camp", "camp again");
   await sleep(400);
-  await page.locator("button.mini", { hasText: "chronicle" }).first().click({ timeout: 5000 }); await sleep(200);
+  await page.locator(".cmd .tile[data-tile=chronicle]").first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
   check(s?.label === "chronicle" && s.buttons.length === 1 && /▸/.test(s.buttons[0]), `the chronicle line is a button: [${s?.buttons.join(", ")}]`);
   await page.locator(".sheet-wrap button.cline.kept").first().click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "death", "the kept death");
   await sleep(200);
   check((await sheets()) === 0, "the chronicle sheet closed under the death screen");
-  check((await page.locator("main.death button.btn.primary", { hasText: "edit" }).count()) === 1, "the kept death offers edit (the camp)");
+  check((await page.locator("main.death button", { hasText: /^edit$/ }).count()) === 1, "the kept death offers edit (the camp)");
   await page.keyboard.press("Escape");
   await waitFor((s) => s?.screen === "camp", "camp after Escape on the kept death", 5000);
   check(true, "Escape on the kept death leads back to the camp");
@@ -179,6 +188,7 @@ try {
 
   // 9: a gated unlock's sheet has buy off — the engine's `needs` (caster: boss 2), and a card that lies `available` while the
   // marks are short (the stale catalogue of a card painted before a buy)
+  await openPanel(page, "unlocks");
   await page.locator(".unlocks .card", { hasText: "class: caster" }).first().click({ timeout: 5000 }); await sleep(200);
   let gate = await page.evaluate(() => { const b = document.querySelector(".sheet-wrap button.buy"); return { disabled: b?.disabled, off: b?.classList.contains("off"), needs: document.querySelector(".sheet-wrap .needs-line")?.textContent.trim() }; });
   check(gate.disabled === true && gate.off && /^⊘ /.test(gate.needs ?? ""), `a gated unlock's buy is off: "${gate.needs}"`);
@@ -190,6 +200,7 @@ try {
     window.__riddle.go({ kind: "camp" });
   });
   await sleep(800);
+  await openPanel(page, "unlocks");
   await page.locator(".unlocks .card", { hasText: "class: ranger" }).first().click({ timeout: 5000 }); await sleep(200);
   gate = await page.evaluate(() => { const b = document.querySelector(".sheet-wrap button.buy"); return { disabled: b?.disabled, off: b?.classList.contains("off"), needs: document.querySelector(".sheet-wrap .needs-line")?.textContent.trim(), marks: window.__riddle.lineage.marks }; });
   check(gate.disabled === true && gate.off && gate.needs === `⊘ ◆${40 - gate.marks} more`, `a stale available with the marks short (◆${gate.marks} of 40): buy off, "${gate.needs}"`);
@@ -250,7 +261,7 @@ try {
   await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
   // 15: in `fights` the interstitial names the HUD's floor whenever both show (QA on e0f87e7: "`D1 · 16 rooms · $18` while the
   // HUD reads `32/40 D2`") — sampled through the drive below, ▶▶| pressed every 300 ms as the QA player did
-  const cardSample = () => page.evaluate(() => { const c = document.querySelector(".interstitial"); const card = c && !c.hidden ? c.textContent : null; const hud = document.querySelector(".hud .depth")?.textContent ?? ""; return { card, hud, mismatch: !!card && !!hud && !card.startsWith(`${hud} `) }; });
+  const cardSample = () => page.evaluate(() => { const c = document.querySelector(".interstitial"); const card = c && !c.hidden ? c.textContent : null; const hud = document.querySelector(".watch .depth")?.textContent ?? ""; return { card, hud, mismatch: !!card && !!hud && !card.startsWith(`${hud} `) }; });
   const cardSamples = [];
   const ledgerSalvage = () => page.evaluate(() => {
     const g = window.__riddle.lineage.gold_ledger ?? []; let i = g.length - 1;
@@ -262,15 +273,15 @@ try {
   // four samples do too): the run's end kills the mode buttons
   // (QA on 50bb162: "fights · fast · ▶▶| · bail still live on a dead hero"), so the choice cannot come from the exit sheet
   let picked = false;
-  const pickFast = () => page.evaluate(() => { for (const b of document.querySelectorAll("main.watch .hud.bottom .hud-btn")) if (b.textContent === "fast" && !b.disabled) b.click(); });
-  const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); if (sample && !picked && (cardSamples.filter((c) => c.card).length >= 2 || (cardSamples.some((c) => c.card) && cardSamples.length >= 4))) { picked = true; await pickFast(); } await page.locator(".hud.bottom .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {}); await sleep(300); } return state(); };
+  const pickFast = () => page.evaluate(() => { for (const b of document.querySelectorAll("main.watch .cmd .hud-btn")) if (b.textContent === "fast" && !b.disabled) b.click(); });
+  const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); if (sample && !picked && (cardSamples.filter((c) => c.card).length >= 2 || (cardSamples.some((c) => c.card) && cardSamples.length >= 4))) { picked = true; await pickFast(); } await page.locator(".cmd .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {}); await sleep(300); } return state(); };
   let s2 = await drive(true);
   check(s2?.screen === "exit", `the run ended on the keep sheet (${s2?.screen})`);
   const shownCards = cardSamples.filter((c) => c.card), mism = cardSamples.filter((c) => c.mismatch);
   check(shownCards.length > 0 && mism.length === 0, `the card named the HUD's floor in every sample it showed (${shownCards.length} samples${mism.length ? `; off: ${mism.map((m) => `${m.card} | ${m.hud}`).join(", ")}` : ""})`);
   // 12: the `fast` chosen mid-run is the next run's mode; at the exit the mode buttons are dead
   if (!picked) await pickFast();   // the run ended before three cards showed: the click then lands on a dead button (the check says so)
-  const saved = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, blob: JSON.parse(window.__riddle.exportSave()).watch, dead: [...document.querySelectorAll("main.watch .hud.bottom .hud-btn")].every((b) => b.disabled) }));
+  const saved = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, blob: JSON.parse(window.__riddle.exportSave()).watch, dead: [...document.querySelectorAll("main.watch .cmd .hud-btn")].every((b) => b.disabled) }));
   check(saved.mode === "fast" && saved.blob === "fast", `fast chosen mid-run: the watch is in it and the save blob carries it (${saved.mode}, ${saved.blob}, picked ${picked})`);
   check(saved.dead, "at the exit the mode buttons, ▶▶| and bail are dead");
   const keepSheet = () => page.evaluate(() => { const w = [...document.querySelectorAll(".sheet-wrap")].pop(); const lab = w?.querySelector(".label.row-label"); return { label: lab?.firstChild?.textContent?.trim() ?? "", count: lab?.querySelector(".num")?.textContent ?? "", on: [...(w?.querySelectorAll(".chips .chip.item") ?? [])].map((c) => c.classList.contains("on")), n: w?.querySelectorAll(".chips .chip.item").length ?? 0 }; });
@@ -297,7 +308,7 @@ try {
   // 12: the next watch starts in `fast`; 14: with the vault full the sheet is skipped and SALVAGED is still built
   await page.evaluate(() => window.__riddle.go({ kind: "watch" }));
   await waitFor((s) => s?.screen === "watch", "the second watch");
-  const mode2 = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, on: [...document.querySelectorAll(".hud.bottom .hud-btn.on")].map((b) => b.textContent) }));
+  const mode2 = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, on: [...document.querySelectorAll(".cmd .hud-btn.on")].map((b) => b.textContent) }));
   check(mode2.mode === "fast" && mode2.on.join() === "fast", `the next watch starts in the remembered mode (${mode2.mode}, on: ${mode2.on.join()})`);
   // the fake's worths equal the client's table, so the ledger is skewed through the lineage the client refreshes at the exit:
   // one more `+$9 salvage` line at the exit's tick — the rows must move to it (the largest row takes the difference)

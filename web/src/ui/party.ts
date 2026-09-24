@@ -8,7 +8,6 @@ import { h, clear } from "./dom";
 import { renderEditor } from "./editor";
 import { closeAllSheets, openSheet } from "./sheet";
 import { cloneSet } from "../app";
-import { openChronicle } from "./chronicle";
 
 const nice = (s: string): string => s.replace(/_/g, " ");
 
@@ -23,19 +22,17 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     const L = app.lineage; const slots = L.party_slots || 1;
     clear(head); clear(cards); clear(eggs);
     const all = [...L.party, ...L.kennel];
-    if (!all.length && !L.eggs.length) { head.append(/* copy:label */ "party", " ", h("span", { class: "num dim" }, `0/${slots}`), ledgerBtn(), chronicleBtn()); return; }
+    // Cut 17: `ledger` and `chronicle` are console tiles now (the reveal ladder's 5th heir)
+    if (!all.length && !L.eggs.length) { head.append(/* copy:label */ "party", " ", h("span", { class: "num dim" }, `0/${slots}`)); return; }
     const canBreed = L.kennel.filter((c) => c.level >= 2).length >= 2;
     head.append(/* copy:label */ "party", " ", h("span", { class: "num dim" }, `${L.party.length}/${slots}`),
-      canBreed ? h("button", { class: `mini${breeding ? " on" : ""}`, onclick: () => { breeding = breeding ? null : []; refresh(); } }, /* copy:button */ "breed") : "",
-      ledgerBtn(), chronicleBtn());
+      canBreed ? h("button", { class: `mini${breeding ? " on" : ""}`, onclick: () => { breeding = breeding ? null : []; refresh(); } }, /* copy:button */ "breed") : "");
     for (const c of all) cards.appendChild(card(c, L.party.includes(c)));
     for (const e of L.eggs) {
       eggs.appendChild(h("span", { class: "chip egg" }, "◯ ", nice(e.kind), h("small", { class: "dim" }, ` ${e.tags.map(nice).join(" ")} g${e.gen}`),
         e.from_loss ? h("button", { class: `mini${L.gold >= 50 ? "" : " off"}`, disabled: L.gold < 50, onclick: () => void app.mutate(() => app.engine.hatch(e.id)) }, "$50") : h("b", { class: "num" }, ` ${e.hatch_in}`)));
     }
   }
-  function ledgerBtn(): HTMLElement { return h("button", { class: "mini", onclick: () => openLedger(app) }, /* copy:button */ "ledger"); }
-  function chronicleBtn(): HTMLElement { return h("button", { class: "mini", onclick: () => openChronicle(app) }, /* copy:button */ "chronicle"); }
 
   function card(c: Companion, inParty: boolean): HTMLElement {
     const picked = breeding?.includes(c.id);

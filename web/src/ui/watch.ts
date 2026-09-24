@@ -106,6 +106,8 @@
 import type { App, Mounted } from "../app";
 import type { Ev, ExitLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, items, replace, spanOf } from "./dom";
+import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
+import { icon } from "./skin";
 import { makeViewer, type Viewer } from "./viewer";
 import { verbsAt, xpToNext } from "../engine/classes";
 import { openSheet } from "./sheet";
@@ -176,8 +178,9 @@ export const withArticle = (w: string): string => { const x = oneWord(w); return
 
 export function renderWatch(app: App): Mounted {
   const canvas = h("canvas", { class: "view" });
-  const hpFill = h("span", { class: "fill" });
-  const hpText = h("span", { class: "num" });
+  // Cut 17 §1: the hero's hp is the ring around the console's portrait (its numbers on the plate under it)
+  const hpText = h("span", { class: "num hp-text" });
+  const face = portrait(app, { hp: 1, label: hpText });
   // Cut 16 §4: the boss's bar under the hero's while one is in view (`warlord` + a thin track)
   const bossFill = h("span", { class: "fill" }), bossName = h("span", { class: "name" });
   const bossBar = h("div", { class: "boss-hp", hidden: true }, bossName, h("span", { class: "track" }, bossFill));
@@ -186,27 +189,33 @@ export function renderWatch(app: App): Mounted {
   const ticker = h("div", { class: "ticker" });
   const stake = h("div", { class: "stake num" });
   const banner = h("div", { class: "banner num" });
-  const pause = h("button", { class: "hud-btn", onclick: () => togglePause() }, "⏸");
+  // Cut 17 §1: `⏸ / ▶` is the console's gem (the glyph stays the button's text; the icon is drawn over it)
+  const pause = gem({ label: "", cls: "hud-btn", onclick: () => togglePause() });
   // the last chosen mode is the next run's (app.watchMode, persisted — QA on e0f87e7: "`fast` chosen in run 3 was not remembered")
   const mode0: Mode = app.watchMode === "fast" ? "fast" : "fights";
   const modeBtn: Record<Mode, HTMLButtonElement> = {
-    fights: h("button", { class: `hud-btn${mode0 === "fights" ? " on" : ""}`, onclick: () => setMode("fights") }, /* copy:button */ "fights"),
-    fast: h("button", { class: `hud-btn${mode0 === "fast" ? " on" : ""}`, onclick: () => setMode("fast") }, /* copy:button */ "fast"),
+    fights: tile({ id: "fights", cls: "hud-btn", on: mode0 === "fights", icon: "fights", label: /* copy:button */ "fights", onclick: () => setMode("fights") }),
+    fast: tile({ id: "fast", cls: "hud-btn", on: mode0 === "fast", icon: "fast", label: /* copy:button */ "fast", onclick: () => setMode("fast") }),
   };
-  const skip = h("button", { class: "hud-btn", onclick: () => skipToEvent() }, "▶▶|");
-  const bail = h("button", { class: "hud-btn bail", onclick: () => doBail() }, /* copy:button */ "bail");
+  const skip = tile({ id: "skip", cls: "hud-btn", icon: "skip", label: "▶▶|", onclick: () => skipToEvent() });
+  const bail = tile({ id: "bail", cls: "hud-btn bail", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
   // Cut 10 §1: the interstitial — the ambient line over the map while the travel runs underneath; a tap holds the map at 8×
   const card = h("button", { class: "interstitial num", hidden: true, onclick: () => holdMap() });
-  // Cut 14 §6: the scrub strip — the playhead (the viewer's share of the run) and the frontier's dot (beats per engine batch)
+  // Cut 14 §6: the scrub strip — the playhead (the viewer's share of the run) and the frontier's dot (beats per engine batch);
+  // Cut 17: along the console's top edge
   const scrubHead = h("div", { class: "head" }), scrubDot = h("div", { class: "dot" });
   const scrub = h("div", { class: "scrub", hidden: true }, scrubHead, scrubDot);
-  const el = h("main", { class: "watch" }, canvas, card,
-    h("div", { class: "hud top" }, h("div", { class: "hp" }, h("span", { class: "track" }, hpFill), hpText), depth, alert, pause, bossBar, stake),
-    banner, ticker, scrub,
-    h("div", { class: "hud bottom" }, modeBtn.fights, modeBtn.fast, skip, bail));
+  const bar = renderBar(app);
+  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, skip, bail], gem: pause, top: scrub });
+  const el = h("main", { class: "watch frame" }, bar.el,
+    h("div", { class: "stage" }, canvas, card,
+      h("div", { class: "hud top" }, depth, alert, bossBar, stake),
+      banner, ticker),
+    cons.el);
 
   let viewer: Viewer | null = null;
   let mode: Mode = mode0, paused = false, slowUntil = -Infinity, lastHp = NaN;
+  paintPause();
   // Cut 10 §1: the card's state — up, since when (its minimum), a tap holding the map, a fight waiting on the minimum; fights shown
   let cardUp = false, cardSince = 0, cardMin = CARD_MS, cardDepth = 0, cardText = "", mapHold = false, cardWait = false, fights = 0;
   // Cut 15 §4: when the card last went up (the cap's clock: `cardSince` is waived by a press), and the live map the cap gave way to
@@ -308,8 +317,7 @@ export function renderWatch(app: App): Mounted {
 
   function paintHud(): void {
     const p = hud.maxHp ? hud.hp / hud.maxHp : 0;
-    hpFill.style.width = `${Math.round(Math.max(0, p) * 100)}%`;
-    hpFill.classList.toggle("low", p < 0.3);
+    face.set(p);
     stake.classList.toggle("warn", p < 0.4);
     replace(hpText, `${Math.max(0, hud.hp)}/${hud.maxHp}`);
     replace(depth, `D${hud.depth}`);
@@ -963,7 +971,7 @@ export function renderWatch(app: App): Mounted {
       for (const x of frozenFeed.splice(0)) feed(x.evs, x.s);
     }
   }
-  function paintPause(): void { pause.classList.toggle("on", paused); replace(pause, paused ? "▶" : "⏸"); }
+  function paintPause(): void { pause.classList.toggle("on", paused); pause.classList.toggle("pulse", paused); replace(pause, icon(paused ? "play" : "pause"), h("span", { class: "gem-glyph" }, paused ? "▶" : "⏸")); }
   let skipQueued = false;
   async function skipToEvent(): Promise<void> {
     if (done || !viewer || exitTier) return;
@@ -1291,7 +1299,7 @@ export function renderWatch(app: App): Mounted {
   const onVisibility = (): void => { freeze(paused, document.hidden); if (!hidden) goLiveOwed = true; applySpeed(); };
   document.addEventListener("visibilitychange", onVisibility);
   return { el, dispose: () => {
-    disposed = true; window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); viewer?.dispose();
+    disposed = true; bar.dispose(); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); viewer?.dispose();
     if (vaultClose) { const c = vaultClose; vaultClose = null; c(); }
     if (prepended && !done) void app.engine.setRules(app.rules);
   } };

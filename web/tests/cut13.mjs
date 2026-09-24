@@ -30,6 +30,7 @@ import { mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser, launchGpu } from "../../tools/browser.mjs";
+import { editRows, openPanel } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -111,7 +112,7 @@ try {
     r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, worst_death: worst } });
   });
   await sleep(200);
-  await page.locator("main.report button.btn", { hasText: /^open$/ }).first().click({ timeout: 5000 });
+  await page.locator("main.report button", { hasText: /^open$/ }).first().click({ timeout: 5000 });
   await waitFor((x) => x?.screen === "death", "the worst stall from the report");
   d = await deathScreen();
   check(d.pill === "stall" && d.line === "stalled · D2 · archer, no path · stall" && d.notes.length === 2, `the report's open shows the stall verdict: "${d.line}"`);
@@ -119,6 +120,7 @@ try {
   // ---- §2: the heir's trait is chosen
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && x.screen === "camp", "camp");
+  await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   await sleep(300);
   const traits = () => page.evaluate(() => ({
     chips: [...document.querySelectorAll(".strip .chip.trait")].map((c) => ({ name: c.querySelector("span")?.textContent ?? "", rule: c.querySelector(".rule")?.textContent ?? "", on: c.classList.contains("on"), disabled: c.disabled })),
@@ -251,7 +253,7 @@ try {
     };
   }, long);
   const seen = new Set(); let clipped = false, joined = false;
-  await page.waitForFunction(() => document.querySelector("main.watch .hud-btn.on")?.textContent === "▶" || window.__riddle.screen !== "watch", null, { timeout: 20_000 });
+  await page.waitForFunction(() => document.querySelector("main.watch .gem.hud-btn.on")?.textContent === "▶" || window.__riddle.screen !== "watch", null, { timeout: 20_000 });
   await sleep(200);
   await page.evaluate(() => { for (const b of document.querySelectorAll("main.watch .hud-btn")) if (b.textContent === "▶") b.click(); });
   for (let i = 0; i < 160; i++) {
@@ -282,6 +284,10 @@ try {
   check(f.refined === "1" && f.pms.length > 0 && f.pms.every((p) => /^ ±\d+$/.test(p)), `after the refine the … is gone: ${f.pms.join(",")}`);
   check(/ · death \d+% ±\d+ · ~\$\d+$/.test(f.ends), `the ends line after the refine: "${f.ends}"`);
   // the unlock deltas: within their ± → `reach ~0`; otherwise with the ±
+  // Cut 17: the unlock shelf is a panel, carved with the lineage's first mark (docs/UI.md §5): the lineage takes one, the panel opens
+  // on its whole catalogue (`more`)
+  await page.evaluate(async () => { const r = window.__riddle; const save = JSON.parse(await r.engine.save()); save.lineage.marks = Math.max(1, save.lineage.marks); r.lineage = await r.engine.load(JSON.stringify(save)); r.go({ kind: "camp" }); });
+  await openPanel(page, "unlocks", { all: true });
   await page.waitForFunction(() => document.querySelectorAll(".unlocks .card .delta").length > 0, null, { timeout: 15_000 });
   const deltas = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((e) => ({ text: e.textContent, cls: e.className })));
   check(deltas.length > 0 && deltas.every((x) => /^reach (~0|[+−]\d+% ±\d+) at (R\d+|end)$/.test(x.text)), `card deltas carry their ± or read ~0: ${deltas.map((x) => x.text).join(" · ")}`);
@@ -313,9 +319,11 @@ try {
   // the death headline: no `N hp short` (read as the hp left by four players); a stall's reason stays; morgue and edit only
   await fakeDeath({ margin: "1 hp short" });
   await sleep(100); d = await deathScreen();
-  const btns = await page.evaluate(() => [...document.querySelectorAll("main.death .btn-row button")].map((b) => b.textContent.trim()));
+  // Cut 17: the verdict screen's buttons are its console — the command card (morgue · camp, docs/CUT17.md §1) and the gem (edit,
+  // with no patch to apply)
+  const btns = await page.evaluate(() => [...document.querySelectorAll("main.death .console button")].map((b) => b.textContent.trim()));
   check(d.line === "goblin archer · D3 · gap", `the headline drops the hp margin: "${d.line}"`);
-  check(btns.join() === "morgue,edit", `the verdict screen's buttons are morgue and edit only: [${btns.join(", ")}]`);
+  check(btns.join() === "morgue,camp,edit", `the verdict screen's buttons are morgue · camp and the edit gem only: [${btns.join(", ")}]`);
   await fakeDeath({ margin: "3 over" });
   await sleep(100); d = await deathScreen();
   check(d.line === "goblin archer · D3 · gap", `the core's \`3 over\` is dropped too: "${d.line}"`);
@@ -370,7 +378,7 @@ try {
   // a lineage that has salvaged nothing yet (the fake seeds a rung or two)
   check(await page.evaluate(async () => { const r = window.__riddle; const b = JSON.parse(r.exportSave()); const e = JSON.parse(b.engine); e.lineage.forge = {}; b.engine = JSON.stringify(e); return r.importSave(JSON.stringify(b)); }), "the lineage took an empty forge");
   await waitFor((x) => x?.booted && x.screen === "camp", "camp with an empty forge"); await sleep(300);
-  await page.locator("button.mini", { hasText: /^forge$/ }).first().click({ timeout: 5000 }); await sleep(200);
+  await page.locator(".cmd .tile[data-tile=forge]").first().click({ timeout: 5000 }); await sleep(200);
   const forgeT = await page.evaluate(() => { const w = document.querySelector(".sheet-wrap"); return w ? { text: w.innerText.replace(/\s+/g, " ").trim(), heads: w.querySelectorAll(".lrow.head").length, empty: w.querySelector(".forge .empty-line")?.textContent ?? null } : null; });
   check(forgeT?.empty === "nothing salvaged" && forgeT.heads === 0 && /^forge nothing salvaged$/i.test(forgeT.text), `an empty forge says so under its label: "${forgeT?.text}"`);
   await shot("13-forge-empty");
@@ -433,6 +441,7 @@ try {
   await shot("qaF-card-row");
   // the forecast's `try` row: one line per depth — the hint rides the track, the track keeps the row's width
   await page.waitForFunction(() => !!document.querySelector(".forecast .bar.try .try"), null, { timeout: 15_000 });
+  await openPanel(page, "forecast");   // Cut 17: the bars are read where the player sees them, in the forecast panel
   const tryRow = await page.evaluate(() => {
     const bar = document.querySelector(".forecast .bar.try"); const plain = document.querySelector(".forecast .bar:not(.try):not(.unknown)");
     const b = bar.getBoundingClientRect(), t = bar.querySelector(".try").getBoundingClientRect(), n = bar.querySelector(".n").getBoundingClientRect(), tr = bar.querySelector(".track").getBoundingClientRect();

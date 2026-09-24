@@ -18,9 +18,13 @@ import type { App } from "../app";
 import type { Cond, Row, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash } from "./dom";
 import { openSheet } from "./sheet";
-import { NUMS, PCT, combosIn, condLabel, condName, isCardRow, needsN, ownRowCount, sameCond, sameVerb, verbLabel } from "./tokens";
+import { NUMS, PCT, combosIn, condLabel, condName, isCardRow, needsN, ownRowCount, rowLabel, sameCond, sameVerb, verbLabel } from "./tokens";
 
 export type Editor = { el: HTMLElement; refresh(): void };
+/** Cut 17 §2: the camp's tablets. `compact()` true: each row is one carved tablet (`R1  hp < 30% → drink unknown`), a single
+ *  tap target that calls `onTablet(i)` (the camp turns editing on at that row) — a fresh lineage's camp before the `edit` tile;
+ *  false: the tablet carries the editor — chips, ▲▼, ×, and `+` under the rows. */
+export type EditorOpts = { compact?: () => boolean; onTablet?: (i: number) => void };
 /** What the editor edits: the hero's active set, or a companion's own rows. */
 export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; cardRows?(id: string): Row[] | undefined };
 export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id) });
@@ -50,7 +54,7 @@ export function dropRows(rows: Row[], max: number): Set<number> {
   return out;
 }
 
-export function renderEditor(bind: Binding, highlight?: number): Editor {
+export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts = {}): Editor {
   const list = h("div", { class: "rows" });
   const foot = h("div", { class: "rows-foot" });
   const el = h("section", { class: "editor" }, list, foot);
@@ -65,6 +69,13 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
 
   function refresh(): void {
     clear(list); clear(foot);
+    const compact = opts.compact?.() ?? false;
+    el.classList.toggle("compact", compact);
+    if (compact) {
+      rows().forEach((row, i) => list.appendChild(h("button", { class: `row tablet compact${isCardRow(row) ? " locked" : ""}`, "data-i": i, onclick: () => opts.onTablet?.(i) },
+        h("span", { class: "rn num" }, `R${i + 1}`), h("span", { class: "rtext" }, rowLabel(row)))));
+      return;
+    }
     const n = ownRowCount(rows()), cards = rows().length - n, max = vocab().max_rows, over = n > max;
     const drop = over ? dropRows(rows(), max) : new Set<number>();
     rows().forEach((row, i) => list.appendChild(rowEl(row, i, drop.has(i))));
@@ -115,7 +126,7 @@ export function renderEditor(bind: Binding, highlight?: number): Editor {
       h("button", { class: "step up", disabled: i === 0, onclick: () => swap(i - 1) }, "▲"),
       h("button", { class: "step down", disabled: i >= n - 1, onclick: () => swap(i + 1) }, "▼"));
     const x = h("button", { class: "x", onclick: () => { rows().splice(i, 1); commit(); } }, "×");
-    return h("div", { class: `row${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, updown, chips, x);
+    return h("div", { class: `row tablet${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, updown, chips, x);
   }
 
   // --- sheets ---

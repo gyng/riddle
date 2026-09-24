@@ -17,6 +17,10 @@ import { openUnlockSheet, visible, withRowsGate } from "./unlocks";
 import { lostLabel, rowLabel } from "./tokens";
 import { traceChip } from "./trace";
 import { openGoldSheet, runRange } from "./gold";
+import { gem, portrait, renderBar, renderConsole, tile as cmdTile } from "./frame";
+import { icon } from "./skin";
+import { revealed } from "./reveal";
+import { openLedger } from "./party";
 
 const EXITS_SHOW = 8;
 
@@ -64,7 +68,10 @@ export function pickedLine(depths: number[]): string {
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
   const L = app.lineage;
   const deathsN = r.deaths.reduce((n, d) => n + d.n, 0);
-  const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile" }, h("b", { class: "num" }, n), h("span", { class: "label" }, label));
+  // Cut 17 §4: the tiles are engraved score plaques on the parchment (an icon per count)
+  const PLAQUE: Record<string, string> = { runs: "fast", deaths: "morgue", deepest: "depth", best: "depth", marks: "mark", banked: "gold", returned: "bail", stalled: "pause" };
+  const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile plaque" }, icon(PLAQUE[label] ?? "depth"),
+    h("b", { class: "num" }, ...(n.startsWith("◆") ? [h("span", { class: "g" }, "◆"), n.slice(1)] : [n])), h("span", { class: "label" }, label));
   // Cut 2 §1: `banked · returned · deaths` as a second row of three when the core reports exits; else the Cut 1 four
   const exits = r.banked !== undefined || r.returned !== undefined;
   // a stall is inside the core's `returned` (a return that kept nothing); the tiles count it apart — `returned` is the returns
@@ -194,9 +201,19 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const usage = r.pending.map((p) => /^R(\d+) fired (\d+) of (\d+) runs/.exec(p)).filter((m): m is RegExpExecArray => !!m);
   if (usage.length) { const fires = app.rules.rows.map(() => 0); for (const m of usage) if (Number(m[1]) - 1 < fires.length) fires[Number(m[1]) - 1] = Number(m[2]); app.rowFires = fires; app.rowFiresOf = Number(usage[0][3]); }
   void app.engine.unlocks().then((cat) => paintPending(visible(cat).filter((u) => u.available))).catch(() => { /* lines only */ });
-  const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }, /* copy:button */ "open") : null;
-  const camp = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "camp");
-  const el = h("main", { class: "report" },
+  // Cut 17 §4: the console — `open` (the worst death's verdict) · `gold` (the ledger of this absence's gold) · `ledger` (the
+  // bestiary, from the 5th heir); the gem is `camp`
+  const bar = renderBar(app);
+  const cons = renderConsole({
+    portrait: portrait(app, { hp: 1, label: `♟${L.heir}` }).el,
+    gem: gem({ label: /* copy:button */ "camp", cls: "camp-gem", pulse: true, onclick: () => app.go({ kind: "camp" }) }),
+    tiles: [
+      r.worst_death ? cmdTile({ id: "open", label: /* copy:button */ "open", icon: "trace", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }) : null,
+      cmdTile({ id: "gold", label: /* copy:button */ "gold", icon: "gold", onclick: () => openGoldSheet(app) }),
+      revealed(app).has("heirs") ? cmdTile({ id: "ledger", label: /* copy:button */ "ledger", icon: "ledger", onclick: () => openLedger(app) }) : null,
+    ],
+  });
+  const sheet = h("div", { class: "parchment report-sheet" },
     tiles, goldLine(), picked, exitLines, rested, stall,
     section(/* copy:label */ "learned", factChips(r.learned, L.counters ?? [])),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
@@ -214,9 +231,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "renown", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "") : null),   // a rank pays a mark: the tiles' ◆ reconciles with the rows (QA on 56f2a1d: ◆+9 vs rows ◆+6)
     pendingSec,
     section(/* copy:label */ "reel", reel(r.reel.map((x) => x.text))),
-    h("div", { class: "btn-row" }, open, camp),
   );
-  return { el };
+  const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el);
+  return { el, dispose: () => bar.dispose() };
 }
 
 /** The run a stall's trace belongs to: the exit line that carries the same trace (the stall has no run id on the wire; the

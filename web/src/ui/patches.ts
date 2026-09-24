@@ -89,9 +89,11 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : rowLabel(p.row));
     // an unlock's second line is the row it inserts once bought; a root patch's is the chain's root it answers
     const root = unlock ? (p.root ? h("small", { class: "dim" }, rowLabel(p.row)) : "") : p.root ? h("small", { class: "root" }, "← ", p.root.text) : "";
-    return h("button", { class: `patch${p.remove ? " remove" : ""}${p.below_bar || held >= 0 ? " below" : ""}${unlock ? " unlock" : ""}`, onclick, ...(full ? { "data-full": "1" } : {}) },
+    return h("button", { class: `patch tablet${p.remove ? " remove" : ""}${p.below_bar || held >= 0 ? " below" : ""}${unlock ? " unlock" : ""}`, onclick, ...(full ? { "data-full": "1" } : {}) },
       h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
+        // Cut 17 §4: `survives N %` as a gauge on the patch tablet (the number stays beside it)
+        unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
         h("span", { class: "num surv" }, line),
         delta ? h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, /* copy:callout */ `reach ${delta > 0 ? "+" : "−"}${Math.abs(delta)}%`) : h("span", { class: "num delta flat" }, /* copy:callout */ "reach ~0")));
   }));

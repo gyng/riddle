@@ -20,6 +20,7 @@ import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { editRows, openPanel } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -57,14 +58,14 @@ try {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=fast&rules=${rules}`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s) && Number.isFinite(s.tick), "the fast watch");
     await recordExit();
-    await page.locator(".hud.top .hud-btn").first().click({ timeout: 2000 });   // ⏸: the world runs on to the bank
+    await page.locator(".gem.hud-btn").first().click({ timeout: 2000 });   // ⏸: the world runs on to the bank
     const t0 = Date.now();
     while (Date.now() - t0 < 15_000 && !(await page.evaluate(() => window.__riddle.__exit))) await sleep(100);
     const exit = await page.evaluate(() => window.__riddle.__exit);
-    await page.locator(".hud.top .hud-btn").first().click({ timeout: 2000 });   // ▶: the picture replays from behind
+    await page.locator(".gem.hud-btn").first().click({ timeout: 2000 });   // ▶: the picture replays from behind
     const seen = []; const t1 = Date.now();
     while (Date.now() - t1 < 40_000) {
-      const s = await page.evaluate(() => ({ screen: window.__riddle.screen, tk: document.querySelector(".ticker.show")?.textContent ?? "", tick: Number(document.querySelector(".watch")?.dataset.tick), depth: document.querySelector(".hud .depth")?.textContent ?? "" }));
+      const s = await page.evaluate(() => ({ screen: window.__riddle.screen, tk: document.querySelector(".ticker.show")?.textContent ?? "", tick: Number(document.querySelector(".watch")?.dataset.tick), depth: document.querySelector(".watch .depth")?.textContent ?? "" }));
       if (s.screen !== "watch") break;
       if (/^BANKED/.test(s.tk)) seen.push(s);
       await sleep(40);
@@ -81,7 +82,7 @@ try {
     const t0 = Date.now();
     while (Date.now() - t0 < 60_000) {
       const s = await state(); if (!inRun(s)) break;
-      await page.locator(".hud.bottom .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {});
+      await page.locator(".cmd .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {});
       await sleep(400);
     }
     let s = await waitFor((x) => x && !inRun(x), "the run's end", 30_000);
@@ -183,7 +184,7 @@ try {
       new MutationObserver(() => {
         const up = w.dataset.card === "1" && !card.hidden, anyUp = w.dataset.card === "1";
         if (anyUp && !wasUp) log.ups.push({ tick: Number(w.dataset.tick), text: card.hidden ? "ghost" : card.textContent });
-        if (up && !was) log.shown.push(document.querySelector(".hud .depth")?.textContent ?? "?");
+        if (up && !was) log.shown.push(document.querySelector(".watch .depth")?.textContent ?? "?");
         was = up; wasUp = anyUp;
       }).observe(w, { attributes: true, attributeFilter: ["data-card", "data-frame", "data-ghost"] });
     });
@@ -201,6 +202,7 @@ try {
   {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=21`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "the camp");
+    await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
     await page.evaluate(async () => {
       const r = window.__riddle; r.sets[r.active].name = "fighter";
       while (r.ownRows() < r.vocab.max_rows) r.insertRow({ conds: [{ k: "hp<", n: 30 + r.rules.rows.length }], verb: { v: "retreat" } }, r.rules.rows.length);
@@ -224,6 +226,7 @@ try {
   {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=21`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "the camp for the unlock sheet");
+    await openPanel(page, "unlocks", { all: true });   // Cut 17: the unlock shelf is a panel (its whole catalogue behind `more`)
     await page.locator(".unlocks .card", { hasText: "+1 vault" }).first().click({ timeout: 5000 }); await sleep(200);
     const b = await page.evaluate(() => {
       const look = (el) => { if (!el) return null; const cs = getComputedStyle(el); return { disabled: el.disabled, bg: cs.backgroundColor, color: cs.color, opacity: Number(cs.opacity) }; };
@@ -254,12 +257,12 @@ try {
     while (Date.now() - t0 < 20_000) { v = await sheet(); if (v || !["watch", "exit"].includes((await state())?.screen)) break; await sleep(50); }
     if (!v) { check(false, `${mode}: the cage sheet opened`); continue; }
     check(/^cage\b/.test(v.title) && (full ? v.full === "vault full" : v.full === ""), `${mode}: the sheet reads "${v.title}"${full ? `, "${v.full}"` : ""}`);
-    const pause = await page.locator(".hud.top .hud-btn").first().click({ timeout: 2000 }).then(() => true, () => false);
+    const pause = await page.locator(".gem.hud-btn").first().click({ timeout: 2000 }).then(() => true, () => false);
     await sleep(300);
-    const p = await page.evaluate(() => ({ paused: document.querySelector(".hud.top .hud-btn")?.textContent, sheet: !!document.querySelector(".sheet-wrap .vault-choice") }));
+    const p = await page.evaluate(() => ({ paused: document.querySelector(".gem.hud-btn")?.textContent, sheet: !!document.querySelector(".sheet-wrap .vault-choice") }));
     check(pause && p.paused === "▶" && p.sheet, `${mode}: ⏸ takes the tap under the cage and keeps the sheet (${pause ? p.paused : "click intercepted"}, sheet ${p.sheet})`);
-    await page.locator(".hud.top .hud-btn").first().click({ timeout: 2000 }).catch(() => {});
-    const skip = await page.locator(".hud.bottom .hud-btn", { hasText: "▶▶|" }).click({ timeout: 2000 }).then(() => true, () => false);
+    await page.locator(".gem.hud-btn").first().click({ timeout: 2000 }).catch(() => {});
+    const skip = await page.locator(".cmd .hud-btn", { hasText: "▶▶|" }).click({ timeout: 2000 }).then(() => true, () => false);
     await sleep(400);
     const k = await page.evaluate(() => ({ sheet: !!document.querySelector(".sheet-wrap .vault-choice"), chosen: window.__riddle.__chosen }));
     check(skip && !k.sheet && k.chosen === null, `${mode}: ▶▶| takes the tap, closes the sheet and picks nothing (${skip ? `sheet ${k.sheet}, chose ${k.chosen}` : "click intercepted"})`);
@@ -270,7 +273,7 @@ try {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s), "the watch for the chip");
     let c = null; const t0 = Date.now();
-    while (Date.now() - t0 < 10_000) { c = await page.evaluate(() => { const on = document.querySelector(".hud.bottom .hud-btn.on"); return on?.dataset.rate ? { rate: on.dataset.rate, after: getComputedStyle(on, "::after").content } : null; }); if (c) break; await sleep(50); }
+    while (Date.now() - t0 < 10_000) { c = await page.evaluate(() => { const on = document.querySelector(".cmd .hud-btn.on"); return on?.dataset.rate ? { rate: on.dataset.rate, after: getComputedStyle(on, "::after").content } : null; }); if (c) break; await sleep(50); }
     check(!!c && c.after === `"${c.rate}×"`, `the lit chip reads its rate with ×: ${c ? c.after : "no rate"}`);
   }
 
