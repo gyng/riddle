@@ -4606,7 +4606,7 @@ fn death_traces_account_for_every_row_above_the_fired_one() {
             if seed % 2 == 0 {
                 g.set_rules_raw(crate::probes::good()).unwrap();
             }
-            crate::offline::run_offline_quick(&mut g, 4 * 3600);
+            crate::offline::run_offline_quick(&mut g, 8 * 3600);
             let n_rows = g.lineage.rules().rows.len().min(g.lineage.max_rows());
             for rec in g.deaths.values() {
                 deaths += 1;
@@ -6028,7 +6028,10 @@ fn card_delta_is_measured_where_the_buy_puts_it() {
     let (row, at) = crate::meta::delta_row(l, "throw").unwrap();
     assert_eq!((row.verb.v.as_str(), at), ("throw", 0), "a verb's canonical row goes at the top");
     assert!(crate::meta::delta_row(l, "row5").is_none());
-    // The delta is exactly the paired reach of that appended set minus the base.
+    // Cut 18 §5: the delta is the paired reach of the bare card row at its best place — the
+    // buy's old place (before `attack nearest`), the top, before the first own row — minus
+    // the base, and `insert_at` is that place (the buy puts it there), ties to the old place.
+    assert_eq!(crate::meta::card_positions(g.lineage.rules()), vec![1, 0]);
     let cat = g.unlock_deltas();
     let card = cat.iter().find(|u| u.id == "gas_step").unwrap();
     let delta = card.delta.expect("open card");
@@ -6036,17 +6039,71 @@ fn card_delta_is_measured_where_the_buy_puts_it() {
     let depth = g.lineage.best_depth + 1;
     let tag = crate::forecast::forecast_tag(&g, depth);
     let (base, n) = crate::forecast::reach_counted(&g, &rules, depth, crate::forecast::FORECAST_SIMS, tag, crate::forecast::CATALOGUE_TICK_BUDGET);
-    let mut appended = rules.clone();
-    appended.rows.insert(1, Row::new(vec![], Verb::arg("tactic", "gas_step")).from("card"));
     let mut sim = g.sim_clone();
     sim.lineage.unlocks.insert("gas_step".into());
-    let r = crate::forecast::reach_paired(&sim, &appended, depth, n, tag);
-    assert!((delta - (r - base)).abs() < 1e-9, "delta {delta} vs appended {r} − base {base}");
-    let mut top = rules.clone();
-    top.rows.insert(0, Row::new(vec![Cond::t("foe_tag", "gas")], Verb::arg("tactic", "gas_step")).from("card"));
-    let r_top = crate::forecast::reach_paired(&sim, &top, depth, n, tag);
-    // (informational: the two placements may or may not agree on this seed; the number shown is the buy's)
-    let _ = r_top;
+    let at = |i: usize| {
+        let mut set = rules.clone();
+        set.rows.insert(i, Row::new(vec![], Verb::arg("tactic", "gas_step")).from("card"));
+        crate::forecast::reach_paired(&sim, &set, depth, n, tag)
+    };
+    let (r1, r0) = (at(1), at(0));
+    let (best_at, best) = if r0 > r1 + 1e-9 { (0, r0) } else { (1, r1) };
+    assert!((delta - (best - base)).abs() < 1e-9, "delta {delta} vs best {best} − base {base} (R2 {r1}, top {r0})");
+    assert_eq!(card.insert_at, Some(best_at), "the card goes where it was measured best");
+    assert_eq!(card.situation.as_deref(), Some("gas"));
+}
+
+/// Cut 18 §5 (Y, Z: "every card read `reach ~0 at R4`"): a card is measured at each of its
+/// places and reads its best — a set whose top rows fire first no longer hides a card placed
+/// under them; each tactic card names the foe it answers (`kite archers · vs archers`).
+#[test]
+fn a_card_reads_its_best_place_and_its_situation() {
+    // A card under an own row that always fires first (`foes ≥ 1 → retreat` then the rest)
+    // is measured at the top as well, and the top wins or ties.
+    let rules = RuleSet { rows: vec![Row::new(vec![], Verb::arg("tactic", "thief_guard")), Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))], name: None };
+    assert_eq!(crate::meta::card_positions(&rules), vec![2, 0, 1], "old place, the top, before the first own row");
+    let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))], name: None };
+    assert_eq!(crate::meta::card_positions(&rules), vec![0]);
+    let sit = |id: &str| crate::meta::card_situation(id);
+    assert_eq!(sit("kite_archers").as_deref(), Some("ranged"));
+    assert_eq!(sit("gas_step").as_deref(), Some("gas"));
+    assert_eq!(sit("thief_guard").as_deref(), Some("thief"));
+    assert_eq!(sit("boss_focus").as_deref(), Some("boss"));
+    assert_eq!(sit("pack_break").as_deref(), Some("pack"));
+    assert_eq!((sit("corridor_fighting"), sit("last_stand"), sit("row5"), sit("throw")), (None, None, None, None));
+    let g = Game::new(3);
+    let cat = crate::meta::catalogue(&g.lineage);
+    let kite = cat.iter().find(|u| u.id == "kite_archers").unwrap();
+    let j = serde_json::to_value(kite).unwrap();
+    assert_eq!(j["situation"], "ranged");
+    assert!(serde_json::to_value(cat.iter().find(|u| u.id == "row5").unwrap()).unwrap().get("situation").is_none(), "absent, not null");
+    // Rater Y's set (a boss row, bank rows, gas retreat above `attack nearest`): with `kite
+    // archers` measured at every place, its delta is the best of them.
+    let mut g = Game::new(1101);
+    g.lineage.best_depth = 6;
+    for u in ["row5", "row6", "row7", "row8"] {
+        g.lineage.unlocks.insert(u.into());
+    }
+    for f in ["foe:goblin_archer:ranged", "foe:goblin_archer:telegraph", "foe:bloat:gas"] {
+        g.lineage.facts.insert(f.into());
+    }
+    let set = RuleSet::parse(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../eval/cards/32971ad.raterY.rules.json")).unwrap()).unwrap();
+    g.set_rules_raw(set.clone()).unwrap();
+    let cat = g.unlock_deltas();
+    let kite = cat.iter().find(|u| u.id == "kite_archers").unwrap();
+    let (delta, at) = (kite.delta.expect("open card"), kite.insert_at.expect("a place"));
+    let depth = g.lineage.best_depth + 1;
+    let tag = crate::forecast::forecast_tag(&g, depth);
+    let (base, n) = crate::forecast::reach_counted(&g, &set, depth, crate::forecast::FORECAST_SIMS, tag, crate::forecast::CATALOGUE_TICK_BUDGET);
+    let mut sim = g.sim_clone();
+    sim.lineage.unlocks.insert("kite_archers".into());
+    for i in crate::meta::card_positions(&set) {
+        let mut s = set.clone();
+        s.rows.insert(i, Row::new(vec![], Verb::arg("tactic", "kite_archers")).from("card"));
+        let r = crate::forecast::reach_paired(&sim, &s, depth, n, tag);
+        assert!(r - base <= delta + 1e-9, "R{} reads {:+.2} over the shown {delta:+.2} at R{}", i + 1, r - base, at + 1);
+    }
+    assert_eq!(kite.situation.as_deref(), Some("ranged"));
 }
 
 /// Cut 10 (client finding): `choose` after the run ended returned a wasm panic and poisoned the
@@ -7476,4 +7533,180 @@ fn a_watched_exit_carries_the_automations_picks() {
     assert_eq!(a.exit_pending_wire().unwrap().auto_keep, vec![mail]);
     a.auto_keep();
     assert_eq!(a.lineage.vault.iter().map(|v| v.kind.as_str()).collect::<Vec<_>>(), ["mail"]);
+}
+
+
+// ---------------------------------------------------------------- Cut 18
+
+/// Cut 18 §4: rater Y's run-2 set (`hp<30% → drink heal`, `foe: gas → retreat`, `foes ≥ 1 →
+/// attack`, `hp<50% · depth ≥ 5 → return`) in a room whose bloat sits behind a chasm: the
+/// retreat steps out of the bloat's sight, the explore chore steps back into it — the loop Y
+/// saw, which the stall used to blame on the foe (`the jackal, no path`).
+fn gas_loop_arena() -> Game {
+    let mut g = arena_seed(13);
+    g.lineage.facts.insert("foe:bloat:gas".into());
+    rules(
+        &mut g,
+        vec![
+            Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")),
+            Row::new(vec![Cond::t("foe_tag", "gas")], Verb::new("retreat")),
+            Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+            Row::new(vec![Cond::n("hp<", 50), Cond::n("depth>=", 5)], Verb::new("return")),
+        ],
+    );
+    let run = g.run.as_mut().unwrap();
+    let mut map = Map::new(24, 12, Tile::Wall);
+    for y in 1..11 {
+        for x in 1..9 {
+            map.set(Pos::new(x, y), Tile::Floor);
+        }
+        for x in 10..23 {
+            map.set(Pos::new(x, y), if x == 13 { Tile::Chasm } else { Tile::Floor });
+        }
+    }
+    map.set(Pos::new(9, 5), Tile::Floor);
+    let (up, down) = (Pos::new(1, 1), Pos::new(22, 10));
+    map.set(up, Tile::StairsUp);
+    map.set(down, Tile::StairsDown);
+    map.compute_corridors(&[]);
+    run.floor = Floor { map, stairs_up: up, stairs_down: down, rooms: Vec::new(), vision: VISION };
+    run.hero.pos = Pos::new(8, 7);
+    run.floor.map.update_vision(run.hero.pos, VISION);
+    let id = run.new_id();
+    let mut m = Monster::spawn(id, "bloat", Pos::new(19, 8), 1);
+    m.awake = true;
+    run.monsters.push(m);
+    g
+}
+
+/// Cut 18 §4 (Y: "Stalled: the jackal, no path" while the trace showed `R2 retreat` and
+/// `explore` taking turns): a stall whose guard window alternates between two actors names
+/// them — the record, the chronicle note and the reel line alike — and the verdict's first
+/// patch addresses that row (narrows or deletes it).
+#[test]
+fn a_stall_names_the_rules_loop_and_its_first_patch_addresses_the_row() {
+    let mut g = gas_loop_arena();
+    let mut n = 0;
+    while g.run.as_ref().is_some_and(|r| r.over.is_none()) && n < 4000 {
+        g.tick();
+        g.events.clear();
+        n += 1;
+    }
+    let run = g.run.as_ref().unwrap();
+    assert!(run.timed_out && run.stuck_fires >= crate::engine::STALL_FIRES, "stalled after {n} ticks: fires {}", run.stuck_fires);
+    assert_eq!(run.stuck_cause.as_deref(), Some("R2 retreat ↔ explore"));
+    assert_eq!(run.stuck_row, Some(1));
+    assert!(run.notes.iter().any(|(_, s)| s == "Stalled: R2 retreat ↔ explore. Came home empty-handed."), "{:?}", run.notes);
+    let id = run.id;
+    g.finish_run();
+    assert_eq!(g.batch.stalls, 1);
+    let d = g.death(id).expect("a stall record");
+    assert_eq!((d.verdict.as_str(), d.cause.as_str()), ("stall", "stalled · R2 retreat ↔ explore"));
+    // The stairs sit behind the chasm: narrowing or deleting R2 cannot end this stall (the
+    // loop patch is measured and not offered); the way out, as good at R2 as at the top, goes
+    // in at R2, where the loop fired, and fires in the stall's replays.
+    let first = d.patches.first().expect("a stall names a row");
+    assert_eq!(first.insert_at, 1, "the first patch addresses R2: {:?}", d.patches);
+    assert!(first.survive > 0.0, "{first:?}");
+    let rec = g.deaths.get(&id).unwrap().clone();
+    assert!(crate::trace::patch_fired_rate(&g, &rec, first) >= 0.5, "{first:?}");
+    // The reel line reads the record's cause, in the grammar.
+    let h = g.batch.highlights.iter().find(|h| h.run_id == id && h.arc.is_some()).expect("the run's line");
+    let cause = d.cause.strip_prefix("stalled · ").unwrap();
+    assert_eq!(h.arc.as_ref().unwrap().resolution, format!("stalled, {}", crate::sifter::stall_short(cause)));
+    assert!(crate::sifter::story_ok(&h.text), "{}", h.text);
+}
+
+/// Cut 18 §4: the loop's shapes — two actors taking turns (a row and a chore, two rows), one
+/// moving row alone; a targeting row alone, a trait's step or three actors are no loop.
+#[test]
+fn row_loop_reads_two_actors_or_one_moving_row() {
+    let turn = |row: i32, verb: Verb| TraceTurn { t: 0, row, verb, hp: 18, foes: 3, telegraphs: Vec::new(), blocked: None, rows: None };
+    let alt = |a: TraceTurn, b: TraceTurn| (0..6).flat_map(|_| [a.clone(), b.clone()]).collect::<Vec<_>>();
+    let tr = alt(turn(1, Verb::new("retreat")), turn(-2, Verb::new("explore")));
+    assert_eq!(crate::turn::row_loop(&tr), Some(("R2 retreat ↔ explore".to_string(), 1)));
+    let tr = alt(turn(7, Verb::arg("attack", "nearest")), turn(4, Verb::new("back_corridor")));
+    assert_eq!(crate::turn::row_loop(&tr), Some(("R5 corridor ↔ R8 attack".to_string(), 4)), "the moving row is the one named");
+    let tr: Vec<_> = (0..12).map(|_| turn(0, Verb::new("retreat"))).collect();
+    assert_eq!(crate::turn::row_loop(&tr), Some(("R1 retreat paced".to_string(), 0)));
+    let tr: Vec<_> = (0..12).map(|_| turn(1, Verb::arg("attack", "nearest"))).collect();
+    assert_eq!(crate::turn::row_loop(&tr), None, "an attack pacing before an unreachable foe keeps the foe's cause");
+    let tr = alt(turn(1, Verb::new("retreat")), turn(-1, Verb::new("retreat")));
+    assert_eq!(crate::turn::row_loop(&tr), None);
+    let mut tr = alt(turn(1, Verb::new("retreat")), turn(-2, Verb::new("explore")));
+    tr[3] = turn(2, Verb::arg("attack", "nearest"));
+    tr[5] = turn(2, Verb::arg("attack", "nearest"));
+    tr[7] = turn(2, Verb::arg("attack", "nearest"));
+    assert_eq!(crate::turn::row_loop(&tr), None, "three actors");
+    for c in ["R2 retreat ↔ explore", "R5 corridor ↔ R8 attack", "R1 retreat paced", "R3 drink ↔ pick up"] {
+        assert!(crate::turn::loop_cause_ok(c) && crate::sifter::stalled_ok(&format!("stalled, {c}")), "{c}");
+        assert!(word_count(c) <= 4, "{c}");
+    }
+    for c in ["R3 drink heal", "retreat ↔ explore", "R2 retreat ↔ R3", "R2 hit ranged ↔ explore"] {
+        assert!(!crate::turn::loop_cause_ok(c), "{c}");
+    }
+}
+
+/// Cut 18 §4 (rater Z: `drink ✗ no item` at 19/40 while FOUND listed `heal potion ×4`): the
+/// firing row was `hp<50% → drink unknown` and the heals were known — the callout drops the
+/// argument, so the reason names what is missing (`drink ✗ no unknown`). A heal held but
+/// unidentified reads `unknown item` to `drink heal` (`drink ✗ unknown item`), never `no item`.
+#[test]
+fn a_blocked_drink_never_reads_no_item_beside_a_held_potion() {
+    let callouts = |evs: &[Ev]| evs.iter().filter_map(|e| if let Ev::Callout { text, .. } = e { Some(text.clone()) } else { None }).collect::<Vec<_>>();
+    // Known heals, `drink unknown` under 50 %: nothing unknown to drink.
+    let mut g = arena_seed(5);
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    for _ in 0..4 {
+        give(&mut g, "heal");
+    }
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "unknown"))]);
+    g.run.as_mut().unwrap().hero.hp = 19 * hero(&g).max_hp / 40;
+    let evs = ticks(&mut g, 20);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    assert_eq!(t.rows.as_ref().unwrap()[0].why, "no unknown", "{t:?}");
+    assert_eq!(t.blocked.as_deref(), Some("R1 drink ? ✗ no unknown"), "{t:?}");
+    assert!(callouts(&evs).iter().any(|c| c == "drink ✗ no unknown"), "{:?}", callouts(&evs));
+    assert!(!callouts(&evs).iter().any(|c| c.contains("no item")), "{:?}", callouts(&evs));
+    assert!(crate::turn::row_reason_ok("no unknown"));
+    // Found heals, flavour not identified: `drink heal` reads `unknown`.
+    let mut g = arena_seed(5);
+    give(&mut g, "heal");
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "heal"))]);
+    g.run.as_mut().unwrap().hero.hp = 3;
+    let evs = ticks(&mut g, 20);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    assert_eq!(t.rows.as_ref().unwrap()[0].why, "unknown item", "{t:?}");
+    assert!(callouts(&evs).iter().any(|c| c == "drink ✗ unknown item"), "{:?}", callouts(&evs));
+    assert!(!callouts(&evs).iter().any(|c| c.contains("no item")), "{:?}", callouts(&evs));
+    // Nothing held at all is still `no item`.
+    let mut g = arena_seed(5);
+    rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "heal"))]);
+    g.run.as_mut().unwrap().hero.hp = 3;
+    ticks(&mut g, 20);
+    let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
+    assert_eq!(t.rows.as_ref().unwrap()[0].why, "no item", "{t:?}");
+}
+
+/// Cut 18 §3 (Z: "`D9 0%` for every rule set, with no reason given, until I met the Goblin
+/// Warlord"): a D8 lineage whose set lacks the counter row reads its D9 row as the Warlord's
+/// wall; with the counter at the top D9's reach clears 5 % and the row names no wall.
+#[cfg(not(debug_assertions))]
+#[test]
+fn a_boss_wall_names_the_boss_until_the_set_passes_him() {
+    for (seed, [(d8, d9), (_, d9_top)]) in (1..=3u64).zip(par_seeds(1..=3u64, crate::probes::wall_trial)) {
+        assert!(d8.reach > crate::forecast::WALL_REACH && d8.wall.is_none(), "seed {seed}: D8 {d8:?}");
+        assert!(d9.reach <= crate::forecast::WALL_REACH, "seed {seed}: the set without the counter passes the Warlord ({:.2})", d9.reach);
+        assert_eq!(d9.wall.as_deref(), Some("goblin_warlord"), "seed {seed}");
+        assert!(d9_top.reach > crate::forecast::WALL_REACH, "seed {seed}: the counter at the top reaches D9 {:.2}", d9_top.reach);
+        assert_eq!(d9_top.wall, None, "seed {seed}");
+    }
+    // The rule itself: only under a boss floor, only where reach falls to ≤ 5 % from above it.
+    use crate::forecast::wall_at;
+    assert_eq!(wall_at(9, 0.0, 0.8).as_deref(), Some("goblin_warlord"));
+    assert_eq!(wall_at(14, 0.04, 0.5).as_deref(), Some("bloat_mother"));
+    assert_eq!(wall_at(9, 0.2, 0.8), None, "passable");
+    assert_eq!(wall_at(9, 0.0, 0.03), None, "the fall came before the boss");
+    assert_eq!(wall_at(8, 0.0, 0.8), None, "no boss above D8");
+    assert!(serde_json::to_value(ForecastDepth { depth: 4, reach: 0.5, pm: None, try_: None, wall: None }).unwrap().get("wall").is_none());
 }

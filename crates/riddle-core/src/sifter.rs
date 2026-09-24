@@ -917,13 +917,14 @@ pub fn stall_note_cause(cause: &str) -> String {
 }
 
 /// Cut 13 §1: the grammar's stall resolution — `stalled` alone, or `stalled, <word> no path`
-/// / `stalled, <word> across water` with a monster title's last word, or `stalled, paced`.
+/// / `stalled, <word> across water` with a monster title's last word, or `stalled, paced`;
+/// Cut 18 §4: or the rules' loop (`stalled, R2 retreat ↔ explore` · `stalled, R1 retreat paced`).
 pub fn stalled_ok(end: &str) -> bool {
     if end == "stalled" {
         return true;
     }
     let Some(cause) = end.strip_prefix("stalled, ") else { return false };
-    if cause == "paced" {
+    if cause == "paced" || crate::turn::loop_cause_ok(cause) {
         return true;
     }
     let Some(word) = cause.strip_suffix(" no path").or_else(|| cause.strip_suffix(" across water")) else { return false };

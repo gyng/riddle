@@ -133,7 +133,8 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     });
     let t10_lineage = t10.as_ref().map(|_| crate::engine::CheckpointLineage::of(&game.lineage));
     let boss = if stall { None } else { boss_of(run, &cause) };
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, root_under_base: false, camp_key: 0 }
+    let loop_row = if stall { run.stuck_row.and_then(|r| usize::try_from(r).ok()).filter(|&r| r < rules.rows.len()) } else { None };
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, root_under_base: false, camp_key: 0, loop_row }
 }
 
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
@@ -625,6 +626,10 @@ pub fn patched_rules(rules: &RuleSet, p: &Patch, max_rows: usize) -> RuleSet {
     if p.insert_at < 0 && rules.rows.contains(&p.row) {
         return rules;
     }
+    // Cut 18 §4: the loop patch swaps or deletes the row it names, as the client applies it.
+    if p.insert_at >= 0 && (p.replace || p.remove) {
+        return crate::offline::apply_patch(&rules, p, max_rows);
+    }
     rules.rows.insert((p.insert_at.max(0) as usize).min(rules.rows.len()), p.row.clone());
     rules.fit(max_rows.max(1))
 }
@@ -734,6 +739,38 @@ fn root_patch(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Optio
     let mut rp = Replayer::new(&b, &rules, ticks, rec.stall)?;
     let (survive, _fired) = measure(&mut rp, &row, pos);
     Some(Patch { survive, ..patch })
+}
+
+/// Cut 18 §4: a stall patch that swaps or deletes a row of the set (only the loop patch does).
+pub fn is_loop_patch(p: &Patch) -> bool {
+    p.insert_at >= 0 && (p.replace || p.remove)
+}
+
+/// Cut 18 §4: on a stall whose cause is the rules' loop (`R2 retreat ↔ explore`), the patch
+/// that addresses the row it names: the row narrowed to the moment it is for (a moving row
+/// gains `adj ≥ 1` — it steps away from a foe at the elbow, not from one in view) or the row
+/// deleted, whichever ends the stall in more of the stall's own replays (ties: narrowed).
+fn loop_patch(rec: &DeathRec, base: &Game, ticks: u32) -> Option<Patch> {
+    let at = rec.loop_row?;
+    let row = rec.rules.rows.get(at)?.clone();
+    let mut cands: Vec<Patch> = Vec::new();
+    let moving = matches!(row.verb.v.as_str(), "retreat" | "back_corridor" | "blink" | "shadowstep" | "vanish" | "smoke");
+    if moving && row.conds.len() < 2 && !row.conds.iter().any(|c| c.k == "adj>=") && rec.vocab.conds.iter().any(|c| c.k == "adj>=") {
+        let mut narrowed = row.clone();
+        narrowed.conds.push(Cond::n("adj>=", 1));
+        cands.push(Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false });
+    }
+    cands.push(Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false });
+    let mut best: Option<Patch> = None;
+    for mut p in cands {
+        let rules = patched_rules(&rec.rules, &p, max_rows(rec));
+        let mut rp = Replayer::new(base, &rules, ticks, rec.stall)?;
+        p.survive = measure(&mut rp, &p.row, at).0;
+        if best.as_ref().is_none_or(|b| p.survive > b.survive + 1e-9) {
+            best = Some(p);
+        }
+    }
+    best
 }
 
 /// Cut 11 §2: an unlock as the root text: `◆2 cond: on see`, `◆3 card: thief guard`.
@@ -855,7 +892,16 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     }
     rec.verdict_done = true;
     let Some((base, ticks)) = replay_base(game, rec) else { return };
-    let positions = insert_positions(&rec.rules, &rec.death.trace);
+    // Cut 18 §4: a stall whose cause is the rules' loop measures its rows just above the row
+    // the cause names as well, and takes that place on a tie — the way out then acts where the
+    // loop did (`R2 retreat ↔ explore`: before R2); the loop patch itself swaps or deletes it.
+    let loop_at = rec.loop_row.filter(|_| rec.stall);
+    let mut positions = insert_positions(&rec.rules, &rec.death.trace);
+    if let Some(at) = loop_at {
+        if !positions.contains(&at) {
+            positions.push(at);
+        }
+    }
     // Baseline: the unpatched rules under the same reseeded replays. If they survive most of
     // the time the death was the dice, not the policy; a patch must beat the baseline clearly.
     let baseline = match Replayer::new(&base, &rec.rules, ticks, rec.stall) {
@@ -899,6 +945,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
             .unwrap()
             .then(a.1.conds.is_empty().cmp(&b.1.conds.is_empty()))
             .then(a.1.conds.len().cmp(&b.1.conds.len()))
+            .then((Some(b.2) == loop_at).cmp(&(Some(a.2) == loop_at)))
             .then(a.2.cmp(&b.2))
     });
     let mut edge_gap = scored.first().is_some_and(|best| best.0 - baseline >= PATCH_MARGIN - 1e-9);
@@ -920,6 +967,11 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     }
     rec.death.patches = one_per_family(patches);
     boss_order(rec);
+    // A loop patch that never ends the stall in its replays is not offered (the rows above it
+    // already stand at the loop's row).
+    if let Some(p) = loop_patch(rec, &base, ticks).filter(|p| p.survive > 1e-9) {
+        rec.death.patches.insert(0, p);
+    }
     if rec.stall {
         // Cut 13 §1: a stall is its own verdict; its patches are ranked by the forecast like
         // a death's, but the word on the screen is `stall`.
@@ -996,6 +1048,11 @@ fn forecast_deltas(game: &Game, rec: &mut DeathRec, limit: usize, until_gap: boo
             let c = rec.death.patches.remove(i);
             rec.death.patches.insert(0, c);
         }
+        // Cut 18 §4: a stall's loop patch leads (it addresses the row the cause names).
+        if let Some(i) = rec.death.patches.iter().position(is_loop_patch) {
+            let l = rec.death.patches.remove(i);
+            rec.death.patches.insert(0, l);
+        }
         rec.death.patches.truncate(DELTA_CANDIDATES);
     }
     let base = crate::forecast::reach_with(game, &rec.rules, depth, sims, 0xDE17A);
@@ -1063,7 +1120,7 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     let is_dice = rec.death.verdict == "dice";
     rec.death.patches.retain(|p| {
         let edge = p.survive - baseline;
-        counter.as_ref() == Some(&p.row) || p.root.is_some() || (is_dice && p.below_bar) || ((edge >= PATCH_MARGIN - 1e-9 || p.forecast_delta >= DELTA_BAR - 1e-9) && (!p.row.conds.is_empty() || edge >= 0.3))
+        counter.as_ref() == Some(&p.row) || p.root.is_some() || is_loop_patch(p) || (is_dice && p.below_bar) || ((edge >= PATCH_MARGIN - 1e-9 || p.forecast_delta >= DELTA_BAR - 1e-9) && (!p.row.conds.is_empty() || edge >= 0.3))
     });
     rank_patches(&mut rec.death.patches, baseline);
     boss_order(rec);
@@ -1089,11 +1146,19 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     }
     // A `gap` never shows an empty list: fall back to the best survivors even without an edge.
     // Cut 11 §4: nor does a `dice` — its best candidates are shown under the bar.
-    if rec.death.patches.is_empty() {
-        let mut all = pre_retain.clone();
+    if rec.death.patches.iter().all(is_loop_patch) {
+        let mut all: Vec<Patch> = pre_retain.iter().filter(|p| !is_loop_patch(p)).cloned().collect();
         all.sort_by(|a, b| b.survive.partial_cmp(&a.survive).unwrap().then(b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap()));
-        rec.death.patches = one_per_family(all);
+        rec.death.patches.extend(one_per_family(all));
         boss_order(rec);
+        rec.death.patches.truncate(SHOWN);
+    }
+    // Cut 18 §4: a stall's loop patch is shown first whatever the ranking did (its row is
+    // the one the cause names), unless it is hopeless beside a surviving alternative (below);
+    // the way out stays beside it (the fallback above counts it out).
+    if let Some(l) = pre_retain.iter().find(|p| is_loop_patch(p)) {
+        rec.death.patches.retain(|p| !is_loop_patch(p));
+        rec.death.patches.insert(0, l.clone());
         rec.death.patches.truncate(SHOWN);
     }
     if is_dice {

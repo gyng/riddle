@@ -323,6 +323,12 @@ pub struct ForecastDepth {
     /// (`D9 0% · warlord · try: attack boss`); the client inserts it at the **top**.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "try")]
     pub try_: Option<ForecastTry>,
+    /// Cut 18 §3: the wall — when `reach` falls to ≤ 5 % here (from over 5 % on the floor
+    /// above) and the floor above is a boss's, whose living boss seals its stairs
+    /// (`ai::stairs_sealed`): the boss's kind (`goblin_warlord`), so the row reads `D9 0% ·
+    /// warlord wall` before the player has met him.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wall: Option<String>,
 }
 
 /// Cut 10 §2: a forecast row's `try` — the known-but-absent counter of the boss whose floor
@@ -876,6 +882,11 @@ pub struct UnlockInfo {
     /// for a gold buy too (`buyUnlockGold`).
     #[serde(default)]
     pub gold: u32,
+    /// Cut 18 §5: a tactic card's situation — the foe tag its row answers (`kite_archers` →
+    /// `ranged`, `gas_step` → `gas`; `meta::card_situation`), so a `reach ~0` card still says
+    /// when it matters (`vs archers`). Absent for cards keyed on no foe and other unlocks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub situation: Option<String>,
 }
 
 #[cfg(test)]

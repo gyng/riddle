@@ -382,12 +382,14 @@ pub fn block_reason(run: &Run, cx: &Ctx, verb: &Verb, v: &View) -> &'static str 
         "drink" | "read" => {
             let a = verb.a.as_deref().unwrap_or("");
             let cat = if verb.v == "drink" { Cat::Potion } else { Cat::Scroll };
-            // `drink unknown` with no unknown potion in the pack is `no item` (QA on 952e306:
-            // `R4 no use` beside `5 unknown unused` — the unknowns were scrolls); `no use`
-            // is the verb's own refusal of something held (a known heal at full HP).
+            // `drink unknown` with no unknown potion in the pack is `no unknown` (QA on 952e306:
+            // `R4 no use` beside `5 unknown unused` — the unknowns were scrolls; Cut 18 §4,
+            // rater Z: `drink ✗ no item` beside four known heals read as a contradiction — the
+            // callout drops the argument, so the reason names what is missing); `no use` is
+            // the verb's own refusal of something held (a known heal at full HP).
             let holds_unknown = run.hero.inv.iter().any(|i| i.cat() == cat && !i.is_known(cx.facts, cx.flavours));
             if a.is_empty() || a == "unknown" {
-                if holds_unknown { "no use" } else { "no item" }
+                if holds_unknown { "no use" } else { "no unknown" }
             } else if held_known(a) {
                 "no use"
             } else if holds(a) {

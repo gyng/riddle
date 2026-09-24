@@ -324,6 +324,41 @@ pub const COUNTER_TRIAL_SIMS: u32 = 16;
 /// and cannot pass him. Returns (the forecast's D9 row names the counter, D9 reach as is,
 /// with the counter row at the top, with it at the end).
 pub fn counter_trial(seed: u64) -> (bool, f64, f64, f64) {
+    let (mut g, set) = warlord_lineage(seed);
+    let reach9 = |g: &mut crate::engine::Game, set: RuleSet| -> crate::wire::ForecastDepth {
+        g.set_rules(set).expect("trial rules");
+        let f = crate::forecast::forecast_with(g, g.lineage.rules(), COUNTER_TRIAL_SIMS);
+        f.depths.into_iter().find(|d| d.depth == 9).expect("known to D9")
+    };
+    let base = reach9(&mut g, set.clone());
+    let counter = crate::facts::counter_row("goblin_warlord");
+    let named = base.try_.as_ref().is_some_and(|t| t.row == counter && t.boss == "goblin_warlord" && t.text == "attack boss");
+    let mut top = set.clone();
+    top.rows.insert(0, counter.clone());
+    let with_top = reach9(&mut g, top);
+    let mut end = set;
+    end.rows.push(counter);
+    let with_end = reach9(&mut g, end);
+    (named, base.reach, with_top.reach, with_end.reach)
+}
+
+/// Cut 18 §3 gate probe: the counter trial's lineage — the forecast's D8 and D9 rows for the
+/// set without the counter row, then with it at the top.
+pub fn wall_trial(seed: u64) -> [(crate::wire::ForecastDepth, crate::wire::ForecastDepth); 2] {
+    let (mut g, set) = warlord_lineage(seed);
+    let mut top = set.clone();
+    top.rows.insert(0, crate::facts::counter_row("goblin_warlord"));
+    [set, top].map(|s| {
+        g.set_rules(s).expect("trial rules");
+        let f = crate::forecast::forecast_with(&g, g.lineage.rules(), COUNTER_TRIAL_SIMS);
+        let d = |n: u32| f.depths.iter().find(|d| d.depth == n).cloned().expect("known to D9");
+        (d(8), d(9))
+    })
+}
+
+/// The counter trial's lineage (best D8, the Warlord's counter known, fighter 4 in +1 mail)
+/// and its set (`good.json` minus the boss rows).
+fn warlord_lineage(seed: u64) -> (crate::engine::Game, RuleSet) {
     let mut g = crate::engine::Game::new(seed);
     g.lineage.best_depth = 8;
     for u in ["row5", "row6", "row7", "row8"] {
@@ -343,21 +378,7 @@ pub fn counter_trial(seed: u64) -> (bool, f64, f64, f64) {
     g.loadout(vec![id]);
     let mut set = good();
     set.rows.retain(|r| !matches!(r.verb.a.as_deref(), Some("tag:boss") | Some("fire,tag:boss")));
-    let reach9 = |g: &mut crate::engine::Game, set: RuleSet| -> crate::wire::ForecastDepth {
-        g.set_rules(set).expect("trial rules");
-        let f = crate::forecast::forecast_with(g, g.lineage.rules(), COUNTER_TRIAL_SIMS);
-        f.depths.into_iter().find(|d| d.depth == 9).expect("known to D9")
-    };
-    let base = reach9(&mut g, set.clone());
-    let counter = crate::facts::counter_row("goblin_warlord");
-    let named = base.try_.as_ref().is_some_and(|t| t.row == counter && t.boss == "goblin_warlord" && t.text == "attack boss");
-    let mut top = set.clone();
-    top.rows.insert(0, counter.clone());
-    let with_top = reach9(&mut g, top);
-    let mut end = set;
-    end.rows.push(counter);
-    let with_end = reach9(&mut g, end);
-    (named, base.reach, with_top.reach, with_end.reach)
+    (g, set)
 }
 
 /// Two level-3 bred companions with default rows (PETS bot).

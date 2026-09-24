@@ -215,10 +215,12 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     // seeds first). A sim cut off at D(best+1) no longer reads as a "return" (Cut 12 §3).
     let ended = camp_panel(game, rules, sims);
     let n = ended.len().max(1) as f64;
+    let reach_at = |d: u32| ended.iter().filter(|r| r.max_depth >= d).count() as f64 / n;
     let depths = (1..=known_to)
         .map(|d| {
-            let reach = ended.iter().filter(|r| r.max_depth >= d).count() as f64 / n;
-            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_: try_row(game, rules, d) }
+            let reach = reach_at(d);
+            let wall = wall_at(d, reach, reach_at(d.saturating_sub(1)));
+            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_: try_row(game, rules, d), wall }
         })
         .collect();
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
@@ -255,6 +257,19 @@ pub fn try_row(game: &Game, rules: &RuleSet, depth: u32) -> Option<ForecastTry> 
         return None;
     }
     Some(ForecastTry { boss: kind.to_string(), text: crate::facts::counter_text(&row), row })
+}
+
+/// Cut 18 §3: a forecast row's reach at or under this is a wall when a boss seals the stairs
+/// of the floor above.
+pub const WALL_REACH: f64 = 0.05;
+
+/// Cut 18 §3: the wall at `depth` — reach falls to ≤ `WALL_REACH` there from over it on the
+/// floor above, and that floor is a boss's (`descent::boss_for`: a living boss seals its
+/// stairs, `ai::stairs_sealed`): the boss's kind. Rater Z: "`D9 0%` for every rule set, with
+/// no reason given, until I met the Goblin Warlord".
+pub fn wall_at(depth: u32, reach: f64, reach_above: f64) -> Option<String> {
+    let kind = crate::descent::boss_for(depth.checked_sub(1)?)?;
+    (reach <= WALL_REACH + 1e-9 && reach_above > WALL_REACH + 1e-9).then(|| kind.to_string())
 }
 
 /// Cut 9 §3: the 95 % binomial half-width of a share `p` over `n` sims (`1.96·√(p(1−p)/n)`).

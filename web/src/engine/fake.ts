@@ -132,6 +132,8 @@ export const UNLOCKS: Record<string, UnlockDef> = {
 export const UNLOCK_COST: Record<string, number> = Object.fromEntries(Object.entries(UNLOCKS).map(([k, v]) => [k, v.cost]));
 const UNLOCK_PREREQ: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", vault3: "vault2", vault4: "vault3", party_slot_3: "party_slot_2" };
 const FORGE_LADDER = [{ need: 5, label: "craftable" }, { need: 15, label: "tier 1" }, { need: 40, label: "tier 2" }];   // Cut 9 §10: the core's `FORGE_LADDER`
+/** Cut 18 §5: the foe tag a tactic card answers (the core's `meta::card_situation`). */
+const CARD_SITUATION: Record<string, string> = { kite_archers: "ranged", gas_step: "gas", pack_break: "pack", thief_guard: "thief", boss_focus: "boss" };
 const TACTIC_CARDS = ["corridor_fighting", "kite_archers", "stair_dance", "gas_step", "pack_break", "thief_guard", "boss_focus", "last_stand"];
 const COND_UNLOCK: Record<string, string> = { "alert>=": "cond_alert", "turns>": "cond_turns", "loot>=": "cond_loot", on_kill: "cond_on_kill", on_see: "cond_on_see", "party_hp<": "cond_party_hp" };
 const REST_CAP_S = 30 * 60, WAKE_S = 20 * 60, BONES_MAX = 3, STUDIED_KILLS = 5, GOLD_LEDGER_CAP = 20, EXITS_CAP = 5, TRACE_TURNS = 10;
@@ -1156,6 +1158,8 @@ export class FakeEngine implements Engine {
       if (!c || !this.known().has(`boss:${boss}:counter`) || this.s.rules.rows.some((r) => rowText(r) === rowText(c.row))) continue;
       d.cause ??= boss; d.try = { row: JSON.parse(JSON.stringify(c.row)) as Row, text: c.text };
     }
+    // Cut 18 §3: reach falls to ≤ 5 % below a boss's floor (from over 5 % on it): the row names the wall (`D9 0% · warlord wall`)
+    for (const d of depths) { const boss = BOSS[d.depth - 1]; const above = depths.find((x) => x.depth === d.depth - 1); if (boss && above && d.reach <= 0.05 && above.reach > 0.05) d.wall = boss; }
     const death = ends.death / N;
     return { depths, causes: top, known_to, ends: { bank: ends.bank / N, return: ends.return / N, death, gold: ends.gold / N, pm: 1.96 * Math.sqrt((death * (1 - death)) / N) } };   // Cut 13 §5: the ends line's own ±
   }
@@ -1470,7 +1474,8 @@ export class FakeEngine implements Engine {
       delta: TACTIC_CARDS.includes(id) && !owned ? ((Math.abs(hash(id)) % 9) - 2) / 100 : undefined,   // delta: Cut 4 §9 stand-in (`reach +4%` on a card)
       ...(TACTIC_CARDS.includes(id) && !owned ? { pm: 0.03 } : {}),                                     // Cut 13 §5: its half-width — within it the client reads `reach ~0`
       rows: UNLOCK_ROWS[id],                                                                             // Cut 6 §6
-      ...(TACTIC_CARDS.includes(id) ? { insert_at: this.cardInsertAt() } : {}) };                        // Cut 12 §1
+      ...(TACTIC_CARDS.includes(id) ? { insert_at: this.cardInsertAt() } : {}),                          // Cut 12 §1
+      ...(CARD_SITUATION[id] ? { situation: CARD_SITUATION[id] } : {}) };                                // Cut 18 §5: the foe tag the card answers
     });
   }
   setClass(cls: string): Lineage {

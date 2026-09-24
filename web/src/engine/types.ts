@@ -91,8 +91,8 @@ export type Ev =
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            exit_pending?: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] } };                     // Addendum D; `worth`: each item's salvage at this exit, in coins
 
-export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry }[]; causes: { cause: string; share: number }[];
-                         known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`)
+export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry; wall?: string }[]; causes: { cause: string; share: number }[];
+                         known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
                          ends?: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number };
                          refined?: boolean };                                                                  // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
@@ -240,8 +240,9 @@ export interface Engine {
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
                            delta?: number;                                                                 // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards
                            rows?: Row[];                                                                   // Cut 6 §6: a card's rows / an automation's effect as a row
-                           insert_at?: number;                                                             // Cut 12 §1: where a bought card's row goes — before the set's engagement row (first `attack`/`shoot`), else the end; its `delta` is measured there
+                           insert_at?: number;                                                             // Cut 12 §1: where a bought card's row goes; Cut 18 §5: with deltas, its best measured place (the old place before the engagement row, the top, before the first own row) — its `delta` is measured there
                            pm?: number;                                                                     // Cut 13 §5: the half-width of `delta`; within it the client reads `reach ~0`
+                           situation?: string;                                                             // Cut 18 §5: a tactic card's foe tag (`kite_archers` → `ranged`, `gas_step` → `gas`), for `vs archers` beside `reach ~0`; absent on other unlocks
                            gold?: number };                                                                 // Cut 15 §2: today's gold price (`150 × cost × (4 + gold buys) / 4`); 0 when owned or free (not gold-buyable). A card short only of marks (`needs` = `◆N more`) buys with gold when the lineage has it
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */

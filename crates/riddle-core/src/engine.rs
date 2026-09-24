@@ -247,6 +247,10 @@ pub struct Run {
     pub stuck_first_t: Option<u32>,
     #[serde(default)]
     pub stuck_cause: Option<String>,
+    /// Cut 18 §4: the row a rules' loop named as the stall's cause (`R2 retreat ↔ explore` →
+    /// 1), for the stall verdict's first patch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stuck_row: Option<i32>,
     /// Trait pre-emption clock: the action of the last trait deviation.
     #[serde(default)]
     pub trait_last: Option<u32>,
@@ -1307,6 +1311,10 @@ pub struct DeathRec {
     /// state measures them again. 0 = not yet.
     #[serde(default, skip_serializing_if = "is_zero_u64")]
     pub camp_key: u64,
+    /// Cut 18 §4: a stall whose cause is the rules' loop (`R2 retreat ↔ explore`): the row it
+    /// names (`Run.stuck_row`); the verdict's first patch addresses it (`trace::loop_patch`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loop_row: Option<usize>,
 }
 
 fn is_zero_u64(n: &u64) -> bool {
@@ -1972,6 +1980,7 @@ impl Game {
             stuck_until: 0,
             stuck_first_t: None,
             stuck_cause: None,
+            stuck_row: None,
             trait_last: None,
             trait_floor: 0,
             wasted_kinds: Vec::new(),

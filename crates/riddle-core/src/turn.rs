@@ -527,7 +527,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
 /// kill`, `nothing new`, `no <tile> seen`, `no <kind>`, `party hp ok`, `locked cond`.
 ///
 /// Verbs whose conditions held: `ai::block_reason` (`no path`, `no target`, `no line`, `no
-/// bow`, `cooldown`, `no item`, `unknown item`, `no use`, `no leash`, `none weak`, `not safe`,
+/// bow`, `cooldown`, `no item`, `unknown item`, `no unknown`, `no use`, `no leash`, `none weak`, `not safe`,
 /// `no stairs`, `no way`, `prayed`, `no shrine`), `card passed`, `brave held`, `fired, free`.
 ///
 /// Guards and pre-emptions: `stuck`, `row guard`, `trait first`, `hazard first`, `recall
@@ -650,10 +650,19 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     // Cut 13 §1: the guard's moment — the nearest foe it gave up on and why (`goblin archer,
     // no path` · `eel, across water`) — is the stall's cause on the record, the reel line and
     // the chronicle note; the first guard's tick is the verdict's checkpoint.
-    if let Some(&i) = v.foes.iter().find(|&&i| !run.monsters[i].summoned).or(v.foes.first()) {
-        let m = &run.monsters[i];
-        let why = if run.floor.map.get(m.pos) == crate::tiles::Tile::Water { "across water" } else { "no path" };
-        run.stuck_cause = Some(format!("{}, {why}", crate::engine::kind_title(&m.kind).to_lowercase()));
+    // Cut 18 §4: when the pacing was the rules' own — two actors taking turns (`R2 retreat ↔
+    // explore`) or one row stepping back and forth (`R1 retreat paced`) — the loop is the
+    // cause, and it stays the floor's cause through the later guards (whose windows are the
+    // guard's own waiting); the verdict's first patch addresses that row (`stuck_row`).
+    if let Some((cause, row)) = row_loop(&run.trace) {
+        run.stuck_cause = Some(cause);
+        run.stuck_row = Some(row);
+    } else if run.stuck_row.is_none() {
+        if let Some(&i) = v.foes.iter().find(|&&i| !run.monsters[i].summoned).or(v.foes.first()) {
+            let m = &run.monsters[i];
+            let why = if run.floor.map.get(m.pos) == crate::tiles::Tile::Water { "across water" } else { "no path" };
+            run.stuck_cause = Some(format!("{}, {why}", crate::engine::kind_title(&m.kind).to_lowercase()));
+        }
     }
     if run.stuck_fires == 0 {
         run.stuck_first_t = Some(run.turn);
@@ -678,6 +687,69 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     crate::provenance::stuck(run, cx);
     let verb = Verb::new("stuck");
     emit_rule(run, cx, -2, &verb, "stuck → chores");
+}
+
+/// Cut 18 §4: the rules' loop in the guard's window (the last `LOOP_WINDOW` actions): exactly
+/// two actors taking turns, each at least `LOOP_MIN` times, one of them a row (`R2 retreat ↔
+/// explore`, `R5 corridor ↔ R8 attack`), or one moving row alone (`R1 retreat paced`) — ≤ 4
+/// words.
+/// Returns the cause and the row it names (the moving row of two, else the higher one).
+pub fn row_loop(trace: &[TraceTurn]) -> Option<(String, i32)> {
+    let win: Vec<&TraceTurn> = trace.iter().rev().take(LOOP_WINDOW).filter(|t| t.verb.v != "stuck").collect();
+    if win.len() < LOOP_WINDOW - 2 {
+        return None;
+    }
+    let mut keys: Vec<(i32, String, usize)> = Vec::new();
+    for t in &win {
+        if t.row < 0 && t.row != -2 {
+            return None; // a trait's or a curious use is not the rules' loop
+        }
+        let word = loop_word(t);
+        match keys.iter_mut().find(|k| k.0 == t.row && k.1 == word) {
+            Some(k) => k.2 += 1,
+            None => keys.push((t.row, word, 1)),
+        }
+    }
+    let side = |k: &(i32, String, usize)| if k.0 >= 0 { format!("R{} {}", k.0 + 1, k.1) } else { k.1.clone() };
+    match keys.as_slice() {
+        // One row alone is a loop when it moves the hero (a retreat stepping back and forth);
+        // a targeting row pacing before an unreachable foe keeps the foe's cause (`archer no path`).
+        [a] if a.0 >= 0 && win.iter().all(|t| MOVING.contains(&t.verb.v.as_str())) => Some((format!("{} paced", side(a)), a.0)),
+        [a, b] if (a.0 >= 0 || b.0 >= 0) && a.2 >= LOOP_MIN && b.2 >= LOOP_MIN => {
+            let (a, b) = if b.0 >= 0 && (a.0 < 0 || b.0 < a.0) { (b, a) } else { (a, b) };
+            let moving = |k: &(i32, String, usize)| k.0 >= 0 && win.iter().any(|t| t.row == k.0 && MOVING.contains(&t.verb.v.as_str()));
+            let row = if b.0 >= 0 && moving(b) && !moving(a) { b.0 } else { a.0 };
+            Some((format!("{} ↔ {}", side(a), side(b)), row))
+        }
+        _ => None,
+    }
+}
+
+const LOOP_WINDOW: usize = 12;
+const LOOP_MIN: usize = 3;
+/// The verbs that move the hero off his tile (a loop's usual half).
+const MOVING: &[&str] = &["retreat", "back_corridor", "blink", "shadowstep", "vanish", "smoke", "descend", "explore"];
+
+/// A trace turn's actor word: a row's verb as the callout reads it, one word (`retreat`,
+/// `corridor`, `attack`, `drink`); a chore's short (`explore`, `pick up`).
+fn loop_word(t: &TraceTurn) -> String {
+    let s = t.verb.short();
+    if t.row >= 0 {
+        s.split(' ').next().unwrap_or(&t.verb.v).to_string()
+    } else {
+        s
+    }
+}
+
+/// Cut 18 §4: a stall cause in the loop form `row_loop` writes.
+pub fn loop_cause_ok(cause: &str) -> bool {
+    let row_side = |s: &str| s.split_once(' ').is_some_and(|(r, w)| r.len() > 1 && r.starts_with('R') && r[1..].chars().all(|c| c.is_ascii_digit()) && !w.is_empty() && !w.contains(' '));
+    if let Some(side) = cause.strip_suffix(" paced") {
+        return row_side(side);
+    }
+    let Some((a, b)) = cause.split_once(" ↔ ") else { return false };
+    let chore = |s: &str| !s.is_empty() && !s.starts_with('R') && crate::rules::word_count(s) <= 2;
+    (row_side(a) && (row_side(b) || chore(b))) && crate::rules::word_count(cause) <= 4
 }
 
 /// Callout text for a fired row: `cond → verb`, or for a verb that acted on a foe the act and
@@ -1525,6 +1597,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.stuck_fires = 0;
     run.stuck_first_t = None;
     run.stuck_cause = None;
+    run.stuck_row = None;
     run.trait_floor = 0;
     run.items_until = 0;
     run.pickup_streak = 0;

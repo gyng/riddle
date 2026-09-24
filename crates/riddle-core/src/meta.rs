@@ -171,7 +171,7 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             // Cut 12 §1: a tactic card says where its row goes (before the engagement row).
             let insert_at = (!owned && is_tactic_card(u.id)).then(|| card_insert_at(l.rules()));
             let gold = if owned { 0 } else { gold_price(u.cost, l.gold_buys) };
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold }
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id) }
         })
         .collect()
 }
@@ -219,27 +219,48 @@ pub fn unlock_rows(id: &str) -> Option<Vec<Row>> {
     }
 }
 
+/// Cut 18 §5: the foe tag a tactic card answers (its card row's `foe_tag`: `kite_archers` →
+/// `ranged`, `gas_step` → `gas`), for the shop's `vs archers` beside a `reach ~0` — the card
+/// matters when that foe is on the floor. `None` for a card keyed on something else (`foes ≥
+/// 2`, `hp < 30%`) and for every other unlock.
+pub fn card_situation(id: &str) -> Option<String> {
+    if !is_tactic_card(id) {
+        return None;
+    }
+    card_conds(id)?.into_iter().find(|c| c.k == "foe_tag").and_then(|c| c.t)
+}
+
 /// Cut 4 §9: the row a tactic card or a verb unlock would add (its natural place, at the top
 /// of the list), for the catalogue's forecast delta. `None` for anything else.
 pub fn unlock_row(l: &LineageState, id: &str) -> Option<Row> {
     unlock_row_untagged(l, id).map(|r| r.from("card"))
 }
 
+/// A tactic card's row conditions (the moment it is for), when it has a canonical row.
+fn card_conds(id: &str) -> Option<Vec<Cond>> {
+    let tag = |t: &str| Some(vec![Cond::t("foe_tag", t)]);
+    match id {
+        "corridor_fighting" | "stair_dance" => Some(vec![Cond::n("foes>=", 2)]),
+        "kite_archers" => tag("ranged"),
+        "gas_step" => tag("gas"),
+        "pack_break" => tag("pack"),
+        "thief_guard" => tag("thief"),
+        "boss_focus" => tag("boss"),
+        "last_stand" => Some(vec![Cond::n("hp<", 30)]),
+        "cadence" => tag("mirror"),
+        "noise_discipline" => Some(vec![Cond::n("hp<", 90)]),
+        "reflect_read" => tag("reflect_melee"),
+        "deep_march" => Some(vec![Cond::n("depth>=", crate::descent::biome_first(crate::descent::Biome::Deep) as i32)]),
+        _ => None,
+    }
+}
+
 fn unlock_row_untagged(l: &LineageState, id: &str) -> Option<Row> {
     let tag = |t: &str| Cond::t("foe_tag", t);
-    let card = |conds: Vec<Cond>| Some(Row::new(conds, Verb::arg("tactic", id)));
+    if let Some(conds) = card_conds(id) {
+        return Some(Row::new(conds, Verb::arg("tactic", id)));
+    }
     match id {
-        "corridor_fighting" | "stair_dance" => card(vec![Cond::n("foes>=", 2)]),
-        "kite_archers" => card(vec![tag("ranged")]),
-        "gas_step" => card(vec![tag("gas")]),
-        "pack_break" => card(vec![tag("pack")]),
-        "thief_guard" => card(vec![tag("thief")]),
-        "boss_focus" => card(vec![tag("boss")]),
-        "last_stand" => card(vec![Cond::n("hp<", 30)]),
-        "cadence" => card(vec![tag("mirror")]),
-        "noise_discipline" => card(vec![Cond::n("hp<", 90)]),
-        "reflect_read" => card(vec![tag("reflect_melee")]),
-        "deep_march" => card(vec![Cond::n("depth>=", crate::descent::biome_first(crate::descent::Biome::Deep) as i32)]),
         "throw" => {
             if has_tag_fact(&l.facts, "boss") {
                 Some(Row::new(vec![tag("boss")], Verb::arg("throw", "unknown,tag:boss")))
@@ -289,10 +310,13 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         // lock root sends its number when the root patch sits under the baseline (nothing
         // under it is offered on the death screen; here it reads as information).
         let wakes_a_row = u.id.starts_with("cond_") && rules.rows.iter().any(|r| r.conds.iter().any(|c| cond_unlock(&c.k) == Some(u.id.as_str())));
-        let patched = if wakes_a_row {
-            rules.clone()
+        // (position, the patched set): Cut 18 §5 — a card is measured at each of its candidate
+        // places (`card_positions`) and reads its best (both cohort-13 raters: "every card read
+        // `reach ~0 at R4`", measured below rows that fired first).
+        let variants: Vec<(Option<usize>, crate::rules::RuleSet)> = if wakes_a_row {
+            vec![(None, rules.clone())]
         } else {
-            let Some((row, at)) = delta_row(l, &u.id) else { continue };
+            let Some((row, _)) = delta_row(l, &u.id) else { continue };
             if rules.rows.contains(&row) {
                 continue;
             }
@@ -303,9 +327,14 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
             if row.verb.v != "tactic" {
                 continue;
             }
-            let mut patched = rules.clone();
-            patched.rows.insert(at.min(patched.rows.len()), row);
-            patched.fit(max_rows.max(1))
+            card_positions(&rules)
+                .into_iter()
+                .map(|at| {
+                    let mut patched = rules.clone();
+                    patched.rows.insert(at.min(patched.rows.len()), row.clone());
+                    (Some(at), patched.fit(max_rows.max(1)))
+                })
+                .collect()
         };
         // The sim lineage owns the unlock (the verb must be in its vocabulary to fire; a
         // locked condition wakes).
@@ -313,22 +342,46 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         g.lineage.unlocks.insert(u.id.clone());
         // The sim game's lookups (its own fingerprint) go through the parent's cache.
         g.forecast_cache = game.forecast_cache.clone();
+        // The best place: the highest reach, ties to the earlier candidate (the buy's old place).
+        let pick = |u: &mut UnlockInfo, measured: Vec<(Option<usize>, f64)>, b: f64, n: u32| {
+            let Some((at, r)) = measured.into_iter().fold(None, |best: Option<(Option<usize>, f64)>, x| if best.is_none_or(|b| x.1 > b.1 + 1e-9) { Some(x) } else { best }) else { return };
+            u.delta = Some(r - b);
+            u.pm = Some(delta_pm(b, r, n as usize));
+            if at.is_some() {
+                u.insert_at = at;
+            }
+        };
         if !compute {
             let b = game.forecast_cache.borrow().get(&crate::forecast::reach_key(game, &rules, depth, sims, tag, budget)).copied();
-            let r = b.and_then(|(_, n)| crate::forecast::reach_cached(&g, &patched, depth, n.max(1), tag, u64::MAX));
-            if let (Some((b, n)), Some(r)) = (b, r) {
-                u.delta = Some(r - b);
-                u.pm = Some(delta_pm(b, r, n as usize));
+            if let Some((b, n)) = b {
+                // Only a fully measured card reads (a card half-measured would name a worse place).
+                let measured: Option<Vec<(Option<usize>, f64)>> = variants.iter().map(|(at, p)| crate::forecast::reach_cached(&g, p, depth, n.max(1), tag, u64::MAX).map(|r| (*at, r))).collect();
+                if let Some(m) = measured {
+                    pick(u, m, b, n);
+                }
             }
             continue;
         }
         let (base_reach, n) = *base.get_or_insert_with(|| crate::forecast::reach_counted(game, &rules, depth, sims, tag, budget));
-        let r = crate::forecast::reach_paired(&g, &patched, depth, n, tag);
+        let measured: Vec<(Option<usize>, f64)> = variants.iter().map(|(at, p)| (*at, crate::forecast::reach_paired(&g, p, depth, n, tag))).collect();
         game.forecast_cache.borrow_mut().extend(g.forecast_cache.into_inner());
-        u.delta = Some(r - base_reach);
-        u.pm = Some(delta_pm(base_reach, r, n as usize));
+        pick(u, measured, base_reach, n);
     }
     cat
+}
+
+/// Cut 18 §5: where a card's row may go, in order — where the buy used to put it (before the
+/// engagement row, `card_insert_at`), the top, and before the set's first own row (the first
+/// row that is not a card); deduplicated. The catalogue measures each and keeps the best.
+pub fn card_positions(rules: &crate::rules::RuleSet) -> Vec<usize> {
+    let first_own = rules.rows.iter().position(|r| r.verb.v != "tactic").unwrap_or(rules.rows.len());
+    let mut out: Vec<usize> = Vec::new();
+    for at in [card_insert_at(rules), 0, first_own] {
+        if !out.contains(&at) {
+            out.push(at);
+        }
+    }
+    out
 }
 
 /// Cut 13 §5: the half-width of a catalogue delta — the base and patched reaches are shares
