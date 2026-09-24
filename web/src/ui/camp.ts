@@ -25,10 +25,10 @@ import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
 import { openChronicle } from "./chronicle";
-import { classList, deltaClass, deltaLabel, deltaPts, goldAffordable, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
+import { stallLabel, classList, deltaClass, deltaLabel, deltaPts, goldAffordable, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
-import { CLASS_VERBS, xpToNext } from "../engine/classes";
+import { CLASS_VERBS } from "../engine/classes";
 import { isFreeSupply, ownRowCount, verbLabel } from "./tokens";
 import { openSheet, setPanelEscape } from "./sheet";
 import { setBusyHost } from "./progress";
@@ -46,6 +46,13 @@ const TRAIT_RULE: Record<string, string> = { cowardly: "flees under 50%", brave:
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
 const SEND_ARM_MS = 800;
+/** QA 92eb880 (M: "kept `sealed scroll?` … reappear as `summon ally scroll` with no line saying they were identified"): an identified
+ *  item's flavour off the lineage's facts (`item:sealed=summon_ally` → `sealed`); undefined while unknown or unmatched. */
+export function keptAs(facts: string[], it: { kind: string; known: boolean }): string | undefined {
+  if (!it.known) return undefined;
+  const f = facts.find((x) => x.startsWith("item:") && x.endsWith(`=${it.kind}`));
+  return f ? f.slice(5, f.indexOf("=")).replace(/_/g, " ") : undefined;
+}
 export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 17: the frame — the bar (the strip: heir, `$`, `◆`, `★`, best, the stud; the wake's offers under it), the well (the
   // tablets and the depth shaft; the set tabs from the 5th heir; the panels over it), the console (the portrait, the command
@@ -107,7 +114,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const R = revealed(app);
     const t = (id: string, label: string, ico: string, onclick: () => void, on = false): HTMLElement => tile({ id, label, icon: ico, onclick, on, fresh: R.fresh(STEP_OF[id]) });
     cons.setTiles([
-      R.has("edit") && t("edit", /* copy:button */ "edit", "edit", () => { app.editing = !app.editing; editor.refresh(); paintTiles(); }, app.editing),
+      // QA 92eb880 (N: "the `edit` tile toggles: tapping it while editing closes the editor (I lost the next tap twice)"): it turns
+      // editing on and stays lit; a second tap closes the open panel, never the editor
+      R.has("edit") && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
       R.has("loadout") && t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout"),
       R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
       R.has("vault") && t("vault", /* copy:button */ "vault", "vault", () => togglePanel("vault"), open === "vault"),
@@ -120,7 +129,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
 
   function paintStrip(): void {
-    const L = app.lineage; const lvl = L.classes?.[L.class] ?? { level: 1, xp: 0 };
+    const L = app.lineage; const lvl: { level: number; xp: number; next?: number } = L.classes?.[L.class] ?? { level: 1, xp: 0 };
     bar.paint();
     // Cut 13 §2: the offer as chips while it stands (the bar's plain trait otherwise); Cut 16 §2: the class chips beside them
     const traits = (L.trait_offer?.length ?? 0) >= 2
@@ -141,7 +150,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const picker = !offer && (R.has("edit") || R.has("unlocks"));   // from the first death (a second heir may take another class)
     const next = portrait(app, { hp: 1, cls: picker ? "cls" : "", onclick: picker ? () => pickClass() : undefined,
       label: h("span", { class: "plabel-in" }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
-        h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round((lvl.xp / xpToNext(lvl.level)) * 100)}%` }))) });
+        // QA 92eb880: the bar is the core's own ladder (`classes[c].next`, the XP the next level costs; 0 at the top: full)
+        h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round(Math.min(1, lvl.next ? lvl.xp / lvl.next : lvl.next === 0 ? 1 : 0) * 100)}%` }))) });
     face.el.replaceWith(next.el); face.el = next.el;
     paintRest();
   }
@@ -227,7 +237,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       const on = app.loadout.includes(it.id);
       chips.appendChild(h("button", { class: `chip item${on ? " on risk" : ""}`, onclick: () => {
         app.setLoadout(on ? app.loadout.filter((x) => x !== it.id) : [...app.loadout, it.id]);
-      } }, on ? "⚠ " : "", it.label));
+      } }, on ? "⚠ " : "", it.label, keptAs(L.facts, it) ? h("small", { class: "dim flav" }, ` · ${keptAs(L.facts, it)}`) : ""));
       if (on) {
         const ins = (L.insured ?? []).includes(it.id);
         const price = Math.ceil(salvageValue(it.kind, "bank") * 10 / 4);
@@ -260,9 +270,18 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/${cap}`)));
     const chips = h("div", { class: "chips" });
     // Cut 12 §6: each line carries its own `×` (the header's cleared the whole shelf: "I lost the leash"); a free line reads `· kennel`
-    for (const p of picks) chips.appendChild(h("span", { class: "chip item on" }, p.label,
-      isFreeSupply(L, p) ? h("small", { class: "dim found" }, /* copy:callout */ " · kennel") : "",
-      h("button", { class: "x", onclick: () => void app.dropSupply(p.id) }, "×")));
+    // QA 92eb880 (M, N: "`leash · kennel` — kennel?"; "× drops the free leash at once, no undo; re-buying costs $30"): a free line reads
+    // `· free`, and its `×` takes two taps — the first arms it (`drop`), the second within 3 s drops it
+    for (const p of picks) {
+      const free = isFreeSupply(L, p);
+      let armed = 0;
+      const x: HTMLButtonElement = h("button", { class: "x", onclick: () => {
+        if (!free || (armed && performance.now() - armed < 3000)) { void app.dropSupply(p.id); return; }
+        armed = performance.now(); x.classList.add("armed"); replace(x, /* copy:button */ "drop");
+        setTimeout(() => { if (x.isConnected) { armed = 0; x.classList.remove("armed"); replace(x, "×"); } }, 3000);
+      } }, "×");
+      chips.appendChild(h("span", { class: "chip item on" }, p.label, free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : "", x));
+    }
     supplies.appendChild(chips);
     // the shop from the last catalogue at once, the engine's replacing it when it arrives (QA B on 952e306: "while FORECAST
     // shows '…' the SUPPLIES shop chips are gone"); the gold and the slots are read live either way
@@ -289,13 +308,23 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const gen = ++unlockGen;
     // the shelf from the last catalogue at once (QA B on 952e306: "the whole UNLOCKS list is gone"); the engine's replaces it
     if (!unlockCat && app.unlockCat.length) { unlockCat = app.unlockCat; paintFrom(unlockCat); }
-    void app.engine.unlocks().then((cat) => {
+    void app.engine.unlocks().then((fresh) => {
       if (gen !== unlockGen) return;
+      // QA 92eb880 (M: "the reach line vanishes after buying +1 row"; N: "the tile list reshuffles twice within ~4 s"): until the new
+      // deltas land, each card keeps its last measured delta (the shelf's order and lines hold still); prices and gates are the fresh ones
+      const prev = new Map((unlockCat ?? []).filter((u) => u.delta !== undefined).map((u) => [u.id, u]));
+      const cat = fresh.some((u) => u.delta !== undefined) ? fresh : fresh.map((u) => { const p = prev.get(u.id); return p && !u.owned ? { ...u, delta: p.delta, pm: p.pm, stall: u.stall ?? p.stall, insert_at: u.insert_at ?? p.insert_at, situation: u.situation ?? p.situation } : u; });
       unlockCat = cat; app.unlockCat = cat;
       if (cat.some((u) => u.owned && u.rows?.length)) editor.refresh();   // Cut 6 §6: `[card]` chips open their rows once the catalogue is here
       // forecast deltas arrive later (0.3–2 s of sims); repaint once with them, never blocking the shelf
-      if (!cat.some((u) => u.delta !== undefined)) {
-        void app.engine.unlockDeltas().then((withDeltas) => { if (gen === unlockGen && withDeltas.some((u) => u.delta)) { unlockGen++; unlockCat = withDeltas; app.unlockCat = withDeltas; paintFrom(withDeltas); } }).catch(() => { /* deltas are optional */ });
+      if (!fresh.some((u) => u.delta !== undefined)) {
+        // N (QA 92eb880: a tile read `$450` while its sheet charged `$562` after a gold buy): the deltas' catalogue keeps its deltas only —
+        // the price, the gate and ownership are always the fresh catalogue's
+        const byId = new Map(fresh.map((u) => [u.id, u]));
+        void app.engine.unlockDeltas().then((withDeltas) => { if (gen === unlockGen && withDeltas.some((u) => u.delta)) {
+          const merged = withDeltas.map((u) => { const f = byId.get(u.id); return f ? { ...f, delta: u.delta, pm: u.pm, stall: u.stall ?? f.stall, insert_at: u.insert_at ?? f.insert_at, situation: u.situation ?? f.situation } : u; });
+          unlockGen++; unlockCat = merged; app.unlockCat = merged; paintFrom(merged);
+        } }).catch(() => { /* deltas are optional */ });
       }
       paintFrom(cat);
     }).catch((e) => console.warn("unlocks", e));
@@ -327,8 +356,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         // Cut 12 §1: a card's delta is measured where it goes — `at R3` (the catalogue's `insert_at`), else `at end`
         const byGold = !u.available && goldAffordable(u, app.lineage.gold);
         grid.appendChild(h("button", { class: `card${u.available ? " buyable" : byGold ? " buyable gold-ok" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u) },
-          h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
-            d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : ""),
+          // QA 92eb880 (N: "`AUTO: RESTOCK · ⊘ ◆1 more` while `$ buy` is enabled"): a marks shortfall the gold covers carries no `⊘`
+          h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated && !byGold ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
+            d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : "",
+            stallLabel(u) ? h("small", { class: "num delta down stall-risk" }, stallLabel(u)) : ""),   // QA 92eb880: the stall risk before buying
           h("span", { class: "num cost" }, priceLabel(u))));   // QA 23ed91f: a free door reads no `◆0`; Cut 18 §5: both prices, `◆3 · $450`
       }
       unlocks.appendChild(grid);
@@ -351,5 +382,6 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
-  return { el, dispose: () => { off(); offRules(); offShelf(); fc.dispose(); shaft.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  const offShadow = app.onForecast(() => editor.paintShadow());   // QA 92eb880: a shadowed row's mark lands with the forecast of the rules now
+  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); fc.dispose(); shaft.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

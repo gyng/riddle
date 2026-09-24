@@ -53,8 +53,14 @@ function firesOf(app: App, trace?: Trace): number[] {
   return fires;
 }
 
-export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace): HTMLElement {
-  return h("div", { class: "patches" }, ...patches.map((p) => {
+/** QA 92eb880 (M, the worst death: `DICE` over three patches all `survives 100% · below bar`): `nothingBeatsBase` — the core's
+ *  `Death.nothing_beats_base`: one line over the block says so (`nothing beats base · base 100%`) and no patch reads `below bar`.
+ *  `depth`: the floor a stall patch's reach is measured on (`reach D7 17%`; N: "reach of which floor?"). */
+export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number };
+export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace, opts: PatchOpts = {}): HTMLElement {
+  const head = opts.nothingBeatsBase && patches.length
+    ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `nothing beats base · base ${pct(baseline ?? 1)}`) : null;
+  return h("div", { class: `patches${head ? " none-beats" : ""}` }, head, ...patches.map((p) => {
     const delta = Math.round(p.forecast_delta * 100);
     // QA 23ed91f (K: "`reach 92% · base 8% · reach +83%`: 92 − 8 ≠ 83, and `reach` twice"): a stall patch's base is the rounded reach
     // less the rounded delta, so the three numbers add up; its delta then drops the word (`+84%`)
@@ -70,9 +76,9 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const line = held >= 0
       ? /* copy:callout */ `at R${held + 1}`
       : p.below_bar
-      ? /* copy:callout */ `survives ${pct(p.survive)} · below bar`
+      ? opts.nothingBeatsBase ? /* copy:callout */ `survives ${pct(p.survive)}` : /* copy:callout */ `survives ${pct(p.survive)} · below bar`
       : baseline === undefined
-        ? /* copy:callout */ `reach ${pct(p.survive)} · base ${Math.max(0, Math.round(p.survive * 100) - delta)}%`
+        ? /* copy:callout */ `reach ${opts.depth !== undefined ? `D${opts.depth} ` : ""}${pct(p.survive)} · base ${Math.max(0, Math.round(p.survive * 100) - delta)}%`
         : /* copy:callout */ `survives ${pct(p.survive)} · base ${pct(baseline)}`;
     const onclick = unlock
       ? async (): Promise<void> => {
@@ -114,7 +120,8 @@ function reachSpan(p: Patch, stallish = false): HTMLElement {
   const word = stallish ? "" : /* copy:label */ "reach ";
   const at = p.forecast_depth !== undefined ? `D${p.forecast_depth} ` : "";
   const pmTag = pm !== undefined && !flat ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`) : "";
-  return flat ? h("span", { class: "num delta flat" }, `${word}${at}~0`)
+  // QA 92eb880 (M: "`reach D7 ~0` … the camp then shows D7 12%"): a move inside the ± reads as a move, `+0%`, never as a reach of ~0
+  return flat ? h("span", { class: "num delta flat" }, `${word}${at}+0%`, pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`) : "")
     : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, `${word}${at}${delta > 0 ? "+" : "−"}${Math.abs(delta)}%`, pmTag);
 }
 
@@ -128,6 +135,19 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
     buttons[i]?.querySelector(".delta")?.replaceWith(reachSpan(p));
   });
   el.dataset.reach = "camp";
+  // QA 92eb880 (N: the lit patch read `reach D8 −4%`, applied, and every floor fell; `rest 75%` lit over `return 100%`): once the camp's
+  // reach is in, the tablets re-rank by it — a gain first, then the ones inside the ± (the higher survival first), a loss last and dim
+  // (`.neg`: the gem never applies it); a held row or a below-bar alternative stays under them
+  const rank = (p: Patch, b: HTMLElement): number[] => {
+    if (b.classList.contains("below") && !b.classList.contains("neg")) return [4, 0, 0];
+    const d = Math.round(p.forecast_delta * 100), pm = p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : 0;
+    const flat = d === 0 || Math.abs(d) <= pm;
+    return [p.insert_at < 0 ? 1 : flat ? 1 : d > 0 ? 0 : 3, flat ? 0 : -d, -p.survive];
+  };
+  const keyed = patches.map((p, i) => ({ b: buttons[i], k: buttons[i] ? rank(p, buttons[i]) : [9, 0, 0], i })).filter((x) => x.b);
+  for (const x of keyed) x.b.classList.toggle("neg", x.k[0] === 3);
+  keyed.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2] || a.i - b.i);
+  for (const x of keyed) el.appendChild(x.b);
 }
 
 /** Cut 15 §3: the drop sheet — the set's own rows (a card's row never; it sits outside `max_rows`), `R5 <row> · 0/16` with the

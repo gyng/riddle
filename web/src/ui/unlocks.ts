@@ -59,6 +59,12 @@ export function deltaLabel(u: UnlockInfo, d: number): string {
   const pm = u.pm !== undefined ? ` ±${Math.max(1, Math.round(u.pm * 100))}` : "";
   return /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%${pm}${where}`;
 }
+/** QA 92eb880 (N: "`corridor fighting · reach ~0 at R6` bought … the shaft went bank 81 % → 44 %, stall 35 %"): a card that raises the
+ *  stall share at its place says so — `stall +11%` (the engine's `UnlockInfo.stall`, 0..1); empty under a point. */
+export function stallLabel(u: UnlockInfo): string {
+  const pts = u.stall !== undefined && !u.owned ? Math.round(u.stall * 100) : 0;
+  return pts > 0 ? /* copy:callout */ `stall +${pts}%` : "";
+}
 /** Cut 18 §5: the foe tag a card answers, as the foes it meets (`ranged` → `vs archers`). */
 /* copy:unlock_card */
 const SITUATION: Record<string, string> = { ranged: "archers", gas: "gas", pack: "packs", thief: "thieves", boss: "bosses", caster: "casters", heavy: "brutes", summoner: "summoners" };
@@ -72,8 +78,20 @@ export function goldAffordable(u: UnlockInfo, gold: number): boolean {
 /** Cut 18 §5: both prices on a tile — `◆3 · $450` (the gold path seen without opening the sheet); `◆3` alone without a gold price. */
 export function priceLabel(u: UnlockInfo): string {
   const g = goldPrice(u);
-  return [u.cost ? `◆${u.cost}` : "", g ? `$${g}` : ""].filter(Boolean).join(" · ");
+  // QA 92eb880 (M: "`class: rogue ⊘ bank once` shows no price while ranger/caster do"): a door that costs nothing reads `free`
+  return [u.cost ? `◆${u.cost}` : "", g ? `$${g}` : ""].filter(Boolean).join(" · ") || (u.owned ? "" : /* copy:label */ "free");
 }
+/** QA 92eb880 (M: "`+1 ROW` and `+1 VAULT` say nothing of what they give"): a counted unlock's effect as numbers — `rows 4 → 5`,
+ *  `vault 1 → 2`, `party 1 → 2`, `supplies 3 → 5`; undefined for others. */
+export function effectLine(app: App, u: UnlockInfo): string | undefined {
+  const L = app.lineage;
+  if (/^row\d+$/.test(u.id)) return /* copy:callout */ `rows ${app.vocab.max_rows} → ${app.vocab.max_rows + 1}`;
+  if (/^vault\d$/.test(u.id)) { const n = vaultSlots(L.unlocks); return /* copy:callout */ `vault ${n} → ${n + 1}`; }
+  if (/^party_slot_\d$/.test(u.id)) return /* copy:callout */ `party ${L.party_slots} → ${L.party_slots + 1}`;
+  return undefined;
+}
+/** QA 92eb880 (N: "`verb: throw` sheet has only prices, no line of what it does"): a verb unlock shows the verb it adds as a chip. */
+const VERB_OF: Record<string, string> = { throw: "throw", tame: "tame" };
 /** Cut 13 §5: |delta| within its half-width. */
 export const deltaIsNoise = (u: UnlockInfo): boolean => u.delta !== undefined && u.pm !== undefined && Math.abs(u.delta) <= u.pm;
 /** The delta in whole points as the shelf shows it; 0 = nothing to show (no delta, or a bare 0 without a `pm` to call it noise). */
@@ -112,9 +130,13 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
     const buyGold = gold ? h("button", { class: `btn buy gold${canGold ? "" : " off"}`, disabled: !canGold, onclick: go(true) }, "$ ", /* copy:button */ "buy") : "";
     return h("div", { class: "sheet-body unlock-sheet" },
       h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`, gold ? h("span", { class: "gold-price" }, ` · $${gold}`) : "")),
-      u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))) : "",
-      needs ? h("div", { class: "needs-line dim" }, "⊘ ", needs.replace(/_/g, " ")) : "",
+      u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r))))
+        : VERB_OF[u.id] ? h("div", { class: "card-rows" }, h("div", { class: "row locked" }, h("div", { class: "chips" }, h("span", { class: "chip verb locked" }, VERB_OF[u.id])))) : "",
+      effectLine(app, u) ? h("div", { class: "effect-line num" }, effectLine(app, u)!) : "",
+      // QA 92eb880 (N: "`⊘ ◆1 more` while `$ buy` is enabled"): a marks shortfall the gold covers is no lock — the line drops its `⊘`
+      needs ? h("div", { class: "needs-line dim" }, canGold && !gateNeeds ? "" : "⊘ ", needs.replace(/_/g, " ")) : "",
       d ? h("div", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : "",   // Cut 10 §3 / Cut 12 §1 / Cut 13 §5
+      stallLabel(u) ? h("div", { class: "num delta down stall-risk" }, stallLabel(u)) : "",   // QA 92eb880
       h("div", { class: "buy-pair" }, buy, buyGold),
       goldShort ? h("div", { class: "needs-line dim num gold-short" }, /* copy:callout */ `$${goldShort} short`) : "");
   });
@@ -138,7 +160,10 @@ export function openOwnedSheet(app: App, u: UnlockCard): void {
 }
 /** Cut 6 §6: owned entries that carry rows (cards, automations) — the shelf keeps them as chips that open their rows. */
 export function ownedRows(catalogue: UnlockInfo[]): UnlockCard[] {
-  return catalogue.filter((u) => u.owned && u.rows?.length).map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " "), gated: false }));
+  // QA 92eb880 (N: "`verb: throw` and `class: rogue` bought, never appear in the `· owned` row"): every owned purchase but the counted
+  // steps (`+1 row` · `+1 vault` · `+1 party`, which the counts already show) and the free class
+  return catalogue.filter((u) => u.owned && (u.rows?.length || (LABEL[u.id] && !/^(row\d+|vault\d|party_slot_\d)$/.test(u.id) && !isFreeClass(u.id))))
+    .map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " "), gated: false }));
 }
 export const vaultSlots = (owned: string[]): number => 1 + ["vault2", "vault3", "vault4", "vault5"].filter((u) => owned.includes(u)).length;
 export const supplyCap = (owned: string[]): number => (owned.includes("supply_cap_5") ? 5 : 3);

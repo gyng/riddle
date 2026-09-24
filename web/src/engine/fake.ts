@@ -994,6 +994,7 @@ export class FakeEngine implements Engine {
   }
   save(): string { return JSON.stringify(this.s); }
   lineage(): Lineage {
+    for (const c of Object.values(this.s.lineage.classes ?? {})) c.next = c.level < XP_LEVEL_CAP ? xpToNext(c.level) : 0;   // QA 92eb880: the ladder is the engine's (`ClassProg.next`)
     this.s.lineage.ledger = this.ledger();
     this.s.lineage.counters = this.counters();
     this.s.lineage.combos = combosIn(this.s.rules.rows, COMBOS);   // Cut 8B §1

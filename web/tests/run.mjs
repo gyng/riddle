@@ -8,12 +8,21 @@ import { readdirSync } from "node:fs";
 const ALL = readdirSync("tests").filter((f) => f.endsWith(".mjs") && !["run.mjs", "screen-time.mjs"].includes(f)).map((f) => f.slice(0, -4)).sort();
 const names = process.argv.slice(2).length ? process.argv.slice(2) : ALL;
 const t0 = Date.now();
-const results = await Promise.all(names.map((n) => new Promise((resolve) => {
+// A bounded pool, longest first: fourteen headless browsers rendering on the CPU at once starved the
+// timing gates (clarity's rates, fights' holds) into flakes; the timing gates start first, the rest
+// share the remaining slots (`TEST_JOBS` overrides the width).
+const TIMING = ["clarity", "fights", "cut13", "ui", "screens"];
+const order = [...names].sort((a, b) => (TIMING.includes(b) ? 1 : 0) - (TIMING.includes(a) ? 1 : 0) || TIMING.indexOf(a) - TIMING.indexOf(b));
+const width = Number(process.env.TEST_JOBS ?? 7);
+const run1 = (n) => new Promise((resolve) => {
   const p = spawn("node", [`tests/${n}.mjs`], { stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
   p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
   p.on("close", (code) => resolve({ n, code, out, ms: Date.now() - t0 }));
-})));
+});
+const queue = [...order], done = [];
+await Promise.all(Array.from({ length: Math.min(width, queue.length) }, async () => { while (queue.length) done.push(await run1(queue.shift())); }));
+const results = names.map((n) => done.find((r) => r.n === n));
 let failed = 0;
 for (const r of results) {
   const last = r.out.trim().split("\n").at(-1) ?? "";

@@ -14,7 +14,7 @@ import { revealed } from "./reveal";
 export type Bar = { el: HTMLElement; paint(): void; dispose(): void; offers: HTMLElement; freeze(): void };
 /** `live`: the camp's bar (the `$` opens the gold sheet, the stud the settings; the wake's offers row under it). Elsewhere the
  *  bar is read-only but for the stud: a sheet over the run reads as the exit sheet to the tooling. */
-export function renderBar(app: App, opts: { live?: boolean } = {}): Bar {
+export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait?: string } = {}): Bar {
   const offers = h("div", { class: "offers", hidden: true });
   const el = h("header", { class: "strip topbar" });
   const mini = portraitMini(app);
@@ -23,9 +23,9 @@ export function renderBar(app: App, opts: { live?: boolean } = {}): Bar {
     // the glyph (`◆` `★`) stays in the text (the tooling reads `◆7`) but the icon stands for it on screen
     const stat = (cls: string, ico: string, glyph: string, n: string | number, on = true): HTMLElement | "" => on ? h("span", { class: `num stat ${cls}` }, icon(ico), glyph ? h("span", { class: "g" }, glyph) : "", String(n)) : "";
     replace(el,
-      h("span", { class: "num heir" }, mini.el, `♟${L.heir}`),
+      h("span", { class: "num heir" }, mini.el, `♟${opts.heir ?? L.heir}`),   // a death's bar names the hero who died (QA 92eb880)
       // the wake's trait chips stand in for the plain trait while the offer stands (the camp fills `offers`)
-      opts.live && (L.trait_offer?.length ?? 0) >= 2 ? "" : h("span", { class: "trait" }, L.trait),
+      opts.live && (L.trait_offer?.length ?? 0) >= 2 ? "" : h("span", { class: "trait" }, opts.heir !== undefined ? opts.trait ?? "" : L.trait),
       (L.ascension?.level ?? 0) > 0 ? h("span", { class: "num asc" }, `↑${L.ascension!.level} ${L.ascension!.variant.replace(/_/g, " ")}`) : "",
       h("div", { class: "stats" },
         opts.live ? h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), `$${L.gold}`) : h("span", { class: "num stat gold" }, icon("gold"), `$${L.gold}`),

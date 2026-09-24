@@ -72,6 +72,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const paint = (f: Forecast): void => {
     clear(bars); clear(causes); paintEnds(f); paintPicked();
     el.dataset.refined = f.refined === undefined ? "" : f.refined ? "1" : "0";   // dev: tools read which pass painted
+    // QA 92eb880 (M: "D6 32%±13 → 38%±10 on opening edit"): the first pass paints dim, its ± trailing `…`, until the refine lands
+    el.classList.toggle("rough", f.refined === false);
     const first = f.refined === false ? "…" : "";   // Cut 13 §5: the first paint's ± trails `…`; the refine's does not
     const next = app.lineage.best_depth + 1;
     // Cut 4 §8 names the top cause on best+1; QA 23ed91f (L: `D9 0% ±1 · rat` for a set that dies on D1–D2): when nobody gets near
@@ -123,6 +125,12 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   return { el, dispose: () => { off(); offRules(); offChange(); } };
 }
 
+/** QA 92eb880: the depth a lone `depth ≥ N → bank` row sends the hero home from (the smallest such N); undefined without one. */
+export function bankCap(rows: Row[]): number | undefined {
+  const ns = rows.filter((r) => r.verb.v === "bank" && r.conds.length === 1 && r.conds[0].k === "depth>=" && r.conds[0].n !== undefined).map((r) => r.conds[0].n!);
+  return ns.length ? Math.min(...ns) : undefined;
+}
+
 /** Cut 17 §2 — the depth shaft at the camp well's right edge (docs/UI.md §2's minimap): one notch per depth D1 … D(best+1), lit by
  *  its reach (amber alpha = reach, the `±` a thin halo), `?` past what the forecast knows; under it (from a 3rd row on, the reveal
  *  ladder) three gems — bank · return · death — with their shares and `~$N`. The shaft is one button: it opens the forecast panel
@@ -137,13 +145,19 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     const next = app.lineage.best_depth + 1, from = Math.max(1, next - MAX + 1);
     const byDepth = new Map((last?.depths ?? []).map((d) => [d.depth, d]));
     const known = last?.known_to ?? 0;
+    const rough = last?.refined === false, cap = bankCap(app.rules.rows);
     replace(notches, ...Array.from({ length: next - from + 1 }, (_, k) => {
       const depth = from + k, d = byDepth.get(depth);
       const reach = d ? d.reach : depth <= known ? 1 : 0;
       // Cut 18 §3: a walled floor's notch names the boss who seals it (`D9 · warlord`)
       const wall = d?.wall ? wallName(d.wall) : undefined;
-      const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${wall ? " walled" : ""}`, "data-d": depth },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : ""), h("small", { class: "dp" }, d ? pct(d.reach) : "?", d?.pm !== undefined && d.reach > 0 && d.reach < 1 ? h("i", { class: "pm" }, /* copy:none */ `±${pmPts(d.pm)}`) : ""));
+      // QA 92eb880 (N: "D7 and D8 read 0% … the D8 label stays gold at 0%"): a notch nobody reaches is dim, label and all; a floor past
+      // the set's own `depth ≥ N → bank` row is capped (dim), and the bank floor says so (`D6 · bank`)
+      const zero = !!d && Math.round(d.reach * 100) === 0;
+      const capped = cap !== undefined && depth > cap, bankHere = cap === depth && !wall;
+      const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}`, "data-d": depth },
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : ""),
+        h("small", { class: "dp" }, d ? pct(d.reach) : "?", d?.pm !== undefined && d.reach > 0 && d.reach < 1 ? h("i", { class: "pm" }, /* copy:none */ `±${pmPts(d.pm)}${rough ? "…" : ""}`) : ""));
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       return n;
@@ -162,7 +176,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   // QA 23ed91f (K: "the shaft moves with no edit … the ± only shows in the forecast sheet"): the first pass (`refined` false) paints
   // dim until the refine lands, and each notch carries its ± — a move inside it is the sims, not the last tap
   const off = app.onForecast((f) => { last = f; el.classList.remove("stale"); el.classList.toggle("rough", f.refined === false); paint(); });
-  const offRules = app.onRules(() => el.classList.add("stale"));
+  const offRules = app.onRules(() => { el.classList.add("stale"); paint(); });   // the bank cap follows the rows at once
   const offChange = app.onChange(paint);
   return { el, paint, dispose: () => { off(); offRules(); offChange(); } };
 }

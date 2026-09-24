@@ -115,7 +115,7 @@ async function qaK() {
   const landed = await page.evaluate(() => [...document.querySelectorAll("button.patch .delta")].map((x) => x.textContent));
   await page.evaluate(() => { const r = window.__riddle; r.engine.deathDeltas = r.__origDD; });
   check(pend.reach.every((x) => x === "reach …") && pend.gem === "100%", `the death paints at once, each reach pending (${pend.reach.join(" · ")}; gem ${pend.gem})`);
-  check(landed.join(" · ") === "reach D6 +8% ±3 · reach D6 ~0 · reach D6 −5% ±3", `the camp's reach lands on the tablets: the depth, the ±, ~0 inside it (${landed.join(" · ")})`);
+  check(landed.join(" · ") === "reach D6 +8% ±3 · reach D6 +0% ±3 · reach D6 −5% ±3", `the camp's reach lands on the tablets: the depth, the ±, +0% inside it (QA 92eb880: never \`~0\`) (${landed.join(" · ")})`);
 
   // ---- 2. the report: newest run first; bests named; a stall patch's numbers add up
   const L = await page.evaluate(() => window.__riddle.lineage);
@@ -130,7 +130,7 @@ async function qaK() {
   const bests = await page.evaluate(() => [...[...document.querySelectorAll(".report .rsec")].find((x) => /bests/i.test(x.querySelector(".label")?.textContent ?? ""))?.querySelectorAll("li") ?? []].map((l) => l.textContent));
   check(/^returned \$41/.test(d.lines[0] ?? "") && /^returned \$34/.test(d.lines[7] ?? "") && /earlier/.test(d.lines[8] ?? ""), `the run rows read newest first, \`· N earlier\` under them (${d.lines[0]?.slice(0, 12)} … ${d.lines[7]?.slice(0, 12)} · ${d.lines[8]})`);
   check(bests.join(" | ") === "new best D8 | ★ rank 3 | no heal to D5", `BESTS names its depth and its rank (${bests.join(" | ")})`);
-  check(d.patch === "reach 92% · base 9% +83%", `a stall patch's numbers add up, \`reach\` once ("${d.patch}")`);
+  check(d.patch === "reach D8 92% · base 9% +83%", `a stall patch's numbers add up, \`reach\` once ("${d.patch}")`);
 
   // ---- 3. strings: the hp lost names hp; the alert HUD
   check(await mod("/src/ui/watch.ts", (m) => m.hurtText(1, "monkey")) === "−1 hp · monkey", "the hero's hurt callout reads `−1 hp · monkey` (not a kill count)");
@@ -545,7 +545,7 @@ try {
   await page.evaluate(() => {
     const w = document.querySelector("main.watch"); const heir0 = w.querySelector(".topbar .heir")?.textContent;
     window.__lastFrame = { heir0, at: [] };
-    const look = () => { const m = document.querySelector("main.watch"); if (/!/.test(m?.querySelector(".hud .alert")?.textContent ?? "")) window.__lastFrame.bang = true; if (!m || m.dataset.over !== "1") return; window.__lastFrame.at.push({ heir: m.querySelector(".topbar .heir")?.textContent, gem: m.querySelector(".gem-slot > .gem")?.textContent ?? null, corner: !!document.querySelector(".busy-label:not([hidden])") }); };
+    const look = () => { const m = document.querySelector("main.watch"); if (/!/.test(m?.querySelector(".hud .alert")?.textContent ?? "")) window.__lastFrame.bang = true; if (!m || m.dataset.over !== "1") return; window.__lastFrame.at.push({ heir: m.querySelector(".topbar .heir")?.textContent, gem: m.querySelector(".gem-slot > .gem")?.textContent ?? null, dis: !!m.querySelector(".gem-slot > .gem")?.disabled, corner: !!document.querySelector(".busy-label:not([hidden])") }); };
     new MutationObserver(look).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
   });
   f = await frame();
@@ -567,7 +567,9 @@ try {
     const heirs = [...new Set(lf.at.map((a) => a.heir))], gems = [...new Set(lf.at.map((a) => a.gem))];
     check(lf.at.length > 0 && heirs.length === 1 && heirs[0] === lf.heir0, `the watch's last frame keeps the heir that ran on the bar (${lf.heir0} → ${heirs.join(" · ") || "no frame seen"})`);
     check(!lf.bang, "the HUD names the alert (`alert 3`), never `!!!`");
-    check(lf.at.length > 0 && gems.every((g) => g === "verdict" || g === "report") && lf.at.every((a) => !a.corner), `the last frame's gem slot holds a gem, \`verdict\` / \`report\`, no corner label (${gems.join(" · ")})`);
+    // QA 92eb880 (N: "VERDICT appears while the hero is still up"): through the walk-out the stilled pause (disabled), then `verdict` / `report`
+    const last = lf.at.at(-1)?.gem;
+    check(lf.at.length > 0 && (last === "verdict" || last === "report") && lf.at.every((a) => a.gem === last || (a.gem === "⏸" && a.dis) || a.gem === "▶") && lf.at.every((a) => !a.corner), `the last frame's gem slot holds the stilled pause through the walk-out, then a gem, \`verdict\` / \`report\`, no corner label (${gems.join(" · ")})`);
   }
   if (s.screen !== "death") {   // a report: the gem is `camp`; then a fabricated death for the death's frame
     f = await frame();

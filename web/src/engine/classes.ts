@@ -1,6 +1,7 @@
 // Addendum C + Cut 2 §4 — class XP tables and verb ladders (data only; shared by the fake engine and the UI).
 // The class list is data too: the picker shows CLASSES ∪ lineage.classes keys, never a hardcoded pair.
 export const XP_LEVEL_CAP = 10;
+/** The FAKE engine's ladder only — the UI reads the engine's (`Lineage.classes[c].next`, `ExitLine.xp`; QA 92eb880: this 40·L² was never the core's). */
 export const xpToNext = (level: number): number => 40 * level * level;
 /** Every class the client knows a ladder for; `fighter` is the free one, the rest are unlock ids. */
 export const CLASSES = ["fighter", "rogue", "ranger", "caster"] as const;

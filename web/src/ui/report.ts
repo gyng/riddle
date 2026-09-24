@@ -86,10 +86,11 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const stalled = stalledN > 0 ? tile(`${stalledN}`, /* copy:label */ "stalled") : null;
   if (stalled) stalled.appendChild(h("span", { class: "num cost down" }, /* copy:callout */ `$${stallLost} lost`));
   const exitTiles = (): (HTMLElement | null)[] => {
-    // Cut 10 §3: `returned` leads when it is the larger (fourteen returns beside `banked 0` read as a contradiction)
-    const lead = returnedN > bankedN ? [returned, banked] : [banked, returned];
-    if (stalled && bankedN === 0) return [returned, stalled];
-    return [...lead, stalled];
+    // QA 92eb880 (M, N: "the first report orders `BANKED · RETURNED`, the absence report `RETURNED · BANKED`; I read the wrong tile"):
+    // one order always, the camp's gems' — banked, returned (Cut 10 §3's larger-first swap withdrawn); a stall with no bank takes
+    // `banked`'s slot, so `returned` never moves
+    if (stalled && bankedN === 0) return [stalled, returned];
+    return [banked, returned, stalled];
   };
   const tiles = h("div", { class: `tiles${exits ? " six" : ""}${absence ? " fade-in" : ""}` },
     tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"),
@@ -111,10 +112,17 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     const bankedG = ex.filter((x) => x.keep_pct >= 100).reduce((a, x) => a + x.kept, 0), returnedG = ex.filter((x) => x.keep_pct > 0 && x.keep_pct < 100).reduce((a, x) => a + x.kept, 0);
     const salvageG = (r.salvaged ?? []).reduce((a, x) => a + x.gold, 0), spentG = (r.spent ?? []).reduce((a, x) => a + x.gold, 0);
     const pieces: (string | HTMLElement)[] = [];
-    const WORD = /* copy:callout */ { banked: "banked", returned: "returned", home: "home", salvage: "salvage", wake: "wake", spent: "spent" };
+    const WORD = /* copy:callout */ { banked: "banked", returned: "returned", salvage: "salvage", wake: "wake", spent: "spent" };
     const piece = (n: number, sign: string, word: string, cls: string): void => { if (n > 0) pieces.push(h("span", { class: cls }, `${sign}$${n} ${word}`)); };
     // the core's summary is to the coin over every run of the absence (the exit lines are capped per slice): it wins
-    if (r.gold) { piece(r.gold.home, "+", WORD.home, "up"); piece(r.gold.salvage, "+", WORD.salvage, "up"); piece(r.gold.wake, "+", WORD.wake, "up"); piece(r.gold.spent, "−", WORD.spent, "down"); }
+    // QA 92eb880 (M, N: "`+$892 home` where the gold sheet and rows say `returned`"): the exits' coins by the rows' own words — `banked` /
+    // `returned` when the exit lines account for the core's sum, else the word of the only tier there was; `home` never
+    const homeWord = (): string => { const b = r.banked ?? 0, rt = r.returned ?? 0; return rt === 0 && b > 0 ? WORD.banked : b === 0 ? WORD.returned : ""; };
+    if (r.gold) {
+      if (bankedG + returnedG === r.gold.home && r.gold.home > 0) { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); }
+      else { const w = homeWord(); if (w) piece(r.gold.home, "+", w, "up"); else pieces.push(h("span", { class: "up" }, `+$${r.gold.home}`)); }
+      piece(r.gold.salvage, "+", WORD.salvage, "up"); piece(r.gold.wake, "+", WORD.wake, "up"); piece(r.gold.spent, "−", WORD.spent, "down");
+    }
     else { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); piece(salvageG, "+", WORD.salvage, "up"); piece(spentG, "−", WORD.spent, "down"); }
     if (!pieces.length) return null;
     const out: (string | HTMLElement)[] = []; pieces.forEach((p, i) => { if (i) out.push(" · "); out.push(p); });
@@ -151,7 +159,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const stall = r.stall ? h("section", { class: "rsec stall" },
     h("div", { class: "label" }, /* copy:label */ "plateau"),   // every run came home, none deeper — not a stalled run (QA on 56f2a1d: `STALL` over `14 RETURNED`)
     h("div", { class: "stall-line num" }, r.stall.text, " ", traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r) })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb); its run: the exit whose trace it is (QA on e0f87e7: no `watch` from a report)
-    r.stall.patches.length ? patchRows(app, r.stall.patches) : null) : null;
+    r.stall.patches.length ? patchRows(app, r.stall.patches, undefined, undefined, { depth: stallDepth(r.stall.text) }) : null) : null;
   // Cut 2 §2: one line per pile recovered this send (the core sends `heir 3 · D7 · 4 items`, `bones:7:4` too; the watch
   // `D5 · 7 items`). Every line says it was found — `found ♟3's bones · D7 · 4 items` — since `bones D8 · 11 items · ♟3` read
   // as a pile still lying there (QA on e0f87e7: "survived 16 offline runs", "persisted through run 3")
@@ -166,7 +174,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // `R1 fired 3 of 16 runs: HP<50% → drink ?` names the row in the engine's short form; the report spells it as the
   // editor and the death screen do (`hp < 50% → drink unknown`) when the row is still in the set
   const rowSpelt = (x: string): string => {
-    const m = /^R(\d+) fired (\d+) of (\d+) runs: (.*?)( · \w+ unknown)?$/.exec(x);   // the trailing ` · heal unknown` is the engine's reason for a never-fired drink row
+    // the trailing ` · heal unknown` is the engine's reason for a never-fired drink row; ` · shadowed by R1` (QA 92eb880) names the row above that takes its moments
+    const m = /^R(\d+) fired (\d+) of (\d+) runs: (.*?)( · (?:\w+ unknown|shadowed by R\d+))?$/.exec(x);
     const row = m && app.rules.rows[Number(m[1]) - 1];
     return row ? /* copy:death_line */ `R${m[1]} fired ${m[2]} of ${m[3]} runs: ${rowLabel(row)}${m[5] ?? ""}` : x;
   };
@@ -242,6 +251,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   return { el, dispose: () => bar.dispose() };
 }
 
+/** QA 92eb880 (N: "plateau patches … `reach 17%` — reach of which floor?"): the floor past the plateau (`none past D6` → 7). */
+export function stallDepth(text: string): number | undefined {
+  const m = /\bpast D(\d+)\b/.exec(text) ?? /\bD(\d+)\b/.exec(text);
+  return m ? Number(m[1]) + 1 : undefined;
+}
+
 /** The run a stall's trace belongs to: the exit line that carries the same trace (the stall has no run id on the wire; the
  *  same turns, tick for tick, name the run), so its chain links can open the replay when the client holds that run. */
 function stallRun(r: ReturnReport): number | undefined {
@@ -256,12 +271,14 @@ function stallRun(r: ReturnReport): number | undefined {
 function factChips(facts: string[], counters: Counter[] = []): HTMLElement | null {
   const nice = (x: string): string => x.replace(/_/g, " ");
   const foes = new Map<string, string[]>();
-  const rest: HTMLElement[] = [];
+  const rest: HTMLElement[] = [], itemChips: HTMLElement[] = [];
   for (const f of facts) {
     const m = /^foe:([^:]+)(?::(.+))?$/.exec(f);
     if (m) { const tags = foes.get(m[1]) ?? []; if (m[2]) tags.push(m[2]); foes.set(m[1], tags); continue; }
     const it = /^item:([^=]+)=(.+)$/.exec(f);
-    if (it) { rest.push(h("span", { class: "chip fact" }, nice(it[2]), h("small", null, ` ${it[1]}`))); continue; }
+    // QA 92eb880 (M: "LEARNED flattens potion/scroll pairs … `stray lock` and `blink` read as pairs off by one"): an identity reads
+    // `blink (ashen)`, on its own row under the foes
+    if (it) { itemChips.push(h("span", { class: "chip fact item" }, nice(it[2]), h("small", null, ` (${nice(it[1])})`))); continue; }
     const b = /^biome:(.+)$/.exec(f);
     if (b) { rest.push(h("span", { class: "chip fact" }, nice(b[1]))); continue; }
     const bn = /^bones:(\d+)$/.exec(f);
@@ -273,8 +290,9 @@ function factChips(facts: string[], counters: Counter[] = []): HTMLElement | nul
     if (kv) { rest.push(h("span", { class: "chip fact" }, nice(kv[1]), h("small", null, ` · ${kv[2].split(":").map(nice).join(" · ")}`))); continue; }
     rest.push(h("span", { class: "chip fact" }, nice(f)));
   }
-  const out = [...foes].map(([k, tags]) => h("span", { class: "chip fact" }, nice(k), tags.length ? h("small", null, ` ${tags.map(nice).join(" · ")}`) : ""));
-  return out.length + rest.length ? h("div", { class: "chips" }, ...out, ...rest) : null;
+  const out = [...foes].map(([k, tags]) => h("span", { class: "chip fact" }, nice(k), tags.length ? h("small", null, ` · ${tags.map(nice).join(" · ")}`) : ""));
+  if (!out.length && !rest.length && !itemChips.length) return null;
+  return h("div", { class: "facts" }, out.length + rest.length ? h("div", { class: "chips" }, ...out, ...rest) : "", itemChips.length ? h("div", { class: "chips items" }, ...itemChips) : "");
 }
 
 /** QA 23ed91f (K: "a lone `D8` and `rank 2` in among the trophies"): a depth best reads `new best D8`, a rank `★ rank 3`; trophies as sent. */

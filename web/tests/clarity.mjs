@@ -135,11 +135,11 @@ try {
   {
     await page.evaluate(() => { const r = window.__riddle; r.go({ kind: "death", death: { run_id: 1, depth: 3, cause: "goblin_pack", margin: "3 over", verdict: "gap", baseline: 0.4, trace: { turns: [] }, patches: [], morgue: "" }, lost: ["jackal · Ashar"] }); });
     await sleep(300);
-    const d = await page.evaluate(() => ({ line: document.querySelector(".death-line")?.textContent.replace(/\s+/g, " ").trim(), egg: document.querySelector(".death .chip.egg")?.textContent.replace(/\s+/g, " ").trim() }));
+    const d = await page.evaluate(() => ({ line: document.querySelector(".death-line")?.textContent.replace(/\s+/g, " ").trim(), egg: document.querySelector(".death .eggs-line .egg")?.textContent.replace(/\s+/g, " ").trim() }));
     check(/^goblin pack · D3 · gap$/.test(d.line ?? ""), `the death line reads "${d.line}" (no hp margin)`);
     check(d.egg === "◯ jackal Ashar fell", `the lost companion reads "${d.egg}"`);
   }
-  // §3 the report: `returned · banked · deaths` when returns outnumber banks; exit lines lead with `returned $61`; lost chips `fell`;
+  // §3 the report: `banked · returned · deaths` always (QA 92eb880 withdrew the larger-first swap); exit lines lead with `returned $61`; lost chips `fell`;
   //    the tiles fade in after an absence
   {
     const base = { elapsed_s: 3600, runs: 14, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "goblin_pack", n: 2 }], pending: [], reel: [], marks_earned: 1, live: null, tamed: [], hatched: [], lost: ["jackal · Ashar"], xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 } };
@@ -151,7 +151,7 @@ try {
       exits: [...document.querySelectorAll(".report .exit-lines .ledger-line")].map((l) => l.textContent.replace(/\s+/g, " ").trim()),
       lost: document.querySelector(".report .chip.egg")?.textContent.replace(/\s+/g, " ").trim(),
     }));
-    check(rep.labels.join(" ") === "runs best marks returned banked deaths", `tiles: ${rep.labels.join(" · ")}`);
+    check(rep.labels.join(" ") === "runs best marks banked returned deaths", `tiles in one order whatever leads (QA 92eb880): ${rep.labels.join(" · ")}`);
     // QA 23ed91f: the run rows read newest first (the gold sheet's order), so the later bank leads
     check(rep.exits[1]?.startsWith("returned $61 · $102 carried") && rep.exits[0]?.startsWith("banked $84 · "), `exit lines lead with the tier and the sum, newest first: "${rep.exits[0]}" · "${rep.exits[1]}"`);
     check(rep.lost === "◯ jackal Ashar fell", `the report's lost chip reads "${rep.lost}"`);
@@ -159,7 +159,7 @@ try {
     await page.evaluate((b) => { const r = window.__riddle; b.live = r.lineage.live ?? null; r.go({ kind: "report", report: { ...b, banked: 3, returned: 1 } }); }, base);
     await sleep(200);
     const rep2 = await page.evaluate(() => ({ labels: [...document.querySelectorAll(".report .tiles .tile .label")].map((l) => l.textContent.trim()), fade: document.querySelector(".report .tiles")?.classList.contains("fade-in") }));
-    check(rep2.labels.join(" ") === "runs best marks banked returned deaths" && rep2.fade === false, `banked leads when it is the larger; a watched run's tiles do not fade (${rep2.labels.slice(3).join(" · ")})`);
+    check(rep2.labels.join(" ") === "runs best marks banked returned deaths" && rep2.fade === false, `the same order when banks lead; a watched run's tiles do not fade (${rep2.labels.slice(3).join(" · ")})`);
   }
   // Cut 14 §4: a repeated chore callout coalesces on its line — `pick up ×8` — instead of eight `pick up` reads (the fake emits
   // no chore rows, so every engine batch gets one appended; the ticker is sampled every 40 ms through the run)
@@ -195,7 +195,7 @@ try {
     await page.keyboard.press("Escape"); await sleep(150);
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
-    const watch = () => page.evaluate(() => { const w = document.querySelector(".watch"); return { frame: w?.dataset.frame, speed: Number(w?.dataset.speed), ending: w?.dataset.ending === "1", slow: window.__riddle.slowdowns }; });
+    const watch = () => page.evaluate(() => { const w = document.querySelector(".watch"); return { frame: w?.dataset.frame, speed: Number(w?.dataset.speed), ending: w?.dataset.ending === "1", slow: window.__riddle.slowdowns, held: !!w?.dataset.hold }; });
     let fightSpeeds = [], seenFight = false; const t0 = Date.now();
     while (Date.now() - t0 < 30_000) {
       const s = await state(); if (s?.screen !== "watch") break;
@@ -209,13 +209,16 @@ try {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch again");
     fightSpeeds = []; const t1 = Date.now();
-    while (Date.now() - t1 < 30_000) {
+    while (Date.now() - t1 < 60_000) {   // Cut 18: fast passes cheap fights at travel speed, so a framed one can take longer to come
       const s = await state(); if (s?.screen !== "watch") break;
       const w = await watch(); if (w.ending) break;
-      if (w.frame === "fight") { fightSpeeds.push(w.speed); if (fightSpeeds.length >= 8) break; }
+      // Cut 18 §1: a held beat eases the picture to its stop; that is the beat's rate, not the fight's
+      if (w.frame === "fight" && !w.held) { fightSpeeds.push(w.speed); if (fightSpeeds.filter((x) => x === 4).length >= 4) break; }
       await sleep(60);
     }
-    check(fightSpeeds.length > 0 && fightSpeeds.every((x) => x === 4), `slowdowns on: a fight in fast runs at 4× (${[...new Set(fightSpeeds)].join("/") || "no fight"})`);
+    // the frame's first/last sample can straddle the cut (16× on either side): the fight's own rate is the median of its samples
+    // a framed fight plays at 4× (≥ 3 samples); the frame's tail may run on at the travel rate (16×) — nothing else is allowed
+    check(fightSpeeds.filter((x) => x === 4).length >= 3 && fightSpeeds.every((x) => x === 4 || x === 16), `slowdowns on: a fight in fast runs at 4× (${fightSpeeds.join("/") || "no fight"})`);
   }
   // Cut 14 §6: the world runs on the wall clock — paused, the frontier (`data-frontier`) advances and the strip's dot beats
   // (`data-pulses`) while the playhead (`data-tick`, the strip's head) holds; `▶▶|` from behind lands on the frontier; a faked
@@ -342,7 +345,7 @@ try {
       const s = await state(); if (s?.screen !== "watch" && s?.screen !== "exit") break;
       await sleep(40);
     }
-    check(!!rest && /^rest \S+$/.test(rest.text) && rest.top > rest.lowest && rest.top >= rest.h * 0.75, `the rest banner sits under the frame's sprites and names (${rest ? `"${rest.text}" top ${Math.round(rest.top)} · drawn to ${Math.round(rest.lowest)} · ${rest.frame} frame` : "never seen"})`);
+    check(!!rest && /^(♟\d+ · )?rest \S+$/.test(rest.text) && rest.top > rest.lowest && rest.top >= rest.h * 0.75, `the rest banner sits under the frame's sprites and names (${rest ? `"${rest.text}" top ${Math.round(rest.top)} · drawn to ${Math.round(rest.lowest)} · ${rest.frame} frame` : "never seen"})`);
   }
   // Cut 15 §4: the lit mode chip carries its clock as small digits (`data-rate`, drawn by `::after` with a trailing `×` — QA on 3d71c33; the chip's text stays its word):
   // `fast 16` on the travel, `fast 4` in a fight; `fights 2` in a fight; the other chip carries none
@@ -354,7 +357,7 @@ try {
       const seen = new Map(); let bad = null; const t0 = Date.now();
       while (Date.now() - t0 < 25_000 && !(seen.has("fight") && seen.has("map"))) {
         const c = await chip(); if (c.screen !== "watch") break;
-        const want = c.speed > 0 ? String(c.speed) : c.card === "1" ? "16" : "";
+        const want = c.speed > 0 ? (c.speed >= 2 ? String(Math.round(c.speed)) : String(Math.round(c.speed * 10) / 10)) : c.card === "1" ? "16" : "";   // QA 92eb880: the chip's rate rounds (`7`, never `6.666…`)
         if (c.rate !== want || c.text !== mode || c.others || (c.rate && c.after !== `"${c.rate}×"`)) bad ??= c;
         if (c.rate && c.frame) seen.set(c.frame, `${c.text} ${c.rate}`);
         await sleep(50);

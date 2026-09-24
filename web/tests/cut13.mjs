@@ -2,7 +2,7 @@
 // Cut 13 gates, client side (docs/CUT13.md §1–§5), on the fake engine (`?engine=fake&dev=1`) through the browser harness
 // (tools/browser.mjs; `--shots` runs headed on the GPU and writes scratchpad/cut13/*.png at 400×800×3) against the dev
 // server (tools/dev.sh, :5219):
-//   §1  the stake reads `keeps $0 · stalling` while the guard has fired (`Stake.stalling`, the fake's `?fake_stall=N` chore loop);
+//   §1  the stake reads `stalling` (QA 92eb880: no `keeps $0` before the run ends) while the guard has fired (`Stake.stalling`, the fake's `?fake_stall=N` chore loop);
 //       a run that comes home stalled gets the verdict screen: the `stall` pill, the headline, the notes, the trace, the patches;
 //       an engine without the record falls back to the report (the exit line reads `returned $0 · … · stalled`); the report's
 //       `open` shows a stall verdict too
@@ -81,7 +81,8 @@ try {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=21&fake_stall=20&rules=${stallRules}&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   let s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "the stalling run");
   s = await waitFor((x) => x?.screen !== "watch" || /stalling/.test(x.stake), "the stalling stake", 30_000);
-  check(s.screen === "watch" && /keeps \$0 · stalling/.test(s.stake) && !/keeps \$[1-9]/.test(s.stake), `the stake reads keeps $0 · stalling while the guard has fired: "${s.stake}"`);
+  // QA 92eb880 (N: `keeps $0 · stalling` for 10 s on a run that returned keeping 60 %): `stalling` alone while the run may still come home
+  check(s.screen === "watch" && /(^|· )stalling\b/.test(s.stake) && !/keeps \$/.test(s.stake), `the stake reads \`stalling\` alone while the guard has fired: "${s.stake}"`);
   await shot("01-stall-hud");
   s = await waitFor((x) => x && x.screen !== "watch", "the stalled run's end", 60_000);
   if (s.screen === "exit") {   // the keep sheet still runs (a stall is a return with items in hand)
@@ -249,6 +250,9 @@ try {
     const e = window.__riddle.engine; const real = e.step.bind(e); let done = 0;
     e.step = async (n) => {
       const r = await real(n); const w = document.querySelector(".watch"), t = document.querySelector(".ticker");
+      // QA 92eb880: near a cage the watch now steps in short batches, so the cage's sheet (and its beat) opens in `fast` too — this
+      // test is the ticker's: the cage is taken out of its world
+      delete r.snapshot.vault_choice; r.events = r.events.filter((x) => !(x.k === "note" && /cage/i.test(x.text)));
       // after the pair, the batches the world steps meanwhile carry no line of their own (they would evict the queue at 16×)
       if (done >= 1) r.events = r.events.filter((x) => !["callout", "rule", "hurt", "die", "note", "pickup", "level", "rank", "steal", "telegraph", "bones"].includes(x.k));
       // Cut 18 §1: `fast` keeps its engine LEAD_PROBE ahead (a fight is costed before the picture meets it) and ramps past 16× on a
@@ -344,7 +348,7 @@ try {
   await fakeDeath({ patches: [{ row, insert_at: 0, survive: 0.5, forecast_delta: 0.002 }, { row: { ...row, verb: { v: "attack" } }, insert_at: 0, survive: 0.6, forecast_delta: 0.25 }] });
   await sleep(100);
   const reaches = await page.evaluate(() => [...document.querySelectorAll("button.patch")].map((p) => ({ delta: p.querySelector(".delta")?.textContent ?? null, cls: p.querySelector(".delta")?.className ?? "" })));
-  check(reaches.length === 2 && reaches[0].delta === "reach ~0" && /flat/.test(reaches[0].cls) && reaches[1].delta === "reach +25%", `every patch carries a reach line: ${reaches.map((r) => r.delta).join(" · ")}`);
+  check(reaches.length === 2 && reaches[0].delta === "reach +0%" && /flat/.test(reaches[0].cls) && reaches[1].delta === "reach +25%", `every patch carries a reach line: ${reaches.map((r) => r.delta).join(" · ")}`);
   // the report: the LEARNED chips wrap and `alert:rising` reads `alert · rising`; the TRACE sheet from a ledger line
   await page.evaluate(() => {
     const r = window.__riddle; const L = r.lineage;
@@ -554,7 +558,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 4, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, stalled: 1 } }); });
   await sleep(150);
   let tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "returned 2 · stalled 1 · deaths 1", `no banks: the stall tile takes banked's place, returned counts the rest (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "stalled 1 · returned 2 · deaths 1", `no banks: the stall tile takes banked's place, returned counts the rest (${tiles.slice(3).join(" · ")})`);
   await shot("qaF-report-stalled");
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 6, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 2, returned: 3, stalled: 1 } }); });
   await sleep(150);
@@ -563,7 +567,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3 } }); });
   await sleep(150);
   tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "returned 3 · banked 0 · deaths 0", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "banked 0 · returned 3 · deaths 0", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
   const fakeStalled = await page.evaluate(async () => { const rep = await window.__riddle.engine.runOfflineQuick(600); return typeof rep.stalled; });
   check(fakeStalled === "number", `the fake's report carries stalled (${fakeStalled})`);
   // the pile once: the exit line's `bones: 8 items on D4` stands alone; the client's `bones left` line only without it

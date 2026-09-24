@@ -38,7 +38,10 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // (one word, engine data: `gap` · `dice` · `stall`); the text reads as before (`goblin archer · D6 · gap`)
   const line = h("h1", { class: "death-line" }, h("span", { class: "cause" }, /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${margin}`), h("span", { class: "sep" }, " · "), h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
   // Cut 13 §4: the run's last two notes, engine data verbatim (`The green one: fire. Gambled: fire potion.`)
-  const notes = d.notes?.length ? h("div", { class: "death-notes num dim" }, ...d.notes.slice(-2).map((n) => h("div", { class: "note" }, n))) : null;
+  // QA 92eb880: never a `… saved him.` over a death (M, N: read as the verdict), nor the cage's loot beat (`Took the axe +1 from the cage.`,
+  // M: "unrelated to the ogre") — the core filters the first; the client keeps both off whatever the build
+  const shownNotes = (d.notes ?? []).filter((n) => !/ saved him\.$/.test(n) && !/^The cage opens\b|^Took .* from the cage\.$/.test(n));
+  const notes = shownNotes.length ? h("div", { class: "death-notes num dim" }, ...shownNotes.slice(-2).map((n) => h("div", { class: "note" }, n))) : null;
   // Cut 13 §5: a `dice` death says what the forecast said for that depth — the reach the camp showed for the floor, verbatim
   // an old death (the chronicle) was sent under another forecast: today's would be a false number (QA on 56f2a1d: `forecast said D7 0%`)
   const said = d.verdict === "dice" && !kept ? forecastSaid(app, d.depth) : undefined;
@@ -53,14 +56,15 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // the wire carried them falls back to the morgue's short forms
   const trace = traceTable(d.trace, { rows: d.rules?.rows ?? app.rules.rows, verbs: d.rules ? undefined : morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain });
   // Fractions 0..1 from the core: baseline (survival of the unpatched rules) is on every row (Cut 4 §2).
-  const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace);   // Cut 14 §4: the trace names the least-fired row on a full set
+  const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base });   // Cut 14 §4: the trace names the least-fired row on a full set
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
   const openMorgue = (): void => {
     void copyText(d.morgue);
     openSheet(() => h("div", { class: "morgue" }, h("div", { class: "label row-label" }, /* copy:label */ "morgue"), h("pre", { class: "morgue-text" }, d.morgue)));
   };
   // Cut 10 §3: `◯ jackal Ashar fell` (a companion leaves an egg); Cut 12 §6: a summoned ally reads `ally hound fell`, no egg
-  const eggs = lost.length ? h("div", { class: "chips eggs" }, ...lost.map((k) => h("span", { class: "chip egg" }, k.includes(" · ") ? "◯ " : "", lostLabel(k)))) : null;
+  // QA 92eb880 (N: "`ally hound fell` is drawn as a button … tapping it does nothing"): a line of text, not a chip
+  const eggs = lost.length ? h("div", { class: "eggs-line num dim" }, ...lost.flatMap((k, i) => [i ? " · " : "", h("span", { class: "egg" }, k.includes(" · ") ? "◯ " : "", lostLabel(k))])) : null;
   // Cut 2 §2: what this death left on the floor — the pile whose heir the matching grave names; silent when absent, and silent
   // when the exit line already says it (`… · bones: 8 items on D4`; two QA players on 50bb162 read the pair as two piles)
   const L = app.lineage;
@@ -69,13 +73,15 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const bones = pile && !/\bbones:/.test(d.line?.text ?? "") ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(pile.items)}`) : null;
   // Cut 17 §4: the frame — the banner over the dimmed floor (the line, the seal), the trace on a parchment panel, the patches as
   // tablets with a gauge; the console: edit · morgue · camp, and the gem applies the top patch (its survival on the stone)
-  const top = topPatch(patches);
-  const bar = renderBar(app);
+  let top = topPatch(patches);
+  // QA 92eb880 (M: "the header already shows the next hero (`♟2 · greedy`) above ♟1's death"): the bar names the hero who died
+  const bar = renderBar(app, kept ? {} : deadHero(d.morgue));
   const face = portrait(app, { hp: 0, dead: true, label: `D${d.depth}` });
-  const gemBtn = top
+  const makeGem = (): HTMLButtonElement => top
     // QA 23ed91f (K: "the gem reads `100%` with no label … I read it as the run's result"): the number, and the word the tap does under it
-    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" ? h("small", { class: "gem-w" }, /* copy:label */ "apply") : ""), cls: "patch-gem", pulse: true, onclick: () => top.btn.click() })
+    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" ? h("small", { class: "gem-w" }, /* copy:label */ "apply") : ""), cls: "patch-gem", pulse: true, onclick: () => top?.btn.click() })
     : gem({ label: /* copy:button */ "edit", pulse: true, onclick: () => app.go({ kind: "camp" }) });
+  let gemBtn = makeGem();
   const cons = renderConsole({ portrait: face.el, gem: gemBtn, tiles: [
     top ? tile({ id: "edit", label: /* copy:button */ "edit", icon: "edit", onclick: () => { app.editing = true; app.go({ kind: "camp" }); } }) : null,
     tile({ id: "morgue", label: /* copy:button */ "morgue", icon: "morgue", onclick: openMorgue }),
@@ -94,7 +100,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   let gone = false;
   if (d.patches.some((p) => p.camp_pending) && app.engine.deathDeltas) {
     const shown = d.patches;
-    setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => { if (!gone && f?.length) fillReach(patches, shown, f); }).catch((e) => console.warn("deathDeltas", e)); }, 0);
+    // QA 92eb880 (N): the landing re-ranks the tablets by the camp's reach; the gem follows the new top (a loss is never it)
+    const regem = (): void => { patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
+    setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => { if (!gone && f?.length) { fillReach(patches, shown, f); regem(); } }).catch((e) => console.warn("deathDeltas", e)); }, 0);
   }
   return { el, dispose: () => { gone = true; bar.dispose(); } };
 }
@@ -110,10 +118,17 @@ function fitLine(el: HTMLElement | null): void {
   requestAnimationFrame(() => fit(10));
 }
 
+/** QA 92eb880: the hero a death's morgue names — `heir 3` and his trait (`trait greedy`; the fake's `heir 3 · fighter · greedy`). */
+export function deadHero(morgue: string): { heir?: number; trait?: string } {
+  const heir = /\bheir (\d+)\b/.exec(morgue)?.[1];
+  const trait = /\btrait ([a-z_]+)/.exec(morgue)?.[1] ?? /\bheir \d+ · [a-z_]+ · ([a-z_]+)/.exec(morgue)?.[1];
+  return { heir: heir ? Number(heir) : undefined, trait };
+}
+
 /** Cut 17 §4: the gem's patch — the first that applies (not a held row's `at R2`, not a below-bar alternative): its button and its
  *  number (`92%`, the survival the patch reads; an unlock pseudo-patch's `buy`). The tablet it stands for is lit. */
 function topPatch(patches: HTMLElement): { btn: HTMLButtonElement; label: string } | null {
-  const btn = patches.querySelector<HTMLButtonElement>("button.patch:not(.below)");
+  const btn = patches.querySelector<HTMLButtonElement>("button.patch:not(.below):not(.neg)");
   if (!btn) return null;
   btn.classList.add("top");
   const unlock = btn.classList.contains("unlock");

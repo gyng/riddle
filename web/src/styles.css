@@ -542,7 +542,7 @@ main.frame.watch { max-width: 760px; }
 @keyframes carve { from { transform: scale(.55); opacity: 0; filter: brightness(2); } to { transform: none; opacity: 1; filter: none; } }
 @keyframes glint { to { transform: translateX(120%); } }
 /* the lit mode chip's clock (`fast 16`), Cut 15 §4, as a small corner mark on the tile */
-.cmd .tile[data-rate]::after { position: absolute; top: 3px; right: 5px; margin: 0; font: 600 10px var(--sans); color: var(--acc); }
+.cmd .tile[data-rate]::after { position: absolute; top: 3px; right: 5px; margin: 0; font: 600 10px var(--sans); color: var(--acc); max-width: 3.4em; overflow: hidden; white-space: nowrap; }
 
 /* the primary gem */
 .gem { position: relative; display: flex; align-items: center; justify-content: center; width: 84px; height: 84px; min-width: 84px; padding: 0 12px; border-radius: 50%;
@@ -850,3 +850,27 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .card .cost { white-space: nowrap; }
 /* Cut 18 §4: a stall's loop headline stays on one line (death.ts steps its face down to fit) */
 .death .death-line.loop .cause { white-space: nowrap; overflow: hidden; }
+/* QA 92eb880 — a first-pass forecast reads rough (dim, `…`) until the refine lands; a 0 % notch and a floor past the bank row dim */
+.forecast.rough .fc-bars .n, .forecast.rough .fc-ends { opacity: .6; transition: opacity .2s; }
+.notch.zero .dl, .notch.next.zero .dl, .notch.capped .dl { color: var(--dim); }
+.notch.capped .hex, .notch.capped .dp { opacity: .45; }
+.notch .dl .cap { display: block; margin-top: 2px; font: 600 10px/1 var(--sans); font-style: normal; color: #f3d27a; white-space: nowrap; }
+/* QA 92eb880 — a patch the camp's reach says loses is dim and never the gem's; `nothing beats base` heads a dice death's block */
+.patches button.patch.neg { opacity: .55; }
+.patches .patches-head { font-size: 12px; margin: 2px 0 4px; }
+.eggs-line { font-size: 13px; margin-top: 4px; }
+/* QA 92eb880 — a row an earlier one shadows: a dim tablet with `↑ R1` */
+.editor .row.shadowed { opacity: .5; }
+.editor .row.shadowed .shadow-mark { margin-left: 6px; font: 600 11px/1 var(--sans); color: #e0876a; white-space: nowrap; align-self: center; }
+/* QA 92eb880 — the chosen trait/class reads chosen (a tick), not inert; a free supply's × arms before it drops */
+.chip.trait.on > span:first-child::before, .chip.cls-offer.on > span:first-child::before { content: "✓ "; color: var(--acc); }
+.supplies .chip .x.armed { color: #ff9a7a; font-size: 12px; font-weight: 600; }
+.vault .chip .flav { font-size: 11px; }
+.hud .loot-drop { color: #ff8a70; font-weight: 600; }
+.forecast .fc-bars, .report-sheet .facts .chips.items { margin-top: 4px; }
+/* QA 92eb880 (N: "`· 8 earlier` (orange on parchment) and the `keep` button (pale on yellow) are hard to read") */
+.report-sheet .exit-lines button.ledger-more { color: #7a3d10; font-weight: 600; }
+.sheet .btn.primary, .panel .btn.primary { color: #1a1000; text-shadow: none; }
+.editor .row.shadowed .grip .shadow-mark { display: block; margin: 2px 0 0; font-size: 10px; }
+.editor .row.shadowed { opacity: 1; }
+.editor .row.shadowed > .chips, .editor .row.shadowed > .grip .rn { opacity: .45; }

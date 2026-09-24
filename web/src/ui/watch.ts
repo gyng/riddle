@@ -109,7 +109,7 @@ import { h, items, replace, spanOf } from "./dom";
 import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
 import { icon } from "./skin";
 import { makeViewer, type Viewer } from "./viewer";
-import { verbsAt, xpToNext } from "../engine/classes";
+import { verbsAt } from "../engine/classes";
 import { openSheet } from "./sheet";
 import { salvageValue } from "./salvage";
 import { setBusyHost } from "./progress";
@@ -120,6 +120,17 @@ import { markEnd, recordRun } from "./runlog";
 import { audio } from "../audio";
 
 type Tier = "bank" | "return" | "death";
+/** QA 92eb880 (N: the `fights` chip read `1.332247798006322×` over the portrait): a rate as the chip shows it — whole from 2×, one
+ *  decimal under it (`1.3`), never a float's tail. */
+const CAGE_BATCH = 8, CAGE_NEAR = 10;
+/** QA 92eb880: an unopened cage (`vault` tile) seen within CAGE_NEAR tiles of the hero. */
+export function cageNear(s: Snapshot): boolean {
+  const hx = s.hero.x, hy = s.hero.y;
+  for (let y = Math.max(0, hy - CAGE_NEAR); y <= Math.min(s.h - 1, hy + CAGE_NEAR); y++)
+    for (let x = Math.max(0, hx - CAGE_NEAR); x <= Math.min(s.w - 1, hx + CAGE_NEAR); x++) { const i = y * s.w + x; if (s.tiles[i] === "vault" && s.seen[i]) return true; }
+  return false;
+}
+export const rateText = (r: number): string => (r >= 2 ? String(Math.round(r)) : String(Math.round(r * 10) / 10));
 type FrameName = "map" | "fight";
 /** Cut 8A: the real renderer's frame cut (web/src/render/index.ts); the placeholder viewer has none. */
 type FrameViewer = Viewer & { setFrame?(frame: FrameName, focus?: { x: number; y: number; radius: number }): void };
@@ -385,16 +396,24 @@ export function renderWatch(app: App): Mounted {
   }
   function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
+  let lastLoot: number | undefined, lastLootRun = -1, lootDrop = 0, lootDropUntil = 0;
   function paintStake(s: Snapshot): void {
     hudSnap = s;
     if (cardUp) paintCardText();
     const st = s.stake;
     stake.hidden = !st;
     if (!st) return;
+    // QA 92eb880 (M: "gold `$77 → $65` in the den with only `snatched …` lines"): a fall in the loot shows its size beside it for 2.5 s
+    // (`$65 −$12`) — a theft of an item takes its worth with it
+    if (lastLoot !== undefined && st.loot < lastLoot && s.run.id === lastLootRun) { lootDrop = lastLoot - st.loot + (performance.now() < lootDropUntil ? lootDrop : 0); lootDropUntil = performance.now() + 2500; }
+    lastLoot = st.loot; lastLootRun = s.run.id;
     const parts: (string | HTMLElement)[] = [`$${st.loot}`];
+    if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}`));
     // Cut 6 §1: the kept number while a return/bank row exists (`$84 · keeps $50`)
     // Cut 13 §1: while the guard has fired a stall pays nothing, and the line says so before it is lost (`keeps $0 · stalling`)
-    if (st.stalling && !overridden) parts.push(" · ", h("span", { class: "kept stalling" }, /* copy:callout */ "keeps $0 · stalling"));
+    // QA 92eb880 (N: "`$75 · keeps $0 · stalling` held ~10 s, then the run returned with `keeps 60%`"): while the guard has fired the run
+    // may still come home keeping its share — the line says `stalling` alone; `keeps $0` is the exit's, once it ends stalled
+    if (st.stalling && !overridden) parts.push(" · ", h("span", { class: "kept stalling" }, /* copy:callout */ "stalling"));
     else if (st.kept !== undefined && !overridden) parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `keeps $${st.kept}`));
     for (const b of st.brought) parts.push(" · ", h("span", { class: b.insured ? "" : "risk" }, b.label, b.insured ? "" : "⚠"));
     if (overridden) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "returning"));
@@ -640,9 +659,11 @@ export function renderWatch(app: App): Mounted {
           break;
         }
         case "pickup": {
-          if (ev.id === heroId) found.push({ id: ev.id, kind: ev.item, known: true, label: ev.item });
-          const gold = /^gold\b\D*(\d+)/.exec(ev.item);   // Cut 7 §4: `$47` on a gold pickup (`gold (47)` core, `gold 47` fake)
-          if (gold) at(ev.t, () => ambient(`$${gold[1]}`));
+          const gold = /^gold\b\D*(\d+)/.exec(ev.item);   // Cut 7 §4: `+$47` on a gold pickup (`gold (47)` core, `gold 47` fake)
+          // QA 92eb880 (M: "FOUND gold `$1 · $2 ×3 · …` = $27 but `$38 carried`"): gold is the ledger line's, not a find — FOUND lists items;
+          // the ambient line is a gain (`+$3`, N: "a bare `$3` line")
+          if (ev.id === heroId && !gold) found.push({ id: ev.id, kind: ev.item, known: true, label: ev.item });
+          if (gold) at(ev.t, () => ambient(`+$${gold[1]}`));
           break;
         }
         case "note":
@@ -948,10 +969,12 @@ export function renderWatch(app: App): Mounted {
     else if (exitTier) {
       if (!(viewerIdle() || performance.now() > exitAt)) return;
       release(Infinity);
+      nextGem();   // QA 92eb880: the walk-out has played — now the gem says what comes next
       if (performance.now() < exitBeatUntil) return;   // Cut 14 §3: `BANKED $N` has its SCENE_MS first
       // Cut 2 §1: `rest 12m` for a beat, then the exit flow continues. Cut 14 §4: the banner sits low (`.rest`), under the frame's
       // callout line, and the ticker yields to it (rater S: `rest 20m` over `OGRE WINDS UP` on the death frame)
-      if (restS !== undefined && !restUntil) { restUntil = performance.now() + REST_BEAT_MS; ticker.classList.remove("show"); showBanner(/* copy:callout */ `rest ${spanOf(restS)}`, REST_BEAT_MS, "rest"); return; }
+      // QA 92eb880 (N: "`rest 20m` … after `0/36` reads as the hero resting instead of dying"): after a death the rest is the next heir's (`♟2 · rest 20m`)
+      if (restS !== undefined && !restUntil) { restUntil = performance.now() + REST_BEAT_MS; ticker.classList.remove("show"); showBanner(exitTier === "death" && snap ? /* copy:callout */ `♟${snap.run.heir + 1} · rest ${spanOf(restS)}` : /* copy:callout */ `rest ${spanOf(restS)}`, REST_BEAT_MS, "rest"); return; }
       if (performance.now() < restUntil) return;
       void finish(exitTier); return;
     }
@@ -973,7 +996,10 @@ export function renderWatch(app: App): Mounted {
     const want = Math.max(worldT, playing ? now + lead : -Infinity);
     if (engineTick >= want) return;
     const gap = worldT - engineTick;
-    const n = gap > BATCH_FAST ? Math.min(CATCHUP_MAX, Math.ceil(gap)) : Math.min(CATCHUP_MAX, Math.max(speed >= AUTO_FAST ? Math.max(BATCH_FAST, Math.ceil(speed * 0.6)) : BATCH, Math.ceil(want - engineTick)));
+    let n = gap > BATCH_FAST ? Math.min(CATCHUP_MAX, Math.ceil(gap)) : Math.min(CATCHUP_MAX, Math.max(speed >= AUTO_FAST ? Math.max(BATCH_FAST, Math.ceil(speed * 0.6)) : BATCH, Math.ceil(want - engineTick)));
+    // QA 92eb880 (N: twice `A cage: three inside, one to take.` with no sheet, in `fast`): a batch longer than the cage's 50-tick grace
+    // stepped over the whole choice (the sheet reads the batch's last snapshot) — near an unopened cage the engine steps in short batches
+    if (snap && cageNear(snap)) n = Math.min(n, CAGE_BATCH);
     inflight = true;
     app.engine.step(n).then((r) => { inflight = false; if (!disposed && !done) handle(r); if (skipQueued) { skipQueued = false; void skipToEvent(); } })
       .catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; endControls(); });
@@ -1048,7 +1074,7 @@ export function renderWatch(app: App): Mounted {
       r = v >= stop ? 0 : Math.min(r, Math.max(0.25, ((stop - v) * 100) / left));
       el.dataset.hold = `${heldBeat.from}-${heldBeat.until}:${stop}`;   // dev: the held beat's span and its stop
       deadSince = -1;
-    }
+    } else if (el.dataset.hold) delete el.dataset.hold;   // no beat held: tools read the mode's own rate
     return r;
   }
   /** The rate before a held beat's easing (`was`: the dead stretch's start carried over, `fast`). */
@@ -1107,7 +1133,7 @@ export function renderWatch(app: App): Mounted {
   function paintRate(): void {
     const r = paused || hidden || done || exitTier ? 0 : speed > 0 ? speed : cardUp || cardWait ? RATE[mode] : 0;
     for (const m of Object.keys(modeBtn) as Mode[]) {
-      const want = m === mode && r > 0 ? String(r) : "";
+      const want = m === mode && r > 0 ? rateText(r) : "";
       if ((modeBtn[m].dataset.rate ?? "") !== want) { if (want) modeBtn[m].dataset.rate = want; else delete modeBtn[m].dataset.rate; }
     }
   }
@@ -1284,10 +1310,12 @@ export function renderWatch(app: App): Mounted {
     }, { modeless: true });
     paintCard(frame); applySpeed();
   }
-  function xpGained(): number {
-    const c = app.lineage.classes?.[cls] ?? { level: 1, xp: 0 }; let g = c.xp - before.xp;
-    for (let l = before.level; l < c.level; l++) g += xpToNext(l);
-    return Math.max(0, g);
+  /** QA 92eb880 (N: `fighter +0 · L4 ↑1` — the client's 40·L² ladder was not the core's): the run's XP is the exit line's (`ExitLine.xp` /
+   *  `level_ups`); an older build without them shows the gain only inside one level (nothing is computed off a ladder here). */
+  function xpOfRun(): { gained: number; level_ups: number } {
+    const c = app.lineage.classes?.[cls] ?? { level: 1, xp: 0 };
+    if (exitLine?.xp !== undefined) return { gained: exitLine.xp, level_ups: exitLine.level_ups ?? Math.max(0, c.level - before.level) };
+    return { gained: c.level === before.level ? Math.max(0, c.xp - before.xp) : 0, level_ups: Math.max(0, c.level - before.level) };
   }
   /** An engine call that hangs must never strand the player on the black exit screen. */
   function bounded<T>(p: Promise<T>, ms: number, what: string): Promise<T | undefined> {
@@ -1308,16 +1336,23 @@ export function renderWatch(app: App): Mounted {
     bar.freeze();
     // K: "the primary gem is gone; a tiny VERDICT label sits at the top right": the gem slot keeps a gem — what comes next (the
     // verdict, the report); a tap cuts the walk-out short. The busy label goes into it (the corner's stays hidden)
+    // QA 92eb880 (N: "VERDICT appears while the hero is still up (8/36), three more hits follow"): during the walk-out the gem slot holds
+    // the stilled pause; the verdict / report gem comes once the last frame has played (`nextGem`)
+    pause.disabled = true;
+    for (const b of [modeBtn.fights, modeBtn.fast, skip, bail]) b.disabled = true;
+  }
+  function nextGem(): void {
+    if (el.dataset.next === "1" || !pause.isConnected) return;
+    el.dataset.next = "1";
     const next = exitTier === "death" ? /* copy:button */ "verdict" : /* copy:button */ "report";
     const g = gem({ label: next, cls: "next-gem", pulse: true, onclick: () => { exitAt = 0; exitBeatUntil = 0; restUntil = 1; } });
     pause.replaceWith(g);
     setBusyHost(busyHost);
-    for (const b of [modeBtn.fights, modeBtn.fast, skip, bail]) b.disabled = true;
   }
   async function finish(tier: Tier): Promise<void> {
     if (done) return;
     done = true; clearInterval(pumpTimer); card.hidden = true; cardUp = false; el.dataset.card = "0"; scrub.hidden = true;   // Cut 14 §6: no run live
-    endControls();
+    endControls(); nextGem();
     // whatever happens below, the player reaches a screen with buttons
     const guard = window.setTimeout(() => { if (!disposed && app.view.kind === "watch") { console.warn("exit flow stalled; falling back to camp"); app.go({ kind: "camp" }); } }, 20_000);
     try {
@@ -1384,7 +1419,7 @@ export function renderWatch(app: App): Mounted {
       elapsed_s: Math.round((engineTick - startTick) / 10), runs: 1, sampled: false, learned, bests, found, pending: [],
       deaths: tier === "death" ? [{ cause: heroCause ?? exitLine?.text ?? /* copy:label */ "death", n: 1 }] : [],   // Cut 10 §3: the death it came from
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,
-      xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
+      xp: { class: cls, ...xpOfRun() },
       salvaged: reconcileSalvage(mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), L.gold_ledger ?? []), deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
       spent: spentRows(L.gold_ledger ?? []),   // Cut 13 §3: what the automations bought at this exit (`heal ×1 · −$40`)
       banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, stalled: stalled ? 1 : 0,   // Cut 18 §4: the stall the exit line names anywhere in it (`… · stalled · 1 supply back`), or the stake's flag bones_found: bonesFound,   // rest is still ahead: the camp shows it

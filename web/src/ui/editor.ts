@@ -20,14 +20,15 @@ import { h, clear, flash } from "./dom";
 import { openSheet } from "./sheet";
 import { NUMS, PCT, combosIn, condLabel, condName, isCardRow, needsN, ownRowCount, rowLabel, sameCond, sameVerb, verbLabel } from "./tokens";
 
-export type Editor = { el: HTMLElement; refresh(): void };
+export type Editor = { el: HTMLElement; refresh(): void; paintShadow(): void };
 /** Cut 17 §2: the camp's tablets. `compact()` true: each row is one carved tablet (`R1  hp < 30% → drink unknown`), a single
  *  tap target that calls `onTablet(i)` (the camp turns editing on at that row) — a fresh lineage's camp before the `edit` tile;
  *  false: the tablet carries the editor — chips, ▲▼, ×, and `+` under the rows. */
 export type EditorOpts = { compact?: () => boolean; onTablet?: (i: number) => void };
 /** What the editor edits: the hero's active set, or a companion's own rows. */
-export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; cardRows?(id: string): Row[] | undefined };
-export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id) });
+export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; cardRows?(id: string): Row[] | undefined;
+                        shadowedBy?(): (number | null)[] };   // QA 92eb880: per row, the earlier row that takes all its moments (the engine's read)
+export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id), shadowedBy: () => app.shadowedBy() });
 
 /** Cut 6 §6: a row as read-only chips (`foe: ranged → kite`), shared by the card sheet and the shelf. */
 export function rowChips(row: Row): HTMLElement {
@@ -74,6 +75,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     if (compact) {
       rows().forEach((row, i) => list.appendChild(h("button", { class: `row tablet compact${isCardRow(row) ? " locked" : ""}`, "data-i": i, onclick: () => opts.onTablet?.(i) },
         h("span", { class: "rn num" }, `R${i + 1}`), h("span", { class: "rtext" }, rowLabel(row)))));
+      paintShadow();
       return;
     }
     const n = ownRowCount(rows()), cards = rows().length - n, max = vocab().max_rows, over = n > max;
@@ -90,8 +92,26 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`, cards ? h("small", { class: "dim cards" }, /* copy:callout */ ` · ${cards} card${cards === 1 ? "" : "s"}`) : ""),
       n < max ? h("button", { class: "btn ghost", onclick: () => { rows().push(defaultRow()); commit(); } }, "+") : "",
     );
+    paintShadow();
     if (hl !== undefined && performance.now() < hlUntil) { const r = list.children[hl] as HTMLElement | undefined; if (r) { flash(r, "hl", Math.max(600, hlUntil - performance.now())); r.scrollIntoView({ block: "center" }); } }
     else hl = undefined;
+  }
+
+  /** QA 92eb880 (M, N: "R3 `hp < 30% → drink heal` under R1 `hp < 30% → return` … nothing marks it"): a row an earlier one shadows
+   *  is a dim tablet carrying `↑ R1` — the row that takes its every moment (the engine's `shadowed_by`, repainted as forecasts land). */
+  function paintShadow(): void {
+    const sh = bind.shadowedBy?.() ?? [];
+    [...list.children].forEach((el, i) => {
+      const by = sh[i];
+      const on = by !== null && by !== undefined && by < i;
+      el.classList.toggle("shadowed", on);
+      for (const m of el.querySelectorAll(":scope > .rtext > .shadow-mark, :scope > .grip > .shadow-mark, :scope > .shadow-mark")) m.remove();
+      if (!on) return;
+      const mark = h("small", { class: "shadow-mark num", title: `R${by + 1}` }, `↑ R${by + 1}`);
+      // compact: inside the tablet's text; editing: under the row's number on its grip (the chips stay the row's cond → verb)
+      const text = el.querySelector(":scope > .rtext"), grip = el.querySelector(":scope > .grip");
+      if (text) text.appendChild(mark); else if (grip) grip.appendChild(mark); else el.appendChild(mark);
+    });
   }
 
   function defaultRow(): Row {
@@ -136,6 +156,13 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       const body = h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "cond"));   // Cut 13 §6: every sheet is titled
       // the row's `×` (remove this cond) sits at the top, above the ~90 tokens (QA on 952e306: "× at the very bottom of a ~90-entry list")
       if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); edited(row); close(); } }, "×"));
+      // QA 92eb880 (M, N: "a threshold change is three taps … the chip opens the whole list, not the value"): a chip with a number
+      // opens on its values (the current lit), the other conds under them — a threshold is one tap from the sheet
+      if (existing && needsN(existing.k) && NUMS[existing.k]) {
+        const pctish = PCT.has(existing.k);
+        body.appendChild(h("div", { class: "sheet-head" }, condName(existing.k) + (existing.t ? ` ${existing.t.replace(/_/g, " ")}` : "")));
+        body.appendChild(h("div", { class: "grid nums now" }, ...NUMS[existing.k].map((n) => h("button", { class: `chip num${n === existing.n ? " on" : ""}`, onclick: () => { row.conds[ci] = { ...existing, n }; edited(row); close(); } }, `${n}${pctish ? "%" : ""}`))));
+      }
       const grid = h("div", { class: "grid" });
       for (const c of vocab().conds) {
         if (row.conds.some((rc, j) => j !== ci && sameCond(rc, c))) continue;
@@ -182,6 +209,15 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
           close();
         } }, verbLabel(v)));
       }
+      // QA 92eb880 (M: "`drink heal` is offered only on the row that already has it"): a verb another row holds that the vocabulary does
+      // not offer today sits dim with its reason (a drink/read of an unknown kind), never selectable
+      const seen = new Set<string>();
+      for (const r of rows()) {
+        if (r === row || r.verb.v === "tactic" || vocab().verbs.some((v) => sameVerb(r.verb, v)) || sameVerb(r.verb, row.verb)) continue;
+        const key = verbLabel(r.verb); if (seen.has(key)) continue; seen.add(key);
+        const why = (r.verb.v === "drink" || r.verb.v === "read") && r.verb.a && r.verb.a !== "unknown" ? /* copy:rule_token */ "unknown" : "";
+        grid.appendChild(h("span", { class: "chip verb locked off", "aria-disabled": "true" }, "⊘ ", key, why ? h("small", { class: "needs dim" }, why) : ""));
+      }
       return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "verb"), grid);
     });
   }
@@ -211,5 +247,5 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   }
 
   refresh();
-  return { el, refresh };
+  return { el, refresh, paintShadow };
 }

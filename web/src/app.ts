@@ -95,6 +95,11 @@ export class App {
   unlockCat: UnlockInfo[] = [];
   /** Cut 13 §5: the last forecast painted (the refine when it landed), so a `dice` death can say what it said for that depth. */
   lastForecast: Forecast | null = null;
+  /** QA 92eb880: the active set's shadowed rows (`Forecast.shadowed_by`, per row the earlier row that takes all its moments) as of the
+   *  last forecast painted for the rules now; `null` until one lands after an edit (then the lineage's own read, for the set it holds). */
+  private shadow: (number | null)[] | null = null;
+  private shadowEdited = false;
+  shadowedBy(): (number | null)[] { return this.shadow ?? (this.shadowEdited ? [] : this.lineage?.shadowed_by ?? []); }
   /** Cut 14: the watch's dynamic slowdowns (the fight frame's 2× / 4×, the near and scene holds); off, the clock runs the mode's
    *  flat rate. Persisted in localStorage like `mute` (`riddle.slowdowns`), on by default; the settings sheet toggles it. */
   slowdowns = readSlowdowns();
@@ -307,6 +312,7 @@ export class App {
     this.rowFires = null; this.rowFiresOf = undefined;   // Cut 14 §4: the counts were the set that ran
     this.persist();
     clearTimeout(this.fcTimer); clearTimeout(this.refineTimer); this.refineSeq++;
+    this.shadow = null; this.shadowEdited = true;   // QA 92eb880: the marks wait for the forecast of the rules now
     for (const fn of this.rulesListeners) fn();
     if (this.overBudget) return;
     const seq = ++this.rulesSeq;
@@ -335,7 +341,7 @@ export class App {
       // QA 23ed91f (L: switching to an empty set, the shaft kept the old set's `return 94%` for ~5 s, then flipped): a forecast whose
       // rules changed while it ran is not painted (the shaft stays dimmed `stale`); the next one, for the rules now, is
       if (!this.fcDirty) {
-        this.lastForecast = f;
+        this.lastForecast = f; this.shadow = f.shadowed_by ?? [];
         for (const fn of this.fcListeners) fn(f);
         this.scheduleRefine();
       }
@@ -354,7 +360,7 @@ export class App {
       try {
         const f = await this.engine.forecastRefine!();
         if (seq !== this.refineSeq) return;
-        this.lastForecast = f;
+        this.lastForecast = f; this.shadow = f.shadowed_by ?? [];
         for (const fn of this.fcListeners) fn(f);
       } catch (e) { this.refineOff = true; console.warn("forecastRefine unavailable", e); }
     }, REFINE_MS);
