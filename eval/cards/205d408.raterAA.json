@@ -1,0 +1,70 @@
+{
+  "$comment": "Blind rater raterAA, seed 1301, headed GPU driver 400x800 @3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, eval-fun FRAMEWORK.md sections 1-3, the template (and AGENTS.md, which the harness loaded as project instructions). Did not open PLAN.md, research/, docs/CUT*.md, other cards or source. Notes: scratchpad/raterAA/notes.md.",
+  "game": "Riddle",
+  "build": "205d408",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAA",
+  "horizon": {
+    "activeMinutes": 57,
+    "absences": ["simulated overnight via ?dev=1&absent=8h after 36 min active (I left ~4 min early); no real wall-clock absence"],
+    "runsWatched": 16,
+    "runsOffline": 16,
+    "ruleEdits": 11,
+    "notes": "36 min cold + 21 min after return. Runs watched mostly at 1x (fights), the last four in fast (4x). 3 deaths read (D7 goblin archer; D5 fire potion; D9 poison potion). 11 rule edits of my own (bank depth x5, return threshold x2, gambler row, boss row, tame row, several reverted experiments); 0 offered patches applied. Audio unassessed: window.__audio showed ctx null and an empty cue log."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: My third hero's best run came from a rule I wrote after the overnight report: he had learned the goblin warlord's counter on his own, so I added 'foe: boss → attack boss' above 'attack nearest' and the forecast's D9 wall went from 0% to 93%. In the run the warlord hit 'WARLORD BREAKS' and then 'GOBLIN WARLORD DOWN' in about six seconds, the stairs opened into the Fens (a new green biome with eels and splitting pink jelly), and he cut a chained captive free on the way down. At D10 the bank row fired with him on 10/42 hp: $247 banked, a new best, where every earlier run had stalled at D6–D8."
+  },
+  "probes": {
+    "clarity": "I mostly knew what was happening: the header line '$103 −$3 · keeps $103 · bank at D5' and the rule ticker 'R4 · attack nearest' under every fight told me which row drove each beat. But the cage sheet looked like mine to tap and was actually picked by a vault setting, and the forecast said 'D7 · bank 54%' next to a summary 'bank 40%'.",
+    "decisions": "I chose bank at D5 (78%, ~$59) over D6 (48%, ~$50), and later 'hp < 25% → return' with bank at D8 (0% death, ~$86) over the gambler row. I'd make both choices again.",
+    "mastery": "An hour in, I can read a verdict, see 'counter: attack boss' in the LEARNED list, and write the row that turns the warlord wall from 0% to 93%. At the start I didn't know the default rules never bank.",
+    "tension": "I sweated at 'Down to 1 HP. R5 attack saved him.' and at the live 'keeps $X' line during the D8 bank run. The game noticed both in the reel.",
+    "feel": "Big pixel callouts ('ARCHER DRAWS', 'WARLORD BREAKS', 'SPLITS!') land on the beat, and the hero sprite stays readable. Cage sheets vanish before a tap lands, and I heard nothing (audio unassessed).",
+    "surprise": "'Found heir 2's bones: 9 items.' and 'Zeleth the goblin archer is avenged.' surprised me, and so did reaching the Fens. The monkey stealing something in nearly every run, and Zeleth being 'avenged' three times, got repetitive.",
+    "expression": "My set is a 'dive, flee at 25%, kill the boss first, bank at D12' fighter, and the editor tagged my drink-unknown row 'gambler'. With 5 rows it drifts toward the same shape anyone would write.",
+    "story": "'Gambled: invisibility potion. The amber one: caustic. Gambled: caustic potion. Down to 2 HP. Returned with $57.' The reel of my best run left out the warlord kill entirely.",
+    "pacing": "At 1x a run takes 40–100 s with short quiet gaps, and a check-in (read report, tweak, send) takes about 2 min. Re-buying the same three supplies every send is a chore.",
+    "failure": "'fire · D5 · GAP — The black one: fire. Gambled: fire potion.' plus the trace 'R2 drink unknown fired' told me exactly why. The line 'R1 drank heal at 12/42 hp WATCH' was the best single line in the game. The stamp said GAP even though my own row fired, and the patch list ranked a 33%-survival patch above two 100% ones.",
+    "social": "No one else was there. The named jackal 'Morul' recurred but never developed into anything.",
+    "autonomy": "I set my own goal: break the D8/D9 wall. Nothing asked me to; the shaft label 'D9 · warlord 0%' just sat there.",
+    "progression": "Within runs: kit, levels (fighter L4). Between runs: classes, conds, cards, vault, forge, rows 4→5, deepest D7→D11. Prices jumped from $300 to $675, '+1 row' was offered once then disappeared, and I never understood the forge.",
+    "aesthetic": "The painted camp banner and the ragged red death banner look great, and the pixel dungeons shift from brown Burrows to green Fens. I'd sit in it, but can't speak to sound.",
+    "return": "I came back to '16 RUNS · 8 BANKED · 8 RETURNED · 0 DEATHS · +$1252 banked' and 'PLATEAU R2 return ended 8 runs, none past D8', plus the warlord's counter learned. I decided to write a boss row because of it. I would not rather have stayed.",
+    "attribution": "My last hero died because I told him to drink unknowns at low hp. My warlord kill was my row ('R4 · attack boss'). The cage picks and 'the chores explored' in the reel were the game's."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Evidence: every fight shows the firing row ('R4 · attack nearest') and the header 'keeps $103 · bank at D5'; a mis-tap showed 'return 100% · ~$3' at once. Lapses kept it from strong: the cage sheet looks player-tappable but the vault's 'cage: weapon/armour' preference decides; supplies' effect opaque (strength +21 pts with no rule drinking it); shaft 'D7 · bank 54%' vs summary 'bank 40%'; 'throw' bought with no description; forge rows 'salvaged 5/15 → tier 1' unexplained." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Evidence: bank D5 78% ~$59 vs D6 48% ~$50; bank D7 ~$93/54% vs D6 ~$87/78%; return at 10% (death 12%, ~$234) vs 25% (0%, ~$193) — defensible trade-offs on a live forecast. Lapse: most shop cards were dominated ('reach ~0' — thief guard, kite archers, corridor fighting 'stall +43%'), and with 5 rows each new idea (tame, pray row, heavy→retreat) was measurably worse, so the space narrowed fast." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Evidence: D7 death → D5 bank → D6/D7 bank → D8 $196 → after reading 'counter: attack boss' I wrote 'foe: boss → attack boss' and hit D10 then D11. Lapse: the cage→armour discovery (54%→90%) came from poking a vault sheet, not from any feedback pointing me there; mid-session I plateaued at D6 for five runs." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Evidence: 'Down to 1 HP. R5 attack saved him.'; 'Down to 2 HP. Returned with $57.'; the ticking 'keeps $213 · bank at D12' before a poison death that lost it all. But with return at 25% the forecast read 'death 0%' and many runs were foregone conclusions; overnight: 16 runs, 0 deaths." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Evidence: 'ARCHER DRAWS', 'WARLORD BREAKS', 'SPLITS!' pixel callouts, foe names under sprites, hp counter. Cage sheets closed before my taps landed (3+ times). Audio unassessed (window.__audio ctx null, empty log)." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Evidence: 'Found heir 2's bones: 9 items.', 'Zeleth the goblin archer is avenged.', 'A cry from the dark: a captive, chained.', the Fens at D9. Repeats: 'The monkey stole the …' in almost every run; Zeleth 'avenged' three separate times; 'A den. Something sleeps.' constantly." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Evidence: the editor tagged my R2 '⌐ gambler'; my final set (flee 25%, boss first, bank D12) is mine. But 5 rows and a shop that sells 'card: boss focus' suggest the set converges on one answer." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Evidence: 'Gambled: invisibility potion. The amber one: caustic. Gambled: caustic potion. Down to 2 HP. Returned with $57.' has a turn. Lapse: my best run's reel ('pink jelly: splitter. D10: the Fens. … Banked $247.') omitted the warlord kill that was its turn." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 40–100 s per run at 1x, a line every ~2 s, occasional 4–6 s quiet spells; fast 4x compresses walks ('descend ×15'). Admin: every send I re-bought the same 3 supplies (consumed per run) and a monkey often stole them in the first minute; check-in ~2 min." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Evidence: 'fire · D5 · GAP / Gambled: fire potion' + trace 'R2 drink unknown fired'; 'R1 drink heal no item ← R1 drank heal at 12/42 hp WATCH'; morgue shows per-tick rule evaluation. Lapse: stamped GAP when my own row fired; patches '+ drop one …' never say which row is dropped, and the highlighted patch (survives 33%) ranked above two 'survives 100%' ones." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Evidence: I set 'break the D9 warlord' myself from the shaft label 'D9 · warlord 0%'; free to pick bank depth, class, cage preference. Order of unlocks is mostly a shop list." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Evidence: rows 4→5, rogue class, verbs throw/tame, conds on see/on kill/alert/turns/loot, vault 1→2, fighter L1→L4, deepest D7→D8→D10→D11, supplies list grew from 3 to 20 as items were identified. Lapse: '+1 row' offered once then gone; prices $300→$375→$562→$675; forge opaque." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Evidence: painted camp banner, torn red verdict banner with wax 'GAP' seal, pixel biomes (brown Burrows, teal Fens). Sound unassessed, so not above adequate." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Evidence: '16 RUNS · +$1252 banked · +$412 returned · 0 DEATHS', 'PLATEAU R2 return ended 8 runs, none past D8', LEARNED warlord counter → I wrote the boss row within 3 min and broke D9. Lapse: the plateau was trivially my own bank row, and the 16 offline runs were the same run 16 times; the reel says 'The lock took him to 9 HP' about a lock I never saw." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Evidence: 2 of 3 deaths were my gambler row ('R2 drink unknown fired'); the warlord kill was 'R4 · attack boss', my row. Lapse: cage picks and supplies' effects were the game's, and the reel credits 'the chores explored'." }
+  ]
+}

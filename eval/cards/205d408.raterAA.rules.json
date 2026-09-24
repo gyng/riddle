@@ -1,0 +1,76 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "preset"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "thief_guard"
+      },
+      "origin": "card"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "depth>=",
+          "n": 12
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    }
+  ],
+  "name": "fighter"
+}

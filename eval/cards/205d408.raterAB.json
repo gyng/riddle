@@ -1,0 +1,71 @@
+{
+  "$comment": "Blind rater raterAB, seed 1302, production build on :5230, headed GPU driver 400x800 @3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, eval-fun FRAMEWORK.md sections 1-3, the template, and the header comment of tools/driver.mjs (as the brief directs). AGENTS.md/CLAUDE.md were injected into my context by the harness automatically (project instructions: repo map, bot invariants such as 'bank 100% · return 60% · death 30%'); I did not open PLAN.md, research/, docs/CUT*.md, other cards or source.",
+  "game": "Riddle",
+  "build": "205d408",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAB",
+  "horizon": {
+    "activeMinutes": 50,
+    "absences": [
+      { "kind": "simulated", "length": "8h", "via": "?dev=1&absent=8h", "note": "loaded once after ~34 active minutes (I misjudged the clock; short of the 40 asked), then ~16 minutes on return (short of 20)" }
+    ],
+    "runsWatched": 12,
+    "runsOffline": 16,
+    "ruleEdits": 18
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: Heir 3 went down with my new drink-heal rule and two bought potions, but the goblin warlord on D8 killed him with $105 carried because the thieves' den had stolen his heals. I took the death screen's 'foe: boss → attack boss' patch and put my own 'hp < 20% → return' on top; overnight heir 4 killed the warlord ('The Warlord cornered him to 13 HP; R2 attacked him; first boss'). On return I added 'adjacent ≥ 2 → cleave' and watched him break the warlord again live ('WARLORD BREAKS' → 'GOBLIN WARLORD DOWN'), cut a captive down on D10 and bank $365 in the Fens at D12."
+  },
+  "probes": {
+    "clarity": "Mostly yes: the death banner 'GOBLIN · D5 · 6 UNKNOWN UNUSED' and the trace 'R1 unknown item' on every row told me why drink heal never fired; but I lost three cages before learning that the vault sheet's 'cage: weapon/armour/potion/scroll' auto-picks, and 'survives 100% · base 100%' on a GAP death made no sense.",
+    "decisions": "Adding 'hp < 20% → return' took the exit split from 'death 24%' to 'bank 56% · return 43% · death 1%', a real depth-vs-safety trade I would defend; my 'foe: summoner', 'foe: telegraph → retreat' and 'foe: ranged' rules each lowered the forecast, which taught me but also said attack nearest nearly always wins.",
+    "mastery": "An hour ago I didn't know unidentified potions don't count as 'heal'; now I stack drink heal at 50%, cleave on adjacent ≥ 2 and a conditional bank ('depth ≥ 12 · hp < 75%'), and the deepest went D5 → D12.",
+    "tension": "Early runs sweated ('$86 · death: lose all' on the HUD while HP bled 36 → 0 at 1×), but once the return rule was in, the forecast read 'death 1%' and the overnight came back '0 DEATHS', so the stakes mostly evaporated.",
+    "feel": "Callouts landed: 'WARLORD BREAKS', 'IT SHELLS', '−5 hp · ogre', HP ticking '33/42'; lapses: 'ATTACK ? NO PATH' printed over the D5 label, frequent 'attack ✗ no target'; audio context never started under my driver, so audio unassessed.",
+    "surprise": "The thieves' den ('The den wakes: thieves on every side') stealing my heal potions changed my build (I tried an attack-thief row), and finding 'heir 2's bones: 10 items' was a nice jolt; by the end the reel repeated 'A thief snatched the teleport scroll' every run.",
+    "expression": "My fighter: drinks heal at half HP, cleaves when surrounded, goes for the boss first, rests between rooms, turns home at 20% and banks past D12 only while above three-quarters health.",
+    "story": "Heir 1 and 2 died to archers and the Goblin Captain on D5; heir 3 found both their bones, banked D7, then died to the warlord; heir 4 killed that warlord overnight — a lineage with a turn in it.",
+    "pacing": "In-run: a 1× run lasted 30 s early to ~4 min late with steady lines every 1–2 s; admin: each edit waited ~5–8 s for the forecast to settle and the loadout × / add taps were fiddly; the check-in after 8 h took about 3 minutes to read and decide.",
+    "failure": "Death screen: seal 'GAP', cause 'goblin warlord · D8', 'died $0 · $105 carried', a trace with R-number per tick and three patches priced 'survives 17% · base 0% · reach D9 +39%', one tap to apply; the drop sheet showed fire counts 'R1 0/162 · R2 153/162'.",
+    "social": "No people; named foes ('Thix the goblin archer is avenged', 'Zelix the jackal, gone wild') and heirs' bones give a thin sense of a lineage, nothing that develops.",
+    "autonomy": "I chose to send a hero at the warlord with the forecast reading 'death 100%' just to see him, and later chose where to bank (D6 → D7 → D8 → D12).",
+    "progression": "Within run: cage items, kit, XP; persistent: fighter L1 → L4 (shield bash, cleave), rows 4 → 7, classes rogue/ranger, 'auto: restock' and 'auto: keep weapon+armour' as automation; lapse: every card reads 'reach ~0 at R3', and rows escalated to '◆7 · $1312'.",
+    "aesthetic": "Painted camp banner of two heroes descending, parchment sheets and a red death banner are handsome; the pixel dungeon changes palette by region (brown Burrows, teal Fens); would sit at the camp, less so in the flat-lit corridors.",
+    "return": "I came back to '16 RUNS · D10 DEEPEST · 3 BANKED · 13 RETURNED · 0 DEATHS', a PLATEAU line 'R1 return ended 11 runs, none past D10', 'first boss: goblin warlord', new facts (eel, wraith, pink jelly), and I decided to push bank depth to 12 and retune heal; but '−$1280 spent' on heal ×32 via auto-restock quietly ate more than the $1198 returned.",
+    "attribution": "My retelling above uses 'my rule' and 'I took the patch' throughout; the reel said 'R2 attack saved him' and 'R3 drank', and the plateau line blamed my R1 by number — the only deaths I could not own were the thieves stealing heals."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "\"GOBLIN · D5 · 6 UNKNOWN UNUSED\" + trace \"R1 unknown item\" made the heal problem readable in one screen; but the cage sheet vanished three times before I found the vault's cage preference, \"survives 100% · base 100%\" on a GAP death, dual-currency prices only explained inside the buy sheet, and the bank HUD read \"keeps $196 · return at 20%\" while the sheet said BANKED 100%." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "\"hp < 20% → return\" moved the split to \"bank 56% · return 43% · death 1%\" and later \"depth ≥ 12 · hp < 75% → bank\" to 64% — defensible trade-offs priced before sending. Lapse: three targeting rules I tried (summoner, telegraph-retreat, ranged) were all dominated by attack nearest, and the ±10–14 forecast noise made marginal calls coin flips." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Deepest D5 → D6 → D7 → D8 → D10 → D12 as I learned identification, heal thresholds and cleave; but by the last 15 minutes every run banked at D12 and the next thing to learn (\"Find light\", \"enter the Deep\") was only a hint." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "\"$86 · death: lose all\" on the HUD while HP bled to 0 at 1× was real stakes, and pushing into the warlord at \"death 100%\" was my choice; once the return rule was in, the forecast said \"death 1%\" and the overnight returned \"0 DEATHS\" — the risk became optional and I stopped sweating." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Big pixel callouts \"WARLORD BREAKS\" / \"GOBLIN WARLORD DOWN\" and ticking HP \"33/42\" land on the fights; lapses: \"ATTACK ? NO PATH\" overprinted the D5 label, \"attack ✗ no target\" chatter, and my mode choice (fast 32×) persisted silently into the next send. Audio unassessed (window.__audio ctx null under my driver; I could not hear it)." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Thieves' den (\"thieves on every side\") stole my heals and changed my rules; heir bones, a chained captive (\"Cut the captive down. The stairs are clear.\"), bloats (\"The air stings\"), hunger (\"The floor is hungry. Find light.\"); but the thief-snatch lines repeated in nearly every reel." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My final seven rows (return 20%, attack boss, heal 50%, cleave on adjacent ≥ 2, attack nearest, rest 50%, bank at D12 only while hp < 75%) are recognisably mine, but the core is still the preset's attack nearest and most specialised targeting lost to it." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "A lineage arc with a turn: heirs 1–2 die on D5, heir 3 finds \"heir 2's bones: 10 items\" and dies to the warlord, heir 4 kills him (\"The Warlord cornered him to 13 HP; R2 attacked him; first boss.\"). Lapse: late reels were boilerplate (\"A thief snatched the poison potion. D12: the Fens. Banked $248.\")." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 1× runs from 30 s to ~4 min with a line every 1–2 s, few dead stretches; check-in after 8 h ~3 min. Administration drags: 5–8 s forecast settle after each tap, fiddly loadout (× on the free leash did nothing, some supply taps didn't add), and ▶▶| still took 55 s to reach the report." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Every death gave cause + margin + rule: \"slain by goblin · blow 2 · 1 hp short\" in the morgue, per-tick trace with the rule that fired and why R1 didn't, patches priced \"survives 17% · base 0% · reach D9 +39%\", one tap to apply, next heir ready. Lapse: \"survives 100% · base 100%\" on death 2, and \"+ drop one\" didn't say which row until the sheet opened." },
+    { "id": "social", "human": 0.3, "bot": "na", "proxy": "n/a", "note": "Named, avenged foes (\"Thix the goblin archer is avenged\") and heirs finding their predecessors' bones; no people, no developing relationship; an ally hound 'fell' in a report without my ever seeing it." },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goals (send one hero at the warlord at \"death 100%\" to see him; choose bank depth 6/7/8/10/12); depth ≥ is capped at 12 in the picker and the Deep is gated, so the goal space narrows." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within run: cage kit and XP; persistent: fighter L1 → L4 with verbs (cleave), rows 4 → 7, classes, vocabulary growing from facts (\"drink heal\", \"attack buffer\", \"attack splitter\"), automation (\"auto: restock\", \"auto: keep weapon+armour\"). Lapse: every card reads \"reach ~0\" so cards felt pointless, and restock silently spent \"−$1280\"." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Painted camp banner, parchment sheets and a torn red death banner with wax seal are handsome; the pixel dungeon shifts palette by region (Burrows brown, Fens teal); the flat corridor tiles and overprinted labels keep it from strong. Sound unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Returned to \"16 RUNS · D10 · 3 BANKED · 13 RETURNED · 0 DEATHS\", \"PLATEAU R1 return ended 11 runs, none past D10\", first boss kill, new facts and pending \"R6 fired 3 of 16 runs\" — I made two edits within a minute. Lapse: \"+$1198 returned · −$1280 spent\" — auto-restock burnt more than the returns with no warning." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Reel lines name my rows (\"R2 attack saved him\", \"R3 drank\", \"R1 return ended 11 runs\"), the drop sheet shows each row's fire count, and my retelling is first person throughout. Lapse: the recurring heal thefts by thieves/monkeys felt like the dungeon's doing, not mine; my attack-thief row never fired on them." }
+  ]
+}

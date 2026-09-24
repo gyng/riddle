@@ -479,3 +479,30 @@ Structural note: the anchors cap an axis at 0.8 unless the rater saw "no lapse a
 horizon"; every card names at least one lapse on every axis it rates 0.8, so the totals have
 lived in 63–76 for thirteen cohorts. 95 needs 1.0 on most axes — a watch, a forecast and a night
 with *no* lapse an hour-long player can find. The next cuts have to close whole axes, not lists.
+
+## Cohort 14 (build 205d408: Cut 18 — the watch keeps its peaks; no contradiction on a screen)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AA | 1301 | 69.2 | none |
+| AB | 1302 | 69.7 | none |
+
+α = 0.808 (reliable). Mean **69.5** — up 1.8, the first rise in five cohorts. Feel back to 0.6
+from both (0.3 · 0.6 in cohort 13); mastery 0.8 (AA). Neither card names the watch's timing,
+the hidden hero or a wall without a reason: Cut 18's items landed.
+
+### The read
+
+1. **The cage is a decision the player does not get to make** (AA, AB: "closes before a tap
+   lands"; AA: the vault's `cage` setting "raised bank-at-D7 from 54 % to 90 %, more than all my
+   rule edits", found at ~25 min). The biggest lever in the game is a hidden preference.
+2. **A safe set has no stakes** (AB: `hp < 20% → return` → death 1 %, a night of 0 deaths,
+   banked at D12 every run). A return is an instant exit at 60 %: no risk between the rule and
+   home.
+3. **Admin**: the same three supplies re-bought every send (AA); restock spending more than the
+   night brought home without a word (AB); `+1 row` offered then gone.
+4. **The death screen still argues with itself**: GAP stamped on a death where the player's
+   own row fired (AA); `+ drop one` without naming the row; a 33 % patch ranked above two 100 %
+   ones after the reach re-rank (AA).
+5. **Repetition**: the monkey steals nearly every run; `Zeleth … is avenged` three times; every
+   card `reach ~0`.
