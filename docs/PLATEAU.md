@@ -442,3 +442,40 @@ feel, aesthetic, pacing, expression, autonomy, clarity, surprise — is the game
 what the watch looks like, what there is to want, how a run differs from the last. The next
 cut cannot be another lapse list; it has to change what a night *is* (a reason to want the
 second class, a floor that is not the Warrens again, a boss that is a fight, not a loop).
+
+## Cohort 13 (build 32971ad: Cut 16 — freshness, a class at the wake, the Burrows, the Warlord's break; Cut 17 — the frame)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| Y | 1101 | 67.3 | none |
+| Z | 1102 | 68.1 | none |
+
+α = 0.863 (reliable). Mean **67.7** — flat against cohort 12 (67.9). Aesthetic 0.6 · 0.6 and feel
+0.3 · 0.6: the new frame did not move either. Decisions, failure, return, attribution hold 0.8
+from both; progression 0.8 (Y), story 0.8 (Z).
+
+### The read
+
+The frame is not what the raters look at for an hour: they look at the watch. Both name the
+watch's timing and legibility first, and neither mentions the chrome except the death screen's
+`APPLY` sending the heir at once.
+
+1. **The watch swallows its peaks and holds its dead time** (feel, pacing): `GOBLIN WARLORD
+   DOWN` "went by in about a second" in `fights`; every cage holds ~30 s (Cut 15 §5's wait) —
+   "about 90 s of one 5-minute watch"; `fast` read slower than `fights`; monsters stack on one
+   tile and "the warlord sprite hid my hero completely"; stacked callouts hide the fight.
+2. **Walls without a reason** (clarity): `D9 0%` for every set "with no reason given, until I met
+   the Goblin Warlord" — the forecast knows the boss seals D8 and does not say so.
+3. **Contradictions** (clarity, failure): `drink ✗ no item` with `heal potion ×4` in FOUND; the
+   stall screen blaming a jackal while its trace shows the rater's gas-retreat ping-pong; a
+   stall keeping 0 % beside a death's $40 wake pay; `RUNS 1 · DEATHS 0` after a stall; `APPLY`
+   inserting at R1 above drink heal and sending the next heir at once.
+4. **An inert middle** (decisions, expression): every card reads `reach ~0`; gold idles at $2016
+   (the gold price is on the unlock sheet, not on the tile); bank dominates return.
+5. **Sameness** (surprise, pacing): D1–D7 the same mix on the same tiles; nights of 13 × `D8 ·
+   BANKED` or `returned $31–55`.
+
+Structural note: the anchors cap an axis at 0.8 unless the rater saw "no lapse across the
+horizon"; every card names at least one lapse on every axis it rates 0.8, so the totals have
+lived in 63–76 for thirteen cohorts. 95 needs 1.0 on most axes — a watch, a forecast and a night
+with *no* lapse an hour-long player can find. The next cuts have to close whole axes, not lists.

@@ -1,0 +1,69 @@
+{
+  "$comment": "Blind rater Y. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md sections 1-3 (read by printing up to section 4), eval/SCORECARD.template.json. Also opened tools/driver.mjs header and eval/score.sh (tooling only) and eval/presets.json idle-roguelike weights line. No PLAN.md, research/, docs/CUT*, other cards or source. Played headed on the GPU at 400x800 3x. Notes: scratchpad/raterY/notes.md; shots: scratchpad/raterY/shots/.",
+  "game": "Riddle",
+  "build": "32971ad",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterY (blind agent, seed 1101)",
+  "horizon": {
+    "activeMinutes": 54,
+    "absences": ["simulated overnight via ?dev=1&absent=8h (taken after 36 min active, not 40; returned for ~18 min). No real-time absence; return scored same day, against the idle protocol's anti-bias advice."],
+    "runsWatched": 13,
+    "runsOffline": 16,
+    "ruleEdits": 12
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: After the overnight my greedy heir kept banking at D8 because a goblin warlord walled D9 at 0%, so once a run taught me 'counter: attack boss' I wrote 'depth ≥ 8 · foes ≥ 1 → attack boss' and the forecast jumped D9 0% → 67% at the cost of 25% death. The first try slew the warlord and then died at 1 hp in the Fens to splitting pink jellies because my gas-retreat rule kept him dancing and bank said 'no way' down there, so I added 'hp < 25% → return' as a fallback. The next heir broke the warlord in five seconds, ground through the jellies with 'R2 drink heal saved him', and banked $215 at D10, my new best."
+  },
+  "probes": {
+    "clarity": "Mostly yes: 'R3 ATTACK GOBLIN' over the fight and the D1–D8 shaft told me what the rules did; I was lost when the stall screen said 'Stalled: the jackal, no path' while its own trace showed my gas-retreat rule ping-ponging, and when a bought card silently pushed death 4% → 13%.",
+    "decisions": "Swapping 'return' for 'bank' (~$78 → ~$118) and adding 'attack boss' (D9 0% → 67%, death 4% → 25%) were choices I'd defend; the second I'd make again, the first was a free upgrade rather than a choice.",
+    "mastery": "I now order safety rows above 'attack nearest' (the offline death 't6970 R7 bank' then 't6980 R6 attack nearest' taught me) and know bank fails in the Fens.",
+    "tension": "I sweated carrying '$134 · keeps $0 · stalling' and the D9 push at 25% death; the warlord kill itself resolved in about one second of the watch.",
+    "feel": "The callouts land ('WARLORD BREAKS', 'GOBLIN WARLORD DOWN'), but foes stack on one tile, the warlord sprite hid my hero entirely, and the Fens were minutes of 'R8 · attack nearest / R5 · retreat'. Audio unassessed (could not hear; __audio not readable as a list in this build).",
+    "surprise": "Bloats that 'pop!', thieves and monkeys stealing my heal potion, finding 'heir 1's bones: 12 items', the warlord's 'shielded', and the Fens' splitting jellies each changed a rule; 'Krak the jackal, gone wild' and 'Vrim the goblin is avenged' repeated nearly every run.",
+    "expression": "My set — depth≥10 bank, heal, hp<25% bank, hp<25% return, gas retreat, attack boss, cleave, attack — reads as a cautious boss-hunting fighter, though it converged on what the shaft rewards.",
+    "story": "The reel line 'An archer took him to 1 HP; R6 attacked; died to goblin.' and the named killers who get 'avenged' by later heirs gave me anecdotes.",
+    "pacing": "Check-ins were 1–3 minutes and chosen; in-run, each cage parked the watch ~30 s while I read, and the Fens dragged at 1×.",
+    "failure": "The morgue line 'R6 depth not ≥5' ×4 while the rogue explored at 1 hp told me exactly which of my conditions killed him, '2 hp short'.",
+    "social": "None; named nemeses (Vrim, Morusk, Skim) are flavour, not relationships.",
+    "autonomy": "I chose to hunt the warlord and to push past the 'PLATEAU / R1 bank ended 4 runs, none past D8' line; nothing asked me to.",
+    "progression": "Within-run: L2→L4, 'verb · cleave', 'counter: attack boss'; between runs: rows 4→8, vault, supplies 3→5, rogue then ranger; automation: 'auto: restock' rebought 'heal ×30 · −$1200' overnight without me.",
+    "aesthetic": "The camp's painted stairwell and parchment sheets are handsome; the pixel dungeon is a tight, stacked close-up I would not sit in.",
+    "return": "I came back to '16 RUNS · 13 BANKED · 3 DEATHS · +$2168 home', a PLATEAU line naming my R1, and 'R7 fired 4 of 16 runs', and I decided to reorder R7 and raise R1 because of it; I did not wish I'd stayed.",
+    "attribution": "'I put depth ≥ 5 on the bank rule, so he wandered at 1 hp' — my rule, my death; the only misattribution was the stall headline blaming the jackal."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Shaft + callouts make goals legible ('R3 ATTACK GOBLIN'); but the stall headline 'Stalled: the jackal, no path' contradicted its trace (R2 retreat / · explore), the kite-archers card made death 4%→13% with no word, the report said 'RUNS 1 · DEATHS 0' after a stall, and the forecast lags a few seconds after edits." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "'depth ≥ 8 · foes ≥ 1 → attack boss' moved D9 0% → 67% but death 4% → 25% — a real bank-or-push trade I made at check-in. Lapse: 'bank' strictly dominated 'return' (~$78 → ~$118, keeps 100%) and every card showed 'reach ~0', so part of the menu is dominated." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Deepest went D7 → D8 → D10 as I learned ordering ('t6970 R7 bank' preempted by 't6980 R6 attack nearest'), bank-over-return, and the boss counter; much of the lift came from the forecast telling me rather than me reading the dungeon." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Carried stakes were real ('$126 carried · keeps 0% · stalled', '$182 carried' lost in the Fens), but the peak ('GOBLIN WARLORD DOWN') resolved in ~1 s of the watch and most offline outcomes arrive as a ledger." },
+    { "id": "feel", "human": 0.3, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Big callouts ('WARLORD BREAKS') are punchy, but monsters stack on one tile, the warlord sprite fully covered the hero, cages park the watch ~30 s, and the Fens were minutes of alternating 'R8 · attack nearest / R5 · retreat'. Audio unassessed." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Bloats ('it swells', 'pops!'), thieves stealing heals, 'Found heir 1's bones: 12 items', warlord 'shielded', Fens jellies 'splitter' each changed my rules; D1–D7 repeated (Krak on D3, 'Vrim the goblin is avenged' on D4, bloats on D6) nearly every run." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Eight rows I wrote ('hp < 25% → bank' then '→ return' for the Fens, 'adjacent ≥ 2 → cleave', 'attack boss') are recognisably mine, but the forecast steers everyone toward the same bank/heal/boss spine." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Reels like 'An archer took him to 1 HP; R6 attacked; died to goblin.' and the chronicle '♟2 the curious rogue · found ♟1's bones · fell to a goblin' carry turns; nemesis 'avenged' lines repeat every run and lose meaning." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "Check-in 1–3 min, runs ~1–3 min in 'fights'; cages hold the run ~30 s each (≈90 s of one 5-min watch), 'fast' mode was slower than 'fights' (79 s, 'pick up ×35'), and the Fens dragged until I hit ▶▶|. Overnight vs 20-min absences not compared (one absence only)." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Death screen names cause, margin and rule: morgue 'slain by goblin · blow 2 · 2 hp short' with 'R6 depth not ≥5' each tick; patches with survive gauges; next heir starts at once. Lapse: the stall screen blamed 'the jackal, no path' and death 2's banner narrated the monkey's thefts instead of the gap." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goal (kill the warlord, pass the 'PLATEAU / R1 bank ended 4 runs, none past D8') and chose depth caps, class and trait freely; the dungeon itself is a fixed descent." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Rows 4→8, vault 1→2, supplies 3→5, rogue ('bank once') and ranger ('slay a boss'), L1→L4, new verbs 'cleave' and 'attack boss', automation 'auto: restock' ('SPENT heal ×30 · −$1200' overnight) and auto-keep. Lapse: ~12 'card:' unlocks each read 'reach ~0' and one made things worse." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Painted camp banner, parchment sheets, the torn red death banner with a wax 'GAP' seal are atmospheric; the in-run pixel view is cramped and cluttered. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Return screen: '16 RUNS · 13 BANKED · 3 DEATHS · +$2168 home', 'PLATEAU / R1 bank ended 4 runs, none past D8', 'R7 fired 4 of 16 runs', three deaths to open — I acted within a minute. Lapse: 13 of 16 offline runs were the same 'D8 · BANKED' line, and it was one simulated absence taken same day." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "I tell the deaths in first person: 'my R6 had depth ≥ 5 so he wandered at 1 hp', 'my bank row sat below attack nearest', 'my gas rule looped him'. Lapse: the stall headline pinned it on a jackal, and the forecast did much of the deciding." }
+  ]
+}

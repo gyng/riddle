@@ -1,0 +1,69 @@
+{
+  "$comment": "Blind rater card. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md §1-3, eval/SCORECARD.template.json (and eval/presets.json for the idle-roguelike weights, eval/score.sh to run it). No PLAN.md, research/, CUT docs, other cards or source opened. Also skimmed tools/driver.mjs header (the brief points to it). Notes: scratchpad/raterZ/notes.md; shots: scratchpad/raterZ/shots/.",
+  "game": "Riddle",
+  "build": "32971ad",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterZ (seed 1102, headed GPU phone 400x800 @3x, production build :5230)",
+  "horizon": {
+    "activeMinutes": 57,
+    "absences": ["simulated overnight via ?dev=1&absent=8h (16 offline runs, 'rested 320m'); not a real wall-clock absence"],
+    "runsWatched": 17,
+    "runsOffline": 16,
+    "ruleEdits": 16
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: My fourth heir kept coming home around D6-D8 until the overnight report said 'PLATEAU — R3 return ended 13 runs, none past D8', and the next run showed why: a shielded Goblin Warlord on D8 that sent him back at 7/42. I spent the gold I'd been hoarding on the boss-focus card, the forecast for D9 went from 0% to 22%, and I deleted my own useless 'foe: heavy → retreat' row which pushed it to 40%. The next heir hit 'WARLORD BREAKS', split a pink jelly on D9, took an axe from a cage, reached the Fens on D10 and banked $218 — my rule set's first run past the boss."
+  },
+  "probes": {
+    "clarity": "Did you ever not know what just happened? Twice: the forecast said 'D9 0%' for every rule set with no reason until I met the Warlord, and 'drink ✗ no item' fired while that run's FOUND list showed 'heal potion ×4'.",
+    "decisions": "Name a choice: I kept the bank row at D8 against a 76% death forecast (~$48) and it came home at 7/38 with $148 ('R1 drink heal saved him.'); I'd make that call again.",
+    "mastery": "What can I do now: I learned that 'return' has to sit below 'drink heal' (moving it took the forecast from bank 8% / ~$69 to 23% / ~$86) and that a boss wall reads as a flat 0% on the shaft.",
+    "tension": "Where I sweated: run 6 at 7/38 on D7 after 'pops! it swells −3 hp burst', with $148 carried, 'keeps' shown in green and 'death: lose all' on the first run.",
+    "feel": "What I saw: big pixel callouts 'R4 ATTACK GOBLIN' and 'WARLORD BREAKS' over the map; when two callouts stacked ('R4 HIT RANGED' / 'ARCHER DRAWS') and a jackal overlapped the hero's sprite it was hard to read. Audio unassessed (I could not hear it).",
+    "surprise": "What surprised me: a monkey stole the sword I had just caged ('The monkey stole the sword.'), bloats on D6 popping for most of my HP, and a Warlord with 'shields up' where the forecast had just said 0%.",
+    "expression": "My build to a friend: a greedy fighter who drinks heal at 30%, turns for home at 20%, backs into corridors when two things are adjacent, and banks only past the boss; the game tagged my drink-unknown row 'gambler'.",
+    "story": "One run: 'Zeleth the goblin archer is avenged.' fired on the run right after Zeleth killed my first heir, just after the rule I wrote because of that death fired ('R3 · attack ranged'), and the hero walked past his predecessor's bones on D4.",
+    "pacing": "Runs were 30 s to 3.5 min at 1x; the camp → send → report loop is quick, but every cage sat on 'choose one' for about 30 s when I didn't tap, and at first runs were over (50 s) before I could read them.",
+    "failure": "Why I lost: 'goblin · D5 · GAP' with 'R1 drink heal no item ← R1 drank heal at 8/40 hp' and the morgue's 'slain by goblin · blow 3 · 3 hp short' — my fault, I had deleted the return row.",
+    "social": "No other people or developing relationship; heirs are numbered (♟4) and dead foes get named ('Ashim the goblin').",
+    "autonomy": "I chose to push for the frontier rather than money, with the bank depth set at 5, 6, 8, then 10; nothing asked me to.",
+    "progression": "Within run: floors, XP (fighter L1→L4), cage picks; between runs: marks bought +1 row ×2, cards (thief guard, kite archers, gas step, boss focus), auto: restock, auto: keep weapon+armour, path: bones, vault slots, heirs with trait/class picks; but $2016 piled up with nothing to spend it on for most of the session.",
+    "aesthetic": "The camp is a painted banner over stone rule tablets and the death screen is a torn red banner with a wax seal saying 'GAP'; the dungeon is chunky brown pixel tiles that looked the same from D1 to D8 until the Fens on D10.",
+    "return": "I came back to '16 runs · 13 returned · 3 banked · 0 deaths · +$957 home', 'PLATEAU — R3 return ended 13 runs, none past D8', and 'R2 fired 0 of 16 runs: hp < 50% → drink unknown'; I deleted R2 and bought the boss card because of it, and I wouldn't rather have stayed.",
+    "attribution": "The last run ended at D10 because I bought boss focus and moved my bank row to 10; the death before that was mine ('I deleted the return row'); I say 'my rule' about R3/R5 and 'the card' about the bundles I bought."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "The shaft ('bank 81% · return 0% · death 19% · ~$44') made the default rules' 'death 100%' obvious after one death, but 'D9 0%' had no stated cause until I met the Warlord, 'drink ✗ no item' contradicted 'FOUND heal potion ×4', and tapping the gem APPLY sent the next heir straight away." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Bank depth was a real trade-off each check-in (D5 '48% ~$50' vs D4 '88% ~$49'; D8 '24% / death 76%'); lapse: most cards and my own rows read 'reach ~0' on the shaft, so many buys were indistinguishable, and gold had no use until the boss card." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "I got better (D4 death → D8 bank → D10 bank; learned rule order: return below drink heal took bank 8%→23%), but most of what I learned was 'buy the card named after what killed me'." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Chosen stakes were legible ('$148 · keeps $148 · bank at D8' at 7/38 hp), yet once the return row was in, 13 of 16 offline runs just came home at 60% and deaths stopped, so the risk flattened." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Callouts land on the beat ('R4 ATTACK GOBLIN', 'WARLORD BREAKS') and the watch ran smoothly headed; lapse: sprites overlap and stacked callouts ('R4 HIT RANGED' over 'ARCHER DRAWS') hid the fight. Audio unassessed." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Thieves ('The monkey stole the sword.'), bloats ('pops! it swells'), the shielded Warlord and a splitting jelly each changed my rules, but D1-D7 repeated the same jackal/goblin/archer/monkey mix every run." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My set had player rows (return at 20%, adj ≥ 2 → to corridor, bank at 10) and a 'gambler' tag, but by the end four of nine rows were bought cards, which a friend buying the same cards would share." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "'Zeleth the goblin archer is avenged.' after my first heir's death, finding heir 2's bones, 'R1 drink heal saved him.', 'WARLORD BREAKS' then 'D10: the Fens'; lapse: most reel lines are floor names and 'Banked $N.'" },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 30 s–3.5 min runs, events every 1–3 s, but a cage idles ~30 s on 'choose one'; admin: camp edits are quick but the unlock list is 30+ entries, and the first run (50 s) ended before I could follow it." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Every death named the fight, the gap and each rule's status ('R5 to corridor no path ← foes hold the way', '3 hp short'), with ranked patches ('hp < 20% → return · survives 100% · base 8%'); lapse: the applied patch went in at R1, above drink heal, which made the next forecast worse (bank 8%) until I moved it." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goals (frontier vs gold, bank depth 5/6/8/10, which cage item to take), but the only route choice is how deep, and cages decide for you if you don't tap in time." },
+    { "id": "progression", "human": 0.6, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Marks came steadily (◆+2..+8 per frontier) and bought rows, cards and automations ('auto: restock', 'auto: keep weapon+armour'); lapse: gold reached $2016 with almost nothing to buy, and several unlocks sat behind '⊘ slay a boss' / '⊘ an egg'." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Painted camp banner, parchment report plaques and a torn red death banner with a 'GAP' seal look good; the dungeon tiles were the same brown blocks for eight floors." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "The return report ('PLATEAU — R3 return ended 13 runs, none past D8', 'R2 fired 0 of 16 runs') led directly to two edits and a purchase that broke the boss within 15 minutes; lapse: the overnight's 16 runs had 0 deaths and all read alike (13 'returned $31-55'), so there was little to read beyond the audit." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Callouts carry the row number ('R2 · retreat', 'R6 · card gas') and the reel credits rows ('R7 attack saved him.'), so I said 'my rule' about wins and my deaths; lapse: bought cards fire as 'card thief guard' blocks whose inner lines I didn't write, and a monkey stole the sword despite that card with no row blamed." }
+  ]
+}
