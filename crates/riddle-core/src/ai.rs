@@ -55,20 +55,29 @@ fn hero_bfs(run: &Run) -> (Vec<i32>, Vec<i32>) {
 /// step; the rules decide what to do about it). Paths never depend on what is in view, so
 /// explore and descend cannot disagree about which corridor is open.
 fn hero_bfs_water(run: &Run, avoid: bool) -> (Vec<i32>, Vec<i32>) {
+    run.floor.map.bfs_parent(run.hero.pos, true, &hero_avoids(run, avoid))
+}
+
+/// `hero_bfs_water`'s obstacles. Cut 7: lingering gas is terrain too when another way exists.
+fn hero_avoids(run: &Run, avoid: bool) -> impl Fn(Pos) -> bool + '_ {
     let map = &run.floor.map;
     let hp = run.hero.pos;
-    // Cut 7: lingering gas is terrain too when another way exists.
-    map.bfs_parent(hp, true, &|p| avoid && p != hp && (map.get(p) == Tile::Water || run.mirrors.iter().any(|m| m.cheb(p) <= 1) || run.in_den_zone(p) || run.sleepers.contains(&p) || run.overlays.iter().any(|o| o.x == p.x && o.y == p.y)))
+    move |p| avoid && p != hp && (map.get(p) == Tile::Water || run.mirrors.iter().any(|m| m.cheb(p) <= 1) || run.in_den_zone(p) || run.sleepers.contains(&p) || run.overlays.iter().any(|o| o.x == p.x && o.y == p.y))
+}
+
+/// `hero_bfs`'s parents toward `goal` (the flood stops there — `Map::bfs_parent_to`).
+fn hero_path_to(run: &Run, goal: Pos) -> Vec<i32> {
+    run.floor.map.bfs_parent_to(run.hero.pos, true, &hero_avoids(run, true), goal)
 }
 
 /// A path step toward `goal`, avoiding water when possible.
 fn path_step(run: &Run, goal: Pos) -> Option<Pos> {
-    let (_, parent) = hero_bfs_water(run, true);
-    if let Some(q) = run.floor.map.first_step(&parent, run.hero.pos, goal) {
+    let map = &run.floor.map;
+    let hp = run.hero.pos;
+    if let Some(q) = map.first_step(&map.bfs_parent_to(hp, true, &hero_avoids(run, true), goal), hp, goal) {
         return Some(q);
     }
-    let (_, parent) = hero_bfs_water(run, false);
-    run.floor.map.first_step(&parent, run.hero.pos, goal)
+    map.first_step(&map.bfs_parent_to(hp, true, &hero_avoids(run, false), goal), hp, goal)
 }
 
 fn step_towards(run: &mut Run, cx: &mut Ctx, goal: Pos, parent: &[i32]) -> bool {
@@ -98,23 +107,15 @@ fn step_towards(run: &mut Run, cx: &mut Ctx, goal: Pos, parent: &[i32]) -> bool 
     false
 }
 
-/// Nearest reachable tile satisfying `pred` (by BFS distance), with the parent map.
+/// Nearest reachable tile satisfying `pred` (by BFS distance, then tile index), with the parent
+/// map (final along the path to it — `Map::bfs_nearest`).
 fn nearest_tile(run: &Run, pred: &dyn Fn(Pos) -> bool) -> Option<(Pos, Vec<i32>)> {
-    for avoid_water in [true, false] {
-        let (dist, parent) = hero_bfs_water(run, avoid_water);
-        let map = &run.floor.map;
-        let mut best: Option<(i32, Pos)> = None;
-        for (i, d) in dist.iter().enumerate() {
-            if *d <= 0 {
-                continue;
-            }
-            let p = map.pos(i);
-            if pred(p) && best.is_none_or(|(bd, _)| *d < bd) {
-                best = Some((*d, p));
-            }
-        }
-        if let Some((_, p)) = best {
-            return Some((p, parent));
+    let map = &run.floor.map;
+    let hp = run.hero.pos;
+    for avoid in [true, false] {
+        let found = map.bfs_nearest(hp, true, &hero_avoids(run, avoid), pred);
+        if found.is_some() {
+            return found;
         }
     }
     None
@@ -350,7 +351,7 @@ pub fn hunt_step(run: &mut Run, cx: &mut Ctx) -> Option<String> {
         run.hunt = None;
         return None;
     }
-    let (_, parent) = hero_bfs(run);
+    let parent = hero_path_to(run, goal);
     if step_towards(run, cx, goal, &parent) {
         Some(run.monsters[mi].kind.clone())
     } else {
@@ -453,7 +454,7 @@ fn vault_step(run: &mut Run, cx: &mut Ctx) -> bool {
     if !run.floor.map.is_seen(goal) || run.hero.pos == goal {
         return false;
     }
-    let (_, parent) = hero_bfs(run);
+    let parent = hero_path_to(run, goal);
     step_towards(run, cx, goal, &parent)
 }
 
@@ -576,7 +577,7 @@ fn descend_step(run: &mut Run, cx: &mut Ctx) -> bool {
         if !run.floor.map.is_seen(s) || run.hero.pos.cheb(s) <= 2 {
             return false;
         }
-        let (_, parent) = hero_bfs(run);
+        let parent = hero_path_to(run, s);
         return step_towards(run, cx, s, &parent);
     }
     if run.hero.pos == s {
@@ -586,7 +587,7 @@ fn descend_step(run: &mut Run, cx: &mut Ctx) -> bool {
     if !run.floor.map.is_seen(s) {
         return false;
     }
-    let (_, parent) = hero_bfs(run);
+    let parent = hero_path_to(run, s);
     if !step_towards(run, cx, s, &parent) {
         return false;
     }
@@ -710,7 +711,7 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
                 end_run(run, cx, ExitTier::Bank);
                 true
             } else {
-                let (_, parent) = hero_bfs(run);
+                let parent = hero_path_to(run, s);
                 step_towards(run, cx, s, &parent)
             }
         }
@@ -791,7 +792,7 @@ fn verb_pray(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
         crate::turn::pray(run, cx, a != "trait");
         return true;
     }
-    let (_, parent) = hero_bfs(run);
+    let parent = hero_path_to(run, goal);
     step_towards(run, cx, goal, &parent)
 }
 
@@ -2399,12 +2400,14 @@ fn can_see_hero(run: &Run, mi: usize) -> bool {
 }
 
 fn approach(run: &mut Run, cx: &mut Ctx, mi: usize) -> bool {
-    let hd = hero_dist(run).to_vec();
+    // The cached field itself (no copy per monster per tick): nothing below writes it.
+    hero_dist(run);
     let mp = run.monsters[mi].pos;
     let water_only = run.monsters[mi].has_tag("water");
     let map = &run.floor.map;
     let occ = |q: Pos| run.occupied(q) || (water_only && map.get(q) != Tile::Water);
-    if let Some(q) = map.step_down(&hd, mp, &occ) {
+    let step = map.step_down(&run.hero_dist, mp, &occ);
+    if let Some(q) = step {
         move_monster(run, cx, mi, q);
         return true;
     }

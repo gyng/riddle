@@ -465,7 +465,10 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
             eprintln!("DICE EMPTY {} seed {seed} run {id} D{} cause {} baseline {:.2} t10 {} turns {}", bot.name(), d.depth, d.cause, d.baseline, rec.t10.is_some(), d.trace.turns.len());
         }
     }
-    let f = g.forecast();
+    // `known_to` is the panel's range, not a sim result: the same `forecast_with` at MIN_SIMS
+    // (1/10 of the player's panel) reads the same field — this was 15–17 % of a job's CPU
+    // (docs/ITERATION_SPEED.md §3.2).
+    let f = riddle_core::forecast::forecast_with(&g, g.lineage.rules(), riddle_core::forecast::MIN_SIMS);
     r.known_to_ok = f.known_to == g.lineage.best_depth + 1;
     r
 }
@@ -490,6 +493,9 @@ fn main() {
     let hours = get("--hours", 8);
     let verdicts_per_seed = get("--verdicts", if quick { 3 } else { 8 }) as usize;
     let t_start = std::time::Instant::now();
+    // `METRICS_PHASES=1`: each phase's wall to stderr, and every job's (docs/ITERATION_SPEED.md).
+    let phases = std::env::var("METRICS_PHASES").is_ok();
+    let phase = |name: &str| if phases { eprintln!("phase {name}: {:.1}s", t_start.elapsed().as_secs_f64()) };
     // Cut 3: the quiet per-tick cost — one run to its end per bot, single-threaded, before the
     // parallel jobs (the FULL run reaches the deep biomes' floors).
     let quiet_ticks: Vec<(&str, f64)> = [Bot::Default, Bot::Edited, Bot::Full]
@@ -513,44 +519,60 @@ fn main() {
             (b.name(), t.elapsed().as_secs_f64() * 1e6 / ticks.max(1) as f64)
         })
         .collect();
+    phase("quiet ticks");
     let results: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
-    let jobs: Vec<(usize, u64)> = BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| (bi, s))).collect();
+    // One pool, one queue, longest first (`pop` takes from the end): the counter trials, then the
+    // cohort sets' stalls (one job per (set, seed), 4 h each ≈ 12 sends), then the bots with the FULL
+    // ones last in `BOTS` — so the short jobs fill the cores while the last long ones finish, where
+    // they used to wait for them in phases of their own. Every job is its own game; the results
+    // land in maps keyed by job, so the table is the same whatever the order.
+    #[derive(Clone, Copy)]
+    enum Job {
+        Counter(u64),
+        Cohort(usize, u64),
+        Bot(usize, u64),
+    }
+    let sets = Arc::new(cohort_sets());
+    let mut jobs: Vec<Job> = (1..=seeds).map(Job::Counter).collect();
+    jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| Job::Cohort(si, s))));
+    jobs.extend(BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Bot(bi, s))));
     // `--threads N` leaves cores to whatever runs beside the table (gates.mjs: the dayplayer's
     // sequential chains, which the full 32 starved — docs/ITERATION_SPEED.md §3.2).
     let threads = get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(4).min(32)) as usize;
     let jobs = Arc::new(Mutex::new(jobs));
+    let cohort: Arc<Mutex<CohortStalls>> = Arc::new(Mutex::new(BTreeMap::new()));
+    type Counters = BTreeMap<u64, (bool, f64, f64, f64)>;
+    let counters: Arc<Mutex<Counters>> = Arc::new(Mutex::new(BTreeMap::new()));
     let mut handles = Vec::new();
     for _ in 0..threads {
-        let jobs = Arc::clone(&jobs);
-        let results = Arc::clone(&results);
+        let (jobs, results, cohort, counters, sets) = (Arc::clone(&jobs), Arc::clone(&results), Arc::clone(&cohort), Arc::clone(&counters), Arc::clone(&sets));
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
-            let Some((bi, seed)) = job else { break };
-            let r = run_seed(BOTS[bi], seed, hours, verdicts_per_seed);
-            results.lock().unwrap().insert((bi, seed), r);
+            let Some(job) = job else { break };
+            let tj = Instant::now();
+            match job {
+                Job::Bot(bi, seed) => {
+                    let r = run_seed(BOTS[bi], seed, hours, verdicts_per_seed);
+                    if std::env::var("METRICS_PHASES").is_ok() {
+                        eprintln!("job {} {seed} {:.1}s", BOTS[bi].name(), tj.elapsed().as_secs_f64());
+                    }
+                    results.lock().unwrap().insert((bi, seed), r);
+                }
+                Job::Cohort(si, seed) => {
+                    let r = cohort_stalls(&sets[si].1, seed, 4);
+                    cohort.lock().unwrap().insert((si, seed), r);
+                }
+                Job::Counter(seed) => {
+                    let r = riddle_core::probes::counter_trial(seed);
+                    counters.lock().unwrap().insert(seed, r);
+                }
+            }
         }));
     }
     for h in handles {
         h.join().unwrap();
     }
-    // The cohort sets' stalls, on the same pool: one job per (set, seed), 4 h each (≈ 12 sends).
-    let sets = Arc::new(cohort_sets());
-    let cohort: Arc<Mutex<CohortStalls>> = Arc::new(Mutex::new(BTreeMap::new()));
-    let cjobs: Vec<(usize, u64)> = (0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| (si, s))).collect();
-    let cjobs = Arc::new(Mutex::new(cjobs));
-    let mut handles = Vec::new();
-    for _ in 0..threads {
-        let (cjobs, cohort, sets) = (Arc::clone(&cjobs), Arc::clone(&cohort), Arc::clone(&sets));
-        handles.push(std::thread::spawn(move || loop {
-            let job = cjobs.lock().unwrap().pop();
-            let Some((si, seed)) = job else { break };
-            let r = cohort_stalls(&sets[si].1, seed, 4);
-            cohort.lock().unwrap().insert((si, seed), r);
-        }));
-    }
-    for h in handles {
-        h.join().unwrap();
-    }
+    phase("jobs");
     let cohort = cohort.lock().unwrap();
     let results = results.lock().unwrap();
     let per_bot = |bot: Bot| -> Vec<&SeedResult> {
@@ -746,6 +768,7 @@ fn main() {
     // Verdict cost as the player pays it: one verdict at a time in the worker. The batch above ran
     // on every core, so its per-verdict wall times include contention; re-measure single-threaded on
     // a fresh sample of deaths after the batch has drained.
+    phase("report to verdict timing");
     let vsecs: Vec<f64> = {
         let mut v = Vec::new();
         for seed in 1..=3u64 {
@@ -762,6 +785,7 @@ fn main() {
     };
     let vmean = vsecs.iter().sum::<f64>() / vsecs.len().max(1) as f64;
     rows.push((format!("Verdict time ≤ 0.4 s (single-threaded mean of {})", vsecs.len()), format!("{vmean:.2} s"), vmean <= 0.4));
+    phase("verdict timing");
     let dsecs: Vec<f64> = all.iter().flat_map(|r| r.death_secs.iter().copied()).collect();
     let dmean = dsecs.iter().sum::<f64>() / dsecs.len().max(1) as f64;
     println!("death() with forecast deltas: mean {dmean:.2} s over {}", dsecs.len());
@@ -802,6 +826,7 @@ fn main() {
     // Cut 12 §4: a band's situation sits on one of the band's floors (drawn from the run's
     // seed), so "appears" is measured on the runs that passed the band's last floor it can sit
     // on; the trials force it onto its Cut 7 floor.
+    phase("to situations");
     let band: Vec<&riddle_core::engine::BandRun> = all.iter().flat_map(|r| r.band.iter()).collect();
     let mut sit_lines: Vec<String> = Vec::new();
     for (what, depth) in riddle_core::descent::SITUATION_DEPTHS {
@@ -820,6 +845,7 @@ fn main() {
         sit_lines.push(format!("{what:<8} D{depth:<3} appears {appear:>4.0}%   preset pass {p_pass:>4.0}% (left {p_left:>3.0}%)   answered pass {a_pass:>4.0}% (left {a_left:>3.0}%)   row: {}", riddle_core::probes::situation_answer(what).describe()));
         rows.push((format!("DEFAULT passes the {what} ≤ 20% of seeds"), format!("{p_pass:.0}%"), p_pass <= 20.0));
     }
+    phase("situation trials");
     println!("situations (Cut 7 §3):\n  {}", sit_lines.join("\n  "));
     // Cut 12 §2: the thief guard card answers the den — snatches with the card ≤ 20% of
     // those without, over the seeds (`probes::den_guard_trial`, the preset on a den floor).
@@ -830,6 +856,7 @@ fn main() {
     rows.push((format!("Thief guard cuts den snatches ≤ 20% of without (n={den_without})"), format!("{den_pct:.0}%"), den_pct <= 20.0 && den_without > 0));
     // Cut 12 §4: from D3 every floor rolls one situation, never the previous floor's kind, and
     // D3–10 hold ≥ 4 kinds on every seed (`probes::twist_sequence`).
+    phase("den");
     let seqs: Vec<Vec<Option<String>>> = (1..=seeds).map(riddle_core::probes::twist_sequence).collect();
     let mut tw_kinds_min = usize::MAX;
     let mut tw_gaps = 0usize;
@@ -856,10 +883,8 @@ fn main() {
     // set lacks it, the forecast's D9 row names the counter and inserting it at the top lifts
     // D9's reach by ≥ 0.3 on every seed (`probes::counter_trial`; the end placement is printed
     // beside it: position is the point).
-    let trials: Vec<(u64, (bool, f64, f64, f64))> = std::thread::scope(|sc| {
-        let hs: Vec<_> = (1..=seeds).map(|s| sc.spawn(move || (s, riddle_core::probes::counter_trial(s)))).collect();
-        hs.into_iter().map(|h| h.join().unwrap()).collect()
-    });
+    phase("twists");
+    let trials: Vec<(u64, (bool, f64, f64, f64))> = counters.lock().unwrap().iter().map(|(s, t)| (*s, *t)).collect();
     let named = trials.iter().filter(|(_, t)| t.0).count();
     let lifted = trials.iter().filter(|(_, t)| t.2 - t.1 >= 0.3).count();
     let mean = |xs: Vec<f64>| xs.iter().sum::<f64>() / ns.max(1) as f64;
@@ -870,6 +895,7 @@ fn main() {
     // Cut 11 gates (docs/CUT11.md): the chain's because on the state reasons of death traces;
     // the root-cause patch shown on theft/lock roots and its delta against the symptom's;
     // a dice death never empty.
+    phase("counter trials");
     let (bc_n, bc_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.because.0, a.1 + r.because.1));
     let bc_deaths: u32 = all.iter().map(|r| r.because_deaths).sum();
     let bc_pct = pct(bc_ok as usize, bc_n as usize);
@@ -921,6 +947,7 @@ fn main() {
     rows.push((format!("Stall verdicts: ≥ 1 patch fired ≥ 50% (n={sv_n})"), format!("{sv_ok}/{sv_n}"), sv_ok == sv_n));
     let (sr_n, sr_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_reel.0, a.1 + r.stall_reel.1));
     rows.push((format!("Stall reel line's cause == the trace's (n={sr_n})"), format!("{sr_ok}/{sr_n}"), sr_ok == sr_n));
+    phase("rest");
     println!();
     println!("{:<52} {:>18}  result", "gate", "value");
     let mut fails = 0;

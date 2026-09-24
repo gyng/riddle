@@ -1641,18 +1641,24 @@ fn situations_seen(run: &mut Run, cx: &mut Ctx) {
     }
     let map = &run.floor.map;
     let mut seen: Vec<&str> = Vec::new();
-    for (i, t) in map.tiles.iter().enumerate() {
-        if !map.visible[i] {
+    // The visible tiles in index order, 32 at a time: a block with none in view (most of the
+    // map) is one branch-free OR, not 32 tests.
+    const BLOCK: usize = 32;
+    for (b, block) in map.visible.chunks(BLOCK).enumerate() {
+        if !block.iter().fold(false, |a, v| a | v) {
             continue;
         }
-        let k = match t {
-            Tile::Shrine => "shrine",
-            Tile::Vault | Tile::VaultOpen => "vault",
-            Tile::Nest => "nest",
-            _ => continue,
-        };
-        if !seen.contains(&k) {
-            seen.push(k);
+        for (j, _) in block.iter().enumerate().filter(|(_, v)| **v) {
+            let t = &map.tiles[b * BLOCK + j];
+            let k = match t {
+                Tile::Shrine => "shrine",
+                Tile::Vault | Tile::VaultOpen => "vault",
+                Tile::Nest => "nest",
+                _ => continue,
+            };
+            if !seen.contains(&k) {
+                seen.push(k);
+            }
         }
     }
     let stray = run.monsters.iter().find(|m| m.stray && m.hp > 0 && map.is_visible(m.pos)).map(|m| (m.name.clone().unwrap_or_default(), m.kind.clone()));

@@ -1057,7 +1057,9 @@ impl LineageState {
     }
     /// Rows the rules may use: 4 plus the row unlocks (cap 10); `short_list` caps at 6.
     pub fn max_rows(&self) -> usize {
-        let n = 4 + ["row5", "row6", "row7", "row8", "row9", "row10"].iter().filter(|u| self.unlocks.contains(**u)).count();
+        // One descent to the `row…` ids, not six lookups: this runs on every tick (`ctx`).
+        use std::ops::Bound::{Excluded, Included};
+        let n = 4 + self.unlocks.range::<str, _>((Included("row"), Excluded("rox"))).filter(|u| ["row5", "row6", "row7", "row8", "row9", "row10"].contains(&u.as_str())).count();
         if self.variant_is("short_list") {
             n.min(6)
         } else {

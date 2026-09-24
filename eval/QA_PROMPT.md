@@ -14,9 +14,12 @@ lapses in text and numbers, not feel): from /home/g/p/riddle,
 `node tools/driver.mjs --dir scratchpad/{QA} --port {PORT} &` keeps one phone viewport
 (400×800, 2×) open for the whole session; command it with `tools/drive.sh {PORT} '{"op":"text"}'`
 (ops: goto, text, shot, click by visible label, tap, type, press, eval, js, wait, buttons, log,
-quit, and the compound `state`, `act` (click + wait for the engine + the new text) and `watch`
-(`{"op":"watch","ms":60000,"every":1000,"shots":4}`: a watch in one call) — the file's header
-lists them). Screenshots to look, `text` to read, click buttons by their
+quit, and the compound `state`, `act` (click + wait for the engine + the new text), `watch`
+(`{"op":"watch","ms":60000,"every":1000,"shots":4}`: a watch in one call), `send_and_watch`
+(`{"op":"send_and_watch","mode":"fast","skip":true}`: send, the mode, `▶▶|`, to the exit sheet
+or the death / report screen, with the lines that appeared and the shots) and `sheets` (every
+sheet this screen opens, read in a copy of the page — the session's game is untouched) — the
+file's header lists them). Screenshots to look, `text` to read, click buttons by their
 visible label; add `--headed` only if a lapse is about the render itself. Notes and screenshots
 under `scratchpad/{QA}/`. Open `{URL}?dev=1&seed={SEED}&fresh=1` once at the start.
 

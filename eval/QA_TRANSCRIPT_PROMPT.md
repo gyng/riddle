@@ -21,8 +21,9 @@ Two passes, in this order:
 2. **The reproduction.** Start the driver from /home/g/p/riddle:
    `node tools/driver.mjs --dir scratchpad/{QA} --port {PORT} &` (headless phone 400×800 2×;
    `tools/drive.sh {PORT} '{"op":"text"}'`; ops: goto, text, shot, click by visible label,
-   tap, type, press, eval, js, wait, buttons, log, quit; compound: `state`, `act`, `watch` —
-   the file's header). Open
+   tap, type, press, eval, js, wait, buttons, log, quit; compound: `state`, `act`, `watch`,
+   `send_and_watch` (a send watched to its end in one call) and `sheets` (every sheet a screen
+   opens, read in a copy of the page) — the file's header). Open
    `{URL}?dev=1&seed={SEED}&fresh=1`, then reproduce each transcript lapse once (the walk is
    deterministic on its seed: the same sends give the same runs), and play what the walk did
    not decide: **four hand edits of your own**, a patch tapped, two purchases with their

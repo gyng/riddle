@@ -13,6 +13,18 @@ use crate::wire::*;
 
 // ---------------------------------------------------------------- harness
 
+/// `f` for each seed on its own thread, the results in seed order: the long seed loops are
+/// the suite's critical path (docs/ITERATION_SPEED.md §3.4); every seed is its own game, so
+/// what each asserts is unchanged. A panicking seed fails the test with its own message.
+fn par_seeds<T: Send>(seeds: impl IntoIterator<Item = u64>, f: impl Fn(u64) -> T + Sync) -> Vec<T> {
+    let seeds: Vec<u64> = seeds.into_iter().collect();
+    let f = &f;
+    std::thread::scope(|sc| {
+        let hs: Vec<_> = seeds.iter().map(|&s| sc.spawn(move || f(s))).collect();
+        hs.into_iter().map(|h| h.join().unwrap_or_else(|e| std::panic::resume_unwind(e))).collect()
+    })
+}
+
 /// A game with a live run on an open 16×12 room, no monsters or items.
 fn arena() -> Game {
     arena_seed(1)
@@ -1246,6 +1258,18 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     // Cut 5: 12 h (situations on D1–5 gave this seed a new best on its 17th run of 8 h);
     // Cut 8B: 16 h (the first stray on D2 moved the bests again). Cut 13: `hp < 35 %` (at
     // 20 % the set died three times in 16 h once running thieves stopped counting as foes).
+    // The client's path (below) runs beside the 16 h night: two games, one thread each.
+    let chunked = std::thread::spawn(|| {
+        let mut q = Game::new(5);
+        let mut set = q.lineage.rules().clone();
+        set.rows.insert(0, Row::new(vec![Cond::n("hp<", 35)], Verb::new("return")));
+        q.set_rules(set).unwrap();
+        let mut last = None;
+        for _ in 0..32 {
+            last = crate::offline::run_offline_quick(&mut q, 1800).stall;
+        }
+        last
+    });
     let mut g = Game::new(5);
     let mut set = g.lineage.rules().clone();
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 35)], Verb::new("return")));
@@ -1268,15 +1292,7 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     assert!(!tr.turns.is_empty() && tr.turns.len() <= crate::engine::EXIT_TRACE_LEN);
     assert_eq!(tr.turns.last().unwrap().row, 0, "the last turn is the return: {:?}", tr.turns.last());
     // The client's path: 30-minute quick slices; the last slice carries the same stall.
-    let mut q = Game::new(5);
-    let mut set = q.lineage.rules().clone();
-    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 35)], Verb::new("return")));
-    q.set_rules(set).unwrap();
-    let mut last = None;
-    for _ in 0..32 {
-        last = crate::offline::run_offline_quick(&mut q, 1800).stall;
-    }
-    let chunked = last.expect("the last quick slice carries the stall");
+    let chunked = chunked.join().unwrap_or_else(|e| std::panic::resume_unwind(e)).expect("the last quick slice carries the stall");
     assert_eq!(chunked.row, 0);
     assert!(chunked.fired >= 4, "{}", chunked.text);
     // Cut 7: this seed's chunked stall sits at the Warlord's floor (D8), where no single
@@ -1629,10 +1645,11 @@ fn reel_dedupes_across_absences_and_prefers_rows() {
 /// and every run closes at least one episode.
 #[test]
 fn story_lines_over_a_hundred_runs_follow_the_grammar() {
-    let mut lines = 0;
-    let mut runs = 0;
-    for seed in 1..=4u64 {
-        for edited in [false, true] {
+    // (seed, edited) → 2·seed + edited: one thread each.
+    let per = par_seeds(2..=9u64, |k| {
+        let (seed, edited) = (k / 2, k % 2 == 1);
+        let (mut lines, mut runs) = (0, 0);
+        {
             let mut g = Game::new(seed);
             g.sim = true;
             if edited {
@@ -1659,7 +1676,9 @@ fn story_lines_over_a_hundred_runs_follow_the_grammar() {
                 g.events.clear();
             }
         }
-    }
+        (lines, runs)
+    });
+    let (lines, runs) = per.iter().fold((0, 0), |a, p| (a.0 + p.0, a.1 + p.1));
     assert!(runs >= 100 && lines >= runs, "{runs} runs, {lines} lines");
 }
 
@@ -4263,10 +4282,8 @@ fn the_hero_speaks_sparingly() {
 /// exit line reads as the contract's arithmetic.
 #[test]
 fn ledger_line_reconciles_on_every_exit() {
-    let mut exits = 0;
-    let mut deaths = 0;
-    let mut spent_any = false;
-    for seed in 1..=30u64 {
+    let per = par_seeds(1..=30u64, |seed| {
+        let (mut exits, mut deaths, mut spent_any) = (0, 0, false);
         let mut g = Game::new(seed);
         if seed % 2 == 0 {
             g.set_rules_raw(crate::probes::good()).unwrap();
@@ -4343,7 +4360,10 @@ fn ledger_line_reconciles_on_every_exit() {
         assert!(g.batch.exits.len() <= crate::engine::EXITS_CAP);
         let lw = g.lineage();
         assert_eq!(lw.gold_ledger, g.lineage.gold_ledger);
-    }
+        (exits, deaths, spent_any)
+    });
+    let (exits, deaths): (u32, u32) = per.iter().fold((0, 0), |a, p| (a.0 + p.0, a.1 + p.1));
+    let spent_any = per.iter().any(|p| p.2);
     assert!(exits >= 150 && deaths >= 20, "{exits} exits, {deaths} deaths");
     assert!(spent_any, "no seed spent on the way home");
 }
@@ -4463,32 +4483,42 @@ fn death_traces_account_for_every_row_above_the_fired_one() {
     let mut deaths = 0;
     let mut turns = 0;
     let mut reasons: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for seed in 1..=30u64 {
-        let mut g = Game::new(seed);
-        g.max_deaths = 1000;
-        if seed % 2 == 0 {
-            g.set_rules_raw(crate::probes::good()).unwrap();
-        }
-        crate::offline::run_offline_quick(&mut g, 4 * 3600);
-        let n_rows = g.lineage.rules().rows.len().min(g.lineage.max_rows());
-        for rec in g.deaths.values() {
-            deaths += 1;
-            for t in &rec.death.trace.turns {
-                turns += 1;
-                let above = if t.row >= 0 { t.row as usize } else { n_rows };
-                let rows = t.rows.clone().unwrap_or_default();
-                // Cut 15 §6: a hazard pre-emption is said once, on the first row, for all of them.
-                if rows.len() == 1 && rows[0].why.starts_with("hazard first") {
-                    assert!(t.row < 0 && crate::turn::row_reason_ok(&rows[0].why), "{rows:?}");
-                    continue;
-                }
-                assert_eq!(rows.len(), above, "seed {seed} run {}: t{} row {} {:?}", rec.death.run_id, t.t, t.row, rows);
-                for (i, w) in rows.iter().enumerate() {
-                    assert_eq!(w.row, i);
-                    assert!(crate::turn::row_reason_ok(&w.why), "reason off the table: {}", w.why);
-                    reasons.insert(w.why.split(|c: char| c.is_ascii_digit()).next().unwrap_or("").trim().to_string());
+    // Eight seeds at a time until 100 deaths.
+    for chunk in [1..=8u64, 9..=16, 17..=24, 25..=30] {
+        for (d, t, r) in par_seeds(chunk, |seed| {
+            let (mut deaths, mut turns) = (0, 0);
+            let mut reasons: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            let mut g = Game::new(seed);
+            g.max_deaths = 1000;
+            if seed % 2 == 0 {
+                g.set_rules_raw(crate::probes::good()).unwrap();
+            }
+            crate::offline::run_offline_quick(&mut g, 4 * 3600);
+            let n_rows = g.lineage.rules().rows.len().min(g.lineage.max_rows());
+            for rec in g.deaths.values() {
+                deaths += 1;
+                for t in &rec.death.trace.turns {
+                    turns += 1;
+                    let above = if t.row >= 0 { t.row as usize } else { n_rows };
+                    let rows = t.rows.clone().unwrap_or_default();
+                    // Cut 15 §6: a hazard pre-emption is said once, on the first row, for all of them.
+                    if rows.len() == 1 && rows[0].why.starts_with("hazard first") {
+                        assert!(t.row < 0 && crate::turn::row_reason_ok(&rows[0].why), "{rows:?}");
+                        continue;
+                    }
+                    assert_eq!(rows.len(), above, "seed {seed} run {}: t{} row {} {:?}", rec.death.run_id, t.t, t.row, rows);
+                    for (i, w) in rows.iter().enumerate() {
+                        assert_eq!(w.row, i);
+                        assert!(crate::turn::row_reason_ok(&w.why), "reason off the table: {}", w.why);
+                        reasons.insert(w.why.split(|c: char| c.is_ascii_digit()).next().unwrap_or("").trim().to_string());
+                    }
                 }
             }
+            (deaths, turns, reasons)
+        }) {
+            deaths += d;
+            turns += t;
+            reasons.extend(r);
         }
         if deaths >= 100 {
             break;
@@ -4739,9 +4769,7 @@ fn paired_forecast_one_notch_edit_is_a_small_delta() {
     let i = edited.rows.iter().position(|r| r.verb.v == "drink" && r.conds.iter().any(|c| c.k == "hp<" && c.n == Some(35))).expect("the good set's heal row");
     edited.rows[i].conds[0].n = Some(30);
     let seeds = 30u64;
-    let mut small = 0;
-    let mut deltas = Vec::new();
-    for seed in 1..=seeds {
+    let deltas: Vec<(f64, f64)> = par_seeds(1..=seeds, |seed| {
         // The EDITED bot's lineage (`examples/metrics.rs`): eight rows, the heal known, two
         // on the shelf — the row fires, so the edit is load-bearing.
         let mut g = Game::new(seed);
@@ -4764,12 +4792,9 @@ fn paired_forecast_one_notch_edit_is_a_small_delta() {
         let reach = |rs: &[crate::forecast::SimResult], d: u32| rs.iter().filter(|r| r.max_depth >= d).count() as f64 / n as f64;
         let (b, e) = (panel(&good, tag), panel(&edited, tag));
         assert_eq!((b.len(), e.len()), (n as usize, n as usize));
-        let (d5, d8) = (reach(&e, 5) - reach(&b, 5), reach(&e, 8) - reach(&b, 8));
-        deltas.push((d5, d8));
-        if d5.abs() <= 0.08 + 1e-9 && d8.abs() <= 0.08 + 1e-9 {
-            small += 1;
-        }
-    }
+        (reach(&e, 5) - reach(&b, 5), reach(&e, 8) - reach(&b, 8))
+    });
+    let small = deltas.iter().filter(|(d5, d8)| d5.abs() <= 0.08 + 1e-9 && d8.abs() <= 0.08 + 1e-9).count() as u64;
     assert!(small * 10 >= seeds * 9, "|Δ| ≤ 0.08 at D5 and D8 on {small}/{seeds}: {deltas:?}");
 }
 
@@ -5355,7 +5380,8 @@ fn forecast_pm_and_refine_share_the_panel_seeds() {
     let mut worst = 0.0f64;
     // A set that dives at once and fights what it meets: short sims, a real miss rate.
     let dive = RuleSet { rows: vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")), Row::new(vec![], Verb::new("descend"))], name: None };
-    for seed in 1..=30u64 {
+    for w in par_seeds(1..=30u64, |seed| {
+        let mut worst = 0.0f64;
         let mut g = Game::new(seed);
         g.set_rules(dive.clone()).unwrap();
         g.lineage.best_depth = 1;
@@ -5372,7 +5398,7 @@ fn forecast_pm_and_refine_share_the_panel_seeds() {
             assert!((0.0..=0.5).contains(&pm));
         }
         if seed > 6 {
-            continue;
+            return worst;
         }
         let r = g.forecast_refine();
         assert_eq!(r.known_to, a.known_to);
@@ -5384,6 +5410,9 @@ fn forecast_pm_and_refine_share_the_panel_seeds() {
             assert!(diff <= 2.0 * pm + 0.02, "seed {seed} D{}: {:.2} → {:.2} (±{pm:.2})", x.depth, x.reach, y.reach);
             assert!(y.pm.unwrap() <= pm + 1e-9 || pm == 0.0, "the refine narrows the width");
         }
+        worst
+    }) {
+        worst = worst.max(w);
     }
     // The refine's first fifty are the panel's own sims.
     let mut g = Game::new(7);
@@ -5419,9 +5448,9 @@ fn forecast_pm_and_refine_share_the_panel_seeds() {
 /// accounting on the report's exit lines and on the exit event; a death's trace is its own.
 #[test]
 fn every_exit_carries_a_five_turn_trace_with_row_accounting() {
-    let mut tiers: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    let mut exits = 0;
-    for seed in 1..=12u64 {
+    let per = par_seeds(1..=12u64, |seed| {
+        let mut tiers: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        let mut exits = 0;
         let mut g = Game::new(seed);
         if seed % 3 == 0 {
             let mut set = g.lineage.rules().clone();
@@ -5451,7 +5480,10 @@ fn every_exit_carries_a_five_turn_trace_with_row_accounting() {
             assert!(rec.death.line.as_ref().is_some_and(|l| l.trace.is_none()));
             assert!(!rec.death.trace.turns.is_empty());
         }
-    }
+        (exits, tiers)
+    });
+    let exits: u32 = per.iter().map(|p| p.0).sum();
+    let tiers: std::collections::BTreeSet<String> = per.into_iter().flat_map(|p| p.1).collect();
     assert!(exits >= 12, "{exits} exits");
     assert!(tiers.contains("return") && tiers.contains("death"), "{tiers:?}");
     // The exit event of a watched run carries the same trace beside its line.
@@ -5471,8 +5503,8 @@ fn every_exit_carries_a_five_turn_trace_with_row_accounting() {
 /// the fourth absence may repeat the first's. The best-depth run's closing episode leads.
 #[test]
 fn reel_pairs_never_repeat_across_three_absences() {
-    let mut checked = 0;
-    for seed in 1..=10u64 {
+    let checked: usize = par_seeds(1..=10u64, |seed| {
+        let mut checked = 0;
         let mut g = Game::new(seed);
         let mut reels: Vec<Vec<(String, String)>> = Vec::new();
         for _ in 0..6 {
@@ -5498,7 +5530,10 @@ fn reel_pairs_never_repeat_across_three_absences() {
             assert!(set.len() + lone >= all.len(), "seed {seed}: a pair repeated within three absences: {w:?}");
             checked += 1;
         }
-    }
+        checked
+    })
+    .into_iter()
+    .sum();
     assert!(checked >= 30);
     // The memory survives a save.
     let mut g = Game::new(2);
@@ -5669,8 +5704,7 @@ fn forecast_try_names_the_known_but_absent_counter() {
 #[cfg(not(debug_assertions))]
 #[test]
 fn counter_at_the_top_lifts_the_wall_floor() {
-    for seed in 1..=4 {
-        let (named, base, top, end) = crate::probes::counter_trial(seed);
+    for (seed, (named, base, top, end)) in (1..=4u64).zip(par_seeds(1..=4u64, crate::probes::counter_trial)) {
         assert!(named, "seed {seed}: the D9 row does not name the counter");
         assert!(top - base >= 0.3, "seed {seed}: D9 {base:.2} → {top:.2} at the top");
         assert!(top - end >= 0.3, "seed {seed}: the end placement ({end:.2}) is not the answer; the top ({top:.2}) is");
@@ -6285,35 +6319,10 @@ fn lock_root_offers_the_unlock_pseudo_patch() {
 /// the blow and the lineage knows the tag.
 #[test]
 fn dice_death_names_an_alternative_below_the_bar() {
+    // Eight seeds at a time; the first seed (in order) with a telegraphed dice death is the one.
     let mut found = None;
-    for seed in 1..=24u64 {
-        let mut g = Game::new(seed);
-        g.max_deaths = 1000;
-        for m in crate::defs::MONSTERS.iter().filter(|m| m.tags.contains(&"telegraph")) {
-            g.lineage.facts.insert(format!("foe:{}:telegraph", m.kind));
-        }
-        g.run_offline(4 * 3600);
-        let ids: Vec<u32> = g.deaths.keys().copied().collect();
-        for id in ids {
-            if crate::trace::verdict(&mut g, id).as_deref() == Some("dice") {
-                let d = g.death(id).unwrap();
-                assert!(!d.patches.is_empty(), "seed {seed} run {id}: a dice death with no alternative: {:?}", d);
-                for p in &d.patches {
-                    assert!(p.below_bar || p.survive >= crate::trace::survive_bar(d.baseline) - 1e-9, "{p:?}");
-                    // Cut 15 §6: nothing below the bar that survives 0 %.
-                    assert!(!p.below_bar || p.survive > 0.0, "{p:?}");
-                    assert!((0.0..=1.0).contains(&p.survive));
-                }
-                let telegraphed = d.trace.turns.iter().any(|t| !t.telegraphs.is_empty());
-                if telegraphed && found.is_none() {
-                    let rec = g.deaths.get(&id).unwrap();
-                    if crate::trace::telegraph_row(&rec.vocab, &d.trace).is_some() {
-                        let cands = crate::trace::candidates(&rec.vocab, rec.t10.as_ref().unwrap(), &rec.t10_facts, &g.lineage.flavours, &d.trace);
-                        found = Some((seed, id, d.clone(), cands));
-                    }
-                }
-            }
-        }
+    for chunk in [1..=8u64, 9..=16, 17..=24] {
+        found = par_seeds(chunk, dice_seed).into_iter().flatten().next();
         if found.is_some() {
             break;
         }
@@ -6326,6 +6335,40 @@ fn dice_death_names_an_alternative_below_the_bar() {
     assert!(!d.patches.is_empty(), "seed {seed} run {id}");
     let json = serde_json::to_string(&d).unwrap();
     assert!(json.contains(r#""below_bar":true"#) || d.patches.iter().all(|p| !p.below_bar), "{json}");
+}
+
+/// One seed of `dice_death_names_an_alternative_below_the_bar`: every dice death's patches
+/// checked, and the first telegraphed one with its candidates.
+fn dice_seed(seed: u64) -> Option<(u64, u32, crate::wire::Death, Vec<Row>)> {
+    let mut found = None;
+    let mut g = Game::new(seed);
+    g.max_deaths = 1000;
+    for m in crate::defs::MONSTERS.iter().filter(|m| m.tags.contains(&"telegraph")) {
+        g.lineage.facts.insert(format!("foe:{}:telegraph", m.kind));
+    }
+    g.run_offline(4 * 3600);
+    let ids: Vec<u32> = g.deaths.keys().copied().collect();
+    for id in ids {
+        if crate::trace::verdict(&mut g, id).as_deref() == Some("dice") {
+            let d = g.death(id).unwrap();
+            assert!(!d.patches.is_empty(), "seed {seed} run {id}: a dice death with no alternative: {:?}", d);
+            for p in &d.patches {
+                assert!(p.below_bar || p.survive >= crate::trace::survive_bar(d.baseline) - 1e-9, "{p:?}");
+                // Cut 15 §6: nothing below the bar that survives 0 %.
+                assert!(!p.below_bar || p.survive > 0.0, "{p:?}");
+                assert!((0.0..=1.0).contains(&p.survive));
+            }
+            let telegraphed = d.trace.turns.iter().any(|t| !t.telegraphs.is_empty());
+            if telegraphed && found.is_none() {
+                let rec = g.deaths.get(&id).unwrap();
+                if crate::trace::telegraph_row(&rec.vocab, &d.trace).is_some() {
+                    let cands = crate::trace::candidates(&rec.vocab, rec.t10.as_ref().unwrap(), &rec.t10_facts, &g.lineage.flavours, &d.trace);
+                    found = Some((seed, id, d.clone(), cands));
+                }
+            }
+        }
+    }
+    found
 }
 
 /// Cut 11 §3: survivor exits carry the last ten hero turns and the run's provenance; the
@@ -6451,9 +6494,8 @@ fn the_first_send_after_an_absence_packs_what_was_bought_at_camp() {
 /// mine could touch"). The chore still runs on other kinds.
 #[test]
 fn swap_chores_never_take_what_a_row_needs() {
-    let mut swaps = 0;
-    let mut heals_packed = 0;
-    for seed in 1..=30u64 {
+    let per = par_seeds(1..=30u64, |seed| {
+        let (mut swaps, mut heals_packed) = (0, 0);
         let mut g = Game::new(seed);
         g.max_deaths = 1000;
         g.lineage.unlocks.insert("row5".into());
@@ -6482,7 +6524,9 @@ fn swap_chores_never_take_what_a_row_needs() {
             }
             g.prov.retain(|p| !(p.kind == crate::provenance::ProvKind::Spent && p.text.starts_with("swapped for")));
         }
-    }
+        (swaps, heals_packed)
+    });
+    let (swaps, heals_packed) = per.iter().fold((0, 0), |a, p| (a.0 + p.0, a.1 + p.1));
     assert_eq!(heals_packed, 30, "every send packs its heal");
     assert!(swaps >= 5, "the chore still swaps other kinds ({swaps})");
 }

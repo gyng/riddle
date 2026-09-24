@@ -10,11 +10,21 @@
 //   tools/drive.sh 5347 '{"op":"click","label":"send"}'      by visible label (exact; "nth", "selector", "force", "wait" ms)
 //   tools/drive.sh 5347 '{"op":"shot","name":"camp-1","full":true}'   → <dir>/shots/camp-1.png
 //   tools/drive.sh 5347 '{"op":"js","body":"return await page.evaluate(() => document.title)"}'   async fn (page, ctx, browser, dir)
-//   ops: goto text html shot click tap type press fill eval js wait buttons log quit
+//   ops: goto text html shot click tap type press fill eval js wait buttons log quit state act watch send_and_watch sheets
 //   compound ops (docs/ITERATION_SPEED.md §2 — one turn where it took four to fifteen):
 //   tools/drive.sh 5347 '{"op":"state"}'                      screen (dev builds), busy, text, buttons in one call
 //   tools/drive.sh 5347 '{"op":"act","label":"send","shot":"after-send"}'   click, settle until the engine is idle (not a fixed 600 ms), return the new text (+ a shot)
 //   tools/drive.sh 5347 '{"op":"watch","ms":30000,"every":1000,"shots":4}'  sample the screen every N ms for M ms: the lines that appeared per sample + evenly spaced shots
+//   tools/drive.sh 5347 '{"op":"send_and_watch","mode":"fights","every":2000,"shots":4}'   a whole send in one call: tap `send`, tap the
+//        watch's `mode` button if given ("fights" / "fast" — your choice, at its own speed), sample the screen every `every` ms (the lines
+//        that appeared, as `watch`), a shot every `shotEvery` ms (default 15000) up to `shots`, and stop at the run's end — a sheet over the
+//        watch (the exit sheet, the cage) or the watch's controls gone (the death / report screen) — or after `max` ms (default 300000).
+//        `"skip":true` taps `▶▶|` (`skipLabel`) every `skipEvery` ms (default 400) as a player would. Returns the samples, the shots, the
+//        end (`sheet` | `screen` | `timeout`), the final text and buttons, the open sheet's text, and an `-end` shot. Nothing but the page.
+//   tools/drive.sh 5347 '{"op":"sheets"}'                     every sheet this screen opens, in one call: in a throwaway copy of the page (the same
+//        saved lineage in a second browser context, the main page untouched) each visible control is tapped once; a `.sheet-wrap` that opens is
+//        read (title = its first line) and closed; a control that changed the screen instead (an in-page panel, a navigation, a mutation) is
+//        listed with the lines it added, and the copy is rebuilt from the save. `max` controls (default 40). Nothing but the page.
 //
 // Console errors/warnings and page errors are kept in <dir>/console.log and returned by "log".
 import http from "node:http";
@@ -34,7 +44,8 @@ const browser = await launchBrowser({ headed });
 const isHeaded = headed ?? process.env.RIDDLE_BROWSER === "headed";
 // Phone at 3× on the GPU, 2× headless (SwiftShader is pixel-bound; the layout is the same).
 const dpr = Number(val("--dpr", isHeaded ? "3" : "2"));
-const ctx = await browser.newContext(flag("--wide") ? { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } : { viewport: { width: 400, height: 800 }, deviceScaleFactor: dpr });
+const ctxOpts = flag("--wide") ? { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } : { viewport: { width: 400, height: 800 }, deviceScaleFactor: dpr };
+const ctx = await browser.newContext(ctxOpts);
 const page = await ctx.newPage();
 const log = [];
 const note = (line) => { const l = `[${new Date().toISOString()}] ${line}`; log.push(l); fs.appendFileSync(`${dir}/console.log`, l + "\n"); };
@@ -56,6 +67,154 @@ async function idle(timeout) {
   while (Date.now() - t0 < timeout && (await page.evaluate(() => !!document.querySelector(".busy")))) await page.waitForTimeout(100);
   await page.waitForTimeout(120);
   return Date.now() - t0;
+}
+
+// What the page shows, for the compound ops below — DOM only (the rater profile: no `__riddle`, no wire).
+// A control matches a label when one of its visible text lines is that label, case aside (a tile is its icon + its one word).
+// `all`: disabled ones too (the watch greys its controls through the ending; they are still its controls).
+const pageButtons = (p, all = false) => p.evaluate((all) => [...document.querySelectorAll("button,[role=button]")]
+  .filter((b) => (b.offsetWidth || b.offsetHeight) && (all || !b.disabled)).map((b) => (b.innerText || "").trim()).filter(Boolean), all);
+const tapLabel = (p, label) => p.evaluate((l) => {
+  for (const b of document.querySelectorAll("button,[role=button]")) {
+    if (!(b.offsetWidth || b.offsetHeight) || b.disabled) continue;
+    const t = (b.innerText || "").trim().toLowerCase();   // innerText carries CSS text-transform (`SEND`)
+    if (t === l.toLowerCase() || t.split("\n").map((x) => x.trim()).includes(l.toLowerCase())) { b.click(); return true; }
+  }
+  return false;
+}, label);
+const sheetText = (p) => p.evaluate(() => { const w = [...document.querySelectorAll(".sheet-wrap")].pop(); return w ? w.innerText : null; });
+const bodyText = (p) => p.evaluate(() => document.body.innerText);
+/** Until the text has held still for two polls and no progress bar is up (bounded). */
+async function steady(p, timeout = 15000) {
+  const t0 = Date.now(); let last = null, still = 0;
+  while (Date.now() - t0 < timeout) {
+    const cur = await p.evaluate(() => (document.querySelector(".busy") ? "\u0000busy" : "") + document.body.innerText);
+    still = cur === last && !cur.startsWith("\u0000busy") ? still + 1 : 0;
+    if (still >= 2) break;
+    last = cur; await p.waitForTimeout(250);
+  }
+  return Date.now() - t0;
+}
+const digitless = (t) => t.replace(/\d+/g, "#");
+const lineDiff = (before, after) => { const b = new Set(before.split("\n")); return after.split("\n").filter((l) => l.trim() && !b.has(l)); };
+
+async function sendAndWatch(cmd) {
+  const every = cmd.every ?? 2000, max = cmd.max ?? 300000, shots = cmd.shots ?? 4, shotEvery = cmd.shotEvery ?? 15000;
+  const skipLabel = cmd.skipLabel ?? "▶▶|", skipEvery = cmd.skipEvery ?? 400, name = cmd.name ?? "run";
+  const before = new Set(await pageButtons(page, true));
+  if (!(await tapLabel(page, cmd.send ?? "send"))) return { error: `no visible control labelled ${cmd.send ?? "send"}` };
+  // The watch's own controls: what is up after the tap that was not up at camp.
+  const t0 = Date.now(); let hud = [];
+  while (Date.now() - t0 < 15000) {
+    await page.waitForTimeout(200);
+    hud = (await pageButtons(page, true)).filter((b) => !before.has(b));
+    if (hud.length) break;
+  }
+  if (!hud.length) return { error: "the screen did not change after the tap", text: await bodyText(page) };
+  if (cmd.mode && !(await tapLabel(page, cmd.mode))) return { error: `no watch control labelled ${cmd.mode}`, buttons: await pageButtons(page) };
+  const samples = [], paths = [];
+  let last = await bodyText(page), lastSkip = 0, nextSample = Date.now() + every, nextShot = Date.now() + shotEvery, ended = "timeout";
+  const shoot = async (tag) => { const path = `${dir}/shots/${name}-${tag}.png`; await page.screenshot({ path }); paths.push({ t: Math.round((Date.now() - t0) / 100) / 10, path }); };
+  while (Date.now() - t0 < max) {
+    await page.waitForTimeout(100);
+    if (await sheetText(page) !== null) { ended = "sheet"; break; }
+    const up = new Set(await pageButtons(page, true));
+    if (!hud.some((b) => up.has(b))) { ended = "screen"; break; }
+    if (cmd.skip && Date.now() - lastSkip >= skipEvery) { lastSkip = Date.now(); await tapLabel(page, skipLabel); }
+    if (Date.now() >= nextSample) {
+      nextSample += every;
+      const text = await bodyText(page);
+      const added = lineDiff(last, text);
+      if (added.length) samples.push({ t: Math.round((Date.now() - t0) / 100) / 10, added });
+      last = text;
+    }
+    if (paths.length < shots && Date.now() >= nextShot) { nextShot += shotEvery; await shoot(String(paths.length + 1).padStart(2, "0")); }
+  }
+  await steady(page);
+  await shoot("end");
+  return { ended, ms: Date.now() - t0, samples, shots: paths, sheet: await sheetText(page), text: await bodyText(page), buttons: await pageButtons(page) };
+}
+
+async function sheets(cmd) {
+  const max = cmd.max ?? 40, workers = cmd.workers ?? 4;
+  const url = page.url();
+  const storage = await ctx.storageState();
+  const mainText = await bodyText(page);
+  // A copy of this page: the same saved lineage in its own context. Its save is stamped "seen now" so the
+  // reload does not run the absence it would otherwise see.
+  async function copy(old) {
+    await old?.pctx.close().catch(() => {});
+    const pctx = await browser.newContext({ ...ctxOpts, storageState: storage });
+    await pctx.addInitScript(() => {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i), v = localStorage.getItem(k);
+          if (!v || !v.includes('"last_seen"')) continue;
+          const o = JSON.parse(v);
+          if (typeof o.last_seen === "number") { o.last_seen = Date.now(); localStorage.setItem(k, JSON.stringify(o)); }
+        }
+      } catch { /* not a save */ }
+    });
+    const p = await pctx.newPage();
+    await p.goto(url, { waitUntil: "load" });
+    // Past the camp's second pass: the forecast refines once the set has been still for 2 s, and until it
+    // lands its first paint's `±` trails `…` (on the page).
+    await refined(p);
+    // Number the controls this screen shows (the same order every copy: the same save).
+    const labels = await p.evaluate(() => [...document.querySelectorAll("button,[role=button]")]
+      .filter((b) => (b.offsetWidth || b.offsetHeight) && !b.disabled && !b.closest(".sheet-wrap"))
+      .map((b, i) => { b.dataset.probeI = String(i); return (b.innerText || b.getAttribute("aria-label") || "").trim().replace(/\s*\n\s*/g, " "); }));
+    return { pctx, p, labels, text: await bodyText(p) };
+  }
+  // A screen that repaints its forecast paints it twice (the second pass lands a quiet 2 s + its sims later):
+  // settle until the text has held still for `quiet` ms.
+  const quiet = cmd.quiet ?? 4500;
+  async function refined(p) {
+    await steady(p);
+    let last = await bodyText(p), since = Date.now();
+    for (const t0 = Date.now(); Date.now() - t0 < 20000 && Date.now() - since < quiet;) {
+      await p.waitForTimeout(250);
+      const cur = await bodyText(p);
+      if (cur !== last) { last = cur; since = Date.now(); }
+    }
+  }
+  const found = [], changed = [], inert = [];
+  let first = null;
+  // `workers` copies side by side, each tapping every `workers`-th control; a copy the tap changed is rebuilt.
+  const work = async (w) => {
+    let c = await copy(), retried = -1;
+    first ??= c;
+    try {
+      for (let i = w; i < Math.min(c.labels.length, max); i += workers) {
+        const label = c.labels[i] || `#${i}`;
+        const loc = c.p.locator(`[data-probe-i="${i}"]`);
+        if (!(await loc.count())) { if (retried !== i) { retried = i; c = await copy(c); i -= workers; } continue; }
+        const pre = await bodyText(c.p);
+        await loc.first().click({ timeout: 3000 }).catch(() => {});
+        await c.p.waitForTimeout(150);
+        await steady(c.p, 8000);
+        const sheet = await sheetText(c.p);
+        if (sheet !== null) {
+          found.push({ i, control: label, title: sheet.split("\n").map((x) => x.trim()).find(Boolean) ?? "", text: sheet });
+          for (let k = 0; k < 4 && (await sheetText(c.p)) !== null; k++) { await c.p.keyboard.press("Escape"); await c.p.waitForTimeout(120); }
+          await steady(c.p, 4000);
+          if (digitless(await bodyText(c.p)) !== digitless(pre)) c = await copy(c);
+          continue;
+        }
+        await refined(c.p);
+        const post = await bodyText(c.p);
+        // Numbers alone moving (the forecast's second pass landing, a clock) is not the tap's doing.
+        if (digitless(post) === digitless(pre)) { inert.push({ i, control: label }); continue; }
+        changed.push({ i, control: label, added: lineDiff(pre, post).slice(0, 40), ...(cmd.debug ? { gone: lineDiff(post, pre).slice(0, 40) } : {}) });
+        c = await copy(c);
+      }
+    } finally {
+      await c.pctx.close().catch(() => {});
+    }
+  };
+  await Promise.all(Array.from({ length: workers }, (_, w) => work(w)));
+  const byI = (a, b) => a.i - b.i;
+  return { same_screen: first?.text === mainText, controls: first?.labels.length ?? 0, sheets: found.sort(byI), changed: changed.sort(byI), inert: inert.sort(byI).map((x) => x.control) };
 }
 
 async function run(cmd) {
@@ -114,6 +273,8 @@ async function run(cmd) {
       }
       return { ms, samples, shots: paths, end: await state() };
     }
+    case "send_and_watch": return await sendAndWatch(cmd);
+    case "sheets": return await sheets(cmd);
     case "log": return { log: log.splice(0) };
     case "quit": setTimeout(async () => { await browser.close(); process.exit(0); }, 200); return { ok: true };
     default: return { error: `unknown op ${op}` };

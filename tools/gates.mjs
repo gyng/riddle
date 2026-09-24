@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Bot gate table (examples/metrics.rs) on the `fast` cargo profile.
-//   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds alongside (~50 s)
+//   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds alongside (~35–60 s)
 //   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts, dayplayer 3 seeds (~2.5 min); the number that counts
-// Cut 13 §6: the wire invariants (examples/qa.rs, 30 seeds, ~40 s on 4 threads) run beside both as a third job;
-// the run fails if they do.
+// Cut 13 §6: the wire invariants (examples/qa.rs, 30 seeds, ~35 s alone on 4 threads, ~80 s beside the table) run
+// beside both as a third job; the run fails if they do. `METRICS_PHASES=1` prints the table's phase and job walls.
 //   node tools/gates.mjs --fresh  ignore the cache (docs/ITERATION_SPEED.md §3.3: the printed table is kept under
 //                                 target/gates/<sha1 of the three binaries + the presets>.txt; a hit reprints and
 //                                 re-checks — a client-only commit skips the table entirely)
@@ -36,15 +36,16 @@ const run = (bin, args) => new Promise((resolve) => {
   let out = ""; p.stdout.on("data", (d) => (out += d));
   p.on("close", (status) => resolve({ status, stdout: out }));
 });
-// The dayplayer's chains are the critical path: they start first and the table leaves them
-// their cores (docs/ITERATION_SPEED.md §3.2).
+// The dayplayer's chains start first. They were the critical path while the table left them
+// their cores; with the table at ~2.5 min and the chains at ~1 min alone (docs/ITERATION_SPEED.md,
+// 2026-09-24), the table is, so it takes every core but one and shares them while the others run.
 const seeds = full ? 3 : 2;
 const cores = os.availableParallelism();
 const dayplayer = run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds)]);
 // The invariants take four threads (~40 s): more would contend the table's quiet per-tick measurement.
 const qaThreads = 4;
 const qa = run("target/fast/examples/qa", ["--seeds", "30", "--threads", String(qaThreads)]);
-const table = run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - seeds - qaThreads - 1)), ...extra]);
+const table = run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - 1)), ...extra]);
 const [r, p, q] = await Promise.all([table, dayplayer, qa]);
 let printed = "";
 const say = (t) => { printed += t; process.stdout.write(t); };

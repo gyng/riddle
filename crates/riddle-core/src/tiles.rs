@@ -116,6 +116,17 @@ impl Map {
     /// Line of sight: no sight-blocking tile strictly between `a` and `b` along `geom::line`
     /// (walked in place; the hot loop of `update_vision`, ~225 calls per hero move).
     pub fn los(&self, a: Pos, b: Pos) -> bool {
+        // Between two in-bounds ends every Bresenham point is in bounds (inside their box):
+        // index the tiles straight (225 of these per tick from `update_vision`).
+        if self.in_bounds(a) && self.in_bounds(b) {
+            let (w, tiles) = (self.w, &self.tiles[..]);
+            Self::los_by(a, b, |x, y| tiles[(y * w + x) as usize].blocks_sight())
+        } else {
+            Self::los_by(a, b, |x, y| self.get(Pos::new(x, y)).blocks_sight())
+        }
+    }
+    #[inline(always)]
+    fn los_by(a: Pos, b: Pos, mut blocks: impl FnMut(i32, i32) -> bool) -> bool {
         if a == b {
             return true;
         }
@@ -139,7 +150,7 @@ impl Map {
             if x0 == x1 && y0 == y1 {
                 return true;
             }
-            if self.get(Pos::new(x0, y0)).blocks_sight() {
+            if blocks(x0, y0) {
                 return false;
             }
         }
@@ -152,21 +163,53 @@ impl Map {
     }
     /// Percent of passable tiles seen (0..=100).
     pub fn seen_pct(&self) -> i32 {
-        let total = self.count_passable().max(1);
-        (self.count_seen_passable() * 100 / total) as i32
+        // Both counts in one pass (25–34 k calls per 8 h).
+        if self.seen.len() != self.tiles.len() {
+            return (self.count_seen_passable() * 100 / self.count_passable().max(1)) as i32;
+        }
+        let (mut total, mut seen) = (0usize, 0usize);
+        for (t, s) in self.tiles.iter().zip(self.seen.iter()) {
+            let p = t.passable() as usize;
+            total += p;
+            seen += p & (*s as usize);
+        }
+        (seen * 100 / total.max(1)) as i32
     }
     /// Recompute `visible` from `from` with radius and line of sight; marks seen.
     pub fn update_vision(&mut self, from: Pos, radius: i32) {
         for v in self.visible.iter_mut() {
             *v = false;
         }
+        if !self.in_bounds(from) || !(0..=LOS_TABLE_MAX).contains(&radius) {
+            for dy in -radius..=radius {
+                for dx in -radius..=radius {
+                    let p = from.step((dx, dy));
+                    if !self.in_bounds(p) {
+                        continue;
+                    }
+                    if self.los(from, p) {
+                        let i = self.idx(p);
+                        self.visible[i] = true;
+                        self.seen[i] = true;
+                    }
+                }
+            }
+            return;
+        }
+        // `los` from an in-bounds `from` to each in-bounds tile of the square, walked from
+        // the precomputed offsets (`los_table`): the same points in the same order.
+        let table = los_table(radius);
+        let (w, tiles) = (self.w, &self.tiles[..]);
+        let mut k = 0;
         for dy in -radius..=radius {
             for dx in -radius..=radius {
+                let (a, b) = table.spans[k];
+                k += 1;
                 let p = from.step((dx, dy));
                 if !self.in_bounds(p) {
                     continue;
                 }
-                if self.los(from, p) {
+                if table.offs[a as usize..b as usize].iter().all(|&(ox, oy)| !tiles[((from.y + oy as i32) * w + from.x + ox as i32) as usize].blocks_sight()) {
                     let i = self.idx(p);
                     self.visible[i] = true;
                     self.seen[i] = true;
@@ -194,19 +237,49 @@ impl Map {
     }
     /// BFS distances over passable tiles from `start`; `blocked(p)` marks extra obstacles.
     /// `seen_only` restricts to seen tiles. Unreachable = -1.
-    pub fn bfs(&self, start: Pos, seen_only: bool, blocked: &dyn Fn(Pos) -> bool) -> Vec<i32> {
+    pub fn bfs(&self, start: Pos, seen_only: bool, blocked: &(impl Fn(Pos) -> bool + ?Sized)) -> Vec<i32> {
         self.bfs_core(start, seen_only, blocked, None)
     }
     /// BFS with parents, for first-step extraction. Returns (dist, parent index or -1).
-    pub fn bfs_parent(&self, start: Pos, seen_only: bool, blocked: &dyn Fn(Pos) -> bool) -> (Vec<i32>, Vec<i32>) {
+    pub fn bfs_parent(&self, start: Pos, seen_only: bool, blocked: &(impl Fn(Pos) -> bool + ?Sized)) -> (Vec<i32>, Vec<i32>) {
         let mut parent = vec![-1i32; self.tiles.len()];
         let dist = self.bfs_core(start, seen_only, blocked, Some(&mut parent));
         (dist, parent)
     }
+    /// The nearest tile (> 0 steps) satisfying `pred` over `bfs_parent`'s flood — least
+    /// distance, then least index, exactly what a scan of the full distance map yields — and
+    /// the parents. The flood stops at the first layer holding one, so the parents are final
+    /// only along paths no longer than it (all `first_step` toward that tile reads).
+    pub fn bfs_nearest(&self, start: Pos, seen_only: bool, blocked: &(impl Fn(Pos) -> bool + ?Sized), pred: &dyn Fn(Pos) -> bool) -> Option<(Pos, Vec<i32>)> {
+        let mut parent = vec![-1i32; self.tiles.len()];
+        let mut found = None;
+        self.bfs_layers(start, seen_only, blocked, Some(&mut parent), |d, layer| {
+            if d > 0 {
+                found = layer.iter().copied().filter(|&i| pred(self.pos(i))).min();
+            }
+            found.is_some()
+        });
+        found.map(|i| (self.pos(i), parent))
+    }
+    /// `bfs_parent` stopped once `goal` is reached: the parents along its path are final (a
+    /// tile's parent is set when it is discovered), which is all `first_step` toward it reads.
+    pub fn bfs_parent_to(&self, start: Pos, seen_only: bool, blocked: &(impl Fn(Pos) -> bool + ?Sized), goal: Pos) -> Vec<i32> {
+        let mut parent = vec![-1i32; self.tiles.len()];
+        let gi = if self.in_bounds(goal) { self.idx(goal) } else { usize::MAX };
+        self.bfs_layers(start, seen_only, blocked, Some(&mut parent), |_, layer| layer.contains(&gi));
+        parent
+    }
+    fn bfs_core(&self, start: Pos, seen_only: bool, blocked: &(impl Fn(Pos) -> bool + ?Sized), parent: Option<&mut Vec<i32>>) -> Vec<i32> {
+        self.bfs_layers(start, seen_only, blocked, parent, |_, _| false)
+    }
     /// The shared flood: 8-connected without cutting wall corners (`can_step`), FIFO in `DIRS8`
     /// order, so distances and parents are exactly those of a step-by-step walk. Index
     /// arithmetic throughout — this is the sim's hottest loop (every chore paths the floor).
-    fn bfs_core(&self, start: Pos, seen_only: bool, blocked: &dyn Fn(Pos) -> bool, mut parent: Option<&mut Vec<i32>>) -> Vec<i32> {
+    /// Generic over `blocked` so the common `&|_| false` flood compiles without a call per tile.
+    /// `stop(d, layer)` sees each distance's complete layer (every tile at `d`, in discovery
+    /// order) as its first tile is expanded; `true` ends the flood there.
+    #[inline(always)]
+    fn bfs_layers(&self, start: Pos, seen_only: bool, blocked: &(impl Fn(Pos) -> bool + ?Sized), mut parent: Option<&mut Vec<i32>>, mut stop: impl FnMut(i32, &[usize]) -> bool) -> Vec<i32> {
         let n = self.tiles.len();
         let mut dist = vec![-1i32; n];
         if !self.in_bounds(start) {
@@ -219,8 +292,15 @@ impl Map {
         dist[si] = 0;
         queue.push(si);
         let mut head = 0;
+        let mut layer = -1;
         while head < queue.len() {
             let pi = queue[head];
+            if dist[pi] != layer {
+                layer = dist[pi];
+                if stop(layer, &queue[head..]) {
+                    break;
+                }
+            }
             head += 1;
             let d = dist[pi] + 1;
             let (px, py) = (pi as i32 % w, pi as i32 / w);
@@ -230,13 +310,15 @@ impl Map {
                     continue;
                 }
                 let qi = (qy * w + qx) as usize;
-                if !tiles[qi].passable() {
+                // Every test is pure, so their order is free: the visited one first (most
+                // neighbours of a flood are), the closure last.
+                if dist[qi] >= 0 || !tiles[qi].passable() {
                     continue;
                 }
                 if dx != 0 && dy != 0 && (tiles[(py * w + qx) as usize] == Tile::Wall || tiles[(qy * w + px) as usize] == Tile::Wall) {
                     continue;
                 }
-                if (seen_only && !self.seen[qi]) || dist[qi] >= 0 || blocked(Pos::new(qx, qy)) {
+                if (seen_only && !self.seen[qi]) || blocked(Pos::new(qx, qy)) {
                     continue;
                 }
                 dist[qi] = d;
@@ -284,6 +366,47 @@ impl Map {
         }
         best.filter(|(d, _)| *d < dist[self.idx(p)]).map(|(_, q)| q)
     }
+}
+
+/// The largest vision radius with a precomputed walk (`update_vision`; larger ones walk `los`).
+const LOS_TABLE_MAX: i32 = 32;
+
+/// `los`'s Bresenham walk from (0, 0) to every offset of a radius's square, in
+/// `update_vision`'s order: the points strictly between the ends (the walk depends only on
+/// the ends' difference, so it is the same from any origin).
+struct LosTable {
+    spans: Vec<(u32, u32)>,
+    offs: Vec<(i8, i8)>,
+}
+
+fn los_table(radius: i32) -> std::rc::Rc<LosTable> {
+    thread_local! {
+        static TABLES: std::cell::RefCell<Vec<Option<std::rc::Rc<LosTable>>>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    TABLES.with(|t| {
+        let mut t = t.borrow_mut();
+        let r = radius as usize;
+        if t.len() <= r {
+            t.resize(r + 1, None);
+        }
+        t[r].get_or_insert_with(|| {
+            let (mut spans, mut offs) = (Vec::new(), Vec::new());
+            for dy in -radius..=radius {
+                for dx in -radius..=radius {
+                    let a = offs.len() as u32;
+                    if (dx, dy) != (0, 0) {
+                        Map::los_by(Pos::new(0, 0), Pos::new(dx, dy), |x, y| {
+                            offs.push((x as i8, y as i8));
+                            false
+                        });
+                    }
+                    spans.push((a, offs.len() as u32));
+                }
+            }
+            std::rc::Rc::new(LosTable { spans, offs })
+        })
+        .clone()
+    })
 }
 
 #[cfg(test)]

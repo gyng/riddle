@@ -11,11 +11,16 @@ Setup: the game is served at `{URL}`. Play it through the browser driver, headed
 `node tools/driver.mjs --dir scratchpad/{RATER} --port {PORT} --headed &` keeps one phone
 viewport (400×800, 3×) open for the whole session; command it with
 `tools/drive.sh {PORT} '{"op":"text"}'` (ops: goto, text, shot, click by visible label, tap,
-type, press, eval, js, wait, buttons, log, quit — the file's header lists them; and three
+type, press, eval, js, wait, buttons, log, quit — the file's header lists them; and five
 compound ops that save turns: `state` (screen + text + buttons at once), `act` (a click that
-waits for the engine, returns the new text, `"shot":"name"` for a screenshot) and `watch`
+waits for the engine, returns the new text, `"shot":"name"` for a screenshot), `watch`
 (`{"op":"watch","ms":60000,"every":1000,"shots":4}`: a minute at your chosen speed, the lines
-that appeared per second and four screenshots — a 1× watch in one call). Take screenshots
+that appeared per second and four screenshots — a 1× watch in one call), `send_and_watch`
+(`{"op":"send_and_watch","mode":"fights","every":2000,"shots":4}`: taps send, your mode, and
+watches to the run's end — the exit sheet or the next screen — returning what appeared, the
+shots and the end screen's text; `"skip":true` taps `▶▶|` as you would; the mode is yours) and
+`sheets` (`{"op":"sheets"}`: every sheet the current screen opens, read in a copy of the page
+— your game is untouched). They read only what the page shows. Take screenshots
 to look at the screens, read text with `text`, click buttons by their visible label. (A Node
 script of your own with `launchBrowser({ gpu: true })` from `tools/browser.mjs` is allowed
 too.) Your seed: open `{URL}?seed={SEED}&fresh=1` once at the start. The dev harness
