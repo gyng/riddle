@@ -234,9 +234,31 @@ fn play(seed: u64) -> (Tally, BankTally) {
         }
         t.check("a death has a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice") && !d.trace.turns.is_empty(), || format!("seed {seed} run {id}: {} · {} turns", d.verdict, d.trace.turns.len()));
         check_death(&mut t, seed, &d);
-        if let Some(p) = d.patches.iter().find(|p| p.insert_at >= 0) {
-            let patched = riddle_core::offline::apply_patch(&rules, p, g.lineage.max_rows());
+        t.check("death()'s patches are camp_pending until death_deltas", d.patches.iter().all(|p| p.camp_pending), || format!("seed {seed} run {id}"));
+        // QA on 23ed91f (`rest · reach +8%`, then the camp's D6 34 % → 64 %): the patch's
+        // `reach` (`death_deltas`) is the camp forecast's own move at its depth once applied.
+        // Sampled on every third seed: the number is not an estimate of the camp's but the
+        // camp's panel itself (same seeds, budget, lineage state), so it holds exactly or a
+        // code path differs (insert position, lineage state) — any seed exercises those paths,
+        // and 30/30 were exact when every seed ran; four panels a seed are the leg's cost.
+        let deltas = if seed.is_multiple_of(3) { g.death_deltas(id) } else { None };
+        if let Some(ps) = &deltas {
+            t.check("death_deltas returns death()'s patches, measured", ps.len() == d.patches.len() && ps.iter().zip(&d.patches).all(|(a, b)| a.row == b.row && a.insert_at == b.insert_at && !a.camp_pending), || format!("seed {seed} run {id}"));
+        }
+        let top = deltas.as_ref().unwrap_or(&d.patches).iter().find(|p| p.insert_at >= 0).cloned();
+        if let Some(p) = top {
+            let patched = riddle_core::offline::apply_patch(&rules, &p, g.lineage.max_rows());
+            let before = deltas.is_some().then(|| g.forecast());
             t.check("the top patch applies through set_rules", g.set_rules(patched).is_ok(), || format!("seed {seed}: {}", p.row.describe()));
+            if let Some(before) = before {
+                let after = g.forecast();
+                let bar = |f: &riddle_core::Forecast| f.depths.iter().find(|x| x.depth == p.forecast_depth).map(|x| (x.reach, x.pm.unwrap_or(0.0)));
+                let ok = match (bar(&before), bar(&after)) {
+                    (Some((b, _)), Some((a, pm))) => ((a - b) - p.forecast_delta).abs() <= pm.max(p.forecast_pm) + 1e-9,
+                    _ => false,
+                };
+                t.check("a patch's reach == the camp forecast's move once applied (± its bar)", ok, || format!("seed {seed} run {id}: {} at R{} · reach {:+.3} at D{} · camp {:?} → {:?}", p.row.describe(), p.insert_at + 1, p.forecast_delta, p.forecast_depth, bar(&before), bar(&after)));
+            }
         }
     }
     // Buy the first affordable unlock.

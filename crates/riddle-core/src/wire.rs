@@ -294,6 +294,11 @@ pub struct ExitPending {
     /// arithmetic (`salvage_value × pct ÷ GOLD_DIVISOR`; the client's old table read 4× it).
     #[serde(default)]
     pub worth: Vec<i32>,
+    /// QA on 23ed91f (qaL: `auto: keep weapon+armour` owned, a full vault, mail · axe · sword
+    /// all salvaged): the ids the preference and owned automations keep (`Game::auto_keep`'s
+    /// plan, brought vault items first) — what `autoKeep()` does, and the sheet's pre-ticks.
+    #[serde(default)]
+    pub auto_keep: Vec<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -418,6 +423,27 @@ pub struct Patch {
     /// is under the bar (`survives 40% · dice`).
     #[serde(default, skip_serializing_if = "is_false")]
     pub below_bar: bool,
+    /// QA on 23ed91f: on a death's shown patches, the depth whose camp bar `forecast_delta`
+    /// moves (the death's depth + 1, at most the forecast's last) and that bar's 95 %
+    /// half-width after the patch — the delta is the camp forecast's own (`trace::camp_deltas`).
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub forecast_depth: u32,
+    #[serde(default, skip_serializing_if = "is_zero_f64")]
+    pub forecast_pm: f64,
+    /// QA on 23ed91f: `death()` answers before the camp's numbers are measured — while this
+    /// is set, `forecast_delta` is the verdict's own 12-sim ranking estimate (not a camp
+    /// number: do not show it as reach) and `forecast_depth`/`forecast_pm` are unset;
+    /// `death_deltas(id)` returns the patches with the camp's numbers and this cleared.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub camp_pending: bool,
+}
+
+fn is_zero_u32(n: &u32) -> bool {
+    *n == 0
+}
+
+fn is_zero_f64(n: &f64) -> bool {
+    *n == 0.0
 }
 
 /// Cut 11 §2: what a root-cause patch answers.
@@ -741,6 +767,11 @@ pub struct Lineage {
     pub renown: u32,
     pub rank: u32,
     pub keep_pref: String,
+    /// What an unwatched exit keeps, in precedence order after the brought vault items (QA
+    /// on 23ed91f): `["armour"]` for `best_armour`, `["armour", "weapon"]` with `quartermaster`,
+    /// `[]` for `none`. Each keep may replace only a weaker vault item of its own category.
+    #[serde(default)]
+    pub keep_auto: Vec<String>,
     pub insured: Vec<u32>,
     /// Cut 2 §1: camp rest remaining (seconds) before the next expedition; `send` skips it.
     #[serde(default)]

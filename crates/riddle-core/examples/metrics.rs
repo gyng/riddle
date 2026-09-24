@@ -180,7 +180,10 @@ fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32) {
     // `_raw`: the lineage has not met what a token's lock needs (`see: captive`); the run has.
     g.set_rules_raw(set.clone()).unwrap_or_else(|e| panic!("cohort set {:?}: {e}", set.name));
     riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
-    (g.batch.run_outcomes.len() as u32, g.batch.stalls)
+    // QA on 23ed91f (qaL): a run that reaches the tick cap is a stall that never ended (a
+    // conjurer's blades reset the guard: 120 000 ticks, 3 000 kills) — counted with them.
+    let capped = g.batch.run_ticks.iter().filter(|&&t| t >= riddle_core::engine::MAX_TURNS_PER_RUN).count() as u32;
+    (g.batch.run_outcomes.len() as u32, g.batch.stalls + capped)
 }
 
 fn setup(bot: Bot, seed: u64) -> Game {

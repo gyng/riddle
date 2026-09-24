@@ -1,0 +1,63 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "gas"
+        }
+      ],
+      "verb": {
+        "v": "retreat"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "depth>=",
+          "n": 8
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 50
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "read",
+        "a": "unknown"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "pack_break"
+      },
+      "origin": "card"
+    }
+  ],
+  "name": "fighter"
+}

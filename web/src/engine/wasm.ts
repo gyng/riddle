@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  Death, Engine, Forecast, Lineage, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary,
+  Death, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary,
 } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
@@ -46,6 +46,7 @@ export class WasmEngine implements Engine {
   runOffline(elapsedS: number): ReturnReport { return this.call("runOffline", elapsedS); }
   runOfflineQuick(elapsedS: number): ReturnReport { return this.call("runOfflineQuick", elapsedS); }
   death(runId: number): Death { return this.call("death", runId); }
+  deathDeltas(runId: number): Patch[] { return this.call("deathDeltas", runId); }
   buy(unlock: string): Lineage { return this.call("buy", unlock); }
   buyUnlockGold(unlock: string): Lineage { return this.call("buyUnlockGold", unlock); }   // Cut 15 §2
   lineage(): Lineage { return this.call("lineage"); }
@@ -63,6 +64,7 @@ export class WasmEngine implements Engine {
   supplyCatalogue(): SupplyEntry[] { return this.call("supplyCatalogue"); }
   // Addendum D
   keep(ids: number[]): Lineage { return this.call("keep", JSON.stringify(ids)); }
+  autoKeep(): Lineage { return this.call("autoKeep"); }
   setKeepPref(pref: string): Lineage { return this.call("setKeepPref", pref); }
   insure(id: number): Lineage { return this.call("insure", id); }
   // core additions

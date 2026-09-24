@@ -106,6 +106,13 @@ impl Game {
         self.inner.death(run_id).map(|d| js(&d)).ok_or_else(|| err(format!("no death record for run {run_id}")))
     }
 
+    /// QA on 23ed91f: the death's shown patches with the camp's own reach deltas (seconds:
+    /// four camp panels); `death` answers first with them `camp_pending`.
+    #[wasm_bindgen(js_name = deathDeltas)]
+    pub fn death_deltas(&mut self, run_id: u32) -> Result<String, JsError> {
+        self.inner.death_deltas(run_id).map(|d| js(&d)).ok_or_else(|| err(format!("no death record for run {run_id}")))
+    }
+
     pub fn buy(&mut self, unlock: &str) -> Result<String, JsError> {
         self.inner.buy(unlock).map_err(err)?;
         Ok(js(&self.inner.lineage()))
@@ -223,6 +230,15 @@ impl Game {
     // ---- Addendum D: vault keep at exit
 
     /// `ids`: JSON array of item ids from `StepResult.exit_pending.items` to vault.
+    /// QA on 23ed91f: resolve the pending exit by the keep preference and owned automations
+    /// (`ExitPending.auto_keep`, replacing a weaker vault item of the same category when the
+    /// vault is full) — the skipped keep sheet's call (`keep([])` keeps nothing).
+    #[wasm_bindgen(js_name = autoKeep)]
+    pub fn auto_keep(&mut self) -> String {
+        self.inner.auto_keep();
+        js(&self.inner.lineage())
+    }
+
     pub fn keep(&mut self, ids_json: &str) -> Result<String, JsError> {
         let v = ids(ids_json)?;
         self.inner.keep(v).map_err(err)?;

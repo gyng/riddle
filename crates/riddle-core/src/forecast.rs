@@ -21,6 +21,7 @@ pub const MIN_SIMS: u32 = 5;
 /// `best_depth + 1`, so a deep lineage's sims stay cheap), never past the run cap.
 pub const SIM_MAX_TICKS: u32 = crate::engine::MAX_TURNS_PER_RUN;
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct SimResult {
     pub max_depth: u32,
     pub tier: ExitTier,
@@ -166,9 +167,42 @@ pub fn forecast_tag(game: &Game, depth: u32) -> u64 {
     splitmix(0x5EED_F0C4 ^ game.lineage.seed.rotate_left(17) ^ ((depth as u64) << 40))
 }
 
-pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
+/// The tick budget of the camp's panel (`forecast_with` at `FORECAST_SIMS`).
+pub const CAMP_TICK_BUDGET: u64 = FORECAST_TICK_BUDGET + DELTA_TICK_BUDGET;
+
+/// QA on 23ed91f: the camp's panel for `rules` — every sim to its exit on the camp's seeds
+/// (`forecast_tag` at `known_to`) under the camp's budget, `sims` of them — memoised on the
+/// game by (lineage, rules): the death screen's patch deltas and the camp that follows read
+/// the same panels.
+pub fn camp_panel(game: &Game, rules: &RuleSet, sims: u32) -> Vec<SimResult> {
     let known_to = game.lineage.best_depth + 1;
     let tag = forecast_tag(game, known_to);
+    let k = (sims as u64).div_ceil(FORECAST_SIMS as u64).max(1);
+    let budget = CAMP_TICK_BUDGET * k;
+    let key = format!("{}:{sims}:{tag}:{budget}:{}", lineage_key(game), serde_json::to_string(rules).unwrap_or_default());
+    if let Some(v) = game.panel_cache.borrow().get(&key) {
+        return v.clone();
+    }
+    let ended = simulate_budget(game, rules, sims, tag, u32::MAX, budget);
+    let mut cache = game.panel_cache.borrow_mut();
+    if cache.len() >= PANEL_CACHE_MAX {
+        cache.clear();
+    }
+    cache.insert(key, ended.clone());
+    ended
+}
+
+pub const PANEL_CACHE_MAX: usize = 16;
+
+/// The camp bar at `depth` for `rules` (`camp_panel` at `FORECAST_SIMS`): (reach, sims).
+pub fn camp_reach(game: &Game, rules: &RuleSet, depth: u32) -> (f64, u32) {
+    let ended = camp_panel(game, rules, FORECAST_SIMS);
+    let n = ended.len().max(1);
+    (ended.iter().filter(|r| r.max_depth >= depth).count() as f64 / n as f64, n as u32)
+}
+
+pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
+    let known_to = game.lineage.best_depth + 1;
     // QA on 3d71c33: one panel for the bars and the ends. The ends used to come from their own
     // small panel (20 sims on other seeds, cut by the delta budget to ~5–10 on a D8+ lineage)
     // while the bars stopped each sim at `known_to`: `D8 44% · bank 57%` under
@@ -179,9 +213,7 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     // the killers are the bars' own. The budget is the two old panels' together (the reach
     // panel's and the ends'); the refine pass runs twice the sims under twice that (the same
     // seeds first). A sim cut off at D(best+1) no longer reads as a "return" (Cut 12 §3).
-    let k = (sims as u64).div_ceil(FORECAST_SIMS as u64).max(1);
-    let budget = (FORECAST_TICK_BUDGET + DELTA_TICK_BUDGET) * k;
-    let ended = simulate_budget(game, rules, sims, tag, u32::MAX, budget);
+    let ended = camp_panel(game, rules, sims);
     let n = ended.len().max(1) as f64;
     let depths = (1..=known_to)
         .map(|d| {
@@ -289,7 +321,7 @@ pub fn reach_key(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, 
 /// unlocks, class and level, vault and loadout, party, supplies, gold, forge, grudges, bones,
 /// insurance, keep preference, trait, heir, variant, hunter) — not marks, renown or the rest
 /// clock, so a purchase or a rank does not spill the cache.
-fn lineage_key(game: &Game) -> u64 {
+pub fn lineage_key(game: &Game) -> u64 {
     let l = &game.lineage;
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut feed = |s: &str| {
@@ -318,6 +350,9 @@ fn lineage_key(game: &Game) -> u64 {
     feed(&serde_json::to_string(&l.bones).unwrap_or_default());
     feed(&format!("{:?}", l.insured));
     feed(&l.keep_pref);
+    // What a floor generated in a sim reads besides (`CheckpointLineage`).
+    feed(&l.vault_pref);
+    feed(&serde_json::to_string(&l.lost).unwrap_or_default());
     feed(&l.variant);
     feed(&serde_json::to_string(&l.hunter).unwrap_or_default());
     feed(&format!("{:?}", l.kill_counts));

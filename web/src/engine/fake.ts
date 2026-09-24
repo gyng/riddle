@@ -995,6 +995,8 @@ export class FakeEngine implements Engine {
     this.s.lineage.ledger = this.ledger();
     this.s.lineage.counters = this.counters();
     this.s.lineage.combos = combosIn(this.s.rules.rows, COMBOS);   // Cut 8B §1
+    { const L = this.s.lineage; const qm = L.unlocks.includes("quartermaster");   // QA 23ed91f: what an unwatched exit keeps
+      L.keep_auto = L.keep_pref === "best_armour" ? (qm ? ["armour", "weapon"] : ["armour"]) : L.keep_pref === "best_weapon" ? (qm ? ["weapon", "armour"] : ["weapon"]) : []; }
     // Cut 16 §2: the wake's class chips (owned classes, the current first) while the trait offer stands
     { const L = this.s.lineage; const owned = CLASSES.filter((c) => isFreeClass(c) || L.unlocks.includes(c));
       const SIG: Record<string, [string, number]> = { fighter: ["shield_bash", 1], rogue: ["vanish", 1], ranger: ["mark", 7], caster: ["slow", 5] };
@@ -1198,7 +1200,7 @@ export class FakeEngine implements Engine {
   }
   // apply a finished run to the lineage; returns [newFacts, newBests, marks]
   private carried(run: Run): InvItem[] { return [...run.gear.filter((g) => !run.brought.includes(g.id)), ...run.hero.inv.filter((i) => !run.brought.includes(i.id) && !(this.s.lineage.supplies ?? []).some((s) => s.id === i.id))]; }
-  private autoKeep(run: Run): number[] {
+  private prefPick(run: Run): number[] {
     const items = this.carried(run); const pref = this.s.lineage.keep_pref;
     const pickBest = (score: (i: InvItem) => number): number[] => { const c = items.filter((i) => score(i) > 0).sort((a, b) => score(b) - score(a))[0]; return c ? [c.id] : []; };
     if (pref === "best_weapon") return pickBest((i) => WEAPONS[i.kind]?.[1] ?? 0);
@@ -1283,6 +1285,8 @@ export class FakeEngine implements Engine {
     const run = this.pending; if (!run) return this.lineage();
     this.pending = null; this.settle(run, true, ids); return this.lineage();
   }
+  /** QA 23ed91f: the skipped sheet's call — the fake's preference pick (`autoKeep`). */
+  autoKeep(): Lineage { const run = this.pending; if (!run) return this.lineage(); return this.keep(this.prefPick(run)); }
   setKeepPref(pref: string): Lineage { if (["best_weapon", "best_armour", "none"].includes(pref)) this.s.lineage.keep_pref = pref; return this.lineage(); }
   // Cut 5 stand-ins: the fake places no vaults, so `choose` only answers with the live snapshot; `bail` ends the run on the next step
   private bailed = false;
@@ -1312,17 +1316,17 @@ export class FakeEngine implements Engine {
       for (const s of r.salvaged) { const m = (salvMap[s.kind] ??= { n: 0, gold: 0 }); m.n += s.n; m.gold += s.gold; }
       for (const s of r.spent) { const m = (spentMap[s.kind] ??= { n: 0, gold: 0 }); m.n += s.n; m.gold += s.gold; }   // Cut 13 §3
     };
-    if (this.pending) { const run = this.pending; this.pending = null; take(this.settle(run, true, this.autoKeep(run))); this.live = null; }
+    if (this.pending) { const run = this.pending; this.pending = null; take(this.settle(run, true, this.prefPick(run))); this.live = null; }
     let worst: { id: number; depth: number } | null = null;
     let stalledRun: number | null = null;                                  // Cut 13 §1: a stall's verdict opens from the report when no death does
     let deepest = 0;                                                       // the send's deepest floor (the report's `deepest` tile)
-    if (this.live && !this.live.over) { const ctx = this.ctx(); while (!this.live.over && budget > 0) { simTurn(this.live, ctx); budget--; this.s.totalTurns += 10; } if (this.live.over) { const r = this.settle(this.live, true, this.autoKeep(this.live)); this.settled.add(this.live.id); take(r); learned.push(...r.facts); bests.push(...r.bests); marks += r.marks; runs++; if (this.live.exit === "death") { deaths[this.live.cause ?? "?"] = 1; worst = { id: this.live.id, depth: this.live.depth }; } reel.push(...this.live.hl); rest(this.live); this.live = null; } }
+    if (this.live && !this.live.over) { const ctx = this.ctx(); while (!this.live.over && budget > 0) { simTurn(this.live, ctx); budget--; this.s.totalTurns += 10; } if (this.live.over) { const r = this.settle(this.live, true, this.prefPick(this.live)); this.settled.add(this.live.id); take(r); learned.push(...r.facts); bests.push(...r.bests); marks += r.marks; runs++; if (this.live.exit === "death") { deaths[this.live.cause ?? "?"] = 1; worst = { id: this.live.id, depth: this.live.depth }; } reel.push(...this.live.hl); rest(this.live); this.live = null; } }
     while (budget > 0 && stall < 20 && runs < 80 && !L.ended) {
       const run = this.startRun(); const ctx = this.ctx();
       while (!run.over && budget > 0) { simTurn(run, ctx); budget--; this.s.totalTurns += 10; }
       if (!run.over) { this.live = run; break; }
       runs++; turnsTotal += run.turn; deepest = Math.max(deepest, run.depth);
-      const r = this.settle(run, true, this.autoKeep(run)); this.settled.add(run.id); take(r);
+      const r = this.settle(run, true, this.prefPick(run)); this.settled.add(run.id); take(r);
       learned.push(...r.facts); bests.push(...r.bests); marks += r.marks;
       stall = r.facts.length || r.bests.length ? 0 : stall + 1;
       this.home = run.exit === "death" || r.bests.some((b) => /^D\d+$/.test(b)) ? 0 : this.home + 1;
@@ -1380,6 +1384,8 @@ export class FakeEngine implements Engine {
     return UNLOCKS[u]?.gate?.(L) ?? true;
   }
 
+  /** QA 23ed91f: the fake's patch deltas are already its forecast's; the same patches, not pending. */
+  deathDeltas(runId: number): Patch[] { return this.death(runId).patches.map((p) => ({ ...p, camp_pending: false })); }
   death(runId: number): Death {
     if (this.lastDeath[runId]) return this.lastDeath[runId];
     const log = this.s.logs[runId]; const L = this.s.lineage;

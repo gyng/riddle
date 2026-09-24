@@ -89,7 +89,7 @@ export type Ev =
   | { t: number; k: "ending"; ticks: number };                              // Cut 7 §4: the last `ticks` before an exit start here (optional; else the client infers exit − 30)
 
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
-                           exit_pending?: { items: InvItem[]; tier: string; worth?: number[] } };                     // Addendum D; `worth`: each item's salvage at this exit, in coins
+                           exit_pending?: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] } };                     // Addendum D; `worth`: each item's salvage at this exit, in coins
 
 export type Forecast = { depths: { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry }[]; causes: { cause: string; share: number }[];
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`)
@@ -114,6 +114,8 @@ export type Trace = { turns: TraceTurn[];
  *  §4 candidate under the verdict bar (`survives 40% · below bar`), shown dimmed. */
 export type Patch = { row: Row; insert_at: number; survive: number; forecast_delta: number; replace?: boolean; remove?: boolean;
                       root?: { text: string }; below_bar?: boolean;
+                      forecast_depth?: number; forecast_pm?: number;                         // QA 23ed91f: the camp bar `forecast_delta` moves (death's depth + 1, ≤ known_to) and its 95 % ± — set by `deathDeltas`
+                      camp_pending?: boolean;                                                // QA 23ed91f: on `death()`'s patches — `forecast_delta` is the verdict's 12-sim ranking estimate, NOT the camp's; paint reach as pending until `deathDeltas(id)` lands
                       unlock?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
 export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall";   // stall: Cut 13 §1, a stalled run's verdict (client-side widening; the Rust side is a String)
                       baseline: number;                                                   // core addition: survival of the unpatched rules, 0..1
@@ -156,6 +158,7 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         forge: { [kind: string]: { salvaged: number; craftable: boolean; tier: number;
                                                    next?: { need: number; label: string } } };                         // Addendum D; next: Cut 9 §10, the ladder's next rung (`3/5 → craftable`)
                         renown: number; rank: number; keep_pref: string;                                               // Addendum D
+                        keep_auto?: string[];                                                                          // QA 23ed91f: what an unwatched exit keeps, in order, after the brought vault items (`["armour"]`, `["armour","weapon"]` with quartermaster, `[]` for none); a keep replaces only a weaker vault item of its own category
                         rest_left_s?: number; bones?: BonesPile[];                                                      // Cut 2 §1–2
                         ascension?: Ascension;                                                                         // Cut 3
                         chronicle?: string[];                                                                          // Cut 5 §2: one line per ended heir, oldest first (cap 40)
@@ -196,6 +199,11 @@ export interface Engine {
   runOffline(elapsedS: number): ReturnReport;
   runOfflineQuick(elapsedS: number): ReturnReport;   // no worst-death verdict (~3 s saved per slice)
   death(runId: number): Death;
+  /** QA 23ed91f: the death's shown patches (same order as `death(id).patches`) with the camp's own reach: `forecast_delta` is
+   *  the camp forecast's bar move at `forecast_depth` once the patch is applied (same insert, same lineage state), `forecast_pm`
+   *  that bar's ±, `camp_pending` cleared. Slow (four 50-sim camp panels, seconds in wasm): call after painting `death(id)`.
+   *  Memoised; the camp's next `forecast()` for the base or the tapped patch's set is then a cache hit. Optional on old builds. */
+  deathDeltas?(runId: number): Patch[];
   buy(unlock: string): Lineage;
   buyUnlockGold?(unlock: string): Lineage;   // Cut 15 §2: the same gates as `buy`, paid in gold at `UnlockInfo.gold` (marks untouched, ledger `unlock <id>`, the next gold price climbs); absent on an old build
   lineage(): Lineage;
@@ -209,6 +217,11 @@ export interface Engine {
   setTrait?(name: string): Lineage;     // Cut 13 §2: pick one of `Lineage.trait_offer` for the new heir (optional; an older core has no offer)
   // Addendum D
   keep(ids: number[]): Lineage;
+  /** QA 23ed91f (L: `auto: keep weapon+armour` owned, vault full → the skipped sheet's `keep([])` salvaged mail · axe · sword):
+   *  resolve the pending exit by the keep preference and owned automations — `exit_pending.auto_keep` (brought vault items
+   *  first; a keep replaces only a weaker vault item of its own category). The skipped sheet's call; `keep([])` keeps nothing.
+   *  Optional on old builds. */
+  autoKeep?(): Lineage;
   setKeepPref(pref: string): Lineage;   // core addition (README): keep preference for offline exits
   insure(id: number): Lineage;          // core addition: gold bet that keeps a brought vault item on death
   // core additions (crates/riddle-core/README.md)

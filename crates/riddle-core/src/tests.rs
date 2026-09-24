@@ -1321,7 +1321,7 @@ fn a_set_that_dies_has_no_stall() {
 fn stall_patches_apply_as_replace_remove_or_insert() {
     use crate::offline::apply_patch;
     let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")), Row::new(vec![], Verb::new("attack"))], name: None };
-    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false };
+    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false };
     let deeper = Row::new(vec![Cond::n("hp<", 10)], Verb::new("return"));
     let r = apply_patch(&rules, &mk(deeper.clone(), 0, true, false), 8);
     assert_eq!(r.rows, vec![deeper.clone(), rules.rows[1].clone()]);
@@ -2142,6 +2142,119 @@ fn exit_pending_then_keep_and_keep_pref() {
     a.auto_keep();
     assert_eq!(a.lineage.vault[0].kind, "plate");
     assert!(a.set_keep_pref("none").is_ok() && a.set_keep_pref("x").is_err());
+}
+
+/// QA on 23ed91f: `keep armour` with `mail · summon ally scroll` vaulted woke to `sword +2 ·
+/// bow +1` — the fallback weapon keep evicted by value. The chip's category wins; a keep
+/// replaces only a weaker vault item of its own category; brought vault items go back first.
+#[test]
+fn auto_keep_follows_the_chip_and_never_evicts_across_categories() {
+    let vaulted = |g: &mut Game, kinds: &[&str]| {
+        g.lineage.unlocks.insert("vault2".into());
+        g.lineage.vault = kinds.iter().enumerate().map(|(i, k)| { let mut it = Item::new(100_000 + i as u32, k); it.known = true; it }).collect();
+        g.lineage.next_vault_id = 100_100;
+    };
+    let kinds = |g: &Game| { let mut v: Vec<String> = g.lineage.vault.iter().map(|i| format!("{}+{}", i.kind, i.enchant)).collect(); v.sort(); v };
+    // K's night: armour chip, weapons found, no armour — the vault is untouched.
+    let mut a = arena();
+    vaulted(&mut a, &["mail", "summon_ally"]);
+    a.set_keep_pref("best_armour").unwrap();
+    let s = give(&mut a, "sword");
+    let b = give(&mut a, "bow");
+    { let run = a.run.as_mut().unwrap(); run.hero.inv.iter_mut().for_each(|i| if i.id == s { i.enchant = 2 } else if i.id == b { i.enchant = 1 }); }
+    finish_with(&mut a, ExitTier::Bank);
+    a.auto_keep();
+    assert_eq!(kinds(&a), ["mail+0", "summon_ally+0"]);
+    assert_eq!(a.lineage.to_wire().keep_auto, ["armour"]);
+    // A better armour replaces the weaker armour, never the scroll.
+    let mut a = arena();
+    vaulted(&mut a, &["leather", "summon_ally"]);
+    a.set_keep_pref("best_armour").unwrap();
+    give(&mut a, "mail");
+    give(&mut a, "sword");
+    finish_with(&mut a, ExitTier::Bank);
+    a.auto_keep();
+    assert_eq!(kinds(&a), ["mail+0", "summon_ally+0"]);
+    // A free slot takes the fallback category when no armour came home.
+    let mut a = arena();
+    vaulted(&mut a, &["summon_ally"]);
+    a.set_keep_pref("best_armour").unwrap();
+    give(&mut a, "sword");
+    finish_with(&mut a, ExitTier::Bank);
+    a.auto_keep();
+    assert_eq!(kinds(&a), ["summon_ally+0", "sword+0"]);
+    // A brought vault item comes home to the vault whatever the chip says (was: salvaged
+    // unless it was the chip's best).
+    for pref in ["best_weapon", "none"] {
+        let mut a = arena();
+        vaulted(&mut a, &[]);
+        a.set_keep_pref(pref).unwrap();
+        let mut m = Item::new(100_050, "mail");
+        m.known = true;
+        { let run = a.run.as_mut().unwrap(); run.hero.inv.push(m); run.brought.push(100_050); }
+        give(&mut a, "sword");
+        finish_with(&mut a, ExitTier::Bank);
+        a.auto_keep();
+        let want: &[&str] = if pref == "none" { &["mail+0"] } else { &["mail+0", "sword+0"] };
+        assert_eq!(kinds(&a), want, "{pref}");
+    }
+    // `none` wins over the quartermaster; with it, weapon and armour each upgrade their own.
+    let mut a = arena();
+    vaulted(&mut a, &["dagger", "leather"]);
+    a.lineage.unlocks.insert("quartermaster".into());
+    a.set_keep_pref("none").unwrap();
+    give(&mut a, "sword");
+    give(&mut a, "mail");
+    finish_with(&mut a, ExitTier::Bank);
+    a.auto_keep();
+    assert_eq!(kinds(&a), ["dagger+0", "leather+0"]);
+    assert!(a.lineage.to_wire().keep_auto.is_empty());
+    let mut a = arena();
+    vaulted(&mut a, &["dagger", "leather"]);
+    a.lineage.unlocks.insert("quartermaster".into());
+    a.set_keep_pref("best_armour").unwrap();
+    give(&mut a, "sword");
+    give(&mut a, "mail");
+    finish_with(&mut a, ExitTier::Bank);
+    a.auto_keep();
+    assert_eq!(kinds(&a), ["mail+0", "sword+0"]);
+    assert_eq!(a.lineage.to_wire().keep_auto, ["armour", "weapon"]);
+}
+
+/// QA on 23ed91f (seed 1015's walk): `hp < 20% → rest · reach +8%`, then the camp's D6 read
+/// 34 % → 64 %. `death()` answers with the verdict's numbers flagged `camp_pending`;
+/// `death_deltas` returns the camp's own move at `forecast_depth`, exactly what the camp's
+/// forecast shows once the patch is applied (and the camp then reads the memoised panels).
+#[test]
+fn death_deltas_are_the_camp_forecasts_move() {
+    let mut g = Game::new(1015);
+    g.send();
+    let mut died = None;
+    for _ in 0..4000 {
+        let r = g.step(50);
+        if r.run_over {
+            died = r.events.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "death")).then_some(r.snapshot.run.id);
+            break;
+        }
+    }
+    let id = died.expect("seed 1015's first heir dies");
+    g.keep(vec![]).unwrap();
+    let d = g.death(id).unwrap();
+    assert!(!d.patches.is_empty() && d.patches.iter().all(|p| p.camp_pending && p.forecast_depth == 0), "{:?}", d.patches);
+    let ps = g.death_deltas(id).unwrap();
+    assert!(ps.iter().all(|p| !p.camp_pending && p.forecast_depth > 0));
+    assert!(g.death(id).unwrap().patches.iter().all(|p| !p.camp_pending), "measured on this camp state");
+    let rules = g.lineage.rules().clone();
+    let before = g.forecast();
+    let bar = |f: &Forecast, d: u32| f.depths.iter().find(|x| x.depth == d).unwrap().reach;
+    for p in ps.iter().filter(|p| p.insert_at >= 0) {
+        let mut h = g.clone();
+        h.set_rules(crate::offline::apply_patch(&rules, p, h.lineage.max_rows())).unwrap();
+        let moved = bar(&h.forecast(), p.forecast_depth) - bar(&before, p.forecast_depth);
+        assert!((moved - p.forecast_delta).abs() < 1e-9, "{}: reach {:+.3} vs camp {moved:+.3}", p.row.describe(), p.forecast_delta);
+    }
+    let rest = ps.iter().find(|p| p.row.verb.v == "rest").expect("the rest patch");
+    assert!(rest.forecast_delta > 0.2, "rest moves D{} by {:+.2}", rest.forecast_depth, rest.forecast_delta);
 }
 
 #[test]
@@ -7259,4 +7372,108 @@ fn the_warlord_breaks_once_at_half_hp_and_stops_rallying() {
         std::mem::take(cx.events)
     };
     assert!(!evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "warlord breaks")), "once");
+}
+
+/// QA on 23ed91f (qaL, D6: a conjurer out of reach, `keeps $0 · stalling`, 15/38 for 4+ min,
+/// only `bail` ended it). L's set (gas → retreat · depth ≥ 8 → bank · hp < 50 → drink heal ·
+/// hp < 30 → read unknown · pack break) under a cowardly heir: before, seeds 1001/1004/1005
+/// each had a run cut down 2 600–3 000 spectral blades to the 120 000-tick cap (a blow on a
+/// summoned foe reset the oscillation guard, and one at the elbow exempted it). Now the guard
+/// sees through the blades: no run nears the cap.
+#[test]
+fn a_summoner_out_of_reach_is_a_stall_not_a_loop() {
+    use crate::hero::Trait;
+    let set = RuleSet { rows: vec![
+        Row::new(vec![Cond::t("foe_tag", "gas")], Verb::new("retreat")),
+        Row::new(vec![Cond::n("depth>=", 8)], Verb::new("bank")),
+        Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "heal")),
+        Row::new(vec![Cond::n("hp<", 30)], Verb::arg("read", "unknown")),
+        Row::new(vec![], Verb::arg("tactic", "pack_break")),
+    ], name: None };
+    let worst = par_seeds([1001u64, 1004, 1005], |seed| {
+        let mut g = Game::new(seed);
+        g.lineage.unlocks.extend(["pack_break", "row5"].map(String::from));
+        g.set_rules_raw(set.clone()).unwrap();
+        let mut worst = (0u32, 0u32);
+        for _ in 0..32 {
+            g.lineage.rest_left = 0;
+            g.lineage.trait_ = Trait::Cowardly;
+            g.start_run(None);
+            g.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
+            let r = g.run.as_ref().unwrap();
+            if r.turn > worst.0 {
+                worst = (r.turn, r.summoned_kills);
+            }
+            g.finish_run();
+            g.auto_keep();
+        }
+        worst
+    });
+    for (seed, (turns, blades)) in [1001, 1004, 1005].iter().zip(worst) {
+        assert!(turns < 40_000, "seed {seed}: a run of {turns} ticks, {blades} summoned foes cut down");
+    }
+}
+
+/// QA on 23ed91f (qaL: that loop paid `fighter +598 · L4 ↑2` and `renown +1054`): a summoned
+/// foe is no kill for the lineage — no XP, no renown, no bestiary or `studied` count.
+#[test]
+fn summoned_kills_pay_nothing() {
+    let run_with = |summoned: bool| {
+        let mut g = arena();
+        for i in 0..6 {
+            let id = add_monster(&mut g, "goblin", 5, 3 + i);
+            let (run, mut cx) = g.ctx();
+            let mi = run.monsters.iter().position(|m| m.id == id).unwrap();
+            run.monsters[mi].summoned = summoned;
+            crate::turn::damage_monster(run, &mut cx, mi, 999, &crate::turn::Src::Hero { ranged: false });
+        }
+        let r = g.run.as_ref().unwrap();
+        let (kills, summ) = (r.kills.len(), r.summoned_kills);
+        let xp0 = g.lineage.classes.get("fighter").map(|p| p.xp).unwrap_or(0);
+        finish_with(&mut g, ExitTier::Bank);
+        let xp = g.lineage.classes.get("fighter").map(|p| (p.level, p.xp)).unwrap();
+        (kills, summ, xp0, xp, g.lineage.renown, g.lineage.kill_counts.get("goblin").copied().unwrap_or(0))
+    };
+    let (k, s, _, xp_s, score_s, count_s) = run_with(true);
+    assert_eq!((k, s, count_s), (0, 6, 0), "summoned: no lineage kills, no bestiary count");
+    let (k, s, _, xp_r, score_r, count_r) = run_with(false);
+    assert_eq!((k, s, count_r), (6, 0, 6));
+    assert!(xp_r > xp_s && score_r > score_s, "real kills pay ({xp_r:?} > {xp_s:?}, {score_r} > {score_s})");
+    let (_, _, _, xp_none, score_none, _) = { let mut g = arena(); finish_with(&mut g, ExitTier::Bank); (0, 0, 0, g.lineage.classes.get("fighter").map(|p| (p.level, p.xp)).unwrap(), g.lineage.renown, 0) };
+    assert_eq!((xp_s, score_s), (xp_none, score_none), "six summoned kills pay what no kills pay");
+}
+
+/// QA on 23ed91f (qaL: `heal salvaged 2/5` while the keep sheet said `green potion?`): the
+/// forge's wire row is keyed by the flavour until the kind is identified.
+#[test]
+fn the_forge_does_not_name_an_unknown_kind() {
+    let mut g = Game::new(1016);
+    g.lineage.forge.insert("heal".into(), ForgeRow::at(2));
+    g.lineage.forge.insert("sword".into(), ForgeRow::at(1));
+    let fl = g.lineage.flavours.flavour_of("heal").unwrap().to_string();
+    let w = g.lineage();
+    assert!(!w.forge.contains_key("heal") && w.forge.contains_key(&format!("{fl} potion?")) && w.forge.contains_key("sword"), "{:?}", w.forge.keys());
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    assert!(g.lineage().forge.contains_key("heal"));
+}
+
+/// QA on 23ed91f (qaL: `auto: keep weapon+armour` owned, vault `1/1 leather`, a watched bank
+/// found mail · axe · sword and salvaged all three — the skipped sheet called `keep([])`): the
+/// exit carries the preference's picks (`ExitPending.auto_keep`), and `auto_keep` (wasm
+/// `autoKeep`) keeps the mail over the leather.
+#[test]
+fn a_watched_exit_carries_the_automations_picks() {
+    let mut a = arena();
+    a.lineage.unlocks.insert("quartermaster".into());
+    let mut l = Item::new(100_000, "leather");
+    l.known = true;
+    a.lineage.vault = vec![l];
+    a.lineage.next_vault_id = 100_001;
+    let mail = give(&mut a, "mail");
+    give(&mut a, "axe");
+    give(&mut a, "sword");
+    finish_with(&mut a, ExitTier::Bank);
+    assert_eq!(a.exit_pending_wire().unwrap().auto_keep, vec![mail]);
+    a.auto_keep();
+    assert_eq!(a.lineage.vault.iter().map(|v| v.kind.as_str()).collect::<Vec<_>>(), ["mail"]);
 }

@@ -2079,8 +2079,12 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             if v.adj >= 1 {
                 return verb_attack(run, cx, "lowest", v, false);
             }
-            if foes >= 2 {
-                return true; // hold: a pack that hangs back is not worth stepping out for
+            // hold: a pack that hangs back is not worth stepping out for — unless it hangs back
+            // to shoot or conjure, and then it never comes (QA on 23ed91f, qaL: a conjurer and
+            // an archer held at range on D6; the guard called 6.5 % of that set's sends stalls).
+            let shoots = v.foes.iter().any(|&i| ["ranged", "caster", "summoner"].iter().any(|t| run.monsters[i].has_tag(t)));
+            if foes >= 2 && !shoots {
+                return true;
             }
             foes >= 1 && verb_attack(run, cx, "nearest", v, false)
         }

@@ -45,6 +45,10 @@ impl Game {
     pub fn death(&mut self, run_id: u32) -> Option<Death> {
         trace::death(self, run_id)
     }
+    /// QA on 23ed91f: the death's shown patches with the camp's reach deltas (`trace::death_deltas`).
+    pub fn death_deltas(&mut self, run_id: u32) -> Option<Vec<Patch>> {
+        trace::death_deltas(self, run_id)
+    }
     pub fn buy(&mut self, unlock: &str) -> Result<(), String> {
         meta::buy(self, unlock)
     }

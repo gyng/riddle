@@ -143,8 +143,12 @@ pub struct Run {
     pub next_id: u32,
     pub next_item_id: u32,
     pub kills_floor: u32,
-    /// (turn, kind, depth)
+    /// (turn, kind, depth) — the lineage's kills (XP, renown, the bestiary); summoned foes
+    /// are counted apart (`summoned_kills`).
     pub kills: Vec<(u32, String, u32)>,
+    /// QA on 23ed91f: summoned foes cut down this run (no XP, renown or bestiary count).
+    #[serde(default)]
+    pub summoned_kills: u32,
     pub brought: Vec<u32>,
     pub trace: Vec<TraceTurn>,
     pub notes: Vec<(u32, String)>,
@@ -1011,10 +1015,13 @@ impl LineageState {
             supplies: self.supplies.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
             classes: self.classes.clone(),
             // Cut 9 §10: every row carries its next rung (an older save's rows too).
-            forge: self.forge.iter().map(|(k, f)| (k.clone(), { let mut f = f.clone(); f.settle(); f })).collect(),
+            // QA on 23ed91f (qaL: `heal salvaged 2/5` while the game still said `green potion?`):
+            // an unidentified potion or scroll's row is keyed by what the hero calls it.
+            forge: self.forge.iter().map(|(k, f)| (self.forge_name(k), { let mut f = f.clone(); f.settle(); f })).collect(),
             renown: self.renown,
             rank: self.rank,
             keep_pref: self.keep_pref.clone(),
+            keep_auto: self.keep_auto(),
             insured: self.insured.clone(),
             rest_left_s: self.rest_left.div_ceil(crate::offline::TICKS_PER_SECOND as u32),
             bones: self.bones.iter().map(|b| BonesPile { depth: b.depth, heir: b.heir, items: b.items.len() as u32 }).collect(),
@@ -1048,6 +1055,23 @@ impl LineageState {
                 opens: c.signature_level(),
             })
             .collect()
+    }
+    /// A forge row's name on the wire: the kind once known, else its flavour (`green potion?`).
+    pub fn forge_name(&self, kind: &str) -> String {
+        let (known, _, label) = describe(&Item::new(0, kind), &self.facts, &self.flavours);
+        if known { kind.to_string() } else { label }
+    }
+    /// The categories an unwatched exit keeps, in order (`Game::auto_keep`).
+    pub fn keep_auto(&self) -> Vec<String> {
+        let qm = self.unlocks.contains("quartermaster");
+        let order: &[&str] = match self.keep_pref.as_str() {
+            "best_weapon" if qm => &["weapon", "armour"],
+            "best_weapon" => &["weapon"],
+            "best_armour" if qm => &["armour", "weapon"],
+            "best_armour" => &["armour"],
+            _ => &[],
+        };
+        order.iter().map(|s| s.to_string()).collect()
     }
     pub fn vault_slots(&self) -> usize {
         if self.variant_is("bones_only") {
@@ -1273,6 +1297,15 @@ pub struct DeathRec {
     /// screen (its number is the unlock sheet's delta); the gate table counts it out.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub root_under_base: bool,
+    /// QA on 23ed91f: the camp state (`forecast::lineage_key`) the shown patches'
+    /// `forecast_delta`s were measured on (`trace::camp_deltas`); a `death()` read on another
+    /// state measures them again. 0 = not yet.
+    #[serde(default, skip_serializing_if = "is_zero_u64")]
+    pub camp_key: u64,
+}
+
+fn is_zero_u64(n: &u64) -> bool {
+    *n == 0
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -1328,6 +1361,10 @@ pub struct PendingExit {
     /// Salvage share of the unkept items (0 for a timed-out run).
     #[serde(default = "default_pct")]
     pub pct: i32,
+    /// Vault items the send brought along that came home: the player's already, so the
+    /// night's `auto_keep` puts them back before it keeps anything new (QA on 23ed91f).
+    #[serde(default)]
+    pub brought: Vec<u32>,
 }
 
 fn default_pct() -> i32 {
@@ -1474,6 +1511,11 @@ pub struct Game {
     /// Cut 4: `forecast::reach_with` results keyed by (lineage, rules, depth, sims, tag).
     #[serde(skip)]
     pub forecast_cache: std::cell::RefCell<BTreeMap<String, (f64, u32)>>,
+    /// QA on 23ed91f: the camp's forecast panels (`forecast::camp_panel`) keyed by (lineage,
+    /// rules) — a death screen measures its patches on the panels the camp then reads, so the
+    /// camp after a tap is a lookup.
+    #[serde(skip)]
+    pub panel_cache: std::cell::RefCell<BTreeMap<String, Vec<crate::forecast::SimResult>>>,
     /// Cut 6 §1: the ledger line of the last settled exit (`step` attaches it to `Ev::Exit`).
     #[serde(default)]
     pub last_exit: Option<ExitLine>,
@@ -1512,6 +1554,7 @@ impl Game {
             stall: StallTally::default(),
             stall_cache: None,
             forecast_cache: Default::default(),
+            panel_cache: Default::default(),
         }
     }
 
@@ -1538,6 +1581,7 @@ impl Game {
             stall: StallTally::default(),
             stall_cache: None,
             forecast_cache: Default::default(),
+            panel_cache: Default::default(),
             last_exit: None,
             watched: false,
         }
@@ -1866,6 +1910,7 @@ impl Game {
             next_item_id: 10,
             kills_floor: 0,
             kills: Vec::new(),
+            summoned_kills: 0,
             brought,
             trace: Vec::new(),
             notes: Vec::new(),
@@ -2092,11 +2137,12 @@ impl Game {
         StepResult { events, snapshot, run_over, exit_pending }
     }
 
-    fn exit_pending_wire(&self) -> Option<ExitPending> {
+    pub fn exit_pending_wire(&self) -> Option<ExitPending> {
         self.pending_exit.as_ref().map(|p| ExitPending {
             items: p.items.iter().map(|i| to_inv(i, &self.lineage.facts, &self.lineage.flavours)).collect(),
             tier: p.tier.name().into(),
             worth: p.items.iter().map(|i| (salvage_value(&i.kind) * p.pct / GOLD_DIVISOR + 50) / 100).collect(),
+            auto_keep: auto_keep_plan(p, &self.lineage.vault, self.lineage.vault_slots(), &self.lineage.keep_pref, self.lineage.unlocks.contains("quartermaster")).0,
         })
     }
 
@@ -2662,7 +2708,8 @@ impl Game {
             e.1 += salvage_value(&it.kind) * pct / GOLD_DIVISOR;
         }
         let cut_rows: Vec<crate::wire::SalvageRow> = cut.into_iter().map(|(k, (n, c))| crate::wire::SalvageRow { kind: k, n, gold: (c + 50) / 100 }).filter(|r| r.gold > 0).collect();
-        self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible, pct });
+        let brought: Vec<u32> = eligible.iter().filter(|i| run.brought.contains(&i.id)).map(|i| i.id).collect();
+        self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible, pct, brought });
         // Death: graveyard, grudge, heir, record.
         if tier == ExitTier::Death {
             let cause = run.death_cause.clone().unwrap_or_else(|| "unknown".into());
@@ -2892,19 +2939,26 @@ impl Game {
     }
 
     /// Resolve a pending exit by `keep_pref` (offline runs, or when the client moves on).
-    /// The `quartermaster` automation (Cut 2 §3) keeps the best weapon *and* armour.
+    /// Precedence (QA on 23ed91f: `keep armour` with a mail in the vault woke to `sword +2 ·
+    /// bow +1`, the mail evicted by value and the vaulted scroll salvaged for a fallback sword):
+    /// 1. what the send brought from the vault and came home goes back first, whatever the chip;
+    /// 2. the chip's category (`best_weapon` / `best_armour`): its best find, which may replace
+    ///    only a weaker vault item **of the same category**; `none` keeps no new find, the
+    ///    `quartermaster` automation included;
+    /// 3. the other category — with `quartermaster` like the chip's (same-category upgrades);
+    ///    without it, only when no find of the chip's category came home, and only into a free
+    ///    slot. Nothing the player vaulted is ever evicted for another category.
     pub fn auto_keep(&mut self) {
         let Some(p) = self.pending_exit.as_ref() else { return };
-        let pick = |cat: Cat| p.items.iter().filter(|i| i.cat() == cat).max_by_key(|i| (i.value(), i.id)).map(|i| i.id);
-        let ids: Vec<u32> = if self.lineage.unlocks.contains("quartermaster") {
-            pick(Cat::Weapon).into_iter().chain(pick(Cat::Armour)).collect()
-        } else {
-            match self.lineage.keep_pref.as_str() {
-                "best_weapon" => pick(Cat::Weapon).or_else(|| pick(Cat::Armour)).into_iter().collect(),
-                "best_armour" => pick(Cat::Armour).or_else(|| pick(Cat::Weapon)).into_iter().collect(),
-                _ => Vec::new(),
+        let (ids, evict) = auto_keep_plan(p, &self.lineage.vault, self.lineage.vault_slots(), &self.lineage.keep_pref, self.lineage.unlocks.contains("quartermaster"));
+        if !evict.is_empty() {
+            // The replaced vault items are salvaged with the exit's unkept finds.
+            let out: Vec<Item> = self.lineage.vault.iter().filter(|v| evict.contains(&v.id)).cloned().collect();
+            self.lineage.vault.retain(|v| !evict.contains(&v.id));
+            if let Some(p) = self.pending_exit.as_mut() {
+                p.items.extend(out);
             }
-        };
+        }
         let _ = self.keep(ids);
     }
 
@@ -3762,4 +3816,59 @@ pub fn kind_title(kind: &str) -> String {
     } else {
         kind.replace('_', " ")
     }
+}
+
+/// `auto_keep`'s decision: the pending ids that go to the vault and the vault ids they replace
+/// (see `Game::auto_keep` for the precedence). Never plans past `slots`.
+pub fn auto_keep_plan(p: &PendingExit, vault: &[Item], slots: usize, keep_pref: &str, quartermaster: bool) -> (Vec<u32>, Vec<u32>) {
+    let mut ids: Vec<u32> = Vec::new();
+    let mut evict: Vec<u32> = Vec::new();
+    if slots == 0 {
+        return (ids, evict);
+    }
+    // (id, cat, value) of what the vault will hold.
+    let mut held: Vec<(u32, Cat, i32)> = vault.iter().map(|v| (v.id, v.cat(), v.value())).collect();
+    for it in p.items.iter().filter(|i| p.brought.contains(&i.id)) {
+        if held.len() < slots {
+            held.push((it.id, it.cat(), it.value()));
+            ids.push(it.id);
+        }
+    }
+    let (first, second) = match keep_pref {
+        "best_weapon" => (Cat::Weapon, Cat::Armour),
+        "best_armour" => (Cat::Armour, Cat::Weapon),
+        _ => return (ids, evict),
+    };
+    let best = |cat: Cat| p.items.iter().filter(|i| i.cat() == cat && !p.brought.contains(&i.id)).max_by_key(|i| (i.value(), i.id));
+    let mut place = |it: &Item, upgrade: bool, ids: &mut Vec<u32>, evict: &mut Vec<u32>| {
+        if held.len() < slots {
+            held.push((it.id, it.cat(), it.value()));
+            ids.push(it.id);
+            return;
+        }
+        if !upgrade {
+            return;
+        }
+        // The weakest vault item of the same category that this find beats; never one kept
+        // on this exit.
+        let weakest = held.iter().enumerate().filter(|(_, (id, c, v))| *c == it.cat() && *v < it.value() && !ids.contains(id)).min_by_key(|(_, (id, _, v))| (*v, *id)).map(|(i, _)| i);
+        if let Some(i) = weakest {
+            let (old, _, _) = held.remove(i);
+            evict.push(old);
+            held.push((it.id, it.cat(), it.value()));
+            ids.push(it.id);
+        }
+    };
+    let a = best(first);
+    if let Some(it) = a {
+        place(it, true, &mut ids, &mut evict);
+    }
+    if let Some(it) = best(second) {
+        if quartermaster {
+            place(it, true, &mut ids, &mut evict);
+        } else if a.is_none() {
+            place(it, false, &mut ids, &mut evict);
+        }
+    }
+    (ids, evict)
 }

@@ -639,7 +639,8 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     // Engaged in melee is not stuck: adjacent foes are always worth a row.
     let hp = run.hero.pos;
     let v = view(run);
-    if v.foes.iter().any(|&i| run.monsters[i].pos.adjacent(hp)) {
+    // A summoned foe at the elbow is the loop itself, not an engagement (QA on 23ed91f).
+    if v.foes.iter().any(|&i| run.monsters[i].pos.adjacent(hp) && !run.monsters[i].summoned) {
         return;
     }
     let ids: Vec<u32> = v.foes.iter().map(|&i| run.monsters[i].id).collect();
@@ -649,7 +650,7 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     // Cut 13 §1: the guard's moment — the nearest foe it gave up on and why (`goblin archer,
     // no path` · `eel, across water`) — is the stall's cause on the record, the reel line and
     // the chronicle note; the first guard's tick is the verdict's checkpoint.
-    if let Some(&i) = v.foes.first() {
+    if let Some(&i) = v.foes.iter().find(|&&i| !run.monsters[i].summoned).or(v.foes.first()) {
         let m = &run.monsters[i];
         let why = if run.floor.map.get(m.pos) == crate::tiles::Tile::Water { "across water" } else { "no path" };
         run.stuck_cause = Some(format!("{}, {why}", crate::engine::kind_title(&m.kind).to_lowercase()));
@@ -1011,7 +1012,10 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         }
     }
     run.monsters[mi].hurt_since_action = true;
-    if matches!(src, Src::Hero { .. }) && dmg > 0 {
+    // QA on 23ed91f (qaL): blood on a summoned foe is no progress — a conjurer out of reach
+    // sends two blades every 150 ticks, the hero cuts them down, and the guard never saw a
+    // pacing (runs to the 120 000-tick cap, 3 000 blades killed).
+    if matches!(src, Src::Hero { .. }) && dmg > 0 && !run.monsters[mi].summoned {
         run.last_damage_action = run.actions;
         run.stuck_until = 0;
         run.row_suppressed = (-9, 0);
@@ -1097,6 +1101,14 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         if !run.trophies_run.contains(&"no_friends".to_string()) {
             run.trophies_run.push("no_friends".into());
         }
+    } else if !m.neutral && m.summoned {
+        // QA on 23ed91f (qaL): a summoned foe — a conjurer's blade, a rallied goblin, a lich's
+        // skeleton — is no kill for the lineage: no XP, no renown, no bestiary or `studied`
+        // count (a conjurer out of reach paid `fighter +598 · renown +1054` for one run). The
+        // rows still see it (`on_kill`, the floor's count).
+        run.kills_floor += 1;
+        run.kill_since_action = true;
+        run.summoned_kills += 1;
     } else if !m.neutral {
         let depth = run.depth;
         run.kills.push((run.turn, kind.clone(), depth));

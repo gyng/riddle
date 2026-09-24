@@ -133,7 +133,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     });
     let t10_lineage = t10.as_ref().map(|_| crate::engine::CheckpointLineage::of(&game.lineage));
     let boss = if stall { None } else { boss_of(run, &cause) };
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, root_under_base: false }
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, root_under_base: false, camp_key: 0 }
 }
 
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
@@ -700,7 +700,7 @@ fn pin_counter(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Opti
         return None;
     }
     rec.counter = Some(row.clone());
-    Some(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false })
+    Some(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false })
 }
 
 /// Cut 11 §2: the root-cause patch. A theft root: `foe_tag:thief → attack tag:thief` (the
@@ -728,7 +728,7 @@ fn root_patch(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Optio
     let mut b = base.sim_clone();
     unlock_base(&mut b, rec);
     let insert_at = if unlock.is_some() { -1 } else { 0 };
-    let patch = Patch { row: row.clone(), insert_at, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: Some(PatchRoot { text }), below_bar: false };
+    let patch = Patch { row: row.clone(), insert_at, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: Some(PatchRoot { text }), below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false };
     let rules = patched_rules(&rec.rules, &patch, max_rows(rec));
     let pos = rules.rows.iter().position(|r| *r == row).unwrap_or(0);
     let mut rp = Replayer::new(&b, &rules, ticks, rec.stall)?;
@@ -902,7 +902,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
             .then(a.2.cmp(&b.2))
     });
     let mut edge_gap = scored.first().is_some_and(|best| best.0 - baseline >= PATCH_MARGIN - 1e-9);
-    let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false }).collect();
+    let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false }).collect();
     // Cut 11 §2: the chain's root — the theft's answer or the unlock — measured at the top,
     // scored like any other (its edge counts for the verdict; its delta is simulated first).
     if let Some(r) = root_patch(game, rec, &base, ticks) {
@@ -1150,7 +1150,7 @@ fn dice_telegraph(game: &Game, rec: &mut DeathRec) {
         return;
     }
     let below_bar = survive < survive_bar(rec.death.baseline) - 1e-9 || survive <= rec.death.baseline + 1e-9;
-    rec.death.patches.push(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar });
+    rec.death.patches.push(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false });
     rec.deltas_done = false;
 }
 
@@ -1184,7 +1184,7 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
         }
         let Some(mut rp) = Replayer::new(&base, &patched(rec, &row, 0), ticks, rec.stall) else { continue };
         let (survive, fired) = measure(&mut rp, &row, 0);
-        measured.push((Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: true }, fired));
+        measured.push((Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: true, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false }, fired));
     }
     // Cut 15 §6: a candidate that survives 0 % is no alternative (U: `survives 0% · base 0%`).
     if measured.iter().any(|(p, _)| p.survive > 1e-9) {
@@ -1233,9 +1233,88 @@ pub fn death(game: &mut Game, run_id: u32) -> Option<Death> {
     let mut rec = game.deaths.get(&run_id)?.clone();
     compute_verdict(game, &mut rec);
     compute_deltas(game, &mut rec);
-    let d = rec.death.clone();
+    let mut d = rec.death.clone();
+    // QA on 23ed91f: the camp's numbers are `death_deltas`'s (four camp panels — seconds in
+    // wasm): until measured on this camp state, the shown patches carry the verdict's own
+    // ranking deltas, flagged `camp_pending`.
+    let fresh = rec.camp_key != 0 && rec.camp_key == camp_key(game);
+    for p in d.patches.iter_mut() {
+        p.camp_pending = !fresh;
+    }
     game.deaths.insert(run_id, rec);
     Some(d)
+}
+
+/// QA on 23ed91f: the death's shown patches with the camp's own reach deltas (`camp_deltas`):
+/// `forecast_delta` is the camp bar's move at `forecast_depth` once the patch is applied, on
+/// the camp's panel and lineage state, `forecast_pm` that bar's ±. Memoised: the panels land
+/// in `Game.panel_cache` (the camp after the tap reads them) and the numbers on the record.
+pub fn death_deltas(game: &mut Game, run_id: u32) -> Option<Vec<Patch>> {
+    let mut rec = game.deaths.get(&run_id)?.clone();
+    compute_verdict(game, &mut rec);
+    compute_deltas(game, &mut rec);
+    camp_deltas(game, &mut rec);
+    let d = rec.death.patches.clone();
+    game.deaths.insert(run_id, rec);
+    Some(d)
+}
+
+fn camp_key(game: &Game) -> u64 {
+    crate::forecast::lineage_key(&camp_state(game)).max(1)
+}
+
+/// The camp a patch is applied in: the game with its pending exit resolved as the night
+/// resolves it (a death's is empty; a stall's keeps by `keep_pref`), no run.
+fn camp_state(game: &Game) -> Game {
+    let mut g = game.sim_clone();
+    g.run = None;
+    if let Some(p) = &game.pending_exit {
+        g.pending_exit = Some(p.clone());
+        g.auto_keep();
+    }
+    g
+}
+
+/// QA on 23ed91f (`hp < 20% → rest · reach +8%`, then the camp's D6 34 % → 64 %; `to corridor
+/// · reach +8%`, then D5 79 % → 78 %): the ranking deltas are 12 paired sims on their own
+/// seeds, which the camp never shows. A shown patch's `forecast_delta` is the camp's own:
+/// its bar at `forecast_depth` after the patch (applied as the client applies it — `insert_at`,
+/// the set fitted to `max_rows`) less the bar before, on the camp's panel seeds and the camp's
+/// lineage state; `forecast_pm` is that bar's 95 % half-width. Measured again when the camp
+/// state moved since (a trait, a purchase, the shelf).
+fn camp_deltas(game: &Game, rec: &mut DeathRec) {
+    if rec.death.patches.is_empty() {
+        return;
+    }
+    let g = camp_state(game);
+    let key = crate::forecast::lineage_key(&g).max(1);
+    if rec.camp_key == key {
+        return;
+    }
+    rec.camp_key = key;
+    let depth = (rec.death.depth + 1).min(g.lineage.best_depth + 1).max(1);
+    let (base, _) = crate::forecast::camp_reach(&g, &rec.rules, depth);
+    let max_rows = max_rows(rec);
+    let mut unlocked = g.sim_clone();
+    unlock_base(&mut unlocked, rec);
+    for p in rec.death.patches.iter_mut() {
+        let rules = patched_rules(&rec.rules, p, max_rows);
+        let (r, n) = crate::forecast::camp_reach(if p.insert_at < 0 { &unlocked } else { &g }, &rules, depth);
+        p.forecast_delta = r - base;
+        p.forecast_depth = depth;
+        p.forecast_pm = crate::forecast::half_width(r, n as usize);
+        p.camp_pending = false;
+    }
+    // The camp reads these panels next (the base, the tapped patch's set).
+    for c in [g, unlocked] {
+        let mut cache = game.panel_cache.borrow_mut();
+        for (k, v) in c.panel_cache.into_inner() {
+            if cache.len() >= crate::forecast::PANEL_CACHE_MAX {
+                cache.clear();
+            }
+            cache.insert(k, v);
+        }
+    }
 }
 
 /// Verdict only (no forecast deltas), for the metrics.
@@ -1438,7 +1517,7 @@ mod tests_trace {
     }
 
     fn patch(verb: Verb, survive: f64, delta: f64) -> Patch {
-        Patch { row: Row::new(vec![Cond::n("hp<", 20)], verb), insert_at: 0, survive, forecast_delta: delta, replace: false, remove: false, root: None, below_bar: false }
+        Patch { row: Row::new(vec![Cond::n("hp<", 20)], verb), insert_at: 0, survive, forecast_delta: delta, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false }
     }
 
     #[test]
