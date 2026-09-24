@@ -104,6 +104,31 @@ pub struct VaultChoice {
     /// left at this snapshot; the sheet shows them as a shrinking bar.
     #[serde(default)]
     pub left: u32,
+    /// Cut 19 §1: the item the vault preference takes when the grace runs out (the beat's
+    /// `took mail` before it lands); `choose(id)` overrides it while `left > 0`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pick: Option<u32>,
+}
+
+/// Cut 19 §1: one cage preference measured for the active set (`Game::cage_forecast`) — the
+/// camp panel's sims with `vault_pref` set to `pref`, against the current preference's panel
+/// (paired: the same seeds). `depth` is the bar the reach is read at (the set's bank row's
+/// depth when it has one, else the lineage's best depth); `delta` is the picker's headline —
+/// the bank share's move when either panel banks, else the reach's.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct CageOption {
+    pub pref: String,
+    pub current: bool,
+    pub depth: u32,
+    pub reach: f64,
+    pub reach_delta: f64,
+    pub bank: f64,
+    pub bank_delta: f64,
+    pub gold: f64,
+    pub gold_delta: f64,
+    pub delta: f64,
+    /// The 95 % half-width of `reach` (a delta inside it reads `~0`).
+    pub pm: f64,
 }
 
 fn default_vision() -> i32 {
@@ -257,7 +282,7 @@ pub enum Ev {
     Bones { t: u32, heir: u32, items: u32 },
     /// Cut 7 §4: an exit the engine can foresee, `ticks` ahead — a bank walk-out or the
     /// bottom's stairs within three steps (30 ticks), or death in the air (hp ≤ 15% with a
-    /// hostile adjacent; once per 100 ticks). An instant exit (`return`, recall) says 0.
+    /// hostile adjacent; once per 100 ticks). An instant exit (`bail`, recall) says 0; a `return` walks to the up-stairs (Cut 19 §2).
     Ending { t: u32, ticks: u32 },
 }
 
@@ -463,6 +488,13 @@ pub struct Patch {
     /// `death_deltas(id)` returns the patches with the camp's numbers and this cleared.
     #[serde(default, skip_serializing_if = "is_false")]
     pub camp_pending: bool,
+    /// Cut 19 §4: an insert onto a full set (own rows at `max_rows`) drops a row — this one
+    /// (the set's index): the own row that fired least in the dead run (ties: the lowest in the
+    /// list), so the screen reads `+ drop R5` and the drop sheet opens on it. `None` when the
+    /// set has room, or the patch swaps or removes a row. The measured numbers are the
+    /// inserted set's; `offline::apply_patch` drops this row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drops: Option<i32>,
 }
 
 fn is_zero_u32(n: &u32) -> bool {
@@ -533,6 +565,11 @@ pub struct Death {
     /// base (`base 100%`) rather than calling equal rows "below bar".
     #[serde(default)]
     pub nothing_beats_base: bool,
+    /// Cut 19 §4: on a `row` verdict, the set's row (0-based) whose action was the dying one
+    /// and whose removal survives the death's replays (`trace::ROW_BAR`): the verdict reads
+    /// `row` and names it (`R2`). `None` on every other verdict.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cause_row: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -628,6 +665,10 @@ pub struct ReturnReport {
     /// than the lineage best; ascending) — the report's `D3 · picked clean` line.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub picked: Vec<u32>,
+    /// Cut 19 §3: the repeat skipped a supply because the absence's spending had reached what
+    /// it brought home (`restock capped`).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub restock_capped: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -851,6 +892,15 @@ pub struct Lineage {
     /// picks (it sticks to every run until changed).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub class_offer: Vec<ClassChip>,
+    /// Cut 19 §3: the loadout repeats — `true` unless the player cleared it
+    /// (`setRestock(false)`); the kinds the next send re-packs (the last send's, less the ones
+    /// it wasted) and their price on the shelf today (`repeat · $120`).
+    #[serde(default)]
+    pub repeat: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repeat_kinds: Vec<String>,
+    #[serde(default)]
+    pub repeat_gold: i32,
 }
 
 /// Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id
@@ -929,6 +979,11 @@ pub struct UnlockInfo {
     /// unless every place does.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stall: Option<f64>,
+    /// Cut 19 §3 (rater AA: "no `+1 row` offered any more"): the next `+1 row` — the row
+    /// unlock whose prerequisite is owned — stays on the camp's short list until bought
+    /// (the client's top-three cut had dropped it behind cheaper cards).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub pinned: bool,
 }
 
 #[cfg(test)]

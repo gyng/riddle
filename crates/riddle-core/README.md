@@ -1133,6 +1133,77 @@ Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion ver
   `warlord breaks` and note `The Warlord breaks.` (the client's beat). Test:
   `the_warlord_breaks_once_at_half_hp_and_stops_rallying`.
 
+## Cut 19 (every lever in sight, every exit a risk) — core half
+
+- **The cage as a camp decision** (§1). `Game::cage_forecast() -> Vec<CageOption>` (wasm
+  `cageForecast`): per preference (`weapon armour potion scroll`) the camp panel for the
+  active set with `vault_pref` set to it (the forecast's sims count: the refined panel once it
+  exists; the same seeds, so the deltas are paired), read at `depth` (the set's bank row's
+  depth, else the lineage best): `reach`, `bank`, `gold`, their `*_delta` against the current
+  preference, `delta` (the picker's headline: the bank share's move when either panel banks,
+  else the reach's) and `pm`. The panels land in `Game.panel_cache` (`PANEL_CACHE_MAX` 16 →
+  32). In the run: `VaultChoice.pick` — the item id the preference takes when `left` runs out
+  (`turn::vault_pick`, shared with `vault_take`); `choose(id)` still overrides inside the
+  grace. The world waiting while the override sheet is open is the client's (it stops
+  stepping); nothing else is needed from the core.
+- **A return walks** (§2). `return` paths to the floor's up-stairs as `bank` does and exits
+  there at 60 %; both step round awake foes where the floor allows (`ai::hero_path_home`) and
+  fail when one stands in the only way (the next row acts). `bail` and a recall scroll stay
+  instant. `Ev::Ending` foresees the walk's end like a bank's (`0` now means `bail`/recall).
+  A return no longer shadows the rows under it (`rules::shadows`: only `hold` always acts;
+  a return shadows a later return). Verdicts: the escape candidates add the way home 20 points
+  sooner (`hp < N+20 → return`), and `foes ≥ 1 → attack nearest` joins when no row of the set
+  strikes the foe in view (a passive set's deaths had only the instant return for an answer).
+  A stall's replay walking home runs on until home (`trace::HOME_TICKS` 1500), and a stall
+  none of whose ways out survives names what was tried under the bar (`dice_fallback`).
+  Measured (30 seeds × 8 h, the cohort-14 sets): raterAA's set dies on 18.1 % of sends (was
+  0.2 % with the instant return; 95.7 % without the row), raterAB's 22.4 % (was 1.3 %; 77.1 %
+  without). The gate table prints every cohort set with a return row beside the same set
+  without it (4 h) and gates `0 < death share ≤ without` (raterY's return sits under `hp < 25%
+  → bank`, which takes its every moment: equal). Tuning, recorded: the FULL bots' preset
+  return is `hp < 40% · depth ≥ 5` (was 20: walking home at 20 % cost FULL twice its deaths,
+  and FULL deaths are the dice-heavy ones — the death-weighted dice share read 5.4 %; at 35 %
+  FULL−D28 passed the Queen on 4/30 seeds); FULL now reaches D29 on 63 % of seeds (bar 50 %;
+  was 100 %). `qa.rs`'s forecast-vs-sends check runs 18 sends per set (was 6: the sends'
+  own noise).
+- **Admin goes** (§3). The loadout repeats by default: `restock` needs no unlock
+  (`auto_supply` left the catalogue — 44 unlocks) and writes `repeat <kind>` ledger lines;
+  `Game::set_restock(on)` (wasm `setRestock`, returns the Lineage) — off refunds the re-packed
+  shelf and stops the repeat (`LineageState.restock_off`, serde default), on re-packs an
+  empty shelf now. `Lineage.repeat`, `repeat_kinds` (the last send's kinds less the wasted
+  ones) and `repeat_gold` (their shelf price: `repeat · $120`). Offline, a kind is skipped
+  once the batch's spending would pass what it brought home (`Batch::income` = exits + salvage
+  + wake pay), and `ReturnReport.restock_capped` says so. `UnlockInfo.pinned`: the next `+1
+  row` (its prerequisite owned) — AA's `+1 row` vanished from the camp's top-three cut (the
+  client ranks buyable, then gated, then short of marks); pinned, it stays until bought.
+- **The death screen agrees with itself** (§4). Verdict `row` (`Death.cause_row`): the dying
+  action (the trace's last turn) was an own row of the set — not a card's, not the shipped
+  preset's (`origin: "preset"`), not an engagement row (`turn::targets_foes`: cutting the
+  set's only strike "survives" by never fighting) — and the set with that row cut
+  (`trace::cut_patch`: removed, a moving row narrowed to `adj ≥ 1`, or a way home 20 points
+  sooner) survives ≥ `ROW_BAR` (0.5) of the death's replays and beats the baseline by
+  `PATCH_MARGIN`. The cut leads the patches (pinned like a stall's loop patch). `gap` is left
+  for a missing row. `patch_fired_rate` reads a cut as firing where the cut row acts in the
+  unpatched replays. qa.rs: `a row verdict names a row that fired on the death tick`.
+  Ranking (`rank_patches`): survival first when it differs by > `SURVIVE_BAND` (0.10), the
+  forecast's reach inside the band (a selection order, not a pairwise comparator); applied in
+  `compute_deltas` and again after `death_deltas`' camp numbers (`rerank_free`: the pinned
+  heads — counter, cut, root, a dice death's telegraph answer — keep their places; qa checks
+  the same patches and that `death()` then reads the new order). `Patch.drops`: an insert on
+  a full set drops the dead run's least-fired own row (`DeathRec.row_fired`; ties the lowest
+  in the list) — `+ drop R5`; `offline::apply_patch` drops it. The measured numbers are the
+  inserted set's (unchanged).
+- **Less repetition** (§5). Den thefts thin: `LineageState.den_thefts` (the den's snatches,
+  added at each exit); a run sent with `den_thefts > 0` and the `den` fact is `Run.den_thin`,
+  and its dens pounce on 1 floor in 3 (`situations::den_pounces`: the run's seed and the
+  floor) — else the thieves sleep through. The trials (fresh lineages with the fact) are
+  unchanged. A grudge is avenged once: `Grudge.avenged` (serde default), set at the exit of the
+  run that killed it (`Run.avenged`); a later kill of the named foe notes `X slain.`
+- Tests: `a_return_walks_home_and_can_die_on_the_way`, `a_row_the_player_wrote_is_the_row_verdict`,
+  `an_insert_on_a_full_set_drops_the_least_fired_row`, `den_thefts_thin_once_the_lineage_has_lost_to_them`,
+  `a_grudge_is_avenged_once`, `the_loadout_repeats_unless_cleared`,
+  `offline_restock_never_spends_more_than_the_night_brought`, `the_cage_forecast_measures_each_preference`.
+
 ## Layout
 
 `src/` per `docs/CUT1.md` plus `wire.rs` (the wire structs), `situations.rs` (the Cut 7 band

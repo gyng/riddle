@@ -306,7 +306,7 @@ impl RuleSet {
     /// Row A shadows a later row B when every condition of A holds whenever B's do (B's own
     /// conditions, plus a foe in view when B's verb strikes one), A's conditions are all
     /// usable (`usable`: owned, not locked), and A acts whenever it holds: its verb always
-    /// executes (`return`, `hold`), or it is B's verb with the same scope (where A's attempt
+    /// executes (`hold`; Cut 19 §2: a `return` walks and can be blocked), or it is B's verb with the same scope (where A's attempt
     /// fails, B's same attempt fails too).
     pub fn shadowed_by(&self, max_rows: usize, usable: impl Fn(&Cond) -> bool) -> Vec<Option<usize>> {
         let act: Vec<(usize, &Row)> = self.active(max_rows).collect();
@@ -408,7 +408,9 @@ pub fn shadows(a: &Row, b: &Row, usable: &impl Fn(&Cond) -> bool) -> bool {
         v.dedup();
         v
     };
-    let always = matches!(a.verb.v.as_str(), "return" | "hold");
+    // Cut 19 §2: `return` walks to the stairs like `bank` and fails when a foe stands in the
+    // way, so only `hold` always acts.
+    let always = a.verb.v == "hold";
     if !(always || (a.verb == b.verb && scope(a) == scope(b))) {
         return false;
     }

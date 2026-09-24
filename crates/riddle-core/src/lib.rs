@@ -39,6 +39,10 @@ impl Game {
     pub fn forecast_refine(&self) -> Forecast {
         forecast::forecast_refine(self)
     }
+    /// Cut 19 §1: each cage preference's forecast for the active set (`forecast::cage_forecast`).
+    pub fn cage_forecast(&self) -> Vec<CageOption> {
+        forecast::cage_forecast(self)
+    }
     pub fn run_offline(&mut self, elapsed_s: u64) -> ReturnReport {
         offline::run_offline(self, elapsed_s)
     }

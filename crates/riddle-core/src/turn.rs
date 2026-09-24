@@ -1239,7 +1239,15 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
                 if !cx.trophies.iter().any(|t| t == "boss_untouched") { note(run, cx, "Trophy: boss untouched.".into()); }
             }
         } else if m.grudge {
-            note(run, cx, format!("{} is avenged.", m.title()));
+            // Cut 19 §5 (rater AA: `Zeleth the goblin archer is avenged.` twice): avenged once;
+            // a later kill of the same named foe is `slain`.
+            let name = m.name.clone().unwrap_or_default();
+            if m.avenged || run.avenged.contains(&name) {
+                note(run, cx, format!("{} slain.", m.title()));
+            } else {
+                note(run, cx, format!("{} is avenged.", m.title()));
+                run.avenged.push(name);
+            }
         }
     }
     if let Some(it) = m.stolen.clone() {
@@ -1681,7 +1689,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
 /// Cut 7 §4: `Ev::Ending { ticks }` before an exit the engine can foresee — a bank walk-out or
 /// the bottom's stairs within three steps (~30 ticks at base speed), or death in the air
 /// (hp ≤ 15% with a hostile adjacent). Once per 100 ticks; a run that has already ended this
-/// action (`return`, recall, the bottom reached) gets a `0` so the viewer knows it was instant.
+/// action (`bail`, recall, the bottom reached) gets a `0` so the viewer knows it was instant.
 fn foresee_ending(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View) {
     let t = run.turn;
     if run.ending_t.is_some_and(|e| t < e + 100) {
@@ -1696,7 +1704,8 @@ fn foresee_ending(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View) {
         d[run.floor.map.idx(goal)]
     };
     let dying = run.hero.hp_pct() <= 15 && v.adj >= 1;
-    let banking = verb.v == "bank" && (0..=3).contains(&steps_to(run, run.floor.stairs_up));
+    // Cut 19 §2: a return walks to the up-stairs as a bank does.
+    let banking = matches!(verb.v.as_str(), "bank" | "return") && (0..=3).contains(&steps_to(run, run.floor.stairs_up));
     let bottom = verb.v == "descend" && run.depth + 1 >= ENDING_DEPTH && (0..=3).contains(&steps_to(run, run.floor.stairs_down));
     let ticks = if run.over.is_some() {
         Some(0)
@@ -1850,16 +1859,22 @@ fn vault_open(run: &mut Run, cx: &mut Ctx) {
     callout(run, cx, "choose one");
 }
 
-/// Take one item from the opened vault (`id`, or the preference's pick); the rest vanish.
-pub fn vault_take(run: &mut Run, cx: &mut Ctx, id: Option<u32>) {
-    let Some((_, items)) = run.vault_choice.take() else { return };
-    let pref_cat = match cx.vault_pref {
+/// The cage item the vault preference takes (its category's first, else the first) — also the
+/// snapshot's `VaultChoice.pick` (Cut 19 §1).
+pub fn vault_pick(items: &[crate::item::Item], pref: &str) -> usize {
+    let pref_cat = match pref {
         "armour" => Cat::Armour,
         "potion" => Cat::Potion,
         "scroll" => Cat::Scroll,
         _ => Cat::Weapon,
     };
-    let pick = id.and_then(|id| items.iter().position(|i| i.id == id)).or_else(|| items.iter().position(|i| i.cat() == pref_cat)).unwrap_or(0);
+    items.iter().position(|i| i.cat() == pref_cat).unwrap_or(0)
+}
+
+/// Take one item from the opened vault (`id`, or the preference's pick); the rest vanish.
+pub fn vault_take(run: &mut Run, cx: &mut Ctx, id: Option<u32>) {
+    let Some((_, items)) = run.vault_choice.take() else { return };
+    let pick = id.and_then(|id| items.iter().position(|i| i.id == id)).unwrap_or_else(|| vault_pick(&items, cx.vault_pref));
     let Some(it) = items.into_iter().nth(pick) else { return };
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     let here = run.hero.pos;

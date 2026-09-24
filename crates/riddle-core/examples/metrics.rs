@@ -160,12 +160,17 @@ fn cohort_sets() -> Vec<(String, RuleSet)> {
     out
 }
 
-/// (set index, seed) → (sends, stalls).
-type CohortStalls = BTreeMap<(usize, u64), (u32, u32)>;
+/// (set index, seed, the set's return rows cut) → (sends, stalls, deaths).
+type CohortStalls = BTreeMap<(usize, u64, bool), (u32, u32, u32)>;
+
+/// Cut 19 §2: `set` without its `return` rows (the death share's comparison).
+fn without_return(set: &RuleSet) -> RuleSet {
+    RuleSet { rows: set.rows.iter().filter(|r| r.verb.v != "return").cloned().collect(), name: set.name.clone() }
+}
 
 /// A lineage that owns what a cohort set needs (its cards, its condition tokens, eight
 /// rows, the common facts), playing that set: (sends, stalls) over `hours`.
-fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32) {
+fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32, u32) {
     let mut g = setup(Bot::Edited, seed);
     for r in &set.rows {
         if let Some(c) = r.card() {
@@ -183,7 +188,8 @@ fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32) {
     // QA on 23ed91f (qaL): a run that reaches the tick cap is a stall that never ended (a
     // conjurer's blades reset the guard: 120 000 ticks, 3 000 kills) — counted with them.
     let capped = g.batch.run_ticks.iter().filter(|&&t| t >= riddle_core::engine::MAX_TURNS_PER_RUN).count() as u32;
-    (g.batch.run_outcomes.len() as u32, g.batch.stalls + capped)
+    let deaths = g.batch.run_outcomes.iter().filter(|(_, c)| c.is_some()).count() as u32;
+    (g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths)
 }
 
 fn setup(bot: Bot, seed: u64) -> Game {
@@ -367,6 +373,11 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
             r.stall_reel.1 += same as u32;
             if (!fires || !same) && std::env::var("STALL_DEBUG").is_ok() {
                 eprintln!("STALL {} seed {seed} run {id} D{} cause {} verdict {} patches {:?} reel {:?}", bot.name(), d.depth, d.cause, d.verdict, d.patches.iter().map(|p| p.row.describe()).collect::<Vec<_>>(), g.batch.highlights.iter().filter(|h| h.run_id == id).map(|h| h.text.clone()).collect::<Vec<_>>());
+                if let Some(t10) = rec.t10.as_ref() {
+                    for row in riddle_core::trace::stall_candidates(&rec.vocab, t10) {
+                        eprintln!("  cand {} → {:?} (baseline {:.2})", row.describe(), riddle_core::trace::measure_row(&g, &rec, &row), d.baseline);
+                    }
+                }
             }
         }
     }
@@ -403,7 +414,8 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
             // Cut 11 §2: a root-cause patch answers a theft floors back (or an unlock); its
             // number is the forecast delta, not the moment's replays — exempt here. §4: so is
             // a `dice` death's below-bar alternative (labelled as such on the screen).
-            for p in d.patches.iter().filter(|p| p.insert_at >= 0 && p.root.is_none() && !p.below_bar) {
+            // Cut 19 §4: a `row` verdict's cut (a removed or narrowed row) inserts nothing.
+            for p in d.patches.iter().filter(|p| p.insert_at >= 0 && p.root.is_none() && !p.below_bar && !p.remove && !p.replace) {
                 let mut rules = rec.rules.clone();
                 let at = (p.insert_at as usize).min(rules.rows.len());
                 rules.rows.insert(at, p.row.clone());
@@ -415,6 +427,8 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
                 r.patches.0 += 1;
                 if own >= 0.5 {
                     r.patches.1 += 1;
+                } else if std::env::var("PATCH_DEBUG").is_ok() {
+                    eprintln!("PATCH {} seed {seed} run {id}: {} {} at R{} fired {own:.2} · survive {:.2} base {:.2} drops {:?} · {:?}", bot.name(), d.verdict, p.row.describe(), p.insert_at + 1, p.survive, d.baseline, p.drops, d.patches.iter().map(|x| x.row.describe()).collect::<Vec<_>>());
                 }
                 r.patches_fresh.0 += 12;
                 r.patches_fresh.1 += fresh as u32;
@@ -532,12 +546,15 @@ fn main() {
     #[derive(Clone, Copy)]
     enum Job {
         Counter(u64),
-        Cohort(usize, u64),
+        Cohort(usize, u64, bool),
         Bot(usize, u64),
     }
     let sets = Arc::new(cohort_sets());
     let mut jobs: Vec<Job> = (1..=seeds).map(Job::Counter).collect();
-    jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| Job::Cohort(si, s))));
+    jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| Job::Cohort(si, s, false))));
+    // Cut 19 §2: a set with a return row also plays without it (the night's death share, beside).
+    let returning: Vec<usize> = (0..sets.len()).filter(|&si| sets[si].1.rows.iter().any(|r| r.verb.v == "return")).collect();
+    jobs.extend(returning.iter().flat_map(|&si| (1..=seeds).map(move |s| Job::Cohort(si, s, true))));
     jobs.extend(BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Bot(bi, s))));
     // `--threads N` leaves cores to whatever runs beside the table (gates.mjs: the dayplayer's
     // sequential chains, which the full 32 starved — docs/ITERATION_SPEED.md §3.2).
@@ -561,9 +578,10 @@ fn main() {
                     }
                     results.lock().unwrap().insert((bi, seed), r);
                 }
-                Job::Cohort(si, seed) => {
-                    let r = cohort_stalls(&sets[si].1, seed, 4);
-                    cohort.lock().unwrap().insert((si, seed), r);
+                Job::Cohort(si, seed, bare) => {
+                    let set = if bare { without_return(&sets[si].1) } else { sets[si].1.clone() };
+                    let r = cohort_stalls(&set, seed, 4);
+                    cohort.lock().unwrap().insert((si, seed, bare), r);
                 }
                 Job::Counter(seed) => {
                     let r = riddle_core::probes::counter_trial(seed);
@@ -693,15 +711,17 @@ fn main() {
         100.0 * num / den.max(1) as f64
     };
     let dice = weighted("dice");
-    let gap = weighted("gap");
-    println!("verdict sample: {} verdicts, raw dice share {raw_dice:.1}% · death-weighted {dice:.1}%", verdicts.len());
+    // Cut 19 §4: a `row` death traces to a row too — the one the player wrote.
+    let row = weighted("row");
+    let gap = weighted("gap") + row;
+    println!("verdict sample: {} verdicts, raw dice share {raw_dice:.1}% · death-weighted {dice:.1}% · row {row:.1}%", verdicts.len());
     // A share near 5% needs a few hundred verdicts to read: the quick mode's ~240 give ±2.8 pts.
     // Under 500 the bar is applied with that half-width; the full table is the gate that counts.
     let dice_n = verdicts.len() as f64;
     let dice_pm = if dice_n > 0.0 { 196.0 * (0.05 * 0.95 / dice_n).sqrt() } else { 0.0 };
     let dice_ok = if dice_n < 500.0 { dice <= 5.0 + dice_pm } else { dice <= 5.0 };
     rows.push((format!("Unfair deaths (dice) ≤ 5% (n={}, death-weighted{})", verdicts.len(), if dice_n < 500.0 { format!(", ±{dice_pm:.1} sample") } else { String::new() }), format!("{dice:.1}%"), dice_ok));
-    rows.push(("Deaths tracing to a row (gap) ≥ 70%".into(), format!("{gap:.1}%"), gap >= 70.0));
+    rows.push(("Deaths tracing to a row (gap + row) ≥ 70%".into(), format!("{gap:.1}%"), gap >= 70.0));
     let mut causes: BTreeMap<&str, usize> = BTreeMap::new();
     let mut n_causes = 0;
     for r in &all {
@@ -932,10 +952,23 @@ fn main() {
     rows.push((format!("Stalls ≤ 1% of sends on DEFAULT (n={d_sends})"), format!("{d_stall:.1}%"), d_stall <= 1.0));
     // … and on the cohorts' own sets (`eval/cards/*.rules.json`), each over `seeds` × 4 h.
     let (mut c_sends, mut c_stalls, mut worst) = (0u32, 0u32, (0.0f64, String::new()));
+    let mut ret_sets: Vec<(String, f64, f64)> = Vec::new();
     for (si, (name, _)) in sets.iter().enumerate() {
-        let (n, k) = (1..=seeds).fold((0u32, 0u32), |a, s| { let r = cohort[&(si, s)]; (a.0 + r.0, a.1 + r.1) });
+        let (n, k, dd) = (1..=seeds).fold((0u32, 0u32, 0u32), |a, s| { let r = cohort[&(si, s, false)]; (a.0 + r.0, a.1 + r.1, a.2 + r.2) });
         let p = pct(k as usize, n as usize);
-        println!("  cohort set {name}: {k}/{n} ({p:.1}%)");
+        let death = pct(dd as usize, n as usize);
+        // Cut 19 §2: a set with a return row, and the same set without it.
+        let bare = cohort.contains_key(&(si, 1, true)).then(|| {
+            let (n, _, dd) = (1..=seeds).fold((0u32, 0u32, 0u32), |a, s| { let r = cohort[&(si, s, true)]; (a.0 + r.0, a.1 + r.1, a.2 + r.2) });
+            pct(dd as usize, n as usize)
+        });
+        match bare {
+            Some(b) => {
+                println!("  cohort set {name}: {k}/{n} ({p:.1}%) · death {death:.1}% (no return row {b:.1}%)");
+                ret_sets.push((name.clone(), death, b));
+            }
+            None => println!("  cohort set {name}: {k}/{n} ({p:.1}%) · death {death:.1}%"),
+        }
         c_sends += n;
         c_stalls += k;
         if p > worst.0 {
@@ -945,6 +978,14 @@ fn main() {
     if !sets.is_empty() {
         let c_pct = pct(c_stalls as usize, c_sends as usize);
         rows.push((format!("Stalls ≤ 1% of sends on every cohort set ({} sets, n={c_sends})", sets.len()), format!("{c_pct:.1}% · worst {:.1}%", worst.0), worst.0 <= 1.0));
+    }
+    // Cut 19 §2: a return walks — a set with a return row dies some nights (> 0), and less
+    // than without the row (the same, to the send, when the row never acts: raterY's return
+    // sits under `hp < 25% → bank`, which takes every moment it could).
+    if !ret_sets.is_empty() {
+        let ok = ret_sets.iter().filter(|(_, d, b)| *d > 0.0 && (d < b || (d - b).abs() < 1e-9)).count();
+        let worst = ret_sets.iter().map(|(_, d, b)| d - b).fold(f64::NEG_INFINITY, f64::max);
+        rows.push((format!("Return row: 0 < death share < without it ({} cohort sets; = if it never acts)", ret_sets.len()), format!("{ok}/{} · worst {worst:+.1} pts", ret_sets.len()), ok == ret_sets.len()));
     }
     let (sv_n, sv_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_verdicts.0, a.1 + r.stall_verdicts.1));
     rows.push((format!("Stall verdicts: ≥ 1 patch fired ≥ 50% (n={sv_n})"), format!("{sv_ok}/{sv_n}"), sv_ok == sv_n));

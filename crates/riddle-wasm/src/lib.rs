@@ -278,6 +278,24 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    // ---- Cut 19
+
+    /// §1: each cage preference measured for the active set — `CageOption[]` (`pref`,
+    /// `current`, `depth`, `reach`/`reach_delta`, `bank`/`bank_delta`, `gold`/`gold_delta`,
+    /// `delta` — the picker's headline — and `pm`). Four camp panels (three new): call it when
+    /// the cage tablet's picker opens, or after the refine; memoised like the forecast.
+    #[wasm_bindgen(js_name = cageForecast)]
+    pub fn cage_forecast(&self) -> String {
+        js(&self.inner.cage_forecast())
+    }
+
+    /// §3: the loadout's repeat on or off (off refunds the re-packed shelf); returns the Lineage.
+    #[wasm_bindgen(js_name = setRestock)]
+    pub fn set_restock(&mut self, on: bool) -> String {
+        self.inner.set_restock(on);
+        js(&self.inner.lineage())
+    }
+
     // ---- Cut 3: ascension
 
     /// After the ending: a new lineage under `variant` (`no_rest | short_list | bones_only |

@@ -127,6 +127,9 @@ pub struct Grudge {
     pub name: String,
     pub depth: u32,
     pub heir: u32,
+    /// Cut 19 §5: killed once (`X is avenged.`); a later kill of the named foe reads `X slain.`
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub avenged: bool,
 }
 
 const SYL_A: [&str; 10] = ["Gr", "Sk", "Vr", "Th", "Mor", "Ash", "Ul", "Kr", "Zel", "Dr"];

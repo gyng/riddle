@@ -78,7 +78,7 @@ pub fn full() -> RuleSet {
         name: Some("full".into()),
         rows: vec![
             Row::new(vec![Cond::n("hp<", 35)], Verb::arg("drink", "heal")),
-            Row::new(vec![Cond::n("hp<", 20), Cond::n("depth>=", 5)], Verb::new("return")),
+            Row::new(vec![Cond::n("hp<", 40), Cond::n("depth>=", 5)], Verb::new("return")),
             Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", 33)], Verb::arg("tactic", "cadence")),
             Row::new(vec![Cond::t("foe_tag", "summoned"), Cond::n("depth>=", 28)], Verb::arg("read", "silence")),
             Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read")),

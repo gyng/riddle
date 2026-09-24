@@ -53,6 +53,9 @@ pub struct Monster {
     pub stolen: Option<Item>,
     pub fleeing: bool,
     pub grudge: bool,
+    /// Cut 19 §5: this grudge was avenged by an earlier heir (its kill reads `slain`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub avenged: bool,
     pub summoned: bool,
     /// Companion id when this ally is a party member (Addendum A).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -149,6 +152,7 @@ impl Monster {
             stolen: None,
             fleeing: false,
             grudge: false,
+            avenged: false,
             summoned: d.tags.contains(&"summoned"),
             cid: None,
             extra_tags: Vec::new(),

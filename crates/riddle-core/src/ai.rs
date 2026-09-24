@@ -70,6 +70,15 @@ fn hero_path_to(run: &Run, goal: Pos) -> Vec<i32> {
     run.floor.map.bfs_parent_to(run.hero.pos, true, &hero_avoids(run, true), goal)
 }
 
+/// Cut 19 §2: the way home (`bank`, `return`) steps round the awake foes on it where the
+/// floor allows (a foe in the only corridor still stops him — the row then fails and the next
+/// one acts).
+fn hero_path_home(run: &Run, goal: Pos) -> Vec<i32> {
+    let avoid = hero_avoids(run, true);
+    let foes: Vec<Pos> = run.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && !m.dormant).map(|m| m.pos).collect();
+    run.floor.map.bfs_parent_to(run.hero.pos, true, &|q| avoid(q) || foes.contains(&q), goal)
+}
+
 /// A path step toward `goal`, avoiding water when possible.
 fn path_step(run: &Run, goal: Pos) -> Option<Pos> {
     let map = &run.floor.map;
@@ -707,19 +716,20 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
                 explore_step(run, cx)
             }
         }
-        "bank" => {
+        // Cut 19 §2: a return walks like a bank — to this floor's up-stairs, where it exits at
+        // 60 % (`ExitTier::Return`). Foes can reach him on the way: a hurt hero walking home is
+        // the run's tension, not a door out of it (rater AB: `hp < 20% → return` made death 1 %).
+        // The player's own `bail` stays instant (`turn::choose_and_act`), as does a recall scroll.
+        "bank" | "return" => {
+            let tier = if verb.v == "bank" { ExitTier::Bank } else { ExitTier::Return };
             let s = run.floor.stairs_up;
             if run.hero.pos == s {
-                end_run(run, cx, ExitTier::Bank);
+                end_run(run, cx, tier);
                 true
             } else {
-                let parent = hero_path_to(run, s);
+                let parent = hero_path_home(run, s);
                 step_towards(run, cx, s, &parent)
             }
-        }
-        "return" => {
-            end_run(run, cx, ExitTier::Return);
-            true
         }
         "rest" => cx.variant != "no_rest" && verb_rest(run, cx, v),
         "pick_up" => !run.items_ignored() && nearest_item_step(run, cx, false),

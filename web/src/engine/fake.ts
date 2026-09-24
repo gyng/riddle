@@ -1,7 +1,7 @@
 // Fake Engine: a tiny deterministic mini-sim with canned-shaped output so the UI can be built and
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
-  BonesPile, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
+  BonesPile, CageOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
@@ -1300,6 +1300,21 @@ export class FakeEngine implements Engine {
   bail(): void { if (this.live && !this.live.over) this.bailed = true; }
   choose(_itemId: number): Snapshot { if (!this.live) this.live = this.startRun(); const snap = snapshot(this.live, this.s.rules); snap.turn *= 10; return snap; }
   setVaultPref(pref: string): Lineage { if (["weapon", "armour", "potion", "scroll"].includes(pref)) this.s.lineage.vault_pref = pref; return this.lineage(); }
+  /** Cut 19 §1 stand-in: the fake places no cages, so each preference reads as a fixed nudge on the forecast's best-depth bar
+   *  (armour the lift AA found, the rest near zero) — enough for the tablet and its picker to paint. */
+  cageForecast(): CageOption[] {
+    const L = this.s.lineage; const f = this.forecastN(20); const depth = Math.max(1, L.best_depth);
+    const reach = f.depths.find((d) => d.depth === depth)?.reach ?? 0; const bank = f.ends?.bank ?? 0; const gold = f.ends?.gold ?? 0;
+    const lift: Record<string, number> = { weapon: 0, armour: 0.2, potion: 0.05, scroll: -0.02 };
+    const cur = L.vault_pref ?? "weapon"; const base = lift[cur] ?? 0;
+    return ["weapon", "armour", "potion", "scroll"].map((pref) => {
+      const d = (lift[pref] ?? 0) - base; const r = Math.min(1, Math.max(0, reach + d)); const b = Math.min(1, Math.max(0, bank + (bank > 0 ? d : 0)));
+      return { pref, current: pref === cur, depth, reach: r, reach_delta: r - reach, bank: b, bank_delta: b - bank, gold: gold * (1 + d), gold_delta: gold * d,
+               delta: bank > 0 ? b - bank : r - reach, pm: 1.96 * Math.sqrt(r * (1 - r) / 20) };
+    });
+  }
+  /** Cut 19 §3 stand-in: the fake has no repeat; the flag is kept on the lineage so the tile can toggle. */
+  setRestock(on: boolean): Lineage { (this.s.lineage as Lineage).repeat = on; if (!on) return this.clearSupplies(); return this.lineage(); }
   insure(id: number): Lineage {
     const L = this.s.lineage; const it = L.vault.find((v) => v.id === id);
     if (!it || (L.insured ?? []).includes(id)) return this.lineage();

@@ -44,7 +44,6 @@ pub const UNLOCKS: &[UnlockDef] = &[
     UnlockDef { id: "boss_focus", cost: 3, prereq: None },
     UnlockDef { id: "last_stand", cost: 3, prereq: None },
     UnlockDef { id: "quartermaster", cost: 5, prereq: None },
-    UnlockDef { id: "auto_supply", cost: 4, prereq: None },
     UnlockDef { id: "auto_insure", cost: 6, prereq: None },
     UnlockDef { id: "incubator", cost: 4, prereq: None },
     UnlockDef { id: "supply_cap_5", cost: 3, prereq: None },
@@ -171,7 +170,9 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             // Cut 12 §1: a tactic card says where its row goes (before the engagement row).
             let insert_at = (!owned && is_tactic_card(u.id)).then(|| card_insert_at(l.rules()));
             let gold = if owned { 0 } else { gold_price(u.cost, l.gold_buys) };
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None }
+            // Cut 19 §3: the next row unlock is pinned to the short list.
+            let pinned = !owned && is_row_unlock(u.id) && u.prereq.is_none_or(|p| l.unlocks.contains(p));
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned }
         })
         .collect()
 }
@@ -570,6 +571,10 @@ pub fn pending(game: &Game) -> Vec<String> {
                     out.push(format!("patch D{}: {}", rec.death.depth, p.row.describe()));
                 }
             }
+            // Cut 19 §4: a `row` death's patch cuts the row that killed him.
+            if let (true, Some(r)) = (rec.death.verdict == "row", rec.death.cause_row) {
+                out.push(format!("patch D{}: cut R{}", rec.death.depth, r + 1));
+            }
         }
     }
     if !game.batch.found.is_empty() {
@@ -592,7 +597,7 @@ mod tests {
     use super::*;
     #[test]
     fn catalogue_matches_the_contract() {
-        assert_eq!(UNLOCKS.len(), 45, "35 (Cut 2) + 10 (Cut 3 tier 2)");
+        assert_eq!(UNLOCKS.len(), 44, "35 (Cut 2) + 10 (Cut 3 tier 2) − auto_supply (Cut 19 §3: the repeat is free)");
         let ids: Vec<&str> = UNLOCKS.iter().map(|u| u.id).collect();
         for c in TACTIC_CARDS.iter().chain(TIER2_CARDS.iter()) {
             assert!(ids.contains(c), "{c}");
@@ -602,7 +607,8 @@ mod tests {
         }
         let cost: u32 = UNLOCKS.iter().map(|u| u.cost).sum();
         // Cut 8B: the rogue and `tame` cost nothing (were 4 and 2: 6 off the Cut 3 sum).
-        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 6 + 8 + 2 + 12 + 24 + 5 + 4 + 6 + 4 + 3 + 3 + 6 + 8 + 12 + 8 + 8 + 20 + 6 + 8);
+        // Cut 19 §3: `auto_supply` (4) left the catalogue — the repeat is the free default.
+        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 6 + 8 + 2 + 12 + 24 + 5 + 6 + 4 + 3 + 3 + 6 + 8 + 12 + 8 + 8 + 20 + 6 + 8);
         assert_eq!(UNLOCKS.iter().find(|u| u.id == "rogue").unwrap().cost, 0);
         assert_eq!(UNLOCKS.iter().find(|u| u.id == "tame").unwrap().cost, 0);
         let by = |id: &str| UNLOCKS.iter().find(|u| u.id == id).unwrap();

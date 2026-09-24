@@ -14,6 +14,8 @@ const METHODS: (keyof Engine)[] = [
   "buyUnlockGold",    // Cut 15 §2: optional likewise (the sheet's `$ buy` is off without a gold price)
   "autoKeep",         // QA 23ed91f: optional likewise (the skipped keep sheet's preference keep)
   "deathDeltas",      // QA 23ed91f: optional likewise (the camp's reach for a death's patches, after `death`)
+  "cageForecast",     // Cut 19 §1: optional likewise (the cage tablet's per-option deltas)
+  "setRestock",       // Cut 19 §3: optional likewise (the loadout's repeat toggle)
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

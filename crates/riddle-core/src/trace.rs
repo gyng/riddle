@@ -35,6 +35,8 @@ pub const SHOWN: usize = 3;
 /// Cut 4: a replay runs on past the killing blow while an awake hostile is in view, at most
 /// this many ticks (surviving the moment of the blow is not surviving the fight).
 pub const ENCOUNTER_TICKS: u32 = 300;
+/// Cut 19 §2: how far past its window a stall's replay may walk home (`Replayer::replay`).
+pub const HOME_TICKS: u32 = 1500;
 /// Cut 11 §4: on a `dice` death with no patch over the bar, candidates are measured in full
 /// (no early exit), one family each, until this many have fired in half their replays; the
 /// best are kept, flagged `below_bar`.
@@ -97,6 +99,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         // a `saved him` note never reaches a death's notes.
         notes: run.notes.iter().rev().filter(|(_, n)| !(n.ends_with(" saved him.") || n.starts_with("Slain by") || n.starts_with("Down to ") || n.starts_with("Returned with") || n.starts_with("Lost the thread") || n.ends_with(": studied.") || n.starts_with("Met a ") || n.starts_with("Met an ") || n.starts_with("Learned"))).take(2).map(|(_, n)| n.clone()).collect::<Vec<_>>().into_iter().rev().collect(),
         nothing_beats_base: false,
+        cause_row: None,
     };
     let n = game.history.len();
     let pick = if stall {
@@ -137,7 +140,8 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let t10_lineage = t10.as_ref().map(|_| crate::engine::CheckpointLineage::of(&game.lineage));
     let boss = if stall { None } else { boss_of(run, &cause) };
     let loop_row = if stall { run.stuck_row.and_then(|r| usize::try_from(r).ok()).filter(|&r| r < rules.rows.len()) } else { None };
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, root_under_base: false, camp_key: 0, loop_row }
+    let row_fired = run.row_fired.clone();
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, root_under_base: false, camp_key: 0, loop_row, row_fired }
 }
 
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
@@ -343,7 +347,7 @@ fn hp_threshold(state: &Run, trace: &Trace) -> i32 {
 
 /// The candidate rows: one family at a time, ≤ `MAX_CANDIDATES`, every argument something the
 /// hero held at the checkpoint or met in the trace, every token in `vocab`.
-pub fn candidates(vocab: &Vocabulary, state: &Run, facts: &BTreeSet<String>, flavours: &Flavours, trace: &Trace) -> Vec<Row> {
+pub fn candidates(vocab: &Vocabulary, rules: &RuleSet, state: &Run, facts: &BTreeSet<String>, flavours: &Flavours, trace: &Trace) -> Vec<Row> {
     let has_cond = |k: &str| vocab.conds.iter().any(|c| c.k == k);
     let has_tag = |t: &str| vocab.conds.iter().any(|c| c.k == "foe_tag" && c.t.as_deref() == Some(t));
     let verb = |v: &str, a: Option<&str>| vocab.verbs.iter().find(|x| x.v == v && x.a.as_deref() == a).cloned();
@@ -377,14 +381,26 @@ pub fn candidates(vocab: &Vocabulary, state: &Run, facts: &BTreeSet<String>, fla
             out.push(Row::new(vec![low.clone()], v));
         }
     }
-    // Escape: hp<N → return; hp<N → read teleport | blink when held and known.
+    // Escape: hp<N → return; hp<N → read teleport | blink when held and known. Cut 19 §2: a
+    // return walks to the up-stairs, so the way home is also tried 20 points sooner (a hurt
+    // hero who starts home late meets the floor on the way).
     if let Some(v) = verb("return", None) {
-        out.push(Row::new(vec![low.clone()], v));
+        out.push(Row::new(vec![low.clone()], v.clone()));
+        out.push(Row::new(vec![Cond::n("hp<", (n + 20).min(70))], v));
     }
     let scrolls: Vec<String> = held(Cat::Scroll).filter(|i| known(i)).map(|i| i.kind.clone()).collect();
     if let Some(k) = ["teleport", "blink"].iter().find(|k| scrolls.iter().any(|s| s == *k)) {
         if let Some(v) = verb("read", Some(k)) {
             out.push(Row::new(vec![low.clone()], v));
+        }
+    }
+    // Engagement (Cut 19 §2): `foes>=1 → attack nearest` when no row of the set strikes the
+    // foe in view — the missing row of a set that only walks, rests or runs (a return now
+    // walks home, so it no longer answers every such death on its own).
+    let engages = |r: &Row| r.verb.v == "attack" && r.conds.iter().all(|c| matches!(c.k.as_str(), "foes>=" | "adj>="));
+    if max_foes >= 1 && has_cond("foes>=") && !rules.rows.iter().any(engages) {
+        if let Some(v) = verb("attack", Some("nearest")) {
+            out.push(Row::new(vec![Cond::n("foes>=", 1)], v));
         }
     }
     // Dive: floor_seen>=60 → descend.
@@ -543,11 +559,15 @@ impl Replayer {
         // fight, and a boss wall scored 0.9+ baselines that way.
         let mut n = 0;
         loop {
-            if n >= self.ticks + ENCOUNTER_TICKS {
+            // Cut 19 §2: a stall's replay walking home (its last action a `return` / `bank` step)
+            // runs on until he is home, up to `HOME_TICKS` — a return walks now, and a walk cut
+            // off at the window's end is not the stall going on.
+            let walking_home = self.stall.is_some() && self.g.run.as_ref().is_some_and(|r| r.trace.last().is_some_and(|t| t.row >= 0 && matches!(t.verb.v.as_str(), "return" | "bank")));
+            if n >= self.ticks + if walking_home { HOME_TICKS } else { ENCOUNTER_TICKS } {
                 break;
             }
             // A stall's window ends where the stall did (the unreachable foe stays in view).
-            if n >= self.ticks && (self.stall.is_some() || !self.g.run.as_ref().is_some_and(|r| crate::turn::view(r).foes.iter().any(|&i| r.monsters[i].awake))) {
+            if n >= self.ticks && ((self.stall.is_some() && !walking_home) || (self.stall.is_none() && !self.g.run.as_ref().is_some_and(|r| crate::turn::view(r).foes.iter().any(|&i| r.monsters[i].awake)))) {
                 break;
             }
             self.g.tick();
@@ -708,7 +728,7 @@ fn pin_counter(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Opti
         return None;
     }
     rec.counter = Some(row.clone());
-    Some(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false })
+    Some(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None })
 }
 
 /// Cut 11 §2: the root-cause patch. A theft root: `foe_tag:thief → attack tag:thief` (the
@@ -736,7 +756,7 @@ fn root_patch(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Optio
     let mut b = base.sim_clone();
     unlock_base(&mut b, rec);
     let insert_at = if unlock.is_some() { -1 } else { 0 };
-    let patch = Patch { row: row.clone(), insert_at, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: Some(PatchRoot { text }), below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false };
+    let patch = Patch { row: row.clone(), insert_at, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: Some(PatchRoot { text }), below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None };
     let rules = patched_rules(&rec.rules, &patch, max_rows(rec));
     let pos = rules.rows.iter().position(|r| *r == row).unwrap_or(0);
     let mut rp = Replayer::new(&b, &rules, ticks, rec.stall)?;
@@ -754,16 +774,31 @@ pub fn is_loop_patch(p: &Patch) -> bool {
 /// gains `adj ≥ 1` — it steps away from a foe at the elbow, not from one in view) or the row
 /// deleted, whichever ends the stall in more of the stall's own replays (ties: narrowed).
 fn loop_patch(rec: &DeathRec, base: &Game, ticks: u32) -> Option<Patch> {
-    let at = rec.loop_row?;
+    cut_patch(rec, base, ticks, rec.loop_row?)
+}
+
+/// The patch that cuts the set's row `at` (Cut 18 §4's loop patch; Cut 19 §4's `row`
+/// verdict): the row narrowed to the moment it is for (a moving row at the elbow only; a way
+/// home 20 points sooner), or deleted — whichever survives more of the death's own replays
+/// (ties: the change over the cut).
+fn cut_patch(rec: &DeathRec, base: &Game, ticks: u32, at: usize) -> Option<Patch> {
     let row = rec.rules.rows.get(at)?.clone();
     let mut cands: Vec<Patch> = Vec::new();
     let moving = matches!(row.verb.v.as_str(), "retreat" | "back_corridor" | "blink" | "shadowstep" | "vanish" | "smoke");
     if moving && row.conds.len() < 2 && !row.conds.iter().any(|c| c.k == "adj>=") && rec.vocab.conds.iter().any(|c| c.k == "adj>=") {
         let mut narrowed = row.clone();
         narrowed.conds.push(Cond::n("adj>=", 1));
-        cands.push(Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false });
+        cands.push(Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None });
     }
-    cands.push(Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false });
+    // Cut 19 §2/§4: a way home written too late (the walk met the floor) — the same row 20
+    // points sooner (`hp < 20% → return` → `hp < 40%`), beside cutting it.
+    let late = row.conds.iter().position(|c| c.k == "hp<" && c.n.is_some_and(|n| n <= 50));
+    if let (false, true, Some(i)) = (rec.stall, matches!(row.verb.v.as_str(), "return" | "bank"), late) {
+        let mut sooner = row.clone();
+        sooner.conds[i].n = sooner.conds[i].n.map(|n| n + 20);
+        cands.push(Patch { row: sooner, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None });
+    }
+    cands.push(Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None });
     let mut best: Option<Patch> = None;
     for mut p in cands {
         let rules = patched_rules(&rec.rules, &p, max_rows(rec));
@@ -774,6 +809,47 @@ fn loop_patch(rec: &DeathRec, base: &Game, ticks: u32) -> Option<Patch> {
         }
     }
     best
+}
+
+/// Cut 19 §4: a cut row must survive this share of the death's replays for the `row`
+/// verdict (and beat the unpatched replays by `PATCH_MARGIN`: a death the rules survive
+/// anyway is the dice, whatever acted last).
+pub const ROW_BAR: f64 = 0.5;
+
+/// Cut 19 §4: the `row` verdict's patch — the dying action (the trace's last turn) was an own
+/// row of the set (a card's row is the card's and a preset row the game's, never the
+/// player's; an engagement row is excluded, below), and the set without it
+/// (or with it narrowed, `cut_patch`) survives ≥ `ROW_BAR` of the death's replays and beats
+/// the baseline by `PATCH_MARGIN`. `None` otherwise.
+fn row_cause(rec: &DeathRec, base: &Game, ticks: u32, baseline: f64) -> Option<Patch> {
+    let last = rec.death.trace.turns.last()?;
+    let at = usize::try_from(last.row).ok()?;
+    let row = rec.rules.rows.get(at)?;
+    // The player's own: not a card's, not the shipped preset's. An engagement row's death is
+    // the fight's (cutting the set's only strike "survives" by never fighting — the answer
+    // there is a row above it, a `gap`).
+    if row.is_card() || row.origin.as_deref() == Some("preset") || crate::turn::targets_foes(&row.verb) {
+        return None;
+    }
+    let p = cut_patch(rec, base, ticks, at)?;
+    (p.survive >= ROW_BAR - 1e-9 && p.survive - baseline >= PATCH_MARGIN - 1e-9).then_some(p)
+}
+
+/// Cut 19 §4: `Patch.drops` on every insert of the shown list when the set's own rows are at
+/// the cap — the own row that fired least in the dead run (`DeathRec.row_fired`; ties: the
+/// lowest in the list, the row the editor's cut would take).
+fn set_drops(rec: &mut DeathRec) {
+    let full = rec.rules.own_rows() >= rec.vocab.max_rows;
+    let least = full
+        .then(|| {
+            rec.rules.rows.iter().enumerate().filter(|(_, r)| !r.is_card()).map(|(i, _)| (rec.row_fired.get(i).copied().unwrap_or(0), i)).fold(None, |best: Option<(u32, usize)>, x| if best.is_none_or(|b| x.0 <= b.0) { Some(x) } else { best })
+        })
+        .flatten()
+        .map(|(_, i)| i as i32);
+    for p in rec.death.patches.iter_mut() {
+        let inserts = if p.insert_at < 0 { !rec.rules.rows.contains(&p.row) } else { !(p.replace || p.remove) };
+        p.drops = if inserts { least } else { None };
+    }
 }
 
 /// Cut 11 §2: an unlock as the root text: `◆2 cond: on see`, `◆3 card: thief guard`.
@@ -849,8 +925,15 @@ pub fn patch_fired_rate(game: &Game, rec: &DeathRec, p: &Patch) -> f64 {
     if p.root.is_some() {
         unlock_base(&mut base, rec);
     }
-    let rules = patched_rules(&rec.rules, p, max_rows(rec));
-    let pos = rules.rows.iter().position(|r| *r == p.row).unwrap_or(0);
+    // Cut 19 §4: a cut (the loop patch, the `row` verdict's) acts by the row's absence: it
+    // "fires" where the row it cuts acts in the unpatched replays; a swap where its new row does.
+    let (rules, pos) = if p.remove && p.insert_at >= 0 {
+        (rec.rules.clone(), p.insert_at as usize)
+    } else {
+        let rules = patched_rules(&rec.rules, p, max_rows(rec));
+        let pos = if p.replace && p.insert_at >= 0 { p.insert_at as usize } else { rules.rows.iter().position(|r| *r == p.row).unwrap_or(0) };
+        (rules, pos)
+    };
     let Some(mut rp) = Replayer::new(&base, &rules, ticks, rec.stall) else { return 0.0 };
     let fired = (0..REPLAYS).filter(|&i| rp.replay(row_nonce(&p.row, pos, i), pos as i32).1).count();
     fired as f64 / REPLAYS as f64
@@ -913,9 +996,11 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     };
     rec.death.baseline = baseline;
     let bar = survive_bar(baseline);
+    // Cut 19 §4: the dying action was a row of the set, and cutting that row saves him.
+    let row_cut = if rec.stall { None } else { row_cause(rec, &base, ticks, baseline) };
     let mut cands = match &rec.t10 {
         Some(t10) if rec.stall => stall_candidates(&rec.vocab, t10),
-        Some(t10) => candidates(&rec.vocab, t10, &rec.t10_facts, &game.lineage.flavours, &rec.death.trace),
+        Some(t10) => candidates(&rec.vocab, &rec.rules, t10, &rec.t10_facts, &game.lineage.flavours, &rec.death.trace),
         None => Vec::new(),
     };
     // A row the set already carries is not a patch (cohort 8, rater O: `foe: boss → attack
@@ -952,7 +1037,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
             .then(a.2.cmp(&b.2))
     });
     let mut edge_gap = scored.first().is_some_and(|best| best.0 - baseline >= PATCH_MARGIN - 1e-9);
-    let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false }).collect();
+    let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }).collect();
     // Cut 11 §2: the chain's root — the theft's answer or the unlock — measured at the top,
     // scored like any other (its edge counts for the verdict; its delta is simulated first).
     if let Some(r) = root_patch(game, rec, &base, ticks) {
@@ -975,10 +1060,20 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     if let Some(p) = loop_patch(rec, &base, ticks).filter(|p| p.survive > 1e-9) {
         rec.death.patches.insert(0, p);
     }
+    // Cut 19 §4: the `row` verdict's patch (the row cut) leads, as a stall's loop patch does.
+    if let Some(p) = &row_cut {
+        rec.death.patches.retain(|x| !(x.row == p.row && x.insert_at == p.insert_at));
+        rec.death.patches.insert(0, p.clone());
+    }
     if rec.stall {
         // Cut 13 §1: a stall is its own verdict; its patches are ranked by the forecast like
         // a death's, but the word on the screen is `stall`.
         rec.death.verdict = "stall".into();
+    } else if let Some(p) = &row_cut {
+        // Cut 19 §4 (rater AA: `R2 drink unknown fired` → GAP on the fire potion he drank): the
+        // row the player wrote killed him — `row`, naming it; `gap` is for a missing row.
+        rec.death.verdict = "row".into();
+        rec.death.cause_row = Some(p.insert_at as u32);
     } else if edge_gap {
         rec.death.verdict = "gap".into();
     } else {
@@ -1105,6 +1200,11 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
         }
         dice_telegraph(game, rec);
     }
+    // Cut 19 §2: a stall with no way out that survives (a return now walks, and a floor's
+    // wall can stop it) still names what was tried, under the bar.
+    if rec.stall && rec.death.patches.is_empty() {
+        dice_fallback(game, rec);
+    }
     forecast_deltas(game, rec, DELTA_CANDIDATES, false);
     if rec.death.patches.is_empty() {
         return;
@@ -1121,9 +1221,10 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     let best_symptom = pre_retain.iter().filter(|p| p.root.is_none()).map(|p| p.forecast_delta).fold(f64::NEG_INFINITY, f64::max);
     let root_leads = |p: &Patch| p.root.is_some() && p.forecast_delta >= best_symptom - 1e-9;
     let is_dice = rec.death.verdict == "dice";
+    let keeps_below = is_dice || rec.stall;
     rec.death.patches.retain(|p| {
         let edge = p.survive - baseline;
-        counter.as_ref() == Some(&p.row) || p.root.is_some() || is_loop_patch(p) || (is_dice && p.below_bar) || ((edge >= PATCH_MARGIN - 1e-9 || p.forecast_delta >= DELTA_BAR - 1e-9) && (!p.row.conds.is_empty() || edge >= 0.3))
+        counter.as_ref() == Some(&p.row) || p.root.is_some() || is_loop_patch(p) || (keeps_below && p.below_bar) || ((edge >= PATCH_MARGIN - 1e-9 || p.forecast_delta >= DELTA_BAR - 1e-9) && (!p.row.conds.is_empty() || edge >= 0.3))
     });
     rank_patches(&mut rec.death.patches, baseline);
     boss_order(rec);
@@ -1204,6 +1305,7 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     // QA on 92eb880: a dice death none of whose shown patches survives more than the
     // unpatched rules (a 100 % baseline: the replays win the fight he lost) says so.
     rec.death.nothing_beats_base = is_dice && !rec.death.patches.is_empty() && rec.death.patches.iter().all(|p| p.survive <= baseline + 1e-9);
+    set_drops(rec);
 }
 
 /// Cut 11 §4: on a `dice` death after a telegraph, `foe_tag:telegraph → retreat` is measured
@@ -1221,7 +1323,7 @@ fn dice_telegraph(game: &Game, rec: &mut DeathRec) {
         return;
     }
     let below_bar = survive < survive_bar(rec.death.baseline) - 1e-9 || survive <= rec.death.baseline + 1e-9;
-    rec.death.patches.push(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false });
+    rec.death.patches.push(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None });
     rec.deltas_done = false;
 }
 
@@ -1233,12 +1335,14 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
     let Some((base, ticks)) = replay_base(game, rec) else { return };
     let Some(t10) = rec.t10.clone() else { return };
     let mut rows: Vec<Row> = Vec::new();
-    if let Some(r) = telegraph_row(&rec.vocab, &rec.death.trace) {
+    if let Some(r) = telegraph_row(&rec.vocab, &rec.death.trace).filter(|_| !rec.stall) {
         rows.push(r);
     }
     // The candidate list, one family each (the telegraph retreat keeps its family), measured
-    // in order until `DICE_CANDIDATES` have fired in half their replays.
-    for r in candidates(&rec.vocab, &t10, &rec.t10_facts, &game.lineage.flavours, &rec.death.trace) {
+    // in order until `DICE_CANDIDATES` have fired in half their replays. Cut 19 §2: a stall
+    // none of whose ways out survives names what was tried the same way (its own candidates).
+    let cands = if rec.stall { stall_candidates(&rec.vocab, &t10) } else { candidates(&rec.vocab, &rec.rules, &t10, &rec.t10_facts, &game.lineage.flavours, &rec.death.trace) };
+    for r in cands {
         if rec.rules.rows.iter().any(|x| x.conds == r.conds && x.verb == r.verb) {
             continue;
         }
@@ -1255,7 +1359,7 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
         }
         let Some(mut rp) = Replayer::new(&base, &patched(rec, &row, 0), ticks, rec.stall) else { continue };
         let (survive, fired) = measure(&mut rp, &row, 0);
-        measured.push((Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: true, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false }, fired));
+        measured.push((Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: true, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }, fired));
     }
     // Cut 15 §6: a candidate that survives 0 % is no alternative (U: `survives 0% · base 0%`).
     if measured.iter().any(|(p, _)| p.survive > 1e-9) {
@@ -1285,18 +1389,45 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
 pub const DELTA_BAR: f64 = 0.02;
 pub const DELTA_SINK: f64 = -0.05;
 
-/// Rank by the forecast delta first when any patch moves it, then by the survival edge over the
-/// baseline (so `hp<20 → return` at Δ0 no longer beats `hp<20 → drink unknown` at Δ+5%); a
-/// patch below `DELTA_SINK` sinks below all others.
-pub fn rank_patches(patches: &mut [Patch], baseline: f64) {
+/// Cut 19 §4: survival decides a rank when two patches' survival differs by more than this;
+/// within it, the forecast's reach does.
+pub const SURVIVE_BAND: f64 = 0.10;
+
+/// Rank the patches: a patch below `DELTA_SINK` sinks below all others; otherwise survival
+/// first, reach inside `SURVIVE_BAND` (Cut 19 §4, rater AA: `+ drop one … survives 33 %` on a
+/// `+0 %` reach led two `survives 100 %` rows). Each place goes to the patch with the best
+/// reach (when any patch moves the forecast by `DELTA_BAR`; else the best survival) among
+/// those within the band of the best survival left — an order, not a pairwise rule (which
+/// is not transitive). Ties keep the incoming order.
+pub fn rank_patches(patches: &mut [Patch], _baseline: f64) {
     let by_delta = patches.iter().any(|p| p.forecast_delta > DELTA_BAR);
-    let edge = |p: &Patch| p.survive - baseline;
-    patches.sort_by(|a, b| {
-        let sink = (a.forecast_delta < DELTA_SINK).cmp(&(b.forecast_delta < DELTA_SINK));
-        let delta = b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap();
-        let surv = edge(b).partial_cmp(&edge(a)).unwrap();
-        sink.then(if by_delta { delta.then(surv) } else { surv.then(delta) })
-    });
+    let (mut rest, mut sunk): (Vec<Patch>, Vec<Patch>) = patches.iter().cloned().partition(|p| p.forecast_delta >= DELTA_SINK);
+    let mut out: Vec<Patch> = Vec::with_capacity(patches.len());
+    for pool in [&mut rest, &mut sunk] {
+        while !pool.is_empty() {
+            let top = pool.iter().map(|p| p.survive).fold(f64::NEG_INFINITY, f64::max);
+            let mut best: Option<usize> = None;
+            for (i, p) in pool.iter().enumerate() {
+                if p.survive < top - SURVIVE_BAND - 1e-9 {
+                    continue;
+                }
+                let better = best.is_none_or(|b| {
+                    let q = &pool[b];
+                    let (d, s) = (p.forecast_delta - q.forecast_delta, p.survive - q.survive);
+                    if by_delta {
+                        d > 1e-9 || (d.abs() <= 1e-9 && s > 1e-9)
+                    } else {
+                        s > 1e-9 || (s.abs() <= 1e-9 && d > 1e-9)
+                    }
+                });
+                if better {
+                    best = Some(i);
+                }
+            }
+            out.push(pool.remove(best.expect("a patch within the band")));
+        }
+    }
+    patches.clone_from_slice(&out);
 }
 
 /// The full death for a run id, computing verdict and deltas on first request.
@@ -1376,6 +1507,9 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
         p.forecast_pm = crate::forecast::half_width(r, n as usize);
         p.camp_pending = false;
     }
+    // Cut 19 §4: the camp's numbers rank the list again (survival first, reach within the
+    // band) — the pinned heads keep their places.
+    rerank_free(rec);
     // The camp reads these panels next (the base, the tapped patch's set).
     for c in [g, unlocked] {
         let mut cache = game.panel_cache.borrow_mut();
@@ -1385,6 +1519,25 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
             }
             cache.insert(k, v);
         }
+    }
+}
+
+/// Cut 19 §4: `rank_patches` over the shown list's unpinned patches, in their own slots — the
+/// pinned ones (the boss counter, a cut, the root patch, a dice death's telegraph answer) stay
+/// where `compute_deltas` put them; on a boss death the escape family stays below the rest.
+fn rerank_free(rec: &mut DeathRec) {
+    let counter = rec.counter.clone();
+    let tele = if rec.death.verdict == "dice" { telegraph_row(&rec.vocab, &rec.death.trace) } else { None };
+    let pinned = |p: &Patch| counter.as_ref() == Some(&p.row) || is_loop_patch(p) || p.root.is_some() || tele.as_ref() == Some(&p.row);
+    let slots: Vec<usize> = (0..rec.death.patches.len()).filter(|&i| !pinned(&rec.death.patches[i])).collect();
+    let mut free: Vec<Patch> = slots.iter().map(|&i| rec.death.patches[i].clone()).collect();
+    rank_patches(&mut free, rec.death.baseline);
+    if rec.boss.is_some() {
+        let (rest, esc): (Vec<Patch>, Vec<Patch>) = free.into_iter().partition(|p| family(&p.row) != "escape");
+        free = rest.into_iter().chain(esc).collect();
+    }
+    for (k, &i) in slots.iter().enumerate() {
+        rec.death.patches[i] = free[k].clone();
     }
 }
 
@@ -1537,7 +1690,7 @@ mod tests_trace {
                 }
             }
         };
-        let cands = candidates(&rec.vocab, rec.t10.as_ref().unwrap(), &rec.t10_facts, &g.lineage.flavours, &rec.death.trace);
+        let cands = candidates(&rec.vocab, &rec.rules, rec.t10.as_ref().unwrap(), &rec.t10_facts, &g.lineage.flavours, &rec.death.trace);
         assert!(cands.len() <= MAX_CANDIDATES);
         assert!(cands.contains(&Row::new(vec![Cond::t("foe_tag", "ranged")], Verb::arg("attack", "tag:ranged"))), "{cands:?}");
         only_present(&cands);
@@ -1588,20 +1741,25 @@ mod tests_trace {
     }
 
     fn patch(verb: Verb, survive: f64, delta: f64) -> Patch {
-        Patch { row: Row::new(vec![Cond::n("hp<", 20)], verb), insert_at: 0, survive, forecast_delta: delta, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false }
+        Patch { row: Row::new(vec![Cond::n("hp<", 20)], verb), insert_at: 0, survive, forecast_delta: delta, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }
     }
 
     #[test]
     fn a_patch_that_moves_the_forecast_outranks_a_safer_one_that_does_not() {
-        let mut ps = vec![patch(Verb::new("return"), 1.0, 0.0), patch(Verb::arg("drink", "unknown"), 0.4, 0.05)];
+        // Survival within the band: the reach decides.
+        let mut ps = vec![patch(Verb::new("return"), 1.0, 0.0), patch(Verb::arg("drink", "unknown"), 0.92, 0.05)];
         rank_patches(&mut ps, 0.0);
         assert_eq!(ps[0].row.verb, Verb::arg("drink", "unknown"));
+        // Cut 19 §4 (rater AA): a patch that survives much less does not lead on a small reach gain.
+        let mut ps = vec![patch(Verb::arg("drink", "unknown"), 0.33, 0.05), patch(Verb::new("return"), 1.0, -0.02), patch(Verb::new("retreat"), 1.0, 0.0)];
+        rank_patches(&mut ps, 0.0);
+        assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["retreat", "return", "drink"]);
         // No patch moves the forecast: the survival edge decides.
         let mut ps = vec![patch(Verb::arg("drink", "unknown"), 0.4, 0.01), patch(Verb::new("return"), 1.0, 0.0)];
         rank_patches(&mut ps, 0.0);
         assert_eq!(ps[0].row.verb, Verb::new("return"));
         // A patch that costs floors sinks below everything, whatever its survival.
-        let mut ps = vec![patch(Verb::new("return"), 1.0, -0.2), patch(Verb::new("retreat"), 0.7, 0.0), patch(Verb::arg("drink", "unknown"), 0.4, 0.05)];
+        let mut ps = vec![patch(Verb::new("return"), 1.0, -0.2), patch(Verb::new("retreat"), 0.7, 0.0), patch(Verb::arg("drink", "unknown"), 0.65, 0.05)];
         rank_patches(&mut ps, 0.0);
         assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["drink", "retreat", "return"]);
     }

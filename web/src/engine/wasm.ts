@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  Death, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary,
+  CageOption, Death, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary,
 } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
@@ -84,6 +84,9 @@ export class WasmEngine implements Engine {
   dropSupply(id: number): Lineage { return this.call("dropSupply", id); }
   // Cut 13 §2: throws `wasm: setTrait` on a build without it (the camp shows no chips without an offer anyway)
   setTrait(name: string): Lineage { return this.call("setTrait", name); }
+  // Cut 19: throw `wasm: cageForecast` / `wasm: setRestock` on a build without them
+  cageForecast(): CageOption[] { return this.call("cageForecast"); }
+  setRestock(on: boolean): Lineage { return this.call("setRestock", on); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

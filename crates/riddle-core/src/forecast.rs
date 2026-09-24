@@ -199,7 +199,78 @@ pub fn camp_panel(game: &Game, rules: &RuleSet, sims: u32) -> Vec<SimResult> {
     ended
 }
 
-pub const PANEL_CACHE_MAX: usize = 16;
+/// Cut 19 §1: 32 (was 16) — the cage picker adds three panels per rule set.
+pub const PANEL_CACHE_MAX: usize = 32;
+
+/// Cut 19 §1 (rater AA: the vault's `cage → armour` "raised bank-at-D7 from 54 % to 90 %, more
+/// than all my rule edits", found at 25 min): each cage preference measured for the active set
+/// — the camp's panel (the forecast's own sims count: the refined panel once it exists) with
+/// `vault_pref` set to the option, against the current preference's panel. Memoised like the
+/// camp's panels (`Game.panel_cache`: the options' panels land there, keyed by the lineage
+/// fingerprint, which carries the preference).
+pub fn cage_forecast(game: &Game) -> Vec<crate::wire::CageOption> {
+    let rules = game.lineage.rules().clone();
+    let sims = if game.panel_cache.borrow().contains_key(&panel_key(game, &rules, REFINE_SIMS)) { REFINE_SIMS } else { FORECAST_SIMS };
+    // The bar the reach is read at: the set's bank row's depth (`depth ≥ d → bank`), else the
+    // lineage's best depth.
+    let bank_depth = rules.rows.iter().filter(|r| r.verb.v == "bank").filter_map(|r| r.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n)).map(|n| n.max(1) as u32).min();
+    let depth = bank_depth.unwrap_or(game.lineage.best_depth).clamp(1, game.lineage.best_depth + 1);
+    /// (reach at `depth`, bank share, gold per send, sims).
+    type Read = (f64, f64, f64, usize);
+    let read = |ended: &[SimResult]| -> Read {
+        let n = ended.len().max(1) as f64;
+        let reach = ended.iter().filter(|r| r.max_depth >= depth).count() as f64 / n;
+        let bank = ended.iter().filter(|r| r.tier == ExitTier::Bank && !r.timed_out).count() as f64 / n;
+        let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
+        (reach, bank, gold, ended.len())
+    };
+    let current = game.lineage.vault_pref.clone();
+    let base = read(&camp_panel(game, &rules, sims));
+    const PREFS: [&str; 4] = ["weapon", "armour", "potion", "scroll"];
+    let others: Vec<&str> = PREFS.iter().copied().filter(|p| *p != current).collect();
+    let measured: Vec<(Read, BTreeMap<String, Vec<SimResult>>)> = others
+        .iter()
+        .map(|pref| {
+            let mut g = game.sim_clone();
+            g.lineage.vault_pref = (*pref).into();
+            let r = read(&camp_panel(&g, &rules, sims));
+            (r, g.panel_cache.into_inner().into_iter().collect())
+        })
+        .collect();
+    let mut out = Vec::with_capacity(PREFS.len());
+    let mut m = measured.into_iter();
+    for pref in PREFS {
+        let (reach, bank, gold, n) = if pref == current {
+            base
+        } else {
+            let (r, panels) = m.next().expect("one panel per other preference");
+            let mut cache = game.panel_cache.borrow_mut();
+            for (k, v) in panels {
+                if cache.len() >= PANEL_CACHE_MAX {
+                    cache.clear();
+                }
+                cache.insert(k, v);
+            }
+            r
+        };
+        let banks = bank > 0.0 || base.1 > 0.0;
+        let (reach_delta, bank_delta, gold_delta) = (reach - base.0, bank - base.1, gold - base.2);
+        out.push(crate::wire::CageOption {
+            pref: pref.into(),
+            current: pref == current,
+            depth,
+            reach,
+            reach_delta,
+            bank,
+            bank_delta,
+            gold,
+            gold_delta,
+            delta: if banks { bank_delta } else { reach_delta },
+            pm: half_width(reach, n),
+        });
+    }
+    out
+}
 
 fn panel_budget(sims: u32) -> u64 {
     CAMP_TICK_BUDGET * (sims as u64).div_ceil(FORECAST_SIMS as u64).max(1)

@@ -265,6 +265,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum() }),
         exits: b.exits.clone(),
         picked: game.lineage.picked_clean(),
+        restock_capped: b.restock_capped,
     }
 }
 
@@ -322,7 +323,18 @@ pub fn apply_patch(rules: &RuleSet, p: &Patch, max_rows: usize) -> RuleSet {
     } else if p.replace && at < r.rows.len() {
         r.rows[at] = p.row.clone();
     } else {
-        r.rows.insert(at.min(r.rows.len()), p.row.clone());
+        let mut at = at.min(r.rows.len());
+        // Cut 19 §4: on a full set the patch's `drops` row makes the room (`+ drop R5`: the
+        // least-fired own row), not the last one.
+        if let Some(d) = p.drops.and_then(|d| usize::try_from(d).ok()) {
+            if r.own_rows() >= max_rows && d < r.rows.len() && !r.rows[d].is_card() {
+                r.rows.remove(d);
+                if d < at {
+                    at -= 1;
+                }
+            }
+        }
+        r.rows.insert(at, p.row.clone());
         // Cut 12 §1: the cap is on the player's own rows; a card row never falls off.
         r = r.fit(max_rows.max(1));
     }
@@ -340,7 +352,7 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     let has_verb = |v: &Verb| vocab.verbs.contains(v);
     let has_cond = |k: &str, t: Option<&str>| vocab.conds.iter().any(|c| c.k == k && (t.is_none() || c.t.as_deref() == t));
     let present = |r: &Row| rules.rows.contains(r);
-    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false };
+    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None };
     let mut cands: Vec<Patch> = Vec::new();
     // (a) the ending row, its threshold pushed deeper.
     let mut deeper = ending.clone();

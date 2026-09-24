@@ -425,6 +425,10 @@ pub fn before_action(run: &mut Run, cx: &mut Ctx) {
     if thieves.is_empty() {
         return;
     }
+    // Cut 19 §5: once the lineage has lost to a den, it sleeps through most runs.
+    if !den_pounces(run) {
+        return;
+    }
     run.met_situation("den");
     learn(run, cx, "den".into());
     note(run, cx, "The den wakes: thieves on every side.".into());
@@ -449,6 +453,13 @@ pub fn before_action(run: &mut Run, cx: &mut Ctx) {
     }
 }
 
+/// Cut 19 §5 (rater AB: "the reel repeats `A thief snatched the teleport scroll`"): the den
+/// pounces on every floor of a lineage that has never lost to one; after (`Run.den_thin`), on
+/// 1 in 3 — drawn from the run's seed and the floor, so a replay of the run agrees.
+pub fn den_pounces(run: &Run) -> bool {
+    !run.den_thin || crate::rng::splitmix(run.seed ^ ((run.depth as u64) << 32) ^ 0xDE_7E1F).is_multiple_of(3)
+}
+
 /// A den thief takes one thing: a vault-brought pack item, else any pack item, else the
 /// weapon in hand; then it runs.
 fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
@@ -463,6 +474,7 @@ fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
     };
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     run.den_stolen.push(it.id);
+    run.den_snatches += 1;
     crate::provenance::stolen(run, cx, &it.kind, "monkey", true, &label);
     let before = run.loot;
     run.loot_add(-run.loot_value(&it));

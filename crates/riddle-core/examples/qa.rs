@@ -132,7 +132,11 @@ fn check_forecast_bank(t: &mut Tally, bank: &mut BankTally, g: &Game, seed: u64)
 }
 
 /// Real sends per set per seed for the forecast-vs-sends check, and the forecast's sims.
-const SENDS: u32 = 6;
+/// Cut 19: 18 (was 6) — at 6 the sends' sample (186) read 0.763 against the panel's 0.832
+/// after the night moved; at 12 0.782, at 18 0.803: the gap was the sends' own noise (a fresh
+/// lineage's panel and 60 sends agree to 0.01, before and after a night), so the check runs on
+/// a sample that can tell. The band narrows with it.
+const SENDS: u32 = 18;
 const BANK_SIMS: u32 = 20;
 
 /// Σ over seeds, per [the good set, its bank-depth variants]: (forecast banks, forecast sims,
@@ -226,19 +230,21 @@ fn check_forecast_reads(t: &mut Tally, g: &mut Game, seed: u64, died: Option<u32
 /// shadows names it on its pending line, and a shadowed row never fires.
 fn check_shadowed(t: &mut Tally, g: &Game, seed: u64) {
     check_shadowed_on(t, g, seed);
-    // The qaM set on a copy: `hp < 30% → return` on top, the lineage's rows, `hp < 20% → drink
-    // heal` under them (shadowed by R1), one hour offline.
+    // The qaM set on a copy: `hp < 30% → return` on top, the lineage's rows, `hp < 20% →
+    // return` under them (shadowed by R1), one hour offline.
     let mut h = g.clone();
     h.lineage.unlocks.extend(["row5", "row6", "row7", "row8"].map(String::from));
     let mut set = g.lineage.rules().clone();
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 30)], Verb::new("return")));
-    set.rows.push(Row::new(vec![Cond::n("hp<", 20)], Verb::arg("drink", "heal")));
+    // Cut 19 §2: a return walks (a foe in the way fails it), so it shadows only a later return
+    // it always pre-empts — the qaM heal row under it is no longer shadowed.
+    set.rows.push(Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")));
     if h.set_rules_raw(set).is_err() {
         return;
     }
     h.run_offline(3600);
     let last = h.lineage.rules().rows.len() - 1;
-    t.check("the qaM shadow is found (R1 return over the last row)", h.lineage.shadowed_by(h.lineage.rules()).get(last).copied().flatten() == Some(0), || format!("seed {seed}"));
+    t.check("the qaM shadow is found (R1 return over a later return)", h.lineage.shadowed_by(h.lineage.rules()).get(last).copied().flatten() == Some(0), || format!("seed {seed}"));
     check_shadowed_on(t, &h, seed);
 }
 
@@ -309,10 +315,18 @@ fn play(seed: u64) -> (Tally, BankTally) {
         let d = g.death(id).expect("a death record");
         let rules = g.lineage.rules().clone();
         for p in &d.patches {
-            let dup = p.insert_at >= 0 && rules.rows.iter().any(|r| r.conds == p.row.conds && r.verb == p.row.verb);
+            // (a cut — `remove` / `replace` — names a row of the set by design)
+            let dup = p.insert_at >= 0 && !p.remove && !p.replace && rules.rows.iter().any(|r| r.conds == p.row.conds && r.verb == p.row.verb);
             t.check("no patch already in the set", !dup, || format!("seed {seed} run {id}: {} is R{}", p.row.describe(), rules.rows.iter().position(|r| *r == p.row).map(|i| i + 1).unwrap_or(0)));
         }
-        t.check("a death has a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice") && !d.trace.turns.is_empty(), || format!("seed {seed} run {id}: {} · {} turns", d.verdict, d.trace.turns.len()));
+        t.check("a death has a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "row") && !d.trace.turns.is_empty(), || format!("seed {seed} run {id}: {} · {} turns", d.verdict, d.trace.turns.len()));
+        // Cut 19 §4: a `row` verdict names a row of the set that acted on the death tick (the
+        // trace's last turn), and its first patch cuts that row.
+        if d.verdict == "row" || d.cause_row.is_some() {
+            let last = d.trace.turns.last().map(|x| x.row);
+            let ok = d.verdict == "row" && d.cause_row.is_some_and(|r| Some(r as i32) == last && d.rules.as_ref().is_some_and(|rs| rs.rows.get(r as usize).is_some_and(|x| !x.is_card()))) && d.patches.first().is_some_and(|p| (p.remove || p.replace) && Some(p.insert_at) == last);
+            t.check("a `row` verdict names a row that fired on the death tick", ok, || format!("seed {seed} run {id}: {} R{:?} last {:?}", d.verdict, d.cause_row, last));
+        }
         check_death(&mut t, seed, &d);
         t.check("death()'s patches are camp_pending until death_deltas", d.patches.iter().all(|p| p.camp_pending), || format!("seed {seed} run {id}"));
         // QA on 23ed91f (`rest · reach +8%`, then the camp's D6 34 % → 64 %): the patch's
@@ -323,7 +337,15 @@ fn play(seed: u64) -> (Tally, BankTally) {
         // and 30/30 were exact when every seed ran; four panels a seed are the leg's cost.
         let deltas = if seed.is_multiple_of(3) { g.death_deltas(id) } else { None };
         if let Some(ps) = &deltas {
-            t.check("death_deltas returns death()'s patches, measured", ps.len() == d.patches.len() && ps.iter().zip(&d.patches).all(|(a, b)| a.row == b.row && a.insert_at == b.insert_at && !a.camp_pending), || format!("seed {seed} run {id}"));
+            // Cut 19 §4: the camp's numbers may re-rank the unpinned patches — the same patches,
+            // and death() reads that order from then on.
+            let key = |p: &riddle_core::wire::Patch| (serde_json::to_string(&p.row).unwrap_or_default(), p.insert_at);
+            let mut a: Vec<_> = ps.iter().map(key).collect();
+            let mut b: Vec<_> = d.patches.iter().map(key).collect();
+            a.sort();
+            b.sort();
+            let again = g.death(id).map(|x| x.patches.iter().map(key).collect::<Vec<_>>());
+            t.check("death_deltas returns death()'s patches, measured", a == b && ps.iter().all(|p| !p.camp_pending) && again == Some(ps.iter().map(key).collect()), || format!("seed {seed} run {id}"));
         }
         let top = deltas.as_ref().unwrap_or(&d.patches).iter().find(|p| p.insert_at >= 0).cloned();
         if let Some(p) = top {
@@ -371,7 +393,7 @@ fn play(seed: u64) -> (Tally, BankTally) {
     check_shadowed(&mut t, &g, seed);
     check_forecast_bank(&mut t, &mut bank, &g, seed);
     if let Some(d) = &r.worst_death {
-        t.check("worst death carries a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "stall") && !d.trace.turns.is_empty(), || format!("seed {seed}: {}", d.verdict));
+        t.check("worst death carries a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "stall" || d.verdict == "row") && !d.trace.turns.is_empty(), || format!("seed {seed}: {}", d.verdict));
         check_death(&mut t, seed, d);
     }
     // One more of the night's deaths (the last one that is not the worst), in full.

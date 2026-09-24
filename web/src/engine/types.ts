@@ -42,7 +42,13 @@ export type Snapshot = {
   floor_twist?: string;                                                   // Cut 12 §4: the floor's one situation, one word (`nest`), for `D4 · 9 rooms · a nest` (optional; absent on D1–D2)
 };
 /** Cut 5 §4 — the three items of an opened vault; `choose(id)` takes one, the rest vanish. */
-export type VaultChoice = { items: InvItem[]; left?: number };   // Cut 14: ticks of the 50-tick grace left at this snapshot (the sheet's shrinking bar)
+export type VaultChoice = { items: InvItem[]; left?: number;   // Cut 14: ticks of the 50-tick grace left at this snapshot (the sheet's shrinking bar)
+                            pick?: number };                   // Cut 19 §1: the item id `vault_pref` takes when `left` runs out (the beat's `took mail`); `choose(id)` overrides while left > 0
+/** Cut 19 §1: one cage preference measured for the active set (`cageForecast()`): the camp panel with `vault_pref` = `pref`, paired
+ *  with the current preference's. `depth`: the bar `reach` is read at (the set's bank row's depth, else the lineage best); `delta`:
+ *  the picker's headline — `bank_delta` when either panel banks, else `reach_delta`; `pm`: the ± of `reach` (0..1 fractions). */
+export type CageOption = { pref: string; current: boolean; depth: number; reach: number; reach_delta: number; bank: number; bank_delta: number;
+                           gold: number; gold_delta: number; delta: number; pm: number };
 /** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any.
  *  Cut 6 §1: `kept` = what that row would bring home now (`$84 · keeps $50`). */
 export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number;
@@ -120,8 +126,10 @@ export type Patch = { row: Row; insert_at: number; survive: number; forecast_del
                       root?: { text: string }; below_bar?: boolean;
                       forecast_depth?: number; forecast_pm?: number;                         // QA 23ed91f: the camp bar `forecast_delta` moves (death's depth + 1, ≤ known_to) and its 95 % ± — set by `deathDeltas`
                       camp_pending?: boolean;                                                // QA 23ed91f: on `death()`'s patches — `forecast_delta` is the verdict's 12-sim ranking estimate, NOT the camp's; paint reach as pending until `deathDeltas(id)` lands
+                      drops?: number;                                                        // Cut 19 §4: an insert onto a full set drops this own row (set index; the dead run's least-fired, ties the lowest) — `+ drop R5`, the drop sheet opens on it
                       unlock?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
-export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall";   // stall: Cut 13 §1, a stalled run's verdict (client-side widening; the Rust side is a String)
+export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row";   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
+                      cause_row?: number;                                                   // Cut 19 §4: on `row`, the set's row (0-based) that killed him (`R2`); patches[0] cuts it (`remove`, or `replace` narrowed)
                       baseline: number;                                                   // core addition: survival of the unpatched rules, 0..1
                       trace: Trace; patches: Patch[];
                       morgue: string;
@@ -152,6 +160,7 @@ export type ReturnReport = {
   stall?: Stall;                                                              // core addition: stall verdict
   exits?: ExitLine[];                                                         // Cut 6 §1: one ledger line per exit in the batch
   picked?: number[];                                                          // Cut 16 §1: depths picked clean (≥ 3 banks/returns, shallower than the best), ascending — `D3 · picked clean`
+  restock_capped?: boolean;                                                   // Cut 19 §3: the repeat skipped a supply once the absence's spending reached what it brought home — `restock capped`
 };
 export type Lineage = { seed: number; heir: number; trait: string; trait_offer?: string[]; class: string; best_depth: number; marks: number;   // Cut 13 §2: `trait_offer` — two traits a new heir may wake with; `setTrait(name)` picks
                         facts: string[]; unlocks: string[]; vault: InvItem[];
@@ -174,7 +183,8 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         combos?: ComboHit[];                                                                          // Cut 8B §1: the active set's combos, in row order (recomputed on setRules)
                         picked?: number[];                                                                            // Cut 16 §1: depths picked clean now (as ReturnReport.picked)
                         class_offer?: ClassChip[];                                                                    // Cut 16 §2: the wake's class chips — owned classes, current first; present while trait_offer is and ≥ 2 are owned; `setClass(name)` picks (sticks until changed)
-                        shadowed_by?: (number | null)[] };                                                            // QA 92eb880: the active set's shadowed rows, as Forecast.shadowed_by (absent when none)
+                        shadowed_by?: (number | null)[];                                                              // QA 92eb880: the active set's shadowed rows, as Forecast.shadowed_by (absent when none)
+                        repeat?: boolean; repeat_kinds?: string[]; repeat_gold?: number };                            // Cut 19 §3: the loadout repeats (true unless cleared by `setRestock(false)`); the kinds the next send re-packs and their shelf price (`repeat · $120`)
 /** Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id (`shield_bash | vanish | mark | slow`);
  *  `level` the class's level; `opens` the level the signature opens at (`mark L7` while level < opens).
  *  §4 (no new wire): the Warlord's break is a callout `warlord breaks` + a note `The Warlord breaks.` (visible only), once, at ≤ 50 % hp.
@@ -242,6 +252,9 @@ export interface Engine {
   setVaultPref(pref: string): Lineage;  // §4: `weapon | armour | potion | scroll` — what an unanswered vault choice takes
   // Cut 6
   forecastRefine?(): Forecast;          // §9: the same forecast at 100 sims (optional; the client calls it 2 s after a quiet paint)
+  // Cut 19
+  cageForecast?(): CageOption[];        // §1: every cage preference's forecast for the active set (three extra camp panels, memoised; seconds in wasm — call when the picker opens or after the refine)
+  setRestock?(on: boolean): Lineage;    // §3: the loadout's repeat on/off (off refunds the re-packed shelf; on re-packs an empty shelf now)
 }
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
                            delta?: number;                                                                 // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards
@@ -250,6 +263,7 @@ export type UnlockInfo = { id: string; cost: number; owned: boolean; available: 
                            pm?: number;                                                                     // Cut 13 §5: the half-width of `delta`; within it the client reads `reach ~0`
                            stall?: number;                                                                 // QA 92eb880: the stall share's move at the card's best place (0..1, signed; same sims as `delta`) — the stall risk before buying; a best place never raises it > 5 pts unless every place does
                            situation?: string;                                                             // Cut 18 §5: a tactic card's foe tag (`kite_archers` → `ranged`, `gas_step` → `gas`), for `vs archers` beside `reach ~0`; absent on other unlocks
+                           pinned?: boolean;                                                               // Cut 19 §3: the next `+1 row` (its prerequisite owned) — keep it on the camp's short list until bought
                            gold?: number };                                                                 // Cut 15 §2: today's gold price (`150 × cost × (4 + gold buys) / 4`); 0 when owned or free (not gold-buyable). A card short only of marks (`needs` = `◆N more`) buys with gold when the lineage has it
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */

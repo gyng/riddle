@@ -433,6 +433,18 @@ pub struct Run {
     pub seed: u64,
     #[serde(skip)]
     pub next_twist: Option<String>,
+    // Cut 19
+    /// §5: the lineage has lost to a den before (`LineageState::den_thefts` and the `den`
+    /// fact, at the send): this run's dens pounce on ≤ 1 in 3 floors; and the den snatches
+    /// this run suffered (added to the lineage at the exit).
+    #[serde(default)]
+    pub den_thin: bool,
+    #[serde(default)]
+    pub den_snatches: u32,
+    /// §5: the grudges (by name) this run avenged — the lineage marks them at the exit, and a
+    /// later kill of the same named foe reads `slain`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub avenged: Vec<String>,
     // Cut 16
     /// §1: the freshness of the floors this run may generate, in permille by depth (only
     /// thinned depths; `LineageState::thin_map` at the send) — a floor's gold piles and item
@@ -712,7 +724,8 @@ pub struct LineageState {
     /// Kills per kind (§5 studied).
     #[serde(default)]
     pub kill_counts: BTreeMap<String, u32>,
-    /// Supplies of the last expedition, for the `auto_supply` automation.
+    /// Supplies of the last expedition, which the next send re-packs (Cut 19 §3: the loadout
+    /// repeats by default; was the `auto_supply` automation).
     #[serde(default)]
     pub last_supplies: Vec<String>,
     /// Eggs ever laid (the incubator gate).
@@ -794,6 +807,16 @@ pub struct LineageState {
     pub night_runs: u32,
     #[serde(default)]
     pub night_seen: BTreeSet<u32>,
+    // Cut 19
+    /// §5: den snatches the lineage has suffered — once it has lost to a den (and holds the
+    /// `den` fact), the den's thieves pounce on ≤ 1 in 3 of the runs that meet them
+    /// (`Run.den_thin`, `situations::den_pounces`).
+    #[serde(default)]
+    pub den_thefts: u32,
+    /// §3: the loadout repeats by default — a send re-packs the last send's supplies at the
+    /// shelf's price (`Game::restock`); `set_restock(false)` (the camp's tap) stops it.
+    #[serde(default)]
+    pub restock_off: bool,
 }
 
 /// Cut 16 §1: a night of runs (the ledger's "a night of 16 runs").
@@ -888,6 +911,8 @@ impl LineageState {
             picked: BTreeMap::new(),
             night_runs: 0,
             night_seen: BTreeSet::new(),
+            den_thefts: 0,
+            restock_off: false,
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -1044,6 +1069,10 @@ impl LineageState {
             picked: self.picked_clean(),
             class_offer: self.class_offer(),
             shadowed_by: self.shadowed_by(self.rules()),
+            repeat: !self.restock_off,
+            repeat_kinds: self.last_supplies.iter().filter(|k| !self.last_wasted.contains(k)).cloned().collect(),
+            // (priced on the shelf by `Game::lineage`)
+            repeat_gold: 0,
         }
     }
     /// QA on 92eb880: `rules`' shadowed rows for this lineage (a row whose condition it does not
@@ -1325,6 +1354,10 @@ pub struct DeathRec {
     /// names (`Run.stuck_row`); the verdict's first patch addresses it (`trace::loop_patch`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loop_row: Option<usize>,
+    /// Cut 19 §4: how often each row of the set acted over the dead run (`Run.row_fired`) —
+    /// the least-fired own row is the one an insert on a full set drops (`Patch.drops`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub row_fired: Vec<u32>,
 }
 
 fn is_zero_u64(n: &u64) -> bool {
@@ -1466,6 +1499,21 @@ pub struct Batch {
     pub salvage_gold: i32,
     #[serde(default)]
     pub wake_pay: i32,
+    /// Cut 19 §3: the repeat skipped a kind this batch because the batch's spending had
+    /// reached its income (`Game::restock`).
+    #[serde(default)]
+    pub restock_capped: bool,
+}
+
+impl Batch {
+    /// Cut 19 §3: what the batch brought in — the exits' kept gold, the salvage, the wake pay.
+    pub fn income(&self) -> i32 {
+        self.gold_earned + self.salvage_gold + self.wake_pay
+    }
+    /// What the automations (the repeat, the insurance) spent this batch.
+    pub fn spent_total(&self) -> i32 {
+        self.spent.values().map(|(_, g)| *g).sum()
+    }
 }
 
 /// Cut 7 §3: what a run met and answered of the band situations.
@@ -1618,7 +1666,9 @@ impl Game {
     }
 
     pub fn lineage(&self) -> Lineage {
-        self.lineage.to_wire()
+        let mut l = self.lineage.to_wire();
+        l.repeat_gold = self.repeat_plan().1;
+        l
     }
 
     /// Cut 12 §1: a player's set is validated at the door — at most `max_rows` own rows (a
@@ -1711,6 +1761,35 @@ impl Game {
         }
         self.lineage.vault_pref = pref.into();
         Ok(())
+    }
+
+    /// Cut 19 §3: the loadout's repeat (`repeat · $120` on the camp's tile). Off: the shelf's
+    /// re-packed supplies are refunded at their price and no send re-packs until it is on
+    /// again (the kinds are kept); on: the shelf is re-packed now if it is empty.
+    pub fn set_restock(&mut self, on: bool) {
+        self.lineage.restock_off = !on;
+        if on {
+            self.restock();
+            return;
+        }
+        let cat = self.supply_catalogue();
+        let (bought, kept): (Vec<Item>, Vec<Item>) = std::mem::take(&mut self.lineage.supplies).into_iter().partition(|s| !s.free);
+        self.lineage.supplies = kept;
+        for s in bought {
+            if let Some(e) = cat.iter().find(|e| e.kind == s.kind) {
+                let why = format!("refund {}", s.kind.replace('_', " "));
+                self.lineage.gold_move(e.price, &why);
+            }
+        }
+    }
+
+    /// Cut 19 §3: what the repeat packs at the next send — the last send's kinds less the
+    /// ones it wasted — and their price on the shelf today.
+    pub fn repeat_plan(&self) -> (Vec<String>, i32) {
+        let cat = self.supply_catalogue();
+        let kinds: Vec<String> = self.lineage.last_supplies.iter().filter(|k| !self.lineage.last_wasted.contains(k)).cloned().collect();
+        let gold = kinds.iter().filter_map(|k| cat.iter().find(|e| e.kind == *k).map(|e| e.price)).sum();
+        (kinds, gold)
     }
 
     /// Cut 5 §5: bail — a `return` fires on the hero's next action, the rules untouched.
@@ -1897,8 +1976,8 @@ impl Game {
         let mut loadout = std::mem::take(&mut self.loadout);
         loadout.sort();
         loadout.dedup();
-        // Automations (Cut 2 §3): auto_insure covers the brought items when gold allows;
-        // auto_supply restocks the last expedition's supplies.
+        // Automations (Cut 2 §3): auto_insure covers the brought items when gold allows.
+        // Cut 19 §3: the loadout repeats — the last expedition's supplies are re-packed.
         if self.lineage.unlocks.contains("auto_insure") {
             for id in loadout.clone() {
                 let gold = self.lineage.gold;
@@ -2045,6 +2124,9 @@ impl Game {
             rows_why: Vec::new(),
             ending_t: None,
             den_stolen: Vec::new(),
+            den_thin: self.lineage.den_thefts > 0 && self.lineage.facts.contains("den"),
+            den_snatches: 0,
+            avenged: Vec::new(),
             gas_dmg_floor: 0,
             lock_last_pop: 0,
             lit: false,
@@ -2336,7 +2418,11 @@ impl Game {
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn },
             stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0 },
             vision: run.vision(&l.unlocks),
-            vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice { items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(), left: (t0 + VAULT_GRACE).saturating_sub(run.turn) }),
+            vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice {
+                items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
+                left: (t0 + VAULT_GRACE).saturating_sub(run.turn),
+                pick: items.get(crate::turn::vault_pick(items, &l.vault_pref)).map(|i| i.id),
+            }),
             room: Some(run.room_ref()),
             rooms: Some(run.floor.rooms.len() as u32),
             floor_twist: run.floor_twist.as_deref().map(|t| crate::situations::twist_word(t).to_string()),
@@ -2367,6 +2453,13 @@ impl Game {
         };
         self.batch.runs += 1;
         self.batch.turns += run.turn;
+        // Cut 19 §5: the den's thefts and the grudges avenged are the lineage's from now on.
+        self.lineage.den_thefts += run.den_snatches;
+        for name in &run.avenged {
+            for g in self.lineage.grudges.iter_mut().filter(|g| g.name == *name) {
+                g.avenged = true;
+            }
+        }
         self.batch.stalls += stalled as u32;
         self.batch.run_outcomes.push((run.depth, if tier == ExitTier::Death { run.death_cause.clone() } else { None }));
         self.batch.run_ticks.push(run.turn);
@@ -2777,7 +2870,7 @@ impl Game {
                 && !self.lineage.grudges.iter().any(|g| g.kind == cause && g.depth == run.depth)
             {
                 let name = crate::descent::grudge_name(&mut self.lineage.rng);
-                self.lineage.grudges.push(Grudge { kind: cause.clone(), name, depth: run.depth, heir: run.heir });
+                self.lineage.grudges.push(Grudge { kind: cause.clone(), name, depth: run.depth, heir: run.heir, avenged: false });
             }
             // Cut 5 §2: the heir's line in the lineage chronicle.
             let bones_left = self.lineage.bones.last().is_some_and(|b| b.heir == run.heir);
@@ -3166,6 +3259,11 @@ impl Game {
     }
 
     pub fn buy_supply(&mut self, kind: &str) -> Result<(), String> {
+        self.buy_supply_as(kind, &kind.replace('_', " "))
+    }
+
+    /// Cut 19 §3: `buy_supply` with the ledger line's text (`repeat heal` for the repeat).
+    pub fn buy_supply_as(&mut self, kind: &str, why: &str) -> Result<(), String> {
         if self.lineage.supplies.len() >= self.lineage.supply_cap() {
             return Err(format!("{} supplies max", self.lineage.supply_cap()));
         }
@@ -3173,7 +3271,7 @@ impl Game {
         if self.lineage.gold < entry.price {
             return Err("not enough gold".into());
         }
-        self.lineage.gold_move(-entry.price, &kind.replace('_', " "));
+        self.lineage.gold_move(-entry.price, why);
         let id = self.lineage.next_vault_id;
         self.lineage.next_vault_id += 1;
         let mut it = Item::new(id, kind);
@@ -3247,13 +3345,18 @@ impl Game {
         self.lineage.last_supplies.clear();
     }
 
-    /// `auto_supply` (Cut 2 §3): an empty shelf is restocked with the last expedition's kinds
-    /// as far as gold allows. Cut 4: runs when the hero comes home (`finish_run`, and again
+    /// The loadout repeats (Cut 19 §3; was the `auto_supply` automation, Cut 2 §3): an empty
+    /// shelf is re-packed with the last expedition's kinds at the shelf's price (a `repeat
+    /// <kind>` ledger line each) as far as gold allows, unless the player cleared the repeat
+    /// (`set_restock(false)`). Cut 4: runs when the hero comes home (`finish_run`, and again
     /// after the vault decision brought the salvage in), so the camp's shelf shows the restock
     /// before the next send — restocking only at `start_run` moved the supplies straight into
-    /// the pack and the shelf never showed them.
+    /// the pack and the shelf never showed them. Cut 19 §3 (rater AB: `−$1280 spent` by the
+    /// restock overnight): an absence's restock never spends more than the absence brought
+    /// home (`Batch::income`); a kind it could not afford under that cap sets
+    /// `Batch.restock_capped` (the report's `restock capped`).
     pub fn restock(&mut self) -> Vec<String> {
-        if !self.lineage.unlocks.contains("auto_supply") || self.lineage.supplies.iter().any(|s| !s.free) {
+        if self.lineage.restock_off || self.lineage.supplies.iter().any(|s| !s.free) {
             return Vec::new();
         }
         let mut bought = Vec::new();
@@ -3264,8 +3367,15 @@ impl Game {
             if wasted.contains(&kind) {
                 continue;
             }
+            if self.offline {
+                let price = self.supply_catalogue().iter().find(|e| e.kind == kind).map(|e| e.price).unwrap_or(0);
+                if price > self.batch.income() - self.batch.spent_total() {
+                    self.batch.restock_capped = true;
+                    continue;
+                }
+            }
             let gold = self.lineage.gold;
-            if self.buy_supply(&kind).is_ok() {
+            if self.buy_supply_as(&kind, &format!("repeat {}", kind.replace('_', " "))).is_ok() {
                 bought.push(kind.replace('_', " "));
                 let e = self.batch.spent.entry(kind.clone()).or_insert((0, 0));
                 e.0 += 1;
@@ -3502,6 +3612,8 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         let id = run.new_id();
         let mut m = Monster::spawn(id, &g.kind, pos, depth);
         m.make_grudge(&g.name);
+        // Cut 19 §5: a grudge already avenged is still met, and its kill reads `slain`.
+        m.avenged = g.avenged;
         if hunted.is_some_and(|h| std::ptr::eq(h, g)) {
             m.awake = true;
             m.last_seen = Some(hero);
