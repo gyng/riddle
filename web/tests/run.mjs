@@ -20,8 +20,25 @@ const run1 = (n) => new Promise((resolve) => {
   p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
   p.on("close", (code) => resolve({ n, code, out, ms: Date.now() - t0 }));
 });
+// The two wall-clock gates (clarity's rates, fights' holds) get headroom: while either runs, the
+// other suites share at most OTHERS_BESIDE slots (7 CPU-rendered browsers beside them flaked them).
+const HEAVY = ["clarity", "fights"], OTHERS_BESIDE = Number(process.env.TEST_BESIDE ?? 0);
 const queue = [...order], done = [];
-await Promise.all(Array.from({ length: Math.min(width, queue.length) }, async () => { while (queue.length) done.push(await run1(queue.shift())); }));
+let heavyLive = 0, othersLive = 0;
+const nextJob = () => {
+  const i = queue.findIndex((n) => HEAVY.includes(n) || heavyLive === 0 || othersLive < OTHERS_BESIDE);
+  return i < 0 ? null : queue.splice(i, 1)[0];
+};
+await Promise.all(Array.from({ length: Math.min(width, queue.length) }, async () => {
+  while (queue.length) {
+    const n = nextJob();
+    if (!n) { await new Promise((r) => setTimeout(r, 200)); continue; }
+    const heavy = HEAVY.includes(n);
+    heavy ? heavyLive++ : othersLive++;
+    done.push(await run1(n));
+    heavy ? heavyLive-- : othersLive--;
+  }
+}));
 const results = names.map((n) => done.find((r) => r.n === n));
 let failed = 0;
 for (const r of results) {
