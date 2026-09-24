@@ -297,6 +297,28 @@ a closed and an open vault, and both nest frames next to walls) and at 12× over
 `<biome>_nest_1` for each of `warrens fens crypt foundry deep sanctum`. The stray is a monster
 sprite (a previous heir's companion), not a prop — nothing authored here.
 
+## Art pass (2026-09-24) — register 3 environment, keyed register v2, portraits
+
+Gap list: `art/ui/ART_GAP.md`. Style authority updated in `ART.md` (keyed register v2 and the reason; register 3).
+
+- **Register 3 (environment, 24 ids `env_*`)** — batches 10–12 (8/8/8) + retry 13. Codex painted each as a tiny pixel
+  tile enlarged to 1024 and grid-resampled it itself (~6 KB sources). `make_env.py` → 125 tiles (6 biomes × 20 ramp
+  classes + 5 hue assets; the Burrows is re-ramped at runtime). First landing 18/24; retried `floor_1`, `floor_3` (too
+  flat — "mortar lines the darkest value, plainly visible"), `crate` (blob → "top face + X brace"), `bones` (blue-grey
+  shading inside the key), `water` (noise → "separated ripple dashes"), `banner` (a thin stick → "wide cloth, sigil,
+  swallowtail"); 6/6 accepted on the retry (the banner's sigil came out dark, not bone-white). Originals in
+  `archive/superseded/env_*_r1.png`. `torch_1` is derived (flame lifted a texel, two warm levels swapped).
+- **Keyed register v2 (41 ids + new `goblin_captain`)** — batches 14–21 (heroes + ogre; D1 cast; captain/monkey/
+  bloat/warlord; D9+ cast; foundry/deep/sanctum). v1 masters kept as `archive/superseded/<id>_v1.png`. Codex self-retried
+  the goblin once. Our retry (batch 22): `siren` (came back hooded again — "NO HOOD, head tilted back, three sound-arcs")
+  and `mirror_shade` (lost its sword); both accepted after. Known weak: `forge_imp`'s flask is red, not bone-white;
+  `rat` is compact (3/4 pose) inside its 16-texel box.
+- **Portraits (11)** — `prompts/ui_portraits.txt` → `art/ui/portraits/*.png` (1024 opaque squares; the CSS circle
+  masks them): `hero_{fighter,rogue,ranger,caster}`, `pet_{rat,jackal,monkey,goblin}`, `captive`,
+  `boss_goblin_{captain,warlord}`; 11/11 first try. `tools/ui-skin.py` packs them to `web/public/ui/portraits/*.webp`
+  (256 px, q88, 200 KB total) and lists them in `skin.json`. The death variant is a CSS treatment
+  (`.portrait.dead .face.painted`: desaturated, sepia, a blood tint), not a painting.
+
 ## For the next batch
 
 - The full ART.md preamble as the first block + per-asset "tag in the silhouette" line + the

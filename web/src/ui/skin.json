@@ -88,5 +88,18 @@
   "trace",
   "unlocks",
   "vault"
+ ],
+ "portraits": [
+  "boss_goblin_captain",
+  "boss_goblin_warlord",
+  "captive",
+  "hero_caster",
+  "hero_fighter",
+  "hero_ranger",
+  "hero_rogue",
+  "pet_goblin",
+  "pet_jackal",
+  "pet_monkey",
+  "pet_rat"
  ]
 }

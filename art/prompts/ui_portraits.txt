@@ -1,0 +1,67 @@
+You are painting HEADSHOT PORTRAITS for the game "Riddle" (a phone roguelike). FIRST look at
+/home/g/p/riddle/art/ui/targets/watch.png, camp.png and death.png (you may read those three images;
+read nothing else in the repository): the round portrait well at the bottom-left of the console
+(the brown-haired hero in a crimson cloak) and the mini portrait in the top bar are the TARGET for
+every portrait below. Use your built-in image_gen tool, one call per portrait. Do NOT write code
+beyond a PIL resample, do NOT touch anything outside /home/g/p/riddle/art/ui/portraits/. Do not
+leave scratch files behind. OVERWRITE existing files.
+
+Every portrait:
+- 1024x1024 PNG (resample with PIL Lanczos if needed), full square, fully opaque.
+- A painted anime-styled BUST: head and shoulders, the face large and centred slightly above the
+  middle (the eyes on the upper-third line), turned slightly to the RIGHT (3/4 view). The game shows
+  it inside a CIRCLE (a round iron well masks the square), so keep the face and hair well inside the
+  central circle; nothing important in the four corners.
+- Register (same as the game's sprites): crisp dark-fantasy character painting — clean confident dark
+  outlines, three-tone shading, warm amber KEY LIGHT from the upper-left (torchlight), strong value
+  contrast, a subtle watercolour wash texture in the fills (not smooth digital gradients, not loose wet
+  watercolour, no white paper showing). Grounded earthy palette like watch.png.
+- Background: a plain dark warm umber-to-black vignette (no scenery, no frame, no ring, no border).
+- Never: text, letters, numbers, logos, watermarks, a frame or ring, photorealism, 3D render.
+
+=== PORTRAITS ===
+--- 1. hero_fighter
+Output path: /home/g/p/riddle/art/ui/portraits/hero_fighter.png
+Subject: the FIGHTER heir: a young man with messy chestnut-brown hair, determined dark eyes, a crimson cloak over dented steel pauldrons, the rim of a round wooden shield at one shoulder. Brave, a little tired.
+
+--- 2. hero_rogue
+Output path: /home/g/p/riddle/art/ui/portraits/hero_rogue.png
+Subject: the ROGUE heir: a slight young woman with a lock of dark hair escaping a charcoal-and-plum hood, sharp clever eyes, a bone-white sash across the chest, the hilt of a dagger at the shoulder. Wry half-smile.
+
+--- 3. hero_ranger
+Output path: /home/g/p/riddle/art/ui/portraits/hero_ranger.png
+Subject: the RANGER heir: a lean young woman, deep-green hood UP shading calm eyes, a long auburn braid over the shoulder, fletched arrows of a quiver rising behind the shoulder, moss-and-leather collar.
+
+--- 4. hero_caster
+Output path: /home/g/p/riddle/art/ui/portraits/hero_caster.png
+Subject: the CASTER heir: a slender young man with long pale ash-blond hair under a soft dusty-violet hood, ivory robe collar, the top of a gnarled staff beside the face with a small ember-orange crystal. Serene, intent.
+
+--- 5. pet_rat
+Output path: /home/g/p/riddle/art/ui/portraits/pet_rat.png
+Subject: a dungeon RAT companion: a plump umber-grey rat's head and shoulders, pink ears and nose, bright black eyes, whiskers, a scrap of red cloth tied round its neck as a collar (it is someone's pet). Endearing.
+
+--- 6. pet_jackal
+Output path: /home/g/p/riddle/art/ui/portraits/pet_jackal.png
+Subject: a JACKAL companion: a lean sandy-tan jackal's head and shoulders, big pointed ears, narrow snout, amber eyes, a worn leather collar with a brass ring. Alert and loyal.
+
+--- 7. pet_monkey
+Output path: /home/g/p/riddle/art/ui/portraits/pet_monkey.png
+Subject: a MONKEY companion: a cheeky umber-brown dungeon monkey's head and shoulders, pale face and big curious eyes, a toothy grin, clutching the ochre neck of a stolen sack at its shoulder, a red tie on the sack.
+
+--- 8. pet_goblin
+Output path: /home/g/p/riddle/art/ui/portraits/pet_goblin.png
+Subject: a tamed GOBLIN companion: a small olive-green goblin's head and shoulders, big pointed ears, wide yellow eyes, a gap-toothed grin, a rag hood and a leather strap. Mischievous but friendly.
+
+--- 9. captive
+Output path: /home/g/p/riddle/art/ui/portraits/captive.png
+Subject: the CAPTIVE: a gaunt young person with tangled dark hair, hopeful tired eyes, a ragged linen shirt, an iron manacle and chain visible at the shoulder/wrist raised near the face.
+
+--- 10. boss_goblin_captain
+Output path: /home/g/p/riddle/art/ui/portraits/boss_goblin_captain.png
+Subject: the GOBLIN CAPTAIN (a mini-boss): an olive goblin with a dented iron half-helm with two short horns, a battered war horn raised near its snarling mouth, scale-mail at the shoulders, red sash. Menacing.
+
+--- 11. boss_goblin_warlord
+Output path: /home/g/p/riddle/art/ui/portraits/boss_goblin_warlord.png
+Subject: the GOBLIN WARLORD (a boss): a big scarred olive goblin with a jagged iron CROWN, a fur mantle over scavenged iron plates, tusks, blazing yellow eyes, a red war-banner behind the shoulder. Terrifying.
+
+When all are saved, list the final paths and sizes. Do nothing else.

@@ -8,6 +8,11 @@
 // §4 situations, env density in the tiles layer), `item_<kind>` (or a bare unknown id) → item.
 // Cut 16 §3: a biome in `TILE_ALIAS` (the Burrows → the Warrens) has no tile art of its own: each of its alias's loaded tile
 // frames is copied to `tile:<biome>_…`, every pixel moved from the alias's ramp index to the same index of the biome's ramp.
+// Art pass (2026-09-24, art/ui/ART_GAP.md): register 3 — `<biome>_env_<name>` (16×16 ramp-indexed tiles, decals and props;
+// 16×24 torch) and `env_<name>` (hue assets: blood, torch frames, banner) load at their native size into `tile:<id>` (two
+// texels per env texel: a tile is still an 8×8 world quad). They are optional: `envTile`/`hue` return undefined without
+// them and the viewer draws the 8×8 register as before. `wallTop(biome, mask)` derives an edge-rimmed wall top per
+// 4-neighbour mask (N 1, E 2, S 4, W 8 = the side that meets open floor) on first request.
 import * as THREE from "three";
 import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, paletteFor, setPalettes, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
 import { FONT_CELL_H, FONT_CELL_W, FONT_H, FONT_W, glyphBits } from "./font";
@@ -85,7 +90,7 @@ function hash(x: number, y: number, s: number): number {
 }
 
 export class Atlas {
-  readonly env = new Sheet(512, 512);
+  readonly env = new Sheet(1024, 1024);   // art pass: 16×16 env tiles × 7 biomes + the 8×8 register
   readonly sprite = new Sheet(512, 512);
   constructor() {
     this.envSlot("shadow:8");
@@ -115,6 +120,27 @@ export class Atlas {
   prop(biome: string, tile: string, frame: number): Slot {
     const id = tile === "shrine" || tile === "nest" ? `${tile}_${frame & 1}` : tile;
     return this.env.get(`tile:${biome}_${id}`) ?? this.env.get(`tile:${biome}_${tile}_0`) ?? this.envSlot(`prop:${id}`);
+  }
+  // ---- register 3 (art pass): 16-texel env art, optional -------------------------------------
+  envTile(biome: string, name: string): Slot | undefined { return this.env.get(`tile:${biome}_env_${name}`); }
+  hue(name: string): Slot | undefined { return this.env.get(`tile:env_${name}`); }
+  /** the wall top with a rim on each side in `mask` (N 1, E 2, S 4, W 8): ramp-0 at the edge, a lit ramp step inside on N/W. */
+  wallTop(biome: string, mask: number): Slot | undefined {
+    const id = `tile:${biome}_env_wall_top_${mask}`;
+    const have = this.env.get(id); if (have) return have;
+    const src = this.envTile(biome, "wall_top"); if (!src) return undefined;
+    if (!mask) return src;
+    const g = this.env, w = src.w, h = src.h;
+    const img = g.ctx.getImageData(src.x, src.y, w, h);
+    const dst = g.alloc(id, w, h);
+    g.ctx.putImageData(img, dst.x, dst.y);
+    const p = paletteFor(biome), P = (i: number) => css(p[Math.min(i, p.length - 1)]!);
+    const line = (x: number, y: number, lw: number, lh: number, col: string) => { g.ctx.fillStyle = col; g.ctx.fillRect(dst.x + x, dst.y + y, lw, lh); };
+    if (mask & 1) { line(0, 0, w, 1, P(0)); line(0, 1, w, 1, P(4)); }
+    if (mask & 8) { line(0, 0, 1, h, P(0)); line(1, 1, 1, h - 1, P(4)); }
+    if (mask & 2) { line(w - 1, 0, 1, h, P(0)); line(w - 2, 1, 1, h - 1, P(1)); }
+    if (mask & 4) { line(0, h - 1, w, 1, P(0)); line(0, h - 2, w, 1, P(1)); }
+    return dst;
   }
   // bones pile (Cut 2 §2): per-biome 2-frame tile art if the atlas has it, else the `bones` item
   // glyph (atlas or procedural). Env density, 8×8, no shadow.
@@ -228,7 +254,8 @@ export class Atlas {
       sheet.ctx.drawImage(img, r.x, r.y, r.w, r.h, slot.x, slot.y, w, h);
     };
     const ovm = /^(?:ov_)?(gas|fire)(?:_(\d))?$/.exec(id);
-    if (r.h > 16) {
+    if (/^env_|_env_/.test(id)) put(this.env, `tile:${id}`, r.w, r.h);   // register 3: native size
+    else if (r.h > 16) {
       // any tall frame is an entity; `boss_` prefix is stripped; box-fit at sprite density
       // meta.sprites[id].texel_h is the intended runtime height in sprite texels (masters are 2×)
       const kind = id.replace(/^boss_/, "");

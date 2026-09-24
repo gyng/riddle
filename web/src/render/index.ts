@@ -22,7 +22,8 @@
 // the layer (env quads write a=1, sprite quads a=0.5; blending is off). The blit quantises a=1
 // pixels to the biome palette with 4×4 Bayer dither indexed by world texel, and blends a=0.5
 // pixels 50% toward their nearest palette colour without dither. One target, one blit.
-// Tiles, items, shadows, glyphs and callout text are env (a=1); entities and the gas/fire
+// Tiles, items, shadows, glyphs and callout text are env (a=1; art pass: items, shadows, glyphs and text a=0.875 — env,
+// quantised, but outside the world's ambient drop and torch light, so a callout never dims); entities and the gas/fire
 // overlays are sprite-tagged (a=0.5) so they keep a readable hue in every biome.
 //
 // Cut 8A — the fight frame (docs/PLATEAU.md §A): a second camera on the same event stream. `setFrame("fight")` doubles k
@@ -39,7 +40,7 @@
 // in is lit whole once seen (`roomLit`: a 4-connected flood over room tiles — passable tiles inside a 2×2 passable block, so
 // a one-wide corridor and a door end it — recomputed on a hero tile change); `debugRects` / `debugLabels` for the gates.
 import * as THREE from "three";
-import { Atlas } from "./atlas";
+import { Atlas, type Slot } from "./atlas";
 import { Blit } from "./blit";
 import { QuadLayer } from "./layers";
 import { GpuTimer, Hist } from "./gputimer";
@@ -47,6 +48,13 @@ import { paletteFor } from "./palette";
 import { FONT_ADVANCE, FONT_CELL_H, FONT_CELL_W } from "./font";
 import { PROPS, ReplayState, type EntState } from "./state";
 import type { Ev, Snapshot } from "./types";
+
+/** deterministic per-tile hash in [0, 1) (render-only dressing; never game truth) */
+function hash2(x: number, y: number, s: number): number {
+  let h = (x * 374761393 + y * 668265263 + s * 2246822519) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
 
 const cssHex = (c: readonly number[]): string => "#" + c.slice(0, 3).map((v) => Math.round(v * 255).toString(16).padStart(2, "0")).join("");
 
@@ -108,6 +116,7 @@ const BASE_TEXELS = 160; // Cut 14 §3 (was 200, before that 270): ~20 tiles acr
 const STACK_SPREAD = TILE * 2 / 3; // Cut 14 §3: a stack's members fan over ±⅓ tile
 const ROOM_MAX = 600;              // Cut 14 §3: the room flood's cap in tiles (a cave floor is not one room)
 const HERO_Z = 3.2, HERO_COVER = 0.3; // Cut 18 §2: the hero's depth (over every sprite, under the glyphs) and the most of his rect a sprite may cover
+const MAX_LIGHTS = 12;             // art pass: torches lighting the blit (nearest the camera)
 const HERO_TEXELS = 24;            // Cut 14 §3: the hero sprite's height in env texels (48 sprite texels); the fight k keeps it ≤ 1/5 of the screen
 
 export type ViewerOpts = {
@@ -143,12 +152,14 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   const L = {
     tiles: new QuadLayer(env, 32 * 32 + 64, 1, 0), // a fully seen 32×32 floor plus its props
     overlays: new QuadLayer(env, 512, 0.5, 1), // tagged as sprite so gas/fire keep their hue
-    items: new QuadLayer(env, 128, 1, 2),
-    shadows: new QuadLayer(env, 128, 1, 3),
+    items: new QuadLayer(env, 128, 0.875, 2),
+    shadows: new QuadLayer(env, 128, 0.875, 3),
     ents: new QuadLayer(spr, 128, 0.5, 4),
-    glyphs: new QuadLayer(env, 128, 1, 5),
-    text: new QuadLayer(env, 192, 1, 6),  // Cut 8A: callout + caption + a name under each hostile
+    glyphs: new QuadLayer(env, 128, 0.875, 5),
+    text: new QuadLayer(env, 192, 0.875, 6),  // Cut 8A: callout + caption + a name under each hostile
     hud: new QuadLayer(env, 128, 0.5, 7), // Cut 8A: hp bars (sprite-tagged so the red keeps its hue in every biome)
+    decor: new QuadLayer(env, 512, 1, 0),       // art pass: floor decals (moss, cracks, rubble, bones) and props (barrel, crate, pot)
+    decorHue: new QuadLayer(env, 256, 0.5, 1),  // art pass: blood, torches, banners — sprite-tagged so red and flame keep their hue
   };
   for (const l of Object.values(L)) scene.add(l.mesh);
   const blit = new Blit(rt.texture);
@@ -167,6 +178,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   let roomLit = new Uint8Array(0), roomKey = "";
   const rects: DebugRect[] = [], labels: DebugLabel[] = [];   // Cut 14 §3: what this frame drew, for the gates
   const texts: { kind: "callout" | "caption"; text: string }[] = [];   // Cut 18 §2
+  const lights: [number, number][] = [];   // art pass: this frame's torch flames (world env texels)
   let raf = 0;
   let last = performance.now();
   let disposed = false;
@@ -313,6 +325,60 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   /** Cut 14 §3: world → CSS px (the viewport's top-left is the canvas's; the sub-texel blit offset is ignored, ≤ 1 texel). */
   const toCss = (wx: number, wy: number): [number, number] => [((wx - (camSX - iw / 2)) * k) / dpr, (((camSY + ih / 2) - wy) * k) / dpr];
 
+  // ---- art pass (art/ui/ART_GAP.md): register 3 dressing, render-only, seeded by tile position ----------------------------
+  const isWall = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < st.w && y < st.h && st.tiles[y * st.w + x] === "wall";
+  /** a seen tile that is open (not wall) — a wall top rims the sides that meet one */
+  const openSeen = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < st.w && y < st.h && !!st.seen[y * st.w + x] && st.tiles[y * st.w + x] !== "wall";
+  /** a wall whose tile below is seen open ground shows its front face (capstone + courses); any other wall shows its top */
+  const wallFace = (x: number, y: number): boolean => isWall(x, y) && openSeen(x, y + 1);
+  function envTileFor(b: string, x: number, y: number, t: string, prop: boolean): Slot | undefined {
+    const h = hash2(x, y, 11);
+    if (t === "wall") {
+      if (wallFace(x, y)) return atlas.envTile(b, h < 0.72 ? "wall_face_0" : "wall_face_1");
+      const mask = (openSeen(x, y - 1) ? 1 : 0) | (openSeen(x + 1, y) ? 2 : 0) | (openSeen(x - 1, y) ? 8 : 0);
+      return atlas.wallTop(b, mask);
+    }
+    if (t === "floor" || prop) return atlas.envTile(b, h < 0.46 ? "floor_0" : h < 0.76 ? "floor_1" : h < 0.92 ? "floor_2" : "floor_3");
+    return atlas.envTile(b, t);   // door (portcullis), stairs, water, chasm
+  }
+  /** decals, props and wall dressing for one seen tile (deterministic in x, y; nothing here is game truth) */
+  function dress(b: string, x: number, y: number, t: string, dim: number, torchFrame: number): void {
+    const wx = x * TILE + TILE / 2, wy = -(y + 1) * TILE;
+    if (t === "wall") {
+      if (!wallFace(x, y) || st.tiles[(y + 1) * st.w + x] !== "floor") return;
+      if ((x + 2 * y) % 5 === 0 && hash2(x, y, 3) < 0.8) {
+        const f = atlas.hue(`torch_${torchFrame}`) ?? atlas.hue("torch_0");
+        if (!f) return;
+        L.decorHue.push(wx, wy + 1, 0.35, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, Math.max(dim, 0.85));
+        lights.push([wx, wy + f.h / 2 - 2]);
+      } else if (hash2(x, y, 5) < 0.09 && isWall(x - 1, y) && isWall(x + 1, y)) {
+        const f = atlas.hue("banner");
+        if (f) L.decorHue.push(wx, wy + 1, 0.35, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim);
+      }
+      return;
+    }
+    if (t !== "floor") return;
+    const n = isWall(x, y - 1), sw = isWall(x, y + 1), e = isWall(x + 1, y), w = isWall(x - 1, y);
+    const walls = +n + +sw + +e + +w, corner = (n || sw) && (e || w);
+    const hp = hash2(x, y, 7);
+    if (walls >= 1 && walls <= 2 && (corner ? hp < 0.42 : hp < 0.035) && !st.items.some((it) => it.x === x && it.y === y)) {
+      const k = hash2(x, y, 8), name = k < 0.45 ? "barrel" : k < 0.8 ? "crate" : "pot";
+      const f = atlas.envTile(b, name);
+      if (f) { L.decor.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
+    }
+    const hd = hash2(x, y, 9), near = walls > 0 ? 0.1 : 0;
+    const pick = hd < 0.07 + near ? "moss_" + (hash2(x, y, 10) < 0.5 ? 0 : 1)
+      : hd < 0.12 + near ? "crack" : hd < 0.16 + near ? "rubble" : hd < 0.19 + near ? "blood" : hd < 0.205 + near ? "bones" : null;
+    if (!pick) return;
+    if (pick === "blood") {
+      const f = atlas.hue(hash2(x, y, 12) < 0.5 ? "blood_0" : "blood_1");
+      if (f) L.decorHue.push(wx, wy, 0.2, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim * 0.9);
+      return;
+    }
+    const f = atlas.envTile(b, pick);
+    if (f) L.decor.push(wx, wy, 0.2, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim);
+  }
+
   function build(now: number): void {
     const p = paletteFor(st.clock < st.bossFlashUntil ? "boss_flash" : st.biome);
     blit.setPalette(p);
@@ -328,21 +394,28 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // tiles: one instance per seen tile; visible ones full, remembered ones dimmed. Cut 5 §4 props (shrine, vault,
     // nest) stand on a floor tile in the same layer: shrine flames flicker at 1 Hz, a nest shows awake once woken.
     const propFrame = Math.floor(now / 1000) & 1;
-    L.tiles.begin();
+    const torchFrame = Math.floor(now / 180) & 1;
+    const hd = atlas.envTile(b, "floor_0") !== undefined;   // art pass: register 3 loaded for this biome
+    L.tiles.begin(); L.decor.begin(); L.decorHue.begin();
+    lights.length = 0;
     for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) {
       const i = y * st.w + x;
       if (!st.seen[i]) continue;
       const t = st.tiles[i]!;
       const prop = PROPS.has(t);
-      const s = atlas.tile(b, prop ? "floor" : t, ((x * 7 + y * 13) % 11) < 2);
       const dim = light(i);   // Cut 14 §3: the hero's room stays lit
+      const s = (hd ? envTileFor(b, x, y, t, prop) : undefined) ?? atlas.tile(b, prop ? "floor" : t, ((x * 7 + y * 13) % 11) < 2);
       L.tiles.push(x * TILE + TILE / 2, -(y + 1) * TILE, 0, TILE, TILE, s.u0, s.v0, s.u1, s.v1, dim);
       if (prop) {
         const p = atlas.prop(b, t, t === "nest" ? (st.nestWoken.has(i) ? 1 : 0) : propFrame);
         L.tiles.push(x * TILE + TILE / 2, -(y + 1) * TILE, 0.1, TILE, TILE, p.u0, p.v0, p.u1, p.v1, dim);
       }
+      if (hd) dress(b, x, y, t, dim, torchFrame);
     }
-    L.tiles.end();
+    L.tiles.end(); L.decor.end(); L.decorHue.end();
+    // the torches nearest the camera light the blit (MAX_LIGHTS; a 2-frame flicker in strength)
+    lights.sort((a, c) => (a[0] - camSX) ** 2 + (a[1] - camSY) ** 2 - ((c[0] - camSX) ** 2 + (c[1] - camSY) ** 2));
+    blit.setLights(lights.slice(0, MAX_LIGHTS), torchFrame ? 0.94 : 1);
 
     // overlays: 2-frame animation at 4 fps (real time)
     const frame = Math.floor(now / 250) & 1;
@@ -606,7 +679,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     renderer.info.reset();
     gpu.begin();
     renderer.setRenderTarget(rt);
-    renderer.setClearColor(clear, 1);
+    renderer.setClearColor(clear, 0);   // art pass: a=0 = the void (no quad drew here): never lit, never dithered
     renderer.clear(true, true, false);
     renderer.render(scene, camera);
 

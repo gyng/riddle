@@ -1,5 +1,5 @@
 {
-  "notes": "One PNG per id at art/generated/<id>.png. art/ART.md is the style authority. 'keyed' register = loose 1980s watercolour-anime washes INSIDE bold clean dark ink contour lines (4-8 px at 1024 px), upper-left key light, flat pure #0000FF background, no floor/shadow pool/text/glow, subject facing right, tag visible in the silhouette, must read at 48 px (hero) / 32-48 px (monster). gen = generation size (1024 short edge for units). master_h = pack.py resample height (2x runtime texel height). texel_h = runtime sprite-texel height. Environment tiles are NOT here: art/make_tiles.py owns them.",
+  "notes": "One PNG per id at art/generated/<id>.png. art/ART.md is the style authority. 'keyed' register (v2, 2026-09-24, see ART.md) = crisp top-down dark-fantasy RPG character sprites, chunky proportions, thick clean near-black outline (12-16 px at 1024 px), 3-tone cel shading with a watercolour wash texture inside the flat fills, upper-left key light, flat pure #0000FF background, no floor/shadow pool/text/glow, subject facing right, tag visible in the silhouette, must read at 48 px (hero) / 32-48 px (monster). gen = generation size (1024 short edge for units). master_h = pack.py resample height (2x runtime texel height). texel_h = runtime sprite-texel height. Environment tiles are NOT here: art/make_tiles.py owns them. Register 3 (env_*): bg 'env' (opaque tile) / 'env_keyed' (alpha decal or prop) — Codex pixel-art sources for the 16x16 environment, converted by art/make_env.py (box downscale to `texels`, luminance -> biome ramp index, per-biome tiles into art/tiles/); not packed as sprites.",
   "gen_default": "1024x1024",
   "assets": [
     {
@@ -9,7 +9,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px. Loose watercolour inside bold ink."
+      "description": "Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px."
     },
     {
       "id": "hero_rogue",
@@ -82,6 +82,15 @@
       "master_h": 80,
       "texel_h": 40,
       "description": "A goblin conjurer facing right: same olive goblin build, wrapped in a tattered violet robe with a bone-fetish hood, both arms raised holding a gnarled staff overhead; two small pale ghost-blades hover just above the staff tip. Tag: raised staff + hovering blades, readable as a T-shape with sparks at 40 px. Blades are ivory/teal-white, never saturated blue."
+    },
+    {
+      "id": "goblin_captain",
+      "kind": "monster",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "A goblin CAPTAIN facing right, a head taller and broader than a plain goblin: dented iron half-helm with two short horns, a battered war HORN raised to its mouth in one hand (it summons), a notched short sword low in the other, scale-mail vest over olive skin, a red sash. Tag: the raised horn and the horned helm — 'the goblin that calls the others' at 48 px."
     },
     {
       "id": "monkey",
@@ -297,7 +306,7 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A siren facing right, standing and SINGING: a slender figure in a long robe whose HEAD IS THROWN BACK — chin up, face to the ceiling, mouth wide open — with the deep hood fallen back off the face onto the shoulders, both hands clasped at the chest, the robe hem pooled at the feet; THREE BOLD flat ink voice-arcs stacked in front of the open mouth (each as thick as the contour line and a head-width wide, flat shapes, no glow). Bone-white face and throat, deep violet-black robe (all channels low, never saturated blue), a pale teal lining inside the fallen hood. Tag: HOODED SINGER — the thrown-back open-mouthed head and the voice-arcs are the silhouette at 40 px. Distinct from the floating wraith: this one stands. Not a hooded figure looking down."
+      "description": "A siren facing right, standing and SINGING: a slender figure in a long robe whose HEAD IS THROWN BACK — chin up, face to the ceiling, mouth wide open — with the deep hood fallen back off the face onto the shoulders, both hands clasped at the chest, the robe hem pooled at the feet; THREE BOLD flat ink voice-arcs stacked in front of the open mouth (each as thick as the contour line and a head-width wide, flat shapes, no glow). Bone-white face and throat, deep violet-black robe (all channels low, never saturated blue), a pale teal lining inside the fallen hood. Tag: HOODED SINGER — the thrown-back open-mouthed head and the voice-arcs are the silhouette at 40 px. Distinct from the floating wraith: this one stands. Not a hooded figure looking down. RETRY NOTE (v2): the last attempt came back as a hooded standing figure — wrong. NO HOOD AT ALL: bare head with long flowing hair, the whole head TILTED BACK so the face points at the ceiling, mouth open wide in song, both arms spread wide and low, and THREE thick pale sound-arcs rising from the open mouth. The upturned face and the arcs must be the top of the silhouette."
     },
     {
       "id": "mirror_shade",
@@ -306,7 +315,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A mirror shade facing right: a HERO-SHAPED DARK MIRROR — the full-body silhouette of an anime adventurer in a ready stance with a short sword held low, painted as a flat solid blue-black shape (all channels low, never saturated or royal blue) with thin silvered cyan-white edge highlights along the upper-left contours (green channel at least as high as blue), NO face, NO features, one pale crack running across the chest. Bold dark ink outline as always. Tag: A HERO SHAPE, BUT DARK — at 48 px it must read as 'the hero's shadow'."
+      "description": "A mirror shade facing right: a HERO-SHAPED DARK MIRROR — the full-body silhouette of an anime adventurer in a ready stance with a short sword held low, painted as a flat solid blue-black shape (all channels low, never saturated or royal blue) with thin silvered cyan-white edge highlights along the upper-left contours (green channel at least as high as blue), NO face, NO features, one pale crack running across the chest. Bold dark ink outline as always. Tag: A HERO SHAPE, BUT DARK — at 48 px it must read as 'the hero's shadow'. RETRY NOTE (v2): the last attempt lost the sword and read as a dark blob. Make it a clear standing HUMAN hero silhouette in a wide fighting stance (legs apart, visible), a LONG straight sword held out low and forward so the blade sticks out past the body, a short half-cloak; the body blue-black with bright cyan-white edge light along the top and left edges so the shape reads."
     },
     {
       "id": "boss_lurker_queen",
@@ -370,6 +379,198 @@
       "size_px_w": 1536,
       "size_px_h": 1024,
       "description": "Key art, landscape, NO TEXT: the anime fighter and rogue seen from behind, small at the bottom of the frame, standing at the mouth of a great dark stair descending into an olive-umber warren; a faint teal fen glow and a distant indigo crypt light stacked deeper below; the whole painted as loose 1980s anime watercolour key art with bold ink, white paper breathing through at the top. Chiaroscuro, upper-left key light, muted field with jewel accents."
+    },
+    {
+      "id": "env_floor_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "Dressed flagstone floor: four rectangular stone slabs of slightly different sizes meeting in dark mortar seams, worn smooth, a few small chips. Mid-dark grey-olive stone. Seamless when tiled."
+    },
+    {
+      "id": "env_floor_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "Dressed flagstone floor: ONE large square slab (upper-left, 10x10 pixels) and three smaller slabs around it, separated by CLEAR 1-pixel DARK mortar lines that run straight to the tile edges; each slab has a 1-pixel lit top-left edge and a darker bottom-right edge, and one slab has a hairline crack. Same grey-olive stone and value range as a typical dungeon flagstone floor. The previous attempt was far too flat (no visible seams): the mortar lines must be the darkest value and plainly visible. Seamless when tiled."
+    },
+    {
+      "id": "env_floor_2",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "Older flagstone floor: small irregular cobble-like stones, deeper mortar gaps, a little grit between stones. Same stone and value range as the other floors. Seamless when tiled."
+    },
+    {
+      "id": "env_floor_3",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "Flagstone floor with one BROKEN slab: two whole slabs on the left separated by a dark 1-pixel mortar line, and on the right a slab shattered into three pieces by jagged DARK cracks, with two small pale loose chips. Every slab has a lit top-left edge and darker bottom-right. The previous attempt was too flat: seams and cracks must be the darkest value and plainly visible. Same stone and value range as the other floors. Seamless when tiled."
+    },
+    {
+      "id": "env_wall_face_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "The FRONT FACE of a dungeon wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer). Top quarter: a lighter bevelled capstone ledge running edge to edge. Below it: three courses of rough-cut stone blocks in running bond, dark mortar, each block lit on its top edge and shaded at its bottom; the bottom row darkest where the wall meets the floor. Seamless left-to-right."
+    },
+    {
+      "id": "env_wall_face_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "Same wall FRONT FACE as wall_face_0 (same capstone ledge on top, same courses) but with different block lengths and one block chipped and a small dark hole. Seamless left-to-right and interchangeable with wall_face_0."
+    },
+    {
+      "id": "env_wall_top",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "The TOP of a thick dungeon wall seen straight down: the upper surface of rough stone blocks, dark and unlit (it is the mass above the rooms), large blocks with dark cracks, low contrast, darker than the floor. Seamless in every direction."
+    },
+    {
+      "id": "env_door",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A heavy iron PORTCULLIS set in a stone arch, seen front-on in the wall: a round stone arch frame with voussoir blocks, and inside it a dark opening crossed by a grid of thick iron bars (4 vertical, 3 horizontal) with rivets at the crossings. The dark opening behind the bars is the darkest value."
+    },
+    {
+      "id": "env_stairs_down",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "Stone stairs going DOWN into darkness, seen from above: four stone steps, each narrower and darker than the one above it, the bottom falling into near-black; a stone frame on the left and right. Top step lightest."
+    },
+    {
+      "id": "env_stairs_up",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "Stone stairs going UP, seen from above: four stone steps, lit edges on each step front, the top step the lightest value, stone side walls left and right."
+    },
+    {
+      "id": "env_water",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "Dark still dungeon water, seen from above: a deep dark liquid surface with 3-4 horizontal RIPPLE LINES (each a short 3-6 pixel lighter dash, clearly separated) and 2 single-pixel bright glints; the rest calm flat dark with a subtle 2-tone band. The previous attempt was random noise: make it calm, with clearly separated horizontal ripple dashes. Neutral dark grey-green, no blue. Seamless in every direction."
+    },
+    {
+      "id": "env_chasm",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A bottomless chasm seen from above: nearly black, with a faint rocky texture and a few dim rock ledges fading into darkness. The darkest tile in the set. Seamless."
+    },
+    {
+      "id": "env_moss_0",
+      "kind": "env_decal",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A patch of dark green-olive moss and tiny weeds growing in floor cracks, irregular organic shape covering about a third of the tile, spreading from one corner. Flat #0000FF background."
+    },
+    {
+      "id": "env_moss_1",
+      "kind": "env_decal",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A thin trail of moss and small grass tufts along one edge, like it grows out of a mortar seam. Flat #0000FF background."
+    },
+    {
+      "id": "env_crack",
+      "kind": "env_decal",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A network of dark floor cracks with a few pale broken stone chips, like a heavy blow cracked the flagstone. Only the crack lines and chips, flat #0000FF background."
+    },
+    {
+      "id": "env_rubble",
+      "kind": "env_decal",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A small scatter of rubble: 5-7 broken stone chunks and pebbles of varied size, each with a lit top-left and a dark edge. Flat #0000FF background."
+    },
+    {
+      "id": "env_blood_0",
+      "kind": "env_decal",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A dried dark-crimson blood splatter on stone: one irregular splash with a few droplets flying off it. Deep crimson and near-black red only. Flat #0000FF background."
+    },
+    {
+      "id": "env_blood_1",
+      "kind": "env_decal",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A smear and drip trail of dried dark-crimson blood, elongated, with 3-4 small droplets. Deep crimson and near-black red only. Flat #0000FF background."
+    },
+    {
+      "id": "env_torch",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x24",
+      "description": "A WALL TORCH SCONCE, front view: an iron bracket bolted to the wall (a small dark plate with a ring) holding a short wooden torch upright, burning with a bright flame: white-yellow core, orange body, red tips, two or three flame tongues. The flame occupies the top third. Flat #0000FF background."
+    },
+    {
+      "id": "env_barrel",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A wooden barrel standing upright, seen from a top-down three-quarter camera: the round lid visible on top as an ellipse, dark wooden staves, two dark iron hoops, lit on its upper-left. Flat #0000FF background."
+    },
+    {
+      "id": "env_crate",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A square WOODEN CRATE seen from a top-down three-quarter camera, filling most of the tile: the TOP face (upper 40%) is a lighter square of 3 parallel planks with dark lines between them; the FRONT face (lower 60%) is darker planks with a bold diagonal cross-brace (an X of lighter boards) and dark nail dots at the corners; a crisp 1-pixel near-black outline all round. Warm brown wood, lit upper-left. The previous attempt was an unreadable blob: make the box shape, the top face and the X brace unmistakable. Flat #0000FF background."
+    },
+    {
+      "id": "env_pot",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A round clay pot / urn, three-quarter top-down view: dark opening at the top, round belly, a band of simple pattern, terracotta brown, lit upper-left. Flat #0000FF background."
+    },
+    {
+      "id": "env_banner",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x20",
+      "description": "A heraldic WALL BANNER hanging straight down from a short dark iron rod: a WIDE crimson cloth rectangle (the cloth is at least 60% as wide as it is tall) with a bold bone-white SIGIL in its middle (a simple upright sword crossed by a short bar, 2 pixels thick), a gold-ochre trim line along the top, and a torn SWALLOWTAIL bottom edge (a V notch). Dark folds on the right side. The previous attempt was a thin red stick with no sigil. Flat #0000FF background."
+    },
+    {
+      "id": "env_bones",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "Scattered old skeleton remains on the floor, seen from above: one bone-white skull with two dark eye sockets on the upper-left, and three or four long bones (femurs with knobbed ends) lying crossed below and to the right. Bone-white / ivory / warm grey-brown shadows and a near-black outline ONLY. Absolutely NO blue, NO purple, NO grey-blue anywhere on the bones (the previous attempt had blue-grey shading that clashed with the key). Flat #0000FF background."
     }
   ]
 }

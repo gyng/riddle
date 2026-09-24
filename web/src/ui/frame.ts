@@ -4,7 +4,7 @@
 // its frame from these parts (so `main.<screen>` holds its console: the tiles are the screen's buttons).
 import type { App } from "../app";
 import { h, replace } from "./dom";
-import { icon } from "./skin";
+import { icon, portraitSrc } from "./skin";
 import { openSettings } from "./settings";
 import { openGoldSheet } from "./gold";
 import { revealed } from "./reveal";
@@ -44,7 +44,7 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
   return { el, paint, dispose: off, offers, freeze: () => { off(); } };
 }
 
-// --- the hero's portrait (atlas sprite `hero_<class>`) ---
+// --- the hero's portrait (art pass: the painted headshot `hero_<class>`; fallback the atlas sprite `hero_<class>`) ---
 
 type Frame = { x: number; y: number; w: number; h: number };
 let atlas: Promise<{ frames: Record<string, Frame>; w: number; h: number } | null> | null = null;
@@ -52,10 +52,26 @@ function loadAtlas(): Promise<{ frames: Record<string, Frame>; w: number; h: num
   atlas ??= fetch("/art/atlas.json").then((r) => r.json()).then((a) => ({ frames: a.frames, w: a.meta.atlas.w, h: a.meta.atlas.h })).catch(() => null);
   return atlas;
 }
-/** Paints the class sprite into `face` (a head-and-shoulders crop, `px` CSS px wide); a missing atlas leaves the well dark. */
+/** Paints the class portrait into `face`: the painted headshot when packed (skin.json `portraits`), else a head-and-shoulders
+ *  crop of the class sprite (`px` CSS px wide); a missing atlas leaves the well dark. */
 function paintFace(face: HTMLElement, cls: string, px: number): void {
+  if (paintPortrait(face, `hero_${cls}`)) return;
+  paintSprite(face, `hero_${cls}`, px, "hero_fighter");
+}
+/** Art pass: the painted headshot `id` as `face`'s background (a `painted` face: smooth, cover-fit); false when not packed. */
+export function paintPortrait(face: HTMLElement, id: string): boolean {
+  const src = portraitSrc(id);
+  face.classList.toggle("painted", !!src);
+  if (!src) return false;
+  face.style.backgroundImage = `url(${src})`;
+  face.style.backgroundSize = "cover";
+  face.style.backgroundPosition = "50% 30%";
+  return true;
+}
+/** The fallback: a head-and-shoulders crop of the atlas frame `id` (else `alt`), `px` CSS px wide. */
+export function paintSprite(face: HTMLElement, id: string, px: number, alt?: string): void {
   void loadAtlas().then((a) => {
-    const f = a?.frames[`hero_${cls}`] ?? a?.frames.hero_fighter; if (!a || !f) return;
+    const f = a?.frames[id] ?? (alt ? a?.frames[alt] : undefined); if (!a || !f) return;
     const s = px / (f.w * 0.78);   // the sprite's width minus its weapon reach fills the well
     face.style.backgroundImage = "url(/art/atlas.png)";
     face.style.backgroundSize = `${a.w * s}px ${a.h * s}px`;

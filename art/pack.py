@@ -12,7 +12,8 @@ Keyed sprites (bg == "keyed" in art/manifest.json), from art/generated/<id>.png:
   4. dilate the silhouette by OUTLINE_PX and paint the ring dark ink; darken
      the 1-px inner edge, so the ink line survives the downscale.
   5. quantise opaque pixels to <= QUANT_COLOURS (median cut, no dither).
-Tiles, overlays and item glyphs from art/tiles/*.png (8x8 RGBA) copy through.
+Tiles, overlays and item glyphs from art/tiles/*.png (8x8 RGBA; register 3's `*env_*` at 16x16,
+16x24 torch, 16x20 banner — art/make_env.py) copy through.
 Everything is shelf-packed with GUTTER-px gutters; atlas.json is
 { "frames": { "<id>": {"x","y","w","h"} }, "meta": {...} }.
 The title (bg == "bleed") goes to web/public/art/title.png at its manifest size.
@@ -169,6 +170,8 @@ def main(argv: list[str]) -> int:
     for asset in manifest["assets"]:
         aid = asset["id"]
         src = SRC / f"{aid}.png"
+        if asset["bg"].startswith("env"):
+            continue  # register 3: art/make_env.py writes art/tiles/*env_*.png, packed below with the tiles
         if not src.exists():
             missing.append(aid)
             continue

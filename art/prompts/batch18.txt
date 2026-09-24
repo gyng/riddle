@@ -1,0 +1,94 @@
+You are generating painted CHARACTER SPRITE masters for the game "Riddle" (a phone roguelike seen
+top-down). FIRST look at /home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read
+nothing else in the repository): its hero (brown hair, crimson cape, sword) and its green goblins
+(sword goblin, archer) are the TARGET LOOK for every sprite. Use your built-in image_gen tool, one
+call per asset below. Do NOT write code beyond a PIL resample, do NOT touch anything outside
+/home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind.
+If a file already exists at an output path, OVERWRITE it (these are regenerations in a new style).
+
+For each asset: generate at the stated size, then save the final PNG (sRGB) to the exact output
+path. If the image is not exactly the stated size, resample to it with PIL (Lanczos). Self-check
+that all four corner pixels are pure blue (0,0,255) within distance 30 (or fully transparent) and
+that the subject contains NO mid-blue pixels; regenerate that asset once if not.
+
+=== STYLE (art/ART.md, keyed register v2) — the FIRST and loudest rule ===
+A crisp top-down dark-fantasy RPG CHARACTER SPRITE, like the characters in watch.png, painted at
+high resolution with a WATERCOLOUR-INSPIRED fill texture:
+- Proportions: chunky and readable — the head about one third of the body height, stocky torso,
+  short sturdy legs planted apart, hands and weapon drawn LARGE. A 3/4 view from slightly above,
+  facing RIGHT.
+- Outline: ONE thick, clean, continuous NEAR-BLACK outline around the whole silhouette (12-16 px at
+  1024 px — it must survive a downscale to 40-64 px), plus thinner dark lines on the major interior
+  forms. Hard, crisp edges everywhere. No soft or feathered edges, no loose bleeding washes.
+- Shading: 3 tones per material — a lit tone, a mid tone, one shadow tone — with the key light from
+  the UPPER-LEFT; strong value contrast between lit and shadow. Inside each flat tone a SUBTLE
+  watercolour wash texture (gentle granulation / pigment variation, a few dry-brush flecks) — the
+  fills must NOT be smooth digital gradients, but they are NOT loose wet washes either and no white
+  paper shows through.
+- Palette: grounded, earthy dark fantasy like watch.png — moss / olive greens, crimson and oxblood
+  cloth, warm leather browns, dull steel greys, bone ivory — with one or two saturated accents.
+  Clean hues, no muddy greys (the game tints sprites 30 % toward the dungeon's palette).
+- Faces: small, simple, readable (two dark eyes, a brow line); heroes keep a gentle anime flavour
+  (hair as a few big locks), monsters are grotesque but charming like watch.png's goblins.
+- Never: text, letters, logos, signatures, watermarks, photorealism, 3D-render shading, airbrushed
+  volume, glossy game-asset rendering, dense noisy detail, stair-stepped fake pixel art (the game
+  downsamples; paint smooth crisp shapes), loose watercolour-anime illustration.
+
+=== READABILITY (these sprites are shown TINY) ===
+Each sprite is box-downscaled to 24-64 px tall on a phone. ONE big readable mass, one clear gesture,
+a simple silhouette with no thin spindly extras. The creature's defining feature (its "tag", stated
+per asset) must be visible in the SILHOUETTE alone. Full body, nothing cropped, subject centred with
+~10% margin on every side.
+
+=== CHROMA KEY ===
+Background is a flat, uniform, edge-to-edge pure blue #0000FF = RGB(0,0,255), one solid fill. The
+subject must stay far from that key: every pixel inside the subject at least RGB-distance 150 from
+(0,0,255). Any blue-ish material uses CYAN/TEAL mid-tones (green channel high) or BLUE-BLACK depths
+(all channels low). Ultramarine, royal blue, cobalt and sky blue are forbidden on the subject. No
+blue glow, rim light or reflections. NO floor, NO ground plane, NO contact shadow, NO cast-shadow
+pool, NO scenery, NO glow halo, NO pedestal — the subject floats on flat blue.
+
+=== ASSETS ===
+--- 1. id: boss_bloat_mother  (boss)
+Output path: /home/g/p/riddle/art/generated/boss_bloat_mother.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 64 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: The Bloat Mother: an enormous swollen sac of sickly yellow-green gas, ringed with a crown of bone spines around the top, dozens of tiny bloat-buds budding from her sides, a wide puckered maw, taut veins. Tag: BOSS — huge, spine-crowned, budding. The silhouette is a giant balloon with a spiky crown; reads at 64 px. Yellow-green and bone, never blue.
+
+--- 2. id: boss_lich  (boss)
+Output path: /home/g/p/riddle/art/generated/boss_lich.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 64 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: The Lich facing right: a tall gaunt robed skeleton king in tattered indigo-black robes with a tall bone SKULL-CROWN, one hand raising a crooked staff topped with a pale skull, the other hand open with a cold teal-white flame. Bone-white skull, blue-black robes (all channels low, never saturated blue), teal-white flame. Tag: BOSS — crowned skull, staff, flame. Reads at 64 px.
+
+--- 3. id: spectral_blade  (summon)
+Output path: /home/g/p/riddle/art/generated/spectral_blade.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 20 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A spectral blade: a single floating ghost-sword, point down, ivory-white and pale teal watercolour, no hilt-holder, a faint trailing wisp. Bold ink outline. Tag: a floating sword. Reads as a vertical blade at 24 px. Never saturated blue.
+
+--- 4. id: spectral_hound  (summon)
+Output path: /home/g/p/riddle/art/generated/spectral_hound.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 20 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A spectral hound facing right: a lean running dog made of ivory-white and pale teal wash, hind legs fading into wisps, ears back, mouth open. Bold ink outline. Tag: a ghostly running dog. Reads at 24 px. Never saturated blue.
+
+--- 5. id: iron_golem  (monster)
+Output path: /home/g/p/riddle/art/generated/iron_golem.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 48 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: An iron golem facing right, MASSIVE and boxy: a walking stack of thick riveted iron plates — slab shoulders wider than it is tall at the top, a small visor-slit head sunk between them, block forearms, stubby plated legs, a broad chest plate. Rust-red and dull steel-grey iron with dry-brush rust bloom, a few ember-orange seams between the plates painted as flat bright cracks (no glow). Tag: MASSIVE IRON PLATES — the silhouette is a squared-off stepped block, all right angles, clearly not the rounded ogre. Reads at 48 px.
+
+--- 6. id: forge_imp  (monster)
+Output path: /home/g/p/riddle/art/generated/forge_imp.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 28 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A forge imp facing right, SMALL, mid-hop with knees tucked: a scrawny imp with solid ember-orange skin and soot-black hands, feet and horn tips, ONE small flame tuft of hair only (the body is flesh, NOT made of fire), a wide toothy grin, HOLDING OUT A STOLEN POTION BOTTLE in both arms in front of its chest — a big round-bellied flask of pale bone-white glass with a cork and rose-red liquid, one third of the imp's height, separated from the body by a full ink contour so it is its own shape. The bottle is the palest, brightest thing in the sprite. Orange + soot-black + bone-white glass + one red accent. Tag: SMALL, WITH A STOLEN BOTTLE — at 28 px the bottle must be a distinct pale round bump on the front of the silhouette. No fire on the ground, no flames around the body.
+
+When all assets are saved, list the final paths and their pixel sizes. Do nothing else.

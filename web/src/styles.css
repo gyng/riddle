@@ -576,6 +576,7 @@ main.frame.watch { max-width: 760px; }
 .portrait .plabel .xp { display: block; width: 100%; height: 2px; background: #2a2f38; border-radius: 1px; overflow: hidden; }
 .portrait .plabel .xp .fill { display: block; height: 100%; background: var(--info); }
 .portrait.dead .face { filter: grayscale(.85) sepia(.35) brightness(.6); }
+.portrait.dead .face.painted { filter: grayscale(.9) sepia(.45) brightness(.8) contrast(1.1); box-shadow: inset 0 0 16px #000, inset 0 0 0 999px rgba(110, 16, 18, .16); }
 .portrait.dead .plabel { color: #e0a39a; }
 button.portrait:active .face { filter: brightness(.8); }
 
@@ -781,6 +782,13 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .cmd .tile .tl { font-size: 12px; letter-spacing: -.01em; }
 .gem { width: 86px; height: 86px; font-size: 14px; letter-spacing: .02em; padding: 0 16px; }
 .portrait .face, .mini-portrait .face { image-rendering: pixelated; }
+/* art pass: painted headshots (skin.json `portraits`) are smooth; the dead variant is the CSS treatment (.portrait.dead .face) */
+.portrait .face.painted, .mini-portrait .face.painted, .pet-face .face.painted, .boss-face .face.painted { image-rendering: auto; }
+.pet-face, .boss-face { flex: 0 0 auto; display: inline-block; border-radius: 50%; overflow: hidden; background: #2a1c1a; box-shadow: 0 0 0 2px #5a4630, 0 0 0 3px #000; }
+.pet-face { width: 36px; height: 36px; align-self: center; margin-left: 12px; }
+.card.comp:has(> .pet-face) { grid-template-columns: auto 1fr var(--tap); }
+.boss-face { width: 22px; height: 22px; }
+.pet-face .face, .boss-face .face { display: block; width: 100%; height: 100%; background-repeat: no-repeat; image-rendering: pixelated; }
 .banner-cloth { width: min(100%, 240px); padding-top: 22%; }
 .death .death-line { font-size: 19px; }
 .death .death-line .verdict { width: 92px; height: 92px; margin-left: -46px; top: 46%; font-size: 24px; }

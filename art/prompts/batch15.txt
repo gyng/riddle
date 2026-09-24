@@ -1,0 +1,87 @@
+You are generating painted CHARACTER SPRITE masters for the game "Riddle" (a phone roguelike seen
+top-down). FIRST look at /home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read
+nothing else in the repository): its hero (brown hair, crimson cape, sword) and its green goblins
+(sword goblin, archer) are the TARGET LOOK for every sprite. Use your built-in image_gen tool, one
+call per asset below. Do NOT write code beyond a PIL resample, do NOT touch anything outside
+/home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind.
+If a file already exists at an output path, OVERWRITE it (these are regenerations in a new style).
+
+For each asset: generate at the stated size, then save the final PNG (sRGB) to the exact output
+path. If the image is not exactly the stated size, resample to it with PIL (Lanczos). Self-check
+that all four corner pixels are pure blue (0,0,255) within distance 30 (or fully transparent) and
+that the subject contains NO mid-blue pixels; regenerate that asset once if not.
+
+=== STYLE (art/ART.md, keyed register v2) — the FIRST and loudest rule ===
+A crisp top-down dark-fantasy RPG CHARACTER SPRITE, like the characters in watch.png, painted at
+high resolution with a WATERCOLOUR-INSPIRED fill texture:
+- Proportions: chunky and readable — the head about one third of the body height, stocky torso,
+  short sturdy legs planted apart, hands and weapon drawn LARGE. A 3/4 view from slightly above,
+  facing RIGHT.
+- Outline: ONE thick, clean, continuous NEAR-BLACK outline around the whole silhouette (12-16 px at
+  1024 px — it must survive a downscale to 40-64 px), plus thinner dark lines on the major interior
+  forms. Hard, crisp edges everywhere. No soft or feathered edges, no loose bleeding washes.
+- Shading: 3 tones per material — a lit tone, a mid tone, one shadow tone — with the key light from
+  the UPPER-LEFT; strong value contrast between lit and shadow. Inside each flat tone a SUBTLE
+  watercolour wash texture (gentle granulation / pigment variation, a few dry-brush flecks) — the
+  fills must NOT be smooth digital gradients, but they are NOT loose wet washes either and no white
+  paper shows through.
+- Palette: grounded, earthy dark fantasy like watch.png — moss / olive greens, crimson and oxblood
+  cloth, warm leather browns, dull steel greys, bone ivory — with one or two saturated accents.
+  Clean hues, no muddy greys (the game tints sprites 30 % toward the dungeon's palette).
+- Faces: small, simple, readable (two dark eyes, a brow line); heroes keep a gentle anime flavour
+  (hair as a few big locks), monsters are grotesque but charming like watch.png's goblins.
+- Never: text, letters, logos, signatures, watermarks, photorealism, 3D-render shading, airbrushed
+  volume, glossy game-asset rendering, dense noisy detail, stair-stepped fake pixel art (the game
+  downsamples; paint smooth crisp shapes), loose watercolour-anime illustration.
+
+=== READABILITY (these sprites are shown TINY) ===
+Each sprite is box-downscaled to 24-64 px tall on a phone. ONE big readable mass, one clear gesture,
+a simple silhouette with no thin spindly extras. The creature's defining feature (its "tag", stated
+per asset) must be visible in the SILHOUETTE alone. Full body, nothing cropped, subject centred with
+~10% margin on every side.
+
+=== CHROMA KEY ===
+Background is a flat, uniform, edge-to-edge pure blue #0000FF = RGB(0,0,255), one solid fill. The
+subject must stay far from that key: every pixel inside the subject at least RGB-distance 150 from
+(0,0,255). Any blue-ish material uses CYAN/TEAL mid-tones (green channel high) or BLUE-BLACK depths
+(all channels low). Ultramarine, royal blue, cobalt and sky blue are forbidden on the subject. No
+blue glow, rim light or reflections. NO floor, NO ground plane, NO contact shadow, NO cast-shadow
+pool, NO scenery, NO glow halo, NO pedestal — the subject floats on flat blue.
+
+=== ASSETS ===
+--- 1. id: rat  (monster)
+Output path: /home/g/p/riddle/art/generated/rat.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 16 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A single dungeon rat facing right: fat low body, long bare tail curling behind, pink ears and nose, tiny black eye, dusty umber-grey fur with dry-brush edges. Small, simple, one-mass silhouette with the tail as its tag. Reads as 'rat' at 32 px.
+
+--- 2. id: jackal  (monster)
+Output path: /home/g/p/riddle/art/generated/jackal.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 24 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A lean dungeon jackal facing right mid-lope: low horizontal body, ribs showing, big pointed ears, narrow snout with a snarl, tail straight out behind. Sandy-tan and dusty umber washes, one flat shadow mass. Tag: LOW, LEAN and FAST — the silhouette is a stretched horizontal dash with ears. Reads at 32 px.
+
+--- 3. id: goblin  (monster)
+Output path: /home/g/p/riddle/art/generated/goblin.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A small hunched goblin facing right: big head, pointed ears, wide grin, pot belly, holding a crude short cleaver up at shoulder height, rag loincloth and a scrap of leather. Olive-green skin, ochre rags, one jewel-bright accent (red cloth). Upright, compact, simple silhouette; reads 'goblin with cleaver' at 40 px.
+
+--- 4. id: goblin_archer  (monster)
+Output path: /home/g/p/riddle/art/generated/goblin_archer.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A goblin archer facing right, DRAWING A BOW: tall crude recurve bow held out front with the string pulled fully back to the cheek and an arrow nocked, quiver on the back. Same olive skin and ochre rags as the plain goblin, plus a leather cap. The drawn bow is the tag — it must be a big clear arc in the silhouette at 40 px, wider than the body.
+
+--- 5. id: goblin_conjurer  (monster)
+Output path: /home/g/p/riddle/art/generated/goblin_conjurer.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A goblin conjurer facing right: same olive goblin build, wrapped in a tattered violet robe with a bone-fetish hood, both arms raised holding a gnarled staff overhead; two small pale ghost-blades hover just above the staff tip. Tag: raised staff + hovering blades, readable as a T-shape with sparks at 40 px. Blades are ivory/teal-white, never saturated blue.
+
+When all assets are saved, list the final paths and their pixel sizes. Do nothing else.

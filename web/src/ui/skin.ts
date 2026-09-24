@@ -5,9 +5,14 @@
 import skin from "./skin.json";
 import { h } from "./dom";
 
-type Skin = { frames: Record<string, { w: number; h: number; slice?: number }>; icons: string[] };
+type Skin = { frames: Record<string, { w: number; h: number; slice?: number }>; icons: string[]; portraits?: string[] };
 const S = skin as Skin;
 const ICONS = new Set(S.icons);
+const PORTRAITS = new Set(S.portraits ?? []);
+
+/** Art pass: a painted headshot (`hero_<class>`, `pet_<kind>`, `captive`, `boss_<kind>`) when packed, else null (the caller keeps
+ *  its fallback — the atlas sprite crop). */
+export const portraitSrc = (id: string): string | null => (PORTRAITS.has(id) ? `/ui/portraits/${id}.webp` : null);
 
 export const hasFrame = (name: string): boolean => name in S.frames;
 export const hasIcon = (name: string): boolean => ICONS.has(name);

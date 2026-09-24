@@ -66,6 +66,12 @@ def main() -> int:
     if atlas_png.stat().st_mtime < newest_src:
         failures.append("atlas.png is older than art/generated or art/tiles (re-run pack.py)")
 
+    # register 3: every env source present must have been converted (its warrens tile or its hue asset)
+    for a in assets:
+        if a["bg"].startswith("env") and a["id"] in generated_ids:
+            name = a["id"][4:]
+            if not ({f"warrens_env_{name}", f"env_{name}", f"env_{name}_0"} & tile_ids):
+                failures.append(f"{a['id']}: no converted tile (run art/make_env.py)")
     expected_frames = (keyed_ids & generated_ids) | tile_ids
     missing_frames = sorted(expected_frames - set(frames))
     if missing_frames:
@@ -92,8 +98,9 @@ def main() -> int:
         rgb = fr[..., :3].astype(np.float32)
         checked += 1
         if fid in tile_ids:
-            if (w, h) != (8, 8):
-                failures.append(f"{fid}: tile frame {w}x{h}, expected 8x8")
+            env = fid.startswith("env_") or "_env_" in fid   # register 3 (art/make_env.py): 16 texels wide, <= 32 tall
+            if (w, h) != (8, 8) and not (env and w == 16 and 16 <= h <= 32):
+                failures.append(f"{fid}: tile frame {w}x{h}, expected {'16x16..16x32' if env else '8x8'}")
             colours = {tuple(p) for p in fr.reshape(-1, 4) if p[3] > 0}
             if len(colours) > 8:
                 failures.append(f"{fid}: tile uses {len(colours)} colours (> 8)")
@@ -132,7 +139,7 @@ def main() -> int:
         if not src.exists():
             continue
         im = Image.open(src)
-        if a["bg"] == "keyed" and min(im.size) < 1024:
+        if a["bg"] in ("keyed", "env", "env_keyed") and min(im.size) < 1024:
             failures.append(f"{a['id']}: source short edge {min(im.size)} < 1024")
         if a["bg"] == "bleed":
             pub = PUBLISHED / f"{a['id']}.png"

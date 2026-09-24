@@ -8,6 +8,7 @@ import { h, clear } from "./dom";
 import { renderEditor } from "./editor";
 import { closeAllSheets, openSheet } from "./sheet";
 import { cloneSet } from "../app";
+import { paintPortrait, paintSprite } from "./frame";
 
 const nice = (s: string): string => s.replace(/_/g, " ");
 
@@ -48,6 +49,7 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
       void app.mutate(() => app.engine.setParty(next));
     };
     return h("div", { class: `card comp${inParty ? " on" : ""}${picked ? " pick" : ""}${breeding && c.level < 2 ? " off" : ""}` },
+      petFace(c.kind),
       h("button", { class: "comp-main", onclick: onTap },
         h("span", { class: "name" }, nice(c.kind), " ", h("small", { class: "dim" }, c.name), " ", h("b", { class: "num" }, `L${c.level}`), h("small", { class: "dim num" }, ` g${c.gen}`)),
         h("span", { class: "tags dim" }, c.tags.map(nice).join(" · ")),
@@ -56,6 +58,13 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
   }
   refresh();
   return { el, refresh };
+}
+
+/** Art pass: a companion's face on its card — the painted `pet_<kind>` headshot, else a crop of its atlas sprite. */
+function petFace(kind: string): HTMLElement {
+  const face = h("span", { class: "face" });
+  if (!paintPortrait(face, `pet_${kind}`)) paintSprite(face, kind, 34);
+  return h("span", { class: "pet-face", "aria-hidden": "true" }, face);
 }
 
 function openRules(app: App, c: Companion): void {

@@ -2,885 +2,1641 @@
  "frames": {
   "acolyte": {
    "h": 80,
-   "w": 70,
-   "x": 148,
+   "w": 61,
+   "x": 434,
    "y": 356
   },
   "armour": {
    "h": 8,
    "w": 8,
-   "x": 130,
-   "y": 591
+   "x": 18,
+   "y": 732
   },
   "bell_sentinel": {
    "h": 80,
-   "w": 42,
-   "x": 219,
-   "y": 356
+   "w": 50,
+   "x": 1,
+   "y": 453
   },
   "bloat": {
    "h": 80,
-   "w": 75,
-   "x": 262,
-   "y": 356
+   "w": 68,
+   "x": 52,
+   "y": 453
   },
   "bones": {
    "h": 8,
    "w": 8,
-   "x": 139,
-   "y": 591
+   "x": 27,
+   "y": 732
   },
   "boss_bloat_mother": {
    "h": 128,
-   "w": 123,
+   "w": 122,
    "x": 1,
    "y": 1
   },
   "boss_foundry_master": {
    "h": 128,
-   "w": 112,
-   "x": 125,
+   "w": 98,
+   "x": 124,
    "y": 1
   },
   "boss_goblin_warlord": {
    "h": 128,
-   "w": 122,
-   "x": 238,
+   "w": 127,
+   "x": 223,
    "y": 1
   },
   "boss_lich": {
    "h": 128,
-   "w": 96,
-   "x": 361,
+   "w": 89,
+   "x": 351,
    "y": 1
   },
   "boss_lurker_queen": {
    "h": 128,
-   "w": 117,
+   "w": 127,
    "x": 1,
    "y": 130
   },
   "boss_mirror_king": {
    "h": 128,
-   "w": 93,
-   "x": 119,
+   "w": 96,
+   "x": 129,
    "y": 130
   },
   "captive": {
    "h": 96,
-   "w": 72,
-   "x": 213,
+   "w": 60,
+   "x": 226,
    "y": 130
   },
   "cave_troll": {
    "h": 96,
-   "w": 96,
-   "x": 286,
+   "w": 85,
+   "x": 287,
    "y": 130
   },
   "crypt_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 148,
-   "y": 591
+   "x": 36,
+   "y": 732
   },
   "crypt_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 157,
-   "y": 591
+   "x": 45,
+   "y": 732
   },
   "crypt_chasm": {
    "h": 8,
    "w": 8,
-   "x": 166,
-   "y": 591
+   "x": 54,
+   "y": 732
   },
   "crypt_door": {
    "h": 8,
    "w": 8,
-   "x": 175,
-   "y": 591
+   "x": 63,
+   "y": 732
+  },
+  "crypt_env_barrel": {
+   "h": 16,
+   "w": 16,
+   "x": 490,
+   "y": 615
+  },
+  "crypt_env_bones": {
+   "h": 16,
+   "w": 16,
+   "x": 1,
+   "y": 664
+  },
+  "crypt_env_chasm": {
+   "h": 16,
+   "w": 16,
+   "x": 18,
+   "y": 664
+  },
+  "crypt_env_crack": {
+   "h": 16,
+   "w": 16,
+   "x": 35,
+   "y": 664
+  },
+  "crypt_env_crate": {
+   "h": 16,
+   "w": 16,
+   "x": 52,
+   "y": 664
+  },
+  "crypt_env_door": {
+   "h": 16,
+   "w": 16,
+   "x": 69,
+   "y": 664
+  },
+  "crypt_env_floor_0": {
+   "h": 16,
+   "w": 16,
+   "x": 86,
+   "y": 664
+  },
+  "crypt_env_floor_1": {
+   "h": 16,
+   "w": 16,
+   "x": 103,
+   "y": 664
+  },
+  "crypt_env_floor_2": {
+   "h": 16,
+   "w": 16,
+   "x": 120,
+   "y": 664
+  },
+  "crypt_env_floor_3": {
+   "h": 16,
+   "w": 16,
+   "x": 137,
+   "y": 664
+  },
+  "crypt_env_moss_0": {
+   "h": 16,
+   "w": 16,
+   "x": 154,
+   "y": 664
+  },
+  "crypt_env_moss_1": {
+   "h": 16,
+   "w": 16,
+   "x": 171,
+   "y": 664
+  },
+  "crypt_env_pot": {
+   "h": 16,
+   "w": 16,
+   "x": 188,
+   "y": 664
+  },
+  "crypt_env_rubble": {
+   "h": 16,
+   "w": 16,
+   "x": 205,
+   "y": 664
+  },
+  "crypt_env_stairs_down": {
+   "h": 16,
+   "w": 16,
+   "x": 222,
+   "y": 664
+  },
+  "crypt_env_stairs_up": {
+   "h": 16,
+   "w": 16,
+   "x": 239,
+   "y": 664
+  },
+  "crypt_env_wall_face_0": {
+   "h": 16,
+   "w": 16,
+   "x": 256,
+   "y": 664
+  },
+  "crypt_env_wall_face_1": {
+   "h": 16,
+   "w": 16,
+   "x": 273,
+   "y": 664
+  },
+  "crypt_env_wall_top": {
+   "h": 16,
+   "w": 16,
+   "x": 290,
+   "y": 664
+  },
+  "crypt_env_water": {
+   "h": 16,
+   "w": 16,
+   "x": 307,
+   "y": 664
   },
   "crypt_floor": {
    "h": 8,
    "w": 8,
-   "x": 184,
-   "y": 591
+   "x": 72,
+   "y": 732
   },
   "crypt_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 193,
-   "y": 591
+   "x": 81,
+   "y": 732
   },
   "crypt_nest_0": {
    "h": 8,
    "w": 8,
-   "x": 202,
-   "y": 591
+   "x": 90,
+   "y": 732
   },
   "crypt_nest_1": {
    "h": 8,
    "w": 8,
-   "x": 211,
-   "y": 591
+   "x": 99,
+   "y": 732
   },
   "crypt_shrine_0": {
    "h": 8,
    "w": 8,
-   "x": 220,
-   "y": 591
+   "x": 108,
+   "y": 732
   },
   "crypt_shrine_1": {
    "h": 8,
    "w": 8,
-   "x": 229,
-   "y": 591
+   "x": 117,
+   "y": 732
   },
   "crypt_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 238,
-   "y": 591
+   "x": 126,
+   "y": 732
   },
   "crypt_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 247,
-   "y": 591
+   "x": 135,
+   "y": 732
   },
   "crypt_vault": {
    "h": 8,
    "w": 8,
-   "x": 256,
-   "y": 591
+   "x": 144,
+   "y": 732
   },
   "crypt_vault_open": {
    "h": 8,
    "w": 8,
-   "x": 265,
-   "y": 591
+   "x": 153,
+   "y": 732
   },
   "crypt_wall": {
    "h": 8,
    "w": 8,
-   "x": 274,
-   "y": 591
+   "x": 162,
+   "y": 732
   },
   "crypt_water": {
    "h": 8,
    "w": 8,
-   "x": 283,
-   "y": 591
+   "x": 171,
+   "y": 732
   },
   "deep_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 292,
-   "y": 591
+   "x": 180,
+   "y": 732
   },
   "deep_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 301,
-   "y": 591
+   "x": 189,
+   "y": 732
   },
   "deep_chasm": {
    "h": 8,
    "w": 8,
-   "x": 310,
-   "y": 591
+   "x": 198,
+   "y": 732
   },
   "deep_door": {
    "h": 8,
    "w": 8,
-   "x": 319,
-   "y": 591
+   "x": 207,
+   "y": 732
   },
   "deep_eel": {
    "h": 48,
-   "w": 113,
-   "x": 53,
+   "w": 122,
+   "x": 321,
    "y": 534
+  },
+  "deep_env_barrel": {
+   "h": 16,
+   "w": 16,
+   "x": 324,
+   "y": 664
+  },
+  "deep_env_bones": {
+   "h": 16,
+   "w": 16,
+   "x": 341,
+   "y": 664
+  },
+  "deep_env_chasm": {
+   "h": 16,
+   "w": 16,
+   "x": 358,
+   "y": 664
+  },
+  "deep_env_crack": {
+   "h": 16,
+   "w": 16,
+   "x": 375,
+   "y": 664
+  },
+  "deep_env_crate": {
+   "h": 16,
+   "w": 16,
+   "x": 392,
+   "y": 664
+  },
+  "deep_env_door": {
+   "h": 16,
+   "w": 16,
+   "x": 409,
+   "y": 664
+  },
+  "deep_env_floor_0": {
+   "h": 16,
+   "w": 16,
+   "x": 426,
+   "y": 664
+  },
+  "deep_env_floor_1": {
+   "h": 16,
+   "w": 16,
+   "x": 443,
+   "y": 664
+  },
+  "deep_env_floor_2": {
+   "h": 16,
+   "w": 16,
+   "x": 460,
+   "y": 664
+  },
+  "deep_env_floor_3": {
+   "h": 16,
+   "w": 16,
+   "x": 477,
+   "y": 664
+  },
+  "deep_env_moss_0": {
+   "h": 16,
+   "w": 16,
+   "x": 494,
+   "y": 664
+  },
+  "deep_env_moss_1": {
+   "h": 16,
+   "w": 16,
+   "x": 1,
+   "y": 681
+  },
+  "deep_env_pot": {
+   "h": 16,
+   "w": 16,
+   "x": 18,
+   "y": 681
+  },
+  "deep_env_rubble": {
+   "h": 16,
+   "w": 16,
+   "x": 35,
+   "y": 681
+  },
+  "deep_env_stairs_down": {
+   "h": 16,
+   "w": 16,
+   "x": 52,
+   "y": 681
+  },
+  "deep_env_stairs_up": {
+   "h": 16,
+   "w": 16,
+   "x": 69,
+   "y": 681
+  },
+  "deep_env_wall_face_0": {
+   "h": 16,
+   "w": 16,
+   "x": 86,
+   "y": 681
+  },
+  "deep_env_wall_face_1": {
+   "h": 16,
+   "w": 16,
+   "x": 103,
+   "y": 681
+  },
+  "deep_env_wall_top": {
+   "h": 16,
+   "w": 16,
+   "x": 120,
+   "y": 681
+  },
+  "deep_env_water": {
+   "h": 16,
+   "w": 16,
+   "x": 137,
+   "y": 681
   },
   "deep_floor": {
    "h": 8,
    "w": 8,
-   "x": 328,
-   "y": 591
+   "x": 216,
+   "y": 732
   },
   "deep_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 337,
-   "y": 591
+   "x": 225,
+   "y": 732
   },
   "deep_nest_0": {
    "h": 8,
    "w": 8,
-   "x": 346,
-   "y": 591
+   "x": 234,
+   "y": 732
   },
   "deep_nest_1": {
    "h": 8,
    "w": 8,
-   "x": 355,
-   "y": 591
+   "x": 243,
+   "y": 732
   },
   "deep_shrine_0": {
    "h": 8,
    "w": 8,
-   "x": 364,
-   "y": 591
+   "x": 252,
+   "y": 732
   },
   "deep_shrine_1": {
    "h": 8,
    "w": 8,
-   "x": 373,
-   "y": 591
+   "x": 261,
+   "y": 732
   },
   "deep_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 382,
-   "y": 591
+   "x": 270,
+   "y": 732
   },
   "deep_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 391,
-   "y": 591
+   "x": 279,
+   "y": 732
   },
   "deep_vault": {
    "h": 8,
    "w": 8,
-   "x": 400,
-   "y": 591
+   "x": 288,
+   "y": 732
   },
   "deep_vault_open": {
    "h": 8,
    "w": 8,
-   "x": 409,
-   "y": 591
+   "x": 297,
+   "y": 732
   },
   "deep_wall": {
    "h": 8,
    "w": 8,
-   "x": 418,
-   "y": 591
+   "x": 306,
+   "y": 732
   },
   "deep_water": {
    "h": 8,
    "w": 8,
-   "x": 427,
-   "y": 591
+   "x": 315,
+   "y": 732
   },
   "echo": {
    "h": 80,
-   "w": 65,
-   "x": 338,
-   "y": 356
+   "w": 66,
+   "x": 121,
+   "y": 453
   },
   "eel": {
    "h": 40,
-   "w": 38,
-   "x": 465,
-   "y": 534
+   "w": 41,
+   "x": 285,
+   "y": 615
+  },
+  "env_banner": {
+   "h": 20,
+   "w": 16,
+   "x": 473,
+   "y": 615
+  },
+  "env_blood_0": {
+   "h": 16,
+   "w": 16,
+   "x": 154,
+   "y": 681
+  },
+  "env_blood_1": {
+   "h": 16,
+   "w": 16,
+   "x": 171,
+   "y": 681
+  },
+  "env_torch_0": {
+   "h": 24,
+   "w": 16,
+   "x": 439,
+   "y": 615
+  },
+  "env_torch_1": {
+   "h": 24,
+   "w": 16,
+   "x": 456,
+   "y": 615
   },
   "fens_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 436,
-   "y": 591
+   "x": 324,
+   "y": 732
   },
   "fens_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 445,
-   "y": 591
+   "x": 333,
+   "y": 732
   },
   "fens_chasm": {
    "h": 8,
    "w": 8,
-   "x": 454,
-   "y": 591
+   "x": 342,
+   "y": 732
   },
   "fens_door": {
    "h": 8,
    "w": 8,
-   "x": 463,
-   "y": 591
+   "x": 351,
+   "y": 732
+  },
+  "fens_env_barrel": {
+   "h": 16,
+   "w": 16,
+   "x": 188,
+   "y": 681
+  },
+  "fens_env_bones": {
+   "h": 16,
+   "w": 16,
+   "x": 205,
+   "y": 681
+  },
+  "fens_env_chasm": {
+   "h": 16,
+   "w": 16,
+   "x": 222,
+   "y": 681
+  },
+  "fens_env_crack": {
+   "h": 16,
+   "w": 16,
+   "x": 239,
+   "y": 681
+  },
+  "fens_env_crate": {
+   "h": 16,
+   "w": 16,
+   "x": 256,
+   "y": 681
+  },
+  "fens_env_door": {
+   "h": 16,
+   "w": 16,
+   "x": 273,
+   "y": 681
+  },
+  "fens_env_floor_0": {
+   "h": 16,
+   "w": 16,
+   "x": 290,
+   "y": 681
+  },
+  "fens_env_floor_1": {
+   "h": 16,
+   "w": 16,
+   "x": 307,
+   "y": 681
+  },
+  "fens_env_floor_2": {
+   "h": 16,
+   "w": 16,
+   "x": 324,
+   "y": 681
+  },
+  "fens_env_floor_3": {
+   "h": 16,
+   "w": 16,
+   "x": 341,
+   "y": 681
+  },
+  "fens_env_moss_0": {
+   "h": 16,
+   "w": 16,
+   "x": 358,
+   "y": 681
+  },
+  "fens_env_moss_1": {
+   "h": 16,
+   "w": 16,
+   "x": 375,
+   "y": 681
+  },
+  "fens_env_pot": {
+   "h": 16,
+   "w": 16,
+   "x": 392,
+   "y": 681
+  },
+  "fens_env_rubble": {
+   "h": 16,
+   "w": 16,
+   "x": 409,
+   "y": 681
+  },
+  "fens_env_stairs_down": {
+   "h": 16,
+   "w": 16,
+   "x": 426,
+   "y": 681
+  },
+  "fens_env_stairs_up": {
+   "h": 16,
+   "w": 16,
+   "x": 443,
+   "y": 681
+  },
+  "fens_env_wall_face_0": {
+   "h": 16,
+   "w": 16,
+   "x": 460,
+   "y": 681
+  },
+  "fens_env_wall_face_1": {
+   "h": 16,
+   "w": 16,
+   "x": 477,
+   "y": 681
+  },
+  "fens_env_wall_top": {
+   "h": 16,
+   "w": 16,
+   "x": 494,
+   "y": 681
+  },
+  "fens_env_water": {
+   "h": 16,
+   "w": 16,
+   "x": 1,
+   "y": 698
   },
   "fens_floor": {
    "h": 8,
    "w": 8,
-   "x": 472,
-   "y": 591
+   "x": 360,
+   "y": 732
   },
   "fens_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 481,
-   "y": 591
+   "x": 369,
+   "y": 732
   },
   "fens_nest_0": {
    "h": 8,
    "w": 8,
-   "x": 490,
-   "y": 591
+   "x": 378,
+   "y": 732
   },
   "fens_nest_1": {
    "h": 8,
    "w": 8,
-   "x": 499,
-   "y": 591
+   "x": 387,
+   "y": 732
   },
   "fens_shrine_0": {
    "h": 8,
    "w": 8,
-   "x": 1,
-   "y": 632
+   "x": 396,
+   "y": 732
   },
   "fens_shrine_1": {
    "h": 8,
    "w": 8,
-   "x": 10,
-   "y": 632
+   "x": 405,
+   "y": 732
   },
   "fens_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 19,
-   "y": 632
+   "x": 414,
+   "y": 732
   },
   "fens_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 28,
-   "y": 632
+   "x": 423,
+   "y": 732
   },
   "fens_vault": {
    "h": 8,
    "w": 8,
-   "x": 37,
-   "y": 632
+   "x": 432,
+   "y": 732
   },
   "fens_vault_open": {
    "h": 8,
    "w": 8,
-   "x": 46,
-   "y": 632
+   "x": 441,
+   "y": 732
   },
   "fens_wall": {
    "h": 8,
    "w": 8,
-   "x": 55,
-   "y": 632
+   "x": 450,
+   "y": 732
   },
   "fens_water": {
    "h": 8,
    "w": 8,
-   "x": 64,
-   "y": 632
+   "x": 459,
+   "y": 732
   },
   "fire_0": {
    "h": 8,
    "w": 8,
-   "x": 73,
-   "y": 632
+   "x": 468,
+   "y": 732
   },
   "fire_1": {
    "h": 8,
    "w": 8,
-   "x": 82,
-   "y": 632
+   "x": 477,
+   "y": 732
   },
   "forge_imp": {
    "h": 56,
-   "w": 34,
-   "x": 443,
-   "y": 453
+   "w": 44,
+   "x": 227,
+   "y": 534
   },
   "foundry_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 91,
-   "y": 632
+   "x": 486,
+   "y": 732
   },
   "foundry_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 100,
-   "y": 632
+   "x": 495,
+   "y": 732
   },
   "foundry_chasm": {
    "h": 8,
    "w": 8,
-   "x": 109,
-   "y": 632
+   "x": 1,
+   "y": 749
   },
   "foundry_door": {
    "h": 8,
    "w": 8,
-   "x": 118,
-   "y": 632
+   "x": 10,
+   "y": 749
+  },
+  "foundry_env_barrel": {
+   "h": 16,
+   "w": 16,
+   "x": 18,
+   "y": 698
+  },
+  "foundry_env_bones": {
+   "h": 16,
+   "w": 16,
+   "x": 35,
+   "y": 698
+  },
+  "foundry_env_chasm": {
+   "h": 16,
+   "w": 16,
+   "x": 52,
+   "y": 698
+  },
+  "foundry_env_crack": {
+   "h": 16,
+   "w": 16,
+   "x": 69,
+   "y": 698
+  },
+  "foundry_env_crate": {
+   "h": 16,
+   "w": 16,
+   "x": 86,
+   "y": 698
+  },
+  "foundry_env_door": {
+   "h": 16,
+   "w": 16,
+   "x": 103,
+   "y": 698
+  },
+  "foundry_env_floor_0": {
+   "h": 16,
+   "w": 16,
+   "x": 120,
+   "y": 698
+  },
+  "foundry_env_floor_1": {
+   "h": 16,
+   "w": 16,
+   "x": 137,
+   "y": 698
+  },
+  "foundry_env_floor_2": {
+   "h": 16,
+   "w": 16,
+   "x": 154,
+   "y": 698
+  },
+  "foundry_env_floor_3": {
+   "h": 16,
+   "w": 16,
+   "x": 171,
+   "y": 698
+  },
+  "foundry_env_moss_0": {
+   "h": 16,
+   "w": 16,
+   "x": 188,
+   "y": 698
+  },
+  "foundry_env_moss_1": {
+   "h": 16,
+   "w": 16,
+   "x": 205,
+   "y": 698
+  },
+  "foundry_env_pot": {
+   "h": 16,
+   "w": 16,
+   "x": 222,
+   "y": 698
+  },
+  "foundry_env_rubble": {
+   "h": 16,
+   "w": 16,
+   "x": 239,
+   "y": 698
+  },
+  "foundry_env_stairs_down": {
+   "h": 16,
+   "w": 16,
+   "x": 256,
+   "y": 698
+  },
+  "foundry_env_stairs_up": {
+   "h": 16,
+   "w": 16,
+   "x": 273,
+   "y": 698
+  },
+  "foundry_env_wall_face_0": {
+   "h": 16,
+   "w": 16,
+   "x": 290,
+   "y": 698
+  },
+  "foundry_env_wall_face_1": {
+   "h": 16,
+   "w": 16,
+   "x": 307,
+   "y": 698
+  },
+  "foundry_env_wall_top": {
+   "h": 16,
+   "w": 16,
+   "x": 324,
+   "y": 698
+  },
+  "foundry_env_water": {
+   "h": 16,
+   "w": 16,
+   "x": 341,
+   "y": 698
   },
   "foundry_floor": {
    "h": 8,
    "w": 8,
-   "x": 127,
-   "y": 632
+   "x": 19,
+   "y": 749
   },
   "foundry_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 136,
-   "y": 632
+   "x": 28,
+   "y": 749
   },
   "foundry_nest_0": {
    "h": 8,
    "w": 8,
-   "x": 145,
-   "y": 632
+   "x": 37,
+   "y": 749
   },
   "foundry_nest_1": {
    "h": 8,
    "w": 8,
-   "x": 154,
-   "y": 632
+   "x": 46,
+   "y": 749
   },
   "foundry_shrine_0": {
    "h": 8,
    "w": 8,
-   "x": 163,
-   "y": 632
+   "x": 55,
+   "y": 749
   },
   "foundry_shrine_1": {
    "h": 8,
    "w": 8,
-   "x": 172,
-   "y": 632
+   "x": 64,
+   "y": 749
   },
   "foundry_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 181,
-   "y": 632
+   "x": 73,
+   "y": 749
   },
   "foundry_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 190,
-   "y": 632
+   "x": 82,
+   "y": 749
   },
   "foundry_vault": {
    "h": 8,
    "w": 8,
-   "x": 199,
-   "y": 632
+   "x": 91,
+   "y": 749
   },
   "foundry_vault_open": {
    "h": 8,
    "w": 8,
-   "x": 208,
-   "y": 632
+   "x": 100,
+   "y": 749
   },
   "foundry_wall": {
    "h": 8,
    "w": 8,
-   "x": 217,
-   "y": 632
+   "x": 109,
+   "y": 749
   },
   "foundry_water": {
    "h": 8,
    "w": 8,
-   "x": 226,
-   "y": 632
+   "x": 118,
+   "y": 749
   },
   "gas_0": {
    "h": 8,
    "w": 8,
-   "x": 235,
-   "y": 632
+   "x": 127,
+   "y": 749
   },
   "gas_1": {
    "h": 8,
    "w": 8,
-   "x": 244,
-   "y": 632
+   "x": 136,
+   "y": 749
   },
   "ghoul": {
    "h": 80,
-   "w": 68,
-   "x": 404,
-   "y": 356
+   "w": 84,
+   "x": 188,
+   "y": 453
   },
   "goblin": {
    "h": 80,
    "w": 60,
-   "x": 1,
+   "x": 273,
    "y": 453
   },
   "goblin_archer": {
    "h": 80,
-   "w": 69,
-   "x": 62,
+   "w": 77,
+   "x": 334,
    "y": 453
+  },
+  "goblin_captain": {
+   "h": 96,
+   "w": 88,
+   "x": 373,
+   "y": 130
   },
   "goblin_conjurer": {
    "h": 80,
-   "w": 80,
-   "x": 132,
+   "w": 71,
+   "x": 412,
    "y": 453
   },
   "gold": {
    "h": 8,
    "w": 8,
-   "x": 253,
-   "y": 632
+   "x": 145,
+   "y": 749
   },
   "hero_caster": {
    "h": 96,
-   "w": 54,
-   "x": 383,
-   "y": 130
+   "w": 58,
+   "x": 1,
+   "y": 259
   },
   "hero_fighter": {
    "h": 96,
-   "w": 72,
-   "x": 438,
-   "y": 130
+   "w": 90,
+   "x": 60,
+   "y": 259
   },
   "hero_ranger": {
    "h": 96,
-   "w": 69,
-   "x": 1,
+   "w": 82,
+   "x": 151,
    "y": 259
   },
   "hero_rogue": {
    "h": 96,
-   "w": 102,
-   "x": 71,
+   "w": 117,
+   "x": 234,
    "y": 259
   },
   "iron_golem": {
    "h": 96,
-   "w": 85,
-   "x": 174,
+   "w": 103,
+   "x": 352,
    "y": 259
   },
   "jackal": {
    "h": 48,
-   "w": 103,
-   "x": 167,
-   "y": 534
+   "w": 88,
+   "x": 1,
+   "y": 615
   },
   "lurker": {
    "h": 80,
-   "w": 59,
-   "x": 213,
-   "y": 453
+   "w": 63,
+   "x": 1,
+   "y": 534
   },
   "mirror_shade": {
    "h": 96,
-   "w": 88,
-   "x": 260,
-   "y": 259
+   "w": 102,
+   "x": 1,
+   "y": 356
   },
   "monkey": {
    "h": 56,
-   "w": 51,
-   "x": 1,
+   "w": 48,
+   "x": 272,
    "y": 534
   },
   "ogre": {
    "h": 96,
-   "w": 70,
-   "x": 349,
-   "y": 259
+   "w": 73,
+   "x": 104,
+   "y": 356
   },
   "pink_jelly": {
    "h": 48,
-   "w": 71,
-   "x": 271,
-   "y": 534
+   "w": 66,
+   "x": 90,
+   "y": 615
   },
   "potion": {
    "h": 8,
    "w": 8,
-   "x": 262,
-   "y": 632
+   "x": 154,
+   "y": 749
   },
   "rat": {
    "h": 32,
-   "w": 62,
-   "x": 67,
-   "y": 591
+   "w": 43,
+   "x": 395,
+   "y": 615
   },
   "sanctum_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 271,
-   "y": 632
+   "x": 163,
+   "y": 749
   },
   "sanctum_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 280,
-   "y": 632
+   "x": 172,
+   "y": 749
   },
   "sanctum_chasm": {
    "h": 8,
    "w": 8,
-   "x": 289,
-   "y": 632
+   "x": 181,
+   "y": 749
   },
   "sanctum_door": {
    "h": 8,
    "w": 8,
-   "x": 298,
-   "y": 632
+   "x": 190,
+   "y": 749
+  },
+  "sanctum_env_barrel": {
+   "h": 16,
+   "w": 16,
+   "x": 358,
+   "y": 698
+  },
+  "sanctum_env_bones": {
+   "h": 16,
+   "w": 16,
+   "x": 375,
+   "y": 698
+  },
+  "sanctum_env_chasm": {
+   "h": 16,
+   "w": 16,
+   "x": 392,
+   "y": 698
+  },
+  "sanctum_env_crack": {
+   "h": 16,
+   "w": 16,
+   "x": 409,
+   "y": 698
+  },
+  "sanctum_env_crate": {
+   "h": 16,
+   "w": 16,
+   "x": 426,
+   "y": 698
+  },
+  "sanctum_env_door": {
+   "h": 16,
+   "w": 16,
+   "x": 443,
+   "y": 698
+  },
+  "sanctum_env_floor_0": {
+   "h": 16,
+   "w": 16,
+   "x": 460,
+   "y": 698
+  },
+  "sanctum_env_floor_1": {
+   "h": 16,
+   "w": 16,
+   "x": 477,
+   "y": 698
+  },
+  "sanctum_env_floor_2": {
+   "h": 16,
+   "w": 16,
+   "x": 494,
+   "y": 698
+  },
+  "sanctum_env_floor_3": {
+   "h": 16,
+   "w": 16,
+   "x": 1,
+   "y": 715
+  },
+  "sanctum_env_moss_0": {
+   "h": 16,
+   "w": 16,
+   "x": 18,
+   "y": 715
+  },
+  "sanctum_env_moss_1": {
+   "h": 16,
+   "w": 16,
+   "x": 35,
+   "y": 715
+  },
+  "sanctum_env_pot": {
+   "h": 16,
+   "w": 16,
+   "x": 52,
+   "y": 715
+  },
+  "sanctum_env_rubble": {
+   "h": 16,
+   "w": 16,
+   "x": 69,
+   "y": 715
+  },
+  "sanctum_env_stairs_down": {
+   "h": 16,
+   "w": 16,
+   "x": 86,
+   "y": 715
+  },
+  "sanctum_env_stairs_up": {
+   "h": 16,
+   "w": 16,
+   "x": 103,
+   "y": 715
+  },
+  "sanctum_env_wall_face_0": {
+   "h": 16,
+   "w": 16,
+   "x": 120,
+   "y": 715
+  },
+  "sanctum_env_wall_face_1": {
+   "h": 16,
+   "w": 16,
+   "x": 137,
+   "y": 715
+  },
+  "sanctum_env_wall_top": {
+   "h": 16,
+   "w": 16,
+   "x": 154,
+   "y": 715
+  },
+  "sanctum_env_water": {
+   "h": 16,
+   "w": 16,
+   "x": 171,
+   "y": 715
   },
   "sanctum_floor": {
    "h": 8,
    "w": 8,
-   "x": 307,
-   "y": 632
+   "x": 199,
+   "y": 749
   },
   "sanctum_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 316,
-   "y": 632
+   "x": 208,
+   "y": 749
   },
   "sanctum_nest_0": {
    "h": 8,
    "w": 8,
-   "x": 325,
-   "y": 632
+   "x": 217,
+   "y": 749
   },
   "sanctum_nest_1": {
    "h": 8,
    "w": 8,
-   "x": 334,
-   "y": 632
+   "x": 226,
+   "y": 749
   },
   "sanctum_shrine_0": {
    "h": 8,
    "w": 8,
-   "x": 343,
-   "y": 632
+   "x": 235,
+   "y": 749
   },
   "sanctum_shrine_1": {
    "h": 8,
    "w": 8,
-   "x": 352,
-   "y": 632
+   "x": 244,
+   "y": 749
   },
   "sanctum_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 361,
-   "y": 632
+   "x": 253,
+   "y": 749
   },
   "sanctum_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 370,
-   "y": 632
+   "x": 262,
+   "y": 749
   },
   "sanctum_vault": {
    "h": 8,
    "w": 8,
-   "x": 379,
-   "y": 632
+   "x": 271,
+   "y": 749
   },
   "sanctum_vault_open": {
    "h": 8,
    "w": 8,
-   "x": 388,
-   "y": 632
+   "x": 280,
+   "y": 749
   },
   "sanctum_wall": {
    "h": 8,
    "w": 8,
-   "x": 397,
-   "y": 632
+   "x": 289,
+   "y": 749
   },
   "sanctum_water": {
    "h": 8,
    "w": 8,
-   "x": 406,
-   "y": 632
+   "x": 298,
+   "y": 749
   },
   "scroll": {
    "h": 8,
    "w": 8,
-   "x": 415,
-   "y": 632
+   "x": 307,
+   "y": 749
   },
   "sentinel": {
    "h": 80,
-   "w": 56,
-   "x": 273,
-   "y": 453
+   "w": 51,
+   "x": 65,
+   "y": 534
   },
   "siren": {
    "h": 80,
-   "w": 54,
-   "x": 330,
-   "y": 453
+   "w": 55,
+   "x": 117,
+   "y": 534
   },
   "skeleton": {
    "h": 96,
-   "w": 75,
-   "x": 420,
-   "y": 259
+   "w": 94,
+   "x": 178,
+   "y": 356
   },
   "slag_crawler": {
    "h": 48,
-   "w": 121,
-   "x": 343,
-   "y": 534
+   "w": 127,
+   "x": 157,
+   "y": 615
   },
   "smith": {
    "h": 80,
-   "w": 57,
-   "x": 385,
-   "y": 453
+   "w": 53,
+   "x": 173,
+   "y": 534
   },
   "spectral_blade": {
    "h": 40,
-   "w": 17,
-   "x": 1,
-   "y": 591
+   "w": 19,
+   "x": 327,
+   "y": 615
   },
   "spectral_hound": {
    "h": 40,
    "w": 47,
-   "x": 19,
-   "y": 591
+   "x": 347,
+   "y": 615
   },
   "warden": {
    "h": 96,
-   "w": 53,
-   "x": 1,
+   "w": 61,
+   "x": 273,
    "y": 356
   },
   "warrens_bones_0": {
    "h": 8,
    "w": 8,
-   "x": 424,
-   "y": 632
+   "x": 316,
+   "y": 749
   },
   "warrens_bones_1": {
    "h": 8,
    "w": 8,
-   "x": 433,
-   "y": 632
+   "x": 325,
+   "y": 749
   },
   "warrens_chasm": {
    "h": 8,
    "w": 8,
-   "x": 442,
-   "y": 632
+   "x": 334,
+   "y": 749
   },
   "warrens_door": {
    "h": 8,
    "w": 8,
-   "x": 451,
-   "y": 632
+   "x": 343,
+   "y": 749
+  },
+  "warrens_env_barrel": {
+   "h": 16,
+   "w": 16,
+   "x": 188,
+   "y": 715
+  },
+  "warrens_env_bones": {
+   "h": 16,
+   "w": 16,
+   "x": 205,
+   "y": 715
+  },
+  "warrens_env_chasm": {
+   "h": 16,
+   "w": 16,
+   "x": 222,
+   "y": 715
+  },
+  "warrens_env_crack": {
+   "h": 16,
+   "w": 16,
+   "x": 239,
+   "y": 715
+  },
+  "warrens_env_crate": {
+   "h": 16,
+   "w": 16,
+   "x": 256,
+   "y": 715
+  },
+  "warrens_env_door": {
+   "h": 16,
+   "w": 16,
+   "x": 273,
+   "y": 715
+  },
+  "warrens_env_floor_0": {
+   "h": 16,
+   "w": 16,
+   "x": 290,
+   "y": 715
+  },
+  "warrens_env_floor_1": {
+   "h": 16,
+   "w": 16,
+   "x": 307,
+   "y": 715
+  },
+  "warrens_env_floor_2": {
+   "h": 16,
+   "w": 16,
+   "x": 324,
+   "y": 715
+  },
+  "warrens_env_floor_3": {
+   "h": 16,
+   "w": 16,
+   "x": 341,
+   "y": 715
+  },
+  "warrens_env_moss_0": {
+   "h": 16,
+   "w": 16,
+   "x": 358,
+   "y": 715
+  },
+  "warrens_env_moss_1": {
+   "h": 16,
+   "w": 16,
+   "x": 375,
+   "y": 715
+  },
+  "warrens_env_pot": {
+   "h": 16,
+   "w": 16,
+   "x": 392,
+   "y": 715
+  },
+  "warrens_env_rubble": {
+   "h": 16,
+   "w": 16,
+   "x": 409,
+   "y": 715
+  },
+  "warrens_env_stairs_down": {
+   "h": 16,
+   "w": 16,
+   "x": 426,
+   "y": 715
+  },
+  "warrens_env_stairs_up": {
+   "h": 16,
+   "w": 16,
+   "x": 443,
+   "y": 715
+  },
+  "warrens_env_wall_face_0": {
+   "h": 16,
+   "w": 16,
+   "x": 460,
+   "y": 715
+  },
+  "warrens_env_wall_face_1": {
+   "h": 16,
+   "w": 16,
+   "x": 477,
+   "y": 715
+  },
+  "warrens_env_wall_top": {
+   "h": 16,
+   "w": 16,
+   "x": 494,
+   "y": 715
+  },
+  "warrens_env_water": {
+   "h": 16,
+   "w": 16,
+   "x": 1,
+   "y": 732
   },
   "warrens_floor": {
    "h": 8,
    "w": 8,
-   "x": 460,
-   "y": 632
+   "x": 352,
+   "y": 749
   },
   "warrens_floor_alt": {
    "h": 8,
    "w": 8,
-   "x": 469,
-   "y": 632
+   "x": 361,
+   "y": 749
   },
   "warrens_nest_0": {
    "h": 8,
    "w": 8,
-   "x": 478,
-   "y": 632
+   "x": 370,
+   "y": 749
   },
   "warrens_nest_1": {
    "h": 8,
    "w": 8,
-   "x": 487,
-   "y": 632
+   "x": 379,
+   "y": 749
   },
   "warrens_shrine_0": {
    "h": 8,
    "w": 8,
-   "x": 496,
-   "y": 632
+   "x": 388,
+   "y": 749
   },
   "warrens_shrine_1": {
    "h": 8,
    "w": 8,
-   "x": 1,
-   "y": 641
+   "x": 397,
+   "y": 749
   },
   "warrens_stairs_down": {
    "h": 8,
    "w": 8,
-   "x": 10,
-   "y": 641
+   "x": 406,
+   "y": 749
   },
   "warrens_stairs_up": {
    "h": 8,
    "w": 8,
-   "x": 19,
-   "y": 641
+   "x": 415,
+   "y": 749
   },
   "warrens_vault": {
    "h": 8,
    "w": 8,
-   "x": 28,
-   "y": 641
+   "x": 424,
+   "y": 749
   },
   "warrens_vault_open": {
    "h": 8,
    "w": 8,
-   "x": 37,
-   "y": 641
+   "x": 433,
+   "y": 749
   },
   "warrens_wall": {
    "h": 8,
    "w": 8,
-   "x": 46,
-   "y": 641
+   "x": 442,
+   "y": 749
   },
   "warrens_water": {
    "h": 8,
    "w": 8,
-   "x": 55,
-   "y": 641
+   "x": 451,
+   "y": 749
   },
   "weapon": {
    "h": 8,
    "w": 8,
-   "x": 64,
-   "y": 641
+   "x": 460,
+   "y": 749
   },
   "wraith": {
    "h": 96,
-   "w": 92,
-   "x": 55,
+   "w": 98,
+   "x": 335,
    "y": 356
   }
  },
  "meta": {
   "atlas": {
    "gutter": 1,
-   "h": 650,
+   "h": 758,
    "w": 512
   },
   "palettes": {
@@ -1046,6 +1802,11 @@
     "master_h": 80,
     "texel_h": 40
    },
+   "goblin_captain": {
+    "kind": "monster",
+    "master_h": 96,
+    "texel_h": 48
+   },
    "goblin_conjurer": {
     "kind": "monster",
     "master_h": 80,
@@ -1165,6 +1926,26 @@
    "crypt_bones_1",
    "crypt_chasm",
    "crypt_door",
+   "crypt_env_barrel",
+   "crypt_env_bones",
+   "crypt_env_chasm",
+   "crypt_env_crack",
+   "crypt_env_crate",
+   "crypt_env_door",
+   "crypt_env_floor_0",
+   "crypt_env_floor_1",
+   "crypt_env_floor_2",
+   "crypt_env_floor_3",
+   "crypt_env_moss_0",
+   "crypt_env_moss_1",
+   "crypt_env_pot",
+   "crypt_env_rubble",
+   "crypt_env_stairs_down",
+   "crypt_env_stairs_up",
+   "crypt_env_wall_face_0",
+   "crypt_env_wall_face_1",
+   "crypt_env_wall_top",
+   "crypt_env_water",
    "crypt_floor",
    "crypt_floor_alt",
    "crypt_nest_0",
@@ -1181,6 +1962,26 @@
    "deep_bones_1",
    "deep_chasm",
    "deep_door",
+   "deep_env_barrel",
+   "deep_env_bones",
+   "deep_env_chasm",
+   "deep_env_crack",
+   "deep_env_crate",
+   "deep_env_door",
+   "deep_env_floor_0",
+   "deep_env_floor_1",
+   "deep_env_floor_2",
+   "deep_env_floor_3",
+   "deep_env_moss_0",
+   "deep_env_moss_1",
+   "deep_env_pot",
+   "deep_env_rubble",
+   "deep_env_stairs_down",
+   "deep_env_stairs_up",
+   "deep_env_wall_face_0",
+   "deep_env_wall_face_1",
+   "deep_env_wall_top",
+   "deep_env_water",
    "deep_floor",
    "deep_floor_alt",
    "deep_nest_0",
@@ -1193,10 +1994,35 @@
    "deep_vault_open",
    "deep_wall",
    "deep_water",
+   "env_banner",
+   "env_blood_0",
+   "env_blood_1",
+   "env_torch_0",
+   "env_torch_1",
    "fens_bones_0",
    "fens_bones_1",
    "fens_chasm",
    "fens_door",
+   "fens_env_barrel",
+   "fens_env_bones",
+   "fens_env_chasm",
+   "fens_env_crack",
+   "fens_env_crate",
+   "fens_env_door",
+   "fens_env_floor_0",
+   "fens_env_floor_1",
+   "fens_env_floor_2",
+   "fens_env_floor_3",
+   "fens_env_moss_0",
+   "fens_env_moss_1",
+   "fens_env_pot",
+   "fens_env_rubble",
+   "fens_env_stairs_down",
+   "fens_env_stairs_up",
+   "fens_env_wall_face_0",
+   "fens_env_wall_face_1",
+   "fens_env_wall_top",
+   "fens_env_water",
    "fens_floor",
    "fens_floor_alt",
    "fens_nest_0",
@@ -1215,6 +2041,26 @@
    "foundry_bones_1",
    "foundry_chasm",
    "foundry_door",
+   "foundry_env_barrel",
+   "foundry_env_bones",
+   "foundry_env_chasm",
+   "foundry_env_crack",
+   "foundry_env_crate",
+   "foundry_env_door",
+   "foundry_env_floor_0",
+   "foundry_env_floor_1",
+   "foundry_env_floor_2",
+   "foundry_env_floor_3",
+   "foundry_env_moss_0",
+   "foundry_env_moss_1",
+   "foundry_env_pot",
+   "foundry_env_rubble",
+   "foundry_env_stairs_down",
+   "foundry_env_stairs_up",
+   "foundry_env_wall_face_0",
+   "foundry_env_wall_face_1",
+   "foundry_env_wall_top",
+   "foundry_env_water",
    "foundry_floor",
    "foundry_floor_alt",
    "foundry_nest_0",
@@ -1235,6 +2081,26 @@
    "sanctum_bones_1",
    "sanctum_chasm",
    "sanctum_door",
+   "sanctum_env_barrel",
+   "sanctum_env_bones",
+   "sanctum_env_chasm",
+   "sanctum_env_crack",
+   "sanctum_env_crate",
+   "sanctum_env_door",
+   "sanctum_env_floor_0",
+   "sanctum_env_floor_1",
+   "sanctum_env_floor_2",
+   "sanctum_env_floor_3",
+   "sanctum_env_moss_0",
+   "sanctum_env_moss_1",
+   "sanctum_env_pot",
+   "sanctum_env_rubble",
+   "sanctum_env_stairs_down",
+   "sanctum_env_stairs_up",
+   "sanctum_env_wall_face_0",
+   "sanctum_env_wall_face_1",
+   "sanctum_env_wall_top",
+   "sanctum_env_water",
    "sanctum_floor",
    "sanctum_floor_alt",
    "sanctum_nest_0",
@@ -1252,6 +2118,26 @@
    "warrens_bones_1",
    "warrens_chasm",
    "warrens_door",
+   "warrens_env_barrel",
+   "warrens_env_bones",
+   "warrens_env_chasm",
+   "warrens_env_crack",
+   "warrens_env_crate",
+   "warrens_env_door",
+   "warrens_env_floor_0",
+   "warrens_env_floor_1",
+   "warrens_env_floor_2",
+   "warrens_env_floor_3",
+   "warrens_env_moss_0",
+   "warrens_env_moss_1",
+   "warrens_env_pot",
+   "warrens_env_rubble",
+   "warrens_env_stairs_down",
+   "warrens_env_stairs_up",
+   "warrens_env_wall_face_0",
+   "warrens_env_wall_face_1",
+   "warrens_env_wall_top",
+   "warrens_env_water",
    "warrens_floor",
    "warrens_floor_alt",
    "warrens_nest_0",

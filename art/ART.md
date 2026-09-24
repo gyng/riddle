@@ -7,60 +7,96 @@ two-register rule) and `research/art-tech.md` §4–5 (two-density compositing).
 
 ## Direction
 
-**Paper cut-outs on a pixel diorama.** The dungeon is an 8×8-texel, ≤ 8-colour pixel world
-(Downwell register: flat fills, Bayer dither, everything has a dark edge). The hero, monsters,
-bosses and summons are **loose 1980s watercolour-anime key art** stamped onto that world at
-twice the environment's pixel density. The mismatch is deliberate and framed as such
-(Paper Mario): ink outline dilated to one env-texel, contact shadow under every sprite,
-snapped movement at 8–12 fps. If it reads as intent it is style; if it is half-hidden it is a
-bug — so we never soften either register toward the other.
+**Painted sprites on a dressed pixel diorama** (revised 2026-09-24, the art pass against
+`art/ui/targets/watch.png`). The dungeon is a 16×16-texel, ≤ 8-colour-per-biome pixel world
+(register 3, below) dressed with torches, barrels, crates, banners, moss and blood, lit by torch
+pools. The hero, monsters, bosses and summons are **crisp painted RPG character sprites with a
+watercolour-inspired fill texture**, drawn at twice the environment's texel density with a dark
+ink ring and a contact shadow.
 
-### Register 1 — keyed character sprites (codex, `art/generated/`)
+Why the change (keyed register v1 → v2): the v1 register was loose 1980s watercolour-anime key
+art, box-downscaled to 32–64 texels. The user judged the result "just too far" from the target
+mockups: at game size the washes turned to mush, the thin interior line work vanished, the pale
+paper-white lit side read washed-out against the dark dungeon, and the tall anime proportions put
+the readable part (the face and weapon) in a few texels. The target's sprites are chunky, crisply
+outlined and high in value contrast; v2 keeps a watercolour *texture* inside the fills (so the set
+still has a painted, hand-made surface, and the tint LUT still has clean hues to work with) and
+takes everything else — proportions, outline, shading, palette — from the target. Manifest ids,
+sizes (`master_h`/`texel_h`) and the pack pipeline are unchanged.
 
-Loose transparent watercolour and gouache washes **inside bold, clean, confident dark ink
-contour lines** — the anime cel principle. The wash may bleed past or stop short of the line;
-the line itself is deliberate, dark and continuous around the outer silhouette and the major
-interior forms.
+### Register 1 — keyed character sprites, v2 (codex, `art/generated/`)
 
-Riddle-specific readability rules (hard):
+A **crisp top-down dark-fantasy RPG character sprite**, like the characters in `watch.png`,
+painted at high resolution:
+
+- **Proportions:** chunky — the head about one third of the height, stocky torso, short planted
+  legs, hands and weapon drawn LARGE; 3/4 view from slightly above, facing **right**.
+- **Outline:** one thick, clean, continuous **near-black** outline round the silhouette (12–16 px
+  at 1024 px ≈ 1 sprite texel after the downscale; `pack.py` still dilates a 2 px ink ring on
+  the master), thinner dark lines on the major interior forms. Hard edges; nothing feathered.
+- **Shading:** three tones per material (lit / mid / one shadow), key light **upper-left**,
+  strong value contrast. Inside each tone a subtle watercolour wash texture (granulation, pigment
+  variation, a few dry-brush flecks) — never a smooth digital gradient, never a loose wet wash, no
+  white paper showing.
+- **Palette:** grounded earthy dark fantasy — moss/olive greens, crimson and oxblood cloth, warm
+  leather, dull steel, bone ivory — with one or two saturated accents; clean hues (the runtime
+  tints sprites 30 % toward the biome ramp).
+- **Faces:** small and simple (two dark eyes, a brow); heroes keep a gentle anime flavour (hair as a
+  few big locks), monsters grotesque-but-charming like the target's goblins.
+
+Riddle-specific readability rules (hard, unchanged):
 
 - **Target size is tiny.** A hero reads at **48 px tall** on a phone; monsters at **32–48 px**;
   bosses ~64 px; summons ~24 px. Judge every sprite at that size, not at paint size.
-- **Silhouettes are simple.** One big readable mass, one gesture, 3–4 signature details, drop the
-  rest. No dense interior rendering; large simple wash shapes, white/ivory paper in every lit
-  area, ONE flat indigo-umber shadow mass on the shadow side.
-- **Ink line is 4–8 px at 1024 px generation size** (≈ 1 px at 48 px after the box downscale;
-  `pack.py` then dilates it by 2 px on the 2× master so it survives as ≥ 1 env texel).
+- **Silhouettes are simple.** One big readable mass, one gesture, 3–4 signature details.
 - **The tag lives in the silhouette.** Each monster's learnable behaviour must be visible in its
   outline at 48 px: archer *holds a drawn bow*, conjurer *raises a staff with floating blades*,
   bloat is *a swollen sac*, jelly is *a translucent blob*, monkey *clutches a stolen bag*, ogre is
   *huge and wide*, eel is *a long S-curve*, wraith is *tattered and floating*, captive is
-  *in chains*, jackal is *low and lean*, ghoul is *hunched and clawed*, skeleton is *all bone*.
-  Bosses are **larger and crowned/marked** (crown, skull-crown, matriarch's spines).
-- **Upper-left key light, always.** Lit side near paper-white; shadow side one flat wash.
+  *in chains*, jackal is *low and lean*, ghoul is *hunched and clawed*, skeleton is *all bone*,
+  the captain *raises a war horn*. Bosses are **larger and crowned/marked**.
 - **`#0000FF` chroma key** background, flat, edge to edge. Subject far from pure blue: any blue
   material uses **cyan/teal mid-tones (high green) and blue-black depths (all channels low)**;
-  every pixel inside the silhouette must sit ≥ 150 RGB-distance from (0,0,255). Ultramarine
-  and royal blue are forbidden on the subject.
+  every pixel inside the silhouette must sit ≥ 150 RGB-distance from (0,0,255).
 - **No floor, no contact shadow, no cast-shadow pool, no scenery, no glow halo, no text.** The
-  renderer owns grounding and light.
-- One subject per sprite, centred, ~10 % margin, full body, nothing cropped. Facing **right**
-  (the renderer flips for left).
-- Unmistakably ANIME for the two heroes and the captive: expressive anime faces, large eyes,
-  hair as flowing masses, 1980s OVA character design. Monsters are anime-bestiary creatures,
-  not D&D illustration or western storybook.
+  renderer owns grounding and light. One subject, centred, ~10 % margin, full body.
 
-Style vocabulary for prompts (never name living artists; describe the look):
+Style vocabulary for prompts (never name living artists or games; describe the look; the full
+preamble is `make_prompts.py` HEADER):
 
-- "loose transparent watercolour and gouache on cold-press paper, washes left wet and unblended"
-- "pigment blooms, granulation, dry-brush edges, white paper showing through"
-- "bold clean confident dark ink contour lines, anime cel principle, flat stylized shapes"
-- "1980s Japanese fantasy anime key visual / OVA box art"
-- "chiaroscuro: single key light upper-left, shadow as one flat indigo-umber wash"
-- "muted field, jewel-bright accents"
-- Never: text, logos, signatures, watermarks, photorealism, airbrushed volume, dense noisy
-  detail, 3D-render shading, cel-shading gradients, modern digital gradients, game-asset gloss,
-  pixel art (sprites are painted; the *environment* is pixel art).
+- "crisp top-down dark-fantasy RPG character sprite, chunky proportions, head a third of the height"
+- "one thick clean continuous near-black outline, hard crisp edges"
+- "three tones per material, key light upper-left, a subtle watercolour wash texture inside each tone"
+- "grounded earthy palette: moss greens, crimson cloth, warm leather, dull steel, bone"
+- Never: text, logos, signatures, watermarks, photorealism, 3D-render shading, airbrushed volume,
+  glossy game-asset rendering, dense noisy detail, stair-stepped fake pixel art, loose
+  watercolour-anime illustration (the v1 register).
+
+### Register 3 — the 16×16 environment (codex pixel art → ramp index, `art/make_env.py`)
+
+The art pass's environment, drawn over register 2 wherever it is loaded (register 2 stays the
+fallback and the source of situation props and item glyphs). Codex paints each tile/decal/prop as
+a tiny pixel-art tile enlarged to 1024 px (manifest `bg: env` opaque tile, `env_keyed` on
+`#0000FF`); `make_env.py` box-downscales it to its `texels` box (16×16; torch 16×24; banner
+16×20), cuts luminance at **fixed quantiles** into a per-class ramp-index list (so the four floor
+variants share one value distribution and tile together, and every biome gets the drawing in its
+own 8-colour ramp; `BIOME_REMAP` re-roles the sanctum's pale field and the foundry's oranges) and
+writes `<biome>_env_<name>.png`. Blood, torch flames and banners are **hue assets** (`env_<name>`,
+≤ 8 colours, one file for every biome) drawn sprite-tagged so red and flame keep their hue. Tiles
+are still 8×8 *world* quads — two texels per env texel, the sprite density.
+
+Classes (index lists darkest→lightest): floors `1 2 3 4` (field on 2, lit edges rare), wall
+face `0–5` (lit capstone ledge over courses), wall top `1 2 3` (the renderer rims each side that
+meets open floor), door = portcullis `0–5`, stairs, water, chasm; decals moss/crack/rubble;
+props barrel/crate/pot/bones with a ramp-0 rim.
+
+Renderer contract (`web/src/render/index.ts`, render-only, seeded by tile position): a wall
+whose tile below is seen open ground draws its **face**, any other wall its **top**; floors pick a
+variant by hash; torches on every ~5th face over floor (2 frames, 180 ms), banners on a few;
+barrels/crates/pots in room corners; moss (more near walls), cracks, rubble, blood, bones as
+decals. Torches feed up to 12 lights to the blit: a value lift before the quantise (the pool
+climbs the ramp through the dither) and a small warm tint after it; away from a torch world
+tiles sit at 0.78 (a ramp step down) and are not dithered.
 
 ### Register 2 — environment tiles (hand-authored pixel art, `art/tiles/`)
 
@@ -83,9 +119,9 @@ Biome palettes (8 colours each; index 0 is the darkest, 7 the lightest):
 
 ### Palette unification (runtime)
 
-Sprites are tinted 40–60 % toward the active biome palette at runtime (tint LUT, not a hard
-quantise). So sprite hues must be **clean** (not muddy mid-greys) and values **high-contrast**
-(paper-white lit side, deep shadow mass); a muddy sprite becomes invisible after tinting.
+Sprites are tinted 30 % toward the active biome palette at runtime (`blit.ts` `uTint`; a blend,
+not a hard quantise). So sprite hues must be **clean** (not muddy mid-greys) and values
+**high-contrast** (lit tone vs one deep shadow tone); a muddy sprite becomes invisible after tinting.
 `pack.py` also pre-quantises each master to ≤ 32 colours (median cut, no dither); the biome ramps ship in `atlas.json` `meta.palettes` for the runtime tint pass.
 
 ## Readability constraints (summary)
@@ -93,7 +129,7 @@ quantise). So sprite hues must be **clean** (not muddy mid-greys) and values **h
 - Read at 48 px (hero) / 32–48 px (monster) on a phone. Composite over the real tiles before
   accepting.
 - Tag visible in silhouette. Bosses bigger and crowned/marked.
-- Ink outline continuous, dark, 4–8 px at 1024 px.
+- Ink outline continuous, near-black, 12–16 px at 1024 px (v2; v1 was 4–8 px).
 - Chroma: corners exactly `#0000FF`; zero near-key (RGB-distance 30–130) pixels inside the
   subject; blue-black depths and teal mid-tones only.
 - No floor / shadow pool / text / glow.

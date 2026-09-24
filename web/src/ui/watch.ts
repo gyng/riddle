@@ -106,7 +106,7 @@
 import type { App, Mounted } from "../app";
 import type { Ev, ExitLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, items, replace, spanOf } from "./dom";
-import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
+import { gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile } from "./frame";
 import { icon } from "./skin";
 import { makeViewer, type Viewer } from "./viewer";
 import { verbsAt } from "../engine/classes";
@@ -227,7 +227,9 @@ export function renderWatch(app: App): Mounted {
   const face = portrait(app, { hp: 1, label: hpText });
   // Cut 16 §4: the boss's bar under the hero's while one is in view (`warlord` + a thin track)
   const bossFill = h("span", { class: "fill" }), bossName = h("span", { class: "name" });
-  const bossBar = h("div", { class: "boss-hp", hidden: true }, bossName, h("span", { class: "track" }, bossFill));
+  const bossFace = h("span", { class: "face" });   // art pass: the boss's painted headshot (else its sprite crop)
+  const bossBar = h("div", { class: "boss-hp", hidden: true }, h("span", { class: "boss-face", "aria-hidden": "true" }, bossFace), bossName, h("span", { class: "track" }, bossFill));
+  let bossFaceKind = "";
   const depth = h("span", { class: "num depth" });
   const alert = h("span", { class: "alert num" });
   const ticker = h("div", { class: "ticker" });
@@ -385,6 +387,11 @@ export function renderWatch(app: App): Mounted {
     bossBar.hidden = !bossHud; el.dataset.boss = bossHud ? `${bossHud.hp}/${bossHud.max}` : "";
     if (!bossHud) return;
     replace(bossName, oneWord(bossHud.kind));
+    if (bossFaceKind !== bossHud.kind) {
+      bossFaceKind = bossHud.kind;
+      const k = bossHud.kind.replace(/^boss_/, "");
+      if (!paintPortrait(bossFace, `boss_${k}`)) paintSprite(bossFace, `boss_${k}`, 26, k);
+    }
     bossFill.style.width = `${Math.round(Math.max(0, Math.min(1, bossHud.hp / Math.max(1, bossHud.max))) * 100)}%`;
   }
   /** Cut 16 §4: the boss in the snapshot's view (not an ally), at its tick. */

@@ -1,0 +1,94 @@
+You are generating painted CHARACTER SPRITE masters for the game "Riddle" (a phone roguelike seen
+top-down). FIRST look at /home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read
+nothing else in the repository): its hero (brown hair, crimson cape, sword) and its green goblins
+(sword goblin, archer) are the TARGET LOOK for every sprite. Use your built-in image_gen tool, one
+call per asset below. Do NOT write code beyond a PIL resample, do NOT touch anything outside
+/home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind.
+If a file already exists at an output path, OVERWRITE it (these are regenerations in a new style).
+
+For each asset: generate at the stated size, then save the final PNG (sRGB) to the exact output
+path. If the image is not exactly the stated size, resample to it with PIL (Lanczos). Self-check
+that all four corner pixels are pure blue (0,0,255) within distance 30 (or fully transparent) and
+that the subject contains NO mid-blue pixels; regenerate that asset once if not.
+
+=== STYLE (art/ART.md, keyed register v2) — the FIRST and loudest rule ===
+A crisp top-down dark-fantasy RPG CHARACTER SPRITE, like the characters in watch.png, painted at
+high resolution with a WATERCOLOUR-INSPIRED fill texture:
+- Proportions: chunky and readable — the head about one third of the body height, stocky torso,
+  short sturdy legs planted apart, hands and weapon drawn LARGE. A 3/4 view from slightly above,
+  facing RIGHT.
+- Outline: ONE thick, clean, continuous NEAR-BLACK outline around the whole silhouette (12-16 px at
+  1024 px — it must survive a downscale to 40-64 px), plus thinner dark lines on the major interior
+  forms. Hard, crisp edges everywhere. No soft or feathered edges, no loose bleeding washes.
+- Shading: 3 tones per material — a lit tone, a mid tone, one shadow tone — with the key light from
+  the UPPER-LEFT; strong value contrast between lit and shadow. Inside each flat tone a SUBTLE
+  watercolour wash texture (gentle granulation / pigment variation, a few dry-brush flecks) — the
+  fills must NOT be smooth digital gradients, but they are NOT loose wet washes either and no white
+  paper shows through.
+- Palette: grounded, earthy dark fantasy like watch.png — moss / olive greens, crimson and oxblood
+  cloth, warm leather browns, dull steel greys, bone ivory — with one or two saturated accents.
+  Clean hues, no muddy greys (the game tints sprites 30 % toward the dungeon's palette).
+- Faces: small, simple, readable (two dark eyes, a brow line); heroes keep a gentle anime flavour
+  (hair as a few big locks), monsters are grotesque but charming like watch.png's goblins.
+- Never: text, letters, logos, signatures, watermarks, photorealism, 3D-render shading, airbrushed
+  volume, glossy game-asset rendering, dense noisy detail, stair-stepped fake pixel art (the game
+  downsamples; paint smooth crisp shapes), loose watercolour-anime illustration.
+
+=== READABILITY (these sprites are shown TINY) ===
+Each sprite is box-downscaled to 24-64 px tall on a phone. ONE big readable mass, one clear gesture,
+a simple silhouette with no thin spindly extras. The creature's defining feature (its "tag", stated
+per asset) must be visible in the SILHOUETTE alone. Full body, nothing cropped, subject centred with
+~10% margin on every side.
+
+=== CHROMA KEY ===
+Background is a flat, uniform, edge-to-edge pure blue #0000FF = RGB(0,0,255), one solid fill. The
+subject must stay far from that key: every pixel inside the subject at least RGB-distance 150 from
+(0,0,255). Any blue-ish material uses CYAN/TEAL mid-tones (green channel high) or BLUE-BLACK depths
+(all channels low). Ultramarine, royal blue, cobalt and sky blue are forbidden on the subject. No
+blue glow, rim light or reflections. NO floor, NO ground plane, NO contact shadow, NO cast-shadow
+pool, NO scenery, NO glow halo, NO pedestal — the subject floats on flat blue.
+
+=== ASSETS ===
+--- 1. id: bell_sentinel  (monster)
+Output path: /home/g/p/riddle/art/generated/bell_sentinel.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A bell sentinel facing right, upright and stiff: an iron-armoured humanoid whose entire HEAD IS A LARGE BRONZE BELL — the flared bell mouth opening downward over the shoulders, wider than the body, a dark clapper visible hanging inside it; a slender riveted body beneath, one arm raised holding a striking rod ready to ring. Tarnished bronze-gold bell, iron-grey body, one ember-orange seam accent. Tag: A BELL FOR A HEAD — the top of the silhouette is a bell shape, unmistakable at 40 px. No sound lines, no glow.
+
+--- 2. id: slag_crawler  (monster)
+Output path: /home/g/p/riddle/art/generated/slag_crawler.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 24 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A slag crawler facing right: a LOW, long, many-legged creature of cooled black slag crust cracked open along the back to show ember-orange heat beneath (flat bright cracks, no glow), a blunt heavy head low to the front, six short stubby legs, and a TRAIL OF EMBERS behind it — a scatter of small orange and yellow flecks attached to the tapering tail end, drawn as part of the silhouette. Soot-black + ember-orange + one hot yellow accent. Tag: LOW and TRAILING EMBERS — a horizontal dash with a dotted ember tail. Reads at 32 px. No floor.
+
+--- 3. id: smith  (monster)
+Output path: /home/g/p/riddle/art/generated/smith.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A foundry smith facing right, stocky and broad: a burly bare-armed figure in a heavy leather APRON down to the shins, a massive square-headed HAMMER raised in both hands over the shoulder, a soot-streaked face with a set anime jaw and a headband, thick gloves, boots. Warm leather browns, iron-grey hammer head, one ember-orange accent (a hot rivet on the apron pocket). Tag: HAMMER AND APRON — the raised square hammer and the long apron rectangle are the silhouette at 40 px. Clearly not a goblin, clearly not the golem.
+
+--- 4. id: boss_foundry_master  (boss)
+Output path: /home/g/p/riddle/art/generated/boss_foundry_master.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 64 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: The Foundry Master facing right, LARGER than the iron golem: a colossal iron-and-bronze forge-lord, riveted plate body like the golem but with an ANVIL-SHAPED chest, a heavy leather apron over the plates, a jagged CROWN of iron rivet-spikes on the helm, a gigantic two-handed forge hammer raised overhead, ember-orange seams at every joint (flat bright cracks, no glow). Rust-red iron, bronze, leather, one hot yellow accent in the crown's centre. Tag: BOSS — crowned, huge hammer, apron over iron. Reads as 'the big crowned iron smith' at 64 px.
+
+--- 5. id: lurker  (monster)
+Output path: /home/g/p/riddle/art/generated/lurker.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A lurker facing right, hunched: a pallid bone-white cave-thing with NO EYES — a smooth blank brow above a wide lipless mouth of needle teeth, a long neck craned forward, and ARMS FAR LONGER THAN ITS BODY that reach down past its feet, ending in long thin fingers. Skinny torso, knees bent. Bone-white and pale grey washes, blue-black shadow side (all channels low, never saturated blue). Tag: EYELESS and LONG-ARMED — the silhouette is a hunched body with two arms hanging to the bottom edge. Reads at 40 px.
+
+--- 6. id: deep_eel  (monster)
+Output path: /home/g/p/riddle/art/generated/deep_eel.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 24 px tall; judge readability at that size.
+Background: flat pure blue #0000FF, keyed register (rules above).
+Brief: A deep eel facing right: a very long, thin RIBBON of a fish undulating in three waves across the frame, a continuous translucent fin frill along the whole back, a narrow head with a needle jaw at the right, a tapering ribbon tail at the left. Ink-black back, bone-white belly and frill, a few pale teal flecks along the flank (high green, never royal blue). Tag: A RIBBON — thin and wavy with many curves, clearly different from the thick S-curved fens eel. Reads at 32 px.
+
+When all assets are saved, list the final paths and their pixel sizes. Do nothing else.
