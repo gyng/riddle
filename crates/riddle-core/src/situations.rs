@@ -430,6 +430,7 @@ pub fn before_action(run: &mut Run, cx: &mut Ctx) {
         return;
     }
     run.met_situation("den");
+    run.den_wakes += 1;
     learn(run, cx, "den".into());
     note(run, cx, "The den wakes: thieves on every side.".into());
     callout(run, cx, "thieves!");
@@ -447,15 +448,24 @@ pub fn before_action(run: &mut Run, cx: &mut Ctx) {
                 cx.events.push(Ev::Move { t: run.turn, id, x: q.x, y: q.y });
             }
         }
-        if run.monsters[mi].pos.adjacent(hp) {
+        // Cut 20 §1: one theft per run — once something is stolen, the rest bolt empty-handed.
+        if !run.stolen.is_empty() {
+            run.monsters[mi].fear = crate::ai::THIEF_FLEE;
+            // The den was not answered — it simply had nothing left to take.
+            run.den_bolted = true;
+        } else if run.monsters[mi].pos.adjacent(hp) {
             snatch(run, cx, mi);
         }
     }
+    // The den has woken: the run's later dens are thinned too.
+    run.den_thin = true;
 }
 
 /// Cut 19 §5 (rater AB: "the reel repeats `A thief snatched the teleport scroll`"): the den
 /// pounces on every floor of a lineage that has never lost to one; after (`Run.den_thin`), on
-/// 1 in 3 — drawn from the run's seed and the floor, so a replay of the run agrees.
+/// 1 in 3 — drawn from the run's seed and the floor, so a replay of the run agrees. Cut 20 §1
+/// (AC, AD: "the den wakes on nearly every run"): thinned for every lineage once its first den
+/// has woken (`LineageState::den_wakes`), and for the rest of a run whose den has.
 pub fn den_pounces(run: &Run) -> bool {
     !run.den_thin || crate::rng::splitmix(run.seed ^ ((run.depth as u64) << 32) ^ 0xDE_7E1F).is_multiple_of(3)
 }
@@ -480,6 +490,7 @@ fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
     run.loot_add(-run.loot_value(&it));
     let amount = (before > run.loot).then(|| before - run.loot);
     let id = run.monsters[mi].id;
+    run.stolen_ids.push(it.id);
     run.monsters[mi].stolen = Some(it);
     run.monsters[mi].fleeing = true;
     cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone(), amount });
@@ -592,7 +603,7 @@ pub fn on_leave_floor(run: &mut Run, cx: &mut Ctx) {
     match at(run).map(str::to_string).as_deref() {
         Some("den") if met(run, "den") => {
             let has = |run: &Run, id: u32| run.hero.inv.iter().chain(run.hero.weapon.iter()).chain(run.hero.armour.iter()).any(|i| i.id == id);
-            if run.den_stolen.iter().all(|id| has(run, *id)) {
+            if !run.den_bolted && run.den_stolen.iter().all(|id| has(run, *id)) {
                 pass(run, cx, "den");
             }
         }
@@ -606,6 +617,7 @@ pub fn on_leave_floor(run: &mut Run, cx: &mut Ctx) {
     }
     run.gas_dmg_floor = 0;
     run.den_stolen.clear();
+    run.den_bolted = false;
     run.lock_tiles.clear();
     run.lit = false;
 }

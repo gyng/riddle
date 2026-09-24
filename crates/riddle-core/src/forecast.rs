@@ -343,11 +343,13 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let ended = camp_panel(game, rules, sims);
     let n = ended.len().max(1) as f64;
     let reach_at = |d: u32| ended.iter().filter(|r| r.max_depth >= d).count() as f64 / n;
-    let depths = (1..=known_to)
+    // Cut 20 §5: the bounty floor is a notch of its own, below `known_to` when it lies deeper.
+    let last = known_to.max(game.lineage.bounty.unwrap_or(0));
+    let depths = (1..=last)
         .map(|d| {
             let reach = reach_at(d);
             let wall = wall_at(d, reach, reach_at(d.saturating_sub(1)));
-            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_: try_row(game, rules, d), wall }
+            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_: try_row(game, rules, d), wall, bounty: game.lineage.bounty == Some(d) }
         })
         .collect();
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();

@@ -19,6 +19,8 @@ pub const KITE_RANGE: i32 = 3;
 /// Cut 2 §1: the chores descend once this much of the floor is seen.
 pub const CHORE_DESCEND_SEEN: i32 = 60;
 pub const BOLT_ATK: (i32, i32) = (2, 5);
+/// Cut 20 §1: ticks a thief runs once the run's one theft is spent (it has nothing to take).
+pub const THIEF_FLEE: i32 = 600;
 
 /// 80% to hit; damage = roll(atk) − def, min 0.
 pub fn roll_hit(rng: &mut crate::rng::Rng, atk: (i32, i32), def: i32) -> (bool, i32) {
@@ -2556,7 +2558,8 @@ fn adjacent_ally(run: &Run, mi: usize) -> Option<usize> {
         .iter()
         .enumerate()
         .filter(|(j, o)| *j != mi && o.hp > 0 && o.ally && o.pos.adjacent(mp))
-        .min_by_key(|(_, o)| (o.hp, o.id))
+        // Cut 20 §2: a companion fallen back is hit last (it has left the fight).
+        .min_by_key(|(_, o)| (pet_wounded(o), o.hp, o.id))
         .map(|(j, _)| j)
 }
 
@@ -2603,7 +2606,11 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
         let at = run.hero.pos;
         noise(run, cx, at, 6);
     }
-    if run.monsters[mi].has_tag("thief") && dmg > 0 && run.monsters[mi].stolen.is_none() {
+    // Cut 20 §1: a thief steals once per run — after a theft, a thief's blow finds nothing it
+    // dares take and it runs (the carried item is the stake of the first fight, not a tax).
+    if run.monsters[mi].has_tag("thief") && dmg > 0 && run.monsters[mi].stolen.is_none() && !run.stolen.is_empty() && !run.monsters[mi].ally {
+        run.monsters[mi].fear = run.monsters[mi].fear.max(THIEF_FLEE);
+    } else if run.monsters[mi].has_tag("thief") && dmg > 0 && run.monsters[mi].stolen.is_none() {
         // A forge imp only steals potions.
         let potions_only = kind == "forge_imp";
         let stealable: Vec<usize> = (0..run.hero.inv.len()).filter(|&i| !potions_only || run.hero.inv[i].cat() == Cat::Potion).collect();
@@ -2622,6 +2629,7 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
             let before = run.loot;
             run.loot_add(-run.loot_value(&it));
             let amount = (before > run.loot).then(|| before - run.loot);
+            run.stolen_ids.push(it.id);
             run.monsters[mi].stolen = Some(it);
             run.monsters[mi].fleeing = true;
             cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone(), amount });
@@ -3739,8 +3747,68 @@ fn companion_callout(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str) {
 }
 
 /// A companion acts on its own rows; fallback: fight adjacent, stay within 2 of the hero.
+/// Cut 20 §2 (AD: "8 pets lost in a session"): a companion at ≤ `PET_FLEE_PCT` of its hp
+/// is out of the fight — it falls back to the hero's side and engages nothing — until a
+/// descent heals it (`turn::descend`). Wounded like this it dies only cornered
+/// (`pet_cornered`, `turn::damage_monster`).
+pub const PET_FLEE_PCT: i32 = 30;
+/// Cut 20 §2: a companion's hp after each descent, at least (percent of max).
+pub const PET_DESCENT_PCT: i32 = 60;
+
+pub fn pet_wounded(m: &Monster) -> bool {
+    m.is_companion() && m.hp > 0 && m.hp * 100 <= m.max_hp * PET_FLEE_PCT
+}
+
+/// Awake hostiles adjacent to `p`.
+fn threats_at(run: &Run, p: Pos) -> usize {
+    run.monsters.iter().filter(|o| o.hp > 0 && o.hostile() && !o.dormant && o.pos.cheb(p) <= 1).count()
+}
+
+/// Cut 20 §2: a wounded companion with nowhere to step — every way out walled or stood on.
+pub fn pet_cornered(run: &Run, mi: usize) -> bool {
+    let mp = run.monsters[mi].pos;
+    let map = &run.floor.map;
+    !mp.neighbours8().into_iter().any(|q| map.in_bounds(q) && map.can_step(mp, q) && !run.occupied(q))
+}
+
+/// Cut 20 §2: the wounded companion's turn — to the hero's side, away from the foes.
+fn pet_fall_back(run: &mut Run, cx: &mut Ctx, mi: usize) {
+    if !run.monsters[mi].fleeing {
+        run.monsters[mi].fleeing = true;
+        run.monsters[mi].sent = false;
+        if run.floor.map.is_visible(run.monsters[mi].pos) {
+            let name = run.monsters[mi].name.clone().unwrap_or_else(|| crate::engine::kind_title(&run.monsters[mi].kind));
+            callout(run, cx, &format!("{name} falls back"));
+        }
+    }
+    let hp = run.hero.pos;
+    let mp = run.monsters[mi].pos;
+    if mp.cheb(hp) > 2 && threats_at(run, mp) == 0 {
+        approach(run, cx, mi);
+        return;
+    }
+    let map = &run.floor.map;
+    let score = |q: Pos| (threats_at(run, q), q.cheb(hp).max(1), q.x, q.y);
+    let best = std::iter::once(mp)
+        .chain(mp.neighbours8().into_iter().filter(|q| map.in_bounds(*q) && map.can_step(mp, *q) && !run.occupied(*q)))
+        .min_by_key(|q| score(*q));
+    if let Some(q) = best {
+        if q != mp && score(q) < score(mp) {
+            move_monster(run, cx, mi, q);
+        }
+    }
+}
+
 fn companion_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
     let Some(cid) = run.monsters[mi].cid else { return };
+    if pet_wounded(&run.monsters[mi]) {
+        run.monsters[mi].hurt_since_action = false;
+        pet_fall_back(run, cx, mi);
+        return;
+    }
+    if run.monsters[mi].fleeing {
+        run.monsters[mi].fleeing = false;
+    }
     let (rows, max_rows) = match run.companion(cid) {
         Some(c) => (c.rules.rows.clone(), c.max_rows),
         None => (Vec::new(), 2),

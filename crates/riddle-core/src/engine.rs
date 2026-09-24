@@ -174,6 +174,12 @@ pub struct Run {
     pub gambles: Vec<(u32, String, bool)>,
     pub gambles_survived: Vec<(u32, String)>,
     pub stolen: Vec<(u32, String)>,
+    /// Cut 20 §1: the ids of the items thieves took this run, and what was taken back from a
+    /// killed thief's drop (turn, label).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stolen_ids: Vec<u32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recovered: Vec<(u32, String)>,
     pub ally_lost: Vec<(u32, String)>,
     pub ally_freed: Vec<u32>,
     pub boss_kills: Vec<(u32, String)>,
@@ -461,6 +467,19 @@ pub struct Run {
     pub den_thin: bool,
     #[serde(default)]
     pub den_snatches: u32,
+    /// Cut 20 §1: dens that woke (pounced) this run.
+    #[serde(default)]
+    pub den_wakes: u32,
+    /// Cut 20 §1: this floor's den woke after the run's one theft and bolted empty-handed —
+    /// not a pass (nothing answered it).
+    #[serde(default)]
+    pub den_bolted: bool,
+    /// Cut 20 §5: the lineage's bounty floor at the send (gold ×2, one next-tier item), and
+    /// the coins picked up on it this run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounty: Option<u32>,
+    #[serde(default)]
+    pub bounty_gold: i32,
     /// §5: the grudges (by name) this run avenged — the lineage marks them at the exit, and a
     /// later kill of the same named foe reads `slain`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -837,6 +856,15 @@ pub struct LineageState {
     /// (`Run.den_thin`, `situations::den_pounces`).
     #[serde(default)]
     pub den_thefts: u32,
+    // Cut 20
+    /// §1: dens that have woken on the lineage's heirs — after the first (the lesson), every
+    /// den pounces on ≤ 1 floor in 3 (`Run.den_thin`).
+    #[serde(default)]
+    pub den_wakes: u32,
+    /// §5: the bounty floor — at each night's end the lineage's best depth + 2 (`night`): its
+    /// gold pays double and it holds one item of the lineage's next tier (`bounty_item`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounty: Option<u32>,
     /// §3: the loadout repeats by default — a send re-packs the last send's supplies at the
     /// shelf's price (`Game::restock`); `set_restock(false)` (the camp's tap) stops it.
     #[serde(default)]
@@ -845,6 +873,10 @@ pub struct LineageState {
 
 /// Cut 16 §1: a night of runs (the ledger's "a night of 16 runs").
 pub const NIGHT_RUNS: u32 = 16;
+/// Cut 20 §5: the bounty floor sits this far below the lineage's best depth.
+pub const BOUNTY_BELOW: u32 = 2;
+/// Cut 20 §5: the bounty floor's gold piles pay this many times their coins.
+pub const BOUNTY_GOLD_MULT: i32 = 2;
 /// Cut 16 §1: picks past this pay the floor (`0.8^7` < a quarter).
 pub const PICKED_CAP: u32 = 7;
 /// Cut 16 §1: freshness by picks, in permille (`0.8^n`, never under 250).
@@ -937,6 +969,8 @@ impl LineageState {
             night_runs: 0,
             night_seen: BTreeSet::new(),
             den_thefts: 0,
+            den_wakes: 0,
+            bounty: None,
             restock_off: false,
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
@@ -1098,6 +1132,7 @@ impl LineageState {
             repeat: !self.restock_off,
             repeat_kinds: self.last_supplies.iter().filter(|k| !self.last_wasted.contains(k)).cloned().collect(),
             repeat_short: self.repeat_short.clone(),
+            bounty: self.bounty.map(|depth| crate::wire::Bounty { depth }),
             // (priced on the shelf by `Game::lineage`)
             repeat_gold: 0,
         }
@@ -1299,6 +1334,9 @@ impl LineageState {
         }
         self.picked.retain(|_, p| *p > 0);
         self.night_runs = 0;
+        // Cut 20 §5 (AC: "after the absence 15 of 16 runs banked, so the second half had
+        // little at stake"): the deep calls — the next night's bounty floor.
+        self.bounty = Some((self.best_depth + BOUNTY_BELOW).clamp(1, crate::descent::ENDING_DEPTH - 1));
     }
 
     /// Cut 13 §2: pick one of the offered traits (the chip beside `♟3`); refused when it is
@@ -1401,6 +1439,11 @@ pub struct DeathRec {
     /// the least-fired own row is the one an insert on a full set drops (`Patch.drops`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub row_fired: Vec<u32>,
+    /// A `dice` death's fallback alternatives that fired in under `FIRED_BAR` of the replays
+    /// (the moment barely reached them): shown, always `below_bar` (QA on the Cut 20 gate: a
+    /// 17 %-fired fallback surviving 17 % over a 0 % base was relabelled advice).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub low_fired: Vec<Row>,
 }
 
 fn is_zero_u64(n: &u64) -> bool {
@@ -1549,6 +1592,16 @@ pub struct Batch {
     /// QA on 1a2a4a9: a re-pack of this absence ran short of gold (`repeat short`).
     #[serde(default)]
     pub repeat_short: bool,
+    // Cut 20
+    /// §1: thefts suffered this batch (every thief's, the den's included) and the dens that
+    /// woke (pounced) — the measures behind "a thief steals once per run".
+    #[serde(default)]
+    pub thefts: u32,
+    #[serde(default)]
+    pub den_wakes: u32,
+    /// §5: the bounty the absence played for (`ReturnReport.bounty`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounty: Option<crate::wire::BountyReport>,
 }
 
 impl Batch {
@@ -2106,6 +2159,8 @@ impl Game {
             gambles: Vec::new(),
             gambles_survived: Vec::new(),
             stolen: Vec::new(),
+            stolen_ids: Vec::new(),
+            recovered: Vec::new(),
             ally_lost: Vec::new(),
             ally_freed: Vec::new(),
             boss_kills: Vec::new(),
@@ -2193,8 +2248,12 @@ impl Game {
             rows_why: Vec::new(),
             ending_t: None,
             den_stolen: Vec::new(),
-            den_thin: self.lineage.den_thefts > 0 && self.lineage.facts.contains("den"),
+            den_thin: (self.lineage.den_thefts > 0 && self.lineage.facts.contains("den")) || self.lineage.den_wakes > 0,
             den_snatches: 0,
+            den_wakes: 0,
+            den_bolted: false,
+            bounty: self.lineage.bounty,
+            bounty_gold: 0,
             avenged: Vec::new(),
             gas_dmg_floor: 0,
             lock_last_pop: 0,
@@ -2485,7 +2544,7 @@ impl Game {
             turn: run.turn,
             loot: run.loot,
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn },
-            stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some() },
+            stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some(), death_keep: run.loot.max(0) * ExitTier::Death.pct() / 100 },
             vision: run.vision(&l.unlocks),
             vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice {
                 items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
@@ -2524,6 +2583,22 @@ impl Game {
         self.batch.turns += run.turn;
         // Cut 19 §5: the den's thefts and the grudges avenged are the lineage's from now on.
         self.lineage.den_thefts += run.den_snatches;
+        self.lineage.den_wakes += run.den_wakes;
+        self.batch.thefts += run.stolen.len() as u32;
+        self.batch.den_wakes += run.den_wakes;
+        // Cut 20 §5: the bounty floor — taken when the run reached it and came home.
+        if let Some(bd) = run.bounty {
+            let taken = tier != ExitTier::Death && run.max_depth >= bd;
+            let gold = if taken { run.bounty_gold.max(0) * tier.pct() / 100 } else { 0 };
+            match self.batch.bounty.as_mut() {
+                Some(b) if b.depth == bd => {
+                    b.taken |= taken;
+                    b.gold += gold;
+                }
+                Some(b) if b.taken => {}
+                _ => self.batch.bounty = Some(crate::wire::BountyReport { depth: bd, taken, gold }),
+            }
+        }
         for name in &run.avenged {
             for g in self.lineage.grudges.iter_mut().filter(|g| g.name == *name) {
                 g.avenged = true;
@@ -3785,10 +3860,37 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         // Coins (the pile reads `gold $2` and the stake rises by 2): the raw draw of
         // 3–6 × depth over `GOLD_DIVISOR`, rounded, never empty.
         it.amount = ((run.rng.range(3, 7) * depth as i32 + GOLD_DIVISOR / 2) / GOLD_DIVISOR).max(1);
+        // Cut 20 §5: the bounty floor pays double.
+        if run.bounty == Some(depth) {
+            it.amount *= BOUNTY_GOLD_MULT;
+        }
         if keep() {
             place(run, it);
         }
     }
+    // Cut 20 §5: and holds one item of the lineage's next tier.
+    if run.bounty == Some(depth) {
+        let iid = run.new_item_id();
+        let it = bounty_item(run.seed, depth, iid, forge);
+        place(run, it);
+    }
+}
+
+/// Cut 20 §5: the bounty floor's item — the newest tier of gear the floor's depth allows (the
+/// weapon or armour kind with the deepest `item_min_depth` at or above the floor's content
+/// depth, drawn from the run's seed and the floor among ties), forged one tier past the
+/// lineage's forge, and known.
+pub fn bounty_item(seed: u64, depth: u32, id: u32, forge: &BTreeMap<String, ForgeRow>) -> Item {
+    let td = crate::descent::tier_depth(depth);
+    let gear: Vec<&crate::defs::ItemDef> = crate::defs::ITEMS.iter().filter(|i| i.weight > 0 && matches!(i.cat, Cat::Weapon | Cat::Armour) && crate::defs::item_min_depth(i.kind) <= td).collect();
+    let top = gear.iter().map(|i| crate::defs::item_min_depth(i.kind)).max().unwrap_or(0);
+    let cands: Vec<&str> = gear.iter().filter(|i| crate::defs::item_min_depth(i.kind) == top).map(|i| i.kind).collect();
+    let mut rng = Rng::derive(seed ^ depth as u64, hash_str("bounty"));
+    let kind = if cands.is_empty() { "sword" } else { cands[rng.below(cands.len() as u32) as usize] };
+    let mut it = Item::new(id, kind);
+    it.enchant = forge.get(kind).map(|f| f.tier as i32).unwrap_or(0) + 1;
+    it.known = true;
+    it
 }
 
 pub fn monster_entity(mo: &Monster, facts: &BTreeSet<String>) -> Entity {
@@ -3850,11 +3952,21 @@ pub fn companion_monster(id: u32, c: &Companion, pos: Pos) -> Monster {
     m.cid = Some(c.id);
     m.name = Some(c.name.clone());
     m.level = c.level;
-    m.max_hp = c.max_hp.max(1);
+    m.max_hp = pet_max_hp(c, 1);
     m.hp = m.max_hp;
     let base: Vec<&str> = m.def().tags.to_vec();
     m.extra_tags = c.tags.iter().filter(|t| !base.contains(&t.as_str())).cloned().collect();
     m
+}
+
+/// Cut 20 §2: hp a raised companion adds per level past the first.
+pub const PET_LEVEL_HP: i32 = 2;
+
+/// Cut 20 §2: a companion's max hp on `depth` — its record's, or its kind's at that depth
+/// (the floors' foes grow; a pet keeps pace), plus `PET_LEVEL_HP` per level past the first.
+pub fn pet_max_hp(c: &Companion, depth: u32) -> i32 {
+    let d = crate::defs::monster_def(&c.kind);
+    c.max_hp.max(d.hp + crate::defs::depth_hp_bonus(depth)).max(1) + PET_LEVEL_HP * (c.level.max(1) as i32 - 1)
 }
 
 /// A companion record for a freshly tamed monster.

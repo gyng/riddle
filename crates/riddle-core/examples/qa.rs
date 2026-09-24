@@ -250,7 +250,9 @@ fn check_death(t: &mut Tally, seed: u64, d: &riddle_core::Death) {
     // Cut 15 §6: 0 % candidates show only when nothing survives (a dice death is never empty).
     let any_survives = d.patches.iter().any(|p| p.survive > 0.0);
     for p in d.patches.iter().filter(|p| p.insert_at >= 0) {
-        t.check("no patch survives 0 % beside one that survives", !any_survives || p.survive > 0.0, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2}", d.run_id, p.row.describe(), p.survive, d.baseline));
+        // (Cut 6 §8: on a boss death a lone return is joined by the best other candidate — the
+        // wall's counter even at 0 %, flagged `below_bar`: named as what was tried, not advice.)
+        t.check("no patch survives 0 % beside one that survives", !any_survives || p.survive > 0.0 || p.below_bar, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2}", d.run_id, p.row.describe(), p.survive, d.baseline));
     }
     if d.verdict == "dice" {
         t.check("no dice death's margin names an unused item", !d.margin.contains("unused"), || format!("seed {seed} run {}: `{}`", d.run_id, d.margin));
@@ -636,6 +638,9 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     loop {
         let r = g.step(50);
         n += 1;
+        // Cut 20 §4: the stake names what a death keeps beside the exit row's keep.
+        let st = &r.snapshot.stake;
+        t.check("the stake's death keep == the death tier's share of carried", st.death_keep == st.loot.max(0) * ExitTier::Death.pct() / 100, || format!("seed {seed}: death keep {} of carried {}", st.death_keep, st.loot));
         if r.run_over {
             if r.events.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "death")) {
                 died = Some(r.snapshot.run.id);
@@ -661,6 +666,15 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         }
     }
     check_gold(t, &g, seed, "after the run");
+    // Cut 20 §4 (AC: a silent repeat charge on death): a re-pack charged at a death's exit is
+    // a `repeat` line in the gold ledger and on the death record's ledger line.
+    if let (Some(id), Some(line)) = (died, g.last_exit.clone()) {
+        if line.spent > 0 {
+            let repeat: i32 = g.lineage.gold_ledger.iter().filter(|x| x.why.starts_with("repeat") && x.delta < 0).map(|x| -x.delta).sum();
+            let rec = g.death(id).and_then(|d| d.line).map(|l| l.spent);
+            t.check("a death's repeat charge is a `repeat` ledger line", repeat >= line.spent && rec == Some(line.spent), || format!("seed {seed} run {id}: spent {} · repeat lines ${repeat} · record {rec:?}", line.spent));
+        }
+    }
     lp.lap("first run (new, send, exit)");
     // The death: its verdict, its patches (none already in the set), the top one applied.
     if let Some(id) = died {

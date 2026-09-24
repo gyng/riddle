@@ -267,6 +267,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         exits: b.exits.clone(),
         picked: game.lineage.picked_clean(),
         restock_capped: b.restock_capped,
+        bounty: b.bounty.clone(),
         repeat_short: b.repeat_short,
     }
 }

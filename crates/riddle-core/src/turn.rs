@@ -1169,6 +1169,9 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             wake_den(run, cx);
         }
     }
+    // Cut 20 §2: a companion already fallen back (≤ 30 % hp) dies only cornered; the blow
+    // that would kill it from above that is still a kill.
+    let dmg = if dmg >= run.monsters[mi].hp && crate::ai::pet_wounded(&run.monsters[mi]) && !crate::ai::pet_cornered(run, mi) { run.monsters[mi].hp - 1 } else { dmg };
     run.monsters[mi].hp -= dmg;
     if run.monsters[mi].kind == "bloat_mother" && run.monsters[mi].hp > 0 && matches!(src, Src::Hero { ranged: false }) {
         let at = run.monsters[mi].pos;
@@ -1281,6 +1284,8 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         }
     }
     if let Some(it) = m.stolen.clone() {
+        // Cut 20 §1: a killed thief drops what it stole where it fell; picked up, it is
+        // `Got the heal back.` (`pickup_here`).
         run.items.push(crate::engine::FloorItem { pos, item: it });
     }
     if m.has_tag("gas") {
@@ -1649,6 +1654,18 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     let up = run.floor.stairs_up;
     let allies = std::mem::take(&mut run.monsters);
     for mut m in allies {
+        // Cut 20 §2: a companion comes down the stairs at ≥ 60 % of its hp, back in the fight.
+        if m.is_companion() {
+            if let Some(c) = m.cid.and_then(|cid| run.companion(cid)) {
+                let max = crate::engine::pet_max_hp(c, next);
+                if max > m.max_hp {
+                    m.hp += max - m.max_hp;
+                    m.max_hp = max;
+                }
+            }
+            m.hp = m.hp.max((m.max_hp * crate::ai::PET_DESCENT_PCT + 99) / 100).min(m.max_hp);
+            m.fleeing = false;
+        }
         let free = up.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q) && *q != up);
         m.pos = free.unwrap_or(up);
         run.monsters.push(m);
@@ -1971,8 +1988,28 @@ pub fn pray(run: &mut Run, cx: &mut Ctx, want_row: bool) {
     callout(run, cx, "prayed");
 }
 
-/// Pick up whatever lies on the hero's tile.
+/// Pick up whatever lies on the hero's tile. Cut 20 §1: an item a thief stole this run,
+/// taken back, is a note (`Got the heal back.`).
 pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
+    if run.stolen_ids.is_empty() {
+        pickup_item_here(run, cx);
+        return;
+    }
+    let here = run.hero.pos;
+    let back: Vec<u32> = run.items.iter().filter(|fi| fi.pos == here && run.stolen_ids.contains(&fi.item.id)).map(|fi| fi.item.id).collect();
+    pickup_item_here(run, cx);
+    for id in back {
+        let Some(it) = run.hero.inv.iter().chain(run.hero.weapon.iter()).chain(run.hero.armour.iter()).find(|i| i.id == id) else { continue };
+        let (_, _, label) = crate::item::describe(it, cx.facts, cx.flavours);
+        let label = label.trim_end_matches('?').to_string();
+        run.stolen_ids.retain(|x| *x != id);
+        run.recovered.push((run.turn, label.clone()));
+        note(run, cx, format!("Got the {label} back."));
+        callout(run, cx, "got it back");
+    }
+}
+
+fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
     // Several items may share a tile (a recovered kit that did not fit): take the first
     // that would change anything.
     let here = run.hero.pos;
@@ -1985,6 +2022,9 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
     if item.cat() == Cat::Gold {
         let it = run.items.remove(ii).item;
         run.loot_add_gold(it.amount);
+        if run.bounty == Some(run.depth) {
+            run.bounty_gold += it.amount;
+        }
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: format!("gold ${}", it.amount) });
         // Cut 5 §3: gold under a foe's nose.
         if !view(run).foes.is_empty() {

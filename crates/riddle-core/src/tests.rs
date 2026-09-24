@@ -2239,7 +2239,8 @@ fn auto_keep_follows_the_chip_and_never_evicts_across_categories() {
 /// forecast shows once the patch is applied (and the camp then reads the memoised panels).
 #[test]
 fn death_deltas_are_the_camp_forecasts_move() {
-    let mut g = Game::new(1015);
+    // Cut 20 §1: seed 1015's first death moved (one theft a run); 1022's offers the rest patch.
+    let mut g = Game::new(1022);
     g.send();
     let mut died = None;
     for _ in 0..4000 {
@@ -2249,7 +2250,7 @@ fn death_deltas_are_the_camp_forecasts_move() {
             break;
         }
     }
-    let id = died.expect("seed 1015's first heir dies");
+    let id = died.expect("seed 1022's first heir dies");
     g.keep(vec![]).unwrap();
     let d = g.death(id).unwrap();
     assert!(!d.patches.is_empty() && d.patches.iter().all(|p| p.camp_pending && p.forecast_depth == 0), "{:?}", d.patches);
@@ -2265,7 +2266,7 @@ fn death_deltas_are_the_camp_forecasts_move() {
         let moved = bar(&h.forecast(), p.forecast_depth) - bar(&before, p.forecast_depth);
         assert!((moved - p.forecast_delta).abs() < 1e-9, "{}: reach {:+.3} vs camp {moved:+.3}", p.row.describe(), p.forecast_delta);
     }
-    let rest = ps.iter().find(|p| p.row.verb.v == "rest").expect("the rest patch");
+    let rest = ps.iter().find(|p| p.row.verb.v == "rest").unwrap_or_else(|| panic!("the rest patch: {:?}", ps.iter().map(|p| (p.row.describe(), p.forecast_delta)).collect::<Vec<_>>()));
     assert!(rest.forecast_delta > 0.2, "rest moves D{} by {:+.2}", rest.forecast_depth, rest.forecast_delta);
 }
 
@@ -7019,7 +7020,9 @@ fn thief_guard_cuts_den_snatches() {
         without += a;
         with += b;
     }
-    assert!(without >= 30, "the preset is robbed ({without} snatches over 30 seeds)");
+    // Cut 20 §1: one theft a run — at most one snatch a seed (a wandering monkey's theft on
+    // the way makes the den's thieves bolt empty-handed).
+    assert!(without >= 20, "the preset is robbed ({without} snatches over 30 seeds)");
     assert!(with * 5 <= without, "with the card {with} vs without {without}");
     // The card's sheet leads with the raid.
     let rows = crate::meta::unlock_rows("thief_guard").unwrap();
@@ -7861,7 +7864,7 @@ fn a_boss_wall_names_the_boss_until_the_set_passes_him() {
     assert_eq!(wall_at(9, 0.2, 0.8), None, "passable");
     assert_eq!(wall_at(9, 0.0, 0.03), None, "the fall came before the boss");
     assert_eq!(wall_at(8, 0.0, 0.8), None, "no boss above D8");
-    assert!(serde_json::to_value(ForecastDepth { depth: 4, reach: 0.5, pm: None, try_: None, wall: None }).unwrap().get("wall").is_none());
+    assert!(serde_json::to_value(ForecastDepth { depth: 4, reach: 0.5, pm: None, try_: None, wall: None, bounty: false }).unwrap().get("wall").is_none());
 }
 
 // ---------------------------------------------------------------- QA on 92eb880 (qaM, seed 1215)
@@ -8600,4 +8603,284 @@ fn the_cage_forecast_measures_each_preference() {
     g.lineage.vault_pref = "armour".into();
     g.run.as_mut().unwrap().vault_choice = Some((g.run.as_ref().unwrap().turn, items));
     assert_eq!(g.snapshot().vault_choice.unwrap().pick, Some(1002));
+}
+
+// ---------------------------------------------------------------- Cut 20
+
+/// Cut 20 §1: a run suffers at most one theft — a den's other thieves bolt empty-handed, and a
+/// monkey's blow after the first theft takes nothing (it runs). Measured over whole runs of the
+/// preset on 24 seeds with a den forced on D3, and on the den floor itself.
+#[test]
+fn a_run_suffers_at_most_one_theft() {
+    let counts = par_seeds(1..=24u64, |seed| {
+        let mut g = Game::new(seed);
+        g.lineage.facts.insert("foe:monkey:thief".into());
+        g.sim = true;
+        g.start_run(Some(seed ^ 0x20));
+        g.descend_to_twist(3, "den");
+        g.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
+        let r = g.run.as_ref().unwrap();
+        (r.stolen.len(), r.den_wakes)
+    });
+    assert!(counts.iter().all(|(n, _)| *n <= 1), "{counts:?}");
+    let woke = counts.iter().filter(|(_, w)| *w > 0).count();
+    assert!(woke >= 12, "the den still pounces on a fresh lineage: {woke}/24");
+    assert!(counts.iter().filter(|(n, _)| *n == 1).count() >= 12, "{counts:?}");
+    // A monkey after the run's one theft: its blow takes nothing and it runs.
+    let mut g = arena();
+    let heal = give(&mut g, "heal");
+    let id = add_monster(&mut g, "monkey", 5, 5);
+    let run = g.run.as_mut().unwrap();
+    run.stolen.push((0, "scroll".into()));
+    let mi = run.monsters.iter().position(|m| m.id == id).unwrap();
+    for _ in 0..40 {
+        let (run, mut cx) = g.ctx();
+        crate::ai::monster_act(run, &mut cx, mi);
+        if run.monsters[mi].fear > 0 {
+            break;
+        }
+    }
+    let run = g.run.as_ref().unwrap();
+    assert!(run.hero.inv.iter().any(|i| i.id == heal), "the heal is still in the pack");
+    assert_eq!(run.stolen.len(), 1);
+    assert!(run.monsters[mi].fear > 0 && run.monsters[mi].stolen.is_none(), "the monkey runs empty-handed");
+}
+
+/// Cut 20 §1: a killed thief drops what it stole where it fell; picked back up, it is a note
+/// (`Got the heal back.`, ≤ 8 words).
+#[test]
+fn a_killed_thief_drops_what_it_stole_and_the_pickup_is_a_note() {
+    let mut g = arena();
+    let id = add_monster(&mut g, "monkey", 5, 5);
+    let run = g.run.as_mut().unwrap();
+    let iid = run.new_item_id();
+    let mut heal = Item::new(iid, "heal");
+    heal.known = true;
+    let mi = run.monsters.iter().position(|m| m.id == id).unwrap();
+    run.monsters[mi].stolen = Some(heal);
+    run.monsters[mi].fleeing = true;
+    run.stolen_ids.push(iid);
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::damage_monster(run, &mut cx, mi, 99, &crate::turn::Src::Hero { ranged: false });
+    }
+    let run = g.run.as_mut().unwrap();
+    assert!(run.items.iter().any(|fi| fi.item.id == iid && fi.pos == Pos::new(5, 5)), "dropped where it fell");
+    run.hero.pos = Pos::new(5, 5);
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::pickup_here(run, &mut cx);
+    }
+    let run = g.run.as_ref().unwrap();
+    assert!(run.hero.inv.iter().any(|i| i.id == iid), "back in the pack");
+    let label = run.recovered.last().map(|(_, l)| l.clone()).expect("the recovery is noted");
+    assert!(label.contains("heal"), "{label}");
+    let text = format!("Got the {label} back.");
+    assert!(word_count(&text) <= 8, "{text}");
+    assert!(run.stolen_ids.is_empty());
+}
+
+/// Cut 20 §1: the first den a lineage meets always wakes; after one has, dens pounce on ≤ 1
+/// floor in 3 (deterministic from the run's seed and the floor) — for every lineage, not only
+/// one that lost to a den; and within a run, once its den has woken.
+#[test]
+fn dens_wake_on_one_floor_in_three_after_the_first() {
+    let mut g = Game::new(5);
+    g.start_run(Some(5));
+    assert!(!g.run.as_ref().unwrap().den_thin, "a lineage that never met a den: it wakes");
+    g.lineage.den_wakes = 1;
+    g.run = None;
+    g.start_run(Some(6));
+    assert!(g.run.as_ref().unwrap().den_thin);
+    // The share over many (seed, floor) draws.
+    let (mut n, mut k) = (0u32, 0u32);
+    for seed in 1..=400u64 {
+        for depth in 3..=11u32 {
+            let mut g = Game::new(1);
+            g.lineage.den_wakes = 1;
+            g.start_run(Some(seed));
+            let run = g.run.as_mut().unwrap();
+            run.depth = depth;
+            n += 1;
+            k += crate::situations::den_pounces(run) as u32;
+            assert_eq!(crate::situations::den_pounces(run), crate::situations::den_pounces(run));
+        }
+    }
+    let share = k as f64 / n as f64;
+    assert!((0.28..=0.36).contains(&share), "{share}");
+    // A lineage whose den has woken is thinned at the exit.
+    let mut g = Game::new(3);
+    g.start_run(Some(7));
+    g.run.as_mut().unwrap().den_wakes = 1;
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Return);
+    }
+    g.finish_run();
+    assert_eq!(g.lineage.den_wakes, 1);
+}
+
+/// Cut 20 §2: a companion at ≤ 30 % hp falls back (engages nothing) and a blow that would kill
+/// it then leaves it at 1 unless it is cornered; each descent heals it to ≥ 60 %.
+#[test]
+fn a_wounded_pet_falls_back_and_heals_on_the_stairs() {
+    let mut g = arena();
+    let c = Companion { id: 7_000_001, kind: "jackal".into(), name: "Thix".into(), level: 2, tags: vec!["pack".into(), "fast".into()], gen: 0, rules: crate::probes::default_companion_rules(&["pack".into()], 2), max_rows: 3, hp: 8, max_hp: 8 };
+    let run = g.run.as_mut().unwrap();
+    let pid = run.new_id();
+    let mut pet = crate::engine::companion_monster(pid, &c, Pos::new(5, 5));
+    run.companions.push(c.clone());
+    let max = pet.max_hp;
+    assert!(max >= 8 + crate::engine::PET_LEVEL_HP, "a raised pet is sturdier: {max}");
+    pet.hp = 1;
+    run.monsters.push(pet);
+    let foe = add_monster(&mut g, "goblin", 6, 5);
+    let run = g.run.as_mut().unwrap();
+    let pi = run.monsters.iter().position(|m| m.id == pid).unwrap();
+    let fi = run.monsters.iter().position(|m| m.id == foe).unwrap();
+    {
+        let (run, mut cx) = g.ctx();
+        crate::ai::monster_act(run, &mut cx, pi);
+        assert!(run.monsters[pi].fleeing, "it falls back");
+        assert_eq!(run.monsters[fi].hp, run.monsters[fi].max_hp, "it engages nothing");
+        crate::turn::damage_monster(run, &mut cx, pi, 50, &crate::turn::Src::Mon(fi));
+        assert_eq!(run.monsters[pi].hp, 1, "not cornered: it lives");
+    }
+    // From above 30 % a killing blow kills.
+    {
+        let (run, mut cx) = g.ctx();
+        run.monsters[pi].hp = run.monsters[pi].max_hp;
+        crate::turn::damage_monster(run, &mut cx, pi, 999, &crate::turn::Src::Mon(fi));
+        assert!(run.monsters[pi].hp <= 0);
+    }
+    // Cornered: walled in on every side, it dies.
+    let mut g = arena();
+    let run = g.run.as_mut().unwrap();
+    let pid = run.new_id();
+    let mut pet = crate::engine::companion_monster(pid, &c, Pos::new(1, 10));
+    run.companions.push(c.clone());
+    pet.hp = 1;
+    run.monsters.push(pet);
+    add_monster(&mut g, "goblin", 2, 10);
+    add_monster(&mut g, "goblin", 2, 9);
+    add_monster(&mut g, "goblin", 1, 9);
+    let run = g.run.as_mut().unwrap();
+    let pi = run.monsters.iter().position(|m| m.id == pid).unwrap();
+    {
+        let (run, mut cx) = g.ctx();
+        assert!(crate::ai::pet_cornered(run, pi));
+        crate::turn::damage_monster(run, &mut cx, pi, 50, &crate::turn::Src::Mon(pi + 1));
+        assert!(run.monsters[pi].hp <= 0, "cornered: it dies");
+    }
+    // The stairs heal a wounded pet to ≥ 60 %.
+    let mut g = Game::new(9);
+    g.start_run(Some(9));
+    let run = g.run.as_mut().unwrap();
+    let pid = run.new_id();
+    let hp = run.hero.pos;
+    let mut pet = crate::engine::companion_monster(pid, &c, Pos::new(hp.x, hp.y));
+    run.companions.push(c.clone());
+    pet.hp = 1;
+    run.monsters.push(pet);
+    g.descend_to(2);
+    let run = g.run.as_ref().unwrap();
+    let pet = run.monsters.iter().find(|m| m.id == pid).expect("the pet came down");
+    assert!(pet.hp * 100 >= pet.max_hp * crate::ai::PET_DESCENT_PCT && !pet.fleeing, "{}/{}", pet.hp, pet.max_hp);
+}
+
+/// Cut 20 §4: the stake names what a death keeps (the death tier's share) beside the exit
+/// row's keep; a repeat re-pack charged at a death's exit is a `repeat` ledger line.
+#[test]
+fn the_stake_names_the_death_keep_and_a_death_repeat_is_a_line() {
+    let mut g = Game::new(4);
+    g.start_run(Some(4));
+    g.run.as_mut().unwrap().loot_add_gold(78);
+    let st = g.snapshot().stake;
+    assert_eq!(st.loot, 78);
+    assert_eq!(st.death_keep, 78 * ExitTier::Death.pct() / 100);
+    let v = serde_json::to_value(&st).unwrap();
+    assert!(v.get("death_keep").is_some());
+    // A death with a repeat to pay: the ledger line and the death record's `spent`.
+    let mut g = Game::new(4);
+    g.lineage.gold = 500;
+    if let Some(f) = ident_fact(&g.lineage.flavours, "heal") {
+        g.lineage.facts.insert(f);
+    }
+    g.lineage.supplies.clear();
+    g.start_run(Some(4));
+    g.lineage.last_supplies = vec!["heal".into()];
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Death);
+    }
+    g.finish_run();
+    let t = g.lineage.total_turns;
+    let repeat: Vec<&GoldLine> = g.lineage.gold_ledger.iter().filter(|x| x.t == t && x.why.starts_with("repeat")).collect();
+    assert!(!repeat.is_empty(), "{:?}", g.lineage.gold_ledger);
+    let line = g.last_exit.clone().unwrap();
+    assert_eq!(line.spent, -repeat.iter().map(|x| x.delta).sum::<i32>());
+}
+
+/// Cut 20 §5: each night the lineage's best depth + 2 is the bounty floor — its gold piles pay
+/// double and it holds one item of the next tier (forged one past the lineage's forge); the
+/// forecast flags its notch; the report says whether a run brought it home. Deterministic.
+#[test]
+fn the_bounty_floor_moves_each_night_and_pays_double() {
+    let mut g = Game::new(12);
+    g.lineage.best_depth = 5;
+    assert_eq!(g.lineage.bounty, None);
+    for _ in 0..crate::engine::NIGHT_RUNS {
+        g.lineage.night_run(1, 1, false);
+    }
+    assert_eq!(g.lineage.bounty, Some(7));
+    assert_eq!(g.lineage().bounty, Some(Bounty { depth: 7 }));
+    let floor = |bounty: Option<u32>| {
+        let mut g = Game::new(12);
+        g.lineage.best_depth = 5;
+        g.lineage.bounty = bounty;
+        g.start_run(Some(33));
+        g.descend_to(7);
+        let run = g.run.as_ref().unwrap();
+        let gold: Vec<i32> = run.items.iter().filter(|fi| fi.item.kind == "gold").map(|fi| fi.item.amount).collect();
+        let gear: Vec<(String, i32)> = run.items.iter().filter(|fi| fi.item.known && matches!(fi.item.cat(), crate::defs::Cat::Weapon | crate::defs::Cat::Armour)).map(|fi| (fi.item.kind.clone(), fi.item.enchant)).collect();
+        (gold, gear)
+    };
+    let (plain, _) = floor(None);
+    let (bounty, gear) = floor(Some(7));
+    // The floor's six piles (the first placed; a nest's or a den's pile may follow).
+    assert!(plain.len() >= 6 && bounty.len() >= 6);
+    assert_eq!(bounty[..6].to_vec(), plain[..6].iter().map(|g| 2 * g).collect::<Vec<i32>>(), "{plain:?} → {bounty:?}");
+    assert_eq!(gear.len(), 1, "{gear:?}");
+    assert!(gear[0].1 >= 1);
+    assert_eq!(floor(Some(7)), (bounty.clone(), gear.clone()), "deterministic");
+    // The forecast's notch.
+    let mut g = Game::new(12);
+    g.lineage.best_depth = 5;
+    g.lineage.bounty = Some(7);
+    let f = g.forecast();
+    assert!(f.depths.iter().any(|d| d.depth == 7 && d.bounty), "{:?}", f.depths.iter().map(|d| (d.depth, d.bounty)).collect::<Vec<_>>());
+    assert_eq!(f.depths.iter().filter(|d| d.bounty).count(), 1);
+    // The report: taken when a run reached it and came home.
+    g.start_run(Some(1));
+    g.batch = crate::engine::Batch::default();
+    {
+        let run = g.run.as_mut().unwrap();
+        run.max_depth = 7;
+        run.bounty_gold = 50;
+    }
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.finish_run();
+    assert_eq!(g.batch.bounty, Some(BountyReport { depth: 7, taken: true, gold: 50 }));
+    let mut g = Game::new(12);
+    g.lineage.bounty = Some(9);
+    g.start_run(Some(1));
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Death);
+    }
+    g.finish_run();
+    assert_eq!(g.batch.bounty, Some(BountyReport { depth: 9, taken: false, gold: 0 }));
 }

@@ -241,16 +241,18 @@ pub fn situation_trial(seed: u64, what: &str, answered: bool) -> (bool, bool, bo
 
 /// Cut 12 §2 gate probe: the den's snatches on one seed — the shipped preset alone, and the
 /// preset with the thief guard card's bare row where `buy` puts it (before `attack nearest`).
-/// Returns (snatches without the card, snatches with it).
+/// Returns (snatches without the card, snatches with it). Cut 20 §1: the den's own snatches
+/// (`Run.den_snatches`) — with one theft a run, a wandering monkey's theft on the floor (the
+/// same tick with the card or without) was a third of the count and no den's.
 pub fn den_guard_trial(seed: u64) -> (u32, u32) {
     let set = preset(Class::Fighter);
     let g = floor_trial_with(seed, 3, set.clone(), Some("den"), &[]);
-    let without = g.run.as_ref().map(|r| r.stolen.len() as u32).unwrap_or(0);
+    let without = g.run.as_ref().map(|r| r.den_snatches).unwrap_or(0);
     let mut carded = set;
     let at = crate::meta::card_insert_at(&carded);
     carded.rows.insert(at, Row::new(vec![], Verb::arg("tactic", "thief_guard")).from("card"));
     let g = floor_trial_with(seed, 3, carded, Some("den"), &["thief_guard"]);
-    let with = g.run.as_ref().map(|r| r.stolen.len() as u32).unwrap_or(0);
+    let with = g.run.as_ref().map(|r| r.den_snatches).unwrap_or(0);
     (without, with)
 }
 

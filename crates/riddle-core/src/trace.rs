@@ -143,7 +143,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let boss = if stall { None } else { boss_of(run, &cause) };
     let loop_row = if stall { run.stuck_row.and_then(|r| usize::try_from(r).ok()).filter(|&r| r < rules.rows.len()) } else { None };
     let row_fired = run.row_fired.clone();
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired }
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new() }
 }
 
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
@@ -1332,7 +1332,7 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
         // under a high baseline): either way the screen says `nothing beats base`.
         let bar = survive_bar(baseline).max(baseline);
         for p in rec.death.patches.iter_mut() {
-            p.below_bar = p.survive < bar - 1e-9 || (p.root.is_none() && p.survive <= baseline + 1e-9);   // equal to base is not better (QA on 56f2a1d: `survives 100% · base 100%` offered)
+            p.below_bar = p.survive < bar - 1e-9 || (p.root.is_none() && p.survive <= baseline + 1e-9) || rec.low_fired.contains(&p.row);   // equal to base is not better (QA on 56f2a1d: `survives 100% · base 100%` offered)
         }
     }
     // Cut 15 §6: a below-the-bar candidate that survives 0 % is not shown (U: `survives 0% ·
@@ -1350,7 +1350,12 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     if rec.boss.is_some() && rec.death.patches.len() == 1 && family(&rec.death.patches[0].row) == "escape" {
         let mut others: Vec<Patch> = pre_retain.into_iter().filter(|p| family(&p.row) != "escape" && !(p.below_bar && p.survive <= 1e-9)).collect();
         others.sort_by(|a, b| b.survive.partial_cmp(&a.survive).unwrap().then(b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap()));
-        if let Some(o) = others.into_iter().next() {
+        if let Some(mut o) = others.into_iter().next() {
+            // QA on the Cut 20 gate (`boss → hit boss · survives 0%` beside a return that
+            // survives): a 0 % joiner is named as what was tried — below the bar, not advice.
+            if o.survive <= 1e-9 && rec.death.patches[0].survive > 1e-9 {
+                o.below_bar = true;
+            }
             rec.death.patches.insert(0, o);
         }
     }
@@ -1426,6 +1431,7 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
         // death is never empty. (Its survival is the baseline's; the honest fix for such a
         // death is a checkpoint before the descent, not a row at the moment.)
         if let Some((p, _)) = measured.iter().filter(|(_, f)| *f > 0.0).max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).or_else(|| measured.iter().max_by(|a, b| a.0.survive.partial_cmp(&b.0.survive).unwrap())) {
+            rec.low_fired.push(p.row.clone());
             out.push(p.clone());
         }
     }

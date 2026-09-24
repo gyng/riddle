@@ -154,6 +154,11 @@ pub struct Stake {
     /// replaces the chores until the exit (`Run.homeward`); the HUD's `returning`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub returning: bool,
+    /// Cut 20 §4 (AC: `carry $78 · keeps $78 · bank R4`, then died with $0): what a death
+    /// would keep of the carried gold right now (the death tier's share), beside `kept`, so
+    /// the HUD reads `carry $78 · bank keeps $78 · death $0`.
+    #[serde(default)]
+    pub death_keep: i32,
 }
 
 /// Cut 6 §1: the ledger line of an exit — one arithmetic line the player can check.
@@ -374,6 +379,9 @@ pub struct ForecastDepth {
     /// warlord wall` before the player has met him.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wall: Option<String>,
+    /// Cut 20 §5: this notch is the lineage's bounty floor (`D12 ×2`).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub bounty: bool,
 }
 
 /// Cut 10 §2: a forecast row's `try` — the known-but-absent counter of the boss whose floor
@@ -682,6 +690,26 @@ pub struct ReturnReport {
     /// (`repeat short`).
     #[serde(default, skip_serializing_if = "is_false")]
     pub repeat_short: bool,
+    /// Cut 20 §5: the absence's bounty floor and whether a run brought it home (`bounty D12 ·
+    /// missed` / `taken $412`); absent when the lineage had no bounty during the absence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounty: Option<BountyReport>,
+}
+
+/// Cut 20 §5: the bounty floor (`Lineage.bounty`): each night the lineage's best depth + 2 —
+/// its gold ×2 and one item of the lineage's next tier.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Bounty {
+    pub depth: u32,
+}
+
+/// Cut 20 §5: the report's bounty — `taken` when a run reached the floor and came home
+/// (bank or return); `gold` the kept share of the coins picked up on it.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct BountyReport {
+    pub depth: u32,
+    pub taken: bool,
+    pub gold: i32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -918,6 +946,9 @@ pub struct Lineage {
     /// has a `$0 repeat short` line at that exit). Empty once a re-pack paid for everything.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub repeat_short: Vec<String>,
+    /// Cut 20 §5: tonight's bounty floor (set at each night's end: best depth + 2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bounty: Option<Bounty>,
 }
 
 /// Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id
