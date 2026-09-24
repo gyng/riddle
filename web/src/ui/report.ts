@@ -13,6 +13,7 @@ import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
+import { wakeShown } from "./death";
 import { openUnlockSheet, priceLabel, visible, withRowsGate } from "./unlocks";
 import { lostLabel, rowLabel } from "./tokens";
 import { traceChip } from "./trace";
@@ -37,8 +38,9 @@ export function exitDepth(app: App, x: ExitLine, newer: ExitLine[] = []): number
 /** Cut 14 §4: a trace chip's label, ≤ 3 words: `D5 · died · trace` (`died · trace` without a depth). */
 export function traceLabel(app: App, x: ExitLine, newer: ExitLine[] = []): string {
   const tier = /^(banked|returned|died)/.exec(x.text)?.[1] ?? exitLead(x).split(" ")[0];
-  const d = exitDepth(app, x, newer);
-  return /* copy:callout */ `${d !== undefined ? `D${d} · ` : ""}${tier} · trace`;
+  // QA 1a2a4a9 (O: `… on D8 D8 · DIED · TRACE`): a line that already names the floor keeps it once — the chip reads `died · trace`
+  const d = exitDepth(app, x, newer), named = d !== undefined && new RegExp(/* copy:none */ `\\bD${d}\\b`).test(x.text);
+  return /* copy:callout */ `${d !== undefined && !named ? `D${d} · ` : ""}${tier} · trace`;
 }
 
 /** Cut 10 §3: an exit line's lead — the tier from its keep share and the sum kept: `returned $61` · `banked $84` · `died $0`. */
@@ -51,8 +53,8 @@ export function exitLead(x: ExitLine): string {
  *  without a lead (an older slice) gets one in front — never two (`died $0 · died $0 · $190 carried` on every real report). */
 export function ledgerText(x: ExitLine): (string | HTMLElement)[] {
   const m = /^((?:banked|returned|died) \$-?\d+)(?: · )?(.*)$/s.exec(x.text);
-  if (m) return [h("b", { class: "lead" }, m[1]), m[2] ? " · " : "", m[2]];
-  return [h("b", { class: "lead" }, exitLead(x)), " · ", x.text];
+  if (m) return [h("b", { class: "lead" }, m[1]), m[2] ? " · " : "", wakeShown(m[2])];
+  return [h("b", { class: "lead" }, exitLead(x)), " · ", wakeShown(x.text)];
 }
 
 /** Cut 16 §1: the depths picked clean as one line — consecutive depths collapse (`D1–4 · picked clean`, `D3 · D5 · picked clean`). */
@@ -107,12 +109,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
   // Cut 13 §3: the gold line — what the exits brought (banked / returned, off the exit lines), the salvage, the automations' spending
   const goldLine = (): HTMLElement | null => {
-    if (!r.spent && !r.salvaged && !r.gold && !r.restock_capped) return null;
+    if (!r.spent && !r.salvaged && !r.gold && !r.restock_capped && !r.repeat_short) return null;
     const ex = r.exits ?? [];
     const bankedG = ex.filter((x) => x.keep_pct >= 100).reduce((a, x) => a + x.kept, 0), returnedG = ex.filter((x) => x.keep_pct > 0 && x.keep_pct < 100).reduce((a, x) => a + x.kept, 0);
     const salvageG = (r.salvaged ?? []).reduce((a, x) => a + x.gold, 0), spentG = (r.spent ?? []).reduce((a, x) => a + x.gold, 0);
     const pieces: (string | HTMLElement)[] = [];
-    const WORD = /* copy:callout */ { banked: "banked", returned: "returned", salvage: "salvage", wake: "wake", spent: "spent" };
+    const WORD = /* copy:callout */ { banked: "banked", returned: "returned", salvage: "salvage", wake: "purse", spent: "spent" };
     const piece = (n: number, sign: string, word: string, cls: string): void => { if (n > 0) pieces.push(h("span", { class: cls }, `${sign}$${n} ${word}`)); };
     // the core's summary is to the coin over every run of the absence (the exit lines are capped per slice): it wins
     // QA 92eb880 (M, N: "`+$892 home` where the gold sheet and rows say `returned`"): the exits' coins by the rows' own words — `banked` /
@@ -126,6 +128,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     else { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); piece(salvageG, "+", WORD.salvage, "up"); piece(spentG, "−", WORD.spent, "down"); }
     // Cut 19 §3: the repeat stopped once the night's spending reached what it brought home
     if (r.restock_capped) pieces.push(h("span", { class: "capped warn" }, /* copy:callout */ "restock capped"));
+    // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay
+    if (r.repeat_short) pieces.push(h("span", { class: "capped warn" }, /* copy:callout */ "repeat short"));
     if (!pieces.length) return null;
     const out: (string | HTMLElement)[] = []; pieces.forEach((p, i) => { if (i) out.push(" · "); out.push(p); });
     return h("div", { class: "gold-line dim num" }, ...out);
@@ -150,7 +154,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // first, like the gold sheet; `· N earlier` stays under them (the older ones)
     exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
       h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
-      " ",   // a word break between the line and its chip (QA on 3d71c33: `keeps 60%D7` in the page's text)
+      " · ",   // a break between the line and its chip (QA on 3d71c33: `keeps 60%D7`; QA 1a2a4a9, O: `◆+2 D3 · RETURNED` glued)
       traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
       hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} earlier`) : "",
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
@@ -204,10 +208,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     pendingBody.replaceChildren();
     const ul = lines(pendingLines); if (ul) pendingBody.appendChild(ul);
     // Cut 9 §2: the card opens its sheet; the buy is there, and the report repaints itself after one
-    affordable = affordable.map((u) => withRowsGate(u, app.ownRows(), app.vocab.max_rows)).filter((u) => u.available);   // Cut 10 §3; Cut 12 §1: own rows
+    // QA 1a2a4a9: the core's short list (`UnlockInfo.short`) when sent — the camp's shelf shows the same three
+    const coreShort = affordable.some((u) => u.short !== undefined);
+    affordable = affordable.map((u) => withRowsGate(u, app.ownRows(), app.vocab.max_rows)).filter((u) => coreShort ? u.short : u.available);   // Cut 10 §3; Cut 12 §1: own rows
     // QA 23ed91f (L: "PENDING lists the whole unlock shop, identical across five reports"): the next three, as the camp's panel
     // (the larger reach gain, then the cheaper); the camp's `more` has the rest
-    affordable = affordable.map((u, i) => ({ u, i })).sort((a, b) => (b.u.delta ?? 0) - (a.u.delta ?? 0) || a.u.cost - b.u.cost || a.i - b.i).slice(0, 3).map((x) => x.u);
+    if (!coreShort) affordable = affordable.map((u, i) => ({ u, i })).sort((a, b) => (b.u.delta ?? 0) - (a.u.delta ?? 0) || a.u.cost - b.u.cost || a.i - b.i).slice(0, 3).map((x) => x.u);
     if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => openUnlockSheet(app, u, () => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, priceLabel(u))))));   // Cut 18 §5: both prices
     if (pendingSec) pendingSec.hidden = !pendingBody.childElementCount;
   };
@@ -274,6 +280,7 @@ function factChips(facts: string[], counters: Counter[] = []): HTMLElement | nul
   const nice = (x: string): string => x.replace(/_/g, " ");
   const foes = new Map<string, string[]>();
   const rest: HTMLElement[] = [], itemChips: HTMLElement[] = [];
+  const bossCounters = new Map<string, string>();
   for (const f of facts) {
     const m = /^foe:([^:]+)(?::(.+))?$/.exec(f);
     if (m) { const tags = foes.get(m[1]) ?? []; if (m[2]) tags.push(m[2]); foes.set(m[1], tags); continue; }
@@ -286,11 +293,18 @@ function factChips(facts: string[], counters: Counter[] = []): HTMLElement | nul
     const bn = /^bones:(\d+)$/.exec(f);
     if (bn) { rest.push(h("span", { class: "chip fact" }, /* copy:label */ "bones", h("small", null, ` D${bn[1]}`))); continue; }
     const c = /^boss:([^:]+):counter(?:=.*)?$/.exec(f);
-    if (c) { const text = counters.find((k) => k.boss === c[1])?.text; rest.push(h("span", { class: "chip fact" }, nice(c[1]), h("small", null, /* copy:label */ " counter", text ? `: ${text}` : ""))); continue; }
+    if (c) { bossCounters.set(c[1], counters.find((k) => k.boss === c[1])?.text ?? ""); continue; }
     // any other `kind:detail` fact reads like the foe chips (`alert · rising`, not `alert:rising`; QA on 50bb162)
     const kv = /^([^:]+):(.+)$/.exec(f);
     if (kv) { rest.push(h("span", { class: "chip fact" }, nice(kv[1]), h("small", null, ` · ${kv[2].split(":").map(nice).join(" · ")}`))); continue; }
     rest.push(h("span", { class: "chip fact" }, nice(f)));
+  }
+  // QA 1a2a4a9 (P: `goblin warlord · boss · telegraph · …` and again `goblin warlord · counter: attack boss`, two chips): a boss's counter
+  // rides on its foe chip when the foe is learned in the same report
+  for (const [boss, text] of bossCounters) {
+    const tags = foes.get(boss);
+    if (tags) tags.push(/* copy:none */ `counter${text ? `: ${text}` : ""}`);
+    else rest.push(h("span", { class: "chip fact" }, nice(boss), h("small", null, /* copy:label */ " counter", text ? `: ${text}` : "")));
   }
   const out = [...foes].map(([k, tags]) => h("span", { class: "chip fact" }, nice(k), tags.length ? h("small", null, ` · ${tags.map(nice).join(" · ")}`) : ""));
   if (!out.length && !rest.length && !itemChips.length) return null;

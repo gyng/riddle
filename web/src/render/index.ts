@@ -110,6 +110,7 @@ export type ViewerStats = {
 const TILE = 8;
 const WALL_TOP_DIM = 0.72; // second art pass: a wall top a step under the floor
 const MEMORY_DIM = 0.68;  // second art pass: a remembered tile (Cut 14 §3; was 0.6)
+const FLASH_MIX = 0.5;     // QA 1a2a4a9: a hit's flash, the share mixed toward the palette's brightest (was 1: a cream silhouette)
 const REMEMBERED_DIM = 0.5; // Cut 4 §3: a remembered foe, like a memory tile
 const CUT_FRAMES = 2;       // Cut 8A: dark frames on a frame change (a cut, not a tween)
 const BAR_W = 8;            // Cut 8A: hp bar width in env texels (1 tall)
@@ -224,6 +225,13 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   }
 
   // world position of an entity's feet (bottom-centre), snapped to env texels
+  /** A world point (feet coordinates) over a seen, open tile. */
+  function openFeet(x: number, y: number): boolean {
+    const tx = Math.floor(x / TILE), ty = Math.round((1 - TILE - y) / TILE);
+    if (tx < 0 || ty < 0 || tx >= st.w || ty >= st.h) return false;
+    const i = ty * st.w + tx;
+    return !!st.seen[i] && st.tiles[i] !== "wall";
+  }
   function feet(e: EntState): [number, number] {
     const [lx, ly] = st.lungeOffset(e);
     return [Math.round(e.px * TILE) + TILE / 2 + lx, -Math.round(e.py * TILE) - TILE + 1 - ly];
@@ -492,7 +500,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     for (const e of st.ents.values()) {
       if (e.kind === "bones" || e.dying) continue;
       const vi = e.y * st.w + e.x;
-      if (!e.hero && !st.visible[vi] && !e.remembered) continue;
+      if (!e.hero && !st.visible[vi] && !(e.remembered && st.seen[vi])) continue;
       const g = stacks.get(vi); if (g) g.push(e.id); else stacks.set(vi, [e.id]);
     }
     const tagBoxes: [number, number, number, number][] = [];   // Cut 15 §4: the name tags drawn so far this frame (world x0, y0, x1, y1)
@@ -508,9 +516,11 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     for (const e of st.ents.values()) {
       if (e.kind === "bones") continue; // drawn in the items layer above
       const vi = e.y * st.w + e.x;
-      if (!e.hero && !st.visible[vi] && !e.remembered) continue;
+      // QA 1a2a4a9 (P: jackal silhouettes on black left of a wall): a remembered foe is drawn only over a tile the map draws
+      if (!e.hero && !st.visible[vi] && !(e.remembered && st.seen[vi])) continue;
       stats.drawn++;
       let [fx, fy] = feet(e);
+      const fx0 = fx;
       const group = stacks.get(vi), stackN = group?.length ?? 1, stackI = group ? group.indexOf(e.id) : 0;
       if (stackN > 1 && stackI >= 0) fx += Math.round((stackI / (stackN - 1) - 0.5) * STACK_SPREAD);
       // Fight frame: a hostile on the tile straight above the hero would vanish behind the hero's tall
@@ -526,6 +536,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
           if (Math.abs(dx) < 0.75 && dy > 0.25 && dy < 1.75) { const hw = atlas.entity(hh.kind).w / 2; fx += (hh.flip ? 1 : -1) * (hw / 2 + 4); }
         }
       }
+      // QA 1a2a4a9 (P: a monkey drawn half outside the floor over black void): a sideways nudge (the stack's fan, the step-aside) never
+      // stands a sprite on a tile the map does not draw as open ground — the other side, else its own tile
+      if (fx !== fx0 && !openFeet(fx, fy)) fx = openFeet(2 * fx0 - fx, fy) ? 2 * fx0 - fx : fx0;
       const s = atlas.entity(e.kind);
       const w = s.w / 2, h = s.h / 2; // world units (env texels)
       // Cut 18 §2: the hero is never covered (rater Y: "the warlord sprite hid my hero completely"; Z: "sprites overlap") — he draws
@@ -554,7 +567,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         const sh = atlas.shadow(Math.min(w - 2, 12), ring);
         L.shadows.push(fx, fy - (ring ? 2 : 1), 1.5, sh.w, sh.h, sh.u0, sh.v0, sh.u1, sh.v1, 1, 0, e.fade);
       }
-      const flash = st.flashing(e) ? 1 : 0;
+      // QA 1a2a4a9 (P: "on `R1 drank heal` a large cream blob covers the hero and the conjurer for the whole moment"): a hit is a tint
+      // toward the palette's brightest, never a solid silhouette (the hero hit every tick read as a blob), and a stopped clock (⏸, the
+      // replay's pause on its last frame) holds no flash
+      const flash = st.flashing(e) && st.speed > 0 ? FLASH_MIX : 0;
       L.ents.push(fx, fy, z, s.w / 2, s.h / 2, s.u0, s.v0, s.u1, s.v1, e.ally && !e.hero ? 1.1 : 1, flash, e.fade, e.flip ? 1 : 0);
       // Cut 8A: in the fight frame the hero and his allies carry an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
       // above the sprite; glyphs sit above the bar. Second art pass: a hostile's bar is on its name tag instead.
@@ -777,6 +793,6 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, ally: !!e.ally, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
     stats() { return { ...stats }; },
     /** dev: every entity the state holds and whether the draw loop would show it */
-    debugEnts() { return [...st.ents.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.x, y: e.y, hero: !!e.hero, rem: !!e.remembered, dying: !!e.dying, vis: !!st.visible[e.y * st.w + e.x], seen: !!st.seen[e.y * st.w + e.x] })); },
+    debugEnts() { return [...st.ents.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.x, y: e.y, hero: !!e.hero, rem: !!e.remembered, dying: !!e.dying, vis: !!st.visible[e.y * st.w + e.x], seen: !!st.seen[e.y * st.w + e.x], flash: st.flashing(e), fade: e.fade, px: e.px, py: e.py })); },
   };
 }

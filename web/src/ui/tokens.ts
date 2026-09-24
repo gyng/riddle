@@ -108,3 +108,7 @@ export function combosIn(rows: Row[], table: Combo[] | undefined): ComboHit[] {
   }
   return out;
 }
+
+/** QA 1a2a4a9 (O: `The monkey stole the leash (3).` — "the (3) refers to nothing"): an item's charges in the core's label (`leash (3)`)
+ *  leave a note's text; the note names the thing, not its count. */
+export const noteText = (t: string): string => t.replace(/ \(\d+\)(?=[.?!]?$)/, "");

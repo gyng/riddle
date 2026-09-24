@@ -75,7 +75,7 @@ try {
   check(c.chips.length === 3 && c.traits === 2 && !c.clsBtn, `beside the trait chips, a chip per owned class: ${c.chips.map((x) => `${x.top} · ${x.sig}`).join(" | ")}`);
   check(c.chips[0]?.cls === c.cls && c.chips[0].on && c.chips[0].disabled && c.chips.filter((x) => x.on).length === 1, `the current class first, on and inert (${c.cls})`);
   const rogue = c.chips.find((x) => x.cls === "rogue"), ranger = c.chips.find((x) => x.cls === "ranger");
-  check(rogue?.sig === "vanish" && /^mark L7$/.test(ranger?.sig ?? ""), `each carries its signature; one not yet open reads its level (rogue "${rogue?.sig}", ranger "${ranger?.sig}")`);
+  check(rogue?.sig === "vanish" && /^mark ⊘L7$/.test(ranger?.sig ?? ""), `each carries its signature; one not yet open reads its level (rogue "${rogue?.sig}", ranger "${ranger?.sig}")`);
   check(c.chips.every((x) => x.sig.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 3), "each under-label ≤ 3 words");
   await shot("01-class-offer");
   await page.locator(".strip .chip.cls-offer[data-class=rogue]").click({ timeout: 5000 });

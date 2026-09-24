@@ -152,7 +152,7 @@ async function qaK() {
     check(r.above && !(await page.locator(".panel-host .panel").count()), "a tap on the well beside an open panel closes it");
   }
   const trait = await page.evaluate(() => [...document.querySelectorAll(".chip.trait")].map((c) => c.textContent.replace(/\s+/g, " ").trim()));
-  check(trait.includes("braveskips a retreat") || trait.some((t) => /^brave ?skips a retreat$/.test(t)), `brave's rule reads \`skips a retreat\` (${trait.join(" | ")})`);
+  check(trait.includes("braveskips a retreat") || trait.some((t) => /^(✓ )?brave ?skips a retreat$/.test(t)), `brave's rule reads \`skips a retreat\` (${trait.join(" | ")})`);
   const busy = await page.evaluate(async () => {
     let release; const held = window.__riddle.busy("forecast", () => new Promise((r) => { release = r; })); await new Promise((r) => setTimeout(r, 80));
     const st = document.querySelector(".camp-well .busy-strip"), q = st.getBoundingClientRect(), text = st.textContent, corner = document.querySelector(".busy-label:not([hidden])")?.textContent ?? null;
@@ -357,7 +357,7 @@ async function cut19() {
   const pending = await opt();
   await sleep(600);
   const landed = await opt();
-  check(pending.includes("armour …") && landed.join(" · ") === "weapon* · armour +36% · potion · scroll −5%", `the picker shows each preference's delta (${pending.join(" · ")} → ${landed.join(" · ")})`);
+  check(pending.includes("armour …") && landed.join(" · ") === "weapon bank 54%* · armour bank +36% · potion bank +0% · scroll bank −5%", `the picker shows each preference's delta (${pending.join(" · ")} → ${landed.join(" · ")})`);
   await shot("ui-cut19-cage-picker");
   await page.locator(".sheet-wrap .cage-opt[data-pref=armour]").click({ timeout: 5000 }); await sleep(400);
   const picked = await cageTab(), prefs = await page.evaluate(() => window.__riddle.__prefs);
@@ -416,9 +416,13 @@ async function cut19() {
   const dd = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict") ? getComputedStyle(document.querySelector(".death-line .verdict")).textTransform + ":" + document.querySelector(".death-line .verdict").textContent : "",
     targets: [...document.querySelectorAll("button.patch .target")].map((t) => t.textContent.trim()) }));
   check(/^goblin archer · D6 · R1 drink unknown$/.test(dd.cause ?? "") && dd.seal === "uppercase:row", `the row verdict: the headline names the row, the seal reads ROW ("${dd.cause}", ${dd.seal})`);
-  check(dd.targets.join(" | ") === "R1 − | + drop R5", `the cut leads, the insert names the row it drops (${dd.targets.join(" | ")})`);
+  check(dd.targets.join(" | ") === "R1 − | · drops R5", `the cut leads, the insert names the row it drops (${dd.targets.join(" | ")})`);
   await shot("ui-cut19-row");
-  await page.locator("button.patch[data-full]").first().click({ timeout: 5000 }); await sleep(200);
+  // QA 1a2a4a9: a tablet tap lights it; the gem applies the lit one
+  await page.locator("button.patch[data-full]").first().click({ timeout: 5000 }); await sleep(150);
+  const lit = await page.evaluate(() => ({ top: document.querySelector("button.patch.top")?.dataset.full === "1", sheet: !!document.querySelector(".sheet-wrap .drop-sheet") }));
+  check(lit.top && !lit.sheet, `a tablet tap lights the tablet and applies nothing (${JSON.stringify(lit)})`);
+  await page.locator(".patch-gem").click({ timeout: 5000 }); await sleep(200);
   const marked = await page.evaluate(() => document.querySelector(".sheet-wrap .drop-sheet .drop-row.least")?.dataset.row ?? null);
   check(marked === "4", `the drop sheet still opens, R5 marked (${marked})`);
   await page.keyboard.press("Escape"); await sleep(100);
@@ -477,7 +481,7 @@ async function cut18() {
   await sleep(300);
   const tiles = await page.evaluate(() => [...document.querySelectorAll(".unlocks .cards .card")].map((c) => ({ label: c.querySelector(".card-main > span")?.textContent, cost: c.querySelector(".cost")?.textContent, cls: c.className, delta: c.querySelector(".delta")?.textContent ?? "" })));
   const t = (label) => tiles.find((x) => x.label === label);
-  check(t("card: kite archers")?.cost === "◆3 · $450" && t("+1 vault")?.cost === "◆3 · $300", `an unlock tile shows both prices (${tiles.map((x) => `${x.label} ${x.cost}`).join(" · ")})`);
+  check(t("card: kite archers")?.cost === "◆3 / $450" && t("+1 vault")?.cost === "◆3 / $300", `an unlock tile shows both prices (${tiles.map((x) => `${x.label} ${x.cost}`).join(" · ")})`);
   check(/\bbuyable\b/.test(t("+1 vault")?.cls ?? "") && !/\bbuyable\b/.test(t("card: kite archers")?.cls ?? "") && !/\bbuyable\b/.test(t("cond: alert")?.cls ?? ""), `a tile the gold buys glows like one the marks buy; one short of gold or gated does not (${tiles.map((x) => `${x.label}: ${x.cls}`).join(" · ")})`);
   check(t("card: kite archers")?.delta === "reach ~0 at R1 · vs archers", `a card's \`~0\` names its situation ("${t("card: kite archers")?.delta}")`);
   await shot("ui-cut18-unlocks");
@@ -495,11 +499,26 @@ async function cut18() {
   check(/^D9 ?0%( ±\d+)? · warlord wall$/.test(row ?? ""), `the panel's row reads \`D9 0% · warlord wall\` ("${row}")`);
   await shot("ui-cut18-wall");
   await page.keyboard.press("Escape"); await sleep(100);
-  // ---- §4: a stall's cause names the rows' loop (`R2 retreat ↔ explore`): the headline whole, on one line
-  await page.evaluate(() => window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 6, cause: "R2 retreat ↔ explore", margin: "", verdict: "stall", baseline: 0.2, trace: { turns: [] }, morgue: "t1", patches: [] } }));
-  await waitFor((x) => x?.screen === "death", "the stall's verdict"); await sleep(300);
-  const head = await page.evaluate(() => { const c = document.querySelector(".death-line .cause"); const rg = document.createRange(); rg.selectNodeContents(c); const tops = new Set([...rg.getClientRects()].map((r) => Math.round(r.top))); return { text: c?.textContent, lines: tops.size }; });
-  check(head.text === "R2 retreat ↔ explore · D6" && head.lines === 1, `a stall's loop reads whole on one line ("${head.text}", ${head.lines} line)`);
+  // ---- §4: a stall's cause names the rows' loop (`R2 retreat ↔ explore`): the loop whole on one line; QA 1a2a4a9 (P: the headline
+  // `STALLED · R2 RETREAT ↔ EXPLORE · D6 · KEEPS $0` ran off both edges at 400 px): it wraps between segments, inside the screen
+  await page.evaluate(() => window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 6, cause: "stalled · R2 retreat ↔ explore", margin: "keeps $0", verdict: "stall", baseline: 0.08, trace: { turns: [] }, morgue: "t1",
+    patches: [{ row: { conds: [{ k: "foe_tag", t: "gas" }], verb: { v: "retreat" } }, insert_at: 1, replace: true, survive: 1, forecast_delta: 0 }] } }));
+  await waitFor((x) => x?.screen === "death", "the stall's verdict"); await sleep(400);
+  const head = await page.evaluate(() => {
+    const c = document.querySelector(".death-line .cause"), loop = [...c.querySelectorAll(".seg")].find((x) => /↔/.test(x.textContent));
+    const lh = parseFloat(getComputedStyle(c).fontSize) * 1.6, segs = [...c.querySelectorAll(".seg")].map((x) => x.getBoundingClientRect());
+    return { text: c?.textContent, loopOne: !!loop && loop.getBoundingClientRect().height < lh, inside: segs.every((r) => r.left >= 0 && r.right <= innerWidth),
+      face: !document.querySelector(".death .portrait.dead"), surv: document.querySelector("button.patch .surv")?.textContent };
+  });
+  check(head.text === "stalled · R2 retreat ↔ explore · D6 · keeps $0" && head.loopOne && head.inside, `a stall's headline: the loop whole on one line, every segment on screen ("${head.text}", loop one line ${head.loopOne}, inside ${head.inside})`);
+  check(head.face && head.surv === "unstuck 100% · base 8%", `a stall is no death: the face lit, the patch reads what it ends ("${head.surv}", lit ${head.face})`);
+  await shot("ui-stall-head");
+  // QA 1a2a4a9: the core's new reasons arrive verbatim and read whole, one line each
+  await page.evaluate(() => window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 4, cause: "jackal", margin: "", verdict: "gap", baseline: 0.3, morgue: "t1", patches: [],
+    trace: { turns: [{ t: 10, row: -1, verb: { v: "explore" }, hp: 9, foes: 2, telegraphs: [], rows: [{ row: 0, why: "foes appeared after" }, { row: 1, why: "foes fleeing" }, { row: 2, why: "going home" }, { row: 3, why: "repeat short" }] }] } } }));
+  await waitFor((x) => x?.screen === "death", "the reasons' death"); await sleep(300);
+  const whys = await page.evaluate(() => [...document.querySelectorAll(".rows-line .rw, .chain-row .why")].map((e) => ({ t: e.textContent, one: e.getClientRects().length === 1 })));
+  check(["foes appeared after", "foes fleeing", "going home", "repeat short"].every((w) => whys.some((x) => x.t.endsWith(w) && x.one)), `the new reasons render whole, one line each (${whys.map((x) => x.t).join(" · ")})`);
   await shot("ui-cut18-stall");
 }
 

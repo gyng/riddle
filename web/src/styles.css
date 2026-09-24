@@ -717,6 +717,8 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .watch .interstitial { background: radial-gradient(ellipse at 50% 45%, #1f1712, #0b0806 70%); font: 600 24px/1.3 var(--display); color: #e8d6b0; }
 .watch .interstitial::after { bottom: 24px; background: #5a4630; }
 .watch .stake { font-size: 14px; }
+/* QA 1a2a4a9 (P: the stake line "sits straight on wall tiles and torches"): a dark plate under it, readable over any tile */
+.watch .stake { justify-self: start; max-width: max-content; padding: 1px 6px; border-radius: 3px; background: rgba(12, 9, 7, .62); }
 .watch .portrait .plabel .hp-text { color: inherit; }
 
 /* --- the death: the banner over the dimmed floor, the seal, the trace on parchment, patches as tablets with a gauge --- */
@@ -859,7 +861,11 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .unlocks .card.gold-ok .cost { color: #f3d27a; }
 .card .cost { white-space: nowrap; }
 /* Cut 18 §4: a stall's loop headline stays on one line (death.ts steps its face down to fit) */
-.death .death-line.loop .cause { white-space: nowrap; overflow: hidden; }
+/* QA 1a2a4a9: …wrapping between its ` · ` segments, each whole, inside the banner's width (a centred flex item was as wide as its text) */
+.death .death-line.loop .cause { align-self: stretch; max-width: 100%; white-space: normal; overflow: hidden; }
+.death .death-line.loop .cause .seg { display: inline-block; white-space: nowrap; }
+/* a stall is no death: the banner and the seal go ash-grey, the portrait stays lit (death.ts) */
+.death.stalled .banner-cloth { filter: grayscale(.85) brightness(.9); }
 /* QA 92eb880 — a first-pass forecast reads rough (dim, `…`) until the refine lands; a 0 % notch and a floor past the bank row dim */
 .forecast.rough .fc-bars .n, .forecast.rough .fc-ends { opacity: .6; transition: opacity .2s; }
 .notch.zero .dl, .notch.next.zero .dl, .notch.capped .dl { color: var(--dim); }
@@ -873,7 +879,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .editor .row.shadowed { opacity: .5; }
 .editor .row.shadowed .shadow-mark { margin-left: 6px; font: 600 11px/1 var(--sans); color: #e0876a; white-space: nowrap; align-self: center; }
 /* QA 92eb880 — the chosen trait/class reads chosen (a tick), not inert; a free supply's × arms before it drops */
-.chip.trait.on > span:first-child::before, .chip.cls-offer.on > span:first-child::before { content: "✓ "; color: var(--acc); }
+/* the ✓ is text now (camp.ts: a text dump reads the pick) */
 .supplies .chip .x.armed { color: #ff9a7a; font-size: 12px; font-weight: 600; }
 .vault .chip .flav { font-size: 11px; }
 .hud .loot-drop { color: #ff8a70; font-weight: 600; }
@@ -910,3 +916,10 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .watch .ticker.cage.show .cage-line { display: inline-block; padding: 4px 12px; border: 1px solid rgba(240, 180, 74, .6); border-radius: 14px; background: rgba(12, 10, 8, .55); }
 .gold-line .capped { color: var(--warn); }
 .skin-tablet .row.tablet.compact.cage-tab { background: linear-gradient(rgba(70, 95, 120, .28), rgba(20, 28, 36, .35)); background-clip: padding-box; }
+
+/* QA 1a2a4a9: the loadout tile's pack count (`2/3`), a small plate on its top-right corner */
+.cmd .tile .pack-n { position: absolute; right: 2px; bottom: 16px; z-index: 2; padding: 0 3px; border-radius: 3px; background: rgba(12, 9, 7, .8); color: #f3d27a; font-size: 10px; line-height: 13px; pointer-events: none; }
+.chip .tick { color: var(--acc); font-weight: 700; }
+.cmd .tile .repeat-badge.short { color: var(--warn); }
+/* QA 1a2a4a9: the core's new reasons (`foes appeared after`, `foes fleeing`, `going home`, `repeat short`) read on one line */
+.chain-row .why, .rows-line .rw { white-space: nowrap; }

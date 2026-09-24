@@ -63,6 +63,8 @@ try {
   check(!full.plus, "no + on a full set");
   const setNow = () => page.evaluate(() => window.__riddle.rules.rows.map((r) => JSON.stringify([r.conds, r.verb])).join("|"));
   const sheet = () => page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .drop-sheet .drop-row")].map((b) => ({ row: Number(b.dataset.row), text: b.textContent.replace(/\s+/g, " ").trim(), least: b.classList.contains("least"), fired: b.querySelector(".fired")?.textContent.trim() ?? "" })));
+  // QA 1a2a4a9: on the death screen a tablet tap lights it; the gem applies the lit one
+  const applyTop = async () => { await page.locator("button.patch").first().click({ timeout: 5000 }); await page.locator(".patch-gem").click({ timeout: 5000 }); };
   const openSheets = () => page.evaluate(() => document.querySelectorAll(".sheet-wrap").length);
 
   // a death screen with one insert patch (insert_at 0); nothing is known to have fired
@@ -72,9 +74,9 @@ try {
   await waitFor((s) => s?.screen === "death", "death");
   check((await page.locator("button.patch").count()) === 1, "the death screen offers the patch on a full set");
   const chip = await page.evaluate(() => ({ target: document.querySelector("button.patch .target")?.textContent.trim(), full: document.querySelector("button.patch")?.dataset.full }));
-  check(chip.target === "+ drop one" && chip.full === "1", `the chip asks for a drop: "${chip.target}"`);
+  check(chip.target === "· drops one" && chip.full === "1", `the chip asks for a drop: "${chip.target}"`);
   const set0 = await setNow();
-  await page.locator("button.patch").first().click({ timeout: 5000 });
+  await applyTop();
   await sleep(200);
   let rows = await sheet();
   check((await state()).screen === "death" && rows.length === max, `the tap opens the drop sheet on the death screen (${rows.length} rows)`);
@@ -84,11 +86,11 @@ try {
   // dismissed: the set whole, the death screen up
   await page.keyboard.press("Escape"); await sleep(200);
   check((await openSheets()) === 0 && (await state()).screen === "death" && (await setNow()) === set0, "Escape closes the sheet; the set is whole and the death screen stays");
-  await page.locator("button.patch").first().click({ timeout: 5000 }); await sleep(200);
+  await applyTop(); await sleep(200);
   await page.mouse.click(200, 20); await sleep(200);   // the backdrop
   check((await openSheets()) === 0 && (await state()).screen === "death" && (await setNow()) === set0, "a backdrop tap closes it too; nothing changed");
   // tap R3: R3 gone, the patch at R1
-  await page.locator("button.patch").first().click({ timeout: 5000 }); await sleep(200);
+  await applyTop(); await sleep(200);
   await page.locator(".sheet-wrap .drop-row[data-row='2']").click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "camp", "camp after the drop");
   await sleep(200);
@@ -104,7 +106,7 @@ try {
   const patch2 = { row: { conds: [{ k: "foes>=", n: 2 }], verb: { v: "retreat" } }, insert_at: 1, survive: 0.7, forecast_delta: 0.04 };
   await page.evaluate((d) => { window.__riddle.rowFires = [0, 5, 3, 2]; window.__riddle.go({ kind: "death", death: d }); }, death(patch2));
   await waitFor((s) => s?.screen === "death", "the second death");
-  await page.locator("button.patch").first().click({ timeout: 5000 }); await sleep(200);
+  await applyTop(); await sleep(200);
   rows = await sheet();
   check(rows.map((r) => r.fired).join(" ") === "· 0/10 · 5/10 · 3/10 · 2/10" && rows[0].least && rows.filter((r) => r.least).length === 1, `each row carries its fired count, the least-fired marked (${rows.map((r) => `${r.text.slice(0, 2)}${r.fired}${r.least ? "↓" : ""}`).join(" ")})`);
   const before2 = over;   // the camp as the last drop left it
@@ -116,7 +118,7 @@ try {
   const patch3 = { row: { conds: [{ k: "alert>=", n: 3 }], verb: { v: "retreat" } }, insert_at: 2, survive: 0.7, forecast_delta: 0.04 };
   await page.evaluate((d) => { window.__riddle.rowFires = null; window.__riddle.go({ kind: "death", death: d }); }, death(patch3));
   await waitFor((s) => s?.screen === "death", "the third death");
-  await page.locator("button.patch").first().click({ timeout: 5000 }); await sleep(200);
+  await applyTop(); await sleep(200);
   await page.locator(".sheet-wrap .drop-row[data-row='0']").click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "camp", "camp after the third drop"); await sleep(200);
   const third = await editor();
@@ -125,7 +127,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [], verb: { v: "tactic", a: "kite_archers" } }, 1, "card"); });
   await page.evaluate((d) => { window.__riddle.rowFires = null; window.__riddle.go({ kind: "death", death: d }); }, death(patch));
   await waitFor((s) => s?.screen === "death", "the fourth death");
-  await page.locator("button.patch").first().click({ timeout: 5000 }); await sleep(200);
+  await applyTop(); await sleep(200);
   rows = await sheet();
   check(rows.length === max && !rows.some((r) => r.row === 1), `the card row is not in the sheet (rows ${rows.map((r) => r.row + 1).join(", ")})`);
   await page.keyboard.press("Escape"); await sleep(150);
@@ -140,7 +142,7 @@ try {
   const heldText = await page.locator("button.patch .surv").first().innerText();
   const heldTarget = await page.evaluate(() => document.querySelector("button.patch .target")?.textContent.trim() ?? "");
   check(heldText === "at R2" && heldTarget === "", `a held patch reads where it sits: "${heldText}" (no drop)`);
-  await page.locator("button.patch").first().click({ timeout: 5000 });
+  await applyTop();
   await waitFor((s) => s?.screen === "camp", "camp after the held tap");
   await sleep(200);
   const again = await editor();

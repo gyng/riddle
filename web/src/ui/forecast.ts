@@ -62,7 +62,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     // a stall share only when there is one: `bank 0% · return 20% · stall 50% · death 30% · ~$25`
     const stall = e.stall && Math.round(e.stall * 100) > 0 ? /* copy:callout */ ` · stall ${pct(e.stall)}` : "";
     const pm = e.pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pmPts(e.pm)}${f.refined === false ? "…" : ""}`) : "";
-    replace(ends, /* copy:callout */ `bank ${pct(e.bank)} · return ${pct(e.return)}`, stall, /* copy:callout */ ` · death ${pct(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
+    // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
+    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${pct(e.bank)} · return ${pct(e.return)}`, stall, /* copy:callout */ ` · death ${pct(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -109,6 +110,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     // QA 23ed91f (K: "`jackal 100%` beside `death 1%` — I read it as jackal kills 100%"): a cause's share of the deaths is shown as its
     // share of the sends when the ends are known (`jackal 1%` under `death 1%`), so the two lines speak one unit
     const per = f.ends ? f.ends.death : 1;
+    // QA 1a2a4a9 (O: `goblin 26% · ogre 21%` "with no heading"): the killers' line says what it lists
+    if (f.causes.length) causes.appendChild(h("span", { class: "label causes-label" }, /* copy:label */ "killers"));
     for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, c.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, pct(c.share * per))));
   };
   // until the first forecast arrives (≈1 s in the worker): the unknown row only

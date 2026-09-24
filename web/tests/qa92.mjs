@@ -2,7 +2,7 @@
 // QA on 92eb880 (players M and N; eval/qa/92eb880.qaM.md, .qaN.md) — the client batch, on the fake engine, headless at 400 × 800:
 //   · the core's hand-offs: a first-pass forecast reads rough (dim, `…`) on the shaft and the panel; `Death.nothing_beats_base` heads the
 //     patch block `nothing beats base · base 100%` and no patch reads `below bar`; a shadowed row is a dim tablet with `↑ R1`
-//   · the death: the camp's reach re-ranks the patches (a gain first, a loss dim and never the gem's); `+0%` inside the ±, not `~0`; no
+//   · the death: the camp's reach re-ranks the patches (survival first outside 10 pts, a loss dim and never the gem's); `+0%` inside the ±, not `~0`; no
 //     `saved him` / cage-loot note; the bar names the hero who died; a lost ally is a line, not a chip
 //   · the camp: a 0 % notch dims (label and all), a `depth ≥ N → bank` row caps the shaft (`D3 · bank`); a numeric cond chip opens on its
 //     values; the verb picker names another row's unoffered verb; `· free` on the kennel's leash, its × arms before it drops; the edit
@@ -135,8 +135,9 @@ try {
   const editTile = page.locator(".cmd .tile[data-tile=edit]");
   await editTile.click({ timeout: 5000 }); await sleep(150); await editTile.click({ timeout: 5000 }); await sleep(150);
   check(!(await page.locator(".editor.compact").count()) && await page.locator(".editor .row .chip.cond").count() > 0, "a second tap on `edit` leaves the editor open");
-  const tick = await page.evaluate(() => { const on = document.querySelector(".chip.trait.on > span"); return on ? getComputedStyle(on, "::before").content : null; });
-  check(!!tick && tick.includes("✓"), `the chosen trait carries a tick (${tick})`);
+  // QA 1a2a4a9 (O): the tick is text — a text dump reads which trait is his; the others carry none
+  const tick = await page.evaluate(() => ({ on: document.querySelector(".chip.trait.on")?.textContent ?? null, off: [...document.querySelectorAll(".chip.trait:not(.on)")].map((x) => x.textContent) }));
+  check(!!tick.on && tick.on.startsWith("✓ ") && tick.off.every((t) => !t.includes("✓")), `the chosen trait carries a tick in its text (${tick.on} · ${tick.off.join(" · ")})`);
 
   // ---- the loadout: the kennel's leash reads `· free`; its × arms (`drop`), then drops
   await openPanel(page, "loadout");
@@ -223,9 +224,11 @@ try {
   d = await page.evaluate(() => ({ rows: [...document.querySelectorAll(".patches > button.patch")].map((b) => ({ t: b.querySelector(".chips-inline")?.textContent.replace(/\s+/g, " ").trim(), neg: b.classList.contains("neg"), top: b.classList.contains("top"), reach: b.querySelector(".delta")?.textContent })), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent }));
   await page.evaluate(() => { const r = window.__riddle; r.engine.deathDeltas = r.__dd; });
   const order = d.rows.map((x) => x.t).join(" | ");
-  check(order === "foes ≥ 3 → retreat | hp < 20% → return | hp < 20% → rest | foe: telegraph → retreat", `the landing re-ranks: the gain, then inside the ± the higher survival, the loss last (${order})`);
-  check(d.rows[3]?.neg && !d.rows.slice(0, 3).some((x) => x.neg) && d.rows[0]?.top && d.gem === "60%" && before === "100%", `the loss is dim and the gem follows the new top (gem ${before} → ${d.gem}; ${d.rows.map((x) => x.reach).join(" · ")})`);
-  check(d.rows[1]?.reach === "reach D8 +0% ±2", `a move inside the ± reads \`+0%\` ("${d.rows[1]?.reach}")`);
+  // Cut 19 §4 / QA 1a2a4a9 (P: a 33 % patch ranked over a 67 % one once the reach landed): survival first when > 10 pts apart, the reach
+  // inside the band; a loss is dim and never the gem's, but keeps its survival's place
+  check(order === "hp < 20% → return | foe: telegraph → retreat | hp < 20% → rest | foes ≥ 3 → retreat", `the landing re-ranks survival-first, the reach inside the band (${order})`);
+  check(d.rows[1]?.neg && !d.rows.filter((_, i) => i !== 1).some((x) => x.neg) && d.rows[0]?.top && d.gem === "100%" && before === "100%", `the loss is dim and the gem stays on the top (gem ${before} → ${d.gem}; ${d.rows.map((x) => x.reach).join(" · ")})`);
+  check(d.rows[2]?.reach === "reach D8 +0% ±2", `a move inside the ± reads \`+0%\` ("${d.rows[2]?.reach}")`);
   await shot("qa92-rerank");
 
   // ---- the report: one tile order; the shadowed pending line; LEARNED; the gold words; the plateau's floor

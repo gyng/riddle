@@ -10,6 +10,7 @@
 // and kept sum (`ExitLine.kept` = the line's delta), the newest match first; report exits (oldest first) claim matches
 // from the newest backwards so two identical exits map to two different lines. An exit whose line has left the 80-line
 // ledger opens the sheet unfiltered.
+import { wakeShown } from "./death";
 import type { App } from "../app";
 import type { ExitLine, GoldLine } from "../engine/types";
 import { h } from "./dom";
@@ -74,7 +75,7 @@ export function openGoldSheet(app: App, only?: ExitLine, newer: ExitLine[] = [])
         h("div", { class: "label row-label" }, /* copy:label */ "gold", " ", h("span", { class: "num gold" }, `$${L.gold}`), ...chips),
         list);
       list.replaceChildren(
-        ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, g.why.replace(/_/g, " ")))),
+        ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, wakeShown(g.why.replace(/_/g, " "))))),
         lines.length ? "" : h("div", { class: "lrow num dim empty-line" }, /* copy:callout */ "no movements"));   // QA 92eb880 (N: a fresh lineage's sheet read `$0 · ·`)
     };
     paint(!!range);

@@ -14,10 +14,10 @@ import type { Death, Row } from "../engine/types";
 import { morgueVerbs } from "./chain";
 import { h, copyText, items, pct } from "./dom";
 import { openGoldSheet } from "./gold";
-import { fillReach, patchRows } from "./patches";
+import { applyOf, fillReach, patchRows } from "./patches";
 import { openSheet } from "./sheet";
 import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
-import { lostLabel, verbLabel } from "./tokens";
+import { lostLabel, noteText, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
@@ -28,7 +28,10 @@ export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* co
 export const headlineMargin = (m: string): string => m.split(" · ").filter((x) => x && !/^\d+ (over|hp short)$/.test(x)).map(marginText).join(" · ");   // QA 23ed91f: `1 hp short · 5 unknown unused` kept its hp part
 
 /** QA 23ed91f (K: "`died $0` and `keeps 0%` say the same thing twice"): a death's line drops its `keeps 0%` (the lead says it). */
-export const ledgerShown = (t: string): string => /^died \$0\b/.test(t) ? t.replace(/ · keeps 0%(?= · |$)/, "") : t;
+/** QA 1a2a4a9 (O, P, and many before: "`+$40 wake` — no source"): the core's wake pay tops the next heir's purse up to $40 — it reads
+ *  as whose it is (`heir purse +$40`), here, on the gold sheet and in the report. */
+export const wakeShown = (t: string): string => t.replace(/\+\$(\d+) wake\b/g, /* copy:callout */ "heir purse +$$$1").replace(/\bwake pay\b/g, /* copy:callout */ "heir purse");
+export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t) ? t.replace(/ · keeps 0%(?= · |$)/, "") : t);
 
 export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false): Mounted {
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
@@ -38,12 +41,18 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const causeRow = d.verdict === "row" && d.cause_row !== undefined ? rowName(d.cause_row, (d.rules?.rows ?? app.rules.rows)[d.cause_row]) : "";
   // Cut 17 §4: the line is laid on the defeat banner — the cause and depth in the display face, the verdict in the seal under it
   // (one word, engine data: `gap` · `dice` · `stall`); the text reads as before (`goblin archer · D6 · gap`)
-  const line = h("h1", { class: "death-line" }, h("span", { class: "cause" }, /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}`), h("span", { class: "sep" }, " · "), h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
+  const causeText = /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}`;
+  // QA 1a2a4a9 (P: `STALLED · R2 RETREAT ↔ EXPLORE · D6 · KEEPS $0` ran off both edges at 400 px): a stall's headline wraps between its
+  // ` · ` segments (each whole: the loop `R2 retreat ↔ explore` never breaks) and steps its face down until the widest segment fits
+  const causeEl = d.verdict === "stall"
+    ? h("span", { class: "cause" }, ...causeText.split(" · ").flatMap((seg, i, all) => [i ? " " : "", h("span", { class: "seg" }, seg, i < all.length - 1 ? " ·" : "")]))
+    : h("span", { class: "cause" }, causeText);
+  const line = h("h1", { class: "death-line" }, causeEl, h("span", { class: "sep" }, " · "), h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
   // Cut 13 §4: the run's last two notes, engine data verbatim (`The green one: fire. Gambled: fire potion.`)
   // QA 92eb880: never a `… saved him.` over a death (M, N: read as the verdict), nor the cage's loot beat (`Took the axe +1 from the cage.`,
   // M: "unrelated to the ogre") — the core filters the first; the client keeps both off whatever the build
   const shownNotes = (d.notes ?? []).filter((n) => !/ saved him\.$/.test(n) && !/^The cage opens\b|^Took .* from the cage\.$/.test(n));
-  const notes = shownNotes.length ? h("div", { class: "death-notes num dim" }, ...shownNotes.slice(-2).map((n) => h("div", { class: "note" }, n))) : null;
+  const notes = shownNotes.length ? h("div", { class: "death-notes num dim" }, ...shownNotes.slice(-2).map((n) => h("div", { class: "note" }, noteText(n)))) : null;
   // Cut 13 §5: a `dice` death says what the forecast said for that depth — the reach the camp showed for the floor, verbatim
   // an old death (the chronicle) was sent under another forecast: today's would be a false number (QA on 56f2a1d: `forecast said D7 0%`)
   const said = d.verdict === "dice" && !kept ? forecastSaid(app, d.depth) : undefined;
@@ -58,7 +67,10 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // the wire carried them falls back to the morgue's short forms
   const trace = traceTable(d.trace, { rows: d.rules?.rows ?? app.rules.rows, verbs: d.rules ? undefined : morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain });
   // Fractions 0..1 from the core: baseline (survival of the unpatched rules) is on every row (Cut 4 §2).
-  const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base });   // Cut 14 §4: the trace names the least-fired row on a full set
+  // QA 1a2a4a9 (O): a tap on a tablet lights it (the gem takes its number); the gem applies the lit one — the only apply on this screen
+  let picked = false;
+  const select = (btn: HTMLButtonElement): void => { picked = true; patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches, btn); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
+  const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base, stall: d.verdict === "stall", select });   // Cut 14 §4: the trace names the least-fired row on a full set
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
   const openMorgue = (): void => {
     void copyText(d.morgue);
@@ -78,10 +90,12 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   let top = topPatch(patches);
   // QA 92eb880 (M: "the header already shows the next hero (`♟2 · greedy`) above ♟1's death"): the bar names the hero who died
   const bar = renderBar(app, kept ? {} : deadHero(d.morgue));
-  const face = portrait(app, { hp: 0, dead: true, label: `D${d.depth}` });
+  // QA 1a2a4a9 (P: "the hero came home but the portrait is greyed like a corpse"): a stall is no death — the face stays lit
+  const stalled = d.verdict === "stall";
+  const face = portrait(app, stalled ? { hp: 1, label: `D${d.depth}` } : { hp: 0, dead: true, label: `D${d.depth}` });
   const makeGem = (): HTMLButtonElement => top
     // QA 23ed91f (K: "the gem reads `100%` with no label … I read it as the run's result"): the number, and the word the tap does under it
-    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" ? h("small", { class: "gem-w" }, /* copy:label */ "apply") : ""), cls: "patch-gem", pulse: true, onclick: () => top?.btn.click() })
+    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" && top.label !== "edit" ? h("small", { class: "gem-w" }, /* copy:label */ "apply") : ""), cls: "patch-gem", pulse: true, onclick: () => { if (top) void applyOf.get(top.btn)?.(); } })
     : gem({ label: /* copy:button */ "edit", pulse: true, onclick: () => app.go({ kind: "camp" }) });
   let gemBtn = makeGem();
   const cons = renderConsole({ portrait: face.el, gem: gemBtn, tiles: [
@@ -94,7 +108,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     // QA 23ed91f (K: "the patches sit below the fold, under the console"): the patches, the screen's point, before the trace
     patches,
     h("div", { class: "parchment trace-panel" }, ...trace));
-  const el = h("main", { class: "death frame" }, bar.el, well, cons.el);
+  const el = h("main", { class: `death frame${stalled ? " stalled" : ""}` }, bar.el, well, cons.el);
   // Cut 18 §4: a stall's cause is the rows' loop (`R2 retreat ↔ explore`) — it reads whole on one line: the face steps down until it fits
   if (d.verdict === "stall") { line.classList.add("loop"); fitLine(line.querySelector<HTMLElement>(".cause")); }
   // QA 23ed91f: the patches' reach is the camp's own measure, landing after the paint (`deathDeltas`: seconds in wasm) — the
@@ -103,7 +117,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   if (d.patches.some((p) => p.camp_pending) && app.engine.deathDeltas) {
     const shown = d.patches;
     // QA 92eb880 (N): the landing re-ranks the tablets by the camp's reach; the gem follows the new top (a loss is never it)
-    const regem = (): void => { patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
+    // a tablet the player lit keeps the gem (the landing re-orders, never re-picks for him)
+    const regem = (): void => { if (picked && top?.btn.isConnected) return; patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
     setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => { if (!gone && f?.length) { fillReach(patches, shown, f); regem(); } }).catch((e) => console.warn("deathDeltas", e)); }, 0);
   }
   return { el, dispose: () => { gone = true; bar.dispose(); } };
@@ -121,7 +136,8 @@ function fitLine(el: HTMLElement | null): void {
   const fit = (tries: number): void => {
     if (!el.isConnected) { if (tries > 0) requestAnimationFrame(() => fit(tries - 1)); return; }
     let px = parseFloat(getComputedStyle(el).fontSize) || 19;
-    while (el.scrollWidth > el.clientWidth + 0.5 && px > 12) { px -= 1; el.style.fontSize = `${px}px`; }
+    const over = (): boolean => el.scrollWidth > el.clientWidth + 0.5 || [...el.querySelectorAll<HTMLElement>(".seg")].some((s) => s.offsetWidth > el.clientWidth + 0.5);
+    while (over() && px > 12) { px -= 1; el.style.fontSize = `${px}px`; }
   };
   requestAnimationFrame(() => fit(10));
 }
@@ -135,13 +151,14 @@ export function deadHero(morgue: string): { heir?: number; trait?: string } {
 
 /** Cut 17 §4: the gem's patch — the first that applies (not a held row's `at R2`, not a below-bar alternative): its button and its
  *  number (`92%`, the survival the patch reads; an unlock pseudo-patch's `buy`). The tablet it stands for is lit. */
-function topPatch(patches: HTMLElement): { btn: HTMLButtonElement; label: string } | null {
-  const btn = patches.querySelector<HTMLButtonElement>("button.patch:not(.below):not(.neg)");
+function topPatch(patches: HTMLElement, pick?: HTMLButtonElement): { btn: HTMLButtonElement; label: string } | null {
+  const btn = pick ?? patches.querySelector<HTMLButtonElement>("button.patch:not(.below):not(.neg)");
   if (!btn) return null;
   btn.classList.add("top");
   const unlock = btn.classList.contains("unlock");
   const surv = /(\d+%)/.exec(btn.querySelector(".surv")?.textContent ?? "")?.[1];
-  return { btn, label: unlock ? /* copy:button */ "buy" : surv ?? "" };
+  // a lit held row (`at R2`) opens the camp on it: the gem reads `edit`
+  return { btn, label: unlock ? /* copy:button */ "buy" : btn.classList.contains("held") ? /* copy:button */ "edit" : surv ?? "" };
 }
 
 

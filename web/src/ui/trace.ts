@@ -29,7 +29,8 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
   const chain = chainOf(trace, ctx);
   if (chain) return [table, chain];
   const lastRows = turns[turns.length - 1]?.rows ?? [];
-  const rowsLine = lastRows.length ? h("div", { class: "rows-line num dim" }, lastRows.map((r) => `R${r.row + 1} ${r.why}`).join(" · ")) : null;
+  // each `R2 foes appeared after` whole on its line (the list wraps between reasons, never inside one)
+  const rowsLine = lastRows.length ? h("div", { class: "rows-line num dim" }, ...lastRows.flatMap((r, i) => [i ? " · " : "", h("span", { class: "rw" }, `R${r.row + 1} ${r.why}`)])) : null;
   return rowsLine ? [table, rowsLine] : [table];
 }
 /** Cut 9 §5: a `trace` chip; tapping it opens the table (Cut 11 §3: the last 10 turns and the chain) in a sheet.

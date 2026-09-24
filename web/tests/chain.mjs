@@ -128,7 +128,7 @@ try {
   check(patches[2]?.cls.includes("unlock") && /◆2 cond: alert · buy/.test(patches[2].text), `unlock pseudo-patch reads ◆2 cond: alert · buy: "${patches[2]?.text}"`);
   // the tap buys the cond's unlock, then inserts the row at the top (app.buy stubbed: the fake's marks are not the point)
   const before = await page.evaluate(() => { const r = window.__riddle; r.__buys = []; r.__buy0 = r.buy; r.buy = async (id) => { r.__buys.push(id); return true; }; return r.rules.rows.length; });
-  await page.locator(".patches .patch.unlock").click({ timeout: 5000 });
+  await page.locator(".patches .patch.unlock").click({ timeout: 5000 }); await page.locator(".patch-gem").click({ timeout: 5000 });
   await waitFor((x) => x?.screen === "camp", "the camp after the unlock tap");
   const after = await page.evaluate(() => { const r = window.__riddle; const rows = r.rules.rows; const top = rows[0]; r.buy = r.__buy0; return { buys: r.__buys, n: rows.length, top: `${top.conds.map((c) => `${c.k}${c.n ?? ""}`).join(" ")} → ${top.verb.v}`, origin: top.origin }; });
   check(after.buys.length === 1 && after.buys[0] === "cond_alert", `the tap bought cond_alert (${JSON.stringify(after.buys)})`);
@@ -136,7 +136,7 @@ try {
   // a refused buy inserts nothing
   await page.evaluate(() => { const r = window.__riddle; r.go({ kind: "death", death: r.__death }); r.__buy0 = r.buy; r.buy = async () => false; });
   await sleep(200);
-  await page.locator(".patches .patch.unlock").click({ timeout: 5000 });
+  await page.locator(".patches .patch.unlock").click({ timeout: 5000 }); await page.locator(".patch-gem").click({ timeout: 5000 });
   await sleep(300);
   const refused = await page.evaluate(() => { const r = window.__riddle; r.buy = r.__buy0; return { screen: r.screen, n: r.rules.rows.length }; });
   check(refused.screen === "death" && refused.n === after.n, `a refused buy inserts nothing and stays (${refused.screen}, ${refused.n} rows)`);

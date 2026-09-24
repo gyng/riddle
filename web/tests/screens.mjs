@@ -196,7 +196,7 @@ try {
   if (s.screen === "death") {
     await lintScreen("death");
     await lintButtons("death", "death");
-    if (await page.locator("button.patch").count()) { await page.locator("button.patch").first().click({ timeout: 5000 }); await waitFor((x) => x?.screen === "camp", "camp after the patch"); }
+    if (await page.locator("button.patch").count()) { await page.locator("button.patch").first().click({ timeout: 5000 }); await page.locator(".patch-gem").click({ timeout: 5000 }); await waitFor((x) => x?.screen === "camp", "camp after the patch"); }
     else { await page.locator("main.death button", { hasText: /^edit$/ }).click({ timeout: 5000 }); await waitFor((x) => x?.screen === "camp", "camp after edit"); }
   } else if (s.screen === "report") {
     await lintScreen("report (a run)");
@@ -229,7 +229,7 @@ try {
   await lintSheet(`unlock sheet · ${bought}`);
   // Cut 15 §2: both prices on the title (`◆3 · $450`) and two buys, `◆ buy` · `$ buy`
   const pair = await page.evaluate(() => ({ cost: document.querySelector(".sheet-wrap .unlock-sheet .cost")?.textContent.trim(), buys: [...document.querySelectorAll(".sheet-wrap .buy-pair button")].map((b) => b.textContent.trim()) }));
-  check(/^◆\d+ · \$\d+$/.test(pair.cost ?? "") && pair.buys.join(" | ") === "◆ buy | $ buy", `the sheet shows both prices and two buys ("${pair.cost}": ${pair.buys.join(" | ")})`);
+  check(/^◆\d+ \/ \$\d+$/.test(pair.cost ?? "") && pair.buys.join(" | ") === "◆ buy | $ buy", `the sheet shows both prices and two buys ("${pair.cost}": ${pair.buys.join(" | ")})`);
   await page.locator(".sheet-wrap button.buy.marks").click({ timeout: 5000 });
   await waitFor((x) => x?.sheets === 0, "the buy sheet closed"); await settle();
   const marksAfter = await page.evaluate(() => window.__riddle.lineage.marks);
@@ -275,9 +275,11 @@ try {
     // Cut 14 §4: every exit's trace chip names its exit (`D5 · died · trace`; the depth off the ledger line the exit claims)
     // (the walk's picker edits can leave a set that returns on its first action — a traceless exit has no chip; step 11 checks
     // the label on fabricated lines whatever the walk did)
-    const chips = await page.evaluate(() => [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => c.textContent.replace(/\s+/g, " ").trim()));
+    // QA 1a2a4a9: a line that names its floor (`… on D8`) keeps it once — its chip reads `died · trace` (the depth counts as named)
+    const pairs = await page.evaluate(() => [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => ({ chip: c.textContent.replace(/\s+/g, " ").trim(), line: c.closest(".ledger-line")?.querySelector(".ledger-btn")?.textContent ?? "" })));
+    const chips = pairs.map((p) => p.chip);
     const traced = await page.evaluate(() => (window.__riddle.view.report?.exits ?? []).some((x) => x.trace?.turns.length));
-    const labelled = chips.filter((c) => /^D\d+ · (banked|returned|died) · trace$/.test(c)).length;
+    const labelled = pairs.filter((p) => /^D\d+ · (banked|returned|died) · trace$/.test(p.chip) || /\bD\d+\b/.test(p.line)).length;
     if (traced || chips.length) check(chips.length > 0 && chips.every((c) => /^(D\d+ · )?(banked|returned|died) · trace$/.test(c)) && labelled * 2 >= chips.length, `the ${chips.length} trace chips carry their exit (${chips.slice(0, 3).join(" · ")}${labelled < chips.length ? ` · ${chips.length - labelled} without a depth` : ""})`);
     else note("report (8 h): no traced exit to label (the walk's set returns at once)");
     await lintButtons("report (8 h)", "report");

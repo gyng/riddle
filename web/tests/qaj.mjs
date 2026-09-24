@@ -265,7 +265,7 @@ try {
     if (!v) { check(false, `${mode}: the cage sheet opened on a tap on the beat`); continue; }
     const on = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .vault-choice .chip.item.on")].map((c) => c.textContent.trim()));
     check(on.length === 1 && /sword/.test(on[0]), `${mode}: the override marks the preference's pick (${on.join(",")})`);
-    check(/^cage\b/.test(v.title) && (full ? v.full === "vault full" : v.full === ""), `${mode}: the sheet reads "${v.title}"${full ? `, "${v.full}"` : ""}`);
+    check(/^cage\b/.test(v.title) && (full ? v.full === "vault full → sold" : v.full === ""), `${mode}: the sheet reads "${v.title}"${full ? `, "${v.full}"` : ""}`);
     const pause = await page.locator(".gem.hud-btn").first().click({ timeout: 2000 }).then(() => true, () => false);
     await sleep(300);
     const p = await page.evaluate(() => ({ paused: document.querySelector(".gem.hud-btn")?.textContent, sheet: !!document.querySelector(".sheet-wrap .vault-choice") }));
@@ -297,7 +297,7 @@ try {
     const max = await page.evaluate(() => { const r = window.__riddle; while (r.ownRows() < r.vocab.max_rows) r.insertRow({ conds: [{ k: "hp<", n: 30 + r.rules.rows.length }], verb: { v: "retreat" } }, r.rules.rows.length); r.go({ kind: "camp" }); return r.vocab.max_rows; });
     const death = { run_id: 0, depth: 3, cause: "goblin_archer", margin: "3 hp short", verdict: "gap", baseline: 0.25, trace: { turns: [] }, morgue: "",
       patches: [{ row: { conds: [{ k: "hp<", n: 40 }], verb: { v: "drink", a: "heal" } }, insert_at: 0, survive: 0.75, forecast_delta: 0.05 }] };
-    const open = async (fires) => { await page.evaluate(({ d, fires }) => { const r = window.__riddle; r.rowFires = fires; r.go({ kind: "death", death: d }); }, { d: death, fires }); await sleep(250); await page.locator("button.patch").first().click({ timeout: 5000 }); await sleep(200); };
+    const open = async (fires) => { await page.evaluate(({ d, fires }) => { const r = window.__riddle; r.rowFires = fires; r.go({ kind: "death", death: d }); }, { d: death, fires }); await sleep(250); await page.locator("button.patch").first().click({ timeout: 5000 }); await page.locator(".patch-gem").click({ timeout: 5000 }); await sleep(200); };
     const marks = () => page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .drop-sheet .drop-row")].filter((b) => b.classList.contains("least")).length);
     await open(Array(max).fill(0));
     check((await marks()) === 0, "all rows at 0 fires: none marked");

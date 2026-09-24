@@ -9,6 +9,7 @@
 // the actor's next queued event (default 10 ticks, clamped 3..20), progress quantised to whole
 // ticks (10 fps cadence at 1×). Callouts stay on a real-time 1 s cadence.
 import type { Ev, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
+import { KNOWN_ENTITY_KINDS } from "./palette";
 
 export const TICKS_PER_S = 10;
 export const VISION_R = 7; // default sight radius; a snapshot's `vision` (Cut 3: the Deep is 4) overrides per floor
@@ -49,6 +50,9 @@ export function entityName(e: { kind: string; name?: string }): string {
   return (full.length <= NAME_MAX ? full : words[words.length - 1]!).slice(0, NAME_MAX);
 }
 
+/** The core's foe kinds (defs.rs MONSTERS, the heroes' and the captive's aside) — a row's caption strips a title no drawn foe answers to. */
+const FOE_KINDS = [...KNOWN_ENTITY_KINDS.filter((k) => !k.startsWith("hero_") && k !== "captive"), "spectral_blade", "spectral_hound", "goblin_captain",
+  "iron_golem", "forge_imp", "bell_sentinel", "slag_crawler", "smith", "lurker", "deep_eel", "cave_troll", "siren"];
 export type Callout = { text: string; until: number; t?: number }; // real-time ms; t: the event's tick (a seek drops the ones before it)
 export type ScreenShake = { t0: number; amp: number };  // Cut 8A: ticks; amp in env texels
 export type Leash = { from: number; to: number; t0: number; ok: boolean };
@@ -129,6 +133,25 @@ export class ReplayState {
     this.computeVision();
   }
 
+  /** QA 1a2a4a9 (P: `R2 ATTACK GOBLIN` over a conjurer and a blade; `R5 ATTACK GOBLIN` with no goblin drawn): the core's row text names
+   *  the target by its kind's title (`attack goblin conjurer`) — the caption names it as its tag does (`attack conjurer`), and a target
+   *  no hostile on this floor answers to is left out (`attack`). A tail with no kind's title in it passes through. */
+  private targetAsTagged(tail: string): string {
+    const low = tail.toLowerCase();
+    let best: EntState | null = null, len = 0, named = 0;
+    for (const e of this.ents.values()) {
+      if (e.hero || e.ally || e.neutral) continue;
+      const title = e.kind.replace(/^boss_/, "").replace(/_/g, " ").toLowerCase();
+      if (!low.endsWith(` ${title}`)) continue;
+      named = Math.max(named, title.length);
+      if (!e.dying && !e.remembered && title.length > len) { best = e; len = title.length; }
+    }
+    if (best) return `${tail.slice(0, tail.length - len).trim()} ${best.name}`;
+    for (const k of FOE_KINDS) { const title = k.replace(/_/g, " "); if (low.endsWith(` ${title}`)) named = Math.max(named, title.length); }
+    // a title the floor knew (dead or out of sight) or a word the renderer cannot place: the verb alone when a foe word ends it
+    if (named) return tail.slice(0, tail.length - named).trim();
+    return tail;
+  }
   private addEntity(e: Entity, hero: boolean): EntState {
     const st: EntState = {
       id: e.id, kind: e.kind, ally: !!e.ally, hero, cid: e.cid ?? null, x: e.x, y: e.y, px: e.x, py: e.y,
@@ -330,7 +353,7 @@ export class ReplayState {
         const tail = ev.text.includes("→") ? ev.text.slice(ev.text.lastIndexOf("→") + 1).trim() : ev.text;
         // QA 23ed91f (L: `R4 PACK BREAK GOBLIN`, 4 words): a callout is ≤ 3 words — the row number and at most two of the verb's
         // (the target goes first: `R4 pack break`, `R2 attack goblin`)
-        const text = (ev.row >= 0 ? `R${ev.row + 1} ${capWords(tail, 2)}` : ev.text.replace(/→/g, ">")).slice(0, 24);
+        const text = (ev.row >= 0 ? `R${ev.row + 1} ${capWords(this.targetAsTagged(tail), 2)}` : ev.text.replace(/→/g, ">")).slice(0, 24);
         this.caption = { text, until: performance.now() + CAPTION_MS, t };
         break;
       }
@@ -401,6 +424,7 @@ export class ReplayState {
         this.fadeTarget = EXIT_DIM;
         break;
       case "callout":
+        if (ev.text === "choose one") break;   // Cut 19 §1: the cage is the watch's beat (`took mail`), never a `CHOOSE ONE` over the hero
         this.callout = { text: ev.text.slice(0, 24), until: performance.now() + 1000, t };
         break;
       case "tame": {
@@ -411,6 +435,10 @@ export class ReplayState {
         if (ev.ok) { e.flashUntil = t + LEASH_T + 2; e.ally = true; e.ringFrom = t + LEASH_T; e.glyph = null; }
         else e.shake = { t0: t + LEASH_T };
         if (e.x !== h.x) h.flip = e.x < h.x;
+        break;
+      }
+      case "max_hp": {   // QA 1a2a4a9: hunger bites the max — the hero's bar reads the new ceiling
+        const e = this.ents.get(ev.id); if (e) e.maxHp = ev.max;
         break;
       }
       case "hatch":

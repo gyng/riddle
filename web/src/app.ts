@@ -117,7 +117,8 @@ export class App {
   /** Cut 7 §2: row origins from the save blob, consumed by the first `adoptSets` (the engine's sets carry none). */
   private savedOrigins: string[][] | null = null;
   /** Cut 7 §2: the rows of the active set that are the player's own (`yours: 3 of 5 rows`). Cut 12 §1: card rows never count. */
-  playerRows(): number { return this.rules.rows.filter((r) => !isCardRow(r) && (r.origin ?? "player") === "player").length; }
+  // QA 1a2a4a9 (O: "`yours: 0 of 2 rows` — the applied patch doesn't count as mine"): a patch the player applied is his choice too
+  playerRows(): number { return this.rules.rows.filter((r) => !isCardRow(r) && ["player", "patch"].includes(r.origin ?? "player")).length; }
   /** Cut 12 §1: the rows `max_rows` caps — every row that is not a card's (`{v:"tactic"}`). */
   ownRows(): number { return ownRowCount(this.rules.rows); }
   cardRowCount(): number { return this.rules.rows.length - this.ownRows(); }

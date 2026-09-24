@@ -63,7 +63,9 @@ function firesOf(app: App, trace?: Trace): number[] {
 /** QA 92eb880 (M, the worst death: `DICE` over three patches all `survives 100% · below bar`): `nothingBeatsBase` — the core's
  *  `Death.nothing_beats_base`: one line over the block says so (`nothing beats base · base 100%`) and no patch reads `below bar`.
  *  `depth`: the floor a stall patch's reach is measured on (`reach D7 17%`; N: "reach of which floor?"). */
-export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number };
+/** `stall`: a stall's verdict screen — the core's `survive` is the share of replays that end the loop (the hero came home either way):
+ *  `unstuck 100% · base 8%`, never `survives` (QA 1a2a4a9, P: "`survives 100%` for a hero who came home"). */
+export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: boolean; select?: (btn: HTMLButtonElement) => void };
 export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace, opts: PatchOpts = {}): HTMLElement {
   const head = opts.nothingBeatsBase && patches.length
     ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `nothing beats base · base ${pct(baseline ?? 1)}`) : null;
@@ -81,13 +83,16 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const target = p.remove || p.replace ? h("small", { class: "dim target" }, `R${p.insert_at + 1} ${p.remove ? "−" : "↻"} `)
       // Cut 19 §4: the core names the row the insert drops (`Patch.drops`, the dead run's least-fired own row) — `+ drop R5`; the tap
       // still opens the drop sheet on it (marked), so the player may drop another
-      : full ? h("small", { class: "dim target" }, dropsOf(app, p) >= 0 ? /* copy:callout */ `+ drop R${dropsOf(app, p) + 1}` : /* copy:callout */ "+ drop one", " ") : "";
+      : "";
+    // QA 1a2a4a9 (O: `+ drop R2 hp < 40% → drink heal` read as "put it at R2"): the drop trails the row it makes room for — `drops R2`
+    const dropTag = full ? h("small", { class: "dim target drop-tag" }, " · ", dropsOf(app, p) >= 0 ? /* copy:callout */ `drops R${dropsOf(app, p) + 1}` : /* copy:callout */ "drops one") : "";
     const line = held >= 0
       ? /* copy:callout */ `at R${held + 1}`
       : p.below_bar
       ? opts.nothingBeatsBase ? /* copy:callout */ `survives ${pct(p.survive)}` : /* copy:callout */ `survives ${pct(p.survive)} · below bar`
       : baseline === undefined
         ? /* copy:callout */ `reach ${opts.depth !== undefined ? `D${opts.depth} ` : ""}${pct(p.survive)} · base ${Math.max(0, Math.round(p.survive * 100) - delta)}%`
+        : opts.stall ? /* copy:callout */ `unstuck ${pct(p.survive)} · base ${pct(baseline)}`
         : /* copy:callout */ `survives ${pct(p.survive)} · base ${pct(baseline)}`;
     const onclick = unlock
       ? async (): Promise<void> => {
@@ -104,18 +109,25 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
         : full
           ? (): void => openDropSheet(app, p, trace)
           : (): void => { const i = app.applyPatch(p); app.go({ kind: "camp", highlight: i }); };
-    const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : rowLabel(p.row));
+    const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : rowLabel(p.row), dropTag);
     // an unlock's second line is the row it inserts once bought; a root patch's is the chain's root it answers
     const root = unlock ? (p.root ? h("small", { class: "dim" }, rowLabel(p.row)) : "") : p.root ? h("small", { class: "root" }, "← ", p.root.text) : "";
-    return h("button", { class: `patch tablet${p.remove ? " remove" : ""}${p.below_bar || held >= 0 ? " below" : ""}${unlock ? " unlock" : ""}`, onclick, ...(full ? { "data-full": "1" } : {}) },
+    // QA 1a2a4a9 (O: "tapping a patch card applied it and jumped to camp; I meant to select it"): with `opts.select` (the death screen)
+    // a tap lights the tablet and the gem applies the lit one — one model: tablets choose, the gem acts
+    const btn: HTMLButtonElement = h("button", { class: `patch tablet${p.remove ? " remove" : ""}${p.below_bar || held >= 0 ? " below" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
+      onclick: opts.select ? () => opts.select!(btn) : onclick, ...(full ? { "data-full": "1" } : {}) },
       h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
         // Cut 17 §4: `survives N %` as a gauge on the patch tablet (the number stays beside it)
         unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
         h("span", { class: "num surv" }, line),
         reachSpan(p, stallish)));
+    applyOf.set(btn, onclick);
+    return btn;
   }));
 }
+/** Each patch tablet's action (apply, buy, open the drop sheet, open the camp on a held row) — the gem's, when tablets only select. */
+export const applyOf = new WeakMap<HTMLElement, () => void | Promise<void>>();
 
 /** A patch's reach line: `reach +8%`; with the camp's own measure (`deathDeltas`) the depth and its ± — `reach D6 +8% ±3`, and
  *  `reach D6 ~0` inside the ± (as an unlock card's); `reach …` while the camp's measure is pending (`camp_pending`: the verdict's
@@ -147,16 +159,40 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
   // QA 92eb880 (N: the lit patch read `reach D8 −4%`, applied, and every floor fell; `rest 75%` lit over `return 100%`): once the camp's
   // reach is in, the tablets re-rank by it — a gain first, then the ones inside the ± (the higher survival first), a loss last and dim
   // (`.neg`: the gem never applies it); a held row or a below-bar alternative stays under them
-  const rank = (p: Patch, b: HTMLElement): number[] => {
-    if (b.classList.contains("below") && !b.classList.contains("neg")) return [4, 0, 0];
-    const d = Math.round(p.forecast_delta * 100), pm = p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : 0;
-    const flat = d === 0 || Math.abs(d) <= pm;
-    return [p.insert_at < 0 ? 1 : flat ? 1 : d > 0 ? 0 : 3, flat ? 0 : -d, -p.survive];
-  };
-  const keyed = patches.map((p, i) => ({ b: buttons[i], k: buttons[i] ? rank(p, buttons[i]) : [9, 0, 0], i })).filter((x) => x.b);
-  for (const x of keyed) x.b.classList.toggle("neg", x.k[0] === 3);
-  keyed.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2] || a.i - b.i);
-  for (const x of keyed) el.appendChild(x.b);
+  // QA 1a2a4a9 (P: `return 100% / rest 67% / read unknown 33%` became `return / read unknown 33% / rest 67%` once the reach landed):
+  // Cut 19 §4's order, the core's `rank_patches` — survival first, the reach only inside SURVIVE_BAND of the best survival left
+  const pool = patches.map((p, i) => ({ p, b: buttons[i], i })).filter((x) => x.b);
+  const pmOf = (p: Patch): number => p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : 0;
+  const moveOf = (p: Patch): number => { const d = Math.round(p.forecast_delta * 100); return p.insert_at < 0 || Math.abs(d) <= pmOf(p) ? 0 : d; };
+  const below = pool.filter((x) => x.b.classList.contains("below") && !x.b.classList.contains("neg"));
+  const live = pool.filter((x) => !below.includes(x));
+  // a loss stays dim (`.neg`, never the gem's) but keeps its survival's place: a 67 % row never drops under a 33 % one (the core
+  // sinks a loss under DELTA_SINK; here the reach is the camp's, landing after the player has read the list — the order moves less)
+  for (const x of live) x.b.classList.toggle("neg", moveOf(x.p) < 0);
+  const ordered = [...rankBand(live, moveOf), ...below];
+  for (const x of ordered) el.appendChild(x.b);
+}
+
+/** Cut 19 §4 (core `trace::SURVIVE_BAND`): survival decides a place when two patches' survival differs by more than 10 pts. */
+export const SURVIVE_BAND = 0.10;
+/** The core's `rank_patches`, over the camp's reach: each place goes to the patch with the best reach move (when any moves it up;
+ *  else the best survival) among those within SURVIVE_BAND of the best survival left — an order, not a pairwise rule. Ties keep
+ *  the incoming order. */
+export function rankBand<T extends { p: Patch; i: number }>(xs: T[], moveOf: (p: Patch) => number): T[] {
+  const pool = [...xs], out: T[] = [];
+  const byMove = pool.some((x) => moveOf(x.p) > 0);
+  while (pool.length) {
+    const top = Math.max(...pool.map((x) => x.p.survive));
+    let best = -1;
+    pool.forEach((x, j) => {
+      if (x.p.survive < top - SURVIVE_BAND - 1e-9) return;
+      if (best < 0) { best = j; return; }
+      const q = pool[best], d = moveOf(x.p) - moveOf(q.p), s = x.p.survive - q.p.survive;
+      if (byMove ? d > 0 || (d === 0 && s > 1e-9) : s > 1e-9 || (Math.abs(s) <= 1e-9 && d > 0)) best = j;
+    });
+    out.push(pool.splice(best, 1)[0]);
+  }
+  return out;
 }
 
 /** Cut 15 §3: the drop sheet — the set's own rows (a card's row never; it sits outside `max_rows`), `R5 <row> · 0/16` with the

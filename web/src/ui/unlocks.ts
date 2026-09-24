@@ -79,7 +79,8 @@ export function goldAffordable(u: UnlockInfo, gold: number): boolean {
 export function priceLabel(u: UnlockInfo): string {
   const g = goldPrice(u);
   // QA 92eb880 (M: "`class: rogue ⊘ bank once` shows no price while ranger/caster do"): a door that costs nothing reads `free`
-  return [u.cost ? `◆${u.cost}` : "", g ? `$${g}` : ""].filter(Boolean).join(" · ") || (u.owned ? "" : /* copy:label */ "free");
+  // QA 1a2a4a9 (O: "`◆2 · $300` read as one price; the sheet reveals either buys it"): the two prices read as a choice — `◆2 / $300`
+  return [u.cost ? `◆${u.cost}` : "", g ? `$${g}` : ""].filter(Boolean).join(" / ") || (u.owned ? "" : /* copy:label */ "free");
 }
 /** QA 92eb880 (M: "`+1 ROW` and `+1 VAULT` say nothing of what they give"): a counted unlock's effect as numbers — `rows 4 → 5`,
  *  `vault 1 → 2`, `party 1 → 2`, `supplies 3 → 5`; undefined for others. */
@@ -129,7 +130,7 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
     const buy = h("button", { class: `btn primary buy marks${can ? "" : " off"}`, disabled: !can, onclick: go(false) }, "◆ ", /* copy:button */ "buy");
     const buyGold = gold ? h("button", { class: `btn buy gold${canGold ? "" : " off"}`, disabled: !canGold, onclick: go(true) }, "$ ", /* copy:button */ "buy") : "";
     return h("div", { class: "sheet-body unlock-sheet" },
-      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`, gold ? h("span", { class: "gold-price" }, ` · $${gold}`) : "")),
+      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`, gold ? h("span", { class: "gold-price" }, ` / $${gold}`) : "")),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r))))
         : VERB_OF[u.id] ? h("div", { class: "card-rows" }, h("div", { class: "row locked" }, h("div", { class: "chips" }, h("span", { class: "chip verb locked" }, VERB_OF[u.id])))) : "",
       effectLine(app, u) ? h("div", { class: "effect-line num" }, effectLine(app, u)!) : "",
@@ -138,9 +139,18 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       d ? h("div", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : "",   // Cut 10 §3 / Cut 12 §1 / Cut 13 §5
       stallLabel(u) ? h("div", { class: "num delta down stall-risk" }, stallLabel(u)) : "",   // QA 92eb880
       h("div", { class: "buy-pair" }, buy, buyGold),
-      goldShort ? h("div", { class: "needs-line dim num gold-short" }, /* copy:callout */ `$${goldShort} short`) : "");
+      goldShort ? h("div", { class: "needs-line dim num gold-short" }, /* copy:callout */ `$${goldShort} short`) : "",
+      // QA 1a2a4a9 (O, P: buying `+1 row` with gold raised every other price 25 %, silently): the climb, before the tap
+      gold && u.cost ? h("div", { class: "dim num gold-climb" }, /* copy:callout */ `each $ buy +${goldClimb(gold, u.cost)}%`) : "");
   });
 }
+/** The core's gold price is `GOLD_PER_MARK × cost × (4 + gold_buys) / 4` (meta.rs): each gold buy raises every gold price by
+ *  1 / (4 + gold_buys) — 25 % at the first, 20 % at the second, … — read back off this card's price. */
+export function goldClimb(gold: number, cost: number): number {
+  const n = Math.max(0, Math.round((gold * 4) / (GOLD_PER_MARK * cost)) - 4);
+  return Math.round(100 / (4 + n));
+}
+const GOLD_PER_MARK = 150;   // core meta.rs
 /** Cut 6 §4: a tactic card (it becomes a row when bought). */
 export const isCard = (u: UnlockInfo): boolean => /^card:/.test(LABEL[u.id] ?? "");
 /** The sheet behind an owned shelf chip: the buy sheet's title line, the rows, and — for a card whose row the set no longer

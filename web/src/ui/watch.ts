@@ -118,7 +118,7 @@ import { openSheet } from "./sheet";
 import { salvageValue } from "./salvage";
 import { setBusyHost } from "./progress";
 import { vaultSlots } from "./unlocks";
-import { kindGlyph, verbLabel } from "./tokens";
+import { kindGlyph, noteText, verbLabel } from "./tokens";
 import { traceChip } from "./trace";
 import { markEnd, recordRun } from "./runlog";
 import { audio } from "../audio";
@@ -423,7 +423,8 @@ export function renderWatch(app: App): Mounted {
   }
   function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
-  let lastLoot: number | undefined, lastLootRun = -1, lootDrop = 0, lootDropUntil = 0;
+  let lastLoot: number | undefined, lastLootRun = -1, lootDrop = 0, lootDropUntil = 0, lootWhy = "";
+  let lastUseT = -Infinity, lastStealT = -Infinity;   // engine ticks of the last `use` / `steal` (the loot's fall names which)
   function paintStake(s: Snapshot): void {
     hudSnap = s;
     if (cardUp) paintCardText();
@@ -432,10 +433,14 @@ export function renderWatch(app: App): Mounted {
     if (!st) return;
     // QA 92eb880 (M: "gold `$77 → $65` in the den with only `snatched …` lines"): a fall in the loot shows its size beside it for 2.5 s
     // (`$65 −$12`) — a theft of an item takes its worth with it
-    if (lastLoot !== undefined && st.loot < lastLoot && s.run.id === lastLootRun) { lootDrop = lastLoot - st.loot + (performance.now() < lootDropUntil ? lootDrop : 0); lootDropUntil = performance.now() + 2500; }
+    if (lastLoot !== undefined && st.loot < lastLoot && s.run.id === lastLootRun) { lootDrop = lastLoot - st.loot + (performance.now() < lootDropUntil ? lootDrop : 0); lootDropUntil = performance.now() + 2500;
+      // QA 1a2a4a9 (O, P: `$46 −$8`, `$283 −$100` — "minuses that don't match any line"): the fall says what took it — a thief, or an
+      // item used up (the loot counts what he carries at its worth)
+      lootWhy = s.turn - lastStealT <= 20 ? /* copy:label */ "stolen" : s.turn - lastUseT <= 20 ? /* copy:label */ "used" : ""; }
     lastLoot = st.loot; lastLootRun = s.run.id;
-    const parts: (string | HTMLElement)[] = [`$${st.loot}`];
-    if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}`));
+    // QA 1a2a4a9 (O: the bar's `$0` and the line's `$3 · death: lose all` on one screen, "neither labelled"): the run's own purse says so
+    const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "carry"), ` $${st.loot}`];
+    if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}`));
     // Cut 6 §1: the kept number while a return/bank row exists (`$84 · keeps $50`)
     // Cut 13 §1: while the guard has fired a stall pays nothing, and the line says so before it is lost (`keeps $0 · stalling`)
     // QA 92eb880 (N: "`$75 · keeps $0 · stalling` held ~10 s, then the run returned with `keeps 60%`"): while the guard has fired the run
@@ -443,7 +448,9 @@ export function renderWatch(app: App): Mounted {
     if (st.stalling && !overridden) parts.push(" · ", h("span", { class: "kept stalling" }, /* copy:callout */ "stalling"));
     else if (st.kept !== undefined && !overridden) parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `keeps $${st.kept}`));
     for (const b of st.brought) parts.push(" · ", h("span", { class: b.insured ? "" : "risk" }, b.label, b.insured ? "" : "⚠"));
-    if (overridden || walkingHome) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "returning"));
+    // QA 1a2a4a9: the core's `Stake.returning` (a return/bank row acted: the run is committed homeward); the client's own guess (the
+    // last row to act was a return) stands in for an older core only
+    if (overridden || (st.returning ?? walkingHome)) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "returning"));
     else if (st.return_row === undefined) parts.push(" · ", h("span", { class: "lose" }, /* copy:callout */ "death: lose all"));
     else parts.push(" · ", returnAt(app.rules.rows[st.return_row], st.return_row));
     replace(stake, ...parts);
@@ -672,7 +679,11 @@ export function renderWatch(app: App): Mounted {
         }
         case "telegraph": if (ev.what === "rallies") rallyBy = kinds.get(ev.id) ?? rallyBy; at(ev.t, () => cue("telegraph")); break;
         // Cut 10 §3: a theft names its amount when the engine sends one (`stolen $16`)
-        case "steal": if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
+        // QA 1a2a4a9 (P: `12/38` → `6/16`, "nothing in the run said why"): the core's `max_hp` event moves the HUD's max at its tick
+        // (the `hunger −1 max` callout comes as a callout of its own)
+        case "max_hp": if (ev.id === heroId) { const m = ev.max; at(ev.t, () => { hud.maxHp = m; paintHud(); }); } break;
+        case "use": lastUseT = ev.t; break;   // QA 1a2a4a9: the stake's `−$8` names its cause (`used`)
+        case "steal": lastStealT = ev.t; if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
         case "descend": {
           descends.push(ev.t);   // Cut 18 §1
           floors.set(ev.depth, { ...floors.get(ev.depth), biome: ev.biome });
@@ -702,7 +713,7 @@ export function renderWatch(app: App): Mounted {
           if (breakBeat(ev.t, ev.text)) break;
           // Cut 19 §1: the cage's opening is its own beat (`took mail`, vaultFrom) when the batch's snapshot carries the choice
           if (/^The cage opens\b/.test(ev.text) && s.vault_choice?.items.length) break;
-          if (BEAT_RE.test(ev.text)) beatAt(ev.t, ev.text);   // Cut 13 §4: the situations cut in like fights
+          if (BEAT_RE.test(ev.text)) beatAt(ev.t, noteText(ev.text));   // Cut 13 §4: the situations cut in like fights
           break;
         case "exit": {
           exit = ev.tier; exitLine = ev.line ?? exitLine; exitTrace = ev.trace ?? ev.line?.trace ?? exitTrace;
@@ -1164,7 +1175,9 @@ export function renderWatch(app: App): Mounted {
   /** Cut 15 §4: the lit chip's clock as digits (`data-rate`, drawn small by CSS): the viewer's rate, the travel's under the card,
    *  none while the picture is frozen, the world waits (the vault) or the run is over. */
   function paintRate(): void {
-    const r = paused || hidden || done || exitTier ? 0 : speed > 0 ? speed : cardUp || cardWait ? RATE[mode] : 0;
+    // QA 1a2a4a9 (P: `fast 0.5×` mid-fight while `fights` read 2×): a held beat's eased clock is the beat's, not the mode's — the chip
+    // reads the mode's fight rate through it
+    const r = paused || hidden || done || exitTier ? 0 : beatHeld() ? FIGHT_RATE[mode] : speed > 0 ? speed : cardUp || cardWait ? RATE[mode] : 0;
     for (const m of Object.keys(modeBtn) as Mode[]) {
       const want = m === mode && r > 0 ? rateText(r) : "";
       if ((modeBtn[m].dataset.rate ?? "") !== want) { if (want) modeBtn[m].dataset.rate = want; else delete modeBtn[m].dataset.rate; }
@@ -1192,6 +1205,14 @@ export function renderWatch(app: App): Mounted {
       if (ticker.classList.contains("show") || tickerQueue.length) scheduleTicker();
       for (const x of frozenFeed.splice(0)) feed(x.evs, x.s);
     }
+  }
+  /** QA 1a2a4a9: a cage the skip met — open, its beat not yet shown. */
+  const cageMet = (): boolean => !!cage && !cage.done && !cage.shown;
+  /** The skip lands on the cage's beat: every floor loaded, the viewer at the beat's tick, the frame cut to it (its line holds there). */
+  function landCage(): void {
+    drainLoads();
+    const b = beat && beat.cage && !beat.shown ? beat : null, t = b ? b.from : viewerTick();
+    seekTo(t); release(t); letGo(t); cardSince = -Infinity; applyFrame(); applySpeed();
   }
   function paintPause(): void { pause.classList.toggle("on", paused); pause.classList.toggle("pulse", paused); replace(pause, icon(paused ? "play" : "pause"), h("span", { class: "gem-glyph" }, paused ? "▶" : "⏸")); }
   let skipQueued = false;
@@ -1221,13 +1242,16 @@ export function renderWatch(app: App): Mounted {
     if (mode === "fast" || stalling()) {
       try {
         for (let i = 0; i < SKIP_FIGHT_BATCHES && !held && !disposed && performance.now() < until; i++) {
-          const r = await app.engine.step(SKIP_END_BATCH); handle(r);
-          if (held || r.run_over) break;
+          // QA 1a2a4a9 (P: at 16× the cage's `took leather +1` was gone in ~1.5 s, untappable): a skip stops at a cage — the beat holds
+          // its wall time like any other; near an unopened cage the steps are short, so the choice is met inside its grace
+          const r = await app.engine.step(snap && cageNear(snap) ? CAGE_BATCH : SKIP_END_BATCH); handle(r);
+          if (held || r.run_over || cageMet()) break;
           const p = takeLoad(); if (p) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
         }
       } catch (e) { console.warn("skip failed", e); }
       inflight = false;
       if (held) toEnding();
+      else if (cageMet()) landCage();
       else if (!loads.length) { const t = Math.max(viewerTick(), engineTick - BATCH); seekTo(t); release(viewerTick()); letGo(t); applyFrame(); applySpeed(); }
       if (skipQueued) { skipQueued = false; void skipToEvent(); }
       return;
@@ -1264,10 +1288,10 @@ export function renderWatch(app: App): Mounted {
       let hit = ahead;
       const max = inFight ? 120 : SKIP_FIGHT_BATCHES;
       for (let i = 0; i < max && !hit && !disposed && performance.now() < until; i++) {
-        const r = await app.engine.step(BATCH);
+        const r = await app.engine.step(snap && cageNear(snap) ? Math.min(BATCH, CAGE_BATCH) : BATCH);
         handle(r);
         hit = r.run_over || (inFight ? !fightOn : fightOn);
-        if (held) break;
+        if (held || cageMet()) break;   // QA 1a2a4a9: a cage stops the skip (its beat, then the next press goes on)
         // a floor change on the way: load it now (the skip is the drain), the queued events straight into place
         const p = takeLoad(); if (p) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
       }
@@ -1275,6 +1299,7 @@ export function renderWatch(app: App): Mounted {
     } catch (e) { console.warn("skip failed", e); }
     inflight = false;
     if (held) toEnding();
+    else if (cageMet()) landCage();
     else if (!loads.length) {
       // the viewer lands on the found fight's first frame (`fights`: the card's minimum waived, the press asked for it), else where
       // the engine stopped — replaying the skipped span at 1× is what made ▶▶| feel dead in a fight
@@ -1308,7 +1333,7 @@ export function renderWatch(app: App): Mounted {
         const got = !vaultChosen && !held && !exitTier && !done ? vaultItems.find((it) => s.hero.inv.some((x) => x.id === it.id)) : undefined;
         const said = cage?.shown ? cage.pick?.id : undefined;
         vaultItems = [];
-        if (got && got.id !== said) { tickerQueue.length = 0; showTicker(tookText(got.label), "", 2400); }   // over the card too (the ticker sits above it): the pick is news
+        if (got && got.id !== said) { tickerQueue.length = 0; showTicker(tookText(got.label), "", BEAT_HOLD_MS); }   // over the card too (the ticker sits above it): the pick is news
       }
       if (!vc) cage = null;
       return;
@@ -1338,7 +1363,8 @@ export function renderWatch(app: App): Mounted {
     let sent = false;
     vaultAt = performance.now(); vaultItems = vc.items; vaultChosen = false;
     el.dataset.cage = "sheet";
-    // QA on 3d71c33: a full vault salvages the pick at the exit — the sheet says so
+    // QA on 3d71c33: a full vault salvages the pick at the exit — the sheet says so; QA 1a2a4a9 (P: "what the vault has to do with
+    // the cage"): …and what it means for the pick (`vault full → sold`: he uses it this run, the exit sells it)
     const full = app.lineage.vault.length >= vaultSlots(app.lineage.unlocks);
     // the cage is modeless: the HUD stays live around it (⏸ keeps it, ▶▶| lets it go — QA on 3d71c33: "click intercepted")
     openSheet((close) => {
@@ -1356,7 +1382,7 @@ export function renderWatch(app: App): Mounted {
       requestAnimationFrame(() => requestAnimationFrame(() => { if (frozen()) graceHold(); else bar.style.width = "0%"; }));
       // the three-item room is the cage to the player (the core's `twist_word`; QA on 3d71c33: "a sheet titled VAULT")
       return h("div", { class: "sheet-body vault-choice" }, h("div", { class: "label row-label" }, /* copy:label */ "cage"),
-        full ? h("div", { class: "vault-full dim num" }, /* copy:callout */ "vault full") : "", chips, grace);
+        full ? h("div", { class: "vault-full dim num" }, /* copy:callout */ "vault full → sold") : "", chips, grace);
     }, { modeless: true });
     paintCard(frame); applySpeed();
   }
@@ -1515,7 +1541,7 @@ export function renderWatch(app: App): Mounted {
           if (keep.has(it.id)) keep.delete(it.id);
           else { if (keep.size >= free) { const oldest = keep.values().next().value; if (oldest === undefined) return; keep.delete(oldest); } keep.add(it.id); }
           paint();
-        } }, it.label, " ", keep.has(it.id) ? h("b", null, "⌂") : h("b", { class: "num gold" }, `$${p.worth?.[i] ?? salvageValue(it.kind, p.tier)}`))));   // the engine's worth at this exit (its old client table read 4×)
+        } }, it.label, " ", /* QA 1a2a4a9 (P: "`axe ⌂` — what ⌂ means"): a kept pick reads where it goes */ keep.has(it.id) ? h("b", null, "→ ", /* copy:label */ "vault") : h("b", { class: "num gold" }, `$${p.worth?.[i] ?? salvageValue(it.kind, p.tier)}`))));   // the engine's worth at this exit (its old client table read 4×)
       };
       paint();
       // the pile once: the exit line carries `bones: 8 items on D4` (the core's), so the client's `bones left` line only stands in

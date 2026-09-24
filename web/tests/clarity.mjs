@@ -317,7 +317,7 @@ try {
         if (x.card !== null) {
           cards++;
           const cd = /^D(\d+)/.exec(x.card)?.[1], hd = /^D(\d+)$/.exec(x.depth)?.[1];
-          const cl = /· \$(\d+)$/.exec(x.card)?.[1], sl = /^\$(\d+)/.exec(x.stake)?.[1];
+          const cl = /· \$(\d+)$/.exec(x.card)?.[1], sl = /^(?:carry )?\$(\d+)/.exec(x.stake)?.[1];
           if (cd !== hd || (cl !== undefined && sl !== undefined && cl !== sl)) bad.push(`${x.depth} ${x.stake.split(" · ")[0]} vs "${x.card}"`);
         }
         await sleep(100);

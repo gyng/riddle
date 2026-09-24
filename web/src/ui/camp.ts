@@ -41,11 +41,16 @@ const CAGE_PREFS = ["weapon", "armour", "potion", "scroll"];
 let cageMemo: { key: string; opts: CageOption[] } | null = null;
 /** Cut 19 §1: an option's headline delta (`+36%`, the bank share's move when either panel banks, else the reach's); none on the
  *  current preference or a move that rounds to 0; `dim` inside its ±. */
+/** QA 1a2a4a9 (O, P: "`armour +15%` — % of what?"; "the selected option never has a number"; "`scroll` stayed blank"): each option
+ *  names what it measures — `bank +15%` (the bank share, when either panel banks) or `D7 +15%` (the reach at the option's depth);
+ *  the current one its own level (`D7 73%`), a move that rounds to 0 `D7 +0%` (dim). */
 export function cageDelta(o: CageOption): { text: string; cls: string } | null {
-  if (o.current) return null;
-  const d = Math.round(o.delta * 100); if (d === 0) return null;
+  const banks = o.delta === o.bank_delta && (o.bank > 0 || o.bank - o.bank_delta > 0);
+  const at = banks ? /* copy:label */ "bank" : `D${o.depth}`;
+  if (o.current) return { text: `${at} ${Math.round((banks ? o.bank : o.reach) * 100)}%`, cls: "cur" };
+  const d = Math.round(o.delta * 100);
   const pm = Math.round(o.pm * 100);
-  return { text: `${d > 0 ? "+" : "−"}${Math.abs(d)}%`, cls: `${d > 0 ? "up" : "down"}${Math.abs(d) <= pm ? " flat" : ""}` };
+  return { text: `${at} ${d < 0 ? "−" : "+"}${Math.abs(d)}%`, cls: `${d > 0 ? "up" : d < 0 ? "down" : ""}${Math.abs(d) <= pm ? " flat" : ""}` };
 }
 /** Cut 17 §3: which step carves each console tile (the tile glints on its first appearance). */
 const STEP_OF: Record<string, Step> = { edit: "edit", loadout: "loadout", unlocks: "unlocks", vault: "vault", forge: "forge", party: "party", ledger: "heirs", chronicle: "heirs" };
@@ -125,6 +130,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setBusyHost(busyStrip);
   function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
 
+  // QA 1a2a4a9 (P: "nothing on the camp shows what's packed — only opening SUPPLIES does"): the loadout tile carries the pack's count
+  const withPack = (el: HTMLElement): HTMLElement => { const n = app.lineage.supplies?.length ?? 0; if (n) el.appendChild(h("span", { class: "pack-n num" }, `${n}/${supplyCap(app.lineage.unlocks)}`)); return el; };
   const withBadge = (el: HTMLElement, badge: HTMLElement | null): HTMLElement => { if (badge) { el.appendChild(badge); el.classList.add("badged"); } return el; };
   /** Cut 17 §1/§3: the command card as revealed — edit · loadout · unlocks · vault · forge · party · ledger · chronicle. */
   function paintTiles(): void {
@@ -134,7 +141,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // QA 92eb880 (N: "the `edit` tile toggles: tapping it while editing closes the editor (I lost the next tap twice)"): it turns
       // editing on and stays lit; a second tap closes the open panel, never the editor
       R.has("edit") && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
-      R.has("loadout") && withBadge(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout"), repeatBadge()),
+      R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
       R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
       R.has("vault") && t("vault", /* copy:button */ "vault", "vault", () => togglePanel("vault"), open === "vault"),
       R.has("forge") && t("forge", /* copy:button */ "forge", "forge", () => openForge(app)),
@@ -150,14 +157,15 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     bar.paint();
     // Cut 13 §2: the offer as chips while it stands (the bar's plain trait otherwise); Cut 16 §2: the class chips beside them
     const traits = (L.trait_offer?.length ?? 0) >= 2
-      ? h("span", { class: "chips traits" }, ...L.trait_offer!.map((t) => h("button", { class: `chip trait${t === L.trait ? " on" : ""}`, disabled: t === L.trait, onclick: () => void pickTrait(t) },
-          h("span", null, t), TRAIT_RULE[t] ? h("small", { class: "rule dim" }, TRAIT_RULE[t]) : "")))
+      ? h("span", { class: "chips traits" }, ...L.trait_offer!.map((t) => h("button", { class: `chip trait${t === L.trait ? " on" : ""}`, disabled: t === L.trait, onclick: () => void pickTrait(t), "aria-pressed": t === L.trait ? "true" : "false" },
+          // QA 1a2a4a9 (O: "the ✓ is only visual; the text shows no selection"): the mark is text, not a CSS `::before`
+          t === L.trait ? h("b", { class: "tick" }, "✓ ") : "", h("span", null, t), TRAIT_RULE[t] ? h("small", { class: "rule dim" }, TRAIT_RULE[t]) : "")))
       : "";
     const offer = (L.class_offer?.length ?? 0) >= 2;
     const classes = offer
-      ? h("span", { class: "chips classes-offer" }, ...L.class_offer!.map((c) => h("button", { class: `chip cls-offer${c.class === L.class ? " on" : ""}`, disabled: c.class === L.class, "data-class": c.class, onclick: () => void app.setClass(c.class) },
-          h("span", null, c.class, " ", h("b", { class: "num" }, `L${c.level}`)),
-          c.signature ? h("small", { class: `rule dim${c.level < c.opens ? " locked" : ""}` }, verbLabel({ v: c.signature }), c.level < c.opens ? ` L${c.opens}` : "") : "")))
+      ? h("span", { class: "chips classes-offer" }, ...L.class_offer!.map((c) => h("button", { class: `chip cls-offer${c.class === L.class ? " on" : ""}`, disabled: c.class === L.class, "data-class": c.class, onclick: () => void app.setClass(c.class), "aria-pressed": c.class === L.class ? "true" : "false" },
+          c.class === L.class ? h("b", { class: "tick" }, "✓ ") : "", h("span", null, c.class, " ", h("b", { class: "num" }, `L${c.level}`)),
+          c.signature ? h("small", { class: `rule dim${c.level < c.opens ? " locked" : ""}` }, verbLabel({ v: c.signature }), c.level < c.opens ? ` ⊘L${c.opens}` : "") : "")))   // QA 1a2a4a9 (P: "`mark L7` under an L1 ranger"): locked until L7
       : "";
     replace(bar.offers, traits, classes);
     bar.offers.hidden = !traits && !classes;
@@ -312,9 +320,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     if (!app.engine.setRestock || L.repeat === undefined) return null;
     const on = L.repeat !== false;
     if (on && !(L.repeat_kinds?.length)) return null;   // nothing to re-pack
-    return h("span", { class: `repeat-badge num${on ? " on" : ""}`, role: "button", "data-repeat": on ? "1" : "0",
+    return h("span", { class: `repeat-badge num${on ? " on" : ""}${on && L.repeat_short?.length ? " short" : ""}`, role: "button", "data-repeat": on ? "1" : "0",
       onclick: (e: Event) => { e.stopPropagation(); void app.mutate(() => app.engine.setRestock!(!on)); } },
-      on ? /* copy:callout */ `repeat · $${L.repeat_gold ?? 0}` : /* copy:callout */ "repeat off");
+      // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay reads so on the tile
+      on ? (L.repeat_short?.length ? /* copy:callout */ "repeat short" : /* copy:callout */ `repeat · $${L.repeat_gold ?? 0}`) : /* copy:callout */ "repeat off");
   }
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
@@ -400,6 +409,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // Cut 19 §3 (AA: "`+1 row` vanished"): a pinned unlock (the next `+1 row`) is always on the short list — it takes the last place
       const pins = list.filter((u) => u.pinned);
       if (pins.some((u) => !next.includes(u))) next = [...next.filter((u) => !u.pinned).slice(0, Math.max(0, 3 - pins.length)), ...pins];
+      // QA 1a2a4a9 (O, P: "offers stay put between two opens"; the report's PENDING and the shelf differed): the core's short list
+      // (`UnlockInfo.short`, from the lineage alone) when it sends one — the same three here and in the report
+      if (list.some((u) => u.short !== undefined)) next = list.filter((u) => u.short);
       const shown = unlocksAll() || list.length <= 3 ? list : list.filter((u) => next.includes(u));
       for (const u of shown) {
         // `available` = prerequisite + fact gate + affordable (engine truth). Two dims: gated (the `needs` line
