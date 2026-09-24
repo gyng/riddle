@@ -264,6 +264,9 @@ pub fn cage_forecast(game: &Game) -> Vec<crate::wire::CageOption> {
         .map(|pref| {
             let mut g = game.sim_clone();
             g.lineage.vault_pref = (*pref).into();
+            // The clone starts with an empty cache: seed it with the game's, so an option already
+            // measured (this or an earlier open of the cage tablet) is a lookup, not a re-simulation.
+            *g.panel_cache.borrow_mut() = game.panel_cache.borrow().clone();
             let r = read(&camp_panel(&g, &rules, sims));
             (r, g.panel_cache.into_inner().into_iter().collect())
         })
