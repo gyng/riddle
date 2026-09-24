@@ -1,0 +1,35 @@
+You are painting UI ICONS for the game "Riddle" (a phone roguelike). The target look is in
+/home/g/p/riddle/art/ui/targets/camp.png and watch.png — LOOK AT THOSE TWO IMAGES FIRST (you may read
+them; read nothing else in the repository) and match the engraved icon style of their command
+tiles exactly: each icon a single object engraved/embossed in aged bronze-bone metal with a dark
+ink outline and warm amber highlight from the upper left, readable at 40 px.
+
+Use your built-in image_gen tool, one call per icon. Do NOT modify anything outside
+/home/g/p/riddle/art/ui/icons/. Each icon: 256x256, RGBA, TRANSPARENT background (true alpha, the
+four corners alpha 0), the object centred filling ~75% of the canvas, no frame or tile behind it,
+no text, no letters. Resample to 256x256 with PIL (Lanczos) if needed. Regenerate once if the
+background is not transparent.
+
+Paths and subjects:
+/home/g/p/riddle/art/ui/icons/edit.png — a stone mason's chisel
+/home/g/p/riddle/art/ui/icons/loadout.png — a leather satchel
+/home/g/p/riddle/art/ui/icons/unlocks.png — an ornate old key
+/home/g/p/riddle/art/ui/icons/ledger.png — an open book
+/home/g/p/riddle/art/ui/icons/vault.png — an iron-bound chest
+/home/g/p/riddle/art/ui/icons/forge.png — an anvil
+/home/g/p/riddle/art/ui/icons/party.png — a paw print
+/home/g/p/riddle/art/ui/icons/chronicle.png — a rolled scroll
+/home/g/p/riddle/art/ui/icons/fights.png — two crossed swords
+/home/g/p/riddle/art/ui/icons/fast.png — a double chevron pointing right
+/home/g/p/riddle/art/ui/icons/skip.png — a play triangle against a vertical bar
+/home/g/p/riddle/art/ui/icons/bail.png — a small white flag banner on a pole
+/home/g/p/riddle/art/ui/icons/pause.png — two vertical bars
+/home/g/p/riddle/art/ui/icons/play.png — a play triangle
+/home/g/p/riddle/art/ui/icons/morgue.png — a skull
+/home/g/p/riddle/art/ui/icons/camp.png — a tent
+/home/g/p/riddle/art/ui/icons/trace.png — a magnifying lens over a scroll
+/home/g/p/riddle/art/ui/icons/gold.png — a small stack of gold coins
+/home/g/p/riddle/art/ui/icons/mark.png — a blue faceted diamond
+/home/g/p/riddle/art/ui/icons/renown.png — a gold five-point star
+/home/g/p/riddle/art/ui/icons/depth.png — a stairway descending into darkness
+/home/g/p/riddle/art/ui/icons/settings.png — a gear cog

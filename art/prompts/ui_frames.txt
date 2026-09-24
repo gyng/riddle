@@ -1,0 +1,51 @@
+You are painting UI SKIN ASSETS for the game "Riddle" (a phone roguelike held in portrait). The
+target look is in /home/g/p/riddle/art/ui/targets/camp.png, watch.png, death.png, report.png —
+LOOK AT THOSE FOUR IMAGES FIRST (you may read them; read nothing else in the repository) and match
+their material language exactly: carved dark umber stone, blackened hammered iron bezels with
+rivets and corner caps, worn gilding, warm amber torchlight on edges, aged parchment. Dark fantasy,
+Warcraft III / StarCraft II interface style, painterly-but-crisp.
+
+Use your built-in image_gen tool, one call per asset. Do NOT write code beyond a PIL resample/alpha
+fix. Do NOT modify anything outside /home/g/p/riddle/art/ui/frames/. Save each final PNG (RGBA,
+sRGB) to the exact path; resample to the exact size with PIL (Lanczos) if needed. Every asset has a
+TRANSPARENT background outside the object (true alpha, no checkerboard, no blue key, no black
+fill); verify the four corners of the canvas are alpha 0 where the object does not reach them, and
+regenerate once if not. No text, no letters, no numbers, no icons on any frame (they are empty
+containers the game fills). No watermarks.
+
+NINE-SLICE RULE (critical): frames marked [9-slice, inset N] will be stretched by CSS border-image
+with that inset on all four sides. So: all ornament (corner caps, rivet clusters, filigree) must sit
+INSIDE the N-px corner squares; the edges between corners must be a plain, repeating/stretchable
+band (uniform along its length, no centred ornament); the centre area must be a plain fill (stone,
+iron or parchment texture, low contrast, no focal detail).
+
+1) /home/g/p/riddle/art/ui/frames/bar.png — 1024x128 — [9-slice, inset 40] the top resource bar: a
+   long blackened-iron plate, riveted, bevelled, slightly worn; flat dark centre.
+2) /home/g/p/riddle/art/ui/frames/console.png — 1024x512 — [9-slice, inset 96] the bottom console:
+   carved umber stone slab with an iron rim, heavy ornate iron corner caps with small skull or
+   rune bosses in the corners only; plain dark stone centre.
+3) /home/g/p/riddle/art/ui/frames/panel.png — 512x512 — [9-slice, inset 56] a framed panel: iron
+   frame with corner brackets around aged parchment (the parchment is the centre, evenly lit).
+4) /home/g/p/riddle/art/ui/frames/tablet.png — 1024x160 — [9-slice, inset 48] a rule tablet: a
+   carved dark stone slab with a thin iron border, like the rows R1..R6 in camp.png; plain centre.
+5) /home/g/p/riddle/art/ui/frames/tablet_card.png — 1024x160 — [9-slice, inset 48] same tablet with
+   a glowing worn-gold border (the tactic-card row, R6 in camp.png).
+6) /home/g/p/riddle/art/ui/frames/tile.png — 256x256 — [9-slice, inset 48] a square command tile:
+   dark bevelled stone in an iron frame, raised.
+7) /home/g/p/riddle/art/ui/frames/tile_pressed.png — 256x256 — [9-slice, inset 48] the same tile
+   pressed: bevel inverted, 2px sunk, darker, a faint amber rim.
+8) /home/g/p/riddle/art/ui/frames/well.png — 384x384 — [no slice] the portrait well: a round
+   ornate iron ring with rivets, the inside of the ring fully TRANSPARENT (a portrait shows through).
+9) /home/g/p/riddle/art/ui/frames/gem.png — 384x384 — [no slice] the primary action gem: a big
+   round faceted amber gem glowing from within, set in an ornate iron mount; empty (no text).
+10) /home/g/p/riddle/art/ui/frames/gem_red.png — 384x384 — [no slice] the same mount with a deep
+   crimson gem (danger / bail).
+11) /home/g/p/riddle/art/ui/frames/banner.png — 768x1024 — [no slice] the defeat banner: a torn
+   crimson cloth banner hanging from a spiked iron bar with a small skull boss at the centre of the
+   bar, chains at the bar's ends; the cloth's centre plain (text is laid over it).
+12) /home/g/p/riddle/art/ui/frames/gauge.png — 512x48 — [9-slice, inset 16] an empty gauge trough:
+   dark recessed iron channel with a thin bright rim (the fill is drawn by code).
+13) /home/g/p/riddle/art/ui/frames/stud.png — 96x96 — [no slice] a round iron close-stud with a
+   small engraved X-shaped cross in its face (the one exception to "no marks").
+14) /home/g/p/riddle/art/ui/frames/seal.png — 256x256 — [no slice] an empty round red wax/stamp
+   seal ring (the verdict word is written in it by code).
