@@ -70,7 +70,7 @@ def main() -> int:
     for a in assets:
         if a["bg"].startswith("env") and a["id"] in generated_ids:
             name = a["id"][4:]
-            if not ({f"warrens_env_{name}", f"env_{name}", f"env_{name}_0"} & tile_ids):
+            if not ({f"warrens_env_{name}", f"warrens_env_{name}_0", f"env_{name}", f"env_{name}_0"} & tile_ids):
                 failures.append(f"{a['id']}: no converted tile (run art/make_env.py)")
     expected_frames = (keyed_ids & generated_ids) | tile_ids
     missing_frames = sorted(expected_frames - set(frames))

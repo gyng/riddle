@@ -46,6 +46,7 @@ import { QuadLayer } from "./layers";
 import { GpuTimer, Hist } from "./gputimer";
 import { paletteFor } from "./palette";
 import { FONT_ADVANCE, FONT_CELL_H, FONT_CELL_W } from "./font";
+import { TAG_CHAR, TAG_H, TAG_PAD, TagLayer, type Tag } from "./tags";
 import { PROPS, ReplayState, type EntState } from "./state";
 import type { Ev, Snapshot } from "./types";
 
@@ -107,6 +108,8 @@ export type ViewerStats = {
 };
 
 const TILE = 8;
+const WALL_TOP_DIM = 0.72; // second art pass: a wall top a step under the floor
+const MEMORY_DIM = 0.68;  // second art pass: a remembered tile (Cut 14 §3; was 0.6)
 const REMEMBERED_DIM = 0.5; // Cut 4 §3: a remembered foe, like a memory tile
 const CUT_FRAMES = 2;       // Cut 8A: dark frames on a frame change (a cut, not a tween)
 const BAR_W = 8;            // Cut 8A: hp bar width in env texels (1 tall)
@@ -178,6 +181,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   let roomLit = new Uint8Array(0), roomKey = "";
   const rects: DebugRect[] = [], labels: DebugLabel[] = [];   // Cut 14 §3: what this frame drew, for the gates
   const texts: { kind: "callout" | "caption"; text: string }[] = [];   // Cut 18 §2
+  const tags: Tag[] = [], tagLayer = new TagLayer(canvas);   // second art pass: the hostiles' serif name plates (DOM)
   const lights: [number, number][] = [];   // art pass: this frame's torch flames (world env texels)
   let raf = 0;
   let last = performance.now();
@@ -320,8 +324,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
     if (n >= ROOM_MAX) roomLit.fill(0);   // not a room: a cave; the memory dim stands
   }
-  /** Cut 14 §3: a seen tile's light — 1 in view or inside the hero's room, else the memory's 0.6. */
-  const light = (i: number): number => (st.visible[i] || roomLit[i] ? 1 : 0.6);
+  /** Cut 14 §3: a seen tile's light — 1 in view or inside the hero's room, else the memory's MEMORY_DIM (second art pass: 0.68, was 0.6 — the blit no longer re-quantises, so the dim is a plain multiply). */
+  const light = (i: number): number => (st.visible[i] || roomLit[i] ? 1 : MEMORY_DIM);
   /** Cut 14 §3: world → CSS px (the viewport's top-left is the canvas's; the sub-texel blit offset is ignored, ≤ 1 texel). */
   const toCss = (wx: number, wy: number): [number, number] => [((wx - (camSX - iw / 2)) * k) / dpr, (((camSY + ih / 2) - wy) * k) / dpr];
 
@@ -339,7 +343,23 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       return atlas.wallTop(b, mask);
     }
     if (t === "floor" || prop) return atlas.envTile(b, h < 0.46 ? "floor_0" : h < 0.76 ? "floor_1" : h < 0.92 ? "floor_2" : "floor_3");
+    if (t === "door" && !portcullis(x, y)) return atlas.envTile(b, h < 0.5 ? "floor_0" : "floor_1");   // an open doorway
     return atlas.envTile(b, t);   // door (portcullis), stairs, water, chasm
+  }
+  const isDoor = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < st.w && y < st.h && st.tiles[y * st.w + x] === "door";
+  /** second art pass: a portcullis only where it reads as one — a door in a horizontal wall (wall or door on both sides); a run
+   *  of doors (the generator's room mouths) gets one, at its middle; a door in a vertical wall is an open doorway (the
+   *  portcullis art is front-on). Render-only: the tile is a door either way. */
+  function portcullis(x: number, y: number): boolean {
+    if (isDoor(x, y - 1) || isDoor(x, y + 1)) return false;
+    const l = isWall(x - 1, y) || isDoor(x - 1, y), r = isWall(x + 1, y) || isDoor(x + 1, y);
+    if (!l || !r) return false;
+    let x0 = x, x1 = x;
+    while (isDoor(x0 - 1, y) && x - x0 < 16) x0--;
+    while (isDoor(x1 + 1, y) && x1 - x < 16) x1++;
+    if (x1 === x0) return true;
+    if (!(isWall(x0 - 1, y) && isWall(x1 + 1, y))) return false;
+    return x === Math.floor((x0 + x1) / 2);
   }
   /** decals, props and wall dressing for one seen tile (deterministic in x, y; nothing here is game truth) */
   function dress(b: string, x: number, y: number, t: string, dim: number, torchFrame: number): void {
@@ -381,12 +401,12 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
   function build(now: number): void {
     const p = paletteFor(st.clock < st.bossFlashUntil ? "boss_flash" : st.biome);
-    blit.setPalette(p);
+    blit.setPalette(p); blit.setGrade(st.clock < st.bossFlashUntil ? "boss_flash" : st.biome);
     clear.setRGB(p[0]![0], p[0]![1], p[0]![2]);
     const b = st.biome;
     const fight = mode === "fight";
     updateRoom();
-    rects.length = 0; labels.length = 0; texts.length = 0;
+    rects.length = 0; labels.length = 0; texts.length = 0; tags.length = 0;
     const bright = p[p.length - 1]!;
     // Cut 8A: a hit flashes to the palette's brightest in the fight frame; the map keeps its paper white
     if (fight) L.ents.setFlash(bright[0], bright[1], bright[2]); else L.ents.setFlash(0.98, 0.95, 0.9);
@@ -405,7 +425,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const prop = PROPS.has(t);
       const dim = light(i);   // Cut 14 §3: the hero's room stays lit
       const s = (hd ? envTileFor(b, x, y, t, prop) : undefined) ?? atlas.tile(b, prop ? "floor" : t, ((x * 7 + y * 13) % 11) < 2);
-      L.tiles.push(x * TILE + TILE / 2, -(y + 1) * TILE, 0, TILE, TILE, s.u0, s.v0, s.u1, s.v1, dim);
+      // second art pass: a wall's top is the unlit mass above the rooms — a step under the floor, so the lit room reads (watch.png)
+      const tdim = hd && t === "wall" && !wallFace(x, y) ? dim * WALL_TOP_DIM : dim;
+      L.tiles.push(x * TILE + TILE / 2, -(y + 1) * TILE, 0, TILE, TILE, s.u0, s.v0, s.u1, s.v1, tdim);
       if (prop) {
         const p = atlas.prop(b, t, t === "nest" ? (st.nestWoken.has(i) ? 1 : 0) : propFrame);
         L.tiles.push(x * TILE + TILE / 2, -(y + 1) * TILE, 0.1, TILE, TILE, p.u0, p.v0, p.u1, p.v1, dim);
@@ -473,8 +495,6 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       if (!e.hero && !st.visible[vi] && !e.remembered) continue;
       const g = stacks.get(vi); if (g) g.push(e.id); else stacks.set(vi, [e.id]);
     }
-    const nameScale = fight ? 0.5 : 1;   // the map frame's k is half the fight frame's: the same size on screen
-    const nameRow = FONT_CELL_H * nameScale + 1;
     const tagBoxes: [number, number, number, number][] = [];   // Cut 15 §4: the name tags drawn so far this frame (world x0, y0, x1, y1)
     // Cut 18 §2: the hero's drawn rect (world: x0, x1, y0, y1) — his feet with his stack's fan — so a sprite over him can be moved off
     let heroBox: [number, number, number, number] | null = null;
@@ -536,28 +556,33 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
       const flash = st.flashing(e) ? 1 : 0;
       L.ents.push(fx, fy, z, s.w / 2, s.h / 2, s.u0, s.v0, s.u1, s.v1, e.ally && !e.hero ? 1.1 : 1, flash, e.fade, e.flip ? 1 : 0);
-      // Cut 8A: in the fight frame every combatant carries an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
-      // above its sprite; a hostile has its name under its feet; glyphs sit above the bar
+      // Cut 8A: in the fight frame the hero and his allies carry an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
+      // above the sprite; glyphs sit above the bar. Second art pass: a hostile's bar is on its name tag instead.
       let top = fy + h + 2;
-      if (fight && barBg && barFg && !e.dying && !e.neutral && e.maxHp > 0) {
+      const tagged = !e.hero && !e.ally && !e.neutral && !e.dying;
+      if (fight && barBg && barFg && !tagged && !e.dying && !e.neutral && e.maxHp > 0) {
         const fill = Math.max(0, Math.min(BAR_W, Math.round((BAR_W * e.hp) / e.maxHp)));
         L.hud.push(fx, fy + h + 1, 3.7, BAR_W, 1, barBg.u0, barBg.v0, barBg.u1, barBg.v1);
         if (fill > 0) L.hud.push(fx - BAR_W / 2 + fill / 2, fy + h + 1, 3.8, fill, 1, barFg.u0, barFg.v0, barFg.u1, barFg.v1);
         top = fy + h + 4;
       }
-      // Cut 8A: a hostile's name under its feet in the fight frame; Cut 14 §3: in the map frame too when it stands in a stack, and a
-      // stack's i-th member takes the i-th row down so no two names share a row
-      if (!e.hero && !e.ally && !e.neutral && !e.dying && (fight || stackN > 1)) {
-        let ny = fy - FONT_CELL_H * nameScale - 2 - (stackN > 1 && stackI > 0 ? stackI * nameRow : 0);
-        const nw = e.name.length * FONT_ADVANCE * nameScale + nameScale, nx = textX(nw, fx), th = FONT_CELL_H * nameScale;
-        // Cut 15 §4: a tag whose box would intersect a tag already drawn moves down a row (rater V: `CAPTIMONKEY`), in both frames
+      // Second art pass (watch.png): every hostile in view carries its name tag — a small serif plate over its head with a short hp
+      // bar (tags.ts, DOM) — in both frames. The boxes are laid out here in world texels: Cut 14 §3 / Cut 15 §4 a tag whose box
+      // would intersect one already placed (a stack, a crowd) moves up a row; Cut 13 §4 the callout keeps its line (a tag that
+      // cannot clear it is not drawn).
+      if (tagged) {
+        const px = dpr / k;   // world texels per CSS px
+        const nw = (e.name.length * TAG_CHAR + TAG_PAD) * px, th = TAG_H * px, nx = textX(nw, fx);
+        let ny = fy + h + 1;
         const hits = (y: number): boolean => tagBoxes.some((b) => nx - nw / 2 < b[2] && nx + nw / 2 > b[0] && y < b[3] && y + th > b[1]);
-        for (let i = 0; i < 8 && hits(ny); i++) ny -= nameRow;
-        const clash = calloutBox && nx + nw / 2 > calloutBox[0] && nx - nw / 2 < calloutBox[2] && ny + th > calloutBox[1] && ny < calloutBox[3];
-        if (!clash) {   // Cut 13 §4: the callout has the line for its second
-          drawText(e.name, nx, ny, 4, nameScale);
+        const clash = (y: number): boolean => !!calloutBox && nx + nw / 2 > calloutBox[0] && nx - nw / 2 < calloutBox[2] && y + th > calloutBox[1] && y < calloutBox[3];
+        for (let i = 0; i < 8 && (hits(ny) || clash(ny)); i++) ny += th + px;
+        if (!hits(ny) && !clash(ny)) {
           tagBoxes.push([nx - nw / 2, ny, nx + nw / 2, ny + th]);
-          const [cx, cy] = toCss(nx, ny); labels.push({ text: e.name, x: cx, y: cy, id: e.id, w: (nw * k) / dpr, h: (th * k) / dpr });
+          const [cx, cy] = toCss(nx, ny);
+          labels.push({ text: e.name, x: cx, y: cy, id: e.id, w: (nw * k) / dpr, h: TAG_H });
+          tags.push({ id: e.id, text: e.name, x: cx, y: cy, w: (nw * k) / dpr, hp: e.maxHp > 0 ? e.hp / e.maxHp : -1 });
+          top = ny + th + 1;
         }
       }
       if (e.glyph) {
@@ -662,6 +687,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const sx = Math.round(cam.x) + shx, sy = Math.round(cam.y) + shy;
     camSX = sx; camSY = sy;
     build(now);
+    tagLayer.sync(cutFrames > 0 ? [] : tags);
     const t1 = performance.now();
 
     const fx = Math.round((cam.x + shx - sx) * k) / k, fy = Math.round((cam.y + shy - sy) * k) / k;
@@ -736,6 +762,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       cancelAnimationFrame(raf);
       for (const l of Object.values(L)) l.dispose();
       blit.dispose();
+      tagLayer.dispose();
       gpu.dispose();
       rt.dispose();
       env.dispose(); spr.dispose();

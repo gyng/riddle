@@ -103,6 +103,9 @@ export class Atlas {
   }
   // exact kind slot if the atlas has one, else the atlas's category frame, else a procedural fallback
   item(kind: string): Slot {
+    // second art pass: the 16-texel item art (`env_item_<category>`, hue assets) first
+    const hd = this.env.get(`tile:env_item_${kind}`) ?? this.env.get(`tile:env_item_${itemCategory(kind)}`);
+    if (hd) return hd;
     const exact = this.env.get(`item:${kind}`);
     if (exact) return exact;
     const cat = this.env.get(`item:${itemCategory(kind)}`);
@@ -119,7 +122,7 @@ export class Atlas {
   // art when present, else a procedural altar / barred square / mound (`drawProp`).
   prop(biome: string, tile: string, frame: number): Slot {
     const id = tile === "shrine" || tile === "nest" ? `${tile}_${frame & 1}` : tile;
-    return this.env.get(`tile:${biome}_${id}`) ?? this.env.get(`tile:${biome}_${tile}_0`) ?? this.envSlot(`prop:${id}`);
+    return this.env.get(`tile:${biome}_env_${id}`) ?? this.env.get(`tile:${biome}_${id}`) ?? this.env.get(`tile:${biome}_${tile}_0`) ?? this.envSlot(`prop:${id}`);
   }
   // ---- register 3 (art pass): 16-texel env art, optional -------------------------------------
   envTile(biome: string, name: string): Slot | undefined { return this.env.get(`tile:${biome}_env_${name}`); }
@@ -145,7 +148,7 @@ export class Atlas {
   // bones pile (Cut 2 §2): per-biome 2-frame tile art if the atlas has it, else the `bones` item
   // glyph (atlas or procedural). Env density, 8×8, no shadow.
   bones(biome: string, frame: number): Slot {
-    return this.env.get(`tile:${biome}_bones_${frame & 1}`) ?? this.env.get(`tile:${biome}_bones_0`) ?? this.envSlot("item:bones");
+    return this.env.get(`tile:${biome}_env_bones`) ?? this.env.get(`tile:${biome}_bones_${frame & 1}`) ?? this.env.get(`tile:${biome}_bones_0`) ?? this.envSlot("item:bones");
   }
   // ---- sprite-density ids -------------------------------------------------------------------
   entity(kind: string): Slot { return this.spriteSlot(`ent:${kind}`); }

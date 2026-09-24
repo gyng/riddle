@@ -32,3 +32,28 @@ Remaining:
 - Sanctum's pale ramp still blooms near a torch/the hero (the lift is scaled by value, not enough on marble).
 - Name tags / hp bars are the bitmap font, not the target's serif plates (client track).
 - Sprites: `forge_imp`'s flask came out red (tag weaker); `rat` reads small; `goblin_captain`/warlord skin is grey-olive.
+
+## Second pass (2026-09-24; scratchpad `art-pass2/side_by_side.png`, after-2 columns)
+
+- **Map frame** (render-only, `blit.ts` / `index.ts`): world tiles (a=1) are no longer re-quantised or dithered — they are
+  authored in the ramp, so the blit multiplies them by a smooth light instead: a per-biome grade (`GRADES`: rgb, ambient,
+  torch strength, saturation; the Warrens pulled from olive toward watch.png's warm brown stone), torch pools in a warm
+  light colour, a small halo on each flame, the hero's own light. The two hard fog bands became one soft falloff past the
+  floor's vision; the memory dim is a plain multiply (0.68, was 0.6 through the quantiser, which broke it into speckle);
+  wall tops sit at 0.72 so the lit room reads against the mass. Floors' lit-edge share cut (make_env quantiles 0.15/0.88/0.992).
+  Sprites and env chrome keep the old path (30 % tint; quantised).
+- **Doors**: a portcullis only in a horizontal wall, one per run of doors (its middle); a door in a vertical wall or a run's
+  loose end draws as an open doorway (floor). Render-only.
+- **Situation props / items at 16×16**: `env_shrine` (hue asset + generated candle flames, frame 1 flickers), `env_vault`,
+  `env_vault_open`, `env_nest` (frame 1 opens two eyes in the hollow), `env_item_{potion,scroll,weapon,armour,gold}` (hue
+  assets); bones piles use `env_bones`. The 8×8 register stays the fallback.
+- **Sanctum bloom**: the lift and the halo shrink on pale texels; the Sanctum's grade has a low ambient and a weak lift.
+- **Name tags**: `render/tags.ts` — a DOM layer over the canvas: the name in a small serif over a 24×4 framed red hp bar,
+  above every hostile in view, both frames (the GL bar stays for the hero and allies). Laid out in world texels by the viewer
+  (no two intersect, the callout keeps its line); `debugLabels` reports the boxes.
+- **Sprites**: `rat` redrawn side-on and long (texel_h 16 → 20); `goblin_captain` / `boss_goblin_warlord` bright green
+  skin; `forge_imp`'s flask ivory. Previous masters in `archive/superseded/*_v2r1.png`.
+
+Remaining: the frame shows ~20 tiles across (the target ~14; `BASE_TEXELS` is a Cut 14 gate, not art); the torch prop is a
+thin stick beside the target's sconce; wall faces could use more value contrast (capstone vs courses); stone texture is still
+busier than the target's large slabs in places (floor_2's cobbles); the tag font falls back to Georgia (no web serif loaded).

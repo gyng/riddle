@@ -319,6 +319,19 @@ Gap list: `art/ui/ART_GAP.md`. Style authority updated in `ART.md` (keyed regist
   (256 px, q88, 200 KB total) and lists them in `skin.json`. The death variant is a CSS treatment
   (`.portrait.dead .face.painted`: desaturated, sepia, a blood tint), not a painting.
 
+## Second art pass (2026-09-24) — situation props and items at 16×16, four sprite fixes
+
+- **Batch 23** (`env_shrine env_vault env_vault_open env_nest`), **24** (`env_item_{potion,scroll,weapon,armour,gold}`),
+  **25** (`rat goblin_captain boss_goblin_warlord forge_imp`), three concurrent, ~7 min; **26** retry (`env_shrine`: a
+  lopsided stele that read as a boot → "wide, squat, symmetrical altar"; `env_nest`: "a nearly black burrow hole").
+  Codex returned a mix of transparent and near-blue backgrounds; `key_source` takes both.
+- `make_env.py`: shrine is a hue asset (5 colours + ink) with two candle flames painted by rule (`shrine_frames`, frame 1
+  swaps core/body and lifts the tip), copied to every biome's `<biome>_env_shrine_<f>`; vault/vault_open/nest are ramp
+  classes (nest frame 1 = two ramp-7 eye texels in the hollow); items are hue assets `env_item_<category>`.
+- Sprites: rat side-on, long body (texel_h 20); captain/warlord leaf-green skin ("NOT grey, NOT olive-grey" in the brief);
+  forge imp's flask ivory and empty. `review.py`: corners exact; captain's `enclosed_near` 204 is horn/arm fringe.
+  All accepted first try. Superseded: `archive/superseded/<id>_v2r1.png`, `env_{shrine,nest}_r1.png`.
+
 ## For the next batch
 
 - The full ART.md preamble as the first block + per-asset "tag in the silhouette" line + the

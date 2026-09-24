@@ -39,10 +39,10 @@ OUT = ROOT / "tiles"
 
 # name -> (ramp index list darkest..lightest, cumulative luminance quantile cuts between them)
 RAMP: dict[str, tuple[list[int], list[float]]] = {
-    "floor_0": ([1, 2, 3, 4], [0.16, 0.8, 0.985]),
-    "floor_1": ([1, 2, 3, 4], [0.16, 0.8, 0.985]),
-    "floor_2": ([1, 2, 3, 4], [0.16, 0.8, 0.985]),
-    "floor_3": ([1, 2, 3, 4], [0.16, 0.8, 0.985]),
+    "floor_0": ([1, 2, 3, 4], [0.15, 0.88, 0.992]),
+    "floor_1": ([1, 2, 3, 4], [0.15, 0.88, 0.992]),
+    "floor_2": ([1, 2, 3, 4], [0.15, 0.88, 0.992]),
+    "floor_3": ([1, 2, 3, 4], [0.15, 0.88, 0.992]),
     "wall_face_0": ([0, 1, 2, 3, 4, 5], [0.12, 0.3, 0.55, 0.8, 0.94]),
     "wall_face_1": ([0, 1, 2, 3, 4, 5], [0.12, 0.3, 0.55, 0.8, 0.94]),
     "wall_top": ([1, 2, 3], [0.25, 0.85]),
@@ -59,9 +59,13 @@ RAMP: dict[str, tuple[list[int], list[float]]] = {
     "crate": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
     "pot": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
     "bones": ([0, 3, 5, 6, 7], [0.2, 0.4, 0.65, 0.88]),
+    # second art pass: the Cut 5 situation props at the 16-texel density (the 8x8 register stays the fallback)
+    "vault": ([0, 1, 2, 3, 4, 6], [0.2, 0.36, 0.52, 0.72, 0.9]),
+    "vault_open": ([0, 1, 2, 3, 4, 6], [0.3, 0.45, 0.6, 0.78, 0.92]),
+    "nest": ([0, 1, 2, 3, 4, 5, 6], [0.12, 0.25, 0.42, 0.62, 0.82, 0.95]),
 }
-HUE = {"blood_0", "blood_1", "torch", "banner"}
-PROPS = {"barrel", "crate", "pot", "bones", "torch", "banner"}   # bottom-anchored, 1-texel dark rim
+HUE = {"blood_0", "blood_1", "torch", "banner", "shrine", "item_potion", "item_scroll", "item_weapon", "item_armour", "item_gold"}
+PROPS = {"barrel", "crate", "pot", "bones", "torch", "banner", "shrine", "vault", "vault_open", "nest", "item_gold"}   # bottom-anchored, 1-texel dark rim
 # a biome whose ramp roles differ from the warrens' shape: ramp index -> this biome's index
 BIOME_REMAP: dict[str, dict[int, int]] = {
     # pale dressed stone: slate mortar, pale field (the old sanctum floor's field was 5)
@@ -131,9 +135,9 @@ def paint(index: np.ndarray, ramp: list[str]) -> Image.Image:
     return Image.fromarray(out, "RGBA")
 
 
-def hue_asset(px: np.ndarray) -> np.ndarray:
+def hue_asset(px: np.ndarray, colors: int = 7) -> np.ndarray:
     im = Image.fromarray(np.clip(px, 0, 255).astype(np.uint8), "RGBA")
-    q = np.asarray(im.convert("RGB").quantize(colors=7, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert("RGB"), np.float32)
+    q = np.asarray(im.convert("RGB").quantize(colors=colors, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert("RGB"), np.float32)
     out = px.copy()
     vis = px[..., 3] > 0
     out[vis, :3] = q[vis]
@@ -164,6 +168,59 @@ def torch_frame1(px: np.ndarray) -> np.ndarray:
     return out
 
 
+FLAME_CORE, FLAME_BODY = np.array([255, 226, 130, 255], np.float32), np.array([236, 128, 36, 255], np.float32)
+
+
+def shrine_frames(px: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """the shrine keeps its stone's own greys (a hue asset, one file for every biome) and its candles get a lit flame: on each
+    of the two brightest texels with open air above, a core texel, and a body texel over it; frame 1 swaps core and body and
+    lifts the tip one texel (the 8x8 shrine's 1 Hz flicker)."""
+    base = hue_asset(px, colors=5)
+    L = lum(px[..., :3])
+    vis = px[..., 3] > 0
+    open_above = np.zeros_like(vis)
+    open_above[1:] = vis[1:] & ~vis[:-1]
+    cand = sorted(zip(*np.nonzero(open_above)), key=lambda yx: -L[yx])[:2]
+    f0, f1 = base.copy(), base.copy()
+    for y, x in cand:
+        if y < 2:
+            continue
+        f0[y - 1, x] = FLAME_CORE; f0[y - 2, x] = FLAME_BODY
+        f1[y - 1, x] = FLAME_BODY; f1[y - 2, x] = FLAME_CORE
+        if y >= 3:
+            f1[y - 3, x] = FLAME_BODY
+    return f0, f1
+
+
+def shrine_frame1(idx: np.ndarray) -> np.ndarray:
+    """the altar light flickers: the brightest texels (the candle flame) lift one row, as the 8x8 shrine's frame 1 did."""
+    out = idx.copy()
+    top = idx.max()
+    ys, xs = np.nonzero(idx == top)
+    for y, x in sorted(zip(ys, xs)):
+        if y > 0 and idx[y - 1, x] < 0:
+            out[y - 1, x] = top
+            out[y, x] = max(3, top - 2)
+    return out
+
+
+def nest_frame1(idx: np.ndarray) -> np.ndarray:
+    """the den wakes: two lit eye texels open in the darkest hollow (the 8x8 nest's frame 1)."""
+    out = idx.copy()
+    vis = idx >= 0
+    p = np.pad(vis, 1)
+    inner = vis & p[:-2, 1:-1] & p[2:, 1:-1] & p[1:-1, :-2] & p[1:-1, 2:]
+    dark = inner & (idx <= 1)
+    if not dark.any():
+        dark = inner & (idx <= np.min(idx[inner]))
+    ys, xs = np.nonzero(dark)
+    cy, cx = int(round(ys.mean())), int(round(xs.mean()))
+    for dx in (-1, 1):
+        x = min(idx.shape[1] - 1, max(0, cx + dx))
+        out[cy, x] = 7
+    return out
+
+
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
     assets = [a for a in manifest["assets"] if a["bg"].startswith("env")]
@@ -179,18 +236,31 @@ def main() -> int:
         if name in HUE:
             out = hue_asset(px)
             written[f"env_{name}"] = Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGBA")
+            if name == "shrine":
+                f0, f1 = shrine_frames(px)
+                del written["env_shrine"]
+                for biome in PALETTES:   # per-biome ids, so the renderer's `<biome>_env_shrine_<f>` lookup finds it everywhere
+                    written[f"{biome}_env_shrine_0"] = Image.fromarray(np.clip(f0, 0, 255).astype(np.uint8), "RGBA")
+                    written[f"{biome}_env_shrine_1"] = Image.fromarray(np.clip(f1, 0, 255).astype(np.uint8), "RGBA")
+                continue
             if name == "torch":
                 written["env_torch_1"] = Image.fromarray(np.clip(torch_frame1(out), 0, 255).astype(np.uint8), "RGBA")
                 written["env_torch_0"] = written.pop("env_torch")
             continue
         index = to_index(name, px)
-        for biome, ramp in PALETTES.items():
-            idx = index
-            remap = BIOME_REMAP.get(biome)
-            if remap and name not in BIOME_REMAP_KEEP:
-                lut = np.array([remap.get(i, i) for i in range(8)])
-                idx = np.where(index >= 0, lut[np.clip(index, 0, 7)], -1)
-            written[f"{biome}_env_{name}"] = paint(idx, ramp)
+        frames = {name: index}
+        if name == "shrine":
+            frames = {"shrine_0": index, "shrine_1": shrine_frame1(index)}
+        elif name == "nest":
+            frames = {"nest_0": index, "nest_1": nest_frame1(index)}
+        for fname, findex in frames.items():
+            for biome, ramp in PALETTES.items():
+                idx = findex
+                remap = BIOME_REMAP.get(biome)
+                if remap and name not in BIOME_REMAP_KEEP:
+                    lut = np.array([remap.get(i, i) for i in range(8)])
+                    idx = np.where(findex >= 0, lut[np.clip(findex, 0, 7)], -1)
+                written[f"{biome}_env_{fname}"] = paint(idx, ramp)
     for k, im in written.items():
         im.save(OUT / f"{k}.png")
         n = len({tuple(p) for p in np.asarray(im).reshape(-1, 4) if p[3] > 0})
@@ -246,7 +316,9 @@ def sample_room(t: dict[str, Image.Image], b: str) -> Image.Image:
             if g(n):
                 im.alpha_composite(g(n), (x * 16, yy * 16))
     place = [("moss_0", 1, 3), ("crack", 6, 4), ("rubble", 8, 2), ("blood_0", 4, 3), ("blood_1", 5, 5), ("moss_1", 0, 5),
-             ("barrel", 0, 2), ("crate", 9, 2), ("pot", 9, 3), ("bones", 3, 5), ("stairs_down", 7, 5), ("water", 1, 4), ("chasm", 2, 4)]
+             ("barrel", 0, 2), ("crate", 9, 2), ("pot", 9, 3), ("bones", 3, 5), ("stairs_down", 7, 5), ("water", 1, 4), ("chasm", 2, 4),
+             ("shrine_0", 5, 2), ("vault", 6, 3), ("vault_open", 7, 3), ("nest_1", 8, 4), ("item_potion", 2, 2), ("item_gold", 3, 2),
+             ("item_weapon", 4, 4), ("item_scroll", 7, 2), ("item_armour", 6, 5)]
     for n, x, yy in place:
         s = g(n)
         if s:

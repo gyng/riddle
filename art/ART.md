@@ -94,9 +94,12 @@ Renderer contract (`web/src/render/index.ts`, render-only, seeded by tile positi
 whose tile below is seen open ground draws its **face**, any other wall its **top**; floors pick a
 variant by hash; torches on every ~5th face over floor (2 frames, 180 ms), banners on a few;
 barrels/crates/pots in room corners; moss (more near walls), cracks, rubble, blood, bones as
-decals. Torches feed up to 12 lights to the blit: a value lift before the quantise (the pool
-climbs the ramp through the dither) and a small warm tint after it; away from a torch world
-tiles sit at 0.78 (a ramp step down) and are not dithered.
+decals. Torches feed up to 12 lights to the blit. Second pass: world tiles (a=1) are **not
+re-quantised** there — they are authored in the ramp, so a smooth light multiplies them: a per-biome
+grade (`blit.ts` `GRADES`: rgb, ambient, pool strength, saturation — the Warrens toward watch.png's
+warm brown stone), warm torch pools, a small halo on each flame, the hero's own light, one soft fog
+falloff; lift and halo shrink on pale stone (no Sanctum bloom). A portcullis only in a horizontal
+wall, one per run of doors; other doors draw as open doorways.
 
 ### Register 2 — environment tiles (hand-authored pixel art, `art/tiles/`)
 
