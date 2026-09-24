@@ -537,6 +537,11 @@ fn main() {
         })
         .collect();
     phase("quiet ticks");
+    // `tools/gates.mjs` starts the wire invariants (examples/qa.rs, 3/4 of the cores) on this line,
+    // so they never share the cores with the single-threaded quiet measurement above.
+    if std::env::var("METRICS_QUIET_SIGNAL").is_ok() {
+        eprintln!("metrics: quiet ticks measured");
+    }
     let results: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
     // One pool, one queue, longest first (`pop` takes from the end): the counter trials, then the
     // cohort sets' stalls (one job per (set, seed), 4 h each ≈ 12 sends), then the bots with the FULL

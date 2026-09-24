@@ -93,6 +93,66 @@ be undone — hence the throwaway copy). **Next, in order:** the history ring (`
 table); the stall-verdict sims (31 % of a FULL job, the report's content — only a faster tick helps); the flood's
 inner loop (20 % self: offsets instead of the multiply, u32 queue).
 
+## 0c. Round 3 — the qa leg, 2026-09-25, on 2db862e
+
+*The qa leg had grown to 305 s inside `gates.mjs --full` (228 s a commit earlier, ~90 s before that) as
+invariants were added — the salvage and stall legs, forecast-vs-sends at 18 sends per set, the sheet reads with
+`cage_forecast` — and was the gate's critical path (the table: 197 s). Only `examples/qa.rs`, `metrics.rs` and
+`tools/gates.mjs` changed; no invariant's assertion, sample or count moved. The box was shared with a client
+agent's headless Chrome (~7 cores, load 20–45), so walls read high; the A/B pairs ran back to back.*
+
+| Step | Before | After |
+|---|---|---|
+| qa inside `node tools/gates.mjs --full --fresh` | **305 s** (4 threads; the gate's critical path) | **116–120 s** (24 threads; 158 s at 16, 195 s at 12) |
+| the full gate's wall | ≥ 305 s (qa-bound) | **213–214 s** (the table's, 212–214 s, is the critical path again) |
+| qa alone, 4 threads | 182 s, 673 CPU-s | 145 s, 577 CPU-s (the pool: no seed's tail idles three threads) |
+| qa alone, 16 / 32 threads | — | 67 s / **48 s** (1006 / 1188 thread-s, SMT-inflated) |
+| `node tools/gates.mjs --fresh` (quick) | qa-bound (qa ~180 s on 4 threads beside a 33–76 s table) | **105 s** (the table 76 s under the load; see below) |
+| qa's printout | 48 invariant lines | **byte-identical** but for the `qa: … (Ns)` line: every count, the pooled bank shares (0.660 / 0.622, 0.832 / 0.803) and the stall leg (12 records, Σ 0.54 → 0.00) |
+
+What moved it:
+
+1. **One job pool, legs as jobs** (`qa.rs` `Pool`). A seed's *prelude* plays the protocol to the night on its
+   game (send → exit → `death()` → patch → the camp's reads → buy → the night → the report checks), then hands
+   the night's legs to the pool, each on a **clone of the game at that point** — forecast vs sends (one job per
+   bank depth), the short list's reads, the stall leg, the night forecast, the salvage leg, the shadow leg — and
+   finishes the night's deaths, the shop and the save on its own game. The legs only ever read that state (each
+   cloned it first in the sequential order) and the clone carries the game's memos with it, so each check sees
+   exactly the state it saw. The cold-cache check is a job of its
+   own too (a clone of the refined camp, caches cleared). One night per seed feeds every leg, as before.
+2. **Longest first.** A binary heap by priority: the legs (forecast-vs-sends depths, the short list, the stall
+   leg …) before new preludes, and the preludes of the seeds whose camp reads run the refine pass (every third
+   seed: 39–54 s of the 30 seeds' 19–54 s) before the others.
+3. **The gate gives qa the cores once the quiet measurement is done.** `metrics.rs` prints `metrics: quiet ticks
+   measured` to stderr under `METRICS_QUIET_SIGNAL` (gates.mjs sets it and swallows the line); qa starts then (a
+   few seconds in), so the single-threaded ≤ 6 µs/tick measurement never shares a core with it (2.65–3.44 µs on
+   these runs, 3.79 before), and takes `QA_SHARE` (0.75) of the cores beside the table's all-but-one. The work is
+   CPU-bound, so this moves no work, only when it ends: qa finishes in ~2 min and the table has the box after.
+
+Where qa's CPU goes (`METRICS_PHASES=1 target/fast/examples/qa --threads 16`, thread-s of 1006 over 30 seeds):
+the camp's **`cage_forecast` reads 29 %** (148 + 146, and most of the refine pass's 62), forecast vs sends 15 %
+(155: three 20-sim panels + 54 real sends per seed), the post-night short list (`unlock_deltas`) 11 % (113), the
+pre-night `unlock_deltas` 6 %, the stall leg 5.5 %, the first death (verdict, deltas, patch forecasts) 5.5 %, the
+night 5.4 %, the night forecast / deaths / first run / cold cache / refine / salvage / first forecast 2–3 % each,
+the shadow leg 0.6 %.
+
+The quick table failed one row on this commit (`Return row: 0 < death share < without it` 7/8 cohort sets,
+worst +0.8 pts, on its 8 seeds; the full table's 30 pass) — the table's content, not this change: its only edit
+is the env-gated stderr line, and the table is deterministic.
+
+**Not done, and why.** No check was sampled: the counts are the contract's evidence, and the sampled ones
+(`death_deltas`, the refine and cold-cache legs, on every third seed) already were. The real sends stay real
+(`sim` off): they are what the forecast is graded against. Combining the night forecast with the short list on
+one copy saved nothing (`unlock_deltas` does not read the camp's panel), so they stay separate jobs.
+
+**Next — a core change, not the harness's:** `forecast::cage_forecast` measures each other preference on a
+`sim_clone()`, whose `panel_cache` starts empty, so the option panels are never read back from the game's memo
+— every call re-simulates three panels (at the refined 100 sims once the camp refined). The camp's reads call it
+five times on two distinct states on the refine seeds, twice on the others: 3 of every 5 calls are pure
+recomputation, ~20 % of qa's CPU — and the client pays it on every open of the cage tablet (three panels, ~3–4 s
+of wasm). Looking the option's `panel_key` up in `game.panel_cache` before `camp_panel` on the clone keeps every
+value and removes it.
+
 ## 1. The evaluation loop (the afternoon)
 
 Today: QA round (2 players, parallel, ~55 min) → triage + fixes → reship → QA round 2 →

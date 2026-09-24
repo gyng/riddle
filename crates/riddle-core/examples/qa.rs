@@ -1,8 +1,12 @@
 //! Cut 13 §6: the wire invariants (docs/ITERATION_SPEED.md §1.1) — a native "QA player" that
 //! plays the protocol through the engine on seeds 1..=30 and asserts what the QA players
-//! reconciled by hand. One line per invariant with counts; exit 1 on any failure. Runs in
-//! seconds; `tools/gates.mjs` runs it beside the gate table.
-//!   cargo run --profile fast --example qa [-- --seeds 30 --threads 4]
+//! reconciled by hand. One line per invariant with counts; exit 1 on any failure. ~700
+//! thread-seconds: ~45 s alone on the cores; `tools/gates.mjs` runs it beside the gate table.
+//! One job pool: a seed's prelude plays the protocol to the night and hands the night's legs
+//! (forecast vs sends per depth, the short list, the stall, salvage and shadow legs, the cold
+//! cache) to the pool on copies of the game — the checks and their counts are the sequential
+//! order's. `METRICS_PHASES=1` prints each job's wall and each leg's thread-seconds.
+//!   cargo run --profile fast --example qa [-- --seeds 30 --threads 24]
 use riddle_core::engine::{salvage_coins, salvage_value, GOLD_DIVISOR, GOLD_LEDGER_CAP};
 use riddle_core::item::{is_identified, to_inv};
 use riddle_core::engine::ExitTier;
@@ -34,6 +38,24 @@ impl Tally {
             if e.2.is_empty() {
                 e.2 = d;
             }
+        }
+    }
+}
+
+/// `METRICS_PHASES=1`: thread-seconds per leg of `play`, summed over the seeds (stderr).
+#[derive(Default, Clone)]
+struct Laps(BTreeMap<&'static str, f64>, Option<std::time::Instant>);
+
+impl Laps {
+    /// The time since the previous lap (or since the start) goes to `name`.
+    fn lap(&mut self, name: &'static str) {
+        let now = std::time::Instant::now();
+        let t = self.1.replace(now).unwrap_or(now);
+        *self.0.entry(name).or_default() += (now - t).as_secs_f64();
+    }
+    fn merge(&mut self, other: &Laps) {
+        for (k, v) in &other.0 {
+            *self.0.entry(k).or_default() += v;
         }
     }
 }
@@ -147,25 +169,31 @@ fn check_forecast(t: &mut Tally, g: &Game, seed: u64) {
 /// share is never above the reach of D`d` when the bars show it, and — summed over the seeds
 /// (`BankTally`) — it is what sends from this camp do: `SENDS` real sends on the night's own
 /// run seeds per set.
-fn check_forecast_bank(t: &mut Tally, bank: &mut BankTally, g: &Game, seed: u64) {
-    let mut h = g.clone();
-    h.lineage.unlocks.extend(["row5", "row6", "row7", "row8", "throw"].map(String::from));
-    let mut depths = vec![5, 8, h.lineage.best_depth.max(1)];
+/// The bank rows' depths `check_forecast_bank_at` plays for this lineage.
+fn bank_depths(g: &Game) -> Vec<u32> {
+    let mut depths = vec![5, 8, g.lineage.best_depth.max(1)];
     depths.sort();
     depths.dedup();
-    for d in depths {
+    depths
+}
+
+/// One depth of the check (the depths are independent copies of the lineage: one job each).
+fn check_forecast_bank_at(t: &mut Tally, bank: &mut BankTally, g: &Game, seed: u64, d: u32) {
+    let mut h = g.clone();
+    h.lineage.unlocks.extend(["row5", "row6", "row7", "row8", "throw"].map(String::from));
+    {
         let mut set = riddle_core::probes::good();
         let at = set.rows.iter().position(|r| r.verb.v == "bank").expect("the good set banks");
         if d != 5 {
             set.rows[at] = Row::new(vec![Cond::n("depth>=", d as i32)], Verb::new("bank"));
         }
         if h.set_rules_raw(set).is_err() {
-            continue;
+            return;
         }
         // `BANK_SIMS` of the forecast's own panel (its first seeds; the bars and the ends are
         // one panel at any count), to keep the job's time.
         let f = riddle_core::forecast::forecast_with(&h, h.lineage.rules(), BANK_SIMS);
-        let Some(e) = f.ends.clone() else { continue };
+        let Some(e) = f.ends.clone() else { return };
         if let Some(r) = f.depths.iter().find(|x| x.depth == d) {
             t.check("forecast bank ≤ reach at the bank row's depth", e.bank <= r.reach + 1e-9, || format!("seed {seed} depth ≥ {d}: bank {:.2} · D{d} {:.2}", e.bank, r.reach));
         }
@@ -268,20 +296,24 @@ fn check_gold_buy(t: &mut Tally, g: &Game, seed: u64) {
 /// death screen, the same rules and loadout set again), then a forecast: identical. After the
 /// refine pass a read is the refined panel (never back to the first pass), and from a cold
 /// cache both passes are what they were. Every third seed runs the refine leg (100 sims).
-fn check_forecast_reads(t: &mut Tally, g: &mut Game, seed: u64, died: Option<u32>) {
-    let reads = |g: &mut Game| {
+fn check_forecast_reads(t: &mut Tally, lp: &mut Laps, pool: &Pool, g: &mut Game, seed: u64, died: Option<u32>) {
+    let reads = |g: &mut Game, lp: &mut Laps| {
         let _ = g.lineage();
         let _ = g.vocabulary();
         let _ = g.unlocks();
+        lp.lap("reads: lineage, vocabulary, unlocks");
         let _ = g.unlock_deltas();
+        lp.lap("reads: unlock_deltas");
         let _ = g.supply_catalogue();
         if let Some(id) = died {
             let _ = g.death(id);
         }
+        lp.lap("reads: supplies, death");
         let r = g.lineage.rules().clone();
         let _ = g.set_rules(r.clone());
         let l = g.loadout.clone();
         g.loadout(l);
+        lp.lap("reads: set_rules, loadout");
         // QA on 1a2a4a9 (qaO: `death 17% ↔ 13%`, `D4 68%±13 ↔ 67%±9` on opening the vault,
         // `D5 82%±11 → 85%±7` on opening `edit`): what the camp's panels send when opened or
         // re-applied — the cage picker's panels, the same preferences and repeat again, the
@@ -290,27 +322,34 @@ fn check_forecast_reads(t: &mut Tally, g: &mut Game, seed: u64, died: Option<u32
         let (vp, kp, rep) = (g.lineage.vault_pref.clone(), g.lineage.keep_pref.clone(), g.lineage().repeat);
         let _ = g.set_vault_pref(&vp);
         let _ = g.set_keep_pref(&kp);
+        lp.lap("reads: cage_forecast");
         g.set_restock(rep);
         let mut l = g.loadout.clone();
         l.reverse();
         g.loadout(l);
+        lp.lap("reads: prefs, reversed loadout");
         // (each pass re-tags every row the other way: `player` ↔ `patch`)
         let mut tagged = r;
         for row in tagged.rows.iter_mut() {
             row.origin = Some(if row.origin.as_deref() == Some("player") { "patch" } else { "player" }.into());
         }
         let _ = g.set_rules(tagged);
+        lp.lap("reads: re-tagged set_rules");
         let _ = g.cage_forecast();
+        lp.lap("reads: cage_forecast again");
     };
     let first = g.forecast();
-    reads(g);
+    lp.lap("reads: first forecast");
+    reads(g, lp);
     let again = g.forecast();
+    lp.lap("reads: forecast again");
     t.check("forecast → every sheet's reads → forecast: identical", again == first, || format!("seed {seed}: {:?} → {:?}", first.depths.iter().map(|d| d.reach).collect::<Vec<_>>(), again.depths.iter().map(|d| d.reach).collect::<Vec<_>>()));
     if !seed.is_multiple_of(3) {
         return;
     }
     let refined = g.forecast_refine();
-    reads(g);
+    lp.lap("refine: forecast_refine");
+    reads(g, lp);
     // A session's other panels (patch deltas, edited sets, the cage's) fill the memo: a full
     // one never drops the panel the camp shows (the cage picker's clear-all did — qaO).
     for i in 0..riddle_core::forecast::PANEL_CACHE_MAX {
@@ -318,12 +357,16 @@ fn check_forecast_reads(t: &mut Tally, g: &mut Game, seed: u64, died: Option<u32
     }
     let _ = g.cage_forecast();
     let after = g.forecast();
+    lp.lap("refine: filler, cage, forecast");
     t.check("after the refine a forecast read is the refined panel", after == refined, || format!("seed {seed}: refined {:?} read {:?}", refined.depths.iter().map(|d| d.reach).collect::<Vec<_>>(), after.depths.iter().map(|d| d.reach).collect::<Vec<_>>()));
+    // (a copy of this state from a cold cache: a job of its own, the values compared there)
     let cold = g.clone();
     cold.panel_cache.borrow_mut().clear();
     cold.forecast_cache.borrow_mut().clear();
     cold.refined_panels.borrow_mut().clear();
-    t.check("a cold cache reads the same two passes", cold.forecast() == first && cold.forecast_refine() == refined, || format!("seed {seed}"));
+    pool.push(60, "cold cache", seed, move |o, _| {
+        o.t.check("a cold cache reads the same two passes", cold.forecast() == first && cold.forecast_refine() == refined, || format!("seed {seed}"));
+    });
 }
 
 /// QA on 92eb880 (qaM: `R3 fired 0 of 16 runs: hp < 30% → drink heal · heal unknown` under R1
@@ -458,13 +501,123 @@ fn check_stall_leg(t: &mut Tally, sum: &mut StallSum, g: &Game, seed: u64) {
     }
 }
 
-fn play(seed: u64) -> (Tally, BankTally) {
-    let mut t = Tally::default();
-    let mut bank = BankTally::default();
+/// What a job adds to the totals.
+#[derive(Default)]
+struct Out {
+    t: Tally,
+    bank: BankTally,
+    lp: Laps,
+}
+
+impl BankTally {
+    fn merge(&mut self, b: &BankTally) {
+        for (a, x) in self.0.iter_mut().zip(b.0) {
+            a.0 += x.0;
+            a.1 += x.1;
+            a.2 += x.2;
+            a.3 += x.3;
+        }
+        self.1 .0 += b.1 .0;
+        self.1 .1 += b.1 .1;
+        self.1 .2 += b.1 .2;
+    }
+}
+
+type JobFn = Box<dyn FnOnce(&mut Out, &Pool) + Send>;
+
+/// A job: a seed's prelude (the protocol played to the night, then the night's own checks), or
+/// one of the legs it hands off — each on its own copy of the game, so a leg's copy is the
+/// state the sequential order gave it and the checks are the same checks.
+struct Job {
+    prio: u32,
+    seq: u64,
+    name: &'static str,
+    seed: u64,
+    f: JobFn,
+}
+
+impl PartialEq for Job {
+    fn eq(&self, o: &Self) -> bool {
+        (self.prio, self.seq) == (o.prio, o.seq)
+    }
+}
+impl Eq for Job {}
+impl PartialOrd for Job {
+    fn partial_cmp(&self, o: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(o))
+    }
+}
+impl Ord for Job {
+    /// The highest priority first, then the oldest.
+    fn cmp(&self, o: &Self) -> std::cmp::Ordering {
+        self.prio.cmp(&o.prio).then(o.seq.cmp(&self.seq))
+    }
+}
+
+/// One queue for every thread, longest work first (`prio`); a job may push more. The workers
+/// stop when the queue is empty and no job is running (a running one may still push).
+#[derive(Default)]
+struct Pool {
+    /// (the queue, jobs pushed, jobs queued or running)
+    q: Mutex<(std::collections::BinaryHeap<Job>, u64, usize)>,
+    cv: std::sync::Condvar,
+}
+
+impl Pool {
+    fn push(&self, prio: u32, name: &'static str, seed: u64, f: impl FnOnce(&mut Out, &Pool) + Send + 'static) {
+        let mut q = self.q.lock().unwrap();
+        q.1 += 1;
+        q.2 += 1;
+        let seq = q.1;
+        q.0.push(Job { prio, seq, name, seed, f: Box::new(f) });
+        self.cv.notify_one();
+    }
+    fn work(&self, total: &Mutex<Out>, phases: bool, t0: std::time::Instant) {
+        loop {
+            let job = {
+                let mut q = self.q.lock().unwrap();
+                loop {
+                    if let Some(j) = q.0.pop() {
+                        break j;
+                    }
+                    if q.2 == 0 {
+                        return;
+                    }
+                    q = self.cv.wait(q).unwrap();
+                }
+            };
+            let ts = std::time::Instant::now();
+            let mut o = Out::default();
+            o.lp.lap("start");
+            (job.f)(&mut o, self);
+            o.lp.lap(job.name);
+            if phases {
+                eprintln!("job {:<18} seed {:>2} {:>5.1}s (ends at {:.1}s)", job.name, job.seed, ts.elapsed().as_secs_f64(), t0.elapsed().as_secs_f64());
+            }
+            {
+                let mut all = total.lock().unwrap();
+                all.t.merge(o.t);
+                all.bank.merge(&o.bank);
+                all.lp.merge(&o.lp);
+            }
+            let mut q = self.q.lock().unwrap();
+            q.2 -= 1;
+            if q.2 == 0 {
+                self.cv.notify_all();
+            }
+        }
+    }
+}
+
+/// A seed: the protocol through the engine (send → exit → `death()` → patch → the camp's
+/// reads → buy → the night), the night's legs handed to the pool on copies of the game, then
+/// the night's deaths, the shop and the save on the game itself.
+fn play(o: &mut Out, pool: &Pool, seed: u64) {
+    let Out { t, lp, .. } = o;
     let mut g = Game::new(seed);
-    check_gold(&mut t, &g, seed, "new");
-    check_needs(&mut t, &g, seed);
-    check_forecast(&mut t, &g, seed);
+    check_gold(t, &g, seed, "new");
+    check_needs(t, &g, seed);
+    check_forecast(t, &g, seed);
     // The camp's shelf goes out as the run's supplies; the vault loadout as `brought`.
     let shelf: Vec<String> = g.lineage.supplies.iter().map(|s| s.kind.clone()).collect();
     g.send();
@@ -493,8 +646,8 @@ fn play(seed: u64) -> (Tally, BankTally) {
                 let want = salvage_coins(&p.items, p.pct, g.lineage.gold_carry);
                 let cents: i32 = p.items.iter().map(|i| salvage_value(&i.kind) * p.pct / GOLD_DIVISOR).sum();
                 t.check("`ExitPending.worth` == the salvage arithmetic", pe.worth == want && want.iter().sum::<i32>() == (g.lineage.gold_carry + cents).max(0) / 100, || format!("seed {seed}: worth {:?} vs {want:?}", pe.worth));
-                check_labels(&mut t, &g, seed, &p.items, "exit sheet");
-                check_names(&mut t, &g, seed, pe.items.iter().map(|i| i.label.as_str()), "exit sheet");
+                check_labels(t, &g, seed, &p.items, "exit sheet");
+                check_names(t, &g, seed, pe.items.iter().map(|i| i.label.as_str()), "exit sheet");
                 let (gold, head) = (g.lineage.gold, g.batch.salvage_gold);
                 g.keep(vec![]).unwrap();
                 let sum: i32 = want.iter().sum();
@@ -507,7 +660,8 @@ fn play(seed: u64) -> (Tally, BankTally) {
             break;
         }
     }
-    check_gold(&mut t, &g, seed, "after the run");
+    check_gold(t, &g, seed, "after the run");
+    lp.lap("first run (new, send, exit)");
     // The death: its verdict, its patches (none already in the set), the top one applied.
     if let Some(id) = died {
         let d = g.death(id).expect("a death record");
@@ -525,7 +679,7 @@ fn play(seed: u64) -> (Tally, BankTally) {
             let ok = d.verdict == "row" && d.cause_row.is_some_and(|r| Some(r as i32) == last && d.rules.as_ref().is_some_and(|rs| rs.rows.get(r as usize).is_some_and(|x| !x.is_card()))) && d.patches.first().is_some_and(|p| (p.remove || p.replace) && Some(p.insert_at) == last);
             t.check("a `row` verdict names a row that fired on the death tick", ok, || format!("seed {seed} run {id}: {} R{:?} last {:?}", d.verdict, d.cause_row, last));
         }
-        check_death(&mut t, seed, &d);
+        check_death(t, seed, &d);
         t.check("death()'s patches are camp_pending until death_deltas", d.patches.iter().all(|p| p.camp_pending), || format!("seed {seed} run {id}"));
         // QA on 23ed91f (`rest · reach +8%`, then the camp's D6 34 % → 64 %): the patch's
         // `reach` (`death_deltas`) is the camp forecast's own move at its depth once applied.
@@ -561,17 +715,21 @@ fn play(seed: u64) -> (Tally, BankTally) {
             }
         }
     }
-    check_forecast_reads(&mut t, &mut g, seed, died);
+    lp.lap("first death (death, deltas, patch forecasts)");
+    check_forecast_reads(t, lp, pool, &mut g, seed, died);
+    lp.lap("forecast reads");
     // Buy the first affordable unlock.
     if let Some(u) = g.unlocks().into_iter().find(|u| u.available && u.cost <= g.lineage.marks) {
         let marks = g.lineage.marks;
         t.check("an available unlock buys", g.buy(&u.id).is_ok() && g.lineage.marks == marks - u.cost, || format!("seed {seed}: {}", u.id));
     }
-    check_needs(&mut t, &g, seed);
-    check_gold_buy(&mut t, &g, seed);
+    check_needs(t, &g, seed);
+    check_gold_buy(t, &g, seed);
+    lp.lap("unlock + gold buy");
     // The night.
     let before = g.lineage.gold;
     let r = g.run_offline(8 * 3600);
+    lp.lap("night (8 h offline)");
     let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
     t.check("report runs == deaths + banked + returned", r.runs == deaths + r.banked + r.returned, || format!("seed {seed}: {} runs · {deaths} deaths · {} banked · {} returned", r.runs, r.banked, r.returned));
     let rows: i32 = r.salvaged.iter().map(|x| x.gold).sum();
@@ -581,35 +739,48 @@ fn play(seed: u64) -> (Tally, BankTally) {
     let spent: i32 = b.spent.values().map(|(_, c)| *c).sum();
     t.check("night gold: earned + salvage + wake pay − spent == delta", b.gold_earned + b.salvage_gold + b.wake_pay - spent == g.lineage.gold - before, || format!("seed {seed}: {} + {} + {} − {spent} vs {}", b.gold_earned, b.salvage_gold, b.wake_pay, g.lineage.gold - before));
     t.check("report spent == the batch's", r.spent.iter().map(|s| s.gold).sum::<i32>() == spent, || format!("seed {seed}"));
-    check_labels(&mut t, &g, seed, &g.batch.found.clone(), "report found");
+    check_labels(t, &g, seed, &g.batch.found.clone(), "report found");
     for f in &r.found {
         t.check("report `found` never labels `?` when known", !f.known || !f.label.contains('?'), || format!("seed {seed}: {f:?}"));
     }
-    check_gold(&mut t, &g, seed, "after the night");
-    check_short(&mut t, &g, seed);
-    check_report_names(&mut t, &g, seed, &r, "report");
+    check_gold(t, &g, seed, "after the night");
+    // The night's legs, longest first, each on a copy of the game as it is now (none of them
+    // changes it; the sequential order ran them on it here).
+    let at = |pool: &Pool, prio: u32, name: &'static str, g: &Game, f: fn(&mut Out, &Game, u64)| {
+        let h = g.clone();
+        pool.push(prio, name, seed, move |o, _| f(o, &h, seed));
+    };
+    for d in bank_depths(&g) {
+        let h = g.clone();
+        pool.push(80, "forecast vs sends", seed, move |o, _| check_forecast_bank_at(&mut o.t, &mut o.bank, &h, seed, d));
+    }
+    at(pool, 75, "check_short", &g, |o, g, seed| check_short(&mut o.t, g, seed));
+    at(pool, 70, "stall leg", &g, |o, g, seed| check_stall_leg(&mut o.t, &mut o.bank.1, g, seed));
+    at(pool, 65, "night forecast", &g, |o, g, seed| {
+        check_needs(&mut o.t, g, seed);
+        check_forecast(&mut o.t, g, seed);
+    });
+    at(pool, 55, "salvage leg", &g, |o, g, seed| check_salvage_leg(&mut o.t, g, seed));
+    at(pool, 50, "shadow leg", &g, |o, g, seed| check_shadowed(&mut o.t, g, seed));
+    check_report_names(t, &g, seed, &r, "report");
     for x in &r.exits {
         if let Some(tr) = &x.trace {
-            check_foe_reasons(&mut t, seed, tr, &format!("run {} exit trace", x.run_id));
+            check_foe_reasons(t, seed, tr, &format!("run {} exit trace", x.run_id));
         }
     }
-    check_reel(&mut t, &g, seed, &r);
-    check_salvage_leg(&mut t, &g, seed);
-    check_stall_leg(&mut t, &mut bank.1, &g, seed);
-    check_needs(&mut t, &g, seed);
-    check_forecast(&mut t, &g, seed);
-    check_shadowed(&mut t, &g, seed);
-    check_forecast_bank(&mut t, &mut bank, &g, seed);
+    check_reel(t, &g, seed, &r);
+    lp.lap("report checks");
     if let Some(d) = &r.worst_death {
         t.check("worst death carries a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "stall" || d.verdict == "row") && !d.trace.turns.is_empty(), || format!("seed {seed}: {}", d.verdict));
-        check_death(&mut t, seed, d);
+        check_death(t, seed, d);
     }
     // One more of the night's deaths (the last one that is not the worst), in full.
     if let Some(id) = g.deaths.iter().rev().find(|(id, rec)| !rec.stall && Some(**id) != r.worst_death_id).map(|(id, _)| *id) {
         if let Some(d) = g.death(id) {
-            check_death(&mut t, seed, &d);
+            check_death(t, seed, &d);
         }
     }
+    lp.lap("night deaths");
     // Every stall record: its verdict, a firing patch, the reel's cause == the trace's.
     let stall_ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| rec.stall).map(|(id, _)| *id).collect();
     for id in stall_ids {
@@ -617,7 +788,7 @@ fn play(seed: u64) -> (Tally, BankTally) {
         let rec = g.deaths.get(&id).cloned().unwrap();
         let fires = d.patches.iter().any(|p| riddle_core::trace::patch_fired_rate(&g, &rec, p) >= 0.5);
         t.check("a stall's verdict names a firing patch", d.verdict == "stall" && fires, || format!("seed {seed} run {id}: {} {:?}", d.verdict, d.patches.iter().map(|p| p.row.describe()).collect::<Vec<_>>()));
-        check_death(&mut t, seed, &d);
+        check_death(t, seed, &d);
         let cause = d.cause.strip_prefix("stalled · ").unwrap_or(&d.cause);
         let want = format!("stalled, {}", riddle_core::sifter::stall_short(cause));
         let lines: Vec<&riddle_core::Highlight> = g.batch.highlights.iter().filter(|h| h.run_id == id && h.arc.is_some()).collect();
@@ -625,6 +796,7 @@ fn play(seed: u64) -> (Tally, BankTally) {
             t.check("a stall's reel cause == its trace cause", lines.iter().any(|h| h.arc.as_ref().unwrap().resolution == want), || format!("seed {seed} run {id}: want `{want}`, lines {:?}", lines.iter().map(|h| h.text.clone()).collect::<Vec<_>>()));
         }
     }
+    lp.lap("night stalls");
     // Buy a supply and drop it: the refund is its price.
     if g.lineage.gold < 100 {
         let top = 100 - g.lineage.gold;
@@ -638,11 +810,11 @@ fn play(seed: u64) -> (Tally, BankTally) {
             t.check("a dropped supply's refund == its price", g.lineage.gold == gold, || format!("seed {seed}: {} price {} refund {}", entry.kind, entry.price, g.lineage.gold - (gold - entry.price)));
         }
     }
-    check_gold(&mut t, &g, seed, "after the shop");
+    check_gold(t, &g, seed, "after the shop");
     // A save round-trips the lineage.
     let h = Game::load(&g.save()).expect("load");
     t.check("save/load round-trips the lineage", h.lineage() == g.lineage(), || format!("seed {seed}"));
-    (t, bank)
+    lp.lap("shop + save");
 }
 
 fn main() {
@@ -651,42 +823,39 @@ fn main() {
     let seeds = get("--seeds", 30);
     riddle_core::forecast::set_parallel_sims(false);
     let t0 = std::time::Instant::now();
-    let jobs = Arc::new(Mutex::new((1..=seeds).collect::<Vec<u64>>()));
-    let out = Arc::new(Mutex::new(Tally::default()));
-    let banks = Arc::new(Mutex::new(BankTally::default()));
-    // `--threads N` leaves cores to what runs beside it (gates.mjs: the table's quiet
-    // per-tick measurement and the dayplayer's chains).
-    let threads = (get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(4)) as usize).min(seeds as usize).max(1);
+    // `METRICS_PHASES=1`: every job's wall and each leg's thread-seconds to stderr.
+    let phases = std::env::var("METRICS_PHASES").is_ok();
+    // The seeds whose camp reads run the refine leg (every third) are the long preludes: first.
+    let pool = Arc::new(Pool::default());
+    for seed in 1..=seeds {
+        pool.push(if seed.is_multiple_of(3) { 40 } else { 30 }, "prelude", seed, move |o, pool| play(o, pool, seed));
+    }
+    let total = Arc::new(Mutex::new(Out::default()));
+    // `--threads N` leaves cores to what runs beside it (gates.mjs: the table and the dayplayer's
+    // chains).
+    let threads = (get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(4)) as usize).max(1);
     let hs: Vec<_> = (0..threads)
         .map(|_| {
-            let jobs = Arc::clone(&jobs);
-            let out = Arc::clone(&out);
-            let banks = Arc::clone(&banks);
-            std::thread::spawn(move || loop {
-                let seed = jobs.lock().unwrap().pop();
-                let Some(seed) = seed else { break };
-                let (t, b) = play(seed);
-                out.lock().unwrap().merge(t);
-                let mut all = banks.lock().unwrap();
-                for (a, x) in all.0.iter_mut().zip(b.0) {
-                    a.0 += x.0;
-                    a.1 += x.1;
-                    a.2 += x.2;
-                    a.3 += x.3;
-                }
-                all.1 .0 += b.1 .0;
-                all.1 .1 += b.1 .1;
-                all.1 .2 += b.1 .2;
-            })
+            let (pool, total) = (Arc::clone(&pool), Arc::clone(&total));
+            std::thread::spawn(move || pool.work(&total, phases, t0))
         })
         .collect();
     for h in hs {
         h.join().unwrap();
     }
-    let mut t = out.lock().unwrap().clone();
+    let Out { mut t, bank: banks, lp: laps } = std::mem::take(&mut *total.lock().unwrap());
+    if phases {
+        let total: f64 = laps.0.values().sum();
+        let mut v: Vec<_> = laps.0.iter().filter(|x| *x.1 > 0.05).collect();
+        v.sort_by(|a, b| b.1.total_cmp(a.1));
+        for (k, x) in v {
+            eprintln!("leg {k:<44} {x:>7.1} thread-s  {:>4.1} %", 100.0 * x / total.max(1e-9));
+        }
+        eprintln!("legs total {total:.1} thread-s");
+    }
     // The forecast's bank share, summed over the seeds, within the pooled 95 % band of the
     // real sends' (the two samples' binomial ±).
-    for (name, (fb, fn_, rb, rn)) in ["forecast bank ≈ real sends (good set, Σ seeds)", "forecast bank ≈ real sends (depth ≥ d → bank, Σ seeds)"].into_iter().zip(banks.lock().unwrap().0) {
+    for (name, (fb, fn_, rb, rn)) in ["forecast bank ≈ real sends (good set, Σ seeds)", "forecast bank ≈ real sends (depth ≥ d → bank, Σ seeds)"].into_iter().zip(banks.0) {
         let (pf, pr) = (fb / fn_.max(1.0), rb / rn.max(1.0));
         let p = (fb + rb) / (fn_ + rn).max(1.0);
         let band = 1.96 * (p * (1.0 - p) * (1.0 / fn_.max(1.0) + 1.0 / rn.max(1.0))).sqrt();
@@ -696,7 +865,7 @@ fn main() {
     // QA on 1a2a4a9 (qaP: the stall patch `survives 100%`, the next run stalled in the same
     // loop, and the camp showed no stall line): over the stall leg's records, the top patch's
     // set forecasts fewer stalls than the set that stalled.
-    let StallSum(base, patched, n) = banks.lock().unwrap().1;
+    let StallSum(base, patched, n) = banks.1;
     t.check("a stall's top patch forecasts fewer stalls (Σ records)", n > 0 && patched < base, || format!("{n} records: stall share Σ {base:.2} → {patched:.2}"));
     println!("stall leg: {n} records · forecast stall share Σ {base:.2} → {patched:.2} with the top patch");
     let mut fails = 0;

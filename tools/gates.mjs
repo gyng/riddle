@@ -2,8 +2,9 @@
 // Bot gate table (examples/metrics.rs) on the `fast` cargo profile.
 //   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds alongside (~35–60 s)
 //   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts, dayplayer 3 seeds (~2.5 min); the number that counts
-// Cut 13 §6: the wire invariants (examples/qa.rs, 30 seeds, ~35 s alone on 4 threads, ~80 s beside the table) run
-// beside both as a third job; the run fails if they do. `METRICS_PHASES=1` prints the table's phase and job walls.
+// Cut 13 §6: the wire invariants (examples/qa.rs, 30 seeds, ~700 thread-s: ~45 s alone on the cores, ~120 s beside
+// the table) run beside both as a third job; the run fails if they do. `METRICS_PHASES=1` prints the table's and
+// qa's phase and job walls (qa: thread-seconds per leg). `QA_SHARE=0.5` gives qa that share of the cores (0.75).
 //   node tools/gates.mjs --fresh  ignore the cache (docs/ITERATION_SPEED.md §3.3: the printed table is kept under
 //                                 target/gates/<sha1 of the three binaries + the presets>.txt; a hit reprints and
 //                                 re-checks — a client-only commit skips the table entirely)
@@ -31,22 +32,44 @@ if (!fresh && !extra.length && existsSync(cacheFile)) {
 }
 // The table fills every core seed by seed for ~40 s; the fourteen-day probe is a few long
 // sequential chains (one per seed) that would otherwise run alone afterwards — they overlap.
-const run = (bin, args) => new Promise((resolve) => {
-  const p = spawn(bin, args, { stdio: ["ignore", "pipe", "inherit"] });
-  let out = ""; p.stdout.on("data", (d) => (out += d));
-  p.on("close", (status) => resolve({ status, stdout: out }));
-});
+// `signal`: a stderr line that resolves `started` (forwarded stderr otherwise untouched).
+const run = (bin, args, signal, env) => {
+  let started;
+  const ready = new Promise((r) => (started = r));
+  const done = new Promise((resolve) => {
+    const p = spawn(bin, args, { stdio: ["ignore", "pipe", signal ? "pipe" : "inherit"], env: env ? { ...process.env, ...env } : process.env });
+    let out = ""; p.stdout.on("data", (d) => (out += d));
+    let buf = "";
+    if (signal) {
+      p.stderr.on("data", (d) => {
+        buf += d;
+        let i;
+        while ((i = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, i + 1); buf = buf.slice(i + 1);
+          if (line.startsWith(signal)) started(); else process.stderr.write(line);
+        }
+      });
+    }
+    p.on("close", (status) => { if (signal && buf) process.stderr.write(buf); started(); resolve({ status, stdout: out }); });
+  });
+  return { ready, done };
+};
 // The dayplayer's chains start first. They were the critical path while the table left them
 // their cores; with the table at ~2.5 min and the chains at ~1 min alone (docs/ITERATION_SPEED.md,
 // 2026-09-24), the table is, so it takes every core but one and shares them while the others run.
 const seeds = full ? 3 : 2;
+const QA_SHARE = Number(process.env.QA_SHARE ?? 0.75);
 const cores = os.availableParallelism();
-const dayplayer = run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds)]);
-// The invariants take four threads (~40 s): more would contend the table's quiet per-tick measurement.
-const qaThreads = 4;
-const qa = run("target/fast/examples/qa", ["--seeds", "30", "--threads", String(qaThreads)]);
-const table = run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - 1)), ...extra]);
-const [r, p, q] = await Promise.all([table, dayplayer, qa]);
+const dayplayer = run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds)]).done;
+const table = run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - 1)), ...extra], "metrics: quiet ticks measured", { METRICS_QUIET_SIGNAL: "1" });
+// The invariants (a job pool of seeds and their legs) start once the table's single-threaded quiet
+// per-tick measurement is done (a few seconds), then take three quarters of the cores beside the
+// table's all-but-one: at four threads they were the gate's critical path (305 s beside a 200 s
+// table); at 24 they end in ~115 s and hand the cores back to the table, which is the critical path
+// again (docs/ITERATION_SPEED.md, round 3).
+const qaThreads = Math.max(4, Math.round(cores * QA_SHARE));
+const qa = table.ready.then(() => run("target/fast/examples/qa", ["--seeds", "30", "--threads", String(qaThreads)]).done);
+const [r, p, q] = await Promise.all([table.done, dayplayer, qa]);
 let printed = "";
 const say = (t) => { printed += t; process.stdout.write(t); };
 say(r.stdout ?? "");
