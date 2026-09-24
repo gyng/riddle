@@ -806,3 +806,37 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 :is(.sheet, .panel, .parchment) .chip.rung.on { --fg: #ecdfc4; color: #f3dca8; }
 :is(.sheet, .panel, .parchment) .unlock-sheet .gold-price { color: #7a4f00; }
 .shaft-ends .gemdot { flex: none; }
+
+/* QA 23ed91f (player K) — the death's point above the console: the seal follows the line (it drew over `5 unknown u…d`), a shorter
+   banner, the patches before the trace; the patch gem says what it does (`100%` over `apply`) */
+.banner-cloth { aspect-ratio: auto; width: min(100%, 250px); padding: 50px 24px 58px; display: flex; flex-direction: column; align-items: center; }
+.death .death-line { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 17px; }
+.death .death-line .verdict { position: relative; left: auto; top: auto; flex: none; margin: 0; width: 76px; height: 76px; font-size: 20px; }
+.death-well { gap: 8px; }
+.gem .gem-in { display: flex; flex-direction: column; align-items: center; gap: 3px; line-height: 1; }
+.gem .gem-w { padding: 2px 5px 1px; border-radius: 3px; background: rgba(24, 12, 4, .78); color: #f6dfa8; text-shadow: none; font: 800 10px/1 var(--display); letter-spacing: .1em; text-transform: uppercase; }
+/* the camp's busy label (`forecast`) sits on the vista's corner, over it, not under it */
+.camp-well { position: relative; }
+.camp-well .busy-strip { position: absolute; top: 4px; right: 6px; z-index: 3; height: auto; margin: 0; padding: 2px 6px; line-height: 14px; border-radius: 3px; background: rgba(12, 9, 7, .82); color: #cdb892; pointer-events: none; }
+.camp-well .busy-strip:empty { display: none; }
+/* the watch's last frame: the gem says what comes next (`verdict` · `report`) */
+.gem.next-gem { font-size: 12px; letter-spacing: 0; }
+/* the keep sheet: what the prices are, what the exit already sold */
+.keep-legend, .keep-cut { margin-top: 6px; font-size: 12px; }
+.vault .keep-auto { flex-basis: 100%; margin: 0 0 2px 2px; font-size: 12px; }
+/* the shaft: a first pass reads provisional until the refine lands; each notch's ± beside its reach */
+.shaft.rough .notch .dp { opacity: .55; }
+.notch .dp .pm { margin-left: 2px; font-style: normal; font-size: 9px; opacity: .8; }
+/* unlock prices in the mark's own blue (the bar's ◆), not the accent orange */
+.card .cost, :is(.sheet, .panel, .parchment) .card .cost { color: #9cc8ff; }
+:is(.sheet, .panel, .parchment) .unlock-sheet .cost { color: #2a5a9a; }
+/* the command card's unused slots recede into the stone (K: "5 to 6 of the 8 slots stay empty blanks on every screen") */
+.cmd .tile.empty { opacity: .16; }
+.cmd .tile.empty::after { content: none; }
+/* the death's ledger line wraps inside its outline (L: `ied $0 … +$40 wake` clipped at both ends) */
+.death .ledger-line .ledger-btn { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+/* `rest 20m · send skips` is a note, not a control (L: "sits in a dashed box like a button") */
+.rest-line .rest { border: 0; background: transparent; min-height: 0; padding: 0; }
+.shaft-ends .stall .gemdot { background: linear-gradient(#d8d0c0, #6a5f50); }
+.shaft-ends { font-size: 12px; }
+.shaft-ends .end { gap: 3px; }

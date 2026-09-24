@@ -40,6 +40,9 @@ export function runRange(ledger: GoldLine[], x: ExitLine, skip = 0): [number, nu
     if (from > 0) { const prev = ledger[from - 1]; while (from < i && isTail(ledger[from], prev)) from++; }
     // this exit's tail lands after its line
     let to = i; while (to + 1 < ledger.length && isTail(ledger[to + 1], g)) to++;
+    // QA 23ed91f (L: the death's sheet read `died D6 $0 · … −$30 leash` under a bar that had already paid the restock's `−$80`): the
+    // newest exit's run runs on to now — what the camp charged since (a restock, a refund) — so the sheet explains the bar it opens from
+    if (!ledger.slice(to + 1).some(isExit)) to = ledger.length - 1;
     return [from, to];
   }
   return undefined;

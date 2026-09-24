@@ -14,6 +14,8 @@ export function setPanelEscape(fn: (() => boolean) | null): void { panelEscape =
 export function closeSheet(): void { stack.pop()?.remove(); }
 export function closeAllSheets(): void { while (stack.length) closeSheet(); }
 export const sheetOpen = (): boolean => stack.length > 0;
+/** QA 23ed91f (L: the settings sheet opened over the open UNLOCKS panel — two studs): every sheet and the camp's panel closed. */
+export function closeEverything(): void { closeAllSheets(); panelEscape?.(); }
 /** A sheet's explicit close: `×` at the end of its title line (Escape and the backdrop close it too). */
 export const closeX = (close: () => void): HTMLElement => h("button", { class: "x sheet-x stud", "aria-label": "close", onclick: () => close() }, "×");
 /** What Escape does when no sheet is open (one handler; the app registers it). */

@@ -136,10 +136,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     if (!exitLines) return;
     const shown = all ? allExits : allExits.slice(-EXITS_SHOW);
     const hidden = allExits.length - shown.length, unlisted = Math.max(0, r.runs - allExits.length);
+    // QA 23ed91f (K: "the run rows list oldest → newest … the gold sheet newest → oldest; I read the first row as the latest"): newest
+    // first, like the gold sheet; `· N earlier` stays under them (the older ones)
     exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
       h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
       " ",   // a word break between the line and its chip (QA on 3d71c33: `keeps 60%D7` in the page's text)
-      traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))))),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
+      traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
       hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} earlier`) : "",
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
   };
@@ -192,6 +194,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     const ul = lines(pendingLines); if (ul) pendingBody.appendChild(ul);
     // Cut 9 §2: the card opens its sheet; the buy is there, and the report repaints itself after one
     affordable = affordable.map((u) => withRowsGate(u, app.ownRows(), app.vocab.max_rows)).filter((u) => u.available);   // Cut 10 §3; Cut 12 §1: own rows
+    // QA 23ed91f (L: "PENDING lists the whole unlock shop, identical across five reports"): the next three, as the camp's panel
+    // (the larger reach gain, then the cheaper); the camp's `more` has the rest
+    affordable = affordable.map((u, i) => ({ u, i })).sort((a, b) => (b.u.delta ?? 0) - (a.u.delta ?? 0) || a.u.cost - b.u.cost || a.i - b.i).slice(0, 3).map((x) => x.u);
     if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => openUnlockSheet(app, u, () => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)))));
     if (pendingSec) pendingSec.hidden = !pendingBody.childElementCount;
   };
@@ -215,12 +220,13 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   });
   const sheet = h("div", { class: "parchment report-sheet" },
     tiles, goldLine(), picked, exitLines, rested, stall,
-    section(/* copy:label */ "learned", factChips(r.learned, L.counters ?? [])),
+    // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
+    section(/* copy:label */ "learned", factChips(r.learned.filter((f) => !/^bones:\d+$/.test(f)), L.counters ?? [])),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),
     // Cut 10 §3: a companion `◯ jackal · Ashar fell` (the name small); Cut 12 §6: a summoned ally `ally hound fell`
     section(/* copy:label */ "lost", chips((r.lost ?? []).map((k) => k.includes(" · ") ? /* copy:callout */ `◯ ${k} fell` : lostLabel(k)), "chip egg")),
-    section(/* copy:label */ "bests", lines(collapseBests(r.bests))),
+    section(/* copy:label */ "bests", lines(collapseBests(r.bests).map(bestLabel))),
     r.xp && (r.xp.gained > 0 || r.xp.level_ups > 0) ? section(/* copy:label */ "xp", h("div", { class: "xp-line num" }, `${r.xp.class} +${r.xp.gained}`, " · ", /* copy:label */ `L${L.classes?.[r.xp.class]?.level ?? 1}`, r.xp.level_ups > 0 ? h("b", null, ` ↑${r.xp.level_ups}`) : "")) : null,
     section(/* copy:label */ "found", chips(r.found.map((i) => i.label))),
     section(/* copy:label */ "bones", lines((r.bones_found ?? []).map(bonesLine))),
@@ -271,9 +277,13 @@ function factChips(facts: string[], counters: Counter[] = []): HTMLElement | nul
   return out.length + rest.length ? h("div", { class: "chips" }, ...out, ...rest) : null;
 }
 
-/** "rank 1 … rank 8", "fighter L2 … L4", "D3 … D6": one line per family, the highest, in first-seen order. */
+/** QA 23ed91f (K: "a lone `D8` and `rank 2` in among the trophies"): a depth best reads `new best D8`, a rank `★ rank 3`; trophies as sent. */
+export const bestLabel = (x: string): string => /^D\d+$/.test(x) ? /* copy:callout */ `new best ${x}` : /^rank \d+$/.test(x) ? `★ ${x}` : x;
+
+/** "rank 1 … rank 8", "fighter L2 … L4", "D3 … D6": one line per family, the highest, in first-seen order (`rank 3` with its
+ *  space: QA 23ed91f, `rank 2` and `rank 3` both stood). */
 function collapseBests(xs: string[]): string[] {
-  const fam = (x: string): string | null => { const m = /^(rank|D|[a-z]+ L)(\d+)$/.exec(x); return m ? m[1] : null; };
+  const fam = (x: string): string | null => { const m = /^(rank |D|[a-z]+ L)(\d+)$/.exec(x); return m ? m[1] : null; };
   const best = new Map<string, string>(); const out: (string | null)[] = [];
   for (const x of xs) {
     const f = fam(x);

@@ -3,10 +3,11 @@
 // Cut 14: `slowdowns` row — `on` / `off` (`app.slowdowns`, persisted): the watch's fight / near / scene holds, or the flat rate.
 import type { App } from "../app";
 import { h, copyText, replace } from "./dom";
-import { openSheet } from "./sheet";
+import { closeEverything, openSheet } from "./sheet";
 import { audio } from "../audio";
 
 export function openSettings(app: App): void {
+  closeEverything();   // QA 23ed91f (L: the settings sheet opened over the open UNLOCKS panel — two studs): one at a time
   openSheet((close) => {
     const body = h("div", { class: "sheet-body settings" });
     const area = h("textarea", { class: "ta", rows: 6, spellcheck: false });

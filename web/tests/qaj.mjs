@@ -249,7 +249,9 @@ try {
       const r = window.__riddle, orig = r.engine.step.bind(r.engine), origChoose = r.engine.choose.bind(r.engine); let done = false;
       r.__chosen = null;
       if (full) r.lineage.vault = [{ id: 7001, kind: "axe", known: true, label: "axe" }];   // 1 slot, taken
-      r.engine.step = async (n) => { const res = await orig(n); if (!done && res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit")) { done = true; res.snapshot.vault_choice = { items: [{ id: 9901, kind: "sword", known: true, label: "sword" }, { id: 9902, kind: "mail", known: true, label: "mail" }], left: 50 }; } return res; };
+      // QA 23ed91f: after the cage, the pack holds the sword (the pref's pick), so a pick the player did not make can be named
+      r.engine.step = async (n) => { const res = await orig(n); if (done && !res.snapshot.vault_choice) res.snapshot.hero.inv = [...res.snapshot.hero.inv, { id: 9901, kind: "sword", known: true, label: "sword" }]; if (!done && res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit")) { done = true; res.snapshot.vault_choice = { items: [{ id: 9901, kind: "sword", known: true, label: "sword" }, { id: 9902, kind: "mail", known: true, label: "mail" }], left: 50 }; } return res; };
+      window.__took = []; new MutationObserver(() => { const t = document.querySelector(".ticker")?.textContent ?? ""; if (/^took /.test(t) && !window.__took.includes(t)) window.__took.push(t); }).observe(document.body, { subtree: true, childList: true, characterData: true });
       r.engine.choose = async (id) => { r.__chosen = id; return origChoose(id); };
     }, full);
     const sheet = () => page.evaluate(() => { const b = document.querySelector(".sheet-wrap .vault-choice"); return b ? { title: b.querySelector(".row-label")?.textContent.replace(/\s+/g, " ").trim(), full: b.querySelector(".vault-full")?.textContent.trim() ?? "" } : null; });
@@ -266,6 +268,10 @@ try {
     await sleep(400);
     const k = await page.evaluate(() => ({ sheet: !!document.querySelector(".sheet-wrap .vault-choice"), chosen: window.__riddle.__chosen }));
     check(skip && !k.sheet && k.chosen === null, `${mode}: ▶▶| takes the tap, closes the sheet and picks nothing (${skip ? `sheet ${k.sheet}, chose ${k.chosen}` : "click intercepted"})`);
+    // QA 23ed91f (K: "the cage sheet closed by itself … nothing said what had been taken"): the pick the pref made is named
+    await page.waitForFunction(() => window.__took.length > 0 || !["watch", "exit"].includes(window.__riddle.screen), null, { timeout: 10_000 }).catch(() => {});
+    const took = await page.evaluate(() => window.__took);
+    check(took.includes("took sword"), `${mode}: a pick the player did not make is named on the ticker (${took.join(" · ") || "nothing"})`);
   }
 
   // ---- 7: the lit chip's rate reads `16×`

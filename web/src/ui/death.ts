@@ -14,7 +14,7 @@ import type { Death } from "../engine/types";
 import { morgueVerbs } from "./chain";
 import { h, copyText, items, pct } from "./dom";
 import { openGoldSheet } from "./gold";
-import { patchRows } from "./patches";
+import { fillReach, patchRows } from "./patches";
 import { openSheet } from "./sheet";
 import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
 import { lostLabel } from "./tokens";
@@ -25,7 +25,10 @@ export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* co
 
 /** The headline's margin segment: a stall's is the guard's reason (`no path`); an hp margin (`3 over` / `3 hp short`) is left
  *  out — four QA players read `1 hp short` as the hp left (the morgue still carries it); an empty margin is no segment. */
-export const headlineMargin = (m: string): string => /^\d+ (over|hp short)$/.test(m) ? "" : marginText(m);
+export const headlineMargin = (m: string): string => m.split(" · ").filter((x) => x && !/^\d+ (over|hp short)$/.test(x)).map(marginText).join(" · ");   // QA 23ed91f: `1 hp short · 5 unknown unused` kept its hp part
+
+/** QA 23ed91f (K: "`died $0` and `keeps 0%` say the same thing twice"): a death's line drops its `keeps 0%` (the lead says it). */
+export const ledgerShown = (t: string): string => /^died \$0\b/.test(t) ? t.replace(/ · keeps 0%(?= · |$)/, "") : t;
 
 export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false): Mounted {
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
@@ -42,7 +45,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const forecastLine = said !== undefined ? h("div", { class: "forecast-said num dim" }, /* copy:callout */ `forecast said D${d.depth} ${pct(said)}`) : null;
   // Cut 6 §1: the exit's arithmetic, verbatim from the engine (`$144 carried · death keeps 0% → $0 · bones: 7 items on D5`)
   // Cut 11 §5: tappable — the gold sheet filtered to this run's movements
-  const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, d.line) }, d.line.text)) : null;
+  const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, d.line) }, ledgerShown(d.line.text))) : null;
   // The trace holds one row per hero action (~10 ticks apart at base speed); the last five, with the row accounting of
   // the last action under it (Cut 6 §3). Cut 9 §5: the table lives in ui/trace.ts, shared with every exit.
   // Cut 11 §2: the accounting is the chain; the rules that ran label its rows (the morgue's, else the editing copy)
@@ -70,7 +73,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const bar = renderBar(app);
   const face = portrait(app, { hp: 0, dead: true, label: `D${d.depth}` });
   const gemBtn = top
-    ? gem({ label: top.label, cls: "patch-gem", pulse: true, onclick: () => top.btn.click() })
+    // QA 23ed91f (K: "the gem reads `100%` with no label … I read it as the run's result"): the number, and the word the tap does under it
+    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" ? h("small", { class: "gem-w" }, /* copy:label */ "apply") : ""), cls: "patch-gem", pulse: true, onclick: () => top.btn.click() })
     : gem({ label: /* copy:button */ "edit", pulse: true, onclick: () => app.go({ kind: "camp" }) });
   const cons = renderConsole({ portrait: face.el, gem: gemBtn, tiles: [
     top ? tile({ id: "edit", label: /* copy:button */ "edit", icon: "edit", onclick: () => { app.editing = true; app.go({ kind: "camp" }); } }) : null,
@@ -79,10 +83,18 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   ] });
   const well = h("div", { class: "well death-well" },
     h("div", { class: "defeat" }, h("div", { class: "banner-cloth" }, line), notes, forecastLine, ledger, eggs, bones),
-    h("div", { class: "parchment trace-panel" }, ...trace),
-    patches);
+    // QA 23ed91f (K: "the patches sit below the fold, under the console"): the patches, the screen's point, before the trace
+    patches,
+    h("div", { class: "parchment trace-panel" }, ...trace));
   const el = h("main", { class: "death frame" }, bar.el, well, cons.el);
-  return { el, dispose: () => bar.dispose() };
+  // QA 23ed91f: the patches' reach is the camp's own measure, landing after the paint (`deathDeltas`: seconds in wasm) — the
+  // screen never waits on it; a reach still pending reads `reach …` until then
+  let gone = false;
+  if (d.patches.some((p) => p.camp_pending) && app.engine.deathDeltas) {
+    const shown = d.patches;
+    setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => { if (!gone && f?.length) fillReach(patches, shown, f); }).catch((e) => console.warn("deathDeltas", e)); }, 0);
+  }
+  return { el, dispose: () => { gone = true; bar.dispose(); } };
 }
 
 /** Cut 17 §4: the gem's patch — the first that applies (not a held row's `at R2`, not a below-bar alternative): its button and its

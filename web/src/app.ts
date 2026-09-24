@@ -332,9 +332,13 @@ export class App {
     this.fcInFlight = true; this.fcDirty = false;
     try {
       const f = await this.busy(/* copy:label */ "forecast", () => this.engine.forecast());
-      this.lastForecast = f;
-      for (const fn of this.fcListeners) fn(f);
-      this.scheduleRefine();
+      // QA 23ed91f (L: switching to an empty set, the shaft kept the old set's `return 94%` for ~5 s, then flipped): a forecast whose
+      // rules changed while it ran is not painted (the shaft stays dimmed `stale`); the next one, for the rules now, is
+      if (!this.fcDirty) {
+        this.lastForecast = f;
+        for (const fn of this.fcListeners) fn(f);
+        this.scheduleRefine();
+      }
     } catch (e) { console.warn("forecast failed", e); }
     finally { this.fcInFlight = false; }
     if (this.fcDirty) await this.emitForecast();

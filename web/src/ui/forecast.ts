@@ -71,8 +71,13 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     el.dataset.refined = f.refined === undefined ? "" : f.refined ? "1" : "0";   // dev: tools read which pass painted
     const first = f.refined === false ? "…" : "";   // Cut 13 §5: the first paint's ± trails `…`; the refine's does not
     const next = app.lineage.best_depth + 1;
+    // Cut 4 §8 names the top cause on best+1; QA 23ed91f (L: `D9 0% ±1 · rat` for a set that dies on D1–D2): when nobody gets near
+    // best+1, the cause sits on the floor where the reach falls most
+    let causeAt = next;
+    { const byD = new Map(f.depths.map((d) => [d.depth, d.reach])); if ((byD.get(next - 1) ?? 1) < 0.05) {
+      let drop = -1; for (const d of f.depths) { const fall = (byD.get(d.depth - 1) ?? 1) - d.reach; if (fall > drop) { drop = fall; causeAt = d.depth; } } } }
     for (const d of f.depths) {
-      const cause = d.cause ?? (d.depth === next ? f.causes[0]?.cause : undefined);
+      const cause = d.cause ?? (d.depth === causeAt ? f.causes[0]?.cause : undefined);
       // Cut 10 §2: the known-but-absent counter — the wire's `try`, else the client's read of the counters against the set
       const tr = d.try ?? (d.depth === next ? clientTry(app, cause) : undefined);
       // Cut 6 §5: `D6 0% · goblin warlord · counter: attack boss` when the top cause is a boss whose counter row is known (and held)
@@ -93,7 +98,10 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         : h("div", { class: `bar${cause ? " next" : ""}` }, ...inner));
     }
     bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, `D${f.known_to + 1}+`), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
-    for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, c.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, pct(c.share))));
+    // QA 23ed91f (K: "`jackal 100%` beside `death 1%` — I read it as jackal kills 100%"): a cause's share of the deaths is shown as its
+    // share of the sends when the ends are known (`jackal 1%` under `death 1%`), so the two lines speak one unit
+    const per = f.ends ? f.ends.death : 1;
+    for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, c.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, pct(c.share * per))));
   };
   // until the first forecast arrives (≈1 s in the worker): the unknown row only
   bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, "…"), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
@@ -127,7 +135,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const depth = from + k, d = byDepth.get(depth);
       const reach = d ? d.reach : depth <= known ? 1 : 0;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}`, "data-d": depth },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`), h("small", { class: "dp" }, d ? pct(d.reach) : "?"));
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`), h("small", { class: "dp" }, d ? pct(d.reach) : "?", d?.pm !== undefined && d.reach > 0 && d.reach < 1 ? h("i", { class: "pm" }, /* copy:none */ `±${pmPts(d.pm)}`) : ""));
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       return n;
@@ -137,11 +145,15 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     if (e && !ends.hidden) replace(ends,
       h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, pct(e.bank))),
       h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, pct(e.return))),
+      // QA 23ed91f (L: "`bank 0% · return 0% · death 96%` never sums to 100; `stall` only in the panel"): a stall share is its own gem
+      e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
       h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, pct(e.death))),
       h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`));
   };
   paint();
-  const off = app.onForecast((f) => { last = f; el.classList.remove("stale"); paint(); });
+  // QA 23ed91f (K: "the shaft moves with no edit … the ± only shows in the forecast sheet"): the first pass (`refined` false) paints
+  // dim until the refine lands, and each notch carries its ± — a move inside it is the sims, not the last tap
+  const off = app.onForecast((f) => { last = f; el.classList.remove("stale"); el.classList.toggle("rough", f.refined === false); paint(); });
   const offRules = app.onRules(() => el.classList.add("stale"));
   const offChange = app.onChange(paint);
   return { el, paint, dispose: () => { off(); offRules(); offChange(); } };

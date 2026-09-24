@@ -11,7 +11,7 @@ import { revealed } from "./reveal";
 
 // --- the top bar ---
 
-export type Bar = { el: HTMLElement; paint(): void; dispose(): void; offers: HTMLElement };
+export type Bar = { el: HTMLElement; paint(): void; dispose(): void; offers: HTMLElement; freeze(): void };
 /** `live`: the camp's bar (the `$` opens the gold sheet, the stud the settings; the wake's offers row under it). Elsewhere the
  *  bar is read-only but for the stud: a sheet over the run reads as the exit sheet to the tooling. */
 export function renderBar(app: App, opts: { live?: boolean } = {}): Bar {
@@ -40,7 +40,8 @@ export function renderBar(app: App, opts: { live?: boolean } = {}): Bar {
   }
   paint();
   const off = app.onChange(paint);
-  return { el, paint, dispose: off, offers };
+  // `freeze`: the bar stops following the lineage (the watch's last frame keeps the heir that ran)
+  return { el, paint, dispose: off, offers, freeze: () => { off(); } };
 }
 
 // --- the hero's portrait (atlas sprite `hero_<class>`) ---

@@ -56,10 +56,13 @@ function firesOf(app: App, trace?: Trace): number[] {
 export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace): HTMLElement {
   return h("div", { class: "patches" }, ...patches.map((p) => {
     const delta = Math.round(p.forecast_delta * 100);
+    // QA 23ed91f (K: "`reach 92% · base 8% · reach +83%`: 92 − 8 ≠ 83, and `reach` twice"): a stall patch's base is the rounded reach
+    // less the rounded delta, so the three numbers add up; its delta then drops the word (`+84%`)
     const unlock = p.insert_at < 0;
     // A row the set already holds (an old death opened from the chronicle, a patch tapped twice) is not inserted again:
     // the row reads `at R2` and the tap opens the camp on it (QA: "tapped patch → R1 inserted AGAIN → 5/4")
     const held = unlock || p.remove || p.replace ? -1 : app.rules.rows.findIndex((r) => sameRow(r, p.row));
+    const stallish = baseline === undefined && held < 0 && !p.below_bar;   // the first line already says `reach`
     // Cut 15 §3: an insert onto a full set asks which own row to drop (`+ drop one`)
     const full = !unlock && !p.remove && !p.replace && held < 0 && app.rowsFull && app.rules.rows.some((r) => !isCardRow(r));
     const target = p.remove || p.replace ? h("small", { class: "dim target" }, `R${p.insert_at + 1} ${p.remove ? "−" : "↻"} `)
@@ -69,7 +72,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
       : p.below_bar
       ? /* copy:callout */ `survives ${pct(p.survive)} · below bar`
       : baseline === undefined
-        ? /* copy:callout */ `reach ${pct(p.survive)} · base ${pct(Math.max(0, p.survive - p.forecast_delta))}`
+        ? /* copy:callout */ `reach ${pct(p.survive)} · base ${Math.max(0, Math.round(p.survive * 100) - delta)}%`
         : /* copy:callout */ `survives ${pct(p.survive)} · base ${pct(baseline)}`;
     const onclick = unlock
       ? async (): Promise<void> => {
@@ -95,8 +98,36 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
         // Cut 17 §4: `survives N %` as a gauge on the patch tablet (the number stays beside it)
         unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
         h("span", { class: "num surv" }, line),
-        delta ? h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, /* copy:callout */ `reach ${delta > 0 ? "+" : "−"}${Math.abs(delta)}%`) : h("span", { class: "num delta flat" }, /* copy:callout */ "reach ~0")));
+        reachSpan(p, stallish)));
   }));
+}
+
+/** A patch's reach line: `reach +8%`; with the camp's own measure (`deathDeltas`) the depth and its ± — `reach D6 +8% ±3`, and
+ *  `reach D6 ~0` inside the ± (as an unlock card's); `reach …` while the camp's measure is pending (`camp_pending`: the verdict's
+ *  12-sim estimate is not the camp's number — QA 23ed91f, K: "`reach +8%` … the shaft went D5 79% → 78%"). A stall patch's first
+ *  line already says `reach`: its delta is bare (`+84%`). */
+function reachSpan(p: Patch, stallish = false): HTMLElement {
+  if (p.camp_pending) return h("span", { class: "num delta pending" }, /* copy:callout */ "reach …");
+  const delta = Math.round(p.forecast_delta * 100);
+  const pm = p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : undefined;
+  const flat = delta === 0 || (pm !== undefined && Math.abs(delta) <= pm);
+  const word = stallish ? "" : /* copy:label */ "reach ";
+  const at = p.forecast_depth !== undefined ? `D${p.forecast_depth} ` : "";
+  const pmTag = pm !== undefined && !flat ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`) : "";
+  return flat ? h("span", { class: "num delta flat" }, `${word}${at}~0`)
+    : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, `${word}${at}${delta > 0 ? "+" : "−"}${Math.abs(delta)}%`, pmTag);
+}
+
+/** QA 23ed91f: the camp's reach for a death's patches landed (`deathDeltas`, same order): each patch takes its numbers, and each
+ *  tablet in `el` (patchRows' own, in order) repaints its reach line. */
+export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): void {
+  const buttons = [...el.querySelectorAll<HTMLElement>(":scope > button.patch")];
+  patches.forEach((p, i) => {
+    const f = filled[i]; if (!f) return;
+    Object.assign(p, { forecast_delta: f.forecast_delta, forecast_depth: f.forecast_depth, forecast_pm: f.forecast_pm, camp_pending: false });
+    buttons[i]?.querySelector(".delta")?.replaceWith(reachSpan(p));
+  });
+  el.dataset.reach = "camp";
 }
 
 /** Cut 15 §3: the drop sheet — the set's own rows (a card's row never; it sits outside `max_rows`), `R5 <row> · 0/16` with the

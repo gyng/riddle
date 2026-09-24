@@ -328,7 +328,9 @@ export class ReplayState {
         // its own text (`cowardly > retreat`); chores (row -2) stay silent (pillar 2)
         if (ev.row < -1) break;
         const tail = ev.text.includes("→") ? ev.text.slice(ev.text.lastIndexOf("→") + 1).trim() : ev.text;
-        const text = (ev.row >= 0 ? `R${ev.row + 1} ${tail}` : ev.text.replace(/→/g, ">")).slice(0, 24);
+        // QA 23ed91f (L: `R4 PACK BREAK GOBLIN`, 4 words): a callout is ≤ 3 words — the row number and at most two of the verb's
+        // (the target goes first: `R4 pack break`, `R2 attack goblin`)
+        const text = (ev.row >= 0 ? `R${ev.row + 1} ${capWords(tail, 2)}` : ev.text.replace(/→/g, ">")).slice(0, 24);
         this.caption = { text, until: performance.now() + CAPTION_MS, t };
         break;
       }
@@ -560,3 +562,6 @@ export class ReplayState {
     }
   }
 }
+
+/** The first `n` words of a caption's verb (`pack break goblin` → `pack break`). */
+export const capWords = (s: string, n: number): string => s.trim().split(/\s+/).slice(0, n).join(" ");

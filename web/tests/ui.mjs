@@ -8,6 +8,9 @@
 //   · every sheet and panel carries a close stud, and the stud closes it
 //   · every command tile has a pressed state (the tile sinks while held)
 //   · every place (camp · watch · death · report) has the bar and the console, the primary action in the gem slot
+//   · QA 23ed91f (player K): the death's line whole above its seal, the top patch above the console, the gem labelled `apply`; the
+//     watch's last frame keeps the heir that ran and a gem (`verdict`); a `+1 vault` carves the vault tile; and the batch's smaller
+//     fixes (trace columns, report order, bests, stall arithmetic, cage pick, keep legend, hp callout, alert, shaft, prices, …)
 //
 //   node web/tests/ui.mjs [--shots dir]        (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
@@ -62,6 +65,265 @@ const interactive = () => page.evaluate(() => [...document.querySelectorAll("but
 }).map((b) => (b.getAttribute("aria-label") || b.textContent || b.className).replace(/\s+/g, " ").trim().slice(0, 24)));
 const tiles = () => page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((t) => ({ id: t.dataset.tile, reveal: t.classList.contains("reveal") })));
 const tileIds = async () => (await tiles()).map((t) => t.id);
+
+/** QA 23ed91f (player K): the batch's checks on fabricated screens (the fake engine; `/src/...` modules through the dev server). */
+async function qaK() {
+  const go = (screen) => page.evaluate((v) => window.__riddle.go(v), screen);
+  const mod = (path, fn, arg) => page.evaluate(async ([p, f, a]) => { const m = await import(p); return new Function("m", "a", `return (${f})(m, a)`)(m, a); }, [path, String(fn), arg]);
+  // ---- 1. the death: the whole line above the seal; the top patch above the console; the gem `100%` over `apply`; the trace's
+  //      columns as they have content; a death's line without its repeated `keeps 0%`
+  const turns = [7668, 7679, 7690, 7702, 7713].map((t) => ({ t, row: 1, verb: { v: "attack", a: "nearest" }, hp: 1, foes: 1, telegraphs: [], rows: [{ row: 0, why: "no item" }] }));
+  const kDeath = { run_id: 0, depth: 5, cause: "monkey", margin: "1 hp short · 5 unknown unused", verdict: "gap", baseline: 0.25,
+    notes: ["Trophy: no heal to D5.", "The monkey stole the ashen scroll?"],
+    line: { text: "died $0 · $111 carried · keeps 0% · bones: 11 items on D5 · ◆+7 · +$40 wake", kept: 0, carried: 111, keep_pct: 0, spent: 0, spent_on: [] },
+    trace: { turns }, morgue: "t10 a line", patches: [
+      { row: { conds: [{ k: "hp<", n: 20 }], verb: { v: "rest" } }, insert_at: 0, survive: 1, forecast_delta: 0.08 },
+      { row: { conds: [{ k: "hp<", n: 20 }, { k: "foes>=", n: 1 }], verb: { v: "retreat" } }, insert_at: 0, survive: 0.67, forecast_delta: 0.08 },
+      { row: { conds: [{ k: "hp<", n: 20 }], verb: { v: "read", a: "unknown" } }, insert_at: 0, survive: 0.75, forecast_delta: -0.08 }] };
+  await go({ kind: "death", death: kDeath }); await waitFor((x) => x?.screen === "death", "K's death"); await sleep(400);
+  let d = await page.evaluate(() => {
+    const r = (s) => document.querySelector(s)?.getBoundingClientRect();
+    const cause = r(".death-line .cause"), seal = r(".death-line .verdict"), top = r("button.patch.top"), cons = r("main.death > footer.console"), well = document.querySelector(".death-well");
+    const range = document.createRange(); range.selectNodeContents(document.querySelector(".death-line .cause")); const lines = [...range.getClientRects()];
+    return { line: document.querySelector(".death-line .cause")?.textContent, causeBottom: Math.max(...lines.map((l) => l.bottom)), sealTop: seal.top, topPatch: top ? [top.top, top.bottom] : null, consoleTop: cons.top, scroll: well.scrollTop,
+      gemN: document.querySelector(".gem.patch-gem .gem-n")?.textContent, gemW: document.querySelector(".gem.patch-gem .gem-w")?.textContent,
+      heads: [...document.querySelectorAll(".death .trace thead th")].map((t) => t.textContent), ledger: document.querySelector(".death .ledger-line")?.textContent };
+  });
+  check(d.line === "monkey · D5 · 5 unknown unused", `the headline drops the hp margin inside a longer one ("${d.line}")`);
+  check(d.causeBottom <= d.sealTop + 0.5, `the verdict line ends above the seal: nothing under it (line to ${Math.round(d.causeBottom)}, seal from ${Math.round(d.sealTop)})`);
+  check(!!d.topPatch && d.topPatch[1] <= d.consoleTop && d.scroll === 0, `the top patch is whole above the console at 400 × 800, unscrolled (${d.topPatch?.map(Math.round).join("–")} ≤ ${Math.round(d.consoleTop)})`);
+  check(d.gemN === "100%" && d.gemW === "apply", `the gem reads its number over the word \`apply\` ("${d.gemN}" / "${d.gemW}")`);
+  check(d.heads.join(",") === "t,R,hp,foes", `no empty \`tele\` column (${d.heads.join(",")})`);
+  check(/^died \$0 · \$111 carried · bones/.test(d.ledger ?? ""), `a death's line says \`died $0\` once, no \`keeps 0%\` after it ("${d.ledger}")`);
+  await shot("ui-qaK-death");
+  turns[4] = { ...turns[4], telegraphs: ["monkey reaches"] };
+  await go({ kind: "death", death: { ...kDeath, trace: { turns } } }); await sleep(250);
+  d = await page.evaluate(() => [...document.querySelectorAll(".death .trace thead th")].map((t) => t.textContent));
+  check(d.includes("tele"), `the \`tele\` column is back when a turn has a telegraph (${d.join(",")})`);
+
+  // the patches' reach is the camp's own, landing after the paint (`deathDeltas`): `reach …` first, then `reach D6 +8% ±3`
+  await page.evaluate((d) => {
+    const r = window.__riddle; r.__origDD = r.engine.deathDeltas;
+    const filled = d.patches.map((p, i) => ({ ...p, camp_pending: false, forecast_depth: 6, forecast_delta: [0.08, 0.01, -0.05][i], forecast_pm: 0.03 }));
+    r.engine.deathDeltas = () => new Promise((res) => setTimeout(() => res(filled), 700));
+    r.go({ kind: "death", death: { ...d, patches: d.patches.map((p) => ({ ...p, camp_pending: true })) } });
+  }, kDeath);
+  await sleep(150);
+  const pend = await page.evaluate(() => ({ reach: [...document.querySelectorAll("button.patch .delta")].map((x) => x.textContent), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent }));
+  await sleep(1000);
+  const landed = await page.evaluate(() => [...document.querySelectorAll("button.patch .delta")].map((x) => x.textContent));
+  await page.evaluate(() => { const r = window.__riddle; r.engine.deathDeltas = r.__origDD; });
+  check(pend.reach.every((x) => x === "reach …") && pend.gem === "100%", `the death paints at once, each reach pending (${pend.reach.join(" · ")}; gem ${pend.gem})`);
+  check(landed.join(" · ") === "reach D6 +8% ±3 · reach D6 ~0 · reach D6 −5% ±3", `the camp's reach lands on the tablets: the depth, the ±, ~0 inside it (${landed.join(" · ")})`);
+
+  // ---- 2. the report: newest run first; bests named; a stall patch's numbers add up
+  const L = await page.evaluate(() => window.__riddle.lineage);
+  const ex = (i) => ({ carried: 50 + i, keep_pct: 60, kept: 30 + i, spent: 0, spent_on: [], text: `returned $${30 + i} · $${50 + i} carried · keeps 60%` });
+  const rep = { elapsed_s: 3600, runs: 12, sampled: false, learned: [], bests: ["D7", "D8", "rank 2", "rank 3", "no heal to D5"], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [],
+    xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 12, exits: Array.from({ length: 12 }, (_, i) => ex(i)),
+    stall: { row: 2, fired: 10, text: "R3 return ended 10 runs, none past D7", patches: [{ row: { conds: [{ k: "hp<", n: 20 }], verb: { v: "rest" } }, insert_at: 2, replace: true, survive: 0.92, forecast_delta: 0.834 }] } };
+  await go({ kind: "report", report: rep }); await waitFor((x) => x?.screen === "report", "K's report"); await sleep(300);
+  d = await page.evaluate(() => ({ lines: [...document.querySelectorAll(".exit-lines .ledger-line")].map((l) => l.textContent.replace(/\s+/g, " ").trim()),
+    bests: [...document.querySelectorAll(".report .rsec")].find((x) => /bests/i.test(x.querySelector(".label")?.textContent ?? ""))?.querySelectorAll("li"),
+    patch: document.querySelector(".stall .patch")?.querySelector(".patch-nums")?.innerText.replace(/\s+/g, " ").trim() }));
+  const bests = await page.evaluate(() => [...[...document.querySelectorAll(".report .rsec")].find((x) => /bests/i.test(x.querySelector(".label")?.textContent ?? ""))?.querySelectorAll("li") ?? []].map((l) => l.textContent));
+  check(/^returned \$41/.test(d.lines[0] ?? "") && /^returned \$34/.test(d.lines[7] ?? "") && /earlier/.test(d.lines[8] ?? ""), `the run rows read newest first, \`· N earlier\` under them (${d.lines[0]?.slice(0, 12)} … ${d.lines[7]?.slice(0, 12)} · ${d.lines[8]})`);
+  check(bests.join(" | ") === "new best D8 | ★ rank 3 | no heal to D5", `BESTS names its depth and its rank (${bests.join(" | ")})`);
+  check(d.patch === "reach 92% · base 9% +83%", `a stall patch's numbers add up, \`reach\` once ("${d.patch}")`);
+
+  // ---- 3. strings: the hp lost names hp; the alert HUD
+  check(await mod("/src/ui/watch.ts", (m) => m.hurtText(1, "monkey")) === "−1 hp · monkey", "the hero's hurt callout reads `−1 hp · monkey` (not a kill count)");
+
+  // ---- 4. the camp: a `+1 vault` carves the vault tile (its prefs: `keep`, `cage`); trait copy; no `◆0`; busy label over the vista;
+  //      the panel closes on a tap beside it; the unlock prices in the mark's blue; the empty slots recede; the verb picker lists the row's verb
+  await page.evaluate(() => { localStorage.removeItem("riddle.reveal"); localStorage.removeItem("riddle.unlocks.all"); });
+  await patchSave((e) => { Object.assign(e.lineage, { heir: 2, best_depth: 4, unlocks: ["tame", "vault2"], marks: 3, gold: 0, gold_ledger: [], vault: [], forge: {}, party: [], kennel: [], eggs: [], graveyard: [{ heir: 1, depth: 2, cause: "rat", deeds: [] }], trait_offer: ["brave", "cowardly"], }); });
+  await waitFor((x) => x?.screen === "camp", "camp"); await settle();
+  const ids = await tileIds();
+  check(ids.includes("vault"), `a bought \`+1 vault\` carves the vault tile before any item is kept (${ids.join(" · ")})`);
+  if (ids.includes("vault")) {
+    await page.locator(".cmd .tile[data-tile=vault]").click({ timeout: 5000 }); await sleep(200);
+    const v = await page.evaluate(() => ({ prefs: [...document.querySelectorAll(".panel[data-panel=vault] .prefs > span.dim")].map((x) => x.textContent), slots: document.querySelectorAll(".panel[data-panel=vault] .chip.empty").length, auto: document.querySelector(".panel[data-panel=vault] .keep-auto")?.textContent }));
+    check(v.prefs.join(",") === "home,cage" && v.slots === 2 && /^keeps \w+/.test(v.auto ?? ""), `the vault panel: 2 empty slots, the \`home\` pref with what it keeps (\`${v.auto}\`), the \`cage\` pref (${v.prefs.join(",")})`);
+    const r = await page.evaluate(() => { const p = document.querySelector(".panel-host").getBoundingClientRect(), q = document.querySelector(".panel").getBoundingClientRect(); return { x: p.left + p.width / 2, y: p.top + 8, above: q.top > p.top + 16 }; });
+    if (r.above) { await page.mouse.click(r.x, r.y); await sleep(200); }
+    check(r.above && !(await page.locator(".panel-host .panel").count()), "a tap on the well beside an open panel closes it");
+  }
+  const trait = await page.evaluate(() => [...document.querySelectorAll(".chip.trait")].map((c) => c.textContent.replace(/\s+/g, " ").trim()));
+  check(trait.includes("braveskips a retreat") || trait.some((t) => /^brave ?skips a retreat$/.test(t)), `brave's rule reads \`skips a retreat\` (${trait.join(" | ")})`);
+  const busy = await page.evaluate(async () => {
+    let release; const held = window.__riddle.busy("forecast", () => new Promise((r) => { release = r; })); await new Promise((r) => setTimeout(r, 80));
+    const st = document.querySelector(".camp-well .busy-strip"), q = st.getBoundingClientRect(), text = st.textContent, corner = document.querySelector(".busy-label:not([hidden])")?.textContent ?? null;
+    st.style.pointerEvents = "auto";   // the strip lets taps through; the probe needs it hit-testable
+    const hit = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2); st.style.pointerEvents = ""; release(); await held;
+    return { text, on: hit === st || st.contains(hit), w: q.width, corner, n: document.querySelectorAll(".busy-strip").length };
+  });
+  check(busy.text === "forecast" && busy.on && busy.corner === null, `the camp's busy label draws over the vista, not under it ("${busy.text}", on top ${busy.on}, corner "${busy.corner}", ${busy.n} strips)`);
+  const empty = await page.evaluate(() => { const e = document.querySelector(".cmd .tile.empty"); return e ? Number(getComputedStyle(e).opacity) : 0; });
+  check(empty <= 0.2, `the command card's empty slots recede (opacity ${empty})`);
+  await page.evaluate(() => localStorage.setItem("riddle.unlocks.all", "1"));
+  await page.locator(".cmd .tile[data-tile=unlocks]").click({ timeout: 5000 });
+  await page.waitForFunction(() => document.querySelectorAll(".panel .unlocks .card").length > 0, null, { timeout: 15_000 });
+  const u = await page.evaluate(() => ({ zero: [...document.querySelectorAll(".panel .unlocks .card .cost")].some((c) => c.textContent === "◆0"), color: getComputedStyle(document.querySelector(".panel .unlocks .card .cost")).color, bar: getComputedStyle(document.querySelector(".topbar .stat.marks")).color }));
+  check(!u.zero, "no unlock card reads `◆0`");
+  check(u.color === u.bar, `unlock prices in the bar's ◆ colour (${u.color} vs ${u.bar})`);
+  await page.keyboard.press("Escape"); await sleep(100);
+  await page.evaluate(() => { const r = window.__riddle; r.editing = true; r.rules.rows[0].verb = { v: "drink", a: "mystery" }; r.go({ kind: "camp" }); });
+  await settle();
+  await page.locator(".editor .row .chip.verb").first().click({ timeout: 5000 }); await sleep(200);
+  const verbs = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .chip.verb")].map((c) => ({ t: c.textContent, on: c.classList.contains("on") })));
+  check(verbs[0]?.on && /mystery/.test(verbs[0].t), `the verb picker lists the row's own verb, lit, when the vocabulary lacks it (${verbs[0]?.t})`);
+  await page.keyboard.press("Escape"); await sleep(100);
+  await shot("ui-qaK-camp");
+
+  // ---- 5. the shaft: each notch between 0 and 100% carries its ± (a move inside it is the sims); the forecast: a cause's share in
+  //      the ends' unit (≤ the death share)
+  const sh = await page.evaluate(() => { const f = window.__riddle.lastForecast; const want = (f?.depths ?? []).filter((d) => d.pm !== undefined && d.reach > 0 && d.reach < 1).map((d) => d.depth);
+    const have = [...document.querySelectorAll(".shaft .notch")].filter((n) => n.querySelector(".pm")).map((n) => Number(n.dataset.d)); return { want, have }; });
+  check(sh.want.every((d) => sh.have.includes(d)), `the shaft's notches carry their ± (D${sh.want.join(",D") || "–"} → ${sh.have.map((d) => `D${d}`).join(",") || "none"})`);
+  await page.locator(".shaft").click({ timeout: 5000 }); await sleep(200);
+  await page.waitForFunction(() => !window.__riddle.engineBusy, null, { timeout: 10_000 }).catch(() => {});
+  const fc = await page.evaluate(() => { const f = window.__riddle.lastForecast; return { death: f?.ends ? Math.round(f.ends.death * 100) : null, causes: [...document.querySelectorAll(".panel .fc-causes b")].map((b) => parseInt(b.textContent)) }; });
+  check(fc.death === null || fc.causes.every((c) => c <= fc.death + 1), `each killer's share is of the sends, never past \`death ${fc.death}%\` (${fc.causes.join(", ") || "none"})`);
+  await page.keyboard.press("Escape"); await sleep(100);
+  await qaL();
+}
+
+/** QA 23ed91f (player L): the second report's client items. */
+async function qaL() {
+  const mod = (path, fn, arg) => page.evaluate(async ([p, f, a]) => { const m = await import(p); return new Function("m", "a", `return (${f})(m, a)`)(m, a); }, [path, String(fn), arg]);
+  // strings and tables: a callout ≤ 3 words; the depth cond offers every floor to 8; a restock of two is ×2 and says restock
+  const cap = await mod("/src/ui/watch.ts", (m) => [m.rowCallout(3, "pack break goblin"), m.rowCallout(1, "attack nearest")]);
+  const cap2 = await mod("/src/render/state.ts", (m) => m.capWords("pack break goblin", 2));
+  check(cap.join(" | ") === "R4 · pack break | R2 · attack nearest" && cap2 === "pack break", `a row's callout is ≤ 3 words, the target dropped first (${cap.join(" | ")} · caption R4 ${cap2})`);
+  const depths = await mod("/src/ui/tokens.ts", (m) => m.NUMS["depth>="]);
+  check([4, 6, 7].every((d) => depths.includes(d)), `\`depth ≥\` offers D4, D6, D7 (${depths.join(" ")})`);
+  const spent = await mod("/src/ui/watch.ts", (m) => m.spentOf([{ t: 1, delta: 40, why: "returned D5" }, { t: 1, delta: -80, why: "restock heal" }, { t: 1, delta: -30, why: "leash" }], [{ kind: "heal", label: "heal", price: 40 }, { kind: "leash", label: "leash", price: 30 }]));
+  check(spent.map((r) => `${r.kind} ×${r.n} $${r.gold}`).join(" · ") === "restock heal ×2 $80 · leash ×1 $30", `SPENT counts a restock of two at the supply's price, and says restock (${spent.map((r) => `${r.kind} ×${r.n} $${r.gold}`).join(" · ")})`);
+
+  // the camp: the gems sum (a stall gem); the killer sits where the deaths are; a stale forecast is not painted; `rest` is no
+  // control; the forge marks are no controls; the gear closes an open sheet
+  await patchSave((e) => { Object.assign(e.lineage, { heir: 3, best_depth: 8, marks: 30, rest_left_s: 1200, forge: { sword: { salvaged: 1, craftable: false, tier: 0 }, axe: { salvaged: 5, craftable: true, tier: 1 } } }); });
+  await waitFor((x) => x?.screen === "camp", "camp"); await settle();
+  await page.evaluate(() => { const r = window.__riddle; while (r.ownRows() < 3) r.insertRow({ conds: [{ k: "hp<", n: 40 + r.rules.rows.length }], verb: { v: "retreat" } }, r.rules.rows.length); r.go({ kind: "camp" }); });
+  await settle();
+  const fake = (f) => page.evaluate((f) => { const r = window.__riddle; const b = r.lastForecast; const x = { ...b, ...f }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); }, f);
+  const depthsF = Array.from({ length: 9 }, (_, i) => ({ depth: i + 1, reach: i === 0 ? 0.5 : i === 1 ? 0.05 : 0, pm: 0.02 }));
+  await fake({ depths: depthsF, known_to: 9, causes: [{ cause: "rat", share: 1 }], ends: { bank: 0, return: 0.04, death: 0.66, stall: 0.3, gold: 3, pm: 0.03 }, refined: true });
+  await sleep(150);
+  const ends = await page.evaluate(() => [...document.querySelectorAll(".shaft .shaft-ends .end")].map((e) => e.textContent.replace(/\s+/g, " ").trim()));
+  const sum = ends.map((e) => /(\d+)%$/.exec(e)).filter(Boolean).reduce((a, m) => a + Number(m[1]), 0);
+  check(ends.some((e) => e === "stall 30%") && sum === 100, `the shaft's gems sum to 100 with a stall gem (${ends.join(" · ")})`);
+  await page.locator(".shaft").click({ timeout: 5000 }); await sleep(200);
+  const killer = await page.evaluate(() => [...document.querySelectorAll(".panel .fc-bars .bar")].filter((b) => /rat/.test(b.textContent)).map((b) => b.querySelector(".d")?.textContent));
+  check(killer.length === 1 && killer[0] !== "D9", `the killer sits on the floor where the reach falls, not on D9 (${killer.join(",") || "none"})`);
+  await page.keyboard.press("Escape"); await sleep(100);
+  const stale = await page.evaluate(async () => {
+    const r = window.__riddle, orig = r.engine.forecast.bind(r.engine); let n = 0; const got = [];
+    r.engine.forecast = () => new Promise((res) => setTimeout(() => orig().then((f) => res({ ...f, __n: ++n })), 300));
+    const off = r.onForecast((f) => got.push(f.__n ?? "refine"));
+    const a = r.emitForecast(); await new Promise((x) => setTimeout(x, 60)); r.emitForecast(); await a;
+    await new Promise((x) => setTimeout(x, 50)); off(); r.engine.forecast = orig; return got;
+  });
+  check(stale.join(",") === "2", `a forecast whose rules changed while it ran is not painted; the next one is (painted: ${stale.join(",")})`);
+  const rest = await page.evaluate(() => { const e = document.querySelector(".rest-line .rest"); return e && !e.hidden ? { tag: e.tagName, border: getComputedStyle(e).borderTopStyle } : null; });
+  check(!!rest && rest.tag !== "BUTTON" && rest.border === "none", `\`rest … · send skips\` is a note, not a boxed control (${JSON.stringify(rest)})`);
+  await page.locator(".cmd .tile[data-tile=forge]").click({ timeout: 5000 }); await sleep(200);
+  const forge = await page.evaluate(() => ({ text: document.querySelector(".sheet-wrap .forge")?.textContent ?? "", buttons: [...document.querySelectorAll(".sheet-wrap .forge button")].filter((b) => !b.classList.contains("close-stud")).length }));
+  check(!/○/.test(forge.text) && forge.buttons === 0, `the forge's marks are marks: no \`○\`, no control but the stud (${forge.buttons} buttons)`);
+  await page.keyboard.press("Escape"); await sleep(100);
+  await page.locator(".cmd .tile[data-tile=unlocks]").click({ timeout: 5000 }); await sleep(200);
+  await page.locator("button.gear").click({ timeout: 5000 }); await sleep(250);
+  const sheets = await page.evaluate(() => ({ n: document.querySelectorAll(".sheet-wrap").length, settings: !!document.querySelector(".sheet-wrap .settings"), panels: document.querySelectorAll(".panel-host .panel").length }));
+  check(sheets.n === 1 && sheets.settings && sheets.panels === 0, `the gear's settings sheet closes the open UNLOCKS panel: one frame at a time (${sheets.n} sheet, ${sheets.panels} panel)`);
+  for (let i = 0; i < 3; i++) { await page.keyboard.press("Escape"); await sleep(80); }
+
+  // the report: LEARNED without bones; PENDING the next three
+  const L = await page.evaluate(() => window.__riddle.lineage);
+  await page.evaluate((L) => window.__riddle.go({ kind: "report", report: { elapsed_s: 60, runs: 1, sampled: false, learned: ["bones:7", "foe:rat"], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, bones_found: ["bones:7:4"] } }), L);
+  await page.waitForFunction(() => document.querySelectorAll(".report .cards .card").length > 0, null, { timeout: 10_000 }).catch(() => {});
+  const rp = await page.evaluate(() => { const sec = (w) => [...document.querySelectorAll(".report .rsec")].find((x) => (x.querySelector(".label")?.textContent ?? "").toLowerCase() === w);
+    return { learned: sec("learned")?.querySelectorAll(".chip").length ?? 0, learnedText: sec("learned")?.textContent ?? "", pending: sec("pending")?.querySelectorAll(".card").length ?? 0 }; });
+  check(rp.learned === 1 && !/bones/.test(rp.learnedText), `LEARNED holds facts, not bones (${rp.learned} chip: ${rp.learnedText.replace(/\s+/g, " ").trim()})`);
+  check(rp.pending >= 1 && rp.pending <= 3, `PENDING shows the next three unlocks at most, not the shop (${rp.pending})`);
+
+  // the death: the ledger line wraps inside its outline
+  await page.evaluate(() => window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 5, cause: "jackal", margin: "1 hp short · 7 unknown unused", verdict: "gap", baseline: 0.2, trace: { turns: [] }, patches: [], morgue: "",
+    line: { text: "died $0 · $78 carried · keeps 0% · bones: 10 items on D5 · ◆+7 · +$40 wake · restocked heal ×2 · refund leash", kept: 0, carried: 78, keep_pct: 0, spent: 0, spent_on: [] } } }));
+  await sleep(250);
+  const lb = await page.evaluate(() => { const b = document.querySelector(".death .ledger-btn"); return b ? { sw: b.scrollWidth, cw: b.clientWidth, right: b.getBoundingClientRect().right } : null; });
+  check(!!lb && lb.sw <= lb.cw + 1 && lb.right <= 400, `the death's ledger line wraps inside its outline (${JSON.stringify(lb)})`);
+}
+
+/** QA 23ed91f (L): ▶▶| always moves the picture — a world that never ends (a summoner stall) and never opens a fight: each press
+ *  returns within its wall budget and lands further on; a stalling run is watched at the flat rate. */
+async function stallSkip() {
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+  await waitFor((s) => s?.booted && s.screen === "watch", "the watch for the stall", 30_000);
+  await page.evaluate(() => {
+    const r = window.__riddle, orig = r.engine.step.bind(r.engine); let S = null, T = 0;
+    r.engine.step = async (n) => {
+      if (S) { T += n; await new Promise((x) => setTimeout(x, 30)); return { snapshot: { ...S, turn: T, stake: { ...(S.stake ?? {}), stalling: true } }, events: [], run_over: false }; }
+      const res = await orig(n);
+      if (res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit" || e.k === "die")) { S = res.snapshot; T = S.turn; res.snapshot = { ...S, stake: { ...(S.stake ?? {}), stalling: true } }; }
+      return res;
+    };
+  });
+  await page.waitForFunction(() => /stalling/.test(document.querySelector("main.watch .stake")?.textContent ?? ""), null, { timeout: 20_000 }).catch(() => {});
+  const tick = () => page.evaluate(() => Number(document.querySelector("main.watch")?.dataset.tick ?? 0));
+  const res = [];
+  for (let k = 0; k < 2; k++) {
+    const t0 = await tick(), w0 = Date.now();
+    await page.locator(".cmd .tile[data-tile=skip]").click({ timeout: 5000 });
+    await page.waitForFunction((t0) => Number(document.querySelector("main.watch")?.dataset.tick ?? 0) > t0 + 300, t0, { timeout: 9000 }).catch(() => {});
+    res.push({ dt: (await tick()) - t0, ms: Date.now() - w0 });
+  }
+  check(res.every((x) => x.dt > 300 && x.ms < 8000), `▶▶| in a never-ending stall moves the picture each press, within its wall budget (${res.map((x) => `+${x.dt} ticks in ${(x.ms / 1000).toFixed(1)} s`).join(" · ")})`);
+  await sleep(600);
+  const sp = await page.evaluate(() => Number(document.querySelector("main.watch")?.dataset.speed ?? 0));
+  check(sp >= 16, `a stalling run plays at the flat rate (${sp}×)`);
+  await page.locator(".cmd .tile[data-tile=fast]").click({ timeout: 5000 }); await sleep(600);
+  const sp2 = await page.evaluate(() => Number(document.querySelector("main.watch")?.dataset.speed ?? 0));
+  check(sp2 >= 16, `\`fast\` runs flat through a stall (${sp2}×)`);
+}
+
+/** QA 23ed91f (L: `auto: keep weapon+armour` owned, the vault full → everything salvaged): a watched exit whose keep sheet is skipped
+ *  (the vault full) resolves by `autoKeep` (the preference and the automations), never `keep([])`; with a free slot the sheet opens
+ *  with the automations' picks (`ExitPending.auto_keep`) ticked. */
+async function autoKeepCheck() {
+  const rules = encodeURIComponent("depth>=3 → return\nfoes>=1 → attack nearest");   // qa9's run that comes home with items
+  const run = async (full) => {
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=13&autosend=1&speed=fast&rules=${rules}`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && s.screen === "watch", "the watch for the keep");
+    await page.evaluate((full) => {
+      const r = window.__riddle; r.__ak = 0; r.__keep = []; r.__pending = null;
+      if (full) r.lineage.vault = [{ id: 7001, kind: "axe", known: true, label: "axe" }];
+      const ak = r.engine.autoKeep?.bind(r.engine), k = r.engine.keep.bind(r.engine), st = r.engine.step.bind(r.engine);
+      r.engine.autoKeep = async () => { r.__ak++; return ak ? ak() : k([]); };
+      r.engine.keep = async (ids) => { r.__keep.push(ids); return k(ids); };
+      r.engine.step = async (n) => { const res = await st(n); if (res.exit_pending?.items?.length) { res.exit_pending.auto_keep = [res.exit_pending.items[0].id]; r.__pending = res.exit_pending.items.length; } return res; };
+    }, full);
+    const t = Date.now(); let s = null;
+    while (Date.now() - t < 60_000) {
+      s = await page.evaluate(() => ({ screen: window.__riddle.screen, keep: !!document.querySelector(".sheet-wrap .keep-legend") }));
+      if (s.keep || !["watch"].includes(s.screen)) break;
+      await page.evaluate(() => { for (const b of document.querySelectorAll(".sheet-wrap .vault-choice .chip")) { b.click(); break; } for (const b of document.querySelectorAll(".cmd .tile[data-tile=skip]")) b.click(); });
+      await sleep(250);
+    }
+    return s;
+  };
+  let s = await run(false);
+  const pending = await page.evaluate(() => window.__riddle.__pending);
+  if (s?.keep) {
+    const on = await page.evaluate(() => ({ on: [...document.querySelectorAll(".sheet-wrap .chips .chip.item")].map((c) => c.classList.contains("on")), count: document.querySelector(".sheet-wrap .label.row-label .num")?.textContent }));
+    check(on.on[0] === true && on.count === "1/1", `the keep sheet opens with the automations' pick ticked (${on.count}, ${on.on.map((x) => (x ? "on" : "·")).join(" ")})`);
+    await page.locator(".sheet-wrap button.btn.primary.wide").first().click({ timeout: 5000 }).catch(() => {});
+  } else check(false, `a bank with loot opens the keep sheet (screen ${s?.screen}, pending ${pending})`);
+  s = await run(true);
+  await page.waitForFunction(() => window.__riddle.screen !== "watch", null, { timeout: 30_000 }).catch(() => {});
+  const k = await page.evaluate(() => ({ ak: window.__riddle.__ak, keep: window.__riddle.__keep, pending: window.__riddle.__pending, screen: window.__riddle.screen }));
+  check(!k.pending || (k.ak === 1 && !k.keep.some((ids) => ids.length === 0)), `the vault full, the skipped sheet keeps by \`autoKeep\`, not \`keep([])\` (autoKeep ×${k.ak}, keep ${JSON.stringify(k.keep)}, ${k.pending ?? 0} pending)`);
+}
 
 const t0 = Date.now();
 try {
@@ -209,6 +471,13 @@ try {
   check(f.bar && f.console && f.gem?.visible && /\bsend\b/.test(f.gem.cls) && f.gem.text === "send", `camp: bar + console, \`send\` in the gem (${JSON.stringify(f.gem)})`);
   await page.locator("button.send").click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "watch", "the watch"); await sleep(1500);
+  // QA 23ed91f: the last frame — record the bar's heir and the gem the moment the run is over (the exit's refresh follows)
+  await page.evaluate(() => {
+    const w = document.querySelector("main.watch"); const heir0 = w.querySelector(".topbar .heir")?.textContent;
+    window.__lastFrame = { heir0, at: [] };
+    const look = () => { const m = document.querySelector("main.watch"); if (/!/.test(m?.querySelector(".hud .alert")?.textContent ?? "")) window.__lastFrame.bang = true; if (!m || m.dataset.over !== "1") return; window.__lastFrame.at.push({ heir: m.querySelector(".topbar .heir")?.textContent, gem: m.querySelector(".gem-slot > .gem")?.textContent ?? null, corner: !!document.querySelector(".busy-label:not([hidden])") }); };
+    new MutationObserver(look).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+  });
   f = await frame();
   check(f.bar && f.console && f.gem?.visible && ["⏸", "▶"].includes(f.gem.text), `watch: bar + console, ⏸ in the gem (${JSON.stringify(f.gem)})`);
   const cmd = await page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile.hud-btn")].map((b) => b.textContent.trim()));
@@ -216,8 +485,20 @@ try {
   await shot("ui-watch");
   let s = await state(); const tw = Date.now();
   while (s?.screen === "watch" && Date.now() - tw < 90_000) { await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); }); await sleep(250); s = await state(); }
-  if (s?.screen === "exit") { await page.locator(".sheet-wrap button.btn.primary.wide").first().click({ timeout: 5000 }); }
+  if (s?.screen === "exit") {
+    // QA 23ed91f (K: "`$5` on each item: a cost to keep, or a sale price?"): the keep sheet says what the prices are
+    const legend = await page.evaluate(() => document.querySelector(".sheet-wrap .keep-legend")?.textContent ?? null);
+    check(legend === "unkept → salvage", `the keep sheet says its prices are the salvage of what is not kept ("${legend}")`);
+    await page.locator(".sheet-wrap button.btn.primary.wide").first().click({ timeout: 5000 });
+  }
   s = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit" && !x.busy, "the screen after the run", 30_000); await settle();
+  {
+    const lf = await page.evaluate(() => window.__lastFrame);
+    const heirs = [...new Set(lf.at.map((a) => a.heir))], gems = [...new Set(lf.at.map((a) => a.gem))];
+    check(lf.at.length > 0 && heirs.length === 1 && heirs[0] === lf.heir0, `the watch's last frame keeps the heir that ran on the bar (${lf.heir0} → ${heirs.join(" · ") || "no frame seen"})`);
+    check(!lf.bang, "the HUD names the alert (`alert 3`), never `!!!`");
+    check(lf.at.length > 0 && gems.every((g) => g === "verdict" || g === "report") && lf.at.every((a) => !a.corner), `the last frame's gem slot holds a gem, \`verdict\` / \`report\`, no corner label (${gems.join(" · ")})`);
+  }
   if (s.screen !== "death") {   // a report: the gem is `camp`; then a fabricated death for the death's frame
     f = await frame();
     check(f.bar && f.console && f.gem?.visible && f.gem.text === "camp", `report: bar + console, \`camp\` in the gem (${JSON.stringify(f.gem)})`);
@@ -228,8 +509,8 @@ try {
     f = await frame();
     const patch = await page.locator("button.patch.top").count();
     check(f.bar && f.console && f.gem?.visible && (patch ? /\bpatch-gem\b/.test(f.gem.cls) : f.gem.text === "edit"), `death: bar + console, the top patch in the gem (${JSON.stringify(f.gem)}, ${patch} lit patch)`);
-    const d = await page.evaluate(() => ({ banner: !!document.querySelector(".banner-cloth .death-line"), seal: getComputedStyle(document.querySelector(".death-line .verdict")).position, tiles: [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((t) => t.textContent.trim()) }));
-    check(d.banner && d.seal === "absolute" && d.tiles.includes("morgue") && d.tiles.includes("camp"), `death: the line on the banner, the verdict in the seal, morgue · camp on the card (${d.tiles.join(" · ")})`);
+    const d = await page.evaluate(() => ({ banner: !!document.querySelector(".banner-cloth .death-line"), seal: !!document.querySelector(".banner-cloth .death-line .verdict"), tiles: [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((t) => t.textContent.trim()) }));
+    check(d.banner && d.seal && d.tiles.includes("morgue") && d.tiles.includes("camp"), `death: the line on the banner, the verdict in the seal, morgue · camp on the card (${d.tiles.join(" · ")})`);
     await shot("ui-death");
     // the morgue's sheet carries its stud too
     await page.locator(".cmd .tile[data-tile=morgue]").click({ timeout: 5000 }); await sleep(200);
@@ -242,6 +523,15 @@ try {
   const plaques = await page.locator(".report .parchment .tile.plaque").count();
   check(f.bar && f.console && f.gem?.visible && f.gem.text === "camp" && plaques >= 4, `report: bar + console, \`camp\` in the gem, the counts as plaques on parchment (${plaques} plaques)`);
   await shot("ui-report");
+  // QA 23ed91f (K: the walk printed `(no worst death to open)` over 16 deaths): the report's `open` tile opens the worst death
+  if (await page.evaluate(() => !!document.querySelector(".cmd .tile[data-tile=open]"))) {
+    await page.locator(".cmd .tile[data-tile=open]").click({ timeout: 5000 });
+    const o = await waitFor((x) => x?.screen === "death", "the worst death", 10_000).catch(() => null);
+    check(o?.screen === "death", "the report's `open` tile opens the worst death");
+  } else check(await page.evaluate(() => { const r = window.__riddle; return r.view?.report ? !r.view.report.worst_death : true; }), "no `open` tile: the report has no worst death");
+  await qaK();
+  await stallSkip();
+  await autoKeepCheck();
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

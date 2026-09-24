@@ -167,6 +167,9 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   function pickVerb(row: Row): void {
     openSheet((close) => {
       const grid = h("div", { class: "grid" });
+      // QA 23ed91f (K: "`drink heal` is the default R1 verb, but it is missing from the VERB list"): the row's own verb is on the list
+      // (lit) even when the vocabulary does not offer it today, so the picker never hides what the row does
+      if (!vocab().verbs.some((v) => sameVerb(row.verb, v)) && row.verb.v !== "tactic") grid.appendChild(h("button", { class: "chip verb on", onclick: () => close() }, verbLabel(row.verb)));
       for (const v of vocab().verbs) {
         const on = sameVerb(row.verb, v);
         // Cut 12 §1: a set holds one row per card — a card another row already carries is not offered

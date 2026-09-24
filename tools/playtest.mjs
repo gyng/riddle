@@ -169,8 +169,10 @@ async function attempt() {
     s = await state();
     await dump(s.screen, { note: `offline ${opt.absent} → ${secs(offlineWait)}` });
     if (s.screen === "report") {
-      if (await page.locator("button.btn").filter({ hasText: /^open$/ }).count()) {
-        await clickBtn("button.btn", "open"); await waitFor((x) => x?.screen === "death", "the worst death"); await settle(); await dump("death", { note: "worst" });
+      // Cut 17: the worst death opens from the report's console tile (`open`); the older flat button kept as a fallback
+      const openSel = (await page.locator(".cmd button").filter({ hasText: /^\s*open\s*$/i }).count()) ? ".cmd button" : "button.btn";
+      if (await page.locator(openSel).filter({ hasText: /^\s*open\s*$/i }).count()) {
+        await page.locator(openSel).filter({ hasText: /^\s*open\s*$/i }).first().click(); await waitFor((x) => x?.screen === "death", "the worst death"); await settle(); await dump("death", { note: "worst" });
       } else log("(no worst death to open)");
     }
   } catch (e) {

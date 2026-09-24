@@ -404,14 +404,16 @@ try {
     const w = document.querySelector(".watch"); const v = window.__viewer;
     const btn = (t) => [...document.querySelectorAll("main.watch .hud-btn")].find((b) => b.textContent === t);
     return { screen: window.__riddle.screen, busy: window.__riddle.engineBusy, over: w?.dataset.over ?? "0", fade: v?.stats?.().fade ?? null,
-      dead: ["fights", "fast", "▶▶|", "bail"].map((t) => btn(t)?.disabled ?? null), pause: btn("⏸")?.hidden ?? btn("▶")?.hidden ?? "gone", label: document.querySelector(".busy-label")?.textContent ?? "" };
+      dead: ["fights", "fast", "▶▶|", "bail"].map((t) => btn(t)?.disabled ?? null), pause: btn("⏸")?.hidden ?? btn("▶")?.hidden ?? "gone", label: document.querySelector(".busy-label")?.textContent ?? "",
+      gem: document.querySelector("main.watch .gem-slot > .gem")?.textContent ?? "", heir: document.querySelector("main.watch .topbar .heir")?.textContent ?? "" };
   });
   s = await waitFor((x) => x?.screen !== "watch" || x.busy, "the verdict's busy window", 40_000);
   await sleep(600);   // the walk-out drained: the fade has settled at its target
   const fs = await frameState();
   check(fs.screen === "watch" && fs.busy && fs.label === "verdict", `the verdict runs over the final frame (screen ${fs.screen}, busy ${fs.busy}, "${fs.label}")`);
   check(fs.over === "1" && fs.dead.every((d) => d === true), `fights · fast · ▶▶| · bail are dead on a dead hero: [${fs.dead.join(", ")}]`);
-  check(fs.pause === true, `⏸ is gone at the end (the label has the corner): ${fs.pause}`);
+  // QA 23ed91f (K): the gem slot keeps a gem at the end — `verdict`, what comes next — where ⏸ was (the corner label no longer shows)
+  check(fs.pause === "gone" && fs.gem === "verdict", `⏸ gives the gem slot to \`verdict\` at the end (pause ${fs.pause}, gem "${fs.gem}")`);
   check(fs.fade !== null && fs.fade <= 0.3 + 1e-6, `the floor stays lit at the end (fade ${fs.fade})`);
   await shot("death-frame");
   await waitFor((x) => x?.screen === "death", "the death screen after the verdict", 30_000);

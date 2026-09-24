@@ -198,7 +198,8 @@ try {
   check(!!gs && gs.filter !== "", `the gold sheet opened filtered (${gs?.filter})`);
   const prevExit = exits[exits.length - 2];
   const from = prevExit ? prevExit.i + 1 : 0;
-  const expect = ledger.slice(from).filter((g, k) => from + k <= lastExit.i || (g.t === lastExit.t && !/^(returned|banked|died|lost)\b/.test(g.why)));
+  // QA 23ed91f: the newest exit's run runs on to now (the camp's charges since: a restock), so the sheet explains the bar
+  const expect = ledger.slice(from);
   check(!!gs && gs.lines.length === expect.length && gs.lines.length >= 1, `the filtered sheet shows the run's ${expect.length} line(s) (${gs?.lines.length}): ${gs?.lines.map((l) => l.text).join(" | ")}`);
   check(!!gs && gs.lines.every((l) => l.text.includes(lastExit.why) || l.t >= (prevExit?.t ?? 0)), "every shown line is inside the run's slice");
   await shot("chain-gold.png");

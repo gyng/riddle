@@ -39,10 +39,10 @@ const STEP_OF: Record<string, Step> = { edit: "edit", loadout: "loadout", unlock
 const ALL_KEY = "riddle.unlocks.all";
 const unlocksAll = (): boolean => { try { return localStorage.getItem(ALL_KEY) === "1"; } catch { return false; } };
 const setUnlocksAll = (on: boolean): void => { try { localStorage.setItem(ALL_KEY, on ? "1" : "0"); } catch { /* a per-viewer convenience */ } };
-/** Cut 13 §2: each trait's one-line rule, ≤ 3 words (the core's: cowardly retreats under 50 % hp with foes in view; brave holds a
- *  retreat row; curious drinks an unknown when clear; greedy steps onto adjacent loot). */
+/** Cut 13 §2: each trait's one-line rule, ≤ 3 words (the core's: cowardly retreats under 50 % hp with foes in view; brave skips a
+ *  retreat row vs one foe, once a floor — `holds a retreat` read as its opposite, QA 23ed91f; curious drinks an unknown when clear; greedy steps onto adjacent loot). */
 /* copy:callout */
-const TRAIT_RULE: Record<string, string> = { cowardly: "flees under 50%", brave: "holds a retreat", curious: "drinks unknowns", greedy: "grabs loot" };
+const TRAIT_RULE: Record<string, string> = { cowardly: "flees under 50%", brave: "skips a retreat", curious: "drinks unknowns", greedy: "grabs loot" };
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
 export function renderCamp(app: App, highlight?: number): Mounted {
@@ -71,7 +71,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 17 §2: the camp's secondary objects are panels over the well, one at a time, each opened by its console tile (the
   // forecast's by the shaft), each with a close stud; Escape closes the open one
   const PANELS: Record<string, HTMLElement> = { forecast: fc.el, loadout: supplies, unlocks, vault, party: party.el };
-  const panelHost = h("div", { class: "panel-host" });
+  // QA 23ed91f (K: "the SUPPLIES sheet covers R4's verb chip; you have to close it to edit R4"): a tap on the well around the panel
+  // closes it (the stud and Escape still do)
+  const panelHost = h("div", { class: "panel-host", onclick: (e: Event) => { if (e.target === panelHost) closePanel(); } });
   // a closed panel's content waits in the DOM, unrendered (its engine fetches keep painting it; it is not on screen, so not in the
   // page's text either — a rater's text view reads what the player sees)
   const panelStore = h("div", { class: "panel-store", hidden: true, inert: true }, ...Object.values(PANELS));
@@ -160,7 +162,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       return h("div", { class: "sheet-body ledger forge" }, h("div", { class: "label" }, /* copy:label */ "forge"), head, ...rows.map(([kind, f]) => h("div", { class: "lrow" },
         h("span", { class: "k" }, kind.replace(/_/g, " ")),
         h("span", { class: "ladder num dim" }, /* copy:label */ "salvaged", " ", f.next ? h("span", null, `${f.salvaged}/${f.next.need}`, " → ", h("span", { class: "rung" }, f.next.label.replace(/_/g, " "))) : `${f.salvaged}`),
-        h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "⚒" : "○"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "·"))));
+        h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "⚒" : "·"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "·"))));
     });
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
@@ -175,7 +177,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         for (const { cls, owned, level } of classList(L, cat)) {
           const ladder = Object.entries(CLASS_VERBS[cls] ?? {}).flatMap(([l, vs]) => vs.map((v) => h("span", { class: `chip rung num${Number(l) <= level && owned ? " on" : ""}` }, `L${l} `, verbLabel({ v }))));
           const u = owned ? undefined : cat?.find((x) => x.id === cls);
-          const door = u ? h("small", { class: "num dim door" }, ` ◆${u.cost}`, u.needs ? ` · ${u.needs.replace(/_/g, " ")}` : "") : "";
+          const door = u ? h("small", { class: "num dim door" }, u.cost ? ` ◆${u.cost}` : "", u.needs ? `${u.cost ? " · " : " "}${u.needs.replace(/_/g, " ")}` : "") : "";   // no `◆0` (QA 23ed91f)
           const take = async (): Promise<void> => { if (u && !(await app.buy(cls))) return; void app.setClass(cls); close(); };
           grid.appendChild(h("div", { class: "class-row" },
             h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned || u?.available ? "" : " off"}`, disabled: !(owned || u?.available), onclick: () => void take() }, cls, " ", h("b", { class: "num" }, `L${level}`), door),
@@ -232,12 +234,17 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     for (let i = L.vault.length; i < slots; i++) chips.appendChild(h("span", { class: "chip empty", "aria-hidden": "true" }, ""));   // an empty slot is an empty chip (QA on 56f2a1d: `·` read as a chip that says `·`)
     vault.appendChild(chips);
     // keep preference for offline exits
-    const prefs = h("div", { class: "chips prefs" }, h("span", { class: "dim" }, /* copy:label */ "keep"),
+    // QA 23ed91f: two rows that cannot be confused — `home` (what an unwatched exit keeps for the vault) and `cage` (what an
+    // unanswered cage in the dungeon takes); K set `vault potion` as "what the home vault keeps"
+    const prefs = h("div", { class: "chips prefs home" }, h("span", { class: "dim" }, /* copy:label */ "home"),
       /* copy:label */ ...[["best_weapon", "weapon"], ["best_armour", "armour"], ["none", "none"]].map(([id, lbl]) =>
         h("button", { class: `chip${(L.keep_pref ?? "best_weapon") === id ? " on" : ""}`, onclick: () => void app.mutate(() => app.engine.setKeepPref(id)) }, lbl)));
+    // what the home pref does at an unwatched exit, on its row (the core's `keep_auto`, in order: `keeps armour · weapon`)
+    const auto = L.keep_auto;
+    if (auto) prefs.appendChild(h("small", { class: "keep-auto dim num" }, auto.length ? /* copy:callout */ `keeps ${auto.join(" · ")}` : /* copy:callout */ "keeps nothing"));
     vault.appendChild(prefs);
     // Cut 5 §4: what an unanswered vault choice takes (offline, or the 50-tick grace on a watched run)
-    const vprefs = h("div", { class: "chips prefs" }, h("span", { class: "dim" }, /* copy:label */ "vault"),
+    const vprefs = h("div", { class: "chips prefs" }, h("span", { class: "dim" }, /* copy:label */ "cage"),
       /* copy:label */ ...["weapon", "armour", "potion", "scroll"].map((id) =>
         h("button", { class: `chip${(L.vault_pref ?? "weapon") === id ? " on" : ""}`, onclick: () => void app.mutate(() => app.engine.setVaultPref(id)) }, id)));
     vault.appendChild(vprefs);
@@ -314,7 +321,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u) },
           h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
             d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : ""),
-          h("span", { class: "num cost" }, `◆${u.cost}`)));
+          h("span", { class: "num cost" }, u.cost ? `◆${u.cost}` : "")));   // QA 23ed91f: a free door reads no `◆0`
       }
       unlocks.appendChild(grid);
       if (shown.length < list.length) unlocks.appendChild(h("button", { class: "mini more", onclick: () => { setUnlocksAll(true); paintFrom(cat); } }, /* copy:button */ "more"));

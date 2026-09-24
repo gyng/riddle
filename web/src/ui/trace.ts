@@ -15,14 +15,16 @@ export const EXIT_TRACE_ROWS = 10;
 /** The table and, under it, the chain (Cut 11) or the dim `R1 why · R2 why` line when the trace carries no `because`. */
 export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS): HTMLElement[] {
   const turns = trace.turns.slice(-rows);
+  // QA 23ed91f (K: "the `tele` column is empty on every row"): the column only when a shown turn has a telegraph
+  const tele = turns.some((t) => t.telegraphs.length > 0);
   const table = h("table", { class: `trace num${ctx.home ? " home" : ""}` },
-    h("thead", null, h("tr", null, /* copy:label */ ...["t", "R", "hp", "foes", "tele"].map((s) => h("th", null, s)))),
+    h("thead", null, h("tr", null, /* copy:label */ ...["t", "R", "hp", "foes", ...(tele ? ["tele"] : [])].map((s) => h("th", null, s)))),
     h("tbody", null, ...turns.map((t) => h("tr", null,
       h("td", null, `${t.t}`),
       h("td", { class: "r" }, t.row >= 0 ? `R${t.row + 1}` : t.row === -1 ? /* copy:label */ "trait" : "·", " ", h("small", { class: "dim" }, verbLabel(t.verb))),
       h("td", null, `${t.hp}`),
       h("td", null, `${t.foes}`),
-      h("td", { class: "tele" }, t.telegraphs.join(" · ")),
+      tele ? h("td", { class: "tele" }, t.telegraphs.join(" · ")) : "",
     ))));
   const chain = chainOf(trace, ctx);
   if (chain) return [table, chain];

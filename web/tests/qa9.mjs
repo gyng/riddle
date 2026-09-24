@@ -287,6 +287,9 @@ try {
   const keepSheet = () => page.evaluate(() => { const w = [...document.querySelectorAll(".sheet-wrap")].pop(); const lab = w?.querySelector(".label.row-label"); return { label: lab?.firstChild?.textContent?.trim() ?? "", count: lab?.querySelector(".num")?.textContent ?? "", on: [...(w?.querySelectorAll(".chips .chip.item") ?? [])].map((c) => c.classList.contains("on")), n: w?.querySelectorAll(".chips .chip.item").length ?? 0 }; });
   let ks = await keepSheet();
   check(ks.label === "keep" && ks.count === "0/1" && ks.n >= 3, `the sheet counts picks against free slots as keep: "${ks.label} ${ks.count}" over ${ks.n} chips`);
+  // QA 23ed91f (K: "`$5` on each item: a cost to keep, or a sale price?"): the sheet says the prices are what the unkept sell for
+  const legend = await page.evaluate(() => document.querySelector(".sheet-wrap .keep-legend")?.textContent ?? null);
+  check(legend === "unkept → salvage", `the keep sheet names its prices: "${legend}"`);
   const kchip = (i) => page.locator(".sheet-wrap .chips .chip.item").nth(i);
   await kchip(0).click({ timeout: 5000 }); await sleep(100); ks = await keepSheet();
   check(ks.count === "1/1" && ks.on[0] && !ks.on[1], `one pick: "${ks.count}", chip 1 on`);

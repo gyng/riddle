@@ -49,7 +49,7 @@ export function kindGlyph(kind: string): string {
 export const PCT = new Set(["hp<", "hp>", "foe_hp<", "self_hp<", "party_hp<", "floor_seen>="]);
 export const NUMS: Record<string, number[]> = {
   "hp<": [10, 20, 25, 30, 40, 50, 60, 75], "hp>": [25, 50, 75, 90], "foes>=": [1, 2, 3, 4], "adj>=": [1, 2, 3],
-  "foe_hp<": [25, 50], "self_hp<": [20, 30, 50], "party_hp<": [25, 50], "floor_seen>=": [25, 50, 75, 100], "depth>=": [2, 3, 5, 8, 10, 12], "alert>=": [1, 2, 3, 4, 5],
+  "foe_hp<": [25, 50], "self_hp<": [20, 30, 50], "party_hp<": [25, 50], "floor_seen>=": [25, 50, 75, 100], "depth>=": [2, 3, 4, 5, 6, 7, 8, 10, 12], "alert>=": [1, 2, 3, 4, 5],
   "loot>=": [25, 50, 100, 200], "turns>": [50, 100, 200, 400],
 };
 export const needsN = (k: string): boolean => k in NUMS;

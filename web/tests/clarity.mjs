@@ -151,7 +151,8 @@ try {
       lost: document.querySelector(".report .chip.egg")?.textContent.replace(/\s+/g, " ").trim(),
     }));
     check(rep.labels.join(" ") === "runs best marks returned banked deaths", `tiles: ${rep.labels.join(" · ")}`);
-    check(rep.exits[0]?.startsWith("returned $61 · $102 carried") && rep.exits[1]?.startsWith("banked $84 · "), `exit lines lead with the tier and the sum: "${rep.exits[0]}"`);
+    // QA 23ed91f: the run rows read newest first (the gold sheet's order), so the later bank leads
+    check(rep.exits[1]?.startsWith("returned $61 · $102 carried") && rep.exits[0]?.startsWith("banked $84 · "), `exit lines lead with the tier and the sum, newest first: "${rep.exits[0]}" · "${rep.exits[1]}"`);
     check(rep.lost === "◯ jackal Ashar fell", `the report's lost chip reads "${rep.lost}"`);
     check(rep.fade === true, "after an absence the tiles fade in");
     await page.evaluate((b) => { const r = window.__riddle; b.live = r.lineage.live ?? null; r.go({ kind: "report", report: { ...b, banked: 3, returned: 1 } }); }, base);
