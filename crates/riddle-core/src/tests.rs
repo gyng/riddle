@@ -1239,7 +1239,7 @@ fn offline_samples_after_twenty_stalled_runs() {
     g.lineage.renown = 1_000_000;
     g.lineage.rank = 100;
     g.lineage.trophies = vec!["pacifist_floor".into(), "no_heal_D5".into(), "ranged_only_D5".into(), "boss_untouched".into()];
-    g.lineage.classes.insert("fighter".into(), ClassProg { level: 10, xp: 0 });
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 10, xp: 0, next: 0 });
     g.lineage.trophies.push("master:fighter".into());
     g.lineage.unlocks.insert("phalanx".into());
     g.set_rules(RuleSet::default()).unwrap();
@@ -1449,6 +1449,14 @@ fn episodes_close_on_a_low_a_recovery_and_the_exit() {
     let arc = hs[0].arc.as_ref().unwrap();
     assert_eq!((arc.low_hp, arc.row, arc.threat.as_str(), arc.resolution.as_str()), (3, 0, "jackal", "banked $58"));
     assert_eq!(hs[0].score, 4 * 3, "low-point depth 4 × banked 3");
+    // QA on 92eb880 (qaN): a low walked down from reads the depth the run went on to reach.
+    {
+        let run = g.run.as_mut().unwrap();
+        run.episodes[0].resolution = crate::sifter::Resolution::Reached { depth: 3 };
+        run.max_depth = 6;
+    }
+    let hs = crate::sifter::sift_with(g.run.as_ref().unwrap(), false);
+    assert!(hs[0].text.ends_with("reached D6."), "{}", hs[0].text);
     // A quiet run still closes on its exit — Cut 12 §4: as the routine line, the floor and
     // what it brought (`D1: returned $0.`; the arena's D1 has no situation word).
     let mut g2 = arena();
@@ -2044,7 +2052,7 @@ fn xp_levels_the_class_and_gates_verbs() {
     assert!(g.events.iter().any(|e| matches!(e, Ev::Level { class, level: 2, .. } if class == "fighter")));
     assert_eq!(g.batch.level_ups, 1);
     assert!(!g.vocabulary().verbs.iter().any(|v| v.v == "cleave"));
-    g.lineage.classes.insert("fighter".into(), ClassProg { level: 3, xp: 0 });
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 3, xp: 0, next: 0 });
     assert!(g.vocabulary().verbs.iter().any(|v| v.v == "cleave"));
     g.auto_keep();
     g.start_run(None);
@@ -2060,7 +2068,7 @@ fn xp_levels_the_class_and_gates_verbs() {
 #[test]
 fn cleave_hits_all_adjacent_and_mastery_grants_card() {
     let mut g = arena();
-    g.lineage.classes.insert("fighter".into(), ClassProg { level: 3, xp: 0 });
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 3, xp: 0, next: 0 });
     g.run.as_mut().unwrap().hero.level = 3;
     let a = add_monster(&mut g, "rat", 5, 5);
     let b = add_monster(&mut g, "rat", 5, 6);
@@ -2071,7 +2079,7 @@ fn cleave_hits_all_adjacent_and_mastery_grants_card() {
     assert!(evs.iter().any(|e| matches!(e, Ev::Attack { dst, verb, .. } if *dst == b && verb.as_deref() == Some("cleave"))));
     assert!(hero(&g).cleave_cd > 0);
     let mut g = arena();
-    g.lineage.classes.insert("fighter".into(), ClassProg { level: 9, xp: crate::hero::xp_to_next(9) - 5 });
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 9, xp: crate::hero::xp_to_next(9) - 5, next: 0 });
     g.run.as_mut().unwrap().max_depth = 2;
     finish_with(&mut g, ExitTier::Bank);
     assert_eq!(g.lineage.classes["fighter"].level, 10);
@@ -3384,7 +3392,7 @@ fn finished_lineage() -> Game {
     for u in ["row5", "row6", "row7", "row8", "row9", "cadence", "throw", "rogue", "phalanx"] {
         g.lineage.unlocks.insert(u.into());
     }
-    g.lineage.classes.insert("fighter".into(), ClassProg { level: 7, xp: 10 });
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 7, xp: 10, next: 0 });
     g.lineage.kennel.push(crate::probes::pets_party()[0].clone());
     g.lineage.party.push(crate::probes::pets_party()[1].clone());
     g.lineage.vault.push(Item::new(100_001, "plate"));
@@ -3785,6 +3793,131 @@ fn foes_count_the_visible_and_a_blocked_row_says_why() {
     let t2 = g2.run.as_ref().unwrap().trace.first().unwrap();
     assert!(t2.blocked.is_none());
     assert!(!serde_json::to_string(t2).unwrap().contains("blocked"));
+}
+
+/// QA on 92eb880 (qaN): the trace's `foes` is the player's count — a thief running with the
+/// loot is in it though `foes>=` (the rules' count, `rule_foes`) leaves it out.
+#[test]
+fn trace_foes_count_what_the_player_sees() {
+    let mut g = arena();
+    let id = add_monster(&mut g, "monkey", 8, 5);
+    {
+        let run = g.run.as_mut().unwrap();
+        let m = run.monsters.iter_mut().find(|m| m.id == id).unwrap();
+        m.stolen = Some(Item::new(500, "dagger"));
+        m.fleeing = true;
+        m.awake = true;
+        run.floor.map.update_vision(Pos::new(4, 5), VISION);
+    }
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::new("rest"))]);
+    ticks(&mut g, 12);
+    let run = g.run.as_ref().unwrap();
+    let t = run.trace.first().expect("an action");
+    assert_eq!(t.rule_foes, 0, "the rules never count a running thief: {t:?}");
+    assert_eq!(t.foes, 1, "the column counts it: {t:?}");
+    assert_ne!(t.row, 0, "the row did not fire");
+}
+
+/// QA on 92eb880 (qaN: `R7 bank ended 13 runs` beside `11 BANKED`): the plateau's window opened
+/// before the absence; its line counts the absence's exits apart from the earlier ones, and a
+/// watched run's exit closes the absence's count.
+#[test]
+fn a_plateau_counts_the_absence_apart() {
+    let mut g = Game::new(5);
+    let mut set = g.lineage.rules().clone();
+    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 35)], Verb::new("return")));
+    g.set_rules(set).unwrap();
+    g.stall.runs = 13;
+    g.stall.depth = 6;
+    g.stall.exit_rows.insert(0, 13);
+    g.stall.absent_rows.insert(0, 11);
+    let s = crate::offline::stall_verdict(&mut g).expect("a stall");
+    assert_eq!(s.text, "R1 return ended 11 runs, 2 before; none past D6");
+    assert!(crate::rules::word_count(&s.text) <= 12);
+    g.stall.absent_rows.clear();
+    let s = crate::offline::stall_verdict(&mut g).expect("a stall");
+    assert_eq!(s.text, "R1 return ended 13 earlier runs, none past D6");
+    g.stall.absent_rows.insert(0, 13);
+    let s = crate::offline::stall_verdict(&mut g).expect("a stall");
+    assert_eq!(s.text, "R1 return ended 13 runs, none past D6");
+}
+
+/// QA on 92eb880 (qaN: `fighter +0 · L4 ↑1`): the exit line carries the run's XP and the levels
+/// it crossed — the XP that crossed the level included — and the lineage view carries the
+/// core's ladder (`next`), so no client sums a ladder of its own.
+#[test]
+fn a_level_up_carries_the_xp_that_crossed_it() {
+    let mut g = arena_seed(3);
+    let class = g.lineage.class.name().to_string();
+    let need = crate::hero::xp_to_next(3);
+    g.lineage.classes.insert(class.clone(), ClassProg { level: 3, xp: need - 1, next: 0 });
+    rules(&mut g, vec![Row::new(vec![], Verb::new("return"))]);
+    let mut line = None;
+    for _ in 0..40 {
+        let r = g.step(10);
+        if let Some(l) = r.events.iter().find_map(|e| if let Ev::Exit { line, .. } = e { line.clone() } else { None }) {
+            line = Some(l);
+            break;
+        }
+    }
+    let line = line.expect("an exit line");
+    assert_eq!(line.level_ups, 1, "{line:?}");
+    assert!(line.xp > 0, "a level crossed with no XP: {line:?}");
+    let prog = &g.lineage.classes[&class];
+    assert_eq!(prog.level, 4);
+    assert_eq!(prog.xp, need - 1 + line.xp - need, "the line's XP is what the ladder took");
+    let wire = g.lineage();
+    assert_eq!(wire.classes[&class].next, crate::hero::xp_to_next(4));
+}
+
+/// QA on 92eb880 (qaN: `corridor fighting` inserted at its best place and the stall share went
+/// to 35 %): a place whose stall share rises more than 5 pts is not best; when every place
+/// does, the one that stalls least is.
+#[test]
+fn a_cards_best_place_does_not_stall() {
+    use crate::meta::{best_place, Measured};
+    let m = |at: usize, reach: f64, stall: f64| Measured { at: Some(at), reach, stall };
+    // The highest reach stalls: the next calm place wins.
+    let b = best_place(&[m(5, 0.30, 0.02), m(0, 0.50, 0.35), m(2, 0.40, 0.06)], 0.01).unwrap();
+    assert_eq!(b.at, Some(2), "{b:?}");
+    // Ties keep the earlier (the buy's old place).
+    assert_eq!(best_place(&[m(5, 0.3, 0.0), m(0, 0.3, 0.0)], 0.0).unwrap().at, Some(5));
+    // Every place stalls: the least stalling one, whatever its reach.
+    let b = best_place(&[m(5, 0.3, 0.22), m(0, 0.4, 0.26), m(7, 0.1, 0.10)], 0.0).unwrap();
+    assert_eq!(b.at, Some(7), "{b:?}");
+    assert!(best_place(&[], 0.0).is_none());
+    // The catalogue: the card's delta is read where it does not stall, and says its stall move.
+    let mut g = Game::new(1216);
+    for u in ["kite_archers", "pack_break", "gas_step", "row5", "row6", "row7", "cond_telegraph"] {
+        g.lineage.unlocks.insert(u.into());
+    }
+    g.lineage.best_depth = 6;
+    for m in crate::defs::MONSTERS.iter() {
+        for t in m.tags {
+            g.lineage.facts.insert(format!("foe:{}:{}", m.kind, t));
+        }
+    }
+    let card = |id: &str| Row::new(vec![], Verb::arg("tactic", id));
+    let rows = vec![
+        Row::new(vec![Cond::n("hp<", 30)], Verb::new("return")),
+        card("kite_archers"),
+        card("pack_break"),
+        Row::new(vec![Cond { k: "foe_tag".into(), n: None, t: Some("telegraph".into()) }], Verb::new("retreat")),
+        card("gas_step"),
+        Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+        Row::new(vec![Cond::n("depth>=", 6)], Verb::new("bank")),
+    ];
+    g.set_rules_raw(RuleSet { rows, name: None }).unwrap();
+    let cat = crate::meta::catalogue_with_deltas(&g, true);
+    let u = cat.iter().find(|u| u.id == "corridor_fighting").unwrap();
+    let stall = u.stall.expect("the card carries its stall move");
+    // Before: R6, the old place before the engagement row (the camp panel read stall 22 % there).
+    assert!(stall <= 0.15, "the least-stalling place: {u:?}");
+    assert_eq!(u.insert_at, Some(7), "every place stalls; the bottom stalls least: {u:?}");
+    // The cached read (no sims) names the same place.
+    let again = crate::meta::catalogue_with_deltas(&g, false);
+    let v = again.iter().find(|x| x.id == "corridor_fighting").unwrap();
+    assert_eq!((v.insert_at, v.stall), (u.insert_at, u.stall));
 }
 
 /// Cut 4 (rater B): the stalemate guards lift when blood is drawn, and the chores never `wait`
@@ -6730,7 +6863,7 @@ fn forecast_bank_share_is_a_send_from_this_camp() {
     crate::probes::learn_everything(&mut g);
     g.lineage.unlocks.extend(["row5", "row6", "row7", "row8", "throw"].map(String::from));
     g.lineage.best_depth = 9;
-    g.lineage.classes.insert("fighter".into(), ClassProg { level: 4, xp: 0 });
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 4, xp: 0, next: 0 });
     for d in [8u32, 10] {
         let mut set = crate::probes::good();
         set.rows.retain(|r| r.verb.v != "bank");
@@ -6782,7 +6915,7 @@ fn forecast_ends_name_how_a_send_ends() {
     crate::probes::learn_everything(&mut g);
     g.lineage.unlocks.extend(["row5", "row6", "row7", "row8", "throw"].map(String::from));
     g.lineage.best_depth = 8;
-    g.lineage.classes.insert("fighter".into(), ClassProg { level: 6, xp: 0 });
+    g.lineage.classes.insert("fighter".into(), ClassProg { level: 6, xp: 0, next: 0 });
     let mut set = crate::probes::good();
     set.rows.retain(|r| r.verb.v != "bank");
     set.rows.insert(0, Row::new(vec![Cond::n("depth>=", 8)], Verb::new("bank")));
@@ -7621,7 +7754,7 @@ fn a_stall_names_the_rules_loop_and_its_first_patch_addresses_the_row() {
 /// moving row alone; a targeting row alone, a trait's step or three actors are no loop.
 #[test]
 fn row_loop_reads_two_actors_or_one_moving_row() {
-    let turn = |row: i32, verb: Verb| TraceTurn { t: 0, row, verb, hp: 18, foes: 3, telegraphs: Vec::new(), blocked: None, rows: None };
+    let turn = |row: i32, verb: Verb| TraceTurn { t: 0, row, verb, hp: 18, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None };
     let alt = |a: TraceTurn, b: TraceTurn| (0..6).flat_map(|_| [a.clone(), b.clone()]).collect::<Vec<_>>();
     let tr = alt(turn(1, Verb::new("retreat")), turn(-2, Verb::new("explore")));
     assert_eq!(crate::turn::row_loop(&tr), Some(("R2 retreat ↔ explore".to_string(), 1)));

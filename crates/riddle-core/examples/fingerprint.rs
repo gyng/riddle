@@ -21,7 +21,7 @@ fn full(seed: u64) -> Game {
     }
     riddle_core::probes::learn_everything(&mut g);
     let fighter = riddle_core::hero::Class::Fighter;
-    g.lineage.classes.insert(fighter.name().into(), riddle_core::wire::ClassProg { level: 10, xp: 0 });
+    g.lineage.classes.insert(fighter.name().into(), riddle_core::wire::ClassProg { level: 10, xp: 0, next: 0 });
     g.lineage.unlocks.insert(riddle_core::hero::mastery_card(fighter).into());
     g.set_rules(riddle_core::probes::full()).expect("full rules");
     g

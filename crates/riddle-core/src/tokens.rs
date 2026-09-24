@@ -297,7 +297,7 @@ mod class_tests {
         assert!(v.verbs.contains(&Verb::arg("shoot", "nearest")));
         assert!(v.verbs.contains(&Verb::new("kite")));
         assert!(!v.verbs.iter().any(|x| x.v == "volley"));
-        l.classes.insert("ranger".into(), crate::wire::ClassProg { level: 9, xp: 0 });
+        l.classes.insert("ranger".into(), crate::wire::ClassProg { level: 9, xp: 0, next: 0 });
         let v = vocabulary(&l);
         for x in ["volley", "trap", "mark", "double_shot"] {
             assert!(v.verbs.iter().any(|y| y.v == x), "{x}");

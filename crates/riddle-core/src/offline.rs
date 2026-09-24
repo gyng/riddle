@@ -150,6 +150,7 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
                         game.stall.runs += extra as u32;
                         for (r, k) in &exits {
                             *game.stall.exit_rows.entry(*r).or_insert(0) += share(*k);
+                            *game.stall.absent_rows.entry(*r).or_insert(0) += share(*k);
                         }
                     } else {
                         game.stall = StallTally::default();
@@ -283,7 +284,15 @@ pub fn stall_verdict(game: &mut Game) -> Option<Stall> {
     let depth = t.depth.max(1);
     // `depth` is the deepest those runs reached: "at D12" read as where they ended (QA on
     // e0f87e7: "nothing ended at D12"); the stall is that none got past it.
-    let text = format!("R{} {} ended {} runs, none past D{}", row + 1, ending.verb.short(), fired, depth);
+    // QA on 92eb880 (qaN: `R7 bank ended 13 runs` beside `11 BANKED`): the window can open
+    // before the absence; the runs the report's tiles count are said apart from the earlier ones.
+    let here = t.absent_rows.get(&row).copied().unwrap_or(0).min(fired);
+    let verb = ending.verb.short();
+    let text = match fired - here {
+        0 => format!("R{} {verb} ended {fired} runs, none past D{depth}", row + 1),
+        before if here == 0 => format!("R{} {verb} ended {before} earlier runs, none past D{depth}", row + 1),
+        before => format!("R{} {verb} ended {here} runs, {before} before; none past D{depth}", row + 1),
+    };
     let vocab = game.vocabulary();
     let key = format!("{row}:{depth}:{}:{}:{}", serde_json::to_string(&rules).unwrap_or_default(), vocab.conds.len(), vocab.verbs.len());
     let patches = match &game.stall_cache {

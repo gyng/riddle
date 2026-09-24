@@ -349,7 +349,7 @@ pub fn candidates(vocab: &Vocabulary, state: &Run, facts: &BTreeSet<String>, fla
     let verb = |v: &str, a: Option<&str>| vocab.verbs.iter().find(|x| x.v == v && x.a.as_deref() == a).cloned();
     let n = hp_threshold(state, trace);
     let low = Cond::n("hp<", n);
-    let max_foes = trace.turns.iter().map(|t| t.foes).max().unwrap_or(0);
+    let max_foes = trace.turns.iter().map(|t| t.rule_foes).max().unwrap_or(0);
     let pack = if max_foes >= 2 { 2 } else { 1 };
     let held = |cat: Cat| state.hero.inv.iter().filter(move |i| i.cat() == cat);
     let known = |i: &crate::item::Item| i.is_known(facts, flavours);

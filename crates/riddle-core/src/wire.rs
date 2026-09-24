@@ -152,6 +152,17 @@ pub struct ExitLine {
     /// report's could not — QA on e0f87e7).
     #[serde(default)]
     pub run_id: u32,
+    /// QA on 92eb880 (qaN: `fighter +0 · L4 ↑1` — the client's own ladder, 40·L², was not the
+    /// core's): the XP this run earned, the part that crossed a level included, and the
+    /// levels it crossed. The watched report reads these, never a difference of levels.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub xp: u32,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub level_ups: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 /// Cut 6 §1: one gold movement (`+50 returned D5`, `−40 heal`, `−8 insure sword`, `+3
@@ -390,7 +401,12 @@ pub struct TraceTurn {
     pub row: i32,
     pub verb: Verb,
     pub hp: i32,
+    /// The player's count: every hostile the hero saw from this action to the next (running
+    /// thieves, foes given up on and the killer included; a sleeping den not). QA on 92eb880.
     pub foes: i32,
+    /// What `foes>=` counted at this action (the rules' count; the patch candidates' packs).
+    #[serde(default)]
+    pub rule_foes: i32,
     pub telegraphs: Vec<String>,
     /// Cut 4: the first row this action whose conditions held but whose verb could not
     /// execute (`R1 retreat ✗ no path`).
@@ -648,6 +664,10 @@ pub struct RenownReport {
 pub struct ClassProg {
     pub level: u32,
     pub xp: u32,
+    /// QA on 92eb880: the XP the next level costs (`hero::xp_to_next`; 0 at the top), filled on
+    /// the lineage the client reads so its bar and its sums use the core's ladder.
+    #[serde(default)]
+    pub next: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -903,6 +923,12 @@ pub struct UnlockInfo {
     /// when it matters (`vs archers`). Absent for cards keyed on no foe and other unlocks.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub situation: Option<String>,
+    /// QA on 92eb880 (qaN: a bought card raised the stall share to 35 %): the stall share's move
+    /// at the card's best place, from the same sims as `delta` (0..1, signed) — the stall risk
+    /// shown before buying. A best place never raises it more than `meta::CARD_STALL_RISE`
+    /// unless every place does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stall: Option<f64>,
 }
 
 #[cfg(test)]

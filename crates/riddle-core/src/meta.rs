@@ -171,7 +171,7 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             // Cut 12 §1: a tactic card says where its row goes (before the engagement row).
             let insert_at = (!owned && is_tactic_card(u.id)).then(|| card_insert_at(l.rules()));
             let gold = if owned { 0 } else { gold_price(u.cost, l.gold_buys) };
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id) }
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None }
         })
         .collect()
 }
@@ -313,6 +313,8 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         // (position, the patched set): Cut 18 §5 — a card is measured at each of its candidate
         // places (`card_positions`) and reads its best (both cohort-13 raters: "every card read
         // `reach ~0 at R4`", measured below rows that fired first).
+        // QA on 92eb880: when every place stalls, the bottom is measured too (`fallback`).
+        let mut fallback: Option<(Option<usize>, crate::rules::RuleSet)> = None;
         let variants: Vec<(Option<usize>, crate::rules::RuleSet)> = if wakes_a_row {
             vec![(None, rules.clone())]
         } else {
@@ -327,14 +329,17 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
             if row.verb.v != "tactic" {
                 continue;
             }
-            card_positions(&rules)
-                .into_iter()
-                .map(|at| {
-                    let mut patched = rules.clone();
-                    patched.rows.insert(at.min(patched.rows.len()), row.clone());
-                    (Some(at), patched.fit(max_rows.max(1)))
-                })
-                .collect()
+            let place = |at: usize| {
+                let mut patched = rules.clone();
+                patched.rows.insert(at.min(patched.rows.len()), row.clone());
+                (Some(at), patched.fit(max_rows.max(1)))
+            };
+            let places = card_positions(&rules);
+            let bottom = rules.rows.len();
+            if !places.contains(&bottom) {
+                fallback = Some(place(bottom));
+            }
+            places.into_iter().map(place).collect()
         };
         // The sim lineage owns the unlock (the verb must be in its vocabulary to fire; a
         // locked condition wakes).
@@ -342,32 +347,86 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         g.lineage.unlocks.insert(u.id.clone());
         // The sim game's lookups (its own fingerprint) go through the parent's cache.
         g.forecast_cache = game.forecast_cache.clone();
-        // The best place: the highest reach, ties to the earlier candidate (the buy's old place).
-        let pick = |u: &mut UnlockInfo, measured: Vec<(Option<usize>, f64)>, b: f64, n: u32| {
-            let Some((at, r)) = measured.into_iter().fold(None, |best: Option<(Option<usize>, f64)>, x| if best.is_none_or(|b| x.1 > b.1 + 1e-9) { Some(x) } else { best }) else { return };
-            u.delta = Some(r - b);
-            u.pm = Some(delta_pm(b, r, n as usize));
-            if at.is_some() {
-                u.insert_at = at;
+        // The best place (`best_place`): the highest reach among the places that do not stall,
+        // ties to the earlier candidate (the buy's old place).
+        let pick = |u: &mut UnlockInfo, measured: Vec<Measured>, b: f64, b_stall: f64, n: u32| {
+            let Some(m) = best_place(&measured, b_stall) else { return };
+            u.delta = Some(m.reach - b);
+            u.pm = Some(delta_pm(b, m.reach, n as usize));
+            u.stall = Some(m.stall - b_stall);
+            if m.at.is_some() {
+                u.insert_at = m.at;
             }
         };
         if !compute {
             let b = game.forecast_cache.borrow().get(&crate::forecast::reach_key(game, &rules, depth, sims, tag, budget)).copied();
-            if let Some((b, n)) = b {
+            let b_stall = crate::forecast::stall_cached(game, &rules, depth, sims, tag, budget);
+            if let (Some((b, n)), Some(b_stall)) = (b, b_stall) {
                 // Only a fully measured card reads (a card half-measured would name a worse place).
-                let measured: Option<Vec<(Option<usize>, f64)>> = variants.iter().map(|(at, p)| crate::forecast::reach_cached(&g, p, depth, n.max(1), tag, u64::MAX).map(|r| (*at, r))).collect();
-                if let Some(m) = measured {
-                    pick(u, m, b, n);
+                let cached = |(at, p): &(Option<usize>, crate::rules::RuleSet)| {
+                    let reach = crate::forecast::reach_cached(&g, p, depth, n.max(1), tag, u64::MAX)?;
+                    let stall = crate::forecast::stall_cached(&g, p, depth, n.max(1), tag, u64::MAX)?;
+                    Some(Measured { at: *at, reach, stall })
+                };
+                let measured: Option<Vec<Measured>> = variants.iter().map(cached).collect();
+                if let Some(mut m) = measured {
+                    if !m.iter().any(|x| calm(x, b_stall)) {
+                        match fallback.as_ref().map(cached) {
+                            Some(Some(x)) => m.push(x),
+                            Some(None) => continue,
+                            None => {}
+                        }
+                    }
+                    pick(u, m, b, b_stall, n);
                 }
             }
             continue;
         }
         let (base_reach, n) = *base.get_or_insert_with(|| crate::forecast::reach_counted(game, &rules, depth, sims, tag, budget));
-        let measured: Vec<(Option<usize>, f64)> = variants.iter().map(|(at, p)| (*at, crate::forecast::reach_paired(&g, p, depth, n, tag))).collect();
+        let base_stall = crate::forecast::stall_cached(game, &rules, depth, sims, tag, budget).unwrap_or(0.0);
+        let measure = |(at, p): &(Option<usize>, crate::rules::RuleSet)| {
+            let reach = crate::forecast::reach_paired(&g, p, depth, n, tag);
+            let stall = crate::forecast::stall_cached(&g, p, depth, n.max(1), tag, u64::MAX).unwrap_or(0.0);
+            Measured { at: *at, reach, stall }
+        };
+        let mut measured: Vec<Measured> = variants.iter().map(measure).collect();
+        if !measured.iter().any(|x| calm(x, base_stall)) {
+            measured.extend(fallback.as_ref().map(measure));
+        }
         game.forecast_cache.borrow_mut().extend(g.forecast_cache.into_inner());
-        pick(u, measured, base_reach, n);
+        pick(u, measured, base_reach, base_stall, n);
     }
     cat
+}
+
+/// A card measured at one place: the reach at the catalogue's depth and the stall share of
+/// the same sims.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Measured {
+    pub at: Option<usize>,
+    pub reach: f64,
+    pub stall: f64,
+}
+
+/// QA on 92eb880 (qaN: `corridor fighting` bought at its best place, R6, and the shaft went
+/// bank 81 % → 44 %, stall 35 %): a place whose stall share rises more than this over the set
+/// without the card is not a best place.
+pub const CARD_STALL_RISE: f64 = 0.05;
+
+/// A place that does not raise the stall share past `CARD_STALL_RISE`.
+pub fn calm(m: &Measured, base_stall: f64) -> bool {
+    m.stall - base_stall <= CARD_STALL_RISE + 1e-9
+}
+
+/// The best of a card's measured places: the highest reach among the places whose stall share
+/// rises ≤ `CARD_STALL_RISE` over `base_stall`, ties to the earlier; when every place stalls,
+/// the one that stalls least (ties to the higher reach, then the earlier) — the catalogue then
+/// measures the bottom of the set too.
+pub fn best_place(measured: &[Measured], base_stall: f64) -> Option<Measured> {
+    let by_reach = measured.iter().filter(|m| calm(m, base_stall)).fold(None, |best: Option<&Measured>, x| if best.is_none_or(|b| x.reach > b.reach + 1e-9) { Some(x) } else { best });
+    by_reach
+        .or_else(|| measured.iter().fold(None, |best: Option<&Measured>, x| if best.is_none_or(|b| x.stall < b.stall - 1e-9 || ((x.stall - b.stall).abs() <= 1e-9 && x.reach > b.reach + 1e-9)) { Some(x) } else { best }))
+        .copied()
 }
 
 /// Cut 18 §5: where a card's row may go, in order — where the buy used to put it (before the

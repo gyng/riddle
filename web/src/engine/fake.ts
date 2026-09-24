@@ -1250,6 +1250,7 @@ export class FakeEngine implements Engine {
     const xp = Math.round((run.killXp + 5 * run.depth) * tier);
     const cl = (L.classes[run.cls] ??= { level: 1, xp: 0 }); cl.xp += xp; const levels: number[] = [];
     while (cl.level < XP_LEVEL_CAP && cl.xp >= xpToNext(cl.level)) { cl.xp -= xpToNext(cl.level); cl.level++; levels.push(cl.level); for (const v of verbsAt(run.cls, cl.level)) facts.push(`verb:${v}`); }
+    if (run.line) { run.line.xp = xp; run.line.level_ups = levels.length; }   // QA 92eb880: the exit line carries the run's XP (the wire's)
     if (cl.level >= XP_LEVEL_CAP && !L.trophies.includes(`master:${run.cls}`)) { L.trophies.push(`master:${run.cls}`); marks += 2; bests.push(`master ${run.cls}`); }
     for (const f of run.facts) if (!L.facts.includes(f)) { L.facts.push(f); facts.push(f); }
     for (let d = L.best_depth + 1; d <= run.depth; d++) { marks += 1; bests.push(`D${d}`); }

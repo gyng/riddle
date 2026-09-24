@@ -52,7 +52,8 @@ export type Stake = { loot: number; brought: { label: string; insured: boolean }
 export type ExitLine = { carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string;
                          trace?: Trace;                                                                     // Cut 9 §5: the exit's last-5 trace (every tier)
                          salvaged?: { kind: string; n: number; gold: number }[];                           // what the exit salvaged before the keep sheet (a return's 40 % cut), per kind in coins
-                         run_id?: number };                                                                 // the run, so a report's trace links can open its replay (QA on e0f87e7: the return sheet's had `watch`, the report's did not)
+                         run_id?: number;                                                                   // the run, so a report's trace links can open its replay (QA on e0f87e7: the return sheet's had `watch`, the report's did not)
+                         xp?: number; level_ups?: number };                                                 // QA 92eb880: the XP this run earned (the part that crossed a level included) and the levels crossed — the watched report's `xp` line, never a client-side ladder (web's 40·L² was not the core's; `fighter +0 · L4 ↑1`)
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
 export type GoldLine = { t: number; delta: number; why: string };
 /** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */
@@ -101,7 +102,9 @@ export type Forecast = { depths: { depth: number; reach: number; cause?: string;
 export type ForecastTry = { row: Row; text: string; boss?: string };
 /** Cut 4: `blocked` = the first row whose conds held but whose verb could not execute. Cut 6 §3: `rows` = every row above the
  *  fired one with one reason why it did not fire (`none held`, `no path`, `not in view`, `hp 8% ≥ 30%`). */
-export type TraceTurn = { t: number; row: number; verb: Verb; hp: number; foes: number; telegraphs: string[];
+/** QA 92eb880: `foes` = the player's count (every hostile seen from this action to the next, running thieves and the killer
+ *  included); `rule_foes` = what `foes>=` counted (optional on old saves). */
+export type TraceTurn = { t: number; row: number; verb: Verb; hp: number; foes: number; rule_foes?: number; telegraphs: string[];
                           blocked?: string; rows?: { row: number; why: string; because?: Because }[] };   // because: Cut 11 §1
 /** Cut 11 §1 — why a state reason held: the most recent event that put it there (`den took the heal, D3`, ≤ 8 words),
  *  its tick and floor. The client scrubs the run's replay to `t` when it still holds the run's events. */
@@ -156,7 +159,7 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         trophies: string[]; sets: RuleSet[]; active_set: number; ended: boolean;
                         party: Companion[]; kennel: Companion[]; eggs: Egg[]; party_slots: number; ledger: LedgerRow[];  // Addendum A
                         gold: number; supplies: InvItem[]; insured?: number[];                                                              // Addendum B
-                        classes: { [cls: string]: { level: number; xp: number } };                                     // Addendum C
+                        classes: { [cls: string]: { level: number; xp: number; next?: number } };                     // Addendum C; next: QA 92eb880, the XP the next level costs (core's ladder; 0 at the top)
                         forge: { [kind: string]: { salvaged: number; craftable: boolean; tier: number;
                                                    next?: { need: number; label: string } } };                         // Addendum D; next: Cut 9 §10, the ladder's next rung (`3/5 → craftable`)
                         renown: number; rank: number; keep_pref: string;                                               // Addendum D
@@ -245,6 +248,7 @@ export type UnlockInfo = { id: string; cost: number; owned: boolean; available: 
                            rows?: Row[];                                                                   // Cut 6 §6: a card's rows / an automation's effect as a row
                            insert_at?: number;                                                             // Cut 12 §1: where a bought card's row goes; Cut 18 §5: with deltas, its best measured place (the old place before the engagement row, the top, before the first own row) — its `delta` is measured there
                            pm?: number;                                                                     // Cut 13 §5: the half-width of `delta`; within it the client reads `reach ~0`
+                           stall?: number;                                                                 // QA 92eb880: the stall share's move at the card's best place (0..1, signed; same sims as `delta`) — the stall risk before buying; a best place never raises it > 5 pts unless every place does
                            situation?: string;                                                             // Cut 18 §5: a tactic card's foe tag (`kite_archers` → `ranged`, `gas_step` → `gas`), for `vs archers` beside `reach ~0`; absent on other unlocks
                            gold?: number };                                                                 // Cut 15 §2: today's gold price (`150 × cost × (4 + gold buys) / 4`); 0 when owned or free (not gold-buyable). A card short only of marks (`needs` = `◆N more`) buys with gold when the lineage has it
 

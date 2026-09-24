@@ -227,7 +227,7 @@ fn setup(bot: Bot, seed: u64) -> Game {
             g.lineage.party = riddle_core::probes::pets_party();
         }
         Bot::Levelled => {
-            g.lineage.classes.insert(Class::Fighter.name().into(), riddle_core::wire::ClassProg { level: 10, xp: 0 });
+            g.lineage.classes.insert(Class::Fighter.name().into(), riddle_core::wire::ClassProg { level: 10, xp: 0, next: 0 });
         }
         Bot::Trivial | Bot::Countered => {
             for u in ["row5", "row6", "row7", "row8", "tame", "throw"] {
@@ -252,7 +252,7 @@ fn setup(bot: Bot, seed: u64) -> Game {
                 g.lineage.unlocks.insert(u.id.into());
             }
             riddle_core::probes::learn_everything(&mut g);
-            g.lineage.classes.insert(Class::Fighter.name().into(), riddle_core::wire::ClassProg { level: 10, xp: 0 });
+            g.lineage.classes.insert(Class::Fighter.name().into(), riddle_core::wire::ClassProg { level: 10, xp: 0, next: 0 });
             g.lineage.unlocks.insert(riddle_core::hero::mastery_card(Class::Fighter).into());
             let mut set = full();
             let drop = |set: &mut RuleSet, verb: &str, arg: &str| {

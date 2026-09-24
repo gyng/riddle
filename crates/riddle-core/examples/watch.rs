@@ -18,7 +18,7 @@ fn main() {
         g.lineage.unlocks.insert(u.id.into());
     }
     riddle_core::probes::learn_everything(&mut g);
-    g.lineage.classes.insert(Class::Fighter.name().into(), riddle_core::wire::ClassProg { level: 10, xp: 0 });
+    g.lineage.classes.insert(Class::Fighter.name().into(), riddle_core::wire::ClassProg { level: 10, xp: 0, next: 0 });
     g.lineage.unlocks.insert(riddle_core::hero::mastery_card(Class::Fighter).into());
     g.set_rules(set).unwrap();
     // Runs until one reaches `from`, then watch it. `--survey`: every run's last floor summarised.

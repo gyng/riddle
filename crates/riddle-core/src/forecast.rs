@@ -324,12 +324,22 @@ pub fn reach_counted(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u
     }
     let results = simulate_budget(game, rules, sims, tag, depth, budget);
     let v = results.iter().filter(|r| r.max_depth >= depth).count() as f64 / results.len().max(1) as f64;
+    let stall = results.iter().filter(|r| r.timed_out).count() as f64 / results.len().max(1) as f64;
     let mut cache = game.forecast_cache.borrow_mut();
-    if cache.len() >= FORECAST_CACHE_MAX {
+    if cache.len() + 1 >= FORECAST_CACHE_MAX {
         cache.clear();
     }
+    // QA on 92eb880: the same sims' stall share beside the reach (`stall_cached`), so a
+    // card's best place is never one that stalls.
+    cache.insert(format!("stall:{key}"), (stall, results.len() as u32));
     cache.insert(key, (v, results.len() as u32));
     (v, results.len() as u32)
+}
+
+/// The stall share (sims that timed out or shuffled a floor, 0..1) of the sims that measured
+/// `reach_counted` with these arguments, if this game ran them.
+pub fn stall_cached(game: &Game, rules: &RuleSet, depth: u32, sims: u32, tag: u64, budget: u64) -> Option<f64> {
+    game.forecast_cache.borrow().get(&format!("stall:{}", reach_key(game, rules, depth, sims, tag, budget))).map(|v| v.0)
 }
 
 /// Cut 9 §3: the reach of `rules` over exactly the first `n` seeds of `tag` (no tick budget),

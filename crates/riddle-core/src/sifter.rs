@@ -1072,8 +1072,22 @@ pub fn to_highlight(run: &Run, ep: &Episode, named: bool) -> Highlight {
 
 /// A finished run's episodes as highlights. `named`: the heir has deeds (its death weighs
 /// more). Unresolved sealed episodes (none after an exit) are dropped.
+/// QA on 92eb880 (qaN: two reel lines `…; reached D3.` while every run of the night ended at
+/// D4–6): a low the hero walked down from reads the depth the run went on to reach, not the
+/// floor after the low's (the reel is read as the run's outcome).
 pub fn sift_with(run: &Run, named: bool) -> Vec<Highlight> {
-    run.episodes.iter().filter(|e| e.resolution != Resolution::Pending).map(|e| to_highlight(run, e, named)).collect()
+    run.episodes
+        .iter()
+        .filter(|e| e.resolution != Resolution::Pending)
+        .map(|e| match e.resolution {
+            Resolution::Reached { depth } if run.max_depth > depth => {
+                let mut e = e.clone();
+                e.resolution = Resolution::Reached { depth: run.max_depth };
+                to_highlight(run, &e, named)
+            }
+            _ => to_highlight(run, e, named),
+        })
+        .collect()
 }
 
 /// Highlights for a finished run against the lineage.

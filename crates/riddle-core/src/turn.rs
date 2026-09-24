@@ -64,6 +64,39 @@ pub fn view(run: &Run) -> View {
     View { foes, engage, adj, nearest, lowest }
 }
 
+/// QA on 92eb880 (qaN): the trace's `foes` column is the player's count — every hostile the
+/// hero can see, running thieves and foes the guard gave up on included (those exclusions are
+/// for decisions: `threats()`, `View::engage`, and `foes>=` keeps its own count, `rule_foes`).
+/// A sleeping den is still scenery (Cut 5 §4). `sight` adds foes in the hero's line of sight
+/// inside his radius that the last vision pass has not marked yet (the blow that ends a run
+/// lands before the tick's vision pass).
+pub fn seen_foes(run: &Run, sight: Option<i32>) -> i32 {
+    let map = &run.floor.map;
+    let hp = run.hero.pos;
+    run.monsters
+        .iter()
+        .filter(|m| {
+            let chained = m.neutral && m.situation.as_deref() == Some("captive") && m.pos.adjacent(hp);
+            m.hp > 0
+                && (m.hostile() || chained)
+                && !m.dormant
+                && (map.is_visible(m.pos) || sight.is_some_and(|r| m.pos.cheb(hp) <= r && map.los(hp, m.pos)))
+        })
+        .count() as i32
+}
+
+/// The last trace row counts every foe seen until the next action (the clip the row plays:
+/// a den's pounce inside the stairs step, an archer stepping into view to shoot).
+fn trace_seen(run: &mut Run, sight: Option<i32>) {
+    if run.trace.is_empty() {
+        return;
+    }
+    let n = seen_foes(run, sight);
+    if let Some(t) = run.trace.last_mut() {
+        t.foes = t.foes.max(n);
+    }
+}
+
 /// The cached hero distance field, recomputed when the hero has moved.
 pub fn hero_dist(run: &mut Run) -> &[i32] {
     if run.hero_dist_pos != Some(run.hero.pos) || run.hero_dist.len() != run.floor.map.tiles.len() {
@@ -157,6 +190,7 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
     run.monsters.retain(|m| m.hp > 0);
     let _ = acted;
     crate::facts::on_vision(run, cx);
+    trace_seen(run, None);
 }
 
 fn hero_action(run: &mut Run, cx: &mut Ctx) {
@@ -186,6 +220,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     } else if run.fight_t.is_none() {
         run.fight_t = Some(run.turn);
     }
+    let seen_before = seen_foes(run, None);
     let hp_before = run.hero.hp;
     let inv_before = run.hero.inv.len() + run.hero.weapon.is_some() as usize + run.hero.armour.is_some() as usize;
     run.last_hit_verb = None;
@@ -276,7 +311,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     // Cut 6 §3: every row above the one that acted, with its reason (none when R1 acted).
     let whys = std::mem::take(&mut run.rows_why);
     let rows = if whys.is_empty() { None } else { Some(whys) };
-    run.trace.push(TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: v.foes.len() as i32, telegraphs, blocked, rows });
+    run.trace.push(TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows });
     if run.trace.len() > 16 {
         run.trace.remove(0);
     }
@@ -980,6 +1015,9 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         cx.events.push(Ev::Die { t: run.turn, id: HERO_ID, cause: cause.into() });
         let depth = run.depth;
         note(run, cx, format!("Slain by {} on D{}.", crate::engine::kind_title(cause), depth));
+        // The trace's last row names the killer in its count (qaN: `foes 0` under an archer's shot).
+        let sight = run.vision(cx.unlocks);
+        trace_seen(run, Some(sight));
         end_run(run, cx, ExitTier::Death);
     }
 }

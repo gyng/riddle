@@ -291,7 +291,7 @@ pub fn floor_trial_with(seed: u64, depth: u32, set: RuleSet, twist: Option<&str>
         7..=9 => 4,
         _ => 6,
     };
-    g.lineage.classes.insert("fighter".into(), crate::wire::ClassProg { level, xp: 0 });
+    g.lineage.classes.insert("fighter".into(), crate::wire::ClassProg { level, xp: 0, next: 0 });
     if depth >= 6 {
         let id = g.lineage.next_vault_id;
         g.lineage.next_vault_id += 1;
@@ -364,7 +364,7 @@ fn warlord_lineage(seed: u64) -> (crate::engine::Game, RuleSet) {
     for u in ["row5", "row6", "row7", "row8"] {
         g.lineage.unlocks.insert(u.into());
     }
-    g.lineage.classes.insert("fighter".into(), crate::wire::ClassProg { level: 4, xp: 0 });
+    g.lineage.classes.insert("fighter".into(), crate::wire::ClassProg { level: 4, xp: 0, next: 0 });
     g.lineage.facts.insert(crate::facts::boss_counter_fact("goblin_warlord"));
     g.lineage.facts.insert("foe:goblin_warlord:boss".into());
     if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "heal") {

@@ -822,7 +822,7 @@ impl LineageState {
         let trait_ = offer[0];
         let mut classes = BTreeMap::new();
         for c in Class::ALL {
-            classes.insert(c.name().to_string(), ClassProg { level: 1, xp: 0 });
+            classes.insert(c.name().to_string(), ClassProg { level: 1, xp: 0, next: 0 });
         }
         let mut l = LineageState {
             seed,
@@ -1022,7 +1022,7 @@ impl LineageState {
             ledger: self.ledger(),
             gold: self.gold,
             supplies: self.supplies.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
-            classes: self.classes.clone(),
+            classes: self.classes.iter().map(|(k, c)| (k.clone(), ClassProg { next: if c.level >= MAX_LEVEL { 0 } else { xp_to_next(c.level) }, ..c.clone() })).collect(),
             // Cut 9 §10: every row carries its next rung (an older save's rows too).
             // QA on 23ed91f (qaL: `heal salvaged 2/5` while the game still said `green potion?`):
             // an unidentified potion or scroll's row is keyed by what the hero calls it.
@@ -1487,6 +1487,10 @@ pub struct StallTally {
     /// Cut 9 §5: the last-5 trace of the latest run each row ended.
     #[serde(default)]
     pub traces: BTreeMap<i32, Trace>,
+    /// QA on 92eb880 (qaN: `R7 bank ended 13 runs` beside `11 BANKED`): the window's exits
+    /// since the last watched run — the absence the report describes; the rest came before.
+    #[serde(default)]
+    pub absent_rows: BTreeMap<i32, u32>,
 }
 
 /// What a finished run contributed (for offline accounting).
@@ -2438,6 +2442,11 @@ impl Game {
                 *self.stall.exit_rows.entry(r).or_insert(0) += 1;
                 self.stall.traces.insert(r, exit_trace(&run, &self.prov));
             }
+            if !self.offline {
+                self.stall.absent_rows.clear();
+            } else if let Some(r) = run.exit_row {
+                *self.stall.absent_rows.entry(r).or_insert(0) += 1;
+            }
         }
         // Cut 15 §1: a bank near the frontier pays a mark — from depth ≥ the lineage's best
         // *before this run* − 1 (so a new-best bank qualifies, on top of its depth marks). A
@@ -2487,7 +2496,7 @@ impl Game {
             xp += xp / 2;
         }
         let class = self.lineage.class;
-        let prog = self.lineage.classes.entry(class.name().into()).or_insert(ClassProg { level: 1, xp: 0 });
+        let prog = self.lineage.classes.entry(class.name().into()).or_insert(ClassProg { level: 1, xp: 0, next: 0 });
         prog.xp += xp;
         let mut level_ups = 0;
         while prog.level < MAX_LEVEL && prog.xp >= xp_to_next(prog.level) {
@@ -2856,6 +2865,8 @@ impl Game {
         line.trace = Some(exit_trace(&run, &self.prov));
         line.salvaged = cut_rows;
         line.run_id = run.id;
+        line.xp = xp;
+        line.level_ups = level_ups;
         debug_assert!(self.lineage.gold - gold_before == loot_kept - spent + self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.why.starts_with("salvage")).map(|g| g.delta).sum::<i32>());
         if tier == ExitTier::Death || stalled {
             if let Some(rec) = self.deaths.get_mut(&run.id) {
@@ -3303,7 +3314,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0 }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0 }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:
