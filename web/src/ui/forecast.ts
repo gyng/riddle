@@ -32,6 +32,9 @@ export function clientTry(app: App, cause: string | undefined): ForecastTry | un
   return app.rules.rows.some((r) => sameRow(r, c.row as Row)) ? undefined : { row: c.row, text: c.text };
 }
 
+/** Cut 18 §3: the sealing boss's kind as one word (`goblin_warlord` → `warlord`). */
+export const wallName = (kind: string): string => kind.replace(/_/g, " ").trim().split(/\s+/).pop() ?? kind;
+
 /** Cut 9 §3: the half-width (a 0..1 fraction like `reach`) in percentage points, never `±0` — a forecast is never exact. */
 export const pmPts = (pm: number): number => Math.max(1, Math.round(pm * 100));
 
@@ -77,7 +80,9 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     { const byD = new Map(f.depths.map((d) => [d.depth, d.reach])); if ((byD.get(next - 1) ?? 1) < 0.05) {
       let drop = -1; for (const d of f.depths) { const fall = (byD.get(d.depth - 1) ?? 1) - d.reach; if (fall > drop) { drop = fall; causeAt = d.depth; } } } }
     for (const d of f.depths) {
-      const cause = d.cause ?? (d.depth === causeAt ? f.causes[0]?.cause : undefined);
+      // Cut 18 §3: a floor the boss above seals (`ForecastDepth.wall`) names him as the cause: `D9 0% · warlord wall`
+      const wall = d.wall ? wallName(d.wall) : undefined;
+      const cause = wall ? undefined : d.cause ?? (d.depth === causeAt ? f.causes[0]?.cause : undefined);
       // Cut 10 §2: the known-but-absent counter — the wire's `try`, else the client's read of the counters against the set
       const tr = d.try ?? (d.depth === next ? clientTry(app, cause) : undefined);
       // Cut 6 §5: `D6 0% · goblin warlord · counter: attack boss` when the top cause is a boss whose counter row is known (and held)
@@ -90,12 +95,13 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         tr ? h("span", { class: "track-cell" }, track, h("small", { class: "try" }, /* copy:none */ `try: ${tr.text}`)) : track,
         h("span", { class: "n num" }, pct(d.reach), d.pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pmPts(d.pm)}${first}`) : "",
           cause ? h("small", { class: "dim" }, ` · ${cause.replace(/_/g, " ")}`) : "",
+          wall ? h("small", { class: "wall" }, /* copy:callout */ ` · ${wall} wall`) : "",
           counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : ""),
       ];
       // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
       bars.appendChild(tr
-        ? h("button", { class: `bar next try`, onclick: () => { const i = app.applyPatch({ row: tr.row, insert_at: 0, survive: 0, forecast_delta: 0 }); closeAllSheets(); app.go({ kind: "camp", highlight: i }); } }, ...inner)
-        : h("div", { class: `bar${cause ? " next" : ""}` }, ...inner));
+        ? h("button", { class: `bar next try${wall ? " walled" : ""}`, onclick: () => { const i = app.applyPatch({ row: tr.row, insert_at: 0, survive: 0, forecast_delta: 0 }); closeAllSheets(); app.go({ kind: "camp", highlight: i }); } }, ...inner)
+        : h("div", { class: `bar${cause || wall ? " next" : ""}${wall ? " walled" : ""}` }, ...inner));
     }
     bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, `D${f.known_to + 1}+`), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
     // QA 23ed91f (K: "`jackal 100%` beside `death 1%` — I read it as jackal kills 100%"): a cause's share of the deaths is shown as its
@@ -134,8 +140,10 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     replace(notches, ...Array.from({ length: next - from + 1 }, (_, k) => {
       const depth = from + k, d = byDepth.get(depth);
       const reach = d ? d.reach : depth <= known ? 1 : 0;
-      const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}`, "data-d": depth },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`), h("small", { class: "dp" }, d ? pct(d.reach) : "?", d?.pm !== undefined && d.reach > 0 && d.reach < 1 ? h("i", { class: "pm" }, /* copy:none */ `±${pmPts(d.pm)}`) : ""));
+      // Cut 18 §3: a walled floor's notch names the boss who seals it (`D9 · warlord`)
+      const wall = d?.wall ? wallName(d.wall) : undefined;
+      const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${wall ? " walled" : ""}`, "data-d": depth },
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : ""), h("small", { class: "dp" }, d ? pct(d.reach) : "?", d?.pm !== undefined && d.reach > 0 && d.reach < 1 ? h("i", { class: "pm" }, /* copy:none */ `±${pmPts(d.pm)}`) : ""));
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       return n;

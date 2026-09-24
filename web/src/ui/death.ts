@@ -87,6 +87,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     patches,
     h("div", { class: "parchment trace-panel" }, ...trace));
   const el = h("main", { class: "death frame" }, bar.el, well, cons.el);
+  // Cut 18 §4: a stall's cause is the rows' loop (`R2 retreat ↔ explore`) — it reads whole on one line: the face steps down until it fits
+  if (d.verdict === "stall") { line.classList.add("loop"); fitLine(line.querySelector<HTMLElement>(".cause")); }
   // QA 23ed91f: the patches' reach is the camp's own measure, landing after the paint (`deathDeltas`: seconds in wasm) — the
   // screen never waits on it; a reach still pending reads `reach …` until then
   let gone = false;
@@ -95,6 +97,17 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => { if (!gone && f?.length) fillReach(patches, shown, f); }).catch((e) => console.warn("deathDeltas", e)); }, 0);
   }
   return { el, dispose: () => { gone = true; bar.dispose(); } };
+}
+
+/** Cut 18 §4: shrink a one-line headline's face until it fits its box (from its CSS size down to 12 px), once it is laid out. */
+function fitLine(el: HTMLElement | null): void {
+  if (!el) return;
+  const fit = (tries: number): void => {
+    if (!el.isConnected) { if (tries > 0) requestAnimationFrame(() => fit(tries - 1)); return; }
+    let px = parseFloat(getComputedStyle(el).fontSize) || 19;
+    while (el.scrollWidth > el.clientWidth + 0.5 && px > 12) { px -= 1; el.style.fontSize = `${px}px`; }
+  };
+  requestAnimationFrame(() => fit(10));
 }
 
 /** Cut 17 §4: the gem's patch — the first that applies (not a held row's `at R2`, not a below-bar alternative): its button and its

@@ -18,6 +18,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { openPanel } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -325,6 +326,75 @@ async function autoKeepCheck() {
   check(!k.pending || (k.ak === 1 && !k.keep.some((ids) => ids.length === 0)), `the vault full, the skipped sheet keeps by \`autoKeep\`, not \`keep([])\` (autoKeep ×${k.ak}, keep ${JSON.stringify(k.keep)}, ${k.pending ?? 0} pending)`);
 }
 
+/** Cut 18 §4–5: the death's gem applies the top patch and lands on the camp with its tablet lit — it never sends (rater Z: "APPLY also
+ *  sent the next heir immediately"; two taps on the gem slot, the second on the camp's `send`); the unlock tiles carry both prices
+ *  (`◆3 · $450`) and glow when the gold buys them; a card whose reach is noise names its situation (`reach ~0 at R1 · vs archers`). */
+async function cut18() {
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await waitFor((s) => s?.booted && s.screen === "camp", "the camp for Cut 18"); await settle();
+  // ---- APPLY: two quick taps on the gem slot
+  const rows0 = await page.evaluate(() => window.__riddle.rules.rows.length);
+  await page.evaluate(() => window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 3, cause: "goblin", margin: "", verdict: "gap", baseline: 0.3, trace: { turns: [] }, morgue: "t1",
+    patches: [{ row: { conds: [{ k: "hp<", n: 20 }], verb: { v: "return" } }, insert_at: 0, survive: 0.9, forecast_delta: 0.1 }] } }));
+  await waitFor((x) => x?.screen === "death", "the death for APPLY"); await sleep(300);
+  const box = await page.locator("main.death .gem-slot > .gem").boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await sleep(120);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);   // the second tap lands on the camp's gem, `send`
+  await sleep(1500);
+  const ap = await page.evaluate(() => ({ screen: window.__riddle.screen, rows: window.__riddle.rules.rows.length, lit: document.querySelectorAll(".editor .row.hl, .editor .hl").length, first: window.__riddle.rules.rows[0]?.verb.v }));
+  check(ap.screen === "camp" && ap.rows === rows0 + 1 && ap.first === "return", `the gem applies the top patch and lands on the camp — it does not send (${ap.screen}, rows ${rows0} → ${ap.rows}, R1 ${ap.first})`);
+  check(ap.lit >= 1, `the applied tablet is lit on the camp (${ap.lit})`);
+  const sent = await page.evaluate(() => new Promise((res) => setTimeout(() => res(window.__riddle.screen), 200)));
+  await page.locator("main.camp .gem-slot > .gem").click({ timeout: 5000 }); await sleep(600);
+  const s2 = await page.evaluate(() => window.__riddle.screen);
+  check(sent === "camp" && s2 === "watch", `the player sends: a later tap on \`send\` starts the run (${s2})`);
+  // ---- the unlock tiles: both prices, the gold glow, a noise card's situation
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await waitFor((s) => s?.booted && s.screen === "camp", "the camp for the tiles"); await settle();
+  await page.evaluate(() => {
+    const r = window.__riddle;
+    const cat = [
+      { id: "kite_archers", cost: 3, owned: false, available: false, needs: "◆3 more", gold: 450, delta: 0.01, pm: 0.03, insert_at: 0, situation: "ranged", rows: [{ conds: [{ k: "foe_tag", t: "ranged" }], verb: { v: "retreat" } }] },
+      { id: "vault2", cost: 3, owned: false, available: false, needs: "◆3 more", gold: 300 },
+      { id: "cond_alert", cost: 2, owned: false, available: false, needs: "fact: alert", gold: 300 },
+    ];
+    r.engine.unlocks = async () => cat; r.engine.unlockDeltas = async () => cat;
+    r.lineage = { ...r.lineage, gold: 400, marks: 0, unlocks: [...r.lineage.unlocks, "row5"] };
+    localStorage.setItem("riddle.unlocks.all", "1");
+    r.go({ kind: "camp" });
+  });
+  await sleep(400);
+  await openPanel(page, "unlocks", { all: true });
+  await sleep(300);
+  const tiles = await page.evaluate(() => [...document.querySelectorAll(".unlocks .cards .card")].map((c) => ({ label: c.querySelector(".card-main > span")?.textContent, cost: c.querySelector(".cost")?.textContent, cls: c.className, delta: c.querySelector(".delta")?.textContent ?? "" })));
+  const t = (label) => tiles.find((x) => x.label === label);
+  check(t("card: kite archers")?.cost === "◆3 · $450" && t("+1 vault")?.cost === "◆3 · $300", `an unlock tile shows both prices (${tiles.map((x) => `${x.label} ${x.cost}`).join(" · ")})`);
+  check(/\bbuyable\b/.test(t("+1 vault")?.cls ?? "") && !/\bbuyable\b/.test(t("card: kite archers")?.cls ?? "") && !/\bbuyable\b/.test(t("cond: alert")?.cls ?? ""), `a tile the gold buys glows like one the marks buy; one short of gold or gated does not (${tiles.map((x) => `${x.label}: ${x.cls}`).join(" · ")})`);
+  check(t("card: kite archers")?.delta === "reach ~0 at R1 · vs archers", `a card's \`~0\` names its situation ("${t("card: kite archers")?.delta}")`);
+  await shot("ui-cut18-unlocks");
+  // ---- §3: a wall says it is a wall — `ForecastDepth.wall` on D9 (best D8): the notch `D9 · warlord`, the panel's row `D9 0% · warlord wall`
+  await page.evaluate(() => { const r = window.__riddle; r.engine.unlocks = async () => []; r.engine.unlockDeltas = async () => []; r.lineage = { ...r.lineage, best_depth: 8 }; r.go({ kind: "camp" }); });
+  await settle();
+  await page.evaluate(() => { const r = window.__riddle; const depths = Array.from({ length: 9 }, (_, i) => ({ depth: i + 1, reach: i < 8 ? 0.9 - i * 0.05 : 0, pm: 0.02, ...(i === 8 ? { wall: "goblin_warlord", cause: "goblin_warlord" } : {}) }));
+    const x = { ...r.lastForecast, depths, known_to: 9, causes: [{ cause: "goblin_warlord", share: 1 }], refined: true }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); });
+  await sleep(200);
+  const notch = await page.evaluate(() => { const n = document.querySelector('.shaft .notch[data-d="9"] .dl'); const r = n?.getBoundingClientRect(), sh = document.querySelector(".shaft")?.getBoundingClientRect(); return { text: n?.textContent, inside: !!r && !!sh && r.right <= sh.right + 0.5 }; });
+  check(notch.text === "D9 · warlord" && notch.inside, `the shaft's notch names the wall ("${notch.text}", inside the shaft ${notch.inside})`);
+  await shot("ui-cut18-shaft");
+  await openPanel(page, "forecast"); await sleep(200);
+  const row = await page.evaluate(() => [...document.querySelectorAll(".panel .fc-bars .bar")].map((b) => b.textContent.replace(/\s+/g, " ").trim()).find((t) => /^D9/.test(t)));
+  check(/^D9 ?0%( ±\d+)? · warlord wall$/.test(row ?? ""), `the panel's row reads \`D9 0% · warlord wall\` ("${row}")`);
+  await shot("ui-cut18-wall");
+  await page.keyboard.press("Escape"); await sleep(100);
+  // ---- §4: a stall's cause names the rows' loop (`R2 retreat ↔ explore`): the headline whole, on one line
+  await page.evaluate(() => window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 6, cause: "R2 retreat ↔ explore", margin: "", verdict: "stall", baseline: 0.2, trace: { turns: [] }, morgue: "t1", patches: [] } }));
+  await waitFor((x) => x?.screen === "death", "the stall's verdict"); await sleep(300);
+  const head = await page.evaluate(() => { const c = document.querySelector(".death-line .cause"); const rg = document.createRange(); rg.selectNodeContents(c); const tops = new Set([...rg.getClientRects()].map((r) => Math.round(r.top))); return { text: c?.textContent, lines: tops.size }; });
+  check(head.text === "R2 retreat ↔ explore · D6" && head.lines === 1, `a stall's loop reads whole on one line ("${head.text}", ${head.lines} line)`);
+  await shot("ui-cut18-stall");
+}
+
 const t0 = Date.now();
 try {
   // ---- a fresh lineage: heir 1, nothing earned (the fake seeds a chronicle and a free unlock; strip them)
@@ -532,6 +602,7 @@ try {
   await qaK();
   await stallSkip();
   await autoKeepCheck();
+  await cut18();
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

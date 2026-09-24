@@ -38,7 +38,7 @@ page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
 const state = () => page.evaluate(() => {
   const r = window.__riddle, w = document.querySelector(".watch");
-  return r ? { screen: r.screen, booted: r.booted, mode: w?.dataset.mode, frame: w?.dataset.frame, card: w?.dataset.card, speed: Number(w?.dataset.speed), fights: Number(w?.dataset.fights ?? 0), tick: Number(w?.dataset.tick), ending: w?.dataset.ending === "1", cardText: document.querySelector(".interstitial")?.textContent ?? "", cardShown: !!document.querySelector(".interstitial:not([hidden])"), buttons: [...document.querySelectorAll(".cmd .hud-btn")].map((b) => b.textContent), on: [...document.querySelectorAll(".cmd .hud-btn.on")].map((b) => b.textContent), vault: !!document.querySelector(".sheet-wrap .vault-choice .chip") } : null;
+  return r ? { screen: r.screen, booted: r.booted, mode: w?.dataset.mode, frame: w?.dataset.frame, card: w?.dataset.card, speed: Number(w?.dataset.speed), fights: Number(w?.dataset.fights ?? 0), tick: Number(w?.dataset.tick), ending: w?.dataset.ending === "1", held: w?.dataset.held === "1", cardText: document.querySelector(".interstitial")?.textContent ?? "", cardShown: !!document.querySelector(".interstitial:not([hidden])"), buttons: [...document.querySelectorAll(".cmd .hud-btn")].map((b) => b.textContent), on: [...document.querySelectorAll(".cmd .hud-btn.on")].map((b) => b.textContent), vault: !!document.querySelector(".sheet-wrap .vault-choice .chip") } : null;
 });
 async function waitFor(pred, label, timeout = 20_000) {
   const t = Date.now(); let s = null;
@@ -77,7 +77,8 @@ try {
   s = await waitFor((x) => !inRun(x) || (x.card === "0" && x.frame === "map"), "the map after tapping the card", 2000);
   check(s.card === "0" && s.frame === "map" && s.speed === 8, `tapping the card shows the map at 8× (speed ${s.speed}, card ${s.card})`);
   s = await waitFor((x) => !inRun(x) || x.frame === "fight", "the next fight after the hold", 30_000);
-  check(inRun(s) && s.frame === "fight" && s.fights === 1 && s.speed === 2 && s.card === "0", `the held map cuts to the next fight at 2× (fights ${s.fights}, speed ${s.speed})`);   // Cut 14: 2×, was 1×
+  // Cut 18 §1: a beat held on the cut (seed 5's cage) eases the clock under its hold (`data-held`)
+  check(inRun(s) && s.frame === "fight" && s.fights === 1 && (s.speed === 2 || (s.held && s.speed <= 2)) && s.card === "0", `the held map cuts to the next fight at 2× (fights ${s.fights}, speed ${s.speed}${s.held ? ", a beat held" : ""})`);   // Cut 14: 2×, was 1×
   // ▶▶| inside a fight: the fight's end, the card back up within 2 s
   await press("▶▶|");
   s = await waitFor((x) => !inRun(x) || x.frame === "map", "the map after skipping a fight", 3000);
@@ -91,7 +92,7 @@ try {
   if (inRun(s)) {
     await press("fast");
     s = await waitFor((x) => !inRun(x) || (x.mode === "fast" && x.card === "0"), "fast mode", 2000);
-    check(s.mode === "fast" && s.on.join() === "fast" && s.card === "0" && (s.speed === 16 || s.speed === 4 || s.speed === 1), `fast: the card is gone and the clock runs 16× / 4× (speed ${s.speed})`);
+    check(s.mode === "fast" && s.on.join() === "fast" && s.card === "0" && (s.speed >= 16 || s.speed === 4 || s.speed === 1 || (s.held && s.speed <= 4)), `fast: the card is gone and the clock runs 16× / 4× (speed ${s.speed}${s.held ? ", a beat held" : ""})`);
     await press("fights");
     s = await waitFor((x) => !inRun(x) || x.mode === "fights", "fights mode again", 2000);
     check(s.mode === "fights" && s.on.join() === "fights", "fights again");
@@ -106,7 +107,8 @@ try {
   check(s.mode === "fast" && s.card === "0", `fast from boot (card ${s.card})`);
   s = await waitFor((x) => !inRun(x) || x.speed === 16, "16× travel", 8000);
   check(s.speed === 16, `fast travels at 16× (speed ${s.speed})`);
-  s = await waitFor((x) => !inRun(x) || x.frame === "fight", "a fight in fast", 30_000);
+  // Cut 18 §1: `fast` frames what `fights` frames, a chore stretch inside the frame at its flat rate — the blows at 4×
+  s = await waitFor((x) => !inRun(x) || (x.frame === "fight" && x.speed === 4), "a fight in fast", 30_000);
   check(inRun(s) && s.frame === "fight" && s.speed === 4, `fast watches a fight at 4× (speed ${s.speed}, frame ${s.frame})`);   // Cut 14: 4×, was 2×
   // ▶▶| once, inside the fight: the run's end — the viewer lands at the ending (its last 30 ticks play at 1×, `ending`), then
   // the exit flow; the press used to reach the fight's end / the next fight (read as "plays faster" by five players)
@@ -202,6 +204,54 @@ try {
     }
   }
 
+  // Cut 18 §1: peaks hold in wall time — a boss killed three ticks before the stairs (rater Y: "`GOBLIN WARLORD DOWN` went by in about
+  // a second": the descend cut the line and faded the frame) keeps the fight frame and its line ≥ 2.5 s of wall time, in both modes;
+  // the next floor waits for it. Measured in the page, per animation frame.
+  for (const mode of ["fast", "fights"]) {
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+    await waitFor((x) => x?.booted && inRun(x) && x.mode === mode, `the ${mode} run for the kill before the stairs`);
+    const held = await page.evaluate(() => new Promise((res) => {
+      const r = window.__riddle, orig = r.engine.step.bind(r.engine); let done = false;
+      r.engine.step = async (n) => {
+        const res = await orig(n);
+        if (!done && res.snapshot.turn > 30 && !res.run_over && !res.events.some((e) => e.k === "exit" || e.k === "descend")) {
+          done = true; const s = res.snapshot, hh = s.hero, t = s.turn;
+          res.events.push({ t: t - 8, k: "spawn", e: { id: 95011, kind: "goblin_warlord", x: hh.x + 1, y: hh.y, hp: 1, max_hp: 30, tags: ["boss"] } },
+            { t: t - 6, k: "die", id: 95011, cause: "hero" }, { t: t - 3, k: "descend", depth: s.depth + 1, biome: s.biome });
+          res.events.sort((a, b) => a.t - b.t);
+        }
+        return res;
+      };
+      const t0 = performance.now(); let from = 0, until = 0;
+      const poll = () => {
+        const w = document.querySelector(".watch"), tk = document.querySelector(".ticker.show")?.textContent ?? "";
+        const on = tk === "GOBLIN WARLORD DOWN" && w?.dataset.frame === "fight" && w?.dataset.card !== "1";
+        const depth = document.querySelector(".hud .depth")?.textContent;
+        if (on && !from) { from = performance.now(); window.__d0 = depth; }
+        if (on && depth !== window.__d0) { res({ ms: Math.round(performance.now() - from), after: `the floor changed under it (${window.__d0} → ${depth})`, frame: w?.dataset.frame }); return; }
+        if (from && !on) { until = performance.now(); res({ ms: Math.round(until - from), after: tk, frame: w?.dataset.frame }); return; }
+        if (performance.now() - t0 > 25_000) { res({ ms: from ? Math.round(performance.now() - from) : 0, after: "timeout", frame: w?.dataset.frame }); return; }
+        requestAnimationFrame(poll);
+      };
+      poll();
+    }));
+    check(held.ms >= 2500, `${mode}: a boss killed before the stairs holds its frame and line ≥ 2.5 s of wall time (${held.ms} ms, then "${held.after}" · ${held.frame})`);
+  }
+
+  // Cut 18 §1: `fast` is never slower than `fights` — the same fake run (seed 157, rater P's) played through in each mode, untouched;
+  // `fast` shows the fights `fights` shows (costed ahead of the picture) at 4×, and its dead stretches ramp past 16×
+  {
+    const wall = {};
+    for (const mode of ["fights", "fast"]) {
+      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+      await waitFor((x) => x?.booted && inRun(x) && x.mode === mode && x.frame, `the ${mode} run for the wall time`);
+      const t0 = Date.now();
+      const s2 = await waitFor((x) => x && x.screen !== "watch", `the end of the ${mode} run`, 120_000);
+      wall[mode] = { ms: Date.now() - t0, screen: s2.screen };
+    }
+    check(wall.fast.ms <= wall.fights.ms, `\`fast\` is never slower than \`fights\` on one world (fast ${(wall.fast.ms / 1000).toFixed(1)} s · fights ${(wall.fights.ms / 1000).toFixed(1)} s, both ${wall.fast.screen}/${wall.fights.screen})`);
+  }
+
   // Cut 16 §4: the boss bar and the break beat. From tick 20 the engine's snapshots carry a warlord beside the hero (in view) for
   // 80 ticks; the first such batch has his spawn at 30/30, a blow taking him to 14, and the core's `warlord breaks` + note.
   for (const mode of ["fights", "fast"]) {
@@ -267,6 +317,70 @@ try {
   check(tags.frame === "fight" && !!ta && !!tb2 && hOverlap && Math.abs(ta.y - tb2.y) >= ta.h, `two tags on intersecting spans draw on two rows (${[ta, tb2].filter(Boolean).map((l) => `${l.text} x${Math.round(l.x)} y${Math.round(l.y)}`).join(" · ")})`);
   const all = tags.labels.map(boxes);
   check(all.every((a, i) => all.every((b, j) => i === j || !inter(a, b))), `no two tags drawn this frame intersect (${tags.labels.length} tags)`);
+
+  // Cut 18 §2: the hero is never covered — a boss beside him and a foe on his own tile in the fight frame: he draws in front of every
+  // sprite (`debugRects` z), and no sprite's rect covers more than 30 % of his (≥ 70 % of him unoccluded, whatever draws behind)
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  for (let tries = 0; tries < 6; tries++) {
+    s = await waitFor((x) => x?.booted && inRun(x) && x.frame === "fight", "a fight frame for the hero's rect", 30_000);
+    await press("⏸"); await sleep(150);
+    if ((await state())?.frame === "fight") break;
+    await press("▶"); await sleep(300);
+  }
+  const occl = await page.evaluate(async () => {
+    const v = window.__viewer, hero = v.debugPos().find((e) => e.hero), t = v.tick();
+    const mk = (id, kind, x, tags = []) => ({ t: t - 5, k: "spawn", e: { id, kind, x, y: hero.y, hp: 30, max_hp: 30, tags } });
+    v.apply([mk(90021, "goblin_warlord", hero.x + 1, ["boss"]), mk(90022, "goblin", hero.x), mk(90023, "ogre", hero.x - 1)]); v.seek(t);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return { frame: document.querySelector(".watch").dataset.frame, rects: v.debugRects() };
+  });
+  {
+    const hr = occl.rects.find((r) => r.hero), others = occl.rects.filter((r) => !r.hero);
+    const inter = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+    const area = hr ? hr.w * hr.h : 1;
+    const covers = others.map((r) => ({ kind: r.kind, share: inter(hr, r) / area, front: r.z >= hr.z }));
+    // the union of what could hide him (a grid of his rect's points under any sprite drawn in front) and of everything drawn at all
+    const grid = (pred) => { let n = 0, hit = 0; for (let i = 0; i < 20; i++) for (let j = 0; j < 20; j++) { const x = hr.x + ((i + 0.5) / 20) * hr.w, y = hr.y + ((j + 0.5) / 20) * hr.h; n++; if (others.some((r) => pred(r) && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h)) hit++; } return hit / n; };
+    const hidden = hr ? grid((r) => r.z >= hr.z) : 1;
+    check(occl.frame === "fight" && !!hr && others.some((r) => r.kind === "goblin_warlord") && covers.every((c) => !c.front), `the hero draws in front of every sprite beside him (${covers.map((c) => `${c.kind} ${c.front ? "front" : "behind"}`).join(" · ")})`);
+    check(!!hr && 1 - hidden >= 0.7 && covers.every((c) => c.share <= 0.31), `with a boss adjacent the hero's rect is ≥ 70 % unoccluded (${Math.round((1 - hidden) * 100)} %; each sprite covers ${covers.map((c) => `${c.kind} ${Math.round(c.share * 100)} %`).join(" · ")})`);
+  }
+
+  // Cut 18 §2: one line of callout over a fight — a row and a telegraph on one tick: the renderer draws the telegraph alone over the
+  // hero (`debugText`), the row reads on the ticker (`rule`, visible in the fight frame). A goblin stands beside the hero in the
+  // engine's snapshots from tick 20 (the fight frame), its `attack` and the two callouts on one tick.
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+  await waitFor((x) => x?.booted && inRun(x) && x.mode === "fights", "the fights run for the callout line");
+  const lines = await page.evaluate(() => new Promise((res) => {
+    const r = window.__riddle, orig = r.engine.step.bind(r.engine); let from = -1;
+    r.engine.step = async (n) => {
+      const out = await orig(n); const sn = out.snapshot, t = sn.turn;
+      if (out.run_over || out.events.some((e) => e.k === "exit" || e.k === "descend")) return out;
+      if (from < 0 && t > 20) {
+        from = t; const hh = sn.hero;
+        out.events.push({ t: t - 8, k: "spawn", e: { id: 95031, kind: "goblin_archer", x: hh.x + 1, y: hh.y, hp: 9, max_hp: 9, tags: ["ranged"] } },
+          { t: t - 7, k: "attack", src: 95031, dst: hh.id, dmg: 5, hit: true }, { t: t - 7, k: "hurt", id: hh.id, dmg: 5, hp: Math.max(1, hh.hp - 5), cause: "goblin_archer" },
+          { t: t - 3, k: "rule", row: 0, verb: { v: "attack", a: "nearest" }, text: "R1 foes>=1 → attack nearest" }, { t: t - 3, k: "callout", text: "archer draws" });
+        out.events.sort((a, b) => a.t - b.t);
+      }
+      if (from >= 0 && t < from + 60) { const hh = sn.hero, x = Math.min(sn.w - 1, hh.x + 1), i = hh.y * sn.w + x; sn.entities.push({ id: 95031, kind: "goblin_archer", x, y: hh.y, hp: 9, max_hp: 9, tags: ["ranged"] }); sn.visible[i] = true; sn.seen[i] = true; }
+      return out;
+    };
+    const t0 = performance.now(); let maxLines = 0, both = null, rule = null;
+    const poll = () => {
+      const w = document.querySelector(".watch"), v = window.__viewer, tk = document.querySelector(".ticker.show");
+      if (w?.dataset.frame === "fight" && v?.debugText) {
+        const tx = v.debugText(); maxLines = Math.max(maxLines, tx.length);
+        if (tx.some((x) => /archer draws/i.test(x.text))) both ??= tx.map((x) => `${x.kind}:${x.text}`);
+        if (tk && tk.classList.contains("rule") && getComputedStyle(tk).opacity === "1") rule ??= tk.textContent;
+      }
+      if ((both && rule) || performance.now() - t0 > 20_000) { res({ maxLines, both, rule }); return; }
+      requestAnimationFrame(poll);
+    };
+    poll();
+  }));
+  check(!!lines.both && lines.both.length === 1 && lines.maxLines <= 1, `a row and a telegraph on one tick draw one line over the fight (${lines.both ? lines.both.join(" · ") : "telegraph never drawn"}; at most ${lines.maxLines} a frame)`);
+  check(lines.rule === "R1 · attack nearest", `the row reads on the ticker meanwhile ("${lines.rule ?? "never"}")`);
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

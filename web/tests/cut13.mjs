@@ -98,13 +98,20 @@ try {
   check(d.patches >= 1, `patches are measured like a death's (${d.patches})`);
   await shot("02-stall-verdict");
   // the fallback: an engine whose `death(id)` has no record → today's report, its exit line `returned $0 · … · stalled`
-  await page.evaluate(() => { window.__riddle.engine.death = () => Promise.reject(new Error("no record")); window.__riddle.go({ kind: "watch" }); });
+  // Cut 18 §4: the core's line goes on after `stalled` (`… · stalled · 1 supply back`): the report still tallies the stall
+  await page.evaluate(() => {
+    const r = window.__riddle, orig = r.engine.step.bind(r.engine);
+    r.engine.step = async (n) => { const res = await orig(n); for (const e of res.events) if (e.k === "exit" && e.line && /· stalled$/.test(e.line.text)) e.line = { ...e.line, text: `${e.line.text} · 1 supply back` }; return res; };
+    r.engine.death = () => Promise.reject(new Error("no record")); r.go({ kind: "watch" });
+  });
   s = await waitFor((x) => x?.screen === "watch", "the second stalling run");
   s = await waitFor((x) => x && x.screen !== "watch", "its end", 60_000);
   if (s.screen === "exit") { await page.locator(".sheet-wrap button.btn.primary.wide").first().click({ timeout: 5000 }); s = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit" && !x.busy, "the screen after keep", 30_000); }
   await sleep(200);
   const exitLine = await page.evaluate(() => document.querySelector(".report .exit-lines .ledger-btn")?.textContent ?? "");
   check(s.screen === "report" && /^returned \$0 · .* · stalled/.test(exitLine), `without a stall record the report shows the run (${s.screen}: "${exitLine}")`);
+  const plaques = await page.evaluate(() => [...document.querySelectorAll(".report .tile.plaque")].map((t) => `${t.querySelector("b")?.textContent} ${t.querySelector(".label")?.textContent}`.toUpperCase()));
+  check(plaques.includes("1 RUNS") && plaques.includes("1 STALLED"), `the report after one stall reads RUNS 1 · STALLED 1 (${plaques.join(" · ")})`);
   // the report's `open` shows a stall verdict too
   await page.evaluate(() => {
     const r = window.__riddle; const L = r.lineage;
@@ -244,8 +251,10 @@ try {
       const r = await real(n); const w = document.querySelector(".watch"), t = document.querySelector(".ticker");
       // after the pair, the batches the world steps meanwhile carry no line of their own (they would evict the queue at 16×)
       if (done >= 1) r.events = r.events.filter((x) => !["callout", "rule", "hurt", "die", "note", "pickup", "level", "rank", "steal", "telegraph", "bones"].includes(x.k));
-      if (done < 1 && w?.dataset.frame === "map" && w.dataset.speed === "16" && !t?.classList.contains("show") && !r.run_over) {
-        done++; const at = Number(w.dataset.tick);
+      // Cut 18 §1: `fast` keeps its engine LEAD_PROBE ahead (a fight is costed before the picture meets it) and ramps past 16× on a
+      // dead stretch — the pair lands on this batch's last tick (every line queued before it is earlier), on the map at ≥ 16×
+      if (done < 1 && w?.dataset.frame === "map" && Number(w.dataset.speed) >= 16 && !t?.classList.contains("show") && !r.run_over && !r.events.some((x) => x.k === "exit")) {
+        done++; const at = r.snapshot.turn;
         r.events.push({ t: at, k: "callout", text: long }, { t: at, k: "callout", text: "second of two on one tick" });
         for (const b of document.querySelectorAll("main.watch .hud-btn")) if (b.textContent === "⏸") b.click();
       }
@@ -290,7 +299,7 @@ try {
   await openPanel(page, "unlocks", { all: true });
   await page.waitForFunction(() => document.querySelectorAll(".unlocks .card .delta").length > 0, null, { timeout: 15_000 });
   const deltas = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((e) => ({ text: e.textContent, cls: e.className })));
-  check(deltas.length > 0 && deltas.every((x) => /^reach (~0|[+−]\d+% ±\d+) at (R\d+|end)$/.test(x.text)), `card deltas carry their ± or read ~0: ${deltas.map((x) => x.text).join(" · ")}`);
+  check(deltas.length > 0 && deltas.every((x) => /^reach (~0|[+−]\d+% ±\d+) at (R\d+|end)( · vs [a-z ]+)?$/.test(x.text)), `card deltas carry their ± or read ~0: ${deltas.map((x) => x.text).join(" · ")}`);
   check(deltas.some((x) => /~0/.test(x.text) && /flat/.test(x.cls)) && deltas.some((x) => /±/.test(x.text)), "both forms occur on the fake's catalogue (a ~0 is flat, not up or down)");
   await page.locator(".unlocks .card").filter({ hasText: "reach ~0" }).first().click({ timeout: 5000 }); await sleep(200);
   const sheetDelta = await page.evaluate(() => document.querySelector(".sheet-wrap .delta")?.textContent ?? "");

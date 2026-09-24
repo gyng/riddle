@@ -147,7 +147,9 @@ const AMBIENT_MS = 10_000, AMBIENT_SHOW_MS = 1500;   // Cut 7 §4: one ambient c
 const PUMP_MS = 25;
 const PULSE_MS = 120;               // Cut 14 §6: the strip's dot retriggers its beat at most this often
 const CATCHUP_RATE = 32;            // Cut 14 §6: `fast` on the map, behind live by more than the lead: the picture catches up at this rate
-const CATCHUP_MAX = 200;            // Cut 14 §6: the engine's biggest step when the world is behind its clock (a paused or hidden viewer)
+const CATCHUP_MAX = 200;
+const LEAD_PROBE = 120;             // Cut 18 §1: `fast`'s engine lead — a fight is costed (shown or dropped, as under the card) before the picture meets it
+const DEAD_RAMP_MS = 300, DEAD_STEP_MS = 200, DEAD_LAND_MS = 150, FAST_MAX = 128;   // Cut 18 §1: `fast`'s dead-stretch ramp (see `deadRate`)            // Cut 14 §6: the engine's biggest step when the world is behind its clock (a paused or hidden viewer)
 type Mode = "fights" | "fast";
 const RATE: Record<Mode, number> = { fights: 16, fast: 16 };  // fights: the map when it shows without a hold (draining to an exit); fast: the travel (Cut 12 §6, was 8×)
 const FAST_NEAR = 4;                // Cut 12 §6: `fast` watches anything near at 2× — Cut 14: 4× ("way too slow")
@@ -156,13 +158,19 @@ const AUTO_FAST = 8, AUTO_TAIL = 10; // a tapped card holds the map at 8×; the 
 const CALLOUT_MIN_MS = 500;         // Cut 12 §6: a callout stays readable at 16×
 const EXIT_GRACE_MS = 4000;         // wait for the viewer to drain after an exit, at most this long
 const PERSIST_MS = 5000;
-const VAULT_WAIT_MS = 30_000;       // Cut 15 §5: a watched vault sheet holds the world this long at most (wall time)
+const VAULT_WAIT_MS = 6000;         // Cut 15 §5: a watched vault sheet holds the world this long at most (wall time); Cut 18 §1: 6 s, was 30 ("each cage held the watch
+                                    // about 30 s … 90 s of a 5-minute watch") — then the preference picks; watching it is optional, never a toll
 const BOSS_BANNER_MS = 3000;        // Cut 2 §7: `boss · counter: known|unknown` on first sight
 const REST_BEAT_MS = 1400;          // Cut 2 §1: `rest 12m` after the exit, before the exit flow continues
 const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "descend", pick_up: /* copy:callout */ "pick up" }; // explore never (Cut 4 §4)
+const CORE_LINE_MS = 1000, CAPTION_LINE_MS = 1500;   // Cut 18 §2: the renderer's callout and caption lifetimes (render/state.ts)
 const HURT_MS = 600;                // Cut 4 §4: `−7 archer` in red
 const FELL_MS = 1400;               // Cut 10 §3: `jackal Ashar fell` stays long enough to read a name
 const SCENE_MS = 4000, SCENE_TICKS = 40;   // Cut 13 §4: a situation's beat holds the fight frame this long (~4 s at 1×)
+// Cut 18 §1: a beat holds in WALL time — the frame on it, its line on the ticker — whatever the mode's rate: BEAT_HOLD_MS for a
+// situation, SCENE_MS for a boss's kill / break and the bank (rater Y: "`GOBLIN WARLORD DOWN` went by in about a second": the kill
+// was the floor's last blow, the stairs a few ticks on — the descend cut the line and faded the frame)
+const BEAT_HOLD_MS = 3000;
 const BEAT_MAX_MS = 6000;                  // a beat's line is gone after this whatever the clock did, and at a floor change (QA on 50bb162: `A den.` over D2→D4 for 15 s)
 const CALLOUT_QUEUE = 3, SAME_TICK_MS = 40;   // Cut 13 §4: callouts that land on one tick (one pump pass) wait their turn, at most this many
 /** Cut 13 §4: the notes that are beats — the core's situation lines (verbatim), a theft, the stray, a heir's bones. */
@@ -261,9 +269,17 @@ export function renderWatch(app: App): Mounted {
   // Cut 8A: the fight frame — whether the engine's latest snapshot holds it, the viewer ticks it spans, the frame shown
   let fightOn = false, fightFrom = Infinity, fightUntil = -Infinity, frame: FrameName = "map", lastBlow = -Infinity;
   // Cut 13 §4: the situation beat the frame is holding for (engine ticks), its text shown once at the cut; beats shown so far
-  let beat: { from: number; until: number; text: string; shown: boolean; exit?: boolean; hold?: boolean } | null = null, beats = 0;   // hold: Cut 15 §4, the clock at 1× through it (a boss's kill)
+  type Beat = { from: number; until: number; text: string; shown: boolean; exit?: boolean; hold?: boolean };
+  let beat: Beat | null = null, beats = 0;   // hold: Cut 15 §4, the clock at 1× through it (a boss's kill)
   let exitBeatUntil = 0;              // Cut 14 §3: the exit flow waits while the bank / return beat is on screen
   let holdLineUntil = 0;              // Cut 15 §4: a boss kill's `WARLORD DOWN` keeps the ticker this long
+  // Cut 18 §1: the beat on screen holds until this wall time — the frame stays on it (no card, no floor load, the playhead eased to
+  // the beat's end or the tick before the stairs), its line keeps the ticker; a beat whose tick comes meanwhile waits its turn
+  let beatHoldUntil = 0;
+  const beatNext: Beat[] = [];
+  let heldBeat: Beat | null = null;   // the beat the hold is for
+  const descends: number[] = [];      // engine ticks of the run's descends (a held beat stops short of the stairs)
+  let deadSince = -1;                 // Cut 18 §1: `fast` — when the current dead stretch began (wall ms; -1 none): its rate ramps
   let chore: { text: string; n: number; shown: string } | null = null;   // Cut 14 §4: the chore callout streak on the ticker (`pick up ×8`)
   const rowFires: number[] = [];      // Cut 14 §4: this run's `rule` events per row (the death screen's least-fired row)
   // Cut 10 §1: the fight the engine is running through under the card (its cost so far), and whether the found fight is to be shown
@@ -332,7 +348,7 @@ export function renderWatch(app: App): Mounted {
   let bossHud: { id: number; kind: string; hp: number; max: number } | null = null;
   const broke = new Set<string>();
   const timed: { t: number; f: () => void }[] = [];
-  let lastRuleText = "", lastRuleAt = 0, lastShown = "";
+  let lastRuleText = "", lastRuleAt = 0, lastShown = "", lastCoreAt = -Infinity;
   // placeholder viewer (no clock): a wall clock at 10 ticks/s × speed stands in
   let fbTick = 0, fbAt = performance.now();
   function viewerTick(): number {
@@ -443,6 +459,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** The beat's line off the ticker (and out of the queue): a floor change, or BEAT_MAX_MS after it showed. */
   function hideBeat(): void {
+    if (beatHeld()) return;   // Cut 18 §1: the line holds its wall time
     for (let i = tickerQueue.length - 1; i >= 0; i--) if (tickerQueue[i].cls === "beat") tickerQueue.splice(i, 1);
     if (ticker.classList.contains("beat") && ticker.classList.contains("show")) { ticker.classList.remove("show"); scheduleTicker(); }
   }
@@ -460,7 +477,8 @@ export function renderWatch(app: App): Mounted {
     const b = { from: t, until: t + SCENE_TICKS, text, shown: false, exit, hold };
     if (!(beat && !beat.shown && beat.from < t)) beat = b;
     el.dataset.beats = String(++beats);   // dev: tools count the beats cut in
-    at(t, () => { if (b.shown) return; beat = b; showBeat(true); });
+    // Cut 18 §1: a beat the playhead jumped over (a skip, a seek to live) is not held after the fact
+    at(t, () => { if (b.shown) return; if (!b.exit && viewerTick() >= b.until) { b.shown = true; return; } beat = b; showBeat(true); });
   }
   /** The beat's line, once the frame is up and the PLAYHEAD has reached the beat's tick (`reached`: released at the viewer's clock).
    *  A fight cut before it (a kept span the viewer replays behind the frontier) never carries a later beat's line (QA on 3d71c33:
@@ -468,13 +486,36 @@ export function renderWatch(app: App): Mounted {
   function showBeat(reached = false): void {
     if (!beat || beat.shown || frame !== "fight") return;
     if (!reached && viewerTick() < beat.from - 1) return;
+    // Cut 18 §1: a beat that comes while another is held waits for it — never replaces its line inside the hold (the exit's goes at once)
+    if (beatHeld() && !beat.exit) { if (!beatNext.includes(beat)) beatNext.push(beat); return; }
     beat.shown = true;
-    // Cut 14 §3: the exit's beat takes the line at once and keeps it (the bank row's own callout lands on the same tick) until
-    // the exit flow moves on; a situation's beat queues like any callout
-    if (beat.exit) { exitBeatUntil = performance.now() + SCENE_MS; tickerQueue.length = 0; showTicker(beat.text, "beat", SCENE_MS); }
-    else if (beat.hold) { holdLineUntil = performance.now() + SCENE_MS; tickerQueue.length = 0; showTicker(beat.text, "beat", SCENE_MS); }   // Cut 15 §4
-    else callout(beat.text, "beat", SCENE_MS);
+    holdBeat(beat);
   }
+  /** Cut 18 §1: the beat takes the line at once and holds it and the frame in wall time — SCENE_MS for a boss's kill or break and the
+   *  bank / return (Cut 14 §3, Cut 15 §4: the exit flow waits `exitBeatUntil`), BEAT_HOLD_MS for a situation. */
+  function holdBeat(b: Beat): void {
+    const now = performance.now(), dur = b.exit || b.hold ? SCENE_MS : BEAT_HOLD_MS;
+    // the playhead already past the beat's span (it reached the tick before the engine's batch did): back to the beat's tick, so the
+    // hold is on the beat, not on the frame after it
+    if (!b.exit && viewerTick() > b.from + 4 && viewerTick() >= b.until - 4) { seekTo(b.from); }
+    beatHoldUntil = now + dur; holdLineUntil = now + dur; heldBeat = b;
+    // the picture already past the stop (the stairs' fade applied): back to the beat's tick
+    if (!b.exit && viewerTick() > beatStop()) seekTo(Math.max(b.from, beatStop() - 1));
+    if (b.exit) exitBeatUntil = now + SCENE_MS;
+    tickerQueue.length = 0; showTicker(b.text, "beat", dur);
+    el.dataset.held = "1";
+    if ("__riddle" in window) ((window as unknown as { __beatLog?: unknown[] }).__beatLog ??= []).push({ text: b.text, from: b.from, until: b.until, v: viewerTick(), frame, ms: Math.round(now) });   // dev
+  }
+  const beatHeld = (): boolean => performance.now() < beatHoldUntil;
+  /** Cut 18 §1: the tick a held beat's picture stops at — its span's end, or two ticks before the next stairs (a descend fades the
+   *  frame and loads the next floor: the kill's frame would go with it). */
+  function beatStop(): number {
+    const b = heldBeat; if (!b) return Infinity;
+    const d = descends.find((t) => t > b.from);
+    return Math.min(b.until, d !== undefined ? d - 2 : Infinity);
+  }
+  /** Cut 18 §1: a ▶▶| (or a frozen skip) lets the beat go. */
+  function releaseBeat(): void { beatHoldUntil = 0; holdLineUntil = 0; beatNext.length = 0; el.dataset.held = "0"; }
   /** Cut 14 §4: a chore's callout (`pick up`) repeats on its own line with a count — `pick up ×8` — until another line shows
    *  (rater T: "dead stretches of eight consecutive `pick up` reads"); the count is repainted in place, never queued. */
   function choreCallout(text: string): void {
@@ -488,6 +529,18 @@ export function renderWatch(app: App): Mounted {
     }
     chore = { text, n: 1, shown: text };
     callout(text);
+  }
+  /** Cut 18 §2: one line over the fight. The renderer draws the core's callout (a telegraph: `archer draws`) over the hero and hides
+   *  the row's caption meanwhile (rater Z: `R4 HIT RANGED` stacked over `ARCHER DRAWS`); the row then reads on the ticker. */
+  function ruleLine(text: string): void {
+    const now = performance.now();
+    if (cardUp || now < exitBeatUntil || now < holdLineUntil) return;
+    showTicker(text, "rule", Math.max(CALLOUT_MIN_MS, CORE_LINE_MS));
+  }
+  /** A core callout was released: a row's caption from the last CAPTION_LINE_MS is now hidden by it — its text goes to the ticker. */
+  function coreLine(): void {
+    const now = performance.now(); lastCoreAt = now;
+    if (frame === "fight" && /^R\d+ · /.test(lastRuleText) && now - lastRuleAt < CAPTION_LINE_MS) ruleLine(lastRuleText);
   }
   function ruleCallout(ev: Extract<Ev, { k: "rule" }>): string | null {
     if (ev.row >= 0) return rowCallout(ev.row, verbLabel(ev.verb));
@@ -515,7 +568,8 @@ export function renderWatch(app: App): Mounted {
   function release(upTo: number): void {
     if (!timed.length) return;
     const keep: typeof timed = [];
-    for (const x of timed) { if (x.t <= upTo) x.f(); else keep.push(x); }
+    // Cut 18 §1: under a held beat nothing past its stop is released (the stairs' HUD change waits for the hold)
+    for (const x of timed) { if (x.t <= upTo && !(beatHeld() && heldBeat && !heldBeat.exit && x.t > beatStop())) x.f(); else keep.push(x); }
     timed.length = 0; timed.push(...keep);
   }
   const victims = new Map<number, string>();   // id → label, remembered across batches so a kill inside a batch still has a name
@@ -537,7 +591,7 @@ export function renderWatch(app: App): Mounted {
           if (fell && fell.t === ev.t && fell.kind && ev.text === (fell.name ? `${fell.name} fell` : `${fell.kind} fell`)) f = fell.name ? `${fell.kind} ${fell.name} fell` : /* copy:callout */ `ally ${oneWord(fell.kind)} fell`;
           // Cut 12 §6: the core's `rallied!` names the boss whose telegraph it answers (`warlord rallies`)
           else if (ev.text === /* copy:none */ "rallied!") f = /* copy:callout */ `${oneWord(rallyBy ?? "boss")} rallies`;
-          at(ev.t, () => callout(f, f !== ev.text && f.endsWith(" fell") ? "hurt" : "", f !== ev.text && f.endsWith(" fell") ? FELL_MS : undefined));
+          at(ev.t, () => { callout(f, f !== ev.text && f.endsWith(" fell") ? "hurt" : "", f !== ev.text && f.endsWith(" fell") ? FELL_MS : undefined); coreLine(); });
           break;
         }
         case "rule": {
@@ -545,7 +599,12 @@ export function renderWatch(app: App): Mounted {
           if (ev.row >= 0) rowFires[ev.row] = (rowFires[ev.row] ?? 0) + 1;   // Cut 14 §4
           // Cut 14 §4: a chore (`pick up`) coalesces on its line with a count; a row's callout repeats after 4 s
           if (text && ev.row === -2) at(ev.t, () => choreCallout(text));
-          else if (text) at(ev.t, () => { const now = performance.now(); if (text !== lastRuleText || now - lastRuleAt > 4000) callout(text); lastRuleText = text; lastRuleAt = now; });
+          else if (text) at(ev.t, () => {
+            const now = performance.now();
+            // Cut 18 §2: a telegraph over the fight has the line — the row's callout goes to the ticker (`rule`, shown in the fight frame)
+            if (text !== lastRuleText || now - lastRuleAt > 4000) { if (ev.row >= 0 && frame === "fight" && now - lastCoreAt < CORE_LINE_MS) ruleLine(text); else callout(text); }
+            lastRuleText = text; lastRuleAt = now;
+          });
           if (ev.row >= 0) at(ev.t, () => cue("rule"));   // Cut 10 §4: a player row, never a chore or a trait
           break;
         }
@@ -565,6 +624,7 @@ export function renderWatch(app: App): Mounted {
         // Cut 10 §3: a theft names its amount when the engine sends one (`stolen $16`)
         case "steal": if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
         case "descend": {
+          descends.push(ev.t);   // Cut 18 §1
           floors.set(ev.depth, { ...floors.get(ev.depth), biome: ev.biome });
           const rooms = s.depth === ev.depth ? s.rooms : undefined;   // Cut 7 §4: `D3 · 4 rooms` when the snapshot counts them
           at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
@@ -651,7 +711,9 @@ export function renderWatch(app: App): Mounted {
     // Cut 10 §1: `fights` frames the blows — an adjacent hostile, a blow in the last BLOW_TICKS, a boss in view — not the whole scene
     // (a room's approach ran at 1× and cost the gate; the wire has no awake flag, so a sleeper two tiles off would hold it too);
     // `fast` keeps Cut 8A's scene / adjacent / boss
-    const on = mode === "fights" ? within(1) || s.turn - lastBlow <= BLOW_TICKS || boss : sceneOpen || within(1) || boss;
+    // Cut 18 §1: `fast` frames what `fights` frames (a scene's approach at 4× kept `fast` in the frame 150 ticks where `fights` showed 55)
+    void sceneOpen;
+    const on = within(1) || s.turn - lastBlow <= BLOW_TICKS || boss;
     if (on) {
       // Cut 14 §6: a live viewer still inside the last span (its tail playing) merges the two as before; a picture that is behind
       // (paused, hidden, or `fast` where the frame follows the spans) keeps the closed span for its replay and the new fight gets its own
@@ -677,6 +739,7 @@ export function renderWatch(app: App): Mounted {
   /** Cut 14 §6: the viewer lands on the frontier (live) — every queued floor loaded, the clock at the engine's tick (the ending's
    *  start at most when the run is over, so the walk-out plays). */
   function goLive(): void {
+    releaseBeat();   // Cut 18 §1: landing live lets a held beat go
     drainLoads();
     const t = held ? Math.max(viewerTick(), endingFrom) : Math.max(viewerTick(), engineTick);
     seekTo(t); release(t); letGo(t); applyFrame(); applySpeed();
@@ -707,6 +770,7 @@ export function renderWatch(app: App): Mounted {
     const beatDue = !!beat && !beat.shown && beat.from >= fightFrom && beat.from < fightUntil;
     cardWait = mode === "fights" && wantFight && frame === "map" && cardUp && performance.now() < cardSince + (beatDue ? Math.min(cardMin, CARD_BEAT_MS) : cardMin);
     if (cardWait) want = "map";
+    if (beatHeld() && frame === "fight") { want = "fight"; cardWait = false; }   // Cut 18 §1: a held beat keeps its frame
     el.dataset.span = `${fightFrom}:${fightUntil}:${fightOn ? 1 : 0}:${fightShow ? 1 : 0}:${engineTick}`;   // dev: the fight span the frame follows
     el.dataset.spans = spans.map((sp) => `${sp.from}-${sp.until}`).join(",");   // dev: Cut 14 §6, the kept spans
     if (want === frame) { paintCard(want); return; }
@@ -726,7 +790,7 @@ export function renderWatch(app: App): Mounted {
   /** Cut 10 §1: the interstitial is up while `fights` shows the map, unless a tap holds the map, the vault sheet is up, or the
    *  run's ending plays. Its line is the ambient one: `D3 · 4 rooms · $47`. */
   function paintCard(want: FrameName): void {
-    const up = mode === "fights" && want === "map" && !mapHold && !vaultClose && !done && !exitTier && viewerTick() < endingFrom;
+    const up = mode === "fights" && want === "map" && !mapHold && !vaultClose && !done && !exitTier && viewerTick() < endingFrom && !beatHeld();
     if (up !== cardUp) {
       cardUp = up; el.dataset.card = up ? "1" : "0";
       // a card per floor: the full minimum when the floor is new, a beat between fights on the same floor — drawn only on a new floor
@@ -762,10 +826,10 @@ export function renderWatch(app: App): Mounted {
     const open = scenes[scenes.length - 1]; if (open && open.until === Infinity && open.from < t) open.until = t;   // the next snapshot re-opens a live scene
   }
   /** Cut 14 §6: is the playhead at v inside a near hold (AUTO_TAIL after a near tick) or a scene's span? */
-  function heldAt(v: number): boolean {
+  function heldAt(v: number, withScenes = true): boolean {
     while (nearTicks.length && nearTicks[0] + AUTO_TAIL <= v) nearTicks.shift();
     while (scenes.length && scenes[0].until <= v) scenes.shift();
-    return (nearTicks.length > 0 && nearTicks[0] <= v) || (scenes.length > 0 && scenes[0].from <= v);
+    return (nearTicks.length > 0 && nearTicks[0] <= v) || (withScenes && scenes.length > 0 && scenes[0].from <= v);   // Cut 18 §1: `fast`'s map slows for a blow, not a room's sleepers
   }
   /** Cut 15 §4: is the playhead at v in a chore stretch — no hostile near, no beat, no near hold (the fight frame runs the flat rate)? */
   function choreAt(v: number): boolean {
@@ -798,6 +862,7 @@ export function renderWatch(app: App): Mounted {
     // the card names the HUD's floor (QA on e0f87e7: "`D1 · 16 rooms · $18` while the HUD reads `32/40 D2`"; on 56f2a1d the
     // reverse, the card ahead of the HUD): the HUD's paints repaint it; here only a floor's rooms / situation first reported
     if (cardUp && !frozen()) paintCardText();
+    if (mode === "fast" && app.slowdowns) probeFight(r);   // Cut 18 §1: `fast` costs its fights ahead of the picture, as the card does
     if (!exit) vaultFrom(s);   // no choice on a run that just ended
     if (r.exit_pending) pendingExit = r.exit_pending;
     // Cut 7 §4: the exit batch waits (pump) until the viewer is ENDING_TICKS from the exit, then plays at 1×
@@ -828,6 +893,7 @@ export function renderWatch(app: App): Mounted {
   function worldRate(): number {
     if (done || held || exitTier) return 0;
     if (vaultClose) return 0;                              // Cut 15 §5: the world waits for the tap
+    if (!frozen() && beatHeld() && heldBeat && !heldBeat.exit) return Math.max(0, speed);   // Cut 18 §1: a held beat is the watch's own pacing — the world keeps the picture's pace (no catch-up owed after it)
     if (fightOn && app.slowdowns) return mode === "fights" && engineTick >= slowUntil && !(beat && engineTick < beat.until) && !(foeSpans.length && foeSpans[foeSpans.length - 1].until > engineTick) ? RATE.fights : FIGHT_RATE[mode];   // Cut 15 §4: a chore stretch at the flat rate
     if (mode === "fights") return RATE.fights;
     return !app.slowdowns || overridden || (engineTick >= slowUntil && engineTick >= sceneUntil) ? RATE.fast : FAST_NEAR;
@@ -843,6 +909,8 @@ export function renderWatch(app: App): Mounted {
     if (vaultClose && !document.querySelector(".vault-choice")) vaultClose = null;   // dismissed by backdrop / Escape: the engine's grace decides
     if (vaultClose && !frozen() && performance.now() - vaultAt > VAULT_WAIT_MS) vaultClose();    // Cut 15 §5: the wait is over; the engine's grace and preference proceed (⏸ stops the wait)
     const still = frozen();   // Cut 14 §6: a frozen picture — no cut, no release, no floor load; the world below steps on
+    // Cut 18 §1: the hold is over — a beat that waited for it takes the line (the frame is still on the fight)
+    if (!still && !beatHeld() && el.dataset.held === "1") { el.dataset.held = "0"; const nb = beatNext.shift(); if (nb && !nb.shown && frame === "fight") { nb.shown = true; beat = nb; holdBeat(nb); } }
     if (!still && cardUp && !cardWait && !mapHold && !held && performance.now() - cardShownAt > CARD_MAX_MS && !fightAhead(viewerTick())) cardExpired();   // Cut 15 §4
     if (!still) applyFrame();
     applySpeed();
@@ -861,12 +929,12 @@ export function renderWatch(app: App): Mounted {
     paintScrub(now);
     if (!still) release(cardWait ? Math.min(now, fightFrom) : now);   // Cut 10 §1: a fight waiting on the card keeps its HUD at the first frame
     if (still) { /* the picture is frozen: straight to the world's step below */ }
+    else if (goLiveOwed && !inflight && (worldT - engineTick <= LEAD_FAST || held)) { goLiveOwed = false; goLive(); now = viewerTick(); }   // Cut 14 §6: back from a hidden tab, the world caught up (Cut 18: before the floor queue — goLive drains it)
     else if (loads.length) {
       // Cut 10 §1: under the card the floor changes at once (nothing is watched); otherwise the viewer drains first (Cut 14 §6:
       // never while the picture is frozen; the world below steps on regardless)
-      if (cardUp || viewerIdle()) { const p = takeLoad()!; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+      if ((cardUp || viewerIdle()) && !beatHeld()) { const p = takeLoad()!; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }   // Cut 18 §1: not under a held beat
     }
-    else if (goLiveOwed && !inflight && (worldT - engineTick <= LEAD_FAST || held)) { goLiveOwed = false; goLive(); now = viewerTick(); }   // Cut 14 §6: back from a hidden tab, the world caught up
     else if (held) {
       // Cut 7 §4: the clock runs on (8× through dead air) to the ending, then the exit batch plays and the exit flow waits for it
       // Cut 10 §1: under the card the viewer jumps to the ending (the walk-out plays at 1×; the card hides there)
@@ -900,11 +968,12 @@ export function renderWatch(app: App): Mounted {
     if (playing && mode === "fights" && !mapHold && !vaultClose && !fightOn && Number.isFinite(fightUntil) && now < fightUntil && !(beat && now < beat.until)) return;   // Cut 13 §4: a beat plays on at 1×
     // Cut 14 §6: the engine's target — the world clock, or the playing viewer's lead, whichever is further; a world far behind its
     // clock (a paused or hidden picture) is caught up in CATCHUP_MAX-tick steps
-    const lead = speed >= AUTO_FAST ? LEAD_FAST : LEAD;
+    // Cut 18 §1: the ramp's lead (0.2 s of picture); `fast` keeps LEAD_PROBE ahead so a fight is costed before the picture meets it
+    const lead = Math.max(speed >= AUTO_FAST ? Math.max(LEAD_FAST, Math.ceil(speed * 2)) : LEAD, mode === "fast" && app.slowdowns && !overridden ? LEAD_PROBE : 0);
     const want = Math.max(worldT, playing ? now + lead : -Infinity);
     if (engineTick >= want) return;
     const gap = worldT - engineTick;
-    const n = gap > BATCH_FAST ? Math.min(CATCHUP_MAX, Math.ceil(gap)) : speed >= AUTO_FAST ? BATCH_FAST : BATCH;
+    const n = gap > BATCH_FAST ? Math.min(CATCHUP_MAX, Math.ceil(gap)) : Math.min(CATCHUP_MAX, Math.max(speed >= AUTO_FAST ? Math.max(BATCH_FAST, Math.ceil(speed * 0.6)) : BATCH, Math.ceil(want - engineTick)));
     inflight = true;
     app.engine.step(n).then((r) => { inflight = false; if (!disposed && !done) handle(r); if (skipQueued) { skipQueued = false; void skipToEvent(); } })
       .catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; endControls(); });
@@ -942,7 +1011,20 @@ export function renderWatch(app: App): Mounted {
     probe = null;
     if (show && fightFrom < Infinity) fightShow = true;
     else if (beat && viewerTick() < beat.until && fightFrom <= beat.from) { fightUntil = beat.until; closeSpan(); }   // Cut 13 §4: the beat keeps its frame
-    else { const i = spans.findIndex((sp) => sp.from === fightFrom); if (i >= 0) spans.splice(i, 1); fightFrom = Infinity; fightUntil = -Infinity; }   // Cut 14 §6: a dropped fight is no span
+    else if (mode === "fast" && viewerTick() >= fightFrom) { /* Cut 18 §1: the picture is already in it — it plays out */ }
+    else {
+      const i = spans.findIndex((sp) => sp.from === fightFrom); if (i >= 0) spans.splice(i, 1);   // Cut 14 §6: a dropped fight is no span
+      if (mode === "fast") forget(fightFrom, fightUntil);
+      fightFrom = Infinity; fightUntil = -Infinity;
+    }
+  }
+  /** Cut 18 §1: `fast` drops a fight `fights` would drop (it cost nothing) — its near ticks and scenes go with it, so the picture
+   *  passes it at the dead stretch's rate (`fast` watched every fight at 4×, `fights` only the ones that cost: `fast` was slower). */
+  function forget(from: number, until: number): void {
+    if (!Number.isFinite(from)) return;
+    const lo = from - BLOW_TICKS, hi = Number.isFinite(until) ? until : engineTick;
+    for (let i = nearTicks.length - 1; i >= 0; i--) if (nearTicks[i] >= lo && nearTicks[i] <= hi) nearTicks.splice(i, 1);
+    for (let i = scenes.length - 1; i >= 0; i--) if (scenes[i].until !== Infinity && scenes[i].from >= lo && scenes[i].until <= hi + AUTO_TAIL) scenes.splice(i, 1);
   }
   /** The rate the clock should run at right now. `fights`: 16× under the card (8× when a tap holds the map, 0 while a fight
    *  waits for the card's minimum); `fast`: 8× / 1× by what is near (flat 8× while bailing). Cut 7 §4: 1× through a scene and
@@ -956,6 +1038,21 @@ export function renderWatch(app: App): Mounted {
     return snap.turn - stallSince >= STALL_FLAT_TICKS;
   }
   function rate(): number {
+    const was = deadSince;
+    deadSince = -1;
+    let r = baseRate(was);
+    // Cut 18 §1: a held beat's picture eases to its stop (the span's end, or short of the stairs) over the hold's wall time — never
+    // faster than the mode would play it, never past the stop; the exit's beat plays the walk-out as before
+    if (r > 0 && app.slowdowns && beatHeld() && heldBeat && !heldBeat.exit) {
+      const v = viewerTick(), stop = beatStop(), left = Math.max(100, beatHoldUntil - performance.now());
+      r = v >= stop ? 0 : Math.min(r, Math.max(0.25, ((stop - v) * 100) / left));
+      el.dataset.hold = `${heldBeat.from}-${heldBeat.until}:${stop}`;   // dev: the held beat's span and its stop
+      deadSince = -1;
+    }
+    return r;
+  }
+  /** The rate before a held beat's easing (`was`: the dead stretch's start carried over, `fast`). */
+  function baseRate(was: number): number {
     if (paused || hidden || goLiveOwed) return 0;   // Cut 14 §6: the picture freezes (and stays put until the seek to live); the world (worldRate) goes on
     if (vaultClose) return viewerTick() < engineTick ? 1 : 0;   // Cut 5 §4 / Cut 15 §5: 1× up to the frontier, where the world waits for the tap
     const v = viewerTick();
@@ -964,10 +1061,37 @@ export function renderWatch(app: App): Mounted {
     // fight, near or scene hold
     const flat = !app.slowdowns || stalling();   // Cut 14: `slowdowns` off — no fight, near or scene hold; the mode's flat rate
     if (frame === "fight" && !flat && beat?.hold && v >= beat.from && v < beat.until) return 1;   // Cut 15 §4: a boss's kill holds SCENE_MS
-    if (frame === "fight" && !flat) return mode === "fights" && choreAt(v) ? RATE.fights : FIGHT_RATE[mode];   // Cut 8A: a fight is watched slow (Cut 14: 2× in `fights`, 4× in `fast`); Cut 15 §4: a chore stretch in `fights` at the flat rate
+    if (frame === "fight" && !flat) return choreAt(v) ? RATE[mode] : FIGHT_RATE[mode];   // Cut 18 §1: `fast`'s chore stretch at its flat rate too   // Cut 8A: a fight is watched slow (Cut 14: 2× in `fights`, 4× in `fast`); Cut 15 §4: a chore stretch in `fights` at the flat rate
     if (mode === "fights") return cardWait || cardUp ? 0 : mapHold ? (cardLive ? RATE.fights : AUTO_FAST) : RATE.fights;   // the clock holds under the card: the cut seeks
-    if (flat || overridden || !heldAt(v)) return engineTick - v > LEAD_FAST + BATCH_FAST ? CATCHUP_RATE : RATE.fast;   // Cut 14 §6: a dead stretch behind live is walked at 2× the flat rate
+    if (!app.slowdowns) return RATE.fast;   // Cut 14: `slowdowns` off — the mode's flat rate, no ramp either
+    if (flat || overridden || !heldAt(v, false)) { deadSince = was < 0 ? performance.now() : was; return deadRate(v); }
     return FAST_NEAR;
+  }
+  /** Cut 18 §1: `fast` is never slower than `fights` — a dead stretch plays at the flat 16× for DEAD_RAMP_MS, then doubles every
+   *  DEAD_STEP_MS up to FAST_MAX (the card in `fights` skips the travel in ≤ 1 s; 16× through a 600-tick floor took ~4 s: rater Y's
+   *  "`fast` mode was slower than `fights`"); never so fast that the next hold the engine has seen comes sooner than DEAD_LAND_MS
+   *  away. Cut 14 §6: a picture behind live walks at least CATCHUP_RATE. */
+  function deadRate(v: number): number {
+    const age = performance.now() - deadSince;
+    let r = age < DEAD_RAMP_MS ? RATE.fast : Math.min(FAST_MAX, RATE.fast * 2 ** (1 + Math.floor((age - DEAD_RAMP_MS) / DEAD_STEP_MS)));
+    const next = nextHold(v);
+    if (Number.isFinite(next)) r = Math.min(r, Math.max(RATE.fast, ((next - v) * 100) / DEAD_LAND_MS));
+    r = Math.min(r, Math.max(0, ((engineTick - v) * 100) / DEAD_LAND_MS));   // never past the frontier (the first batch at boot)
+    if (engineTick - v > LEAD_FAST + BATCH_FAST) r = Math.max(r, CATCHUP_RATE);
+    return r;
+  }
+  /** Cut 18 §1: the first tick after v where the picture must slow — a near tick, a scene, a kept fight span, the live fight, a beat,
+   *  the ending. */
+  function nextHold(v: number): number {
+    // the frontier and the next stairs too: the picture never runs past what the engine has fed it (at 128× a floor's end came
+    // before the pump saw the viewer idle — the next floor's load then set the clock back)
+    let n = Math.min(endingFrom >= v ? endingFrom : Infinity, engineTick);
+    const d = descends.find((t) => t >= v); if (d !== undefined) n = Math.min(n, d);
+    const near = nearTicks.find((t) => t >= v); if (near !== undefined) n = Math.min(n, near);
+    for (const sp of spans) if (sp.from >= v) { n = Math.min(n, sp.from); break; }
+    if (Number.isFinite(fightFrom) && fightFrom >= v) n = Math.min(n, fightFrom);
+    if (beat && !beat.shown && beat.from >= v) n = Math.min(n, beat.from);
+    return n;
   }
   function applySpeed(): void {
     const n = rate();
@@ -1004,7 +1128,7 @@ export function renderWatch(app: App): Mounted {
     const was = frozen(); paused = p; hidden = hid;
     if (!was && frozen()) { frozenAt = performance.now(); clearTimeout(tickerTimer); if (vaultClose) graceHold(); }
     else if (was && !frozen()) {
-      const d = performance.now() - frozenAt; tickerAt += d; ambientUntil += d; if (vaultClose) { vaultAt += d; graceRun(); } if (exitBeatUntil > frozenAt) exitBeatUntil += d; if (holdLineUntil > frozenAt) holdLineUntil += d;   // the cage's wait stood still too
+      const d = performance.now() - frozenAt; tickerAt += d; ambientUntil += d; if (vaultClose) { vaultAt += d; graceRun(); } if (exitBeatUntil > frozenAt) exitBeatUntil += d; if (holdLineUntil > frozenAt) holdLineUntil += d; if (beatHoldUntil > frozenAt) beatHoldUntil += d;   // the cage's wait stood still too
       cardShownAt += d; cardSince += d;   // Cut 15 §4: a frozen card's time does not count
       if (ticker.classList.contains("show") || tickerQueue.length) scheduleTicker();
       for (const x of frozenFeed.splice(0)) feed(x.evs, x.s);
@@ -1016,6 +1140,7 @@ export function renderWatch(app: App): Mounted {
     if (done || !viewer || exitTier) return;
     // QA on 3d71c33: under the cage sheet ▶▶| picks nothing — the sheet goes and the engine's grace and the preference decide
     if (vaultClose) vaultClose();
+    releaseBeat();   // Cut 18 §1: the press lets a held beat go
     // Cut 14 §6: `▶▶|` is "live": a frozen picture resumes; a viewer behind the frontier (a pause, a hidden tab, a slow fight while
     // the world ran on) lands on it first — the ending's start at most, so the walk-out plays — and the press then means what it
     // meant live: the fight's end or the next fight in `fights`, the run's end in `fast`, landing on the new frontier
@@ -1262,7 +1387,7 @@ export function renderWatch(app: App): Mounted {
       xp: { class: cls, gained: xpGained(), level_ups: (L.classes?.[cls]?.level ?? 1) - before.level },
       salvaged: reconcileSalvage(mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), L.gold_ledger ?? []), deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
       spent: spentRows(L.gold_ledger ?? []),   // Cut 13 §3: what the automations bought at this exit (`heal ×1 · −$40`)
-      banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, stalled: tier === "return" && /· stalled$/.test(exitLine?.text ?? "") ? 1 : 0, bones_found: bonesFound,   // rest is still ahead: the camp shows it
+      banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, stalled: stalled ? 1 : 0,   // Cut 18 §4: the stall the exit line names anywhere in it (`… · stalled · 1 supply back`), or the stake's flag bones_found: bonesFound,   // rest is still ahead: the camp shows it
       exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
     };
     app.go({ kind: "report", report });

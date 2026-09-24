@@ -13,7 +13,7 @@ import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
-import { openUnlockSheet, visible, withRowsGate } from "./unlocks";
+import { openUnlockSheet, priceLabel, visible, withRowsGate } from "./unlocks";
 import { lostLabel, rowLabel } from "./tokens";
 import { traceChip } from "./trace";
 import { openGoldSheet, runRange } from "./gold";
@@ -197,7 +197,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // QA 23ed91f (L: "PENDING lists the whole unlock shop, identical across five reports"): the next three, as the camp's panel
     // (the larger reach gain, then the cheaper); the camp's `more` has the rest
     affordable = affordable.map((u, i) => ({ u, i })).sort((a, b) => (b.u.delta ?? 0) - (a.u.delta ?? 0) || a.u.cost - b.u.cost || a.i - b.i).slice(0, 3).map((x) => x.u);
-    if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => openUnlockSheet(app, u, () => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, `◆${u.cost}`)))));
+    if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => openUnlockSheet(app, u, () => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, priceLabel(u))))));   // Cut 18 §5: both prices
     if (pendingSec) pendingSec.hidden = !pendingBody.childElementCount;
   };
   paintPending([]);

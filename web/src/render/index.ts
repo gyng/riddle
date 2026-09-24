@@ -73,12 +73,13 @@ export type Viewer = {
   debugPos?(): unknown[];
   debugRects?(): DebugRect[];     // Cut 14 §3: every entity drawn this frame, its on-screen rect in CSS px (the gates measure a foe's height)
   debugLabels?(): DebugLabel[];   // Cut 14 §3: every name drawn this frame (text, its row's bottom in CSS px)
+  debugText?(): { kind: "callout" | "caption"; text: string }[];   // Cut 18 §2: the lines of text drawn over the fight this frame
   atlasInfo?(): unknown;
   debugBiome?(): string;          // Cut 16 §3: the biome the floor draws in (its palette)
   preload?(snap: Snapshot): void;   // add unknown entities before a batch's events
 };
 
-export type DebugRect = { id: number; kind: string; hero: boolean; x: number; y: number; w: number; h: number; stack: number };   // CSS px; `stack`: members on its tile
+export type DebugRect = { id: number; kind: string; hero: boolean; x: number; y: number; w: number; h: number; stack: number; z: number };   // CSS px; `stack`: members on its tile; `z`: its depth (higher draws in front)
 export type DebugLabel = { text: string; x: number; y: number; id: number; w?: number; h?: number };   // CSS px: the label's centre x and its cell's bottom y; w · h its box (Cut 15 §4)
 
 export type ViewerStats = {
@@ -106,6 +107,7 @@ const FIGHT_TOP_CSS = 96;   // Cut 8A: the caption sits this many CSS px below t
 const BASE_TEXELS = 160; // Cut 14 §3 (was 200, before that 270): ~20 tiles across at 400 CSS px, a 40-texel foe ≥ 24 CSS px tall
 const STACK_SPREAD = TILE * 2 / 3; // Cut 14 §3: a stack's members fan over ±⅓ tile
 const ROOM_MAX = 600;              // Cut 14 §3: the room flood's cap in tiles (a cave floor is not one room)
+const HERO_Z = 3.2, HERO_COVER = 0.3; // Cut 18 §2: the hero's depth (over every sprite, under the glyphs) and the most of his rect a sprite may cover
 const HERO_TEXELS = 24;            // Cut 14 §3: the hero sprite's height in env texels (48 sprite texels); the fight k keeps it ≤ 1/5 of the screen
 
 export type ViewerOpts = {
@@ -164,6 +166,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   // the hero's logical tile changes (or the floor reloads); empty in a corridor
   let roomLit = new Uint8Array(0), roomKey = "";
   const rects: DebugRect[] = [], labels: DebugLabel[] = [];   // Cut 14 §3: what this frame drew, for the gates
+  const texts: { kind: "callout" | "caption"; text: string }[] = [];   // Cut 18 §2
   let raf = 0;
   let last = performance.now();
   let disposed = false;
@@ -317,7 +320,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const b = st.biome;
     const fight = mode === "fight";
     updateRoom();
-    rects.length = 0; labels.length = 0;
+    rects.length = 0; labels.length = 0; texts.length = 0;
     const bright = p[p.length - 1]!;
     // Cut 8A: a hit flashes to the palette's brightest in the fight frame; the map keeps its paper white
     if (fight) L.ents.setFlash(bright[0], bright[1], bright[2]); else L.ents.setFlash(0.98, 0.95, 0.9);
@@ -400,6 +403,15 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const nameScale = fight ? 0.5 : 1;   // the map frame's k is half the fight frame's: the same size on screen
     const nameRow = FONT_CELL_H * nameScale + 1;
     const tagBoxes: [number, number, number, number][] = [];   // Cut 15 §4: the name tags drawn so far this frame (world x0, y0, x1, y1)
+    // Cut 18 §2: the hero's drawn rect (world: x0, x1, y0, y1) — his feet with his stack's fan — so a sprite over him can be moved off
+    let heroBox: [number, number, number, number] | null = null;
+    if (heroEnt && !heroEnt.dying) {
+      let [hx, hy] = feet(heroEnt);
+      const g = stacks.get(heroEnt.y * st.w + heroEnt.x), n = g?.length ?? 1, i = g ? g.indexOf(heroEnt.id) : 0;
+      if (n > 1 && i >= 0) hx += Math.round((i / (n - 1) - 0.5) * STACK_SPREAD);
+      const hs = atlas.entity(heroEnt.kind), hw = hs.w / 2, hh = hs.h / 2;
+      heroBox = [hx - hw / 2, hx + hw / 2, hy, hy + hh];
+    }
     for (const e of st.ents.values()) {
       if (e.kind === "bones") continue; // drawn in the items layer above
       const vi = e.y * st.w + e.x;
@@ -423,8 +435,22 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
       const s = atlas.entity(e.kind);
       const w = s.w / 2, h = s.h / 2; // world units (env texels)
-      const z = 2 + Math.min(1, e.py / Math.max(1, st.h)) + (stackN > 1 ? stackI * 0.001 : 0);   // a stack's members never z-fight
-      { const [cx, cy] = toCss(fx - w / 2, fy + h); rects.push({ id: e.id, kind: e.kind, hero: !!e.hero, x: cx, y: cy, w: (w * k) / dpr, h: (h * k) / dpr, stack: stackN }); }
+      // Cut 18 §2: the hero is never covered (rater Y: "the warlord sprite hid my hero completely"; Z: "sprites overlap") — he draws
+      // in front of every sprite, and a sprite whose rect would cover more than HERO_COVER of his moves sideways, away from him (the
+      // side it stands on, else behind his facing), until it covers no more; a boss keeps its size, his head stays clear
+      if (heroBox && !e.hero) {   // a dying sprite too (it dissolves over him otherwise)
+        const [x0, x1, y0, y1] = heroBox, hw = x1 - x0, hh = y1 - y0;
+        const oy = Math.max(0, Math.min(fy + h, y1) - Math.max(fy, y0)) / hh;
+        const ox = Math.max(0, Math.min(fx + w / 2, x1) - Math.max(fx - w / 2, x0));
+        if (oy > 0 && (ox / hw) * oy > HERO_COVER) {
+          const cx = (x0 + x1) / 2, dir = fx !== cx ? Math.sign(fx - cx) : st.hero?.flip ? 1 : -1;
+          const keep = Math.floor((HERO_COVER * hw) / oy);   // the most of his width it may still cover
+          fx = dir > 0 ? Math.ceil(x1 - keep + w / 2) : Math.floor(x0 + keep - w / 2);
+        }
+      }
+      // entities sort by row (lower rows in front); the hero above them all (under the glyphs at 3.5)
+      const z = e.hero ? HERO_Z : 2 + Math.min(1, e.py / Math.max(1, st.h)) + (stackN > 1 ? stackI * 0.001 : 0);   // a stack's members never z-fight
+      { const [cx, cy] = toCss(fx - w / 2, fy + h); rects.push({ id: e.id, kind: e.kind, hero: !!e.hero, x: cx, y: cy, w: (w * k) / dpr, h: (h * k) / dpr, stack: stackN, z }); }
       if (e.remembered) {
         L.ents.push(fx, fy, z, s.w / 2, s.h / 2, s.u0, s.v0, s.u1, s.v1, REMEMBERED_DIM, 0, e.fade, e.flip ? 1 : 0);
         continue;
@@ -498,9 +524,11 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // in the fight frame the callout clears the hp bar and, when up, the 2× glyph above it
       // Cut 13 §4: centred on the hero but kept inside the frame — a hero at the edge used to lose its callout's right half
       fitText(st.callout.text, fx, fy + atlas.entity(hero.kind).h / 2 + (fight ? (hero.glyph ? gs + 6 : 5) : 6), 4, true);
+      texts.push({ kind: "callout", text: st.callout.text });
     }
     // Cut 8A: the firing row as a caption at the top of the fight frame (`R2 attack goblin`), under the DOM hud
-    if (fight && st.caption) fitText(st.caption.text, camSX, camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - FONT_CELL_H, 4.1, false);
+    // Cut 18 §2: one line over the fight — a telegraph (the core's callout over the hero) takes it; the row goes to the ticker (watch)
+    if (fight && st.caption && !(st.callout && hero)) { fitText(st.caption.text, camSX, camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - FONT_CELL_H, 4.1, false); texts.push({ kind: "caption", text: st.caption.text }); }
     L.text.end();
   }
 
@@ -645,6 +673,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     debugRects() { return rects.map((r) => ({ ...r })); },
     debugBiome() { return st.biome; },
     debugLabels() { return labels.map((l) => ({ ...l })); },
+    debugText() { return texts.map((t) => ({ ...t })); },
     debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, ally: !!e.ally, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
     stats() { return { ...stats }; },
     /** dev: every entity the state holds and whether the draw loop would show it */

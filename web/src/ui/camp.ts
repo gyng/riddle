@@ -25,7 +25,7 @@ import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
 import { openChronicle } from "./chronicle";
-import { classList, deltaClass, deltaLabel, deltaPts, openOwnedSheet, openUnlockSheet, ownedRows, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
+import { classList, deltaClass, deltaLabel, deltaPts, goldAffordable, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS, xpToNext } from "../engine/classes";
@@ -45,6 +45,7 @@ const setUnlocksAll = (on: boolean): void => { try { localStorage.setItem(ALL_KE
 const TRAIT_RULE: Record<string, string> = { cowardly: "flees under 50%", brave: "skips a retreat", curious: "drinks unknowns", greedy: "grabs loot" };
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
+const SEND_ARM_MS = 800;
 export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 17: the frame — the bar (the strip: heir, `$`, `◆`, `★`, best, the stud; the wake's offers under it), the well (the
   // tablets and the depth shaft; the set tabs from the 5th heir; the panels over it), the console (the portrait, the command
@@ -63,7 +64,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const vault = h("section", { class: "vault" });
   const supplies = h("section", { class: "supplies" });
   const unlocks = h("section", { class: "unlocks" });
-  const send = gem({ label: /* copy:button */ "send", cls: "send", pulse: true, onclick: () => { if (!app.overBudget) app.go({ kind: "watch" }); } });
+  // Cut 18 §4 (rater Z: "APPLY also sent the next heir immediately"): the death screen's gem and this one share the console's gem slot —
+  // a camp opened on a lit tablet (a patch applied, `highlight`) keeps its send deaf for SEND_ARM_MS, so the tap (or a second one) that
+  // applied never lands on `send`; the player sends
+  const armedAt = performance.now() + (highlight !== undefined ? SEND_ARM_MS : 0);
+  const send = gem({ label: /* copy:button */ "send", cls: "send", pulse: true, onclick: () => { if (performance.now() < armedAt) return; if (!app.overBudget) app.go({ kind: "watch" }); } });
   // Cut 10 §3: the rest chip says what it means all the time (`rest 20m · send skips`), no tap needed
   const rest = h("span", { class: "rest chip num" });
   // the engine's busy label (`forecast` · `offline`) in its own strip under the header (QA on 50bb162: it drew over `D4 ★0`)
@@ -307,7 +312,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       const grid = h("div", { class: "cards" });
       // Cut 17 §3: a short list, not a wall — the next three (affordable first, then gated, then short of marks; the larger reach
       // gain, then the cheaper, then the catalogue's order); `more` opens the whole catalogue (remembered for this viewer)
-      const rank = (u: typeof list[number]): number => (u.available ? 0 : u.gated ? 1 : 2);
+      // Cut 18 §5: a tile the gold buys ranks with the ones the marks buy (and glows like them)
+      const buyable = (u: typeof list[number]): boolean => u.available || goldAffordable(u, app.lineage.gold);
+      const rank = (u: typeof list[number]): number => (buyable(u) ? 0 : u.gated ? 1 : 2);
       const next = list.map((u, i) => ({ u, i })).sort((a, b) => rank(a.u) - rank(b.u) || (b.u.delta ?? 0) - (a.u.delta ?? 0) || a.u.cost - b.u.cost || a.i - b.i).slice(0, 3).map((x) => x.u);
       const shown = unlocksAll() || list.length <= 3 ? list : list.filter((u) => next.includes(u));
       for (const u of shown) {
@@ -318,10 +325,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         // Cut 9 §2: the tap opens the sheet (rows, cost, needs, reach); the buy is on the sheet. A gated or unaffordable card
         // still opens it (the `needs` line is the answer), so nothing on the shelf is disabled.
         // Cut 12 §1: a card's delta is measured where it goes — `at R3` (the catalogue's `insert_at`), else `at end`
-        grid.appendChild(h("button", { class: `card${u.available ? "" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u) },
+        const byGold = !u.available && goldAffordable(u, app.lineage.gold);
+        grid.appendChild(h("button", { class: `card${u.available ? " buyable" : byGold ? " buyable gold-ok" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u) },
           h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
             d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : ""),
-          h("span", { class: "num cost" }, u.cost ? `◆${u.cost}` : "")));   // QA 23ed91f: a free door reads no `◆0`
+          h("span", { class: "num cost" }, priceLabel(u))));   // QA 23ed91f: a free door reads no `◆0`; Cut 18 §5: both prices, `◆3 · $450`
       }
       unlocks.appendChild(grid);
       if (shown.length < list.length) unlocks.appendChild(h("button", { class: "mini more", onclick: () => { setUnlocksAll(true); paintFrom(cat); } }, /* copy:button */ "more"));

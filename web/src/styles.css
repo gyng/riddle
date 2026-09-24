@@ -188,7 +188,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .ticker.kill { color: var(--acc); }
 .ticker.ambient { color: var(--fg); }   /* Cut 7 §4: `D3 · 4 rooms` · `$47` · `alert 3` at 8× */
 /* Cut 8A: in the fight frame the firing row is a caption inside the frame; the ticker keeps only hurts and ambients */
-.watch[data-frame="fight"] .ticker.show:not(.hurt):not(.ambient):not(.beat) { opacity: 0; }
+.watch[data-frame="fight"] .ticker.show:not(.hurt):not(.ambient):not(.beat):not(.rule) { opacity: 0; }   /* Cut 18 §2: `.rule` — a row the telegraph took the line from */
 .ticker.beat { color: var(--fg); font-size: 18px; }   /* Cut 13 §4: a situation's line at the cut (engine data, verbatim) */
 .stake .stalling { color: var(--warn); }              /* Cut 13 §1: `keeps $0 · stalling` */
 
@@ -840,3 +840,13 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .shaft-ends .stall .gemdot { background: linear-gradient(#d8d0c0, #6a5f50); }
 .shaft-ends { font-size: 12px; }
 .shaft-ends .end { gap: 3px; }
+/* Cut 18 §3: a walled floor names its boss — the notch `D9 · warlord`, the panel's row `D9 0% · warlord wall` */
+.notch .dl .wall { display: block; margin-top: 2px; font: 600 10px/1 var(--sans); font-style: normal; color: #e0876a; white-space: nowrap; letter-spacing: 0; }
+.notch.walled .hex { box-shadow: inset 0 0 0 1px #8a3a26; }
+.forecast .bar .wall { color: #e0876a; }
+/* Cut 18 §5: a tile the lineage can buy now glows — with marks or with gold alike; the gold price rides beside the marks (`◆3 · $450`) */
+.unlocks .card.buyable { border-color: #9a7434; box-shadow: 0 0 10px rgba(240, 180, 74, .28), inset 0 0 0 1px rgba(240, 180, 74, .18); }
+.unlocks .card.gold-ok .cost { color: #f3d27a; }
+.card .cost { white-space: nowrap; }
+/* Cut 18 §4: a stall's loop headline stays on one line (death.ts steps its face down to fit) */
+.death .death-line.loop .cause { white-space: nowrap; overflow: hidden; }

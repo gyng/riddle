@@ -13,7 +13,8 @@
 //   Cut 14     the `slowdowns` toggle: off, the clock keeps the mode's flat rate through a fight; on, a fight in fast runs at 4×
 //   Cut 14 §4  a repeated chore callout coalesces (`pick up ×8`) · the `rest 20m` banner sits under the death frame's callout line
 //   Cut 15 §4  the lit mode chip carries its rate (`fast 16`, `fights 2`) · the floor card is up ≤ 1.2 s a time, never over a fight
-//   Cut 15 §5  a watched vault sheet holds the world (8 s open: the frontier still) with a 30 s bar; a chip still takes the tap
+//   Cut 15 §5  a watched vault sheet holds the world (3 s open: the frontier still) with a 6 s bar (Cut 18 §1, was 30); a chip still takes
+//              the tap; untouched it closes by 6.5 s and the world goes on
 //
 //   node web/tests/clarity.mjs        (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
@@ -81,7 +82,7 @@ try {
   // §3 a card's reach delta says where the card goes — Cut 12 §1: `at R2` (before the engagement row, the catalogue's `insert_at`), else `at end`
   {
     const delta = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((d) => d.textContent.trim()));
-    check(delta.length > 0 && delta.every((d) => /^reach ([+−]\d+%( ±\d+)?|~0) at (R\d+|end)$/.test(d)), `card deltas say where the card goes: ${delta.slice(0, 2).join(" · ")}`);
+    check(delta.length > 0 && delta.every((d) => /^reach ([+−]\d+%( ±\d+)?|~0) at (R\d+|end)( · vs [a-z ]+)?$/.test(d)), `card deltas say where the card goes: ${delta.slice(0, 2).join(" · ")}`);
   }
   // §3 a greyed supply says why under its price
   {
@@ -383,8 +384,10 @@ try {
       check(log.spans.length >= 3 && max <= 1200 && log.over === 0, `seed ${seed}: the floor card is up ≤ 1.2 s a time (${log.spans.length} cards, longest ${Math.round(max)} ms, over a fight ${log.over})`);
     }
   }
-  // Cut 15 §5: a watched cage waits for the tap — the vault sheet open 8 s: the frontier does not move; the bar runs 30 s; a chip
-  // still takes the tap and the world goes on. The fake has no vaults: one engine batch after tick 20 carries a `vault_choice`.
+  // Cut 15 §5: a watched cage waits for the tap — the vault sheet open 3 s: the frontier does not move; the bar runs 6 s (Cut 18 §1,
+  // was 30: "each cage held the watch about 30 s"); in `fast` a chip still takes the tap and the world goes on; in `fights`, untouched,
+  // the sheet closes by 6.5 s and the world goes on (the preference picks). The fake has no vaults: one engine batch after tick 20
+  // carries a `vault_choice`.
   {
     for (const mode of ["fast", "fights"]) {
       await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
@@ -399,14 +402,23 @@ try {
       let a = null; const t0 = Date.now();
       while (Date.now() - t0 < 20_000) { a = await w(); if (a.sheet || (a.screen !== "watch" && a.screen !== "exit")) break; await sleep(50); }
       if (!a?.sheet) { check(false, `${mode}: the vault sheet opened (${a?.screen})`); continue; }
+      const opened = Date.now();
       await sleep(300); const f0 = await w();
-      await sleep(8000); const f1 = await w();
-      check(f1.sheet && f1.frontier === f0.frontier, `${mode}: the sheet open 8 s, the world waits (frontier ${f0.frontier} → ${f1.frontier}, playhead ${f1.tick})`);
-      check(f0.bar === "30s", `${mode}: the sheet's bar runs the 30 s wait (${f0.bar})`);
-      await page.locator(".sheet-wrap .vault-choice .chip").first().click({ timeout: 2000 });
-      await sleep(1500);
-      const f2 = await w(); const chosen = await page.evaluate(() => window.__riddle.__chosen);
-      check(chosen === 9901 && !f2.sheet && (f2.frontier > f1.frontier || f2.screen !== "watch"), `${mode}: a chip still takes the tap (chose ${chosen}), the world goes on (frontier ${f1.frontier} → ${f2.frontier})`);
+      await sleep(2700); const f1 = await w();
+      check(f1.sheet && f1.frontier === f0.frontier, `${mode}: the sheet open 3 s, the world waits (frontier ${f0.frontier} → ${f1.frontier}, playhead ${f1.tick})`);
+      check(f0.bar === "6s", `${mode}: the sheet's bar runs the 6 s wait (${f0.bar})`);
+      if (mode === "fast") {
+        await page.locator(".sheet-wrap .vault-choice .chip").first().click({ timeout: 2000 });
+        await sleep(1500);
+        const f2 = await w(); const chosen = await page.evaluate(() => window.__riddle.__chosen);
+        check(chosen === 9901 && !f2.sheet && (f2.frontier > f1.frontier || f2.screen !== "watch"), `${mode}: a chip still takes the tap (chose ${chosen}), the world goes on (frontier ${f1.frontier} → ${f2.frontier})`);
+      } else {
+        let f2 = f1; while (Date.now() - opened < 8000 && f2.sheet) { await sleep(50); f2 = await w(); }
+        const closedAt = Date.now() - opened;
+        await sleep(1200); const f3 = await w(); const chosen = await page.evaluate(() => window.__riddle.__chosen);
+        check(!f2.sheet && closedAt <= 6500 && chosen === null, `${mode}: untouched, the cage closes by 6.5 s (${closedAt} ms), the preference picks (chose ${chosen})`);
+        check(f3.frontier > f1.frontier || f3.screen !== "watch", `${mode}: then the world goes on (frontier ${f1.frontier} → ${f3.frontier})`);
+      }
     }
   }
 } catch (e) {

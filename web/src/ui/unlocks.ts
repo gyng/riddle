@@ -53,9 +53,26 @@ export function visible(catalogue: UnlockInfo[]): UnlockCard[] {
  *  (`reach +7% ±5`); a delta within its own half-width reads `reach ~0` — noise shown as noise. */
 export function deltaLabel(u: UnlockInfo, d: number): string {
   const where = !isCard(u) ? "" : u.insert_at !== undefined ? /* copy:unlock_card */ ` at R${u.insert_at + 1}` : /* copy:unlock_card */ " at end";
-  if (deltaIsNoise(u)) return /* copy:unlock_card */ `reach ~0${where}`;
+  // Cut 18 §5: a card whose best reach is within its ± names when it matters (`reach ~0 at R1 · vs archers`) — every card read
+  // `reach ~0 at R4` to both raters, so they skipped them all
+  if (deltaIsNoise(u)) return /* copy:unlock_card */ `reach ~0${where}${u.situation ? ` · ${situationLabel(u.situation)}` : ""}`;
   const pm = u.pm !== undefined ? ` ±${Math.max(1, Math.round(u.pm * 100))}` : "";
   return /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%${pm}${where}`;
+}
+/** Cut 18 §5: the foe tag a card answers, as the foes it meets (`ranged` → `vs archers`). */
+/* copy:unlock_card */
+const SITUATION: Record<string, string> = { ranged: "archers", gas: "gas", pack: "packs", thief: "thieves", boss: "bosses", caster: "casters", heavy: "brutes", summoner: "summoners" };
+export const situationLabel = (tag: string): string => /* copy:unlock_card */ `vs ${SITUATION[tag] ?? tag.replace(/_/g, " ")}`;
+/** Cut 18 §5: an unlock the lineage can buy with gold now — a gold price, gold enough, and no gate but the marks (a fact, a
+ *  prerequisite, `fill rows` stop gold too). */
+export function goldAffordable(u: UnlockInfo, gold: number): boolean {
+  const g = goldPrice(u);
+  return g > 0 && gold >= g && (!u.needs || /^◆\d+ more$/.test(u.needs));
+}
+/** Cut 18 §5: both prices on a tile — `◆3 · $450` (the gold path seen without opening the sheet); `◆3` alone without a gold price. */
+export function priceLabel(u: UnlockInfo): string {
+  const g = goldPrice(u);
+  return [u.cost ? `◆${u.cost}` : "", g ? `$${g}` : ""].filter(Boolean).join(" · ");
 }
 /** Cut 13 §5: |delta| within its half-width. */
 export const deltaIsNoise = (u: UnlockInfo): boolean => u.delta !== undefined && u.pm !== undefined && Math.abs(u.delta) <= u.pm;
