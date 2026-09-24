@@ -5,6 +5,7 @@
 // Cut 13 §3: the night's ledger — a `spent` section beside `salvaged` (`heal ×16 · −$640`, `ReturnReport.spent`) and one dim
 // `gold` line under the tiles that reconciles the header's delta: `+$412 banked · +$96 returned · +$45 salvage · −$640 spent`
 // (the banked / returned sums are the exit lines'; numbers only, a piece shows only when it is not zero).
+// Cut 16 §1: the depths the lineage has picked clean (`ReturnReport.picked`) as one dim line under the gold line (`D3 · D4 · picked clean`).
 // Cut 14 §4: every exit's `trace` chip carries its exit (`D5 · died · trace`; the depth off the ledger line the exit claims, else
 // off the line's own text) — rater S: "the seventh unlabelled TRACE button"; the stalled tile carries what the stalls cost
 // (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
@@ -50,6 +51,16 @@ export function ledgerText(x: ExitLine): (string | HTMLElement)[] {
   return [h("b", { class: "lead" }, exitLead(x)), " · ", x.text];
 }
 
+/** Cut 16 §1: the depths picked clean as one line — consecutive depths collapse (`D1–4 · picked clean`, `D3 · D5 · picked clean`). */
+export function pickedLine(depths: number[]): string {
+  const ds = [...new Set(depths)].sort((a, b) => a - b), runs: string[] = [];
+  for (let i = 0; i < ds.length; i++) {
+    let j = i; while (j + 1 < ds.length && ds[j + 1] === ds[j] + 1) j++;
+    runs.push(j > i ? `D${ds[i]}–${ds[j]}` : `D${ds[i]}`); i = j;
+  }
+  return `${runs.join(" · ")} · ${/* copy:callout */ "picked clean"}`;
+}
+
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
   const L = app.lineage;
   const deathsN = r.deaths.reduce((n, d) => n + d.n, 0);
@@ -83,6 +94,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     ...(exits ? exitTiles() : []),
     exits ? tile(`${deathsN}`, /* copy:label */ "deaths") : null,
   );
+  // Cut 16 §1: the shallows the lineage has farmed thin (`D3 · D4 · picked clean`), one dim line under the tiles
+  const picked = r.picked?.length ? h("div", { class: "picked-line dim num" }, pickedLine(r.picked)) : null;
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
   // Cut 13 §3: the gold line — what the exits brought (banked / returned, off the exit lines), the salvage, the automations' spending
   const goldLine = (): HTMLElement | null => {
@@ -184,7 +197,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const open = r.worst_death ? h("button", { class: "btn", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }, /* copy:button */ "open") : null;
   const camp = h("button", { class: "btn primary", onclick: () => app.go({ kind: "camp" }) }, /* copy:button */ "camp");
   const el = h("main", { class: "report" },
-    tiles, goldLine(), exitLines, rested, stall,
+    tiles, goldLine(), picked, exitLines, rested, stall,
     section(/* copy:label */ "learned", factChips(r.learned, L.counters ?? [])),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),

@@ -31,7 +31,7 @@ const note = (what) => { if (verbose) out.push(`     ${what}`); };
 // buttons the itinerary walks (they lead to another screen) and the documented toggles (a click need not change the text)
 const NAV = new Set(["send", "keep", "edit", "camp", "open", "buy", "insert", "ok", "import", "export", "reset", "again", "trace", "watch"]);
 const TOGGLES = new Set(["mute", "fights", "fast", "⏸", "▶", "▶▶|", "bail", "▲", "▼", "≡"]);
-const INERT_SEL = ".grip, .interstitial, .prefs .chip.on, .tabs .tab.on, .classes .chip.on, .chip.trait.on, button.patch, .cline.kept, .chip.mini.trace, .bar.try";
+const INERT_SEL = ".grip, .interstitial, .prefs .chip.on, .tabs .tab.on, .classes .chip.on, .chip.trait.on, .chip.cls-offer.on, button.patch, .cline.kept, .chip.mini.trace, .bar.try";
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 2 });

@@ -74,6 +74,7 @@ export type Viewer = {
   debugRects?(): DebugRect[];     // Cut 14 §3: every entity drawn this frame, its on-screen rect in CSS px (the gates measure a foe's height)
   debugLabels?(): DebugLabel[];   // Cut 14 §3: every name drawn this frame (text, its row's bottom in CSS px)
   atlasInfo?(): unknown;
+  debugBiome?(): string;          // Cut 16 §3: the biome the floor draws in (its palette)
   preload?(snap: Snapshot): void;   // add unknown entities before a batch's events
 };
 
@@ -642,6 +643,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     preload(snap) { st.preload(snap); },
     atlasInfo() { const out: Record<string, unknown> = {}; for (const k of ["hero_fighter", "monkey", "goblin", "jackal"]) { const e = atlas.entity(k); out[k] = { w: e.w, h: e.h, u0: +e.u0.toFixed(3), v0: +e.v0.toFixed(3), u1: +e.u1.toFixed(3), v1: +e.v1.toFixed(3), fallback: (e as { fallback?: boolean }).fallback ?? "?" }; } return out; },
     debugRects() { return rects.map((r) => ({ ...r })); },
+    debugBiome() { return st.biome; },
     debugLabels() { return labels.map((l) => ({ ...l })); },
     debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, ally: !!e.ally, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
     stats() { return { ...stats }; },

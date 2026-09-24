@@ -13,10 +13,12 @@
 // send ends when the engine sends `ends` (`bank 40% · return 35% · death 25% · ~$54`); §6: a combo is named, not counted.
 // Cut 13 §5: the first paint (`Forecast.refined` false) carries `…` after each `±` so the refine's landing does not read as a
 // re-roll; the ends line has its own `±` on the death share (`death 5% ±4`, `ForecastEnds.pm`).
+// Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
 import type { App } from "../app";
 import type { Forecast, ForecastTry, Row } from "../engine/types";
 import { h, clear, pct, replace } from "./dom";
 import { closeAllSheets } from "./sheet";
+import { pickedLine } from "./report";
 
 const sameRow = (a: Row, b: Row): boolean =>
   a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length &&
@@ -38,7 +40,10 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const causes = h("div", { class: "fc-causes" });
   const yours = h("div", { class: "fc-yours num" });
   const ends = h("div", { class: "fc-ends num dim", hidden: true });
-  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast"), bars, ends, yours, causes);
+  // Cut 16 §1: the depths picked clean (`Lineage.picked`), small and dim under the ends line — why the `~$N` is lower than it was
+  const picked = h("div", { class: "fc-picked num dim", hidden: true });
+  const paintPicked = (): void => { const p = app.lineage.picked ?? []; picked.hidden = !p.length; replace(picked, p.length ? pickedLine(p) : ""); };
+  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast"), bars, ends, picked, yours, causes);
   // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
@@ -62,7 +67,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     return (app.lineage.counters ?? []).find((c) => c.boss === key || key.endsWith(c.boss))?.text;
   };
   const paint = (f: Forecast): void => {
-    clear(bars); clear(causes); paintEnds(f);
+    clear(bars); clear(causes); paintEnds(f); paintPicked();
     el.dataset.refined = f.refined === undefined ? "" : f.refined ? "1" : "0";   // dev: tools read which pass painted
     const first = f.refined === false ? "…" : "";   // Cut 13 §5: the first paint's ± trails `…`; the refine's does not
     const next = app.lineage.best_depth + 1;
@@ -97,7 +102,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const stale = (): void => { paintYours(); el.classList.add("stale"); };
   const fresh = (f: Forecast): void => { el.classList.remove("stale"); paint(f); };
   const off = app.onForecast(fresh), offRules = app.onRules(stale), offChange = app.onChange(paintYours);
-  paintYours();
+  paintYours(); paintPicked();
   // the first forecast posts after the camp's own fetches (the worker answers in order: a forecast posted first held the
   // supply shop and the unlock shelf behind it — QA B on 952e306: "while FORECAST shows '…' the shop chips and UNLOCKS are gone")
   setTimeout(() => void app.emitForecast(), 0);

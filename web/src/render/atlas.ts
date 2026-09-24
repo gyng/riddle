@@ -6,8 +6,10 @@
 // overrides slots by id:  `<biome>_<tile>` → tile, entity kind → entity, `gas`/`fire`(`_0`/`_1`,
 // or `ov_` prefix) → overlay, `<biome>_shrine_0/1`, `<biome>_vault[_open]`, `<biome>_nest_0/1` → prop (Cut 5
 // §4 situations, env density in the tiles layer), `item_<kind>` (or a bare unknown id) → item.
+// Cut 16 §3: a biome in `TILE_ALIAS` (the Burrows → the Warrens) has no tile art of its own: each of its alias's loaded tile
+// frames is copied to `tile:<biome>_…`, every pixel moved from the alias's ramp index to the same index of the biome's ramp.
 import * as THREE from "three";
-import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, paletteFor, setPalettes, TILE_IDS, type Rgb } from "./palette";
+import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, paletteFor, setPalettes, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
 import { FONT_CELL_H, FONT_CELL_W, FONT_H, FONT_W, glyphBits } from "./font";
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -189,6 +191,7 @@ export class Atlas {
       if (json.meta?.palettes) setPalettes(json.meta.palettes);
       for (const [id, r] of Object.entries(json.frames)) this.override(id, img, r, json.meta?.sprites?.[id]?.texel_h);
       this.loadedIds = new Set(Object.keys(json.frames));
+      this.aliasTiles();
       return true;
     } catch {
       return false;
@@ -196,6 +199,27 @@ export class Atlas {
   }
 
   loadedIds = new Set<string>(); // frame ids provided by the external atlas (for diagnostics)
+
+  /** Cut 16 §3: every `tile:<alias>_…` slot the atlas loaded, recoloured into `tile:<biome>_…` (ramp index for index). */
+  private aliasTiles(): void {
+    const g = this.env;
+    for (const [biome, alias] of Object.entries(TILE_ALIAS)) {
+      const from = paletteFor(alias).map((c) => c.map((x) => Math.round(x * 255))), to = paletteFor(biome).map((c) => c.map((x) => Math.round(x * 255)));
+      for (const id of this.loadedIds) {
+        if (!id.startsWith(`${alias}_`)) continue;
+        const src = g.get(`tile:${id}`); if (!src) continue;
+        const px = g.ctx.getImageData(src.x, src.y, src.w, src.h), d = px.data;
+        for (let i = 0; i < d.length; i += 4) {
+          if (!d[i + 3]) continue;
+          let best = 0, bd = Infinity;
+          for (let k = 0; k < from.length; k++) { const f = from[k]!, e = (d[i]! - f[0]!) ** 2 + (d[i + 1]! - f[1]!) ** 2 + (d[i + 2]! - f[2]!) ** 2; if (e < bd) { bd = e; best = k; } }
+          const t = to[Math.min(best, to.length - 1)]!; d[i] = t[0]!; d[i + 1] = t[1]!; d[i + 2] = t[2]!;
+        }
+        const dst = g.alloc(`tile:${biome}_${id.slice(alias.length + 1)}`, src.w, src.h);
+        g.ctx.putImageData(px, dst.x, dst.y);
+      }
+    }
+  }
 
   private override(id: string, img: HTMLImageElement, r: Rect, texelH?: number): void {
     const put = (sheet: Sheet, slotId: string, w: number, h: number) => {

@@ -31,7 +31,7 @@ const pick = <T>(r: Rng, a: T[]): T => a[Math.floor(r() * a.length)];
 const hash = (s: string): number => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 
 const W = 24, H = 24, VIS = 7;
-const BIOMES: [string, number, number][] = [["warrens", 1, 5], ["fens", 6, 10], ["crypt", 11, 15]];
+const BIOMES: [string, number, number][] = [["warrens", 1, 3], ["burrows", 4, 5], ["fens", 6, 10], ["crypt", 11, 15]];   // Cut 16 §3: the fake's bands, the Burrows before the fens
 const biomeOf = (d: number): string => (BIOMES.find(([, lo, hi]) => d >= lo && d <= hi) ?? BIOMES[2])[0];
 
 type MonDef = { hp: number; atk: [number, number]; def: number; tags: string[]; lo: number; hi: number };

@@ -60,6 +60,12 @@
 // text stays its word). In `fights` a chore stretch inside the fight frame (no foe near, no beat, no near hold at the playhead:
 // the pick-up after a kill) runs at the flat rate; only a fight, a beat or a near hold slows the clock.
 //
+// Cut 16 §3 — the first floor of a biome in the run names it on the card: `D5 · the Burrows · a shrine` (the title in the rooms'
+// place). §4 — while a boss is in view (the snapshot's visible entities tagged `boss`), a thin bar under the hero's: its name,
+// one word (`warlord`), and its hp (the snapshot's, then each `hurt` on it at the viewer's clock); gone when he dies or leaves
+// view. `warlord breaks` (the core's callout and note, once at half hp) is a beat like the kill: the fight frame holds
+// SCENE_MS on `WARLORD BREAKS`.
+//
 // Pacing (Addendum E): the viewer owns the clock (10 ticks/s × speed). The engine worker is pumped in
 // 10-tick batches whenever it is fewer than LEAD ticks ahead of the viewer, so events always arrive
 // before the viewer needs them and the engine never runs far ahead (≤ 22 ticks, under the viewer's
@@ -158,6 +164,11 @@ const CALLOUT_QUEUE = 3, SAME_TICK_MS = 40;   // Cut 13 §4: callouts that land 
 const BEAT_RE = /^(A den\.|A cage:|A shrine\.|The cage opens|A cry from the dark|The air stings|The nest wakes|The den wakes|Found heir \d+'s bones|found the bones|Freed the captive|Cut the captive|Lit the shrine)|snatched|\bstole\b|, gone wild\.$|is avenged/i;
 /** The cause of a `hurt` as one word: `goblin_archer` → `archer`. */
 const oneWord = (cause: string): string => cause.replace(/_/g, " ").trim().split(/\s+/).pop() ?? "";
+/** Cut 16 §3: a biome's title on its first floor's card. */
+/* copy:callout */
+const BIOME_TITLE: Record<string, string> = { warrens: "the Warrens", burrows: "the Burrows", fens: "the Fens", crypt: "the Crypt", foundry: "the Foundry", deep: "the Deep", sanctum: "the Sanctum" };
+/** Cut 16 §4: the boss's break — the core's callout `warlord breaks` / note `The Warlord breaks.` → `WARLORD BREAKS`. */
+const BREAK_RE = /^(?:the )?([a-z]+) breaks\.?$/i;
 /** Cut 15 §4: a boss kill's callout — the boss's name (its last two words, upper case) + DOWN: `goblin_warlord` → `GOBLIN WARLORD DOWN`. */
 export const bossDown = (kind: string): string => /* copy:callout */ `${kind.replace(/_/g, " ").trim().split(/\s+/).slice(-2).join(" ").toUpperCase()} DOWN`;
 /** Cut 12 §4: `nest` → `a nest`, `orchard` → `an orchard` (one word after the article). */
@@ -167,6 +178,9 @@ export function renderWatch(app: App): Mounted {
   const canvas = h("canvas", { class: "view" });
   const hpFill = h("span", { class: "fill" });
   const hpText = h("span", { class: "num" });
+  // Cut 16 §4: the boss's bar under the hero's while one is in view (`warlord` + a thin track)
+  const bossFill = h("span", { class: "fill" }), bossName = h("span", { class: "name" });
+  const bossBar = h("div", { class: "boss-hp", hidden: true }, bossName, h("span", { class: "track" }, bossFill));
   const depth = h("span", { class: "num depth" });
   const alert = h("span", { class: "alert num" });
   const ticker = h("div", { class: "ticker" });
@@ -187,7 +201,7 @@ export function renderWatch(app: App): Mounted {
   const scrubHead = h("div", { class: "head" }), scrubDot = h("div", { class: "dot" });
   const scrub = h("div", { class: "scrub", hidden: true }, scrubHead, scrubDot);
   const el = h("main", { class: "watch" }, canvas, card,
-    h("div", { class: "hud top" }, h("div", { class: "hp" }, h("span", { class: "track" }, hpFill), hpText), depth, alert, pause, stake),
+    h("div", { class: "hud top" }, h("div", { class: "hp" }, h("span", { class: "track" }, hpFill), hpText), depth, alert, pause, bossBar, stake),
     banner, ticker, scrub,
     h("div", { class: "hud bottom" }, modeBtn.fights, modeBtn.fast, skip, bail));
 
@@ -277,7 +291,10 @@ export function renderWatch(app: App): Mounted {
   // engine reported them (the card names the HUD's floor, which may be behind the engine's — QA on 56f2a1d: HUD `17/40 D4` under
   // `D5 · 15 rooms · a shrine`, `$6 · keeps $3` under `D2 · 16 rooms · $13`)
   let hudSnap: Snapshot | null = null;
-  const floors = new Map<number, { rooms?: number; twist?: string }>();
+  const floors = new Map<number, { rooms?: number; twist?: string; biome?: string }>();
+  // Cut 16 §4: the boss in view as the HUD shows it (released at the viewer's clock), and each boss's break beat once
+  let bossHud: { id: number; kind: string; hp: number; max: number } | null = null;
+  const broke = new Set<string>();
   const timed: { t: number; f: () => void }[] = [];
   let lastRuleText = "", lastRuleAt = 0, lastShown = "";
   // placeholder viewer (no clock): a wall clock at 10 ticks/s × speed stands in
@@ -299,7 +316,21 @@ export function renderWatch(app: App): Mounted {
     if (snap) replace(alert, "!".repeat(Math.max(0, Math.min(5, snap.alert))));
     if (cardUp) paintCardText();
   }
-  function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
+  /** Cut 16 §4: the boss bar — the name one word, the track its hp share; hidden with no boss in view. */
+  function paintBoss(): void {
+    bossBar.hidden = !bossHud; el.dataset.boss = bossHud ? `${bossHud.hp}/${bossHud.max}` : "";
+    if (!bossHud) return;
+    replace(bossName, oneWord(bossHud.kind));
+    bossFill.style.width = `${Math.round(Math.max(0, Math.min(1, bossHud.hp / Math.max(1, bossHud.max))) * 100)}%`;
+  }
+  /** Cut 16 §4: the boss in the snapshot's view (not an ally), at its tick. */
+  function bossFrom(s: Snapshot): void {
+    const b = s.entities.find((e) => e.tags.includes("boss") && !e.ally && e.hp > 0 && !!s.visible[e.y * s.w + e.x]);
+    const was = bossHud?.id;
+    bossHud = b ? { id: b.id, kind: b.kind, hp: b.hp, max: b.max_hp } : null;
+    if (b || was !== undefined) paintBoss();
+  }
+  function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
   function paintStake(s: Snapshot): void {
     hudSnap = s;
@@ -435,6 +466,14 @@ export function renderWatch(app: App): Mounted {
     lastAmbient = now; ambientUntil = now + AMBIENT_SHOW_MS;
     callout(text, "ambient", AMBIENT_SHOW_MS);
   }
+  /** Cut 16 §4: a boss's break (the callout or the note, whichever lands first) is a beat that holds the fight frame on
+   *  `WARLORD BREAKS`; true when the text was one. */
+  function breakBeat(t: number, text: string): boolean {
+    const m = BREAK_RE.exec(text.trim()); if (!m) return false;
+    const name = oneWord(m[1]).toUpperCase(), key = `${name}@${hud.depth}`;
+    if (!broke.has(key)) { broke.add(key); beatAt(t, /* copy:callout */ `${name} BREAKS`, false, true); at(t, () => cue("telegraph")); }
+    return true;
+  }
   function at(t: number, f: () => void): void { timed.push({ t, f }); }
   function release(upTo: number): void {
     if (!timed.length) return;
@@ -453,6 +492,7 @@ export function renderWatch(app: App): Mounted {
         // Cut 10 §3: the core's companion-death callout (`Ashar fell`) gets its kind in front: `jackal Ashar fell`
         case "callout": {
           if (ev.text === "explore") break;
+          if (breakBeat(ev.t, ev.text)) break;   // Cut 16 §4: `warlord breaks` is the beat's, not a plain callout
           // Cut 12 §6: a sanity refusal (`drink ✗ no use`) shows once per floor, not once per streak
           if (ev.text.includes("✗")) { const key = `${ev.text}@${s.depth}`; if (refused.has(key)) break; refused.add(key); }
           let f = ev.text;
@@ -472,14 +512,15 @@ export function renderWatch(app: App): Mounted {
           if (ev.row >= 0) at(ev.t, () => cue("rule"));   // Cut 10 §4: a player row, never a chore or a trait
           break;
         }
-        case "hurt": if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) { callout(`−${ev.dmg} ${oneWord(ev.cause)}`, "hurt", HURT_MS); cue("hit", { dmg: ev.dmg }); } }); break;
+        case "hurt": if (bossIds.has(ev.id)) { const id = ev.id, hp = ev.hp; at(ev.t, () => { if (bossHud?.id === id) { bossHud.hp = hp; paintBoss(); } }); }
+          if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) { callout(`−${ev.dmg} ${oneWord(ev.cause)}`, "hurt", HURT_MS); cue("hit", { dmg: ev.dmg }); } }); break;
         // the kill gets its own line (cohort 5: "−3 goblin" was still up after the goblin had dissolved)
         case "die": {
           if (ev.id === heroId) { heroCause = ev.cause; break; }
           // Cut 10 §3: a companion's death (the snapshot's ally flag) is the core's callout to name; the kill line is for hostiles
           if (allies.has(ev.id)) { fell = { t: ev.t, name: names.get(ev.id) ?? "", kind: (kinds.get(ev.id) ?? "").replace(/_/g, " ") }; break; }
           // Cut 15 §4: a boss's kill is a beat — the frame holds on it with `WARLORD DOWN` (its own line, not `slain`)
-          if (bossIds.has(ev.id) && !allies.has(ev.id)) { beatAt(ev.t, bossDown(kinds.get(ev.id) ?? victims.get(ev.id) ?? "boss"), false, true); at(ev.t, () => cue("slay")); break; }
+          if (bossIds.has(ev.id) && !allies.has(ev.id)) { const id = ev.id; at(ev.t, () => { if (bossHud?.id === id) { bossHud = null; paintBoss(); } }); beatAt(ev.t, bossDown(kinds.get(ev.id) ?? victims.get(ev.id) ?? "boss"), false, true); at(ev.t, () => cue("slay")); break; }
           const v = victims.get(ev.id); if (v) at(ev.t, () => { callout(/* copy:callout */ `${v} slain`, "kill", HURT_MS); cue("slay"); });
           break;
         }
@@ -487,6 +528,7 @@ export function renderWatch(app: App): Mounted {
         // Cut 10 §3: a theft names its amount when the engine sends one (`stolen $16`)
         case "steal": if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
         case "descend": {
+          floors.set(ev.depth, { ...floors.get(ev.depth), biome: ev.biome });
           const rooms = s.depth === ev.depth ? s.rooms : undefined;   // Cut 7 §4: `D3 · 4 rooms` when the snapshot counts them
           at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
           break;
@@ -508,6 +550,7 @@ export function renderWatch(app: App): Mounted {
         }
         case "note":
           notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text });
+          if (breakBeat(ev.t, ev.text)) break;
           if (BEAT_RE.test(ev.text)) beatAt(ev.t, ev.text);   // Cut 13 §4: the situations cut in like fights
           break;
         case "exit": {
@@ -664,7 +707,10 @@ export function renderWatch(app: App): Mounted {
     const d = hud.depth, f = floors.get(d), rooms = f?.rooms, twist = f?.twist;
     // the floor changed under the card (the travel drained a load): this is the new floor's card, drawn
     if (cardUp && d !== cardDepth) { cardDepth = d; if (cardGhost) { cardGhost = false; card.hidden = false; el.dataset.ghost = "0"; } }
-    const text = /* copy:callout */ `D${d}${rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `$${hudSnap?.stake?.loot ?? hudSnap?.loot ?? 0}`}`;
+    // Cut 16 §3: the biome's first floor in the run names it in the rooms' place (`D5 · the Burrows · a shrine`)
+    const prev = floors.get(d - 1)?.biome, first = [...floors.keys()].every((k) => k >= d);
+    const title = f?.biome && (prev ? prev !== f.biome : first) ? BIOME_TITLE[f.biome] : undefined;
+    const text = /* copy:callout */ `D${d}${title ? ` · ${title}` : rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `$${hudSnap?.stake?.loot ?? hudSnap?.loot ?? 0}`}`;
     if (text !== cardText) { cardText = text; replace(card, text); }
   }
   function holdMap(): void { if (!cardUp) return; mapHold = true; cardWait = false; paintCard("map"); applySpeed(); }
@@ -697,7 +743,7 @@ export function renderWatch(app: App): Mounted {
   function handle(r: StepResult): void {
     const s = r.snapshot;
     engineTick = s.turn;
-    floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist });
+    floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome });
     for (const e of s.entities) note_(e);
     sceneFrom(s, r.events);
     if (s.hero.hp < lastHp) near(s.turn);   // hp lost by any means; a rest's +1 per turn is a dead stretch, a drink is a `use` event
@@ -707,7 +753,7 @@ export function renderWatch(app: App): Mounted {
     const exit = absorb(r.events, s);
     snap = s;
     // Cut 14 §6: the stake and the max hp land at the viewer's clock like the rest of the HUD (the picture may be behind the world)
-    at(s.turn, () => { hud.maxHp = s.hero.max_hp; paintHud(); paintStake(s); }); bossSighted(s);
+    at(s.turn, () => { hud.maxHp = s.hero.max_hp; paintHud(); paintStake(s); bossFrom(s); }); bossSighted(s);
     // Cut 14 §6: the frontier's dot beats per batch (the animation retriggered by a reflow — at most every PULSE_MS: the travel
     // chain lands a batch a millisecond, and a reflow each would starve the page)
     pulses++; el.dataset.pulses = String(pulses);

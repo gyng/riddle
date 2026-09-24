@@ -23,9 +23,9 @@ export const CUE_MAX_S = 0.2;        // every cue ends within this (the gate's b
 export const DEATH_FADE_S = 1.0;     // … except the death note, which fades over 1 s (Cut 10 §4)
 const DRONE_GAIN = 0.02, DRONE_RAMP_S = 1.2;
 /** Pentatonic roots by biome (A minor pentatonic: A · D · E), the camp pad's root. */
-const DRONE_ROOT: Record<string, number> = { warrens: 110, fens: 146.83, crypt: 164.81 };
-/** Cut 7 bands (crates/riddle-core/src/descent.rs): D1–8 warrens, D9–13 fens, D14+ crypt (the client palette knows three). */
-export const biomeOf = (depth: number): string => (depth <= 8 ? "warrens" : depth <= 13 ? "fens" : "crypt");
+const DRONE_ROOT: Record<string, number> = { warrens: 110, burrows: 123.47, fens: 146.83, crypt: 164.81 };
+/** Cut 7 bands (crates/riddle-core/src/descent.rs): D1–4 warrens, D5–8 burrows (Cut 16 §3), D9–13 fens, D14+ crypt. */
+export const biomeOf = (depth: number): string => (depth <= 4 ? "warrens" : depth <= 8 ? "burrows" : depth <= 13 ? "fens" : "crypt");
 
 const CUES: Record<Exclude<CueName, "hit">, CueSpec> = {
   slay: { voices: [[{ f: 392, at: 0, dur: 0.07, wave: "square" }, { f: 262, at: 0.07, dur: 0.11, wave: "square" }], [{ f: 196, at: 0, dur: 0.18, wave: "triangle" }]], peak: 0.18, len: 0.18 },

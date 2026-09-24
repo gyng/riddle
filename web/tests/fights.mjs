@@ -12,6 +12,9 @@
 // (`__viewer.debugRects` / `debugLabels`); a bank exit opens the fight frame with `BANKED $N` as its callout before the sheet.
 // Cut 15 §4: a boss's kill opens (holds) the fight frame with `GOBLIN WARLORD DOWN` in `fast` and `fights`; two name tags whose
 // boxes would intersect draw on two rows (no two tags drawn in a frame intersect).
+// Cut 16 §4: while a boss is in view the HUD carries his bar under the hero's (`warlord` + a thin track at his hp); `warlord
+// breaks` (the core's callout + note) is a beat — the fight frame holds on `WARLORD BREAKS` like the kill. §3: the run's first
+// floor of a biome names it on the card (`D1 · the Warrens · $0`).
 //
 //   node web/tests/fights.mjs        (part of `pnpm test` in web/)
 //
@@ -68,7 +71,7 @@ try {
     };
     poll();
   }));
-  check(s.card === "1" && s.cardShown && /^D\d+( · \d+ rooms)? · (\$\d+|an? [a-z]+)$/.test(s.cardText), `the interstitial reads the ambient line: "${s.cardText}"`);
+  check(s.card === "1" && s.cardShown && /^D\d+( · \d+ rooms| · the [A-Z][a-z]+)? · (\$\d+|an? [a-z]+)$/.test(s.cardText), `the interstitial reads the ambient line: "${s.cardText}"`);
   check(s.speed === 0, `the clock holds under the card (speed ${s.speed})`);
   // a tap on the card holds the map at 8× until the next fight (shown whatever it costs) — tapped above
   s = await waitFor((x) => !inRun(x) || (x.card === "0" && x.frame === "map"), "the map after tapping the card", 2000);
@@ -196,6 +199,48 @@ try {
       await sleep(2000);
       const st = await both(), tk = st.tk;
       check(st?.frame === "fight" && tk === "GOBLIN WARLORD DOWN", `${mode}: the beat holds the frame and the line 2 s on (${st?.frame}, "${tk}", speed ${st?.speed})`);
+    }
+  }
+
+  // Cut 16 §4: the boss bar and the break beat. From tick 20 the engine's snapshots carry a warlord beside the hero (in view) for
+  // 80 ticks; the first such batch has his spawn at 30/30, a blow taking him to 14, and the core's `warlord breaks` + note.
+  for (const mode of ["fights", "fast"]) {
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+    await waitFor((x) => x?.booted && inRun(x) && x.mode === mode, `the ${mode} run for the break`);
+    await page.evaluate(() => {
+      const r = window.__riddle, orig = r.engine.step.bind(r.engine); let from = -1;
+      r.engine.step = async (n) => {
+        const res = await orig(n); const s = res.snapshot, t = s.turn;
+        if (res.run_over || res.events.some((e) => e.k === "exit" || e.k === "descend")) return res;
+        if (from < 0 && t > 20) {
+          from = t; const hh = s.hero;
+          res.events.push({ t: t - 6, k: "spawn", e: { id: 95002, kind: "goblin_warlord", x: hh.x + 1, y: hh.y, hp: 30, max_hp: 30, tags: ["boss"] } },
+            { t: t - 4, k: "hurt", id: 95002, dmg: 16, hp: 14, cause: "hero" }, { t: t - 4, k: "callout", text: "warlord breaks" }, { t: t - 4, k: "note", text: "The Warlord breaks." });
+          res.events.sort((a, b) => a.t - b.t);
+        }
+        if (from >= 0 && t < from + 80) {
+          const hh = s.hero, x = Math.min(s.w - 1, hh.x + 1), i = hh.y * s.w + x;
+          s.entities.push({ id: 95002, kind: "goblin_warlord", x, y: hh.y, hp: 14, max_hp: 30, tags: ["boss"] }); s.visible[i] = true; s.seen[i] = true;
+        }
+        return res;
+      };
+    });
+    const look = () => page.evaluate(() => { const w = document.querySelector(".watch"), b = document.querySelector(".boss-hp");
+      return { screen: window.__riddle.screen, frame: w?.dataset.frame, tk: document.querySelector(".ticker.show")?.textContent ?? "", bar: b && !b.hidden ? { name: b.querySelector(".name")?.textContent ?? "", width: b.querySelector(".fill")?.style.width ?? "", data: w?.dataset.boss ?? "" } : null }; });
+    let bar = null, brk = null; const t0 = Date.now();
+    while (Date.now() - t0 < 25_000 && !(bar && brk)) {
+      const st = await look();
+      if (st.screen !== "watch" && st.screen !== "exit") break;
+      if (st.bar && !bar) bar = st.bar;
+      if (st.tk === "WARLORD BREAKS" && !brk) brk = { frame: st.frame, at: Date.now() };
+      await sleep(40);
+    }
+    check(!!bar && bar.name === "warlord" && /^(47|100)%$/.test(bar.width), `${mode}: the boss bar under the hero's while he is in view (${bar ? `"${bar.name}" ${bar.width} · ${bar.data}` : "never seen"})`);
+    check(!!brk && brk.frame === "fight", `${mode}: the break is a beat — the fight frame with "WARLORD BREAKS" (${brk ? `${brk.frame} frame` : "never seen"})`);
+    if (brk) {
+      await sleep(Math.max(0, 2000 - (Date.now() - brk.at)));
+      const st = await look();
+      check(st.frame === "fight" && st.tk === "WARLORD BREAKS", `${mode}: the break beat holds the frame and the line 2 s on (${st.frame}, "${st.tk}")`);
     }
   }
 

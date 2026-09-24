@@ -12,6 +12,9 @@
 // Cut 13 §2: a new heir's trait is chosen — while `Lineage.trait_offer` holds two names the strip shows two chips beside `♟3`
 // (`brave | curious`, the chosen one `on`, each with its rule as a small under-label); a tap is `setTrait(name)`; the chips
 // vanish once the offer is empty (the send took it).
+// Cut 16 §2: beside them, while `Lineage.class_offer` stands, a chip per owned class with its signature verb (`rogue · vanish`;
+// one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
+// row stands in for the class button while it is up.
 import type { App, Mounted } from "../app";
 import type { SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, replace, spanOf } from "./dom";
@@ -63,8 +66,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         ? h("span", { class: "chips traits" }, ...L.trait_offer!.map((t) => h("button", { class: `chip trait${t === L.trait ? " on" : ""}`, disabled: t === L.trait, onclick: () => void pickTrait(t) },
             h("span", null, t), TRAIT_RULE[t] ? h("small", { class: "rule dim" }, TRAIT_RULE[t]) : "")))
         : h("span", null, L.trait),
-      h("button", { class: "cls", onclick: () => pickClass() }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
-        h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round((lvl.xp / xpToNext(lvl.level)) * 100)}%` }))),
+      (L.class_offer?.length ?? 0) >= 2
+        ? h("span", { class: "chips classes-offer" }, ...L.class_offer!.map((c) => h("button", { class: `chip cls-offer${c.class === L.class ? " on" : ""}`, disabled: c.class === L.class, "data-class": c.class, onclick: () => void app.setClass(c.class) },
+            h("span", null, c.class, " ", h("b", { class: "num" }, `L${c.level}`)),
+            c.signature ? h("small", { class: `rule dim${c.level < c.opens ? " locked" : ""}` }, verbLabel({ v: c.signature }), c.level < c.opens ? ` L${c.opens}` : "") : "")))
+        : h("button", { class: "cls", onclick: () => pickClass() }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
+            h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round((lvl.xp / xpToNext(lvl.level)) * 100)}%` }))),
       h("span", { class: "num" }, `D${L.best_depth}`),
       h("span", { class: "num rank" }, `★${L.rank ?? 0}`),
       h("button", { class: "num gold", onclick: () => openGold() }, `$${L.gold}`),

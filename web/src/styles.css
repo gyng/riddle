@@ -24,9 +24,11 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .strip .marks { color: var(--acc); margin-left: auto; }
 /* Cut 13 §2: the heir's trait offer — two chips beside ♟N, each with its rule under the name; the chosen one is on (and inert) */
 .strip .chips.traits { display: inline-flex; gap: 4px; }
-.chip.trait { flex-direction: column; align-items: flex-start; gap: 0; min-height: 36px; padding: 3px 10px; line-height: 1.15; font-size: 13px; }
-.chip.trait .rule { font-size: 10px; letter-spacing: .02em; }
-.chip.trait:disabled { opacity: 1; }
+.chip.trait, .chip.cls-offer { flex-direction: column; align-items: flex-start; gap: 0; min-height: 36px; padding: 3px 10px; line-height: 1.15; font-size: 13px; }
+.chip.trait .rule, .chip.cls-offer .rule { font-size: 10px; letter-spacing: .02em; }
+.chip.trait:disabled, .chip.cls-offer:disabled { opacity: 1; }
+.strip .chips.classes-offer { display: inline-flex; gap: 4px; }   /* Cut 16 §2: the wake's class chips (`rogue · vanish`) */
+.chip.cls-offer .rule.locked { opacity: .55; }
 .gear { min-width: 36px; min-height: var(--tap); font-size: 20px; color: var(--dim); }
 
 /* tabs */
@@ -95,6 +97,8 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .fc-yours { margin-top: 8px; font-size: 13px; }   /* Cut 7 §2: `yours: 3 of 5 rows` */
 .fc-ends { margin-top: 8px; font-size: 13px; }    /* Cut 12 §3: `bank 40% · return 35% · death 25% · ~$54` */
 .fc-ends .gold { color: var(--fg); }
+.fc-picked { margin-top: 2px; font-size: 11px; opacity: .8; }   /* Cut 16 §1: `D3 · D4 · picked clean` */
+.fc-picked[hidden] { display: none; }
 .rows-foot .num { white-space: nowrap; }  .rows-foot .cards { font-size: 12px; }   /* Cut 12 §1: `3/4 · 2 cards` on one line */
 .supplies .chip.item .x { margin-left: 2px; padding: 0 6px; background: none; border: 0; color: var(--dim); font-size: 16px; }   /* Cut 12 §6: one line off the shelf */
 .supplies .chip.item .found { font-size: 12px; }
@@ -147,6 +151,12 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .hp .fill { display: block; height: 100%; background: var(--ok); transition: width .25s; }
 .hp .fill.low { background: var(--hp); }
 .depth { font-size: 18px; }
+/* Cut 16 §4: the boss's bar under the hero's while he is in view — his name, one word, and a thin track */
+.boss-hp { flex-basis: 100%; display: flex; align-items: center; gap: 8px; max-width: 220px; font-size: 11px; color: #ff8a8c; text-shadow: 0 1px 4px #000; text-transform: uppercase; letter-spacing: .06em; }
+.boss-hp[hidden] { display: none; }
+.boss-hp .name { flex: 0 0 auto; }
+.boss-hp .track { flex: 1; height: 5px; background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; }
+.boss-hp .fill { display: block; height: 100%; background: var(--hp); transition: width .25s; }
 .alert { color: var(--warn); letter-spacing: -1px; min-width: 40px; }
 .hud-btn { min-width: var(--tap); min-height: var(--tap); padding: 0 12px; border-radius: var(--radius); background: rgba(20,22,27,.8); border: 1px solid var(--line); backdrop-filter: blur(4px); }
 .hud-btn.on { border-color: var(--acc); color: var(--acc); }
@@ -280,6 +290,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .forge .ladder .rung { color: var(--fg); }
 .ledger .up, .report .up { color: var(--ok); }
 .report .down { color: var(--hp); }
+.picked-line { margin: 0 0 8px; font-size: 13px; }   /* Cut 16 §1: `D3 · D4 · picked clean` */
 .gold-line { margin: 2px 0 8px; font-size: 13px; line-height: 1.5; }
 .gold-line span { white-space: nowrap; }   /* a piece wraps whole, never `−` on one line and `$640 spent` on the next */   /* Cut 13 §3: `+$412 banked · +$96 returned · +$45 salvage · −$640 spent` */
 

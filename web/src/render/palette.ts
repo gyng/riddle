@@ -15,6 +15,9 @@ export const PALETTES: Record<string, Palette> = {
   // darkest → 7 lightest. The packed tiles are authored in exactly these colours, so quantisation
   // is lossless for tile art and only bites on fog/dim, sprites (50%) and fallbacks.
   warrens: ["#14120d", "#2e2a1c", "#4a4326", "#6b6a2f", "#8c7a3c", "#b09a5a", "#d4c58a", "#efe6c0"].map(hex), // olive/umber/bone
+  // Cut 16 §3: the Burrows (D5–8) — red clay and torch amber on the Warrens' ramp shape (same luminance steps); no tile art of
+  // its own: its tiles are the Warrens' recoloured index for index (atlas.ts `TILE_ALIAS`)
+  burrows: ["#160c09", "#34170f", "#522417", "#7a3a1c", "#a2522a", "#c8783a", "#e4a95e", "#f6dcaa"].map(hex), // red clay/torch amber
   fens:    ["#0c1416", "#1a2b2e", "#24443f", "#2f6a5a", "#4d8a72", "#6f9f8a", "#9dbfa8", "#d6e6da"].map(hex), // teal/moss/slate
   crypt:   ["#0b0a14", "#1c1a30", "#33304f", "#4f4d6d", "#77738c", "#a39fae", "#d3cfc9", "#f1ede0"].map(hex), // indigo/ash/bone
 };
@@ -23,6 +26,9 @@ export const PALETTES: Record<string, Palette> = {
 export function setPalettes(p: Record<string, string[]>): void {
   for (const [biome, cols] of Object.entries(p)) if (cols.length >= 2) PALETTES[biome] = cols.slice(0, 8).map(hex);
 }
+
+/** Cut 16 §3: biomes drawn with another biome's tile art, recoloured index for index into their own ramp. */
+export const TILE_ALIAS: Record<string, string> = { burrows: "warrens" };
 
 export function paletteFor(biome: string): Palette {
   return PALETTES[biome] ?? PALETTES.warrens!;
