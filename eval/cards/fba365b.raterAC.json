@@ -1,0 +1,80 @@
+{
+  "$comment": "Blind rater AC, seed 1501, production build on :5230 (commit fba365b), headed GPU driver 400x800 @3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, eval-fun FRAMEWORK.md sections 1-3, the template (and the header of tools/driver.mjs for driver ops). Did not open PLAN.md, research/, docs/CUT*.md, other cards or source. Absence was simulated (?dev=1&absent=8h), not a real wall-clock absence; return was scored in the same sitting. Notes: scratchpad/raterAC/notes.md.",
+  "game": "Riddle",
+  "build": "fba365b",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAC (blind agent, seed 1501)",
+  "horizon": {
+    "activeMinutes": 54,
+    "absences": ["8h simulated via ?dev=1&absent=8h (not a real wall-clock absence)"],
+    "runsWatched": 18,
+    "runsOffline": 16,
+    "ruleEdits": 15,
+    "note": "36 min cold (12 sends: 8 at 1x, 3 'fights', 1 'fast'), then the 8h absence, then 18 min on return (6 sends: 2 at 1x, 3 'fights', 1 'fast', 1 skip). Deaths read in full: 5 (4 watched + 1 offline). 15 of my own rule edits plus 1 applied patch. Audio fired (window.__audio.log, 1323 cues, unmuted) but I could not hear it: unassessed."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: The den on D6 woke and thieves snatched my leash and teleport scroll, bloats on D7 gassed him down to a few HP, and he went into the Goblin Warlord with no potion left ('drink ✗ no item'). He broke the Warlord anyway ('WARLORD BREAKS' → 'GOBLIN WARLORD DOWN'), walked into the Fens on D9 for the first time, met a pink jelly, and my depth rule banked $133. It was the run where the 'on see den → descend' and 'foe: boss' rows I had written after the overnight report paid off, and it unlocked the ranger."
+  },
+  "probes": {
+    "clarity": "Did you ever not know what to do, or what just happened? — What happened was always readable (the morgue line 'R1 unknown item' on every tick told me my heal was unidentified), but money was not: the HUD said 'carry $78 · keeps $78 · bank R4' and he then died with '$0', and a patch promising 'reach D7 +20%' turned into 'D7 0%' in the camp forecast once applied.",
+    "decisions": "Name a choice you made and why. — I set 'loot ≥ 100 → bank' instead of 50 because the forecast showed '~$57, bank 55%' against '~$45, bank 87%', and I'd make it again; later 'stairs seen → descend' traded money for depth ('~$93' but D6 78%).",
+    "mastery": "What can you do now that you couldn't an hour ago? — The first heir died at D5 ('Trophy: no heal to D5'); by the end I bank at D10 every run and kill the Warlord with a 'foe: boss → attack boss' row, because I learned heal is 'violet', thieves live in dens, and bank must sit above retreat.",
+    "tension": "Where did you sweat? — Run 2 died with '$73 carried' 27 short of my own 'loot ≥ 100' bank threshold, and the first Warlord came with 'drink ✗ no item'; after the absence 15 of 16 runs banked, so later runs rarely felt at risk.",
+    "feel": "What did you actually see? — Readable callouts every ~3 s at 1x ('POPS!', 'WARLORD BREAKS', 'The den wakes: thieves on every side.'), but 'fast' took 127 s for a run 'fights' did in 104–156 s, and one Warlord fight showed ~25 s of 'stalling' and 'hit ✗ no target'.",
+    "surprise": "What directly surprised you and changed your decisions? — Monkeys stealing a scroll I hadn't identified, a 'fire' potion drunk by my own gamble row at 8 HP, bloats bursting, a cage 'three inside, one to take', the Fens tileset; each changed a rule, though monkey theft then happened in nearly every run.",
+    "expression": "Describe your build to a friend. — A cautious banker that drinks heal at 30%, banks at 30% or at D10 below half, walks past any den it sees, dives when it sees stairs, and hits the boss first; recognisably mine, but sets 2 and 3 stayed empty and the patches pull toward the same shape.",
+    "story": "Tell me about one run. — See delayedRecall: den thieves took everything, bloats gassed him, he broke the Warlord potionless and banked in the Fens.",
+    "pacing": "Where did play drag, where did administration delay? — A run is 40–150 s at 1x and a check-in is a minute; the drag is 'fast' barely being faster and the boss stall; the skip button (whole run in ~10 s) is the real fast-forward.",
+    "failure": "Why did you lose? Whose fault was it? — 'BURST · D6 · R1 DRINK UNKNOWN', stamp ROW, '1 hp short', 'The smoky one: fire. Gambled: fire potion.' — my own gamble row killed him and the screen said so, with three patches and their 'survives %' below.",
+    "social": "n/a — solo; heirs finding each other's bones ('Found heir 2's bones: 6 items') is story, not relationship.",
+    "autonomy": "What did you decide to do that the game didn't ask for? — I chose to avoid dens and to hunt the D9 Warlord shown as 'D9 · warlord 0%' in the forecast; the dungeon order itself is fixed and descent is linear.",
+    "progression": "What grew, what persisted? — Rows 2→8, verbs (throw, cleave, attack boss), classes (rogue, ranger after 'slay a boss'), fighter L1→L4, ledger SEEN/KNOWN/STUDIED columns, ★1→7, $0→$3306; +1 row escalated ◆2→4→7→11 and the fresh ranger L1 forecast 'death 54%', so the new class was not usable yet.",
+    "aesthetic": "Describe the place. — Painted camp header of the hero on stairs, pixel dungeon with a warm burrows palette that turns teal in the Fens, torn red death banners with a wax 'ROW'/'GAP' seal; camp below the rules is a large empty dark area and the header never changed.",
+    "return": "What did you come back to, what did you decide? — '16 RUNS · 15 BANKED · 1 DEATH', '+$2028 banked', 'PLATEAU R2 bank ended 7 runs, none past D8', 'R5 fired 0 of 16 runs: foes ≥ 3 → drink strength', and 'goblin warlord · counter: attack boss'; I cut the dead strength row, wrote a boss row and a den row, bought a row, and got D9 then D10 within two runs. I would not rather have stayed.",
+    "attribution": "Tell me how the last run ended. Whose decision was that? — 'My R3 banked him at D10 after he broke the Warlord with my R7 attack boss'; my words were 'my rule killed him' for the fire-potion death, but the D5 death where the patch's retreat fired ten times in a row was stamped GAP, which felt like the game's fault, not mine."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.8, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Every tick of the trace names why each row did not fire ('R1 unknown item', 'R3 foes appeared after', 'R1 hazard first · gas'). Named lapse: the money/forecast layer does not reconcile — 'carry $78 · keeps $78 · bank R4' then 'died $0'; a patch showing 'reach D7 +20%' became 'D7 0%' in camp; heir number rose after a bank with no explanation; 'repeat · $80' was charged on death without my noticing." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "'loot ≥ 50 → bank' forecast 'bank 87% ~$45 D5 2%' versus '≥ 100' 'bank 55% ~$57 D6 16%' — two defensible choices before sending. Named lapse: once heal potions went on sale, 'hp < 30% → drink heal' plus a heal in the loadout was strictly dominant (forecast ~$52 → ~$108), and the fresh ranger was strictly worse than fighter L4." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Deepest bank D5 → D6 → D7 → D9 → D10 in the horizon, each step from something I learned ('heal (violet)', thieves in dens, bank above retreat, 'counter: attack boss'). Named lapse: after the Warlord fell, edits moved the forecast only a few points ('~$123 → ~$130') and the next thing to learn was not visible." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Early stakes were real: 'died $0 · $73 carried' 27 short of my own bank threshold; first Warlord with 'drink ✗ no item'. After the absence '15 BANKED · 1 DEATH' and every return-session run banked, so the push-or-bank tension faded." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "At 1x a new line or callout lands about every 3 s ('POPS!', 'WARLORD BREAKS', 'The monkey stole the ashen scroll?'); smooth headed. But 'fast' took 127 s for a run (1x runs 40–90 s), and one Warlord fight had ~25 s of 'stalling'/'hit ✗ no target'. Audio unassessed (cues logged, not heard)." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Monkeys stealing unidentified scrolls, 'The smoky one: fire.' from my own gamble, bloats bursting, cages, captives ('Cut the captive down.'), the Warlord, the Fens and eels; each changed a rule. Named lapse: monkey/den theft happened in almost every run ('The monkey stole the invisibility potion.' three times) and became a tax, not a surprise." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My final 8 rows ('on see den → descend', 'hp < 50% · depth ≥ 10 → bank', 'foe: boss → attack boss') read as my own cautious banker. But sets 2/3 stayed at 0, rows get tagged by the game ('gambler'), and the class choice was not a real choice." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Best run has a clear turn (thieves strip him, bloats gas him, he breaks the Warlord potionless, banks in the Fens); the chronicle keeps lines like '♟3 the brave fighter · D6 · found ♟2's bones · fell to gas'. Named lapse: return-session runs retell the same Warlord beat ('Slew the Goblin Warlord.') four times." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-play: 40–150 s runs, lines every ~3 s, one ~25 s boss stall; 'fast' barely faster, skip (~10 s) works. Administrative: death → patch → camp → send is under a minute, but the unlocks sheet reflowed under my finger twice (opened 'cond: turns' when aiming at '+1 row')." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "'BURST · D6 · R1 DRINK UNKNOWN' + ROW + '1 hp short' + three patches with 'survives 92% · base 17%' and a DROP sheet showing each row's fire count ('R4 98/99, R3 0/99'). Named lapse: the patch I applied ('hp < 40% · foes ≥ 2 → retreat', 'survives 92%') retreated ten ticks straight from fast jackals into death, and that death was stamped GAP, not the patch's row." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goals from 'D9 · warlord 0%' and from avoiding dens; rules let me dive or loot. The dungeon is a linear descent and the goals on offer are the ones the forecast shows." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run: kit from cages, loot, depth. Persistent: rows 2→8, verbs/conds (throw, loot, alert, cleave, attack boss), rogue/ranger, fighter L4, ledger columns, cards, ★7, vault/forge. Named lapse: +1 row cost ◆2→4→7→11 and ranger L1 forecast 'death 54%' against fighter L4's 10%, so the headline unlock was unusable in the horizon." },
+    { "id": "aesthetic", "human": 0.8, "bot": "na", "proxy": "none", "note": "Painted camp header, pixel burrows turning to teal Fens, red death banners with wax 'ROW'/'GAP' seals. Named lapse: the camp's lower half is an empty dark field and the header art never changed across the hour. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "'16 RUNS · 15 BANKED · 1 DEATH', '+$2028 banked', 'PLATEAU R2 bank ended 7 runs, none past D8', 'R5 fired 0 of 16 runs', 'goblin warlord · counter: attack boss' → I cut a dead row, wrote boss and den rows and hit D9/D10 within two runs. About $250/h offline vs roughly $600–800/h while I was actively editing. Named lapse: offline almost never loses, so the report is a list of wins with one death; 8 runs collapse into '· 8 earlier'." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "I say 'my R1 drank the fire potion' and 'my R7 attack boss broke him' (the caption showed 'R7 · attack boss'). Named lapse: a patch I applied caused a death stamped GAP, and the Warlord kill in my best run was captioned 'R8 · attack nearest', not my boss row — ownership blurred there." }
+  ],
+  "gripes": [
+    "Thieves (monkeys/dens) steal the $40 potions I buy in nearly every run — invisibility three times, heal four — and 'attack thief' or 'on see den → descend' only partly helps; it feels like a tax, not a puzzle.",
+    "The money layer doesn't add up to me: 'keeps $78' then died $0; loadout 'repeat' charged on death; a patch's 'reach D7 +20%' became D7 0% in camp; heir numbers change for reasons I never saw.",
+    "Speeds: 'fast' is barely faster than 1x, and one boss fight stalled ~25 s; after the absence nearly every run banks, so the later hour has less at stake."
+  ],
+  "tellAFriend": [
+    "You write eight if-then rules and the hero plays by them; when he dies the banner names the exact row that killed him ('R1 DRINK UNKNOWN', '1 hp short') and offers fixes with survival odds.",
+    "The forecast column updates as you edit, so you can see '~$45 safe' against '~$57 greedy' before you send him.",
+    "The overnight report tells you which rows never fired and what the boss is weak to; I fixed three rows and beat the Warlord two runs later."
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 50
+        },
+        {
+          "k": "depth>=",
+          "n": 10
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "on_see",
+          "t": "den"
+        }
+      ],
+      "verb": {
+        "v": "descend"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "path_stairs"
+        }
+      ],
+      "verb": {
+        "v": "descend"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "thief"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:thief"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "player"
+    }
+  ],
+  "name": "fighter"
+}

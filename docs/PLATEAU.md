@@ -506,3 +506,30 @@ the hidden hero or a wall without a reason: Cut 18's items landed.
    ones after the reach re-rank (AA).
 5. **Repetition**: the monkey steals nearly every run; `Zeleth … is avenged` three times; every
    card `reach ~0`.
+
+## Cohort 15 (build fba365b: Cut 19 — the cage at camp, a return that walks home, admin gone; the art passes; two QA rounds)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AC | 1501 | 74.6 | none |
+| AD | 1502 | 74.1 | none |
+
+α = 0.969 (the highest on record). Mean **74.35** — **+4.85**, both verdicts "fun". Ten axes at 0.8
+from AC (clarity, surprise, story and **aesthetic** among them — the art pass registered), eleven
+from AD; tension, feel, expression, pacing (and autonomy for AC) hold 0.6 for both.
+
+Trajectory: … 72.4 → 68.7 → 67.9 → 67.7 → 69.5 → **74.35**.
+
+### The read
+
+1. **Thieves are a tax** (both, first): "monkeys and dens steal the $40 potions I buy in nearly
+   every run"; "the den wakes … on nearly every run and took the same gear each time". Cut 19's
+   thinning only follows a lineage that *lost* to a den; a lineage that is robbed and lives is
+   robbed again.
+2. **Pets die nearly every run** (AD: 8 pets lost in a session): taming reads as a tax.
+3. **Money lines that don't add up** (AC): `carry $78 · keeps $78 · bank R4` then died $0 (the
+   stake says what the bank row would keep, not what a death keeps); a silent repeat charge on
+   death; a patch promising `reach D7 +20%` that read D7 0 % once applied.
+4. **Speed**: `fast` "barely faster than 1×" (both); early runs at 1× "too short to follow"
+   (AD); the forecast settling 4–8 s after each edit (AD).
+5. **Stakes after the absence** (AC: 15 of 16 banked; the second half had little at stake).

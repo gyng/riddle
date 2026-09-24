@@ -1,0 +1,168 @@
+{
+  "$comment": "Blind rater AD, seed 1502, headed GPU driver 400x800 @3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md §1-3 and the template. No forbidden files opened. Notes: scratchpad/raterAD/notes.md.",
+  "game": "Riddle",
+  "build": "fba365b",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAD",
+  "horizon": {
+    "activeMinutes": 52,
+    "absences": [
+      "simulated overnight via ?dev=1&absent=8h (16 offline runs, 'rested 324m'), taken after ~35 min cold"
+    ],
+    "runsWatched": 16,
+    "runsOffline": 16,
+    "ruleEdits": 16,
+    "note": "Cold 00:51-01:26 (~35 min incl. reading), return 01:26-01:43 (~17 min). 16 watched runs: 14 at default 1x, one in 'fights', one in 'fast'. 6 deaths read on their death screens (4 watched, 2 from the offline report); 16 own rule edits plus 1 applied patch. Absence was simulated, not real, so return was scored on the same day."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: The Goblin Warlord had cornered my fighter on D8 and sent him home at 10 HP with both his monkeys dead, so I wrote two rows, 'adjacent ≥ 2 → cleave' and 'foe: boss → attack boss', and pushed the bank line up to $200. Next run the warlord came with four goblins and archers, my attack-boss row fired, 'WARLORD BREAKS', 'GOBLIN WARLORD DOWN', and the hero kept going through a chained captive, eels in the Fens and pink jellies. He banked $216 on D12, a new best, while wraiths were draining his max HP and 'the floor is hungry'."
+  },
+  "probes": {
+    "clarity": "Mostly yes: the watch prints 'R3 ATTACK JACKAL' over the fight, but 'DIED · TRACE' on the report opened a gold sheet ('$0 died D8') instead of a trace, and 'drink heal' vanished from the verb list until the potion was identified.",
+    "decisions": "I set the bank line at loot ≥ 50 (forecast 'bank 94% ~$50') over ≥ 100 ('82% ~$86'), then later went to ≥ 200 ('death 24% ~$109') to hunt the warlord; and I kept fighter L4 ('death 13% ~$126') over the ranger I had just bought ('death 27% ~$99').",
+    "mastery": "An hour ago I lost to a jackal pack on D3 ('1 hp short'); by the end the warlord went down twice and the hero reached D12, because I learned cleave, the boss counter and a rest threshold of 75%.",
+    "tension": "I sweated when 'WARLORD · boss · counter: attack boss' came up and HP ran 30→10 in about ten seconds before 'R2 return' fired; most other runs just banked ~$100 on D5-D7 without a scare.",
+    "feel": "The pixel callouts ('CORRIDOR × NO PATH', 'WARLORD BREAKS') land on the beat, but at 1x a run is 22-67 s early on so floors flash by, and 'fast' did not feel faster than 1x (67 s run); audio unassessed.",
+    "surprise": "'Skog the jackal, gone wild' - my dead pet came back as a wild jackal; 'bloats seal the stair' blocked my corridor row; 'Found heir 2's bones' - but the thief den robbed me in nearly every run ('A thief snatched the teleport scroll').",
+    "expression": "The chronicle called my hero 'the chokepoint fighter' after my corridor row; my set is heal/return/cleave/boss/corridor/attack/rest/bank, though much of it is what the forecast rewarded.",
+    "story": "Best run: warlord down on D8, 'A cry from the dark: a captive, chained. Cut the captive down.', eels, jellies, wraiths draining max HP 42→36, banked $216 on D12.",
+    "pacing": "In-run: dense, rarely dead ('stalling' for ~15 s on D7 once); administration: every edit waits 4-8 s for the forecast to settle, and the party sheet toggles a pet off if tapped twice; a check-in was ~2-5 min.",
+    "failure": "Death screen names it: 'goblin warlord · D8 · GAP', per-row why-not ('R4 to corridor · no path ← foes on every side'), 'blow 8 · 4 hp short', WATCH replays the tick; recovery is instant, next heir waits.",
+    "social": "Named pets (Thix, Skog, Morak, Thar...) and named foes ('Krog the ogre is avenged'), but pets died nearly every run ('Thix fell · Skog fell'), so no relationship developed.",
+    "autonomy": "I chose to chase the Goblin Warlord for the ranger unlock and pushed the bank line to 200 myself; no one asked me to.",
+    "progression": "Within run: cage weapons ('took axe +1'); between runs: $ and ◆ bought rows (4→8), 'cond: loot', 'auto: keep weapon+armour', 'auto: insure', classes; vocabulary grew (foe: gas, foe: boss, drink heal after identifying smoky).",
+    "aesthetic": "Painted camp header, painted pet portraits and a torn red death banner with a wax 'GAP' seal; pixel dungeon readable at phone size; sound not heard.",
+    "return": "Came back to '16 RUNS · D8 DEEPEST · 6 BANKED · 7 RETURNED · 3 DEATHS', 11 potions identified, a warlord fact with its counter, hatched pets, and 'R2 fired 4 of 16 runs: foe: gas → retreat'; I decided to swap that row for drink heal and a boss row, and I would not rather have stayed.",
+    "attribution": "'My cleave and attack-boss rows beat the warlord'; the reel says 'Warlord cornered him to 2 HP; R5 attacked; died to the Warlord' - but it also said 'R4 attack saved him' on a run where R4 popped the bloat and R1 return saved him."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Evidence: the watch shouts the firing row ('R3 ATTACK JACKAL') and the forecast shows 'D6 38%→89%' about four seconds after an edit. Lapse: the report's 'DIED · TRACE' opens the gold sheet, not a trace; the condition list is a wall of 100+ chips on a phone."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Evidence: 'loot ≥ 50 → bank' at 'bank 94% ~$50' against '≥ 100' at '82% ~$86', and fighter L4 against the new ranger L1, were both defensible and I switched between them across runs. Lapse: the forecast turns many edits into try-and-read ('bank' strictly beat 'return' at the same threshold, ~$88 vs ~$52), and 'card: thief guard' says 'reach ~0', so there is nothing to weigh."
+    },
+    {
+      "id": "mastery",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Evidence: early deaths on D3-D6 ('jackal · D3 · DICE', '1 hp short'), then 'GOBLIN WARLORD DOWN' twice and 'new best D12' once I had learned cleave, 'counter: attack boss' and 'hp < 75% → rest'. Lapse: a lot of what I 'learned' was reading the forecast number, not the dungeon."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Evidence: the first warlord meeting, HP 30→10 with 'alert 3', then 'R2 return' at <25% and 'RETURNED $60' of $100. Most runs were routine banks of ~$100 on D5-D7, so the doubt only comes when I push the bank line myself."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Evidence: 'WARLORD BREAKS' and '−3 hp · jackal' pop right on the hit, and HP ticks on the portrait. Lapse: at 1x early runs lasted 22-67 s, too quick to follow floor by floor, and 'fast' mode didn't feel faster (67 s). Audio unassessed (not heard)."
+    },
+    {
+      "id": "surprise",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Evidence: 'Skog the jackal, gone wild' (my dead pet as an enemy), 'bloats seal the stair' blocking my corridor row, a chained captive, and the Fens/eels/wraiths past D9 changed my rows. Lapse: 'The den wakes: thieves on every side' happened in nearly every run and took the same kind of gear each time."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "Evidence: the chronicle names heirs from the rules ('♟4 the chokepoint fighter'), and my 8 rows are mine. But I converged on whatever the forecast scored best, so I doubt another player's set would look very different."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Evidence: the reel 'Warlord cornered him to 2 HP; R5 attacked; died to the Warlord' and my best run (warlord down, captive cut free, banked $216 on D12) retell with a turn in them. Lapse: many reels are just 'D6: the Burrows. Banked $107.'"
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-run: dense, only one dead stretch ('stalling' ~15 s on D7). Administration: every tap waits 4-8 s for the forecast, the party sheet toggles pets off on a second tap, and the 'rest 20m' timer only shows as 'send skips'. Check-ins ran 2-5 min and ended at a chosen stopping point."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Evidence: 'goblin warlord · D8 · 3 unknown unused · GAP', each row's reason ('R3 tame fast · none held ← never found', 'R4 to corridor · no path ← foes on every side'), 'slain by ogre · blow 8 · 4 hp short', and WATCH replays the tick ('CORRIDOR × NO PATH'). Lapse: one death screen said 'nothing beats base · base 100%' and still listed three patches, and the offline report's death button opened the gold sheet."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0. (Seen: named pets and foes, but eight pets fell in one session, so no relationship developed.)"
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "Evidence: I set my own goal (kill the Goblin Warlord for the ranger unlock) and set the depth by the bank line ('loot ≥ 200'). The route itself is not mine: I can't pick floors or branches, only thresholds."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Within run: cage weapons ('took axe +1'), levels (fighter L4, cleave at L3). Persistent: rows 4→8, 'auto: keep weapon+armour' and 'auto: insure' (automation), classes, and new vocabulary as facts arrive ('foe: gas', 'foe: boss', 'drink heal' once smoky was identified). Lapse: several unlocks I never understood ('+1 vault', 'path: bones'), and pets are lost as fast as they're gained."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Visual only: painted camp art and pet portraits, a torn red banner with a wax 'GAP'/'DICE' seal, readable pixel sprites. Camp is the same painting above black tablets every visit. Sound not heard, so audio is unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Evidence: I returned to '16 RUNS · D8 · 6 BANKED · 7 RETURNED · 3 DEATHS', 11 identified potions, 'goblin warlord · boss · counter: attack boss', hatched pets, and 'PENDING: R2 fired 4 of 16 runs: foe: gas → retreat · party: choose'. I edited two rows because of it within a minute. Lapse: 'DIED · TRACE' didn't open the trace, and 'D4–7 · picked clean' went unexplained."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "Evidence: I say 'my cleave and attack-boss rows killed the warlord'; the HUD 'keeps $52 · bank R5' and reels ('the chokepoint landed; Morog fell') name my rows. Lapse: the reel credited 'R4 attack saved him' on a run where R4 popped the gas bloat and R1 return is what saved him."
+    }
+  ]
+}
