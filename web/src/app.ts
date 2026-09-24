@@ -44,6 +44,8 @@ const SAVE_DEBOUNCE_MS = 1000;
 // without it, the full call is used with slices that grow with the absence (80 min for 8 h, 2 h cap).
 const OFFLINE_SLICE_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES = 6;
 const REFINE_MS = 2000;
+/** Cut 20 §3: an edit's forecast waits this long for the next edit (was 250 ms; the first paint is due ≤ 1 s after the edit). */
+const FC_DEBOUNCE_MS = 100;
 const SLOWDOWNS_KEY = "riddle.slowdowns";
 const EDITING_KEY = "riddle.editing";
 function readSlowdowns(): boolean { try { return localStorage.getItem(SLOWDOWNS_KEY) !== "0"; } catch { return true; } }
@@ -318,7 +320,7 @@ export class App {
     if (this.overBudget) return;
     const seq = ++this.rulesSeq;
     void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) this.shelfCheck(); }).catch((e) => console.warn("rules rejected", e));
-    this.fcTimer = window.setTimeout(() => void this.emitForecast(), 250);
+    this.fcTimer = window.setTimeout(() => void this.emitForecast(), FC_DEBOUNCE_MS);
   }
   /** Cut 12 §6: the unlock shelf's `+1 row ⊘ fill rows` is the engine's read of its own set, so it repaints once a rule edit
    *  crosses `max_rows` — after `setRules` resolved (the rules listeners fire before the engine call). */
@@ -588,6 +590,8 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     bones_found: cat(a.bones_found, b.bones_found),
     picked: b.picked ?? a.picked,                          // Cut 16 §1: a state — the last slice knows
     restock_capped: a.restock_capped || b.restock_capped || undefined,   // Cut 19 §3: any slice's repeat stopped at the night's income
+    // Cut 20 §5: the night's bounty — slices of one night add up (taken by any, the coins summed); a later night's floor replaces it
+    bounty: !a.bounty ? b.bounty : !b.bounty ? a.bounty : a.bounty.depth === b.bounty.depth ? { depth: b.bounty.depth, taken: a.bounty.taken || b.bounty.taken, gold: a.bounty.gold + b.bounty.gold } : b.bounty,
     exits: cat(a.exits, b.exits),                          // Cut 6 §1: one ledger line per exit
     elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,
     deepest: a.deepest === undefined && b.deepest === undefined ? undefined : Math.max(a.deepest ?? 0, b.deepest ?? 0),

@@ -81,10 +81,10 @@ try {
   // ---- N5: a 0 % notch dims, label and all
   const z = await page.evaluate(() => { const n = document.querySelector('.shaft .notch[data-d="7"]'); return { zero: n?.classList.contains("zero"), color: n ? getComputedStyle(n.querySelector(".dl")).color : "", acc: getComputedStyle(document.documentElement).getPropertyValue("--acc").trim() }; });
   check(z.zero && !/255, 2[0-9]{2}, /.test(z.color), `the next floor at 0 % is dim, not gold (${z.color})`);
-  // a `depth ≥ 5 → bank` row caps the shaft: `D5 · bank`, D6+ capped
+  // a `depth ≥ 5 → bank` row caps the shaft: `D5 · bank`, D6+ capped (Cut 20 §5: the bounty notch past best + 1 is its own)
   await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [{ k: "depth>=", n: 5 }], verb: { v: "bank" } }, r.rules.rows.length); });
   await sleep(200);
-  const cap = await page.evaluate(() => ({ d5: document.querySelector('.shaft .notch[data-d="5"] .dl')?.textContent, capped: [...document.querySelectorAll(".shaft .notch.capped")].map((n) => n.dataset.d) }));
+  const cap = await page.evaluate(() => ({ d5: document.querySelector('.shaft .notch[data-d="5"] .dl')?.textContent, capped: [...document.querySelectorAll(".shaft .notch.capped:not(.bounty)")].map((n) => n.dataset.d) }));
   check(cap.d5 === "D5 · bank" && cap.capped.join(",") === "6,7", `a bank row marks its floor and dims the ones past it (${cap.d5}; capped ${cap.capped.join(",")})`);
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows.pop(); r.rulesChanged(); });
   await settle();

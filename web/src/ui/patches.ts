@@ -69,7 +69,7 @@ export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: bo
 export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace, opts: PatchOpts = {}): HTMLElement {
   const head = opts.nothingBeatsBase && patches.length
     ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `nothing beats base · base ${pct(baseline ?? 1)}`) : null;
-  return h("div", { class: `patches${head ? " none-beats" : ""}` }, head, ...patches.map((p) => {
+  const rows = patches.map((p) => {
     const delta = Math.round(p.forecast_delta * 100);
     // QA 23ed91f (K: "`reach 92% · base 8% · reach +83%`: 92 − 8 ≠ 83, and `reach` twice"): a stall patch's base is the rounded reach
     // less the rounded delta, so the three numbers add up; its delta then drops the word (`+84%`)
@@ -114,7 +114,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const root = unlock ? (p.root ? h("small", { class: "dim" }, rowLabel(p.row)) : "") : p.root ? h("small", { class: "root" }, "← ", p.root.text) : "";
     // QA 1a2a4a9 (O: "tapping a patch card applied it and jumped to camp; I meant to select it"): with `opts.select` (the death screen)
     // a tap lights the tablet and the gem applies the lit one — one model: tablets choose, the gem acts
-    const btn: HTMLButtonElement = h("button", { class: `patch tablet${p.remove ? " remove" : ""}${p.below_bar || held >= 0 ? " below" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
+    const btn: HTMLButtonElement = h("button", { class: `patch tablet${p.remove ? " remove" : ""}${p.below_bar || held >= 0 || opts.nothingBeatsBase ? " below" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
       onclick: opts.select ? () => opts.select!(btn) : onclick, ...(full ? { "data-full": "1" } : {}) },
       h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
@@ -124,7 +124,15 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
         reachSpan(p, stallish)));
     applyOf.set(btn, onclick);
     return btn;
-  }));
+  });
+  // Cut 20 §4 (AD: "`nothing beats base` … but lists three patches anyway"): under that header the candidates are no patches — dim,
+  // folded behind `others` (a tap unfolds them; the gem stays `edit`)
+  if (head) {
+    const fold = h("div", { class: "patches-fold", hidden: true }, ...rows);
+    const more: HTMLButtonElement = h("button", { class: "mini more patches-more", onclick: () => { fold.hidden = false; more.remove(); } }, /* copy:button */ "others", h("small", { class: "num dim" }, ` ${rows.length}`));
+    return h("div", { class: "patches none-beats" }, head, more, fold);
+  }
+  return h("div", { class: "patches" }, ...rows);
 }
 /** Each patch tablet's action (apply, buy, open the drop sheet, open the camp on a held row) — the gem's, when tablets only select. */
 export const applyOf = new WeakMap<HTMLElement, () => void | Promise<void>>();
@@ -149,7 +157,8 @@ function reachSpan(p: Patch, stallish = false): HTMLElement {
 /** QA 23ed91f: the camp's reach for a death's patches landed (`deathDeltas`, same order): each patch takes its numbers, and each
  *  tablet in `el` (patchRows' own, in order) repaints its reach line. */
 export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): void {
-  const buttons = [...el.querySelectorAll<HTMLElement>(":scope > button.patch")];
+  const host = el.querySelector<HTMLElement>(":scope > .patches-fold") ?? el;   // Cut 20 §4: the folded block's tablets
+  const buttons = [...host.querySelectorAll<HTMLElement>(":scope > button.patch")];
   patches.forEach((p, i) => {
     const f = filled[i]; if (!f) return;
     Object.assign(p, { forecast_delta: f.forecast_delta, forecast_depth: f.forecast_depth, forecast_pm: f.forecast_pm, camp_pending: false });
@@ -170,7 +179,7 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
   // sinks a loss under DELTA_SINK; here the reach is the camp's, landing after the player has read the list — the order moves less)
   for (const x of live) x.b.classList.toggle("neg", moveOf(x.p) < 0);
   const ordered = [...rankBand(live, moveOf), ...below];
-  for (const x of ordered) el.appendChild(x.b);
+  for (const x of ordered) host.appendChild(x.b);
 }
 
 /** Cut 19 §4 (core `trace::SURVIVE_BAND`): survival decides a place when two patches' survival differs by more than 10 pts. */

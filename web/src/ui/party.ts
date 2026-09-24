@@ -1,4 +1,4 @@
-// Party strip: kennel cards (kind · L · tags · g), tap → party (≤ party_slots), ≡ → its own rows,
+// Party strip: kennel cards (kind · L · tags · g), tap → party (≤ party_slots; Cut 20 §2: a tap on a party card does nothing, its `×` drops it), ≡ → its own rows,
 // eggs with hatch_in, hatch (◆2) for eggs from a loss, breed (two level ≥ 2), ledger sheet.
 // Cut 7 §1: a boss row of the ledger whose counter is known carries the counter row as a chip; a tap inserts it at
 // the top of the active set the way a patch does (overflow rules apply) and opens the camp on it.
@@ -44,17 +44,20 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
         if (breeding.length === 2) { const [a, b] = breeding; breeding = null; void app.mutate(() => app.engine.breed(a, b)); return; }
         refresh(); return;
       }
+      // Cut 20 §2 (AD: "tapping a pet twice toggles it off"): a tap selects; a second tap never dismisses — the card's `×` does
+      if (inParty) return;
       const ids = app.lineage.party.map((p) => p.id);
-      const next = inParty ? ids.filter((x) => x !== c.id) : [...ids, c.id].slice(-(app.lineage.party_slots || 1));
-      void app.mutate(() => app.engine.setParty(next));
+      void app.mutate(() => app.engine.setParty([...ids, c.id].slice(-(app.lineage.party_slots || 1))));
     };
+    const dismiss = (e: Event): void => { e.stopPropagation(); void app.mutate(() => app.engine.setParty(app.lineage.party.map((p) => p.id).filter((x) => x !== c.id))); };
     return h("div", { class: `card comp${inParty ? " on" : ""}${picked ? " pick" : ""}${breeding && c.level < 2 ? " off" : ""}` },
       petFace(c.kind),
       h("button", { class: "comp-main", onclick: onTap },
         h("span", { class: "name" }, nice(c.kind), " ", h("small", { class: "dim" }, c.name), " ", h("b", { class: "num" }, `L${c.level}`), h("small", { class: "dim num" }, ` g${c.gen}`)),
         h("span", { class: "tags dim" }, c.tags.map(nice).join(" · ")),
         h("span", { class: "hp num dim" }, `${c.hp}/${c.max_hp} · ${c.rules.rows.length}/${c.max_rows}`)),
-      h("button", { class: "grip", onclick: () => openRules(app, c) }, "≡"));
+      h("button", { class: "grip", onclick: () => openRules(app, c) }, "≡"),
+      inParty && !breeding ? h("button", { class: "x drop-pet", "aria-label": "×", onclick: dismiss }, "×") : "");
   }
   refresh();
   return { el, refresh };

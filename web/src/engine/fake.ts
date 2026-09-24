@@ -922,7 +922,7 @@ function stakeOf(run: Run, rules?: RuleSet): Snapshot["stake"] {
   const rows = rules?.rows ?? []; const ri = rows.findIndex((r) => r.verb.v === "return" || r.verb.v === "bank");
   // Cut 6 §1: what that row would bring home now (the kept number, not the carried one)
   return { loot: run.loot, brought, return_row: ri >= 0 ? ri : undefined, kept: ri >= 0 ? Math.round(run.loot * (rows[ri].verb.v === "bank" ? 1 : 0.6)) : undefined,
-           stalling: run.stuckFires > 0 };   // Cut 13 §1: the guard has fired — `keeps $0 · stalling`
+           stalling: run.stuckFires > 0, death_keep: 0 };   // Cut 20 §4: a death keeps nothing in the fake; Cut 13 §1: the guard has fired — `keeps $0 · stalling`
 }
 function runToEnd(run: Run, ctx: SimCtx, maxTurns = 3000): void { while (!run.over && run.turn < maxTurns) simTurn(run, ctx); if (!run.over) endRun(run, "return", []); }
 
@@ -998,6 +998,7 @@ export class FakeEngine implements Engine {
     this.s.lineage.ledger = this.ledger();
     this.s.lineage.counters = this.counters();
     this.s.lineage.combos = combosIn(this.s.rules.rows, COMBOS);   // Cut 8B §1
+    if (this.s.lineage.best_depth >= 1) this.s.lineage.bounty = { depth: this.s.lineage.best_depth + 2 }; else delete this.s.lineage.bounty;   // Cut 20 §5 stand-in: tonight's bounty floor, best + 2 (none before a best)
     this.s.lineage.shadowed_by = shadowField(this.s.rules.rows).shadowed_by;   // QA 92eb880
     { const L = this.s.lineage; const qm = L.unlocks.includes("quartermaster");   // QA 23ed91f: what an unwatched exit keeps
       L.keep_auto = L.keep_pref === "best_armour" ? (qm ? ["armour", "weapon"] : ["armour"]) : L.keep_pref === "best_weapon" ? (qm ? ["weapon", "armour"] : ["weapon"]) : []; }
@@ -1152,7 +1153,9 @@ export class FakeEngine implements Engine {
       ends[r.exit ?? "death"] += 1; ends.gold += r.loot_kept;
     }
     // Cut 9 §3: `pm` = the binomial half-width (1.96 σ, a fraction like `reach`), so a wobble between reads reads as noise
-    const depths: Forecast["depths"] = []; for (let d = 1; d <= Math.min(15, known_to); d++) { const p = reach[d] / N; depths.push({ depth: d, reach: p, pm: 1.96 * Math.sqrt((p * (1 - p)) / N) }); }
+    // Cut 20 §5 stand-in: the bounty floor (best + 2) is a depth of its own, flagged
+    const bountyD = L.best_depth >= 1 ? L.best_depth + 2 : -1;
+    const depths: Forecast["depths"] = []; for (let d = 1; d <= Math.min(15, Math.max(known_to, bountyD)); d++) { const p = reach[d] / N; depths.push({ depth: d, reach: p, pm: 1.96 * Math.sqrt((p * (1 - p)) / N), ...(d === bountyD ? { bounty: true } : {}) }); }
     const top = Object.entries(causes).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([cause, n]) => ({ cause, share: n / N }));
     // Cut 10 §2: a boss floor whose counter fact is known and whose row is absent from the set names it: `try: attack boss`
     for (const d of depths) {
@@ -1325,6 +1328,7 @@ export class FakeEngine implements Engine {
   runOfflineQuick(elapsedS: number): ReturnReport { const r = this.runOffline(elapsedS); return { ...r, worst_death_id: r.worst_death?.run_id, worst_death: undefined }; }
   runOffline(elapsedS: number): ReturnReport {
     const L = this.s.lineage;
+    const bountyD = L.best_depth >= 1 ? L.best_depth + 2 : 0;   // Cut 20 §5 stand-in: the night's bounty floor as the absence began (none before a best)
     let budget = Math.max(0, Math.floor(elapsedS)); let runs = 0, stall = 0, sampled = false, turnsTotal = 0;
     let rested = 0, banked = 0, returned = 0, stalled = 0; const bonesFound: string[] = []; const exits: ExitLine[] = [];
     // Cut 2 §1: the rest (or wake) after each expedition comes out of the same clock; what is left waits in camp
@@ -1371,7 +1375,8 @@ export class FakeEngine implements Engine {
     return { elapsed_s: elapsedS, runs, sampled, learned, bests, found, deaths: Object.entries(deaths).map(([cause, n]) => ({ cause, n })).sort((a, b) => b.n - a.n), pending, reel, marks_earned: marks, worst_death: worstDeath, live, tamed, hatched, lost, xp: { class: L.class, gained: xpGained, level_ups: levelUps },
       salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp },
       spent: Object.entries(spentMap).map(([kind, v]) => ({ kind, ...v })),   // Cut 13 §3
-      rested_s: rested, banked, returned, stalled, bones_found: bonesFound, stall: verdictStall, deepest, exits };   // Cut 13 §1: the stalls, counted inside `returned`
+      rested_s: rested, banked, returned, stalled, bones_found: bonesFound, stall: verdictStall, deepest, exits,
+      bounty: bountyD <= 0 ? undefined : { depth: bountyD, taken: deepest >= bountyD, gold: deepest >= bountyD ? Math.max(0, ...exits.map((x) => x.kept)) : 0 } };   // Cut 20 §5 stand-in
   }
   /** Stall verdict (core README) so the report's section can be seen: a `return` / `bank` row that sent ≥ 4 runs home with no
    *  new depth is named; the candidates (row 10 points deeper as `replace`, the row as `remove`, `hp<90 → rest`) carry the

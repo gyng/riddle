@@ -35,6 +35,9 @@ export function clientTry(app: App, cause: string | undefined): ForecastTry | un
 /** Cut 18 §3: the sealing boss's kind as one word (`goblin_warlord` → `warlord`). */
 export const wallName = (kind: string): string => kind.replace(/_/g, " ").trim().split(/\s+/).pop() ?? kind;
 
+/** Cut 20 §5: the bounty's multiplier as the notch reads it (`×2`; a number on the wire above 1 is the multiplier). */
+export const bountyMult = (b: boolean | number | undefined): string => `×${typeof b === "number" && b > 1 ? b : 2}`;
+
 /** Cut 9 §3: the half-width (a 0..1 fraction like `reach`) in percentage points, never `±0` — a forecast is never exact. */
 export const pmPts = (pm: number): number => Math.max(1, Math.round(pm * 100));
 
@@ -99,6 +102,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         h("span", { class: "n num" }, pct(d.reach), d.pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pmPts(d.pm)}${first}`) : "",
           cause ? h("small", { class: "dim" }, ` · ${cause.replace(/_/g, " ")}`) : "",
           wall ? h("small", { class: "wall" }, /* copy:callout */ ` · ${wall} wall`) : "",
+          d.bounty ? h("small", { class: "bounty-x" }, ` · ${bountyMult(d.bounty)}`) : "",   // Cut 20 §5: the bounty floor
           counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : ""),
       ];
       // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
@@ -145,11 +149,13 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   let last: Forecast | null = app.lastForecast;
   const MAX = 9;   // notches shown: the deepest ones, down to best+1
   const paint = (): void => {
-    const next = app.lineage.best_depth + 1, from = Math.max(1, next - MAX + 1);
+    // Cut 20 §5: the bounty floor (best + 2) carries a notch of its own past best + 1 — `D12 ×2`, a gold glint
+    const bountyD = last?.depths.find((d) => d.bounty)?.depth ?? app.lineage.bounty?.depth;
+    const next = app.lineage.best_depth + 1, deepest = Math.max(next, bountyD ?? 0), from = Math.max(1, deepest - MAX + 1);
     const byDepth = new Map((last?.depths ?? []).map((d) => [d.depth, d]));
     const known = last?.known_to ?? 0;
     const rough = last?.refined === false, cap = bankCap(app.rules.rows);
-    replace(notches, ...Array.from({ length: next - from + 1 }, (_, k) => {
+    replace(notches, ...Array.from({ length: deepest - from + 1 }, (_, k) => {
       const depth = from + k, d = byDepth.get(depth);
       const reach = d ? d.reach : depth <= known ? 1 : 0;
       // Cut 18 §3: a walled floor's notch names the boss who seals it (`D9 · warlord`)
@@ -158,8 +164,9 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       // the set's own `depth ≥ N → bank` row is capped (dim), and the bank floor says so (`D6 · bank`)
       const zero = !!d && Math.round(d.reach * 100) === 0;
       const capped = cap !== undefined && depth > cap, bankHere = cap === depth && !wall;
-      const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}`, "data-d": depth },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : ""),
+      const bounty = depth === bountyD;
+      const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : ""),
         h("small", { class: "dp" }, d ? pct(d.reach) : "?", d?.pm !== undefined && d.reach > 0 && d.reach < 1 ? h("i", { class: "pm" }, /* copy:none */ `±${pmPts(d.pm)}${rough ? "…" : ""}`) : ""));
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));

@@ -54,7 +54,28 @@ const press = (label) => page.evaluate((l) => { for (const b of document.querySe
 const inRun = (s) => s?.screen === "watch";
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1`, { waitUntil: "domcontentloaded" });
+  // Cut 20 §3: on D1–D3 `fights` shows no card — the travel at 8×, every fight at 1.5× (early runs were card-skipped travel "too short
+  // to follow"); the card's own checks below turn that off (`early=0`)
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1`, { waitUntil: "domcontentloaded" });
+  {
+    const early = await page.evaluate(() => new Promise((res) => {
+      const t0 = performance.now(), seen = { card: 0, map: new Set(), fight: new Set(), depth: "" };
+      const poll = () => {
+        const w = document.querySelector(".watch");
+        if (w && window.__riddle?.screen === "watch" && w.dataset.frame) {
+          seen.depth = document.querySelector(".hud .depth")?.textContent ?? "";
+          if (w.dataset.card === "1") seen.card++;
+          if (w.dataset.held !== "1" && w.dataset.speed !== "0") (w.dataset.frame === "fight" ? seen.fight : seen.map).add(Number(w.dataset.speed));
+        }
+        if (performance.now() - t0 > 8000 || window.__riddle?.screen !== "watch" && performance.now() - t0 > 3000) { res({ card: seen.card, map: [...seen.map], fight: [...seen.fight], depth: seen.depth }); return; }
+        requestAnimationFrame(poll);
+      };
+      poll();
+    }));
+    check(early.card === 0 && early.map.includes(8) && early.map.every((r) => r === 8 || r === 1 || r >= 16) && early.fight.includes(1.5), `fights on ${early.depth || "D1"}: no card, the map at 8×, a fight at 1.5× (card frames ${early.card}; map ${early.map.join("/")}; fight ${early.fight.map((r) => Math.round(r * 100) / 100).join("/")})`);
+  }
+  // (the fake's D4 kills a hero in his first costly fight: the card's gates run on its gentle D1 with the first floors' mode off, `early=0`)
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
   let s = await waitFor((x) => x?.booted && inRun(x) && x.mode, "the watch");
   check(s.mode === "fights" && s.on.join() === "fights", `fights is the default mode (on: ${s.on.join(", ")})`);
   check(s.buttons.join(" ") === "fights fast ▶▶| bail", `the buttons read fights · fast · ▶▶| · bail (${s.buttons.join(" · ")})`);
@@ -105,8 +126,8 @@ try {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && inRun(x) && x.mode === "fast", "the fast run");
   check(s.mode === "fast" && s.card === "0", `fast from boot (card ${s.card})`);
-  s = await waitFor((x) => !inRun(x) || x.speed === 16, "16× travel", 8000);
-  check(s.speed === 16, `fast travels at 16× (speed ${s.speed})`);
+  s = await waitFor((x) => !inRun(x) || x.speed >= 32, "32× travel", 8000);
+  check(s.speed >= 32, `fast travels at 32× from the first tick (speed ${s.speed})`);   // Cut 20 §3: 32×, was 16× ramping
   // Cut 18 §1: `fast` frames what `fights` frames, a chore stretch inside the frame at its flat rate — the blows at 4×
   s = await waitFor((x) => !inRun(x) || (x.frame === "fight" && x.speed === 4), "a fight in fast", 30_000);
   check(inRun(s) && s.frame === "fight" && s.speed === 4, `fast watches a fight at 4× (speed ${s.speed}, frame ${s.frame})`);   // Cut 14: 4×, was 2×
@@ -249,7 +270,8 @@ try {
       const s2 = await waitFor((x) => x && x.screen !== "watch", `the end of the ${mode} run`, 120_000);
       wall[mode] = { ms: Date.now() - t0, screen: s2.screen };
     }
-    check(wall.fast.ms <= wall.fights.ms, `\`fast\` is never slower than \`fights\` on one world (fast ${(wall.fast.ms / 1000).toFixed(1)} s · fights ${(wall.fights.ms / 1000).toFixed(1)} s, both ${wall.fast.screen}/${wall.fights.screen})`);
+    // Cut 20 §3: `fast` takes ≤ 40 % of `fights`'s wall time over the run (32× dead stretches, 4× fights, a situation's beat 1 s)
+    check(wall.fast.ms <= 0.4 * wall.fights.ms, `\`fast\` ≤ 0.4 × \`fights\` on one world (fast ${(wall.fast.ms / 1000).toFixed(1)} s · fights ${(wall.fights.ms / 1000).toFixed(1)} s = ${(wall.fast.ms / wall.fights.ms).toFixed(2)}, both ${wall.fast.screen}/${wall.fights.screen})`);
   }
 
   // Cut 16 §4: the boss bar and the break beat. From tick 20 the engine's snapshots carry a warlord beside the hero (in view) for

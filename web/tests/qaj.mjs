@@ -166,7 +166,7 @@ try {
   // ---- 3: one card per floor entry, never over a fight (two `fights` runs, 25 s each). "Over a fight": a hero blow / a hit on the
   // hero / a telegraph in the 10 ticks before the playhead, or a visible hostile adjacent in an engine snapshot of those ticks
   for (const seed of [516, 7]) {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s), "the fights watch");
     await page.evaluate(() => {
       const r = window.__riddle, orig = r.engine.step.bind(r.engine);
@@ -243,7 +243,7 @@ try {
   // ---- 6: the cage sheet — its title, ⏸ and ▶▶| live under it, `vault full` when the pick will be salvaged. Cut 19 §1: the sheet is the
   //      override — opened by a tap on the cage beat (`took sword`) within its hold
   for (const mode of ["fast", "fights"]) {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s), `the ${mode} watch for the cage`);
     const full = mode === "fights";
     await page.evaluate((full) => {

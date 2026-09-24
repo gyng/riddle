@@ -791,6 +791,10 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .pet-face, .boss-face { flex: 0 0 auto; display: inline-block; border-radius: 50%; overflow: hidden; background: #2a1c1a; box-shadow: 0 0 0 2px #5a4630, 0 0 0 3px #000; }
 .pet-face { width: 36px; height: 36px; align-self: center; margin-left: 12px; }
 .card.comp:has(> .pet-face) { grid-template-columns: auto 1fr var(--tap); }
+/* Cut 20 §2: a party card's `×` drops the pet (a second tap on the card no longer does) */
+.card.comp:has(> .drop-pet) { grid-template-columns: 1fr var(--tap) var(--tap); }
+.card.comp:has(> .pet-face):has(> .drop-pet) { grid-template-columns: auto 1fr var(--tap) var(--tap); }
+.card.comp .drop-pet { font-size: 18px; color: var(--dim); }
 .boss-face { width: 22px; height: 22px; }
 .pet-face .face, .boss-face .face { display: block; width: 100%; height: 100%; background-repeat: no-repeat; image-rendering: pixelated; }
 .banner-cloth { width: min(100%, 240px); padding-top: 22%; }
@@ -923,3 +927,25 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .cmd .tile .repeat-badge.short { color: var(--warn); }
 /* QA 1a2a4a9: the core's new reasons (`foes appeared after`, `foes fleeing`, `going home`, `repeat short`) read on one line */
 .chain-row .why, .rows-line .rw { white-space: nowrap; }
+/* Cut 20 §4: the repeat's charge under a death's ledger line (`repeat −$80`) */
+.ledger-line .repeat-line { display: block; margin: 2px auto 0; color: var(--hp); }
+/* Cut 20: an exit row — the line (gold sheet) left, its trace chip in its own column right, never stacked under the text */
+.exit-lines .ledger-line.exit-row { display: flex; align-items: center; gap: 6px; }
+.exit-lines .ledger-line.exit-row .ledger-btn { flex: 1 1 auto; min-width: 0; }
+.exit-lines .ledger-line.exit-row .sep { flex: 0 0 auto; }
+.exit-lines .ledger-line.exit-row .chip.mini { flex: 0 0 auto; margin-left: 0; max-width: 42%; white-space: normal; text-align: center; line-height: 1.15; }
+/* Cut 20 §5: the night's bounty floor on the report */
+.bounty-line { font-size: 13px; margin: 2px 0 6px; }
+.bounty-line.taken { color: #8a5a10; font-weight: 600; }
+/* Cut 20 §5: the bounty floor's notch — `D12 ×2`, a gold glint */
+.notch.bounty .hex { box-shadow: inset 0 0 0 1px #f3d27a, 0 0 6px 1px rgba(243, 210, 122, .55); animation: bounty-glint 2.4s ease-in-out infinite; }
+.notch .dl .bounty-x { display: block; margin-top: 2px; font: 700 11px/1 var(--sans); font-style: normal; color: #f3d27a; white-space: nowrap; text-shadow: 0 0 4px rgba(243, 210, 122, .6); }
+.bar .bounty-x { font-style: normal; font-weight: 700; color: #f3d27a; }
+@keyframes bounty-glint { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.45); } }
+@media (prefers-reduced-motion: reduce) { .notch.bounty .hex { animation: none; } }
+/* Cut 20 (AD): `nothing beats base` and its fold on one line — the candidates under it are no patches */
+.patches.none-beats { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; }
+.patches.none-beats .patches-head { margin: 0; font-size: 13px; }
+.patches.none-beats .patches-more { min-height: 32px; }
+.patches.none-beats .patches-fold { flex: 1 0 100%; display: flex; flex-direction: column; gap: 6px; }
+.patches.none-beats .patches-fold[hidden] { display: none; }

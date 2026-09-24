@@ -257,7 +257,7 @@ try {
 
   // 12 · 13 · 14: a fake run that returns with items (seed 13, return at D3), watched in `fast`
   const rules = encodeURIComponent("depth>=3 → return\nfoes>=1 → attack nearest");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=13&rules=${rules}&autosend=1`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=13&rules=${rules}&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
   // 15: in `fights` the interstitial names the HUD's floor whenever both show (QA on e0f87e7: "`D1 · 16 rooms · $18` while the
   // HUD reads `32/40 D2`") — sampled through the drive below, ▶▶| pressed every 300 ms as the QA player did

@@ -106,6 +106,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   );
   // Cut 16 §1: the shallows the lineage has farmed thin (`D3 · D4 · picked clean`), one dim line under the tiles
   const picked = r.picked?.length ? h("div", { class: "picked-line dim num" }, pickedLine(r.picked)) : null;
+  // Cut 20 §5: the night's bounty floor — `bounty D12 · taken $412`, or `bounty D12 · missed` (what the safe set left on the table)
+  const bounty = r.bounty ? h("div", { class: `bounty-line num${r.bounty.taken ? " taken" : " missed dim"}` },
+    r.bounty.taken ? /* copy:callout */ `bounty D${r.bounty.depth} · taken $${r.bounty.gold}` : /* copy:callout */ `bounty D${r.bounty.depth} · missed`) : null;
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
   // Cut 13 §3: the gold line — what the exits brought (banked / returned, off the exit lines), the salvage, the automations' spending
   const goldLine = (): HTMLElement | null => {
@@ -152,9 +155,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     const hidden = allExits.length - shown.length, unlisted = Math.max(0, r.runs - allExits.length);
     // QA 23ed91f (K: "the run rows list oldest → newest … the gold sheet newest → oldest; I read the first row as the latest"): newest
     // first, like the gold sheet; `· N earlier` stays under them (the older ones)
-    exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line num dim" },
+    // Cut 20 (AD: "tapping `DIED · TRACE` opened the GOLD sheet"): a wrapped line put its chip directly under the line's own button,
+    // two tap targets stacked 0 px apart — the line is a row now: the text (the gold sheet) on the left, the chip (the trace) in its
+    // own column on the right, never under the text
+    exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line exit-row num dim" },
       h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
-      " · ",   // a break between the line and its chip (QA on 3d71c33: `keeps 60%D7`; QA 1a2a4a9, O: `◆+2 D3 · RETURNED` glued)
+      h("span", { class: "sep", "aria-hidden": "true" }, " · "),   // a break between the line and its chip (QA on 3d71c33: `keeps 60%D7`; QA 1a2a4a9, O: `◆+2 D3 · RETURNED` glued)
       traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
       hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} earlier`) : "",
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
@@ -236,7 +242,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     ],
   });
   const sheet = h("div", { class: "parchment report-sheet" },
-    tiles, goldLine(), picked, exitLines, rested, stall,
+    tiles, goldLine(), bounty, picked, exitLines, rested, stall,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
     section(/* copy:label */ "learned", factChips(r.learned.filter((f) => !/^bones:\d+$/.test(f)), L.counters ?? [])),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
