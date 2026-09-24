@@ -197,6 +197,11 @@ pub struct Run {
     /// the card charges it the second time inside `KITE_WINDOW` (it held its ground).
     #[serde(default)]
     pub kited: Option<(u32, u32)>,
+    /// QA on 23ed91f (qaL run 5): the `pack break` card went for a pack that would not come
+    /// (it hung back past the hold, or shoots) — until this action the card does not fall back
+    /// to a corridor, which would undo the step it just took.
+    #[serde(default)]
+    pub pack_go: u32,
     /// Cached BFS field from the hero (recomputed when the hero moves).
     #[serde(skip)]
     pub hero_dist: Vec<i32>,
@@ -1950,6 +1955,7 @@ impl Game {
             supplies: Vec::new(),
             taunt_t: 0,
             kited: None,
+            pack_go: 0,
             hero_dist: Vec::new(),
             hero_dist_pos: None,
             last_visible: vec![u32::MAX],

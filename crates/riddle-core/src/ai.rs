@@ -1951,6 +1951,8 @@ pub fn curious_use(run: &mut Run, cx: &mut Ctx) -> Option<Verb> {
 /// Step out of the line of sight of `from`, if a neighbouring tile does that.
 /// Ticks inside which kiting the same archer again means it is not coming (`kite_archers`).
 const KITE_WINDOW: u32 = 40;
+/// Actions the `pack break` card keeps going for a pack it stepped out to meet.
+const PACK_GO: u32 = 12;
 
 fn break_los_step(run: &mut Run, cx: &mut Ctx, from: Pos) -> bool {
     let hp = run.hero.pos;
@@ -2073,7 +2075,13 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
         // pack_break: split a fast pack — fall back to a corridor, then kill the weakest
         // one adjacent so the pack loses its nerve, never chase the ones hanging back.
         "pack_break" => {
-            if foes >= 2 && !in_corr && verb_back_corridor(run, cx, v) {
+            // The pack is the foes the guard has not given up on (`threats()`): a pack it paced in
+            // front of and gave up on for the floor held the card in its corridor, and the guard
+            // fired again on the same jackals (QA on 23ed91f, qaL run 5).
+            let pack = threats(run, v);
+            let foes = pack.len() as i32;
+            let going = run.pack_go > run.actions;
+            if foes >= 2 && !in_corr && !going && verb_back_corridor(run, cx, v) {
                 return true;
             }
             if v.adj >= 1 {
@@ -2082,11 +2090,32 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             // hold: a pack that hangs back is not worth stepping out for — unless it hangs back
             // to shoot or conjure, and then it never comes (QA on 23ed91f, qaL: a conjurer and
             // an archer held at range on D6; the guard called 6.5 % of that set's sends stalls).
-            let shoots = v.foes.iter().any(|&i| ["ranged", "caster", "summoner"].iter().any(|t| run.monsters[i].has_tag(t)));
-            if foes >= 2 && !shoots {
+            let shoots = pack.iter().any(|&i| ["ranged", "caster", "summoner"].iter().any(|t| run.monsters[i].has_tag(t)));
+            if foes >= 2 && !shoots && !going {
+                // The hold lasts while the pack closes: its nearest member three actions at the
+                // same distance is a pack that will not come — held forever it was the guard's
+                // pacing (qaL run 5: a jackal and a goblin at 4–7 tiles). The corridor hold's own
+                // clock (`hold_dist`), so the approach below goes on from it.
+                let d = run.monsters[pack[0]].pos.cheb(run.hero.pos);
+                if d == run.hold_dist {
+                    run.hold_streak += 1;
+                } else {
+                    run.hold_dist = d;
+                    run.hold_streak = 0;
+                }
+                if run.hold_streak < 3 {
+                    return true;
+                }
+            }
+            if foes >= 1 && verb_attack(run, cx, "nearest", v, false) {
+                // Going for it: the next action does not fall back to the corridor the step left
+                // (qaL run 5: `attack nearest` one step out, `back to corridor` one step in).
+                if v.adj == 0 && !going {
+                    run.pack_go = run.actions + PACK_GO;
+                }
                 return true;
             }
-            foes >= 1 && verb_attack(run, cx, "nearest", v, false)
+            false
         }
         // thief_guard: a thief in view is killed first while it is adjacent; one that flees
         // with the loot is shot or pelted; nothing else is chased. Cut 12 §2: a sleeping den
