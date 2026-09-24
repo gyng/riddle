@@ -1,0 +1,69 @@
+{
+  "$comment": "Blind rater raterAF. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md §1–3 and the template. Played headed on the GPU via tools/driver.mjs (400×800, 3×). Notes: scratchpad/raterAF/notes.md. Seed note: opened ?seed=1702&fresh=1 without dev=1 on the production build; the morgue reports lineage seed 1659016380, so the pinned seed may not have applied.",
+  "game": "Riddle",
+  "build": "44193ac",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAF",
+  "horizon": {
+    "activeMinutes": 53,
+    "absences": ["8h simulated via ?dev=1&absent=8h after 36 min active cold; 17 min played on return"],
+    "runsWatched": 13,
+    "runsOffline": 16,
+    "ruleEdits": 16
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: Heir 4 went down with my freshly written 'foe: boss → attack boss' row and a bank row I had moved up to 30% after the Goblin Warlord had cornered the previous heir at 1 hp with $313 on him. On D8 the Warlord rallied his goblins, the screen shouted 'R5 · attack boss', then 'WARLORD BREAKS' and 'GOBLIN WARLORD DOWN'. He walked into the Fens on D9, my bank row fired at 30% and he came home with $319: 'Banked $319', new best D9."
+  },
+  "probes": {
+    "clarity": "The first death banner read 'JACKAL · D3 · 8 UNKNOWN UNUSED' with a GAP seal, and the trace showed him exploring at 1 hp; I knew at once he had died holding 8 potions he never drank.",
+    "decisions": "Moving the bank threshold showed the choice as numbers: 25% gave 'bank 70% ~$87', 30% gave 'bank 84% ~$95', 40% gave 'bank 95% ~$72' with D6 dropping to 11%; I chose 30% and would again.",
+    "mastery": "In the first hour I learned that row order matters ('R2 drink unknown' above my return row killed heir 2 with poison) and that banking at 25% is too late when 'R2 no way ← foes hold the way'.",
+    "tension": "On D8 the ticker read 'carry $313 · bank keeps $313 · death $0 · bank at 25%' while the Warlord rallied, and I was watching his hp, not the screen.",
+    "feel": "Big pixel callouts over the map ('R5 ATTACK JACKAL', 'BLADES!', 'WARLORD BREAKS') land at the moment a row fires, but one watch froze on a square-tile placeholder after 'WebGL context could not be created' until I reloaded.",
+    "surprise": "Thog, the jackal 'gone wild' from my very first run, turned up as my tamed pet in the last hour ('jackal Thog fell · jackal Drul fell · jackal Krusk fell').",
+    "expression": "My set ended as 'shield bash the heavy under 40%, heal, bank at 30%, gas card, attack boss, attack thief, tame weak pack, attack' — mine, but tuned toward whatever the forecast number said.",
+    "story": "The reel wrote the overnight like a chronicle: 'Warlord cornered him to 4 HP; R5 attacked him; died to Warlord.' / 'The lock took him to 6 HP; R3 banked; banked $215.'",
+    "pacing": "In 'fast' a run took 49–95 s and felt right; in 'fights' a run took 2.5–3.5 min, and the first 60 s were mostly 'pick up ×6' lines on D1–3.",
+    "failure": "The morgue said 'slain by ogre · blow 6 · 6 hp short' and listed 'The pearly one: strength. The clear one: fire. The red one: poison.' under my R2 drink unknown; the patch offered was to delete that row.",
+    "social": "Weight 0; the pets (Thog, Drul, Krusk) are closer to story than relationship.",
+    "autonomy": "Before the last hour I chose between a push set ('D12 ×2 18% · death 26% · ~$136') and a safe set ('death 9% · ~$143'), and tried a ranger nobody asked me to (it lost me 60% of runs).",
+    "progression": "Rows went 4 → 8, classes rogue and ranger opened, cards, supplies 3 → 5, party and hatch, a ledger with SEEN/KNOWN/STUDIED/TAMED/BRED columns; but after the absence I had $1745 and each run netted about $0 ('+$91 banked · +$26 salvage · −$120 spent').",
+    "aesthetic": "The torn red banner with a wax 'ROW' seal, the painted heroes on the stairs and the pixel dungeon look like one game; audio unassessed (I cannot hear; __audio logged 'rule', 'hit', 'slay' cues).",
+    "return": "I came back to '16 RUNS · D13 DEEPEST · 11 BANKED · 5 DEATHS', a reel, new foes learned ('bloat mother · boss · gas · counter: throw fire') and 'PENDING R4 fired 0 of 16 runs: hp < 30% → drink unknown', and I rewrote that row first.",
+    "attribution": "Report lines said 'R2 return saved him.' and 'R3 bank saved him.', and the banners named my rows ('OGRE · D6 · R2 DRINK UNKNOWN'); I say 'my bank row killed him' without thinking."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.8, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "\"JACKAL · D3 · 8 UNKNOWN UNUSED\" + trace at hp 1; the forecast re-prices every edit in ~3 s. Lapse: the trace only explains the final tick — on the $803 D13 death I could not see why 'hp<30% → bank' did not fire during six ticks at 9/42; and the ranger failed (death 60%) with no hint why." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Bank at 25/30/40% = ~$87/$95/$72 with depth trading off; push vs safe set near-equal EV. Lapse: 'return' is strictly dominated by 'bank' (same odds, ~$70 vs ~$124), and I paid ◆3 for 'card: thief guard' that raised death 10% → 22% — the forecast only told me after the purchase." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Hour one taught order ('drink unknown' above 'return' = poison death), bank earlier ('R2 no way'), and the corridor↔boss stall. After the absence my edits were hill-climbing the forecast number by ±$10; skill stopped being visible." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'carry $313 · death $0 · bank at 25%' on D8 before the Warlord, and 'carry $289 · stalling' — real sweat in the cold hour. On return each run netted ≈ $0 against a $1745 purse, so stakes went flat." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Callouts 'R5 ATTACK JACKAL', 'BLADES!', 'WARLORD BREAKS', name plates and hp bars read well at 3×. Lapse: one watch froze after WebGL context loss (placeholder squares, 4 min without progress until reload). Audio unassessed." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Named den jackals (Thog, Krul) recurring and finally tamed; bloat mother gas; the Fens; 'blades!' swarms. Lapse: D1–5 repeat the same beats every run (shrine 'Pray, at a price', cage 'three inside, one to take', monkey steals something)." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My set had a shape (tame weak pack, shield bash heavies, bank at 30%). But every choice converged on whatever the forecast priced highest, and cards auto-inserted as bundled rows I did not write." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Thog 'gone wild' on run 1 → my pet → 'jackal Thog fell'; 'Warlord cornered him to 4 HP; R5 attacked him; died to Warlord.' Lapse: most reels were five lines ending 'Banked $88.' with no turn." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 'fast' 49–95 s is right; 'fights' 2.5–3.5 min with ~60 s of 'pick up ×N' on D1–3. Check-in: the return report is a very long scroll (FOUND/SALVAGED/STOLEN lists) before the two lines that matter (PENDING, REEL). Cadence: overnight is clearly distinct from a single run." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Banner + seal (ROW/GAP/STALL) + per-row reasons ('R1 no item · R2 no way · R3 no unknown · R4 no path') + morgue '6 hp short' + scored patches. Lapse: a stall ('R4 corridor ↔ R5 hit') took all $289 and the repeat charge ('repeat −$80'), and the D13 trace hid why bank never fired." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Push-for-bounty vs safe, try a class, tame and hatch pets, which unlock to buy. Goals beyond 'bank more / go deeper' were not mine to set." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run: kit from cages, pets, levels (fighter L4). Persistent: rows 4→8, rogue/ranger, cards, supplies 3→5, party/hatch, ledger, trophies, ★6. Automation: repeat loadout, auto cards. Lapse: gold stopped meaning anything after the absence ($1745, runs net ≈ $0)." },
+    { "id": "aesthetic", "human": 0.8, "bot": "na", "proxy": "none", "note": "Painted key art, wax-seal banners, a readable pixel dungeon; the ranger portrait swaps. Lapse: the square-tile placeholder after WebGL loss, and a 'goblin' plate overlapping the ticker. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "'16 RUNS · D13 · 11 BANKED · 5 DEATHS', a reel with rows named, new foes with counters, and 'PENDING R4 fired 0 of 16 runs' — I edited within a minute. Lapse: the edits I made on return barely moved outcomes (net ≈ $0 per run), and the wall of FOUND/SALVAGED lines buries the decision." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "'R2 return saved him.', 'R3 bank saved him.', 'OGRE · D6 · R2 DRINK UNKNOWN', 'PINK JELLY · D9 · R3 BANK' — I narrate in first person. Lapse: overnight deaths where 'bank' could not fire ('no way') felt like the dungeon's decision, not mine." }
+  ]
+}

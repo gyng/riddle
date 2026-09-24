@@ -1,0 +1,111 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "preset"
+    },
+    {
+      "conds": [
+        {
+          "k": "depth>=",
+          "n": 12
+        },
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "thief"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:thief"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "throw",
+        "a": "fire"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "gas"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:gas"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "adj>=",
+          "n": 2
+        }
+      ],
+      "verb": {
+        "v": "cleave"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "player"
+    }
+  ],
+  "name": "fighter"
+}

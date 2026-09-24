@@ -533,3 +533,30 @@ Trajectory: … 72.4 → 68.7 → 67.9 → 67.7 → 69.5 → **74.35**.
 4. **Speed**: `fast` "barely faster than 1×" (both); early runs at 1× "too short to follow"
    (AD); the forecast settling 4–8 s after each edit (AD).
 5. **Stakes after the absence** (AC: 15 of 16 banked; the second half had little at stake).
+
+## Cohort 16 (build 44193ac: Cut 20 — thieves and pets untaxed, the watch moves, honest money lines, the bounty)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AE | 1701 | 73.0 | none |
+| AF | 1702 (unpinned: the brief lacked `dev=1`; fixed 3de6979) | 73.5 | none |
+
+α = 0.938. Mean **73.25** — flat against 74.35; both "fun". Nine axes at 0.8 from AF (aesthetic
+among them), tension, feel, expression, pacing, autonomy (and mastery, AF) at 0.6.
+
+### The read
+
+The taxes Cut 20 went after are gone from the cards (no pet complaints; thefts one line each).
+What both name first now:
+
+1. **The first floors are the same every run** (AE: "D1–D7 play out almost the same each time:
+   monkey theft, cage, the jackal gone wild, shrine — the first minute of every watch"; AF:
+   "D1–5 repeat the same beats every run"; "60 s of `pick up ×N` on D1–3"). The lineage reaches
+   D13–D20 and still starts every run at D1.
+2. **The economy undercuts the player** (AE: "sells heal potions he finds for $2 while I pay $40
+   each"; a strength potion no rule drinks re-bought 16 times overnight; AF: "every run netted
+   about $0 after the absence"; a stall charged the repeat on top of the loss).
+3. **Verdicts and words**: GAP on a death the player's own drink-unknown row caused (AE); `picked
+   clean`, `restock capped` unexplained; the depth picker stops at 12 (AE banked at D20).
+4. **The trace explains only the last tick** (AF: why `hp<30% → bank` never fired over six ticks
+   at 9/42).

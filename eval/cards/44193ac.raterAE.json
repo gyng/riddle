@@ -1,0 +1,80 @@
+{
+  "$comment": "Blind rater raterAE. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md §1-3, the template. No design docs, source or other cards opened. Played headed GPU phone viewport via tools/driver.mjs; audio unassessed (could not hear; window.__audio showed rule/hit/slay cues logged at event times).",
+  "game": "Riddle",
+  "build": "44193ac",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAE (blind agent)",
+  "horizon": {
+    "activeMinutes": 53,
+    "absences": ["8h simulated via ?dev=1&absent=8h (not a real wall-clock absence)"],
+    "runsWatched": 14,
+    "runsOffline": 16,
+    "ruleEdits": 12,
+    "notes": "~37 min cold (11 runs, 3 deaths read, 8 rule edits of my own), simulated 8 h absence, ~16 min on return (3 runs, 4 more own edits) — return phase slightly short of 20 min. 12 runs watched in 'fights' (default) mode, 2 in 'fast'. No offered patch was tapped; every edit was my own. Deaths read: jackal D5 (gap), fire D4 (my own drink-unknown rule), goblin D8 under the Warlord (my push). 0 deaths in 16 offline runs."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: After the overnight I let the fighter push past his usual D12 bank (bank only under 30% hp) with a new 'foe: boss → throw fire' row, and he burned down the Goblin Warlord and then the Bloat Mother at 2 hp. From D12 the floors were hungry and ate his max hp down to 5, the Lich fell at 2/5, and on D19 at 1 hp my R2 bank row fired. He came home with $1237 and the reel said 'Down to 1 HP. R2 bank saved him.'"
+  },
+  "probes": {
+    "clarity": "Mostly yes: the watch always names the acting row ('R8 · attack nearest', 'R4 · throw fire') and the money line reads 'carry $233 · bank keeps $233 · death $0 · bank at D12'; but I never learned what 'D8 · picked clean' meant, and 'ATTACK × NO TARGET' popped with a jackal and an archer on screen.",
+    "decisions": "I moved 'hp < 50% → drink unknown' below the attack row because the forecast said D6 48% vs 34% above it (drink when safe), and I'd make it again; later the bank depth (8 vs 12, hp < 50% vs 30%) was a real money-vs-death call.",
+    "mastery": "An hour ago I died on D5 with three unknown potions unused; now I write boss counters ('foe: boss → attack boss' turned the forecast's 'D9 · warlord 0%' into 83%) and bank at D19–D20.",
+    "tension": "I sweated in run 14 watching max hp shrink to '3/5' on hungry floors with $1237 carried and 'death $0' printed next to it; runs 4–8 banking at D6–D8 had no sweat at all.",
+    "feel": "Callouts ('BASH', 'WARLORD BREAKS', 'GOBLIN WARLORD DOWN') land on the moment and the fights mode slows for combat, but 'attack ✗ no path' / 'no target' fire often; audio unassessed.",
+    "surprise": "The Bloat Mother on D13 ('counter: throw fire, boss') made me buy throw and write a new row; the Crypt, the Foundry's iron golem 'reflected!' and hunger were new each deep run — while D1–D7 repeated monkey, cage, 'Zelusk the jackal, gone wild' almost every single run.",
+    "expression": "My set is recognisably mine (thief row, boss throw-fire above boss attack, gas row, cleave on 2 adjacent, bank at 12 under 30%), but it was hill-climbed off the forecast rather than chosen for style, and ranger L1 forecast 86% death so class choice was not live.",
+    "story": "Run 14 above has a turn ('Down to 1 HP. R2 bank saved him.'), and the Warlord on the exact D8 bank floor in run 7 is one I'd retell; many reels are filler ('D7: the Burrows.').",
+    "pacing": "Early runs are 1–2 min, late runs 4–6 min at fights speed with the D1–D7 stretch identical each time; camp admin (a ~30-entry unlock list, confirm sheets, 8 rows of chips on a phone) drags, the check-in itself is ~3–5 min and ends on SEND.",
+    "failure": "The fire death said 'The smoky one: fire. Gambled: fire potion.' with the trace row 'R4 drink unknown 7 → explore 2' and the morgue listing why every other row didn't fire — but the seal said GAP although my own row did it, and its only patch 'seen ≥ 60% → descend · drops R1' made no sense to me.",
+    "social": "None; named jackals (Zelusk, Vreth 'is avenged') recur but are not a relationship.",
+    "autonomy": "I chose to chase the D12 ×2 bounty and later a D20 dive; the depth picker stops at 12 so 'bank at D14' could not be written.",
+    "progression": "Rows 4→8, rogue/ranger/throw/vault/supplies bought, fighter L1→L5 with verbs (cleave, taunt), and new conditions appeared as facts were learned ('foe: gas', 'foe: boss'); by the end $5384 sat with little worth buying.",
+    "aesthetic": "The painted camp splash and the pixel hero/monsters in lit rooms look great; the camp has big empty black areas; audio unassessed.",
+    "return": "I came back to '16 RUNS · D11 · 16 BANKED · 0 DEATHS' and 'PENDING R7 fired 1 of 16 runs: hp > 75% → drink unknown', which is exactly why I cut that row; but nothing had been at stake overnight and 'SALVAGED heal ×41 · $82' next to 'SPENT heal ×32 · −$1280' stung.",
+    "attribution": "The last run ended with my R2 bank row firing at 1 hp — my decision, and the game said so ('R2 bank saved him'); the D4 death was my drink-unknown rule and I knew it before reading the verdict."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Evidence: 'carry $233 · bank keeps $233 · death $0 · bank at D12' and 'R8 · attack nearest' under the hero every beat. Kept from 0.8 by several unexplained lines: 'D8 · picked clean', 'ATTACK × NO TARGET' with foes visible, 'restock capped', and a patch 'seen ≥ 60% → descend · drops R1' for a fire-potion death." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Evidence: drink-unknown below vs above the attack row (D6 48% vs 34%), bank at D8 hp<50% (81% ~$168) vs D12 hp<30% (40% ~$367), 5 supplies costing 'repeat · $160'. Lapse: the forecast turns most choices into picking the higher %, and some options are dominated (bank 88% ~$85 vs return 91% ~$50)." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Evidence: D5 death → D10 by run 8 → D20 by run 13; learned 'counter: attack boss' became a row that turned 'D9 · warlord 0%' into 83%. Lapse: much of the learning is reading forecast deltas rather than understanding the dungeon." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Evidence: run 14 '3/5' hp with $1237 carried, banked at 1 hp. But runs 4–8 and all 16 overnight runs banked with no doubt (0 deaths overnight): tension exists only when I chose to push." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Evidence: 'WARLORD BREAKS' → 'GOBLIN WARLORD DOWN' callouts, 'BASH' over the sprite, hp counter ticking. Lapses: frequent 'attack ✗ no path / no target'; D1–D7 travel is filler. Audio unassessed (cues logged in window.__audio, not heard)." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Evidence: Bloat Mother 'counter: throw fire, boss' made me buy throw and add a row; hunger ('The floor is hungry. Find light.') and iron golem 'reflected!' appeared deep. Lapse: D1–D7 repeat nearly verbatim each run (monkey theft, cage, Zelusk)." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Evidence: my 8 rows (thief, throw fire on boss, attack boss, attack gas, cleave on adjacent ≥ 2, bank D12 <30%) are mine. But they were tuned to the forecast's number, and ranger L1 forecast 'death 86%' so the class option wasn't a real identity choice for me." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Evidence: reel 'Down to 1 HP. R2 bank saved him. Banked $1237.' and 'Vreth the jackal is avenged.' Lapse: many reel slots are filler ('D7: the Burrows.', 'D8: the Burrows.')." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: fights mode 1–2 min early, 4–6 min deep, with the same shallow stretch every time. Admin: ~30-entry unlock list, tap-then-confirm sheets, 8 rows of chips on a phone (I put a condition on the wrong row once). Check-in ~3–5 min and ends on SEND." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Evidence: 'The smoky one: fire. Gambled: fire potion.' + trace 'R4 drink unknown 7 → 2' + morgue listing each row's miss reason ('R2 depth not ≥5 · R3 foes not ≥1'); 'R1 drink heal · no item ← R1 drank heal at 11/40'. Lapse: seal 'GAP' on a death my own row caused, a nonsensical patch, and a surprise 'repeat −$160' charged on death." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Evidence: I set my own goals (chase 'D12 ×2', then dive to D20 on hp<30%). Limits: depth picker stops at 12; no route choice beyond rules." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Evidence: rows 4→8, classes, throw, vault, supplies 3→5, fighter L1→L5 (cleave, taunt), conditions appearing as facts are learned ('foe: gas', 'foe: boss'). Lapse: gold economy — found heals salvaged at $2 ('heal ×41 · $82') while I buy them at $40, and $5384 piled up with little to buy." },
+    { "id": "aesthetic", "human": 0.8, "bot": "na", "proxy": "none", "note": "Evidence: painted camp splash, torn red verdict banner with wax 'GAP' seal, crisp pixel hero with red cape in torch-lit rooms. Lapse: camp screen has large empty black areas below the rules. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Evidence: return screen '16 RUNS · D11 DEEPEST · 16 BANKED · 0 DEATHS', reel lines crediting rows ('An ogre took him to 16 HP; R2 banked; banked $189.'), and 'PENDING R7 fired 1 of 16 runs' which drove my first edit. Lapse: the absence carried no risk (16/16 banked on the same D8) and the salvage/spend lines showed an overnight of waste ('SPENT strength ×16 −$640' for a potion no row drinks)." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Evidence: I describe every run in first person — 'my bank row fired at 1 hp', 'my drink-unknown rule killed him on D4' — and the game agrees ('R2 bank saved him', 'R1 drink heal saved him'). Lapse: the verdict seal read GAP on the death my own R4 caused, which muddied ownership once." }
+  ],
+  "gripes": [
+    "Economy: found heal potions are salvaged for $2 ('heal ×41 · $82') while I buy them for $40 ('heal ×32 · −$1280'); monkeys stole my heal potion/leash in most runs; a strength potion no row drinks was re-bought 16× overnight without a hint.",
+    "Shallow floors D1–D7 are nearly identical every run (monkey theft, cage, 'Zelusk the jackal, gone wild', shrine) and eat the first minute of every watch; late runs run 4–6 min.",
+    "Unexplained copy and verdicts: 'D8 · picked clean', 'restock capped', 'ATTACK × NO TARGET' with foes on screen, GAP seal on a death my own rule caused, patch 'seen ≥ 60% → descend · drops R1'; depth picker caps at 12."
+  ],
+  "tellAFriend": [
+    "You write 8 lines of 'if hp < 30% → drink heal' and watch a pixel knight live or die by them — and the game tells you which line did it.",
+    "The forecast shaft shows your odds per floor before you send; writing the boss counter it taught you turns 'warlord 0%' into 83%.",
+    "It runs while you're away and hands you a report of what each rule did overnight."
+  ]
+}
