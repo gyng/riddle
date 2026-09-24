@@ -80,11 +80,41 @@ Four portrait mockups at 1024 × 2048, one per place, painted in the frame above
 matches their layout, frame language and hierarchy; the assets are cut separately
 (`art/ui/frames/`, §3).
 
-## 5. Acceptance (the UI cut's gates)
+## 5. Progression of the interface — a reveal ladder
+
+Today a fresh camp shows everything at once: two traits, three set tabs, the forecast with
+killers, party, ledger, chronicle, vault, forge, keep/vault preferences, a 35-tile unlock wall.
+Rater X: "the unlock wall has about 35 tiles, and I bought most of them on a hunch". The frame
+from §2 lets the chrome *grow*: a console tile is carved in when it first means something, with
+a one-beat reveal (the tile unchipped from the stone, a glint), never a tutorial sentence.
+
+| Step | Trigger (engine fact) | What appears |
+|---|---|---|
+| 0 | fresh lineage | top bar ($ only), 2 rule tablets, the shaft (D1 only), gem `SEND`; nothing else |
+| 1 | first death | the verdict banner and patch tiles; the `edit` tile |
+| 2 | first gold carried home | `$` fills; the `loadout` tile (supplies) |
+| 3 | first mark (◆) | `◆` on the bar; the `unlocks` tile — showing only the next **3** affordable-soon unlocks, not the catalogue |
+| 4 | an item worth keeping found | the `vault` tile |
+| 5 | first item salvaged | the `forge` tile |
+| 6 | a tamed or freed companion | the `party` tile |
+| 7 | a 3rd row owned | the shaft's gems (bank / return / death) |
+| 8 | a second class owned | the class chip at the wake (Cut 16 §2) |
+| 9 | 5 heirs | the `chronicle` and `ledger` tiles; set tabs 2–3 |
+
+- **The unlock panel is a short list, not a wall**: the three next unlocks by the lineage's
+  facts (what the last deaths and bests point at), each with its reason (`fact: ranged`), and a
+  `more` stud that opens the full catalogue for players who want it.
+- **Nothing is removed for a returning lineage**: the ladder reads the lineage's facts, so an
+  old save starts fully revealed.
+- **Gate**: a fresh camp at 400 × 800 shows ≤ 8 interactive elements; each step's tile appears
+  on its trigger (a fake-engine walk); the dayplayer's `Days with ≥ 1 unlock` does not fall.
+
+## 6. Acceptance (the UI cut's gates)
 
 - Every screen has the top bar and the console; the primary action is in the gem slot.
 - No screen shows more than 12 distinct elements above the fold at 400 × 800.
 - Every sheet has a close stud; every tile has a pressed state.
 - Frame time on the GPU harness holds 60 fps on the watch with the console drawn.
 - `screens.mjs` / copy-lint unchanged in content; the skin is layout and art, not new copy.
+- The reveal ladder (§5) holds on a fresh lineage.
 - A blind rater's aesthetic and feel ≥ 0.8.
