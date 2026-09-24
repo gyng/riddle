@@ -1,0 +1,74 @@
+You are painting four UI TARGET MOCKUPS for the game "Riddle", a phone roguelike held in portrait.
+Use your built-in image_gen tool, one call per image below. Do NOT write code. Do NOT read or modify
+any file in the repository except writing the four output PNGs. Save each final PNG (sRGB) to the
+exact path given; if the generated image is not exactly 1024 x 2048, resample to it with PIL (Lanczos).
+Do not leave scratch or _inspection_ files behind. If a file exists at an output path, overwrite it.
+
+=== WHAT THE GAME IS ===
+The player never controls the hero directly. They write an ordered list of rules (up to 8 rows,
+each "condition -> action", e.g. "HP < 30% -> drink heal", "foes >= 3 -> retreat to corridor",
+"depth >= 8 -> bank") and send the hero into a dungeon; the hero plays by those rules. A live
+forecast shows how deep he will likely get. When he dies, a verdict screen names the rule that
+failed and offers patch rows. Runs also happen overnight; a report shows what happened.
+
+=== THE STYLE REFERENCE: Warcraft III and StarCraft II interfaces ===
+A sprite-based, skeuomorphic, DIEGETIC game interface: the chrome is a physical object in the
+game's world. Carved dark stone and hammered iron bezels with rivets and corner caps; a heavy
+ornate CONSOLE along the bottom third (like WC3's race console); a round PORTRAIT WELL with a
+character face at the console's left, ringed by a health ring; a COMMAND CARD grid of square
+ability tiles in the console's middle; a big glowing GEM button at the console's right (the
+primary action); a RESOURCE BAR plate across the top with engraved icons and numbers; framed
+TOOLTIP panels with an iron frame around aged parchment. Warm torchlight on metal edges, bevels,
+inset shadows, worn gilding, subtle runes. Dark fantasy, readable, NOT cluttered: a phone at
+arm's length reads about twelve things per screen. Palette: umber stone, blackened iron, bone
+and parchment, one accent of amber torchlight; crimson only for danger and death; teal-green for
+health. Typography in the mockup: a carved serif for titles (like Cinzel), condensed sans for
+numbers; any text must be short and legible (single words and numbers), never paragraphs.
+Painterly-but-crisp game UI concept art, like a Blizzard UI concept sheet rendered as a single
+phone screenshot. NOT flat web design, NOT material design, NOT a mobile gacha UI, no logos,
+no watermarks, no real brand names.
+
+=== THE FRAME (same on all four) ===
+Top: an iron resource bar, left to right: a tiny round portrait, "$ 1 488", a diamond "7", a
+star "3", "D12". Bottom third: the carved stone console: portrait well (left), a command card of
+4 x 2 square tiles with engraved icons (middle), a big round glowing amber gem button (right).
+Between them: the WELL, whose content changes per screen.
+
+=== THE FOUR IMAGES ===
+
+1) /home/g/p/riddle/art/ui/targets/camp.png — the CAMP (edit rules, then send).
+Well: a vertical stack of 6 carved stone TABLETS, one per rule, like command slots, each reading
+a short rule in two parts with an arrow between: "HP < 30%  ->  drink heal", "foes 3+  ->
+corridor", "boss  ->  hit boss", "foes 1+  ->  attack", "D8+  ->  bank", and one tablet with a
+gold border reading "kite archers" (a tactic card). Each tablet has a small row numeral R1..R6
+carved at its left and a small action icon at its right. Beside the tablets, on the right edge
+of the well, a narrow vertical SHAFT going down (the forecast): notches labelled D1..D9, the top
+notches glowing bright amber and fading to dark by D9; under the shaft three small gems: a gold
+gem "bank 62%", a pale gem "return 30%", a red gem "death 8%". Console tiles: icons for edit
+(chisel), loadout (satchel), unlocks (key), ledger (book), vault (chest), forge (anvil), party
+(paw), chronicle (scroll). Gem button reads "SEND". Portrait: an anime-styled young fighter in a
+red cloak, health ring full.
+
+2) /home/g/p/riddle/art/ui/targets/watch.png — WATCHING a run.
+Well: the dungeon, full bleed between the bars, top-down pixel-art dungeon (olive and umber
+tiles) with a hero sprite fighting two goblins and an archer; small name tags over the foes; a
+short bold callout over the hero "R2 ATTACK". NO chrome over the dungeon except a thin torch-lit
+inner bevel. A thin progress strip along the top of the console (a playhead and a glowing dot at
+its right end). Console tiles: "fights", "fast", "skip" (>>|), "bail" (a banner icon); portrait
+well shows the hero with the health ring at 60% (teal) and a small "D5" plate. Gem button shows
+a pause glyph.
+
+3) /home/g/p/riddle/art/ui/targets/death.png — the VERDICT after a death.
+Well: the frozen dungeon dimmed behind a torn crimson DEFEAT BANNER hanging from an iron bar,
+reading "goblin archer · D6" and a stamped one-word verdict seal "GAP"; under it a parchment
+panel with a short trace table (five rows of numbers) and three PATCH TILES, each a small
+tablet with a rule ("HP < 20% -> rest") and a gauge showing "92%". Console tiles: "edit",
+"morgue", "camp". Gem button: glows on the first patch ("APPLY"). Portrait well: the hero's
+portrait desaturated with a cracked health ring.
+
+4) /home/g/p/riddle/art/ui/targets/report.png — the RETURN REPORT after a night away.
+Well: a large parchment scroll in an iron frame, a SCORE TABLE like WC3's end screen: six
+engraved tiles "16 RUNS", "D8 DEEPEST", "12 BANKED", "2 RETURNED", "2 DEATHS", "+15 marks";
+below them short ledger lines with small icons ("banked $212 · D8", "died · D6"), a "LEARNED"
+row of small icon chips (goblin archer, bloat, heal potion), and a "PLATEAU" line with a
+highlighted patch tablet. Console tiles: "trace", "gold", "ledger". Gem button: "CAMP".
