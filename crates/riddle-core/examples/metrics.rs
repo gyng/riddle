@@ -398,7 +398,7 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
             r.verdict_secs.push(t.elapsed().as_secs_f64());
             if v == "dice" && std::env::var("DICE_DEBUG").is_ok() {
                 let rec = g.deaths.get(id).unwrap();
-                eprintln!("DICE {} seed {seed} run {id} D{} cause {} margin {} rows {}", bot.name(), rec.death.depth, rec.death.cause, rec.death.margin, rec.death.trace.turns.len());
+                eprintln!("DICE {} seed {seed} run {id} D{} cause {} margin {} rows {} base {:.2} boss {}", bot.name(), rec.death.depth, rec.death.cause, rec.death.margin, rec.death.trace.turns.len(), rec.death.baseline, rec.boss.is_some());
             }
             r.verdicts.push(v);
         }

@@ -237,7 +237,19 @@ struct StallSum(f64, f64, u32);
 
 /// Cut 14 §1–2: a death screen offers nothing under its baseline (a `dice` death's candidates
 /// kept under the bar are flagged `below_bar`), and a `dice` margin names no unused item.
-fn check_death(t: &mut Tally, seed: u64, d: &riddle_core::Death) {
+fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
+    // QA on e75ec29 (qaQ: the gem applied `83 %` above two `100 %`; `92 %` above `100 %`): the
+    // head survives within `SURVIVE_BAND` of the best shown — on a boss death the escape family
+    // does not count as the best (Cut 6 §8; a boss death's escape patches sit below the rest).
+    let boss = g.deaths.get(&d.run_id).is_some_and(|r| r.boss.is_some());
+    let counts = |p: &&riddle_core::wire::Patch| !(boss && riddle_core::trace::family(&p.row) == "escape");
+    if let (Some(head), Some(best)) = (d.patches.first(), d.patches.iter().filter(counts).map(|p| p.survive).reduce(f64::max)) {
+        let ok = !counts(&head) || head.survive >= best - riddle_core::trace::SURVIVE_BAND - 1e-9;
+        t.check("the top patch survives within 10 pts of the best shown", ok, || format!("seed {seed} run {}: {} {:.2} vs best {best:.2} · {}", d.run_id, head.row.describe(), head.survive, d.verdict));
+    }
+    // QA on e75ec29 (qaQ: `survives 100% · base 100%` under GAP): replays that all survive
+    // unpatched did not reproduce the death — it is never a `gap` or a `row`.
+    t.check("a gap or row verdict has a baseline under 100 %", !(d.verdict == "gap" || d.verdict == "row") || d.baseline < 1.0 - 1e-9, || format!("seed {seed} run {}: {} base {:.2}", d.run_id, d.verdict, d.baseline));
     // QA on 92eb880 (qaM: `R2 attack saved him.` on the death of a hero R2 was fighting for).
     t.check("a death's notes never say `saved him`", d.notes.iter().all(|n| !n.contains("saved him")), || format!("seed {seed} run {}: {:?}", d.run_id, d.notes));
     // QA on 92eb880 (qaM: `DICE` over three `survives 100% · below bar`): a dice death whose
@@ -487,7 +499,7 @@ fn check_stall_leg(t: &mut Tally, sum: &mut StallSum, g: &Game, seed: u64) {
     let ids: Vec<u32> = h.deaths.iter().filter(|(_, rec)| rec.stall).map(|(id, _)| *id).collect();
     for id in ids {
         let Some(d) = h.death(id) else { continue };
-        check_death(t, seed, &d);
+        check_death(t, &h, seed, &d);
         let Some(p) = d.patches.iter().find(|p| p.insert_at >= 0 && !p.below_bar) else { continue };
         let before = h.forecast();
         let mut k = h.clone();
@@ -693,7 +705,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
             let ok = d.verdict == "row" && d.cause_row.is_some_and(|r| Some(r as i32) == last && d.rules.as_ref().is_some_and(|rs| rs.rows.get(r as usize).is_some_and(|x| !x.is_card()))) && d.patches.first().is_some_and(|p| (p.remove || p.replace) && Some(p.insert_at) == last);
             t.check("a `row` verdict names a row that fired on the death tick", ok, || format!("seed {seed} run {id}: {} R{:?} last {:?}", d.verdict, d.cause_row, last));
         }
-        check_death(t, seed, &d);
+        check_death(t, &g, seed, &d);
         t.check("death()'s patches are camp_pending until death_deltas", d.patches.iter().all(|p| p.camp_pending), || format!("seed {seed} run {id}"));
         // QA on 23ed91f (`rest · reach +8%`, then the camp's D6 34 % → 64 %): the patch's
         // `reach` (`death_deltas`) is the camp forecast's own move at its depth once applied.
@@ -717,7 +729,30 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         if let Some(p) = top {
             let patched = riddle_core::offline::apply_patch(&rules, &p, g.lineage.max_rows());
             let before = deltas.is_some().then(|| g.forecast());
-            t.check("the top patch applies through set_rules", g.set_rules(patched).is_ok(), || format!("seed {seed}: {}", p.row.describe()));
+            t.check("the top patch applies through set_rules", g.set_rules(patched.clone()).is_ok(), || format!("seed {seed}: {}", p.row.describe()));
+            // QA on e75ec29 (qaQ: `hp < 20% → rest · survives 100%` applied, then `R1 rest · not
+            // safe` in every later trace): the top patch, applied, acts in the next six sends
+            // from camp at least once (a copy of the game; the protocol goes on unpatched by it).
+            if let Some(pos) = if p.replace { Some(p.insert_at as usize) } else { patched.rows.iter().position(|r| *r == p.row) } {
+                let mut h = g.clone();
+                let mut fired = 0u32;
+                for _ in 0..6 {
+                    h.send();
+                    let mut runs_fired = false;
+                    for _ in 0..4000 {
+                        let r = h.step(50);
+                        runs_fired |= r.events.iter().any(|e| matches!(e, Ev::Rule { row, .. } if *row == pos as i32));
+                        if r.run_over {
+                            break;
+                        }
+                    }
+                    if h.pending_exit.is_some() {
+                        let _ = h.keep(vec![]);
+                    }
+                    fired += runs_fired as u32;
+                }
+                t.check("the top patch, applied, acts in one of the next 6 sends", fired > 0, || format!("seed {seed} run {id}: {} at R{} · {} · fired in 0 of 6", p.row.describe(), pos + 1, d.verdict));
+            }
             if let Some(before) = before {
                 let after = g.forecast();
                 let bar = |f: &riddle_core::Forecast| f.depths.iter().find(|x| x.depth == p.forecast_depth).map(|x| (x.reach, x.pm.unwrap_or(0.0)));
@@ -740,9 +775,48 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     check_needs(t, &g, seed);
     check_gold_buy(t, &g, seed);
     lp.lap("unlock + gold buy");
+    // QA on e75ec29 (qaQ: `⊘ drink heal · unknown` in the picker, R1 `drink heal`): the
+    // vocabulary offers every drink / read a saved set holds.
+    {
+        let v = g.vocabulary();
+        let held: Vec<riddle_core::rules::Verb> = g.lineage.sets.iter().flat_map(|s| s.rows.iter()).filter(|r| matches!(r.verb.v.as_str(), "drink" | "read")).map(|r| r.verb.clone()).collect();
+        let missing: Vec<String> = held.iter().filter(|x| !v.verbs.contains(x)).map(|x| x.short()).collect();
+        t.check("the vocabulary offers every drink / read a set holds", missing.is_empty(), || format!("seed {seed}: {missing:?}"));
+    }
     // The night.
     let before = g.lineage.gold;
+    let bounty_before = g.lineage.bounty;
+    let chronicle_before = g.lineage.chronicle.len();
+    let deeds_before: Vec<String> = g.lineage.heir_deeds.clone();
     let r = g.run_offline(8 * 3600);
+    // QA on e75ec29 (qaQ: `bounty D10 · missed`, no bounty on the camp before the absence): the
+    // report's bounty is the one the camp showed when the absence began.
+    t.check("the report's bounty is the camp's before the absence", r.bounty.as_ref().is_none_or(|b| Some(b.depth) == bounty_before), || format!("seed {seed}: report {:?} · camp {bounty_before:?}", r.bounty));
+    // QA on e75ec29 (qaQ: BONES 12 finds, the chronicle's heirs 8): every pile the report says
+    // was found is named by a finder — the absence's chronicle lines and the live heir's deeds.
+    if g.lineage.chronicle.len() < riddle_core::engine::CHRONICLE_CAP {
+        let bones = |line: &str| -> usize { line.split(" · ").filter(|p| p.starts_with("found ♟") && p.ends_with("'s bones")).map(|p| p.matches('♟').count()).sum() };
+        let lines: usize = g.lineage.chronicle[chronicle_before.min(g.lineage.chronicle.len())..].iter().map(|l| bones(l)).sum();
+        let live: usize = g.lineage.heir_deeds.iter().filter(|d| d.starts_with("found ♟") && !deeds_before.contains(d)).count();
+        t.check("the report's bones == the finds the chronicle names", lines + live == r.bones_found.len(), || format!("seed {seed}: report {} · chronicle {lines} · live heir {live}", r.bones_found.len()));
+    }
+    // QA on e75ec29 (qaR: packed heals stolen on D1, no report line): the report's stolen
+    // items are the night's thefts less what runs got back.
+    let stolen: u32 = r.stolen.iter().map(|x| x.n).sum();
+    t.check("report stolen == thefts − got back", stolen == g.batch.thefts - g.batch.recovered, || format!("seed {seed}: report {stolen} · thefts {} · got back {}", g.batch.thefts, g.batch.recovered));
+    check_names(t, &g, seed, r.stolen.iter().map(|x| x.label.as_str()), "report stolen");
+    // QA on e75ec29 (qaR: `+$40 heir purse` after one death, none after three): each death
+    // either topped the purse up or found it full.
+    if let Some(gs) = &r.gold {
+        let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
+        t.check("the heir purse: a top-up per death below the line", gs.wake_cap == riddle_core::engine::WAKE_PAY && gs.wake_n <= deaths && (gs.wake_n == 0) == (gs.wake == 0), || format!("seed {seed}: wake ${} over {} of {deaths} deaths, cap ${}", gs.wake, gs.wake_n, gs.wake_cap));
+    }
+    // QA on e75ec29 (qaQ: `rested 333m` beside 16 runs × `rest 20m`): an absence of deaths
+    // rested one wake per run.
+    if !r.sampled && r.banked == 0 && r.returned == 0 {
+        let want = r.runs as u64 * g.rest_after(0, ExitTier::Death) as u64 / riddle_core::offline::TICKS_PER_SECOND;
+        t.check("an absence of deaths rested one wake per run", r.rested_s == want, || format!("seed {seed}: rested {}s · {} runs · want {want}s", r.rested_s, r.runs));
+    }
     lp.lap("night (8 h offline)");
     let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
     t.check("report runs == deaths + banked + returned", r.runs == deaths + r.banked + r.returned, || format!("seed {seed}: {} runs · {deaths} deaths · {} banked · {} returned", r.runs, r.banked, r.returned));
@@ -786,12 +860,12 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     lp.lap("report checks");
     if let Some(d) = &r.worst_death {
         t.check("worst death carries a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "stall" || d.verdict == "row") && !d.trace.turns.is_empty(), || format!("seed {seed}: {}", d.verdict));
-        check_death(t, seed, d);
+        check_death(t, &g, seed, d);
     }
     // One more of the night's deaths (the last one that is not the worst), in full.
     if let Some(id) = g.deaths.iter().rev().find(|(id, rec)| !rec.stall && Some(**id) != r.worst_death_id).map(|(id, _)| *id) {
         if let Some(d) = g.death(id) {
-            check_death(t, seed, &d);
+            check_death(t, &g, seed, &d);
         }
     }
     lp.lap("night deaths");
@@ -802,7 +876,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         let rec = g.deaths.get(&id).cloned().unwrap();
         let fires = d.patches.iter().any(|p| riddle_core::trace::patch_fired_rate(&g, &rec, p) >= 0.5);
         t.check("a stall's verdict names a firing patch", d.verdict == "stall" && fires, || format!("seed {seed} run {id}: {} {:?}", d.verdict, d.patches.iter().map(|p| p.row.describe()).collect::<Vec<_>>()));
-        check_death(t, seed, &d);
+        check_death(t, &g, seed, &d);
         let cause = d.cause.strip_prefix("stalled · ").unwrap_or(&d.cause);
         let want = format!("stalled, {}", riddle_core::sifter::stall_short(cause));
         let lines: Vec<&riddle_core::Highlight> = g.batch.highlights.iter().filter(|h| h.run_id == id && h.arc.is_some()).collect();

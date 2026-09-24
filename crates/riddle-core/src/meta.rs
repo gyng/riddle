@@ -172,7 +172,7 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             let gold = if owned { 0 } else { gold_price(u.cost, l.gold_buys) };
             // Cut 19 §3: the next row unlock is pinned to the short list.
             let pinned = !owned && is_row_unlock(u.id) && u.prereq.is_none_or(|p| l.unlocks.contains(p));
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned, short: false }
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned, short: false, auto_insert: false }
         })
         .collect();
     mark_short(l, &mut cat);
@@ -431,7 +431,25 @@ pub fn catalogue_with_deltas(game: &Game, compute: bool) -> Vec<UnlockInfo> {
         game.forecast_cache.borrow_mut().extend(g.forecast_cache.into_inner());
         pick(u, measured, base_reach, base_stall, n);
     }
+    let cards = rules.card_rows();
+    for u in cat.iter_mut() {
+        u.auto_insert = auto_insert(u, cards);
+    }
     cat
+}
+
+/// QA on e75ec29 (qaR: eight cards bought, eight rows auto-inserted — 14 rows, D7 76 % → 44 %,
+/// stall 40 %): at most this many card rows are put in the set by a buy; more are the
+/// player's to add.
+pub const AUTO_CARDS: usize = 3;
+
+/// Whether buying this card puts its row in the set (`UnlockInfo.auto_insert`): a tactic
+/// card not owned, measured at its best place (`delta`, `stall`), whose reach there is not
+/// down and whose stall share rises ≤ `CARD_STALL_RISE`, into a set holding fewer than
+/// `AUTO_CARDS` card rows. An unmeasured card is not inserted (the measure decides).
+pub fn auto_insert(u: &UnlockInfo, cards_in_set: usize) -> bool {
+    let card = TACTIC_CARDS.contains(&u.id.as_str()) || TIER2_CARDS.contains(&u.id.as_str()) || MASTERY_CARDS.contains(&u.id.as_str());
+    card && !u.owned && cards_in_set < AUTO_CARDS && u.delta.is_some_and(|d| d >= -1e-9) && u.stall.is_some_and(|s| s <= CARD_STALL_RISE + 1e-9)
 }
 
 /// A card measured at one place: the reach at the catalogue's depth and the stall share of

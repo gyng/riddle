@@ -193,6 +193,15 @@ pub struct ExitLine {
     pub xp: u32,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub level_ups: u32,
+    /// QA on e75ec29 (qaR: a packed heal stolen on D1, nothing on the exit): the labels of what
+    /// thieves took this run and it never got back (`· stolen heal`; flavour-named while
+    /// unidentified).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stolen: Vec<String>,
+    /// QA on e75ec29 (qaR): a death whose heir purse was already at `engine::WAKE_PAY` — no
+    /// top-up (`purse full`); a top-up reads `+$N wake` in `text`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub purse_full: bool,
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -653,6 +662,11 @@ pub struct ReturnReport {
     /// Cut 2 §2: bones piles recovered this absence ("heir 3 · D4 · 5 items").
     #[serde(default)]
     pub bones_found: Vec<String>,
+    /// QA on e75ec29 (qaR: a packed heal stolen on D1 in three runs, no report line): what
+    /// thieves took this absence and no run got back, per label (the item's label at the
+    /// theft: a flavour name while unidentified — `murky potion?`), most first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stolen: Vec<StolenRow>,
     /// Stall verdict (addition): present when the last ≥ 4 runs all came home with no new depth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stall: Option<Stall>,
@@ -726,6 +740,22 @@ pub struct GoldSummary {
     pub salvage: i32,
     pub wake: i32,
     pub spent: i32,
+    /// QA on e75ec29 (qaR: `+$40 heir purse` after the first death, nothing after three
+    /// later ones): the heir purse's rule — each death tops the purse up to this much
+    /// (`engine::WAKE_PAY`), never past it; a death with the purse at or over it pays
+    /// nothing (its exit line reads `purse full`). `wake` is the absence's sum of top-ups.
+    #[serde(default)]
+    pub wake_cap: i32,
+    /// How many of the absence's deaths topped the purse up (the rest found it full).
+    #[serde(default)]
+    pub wake_n: u32,
+}
+
+/// QA on e75ec29: a kind thieves took and kept (`ReturnReport.stolen`): the label, how many.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct StolenRow {
+    pub label: String,
+    pub n: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -1037,6 +1067,14 @@ pub struct UnlockInfo {
     /// report's PENDING and the camp's UNLOCKS show the same cards (`meta::mark_short`).
     #[serde(default, skip_serializing_if = "is_false")]
     pub short: bool,
+    /// QA on e75ec29 (qaR: eight cards bought, eight rows inserted — 14 rows, stall 40 %, D7
+    /// 76 % → 44 %): a tactic card's buy puts its row in the set at `insert_at` only when this
+    /// is set — measured (`delta`, `stall`), its best place's reach not down (`delta ≥ 0`), its
+    /// stall share up by ≤ `meta::CARD_STALL_RISE`, and fewer than `meta::AUTO_CARDS` card rows
+    /// in the set already (`meta::auto_insert`). Otherwise the card is owned, not in the set
+    /// (the client offers `add` on the card).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub auto_insert: bool,
 }
 
 #[cfg(test)]

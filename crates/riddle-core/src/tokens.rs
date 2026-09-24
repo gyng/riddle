@@ -160,6 +160,16 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
         verbs.push(Verb::new("recall"));
         verbs.push(Verb::new("send"));
     }
+    // QA on e75ec29 (qaQ: `⊘ drink heal · unknown` in the picker while R1 of the set was
+    // `drink heal`): a drink or read of a kind not yet identified that a saved set
+    // already holds (the shipped set's `drink heal`) is offered — the set holds the knowledge.
+    // Other gates stand (a shrine unseen, a variant's `no_rest`, a card's unlock).
+    for r in l.sets.iter().flat_map(|s| s.rows.iter()) {
+        let kind = matches!(r.verb.v.as_str(), "drink" | "read") && r.verb.a.as_deref().is_some_and(|a| a != "unknown");
+        if kind && !verbs.contains(&r.verb) {
+            verbs.push(r.verb.clone());
+        }
+    }
     let locked = locked_conds(l, &conds);
     Vocabulary { conds, verbs, max_rows: l.max_rows(), combos: crate::rules::combo_table(), locked }
 }

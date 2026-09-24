@@ -2634,6 +2634,7 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
             run.monsters[mi].fleeing = true;
             cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone(), amount });
             run.stolen.push((run.turn, label.clone()));
+            run.stolen_labels.push((run.stolen_ids.last().copied().unwrap_or(0), label.clone()));
             // An unknown's label ends in `?`; the note takes no second stop (`black potion?.`).
             note(run, cx, format!("The {} stole the {label}{}", crate::engine::kind_title(&kind), if label.ends_with('?') { "" } else { "." }));
             match amount {

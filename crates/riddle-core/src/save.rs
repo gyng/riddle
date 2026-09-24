@@ -14,5 +14,7 @@ pub fn load(text: &str) -> Result<Game, String> {
     crate::facts::upgrade_counter_facts(&mut g.lineage.facts);
     // Cut 9 §7: the graveyard's last five deaths stay answerable.
     g.max_deaths = g.max_deaths.max(crate::engine::KEPT_DEATHS);
+    // QA on e75ec29: a load is a camp — its bounty floor is the one on the screen.
+    g.bounty_seen = g.lineage.bounty;
     Ok(g)
 }

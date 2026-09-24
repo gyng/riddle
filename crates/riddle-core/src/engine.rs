@@ -180,6 +180,11 @@ pub struct Run {
     pub stolen_ids: Vec<u32>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recovered: Vec<(u32, String)>,
+    /// QA on e75ec29: each theft's item id and its label at the theft — the ones still in
+    /// `stolen_ids` at the exit are what the run lost to thieves (`Batch.stolen`, the exit
+    /// line's `· stolen heal`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stolen_labels: Vec<(u32, String)>,
     pub ally_lost: Vec<(u32, String)>,
     pub ally_freed: Vec<u32>,
     pub boss_kills: Vec<(u32, String)>,
@@ -873,6 +878,16 @@ pub struct LineageState {
 
 /// Cut 16 §1: a night of runs (the ledger's "a night of 16 runs").
 pub const NIGHT_RUNS: u32 = 16;
+/// Cut 20 §5: the night's bounty floor — the best depth + `BOUNTY_BELOW`, and (QA on e75ec29,
+/// qaR: `D15 ×2 · 0%` behind the unbeaten D13 mother) never past the next boss floor the
+/// lineage has not passed (its boss unslain and the best depth not below it): a bounty is a
+/// floor a run can reach. Set once at the night's end; fixed for the night.
+pub fn bounty_floor(best_depth: u32, kills: &BTreeSet<String>) -> u32 {
+    let want = best_depth + BOUNTY_BELOW;
+    let wall = crate::descent::BOSS_DEPTHS.iter().filter(|(k, d)| *d >= best_depth && !kills.contains(*k)).map(|(_, d)| *d).min();
+    want.min(wall.unwrap_or(u32::MAX)).clamp(1, crate::descent::ENDING_DEPTH - 1)
+}
+
 /// Cut 20 §5: the bounty floor sits this far below the lineage's best depth.
 pub const BOUNTY_BELOW: u32 = 2;
 /// Cut 20 §5: the bounty floor's gold piles pay this many times their coins.
@@ -1055,10 +1070,17 @@ impl LineageState {
         if let Some(name) = self.rules().name.as_deref().filter(|n| !n.trim().is_empty()) {
             parts.push(format!("\"{}\" set", name.trim()));
         }
-        // Bosses first, then the rest, two at most.
+        // Bosses first, then the rest, two at most. QA on e75ec29 (qaQ: the report's BONES
+        // listed 12 finds, the chronicle's lines 8 — a third find was cut by the two): the
+        // bones found are one deed of their own, every pile named (`found ♟4, ♟9's bones`).
+        let bones = |d: &String| d.starts_with("found ♟") && d.ends_with("'s bones");
         let mut deeds: Vec<String> = self.heir_deeds.iter().filter(|d| d.starts_with("took the")).cloned().collect();
-        deeds.extend(self.heir_deeds.iter().filter(|d| !d.starts_with("took the")).cloned());
+        deeds.extend(self.heir_deeds.iter().filter(|d| !d.starts_with("took the") && !bones(d)).cloned());
         parts.extend(deeds.into_iter().take(2));
+        let found: Vec<&str> = self.heir_deeds.iter().filter(|d| bones(d)).filter_map(|d| d.strip_prefix("found ").and_then(|d| d.strip_suffix("'s bones"))).collect();
+        if !found.is_empty() {
+            parts.push(format!("found {}'s bones", found.join(", ")));
+        }
         parts.push(end.to_string());
         if let Some(t) = tail {
             parts.push(t);
@@ -1070,7 +1092,9 @@ impl LineageState {
     }
     /// A deed of the live heir (first boss kills, captives freed, tames, bones found).
     pub fn heir_deed(&mut self, deed: String) {
-        if !self.heir_deeds.contains(&deed) && self.heir_deeds.len() < 6 {
+        // The bones found are all kept (the chronicle names every pile, the report counts them).
+        let bones = deed.starts_with("found ♟") && deed.ends_with("'s bones");
+        if !self.heir_deeds.contains(&deed) && (bones || self.heir_deeds.iter().filter(|d| !(d.starts_with("found ♟") && d.ends_with("'s bones"))).count() < 6) {
             self.heir_deeds.push(deed);
         }
     }
@@ -1336,7 +1360,7 @@ impl LineageState {
         self.night_runs = 0;
         // Cut 20 §5 (AC: "after the absence 15 of 16 runs banked, so the second half had
         // little at stake"): the deep calls — the next night's bounty floor.
-        self.bounty = Some((self.best_depth + BOUNTY_BELOW).clamp(1, crate::descent::ENDING_DEPTH - 1));
+        self.bounty = Some(bounty_floor(self.best_depth, &self.kills));
     }
 
     /// Cut 13 §2: pick one of the offered traits (the chip beside `♟3`); refused when it is
@@ -1444,6 +1468,16 @@ pub struct DeathRec {
     /// 17 %-fired fallback surviving 17 % over a 0 % base was relabelled advice).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub low_fired: Vec<Row>,
+    /// QA on e75ec29: the run on arriving at the death's floor and the facts then
+    /// (`Game.floor_start`) — `trace::floor_fired` replays the shown patches from it. Not
+    /// saved (a record read after a load skips that check).
+    #[serde(skip)]
+    pub floor: Option<(Run, BTreeSet<String>)>,
+    /// QA on e75ec29: the verdict was measured on the floor's replays (`trace::floor_verdict`):
+    /// the moment's replays did not reproduce the death, the floor's did — the baseline and the
+    /// patches' survival are the floor's.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub floor_window: bool,
 }
 
 fn is_zero_u64(n: &u64) -> bool {
@@ -1548,6 +1582,15 @@ pub struct Batch {
     pub rested: u64,
     pub best_score: u32,
     pub bones_found: Vec<String>,
+    /// QA on e75ec29: the thefts no run got back, per label (`ReturnReport.stolen`), and the
+    /// deaths that topped the heir purse up (`GoldSummary.wake_n`).
+    #[serde(default)]
+    pub stolen: BTreeMap<String, u32>,
+    #[serde(default)]
+    pub wake_n: u32,
+    /// The stolen items runs got back (`Run.recovered`), beside `thefts`.
+    #[serde(default)]
+    pub recovered: u32,
     pub row_fired: Vec<u32>,
     /// Runs in which each row fired at least once (Cut 9 §8: `R1 fired n of m runs`).
     pub row_runs: Vec<u32>,
@@ -1661,6 +1704,11 @@ pub struct Game {
     pub loadout: Vec<u32>,
     pub sim: bool,
     pub history: VecDeque<(Run, BTreeSet<String>)>,
+    /// QA on e75ec29: the live run as it stood on arriving at its current floor, with the
+    /// facts then — a death's patches are replayed from here as well (`trace::floor_fired`):
+    /// a row the death's short window fires but the floor never reaches is not the fix.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub floor_start: Option<(Run, BTreeSet<String>)>,
     /// Cut 11 §1: the live run's provenance log (`provenance.rs`; cap `PROV_CAP`) — the
     /// events a row reason's `because` points at. Cleared at `start_run`; off the run so the
     /// history ring's clones do not carry it; empty on sims.
@@ -1700,6 +1748,11 @@ pub struct Game {
     /// Cut 6 §1: the ledger line of the last settled exit (`step` attaches it to `Ev::Exit`).
     #[serde(default)]
     pub last_exit: Option<ExitLine>,
+    /// QA on e75ec29: the bounty floor the camp last showed — the lineage's at a load, a new
+    /// game, a send or a camp edit (rules, loadout); an absence's batches (`run_offline`, in
+    /// slices) never move it. The report names a bounty only when it is this one.
+    #[serde(skip)]
+    pub bounty_seen: Option<u32>,
     /// Cut 7 §5: the live run is being watched (`send()` / `step()` set it, the offline batch
     /// clears it): a watched bank grants +50% class XP.
     #[serde(default)]
@@ -1720,6 +1773,7 @@ impl Game {
             loadout: Vec::new(),
             sim: false,
             history: VecDeque::new(),
+            floor_start: None,
             prov: Vec::new(),
             reel: Vec::new(),
             last_snapshot: None,
@@ -1732,6 +1786,7 @@ impl Game {
             offline: false,
             last_exit: None,
             watched: false,
+            bounty_seen: None,
             stall: StallTally::default(),
             stall_cache: None,
             forecast_cache: Default::default(),
@@ -1750,6 +1805,7 @@ impl Game {
             loadout: self.loadout.clone(),
             sim: true,
             history: VecDeque::new(),
+            floor_start: None,
             prov: Vec::new(),
             reel: Vec::new(),
             last_snapshot: None,
@@ -1767,6 +1823,7 @@ impl Game {
             refined_panels: Default::default(),
             last_exit: None,
             watched: false,
+            bounty_seen: self.bounty_seen,
         }
     }
 
@@ -1816,6 +1873,9 @@ impl Game {
             if r.origin.is_none() && r.verb.v == "tactic" {
                 r.origin = Some("card".into());
             }
+        }
+        if !self.sim {
+            self.bounty_seen = self.lineage.bounty;
         }
         let i = self.lineage.active_set.min(self.lineage.sets.len() - 1);
         if self.lineage.sets[i] != set {
@@ -1938,6 +1998,7 @@ impl Game {
     }
 
     pub fn loadout(&mut self, ids: Vec<u32>) {
+        self.bounty_seen = self.lineage.bounty;
         if self.lineage.variant_is("bones_only") {
             self.loadout.clear();
             return;
@@ -2047,6 +2108,7 @@ impl Game {
 
     /// Start (or resume) an expedition. The player chose to go: any camp rest left is skipped.
     pub fn send(&mut self) -> Snapshot {
+        self.bounty_seen = self.lineage.bounty;
         self.lineage.rest_left = 0;
         self.watched = true;
         self.ensure_run()
@@ -2161,6 +2223,7 @@ impl Game {
             stolen: Vec::new(),
             stolen_ids: Vec::new(),
             recovered: Vec::new(),
+            stolen_labels: Vec::new(),
             ally_lost: Vec::new(),
             ally_freed: Vec::new(),
             boss_kills: Vec::new(),
@@ -2286,6 +2349,13 @@ impl Game {
         place_situations(&mut run, &self.lineage.lost);
         place_bones(&mut run);
         spawn_party(&mut run, &self.lineage.party);
+        // QA on e75ec29 (qaR: the pet is never in the text): each companion that walks down
+        // with the heir is named at the start (`Skog joins.`).
+        for m in run.monsters.iter().filter(|m| m.ally && m.cid.is_some()) {
+            let text = format!("{} joins.", m.name.clone().unwrap_or_default());
+            self.events.push(Ev::Note { t: run.turn, text: text.clone() });
+            run.notes.push((run.turn, text));
+        }
         let vision = run.vision(&self.lineage.unlocks);
         run.floor.map.update_vision(run.hero.pos, vision);
         self.history.clear();
@@ -2398,6 +2468,12 @@ impl Game {
             self.history.push_back((r.clone(), self.lineage.facts.clone()));
             while self.history.len() > HISTORY_TURNS + 1 {
                 self.history.pop_front();
+            }
+        }
+        if !self.sim {
+            let r = self.run.as_ref().unwrap();
+            if self.floor_start.as_ref().is_none_or(|(f, _)| f.id != r.id || f.depth != r.depth) {
+                self.floor_start = Some((r.clone(), self.lineage.facts.clone()));
             }
         }
         let (run, mut cx) = self.ctx();
@@ -2585,9 +2661,18 @@ impl Game {
         self.lineage.den_thefts += run.den_snatches;
         self.lineage.den_wakes += run.den_wakes;
         self.batch.thefts += run.stolen.len() as u32;
+        self.batch.recovered += run.recovered.len() as u32;
+        let kept_by_thieves: Vec<String> = run.stolen_labels.iter().filter(|(id, _)| run.stolen_ids.contains(id)).map(|(_, l)| l.clone()).collect();
+        for l in &kept_by_thieves {
+            *self.batch.stolen.entry(l.clone()).or_insert(0) += 1;
+        }
         self.batch.den_wakes += run.den_wakes;
-        // Cut 20 §5: the bounty floor — taken when the run reached it and came home.
-        if let Some(bd) = run.bounty {
+        // Cut 20 §5: the bounty floor — taken when the run reached it and came home. QA on
+        // e75ec29 (qaQ: `bounty D10 · missed` after the first absence, no bounty on the camp
+        // before it): the report names only the floor the camp showed (`bounty_seen`) — a
+        // night that closes inside an absence moves the floor for the runs after it, and the
+        // camp shows the new one on the return.
+        if let Some(bd) = run.bounty.filter(|b| Some(*b) == self.bounty_seen) {
             let taken = tier != ExitTier::Death && run.max_depth >= bd;
             let gold = if taken { run.bounty_gold.max(0) * tier.pct() / 100 } else { 0 };
             match self.batch.bounty.as_mut() {
@@ -2665,6 +2750,7 @@ impl Game {
         // Marks (Cut 2 §2): new depth, boss, trophy, rank. First kills stay in bests and the ledger.
         let mut marks = 0;
         let mut wake_top = 0;
+        let mut purse_full = false;
         let mut bests: Vec<String> = Vec::new();
         // Stall verdict window: a death or a new depth closes it; an exit row extends it.
         if let Some(r) = run.exit_row {
@@ -2771,6 +2857,8 @@ impl Game {
                     c.level += 1;
                     c.max_rows = 1 + c.level as usize;
                     bests.push(format!("{} L{}", c.name, c.level));
+                    // QA on e75ec29 (qaR: a pet levelled L1 → L3, never named until it fell).
+                    self.events.push(Ev::Note { t: run.turn, text: format!("{}: level {}.", c.name, c.level) });
                 }
                 match in_party {
                     Some(i) => self.lineage.party[i] = c,
@@ -3030,7 +3118,10 @@ impl Game {
                 let top = WAKE_PAY - self.lineage.gold;
                 self.lineage.gold_move(top, "wake pay");
                 self.batch.wake_pay += top;
+                self.batch.wake_n += 1;
                 wake_top = top;
+            } else {
+                purse_full = true;
             }
             if let Some(rec) = rec {
                 self.deaths.insert(run.id, rec);
@@ -3097,6 +3188,12 @@ impl Game {
         if wake_top > 0 {
             line.text.push_str(&format!(" · +${wake_top} wake"));
         }
+        // QA on e75ec29 (qaR: the heir purse paid after one death and not three others; packed
+        // heals stolen on D1 and nothing on the exit): a death that found the purse full at
+        // `WAKE_PAY` says so, and what thieves took and kept rides the line (`· stolen heal`,
+        // the client's; the text stays ≤ 14 words).
+        line.purse_full = purse_full;
+        line.stolen = kept_by_thieves.clone();
         // Cut 9 §5: every exit carries its last five hero turns (read off the run's own trace
         // ring: nothing more per tick).
         line.trace = Some(exit_trace(&run, &self.prov));
@@ -3588,7 +3685,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0 }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:

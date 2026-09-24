@@ -143,7 +143,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let boss = if stall { None } else { boss_of(run, &cause) };
     let loop_row = if stall { run.stuck_row.and_then(|r| usize::try_from(r).ok()).filter(|&r| r < rules.rows.len()) } else { None };
     let row_fired = run.row_fired.clone();
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new() }
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.clone().filter(|(f, _)| f.id == run.id && f.depth == run.depth) }
 }
 
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
@@ -600,6 +600,64 @@ impl Replayer {
     }
 }
 
+impl Replayer {
+    /// QA on e75ec29: one reseeded replay from the floor's start (`DeathRec.floor`), to the
+    /// run's end, the floor left, or `ticks` (the death's own time on the floor plus
+    /// `ENCOUNTER_TICKS`): (survived — not dead at the end —, the watched row acted). With
+    /// `until_fired` it stops at the row's first act (`floor_fired` needs no more).
+    fn floor_replay(&mut self, nonce: u64, watch_row: i32, until_fired: bool) -> (bool, bool) {
+        let mut run = self.run.clone();
+        run.rng = Rng::derive(self.seed ^ splitmix(nonce), run.turn as u64);
+        let depth = run.depth;
+        self.g.run = Some(run);
+        self.g.lineage.facts = self.facts.clone();
+        self.g.lineage.kill_counts = self.kill_counts.clone();
+        self.g.lineage.total_turns = self.total_turns;
+        self.g.lineage.ended = self.ended;
+        self.g.events.clear();
+        let mut fired = false;
+        for _ in 0..self.ticks {
+            self.g.tick();
+            fired |= self.g.events.iter().any(|e| matches!(e, Ev::Rule { row, .. } if *row == watch_row));
+            self.g.events.clear();
+            if fired && until_fired {
+                return (true, true);
+            }
+            if self.g.run.as_ref().is_none_or(|r| r.over.is_some() || r.depth != depth) {
+                break;
+            }
+        }
+        (self.g.run.as_ref().is_some_and(|r| r.over != Some(ExitTier::Death)), fired)
+    }
+}
+
+/// QA on e75ec29: the floor's-start game the floor replays start from (`DeathRec.floor`), and
+/// their tick cap. `None` without a floor start.
+fn floor_base(game: &Game, rec: &DeathRec) -> Option<(Game, u32)> {
+    let (start, facts) = rec.floor.clone()?;
+    let mut base = game.sim_clone();
+    base.lineage.facts = facts;
+    if let Some(k) = &rec.t10_kill_counts {
+        base.lineage.kill_counts = k.clone();
+    }
+    if let Some(l) = &rec.t10_lineage {
+        l.apply(&mut base.lineage);
+    }
+    base.lineage.heir = start.heir;
+    base.lineage.trait_ = start.trait_;
+    base.lineage.class = start.hero.class;
+    base.lineage.party.clear();
+    base.lineage.supplies.clear();
+    let ticks = rec.death_tick.saturating_sub(start.turn) + ENCOUNTER_TICKS;
+    base.run = Some(start);
+    Some((base, ticks))
+}
+
+/// The nonce of a floor replay of a row at a position (`row_nonce`, another stream).
+fn floor_nonce(row: &Row, pos: usize, i: u32) -> u64 {
+    row_nonce(row, pos, i) ^ 0xF100_0000
+}
+
 /// The checkpoint game the replays start from, and how many ticks to the death.
 fn replay_base(game: &Game, rec: &DeathRec) -> Option<(Game, u32)> {
     let t10 = rec.t10.clone()?;
@@ -941,6 +999,15 @@ pub fn survive_bar(baseline: f64) -> f64 {
 /// Share of the death's own replays in which a patch's row fired (the selection's replays,
 /// re-run; for tests and the gate table).
 pub fn patch_fired_rate(game: &Game, rec: &DeathRec, p: &Patch) -> f64 {
+    // QA on e75ec29: a floor-window verdict's patches were selected on the floor's replays.
+    if rec.floor_window && p.insert_at >= 0 && !p.remove && p.root.is_none() {
+        let Some((base, ticks)) = floor_base(game, rec) else { return 0.0 };
+        let rules = patched_rules(&rec.rules, p, max_rows(rec));
+        let pos = if p.replace { p.insert_at as usize } else { rules.rows.iter().position(|r| *r == p.row).unwrap_or(0) };
+        let Some(mut rp) = Replayer::new(&base, &rules, ticks, false) else { return 0.0 };
+        let fired = (0..FLOOR_REPLAYS).filter(|&i| rp.floor_replay(floor_nonce(&p.row, pos, i), pos as i32, true).1).count();
+        return fired as f64 / FLOOR_REPLAYS as f64;
+    }
     let Some((mut base, ticks)) = replay_base(game, rec) else { return 0.0 };
     // An unlock pseudo-patch: the token unlocked; the watched row is the set's own or the top.
     if p.root.is_some() {
@@ -958,6 +1025,70 @@ pub fn patch_fired_rate(game: &Game, rec: &DeathRec, p: &Patch) -> f64 {
     let Some(mut rp) = Replayer::new(&base, &rules, ticks, rec.stall) else { return 0.0 };
     let fired = (0..REPLAYS).filter(|&i| rp.replay(row_nonce(&p.row, pos, i), pos as i32).1).count();
     fired as f64 / REPLAYS as f64
+}
+
+/// QA on e75ec29 (qaQ: `hp < 20% → rest · survives 100%` applied, and every later run read
+/// `R1 rest · not safe` and died to the same archer): the death's window starts at a
+/// checkpoint where the hero is often already low (the ring holds 300 ticks), and a row that
+/// acts there — a rest while the killer is out of view — need not act at all in a run. The
+/// share of `FLOOR_REPLAYS` reseeded replays of the patched set from the floor's start
+/// (`DeathRec.floor`) in which the patch's row acts before he leaves the floor (or the death's
+/// own time on it, plus `ENCOUNTER_TICKS`, runs out). `None` when the record has no floor start
+/// or the patch is not an inserted row of its own (an unlock, a cut, a root's answer).
+pub fn floor_fired(game: &Game, rec: &DeathRec, p: &Patch) -> Option<f64> {
+    if p.insert_at < 0 || p.remove || p.root.is_some() {
+        return None;
+    }
+    let (base, ticks) = floor_base(game, rec)?;
+    let rules = patched_rules(&rec.rules, p, max_rows(rec));
+    let pos = if p.replace { p.insert_at as usize } else { rules.rows.iter().position(|r| *r == p.row)? };
+    let mut rp = Replayer::new(&base, &rules, ticks, false)?;
+    let need = (FLOOR_REPLAYS as f64 * FIRED_BAR).ceil() as u32;
+    let (mut fired, mut missed) = (0u32, 0u32);
+    for i in 0..FLOOR_REPLAYS {
+        if rp.floor_replay(floor_nonce(&p.row, pos, i), pos as i32, true).1 {
+            fired += 1;
+        } else {
+            missed += 1;
+        }
+        // Early out once the bar is decided either way (the share is only compared to it).
+        if fired >= need || missed > FLOOR_REPLAYS - need {
+            break;
+        }
+    }
+    Some(fired as f64 / (fired + missed).max(1) as f64)
+}
+
+/// Replays from the floor's start per shown patch (`floor_fired`).
+pub const FLOOR_REPLAYS: u32 = 12;
+
+/// QA on e75ec29: the patches whose row acts in under `FIRED_BAR` of the floor replays
+/// (`floor_fired`) are not offered — unless none acts, then the list stands (a dice death still
+/// names what was tried) unless `allow_empty`; a pinned boss counter and a stall's loop patch
+/// stay whatever.
+fn drop_floor_silent(game: &Game, rec: &mut DeathRec, allow_empty: bool) {
+    if rec.floor.is_none() || rec.death.patches.is_empty() {
+        return;
+    }
+    let counter = rec.counter.clone();
+    let jobs: Vec<Patch> = rec.death.patches.clone();
+    let rec_ref: &DeathRec = rec;
+    let rates: Vec<Option<f64>> = crate::forecast::par_map(game, jobs, |g, p| {
+        if counter.as_ref() == Some(&p.row) || is_loop_patch(p) {
+            return None;
+        }
+        floor_fired(g, rec_ref, p)
+    });
+    let silent = |i: usize| rates[i].is_some_and(|r| r < FIRED_BAR - 1e-9);
+    if !allow_empty && (0..rates.len()).all(silent) {
+        return;
+    }
+    let mut i = 0;
+    rec.death.patches.retain(|_| {
+        let keep = !silent(i);
+        i += 1;
+        keep
+    });
 }
 
 /// Cut 11 §2: a game with the root's unlock owned (the lock's condition; `cond_on_see` for
@@ -1061,6 +1192,10 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
             .then(a.2.cmp(&b.2))
     });
     let mut edge_gap = scored.first().is_some_and(|best| best.0 - baseline >= PATCH_MARGIN - 1e-9);
+    // QA on e75ec29: a cut that survives `SURVIVE_BAND` less than an added row is not the
+    // verdict (`survival_first` would take its head): the missing row is — a `gap`.
+    let boss = rec.boss.is_some();
+    let row_cut = row_cut.filter(|c| !scored.iter().any(|(rate, row, _)| (!row.conds.is_empty() || rate - baseline >= 0.3 - 1e-9) && !(boss && family(row) == "escape") && *rate > c.survive + SURVIVE_BAND + 1e-9));
     let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }).collect();
     // Cut 11 §2: the chain's root — the theft's answer or the unlock — measured at the top,
     // scored like any other (its edge counts for the verdict; its delta is simulated first).
@@ -1108,11 +1243,80 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
         // floors make a gap only while something at or over the baseline is left to show —
         // else the moment was the dice, and the dice fallback names what was tried.
         let offered = rec.death.patches.iter().any(|p| p.survive >= baseline - 1e-9);
-        if offered && rec.death.patches.iter().any(|p| p.forecast_delta >= DELTA_BAR - 1e-9) {
+        // QA on e75ec29 (qaQ: `survives 100% · base 100%` under GAP on the rules that just
+        // died): unpatched replays that all survive do not reproduce the death — the moment
+        // was the dice, whatever a row's floors (the dice screen says `nothing beats base`).
+        let reproduced = baseline < 1.0 - 1e-9;
+        if reproduced && offered && rec.death.patches.iter().any(|p| p.forecast_delta >= DELTA_BAR - 1e-9) {
             rec.death.verdict = "gap".into();
         }
     }
+    // QA on e75ec29 (qaQ: `survives 100% · base 100%`; qaR: DICE beside `survives 100% · base
+    // 92%`): when the moment's replays hardly reproduce the death (a base no patch can clear by
+    // `PATCH_MARGIN`), the verdict widens its window to the floor's start (`floor_verdict`).
+    let (mut heal_saves, mut unknown_saves) = (heal_saves, unknown_saves);
+    if rec.death.verdict == "dice" && !rec.stall && baseline >= 1.0 - PATCH_MARGIN - 1e-9 && rec.root.is_none() && rec.boss.is_none() {
+        if let Some((h, u)) = floor_verdict(game, rec, &cands, pinnable.as_ref()) {
+            heal_saves = h;
+            unknown_saves = u;
+        }
+    }
     margin_lines(rec, heal_saves, unknown_saves);
+}
+
+/// QA on e75ec29: the floor-window verdict. The unpatched set replayed `FLOOR_REPLAYS` times
+/// from the floor's start (`DeathRec.floor`) — the base; when that dies at least `PATCH_MARGIN`
+/// of the time, each candidate row at the top is replayed the same way, and one that survives
+/// `PATCH_MARGIN` more than the base and acts in ≥ `FIRED_BAR` of its replays makes the death a
+/// `gap` measured on the floor (`DeathRec.floor_window`: the baseline and every patch's
+/// survival are the floor's). `None` (the death stays `dice`) otherwise. Returns the margin's
+/// (heal saves, unknown saves) from the floor's numbers.
+fn floor_verdict(game: &Game, rec: &mut DeathRec, cands: &[Row], pinnable: Option<&Row>) -> Option<(bool, (bool, bool))> {
+    let (base, ticks) = floor_base(game, rec)?;
+    let fbase = {
+        let mut rp = Replayer::new(&base, &rec.rules, ticks, false)?;
+        (0..FLOOR_REPLAYS).filter(|&i| rp.floor_replay(0xF10B_0000 | i as u64, -99, false).0).count() as f64 / FLOOR_REPLAYS as f64
+    };
+    if fbase > 1.0 - PATCH_MARGIN + 1e-9 {
+        return None;
+    }
+    let need = fbase + PATCH_MARGIN;
+    let jobs: Vec<usize> = (0..cands.len()).filter(|&i| pinnable != Some(&cands[i])).collect();
+    let rec_ref: &DeathRec = rec;
+    let scored: Vec<Option<(f64, Row)>> = crate::forecast::par_map(&base, jobs, |base, &ci| {
+        let row = &cands[ci];
+        let rules = patched(rec_ref, row, 0);
+        let mut rp = Replayer::new(base, &rules, ticks, false)?;
+        let (mut survived, mut failed, mut fired) = (0u32, 0u32, 0u32);
+        for i in 0..FLOOR_REPLAYS {
+            let (s, f) = rp.floor_replay(floor_nonce(row, 0, i), 0, false);
+            survived += s as u32;
+            failed += !s as u32;
+            fired += f as u32;
+            // Early outs: the bar out of reach, or the row too rarely acting.
+            if failed as f64 > FLOOR_REPLAYS as f64 * (1.0 - need) + 1e-9 || (i + 1 - fired) as f64 > FLOOR_REPLAYS as f64 * (1.0 - FIRED_BAR) + 1e-9 {
+                return None;
+            }
+        }
+        let rate = survived as f64 / FLOOR_REPLAYS as f64;
+        (rate >= need - 1e-9 && fired as f64 >= FLOOR_REPLAYS as f64 * FIRED_BAR - 1e-9).then(|| (rate, row.clone()))
+    });
+    let mut scored: Vec<(f64, Row)> = scored.into_iter().flatten().collect();
+    if scored.is_empty() {
+        return None;
+    }
+    let uses = |row: &Row, v: &str, a: &str| row.verb.v == v && row.verb.a.as_deref() == Some(a);
+    let heal = scored.iter().any(|(r, row)| (uses(row, "drink", "heal") || uses(row, "read", "heal")) && *r >= MARGIN_BAR - 1e-9);
+    let unknown = (scored.iter().any(|(r, row)| uses(row, "drink", "unknown") && *r >= MARGIN_BAR - 1e-9), scored.iter().any(|(r, row)| uses(row, "read", "unknown") && *r >= MARGIN_BAR - 1e-9));
+    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap().then(a.1.conds.is_empty().cmp(&b.1.conds.is_empty())).then(a.1.conds.len().cmp(&b.1.conds.len())));
+    let patches: Vec<Patch> = scored.into_iter().map(|(rate, row)| Patch { row, insert_at: 0, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }).collect();
+    rec.death.patches = one_per_family(patches);
+    rec.death.baseline = fbase;
+    rec.death.verdict = "gap".into();
+    rec.floor_window = true;
+    rec.deltas_n = 0;
+    rec.deltas_done = false;
+    Some((heal, unknown))
 }
 
 /// Cut 14 §2: the margin's `· heal unused` and `· N unknown unused` — only on a `gap`, and
@@ -1136,6 +1340,13 @@ fn margin_lines(rec: &mut DeathRec, heal_saves: bool, unknown_saves: (bool, bool
     let n = unknown_unused(rec, unknown_saves);
     if n > 0 {
         rec.death.margin.push_str(&format!(" · {n} unknown unused"));
+        // QA on e75ec29 (qaQ: `2 unknown unused` on a `curious · drinks unknowns` hero): the
+        // trait uses an unknown only when clear (no foe in view, ≥ 50 % HP, once a floor —
+        // `turn::decide`); the row that would have used them in the fight is the gap, and the
+        // margin says why the trait did not.
+        if rec.t10.as_ref().is_some_and(|r| r.trait_ == crate::hero::Trait::Curious) {
+            rec.death.margin.push_str(" · curious: clear only");
+        }
     }
 }
 
@@ -1244,6 +1455,9 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     }
     rec.shaped = true;
     drop_under_base(rec);
+    // QA on e75ec29: a row the floor never reaches is not offered (`floor_fired`); a dice
+    // death's list may empty here — its fallback then names rows that do act.
+    drop_floor_silent(game, rec, rec.death.verdict == "dice");
     // Cut 11 §4: a `dice` death with nothing over the bar still names its alternative — the
     // best candidates measured in full, flagged `below_bar`, with their deltas.
     if rec.death.verdict == "dice" {
@@ -1257,6 +1471,7 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     if rec.stall && rec.death.patches.is_empty() {
         dice_fallback(game, rec);
     }
+    drop_floor_silent(game, rec, false);
     forecast_deltas(game, rec, DELTA_CANDIDATES, false);
     if rec.death.patches.is_empty() {
         return;
@@ -1359,6 +1574,7 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
             rec.death.patches.insert(0, o);
         }
     }
+    survival_first(rec);
     // QA on 92eb880: a dice death none of whose shown patches survives more than the
     // unpatched rules (a 100 % baseline: the replays win the fight he lost) says so.
     rec.death.nothing_beats_base = is_dice && !rec.death.patches.is_empty() && rec.death.patches.iter().all(|p| p.survive <= baseline + 1e-9);
@@ -1451,41 +1667,67 @@ pub const DELTA_SINK: f64 = -0.05;
 /// within it, the forecast's reach does.
 pub const SURVIVE_BAND: f64 = 0.10;
 
-/// Rank the patches: a patch below `DELTA_SINK` sinks below all others; otherwise survival
-/// first, reach inside `SURVIVE_BAND` (Cut 19 §4, rater AA: `+ drop one … survives 33 %` on a
-/// `+0 %` reach led two `survives 100 %` rows). Each place goes to the patch with the best
-/// reach (when any patch moves the forecast by `DELTA_BAR`; else the best survival) among
-/// those within the band of the best survival left — an order, not a pairwise rule (which
-/// is not transitive). Ties keep the incoming order.
+/// Rank the patches: survival first, reach inside `SURVIVE_BAND` (Cut 19 §4, rater AA: `+ drop
+/// one … survives 33 %` on a `+0 %` reach led two `survives 100 %` rows). Each place goes to
+/// the patch with the best reach (when any patch moves the forecast by `DELTA_BAR`; else the
+/// best survival) among those within the band of the best survival left — an order, not a
+/// pairwise rule (which is not transitive). A patch below `DELTA_SINK` (a row that survives
+/// the moment but costs floors) yields its place to any other within the band; QA on
+/// e75ec29 (qaQ: `rest · 83%` above two `100%` rows whose ranking reach was −8 %, one of
+/// twelve sims): it no longer sinks under patches that survive more than the band less.
+/// Ties keep the incoming order.
 pub fn rank_patches(patches: &mut [Patch], _baseline: f64) {
     let by_delta = patches.iter().any(|p| p.forecast_delta > DELTA_BAR);
-    let (mut rest, mut sunk): (Vec<Patch>, Vec<Patch>) = patches.iter().cloned().partition(|p| p.forecast_delta >= DELTA_SINK);
+    let mut pool: Vec<Patch> = patches.to_vec();
     let mut out: Vec<Patch> = Vec::with_capacity(patches.len());
-    for pool in [&mut rest, &mut sunk] {
-        while !pool.is_empty() {
-            let top = pool.iter().map(|p| p.survive).fold(f64::NEG_INFINITY, f64::max);
-            let mut best: Option<usize> = None;
-            for (i, p) in pool.iter().enumerate() {
-                if p.survive < top - SURVIVE_BAND - 1e-9 {
-                    continue;
-                }
-                let better = best.is_none_or(|b| {
-                    let q = &pool[b];
-                    let (d, s) = (p.forecast_delta - q.forecast_delta, p.survive - q.survive);
-                    if by_delta {
-                        d > 1e-9 || (d.abs() <= 1e-9 && s > 1e-9)
-                    } else {
-                        s > 1e-9 || (s.abs() <= 1e-9 && d > 1e-9)
-                    }
-                });
-                if better {
-                    best = Some(i);
-                }
+    while !pool.is_empty() {
+        let top = pool.iter().map(|p| p.survive).fold(f64::NEG_INFINITY, f64::max);
+        let within = |p: &Patch| p.survive >= top - SURVIVE_BAND - 1e-9;
+        let any_afloat = pool.iter().any(|p| within(p) && p.forecast_delta >= DELTA_SINK);
+        let mut best: Option<usize> = None;
+        for (i, p) in pool.iter().enumerate() {
+            if !within(p) || (any_afloat && p.forecast_delta < DELTA_SINK) {
+                continue;
             }
-            out.push(pool.remove(best.expect("a patch within the band")));
+            let better = best.is_none_or(|b| {
+                let q = &pool[b];
+                let (d, s) = (p.forecast_delta - q.forecast_delta, p.survive - q.survive);
+                if by_delta {
+                    d > 1e-9 || (d.abs() <= 1e-9 && s > 1e-9)
+                } else {
+                    s > 1e-9 || (s.abs() <= 1e-9 && d > 1e-9)
+                }
+            });
+            if better {
+                best = Some(i);
+            }
         }
+        out.push(pool.remove(best.expect("a patch within the band")));
     }
     patches.clone_from_slice(&out);
+}
+
+/// QA on e75ec29 (qaQ: the gem applied `92 %` above `100 %`, `83 %` above two `100 %`): the
+/// patch the gem applies survives within `SURVIVE_BAND` of the best shown. A pinned head (the
+/// boss counter, a cut, the root, a dice death's telegraph answer) keeps it only so; else the
+/// first patch in the list within the band of the best leads. On a boss death the escape
+/// family is not counted as the best (Cut 6 §8: giving up is not the answer to a wall).
+/// A `row` verdict whose cut loses the head this way is a `gap` (a missing row saves more).
+fn survival_first(rec: &mut DeathRec) {
+    let boss = rec.boss.is_some();
+    let counts = |p: &Patch| !(boss && family(&p.row) == "escape");
+    let Some(best) = rec.death.patches.iter().filter(|p| counts(p)).map(|p| p.survive).reduce(f64::max) else { return };
+    let ok = |p: &Patch| counts(p) && p.survive >= best - SURVIVE_BAND - 1e-9;
+    if rec.death.patches.first().is_none_or(ok) {
+        return;
+    }
+    let Some(i) = rec.death.patches.iter().position(ok) else { return };
+    let p = rec.death.patches.remove(i);
+    rec.death.patches.insert(0, p);
+    if rec.death.verdict == "row" {
+        rec.death.verdict = "gap".into();
+        rec.death.cause_row = None;
+    }
 }
 
 /// The full death for a run id, computing verdict and deltas on first request.
@@ -1568,6 +1810,7 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
     // Cut 19 §4: the camp's numbers rank the list again (survival first, reach within the
     // band) — the pinned heads keep their places.
     rerank_free(rec);
+    survival_first(rec);
     // The camp reads these panels next (the base, the tapped patch's set).
     for c in [g, unlocked] {
         for (k, v) in c.panel_cache.into_inner() {
@@ -1812,10 +2055,18 @@ mod tests_trace {
         let mut ps = vec![patch(Verb::arg("drink", "unknown"), 0.4, 0.01), patch(Verb::new("return"), 1.0, 0.0)];
         rank_patches(&mut ps, 0.0);
         assert_eq!(ps[0].row.verb, Verb::new("return"));
-        // A patch that costs floors sinks below everything, whatever its survival.
-        let mut ps = vec![patch(Verb::new("return"), 1.0, -0.2), patch(Verb::new("retreat"), 0.7, 0.0), patch(Verb::arg("drink", "unknown"), 0.65, 0.05)];
+        // A patch that costs floors yields its place to any other within the band …
+        let mut ps = vec![patch(Verb::new("return"), 1.0, -0.2), patch(Verb::new("retreat"), 0.95, 0.0), patch(Verb::arg("drink", "unknown"), 0.92, 0.05)];
         rank_patches(&mut ps, 0.0);
         assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["drink", "retreat", "return"]);
+        // … but never to one that survives more than the band less (QA on e75ec29, qaQ: `rest ·
+        // 83%` led two `100%` rows whose ranking reach was one sim in twelve under zero).
+        let mut ps = vec![patch(Verb::new("rest"), 0.83, 0.167), patch(Verb::new("back_corridor"), 1.0, -0.083), patch(Verb::new("descend"), 1.0, -0.083)];
+        rank_patches(&mut ps, 0.0);
+        assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["back_corridor", "descend", "rest"]);
+        let mut ps = vec![patch(Verb::new("return"), 1.0, -0.2), patch(Verb::new("retreat"), 0.7, 0.0), patch(Verb::arg("drink", "unknown"), 0.65, 0.05)];
+        rank_patches(&mut ps, 0.0);
+        assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["return", "drink", "retreat"]);
     }
 
     #[test]

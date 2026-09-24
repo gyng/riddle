@@ -2240,7 +2240,8 @@ fn auto_keep_follows_the_chip_and_never_evicts_across_categories() {
 #[test]
 fn death_deltas_are_the_camp_forecasts_move() {
     // Cut 20 §1: seed 1015's first death moved (one theft a run); 1022's offers the rest patch.
-    let mut g = Game::new(1022);
+    // QA on e75ec29 (the first night's bounty floor from the start moved 1022's): 1048's.
+    let mut g = Game::new(1048);
     g.send();
     let mut died = None;
     for _ in 0..4000 {
@@ -2250,7 +2251,7 @@ fn death_deltas_are_the_camp_forecasts_move() {
             break;
         }
     }
-    let id = died.expect("seed 1022's first heir dies");
+    let id = died.expect("seed 1048's first heir dies");
     g.keep(vec![]).unwrap();
     let d = g.death(id).unwrap();
     assert!(!d.patches.is_empty() && d.patches.iter().all(|p| p.camp_pending && p.forecast_depth == 0), "{:?}", d.patches);
@@ -8860,7 +8861,8 @@ fn the_bounty_floor_moves_each_night_and_pays_double() {
     let f = g.forecast();
     assert!(f.depths.iter().any(|d| d.depth == 7 && d.bounty), "{:?}", f.depths.iter().map(|d| (d.depth, d.bounty)).collect::<Vec<_>>());
     assert_eq!(f.depths.iter().filter(|d| d.bounty).count(), 1);
-    // The report: taken when a run reached it and came home.
+    // The report: taken when a run reached it and came home (a floor the camp showed).
+    g.bounty_seen = g.lineage.bounty;
     g.start_run(Some(1));
     g.batch = crate::engine::Batch::default();
     {
@@ -8876,6 +8878,7 @@ fn the_bounty_floor_moves_each_night_and_pays_double() {
     assert_eq!(g.batch.bounty, Some(BountyReport { depth: 7, taken: true, gold: 50 }));
     let mut g = Game::new(12);
     g.lineage.bounty = Some(9);
+    g.bounty_seen = g.lineage.bounty;
     g.start_run(Some(1));
     {
         let (run, mut cx) = g.ctx();
@@ -8883,4 +8886,188 @@ fn the_bounty_floor_moves_each_night_and_pays_double() {
     }
     g.finish_run();
     assert_eq!(g.batch.bounty, Some(BountyReport { depth: 9, taken: false, gold: 0 }));
+}
+
+// ---------------------------------------------------------------- QA on e75ec29 (qaQ)
+
+/// The first death of seed 1615 under the QA player's set (`hp < 20% → to corridor`, `hp < 40%
+/// → drink heal`, `foes ≥ 1 → attack nearest`, a curious heir): the unpatched replays all
+/// survive (`base 100%`), so it is a `dice` death that says `nothing beats base` — not a `gap`
+/// offering `hp < 20% → rest · survives 100%`. And every shown patch that inserts a row acts in
+/// half the replays from the floor's start (`trace::floor_fired`): the rest row the window
+/// fired (the goblin out of view) acted in 3 of 12 of those, and the next run never rested.
+#[test]
+fn a_death_the_replays_all_survive_is_dice_and_its_patches_act_on_the_floor() {
+    let mut g = Game::new(1615);
+    g.set_trait("curious").unwrap();
+    let set = RuleSet { name: None, rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("back_corridor")), Row::new(vec![Cond::n("hp<", 40)], Verb::arg("drink", "heal")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))] };
+    g.set_rules(set).unwrap();
+    g.send();
+    let mut died = None;
+    for _ in 0..4000 {
+        let r = g.step(50);
+        if r.run_over {
+            died = r.events.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "death")).then_some(r.snapshot.run.id);
+            break;
+        }
+    }
+    let id = died.expect("seed 1615's first heir dies");
+    g.keep(vec![]).unwrap();
+    let d = g.death(id).unwrap();
+    assert!((d.baseline - 1.0).abs() < 1e-9, "base {:.2}", d.baseline);
+    assert_eq!(d.verdict, "dice");
+    assert!(d.nothing_beats_base, "{:?}", d.patches);
+    let rec = g.deaths.get(&id).unwrap().clone();
+    assert!(rec.floor.is_some(), "the record carries the floor's start");
+    for p in &d.patches {
+        if let Some(f) = crate::trace::floor_fired(&g, &rec, p) {
+            assert!(f >= crate::trace::FIRED_BAR, "{} acts in {:.0}% of the floor's replays", p.row.describe(), f * 100.0);
+        }
+    }
+    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None };
+    let f = crate::trace::floor_fired(&g, &rec, &rest).unwrap();
+    assert!(f < crate::trace::FIRED_BAR, "rest acts in {:.0}% of the floor's replays", f * 100.0);
+}
+
+/// Every bones pile an heir recovers is named on its chronicle line, however many deeds.
+#[test]
+fn the_chronicle_names_every_bones_pile_found() {
+    let mut g = Game::new(3);
+    let l = &mut g.lineage;
+    l.heir_deed("took the Warlord".into());
+    l.heir_deed("freed a captive".into());
+    l.heir_deed("tamed a jackal".into());
+    for h in [2, 5, 7] {
+        l.heir_deed(format!("found ♟{h}'s bones"));
+    }
+    l.chronicle_heir("fell to gas", None);
+    let line = l.chronicle.last().unwrap();
+    assert!(line.contains("found ♟2, ♟5, ♟7's bones"), "{line}");
+    assert!(line.contains("took the Warlord"), "{line}");
+}
+
+/// A drink the shipped set holds is offered while its kind is still unidentified.
+#[test]
+fn the_vocabulary_offers_the_verbs_the_set_holds() {
+    let g = Game::new(5);
+    let heal = Verb::arg("drink", "heal");
+    assert!(g.lineage.rules().rows.iter().any(|r| r.verb == heal), "the shipped set drinks heal");
+    assert!(!crate::item::is_identified(&g.lineage.facts, &g.lineage.flavours, "heal"));
+    assert!(g.vocabulary().verbs.contains(&heal));
+    // A kind no set holds stays unoffered until identified.
+    assert!(!g.vocabulary().verbs.contains(&Verb::arg("drink", "speed")));
+}
+
+/// An absence's `rested` is the rest its runs earned — one wake per death — not the clock's
+/// (the camp rest it opens with is the previous run's; the last run's runs on at the return).
+#[test]
+fn rested_is_the_rest_the_absences_runs_earned() {
+    let mut g = Game::new(21);
+    g.lineage.rest_left = crate::engine::WAKE_TICKS;
+    let r = g.run_offline(2 * 3600);
+    assert!(!r.sampled && r.runs > 0 && r.banked == 0 && r.returned == 0, "{} runs · {} banked · {} returned", r.runs, r.banked, r.returned);
+    assert_eq!(r.rested_s, r.runs as u64 * crate::engine::WAKE_TICKS as u64 / crate::offline::TICKS_PER_SECOND);
+}
+
+/// QA on e75ec29 (qaQ: `bounty D10 · missed`, no bounty on the camp before the absence): a
+/// floor a night sets inside an absence is not reported; the one the camp showed (a load, a
+/// send, an edit) is.
+#[test]
+fn the_report_names_only_the_bounty_the_camp_showed() {
+    let mut g = Game::new(8);
+    g.lineage.night_runs = crate::engine::NIGHT_RUNS - 1;
+    let r = g.run_offline(4 * 3600);
+    assert!(g.lineage.bounty.is_some(), "a night closed inside the absence");
+    assert_eq!(r.bounty, None, "never on the camp");
+    let shown = g.lineage.bounty;
+    let mut h = Game::load(&g.save()).unwrap();
+    let r = h.run_offline(2 * 3600);
+    assert_eq!(r.bounty.map(|b| b.depth), shown, "the floor the camp showed at the load");
+}
+
+// ---------------------------------------------------------------- QA on e75ec29 (qaR)
+
+/// A card buy puts its row in the set only when the measure says it does not hurt, and only
+/// while the set holds fewer than `AUTO_CARDS` card rows.
+#[test]
+fn a_card_buy_inserts_only_what_the_measure_allows() {
+    use crate::meta::{auto_insert, AUTO_CARDS, CARD_STALL_RISE};
+    let g = Game::new(3);
+    let mut u = g.unlocks().into_iter().find(|u| u.id == "corridor_fighting").unwrap();
+    u.owned = false;
+    u.delta = Some(0.02);
+    u.stall = Some(0.01);
+    assert!(auto_insert(&u, 0));
+    assert!(!auto_insert(&u, AUTO_CARDS), "a set with {AUTO_CARDS} cards takes no more on its own");
+    let mut down = u.clone();
+    down.delta = Some(-0.04);
+    assert!(!auto_insert(&down, 0), "reach down at its best place");
+    let mut stalls = u.clone();
+    stalls.stall = Some(CARD_STALL_RISE + 0.03);
+    assert!(!auto_insert(&stalls, 0), "stall share up past the rise");
+    let mut unmeasured = u.clone();
+    unmeasured.delta = None;
+    assert!(!auto_insert(&unmeasured, 0), "unmeasured");
+    let mut verb = g.unlocks().into_iter().find(|u| u.id == "throw").unwrap();
+    verb.delta = Some(0.1);
+    verb.stall = Some(0.0);
+    assert!(!auto_insert(&verb, 0), "a verb is the player's to write");
+    // The catalogue carries it: never on an owned or an unmeasured card.
+    for u in g.unlocks() {
+        assert!(!u.auto_insert || (u.delta.is_some() && !u.owned), "{}", u.id);
+    }
+}
+
+/// What thieves took and kept is on the exit line and in the absence's report; a got-back
+/// item is not.
+#[test]
+fn thefts_kept_by_thieves_reach_the_exit_line_and_the_report() {
+    let mut g = arena();
+    {
+        let run = g.run.as_mut().unwrap();
+        run.stolen_ids = vec![71];
+        run.stolen_labels = vec![(70, "heal potion".into()), (71, "murky potion?".into())];
+        run.stolen = vec![(3, "heal potion".into()), (9, "murky potion?".into())];
+        run.recovered = vec![(12, "heal potion".into())];
+    }
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Return);
+    }
+    g.batch = crate::engine::Batch::default();
+    g.finish_run();
+    let line = g.batch.exits.last().unwrap();
+    assert_eq!(line.stolen, vec!["murky potion?".to_string()]);
+    assert_eq!(g.batch.stolen.get("murky potion?"), Some(&1));
+    assert_eq!(g.batch.stolen.get("heal potion"), None, "got back");
+}
+
+/// The bounty floor is one a run can reach: best + 2, never past the next boss floor the
+/// lineage has not passed.
+#[test]
+fn the_bounty_floor_stops_at_the_next_unbeaten_boss() {
+    use crate::engine::bounty_floor;
+    let none = std::collections::BTreeSet::new();
+    assert_eq!(bounty_floor(13, &none), 13, "the mother (D13) unbeaten");
+    assert_eq!(bounty_floor(12, &none), 13);
+    assert_eq!(bounty_floor(14, &none), 16, "past D13: the lich's D18 is the next");
+    let mother: std::collections::BTreeSet<String> = ["bloat_mother".to_string()].into();
+    assert_eq!(bounty_floor(13, &mother), 15, "the mother slain");
+    assert_eq!(bounty_floor(8, &none), 8, "the warlord's floor");
+    assert_eq!(bounty_floor(0, &none), 2);
+}
+
+/// A companion that walks down with the heir is named at the start (`Skog joins.`).
+#[test]
+fn a_party_companion_is_named_when_it_joins() {
+    let mut g = Game::new(4);
+    g.lineage.party = crate::probes::pets_party();
+    let names: Vec<String> = g.lineage.party.iter().map(|c| c.name.clone()).collect();
+    assert!(!names.is_empty());
+    g.events.clear();
+    g.start_run(Some(5));
+    for n in &names {
+        let want = format!("{n} joins.");
+        assert!(g.events.iter().any(|e| matches!(e, Ev::Note { text, .. } if *text == want)), "{want}: {:?}", g.events);
+    }
 }

@@ -61,7 +61,9 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          trace?: Trace;                                                                     // Cut 9 §5: the exit's last-5 trace (every tier)
                          salvaged?: { kind: string; n: number; gold: number }[];                           // what the exit salvaged before the keep sheet (a return's 40 % cut), per kind in coins; `kind` is a display name — an unidentified kind reads as its flavour (`brittle scroll?`, QA 1a2a4a9)
                          run_id?: number;                                                                   // the run, so a report's trace links can open its replay (QA on e0f87e7: the return sheet's had `watch`, the report's did not)
-                         xp?: number; level_ups?: number };                                                 // QA 92eb880: the XP this run earned (the part that crossed a level included) and the levels crossed — the watched report's `xp` line, never a client-side ladder (web's 40·L² was not the core's; `fighter +0 · L4 ↑1`)
+                         xp?: number; level_ups?: number;                                                   // QA 92eb880: the XP this run earned (the part that crossed a level included) and the levels crossed — the watched report's `xp` line, never a client-side ladder (web's 40·L² was not the core's; `fighter +0 · L4 ↑1`)
+                         stolen?: string[];                                                                 // QA e75ec29 (qaR): what thieves took this run and it never got back (`· stolen heal`; flavour-named while unidentified)
+                         purse_full?: boolean };                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
 export type GoldLine = { t: number; delta: number; why: string };
 /** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */
@@ -154,7 +156,7 @@ export type ReturnReport = {
   deepest?: number;                                                            // the send's deepest floor (a delta, like the tiles beside it); absent on an old wire
   stalled?: number;                                                            // Cut 13 §1: sends that stalled (among `returned`, keeping nothing); the tiles count them apart
   spent?: { kind: string; n: number; gold: number }[];                         // Cut 13 §3: what the automations bought this absence, per kind (the SPENT section)
-  gold?: { home: number; salvage: number; wake: number; spent: number };       // Cut 13 §3: the absence's movements to the coin (home + salvage + wake − spent = the header's delta)
+  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number };       // Cut 13 §3: the absence's movements to the coin (home + salvage + wake − spent = the header's delta)
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; worst_death_id?: number; live?: Snapshot;
   tamed: string[]; hatched: string[]; lost: string[];                        // Addendum A
@@ -162,6 +164,7 @@ export type ReturnReport = {
   salvaged: { kind: string; n: number; gold: number }[];                    // Addendum D; `kind` an unidentified kind's flavour (`brittle scroll?`) until identified (QA 1a2a4a9)
   renown: { gained: number; rank: number; ranks_up: number };               // Addendum D
   rested_s?: number; banked?: number; returned?: number; bones_found?: string[]; // Cut 2 §1–2
+  stolen?: { label: string; n: number }[];                                    // QA e75ec29 (qaR): what thieves took this absence and no run got back, per label (flavour-named while unidentified), most first; `gold.wake_cap` = the heir purse's top-up line ($40, each death tops up to it; `wake_n` deaths did), a death that found it full reads `purse full` on its exit line
   stall?: Stall;                                                              // core addition: stall verdict
   exits?: ExitLine[];                                                         // Cut 6 §1: one ledger line per exit in the batch
   picked?: number[];                                                          // Cut 16 §1: depths picked clean (≥ 3 banks/returns, shallower than the best), ascending — `D3 · picked clean`
@@ -274,6 +277,7 @@ export type UnlockInfo = { id: string; cost: number; owned: boolean; available: 
                            situation?: string;                                                             // Cut 18 §5: a tactic card's foe tag (`kite_archers` → `ranged`, `gas_step` → `gas`), for `vs archers` beside `reach ~0`; absent on other unlocks
                            pinned?: boolean;                                                               // Cut 19 §3: the next `+1 row` (its prerequisite owned) — keep it on the camp's short list until bought
                            short?: boolean;                                                                // QA 1a2a4a9: on the short list (≤ 3, the pinned one included) — the core's choice from the lineage alone; the camp's shelf and the report's PENDING show these
+                           auto_insert?: boolean;                                                          // QA e75ec29 (qaR): a tactic card's buy puts its row in the set (at `insert_at`) only when set — measured, reach not down at its best place, stall share up ≤ 5 pts, fewer than 3 card rows in the set; otherwise owned, not in the set (offer `add`)
                            gold?: number };                                                                 // Cut 15 §2: today's gold price (`150 × cost × (4 + gold buys) / 4`); 0 when owned or free (not gold-buyable). A card short only of marks (`needs` = `◆N more`) buys with gold when the lineage has it
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */

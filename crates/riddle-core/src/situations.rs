@@ -495,6 +495,7 @@ fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
     run.monsters[mi].fleeing = true;
     cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone(), amount });
     run.stolen.push((run.turn, label.clone()));
+    run.stolen_labels.push((run.stolen_ids.last().copied().unwrap_or(0), label.clone()));
     note(run, cx, format!("A thief snatched the {label}."));
     match amount {
         Some(g) => callout(run, cx, &format!("stolen ${g}")),

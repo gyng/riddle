@@ -54,9 +54,12 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
     while consumed < budget {
         // Camp rest first (the heir at camp: no run, or a run not yet begun).
         if game.lineage.rest_left > 0 && game.run.as_ref().is_none_or(|r| r.turn == 0) {
+            // QA on e75ec29 (qaQ: `rested 333m` beside 16 runs × `rest 20m`): the report's
+            // `rested` is the rest each of its runs earned (counted at the run's end, below),
+            // not the clock's — the camp rest a report begins with is the previous run's, and
+            // the last run's is still running at the return.
             let used = game.rest_tick((budget - consumed).min(u32::MAX as u64) as u32);
             consumed += used as u64;
-            game.batch.rested += used as u64;
             if game.lineage.rest_left > 0 {
                 break;
             }
@@ -82,6 +85,7 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
         }
         if game.run.as_ref().is_some_and(|r| r.over.is_some()) {
             let outcome = game.finish_run().unwrap_or_default();
+            game.batch.rested += game.lineage.rest_left as u64;
             game.auto_keep();
             game.events.clear();
             if outcome.new_facts == 0 && !outcome.new_best {
@@ -258,12 +262,17 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         banked: b.banked,
         returned: b.returned,
         bones_found: b.bones_found.clone(),
+        stolen: {
+            let mut v: Vec<crate::wire::StolenRow> = b.stolen.iter().map(|(label, n)| crate::wire::StolenRow { label: label.clone(), n: *n }).collect();
+            v.sort_by(|a, b| b.n.cmp(&a.n).then(a.label.cmp(&b.label)));
+            v
+        },
         stall,
         deepest: b.run_outcomes.iter().map(|(d, _)| *d).max().unwrap_or(0),
         // Cut 13 §3: the night's ledger — what the automations bought, per kind in coins.
         stalled: b.stalls,
         spent: b.spent.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).filter(|r| r.gold > 0).collect(),
-        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum() }),
+        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n }),
         exits: b.exits.clone(),
         picked: game.lineage.picked_clean(),
         restock_capped: b.restock_capped,
