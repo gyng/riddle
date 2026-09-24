@@ -46,7 +46,7 @@ import { QuadLayer } from "./layers";
 import { GpuTimer, Hist } from "./gputimer";
 import { paletteFor } from "./palette";
 import { FONT_ADVANCE, FONT_CELL_H, FONT_CELL_W } from "./font";
-import { TAG_CHAR, TAG_H, TAG_PAD, TagLayer, type Tag } from "./tags";
+import { TAG_CHAR, TAG_H, TAG_PAD, TagLayer, allyName, type Tag } from "./tags";
 import { PROPS, ReplayState, type EntState } from "./state";
 import type { Ev, Snapshot } from "./types";
 
@@ -575,7 +575,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // Cut 8A: in the fight frame the hero and his allies carry an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
       // above the sprite; glyphs sit above the bar. Second art pass: a hostile's bar is on its name tag instead.
       let top = fy + h + 2;
-      const tagged = !e.hero && !e.ally && !e.neutral && !e.dying;
+      // QA e75ec29 (R: "the pet is an unlabelled sprite with no hp"): an ally carries a tag too — green-tinted, its kind and name
+      // (`jackal Skog`; a summoned ally, unnamed, its kind), with the same short hp bar
+      const tagged = !e.hero && !e.neutral && !e.dying;
+      const tagText = e.ally ? allyName(e.kind, e.name) : e.name;
       if (fight && barBg && barFg && !tagged && !e.dying && !e.neutral && e.maxHp > 0) {
         const fill = Math.max(0, Math.min(BAR_W, Math.round((BAR_W * e.hp) / e.maxHp)));
         L.hud.push(fx, fy + h + 1, 3.7, BAR_W, 1, barBg.u0, barBg.v0, barBg.u1, barBg.v1);
@@ -588,7 +591,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // cannot clear it is not drawn).
       if (tagged) {
         const px = dpr / k;   // world texels per CSS px
-        const nw = (e.name.length * TAG_CHAR + TAG_PAD) * px, th = TAG_H * px, nx = textX(nw, fx);
+        const nw = (tagText.length * TAG_CHAR + TAG_PAD) * px, th = TAG_H * px, nx = textX(nw, fx);
         let ny = fy + h + 1;
         const hits = (y: number): boolean => tagBoxes.some((b) => nx - nw / 2 < b[2] && nx + nw / 2 > b[0] && y < b[3] && y + th > b[1]);
         const clash = (y: number): boolean => !!calloutBox && nx + nw / 2 > calloutBox[0] && nx - nw / 2 < calloutBox[2] && y + th > calloutBox[1] && y < calloutBox[3];
@@ -596,8 +599,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         if (!hits(ny) && !clash(ny)) {
           tagBoxes.push([nx - nw / 2, ny, nx + nw / 2, ny + th]);
           const [cx, cy] = toCss(nx, ny);
-          labels.push({ text: e.name, x: cx, y: cy, id: e.id, w: (nw * k) / dpr, h: TAG_H });
-          tags.push({ id: e.id, text: e.name, x: cx, y: cy, w: (nw * k) / dpr, hp: e.maxHp > 0 ? e.hp / e.maxHp : -1 });
+          labels.push({ text: tagText, x: cx, y: cy, id: e.id, w: (nw * k) / dpr, h: TAG_H });
+          tags.push({ id: e.id, text: tagText, x: cx, y: cy, w: (nw * k) / dpr, hp: e.maxHp > 0 ? e.hp / e.maxHp : -1, ally: e.ally });
           top = ny + th + 1;
         }
       }

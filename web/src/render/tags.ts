@@ -4,7 +4,14 @@
 // The layer is a sibling of the canvas with the canvas's offset box, so the viewer's CSS coordinates (`toCss`) are its own.
 // Pooled elements; a frame writes only what changed. Cut 19: the serif is Alegreya (Google Fonts, index.html), Georgia before it loads.
 
-export type Tag = { id: number; text: string; x: number; y: number; w: number; hp: number };   // x centre, y bottom (CSS px); hp 0..1, <0 = no bar
+export type Tag = { id: number; text: string; x: number; y: number; w: number; hp: number; ally?: boolean };   // x centre, y bottom (CSS px); hp 0..1, <0 = no bar; ally: the green plate
+
+/** QA e75ec29: an ally's plate — its kind's last word and its name (`jackal Skog`), a nameless (summoned) ally its kind alone. */
+export function allyName(kind: string, name: string): string {
+  const k = kind.replace(/^(spectral|boss)_/, "").split("_").pop() ?? kind;
+  if (!name || name === k || name.replace(/ /g, "_") === kind || name.endsWith(k)) return /* copy:callout */ k;
+  return /* copy:callout */ `${k} ${name}`;
+}
 
 export const TAG_H = 19;          // CSS px: the name's line (13) + the bar (4) + gaps
 export const TAG_CHAR = 6.4;      // CSS px per character of the 12 px serif (lowercase average; the plate's width estimate)
@@ -18,6 +25,9 @@ const CSS = `
 .rtag i { display: block; width: 24px; height: 4px; margin-top: 2px; background: #1a0f0c; border: 1px solid #0b0706; box-shadow: 0 0 0 1px rgba(120,90,60,.45); box-sizing: border-box; }
 .rtag i > s { display: block; height: 100%; background: linear-gradient(#e0433c, #9e1f1c); text-decoration: none; }
 .rtag.nobar i { display: none; }
+.rtag.ally b { color: #b9f0a4; }
+.rtag.ally i { box-shadow: 0 0 0 1px rgba(90,150,70,.55); }
+.rtag.ally i > s { background: linear-gradient(#6fd35a, #2f8a2a); }
 `;
 
 export class TagLayer {
@@ -60,12 +70,13 @@ export class TagLayer {
       const e = this.els[i]!, t = tags[i];
       if (!t) { if (e.key !== "") { e.el.style.display = "none"; e.key = ""; } continue; }
       const hp = t.hp < 0 ? -1 : Math.max(0, Math.min(1, t.hp));
-      const key = `${t.text}|${Math.round(t.x)}|${Math.round(t.y)}|${Math.round(t.w)}|${hp.toFixed(2)}`;
+      const key = `${t.ally ? 1 : 0}|${t.text}|${Math.round(t.x)}|${Math.round(t.y)}|${Math.round(t.w)}|${hp.toFixed(2)}`;
       if (key === e.key) continue;
       e.key = key;
       e.el.style.display = "";
       if (e.name.textContent !== t.text) e.name.textContent = t.text;
       e.el.classList.toggle("nobar", hp < 0);
+      e.el.classList.toggle("ally", !!t.ally);
       if (hp >= 0) e.fill.style.width = `${Math.round(hp * 100)}%`;
       e.el.style.width = `${Math.round(t.w)}px`;
       e.el.style.transform = `translate(${Math.round(t.x - t.w / 2)}px, ${Math.round(t.y - TAG_H)}px)`;

@@ -116,7 +116,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     // a tap lights the tablet and the gem applies the lit one — one model: tablets choose, the gem acts
     const btn: HTMLButtonElement = h("button", { class: `patch tablet${p.remove ? " remove" : ""}${p.below_bar || held >= 0 || opts.nothingBeatsBase ? " below" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
       onclick: opts.select ? () => opts.select!(btn) : onclick, ...(full ? { "data-full": "1" } : {}) },
-      h("span", { class: "patch-main" }, label, root),
+      h("b", { class: "rank num", "aria-hidden": "true" }), h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
         // Cut 17 §4: `survives N %` as a gauge on the patch tablet (the number stays beside it)
         unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
@@ -130,9 +130,14 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
   if (head) {
     const fold = h("div", { class: "patches-fold", hidden: true }, ...rows);
     const more: HTMLButtonElement = h("button", { class: "mini more patches-more", onclick: () => { fold.hidden = false; more.remove(); } }, /* copy:button */ "others", h("small", { class: "num dim" }, ` ${rows.length}`));
-    return h("div", { class: "patches none-beats" }, head, more, fold);
+    const box = h("div", { class: "patches none-beats" }, head, more, fold); renumber(fold); return box;
   }
-  return h("div", { class: "patches" }, ...rows);
+  const box = h("div", { class: "patches" }, ...rows); renumber(box); return box;
+}
+/** QA e75ec29 (Q: "I read the gem as the best fix … rank by what is shown or show the ranking key"): the tablets carry their place
+ *  (`1.` `2.` `3.`), renumbered whenever the order changes (the camp's reach landing re-ranks them). */
+function renumber(host: HTMLElement): void {
+  host.querySelectorAll<HTMLElement>(":scope > button.patch > .rank").forEach((r, i) => { r.textContent = `${i + 1}.`; });
 }
 /** Each patch tablet's action (apply, buy, open the drop sheet, open the camp on a held row) — the gem's, when tablets only select. */
 export const applyOf = new WeakMap<HTMLElement, () => void | Promise<void>>();
@@ -180,6 +185,7 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
   for (const x of live) x.b.classList.toggle("neg", moveOf(x.p) < 0);
   const ordered = [...rankBand(live, moveOf), ...below];
   for (const x of ordered) host.appendChild(x.b);
+  renumber(host);
 }
 
 /** Cut 19 §4 (core `trace::SURVIVE_BAND`): survival decides a place when two patches' survival differs by more than 10 pts. */

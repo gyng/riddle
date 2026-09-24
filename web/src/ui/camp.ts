@@ -17,7 +17,7 @@
 // row stands in for the class button while it is up.
 import type { App, Mounted } from "../app";
 import type { CageOption, SupplyEntry, UnlockInfo } from "../engine/types";
-import { h, clear, flash, replace, spanOf } from "./dom";
+import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { renderForecast, renderShaft } from "./forecast";
@@ -25,7 +25,7 @@ import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
 import { openChronicle } from "./chronicle";
-import { stallLabel, classList, deltaClass, deltaLabel, deltaPts, goldAffordable, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
+import { stallLabel, classList, deltaClass, deltaLabel, deltaPts, goldAffordable, addCard, isCard, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS } from "../engine/classes";
@@ -266,8 +266,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       if (on) {
         const ins = (L.insured ?? []).includes(it.id);
         const price = Math.ceil(salvageValue(it.kind, "bank") * 10 / 4);
-        chips.appendChild(h("button", { class: `chip mini${ins ? " on" : ""}`, disabled: ins || L.gold < price,
-          onclick: () => void app.mutate(() => app.engine.insure(it.id)) }, ins ? /* copy:label */ "insured" : `$${price}`));
+        // QA e75ec29 (R: "an unlabelled `$75` chip; one tap charged $75"): `insure $75`, a second tap pays
+        chips.appendChild(ins ? h("button", { class: "chip mini on", disabled: true }, /* copy:label */ "insured")
+          : twoTap(/* copy:button */ `insure $${price}`, /* copy:button */ `ok $${price}`, () => void app.mutate(() => app.engine.insure(it.id)), { class: "chip mini insure", disabled: L.gold < price }));
       }
     }
     // an empty slot is a plain marker, never a tap target (QA on 952e306: "vault slot '·' tap: nothing happened")
@@ -433,7 +434,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       if (shown.length < list.length) unlocks.appendChild(h("button", { class: "mini more", onclick: () => { setUnlocksAll(true); paintFrom(cat); } }, /* copy:button */ "more"));
       // an owned chip reads `card: thief guard · owned` (QA on 952e306: "bought card appears at the end with no cost"); its sheet
       // carries the title and, for a card whose row was dropped, `insert`
-      if (owned.length) unlocks.appendChild(h("div", { class: "chips owned" }, ...owned.map((u) => h("button", { class: "chip mini owned", onclick: () => openOwnedSheet(app, u) }, u.label, h("small", { class: "dim" }, /* copy:callout */ " · owned")))));
+      // QA e75ec29: a card owned but off the set carries its own `add` (the buy put it in only where the core measured it helps)
+      if (owned.length) unlocks.appendChild(h("div", { class: "chips owned" }, ...owned.flatMap((u) => [h("button", { class: "chip mini owned", onclick: () => openOwnedSheet(app, u) }, u.label, h("small", { class: "dim" }, /* copy:callout */ " · owned")),
+        isCard(u) && !app.holdsCard(u.id) ? h("button", { class: "chip mini add-card", "data-card": u.id, onclick: () => addCard(app, u) }, /* copy:button */ "add") : ""])));
     }
   }
   // Cut 4 §1: `send` waits while the set is over budget (the editor shows which row to drop). Cut 6 §4: it says so: `6/5 · drop one`.

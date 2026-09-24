@@ -72,7 +72,8 @@ try {
       };
       poll();
     }));
-    check(early.card === 0 && early.map.includes(8) && early.map.every((r) => r === 8 || r === 1 || r >= 16) && early.fight.includes(1.5), `fights on ${early.depth || "D1"}: no card, the map at 8×, a fight at 1.5× (card frames ${early.card}; map ${early.map.join("/")}; fight ${early.fight.map((r) => Math.round(r * 100) / 100).join("/")})`);
+    // QA e75ec29 (R: 28–40 s on D1 at a flat 8×): the travel starts at 8× and ramps as `fast`'s dead stretch does (never under 8×)
+    check(early.card === 0 && early.map.includes(8) && early.map.every((r) => r >= 8 || r === 1) && early.fight.includes(1.5), `fights on ${early.depth || "D1"}: no card, the map from 8× up, a fight at 1.5× (card frames ${early.card}; map ${early.map.join("/")}; fight ${early.fight.map((r) => Math.round(r * 100) / 100).join("/")})`);
   }
   // (the fake's D4 kills a hero in his first costly fight: the card's gates run on its gentle D1 with the first floors' mode off, `early=0`)
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
@@ -394,7 +395,8 @@ try {
       if (w?.dataset.frame === "fight" && v?.debugText) {
         const tx = v.debugText(); maxLines = Math.max(maxLines, tx.length);
         if (tx.some((x) => /archer draws/i.test(x.text))) both ??= tx.map((x) => `${x.kind}:${x.text}`);
-        if (tk && tk.classList.contains("rule") && getComputedStyle(tk).opacity === "1") rule ??= tk.textContent;
+        // the row's line once the injected fight's telegraph is up (the fake's own fights before it fire their own rows)
+        if (both && tk && tk.classList.contains("rule") && getComputedStyle(tk).opacity === "1") rule ??= tk.textContent;
       }
       if ((both && rule) || performance.now() - t0 > 20_000) { res({ maxLines, both, rule }); return; }
       requestAnimationFrame(poll);

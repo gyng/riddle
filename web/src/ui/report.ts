@@ -13,7 +13,7 @@ import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
-import { wakeShown } from "./death";
+import { exitExtras, wakeShown } from "./death";
 import { openUnlockSheet, priceLabel, visible, withRowsGate } from "./unlocks";
 import { lostLabel, rowLabel } from "./tokens";
 import { traceChip } from "./trace";
@@ -53,8 +53,8 @@ export function exitLead(x: ExitLine): string {
  *  without a lead (an older slice) gets one in front — never two (`died $0 · died $0 · $190 carried` on every real report). */
 export function ledgerText(x: ExitLine): (string | HTMLElement)[] {
   const m = /^((?:banked|returned|died) \$-?\d+)(?: · )?(.*)$/s.exec(x.text);
-  if (m) return [h("b", { class: "lead" }, m[1]), m[2] ? " · " : "", wakeShown(m[2])];
-  return [h("b", { class: "lead" }, exitLead(x)), " · ", wakeShown(x.text)];
+  if (m) return [h("b", { class: "lead" }, m[1]), m[2] ? " · " : "", wakeShown(m[2]), exitExtras(x)];
+  return [h("b", { class: "lead" }, exitLead(x)), " · ", wakeShown(x.text), exitExtras(x)];
 }
 
 /** Cut 16 §1: the depths picked clean as one line — consecutive depths collapse (`D1–4 · picked clean`, `D3 · D5 · picked clean`). */
@@ -126,7 +126,13 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     if (r.gold) {
       if (bankedG + returnedG === r.gold.home && r.gold.home > 0) { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); }
       else { const w = homeWord(); if (w) piece(r.gold.home, "+", w, "up"); else pieces.push(h("span", { class: "up" }, `+$${r.gold.home}`)); }
-      piece(r.gold.salvage, "+", WORD.salvage, "up"); piece(r.gold.wake, "+", WORD.wake, "up"); piece(r.gold.spent, "−", WORD.spent, "down");
+      piece(r.gold.salvage, "+", WORD.salvage, "up");
+      // QA e75ec29 (Q, R: `+$40 heir purse` after one death, `+$30` after others, none after three): the purse rule — each death tops the
+      // next heir's purse up to `wake_cap`; the top-ups counted (`+$70 purse ×2`), the deaths that found it full named (`purse full ×1`)
+      if (r.gold.wake > 0) pieces.push(h("span", { class: "up" }, `+$${r.gold.wake} ${WORD.wake}`, r.gold.wake_n && r.gold.wake_n > 1 ? ` ×${r.gold.wake_n}` : ""));
+      const full = r.gold.wake_n !== undefined ? Math.max(0, deathsN - r.gold.wake_n) : 0;
+      if (full > 0) pieces.push(h("span", { class: "dim purse-full" }, /* copy:callout */ `purse full${full > 1 ? ` ×${full}` : ""}`));
+      piece(r.gold.spent, "−", WORD.spent, "down");
     }
     else { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); piece(salvageG, "+", WORD.salvage, "up"); piece(spentG, "−", WORD.spent, "down"); }
     // Cut 19 §3: the repeat stopped once the night's spending reached what it brought home
@@ -236,7 +242,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     portrait: portrait(app, { hp: 1, label: `♟${L.heir}` }).el,
     gem: gem({ label: /* copy:button */ "camp", cls: "camp-gem", pulse: true, onclick: () => app.go({ kind: "camp" }) }),
     tiles: [
-      r.worst_death ? cmdTile({ id: "open", label: /* copy:button */ "open", icon: "trace", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }) : null,
+      // QA e75ec29 (Q: "`open` opens ♟5's death, not the newest; the label names nothing"): it is the absence's worst death — it says so
+      r.worst_death ? cmdTile({ id: "open", label: /* copy:button */ "worst", icon: "trace", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }) : null,
       cmdTile({ id: "gold", label: /* copy:button */ "gold", icon: "gold", onclick: () => openGoldSheet(app) }),
       revealed(app).has("heirs") ? cmdTile({ id: "ledger", label: /* copy:button */ "ledger", icon: "ledger", onclick: () => openLedger(app) }) : null,
     ],
@@ -252,6 +259,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "bests", lines(collapseBests(r.bests).map(bestLabel))),
     r.xp && (r.xp.gained > 0 || r.xp.level_ups > 0) ? section(/* copy:label */ "xp", h("div", { class: "xp-line num" }, `${r.xp.class} +${r.xp.gained}`, " · ", /* copy:label */ `L${L.classes?.[r.xp.class]?.level ?? 1}`, r.xp.level_ups > 0 ? h("b", null, ` ↑${r.xp.level_ups}`) : "")) : null,
     section(/* copy:label */ "found", chips(r.found.map((i) => i.label))),
+    // QA e75ec29 (R: six thefts in one run, "the report and gold sheet say nothing"): what thieves took and no run got back
+    section(/* copy:label */ "stolen", r.stolen?.length ? h("div", { class: "chips" }, ...r.stolen.map((x) => h("span", { class: "chip stolen" }, x.label.replace(/_/g, " "), x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : ""))) : null),
     section(/* copy:label */ "bones", lines((r.bones_found ?? []).map(bonesLine))),
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
     section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...r.salvaged.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),

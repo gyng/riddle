@@ -4,7 +4,7 @@
 // the top of the active set the way a patch does (overflow rules apply) and opens the camp on it.
 import type { App } from "../app";
 import type { Companion, Row, RuleSet } from "../engine/types";
-import { h, clear } from "./dom";
+import { h, clear, twoTap } from "./dom";
 import { renderEditor } from "./editor";
 import { closeAllSheets, openSheet } from "./sheet";
 import { cloneSet } from "../app";
@@ -31,10 +31,18 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     for (const c of all) cards.appendChild(card(c, L.party.includes(c)));
     for (const e of L.eggs) {
       eggs.appendChild(h("span", { class: "chip egg" }, "◯ ", nice(e.kind), h("small", { class: "dim" }, ` ${e.tags.map(nice).join(" ")} g${e.gen}`),
-        e.from_loss ? h("button", { class: `mini${L.gold >= 50 ? "" : " off"}`, disabled: L.gold < 50, onclick: () => void app.mutate(() => app.engine.hatch(e.id)) }, "$50") : h("b", { class: "num" }, ` ${e.hatch_in}`)));
+        // QA e75ec29 (R: "the $50 chip drawn dim charged $50 on one tap … stayed PARTY 0/1"): `hatch $50`, a second tap pays, and the
+        // hatchling joins the party when a slot is free
+        e.from_loss ? twoTap(/* copy:button */ "hatch $50", /* copy:button */ "ok $50", () => void hatch(e.id), { class: "mini hatch", disabled: L.gold < 50 }) : h("b", { class: "num" }, ` ${e.hatch_in}`)));
     }
   }
 
+  async function hatch(egg: number): Promise<void> {
+    const before = new Set([...app.lineage.party, ...app.lineage.kennel].map((c) => c.id));
+    if (!(await app.mutate(() => app.engine.hatch(egg)))) return;
+    const L = app.lineage, born = L.kennel.find((c) => !before.has(c.id));
+    if (born && L.party.length < (L.party_slots || 1)) await app.mutate(() => app.engine.setParty([...L.party.map((p) => p.id), born.id]));
+  }
   function card(c: Companion, inParty: boolean): HTMLElement {
     const picked = breeding?.includes(c.id);
     const onTap = (): void => {

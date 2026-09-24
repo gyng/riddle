@@ -24,6 +24,12 @@ export function morgueVerbs(morgue: string | undefined): string[] | undefined {
   return out.length ? out : undefined;
 }
 
+/** QA e75ec29 (Q: "`R1 to corridor · no path ← chase given up`; the rule was `to corridor`, nothing chased"): a foe-reach blocker (the
+ *  core's `path_blocker`: a foe given up, fleeing, across water, out of reach) answers a row that goes AT a foe — never a move row's
+ *  `no path` (`to corridor`, `retreat`, `return`, `descend`): that link is left off (the row's own reason stands). */
+const FOE_BLOCKER = /^(chase given up|foe fleeing|foe across water|no way to it)$/;
+export const foeBlockerOnMove = (verb: string | undefined, because: string): boolean =>
+  FOE_BLOCKER.test(because.trim()) && !!verb && !/^(attack|shoot|throw|tame|zap|hit|strike|pack|kite|boss)\b/.test(verb.trim());
 const sameLink = (a: Because, b: Because): boolean => a.text === b.text && a.t === b.t;
 /** The provenance log under an exit sheet's chain is capped: the links the chain's rows carry, then the last this many by
  *  tick, then `· N earlier` (QA on 50bb162: "R4 fired followed by ~70 `← found X on Dn` lines"). */
@@ -35,8 +41,8 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
   const rows = last?.rows ?? [];
   const rowLinks = rows.flatMap((r) => r.because ? [r.because] : []);
   let prov = ctx.provenance ? (trace.provenance ?? []).filter((b) => !rowLinks.some((s) => sameLink(s, b))) : [];
-  let earlier = 0;
-  if (prov.length > PROVENANCE_SHOW) { prov = [...prov].sort((a, b) => a.t - b.t); earlier = prov.length - PROVENANCE_SHOW; prov = prov.slice(-PROVENANCE_SHOW); }
+  let earlier = 0, older: Because[] = [];
+  if (prov.length > PROVENANCE_SHOW) { prov = [...prov].sort((a, b) => a.t - b.t); earlier = prov.length - PROVENANCE_SHOW; older = prov.slice(0, earlier); prov = prov.slice(-PROVENANCE_SHOW); }
   const extra = [...(ctx.chain ?? []), ...prov];
   if (!rows.some((r) => r.because) && !extra.length) return null;
   const shown: Because[] = [];
@@ -46,7 +52,7 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
     const line = h("div", { class: "chain-row" },
       h("span", { class: "r" }, `R${r.row + 1}`, verb ? h("small", { class: "dim" }, ` ${verb}`) : ""),
       h("span", { class: "why" }, r.why));
-    if (r.because) { shown.push(r.because); line.append(...link(r.because, ctx.runId)); }
+    if (r.because) { shown.push(r.because); if (!foeBlockerOnMove(verb, r.because.text)) line.append(...link(r.because, ctx.runId)); }
     return line;
   });
   if (last && last.row >= 0) lines.push(h("div", { class: "chain-row fired" },
@@ -57,8 +63,15 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
     shown.push(b);
     lines.push(h("div", { class: "chain-row extra" }, ...link(b, ctx.runId)));
   }
-  if (earlier > 0) lines.push(h("div", { class: "chain-row extra earlier dim" }, /* copy:callout */ `· ${earlier} earlier`));
-  return h("div", { class: "chain num" }, ...lines);
+  // QA e75ec29 (R: "`· 20 earlier` … does nothing when tapped"): the older links unfold in place
+  const box = h("div", { class: "chain num" }, ...lines);
+  if (earlier > 0) {
+    const more: HTMLButtonElement = h("button", { class: "chain-row extra earlier dim", onclick: () => {
+      more.replaceWith(...older.filter((b) => !shown.some((x) => sameLink(x, b))).map((b) => h("div", { class: "chain-row extra" }, ...link(b, ctx.runId))));
+    } }, /* copy:button */ `· ${earlier} earlier`);
+    box.appendChild(more);
+  }
+  return box;
 }
 
 /** `← den took the heal, D3` then `[watch]` when the run's replay holds the tick, else `t2140` (`D3 · t2140` when the text

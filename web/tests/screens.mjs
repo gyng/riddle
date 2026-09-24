@@ -30,7 +30,7 @@ const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!
 const note = (what) => { if (verbose) out.push(`     ${what}`); };
 
 // buttons the itinerary walks (they lead to another screen) and the documented toggles (a click need not change the text)
-const NAV = new Set(["send", "keep", "edit", "camp", "open", "buy", "insert", "ok", "import", "export", "reset", "again", "trace", "watch"]);
+const NAV = new Set(["send", "keep", "edit", "camp", "open", "worst", "buy", "insert", "add", "ok", "import", "export", "reset", "again", "trace", "watch"]);
 const TOGGLES = new Set(["mute", "fights", "fast", "⏸", "▶", "▶▶|", "bail", "▲", "▼", "≡"]);
 const INERT_SEL = ".gem.patch-gem, .grip, .interstitial, .prefs .chip.on, .tabs .tab.on, .classes .chip.on, .chip.trait.on, .chip.cls-offer.on, button.patch, .cline.kept, .chip.mini.trace, .bar.try";
 
@@ -229,7 +229,7 @@ try {
   await lintSheet(`unlock sheet · ${bought}`);
   // Cut 15 §2: both prices on the title (`◆3 · $450`) and two buys, `◆ buy` · `$ buy`
   const pair = await page.evaluate(() => ({ cost: document.querySelector(".sheet-wrap .unlock-sheet .cost")?.textContent.trim(), buys: [...document.querySelectorAll(".sheet-wrap .buy-pair button")].map((b) => b.textContent.trim()) }));
-  check(/^◆\d+ \/ \$\d+$/.test(pair.cost ?? "") && pair.buys.join(" | ") === "◆ buy | $ buy", `the sheet shows both prices and two buys ("${pair.cost}": ${pair.buys.join(" | ")})`);
+  check(/^◆\d+ or \$\d+$/.test(pair.cost ?? "") && pair.buys.join(" | ") === "◆ buy | $ buy", `the sheet shows both prices and two buys ("${pair.cost}": ${pair.buys.join(" | ")})`);
   await page.locator(".sheet-wrap button.buy.marks").click({ timeout: 5000 });
   await waitFor((x) => x?.sheets === 0, "the buy sheet closed"); await settle();
   const marksAfter = await page.evaluate(() => window.__riddle.lineage.marks);

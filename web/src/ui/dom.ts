@@ -31,3 +31,15 @@ export async function copyText(text: string): Promise<boolean> {
 export const items = (n: number): string => `${n} item${n === 1 ? "" : "s"}`;
 /** Seconds → `12m` (whole minutes up); under a minute `40s`. */
 export const spanOf = (s: number): string => (s >= 60 ? `${Math.ceil(s / 60)}m` : `${Math.max(0, Math.round(s))}s`);
+/** QA e75ec29 (R: the `$50` hatch and the `$75` insure charged on one tap): a paid chip takes two taps — the first arms it (its label
+ *  becomes `ok $50`, `.armed`), a second within 3 s pays; untouched, it disarms. */
+export function twoTap(label: string, armedLabel: string, act: () => void, attrs: { class?: string; disabled?: boolean } = {}): HTMLButtonElement {
+  let armed = 0;
+  const b: HTMLButtonElement = h("button", { class: attrs.class ?? "chip mini", disabled: attrs.disabled, "aria-label": label, onclick: (e: Event) => {
+    e.stopPropagation();
+    if (armed && performance.now() - armed < 3000) { armed = 0; act(); return; }
+    armed = performance.now(); b.classList.add("armed"); replace(b, armedLabel); b.setAttribute("aria-label", armedLabel);
+    setTimeout(() => { if (b.isConnected && armed) { armed = 0; b.classList.remove("armed"); replace(b, label); b.setAttribute("aria-label", label); } }, 3000);
+  } }, label);
+  return b;
+}

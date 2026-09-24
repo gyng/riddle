@@ -40,6 +40,13 @@ export const bountyMult = (b: boolean | number | undefined): string => `×${type
 
 /** Cut 9 §3: the half-width (a 0..1 fraction like `reach`) in percentage points, never `±0` — a forecast is never exact. */
 export const pmPts = (pm: number): number => Math.max(1, Math.round(pm * 100));
+/** QA e75ec29 (Q: `D1 100% ±1`, a bound above 100 %): the ± a share shows — none where it reads 0 % or 100 %, and never so wide that
+ *  it would cross either end (`99% ±1`, not `99% ±3`). Undefined when there is nothing to show. */
+export const pmShown = (share: number, pm: number | undefined): number | undefined => {
+  if (pm === undefined) return undefined;
+  const r = Math.round(share * 100);
+  return r <= 0 || r >= 100 ? undefined : Math.min(pmPts(pm), 100 - r, r);
+};
 
 export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const bars = h("div", { class: "fc-bars" });
@@ -64,7 +71,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     if (!e) return;
     // a stall share only when there is one: `bank 0% · return 20% · stall 50% · death 30% · ~$25`
     const stall = e.stall && Math.round(e.stall * 100) > 0 ? /* copy:callout */ ` · stall ${pct(e.stall)}` : "";
-    const pm = e.pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pmPts(e.pm)}${f.refined === false ? "…" : ""}`) : "";
+    const epm = pmShown(e.death, e.pm);
+    const pm = epm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${epm}${f.refined === false ? "…" : ""}`) : "";
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
     replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${pct(e.bank)} · return ${pct(e.return)}`, stall, /* copy:callout */ ` · death ${pct(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
   };
@@ -96,14 +104,21 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
       // the try hint rides the track, on the depth's own line, the track as wide as every other row's (QA on 50bb162: `D9 0% ±1`
       // wrapped `· try: attack boss` under it with a shorter bar)
       const track = h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(d.reach * 100)}%` }));
+      // QA e75ec29 (Q: "the D1 bar at 100 % is shorter than the grey D2+ track"): every row's track is one width — the cause, the wall,
+      // the bounty and the counter go on a line of their own under the track (`.why`), never into the number's column
+      const dpm = pmShown(d.reach, d.pm);
+      const why = [
+        cause ? h("small", { class: "dim" }, ` · ${cause.replace(/_/g, " ")}`) : "",
+        wall ? h("small", { class: "wall" }, /* copy:callout */ ` · ${wall} wall`) : "",
+        d.bounty ? h("small", { class: "bounty-x" }, ` · ${bountyMult(d.bounty)}`) : "",   // Cut 20 §5: the bounty floor
+        counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "",
+      ].filter((x) => x !== "");
       const inner = [
         h("span", { class: "d num" }, `D${d.depth}`),
         tr ? h("span", { class: "track-cell" }, track, h("small", { class: "try" }, /* copy:none */ `try: ${tr.text}`)) : track,
-        h("span", { class: "n num" }, pct(d.reach), d.pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pmPts(d.pm)}${first}`) : "",
-          cause ? h("small", { class: "dim" }, ` · ${cause.replace(/_/g, " ")}`) : "",
-          wall ? h("small", { class: "wall" }, /* copy:callout */ ` · ${wall} wall`) : "",
-          d.bounty ? h("small", { class: "bounty-x" }, ` · ${bountyMult(d.bounty)}`) : "",   // Cut 20 §5: the bounty floor
-          counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : ""),
+        // a `try` row keeps one line (its hint rides the track; the boss beside the number, as before)
+        h("span", { class: "n num" }, pct(d.reach), dpm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${dpm}${first}`) : "", ...(tr ? why : [])),
+        !tr && why.length ? h("span", { class: "why num" }, ...why) : "",
       ];
       // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
       bars.appendChild(tr
@@ -147,15 +162,26 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   const ends = h("div", { class: "shaft-ends num", hidden: true });
   const el = h("button", { class: "shaft", onclick: () => onOpen() }, notches, ends);
   let last: Forecast | null = app.lastForecast;
-  const MAX = 9;   // notches shown: the deepest ones, down to best+1
+  // notches shown at most: D1 … the deepest (best+1, or the bounty floor). QA e75ec29 (R: "the column starts at D7 but the run starts
+  // on D1"): past MAX the shallow floors fold into one notch (`D1–6`, lit by its deepest floor's reach — they are the ones every run
+  // passes), so the shaft always starts where the run does
+  const MAX = 9;
   const paint = (): void => {
     // Cut 20 §5: the bounty floor (best + 2) carries a notch of its own past best + 1 — `D12 ×2`, a gold glint
     const bountyD = last?.depths.find((d) => d.bounty)?.depth ?? app.lineage.bounty?.depth;
-    const next = app.lineage.best_depth + 1, deepest = Math.max(next, bountyD ?? 0), from = Math.max(1, deepest - MAX + 1);
+    const next = app.lineage.best_depth + 1, deepest = Math.max(next, bountyD ?? 0), from = deepest > MAX ? deepest - MAX + 2 : 1;
     const byDepth = new Map((last?.depths ?? []).map((d) => [d.depth, d]));
     const known = last?.known_to ?? 0;
     const rough = last?.refined === false, cap = bankCap(app.rules.rows);
-    replace(notches, ...Array.from({ length: deepest - from + 1 }, (_, k) => {
+    const folded: HTMLElement[] = [];
+    if (from > 1) {
+      const hi = from - 1, d = byDepth.get(hi), reach = d ? d.reach : hi <= known ? 1 : 0;
+      const n = h("span", { class: `notch fold${d && Math.round(d.reach * 100) === 0 ? " zero" : ""}`, "data-d": hi, "data-from": 1 },
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D1–${hi}`), h("small", { class: "dp" }, d || hi <= known ? pct(reach) : "?"));
+      n.style.setProperty("--reach", reach.toFixed(3));
+      folded.push(n);
+    }
+    replace(notches, ...folded, ...Array.from({ length: deepest - from + 1 }, (_, k) => {
       const depth = from + k, d = byDepth.get(depth);
       const reach = d ? d.reach : depth <= known ? 1 : 0;
       // Cut 18 §3: a walled floor's notch names the boss who seals it (`D9 · warlord`)
@@ -167,7 +193,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const bounty = depth === bountyD;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
         h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : ""),
-        h("small", { class: "dp" }, d ? pct(d.reach) : "?", d?.pm !== undefined && d.reach > 0 && d.reach < 1 ? h("i", { class: "pm" }, /* copy:none */ `±${pmPts(d.pm)}${rough ? "…" : ""}`) : ""));
+        h("small", { class: "dp" }, d ? pct(d.reach) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm" }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : ""));
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       return n;

@@ -447,7 +447,12 @@ export class App {
     // Cut 15 §2: `gold` pays the catalogue's gold price instead of marks (the returned lineage repaints the header's $ and ◆)
     const ok = await this.mutate(() => (gold ? this.engine.buyUnlockGold!(id) : this.engine.buy(id)));
     if (ok) audio.cue("unlock");   // Cut 10 §4
-    if (ok && this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id) && !this.holdsCard(id)) { this.insertCard(id, at); this.emitChange(); }
+    // QA e75ec29 (R: eight cards bought → eight rows inserted, `D7 76%` → `44%`, `stall 40%`): a card joins the set only when the core
+    // measured it helps there (`UnlockInfo.auto_insert`: reach not down at its place, stall share not up, < 3 cards in the set); else
+    // it is owned, off the set — its chip offers `add` (an older wire without the flag inserts as before)
+    const isTactic = this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id);
+    if (ok && isTactic && u?.auto_insert !== false && !this.holdsCard(id)) { this.insertCard(id, at); this.emitChange(); }
+    else if (ok && isTactic) { /* owned, not in the set */ }
     // a verb unlock's `reach +21%` was measured with its canonical row at the top (the catalogue sends `rows` + `insert_at`
     // for it); the buy inserts that row so the number holds (QA on e0f87e7: "bought, forecast identical")
     // …only while the set has room for it: over the cap it is the sheet's row to add by hand (rater R on 39def99: `6/5 · drop one`
@@ -561,6 +566,12 @@ function sameRowShape(a: Row, b: Row): boolean {
   return a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length && a.conds.every((c, i) => c.k === b.conds[i].k && (c.t ?? "") === (b.conds[i].t ?? "") && c.n === b.conds[i].n);
 }
 
+/** Two per-label counts summed (most first); undefined when both lack the field. */
+function mergeCounts(x?: { label: string; n: number }[], y?: { label: string; n: number }[]): { label: string; n: number }[] | undefined {
+  if (x === undefined && y === undefined) return undefined;
+  const m = new Map<string, number>(); for (const r of [...(x ?? []), ...(y ?? [])]) m.set(r.label, (m.get(r.label) ?? 0) + r.n);
+  return [...m].map(([label, n]) => ({ label, n })).sort((p, q) => q.n - p.n);
+}
 export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const union = (x: string[], y: string[]): string[] => [...new Set([...x, ...y])];
   // `rank 1 … rank 9` and `fighter L2 … L5` collapse to the highest of each ladder
@@ -591,11 +602,14 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     picked: b.picked ?? a.picked,                          // Cut 16 §1: a state — the last slice knows
     restock_capped: a.restock_capped || b.restock_capped || undefined,   // Cut 19 §3: any slice's repeat stopped at the night's income
     // Cut 20 §5: the night's bounty — slices of one night add up (taken by any, the coins summed); a later night's floor replaces it
-    bounty: !a.bounty ? b.bounty : !b.bounty ? a.bounty : a.bounty.depth === b.bounty.depth ? { depth: b.bounty.depth, taken: a.bounty.taken || b.bounty.taken, gold: a.bounty.gold + b.bounty.gold } : b.bounty,
+    // QA e75ec29: the floor the player saw before leaving is the first slice's — a later slice's (a new best moved it) never replaces it
+    bounty: !a.bounty ? b.bounty : !b.bounty ? a.bounty : a.bounty.depth === b.bounty.depth ? { depth: a.bounty.depth, taken: a.bounty.taken || b.bounty.taken, gold: a.bounty.gold + b.bounty.gold } : a.bounty,
+    stolen: mergeCounts(a.stolen, b.stolen),               // QA e75ec29 (R): thefts nothing got back, per label
     exits: cat(a.exits, b.exits),                          // Cut 6 §1: one ledger line per exit
     elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,
     deepest: a.deepest === undefined && b.deepest === undefined ? undefined : Math.max(a.deepest ?? 0, b.deepest ?? 0),
-    gold: a.gold || b.gold ? { home: (a.gold?.home ?? 0) + (b.gold?.home ?? 0), salvage: (a.gold?.salvage ?? 0) + (b.gold?.salvage ?? 0), wake: (a.gold?.wake ?? 0) + (b.gold?.wake ?? 0), spent: (a.gold?.spent ?? 0) + (b.gold?.spent ?? 0) } : undefined,
+    gold: a.gold || b.gold ? { home: (a.gold?.home ?? 0) + (b.gold?.home ?? 0), salvage: (a.gold?.salvage ?? 0) + (b.gold?.salvage ?? 0), wake: (a.gold?.wake ?? 0) + (b.gold?.wake ?? 0), spent: (a.gold?.spent ?? 0) + (b.gold?.spent ?? 0),
+      ...(a.gold?.wake_cap ?? b.gold?.wake_cap) !== undefined ? { wake_cap: b.gold?.wake_cap ?? a.gold?.wake_cap, wake_n: (a.gold?.wake_n ?? 0) + (b.gold?.wake_n ?? 0) } : {} } : undefined,
     learned: union(a.learned, b.learned), bests: collapseBests(union(a.bests, b.bests)),
     found: [...a.found, ...b.found],
     deaths: [...deaths].map(([cause, n]) => ({ cause, n })).sort((x, y) => y.n - x.n),

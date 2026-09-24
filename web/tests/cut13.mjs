@@ -120,7 +120,7 @@ try {
     r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, worst_death: worst } });
   });
   await sleep(200);
-  await page.locator("main.report button", { hasText: /^open$/ }).first().click({ timeout: 5000 });
+  await page.locator("main.report button", { hasText: /^worst$/ }).first().click({ timeout: 5000 });
   await waitFor((x) => x?.screen === "death", "the worst stall from the report");
   d = await deathScreen();
   check(d.pill === "stall" && d.line === "stalled · D2 · archer, no path · stall" && d.notes.length === 2, `the report's open shows the stall verdict: "${d.line}"`);
@@ -287,15 +287,18 @@ try {
   // ---- §5: the forecast's noise shown as noise
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && x.screen === "camp", "camp");
-  const fc = () => page.evaluate(() => ({ refined: document.querySelector(".forecast")?.dataset.refined, pms: [...document.querySelectorAll(".fc-bars .pm")].map((e) => e.textContent), ends: document.querySelector(".fc-ends:not([hidden])")?.textContent ?? "", stale: document.querySelector(".forecast")?.classList.contains("stale") }));
+  // QA e75ec29 (Q: `D1 100% ±1`): a share that reads 0 % or 100 % carries no ± — the ± is asked of the rows strictly between
+  const fc = () => page.evaluate(() => { const L = window.__riddle.lastForecast; const inside = (x) => { const r = Math.round(x * 100); return r > 0 && r < 100; };
+    return { refined: document.querySelector(".forecast")?.dataset.refined, pms: [...document.querySelectorAll(".fc-bars .pm")].map((e) => e.textContent), want: (L?.depths ?? []).filter((d) => d.pm !== undefined && inside(d.reach)).length, deathInside: !!L?.ends && inside(L.ends.death), ends: document.querySelector(".fc-ends:not([hidden])")?.textContent ?? "", stale: document.querySelector(".forecast")?.classList.contains("stale") }; });
+  const endsOk = (f, tail) => f.deathInside ? new RegExp(` · death \\d+% ±\\d+${tail} · ~\\$\\d+$`).test(f.ends) : / · death (0|100)% · ~\$\d+$/.test(f.ends);
   await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "0", null, { timeout: 15_000 });
   let f = await fc();
-  check(f.refined === "0" && f.pms.length > 0 && f.pms.every((p) => /^ ±\d+…$/.test(p)), `the first paint's ± trail …: ${f.pms.join(",")}`);
-  check(/ · death \d+% ±\d+… · ~\$\d+$/.test(f.ends), `the ends line carries its own ± (first paint): "${f.ends}"`);
+  check(f.refined === "0" && f.pms.length === f.want && f.pms.every((p) => /^ ±\d+…$/.test(p)), `the first paint's ± trail …, one per share strictly inside 0–100 %: ${f.pms.join(",")} (${f.want} wanted)`);
+  check(endsOk(f, "…"), `the ends line carries its own ± (first paint; none at 0 / 100 %): "${f.ends}"`);
   await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "1", null, { timeout: 15_000 });
   f = await fc();
-  check(f.refined === "1" && f.pms.length > 0 && f.pms.every((p) => /^ ±\d+$/.test(p)), `after the refine the … is gone: ${f.pms.join(",")}`);
-  check(/ · death \d+% ±\d+ · ~\$\d+$/.test(f.ends), `the ends line after the refine: "${f.ends}"`);
+  check(f.refined === "1" && f.pms.length === f.want && f.pms.every((p) => /^ ±\d+$/.test(p)), `after the refine the … is gone: ${f.pms.join(",")} (${f.want} wanted)`);
+  check(endsOk(f, ""), `the ends line after the refine: "${f.ends}"`);
   // the unlock deltas: within their ± → `reach ~0`; otherwise with the ±
   // Cut 17: the unlock shelf is a panel, carved with the lineage's first mark (docs/UI.md §5): the lineage takes one, the panel opens
   // on its whole catalogue (`more`)
@@ -539,7 +542,7 @@ try {
     if (hasLine) {
       await page.locator(".death .ledger-btn").first().click({ timeout: 5000 });
       await sleep(200);
-      const goldChips = () => page.evaluate(() => ({ filter: document.querySelector(".gold-sheet")?.dataset.filter ?? null, chips: [...document.querySelectorAll(".gold-sheet .row-label .chip.mini")].map((c) => ({ text: c.textContent, on: c.classList.contains("on") })), lines: document.querySelectorAll(".gold-sheet .lrow").length }));
+      const goldChips = () => page.evaluate(() => ({ filter: document.querySelector(".gold-sheet")?.dataset.filter ?? null, chips: [...document.querySelectorAll(".gold-sheet .row-label .chip.mini")].map((c) => ({ text: c.textContent, on: c.classList.contains("on") })), lines: document.querySelectorAll(".gold-sheet .lrow:not(.bal)").length }));
       let gc = await goldChips();
       if (gc.filter) {
         check(gc.chips.length === 2 && /^(died|returned|banked|stalled|lost thread) D\d+$/.test(gc.chips[0].text) && gc.chips[0].on && gc.chips[1].text === "all" && !gc.chips[1].on, `the run-filtered gold sheet names its filter: ${gc.chips.map((c) => `${c.text}${c.on ? " (on)" : ""}`).join(" · ")}`);

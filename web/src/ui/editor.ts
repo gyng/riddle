@@ -101,8 +101,11 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
    *  is a dim tablet carrying `↑ R1` — the row that takes its every moment (the engine's `shadowed_by`, repainted as forecasts land). */
   function paintShadow(): void {
     const sh = bind.shadowedBy?.() ?? [];
+    const rows = bind.rules().rows;
     [...list.children].forEach((el, i) => {
-      const by = sh[i];
+      // QA e75ec29 (R: `foe: thief → attack thief` under `foes ≥ 1 → attack nearest` lost its `↑ R3`): the engine's read is what the sims
+      // saw (a row that never met a thief is not "shadowed" there); a row an earlier attack row always pre-empts is marked by its form
+      const by = sh[i] ?? (rows[i] ? formShadow(rows, i) : null);
       const on = by !== null && by !== undefined && by < i;
       el.classList.toggle("shadowed", on);
       for (const m of el.querySelectorAll(":scope > .rtext > .shadow-mark, :scope > .grip > .shadow-mark, :scope > .shadow-mark")) m.remove();
@@ -248,4 +251,26 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
 
   refresh();
   return { el, refresh, paintShadow };
+}
+
+/** QA e75ec29: the earlier row that pre-empts row `j` by its form alone — an attack row (`attack nearest`, or the same target) whose
+ *  conditions all hold whenever row j's do and that needs a foe present (`foes ≥ N`, `foe: X`, `adjacent ≥ N`); null when none. */
+export function formShadow(rows: Row[], j: number): number | null {
+  const rj = rows[j]; if (!rj || rj.verb.v === "tactic") return null;
+  const presence = (k: string): boolean => k === "foes>=" || k === "foe_tag" || k === "adj>=";
+  const implied = (c: Row["conds"][number], by: Row["conds"]): boolean => by.some((d) => {
+    if (c.k === "foes>=" && (c.n ?? 1) <= 1 && (d.k === "foe_tag" || d.k === "adj>=")) return true;
+    if (d.k !== c.k || (d.t ?? "") !== (c.t ?? "")) return false;
+    if (c.n === undefined || d.n === undefined) return c.n === d.n;
+    return c.k === "hp<" || c.k === "foe_hp<" ? d.n <= c.n : c.k === "hp>" || c.k === "foes>=" || c.k === "adj>=" ? d.n >= c.n : d.n === c.n;
+  });
+  for (let i = 0; i < j; i++) {
+    const ri = rows[i];
+    if (ri.verb.v !== "attack" || !ri.conds.length || !ri.conds.some((c) => presence(c.k))) continue;
+    const a = ri.verb.a ?? "nearest";
+    const tagged = rj.conds.find((c) => c.k === "foe_tag")?.t;
+    if (a !== "nearest" && !(tagged && (a === tagged || a === `tag:${tagged}`))) continue;
+    if (ri.conds.every((c) => implied(c, rj.conds))) return i;
+  }
+  return null;
 }

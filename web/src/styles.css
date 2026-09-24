@@ -186,6 +186,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .ticker.show { opacity: 1; }
 .ticker.hurt { color: var(--hp); }
 .ticker.kill { color: var(--acc); }
+.ticker.ally { color: #8fe08a; }
 .ticker.ambient { color: var(--fg); }   /* Cut 7 §4: `D3 · 4 rooms` · `$47` · `alert 3` at 8× */
 /* Cut 8A: in the fight frame the firing row is a caption inside the frame; the ticker keeps only hurts and ambients */
 .watch[data-frame="fight"] .ticker.show:not(.hurt):not(.ambient):not(.beat):not(.rule) { opacity: 0; }   /* Cut 18 §2: `.rule` — a row the telegraph took the line from */
@@ -238,7 +239,9 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 
 /* party */
 .row-label { display: flex; align-items: center; gap: 8px; }
-.mini { min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-left: auto; }
+/* QA e75ec29 (Q: click-by-label failed on `WATCH`, `APPLY`, `MORE` — a CSS upper case reads `WATCH` while the button's name is `watch`):
+   small caps draw the capitals and keep the text (and the accessible name) as written */
+.mini { min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); font-size: 14px; letter-spacing: .08em; font-variant-caps: all-small-caps; color: var(--dim); margin-left: auto; }
 .mini + .mini { margin-left: 0; }
 .mini.on { border-color: var(--acc); color: var(--acc); }
 .mini.off { opacity: .4; }
@@ -357,6 +360,8 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .gold-sheet .lrow.down .k { color: var(--hp); }
 .gold-sheet .lrow.up .k { color: var(--ok); }
 .gold-sheet .why { color: var(--dim); }
+.gold-sheet .lrow.bal { border-bottom-style: dashed; color: var(--dim); }
+.gold-sheet .lrow.bal.start { border-bottom: 0; border-top: 1px dashed var(--line); }
 .card-rows .row { grid-template-columns: 1fr; padding: 6px 10px; margin-bottom: 6px; }
 /* Cut 10 §3: ▲▼ beside the grip — two 44 px targets stacked; off at the ends of the list */
 .updown { display: flex; flex-direction: column; align-items: stretch; }
@@ -442,6 +447,8 @@ button.bar.try:active { background: var(--panel2); }
 .chain-row.fired .why { color: var(--ok); }
 .chain-row .chip.mini.link { margin-left: 0; min-height: 28px; color: var(--acc); border-color: #4d4020; }
 .patch-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; flex: 1; }
+.patch > .rank { flex: none; min-width: 1.4em; margin-right: -4px; color: #c9a86a; font-size: 13px; }
+.patch.below > .rank, .patch.neg > .rank { color: var(--dim, #8a8a8a); }
 .patch .root { color: var(--acc); font-size: 12px; }
 .patch.below { opacity: .55; border-style: dashed; }
 /* Cut 15 §3: the drop sheet — the set's own rows, the fired count, the least-fired marked */
@@ -830,7 +837,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .death .death-line .verdict { position: relative; left: auto; top: auto; flex: none; margin: 0; width: 76px; height: 76px; font-size: 20px; }
 .death-well { gap: 8px; }
 .gem .gem-in { display: flex; flex-direction: column; align-items: center; gap: 3px; line-height: 1; }
-.gem .gem-w { padding: 2px 5px 1px; border-radius: 3px; background: rgba(24, 12, 4, .78); color: #f6dfa8; text-shadow: none; font: 800 10px/1 var(--display); letter-spacing: .1em; text-transform: uppercase; }
+.gem .gem-w { padding: 2px 5px 1px; border-radius: 3px; background: rgba(24, 12, 4, .78); color: #f6dfa8; text-shadow: none; font: 800 12px/1 var(--display); letter-spacing: .1em; text-transform: none; font-variant-caps: all-small-caps; }
 /* the camp's busy label (`forecast`) sits on the vista's corner, over it, not under it */
 .camp-well { position: relative; }
 .camp-well .busy-strip { position: absolute; top: 4px; right: 6px; z-index: 3; height: auto; margin: 0; padding: 2px 6px; line-height: 14px; border-radius: 3px; background: rgba(12, 9, 7, .82); color: #cdb892; pointer-events: none; }
@@ -885,6 +892,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 /* QA 92eb880 — the chosen trait/class reads chosen (a tick), not inert; a free supply's × arms before it drops */
 /* the ✓ is text now (camp.ts: a text dump reads the pick) */
 .supplies .chip .x.armed { color: #ff9a7a; font-size: 12px; font-weight: 600; }
+.chip.mini.armed, .mini.armed { color: #ffd27a; border-color: #ffb347; font-weight: 600; }
 .vault .chip .flav { font-size: 11px; }
 .hud .loot-drop { color: #ff8a70; font-weight: 600; }
 .forecast .fc-bars, .report-sheet .facts .chips.items { margin-top: 4px; }
@@ -949,3 +957,22 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .patches.none-beats .patches-more { min-height: 32px; }
 .patches.none-beats .patches-fold { flex: 1 0 100%; display: flex; flex-direction: column; gap: 6px; }
 .patches.none-beats .patches-fold[hidden] { display: none; }
+
+/* QA e75ec29 (Q): one track width on every forecast row — the cause / wall / bounty / counter on their own line under the track;
+   the KILLERS label beside its values (its block margins pushed it under them); the shaft's folded shallow floors (`D1–6`) */
+.bar.next { grid-template-columns: 44px 1fr 64px; }
+.bar.next.try { grid-template-columns: 44px 1fr auto; }
+.bar .why { grid-column: 2 / -1; margin-top: -2px; font-size: 12px; line-height: 1.2; }
+.bar .why small { font-size: 12px; }
+.fc-causes { align-items: baseline; }
+.fc-causes .causes-label { margin: 0; }
+.notch.fold .hex { height: 18px; }
+.notch.fold .dl { font-size: 12px; }
+/* QA e75ec29 (R: `$3240 · 37 · 6 · D13` pushed the gear to a second row at 400 px): the bar stays one row — the trait gives way
+   (ellipsis) and the stats close up; the wake's trait offers still take their own row */
+.topbar { flex-wrap: nowrap; }
+.topbar:has(.offers:not([hidden])) { flex-wrap: wrap; }
+.topbar .trait { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar .stats { flex: 0 1 auto; min-width: 0; gap: 7px; }
+.topbar .gear { min-width: 30px; }
+.vault .chip.insure { margin-left: 0; }

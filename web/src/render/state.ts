@@ -58,6 +58,7 @@ export type ScreenShake = { t0: number; amp: number };  // Cut 8A: ticks; amp in
 export type Leash = { from: number; to: number; t0: number; ok: boolean };
 export type Projectile = { path: [number, number][]; t0: number };
 
+const HERO_FALLEN_FADE = 0.5;   // QA e75ec29: the fallen hero's body stays, half dimmed
 const INTERESTING = new Set<string>(["attack", "die", "telegraph", "use", "exit", "tame"]);
 /** The global fade at the run's end: the last frame stays lit, dimmed at most this much. */
 export const EXIT_DIM = 0.3;
@@ -471,7 +472,7 @@ export class ReplayState {
       e.lunge = null; e.shake = null;
       if (e.spawning) { e.spawning = null; e.fade = 0; }
     }
-    for (const [id, e] of this.ents) if (e.dying) this.ents.delete(id);
+    for (const [id, e] of this.ents) if (e.dying) { if (e.hero) e.fade = HERO_FALLEN_FADE; else this.ents.delete(id); }
     this.projectiles = [];
     this.leash = null;
     this.screenShake = null;
@@ -502,8 +503,10 @@ export class ReplayState {
       if (e.glyph && c - e.glyphT >= GLYPH_T) e.glyph = null;
       if (e.dying) {
         const p = Math.min(1, (c - e.dying.t0) / DIE_T);
-        e.fade = Math.floor(p * 4) / 4;
-        if (p >= 1) this.ents.delete(id);
+        // QA e75ec29 (Q: "final frame shows no hero sprite at 0/36 … the body stays where he fell"): the fallen hero dims to
+        // HERO_FALLEN_FADE and stays drawn where he fell through the walk-out; only foes dissolve away
+        e.fade = e.hero ? Math.min(HERO_FALLEN_FADE, Math.floor(p * 4) / 4) : Math.floor(p * 4) / 4;
+        if (p >= 1 && !e.hero) this.ents.delete(id);
       } else if (e.spawning) {
         const p = Math.min(1, (c - e.spawning.t0) / SPAWN_T);
         e.fade = 1 - Math.floor(p * 4) / 4;

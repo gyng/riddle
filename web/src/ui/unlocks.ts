@@ -4,6 +4,7 @@
 // Cut 9 §2: every buy goes through `openUnlockSheet` — the card's rows / effect, `◆cost`, `needs` when gated, `reach ±N%`
 // when known, then `buy`. No card buys on its own tap; a disabled card still opens the sheet to show its gate.
 import type { App } from "../app";
+import { engagementRow } from "../app";
 import type { Lineage, UnlockInfo } from "../engine/types";
 import { CLASSES, isFreeClass } from "../engine/classes";
 import { h } from "./dom";
@@ -80,7 +81,7 @@ export function priceLabel(u: UnlockInfo): string {
   const g = goldPrice(u);
   // QA 92eb880 (M: "`class: rogue ⊘ bank once` shows no price while ranger/caster do"): a door that costs nothing reads `free`
   // QA 1a2a4a9 (O: "`◆2 · $300` read as one price; the sheet reveals either buys it"): the two prices read as a choice — `◆2 / $300`
-  return [u.cost ? `◆${u.cost}` : "", g ? `$${g}` : ""].filter(Boolean).join(" / ") || (u.owned ? "" : /* copy:label */ "free");
+  return [u.cost ? `◆${u.cost}` : "", g ? `$${g}` : ""].filter(Boolean).join(/* copy:label */ " or ") || (u.owned ? "" : /* copy:label */ "free");
 }
 /** QA 92eb880 (M: "`+1 ROW` and `+1 VAULT` say nothing of what they give"): a counted unlock's effect as numbers — `rows 4 → 5`,
  *  `vault 1 → 2`, `party 1 → 2`, `supplies 3 → 5`; undefined for others. */
@@ -130,7 +131,7 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
     const buy = h("button", { class: `btn primary buy marks${can ? "" : " off"}`, disabled: !can, onclick: go(false) }, "◆ ", /* copy:button */ "buy");
     const buyGold = gold ? h("button", { class: `btn buy gold${canGold ? "" : " off"}`, disabled: !canGold, onclick: go(true) }, "$ ", /* copy:button */ "buy") : "";
     return h("div", { class: "sheet-body unlock-sheet" },
-      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`, gold ? h("span", { class: "gold-price" }, ` / $${gold}`) : "")),
+      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`, gold ? h("span", { class: "gold-price" }, /* copy:label */ ` or $${gold}`) : "")),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r))))
         : VERB_OF[u.id] ? h("div", { class: "card-rows" }, h("div", { class: "row locked" }, h("div", { class: "chips" }, h("span", { class: "chip verb locked" }, VERB_OF[u.id])))) : "",
       effectLine(app, u) ? h("div", { class: "effect-line num" }, effectLine(app, u)!) : "",
@@ -160,13 +161,21 @@ export const isCard = (u: UnlockInfo): boolean => /^card:/.test(LABEL[u.id] ?? "
 export function openOwnedSheet(app: App, u: UnlockCard): void {
   openSheet((close) => {
     const insert = isCard(u) && !app.holdsCard(u.id)
-      ? h("button", { class: "btn primary wide", onclick: () => { close(); const i = app.insertCard(u.id); app.go({ kind: "camp", highlight: i }); } }, /* copy:button */ "insert")
+      ? h("button", { class: "btn primary wide", onclick: () => { close(); addCard(app, u); } }, /* copy:button */ "add")
       : "";
     return h("div", { class: "sheet-body unlock-sheet" },
       h("div", { class: "label row-label" }, u.label),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))) : "",
       insert);
   });
+}
+/** QA e75ec29: an owned card off the set goes in at its measured place (`insert_at`, sent for owned cards too), else before the
+ *  engagement row; the camp opens on it. */
+export function addCard(app: App, u: UnlockInfo): void {
+  // never past the engagement row (a catalogue's `insert_at` measured on another set would land it where it never acts)
+  const eng = engagementRow(app.rules.rows);
+  const i = app.insertCard(u.id, u.insert_at !== undefined ? Math.min(u.insert_at, eng) : undefined);
+  app.go({ kind: "camp", highlight: i });
 }
 /** Cut 6 §6: owned entries that carry rows (cards, automations) — the shelf keeps them as chips that open their rows. */
 export function ownedRows(catalogue: UnlockInfo[]): UnlockCard[] {

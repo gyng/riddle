@@ -180,7 +180,7 @@ async function qaK() {
 
   // ---- 5. the shaft: each notch between 0 and 100% carries its ± (a move inside it is the sims); the forecast: a cause's share in
   //      the ends' unit (≤ the death share)
-  const sh = await page.evaluate(() => { const f = window.__riddle.lastForecast; const want = (f?.depths ?? []).filter((d) => d.pm !== undefined && d.reach > 0 && d.reach < 1).map((d) => d.depth);
+  const sh = await page.evaluate(() => { const f = window.__riddle.lastForecast; const want = (f?.depths ?? []).filter((d) => d.pm !== undefined && Math.round(d.reach * 100) > 0 && Math.round(d.reach * 100) < 100).map((d) => d.depth);
     const have = [...document.querySelectorAll(".shaft .notch")].filter((n) => n.querySelector(".pm")).map((n) => Number(n.dataset.d)); return { want, have }; });
   check(sh.want.every((d) => sh.have.includes(d)), `the shaft's notches carry their ± (D${sh.want.join(",D") || "–"} → ${sh.have.map((d) => `D${d}`).join(",") || "none"})`);
   await page.locator(".shaft").click({ timeout: 5000 }); await sleep(200);
@@ -299,7 +299,8 @@ async function autoKeepCheck() {
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch for the keep");
     await page.evaluate((full) => {
       const r = window.__riddle; r.__ak = 0; r.__keep = []; r.__pending = null;
-      if (full) r.lineage.vault = [{ id: 7001, kind: "axe", known: true, label: "axe" }];
+      // the exit reads the engine's vault (QA e75ec29: the camp's copy counted a brought item twice): a full vault is the engine's
+      if (full) { r.lineage.vault = [{ id: 7001, kind: "axe", known: true, label: "axe" }]; const lg = r.engine.lineage.bind(r.engine); r.engine.lineage = async () => ({ ...(await lg()), vault: [{ id: 7001, kind: "axe", known: true, label: "axe" }] }); }
       const ak = r.engine.autoKeep?.bind(r.engine), k = r.engine.keep.bind(r.engine), st = r.engine.step.bind(r.engine);
       r.engine.autoKeep = async () => { r.__ak++; return ak ? ak() : k([]); };
       r.engine.keep = async (ids) => { r.__keep.push(ids); return k(ids); };
@@ -481,7 +482,7 @@ async function cut18() {
   await sleep(300);
   const tiles = await page.evaluate(() => [...document.querySelectorAll(".unlocks .cards .card")].map((c) => ({ label: c.querySelector(".card-main > span")?.textContent, cost: c.querySelector(".cost")?.textContent, cls: c.className, delta: c.querySelector(".delta")?.textContent ?? "" })));
   const t = (label) => tiles.find((x) => x.label === label);
-  check(t("card: kite archers")?.cost === "◆3 / $450" && t("+1 vault")?.cost === "◆3 / $300", `an unlock tile shows both prices (${tiles.map((x) => `${x.label} ${x.cost}`).join(" · ")})`);
+  check(t("card: kite archers")?.cost === "◆3 or $450" && t("+1 vault")?.cost === "◆3 or $300", `an unlock tile shows both prices (${tiles.map((x) => `${x.label} ${x.cost}`).join(" · ")})`);
   check(/\bbuyable\b/.test(t("+1 vault")?.cls ?? "") && !/\bbuyable\b/.test(t("card: kite archers")?.cls ?? "") && !/\bbuyable\b/.test(t("cond: alert")?.cls ?? ""), `a tile the gold buys glows like one the marks buy; one short of gold or gated does not (${tiles.map((x) => `${x.label}: ${x.cls}`).join(" · ")})`);
   check(t("card: kite archers")?.delta === "reach ~0 at R1 · vs archers", `a card's \`~0\` names its situation ("${t("card: kite archers")?.delta}")`);
   await shot("ui-cut18-unlocks");

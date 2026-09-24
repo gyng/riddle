@@ -8,7 +8,7 @@ import type { Viewer } from "./viewer";
 /** A floor as the watch loaded it, its events since, and what later step snapshots added (`preload` / `sync`: entities
  *  and items first seen after the load, keyed by id — the renderer's `seek` rebuilds from the loaded snapshot alone, so
  *  the replay loads them folded in, see `floorSnapshot`). */
-export type Floor = { snap: Snapshot; evs: Ev[]; ents: Map<number, Entity>; items: Map<number, FloorItem> };
+export type Floor = { snap: Snapshot; evs: Ev[]; ents: Map<number, Entity>; items: Map<number, FloorItem>; seen?: boolean[] };
 export type RunLog = { runId: number; startedTurn: number; floors: Floor[]; endTick?: number };
 
 let last: RunLog | null = null;
@@ -29,6 +29,9 @@ export function recordRun<V extends Viewer>(viewer: V, runId: number, startedTur
     for (const e of snap.entities) if (!had.has(e.id) && !f.ents.has(e.id)) f.ents.set(e.id, e);
     const items = new Set(f.snap.items.map((i) => i.id));
     for (const i of snap.items) if (!items.has(i.id) && !f.items.has(i.id)) f.items.set(i.id, i);
+    // QA e75ec29 (Q: "WATCH opens a sheet ~90 % black with a 200 px map fragment"): the tiles the floor's later snapshots saw — the
+    // replay rebuilds from the loaded snapshot, whose map was the floor's first room only
+    if (snap.seen.length === f.snap.seen.length) { f.seen ??= [...f.snap.seen]; for (let k = 0; k < snap.seen.length; k++) if (snap.seen[k]) f.seen[k] = true; }
   };
   const pre = (viewer as Viewer & { preload?: (s: Snapshot) => void }).preload;
   return {
@@ -42,7 +45,7 @@ export function recordRun<V extends Viewer>(viewer: V, runId: number, startedTur
 /** The snapshot a replay loads for a floor: the loaded one with every entity and item later snapshots added, so a foe
  *  that walked in after the load exists before its events apply (and survives the renderer's `seek`). */
 export function floorSnapshot(f: Floor): Snapshot {
-  return { ...f.snap, entities: [...f.snap.entities, ...f.ents.values()], items: [...f.snap.items, ...f.items.values()] };
+  return { ...f.snap, entities: [...f.snap.entities, ...f.ents.values()], items: [...f.snap.items, ...f.items.values()], seen: f.seen ?? f.snap.seen };
 }
 /** The run's exit tick, once known (chain links past it are never replayable). */
 export function markEnd(runId: number, t: number): void { if (last && last.runId === runId) last.endTick = t; }

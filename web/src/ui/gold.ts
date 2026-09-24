@@ -74,9 +74,18 @@ export function openGoldSheet(app: App, only?: ExitLine, newer: ExitLine[] = [])
       body.replaceChildren(
         h("div", { class: "label row-label" }, /* copy:label */ "gold", " ", h("span", { class: "num gold" }, `$${L.gold}`), ...chips),
         list);
+      // QA e75ec29 (Q: "the default view sums to the balance it heads" — the run's lines alone came to −$30 under `$10`): the run's view
+      // opens on the balance before it (`$40 start`, oldest line at the foot) and, for an older run, closes on the balance after it
+      // (`$55 end`), so start + the lines = end, and the newest run's end is the header's
+      const sum = (a: number, b: number): number => ledger.slice(a, b).reduce((t, g) => t + g.delta, 0);
+      const run = filtered && range;
+      const endBal = run ? L.gold - sum(range[1] + 1, ledger.length) : 0, startBal = run ? endBal - sum(range[0], range[1] + 1) : 0;
+      const bal = (n: number, word: string, cls: string): HTMLElement => h("div", { class: `lrow num bal ${cls}` }, h("span", { class: "k" }, `$${n}`), h("span", { class: "why dim" }, word));
       list.replaceChildren(
+        run && range[1] < ledger.length - 1 ? bal(endBal, /* copy:label */ "end", "end") : "",
         ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, wakeShown(g.why.replace(/_/g, " "))))),
-        lines.length ? "" : h("div", { class: "lrow num dim empty-line" }, /* copy:callout */ "no movements"));   // QA 92eb880 (N: a fresh lineage's sheet read `$0 · ·`)
+        lines.length ? "" : h("div", { class: "lrow num dim empty-line" }, /* copy:callout */ "no movements"),
+        run ? bal(startBal, /* copy:label */ "start", "start") : "");   // QA 92eb880 (N: a fresh lineage's sheet read `$0 · ·`)
     };
     paint(!!range);
     return body;

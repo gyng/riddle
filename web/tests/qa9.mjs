@@ -131,7 +131,7 @@ try {
   check(chipText === "card: thief guard · owned", `the owned chip reads owned: "${chipText}"`);
   await chip.click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
-  check(s?.label === "card: thief guard" && !s.buttons.includes("insert") && !s.buttons.includes("buy"), `the owned sheet is titled, no insert while the set holds the row: [${s?.buttons.join(", ")}]`);
+  check(s?.label === "card: thief guard" && !s.buttons.includes("add") && !s.buttons.includes("buy"), `the owned sheet is titled, no add while the set holds the row: [${s?.buttons.join(", ")}]`);
   await page.keyboard.press("Escape"); await sleep(150);
   await page.keyboard.press("Escape"); await sleep(150);   // the panel
   await page.locator(".editor .row").nth(1).locator(".x").click({ timeout: 5000 }); await sleep(400);
@@ -140,8 +140,8 @@ try {
   await openPanel(page, "unlocks");
   await page.locator(".unlocks .chip.owned", { hasText: "thief guard" }).first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
-  check(s?.label === "card: thief guard" && s.buttons.includes("insert"), `the owned sheet offers insert once the row is gone: [${s?.buttons.join(", ")}]`);
-  await page.locator(".sheet-wrap button", { hasText: "insert" }).first().click({ timeout: 5000 });
+  check(s?.label === "card: thief guard" && s.buttons.includes("add"), `the owned sheet offers add once the row is gone: [${s?.buttons.join(", ")}]`);
+  await page.locator(".sheet-wrap button", { hasText: "add" }).first().click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "camp", "camp after insert");
   await sleep(500);
   rs = await rows();

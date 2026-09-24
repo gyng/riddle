@@ -10,7 +10,7 @@
 // §5: a `dice` death names what the forecast said for that depth — the camp's own reach line, verbatim (`forecast said D4 100%`)
 // when the last forecast knows the floor (QA on 50bb162: "`forecast said 36%` while the camp forecast read `D4 100% ±1`").
 import type { App, Mounted } from "../app";
-import type { Death, Row } from "../engine/types";
+import type { Death, ExitLine, Row } from "../engine/types";
 import { morgueVerbs } from "./chain";
 import { h, copyText, items, pct } from "./dom";
 import { openGoldSheet } from "./gold";
@@ -32,6 +32,13 @@ export const headlineMargin = (m: string): string => m.split(" · ").filter((x) 
  *  as whose it is (`heir purse +$40`), here, on the gold sheet and in the report. */
 export const wakeShown = (t: string): string => t.replace(/\+\$(\d+) wake\b/g, /* copy:callout */ "heir purse +$$$1").replace(/\bwake pay\b/g, /* copy:callout */ "heir purse");
 export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t) ? t.replace(/ · keeps 0%(?= · |$)/, "") : t);
+/** QA e75ec29 (R: a packed heal stolen on D1, nothing on the exit; `+$40 heir purse` once, then none): what the core adds to an exit
+ *  line beside its text — `· stolen heal` (what thieves took and kept), `· purse full` (a death whose heir purse was already at its
+ *  top-up line, so no `heir purse +$N`). */
+export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "purse_full">): string =>
+  (x.stolen?.length && !/\bstolen\b/.test(x.text) ? /* copy:callout */ ` · stolen ${x.stolen.map((l) => l.replace(/_/g, " ")).join(", ")}` : "")
+  + (x.purse_full && !/purse full/.test(x.text) ? /* copy:callout */ " · purse full" : "");
+export const lineShown = (x: ExitLine): string => ledgerShown(x.text) + exitExtras(x);
 
 export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false): Mounted {
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
@@ -62,7 +69,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Cut 20 §4 (AC: "$80 gone after death, `repeat · $80` — only understood when removing refunded $40"): the loadout's re-pack for
   // the next heir, charged at this exit, is a line under it (`repeat −$80`) — the gold sheet it opens lists it too
   const repeat = kept ? 0 : repeatAfterExit(app.lineage.gold_ledger ?? []);
-  const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, d.line) }, ledgerShown(d.line.text)),
+  const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, d.line) }, lineShown(d.line)),
     repeat > 0 ? h("button", { class: "ledger-btn repeat-line down", onclick: () => openGoldSheet(app, d.line) }, /* copy:callout */ `repeat −$${repeat}`) : "") : null;
   // The trace holds one row per hero action (~10 ticks apart at base speed); the last five, with the row accounting of
   // the last action under it (Cut 6 §3). Cut 9 §5: the table lives in ui/trace.ts, shared with every exit.
