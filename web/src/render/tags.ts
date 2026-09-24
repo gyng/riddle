@@ -2,7 +2,7 @@
 // short framed hp bar (thin red fill on a dark trough) — drawn in the DOM over the canvas (crisp at any k), placed by the viewer
 // (index.ts lays the boxes out in world texels so no two intersect and none crosses the callout; `debugLabels` reports them).
 // The layer is a sibling of the canvas with the canvas's offset box, so the viewer's CSS coordinates (`toCss`) are its own.
-// Pooled elements; a frame writes only what changed.
+// Pooled elements; a frame writes only what changed. Cut 19: the serif is Alegreya (Google Fonts, index.html), Georgia before it loads.
 
 export type Tag = { id: number; text: string; x: number; y: number; w: number; hp: number };   // x centre, y bottom (CSS px); hp 0..1, <0 = no bar
 

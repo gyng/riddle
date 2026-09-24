@@ -16,7 +16,7 @@
 // one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
 // row stands in for the class button while it is up.
 import type { App, Mounted } from "../app";
-import type { SupplyEntry, UnlockInfo } from "../engine/types";
+import type { CageOption, SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, flash, replace, spanOf } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
@@ -32,8 +32,21 @@ import { CLASS_VERBS } from "../engine/classes";
 import { isFreeSupply, ownRowCount, verbLabel } from "./tokens";
 import { openSheet, setPanelEscape } from "./sheet";
 import { setBusyHost } from "./progress";
+import { icon } from "./skin";
 
 const SET_NAME_MAX = 12;
+/** Cut 19 §1: the cage's preferences, the picker's order. */
+const CAGE_PREFS = ["weapon", "armour", "potion", "scroll"];
+/** Cut 19 §1: the last `cageForecast()` and what it was measured for (the set, the preference, the best) — the picker paints it at once. */
+let cageMemo: { key: string; opts: CageOption[] } | null = null;
+/** Cut 19 §1: an option's headline delta (`+36%`, the bank share's move when either panel banks, else the reach's); none on the
+ *  current preference or a move that rounds to 0; `dim` inside its ±. */
+export function cageDelta(o: CageOption): { text: string; cls: string } | null {
+  if (o.current) return null;
+  const d = Math.round(o.delta * 100); if (d === 0) return null;
+  const pm = Math.round(o.pm * 100);
+  return { text: `${d > 0 ? "+" : "−"}${Math.abs(d)}%`, cls: `${d > 0 ? "up" : "down"}${Math.abs(d) <= pm ? " flat" : ""}` };
+}
 /** Cut 17 §3: which step carves each console tile (the tile glints on its first appearance). */
 const STEP_OF: Record<string, Step> = { edit: "edit", loadout: "loadout", unlocks: "unlocks", vault: "vault", forge: "forge", party: "party", ledger: "heirs", chronicle: "heirs" };
 const ALL_KEY = "riddle.unlocks.all";
@@ -65,6 +78,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     compact: () => !app.editing,
     onTablet: (i) => { app.editing = true; closePanel(); editor.refresh(); paintTiles(); flashRow(i); },
   });
+  // Cut 19 §1: the cage is a camp decision — its own tablet under the rules (`cage → armour`), revealed once a cage was seen; the
+  // tap opens the picker with each preference's forecast delta
+  const cageTab = h("button", { class: "row tablet compact cage-tab", hidden: true, onclick: () => openCagePicker() });
   const party = renderParty(app);
   const fc = renderForecast(app);
   const shaft = renderShaft(app, () => togglePanel("forecast"), () => revealed(app).has("gems"));
@@ -102,13 +118,14 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, editor.el, shaft.el), h("div", { class: "rest-line" }, rest));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, editor.el, cageTab), shaft.el), h("div", { class: "rest-line" }, rest));
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
   const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, panelHost, panelStore), cons.el);
   setBusyHost(busyStrip);
   function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
 
+  const withBadge = (el: HTMLElement, badge: HTMLElement | null): HTMLElement => { if (badge) { el.appendChild(badge); el.classList.add("badged"); } return el; };
   /** Cut 17 §1/§3: the command card as revealed — edit · loadout · unlocks · vault · forge · party · ledger · chronicle. */
   function paintTiles(): void {
     const R = revealed(app);
@@ -117,7 +134,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // QA 92eb880 (N: "the `edit` tile toggles: tapping it while editing closes the editor (I lost the next tap twice)"): it turns
       // editing on and stays lit; a second tap closes the open panel, never the editor
       R.has("edit") && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
-      R.has("loadout") && t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout"),
+      R.has("loadout") && withBadge(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout"), repeatBadge()),
       R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
       R.has("vault") && t("vault", /* copy:button */ "vault", "vault", () => togglePanel("vault"), open === "vault"),
       R.has("forge") && t("forge", /* copy:button */ "forge", "forge", () => openForge(app)),
@@ -258,11 +275,46 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const auto = L.keep_auto;
     if (auto) prefs.appendChild(h("small", { class: "keep-auto dim num" }, auto.length ? /* copy:callout */ `keeps ${auto.join(" · ")}` : /* copy:callout */ "keeps nothing"));
     vault.appendChild(prefs);
-    // Cut 5 §4: what an unanswered vault choice takes (offline, or the 50-tick grace on a watched run)
-    const vprefs = h("div", { class: "chips prefs" }, h("span", { class: "dim" }, /* copy:label */ "cage"),
-      /* copy:label */ ...["weapon", "armour", "potion", "scroll"].map((id) =>
-        h("button", { class: `chip${(L.vault_pref ?? "weapon") === id ? " on" : ""}`, onclick: () => void app.mutate(() => app.engine.setVaultPref(id)) }, id)));
-    vault.appendChild(vprefs);
+    // Cut 19 §1: the cage's preference left this panel for its own tablet beside the rules (`cage → armour`)
+  }
+  function paintCage(): void {
+    const on = revealed(app).has("cage");
+    cageTab.hidden = !on;
+    if (!on) return;
+    replace(cageTab, h("span", { class: "rn num" }, icon("vault", "▣")),
+      h("span", { class: "rtext" }, /* copy:rule_token */ "cage", h("span", { class: "arrow" }, " → "), app.lineage.vault_pref ?? "weapon"));
+  }
+  /** Cut 19 §1: the picker — the four preferences, each with its forecast delta against the current one (`armour +36%`); the tap sets it.
+   *  The deltas are `cageForecast()` (three extra camp panels, memoised by the core; seconds in wasm): the last measure paints at once
+   *  when it is this set's, `…` until the fresh one lands. */
+  function openCagePicker(): void {
+    const key = (): string => JSON.stringify([app.rules.rows, app.lineage.vault_pref ?? "weapon", app.lineage.best_depth]);
+    openSheet((close) => {
+      const list = h("div", { class: "chips cage-opts" });
+      const paint = (opts: CageOption[] | null, pending: boolean): void => {
+        const cur = app.lineage.vault_pref ?? "weapon";
+        replace(list, ...CAGE_PREFS.map((p) => {
+          const o = opts?.find((x) => x.pref === p); const d = o ? cageDelta(o) : null;
+          return h("button", { class: `chip cage-opt${p === cur ? " on" : ""}`, "data-pref": p, onclick: async () => { close(); if (p !== cur) await app.mutate(() => app.engine.setVaultPref(p)); } },
+            h("span", null, p), d ? h("b", { class: `num delta ${d.cls}` }, ` ${d.text}`) : pending && p !== cur ? h("small", { class: "num dim" }, " …") : "");
+        }));
+      };
+      const k = key(), memo = cageMemo?.key === k ? cageMemo.opts : null;
+      paint(memo, !memo && !!app.engine.cageForecast);
+      if (!memo && app.engine.cageForecast) void app.engine.cageForecast().then((opts) => { cageMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); }).catch((e) => { console.warn("cageForecast", e); if (list.isConnected) paint(null, false); });
+      return h("div", { class: "sheet-body cage-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "cage"), list);
+    });
+  }
+  /** Cut 19 §3: the loadout repeats by default — the tile carries `repeat · $120` (the kinds the next send re-packs, at the shelf's
+   *  price); a tap on it clears the repeat (`setRestock(false)`, the shelf refunded), `repeat off` a tap turns it back on. */
+  function repeatBadge(): HTMLElement | null {
+    const L = app.lineage;
+    if (!app.engine.setRestock || L.repeat === undefined) return null;
+    const on = L.repeat !== false;
+    if (on && !(L.repeat_kinds?.length)) return null;   // nothing to re-pack
+    return h("span", { class: `repeat-badge num${on ? " on" : ""}`, role: "button", "data-repeat": on ? "1" : "0",
+      onclick: (e: Event) => { e.stopPropagation(); void app.mutate(() => app.engine.setRestock!(!on)); } },
+      on ? /* copy:callout */ `repeat · $${L.repeat_gold ?? 0}` : /* copy:callout */ "repeat off");
   }
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
@@ -344,7 +396,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // Cut 18 §5: a tile the gold buys ranks with the ones the marks buy (and glows like them)
       const buyable = (u: typeof list[number]): boolean => u.available || goldAffordable(u, app.lineage.gold);
       const rank = (u: typeof list[number]): number => (buyable(u) ? 0 : u.gated ? 1 : 2);
-      const next = list.map((u, i) => ({ u, i })).sort((a, b) => rank(a.u) - rank(b.u) || (b.u.delta ?? 0) - (a.u.delta ?? 0) || a.u.cost - b.u.cost || a.i - b.i).slice(0, 3).map((x) => x.u);
+      let next = list.map((u, i) => ({ u, i })).sort((a, b) => rank(a.u) - rank(b.u) || (b.u.delta ?? 0) - (a.u.delta ?? 0) || a.u.cost - b.u.cost || a.i - b.i).slice(0, 3).map((x) => x.u);
+      // Cut 19 §3 (AA: "`+1 row` vanished"): a pinned unlock (the next `+1 row`) is always on the short list — it takes the last place
+      const pins = list.filter((u) => u.pinned);
+      if (pins.some((u) => !next.includes(u))) next = [...next.filter((u) => !u.pinned).slice(0, Math.max(0, 3 - pins.length)), ...pins];
       const shown = unlocksAll() || list.length <= 3 ? list : list.filter((u) => next.includes(u));
       for (const u of shown) {
         // `available` = prerequisite + fact gate + affordable (engine truth). Two dims: gated (the `needs` line
@@ -378,7 +433,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }
-  function paintAll(): void { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  function paintAll(): void { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);

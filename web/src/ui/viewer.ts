@@ -16,6 +16,7 @@ export interface Viewer {
   stats?(): unknown;   // renderer diagnostics (dev: `window.__viewer.stats()` while a run is mounted)
 }
 type RenderMod = { createViewer(canvas: HTMLCanvasElement, opts?: { baseTexels?: number }): Viewer };
+const PHONE_TEXELS = 120;
 const mods = import.meta.glob<RenderMod>("../render/index.ts");
 
 export async function makeViewer(canvas: HTMLCanvasElement): Promise<{ viewer: Viewer; real: boolean }> {
@@ -26,7 +27,8 @@ export async function makeViewer(canvas: HTMLCanvasElement): Promise<{ viewer: V
       // phones: 120 env texels along the short axis (Cut 14 §3, was 150: k = 10 at dpr 3 → 27 CSS-px tiles,
       // ~15 across, a rat 27 px tall in the map frame; k = 6 at dpr 2); desktop takes the renderer's default
       const short = Math.min(canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight);
-      return { viewer: m.createViewer(canvas, short < 600 ? { baseTexels: 120 } : {}), real: true };
+      const dev = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get("texels")) || 0 : 0;   // dev: `?texels=N` tries a texel base
+      return { viewer: m.createViewer(canvas, dev ? { baseTexels: dev } : short < 600 ? { baseTexels: PHONE_TEXELS } : {}), real: true };
     }
     catch (e) { console.warn("renderer unavailable, placeholder view", e); }
   }

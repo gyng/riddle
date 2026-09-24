@@ -11,11 +11,12 @@
 //   party   a companion            the `party` tile
 //   gems    a 3rd row              the shaft's bank / return / death gems
 //   heirs   5 heirs                the `chronicle` and `ledger` tiles; set tabs 2–3
+//   cage    a cage seen (`vault`)  the cage tablet under the rules (`cage → armour`, Cut 19 §1)
 //   (a second class owned: the wake's class chips — the core offers them only then)
 import type { App } from "../app";
 import { isFreeSupply, ownRowCount } from "./tokens";
 
-export type Step = "edit" | "loadout" | "unlocks" | "vault" | "forge" | "party" | "gems" | "heirs" | "rank" | "depth";
+export type Step = "edit" | "loadout" | "unlocks" | "vault" | "forge" | "party" | "gems" | "heirs" | "rank" | "depth" | "cage";
 const KEY = "riddle.reveal";
 const FRESH_UNLOCKS = new Set(["tame"]);
 /** When each step was first seen this session (wall ms): a step glints on every paint for GLINT_MS after it was earned, so the
@@ -39,6 +40,8 @@ export function earned(app: App): Set<Step> {
   if (L.heir >= 5) out.add("heirs");
   if ((L.rank ?? 0) > 0 || (L.renown ?? 0) > 0) out.add("rank");
   if (L.best_depth > 0) out.add("depth");
+  // Cut 19 §1: a cage seen (the core's `vault` fact, learned when one opens) carves the cage tablet beside the rules
+  if ((L.facts ?? []).includes("vault")) out.add("cage");
   return out;
 }
 

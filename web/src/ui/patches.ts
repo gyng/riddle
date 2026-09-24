@@ -40,6 +40,13 @@ export function leastFiredRow(app: App, trace?: Trace): number {
   return best;
 }
 
+/** Cut 19 §4: the own row the core says an insert on a full set drops (`Patch.drops`), −1 when absent or not an own row of the set now. */
+export function dropsOf(app: App, p: Patch): number {
+  const i = p.drops; if (i === undefined || i < 0) return -1;
+  const r = app.rules.rows[i];
+  return r && !isCardRow(r) ? i : -1;
+}
+
 /** The least-fired own row when its count is unique among the own rows, else −1 (the drop sheet's `↓`). */
 function uniqueLeast(app: App, trace?: Trace): number {
   const least = leastFiredRow(app, trace); if (least < 0) return -1;
@@ -72,7 +79,9 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     // Cut 15 §3: an insert onto a full set asks which own row to drop (`+ drop one`)
     const full = !unlock && !p.remove && !p.replace && held < 0 && app.rowsFull && app.rules.rows.some((r) => !isCardRow(r));
     const target = p.remove || p.replace ? h("small", { class: "dim target" }, `R${p.insert_at + 1} ${p.remove ? "−" : "↻"} `)
-      : full ? h("small", { class: "dim target" }, /* copy:callout */ "+ drop one", " ") : "";
+      // Cut 19 §4: the core names the row the insert drops (`Patch.drops`, the dead run's least-fired own row) — `+ drop R5`; the tap
+      // still opens the drop sheet on it (marked), so the player may drop another
+      : full ? h("small", { class: "dim target" }, dropsOf(app, p) >= 0 ? /* copy:callout */ `+ drop R${dropsOf(app, p) + 1}` : /* copy:callout */ "+ drop one", " ") : "";
     const line = held >= 0
       ? /* copy:callout */ `at R${held + 1}`
       : p.below_bar
@@ -159,7 +168,9 @@ export function openDropSheet(app: App, p: Patch, trace?: Trace): void {
   const fires = app.rowFires, total = app.rowFiresOf ?? (fires ? fires.reduce((a, b) => a + b, 0) : 0);
   // QA on 3d71c33: the `↓` marks the least-fired row only when it is the only one at that count — among ties (nothing fired, two
   // rows at 0) no row is singled out (the lowest in the list was an arbitrary pick)
-  const least = uniqueLeast(app, trace);
+  // Cut 19 §4: the row the core named (`+ drop R5`) is the marked one
+  const named = dropsOf(app, p);
+  const least = named >= 0 ? named : uniqueLeast(app, trace);
   openSheet((close) => h("div", { class: "sheet-body drop-sheet" },
     h("div", { class: "label row-label" }, /* copy:label */ "drop", " ", h("small", { class: "dim" }, rowLabel(p.row)), closeX(close)),
     ...rows.map((r, i) => isCardRow(r) ? null : h("button", {

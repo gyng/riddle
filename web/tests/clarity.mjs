@@ -387,40 +387,45 @@ try {
       check(log.spans.length >= 3 && max <= 1200 && log.over === 0, `seed ${seed}: the floor card is up ≤ 1.2 s a time (${log.spans.length} cards, longest ${Math.round(max)} ms, over a fight ${log.over})`);
     }
   }
-  // Cut 15 §5: a watched cage waits for the tap — the vault sheet open 3 s: the frontier does not move; the bar runs 6 s (Cut 18 §1,
-  // was 30: "each cage held the watch about 30 s"); in `fast` a chip still takes the tap and the world goes on; in `fights`, untouched,
-  // the sheet closes by 6.5 s and the world goes on (the preference picks). The fake has no vaults: one engine batch after tick 20
-  // carries a `vault_choice`.
+  // Cut 15 §5 → Cut 19 §1: a watched cage is a beat — `took mail` (the preference's pick, `VaultChoice.pick`) held on the ticker while
+  // the world waits; in `fast` a tap on the beat opens the override sheet (its bar runs 10 s, the world waits while it is open) and a
+  // chip takes the tap; in `fights`, untouched, no sheet ever opens and the world goes on after the hold (the preference picks). The
+  // fake has no vaults: one engine batch after tick 20 carries a `vault_choice`.
   {
     for (const mode of ["fast", "fights"]) {
       await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);
       await page.evaluate(() => {
         const r = window.__riddle, orig = r.engine.step.bind(r.engine), origChoose = r.engine.choose.bind(r.engine); let done = false;
-        r.__chosen = null;
-        r.engine.step = async (n) => { const res = await orig(n); if (!done && res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit")) { done = true; res.snapshot.vault_choice = { items: [{ id: 9901, kind: "sword", known: true, label: "sword" }, { id: 9902, kind: "mail", known: true, label: "mail" }, { id: 9903, kind: "heal", known: true, label: "heal potion" }], left: 50 }; } return res; };
+        r.__chosen = null; window.__sheetSeen = false;
+        r.engine.step = async (n) => { const res = await orig(n); if (!done && res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit")) { done = true; res.snapshot.vault_choice = { items: [{ id: 9901, kind: "sword", known: true, label: "sword" }, { id: 9902, kind: "mail", known: true, label: "chain mail" }, { id: 9903, kind: "heal", known: true, label: "heal potion" }], left: 50, pick: 9902 }; } return res; };
         r.engine.choose = async (id) => { r.__chosen = id; return origChoose(id); };
+        new MutationObserver(() => { if (document.querySelector(".sheet-wrap .vault-choice")) window.__sheetSeen = true; }).observe(document.body, { childList: true, subtree: true });
       });
-      const w = () => page.evaluate(() => { const x = document.querySelector(".watch"); const g = document.querySelector(".sheet-wrap .vault-choice .grace i"); return { screen: window.__riddle.screen, frontier: Number(x?.dataset.frontier), tick: Number(x?.dataset.tick), sheet: !!document.querySelector(".sheet-wrap .vault-choice .chip"), bar: g ? g.style.transitionDuration : "" }; });
+      const w = () => page.evaluate(() => { const x = document.querySelector(".watch"); const t = document.querySelector(".watch .ticker"); const g = document.querySelector(".sheet-wrap .vault-choice .grace i"); return { screen: window.__riddle.screen, frontier: Number(x?.dataset.frontier), tick: Number(x?.dataset.tick), beat: t?.classList.contains("cage") && t.classList.contains("show") ? t.textContent.trim() : "", sheet: !!document.querySelector(".sheet-wrap .vault-choice .chip"), bar: g ? g.style.transitionDuration : "", cage: x?.dataset.cage ?? "" }; });
       let a = null; const t0 = Date.now();
-      while (Date.now() - t0 < 20_000) { a = await w(); if (a.sheet || (a.screen !== "watch" && a.screen !== "exit")) break; await sleep(50); }
-      if (!a?.sheet) { check(false, `${mode}: the vault sheet opened (${a?.screen})`); continue; }
-      const opened = Date.now();
-      await sleep(300); const f0 = await w();
-      await sleep(2700); const f1 = await w();
-      check(f1.sheet && f1.frontier === f0.frontier, `${mode}: the sheet open 3 s, the world waits (frontier ${f0.frontier} → ${f1.frontier}, playhead ${f1.tick})`);
-      check(f0.bar === "6s", `${mode}: the sheet's bar runs the 6 s wait (${f0.bar})`);
+      while (Date.now() - t0 < 20_000) { a = await w(); if (a.beat || (a.screen !== "watch" && a.screen !== "exit")) break; await sleep(40); }
+      if (!a?.beat) { check(false, `${mode}: the cage beat showed (${a?.screen}, cage ${a?.cage})`); continue; }
+      check(a.beat === "took chain mail" && !a.sheet, `${mode}: the cage is a beat naming the pick, no sheet (\`${a.beat}\`)`);
+      await sleep(250); const f0 = await w();
+      await sleep(1500); const f1 = await w();
+      check(f1.frontier === f0.frontier, `${mode}: the world waits while the beat holds (frontier ${f0.frontier} → ${f1.frontier})`);
       if (mode === "fast") {
-        await page.locator(".sheet-wrap .vault-choice .chip").first().click({ timeout: 2000 });
+        await page.locator(".watch .ticker.cage.show").click({ timeout: 1500 }).catch(() => {});
+        await sleep(300); const s0 = await w();
+        check(s0.sheet && s0.bar === "10s", `${mode}: a tap on the beat opens the override (sheet ${s0.sheet}, bar ${s0.bar})`);
+        await sleep(3000); const s1 = await w();
+        check(s1.sheet && s1.frontier === s0.frontier, `${mode}: the sheet open 3 s past the beat, the world waits (frontier ${s0.frontier} → ${s1.frontier})`);
+        await page.locator(".sheet-wrap .vault-choice .chip").first().click({ timeout: 2000 }).catch(() => {});
         await sleep(1500);
         const f2 = await w(); const chosen = await page.evaluate(() => window.__riddle.__chosen);
-        check(chosen === 9901 && !f2.sheet && (f2.frontier > f1.frontier || f2.screen !== "watch"), `${mode}: a chip still takes the tap (chose ${chosen}), the world goes on (frontier ${f1.frontier} → ${f2.frontier})`);
+        check(chosen === 9901 && !f2.sheet && (f2.frontier > s1.frontier || f2.screen !== "watch"), `${mode}: a chip takes the tap (chose ${chosen}), the world goes on (frontier ${s1.frontier} → ${f2.frontier})`);
       } else {
-        let f2 = f1; while (Date.now() - opened < 8000 && f2.sheet) { await sleep(50); f2 = await w(); }
-        const closedAt = Date.now() - opened;
-        await sleep(1200); const f3 = await w(); const chosen = await page.evaluate(() => window.__riddle.__chosen);
-        check(!f2.sheet && closedAt <= 6500 && chosen === null, `${mode}: untouched, the cage closes by 6.5 s (${closedAt} ms), the preference picks (chose ${chosen})`);
-        check(f3.frontier > f1.frontier || f3.screen !== "watch", `${mode}: then the world goes on (frontier ${f1.frontier} → ${f3.frontier})`);
+        const opened = Date.now();
+        let f2 = f1; while (Date.now() - opened < 8000 && f2.frontier === f1.frontier && f2.screen === "watch") { await sleep(50); f2 = await w(); }
+        const chosen = await page.evaluate(() => window.__riddle.__chosen), seen = await page.evaluate(() => window.__sheetSeen);
+        check(!seen && chosen === null, `${mode}: untouched, no sheet opens (seen ${seen}), the preference picks (chose ${chosen})`);
+        check(f2.frontier > f1.frontier || f2.screen !== "watch", `${mode}: after the hold the world goes on (${Date.now() - opened + 1750} ms after the beat; frontier ${f1.frontier} → ${f2.frontier})`);
       }
     }
   }

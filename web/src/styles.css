@@ -198,6 +198,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .verdict.gap { background: var(--acc); color: #1a1400; }
 .verdict.dice { background: var(--panel2); color: var(--dim); }
 .verdict.stall { background: var(--warn); color: #1a1400; }   /* Cut 13 §1: a stalled run's verdict */
+.verdict.row { background: var(--hp); color: #fff; }   /* Cut 19 §4: the player's own row killed him */
 .death-notes { margin: -6px 0 10px; font-size: 13px; line-height: 1.4; }   /* Cut 13 §4: the run's last two notes */
 .forecast-said { margin: -4px 0 10px; font-size: 13px; }               /* Cut 13 §5: `forecast said 5%` on a dice death */
 .trace { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -737,6 +738,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .skin-seal .death .death-line .verdict { background: url(/ui/frames/seal.png) center / 100% 100% no-repeat; }
 .death .death-line .verdict.dice { filter: grayscale(.75) brightness(1.1); }
 .death .death-line .verdict.stall { filter: hue-rotate(28deg) saturate(1.2); }
+.death .death-line .verdict.row { filter: hue-rotate(-18deg) saturate(1.5) brightness(.9); }
 .death .death-notes, .death .forecast-said, .death .ledger-line, .death .bones-line { width: 100%; margin: 0; text-align: center; }
 .trace-panel { padding: 10px 12px; }
 .skin-panel .trace-panel { padding: 2px 6px 6px; }
@@ -882,3 +884,29 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .editor .row.shadowed .grip .shadow-mark { display: block; margin: 2px 0 0; font-size: 10px; }
 .editor .row.shadowed { opacity: 1; }
 .editor .row.shadowed > .chips, .editor .row.shadowed > .grip .rn { opacity: .45; }
+
+/* Cut 19 §1: the cage tablet under the rules — a rule-like camp choice (`cage → armour`), iron-blue so it never reads as R5 */
+.camp-main .tablets { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.row.tablet.compact.cage-tab { min-height: 48px; border-color: #3e4a57; background: linear-gradient(#232a31, #15191d); }
+.row.tablet.compact.cage-tab[hidden] { display: none; }
+.row.tablet.compact.cage-tab .rn { display: flex; justify-content: center; }
+.row.tablet.compact.cage-tab .rn .ico { width: 26px; height: 26px; }
+.row.tablet.compact.cage-tab .rtext { font-size: 17px; color: #cfd8e0; }
+.row.tablet.compact.cage-tab .arrow { color: var(--acc); }
+.cage-picker .cage-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.cage-picker .cage-opt { min-height: 48px; justify-content: center; font-size: 17px; }
+.cage-picker .cage-opt .delta { margin-left: 4px; font-size: 15px; }
+.cage-picker .cage-opt .delta.up { color: var(--ok, #7fd08a); }
+.cage-picker .cage-opt .delta.down { color: var(--hp); }
+.cage-picker .cage-opt .delta.flat { opacity: .6; }
+/* Cut 19 §3: `repeat · $120` rides the loadout tile's top edge; its own tap target (the tile opens the shelf) */
+.cmd .tile.badged { overflow: visible; }
+.cmd .tile .repeat-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 3; white-space: nowrap; padding: 3px 6px; min-height: 20px;
+  font: 700 11px/1 var(--sans); color: #1a1400; background: var(--acc); border-radius: 9px; box-shadow: 0 1px 2px #000; cursor: pointer; }
+.cmd .tile .repeat-badge:not(.on) { color: var(--dim); background: #2a221a; border: 1px dashed #6a5638; }
+.cmd .tile .repeat-badge::before { content: ""; position: absolute; inset: -8px -4px; }   /* a finger-sized hit area around the plate */
+/* Cut 19 §1: the in-run cage beat (`took mail`) is a tap target while it holds — the override sheet */
+.watch .ticker.cage.show { pointer-events: auto; cursor: pointer; }
+.watch .ticker.cage.show .cage-line { display: inline-block; padding: 4px 12px; border: 1px solid rgba(240, 180, 74, .6); border-radius: 14px; background: rgba(12, 10, 8, .55); }
+.gold-line .capped { color: var(--warn); }
+.skin-tablet .row.tablet.compact.cage-tab { background: linear-gradient(rgba(70, 95, 120, .28), rgba(20, 28, 36, .35)); background-clip: padding-box; }

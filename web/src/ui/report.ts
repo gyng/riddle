@@ -107,7 +107,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
   // Cut 13 §3: the gold line — what the exits brought (banked / returned, off the exit lines), the salvage, the automations' spending
   const goldLine = (): HTMLElement | null => {
-    if (!r.spent && !r.salvaged && !r.gold) return null;
+    if (!r.spent && !r.salvaged && !r.gold && !r.restock_capped) return null;
     const ex = r.exits ?? [];
     const bankedG = ex.filter((x) => x.keep_pct >= 100).reduce((a, x) => a + x.kept, 0), returnedG = ex.filter((x) => x.keep_pct > 0 && x.keep_pct < 100).reduce((a, x) => a + x.kept, 0);
     const salvageG = (r.salvaged ?? []).reduce((a, x) => a + x.gold, 0), spentG = (r.spent ?? []).reduce((a, x) => a + x.gold, 0);
@@ -124,6 +124,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       piece(r.gold.salvage, "+", WORD.salvage, "up"); piece(r.gold.wake, "+", WORD.wake, "up"); piece(r.gold.spent, "−", WORD.spent, "down");
     }
     else { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); piece(salvageG, "+", WORD.salvage, "up"); piece(spentG, "−", WORD.spent, "down"); }
+    // Cut 19 §3: the repeat stopped once the night's spending reached what it brought home
+    if (r.restock_capped) pieces.push(h("span", { class: "capped warn" }, /* copy:callout */ "restock capped"));
     if (!pieces.length) return null;
     const out: (string | HTMLElement)[] = []; pieces.forEach((p, i) => { if (i) out.push(" · "); out.push(p); });
     return h("div", { class: "gold-line dim num" }, ...out);

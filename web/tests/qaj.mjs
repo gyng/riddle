@@ -240,7 +240,8 @@ try {
     await page.keyboard.press("Escape"); await sleep(150);
   }
 
-  // ---- 6: the cage sheet — its title, ⏸ and ▶▶| live under it, `vault full` when the pick will be salvaged
+  // ---- 6: the cage sheet — its title, ⏸ and ▶▶| live under it, `vault full` when the pick will be salvaged. Cut 19 §1: the sheet is the
+  //      override — opened by a tap on the cage beat (`took sword`) within its hold
   for (const mode of ["fast", "fights"]) {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s), `the ${mode} watch for the cage`);
@@ -250,14 +251,20 @@ try {
       r.__chosen = null;
       if (full) r.lineage.vault = [{ id: 7001, kind: "axe", known: true, label: "axe" }];   // 1 slot, taken
       // QA 23ed91f: after the cage, the pack holds the sword (the pref's pick), so a pick the player did not make can be named
-      r.engine.step = async (n) => { const res = await orig(n); if (done && !res.snapshot.vault_choice) res.snapshot.hero.inv = [...res.snapshot.hero.inv, { id: 9901, kind: "sword", known: true, label: "sword" }]; if (!done && res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit")) { done = true; res.snapshot.vault_choice = { items: [{ id: 9901, kind: "sword", known: true, label: "sword" }, { id: 9902, kind: "mail", known: true, label: "mail" }], left: 50 }; } return res; };
+      r.engine.step = async (n) => { const res = await orig(n); if (done && !res.snapshot.vault_choice) res.snapshot.hero.inv = [...res.snapshot.hero.inv, { id: 9901, kind: "sword", known: true, label: "sword" }]; if (!done && res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit")) { done = true; res.snapshot.vault_choice = { items: [{ id: 9901, kind: "sword", known: true, label: "sword" }, { id: 9902, kind: "mail", known: true, label: "mail" }], left: 50, pick: 9901 }; } return res; };
       window.__took = []; new MutationObserver(() => { const t = document.querySelector(".ticker")?.textContent ?? ""; if (/^took /.test(t) && !window.__took.includes(t)) window.__took.push(t); }).observe(document.body, { subtree: true, childList: true, characterData: true });
       r.engine.choose = async (id) => { r.__chosen = id; return origChoose(id); };
     }, full);
     const sheet = () => page.evaluate(() => { const b = document.querySelector(".sheet-wrap .vault-choice"); return b ? { title: b.querySelector(".row-label")?.textContent.replace(/\s+/g, " ").trim(), full: b.querySelector(".vault-full")?.textContent.trim() ?? "" } : null; });
     let v = null; const t0 = Date.now();
-    while (Date.now() - t0 < 20_000) { v = await sheet(); if (v || !["watch", "exit"].includes((await state())?.screen)) break; await sleep(50); }
-    if (!v) { check(false, `${mode}: the cage sheet opened`); continue; }
+    while (Date.now() - t0 < 20_000) {
+      v = await sheet(); if (v || !["watch", "exit"].includes((await state())?.screen)) break;
+      if (await page.locator(".watch .ticker.cage.show").count()) await page.locator(".watch .ticker.cage.show").click({ timeout: 1000 }).catch(() => {});
+      await sleep(50);
+    }
+    if (!v) { check(false, `${mode}: the cage sheet opened on a tap on the beat`); continue; }
+    const on = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .vault-choice .chip.item.on")].map((c) => c.textContent.trim()));
+    check(on.length === 1 && /sword/.test(on[0]), `${mode}: the override marks the preference's pick (${on.join(",")})`);
     check(/^cage\b/.test(v.title) && (full ? v.full === "vault full" : v.full === ""), `${mode}: the sheet reads "${v.title}"${full ? `, "${v.full}"` : ""}`);
     const pause = await page.locator(".gem.hud-btn").first().click({ timeout: 2000 }).then(() => true, () => false);
     await sleep(300);

@@ -145,7 +145,8 @@ async function qaK() {
   if (ids.includes("vault")) {
     await page.locator(".cmd .tile[data-tile=vault]").click({ timeout: 5000 }); await sleep(200);
     const v = await page.evaluate(() => ({ prefs: [...document.querySelectorAll(".panel[data-panel=vault] .prefs > span.dim")].map((x) => x.textContent), slots: document.querySelectorAll(".panel[data-panel=vault] .chip.empty").length, auto: document.querySelector(".panel[data-panel=vault] .keep-auto")?.textContent }));
-    check(v.prefs.join(",") === "home,cage" && v.slots === 2 && /^keeps \w+/.test(v.auto ?? ""), `the vault panel: 2 empty slots, the \`home\` pref with what it keeps (\`${v.auto}\`), the \`cage\` pref (${v.prefs.join(",")})`);
+    // Cut 19 §1: the cage pref left the vault panel for its tablet beside the rules
+    check(v.prefs.join(",") === "home" && v.slots === 2 && /^keeps \w+/.test(v.auto ?? ""), `the vault panel: 2 empty slots, the \`home\` pref with what it keeps (\`${v.auto}\`), no \`cage\` row (${v.prefs.join(",")})`);
     const r = await page.evaluate(() => { const p = document.querySelector(".panel-host").getBoundingClientRect(), q = document.querySelector(".panel").getBoundingClientRect(); return { x: p.left + p.width / 2, y: p.top + 8, above: q.top > p.top + 16 }; });
     if (r.above) { await page.mouse.click(r.x, r.y); await sleep(200); }
     check(r.above && !(await page.locator(".panel-host .panel").count()), "a tap on the well beside an open panel closes it");
@@ -329,6 +330,113 @@ async function autoKeepCheck() {
 /** Cut 18 §4–5: the death's gem applies the top patch and lands on the camp with its tablet lit — it never sends (rater Z: "APPLY also
  *  sent the next heir immediately"; two taps on the gem slot, the second on the camp's `send`); the unlock tiles carry both prices
  *  (`◆3 · $450`) and glow when the gold buys them; a card whose reach is noise names its situation (`reach ~0 at R1 · vs archers`). */
+/** Cut 19: the cage tablet and its picker's deltas; the loadout's `repeat · $120` toggle; the pinned `+1 row`; `restock capped`;
+ *  the `row` verdict (seal ROW, the headline names R2); `+ drop R5` on a full set; the stake's `returning` on a return row. */
+async function cut19() {
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await waitFor((s) => s?.booted && s.screen === "camp", "the camp for Cut 19"); await settle();
+  // ---- §1: no cage seen, no tablet; a `vault` fact carves it (`cage → weapon`)
+  const cageTab = () => page.evaluate(() => { const t = document.querySelector(".camp .cage-tab"); return t && !t.hidden && t.getClientRects().length ? t.textContent.replace(/\s+/g, " ").trim() : null; });
+  await page.evaluate(() => { const r = window.__riddle; r.lineage = { ...r.lineage, facts: r.lineage.facts.filter((f) => f !== "vault") }; r.go({ kind: "camp" }); }); await sleep(250);
+  const before = await cageTab();
+  await page.evaluate(() => {
+    const r = window.__riddle; r.__prefs = [];
+    const opts = (cur) => ["weapon", "armour", "potion", "scroll"].map((pref) => { const d = { weapon: 0, armour: 0.36, potion: 0.004, scroll: -0.05 }[pref] - ({ weapon: 0, armour: 0.36, potion: 0.004, scroll: -0.05 }[cur]);
+      return { pref, current: pref === cur, depth: 7, reach: 0.5, reach_delta: d, bank: 0.54 + d, bank_delta: d, gold: 100, gold_delta: 0, delta: d, pm: 0.03 }; });
+    r.engine.cageForecast = () => new Promise((res) => setTimeout(() => res(opts(r.lineage.vault_pref ?? "weapon")), 400));
+    const setPref = r.engine.setVaultPref.bind(r.engine); r.engine.setVaultPref = async (p) => { r.__prefs.push(p); return setPref(p); };
+    r.lineage = { ...r.lineage, facts: [...r.lineage.facts, "vault"], vault_pref: "weapon" }; r.go({ kind: "camp" });
+  });
+  await sleep(250);
+  const after = await cageTab();
+  check(before === null && after === "cage → weapon", `the cage tablet is carved by a seen cage, beside the rules (${before} → ${after})`);
+  const inCol = await page.evaluate(() => !!document.querySelector(".camp-main .tablets .editor + .cage-tab"));
+  check(inCol, "the cage tablet sits under the rule tablets");
+  await page.locator(".camp .cage-tab").click({ timeout: 5000 }); await sleep(120);
+  const opt = () => page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .cage-picker .cage-opt")].map((b) => `${b.textContent.replace(/\s+/g, " ").trim()}${b.classList.contains("on") ? "*" : ""}`));
+  const pending = await opt();
+  await sleep(600);
+  const landed = await opt();
+  check(pending.includes("armour …") && landed.join(" · ") === "weapon* · armour +36% · potion · scroll −5%", `the picker shows each preference's delta (${pending.join(" · ")} → ${landed.join(" · ")})`);
+  await shot("ui-cut19-cage-picker");
+  await page.locator(".sheet-wrap .cage-opt[data-pref=armour]").click({ timeout: 5000 }); await sleep(400);
+  const picked = await cageTab(), prefs = await page.evaluate(() => window.__riddle.__prefs);
+  check(picked === "cage → armour" && prefs.join() === "armour" && !(await page.locator(".sheet-wrap .cage-picker").count()), `a tap on an option sets the cage (${prefs.join()}; tablet \`${picked}\`)`);
+  await shot("ui-cut19-cage");
+  // ---- §3: the loadout tile carries `repeat · $120`; a tap on it clears the repeat (the shelf stays shut); a second turns it back on
+  await page.evaluate(() => {
+    const r = window.__riddle; r.__restock = [];
+    r.engine.setRestock = async (on) => { r.__restock.push(on); return { ...r.lineage, repeat: on }; };
+    r.lineage = { ...r.lineage, gold: 300, repeat: true, repeat_kinds: ["heal"], repeat_gold: 120 }; r.go({ kind: "camp" });
+  });
+  await sleep(300);
+  const badge = () => page.evaluate(() => document.querySelector(".cmd .tile[data-tile=loadout] .repeat-badge")?.textContent ?? null);
+  const b0 = await badge();
+  await shot("ui-cut19-repeat");
+  await page.locator(".cmd .tile[data-tile=loadout] .repeat-badge").click({ timeout: 5000 }).catch(() => {}); await sleep(300);
+  const b1 = await badge(), panel = await page.locator(".panel[data-panel=loadout]").count();
+  await page.locator(".cmd .tile[data-tile=loadout] .repeat-badge").click({ timeout: 5000 }).catch(() => {}); await sleep(300);
+  const b2 = await badge(), calls = await page.evaluate(() => window.__riddle.__restock);
+  check(b0 === "repeat · $120" && b1 === "repeat off" && b2 === "repeat · $120" && calls.join() === "false,true" && panel === 0, `the loadout tile: \`${b0}\` → \`${b1}\` → \`${b2}\` (setRestock ${calls.join()}; shelf ${panel ? "opened" : "shut"})`);
+  // ---- §3: the short list always carries the pinned `+1 row`, ranked last or not
+  await page.evaluate(() => {
+    const r = window.__riddle;
+    const cat = [
+      { id: "vault2", cost: 1, owned: false, available: true, gold: 150 }, { id: "cond_alert", cost: 1, owned: false, available: true, gold: 150 },
+      { id: "kennel", cost: 1, owned: false, available: true, gold: 150 }, { id: "insure", cost: 2, owned: false, available: true, gold: 300 },
+      { id: "row5", cost: 9, owned: false, available: false, needs: "◆9 more", pinned: true },
+    ];
+    r.engine.unlocks = async () => cat; r.engine.unlockDeltas = async () => cat;
+    r.lineage = { ...r.lineage, marks: 3, gold: 0, unlocks: [...r.lineage.unlocks.filter((u) => u !== "row5")] };
+    localStorage.setItem("riddle.unlocks.all", "0"); r.go({ kind: "camp" });
+  });
+  await sleep(400); await openPanel(page, "unlocks"); await sleep(300);
+  const cards = await page.evaluate(() => [...document.querySelectorAll(".panel .unlocks .cards .card .card-main > span:first-child")].map((c) => c.textContent));
+  check(cards.length === 3 && cards.includes("+1 row"), `the short list keeps the pinned \`+1 row\` (${cards.join(" · ")})`);
+  await page.keyboard.press("Escape"); await sleep(100);
+  // ---- §3: the report says `restock capped`
+  const L = await page.evaluate(() => window.__riddle.lineage);
+  const rep = { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [],
+    xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, spent: [{ kind: "restock heal", n: 2, gold: 80 }],
+    gold: { home: 90, salvage: 0, wake: 0, spent: 80 }, restock_capped: true };
+  await page.evaluate((v) => window.__riddle.go(v), { kind: "report", report: rep }); await waitFor((x) => x?.screen === "report", "the capped report"); await sleep(300);
+  const gl = await page.evaluate(() => document.querySelector(".report .gold-line")?.textContent.replace(/\s+/g, " ").trim() ?? "");
+  check(/restock capped$/.test(gl), `the report says the repeat was capped ("${gl}")`);
+  // ---- §4: a `row` verdict — the seal reads ROW, the headline names the row; an insert on a full set reads `+ drop R5`
+  const rows = [
+    { conds: [{ k: "hp<", n: 30 }], verb: { v: "drink", a: "unknown" }, origin: "player" }, { conds: [{ k: "adj>=", n: 1 }], verb: { v: "attack", a: "nearest" }, origin: "player" },
+    { conds: [], verb: { v: "explore" }, origin: "player" }, { conds: [{ k: "hp<", n: 50 }], verb: { v: "rest" }, origin: "player" },
+    { conds: [{ k: "depth>=", n: 8 }], verb: { v: "bank" }, origin: "player" },
+  ];
+  await page.evaluate((rows) => { const r = window.__riddle; r.sets[r.active] = { ...r.sets[r.active], rows }; r.vocab = { ...r.vocab, max_rows: 5 }; }, rows);
+  await page.evaluate((rows) => window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 6, cause: "goblin_archer", margin: "", verdict: "row", cause_row: 0, baseline: 0.2, trace: { turns: [] }, morgue: "t1", rules: { rows },
+    patches: [{ row: rows[0].row ?? rows[0], insert_at: 0, remove: true, survive: 0.8, forecast_delta: 0.1 },
+              { row: { conds: [{ k: "foe_tag", t: "ranged" }], verb: { v: "retreat" } }, insert_at: 1, survive: 0.7, forecast_delta: 0.05, drops: 4 }] } }), rows);
+  await waitFor((x) => x?.screen === "death", "the row death"); await sleep(300);
+  const dd = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict") ? getComputedStyle(document.querySelector(".death-line .verdict")).textTransform + ":" + document.querySelector(".death-line .verdict").textContent : "",
+    targets: [...document.querySelectorAll("button.patch .target")].map((t) => t.textContent.trim()) }));
+  check(/^goblin archer · D6 · R1 drink unknown$/.test(dd.cause ?? "") && dd.seal === "uppercase:row", `the row verdict: the headline names the row, the seal reads ROW ("${dd.cause}", ${dd.seal})`);
+  check(dd.targets.join(" | ") === "R1 − | + drop R5", `the cut leads, the insert names the row it drops (${dd.targets.join(" | ")})`);
+  await shot("ui-cut19-row");
+  await page.locator("button.patch[data-full]").first().click({ timeout: 5000 }); await sleep(200);
+  const marked = await page.evaluate(() => document.querySelector(".sheet-wrap .drop-sheet .drop-row.least")?.dataset.row ?? null);
+  check(marked === "4", `the drop sheet still opens, R5 marked (${marked})`);
+  await page.keyboard.press("Escape"); await sleep(100);
+  // ---- §2: a return row firing turns the stake's `return at 20%` into `returning`
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await waitFor((s) => s?.booted && s.screen === "camp", "the camp for the return walk"); await settle();
+  await page.evaluate(() => {
+    const r = window.__riddle, orig = r.engine.step.bind(r.engine); let n = 0;
+    r.sets[r.active] = { ...r.sets[r.active], rows: [{ conds: [{ k: "hp<", n: 20 }], verb: { v: "return" }, origin: "player" }, ...r.rules.rows] };
+    r.engine.step = async (k) => { const res = await orig(k); n++; if (res.snapshot.stake) res.snapshot.stake.return_row = 0;
+      if (n > 6 && !res.run_over && !res.events.some((e) => e.k === "exit")) res.events.push({ k: "rule", t: res.snapshot.turn, row: 0, verb: { v: "return" }, text: "return" }); return res; };
+    r.watchMode = "fast"; r.go({ kind: "watch" });
+  });
+  let st = ""; const t1 = Date.now(), seen = [];
+  while (Date.now() - t1 < 15_000) { st = await page.evaluate(() => document.querySelector(".watch .stake")?.textContent ?? ""); if (st && !seen.includes(st)) seen.push(st); if (/returning/.test(st) || !["watch"].includes((await state())?.screen)) break; await sleep(60); }
+  check(seen.some((x) => /return at 20%/.test(x)) && /returning/.test(st), `the stake reads \`return at 20%\`, then \`returning\` once the row fires (${seen.slice(0, 2).join(" | ")} → ${st})`);
+}
+
 async function cut18() {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp for Cut 18"); await settle();
@@ -605,6 +713,7 @@ try {
   await stallSkip();
   await autoKeepCheck();
   await cut18();
+  await cut19();
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

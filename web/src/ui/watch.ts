@@ -87,6 +87,10 @@
 // clock stands, the picture plays up to the frontier and holds) for up to VAULT_WAIT_MS of wall time; then the sheet closes and the
 // engine's grace and preference proceed as before. The sheet's bar shrinks over that wall-clock wait. Offline and in sims nothing
 // changes (the choice is an input, as `choose` always was).
+// Cut 19 §1 — the cage is a beat, not a sheet: a snapshot carrying `vault_choice` cuts in the beat `took mail` (the preference's
+// pick, `VaultChoice.pick`) held like a situation's; the world waits while it holds (CAGE_WAIT_CAP_MS at most before its line shows);
+// a tap on the line within its hold opens the three as the override sheet (the world waits while it is open, ≤ VAULT_WAIT_MS).
+// Untouched, the hold ends and the engine's grace and the preference take the pick — no sheet the player can miss.
 //
 // Cut 7 §4 — rooms are scenes: a step whose `snapshot.room` holds ≥ SCENE_FOES awake hostiles (absent `room`: that many
 // hostiles in view) opens a scene, and auto holds 1× until the room is clear or the hero leaves it (the id changes),
@@ -169,8 +173,12 @@ const AUTO_FAST = 8, AUTO_TAIL = 10; // a tapped card holds the map at 8×; the 
 const CALLOUT_MIN_MS = 500;         // Cut 12 §6: a callout stays readable at 16×
 const EXIT_GRACE_MS = 4000;         // wait for the viewer to drain after an exit, at most this long
 const PERSIST_MS = 5000;
-const VAULT_WAIT_MS = 6000;         // Cut 15 §5: a watched vault sheet holds the world this long at most (wall time); Cut 18 §1: 6 s, was 30 ("each cage held the watch
-                                    // about 30 s … 90 s of a 5-minute watch") — then the preference picks; watching it is optional, never a toll
+const VAULT_WAIT_MS = 10_000;       // Cut 15 §5: the override sheet holds the world this long at most (wall time); Cut 19 §1: it opens only on a tap on
+                                    // the cage beat (10 s, was the default path at 6 s) — then the preference picks; watching it is optional, never a toll
+const VAULT_GRACE = 50;             // the core's grace (ticks) between a cage opening and the preference's pick (turn.rs VAULT_GRACE)
+const CAGE_WAIT_CAP_MS = 8000;      // Cut 19 §1: the world waits for the cage beat's line at most this long (a beat the playhead never reaches)
+/** Cut 19 §1: the cage beat's line — `took mail` (the pick's last two words: a callout is ≤ 3 words). */
+export const tookText = (label: string): string => /* copy:callout */ `took ${label.trim().split(/\s+/).slice(-2).join(" ")}`;
 const BOSS_BANNER_MS = 3000;        // Cut 2 §7: `boss · counter: known|unknown` on first sight
 const REST_BEAT_MS = 1400;          // Cut 2 §1: `rest 12m` after the exit, before the exit flow continues
 const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "descend", pick_up: /* copy:callout */ "pick up" }; // explore never (Cut 4 §4)
@@ -282,7 +290,7 @@ export function renderWatch(app: App): Mounted {
   // Cut 8A: the fight frame — whether the engine's latest snapshot holds it, the viewer ticks it spans, the frame shown
   let fightOn = false, fightFrom = Infinity, fightUntil = -Infinity, frame: FrameName = "map", lastBlow = -Infinity;
   // Cut 13 §4: the situation beat the frame is holding for (engine ticks), its text shown once at the cut; beats shown so far
-  type Beat = { from: number; until: number; text: string; shown: boolean; exit?: boolean; hold?: boolean };
+  type Beat = { from: number; until: number; text: string; shown: boolean; exit?: boolean; hold?: boolean; cage?: boolean };
   let beat: Beat | null = null, beats = 0;   // hold: Cut 15 §4, the clock at 1× through it (a boss's kill)
   let exitBeatUntil = 0;              // Cut 14 §3: the exit flow waits while the bank / return beat is on screen
   let holdLineUntil = 0;              // Cut 15 §4: a boss kill's `WARLORD DOWN` keeps the ticker this long
@@ -334,6 +342,15 @@ export function renderWatch(app: App): Mounted {
   let vaultClose: (() => void) | null = null, vaultKey = "", vaultAt = 0;   // Cut 15 §5: vaultAt — when the sheet opened (wall ms)
   let graceBar: HTMLElement | null = null;   // the cage sheet's shrinking bar (held while the picture is frozen)
   let vaultItems: InvItem[] = [], vaultChosen = false;   // the open cage's items, and whether the player picked (else the wait did)
+  // Cut 19 §1: the open cage — its choice, the pick the beat named, when it arrived (wall ms), whether its line has shown, and done
+  // (the hold is over, a tap chose, ▶▶| let it go): the world waits while `cageWaits()`
+  let cage: { vc: VaultChoice; pick?: InvItem; at: number; shown: boolean; done: boolean } | null = null;
+  function cageWaits(): boolean {
+    if (vaultClose) return true;   // the override sheet is open
+    if (!cage || cage.done) return false;
+    if (cage.shown) return beatHeld() && !!heldBeat?.cage;
+    return performance.now() - cage.at < CAGE_WAIT_CAP_MS;
+  }
   /** The bar at its share of the wait left, standing (⏸) or running out over the rest of it. */
   function graceHold(): void { if (!graceBar) return; const left = Math.max(0, 1 - (performance.now() - vaultAt) / VAULT_WAIT_MS); graceBar.style.transitionDuration = "0s"; graceBar.style.width = `${(left * 100).toFixed(1)}%`; }
   function graceRun(): void {
@@ -356,6 +373,9 @@ export function renderWatch(app: App): Mounted {
   // engine reported them (the card names the HUD's floor, which may be behind the engine's — QA on 56f2a1d: HUD `17/40 D4` under
   // `D5 · 15 rooms · a shrine`, `$6 · keeps $3` under `D2 · 16 rooms · $13`)
   let hudSnap: Snapshot | null = null;
+  // Cut 19 §2: a return walks to the up-stairs — once the player's return row has fired (the last row to act, at the viewer's clock)
+  // the stake line reads `returning` (its `return at 20%` is spent) until another row acts
+  let walkingHome = false;
   const floors = new Map<number, { rooms?: number; twist?: string; biome?: string }>();
   // Cut 16 §4: the boss in view as the HUD shows it (released at the viewer's clock), and each boss's break beat once
   let bossHud: { id: number; kind: string; hp: number; max: number } | null = null;
@@ -423,7 +443,7 @@ export function renderWatch(app: App): Mounted {
     if (st.stalling && !overridden) parts.push(" · ", h("span", { class: "kept stalling" }, /* copy:callout */ "stalling"));
     else if (st.kept !== undefined && !overridden) parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `keeps $${st.kept}`));
     for (const b of st.brought) parts.push(" · ", h("span", { class: b.insured ? "" : "risk" }, b.label, b.insured ? "" : "⚠"));
-    if (overridden) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "returning"));
+    if (overridden || walkingHome) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "returning"));
     else if (st.return_row === undefined) parts.push(" · ", h("span", { class: "lose" }, /* copy:callout */ "death: lose all"));
     else parts.push(" · ", returnAt(app.rules.rows[st.return_row], st.return_row));
     replace(stake, ...parts);
@@ -491,7 +511,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** Cut 13 §4: a situation's note opens the fight frame for SCENE_TICKS from its tick (or rides a fight already framed there);
    *  its text is the callout, shown once the frame is up. */
-  function beatAt(t: number, text: string, exit = false, hold = false): void {
+  function beatAt(t: number, text: string, exit = false, hold = false, isCage = false): void {
     const v = viewerTick();
     // a frame that is up (or opening) before t carries the beat; a fight the probe dropped (`fightFrom` cleared) does not
     const framed = fightFrom <= t && (fightOn || v < fightUntil);
@@ -500,11 +520,11 @@ export function renderWatch(app: App): Mounted {
     if (exit) fightUntil = Infinity;   // Cut 14 §3: the run is over — the frame holds; the exit flow's own clock (SCENE_MS, real time) lets go
     // an earlier beat the playhead has yet to reach keeps its place; this one takes over at its own tick (QA on 3d71c33: a den's
     // release showed the later `BANKED $13`, which had overwritten it, on D2 ~15 s before the bank)
-    const b = { from: t, until: t + SCENE_TICKS, text, shown: false, exit, hold };
+    const b: Beat = { from: t, until: t + SCENE_TICKS, text, shown: false, exit, hold, cage: isCage };
     if (!(beat && !beat.shown && beat.from < t)) beat = b;
     el.dataset.beats = String(++beats);   // dev: tools count the beats cut in
     // Cut 18 §1: a beat the playhead jumped over (a skip, a seek to live) is not held after the fact
-    at(t, () => { if (b.shown) return; if (!b.exit && viewerTick() >= b.until) { b.shown = true; return; } beat = b; showBeat(true); });
+    at(t, () => { if (b.shown) return; if (!b.exit && viewerTick() >= b.until) { b.shown = true; if (b.cage && cage) cage.done = true; return; } beat = b; showBeat(true); });
   }
   /** The beat's line, once the frame is up and the PLAYHEAD has reached the beat's tick (`reached`: released at the viewer's clock).
    *  A fight cut before it (a kept span the viewer replays behind the frontier) never carries a later beat's line (QA on 3d71c33:
@@ -528,7 +548,9 @@ export function renderWatch(app: App): Mounted {
     // the picture already past the stop (the stairs' fade applied): back to the beat's tick
     if (!b.exit && viewerTick() > beatStop()) seekTo(Math.max(b.from, beatStop() - 1));
     if (b.exit) exitBeatUntil = now + SCENE_MS;
-    tickerQueue.length = 0; showTicker(b.text, "beat", dur);
+    tickerQueue.length = 0; showTicker(b.text, b.cage ? "beat cage" : "beat", dur);
+    // Cut 19 §1: the cage's line is a plate the finger finds (a tap within the hold opens the override)
+    if (b.cage) { replace(ticker, h("span", { class: "cage-line" }, b.text)); if (cage) cage.shown = true; }
     el.dataset.held = "1";
     if ("__riddle" in window) ((window as unknown as { __beatLog?: unknown[] }).__beatLog ??= []).push({ text: b.text, from: b.from, until: b.until, v: viewerTick(), frame, ms: Math.round(now) });   // dev
   }
@@ -609,6 +631,7 @@ export function renderWatch(app: App): Mounted {
         // Cut 10 §3: the core's companion-death callout (`Ashar fell`) gets its kind in front: `jackal Ashar fell`
         case "callout": {
           if (ev.text === "explore") break;
+          if (ev.text === /* copy:none */ "choose one") break;   // Cut 19 §1: the cage beat names the pick instead
           if (breakBeat(ev.t, ev.text)) break;   // Cut 16 §4: `warlord breaks` is the beat's, not a plain callout
           // Cut 12 §6: a sanity refusal (`drink ✗ no use`) shows once per floor, not once per streak
           if (ev.text.includes("✗")) { const key = `${ev.text}@${s.depth}`; if (refused.has(key)) break; refused.add(key); }
@@ -632,6 +655,7 @@ export function renderWatch(app: App): Mounted {
             lastRuleText = text; lastRuleAt = now;
           });
           if (ev.row >= 0) at(ev.t, () => cue("rule"));   // Cut 10 §4: a player row, never a chore or a trait
+          if (ev.row >= 0) { const home = ev.verb.v === "return"; at(ev.t, () => { if (home !== walkingHome) { walkingHome = home; if (hudSnap) paintStake(hudSnap); } }); }   // Cut 19 §2
           break;
         }
         case "hurt": if (bossIds.has(ev.id)) { const id = ev.id, hp = ev.hp; at(ev.t, () => { if (bossHud?.id === id) { bossHud.hp = hp; paintBoss(); } }); }
@@ -676,6 +700,8 @@ export function renderWatch(app: App): Mounted {
         case "note":
           notes.push({ pattern: "note", score: 0, t: ev.t, run_id: runId, text: ev.text });
           if (breakBeat(ev.t, ev.text)) break;
+          // Cut 19 §1: the cage's opening is its own beat (`took mail`, vaultFrom) when the batch's snapshot carries the choice
+          if (/^The cage opens\b/.test(ev.text) && s.vault_choice?.items.length) break;
           if (BEAT_RE.test(ev.text)) beatAt(ev.t, ev.text);   // Cut 13 §4: the situations cut in like fights
           break;
         case "exit": {
@@ -818,7 +844,7 @@ export function renderWatch(app: App): Mounted {
   /** Cut 10 §1: the interstitial is up while `fights` shows the map, unless a tap holds the map, the vault sheet is up, or the
    *  run's ending plays. Its line is the ambient one: `D3 · 4 rooms · $47`. */
   function paintCard(want: FrameName): void {
-    const up = mode === "fights" && want === "map" && !mapHold && !vaultClose && !done && !exitTier && viewerTick() < endingFrom && !beatHeld();
+    const up = mode === "fights" && want === "map" && !mapHold && !cageWaits() && !done && !exitTier && viewerTick() < endingFrom && !beatHeld();
     if (up !== cardUp) {
       cardUp = up; el.dataset.card = up ? "1" : "0";
       // a card per floor: the full minimum when the floor is new, a beat between fights on the same floor — drawn only on a new floor
@@ -920,7 +946,7 @@ export function renderWatch(app: App): Mounted {
   /** Cut 14 §6: the world's rate — the viewer's decisions read off the engine's own tick; ≥ 1× while the run is live, 0 once it is over. */
   function worldRate(): number {
     if (done || held || exitTier) return 0;
-    if (vaultClose) return 0;                              // Cut 15 §5: the world waits for the tap
+    if (cageWaits()) return 0;                             // Cut 15 §5 / Cut 19 §1: the world waits on the cage beat and the override sheet
     if (!frozen() && beatHeld() && heldBeat && !heldBeat.exit) return Math.max(0, speed);   // Cut 18 §1: a held beat is the watch's own pacing — the world keeps the picture's pace (no catch-up owed after it)
     if (fightOn && app.slowdowns) return mode === "fights" && engineTick >= slowUntil && !(beat && engineTick < beat.until) && !(foeSpans.length && foeSpans[foeSpans.length - 1].until > engineTick) ? RATE.fights : FIGHT_RATE[mode];   // Cut 15 §4: a chore stretch at the flat rate
     if (mode === "fights") return RATE.fights;
@@ -934,7 +960,7 @@ export function renderWatch(app: App): Mounted {
   }
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
-    if (vaultClose && !document.querySelector(".vault-choice")) vaultClose = null;   // dismissed by backdrop / Escape: the engine's grace decides
+    if (vaultClose && !document.querySelector(".vault-choice")) { vaultClose = null; if (cage) cage.done = true; }   // dismissed by backdrop / Escape: the engine's grace decides
     if (vaultClose && !frozen() && performance.now() - vaultAt > VAULT_WAIT_MS) vaultClose();    // Cut 15 §5: the wait is over; the engine's grace and preference proceed (⏸ stops the wait)
     const still = frozen();   // Cut 14 §6: a frozen picture — no cut, no release, no floor load; the world below steps on
     // Cut 18 §1: the hold is over — a beat that waited for it takes the line (the frame is still on the fight)
@@ -986,7 +1012,7 @@ export function renderWatch(app: App): Mounted {
       void finish(exitTier); return;
     }
     if (inflight || held || exitTier) return;
-    if (vaultClose) return;   // Cut 15 §5: the world waits for the tap (the chips answer at once: the engine is idle)
+    if (cageWaits()) return;   // Cut 15 §5 / Cut 19 §1: the world waits on the cage (the chips answer at once: the engine is idle)
     // Cut 10 §1: travel under the card — the engine steps flat out (chained calls) until it finds the next fight or the exit
     if (travelling()) { inflight = true; travel(); return; }
     // Cut 10 §1: through a shown fight's tail the engine waits at its close, so the next fight opens under the card (and is costed
@@ -1161,7 +1187,7 @@ export function renderWatch(app: App): Mounted {
     const was = frozen(); paused = p; hidden = hid;
     if (!was && frozen()) { frozenAt = performance.now(); clearTimeout(tickerTimer); if (vaultClose) graceHold(); }
     else if (was && !frozen()) {
-      const d = performance.now() - frozenAt; tickerAt += d; ambientUntil += d; if (vaultClose) { vaultAt += d; graceRun(); } if (exitBeatUntil > frozenAt) exitBeatUntil += d; if (holdLineUntil > frozenAt) holdLineUntil += d; if (beatHoldUntil > frozenAt) beatHoldUntil += d;   // the cage's wait stood still too
+      const d = performance.now() - frozenAt; tickerAt += d; ambientUntil += d; if (vaultClose) { vaultAt += d; graceRun(); } if (cage) cage.at += d; if (exitBeatUntil > frozenAt) exitBeatUntil += d; if (holdLineUntil > frozenAt) holdLineUntil += d; if (beatHoldUntil > frozenAt) beatHoldUntil += d;   // the cage's wait stood still too
       cardShownAt += d; cardSince += d;   // Cut 15 §4: a frozen card's time does not count
       if (ticker.classList.contains("show") || tickerQueue.length) scheduleTicker();
       for (const x of frozenFeed.splice(0)) feed(x.evs, x.s);
@@ -1173,6 +1199,7 @@ export function renderWatch(app: App): Mounted {
     if (done || !viewer || exitTier) return;
     // QA on 3d71c33: under the cage sheet ▶▶| picks nothing — the sheet goes and the engine's grace and the preference decide
     if (vaultClose) vaultClose();
+    if (cage) cage.done = true;   // Cut 19 §1: …and the cage beat: the preference picks
     releaseBeat();   // Cut 18 §1: the press lets a held beat go
     // Cut 14 §6: `▶▶|` is "live": a frozen picture resumes; a viewer behind the frontier (a pause, a hidden tab, a slow fight while
     // the world ran on) lands on it first — the ending's start at most, so the walk-out plays — and the press then means what it
@@ -1269,41 +1296,57 @@ export function renderWatch(app: App): Mounted {
     });
     setMode(mode);
   }
-  // Cut 5 §4: the vault choice sheet — opens once per cage, closes when the engine's snapshot no longer carries it
+  // Cut 5 §4: the vault choice — once per cage; Cut 19 §1: a beat (`took mail`), the sheet only on a tap on it
   function vaultFrom(s: Snapshot): void {
     const vc = s.vault_choice;
     // a choice on a run that has ended is no choice (a `choose` after the exit trips the core: seed 12's death on a vault tile)
     if (!vc || !vc.items.length || held || exitTier || done) {
       if (vaultClose) { vaultClose(); vaultClose = null; }
       // QA 23ed91f (K: "the cage sheet closed by itself about 30 s later … nothing said what had been taken"): once the cage is gone
-      // from the snapshot, a pick the player did not make (the wait ran out, the sheet was dismissed: the cage pref chose) is named,
-      // off the hero's pack
+      // from the snapshot, a pick the player did not make (the preference's) is named off the hero's pack — unless the beat named it
       if (vaultItems.length && !vc) {
         const got = !vaultChosen && !held && !exitTier && !done ? vaultItems.find((it) => s.hero.inv.some((x) => x.id === it.id)) : undefined;
+        const said = cage?.shown ? cage.pick?.id : undefined;
         vaultItems = [];
-        if (got) { tickerQueue.length = 0; showTicker(/* copy:callout */ `took ${got.label}`, "", 2400); }   // over the card too (the ticker sits above it): the pick is news
+        if (got && got.id !== said) { tickerQueue.length = 0; showTicker(tookText(got.label), "", 2400); }   // over the card too (the ticker sits above it): the pick is news
       }
+      if (!vc) cage = null;
       return;
     }
     const key = vc.items.map((it) => it.id).join(",");
-    if (vaultClose || key === vaultKey) return;
+    if (key === vaultKey) { if (cage) cage.vc = vc; return; }
     if (frozen()) return;   // Cut 14 §6: not over a frozen picture (a later snapshot inside the grace opens it on the thaw)
-    vaultKey = key;
-    // Cut 10 §1: found under the card, the viewer joins the engine at the vault (the grace runs at 1× from here)
+    vaultKey = key; vaultItems = vc.items; vaultChosen = false;
+    // Cut 10 §1: found under the card, the viewer joins the engine at the vault (the world waits from here)
     if (cardUp) { release(s.turn); seekTo(s.turn); }
-    vaultSheet(vc);
+    // Cut 19 §1: the pick the preference will take (`VaultChoice.pick`; an older core: the first item) as the beat, cut in at the
+    // cage's opening tick (the grace's start)
+    const pick = vc.items.find((it) => it.id === vc.pick) ?? vc.items[0];
+    cage = { vc, pick, at: performance.now(), shown: false, done: false };
+    const t0 = Math.max(startTick, s.turn - Math.max(0, VAULT_GRACE - (vc.left ?? VAULT_GRACE)));
+    beatAt(t0, tookText(pick.label), false, false, true);
+    el.dataset.cage = "beat";
+    paintCard(frame); applySpeed();
   }
-  function vaultSheet(vc: VaultChoice): void {
+  /** Cut 19 §1: a tap on the cage beat's line within its hold opens the override. */
+  function cageTap(): void {
+    if (!cage || cage.done || vaultClose || !ticker.classList.contains("cage") || !(beatHeld() && heldBeat?.cage)) return;
+    vaultSheet(cage.vc, cage.pick?.id);
+  }
+  ticker.onclick = cageTap;
+  function vaultSheet(vc: VaultChoice, pickId?: number): void {
     let sent = false;
     vaultAt = performance.now(); vaultItems = vc.items; vaultChosen = false;
+    el.dataset.cage = "sheet";
     // QA on 3d71c33: a full vault salvages the pick at the exit — the sheet says so
     const full = app.lineage.vault.length >= vaultSlots(app.lineage.unlocks);
     // the cage is modeless: the HUD stays live around it (⏸ keeps it, ▶▶| lets it go — QA on 3d71c33: "click intercepted")
     openSheet((close) => {
-      vaultClose = () => { vaultClose = null; graceBar = null; close(); paintCard(frame); applySpeed(); };
-      const chips = h("div", { class: "chips" }, ...vc.items.map((it) => h("button", { class: "chip item", onclick: () => {
+      vaultClose = () => { vaultClose = null; graceBar = null; if (cage) cage.done = true; el.dataset.cage = "done"; close(); paintCard(frame); applySpeed(); };
+      const chips = h("div", { class: "chips" }, ...vc.items.map((it) => h("button", { class: `chip item${it.id === pickId ? " on" : ""}`, onclick: () => {
         if (sent) return; sent = true; vaultChosen = true;
-        app.engine.choose(it.id).catch((e) => console.warn("choose", e)).finally(() => vaultClose?.());   // the next step's snapshot carries the pickup
+        releaseBeat();
+        app.engine.choose(it.id).catch((e) => console.warn("choose", e)).finally(() => { vaultClose?.(); if (!disposed) { tickerQueue.length = 0; showTicker(tookText(it.label), "", 2400); } });   // the next step's snapshot carries the pickup
       } }, h("b", { class: "glyph" }, kindGlyph(it.kind)), " ", it.label)));
       // the wait as a shrinking bar (QA on 56f2a1d: "closes by itself ~2–4 s later with no timer"): Cut 15 §5, the wall-clock wait
       // (VAULT_WAIT_MS; the world stands meanwhile), width 100% → 0 over it — `vc.left` is the engine's own grace, after that

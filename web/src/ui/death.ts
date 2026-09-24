@@ -10,14 +10,14 @@
 // §5: a `dice` death names what the forecast said for that depth — the camp's own reach line, verbatim (`forecast said D4 100%`)
 // when the last forecast knows the floor (QA on 50bb162: "`forecast said 36%` while the camp forecast read `D4 100% ±1`").
 import type { App, Mounted } from "../app";
-import type { Death } from "../engine/types";
+import type { Death, Row } from "../engine/types";
 import { morgueVerbs } from "./chain";
 import { h, copyText, items, pct } from "./dom";
 import { openGoldSheet } from "./gold";
 import { fillReach, patchRows } from "./patches";
 import { openSheet } from "./sheet";
 import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
-import { lostLabel } from "./tokens";
+import { lostLabel, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
@@ -34,9 +34,11 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
   const seg = headlineMargin(d.margin ?? "");
   const margin = seg ? ` · ${seg}` : "";
+  // Cut 19 §4: a `row` verdict — the player's own row was the dying action; the headline names it (`R2 drink unknown`), the seal reads ROW
+  const causeRow = d.verdict === "row" && d.cause_row !== undefined ? rowName(d.cause_row, (d.rules?.rows ?? app.rules.rows)[d.cause_row]) : "";
   // Cut 17 §4: the line is laid on the defeat banner — the cause and depth in the display face, the verdict in the seal under it
   // (one word, engine data: `gap` · `dice` · `stall`); the text reads as before (`goblin archer · D6 · gap`)
-  const line = h("h1", { class: "death-line" }, h("span", { class: "cause" }, /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${margin}`), h("span", { class: "sep" }, " · "), h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
+  const line = h("h1", { class: "death-line" }, h("span", { class: "cause" }, /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}`), h("span", { class: "sep" }, " · "), h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
   // Cut 13 §4: the run's last two notes, engine data verbatim (`The green one: fire. Gambled: fire potion.`)
   // QA 92eb880: never a `… saved him.` over a death (M, N: read as the verdict), nor the cage's loot beat (`Took the axe +1 from the cage.`,
   // M: "unrelated to the ogre") — the core filters the first; the client keeps both off whatever the build
@@ -105,6 +107,12 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => { if (!gone && f?.length) { fillReach(patches, shown, f); regem(); } }).catch((e) => console.warn("deathDeltas", e)); }, 0);
   }
   return { el, dispose: () => { gone = true; bar.dispose(); } };
+}
+
+/** Cut 19 §4: the row a `row` verdict names — `R2 drink unknown` (its verb, two words at most), `R2` alone when the row is not known. */
+export function rowName(i: number, row?: Row): string {
+  const v = row ? verbLabel(row.verb).trim().split(/\s+/).slice(0, 2).join(" ") : "";
+  return `R${i + 1}${v ? ` ${v}` : ""}`;
 }
 
 /** Cut 18 §4: shrink a one-line headline's face until it fits its box (from its CSS size down to 12 px), once it is laid out. */
