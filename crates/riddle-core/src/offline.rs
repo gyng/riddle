@@ -260,6 +260,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         spent: b.spent.iter().map(|(k, (n, g))| SalvageRow { kind: k.replace('_', " "), n: *n, gold: *g }).filter(|r| r.gold > 0).collect(),
         gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum() }),
         exits: b.exits.clone(),
+        picked: game.lineage.picked_clean(),
     }
 }
 

@@ -43,6 +43,19 @@ impl Class {
             Class::Caster => Some("caster"),
         }
     }
+    /// Cut 16 §2: the class's one signature verb, on its chip at the wake (`rogue · vanish`).
+    pub fn signature(self) -> &'static str {
+        match self {
+            Class::Fighter => "shield_bash",
+            Class::Rogue => "vanish",
+            Class::Ranger => "mark",
+            Class::Caster => "slow",
+        }
+    }
+    /// Cut 16 §2: the class level the signature opens at (`class_ladder`).
+    pub fn signature_level(self) -> u32 {
+        class_ladder(self).iter().find(|(v, _)| *v == self.signature()).map(|(_, l)| *l).unwrap_or(1)
+    }
     /// Starting arm (item id 1 is never loot).
     pub fn starting_weapon(self) -> &'static str {
         match self {

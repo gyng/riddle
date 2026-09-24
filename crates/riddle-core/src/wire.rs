@@ -564,6 +564,10 @@ pub struct ReturnReport {
     /// Cut 6 §1: the ledger lines of the absence's last five exits, oldest first.
     #[serde(default)]
     pub exits: Vec<ExitLine>,
+    /// Cut 16 §1: depths picked clean at the report (≥ 3 banks/returns from them, shallower
+    /// than the lineage best; ascending) — the report's `D3 · picked clean` line.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub picked: Vec<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -766,6 +770,25 @@ pub struct Lineage {
     /// row order; recomputed on every `set_rules`.
     #[serde(default)]
     pub combos: Vec<crate::rules::ComboHit>,
+    /// Cut 16 §1: depths picked clean now (as `ReturnReport.picked`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub picked: Vec<u32>,
+    /// Cut 16 §2: the classes the new heir may wake as — the owned ones, the current first —
+    /// while the wake is open (`trait_offer` non-empty) and ≥ 2 are owned; `set_class(name)`
+    /// picks (it sticks to every run until changed).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub class_offer: Vec<ClassChip>,
+}
+
+/// Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id
+/// (`shield_bash | vanish | mark | slow`); `level` the class's level; `opens` the level the
+/// signature opens at (the chip can read `mark L7` while `level < opens`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ClassChip {
+    pub class: String,
+    pub signature: String,
+    pub level: u32,
+    pub opens: u32,
 }
 
 /// Cut 3: `{level, variant}`; `variant` is one of `no_rest short_list bones_only hunted`.

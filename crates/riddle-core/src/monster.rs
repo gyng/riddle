@@ -88,6 +88,10 @@ pub struct Monster {
     /// an endless wall with heal potions cycling was a 7-minute loop (rater X on 238bd67).
     #[serde(default)]
     pub rallies: u32,
+    /// Cut 16 §4: the Warlord has broken (at half hp, once): no rallies, no wall, faster and
+    /// harder-hitting (`ai::warlord_break`).
+    #[serde(default)]
+    pub broken: bool,
     /// Cut 4: the companion verb last announced (`<kind>: flank`, once per streak).
     #[serde(default)]
     pub last_verb: String,
@@ -158,6 +162,7 @@ impl Monster {
             warden_ranged: false,
             introduced: false,
             rallies: 0,
+            broken: false,
             last_verb: String::new(),
             nest: false,
             stray: false,

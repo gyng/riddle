@@ -919,7 +919,8 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
     // The Warlord's shield wall: a goblin beside him takes any incidental blow from the
     // hero's side (unaimed swings, allies, companions). Hazards and aimed strikes go through.
     let mut mi = mi;
-    if run.monsters[mi].kind == "goblin_warlord" && !run.aimed {
+    // Cut 16 §4: broken, he has no wall to step behind.
+    if run.monsters[mi].kind == "goblin_warlord" && !run.aimed && !run.monsters[mi].broken {
         let from_hero_side = match src {
             Src::Hero { .. } => true,
             Src::Mon(j) => run.monsters[*j].ally,
@@ -1038,6 +1039,10 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         (m.id, m.hp, m.kind.clone(), m.pos)
     };
     cx.events.push(Ev::Hurt { t: run.turn, id, dmg, hp: hp.max(0), cause: cause.into() });
+    // Cut 16 §4: the Warlord breaks at half hp, once.
+    if kind == "goblin_warlord" && hp > 0 && hp * 2 <= run.monsters[mi].max_hp && !run.monsters[mi].broken {
+        crate::ai::warlord_break(run, cx, mi);
+    }
     let visible = run.floor.map.is_visible(pos);
     if hp > 0 {
         // Cut 3: an echo splits on a ranged hit (arrow, bolt, thrown potion), like a jelly on any.

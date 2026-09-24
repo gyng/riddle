@@ -420,6 +420,12 @@ pub struct Run {
     pub seed: u64,
     #[serde(skip)]
     pub next_twist: Option<String>,
+    // Cut 16
+    /// §1: the freshness of the floors this run may generate, in permille by depth (only
+    /// thinned depths; `LineageState::thin_map` at the send) — a floor's gold piles and item
+    /// budget are kept at this rate (`populate_floor`).
+    #[serde(default)]
+    pub thin: BTreeMap<u32, u32>,
 }
 
 impl Run {
@@ -763,7 +769,28 @@ pub struct LineageState {
     /// of the first (`meta::gold_price`).
     #[serde(default)]
     pub gold_buys: u32,
+    // Cut 16
+    /// §1: banks and returns from each depth (capped at `PICKED_CAP`): the floor's gold and
+    /// items pay `0.8^picked` (never under a quarter; `freshness`). One step recovers per
+    /// night the depth is not visited.
+    #[serde(default)]
+    pub picked: BTreeMap<u32, u32>,
+    /// §1: a night is `NIGHT_RUNS` finished runs (offline or live, so it does not hang on how
+    /// the client slices an absence); the runs so far and the depths they visited.
+    #[serde(default)]
+    pub night_runs: u32,
+    #[serde(default)]
+    pub night_seen: BTreeSet<u32>,
 }
+
+/// Cut 16 §1: a night of runs (the ledger's "a night of 16 runs").
+pub const NIGHT_RUNS: u32 = 16;
+/// Cut 16 §1: picks past this pay the floor (`0.8^7` < a quarter).
+pub const PICKED_CAP: u32 = 7;
+/// Cut 16 §1: freshness by picks, in permille (`0.8^n`, never under 250).
+pub const FRESHNESS: [u32; 8] = [1000, 800, 640, 512, 410, 328, 262, 250];
+/// Cut 16 §1: a depth this picked reads `D3 · picked clean` in the report.
+pub const PICKED_SHOWN: u32 = 3;
 
 /// Cut 6 §1: gold movements kept on the lineage.
 pub const GOLD_LEDGER_CAP: usize = 80;   // a night of 16 runs writes ~50 lines; 20 could not be reconciled (QA on 952e306)
@@ -845,6 +872,9 @@ impl LineageState {
             kennel_declined: false,
             last_wasted: Vec::new(),
             gold_buys: 0,
+            picked: BTreeMap::new(),
+            night_runs: 0,
+            night_seen: BTreeSet::new(),
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -995,7 +1025,29 @@ impl LineageState {
             gold_ledger: self.gold_ledger.clone(),
             counters: self.counters(),
             combos: self.rules().combos(),
+            picked: self.picked_clean(),
+            class_offer: self.class_offer(),
         }
+    }
+    /// Cut 16 §2: the wake's class chips (see `Lineage.class_offer`).
+    pub fn class_offer(&self) -> Vec<crate::wire::ClassChip> {
+        if self.trait_offer.is_empty() {
+            return Vec::new();
+        }
+        let mut owned: Vec<Class> = Class::ALL.iter().copied().filter(|c| c.unlock().is_none_or(|u| self.unlocks.contains(u))).collect();
+        if owned.len() < 2 {
+            return Vec::new();
+        }
+        owned.sort_by_key(|c| *c != self.class);
+        owned
+            .into_iter()
+            .map(|c| crate::wire::ClassChip {
+                class: c.name().into(),
+                signature: c.signature().into(),
+                level: self.classes.get(c.name()).map(|p| p.level).unwrap_or(1),
+                opens: c.signature_level(),
+            })
+            .collect()
     }
     pub fn vault_slots(&self) -> usize {
         if self.variant_is("bones_only") {
@@ -1091,6 +1143,51 @@ impl LineageState {
         self.trait_ = offer[0];
         self.trait_offer = offer.to_vec();
     }
+    /// Cut 16 §1: a floor's freshness at `depth`, in permille. The deepest depth the lineage
+    /// has reached (and anything below it) is always fresh.
+    pub fn freshness(&self, depth: u32) -> u32 {
+        if depth >= self.best_depth {
+            return 1000;
+        }
+        FRESHNESS[self.picked.get(&depth).copied().unwrap_or(0).min(PICKED_CAP) as usize]
+    }
+
+    /// Cut 16 §1: the thinned depths a run carries (`Run.thin`).
+    pub fn thin_map(&self) -> BTreeMap<u32, u32> {
+        self.picked.keys().map(|&d| (d, self.freshness(d))).filter(|(_, f)| *f < 1000).collect()
+    }
+
+    /// Cut 16 §1: the depths the report names `picked clean` (≥ `PICKED_SHOWN` picks, not fresh).
+    pub fn picked_clean(&self) -> Vec<u32> {
+        self.picked.iter().filter(|(d, p)| **p >= PICKED_SHOWN && self.freshness(**d) < 1000).map(|(d, _)| *d).collect()
+    }
+
+    /// Cut 16 §1: a run ended — a bank or a return from `exit_depth` picks it; every depth the
+    /// run visited is seen tonight; the `NIGHT_RUNS`th run closes the night.
+    pub fn night_run(&mut self, exit_depth: u32, max_depth: u32, picks: bool) {
+        if picks && exit_depth > 0 {
+            let p = self.picked.entry(exit_depth).or_insert(0);
+            *p = (*p + 1).min(PICKED_CAP);
+        }
+        self.night_seen.extend(1..=max_depth);
+        self.night_runs += 1;
+        if self.night_runs >= NIGHT_RUNS {
+            self.night();
+        }
+    }
+
+    /// Cut 16 §1: the night ends — each picked depth it did not visit recovers one step.
+    pub fn night(&mut self) {
+        let seen = std::mem::take(&mut self.night_seen);
+        for (d, p) in self.picked.iter_mut() {
+            if !seen.contains(d) {
+                *p = p.saturating_sub(1);
+            }
+        }
+        self.picked.retain(|_, p| *p > 0);
+        self.night_runs = 0;
+    }
+
     /// Cut 13 §2: pick one of the offered traits (the chip beside `♟3`); refused when it is
     /// not on offer (a send without a pick keeps the first).
     pub fn set_trait(&mut self, name: &str) -> Result<(), String> {
@@ -1881,6 +1978,7 @@ impl Game {
             seed,
             next_twist: None,
             sleepers: Vec::new(),
+            thin: self.lineage.thin_map(),
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
@@ -2227,6 +2325,8 @@ impl Game {
             }
             ExitTier::Death => self.lineage.runs_died += 1,
         }
+        // Cut 16 §1: a bank or a return picks its floor; a timed-out run took nothing home.
+        self.lineage.night_run(run.depth, run.max_depth, tier != ExitTier::Death && !run.timed_out);
         if self.batch.row_fired.len() < ROWS_TOTAL {
             self.batch.row_fired = vec![0; ROWS_TOTAL];
         }
@@ -2428,7 +2528,9 @@ impl Game {
                 bests.push(format!("trophy: {}", trophy_label(&tr)));
             }
         }
-        for biome in Biome::ALL {
+        // Cut 16 §3: the Burrows' kinds are the Warrens' (less the rats): their ledger is the
+        // Warrens' trophy, not a second one.
+        for biome in Biome::ALL.into_iter().filter(|b| *b != Biome::Burrows) {
             let tr = format!("ledger:{}", biome.name());
             if !self.lineage.trophies.contains(&tr)
                 && crate::defs::biome_kinds(biome).iter().all(|k| self.lineage.facts.contains(&format!("tamed:{k}")))
@@ -3243,6 +3345,12 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         }
         run.monsters.push(m);
     }
+    // Cut 16 §1: a picked floor keeps each gold pile and each budget item at its freshness,
+    // drawn on the floor's own rng so the rest of the floor (monsters, twists, stock) is the
+    // floor a fresh lineage would see.
+    let fresh = run.thin.get(&depth).copied().unwrap_or(1000);
+    let mut thin_rng = Rng::derive(run.seed ^ depth as u64, hash_str("picked"));
+    let mut keep = move || fresh >= 1000 || thin_rng.below(1000) < fresh;
     // Items.
     let budget = crate::defs::item_budget(depth);
     let kinds: Vec<&crate::defs::ItemDef> = crate::defs::ITEMS.iter().filter(|i| i.weight > 0).collect();
@@ -3263,7 +3371,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         if (d.cat == Cat::Potion || d.cat == Cat::Scroll) && run.rng.chance(50) {
             it.hint = Some(if d.benevolent { crate::item::Hint::Benevolent } else { crate::item::Hint::Malevolent });
         }
-        place(run, it);
+        if keep() {
+            place(run, it);
+        }
     }
     // The Fens stock the Bloat Mother's answer: three throwables per floor. Cut 3: so does the
     // Foundry (melee is reflected there); the Deep stocks a silence scroll per floor and a
@@ -3311,7 +3421,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         // Coins (the pile reads `gold $2` and the stake rises by 2): the raw draw of
         // 3–6 × depth over `GOLD_DIVISOR`, rounded, never empty.
         it.amount = ((run.rng.range(3, 7) * depth as i32 + GOLD_DIVISOR / 2) / GOLD_DIVISOR).max(1);
-        place(run, it);
+        if keep() {
+            place(run, it);
+        }
     }
 }
 
@@ -3564,6 +3676,9 @@ pub fn place_room_kind(run: &mut Run, rng: &mut Rng, kind: &str, near: bool, use
             run.floor.map.set(p, Tile::Nest);
             let mut gold = Item::new(run.new_item_id(), "gold");
             gold.amount = (12 * depth as i32 + rng.range(4, 12) + GOLD_DIVISOR / 2) / GOLD_DIVISOR;
+            // Cut 16 §1: a picked floor's nest holds less.
+            let fresh = run.thin.get(&depth).copied().unwrap_or(1000) as i32;
+            gold.amount = ((gold.amount * fresh + 500) / 1000).max(1);
             run.items.push(FloorItem { pos: p, item: gold });
             let mut placed = 0;
             let mut spots: Vec<Pos> = p.neighbours8().into_iter().filter(|q| run.floor.map.get(*q) == Tile::Floor && !run.occupied(*q)).collect();

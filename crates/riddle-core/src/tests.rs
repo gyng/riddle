@@ -7008,3 +7008,211 @@ fn a_boxed_in_warlord_turns_unaimed_blows_aside() {
     assert!(swings > 0, "the hero never hit him");
     assert_eq!(monster(&g, id).map(|m| m.hp), Some(max), "an unaimed blow landed on a boxed-in Warlord");
 }
+
+// ---------------------------------------------------------------- Cut 16
+
+/// The loot a freshly generated floor holds: coins (×`GOLD_DIVISOR`, raw) plus item values.
+fn floor_value(g: &Game) -> i32 {
+    let run = g.run.as_ref().unwrap();
+    run.items
+        .iter()
+        .filter(|fi| fi.item.kind != "leash" && fi.item.kind != "bones")
+        .map(|fi| if fi.item.kind == "gold" { fi.item.amount * crate::engine::GOLD_DIVISOR } else { fi.item.value() })
+        .sum()
+}
+
+fn d3_value(seed: u64, picks: u32, best: u32) -> i32 {
+    let mut g = Game::new(seed);
+    g.lineage.best_depth = best;
+    if picks > 0 {
+        g.lineage.picked.insert(3, picks);
+    }
+    g.start_run(Some(seed * 31 + 7));
+    g.descend_to(3);
+    floor_value(&g)
+}
+
+/// §1: a depth banked from ten times pays ≤ 30 % of a fresh one; one step recovers per night
+/// it is not visited (a night it is visited does not); the lineage's deepest depth is always
+/// fresh; a bank and a return pick, a death does not.
+#[test]
+fn a_picked_depth_pays_less_and_recovers_night_over_night() {
+    let mut g = Game::new(3);
+    g.lineage.best_depth = 10;
+    for _ in 0..10 {
+        g.lineage.night_run(3, 3, true);
+    }
+    assert_eq!(g.lineage.picked.get(&3), Some(&crate::engine::PICKED_CAP));
+    assert_eq!(g.lineage.freshness(3), 250);
+    assert_eq!(g.lineage.picked_clean(), vec![3]);
+    let (mut fresh, mut picked) = (0, 0);
+    for seed in 1..=40u64 {
+        fresh += d3_value(seed, 0, 10);
+        picked += d3_value(seed, 10, 10);
+    }
+    assert!(fresh > 0);
+    assert!(picked * 100 <= fresh * 30, "picked clean pays {picked} of {fresh}");
+    // The deepest depth the lineage has seen is fresh whatever its picks.
+    let at_best: i32 = (1..=10u64).map(|s| d3_value(s, 10, 3)).sum();
+    let fresh10: i32 = (1..=10u64).map(|s| d3_value(s, 0, 3)).sum();
+    assert_eq!(at_best, fresh10);
+    // Recovery: a night that visits D3 keeps it picked; each night that does not, one step.
+    let mut l = g.lineage.clone();
+    l.night_runs = 0;
+    l.night_seen.clear();
+    for _ in 0..crate::engine::NIGHT_RUNS {
+        l.night_run(0, 5, false);
+    }
+    assert_eq!(l.picked.get(&3), Some(&7), "visited tonight: no recovery");
+    for night in 1..=7u32 {
+        for _ in 0..crate::engine::NIGHT_RUNS {
+            l.night_run(0, 2, false);
+        }
+        assert_eq!(l.picked.get(&3).copied().unwrap_or(0), 7 - night, "night {night}");
+    }
+    assert_eq!(l.freshness(3), 1000);
+    assert!(l.picked.is_empty() && l.picked_clean().is_empty());
+    // A bank picks its floor; a death does not.
+    let mut g = Game::new(5);
+    g.lineage.best_depth = 10;
+    g.start_run(None);
+    g.descend_to(4);
+    g.run.as_mut().unwrap().over = Some(ExitTier::Bank);
+    g.finish_run();
+    assert_eq!(g.lineage.picked.get(&4), Some(&1));
+    g.lineage.rest_left = 0;
+    g.start_run(None);
+    g.descend_to(4);
+    g.run.as_mut().unwrap().over = Some(ExitTier::Death);
+    g.finish_run();
+    assert_eq!(g.lineage.picked.get(&4), Some(&1));
+    // The run carries the thinned depths; the report and the lineage name the clean ones.
+    g.lineage.picked.insert(2, 5);
+    g.lineage.rest_left = 0;
+    g.start_run(None);
+    assert_eq!(g.run.as_ref().unwrap().thin.get(&2), Some(&328));
+    assert_eq!(g.lineage().picked, vec![2]);
+    let back = Game::load(&g.save()).unwrap();
+    assert_eq!(back.lineage.picked, g.lineage.picked, "picks survive a save");
+}
+
+/// §2: the wake offers the owned classes (the current first, each with its signature verb);
+/// the pick sticks to the heir's runs, through a save and past the next heir's wake.
+#[test]
+fn the_wake_offers_owned_classes_and_the_pick_sticks() {
+    let mut g = Game::new(8);
+    g.lineage.unlocks.remove("rogue");
+    assert!(g.lineage().class_offer.is_empty(), "one class owned: no chips");
+    g.lineage.unlocks.insert("rogue".into());
+    g.lineage.unlocks.insert("ranger".into());
+    let offer = g.lineage().class_offer;
+    let names: Vec<&str> = offer.iter().map(|c| c.class.as_str()).collect();
+    assert_eq!(names, vec!["fighter", "rogue", "ranger"]);
+    let sigs: Vec<&str> = offer.iter().map(|c| c.signature.as_str()).collect();
+    assert_eq!(sigs, vec!["shield_bash", "vanish", "mark"]);
+    assert_eq!((offer[2].level, offer[2].opens), (1, 7));
+    assert!(g.set_class("caster").is_err(), "not owned");
+    g.set_class("ranger").unwrap();
+    assert_eq!(g.lineage().class_offer[0].class, "ranger", "the pick leads");
+    let mut g = Game::load(&g.save()).unwrap();
+    g.send();
+    assert!(g.lineage().class_offer.is_empty(), "the send closes the wake");
+    assert_eq!(g.run.as_ref().unwrap().hero.class, Class::Ranger, "the run wears the pick");
+    g.run.as_mut().unwrap().over = Some(ExitTier::Bank);
+    g.finish_run();
+    g.lineage.rest_left = 0;
+    g.send();
+    assert_eq!(g.run.as_ref().unwrap().hero.class, Class::Ranger, "and the next run");
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::damage_hero(run, &mut cx, 999, &crate::turn::Src::Gas);
+    }
+    g.finish_run();
+    let l = g.lineage();
+    assert_eq!(l.heir, 2);
+    assert_eq!(l.class_offer[0].class, "ranger", "the next heir's wake starts from the class");
+}
+
+/// §3: D5–8 are the Burrows — their own biome fact and spawn mix (monkeys and archers up,
+/// rats out); the Captain opens them, the Warlord closes them.
+#[test]
+fn the_burrows_are_d5_to_d8() {
+    use crate::descent::{biome_for, Biome};
+    assert_eq!(biome_for(4), Biome::Warrens);
+    assert!((5..=8).all(|d| biome_for(d) == Biome::Burrows));
+    assert_eq!(crate::descent::lieutenant_for(5), Some("goblin_captain"));
+    assert_eq!(crate::descent::boss_for(8), Some("goblin_warlord"));
+    let w = crate::defs::spawn_table(Biome::Warrens, 4);
+    let b = crate::defs::spawn_table(Biome::Burrows, 5);
+    let weight = |t: &[(&str, u32, i32, i32)], k: &str| t.iter().filter(|e| e.0 == k).map(|e| e.1).sum::<u32>();
+    assert_eq!(weight(&b, "rat"), 0);
+    assert!(weight(&b, "monkey") > weight(&w, "monkey"));
+    assert!(weight(&b, "goblin_archer") > weight(&w, "goblin_archer"));
+    let mut g = Game::new(4);
+    g.start_run(None);
+    g.descend_to(4);
+    assert_eq!(g.run.as_ref().unwrap().biome(), Biome::Warrens);
+    let evs = {
+        let (run, mut cx) = g.ctx();
+        run.hero.pos = run.floor.stairs_down;
+        crate::turn::descend(run, &mut cx);
+        std::mem::take(cx.events)
+    };
+    assert!(evs.iter().any(|e| matches!(e, Ev::Descend { depth: 5, biome, .. } if biome == "burrows")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Fact { fact, .. } if fact == "biome:burrows")));
+    assert!(g.run.as_ref().unwrap().monsters.iter().all(|m| m.kind != "rat"));
+    assert!(g.run.as_ref().unwrap().monsters.iter().any(|m| m.kind == "goblin_captain"));
+}
+
+/// §4: at half hp the Warlord breaks, once — the callout and the note, his goblins' shields
+/// drop, he is faster and hits harder, and he never rallies again.
+#[test]
+fn the_warlord_breaks_once_at_half_hp_and_stops_rallying() {
+    let mut g = arena();
+    hold_rules(&mut g);
+    g.run.as_mut().unwrap().hero.max_hp = 2000;
+    g.run.as_mut().unwrap().hero.hp = 1999;
+    let w = add_monster(&mut g, "goblin_warlord", 8, 5);
+    let evs = ticks(&mut g, 40);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == w && what == "rallies")));
+    assert!(g.run.as_ref().unwrap().monsters.iter().any(|m| m.kind == "goblin" && m.buff_def.1 > 0));
+    let wi = g.run.as_ref().unwrap().monsters.iter().position(|m| m.id == w).unwrap();
+    let (speed, atk, max) = {
+        let m = &g.run.as_ref().unwrap().monsters[wi];
+        (m.speed, m.atk, m.max_hp)
+    };
+    // Just above half: no break.
+    let evs = {
+        let (run, mut cx) = g.ctx();
+        crate::turn::damage_monster(run, &mut cx, wi, max - max / 2 - 1, &crate::turn::Src::Gas);
+        std::mem::take(cx.events)
+    };
+    assert!(!g.run.as_ref().unwrap().monsters[wi].broken);
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "warlord breaks")));
+    let evs = {
+        let (run, mut cx) = g.ctx();
+        crate::turn::damage_monster(run, &mut cx, wi, 1, &crate::turn::Src::Gas);
+        std::mem::take(cx.events)
+    };
+    let m = &g.run.as_ref().unwrap().monsters[wi];
+    assert!(m.broken && m.hp * 2 <= m.max_hp);
+    assert!(m.speed > speed && m.atk.1 > atk.1 && m.atk.0 > atk.0);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "warlord breaks")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Note { text, .. } if text == "The Warlord breaks.")));
+    assert!(g.run.as_ref().unwrap().monsters.iter().all(|m| m.kind != "goblin" || m.buff_def == (0, 0)), "the shields drop");
+    let goblins = g.run.as_ref().unwrap().monsters.iter().filter(|m| m.kind == "goblin").count();
+    g.run.as_mut().unwrap().monsters.retain(|m| m.kind != "goblin");
+    let evs = ticks(&mut g, 300);
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Telegraph { id, what, .. } if *id == w && what == "rallies")), "no rally after the break");
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Spawn { e, .. } if e.kind == "goblin")), "no reserves");
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "shields up")));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Attack { src, .. } if *src == w)), "he charges");
+    assert!(goblins >= 2);
+    let wi = g.run.as_ref().unwrap().monsters.iter().position(|m| m.id == w).unwrap();
+    let evs = {
+        let (run, mut cx) = g.ctx();
+        crate::turn::damage_monster(run, &mut cx, wi, 1, &crate::turn::Src::Gas);
+        std::mem::take(cx.events)
+    };
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Callout { text, .. } if text == "warlord breaks")), "once");
+}

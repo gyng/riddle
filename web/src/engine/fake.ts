@@ -995,6 +995,11 @@ export class FakeEngine implements Engine {
     this.s.lineage.ledger = this.ledger();
     this.s.lineage.counters = this.counters();
     this.s.lineage.combos = combosIn(this.s.rules.rows, COMBOS);   // Cut 8B §1
+    // Cut 16 §2: the wake's class chips (owned classes, the current first) while the trait offer stands
+    { const L = this.s.lineage; const owned = CLASSES.filter((c) => isFreeClass(c) || L.unlocks.includes(c));
+      const SIG: Record<string, [string, number]> = { fighter: ["shield_bash", 1], rogue: ["vanish", 1], ranger: ["mark", 7], caster: ["slow", 5] };
+      if ((L.trait_offer ?? []).length && owned.length >= 2) L.class_offer = [L.class, ...owned.filter((c) => c !== L.class)].map((c) => ({ class: c, signature: SIG[c]?.[0] ?? "", level: L.classes[c]?.level ?? 1, opens: SIG[c]?.[1] ?? 1 }));
+      else delete L.class_offer; }
     // Cut 9 §10: the forge ladder's next rung per kind (`3/5 → craftable`, `6/15 → +1`, `20/40 → +2`; none at the top)
     for (const f of Object.values(this.s.lineage.forge ?? {})) { const rung = FORGE_LADDER.find((r) => f.salvaged < r.need); if (rung) f.next = { ...rung }; else delete f.next; }
     return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage;

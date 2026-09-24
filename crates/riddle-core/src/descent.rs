@@ -16,6 +16,9 @@ pub const VISION_DARK: i32 = 4;
 #[serde(rename_all = "snake_case")]
 pub enum Biome {
     Warrens,
+    /// Cut 16 §3: the Warrens' deep end, D5–8 (the Captain's floor opens it, the Warlord's
+    /// closes it): red clay and torches, monkeys and archers, no rats.
+    Burrows,
     Fens,
     Crypt,
     // Cut 3: biomes 4–6, each breaking the program that cleared the last one.
@@ -28,6 +31,7 @@ impl Biome {
     pub fn name(self) -> &'static str {
         match self {
             Biome::Warrens => "warrens",
+            Biome::Burrows => "burrows",
             Biome::Fens => "fens",
             Biome::Crypt => "crypt",
             Biome::Foundry => "foundry",
@@ -38,6 +42,7 @@ impl Biome {
     pub fn title(self) -> &'static str {
         match self {
             Biome::Warrens => "the Warrens",
+            Biome::Burrows => "the Burrows",
             Biome::Fens => "the Fens",
             Biome::Crypt => "the Crypt",
             Biome::Foundry => "the Foundry",
@@ -45,7 +50,7 @@ impl Biome {
             Biome::Sanctum => "the Sanctum",
         }
     }
-    pub const ALL: [Biome; 6] = [Biome::Warrens, Biome::Fens, Biome::Crypt, Biome::Foundry, Biome::Deep, Biome::Sanctum];
+    pub const ALL: [Biome; 7] = [Biome::Warrens, Biome::Burrows, Biome::Fens, Biome::Crypt, Biome::Foundry, Biome::Deep, Biome::Sanctum];
     /// Cave floors (cellular, with water): the Fens and the Deep.
     pub fn is_cave(self) -> bool {
         matches!(self, Biome::Fens | Biome::Deep)
@@ -59,11 +64,12 @@ impl Biome {
     }
 }
 
-/// Cut 7: Warrens D1–8 (captain D5, Warlord D8), Fens D9–13, Crypt D14–18, Foundry D19–23,
+/// Cut 7: Warrens D1–8 (captain D5, Warlord D8); Cut 16 §3: D5–8 are the Burrows; Fens D9–13, Crypt D14–18, Foundry D19–23,
 /// Deep D24–28, Sanctum D29–33, the bottom at D34.
 pub fn biome_for(depth: u32) -> Biome {
     match depth {
-        0..=8 => Biome::Warrens,
+        0..=4 => Biome::Warrens,
+        5..=8 => Biome::Burrows,
         9..=13 => Biome::Fens,
         14..=18 => Biome::Crypt,
         19..=23 => Biome::Foundry,
@@ -76,6 +82,7 @@ pub fn biome_for(depth: u32) -> Biome {
 pub fn biome_first(biome: Biome) -> u32 {
     match biome {
         Biome::Warrens => 1,
+        Biome::Burrows => 5,
         Biome::Fens => 9,
         Biome::Crypt => 14,
         Biome::Foundry => 19,
@@ -135,7 +142,12 @@ mod tests {
     #[test]
     fn biome_order_fixed() {
         assert_eq!(biome_for(1), Biome::Warrens);
-        assert_eq!(biome_for(8), Biome::Warrens);
+        assert_eq!(biome_for(4), Biome::Warrens);
+        for d in 5..=8 {
+            assert_eq!(biome_for(d), Biome::Burrows);
+        }
+        assert_eq!(biome_first(Biome::Burrows), LIEUTENANT_DEPTH);
+        assert_eq!(Biome::Burrows.title(), "the Burrows");
         assert_eq!(biome_for(9), Biome::Fens);
         assert_eq!(biome_for(14), Biome::Crypt);
         assert_eq!(boss_for(8), Some("goblin_warlord"));

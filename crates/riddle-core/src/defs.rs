@@ -82,6 +82,17 @@ pub fn spawn_table(biome: Biome, depth: u32) -> Vec<(&'static str, u32, i32, i32
     let d = depth as i32;
     let mut t: Vec<(&str, u32, i32, i32)> = Vec::new();
     match biome {
+        // Cut 16 §3: the Burrows (D5–8) are the Warrens' old deep end with their own mix —
+        // monkeys and archers up, jackals thinner (the rats stay on D1–3).
+        Biome::Burrows => {
+            t.push(("jackal", 14, 2, 3));
+            t.push(("monkey", 16, 1, 1));
+            t.push(("goblin", 20, 1, if d >= 6 { 3 } else { 2 }));
+            t.push(("goblin_archer", if d >= 6 { 18 } else { 14 }, 1, if d >= 6 { 2 } else { 1 }));
+            t.push(("goblin_conjurer", if d >= 6 { 8 } else { 6 }, 1, 1));
+            t.push(("ogre", if d >= 6 { 10 } else { 6 }, 1, 1));
+            t.push(("captive", 5, 1, 1));
+        }
         Biome::Warrens => {
             // D1 is the doorstep: rats, monkeys and lone goblins. Packs from D2, archers from D4.
             // Cut 7: D6–8 are the Warrens' deep end — goblin bands, archers in pairs, ogres;

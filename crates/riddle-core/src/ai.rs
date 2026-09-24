@@ -2682,6 +2682,7 @@ fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending) {
                 approach(run, cx, mi);
             }
         }
+        Pending::Rally if run.monsters[mi].broken => {}
         Pending::Rally => {
             // Cut 7 §1: the Captain's one rally brings a single goblin.
             let n = if kind == "goblin_captain" { 1 } else { 2 };
@@ -2802,6 +2803,38 @@ fn warlord_buff(run: &mut Run, cx: &mut Ctx, mi: usize) {
     if any && run.floor.map.is_visible(mp) {
         learn_tag(run, cx, "goblin_warlord", "buffer");
         callout(run, cx, "shields up");
+    }
+}
+
+/// Cut 16 §4: the Warlord's phase two — speed and damage he gains when he breaks.
+pub const WARLORD_BREAK_SPEED: i32 = 2;
+pub const WARLORD_BREAK_ATK: (i32, i32) = (1, 1);
+
+/// Cut 16 §4: at half hp the Warlord breaks, once — the rally he was calling is dropped, the
+/// shields on his goblins end, and he charges faster and hitting harder, with no more rallies
+/// and no wall to step behind (`turn::damage_monster`). The beat is `warlord breaks`.
+pub fn warlord_break(run: &mut Run, cx: &mut Ctx, mi: usize) {
+    let m = &mut run.monsters[mi];
+    if m.broken {
+        return;
+    }
+    m.broken = true;
+    m.speed += WARLORD_BREAK_SPEED;
+    m.atk = (m.atk.0 + WARLORD_BREAK_ATK.0, m.atk.1 + WARLORD_BREAK_ATK.1);
+    if m.pending == Some(Pending::Rally) {
+        m.pending = None;
+        m.telegraph = None;
+    }
+    m.awake = true;
+    let mp = m.pos;
+    for o in run.monsters.iter_mut() {
+        if o.hostile() && o.kind == "goblin" && o.buff_def.1 > 0 {
+            o.buff_def = (0, 0);
+        }
+    }
+    if run.floor.map.is_visible(mp) {
+        callout(run, cx, "warlord breaks");
+        note(run, cx, "The Warlord breaks.".into());
     }
 }
 
@@ -2950,6 +2983,14 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
         // The Warlord is a wall of goblins: whenever no goblin stands beside him he rallies two
         // more, and every 30 ticks he shield-buffs the goblins in view. Attrition beats
         // attack-nearest; the counter is to go for him (`attack tag:boss`) or stun him.
+        // Cut 16 §4: broken, he charges — no rally, no shields.
+        "goblin_warlord" if run.monsters[mi].broken => {
+            if adjacent {
+                monster_attack(run, cx, mi, 1, "attack");
+            } else {
+                chase(run, cx, mi, sees);
+            }
+        }
         "goblin_warlord" => {
             let guards = run.monsters.iter().filter(|o| o.hp > 0 && o.hostile() && o.kind == "goblin" && o.pos.adjacent(mp)).count();
             let in_view = run.monsters.iter().filter(|o| o.hp > 0 && o.hostile() && o.kind == "goblin" && o.pos.cheb(mp) <= VISION).count();

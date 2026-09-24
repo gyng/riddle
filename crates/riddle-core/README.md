@@ -1097,6 +1097,42 @@ Companion condition tokens: `self_hp< self_hp>` plus the hero set; companion ver
   (`dice_fallback` and the tail of the shaping); a dice death whose every candidate survives
   0 % now shows none (`hopeless_death_is_dice`).
 
+## Cut 16 (what a night is) — core half
+
+- **Freshness** (§1). `LineageState.picked: BTreeMap<depth, picks>` (serde default): a bank or
+  a return (not timed out) from depth `d` adds a pick at `d` (`run.depth`, the exit floor),
+  capped at `PICKED_CAP` (7). `freshness(d)` = `FRESHNESS[picks]` permille (`0.8^n`, floor
+  250) — 1000 for `d ≥ best_depth` (the deepest depth the lineage has reached is always
+  fresh). `start_run` copies the thinned depths into `Run.thin` (so replays and verdicts
+  generate the floor the run did); `populate_floor` keeps each budget item and each gold pile
+  at that rate, drawn on a separate rng (`Rng::derive(run.seed ^ depth, "picked")`) so the
+  floor's monsters, twists and stock are what a fresh lineage would see; a nest's gold scales
+  by it. **A night** is `NIGHT_RUNS` (16) finished runs, offline or live (`night_run`,
+  called from `finish_run`): it does not hang on how the client slices an absence (30-min
+  `runOfflineQuick` slices) nor on whether the player watches. At the night's end every
+  picked depth no run of the night visited (`1..=max_depth` of each run) recovers one step.
+  Wire: `ReturnReport.picked` and `Lineage.picked` — depths at ≥ 3 picks that are not fresh
+  (`D3 · picked clean`). The forecast's gold reads it through the sims (they start runs from
+  the lineage). Test: `a_picked_depth_pays_less_and_recovers_night_over_night` (40 seeds' D3
+  loot at 10 picks ≤ 30 % of fresh; seven unvisited nights to fresh).
+- **Class at the wake** (§2). The class is the lineage's (`set_class`, unchanged): a pick at
+  the wake sticks to every run until changed, and to the next heir. `Lineage.class_offer:
+  [{class, signature, level, opens}]` — the owned classes, the current first — while the
+  wake is open (`trait_offer` non-empty) and ≥ 2 classes are owned. Signatures
+  (`Class::signature`): fighter `shield_bash`, rogue `vanish`, ranger `mark` (opens L7),
+  caster `slow` (opens L5). Test: `the_wake_offers_owned_classes_and_the_pick_sticks`.
+- **The Burrows** (§3). `Biome::Burrows`, D5–8 (Warrens D1–4); `biome:burrows` is learned on
+  the D5 descent, `D5: the Burrows.`; rooms like the Warrens (not a cave, lit). Spawn table:
+  the old Warrens D5–8 mix (no rats there already) with jackals 22→14, monkeys 10→16, archers 12/16→14/18.
+  The Captain (D5) and the Warlord (D8) stay. Situations and `tier_depth` stay by depth. The
+  Burrows' kinds are a subset of the Warrens': no second ledger/studied trophy.
+- **The Warlord breaks** (§4). At ≤ 50 % hp, once (`Monster.broken`, serde default;
+  `ai::warlord_break` from `damage_monster`): a pending rally is dropped, shield buffs on the
+  goblins end, speed +2, attack +1/+1, and from then on he only chases and hits — no rallies,
+  no `shields up`, and no wall (incidental blows land; no reserve steps in). In view: callout
+  `warlord breaks` and note `The Warlord breaks.` (the client's beat). Test:
+  `the_warlord_breaks_once_at_half_hp_and_stops_rallying`.
+
 ## Layout
 
 `src/` per `docs/CUT1.md` plus `wire.rs` (the wire structs), `situations.rs` (the Cut 7 band

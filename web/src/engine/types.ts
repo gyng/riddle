@@ -144,6 +144,7 @@ export type ReturnReport = {
   rested_s?: number; banked?: number; returned?: number; bones_found?: string[]; // Cut 2 §1–2
   stall?: Stall;                                                              // core addition: stall verdict
   exits?: ExitLine[];                                                         // Cut 6 §1: one ledger line per exit in the batch
+  picked?: number[];                                                          // Cut 16 §1: depths picked clean (≥ 3 banks/returns, shallower than the best), ascending — `D3 · picked clean`
 };
 export type Lineage = { seed: number; heir: number; trait: string; trait_offer?: string[]; class: string; best_depth: number; marks: number;   // Cut 13 §2: `trait_offer` — two traits a new heir may wake with; `setTrait(name)` picks
                         facts: string[]; unlocks: string[]; vault: InvItem[];
@@ -162,7 +163,14 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         ascended?: string[];                                                                          // Cut 5: variants the lineage has finished the dungeon with
                         gold_ledger?: GoldLine[];                                                                      // Cut 6 §1: the last 20 gold movements, oldest first (`ledger` is the bestiary)
                         counters?: Counter[];                                                                         // Cut 6 §5: bosses whose counter row is known
-                        combos?: ComboHit[] };                                                                        // Cut 8B §1: the active set's combos, in row order (recomputed on setRules)
+                        combos?: ComboHit[];                                                                          // Cut 8B §1: the active set's combos, in row order (recomputed on setRules)
+                        picked?: number[];                                                                            // Cut 16 §1: depths picked clean now (as ReturnReport.picked)
+                        class_offer?: ClassChip[] };                                                                  // Cut 16 §2: the wake's class chips — owned classes, current first; present while trait_offer is and ≥ 2 are owned; `setClass(name)` picks (sticks until changed)
+/** Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id (`shield_bash | vanish | mark | slow`);
+ *  `level` the class's level; `opens` the level the signature opens at (`mark L7` while level < opens).
+ *  §4 (no new wire): the Warlord's break is a callout `warlord breaks` + a note `The Warlord breaks.` (visible only), once, at ≤ 50 % hp.
+ *  §3 (no new wire): D5–8 are biome `burrows` (Snapshot.biome, descend.biome, fact `biome:burrows`). */
+export type ClassChip = { class: string; signature: string; level: number; opens: number };
 /** Cut 3: times the lineage ascended and the variant it plays under (`""` at level 0). */
 export type Ascension = { level: number; variant: string };
 export const VARIANTS = ["no_rest", "short_list", "bones_only", "hunted"] as const;
