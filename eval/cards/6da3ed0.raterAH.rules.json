@@ -1,0 +1,105 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "read",
+        "a": "unknown"
+      },
+      "origin": "patch"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 20
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "adj>=",
+          "n": 3
+        }
+      ],
+      "verb": {
+        "v": "cleave"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "splitter"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:splitter"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "telegraph"
+        }
+      ],
+      "verb": {
+        "v": "shield_bash"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "preset"
+    },
+    {
+      "conds": [
+        {
+          "k": "depth>=",
+          "n": 12
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    }
+  ],
+  "name": "fighter"
+}

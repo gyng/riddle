@@ -1,0 +1,71 @@
+{
+  "$comment": "Blind rater AH, seed 1902, headed GPU driver (400x800 at 3x). Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md sections 1-3 and the template; opened no plan, research, cut docs, other cards or source code. Running notes: scratchpad/raterAH/notes.md.",
+  "game": "Riddle",
+  "build": "6da3ed0",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAH",
+  "horizon": {
+    "activeMinutes": 51,
+    "absences": ["simulated overnight via ?absent=8h (dev param), taken once after ~35 min cold; not a real wall-clock absence"],
+    "runsWatched": 18,
+    "runsOffline": 16,
+    "ruleEdits": 11,
+    "notes": "About 35 min cold (09:52 to 10:26) and about 16 min on return (10:27 to 10:43). Both are shorter than the 40 + 20 min contract, but I took more turns than a human would in that time because the driver works quickly. 18 runs sent by hand and watched: most at the default speed, one in 'fights' mode, and 2 in 'fast' mode (4x), one of them without my noticing because the mode carried over. Read 4 deaths: 2 on the death screen during active play, 1 as the 'worst' after the absence, and 1 more after returning. Rule edits: 9 of my own (5 before the absence, 4 after) and 2 patches I accepted. Audio cues fire in window.__audio (rule, hit, slay, telegraph, unlock), but I could not hear them, so audio is unassessed."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: My fourth heir, a cowardly L4 fighter, started from D1 with two tamed monkeys and a row I had found by trying verbs in the forecast: 'foe: telegraph → shield bash'. On D8 he fell to 11/42 among the bloats, then walked into a goblin warlord with eight goblins, and my R6 shield bash fired until 'WARLORD BREAKS' and 'GOBLIN WARLORD DOWN'. He banked $180 on D9 in the Fens and lit the D9 waystone, though my monkey Drim died in the fight."
+  },
+  "probes": {
+    "return": "I came back to '16 RUNS · D8 DEEPEST · +17 MARKS · 7 BANKED · 8 RETURNED · 1 DEATH' and 'PLATEAU: R3 return ended 8 runs, none past D8'. Because of it I bought a row and found shield bash for the warlord wall, which I would not have found had I stayed; the '−$880 spent' on 22 heals stung.",
+    "attribution": "The last run ended with 'R3 · return' at 7/42 after my R5 'attack splitter' fired twice. That was my decision; the D1 death to a goblin archer was the default rules' fault, and the pink-jelly death was mine (my R4 chased an archer through six foes), even though the seal said GAP.",
+    "clarity": "The forecast panel ('bank 64% · return 22% · death 14% · ~$148') answered almost every question, but I missed that 'fast' mode carried over, and '↑ R3' was the only hint that a row was shadowed.",
+    "decisions": "I chose 'depth ≥ 7 → bank' over ≥ 5 and ≥ 9 by reading the forecast, and chose a D1 start over the D5 waystone after the tablet said 'D1 · D8 +18%' against 'D5 · D8 8% · pass'. I would make both choices again.",
+    "mastery": "An hour ago I didn't know that 'hp < 20% → return' above 'hp < 30% → drink heal' shadows the heal when damage jumps 12 → 6. Now I order rows by threshold and know which rows fire (the drop sheet's '72/83').",
+    "tension": "The 'carry $159 · return keeps $95 · death $0 · return at 20%' line with hp at 14/42 while the warlord rallied made me lean in.",
+    "feel": "Callouts like 'READ × NO UNKNOWN' and 'WARLORD BREAKS' pop in chunky pixel type over good sprites; at the boss the banner, the callout and eight nameplates overlapped into a smear.",
+    "surprise": "'Ashul the monkey, gone wild.' My tamed monkey died, came back wild and stole my heal potion on D1, which changed how I thought about taming. Monkeys stealing on D1 then repeated almost every run.",
+    "expression": "My set of 8 rows (read unknown, drink heal, return, cleave on 3 adjacent, attack splitter, shield bash on telegraph, attack nearest, bank at D12) is recognisably mine, but half of it is the obvious survival kit.",
+    "story": "The chronicle line '♟4 the opener fighter · D10 · took the Warlord · tamed a monkey · found ♟3's bones · fell to a pink jelly' reads like an epitaph. 'Asheth the pink jelly is avenged.' gave the killer a name.",
+    "pacing": "At 1×, runs from D1 took 60–100 s and read well; runs from waystones ended in 8–25 s ('BANKED $63' eight seconds in); and camp admin (panels, sheets, two-tap confirms) took longer than the runs.",
+    "failure": "The trace '5710 R3 attack ranged 24 6 archer draws … 5750 R2 return 5 8', plus 'R1 drink heal · no item ← R1 drank heal at 10/38 hp' and 'R4 attack ranged · no path ← foes hold the way', told me exactly what happened, and the next run started on its own.",
+    "social": "No other people; the named monkeys (Ulak, Drim, Zelul) fall and level up but have no relationship to speak of.",
+    "autonomy": "I set my own goal (break the 'warlord wall' shown in the forecast) and my own route (D1 vs D5/D9 waystone), and nothing told me to.",
+    "progression": "Rows went 2/4 → 8/8; I bought supplies 3→5, auto keep weapon+armour and +1 party; waystones D5/D9 were lit; fighter L1 → L4; vocabulary grew from ~30 verbs to 60+ ('read teleport', 'attack splitter') as facts were learned; best depth went D5 → D11.",
+    "aesthetic": "The painted camp banner (two heroes on a flooded stair) and the pixel dungeon are handsome enough to sit in, though the lower half of the camp is an empty black field.",
+    "wantedToReturn": "Before loading the absence I wanted to come back, mildly: to see whether the read-unknown patch got past D8 and what the D9 warlord was."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "The first edit came about 2 min in, and the live forecast ('D6 54%→44%' when I moved a row) made every edit readable. Keeping it from strong: the 'fast' watch mode carried over silently; the unlock list is 35+ items with ⊘ gates; sheets and inline panels behave differently; and a patch 'apply' used the patch I had not meant (drink unknown instead of return)." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Real trade-offs I would defend: bank depth 5/6/7 ('~$49 / ~$34 / ~$36'), D1 vs waystone ('D1 · D8 +18%' vs 'D5 · D8 8% · pass'), and shield bash vs attack telegraph vs retreat on telegraph ('stall 36%' vs 'D9 0%' vs 'D9 · bank 66%'). Named lapse: late on, most edits sat inside the forecast's ±10–13 noise ('D11 28%±12' vs '36%±13'), so I could no longer tell good edits from bad; and the cards read 'reach ~0 at R3', dominated by writing rows myself." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "I learned row ordering (return shadowing heal: '12→6', 'R1 return saved him' with 2 supplies unused) and the boss counter, and best depth went D5 → D11. Keeping it from strong: I learned most of this by probing the forecast rather than from runs, and the second plateau at D10–11 came with no clear next lesson." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "The carry line 'return keeps $95 · death $0' with hp 14/42 during the warlord fight did make me sweat. But the stakes were rarely ones I chose: my return row ended most runs at 4–8 hp ('Down to 4 HP. R3 return saved him.' again and again), so the outcome felt settled." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Smooth headed at 3×; the 1× watch was dense (a line every 2 s: 'pops!', 'mine now', 'come on then'), and the pixel callouts ('WARLORD BREAKS') land. Lapses: the boss moment stacked banner, callout and eight nameplates into clutter, and 'fast' marked 'on slowed' was unreadable. Audio unassessed (cues logged, not heard)." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Materially different situations that changed what I configured: the warlord wall (→ shield bash), the dead pet returning wild ('Ashul the monkey, gone wild.' then stole my heal), a named nemesis ('Skul', 'Asheth the pink jelly is avenged'), and cages, dens and nests. Named lapse: D1–D4 repeat every run (rats, 'Drix the jackal, gone wild', a monkey stealing the heal potion about six times in 18 runs)." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My 8 rows, pet party and bank depth are mine ('adjacent ≥ 3 → cleave', 'foe: splitter → attack splitter'), but the top half is the survival kit anyone would write, and the forecast pushes everyone toward the same thresholds." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Runs have turns: 'WARLORD BREAKS → GOBLIN WARLORD DOWN', and the tamed monkey dies and comes back wild to rob me. The chronicle retells heirs: '♟3 the curious fighter · found ♟2's bones · fell to a spectral blade'. Named lapse: the per-run reel is formulaic ('R3 return saved him. Returned with $X.' closes almost every one)." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: D1 starts at 1× take 60–100 s with no dead stretch. Check-in: arrive → report → one clear question (PLATEAU) → edit → send takes about 3–5 min. Lapses: waystone runs end in 8–25 s; the early floors repeat every D1 run; and admin (unlock list, panels, two-tap hatch, chips in sheets) outweighs the watching." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Every death screen named the killer, the margin and the rows ('R3 attack ranged 24→16→13→9 · 6 foes', '← foes hold the way', '← cowardly ran first'), offered patches with 'survives 92% · unpatched 0%', and the heir started on the next tap. Named lapse: 2 deaths my own R4 caused were sealed 'GAP', and a DICE death said 'nothing beats unpatched 100%', so the one-word verdict and my reading of the trace disagreed." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goals (break the warlord wall, new best depth, money vs depth) and my own starts (D1/D5/D9). Not strong because the forecast solves most goals before the run, so exploration happens in a spreadsheet more than in the dungeon." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within a run: cages ('took sword +1'), levels, pets. Persistent: rows 2→8, vault/forge/party/ledger/chronicle appearing, waystones D5/D9, fighter L4, vocabulary doubled from learned facts. Automation: 'repeat on · $80', 'auto: keep weapon+armour', 'found heal → shelf'. Named lapse: heals and tolls ate the gold ('−$880 spent', '−$170 spent' vs '+$47 returned'), so the $ layer felt like a treadmill." },
+    { "id": "aesthetic", "human": 0.8, "bot": "na", "proxy": "none", "note": "The painted camp art, the torn red death banner with a wax 'GAP' seal and the pixel dungeon (named monkeys, Skul the archer, the goblin horde) make a place worth being in. Named lapse: the camp's lower half is empty black, and the boss screen was cluttered. Sound not heard." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "The overnight return had plenty to read (16 runs, per-run lines, 12 potions/scrolls identified, bones found, 2 pets lost) and a decision the game pointed at ('PLATEAU: R3 return ended 8 runs, none past D8', 'R1 fired 3 of 16 runs'); I acted within a minute. Named lapse: the spending ('−$880 spent · restock ≤ income') was a surprise I had not chosen, and the long report scrolled past what mattered." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "I speak of the hero's play in the first person: 'my R6 shield bash broke the warlord', 'my R1 was shadowing my heal'. The reel credits my rows ('R1 drink heal saved him.'), and the drop sheet shows each row's fires ('attack nearest · 72/83'). Named lapse: the verdict seal called my own R4's deaths 'GAP', and repeated thefts ('STOLEN $41') with thief monkeys in my party left me unsure whose they were." }
+  ]
+}

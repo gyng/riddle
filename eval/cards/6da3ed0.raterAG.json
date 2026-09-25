@@ -1,0 +1,63 @@
+{
+  "$comment": "Blind rater AG. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md §1-3, the template, and my brief. No design docs or source opened. Played via tools/driver.mjs headed GPU, 400x800 3x. Wall clock 09:51-10:38 (47 min): ~34 min cold, ?absent=8h, ~13 min on return — the return leg is short of the 20 min asked because runs are ~1 min each and I had run out of new decisions; recorded honestly.",
+  "game": "Riddle",
+  "build": "6da3ed0",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAG",
+  "horizon": { "activeMinutes": 47, "absences": ["8h simulated via ?dev=1&absent=8h (not a real wall-clock absence)"], "runsWatched": 16, "runsOffline": 19, "ruleEdits": 14 },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: Heir 4 had already met the Goblin Warlord on D8 once and fled, and the ledger wrote down 'counter: attack boss', so I bought a seventh row and wrote 'foe: boss → attack boss' and started him from the D5 waystone even though the forecast said death 22%. On D7 the bloats nearly gassed him (my own 'foe: gas → retreat' finally fired at 5/40) and he walked into the Warlord at 16 hp with $192 on his back. 'R5 · attack boss', 'WARLORD BREAKS', 'GOBLIN WARLORD DOWN' — and he banked $201 on the way up, the first time my own lesson-row killed the thing that taught it."
+  },
+  "probes": {
+    "clarity": "Mostly yes: the carry line 'carry $85 · bank keeps $85 · death $0 · bank R4' told me what was at stake all run; I misread 'D5 · bank −18%' on the start sheet (it's a delta) and never understood why 'adjacent ≥ 2 → cleave' collapsed the forecast to 'D2 91% … bank 98% · ~$62'.",
+    "decisions": "Raising 'loot ≥ 100 → bank' to 200 behind an 'hp < 30% → return' safety row took D6 reach from 6% to 47% — I'd make it again; 'foe: telegraph → shield bash' over '→ retreat' (death 13% vs 50%) too.",
+    "mastery": "An hour ago I died on D6 to a bloat with 8 unknown potions unused; now I interrupt ogre wind-ups, retreat from gas, and have killed the Warlord three times.",
+    "tension": "I sweated watching 'carry $85' climb toward my $100 bank line on D5 — and died $15 short when my own R2 drank poison; the Warlord at 16/40 hp with $192 carried was the other.",
+    "feel": "Big pixel callouts ('POPS!', 'BASH', 'ARCHER DRAWS', 'WARLORD BREAKS') land on the right beat and the rule caption 'R2 · attack nearest' under the hero ties action to row; I watched with sound cues logged (rule/slay/hit in window.__audio) but could not hear them — audio unassessed.",
+    "surprise": "'The monkey stole the sword.', 'Found heir 1's bones: 11 items.', and the Warlord changed what I wrote; but D1–D4 replayed the same beats every run ('A den. Something sleeps.', 'A shrine. Pray, at a price.', 'A cage: three inside, one to take.', 'Vrusk the jackal, gone wild.').",
+    "expression": "My fighter is a cautious banker: heal at 30%, run home at 30%, back off gas, shield-bash anything winding up, attack bosses only, bank once past the Warlord's stairs.",
+    "story": "Warlord arc (see delayedRecall); the chronicle retells heirs as 'the opener fighter · D9 · took the Warlord · found ♟2, ♟1, ♟3's bones · fell to a goblin'.",
+    "pacing": "Runs are ~50–120 s at 1× with a line every 3 s; D1–D4 became filler by run 8 (▶▶| fixed that in run 16); admin is edit → forecast → send, quick, but supply restock quietly cost more than several returns earned.",
+    "failure": "Run 2's verdict 'ROW — goblin captain · D5 · R2 drink unknown' with 'The violet one: poison.' named my rule exactly; run 4 was 'DICE — forecast said D2 100%' with 'nothing beats unpatched' after hp bled to 0 with no heal ever found.",
+    "social": "Named jackals ('Ulim the jackal is avenged', 'Vrusk') and heirs' bones are flavour; no relationship — weight 0.",
+    "autonomy": "Nobody asked me to chase D8 from the D5 waystone at a worse forecast (~$82 vs ~$158); I did it for the frontier ◆ and the Warlord.",
+    "progression": "Rows 4→8, verbs throw/cleave/attack boss, shop grows with every identified potion, waystones D5/D9, fighter L4, ★5; but the gold loop stalled — '+$49 returned · −$120 spent'.",
+    "aesthetic": "The camp key art (two heroes descending into a green-lit ruin) and the death banner with a wax 'GAP'/'ROW' seal are handsome; the pixel dungeon is readable and warm.",
+    "return": "I came back to '19 RUNS … 1 banked · 14 returned · 4 deaths', 'D5–7 · thinned', trophies, bones, and PENDING 'R4 fired 1 of 19 runs: loot ≥ 200 → bank' — which is exactly why I rewrote R4 to 'depth ≥ 9 → bank' and banked $193 past the Warlord.",
+    "attribution": "'Down to 3 HP. R2 return saved him.' — my row; the D5 death was mine too ('R2 drink unknown'); the D2 dice death I blame on the game."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Evidence: carry line 'carry $85 · bank keeps $85 · death $0 · bank R4' and the live forecast shaft make every edit's consequence visible. Not 0.8: 'D5 · bank −18%' misread as absolute; 'SPENT repeat heal ×1 · −$160' (×1 for four heals); the cleave forecast collapse ('bank 98%', D2 91%) with no reason given; trace panels on death list every row's non-firing reason — honest but a wall on a phone." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Evidence: 'loot ≥ 200 → bank' + 'hp < 30% → return' took D6 from 6% to 47% at ~$111; D1 vs D5 waystone ('~$158' vs 'D8 58% · ~$82') was a genuine money-vs-frontier choice. Lapse: the forecast makes most edits a solve-against-the-number (I A/B'd return at 25/30/40/50% in seconds, found a cliff between 30 and 40), and supplies are near-dominated (heals only; 'strength potion · no row')." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Evidence: D6 death to gas with '8 unknown unused' → D9 and three Warlord kills; learned counters feed new verbs ('Goblin Warlord: counter learned.' → 'attack boss'). Not 0.8: much of the skill is reading the forecast rather than the dungeon; post-return deaths ('ogre holds the way') had no lesson I could act on (patch 'survives 17%')." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Evidence: died $15 short of my $100 bank line with 'carry $85' on screen; Warlord at 16/40 carrying $192. Not 0.8: most watched runs end in a predictable auto-return at 30% ('R2 return saved him' four times), and the forecast has already told me the odds, so the watch rarely surprises." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Evidence: 'POPS!', 'BASH', 'ARCHER DRAWS', 'WARLORD BREAKS' pixel callouts and the 'R2 · attack nearest' caption tie action to row; smooth on the GPU. Audio unassessed (cues logged in window.__audio — rule/slay/hit — but I could not hear them). Not 0.8: at 1× hits are small sprites in a dark map; watch mode silently stays on 'fast 4×' across sends." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Evidence: 'The monkey stole the sword.', 'Found heir 1's bones: 11 items.', the Warlord, 'D9: the Fens. A cry from the dark: a captive, chained.' each changed a row or a plan. Lapse: D1–D4 repeated den/shrine/cage/'Vrusk the jackal, gone wild.' nearly every run of 16." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Evidence: 8 rows, 7 mine (gas retreat, telegraph → shield bash, boss → attack boss, depth ≥ 9 → bank). Not 0.8: the forecast pulled me toward one local optimum; tried rogue and cleave, the numbers vetoed both instantly, so the build is 'what the shaft liked' as much as mine." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Evidence: Warlord arc across three runs — 'Goblin Warlord: counter learned.' → I write 'foe: boss → attack boss' → 'Slew the Goblin Warlord. Banked $201.'; chronicle 'took the Warlord · found ♟2, ♟1, ♟3's bones'. Lapse: the second and third Warlord kills read identically; reel lines between peaks are floor names." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: ~1 line/3 s at 1×, runs 50–120 s, no dead stretch >10 s except a 'stalling' beat at the Warlord. Check-in: edit→forecast→send under a minute. Lapse: D1–D4 filler every run until I found ▶▶|; the forecast recomputes 3–5 s after each tap; gold drifted down ($1038→$979) on returns, so late check-ins felt like maintenance." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Evidence: 'ROW — goblin captain · D5 · R2 drink unknown' + 'The violet one: poison.' named the rule; 'GAS · D6 · 8 UNKNOWN UNUSED' + patches with survive %. Lapse: run 4 'DICE — forecast said D2 100% · nothing beats unpatched' after hp bled out with no heal ever found (a return row would have saved him, as my next edit proved); overnight 'worst' death offered only 'survives 17%'." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0 (named beasts and heirs' bones exist, flavour only)." },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Evidence: chose D5 waystone at a worse money forecast to chase the frontier; chose bank-after-Warlord over loot-threshold. Not 0.8: one dungeon, one direction (down), goals are depth or gold." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run: kit, heals, D-depth. Persistent: rows 4→8, verbs throw/cleave/attack boss, shop lists each identified potion/scroll, waystones D5/D9, fighter L4, ★5, ledger/chronicle. Automation: 'auto: keep weapon+armour', 'supplies 3 → 5', repeat restock. Lapse: gold economy stalls — '+$49 returned · +$12 salvage · −$120 spent' — next row costs '◆11 or $1650'." },
+    { "id": "aesthetic", "human": 0.8, "bot": "na", "proxy": "none", "note": "Evidence: painted camp key art, torn red death banner with wax 'GAP' seal, warm pixel dungeon with torch light. Lapse: camp screen below the rules is half empty black; audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Evidence: 'PENDING R4 fired 1 of 19 runs: loot ≥ 200 → bank' drove my first edit back ('depth ≥ 9 → bank'), which then banked $193 past the Warlord; reel 'A jackal chased him to 2 HP; R2 returned; died to jackal.'; bones, trophies, new waystone D9. Lapse: 8 h produced '+$202 banked · +$289 returned … −$370 spent' with many 'returned $0 · $0 carried' lines — the absence mostly re-ran my D5 toll at a thin margin; absence was simulated, not lived." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Evidence: 'Down to 3 HP. R2 return saved him.' and 'I died because MY R2 drank poison' — first-person throughout my notes ('my build', 'my row'). Lapse: the D2 DICE death and the overnight 'ogre holds the way' death felt like the game's, not mine." }
+  ]
+}

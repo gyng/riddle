@@ -560,3 +560,29 @@ What both name first now:
    clean`, `restock capped` unexplained; the depth picker stops at 12 (AE banked at D20).
 4. **The trace explains only the last tick** (AF: why `hp<30% → bank` never fired over six ticks
    at 9/42).
+
+## Cohort 17 (build 6da3ed0: Cut 21 — waystones, supplies not a leak, words and verdicts)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AG | 1901 | 70.3 | none |
+| AH | 1902 | 71.9 | none |
+
+α = 0.968. Mean **71.1** — **down 2.15**. Both "promising".
+
+### The read
+
+The last three cuts each added a sink to the gold loop, and together they made it a treadmill:
+the repeat restock (Cut 19) re-buys a $40 heal every send, the waystone toll (Cut 21) charges
+per start, and a D1 thief takes the heal just bought (AH: "about 6 times in 18 runs, sometimes 8
+seconds after I paid $40"). A safe run brings home $50–80 at a 60 % return: AG "+$49 returned ·
+−$120 spent"; AH "−$170 spent against +$47 returned"; both "a treadmill". Progression and
+tension both read it.
+
+1. **The economy is a treadmill** (both, first).
+2. **Late edits sit inside the forecast's noise** (AH: "most edits moved the forecast less than
+   its ±10–13 error"); AG: "the forecast feels like a solver".
+3. **The verdict still misses own-row deaths** for attack rows (AH: R4 `attack ranged` chasing an
+   archer through six foes, sealed GAP).
+4. **D1–D4 still repeat** (AG); the waystone only helps from D5.
+5. **Misleading numbers**: `D9 · bank +3%` beside death 61 % (AG); a delta read as a chance.
