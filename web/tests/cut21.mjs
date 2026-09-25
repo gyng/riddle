@@ -116,13 +116,13 @@ try {
     exits: [x("banked $106 · $106 carried · keeps 100%", 106, 100, { shelved: [{ kind: "heal", n: 2 }] }), x("banked $106 · $106 carried · keeps 100%", 106, 100, { shelved: [{ kind: "heal", n: 1 }] })] };
   await go({ kind: "report", report }); await waitFor((s) => s?.screen === "report", "the report"); await sleep(300);
   const lines = await page.evaluate(() => [...document.querySelectorAll(".report .exit-lines .ledger-btn")].map((b) => b.textContent.replace(/\s+/g, " ").trim()));
-  check(lines.some((l) => /· found heal ×2 → shelf$/.test(l)), `the exit line says what went to the shelf (${lines.join(" | ")})`);
+  check(lines.some((l) => /· found heal ×2 → supplies$/.test(l)), `the exit line says what went to the shelf (${lines.join(" | ")})`);
   const shelf = await page.evaluate(() => { const s = [...document.querySelectorAll(".report .rsec")].find((x) => x.querySelector(".label")?.textContent === "shelved"); return s ? [...s.querySelectorAll(".chip")].map((c) => c.textContent.replace(/\s+/g, " ").trim()) : []; });
-  check(shelf.join() === "found heal ×3 → shelf", `the report's \`shelved\` (${shelf.join(" · ") || "absent"})`);
+  check(shelf.join() === "found heal ×3 → supplies", `the report's \`shelved\` (${shelf.join(" · ") || "absent"})`);
   // §3 on the same report: the words
   const pk = await txt(".report .picked-line"), gl = await txt(".report .gold-line");
-  check(pk === "D3 · thinned", `\`picked clean\` reads \`thinned\` ("${pk}")`);
-  check(/restock ≤ income$/.test(gl ?? ""), `\`restock capped\` reads \`restock ≤ income\` ("${gl}")`);
+  check(pk === "D3 · loot thinned", `\`picked clean\` reads \`thinned\` ("${pk}")`);
+  check(/restock ≤ \$218 earned$/.test(gl ?? ""), `\`restock capped\` reads the cap with its number, \`restock ≤ $218 earned\` (QA 0c6e126: \`≤ income\` unexplained) ("${gl}")`);
   await shot("cut21-report");
   await page.locator(".report .gold-line .ledger-link").first().click({ timeout: 3000 }); await sleep(250);
   const goldSheet = await page.evaluate(() => !!document.querySelector(".sheet-wrap .gold-sheet"));

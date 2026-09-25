@@ -931,7 +931,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .cage-picker .cage-opt .delta.down { color: var(--hp); }
 .cage-picker .cage-opt .delta.flat { opacity: .6; }
 /* Cut 19 §3: `repeat · $120` rides the loadout tile's top edge; its own tap target (the tile opens the shelf) */
-.cmd .tile.badged { overflow: visible; }
+.cmd .tile.badged { overflow: visible; position: relative; z-index: 4; }   /* QA 0c6e126 (qaY: `repeat on · ≤$2` — the next tile painted over the plate) */
 .cmd .tile .repeat-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 3; white-space: nowrap; padding: 3px 6px; min-height: 20px;
   font: 700 11px/1 var(--sans); color: #1a1400; background: var(--acc); border-radius: 9px; box-shadow: 0 1px 2px #000; cursor: pointer; }
 .cmd .tile .repeat-badge:not(.on) { color: var(--dim); background: #2a221a; border: 1px dashed #6a5638; }
@@ -1044,6 +1044,11 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .shaft-vs { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; font-size: 12px; line-height: 1.3; color: var(--dim); }
 .shaft-vs .vs-label { font: 600 10px/1.2 var(--sans); text-transform: uppercase; letter-spacing: .06em; align-self: center; }
 .shaft-vs .vs-term { white-space: nowrap; }
+/* QA 0c6e126: a lineage change's move (`buy · D5 ≈ ±9`) beside the edit's line, in its look */
+.shaft-lm { display: flex; justify-content: flex-end; align-items: baseline; font-size: 12px; line-height: 1.3; color: var(--dim); margin-right: 10px; }
+.shaft-lm .vs-label { font: 600 10px/1.2 var(--sans); text-transform: uppercase; letter-spacing: .06em; align-self: center; }
+.shaft-lm .sep { font-style: normal; white-space: pre; }
+.shaft-lm .dlt.up { color: var(--ok, #7fd08a); } .shaft-lm .dlt.down { color: var(--hp); }
 .shaft-vs .vs-term .sep { font-style: normal; white-space: pre; }
 .shaft-vs .vs-term b { margin-left: 1px; }
 .fc-vs .shaft-vs { justify-content: flex-start; padding-top: 2px; }
@@ -1067,8 +1072,11 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .shaft-ends .end b .vsm { position: absolute; right: -2px; top: -8px; margin: 0; font-size: 8px; line-height: 1; }
 /* QA 778fa1b (qaV: the `vs last` strip drew over R4, `rest 20m` and the shaft's `death 12%` / `~$104`): the line is a row of its own
    under the well (the well-wrap's second row), outside the scroll — always in view, never over a number */
-.camp .well-wrap { grid-template-rows: minmax(0, 1fr) auto; }
-.camp .well-wrap > .panel-host { grid-area: 1 / 1 / 3 / 2; }
+.camp .well-wrap { grid-template-rows: minmax(0, 1fr) auto auto; }
+.camp .well-wrap > .panel-host { grid-area: 1 / 1 / 4 / 2; }
+/* QA 0c6e126 (qaZ): the rest line under the well, outside its scroll — never cut by the console */
+.camp .well-wrap > .rest-line { grid-area: 3 / 1; margin: 0; padding: 2px 12px 4px; background: rgba(12, 9, 7, .92); }
+.camp .well-wrap > .rest-line[hidden] { display: none; }
 .camp .well-wrap > .shaft-vs-host { grid-area: 2 / 1; position: static; margin: 0; padding: 3px 12px 4px; background: rgba(12, 9, 7, .92); border-top: 1px solid #3a2e22; pointer-events: auto; }
 /* QA 778fa1b (qaV: `REST 20M` over a fading `RETURNED $96`): the rest beat cuts the callout line at once (no fade under the banner) */
 .ticker.cut { visibility: hidden; transition: none; }
@@ -1150,3 +1158,6 @@ button.r.row-link { display: inline; min-height: 0; text-align: left; text-decor
 .look-sheet .look.on .look-well { box-shadow: 0 0 0 4px #c9a24a, 0 0 0 5px #000, 0 0 12px rgba(201, 162, 74, .6); }
 .look-sheet .look-name { font-size: 12px; opacity: .8; }
 .look-sheet .look.on .look-name { opacity: 1; color: #8a5a16; font-weight: 700; }
+/* QA 0c6e126 (qaY): a stalled / driven tile reaches its lines (report.ts `reach`) */
+.report .tile.tile-link { cursor: pointer; }
+.report .exit-row.flash { animation: hl-tablet 1.6s ease-out; }

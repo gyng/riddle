@@ -27,7 +27,15 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
       h("td", null, `${t.hp}`),
       h("td", null, `${t.foes}`),
       tele ? h("td", { class: "tele" }, t.telegraphs.join(" · ")) : "",
-    ))));
+    )),
+    // QA 0c6e126 (qaY: "the last row is never the killing blow — 05 ends at `hp 1`"): a death's table ends on the blow that killed —
+    // its tick, what hit and for how much, `hp 0` (engine data: `Trace.blow`)
+    ...(trace.blow ? [h("tr", { class: "blow" },
+      h("td", null, `${trace.blow.t}`),
+      h("td", { class: "r" }, trace.blow.by.replace(/_/g, " "), " ", h("small", { class: "dim" }, `−${trace.blow.dmg}`)),
+      h("td", null, `${trace.blow.hp}`),
+      h("td", null, `${turns[turns.length - 1]?.foes ?? ""}`),
+      tele ? h("td", { class: "tele" }) : "")] : [])));
   const chain = chainOf(trace, { window: rows, ...ctx });
   if (chain) return [table, chain];
   const lastRows = turns[turns.length - 1]?.rows ?? [];
@@ -41,7 +49,7 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
 export function traceChip(trace: Trace | undefined, cls = "chip mini", ctx: ChainCtx = {}, head?: string, label?: string): HTMLElement | null {
   if (!trace?.turns.length) return null;
   // Cut 14 §4: `label` names the chip's exit (`D5 · died · trace`, ui/report.ts); the plain chip stays `trace`
-  const home = !!head && /^(banked|returned)\b/.test(head);   // the exit line's first word is the tier (engine data)
+  const home = ctx.home ?? (!!head && /^(banked|returned|driven)\b/.test(head));   // the exit line's first word is the tier (engine data)
   return h("button", { class: cls, onclick: () => openSheet(() => h("div", { class: "sheet-body trace-sheet" },
     h("div", { class: "label row-label" }, /* copy:label */ "trace"),
     head ? h("div", { class: "trace-head ledger-line num dim" }, head) : null,

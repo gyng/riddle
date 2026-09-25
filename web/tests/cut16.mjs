@@ -99,7 +99,7 @@ try {
   await waitFor((x) => x?.screen === "report", "the report");
   await sleep(200);
   let line = await page.evaluate(() => { const e = document.querySelector(".report .picked-line"); return e ? { text: e.textContent, dim: e.classList.contains("dim") } : null; });
-  check(line?.text === "D3–4 · D6 · thinned" && line.dim, `the report's thinned depths in one dim line ("${line?.text}")`);
+  check(line?.text === "D3–4 · D6 · loot thinned" && line.dim, `the report's thinned depths in one dim line ("${line?.text}")`);
   await shot("02-report-picked");
   await emptyReport({});
   await sleep(150);
@@ -109,7 +109,7 @@ try {
   await waitFor((x) => x?.booted && x.screen === "camp", "camp with picked depths");
   const fcPicked = async () => { const t = Date.now(); let v = null; while (Date.now() - t < 8000) { v = await page.evaluate(() => { const e = document.querySelector(".forecast .fc-picked"); return e && !e.hidden ? e.textContent : null; }); if (v) break; await sleep(100); } return v; };
   const fp = await fcPicked();
-  check(fp === "D2–3 · thinned", `the camp's forecast says it ("${fp}")`);
+  check(fp === "D2–3 · loot thinned", `the camp's forecast says it ("${fp}")`);
   await shot("03-forecast-picked");
   check(await patchSave((e) => { delete e.lineage.picked; }), "the save drops picked");
   await waitFor((x) => x?.booted && x.screen === "camp", "camp without picked depths");

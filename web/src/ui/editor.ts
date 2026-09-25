@@ -16,7 +16,7 @@
 // none) and the picker never offers a card another row already holds.
 import type { App } from "../app";
 import type { Cond, Row, RowWhy, RuleSet, Verb, Vocabulary } from "../engine/types";
-import { h, clear, flash } from "./dom";
+import { h, clear, flash, twoTap } from "./dom";
 import { openSheet } from "./sheet";
 import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, sameCond, sameVerb, verbLabel } from "./tokens";
 
@@ -112,7 +112,9 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`, cards ? /* copy:callout */ " rows" : "", cards ? h("small", { class: "dim cards" }, /* copy:callout */ ` + ${cards} card${cards === 1 ? "" : "s"}`) : ""),
       // QA 778fa1b (qaV friction: the new `hp < 50% → …` row landed last, under `foes ≥ 1 → attack nearest`, shadowed until stepped up 4
       // times): it goes in above the first own row with no hp cond (the broad engagement rows), under the hp rows before it
-      n < max ? h("button", { class: "btn ghost", onclick: () => { const rs = rows(); const at = rs.findIndex((r) => r.verb.v !== "tactic" && !r.conds.some((c) => c.k === "hp<")); rs.splice(at < 0 ? rs.length : at, 0, defaultRow()); commit(); } }, "+") : "",
+      // QA 0c6e126 (qaY: "`+` adds `hp < 50% → attack lowest` in the middle (R3) instead of at the end, so every add needs a reorder"): the `+`
+      // under the rows adds at the end, where it sits; the new row is flashed and a ▲ moves it
+      n < max ? h("button", { class: "btn ghost", onclick: () => { const rs = rows(); rs.push(defaultRow()); hl = rs.length - 1; hlUntil = performance.now() + 1600; commit(); } }, "+") : "",
     );
     paintShadow();
     if (hl !== undefined && performance.now() < hlUntil) { const r = list.children[hl] as HTMLElement | undefined; if (r) { flash(r, "hl", Math.max(600, hlUntil - performance.now())); r.scrollIntoView({ block: "center" }); } }
@@ -183,7 +185,9 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     const updown = h("div", { class: "updown" },
       h("button", { class: "step up", disabled: i === 0, onclick: () => swap(i - 1) }, "▲"),
       h("button", { class: "step down", disabled: i >= n - 1, onclick: () => swap(i + 1) }, "▼"));
-    const x = h("button", { class: "x", onclick: () => { rows().splice(i, 1); commit(); } }, "×");
+    // QA 0c6e126 (qaY: a row's × deleted on the first tap, no undo — "my second tap deleted a second row"): the supplies' two-tap — the
+    // first arms it (`drop`), the second deletes; armed, it stays armed across a repaint until a tap elsewhere
+    const x = twoTap("×", /* copy:button */ "drop", () => { const at = rows().indexOf(row); if (at >= 0) { rows().splice(at, 1); commit(); } }, { class: "x", key: `rowx:${JSON.stringify([row.conds, row.verb])}` });
     return h("div", { class: `row tablet${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, updown, chips, x);
   }
 
@@ -268,7 +272,8 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     const row = rows()[i], w = bind.rowWhy?.()[i]; if (!row || !w) return;
     const gloss = bind.vocab().why_gloss;
     const reason = w.blocked?.why;
-    const g = glossOf(gloss, reason);
+    // QA 0c6e126 (qaY: `given up · chase given up`): a gloss that repeats its reason is not shown
+    const g0 = glossOf(gloss, reason), g = g0 && reason && g0.includes(reason) ? undefined : g0;
     const by = bind.shadowedBy?.()[i] ?? formShadow(rows(), i);
     openSheet((close) => h("div", { class: "sheet-body row-why", "data-row": i },
       h("div", { class: "label row-label" }, /* copy:label */ "why", " ", h("small", { class: "num dim" }, `R${i + 1}`)),

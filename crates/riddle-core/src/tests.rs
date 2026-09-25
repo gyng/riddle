@@ -1329,7 +1329,7 @@ fn a_set_that_dies_has_no_stall() {
 fn stall_patches_apply_as_replace_remove_or_insert() {
     use crate::offline::apply_patch;
     let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")), Row::new(vec![], Verb::new("attack"))], name: None };
-    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false };
+    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None };
     let deeper = Row::new(vec![Cond::n("hp<", 10)], Verb::new("return"));
     let r = apply_patch(&rules, &mk(deeper.clone(), 0, true, false), 8);
     assert_eq!(r.rows, vec![deeper.clone(), rules.rows[1].clone()]);
@@ -4248,7 +4248,7 @@ fn the_lineage_chronicle_has_one_line_per_ended_heir() {
     g.lineage.heir_best = 31;
     let trait_ = g.lineage.trait_.name();
     g.ascend("no_rest").unwrap();
-    assert_eq!(g.lineage.chronicle, vec![format!("♟4 the {trait_} fighter · D31 · \"fighter\" set · ascended.")]);
+    assert_eq!(g.lineage.chronicle, vec![format!("♟4 the {trait_} fighter · D31 · ascended.")], "the class's preset name is not quoted (QA on 0c6e126, qaY)");
 }
 
 /// §4: D1 always holds a situation in a room near the entrance; every run meets one on D1–5
@@ -4591,6 +4591,8 @@ fn ledger_line_reconciles_on_every_exit() {
             let verb = match tier {
                 _ if timed_out => if line.text.starts_with("stalled") { "stalled" } else { "lost thread" },
                 ExitTier::Bank => "banked",
+                // QA on 0c6e126 (qaY): a drive-off leads with its own word, the tile's
+                ExitTier::Return if line.driven.is_some() => "driven",
                 ExitTier::Return => "returned",
                 ExitTier::Death => "died",
             };
@@ -4617,7 +4619,7 @@ fn ledger_line_reconciles_on_every_exit() {
             let t = g.lineage.total_turns;
             let since: Vec<&GoldLine> = g.lineage.gold_ledger.iter().filter(|l| l.t == t).collect();
             assert!(!since.is_empty(), "seed {seed}: no ledger line for the exit at t {t} ({tail:?}; last 4: {:?})", g.lineage.gold_ledger.iter().rev().take(4).collect::<Vec<_>>());
-            let exit_line = since.iter().find(|l| l.why.starts_with("returned") || l.why.starts_with("banked") || l.why.starts_with("died") || l.why.starts_with("lost") || l.why.starts_with("stalled")).expect("exit movement");
+            let exit_line = since.iter().find(|l| crate::engine::is_exit_why(&l.why)).expect("exit movement");
             assert_eq!(exit_line.delta, line.kept, "seed {seed}: {since:?}");
             assert!(word_count(&exit_line.why) <= 3, "{}", exit_line.why);
             let salvage: i32 = since.iter().filter(|l| l.why == "salvage").map(|l| l.delta).sum();
@@ -6786,7 +6788,7 @@ fn cut11_wire_is_optional_and_snake_case() {
     let s = serde_json::to_string(&w).unwrap();
     assert_eq!(s, r#"{"row":0,"why":"no item","because":{"text":"den took the heal, D3","t":2140,"depth":3}}"#);
     assert_eq!(serde_json::from_str::<RowWhy>(&s).unwrap(), w);
-    let t = Trace { turns: vec![], provenance: None };
+    let t = Trace { turns: vec![], provenance: None, blow: None };
     assert_eq!(serde_json::to_string(&t).unwrap(), r#"{"turns":[]}"#);
     let old: Trace = serde_json::from_str(r#"{"turns":[]}"#).unwrap();
     assert_eq!(old, t);
@@ -8321,7 +8323,7 @@ fn an_insert_on_a_full_set_drops_the_least_fired_row() {
         name: None,
     };
     let new = Row::new(vec![Cond::n("hp<", 20)], Verb::new("return"));
-    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false };
+    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false, buys: None };
     let r = apply_patch(&rules, &p, 3);
     assert_eq!(r.rows, vec![new.clone(), rules.rows[1].clone(), rules.rows[2].clone()], "R1 dropped, the patch where it was measured");
     let r = apply_patch(&rules, &Patch { drops: Some(2), ..p.clone() }, 3);
@@ -8640,7 +8642,10 @@ fn the_cage_forecast_measures_each_preference() {
     assert_eq!(opts.iter().map(|o| o.pref.as_str()).collect::<Vec<_>>(), ["weapon", "armour", "potion", "scroll"]);
     let cur = opts.iter().find(|o| o.current).unwrap();
     assert_eq!((cur.pref.as_str(), cur.delta, cur.reach_delta, cur.bank_delta), ("armour", 0.0, 0.0, 0.0));
-    assert!(opts.iter().all(|o| (0.0..=1.0).contains(&o.reach) && o.depth == 4));
+    // QA on 0c6e126 (qaY): read at the frontier (best + 1) while the panel reaches it, else at the best depth
+    let reach5 = g.forecast().depths.iter().find(|d| d.depth == 5).map(|d| d.reach).unwrap_or(0.0);
+    let at = if reach5 > crate::forecast::WALL_REACH { 5 } else { 4 };
+    assert!(opts.iter().all(|o| (0.0..=1.0).contains(&o.reach) && o.depth == at), "{:?}", opts.iter().map(|o| o.depth).collect::<Vec<_>>());
     assert_eq!(g.cage_forecast(), opts, "memoised");
     // Switching the preference reads the same panels from the other side.
     g.set_vault_pref("weapon").unwrap();
@@ -8976,7 +8981,7 @@ fn a_death_the_replays_all_survive_is_dice_and_its_patches_act_on_the_floor() {
             assert!(f >= crate::trace::FIRED_BAR, "{} acts in {:.0}% of the floor's replays", p.row.describe(), f * 100.0);
         }
     }
-    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false };
+    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None };
     let f = crate::trace::floor_fired(&g, &rec, &rest).unwrap();
     assert!(f < crate::trace::FIRED_BAR, "rest acts in {:.0}% of the floor's replays", f * 100.0);
 }
@@ -10513,7 +10518,9 @@ fn a_boss_that_cannot_be_hurt_drives_the_hero_off() {
     assert_eq!(d.row, crate::facts::counter_row("goblin_warlord"));
     assert_eq!(pct, ExitTier::Return.pct(), "a set with a return row keeps the return's share");
     assert_eq!(line.kept, carried * pct / 100);
-    assert!(line.text.starts_with("returned ") && line.text.contains("no counter"), "{}", line.text);
+    // QA on 0c6e126 (qaY): the line leads with `driven` (the tile's word), the ledger's line too.
+    assert!(line.text.starts_with("driven ") && line.text.contains("by Warlord"), "{}", line.text);
+    assert!(g.lineage.gold_ledger.iter().any(|x| x.why.starts_with("driven D")), "the ledger names the drive-off");
     assert!(g.lineage.facts.iter().any(|f| f.starts_with("boss:goblin_warlord:counter")), "the counter is learned");
     // No way home written (the DEFAULT set): the drive-off keeps nothing, as a stall.
     let mut g = Game::new(5);
@@ -10666,6 +10673,49 @@ fn the_forge_keeps_its_price_and_the_kit_is_never_loot() {
     assert!(!h.inv_full(), "the kit takes no slot");
 }
 
+/// QA on 0c6e126 (qaY, qaZ): prices shown stay put — the row slot's (`+1 row $450` → `$600` overnight with no gold buy), the
+/// forge's once its tile is carved (the first salvage), and the repeat's quote (`≤$20` then `repeat −$26`); the captive's `ally`
+/// tag is no foe token.
+#[test]
+fn shown_prices_stay_put_and_ally_is_no_foe_token() {
+    let mut g = Game::new(6);
+    g.lineage.best_depth = 5;
+    crate::kit::lock_unit(&mut g.lineage);
+    let row = crate::kit::row_gold(&g.lineage, "row5");
+    g.lineage.best_depth = 8;
+    assert_eq!(crate::kit::row_gold(&g.lineage, "row5"), row, "the row's price is fixed at the first exit");
+    let mut g = Game::new(7);
+    g.lineage.best_depth = 3;
+    g.lineage.forge.insert("heal".into(), Default::default());
+    let before = crate::kit::price(&g.lineage, "weapon", 0);
+    crate::kit::lock_unit(&mut g.lineage);
+    g.lineage.best_depth = 9;
+    assert_eq!(crate::kit::price(&g.lineage, "weapon", 0), before, "the forge shown is the forge fixed");
+    // The repeat's quote holds as the shelf's price climbs.
+    let mut g = Game::new(8);
+    g.lineage.best_depth = 5;
+    g.lineage.gold = 500;
+    g.set_rules(RuleSet::parse(r#"{"rows":[{"conds":[{"k":"hp<","n":30}],"verb":{"v":"drink","a":"heal"}}]}"#).unwrap()).unwrap();
+    g.lineage.facts.insert(crate::item::ident_fact(&g.lineage.flavours, "heal").unwrap());
+    g.buy_supply("heal").unwrap();
+    g.start_run(None);
+    let quoted = *g.lineage.repeat_quote.get("heal").unwrap();
+    g.run = None;
+    g.lineage.best_depth = 9;
+    g.lineage.supplies.clear();
+    let (kinds, gold) = g.repeat_plan();
+    assert_eq!((kinds, gold), (vec!["heal".to_string()], quoted), "the badge's price is the quote");
+    g.restock();
+    assert_eq!(g.lineage.supplies.last().map(|s| s.paid), Some(quoted), "the re-pack pays the quote");
+    // No `foe: ally` / `attack ally` / `tame ally`.
+    let mut g = Game::new(9);
+    g.lineage.facts.insert("foe:captive:ally".into());
+    g.lineage.unlocks.insert("tame".into());
+    let v = crate::tokens::vocabulary(&g.lineage);
+    assert!(!v.conds.iter().any(|c| c.k == "foe_tag" && c.t.as_deref() == Some("ally")));
+    assert!(!v.verbs.iter().any(|x| x.a.as_deref() == Some("tag:ally")));
+}
+
 /// Cut 24 §5 (AK: "the warlord forecast on D9, met on D8"): the forecast names each boss on the
 /// floor he is met on; the row below keeps his `try` and says where he stands.
 #[test]
@@ -10691,4 +10741,118 @@ fn the_refine_reuses_the_first_pass() {
     let cold = g.clone().forecast_refine();
     let _ = g.forecast();
     assert_eq!(g.forecast_refine(), cold);
+}
+
+/// QA on 0c6e126 (qaY, seed 2401: ♟1's trace ended at `hp 1`, the spectral blade's blow unseen):
+/// a death's trace ends on the killing blow — after the last action, at 0 hp, naming the killer;
+/// the exit's own trace carries it too.
+#[test]
+fn a_death_trace_ends_on_the_killing_blow() {
+    let mut g = Game::new(2401);
+    g.send();
+    let mut exit_trace = None;
+    loop {
+        let r = g.step(200);
+        for e in &r.events {
+            if let Ev::Exit { trace, .. } = e {
+                exit_trace = trace.clone();
+            }
+        }
+        if r.run_over {
+            g.auto_keep();
+            break;
+        }
+    }
+    let d = g.death(1).expect("♟1 dies on D5");
+    let b = d.trace.blow.clone().expect("a blow");
+    assert_eq!((b.hp, b.by.as_str()), (0, "spectral_blade"));
+    assert!(b.dmg > 0 && b.t >= d.trace.turns.last().unwrap().t, "{b:?}");
+    assert_eq!(exit_trace.and_then(|t| t.blow), Some(b));
+}
+
+/// QA on 0c6e126 (qaY: `hp < 20% → drink invisibility · survives 92%` offered and applied; the
+/// next heir carried none — `blocked · no item · none in pack`): a patch's named item is carried
+/// by the next heir, or the patch comes with its purchase (its reach measured with it bought),
+/// or it is not offered.
+#[test]
+fn a_patch_needing_an_item_comes_with_its_purchase_or_not_at_all() {
+    let play = |gold: i32| {
+        let mut g = Game::new(2401);
+        g.send();
+        loop {
+            let r = g.step(200);
+            if r.run_over {
+                g.auto_keep();
+                break;
+            }
+        }
+        g.lineage.gold = gold;
+        let d = g.death(1).unwrap();
+        let camp = crate::trace::camp_state(&g);
+        let pack = crate::trace::next_pack_kinds(&camp);
+        for p in &d.patches {
+            if let Some(k) = crate::trace::row_item(&p.row) {
+                assert!(pack.contains(k) || p.buys.as_ref().is_some_and(|b| b.kind == k && b.price <= gold), "{} · {:?}", p.row.describe(), p.buys);
+            }
+        }
+        d.patches.iter().find(|p| crate::trace::row_item(&p.row) == Some("invisibility")).map(|p| p.buys.clone())
+    };
+    let rich = play(40).expect("the invisibility patch is offered with its purchase");
+    assert_eq!(rich.as_ref().map(|b| b.kind.as_str()), Some("invisibility"));
+    assert!(play(0).is_none(), "an unaffordable item's patch is not offered");
+}
+
+/// QA on 0c6e126 (qaY: `♟6 · D8 · … left bones on D6` — "bones two floors above his depth"): an
+/// heir who fell shallower than his best reads `best D8`; the fall on his best floor stays `D7`.
+/// qaZ (`avenged Vrak` for a name never shown): the death that makes a grudge names it on its line.
+#[test]
+fn an_heir_who_fell_above_his_best_reads_best() {
+    let mut g = arena();
+    g.lineage.trait_ = crate::hero::Trait::Greedy;
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Greedy;
+    g.lineage.heir_best = 8;
+    g.run.as_mut().unwrap().max_depth = 6;
+    g.run.as_mut().unwrap().depth = 6;
+    give(&mut g, "sword");
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::damage_hero(run, &mut cx, 99, &crate::turn::Src::Gas);
+    }
+    g.finish_run();
+    let line = g.lineage.chronicle.last().unwrap();
+    assert!(line.contains(" · best D8 · ") && line.ends_with("left bones on D6."), "{line}");
+    // on his best floor, the plain depth
+    g.lineage.heir_best = 3;
+    g.lineage.chronicle_heir_at("fell to gas", Some("left bones on D3".into()), Some(3));
+    assert!(g.lineage.chronicle.last().unwrap().contains(" · D3 · "), "{:?}", g.lineage.chronicle);
+}
+
+/// QA on 0c6e126 (qaZ: `new find: axe, leash` — the leash the free supply; qaY: FOUND `mail +1`, the
+/// vault's piece the send carried out and back): a kind the send packed is no find, and what the
+/// send brought from the vault is no find of the absence.
+#[test]
+fn packed_and_brought_are_not_finds() {
+    let mut g = Game::new(11);
+    g.lineage.found_kinds.insert("sword".into());
+    let mut mail = crate::item::Item::new(g.lineage.next_vault_id, "mail");
+    g.lineage.next_vault_id += 1;
+    mail.enchant = 1;
+    let mail_id = mail.id;
+    g.lineage.vault.push(mail);
+    g.loadout(vec![mail_id]);
+    g.lineage.rest_left = 0;
+    g.start_run(None);
+    assert!(g.run.as_ref().unwrap().packed.iter().any(|k| k == "leash") || g.lineage.kennel_declined, "the kennel's leash is packed");
+    {
+        let run = g.run.as_mut().unwrap();
+        run.found_units.push((777_001, "leash".into()));
+        run.over = Some(ExitTier::Bank);
+    }
+    let news = { let run = g.run.as_ref().unwrap(); g.run_news(run, ExitTier::Bank, 100) };
+    assert!(!news.iter().any(|n| n.text.contains("leash")), "{news:?}");
+    g.finish_run();
+    assert!(!g.batch.new_finds.iter().any(|k| k == "leash"), "{:?}", g.batch.new_finds);
+    g.auto_keep();
+    assert!(g.lineage.vault.iter().any(|v| v.kind == "mail"), "the mail went back to the vault");
+    assert!(!g.batch.found.iter().any(|v| v.kind == "mail"), "the brought mail is no find: {:?}", g.batch.found.iter().map(|v| v.kind.clone()).collect::<Vec<_>>());
 }

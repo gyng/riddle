@@ -186,7 +186,7 @@ try {
     const notch = await page.evaluate(() => ({ d8: document.querySelector('.shaft .notch[data-d="8"] .dl')?.textContent ?? null, d9: document.querySelector('.shaft .notch[data-d="9"] .dl')?.textContent ?? null }));
     await page.locator(".shaft").click({ timeout: 5000 }); await sleep(250);
     const bars = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".panel .fc-bars .bar")].map((b) => [b.querySelector(".d")?.textContent, { text: b.textContent.replace(/\s+/g, " ").trim(), try: !!b.querySelector(".try") }])));
-    check(f && notch.d8 === "D8 · warlord" && notch.d9 === "D9 · warlord", `the shaft names him on his floor and his wall below (${notch.d8} | ${notch.d9})`);
+    check(f && notch.d8 === "D8 · warlord" && notch.d9 === "D9 · wall", `the shaft names him on his floor and his wall below (QA 0c6e126, qaY: the wall under his named floor reads \`· wall\`, never a second warlord) (${notch.d8} | ${notch.d9})`);
     check(bars.D8?.try && /try: attack boss/.test(bars.D8.text) && /warlord/.test(bars.D8.text) && !bars.D9?.try && /warlord wall/.test(bars.D9?.text ?? ""), `the panel reads his counter on D8, where he is met (D8: "${bars.D8?.text}" · D9: "${bars.D9?.text}")`);
     await shot("cut24-boss-floor");
     await page.keyboard.press("Escape"); await sleep(150);

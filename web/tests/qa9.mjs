@@ -134,6 +134,7 @@ try {
   check(s?.label === "card: thief guard" && !s.buttons.includes("add") && !s.buttons.includes("buy"), `the owned sheet is titled, no add while the set holds the row: [${s?.buttons.join(", ")}]`);
   await page.keyboard.press("Escape"); await sleep(150);
   await page.keyboard.press("Escape"); await sleep(150);   // the panel
+  await page.locator(".editor .row").nth(1).locator(".x").click({ timeout: 5000 }); await sleep(150);   // QA 0c6e126 (qaY): two taps — arm, then drop
   await page.locator(".editor .row").nth(1).locator(".x").click({ timeout: 5000 }); await sleep(400);
   rs = await rows();
   check(rs.length === 2 && !rs.some((r) => r.card), "the card row dropped");

@@ -68,10 +68,15 @@ function firesOf(app: App, trace?: Trace): number[] {
 export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: boolean; select?: (btn: HTMLButtonElement) => void;
   /** QA 912e135 (qaW: `survives 100% · unpatched 50%` read as the run surviving, and as "a coin flip" under GAP): the floor of the death
    *  the shares are replays of — a head over the block says so (`D6 death · replayed`) */
-  moment?: number };
+  moment?: number;
+  /** QA 0c6e126 (qaY: `unpatched 58%` on two unrelated deaths — "a shared cache?"; three patches `survives 92%` read as the run's odds):
+   *  the replays the shares count (`Death.replays`) — `survives 11/12 · unpatched 7/12`, the count of this death's replays, never a % */
+  replays?: number };
+/** A replay share as its count (`11/12`) when the replays are known, else a %. */
+const replayShare = (x: number, n?: number): string => n ? `${Math.round(x * n)}/${n}` : pct(x);
 export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace, opts: PatchOpts = {}): HTMLElement {
   const head = opts.nothingBeatsBase && patches.length
-    ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `nothing beats unpatched ${pct(baseline ?? 1)}`) : null;
+    ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `nothing beats unpatched ${replayShare(baseline ?? 1, opts.replays)}`) : null;
   // QA 778fa1b (qaU: PLATEAU `base 8%` on patch 1, `base 9%` on patch 2 — "two bases for one lineage"): a stall block has one base, the
   // unpatched reach (the first patch's reach less its move, unrounded), and each patch's move is its rounded reach less it
   const lead = baseline === undefined ? patches.find((p) => !p.below_bar) : undefined;
@@ -100,15 +105,16 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     // QA a946e04 (T: `retreat · survives 75% · base 75%` listed like a fix): a death patch that survives no more than the rules as they
     // are changes nothing — dim, `no gain`
     const noGain = baseline !== undefined && !opts.stall && !p.below_bar && held < 0 && !unlock && Math.round(p.survive * 100) <= Math.round(baseline * 100);
+    const rs = (x: number): string => replayShare(x, opts.replays);
     const line = held >= 0
       ? /* copy:callout */ `at R${held + 1}`
       : p.below_bar
-      ? opts.nothingBeatsBase ? /* copy:callout */ `survives ${pct(p.survive)}` : /* copy:callout */ `survives ${pct(p.survive)} · below bar`
+      ? opts.nothingBeatsBase ? /* copy:callout */ `survives ${rs(p.survive)}` : /* copy:callout */ `survives ${rs(p.survive)} · below bar`
       : baseline === undefined
         ? /* copy:callout */ `reach ${opts.depth !== undefined ? `D${opts.depth} ` : ""}${pct(p.survive)} · base ${Math.max(0, Math.round(p.survive * 100) - delta)}%`
         // QA a946e04 (S: `base 25%` on every patch — "the base of what?"): the rules as they ran, replayed — `unpatched 25%`
-        : opts.stall ? /* copy:callout */ `unstuck ${pct(p.survive)} · unpatched ${pct(baseline)}`
-        : noGain ? /* copy:callout */ `survives ${pct(p.survive)} · no gain` : /* copy:callout */ `survives ${pct(p.survive)} · unpatched ${pct(baseline)}`;
+        : opts.stall ? /* copy:callout */ `unstuck ${rs(p.survive)} · unpatched ${rs(baseline)}`
+        : noGain ? /* copy:callout */ `survives ${rs(p.survive)} · no gain` : /* copy:callout */ `survives ${rs(p.survive)} · unpatched ${rs(baseline)}`;
     const onclick = unlock
       ? async (): Promise<void> => {
           const id = unlockOf(app, p);
@@ -126,20 +132,27 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
           // (the patch was measured with it); without one, the sheet asks
           ? named >= 0 ? (): void => { const i = app.applyPatchOver(p, named); app.go({ kind: "camp", highlight: i }); } : (): void => openDropSheet(app, p, trace)
           : (): void => { const i = app.applyPatch(p); app.go({ kind: "camp", highlight: i }); };
-    const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : rowLabel(p.row), dropTag);
+    // QA 0c6e126 (qaY: `drink invisibility` applied and the next heir had none — `blocked · no item · none in pack`): a row whose item the
+    // next heir will not carry comes with its purchase (`Patch.buys`, its reach measured with it bought): the tap buys it, then applies;
+    // a refused buy (the purse moved since) applies nothing
+    const act = p.buys && !unlock && held < 0
+      ? async (): Promise<void> => { if (!(await app.mutate(() => app.engine.buySupply(p.buys!.kind)))) return; await onclick(); }
+      : onclick;
+    const buyTag = p.buys && !unlock && held < 0 ? h("small", { class: "num buy-tag gold" }, /* copy:callout */ ` · + ${p.buys.label} $${p.buys.price}`) : "";
+    const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : rowLabel(p.row), dropTag, buyTag);
     // an unlock's second line is the row it inserts once bought; a root patch's is the chain's root it answers
     const root = unlock ? (p.root ? h("small", { class: "dim" }, rowLabel(p.row)) : "") : p.root ? h("small", { class: "root" }, "← ", p.root.text) : "";
     // QA 1a2a4a9 (O: "tapping a patch card applied it and jumped to camp; I meant to select it"): with `opts.select` (the death screen)
     // a tap lights the tablet and the gem applies the lit one — one model: tablets choose, the gem acts
     const btn: HTMLButtonElement = h("button", { class: `patch tablet${p.remove ? " remove" : ""}${p.below_bar || held >= 0 || opts.nothingBeatsBase || noGain ? " below" : ""}${noGain ? " no-gain" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
-      onclick: opts.select ? () => opts.select!(btn) : onclick, ...(full ? { "data-full": "1" } : {}) },
+      onclick: opts.select ? () => opts.select!(btn) : act, ...(full ? { "data-full": "1" } : {}), ...(p.buys ? { "data-buys": p.buys.kind } : {}) },
       h("b", { class: "rank num", "aria-hidden": "true" }), h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
         // Cut 17 §4: `survives N %` as a gauge on the patch tablet (the number stays beside it)
         unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
         h("span", { class: "num surv" }, line),
         reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish)));
-    applyOf.set(btn, onclick);
+    applyOf.set(btn, act);
     return btn;
   });
   // Cut 20 §4 (AD: "`nothing beats base` … but lists three patches anyway"): under that header the candidates are no patches — dim,
@@ -149,8 +162,12 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const more: HTMLButtonElement = h("button", { class: "mini more patches-more", onclick: () => { fold.hidden = false; more.remove(); } }, /* copy:button */ "others", h("small", { class: "num dim" }, ` ${rows.length}`));
     const box = h("div", { class: "patches none-beats" }, head, more, fold); renumber(fold); return box;
   }
+  // QA 0c6e126 (qaZ: three patches all `survives 100% · unpatched 83%` — "I could not tell which the gem ranks first or why"): when the
+  // offered patches survive alike the head says so (`tied`): their order is then the reach's, once it lands, else the set's shape
+  const offered = patches.filter((p) => !p.below_bar && p.insert_at >= 0);
+  const tied = offered.length > 1 && offered.every((p) => Math.round(p.survive * 100) === Math.round(offered[0].survive * 100));
   const moment = opts.moment !== undefined && baseline !== undefined && !opts.stall && rows.length
-    ? h("div", { class: "patches-moment num dim" }, /* copy:callout */ `D${opts.moment} death · replayed`) : null;
+    ? h("div", { class: "patches-moment num dim" }, /* copy:callout */ `D${opts.moment} death · replayed`, tied ? h("span", { class: "tied" }, /* copy:callout */ " · tied") : "") : null;
   const box = h("div", { class: "patches" }, moment, ...rows); renumber(box); return box;
 }
 /** QA e75ec29 (Q: "I read the gem as the best fix … rank by what is shown or show the ranking key"): the tablets carry their place

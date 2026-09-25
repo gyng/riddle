@@ -267,7 +267,14 @@ pub fn cage_forecast(game: &Game) -> Vec<crate::wire::CageOption> {
     // The bar the reach is read at: the set's bank row's depth (`depth ≥ d → bank`), else the
     // lineage's best depth.
     let bank_depth = rules.rows.iter().filter(|r| r.verb.v == "bank").filter_map(|r| r.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n)).map(|n| n.max(1) as u32).min();
-    let depth = bank_depth.unwrap_or(game.lineage.best_depth).clamp(1, game.lineage.best_depth + 1);
+    // QA on 0c6e126 (qaY: `armour D5 +10` on the sheet, then the camp's D6 25 → 72 % on the tap): with no bank row the reach is read
+    // at the frontier the camp leads with (best + 1, `vsLine`'s head) while the current panel still reaches it (over `WALL_REACH`),
+    // else at the best depth.
+    let base_panel = camp_panel(game, &rules, sims);
+    let frontier = game.lineage.best_depth + 1;
+    let at_frontier = base_panel.iter().filter(|r| r.max_depth >= frontier).count() as f64 / base_panel.len().max(1) as f64;
+    let open = if at_frontier > WALL_REACH + 1e-9 { frontier } else { game.lineage.best_depth };
+    let depth = bank_depth.unwrap_or(open).clamp(1, game.lineage.best_depth + 1);
     /// (reach at `depth`, bank share, gold per send, sims).
     type Read = (f64, f64, f64, usize);
     let read = |ended: &[SimResult]| -> Read {
@@ -278,7 +285,7 @@ pub fn cage_forecast(game: &Game) -> Vec<crate::wire::CageOption> {
         (reach, bank, gold, ended.len())
     };
     let current = game.lineage.vault_pref.clone();
-    let base = read(&camp_panel(game, &rules, sims));
+    let base = read(&base_panel);
     const PREFS: [&str; 4] = ["weapon", "armour", "potion", "scroll"];
     let others: Vec<&str> = PREFS.iter().copied().filter(|p| *p != current).collect();
     let measured: Vec<(Read, BTreeMap<String, Vec<SimResult>>)> = others

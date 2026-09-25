@@ -795,7 +795,8 @@ pub const WHY_GLOSS: &[(&str, &str)] = &[
     ("no way", "exit unreachable"),
     ("card passed", "its rows idle"),
     ("card idle", "no trigger foe"),
-    ("given up", "chase given up"),
+    // QA on 0c6e126 (qaY: `given up · chase given up` — one segment twice): the gloss says what the reason did not
+    ("given up", "out of reach"),
     ("foes fleeing", "foes running off"),
     ("card blocked", "its move blocked"),
     ("brave held", "bravery held it"),
@@ -1441,6 +1442,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         run.hero.hp = 0;
         run.death_cause = Some(cause.to_string());
         run.death_blow = dmg;
+        run.death_t = Some(run.turn);
         cx.events.push(Ev::Die { t: run.turn, id: HERO_ID, cause: cause.into() });
         let depth = run.depth;
         note(run, cx, format!("Slain by {} on D{}.", crate::engine::kind_title(cause), depth));
@@ -2447,10 +2449,15 @@ pub fn pray(run: &mut Run, cx: &mut Ctx, want_row: bool) {
 /// A pack swap's move of the carried gold (`raw`: the find's value less what the dropped
 /// item counted): what it took off the carry, in coins as the stake shows it, is the run's
 /// `swapped` (QA on 778fa1b: `−$37 swapped` on the strip, in no ledger).
-fn swap_loot(run: &mut Run, raw: i32) {
+fn swap_loot(run: &mut Run, cx: &Ctx, raw: i32, dropped: &crate::item::Item) {
     let before = run.loot;
     run.loot_add(raw);
-    run.swapped += (before - run.loot).max(0);
+    let cost = (before - run.loot).max(0);
+    run.swapped += cost;
+    if cost > 0 {
+        let (_, _, label) = crate::item::describe(dropped, cx.facts, cx.flavours);
+        run.swap_left.push(label);
+    }
 }
 
 /// Pick up whatever lies on the hero's tile. Cut 20 §1: an item a thief stole this run,
@@ -2574,7 +2581,8 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
                 let here = run.hero.pos;
                 let it = run.items.remove(ii).item;
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
-                swap_loot(run, it.value() - run.loot_value(&dropped));
+                let raw = it.value() - run.loot_value(&dropped);
+                swap_loot(run, cx, raw, &dropped);
                 crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
                 crate::provenance::found(run, cx, &it.kind, &label);
                 run.note_gone(dropped.id, &dropped.kind, "left", dropped.amount.max(1));
@@ -2600,7 +2608,8 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
                 let here = run.hero.pos;
                 let it = run.items.remove(ii).item;
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
-                swap_loot(run, it.value() - run.loot_value(&dropped));
+                let raw = it.value() - run.loot_value(&dropped);
+                swap_loot(run, cx, raw, &dropped);
                 crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
                 crate::provenance::found(run, cx, &it.kind, &label);
                 run.note_gone(dropped.id, &dropped.kind, "left", dropped.amount.max(1));

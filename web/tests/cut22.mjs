@@ -168,7 +168,8 @@ try {
   // the cage picker
   await page.locator(".camp .cage-tab").click({ timeout: 5000 }); await sleep(150);
   const cage = await until(async () => { const o = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .cage-opt")].map((b) => b.textContent.replace(/\s+/g, " ").trim())); return o.length === 4 && !o.some((x) => x.includes("…")) ? o : null; }, "the cage picker");
-  check(cage.filter((c) => /[+−]/.test(c)).length >= 1 && cage.every((c) => !/[+−]\d+%/.test(c)), `the cage picker's moves are signed points (${cage.join(" | ")})`);
+  // QA 0c6e126 (qaZ): each option reads its level (`D4 88%`), its move a mark in points (`▲28`) — never a signed `%`
+  check(cage.filter((c) => /[+−▲▼]\d/.test(c)).length >= 1 && cage.every((c) => !/[+−▲▼]\d+%/.test(c)), `the cage picker's moves are signed points (${cage.join(" | ")})`);
   await closeSheets();
   // every delta the camp shows: signed, never `%`, in the delta look
   await page.evaluate(() => {

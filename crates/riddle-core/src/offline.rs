@@ -245,6 +245,7 @@ pub(crate) fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collec
         learned,
         bests: b.bests.clone(),
         found: b.found.iter().map(|i| to_inv(i, &game.lineage.facts, &game.lineage.flavours)).collect(),
+        new_finds: b.new_finds.clone(),
         deaths,
         pending,
         reel,
@@ -379,13 +380,13 @@ pub fn apply_patch(rules: &RuleSet, p: &Patch, max_rows: usize) -> RuleSet {
 /// when the forecast at depth + 1 moves by more than `STALL_DELTA`, ranked by delta.
 fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: u32) -> Vec<Patch> {
     let target = depth + 1;
-    let sims = crate::forecast::DELTA_SIMS;
+    let sims = crate::forecast::FORECAST_SIMS;
     let max_rows = game.lineage.max_rows();
     let vocab = game.vocabulary();
     let has_verb = |v: &Verb| vocab.verbs.contains(v);
     let has_cond = |k: &str, t: Option<&str>| vocab.conds.iter().any(|c| c.k == k && (t.is_none() || c.t.as_deref() == t));
     let present = |r: &Row| rules.rows.contains(r);
-    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false };
+    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None };
     let mut cands: Vec<Patch> = Vec::new();
     // (a) the ending row, its threshold pushed deeper.
     let mut deeper = ending.clone();
@@ -435,9 +436,14 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     if !rules.rows.iter().any(|r| r.verb.v == "rest") && has_verb(&rest.verb) && has_cond("hp<", None) {
         cands.push(patch(rest, 0, false, false));
     }
-    let base = crate::forecast::reach_with(game, rules, target, sims, 0x57A11);
+    // QA on 0c6e126 (qaZ: PLATEAU `reach D7 17% · base 8%` between the camp's `D7 16%` and `21%` for the same set): the base
+    // is the camp's own measure — its first pass's seeds (`forecast_tag` at the lineage's frontier) and sims — and every
+    // candidate replays exactly those, so the plateau's base is the camp's number and a patch's reach its paired move.
+    let tag = crate::forecast::forecast_tag(game, game.lineage.best_depth + 1);
+    let budget = crate::forecast::CAMP_TICK_BUDGET;
+    let (base, n) = crate::forecast::reach_counted(game, rules, target, sims, tag, budget);
     for p in cands.iter_mut() {
-        let r = crate::forecast::reach_with(game, &apply_patch(rules, p, max_rows), target, sims, 0x57A11);
+        let r = crate::forecast::reach_paired(game, &apply_patch(rules, p, max_rows), target, n, tag);
         p.survive = r;
         p.forecast_delta = r - base;
     }

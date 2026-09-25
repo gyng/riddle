@@ -15,6 +15,12 @@ pub fn known_tags(l: &LineageState) -> Vec<&'static str> {
     all_tags().into_iter().filter(|t| has_tag_fact(&l.facts, t)).collect()
 }
 
+/// QA on 0c6e126 (qaY: `foe: ally`, `attack ally`, `tame ally` in the pickers with no ally anywhere): the captive's `ally` tag names
+/// no foe — the editor's foe tags leave it out (the captive has its own tokens: `on_see: captive`, `free captive`).
+pub fn foe_tags(l: &LineageState) -> Vec<&'static str> {
+    known_tags(l).into_iter().filter(|t| *t != "ally").collect()
+}
+
 pub fn identified_kinds(l: &LineageState, cat: Cat) -> Vec<&'static str> {
     ITEMS.iter().filter(|i| i.cat == cat && is_identified(&l.facts, &l.flavours, i.kind)).map(|i| i.kind).collect()
 }
@@ -54,7 +60,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
             conds.push(Cond::flag(k));
         }
     }
-    for t in known_tags(l) {
+    for t in foe_tags(l) {
         conds.push(Cond::t("foe_tag", t));
     }
     for i in ITEMS {
@@ -93,7 +99,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
         }
     }
     let mut verbs = vec![Verb::arg("attack", "nearest"), Verb::arg("attack", "lowest")];
-    for t in known_tags(l) {
+    for t in foe_tags(l) {
         verbs.push(Verb::arg("attack", &format!("tag:{t}")));
     }
     verbs.push(Verb::new("retreat"));
@@ -139,7 +145,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
             "shoot" | "bolt" | "mark" | "slow" | "double_shot" => {
                 verbs.push(Verb::arg(verb, "nearest"));
                 verbs.push(Verb::arg(verb, "lowest"));
-                for t in known_tags(l) {
+                for t in foe_tags(l) {
                     verbs.push(Verb::arg(verb, &format!("tag:{t}")));
                 }
             }
@@ -157,7 +163,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
     }
     if l.unlocks.contains("tame") {
         verbs.push(Verb::arg("tame", "nearest"));
-        for t in known_tags(l) {
+        for t in foe_tags(l) {
             verbs.push(Verb::arg("tame", &format!("tag:{t}")));
         }
     }
@@ -249,7 +255,7 @@ pub fn companion_vocabulary(l: &LineageState, c: &Companion) -> Vocabulary {
         Cond::n("alert>=", 3),
         Cond::n("turns>", 100),
     ];
-    for t in known_tags(l) {
+    for t in foe_tags(l) {
         conds.push(Cond::t("foe_tag", t));
     }
     let mut verbs = vec![Verb::new("attack")];

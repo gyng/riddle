@@ -95,7 +95,8 @@ async function qaK() {
   check(!!d.topPatch && d.topPatch[1] <= d.consoleTop && d.scroll === 0, `the top patch is whole above the console at 400 × 800, unscrolled (${d.topPatch?.map(Math.round).join("–")} ≤ ${Math.round(d.consoleTop)})`);
   check(d.gemN === "100%" && d.gemW === "apply", `the gem reads its number over the word \`apply\` ("${d.gemN}" / "${d.gemW}")`);
   check(d.heads.join(",") === "t,R,hp,foes", `no empty \`tele\` column (${d.heads.join(",")})`);
-  check(/^died \$0 · \$111 carried · bones/.test(d.ledger ?? ""), `a death's line says \`died $0\` once, no \`keeps 0%\` after it ("${d.ledger}")`);
+  // QA 0c6e126 (qaZ: `died $0` read as "died carrying $0"): the kept and the carried named apart — `died · kept $0 · $111 carried`
+  check(/^died · kept \$0 · \$111 carried · bones/.test(d.ledger ?? ""), `a death's line says \`kept $0\` once, no \`keeps 0%\` after it ("${d.ledger}")`);
   await shot("ui-qaK-death");
   // QA 912e135 (qaW: the seal, the banner, the trace rows and `R1 no item` answered no tap; the header's `$40` was no button here): each
   // is a button — the header opens GOLD, a row's name opens the editor on it
@@ -105,9 +106,15 @@ async function qaK() {
   await page.locator(".death .topbar button.stat.gold").click({ timeout: 3000 }); await sleep(250);
   check(!!(await page.locator(".sheet-wrap .gold-sheet").count()), "the death's header `$` opens the gold sheet");
   await page.keyboard.press("Escape"); await sleep(150);
+  // QA 0c6e126 (qaZ: the row's name jumped to the editor with no way back): it opens the row's sheet over the death screen; its `edit`
+  // opens the editor on the row
   await page.locator(".death button.row-link", { hasText: /^R1$/ }).first().click({ timeout: 3000 });
-  await waitFor((x) => x?.screen === "camp", "the camp from a row's name");
-  check(await page.evaluate(() => window.__riddle.editing === true), "a row's name on the death screen opens the editor");
+  await sleep(250);
+  const rs = await page.evaluate(() => ({ sheet: document.querySelector(".sheet-wrap .row-sheet")?.textContent ?? null }));
+  check(!!rs.sheet && /^R1/.test(rs.sheet) && /acted \d+\/\d+/.test(rs.sheet), `a row's name opens its sheet over the death screen ("${rs.sheet}")`);
+  await page.locator(".sheet-wrap .row-sheet button.row-edit").click({ timeout: 3000 });
+  await waitFor((x) => x?.screen === "camp", "the camp from a row's sheet");
+  check(await page.evaluate(() => window.__riddle.editing === true), "the row sheet's `edit` opens the editor");
   turns[4] = { ...turns[4], telegraphs: ["monkey reaches"] };
   await go({ kind: "death", death: { ...kDeath, trace: { turns } } }); await sleep(250);
   d = await page.evaluate(() => [...document.querySelectorAll(".death .trace thead th")].map((t) => t.textContent));
@@ -369,7 +376,7 @@ async function cut19() {
   const pending = await opt();
   await sleep(600);
   const landed = await opt();
-  check(pending.includes("armour …") && landed.join(" · ") === "weapon bank 54%* · armour bank +36 · potion bank +0 · scroll bank −5", `the picker shows each preference's delta (${pending.join(" · ")} → ${landed.join(" · ")})`);
+  check(pending.includes("armour …") && landed.join(" · ") === "weapon bank 54%* · armour bank 90% ▲36 · potion bank 54% · scroll bank 49% ▼5", `the picker shows each preference's level on one scale, its move a mark (QA 0c6e126, qaZ) (${pending.join(" · ")} → ${landed.join(" · ")})`);
   await shot("ui-cut19-cage-picker");
   await page.locator(".sheet-wrap .cage-opt[data-pref=armour]").click({ timeout: 5000 }); await sleep(400);
   const picked = await cageTab(), prefs = await page.evaluate(() => window.__riddle.__prefs);
@@ -413,7 +420,7 @@ async function cut19() {
     gold: { home: 90, salvage: 0, wake: 0, spent: 80 }, restock_capped: true };
   await page.evaluate((v) => window.__riddle.go(v), { kind: "report", report: rep }); await waitFor((x) => x?.screen === "report", "the capped report"); await sleep(300);
   const gl = await page.evaluate(() => document.querySelector(".report .gold-line")?.textContent.replace(/\s+/g, " ").trim() ?? "");
-  check(/restock ≤ income$/.test(gl), `the report says the repeat was capped (restock ≤ income) ("${gl}")`);
+  check(/restock ≤ \$90 earned$/.test(gl), `the report says the repeat was capped (restock ≤ $90 earned) ("${gl}")`);
   // ---- §4: a `row` verdict — the seal reads ROW, the headline names the row; an insert on a full set reads `+ drop R5`
   const rows = [
     { conds: [{ k: "hp<", n: 30 }], verb: { v: "drink", a: "unknown" }, origin: "player" }, { conds: [{ k: "adj>=", n: 1 }], verb: { v: "attack", a: "nearest" }, origin: "player" },

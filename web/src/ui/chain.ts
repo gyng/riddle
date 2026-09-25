@@ -92,7 +92,9 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
   // Cut 21 §3: the earlier turns' reasons (the table's window) — each tick's `because`, not only the last's
   const ticks = tickLines(ctx.window !== undefined ? trace.turns.slice(-ctx.window) : trace.turns).map((l) => l.because ? { ...l, because: restamp(l.because, l.from, ctx.depth) } : l);
   const rowLinks = [...rows.flatMap((r) => r.because ? [r.because] : []), ...ticks.flatMap((l) => l.because ? [l.because] : [])];
-  let prov = ctx.provenance ? (trace.provenance ?? []).filter((b) => !rowLinks.some((s) => sameLink(s, b))) : [];
+  // QA 0c6e126 (qaZ: under `R2 return · fired` the chain listed `swapped for the summon ally · found … · chase given up` — none of them
+  // made hp < 40%): a way home's trace keeps to its rows' own reasons; the run's provenance log is no cause of the row that fired
+  let prov = ctx.provenance && !ctx.home ? (trace.provenance ?? []).filter((b) => !rowLinks.some((s) => sameLink(s, b))) : [];
   let earlier = 0, older: Because[] = [];
   if (prov.length > PROVENANCE_SHOW) { prov = [...prov].sort((a, b) => a.t - b.t); earlier = prov.length - PROVENANCE_SHOW; older = prov.slice(0, earlier); prov = prov.slice(-PROVENANCE_SHOW); }
   const extra = [...(ctx.chain ?? []).map((b) => restamp(b, last?.t ?? b.t, ctx.depth)), ...prov];

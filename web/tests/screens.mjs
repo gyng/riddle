@@ -227,6 +227,8 @@ try {
   const card = page.locator(".unlocks .card:not(.off):not(.gated)").first();
   check(await card.count() > 0, "an affordable unlock is on the shelf");
   const bought = (await card.innerText()).split("\n")[0].trim();
+  // (the marks as they stand before the buy — the run above earned some: `< 12` held only while the first card cost more than it earned)
+  const marksBefore = await page.evaluate(() => window.__riddle.lineage.marks);
   await card.click({ timeout: 5000 }); await sleep(200);
   await lintSheet(`unlock sheet · ${bought}`);
   // Cut 15 §2: both prices on the title (`◆3 · $450`) and two buys, `◆ buy` · `$ buy`
@@ -235,7 +237,7 @@ try {
   await page.locator(".sheet-wrap button.buy.marks").click({ timeout: 5000 });
   await waitFor((x) => x?.sheets === 0, "the buy sheet closed"); await settle();
   const marksAfter = await page.evaluate(() => window.__riddle.lineage.marks);
-  check(marksAfter < 12, `bought "${bought}" (marks ${marksAfter})`);
+  check(marksAfter < marksBefore, `bought "${bought}" (marks ${marksBefore} → ${marksAfter})`);
   await lintScreen("camp (bought)");
   // Cut 15 §2: a gold buy — the lineage gets $5000; the next card's `$ buy` spends gold, not marks, and the header's $ and ◆ read
   // the returned lineage; the next gold price climbs

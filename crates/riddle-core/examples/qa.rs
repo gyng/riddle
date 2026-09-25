@@ -278,6 +278,23 @@ fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
         let ok = !counts(&head) || head.survive >= best - riddle_core::trace::SURVIVE_BAND - 1e-9;
         t.check("the top patch survives within 10 pts of the best shown", ok, || format!("seed {seed} run {}: {} {:.2} vs best {best:.2} · {}", d.run_id, head.row.describe(), head.survive, d.verdict));
     }
+    // QA on 0c6e126 (qaY: "05 ends at `hp 1`, 08 at five rows of `hp 3`"): a death's trace ends
+    // on the blow that killed — at 0 hp, after the last action, naming what hit.
+    if d.verdict != "stall" {
+        let last = d.trace.turns.last().map(|x| x.t).unwrap_or(0);
+        let ok = d.trace.blow.as_ref().is_some_and(|b| b.hp == 0 && !b.by.is_empty() && b.dmg > 0 && b.t >= last);
+        t.check("a death trace ends at 0 hp (the killing blow)", ok, || format!("seed {seed} run {}: blow {:?} · last turn t{last}", d.run_id, d.trace.blow));
+    }
+    // QA on 0c6e126 (qaY: `drink invisibility · survives 92%` applied; the next heir had none):
+    // a patch's named item is in the next heir's pack, or the patch is offered with its purchase.
+    let camp = riddle_core::trace::camp_state(g);
+    let pack = riddle_core::trace::next_pack_kinds(&camp);
+    for p in &d.patches {
+        if let Some(k) = riddle_core::trace::row_item(&p.row) {
+            let ok = pack.contains(k) || p.buys.as_ref().is_some_and(|b| b.kind == k && b.price <= camp.lineage.gold);
+            t.check("an offered patch's item is packable (carried or bought with it)", ok, || format!("seed {seed} run {}: {} · pack {pack:?} · buys {:?}", d.run_id, p.row.describe(), p.buys));
+        }
+    }
     // QA on 778fa1b: every shown patch says whether it ends the run (`exits`), and a costly
     // exit never leads a list with an alternative that beats the base.
     for p in &d.patches {
@@ -703,15 +720,58 @@ fn check_exit_found(t: &mut Tally, g: &Game, seed: u64, vault_before: &[u32], at
     t.check("an exit's kept finds are in the vault", by("kept") <= added, || format!("seed {seed} {at} run {}: kept {} · vault +{added}", line.run_id, by("kept")));
 }
 
+/// QA on 0c6e126 (qaY: `0 RETURNED · 3 DRIVEN` over three `returned` lines and a gold sheet of
+/// `returned D8 · $268 lost`; `heir purse ≥$40 ×12` beside one `+$20 heir purse`; qaZ: the
+/// headline `+$495` against a +$502 balance): an absence's report reconciles three ways — its
+/// tiles count its lines by their lead word (`banked` · `returned` · `stalled` · `lost thread`
+/// · `driven` · `died`), its lines are the gold sheet's exit lines (word and amount, one for
+/// one), and its gold terms are the ledger's (Σ kept == `home`, the purse top-ups == `wake`,
+/// home + salvage + wake − spent == the purse's move). Sliced as the client slices, on a copy.
+fn check_report_leg(t: &mut Tally, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    for slice in 0..8 {
+        let (gold0, t0) = (h.lineage.gold, h.lineage.total_turns);
+        let r = riddle_core::offline::run_offline_quick(&mut h, 1800);
+        let at = format!("slice {slice}");
+        if let Some(gs) = &r.gold {
+            let spent: i32 = r.spent.iter().map(|x| x.gold).sum();
+            t.check("the report's gold terms sum to the purse's move", gs.home + gs.salvage + gs.wake - spent == h.lineage.gold - gold0, || format!("seed {seed} {at}: +{} +{} +{} −{spent} vs {}", gs.home, gs.salvage, gs.wake, h.lineage.gold - gold0));
+        }
+        // (the slice's ledger lines are those after its first tick; a slice the ledger's cap cut into is not read)
+        let first = h.lineage.gold_ledger.iter().position(|x| x.t > t0).unwrap_or(h.lineage.gold_ledger.len());
+        if r.sampled || r.exits.len() as u32 != r.runs || (first == 0 && h.lineage.gold_ledger.len() >= GOLD_LEDGER_CAP) {
+            continue;
+        }
+        let lead = |x: &riddle_core::wire::ExitLine| -> &'static str { ["banked", "returned", "died", "stalled", "lost thread", "driven"].into_iter().find(|w| x.text.starts_with(&format!("{w} "))).unwrap_or("?") };
+        let n = |w: &str| r.exits.iter().filter(|x| lead(x) == w).count() as u32;
+        let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
+        let tiles = (r.banked, r.returned - r.stalled - r.driven, r.stalled, r.driven, deaths);
+        let lines = (n("banked"), n("returned") + n("lost thread"), n("stalled"), n("driven"), n("died"));
+        t.check("report tiles == its lines (banked · returned · stalled · driven · died)", tiles == lines, || format!("seed {seed} {at}: tiles {tiles:?} · lines {lines:?} · {:?}", r.exits.iter().map(|x| x.text.clone()).collect::<Vec<_>>()));
+        let ledger = &h.lineage.gold_ledger[first..];
+        let sheet: Vec<(String, i32)> = ledger.iter().filter(|x| riddle_core::engine::is_exit_why(&x.why)).map(|x| (x.why.split(" D").next().unwrap_or("").to_string(), x.delta)).collect();
+        let listed: Vec<(String, i32)> = r.exits.iter().map(|x| (if lead(x) == "lost thread" { "lost thread".to_string() } else { lead(x).to_string() }, x.kept)).collect();
+        t.check("report lines == the gold sheet's exit lines (word and amount)", sheet == listed, || format!("seed {seed} {at}: sheet {sheet:?} · lines {listed:?}"));
+        if let Some(gs) = &r.gold {
+            let kept: i32 = r.exits.iter().map(|x| x.kept).sum();
+            let wake: i32 = ledger.iter().filter(|x| x.why == "wake pay").map(|x| x.delta).sum();
+            let wake_lines: i32 = r.exits.iter().map(|x| x.wake).sum();
+            t.check("report gold == the gold sheet (Σ kept == home; purse top-ups == wake == the lines')", kept == gs.home && wake == gs.wake && wake_lines == gs.wake, || format!("seed {seed} {at}: kept {kept} · home {} · ledger wake {wake} · lines wake {wake_lines} · report wake {}", gs.home, gs.wake));
+        }
+    }
+}
+
 /// QA on 912e135 (qaW, qaX): an exit line's mechanics — one tier word, at its lead (`returned $0 ·
 /// … · stalled` read as two); a lead that kept nothing keeps 0; the `bones: N items` count is
 /// the pile the line lists (`ExitLine.bones`, Σ n == N; `leash ×3` counted charges).
 fn check_exit_line(t: &mut Tally, seed: u64, x: &riddle_core::wire::ExitLine, at: &str) {
-    const LEADS: [&str; 5] = ["banked ", "returned ", "died ", "stalled ", "lost thread "];
+    const LEADS: [&str; 6] = ["banked ", "returned ", "died ", "stalled ", "lost thread ", "driven "];
     let lead = LEADS.iter().find(|w| x.text.starts_with(**w)).copied();
-    let later = x.text.split(" · ").skip(1).filter(|seg| ["banked", "returned", "died", "stalled", "lost thread"].contains(seg)).count();
+    let later = x.text.split(" · ").skip(1).filter(|seg| ["banked", "returned", "died", "stalled", "lost thread", "driven"].contains(seg)).count();
     t.check("an exit line leads with one tier word and names no other", lead.is_some() && later == 0, || format!("seed {seed} {at} run {}: `{}`", x.run_id, x.text));
     t.check("a died / stalled / lost-thread line kept nothing", !matches!(lead, Some("died " | "stalled " | "lost thread ")) || (x.kept == 0 && x.keep_pct == 0), || format!("seed {seed} {at} run {}: `{}` kept {}", x.run_id, x.text, x.kept));
+    // QA on 0c6e126 (qaY): a drive-off's line says so (`driven`), never `returned`; a `driven` line is one.
+    t.check("a drive-off's line leads `driven`", x.driven.is_some() == (lead == Some("driven ")), || format!("seed {seed} {at} run {}: `{}` driven {:?}", x.run_id, x.text, x.driven.as_ref().map(|d| &d.boss)));
     let n: u32 = x.text.split(" · ").find_map(|seg| seg.strip_prefix("bones: ").and_then(|r| r.split(' ').next()).and_then(|n| n.parse().ok())).unwrap_or(0);
     let listed: u32 = x.bones.iter().map(|b| b.n).sum();
     t.check("an exit's `bones: N items` == the pile it lists", n == listed, || format!("seed {seed} {at} run {}: `{}` lists {listed} · {:?}", x.run_id, x.text, x.bones));
@@ -724,7 +784,7 @@ fn check_exit_line(t: &mut Tally, seed: u64, x: &riddle_core::wire::ExitLine, at
 /// purchase (the shelf holds ≤ the plan's count of any kind it re-bought).
 fn check_repeat_lines(t: &mut Tally, g: &Game, seed: u64, vid: u32) {
     let ledger = &g.lineage.gold_ledger;
-    let Some(exit) = ledger.iter().rposition(|x| ["returned", "banked", "died", "lost", "stalled"].iter().any(|w| x.why.starts_with(w))) else { return };
+    let Some(exit) = ledger.iter().rposition(|x| ["returned", "banked", "died", "lost", "stalled", "driven"].iter().any(|w| x.why.starts_with(w))) else { return };
     for x in ledger[exit + 1..].iter().filter(|x| x.why.starts_with("repeat ") && x.why != riddle_core::engine::REPEAT_SHORT) {
         let kind = x.why.trim_start_matches("repeat ").replace(' ', "_");
         let bought: Vec<&riddle_core::item::Item> = g.lineage.supplies.iter().filter(|s| s.kind == kind && !s.found && !s.free && s.id >= vid).collect();
@@ -1217,6 +1277,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     }
     at(pool, 75, "check_short", &g, |o, g, seed| check_short(&mut o.t, g, seed));
     at(pool, 70, "stall leg", &g, |o, g, seed| check_stall_leg(&mut o.t, &mut o.bank.1, g, seed));
+    at(pool, 60, "report reconciles", &g, |o, g, seed| check_report_leg(&mut o.t, g, seed));
     at(pool, 65, "night forecast", &g, |o, g, seed| {
         check_needs(&mut o.t, g, seed);
         check_forecast(&mut o.t, g, seed);

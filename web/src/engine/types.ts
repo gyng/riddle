@@ -69,6 +69,7 @@ export type StartOption = { start: number; current: boolean; toll?: number; biom
 export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number;
                       stalling?: boolean;                                            // Cut 13 §1: the guard has fired this floor — a stall pays nothing (`keeps $0 · stalling`)
                       returning?: boolean;                                           // QA 1a2a4a9: a return/bank row acted — the walk home replaces the chores until the exit (`returning`)
+                      swap_left?: string;                                            // QA 0c6e126 (qaY; core): what the last costly swap left on the floor — the strip's fall reads `−$5 left axe`
                       death_keep?: number;                                           // Cut 20 §4 (below)
                       swapped?: number };                                            // QA 912e135 (core): the carry the run's pack swaps took so far — the strip names a fall `swap` by its rise (`Run.swapped`; the exit line's `swapped` at the end)
                                                                                      // Cut 20 §4: what a death now would keep (the death tier's share) — `carry $78 · bank keeps $78 · death $0`
@@ -81,6 +82,8 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          xp?: number; level_ups?: number;                                                   // QA 92eb880: the XP this run earned (the part that crossed a level included) and the levels crossed — the watched report's `xp` line, never a client-side ladder (web's 40·L² was not the core's; `fighter +0 · L4 ↑1`)
                          stolen?: string[];                                                                 // QA e75ec29 (qaR): what thieves took this run and it never got back (`· stolen heal`; flavour-named while unidentified)
                          purse_full?: boolean;
+                         cause?: string;                                                                    // QA 0c6e126 (qaY; core): a death's killer as it reads after `died to` (`a goblin archer`) — the report's line leads with it
+                         swap_left?: { kind: string; n: number }[];                                        // QA 0c6e126 (qaY; core): what the costly swaps left on the floor, per label — `−$5 swapped` names it (`−$5 left axe`)
                          swapped?: number;                                                                  // QA 778fa1b (core): the carried gold this run's pack swaps took off (a find taken in the place of a dearer carried item — the strip's `−$37 swapped`, summed); `carried` is after it
                          wake?: number;                                                                     // QA 778fa1b (core): the heir purse's top-up this death paid (the text's `+$N wake`); `purse_full` now only when the purse was under $80 (just over the $40 line) — a richer death has no purse word
                          stolen_gold?: number;                                                              // QA a946e04 (core, optional): the carried gold thieves took this run (`$36`, the STOLEN list's gold line); else the client sums the `steal` events' amounts
@@ -172,7 +175,8 @@ export type TraceTurn = { t: number; row: number; verb: Verb; hp: number; foes: 
  *  its tick and floor. The client scrubs the run's replay to `t` when it still holds the run's events. */
 export type Because = { text: string; t: number; depth: number };
 export type Trace = { turns: TraceTurn[];
-                      provenance?: Because[] };                                              // Cut 11 §3: every `because` event of the run (exit traces)
+                      provenance?: Because[];                                                // Cut 11 §3: every `because` event of the run (exit traces)
+                      blow?: { t: number; by: string; dmg: number; hp: number } };           // QA 0c6e126 (qaY): a death's killing blow, the table's last row                                              // Cut 11 §3: every `because` event of the run (exit traces)
 /** A candidate row. Death patches insert before `insert_at`; stall patches (core README) may instead `replace` the row at
  *  `insert_at` or `remove` it (`row` echoes the removed row).
  *  Cut 11 §2: `root` names the chain's root the row answers (`den took the heal`); `insert_at: -1` is an unlock pseudo-patch
@@ -184,10 +188,12 @@ export type Patch = { row: Row; insert_at: number; survive: number; forecast_del
                       camp_pending?: boolean;                                                // QA 23ed91f: on `death()`'s patches — `forecast_delta` is the verdict's 12-sim ranking estimate, NOT the camp's; paint reach as pending until `deathDeltas(id)` lands
                       exits?: boolean;                                                       // QA 778fa1b (core): the row ends the run (`return`/`bank` inserted or narrowed; a cut of one is not) — its cost is floors: name it (`return early`) beside its reach. A costly exit (reach ≤ −10) never leads beside a patch beating the base by 15
                       drops?: number;                                                        // Cut 19 §4: an insert onto a full set drops this own row (set index; the dead run's least-fired, ties the lowest) — `+ drop R5`, the drop sheet opens on it
+                      buys?: { kind: string; label: string; price: number };                 // QA 0c6e126 (qaY; core): the row's named item the next heir will not carry — offered with its purchase (the tap buys it, then applies); its reach measured with it bought
                       unlock?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
 export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row";   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
                       cause_row?: number;                                                   // Cut 19 §4: on `row`, the set's row (0-based) that killed him (`R2`); patches[0] cuts it (`remove`, or `replace` narrowed)
                       baseline: number;                                                   // core addition: survival of the unpatched rules, 0..1
+                      replays?: number;                                                   // QA 0c6e126 (qaY; core): the reseeded replays `survive`/`baseline` are shares of (12) — printed as counts, `7/12`
                       trace: Trace; patches: Patch[];
                       morgue: string;
                       line?: ExitLine;                                                       // Cut 6 §1: the death's ledger line
@@ -213,6 +219,7 @@ export type ReturnReport = {
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; worst_death_id?: number; live?: Snapshot;
   tamed: string[]; hatched: string[]; lost: string[];                        // Addendum A
   xp: { class: string; gained: number; level_ups: number };                 // Addendum C
+  new_finds?: string[];                                                     // QA 0c6e126 (qaY; core): the kinds an absence found for the first time, every one (the header's `new find` lines) — FOUND; union across slices
   kept?: string[];                                                          // Cut 24 §5 (client, the watched report): what the keep sheet put in the vault, by its vault label (`strength potion`)
   driven?: number;                                                          // Cut 24 §1 (core): sends a boss drove off (`no counter`; among `returned`) — count them apart like `stalled`; sum across slices
   salvaged: { kind: string; n: number; gold: number }[];                    // Addendum D; `kind` an unidentified kind's flavour (`brittle scroll?`) until identified (QA 1a2a4a9)

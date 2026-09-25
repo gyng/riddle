@@ -96,8 +96,10 @@ try {
     chips: [...document.querySelectorAll(".report .exit-row .chip")].map((b) => b.textContent.replace(/\s+/g, " ").trim()), gold: document.querySelector(".report .gold-line")?.textContent.replace(/\s+/g, " ").trim(), reel: document.querySelector(".report")?.textContent ?? "" }));
   const all = rep.lines.join(" | ");
   check(/· −\$37 swapped/.test(all) && /stolen caustic \+ \$3/.test(all), `a swap and the coins thieves kept are on the line, a flavour by its name now (${all})`);
-  check(/heir purse \+\$40/.test(all) && /heir purse ≥\$40/.test(all) && !/purse full|no top-up/.test(all + rep.gold), `the purse reads \`heir purse +$40\` / \`heir purse ≥$40\` (QA 912e135: no top-up word), never \`purse full\` (${all})`);
-  check(/−\$37 swapped/.test(rep.gold ?? "") && /heir purse ≥\$40/.test(rep.gold ?? ""), `the gold line counts the swaps and the deaths with no top-up ("${rep.gold}")`);
+  // QA 0c6e126 (qaY: `heir purse ≥$40 ×12` with no ledger line behind it): only a top-up the ledger holds is named — `+$40 heir purse`
+  check(/heir purse \+\$40/.test(all) && !/≥\$40|purse full|no top-up/.test(all + rep.gold), `the purse reads \`heir purse +$40\` where it was paid, never \`≥$40\` or \`purse full\` (${all})`);
+  // QA 0c6e126 (qaZ: `−$7 swapped` summed into the headline, off the balance by 7): the swaps are the lines', not a term of the gold line
+  check(!/swapped/.test(rep.gold ?? "") && /\+\$40 heir purse/.test(rep.gold ?? "") && !/≥/.test(rep.gold ?? ""), `the gold line holds only the ledger's terms — the top-up it paid, no swaps ("${rep.gold}")`);
   check(rep.chips.some((c) => /^D6 · died · trace$/.test(c)), `a death's trace chip names its floor (${rep.chips.join(" | ")})`);
   check(/R1 return too late; died to jackal/.test(rep.reel), "a return that did not get him home reads `too late`");
   await shot("qa778-report");

@@ -76,7 +76,7 @@ export function openForge(app: App): void {
     };
     async function buyStep(slot: string): Promise<void> {
       if (!app.engine.buyKit) return;
-      const ok = await app.mutate(() => app.engine.buyKit!(slot));
+      const ok = await app.mutate(() => app.engine.buyKit!(slot), /* copy:callout */ "kit");
       if (!ok) return;
       audio.cue("unlock");
       paint(null, !!app.engine.kitDeltas); measure();

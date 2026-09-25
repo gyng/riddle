@@ -112,6 +112,8 @@ try {
   check(c.count === "5/4 rows + 2 cards" && c.countRed && c.sendDisabled === true && c.send === "5/4 · drop one", `the fifth own row: "${c.count}" red, send "${c.send}"`);
   check(c.rows.filter((r) => r.drop).length === 1 && c.rows[6].drop && !c.rows[6].card, "the drop mark is on the last own row, never a card");
   await shot("03-fifth-own-row");
+  await page.locator(".editor .row.drop .x").first().click({ timeout: 5000 });   // QA 0c6e126 (qaY): a row's × takes two taps — the first arms it
+  await sleep(150);
   await page.locator(".editor .row.drop .x").first().click({ timeout: 5000 });
   await sleep(300);
   c = await camp();
@@ -123,6 +125,7 @@ try {
   let verbs = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .chip.verb")].map((b) => b.textContent.trim()));
   check(!verbs.includes("card thief guard") && !verbs.includes("card pack break"), `cards the set holds are not offered (${verbs.filter((v) => v.startsWith("card")).join(", ") || "no cards"})`);
   await page.keyboard.press("Escape"); await sleep(200);
+  await page.locator(".editor .row").nth(1).locator(".x").click({ timeout: 5000 }); await sleep(150);   // (two taps: arm, then drop)
   await page.locator(".editor .row").nth(1).locator(".x").click({ timeout: 5000 });   // drop the thief guard row
   await sleep(300);
   await page.locator(".editor .row").nth(3).locator(".chip.verb").click({ timeout: 5000 });   // R4 `hp > 90% → rest`

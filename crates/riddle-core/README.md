@@ -397,7 +397,8 @@ fields). Where the contract left a choice open, this is what the engine does:
   episode line and absent on `bones`. `Game.reel` (the lifetime top 50) is unchanged.
 - **Lineage chronicle** (`Lineage.chronicle`, cap `CHRONICLE_CAP` 40, oldest first): one line
   per heir on its end, `♟3 the greedy fighter · D7 · "corridor" set · took the Warlord · fell to
-  gas · left bones on D7.` — the heir's best depth (`LineageState.heir_best`), the active
+  gas · left bones on D7.` — the heir's best depth (`LineageState.heir_best`; `best D8` when he
+  fell on a shallower floor, QA on 0c6e126), the active
   set's name when set, up to two deeds (`took the <Boss>` first kills first, `freed a
   captive`, `tamed a jackal`, `found ♟3's bones`; `LineageState.heir_deeds`), the end
   (`fell to <cause>` · `retired at rank N` when the heir reached the bottom · `ascended`) and

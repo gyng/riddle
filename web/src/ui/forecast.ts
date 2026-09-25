@@ -114,13 +114,16 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
   // a first-pass move inside its ± is not yet a call: `…` until the refine's lands (a move outside it shows, dim)
   // QA 912e135 (qaW: "▲ = the shown % minus the sent set's %, or it says what it is measured against"): a term reads the sent set's
   // share and the shown one (`D6 29→61%`, the bar's own number), the move's colour on the arrow; an older core's bare move stays `+6`
-  const term = (label: string, m: ReturnType<typeof moveOf>, key: string, worse = false, raw?: VsMove | number): HTMLElement => {
+  const term = (label: string, m: ReturnType<typeof moveOf>, key: string, worse = false, raw?: VsMove | number, shownKey = key): HTMLElement => {
     const b = typeof raw === "object" && typeof raw.base === "number" ? raw : undefined;
-    const txt = m!.dir === "flat" ? (rough ? "…" : m!.text) : b ? `${Math.round(b.base! * 100)}→${Math.round((b.base! + b.delta) * 100)}%` : m!.text;
+    // QA 0c6e126 (qaY: `D5 88→84%` — "no forecast on screen ever showed 88%"): `from→to` only from a share of the sent set this camp
+    // painted (`App.baseWasShown`); measured again under a changed lineage (a purchase, the cage), the term is the signed move
+    const from = b ? Math.round(b.base! * 100) : 0;
+    const txt = m!.dir === "flat" ? (rough ? "…" : m!.text) : b && app.baseWasShown(shownKey, from) ? `${from}→${Math.round((b.base! + b.delta) * 100)}%` : m!.text;
     return h("span", { class: "vs-term", "data-k": key }, h("i", { class: "sep" }, " · "), label, " ", h("b", { class: `dlt ${tone(m!.dir, worse)}` }, txt));
   };
   const terms: HTMLElement[] = [];
-  if (head?.m) terms.push(term(`D${head.d.depth}`, head.m, "depth", false, head.d));
+  if (head?.m) terms.push(term(`D${head.d.depth}`, head.m, "depth", false, head.d, `D${head.d.depth}`));
   const bank = moveOf(vs.bank), death = moveOf(vs.death);
   if (withEnds && bank) terms.push(term(/* copy:label */ "bank", bank, "bank", false, vs.bank));
   if (withEnds && death && death.dir !== "flat") terms.push(term(/* copy:label */ "death", death, "death", true, vs.death));
@@ -133,6 +136,15 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
   return h("div", { class: `shaft-vs num${rough ? " rough" : ""}`, "data-refined": rough ? "0" : vs.refined ? "1" : "" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs sent", rough ? "…" : ""), ...terms);
 }
 
+/** QA 0c6e126 (qaY: a bought potion's `D5 71→65` read as a loss with no reason): the last lineage change's move on these rules
+ *  (`App.lmove`) at the frontier — `buy · D5 ≈ ±9` inside the bar's ±, else `buy · D5 −6`. Null once the rules differ. */
+export function lmoveLine(app: App, f: Forecast | null): HTMLElement | null {
+  const lm = app.lmove; if (!lm || !f || lm.rules !== JSON.stringify(app.rules.rows)) return null;
+  const next = Math.max(forecastStart(app, f), app.lineage.best_depth + 1);
+  const d = lm.depths.find((x) => x.depth === next) ?? lm.depths[lm.depths.length - 1]; if (!d) return null;
+  const m = moveOf({ delta: d.delta, pm: d.pm }); if (!m) return null;
+  return h("div", { class: `shaft-lm num dlt-line`, "data-k": lm.label }, h("span", { class: "vs-label" }, lm.label), h("span", { class: "vs-term" }, h("i", { class: "sep" }, " · "), `D${d.depth} `, h("b", { class: `dlt ${m.dir}` }, m.text)));
+}
 export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const bars = h("div", { class: "fc-bars" });
   const causes = h("div", { class: "fc-causes" });
@@ -318,13 +330,15 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const wall = d?.wall ? wallName(d.wall) : undefined;
       // Cut 24 §5: the floor he stands on names him too (`D8 · warlord`); his wall below keeps its own mark
       const bossHere = d?.boss && !wall ? wallName(d.boss) : undefined;
+      // QA 0c6e126 (qaY: `D8 · warlord` over `D9 · warlord` — "two warlords"): under a notch that names him the wall reads `· wall`
+      const above = byDepth.get(depth - 1), wallText = wall && above?.boss && !above.wall && depth - 1 >= from ? /* copy:callout */ "wall" : wall;
       // QA 92eb880 (N: "D7 and D8 read 0% … the D8 label stays gold at 0%"): a notch nobody reaches is dim, label and all; a floor past
       // the set's own `depth ≥ N → bank` row is capped (dim), and the bank floor says so (`D6 · bank`)
       const zero = !!d && Math.round(d.reach * 100) === 0;
       const capped = cap !== undefined && depth > cap, bankHere = cap === depth && !wall;
       const bounty = depth === bountyD;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${depth === start && start > 1 ? " start" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wallText}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
         h("small", { class: "dp" }, d ? share(d.reach, lowOf(last)) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm" }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : "",
           d ? moveMark(vsBy.get(depth)) : ""));   // Cut 22 §3: the edit's move on the notch (`▲6`, `≈`)
       n.style.setProperty("--reach", reach.toFixed(3));
@@ -346,8 +360,8 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true))),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
       h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`, rough ? h("i", { class: "settling" }, "…") : ""));
-    const line = vsLine(app, vs, last, !!e && showEnds());
-    vsHost.hidden = !line; replace(vsHost, line ?? "");
+    const line = vsLine(app, vs, last, !!e && showEnds()), lm = lmoveLine(app, last);
+    vsHost.hidden = !line && !lm; replace(vsHost, lm ?? "", line ?? "");
     el.dataset.vs = line ? "1" : "";
   };
   paint(); if (last) el.dataset.fc = String(app.forecastSeq);

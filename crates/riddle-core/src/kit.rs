@@ -55,11 +55,17 @@ pub fn unit_of(l: &LineageState) -> u32 {
 /// a first step (a ladder's cheapest) the purse can buy. Called where the purse or the kit moves
 /// (an exit, a purchase).
 pub fn lock_unit(l: &mut LineageState) {
+    // QA on 0c6e126: the row slots' price is shown from the first camp — fixed at the first exit that has a best floor
+    if l.row_unit.is_none() && l.best_depth >= 1 {
+        l.row_unit = Some(l.kit_unit.unwrap_or_else(|| unit(l.best_depth)));
+    }
     if l.kit_unit.is_some() {
         return;
     }
     let first = KIT_SLOTS.iter().map(|s| mults(s)[0]).min().unwrap_or(1) * unit(l.best_depth);
-    if KIT_SLOTS.iter().any(|s| owned(l, s) > 0) || l.gold >= first as i32 {
+    // QA on 0c6e126 (qaZ: every forge price +10 % after an absence with nothing bought): the forge tile is carved at the first salvage
+    // (`Lineage.forge`) and shows the ladders' prices from then — shown is fixed
+    if KIT_SLOTS.iter().any(|s| owned(l, s) > 0) || l.gold >= first as i32 || !l.forge.is_empty() {
         l.kit_unit = Some(unit(l.best_depth));
     }
 }
@@ -101,7 +107,7 @@ pub fn price(l: &LineageState, slot: &str, i: usize) -> u32 {
 
 /// Cut 23 §1: a row slot's gold price on the forge's ladder (`None` for any other unlock).
 pub fn row_gold(l: &LineageState, id: &str) -> Option<u32> {
-    ROW_MULT.iter().find(|(r, _)| *r == id).map(|(_, m)| unit_of(l) * m)
+    ROW_MULT.iter().find(|(r, _)| *r == id).map(|(_, m)| l.row_unit.unwrap_or_else(|| unit_of(l)) * m)
 }
 
 /// The night's net `nights` divides by (the last full night's, or tonight's when larger).

@@ -382,7 +382,7 @@ fn cohort_gold(set: &RuleSet, seed: u64, hours: u64, waystone: bool) -> GoldTall
         for l in &g.lineage.gold_ledger {
             let w = l.why.as_str();
             let d = l.delta as i64;
-            if ["returned", "banked", "died", "lost", "stalled"].iter().any(|p| w.starts_with(p)) {
+            if ["returned", "banked", "died", "lost", "stalled", "driven"].iter().any(|p| w.starts_with(p)) {
                 t.home += d;
             } else if w.starts_with("salvage") {
                 t.salvage += d;

@@ -137,6 +137,8 @@ type Tier = "bank" | "return" | "death";
 /** QA 92eb880 (N: the `fights` chip read `1.332247798006322×` over the portrait): a rate as the chip shows it — whole from 2×, one
  *  decimal under it (`1.3`), never a float's tail. */
 const CAGE_BATCH = 8, CAGE_NEAR = 10, CAGE_CHAIN = 24;   // Cut 20 §3: short batches chained per pump pass near a cage
+/** The alert's top (the core's cap: `run.alert` never passes 8) — the HUD reads `alert 3/8`. */
+const ALERT_TOP = 8;
 /** QA 92eb880: an unopened cage (`vault` tile) seen within CAGE_NEAR tiles of the hero. */
 export function cageNear(s: Snapshot): boolean {
   const hx = s.hero.x, hy = s.hero.y;
@@ -238,7 +240,7 @@ export const hurtText = (dmg: number, cause: string): string => /* copy:callout 
 /** Cut 13 §3: the automations' purchases at this exit — the ledger's outgoings after the newest exit line that are not salvage
  *  (`−$40 heal potion` → `heal potion ×1 · −$40`), per line text. Empty when nothing was bought. */
 export function spentOf(ledger: { t: number; delta: number; why: string; n?: number }[], cat: { kind: string; label: string; price: number }[] = []): { kind: string; n: number; gold: number }[] {
-  let i = ledger.length - 1; while (i >= 0 && !/^(returned|banked|died|lost|stalled)\b/.test(ledger[i].why)) i--;
+  let i = ledger.length - 1; while (i >= 0 && !/^(returned|banked|died|lost|stalled|driven)\b/.test(ledger[i].why)) i--;
   if (i < 0) return [];
   const rows = new Map<string, { kind: string; n: number; gold: number }>();
   for (const g of ledger.slice(i + 1)) {
@@ -258,7 +260,7 @@ export function spentOf(ledger: { t: number; delta: number; why: string; n?: num
  *  paid — the ledger's `waystone D5` lines between the exit before the newest and the newest (the send pays before the run), as a
  *  SPENT row (`waystone D5 ×1 · −$50`). */
 export function tollOf(ledger: { t: number; delta: number; why: string }[]): { kind: string; n: number; gold: number }[] {
-  const isExit = (g: { why: string }): boolean => /^(returned|banked|died|lost|stalled)\b/.test(g.why);
+  const isExit = (g: { why: string }): boolean => /^(returned|banked|died|lost|stalled|driven)\b/.test(g.why);
   let i = ledger.length - 1; while (i >= 0 && !isExit(ledger[i])) i--;
   if (i < 0) return [];
   let j = i - 1; while (j >= 0 && !isExit(ledger[j])) j--;
@@ -472,7 +474,8 @@ export function renderWatch(app: App): Mounted {
     replace(depth, `D${hud.depth}`);
     // QA 23ed91f (K: "`!` / `!!` / `!!!` after the depth label, and `alert 1` / `alert 3`"): one name for one thing — the HUD reads
     // `alert 3`, as the callout does when it rises; nothing at 0
-    if (snap) replace(alert, snap.alert > 0 ? /* copy:callout */ `alert ${snap.alert}` : "");
+    // QA 0c6e126 (qaY: `alert 1` / `alert 2` with no scale): the level out of its top (the core's cap, 8: each rise calls wanderers)
+    if (snap) replace(alert, snap.alert > 0 ? /* copy:callout */ `alert ${snap.alert}/${ALERT_TOP}` : "");
     if (cardUp) paintCardText();
   }
   /** Cut 16 §4: the boss bar — the name one word, the track its hp share; hidden with no boss in view. */
@@ -518,12 +521,14 @@ export function renderWatch(app: App): Mounted {
     // QA 92eb880 (M: "gold `$77 → $65` in the den with only `snatched …` lines"): a fall in the loot shows its size beside it for 2.5 s
     // (`$65 −$12`) — a theft of an item takes its worth with it
     if (lastLoot !== undefined && s.run.id === lastLootRun && (swapD > 0 || st.loot < lastLoot)) {
-      const why = swapD > 0 ? /* copy:label */ "swap" : s.turn - lastStealT <= 20 ? /* copy:label */ "stolen"
-        : st.swapped === undefined && s.turn - lastPickT <= 20 ? /* copy:label */ "swap" : "", item = why === "swap" ? lastPickItem : "";
+      // QA 0c6e126 (qaY: `−$5 swap → waxen scroll?` read as a price to pay): a swap's fall names what it left on the floor (the core's
+      // `Stake.swap_left`) — `−$5 left axe`: the carry fell because a dearer item stayed behind; an older core keeps the find
+      const why = swapD > 0 ? (st.swap_left ? /* copy:label */ "left" : /* copy:label */ "swap") : s.turn - lastStealT <= 20 ? /* copy:label */ "stolen"
+        : st.swapped === undefined && s.turn - lastPickT <= 20 ? /* copy:label */ "swap" : "", item = why === "left" ? st.swap_left! : why === "swap" ? lastPickItem : "";
       // QA 778fa1b (qaV: `−$33 → −$42 → −$58 swapped` — "swapped for what?"): a swap's fall is its own, beside the find it made room for
       // (`−$37 swap → leather +1`); only falls of one cause and one find inside the window add up
       const same = performance.now() < lootDropUntil && why === lootWhy && item === lootItem;
-      const fell = why === "swap" && st.swapped !== undefined ? swapD : lastLoot - st.loot;
+      const fell = (why === "swap" || why === "left") && st.swapped !== undefined ? swapD : lastLoot - st.loot;
       lootDrop = fell + (same ? lootDrop : 0); lootDropUntil = performance.now() + 2500; lootItem = item;
       // QA 1a2a4a9 (O, P: `$46 −$8`, `$283 −$100` — "minuses that don't match any line"): the fall says what took it — a thief, or an
       // item used up (the loot counts what he carries at its worth)
@@ -533,7 +538,7 @@ export function renderWatch(app: App): Mounted {
     lastLoot = st.loot; lastLootRun = s.run.id; lastLootTurn = s.turn; lastSwapped = st.swapped ?? 0;
     // QA 1a2a4a9 (O: the bar's `$0` and the line's `$3 · death: lose all` on one screen, "neither labelled"): the run's own purse says so
     const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "carry"), ` $${st.loot}`];
-    if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? ` → ${lootItem.replace(/_/g, " ")}` : ""}`));
+    if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? `${lootWhy === "left" ? " " : " → "}${lootItem.replace(/_/g, " ")}` : ""}`));
     // Cut 6 §1: the kept number while a return/bank row exists (`$84 · keeps $50`)
     // Cut 13 §1: while the guard has fired a stall pays nothing, and the line says so before it is lost (`keeps $0 · stalling`)
     // QA 92eb880 (N: "`$75 · keeps $0 · stalling` held ~10 s, then the run returned with `keeps 60%`"): while the guard has fired the run
@@ -543,9 +548,12 @@ export function renderWatch(app: App): Mounted {
     // the death tier's share; an older core without it keeps nothing on a death)
     const dk = st.death_keep ?? 0;
     const exitVerb = st.return_row !== undefined ? verbLabel({ v: app.rules.rows[st.return_row]?.verb.v ?? "return" }) : "";
-    if (st.stalling && !overridden) parts.push(" · ", h("span", { class: "kept stalling" }, /* copy:callout */ "stalling"));
+    // QA 0c6e126 (qaY: `stalling` on the carry line while the hero went down D6 → D7): the guard is the floor's — a snapshot from the floor
+    // the HUD has left no longer stalls (the core resets it on the stairs; the next snapshot agrees)
+    const stalling = !!st.stalling && s.depth >= hud.depth;
+    if (stalling && !overridden) parts.push(" · ", h("span", { class: "kept stalling" }, /* copy:callout */ "stalling"));
     else if (st.kept !== undefined && !overridden) parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `${exitVerb || "exit"} keeps $${st.kept}`));
-    if (!(st.stalling && !overridden) && (st.kept !== undefined || st.return_row !== undefined || dk > 0)) parts.push(" · ", h("span", { class: `death-keep${dk > 0 ? "" : " lose"}` }, /* copy:callout */ `death $${dk}`));
+    if (!(stalling && !overridden) && (st.kept !== undefined || st.return_row !== undefined || dk > 0)) parts.push(" · ", h("span", { class: `death-keep${dk > 0 ? "" : " lose"}` }, /* copy:callout */ `death $${dk}`));
     for (const b of st.brought) parts.push(" · ", h("span", { class: b.insured ? "" : "risk" }, b.label, b.insured ? "" : "⚠"));
     // QA 1a2a4a9: the core's `Stake.returning` (a return/bank row acted: the run is committed homeward); the client's own guess (the
     // last row to act was a return) stands in for an older core only
@@ -816,7 +824,7 @@ export function renderWatch(app: App): Mounted {
           descends.push(ev.t);   // Cut 18 §1
           floors.set(ev.depth, { ...floors.get(ev.depth), biome: ev.biome });
           const rooms = s.depth === ev.depth ? s.rooms : undefined;   // Cut 7 §4: `D3 · 4 rooms` when the snapshot counts them
-          at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
+          at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); if (hudSnap) paintStake(hudSnap); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
           break;
         }
         case "fact": {
@@ -855,7 +863,10 @@ export function renderWatch(app: App): Mounted {
           endingFrom = Math.min(endingFrom, ev.t - ENDING_TICKS, endingCue >= ev.t - 100 ? Math.max(endingCue, ev.t - 2 * ENDING_TICKS) : Infinity);
           const tier = ev.tier; at(ev.t, () => audio.cue(tier === "bank" ? "exit_bank" : tier === "return" ? "exit_return" : "exit_death"));           // Cut 10 §4
           // Cut 14 §3: the bank and the return are beats — the fight frame on the stairs, the sum as the callout, before the sheet
-          if (tier !== "death") beatAt(ev.t, tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`, true);
+          // QA 0c6e126 (qaZ: `RETURNED $115` over a run the report's tiles counted `1 DRIVEN`): the beat's word is the exit line's own lead
+          // (`driven` · `stalled` · `lost thread`), `RETURNED` only for a return
+          const lead = ev.line?.driven ? "driven" : /^(stalled|lost thread|driven)\b/.exec(ev.line?.text ?? "")?.[1];
+          if (tier !== "death") beatAt(ev.t, tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${lead.toUpperCase()} $${ev.loot_kept}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`, true);
           break;
         }
         case "ending": endingCue = ev.t; break;                                                                                       // Cut 7 §4: the core's marker (see `exit`)
@@ -1054,7 +1065,7 @@ export function renderWatch(app: App): Mounted {
     sceneFrom(s, r.events);
     if (s.hero.hp < lastHp) near(s.turn);   // hp lost by any means; a rest's +1 per turn is a dead stretch, a drink is a `use` event
     lastHp = s.hero.hp;
-    if (s.alert > lastAlert) { const n = s.alert; at(s.turn, () => ambient(/* copy:callout */ `alert ${n}`)); }   // Cut 7 §4
+    if (s.alert > lastAlert) { const n = s.alert; at(s.turn, () => ambient(/* copy:callout */ `alert ${n}/${ALERT_TOP}`)); }   // Cut 7 §4
     lastAlert = s.alert;
     const exit = absorb(r.events, s);
     noteProgress(r.events, s);   // (after `absorb`: the batch's bosses are known)
@@ -1781,7 +1792,7 @@ export function renderWatch(app: App): Mounted {
    *  stand. The report's SALVAGED then reconciles with the gold sheet by construction (QA on e0f87e7: "SALVAGED $12 vs +$17
    *  salvage"; "$5 vs +$8": items the sheet never listed, and worths the client's table read differently). */
   function reconcileSalvage(rows: { kind: string; n: number; gold: number }[], ledger: { t: number; delta: number; why: string }[]): { kind: string; n: number; gold: number }[] {
-    let i = ledger.length - 1; while (i >= 0 && !/^(returned|banked|died|lost|stalled)\b/.test(ledger[i].why)) i--;
+    let i = ledger.length - 1; while (i >= 0 && !/^(returned|banked|died|lost|stalled|driven)\b/.test(ledger[i].why)) i--;
     const lines = ledger.slice(i + 1).filter((g) => /^salvage/.test(g.why));
     if (!lines.length || !rows.length) return rows;
     let diff = lines.reduce((a, g) => a + g.delta, 0) - rows.reduce((a, r) => a + r.gold, 0);
@@ -1826,7 +1837,8 @@ export function renderWatch(app: App): Mounted {
       const cut = exitLine?.salvaged?.length ? h("div", { class: "keep-cut dim num" }, /* copy:label */ "sold", " ",
         exitLine.salvaged.map((r) => `${r.kind.replace(/_/g, " ")}${r.n > 1 ? ` ×${r.n}` : ""} $${r.gold}`).join(" · ")) : null;
       return h("div", { class: "sheet-body" },
-        h("div", { class: "label row-label" }, /* copy:label */ "keep", " ", count, trace),
+        // QA 0c6e126 (qaZ: `KEEP 1/1` after a bought slot, read as "the vault is one slot"): the count is of the free slots — `keep 1/1 free`
+        h("div", { class: "label row-label" }, /* copy:label */ "keep", " ", count, h("small", { class: "dim" }, /* copy:label */ " free"), trace),
         chips, legend, cut, bones, news, ledger,
         h("button", { class: "btn primary wide", onclick: () => {
           if (sent) return; sent = true;

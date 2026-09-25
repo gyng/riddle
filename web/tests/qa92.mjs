@@ -253,7 +253,7 @@ try {
       foes: [...(sec("learned")?.querySelectorAll(".chips:not(.items) .chip") ?? [])].map((c) => c.textContent), gold: document.querySelector(".report .gold-line")?.textContent, stall: document.querySelector(".stall .patch .surv")?.textContent };
   });
   check(rep.pending.some((p) => /R3 fired 0 of 16 runs: hp < 30% → drink heal · shadowed by R1$/.test(p)), `PENDING keeps the shadowing row (${rep.pending.join(" | ")})`);
-  check(rep.items.join(" | ") === "blink (ashen) | speed (amber)" && rep.foes.includes("stray · lock") && rep.foes.includes("alert rises · alert ≥ open"), `LEARNED: identities on their own row, a foe's tags after \` · \` (${rep.items.join(" | ")} · ${rep.foes.join(" | ")})`);
+  check(rep.items.join(" | ") === "blink (ashen) | speed (amber)" && rep.foes.includes("stray · lock") && rep.foes.includes("alert rises · unlocks alert ≥"), `LEARNED: identities on their own row, a foe's tags after \` · \` (${rep.items.join(" | ")} · ${rep.foes.join(" | ")})`);
   check(/^\+\$100 banked · \+\$30 returned · \+\$5 salvage$/.test(rep.gold ?? "") && !/home/.test(rep.gold ?? ""), `the gold line says banked / returned, never \`home\` ("${rep.gold}")`);
   check(/^reach D7 17% · base 0%$/.test(rep.stall ?? ""), `a plateau patch names its floor ("${rep.stall}")`);
   await shot("qa92-report");

@@ -366,7 +366,7 @@ try {
   const chipsQ = await page.evaluate(() => [...document.querySelectorAll(".report .chip.fact")].map((c) => { const b = c.getBoundingClientRect(); return { text: c.textContent.replace(/\s+/g, " ").trim(), right: b.right, over: c.scrollWidth > c.clientWidth + 1 }; }));
   const warlord = chipsQ.find((c) => /goblin warlord/.test(c.text));
   check(!!warlord && /boss · buffer · summoner · telegraph$/.test(warlord.text) && warlord.right <= 400.5 && !warlord.over, `a long LEARNED chip wraps inside the viewport: "${warlord?.text}" right ${warlord?.right}`);
-  check(chipsQ.some((c) => c.text === "alert rises · alert ≥ open") && !chipsQ.some((c) => /:/.test(c.text)), `alert:rising reads with a dot: ${chipsQ.map((c) => `"${c.text}"`).join(", ")}`);
+  check(chipsQ.some((c) => c.text === "alert rises · unlocks alert ≥") && !chipsQ.some((c) => /:/.test(c.text)), `alert:rising reads with a dot: ${chipsQ.map((c) => `"${c.text}"`).join(", ")}`);
   await shot("11-report-chips");
   await page.locator(".report .exit-lines .chip.mini", { hasText: /\btrace$/ }).first().click({ timeout: 5000 }); await sleep(200);   // Cut 14 §4: the chip reads `D5 · died · trace`
   const traceSheet = await page.evaluate(() => {

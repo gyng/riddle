@@ -20,11 +20,11 @@ import { openSheet } from "./sheet";
  *  kept nothing — its keep share alone would say `died`); a timed-out return's ledger line is `lost thread D3` or
  *  `stalled D2`. */
 const tierWord = (x: ExitLine): RegExp => {
-  const lead = /^(banked|returned|died|stalled|lost thread)\b/.exec(x.text)?.[1] ?? (x.keep_pct >= 100 ? "banked" : x.keep_pct <= 0 ? "died" : "returned");
+  const lead = /^(banked|returned|died|stalled|lost thread|driven)\b/.exec(x.text)?.[1] ?? (x.keep_pct >= 100 ? "banked" : x.keep_pct <= 0 ? "died" : "returned");
   // QA 912e135: a timed-out run's line leads with its own word (`stalled $0 · $224 lost`), the ledger's
-  return lead === "banked" ? /^banked\b/ : lead === "died" ? /^died\b/ : lead === "stalled" ? /^stalled\b/ : lead === "lost thread" ? /^lost\b/ : /^(returned|lost|stalled)\b/;
+  return lead === "banked" ? /^banked\b/ : lead === "died" ? /^died\b/ : lead === "stalled" ? /^stalled\b/ : lead === "lost thread" ? /^lost\b/ : lead === "driven" ? /^driven\b/ : /^(returned|lost|stalled)\b/;
 };
-const isExit = (g: GoldLine): boolean => /^(returned|banked|died|lost|stalled)\b/.test(g.why);
+const isExit = (g: GoldLine): boolean => /^(returned|banked|died|lost|stalled|driven)\b/.test(g.why);
 /** An exit's tail: its salvage and a death's wake pay, at the exit's tick (a supply bought in camp at that tick is the next run's). */
 const isTail = (g: GoldLine, exit: GoldLine): boolean => g.t === exit.t && /^(salvage|wake pay)\b/.test(g.why);
 

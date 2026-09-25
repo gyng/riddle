@@ -119,7 +119,7 @@ fn main() {
     let to_show: Vec<u32> = if all { deaths } else { last_death.into_iter().collect() };
     for id in to_show {
         if let Some(d) = game.death(id) {
-            println!("\n== death run {} · D{} · {} · {} · verdict {}", d.run_id, d.depth, d.cause, d.margin, d.verdict);
+            println!("\n== death run {} · D{} · {} · {} · verdict {} · baseline {:.2}", d.run_id, d.depth, d.cause, d.margin, d.verdict, d.baseline);
             println!("  trace (last {}):", d.trace.turns.len());
             for t in &d.trace.turns {
                 let row = match t.row {
@@ -131,11 +131,14 @@ fn main() {
                 let rows = t.rows.as_ref().map(|r| r.iter().map(|w| format!("R{} {}", w.row + 1, w.why)).collect::<Vec<_>>().join(" · ")).unwrap_or_default();
                 println!("    t{:<5} {:<6} {:<14} hp {:<3} foes {} {} {}", t.t, row, t.verb.short(), t.hp, t.foes, t.telegraphs.join(", "), rows);
             }
+            if let Some(b) = &d.trace.blow {
+                println!("    t{:<5} {:<6} {:<14} hp {:<3}", b.t, "blow", format!("{} -{}", b.by, b.dmg), b.hp);
+            }
             if let Some(l) = &d.line {
                 println!("  {}", l.text);
             }
             for p in &d.patches {
-                println!("  patch @{}: {}  survive {:.0}%  forecast Δ {:+.0}%", p.insert_at, p.row.describe(), p.survive * 100.0, p.forecast_delta * 100.0);
+                println!("  patch @{}: {}  survive {:.0}%  forecast Δ {:+.0}%{}", p.insert_at, p.row.describe(), p.survive * 100.0, p.forecast_delta * 100.0, p.buys.as_ref().map(|b| format!("  buys {} ${}", b.kind, b.price)).unwrap_or_default());
             }
             if verbose {
                 println!("{}", d.morgue);

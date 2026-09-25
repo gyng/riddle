@@ -153,7 +153,35 @@ export class App {
   /** QA 778fa1b (qaU: "compares to the previous edit, not the last run"; qaV: after a reorder "last" switched from the sent set to the
    *  previous edit): the base is the set that was sent — fixed from the send (or the first paint of a session / a switched-to set) until
    *  the next send, whatever the edits between; the line reads `vs sent`. */
-  resetVs(): void { this.vsBase = cloneSet(this.rules); this.vsBaseShadow = [...this.shadowedBy()]; this.fcRules = cloneSet(this.rules); this.fcShadow = [...this.vsBaseShadow]; this.fcFresh = true; this.setVs(null); }
+  /** QA 0c6e126 (qaY: `vs sent · D5 88→84%` against an 88 no forecast ever showed — the sent set measured again under a changed cage):
+   *  the sent set's shares as the camp painted them (`D5` → 71, `bank` → 0), per term; a term reads `from→to` only from a share painted
+   *  here, else its signed move. Cleared with the base. */
+  // (qaZ: `D5 46→20%`, `42→18%`, `51→20%` with nothing sent — the base read again on each pass: only the share last painted counts)
+  private baseShown = new Map<string, number>();
+  private noteBaseShown(f: Forecast): void {
+    const add = (k: string, x: number | undefined): void => { if (typeof x === "number") this.baseShown.set(k, Math.round(x * 100)); };
+    for (const d of f.depths) add(`D${d.depth}`, d.reach);
+    if (f.ends) { add("bank", f.ends.bank); add("death", f.ends.death); add("stall", f.ends.stall); }
+  }
+  /** QA 0c6e126 (qaY: the invisibility potion R1 drinks, bought — `D5 71→65`, `D6 25→21` on the bars with no word; dropping the
+   *  leash put them back): a lineage change's move on the same rules and the same seeds — the forecast after it less the one painted
+   *  before, per depth, with the bar's ± (a move inside it reads `≈ ±N`: the sims, not the purchase). Shown under the shaft
+   *  (`buy · D5 ≈ ±9`) until the rules or the lineage change again. */
+  lmove: { label: string; rules: string; depths: { depth: number; delta: number; pm?: number }[] } | null = null;
+  private lmPending: { label: string; before: Forecast | null; rules: string } | null = null;
+  private noteLineageMove(f: Forecast): void {
+    const p = this.lmPending; if (!p) return;
+    const rules = JSON.stringify(this.rules.rows);
+    if (rules !== p.rules || !p.before) { this.lmPending = null; return; }
+    // the same pass on both sides (the first pass after the change waits for its refine when the one before was refined)
+    if ((p.before.sims ?? 0) !== (f.sims ?? 0)) { if ((f.sims ?? 0) > (p.before.sims ?? 0)) this.lmPending = null; return; }
+    const was = new Map(p.before.depths.map((d) => [d.depth, d.reach]));
+    this.lmove = { label: p.label, rules, depths: f.depths.filter((d) => was.has(d.depth)).map((d) => ({ depth: d.depth, delta: d.reach - was.get(d.depth)!, pm: d.pm })) };
+    this.lmPending = null;
+  }
+  /** Was the sent set's share `pct` for `key` (`D5`, `bank`, `death`, `stall`) painted in this camp? */
+  baseWasShown(key: string, pct: number): boolean { return this.baseShown.get(key) === pct; }
+  resetVs(): void { this.lmove = null; this.lmPending = null; this.baseShown.clear(); if (this.lastForecast && this.fcRules && sameSet(this.fcRules, this.rules)) this.noteBaseShown(this.lastForecast); this.vsBase = cloneSet(this.rules); this.vsBaseShadow = [...this.shadowedBy()]; this.fcRules = cloneSet(this.rules); this.fcShadow = [...this.vsBaseShadow]; this.fcFresh = true; this.setVs(null); }
   /** QA 778fa1b (qaV: `D10 ≈ · bank ≈` held 16 s after an edit that took bank 0 → 86 %): an edit's move is being measured — the rules
    *  differ from the base and no move for them has landed yet (the line reads `vs sent …`, never a stale `≈`). */
   vsPending(): boolean { return !this.vsShown() && !this.vsOff && !!this.engine.forecastVs && !!this.vsBase && !this.overBudget && !sameSet(this.vsBase, this.rules); }
@@ -392,7 +420,7 @@ export class App {
   rulesChanged(): void {
     this.rowFires = null; this.rowFiresOf = undefined;   // Cut 14 §4: the counts were the set that ran
     // Cut 22 §3: the edit's base is the set the last painted forecast measured; the shown move clears until this edit's lands
-    if (!this.vsBase && this.fcFresh && this.fcRules) { this.vsBase = this.fcRules; this.vsBaseShadow = this.fcShadow; }
+    if (!this.vsBase && this.fcFresh && this.fcRules) { this.vsBase = this.fcRules; this.vsBaseShadow = this.fcShadow; if (this.lastForecast) this.noteBaseShown(this.lastForecast); }
     this.fcFresh = false; this.editSeq++; this.setVs(null);
     this.persist();
     clearTimeout(this.fcTimer); clearTimeout(this.refineTimer); this.refineSeq++;
@@ -446,6 +474,8 @@ export class App {
    *  listener that throws never leaves the ones after it on the previous pass. */
   private publishForecast(f: Forecast): void {
     this.lastForecast = f; this.shadow = f.shadowed_by ?? []; this.forecastSeq++;
+    if (this.vsBase && sameSet(this.vsBase, this.rules)) this.noteBaseShown(f);
+    this.noteLineageMove(f);
     for (const fn of this.fcListeners) { try { fn(f); } catch (e) { console.warn("forecast listener", e); } }
   }
   /** Cut 6 §9: after the forecast paints and the rules stay unchanged for REFINE_MS, `forecastRefine` (100 sims) repaints
@@ -484,7 +514,7 @@ export class App {
     if (i === this.active || i < 0 || i >= this.sets.length) return;
     this.active = i;
     void this.engine.selectSet(i).catch((e) => console.warn("selectSet", e));
-    this.vsBase = null; this.fcFresh = false;   // Cut 22 §3: a switch is not an edit — no move against the other set (its first paint is the base)
+    this.vsBase = null; this.baseShown.clear(); this.fcFresh = false;   // Cut 22 §3: a switch is not an edit — no move against the other set (its first paint is the base)
     this.rulesChanged();
     this.emitChange();
   }
@@ -535,8 +565,11 @@ export class App {
     this.rulesChanged();
   }
   /** Runs an engine call that returns a Lineage and adopts it. Errors (unaffordable, locked) are swallowed after a warn. */
-  async mutate(fn: () => Promise<Lineage>): Promise<boolean> {
-    try { this.lineage = await fn(); } catch (e) { console.warn("engine refused", e); return false; }
+  async mutate(fn: () => Promise<Lineage>, move?: string): Promise<boolean> {
+    // QA 0c6e126 (qaY): a purchase, a drop, a cage or a kit step (`move`, its word) — the camp's next forecast for these rules is read
+    // against the one painted before it (`lineageMove`)
+    if (move) { this.lmPending = { label: move, before: this.lastForecast, rules: JSON.stringify(this.rules.rows) }; this.lmove = null; }
+    try { this.lineage = await fn(); } catch (e) { this.lmPending = null; console.warn("engine refused", e); return false; }
     await this.afterLineage();
     return true;
   }
@@ -582,6 +615,7 @@ export class App {
   async dropSupply(id: number): Promise<boolean> {
     const picks = this.lineage.supplies ?? [];
     const it = picks.find((p) => p.id === id); if (!it) return false;
+    this.lmPending = { label: /* copy:callout */ "drop", before: this.lastForecast, rules: JSON.stringify(this.rules.rows) }; this.lmove = null;
     try { this.lineage = await this.engine.dropSupply!(id); await this.afterLineage(); return true; }   // the proxy always has it; an engine without it rejects
     catch (e) { console.warn("dropSupply unavailable, clear + rebuy", e); }
     const rest = picks.filter((p) => p.id !== id && !isFreeSupply(this.lineage, p)).map((p) => p.kind);
@@ -715,7 +749,8 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   return {
     rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned), stalled: sum(a.stalled, b.stalled), driven: sum(a.driven, b.driven),
     bones_found: cat(a.bones_found, b.bones_found),
-    picked: b.picked ?? a.picked,                          // Cut 16 §1: a state — the last slice knows
+    new_finds: a.new_finds || b.new_finds ? [...new Set([...(a.new_finds ?? []), ...(b.new_finds ?? [])])] : undefined,   // QA 0c6e126 (qaY): every kind first found this absence
+    picked: b.picked ?? a.picked,                         // Cut 16 §1: a state — the last slice knows
     restock_capped: a.restock_capped || b.restock_capped || undefined,   // Cut 19 §3: any slice's repeat stopped at the night's income
     repeat_short: a.repeat_short || b.repeat_short || undefined,         // QA 1a2a4a9: any slice's re-pack ran short
     // Cut 20 §5: the night's bounty — slices of one night add up (taken by any, the coins summed); a later night's floor replaces it

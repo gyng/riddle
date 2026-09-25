@@ -11,9 +11,9 @@
 // (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
 import { openForge } from "./forge";
 import type { App, Mounted } from "../app";
-import type { Counter, ExitLine, Lineage, News, ReturnReport, Row } from "../engine/types";
+import type { Counter, ExitLine, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
 import { h, items, spanOf } from "./dom";
-import { patchRows } from "./patches";
+import { openDropSheet, patchRows } from "./patches";
 import { exitExtras, wakeShown } from "./death";
 import { openUnlockSheet, priceLabel, visible, withRowsGate } from "./unlocks";
 import { lostLabel, noteText, rowLabel } from "./tokens";
@@ -26,7 +26,7 @@ import { openLedger } from "./party";
 
 const EXITS_SHOW = 8;
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
-const LEAD = /^(banked|returned|died|stalled|lost thread)\b/;
+const LEAD = /^(banked|returned|died|stalled|lost thread|driven)\b/;   // QA 0c6e126 (qaY): a drive-off leads `driven`, its tile's word
 
 /** Cut 14 §4: the floor an exit ended on — the ledger's exit line it claims (`returned D5`, the gold sheet's own match), else
  *  the line's own `bones: 7 items on D5`; undefined when neither knows. `newer` = the exits after it in the same report. */
@@ -34,7 +34,7 @@ export function exitDepth(app: App, x: ExitLine, newer: ExitLine[] = []): number
   const ledger = app.lineage.gold_ledger ?? [];
   const same = (a: ExitLine, b: ExitLine): boolean => a.kept === b.kept && LEAD.exec(a.text)?.[1] === LEAD.exec(b.text)?.[1];
   const range = runRange(ledger, x, newer.filter((y) => same(y, x)).length);
-  const why = range ? ledger.slice(range[0], range[1] + 1).map((g) => g.why).find((w) => /^(returned|banked|died|lost|stalled)\b.*\bD\d+/.test(w)) : undefined;
+  const why = range ? ledger.slice(range[0], range[1] + 1).map((g) => g.why).find((w) => /^(returned|banked|died|lost|stalled|driven)\b.*\bD\d+/.test(w)) : undefined;
   const m = /\bD(\d+)\b/.exec(why ?? "") ?? /\bon D(\d+)\b/.exec(x.text);
   return m ? Number(m[1]) : undefined;
 }
@@ -57,9 +57,12 @@ export function exitLead(x: ExitLine): string {
 /** The ledger line with its lead in bold: the engine's text leads with `died $0 · …` (Cut 10 §3) and is split there; a text
  *  without a lead (an older slice) gets one in front — never two (`died $0 · died $0 · $190 carried` on every real report). */
 export function ledgerText(x: ExitLine, name?: (label: string) => string): (string | HTMLElement)[] {
-  const m = /^((?:banked|returned|died|stalled|lost thread) \$-?\d+)(?: · )?(.*)$/s.exec(x.text);
-  if (m) return [h("b", { class: "lead" }, m[1]), m[2] ? " · " : "", wakeShown(m[2]), exitExtras(x, name)];
-  return [h("b", { class: "lead" }, exitLead(x)), " · ", wakeShown(x.text), exitExtras(x, name)];
+  const m = /^((?:banked|returned|died|stalled|lost thread|driven) \$-?\d+)(?: · )?(.*)$/s.exec(x.text);
+  // QA 0c6e126 (qaY: 16 death lines of 10–20 item names each, the killer and the floor buried): a report line is brief — what was left
+  // and the pile are counts (`left 3`, the core's `bones: 12 items on D6`); the death screen and the gold sheet name them
+  const killer = x.cause ? [" · ", h("b", { class: "killer" }, /* copy:callout */ `to ${x.cause}`)] : [];
+  if (m) return [h("b", { class: "lead" }, m[1]), ...killer, m[2] ? " · " : "", wakeShown(m[2]), exitExtras(x, name, { brief: true })];
+  return [h("b", { class: "lead" }, exitLead(x)), " · ", wakeShown(x.text), exitExtras(x, name, { brief: true })];
 }
 
 /** Cut 16 §1: the depths picked clean as one line — consecutive depths collapse (`D1–4 · thinned`, `D3 · D5 · thinned`).
@@ -70,7 +73,8 @@ export function pickedLine(depths: number[]): string {
     let j = i; while (j + 1 < ds.length && ds[j + 1] === ds[j] + 1) j++;
     runs.push(j > i ? `D${ds[i]}–${ds[j]}` : `D${ds[i]}`); i = j;
   }
-  return `${runs.join(" · ")} · ${/* copy:callout */ "thinned"}`;
+  // QA 0c6e126 (qaZ: `D4–6 · thinned` with no source): what thinned — `D4–6 · loot thinned`
+  return `${runs.join(" · ")} · ${/* copy:callout */ "loot thinned"}`;
 }
 
 /** Rows of one name summed (`blue potion? ×8` read as `poison` beside `poison ×3` → `poison ×11`), first-seen order. */
@@ -100,23 +104,26 @@ export function newsLines(r: Pick<ReturnReport, "runs" | "exits">): News[] {
   for (const ns of [...all].reverse()) for (const n of ns) { if (n.k === "differ" || n.k === "learned" || seen.has(n.text)) continue; seen.add(n.text); out.push(n); }
   return mergeFinds(out).slice(0, 4);
 }
-/** `new find: bow` · `new find: amber potion?` → `new find: bow, amber potion?` (one line, in the first's place). */
+/** `new find: bow` · `new find: amber potion?` → `new find: bow, amber potion?` (one line, in the first's place). QA 0c6e126 (qaY: the
+ *  header named three avenged, the lines four others, ♟14's line one of its two): `avenged Zelul` · `avenged Morim` → `avenged Zelul,
+ *  Morim` likewise — every name in one list, wherever the news is read. */
 export function mergeFinds(ns: News[], most = 3): News[] {
-  const out: News[] = []; const kinds = new Map<News, { head: string; items: string[] }>(); let finds: News | null = null;
+  const out: News[] = []; const kinds = new Map<News, { head: string; sep: string; items: string[] }>(); const lead = new Map<string, News>();
   for (const n of ns) {
-    const m = n.k === "find" ? /^([^:]+): (.+)$/.exec(n.text) : null;
-    const k = finds ? kinds.get(finds) : undefined;
-    if (m && k && k.head === m[1]) { k.items.push(m[2]); continue; }
-    const x = { ...n }; out.push(x); if (m) { finds = x; kinds.set(x, { head: m[1], items: [m[2]] }); }
+    const m = n.k === "find" ? /^([^:]+)(: )(.+)$/.exec(n.text) : n.k === "named" ? /^(avenged)( )(.+)$/.exec(n.text) : null;
+    const at = m ? lead.get(`${n.k}|${m[1]}`) : undefined, k = at ? kinds.get(at) : undefined;
+    if (m && k) { if (!k.items.includes(m[3])) k.items.push(m[3]); continue; }
+    const x = { ...n }; out.push(x); if (m) { lead.set(`${n.k}|${m[1]}`, x); kinds.set(x, { head: m[1], sep: m[2], items: [m[3]] }); }
   }
   // a night's finds stay one short line: the first `most`, then `+N`
-  for (const [x, k] of kinds) x.text = `${k.head}: ${k.items.slice(0, most).join(", ")}${k.items.length > most ? ` +${k.items.length - most}` : ""}`;
+  for (const [x, k] of kinds) x.text = `${k.head}${k.sep}${k.items.slice(0, most).join(", ")}${k.items.length > most ? ` +${k.items.length - most}` : ""}`;
   return out;
 }
 /** Cut 24 §2: an absence's exit line leads with its run's first news (`record: D10 · returned $48 · …`); a watched run's report already
  *  leads with its news, so its one line does not repeat it. */
 function newsLead(x: ExitLine, runs: number): (string | HTMLElement)[] {
-  const n = runs > 1 ? mergeFinds((x.news ?? []).filter((y) => y.k !== "differ"))[0] : undefined;
+  // QA 0c6e126 (qaY: `learned 3` at the head of a death line, no source): the facts are LEARNED's — a line never leads with their count
+  const n = runs > 1 ? mergeFinds((x.news ?? []).filter((y) => y.k !== "differ" && y.k !== "learned"))[0] : undefined;
   return n ? [h("b", { class: "news-lead" }, n.text), " · "] : [];
 }
 function newsBlock(r: ReturnReport): HTMLElement | null {
@@ -186,12 +193,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
   // Cut 13 §3: the gold line — what the exits brought (banked / returned, off the exit lines), the salvage, the automations' spending
   const goldLine = (): HTMLElement | null => {
-    if (!r.spent && !r.salvaged && !r.gold && !r.restock_capped && !r.repeat_short && !r.swapped) return null;
+    if (!r.spent && !r.salvaged && !r.gold && !r.restock_capped && !r.repeat_short) return null;
     const ex = r.exits ?? [];
     const bankedG = ex.filter((x) => x.keep_pct >= 100).reduce((a, x) => a + x.kept, 0), returnedG = ex.filter((x) => x.keep_pct > 0 && x.keep_pct < 100).reduce((a, x) => a + x.kept, 0);
     const salvageG = (r.salvaged ?? []).reduce((a, x) => a + x.gold, 0), spentG = (r.spent ?? []).reduce((a, x) => a + x.gold, 0);
     const pieces: (string | HTMLElement)[] = [];
-    const WORD = /* copy:callout */ { banked: "banked", returned: "returned", salvage: "salvage", wake: "purse", spent: "spent" };
+    const WORD = /* copy:callout */ { banked: "banked", returned: "returned", salvage: "salvage", wake: "heir purse", spent: "spent" };
     const piece = (n: number, sign: string, word: string, cls: string): void => { if (n > 0) pieces.push(h("span", { class: cls }, `${sign}$${n} ${word}`)); };
     // the core's summary is to the coin over every run of the absence (the exit lines are capped per slice): it wins
     // QA 92eb880 (M, N: "`+$892 home` where the gold sheet and rows say `returned`"): the exits' coins by the rows' own words — `banked` /
@@ -207,8 +214,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       // QA 778fa1b (qaU: `purse full` beside $999 read as the camp's cap): the deaths the core flags (a purse just over the top-up line,
       // `ExitLine.purse_full`) read `no top-up`; a richer lineage's deaths say nothing of the purse
       // QA 912e135 (qaW: `no top-up ×16` — "the top-up it refers to is never shown"): the purse the deaths found, `heir purse ≥$40`
-      const full = ex.filter((x) => x.purse_full).length;
-      if (full > 0) pieces.push(h("span", { class: "dim purse-full" }, /* copy:callout */ `heir purse ≥$${r.gold.wake_cap ?? 40}${full > 1 ? ` ×${full}` : ""}`));
+      // QA 0c6e126 (qaY: `heir purse ≥$40 ×12` beside one `+$20 heir purse` in the gold sheet — "the ≥ has no source"): only the top-ups
+      // the ledger holds are named (`+$20 heir purse`, the gold sheet's own words); a death that found the purse full moved no gold
       piece(r.gold.spent, "−", WORD.spent, "down");
       // QA 912e135 (qaW: `STALLED $224 lost` and ~$1,900 carried by the dead, named nowhere on the gold side): what the exits did not keep —
       // a dim note beside the movements (it never was in the purse)
@@ -219,9 +226,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // unread): it says the rule, `restock ≤ income`; both it and `repeat short` open the gold sheet, where the ledger lines are
     // QA 778fa1b (qaU: `carry $61 −$37 swapped` on the strip, in no ledger): what the pack's swaps took off the carry (`ReturnReport.swapped`,
     // else the lines' own) — already out of `carried`, so a dim note, not a movement of the purse
-    const swapped = r.swapped ?? ex.reduce((a, x) => a + (x.swapped ?? 0), 0);
-    if (swapped > 0) pieces.push(h("span", { class: "dim swapped" }, /* copy:callout */ `−$${swapped} swapped`));
-    if (r.restock_capped) pieces.push(h("button", { class: "capped warn ledger-link", onclick: () => openGoldSheet(app) }, /* copy:callout */ "restock ≤ income"));
+    // QA 0c6e126 (qaZ: `+$767 returned · +$215 salvage · −$480 spent · −$7 swapped` read as +$495 against a +$502 balance): the swaps
+    // are already out of the carry the exits brought home — never a term of the headline; each run's line names its own (`−$5 left axe`)
+    // QA 0c6e126 (qaY: `restock ≤ income` unexplained): the cap with its number — what the absence brought in (the core's `Batch::income`:
+    // the exits, the salvage, the heir purses), `restock ≤ $0 earned`
+    const income = r.gold ? r.gold.home + r.gold.salvage + r.gold.wake : undefined;
+    if (r.restock_capped) pieces.push(h("button", { class: "capped warn ledger-link", onclick: () => openGoldSheet(app) }, income !== undefined ? /* copy:callout */ `restock ≤ $${income} earned` : /* copy:callout */ "restock ≤ income"));
     // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay
     if (r.repeat_short) pieces.push(h("button", { class: "capped warn ledger-link", onclick: () => openGoldSheet(app) }, /* copy:callout */ "repeat short"));
     if (!pieces.length) return null;
@@ -249,7 +259,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // Cut 20 (AD: "tapping `DIED · TRACE` opened the GOLD sheet"): a wrapped line put its chip directly under the line's own button,
     // two tap targets stacked 0 px apart — the line is a row now: the text (the gold sheet) on the left, the chip (the trace) in its
     // own column on the right, never under the text
-    exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line exit-row num dim" },
+    exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line exit-row num dim", "data-lead": x.text },
       h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...newsLead(x, r.runs), ...ledgerText(x, named)),
       // QA 912e135 (qaW, qaX: a lone `·` before every `D7 · died · trace`): the chip is its own flex column (Cut 20) — no separator glyph
       traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
@@ -257,13 +267,33 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
   };
   paintExits(false);
+  /** QA 0c6e126 (qaY: `1 STALLED · $265 lost` with no stalled line among the eight shown): a stalled or driven tile reaches its lines —
+   *  the tap unfolds the earlier ones and brings the newest of its kind into view. */
+  const reach = (el: HTMLElement | null, word: RegExp): void => {
+    if (!el || !exitLines || !allExits.some((x) => word.test(x.text))) return;
+    el.classList.add("tile-link");
+    el.onclick = () => {
+      paintExits(true);
+      const row = [...exitLines.querySelectorAll<HTMLElement>(".exit-row")].find((r) => word.test(r.dataset.lead ?? ""));
+      if (!row) return;
+      row.scrollIntoView({ block: "center", behavior: "smooth" }); row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash");
+    };
+  };
+  reach(stalled, /^stalled\b/); reach(drivenTile, /^driven\b/);
   // Cut 24 §1 (AL: a Warlord fight > 4 min, the boss bar full): a boss no blow could move drove the hero off (`ExitLine.driven`, core) —
   // one tablet a boss, `Warlord · no counter · shield wall`, `try: attack boss` under it; a tap writes the counter at the top (or finds it)
   const drivenOff = [...new Map(allExits.filter((x) => x.driven).map((x) => [x.driven!.boss, x.driven!])).values()];
   const driven = drivenOff.length ? h("section", { class: "rsec driven" }, h("div", { class: "label" }, /* copy:label */ "counter"),
     ...drivenOff.map((d) => {
       const have = app.rules.rows.findIndex((r) => sameRowShape(r, d.row));
-      return h("button", { class: `patch tablet driven-line${have >= 0 ? " held" : ""}`, onclick: () => app.go({ kind: "camp", highlight: have >= 0 ? have : app.insertRow(d.row, 0, "patch") }) },
+      // QA 0c6e126 (qaZ: the tap inserted the counter as R1 onto a full set — `7/6 rows`, SEND greyed): a full set asks which row it
+      // replaces, as a death's patch does (`openDropSheet`: the row lands at the top, the dropped one goes)
+      const write = (): void => {
+        if (have >= 0) { app.go({ kind: "camp", highlight: have }); return; }
+        if (app.rowsFull) { openDropSheet(app, { row: { ...d.row, origin: "patch" }, insert_at: 0, survive: 0, forecast_delta: 0 } as Patch); return; }
+        app.go({ kind: "camp", highlight: app.insertRow(d.row, 0, "patch") });
+      };
+      return h("button", { class: `patch tablet driven-line${have >= 0 ? " held" : ""}`, onclick: write },
         h("span", { class: "chips-inline" }, [d.title, d.verdict, d.defence].filter(Boolean).join(" · ")),
         h("small", { class: "try" }, have >= 0 ? /* copy:callout */ `at R${have + 1}` : /* copy:callout */ `try: ${d.counter}`));
     })) : null;
@@ -271,7 +301,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
   const stall = r.stall ? h("section", { class: "rsec stall" },
     h("div", { class: "label" }, /* copy:label */ "plateau"),   // every run came home, none deeper — not a stalled run (QA on 56f2a1d: `STALL` over `14 RETURNED`)
-    h("div", { class: "stall-line num" }, r.stall.text, " ", traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r) })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb); its run: the exit whose trace it is (QA on e0f87e7: no `watch` from a report)
+    h("div", { class: "stall-line num" }, r.stall.text, " ", traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r), home: true })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb); its run: the exit whose trace it is (QA on e0f87e7: no `watch` from a report)
     r.stall.patches.length ? patchRows(app, r.stall.patches, undefined, undefined, { depth: stallDepth(r.stall.text) }) : null) : null;
   // Cut 2 §2: one line per pile recovered this send (the core sends `heir 3 · D7 · 4 items`, `bones:7:4` too; the watch
   // `D5 · 7 items`). Every line says it was found — `found ♟3's bones · D7 · 4 items` — since `bones D8 · 11 items · ♟3` read
@@ -348,6 +378,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       revealed(app).has("heirs") ? cmdTile({ id: "ledger", label: /* copy:button */ "ledger", icon: "ledger", onclick: () => openLedger(app) }) : null,
     ],
   });
+  const keptLabels = r.kept ?? (r.new_finds ? r.found.map((i) => i.label) : []);
   const sheet = h("div", { class: "parchment report-sheet" },
     newsBlock(r), tiles, goldLine(), startShort, bounty, picked, exitLines, driven, rested, stall,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
@@ -358,7 +389,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "lost", chips((r.lost ?? []).map((k) => k.includes(" · ") ? /* copy:callout */ `◯ ${k} fell` : lostLabel(k)), "chip egg")),
     section(/* copy:label */ "bests", lines(collapseBests(r.bests).map(bestLabel))),
     r.xp && (r.xp.gained > 0 || r.xp.level_ups > 0) ? section(/* copy:label */ "xp", h("div", { class: "xp-line num" }, `${r.xp.class} +${r.xp.gained}`, " · ", /* copy:label */ `L${L.classes?.[r.xp.class]?.level ?? 1}`, r.xp.level_ups > 0 ? h("b", null, ` ↑${r.xp.level_ups}`) : "")) : null,
-    section(/* copy:label */ "found", chips(r.found.map((i) => named(i.label)))),
+    // QA 0c6e126 (qaY: the header's `new find: bow, leather` beside FOUND `mail +1` — the item the send brought from the vault): an
+    // absence's FOUND is its first finds (`ReturnReport.new_finds`, the core's, every one the header's `new find` names); what went to
+    // the vault is KEPT (`→ vault`)
+    section(/* copy:label */ "found", r.new_finds ? chips(r.new_finds.map(named)) : chips(r.found.map((i) => named(i.label)))),
     // QA e75ec29 (R: six thefts in one run, "the report and gold sheet say nothing"): what thieves took and no run got back
     // QA a946e04 (S: `leash ×4` beside `leash (2)`, `black potion?` after LEARNED said confusion): one chip per name, identified kinds by
     // their name; T (`−$36 stolen` on the strip, only items here): the carry the thefts took leads (`$36`)
@@ -369,9 +403,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
     // Cut 24 §5 (AK, AL: the tapped chip read as salvaged — a twin or the return's cut sold, the kept one renamed by the vault): what
     // the keep sheet sent to the vault leads the sell-off
-    section(/* copy:label */ "kept", r.kept?.length ? h("div", { class: "chips kept" }, ...r.kept.map((x) => h("span", { class: "chip kept" }, named(x), /* copy:callout */ " → vault"))) : null),
+    section(/* copy:label */ "kept", keptLabels.length ? h("div", { class: "chips kept" }, ...keptLabels.map((x) => h("span", { class: "chip kept" }, named(x), /* copy:callout */ " → vault"))) : null),
     // Cut 21 §2: found supplies the exits put on the shelf (the next send packs them free), before what was sold
-    section(/* copy:label */ "shelved", r.shelved?.length ? h("div", { class: "chips shelved" }, ...r.shelved.map((x) => h("span", { class: "chip shelf" }, /* copy:callout */ `found ${x.kind.replace(/_/g, " ")}`, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", /* copy:callout */ " → shelf"))) : null),
+    section(/* copy:label */ "shelved", r.shelved?.length ? h("div", { class: "chips shelved" }, ...r.shelved.map((x) => h("span", { class: "chip shelf" }, /* copy:callout */ `found ${x.kind.replace(/_/g, " ")}`, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", /* copy:callout */ " → supplies"))) : null),
     section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...mergeRows(r.salvaged.map((x) => ({ ...x, kind: named(x.kind) }))).map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),
     // Cut 13 §3: what the automations bought this absence, per kind (`heal ×16 · −$640`)
     section(/* copy:label */ "spent", r.spent?.length ? h("ul", { class: "lines" }, ...r.spent.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num down" }, `−$${s.gold}`)))) : null),
@@ -397,6 +431,8 @@ function stallRun(r: ReturnReport): number | undefined {
   return r.exits?.find((x) => x.trace && JSON.stringify(x.trace.turns) === key)?.run_id;
 }
 
+/** The floor events a bare fact names (`lock`, `shrine`): each opens its `on see` condition. */
+const SEEN_FACTS = ["den", "lock", "captive", "nest", "shrine", "stray", "hunger"];
 /** Facts grouped for reading: `foe:x`, `foe:x:t1`, `foe:x:t2` → one chip "x · t1 · t2"; `item:f=k` → "k (f)";
  *  `biome:x` → "x"; `boss:x:counter[=row]` → "x counter: attack boss" (Cut 6 §5: the lineage's counter text names the row);
  *  others verbatim. */
@@ -421,9 +457,13 @@ function factChips(facts: string[], counters: Counter[] = []): HTMLElement | nul
     // QA 912e135 (qaW: LEARNED `vault`, `alert · rising`, `counter · gas>pack` named no action or number): each says what it is and what it
     // opens — the cage seen (its tablet), the alert rising (`cond: alert`), a tag that beats another (the companions' counters)
     if (f === "vault") { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ "cage seen")); continue; }
-    if (f === "alert:rising") { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ "alert rises", h("small", null, /* copy:callout */ " · alert ≥ open"))); continue; }
+    // QA 0c6e126 (qaY: `alert rises · alert ≥ open`, `lock`, `shrine` on their own lines, tied to nothing): each says what it opens — the
+    // `alert ≥` card for sale; a floor event seen, the `on see` condition that names it
+    if (f === "alert:rising") { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ "alert rises", h("small", null, /* copy:callout */ " · unlocks alert ≥"))); continue; }
+    if (SEEN_FACTS.includes(f)) { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ `${nice(f)} seen`, h("small", null, /* copy:callout */ ` · on see ${nice(f)}`))); continue; }
     const ct = /^counter:([^>]+)>(.+)$/.exec(f);
-    if (ct) { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ `${nice(ct[1])} beats ${nice(ct[2])}`)); continue; }
+    // QA 0c6e126 (qaZ: `pack beats lone` with no source): a companion's counter — it says whose (`· allies`)
+    if (ct) { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ `${nice(ct[1])} beats ${nice(ct[2])}`, h("small", null, /* copy:callout */ " · allies"))); continue; }
     // any other `kind:detail` fact reads like the foe chips (`alert · rising`, not `alert:rising`; QA on 50bb162)
     const kv = /^([^:]+):(.+)$/.exec(f);
     if (kv) { rest.push(h("span", { class: "chip fact" }, nice(kv[1]), h("small", null, ` · ${kv[2].split(":").map(nice).join(" · ")}`))); continue; }

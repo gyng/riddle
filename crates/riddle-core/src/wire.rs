@@ -171,6 +171,10 @@ pub struct Stake {
     /// line's `swapped` at the end) — the strip names a fall `swap` by this counter's rise.
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub swapped: i32,
+    /// QA on 0c6e126 (qaY: `−$5 swap → waxen scroll?` read as a price): what the last costly
+    /// swap left on the floor (`axe`) — the strip's fall reads `−$5 left axe`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub swap_left: Option<String>,
 }
 
 /// Cut 6 §1: the ledger line of an exit — one arithmetic line the player can check.
@@ -230,6 +234,15 @@ pub struct ExitLine {
     /// what the run picked up less `stolen_gold` less this.
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub swapped: i32,
+    /// QA on 0c6e126 (qaY: the report's death lines listed items and buried the killer): a
+    /// death's killer as it reads after `died to` (`a goblin archer`, `gas`) — the report's
+    /// lines lead with it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cause: Option<String>,
+    /// QA on 0c6e126 (qaY: `−$5 swapped` naming no item): what the costly swaps left on the
+    /// floor, per label (`axe`) — the line's `−$5 swapped` names them (`−$5 left axe`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub swap_left: Vec<KindCount>,
     /// QA on 778fa1b: the heir purse's top-up this death paid (the `+$N wake` of `text`), 0 when
     /// none.
     #[serde(default, skip_serializing_if = "is_zero_i")]
@@ -722,6 +735,22 @@ pub struct Trace {
     /// finds, targets lost, path blocks, cooldown starts), oldest first, ≤ `PROV_CAP`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provenance: Option<Vec<Because>>,
+    /// QA on 0c6e126 (qaY: "the last row is never the killing blow — 05 ends at `hp 1`, 08 at
+    /// five rows of `hp 3`"): the turns are the hero's actions, and the blow lands between two
+    /// of them — a death's trace ends with it (the tick, what hit, the damage, `hp 0`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blow: Option<TraceBlow>,
+}
+
+/// QA on 0c6e126: a death trace's last row — the blow that killed (`Trace.blow`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TraceBlow {
+    pub t: u32,
+    /// The killer's kind or the hazard (`goblin_archer`, `gas`, `poison`) — `Run.death_cause`.
+    pub by: String,
+    pub dmg: i32,
+    /// Always 0: the hero's hp after the blow.
+    pub hp: i32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -773,6 +802,13 @@ pub struct Patch {
     /// beside its reach. Set on every shown patch (`trace::mark_exits`).
     #[serde(default, skip_serializing_if = "is_false")]
     pub exits: bool,
+    /// QA on 0c6e126 (qaY: `hp < 20% → drink invisibility · survives 92%` applied, and the next
+    /// heir carried none — `blocked · no item · none in pack`): a patch whose row uses a named
+    /// item the next heir will not carry is offered with its purchase (the supply, its price;
+    /// its reach measured with it bought — the tap buys it, then applies the row), or not at
+    /// all (`trace::pack_need`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub buys: Option<PatchBuy>,
 }
 
 fn is_zero_u32(n: &u32) -> bool {
@@ -781,6 +817,14 @@ fn is_zero_u32(n: &u32) -> bool {
 
 fn is_zero_f64(n: &f64) -> bool {
     *n == 0.0
+}
+
+/// QA on 0c6e126: the supply a patch's row needs and the next heir will not carry (`Patch.buys`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PatchBuy {
+    pub kind: String,
+    pub label: String,
+    pub price: i32,
 }
 
 /// Cut 11 §2: what a root-cause patch answers.
@@ -817,6 +861,11 @@ pub struct Death {
     /// Survival of the unpatched rules over the reseeded replays (addition; 0..1).
     #[serde(default)]
     pub baseline: f64,
+    /// QA on 0c6e126 (qaY: `unpatched 58%` on two unrelated deaths — "a shared cache?"): the
+    /// reseeded replays `survive` and `baseline` are shares of (`trace::REPLAYS`): 58 % is 7 of
+    /// 12, a number many deaths share. The client prints the shares as counts (`7/12`).
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub replays: u32,
     pub trace: Trace,
     pub patches: Vec<Patch>,
     pub morgue: String,
@@ -891,6 +940,10 @@ pub struct ReturnReport {
     pub learned: Vec<String>,
     pub bests: Vec<String>,
     pub found: Vec<InvItem>,
+    /// QA on 0c6e126 (qaY): the kinds this absence found for the first time (wire names, in
+    /// order) — the header's `new find` lines, all of them; FOUND lists them beside the vaulted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub new_finds: Vec<String>,
     pub deaths: Vec<DeathCount>,
     pub pending: Vec<String>,
     pub reel: Vec<Highlight>,

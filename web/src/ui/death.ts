@@ -16,9 +16,9 @@ import { h, copyText, items } from "./dom";
 import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
 import { applyOf, fillReach, patchRows } from "./patches";
-import { openSheet } from "./sheet";
+import { closeX, openSheet } from "./sheet";
 import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
-import { lostLabel, noteText, verbLabel } from "./tokens";
+import { lostLabel, noteText, rowLabel, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
 
@@ -33,7 +33,9 @@ export const headlineMargin = (m: string): string => m.split(" · ").filter((x) 
 /** QA 1a2a4a9 (O, P, and many before: "`+$40 wake` — no source"): the core's wake pay tops the next heir's purse up to $40 — it reads
  *  as whose it is (`heir purse +$40`), here, on the gold sheet and in the report. */
 export const wakeShown = (t: string): string => t.replace(/\+\$(\d+) wake\b/g, /* copy:callout */ "heir purse +$$$1").replace(/\bwake pay\b/g, /* copy:callout */ "heir purse").replace(/\bpurse full\b/g, /* copy:callout */ "no top-up");
-export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t) ? t.replace(/ · keeps 0%(?= · |$)/, "") : t);
+/** QA 0c6e126 (qaZ: `died $0 · $61 lost` — "I read `died $0` as died carrying $0"): the kept and the carried are named apart —
+ *  `died · kept $0 · $61 lost`. */
+export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t) ? t.replace(/ · keeps 0%(?= · |$)/, "").replace(/^died \$0\b/, /* copy:callout */ "died · kept $$0") : t);
 /** QA e75ec29 (R: a packed heal stolen on D1, nothing on the exit; `+$40 heir purse` once, then none): what the core adds to an exit
  *  line beside its text — `· stolen heal` (what thieves took and kept), the purse's word, the swaps' toll, the shelved finds.
  *  QA 778fa1b (qaU): `purse full` (read as the camp's $999 cap) is `no top-up` — the core flags it only for a purse under $80; the
@@ -41,34 +43,47 @@ export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t
  *  strip and nowhere after) rides the line; the coins thieves kept join the stolen list (`stolen scroll, $3` — STOLEN $3 matched no
  *  line); `name` reads a stolen flavour by its name now (`amber potion?` → `caustic`, LEARNED's word). */
 const dTag = (d: number): string => /* copy:none */ `D${d}`;
-export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "stolen_gold" | "purse_full" | "wake" | "swapped" | "shelved" | "start" | "start_short" | "found" | "bones">, name: (label: string) => string = (l) => l.replace(/_/g, " ")): string => {
+/** `brief` (the report's lines, QA 0c6e126 qaY: "16 runs of death lines each list 10–20 item names; the lines that differ are buried"):
+ *  the `left` finds and the pile print as counts (`left 3`), the core's `bones: N items on D6` already naming the pile. */
+export type ExtrasOpts = { brief?: boolean; /** the pile's list is already in the text (`lineShown`) */ pileShown?: boolean };
+export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "stolen_gold" | "purse_full" | "wake" | "swapped" | "swap_left" | "shelved" | "start" | "start_short" | "found" | "bones">, name: (label: string) => string = (l) => l.replace(/_/g, " "), opts: ExtrasOpts = {}): string => {
   // QA 912e135 (qaW: `stolen blink, $3` read as the blink's worth): the coins thieves kept are their own term — `stolen blink + $3`
   const items = (x.stolen ?? []).map(name), coins = x.stolen_gold && x.stolen_gold > 0 ? `$${x.stolen_gold}` : "";
+  // QA 0c6e126 (qaZ): stolen gear carries its enchant (`leather +1`); the coins stay their own term (`stolen leather +1 + $6`, qaW's form)
   const stolen = items.length ? `${items.join(", ")}${coins ? ` + ${coins}` : ""}` : coins;
   // QA a946e04 (T: a D5 start at $32 ran from D1 with no word): the run's start fell back — the toll was more than the purse
   return (x.start_short && !/toll short/.test(x.text) ? /* copy:callout */ ` · from ${dTag(x.start ?? 1)} · toll short` : "")
     + (stolen && !/\bstolen\b/.test(x.text) ? /* copy:callout */ ` · stolen ${stolen}` : "")
-    + (x.swapped && x.swapped > 0 && !/\bswapped\b/.test(x.text) ? /* copy:callout */ ` · −$${x.swapped} swapped` : "")
+    // QA 0c6e126 (qaY: `−$5 swapped` named no item): the costly swaps' toll names what they left on the floor (`−$5 left axe`)
+    + (x.swapped && x.swapped > 0 && !/\bswapped\b/.test(x.text) ? x.swap_left?.length ? /* copy:callout */ ` · −$${x.swapped} left ${shelvedText(x.swap_left.map((b) => ({ kind: name(b.kind), n: b.n })))}` : /* copy:callout */ ` · −$${x.swapped} swapped` : "")
     + (x.wake && x.wake > 0 && !/\bwake\b|heir purse/.test(x.text) ? /* copy:callout */ ` · heir purse +$${x.wake}` : "")
-    // QA 912e135 (qaW: `no top-up` on every line — "the top-up it refers to is never shown"): the purse the death found, already at the line
-    + (x.purse_full && !/purse full|no top-up|heir purse/.test(x.text) ? /* copy:callout */ ` · heir purse ≥$${PURSE_LINE}` : "")
-    + (x.shelved?.length && !/→ shelf\b/.test(x.text) ? /* copy:callout */ ` · found ${shelvedText(x.shelved)} → shelf` : "")
-    + fatesText(x.found, x.bones ? undefined : "bones")
+    // QA 912e135 (qaW: `no top-up` on every line — "the top-up it refers to is never shown"); QA 0c6e126 (qaY: `heir purse ≥$40` — "the
+    // `≥` has no source", twelve of them against one `+$20 heir purse` in the ledger): only a top-up the ledger carries is named (`wake`)
+    // QA 0c6e126 (qaZ: "no shelf appears anywhere"): the loadout's list is SUPPLIES
+    + (x.shelved?.length && !/→ (shelf|supplies)\b/.test(x.text) ? /* copy:callout */ ` · found ${shelvedText(x.shelved)} → supplies` : "")
+    + fatesText(x.found, x.bones ? undefined : "bones", opts.brief)
     // QA 912e135 (qaW: `bones: 12 items on D6` listing 14 — `leash ×3` counted charges; `11 items` listing 10 — only the finds): the
     // pile the count counts, one an item (`ExitLine.bones`, the core's); an older line keeps its finds' list
-    + (x.bones?.length ? /* copy:callout */ ` · bones ${shelvedText(x.bones.map((b) => ({ kind: name(b.kind), n: b.n })))}` : "");
+    // QA 0c6e126 (qaY: `bones leash, violet potion?, …` — "`bones leash` reads as one item"): the pile's list after a colon; brief, the
+    // core's own `bones: N items on DX` says it
+    + (x.bones?.length && !opts.brief && !opts.pileShown ? /* copy:callout */ ` · bones: ${shelvedText(x.bones.map((b) => ({ kind: name(b.kind), n: b.n })))}` : "");
 };
-/** The heir purse's top-up line (the core's `WAKE_PAY`; a death tops the next heir's purse up to it — `heir purse +$30 → $40`). */
-const PURSE_LINE = 40;
 /** QA 778fa1b (V: found items that ended in no named place): the finds the other words don't place — `· left mail · bones leash`.
  *  QA 912e135: `bones` only for a line without the pile's own list (`ExitLine.bones` names every item of it). */
-const fatesText = (xs: ExitLine["found"], bones?: "bones"): string => (["left", ...(bones ? [bones] : [])] as const).map((f) => {
+const fatesText = (xs: ExitLine["found"], bones?: "bones", brief = false): string => (["left", ...(bones ? [bones] : [])] as const).map((f) => {
   const ys = (xs ?? []).filter((y) => y.fate === f && y.n > 0);
-  return ys.length ? /* copy:callout */ ` · ${f} ${shelvedText(ys)}` : "";
+  if (!ys.length) return "";
+  return brief ? /* copy:callout */ ` · ${f} ${ys.reduce((a, y) => a + y.n, 0)}` : /* copy:callout */ ` · ${f}${f === "bones" ? ":" : ""} ${shelvedText(ys)}`;
 }).join("");
 /** Cut 21 §2 (AE: "sells heal potions he finds for $2 while I pay $40"): found supplies the exit put on the shelf — `heal ×2, fire`. */
 export const shelvedText = (xs: { kind: string; n: number }[]): string => xs.map((y) => `${y.kind.replace(/_/g, " ")}${y.n > 1 ? ` ×${y.n}` : ""}`).join(", ");
-export const lineShown = (x: ExitLine, name?: (label: string) => string): string => ledgerShown(x.text) + exitExtras(x, name);
+export const lineShown = (x: ExitLine, name?: (label: string) => string, opts: ExtrasOpts = {}): string => {
+  // QA 0c6e126 (qaY): the pile once — the core's `bones: 10 items on D5` becomes `bones on D5: leash, sword, …` where the list is known
+  const nm = name ?? ((l: string) => l.replace(/_/g, " "));
+  const m = !opts.brief && x.bones?.length ? /\bbones: \d+ items? on (D\d+)/.exec(x.text) : null;
+  const text = m ? x.text.replace(m[0], /* copy:callout */ `bones on ${m[1]}: ${shelvedText(x.bones!.map((b) => ({ kind: nm(b.kind), n: b.n })))}`) : x.text;
+  return ledgerShown(text) + exitExtras(x, name, { ...opts, pileShown: !!m });
+};
 
 export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false): Mounted {
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
@@ -118,14 +133,16 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // QA 912e135 (qaW: the trace rows and `R1 unknown item` answered no tap): a row's name opens the editor on it (the rules that ran,
   // when they are the set now — an older death's rows name rows the set may not hold)
   const sameRules = !d.rules || JSON.stringify(d.rules.rows.map((r) => [r.conds, r.verb])) === JSON.stringify(app.rules.rows.map((r) => [r.conds, r.verb]));
-  const onRow = sameRules && !kept ? (i: number): void => { if (i < app.rules.rows.length) { app.editing = true; app.go({ kind: "camp", highlight: i }); } } : undefined;
+  // QA 0c6e126 (qaZ: tapping `R1 drink heal` under the trace jumped to the camp editor — the death screen, APPLY and the morgue gone with
+  // no way back): a row's name opens the row's sheet over the death screen (what it did in the trace); its `edit` goes to the camp
+  const onRow = sameRules && !kept ? (i: number): void => { if (i < app.rules.rows.length) openRowSheet(app, d, i); } : undefined;
   const trace = traceTable(d.trace, { rows: d.rules?.rows ?? app.rules.rows, verbs: d.rules ? undefined : morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain, depth: d.depth, onRow });
   // Fractions 0..1 from the core: baseline (survival of the unpatched rules) is on every row (Cut 4 §2).
   // QA 1a2a4a9 (O): a tap on a tablet lights it (the gem takes its number); the gem applies the lit one — the only apply on this screen
   let picked = false;   // the player lit a tablet (the landing never moves his pick)
   const light = (btn: HTMLButtonElement): void => { patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches, btn); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
   const select = (btn: HTMLButtonElement): void => { picked = true; light(btn); };
-  const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base, stall: d.verdict === "stall", select, moment: d.depth });   // Cut 14 §4: the trace names the least-fired row on a full set
+  const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base, stall: d.verdict === "stall", select, moment: d.depth, replays: d.replays });   // Cut 14 §4: the trace names the least-fired row on a full set
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
   const openMorgue = (): void => {
     // QA a946e04 (S: `slain by goblin_archer`): ids read as words (`goblin archer`), in the sheet and the copy alike
@@ -192,9 +209,21 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   return { el, dispose: () => { gone = true; bar.dispose(); } };
 }
 
+/** QA 0c6e126 (qaZ): a rule row named under a death's trace — the row, how often it acted in the trace's turns and why it did not
+ *  on the last one (engine data: `TraceTurn.rows`), and `edit` (the camp on the row); the sheet's `×` leaves the death screen as it was. */
+function openRowSheet(app: App, d: Death, i: number): void {
+  const row = (d.rules?.rows ?? app.rules.rows)[i]; if (!row) return;
+  const turns = d.trace.turns, acted = turns.filter((t) => t.row === i).length;
+  const last = turns[turns.length - 1], why = last?.row === i ? /* copy:callout */ "fired" : last?.rows?.find((w) => w.row === i)?.why;
+  openSheet((close) => h("div", { class: "sheet-body row-sheet" },
+    h("div", { class: "label row-label" }, `R${i + 1}`, " ", h("small", { class: "dim" }, rowLabel(row)), closeX(close)),
+    h("div", { class: "num dim row-acted" }, /* copy:callout */ `acted ${acted}/${turns.length}`, why ? ` · ${why}` : ""),
+    h("button", { class: "chip row-edit", onclick: () => { close(); app.editing = true; app.go({ kind: "camp", highlight: i }); } }, /* copy:button */ "edit")));
+}
+
 /** Cut 20 §4: the gold the loadout's repeat charged after the newest exit (`repeat heal` ledger lines, the core's re-pack), 0 when none. */
 export function repeatAfterExit(ledger: { delta: number; why: string }[]): number {
-  let i = ledger.length - 1; while (i >= 0 && !/^(returned|banked|died|lost|stalled)\b/.test(ledger[i].why)) i--;
+  let i = ledger.length - 1; while (i >= 0 && !/^(returned|banked|died|lost|stalled|driven)\b/.test(ledger[i].why)) i--;
   if (i < 0) return 0;
   return ledger.slice(i + 1).filter((g) => g.delta < 0 && /^repeat\b/.test(g.why)).reduce((a, g) => a - g.delta, 0);
 }
@@ -231,7 +260,7 @@ function topPatch(patches: HTMLElement, pick?: HTMLButtonElement): { btn: HTMLBu
   if (!btn) return null;
   btn.classList.add("top");
   const unlock = btn.classList.contains("unlock");
-  const surv = /(\d+%)/.exec(btn.querySelector(".surv")?.textContent ?? "")?.[1];
+  const surv = /(\d+(?:%|\/\d+))/.exec(btn.querySelector(".surv")?.textContent ?? "")?.[1];
   // a lit held row (`at R2`) opens the camp on it: the gem reads `edit`
   return { btn, label: unlock ? /* copy:button */ "buy" : btn.classList.contains("held") ? /* copy:button */ "edit" : surv ?? "" };
 }

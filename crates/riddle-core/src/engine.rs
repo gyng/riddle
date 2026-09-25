@@ -171,6 +171,9 @@ pub struct Run {
     pub over: Option<ExitTier>,
     pub death_cause: Option<String>,
     pub death_blow: i32,
+    /// QA on 0c6e126: the tick of the killing blow (`Trace.blow`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_t: Option<u32>,
     /// Cut 10 §3: the HP the hero was short of taking the killing blow (`Death.margin`: `3 hp
     /// short` — the blow overshot by two, one more would have held).
     #[serde(default)]
@@ -247,6 +250,10 @@ pub struct Run {
     pub tamed: Vec<(u32, String)>,
     pub lost_companions: Vec<(u32, String)>,
     /// Item ids of camp supplies (never kept back).
+    /// QA on 0c6e126 (qaZ: `new find: leash`, the free supply back from bones): the kinds the
+    /// send packed (its supplies), never a find of the run.
+    #[serde(default)]
+    pub packed: Vec<String>,
     pub supplies: Vec<u32>,
     /// Taunt: foes ignore companions for this many ticks.
     pub taunt_t: i32,
@@ -430,6 +437,11 @@ pub struct Run {
     /// carried one (`turn::pickup_here`): the exit line's `swapped`.
     #[serde(default)]
     pub swapped: i32,
+    /// QA on 0c6e126 (qaY: `carry $135 −$5 swap → waxen scroll?` read as a price; the death
+    /// line's `−$5 swapped` named no item): what each costly swap left on the floor, by its
+    /// label at the time (`axe`), in order — the strip's and the exit line's `left axe`.
+    #[serde(default)]
+    pub swap_left: Vec<String>,
     /// Visible hostiles whose `reflect_melee` tag is known: the chores path around them
     /// (never within a tile), as they path around water. Refreshed each hero action.
     #[serde(default)]
@@ -1107,6 +1119,10 @@ pub struct LineageState {
     /// Cut 24 §3: the forge's unit, fixed the first time the forge was shown (`kit::unit_of`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kit_unit: Option<u32>,
+    /// QA on 0c6e126 (qaY: `+1 row ◆2 or $450` became `$600` overnight with no gold buy): the row slots' unit, fixed at the first
+    /// exit (the unlock shelf shows the row's price from the first camp) — `kit::row_gold`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_unit: Option<u32>,
 }
 
 /// Cut 24 §2: a finished run in brief (`LineageState::last_run`).
@@ -1286,6 +1302,7 @@ impl LineageState {
             found_kinds: BTreeSet::new(),
             last_run: None,
             kit_unit: None,
+            row_unit: None,
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -1344,7 +1361,7 @@ impl LineageState {
         if !["unlock ", "forge ", "insure ", "hatch", "egg", "ascended", "wake pay"].iter().any(|p| why.starts_with(p)) {
             self.night_net += delta;
         }
-        let exit = why.starts_with("returned") || why.starts_with("banked") || why.starts_with("died") || why.starts_with("lost") || why.starts_with("stalled");
+        let exit = is_exit_why(why);
         // QA on 1a2a4a9: a re-pack the purse could not pay says so (`$0 repeat short`).
         if delta == 0 && !exit && why != REPEAT_SHORT {
             return;
@@ -1372,6 +1389,12 @@ impl LineageState {
     /// Cut 5 §2: the heir's chronicle line, written once when the heir ends (`end` = `fell to
     /// gas` · `retired at rank 3` · `ascended`; `tail` = `left bones on D7`).
     pub fn chronicle_heir(&mut self, end: &str, tail: Option<String>) {
+        self.chronicle_heir_at(end, tail, None)
+    }
+    /// `chronicle_heir` for an heir who ended on `at`: QA on 0c6e126 (qaY: `♟6 · D8 · … left
+    /// bones on D6` — "bones two floors above his depth"), an heir whose best is deeper than the
+    /// floor he fell on reads `best D8`, so the bones' floor is not read against it.
+    pub fn chronicle_heir_at(&mut self, end: &str, tail: Option<String>, at: Option<u32>) {
         if self.chronicled == self.heir {
             return;
         }
@@ -1382,8 +1405,12 @@ impl LineageState {
             Some(c) => crate::rules::combo_slug(&c.name),
             None => self.trait_.name().to_string(),
         };
-        let mut parts = vec![format!("♟{} the {} {}", self.heir, epithet, self.class.name()), format!("D{}", self.heir_best)];
-        if let Some(name) = self.rules().name.as_deref().filter(|n| !n.trim().is_empty()) {
+        let best = if at.is_some_and(|d| d < self.heir_best) { format!("best D{}", self.heir_best) } else { format!("D{}", self.heir_best) };
+        let mut parts = vec![format!("♟{} the {} {}", self.heir, epithet, self.class.name()), best];
+        // QA on 0c6e126 (qaY: every heir's line quoted `"fighter" set`): the class's own preset name is no name — a set the player
+        // named is quoted
+        let class_name = self.class.name();
+        if let Some(name) = self.rules().name.as_deref().filter(|n| !n.trim().is_empty() && n.trim() != class_name) {
             parts.push(format!("\"{}\" set", name.trim()));
         }
         // Bosses first, then the rest, two at most. QA on e75ec29 (qaQ: the report's BONES
@@ -1413,6 +1440,11 @@ impl LineageState {
         if !self.heir_deeds.contains(&deed) && (bones || self.heir_deeds.iter().filter(|d| !(d.starts_with("found ♟") && d.ends_with("'s bones"))).count() < 6) {
             self.heir_deeds.push(deed);
         }
+    }
+    /// QA on 0c6e126 (qaZ: `new find: leash` — the free supply, back from a pile of bones): a kind
+    /// the lineage packs or keeps (the shelf, the last send's supplies, the vault) is no find.
+    pub fn owned_kind(&self, kind: &str) -> bool {
+        self.supplies.iter().any(|s| s.kind == kind) || self.last_supplies.iter().any(|k| k == kind) || self.vault.iter().any(|v| v.kind == kind) || (kind == "leash" && self.kennel_declined)
     }
     pub fn variant_is(&self, v: &str) -> bool {
         self.variant == v
@@ -2041,6 +2073,11 @@ pub struct Batch {
     pub frontier_banks: u32,
     pub bests: Vec<String>,
     pub found: Vec<Item>,
+    /// QA on 0c6e126 (qaY: the header's `new find: bow, leather` beside FOUND `mail +1`): the
+    /// kinds found for the first time in this absence (the exit lines' `new find` news, every
+    /// one, in order) — the report's FOUND lists them.
+    #[serde(default)]
+    pub new_finds: Vec<String>,
     pub deaths: BTreeMap<String, u32>,
     pub marks: u32,
     pub highlights: Vec<Highlight>,
@@ -2402,7 +2439,7 @@ impl Game {
                 skip.remove(i);
                 continue;
             }
-            let Some(price) = cat.iter().find(|e| e.kind == *kind).map(|e| e.price) else { continue };
+            let Some(price) = self.repeat_price(kind, &cat) else { continue };
             if n >= l.supply_cap() || gold < price {
                 unpaid.push(kind.clone());
             } else {
@@ -2554,6 +2591,13 @@ impl Game {
     /// Cut 21 §2: only the kinds a row can use (`LineageState::row_kinds`); a found supply on
     /// the shelf is packed free and is not the repeat's — on an empty shelf of bought ones it
     /// stands in for one of the kind the re-pack would buy.
+    /// QA on 0c6e126: what the repeat pays for `kind` — its quote (`LineageState::repeat_quote`), never above the shelf's price
+    /// today; None when the shelf does not sell it.
+    pub fn repeat_price(&self, kind: &str, cat: &[SupplyInfo]) -> Option<i32> {
+        let shelf = cat.iter().find(|e| e.kind == kind)?.price;
+        Some(self.lineage.repeat_quote.get(kind).map_or(shelf, |q| (*q).min(shelf)))
+    }
+
     pub fn repeat_plan(&self) -> (Vec<String>, i32) {
         let cat = self.supply_catalogue();
         let used = self.lineage.row_kinds();
@@ -2589,7 +2633,7 @@ impl Game {
                 _ => true,
             })
             .collect();
-        let gold = kinds.iter().filter_map(|k| cat.iter().find(|e| e.kind == *k).map(|e| e.price)).sum();
+        let gold = kinds.iter().filter_map(|k| self.repeat_price(k, &cat)).sum();
         (kinds, gold)
     }
 
@@ -2836,8 +2880,11 @@ impl Game {
             }
         }
         // QA on 778fa1b: the price the camp's badge showed is the price this send's exit re-packs at.
+        // QA on 0c6e126 (qaY: `repeat on · ≤$20`, later `≤$24`, then `repeat −$26` overnight as the best floor climbed): a kind's
+        // repeat price stays put once quoted — the lower of its old quote and the shelf's today — while the kind stays in the repeat.
         let cat = self.supply_catalogue();
-        self.lineage.repeat_quote = kinds.iter().filter_map(|k| cat.iter().find(|e| e.kind == *k).map(|e| (k.clone(), e.price))).collect();
+        let was = std::mem::take(&mut self.lineage.repeat_quote);
+        self.lineage.repeat_quote = kinds.iter().filter_map(|k| cat.iter().find(|e| e.kind == *k).map(|e| (k.clone(), was.get(k).map_or(e.price, |q| (*q).min(e.price))))).collect();
         self.lineage.last_supplies = kinds;
         for id in loadout {
             if let Some(i) = self.lineage.vault.iter().position(|v| v.id == id) {
@@ -2876,6 +2923,7 @@ impl Game {
             over: None,
             death_cause: None,
             death_blow: 0,
+            death_t: None,
             death_short: 0,
             hurt_since_action: false,
             hurt_last: false,
@@ -2978,6 +3026,7 @@ impl Game {
             blind_seen: Vec::new(),
             bow_swap: None,
             swapped: 0,
+            swap_left: Vec::new(),
             mirrors: Vec::new(),
             arc: Arc::default(),
             episodes: Vec::new(),
@@ -3022,11 +3071,13 @@ impl Game {
             next_twist: None,
             sleepers: Vec::new(),
             thin: self.lineage.thin_map(),
+            packed: Vec::new(),
         };
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
             it.id = run.new_item_id() + 5000;
             run.supplies.push(it.id);
+            run.packed.push(it.kind.clone());
             if it.kind == "leash" {
                 match run.hero.inv.iter_mut().find(|i| i.kind == "leash") {
                     Some(l) => l.amount += 1,
@@ -3371,7 +3422,7 @@ impl Game {
             turn: run.turn,
             loot: run.loot,
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn, start: run.start.max(1) },
-            stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some(), death_keep: run.loot.max(0) * ExitTier::Death.pct() / 100, swapped: run.swapped },
+            stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some(), death_keep: run.loot.max(0) * ExitTier::Death.pct() / 100, swapped: run.swapped, swap_left: run.swap_left.last().cloned() },
             vision: run.vision(&l.unlocks),
             vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice {
                 items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
@@ -3407,7 +3458,7 @@ impl Game {
         }
         let mut finds: Vec<String> = Vec::new();
         for (_, k) in &run.found_units {
-            if k != "gold" && !l.found_kinds.contains(k) && !finds.contains(k) {
+            if k != "gold" && !l.found_kinds.contains(k) && !l.owned_kind(k) && !run.packed.contains(k) && !finds.contains(k) {
                 finds.push(k.clone());
             }
         }
@@ -3476,6 +3527,12 @@ impl Game {
                 l.found_kinds.insert(k.clone());
             }
         }
+        // (a kind the lineage has packed is known to it: a later pile's leash is no find)
+        for k in &run.packed {
+            if !l.found_kinds.is_empty() {
+                l.found_kinds.insert(k.clone());
+            }
+        }
         let twists = run.situations.iter().map(|(_, s)| s.clone()).collect();
         l.last_run = Some(RunBrief { depth: run.max_depth, tier: tier.name().into(), cause: run.death_cause.clone(), twists, kept: run.loot.max(0) * pct / 100, turns: run.turn, kills: run.kills.len() as u32 });
     }
@@ -3495,6 +3552,14 @@ impl Game {
         let t = run.turn;
         // Cut 24 §2: what was new (against the lineage before this run settles into it).
         let news = if self.sim { Vec::new() } else { self.run_news(&run, tier, pct) };
+        if !self.sim && (!self.lineage.found_kinds.is_empty() || self.lineage.next_run_id <= 2) {
+            for (_, k) in &run.found_units {
+                let name = self.lineage.wire_name(k).replace('_', " ");
+                if k != "gold" && !self.lineage.found_kinds.contains(k) && !self.lineage.owned_kind(k) && !run.packed.contains(k) && !self.batch.new_finds.contains(&name) {
+                    self.batch.new_finds.push(name);
+                }
+            }
+        }
         self.settle_novelty(&run, tier, pct);
         let mut outcome = RunOutcome {
             run_id: run.id,
@@ -3514,7 +3579,10 @@ impl Game {
         self.batch.recovered += run.recovered.len() as u32;
         // QA on a946e04: keyed by kind (`Run.stolen_kinds`; a save from before by its label),
         // named at the report (`wire_name`).
-        let kept: Vec<(String, i32)> = run.stolen_labels.iter().filter(|(id, _)| run.stolen_ids.contains(id)).map(|(id, l)| run.stolen_kinds.iter().find(|(k, _, _)| k == id).map(|(_, kind, g)| (kind.clone(), *g)).unwrap_or_else(|| (l.clone(), 0))).collect();
+        // QA on 0c6e126 (qaZ: the vault's `leather +1`, carried out and stolen, read `stolen leather`): a piece of gear goes by its
+        // label, enchant and all (`leather +1`); a potion or scroll by its kind (named at the report).
+        let gear = |kind: &str, label: &str| matches!(crate::defs::item_def(kind).cat, Cat::Weapon | Cat::Armour) && label.starts_with(kind) && label != kind;
+        let kept: Vec<(String, i32)> = run.stolen_labels.iter().filter(|(id, _)| run.stolen_ids.contains(id)).map(|(id, l)| run.stolen_kinds.iter().find(|(k, _, _)| k == id).map(|(_, kind, g)| (if gear(kind, l) { l.clone() } else { kind.clone() }, *g)).unwrap_or_else(|| (l.clone(), 0))).collect();
         for (k, g) in &kept {
             *self.batch.stolen.entry(k.clone()).or_insert(0) += 1;
             *self.batch.stolen_gold.entry(k.clone()).or_insert(0) += g;
@@ -3614,6 +3682,8 @@ impl Game {
         let mut marks = 0;
         let mut wake_top = 0;
         let mut purse_full = false;
+        // QA on 0c6e126 (qaZ: `avenged Vrak` for a name no screen had shown): a grudge is named where it is made — the death's line
+        let mut new_grudge: Option<String> = None;
         let mut bests: Vec<String> = Vec::new();
         // Stall verdict window: a death or a new depth closes it; an exit row extends it.
         if let Some(r) = run.exit_row {
@@ -3865,6 +3935,9 @@ impl Game {
         let exit_why = match tier {
             _ if run.timed_out && run.stuck_fires >= STALL_FIRES => format!("stalled D{}", run.max_depth),
             _ if run.timed_out => format!("lost thread D{}", run.max_depth),
+            // QA on 0c6e126 (qaY: `0 RETURNED · 3 DRIVEN` over three `returned D8 · $268 lost`): a
+            // drive-off is its own word in the ledger, as on its line and its tile.
+            ExitTier::Return if run.driven_off.is_some() => format!("driven D{}", run.max_depth),
             ExitTier::Bank => format!("banked D{}", run.max_depth),
             ExitTier::Return => format!("returned D{}", run.max_depth),
             ExitTier::Death => format!("died D{}", run.depth),
@@ -4034,12 +4107,13 @@ impl Game {
                 && !self.lineage.grudges.iter().any(|g| g.kind == cause && g.depth == run.depth)
             {
                 let name = crate::descent::grudge_name(&mut self.lineage.rng);
+                new_grudge = Some(format!("grudge: {name} the {}", kind_title(&cause).to_lowercase()));
                 self.lineage.grudges.push(Grudge { kind: cause.clone(), name, depth: run.depth, heir: run.heir, avenged: false });
             }
             // Cut 5 §2: the heir's line in the lineage chronicle.
             let bones_left = self.lineage.bones.last().is_some_and(|b| b.heir == run.heir);
             let tail = bones_left.then(|| format!("left bones on D{}", run.depth));
-            self.lineage.chronicle_heir(&format!("fell to {}", crate::sifter::cause_phrase(&cause)), tail);
+            self.lineage.chronicle_heir_at(&format!("fell to {}", crate::sifter::cause_phrase(&cause)), tail, Some(run.depth));
             // Cut 13 §2: the next heir wakes with two traits on offer.
             self.lineage.new_heir();
             // Wake pay: a new heir arrives with enough for one cheap supply, so a lineage that has
@@ -4125,13 +4199,32 @@ impl Game {
         let bones_n = pile.len();
         let unused = run.hero.inv.iter().filter(|i| run.supplies.contains(&i.id) && i.kind != "leash").count();
         let mut line = exit_line_of(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, run.stuck_fires >= STALL_FIRES, unused, bones_n, run.depth);
+        // QA on 0c6e126 (qaZ: `1 supply back` never named which — read beside `sold … invisibility $1` as the bought potion sold): the
+        // supplies that came back unused, named when they are of one kind (`1 supply back: invisibility`)
+        let back: BTreeSet<String> = run.hero.inv.iter().filter(|i| run.supplies.contains(&i.id) && i.kind != "leash").map(|i| self.lineage.wire_name(&i.kind).replace('_', " ")).collect();
+        if unused > 0 && tier != ExitTier::Death && back.len() == 1 {
+            let seg = format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" });
+            if let Some(k) = back.first() {
+                line.text = line.text.replacen(&seg, &format!("{seg}: {k}"), 1);
+            }
+        }
         line.news = news;
+        if let Some(g) = new_grudge.filter(|_| !self.sim) {
+            line.news.insert(0, crate::wire::News { k: "named".into(), text: g });
+            line.news.truncate(3);
+        }
         // Cut 24 §1: a boss that could not be hurt drove him off — `no counter` with its defence
         // and the counter row to write (`ExitLine.driven`); the text ends `· no counter`.
+        // QA on 0c6e126 (qaY: `0 RETURNED · 3 DRIVEN` beside lines `returned $0 · $388 lost · no counter`):
+        // the line leads with its own word, `driven` (the tile's and the ledger's), and names who
+        // drove him off (`· by Warlord`); `no counter` is the COUNTER tablet's verdict, beside its `try:`.
         if let Some(kind) = &run.driven_off {
             let row = crate::facts::counter_row(kind);
             let d = crate::wire::DrivenOff { boss: kind.clone(), title: crate::sifter::boss_short(kind).into(), depth: run.depth, verdict: "no counter".into(), defence: crate::facts::boss_trait(kind).into(), counter: crate::facts::counter_text(&row), row };
-            line.text.push_str(" · no counter");
+            if let Some(rest) = line.text.strip_prefix("returned ") {
+                line.text = format!("driven {rest}");
+            }
+            line.text.push_str(&format!(" · by {}", d.title));
             line.driven = Some(d);
         }
         // What the run earned besides gold, on its own line (QA on 50bb162: `◆7` and `$40` at
@@ -4164,6 +4257,15 @@ impl Game {
         line.stolen_gold = kept_gold;
         // QA on 778fa1b: what the pack's swaps took off the carry, on the line beside the thefts.
         line.swapped = run.swapped;
+        if tier == ExitTier::Death {
+            line.cause = run.death_cause.as_deref().map(crate::sifter::cause_phrase);
+        }
+        for l in &run.swap_left {
+            match line.swap_left.iter_mut().find(|c| c.kind == *l) {
+                Some(c) => c.n += 1,
+                None => line.swap_left.push(crate::wire::KindCount { kind: l.clone(), n: 1 }),
+            }
+        }
         self.batch.swapped += run.swapped;
         // QA on 912e135 (qaW): the pile the `bones: N items` counts, per kind, one an item.
         for it in &pile {
@@ -4350,6 +4452,7 @@ impl Game {
                 paid.push((it, coin));
                 continue;
             }
+            let was_brought = p.brought.contains(&it.id);
             let mut v = it;
             if v.id < 100_000 {
                 v.id = self.lineage.next_vault_id;
@@ -4378,7 +4481,11 @@ impl Game {
             for _ in 0..was_found {
                 settled.push((v.kind.clone(), "kept"));
             }
-            self.batch.found.push(v);
+            // QA on 0c6e126 (qaY: FOUND `mail +1`, which the send had brought from the vault): what
+            // the send brought goes back to the vault — it is no find of this absence.
+            if !was_brought {
+                self.batch.found.push(v);
+            }
         }
         // QA on 778fa1b (qaV): the exit line's `sheet` finds, settled.
         let settle = |line: &mut ExitLine, wire: &dyn Fn(&str) -> String| {
@@ -4746,7 +4853,9 @@ impl Game {
                 skip.remove(i);
                 continue;
             }
-            let quote = if quoted { self.lineage.repeat_quote.get(&kind).copied() } else { None };
+            // (QA on 0c6e126: the send's own re-pack pays the quote too — the badge's `≤$N` is the most any re-pack charges)
+            let _ = quoted;
+            let quote = self.lineage.repeat_quote.get(&kind).copied();
             if self.offline {
                 let price = quote.or_else(|| self.supply_catalogue().iter().find(|e| e.kind == kind).map(|e| e.price)).unwrap_or(0);
                 if price > self.batch.income() - self.batch.spent_total() {
@@ -4841,12 +4950,28 @@ pub fn found_in_pack(run: &Run, pack: &BTreeMap<(u32, String), i32>, key: &(u32,
 /// Cut 9 §5: the last `EXIT_TRACE_LEN` hero turns of a run, from its trace ring. Cut 11 §3:
 /// plus the run's provenance log (every `because` event), when it has one.
 pub fn exit_trace(run: &Run, prov: &[crate::provenance::Prov]) -> Trace {
-    Trace { turns: run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect(), provenance: crate::provenance::all(prov) }
+    Trace { turns: run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect(), provenance: crate::provenance::all(prov), blow: death_blow(run) }
+}
+
+/// QA on 0c6e126 (qaY): a death's killing blow, the trace's last row (`Trace.blow`); none on
+/// any other exit.
+pub fn death_blow(run: &Run) -> Option<crate::wire::TraceBlow> {
+    if run.over != Some(ExitTier::Death) {
+        return None;
+    }
+    let by = run.death_cause.clone()?;
+    Some(crate::wire::TraceBlow { t: run.death_t.unwrap_or(run.turn), by, dmg: run.death_blow.max(1), hp: 0 })
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: Vec<String>, tier: ExitTier, timed_out: bool, bones: usize, depth: u32) -> ExitLine {
     exit_line_of(carried, keep_pct, kept, spent, spent_on, tier, timed_out, false, 0, bones, depth)
+}
+
+/// A ledger line an exit wrote (`returned D5`, `banked D8`, `died D3`, `lost thread D3`,
+/// `stalled D2`, `driven D8`): the word it leads with.
+pub fn is_exit_why(why: &str) -> bool {
+    ["returned", "banked", "died", "lost", "stalled", "driven"].iter().any(|w| why.starts_with(w))
 }
 
 /// `exit_line` with the two things a stalled or supplied run has to say: `stalled` (the run
@@ -4877,7 +5002,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new() }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new() }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:

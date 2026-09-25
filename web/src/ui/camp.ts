@@ -21,7 +21,7 @@ import type { CageOption, Lineage, StartOption, SupplyEntry, UnlockInfo } from "
 import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
-import { lowOf, renderForecast, renderShaft, share, signedPts } from "./forecast";
+import { lowOf, renderForecast, renderShaft, share } from "./forecast";
 import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
@@ -49,11 +49,15 @@ let cageMemo: { key: string; opts: CageOption[] } | null = null;
 export function cageDelta(o: Pick<CageOption, "current" | "depth" | "reach" | "bank" | "bank_delta" | "delta" | "pm">): { text: string; cls: string } | null {
   const banks = o.delta === o.bank_delta && (o.bank > 0 || o.bank - o.bank_delta > 0);
   const at = banks ? /* copy:label */ "bank" : `D${o.depth}`;
-  if (o.current) return { text: `${at} ${Math.round((banks ? o.bank : o.reach) * 100)}%`, cls: "cur" };
+  const level = `${at} ${Math.round((banks ? o.bank : o.reach) * 100)}%`;
+  if (o.current) return { text: level, cls: "cur" };
   const d = Math.round(o.delta * 100);
   const pm = Math.round(o.pm * 100);
-  // Cut 22 §4 (AG: "the red `−18%` confused me; is it a delta?"): a move is signed points in the delta look (`bank −18`), never a `%`
-  return { text: `${at} ${signedPts(d)}`, cls: `dlt ${d > 0 ? "up" : d < 0 ? "down" : "flat"}${Math.abs(d) <= pm ? " flat" : ""}` };
+  // Cut 22 §4 (AG: "the red `−18%` confused me; is it a delta?"): a move is signed points in the delta look (`bank −18`), never a `%`.
+  // QA 0c6e126 (qaZ: `weapon D4 60% · armour D4 +28 · potion D4 −12` — "one absolute, three deltas"): every option reads its own level
+  // on one scale (`armour D4 88%`), the move against the current one a mark beside it (`▲28`; dim inside its ±)
+  const mark = d === 0 ? "" : ` ${d > 0 ? "▲" : "▼"}${Math.abs(d)}`;   // (inside its ± the option reads dim: `flat`)
+  return { text: `${level}${mark}`, cls: `dlt ${d > 0 ? "up" : d < 0 ? "down" : "flat"}${Math.abs(d) <= pm ? " flat" : ""}` };
 }
 /** Cut 21 §1: the last `startForecast()` and what it was measured for (the set, the start, the lit waystones, the best). */
 let startMemo: { key: string; opts: StartOption[] } | null = null;
@@ -96,6 +100,15 @@ export function keptAs(facts: string[], it: { kind: string; known: boolean }): s
   const f = facts.find((x) => x.startsWith("item:") && x.endsWith(`=${it.kind}`));
   return f ? f.slice(5, f.indexOf("=")).replace(/_/g, " ") : undefined;
 }
+/** QA 0c6e126 (qaY): the lineage state a forecast's sims start from (the core's `lineage_key`, as the wire shows it) — a memo of a
+ *  measure keyed without it survives a purchase, a drop or a cage change and paints a stale number. */
+export function simKey(app: Pick<App, "lineage" | "loadout">): string {
+  const L = app.lineage;
+  return JSON.stringify([L.heir, L.trait, L.class, L.gold, L.facts?.length, L.unlocks, (L.supplies ?? []).map((s) => s.id), (L.vault ?? []).map((v) => v.id), [...(app.loadout ?? [])].sort(), L.kit, L.party, L.keep_pref, L.vault_pref, L.start]);
+}
+/** QA 0c6e126 (qaY: the shelf read `invisibility pot…`): a shelf line too long for its half-width chip drops its class word
+ *  (`invisibility`); the shop's chip keeps the full name. */
+export const shelfLabel = (label: string): string => label.length > 14 ? label.replace(/ (potion|scroll)$/, "") : label;
 export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 17: the frame — the bar (the strip: heir, `$`, `◆`, `★`, best, the stud; the wake's offers under it), the well (the
   // tablets and the depth shaft; the set tabs from the 5th heir; the panels over it), the console (the portrait, the command
@@ -152,10 +165,13 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, editor.el, cageTab, startTab), shaft.el), h("div", { class: "rest-line" }, rest));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, editor.el, cageTab, startTab), shaft.el));
+  // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
+  // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
+  const restLine = h("div", { class: "rest-line" }, rest);
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
-  const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, shaft.vsEl, panelHost, panelStore), cons.el);
+  const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, shaft.vsEl, restLine, panelHost, panelStore), cons.el);
   setBusyHost(busyStrip);
   function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
 
@@ -224,7 +240,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const restS = app.lineage.rest_left_s ?? 0;
     // QA 912e135 (qaW: "`rest 20m · send skips` — no screen says what rests or what `send skips` means"): who rests, and what the send skips
     replace(rest, /* copy:callout */ `heir rests ${spanOf(restS)}`, /* copy:callout */ " · send skips rest");
-    rest.hidden = restS <= 0;
+    rest.hidden = restS <= 0; restLine.hidden = rest.hidden;
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
   // Cut 5 §6: each row carries the class's verb ladder as chips (`L1 shield bash · L3 cleave · …`), reached rungs lit.
@@ -238,7 +254,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         for (const { cls, owned, level } of classList(L, cat)) {
           const ladder = Object.entries(CLASS_VERBS[cls] ?? {}).flatMap(([l, vs]) => vs.map((v) => h("span", { class: `chip rung num${Number(l) <= level && owned ? " on" : ""}` }, `L${l} `, verbLabel({ v }))));
           const u = owned ? undefined : cat?.find((x) => x.id === cls);
-          const door = u ? h("small", { class: "num dim door" }, u.cost ? ` ◆${u.cost}` : "", u.needs ? `${u.cost ? " · " : " "}${u.needs.replace(/_/g, " ")}` : "") : "";   // no `◆0` (QA 23ed91f)
+          const door = u ? h("small", { class: "num dim door" }, u.cost ? ` ◆${u.cost}` : "", u.needs ? `${u.cost ? " · " : " "}${u.available ? "" : "⊘ "}${u.needs.replace(/_/g, " ")}` : "") : "";   // no `◆0` (QA 23ed91f); QA 0c6e126 (qaY: `rogue L1 · bank once` — no hint it is a condition): a gate still shut carries the lock mark, `⊘ bank once`
           const take = async (): Promise<void> => { if (u && !(await app.buy(cls))) return; void app.setClass(cls); close(); };
           grid.appendChild(h("div", { class: "class-row" },
             h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned || u?.available ? "" : " off"}`, disabled: !(owned || u?.available), onclick: () => void take() }, cls, " ", h("b", { class: "num" }, `L${level}`), door),
@@ -311,7 +327,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // it is; that the preference then keeps nothing new is its own word (`none kept`)
     const full = L.vault.length >= slots && slots > 0;
     if (auto) prefs.appendChild(h("small", { class: "keep-auto dim num" }, auto.length ? /* copy:callout */ `keeps ${auto.join(" · ")}` : /* copy:callout */ "keeps nothing",
-      full ? h("b", { class: `${blocked ? "warn " : ""}vault-full` }, /* copy:callout */ " · vault full", blocked ? /* copy:callout */ " · none kept" : "") : ""));
+      full ? h("b", { class: `${blocked ? "warn " : ""}vault-full` }, /* copy:callout */ " · vault full", blocked ? /* copy:callout */ ` · ${L.vault.length === 1 ? (L.vault[0].label ?? L.vault[0].kind).replace(/_/g, " ") : "all"} stays` : "") : ""));   // QA 0c6e126 (qaY: `vault full · none kept` beside a vault holding mail — "the vault holds armour, keeps weapon"): the line names what stays
     vault.appendChild(prefs);
     // Cut 19 §1: the cage's preference left this panel for its own tablet beside the rules (`cage → armour`)
     // QA 912e135 (qaW: `home: armour` set here, `cage → weapon` on the tablet — "one preference, one name"): they are two settings, and
@@ -330,14 +346,16 @@ export function renderCamp(app: App, highlight?: number): Mounted {
    *  The deltas are `cageForecast()` (three extra camp panels, memoised by the core; seconds in wasm): the last measure paints at once
    *  when it is this set's, `…` until the fresh one lands. */
   function openCagePicker(): void {
-    const key = (): string => JSON.stringify([app.rules.rows, app.lineage.vault_pref ?? "weapon", app.lineage.best_depth]);
+    // QA 0c6e126 (qaY: `weapon D5 72%` on the sheet beside the camp's D5 66% — the memo was measured before a purchase): the memo is
+    // this set's under this lineage — what a sim starts from (`simKey`: the purse, the shelf, the vault, the kit, the facts…)
+    const key = (): string => JSON.stringify([app.rules.rows, app.lineage.vault_pref ?? "weapon", app.lineage.best_depth, simKey(app)]);
     openSheet((close) => {
       const list = h("div", { class: "chips cage-opts" });
       const paint = (opts: CageOption[] | null, pending: boolean): void => {
         const cur = app.lineage.vault_pref ?? "weapon";
         replace(list, ...CAGE_PREFS.map((p) => {
           const o = opts?.find((x) => x.pref === p); const d = o ? cageDelta(o) : null;
-          return h("button", { class: `chip cage-opt${p === cur ? " on" : ""}`, "data-pref": p, onclick: async () => { close(); if (p !== cur) await app.mutate(() => app.engine.setVaultPref(p)); } },
+          return h("button", { class: `chip cage-opt${p === cur ? " on" : ""}`, "data-pref": p, onclick: async () => { close(); if (p !== cur) await app.mutate(() => app.engine.setVaultPref(p), /* copy:callout */ "cage"); } },
             h("span", null, p), d ? h("b", { class: `num ${d.cls === "cur" ? "level cur" : `delta ${d.cls}`}` }, ` ${d.text}`) : pending && p !== cur ? h("small", { class: "num dim" }, " …") : "");
         }));
       };
@@ -374,7 +392,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   function openStartPicker(): void {
     const L0 = app.lineage;
-    const key = (): string => JSON.stringify([app.rules.rows, app.lineage.start ?? 1, app.lineage.waystones ?? [], app.lineage.best_depth]);
+    const key = (): string => JSON.stringify([app.rules.rows, app.lineage.start ?? 1, app.lineage.waystones ?? [], app.lineage.best_depth, simKey(app)]);
     openSheet((close) => {
       const list = h("div", { class: "chips start-opts" });
       const paint = (opts: StartOption[] | null, pending: boolean): void => {
@@ -424,8 +442,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const unpaid = on && !!L.repeat_unpaid?.length, due = on && !unpaid ? L.repeat_due ?? [] : [];
     const short = on && (unpaid || (L.repeat_unpaid === undefined && !!L.repeat_short?.length));
     const dueText = due.length === 1 ? `+${due[0].replace(/_/g, " ")}` : `+${due.length}`;
+
     return h("span", { class: `repeat-badge num${on ? " on" : ""}${short ? " short" : ""}${due.length ? " due" : ""}`, role: "switch", "aria-checked": on ? "true" : "false", "data-repeat": on ? "1" : "0",
-      onclick: (e: Event) => { e.stopPropagation(); void app.mutate(() => app.engine.setRestock!(!on)); } },
+      onclick: (e: Event) => { e.stopPropagation(); void app.mutate(() => app.engine.setRestock!(!on), /* copy:callout */ "repeat"); } },
       // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay reads so on the tile
       // QA a946e04 (T: "`repeat · $40` reads like a price to pay"; its tap refunded $40): the badge is a switch and reads as one —
       // `repeat on · $40` (the tap turns it off and refunds the re-packed shelf) / `repeat off`
@@ -450,7 +469,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // Cut 21 §2: a line an exit shelved reads `· found` (packed free); with the repeat on, a kind no row names reads `· no row` — the
       // next send will not re-buy it (the core's narrowed `repeat_kinds`)
       const noRow = !free && !p.found && L.repeat !== false && L.repeat_kinds !== undefined && !L.repeat_kinds.includes(p.kind);
-      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, h("span", { class: "item-l" }, p.label, free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
+      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, h("span", { class: "item-l", title: p.label }, shelfLabel(p.label), free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
         noRow ? h("small", { class: "dim no-row" }, /* copy:callout */ " · no row") : ""), x));
     }
     for (let i = picks.length; i < cap; i++) chips.appendChild(h("span", { class: "chip slot empty", "aria-hidden": "true" }, ""));
@@ -463,9 +482,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       for (const b of [...shopEl.querySelectorAll(".chip.buy")]) b.remove();
       for (const e of cat) {
         const can = !full && !e.needs && L.gold >= e.price;
+        // QA 0c6e126 (qaY: `leash · free` on the shelf and `leash $30` in the shop at once — "which is it?"): the shelf's is the kennel's
+        // (free while nothing is tamed); the shop's is a second one, and says so
+        const second = e.kind === "leash" && picks.some((p) => p.kind === "leash");
         // Cut 10 §3: a greyed supply says why under its price — the slots, the engine's gate, or the gold missing
-        const why = full ? /* copy:callout */ `${picks.length}/${cap} slots` : e.needs ? e.needs.replace(/_/g, " ") : L.gold < e.price ? /* copy:callout */ `$${e.price - L.gold} short` : "";
-        shopEl.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind)) },
+        const why = full ? /* copy:callout */ `${picks.length}/${cap} slots` : e.needs ? e.needs.replace(/_/g, " ") : L.gold < e.price ? /* copy:callout */ `$${e.price - L.gold} short` : second ? /* copy:callout */ "2nd leash" : "";
+        shopEl.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind), /* copy:callout */ "buy") },
           h("span", { class: "buy-main" }, h("span", null, e.label, " ", h("b", { class: "num gold" }, e.price > 0 ? `$${e.price}` : /* copy:label */ "free")), h("small", { class: "why num dim" }, why || "\u00a0"))));   // QA 912e135: the kennel's leash, taken back
       }
     };
