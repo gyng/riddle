@@ -1,0 +1,70 @@
+{
+  "$comment": "Blind rater AL, seed 2302, headed GPU driver 400x800 @3x. Did not open PLAN.md, research/, docs/CUT*.md, other cards or source. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md.",
+  "game": "Riddle",
+  "build": "4b15a61",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAL",
+  "horizon": {
+    "activeMinutes": 60,
+    "absences": ["simulated overnight ?absent=8h (loaded once, after 40 min cold play; ~2 min real gap)"],
+    "runsWatched": 17,
+    "runsOffline": 16,
+    "ruleEdits": 13,
+    "note": "40 min cold (21:33-22:13, 13 runs, most at the default watch speed, runs 1-10 watched whole at 1x), then ?absent=8h, then ~20 min on return (22:15-22:34, 4 runs, 2 in 'fights' mode). 3 deaths read (goblin D4, gas D6, gas D13); 12 edits of my own + 1 offered patch applied. Absence was simulated, not real; return was scored the same day. Audio unassessed (window.__audio exposed nothing I could read; I cannot hear the sink)."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: My third heir met the Goblin Warlord on D8 with the 'foe: boss → attack boss' row I had written after the last hero spent four minutes swatting summoned goblins while the Warlord's bar never moved, and this time the log went 'WARLORD BREAKS' then 'GOBLIN WARLORD DOWN'. He walked on into the Fens past D9, where the forecast had said under 2%, cut a chained captive down on D11 and found the bones of the heir before him on D6 on the way. He banked $310 on D10, a new best, and the next morning's report said every offline run had hit the D10 bank rule I had set, so I cut it and he reached D14."
+  },
+  "probes": {
+    "clarity": "I only got lost at small seams: I tapped 'pearly potion?' on the 'KEEP 0/1' sheet, then 'keep', and the report listed it under SALVAGED anyway; and the forge showed 'leather +1 · death +7' for an armour upgrade.",
+    "decisions": "Changing R1 from 'drink heal' to 'drink unknown' showed 'D6 33→56%' against 'death 6→61%'; I took the safe side, then took the gamble once and it identified heal and strength.",
+    "mastery": "An hour ago I read 'COUNTER: ATTACK BOSS' as flavour; now I write the counter row as soon as a boss shows it, and my best went D4 → D14.",
+    "tension": "I sweated on 'come on then' at 6/34 and on 'R4 · read teleport' at 1/24, which was the escape row I had written two runs earlier.",
+    "feel": "The painted camp and the red wax 'GAP' seal land; the watch is small pixel sprites with big callouts ('SHIELDS UP', 'WARLORD BREAKS'), but the first Warlord fight was four minutes of '−1 hp · warlord' with a full boss bar. Audio unassessed.",
+    "surprise": "'Found ♟1's bones: 3 items.' and 'The den wakes: thieves on every side.' surprised me, and so did D5 → D8 in 14 s ('Through the lock, barely touched.'); after that the Warlord on D8 and the Bloat Mother on D13 came back every run.",
+    "expression": "My set is: read unknown at half HP, heal at 30%, return at 25%, teleport at 25% for when the return has 'no way', boss first, thieves second, a kite-archers card, then hit the nearest.",
+    "story": "Best run: the Warlord broke on my own row, the hero cut a captive down, then banked $310 on D10; but the reel said 'Down to 1 HP. R2 drink heal saved him.' when it was my teleport row that saved him.",
+    "pacing": "In a run something happens every two seconds and a run takes 1-4 minutes; between runs the forge/unlocks/loadout/edit sheets take a lot of taps, and the first Warlord fight stalled for 4+ minutes until I hit ▶▶|.",
+    "failure": "Death 3 read 'GAS · D13', 'GAP', '$745 lost', and the trace said 'R3 return · no way ← bloat holds the way' and 'R4 read teleport · no item ← R4 read teleport at 17/35 hp': my threshold spent the scroll too early.",
+    "social": "No one else, just heirs (♟2, ♟3, ♟4) whose bones I stumbled on.",
+    "autonomy": "I set my own goal (depth over gold after the first bank) and chose the start floor (D1 ~$350 vs D9 ~$153), the cage pick (weapon → armour) and when to gamble.",
+    "progression": "Rows 4 → 8, cards, loadout 3 → 5, forge leather/sword/mail, new classes; but forge prices climb with my best (leather +1 $1000 → $1100 → $1400; mail $2800 → $3600) so a big overnight haul still left me short.",
+    "aesthetic": "The camp banner art and the tattered death banner are handsome; the dungeon itself is dark brown tiles with small sprites and I would not sit in it doing nothing.",
+    "return": "I came back to '16 RUNS · 14 BANKED · 0 DEATHS · +$3729' and 'PLATEAU | R7 bank ended 14 runs, none past D10' with a patch; I cut my own bank row, bought mail and reached D14. I would not rather have stayed.",
+    "attribution": "The last run ended because I lowered return to 10% and the bloat blocked the way home; that was my decision, and the trace pointed at my rows by number."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Every edit updates the depth shaft at once ('D5 62→24%' after my first retreat row), so I always knew what I was aiming at. But the KEEP 0/1 sheet salvaged the potion I tapped, the forge said 'leather +1 · death +7', and the reel credited the wrong row twice, so it is not strong." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "'drink unknown' vs 'drink heal' showed 'D6 33→56%' against 'death 6→61%', and 'loot ≥ 50 → bank' showed 'bank 0→76%' against 'D5 43→0%': real, foreseeable trade-offs I would defend. Lapse: many rows I tried came back '≈' (shield bash, to corridor, gas → retreat, kite card) and forge steps were often 'D10 ≈', so plenty of choices were really no choice at all." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Reading 'COUNTER: ATTACK BOSS' and writing 'foe: boss → attack boss' took D9 from '<2%' to '89%', and my best went D4 → D14 within the hour. Lapse: after D13/D14 the runs repeated (same Warlord, same Mother) and I had nothing new to learn in the last 15 minutes." },
+    { "id": "tension", "human": 0.8, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "I chose the stakes by lowering return to 10% ('death 14→43%') and paid '$745 lost'; then the teleport fired at '1/24'. Lapse: before I pushed, the hero died once in 11 runs, and 16 offline runs had 0 deaths, so most runs never felt in doubt." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "At 1x a line lands every ~2 s ('−3 hp · goblin', 'pops!', 'ogre winds up') and the boss callouts are punchy, but the first Warlord fight was 4+ minutes of 'R7 · attack nearest' with a full bar. Audio unassessed, neither praised nor faulted." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Finding my dead heir's bones ('Found ♟2's bones: 9 items'), a thief den waking and a lock that skipped D5 → D8 each changed what I did. After the first hour the same Warlord on D8 and Bloat Mother on D13 showed up every run, and both late deaths were gas." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My final set has my own teleport-escape and boss rows ('origin: player' on 6 of 8), but most rows are the obvious HP-threshold ladder and several of my own ideas forecast '≈', so it is only partly mine." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "The best run has a turn: the Warlord who had stalled the last heir 'BREAKS' on the row I wrote, then 'Cut the captive down', then 'Banked $310'. Lapse: the reel credits the wrong row ('Down to 1 HP. R2 drink heal saved him.' when R4 teleport fired; 'R7 attack saved him.' on the stalled Warlord run)." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In play: 1-4 minute runs, no dead stretch except the 4+ minute Warlord stall. Admin: every check-in is forge + unlocks + loadout + edit sheets, with two-tap buys. Checking in after the absence took about 3 minutes and ended where I chose; the admin between active runs dragged." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Every death screen named cause and floor ('GAS · D6 · 4 UNKNOWN SCROLLS UNUSED'), gave a verdict, a per-row why-not ('R3 return · no way ← bloat holds the way') and patches with odds ('survives 100% · unpatched 25%'); the next heir is ready at once. Lapse: the gas pop took 16/40 to 0 in one step, faster than any HP threshold, and the '$745 lost' plus 'repeat −$91' stung more than the screen explained." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I picked depth over gold, the cage pick ('armour bank +13'), the start floor ('D1 ~$350 · D9 ~$153'), and when to gamble. Within that, the path is fixed: the same boss floors and one forge ladder." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within a run: kit from cages and floors. Between runs: rows 4 → 8, cards, supplies 3 → 5, forge tiers, classes, waystones, and new condition words as facts are learned ('foe: boss', 'foe: gas', 'read teleport'). Lapse: forge prices rise with my best (leather +1 $1000 → $1100 → $1400, mail $2800 → $3600), so the overnight $3729 bought one piece." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "The painted camp scene, the leather UI and the torn red death banner have a clear identity. In the dungeon it is mostly brown tiles in the dark with small sprites; the place is readable but not somewhere I would linger. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "The overnight report ('16 RUNS · 14 BANKED · +$3729') named my own bank row as the ceiling ('PLATEAU | R7 bank ended 14 runs, none past D10') and I acted on it within a minute. Lapse: with 0 offline deaths there was nothing to read about failure, and the report was padded with trophy lines ('500 slain', '1000 slain', 'no friends')." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "All three deaths trace to rows I set or left out (no return row; return at 10% plus teleport at 50%), and the trace names them by number. Lapse: the reel's 'saved him' credit twice went to the wrong row, which muddies whose decision won." }
+  ]
+}

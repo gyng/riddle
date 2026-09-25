@@ -1,0 +1,128 @@
+{
+  "rows": [
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "last_stand"
+      },
+      "origin": "card"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 40
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "lowest"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "gas"
+        },
+        {
+          "k": "adj>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "retreat"
+      },
+      "origin": "patch"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 60
+        }
+      ],
+      "verb": {
+        "v": "rest"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "depth>=",
+          "n": 12
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "boss_focus"
+      },
+      "origin": "card"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "pack_break"
+      },
+      "origin": "card"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "telegraph"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:telegraph"
+      },
+      "origin": "patch"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "kite_archers"
+      },
+      "origin": "card"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "preset"
+    }
+  ],
+  "name": "fighter"
+}

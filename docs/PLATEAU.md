@@ -617,3 +617,34 @@ non-decision.
 
 Kept: the forecast as experiment (`vs sent · D6 −56 · bank +31`), row-naming deaths, the reel
 crediting rows, plateau notes that lead to an edit, bones and avenging.
+
+## Cohort 19 (build 4b15a61: Cut 23 + QA W/X — the forge, rows answer, hero looks, the juice pass)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AK | 2301 | 71.4 | none |
+| AL | 2302 | 71.9 | none |
+
+α = 0.905. Mean **71.65** — **up 2.7**. Both "promising". The forge and the answering rows landed
+(AL: mastery and tension 0.8; best D4 → D14 in an hour); feel and aesthetic stay 0.6 from both
+despite the juice pass — pacing, not polish, is what they name.
+
+### The read
+
+1. **Fights that can't progress play out in full** (both): AL's first Goblin Warlord ran > 4 min
+   at 1× on `R7 attack nearest` with the boss bar full until ▶▶|; AK's fights run took 5.6 min
+   with ~100 s of retreat ↔ pack break against D9 archers. The dance guard (Cut QA-V) did not
+   catch either.
+2. **Repetition** (AK): Ashul the jackal on D3, the shrine line, identical end-of-run summaries,
+   run after run. Surprise 0.6 from both.
+3. **The forge's prices climb with best depth** (AL): leather +1 $1000 → $1100 → $1400, mail
+   $2800 → $3600 — a deeper best makes the same step dearer; a thief took the leather +1 he had
+   just bought (kit must never be loot).
+4. **The forecast solves** (AK): "I mostly tried things and read the number"; edits wait 3–7 s
+   to settle; many own rows read `≈` (AL).
+5. **Seams**: the keep sheet salvaged the tapped item (both); the reel credited `R2 drink heal`
+   when `R4 read teleport` fired (AL); `Ulak is avenged` then Ulak again (AK); the warlord
+   forecast on D9, met on D8 (AK); `leather +1 · death +7` (AL).
+
+Kept: rows that name their failure, boss counters learned then written (`D9 <2% → 89%`),
+named foes and bones, the overnight shopping list, the plateau note naming the ceiling row.

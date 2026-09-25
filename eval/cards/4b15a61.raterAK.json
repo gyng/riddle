@@ -1,0 +1,83 @@
+{
+  "$comment": "Blind rater AK on 4b15a61, seed 2301, headed GPU driver 400x800 @3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, eval-fun FRAMEWORK.md §1-3, the template, and eval/presets.json (weights) plus the scorer's source (field names). No PLAN/research/CUT/other cards/source opened. Session notes: scratchpad/raterAK/notes.txt.",
+  "game": "Riddle",
+  "build": "4b15a61",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAK",
+  "horizon": {
+    "activeMinutes": 53,
+    "activeNote": "35 min cold (21:33-22:08, slightly under the 40 asked because runs were short and I hit the loop's plateau), then simulated ?absent=8h, then 18 min on return (22:08-22:26). Card written afterwards.",
+    "absences": ["8h simulated via ?dev=1&absent=8h (not a real wall-clock absence)"],
+    "runsWatched": 18,
+    "runsWatchedNote": "13 before the absence, 5 after; 7 at 1x (1-2.5 min each), the rest in fights/fast mode, 2 skipped with ▶▶|; one post-return run was an accidental send from my own mis-tap",
+    "runsOffline": 16,
+    "ruleEdits": 13,
+    "ruleEditsNote": "10 edits of my own (hp<50 drink unknown; gas retreat; depth>=6 bank; return moved below drink-unknown at 25%; rest at hp<60 replacing drink heal; bank depth 6->7->8->10->12; pack-break reorder tried and reverted; boss focus moved above pack break; new row hp<40 attack lowest), 3 offered patches applied; 5 deaths read in session + 1 offline death trace"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "wantedToComeBackBeforeSeeing": "yes - I wanted to know whether banking at D8 overnight had paid for sword +2",
+    "delayedRecall": "same-day: After the overnight I bought sword +2 and leather +1 and, against an 11% forecast, moved my bank row to D10 so my hero would have to get past the Goblin Warlord. He met it a floor early on D8 under a 'COUNTER: ATTACK BOSS' banner, got knocked to 11/42 through 'shields up' and 'blades!', my last-stand card fired, and the log went 'WARLORD BREAKS' then 'GOBLIN WARLORD DOWN'. He cut a chained captive down on D9, walked into the Fens and banked $399 at D10, and the next time I put boss focus above pack break the forecast for D9 jumped from 9% to 99%."
+  },
+  "probes": {
+    "clarity": "The forecast column answered every edit within seconds with a delta ('VS SENT · D6 22→48%' after I added hp < 50% → drink unknown), and the one thing I misread was the keep sheet: I tapped 'blink scroll' and it came back as 'SALVAGED blink ×1'.",
+    "decisions": "Bank depth was a real call: depth ≥ 12 showed '~$318, death 24%' against '~$254, death 7%' at 10, and I took it and banked $485 at D12.",
+    "mastery": "In the first hour I learned that retreat at hp < 50% is terrible ('D6 22→4%'), that rest at 60% holds a run together ('D5 70→93%'), and that row order decides a boss ('D9 9%→99%' from moving one card up).",
+    "tension": "I sweated once, on purpose: the warlord attempt at an 11% forecast with 'carry $280 · death: lose all' showing, down to 11/42; after the forge most banks read 80-97% and I stopped caring how they went.",
+    "feel": "The callouts land ('R2 ATTACK RAT', 'SHIELDS UP', 'WARLORD BREAKS'), but 1x has long quiet stretches of 'pick up ×42' and a black half-screen; audio unassessed (window.__audio logged rule/hit/slay/telegraph/exit_bank cues, including ~15 stacked on one timestamp at a run's end, but I could not hear them).",
+    "surprise": "Named nemeses changed my set: 'Thak the Goblin Captain is avenged' by the heir of the man he killed, bloats ('The air stings: bloats ahead') made me write a gas row, and archers killed both offline deaths; but Ashul the jackal on D3 and 'A shrine. Pray, at a price.' turned up nearly every run.",
+    "expression": "My set is rest at 60%, return at 25%, bank at 12, a player-written hp < 40% row, plus four bought cards (last stand, boss focus, pack break, kite archers) and one patch; about half of it is the game's text, not mine.",
+    "story": "The chronicle wrote it for me: '♟4 the greedy fighter · D6 · found ♟3, ♟1, ♟2's bones · fell to gas', and the reel said 'Goblin archers took him to 2 HP; R4 return too late; died to archer.'",
+    "pacing": "Early runs were 40-140 s at 1x and camp edits felt quick, but one late fights-mode run took 5.6 minutes, 100 s of it 'R3 · retreat' / 'R8 · card pack' flipping against archers and a bloat on D9, and each edit makes you wait 3-7 s for the forecast to settle.",
+    "failure": "Each death screen named cause and verdict ('GAS · D6 · DICE · forecast said D6 53%', 'goblin archer · D5 · GAP') and listed every row's why-not ('R4 retreat not in view ← never met', 'R1 drink heal no item ← never found'); the next heir started on its own.",
+    "social": "weight 0 - nothing social; the recurring named goblins are barks.",
+    "autonomy": "I chose depth to bank at, the start waystone ('D5 · bank 28%' vs 'D1 · bank 67%'), a class (tried rogue, 'bank 83→56%', went back), and what to buy from a long unlock list nobody pointed me at.",
+    "progression": "D5 to D12, $40 to $3067 overnight, forge ladders (sword +1 → +2, leather → +1, pack 4 → 5), +2 rows, four cards, fighter L4, rank ★7; forge prices rose as my best rose (sword +3 went $2700 → $3150).",
+    "aesthetic": "The camp painting of two figures descending the stair and the pixel hero in his red cloak are handsome; the watch floor is mostly brown on black.",
+    "return": "I came back to '16 RUNS · 12 BANKED · 2 RETURNED · 2 DEATHS · +$2215 banked', a pending list ('R4 fired 3 of 16 runs', 'forge sword +2 · $1200'), and bought two forge tiers inside a minute - I would not rather have stayed.",
+    "attribution": "The last run ended with 'R1 last stand saved him' and a D12 bank; the depth was my call (I moved bank to 12), the last stand was a card I bought, and the warlord kill I credit to my reorder of boss focus above pack break."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.8, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Forecast delta after every edit ('VS SENT · D6 22→48%') and per-row why-not on each death. Lapse: the keep sheet, where tapping 'blink scroll' then 'keep' got it salvaged; minor others ('Ulak ... is avenged' and Ulak back next run; forecast put the warlord on D9, it met him on D8; verb chip once didn't reopen its sheet)." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "'depth ≥ 12: ~$318, death 24%' vs '10: ~$254, death 7%' was a real bank-or-push call. Lapse: the live forecast turns most edits into try-it-and-read-the-number (row order 'D9 9%→99%'), so a lot of choices got solved rather than judged." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "From D5 deaths to banking D12; I learned 'retreat at 50%: D6 22→4%', rest, and ordering. But the forecast taught me more than the runs did, and before the absence I sat for six runs on the same 'bank at D8' loop." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Real once: the warlord attempt at 11% with 'carry $280 · death: lose all' on screen, down to 11/42. Otherwise bank runs read 80-97% after the forge and ended as predicted." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Callouts 'SHIELDS UP', 'WARLORD BREAKS', floating '−5 hp · ogre' read well. 1x has quiet 'pick up ×42' stretches. Audio unassessed (cues present in window.__audio; not heard)." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "'The den wakes: thieves on every side', bloats, a chained captive, a pink jelly splitter, finding '♟3's bones', and named nemeses changed my set (gas row, boss row). Repeats: Ashul on D3 and the shrine line almost every run, identical reel lines." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Some of it is mine (rest at 60%, bank 12, hp<40 row), but four of eleven rows are bought cards and one is a patch; I could describe it as 'cautious fighter who pushes past the boss' but half the text is the game's." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "The warlord run at 11% has a turn, and the heir avenging Thak who killed ♟3 is an anecdote. Lapse: the reel's stock lines repeat word for word ('Through the lock, barely touched. D8: the Burrows. Banked $X.')." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-play: 40-140 s runs early, but one fights-mode run lasted 5.6 min with ~100 s of retreat/pack-break flipping on D9. Admin: every edit waits 3-7 s for the forecast, and unlocks/forge/loadout sheets pile up. Check-in on return was quick." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "'GAS · D6 · DICE · forecast said D6 53%', and every row's why-not ('R1 drink heal no item ← never found'), plus patches with 'survives 100% · unpatched 58%'. Lapse: the first three heirs lost all carry ($66, $111, $114) before I wrote a bank row; the starting set has none and only the forecast's 'bank <1%' hinted at it." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Bank depth, start waystone, class (tried rogue), a long unlock list; the goal is fixed as deeper and richer." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run cages ('took axe +1') and persistent forge tiers, rows, cards, classes, trophies ('10 homecomings'); automation 'auto: keep weapon+armour'. Lapse: forge prices climb with my best depth (sword +1 $250→$300, sword +3 $2700→$3150), so the goal moved as I reached it." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Painted camp key art and a torn red death banner are handsome; the dungeon floor is dim brown on a lot of black. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "'16 RUNS · 12 BANKED · +$2215' plus pending 'R4 fired 3 of 16 runs' and two forge tiers I bought at once. Lapse: the pending decisions were mostly 'buy the next forge tier', which is strictly ordered, and the one rule hint (R4) did not tell me what to change." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "'Goblin archers took him to 2 HP; R4 return too late; died to archer' names my row; I credit the warlord kill to my reorder. Lapse: many wins are credited to cards I bought ('R6 broke', 'R1 last stand saved him'), which feel less like mine." }
+  ],
+  "gripes": [
+    "Half my rule list is prewritten cards and patches; the forecast solves most edits, so I tried and read numbers more than I reasoned.",
+    "Pacing sags: a 5.6-minute run with 100 s of retreat/pack-break flip-flopping, 3-7 s forecast waits after every edit, and repeated stock lines (Ashul on D3, the shrine, identical reels).",
+    "Small UI slips: the keep sheet salvaged the item I tapped, a verb chip didn't reopen its sheet, a tap during the camp transition sent a run, and 'Ulak is avenged' came right before Ulak showed up again."
+  ],
+  "tellAFriend": [
+    "You never move the hero; you write eight if-then rows and watch him live or die by them, and the death screen tells you exactly which row failed.",
+    "The dungeon remembers: the goblin that killed your last hero has a name, and your next hero can avenge him and find his bones.",
+    "Leaving it overnight is fine: I came back to 16 runs, $2215 banked and a clear shopping list, then beat the boss at 11% odds."
+  ]
+}

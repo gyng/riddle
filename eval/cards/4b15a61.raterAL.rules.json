@@ -1,0 +1,103 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 50
+        }
+      ],
+      "verb": {
+        "v": "read",
+        "a": "unknown"
+      },
+      "origin": "patch"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        }
+      ],
+      "verb": {
+        "v": "read",
+        "a": "teleport"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "thief"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:thief"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "kite_archers"
+      },
+      "origin": "card"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "preset"
+    }
+  ],
+  "name": "fighter"
+}
