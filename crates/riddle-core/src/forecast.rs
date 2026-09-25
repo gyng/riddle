@@ -345,11 +345,15 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let reach_at = |d: u32| ended.iter().filter(|r| r.max_depth >= d).count() as f64 / n;
     // Cut 20 §5: the bounty floor is a notch of its own, below `known_to` when it lies deeper.
     let last = known_to.max(game.lineage.bounty.unwrap_or(0));
+    // Cut 21 §1: a row at or above the start floor is passed by every send (reach 1.0): no
+    // boss stands between, so no `try`.
+    let start = sim_start(game);
     let depths = (1..=last)
         .map(|d| {
             let reach = reach_at(d);
             let wall = wall_at(d, reach, reach_at(d.saturating_sub(1)));
-            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_: try_row(game, rules, d), wall, bounty: game.lineage.bounty == Some(d) }
+            let try_ = if d > start { try_row(game, rules, d) } else { None };
+            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_, wall, bounty: game.lineage.bounty == Some(d) }
         })
         .collect();
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
@@ -372,7 +376,99 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
     let death = share(ExitTier::Death);
     let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()) });
-    Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules) }
+    Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start }
+}
+
+/// Cut 21 §1: the floor the camp's sims start on — the lineage's start when it is lit and the
+/// purse pays its toll (`Game::pay_start`), else 1. The forecast's rows above it read 1.0
+/// (every sim is there from its first tick: `max_depth ≥ start`); the client folds them.
+pub fn sim_start(game: &Game) -> u32 {
+    let l = &game.lineage;
+    let d = l.start.max(1);
+    if d > 1 && l.waystones.contains(&d) && l.gold >= crate::engine::LineageState::start_toll(d) {
+        d
+    } else {
+        1
+    }
+}
+
+/// Cut 21 §1: the start tablet — each start the lineage can choose (D1 and every lit
+/// waystone) measured for the active set: the camp's panel with `start` set to the option
+/// (the forecast's own sims: the refined panel once it exists, the same seeds), against the
+/// current start's panel. `depth` is the bar the reach is read at (the set's bank row's
+/// depth, else the lineage's best depth — never above the option's own floor, where it
+/// reads 1.0). `gold` is what a send brings home; `net` less the option's toll; the deltas
+/// are the net's and the bank share's. A start the purse cannot pay (`toll > gold`) is
+/// measured as it would play — from D1 — and marked `short`. Memoised like the cage tablet
+/// (the options' panels land in `Game.panel_cache`, keyed by the lineage fingerprint, which
+/// carries the start).
+pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
+    let rules = game.lineage.rules().clone();
+    let sims = camp_sims(game, &rules);
+    let bank_depth = rules.rows.iter().filter(|r| r.verb.v == "bank").filter_map(|r| r.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n)).map(|n| n.max(1) as u32).min();
+    let bar = bank_depth.unwrap_or(game.lineage.best_depth).clamp(1, game.lineage.best_depth + 1);
+    let current = game.lineage.start.max(1);
+    let mut options: Vec<u32> = vec![1];
+    options.extend(game.lineage.waystones.iter().copied());
+    /// (reach at `bar`, bank share, gold per send, sims).
+    type Read = (f64, f64, f64, usize);
+    let read = |ended: &[SimResult]| -> Read {
+        let n = ended.len().max(1) as f64;
+        let reach = ended.iter().filter(|r| r.max_depth >= bar).count() as f64 / n;
+        let bank = ended.iter().filter(|r| r.tier == ExitTier::Bank && !r.timed_out).count() as f64 / n;
+        let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
+        (reach, bank, gold, ended.len())
+    };
+    let base = read(&camp_panel(game, &rules, sims));
+    let base_toll = if sim_start(game) > 1 { crate::engine::LineageState::start_toll(current) } else { 0 };
+    let others: Vec<u32> = options.iter().copied().filter(|d| *d != current).collect();
+    let measured: Vec<(Read, BTreeMap<String, Vec<SimResult>>)> = others
+        .iter()
+        .map(|&d| {
+            let mut g = game.sim_clone();
+            g.lineage.start = d;
+            *g.panel_cache.borrow_mut() = game.panel_cache.borrow().clone();
+            let r = read(&camp_panel(&g, &rules, sims));
+            (r, g.panel_cache.into_inner().into_iter().collect())
+        })
+        .collect();
+    let mut m = measured.into_iter();
+    let mut out = Vec::with_capacity(options.len());
+    for d in options {
+        let toll = crate::engine::LineageState::start_toll(d);
+        let short = toll > game.lineage.gold;
+        let (reach, bank, gold, n) = if d == current {
+            base
+        } else {
+            let (r, panels) = m.next().expect("one panel per other start");
+            for (k, v) in panels {
+                panel_insert(game, k, v);
+            }
+            r
+        };
+        let paid = if short { 0 } else { toll };
+        let net = gold - paid as f64;
+        let banks = bank > 0.0 || base.1 > 0.0;
+        out.push(crate::wire::StartOption {
+            start: d,
+            current: d == current,
+            toll,
+            biome: crate::descent::biome_for(d).name().into(),
+            short,
+            depth: bar,
+            reach,
+            reach_delta: reach - base.0,
+            bank,
+            bank_delta: bank - base.1,
+            gold,
+            gold_delta: gold - base.2,
+            net,
+            net_delta: net - (base.2 - base_toll as f64),
+            delta: if banks { bank - base.1 } else { reach - base.0 },
+            pm: half_width(reach, n),
+        });
+    }
+    out
 }
 
 /// Cut 10 §2: the `try` of a forecast row — reaching `depth` means passing the boss on the
@@ -526,5 +622,7 @@ pub fn lineage_key(game: &Game) -> u64 {
         feed(&format!("{i}:{}", rules_key(set)));
     }
     feed(&format!("{:?}", l.trophies));
+    // Cut 21 §1: where the sends start (and whether that waystone is lit).
+    feed(&format!("start {} {:?}", l.start, l.waystones));
     h
 }

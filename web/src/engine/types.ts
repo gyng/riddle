@@ -12,7 +12,8 @@ export type RuleSet = { rows: Row[]; name?: string };
 
 export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number;   // max_rows: Cut 12 §1, the cap on the player's OWN rows; card rows (verb.v === "tactic") sit outside it, one per owned card
                            combos?: Combo[];                                // Cut 8B §1: the combo table (adjacent-row verb pairs the engine names)
-                           locked?: LockedCond[] };                         // Cut 9 §1: gated conds the sheet shows dim with their gate, never selectable
+                           locked?: LockedCond[];                           // Cut 9 §1: gated conds the sheet shows dim with their gate, never selectable
+                           depth_max?: number };                            // Cut 21 §3: the deepest `depth ≥` the picker offers (the lineage best + 2, at least 8)
 /** Cut 9 §1 — a condition the lineage cannot use yet and the gate as the player reads it (`foe: any`, `◆2`). */
 export type LockedCond = { cond: Cond; needs: string };
 /** Cut 8B §1 — a combo: verb patterns for two adjacent rows (`shield_bash`, or `drink unknown` for one argument) and the name the
@@ -49,6 +50,13 @@ export type VaultChoice = { items: InvItem[]; left?: number;   // Cut 14: ticks 
  *  the picker's headline — `bank_delta` when either panel banks, else `reach_delta`; `pm`: the ± of `reach` (0..1 fractions). */
 export type CageOption = { pref: string; current: boolean; depth: number; reach: number; reach_delta: number; bank: number; bank_delta: number;
                            gold: number; gold_delta: number; delta: number; pm: number };
+/** Cut 21 §1: one start measured for the active set (`startForecast()`): D1 and each lit waystone, like `CageOption` — the camp
+ *  panel with the run starting on `start`, paired with the current start's. `toll`: what the send pays for it (`$10 × depth`, 0 at D1);
+ *  `depth`: the floor `reach` is read at; `delta`: the headline (`bank_delta` when either panel banks, else `reach_delta`). */
+export type StartOption = { start: number; current: boolean; toll?: number; biome?: string; depth: number; reach: number; reach_delta: number;
+                            bank: number; bank_delta: number; gold: number; gold_delta: number; delta: number; pm: number;
+                            short?: boolean;                    // core: the purse cannot pay the toll now — that send starts on D1 (the numbers are D1's)
+                            net?: number; net_delta?: number }; // core: `gold − toll` per send, and its move against the current start
 /** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any.
  *  Cut 6 §1: `kept` = what that row would bring home now (`$84 · keeps $50`). */
 export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number;
@@ -63,13 +71,15 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          run_id?: number;                                                                   // the run, so a report's trace links can open its replay (QA on e0f87e7: the return sheet's had `watch`, the report's did not)
                          xp?: number; level_ups?: number;                                                   // QA 92eb880: the XP this run earned (the part that crossed a level included) and the levels crossed — the watched report's `xp` line, never a client-side ladder (web's 40·L² was not the core's; `fighter +0 · L4 ↑1`)
                          stolen?: string[];                                                                 // QA e75ec29 (qaR): what thieves took this run and it never got back (`· stolen heal`; flavour-named while unidentified)
-                         purse_full?: boolean };                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
+                         purse_full?: boolean;
+                         shelved?: { kind: string; n: number }[] };                                        // Cut 21 §2: found supplies of a kind the shelf sells, put on the shelf at this exit (not salvaged) — `found heal → shelf`                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
 export type GoldLine = { t: number; delta: number; why: string };
 /** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */
 export type Counter = { boss: string; row?: Row | string; text: string };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent";
-                        free?: boolean };                                   // Cut 12 §6: a supply the camp gave (the kennel's leash) reads `leash · kennel`; the core always sends it
+                        free?: boolean;                                    // Cut 12 §6: a supply the camp gave (the kennel's leash) reads `leash · kennel`; the core always sends it
+                        found?: boolean };                                 // Cut 21 §2: a shelf line an exit put there (found in the dungeon, packed free) — `heal · found`
 
 export type Ev =
   | { t: number; k: "move"; id: number; x: number; y: number }
@@ -109,6 +119,7 @@ export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
                          ends?: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number };
                          refined?: boolean;
+                         start?: number;                                 // Cut 21 §1: the floor the sims started on (`Lineage.start` when lit and payable, else 1); rows above it read reach 1.0
                          shadowed_by?: (number | null)[] };                                                    // QA 92eb880: per row of the set (by index), the earlier row (0-based) that takes every moment it could fire — mark it `shadowed by R{n+1}`; null = free; absent = none shadowed   // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
@@ -170,6 +181,7 @@ export type ReturnReport = {
   picked?: number[];                                                          // Cut 16 §1: depths picked clean (≥ 3 banks/returns, shallower than the best), ascending — `D3 · picked clean`
   restock_capped?: boolean;                                                   // Cut 19 §3: the repeat skipped a supply once the absence's spending reached what it brought home — `restock capped`
   repeat_short?: boolean;                                                     // QA 1a2a4a9: a re-pack ran short of gold and bought what it could — `repeat short` (a `$0 repeat short` ledger line at that exit)
+  shelved?: { kind: string; n: number; gold?: number }[];                     // (core: `gold` = their price on the shelf) Cut 21 §2: found supplies the exits put on the shelf this absence (the next send packs them free) — `heal ×3 → shelf`
   bounty?: { depth: number; taken: boolean; gold: number };                  // Cut 20 §5: the night's bounty floor — `bounty D12 · taken $412` / `bounty D12 · missed`
 };
 export type Lineage = { seed: number; heir: number; trait: string; trait_offer?: string[]; class: string; best_depth: number; marks: number;   // Cut 13 §2: `trait_offer` — two traits a new heir may wake with; `setTrait(name)` picks
@@ -196,7 +208,11 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         shadowed_by?: (number | null)[];                                                              // QA 92eb880: the active set's shadowed rows, as Forecast.shadowed_by (absent when none)
                         repeat?: boolean; repeat_kinds?: string[]; repeat_gold?: number;                              // Cut 19 §3: the loadout repeats (true unless cleared by `setRestock(false)`); the kinds the next send re-packs and their shelf price (`repeat · $120`); QA 1a2a4a9: a shelf of bought supplies is the next pack, so the badge is its price (the re-pack tops the shelf up, never more)
                         repeat_short?: string[];                                                                      // QA 1a2a4a9: kinds the last re-pack could not pay for (`repeat short`)
-                        bounty?: { depth: number } };                                                                 // Cut 20 §5: tonight's bounty floor (best + 2; moves every night)
+                        bounty?: { depth: number };
+                        waystones?: number[];                                                                         // Cut 21 §1: the lit waystones (a biome's first floor the lineage has banked at or past: 5 · 9 · 14 · 19 · 24 · 29), ascending
+                        start?: number;
+                        start_toll?: number;                                                                          // Cut 21 §1 (core): the toll the next send pays for `start` ($10 × start; 0 at D1)
+                        repeat_dropped?: string[] };                                                                  // Cut 21 §2 (core): kinds the last send packed that no row uses — the repeat does not re-buy them (`strength · no row`)                                                                             // Cut 21 §1: where the next send starts (1, or a lit waystone; `setStart(d)`); the send pays `$10 × start` below D1                                                                 // Cut 20 §5: tonight's bounty floor (best + 2; moves every night)
 /** Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id (`shield_bash | vanish | mark | slow`);
  *  `level` the class's level; `opens` the level the signature opens at (`mark L7` while level < opens).
  *  §4 (no new wire): the Warlord's break is a callout `warlord breaks` + a note `The Warlord breaks.` (visible only), once, at ≤ 50 % hp.
@@ -267,6 +283,9 @@ export interface Engine {
   // Cut 19
   cageForecast?(): CageOption[];        // §1: every cage preference's forecast for the active set (three extra camp panels, memoised; seconds in wasm — call when the picker opens or after the refine)
   setRestock?(on: boolean): Lineage;    // §3: the loadout's repeat on/off (off refunds the re-packed shelf; on re-packs an empty shelf now)
+  // Cut 21
+  setStart?(depth: number): Lineage;    // §1: where the next send starts (1 or a lit waystone)
+  startForecast?(): StartOption[];      // §1: D1 and each lit waystone measured for the active set (memoised; seconds in wasm — call when the picker opens)
 }
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
                            delta?: number;                                                                 // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards

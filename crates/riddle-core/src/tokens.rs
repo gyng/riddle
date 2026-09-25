@@ -19,6 +19,11 @@ pub fn identified_kinds(l: &LineageState, cat: Cat) -> Vec<&'static str> {
     ITEMS.iter().filter(|i| i.cat == cat && is_identified(&l.facts, &l.flavours, i.kind)).map(|i| i.kind).collect()
 }
 
+/// Cut 21 §3: the deepest `depth ≥` threshold the editor offers — best + 2, at least 8.
+pub fn depth_max(l: &LineageState) -> u32 {
+    (l.best_depth + 2).max(8)
+}
+
 pub fn vocabulary(l: &LineageState) -> Vocabulary {
     // Cut 2 §3: `alert>= turns> loot>= on_kill on_see party_hp<` are unlocks; §5: `foe_hp<`
     // opens once a kind is studied.
@@ -171,7 +176,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
         }
     }
     let locked = locked_conds(l, &conds);
-    Vocabulary { conds, verbs, max_rows: l.max_rows(), combos: crate::rules::combo_table(), locked }
+    Vocabulary { conds, verbs, max_rows: l.max_rows(), combos: crate::rules::combo_table(), locked, depth_max: depth_max(l) }
 }
 
 /// Cut 9 §1: every condition token the editor knows of but this lineage cannot use yet, with
@@ -255,7 +260,7 @@ pub fn companion_vocabulary(l: &LineageState, c: &Companion) -> Vocabulary {
     }
     verbs.push(Verb::new("follow"));
     verbs.push(Verb::new("recall"));
-    Vocabulary { conds, verbs, max_rows: c.max_rows, combos: Vec::new(), locked: Vec::new() }
+    Vocabulary { conds, verbs, max_rows: c.max_rows, combos: Vec::new(), locked: Vec::new(), depth_max: depth_max(l) }
 }
 
 #[cfg(test)]

@@ -931,7 +931,10 @@ export function renderWatch(app: App): Mounted {
     // Cut 16 §3: the biome's first floor in the run names it in the rooms' place (`D5 · the Burrows · a shrine`)
     const prev = floors.get(d - 1)?.biome, first = [...floors.keys()].every((k) => k >= d);
     const title = f?.biome && (prev ? prev !== f.biome : first) ? BIOME_TITLE[f.biome] : undefined;
-    const text = /* copy:callout */ `D${d}${title ? ` · ${title}` : rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `$${hudSnap?.stake?.loot ?? hudSnap?.loot ?? 0}`}`;
+    // Cut 21 §1: a run sent from a waystone names it on its first floor (`D9 · the Fens · waystone`)
+    const way = first && d > 1 && d === (app.lineage.start ?? 1);
+    const text = way ? /* copy:callout */ `D${d}${title ? ` · ${title}` : ""} · waystone`
+      : /* copy:callout */ `D${d}${title ? ` · ${title}` : rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `$${hudSnap?.stake?.loot ?? hudSnap?.loot ?? 0}`}`;
     if (text !== cardText) { cardText = text; replace(card, text); }
   }
   /** Cut 20 §3: `fights` on the first floors — no card, the map at EARLY_TRAVEL, every fight at EARLY_FIGHT. */

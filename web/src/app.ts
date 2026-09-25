@@ -601,10 +601,12 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     bones_found: cat(a.bones_found, b.bones_found),
     picked: b.picked ?? a.picked,                          // Cut 16 §1: a state — the last slice knows
     restock_capped: a.restock_capped || b.restock_capped || undefined,   // Cut 19 §3: any slice's repeat stopped at the night's income
+    repeat_short: a.repeat_short || b.repeat_short || undefined,         // QA 1a2a4a9: any slice's re-pack ran short
     // Cut 20 §5: the night's bounty — slices of one night add up (taken by any, the coins summed); a later night's floor replaces it
     // QA e75ec29: the floor the player saw before leaving is the first slice's — a later slice's (a new best moved it) never replaces it
     bounty: !a.bounty ? b.bounty : !b.bounty ? a.bounty : a.bounty.depth === b.bounty.depth ? { depth: a.bounty.depth, taken: a.bounty.taken || b.bounty.taken, gold: a.bounty.gold + b.bounty.gold } : a.bounty,
     stolen: mergeCounts(a.stolen, b.stolen),               // QA e75ec29 (R): thefts nothing got back, per label
+    shelved: mergeCounts(a.shelved?.map((x) => ({ label: x.kind, n: x.n })), b.shelved?.map((x) => ({ label: x.kind, n: x.n })))?.map((x) => ({ kind: x.label, n: x.n })),   // Cut 21 §2: found supplies to the shelf, per kind
     exits: cat(a.exits, b.exits),                          // Cut 6 §1: one ledger line per exit
     elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,
     deepest: a.deepest === undefined && b.deepest === undefined ? undefined : Math.max(a.deepest ?? 0, b.deepest ?? 0),

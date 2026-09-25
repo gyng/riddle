@@ -278,6 +278,7 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         restock_capped: b.restock_capped,
         bounty: b.bounty.clone(),
         repeat_short: b.repeat_short,
+        shelved: b.shelved.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).collect(),
     }
 }
 

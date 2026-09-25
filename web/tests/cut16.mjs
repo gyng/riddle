@@ -2,7 +2,7 @@
 // Cut 16 gates, client side (docs/CUT16.md §1–§3; §4's boss bar and break beat are in fights.mjs), on the fake engine
 // (`?engine=fake&dev=1`) through the browser harness (tools/browser.mjs; `--shots` runs headed on the GPU and writes
 // scratchpad/cut16/*.png at 400×800×3) against the dev server (tools/dev.sh, :5219; RIDDLE_PORT overrides):
-//   §1  the report's thinned depths as one dim line under the tiles (`D3–4 · D6 · picked clean`); the camp's forecast carries the
+//   §1  the report's thinned depths as one dim line under the tiles (`D3–4 · D6 · thinned`); the camp's forecast carries the
 //       same line (small, dim) while `Lineage.picked` holds depths, and none without
 //   §2  at the wake (a trait offer standing) with ≥ 2 classes owned, a class chip per owned class beside the trait chips
 //       (`fighter L1 · shield bash`, `rogue L1 · vanish`, a signature not yet open `mark L7`), the current one on and inert; a tap
@@ -99,7 +99,7 @@ try {
   await waitFor((x) => x?.screen === "report", "the report");
   await sleep(200);
   let line = await page.evaluate(() => { const e = document.querySelector(".report .picked-line"); return e ? { text: e.textContent, dim: e.classList.contains("dim") } : null; });
-  check(line?.text === "D3–4 · D6 · picked clean" && line.dim, `the report's thinned depths in one dim line ("${line?.text}")`);
+  check(line?.text === "D3–4 · D6 · thinned" && line.dim, `the report's thinned depths in one dim line ("${line?.text}")`);
   await shot("02-report-picked");
   await emptyReport({});
   await sleep(150);
@@ -109,7 +109,7 @@ try {
   await waitFor((x) => x?.booted && x.screen === "camp", "camp with picked depths");
   const fcPicked = async () => { const t = Date.now(); let v = null; while (Date.now() - t < 8000) { v = await page.evaluate(() => { const e = document.querySelector(".forecast .fc-picked"); return e && !e.hidden ? e.textContent : null; }); if (v) break; await sleep(100); } return v; };
   const fp = await fcPicked();
-  check(fp === "D2–3 · picked clean", `the camp's forecast says it ("${fp}")`);
+  check(fp === "D2–3 · thinned", `the camp's forecast says it ("${fp}")`);
   await shot("03-forecast-picked");
   check(await patchSave((e) => { delete e.lineage.picked; }), "the save drops picked");
   await waitFor((x) => x?.booted && x.screen === "camp", "camp without picked depths");

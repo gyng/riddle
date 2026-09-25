@@ -29,11 +29,16 @@ pub struct Item {
     /// tamed; clearing the shelf refunds nothing for it and `auto_supply` never rebuys it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub free: bool,
+    /// Cut 21 §2: a supply the hero found and brought home to the shelf (`found heal → shelf`)
+    /// — packed like a bought one, but never the repeat's (the repeat buys the kinds the
+    /// player packed) and a drop salvages it rather than refunding a price never paid.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub found: bool,
 }
 
 impl Item {
     pub fn new(id: u32, kind: &str) -> Item {
-        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false }
+        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false }
     }
     /// Cut 6 §2: known by name (bought, crafted, vaulted) or by an identified flavour.
     pub fn is_known(&self, facts: &BTreeSet<String>, flavours: &Flavours) -> bool {
@@ -115,6 +120,9 @@ pub struct InvItem {
     /// always on the wire so a bought leash on the same shelf is not mistaken for it.
     #[serde(default)]
     pub free: bool,
+    /// Cut 21 §2: found on a run and put on the shelf for free (`found`); a drop salvages it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub found: bool,
 }
 
 /// Wire: item on the floor.
@@ -152,7 +160,7 @@ pub fn describe(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> (
 
 pub fn to_inv(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> InvItem {
     let (known, kind, label) = describe(item, facts, flavours);
-    InvItem { id: item.id, kind, known, label, hint: if known { None } else { item.hint }, free: item.free }
+    InvItem { id: item.id, kind, known, label, hint: if known { None } else { item.hint }, free: item.free, found: item.found }
 }
 
 #[cfg(test)]

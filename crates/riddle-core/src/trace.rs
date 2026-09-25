@@ -61,7 +61,7 @@ pub fn stall_record(game: &Game, run: &Run) -> DeathRec {
 fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let turns: Vec<_> = run.trace.iter().rev().take(TRACE_LEN).rev().cloned().collect();
     let provenance = crate::provenance::all(&game.prov);
-    let chain = chain_of(turns.last());
+    let chain = chain_of(&turns);
     let root = if stall { None } else { root_of(&game.prov, game.lineage.rules(), turns.last()) };
     let cause = if stall {
         format!("stalled · {}", run.stuck_cause.as_deref().unwrap_or("paced"))
@@ -143,17 +143,48 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let boss = if stall { None } else { boss_of(run, &cause) };
     let loop_row = if stall { run.stuck_row.and_then(|r| usize::try_from(r).ok()).filter(|&r| r < rules.rows.len()) } else { None };
     let row_fired = run.row_fired.clone();
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.clone().filter(|(f, _)| f.id == run.id && f.depth == run.depth) }
+    let gamble_row = if stall { None } else { gamble_row(run, &rules) };
+    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.clone().filter(|(f, _)| f.id == run.id && f.depth == run.depth), gamble_row }
+}
+
+/// Cut 21 §3: how long after a gamble its harm still counts as the gamble's (ticks) — a fire
+/// overlay burns 20 turns, a poison runs 40 ticks.
+pub const GAMBLE_WINDOW: u32 = 300;
+
+/// Cut 21 §3: the harm a gambled kind deals, as the death cause reads it.
+fn gamble_cause(kind: &str) -> Option<&'static str> {
+    match kind {
+        "fire" => Some("fire"),
+        "poison" => Some("poison"),
+        "caustic" => Some("gas"),
+        _ => None,
+    }
+}
+
+/// Cut 21 §3: the set's own row whose unknown gamble dealt this death (`DeathRec.gamble_row`):
+/// the cause is the harm of a malevolent kind gambled on this floor within `GAMBLE_WINDOW`
+/// ticks, and the trace's action at that tick is a `drink unknown` / `read unknown` row of the
+/// set that is not a card's. A gamble the trait or a chore made names no row.
+fn gamble_row(run: &Run, rules: &RuleSet) -> Option<usize> {
+    let cause = run.death_cause.as_deref()?;
+    let (t, _, _) = run.gambles.iter().rev().find(|(t, k, mal)| *mal && gamble_cause(k) == Some(cause) && run.turn.saturating_sub(*t) <= GAMBLE_WINDOW)?;
+    let turn = run.trace.iter().rev().find(|x| x.t <= *t)?;
+    let gamble = matches!(turn.verb.v.as_str(), "drink" | "read") && turn.verb.a.as_deref() == Some("unknown");
+    let at = usize::try_from(turn.row).ok()?;
+    let row = rules.rows.get(at)?;
+    (gamble && !row.is_card() && row.verb == turn.verb).then_some(at)
 }
 
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
-/// deduped by text.
-fn chain_of(last: Option<&crate::wire::TraceTurn>) -> Option<Vec<Because>> {
-    let rows = last?.rows.as_ref()?;
+/// deduped by text. Cut 21 §3: then the earlier turns' (newest first), so a row that did not
+/// fire over the last ticks is explained on each (AF: `hp < 30% → bank` at 9/42 for six ticks).
+fn chain_of(turns: &[crate::wire::TraceTurn]) -> Option<Vec<Because>> {
     let mut out: Vec<Because> = Vec::new();
-    for b in rows.iter().filter_map(|w| w.because.as_ref()) {
-        if !out.iter().any(|o| o.text == b.text) {
-            out.push(b.clone());
+    for turn in turns.iter().rev() {
+        for b in turn.rows.iter().flatten().filter_map(|w| w.because.as_ref()) {
+            if !out.iter().any(|o| o.text == b.text) {
+                out.push(b.clone());
+            }
         }
     }
     (!out.is_empty()).then_some(out)
@@ -893,8 +924,10 @@ fn row_cause(rec: &DeathRec, base: &Game, ticks: u32, baseline: f64) -> Option<P
     let row = rec.rules.rows.get(at)?;
     // The player's own: not a card's, not the shipped preset's. An engagement row's death is
     // the fight's (cutting the set's only strike "survives" by never fighting — the answer
-    // there is a row above it, a `gap`).
-    if row.is_card() || row.origin.as_deref() == Some("preset") || crate::turn::targets_foes(&row.verb) {
+    // there is a row above it, a `gap`). Cut 21 §3: a gamble (`drink unknown`, `read unknown`)
+    // is the player's whatever its origin — a preset row kept is a row the player kept.
+    let gamble = matches!(row.verb.v.as_str(), "drink" | "read") && row.verb.a.as_deref() == Some("unknown");
+    if row.is_card() || (row.origin.as_deref() == Some("preset") && !gamble) || crate::turn::targets_foes(&row.verb) {
         return None;
     }
     let p = cut_patch(rec, base, ticks, at)?;
@@ -1196,6 +1229,14 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     // verdict (`survival_first` would take its head): the missing row is — a `gap`.
     let boss = rec.boss.is_some();
     let row_cut = row_cut.filter(|c| !scored.iter().any(|(rate, row, _)| (!row.conds.is_empty() || rate - baseline >= 0.3 - 1e-9) && !(boss && family(row) == "escape") && *rate > c.survive + SURVIVE_BAND + 1e-9));
+    // Cut 21 §3: the gamble's harm killed him — his own unknown row is the verdict, whatever
+    // an added row would survive (the cut leads the patches as any `row` verdict's does).
+    // (A death the unpatched replays all survive was not reproduced: never `row` — the dice.)
+    let gamble_at = rec.gamble_row.filter(|_| !rec.stall && baseline < 1.0 - 1e-9);
+    let row_cut = match gamble_at {
+        Some(at) => Some(cut_patch(rec, &base, ticks, at).unwrap_or_else(|| Patch { row: rec.rules.rows[at].clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None })),
+        None => row_cut,
+    };
     let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }).collect();
     // Cut 11 §2: the chain's root — the theft's answer or the unlock — measured at the top,
     // scored like any other (its edge counts for the verdict; its delta is simulated first).
@@ -1222,7 +1263,12 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     // Cut 19 §4: the `row` verdict's patch (the row cut) leads, as a stall's loop patch does.
     if let Some(p) = &row_cut {
         rec.death.patches.retain(|x| !(x.row == p.row && x.insert_at == p.insert_at));
-        rec.death.patches.insert(0, p.clone());
+        // Cut 21 §3: a gamble's cut that survives `SURVIVE_BAND` less than the best shown
+        // follows it (the head is always within the band of the best); the verdict still
+        // names the row.
+        let best = rec.death.patches.iter().filter(|x| !(boss && family(&x.row) == "escape")).map(|x| x.survive).fold(f64::MIN, f64::max);
+        let at = if gamble_at.is_some() && p.survive < best - SURVIVE_BAND - 1e-9 { 1.min(rec.death.patches.len()) } else { 0 };
+        rec.death.patches.insert(at, p.clone());
     }
     if rec.stall {
         // Cut 13 §1: a stall is its own verdict; its patches are ranked by the forecast like

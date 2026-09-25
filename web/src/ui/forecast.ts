@@ -93,7 +93,10 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     let causeAt = next;
     { const byD = new Map(f.depths.map((d) => [d.depth, d.reach])); if ((byD.get(next - 1) ?? 1) < 0.05) {
       let drop = -1; for (const d of f.depths) { const fall = (byD.get(d.depth - 1) ?? 1) - d.reach; if (fall > drop) { drop = fall; causeAt = d.depth; } } } }
+    // Cut 21 §1: a waystone start skips the floors above it (they are not run) — the bars start on the start floor
+    const start = Math.max(1, app.lineage.start ?? 1);
     for (const d of f.depths) {
+      if (d.depth < start) continue;
       // Cut 18 §3: a floor the boss above seals (`ForecastDepth.wall`) names him as the cause: `D9 0% · warlord wall`
       const wall = d.wall ? wallName(d.wall) : undefined;
       const cause = wall ? undefined : d.cause ?? (d.depth === causeAt ? f.causes[0]?.cause : undefined);
@@ -169,15 +172,17 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   const paint = (): void => {
     // Cut 20 §5: the bounty floor (best + 2) carries a notch of its own past best + 1 — `D12 ×2`, a gold glint
     const bountyD = last?.depths.find((d) => d.bounty)?.depth ?? app.lineage.bounty?.depth;
-    const next = app.lineage.best_depth + 1, deepest = Math.max(next, bountyD ?? 0), from = deepest > MAX ? deepest - MAX + 2 : 1;
+    // Cut 21 §1: the shaft starts where the send does — D1, or the chosen waystone (`Lineage.start`); the floors above it are not run
+    const start = Math.max(1, app.lineage.start ?? 1);
+    const next = Math.max(start, app.lineage.best_depth + 1), deepest = Math.max(next, bountyD ?? 0), from = deepest - start + 1 > MAX ? deepest - MAX + 2 : start;
     const byDepth = new Map((last?.depths ?? []).map((d) => [d.depth, d]));
     const known = last?.known_to ?? 0;
     const rough = last?.refined === false, cap = bankCap(app.rules.rows);
     const folded: HTMLElement[] = [];
-    if (from > 1) {
+    if (from > start) {
       const hi = from - 1, d = byDepth.get(hi), reach = d ? d.reach : hi <= known ? 1 : 0;
-      const n = h("span", { class: `notch fold${d && Math.round(d.reach * 100) === 0 ? " zero" : ""}`, "data-d": hi, "data-from": 1 },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D1–${hi}`), h("small", { class: "dp" }, d || hi <= known ? pct(reach) : "?"));
+      const n = h("span", { class: `notch fold${d && Math.round(d.reach * 100) === 0 ? " zero" : ""}`, "data-d": hi, "data-from": start },
+        h("span", { class: "hex" }), h("span", { class: "dl" }, hi > start ? `D${start}–${hi}` : `D${hi}`), h("small", { class: "dp" }, d || hi <= known ? pct(reach) : "?"));
       n.style.setProperty("--reach", reach.toFixed(3));
       folded.push(n);
     }
@@ -191,7 +196,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const zero = !!d && Math.round(d.reach * 100) === 0;
       const capped = cap !== undefined && depth > cap, bankHere = cap === depth && !wall;
       const bounty = depth === bountyD;
-      const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
+      const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${depth === start && start > 1 ? " start" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
         h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : ""),
         h("small", { class: "dp" }, d ? pct(d.reach) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm" }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : ""));
       n.style.setProperty("--reach", reach.toFixed(3));

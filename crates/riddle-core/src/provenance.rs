@@ -196,6 +196,15 @@ pub fn because_for(run: &mut Run, cx: &mut Ctx, why: &str, row: Option<&Row>, co
         "stuck" => last(cx.prov, "stuck").map(Prov::because),
         // Cut 13 §2: the row bravery held links to the hold (`← brave held it, D4 · t3120`).
         "brave held" => Some(Because { text: "brave held it".into(), t: run.turn, depth: run.depth }),
+        // Cut 21 §3 (AF: `hp < 30% → bank` did not fire over six ticks at 9/42): the walk home
+        // is blocked — what holds it, each tick the row is refused.
+        "no way" => {
+            let text = home_blocker(run);
+            if last(cx.prov, "home").is_none_or(|p| p.text != text) {
+                log(run, cx, ProvKind::Path, "home".into(), text, true);
+            }
+            last(cx.prov, "home").map(Prov::because)
+        }
         "no path" => {
             let text = path_blocker(run)?;
             // One entry per block: the tick points at the first action the blocker held.
@@ -325,6 +334,33 @@ pub fn path_blocker(run: &mut Run) -> Option<String> {
         return Some("ally in the way".into());
     }
     None
+}
+
+/// Cut 21 §3: what holds the walk to the up-stairs (a `bank` / `return` row's `no way`), ≤ 4
+/// words: foes on every side, the foe in the way (`ogre holds the way`), a gas cloud, water,
+/// else `stairs cut off` (no step toward them clear of foes).
+pub fn home_blocker(run: &Run) -> String {
+    let hp = run.hero.pos;
+    let map = &run.floor.map;
+    let open: Vec<crate::geom::Pos> = hp.neighbours8().into_iter().filter(|q| map.passable(*q)).collect();
+    let blocked: Vec<crate::geom::Pos> = open.iter().copied().filter(|q| run.foe_blocks(*q)).collect();
+    if !open.is_empty() && blocked.len() >= open.len() {
+        return "foes on every side".into();
+    }
+    let up = run.floor.stairs_up;
+    let toward = blocked.iter().filter(|q| q.cheb(up) < hp.cheb(up)).find_map(|q| run.monster_at(*q));
+    if let Some(i) = toward.or_else(|| blocked.first().and_then(|q| run.monster_at(*q))) {
+        let name = crate::engine::kind_title(&run.monsters[i].kind).to_lowercase();
+        let last = name.split_whitespace().last().unwrap_or("foe").to_string();
+        return format!("{last} holds the way");
+    }
+    if run.overlays.iter().any(|o| o.k == OverlayKind::Gas && crate::geom::Pos::new(o.x, o.y).cheb(hp) <= 2) {
+        return "gas in the way".into();
+    }
+    if hp.neighbours8().into_iter().filter(|q| map.in_bounds(*q) && map.get(*q) == Tile::Water).count() >= 3 {
+        return "water in the way".into();
+    }
+    "stairs cut off".into()
 }
 
 /// A because text is ≤ `BECAUSE_WORDS` words (tests and the gate table).

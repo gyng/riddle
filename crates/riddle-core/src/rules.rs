@@ -55,6 +55,14 @@ pub struct Vocabulary {
     /// shows them dim; `set_rules` refuses a row that uses one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub locked: Vec<LockedCond>,
+    /// Cut 21 §3 (AE banked at D20; the picker stopped at 12): the deepest `depth ≥` the
+    /// picker offers — the lineage's best + 2, never under 8 (every depth from 2 up to it).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub depth_max: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 /// Cut 9 §1: a gated condition token and its ≤ 3-word gate.

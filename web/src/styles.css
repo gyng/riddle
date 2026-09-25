@@ -976,3 +976,29 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .topbar .stats { flex: 0 1 auto; min-width: 0; gap: 7px; }
 .topbar .gear { min-width: 30px; }
 .vault .chip.insure { margin-left: 0; }
+/* Cut 21 §1: the start tablet (the cage tablet's frame, a deeper tint) and its picker (one option a line: `D9 · bank +12% · $90`) */
+.row.tablet.compact.start-tab { min-height: 48px; border-color: #4a4057; background: linear-gradient(#2a2331, #18151d); }
+.row.tablet.compact.start-tab[hidden] { display: none; }
+.row.tablet.compact.start-tab .rn { display: flex; justify-content: center; }
+.row.tablet.compact.start-tab .rn .ico { width: 26px; height: 26px; }
+.row.tablet.compact.start-tab .rtext { font-size: 17px; color: #ddd0ea; }
+.row.tablet.compact.start-tab .arrow { color: var(--acc); }
+.row.tablet.compact.start-tab .toll { font-size: 14px; }
+.skin-tablet .row.tablet.compact.start-tab { background: linear-gradient(rgba(110, 80, 140, .28), rgba(28, 20, 36, .35)); background-clip: padding-box; }
+.start-picker .start-opts { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px; }
+.start-picker .start-opt { min-height: 48px; justify-content: flex-start; font-size: 17px; padding: 0 14px; }
+.start-picker .start-opt .delta { margin-left: 2px; font-size: 15px; }
+.start-picker .start-opt .delta.up { color: var(--ok, #7fd08a); }
+.start-picker .start-opt .delta.down { color: var(--hp); }
+.start-picker .start-opt .delta.flat { opacity: .6; }
+.start-picker .start-opt .toll { margin-left: auto; font-size: 15px; color: var(--gold, #e8c66a); }
+.start-picker .start-opt.off { opacity: .45; }
+.notch.start .dl { text-decoration: underline; text-underline-offset: 2px; }
+/* Cut 21 §2: a supply line no row names (the repeat skips it) and one the exit shelved */
+.chip.item.no-row { opacity: .7; }
+.chip.item .no-row { color: var(--warn); }
+.chips.shelved .chip.shelf { border-color: #3e5a3e; }
+/* Cut 21 §3: `restock ≤ income` / `repeat short` open the gold sheet; each earlier tick's reason in the chain (`t812–830 R3 …`) */
+.gold-line .ledger-link { background: none; border: 0; padding: 0; font: inherit; color: var(--warn); text-decoration: underline dotted; text-underline-offset: 2px; cursor: pointer; min-height: 24px; }
+.chain-row.tick .at-t { font-size: 12px; min-width: 64px; }
+.chain-row.tick .why { color: var(--dim); }

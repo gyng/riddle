@@ -57,14 +57,15 @@ export function ledgerText(x: ExitLine): (string | HTMLElement)[] {
   return [h("b", { class: "lead" }, exitLead(x)), " · ", wakeShown(x.text), exitExtras(x)];
 }
 
-/** Cut 16 §1: the depths picked clean as one line — consecutive depths collapse (`D1–4 · picked clean`, `D3 · D5 · picked clean`). */
+/** Cut 16 §1: the depths picked clean as one line — consecutive depths collapse (`D1–4 · thinned`, `D3 · D5 · thinned`).
+ *  Cut 21 §3 (AE: "`D8 · picked clean` (?? what does that mean)"): the word is `thinned` — the floor's loot is thinner for a while. */
 export function pickedLine(depths: number[]): string {
   const ds = [...new Set(depths)].sort((a, b) => a - b), runs: string[] = [];
   for (let i = 0; i < ds.length; i++) {
     let j = i; while (j + 1 < ds.length && ds[j + 1] === ds[j] + 1) j++;
     runs.push(j > i ? `D${ds[i]}–${ds[j]}` : `D${ds[i]}`); i = j;
   }
-  return `${runs.join(" · ")} · ${/* copy:callout */ "picked clean"}`;
+  return `${runs.join(" · ")} · ${/* copy:callout */ "thinned"}`;
 }
 
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
@@ -135,10 +136,11 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       piece(r.gold.spent, "−", WORD.spent, "down");
     }
     else { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); piece(salvageG, "+", WORD.salvage, "up"); piece(spentG, "−", WORD.spent, "down"); }
-    // Cut 19 §3: the repeat stopped once the night's spending reached what it brought home
-    if (r.restock_capped) pieces.push(h("span", { class: "capped warn" }, /* copy:callout */ "restock capped"));
+    // Cut 19 §3: the repeat stopped once the night's spending reached what it brought home — Cut 21 §3 (AE, AF: `restock capped`
+    // unread): it says the rule, `restock ≤ income`; both it and `repeat short` open the gold sheet, where the ledger lines are
+    if (r.restock_capped) pieces.push(h("button", { class: "capped warn ledger-link", onclick: () => openGoldSheet(app) }, /* copy:callout */ "restock ≤ income"));
     // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay
-    if (r.repeat_short) pieces.push(h("span", { class: "capped warn" }, /* copy:callout */ "repeat short"));
+    if (r.repeat_short) pieces.push(h("button", { class: "capped warn ledger-link", onclick: () => openGoldSheet(app) }, /* copy:callout */ "repeat short"));
     if (!pieces.length) return null;
     const out: (string | HTMLElement)[] = []; pieces.forEach((p, i) => { if (i) out.push(" · "); out.push(p); });
     return h("div", { class: "gold-line dim num" }, ...out);
@@ -263,6 +265,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "stolen", r.stolen?.length ? h("div", { class: "chips" }, ...r.stolen.map((x) => h("span", { class: "chip stolen" }, x.label.replace(/_/g, " "), x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : ""))) : null),
     section(/* copy:label */ "bones", lines((r.bones_found ?? []).map(bonesLine))),
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
+    // Cut 21 §2: found supplies the exits put on the shelf (the next send packs them free), before what was sold
+    section(/* copy:label */ "shelved", r.shelved?.length ? h("div", { class: "chips shelved" }, ...r.shelved.map((x) => h("span", { class: "chip shelf" }, /* copy:callout */ `found ${x.kind.replace(/_/g, " ")}`, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", /* copy:callout */ " → shelf"))) : null),
     section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...r.salvaged.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),
     // Cut 13 §3: what the automations bought this absence, per kind (`heal ×16 · −$640`)
     section(/* copy:label */ "spent", r.spent?.length ? h("ul", { class: "lines" }, ...r.spent.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num down" }, `−$${s.gold}`)))) : null),

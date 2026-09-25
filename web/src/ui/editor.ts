@@ -18,7 +18,7 @@ import type { App } from "../app";
 import type { Cond, Row, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash } from "./dom";
 import { openSheet } from "./sheet";
-import { NUMS, PCT, combosIn, condLabel, condName, isCardRow, needsN, ownRowCount, rowLabel, sameCond, sameVerb, verbLabel } from "./tokens";
+import { NUMS, PCT, combosIn, depthNums, condLabel, condName, isCardRow, needsN, ownRowCount, rowLabel, sameCond, sameVerb, verbLabel } from "./tokens";
 
 export type Editor = { el: HTMLElement; refresh(): void; paintShadow(): void };
 /** Cut 17 §2: the camp's tablets. `compact()` true: each row is one carved tablet (`R1  hp < 30% → drink unknown`), a single
@@ -27,8 +27,10 @@ export type Editor = { el: HTMLElement; refresh(): void; paintShadow(): void };
 export type EditorOpts = { compact?: () => boolean; onTablet?: (i: number) => void };
 /** What the editor edits: the hero's active set, or a companion's own rows. */
 export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; cardRows?(id: string): Row[] | undefined;
-                        shadowedBy?(): (number | null)[] };   // QA 92eb880: per row, the earlier row that takes all its moments (the engine's read)
-export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id), shadowedBy: () => app.shadowedBy() });
+                        shadowedBy?(): (number | null)[];   // QA 92eb880: per row, the earlier row that takes all its moments (the engine's read)
+                        nums?(k: string): number[] | undefined };   // Cut 21 §3: a cond's values read off the lineage (`depth ≥` to best + 2); else the table's
+export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id), shadowedBy: () => app.shadowedBy(),
+  nums: (k) => k === "depth>=" ? depthNums(app.lineage?.best_depth ?? 0, app.vocab) : undefined });
 
 /** Cut 6 §6: a row as read-only chips (`foe: ranged → kite`), shared by the card sheet and the shelf. */
 export function rowChips(row: Row): HTMLElement {
@@ -62,6 +64,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   let hl = highlight;
   let hlUntil = highlight !== undefined ? performance.now() + 2400 : 0; // survives the camp's repaint right after mount
   const vocab = (): Vocabulary => bind.vocab();
+  const numsOf = (k: string): number[] | undefined => bind.nums?.(k) ?? NUMS[k];
 
   function rows(): Row[] { return bind.rules().rows; }
   function commit(): void { bind.changed(); refresh(); }
@@ -161,10 +164,10 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); edited(row); close(); } }, "×"));
       // QA 92eb880 (M, N: "a threshold change is three taps … the chip opens the whole list, not the value"): a chip with a number
       // opens on its values (the current lit), the other conds under them — a threshold is one tap from the sheet
-      if (existing && needsN(existing.k) && NUMS[existing.k]) {
+      if (existing && needsN(existing.k) && numsOf(existing.k)) {
         const pctish = PCT.has(existing.k);
         body.appendChild(h("div", { class: "sheet-head" }, condName(existing.k) + (existing.t ? ` ${existing.t.replace(/_/g, " ")}` : "")));
-        body.appendChild(h("div", { class: "grid nums now" }, ...NUMS[existing.k].map((n) => h("button", { class: `chip num${n === existing.n ? " on" : ""}`, onclick: () => { row.conds[ci] = { ...existing, n }; edited(row); close(); } }, `${n}${pctish ? "%" : ""}`))));
+        body.appendChild(h("div", { class: "grid nums now" }, ...numsOf(existing.k)!.map((n) => h("button", { class: `chip num${n === existing.n ? " on" : ""}`, onclick: () => { row.conds[ci] = { ...existing, n }; edited(row); close(); } }, `${n}${pctish ? "%" : ""}`))));
       }
       const grid = h("div", { class: "grid" });
       for (const c of vocab().conds) {
@@ -191,7 +194,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     body.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "cond"));
     body.appendChild(h("div", { class: "sheet-head" }, condName(c.k)));
     const grid = h("div", { class: "grid nums" });
-    for (const n of NUMS[c.k]) grid.appendChild(h("button", { class: `chip num${n === cur ? " on" : ""}`, onclick: () => done(n) }, `${n}${pctish ? "%" : ""}`));
+    for (const n of numsOf(c.k) ?? []) grid.appendChild(h("button", { class: `chip num${n === cur ? " on" : ""}`, onclick: () => done(n) }, `${n}${pctish ? "%" : ""}`));
     body.appendChild(grid);
   }
   function pickVerb(row: Row): void {

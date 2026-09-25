@@ -16,7 +16,7 @@
 // one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
 // row stands in for the class button while it is up.
 import type { App, Mounted } from "../app";
-import type { CageOption, SupplyEntry, UnlockInfo } from "../engine/types";
+import type { CageOption, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
@@ -44,7 +44,7 @@ let cageMemo: { key: string; opts: CageOption[] } | null = null;
 /** QA 1a2a4a9 (O, P: "`armour +15%` — % of what?"; "the selected option never has a number"; "`scroll` stayed blank"): each option
  *  names what it measures — `bank +15%` (the bank share, when either panel banks) or `D7 +15%` (the reach at the option's depth);
  *  the current one its own level (`D7 73%`), a move that rounds to 0 `D7 +0%` (dim). */
-export function cageDelta(o: CageOption): { text: string; cls: string } | null {
+export function cageDelta(o: Pick<CageOption, "current" | "depth" | "reach" | "bank" | "bank_delta" | "delta" | "pm">): { text: string; cls: string } | null {
   const banks = o.delta === o.bank_delta && (o.bank > 0 || o.bank - o.bank_delta > 0);
   const at = banks ? /* copy:label */ "bank" : `D${o.depth}`;
   if (o.current) return { text: `${at} ${Math.round((banks ? o.bank : o.reach) * 100)}%`, cls: "cur" };
@@ -52,6 +52,10 @@ export function cageDelta(o: CageOption): { text: string; cls: string } | null {
   const pm = Math.round(o.pm * 100);
   return { text: `${at} ${d < 0 ? "−" : "+"}${Math.abs(d)}%`, cls: `${d > 0 ? "up" : d < 0 ? "down" : ""}${Math.abs(d) <= pm ? " flat" : ""}` };
 }
+/** Cut 21 §1: the last `startForecast()` and what it was measured for (the set, the start, the lit waystones, the best). */
+let startMemo: { key: string; opts: StartOption[] } | null = null;
+/** Cut 21 §1: a start's toll — the engine's, else the contract's `$10 × depth` (0 at D1). */
+export const startToll = (d: number, o?: Pick<StartOption, "toll">): number => o?.toll ?? (d > 1 ? 10 * d : 0);
 /** Cut 17 §3: which step carves each console tile (the tile glints on its first appearance). */
 const STEP_OF: Record<string, Step> = { edit: "edit", loadout: "loadout", unlocks: "unlocks", vault: "vault", forge: "forge", party: "party", ledger: "heirs", chronicle: "heirs" };
 const ALL_KEY = "riddle.unlocks.all";
@@ -86,6 +90,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 19 §1: the cage is a camp decision — its own tablet under the rules (`cage → armour`), revealed once a cage was seen; the
   // tap opens the picker with each preference's forecast delta
   const cageTab = h("button", { class: "row tablet compact cage-tab", hidden: true, onclick: () => openCagePicker() });
+  // Cut 21 §1: where the send starts — its own tablet beside the rules and the cage (`start → D9 · $90`), carved when the first
+  // waystone lights; the tap opens the picker (D1 and each lit waystone, each with its forecast move and toll)
+  const startTab = h("button", { class: "row tablet compact start-tab", hidden: true, onclick: () => openStartPicker() });
   const party = renderParty(app);
   const fc = renderForecast(app);
   const shaft = renderShaft(app, () => togglePanel("forecast"), () => revealed(app).has("gems"));
@@ -123,7 +130,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, editor.el, cageTab), shaft.el), h("div", { class: "rest-line" }, rest));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, editor.el, cageTab, startTab), shaft.el), h("div", { class: "rest-line" }, rest));
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
   const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, panelHost, panelStore), cons.el);
@@ -314,6 +321,42 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       return h("div", { class: "sheet-body cage-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "cage"), list);
     });
   }
+  function paintStart(): void {
+    const L = app.lineage, on = revealed(app).has("start");
+    startTab.hidden = !on;
+    if (!on) return;
+    const st = L.start ?? 1, toll = startToll(st, startMemo?.opts.find((o) => o.start === st && o.current));
+    replace(startTab, h("span", { class: "rn num" }, icon("depth", "▼")),
+      h("span", { class: "rtext" }, /* copy:rule_token */ "start", h("span", { class: "arrow" }, " → "), h("span", { class: "num" }, `D${st}`),
+        toll > 0 ? h("small", { class: "num toll dim" }, ` · $${toll}`) : ""));
+  }
+  /** Cut 21 §1: the start picker — D1 and each lit waystone, each with its forecast move against the current start (`bank +12%`, the
+   *  cage picker's measure) and its toll (`D9 · bank +12% · $90`); the tap is `setStart`. The moves are `startForecast()` (extra camp
+   *  panels, memoised by the core; seconds in wasm): the last measure paints at once when it is this set's, `…` until one lands. */
+  function openStartPicker(): void {
+    const L0 = app.lineage;
+    const key = (): string => JSON.stringify([app.rules.rows, app.lineage.start ?? 1, app.lineage.waystones ?? [], app.lineage.best_depth]);
+    openSheet((close) => {
+      const list = h("div", { class: "chips start-opts" });
+      const paint = (opts: StartOption[] | null, pending: boolean): void => {
+        const cur = app.lineage.start ?? 1;
+        const starts = [...new Set([1, ...(app.lineage.waystones ?? L0.waystones ?? [])])].sort((a, b) => a - b);
+        replace(list, ...starts.map((st) => {
+          const o = opts?.find((x) => x.start === st); const d = o ? cageDelta(o) : null; const toll = startToll(st, o);
+          const short = toll > app.lineage.gold && st !== cur;
+          return h("button", { class: `chip start-opt${st === cur ? " on" : ""}${short ? " off" : ""}`, "data-start": st, disabled: short,
+            onclick: async () => { close(); if (st !== cur && app.engine.setStart) await app.mutate(() => app.engine.setStart!(st)); } },
+            h("span", { class: "num" }, `D${st}`),
+            d ? h("b", { class: `num delta ${d.cls}` }, ` · ${d.text}`) : pending && st !== cur ? h("small", { class: "num dim" }, " …") : "",
+            toll > 0 ? h("small", { class: "num toll" }, ` · $${toll}`) : "");
+        }));
+      };
+      const k = key(), memo = startMemo?.key === k ? startMemo.opts : null;
+      paint(memo, !memo && !!app.engine.startForecast);
+      if (!memo && app.engine.startForecast) void app.engine.startForecast().then((opts) => { startMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); paintStart(); }).catch((e) => { console.warn("startForecast", e); if (list.isConnected) paint(null, false); });
+      return h("div", { class: "sheet-body start-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "start"), list);
+    });
+  }
   /** Cut 19 §3: the loadout repeats by default — the tile carries `repeat · $120` (the kinds the next send re-packs, at the shelf's
    *  price); a tap on it clears the repeat (`setRestock(false)`, the shelf refunded), `repeat off` a tap turns it back on. */
   function repeatBadge(): HTMLElement | null {
@@ -342,7 +385,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         armed = performance.now(); x.classList.add("armed"); replace(x, /* copy:button */ "drop");
         setTimeout(() => { if (x.isConnected) { armed = 0; x.classList.remove("armed"); replace(x, "×"); } }, 3000);
       } }, "×");
-      chips.appendChild(h("span", { class: "chip item on" }, p.label, free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : "", x));
+      // Cut 21 §2: a line an exit shelved reads `· found` (packed free); with the repeat on, a kind no row names reads `· no row` — the
+      // next send will not re-buy it (the core's narrowed `repeat_kinds`)
+      const noRow = !free && !p.found && L.repeat !== false && L.repeat_kinds !== undefined && !L.repeat_kinds.includes(p.kind);
+      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, p.label, free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
+        noRow ? h("small", { class: "dim no-row" }, /* copy:callout */ " · no row") : "", x));
     }
     supplies.appendChild(chips);
     // the shop from the last catalogue at once, the engine's replacing it when it arrives (QA B on 952e306: "while FORECAST
@@ -448,7 +495,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }
-  function paintAll(): void { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  function paintAll(): void { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);

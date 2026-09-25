@@ -53,6 +53,14 @@ export const NUMS: Record<string, number[]> = {
   "loot>=": [25, 50, 100, 200], "turns>": [50, 100, 200, 400],
 };
 export const needsN = (k: string): boolean => k in NUMS;
+/** Cut 21 §3 (AE banked at D20; the picker stopped at 12): `depth ≥` offers every depth from 2 to the lineage's best + 2 (never
+ *  fewer than the old table's, D2–8), and any depth the vocabulary names (a cond it sends with its `n`). */
+export function depthNums(best: number, vocab?: { conds: Cond[] }): number[] {
+  const hi = Math.max(8, best + 2);
+  const out = new Set<number>(Array.from({ length: hi - 1 }, (_, i) => i + 2));
+  for (const c of vocab?.conds ?? []) if (c.k === "depth>=" && c.n !== undefined && c.n >= 2) out.add(c.n);
+  return [...out].sort((a, b) => a - b);
+}
 const nice = (s: string): string => ARG[s] ?? s.replace(/_/g, " ");
 
 export function condName(k: string): string { return COND[k] ?? nice(k); }

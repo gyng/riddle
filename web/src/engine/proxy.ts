@@ -16,6 +16,8 @@ const METHODS: (keyof Engine)[] = [
   "deathDeltas",      // QA 23ed91f: optional likewise (the camp's reach for a death's patches, after `death`)
   "cageForecast",     // Cut 19 §1: optional likewise (the cage tablet's per-option deltas)
   "setRestock",       // Cut 19 §3: optional likewise (the loadout's repeat toggle)
+  "setStart",         // Cut 21 §1: optional likewise (the start tablet)
+  "startForecast",    // Cut 21 §1: optional likewise (the start picker's per-start moves)
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

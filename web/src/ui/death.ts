@@ -35,9 +35,12 @@ export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t
 /** QA e75ec29 (R: a packed heal stolen on D1, nothing on the exit; `+$40 heir purse` once, then none): what the core adds to an exit
  *  line beside its text — `· stolen heal` (what thieves took and kept), `· purse full` (a death whose heir purse was already at its
  *  top-up line, so no `heir purse +$N`). */
-export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "purse_full">): string =>
+export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "purse_full" | "shelved">): string =>
   (x.stolen?.length && !/\bstolen\b/.test(x.text) ? /* copy:callout */ ` · stolen ${x.stolen.map((l) => l.replace(/_/g, " ")).join(", ")}` : "")
-  + (x.purse_full && !/purse full/.test(x.text) ? /* copy:callout */ " · purse full" : "");
+  + (x.purse_full && !/purse full/.test(x.text) ? /* copy:callout */ " · purse full" : "")
+  + (x.shelved?.length && !/→ shelf\b/.test(x.text) ? /* copy:callout */ ` · found ${shelvedText(x.shelved)} → shelf` : "");
+/** Cut 21 §2 (AE: "sells heal potions he finds for $2 while I pay $40"): found supplies the exit put on the shelf — `heal ×2, fire`. */
+export const shelvedText = (xs: { kind: string; n: number }[]): string => xs.map((y) => `${y.kind.replace(/_/g, " ")}${y.n > 1 ? ` ×${y.n}` : ""}`).join(", ");
 export const lineShown = (x: ExitLine): string => ledgerShown(x.text) + exitExtras(x);
 
 export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false): Mounted {

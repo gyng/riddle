@@ -1,7 +1,7 @@
 // Fake Engine: a tiny deterministic mini-sim with canned-shaped output so the UI can be built and
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
-  BonesPile, CageOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
+  BonesPile, CageOption, StartOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
@@ -325,7 +325,9 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
 type SimCtx = { rules: RuleSet; unlocks: Set<string>; flav: (k: string) => string; kindOfFlav: (f: string) => string | undefined; tier: (kind: string) => number;
   bones: BonesPile[]; insured: Set<number>; gold: number; spent: { label: string; price: number; kind: string }[] };
 
-function makeRun(id: number, heir: number, seed: number, cls: string, trait: string, known: Set<string>, brought: InvItem[], ctx: SimCtx, party: Companion[] = [], level = 1): Run {
+/** Cut 21 §1 stand-in: a waystone at each biome's first floor past the Warrens (lit by a bank at or past it). */
+const WAYSTONES = [5, 9, 14, 19, 24, 29];
+function makeRun(id: number, heir: number, seed: number, cls: string, trait: string, known: Set<string>, brought: InvItem[], ctx: SimCtx, party: Companion[] = [], level = 1, start = 1): Run {
   const rng = mulberry32(seed);
   const atkBonus = [3, 6, 9].filter((l) => level >= l).length;
   const base = ({ rogue: 16, ranger: 16, caster: 14 } as Record<string, number>)[cls] ?? 20;
@@ -348,7 +350,7 @@ function makeRun(id: number, heir: number, seed: number, cls: string, trait: str
   };
   run.nextId = 1000;
   run.recalled = run.party.map((c) => companionMon(run, c));
-  descendTo(run, DEV_START_DEPTH, ctx, []);
+  descendTo(run, Math.max(DEV_START_DEPTH, start), ctx, []);
   return run;
 }
 function companionMon(run: Run, c: Companion): Mon {
@@ -1000,6 +1002,11 @@ export class FakeEngine implements Engine {
     this.s.lineage.combos = combosIn(this.s.rules.rows, COMBOS);   // Cut 8B §1
     if (this.s.lineage.best_depth >= 1) this.s.lineage.bounty = { depth: this.s.lineage.best_depth + 2 }; else delete this.s.lineage.bounty;   // Cut 20 §5 stand-in: tonight's bounty floor, best + 2 (none before a best)
     this.s.lineage.shadowed_by = shadowField(this.s.rules.rows).shadowed_by;   // QA 92eb880
+    // Cut 21 §2 stand-in: the repeat re-packs only the shelf's kinds a row names (`drink heal` → heal); the rest is not re-bought
+    { const L = this.s.lineage; if (L.repeat !== undefined) { const named = new Set(this.s.rules.rows.flatMap((r) => (r.verb.a ?? "").split(",")));
+      const cat = this.supplyCatalogue(); const kinds = [...new Set((L.supplies ?? []).filter((it) => !it.free && !it.found && named.has(it.kind)).map((it) => it.kind))];
+      L.repeat_kinds = kinds; L.repeat_gold = (L.supplies ?? []).filter((it) => kinds.includes(it.kind) && !it.free && !it.found).reduce((a, it) => a + (cat.find((c) => c.kind === it.kind)?.price ?? 0), 0); } }
+    this.s.lineage.start ??= 1;
     { const L = this.s.lineage; const qm = L.unlocks.includes("quartermaster");   // QA 23ed91f: what an unwatched exit keeps
       L.keep_auto = L.keep_pref === "best_armour" ? (qm ? ["armour", "weapon"] : ["armour"]) : L.keep_pref === "best_weapon" ? (qm ? ["weapon", "armour"] : ["weapon"]) : []; }
     // Cut 16 §2: the wake's class chips (owned classes, the current first) while the trait offer stands
@@ -1172,7 +1179,11 @@ export class FakeEngine implements Engine {
   private startRun(): Run {
     const L = this.s.lineage; this.s.runCounter++;
     const id = this.s.runCounter; const seed = hash(`run:${L.seed}:${id}`);
-    const run = makeRun(id, L.heir, seed, L.class, L.trait, this.known(), this.brought(), this.ctx(), L.party, this.classLevel());
+    // Cut 21 §1 stand-in: a lit waystone start pays its toll (`waystone D9 −$90`); short of the toll the run starts on D1
+    let start = L.start ?? 1;
+    if (start > 1 && (!(L.waystones ?? []).includes(start) || L.gold < 10 * start)) start = 1;
+    if (start > 1) this.gold(-10 * start, `waystone D${start}`);
+    const run = makeRun(id, L.heir, seed, L.class, L.trait, this.known(), this.brought(), this.ctx(), L.party, this.classLevel(), start);
     run.startedTotal = this.s.totalTurns;
     this.s.logs[id] = { seed, rules: JSON.parse(JSON.stringify(this.s.rules)) as RuleSet, depth: 1, turns: 0, exit: "", known: [...this.known()], cls: L.class, trait: L.trait, heir: L.heir, hpMargin: 0 };
     return run;
@@ -1278,13 +1289,19 @@ export class FakeEngine implements Engine {
     // Addendum D: keep into free vault slots, salvage the rest (Cut 2 §2: a death's kit is bones, not salvage)
     const tierMul = run.exit === "bank" ? 1 : 0.6;
     const salv: Record<string, { n: number; gold: number }> = {};
+    // Cut 21 §2 stand-in: a found supply of a kind the shelf sells goes onto the shelf (up to the cap), not to salvage
+    const sells = new Set(this.supplyCatalogue().map((c) => c.kind)); const shelf: Record<string, number> = {};
     for (const it of run.exit === "death" ? [] : this.carried(run)) {
       if (keepIds.includes(it.id) && L.vault.length < this.vaultSlots()) { L.vault.push({ ...it, id: this.s.nextItem++ }); continue; }
+      if (it.known && sells.has(it.kind) && L.supplies.length < this.supplyCap()) { L.supplies.push({ ...it, id: this.s.nextItem++, found: true }); shelf[it.kind] = (shelf[it.kind] ?? 0) + 1; continue; }
       const g = Math.round(salvageOf(it.kind) * tierMul); this.gold(g, `salvaged ${it.kind.replace(/_/g, " ")}`);
       const f = (L.forge[it.kind] ??= { salvaged: 0, craftable: false, tier: 0 }); f.salvaged++; f.craftable = f.salvaged >= 5; f.tier = f.salvaged >= 40 ? 2 : f.salvaged >= 15 ? 1 : 0;
       (salv[it.kind] ??= { n: 0, gold: 0 }).n++; salv[it.kind].gold += g;
     }
     const salvaged = Object.entries(salv).map(([kind, v]) => ({ kind, ...v }));
+    if (run.line && Object.keys(shelf).length) run.line.shelved = Object.entries(shelf).map(([kind, n]) => ({ kind, n }));
+    // Cut 21 §1 stand-in: a bank lights every waystone at or above its floor
+    if (run.exit === "bank") { const lit = WAYSTONES.filter((w) => w <= run.depth); L.waystones = [...new Set([...(L.waystones ?? []), ...lit])].sort((a, b) => a - b); }
     // renown
     const score = 10 * run.depth + run.score + run.hl.reduce((a, b) => a + b.score, 0); L.renown += score; const ranks: number[] = [];
     while (L.renown >= 100 * (L.rank + 1) * (L.rank + 1)) { L.rank++; L.marks++; ranks.push(L.rank); }
@@ -1315,6 +1332,21 @@ export class FakeEngine implements Engine {
       return { pref, current: pref === cur, depth, reach: r, reach_delta: r - reach, bank: b, bank_delta: b - bank, gold: gold * (1 + d), gold_delta: gold * d,
                delta: bank > 0 ? b - bank : r - reach, pm: 1.96 * Math.sqrt(r * (1 - r) / 20) };
     });
+  }
+  /** Cut 21 §1 stand-in: the next send starts on D1 or a lit waystone. */
+  setStart(depth: number): Lineage {
+    const L = this.s.lineage;
+    if (depth !== 1 && !(L.waystones ?? []).includes(depth)) throw new Error(`no waystone at D${depth}`);
+    L.start = depth; this.dropIdleRun(); return this.lineage();
+  }
+  /** Cut 21 §1 stand-in: each start as a fixed nudge on the forecast's ends (a deeper start banks more, dies more), like `cageForecast`. */
+  startForecast(): StartOption[] {
+    const L = this.s.lineage; const f = this.forecastN(20); const bank = f.ends?.bank ?? 0, gold = f.ends?.gold ?? 0;
+    const cur = L.start ?? 1; const starts = [1, ...(L.waystones ?? [])];
+    const at = (s0: number): { bank: number; gold: number; reach: number } => { const k = (s0 - 1) / 30; return { bank: Math.max(0, Math.min(1, bank + (bank > 0 ? 0.3 * k : 0) - 0.4 * k * k)), gold: gold * (1 + 2 * k), reach: Math.max(0, 1 - k) }; };
+    const c = at(cur);
+    return starts.map((st) => { const o = at(st); return { start: st, current: st === cur, toll: st > 1 ? 10 * st : 0, biome: biomeOf(st), depth: Math.max(1, L.best_depth), reach: o.reach, reach_delta: o.reach - c.reach,
+      bank: o.bank, bank_delta: o.bank - c.bank, gold: o.gold, gold_delta: o.gold - c.gold, delta: bank > 0 ? o.bank - c.bank : o.reach - c.reach, pm: 1.96 * Math.sqrt(o.bank * (1 - o.bank) / 20) }; });
   }
   /** Cut 19 §3 stand-in: the fake has no repeat; the flag is kept on the lineage so the tile can toggle. */
   setRestock(on: boolean): Lineage { (this.s.lineage as Lineage).repeat = on; if (!on) return this.clearSupplies(); return this.lineage(); }
@@ -1376,6 +1408,7 @@ export class FakeEngine implements Engine {
       salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp },
       spent: Object.entries(spentMap).map(([kind, v]) => ({ kind, ...v })),   // Cut 13 §3
       rested_s: rested, banked, returned, stalled, bones_found: bonesFound, stall: verdictStall, deepest, exits,
+      shelved: (() => { const m: Record<string, number> = {}; for (const x of exits) for (const y of x.shelved ?? []) m[y.kind] = (m[y.kind] ?? 0) + y.n; const o = Object.entries(m).map(([kind, n]) => ({ kind, n })); return o.length ? o : undefined; })(),   // Cut 21 §2 stand-in (the kept exits')
       bounty: bountyD <= 0 ? undefined : { depth: bountyD, taken: deepest >= bountyD, gold: deepest >= bountyD ? Math.max(0, ...exits.map((x) => x.kept)) : 0 } };   // Cut 20 §5 stand-in
   }
   /** Stall verdict (core README) so the report's section can be seen: a `return` / `bank` row that sent ≥ 4 runs home with no

@@ -43,6 +43,10 @@ impl Game {
     pub fn cage_forecast(&self) -> Vec<CageOption> {
         forecast::cage_forecast(self)
     }
+    /// Cut 21 §1: each start's forecast for the active set (`forecast::start_forecast`).
+    pub fn start_forecast(&self) -> Vec<StartOption> {
+        forecast::start_forecast(self)
+    }
     pub fn run_offline(&mut self, elapsed_s: u64) -> ReturnReport {
         offline::run_offline(self, elapsed_s)
     }

@@ -296,6 +296,25 @@ impl Game {
         js(&self.inner.lineage())
     }
 
+    // ---- Cut 21
+
+    /// §1: the floor the next sends start on — 1 or a lit waystone (`Lineage.waystones`);
+    /// refused when not lit; returns the Lineage (`start`, `start_toll`).
+    #[wasm_bindgen(js_name = setStart)]
+    pub fn set_start(&mut self, depth: u32) -> Result<String, JsError> {
+        self.inner.set_start(depth).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// §1: each start the tablet offers (D1 and every lit waystone) measured for the active
+    /// set — `StartOption[]` (`depth`, `current`, `toll`, `short`, `bar`, `reach`/`reach_delta`,
+    /// `bank`/`bank_delta`, `gold`, `net`/`net_delta`, `pm`). One camp panel per option (seconds
+    /// in wasm): call it when the tablet opens, or after the refine; memoised like the forecast.
+    #[wasm_bindgen(js_name = startForecast)]
+    pub fn start_forecast(&self) -> String {
+        js(&self.inner.start_forecast())
+    }
+
     // ---- Cut 3: ascension
 
     /// After the ending: a new lineage under `variant` (`no_rest | short_list | bones_only |

@@ -26,7 +26,7 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
       h("td", null, `${t.foes}`),
       tele ? h("td", { class: "tele" }, t.telegraphs.join(" · ")) : "",
     ))));
-  const chain = chainOf(trace, ctx);
+  const chain = chainOf(trace, { window: rows, ...ctx });
   if (chain) return [table, chain];
   const lastRows = turns[turns.length - 1]?.rows ?? [];
   // each `R2 foes appeared after` whole on its line (the list wraps between reasons, never inside one)

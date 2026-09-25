@@ -132,6 +132,9 @@ pub struct Run {
     pub started_turn: u64,
     pub rng: Rng,
     pub depth: u32,
+    /// Cut 21 §1: the floor the send started on (1, or the lit waystone it paid for).
+    #[serde(default = "default_start")]
+    pub start: u32,
     pub floor: Floor,
     pub hero: Hero,
     pub trait_: Trait,
@@ -874,7 +877,27 @@ pub struct LineageState {
     /// shelf's price (`Game::restock`); `set_restock(false)` (the camp's tap) stops it.
     #[serde(default)]
     pub restock_off: bool,
+    // Cut 21
+    /// §1: the lit waystones (`WAYSTONES`, ascending) — a biome's first floor, lit once the
+    /// lineage has banked from a floor at or past it (`finish_run`; a save from before is
+    /// lit from `banked_depths` at the load).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub waystones: Vec<u32>,
+    /// §1: the floor the next send starts on — 1, or a lit waystone (`Game::set_start`). A
+    /// start below D1 pays `WAYSTONE_TOLL × depth` at the send (`start_run`).
+    #[serde(default = "default_start")]
+    pub start: u32,
 }
+
+fn default_start() -> u32 {
+    1
+}
+
+/// Cut 21 §1: the waystones — each biome's first floor below the Warrens (Burrows D5, Fens D9,
+/// Crypt D14, Foundry D19, Deep D24, Sanctum D29).
+pub const WAYSTONES: [u32; 6] = [5, 9, 14, 19, 24, 29];
+/// Cut 21 §1: a start below D1 costs this many coins per floor (`waystone D9 −$90`).
+pub const WAYSTONE_TOLL: i32 = 10;
 
 /// Cut 16 §1: a night of runs (the ledger's "a night of 16 runs").
 pub const NIGHT_RUNS: u32 = 16;
@@ -987,6 +1010,8 @@ impl LineageState {
             den_wakes: 0,
             bounty: None,
             restock_off: false,
+            waystones: Vec::new(),
+            start: 1,
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -1159,6 +1184,15 @@ impl LineageState {
             bounty: self.bounty.map(|depth| crate::wire::Bounty { depth }),
             // (priced on the shelf by `Game::lineage`)
             repeat_gold: 0,
+            waystones: self.waystones.clone(),
+            start: self.start.max(1),
+            start_toll: LineageState::start_toll(self.start),
+            repeat_dropped: {
+                let used = self.row_kinds();
+                let mut v: Vec<String> = self.last_supplies.iter().filter(|k| !used.contains(*k)).cloned().collect();
+                v.dedup();
+                v
+            },
         }
     }
     /// QA on 92eb880: `rules`' shadowed rows for this lineage (a row whose condition it does not
@@ -1370,6 +1404,63 @@ impl LineageState {
         self.trait_ = t;
         Ok(())
     }
+
+    /// Cut 21 §1: a bank from `depth` lights every waystone at or above it; the ones it lit.
+    pub fn light_waystones(&mut self, depth: u32) -> Vec<u32> {
+        let lit: Vec<u32> = WAYSTONES.iter().copied().filter(|w| *w <= depth && !self.waystones.contains(w)).collect();
+        self.waystones.extend(lit.iter().copied());
+        self.waystones.sort_unstable();
+        lit
+    }
+
+    /// Cut 21 §1: the send's start floor — 1, or a lit waystone (`set_start`).
+    pub fn set_start(&mut self, depth: u32) -> Result<(), String> {
+        if depth != 1 && !self.waystones.contains(&depth) {
+            return Err(format!("D{depth} not lit"));
+        }
+        self.start = depth;
+        Ok(())
+    }
+
+    /// Cut 21 §1: the toll a start at `depth` pays at the send (`$0` from D1).
+    pub fn start_toll(depth: u32) -> i32 {
+        if depth <= 1 {
+            0
+        } else {
+            WAYSTONE_TOLL * depth as i32
+        }
+    }
+
+    /// Cut 21 §2: the supply kinds a row of the active set can use — a `drink` / `read` / `throw`
+    /// naming the kind (a card's rows included), a `tame` row's leash. `unknown` names no kind:
+    /// the shelf only holds kinds known by name, so the trait's and the gamble rows' unknowns
+    /// never ask the repeat for anything.
+    pub fn row_kinds(&self) -> BTreeSet<String> {
+        let rules = self.rules();
+        let mut rows: Vec<Row> = Vec::new();
+        for (_, r) in rules.active(self.max_rows()) {
+            match r.card() {
+                Some(c) => rows.extend(crate::meta::unlock_rows(c).unwrap_or_default()),
+                None => rows.push(r.clone()),
+            }
+        }
+        let mut out = BTreeSet::new();
+        for r in rows {
+            match r.verb.v.as_str() {
+                "drink" | "read" | "throw" => {
+                    let k = r.verb.a.as_deref().unwrap_or("").split(',').next().unwrap_or("");
+                    if !k.is_empty() && k != "unknown" {
+                        out.insert(k.to_string());
+                    }
+                }
+                "tame" => {
+                    out.insert("leash".to_string());
+                }
+                _ => {}
+            }
+        }
+        out
+    }
 }
 
 /// Cut 13 §2: the two traits offered to heir `heir` of lineage `seed`. `first` is the
@@ -1478,6 +1569,12 @@ pub struct DeathRec {
     /// patches' survival are the floor's.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub floor_window: bool,
+    /// Cut 21 §3 (AE: `FIRE · D4` read GAP after his own `drink unknown` row drank the fire):
+    /// the set's own row (not a card's) whose `drink unknown` / `read unknown` gamble dealt
+    /// the death — the cause is the gambled item's harm (fire, poison, caustic gas) and the
+    /// gamble was this floor's, shortly before. Whatever the row's origin, the verdict is `row`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gamble_row: Option<usize>,
 }
 
 fn is_zero_u64(n: &u64) -> bool {
@@ -1635,6 +1732,10 @@ pub struct Batch {
     /// QA on 1a2a4a9: a re-pack of this absence ran short of gold (`repeat short`).
     #[serde(default)]
     pub repeat_short: bool,
+    /// Cut 21 §2: found supplies put on the shelf at the exits, per kind — (count, their
+    /// price on the shelf).
+    #[serde(default)]
+    pub shelved: BTreeMap<String, (u32, i32)>,
     // Cut 20
     /// §1: thefts suffered this batch (every thief's, the den's included) and the dens that
     /// woke (pounced) — the measures behind "a thief steals once per run".
@@ -1945,7 +2046,7 @@ impl Game {
             return;
         }
         let cat = self.supply_catalogue();
-        let (bought, kept): (Vec<Item>, Vec<Item>) = std::mem::take(&mut self.lineage.supplies).into_iter().partition(|s| !s.free);
+        let (bought, kept): (Vec<Item>, Vec<Item>) = std::mem::take(&mut self.lineage.supplies).into_iter().partition(|s| !s.free && !s.found);
         self.lineage.supplies = kept;
         for s in bought {
             if let Some(e) = cat.iter().find(|e| e.kind == s.kind) {
@@ -1962,10 +2063,33 @@ impl Game {
     /// `−$60 repeat mapping · −$40 repeat heal`): a shelf holding bought supplies is what the
     /// send packs, and so what the re-pack after it buys again (`start_run` makes it the last
     /// send's); an empty shelf re-packs the last send's kinds at the send.
+    ///
+    /// Cut 21 §2: only the kinds a row can use (`LineageState::row_kinds`); a found supply on
+    /// the shelf is packed free and is not the repeat's — on an empty shelf of bought ones it
+    /// stands in for one of the kind the re-pack would buy.
     pub fn repeat_plan(&self) -> (Vec<String>, i32) {
         let cat = self.supply_catalogue();
-        let shelf: Vec<String> = self.lineage.supplies.iter().filter(|s| !s.free).map(|s| s.kind.clone()).collect();
-        let kinds: Vec<String> = if !shelf.is_empty() { shelf } else { self.lineage.last_supplies.iter().filter(|k| !self.lineage.last_wasted.contains(k)).cloned().collect() };
+        let used = self.lineage.row_kinds();
+        let shelf: Vec<String> = self.lineage.supplies.iter().filter(|s| !s.free && !s.found).map(|s| s.kind.clone()).collect();
+        let kinds: Vec<String> = if !shelf.is_empty() {
+            shelf
+        } else {
+            let mut found: Vec<&str> = self.lineage.supplies.iter().filter(|s| s.found).map(|s| s.kind.as_str()).collect();
+            self.lineage
+                .last_supplies
+                .iter()
+                .filter(|k| !self.lineage.last_wasted.contains(k))
+                .filter(|k| match found.iter().position(|f| f == k) {
+                    Some(i) => {
+                        found.remove(i);
+                        false
+                    }
+                    None => true,
+                })
+                .cloned()
+                .collect()
+        };
+        let kinds: Vec<String> = kinds.into_iter().filter(|k| used.contains(k)).collect();
         let gold = kinds.iter().filter_map(|k| cat.iter().find(|e| e.kind == *k).map(|e| e.price)).sum();
         (kinds, gold)
     }
@@ -2047,6 +2171,8 @@ impl Game {
         l.gold_carry = 0;
         l.best_depth = 0;
         l.banked_depths.clear();
+        l.waystones.clear();
+        l.start = 1;
         l.renown = 0;
         l.rank = 0;
         l.graveyard.clear();
@@ -2119,6 +2245,11 @@ impl Game {
         self.lineage.set_trait(name)
     }
 
+    /// Cut 21 §1: the floor the next sends start on — 1, or a lit waystone (refused otherwise).
+    pub fn set_start(&mut self, depth: u32) -> Result<(), String> {
+        self.lineage.set_start(depth)
+    }
+
     /// A live run for the snapshot without touching the rest clock (reports, replays).
     pub fn ensure_run(&mut self) -> Snapshot {
         self.auto_keep();
@@ -2146,8 +2277,12 @@ impl Game {
         let id = self.lineage.next_run_id;
         self.lineage.next_run_id += 1;
         let seed = seed_override.unwrap_or_else(|| self.run_seed(id));
+        // Cut 21 §1: the send starts on the lineage's chosen floor — a lit waystone pays its
+        // toll here (`waystone D9 −$90`); a toll the purse cannot pay (or a start no longer
+        // lit) starts on D1 and says so.
+        let (start, start_note) = self.pay_start();
         let mut rng = Rng::new(seed);
-        let floor = generate(&mut rng, biome_for(1), 1);
+        let floor = generate(&mut rng, biome_for(start), start);
         let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
         hero.apply_level(self.lineage.class_level());
         // Starting arms by class (id 1 is never loot).
@@ -2172,7 +2307,8 @@ impl Game {
         }
         self.lineage.repeat_short.clear();
         self.restock();
-        self.lineage.last_supplies = self.lineage.supplies.iter().filter(|i| !i.free).map(|i| i.kind.clone()).collect();
+        // (a found supply packs free and is not the repeat's — Cut 21 §2)
+        self.lineage.last_supplies = self.lineage.supplies.iter().filter(|i| !i.free && !i.found).map(|i| i.kind.clone()).collect();
         for id in loadout {
             if let Some(i) = self.lineage.vault.iter().position(|v| v.id == id) {
                 let it = self.lineage.vault.remove(i);
@@ -2185,7 +2321,8 @@ impl Game {
             heir: self.lineage.heir,
             started_turn: self.lineage.total_turns,
             rng,
-            depth: 1,
+            depth: start,
+            start,
             floor,
             hero,
             trait_: self.lineage.trait_,
@@ -2234,7 +2371,7 @@ impl Game {
             row_fired: vec![0; ROWS_TOTAL],
             renderable_events: 0,
             ended: false,
-            max_depth: 1,
+            max_depth: start,
             trophies_run: Vec::new(),
             companions: Vec::new(),
             recalled: Vec::new(),
@@ -2364,7 +2501,38 @@ impl Game {
         let mut cx = self.ctx();
         let run = cx.0;
         crate::facts::on_vision(run, &mut cx.1);
-        crate::chronicle::note(run, &mut cx.1, format!("Heir {} enters D1, {}.", run.heir, biome_for(1).title()));
+        if let Some(text) = start_note {
+            crate::chronicle::note(run, &mut cx.1, text);
+        }
+        let (d, biome) = (run.depth, biome_for(run.depth));
+        crate::chronicle::note(run, &mut cx.1, format!("Heir {} enters D{d}, {}.", run.heir, biome.title()));
+        if d > 1 {
+            crate::facts::learn(run, &mut cx.1, format!("biome:{}", biome.name()));
+        }
+    }
+
+    /// Cut 21 §1: the floor this send starts on, the toll paid for it (a gold line
+    /// `waystone D9`, counted with the absence's spending), and the note when the chosen
+    /// start could not be taken — `(1, Some(..))` when the purse is short of the toll or the
+    /// waystone is not lit.
+    fn pay_start(&mut self) -> (u32, Option<String>) {
+        let want = self.lineage.start.max(1);
+        if want == 1 {
+            return (1, None);
+        }
+        if !self.lineage.waystones.contains(&want) {
+            return (1, Some(format!("D{want} unlit: from D1.")));
+        }
+        let toll = LineageState::start_toll(want);
+        if self.lineage.gold < toll {
+            return (1, Some(format!("Toll ${toll} short: from D1.")));
+        }
+        let why = format!("waystone D{want}");
+        self.lineage.gold_move(-toll, &why);
+        let e = self.batch.spent.entry(why).or_insert((0, 0));
+        e.0 += 1;
+        e.1 += toll;
+        (want, None)
     }
 
     /// Borrow the run and a context together.
@@ -2789,6 +2957,13 @@ impl Game {
             marks += 1;
             bests.push(format!("home:D{}", run.max_depth));
         }
+        // Cut 21 §1: a bank lights the waystones at or above its floor (`waystone D9`).
+        if tier == ExitTier::Bank && !run.timed_out {
+            for d in self.lineage.light_waystones(run.depth) {
+                bests.push(format!("waystone D{d}"));
+                self.events.push(Ev::Note { t, text: format!("Waystone D{d} lit.") });
+            }
+        }
         for (_, kind, _) in &run.kills {
             if kind.starts_with("spectral_") {
                 continue; // summons are not bests
@@ -3009,6 +3184,7 @@ impl Game {
             all.push(a.clone());
         }
         all.retain(|i| i.cat() != Cat::Gold && i.id != 1 && !matches!(i.kind.as_str(), "bones" | "trap"));
+        let mut shelved: Vec<String> = Vec::new();
         if tier == ExitTier::Death {
             // Insured brought items come home (Melvor insurance); everything else stays on the
             // floor as a bones pile for a later heir.
@@ -3049,6 +3225,14 @@ impl Game {
                     self.lineage.supplies.push(it);
                 }
             }
+            // Cut 21 §2 (AE: "sells heal potions he finds for $2 while I pay $40"): a found
+            // supply of a kind the shelf sells and a row can use goes onto the shelf, up to
+            // the cap, not to salvage — the next send packs it free. The kinds the repeat
+            // re-packs are served first (a found heal stands in for a bought one); another
+            // row's kind takes only a slot the repeat does not need.
+            let (to_shelf, rest) = self.shelve_found(all, &run);
+            all = rest;
+            shelved = to_shelf;
         }
         // A return keeps the dearest 60 %; what the vault sent along is the player's already
         // and comes first, whatever it is worth (QA on 952e306: a vaulted poison potion,
@@ -3165,7 +3349,9 @@ impl Game {
         }
         // Cut 13 §3: what this run used to no effect is not rebought for the next.
         self.lineage.last_wasted = run.wasted_kinds.clone();
-        let spent_on = self.restock();
+        // Cut 21 §2 (AF: `returned $0 · stalled · repeat −$80`): a stall does not re-pack on
+        // top of the loss — the next send's re-pack buys what the shelf lacks then.
+        let spent_on = if stalled { Vec::new() } else { self.restock() };
         // Cut 8B §3: the kennel's leash is back on the shelf while nothing has been tamed.
         self.lineage.kennel_leash();
         // Cut 6 §1: the ledger line — carried × keep% → kept, what the automations spent on
@@ -3194,6 +3380,15 @@ impl Game {
         // the client's; the text stays ≤ 14 words).
         line.purse_full = purse_full;
         line.stolen = kept_by_thieves.clone();
+        // Cut 21 §2: the found supplies this exit shelved, per kind (the client's `found heal →
+        // shelf`; not in `text`).
+        for k in &shelved {
+            let kind = self.lineage.wire_name(k).replace('_', " ");
+            match line.shelved.iter_mut().find(|c| c.kind == kind) {
+                Some(c) => c.n += 1,
+                None => line.shelved.push(crate::wire::KindCount { kind, n: 1 }),
+            }
+        }
         // Cut 9 §5: every exit carries its last five hero turns (read off the run's own trace
         // ring: nothing more per tick).
         line.trace = Some(exit_trace(&run, &self.prov));
@@ -3250,6 +3445,61 @@ impl Game {
     /// Salvage items: gold by tier, forge ledger by full count (Addendum D).
     /// Salvage `items` at `pct`: each pays its coins by `salvage_coins` (the exit sheet's
     /// `worth`, the cut's `sold` rows and the report's rows are these very coins). Returns them.
+    /// Cut 21 §2: the found supplies of `all` that go onto the shelf at a non-death exit
+    /// (`finish_run`) — potions and scrolls known by name or flavour, of a kind the shelf
+    /// sells and a row of the active set uses (`LineageState::row_kinds`), not brought from
+    /// the vault or packed at the send — each standing in for one the repeat would buy (the
+    /// last send's kinds, less what the shelf holds), up to the cap. Returns the kinds shelved
+    /// (one per item) and the items left.
+    ///
+    /// Deviation from the contract's "up to the cap": a found kind the player did not pack is
+    /// salvaged as before. Shelving every row-used kind carried free consumables from run to
+    /// run for any set rich in item rows — the FULL−D28 bot passed the D28 wall on 8 of 30
+    /// seeds (bar ≤ 3) and COUNTERED's found potions crowded the kennel's leash off the
+    /// shelf (D14 reach 57 % → 47 %, bar 50 %). Bounded by the pack, a found supply saves a
+    /// purchase (the economy's leak) and never adds power the player did not buy.
+    fn shelve_found(&mut self, all: Vec<Item>, run: &Run) -> (Vec<String>, Vec<Item>) {
+        let used = self.lineage.row_kinds();
+        let cat = self.supply_catalogue();
+        let cap = self.lineage.supply_cap();
+        let mut reserved: Vec<String> = self.lineage.last_supplies.iter().filter(|k| used.contains(*k) && !run.wasted_kinds.contains(k)).cloned().collect();
+        for s in self.lineage.supplies.iter().filter(|s| !s.free) {
+            if let Some(i) = reserved.iter().position(|k| *k == s.kind) {
+                reserved.remove(i);
+            }
+        }
+        let (facts, flavours) = (&self.lineage.facts, &self.lineage.flavours);
+        let fits = |it: &Item| it.is_consumable() && !run.supplies.contains(&it.id) && !run.brought.contains(&it.id) && it.is_known(facts, flavours) && used.contains(&it.kind) && cat.iter().any(|e| e.kind == it.kind);
+        let (cands, mut rest): (Vec<Item>, Vec<Item>) = all.into_iter().partition(|it| fits(it));
+        let mut shelved = Vec::new();
+        for mut it in cands {
+            let take = match reserved.iter().position(|k| *k == it.kind) {
+                Some(i) if self.lineage.supplies.len() < cap => {
+                    reserved.remove(i);
+                    true
+                }
+                _ => false,
+            };
+            if !take {
+                rest.push(it);
+                continue;
+            }
+            it.id = self.lineage.next_vault_id;
+            self.lineage.next_vault_id += 1;
+            it.found = true;
+            it.known = true;
+            it.free = false;
+            let price = cat.iter().find(|e| e.kind == it.kind).map(|e| e.price).unwrap_or(0);
+            let e = self.batch.shelved.entry(it.kind.clone()).or_insert((0, 0));
+            e.0 += 1;
+            e.1 += price;
+            shelved.push(it.kind.clone());
+            self.lineage.supplies.push(it);
+        }
+        rest.sort_by_key(|it| it.id);
+        (shelved, rest)
+    }
+
     fn salvage(&mut self, items: &[Item], pct: i32) -> Vec<i32> {
         let coins = salvage_coins(items, pct, self.lineage.gold_carry);
         self.salvage_paid(items, pct, &coins);
@@ -3559,7 +3809,10 @@ impl Game {
         if s.free && s.kind == "leash" {
             self.lineage.kennel_declined = true;
         }
-        if !s.free {
+        if s.found {
+            // Cut 21 §2: a found supply off the shelf is salvaged, as the exit would have.
+            self.salvage(std::slice::from_ref(&s), 100);
+        } else if !s.free {
             if let Some(e) = self.supply_catalogue().iter().find(|e| e.kind == s.kind) {
                 let why = format!("refund {}", s.kind.replace('_', " "));
                 self.lineage.gold_move(e.price, &why);
@@ -3575,6 +3828,10 @@ impl Game {
         let cat = self.supply_catalogue();
         for s in std::mem::take(&mut self.lineage.supplies) {
             if s.free {
+                continue;
+            }
+            if s.found {
+                self.salvage(std::slice::from_ref(&s), 100);
                 continue;
             }
             if let Some(e) = cat.iter().find(|e| e.kind == s.kind) {
@@ -3610,12 +3867,15 @@ impl Game {
         // Cut 13 §3: a kind the last run used to no effect is not rebought (rater R: "the
         // strength potion the trait drinks at full HP is rebought sixteen times").
         let wasted = self.lineage.last_wasted.clone();
+        // Cut 21 §2 (AE: a strength potion no row drinks re-bought sixteen times): only the
+        // kinds a row of the active set can use are re-bought (`LineageState::row_kinds`).
+        let used = self.lineage.row_kinds();
         for kind in self.lineage.last_supplies.clone() {
             if let Some(i) = on_shelf.iter().position(|k| *k == kind) {
                 on_shelf.remove(i);
                 continue;
             }
-            if wasted.contains(&kind) {
+            if wasted.contains(&kind) || !used.contains(&kind) {
                 continue;
             }
             if self.offline {
@@ -3685,7 +3945,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new() }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:

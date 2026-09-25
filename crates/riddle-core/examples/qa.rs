@@ -699,10 +699,20 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         }
         t.check("a death has a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "row") && !d.trace.turns.is_empty(), || format!("seed {seed} run {id}: {} · {} turns", d.verdict, d.trace.turns.len()));
         // Cut 19 §4: a `row` verdict names a row of the set that acted on the death tick (the
-        // trace's last turn), and its first patch cuts that row.
+        // trace's last turn), and its first patch cuts that row. Cut 21 §3: or the set's own
+        // row whose unknown gamble dealt the death (`DeathRec.gamble_row`) — its cut is shown
+        // first, or second behind a patch surviving `SURVIVE_BAND` more.
         if d.verdict == "row" || d.cause_row.is_some() {
             let last = d.trace.turns.last().map(|x| x.row);
-            let ok = d.verdict == "row" && d.cause_row.is_some_and(|r| Some(r as i32) == last && d.rules.as_ref().is_some_and(|rs| rs.rows.get(r as usize).is_some_and(|x| !x.is_card()))) && d.patches.first().is_some_and(|p| (p.remove || p.replace) && Some(p.insert_at) == last);
+            let gamble = g.deaths.get(&id).and_then(|r| r.gamble_row).map(|r| r as i32);
+            let own = d.cause_row.is_some_and(|r| d.rules.as_ref().is_some_and(|rs| rs.rows.get(r as usize).is_some_and(|x| !x.is_card())));
+            let cuts = |p: &riddle_core::wire::Patch| (p.remove || p.replace) && Some(p.insert_at) == d.cause_row.map(|r| r as i32);
+            let ok = d.verdict == "row"
+                && own
+                && match gamble.filter(|r| Some(*r) == d.cause_row.map(|c| c as i32)) {
+                    Some(_) => d.patches.iter().take(2).any(cuts),
+                    None => d.cause_row.map(|r| r as i32) == last && d.patches.first().is_some_and(cuts),
+                };
             t.check("a `row` verdict names a row that fired on the death tick", ok, || format!("seed {seed} run {id}: {} R{:?} last {:?}", d.verdict, d.cause_row, last));
         }
         check_death(t, &g, seed, &d);

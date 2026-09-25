@@ -439,7 +439,7 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
     // one — counted straight off the records (no verdict needed). `no path` and `not in view`
     // may legitimately have none (no such foe on the floor; a block the log cannot name), so
     // the gate reads the slot reasons and the rest is printed.
-    let state = ["no item", "none held", "no path", "not in view", "cooldown", "locked cond"];
+    let state = ["no item", "none held", "no path", "not in view", "cooldown", "locked cond", "no way"];
     for rec in g.deaths.values().filter(|rec| !rec.stall) {
         r.because_deaths += 1;
         for t in &rec.death.trace.turns {

@@ -202,6 +202,17 @@ pub struct ExitLine {
     /// top-up (`purse full`); a top-up reads `+$N wake` in `text`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub purse_full: bool,
+    /// Cut 21 §2: the found supplies this exit put on the shelf, per kind (the client's `found
+    /// heal → shelf`; `text` does not carry it).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shelved: Vec<KindCount>,
+}
+
+/// Cut 21 §2: a kind and how many (`ExitLine.shelved`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct KindCount {
+    pub kind: String,
+    pub n: u32,
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -426,6 +437,41 @@ pub struct Forecast {
     /// row nothing shadows. Empty when no row is shadowed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shadowed_by: Vec<Option<u32>>,
+    /// Cut 21 §1: the floor the sims started on (`Lineage.start` when lit and the toll is
+    /// payable, else 1). Rows above it read reach 1.0 (every send is there from its first
+    /// tick); the shaft shows from here.
+    #[serde(default = "one")]
+    pub start: u32,
+}
+
+/// Cut 21 §1: one start the camp's tablet offers (`Game::start_forecast`): D1 or a lit
+/// waystone, measured for the active set on the camp's seeds (paired with the current
+/// start's panel), like `CageOption`. `start` is the floor, `biome` its biome, `toll` what the
+/// send pays for it (`$10 × start`, 0 at D1); `depth` the bar `reach` is read at (the set's
+/// bank row's depth, else the best depth; a start at or past it reads 1.0); `gold` the mean
+/// kept per send and `gold_delta` its move; `net` = `gold − toll` and `net_delta` its move;
+/// `delta` the headline — `bank_delta` when either panel banks, else `reach_delta`. `short`:
+/// the purse cannot pay the toll now — that send would start on D1 (the numbers are D1's).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct StartOption {
+    pub start: u32,
+    pub current: bool,
+    pub toll: i32,
+    pub biome: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub short: bool,
+    pub depth: u32,
+    pub reach: f64,
+    pub reach_delta: f64,
+    pub bank: f64,
+    pub bank_delta: f64,
+    pub gold: f64,
+    pub gold_delta: f64,
+    pub net: f64,
+    pub net_delta: f64,
+    pub delta: f64,
+    /// The 95 % half-width of `reach`.
+    pub pm: f64,
 }
 
 /// Cut 12 §3: how a send ends — `bank` / `return` / `death` as shares of a panel of sends run
@@ -572,7 +618,10 @@ pub struct Death {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line: Option<ExitLine>,
     /// Cut 11 §2: the `because` entries of the killing turn's rows, in row order, deduped by
-    /// text — the chain under the trace. Absent when no row had one.
+    /// text — the chain under the trace. Absent when no row had one. Cut 21 §3 (AF: why `hp <
+    /// 30% → bank` never fired over six ticks): the killing turn's first, then the earlier
+    /// turns' (newest first) — every tick's row reasons carry their own `because`
+    /// (`TraceTurn.rows[].because`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chain: Option<Vec<Because>>,
     /// The rules the run died under, so the trace's row accounting is labelled with the run's
@@ -708,6 +757,11 @@ pub struct ReturnReport {
     /// missed` / `taken $412`); absent when the lineage had no bounty during the absence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bounty: Option<BountyReport>,
+    /// Cut 21 §2: found supplies the absence's exits put on the shelf instead of salvaging,
+    /// per kind — `gold` is their price on the shelf (what the repeat did not have to pay;
+    /// `found heal ×12 → shelf`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shelved: Vec<SalvageRow>,
 }
 
 /// Cut 20 §5: the bounty floor (`Lineage.bounty`): each night the lineage's best depth + 2 —
@@ -979,6 +1033,24 @@ pub struct Lineage {
     /// Cut 20 §5: tonight's bounty floor (set at each night's end: best depth + 2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bounty: Option<Bounty>,
+    /// Cut 21 §1: the lit waystones (biome first floors: D5 D9 D14 D19 D24 D29), ascending —
+    /// each lit by a bank from a floor at or past it; the start tablet offers D1 and these.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub waystones: Vec<u32>,
+    /// Cut 21 §1: the floor the next send starts on (`setStart`; 1 by default) and the toll it
+    /// pays at the send (`$10 × depth`; 0 from D1). A toll the purse cannot pay starts on D1.
+    #[serde(default = "one")]
+    pub start: u32,
+    #[serde(default)]
+    pub start_toll: i32,
+    /// Cut 21 §2: kinds the last send packed that no row of the active set can use — the
+    /// repeat does not buy them again (`strength · no row`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repeat_dropped: Vec<String>,
+}
+
+fn one() -> u32 {
+    1
 }
 
 /// Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id
