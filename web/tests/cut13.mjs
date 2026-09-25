@@ -522,13 +522,14 @@ try {
   // ▶▶| in `fast`: one press reaches the run's end (the ending, or the screen after it) — not the next fight
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for ▶▶|");
-  await sleep(1500);
+  await sleep(300);   // Cut 20's fast can reach the fake run's last tick inside 1.5 s: press early
   const t0 = Date.now();
   const endState = () => page.evaluate(() => ({ screen: window.__riddle.screen, ending: document.querySelector(".watch")?.dataset.ending === "1", tick: Number(document.querySelector(".watch")?.dataset.tick) }));
   let es = await endState(); const tick0 = es.tick, wasEnding = es.ending;
   await page.evaluate(() => { for (const b of document.querySelectorAll("main.watch button.hud-btn")) if (b.textContent === "▶▶|") b.click(); });
   while (Date.now() - t0 < 20_000 && es.screen === "watch" && !es.ending) { await sleep(60); es = await endState(); }
-  check(!wasEnding && (es.ending || es.screen !== "watch") && es.tick > tick0, `one ▶▶| in fast reaches the run's end (${es.screen}${es.ending ? ", ending" : ""}, tick ${tick0} → ${es.tick}, after ${Date.now() - t0} ms)`);
+  // reaching the end is the point; a press that lands on the run's last tick advances no tick
+  check(!wasEnding && (es.ending || es.screen !== "watch") && es.tick >= tick0, `one ▶▶| in fast reaches the run's end (${es.screen}${es.ending ? ", ending" : ""}, tick ${tick0} → ${es.tick}, after ${Date.now() - t0} ms)`);
   check(Date.now() - t0 < 15_000, `the end comes within seconds (${Date.now() - t0} ms)`);
   // the ending plays out, then the exit flow: the keep sheet or the verdict
   s = await waitFor((x) => x && x.screen !== "watch", "the screen after the skip", 60_000);
