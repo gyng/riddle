@@ -35,8 +35,11 @@ export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t
 /** QA e75ec29 (R: a packed heal stolen on D1, nothing on the exit; `+$40 heir purse` once, then none): what the core adds to an exit
  *  line beside its text — `· stolen heal` (what thieves took and kept), `· purse full` (a death whose heir purse was already at its
  *  top-up line, so no `heir purse +$N`). */
-export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "purse_full" | "shelved">): string =>
-  (x.stolen?.length && !/\bstolen\b/.test(x.text) ? /* copy:callout */ ` · stolen ${x.stolen.map((l) => l.replace(/_/g, " ")).join(", ")}` : "")
+const dTag = (d: number): string => /* copy:none */ `D${d}`;
+export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "purse_full" | "shelved" | "start" | "start_short">): string =>
+  // QA a946e04 (T: a D5 start at $32 ran from D1 with no word): the run's start fell back — the toll was more than the purse
+  (x.start_short && !/toll short/.test(x.text) ? /* copy:callout */ ` · from ${dTag(x.start ?? 1)} · toll short` : "")
+  + (x.stolen?.length && !/\bstolen\b/.test(x.text) ? /* copy:callout */ ` · stolen ${x.stolen.map((l) => l.replace(/_/g, " ")).join(", ")}` : "")
   + (x.purse_full && !/purse full/.test(x.text) ? /* copy:callout */ " · purse full" : "")
   + (x.shelved?.length && !/→ shelf\b/.test(x.text) ? /* copy:callout */ ` · found ${shelvedText(x.shelved)} → shelf` : "");
 /** Cut 21 §2 (AE: "sells heal potions he finds for $2 while I pay $40"): found supplies the exit put on the shelf — `heal ×2, fire`. */
@@ -79,7 +82,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Cut 11 §2: the accounting is the chain; the rules that ran label its rows (the morgue's, else the editing copy)
   // The run's own rules label the accounting (`R1 drink unknown · no use`, as the editor spells it); a death from before
   // the wire carried them falls back to the morgue's short forms
-  const trace = traceTable(d.trace, { rows: d.rules?.rows ?? app.rules.rows, verbs: d.rules ? undefined : morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain });
+  const trace = traceTable(d.trace, { rows: d.rules?.rows ?? app.rules.rows, verbs: d.rules ? undefined : morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain, depth: d.depth });
   // Fractions 0..1 from the core: baseline (survival of the unpatched rules) is on every row (Cut 4 §2).
   // QA 1a2a4a9 (O): a tap on a tablet lights it (the gem takes its number); the gem applies the lit one — the only apply on this screen
   let picked = false;
@@ -87,8 +90,10 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base, stall: d.verdict === "stall", select });   // Cut 14 §4: the trace names the least-fired row on a full set
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
   const openMorgue = (): void => {
-    void copyText(d.morgue);
-    openSheet(() => h("div", { class: "morgue" }, h("div", { class: "label row-label" }, /* copy:label */ "morgue"), h("pre", { class: "morgue-text" }, d.morgue)));
+    // QA a946e04 (S: `slain by goblin_archer`): ids read as words (`goblin archer`), in the sheet and the copy alike
+    const text = d.morgue.replace(/([a-z])_(?=[a-z])/g, "$1 ");
+    void copyText(text);
+    openSheet(() => h("div", { class: "morgue" }, h("div", { class: "label row-label" }, /* copy:label */ "morgue"), h("pre", { class: "morgue-text" }, text)));
   };
   // Cut 10 §3: `◯ jackal Ashar fell` (a companion leaves an egg); Cut 12 §6: a summoned ally reads `ally hound fell`, no egg
   // QA 92eb880 (N: "`ally hound fell` is drawn as a button … tapping it does nothing"): a line of text, not a chip

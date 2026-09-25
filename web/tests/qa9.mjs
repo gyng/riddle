@@ -216,8 +216,9 @@ try {
     r.go({ kind: "camp" });
   });
   await sleep(700);
-  let during = await page.evaluate(() => ({ busy: window.__riddle.engineBusy, fc: document.querySelector(".fc-bars .d")?.textContent, shop: document.querySelectorAll(".supplies .chip.buy").length, cards: document.querySelectorAll(".unlocks .card").length }));
-  check(during.busy && during.fc === "…" && during.shop > 0 && during.cards > 0, `while the forecast computes (${during.fc}): ${during.shop} shop chips, ${during.cards} unlock cards`);
+  // (QA a946e04: the panel starts from the forecast the shaft shows — the last one — never a `…` beside the shaft's numbers)
+  let during = await page.evaluate(() => ({ busy: window.__riddle.engineBusy, fc: document.querySelector(".fc-bars .d")?.textContent, same: (document.querySelector(".forecast")?.dataset.fc ?? "") === (document.querySelector(".shaft")?.dataset.fc ?? "-"), shop: document.querySelectorAll(".supplies .chip.buy").length, cards: document.querySelectorAll(".unlocks .card").length }));
+  check(during.busy && (during.fc === "…" || during.same) && during.shop > 0 && during.cards > 0, `while the forecast computes (${during.fc}): ${during.shop} shop chips, ${during.cards} unlock cards`);
   // and from the caches alone (the fetches queued behind a forecast in flight): a repaint mid-forecast keeps them
   await page.evaluate(() => { const r = window.__riddle; r.engine.unlocks = () => new Promise(() => {}); r.engine.supplyCatalogue = () => new Promise(() => {}); r.go({ kind: "camp" }); });
   await sleep(300);
@@ -322,8 +323,9 @@ try {
   ls = await ledgerSalvage(); sv = await reportSalvaged(); sum = sv.reduce((a, r) => a + r.gold, 0);
   check(ls.salvage > 0 && sv.length > 0 && sum === ls.salvage, `vault full, no sheet: SALVAGED sums to the ledger's salvage after "${ls.exit}" ($${sum} vs $${ls.salvage}): ${sv.map((r) => r.text).join(" · ")}`);
   // seed 13's second run lets go teleport ×2 ($14 at the table) · sword $12 · aggravate $7 · enchant $7 · fire $5: the +$9 lands on the teleports
+  // (QA a946e04: an unidentified kind's row reads as its flavour, as the core's rows do — `scroll? ZELGO`, never the hidden `teleport`)
   const top = [...sv].sort((a, b) => b.gold - a.gold)[0];
-  check(top?.text === "teleport ×2 · $23" && sv.find((r) => r.text.startsWith("sword"))?.gold === 12, `the skew (+$9) landed on the largest row alone: ${sv.map((r) => r.text).join(" · ")}`);
+  check(top?.text === "scroll? ZELGO ×2 · $23" && sv.find((r) => r.text.startsWith("sword"))?.gold === 12, `the skew (+$9) landed on the largest row alone: ${sv.map((r) => r.text).join(" · ")}`);
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

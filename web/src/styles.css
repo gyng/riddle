@@ -1002,3 +1002,13 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .gold-line .ledger-link { background: none; border: 0; padding: 0; font: inherit; color: var(--warn); text-decoration: underline dotted; text-underline-offset: 2px; cursor: pointer; min-height: 24px; }
 .chain-row.tick .at-t { font-size: 12px; min-width: 64px; }
 .chain-row.tick .why { color: var(--dim); }
+/* QA a946e04 (S: `cage → weapon` read as a fifth, unnumbered rule): the camp's choices sit apart from the rules — a carved rule over
+   the first of them, and a gap */
+.tablets .editor + .row.tablet.compact:not([hidden]),
+.tablets .editor + .row.tablet.compact[hidden] + .row.tablet.compact:not([hidden]) { margin-top: 14px; position: relative; }
+.tablets .editor + .row.tablet.compact:not([hidden])::before,
+.tablets .editor + .row.tablet.compact[hidden] + .row.tablet.compact:not([hidden])::before { content: ""; position: absolute; left: 12%; right: 12%; top: -9px; height: 1px; background: linear-gradient(90deg, transparent, #6a5638, transparent); pointer-events: none; }
+/* QA a946e04 (T): a toll the purse cannot pay */
+.row.tablet.compact.start-tab.short .toll, .start-picker .start-opt .toll.warn { color: var(--warn); }
+.start-picker .start-opt.short:not(.on) { opacity: .55; }
+.patch.tablet.no-gain .surv { color: var(--dim); }

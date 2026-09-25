@@ -204,7 +204,7 @@ try {
   let d = await page.evaluate(() => ({ head: document.querySelector(".patches .patches-head")?.textContent, surv: [...document.querySelectorAll("button.patch .surv")].map((x) => x.textContent), gem: document.querySelector(".death .gem")?.textContent,
     notes: [...document.querySelectorAll(".death-notes .note")].map((n) => n.textContent), heir: document.querySelector(".death .topbar .heir")?.textContent, trait: document.querySelector(".death .topbar .trait")?.textContent,
     egg: document.querySelector(".death .eggs-line")?.textContent, eggBtn: !!document.querySelector(".death .eggs-line button, .death .chip.egg") }));
-  check(d.head === "nothing beats base · base 100%" && d.surv.every((s) => s === "survives 100%") && /edit/i.test(d.gem ?? ""), `a dice death nothing beats: the block says so, no \`below bar\`, the gem is \`edit\` (${d.head} · ${d.surv.join(" | ")} · gem ${d.gem})`);
+  check(d.head === "nothing beats unpatched 100%" && d.surv.every((s) => s === "survives 100%") && /edit/i.test(d.gem ?? ""), `a dice death nothing beats: the block says so, no \`below bar\`, the gem is \`edit\` (${d.head} · ${d.surv.join(" | ")} · gem ${d.gem})`);
   check(d.notes.length === 0, `no \`saved him\` and no cage loot over a death (${d.notes.join(" | ") || "none"})`);
   check(d.heir === "♟2" && d.trait === "curious", `the bar names the hero who died (${d.heir} · ${d.trait})`);
   check(/ally hound fell/.test(d.egg ?? "") && !d.eggBtn, `a lost ally is a line, not a chip ("${d.egg}")`);

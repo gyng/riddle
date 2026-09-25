@@ -15,6 +15,7 @@ import { verbLabel } from "./tokens";
 export type ChainCtx = { rows?: Row[]; verbs?: string[]; runId?: number; chain?: Because[];
                          provenance?: boolean;     // §3: also list the trace's provenance log (the exit sheet; the death screen keeps to its chain)
                          home?: boolean;           // Cut 14: the trace of a bank/return — its last row is the way home, not the killing blow (QA on 56f2a1d: painted red)
+                         depth?: number;           // QA a946e04: the floor the trace's turns are on (a death's) — a present-state blocker stamped on another floor is re-stamped to its turn here
                          window?: number };        // Cut 21 §3: the turns the table shows (its last N) — their row reasons join the chain, not only the last turn's
 
 /** Cut 11 §2: the verbs of the rules that ran, off a morgue's `R1 HP<40% → drink heal` lines (core and fake write them), so an
@@ -31,6 +32,13 @@ export function morgueVerbs(morgue: string | undefined): string[] | undefined {
 const FOE_BLOCKER = /^(chase given up|foe fleeing|foe across water|no way to it)$/;
 export const foeBlockerOnMove = (verb: string | undefined, because: string): boolean =>
   FOE_BLOCKER.test(because.trim()) && !!verb && !/^(attack|shoot|throw|tame|zap|hit|strike|pack|kite|boss)\b/.test(verb.trim());
+/** QA a946e04 (T: a D4 death's `R2 attack nearest · no target ← chase given up` opened `CHASE GIVEN UP · D2 · t2640`, a jackal 5 000
+ *  ticks earlier): a way blocker is the state at that turn (the core's `path_blocker` / `home_blocker`), but the core reused its last
+ *  entry of the same words, from another floor. A blocker link stamped on a floor other than the trace's is the turn's own moment. */
+const PRESENT = /^(chase given up|foe fleeing|foe across water|no way to it|captive chained the way|gas cloud, this room|bloats seal the stair|water in the way|foes on every side|foes hold the way|ally in the way|.+ holds the way)$/;
+export function restamp(b: Because, t: number, depth: number | undefined): Because {
+  return depth !== undefined && b.depth > 0 && b.depth !== depth && PRESENT.test(b.text.trim()) ? { ...b, t, depth } : b;
+}
 const sameLink = (a: Because, b: Because): boolean => a.text === b.text && a.t === b.t;
 /** The provenance log under an exit sheet's chain is capped: the links the chain's rows carry, then the last this many by
  *  tick, then `· N earlier` (QA on 50bb162: "R4 fired followed by ~70 `← found X on Dn` lines"). */
@@ -65,14 +73,14 @@ export function tickLines(turns: Trace["turns"]): TickLine[] {
 /** The chain of a trace's last turn, or null when nothing on the wire carries a `because`. */
 export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
   const last = trace.turns[trace.turns.length - 1];
-  const rows = last?.rows ?? [];
+  const rows = (last?.rows ?? []).map((r) => r.because ? { ...r, because: restamp(r.because, last.t, ctx.depth) } : r);
   // Cut 21 §3: the earlier turns' reasons (the table's window) — each tick's `because`, not only the last's
-  const ticks = tickLines(ctx.window !== undefined ? trace.turns.slice(-ctx.window) : trace.turns);
+  const ticks = tickLines(ctx.window !== undefined ? trace.turns.slice(-ctx.window) : trace.turns).map((l) => l.because ? { ...l, because: restamp(l.because, l.from, ctx.depth) } : l);
   const rowLinks = [...rows.flatMap((r) => r.because ? [r.because] : []), ...ticks.flatMap((l) => l.because ? [l.because] : [])];
   let prov = ctx.provenance ? (trace.provenance ?? []).filter((b) => !rowLinks.some((s) => sameLink(s, b))) : [];
   let earlier = 0, older: Because[] = [];
   if (prov.length > PROVENANCE_SHOW) { prov = [...prov].sort((a, b) => a.t - b.t); earlier = prov.length - PROVENANCE_SHOW; older = prov.slice(0, earlier); prov = prov.slice(-PROVENANCE_SHOW); }
-  const extra = [...(ctx.chain ?? []), ...prov];
+  const extra = [...(ctx.chain ?? []).map((b) => restamp(b, last?.t ?? b.t, ctx.depth)), ...prov];
   if (!rows.some((r) => r.because) && !ticks.some((l) => l.because) && !extra.length) return null;
   const shown: Because[] = [];
   const verbOf = (i: number): string | undefined => { const v = ctx.verbs?.[i]; if (v) return v; const r = ctx.rows?.[i]; return r ? verbLabel(r.verb) : undefined; };

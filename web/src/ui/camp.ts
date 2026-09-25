@@ -16,7 +16,7 @@
 // one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
 // row stands in for the class button while it is up.
 import type { App, Mounted } from "../app";
-import type { CageOption, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
+import type { CageOption, Lineage, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
@@ -56,6 +56,15 @@ export function cageDelta(o: Pick<CageOption, "current" | "depth" | "reach" | "b
 let startMemo: { key: string; opts: StartOption[] } | null = null;
 /** Cut 21 §1: a start's toll — the engine's, else the contract's `$10 × depth` (0 at D1). */
 export const startToll = (d: number, o?: Pick<StartOption, "toll">): number => o?.toll ?? (d > 1 ? 10 * d : 0);
+/** QA a946e04 (T: `start → D5 · $50` at $32, and the run began on D1 with no word): can the purse pay a start's toll now? The engine's
+ *  word when it sends one (`StartOption.short`, `Lineage.start_payable` for the current start), else the gold against the toll. */
+export function startShort(L: Pick<Lineage, "gold" | "start" | "start_payable" | "start_toll">, st: number, o?: Pick<StartOption, "toll" | "short">): boolean {
+  const toll = st === (L.start ?? 1) && L.start_toll !== undefined ? L.start_toll : startToll(st, o);
+  if (toll <= 0) return false;
+  if (o?.short !== undefined) return o.short;
+  if (st === (L.start ?? 1) && L.start_payable !== undefined) return !L.start_payable;
+  return L.gold < toll;
+}
 /** Cut 17 §3: which step carves each console tile (the tile glints on its first appearance). */
 const STEP_OF: Record<string, Step> = { edit: "edit", loadout: "loadout", unlocks: "unlocks", vault: "vault", forge: "forge", party: "party", ledger: "heirs", chronicle: "heirs" };
 const ALL_KEY = "riddle.unlocks.all";
@@ -65,6 +74,15 @@ const setUnlocksAll = (on: boolean): void => { try { localStorage.setItem(ALL_KE
  *  retreat row vs one foe, once a floor — `holds a retreat` read as its opposite, QA 23ed91f; curious drinks an unknown when clear; greedy steps onto adjacent loot). */
 /* copy:callout */
 const TRAIT_RULE: Record<string, string> = { cowardly: "flees under 50%", brave: "skips a retreat", curious: "drinks unknowns", greedy: "grabs loot" };
+/** QA a946e04 (S, T: `cowardly · flees under 50%` never fled): the trait's rule as the core states it (`Lineage.trait_rules`), else the table's. */
+export const traitRule = (L: Pick<Lineage, "trait_rules">, t: string): string | undefined => { const r = L.trait_rules?.[t]; return (r && ruleShort(r)) ?? TRAIT_RULE[t]; };
+/** The core's rule within the chip's three words: `backs off once a floor under 50%` → `backs off <50% 1×/floor`, `tries one unknown a
+ *  floor` → `tries unknown 1×/floor`; undefined when it will not fit (the table's words stand). */
+export function ruleShort(rule: string): string | undefined {
+  const perFloor = /\b(once|one \w+) a floor\b/.test(rule);
+  const t = rule.replace(/\bonce a floor\b/, "").replace(/\bone (\w+) a floor\b/, "$1").replace(/\bunder (\d+%)/, "<$1").replace(/\s+/g, " ").trim() + (perFloor ? /* copy:none */ " 1×/floor" : "");
+  return t.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 3 ? t : undefined;
+}
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
 const SEND_ARM_MS = 800;
@@ -166,7 +184,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const traits = (L.trait_offer?.length ?? 0) >= 2
       ? h("span", { class: "chips traits" }, ...L.trait_offer!.map((t) => h("button", { class: `chip trait${t === L.trait ? " on" : ""}`, disabled: t === L.trait, onclick: () => void pickTrait(t), "aria-pressed": t === L.trait ? "true" : "false" },
           // QA 1a2a4a9 (O: "the ✓ is only visual; the text shows no selection"): the mark is text, not a CSS `::before`
-          t === L.trait ? h("b", { class: "tick" }, "✓ ") : "", h("span", null, t), TRAIT_RULE[t] ? h("small", { class: "rule dim" }, TRAIT_RULE[t]) : "")))
+          t === L.trait ? h("b", { class: "tick" }, "✓ ") : "", h("span", null, t), traitRule(L, t) ? h("small", { class: "rule dim" }, traitRule(L, t)) : "")))
       : "";
     const offer = (L.class_offer?.length ?? 0) >= 2;
     const classes = offer
@@ -289,7 +307,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         h("button", { class: `chip${(L.keep_pref ?? "best_weapon") === id ? " on" : ""}`, onclick: () => void app.mutate(() => app.engine.setKeepPref(id)) }, lbl)));
     // what the home pref does at an unwatched exit, on its row (the core's `keep_auto`, in order: `keeps armour · weapon`)
     const auto = L.keep_auto;
-    if (auto) prefs.appendChild(h("small", { class: "keep-auto dim num" }, auto.length ? /* copy:callout */ `keeps ${auto.join(" · ")}` : /* copy:callout */ "keeps nothing"));
+    // QA a946e04 (S: `VAULT 1/1 · axe · keeps armour`, the axe stayed through 17 runs): a keep replaces only a weaker item of its own
+    // kind — a vault full of other kinds takes none, and the line says so (`keeps armour · vault full`)
+    const CAT: Record<string, RegExp> = { weapon: /^(dagger|sword|axe|bow|spear|mace)$/, armour: /^(leather|mail|plate|scale)$/ };   // core defs.rs
+    const blocked = !!auto?.length && L.vault.length >= slots && auto.every((k) => !L.vault.some((v) => CAT[k]?.test(v.kind) ?? v.kind === k));
+    if (auto) prefs.appendChild(h("small", { class: "keep-auto dim num" }, auto.length ? /* copy:callout */ `keeps ${auto.join(" · ")}` : /* copy:callout */ "keeps nothing",
+      blocked ? h("b", { class: "warn vault-full" }, /* copy:callout */ " · vault full") : ""));
     vault.appendChild(prefs);
     // Cut 19 §1: the cage's preference left this panel for its own tablet beside the rules (`cage → armour`)
   }
@@ -325,14 +348,27 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const L = app.lineage, on = revealed(app).has("start");
     startTab.hidden = !on;
     if (!on) return;
-    const st = L.start ?? 1, toll = startToll(st, startMemo?.opts.find((o) => o.start === st && o.current));
+    const st = L.start ?? 1, o = startMemo?.opts.find((x) => x.start === st && x.current), toll = L.start_toll ?? startToll(st, o);
+    // QA a946e04 (T): a toll the purse cannot pay says so on the tablet — that send starts on D1 (`start → D5 · $50 short`)
+    // QA a946e04 (core: the toll buys a pass for the night): a held pass reads `pass`, not a toll the next send will not pay
+    const pass = st > 1 && (L.start_pass === true || o?.pass === true);
+    const short = !pass && startShort(L, st, o);
+    startTab.classList.toggle("short", short);
     replace(startTab, h("span", { class: "rn num" }, icon("depth", "▼")),
       h("span", { class: "rtext" }, /* copy:rule_token */ "start", h("span", { class: "arrow" }, " → "), h("span", { class: "num" }, `D${st}`),
-        toll > 0 ? h("small", { class: "num toll dim" }, ` · $${toll}`) : ""));
+        pass ? h("small", { class: "num toll pass dim" }, /* copy:rule_token */ " · pass")
+          : toll > 0 ? h("small", { class: `num toll${short ? " short warn" : " dim"}` }, short ? /* copy:rule_token */ ` · $${toll} short` : ` · $${toll}`) : ""));
   }
   /** Cut 21 §1: the start picker — D1 and each lit waystone, each with its forecast move against the current start (`bank +12%`, the
    *  cage picker's measure) and its toll (`D9 · bank +12% · $90`); the tap is `setStart`. The moves are `startForecast()` (extra camp
    *  panels, memoised by the core; seconds in wasm): the last measure paints at once when it is this set's, `…` until one lands. */
+  /** The current start's option with the camp forecast's own numbers (`app.lastForecast`, the shaft's and the panel's) when it is
+   *  this set's: its bank share, its reach at the option's depth. */
+  function currentFromPanel(o: StartOption): StartOption {
+    const f = app.lastForecast; if (!f?.ends || (f.start ?? app.lineage.start ?? 1) !== o.start) return o;
+    const r = f.depths.find((x) => x.depth === o.depth)?.reach;
+    return { ...o, bank: f.ends.bank, reach: r ?? o.reach, pm: f.ends.pm ?? o.pm };
+  }
   function openStartPicker(): void {
     const L0 = app.lineage;
     const key = (): string => JSON.stringify([app.rules.rows, app.lineage.start ?? 1, app.lineage.waystones ?? [], app.lineage.best_depth]);
@@ -342,13 +378,18 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         const cur = app.lineage.start ?? 1;
         const starts = [...new Set([1, ...(app.lineage.waystones ?? L0.waystones ?? [])])].sort((a, b) => a - b);
         replace(list, ...starts.map((st) => {
-          const o = opts?.find((x) => x.start === st); const d = o ? cageDelta(o) : null; const toll = startToll(st, o);
-          const short = toll > app.lineage.gold && st !== cur;
-          return h("button", { class: `chip start-opt${st === cur ? " on" : ""}${short ? " off" : ""}`, "data-start": st, disabled: short,
+          const o = opts?.find((x) => x.start === st); const toll = startToll(st, o);
+          // QA a946e04 (T: `START D1 · bank 86%` beside the panel's `bank 85%`): the current start's own level is the camp forecast's —
+          // the number the shaft and the panel show — never a second measure of the same set
+          const d = o ? cageDelta(o.current ? currentFromPanel(o) : o) : null;
+          // QA a946e04 (T): a toll the purse cannot pay dims its option and says so (`D5 · $50 short`); the current one stays lit
+          const pass = st > 1 && (o?.pass === true || (st === cur && app.lineage.start_pass === true));
+          const short = !pass && startShort(app.lineage, st, o);
+          return h("button", { class: `chip start-opt${st === cur ? " on" : ""}${short ? " off short" : ""}`, "data-start": st, disabled: short && st !== cur,
             onclick: async () => { close(); if (st !== cur && app.engine.setStart) await app.mutate(() => app.engine.setStart!(st)); } },
             h("span", { class: "num" }, `D${st}`),
             d ? h("b", { class: `num delta ${d.cls}` }, ` · ${d.text}`) : pending && st !== cur ? h("small", { class: "num dim" }, " …") : "",
-            toll > 0 ? h("small", { class: "num toll" }, ` · $${toll}`) : "");
+            pass ? h("small", { class: "num toll pass" }, /* copy:callout */ " · pass") : toll > 0 ? h("small", { class: `num toll${short ? " warn" : ""}` }, short ? /* copy:callout */ ` · $${toll} short` : ` · $${toll}`) : "");
         }));
       };
       const k = key(), memo = startMemo?.key === k ? startMemo.opts : null;
@@ -364,10 +405,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     if (!app.engine.setRestock || L.repeat === undefined) return null;
     const on = L.repeat !== false;
     if (on && !(L.repeat_kinds?.length)) return null;   // nothing to re-pack
-    return h("span", { class: `repeat-badge num${on ? " on" : ""}${on && L.repeat_short?.length ? " short" : ""}`, role: "button", "data-repeat": on ? "1" : "0",
+    return h("span", { class: `repeat-badge num${on ? " on" : ""}${on && L.repeat_short?.length ? " short" : ""}`, role: "switch", "aria-checked": on ? "true" : "false", "data-repeat": on ? "1" : "0",
       onclick: (e: Event) => { e.stopPropagation(); void app.mutate(() => app.engine.setRestock!(!on)); } },
       // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay reads so on the tile
-      on ? (L.repeat_short?.length ? /* copy:callout */ "repeat short" : /* copy:callout */ `repeat · $${L.repeat_gold ?? 0}`) : /* copy:callout */ "repeat off");
+      // QA a946e04 (T: "`repeat · $40` reads like a price to pay"; its tap refunded $40): the badge is a switch and reads as one —
+      // `repeat on · $40` (the tap turns it off and refunds the re-packed shelf) / `repeat off`
+      on ? (L.repeat_short?.length ? /* copy:callout */ "repeat on · short" : /* copy:callout */ `repeat on · $${L.repeat_gold ?? 0}`) : /* copy:callout */ "repeat off");
   }
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
@@ -422,7 +465,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // QA 92eb880 (M: "the reach line vanishes after buying +1 row"; N: "the tile list reshuffles twice within ~4 s"): until the new
       // deltas land, each card keeps its last measured delta (the shelf's order and lines hold still); prices and gates are the fresh ones
       const prev = new Map((unlockCat ?? []).filter((u) => u.delta !== undefined).map((u) => [u.id, u]));
-      const cat = fresh.some((u) => u.delta !== undefined) ? fresh : fresh.map((u) => { const p = prev.get(u.id); return p && !u.owned ? { ...u, delta: p.delta, pm: p.pm, stall: u.stall ?? p.stall, insert_at: u.insert_at ?? p.insert_at, situation: u.situation ?? p.situation } : u; });
+      const cat = fresh.some((u) => u.delta !== undefined) ? fresh : fresh.map((u) => { const p = prev.get(u.id); return p && !u.owned ? { ...u, delta: p.delta, pm: p.pm, stall: u.stall ?? p.stall, insert_at: p.insert_at ?? u.insert_at, situation: u.situation ?? p.situation, auto_insert: u.auto_insert ?? p.auto_insert } : u; });   // QA a946e04: the measured place rides with its measure (the sheet read `joins at R4`, the buy went in at R2)
       unlockCat = cat; app.unlockCat = cat;
       if (cat.some((u) => u.owned && u.rows?.length)) editor.refresh();   // Cut 6 §6: `[card]` chips open their rows once the catalogue is here
       // forecast deltas arrive later (0.3–2 s of sims); repaint once with them, never blocking the shelf
@@ -431,7 +474,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         // the price, the gate and ownership are always the fresh catalogue's
         const byId = new Map(fresh.map((u) => [u.id, u]));
         void app.engine.unlockDeltas().then((withDeltas) => { if (gen === unlockGen && withDeltas.some((u) => u.delta)) {
-          const merged = withDeltas.map((u) => { const f = byId.get(u.id); return f ? { ...f, delta: u.delta, pm: u.pm, stall: u.stall ?? f.stall, insert_at: u.insert_at ?? f.insert_at, situation: u.situation ?? f.situation } : u; });
+          const merged = withDeltas.map((u) => { const f = byId.get(u.id); return f ? { ...f, delta: u.delta, pm: u.pm, stall: u.stall ?? f.stall, insert_at: u.insert_at ?? f.insert_at, situation: u.situation ?? f.situation, auto_insert: u.auto_insert ?? f.auto_insert } : u; });   // QA a946e04: the measured `auto_insert` rides the merge (it was dropped: every card inserted)
           unlockGen++; unlockCat = merged; app.unlockCat = merged; paintFrom(merged);
         } }).catch(() => { /* deltas are optional */ });
       }
@@ -473,7 +516,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         grid.appendChild(h("button", { class: `card${u.available ? " buyable" : byGold ? " buyable gold-ok" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u) },
           // QA 92eb880 (N: "`AUTO: RESTOCK · ⊘ ◆1 more` while `$ buy` is enabled"): a marks shortfall the gold covers carries no `⊘`
           h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated && !byGold ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
-            d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : "",
+            d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d, app.rules.rows.length)) : "",
             stallLabel(u) ? h("small", { class: "num delta down stall-risk" }, stallLabel(u)) : ""),   // QA 92eb880: the stall risk before buying
           h("span", { class: "num cost" }, priceLabel(u))));   // QA 23ed91f: a free door reads no `◆0`; Cut 18 §5: both prices, `◆3 · $450`
       }

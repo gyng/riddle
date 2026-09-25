@@ -450,9 +450,11 @@ pub const AUTO_CARDS: usize = 3;
 /// card not owned, measured at its best place (`delta`, `stall`), whose reach there is not
 /// down and whose stall share rises ≤ `CARD_STALL_RISE`, into a set holding fewer than
 /// `AUTO_CARDS` card rows. An unmeasured card is not inserted (the measure decides).
+/// A card joins the set on its own only when it measurably helps (its reach gain clears its own
+/// ±; a zero-effect card is owned, and the player adds it — QA on a946e04).
 pub fn auto_insert(u: &UnlockInfo, cards_in_set: usize) -> bool {
     let card = TACTIC_CARDS.contains(&u.id.as_str()) || TIER2_CARDS.contains(&u.id.as_str()) || MASTERY_CARDS.contains(&u.id.as_str());
-    card && !u.owned && cards_in_set < AUTO_CARDS && u.delta.is_some_and(|d| d >= -1e-9) && u.stall.is_some_and(|s| s <= CARD_STALL_RISE + 1e-9)
+    card && !u.owned && cards_in_set < AUTO_CARDS && u.delta.is_some_and(|d| d > u.pm.unwrap_or(0.0).max(1e-9)) && u.stall.is_some_and(|s| s <= CARD_STALL_RISE + 1e-9)
 }
 
 /// A card measured at one place: the reach at the catalogue's depth and the stall share of

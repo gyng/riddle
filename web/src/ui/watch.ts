@@ -150,6 +150,7 @@ const LEAD = 12, BATCH = 10;        // ticks: pump when the engine is < LEAD ahe
 const BATCH_FAST = 12;              // at 8× the viewer eats 4 ticks per pump; a bigger batch keeps the queue fed through a slow step
 const LEAD_FAST = 32;               // Cut 7 §4: at 8× the engine stays ≥ ENDING_TICKS ahead, so an exit is seen before its last 30 ticks
 const BATCH_FIGHTS = 16;            // Cut 10 §1: under the card the engine steps this many ticks per call, chained flat out (≈ 1 ms a call)
+const TOLL_BANNER_MS = 3000;   // QA a946e04: `from D1 · toll short` as the watch opens
 const CARD_MS = 1000, CARD_BEAT_MS = 500;   // Cut 10 §1: the interstitial's minimum on a new floor (`D4 · 17 rooms`), and between fights on the same floor (Cut 15 §4: ≤ 1.2 s with the pump's slack under load, was 1.5)
 const CARD_MAX_MS = 1000;                   // Cut 15 §4: the card is never up longer; past it with no fight found, the live map at the flat rate
 const FOE_NEAR = 3;                         // Cut 15 §4: a hostile within this many tiles keeps the fight frame's slow clock in `fights`
@@ -239,6 +240,21 @@ export function spentOf(ledger: { t: number; delta: number; why: string }[], cat
     const price = cat.find((e) => e.label === bare || e.kind === bare)?.price ?? 0;
     const n = price > 0 && -g.delta % price === 0 ? -g.delta / price : 1;
     const r = rows.get(kind) ?? { kind, n: 0, gold: 0 }; r.n += n; r.gold += -g.delta; rows.set(kind, r);
+  }
+  return [...rows.values()];
+}
+/** QA a946e04 (T: `+$71 banked · −$40 spent` while the camp went $51 → $32 — the $50 toll left out): the waystone toll this run's send
+ *  paid — the ledger's `waystone D5` lines between the exit before the newest and the newest (the send pays before the run), as a
+ *  SPENT row (`waystone D5 ×1 · −$50`). */
+export function tollOf(ledger: { t: number; delta: number; why: string }[]): { kind: string; n: number; gold: number }[] {
+  const isExit = (g: { why: string }): boolean => /^(returned|banked|died|lost|stalled)\b/.test(g.why);
+  let i = ledger.length - 1; while (i >= 0 && !isExit(ledger[i])) i--;
+  if (i < 0) return [];
+  let j = i - 1; while (j >= 0 && !isExit(ledger[j])) j--;
+  const rows = new Map<string, { kind: string; n: number; gold: number }>();
+  for (const g of ledger.slice(j + 1, i)) {
+    if (g.delta >= 0 || !/^waystone\b/.test(g.why)) continue;
+    const r = rows.get(g.why) ?? { kind: g.why, n: 0, gold: 0 }; r.n++; r.gold += -g.delta; rows.set(g.why, r);
   }
   return [...rows.values()];
 }
@@ -456,7 +472,9 @@ export function renderWatch(app: App): Mounted {
   function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
   let lastLoot: number | undefined, lastLootRun = -1, lootDrop = 0, lootDropUntil = 0, lootWhy = "";
-  let lastUseT = -Infinity, lastStealT = -Infinity;   // engine ticks of the last `use` / `steal` (the loot's fall names which)
+  let lastPickT = -Infinity, lastStealT = -Infinity;   // engine ticks of the last `pickup` / `steal` (the loot's fall names which)
+  let tollShort = false;   // QA a946e04 (T): the send's waystone start fell back to D1 (the purse could not pay the toll)
+  let stolenGold = 0;   // QA a946e04 (T: `−$36 stolen` on the strip, nothing in STOLEN): what the run's thefts took off the carry (the `steal` amounts)
   function paintStake(s: Snapshot): void {
     hudSnap = s;
     if (cardUp) paintCardText();
@@ -468,7 +486,9 @@ export function renderWatch(app: App): Mounted {
     if (lastLoot !== undefined && st.loot < lastLoot && s.run.id === lastLootRun) { lootDrop = lastLoot - st.loot + (performance.now() < lootDropUntil ? lootDrop : 0); lootDropUntil = performance.now() + 2500;
       // QA 1a2a4a9 (O, P: `$46 −$8`, `$283 −$100` — "minuses that don't match any line"): the fall says what took it — a thief, or an
       // item used up (the loot counts what he carries at its worth)
-      lootWhy = s.turn - lastStealT <= 20 ? /* copy:label */ "stolen" : s.turn - lastUseT <= 20 ? /* copy:label */ "used" : ""; }
+      // QA a946e04 (S, T: `−$32`, `−$20`, `−$13 used` with no line): the carry falls on two things only (the core's `loot_add`): a theft,
+      // and a swap — a spare weapon or armour dropped for a find (a pickup; the spare counted more). A use never takes from it.
+      lootWhy = s.turn - lastStealT <= 20 ? /* copy:label */ "stolen" : s.turn - lastPickT <= 20 ? /* copy:label */ "swapped" : ""; }
     lastLoot = st.loot; lastLootRun = s.run.id;
     // QA 1a2a4a9 (O: the bar's `$0` and the line's `$3 · death: lose all` on one screen, "neither labelled"): the run's own purse says so
     const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "carry"), ` $${st.loot}`];
@@ -736,8 +756,7 @@ export function renderWatch(app: App): Mounted {
         // QA 1a2a4a9 (P: `12/38` → `6/16`, "nothing in the run said why"): the core's `max_hp` event moves the HUD's max at its tick
         // (the `hunger −1 max` callout comes as a callout of its own)
         case "max_hp": if (ev.id === heroId) { const m = ev.max; at(ev.t, () => { hud.maxHp = m; paintHud(); }); } break;
-        case "use": lastUseT = ev.t; break;   // QA 1a2a4a9: the stake's `−$8` names its cause (`used`)
-        case "steal": lastStealT = ev.t; if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
+        case "steal": lastStealT = ev.t; if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; stolenGold += n; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
         case "descend": {
           descends.push(ev.t);   // Cut 18 §1
           floors.set(ev.depth, { ...floors.get(ev.depth), biome: ev.biome });
@@ -755,6 +774,7 @@ export function renderWatch(app: App): Mounted {
           break;
         }
         case "pickup": {
+          if (ev.id === heroId) lastPickT = ev.t;
           const gold = /^gold\b\D*(\d+)/.exec(ev.item);   // Cut 7 §4: `+$47` on a gold pickup (`gold (47)` core, `gold 47` fake)
           // QA 92eb880 (M: "FOUND gold `$1 · $2 ×3 · …` = $27 but `$38 carried`"): gold is the ledger line's, not a find — FOUND lists items;
           // the ambient line is a gain (`+$3`, N: "a bare `$3` line")
@@ -772,6 +792,7 @@ export function renderWatch(app: App): Mounted {
           break;
         case "exit": {
           exit = ev.tier; exitLine = ev.line ?? exitLine; exitTrace = ev.trace ?? ev.line?.trace ?? exitTrace;
+          if (exitLine && tollShort && exitLine.start_short === undefined) exitLine = { ...exitLine, start: 1, start_short: true };   // `· from D1 · toll short` on the line
           markEnd(runId, ev.t);   // Cut 11 §2: the run log's last replayable tick
           // Cut 7 §4: the last ENDING_TICKS play at 1×; the core's `ending` marker counts only when the exit follows it closely
           // (Cut 10 §1: a foreseen death the hero survived held the map at 1× for minutes)
@@ -1531,7 +1552,7 @@ export function renderWatch(app: App): Mounted {
       const freeSlots = Math.max(0, vaultSlots(vaultNow.unlocks) - vaultNow.vault.length);
       if (pendingExit && pendingExit.items.length && freeSlots > 0) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, freeSlots, () => { done = false; void finish(tier); }); return; }
       // the vault full: the preference keeps (as designed) — and the screen says so before the report (R: "keep chosen for me?")
-      if (pendingExit?.items.length && fresh) { showBanner(/* copy:callout */ "vault full", VAULT_FULL_MS, "rest"); await new Promise((r) => setTimeout(r, VAULT_FULL_MS)); }
+      const vaultFull = !!(pendingExit?.items.length && fresh);
       // the sheet skipped (the vault full): the engine keeps by preference and the rest is salvage all the same — its rows
       // are built here too (QA on e0f87e7: "no SALVAGED block at all when the vault is full … yet the gold sheet shows +$16
       // salvage"); what the vault gained across the keep is what was kept, matched to the pending items by kind
@@ -1542,6 +1563,13 @@ export function renderWatch(app: App): Mounted {
       if (skipped) await bounded(app.engine.autoKeep ? app.engine.autoKeep() : app.engine.keep([]), 8000, "keep by preference");
       // (`refresh` resolves void, so a sentinel tells a timeout from success)
       if (!(await bounded(app.refresh().then(() => true), 8000, "refresh at exit")) && !disposed) { clearTimeout(guard); app.go({ kind: "camp" }); return; }
+      // QA a946e04 (T: the vault's dagger became `axe +1` behind a `vault full` flash, no sheet): the preference's swap is named —
+      // `axe +1 → vault` — and `vault full` stands alone only when nothing went in
+      if (vaultFull) {
+        const inVault = app.lineage.vault.filter((v) => !vaultBefore.has(v.id)).map((v) => v.label);
+        showBanner(inVault.length ? /* copy:callout */ `${inVault.join(", ")} → vault` : /* copy:callout */ "vault full", VAULT_FULL_MS, "rest");
+        await new Promise((r) => setTimeout(r, VAULT_FULL_MS));
+      }
       if (skipped) {
         const kept = new Set<number>();
         const gained = app.lineage.vault.filter((v) => !vaultBefore.has(v.id)).map((v) => v.kind);
@@ -1554,7 +1582,8 @@ export function renderWatch(app: App): Mounted {
   /** What an exit let go, per kind at the engine's worth at this exit (`salvageValue` when the wire has none). */
   function letGoRows(p: { items: InvItem[]; tier: string; worth?: number[] }, kept: Set<number>): { kind: string; n: number; gold: number }[] {
     const rows = new Map<string, { kind: string; n: number; gold: number }>();
-    p.items.forEach((it, i) => { if (kept.has(it.id)) return; const r = rows.get(it.kind) ?? { kind: it.kind, n: 0, gold: 0 }; r.n++; r.gold += p.worth?.[i] ?? salvageValue(it.kind, p.tier); rows.set(it.kind, r); });
+    // QA a946e04 (S: SALVAGED `potion ×2 · $2` beside `blue potion? ×2`): an unknown item is its flavour (`blue potion?`), as the core's rows name it
+    p.items.forEach((it, i) => { if (kept.has(it.id)) return; const k = it.known ? it.kind : it.label; const r = rows.get(k) ?? { kind: k, n: 0, gold: 0 }; r.n++; r.gold += p.worth?.[i] ?? salvageValue(it.kind, p.tier); rows.set(k, r); });
     return [...rows.values()].filter((r) => r.gold > 0);
   }
   async function finishAfterRefresh(tier: Tier, guard: number): Promise<void> {
@@ -1573,6 +1602,7 @@ export function renderWatch(app: App): Mounted {
         const death = await app.busy(/* copy:label */ "verdict", () => app.engine.death(runId));
         if (stalled && death.verdict !== "stall") throw new Error(`no stall verdict (${death.verdict})`);
         death.line ??= exitLine;   // Cut 6 §1: the verdict may lack the line; the exit event carried it
+        if (tollShort && death.line && death.line.start_short === undefined) death.line = { ...death.line, start: 1, start_short: true };
         if (!disposed) app.go({ kind: "death", death, lost });
         return;
       } catch (e) { console.warn(stalled ? "no stall record; the report shows the run" : "no death record; the report counts the death", e); }   // Cut 10 §3: never `1 runs · 0 deaths` after a death
@@ -1594,7 +1624,8 @@ export function renderWatch(app: App): Mounted {
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,
       xp: { class: cls, ...xpOfRun() },
       salvaged: reconcileSalvage(mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), L.gold_ledger ?? []), deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
-      spent: spentRows(L.gold_ledger ?? []),   // Cut 13 §3: what the automations bought at this exit (`heal ×1 · −$40`)
+      spent: [...(exitLine?.toll !== undefined ? (exitLine.toll > 0 ? [{ kind: /* copy:none */ `waystone D${exitLine.start ?? L.start ?? 1}`, n: 1, gold: exitLine.toll }] : []) : tollOf(L.gold_ledger ?? [])), ...spentRows(L.gold_ledger ?? [])],   // Cut 13 §3: what the automations bought at this exit (`heal ×1 · −$40`); QA a946e04: the send's toll first
+      stolen_gold: exitLine?.stolen_gold ?? (stolenGold > 0 ? stolenGold : undefined),   // QA a946e04 (T): the carry's thefts, beside the items
       banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, stalled: stalled ? 1 : 0,   // Cut 18 §4: the stall the exit line names anywhere in it (`… · stalled · 1 supply back`), or the stake's flag bones_found: bonesFound,   // rest is still ahead: the camp shows it
       exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
     };
@@ -1669,6 +1700,10 @@ export function renderWatch(app: App): Mounted {
     try { s = await app.engine.send(); } catch (e) { console.warn("send failed", e); if (!disposed) app.go({ kind: "camp" }); return; }
     if (disposed) return;
     snap = s; runId = s.run.id; engineTick = startTick = s.turn;
+    // QA a946e04 (T: `start → D5 · $50` at $32 — the run began on D1, no toll, nothing said so): a waystone start the purse could not pay
+    // starts on D1, and the watch says so as it opens (the exit's line carries it on: `· from D1 · toll short`)
+    { const want = app.lineage.start ?? 1, from = s.run.start ?? (s.depth === 1 ? 1 : want);   // a resumed run deeper down is no fallback
+      if (want > 1 && from < want) { tollShort = true; showBanner(/* copy:callout */ `from ${"D" + from} · toll short`, TOLL_BANNER_MS, "rest toll-short"); } }
     for (const e of s.entities) note_(e);
     hudFrom(s);
     const { viewer: v0 } = await makeViewer(canvas);

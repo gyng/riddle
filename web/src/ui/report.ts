@@ -10,7 +10,7 @@
 // off the line's own text) — rater S: "the seventh unlabelled TRACE button"; the stalled tile carries what the stalls cost
 // (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
 import type { App, Mounted } from "../app";
-import type { Counter, ExitLine, ReturnReport } from "../engine/types";
+import type { Counter, ExitLine, Lineage, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
 import { exitExtras, wakeShown } from "./death";
@@ -68,8 +68,26 @@ export function pickedLine(depths: number[]): string {
   return `${runs.join(" · ")} · ${/* copy:callout */ "thinned"}`;
 }
 
+/** Rows of one name summed (`blue potion? ×8` read as `poison` beside `poison ×3` → `poison ×11`), first-seen order. */
+function mergeRows(rows: { kind: string; n: number; gold: number }[]): { kind: string; n: number; gold: number }[] {
+  const m = new Map<string, { kind: string; n: number; gold: number }>();
+  for (const r of rows) { const x = m.get(r.kind) ?? { kind: r.kind, n: 0, gold: 0 }; x.n += r.n; x.gold += r.gold; m.set(r.kind, x); }
+  return [...m.values()];
+}
+/** QA a946e04 (S: SALVAGED `blue potion? ×8` beside `poison ×3` after the night identified poison): a label stored while its kind was
+ *  unknown reads by its name now — the core's `Lineage.renamed`, else the lineage's facts (`item:blue=poison`); `_` never shows. */
+export function renamer(L: Pick<Lineage, "renamed" | "facts">): (label: string) => string {
+  const idents = new Map((L.facts ?? []).map((f) => /^item:([a-z_]+)=([a-z_]+)$/.exec(f)).filter((m): m is RegExpExecArray => !!m).map((m) => [m[1], m[2]]));
+  return (label: string): string => {
+    const r = L.renamed?.[label]; if (r) return r.replace(/_/g, " ");
+    const m = /^([a-z_]+) (potion|scroll)\?$/.exec(label), k = m && idents.get(m[1]);
+    return (k ?? label).replace(/_/g, " ");
+  };
+}
+
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
   const L = app.lineage;
+  const named = renamer(L);
   const deathsN = r.deaths.reduce((n, d) => n + d.n, 0);
   // Cut 17 §4: the tiles are engraved score plaques on the parchment (an icon per count)
   const PLAQUE: Record<string, string> = { runs: "fast", deaths: "morgue", deepest: "depth", best: "depth", marks: "mark", banked: "gold", returned: "bail", stalled: "pause" };
@@ -110,6 +128,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 20 §5: the night's bounty floor — `bounty D12 · taken $412`, or `bounty D12 · missed` (what the safe set left on the table)
   const bounty = r.bounty ? h("div", { class: `bounty-line num${r.bounty.taken ? " taken" : " missed dim"}` },
     r.bounty.taken ? /* copy:callout */ `bounty D${r.bounty.depth} · taken $${r.bounty.gold}` : /* copy:callout */ `bounty D${r.bounty.depth} · missed`) : null;
+  // QA a946e04 (T: 3 of 19 runs went from D1, the night's pass unpaid, nothing said so): `D5 short · 3 runs from D1`
+  const startShort = r.start_short ? h("div", { class: "start-short-line warn num" }, /* copy:callout */ `${"D" + r.start_short.depth} short · ${r.start_short.runs} runs from ${"D1"}`) : null;
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
   // Cut 13 §3: the gold line — what the exits brought (banked / returned, off the exit lines), the salvage, the automations' spending
   const goldLine = (): HTMLElement | null => {
@@ -251,7 +271,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     ],
   });
   const sheet = h("div", { class: "parchment report-sheet" },
-    tiles, goldLine(), bounty, picked, exitLines, rested, stall,
+    tiles, goldLine(), startShort, bounty, picked, exitLines, rested, stall,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
     section(/* copy:label */ "learned", factChips(r.learned.filter((f) => !/^bones:\d+$/.test(f)), L.counters ?? [])),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
@@ -260,14 +280,18 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "lost", chips((r.lost ?? []).map((k) => k.includes(" · ") ? /* copy:callout */ `◯ ${k} fell` : lostLabel(k)), "chip egg")),
     section(/* copy:label */ "bests", lines(collapseBests(r.bests).map(bestLabel))),
     r.xp && (r.xp.gained > 0 || r.xp.level_ups > 0) ? section(/* copy:label */ "xp", h("div", { class: "xp-line num" }, `${r.xp.class} +${r.xp.gained}`, " · ", /* copy:label */ `L${L.classes?.[r.xp.class]?.level ?? 1}`, r.xp.level_ups > 0 ? h("b", null, ` ↑${r.xp.level_ups}`) : "")) : null,
-    section(/* copy:label */ "found", chips(r.found.map((i) => i.label))),
+    section(/* copy:label */ "found", chips(r.found.map((i) => named(i.label)))),
     // QA e75ec29 (R: six thefts in one run, "the report and gold sheet say nothing"): what thieves took and no run got back
-    section(/* copy:label */ "stolen", r.stolen?.length ? h("div", { class: "chips" }, ...r.stolen.map((x) => h("span", { class: "chip stolen" }, x.label.replace(/_/g, " "), x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : ""))) : null),
+    // QA a946e04 (S: `leash ×4` beside `leash (2)`, `black potion?` after LEARNED said confusion): one chip per name, identified kinds by
+    // their name; T (`−$36 stolen` on the strip, only items here): the carry the thefts took leads (`$36`)
+    section(/* copy:label */ "stolen", r.stolen?.length || r.stolen_gold ? h("div", { class: "chips" },
+      r.stolen_gold ? h("span", { class: "chip stolen gold num" }, `$${r.stolen_gold}`) : "",
+      ...mergeRows((r.stolen ?? []).map((x) => ({ kind: named(x.label.replace(/\s*\(\d+\)$/, "")), n: x.n, gold: x.gold ?? 0 }))).map((x) => h("span", { class: "chip stolen" }, x.kind, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", x.gold > 0 ? h("small", { class: "num dim" }, ` $${x.gold}`) : ""))) : null),
     section(/* copy:label */ "bones", lines((r.bones_found ?? []).map(bonesLine))),
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
     // Cut 21 §2: found supplies the exits put on the shelf (the next send packs them free), before what was sold
     section(/* copy:label */ "shelved", r.shelved?.length ? h("div", { class: "chips shelved" }, ...r.shelved.map((x) => h("span", { class: "chip shelf" }, /* copy:callout */ `found ${x.kind.replace(/_/g, " ")}`, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", /* copy:callout */ " → shelf"))) : null),
-    section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...r.salvaged.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),
+    section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...mergeRows(r.salvaged.map((x) => ({ ...x, kind: named(x.kind) }))).map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),
     // Cut 13 §3: what the automations bought this absence, per kind (`heal ×16 · −$640`)
     section(/* copy:label */ "spent", r.spent?.length ? h("ul", { class: "lines" }, ...r.spent.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num down" }, `−$${s.gold}`)))) : null),
     section(/* copy:label */ "renown", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "") : null),   // a rank pays a mark: the tiles' ◆ reconciles with the rows (QA on 56f2a1d: ◆+9 vs rows ◆+6)

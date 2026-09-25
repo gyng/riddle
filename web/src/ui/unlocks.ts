@@ -52,8 +52,10 @@ export function visible(catalogue: UnlockInfo[]): UnlockCard[] {
 /** Cut 10 §3 / Cut 12 §1: a card's reach delta says where the card goes — `reach +4% at R3` (the catalogue's `insert_at`), else
  *  `at end`; other unlocks carry the bare delta. Cut 13 §5: the `±` rides the delta when the catalogue sends `pm`
  *  (`reach +7% ±5`); a delta within its own half-width reads `reach ~0` — noise shown as noise. */
-export function deltaLabel(u: UnlockInfo, d: number): string {
-  const where = !isCard(u) ? "" : u.insert_at !== undefined ? /* copy:unlock_card */ ` at R${u.insert_at + 1}` : /* copy:unlock_card */ " at end";
+export function deltaLabel(u: UnlockInfo, d: number, rows?: number): string {
+  // QA a946e04 (T: `reach ~0 at R6 · vs packs` on a 5-row set): a place past the set's last row is its end
+  const at = u.insert_at !== undefined && (rows === undefined || u.insert_at < rows) ? u.insert_at : undefined;
+  const where = !isCard(u) ? "" : at !== undefined ? /* copy:unlock_card */ ` at R${at + 1}` : /* copy:unlock_card */ " at end";
   // Cut 18 §5: a card whose best reach is within its ± names when it matters (`reach ~0 at R1 · vs archers`) — every card read
   // `reach ~0 at R4` to both raters, so they skipped them all
   if (deltaIsNoise(u)) return /* copy:unlock_card */ `reach ~0${where}${u.situation ? ` · ${situationLabel(u.situation)}` : ""}`;
@@ -124,9 +126,11 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
     // a short `$ buy` says by how much, as a supply chip does (QA on 3d71c33: "`$ buy` disabled at $210 vs $300 with no `$90 short`")
     const goldShort = gold > 0 && !gateNeeds && app.lineage.gold < gold ? gold - app.lineage.gold : 0;
     let sent = false;
+    // the card's place as this sheet shows it (the catalogue's `insert_at`, never past the set's end)
+    const joinAt = u.insert_at !== undefined ? Math.min(u.insert_at, app.rules.rows.length) : undefined;
     const go = (withGold: boolean) => (): void => {
       if (sent) return; sent = true;
-      void app.buy(u.id, withGold).then((ok) => { close(); if (ok) after?.(); });
+      void app.buy(u.id, withGold, isCard(u) ? { join: u.auto_insert === true, at: joinAt } : undefined).then((ok) => { close(); if (ok) after?.(); });   // QA a946e04: the buy does what the sheet said, where it said
     };
     const buy = h("button", { class: `btn primary buy marks${can ? "" : " off"}`, disabled: !can, onclick: go(false) }, "◆ ", /* copy:button */ "buy");
     const buyGold = gold ? h("button", { class: `btn buy gold${canGold ? "" : " off"}`, disabled: !canGold, onclick: go(true) }, "$ ", /* copy:button */ "buy") : "";
@@ -137,13 +141,31 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       effectLine(app, u) ? h("div", { class: "effect-line num" }, effectLine(app, u)!) : "",
       // QA 92eb880 (N: "`⊘ ◆1 more` while `$ buy` is enabled"): a marks shortfall the gold covers is no lock — the line drops its `⊘`
       needs ? h("div", { class: "needs-line dim" }, canGold && !gateNeeds ? "" : "⊘ ", needs.replace(/_/g, " ")) : "",
-      d ? h("div", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d)) : "",   // Cut 10 §3 / Cut 12 §1 / Cut 13 §5
+      d ? h("div", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d, app.rules.rows.length)) : "",   // Cut 10 §3 / Cut 12 §1 / Cut 13 §5
       stallLabel(u) ? h("div", { class: "num delta down stall-risk" }, stallLabel(u)) : "",   // QA 92eb880
       h("div", { class: "buy-pair" }, buy, buyGold),
       goldShort ? h("div", { class: "needs-line dim num gold-short" }, /* copy:callout */ `$${goldShort} short`) : "",
-      // QA 1a2a4a9 (O, P: buying `+1 row` with gold raised every other price 25 %, silently): the climb, before the tap
-      gold && u.cost ? h("div", { class: "dim num gold-climb" }, /* copy:callout */ `each $ buy +${goldClimb(gold, u.cost)}%`) : "");
+      // QA a946e04 (S: `+1 ROW ◆2 or $300 · each $ buy +25%`, then `◆4 or $600` after a ◆ buy): a chain's card names what the next step
+      // costs — the engine's `next` (its marks; its gold after a ◆ buy, and after a $ buy when that differs) — rather than a rate
+      nextPrice(app, u) ?? (gold && u.cost ? h("div", { class: "dim num gold-climb" }, /* copy:callout */ `each $ buy +${goldClimb(gold, u.cost)}%`) : ""),
+      // QA a946e04 (T: three cards bought, all three went into the rules): a card that will not join the set on its buy says so — it is
+      // owned, and its chip's `add` puts it in
+      isCard(u) ? h("div", { class: `dim num card-joins${u.auto_insert === true ? " joins" : ""}` },
+        u.auto_insert === true ? /* copy:unlock_card */ `joins at R${(joinAt ?? app.rules.rows.length) + 1}` : /* copy:unlock_card */ "owned · add separately") : "");
   });
+}
+/** QA a946e04: the chain's next step as the sheet shows it — `next ◆4 or $600` (its price once this one is bought with marks) and,
+ *  when a $ buy would move it, `$ buy → $750`. The engine's `UnlockInfo.next`, else the catalogue's own entry for the next step
+ *  (its gold price is today's — a ◆ buy leaves it). Null when the card is no chain's step. */
+function nextPrice(app: App, u: UnlockInfo): HTMLElement | null {
+  const id = Object.entries(AFTER).find(([, prev]) => prev === u.id)?.[0];
+  const cat = id ? app.unlockCat.find((x) => x.id === id) : undefined;
+  const n = u.next ?? (cat && !cat.owned ? { id: cat.id, cost: cat.cost, gold: cat.gold ?? 0, gold_after_gold: 0 } : undefined);
+  if (!n) return null;
+  const price = [n.cost ? `◆${n.cost}` : "", n.gold ? `$${n.gold}` : ""].filter(Boolean).join(/* copy:label */ " or ");
+  if (!price) return null;
+  return h("div", { class: "dim num next-price" }, /* copy:callout */ `next ${price}`,
+    n.gold_after_gold && n.gold_after_gold !== n.gold ? h("span", { class: "after-gold" }, /* copy:callout */ ` · $ buy → $${n.gold_after_gold}`) : "");
 }
 /** The core's gold price is `GOLD_PER_MARK × cost × (4 + gold_buys) / 4` (meta.rs): each gold buy raises every gold price by
  *  1 / (4 + gold_buys) — 25 % at the first, 20 % at the second, … — read back off this card's price. */

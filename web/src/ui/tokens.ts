@@ -55,8 +55,10 @@ export const NUMS: Record<string, number[]> = {
 export const needsN = (k: string): boolean => k in NUMS;
 /** Cut 21 §3 (AE banked at D20; the picker stopped at 12): `depth ≥` offers every depth from 2 to the lineage's best + 2 (never
  *  fewer than the old table's, D2–8), and any depth the vocabulary names (a cond it sends with its `n`). */
-export function depthNums(best: number, vocab?: { conds: Cond[] }): number[] {
-  const hi = Math.max(8, best + 2);
+export function depthNums(best: number, vocab?: { conds: Cond[]; depth_max?: number }): number[] {
+  // QA a946e04 (T: `2–8` at best D4 and D5, `2–9` at D7 — the contract's own range, best + 2 never under 8): the engine's bound
+  // (`Vocabulary.depth_max`) when it sends one; the same rule else
+  const hi = vocab?.depth_max ?? Math.max(8, best + 2);
   const out = new Set<number>(Array.from({ length: hi - 1 }, (_, i) => i + 2));
   for (const c of vocab?.conds ?? []) if (c.k === "depth>=" && c.n !== undefined && c.n >= 2) out.add(c.n);
   return [...out].sort((a, b) => a - b);

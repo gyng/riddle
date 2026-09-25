@@ -152,7 +152,7 @@ async function qaK() {
     check(r.above && !(await page.locator(".panel-host .panel").count()), "a tap on the well beside an open panel closes it");
   }
   const trait = await page.evaluate(() => [...document.querySelectorAll(".chip.trait")].map((c) => c.textContent.replace(/\s+/g, " ").trim()));
-  check(trait.includes("braveskips a retreat") || trait.some((t) => /^(✓ )?brave ?skips a retreat$/.test(t)), `brave's rule reads \`skips a retreat\` (${trait.join(" | ")})`);
+  check(trait.some((t) => /^(✓ )?brave ?skips (a )?retreat( 1×\/floor)?$/.test(t)), `brave's rule reads \`skips retreat 1×/floor\` (the core's \`skips one retreat a floor\` in three words; ${trait.join(" | ")})`);
   const busy = await page.evaluate(async () => {
     let release; const held = window.__riddle.busy("forecast", () => new Promise((r) => { release = r; })); await new Promise((r) => setTimeout(r, 80));
     const st = document.querySelector(".camp-well .busy-strip"), q = st.getBoundingClientRect(), text = st.textContent, corner = document.querySelector(".busy-label:not([hidden])")?.textContent ?? null;
@@ -378,7 +378,7 @@ async function cut19() {
   const b1 = await badge(), panel = await page.locator(".panel[data-panel=loadout]").count();
   await page.locator(".cmd .tile[data-tile=loadout] .repeat-badge").click({ timeout: 5000 }).catch(() => {}); await sleep(300);
   const b2 = await badge(), calls = await page.evaluate(() => window.__riddle.__restock);
-  check(b0 === "repeat · $120" && b1 === "repeat off" && b2 === "repeat · $120" && calls.join() === "false,true" && panel === 0, `the loadout tile: \`${b0}\` → \`${b1}\` → \`${b2}\` (setRestock ${calls.join()}; shelf ${panel ? "opened" : "shut"})`);
+  check(b0 === "repeat on · $120" && b1 === "repeat off" && b2 === "repeat on · $120" && calls.join() === "false,true" && panel === 0, `the loadout tile: \`${b0}\` → \`${b1}\` → \`${b2}\` (setRestock ${calls.join()}; shelf ${panel ? "opened" : "shut"})`);
   // ---- §3: the short list always carries the pinned `+1 row`, ranked last or not
   await page.evaluate(() => {
     const r = window.__riddle;
@@ -417,7 +417,7 @@ async function cut19() {
   const dd = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict") ? getComputedStyle(document.querySelector(".death-line .verdict")).textTransform + ":" + document.querySelector(".death-line .verdict").textContent : "",
     targets: [...document.querySelectorAll("button.patch .target")].map((t) => t.textContent.trim()) }));
   check(/^goblin archer · D6 · R1 drink unknown$/.test(dd.cause ?? "") && dd.seal === "uppercase:row", `the row verdict: the headline names the row, the seal reads ROW ("${dd.cause}", ${dd.seal})`);
-  check(dd.targets.join(" | ") === "R1 − | · drops R5", `the cut leads, the insert names the row it drops (${dd.targets.join(" | ")})`);
+  check(dd.targets.join(" | ") === "cut R1 | · drops R5", `the cut leads, the insert names the row it drops (${dd.targets.join(" | ")})`);
   await shot("ui-cut19-row");
   // QA 1a2a4a9: a tablet tap lights it; the gem applies the lit one
   await page.locator("button.patch[data-full]").first().click({ timeout: 5000 }); await sleep(150);
@@ -512,7 +512,7 @@ async function cut18() {
       face: !document.querySelector(".death .portrait.dead"), surv: document.querySelector("button.patch .surv")?.textContent };
   });
   check(head.text === "stalled · R2 retreat ↔ explore · D6 · keeps $0" && head.loopOne && head.inside, `a stall's headline: the loop whole on one line, every segment on screen ("${head.text}", loop one line ${head.loopOne}, inside ${head.inside})`);
-  check(head.face && head.surv === "unstuck 100% · base 8%", `a stall is no death: the face lit, the patch reads what it ends ("${head.surv}", lit ${head.face})`);
+  check(head.face && head.surv === "unstuck 100% · unpatched 8%", `a stall is no death: the face lit, the patch reads what it ends ("${head.surv}", lit ${head.face})`);
   await shot("ui-stall-head");
   // QA 1a2a4a9: the core's new reasons arrive verbatim and read whole, one line each
   await page.evaluate(() => window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 4, cause: "jackal", margin: "", verdict: "gap", baseline: 0.3, morgue: "t1", patches: [],

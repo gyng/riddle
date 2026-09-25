@@ -121,7 +121,10 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   }
 
   function defaultRow(): Row {
-    const V = vocab(); const v = V.verbs[0] ?? { v: "attack" }; const c = V.conds[0] ?? { k: "hp<" };
+    // QA a946e04 (S: the new row `hp < 50% → attack nearest` was born dead under `foes ≥ 1 → attack nearest` — "the add had failed"):
+    // the first verb no row of the set uses yet (a row that repeats an earlier row's verb under a narrower cond is what shadows)
+    const V = vocab(); const used = new Set(rows().map((r) => `${r.verb.v}:${r.verb.a ?? ""}`));
+    const v = V.verbs.find((x) => x.v !== "tactic" && !used.has(`${x.v}:${x.a ?? ""}`)) ?? V.verbs[0] ?? { v: "attack" }; const c = V.conds[0] ?? { k: "hp<" };
     return { conds: [{ ...c, n: needsN(c.k) ? 50 : undefined }], verb: { ...v }, origin: "player" };
   }
 

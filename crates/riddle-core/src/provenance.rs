@@ -208,7 +208,9 @@ pub fn because_for(run: &mut Run, cx: &mut Ctx, why: &str, row: Option<&Row>, co
         "no path" => {
             let text = path_blocker(run)?;
             // One entry per block: the tick points at the first action the blocker held.
-            if last(cx.prov, "path").is_none_or(|p| p.text != text) {
+            // a matching blocker from another floor is another moment (QA T on a946e04: a D4
+            // death linked to a D2 replay)
+            if last(cx.prov, "path").is_none_or(|p| p.text != text || p.depth != run.depth) {
                 log(run, cx, ProvKind::Path, "path".into(), text, true);
             }
             last(cx.prov, "path").map(Prov::because)

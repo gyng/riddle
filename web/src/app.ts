@@ -97,6 +97,8 @@ export class App {
   unlockCat: UnlockInfo[] = [];
   /** Cut 13 §5: the last forecast painted (the refine when it landed), so a `dice` death can say what it said for that depth. */
   lastForecast: Forecast | null = null;
+  /** QA a946e04: bumps with every forecast handed to the listeners (the shaft and the panel tag the one they painted: `data-fc`). */
+  forecastSeq = 0;
   /** QA 92eb880: the active set's shadowed rows (`Forecast.shadowed_by`, per row the earlier row that takes all its moments) as of the
    *  last forecast painted for the rules now; `null` until one lands after an edit (then the lineage's own read, for the set it holds). */
   private shadow: (number | null)[] | null = null;
@@ -344,13 +346,18 @@ export class App {
       // QA 23ed91f (L: switching to an empty set, the shaft kept the old set's `return 94%` for ~5 s, then flipped): a forecast whose
       // rules changed while it ran is not painted (the shaft stays dimmed `stale`); the next one, for the rules now, is
       if (!this.fcDirty) {
-        this.lastForecast = f; this.shadow = f.shadowed_by ?? [];
-        for (const fn of this.fcListeners) fn(f);
+        this.publishForecast(f);
         this.scheduleRefine();
       }
     } catch (e) { console.warn("forecast failed", e); }
     finally { this.fcInFlight = false; }
     if (this.fcDirty) await this.emitForecast();
+  }
+  /** QA a946e04 (S: the shaft and the panel showed two passes at once): one forecast to every listener — each in its own try, so a
+   *  listener that throws never leaves the ones after it on the previous pass. */
+  private publishForecast(f: Forecast): void {
+    this.lastForecast = f; this.shadow = f.shadowed_by ?? []; this.forecastSeq++;
+    for (const fn of this.fcListeners) { try { fn(f); } catch (e) { console.warn("forecast listener", e); } }
   }
   /** Cut 6 §9: after the forecast paints and the rules stay unchanged for REFINE_MS, `forecastRefine` (100 sims) repaints
    *  quietly (no progress bar). A rule edit or a fresh forecast cancels it; an engine without it is asked once. */
@@ -363,8 +370,7 @@ export class App {
       try {
         const f = await this.engine.forecastRefine!();
         if (seq !== this.refineSeq) return;
-        this.lastForecast = f; this.shadow = f.shadowed_by ?? [];
-        for (const fn of this.fcListeners) fn(f);
+        this.publishForecast(f);
       } catch (e) { this.refineOff = true; console.warn("forecastRefine unavailable", e); }
     }, REFINE_MS);
   }
@@ -441,9 +447,10 @@ export class App {
    *  `{v:"tactic", a:<id>}`), so the player sees where it sits. Cut 12 §1: it sits where it acts — at the catalogue's
    *  `insert_at` when the engine sends one, else before the set's engagement row (the first `attack` / `shoot`), else the
    *  end; card rows sit outside `max_rows`, so a card never overflows the set. */
-  async buy(id: string, gold = false): Promise<boolean> {
+  async buy(id: string, gold = false, card?: { join: boolean; at?: number }): Promise<boolean> {   // card: what the sheet said the buy does (`joins at R2` / `owned · add separately`), else the catalogue's flag and place
     const u = this.unlockCat.find((x) => x.id === id);
-    const at = u?.insert_at;
+    const at = card ? card.at : u?.insert_at;
+    const join = card?.join;
     // Cut 15 §2: `gold` pays the catalogue's gold price instead of marks (the returned lineage repaints the header's $ and ◆)
     const ok = await this.mutate(() => (gold ? this.engine.buyUnlockGold!(id) : this.engine.buy(id)));
     if (ok) audio.cue("unlock");   // Cut 10 §4
@@ -451,7 +458,9 @@ export class App {
     // measured it helps there (`UnlockInfo.auto_insert`: reach not down at its place, stall share not up, < 3 cards in the set); else
     // it is owned, off the set — its chip offers `add` (an older wire without the flag inserts as before)
     const isTactic = this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id);
-    if (ok && isTactic && u?.auto_insert !== false && !this.holdsCard(id)) { this.insertCard(id, at); this.emitChange(); }
+    // QA a946e04 (T: three cards bought, all three inserted — the catalogue's merge had dropped the flag, and absent read as yes): the
+    // flag is honoured strictly — a card joins only on `auto_insert: true`; false or absent, it is owned and its chip offers `add`
+    if (ok && isTactic && (join ?? u?.auto_insert === true) && !this.holdsCard(id)) { this.insertCard(id, at); this.emitChange(); }
     else if (ok && isTactic) { /* owned, not in the set */ }
     // a verb unlock's `reach +21%` was measured with its canonical row at the top (the catalogue sends `rows` + `insert_at`
     // for it); the buy inserts that row so the number holds (QA on e0f87e7: "bought, forecast identical")
@@ -572,6 +581,13 @@ function mergeCounts(x?: { label: string; n: number }[], y?: { label: string; n:
   const m = new Map<string, number>(); for (const r of [...(x ?? []), ...(y ?? [])]) m.set(r.label, (m.get(r.label) ?? 0) + r.n);
   return [...m].map(([label, n]) => ({ label, n })).sort((p, q) => q.n - p.n);
 }
+/** QA a946e04: stolen rows summed per label, their worth (`gold`) with them. */
+function mergeStolen(x?: { label: string; n: number; gold?: number }[], y?: { label: string; n: number; gold?: number }[]): { label: string; n: number; gold?: number }[] | undefined {
+  if (x === undefined && y === undefined) return undefined;
+  const m = new Map<string, { label: string; n: number; gold?: number }>();
+  for (const r of [...(x ?? []), ...(y ?? [])]) { const c = m.get(r.label) ?? { label: r.label, n: 0 }; c.n += r.n; if (r.gold !== undefined) c.gold = (c.gold ?? 0) + r.gold; m.set(r.label, c); }
+  return [...m.values()].sort((p, q) => q.n - p.n);
+}
 export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const union = (x: string[], y: string[]): string[] => [...new Set([...x, ...y])];
   // `rank 1 … rank 9` and `fighter L2 … L5` collapse to the highest of each ladder
@@ -605,7 +621,10 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     // Cut 20 §5: the night's bounty — slices of one night add up (taken by any, the coins summed); a later night's floor replaces it
     // QA e75ec29: the floor the player saw before leaving is the first slice's — a later slice's (a new best moved it) never replaces it
     bounty: !a.bounty ? b.bounty : !b.bounty ? a.bounty : a.bounty.depth === b.bounty.depth ? { depth: a.bounty.depth, taken: a.bounty.taken || b.bounty.taken, gold: a.bounty.gold + b.bounty.gold } : a.bounty,
-    stolen: mergeCounts(a.stolen, b.stolen),               // QA e75ec29 (R): thefts nothing got back, per label
+    stolen: mergeStolen(a.stolen, b.stolen),               // QA e75ec29 (R): thefts nothing got back, per label (QA a946e04: with their worth)
+    stolen_gold: sum(a.stolen_gold, b.stolen_gold),        // QA a946e04: the carry the thefts took
+    // QA a946e04: the waystone the night's pass went unpaid for — the runs from D1 summed across slices of one waystone
+    start_short: !a.start_short ? b.start_short : !b.start_short ? a.start_short : { ...b.start_short, runs: a.start_short.runs + (a.start_short.depth === b.start_short.depth ? b.start_short.runs : 0) },
     shelved: mergeCounts(a.shelved?.map((x) => ({ label: x.kind, n: x.n })), b.shelved?.map((x) => ({ label: x.kind, n: x.n })))?.map((x) => ({ kind: x.label, n: x.n })),   // Cut 21 §2: found supplies to the shelf, per kind
     exits: cat(a.exits, b.exits),                          // Cut 6 §1: one ledger line per exit
     elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,

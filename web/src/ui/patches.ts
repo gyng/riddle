@@ -68,7 +68,7 @@ function firesOf(app: App, trace?: Trace): number[] {
 export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: boolean; select?: (btn: HTMLButtonElement) => void };
 export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace, opts: PatchOpts = {}): HTMLElement {
   const head = opts.nothingBeatsBase && patches.length
-    ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `nothing beats base · base ${pct(baseline ?? 1)}`) : null;
+    ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `nothing beats unpatched ${pct(baseline ?? 1)}`) : null;
   const rows = patches.map((p) => {
     const delta = Math.round(p.forecast_delta * 100);
     // QA 23ed91f (K: "`reach 92% · base 8% · reach +83%`: 92 − 8 ≠ 83, and `reach` twice"): a stall patch's base is the rounded reach
@@ -80,20 +80,25 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const stallish = baseline === undefined && held < 0 && !p.below_bar;   // the first line already says `reach`
     // Cut 15 §3: an insert onto a full set asks which own row to drop (`+ drop one`)
     const full = !unlock && !p.remove && !p.replace && held < 0 && app.rowsFull && app.rules.rows.some((r) => !isCardRow(r));
-    const target = p.remove || p.replace ? h("small", { class: "dim target" }, `R${p.insert_at + 1} ${p.remove ? "−" : "↻"} `)
+    // QA a946e04 (S: `R1 − hp < 20% · foes ≥ 1 → drink unknown` — "delete R1?"): a cut reads as one (`cut R1`); a replace keeps `R1 ↻`
+    const target = p.remove || p.replace ? h("small", { class: "dim target" }, p.remove ? /* copy:callout */ `cut R${p.insert_at + 1} ` : `R${p.insert_at + 1} ↻ `)
       // Cut 19 §4: the core names the row the insert drops (`Patch.drops`, the dead run's least-fired own row) — `+ drop R5`; the tap
       // still opens the drop sheet on it (marked), so the player may drop another
       : "";
     // QA 1a2a4a9 (O: `+ drop R2 hp < 40% → drink heal` read as "put it at R2"): the drop trails the row it makes room for — `drops R2`
     const dropTag = full ? h("small", { class: "dim target drop-tag" }, " · ", dropsOf(app, p) >= 0 ? /* copy:callout */ `drops R${dropsOf(app, p) + 1}` : /* copy:callout */ "drops one") : "";
+    // QA a946e04 (T: `retreat · survives 75% · base 75%` listed like a fix): a death patch that survives no more than the rules as they
+    // are changes nothing — dim, `no gain`
+    const noGain = baseline !== undefined && !opts.stall && !p.below_bar && held < 0 && !unlock && Math.round(p.survive * 100) <= Math.round(baseline * 100);
     const line = held >= 0
       ? /* copy:callout */ `at R${held + 1}`
       : p.below_bar
       ? opts.nothingBeatsBase ? /* copy:callout */ `survives ${pct(p.survive)}` : /* copy:callout */ `survives ${pct(p.survive)} · below bar`
       : baseline === undefined
         ? /* copy:callout */ `reach ${opts.depth !== undefined ? `D${opts.depth} ` : ""}${pct(p.survive)} · base ${Math.max(0, Math.round(p.survive * 100) - delta)}%`
-        : opts.stall ? /* copy:callout */ `unstuck ${pct(p.survive)} · base ${pct(baseline)}`
-        : /* copy:callout */ `survives ${pct(p.survive)} · base ${pct(baseline)}`;
+        // QA a946e04 (S: `base 25%` on every patch — "the base of what?"): the rules as they ran, replayed — `unpatched 25%`
+        : opts.stall ? /* copy:callout */ `unstuck ${pct(p.survive)} · unpatched ${pct(baseline)}`
+        : noGain ? /* copy:callout */ `survives ${pct(p.survive)} · no gain` : /* copy:callout */ `survives ${pct(p.survive)} · unpatched ${pct(baseline)}`;
     const onclick = unlock
       ? async (): Promise<void> => {
           const id = unlockOf(app, p);
@@ -114,7 +119,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const root = unlock ? (p.root ? h("small", { class: "dim" }, rowLabel(p.row)) : "") : p.root ? h("small", { class: "root" }, "← ", p.root.text) : "";
     // QA 1a2a4a9 (O: "tapping a patch card applied it and jumped to camp; I meant to select it"): with `opts.select` (the death screen)
     // a tap lights the tablet and the gem applies the lit one — one model: tablets choose, the gem acts
-    const btn: HTMLButtonElement = h("button", { class: `patch tablet${p.remove ? " remove" : ""}${p.below_bar || held >= 0 || opts.nothingBeatsBase ? " below" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
+    const btn: HTMLButtonElement = h("button", { class: `patch tablet${p.remove ? " remove" : ""}${p.below_bar || held >= 0 || opts.nothingBeatsBase || noGain ? " below" : ""}${noGain ? " no-gain" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
       onclick: opts.select ? () => opts.select!(btn) : onclick, ...(full ? { "data-full": "1" } : {}) },
       h("b", { class: "rank num", "aria-hidden": "true" }), h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
@@ -139,6 +144,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
 function renumber(host: HTMLElement): void {
   host.querySelectorAll<HTMLElement>(":scope > button.patch > .rank").forEach((r, i) => { r.textContent = `${i + 1}.`; });
 }
+const EXIT_VERBS = new Set(["return", "bank"]);
 /** Each patch tablet's action (apply, buy, open the drop sheet, open the camp on a held row) — the gem's, when tablets only select. */
 export const applyOf = new WeakMap<HTMLElement, () => void | Promise<void>>();
 
@@ -147,6 +153,9 @@ export const applyOf = new WeakMap<HTMLElement, () => void | Promise<void>>();
  *  12-sim estimate is not the camp's number — QA 23ed91f, K: "`reach +8%` … the shaft went D5 79% → 78%"). A stall patch's first
  *  line already says `reach`: its delta is bare (`+84%`). */
 function reachSpan(p: Patch, stallish = false): HTMLElement {
+  // QA a946e04 (S: `hp < 20% → return · reach D7 +0%` — "a return ends the run"): an exit row's patch takes him home; how deep the
+  // camp's runs reach is not its measure (its survival is)
+  if (!stallish && EXIT_VERBS.has(p.row.verb.v) && !p.remove) return h("span", { class: "num delta exit", hidden: true });
   if (p.camp_pending) return h("span", { class: "num delta pending" }, /* copy:callout */ "reach …");
   const delta = Math.round(p.forecast_delta * 100);
   const pm = p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : undefined;

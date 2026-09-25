@@ -87,7 +87,7 @@ try {
         { t: inT - 20, row: 1, verb: { v: "attack", a: "nearest" }, hp: 9, foes: 1, telegraphs: [] },
         { t: inT + 30, row: Math.min(2, rows.length - 1), verb: { v: "attack", a: "nearest" }, hp: 3, foes: 2, telegraphs: ["archer draws"], rows: [
           { row: 0, why: "no item", because: { text: "den took the heal, D3", t: inT, depth } },
-          { row: 1, why: "no path", because: { text: "gas cloud, this room", t: outT, depth: depth + 1 } },
+          { row: 1, why: "no path", because: { text: "gas cloud rose", t: outT, depth: depth + 1 } },   // an event past the run (a present-state blocker off the floor is re-stamped: qa21.mjs)
         ] },
       ] },
       chain: [{ text: "den took the heal, D3", t: inT, depth }, { text: "never found a scroll", t: inT + 10, depth }],
@@ -108,7 +108,7 @@ try {
   check(chain.length === 4, `chain: ${chain.length} lines (2 rows + fired + 1 extra chain link): ${chain.map((c) => c.text).join(" | ")}`);
   check(/^R1 .*no item ← den took the heal, D3/.test(chain[0]?.text ?? ""), `R1 reads reason ← because: "${chain[0]?.text}"`);
   check(chain[0]?.watch === true, "R1's because (inside the run) carries a watch chip");
-  check(/^R2 .*no path ← gas cloud, this room/.test(chain[1]?.text ?? "") && chain[1].watch === false, `R2's because (past the run) has no watch chip: "${chain[1]?.text}"`);
+  check(/^R2 .*no path ← gas cloud rose/.test(chain[1]?.text ?? "") && chain[1].watch === false, `R2's because (past the run) has no watch chip: "${chain[1]?.text}"`);
   check(new RegExp(`D${fl.depth + 1} · t${outT}$`).test(chain[1]?.at ?? ""), `R2's line ends with the depth and tick instead: "${chain[1]?.at}"`);
   check(/fired$/.test(chain[2]?.text ?? "") && chain[2].cls.includes("fired"), `the fired row closes the rows: "${chain[2]?.text}"`);
   check(/never found a scroll/.test(chain[3]?.text ?? "") && chain[3].cls.includes("extra"), `Death.chain entries beyond the rows follow: "${chain[3]?.text}"`);

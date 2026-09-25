@@ -93,8 +93,9 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     let causeAt = next;
     { const byD = new Map(f.depths.map((d) => [d.depth, d.reach])); if ((byD.get(next - 1) ?? 1) < 0.05) {
       let drop = -1; for (const d of f.depths) { const fall = (byD.get(d.depth - 1) ?? 1) - d.reach; if (fall > drop) { drop = fall; causeAt = d.depth; } } } }
-    // Cut 21 §1: a waystone start skips the floors above it (they are not run) — the bars start on the start floor
-    const start = Math.max(1, app.lineage.start ?? 1);
+    // Cut 21 §1: a waystone start skips the floors above it (they are not run) — the bars start on the start floor; QA a946e04 (T: the
+    // tablet read D5 while the sims ran from D1 — `D5 88%`): the floor the forecast's sims started on (`Forecast.start`) when it says
+    const start = forecastStart(app, f);
     for (const d of f.depths) {
       if (d.depth < start) continue;
       // Cut 18 §3: a floor the boss above seals (`ForecastDepth.wall`) names him as the cause: `D9 0% · warlord wall`
@@ -141,14 +142,20 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   // a rule edit (or a set switch) dims the numbers until the engine's next forecast paints — an empty set's takes seconds and
   // the old set's bars read as the new one's meanwhile (QA on 952e306: "set '2 0' showed set 1's D4 72%")
   const stale = (): void => { paintYours(); el.classList.add("stale"); };
-  const fresh = (f: Forecast): void => { el.classList.remove("stale"); paint(f); };
+  // QA a946e04 (S: the shaft `D5 22% ±11 · return 78%` beside the panel's `21% ±8 · return 76%` on one screen): the panel and the shaft
+  // paint one forecast — `app.lastForecast`, the event both are handed (the first pass `…`, then the refine) — and the panel starts
+  // from it, never from a pass of its own
+  const fresh = (): void => { const f = app.lastForecast; if (!f) return; el.classList.remove("stale"); el.dataset.fc = String(app.forecastSeq); paint(f); };
   const off = app.onForecast(fresh), offRules = app.onRules(stale), offChange = app.onChange(paintYours);
-  paintYours(); paintPicked();
+  paintYours(); paintPicked(); fresh();
   // the first forecast posts after the camp's own fetches (the worker answers in order: a forecast posted first held the
   // supply shop and the unlock shelf behind it — QA B on 952e306: "while FORECAST shows '…' the shop chips and UNLOCKS are gone")
   setTimeout(() => void app.emitForecast(), 0);
   return { el, dispose: () => { off(); offRules(); offChange(); } };
 }
+
+/** QA a946e04: where the shown forecast's sims started — `Forecast.start` (1 when the purse cannot pay the toll), else the lineage's. */
+export const forecastStart = (app: App, f: Forecast | null): number => Math.max(1, f?.start ?? app.lineage.start ?? 1);
 
 /** QA 92eb880: the depth a lone `depth ≥ N → bank` row sends the hero home from (the smallest such N); undefined without one. */
 export function bankCap(rows: Row[]): number | undefined {
@@ -173,8 +180,11 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     // Cut 20 §5: the bounty floor (best + 2) carries a notch of its own past best + 1 — `D12 ×2`, a gold glint
     const bountyD = last?.depths.find((d) => d.bounty)?.depth ?? app.lineage.bounty?.depth;
     // Cut 21 §1: the shaft starts where the send does — D1, or the chosen waystone (`Lineage.start`); the floors above it are not run
-    const start = Math.max(1, app.lineage.start ?? 1);
-    const next = Math.max(start, app.lineage.best_depth + 1), deepest = Math.max(next, bountyD ?? 0), from = deepest - start + 1 > MAX ? deepest - MAX + 2 : start;
+    const start = forecastStart(app, last);
+    // QA a946e04 (T: `depth ≥ 7 → bank` from a D5 start, the shaft stopped at D6 — no notch for the floor it banks on): the set's bank
+    // floor gets its notch while the forecast knows it
+    const capD = bankCap(app.rules.rows), known0 = last?.known_to ?? 0;
+    const next = Math.max(start, app.lineage.best_depth + 1), deepest = Math.max(next, bountyD ?? 0, capD !== undefined && capD <= known0 + 1 ? capD : 0), from = deepest - start + 1 > MAX ? deepest - MAX + 2 : start;
     const byDepth = new Map((last?.depths ?? []).map((d) => [d.depth, d]));
     const known = last?.known_to ?? 0;
     const rough = last?.refined === false, cap = bankCap(app.rules.rows);
@@ -213,10 +223,10 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, pct(e.death))),
       h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`));
   };
-  paint();
+  paint(); if (last) el.dataset.fc = String(app.forecastSeq);
   // QA 23ed91f (K: "the shaft moves with no edit … the ± only shows in the forecast sheet"): the first pass (`refined` false) paints
   // dim until the refine lands, and each notch carries its ± — a move inside it is the sims, not the last tap
-  const off = app.onForecast((f) => { last = f; el.classList.remove("stale"); el.classList.toggle("rough", f.refined === false); paint(); });
+  const off = app.onForecast(() => { const f = app.lastForecast; if (!f) return; last = f; el.dataset.fc = String(app.forecastSeq); el.classList.remove("stale"); el.classList.toggle("rough", f.refined === false); paint(); });
   const offRules = app.onRules(() => { el.classList.add("stale"); paint(); });   // the bank cap follows the rows at once
   const offChange = app.onChange(paint);
   return { el, paint, dispose: () => { off(); offRules(); offChange(); } };
