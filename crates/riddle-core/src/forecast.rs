@@ -309,7 +309,29 @@ fn panel_budget(sims: u32) -> u64 {
 /// The memo key of the camp's panel for `rules` at `sims` (`camp_panel`).
 pub fn panel_key(game: &Game, rules: &RuleSet, sims: u32) -> String {
     let tag = forecast_tag(game, game.lineage.best_depth + 1);
-    format!("{}:{sims}:{tag}:{}:{}", lineage_key(game), panel_budget(sims), rules_key(rules))
+    format!("{}:{sims}:{tag}:{}:{}", lineage_key(game), panel_budget(sims), played_key(game, rules))
+}
+
+/// QA on a946e04 (qaS: adding a row the editor marks dead — `↑ R3` — moved the shaft D5 72 →
+/// 74 %, D6 56 → 61 %): what of a set a sim can play — the set less its shadowed rows (a
+/// shadowed row never acts: `turn::choose_and_act` skips it `same as R<n>`), with the kinds
+/// the send's repeat re-buys for the whole set (`LineageState::row_kinds_of`: a shadowed
+/// `drink heal` still packs a heal). A shadowed row stays in the key when another saved set
+/// holds it (a shrine lends only a row the active set lacks) or when the set is over its row
+/// cap (the send refuses it). So a dead row reads the panel of the set without it — the
+/// refined one when that was refined — and the forecast does not move.
+pub fn played_key(game: &Game, rules: &RuleSet) -> String {
+    let l = &game.lineage;
+    let kinds = l.row_kinds_of(rules);
+    let shadowed = l.shadowed_by(rules);
+    if shadowed.is_empty() || rules.own_rows() > l.max_rows() {
+        return format!("{}|{kinds:?}", rules_key(rules));
+    }
+    let active = l.active_set.min(l.sets.len().saturating_sub(1));
+    let lent = |r: &crate::rules::Row| l.sets.iter().enumerate().any(|(i, s)| i != active && s.rows.contains(r));
+    let rows: Vec<crate::rules::Row> = rules.rows.iter().enumerate().filter(|(i, r)| shadowed.get(*i).copied().flatten().is_none() || lent(r)).map(|(_, r)| r.clone()).collect();
+    let played = RuleSet { rows, name: rules.name.clone() };
+    format!("{}|{kinds:?}", rules_key(&played))
 }
 
 /// QA on 1a2a4a9: what of a set a sim plays — each row's conditions and verb. A row's
@@ -385,7 +407,7 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
 pub fn sim_start(game: &Game) -> u32 {
     let l = &game.lineage;
     let d = l.start.max(1);
-    if d > 1 && l.waystones.contains(&d) && l.gold >= crate::engine::LineageState::start_toll(d) {
+    if l.start_payable(d) {
         d
     } else {
         1
@@ -420,7 +442,7 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
         (reach, bank, gold, ended.len())
     };
     let base = read(&camp_panel(game, &rules, sims));
-    let base_toll = if sim_start(game) > 1 { crate::engine::LineageState::start_toll(current) } else { 0 };
+    let base_toll = if sim_start(game) > 1 && !game.lineage.night_passes.contains(&current) { crate::engine::LineageState::start_toll(current) } else { 0 };
     let others: Vec<u32> = options.iter().copied().filter(|d| *d != current).collect();
     let measured: Vec<(Read, BTreeMap<String, Vec<SimResult>>)> = others
         .iter()
@@ -436,7 +458,9 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
     let mut out = Vec::with_capacity(options.len());
     for d in options {
         let toll = crate::engine::LineageState::start_toll(d);
-        let short = toll > game.lineage.gold;
+        // QA on a946e04: tonight's pass is paid — the next send from it pays nothing.
+        let pass = game.lineage.night_passes.contains(&d);
+        let short = !game.lineage.start_payable(d);
         let (reach, bank, gold, n) = if d == current {
             base
         } else {
@@ -446,7 +470,7 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
             }
             r
         };
-        let paid = if short { 0 } else { toll };
+        let paid = if short || pass { 0 } else { toll };
         let net = gold - paid as f64;
         let banks = bank > 0.0 || base.1 > 0.0;
         out.push(crate::wire::StartOption {
@@ -455,6 +479,7 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
             toll,
             biome: crate::descent::biome_for(d).name().into(),
             short,
+            pass,
             depth: bar,
             reach,
             reach_delta: reach - base.0,
@@ -624,5 +649,7 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&format!("{:?}", l.trophies));
     // Cut 21 §1: where the sends start (and whether that waystone is lit).
     feed(&format!("start {} {:?}", l.start, l.waystones));
+    // QA on a946e04: the night's waystone passes (a sim's send from one pays no toll).
+    feed(&format!("passes {:?}", l.night_passes));
     h
 }

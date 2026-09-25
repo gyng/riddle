@@ -127,6 +127,21 @@ impl Trait {
             Trait::Brave => "brave",
         }
     }
+    /// QA on a946e04 (qaS: `cowardly · flees under 50%` while the morgue showed him fighting
+    /// from 6/36 down to 1): the trait's real rule, for its chip (`Lineage.trait_rules`). A
+    /// trait overrides a row at most once per floor (Cut 13 §2, `Run.trait_floor`, shared by
+    /// every trait): the coward steps back once per floor under 50 % HP with a foe in view
+    /// (`turn::choose_and_act`), the brave skips a `retreat` / `back_corridor` row once per
+    /// floor against a lone foe, the curious tries one unknown per floor with no foe in view,
+    /// the greedy grabs a neighbouring item (or walks into a den's gold) once per floor.
+    pub fn rule(self) -> &'static str {
+        match self {
+            Trait::Greedy => "grabs loot once a floor",
+            Trait::Cowardly => "backs off once a floor under 50%",
+            Trait::Curious => "tries one unknown a floor",
+            Trait::Brave => "skips one retreat a floor",
+        }
+    }
     /// Cut 5 §4: the shrine's trait swap (`pray trait`): greed ↔ curiosity, cowardice ↔ bravery.
     pub fn swap(self) -> Trait {
         match self {

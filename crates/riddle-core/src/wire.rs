@@ -46,6 +46,10 @@ pub struct RunRef {
     pub id: u32,
     pub heir: u32,
     pub started_turn: u64,
+    /// QA on a946e04 (qaT: a short purse sent the run from D1 unsaid): the floor this run
+    /// started on (1, or the waystone it paid for).
+    #[serde(default = "one")]
+    pub start: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -198,6 +202,20 @@ pub struct ExitLine {
     /// unidentified).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stolen: Vec<String>,
+    /// QA on a946e04 (qaT: run 6's `+$71 banked · −$40 spent` beside `$51 → $32` — the send's
+    /// `−$50 waystone D5` left out): the toll this run's send paid (0 from D1 or on the night's
+    /// pass), the floor it started on, and the waystone it wanted and did not start on (a toll
+    /// the purse could not pay, or unlit: `from D1 · toll short`).
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub toll: i32,
+    #[serde(default = "one")]
+    pub start: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_short: Option<u32>,
+    /// QA on a946e04 (qaT: the strip's `−$36 stolen`): the carried gold the thefts this run
+    /// never got back took off it (each stolen item's worth).
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub stolen_gold: i32,
     /// QA on e75ec29 (qaR): a death whose heir purse was already at `engine::WAKE_PAY` — no
     /// top-up (`purse full`); a top-up reads `+$N wake` in `text`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -460,6 +478,10 @@ pub struct StartOption {
     pub biome: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub short: bool,
+    /// QA on a946e04: tonight's pass for this start is paid — the next send from it is free
+    /// (`toll` is the next night's).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pass: bool,
     pub depth: u32,
     pub reach: f64,
     pub reach_delta: f64,
@@ -716,6 +738,13 @@ pub struct ReturnReport {
     /// theft: a flavour name while unidentified — `murky potion?`), most first.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stolen: Vec<StolenRow>,
+    /// QA on a946e04 (qaT): the waystone the absence could not pay the night's pass for, and
+    /// the sends that went from D1 instead. Absent when every send started where chosen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_short: Option<StartShort>,
+    /// QA on a946e04 (qaT): the carried gold the absence's kept thefts took (Σ `stolen[].gold`).
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub stolen_gold: i32,
     /// Stall verdict (addition): present when the last ≥ 4 runs all came home with no new depth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stall: Option<Stall>,
@@ -810,6 +839,24 @@ pub struct GoldSummary {
 pub struct StolenRow {
     pub label: String,
     pub n: u32,
+    /// QA on a946e04 (qaT: the strip's `−$36 stolen`, never in STOLEN): the carried gold these
+    /// thefts took off the runs (a stolen item's worth leaves the carry with it).
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub gold: i32,
+}
+
+fn is_zero_i(n: &i32) -> bool {
+    *n == 0
+}
+
+/// QA on a946e04 (qaT: `start → D5 · $50` with $32 — the absence's runs went from D1 unsaid):
+/// the waystone whose night pass the purse could not pay, its toll, and the sends that went
+/// from D1 instead (`ReturnReport.start_short`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StartShort {
+    pub depth: u32,
+    pub toll: i32,
+    pub runs: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -1047,6 +1094,31 @@ pub struct Lineage {
     /// repeat does not buy them again (`strength · no row`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub repeat_dropped: Vec<String>,
+    /// QA on a946e04 (qaS: `cowardly · flees under 50%` never fled): each trait's real rule,
+    /// by name (`Trait::rule`: `cowardly` → `backs off once a floor under 50%`) — the chip's
+    /// words; a trait overrides a row at most once per floor.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub trait_rules: std::collections::BTreeMap<String, String>,
+    /// QA on a946e04 (qaS: SALVAGED `blue potion? ×8` beside `poison ×3` after the night had
+    /// identified poison): each identified flavoured kind's unidentified label (`blue potion?`)
+    /// → its name now (`poison`, as `LineageState::wire_name`). A label computed before the
+    /// kind was known (an earlier slice's report, a stored line) reads through this map.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub renamed: std::collections::BTreeMap<String, String>,
+    /// QA on a946e04 (qaT: `start → D5 · $50` read as the start with $32 in the purse; the send
+    /// went from D1): whether the next send starts on `start` — D1, or a lit waystone whose
+    /// night pass is held (`start_pass`) or the purse pays now (`start_toll`). False: the send
+    /// goes from D1 (`ExitLine.start_short` says so after).
+    #[serde(default = "yes")]
+    pub start_payable: bool,
+    /// QA on a946e04: tonight's pass for `start` is paid — the toll is not charged again
+    /// until the night ends (a night is `NIGHT_RUNS` runs).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub start_pass: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 fn one() -> u32 {
@@ -1147,6 +1219,28 @@ pub struct UnlockInfo {
     /// (the client offers `add` on the card).
     #[serde(default, skip_serializing_if = "is_false")]
     pub auto_insert: bool,
+    /// QA on a946e04 (qaS: `+1 ROW ◆2 or $300 … each $ buy +25%`, then `◆4 or $600` after a ◆
+    /// buy): the chain's next unlock once this one is owned (`row5` → `row6`) — its own price,
+    /// not this one's raised — with its marks, its gold price after a ◆ buy of this one (the
+    /// gold buys unchanged) and after a $ buy (one more gold buy: `meta::gold_price`). This
+    /// card's own gold price after any other $ buy is `gold_next`. Absent at a chain's end.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<NextUnlock>,
+    /// This card's gold price once one more gold buy has been made (`× (5 + gold_buys) / 4`);
+    /// 0 when not gold-buyable.
+    #[serde(default)]
+    pub gold_next: u32,
+}
+
+/// QA on a946e04: the chain's next unlock and its prices (`UnlockInfo.next`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NextUnlock {
+    pub id: String,
+    pub cost: u32,
+    /// Its gold price after this one is bought with marks.
+    pub gold: u32,
+    /// Its gold price after this one is bought with gold.
+    pub gold_after_gold: u32,
 }
 
 #[cfg(test)]

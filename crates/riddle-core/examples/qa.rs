@@ -105,7 +105,27 @@ fn check_report_names(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::Retur
     }
     let forge: Vec<String> = g.lineage().forge.keys().cloned().collect();
     names.extend(forge.iter().map(|s| s.as_str()));
-    check_names(t, g, seed, names, at);
+    names.extend(r.stolen.iter().map(|x| x.label.as_str()));
+    names.extend(r.shelved.iter().map(|x| x.kind.as_str()));
+    for x in &r.exits {
+        names.extend(x.stolen.iter().map(|s| s.as_str()));
+    }
+    check_names(t, g, seed, names.iter().copied(), at);
+    // QA on a946e04 (qaS: SALVAGED `blue potion? ×8` beside `poison ×3`; STOLEN `black potion?`
+    // beside LEARNED `confusion (black)`): no report label names a flavour whose kind the
+    // lineage has identified (`Lineage.renamed`'s keys). (An exit line is its exit's: it may
+    // predate the identification — the client reads it through `renamed`.)
+    let renamed = g.lineage().renamed;
+    let mut now: Vec<&str> = Vec::new();
+    now.extend(r.salvaged.iter().map(|x| x.kind.as_str()));
+    now.extend(r.spent.iter().map(|x| x.kind.as_str()));
+    now.extend(r.found.iter().map(|x| x.label.as_str()));
+    now.extend(r.stolen.iter().map(|x| x.label.as_str()));
+    now.extend(r.shelved.iter().map(|x| x.kind.as_str()));
+    now.extend(forge.iter().map(|s| s.as_str()));
+    for n in now {
+        t.check("no wire label names a flavour whose kind is identified", !renamed.contains_key(n), || format!("seed {seed} {at}: `{n}` is {}", renamed[n]));
+    }
 }
 
 /// QA on 1a2a4a9 (qaO: `hp 3 foes 2 · R2 foes not ≥1` under `foes ≥ 1 → attack`): a trace
@@ -250,6 +270,17 @@ fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
     // QA on e75ec29 (qaQ: `survives 100% · base 100%` under GAP): replays that all survive
     // unpatched did not reproduce the death — it is never a `gap` or a `row`.
     t.check("a gap or row verdict has a baseline under 100 %", !(d.verdict == "gap" || d.verdict == "row") || d.baseline < 1.0 - 1e-9, || format!("seed {seed} run {}: {} base {:.2}", d.run_id, d.verdict, d.baseline));
+    // QA on a946e04 (qaS: an archer death's notes `Goblin Captain: summoner.`, the run's last
+    // note a floor earlier; a poison death's `The black one: confusion.`): a death's note names
+    // its killer or the harm that killed him (a stall's notes say what it paid).
+    if d.verdict != "stall" {
+        let gamble = g.deaths.get(&d.run_id).is_some_and(|r| r.gamble_row.is_some());
+        let names = |n: &str| riddle_core::trace::death_note_names(n, &d.cause) || (gamble && ["poison", "gas", "fire"].iter().any(|c| riddle_core::trace::death_note_names(n, c)));
+        t.check("a death's note names the killer or the killing harm", d.notes.iter().all(|n| names(n)), || format!("seed {seed} run {}: {} · {:?}", d.run_id, d.cause, d.notes));
+        // (qaS: `slain by goblin_archer`)
+        let slain = d.morgue.lines().nth(1).and_then(|l| l.split(" · ").find_map(|p| p.strip_prefix("slain by "))).unwrap_or("");
+        t.check("the morgue names the killer by its title", !slain.contains('_'), || format!("seed {seed} run {}: slain by {slain}", d.run_id));
+    }
     // QA on 92eb880 (qaM: `R2 attack saved him.` on the death of a hero R2 was fighting for).
     t.check("a death's notes never say `saved him`", d.notes.iter().all(|n| !n.contains("saved him")), || format!("seed {seed} run {}: {:?}", d.run_id, d.notes));
     // QA on 92eb880 (qaM: `DICE` over three `survives 100% · below bar`): a dice death whose
@@ -358,6 +389,10 @@ fn check_forecast_reads(t: &mut Tally, lp: &mut Laps, pool: &Pool, g: &mut Game,
     let again = g.forecast();
     lp.lap("reads: forecast again");
     t.check("forecast → every sheet's reads → forecast: identical", again == first, || format!("seed {seed}: {:?} → {:?}", first.depths.iter().map(|d| d.reach).collect::<Vec<_>>(), again.depths.iter().map(|d| d.reach).collect::<Vec<_>>()));
+    // QA on a946e04 (qaS: `return 90% death 10%` → `88% · 12%` across a reload): save → load →
+    // forecast is the same forecast.
+    let reload = |g: &Game| Game::load(&g.save()).map(|h| h.forecast());
+    t.check("save → load → forecast: identical", reload(g).as_ref() == Ok(&again), || format!("seed {seed}"));
     if !seed.is_multiple_of(3) {
         return;
     }
@@ -372,6 +407,7 @@ fn check_forecast_reads(t: &mut Tally, lp: &mut Laps, pool: &Pool, g: &mut Game,
     let _ = g.cage_forecast();
     let after = g.forecast();
     lp.lap("refine: filler, cage, forecast");
+    t.check("save → load → forecast: identical (refined)", reload(g).as_ref() == Ok(&after), || format!("seed {seed}"));
     t.check("after the refine a forecast read is the refined panel", after == refined, || format!("seed {seed}: refined {:?} read {:?}", refined.depths.iter().map(|d| d.reach).collect::<Vec<_>>(), after.depths.iter().map(|d| d.reach).collect::<Vec<_>>()));
     // (a copy of this state from a cold cache: a job of its own, the values compared there)
     let cold = g.clone();
@@ -443,7 +479,159 @@ fn check_reel(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::ReturnReport)
             };
         t.check("a reel `died` line names the run's death cause", ok, || format!("seed {seed} run {}: `{}` · arc {} / {} · cause {cause}", h.run_id, h.text, arc.threat, arc.resolution));
         t.check("a reel line is a story line", riddle_core::sifter::story_ok(&h.text), || format!("seed {seed} run {}: `{}`", h.run_id, h.text));
+        // QA on a946e04 (qaS: `A goblin took him to 3 HP; no row; died to gas.` under R2 `hp <
+        // 40% → return`): a `no row` beat means no row acted at the low point — the death
+        // trace's first turn at the low HP is the chores', and not the walk home a return row
+        // committed to (that reads `R2 returning`).
+        let turn = h.text.split("; ").nth(1).unwrap_or("");
+        if riddle_core::sifter::NO_ROW.contains(&turn) {
+            let at_low = rec.death.trace.turns.iter().find(|x| x.hp == arc.low_hp as i32);
+            if let Some(x) = at_low {
+                t.check("a reel `no row` line had no row act at its low point", x.row < 0 && !matches!(x.verb.v.as_str(), "return" | "bank"), || format!("seed {seed} run {}: `{}` · t{} R{} {} hp {}", h.run_id, h.text, x.t, x.row + 1, x.verb.short(), x.hp));
+            }
+        }
     }
+}
+
+/// QA on a946e04 (qaS: `A den of thieves. Nothing lost to the den.` in the run whose report
+/// said `stolen red potion?`): watched sends from a copy of the night's camp — a den's
+/// `Nothing lost` note is said only while every theft of the run so far was got back.
+fn check_den_leg(t: &mut Tally, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    for _ in 0..6 {
+        h.send();
+        let (mut out, mut back) = (0i32, 0i32);
+        for _ in 0..4000 {
+            let r = h.step(50);
+            for e in &r.events {
+                match e {
+                    Ev::Steal { .. } => out += 1,
+                    Ev::Note { text, .. } if text.starts_with("Got the ") && text.ends_with(" back.") => back += 1,
+                    Ev::Note { t: at, text } if text == "Nothing lost to the den." => {
+                        t.check("`Nothing lost to the den` never beside a theft still out", out == back, || format!("seed {seed} t{at}: {out} thefts, {back} got back"));
+                    }
+                    _ => {}
+                }
+            }
+            if r.run_over {
+                break;
+            }
+        }
+        if h.pending_exit.is_some() {
+            let _ = h.keep(vec![]);
+        }
+    }
+}
+
+/// QA on a946e04 (qaT: `waystone D5 ×16 · −$800` over one absence, the repeat starved; with a
+/// short purse the sends went from D1 unsaid): a copy of the lineage with a waystone lit and
+/// chosen, four hours offline — a night's tolls are one pass per chosen start (a night is
+/// `NIGHT_RUNS` runs); from an empty purse no toll is paid and the report names the sends that
+/// went from D1.
+fn check_waystone_leg(t: &mut Tally, g: &Game, seed: u64) {
+    let d = riddle_core::engine::WAYSTONES[0];
+    for rich in [true, false] {
+        let mut h = g.clone();
+        if !h.lineage.waystones.contains(&d) {
+            h.lineage.waystones.push(d);
+            h.lineage.waystones.sort_unstable();
+        }
+        if h.set_start(d).is_err() {
+            return;
+        }
+        let top = if rich { 2000 - h.lineage.gold } else { -h.lineage.gold };
+        h.lineage.gold_move(top, "qa purse");
+        let before = h.lineage.night_runs;
+        let r = h.run_offline(4 * 3600);
+        let tolls: u32 = r.spent.iter().filter(|x| x.kind.starts_with("waystone")).map(|x| x.n).sum();
+        let nights = (before + r.runs).div_ceil(riddle_core::engine::NIGHT_RUNS).max(1);
+        if rich {
+            t.check("a night's waystone tolls ≤ 1 pass per chosen start", tolls <= nights && r.start_short.is_none(), || format!("seed {seed}: {tolls} tolls over {} runs ({nights} nights) · short {:?}", r.runs, r.start_short));
+        } else {
+            let ok = tolls == 0 || r.start_short.is_some();
+            let shorted = r.start_short.as_ref().map(|s| s.runs).unwrap_or(0);
+            t.check("a short purse's sends from D1 are named (report `start_short`)", ok && (tolls > 0 || shorted > 0 || r.runs == 0), || format!("seed {seed}: {tolls} tolls · short {:?} · {} runs", r.start_short, r.runs));
+        }
+    }
+}
+
+/// QA on a946e04 (qaT: SALVAGED `heal ×2 · $4` while heal was packed and repeated): watched
+/// sends from a copy of the night's camp with heal packed and repeated — a found potion of a
+/// packed kind is never on a bank/return exit's keep sheet (to be salvaged) while the shelf
+/// has room and holds fewer of that kind than the repeat packs.
+fn check_found_supply_leg(t: &mut Tally, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    let heal = "heal";
+    if let Some(f) = riddle_core::item::ident_fact(&h.lineage.flavours, heal) {
+        h.lineage.facts.insert(f);
+    }
+    let mut set = h.lineage.rules().clone();
+    if !h.lineage.row_kinds().contains(heal) {
+        h.lineage.unlocks.extend(["row5", "row6", "row7", "row8"].map(String::from));
+        set.rows.insert(0, Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", heal)));
+        if h.set_rules_raw(set).is_err() {
+            return;
+        }
+    }
+    h.lineage.gold_move(400 - h.lineage.gold.min(400), "qa purse");
+    h.set_restock(true);
+    if h.buy_supply(heal).is_err() {
+        return;
+    }
+    for _ in 0..6 {
+        h.send();
+        for _ in 0..4000 {
+            let r = h.step(50);
+            if r.run_over {
+                break;
+            }
+        }
+        if let Some(p) = h.pending_exit.clone() {
+            if p.tier != ExitTier::Death {
+                let l = &h.lineage;
+                let cap = l.supply_cap();
+                let cat = h.supply_catalogue();
+                for it in p.items.iter().filter(|i| i.is_consumable() && i.kind == heal && !p.brought.contains(&i.id) && i.is_known(&l.facts, &l.flavours)) {
+                    let on_shelf = l.supplies.iter().filter(|s| s.kind == heal).count();
+                    let plan = l.last_supplies.iter().filter(|k| *k == heal).count();
+                    let room = l.supplies.len() < cap && on_shelf < plan && cat.iter().any(|e| e.kind == heal);
+                    t.check("a found packed-kind potion is shelved, not salvaged, while the shelf has room", !room, || format!("seed {seed}: {} on the keep sheet · shelf {}/{cap} · {heal} {on_shelf} of {plan}", it.kind, l.supplies.len()));
+                }
+            }
+            let _ = h.keep(vec![]);
+        }
+        if h.lineage.gold < 100 {
+            h.lineage.gold_move(100, "qa purse");
+        }
+    }
+}
+
+/// QA on a946e04 (qaS: a row the editor marks dead — `↑ R3` — moved the forecast D5 72 → 74 %):
+/// the set with a row its engagement row shadows appended plays the set without it, sim for
+/// sim (the camp's seeds, run on their own, not through the memo), and reads the same forecast.
+fn check_dead_row(t: &mut Tally, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    h.lineage.unlocks.extend(["row5", "row6", "row7", "row8"].map(String::from));
+    let base = h.lineage.rules().clone();
+    let Some(eng) = base.rows.iter().find(|r| matches!(r.verb.v.as_str(), "attack" | "shoot") && !r.is_card()) else { return };
+    let mut row = eng.clone();
+    row.conds.push(Cond::n("hp<", 50));
+    let mut dead = base.clone();
+    dead.rows.push(row);
+    if dead.own_rows() > h.lineage.max_rows() || h.lineage.shadowed_by(&dead).last().copied().flatten().is_none() {
+        return;
+    }
+    let sims = riddle_core::forecast::FORECAST_SIMS;
+    let tag = riddle_core::forecast::forecast_tag(&h, h.lineage.best_depth + 1);
+    let a = riddle_core::forecast::simulate_budget(&h, &base, sims, tag, u32::MAX, riddle_core::forecast::CAMP_TICK_BUDGET);
+    let b = riddle_core::forecast::simulate_budget(&h, &dead, sims, tag, u32::MAX, riddle_core::forecast::CAMP_TICK_BUDGET);
+    t.check("a shadowed row changes no sim", a == b, || format!("seed {seed}: reach Σ {} vs {}", a.iter().map(|r| r.max_depth).sum::<u32>(), b.iter().map(|r| r.max_depth).sum::<u32>()));
+    let f0 = h.forecast();
+    if h.set_rules_raw(dead).is_err() {
+        return;
+    }
+    let f1 = h.forecast();
+    t.check("a shadowed row reads the same forecast", f0.depths == f1.depths && f0.ends == f1.ends && f0.causes == f1.causes, || format!("seed {seed}: {:?} → {:?}", f0.depths.iter().map(|d| d.reach).collect::<Vec<_>>(), f1.depths.iter().map(|d| d.reach).collect::<Vec<_>>()));
 }
 
 /// The label check with salvage in it: a copy of the lineage with `hp < 50% → return` on top
@@ -783,6 +971,13 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         t.check("an available unlock buys", g.buy(&u.id).is_ok() && g.lineage.marks == marks - u.cost, || format!("seed {seed}: {}", u.id));
     }
     check_needs(t, &g, seed);
+    // QA on a946e04 (qaT: three cards bought, three rows inserted): an unmeasured catalogue
+    // never says `auto_insert`; a measured one only where the card's reach holds and its stall
+    // rise is ≤ `CARD_STALL_RISE`.
+    t.check("an unmeasured card never auto-inserts", g.unlocks().iter().all(|u| !u.auto_insert), || format!("seed {seed}"));
+    for u in g.unlock_deltas().iter().filter(|u| u.auto_insert) {
+        t.check("an auto-inserted card is measured, reach not down, stall ≤ 5 pts", u.delta.is_some_and(|d| d >= -1e-9) && u.stall.is_some_and(|s| s <= riddle_core::meta::CARD_STALL_RISE + 1e-9), || format!("seed {seed}: {} Δ{:?} stall {:?}", u.id, u.delta, u.stall));
+    }
     check_gold_buy(t, &g, seed);
     lp.lap("unlock + gold buy");
     // QA on e75ec29 (qaQ: `⊘ drink heal · unknown` in the picker, R1 `drink heal`): the
@@ -860,6 +1055,12 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     });
     at(pool, 55, "salvage leg", &g, |o, g, seed| check_salvage_leg(&mut o.t, g, seed));
     at(pool, 50, "shadow leg", &g, |o, g, seed| check_shadowed(&mut o.t, g, seed));
+    at(pool, 45, "den leg", &g, |o, g, seed| check_den_leg(&mut o.t, g, seed));
+    at(pool, 45, "waystone leg", &g, |o, g, seed| check_waystone_leg(&mut o.t, g, seed));
+    at(pool, 45, "found supply leg", &g, |o, g, seed| check_found_supply_leg(&mut o.t, g, seed));
+    if seed.is_multiple_of(3) {
+        at(pool, 45, "dead row leg", &g, |o, g, seed| check_dead_row(&mut o.t, g, seed));
+    }
     check_report_names(t, &g, seed, &r, "report");
     for x in &r.exits {
         if let Some(tr) = &x.trace {

@@ -34,7 +34,7 @@ export type Snapshot = {
   depth: number; biome: string; w: number; h: number; tiles: Tile[]; seen: boolean[]; visible: boolean[];
   overlays: Overlay[]; hero: Entity & { inv: InvItem[]; weapon?: string; armour?: string; class: string; trait: string };
   entities: Entity[]; items: FloorItem[]; alert: number; turn: number; loot: number;
-  run: { id: number; heir: number; started_turn: number };
+  run: { id: number; heir: number; started_turn: number; start?: number };   // start: QA a946e04 (core, optional) — the floor the run started on (a toll the purse could not pay starts it on D1)
   stake?: Stake;                                                          // Cut 2 §7: what is on the line right now
   vision?: number;                                                        // Cut 3: the hero's sight radius on this floor (Deep 4, else 7; +2 lantern)
   vault_choice?: VaultChoice;                                             // Cut 5 §4: an opened vault waiting for `choose(itemId)` (50-tick grace, then `vault_pref` picks)
@@ -56,6 +56,7 @@ export type CageOption = { pref: string; current: boolean; depth: number; reach:
 export type StartOption = { start: number; current: boolean; toll?: number; biome?: string; depth: number; reach: number; reach_delta: number;
                             bank: number; bank_delta: number; gold: number; gold_delta: number; delta: number; pm: number;
                             short?: boolean;                    // core: the purse cannot pay the toll now — that send starts on D1 (the numbers are D1's)
+                            pass?: boolean;                     // QA a946e04 (core): tonight's pass for this start is paid — the next send from it pays nothing (`toll` is the next night's); `net` is the next send's
                             net?: number; net_delta?: number }; // core: `gold − toll` per send, and its move against the current start
 /** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any.
  *  Cut 6 §1: `kept` = what that row would bring home now (`$84 · keeps $50`). */
@@ -72,6 +73,9 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          xp?: number; level_ups?: number;                                                   // QA 92eb880: the XP this run earned (the part that crossed a level included) and the levels crossed — the watched report's `xp` line, never a client-side ladder (web's 40·L² was not the core's; `fighter +0 · L4 ↑1`)
                          stolen?: string[];                                                                 // QA e75ec29 (qaR): what thieves took this run and it never got back (`· stolen heal`; flavour-named while unidentified)
                          purse_full?: boolean;
+                         stolen_gold?: number;                                                              // QA a946e04 (core, optional): the carried gold thieves took this run (`$36`, the STOLEN list's gold line); else the client sums the `steal` events' amounts
+                         start?: number; start_short?: number | boolean;                                    // QA a946e04 (core, optional): the floor the run started on, and (core: a number) the waystone it wanted and did not start on — the toll short or unlit (`from D1 · toll short`); absent when it started where chosen
+                         toll?: number;                                                                     // QA a946e04 (core): the toll this run's send paid (0/absent from D1 or on the night's pass) — the report's gold line counts it (qaT: `+$71 banked · −$40 spent` beside `$51 → $32`)
                          shelved?: { kind: string; n: number }[] };                                        // Cut 21 §2: found supplies of a kind the shelf sells, put on the shelf at this exit (not salvaged) — `found heal → shelf`                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
 export type GoldLine = { t: number; delta: number; why: string };
@@ -175,7 +179,9 @@ export type ReturnReport = {
   salvaged: { kind: string; n: number; gold: number }[];                    // Addendum D; `kind` an unidentified kind's flavour (`brittle scroll?`) until identified (QA 1a2a4a9)
   renown: { gained: number; rank: number; ranks_up: number };               // Addendum D
   rested_s?: number; banked?: number; returned?: number; bones_found?: string[]; // Cut 2 §1–2
-  stolen?: { label: string; n: number }[];                                    // QA e75ec29 (qaR): what thieves took this absence and no run got back, per label (flavour-named while unidentified), most first; `gold.wake_cap` = the heir purse's top-up line ($40, each death tops up to it; `wake_n` deaths did), a death that found it full reads `purse full` on its exit line
+  stolen_gold?: number;                                                       // QA a946e04 (core, optional): carried gold thieves took this absence (Σ `stolen[].gold`: a stolen item's worth leaves the carry with it)
+  start_short?: { depth: number; toll: number; runs: number };                // QA a946e04 (core): the waystone whose night pass the purse could not pay, its toll, and the sends that went from D1 instead (`D5 · toll $50 short · 3 runs from D1`)
+  stolen?: { label: string; n: number; gold?: number }[];                                    // QA e75ec29 (qaR): what thieves took this absence and no run got back, per label (flavour-named while unidentified), most first; `gold.wake_cap` = the heir purse's top-up line ($40, each death tops up to it; `wake_n` deaths did), a death that found it full reads `purse full` on its exit line
   stall?: Stall;                                                              // core addition: stall verdict
   exits?: ExitLine[];                                                         // Cut 6 §1: one ledger line per exit in the batch
   picked?: number[];                                                          // Cut 16 §1: depths picked clean (≥ 3 banks/returns, shallower than the best), ascending — `D3 · picked clean`
@@ -212,7 +218,11 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         waystones?: number[];                                                                         // Cut 21 §1: the lit waystones (a biome's first floor the lineage has banked at or past: 5 · 9 · 14 · 19 · 24 · 29), ascending
                         start?: number;
                         start_toll?: number;                                                                          // Cut 21 §1 (core): the toll the next send pays for `start` ($10 × start; 0 at D1)
-                        repeat_dropped?: string[] };                                                                  // Cut 21 §2 (core): kinds the last send packed that no row uses — the repeat does not re-buy them (`strength · no row`)                                                                             // Cut 21 §1: where the next send starts (1, or a lit waystone; `setStart(d)`); the send pays `$10 × start` below D1                                                                 // Cut 20 §5: tonight's bounty floor (best + 2; moves every night)
+                        repeat_dropped?: string[];
+                        start_payable?: boolean;                                                                      // QA a946e04 (core, optional): the purse pays `start_toll` now (or tonight's pass is held); false → the next send starts on D1 (`start → D5 · $50 short`); absent → the client compares `gold` with the toll
+                        start_pass?: boolean;                                                                         // QA a946e04 (core): the toll is paid once per night (16 runs) — tonight's pass for `start` is held, the next send pays nothing
+                        trait_rules?: { [trait: string]: string };                                                    // QA a946e04 (core): each trait's real rule (`cowardly` → `backs off once a floor under 50%`), the chip's words
+                        renamed?: { [label: string]: string } };                                                      // QA a946e04 (core): an identified flavour's old label (`blue potion?`) → its name now (`poison`); labels stored before read through it                                                                  // Cut 21 §2 (core): kinds the last send packed that no row uses — the repeat does not re-buy them (`strength · no row`)                                                                             // Cut 21 §1: where the next send starts (1, or a lit waystone; `setStart(d)`); the send pays `$10 × start` below D1                                                                 // Cut 20 §5: tonight's bounty floor (best + 2; moves every night)
 /** Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id (`shield_bash | vanish | mark | slow`);
  *  `level` the class's level; `opens` the level the signature opens at (`mark L7` while level < opens).
  *  §4 (no new wire): the Warlord's break is a callout `warlord breaks` + a note `The Warlord breaks.` (visible only), once, at ≤ 50 % hp.
@@ -297,9 +307,13 @@ export type UnlockInfo = { id: string; cost: number; owned: boolean; available: 
                            pinned?: boolean;                                                               // Cut 19 §3: the next `+1 row` (its prerequisite owned) — keep it on the camp's short list until bought
                            short?: boolean;                                                                // QA 1a2a4a9: on the short list (≤ 3, the pinned one included) — the core's choice from the lineage alone; the camp's shelf and the report's PENDING show these
                            auto_insert?: boolean;                                                          // QA e75ec29 (qaR): a tactic card's buy puts its row in the set (at `insert_at`) only when set — measured, reach not down at its best place, stall share up ≤ 5 pts, fewer than 3 card rows in the set; otherwise owned, not in the set (offer `add`)
+                           next?: NextUnlock;                                                              // QA a946e04 (core): the chain's next step once this one is owned (`row5` → `row6`) and its prices — the sheet's `next ◆4 or $600`
+                           gold_next?: number;                                                             // QA a946e04 (core): this card's own gold price after one more gold buy
                            gold?: number };                                                                 // Cut 15 §2: today's gold price (`150 × cost × (4 + gold buys) / 4`); 0 when owned or free (not gold-buyable). A card short only of marks (`needs` = `◆N more`) buys with gold when the lineage has it
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */
 export type AsyncEngine = { [K in keyof Engine]: NonNullable<Engine[K]> extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };
+/** QA a946e04: the chain's next unlock — its marks, its gold price after a ◆ buy of this one (`gold`) and after a $ buy (`gold_after_gold`). */
+export type NextUnlock = { id: string; cost: number; gold: number; gold_after_gold: number };
 export type SupplyEntry = { kind: string; price: number; label: string;
                             needs?: string };                                                                         // Addendum B; needs: Cut 10 §3, why a supply is greyed (`◆ identify`), optional

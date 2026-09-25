@@ -190,7 +190,7 @@ pub fn apportion(total: u32, weights: &[u32]) -> Vec<u32> {
     out
 }
 
-fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTreeSet<String>, class: &str, rank_before: u32, sampled: bool, full: bool) -> ReturnReport {
+pub(crate) fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTreeSet<String>, class: &str, rank_before: u32, sampled: bool, full: bool) -> ReturnReport {
     let t = game.run.as_ref().map(|r| r.turn).unwrap_or(0);
     game.settle_renown(t);
     let learned: Vec<String> = game.lineage.facts.difference(facts_before).cloned().collect();
@@ -263,11 +263,26 @@ fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTre
         returned: b.returned,
         bones_found: b.bones_found.clone(),
         stolen: {
-            let mut v: Vec<crate::wire::StolenRow> = b.stolen.iter().map(|(label, n)| crate::wire::StolenRow { label: label.clone(), n: *n }).collect();
+            // QA on a946e04: named now, by the lineage's facts now (`blue potion?` → `poison`),
+            // and a kind twice (two labels of one kind) is one row.
+            let mut v: Vec<crate::wire::StolenRow> = Vec::new();
+            for (k, n) in &b.stolen {
+                let label = game.lineage.wire_name(k).replace('_', " ");
+                let gold = b.stolen_gold.get(k).copied().unwrap_or(0);
+                match v.iter_mut().find(|r| r.label == label) {
+                    Some(r) => {
+                        r.n += n;
+                        r.gold += gold;
+                    }
+                    None => v.push(crate::wire::StolenRow { label, n: *n, gold }),
+                }
+            }
             v.sort_by(|a, b| b.n.cmp(&a.n).then(a.label.cmp(&b.label)));
             v
         },
         stall,
+        start_short: b.start_short.map(|(depth, toll, runs)| crate::wire::StartShort { depth, toll, runs }),
+        stolen_gold: b.stolen_gold.values().sum(),
         deepest: b.run_outcomes.iter().map(|(d, _)| *d).max().unwrap_or(0),
         // Cut 13 §3: the night's ledger — what the automations bought, per kind in coins.
         stalled: b.stalls,

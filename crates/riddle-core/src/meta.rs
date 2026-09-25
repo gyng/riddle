@@ -172,7 +172,10 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             let gold = if owned { 0 } else { gold_price(u.cost, l.gold_buys) };
             // Cut 19 §3: the next row unlock is pinned to the short list.
             let pinned = !owned && is_row_unlock(u.id) && u.prereq.is_none_or(|p| l.unlocks.contains(p));
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned, short: false, auto_insert: false }
+            // QA on a946e04: the chain's next step and its prices (`UnlockInfo.next`).
+            let next = UNLOCKS.iter().find(|n| n.prereq == Some(u.id) && !l.unlocks.contains(n.id)).map(|n| crate::wire::NextUnlock { id: n.id.into(), cost: n.cost, gold: gold_price(n.cost, l.gold_buys), gold_after_gold: gold_price(n.cost, l.gold_buys + 1) });
+            let gold_next = if owned { 0 } else { gold_price(u.cost, l.gold_buys + 1) };
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned, short: false, auto_insert: false, next, gold_next }
         })
         .collect();
     mark_short(l, &mut cat);

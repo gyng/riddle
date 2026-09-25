@@ -491,6 +491,7 @@ fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
     let amount = (before > run.loot).then(|| before - run.loot);
     let id = run.monsters[mi].id;
     run.stolen_ids.push(it.id);
+    run.stolen_kinds.push((it.id, it.kind.clone(), amount.unwrap_or(0)));
     run.monsters[mi].stolen = Some(it);
     run.monsters[mi].fleeing = true;
     cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone(), amount });
@@ -604,7 +605,11 @@ pub fn on_leave_floor(run: &mut Run, cx: &mut Ctx) {
     match at(run).map(str::to_string).as_deref() {
         Some("den") if met(run, "den") => {
             let has = |run: &Run, id: u32| run.hero.inv.iter().chain(run.hero.weapon.iter()).chain(run.hero.armour.iter()).any(|i| i.id == id);
-            if !run.den_bolted && run.den_stolen.iter().all(|id| has(run, *id)) {
+            // QA on a946e04 (qaS: `A den of thieves. Nothing lost to the den.` in the report
+            // that said `stolen red potion?`): nothing is lost while any theft of the run is
+            // still out — a thief outside the den (a monkey on the den's floor, or on an
+            // earlier one) counts too (`Run.stolen_ids`: what no run got back).
+            if !run.den_bolted && run.den_stolen.iter().all(|id| has(run, *id)) && run.stolen_ids.is_empty() {
                 pass(run, cx, "den");
             }
         }

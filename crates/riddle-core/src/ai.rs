@@ -1509,6 +1509,7 @@ fn identify_used(run: &mut Run, cx: &mut Ctx, item: &Item) -> bool {
     if was_unknown {
         let mal = !item.def().benevolent;
         run.gambles.push((run.turn, item.kind.clone(), mal));
+        run.gamble_harm = 0;
         let (_, _, label) = crate::item::describe(item, cx.facts, cx.flavours);
         note(run, cx, format!("Gambled: {label}{}", if label.ends_with('?') { "" } else { "." }));
         // Cut 5 §3: a word before the unknown goes down.
@@ -2630,6 +2631,7 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
             run.loot_add(-run.loot_value(&it));
             let amount = (before > run.loot).then(|| before - run.loot);
             run.stolen_ids.push(it.id);
+            run.stolen_kinds.push((it.id, it.kind.clone(), amount.unwrap_or(0)));
             run.monsters[mi].stolen = Some(it);
             run.monsters[mi].fleeing = true;
             cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone(), amount });

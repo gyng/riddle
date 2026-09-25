@@ -1007,6 +1007,9 @@ export class FakeEngine implements Engine {
       const cat = this.supplyCatalogue(); const kinds = [...new Set((L.supplies ?? []).filter((it) => !it.free && !it.found && named.has(it.kind)).map((it) => it.kind))];
       L.repeat_kinds = kinds; L.repeat_gold = (L.supplies ?? []).filter((it) => kinds.includes(it.kind) && !it.free && !it.found).reduce((a, it) => a + (cat.find((c) => c.kind === it.kind)?.price ?? 0), 0); } }
     this.s.lineage.start ??= 1;
+    // QA a946e04 stand-ins: each trait's real rule (the core's `Trait::rule`), and whether the next send starts on `start`
+    this.s.lineage.trait_rules = { greedy: "grabs loot once a floor", cowardly: "backs off once a floor under 50%", curious: "tries one unknown a floor", brave: "skips one retreat a floor" };
+    { const L = this.s.lineage; const st = L.start ?? 1; L.start_payable = st <= 1 || ((L.waystones ?? []).includes(st) && L.gold >= 10 * st); }
     { const L = this.s.lineage; const qm = L.unlocks.includes("quartermaster");   // QA 23ed91f: what an unwatched exit keeps
       L.keep_auto = L.keep_pref === "best_armour" ? (qm ? ["armour", "weapon"] : ["armour"]) : L.keep_pref === "best_weapon" ? (qm ? ["weapon", "armour"] : ["weapon"]) : []; }
     // Cut 16 §2: the wake's class chips (owned classes, the current first) while the trait offer stands
@@ -1146,9 +1149,11 @@ export class FakeEngine implements Engine {
     const ctx = this.ctx(rules); const run = makeRun(0, this.s.lineage.heir, seed, cls, trait, known, brought, ctx, [], this.classLevel(cls)); runToEnd(run, ctx); return run;
   }
 
-  forecast(): Forecast { return { ...this.forecastN(20), refined: false, ...shadowField(this.s.rules.rows) }; }   // Cut 13 §5: the first paint is marked (`±6…`)
+  forecast(): Forecast { return { ...this.forecastN(20), refined: false, start: this.payableStart(), ...shadowField(this.s.rules.rows) }; }
+  /** Cut 21 §1 stand-in: the floor the next send starts on — the chosen waystone when lit and the purse pays its toll, else D1. */
+  private payableStart(): number { const L = this.s.lineage, st = L.start ?? 1; return st > 1 && (L.waystones ?? []).includes(st) && L.gold >= 10 * st ? st : 1; }   // Cut 13 §5: the first paint is marked (`±6…`)
   /** Cut 6 §9: the same forecast at 100 sims (the client asks 2 s after a quiet paint). Same seeds ⇒ the first 20 agree. */
-  forecastRefine(): Forecast { return { ...this.forecastN(100), refined: true, ...shadowField(this.s.rules.rows) }; }
+  forecastRefine(): Forecast { return { ...this.forecastN(100), refined: true, start: this.payableStart(), ...shadowField(this.s.rules.rows) }; }
   private forecastN(N: number): Forecast {
     const L = this.s.lineage; const known_to = L.best_depth + 1;
     const reach = new Array(16).fill(0); const causes: Record<string, number> = {};
@@ -1345,7 +1350,7 @@ export class FakeEngine implements Engine {
     const cur = L.start ?? 1; const starts = [1, ...(L.waystones ?? [])];
     const at = (s0: number): { bank: number; gold: number; reach: number } => { const k = (s0 - 1) / 30; return { bank: Math.max(0, Math.min(1, bank + (bank > 0 ? 0.3 * k : 0) - 0.4 * k * k)), gold: gold * (1 + 2 * k), reach: Math.max(0, 1 - k) }; };
     const c = at(cur);
-    return starts.map((st) => { const o = at(st); return { start: st, current: st === cur, toll: st > 1 ? 10 * st : 0, biome: biomeOf(st), depth: Math.max(1, L.best_depth), reach: o.reach, reach_delta: o.reach - c.reach,
+    return starts.map((st) => { const o = at(st); return { start: st, current: st === cur, toll: st > 1 ? 10 * st : 0, short: st > 1 && L.gold < 10 * st, biome: biomeOf(st), depth: Math.max(1, L.best_depth), reach: o.reach, reach_delta: o.reach - c.reach,
       bank: o.bank, bank_delta: o.bank - c.bank, gold: o.gold, gold_delta: o.gold - c.gold, delta: bank > 0 ? o.bank - c.bank : o.reach - c.reach, pm: 1.96 * Math.sqrt(o.bank * (1 - o.bank) / 20) }; });
   }
   /** Cut 19 §3 stand-in: the fake has no repeat; the flag is kept on the lineage so the tile can toggle. */
@@ -1522,6 +1527,7 @@ export class FakeEngine implements Engine {
   unlockDeltas(): UnlockInfo[] { return this.unlocks(); }
   unlocks(): UnlockInfo[] {
     const L = this.s.lineage;
+    const nextOf: Record<string, string> = Object.fromEntries(Object.entries(UNLOCK_PREREQ).map(([n, p]) => [p, n]));
     L.ledger = this.ledger();
     // Cut 9 §2: every card that is not `available` says why — the gate, the missing prerequisite, or `◆2 more` (the core's `needs`)
     return Object.entries(UNLOCKS).map(([id, u]) => {
@@ -1532,7 +1538,12 @@ export class FakeEngine implements Engine {
       ...(TACTIC_CARDS.includes(id) && !owned ? { pm: 0.03 } : {}),                                     // Cut 13 §5: its half-width — within it the client reads `reach ~0`
       rows: UNLOCK_ROWS[id],                                                                             // Cut 6 §6
       ...(TACTIC_CARDS.includes(id) ? { insert_at: this.cardInsertAt() } : {}),                          // Cut 12 §1
-      ...(CARD_SITUATION[id] ? { situation: CARD_SITUATION[id] } : {}) };                                // Cut 18 §5: the foe tag the card answers
+      ...(CARD_SITUATION[id] ? { situation: CARD_SITUATION[id] } : {}),                                  // Cut 18 §5: the foe tag the card answers
+      // QA e75ec29 / a946e04 stand-in: a card joins the set on its buy only when measured not to hurt there, under 3 card rows in the set
+      ...(TACTIC_CARDS.includes(id) && !owned && ((Math.abs(hash(id)) % 9) - 2) >= 0 && this.s.rules.rows.filter((r) => r.verb.v === "tactic").length < 3 ? { auto_insert: true } : {}),
+      // QA a946e04 stand-in: the chain's next step and its prices (`row5` → `row6`), and this card's price after one more gold buy
+      ...(nextOf[id] && UNLOCKS[nextOf[id]] && !L.unlocks.includes(nextOf[id]) ? { next: { id: nextOf[id], cost: UNLOCKS[nextOf[id]].cost, gold: goldPrice(UNLOCKS[nextOf[id]].cost, this.goldBuys), gold_after_gold: goldPrice(UNLOCKS[nextOf[id]].cost, this.goldBuys + 1) } } : {}),
+      gold_next: owned ? 0 : goldPrice(u.cost, this.goldBuys + 1) };
     });
   }
   setClass(cls: string): Lineage {

@@ -40,12 +40,17 @@ pub struct Act {
     pub target: Option<String>,
     #[serde(default)]
     pub boss: bool,
+    /// QA on a946e04 (qaS: `A goblin took him to 3 HP; no row; died to gas.` under R2 `hp <
+    /// 40% → return`): the walk home a `return` / `bank` row committed to (`Run.homeward`) —
+    /// `row` is that row and the beat reads `R2 returning`, never `no row`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub walk: bool,
 }
 
 impl Default for Act {
     /// No action recorded: the chores' `no row fired`.
     fn default() -> Act {
-        Act { row: -2, verb: Verb::new("wait"), target: None, boss: false }
+        Act { row: -2, verb: Verb::new("wait"), target: None, boss: false, walk: false }
     }
 }
 
@@ -245,11 +250,11 @@ impl Arc {
         let lo = k.saturating_sub(1);
         let hi = k + 1;
         for (i, (ni, ai)) in self.acts.iter().enumerate() {
-            if *ni < lo || ai.row < 0 {
+            if *ni < lo || ai.row < 0 || ai.walk {
                 continue;
             }
             for (nj, aj) in self.acts.iter().skip(i + 1) {
-                if *nj > hi || aj.row != ai.row + 1 {
+                if *nj > hi || aj.row != ai.row + 1 || aj.walk {
                     continue;
                 }
                 if let Some(name) = crate::rules::combo_name(&ai.verb, &aj.verb) {
@@ -337,7 +342,10 @@ pub fn on_hurt(run: &mut Run, cause: &str, flag: Option<&str>) -> bool {
 /// episode is sealed; the voice's `resolved` moment).
 pub fn on_action(run: &mut Run, row: i32, verb: &Verb) {
     let target = run.last_target.and_then(|id| run.monsters.iter().find(|m| m.id == id)).map(|m| (m.kind.clone(), m.is_boss()));
-    let act = Act { row, verb: verb.clone(), target: target.as_ref().map(|t| t.0.clone()), boss: target.is_some_and(|t| t.1) };
+    // The walk home is the committing row's (the chores step it: `ai::chore`).
+    let walk = row == -2 && matches!(verb.v.as_str(), "return" | "bank") && run.homeward.is_some_and(|h| h >= 0);
+    let row = if walk { run.homeward.unwrap_or(row) } else { row };
+    let act = Act { row, verb: verb.clone(), target: target.as_ref().map(|t| t.0.clone()), boss: target.is_some_and(|t| t.1), walk };
     let turn = run.turn;
     let actions = run.actions;
     let a = &mut run.arc;
@@ -591,6 +599,9 @@ pub fn past_forms() -> Vec<&'static str> {
     v.extend(PAST_SHORT.iter().map(|(_, p)| *p));
     v.extend(TRAIT_PAST);
     v.push("acted");
+    // (the walk home: `R2 returning`)
+    v.push("returning");
+    v.push("banking");
     v
 }
 
@@ -781,6 +792,9 @@ fn turn_phrase(ep: &Episode, short: bool) -> String {
         return if short { format!("the {} landed", crate::rules::combo_slug(c)) } else { format!("the {c} landed") };
     }
     let past = past_tense_form(&a.verb, short);
+    if a.walk && a.row >= 0 {
+        return format!("R{} {}", a.row + 1, if a.verb.v == "bank" { "banking" } else { "returning" });
+    }
     if a.row >= 0 {
         let base = format!("R{} {past}", a.row + 1);
         if !short && a.boss && crate::turn::targets_foes(&a.verb) {
@@ -1243,7 +1257,7 @@ mod tests {
             low_hp: low,
             max_hp: 36,
             threat: threat.iter().map(|(k, n)| (k.to_string(), *n)).collect(),
-            act: Act { row, verb: Verb::new(verb), target: None, boss: false },
+            act: Act { row, verb: Verb::new(verb), target: None, boss: false, walk: false },
             trait_: Trait::Greedy,
             resolution: res,
             ..Default::default()

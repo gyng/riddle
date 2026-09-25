@@ -2,7 +2,14 @@
 use crate::engine::{Game, SAVE_VERSION};
 
 pub fn save(game: &Game) -> String {
-    serde_json::to_string(game).unwrap_or_default()
+    // QA on a946e04: the refined panel keys of the lineage as it stands travel with the save
+    // (a key of an earlier lineage state can never be read again; the rest are the memo's).
+    let lk = format!("{}:", crate::forecast::lineage_key(game));
+    let now: std::collections::BTreeSet<String> = game.refined_panels.borrow().iter().filter(|k| k.starts_with(&lk)).cloned().collect();
+    let all = game.refined_panels.replace(now);
+    let text = serde_json::to_string(game).unwrap_or_default();
+    game.refined_panels.replace(all);
+    text
 }
 
 pub fn load(text: &str) -> Result<Game, String> {

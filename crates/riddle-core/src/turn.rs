@@ -464,7 +464,17 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     let suppressed = if run.row_suppressed.1 > run.actions { run.row_suppressed.0 } else { -9 };
     run.last_target = None;
     run.blocked_now = None;
-    for (i, row) in rows.iter().map(|(i, r)| (*i, r)) {
+    for (k, (i, row)) in rows.iter().map(|(i, r)| (*i, r)).enumerate() {
+        // QA on a946e04 (qaS: a row the editor marks dead — `hp < 50% → attack nearest` under
+        // `foes ≥ 1 → attack nearest`, `↑ R3` — moved the forecast): a row an earlier row
+        // shadows (`rules::shadows`, the editor's own test) never acts. It fired whenever the
+        // earlier row's identical verb failed with a side effect (a chase given up marks the
+        // foe ignored, so the same `attack nearest` one row down picked another) or the row
+        // guard held the earlier row alone.
+        if let Some((j, _)) = rows[..k].iter().find(|(_, a)| (a.verb == row.verb || a.verb.v == "hold") && crate::rules::shadows(a, row, &|c: &Cond| row_usable(cx, c))) {
+            row_why(run, cx, i, &format!("same as R{}", j + 1), None, None);
+            continue;
+        }
         // The guard ignores the foes at range it paced in front of; one at the hero's elbow
         // is always worth a row (QA on e0f87e7: ten `pick up` rows with a jackal adjacent and
         // `foes ≥ 1 → attack nearest` reading `stuck`).
@@ -602,8 +612,14 @@ pub const ROW_REASONS: &[&str] = &[
     "depth not ≥", "alert not ≥", "not corridor", "no path", "no ally", "loot not ≥", "turns not >", "not hurt", "no kill",
     "nothing new", "no ", "party hp ok", "locked cond", "no target", "no line", "no bow", "cooldown", "no item", "no use",
     "no leash", "none weak", "not safe", "no stairs", "no way", "going home", "prayed", "no shrine", "unknown item", "card passed", "brave held", "fired, free",
-    "stuck", "row guard", "trait first", "hazard first", "recall sense", "paralysed", "confused", "bail",
+    "stuck", "row guard", "same as R", "trait first", "hazard first", "recall sense", "paralysed", "confused", "bail",
 ];
+
+/// A condition this lineage can use (`LineageState::shadowed_by`'s test): a row whose
+/// condition it does not own never fires, so it shadows nothing.
+fn row_usable(cx: &Ctx, c: &Cond) -> bool {
+    crate::meta::cond_unlock(&c.k).is_none_or(|u| cx.unlocks.contains(u)) && (c.k != "on_see" || c.t.as_deref().is_none_or(|t| t.is_empty() || cx.facts.contains(t)))
+}
 
 /// A reason is from the table (a prefix match: the numbered shapes carry their number).
 pub fn row_reason_ok(why: &str) -> bool {
@@ -994,6 +1010,15 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         }
     }
     run.hero.hp -= dmg;
+    // QA on a946e04 (qaT: `R1 drank poison at 17/36 hp`, then a goblin's blow — ~30 deaths,
+    // never a `row`): the harm the last unknown gamble has dealt so far (its poison, its
+    // caustic cloud, its fire, inside `trace::GAMBLE_WINDOW`) — a death it made the difference
+    // in is the gamble's (`trace::gamble_row`).
+    if let Some((t, k, true)) = run.gambles.last() {
+        if crate::trace::gamble_cause(k) == Some(cause) && run.turn.saturating_sub(*t) <= crate::trace::GAMBLE_WINDOW {
+            run.gamble_harm += dmg;
+        }
+    }
     run.hurt_since_action = true;
     run.last_damage_action = run.actions;
     // Cut 4: blood drawn ends every stalemate guard — the oscillation guard and the same-row

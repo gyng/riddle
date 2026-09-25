@@ -99,7 +99,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         // stays (it says what the stall paid). QA on 92eb880 (qaM: `R2 attack saved him.` above
         // a GAP on the hero's death): a floor he lived through earlier is not this screen's beat —
         // a `saved him` note never reaches a death's notes.
-        notes: run.notes.iter().rev().filter(|(_, n)| !(n.ends_with(" saved him.") || n.starts_with("Slain by") || n.starts_with("Down to ") || n.starts_with("Returned with") || n.starts_with("Lost the thread") || n.ends_with(": studied.") || n.starts_with("Met a ") || n.starts_with("Met an ") || n.starts_with("Learned"))).take(2).map(|(_, n)| n.clone()).collect::<Vec<_>>().into_iter().rev().collect(),
+        notes: death_notes(run, stall),
         nothing_beats_base: false,
         cause_row: None,
     };
@@ -147,12 +147,86 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.clone().filter(|(f, _)| f.id == run.id && f.depth == run.depth), gamble_row }
 }
 
+/// QA on a946e04: how far back from the end a death's notes reach (ticks; 60 hero turns).
+pub const NOTE_WINDOW: u32 = 600;
+
+/// The notes the screen already says (the headline's own), or that no death is about.
+fn note_noise(n: &str) -> bool {
+    n.ends_with(" saved him.") || n.starts_with("Slain by") || n.starts_with("Down to ") || n.starts_with("Returned with") || n.starts_with("Lost the thread") || n.ends_with(": studied.") || n.starts_with("Met a ") || n.starts_with("Met an ") || n.starts_with("Learned")
+}
+
+/// Cut 13 §4 / QA on a946e04 (qaS: an archer death's notes read `Goblin Captain: summoner.`
+/// — the run's last note, a floor earlier; a poison death's `The black one: confusion.
+/// Gambled: confusion potion.`): a death's notes are about the death — the last two notes of
+/// the death floor within `NOTE_WINDOW` ticks of the end that name the killer (its facts: `goblin
+/// archer: ranged.`; `The air stings: bloats ahead.` for a bloat's gas) or the item whose harm
+/// killed him (`The blue one: poison.` · `Gambled: poison potion.` on a poison death). None
+/// when no note is (the screen has the headline). A stall keeps its last two notes (they say
+/// what the stall paid).
+fn death_notes(run: &Run, stall: bool) -> Vec<String> {
+    let floor_t = run.turn.saturating_sub(run.floor_turn);
+    let cause = run.death_cause.as_deref().unwrap_or("");
+    // The gamble whose harm made the difference (`gamble_row`'s test): its notes name it.
+    let gamble = run.gambles.last().filter(|(t, k, mal)| *mal && run.turn.saturating_sub(*t) <= GAMBLE_WINDOW && gamble_cause(k).is_some_and(|c| c == cause || run.gamble_harm >= run.death_short.max(1))).and_then(|(_, k, _)| gamble_cause(k));
+    let keep = |t: u32, n: &str| -> bool {
+        if note_noise(n) {
+            return false;
+        }
+        if stall {
+            return true;
+        }
+        t >= floor_t && run.turn.saturating_sub(t) <= NOTE_WINDOW && (death_note_names(n, cause) || gamble.is_some_and(|k| death_note_names(n, k)))
+    };
+    let mut v: Vec<String> = run.notes.iter().rev().filter(|(t, n)| keep(*t, n)).take(2).map(|(_, n)| n.clone()).collect();
+    v.reverse();
+    v
+}
+
+/// QA on a946e04: whether a note names the death's killer — the monster's title, a situation
+/// its tag plays (a bloat's `gas`), or the item kind whose harm is the cause (`poison` · `fire`
+/// · `caustic` for gas). A title is matched whole (`goblin` is not `goblin archer`), plural
+/// allowed.
+pub fn death_note_names(note: &str, cause: &str) -> bool {
+    let lower = note.to_lowercase();
+    let words: Vec<String> = match cause {
+        "poison" => vec!["poison".into()],
+        "fire" => vec!["fire".into(), "burn".into()],
+        "gas" | "burst" | "caustic" => vec!["gas".into(), "caustic".into(), "bloat".into()],
+        "" => Vec::new(),
+        c => {
+            let mut v = vec![crate::engine::kind_title(c).to_lowercase()];
+            if crate::defs::MONSTERS.iter().any(|m| m.kind == c) && monster_def(c).tags.contains(&"gas") {
+                v.push("gas".into());
+            }
+            v
+        }
+    };
+    // Longer monster titles that contain a word (`goblin archer` ⊃ `goblin`) do not count as it.
+    let longer: Vec<String> = crate::defs::MONSTERS.iter().map(|m| m.title.to_lowercase()).collect();
+    words.iter().any(|w| {
+        let mut from = 0;
+        while let Some(i) = lower[from..].find(w.as_str()) {
+            let at = from + i;
+            let before_ok = at == 0 || !lower[..at].chars().next_back().is_some_and(|c| c.is_alphanumeric());
+            let rest = &lower[at + w.len()..];
+            let rest = rest.strip_prefix('s').unwrap_or(rest);
+            let after_ok = !rest.chars().next().is_some_and(|c| c.is_alphanumeric());
+            let in_longer = longer.iter().any(|t| t.len() > w.len() && t.starts_with(w.as_str()) && lower[at..].starts_with(t.as_str()));
+            if before_ok && after_ok && !in_longer {
+                return true;
+            }
+            from = at + w.len();
+        }
+        false
+    })
+}
+
 /// Cut 21 §3: how long after a gamble its harm still counts as the gamble's (ticks) — a fire
 /// overlay burns 20 turns, a poison runs 40 ticks.
 pub const GAMBLE_WINDOW: u32 = 300;
 
 /// Cut 21 §3: the harm a gambled kind deals, as the death cause reads it.
-fn gamble_cause(kind: &str) -> Option<&'static str> {
+pub fn gamble_cause(kind: &str) -> Option<&'static str> {
     match kind {
         "fire" => Some("fire"),
         "poison" => Some("poison"),
@@ -165,9 +239,15 @@ fn gamble_cause(kind: &str) -> Option<&'static str> {
 /// the cause is the harm of a malevolent kind gambled on this floor within `GAMBLE_WINDOW`
 /// ticks, and the trace's action at that tick is a `drink unknown` / `read unknown` row of the
 /// set that is not a card's. A gamble the trait or a chore made names no row.
+///
+/// QA on a946e04 (qaT: ~30 deaths all `gap`, `R1 drank poison at 17/36 hp` among them): or
+/// the last gamble's harm made the difference — a poison that took 8 HP from a hero a
+/// goblin's blow then killed 3 HP short (`Run.gamble_harm ≥ Run.death_short`): without the
+/// gamble he stood through the blow.
 fn gamble_row(run: &Run, rules: &RuleSet) -> Option<usize> {
     let cause = run.death_cause.as_deref()?;
-    let (t, _, _) = run.gambles.iter().rev().find(|(t, k, mal)| *mal && gamble_cause(k) == Some(cause) && run.turn.saturating_sub(*t) <= GAMBLE_WINDOW)?;
+    let last = run.gambles.len().checked_sub(1);
+    let (t, _, _) = run.gambles.iter().enumerate().rev().find(|(i, (t, k, mal))| *mal && run.turn.saturating_sub(*t) <= GAMBLE_WINDOW && (gamble_cause(k) == Some(cause) || (Some(*i) == last && gamble_cause(k).is_some() && run.gamble_harm >= run.death_short.max(1)))).map(|(_, g)| g)?;
     let turn = run.trace.iter().rev().find(|x| x.t <= *t)?;
     let gamble = matches!(turn.verb.v.as_str(), "drink" | "read") && turn.verb.a.as_deref() == Some("unknown");
     let at = usize::try_from(turn.row).ok()?;
@@ -266,7 +346,8 @@ fn morgue(game: &Game, run: &Run, rules: &RuleSet, stall: bool) -> String {
             run.depth,
             run.biome().name(),
             run.turn,
-            run.death_cause.clone().unwrap_or_default(),
+            // QA on a946e04 (qaS: `slain by goblin_archer`): the killer's title, as the notes say it.
+            crate::engine::kind_title(run.death_cause.as_deref().unwrap_or_default()),
             run.death_blow,
             run.death_short.max(1)
         ));

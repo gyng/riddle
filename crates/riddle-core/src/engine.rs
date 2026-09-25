@@ -135,6 +135,14 @@ pub struct Run {
     /// Cut 21 §1: the floor the send started on (1, or the lit waystone it paid for).
     #[serde(default = "default_start")]
     pub start: u32,
+    /// QA on a946e04 (qaT: run 6's report `+$71 banked · −$40 spent` left out the send's
+    /// `−$50 waystone D5`): the toll this send paid (0 from D1 or on the night's pass).
+    #[serde(default)]
+    pub toll: i32,
+    /// QA on a946e04 (qaT: a short purse sent the run from D1 unsaid): the waystone the send
+    /// wanted and did not start on (the toll short, or unlit) — `ExitLine.start_short`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_short: Option<u32>,
     pub floor: Floor,
     pub hero: Hero,
     pub trait_: Trait,
@@ -176,6 +184,10 @@ pub struct Run {
     pub near_deaths: Vec<u32>,
     pub gambles: Vec<(u32, String, bool)>,
     pub gambles_survived: Vec<(u32, String)>,
+    /// QA on a946e04 (qaT): the HP the last gamble's harm (poison, its gas, its fire) has taken
+    /// inside `trace::GAMBLE_WINDOW` (`turn::damage_hero`; reset at each gamble).
+    #[serde(default)]
+    pub gamble_harm: i32,
     pub stolen: Vec<(u32, String)>,
     /// Cut 20 §1: the ids of the items thieves took this run, and what was taken back from a
     /// killed thief's drop (turn, label).
@@ -188,6 +200,11 @@ pub struct Run {
     /// line's `· stolen heal`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stolen_labels: Vec<(u32, String)>,
+    /// QA on a946e04 (qaS: STOLEN `black potion?` while LEARNED said `confusion (black)`;
+    /// `leash ×4` beside `leash (2)`): each theft's item id and kind — the report names what
+    /// thieves kept by kind, labelled when it is read (`LineageState::wire_name`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stolen_kinds: Vec<(u32, String, i32)>,
     pub ally_lost: Vec<(u32, String)>,
     pub ally_freed: Vec<u32>,
     pub boss_kills: Vec<(u32, String)>,
@@ -887,6 +904,17 @@ pub struct LineageState {
     /// start below D1 pays `WAYSTONE_TOLL × depth` at the send (`start_run`).
     #[serde(default = "default_start")]
     pub start: u32,
+    /// QA on a946e04 (qaT: `waystone D5 ×16 · −$800` over one absence, $121 → $40, the repeat
+    /// starved): the waystone passes paid this night — a start's toll is paid once per night
+    /// (`NIGHT_RUNS` runs, offline or live) and the night's later sends from it go free; the
+    /// night's end clears them (`night`).
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub night_passes: BTreeSet<u32>,
+    /// QA on a946e04: the waystone whose pass an absence's purse could not pay this night —
+    /// the night's later offline sends start on D1 without asking again (the report's
+    /// `start_short`); cleared at the night's end. A watched send asks each time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub night_short: Option<u32>,
 }
 
 fn default_start() -> u32 {
@@ -1006,6 +1034,8 @@ impl LineageState {
             picked: BTreeMap::new(),
             night_runs: 0,
             night_seen: BTreeSet::new(),
+            night_passes: BTreeSet::new(),
+            night_short: None,
             den_thefts: 0,
             den_wakes: 0,
             bounty: None,
@@ -1193,7 +1223,25 @@ impl LineageState {
                 v.dedup();
                 v
             },
+            trait_rules: Trait::ALL.iter().map(|t| (t.name().to_string(), t.rule().to_string())).collect(),
+            start_payable: self.start_payable(self.start.max(1)),
+            start_pass: self.night_passes.contains(&self.start.max(1)),
+            renamed: self.renamed(),
         }
+    }
+    /// QA on a946e04: every identified flavoured kind's flavour label → its wire name
+    /// (`Lineage.renamed`).
+    pub fn renamed(&self) -> BTreeMap<String, String> {
+        let f = &self.flavours;
+        f.potion
+            .keys()
+            .chain(f.scroll.keys())
+            .filter(|k| crate::item::is_identified(&self.facts, f, k))
+            .map(|k| {
+                let (_, _, label) = crate::item::describe(&Item::new(0, k), &BTreeSet::new(), f);
+                (label, self.wire_name(k))
+            })
+            .collect()
     }
     /// QA on 92eb880: `rules`' shadowed rows for this lineage (a row whose condition it does not
     /// own never fires, so it shadows nothing); empty when none is shadowed.
@@ -1392,6 +1440,9 @@ impl LineageState {
         }
         self.picked.retain(|_, p| *p > 0);
         self.night_runs = 0;
+        // QA on a946e04: a new night buys a new waystone pass.
+        self.night_passes.clear();
+        self.night_short = None;
         // Cut 20 §5 (AC: "after the absence 15 of 16 runs banked, so the second half had
         // little at stake"): the deep calls — the next night's bounty floor.
         self.bounty = Some(bounty_floor(self.best_depth, &self.kills));
@@ -1422,6 +1473,12 @@ impl LineageState {
         Ok(())
     }
 
+    /// QA on a946e04 (qaT: `start → D5 · $50` with $32, the send went from D1 unsaid): whether
+    /// a send from `depth` starts there — D1, or a lit waystone whose pass is held tonight or
+    /// that the purse pays now.
+    pub fn start_payable(&self, depth: u32) -> bool {
+        depth <= 1 || (self.waystones.contains(&depth) && (self.night_passes.contains(&depth) || self.gold >= LineageState::start_toll(depth)))
+    }
     /// Cut 21 §1: the toll a start at `depth` pays at the send (`$0` from D1).
     pub fn start_toll(depth: u32) -> i32 {
         if depth <= 1 {
@@ -1436,7 +1493,10 @@ impl LineageState {
     /// the shelf only holds kinds known by name, so the trait's and the gamble rows' unknowns
     /// never ask the repeat for anything.
     pub fn row_kinds(&self) -> BTreeSet<String> {
-        let rules = self.rules();
+        self.row_kinds_of(self.rules())
+    }
+    /// `row_kinds` for any set (the repeat's kinds had `rules` been the active set).
+    pub fn row_kinds_of(&self, rules: &RuleSet) -> BTreeSet<String> {
         let mut rows: Vec<Row> = Vec::new();
         for (_, r) in rules.active(self.max_rows()) {
             match r.card() {
@@ -1679,7 +1739,8 @@ pub struct Batch {
     pub rested: u64,
     pub best_score: u32,
     pub bones_found: Vec<String>,
-    /// QA on e75ec29: the thefts no run got back, per label (`ReturnReport.stolen`), and the
+    /// QA on e75ec29: the thefts no run got back, per kind (QA on a946e04; a save from before
+    /// keyed them by label) (`ReturnReport.stolen`), and the
     /// deaths that topped the heir purse up (`GoldSummary.wake_n`).
     #[serde(default)]
     pub stolen: BTreeMap<String, u32>,
@@ -1746,6 +1807,14 @@ pub struct Batch {
     /// §5: the bounty the absence played for (`ReturnReport.bounty`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bounty: Option<crate::wire::BountyReport>,
+    /// QA on a946e04 (qaT): the waystone the batch's sends could not pay the pass for — (depth,
+    /// toll, sends that went from D1 instead) (`ReturnReport.start_short`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_short: Option<(u32, i32, u32)>,
+    /// QA on a946e04 (qaT: `−$36 stolen` in the strip, STOLEN listing the item only): the
+    /// carried gold each kept theft took off the run (the item's worth), per kind.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub stolen_gold: BTreeMap<String, i32>,
 }
 
 impl Batch {
@@ -1844,7 +1913,10 @@ pub struct Game {
     pub panel_cache: std::cell::RefCell<BTreeMap<String, Vec<crate::forecast::SimResult>>>,
     /// QA on 1a2a4a9: the panel keys refined at `REFINE_SIMS` (`forecast::camp_sims`) — a
     /// refined panel evicted from `panel_cache` is recomputed refined, never read coarser.
-    #[serde(skip)]
+    /// QA on a946e04 (qaS: `return 90% death 10%` → `88% · 12%` across a reload, nothing
+    /// edited): saved — the save keeps the keys of the lineage as it stands
+    /// (`save::save`), so a load's first read of a refined set is the refined panel again.
+    #[serde(default, skip_serializing_if = "refined_empty")]
     pub refined_panels: std::cell::RefCell<std::collections::BTreeSet<String>>,
     /// Cut 6 §1: the ledger line of the last settled exit (`step` attaches it to `Ev::Exit`).
     #[serde(default)]
@@ -1858,6 +1930,10 @@ pub struct Game {
     /// clears it): a watched bank grants +50% class XP.
     #[serde(default)]
     pub watched: bool,
+}
+
+fn refined_empty(r: &std::cell::RefCell<std::collections::BTreeSet<String>>) -> bool {
+    r.borrow().is_empty()
 }
 
 fn default_max_deaths() -> usize {
@@ -2280,7 +2356,8 @@ impl Game {
         // Cut 21 §1: the send starts on the lineage's chosen floor — a lit waystone pays its
         // toll here (`waystone D9 −$90`); a toll the purse cannot pay (or a start no longer
         // lit) starts on D1 and says so.
-        let (start, start_note) = self.pay_start();
+        let (start, start_note, toll) = self.pay_start();
+        let wanted = self.lineage.start.max(1);
         let mut rng = Rng::new(seed);
         let floor = generate(&mut rng, biome_for(start), start);
         let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
@@ -2306,9 +2383,32 @@ impl Game {
             }
         }
         self.lineage.repeat_short.clear();
+        // QA on a946e04 (qaT: an absence's tolls starved the repeat — `restock ≤ income` — and
+        // from the next send on the repeat had forgotten heal and caustic: the found heals were
+        // salvaged `heal ×2 · $4`, the badge gone): the repeat's kinds are remembered through a
+        // send that could not re-pack them (capped, short) or that packed a found one in their
+        // place — only the player's drop (`drop_supply`, `clear_supplies`), a wasted kind or a
+        // kind no row uses leaves the list.
+        // (a send with the repeat off is the player's pack alone: its kinds are the next's)
+        let plan: Vec<String> = if self.lineage.restock_off {
+            Vec::new()
+        } else {
+            let used = self.lineage.row_kinds();
+            self.lineage.last_supplies.iter().filter(|k| !self.lineage.last_wasted.contains(k) && used.contains(*k)).cloned().collect()
+        };
         self.restock();
         // (a found supply packs free and is not the repeat's — Cut 21 §2)
-        self.lineage.last_supplies = self.lineage.supplies.iter().filter(|i| !i.free && !i.found).map(|i| i.kind.clone()).collect();
+        let mut kinds: Vec<String> = self.lineage.supplies.iter().filter(|i| !i.free && !i.found).map(|i| i.kind.clone()).collect();
+        let mut bought = kinds.clone();
+        for k in plan {
+            match bought.iter().position(|b| *b == k) {
+                Some(i) => {
+                    bought.remove(i);
+                }
+                None => kinds.push(k),
+            }
+        }
+        self.lineage.last_supplies = kinds;
         for id in loadout {
             if let Some(i) = self.lineage.vault.iter().position(|v| v.id == id) {
                 let it = self.lineage.vault.remove(i);
@@ -2323,6 +2423,8 @@ impl Game {
             rng,
             depth: start,
             start,
+            toll,
+            start_short: (start != wanted).then_some(wanted),
             floor,
             hero,
             trait_: self.lineage.trait_,
@@ -2357,10 +2459,12 @@ impl Game {
             near_deaths: Vec::new(),
             gambles: Vec::new(),
             gambles_survived: Vec::new(),
+            gamble_harm: 0,
             stolen: Vec::new(),
             stolen_ids: Vec::new(),
             recovered: Vec::new(),
             stolen_labels: Vec::new(),
+            stolen_kinds: Vec::new(),
             ally_lost: Vec::new(),
             ally_freed: Vec::new(),
             boss_kills: Vec::new(),
@@ -2515,24 +2619,39 @@ impl Game {
     /// `waystone D9`, counted with the absence's spending), and the note when the chosen
     /// start could not be taken — `(1, Some(..))` when the purse is short of the toll or the
     /// waystone is not lit.
-    fn pay_start(&mut self) -> (u32, Option<String>) {
+    ///
+    /// QA on a946e04 (qaT: `waystone D5 ×16 · −$800` in one absence): the toll buys the
+    /// night's pass (`LineageState::night_passes`) — the night's later sends from that
+    /// waystone pay nothing. An absence whose purse cannot pay the pass sends the rest of the
+    /// night's runs from D1 without asking again (`night_short`; the report's `start_short`).
+    /// Returns (start, note, toll paid).
+    fn pay_start(&mut self) -> (u32, Option<String>, i32) {
         let want = self.lineage.start.max(1);
         if want == 1 {
-            return (1, None);
+            return (1, None, 0);
         }
         if !self.lineage.waystones.contains(&want) {
-            return (1, Some(format!("D{want} unlit: from D1.")));
+            return (1, Some(format!("D{want} unlit: from D1.")), 0);
+        }
+        if self.lineage.night_passes.contains(&want) {
+            return (want, None, 0);
         }
         let toll = LineageState::start_toll(want);
-        if self.lineage.gold < toll {
-            return (1, Some(format!("Toll ${toll} short: from D1.")));
+        let short = self.lineage.gold < toll || (self.offline && self.lineage.night_short == Some(want));
+        if short {
+            if self.offline {
+                self.lineage.night_short = Some(want);
+            }
+            self.batch.start_short.get_or_insert((want, toll, 0)).2 += 1;
+            return (1, Some(format!("Toll ${toll} short: from D1.")), 0);
         }
         let why = format!("waystone D{want}");
         self.lineage.gold_move(-toll, &why);
         let e = self.batch.spent.entry(why).or_insert((0, 0));
         e.0 += 1;
         e.1 += toll;
-        (want, None)
+        self.lineage.night_passes.insert(want);
+        (want, None, toll)
     }
 
     /// Borrow the run and a context together.
@@ -2787,7 +2906,7 @@ impl Game {
             alert: run.alert,
             turn: run.turn,
             loot: run.loot,
-            run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn },
+            run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn, start: run.start.max(1) },
             stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some(), death_keep: run.loot.max(0) * ExitTier::Death.pct() / 100 },
             vision: run.vision(&l.unlocks),
             vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice {
@@ -2830,10 +2949,16 @@ impl Game {
         self.lineage.den_wakes += run.den_wakes;
         self.batch.thefts += run.stolen.len() as u32;
         self.batch.recovered += run.recovered.len() as u32;
-        let kept_by_thieves: Vec<String> = run.stolen_labels.iter().filter(|(id, _)| run.stolen_ids.contains(id)).map(|(_, l)| l.clone()).collect();
-        for l in &kept_by_thieves {
-            *self.batch.stolen.entry(l.clone()).or_insert(0) += 1;
+        // QA on a946e04: keyed by kind (`Run.stolen_kinds`; a save from before by its label),
+        // named at the report (`wire_name`).
+        let kept: Vec<(String, i32)> = run.stolen_labels.iter().filter(|(id, _)| run.stolen_ids.contains(id)).map(|(id, l)| run.stolen_kinds.iter().find(|(k, _, _)| k == id).map(|(_, kind, g)| (kind.clone(), *g)).unwrap_or_else(|| (l.clone(), 0))).collect();
+        for (k, g) in &kept {
+            *self.batch.stolen.entry(k.clone()).or_insert(0) += 1;
+            *self.batch.stolen_gold.entry(k.clone()).or_insert(0) += g;
         }
+        let kept_gold: i32 = kept.iter().map(|(_, g)| *g).sum();
+        let kept_kinds: Vec<String> = kept.into_iter().map(|(k, _)| k).collect();
+        let kept_by_thieves: Vec<String> = kept_kinds.iter().map(|k| self.lineage.wire_name(k).replace('_', " ")).collect();
         self.batch.den_wakes += run.den_wakes;
         // Cut 20 §5: the bounty floor — taken when the run reached it and came home. QA on
         // e75ec29 (qaQ: `bounty D10 · missed` after the first absence, no bounty on the camp
@@ -3380,6 +3505,11 @@ impl Game {
         // the client's; the text stays ≤ 14 words).
         line.purse_full = purse_full;
         line.stolen = kept_by_thieves.clone();
+        // QA on a946e04 (qaT): the send's toll and where it started, on its exit's line.
+        line.toll = run.toll;
+        line.start = run.start.max(1);
+        line.start_short = run.start_short;
+        line.stolen_gold = kept_gold;
         // Cut 21 §2: the found supplies this exit shelved, per kind (the client's `found heal →
         // shelf`; not in `text`).
         for k in &shelved {
@@ -3945,7 +4075,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new() }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0 }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:

@@ -1482,17 +1482,17 @@ fn episodes_close_on_a_low_a_recovery_and_the_exit() {
 fn routine_line_reads_the_floor_and_its_twist() {
     use crate::sifter::{names_agent, routine_line, story_line, story_ok, Act, Episode, Resolution, Setup};
     let ep = |depth: u32, twist: Option<&str>, act: Act, res: Resolution| Episode { depth, setup: Setup::Untouched, act, resolution: res, twist: twist.map(String::from), max_hp: 30, low_hp: 30, ..Default::default() };
-    let ret = |row: i32| Act { row, verb: Verb::new("return"), target: None, boss: false };
+    let ret = |row: i32| Act { row, verb: Verb::new("return"), target: None, boss: false, walk: false };
     let e = ep(6, Some("nest"), ret(2), Resolution::Returned { gold: 54 });
     assert_eq!(story_line(&e), "D6, the nest: R3 returned $54.");
     let e = ep(2, None, Act::default(), Resolution::Returned { gold: 8 });
     assert_eq!(story_line(&e), "D2: returned $8.");
     let e = ep(5, Some("vault"), ret(0), Resolution::Lost { stalled: false });
     assert_eq!(story_line(&e), "D5, the cage: lost the thread.");
-    let e = ep(7, Some("lock"), Act { row: 1, verb: Verb::new("bank"), target: None, boss: false }, Resolution::Banked { gold: 120 });
+    let e = ep(7, Some("lock"), Act { row: 1, verb: Verb::new("bank"), target: None, boss: false, walk: false }, Resolution::Banked { gold: 120 });
     assert_eq!(story_line(&e), "D7, the lock: R2 banked $120.");
     // An attack row that happened to be the last act is not credited with the exit.
-    let e = ep(7, Some("den"), Act { row: 1, verb: Verb::arg("attack", "nearest"), target: None, boss: false }, Resolution::Returned { gold: 3 });
+    let e = ep(7, Some("den"), Act { row: 1, verb: Verb::arg("attack", "nearest"), target: None, boss: false, walk: false }, Resolution::Returned { gold: 3 });
     assert_eq!(story_line(&e), "D7, the den: returned $3.");
     // A low point is never routine.
     let mut e = ep(6, Some("nest"), ret(2), Resolution::Returned { gold: 54 });
@@ -5009,9 +5009,11 @@ fn forecast_is_deterministic_per_rules_and_lineage() {
     let t1 = crate::forecast::forecast_tag(&g, 1);
     let t3 = crate::forecast::forecast_tag(&g, 2);
     assert!(t1 != t3);
-    // Through the save: identical.
+    // Through the save: identical — the refined panel, since the refine ran (QA on a946e04:
+    // a reload read the first pass again, `return 90%` → `88%`).
     let g3 = Game::load(&g.save()).unwrap();
-    assert_eq!(g3.forecast(), a);
+    assert_eq!(g3.forecast(), g.forecast());
+    assert_eq!(g3.forecast(), r1);
 }
 
 /// Cut 14 §1: the forecast is a paired measurement — every set a lineage forecasts plays the
@@ -5441,7 +5443,7 @@ fn story_lines_credit_a_combo_that_landed_at_the_low_point() {
         assert_eq!(run.arc.combo, None, "the low's window has closed");
     }
     // A multi-word name reads whole; a combo with no row (a trait acted) is not credited.
-    let mut ep = crate::sifter::Episode { combo: Some("hit and fade".into()), act: crate::sifter::Act { row: 2, verb: Verb::new("retreat"), target: None, boss: false }, low_hp: 5, max_hp: 30, threat: vec![("ogre".into(), 1)], resolution: crate::sifter::Resolution::Reached { depth: 4 }, ..Default::default() };
+    let mut ep = crate::sifter::Episode { combo: Some("hit and fade".into()), act: crate::sifter::Act { row: 2, verb: Verb::new("retreat"), target: None, boss: false, walk: false }, low_hp: 5, max_hp: 30, threat: vec![("ogre".into(), 1)], resolution: crate::sifter::Resolution::Reached { depth: 4 }, ..Default::default() };
     assert_eq!(crate::sifter::story_line(&ep), "An ogre took him to 5 HP; the hit-and-fade landed; reached D4.", "the short form is one word");
     ep.threat = vec![("gas".into(), 1)];
     ep.low_hp = 0;
@@ -9150,23 +9152,46 @@ fn a_waystone_start_pays_its_toll_and_begins_on_its_floor() {
     assert_eq!(g.lineage.gold, 410);
     assert!(g.lineage.gold_ledger.iter().any(|l| l.why == "waystone D9" && l.delta == -90), "{:?}", g.lineage.gold_ledger);
     assert!(run.notes.iter().any(|(_, n)| n == "Heir 1 enters D9, the Fens."), "{:?}", run.notes);
-    // Short of the toll: D1, with a note, nothing charged.
+    // QA on a946e04 (qaT): the toll bought tonight's pass — the next send from D9 is free, and
+    // the wire says the start is payable on the pass.
+    assert!(g.lineage.night_passes.contains(&9));
     g.run = None;
     g.lineage.gold = 50;
+    assert!(g.lineage().start_payable && g.lineage().start_pass);
     g.start_run(None);
     let run = g.run.as_ref().unwrap();
-    assert_eq!(run.depth, 1);
+    assert_eq!((run.depth, run.toll, g.lineage.gold), (9, 0, 50), "the night's pass");
+    // A new night, short of the toll: D1, with a note, nothing charged.
+    g.lineage.night();
+    g.run = None;
+    assert!(!g.lineage().start_payable);
+    g.start_run(None);
+    let run = g.run.as_ref().unwrap();
+    assert_eq!((run.depth, run.start_short), (1, Some(9)));
     assert_eq!(g.lineage.gold, 50);
     assert!(run.notes.iter().any(|(_, n)| n == "Toll $90 short: from D1."), "{:?}", run.notes);
     assert_eq!(g.lineage.start, 9, "the choice stands for the next send");
-    // Offline: every run starts on D9 while the purse pays.
+    // Offline: every run starts on D9 while the purse pays — one pass a night.
     g.run = None;
     g.lineage.gold = 100_000;
+    let nights_before = g.lineage.night_runs;
     let r = g.run_offline(4 * 3600);
     let tolls = g.lineage.gold_ledger.iter().filter(|l| l.why == "waystone D9").count() as u32;
-    assert!(r.runs >= 2 && tolls >= r.runs, "{} runs, {tolls} tolls", r.runs);
+    let nights = (nights_before + r.runs).div_ceil(crate::engine::NIGHT_RUNS);
+    assert!(r.runs >= 2 && tolls >= 1 && tolls <= nights, "{} runs, {tolls} tolls, {nights} nights", r.runs);
     assert!(g.batch.run_outcomes.iter().all(|(d, _)| *d >= 9), "{:?}", g.batch.run_outcomes);
     assert!(r.spent.iter().any(|s| s.kind == "waystone D9" && s.gold == 90 * s.n as i32), "{:?}", r.spent);
+    assert!(r.start_short.is_none());
+    // An absence that cannot pay the pass: the night goes from D1, and the report says so.
+    g.lineage.night();
+    g.lineage.gold = 0;
+    g.lineage.restock_off = true;
+    let r = g.run_offline(2 * 3600);
+    let s = r.start_short.clone().expect("the report names the start it could not pay");
+    assert_eq!((s.depth, s.toll), (9, 90));
+    assert!(s.runs >= 1 && g.batch.run_outcomes.iter().all(|(d, _)| *d < 9 || s.runs < r.runs), "{s:?} · {:?}", g.batch.run_outcomes);
+    g.lineage.restock_off = false;
+    g.lineage.gold = 100_000;
     // The forecast simulates from the start: every row above it reads 1.0.
     let f = g.forecast();
     assert_eq!(f.start, 9);
@@ -9219,10 +9244,12 @@ fn found_supplies_go_to_the_shelf_and_the_repeat_buys_only_used_kinds() {
     assert_eq!(l.repeat_dropped, vec!["strength".to_string()]);
     assert!(l.repeat_kinds.is_empty() && l.repeat_gold == 0, "{:?} ${}", l.repeat_kinds, l.repeat_gold);
     assert!(l.supplies.iter().any(|s| s.kind == "heal" && s.found));
-    // The next send packs it, and it is not the repeat's (it is found, not bought).
+    // The next send packs it free. QA on a946e04 (qaT: the repeat forgot heal after a found one
+    // stood in for it, and the next found heals were salvaged): the repeat still remembers the
+    // heal the found one stood in for — the next exit re-buys it if it was drunk.
     g.auto_keep();
     g.start_run(None);
-    assert!(g.lineage.last_supplies.is_empty(), "{:?}", g.lineage.last_supplies);
+    assert_eq!(g.lineage.last_supplies, vec!["heal".to_string()]);
     assert!(g.run.as_ref().unwrap().hero.inv.iter().any(|i| i.kind == "heal" && i.found));
     g.run = None;
     // Dropped from the shelf: salvaged (a potion pays $2), never refunded at $40.
@@ -9334,4 +9361,272 @@ fn the_depth_picker_reaches_best_plus_two() {
     assert_eq!(g.vocabulary().depth_max, 8);
     g.lineage.best_depth = 20;
     assert_eq!(g.vocabulary().depth_max, 22);
+}
+
+// ---------------------------------------------------------------- QA on a946e04 (qaS)
+
+/// qaS (`cowardly · flees under 50%`, the morgue fighting from 6/36 to 1): the trait acts as
+/// its chip says — one step back per floor under 50 % with a foe in view — and the chip's words
+/// are the core's (`Lineage.trait_rules`), saying `once a floor`.
+#[test]
+fn cowardly_backs_off_once_a_floor_as_its_rule_says() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().trait_ = crate::hero::Trait::Cowardly;
+    g.run.as_mut().unwrap().hero.hp = 12;
+    add_monster(&mut g, "rat", 6, 5);
+    add_monster(&mut g, "rat", 9, 8);
+    attack_rules(&mut g);
+    let evs = ticks(&mut g, 400);
+    let floor = evs.iter().position(|e| matches!(e, Ev::Descend { .. })).unwrap_or(evs.len());
+    let fled = evs[..floor].iter().filter(|e| matches!(e, Ev::Rule { row: -1, text, .. } if text.starts_with("cowardly"))).count();
+    assert_eq!(fled, 1, "the coward backs off once on this floor");
+    let l = g.lineage();
+    for t in crate::hero::Trait::ALL {
+        let rule = l.trait_rules.get(t.name()).expect("every trait has its rule");
+        assert!(rule.contains("once a floor") || rule.contains(" a floor"), "{}: {rule}", t.name());
+    }
+    assert_eq!(l.trait_rules["cowardly"], "backs off once a floor under 50%");
+}
+
+/// qaS (an archer death's notes `Goblin Captain: summoner.`, a poison death's `The black one:
+/// confusion.`): a death's notes name its killer or the harm that killed him.
+#[test]
+fn death_notes_name_the_death() {
+    use crate::trace::death_note_names;
+    assert!(death_note_names("goblin archer: ranged.", "goblin_archer"));
+    assert!(!death_note_names("Goblin Captain: summoner.", "goblin_archer"));
+    assert!(!death_note_names("Grog the goblin slain.", "goblin_archer"));
+    assert!(death_note_names("Grog the goblin slain.", "goblin"));
+    assert!(!death_note_names("goblin archer: telegraph.", "goblin"));
+    assert!(death_note_names("The air stings: bloats ahead.", "burst"));
+    assert!(death_note_names("The blue one: poison.", "poison"));
+    assert!(death_note_names("Gambled: poison potion.", "poison"));
+    assert!(!death_note_names("The black one: confusion.", "poison"));
+    assert!(!death_note_names("Gambled: confusion potion.", "poison"));
+    // The walk's death (seed 1815, run 1: an archer on D6, the run's last note a D5 captain's).
+    let mut g = Game::new(1815);
+    g.send();
+    loop {
+        let r = g.step(200);
+        if r.run_over {
+            break;
+        }
+    }
+    let id = *g.deaths.keys().next().expect("seed 1815's first run dies");
+    let d = g.death(id).unwrap();
+    assert_eq!(d.cause, "goblin_archer");
+    assert!(d.notes.iter().all(|n| death_note_names(n, &d.cause)), "{:?}", d.notes);
+    assert!(!d.notes.iter().any(|n| n.contains("Captain")), "{:?}", d.notes);
+    assert!(d.morgue.contains("slain by goblin archer"), "the morgue names the killer by its title");
+}
+
+/// qaS (`A goblin took him to 3 HP; no row; died to gas.` under R2 `hp < 40% → return`): the
+/// walk home is the committing row's beat.
+#[test]
+fn reel_walk_home_names_the_return_row() {
+    use crate::sifter::{story_line, story_ok, Act, Episode, Resolution, Setup};
+    let ep = Episode {
+        setup: Setup::Hurt,
+        low_hp: 3,
+        max_hp: 36,
+        depth: 6,
+        threat: vec![("goblin".into(), 1)],
+        act: Act { row: 1, verb: Verb::new("return"), target: None, boss: false, walk: true },
+        resolution: Resolution::Died { cause: "gas".into() },
+        ..Default::default()
+    };
+    let line = story_line(&ep);
+    assert!(line.contains("R2 returning"), "{line}");
+    assert!(!line.contains("no row"), "{line}");
+    assert!(story_ok(&line), "{line}");
+}
+
+/// qaS (`Nothing lost to the den.` beside `stolen red potion?`): the den is passed only while no
+/// theft of the run is still out.
+#[test]
+fn den_pass_checks_the_runs_thefts() {
+    for (outstanding, passed) in [(false, true), (true, false)] {
+        let mut g = arena();
+        {
+            let run = g.run.as_mut().unwrap();
+            run.floor_twist = Some("den".into());
+            run.met_situation("den");
+            if outstanding {
+                run.stolen_ids.push(9999);
+            }
+        }
+        let (run, mut cx) = g.ctx();
+        crate::situations::on_leave_floor(run, &mut cx);
+        assert_eq!(run.passed.iter().any(|p| p == "den"), passed, "outstanding theft {outstanding}");
+    }
+}
+
+/// qaS (SALVAGED `blue potion? ×8` beside `poison ×3`): the lineage maps each identified
+/// flavour's label to its name now, and a report's STOLEN row is named when read.
+#[test]
+fn identified_flavours_rename_on_the_wire() {
+    let mut g = Game::new(5);
+    let kind = "poison";
+    let fl = g.lineage.flavours.flavour_of(kind).expect("poison has a flavour").to_string();
+    let label = format!("{fl} potion?");
+    assert!(!g.lineage().renamed.contains_key(&label));
+    let rep = |g: &mut Game| {
+        let facts = g.lineage.facts.clone();
+        let rank = g.lineage.rank;
+        crate::offline::report(g, 0, &facts, "fighter", rank, false, false)
+    };
+    g.batch.stolen.insert(kind.into(), 2);
+    let r = rep(&mut g);
+    assert!(r.stolen.iter().any(|x| x.label == label && x.n == 2), "unidentified: its flavour · {:?}", r.stolen);
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, kind).unwrap());
+    assert_eq!(g.lineage().renamed.get(&label).map(String::as_str), Some(kind));
+    let r = rep(&mut g);
+    assert!(r.stolen.iter().any(|x| x.label == kind), "identified: its name · {:?}", r.stolen);
+}
+
+/// qaS (`+1 ROW ◆2 or $300 · each $ buy +25%`, then `◆4 or $600`): a chained unlock names the
+/// next step's own price.
+#[test]
+fn unlock_names_the_chains_next_price() {
+    let mut g = Game::new(3);
+    let row5 = g.unlocks().into_iter().find(|u| u.id == "row5").unwrap();
+    let next = row5.next.expect("row5 → row6");
+    assert_eq!((next.id.as_str(), next.cost), ("row6", 4));
+    assert_eq!(next.gold, crate::meta::gold_price(4, g.lineage.gold_buys));
+    assert_eq!(next.gold_after_gold, crate::meta::gold_price(4, g.lineage.gold_buys + 1));
+    assert_eq!(row5.gold_next, crate::meta::gold_price(2, g.lineage.gold_buys + 1));
+    g.lineage.marks = 10;
+    g.buy("row5").unwrap();
+    let row6 = g.unlocks().into_iter().find(|u| u.id == "row6").unwrap();
+    assert_eq!((row6.cost, row6.gold), (next.cost, next.gold), "the named next price is the price");
+}
+
+/// qaS (adding a row the editor marks dead moved the forecast): a shadowed row never acts
+/// (`same as R<n>`), so the set with it plays the set without it — and reads its panel.
+#[test]
+fn a_shadowed_row_never_acts_and_reads_the_same_panel() {
+    let mut g = Game::new(1);
+    g.lineage.unlocks.extend(["row5", "row6"].map(String::from));
+    let base = g.lineage.rules().clone();
+    let mut dead = base.clone();
+    dead.rows.push(Row::new(vec![Cond::n("hp<", 50)], Verb::arg("attack", "nearest")));
+    assert_eq!(g.lineage.shadowed_by(&dead).last().copied().flatten(), Some(1));
+    let sims = crate::forecast::FORECAST_SIMS;
+    let tag = crate::forecast::forecast_tag(&g, g.lineage.best_depth + 1);
+    let a = crate::forecast::simulate_budget(&g, &base, sims, tag, u32::MAX, u64::MAX);
+    let b = crate::forecast::simulate_budget(&g, &dead, sims, tag, u32::MAX, u64::MAX);
+    assert!(a == b, "the dead row changed the sims");
+    assert_eq!(crate::forecast::panel_key(&g, &base, sims), crate::forecast::panel_key(&g, &dead, sims));
+    g.set_rules_raw(dead).unwrap();
+    let last = g.lineage.rules().rows.len() - 1;
+    for _ in 0..3 {
+        g.send();
+        loop {
+            let r = g.step(50);
+            assert!(!r.events.iter().any(|e| matches!(e, Ev::Rule { row, .. } if *row == last as i32)), "the shadowed row acted");
+            if r.run_over {
+                g.auto_keep();
+                break;
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- QA on a946e04 (qaT)
+
+/// qaT (`R1 drank poison at 17/36 hp`, then a goblin's blow — every death `gap`): the gamble
+/// whose harm made the difference is the death's row — the poison took more than the blow
+/// overshot by — though the killer is the goblin; a harm smaller than the margin is not.
+#[test]
+fn a_gambles_harm_that_made_the_difference_names_its_row() {
+    for (harm, short, want) in [(8, 3, Some(0)), (2, 3, None)] {
+        let mut g = arena();
+        rules(&mut g, vec![Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "unknown")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+        let rec = {
+            let run = g.run.as_mut().unwrap();
+            run.turn = 500;
+            run.trace.push(TraceTurn { t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None });
+            run.trace.push(TraceTurn { t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None });
+            run.gambles.push((400, "poison".into(), true));
+            run.gamble_harm = harm;
+            run.death_short = short;
+            run.death_cause = Some("goblin".into());
+            crate::trace::death_record(&g, g.run.as_ref().unwrap())
+        };
+        assert_eq!(rec.gamble_row, want, "harm {harm} vs {short} short");
+    }
+}
+
+/// qaT (`$0 repeat short` after run 6 while the run had found heals; the night's SALVAGED
+/// `heal ×2`): the repeat remembers a kind it could not re-pack (short of gold), so the next
+/// exit's found one of that kind goes to the shelf instead of the salvage.
+#[test]
+fn the_repeat_remembers_a_kind_it_could_not_pay_for() {
+    let mut g = arena_seed(7);
+    no_kennel_leash(&mut g);
+    identify(&mut g, "heal");
+    g.lineage.gold = 40;
+    g.buy_supply("heal").unwrap();
+    g.run = None;
+    g.start_run(None);
+    assert_eq!(g.lineage.last_supplies, vec!["heal".to_string()]);
+    // Drunk, then home with no gold for the re-pack: short, but remembered.
+    {
+        let (run, mut cx) = g.ctx();
+        run.hero.inv.retain(|i| i.kind != "heal");
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.lineage.gold = 0;
+    g.finish_run();
+    g.auto_keep();
+    assert!(g.lineage.supplies.iter().all(|s| s.kind != "heal"), "nothing to pay with");
+    g.start_run(None);
+    assert_eq!(g.lineage.last_supplies, vec!["heal".to_string()], "the short kind stays the repeat's");
+    // A heal found on this run comes home to the shelf, not the salvage.
+    let found = give(&mut g, "heal");
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.finish_run();
+    assert!(g.lineage.supplies.iter().any(|s| s.kind == "heal" && s.found), "{:?}", g.lineage.supplies);
+    assert!(!g.pending_exit.as_ref().is_some_and(|p| p.items.iter().any(|i| i.id == found)));
+    assert!(!g.batch.salvaged.contains_key("heal"));
+}
+
+/// qaT (the strip's `−$36 stolen`, STOLEN listing the item alone; run 6's report without the
+/// send's `−$50 waystone D5`): a report's stolen row carries the carried gold the theft took,
+/// and a run's exit line its send's toll and start.
+#[test]
+fn stolen_rows_carry_their_gold_and_exit_lines_their_toll() {
+    let mut g = Game::new(3);
+    g.batch.stolen.insert("leash".into(), 2);
+    g.batch.stolen_gold.insert("leash".into(), 36);
+    let facts = g.lineage.facts.clone();
+    let rank = g.lineage.rank;
+    let r = crate::offline::report(&mut g, 0, &facts, "fighter", rank, false, false);
+    assert_eq!(r.stolen, vec![StolenRow { label: "leash".into(), n: 2, gold: 36 }]);
+    let mut g = Game::new(3);
+    g.lineage.waystones = vec![5];
+    g.set_start(5).unwrap();
+    g.lineage.gold = 60;
+    g.start_run(None);
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.finish_run();
+    let line = g.last_exit.clone().unwrap();
+    assert_eq!((line.toll, line.start, line.start_short), (50, 5, None));
+    g.auto_keep();
+    g.lineage.night();
+    g.lineage.gold = 10;
+    g.start_run(None);
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.finish_run();
+    let line = g.last_exit.clone().unwrap();
+    assert_eq!((line.toll, line.start, line.start_short), (0, 1, Some(5)));
 }
