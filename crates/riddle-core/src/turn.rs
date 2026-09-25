@@ -253,6 +253,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
         if let Some(bow) = run.hero.weapon.replace(melee) {
             if run.hero.inv_full() {
                 let here = run.hero.pos;
+                run.note_gone(bow.id, &bow.kind, "left", 1);
                 drop_near(run, here, bow);
             } else {
                 run.hero.inv.push(bow);
@@ -303,6 +304,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     } else {
         run.row_streak = (row, 1);
     }
+    outpaced_guard(run, cx, row, &verb);
     // pick_up sanity: three picks in a row must have put something in the pack.
     if verb.v == "pick_up" {
         if run.pickup_streak == 0 {
@@ -705,6 +707,75 @@ fn trait_because(run: &Run, text: &str) -> Because {
     Because { text: text.into(), t: run.turn, depth: run.depth }
 }
 
+/// Policy retreats in one engagement (a foe in view throughout, no blow on the hero) before the
+/// outpaced guard rests the retreating row.
+pub const OUTPACED_RETREATS: u32 = 20;
+/// A bloodless dance (`Batch.dances`): `DANCE_ACTIONS` foe-facing row actions of one engagement
+/// with no blood drawn either way, `DANCE_MOVES` of them policy retreats (the guard's kind: the
+/// player's own row stepping away, on no condition of his HP) the guard did not rest — more
+/// than it allows, so a dance is one the guard missed.
+pub const DANCE_ACTIONS: u32 = 60;
+pub const DANCE_MOVES: u32 = 30;
+
+/// QA on 778fa1b (qaV: `R4 foe: heavy → retreat` / `R6 attack nearest` taking turns before two
+/// ogres for six minutes at 21/42 — each step back kept pace with the pursuers, each wind-up
+/// missed, and the hero crossed the room, so the oscillation guard never saw a pacing; the
+/// same-row guard's streak broke on every attack, and blood on a goblin between reset every
+/// clock): a retreat that cannot shake its pursuers — `OUTPACED_RETREATS` retreats of one
+/// engagement (a foe in view throughout) with no blow on the hero — is rested for 30 actions
+/// (`row guard` on its trace line), and the next row decides (the attack row fights). The count
+/// starts again when no foe is in view, on a new floor, or when the hero is hit (a retreat under
+/// blows is not a dance).
+///
+/// Only a retreat the player wrote as a policy toward foes: a row conditioned on the hero's HP
+/// (`hp < 40% → retreat`) is a flee for a low moment — the player's "not now", which the guard
+/// does not overrule by sending him to fight at 40 % (resting FULL's flee walked FULL−D28 past
+/// the Lich without silence on 9 of 30 seeds: the wall is the counter's); a card's step is the
+/// card's tactic (`gas_step` away from a bloat), not the player's row.
+fn outpaced_guard(run: &mut Run, cx: &mut Ctx, row: i32, verb: &Verb) {
+    // A retreat the player wrote toward foes: his own row (a card's tactic is the game's),
+    // stepping away, on no condition of his HP.
+    let policy = row >= 0
+        && matches!(verb.v.as_str(), "retreat" | "back_corridor")
+        && cx.rules.rows.get(row as usize).or(run.lent_row.as_ref()).is_some_and(|r| !r.is_card() && !r.conds.iter().any(|c| c.k == "hp<"));
+    // (the dance measure: blood drawn on this action, or taken since the last one, ends it)
+    if run.actions.saturating_sub(run.last_damage_action) <= 1 {
+        run.bloodless = (0, 0, run.bloodless.2);
+    } else if row >= 0 && targets_foes(verb) {
+        run.bloodless.0 += 1;
+        run.bloodless.1 += policy as u32;
+        if run.bloodless.1 >= DANCE_MOVES {
+            run.bloodless.2 = run.bloodless.2.max(run.bloodless.0);
+        }
+    }
+    let hp = run.hero.pos;
+    let near = run.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && !m.dormant && !m.summoned && run.floor.map.is_visible(m.pos)).map(|m| m.pos.cheb(hp)).min();
+    let Some(near) = near else {
+        // (out of the engagement: the dance and the retreats count again from the next)
+        run.retreats = (0, 0);
+        run.bloodless.0 = 0;
+        run.bloodless.1 = 0;
+        return;
+    };
+    if run.hurt_last || run.hurt_since_action {
+        run.retreats = (0, 0);
+    }
+    if !policy {
+        return;
+    }
+    // (the nearest foe after the step, for the record)
+    run.retreats = (run.retreats.0 + 1, near);
+    if run.retreats.0 >= OUTPACED_RETREATS {
+        run.row_suppressed = (row, run.actions + 30);
+        run.row_streak = (-9, 0);
+        run.retreats = (0, 0);
+        // (the guard answered this dance: the measure counts the next one)
+        run.bloodless.0 = 0;
+        run.bloodless.1 = 0;
+        emit_rule(run, cx, -2, &Verb::new("stuck"), "stuck → chores");
+    }
+}
+
 /// If the last 12 actions visited ≤ 2 tiles with no damage dealt or taken, give up on the
 /// visible foes for 30 actions and let chores proceed; one `stuck` chore event explains it.
 fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
@@ -1017,6 +1088,12 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     if let Some((t, k, true)) = run.gambles.last() {
         if crate::trace::gamble_cause(k) == Some(cause) && run.turn.saturating_sub(*t) <= crate::trace::GAMBLE_WINDOW {
             run.gamble_harm += dmg;
+        }
+    }
+    // QA on 778fa1b (qaV): and the harm of the hero's own throw (`Run.own_throw`).
+    if let Some((t, k)) = &run.own_throw {
+        if crate::trace::gamble_cause(k) == Some(cause) && run.turn.saturating_sub(*t) <= crate::trace::GAMBLE_WINDOW {
+            run.own_throw_harm += dmg;
         }
     }
     run.hurt_since_action = true;
@@ -1732,6 +1809,8 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.items_until = 0;
     run.pickup_streak = 0;
     run.gambles.clear();
+    run.own_throw = None;
+    run.retreats = (0, 0);
     run.hero.second_wind_used = false;
     // Cut 3: drained max HP (wraiths, the Lich) comes back a floor at a time — a floor's debt,
     // not the run's (a 30-floor descent would otherwise arrive in the Foundry at 19 HP).
@@ -1964,15 +2043,20 @@ pub fn vault_take(run: &mut Run, cx: &mut Ctx, id: Option<u32>) {
     let here = run.hero.pos;
     run.loot_add(it.value());
     crate::provenance::found(run, cx, &it.kind, &label);
+    // QA on 778fa1b (qaV: `took leather +1` from the cage with the pack full — in no report
+    // line): the cage's pick is a find; put down for want of room, it is `left` there.
+    run.note_found(it.id, &it.kind, it.amount.max(1));
     let replaced = if run.hero.inv_full() && !item_replaces_gear(&run.hero, &it) {
+        run.note_gone(it.id, &it.kind, "left", 1);
         drop_near(run, here, it);
         None
     } else {
         run.hero.auto_equip(it)
     };
     if let Some(old) = replaced {
-        if !run.hero.inv.iter().any(|i| i.id == old.id) {
+        if !run.hero.inv.iter().any(|i| i.id == old.id && i.kind == old.kind) {
             if run.hero.inv_full() {
+                run.note_gone(old.id, &old.kind, "left", 1);
                 drop_near(run, here, old);
             } else {
                 run.hero.inv.push(old);
@@ -2093,6 +2177,7 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
         let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
         let kind = it.kind.clone();
         run.loot_add(it.value());
+        run.note_found(it.id, &kind, it.amount.max(1));
         run.hero.inv.push(it);
         crate::provenance::found(run, cx, &kind, &label);
         cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
@@ -2101,8 +2186,22 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
     }
     if item.kind == "leash" {
         let it = run.items.remove(ii).item;
+        // QA on 778fa1b (qaV): a found leash's units are counted on the stack they join (a
+        // thief's take coming back is not a find).
+        let (units, own) = (it.amount.max(1), it.id);
+        let coming_back = run.stolen_ids.contains(&own) || run.supplies.contains(&own) || run.brought.contains(&own);
         match run.hero.inv.iter_mut().find(|i| i.kind == "leash") {
-            Some(l) => l.amount += it.amount.max(1),
+            Some(l) => {
+                l.amount += units;
+                let stack = l.id;
+                if coming_back {
+                    run.note_found(own, "leash", units);
+                } else {
+                    for _ in 0..units {
+                        run.found_units.push((stack, "leash".into()));
+                    }
+                }
+            }
             None => {
                 if run.hero.inv_full() {
                     run.items.push(crate::engine::FloorItem { pos: run.hero.pos, item: it });
@@ -2110,6 +2209,7 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
                 }
                 let mut l = it;
                 l.amount = l.amount.max(1);
+                run.note_found(own, "leash", units);
                 run.hero.inv.push(l);
             }
         }
@@ -2142,6 +2242,8 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
                 swap_loot(run, it.value() - run.loot_value(&dropped));
                 crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
                 crate::provenance::found(run, cx, &it.kind, &label);
+                run.note_gone(dropped.id, &dropped.kind, "left", dropped.amount.max(1));
+                run.note_found(it.id, &it.kind, 1);
                 run.hero.inv.push(it);
                 run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
                 cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
@@ -2166,6 +2268,8 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
                 swap_loot(run, it.value() - run.loot_value(&dropped));
                 crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
                 crate::provenance::found(run, cx, &it.kind, &label);
+                run.note_gone(dropped.id, &dropped.kind, "left", dropped.amount.max(1));
+                run.note_found(it.id, &it.kind, 1);
                 run.hero.inv.push(it);
                 run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
                 cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
@@ -2178,7 +2282,16 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     run.loot_add(it.value());
     crate::provenance::found(run, cx, &it.kind, &label);
-    run.hero.auto_equip(it);
+    run.note_found(it.id, &it.kind, 1);
+    // QA on 778fa1b (qaV: a found `leather +1` in no named place): the piece a better one
+    // displaces with the pack full is put down here, not dropped from the world.
+    if let Some(old) = run.hero.auto_equip(it) {
+        if !run.hero.inv.iter().any(|i| i.id == old.id && i.kind == old.kind) {
+            let here = run.hero.pos;
+            run.note_gone(old.id, &old.kind, "left", 1);
+            drop_near(run, here, old);
+        }
+    }
     cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
 }
 
@@ -2190,9 +2303,18 @@ fn recover_bones(run: &mut Run, cx: &mut Ctx, ii: usize) {
     let Some(pile) = run.bones.iter().find(|b| b.heir == heir).cloned() else { return };
     run.bones_found.push(heir);
     let n = pile.items.len() as u32;
+    // QA on 778fa1b (qaV): a pile's items carry their old run's ids, which this run's own may
+    // share — a find is told by its id and kind (`Run.found_units`). The pack's own test stays by
+    // id: a pile item whose id a pack item bears reads as taken, and when the full pack in fact
+    // left it, it is neither carried nor put down (it leaves the world, as before). Telling it
+    // by id and kind (put down beside the pile) walked FULL−D28 past the Lich without silence on
+    // 8 of 30 seeds (3 before): the D28 wall is held in part by this loss — a content decision,
+    // left to the contract; the find is not counted (it was not taken).
+    let held = |h: &crate::hero::Hero, id: u32, kind: &str| h.inv.iter().chain(h.weapon.iter()).chain(h.armour.iter()).filter(|i| i.id == id && i.kind == kind).count();
     for it in pile.items {
         let value = it.value();
         let cat = it.cat();
+        let before = held(&run.hero, it.id, &it.kind);
         let replaced = run.hero.auto_equip(it.clone());
         let taken = match cat {
             Cat::Weapon => run.hero.weapon.as_ref().is_some_and(|w| w.id == it.id) || run.hero.inv.iter().any(|i| i.id == it.id),
@@ -2203,11 +2325,15 @@ fn recover_bones(run: &mut Run, cx: &mut Ctx, ii: usize) {
             run.loot_add(value);
             let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
             crate::provenance::found(run, cx, &it.kind, &label);
+            if held(&run.hero, it.id, &it.kind) > before {
+                run.note_found(it.id, &it.kind, it.amount.max(1));
+            }
         } else {
             drop_near(run, here, it);
         }
         if let Some(old) = replaced {
-            if !run.hero.inv.iter().any(|i| i.id == old.id) {
+            if !run.hero.inv.iter().any(|i| i.id == old.id && i.kind == old.kind) {
+                run.note_gone(old.id, &old.kind, "left", 1);
                 drop_near(run, here, old);
             }
         }

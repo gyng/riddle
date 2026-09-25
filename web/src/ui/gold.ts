@@ -83,7 +83,7 @@ export function openGoldSheet(app: App, only?: ExitLine, newer: ExitLine[] = [])
       const bal = (n: number, word: string, cls: string): HTMLElement => h("div", { class: `lrow num bal ${cls}` }, h("span", { class: "k" }, `$${n}`), h("span", { class: "why dim" }, word));
       list.replaceChildren(
         run && range[1] < ledger.length - 1 ? bal(endBal, /* copy:label */ "end", "end") : "",
-        ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, wakeShown(g.why.replace(/_/g, " "))))),
+        ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, wakeShown(g.why.replace(/_/g, " ")), g.n && g.n > 1 ? ` ×${g.n}` : ""))),
         lines.length ? "" : h("div", { class: "lrow num dim empty-line" }, /* copy:callout */ "no movements"),
         run ? bal(startBal, /* copy:label */ "start", "start") : "");   // QA 92eb880 (N: a fresh lineage's sheet read `$0 · ·`)
     };

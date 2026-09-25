@@ -229,6 +229,12 @@ pub struct ExitLine {
     /// none.
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub wake: i32,
+    /// QA on 778fa1b (qaV): every item the run found and where it ended (`FoundRow`), and how
+    /// many it found (units: a leash stack counts each) — Σ `found[].n` == `found_n`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub found: Vec<FoundRow>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub found_n: u32,
     /// QA on e75ec29 (qaR): a death whose heir purse was already at `engine::WAKE_PAY` — no
     /// top-up (`purse full`); a top-up reads `+$N wake` in `text` (and `wake`). QA on 778fa1b
     /// (qaU: `purse full` beside $1434 read as a cap): only while the purse is under
@@ -248,6 +254,19 @@ pub struct KindCount {
     pub n: u32,
 }
 
+/// QA on 778fa1b (qaV: FOUND `leather +1`, `dagger ×2`, `aggravate scroll ×2` beside SALVAGED
+/// `dagger ×1` — neither kept, salvaged nor shelved): where the run's finds ended, per kind and
+/// place (`ExitLine.found`). `fate`: `kept` (the vault), `salvaged`, `shelved` (the supply
+/// shelf), `used` (drunk, read, thrown, spent), `left` (swapped out or put down on a floor),
+/// `stolen` (a thief kept it), `bones` (a death's pile), `sheet` (on the keep sheet, not yet
+/// decided — `keep` moves it to `kept` / `salvaged`), `lost` (nowhere: a bug; qa.rs holds it 0).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct FoundRow {
+    pub kind: String,
+    pub n: u32,
+    pub fate: String,
+}
+
 fn is_zero(n: &u32) -> bool {
     *n == 0
 }
@@ -259,6 +278,11 @@ pub struct GoldLine {
     pub t: u64,
     pub delta: i32,
     pub why: String,
+    /// QA on 778fa1b (qaV: `repeat heal ×1 · −$104` for four heals at $26): the supplies a
+    /// line bought or refunded (`repeat heal`, `bought heal`, `refund heal` — merged lines add
+    /// up); 0 on any other line.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub n: u32,
 }
 
 /// Cut 6 §5: a boss whose counter row is known (`Lineage.counters`): the row and its ≤ 3-word
@@ -324,9 +348,10 @@ pub enum Ev {
         t: u32,
         tier: String,
         loot_kept: i32,
-        /// Cut 6 §1: the ledger line (filled once the exit is settled).
+        /// Cut 6 §1: the ledger line (filled once the exit is settled). (Boxed: the line is the
+        /// largest payload of any event.)
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        line: Option<ExitLine>,
+        line: Option<Box<ExitLine>>,
         /// Cut 9 §5: the exit's last-5 trace (bank and return; a death has `Death.trace`).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         trace: Option<Trace>,
@@ -1170,7 +1195,7 @@ pub struct Lineage {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub waystones: Vec<u32>,
     /// Cut 21 §1: the floor the next send starts on (`setStart`; 1 by default) and the toll it
-    /// pays at the send (`$5 × depth`, Cut 22 §1; 0 from D1). A toll the purse cannot pay starts on D1.
+    /// pays at the send (0: QA on 778fa1b made a waystone start free; the field stays).
     #[serde(default = "one")]
     pub start: u32,
     #[serde(default)]

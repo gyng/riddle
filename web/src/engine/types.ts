@@ -81,10 +81,12 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          wake?: number;                                                                     // QA 778fa1b (core): the heir purse's top-up this death paid (the text's `+$N wake`); `purse_full` now only when the purse was under $80 (just over the $40 line) — a richer death has no purse word
                          stolen_gold?: number;                                                              // QA a946e04 (core, optional): the carried gold thieves took this run (`$36`, the STOLEN list's gold line); else the client sums the `steal` events' amounts
                          start?: number; start_short?: number | boolean;                                    // QA a946e04 (core, optional): the floor the run started on, and (core: a number) the waystone it wanted and did not start on — the toll short or unlit (`from D1 · toll short`); absent when it started where chosen
+                         found?: { kind: string; n: number; fate: "kept" | "salvaged" | "shelved" | "used" | "left" | "stolen" | "bones" | "sheet" | "lost" }[];   // QA 778fa1b (qaV): where each find ended, per kind and place (`sheet`: on the keep sheet — the core settles it at `keep`; `lost` never); Σ n == found_n
+                         found_n?: number;                                                                  // QA 778fa1b (qaV): the units the run found (a leash stack counts each)
                          toll?: number;                                                                     // QA a946e04 (core): the toll this run's send paid (0/absent from D1 or on the night's pass) — the report's gold line counts it (qaT: `+$71 banked · −$40 spent` beside `$51 → $32`)
                          shelved?: { kind: string; n: number }[] };                                        // Cut 21 §2: found supplies of a kind the shelf sells, put on the shelf at this exit (not salvaged) — `found heal → shelf`                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
-export type GoldLine = { t: number; delta: number; why: string };
+export type GoldLine = { t: number; delta: number; why: string; n?: number };   // QA on 778fa1b (qaV): `n` — the supplies the line bought or refunded (`repeat heal` · n 4 · −$104); absent on other lines
 /** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */
 export type Counter = { boss: string; row?: Row | string; text: string };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent";
@@ -314,6 +316,7 @@ export interface Engine {
   /** Cut 22 §3: the paired move of the active set against `prev` (the set as it was at the last painted forecast); optional —
    *  a core that puts `vs` on the forecast itself needs no call. Called after the forecast's first paint, never before it. */
   forecastVs?(prev: RuleSet): ForecastVs;
+  forecastVsRefined?(prev: RuleSet): ForecastVs;   // client (lanes.ts): `forecastVs` on the background lane, behind the refine — the refined panels paired
   startForecast?(): StartOption[];      // §1: D1 and each lit waystone measured for the active set (memoised; seconds in wasm — call when the picker opens)
 }
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)

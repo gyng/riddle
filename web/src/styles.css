@@ -740,7 +740,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .skin-banner .banner-cloth { background: url(/ui/frames/banner.png) top center / 100% 100% no-repeat; clip-path: none; }
 .death .death-line { margin: 0; font: 700 21px/1.2 var(--display); color: #f3e0bf; text-shadow: 0 2px 4px #000, 0 0 12px rgba(0, 0, 0, .6); overflow-wrap: anywhere; }
 .death-line .cause { display: block; }
-.death-line .sep { font-size: 0; }
+.death-line .sep { display: none; }   /* QA 778fa1b (qaU: a lone `·` between the headline and the seal in a text read) */
 .death .death-line .verdict { position: absolute; left: 50%; top: 47%; width: 108px; height: 108px; margin-left: -54px; padding: 0; border-radius: 50%; transform: rotate(-9deg);
   display: flex; align-items: center; justify-content: center; font: 900 28px/1 var(--display); text-transform: uppercase; letter-spacing: .02em;
   color: #f6c7a4; text-shadow: 0 2px 0 #3a0503; background: radial-gradient(circle, #9a1a14 52%, #5c0b08 66%, #3a0604 70%, transparent 72%); }
@@ -1046,3 +1046,22 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .boss-hp .counter { flex-basis: 100%; padding-left: 2px; font: 600 10px/1.2 var(--sans); letter-spacing: .04em; color: #c9a58a; opacity: .75; transition: opacity .3s, color .3s; }
 .boss-hp .counter[hidden] { display: none; }
 .boss-hp .counter.lit { color: #ffd0a0; opacity: 1; text-shadow: 0 0 6px rgba(255, 138, 80, .6), 0 1px 3px #000; }
+
+/* QA 778fa1b — a first-pass move reads dim with its `…`; the shaft gems' arrows ride the number, raised over its end, inside the column */
+.shaft-vs.rough { opacity: .6; }
+.fc-settling, .shaft-ends .settling { font-style: normal; opacity: .7; }
+.shaft-ends .end b { position: relative; }
+.shaft-ends .end b .vsm { position: absolute; right: -2px; top: -8px; margin: 0; font-size: 8px; line-height: 1; }
+/* QA 778fa1b (qaV: the `vs last` strip drew over R4, `rest 20m` and the shaft's `death 12%` / `~$104`): the line is a row of its own
+   under the well (the well-wrap's second row), outside the scroll — always in view, never over a number */
+.camp .well-wrap { grid-template-rows: minmax(0, 1fr) auto; }
+.camp .well-wrap > .panel-host { grid-area: 1 / 1 / 3 / 2; }
+.camp .well-wrap > .shaft-vs-host { grid-area: 2 / 1; position: static; margin: 0; padding: 3px 12px 4px; background: rgba(12, 9, 7, .92); border-top: 1px solid #3a2e22; pointer-events: auto; }
+/* QA 778fa1b (qaV: `REST 20M` over a fading `RETURNED $96`): the rest beat cuts the callout line at once (no fade under the banner) */
+.ticker.cut { visibility: hidden; transition: none; }
+/* QA 778fa1b (qaV: `edit` tapped under an open unlock sheet only closed the sheet; a second tap opened the editor): the backdrop stops
+   at the console — its tiles take the first tap (and close the sheet themselves) */
+body.framed .sheet-wrap:not(.modeless) { bottom: calc(var(--console-h, 0px) - 6px); padding-bottom: 0; }
+/* QA 778fa1b (qaU: a leading `· goblin archer` under the D1 bar): the first cause on its own line drops its separator */
+.bar .why > :first-child > .sep { display: none; }
+.bar .why .sep { font-style: normal; }

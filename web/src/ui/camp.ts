@@ -30,7 +30,7 @@ import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS } from "../engine/classes";
 import { isFreeSupply, ownRowCount, verbLabel } from "./tokens";
-import { openSheet, setPanelEscape } from "./sheet";
+import { closeAllSheets, openSheet, setPanelEscape } from "./sheet";
 import { setBusyHost } from "./progress";
 import { icon } from "./skin";
 
@@ -56,7 +56,7 @@ export function cageDelta(o: Pick<CageOption, "current" | "depth" | "reach" | "b
 /** Cut 21 §1: the last `startForecast()` and what it was measured for (the set, the start, the lit waystones, the best). */
 let startMemo: { key: string; opts: StartOption[] } | null = null;
 /** Cut 21 §1: a start's toll — the engine's, else the contract's `$10 × depth` (0 at D1). */
-export const startToll = (d: number, o?: Pick<StartOption, "toll">): number => o?.toll ?? (d > 1 ? 10 * d : 0);
+export const startToll = (_d: number, o?: Pick<StartOption, "toll">): number => o?.toll ?? 0;   // QA 778fa1b (qaV; core): the toll is going — the wire's toll only, no client guess
 /** QA a946e04 (T: `start → D5 · $50` at $32, and the run began on D1 with no word): can the purse pay a start's toll now? The engine's
  *  word when it sends one (`StartOption.short`, `Lineage.start_payable` for the current start), else the gold against the toll. */
 export function startShort(L: Pick<Lineage, "gold" | "start" | "start_payable" | "start_toll">, st: number, o?: Pick<StartOption, "toll" | "short">): boolean {
@@ -140,6 +140,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function closePanel(): void { if (!open) return; open = null; panelStore.append(...Object.values(PANELS)); panelHost.replaceChildren(); panelHost.classList.remove("open"); paintTiles(); }
   function togglePanel(name: string): void {
     if (open === name) { closePanel(); return; }
+    closeAllSheets();   // QA 778fa1b (qaV: `vault` tapped under the open CAGE sheet stacked VAULT under CAGE): one sheet or panel at a time
     if (open) panelStore.append(...Object.values(PANELS));
     open = name;
     panelHost.replaceChildren(h("section", { class: "panel", "data-panel": name }, stud(closePanel), h("div", { class: "panel-body" }, PANELS[name])));
@@ -149,10 +150,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, editor.el, cageTab, startTab), shaft.el), h("div", { class: "rest-line" }, rest), shaft.vsEl);
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, editor.el, cageTab, startTab), shaft.el), h("div", { class: "rest-line" }, rest));
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
-  const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, panelHost, panelStore), cons.el);
+  const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, shaft.vsEl, panelHost, panelStore), cons.el);
   setBusyHost(busyStrip);
   function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
 
@@ -162,7 +163,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   /** Cut 17 §1/§3: the command card as revealed — edit · loadout · unlocks · vault · forge · party · ledger · chronicle. */
   function paintTiles(): void {
     const R = revealed(app);
-    const t = (id: string, label: string, ico: string, onclick: () => void, on = false): HTMLElement => tile({ id, label, icon: ico, onclick, on, fresh: R.fresh(STEP_OF[id]) });
+    const t = (id: string, label: string, ico: string, onclick: () => void, on = false): HTMLElement => tile({ id, label, icon: ico, onclick: () => { closeAllSheets(); onclick(); }, on, fresh: R.fresh(STEP_OF[id]) });
     cons.setTiles([
       // QA 92eb880 (N: "the `edit` tile toggles: tapping it while editing closes the editor (I lost the next tap twice)"): it turns
       // editing on and stays lit; a second tap closes the open panel, never the editor
@@ -228,7 +229,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       return h("div", { class: "sheet-body ledger forge" }, h("div", { class: "label" }, /* copy:label */ "forge"), head, ...rows.map(([kind, f]) => h("div", { class: "lrow" },
         h("span", { class: "k" }, kind.replace(/_/g, " ")),
         h("span", { class: "ladder num dim" }, /* copy:label */ "salvaged", " ", f.next ? h("span", null, `${f.salvaged}/${f.next.need}`, " → ", h("span", { class: "rung" }, f.next.label.replace(/_/g, " "))) : `${f.salvaged}`),
-        h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "⚒" : "·"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "·"))));
+        // QA 778fa1b (qaU: `· | ·` read as missing values; qaV: `⚒` looked like a button): a mark, not a tool — `✓` / `–`
+        h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "✓" : "–"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "–"))));
     });
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
@@ -368,7 +370,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function currentFromPanel(o: StartOption): StartOption {
     const f = app.lastForecast; if (!f?.ends || (f.start ?? app.lineage.start ?? 1) !== o.start) return o;
     const r = f.depths.find((x) => x.depth === o.depth)?.reach;
-    return { ...o, bank: f.ends.bank, reach: r ?? o.reach, pm: f.ends.pm ?? o.pm, death: f.ends.death };
+    return { ...o, bank: f.ends.bank, reach: r ?? o.reach, pm: f.ends.pm ?? o.pm, death: f.ends.death, gold: f.ends.gold, net: o.net !== undefined ? f.ends.gold - (o.toll ?? 0) : undefined };
   }
   function openStartPicker(): void {
     const L0 = app.lineage;
@@ -383,16 +385,22 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           // QA a946e04 (T: `START D1 · bank 86%` beside the panel's `bank 85%`): the current start's own level is the camp forecast's —
           // the number the shaft and the panel show — never a second measure of the same set
           const oo = o ? (o.current ? currentFromPanel(o) : o) : undefined;
-          const d = oo ? cageDelta(oo) : null, death = oo?.death;
+          // QA 778fa1b (qaV: `D1 · bank 100%` beside `D5 · bank −10 · death 10% · $25` — "I read D5 as −10 gold"): every row in one
+          // form, absolute — `D5 · bank 40% · death 10% · ~$25` (the bank share, or the reach at the option's depth when no start banks;
+          // the gold a send brings home net of the toll), the current start marked by its lit chip
+          const banks = (opts ?? []).some((x) => x.bank > 0);
+          const d = oo ? { text: banks ? `${/* copy:label */ "bank"} ${pct(oo.bank)}` : `D${oo.depth} ${pct(oo.reach)}`, cls: "level" } : null, death = oo?.death;
+          const net = oo ? Math.round(oo.net ?? oo.gold - (oo.toll ?? 0)) : undefined;
           // QA a946e04 (T): a toll the purse cannot pay dims its option and says so (`D5 · $50 short`); the current one stays lit
           const pass = st > 1 && (o?.pass === true || (st === cur && app.lineage.start_pass === true));
           const short = !pass && startShort(app.lineage, st, o);
           return h("button", { class: `chip start-opt${st === cur ? " on" : ""}${short ? " off short" : ""}`, "data-start": st, disabled: short && st !== cur,
             onclick: async () => { close(); if (st !== cur && app.engine.setStart) await app.mutate(() => app.engine.setStart!(st)); } },
             h("span", { class: "num" }, `D${st}`),
-            d ? h("b", { class: `num ${d.cls === "cur" ? "level cur" : `delta ${d.cls}`}` }, ` · ${d.text}`) : pending && st !== cur ? h("small", { class: "num dim" }, " …") : "",
-            // Cut 22 §4 (AG: "`D9 · bank +3% · $90` — but the shaft then says death 61%"): the start's death share beside its bank move
+            d ? h("b", { class: `num level${st === cur ? " cur" : ""}` }, ` · ${d.text}`) : pending && st !== cur ? h("small", { class: "num dim" }, " …") : "",
+            // Cut 22 §4 (AG: "`D9 · bank +3% · $90` — but the shaft then says death 61%"): the start's death share beside its bank
             d && death !== undefined ? h("span", { class: `num start-death${death >= 0.5 ? " warn" : ""}` }, /* copy:callout */ ` · death ${pct(death)}`) : "",
+            d && net !== undefined ? h("span", { class: `num start-gold gold${net <= 0 ? " warn" : ""}` }, ` · ~$${net}`) : "",
             pass ? h("small", { class: "num toll pass" }, /* copy:callout */ " · pass") : toll > 0 ? h("small", { class: `num toll${short ? " warn" : ""}` }, short ? /* copy:callout */ ` · $${toll} short` : ` · $${toll}`) : "");
         }));
       };
@@ -409,12 +417,18 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     if (!app.engine.setRestock || L.repeat === undefined) return null;
     const on = L.repeat !== false;
     if (on && !(L.repeat_kinds?.length)) return null;   // nothing to re-pack
-    return h("span", { class: `repeat-badge num${on ? " on" : ""}${on && L.repeat_short?.length ? " short" : ""}`, role: "switch", "aria-checked": on ? "true" : "false", "data-repeat": on ? "1" : "0",
+    // QA 778fa1b (qaU: `repeat on · $26` over a `1/3` shelf the absence's capped re-pack left empty): the core's read of the next send —
+    // kinds it cannot pay (`repeat_unpaid`: the purse after the toll, or the shelf's cap) read `repeat short`; kinds it buys at the send
+    // (`repeat_due`) read `+heal at send`; else the price the repeat charges
+    const unpaid = on && !!L.repeat_unpaid?.length, due = on && !unpaid ? L.repeat_due ?? [] : [];
+    const short = on && (unpaid || (L.repeat_unpaid === undefined && !!L.repeat_short?.length));
+    const dueText = due.length === 1 ? `+${due[0].replace(/_/g, " ")}` : `+${due.length}`;
+    return h("span", { class: `repeat-badge num${on ? " on" : ""}${short ? " short" : ""}${due.length ? " due" : ""}`, role: "switch", "aria-checked": on ? "true" : "false", "data-repeat": on ? "1" : "0",
       onclick: (e: Event) => { e.stopPropagation(); void app.mutate(() => app.engine.setRestock!(!on)); } },
       // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay reads so on the tile
       // QA a946e04 (T: "`repeat · $40` reads like a price to pay"; its tap refunded $40): the badge is a switch and reads as one —
       // `repeat on · $40` (the tap turns it off and refunds the re-packed shelf) / `repeat off`
-      on ? (L.repeat_short?.length ? /* copy:callout */ "repeat on · short" : /* copy:callout */ `repeat on · $${L.repeat_gold ?? 0}`) : /* copy:callout */ "repeat off");
+      on ? (short ? /* copy:callout */ "repeat short" : due.length ? /* copy:callout */ `${dueText} at send` : /* copy:callout */ `repeat on · ≤$${L.repeat_gold ?? 0}`) : /* copy:callout */ "repeat off");   // QA 778fa1b (qaV: `repeat on · $104` read as a per-send cost; nothing was charged when the supplies came back): the most it re-buys
   }
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;

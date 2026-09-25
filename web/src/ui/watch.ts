@@ -161,6 +161,7 @@ const BLOW_TICKS = 20;              // Cut 10 §1: in `fights` the frame holds o
 // pass under the card (a DEFAULT run's fights alone ran ~110 s at 1×; the gate is 90 s with ≥ 3 shown)
 const SHOW_HURT = 4, SHOW_HP = 0.25;
 const STALL_FLAT_TICKS = 300;       // a stall flag that has held this long is a stall: flat rate, ▶▶| to the run's end
+const PRESS_GAP_MS = 2500, PRESS_LOOP = 3;   // QA 778fa1b (qaV): ▶▶| pressed again within this long on the same floor, this many times over, is a loop — the run's end
 const SKIP_WALL_MS = 4000;          // QA 23ed91f (L: 60 taps of ▶▶| over a 4-minute stall, 300 s on D1 in `fights`): a skip steps for at most this much wall time, then lands live — the press always moves the picture; the next press goes on
 const SKIP_END_BATCH = 100;         // ▶▶| in `fast` steps to the run's end in batches this size: a step's cost is its snapshot, not its ticks (≈ 30 ms a call on the fast wasm build, so 10-tick batches took 15 s to a D5 death)
 const SKIP_FIGHT_BATCHES = 12_000;  // Cut 10 §1: ▶▶| steps to the next fight or the run's end (the run cap in BATCHes; ≈ 4 000 ticks
@@ -227,7 +228,7 @@ export const rowCallout = (row: number, verb: string): string => `R${row + 1} ·
 export const hurtText = (dmg: number, cause: string): string => /* copy:callout */ `−${dmg} hp · ${oneWord(cause)}`;
 /** Cut 13 §3: the automations' purchases at this exit — the ledger's outgoings after the newest exit line that are not salvage
  *  (`−$40 heal potion` → `heal potion ×1 · −$40`), per line text. Empty when nothing was bought. */
-export function spentOf(ledger: { t: number; delta: number; why: string }[], cat: { kind: string; label: string; price: number }[] = []): { kind: string; n: number; gold: number }[] {
+export function spentOf(ledger: { t: number; delta: number; why: string; n?: number }[], cat: { kind: string; label: string; price: number }[] = []): { kind: string; n: number; gold: number }[] {
   let i = ledger.length - 1; while (i >= 0 && !/^(returned|banked|died|lost|stalled)\b/.test(ledger[i].why)) i--;
   if (i < 0) return [];
   const rows = new Map<string, { kind: string; n: number; gold: number }>();
@@ -237,8 +238,9 @@ export function spentOf(ledger: { t: number; delta: number; why: string }[], cat
     // one ledger line can pay for several at the supply's price, and a restock keeps its word
     const bare = g.why.replace(/^(bought|restock)\s+/, "");
     const kind = /^restock\s/.test(g.why) ? /* copy:label */ `restock ${bare}` : bare;
-    const price = cat.find((e) => e.label === bare || e.kind === bare)?.price ?? 0;
-    const n = price > 0 && -g.delta % price === 0 ? -g.delta / price : 1;
+    // QA 778fa1b (qaV: `repeat heal ×1 · −$104` for four $26 heals): the core's own count (`GoldLine.n`), else the supply's price
+    const price = cat.find((e) => e.label === bare || e.kind === bare.replace(/^repeat\s+/, ""))?.price ?? 0;
+    const n = g.n !== undefined && g.n > 0 ? g.n : price > 0 && -g.delta % price === 0 ? -g.delta / price : 1;
     const r = rows.get(kind) ?? { kind, n: 0, gold: 0 }; r.n += n; r.gold += -g.delta; rows.set(kind, r);
   }
   return [...rows.values()];
@@ -478,7 +480,7 @@ export function renderWatch(app: App): Mounted {
   function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
   let lastLoot: number | undefined, lastLootRun = -1, lootDrop = 0, lootDropUntil = 0, lootWhy = "";
-  let lastPickT = -Infinity, lastStealT = -Infinity;   // engine ticks of the last `pickup` / `steal` (the loot's fall names which)
+  let lastPickT = -Infinity, lastStealT = -Infinity, lastPickItem = "", lootItem = "";   // engine ticks of the last `pickup` / `steal` (the loot's fall names which)
   let tollShort = false;   // QA a946e04 (T): the send's waystone start fell back to D1 (the purse could not pay the toll)
   let stolenGold = 0;   // QA a946e04 (T: `−$36 stolen` on the strip, nothing in STOLEN): what the run's thefts took off the carry (the `steal` amounts)
   function paintStake(s: Snapshot): void {
@@ -489,16 +491,21 @@ export function renderWatch(app: App): Mounted {
     if (!st) return;
     // QA 92eb880 (M: "gold `$77 → $65` in the den with only `snatched …` lines"): a fall in the loot shows its size beside it for 2.5 s
     // (`$65 −$12`) — a theft of an item takes its worth with it
-    if (lastLoot !== undefined && st.loot < lastLoot && s.run.id === lastLootRun) { lootDrop = lastLoot - st.loot + (performance.now() < lootDropUntil ? lootDrop : 0); lootDropUntil = performance.now() + 2500;
+    if (lastLoot !== undefined && st.loot < lastLoot && s.run.id === lastLootRun) {
+      const why = s.turn - lastStealT <= 20 ? /* copy:label */ "stolen" : s.turn - lastPickT <= 20 ? /* copy:label */ "swap" : "", item = why === "swap" ? lastPickItem : "";
+      // QA 778fa1b (qaV: `−$33 → −$42 → −$58 swapped` — "swapped for what?"): a swap's fall is its own, beside the find it made room for
+      // (`−$37 swap → leather +1`); only falls of one cause and one find inside the window add up
+      const same = performance.now() < lootDropUntil && why === lootWhy && item === lootItem;
+      lootDrop = lastLoot - st.loot + (same ? lootDrop : 0); lootDropUntil = performance.now() + 2500; lootItem = item;
       // QA 1a2a4a9 (O, P: `$46 −$8`, `$283 −$100` — "minuses that don't match any line"): the fall says what took it — a thief, or an
       // item used up (the loot counts what he carries at its worth)
       // QA a946e04 (S, T: `−$32`, `−$20`, `−$13 used` with no line): the carry falls on two things only (the core's `loot_add`): a theft,
       // and a swap — a spare weapon or armour dropped for a find (a pickup; the spare counted more). A use never takes from it.
-      lootWhy = s.turn - lastStealT <= 20 ? /* copy:label */ "stolen" : s.turn - lastPickT <= 20 ? /* copy:label */ "swapped" : ""; }
+      lootWhy = why; }
     lastLoot = st.loot; lastLootRun = s.run.id;
     // QA 1a2a4a9 (O: the bar's `$0` and the line's `$3 · death: lose all` on one screen, "neither labelled"): the run's own purse says so
     const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "carry"), ` $${st.loot}`];
-    if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}`));
+    if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? ` → ${lootItem.replace(/_/g, " ")}` : ""}`));
     // Cut 6 §1: the kept number while a return/bank row exists (`$84 · keeps $50`)
     // Cut 13 §1: while the guard has fired a stall pays nothing, and the line says so before it is lost (`keeps $0 · stalling`)
     // QA 92eb880 (N: "`$75 · keeps $0 · stalling` held ~10 s, then the run returned with `keeps 60%`"): while the guard has fired the run
@@ -514,7 +521,9 @@ export function renderWatch(app: App): Mounted {
     for (const b of st.brought) parts.push(" · ", h("span", { class: b.insured ? "" : "risk" }, b.label, b.insured ? "" : "⚠"));
     // QA 1a2a4a9: the core's `Stake.returning` (a return/bank row acted: the run is committed homeward); the client's own guess (the
     // last row to act was a return) stands in for an older core only
-    if (overridden || (st.returning ?? walkingHome)) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "returning"));
+    // QA 778fa1b (qaV: `returning` while the row that acted was `bank`): the word is the exit's own — `banking` for a bank row
+    const banking = !overridden && st.return_row !== undefined && app.rules.rows[st.return_row]?.verb.v === "bank";
+    if (overridden || (st.returning ?? walkingHome)) parts.push(" · ", h("span", { class: "returning" }, banking ? /* copy:callout */ "banking" : /* copy:callout */ "returning"));
     else if (st.return_row === undefined) { if (dk <= 0) parts.push(" · ", h("span", { class: "lose" }, /* copy:callout */ "death: lose all")); }
     else parts.push(" · ", returnAt(app.rules.rows[st.return_row], st.return_row));   // `bank at D9` (the verb again: `death $0 · at D9` read as the death's floor)
     replace(stake, ...parts);
@@ -788,7 +797,7 @@ export function renderWatch(app: App): Mounted {
           break;
         }
         case "pickup": {
-          if (ev.id === heroId) lastPickT = ev.t;
+          if (ev.id === heroId) { lastPickT = ev.t; lastPickItem = /^gold\b/.test(ev.item) ? lastPickItem : ev.item; }
           const gold = /^gold\b\D*(\d+)/.exec(ev.item);   // Cut 7 §4: `+$47` on a gold pickup (`gold (47)` core, `gold 47` fake)
           // QA 92eb880 (M: "FOUND gold `$1 · $2 ×3 · …` = $27 but `$38 carried`"): gold is the ledger line's, not a find — FOUND lists items;
           // the ambient line is a gain (`+$3`, N: "a bare `$3` line")
@@ -1117,7 +1126,10 @@ export function renderWatch(app: App): Mounted {
       // Cut 2 §1: `rest 12m` for a beat, then the exit flow continues. Cut 14 §4: the banner sits low (`.rest`), under the frame's
       // callout line, and the ticker yields to it (rater S: `rest 20m` over `OGRE WINDS UP` on the death frame)
       // QA 92eb880 (N: "`rest 20m` … after `0/36` reads as the hero resting instead of dying"): after a death the rest is the next heir's (`♟2 · rest 20m`)
-      if (restS !== undefined && !restUntil) { restUntil = performance.now() + (mode === "fast" ? REST_BEAT_FAST_MS : REST_BEAT_MS); ticker.classList.remove("show"); showBanner(exitTier === "death" && snap ? /* copy:callout */ `♟${snap.run.heir + 1} · rest ${spanOf(restS)}` : /* copy:callout */ `rest ${spanOf(restS)}`, REST_BEAT_MS, "rest"); return; }
+      // QA 778fa1b (qaU: `♟2 · rest 20m` on the last frame before the verdict announced the next heir before the death was read): after a
+      // death no rest beat — the death screen comes first, the camp's rest line says the rest. qaV (`REST 20M` drawn over `RETURNED $96`
+      // after a ▶▶|): the rest beat takes the frame alone — the exit's callout goes with it
+      if (restS !== undefined && !restUntil && exitTier !== "death") { restUntil = performance.now() + (mode === "fast" ? REST_BEAT_FAST_MS : REST_BEAT_MS); ticker.classList.remove("show"); ticker.classList.add("cut"); hideBeat(); showBanner(/* copy:callout */ `rest ${spanOf(restS)}`, REST_BEAT_MS, "rest"); return; }
       if (performance.now() < restUntil) return;
       void finish(exitTier); return;
     }
@@ -1333,9 +1345,11 @@ export function renderWatch(app: App): Mounted {
     skipEarly = true; mapHold = false; cardLive = false;
     goLive(); paintCard(frame); cardSince = -Infinity; applyFrame(); applySpeed();
   }
+  let stuckFight = -Infinity;   // QA 778fa1b (qaV): the fight a ▶▶| could not close (its `fightFrom`)
+  let lastPressAt = -Infinity, pressDepth = -1, pressRun = 0;   // QA 778fa1b (qaV): presses in a row on one floor
   async function skipToEvent(): Promise<void> {
     skipping = true;
-    try { await skipToEvent0(); } finally { skipping = false; }
+    try { await skipToEvent0(); } finally { skipping = false; lastPressAt = performance.now(); }
   }
   async function skipToEvent0(): Promise<void> {
     if (done || !viewer || exitTier) return;
@@ -1354,27 +1368,38 @@ export function renderWatch(app: App): Mounted {
     // a press while a step is in flight is not lost: one skip is queued behind it
     if (inflight) { skipQueued = true; return; }
     if (held) { toEnding(); return; }   // the run is over: the ending plays (Cut 14 §6: never skipped blind)
-    if (mode === "fights" && earlyFloor() && frame !== "fight" && !stalling()) { skipToCard(); return; }
+    // QA 778fa1b (qaV: ▶▶| every 400 ms for 360 s in `fights`, retreat ↔ attack against two ogres on D8, the floor never changed): presses
+    // in quick succession that leave him on the same floor are a loop the fights keep opening — the fourth takes the run's end
+    const nowMs = performance.now();
+    if (nowMs - lastPressAt < PRESS_GAP_MS && hud.depth === pressDepth) pressRun++; else { pressRun = 0; pressDepth = hud.depth; }
+    lastPressAt = nowMs;
+    if (mode === "fights" && earlyFloor() && frame !== "fight" && !stalling() && pressRun < PRESS_LOOP) { skipToCard(); return; }
     inflight = true;
     const until = performance.now() + SKIP_WALL_MS;
     // in `fast` the press means the run's end: the engine steps to `run_over` (floors drained on the way, a vault choice left to
     // its grace) and the viewer lands at the ending, which plays as after any skip (QA on 50bb162: the press "plays faster")
     // QA 23ed91f (L: a summoner stall on D6, ▶▶| and `fast` changed nothing): while the run is stalling the press means the run's
     // end in either mode — there is no fight worth landing on in a loop
-    if (mode === "fast" || stalling()) {
+    // QA 778fa1b (qaV: ▶▶| every 400 ms for 360 s in `fights` against two ogres, retreat ↔ attack; `fast` ended it in 3 s): a fight that
+    // does not close within the press's fight budget is a loop — the press takes the run's end, as in `fast`
+    const toRunEnd = async (budget: number): Promise<void> => {
+      inflight = true;
       try {
-        for (let i = 0; i < SKIP_FIGHT_BATCHES && !held && !disposed && performance.now() < until; i++) {
-          // QA 1a2a4a9 (P: at 16× the cage's `took leather +1` was gone in ~1.5 s, untappable): a skip stops at a cage — the beat holds
-          // its wall time like any other; near an unopened cage the steps are short, so the choice is met inside its grace
+        for (let i = 0; i < SKIP_FIGHT_BATCHES && !held && !disposed && performance.now() < budget; i++) {
           const r = await app.engine.step(snap && cageNear(snap) ? CAGE_BATCH : SKIP_END_BATCH); handle(r);
           if (held || r.run_over || cageMet()) break;
-          const p = takeLoad(); if (p) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+          const p = takeLoad(); if (p) { viewer!.load(p.snap); hudFrom(p.snap); viewer!.apply(p.rest); }
         }
       } catch (e) { console.warn("skip failed", e); }
       inflight = false;
       if (held) toEnding();
       else if (cageMet()) landCage();
       else if (!loads.length) { const t = Math.max(viewerTick(), engineTick - BATCH); seekTo(t); release(viewerTick()); letGo(t); applyFrame(); applySpeed(); }
+    };
+    if (mode === "fast" || stalling() || pressRun >= PRESS_LOOP) {
+      // QA 1a2a4a9 (P: at 16× the cage's `took leather +1` was gone in ~1.5 s, untappable): a skip stops at a cage — the beat holds
+      // its wall time like any other; near an unopened cage the steps are short, so the choice is met inside its grace
+      await toRunEnd(until);
       if (skipQueued) { skipQueued = false; void skipToEvent(); }
       return;
     }
@@ -1388,6 +1413,11 @@ export function renderWatch(app: App): Mounted {
         }
       } catch (e) { console.warn("skip failed", e); }
       inflight = false;
+      // a fight one press could not close is marked; a second press in the same fight takes the run's end
+      if (!held && !disposed && fightOn && !Number.isFinite(fightUntil)) {
+        if (stuckFight === fightFrom) { await toRunEnd(performance.now() + SKIP_WALL_MS); if (skipQueued) { skipQueued = false; void skipToEvent(); } return; }
+        stuckFight = fightFrom;
+      }
       if (held) toEnding();
       else {
         // Cut 14 §6: the end of the span the playhead is in (a kept one, or the live fight's), whichever is later
@@ -1665,7 +1695,7 @@ export function renderWatch(app: App): Mounted {
     for (const r of out) { if (!diff) break; const take = Math.max(-r.gold, diff); r.gold += take; diff -= take; }
     return out.filter((r) => r.gold > 0);
   }
-  const spentRows = (ledger: { t: number; delta: number; why: string }[]): { kind: string; n: number; gold: number }[] => spentOf(ledger, app.supplyCat);
+  const spentRows = (ledger: { t: number; delta: number; why: string; n?: number }[]): { kind: string; n: number; gold: number }[] => spentOf(ledger, app.supplyCat);
   // Addendum D: choose what to keep before the run settles
   function exitSheet(p: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] }, free: number, then: () => void): void {
     // QA 23ed91f: the owned automations' picks come pre-ticked (`ExitPending.auto_keep`), as many as the free slots take

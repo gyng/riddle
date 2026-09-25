@@ -69,8 +69,12 @@ export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: bo
 export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace, opts: PatchOpts = {}): HTMLElement {
   const head = opts.nothingBeatsBase && patches.length
     ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `nothing beats unpatched ${pct(baseline ?? 1)}`) : null;
+  // QA 778fa1b (qaU: PLATEAU `base 8%` on patch 1, `base 9%` on patch 2 — "two bases for one lineage"): a stall block has one base, the
+  // unpatched reach (the first patch's reach less its move, unrounded), and each patch's move is its rounded reach less it
+  const lead = baseline === undefined ? patches.find((p) => !p.below_bar) : undefined;
+  const stallBase = lead ? Math.max(0, Math.round((lead.survive - lead.forecast_delta) * 100)) : undefined;
   const rows = patches.map((p) => {
-    const delta = Math.round(p.forecast_delta * 100);
+    const delta = stallBase !== undefined ? Math.round(p.survive * 100) - stallBase : Math.round(p.forecast_delta * 100);
     // QA 23ed91f (K: "`reach 92% · base 8% · reach +83%`: 92 − 8 ≠ 83, and `reach` twice"): a stall patch's base is the rounded reach
     // less the rounded delta, so the three numbers add up; its delta then drops the word (`+84%`)
     const unlock = p.insert_at < 0;
@@ -86,7 +90,10 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
       // still opens the drop sheet on it (marked), so the player may drop another
       : "";
     // QA 1a2a4a9 (O: `+ drop R2 hp < 40% → drink heal` read as "put it at R2"): the drop trails the row it makes room for — `drops R2`
-    const dropTag = full ? h("small", { class: "dim target drop-tag" }, " · ", dropsOf(app, p) >= 0 ? /* copy:callout */ `drops R${dropsOf(app, p) + 1}` : /* copy:callout */ "drops one") : "";
+    // QA 778fa1b (qaU: `drops R4` and the drop sheet then marked R4 `16/16` — the busiest row): the named drop carries its fires when known
+    const named = full ? dropsOf(app, p) : -1, fires = named >= 0 && app.rowFires ? app.rowFires[named] ?? 0 : undefined, total = app.rowFiresOf ?? (app.rowFires ? app.rowFires.reduce((a, b) => a + b, 0) : 0);
+    const dropTag = full ? h("small", { class: "dim target drop-tag" }, " · ", named >= 0 ? /* copy:callout */ `drops R${named + 1}` : /* copy:callout */ "drops one",
+      fires !== undefined && total > 0 ? h("span", { class: "num fired" }, /* copy:callout */ ` · ${fires}/${total} fires`) : "") : "";
     // QA a946e04 (T: `retreat · survives 75% · base 75%` listed like a fix): a death patch that survives no more than the rules as they
     // are changes nothing — dim, `no gain`
     const noGain = baseline !== undefined && !opts.stall && !p.below_bar && held < 0 && !unlock && Math.round(p.survive * 100) <= Math.round(baseline * 100);
@@ -112,7 +119,9 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
       : held >= 0
         ? (): void => app.go({ kind: "camp", highlight: held })
         : full
-          ? (): void => openDropSheet(app, p, trace)
+          // QA 778fa1b (qaU friction: `apply` opened the DROP sheet though the patch said `drops R4`): the named drop applies as stated
+          // (the patch was measured with it); without one, the sheet asks
+          ? named >= 0 ? (): void => { const i = app.applyPatchOver(p, named); app.go({ kind: "camp", highlight: i }); } : (): void => openDropSheet(app, p, trace)
           : (): void => { const i = app.applyPatch(p); app.go({ kind: "camp", highlight: i }); };
     const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : rowLabel(p.row), dropTag);
     // an unlock's second line is the row it inserts once bought; a root patch's is the chain's root it answers
@@ -126,7 +135,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
         // Cut 17 §4: `survives N %` as a gauge on the patch tablet (the number stays beside it)
         unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
         h("span", { class: "num surv" }, line),
-        reachSpan(p, stallish)));
+        reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish)));
     applyOf.set(btn, onclick);
     return btn;
   });
@@ -153,20 +162,23 @@ export const applyOf = new WeakMap<HTMLElement, () => void | Promise<void>>();
  *  12-sim estimate is not the camp's number — QA 23ed91f, K: "`reach +8%` … the shaft went D5 79% → 78%"). A stall patch's first
  *  line already says `reach`: its delta is bare (`+84%`). */
 function reachSpan(p: Patch, stallish = false): HTMLElement {
-  // QA a946e04 (S: `hp < 20% → return · reach D7 +0%` — "a return ends the run"): an exit row's patch takes him home; how deep the
-  // camp's runs reach is not its measure (its survival is)
-  if (!stallish && EXIT_VERBS.has(p.row.verb.v) && !p.remove) return h("span", { class: "num delta exit", hidden: true });
-  if (p.camp_pending) return h("span", { class: "num delta pending" }, /* copy:callout */ "reach …");
+  // QA a946e04 (S: `hp < 20% → return · reach D7 +0%` — "a return ends the run") hid an exit's reach; QA 778fa1b (qaU: `hp < 40% →
+  // return · survives 100%` looked best, applied: `D5 −54 · death −94`): a patch whose row ends the run (`Patch.exits`, else its verb)
+  // survives by going home — its cost is floors, so it says so, `return early`, beside the reach it costs (`reach D6 −49`)
+  const exits = !stallish && !p.remove && (p.exits ?? EXIT_VERBS.has(p.row.verb.v));
+  const early = exits ? h("small", { class: "early" }, p.row.verb.v === "bank" ? /* copy:callout */ "bank early" : /* copy:callout */ "return early", " · ") : "";
+  if (p.camp_pending) return h("span", { class: `num delta pending${exits ? " exit" : ""}` }, early, /* copy:callout */ "reach …");
   const delta = Math.round(p.forecast_delta * 100);
   const pm = p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : undefined;
   const flat = delta === 0 || (pm !== undefined && Math.abs(delta) <= pm);
   const word = stallish ? "" : /* copy:label */ "reach ";
   const at = p.forecast_depth !== undefined ? `D${p.forecast_depth} ` : "";
   const pmTag = pm !== undefined && !flat ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`) : "";
-  // QA 92eb880 (M: "`reach D7 ~0` … the camp then shows D7 12%"): a move inside the ± reads as a move, `+0%`, never as a reach of ~0
-  // Cut 22 §4: a move is signed points in the delta look (`reach D6 +8 ±3`), `≈` inside its ± — a move, never a reach level or a chance
-  return flat ? h("span", { class: "num delta flat" }, `${word}${at}≈`, pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`) : "")
-    : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, `${word}${at}${delta > 0 ? "+" : "−"}${Math.abs(delta)}`, pmTag);
+  // QA 92eb880 (M: "`reach D7 ~0` … the camp then shows D7 12%"): a move inside the ± reads as a move, never as a reach of ~0
+  // Cut 22 §4: a move is signed points in the delta look (`reach D6 +8 ±3`), `≈` inside its ± — a move, never a reach level or a chance.
+  // QA 778fa1b (qaU: `reach D6 ≈ ±14` — "a spread with no value"): `≈` is no call and stands alone; the ± rides only a move
+  return flat ? h("span", { class: `num delta flat${exits ? " exit" : ""}` }, early, `${word}${at}≈`)
+    : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}${exits ? " exit" : ""}` }, early, `${word}${at}${delta > 0 ? "+" : "−"}${Math.abs(delta)}`, pmTag);
 }
 
 /** QA 23ed91f: the camp's reach for a death's patches landed (`deathDeltas`, same order): each patch takes its numbers, and each
@@ -180,44 +192,12 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
     buttons[i]?.querySelector(".delta")?.replaceWith(reachSpan(p));
   });
   el.dataset.reach = "camp";
-  // QA 92eb880 (N: the lit patch read `reach D8 −4%`, applied, and every floor fell; `rest 75%` lit over `return 100%`): once the camp's
-  // reach is in, the tablets re-rank by it — a gain first, then the ones inside the ± (the higher survival first), a loss last and dim
-  // (`.neg`: the gem never applies it); a held row or a below-bar alternative stays under them
-  // QA 1a2a4a9 (P: `return 100% / rest 67% / read unknown 33%` became `return / read unknown 33% / rest 67%` once the reach landed):
-  // Cut 19 §4's order, the core's `rank_patches` — survival first, the reach only inside SURVIVE_BAND of the best survival left
-  const pool = patches.map((p, i) => ({ p, b: buttons[i], i })).filter((x) => x.b);
+  // QA 92eb880 (N): a loss once the camp's reach is in is dim (`.neg`) and says its move. QA 778fa1b (qaU: patch 1 lit with `100% apply`,
+  // ~5 s later patch 2 lit and `67% apply`, no tap): the landing never moves the list or the lit tablet — the order is the core's
+  // (`rank_patches`, which already keeps a costly exit off the lead), the player has read it by the time the camp's reach lands
   const pmOf = (p: Patch): number => p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : 0;
   const moveOf = (p: Patch): number => { const d = Math.round(p.forecast_delta * 100); return p.insert_at < 0 || Math.abs(d) <= pmOf(p) ? 0 : d; };
-  const below = pool.filter((x) => x.b.classList.contains("below") && !x.b.classList.contains("neg"));
-  const live = pool.filter((x) => !below.includes(x));
-  // a loss stays dim (`.neg`, never the gem's) but keeps its survival's place: a 67 % row never drops under a 33 % one (the core
-  // sinks a loss under DELTA_SINK; here the reach is the camp's, landing after the player has read the list — the order moves less)
-  for (const x of live) x.b.classList.toggle("neg", moveOf(x.p) < 0);
-  const ordered = [...rankBand(live, moveOf), ...below];
-  for (const x of ordered) host.appendChild(x.b);
-  renumber(host);
-}
-
-/** Cut 19 §4 (core `trace::SURVIVE_BAND`): survival decides a place when two patches' survival differs by more than 10 pts. */
-export const SURVIVE_BAND = 0.10;
-/** The core's `rank_patches`, over the camp's reach: each place goes to the patch with the best reach move (when any moves it up;
- *  else the best survival) among those within SURVIVE_BAND of the best survival left — an order, not a pairwise rule. Ties keep
- *  the incoming order. */
-export function rankBand<T extends { p: Patch; i: number }>(xs: T[], moveOf: (p: Patch) => number): T[] {
-  const pool = [...xs], out: T[] = [];
-  const byMove = pool.some((x) => moveOf(x.p) > 0);
-  while (pool.length) {
-    const top = Math.max(...pool.map((x) => x.p.survive));
-    let best = -1;
-    pool.forEach((x, j) => {
-      if (x.p.survive < top - SURVIVE_BAND - 1e-9) return;
-      if (best < 0) { best = j; return; }
-      const q = pool[best], d = moveOf(x.p) - moveOf(q.p), s = x.p.survive - q.p.survive;
-      if (byMove ? d > 0 || (d === 0 && s > 1e-9) : s > 1e-9 || (Math.abs(s) <= 1e-9 && d > 0)) best = j;
-    });
-    out.push(pool.splice(best, 1)[0]);
-  }
-  return out;
+  patches.forEach((p, i) => { const b = buttons[i]; if (b && !(b.classList.contains("below") && !b.classList.contains("neg"))) b.classList.toggle("neg", moveOf(p) < 0); });
 }
 
 /** Cut 15 §3: the drop sheet — the set's own rows (a card's row never; it sits outside `max_rows`), `R5 <row> · 0/16` with the
@@ -239,6 +219,6 @@ export function openDropSheet(app: App, p: Patch, trace?: Trace): void {
       onclick: () => { close(); const at = app.applyPatchOver(p, i); app.go({ kind: "camp", highlight: at }); },
     },
     h("b", { class: "num" }, `R${i + 1}`), " ", h("span", { class: "chips-inline" }, rowLabel(r)),
-    fires ? h("span", { class: "num fired dim" }, ` · ${fires[i] ?? 0}/${total}`) : "",
+    fires ? h("span", { class: "num fired dim" }, /* copy:callout */ ` · ${fires[i] ?? 0}/${total} fires`) : "",   // QA 778fa1b (qaU: `· 15/16` with no unit)
     i === least ? h("span", { class: "num mark" }, "↓") : ""))));
 }

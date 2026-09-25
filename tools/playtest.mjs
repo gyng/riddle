@@ -170,10 +170,12 @@ async function attempt() {
     s = await state();
     await dump(s.screen, { note: `offline ${opt.absent} → ${secs(offlineWait)}` });
     if (s.screen === "report") {
-      // Cut 17: the worst death opens from the report's console tile (`open`); the older flat button kept as a fallback
-      const openSel = (await page.locator(".cmd button").filter({ hasText: /^\s*open\s*$/i }).count()) ? ".cmd button" : "button.btn";
-      if (await page.locator(openSel).filter({ hasText: /^\s*open\s*$/i }).count()) {
-        await page.locator(openSel).filter({ hasText: /^\s*open\s*$/i }).first().click(); await waitFor((x) => x?.screen === "death", "the worst death"); await settle(); await dump("death", { note: "worst" });
+      // Cut 17: the worst death opens from the report's console tile (`data-tile="open"`, labelled `worst` since QA e75ec29 — qaU on
+      // 778fa1b: the walk matched the old `open` label and logged `(no worst death to open)` beside `1 DEATHS`); the older flat button kept
+      const tileSel = '.cmd button[data-tile="open"]';
+      const worst = (await page.locator(tileSel).count()) ? page.locator(tileSel).first() : page.locator("button.btn").filter({ hasText: /^\s*(open|worst)\s*$/i }).first();
+      if (await worst.count()) {
+        await worst.click(); await waitFor((x) => x?.screen === "death", "the worst death"); await settle(); await dump("death", { note: "worst" });
       } else log("(no worst death to open)");
     }
   } catch (e) {

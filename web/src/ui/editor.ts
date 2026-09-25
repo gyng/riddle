@@ -93,7 +93,9 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     // Cut 12 §1: own rows against the cap, the card rows counted beside (`3/4 · 2 cards`)
     foot.append(
       h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`, cards ? h("small", { class: "dim cards" }, /* copy:callout */ ` · ${cards} card${cards === 1 ? "" : "s"}`) : ""),
-      n < max ? h("button", { class: "btn ghost", onclick: () => { rows().push(defaultRow()); commit(); } }, "+") : "",
+      // QA 778fa1b (qaV friction: the new `hp < 50% → …` row landed last, under `foes ≥ 1 → attack nearest`, shadowed until stepped up 4
+      // times): it goes in above the first own row with no hp cond (the broad engagement rows), under the hp rows before it
+      n < max ? h("button", { class: "btn ghost", onclick: () => { const rs = rows(); const at = rs.findIndex((r) => r.verb.v !== "tactic" && !r.conds.some((c) => c.k === "hp<")); rs.splice(at < 0 ? rs.length : at, 0, defaultRow()); commit(); } }, "+") : "",
     );
     paintShadow();
     if (hl !== undefined && performance.now() < hlUntil) { const r = list.children[hl] as HTMLElement | undefined; if (r) { flash(r, "hl", Math.max(600, hlUntil - performance.now())); r.scrollIntoView({ block: "center" }); } }

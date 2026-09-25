@@ -1528,6 +1528,7 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
         return false;
     }
     let item = run.hero.inv.remove(ii);
+    run.note_gone(item.id, &item.kind, "used", 1);
     let hp = run.hero.hp;
     crate::provenance::used(run, cx, "drunk", &kind, hp);
     identify_used(run, cx, &item);
@@ -1631,6 +1632,7 @@ fn verb_read(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         return false;
     }
     let item = run.hero.inv.remove(ii);
+    run.note_gone(item.id, &item.kind, "used", 1);
     let hp = run.hero.hp;
     crate::provenance::used(run, cx, "read", &kind, hp);
     identify_used(run, cx, &item);
@@ -1810,7 +1812,8 @@ fn throw_bell(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
         }
     }
     let Some(land) = cands.iter().copied().max_by_key(|q| (min_foe_dist(run, v, *q), q.cheb(hp), -q.x, -q.y)) else { return false };
-    run.hero.inv.remove(ii);
+    let bell = run.hero.inv.remove(ii);
+    run.note_gone(bell.id, &bell.kind, "used", 1);
     let hero_hp = run.hero.hp;
     crate::provenance::used(run, cx, "thrown", "bell", hero_hp);
     projectile(run, cx, HERO_ID, 0, hp, land);
@@ -1830,6 +1833,7 @@ fn throw_item_at(run: &mut Run, cx: &mut Ctx, ii: usize, mi: usize) -> bool {
         return false;
     }
     let item = run.hero.inv.remove(ii);
+    run.note_gone(item.id, &item.kind, "used", 1);
     let hero_hp = run.hero.hp;
     crate::provenance::used(run, cx, "thrown", &item.kind, hero_hp);
     if item.cat() == Cat::Potion {
@@ -1852,6 +1856,17 @@ fn throw_item_at(run: &mut Run, cx: &mut Ctx, ii: usize, mi: usize) -> bool {
         mirror_learn(run, cx, mi);
     }
     let victim = if reflected { None } else { Some(mi) };
+    // QA on 778fa1b (qaV): a throw whose harm reaches the hero — a blast over his own tile, a
+    // poison sent back — is his own harm (`Run.own_throw`; the death's `own fire`, its `row`).
+    let self_hit = match pkind.as_str() {
+        "fire" | "caustic" => land.cheb(hp) <= 1,
+        "poison" => victim.is_none(),
+        _ => false,
+    };
+    if self_hit {
+        run.own_throw = Some((run.turn, pkind.clone()));
+        run.own_throw_harm = 0;
+    }
     let outcome = match pkind.as_str() {
         "poison" => {
             // Stacks: each dose is another 8 over 40 ticks.
@@ -2628,6 +2643,9 @@ pub(crate) fn thief_take(run: &mut Run, take: Take) -> (Item, Option<i32>) {
         }
         Take::Weapon => run.hero.weapon.take().expect("a weapon in hand"),
     };
+    if it.kind != "gold" {
+        run.note_gone(it.id, &it.kind, "stolen", it.amount.max(1));
+    }
     let amount = (before > run.loot).then(|| before - run.loot);
     (it, amount)
 }

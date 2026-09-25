@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Cut 22 client gates (docs/CUT22.md), on the fake engine, headless at 400 × 800 (RIDDLE_BROWSER=headed for the GPU):
 //   §3  no move before an edit; an edit's forecast paints first, then the paired move lands (`forecastVs(prev)` asked after the
-//       paint, never before it): a line under the shaft `vs last · D8 +6 · bank +4`, a tiny `▲6`/`▼3`/`≈` on each notch and gem;
+//       paint, never before it): a line under the shaft `vs sent · D8 +6 · bank +4` (QA 778fa1b: against the set sent; `vs sent…` while measured, the first pass marked and re-asked after the refine), a tiny `▲6`/`▼3`/`≈` on each notch and gem;
 //       the absolute numbers are the forecast's own; a move inside its paired ± reads `≈`; the next edit clears the line at once;
 //       a set switch shows none; a core that puts `vs` on the forecast itself is read the same (no call)
 //   §4  the start picker: `D9 · bank +3 · death 61% · $90` (the current start its own levels); no delta anywhere reads `+N%` (a
@@ -50,6 +50,9 @@ const patchLineage = (patch) => page.evaluate(async (p) => {
   Object.assign(e.lineage, p); b.engine = JSON.stringify(e); await r.importSave(JSON.stringify(b));
 }, patch);
 const vsText = () => txt(".camp .shaft-vs-host .shaft-vs");
+// QA 778fa1b: while an edit's move is measured the line reads `vs sent…`; a landed move is anything else
+const PENDING = "vs sent…";
+const vsLanded = async () => { const t = await vsText(); return t && t !== PENDING ? t : null; };
 /** The shaft's notches: the absolute text (`54%±6`, the move's mark taken out) and the mark. */
 const notches = () => page.evaluate(() => [...document.querySelectorAll(".camp .shaft .notch:not(.fold)")].map((n) => {
   const dp = n.querySelector(".dp"), m = dp?.querySelector(".vsm");
@@ -75,11 +78,16 @@ try {
   });
   const fc0 = await page.evaluate(() => Number(document.querySelector(".camp .shaft").dataset.fc));
   await page.evaluate(() => window.__riddle.insertRow({ conds: [{ k: "hp<", n: 20 }], verb: { v: "return" } }, 0));
-  check((await vsText()) === null, "an edit shows no move while its forecast runs");
-  const line = await until(vsText, "the move under the shaft");
+  const during = await vsText();
+  check(during === null || during === PENDING, `an edit shows no move while its forecast runs ("${during}")`);
+  const line0 = await until(vsLanded, "the move under the shaft");
+  // QA 778fa1b: the first pass's move is marked (`vs sent…`, dim) and asked again once the refine lands — the refined move replaces it
+  const rough0 = await page.evaluate(() => document.querySelector(".camp .shaft-vs-host .shaft-vs")?.dataset.refined);
+  const line = await until(async () => (await page.evaluate(() => document.querySelector(".camp .shaft-vs-host .shaft-vs")?.dataset.refined)) === "1" ? vsLanded() : null, "the refined move", 15_000);
+  check(rough0 === "0" && /^vs sent…/.test(line0) && !/…/.test(line), `the first-pass move reads \`vs sent…\`, the refine's replaces it ("${line0}" → "${line}")`);
   const log = await page.evaluate(() => window.__riddle.__log);
   check(log[0] === "forecast" && log[1] === `vs:${fc0 + 1}:3`, `the paired call waits for the paint and measures against the set before the edit (${log.join(" → ")})`);
-  check(/^vs last · D\d+ ([+−]\d+|≈) · bank ([+−]\d+|≈)( · death [+−]\d+)?$/.test(line), `the line under the shaft: "${line}"`);
+  check(/^vs sent · D\d+ ([+−]\d+|≈) · bank ([+−]\d+|≈)( · death [+−]\d+)?$/.test(line), `the line under the shaft: "${line}"`);
   const ns = await notches(), f = await page.evaluate(() => window.__riddle.lastForecast);
   const marked = ns.filter((n) => n.mark !== null);
   check(marked.every((n) => /^[▲▼]\d+$/.test(n.mark)) && ns.every((n) => n.mark === null || !/≈/.test(n.mark)), `a notch carries its move when it clears its ± (nothing inside it) (${ns.map((n) => `D${n.d} ${n.mark ?? "-"}`).join(" · ")})`);
@@ -99,13 +107,14 @@ try {
   if (await page.locator(".panel[data-panel=forecast]").count()) await closeSheets();
   // a move inside its paired ± reads `≈`; a move outside it keeps its sign — the engine's numbers, as sent
   await page.evaluate(() => {
-    const e = window.__riddle.engine;
+    const e = window.__riddle.engine; delete e.forecastVsRefined;
     e.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: depth === 6 ? -0.07 : 0.03, pm: depth === 6 ? 0.02 : 0.05 })), bank: { delta: 0.04, pm: 0.02 }, death: { delta: 0.01, pm: 0.03 } });
   });
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 40; r.rulesChanged(); });
-  check((await vsText()) === null, "the next edit clears the line at once");
-  const line2 = await until(vsText, "the second move");
-  check(line2 === "vs last · D6 −7 · bank +4", `the largest move outside its ± heads the line, a death inside its ± is left out ("${line2}")`);
+  const cleared = await vsText();
+  check(cleared === null || cleared === PENDING, `the next edit clears the line at once ("${cleared}")`);
+  const line2 = await until(vsLanded, "the second move");
+  check(line2 === "vs sent · D6 −7 · bank +4", `the largest move outside its ± heads the line, a death inside its ± is left out ("${line2}")`);
   const gems2 = await page.evaluate(() => [...document.querySelectorAll(".camp .shaft-ends .end .vsm")].map((m) => m.closest(".end").className.replace("end ", "") + " " + m.textContent));
   check(gems2.join() === "bank ▲", `the bank gem carries its arrow, a death inside its ± none (${gems2.join(" · ") || "none"})`);
   const ns2 = await notches();
@@ -113,8 +122,8 @@ try {
   // nothing clears: the frontier's `≈`
   await page.evaluate(() => { window.__riddle.engine.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: 0.02, pm: 0.04 })), bank: { delta: 0.004, pm: 0.03 } }); });
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 45; r.rulesChanged(); });
-  const line3 = await until(vsText, "the flat move");
-  check(line3 === "vs last · D6 ≈ · bank ≈", `an edit that moves nothing reads ≈ on the frontier ("${line3}")`);
+  const line3 = await until(vsLanded, "the flat move");
+  check(line3 === "vs sent · D6 ≈ · bank ≈", `an edit that moves nothing reads ≈ on the frontier ("${line3}")`);
   await shot("cut22-vs-flat");
   // a set switch is not an edit
   await page.evaluate(() => window.__riddle.selectSet(1));
@@ -129,9 +138,9 @@ try {
     const fc = e.forecast; e.forecast = async () => ({ ...(await fc()), vs: { depths: [{ depth: 6, delta: 0.12, pm: 0.03 }], bank: 0.09 } });
   });
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 25; r.rulesChanged(); });
-  const line4 = await until(vsText, "the inline move");
+  const line4 = await until(vsLanded, "the inline move");
   const calls = await page.evaluate(() => window.__riddle.__vsCalls);
-  check(line4 === "vs last · D6 +12 · bank +9" && calls === 0, `a forecast's own \`vs\` is read without a call ("${line4}", ${calls} calls)`);
+  check(line4 === "vs sent · D6 +12 · bank +9" && calls === 0, `a forecast's own \`vs\` is read without a call ("${line4}", ${calls} calls)`);
 
   // ---- §4: the start picker's death share; signed deltas
   const bankRules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=12 → bank");
@@ -141,8 +150,9 @@ try {
   await until(() => page.evaluate(() => document.querySelector(".camp .shaft")?.dataset.fc), "the forecast"); await sleep(300);
   await page.locator(".camp .start-tab").click({ timeout: 5000 }); await sleep(150);
   const opts = await until(async () => { const o = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .start-picker .start-opt")].map((b) => `${b.textContent.replace(/\s+/g, " ").trim()}${b.classList.contains("on") ? "*" : ""}`)); return o.length === 3 && !o.some((x) => x.includes("…")) ? o : null; }, "the measured starts");
-  check(/^D1 · (bank|D\d+) \d+% · death \d+%\*$/.test(opts[0]), `the current start: its own levels and its death share (${opts[0]})`);
-  check(/^D5 · (bank|D\d+) [+−]\d+ · death \d+% · \$50$/.test(opts[1]) && /^D9 · (bank|D\d+) [+−]\d+ · death \d+% · \$90$/.test(opts[2]), `each start: the signed move, the death share, the toll (${opts.slice(1).join(" | ")})`);
+  check(/^D1 · (bank|D\d+) \d+% · death \d+% · ~\$-?\d+\*$/.test(opts[0]), `the current start: its own levels, its death share, its gold (${opts[0]})`);
+  // QA 778fa1b (qaV): every start in one absolute form — no signed move beside an absolute level
+  check(/^D5 · (bank|D\d+) \d+% · death \d+% · ~\$-?\d+( · \$\d+)?$/.test(opts[1]) && /^D9 · (bank|D\d+) \d+% · death \d+% · ~\$-?\d+( · \$\d+)?$/.test(opts[2]), `each start: its level, the death share, the net gold, the toll (${opts.slice(1).join(" | ")})`);
   const deathWarn = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .start-opt .start-death")].map((d) => `${d.textContent.trim()}${d.classList.contains("warn") ? "!" : ""}`));
   check(deathWarn.every((d) => { const n = Number(/(\d+)%/.exec(d)?.[1]); return (n >= 50) === d.endsWith("!"); }), `a death share of half or more is marked (${deathWarn.join(" ")})`);
   await shot("cut22-start-picker");

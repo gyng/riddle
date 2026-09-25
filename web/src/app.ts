@@ -106,6 +106,14 @@ export class App {
    *  edits before the next paint keeps the first's). Null after a set switch or a send: no edit to measure. */
   private vsBase: RuleSet | null = null;
   private fcRules: RuleSet | null = null;   // the set the last painted forecast measured
+  private fcShadow: (number | null)[] = [];   // … and its shadowed rows (`Forecast.shadowed_by`)
+  private vsBaseShadow: (number | null)[] = [];
+  /** QA 778fa1b: the edit changed only rows that never fire — the base's live rows (not shadowed) are the set's live rows now. */
+  private deadEdit(): boolean {
+    const base = this.vsBase; if (!base || !this.shadow) return false;
+    const live = (set: RuleSet, sh: (number | null)[]): RuleSet => ({ rows: set.rows.filter((_, i) => sh[i] === null || sh[i] === undefined) });
+    return sameSet(live(base, this.vsBaseShadow), live(this.rules, this.shadow));
+  }
   private fcFresh = false;                  // a forecast painted since the last edit
   private editSeq = 0;
   private vsOff = false;
@@ -113,22 +121,34 @@ export class App {
   onVs(fn: () => void): () => void { this.vsListeners.add(fn); return () => this.vsListeners.delete(fn); }
   private setVs(v: ForecastVs | null): void {
     if (v === this.vs) return;
+    // QA 778fa1b (qaU: `hp < 50% → attack lowest` added under `foes ≥ 1 → attack nearest` read `vs last · death −10`): an edit that only
+    // touched rows that can never fire (`shadowed_by`, on both sides) moves nothing — the sims' wobble is not the edit's, it reads `≈`
+    if (v && this.deadEdit()) v = flatVs(v);
     this.vs = v;
     for (const fn of this.vsListeners) { try { fn(); } catch (e) { console.warn("vs listener", e); } }
   }
   /** Cut 22 §3: after a forecast painted for the rules now — the move against the base set: the forecast's own `vs`, else the
    *  engine's `forecastVs(base)`, asked now (behind the paint in the worker's queue, never before it). */
-  private measureVs(f: Forecast, asked: RuleSet): void {
+  private measureVs(f: Forecast, asked: RuleSet, afterRefine = false): void {
     const base = this.vsBase;
     if (!base || sameSet(base, asked)) return;
     if (f.vs) { this.setVs(f.vs); return; }
-    if (this.vsOff || !this.engine.forecastVs || f.refined === true) return;
+    if (this.vsOff || !this.engine.forecastVs) return;
     const seq = this.editSeq;
-    void this.engine.forecastVs(cloneSet(base)).then((v) => { if (seq === this.editSeq && v) this.setVs(v); })
+    const ask = afterRefine && this.engine.forecastVsRefined ? this.engine.forecastVsRefined : this.engine.forecastVs;
+    // QA 778fa1b (qaU: `death −10` stayed from the first paint while the refined panel beside it read 22 → 27 %): asked again once the
+    // refine lands (`scheduleRefine`); a first-pass answer never replaces a refined one that came back first
+    void ask.call(this.engine, cloneSet(base)).then((v) => { if (seq === this.editSeq && v && !(this.vs?.refined && !v.refined)) this.setVs(v); })
       .catch((e) => { this.vsOff = true; console.warn("forecastVs unavailable", e); });
   }
   /** Cut 22 §3: a send (or a set switch) starts over — the set that runs is the next edit's base, and no move is shown. */
-  resetVs(): void { this.vsBase = null; this.fcRules = cloneSet(this.rules); this.fcFresh = true; this.setVs(null); }
+  /** QA 778fa1b (qaU: "compares to the previous edit, not the last run"; qaV: after a reorder "last" switched from the sent set to the
+   *  previous edit): the base is the set that was sent — fixed from the send (or the first paint of a session / a switched-to set) until
+   *  the next send, whatever the edits between; the line reads `vs sent`. */
+  resetVs(): void { this.vsBase = cloneSet(this.rules); this.vsBaseShadow = [...this.shadowedBy()]; this.fcRules = cloneSet(this.rules); this.fcShadow = [...this.vsBaseShadow]; this.fcFresh = true; this.setVs(null); }
+  /** QA 778fa1b (qaV: `D10 ≈ · bank ≈` held 16 s after an edit that took bank 0 → 86 %): an edit's move is being measured — the rules
+   *  differ from the base and no move for them has landed yet (the line reads `vs sent …`, never a stale `≈`). */
+  vsPending(): boolean { return !this.vs && !this.vsOff && !!this.engine.forecastVs && !!this.vsBase && !this.overBudget && !sameSet(this.vsBase, this.rules); }
   /** QA 92eb880: the active set's shadowed rows (`Forecast.shadowed_by`, per row the earlier row that takes all its moments) as of the
    *  last forecast painted for the rules now; `null` until one lands after an edit (then the lineage's own read, for the set it holds). */
   private shadow: (number | null)[] | null = null;
@@ -346,7 +366,7 @@ export class App {
   rulesChanged(): void {
     this.rowFires = null; this.rowFiresOf = undefined;   // Cut 14 §4: the counts were the set that ran
     // Cut 22 §3: the edit's base is the set the last painted forecast measured; the shown move clears until this edit's lands
-    if (this.fcFresh && this.fcRules) this.vsBase = this.fcRules;
+    if (!this.vsBase && this.fcFresh && this.fcRules) { this.vsBase = this.fcRules; this.vsBaseShadow = this.fcShadow; }
     this.fcFresh = false; this.editSeq++; this.setVs(null);
     this.persist();
     clearTimeout(this.fcTimer); clearTimeout(this.refineTimer); this.refineSeq++;
@@ -380,7 +400,7 @@ export class App {
       // QA 23ed91f (L: switching to an empty set, the shaft kept the old set's `return 94%` for ~5 s, then flipped): a forecast whose
       // rules changed while it ran is not painted (the shaft stays dimmed `stale`); the next one, for the rules now, is
       if (!this.fcDirty) {
-        this.fcRules = asked; this.fcFresh = true;
+        this.fcRules = asked; this.fcShadow = f.shadowed_by ?? []; this.fcFresh = true;
         this.publishForecast(f);
         this.scheduleRefine();
         this.measureVs(f, asked);
@@ -407,7 +427,8 @@ export class App {
         const f = await this.engine.forecastRefine!();
         if (seq !== this.refineSeq) return;
         this.publishForecast(f);
-        if (f.vs && this.vsBase && !sameSet(this.vsBase, this.rules)) this.setVs(f.vs);   // Cut 22 §3: the refine's move, when it carries one
+        // Cut 22 §3: the refine's move — the one it carries, else `forecastVs` asked again now the panels paired are the refined ones
+        if (this.vsBase && !sameSet(this.vsBase, this.rules)) { if (f.vs) this.setVs(f.vs); else this.measureVs(f, cloneSet(this.rules), true); }
       } catch (e) { this.refineOff = true; console.warn("forecastRefine unavailable", e); }
     }, REFINE_MS);
   }
@@ -425,8 +446,8 @@ export class App {
     if (i === this.active || i < 0 || i >= this.sets.length) return;
     this.active = i;
     void this.engine.selectSet(i).catch((e) => console.warn("selectSet", e));
+    this.vsBase = null; this.fcFresh = false;   // Cut 22 §3: a switch is not an edit — no move against the other set (its first paint is the base)
     this.rulesChanged();
-    this.vsBase = null;   // Cut 22 §3: a switch is not an edit — no move against the other set
     this.emitChange();
   }
   /** Inserts even when the set is full (Cut 4 §1: overflow is the player's decision, see `overBudget`).
@@ -693,6 +714,11 @@ const rowKey = (r: Row): string => `${r.conds.map((c) => `${c.k}|${c.n ?? ""}|${
 const asOrigin = (o: unknown): RowOrigin | undefined => (o === "preset" || o === "patch" || o === "card" || o === "player" ? o : undefined);
 export const cloneSet = (s: RuleSet): RuleSet => ({ rows: s.rows.map(cloneRow), name: s.name });
 /** Cut 22 §3: two sets with the same rows (text and order; origins aside). */
+/** QA 778fa1b: a move with every delta at 0 (a dead edit's) — the line reads `≈`, the marks show nothing. */
+const flatVs = (v: ForecastVs): ForecastVs => {
+  const z = (m: ForecastVs["bank"]): ForecastVs["bank"] => (m === undefined ? m : { delta: 0 });
+  return { ...v, depths: v.depths.map((d) => ({ ...d, delta: 0, pm: 0 })), bank: z(v.bank), death: z(v.death), return: z(v.return), gold: z(v.gold) };
+};
 const sameSet = (a: RuleSet, b: RuleSet): boolean => a.rows.length === b.rows.length && a.rows.every((r, i) => rowKey(r) === rowKey(b.rows[i]));
 
 /** `dev` is non-null in dev builds or with `?dev=1` (main.ts): boot options plus `window.__riddle` for inspection

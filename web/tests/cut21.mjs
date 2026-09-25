@@ -72,13 +72,18 @@ try {
   const pending = await opts();
   await sleep(700);
   const landed = await opts();
-  check(pending.length === 3 && pending[1] === "D5 … · $50" && pending[2] === "D9 … · $90", `the picker lists D1 and each lit waystone, \`…\` until measured (${pending.join(" | ")})`);
-  const shape = /^D1 · (bank|D\d+) \d+%( · death \d+%)?\*$/.test(landed[0] ?? "") && /^D5 · (bank|D\d+) [+−]\d+( · death \d+%)? · \$50$/.test(landed[1] ?? "") && /^D9 · (bank|D\d+) [+−]\d+( · death \d+%)? · \$90$/.test(landed[2] ?? "");
+  // QA 778fa1b (qaV; core): the toll is the wire's only (none at 0, no client guess) — `T(d)` is what the engine charges
+  const tolls = await page.evaluate(async () => Object.fromEntries((await window.__riddle.engine.startForecast()).map((o) => [o.start, o.toll ?? 0])));
+  const T = (d) => (tolls[d] ? ` · $${tolls[d]}` : "");
+  check(pending.length === 3 && pending[1] === "D5 …" && pending[2] === "D9 …", `the picker lists D1 and each lit waystone, \`…\` until measured (${pending.join(" | ")})`);
+  // QA 778fa1b (qaV: `D1 · bank 100%` beside `D5 · bank −10` read as −$10): every option in one absolute form — its level, its death share,
+  // the gold a send brings home net of the toll (`~$N`), then the toll (Cut 22: $5 × depth)
+  const shape = /^D1 · (bank|D\d+) \d+%( · death \d+%)? · ~\$-?\d+\*$/.test(landed[0] ?? "") && new RegExp(`^D5 · (bank|D\\d+) \\d+%( · death \\d+%)? · ~\\$-?\\d+${T(5).replace("$", "\\$")}$`).test(landed[1] ?? "") && new RegExp(`^D9 · (bank|D\\d+) \\d+%( · death \\d+%)? · ~\\$-?\\d+${T(9).replace("$", "\\$")}$`).test(landed[2] ?? "");
   check(shape, `each option: its forecast move and its toll (${landed.join(" | ")})`);
   await shot("cut21-start-picker");
   await page.locator(".sheet-wrap .start-opt[data-start='9']").click({ timeout: 5000 }); await sleep(500);
   const picked = await txt(".camp .start-tab"), calls = await page.evaluate(() => window.__riddle.__starts);
-  check(picked === "start → D9 · $90" && calls.join() === "9", `a tap sets the start (setStart ${calls.join()}; tablet \`${picked}\`)`);
+  check(picked === `start → D9${T(9)}` && calls.join() === "9", `a tap sets the start (setStart ${calls.join()}; tablet \`${picked}\`)`);
   const notches = await page.evaluate(() => [...document.querySelectorAll(".shaft .notch .dl")].map((n) => n.textContent.trim()));
   check(/^D9\b/.test(notches[0] ?? ""), `the shaft starts at the chosen start (${notches.join(" · ")})`);
   await shot("cut21-start-shaft");
@@ -98,7 +103,7 @@ try {
   // the engine's lineage (the app adopts it at the exit)
   const toll = await page.evaluate(async () => ((await window.__riddle.engine.lineage()).gold_ledger ?? []).find((g) => /^waystone D9$/.test(g.why)));
   const gold1 = await page.evaluate(async () => (await window.__riddle.engine.lineage()).gold);
-  check(toll?.delta === -90 || gold0 - gold1 === 90, `the send pays the toll (${toll ? `${toll.delta} ${toll.why}` : `$${gold0} → $${gold1}`})`);
+  check(tolls[9] ? toll?.delta === -tolls[9] || gold0 - gold1 === tolls[9] : !toll, `the send pays the toll the wire named (${tolls[9] ?? 0}) (${toll ? `${toll.delta} ${toll.why}` : `$${gold0} → $${gold1}`})`);
 
   // ---- §2: found supplies to the shelf; `no row`
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=22`, { waitUntil: "domcontentloaded" });

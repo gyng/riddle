@@ -347,7 +347,11 @@ try {
       const s = await state(); if (s?.screen !== "watch" && s?.screen !== "exit") break;
       await sleep(40);
     }
-    check(!!rest && /^(♟\d+ · )?rest \S+$/.test(rest.text) && rest.top > rest.lowest && rest.top >= rest.h * 0.75, `the rest banner sits under the frame's sprites and names (${rest ? `"${rest.text}" top ${Math.round(rest.top)} · drawn to ${Math.round(rest.lowest)} · ${rest.frame} frame` : "never seen"})`);
+    // QA 778fa1b (qaU: `♟2 · rest 20m` announced the next heir on the death's last frame): after a death no rest beat — the death screen
+    // comes first; a run that came home still shows it, low
+    const endScreen = rest ? null : (await state())?.screen;
+    if (!rest && endScreen === "death") check(true, "after a death no rest beat: the death screen comes first");
+    else check(!!rest && /^rest \S+$/.test(rest.text) && rest.top > rest.lowest && rest.top >= rest.h * 0.75, `the rest banner sits under the frame's sprites and names (${rest ? `"${rest.text}" top ${Math.round(rest.top)} · drawn to ${Math.round(rest.lowest)} · ${rest.frame} frame` : "never seen"})`);
   }
   // Cut 15 §4: the lit mode chip carries its clock as small digits (`data-rate`, drawn by `::after` with a trailing `×` — QA on 3d71c33; the chip's text stays its word):
   // `fast 16` on the travel, `fast 4` in a fight; `fights 2` in a fight; the other chip carries none

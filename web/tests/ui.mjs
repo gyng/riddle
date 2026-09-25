@@ -115,7 +115,7 @@ async function qaK() {
   const landed = await page.evaluate(() => [...document.querySelectorAll("button.patch .delta")].map((x) => x.textContent));
   await page.evaluate(() => { const r = window.__riddle; r.engine.deathDeltas = r.__origDD; });
   check(pend.reach.every((x) => x === "reach …") && pend.gem === "100%", `the death paints at once, each reach pending (${pend.reach.join(" · ")}; gem ${pend.gem})`);
-  check(landed.join(" · ") === "reach D6 +8 ±3 · reach D6 ≈ ±3 · reach D6 −5 ±3", `the camp's reach lands on the tablets: the depth, the ±, +0% inside it (QA 92eb880: never \`~0\`) (${landed.join(" · ")})`);
+  check(landed.join(" · ") === "reach D6 +8 ±3 · reach D6 ≈ · reach D6 −5 ±3", `the camp's reach lands on the tablets: the depth, the ±, +0% inside it (QA 92eb880: never \`~0\`) (${landed.join(" · ")})`);
 
   // ---- 2. the report: newest run first; bests named; a stall patch's numbers add up
   const L = await page.evaluate(() => window.__riddle.lineage);
@@ -378,7 +378,7 @@ async function cut19() {
   const b1 = await badge(), panel = await page.locator(".panel[data-panel=loadout]").count();
   await page.locator(".cmd .tile[data-tile=loadout] .repeat-badge").click({ timeout: 5000 }).catch(() => {}); await sleep(300);
   const b2 = await badge(), calls = await page.evaluate(() => window.__riddle.__restock);
-  check(b0 === "repeat on · $120" && b1 === "repeat off" && b2 === "repeat on · $120" && calls.join() === "false,true" && panel === 0, `the loadout tile: \`${b0}\` → \`${b1}\` → \`${b2}\` (setRestock ${calls.join()}; shelf ${panel ? "opened" : "shut"})`);
+  check(b0 === "repeat on · ≤$120" && b1 === "repeat off" && b2 === "repeat on · ≤$120" && calls.join() === "false,true" && panel === 0, `the loadout tile: \`${b0}\` → \`${b1}\` → \`${b2}\` (setRestock ${calls.join()}; shelf ${panel ? "opened" : "shut"})`);
   // ---- §3: the short list always carries the pinned `+1 row`, ranked last or not
   await page.evaluate(() => {
     const r = window.__riddle;
@@ -424,9 +424,9 @@ async function cut19() {
   const lit = await page.evaluate(() => ({ top: document.querySelector("button.patch.top")?.dataset.full === "1", sheet: !!document.querySelector(".sheet-wrap .drop-sheet") }));
   check(lit.top && !lit.sheet, `a tablet tap lights the tablet and applies nothing (${JSON.stringify(lit)})`);
   await page.locator(".patch-gem").click({ timeout: 5000 }); await sleep(200);
-  const marked = await page.evaluate(() => document.querySelector(".sheet-wrap .drop-sheet .drop-row.least")?.dataset.row ?? null);
-  check(marked === "4", `the drop sheet still opens, R5 marked (${marked})`);
-  await page.keyboard.press("Escape"); await sleep(100);
+  // QA 778fa1b (qaU friction: `apply` opened the drop sheet though the patch said `drops R4`): the named drop applies as stated
+  const applied = await page.evaluate(() => ({ screen: window.__riddle.screen, sheet: !!document.querySelector(".sheet-wrap .drop-sheet"), rows: window.__riddle.rules.rows.map((r) => r.verb.v).join(",") }));
+  check(applied.screen === "camp" && !applied.sheet && applied.rows === "drink,retreat,attack,explore,rest", `the gem applies the named drop, no sheet (${JSON.stringify(applied)})`);
   // ---- §2: a return row firing turns the stake's `return at 20%` into `returning`
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp for the return walk"); await settle();
@@ -591,7 +591,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [{ k: "hp<", n: 50 }], verb: { v: "attack", a: "nearest" } }, 2); r.go({ kind: "camp" }); });
   await page.waitForFunction(() => document.querySelector(".shaft .shaft-ends")?.hidden === false, null, { timeout: 15_000 }).catch(() => {});
   const ends = await page.evaluate(() => [...document.querySelectorAll(".shaft .shaft-ends .end")].map((e) => e.textContent.replace(/\s+/g, " ").trim()));
-  check(ends.length === 4 && /^bank \d+%$/.test(ends[0]) && /^return \d+%$/.test(ends[1]) && /^death \d+%$/.test(ends[2]) && /^~\$\d+$/.test(ends[3]), `a 3rd row lights the shaft's gems: ${ends.join(" · ")}`);
+  check(ends.length === 4 && /^bank \d+%$/.test(ends[0]) && /^return \d+%$/.test(ends[1]) && /^death \d+%$/.test(ends[2]) && /^~\$\d+…?$/.test(ends[3]), `a 3rd row lights the shaft's gems (QA 778fa1b: \`…\` on the first pass): ${ends.join(" · ")}`);
   // 5 heirs: ledger, chronicle, the set tabs
   check(!(await tileIds()).includes("ledger") && !(await page.locator(".tabs:not([hidden]) .tab").count()), "before the 5th heir: no ledger, no chronicle, no set tabs");
   check(await patchSave((e) => { e.lineage.heir = 5; }), "the lineage took its 5th heir");

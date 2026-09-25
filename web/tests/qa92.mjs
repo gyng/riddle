@@ -2,7 +2,7 @@
 // QA on 92eb880 (players M and N; eval/qa/92eb880.qaM.md, .qaN.md) — the client batch, on the fake engine, headless at 400 × 800:
 //   · the core's hand-offs: a first-pass forecast reads rough (dim, `…`) on the shaft and the panel; `Death.nothing_beats_base` heads the
 //     patch block `nothing beats base · base 100%` and no patch reads `below bar`; a shadowed row is a dim tablet with `↑ R1`
-//   · the death: the camp's reach re-ranks the patches (survival first outside 10 pts, a loss dim and never the gem's); `+0%` inside the ±, not `~0`; no
+//   · the death: the camp's reach lands on the patches (QA 778fa1b: the order and the lit tablet stay; a loss dim); `+0%` inside the ±, not `~0`; no
 //     `saved him` / cage-loot note; the bar names the hero who died; a lost ally is a line, not a chip
 //   · the camp: a 0 % notch dims (label and all), a `depth ≥ N → bank` row caps the shaft (`D3 · bank`); a numeric cond chip opens on its
 //     values; the verb picker names another row's unoffered verb; `· free` on the kennel's leash, its × arms before it drops; the edit
@@ -224,11 +224,11 @@ try {
   d = await page.evaluate(() => ({ rows: [...document.querySelectorAll(".patches > button.patch")].map((b) => ({ t: b.querySelector(".chips-inline")?.textContent.replace(/\s+/g, " ").trim(), neg: b.classList.contains("neg"), top: b.classList.contains("top"), reach: b.querySelector(".delta")?.textContent })), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent }));
   await page.evaluate(() => { const r = window.__riddle; r.engine.deathDeltas = r.__dd; });
   const order = d.rows.map((x) => x.t).join(" | ");
-  // Cut 19 §4 / QA 1a2a4a9 (P: a 33 % patch ranked over a 67 % one once the reach landed): survival first when > 10 pts apart, the reach
-  // inside the band; a loss is dim and never the gem's, but keeps its survival's place
-  check(order === "hp < 20% → return | foe: telegraph → retreat | hp < 20% → rest | foes ≥ 3 → retreat", `the landing re-ranks survival-first, the reach inside the band (${order})`);
-  check(d.rows[1]?.neg && !d.rows.filter((_, i) => i !== 1).some((x) => x.neg) && d.rows[0]?.top && d.gem === "100%" && before === "100%", `the loss is dim and the gem stays on the top (gem ${before} → ${d.gem}; ${d.rows.map((x) => x.reach).join(" · ")})`);
-  check(d.rows[2]?.reach === "reach D8 ≈ ±2", `a move inside the ± reads \`≈\` (Cut 22 §4) ("${d.rows[2]?.reach}")`);
+  // QA 778fa1b (qaU: the lit tablet and the gem moved 1 → 2 on their own ~5 s after arrival): the landing fills the reach and dims a loss,
+  // never re-orders the list or moves the lit tablet (the core's `rank_patches` order stands)
+  check(order === "foe: telegraph → retreat | hp < 20% → rest | hp < 20% → return | foes ≥ 3 → retreat", `the landing keeps the core's order (${order})`);
+  check(d.rows[0]?.neg && d.rows[0]?.top && !d.rows.slice(1).some((x) => x.neg) && d.gem === "100%" && before === "100%", `a loss is dim and says its move; the lit tablet and the gem stay (gem ${before} → ${d.gem}; ${d.rows.map((x) => x.reach).join(" · ")})`);
+  check(d.rows[1]?.reach === "reach D8 ≈" && d.rows[2]?.reach === "return early · reach D8 ≈", `a move inside the ± reads \`≈\` alone (QA 778fa1b: no ± beside it); an exit says so ("${d.rows[1]?.reach}" · "${d.rows[2]?.reach}")`);
   await shot("qa92-rerank");
 
   // ---- the report: one tile order; the shadowed pending line; LEARNED; the gold words; the plateau's floor

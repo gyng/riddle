@@ -19,6 +19,7 @@ import { openSheet } from "./sheet";
 import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
 import { lostLabel, noteText, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
+import { renamer } from "./report";
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
@@ -30,21 +31,34 @@ export const headlineMargin = (m: string): string => m.split(" · ").filter((x) 
 /** QA 23ed91f (K: "`died $0` and `keeps 0%` say the same thing twice"): a death's line drops its `keeps 0%` (the lead says it). */
 /** QA 1a2a4a9 (O, P, and many before: "`+$40 wake` — no source"): the core's wake pay tops the next heir's purse up to $40 — it reads
  *  as whose it is (`heir purse +$40`), here, on the gold sheet and in the report. */
-export const wakeShown = (t: string): string => t.replace(/\+\$(\d+) wake\b/g, /* copy:callout */ "heir purse +$$$1").replace(/\bwake pay\b/g, /* copy:callout */ "heir purse");
+export const wakeShown = (t: string): string => t.replace(/\+\$(\d+) wake\b/g, /* copy:callout */ "heir purse +$$$1").replace(/\bwake pay\b/g, /* copy:callout */ "heir purse").replace(/\bpurse full\b/g, /* copy:callout */ "no top-up");
 export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t) ? t.replace(/ · keeps 0%(?= · |$)/, "") : t);
 /** QA e75ec29 (R: a packed heal stolen on D1, nothing on the exit; `+$40 heir purse` once, then none): what the core adds to an exit
- *  line beside its text — `· stolen heal` (what thieves took and kept), `· purse full` (a death whose heir purse was already at its
- *  top-up line, so no `heir purse +$N`). */
+ *  line beside its text — `· stolen heal` (what thieves took and kept), the purse's word, the swaps' toll, the shelved finds.
+ *  QA 778fa1b (qaU): `purse full` (read as the camp's $999 cap) is `no top-up` — the core flags it only for a purse under $80; the
+ *  top-up is `ExitLine.wake` (`heir purse +$40`, when the text does not say it); a pack swap's cost (`−$37 swapped`, on the watch's
+ *  strip and nowhere after) rides the line; the coins thieves kept join the stolen list (`stolen scroll, $3` — STOLEN $3 matched no
+ *  line); `name` reads a stolen flavour by its name now (`amber potion?` → `caustic`, LEARNED's word). */
 const dTag = (d: number): string => /* copy:none */ `D${d}`;
-export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "purse_full" | "shelved" | "start" | "start_short">): string =>
+export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "stolen_gold" | "purse_full" | "wake" | "swapped" | "shelved" | "start" | "start_short" | "found">, name: (label: string) => string = (l) => l.replace(/_/g, " ")): string => {
+  const stolen = [...(x.stolen ?? []).map(name), ...(x.stolen_gold && x.stolen_gold > 0 ? [`$${x.stolen_gold}`] : [])];
   // QA a946e04 (T: a D5 start at $32 ran from D1 with no word): the run's start fell back — the toll was more than the purse
-  (x.start_short && !/toll short/.test(x.text) ? /* copy:callout */ ` · from ${dTag(x.start ?? 1)} · toll short` : "")
-  + (x.stolen?.length && !/\bstolen\b/.test(x.text) ? /* copy:callout */ ` · stolen ${x.stolen.map((l) => l.replace(/_/g, " ")).join(", ")}` : "")
-  + (x.purse_full && !/purse full/.test(x.text) ? /* copy:callout */ " · purse full" : "")
-  + (x.shelved?.length && !/→ shelf\b/.test(x.text) ? /* copy:callout */ ` · found ${shelvedText(x.shelved)} → shelf` : "");
+  return (x.start_short && !/toll short/.test(x.text) ? /* copy:callout */ ` · from ${dTag(x.start ?? 1)} · toll short` : "")
+    + (stolen.length && !/\bstolen\b/.test(x.text) ? /* copy:callout */ ` · stolen ${stolen.join(", ")}` : "")
+    + (x.swapped && x.swapped > 0 && !/\bswapped\b/.test(x.text) ? /* copy:callout */ ` · −$${x.swapped} swapped` : "")
+    + (x.wake && x.wake > 0 && !/\bwake\b|heir purse/.test(x.text) ? /* copy:callout */ ` · heir purse +$${x.wake}` : "")
+    + (x.purse_full && !/purse full|no top-up/.test(x.text) ? /* copy:callout */ " · no top-up" : "")
+    + (x.shelved?.length && !/→ shelf\b/.test(x.text) ? /* copy:callout */ ` · found ${shelvedText(x.shelved)} → shelf` : "")
+    + fatesText(x.found);
+};
+/** QA 778fa1b (V: found items that ended in no named place): the finds the other words don't place — `· left mail · bones leash`. */
+const fatesText = (xs: ExitLine["found"]): string => (["left", "bones"] as const).map((f) => {
+  const ys = (xs ?? []).filter((y) => y.fate === f && y.n > 0);
+  return ys.length ? /* copy:callout */ ` · ${f} ${shelvedText(ys)}` : "";
+}).join("");
 /** Cut 21 §2 (AE: "sells heal potions he finds for $2 while I pay $40"): found supplies the exit put on the shelf — `heal ×2, fire`. */
 export const shelvedText = (xs: { kind: string; n: number }[]): string => xs.map((y) => `${y.kind.replace(/_/g, " ")}${y.n > 1 ? ` ×${y.n}` : ""}`).join(", ");
-export const lineShown = (x: ExitLine): string => ledgerShown(x.text) + exitExtras(x);
+export const lineShown = (x: ExitLine, name?: (label: string) => string): string => ledgerShown(x.text) + exitExtras(x, name);
 
 export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false): Mounted {
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
@@ -75,7 +89,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Cut 20 §4 (AC: "$80 gone after death, `repeat · $80` — only understood when removing refunded $40"): the loadout's re-pack for
   // the next heir, charged at this exit, is a line under it (`repeat −$80`) — the gold sheet it opens lists it too
   const repeat = kept ? 0 : repeatAfterExit(app.lineage.gold_ledger ?? []);
-  const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, d.line) }, lineShown(d.line)),
+  const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, d.line) }, lineShown(d.line, renamer(app.lineage))),
     repeat > 0 ? h("button", { class: "ledger-btn repeat-line down", onclick: () => openGoldSheet(app, d.line) }, /* copy:callout */ `repeat −$${repeat}`) : "") : null;
   // The trace holds one row per hero action (~10 ticks apart at base speed); the last five, with the row accounting of
   // the last action under it (Cut 6 §3). Cut 9 §5: the table lives in ui/trace.ts, shared with every exit.
@@ -85,8 +99,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const trace = traceTable(d.trace, { rows: d.rules?.rows ?? app.rules.rows, verbs: d.rules ? undefined : morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain, depth: d.depth });
   // Fractions 0..1 from the core: baseline (survival of the unpatched rules) is on every row (Cut 4 §2).
   // QA 1a2a4a9 (O): a tap on a tablet lights it (the gem takes its number); the gem applies the lit one — the only apply on this screen
-  let picked = false;
-  const select = (btn: HTMLButtonElement): void => { picked = true; patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches, btn); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
+  const select = (btn: HTMLButtonElement): void => { patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches, btn); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
   const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base, stall: d.verdict === "stall", select });   // Cut 14 §4: the trace names the least-fired row on a full set
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
   const openMorgue = (): void => {
@@ -135,10 +148,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   let gone = false;
   if (d.patches.some((p) => p.camp_pending) && app.engine.deathDeltas) {
     const shown = d.patches;
-    // QA 92eb880 (N): the landing re-ranks the tablets by the camp's reach; the gem follows the new top (a loss is never it)
-    // a tablet the player lit keeps the gem (the landing re-orders, never re-picks for him)
-    const regem = (): void => { if (picked && top?.btn.isConnected) return; patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
-    setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => { if (!gone && f?.length) { fillReach(patches, shown, f); regem(); } }).catch((e) => console.warn("deathDeltas", e)); }, 0);
+    // QA 778fa1b (qaU: the lit tablet and the gem moved 1 → 2 on their own ~5 s after arrival): the landing fills each tablet's reach
+    // and dims a loss; the order and the lit tablet (the gem's) stay as the screen first put them
+    setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => { if (!gone && f?.length) { fillReach(patches, shown, f); } }).catch((e) => console.warn("deathDeltas", e)); }, 0);
   }
   return { el, dispose: () => { gone = true; bar.dispose(); } };
 }

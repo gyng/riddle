@@ -4663,7 +4663,7 @@ fn exit_event_stake_and_report_carry_the_ledger() {
     assert_eq!(line.keep_pct, 60);
     assert_eq!(line.kept, line.carried * 60 / 100);
     assert!(line.text.starts_with(&format!("returned ${} · ", line.kept)) && line.text.contains("keeps 60%"), "{}", line.text);
-    assert_eq!(g.batch.exits.last().map(|l| ExitLine { trace: None, ..l.clone() }), Some(line.clone()));
+    assert_eq!(g.batch.exits.last().map(|l| ExitLine { trace: None, ..l.clone() }), Some(*line.clone()));
     assert!(g.batch.exits.last().unwrap().trace.is_some(), "the report's exit line carries the trace");
     // Purchases, insurance, a refund and a hatch are ledger lines with ≤ 3-word reasons.
     g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
@@ -7979,8 +7979,9 @@ fn a_dice_death_at_a_full_base_says_nothing_beats_it() {
     // still among its deaths, and says so.
     let mut full_base: Vec<Death> = Vec::new();
     let mut ids: Vec<u32> = Vec::new();
-    // (Cut 22 §2: thieves take coins before the heal; this seed's first such death is on its 8th night)
-    for _ in 0..8 {
+    // (Cut 22 §2: thieves take coins before the heal; this seed's first such death is on its 8th night;
+    // QA on 778fa1b: an outpaced retreat rests and the next row fights — the nights moved again)
+    for _ in 0..16 {
         g.run_offline(8 * 3600);
         ids = g.deaths.keys().copied().collect();
         full_base = ids.iter().filter_map(|id| g.death(*id)).filter(|d| d.verdict == "dice" && d.baseline >= 1.0 - 1e-9).collect();
@@ -9136,7 +9137,7 @@ fn waystones_light_on_a_bank_and_the_start_round_trips() {
     assert!(g.set_start(14).is_err());
     g.set_start(9).unwrap();
     let l = g.lineage();
-    assert_eq!((l.start, l.start_toll, l.waystones.clone()), (9, 45, vec![5, 9]));
+    assert_eq!((l.start, l.start_toll, l.waystones.clone()), (9, 0, vec![5, 9]));
     let h = Game::load(&g.save()).unwrap();
     assert_eq!((h.lineage.start, h.lineage.waystones.clone()), (9, vec![5, 9]));
     // A save from before the waystones: lit from its deepest bank at the load.
@@ -9148,12 +9149,11 @@ fn waystones_light_on_a_bank_and_the_start_round_trips() {
     assert_eq!((h.lineage.start, h.lineage.waystones.clone()), (1, vec![5, 9]));
 }
 
-/// Cut 21 §1: a start below D1 pays `$5 × depth` (Cut 22 §1; was $10) at the send (`waystone D9` in the gold
-/// ledger) and begins on that floor — generated at that depth, the heir's kit and level as
-/// from D1; short of the toll the run starts on D1 and says so. Offline, every run of the
-/// night starts there.
+/// Cut 21 §1: a start below D1 begins on that floor — generated at that depth, the heir's kit
+/// and level as from D1. QA on 778fa1b (qaV): the start is free — no toll, no ledger line,
+/// payable from an empty purse, and every run of an absence starts there.
 #[test]
-fn a_waystone_start_pays_its_toll_and_begins_on_its_floor() {
+fn a_waystone_start_is_free_and_begins_on_its_floor() {
     let mut g = Game::new(3);
     g.lineage.waystones = vec![5, 9];
     g.lineage.best_depth = 12;
@@ -9162,53 +9162,29 @@ fn a_waystone_start_pays_its_toll_and_begins_on_its_floor() {
     g.lineage.classes.get_mut("fighter").unwrap().level = 3;
     g.start_run(None);
     let run = g.run.as_ref().unwrap();
-    assert_eq!((run.depth, run.max_depth, run.start), (9, 9, 9));
+    assert_eq!((run.depth, run.max_depth, run.start, run.toll), (9, 9, 9, 0));
     assert_eq!(run.biome(), crate::descent::Biome::Fens, "the floor is a Fens floor");
     assert_eq!(run.hero.level, 3, "the heir's level");
     assert_eq!(run.hero.pos, run.floor.stairs_up);
-    assert_eq!(g.lineage.gold, 455);
-    assert!(g.lineage.gold_ledger.iter().any(|l| l.why == "waystone D9" && l.delta == -45), "{:?}", g.lineage.gold_ledger);
+    assert_eq!(g.lineage.gold, 500, "no toll");
+    assert!(!g.lineage.gold_ledger.iter().any(|l| l.why.starts_with("waystone")), "{:?}", g.lineage.gold_ledger);
     assert!(run.notes.iter().any(|(_, n)| n == "Heir 1 enters D9, the Fens."), "{:?}", run.notes);
-    // QA on a946e04 (qaT): the toll bought tonight's pass — the next send from D9 is free, and
-    // the wire says the start is payable on the pass.
-    assert!(g.lineage.night_passes.contains(&9));
-    g.run = None;
-    g.lineage.gold = 40;
-    assert!(g.lineage().start_payable && g.lineage().start_pass);
-    g.start_run(None);
-    let run = g.run.as_ref().unwrap();
-    assert_eq!((run.depth, run.toll, g.lineage.gold), (9, 0, 40), "the night's pass");
-    // A new night, short of the toll: D1, with a note, nothing charged.
+    // An empty purse still starts there.
     g.lineage.night();
     g.run = None;
-    assert!(!g.lineage().start_payable);
-    g.start_run(None);
-    let run = g.run.as_ref().unwrap();
-    assert_eq!((run.depth, run.start_short), (1, Some(9)));
-    assert_eq!(g.lineage.gold, 40);
-    assert!(run.notes.iter().any(|(_, n)| n == "Toll $45 short: from D1."), "{:?}", run.notes);
-    assert_eq!(g.lineage.start, 9, "the choice stands for the next send");
-    // Offline: every run starts on D9 while the purse pays — one pass a night.
-    g.run = None;
-    g.lineage.gold = 100_000;
-    let nights_before = g.lineage.night_runs;
-    let r = g.run_offline(4 * 3600);
-    let tolls = g.lineage.gold_ledger.iter().filter(|l| l.why == "waystone D9").count() as u32;
-    let nights = (nights_before + r.runs).div_ceil(crate::engine::NIGHT_RUNS);
-    assert!(r.runs >= 2 && tolls >= 1 && tolls <= nights, "{} runs, {tolls} tolls, {nights} nights", r.runs);
-    assert!(g.batch.run_outcomes.iter().all(|(d, _)| *d >= 9), "{:?}", g.batch.run_outcomes);
-    assert!(r.spent.iter().any(|s| s.kind == "waystone D9" && s.gold == 45 * s.n as i32), "{:?}", r.spent);
-    assert!(r.start_short.is_none());
-    // An absence that cannot pay the pass: the night goes from D1, and the report says so.
-    g.lineage.night();
     g.lineage.gold = 0;
-    g.lineage.restock_off = true;
-    let r = g.run_offline(2 * 3600);
-    let s = r.start_short.clone().expect("the report names the start it could not pay");
-    assert_eq!((s.depth, s.toll), (9, 45));
-    assert!(s.runs >= 1 && g.batch.run_outcomes.iter().all(|(d, _)| *d < 9 || s.runs < r.runs), "{s:?} · {:?}", g.batch.run_outcomes);
-    g.lineage.restock_off = false;
+    assert!(g.lineage().start_payable);
+    g.start_run(None);
+    let run = g.run.as_ref().unwrap();
+    assert_eq!((run.depth, run.start_short, run.toll, g.lineage.gold), (9, None, 0, 0));
+    // Offline: every run starts on D9, nothing charged, nothing short.
+    g.run = None;
     g.lineage.gold = 100_000;
+    let r = g.run_offline(4 * 3600);
+    assert!(r.runs >= 2);
+    assert!(g.batch.run_outcomes.iter().all(|(d, _)| *d >= 9), "{:?}", g.batch.run_outcomes);
+    assert!(!r.spent.iter().any(|s| s.kind.starts_with("waystone")), "{:?}", r.spent);
+    assert!(r.start_short.is_none());
     // The forecast simulates from the start: every row above it reads 1.0.
     let f = g.forecast();
     assert_eq!(f.start, 9);
@@ -9216,11 +9192,12 @@ fn a_waystone_start_pays_its_toll_and_begins_on_its_floor() {
     // The start tablet: D1 and each lit waystone, the current one marked, paired with it.
     let opts = g.start_forecast();
     assert_eq!(opts.iter().map(|o| o.start).collect::<Vec<_>>(), vec![1, 5, 9]);
-    assert_eq!(opts.iter().map(|o| o.toll).collect::<Vec<_>>(), vec![0, 25, 45]);
+    assert_eq!(opts.iter().map(|o| o.toll).collect::<Vec<_>>(), vec![0, 0, 0]);
+    assert!(opts.iter().all(|o| !o.short));
     let cur = opts.iter().find(|o| o.current).unwrap();
     assert_eq!(cur.start, 9);
     assert!(cur.delta.abs() < 1e-9 && cur.gold_delta.abs() < 1e-9 && cur.net_delta.abs() < 1e-9);
-    assert!((opts[0].net - opts[0].gold).abs() < 1e-9 && (cur.net - (cur.gold - 45.0)).abs() < 1e-9);
+    assert!(opts.iter().all(|o| (o.net - o.gold).abs() < 1e-9));
     // Bots start at D1: a new lineage's start is 1 whatever it banks.
     assert_eq!(Game::new(3).lineage.start, 1);
 }
@@ -9335,7 +9312,7 @@ fn a_gamble_row_that_kills_is_the_row_verdict_whoever_acted_last() {
     }
     let id = id.expect("the fire took him");
     let rec = g.deaths.get(&id).unwrap();
-    assert_eq!(rec.death.cause, "fire");
+    assert_eq!(rec.death.cause, "own fire", "his own gamble's fire (QA on 778fa1b)");
     assert_eq!(rec.gamble_row, Some(0), "R1 gambled the fire");
     let last = rec.death.trace.turns.last().map(|t| t.row);
     assert_ne!(last, Some(0), "the dying action was not the gamble's");
@@ -9634,10 +9611,10 @@ fn stolen_rows_carry_their_gold_and_exit_lines_their_toll() {
     }
     g.finish_run();
     let line = g.last_exit.clone().unwrap();
-    assert_eq!((line.toll, line.start, line.start_short), (25, 5, None));
+    assert_eq!((line.toll, line.start, line.start_short), (0, 5, None), "a waystone start is free (QA on 778fa1b)");
     g.auto_keep();
     g.lineage.night();
-    g.lineage.gold = 10;
+    g.lineage.gold = 0;
     g.start_run(None);
     {
         let (run, mut cx) = g.ctx();
@@ -9645,7 +9622,17 @@ fn stolen_rows_carry_their_gold_and_exit_lines_their_toll() {
     }
     g.finish_run();
     let line = g.last_exit.clone().unwrap();
-    assert_eq!((line.toll, line.start, line.start_short), (0, 1, Some(5)));
+    assert_eq!((line.toll, line.start, line.start_short), (0, 5, None), "an empty purse starts there too");
+    g.auto_keep();
+    g.lineage.waystones.clear();
+    g.start_run(None);
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.finish_run();
+    let line = g.last_exit.clone().unwrap();
+    assert_eq!((line.toll, line.start, line.start_short), (0, 1, Some(5)), "an unlit start goes from D1, said");
 }
 
 // ---------------------------------------------------------------- Cut 22: the gold loop pays
@@ -9969,4 +9956,118 @@ fn the_repeat_says_what_the_send_will_and_will_not_pack() {
     g.set_restock(false);
     let l = g.lineage();
     assert!(l.repeat_due.is_empty() && l.repeat_unpaid.is_empty());
+}
+
+// ---------------------------------------------------------------- QA on 778fa1b (qaV)
+
+/// QA on 778fa1b (qaV: `fire · D6 · GAP`, the trace `R3 card last stand` 10 → 3 → 0): the
+/// card's own `throw fire` at the adjacent foe burned the hero — the death is his own harm
+/// (`own fire` on the record) and the card row is the `row` verdict, its cut among the first
+/// patches.
+#[test]
+fn a_card_rows_own_throw_that_kills_is_own_fire_and_the_row_verdict() {
+    let mut found = false;
+    for seed in 1..=12u64 {
+        let mut g = arena_seed(seed);
+        g.lineage.unlocks.insert("last_stand".into());
+        if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "fire") {
+            g.lineage.facts.insert(f);
+        }
+        give(&mut g, "fire");
+        add_monster(&mut g, "rat", 5, 5);
+        {
+            let run = g.run.as_mut().unwrap();
+            run.hero.hp = 6;
+            run.hero.second_wind_used = true;
+        }
+        // (without the card, the attack row kills the rat)
+        rules(&mut g, vec![Row::new(vec![], Verb::arg("tactic", "last_stand")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+        let mut id = None;
+        for _ in 0..400 {
+            g.tick();
+            g.events.clear();
+            if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+                id = Some(g.run.as_ref().unwrap().id);
+                g.finish_run();
+                break;
+            }
+        }
+        let Some(id) = id else { continue };
+        let Some(rec) = g.deaths.get(&id) else { continue };
+        if rec.death.cause != "own fire" {
+            continue;
+        }
+        assert_eq!(rec.gamble_row, Some(0), "the card threw the fire");
+        let d = g.death(id).unwrap();
+        if d.baseline >= 1.0 - 1e-9 {
+            continue; // not reproduced: never a `row`
+        }
+        assert_eq!((d.verdict.as_str(), d.cause_row), ("row", Some(0)), "{} {:?}", d.verdict, d.patches);
+        assert!(d.patches.iter().take(2).any(|p| (p.remove || p.replace) && p.insert_at == 0), "{:?}", d.patches);
+        found = true;
+        break;
+    }
+    assert!(found, "no seed burned the hero with the card's own throw");
+}
+
+/// QA on 778fa1b (qaV: `R4 retreat` / `R6 attack nearest` before two ogres for six minutes,
+/// no blow landing either way): a retreat that cannot shake its pursuer is rested
+/// (`OUTPACED_RETREATS` retreats of one engagement, no blow on the hero) and the attack
+/// row fights — blood is drawn within a bounded number of actions.
+#[test]
+fn an_outpaced_retreat_rests_and_the_next_row_fights() {
+    let mut g = arena();
+    add_monster(&mut g, "ogre", 7, 5);
+    rules(&mut g, vec![Row::new(vec![Cond::t("foe_tag", "heavy")], Verb::new("retreat")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+    g.lineage.facts.insert("foe:ogre:heavy".into());
+    let mut blood_at = None;
+    for _ in 0..3000 {
+        g.tick();
+        g.events.clear();
+        let Some(run) = g.run.as_ref() else { break };
+        if run.over.is_some() {
+            break;
+        }
+        let ogre_hurt = run.monsters.iter().any(|m| m.kind == "ogre" && m.hp < m.max_hp) || !run.monsters.iter().any(|m| m.kind == "ogre" && m.hp > 0);
+        if ogre_hurt || run.hero.hp < run.hero.max_hp {
+            blood_at = Some(run.actions);
+            break;
+        }
+    }
+    let at = blood_at.expect("blood was drawn");
+    assert!(at <= crate::turn::OUTPACED_RETREATS + 40, "first blood after {at} actions");
+}
+
+/// QA on 778fa1b (qaV: `repeat heal ×1 · −$104` for four heals at $26): the repeat's ledger
+/// line counts what it bought (`GoldLine.n`) — n × price == the amount.
+#[test]
+fn a_repeat_line_counts_what_it_bought() {
+    let mut g = Game::new(3);
+    g.lineage.gold = 1000;
+    if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "heal") {
+        g.lineage.facts.insert(f);
+    }
+    let mut set = g.lineage.rules().clone();
+    set.rows.insert(0, Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "heal")));
+    g.set_rules_raw(set).unwrap();
+    g.lineage.supplies.retain(|s| !s.free);
+    for _ in 0..3 {
+        g.buy_supply("heal").unwrap();
+    }
+    let price = g.lineage.supplies[0].paid;
+    let bought = g.lineage.gold_ledger.last().unwrap().clone();
+    assert_eq!((bought.n, bought.delta), (3, -3 * price), "{bought:?}");
+    g.start_run(None);
+    // The run drinks them all, then comes home.
+    g.run.as_mut().unwrap().hero.inv.retain(|i| i.kind != "heal");
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.finish_run();
+    let line = g.lineage.gold_ledger.iter().rev().find(|l| l.why == "repeat heal").cloned().expect("a repeat line");
+    let on_shelf: Vec<&Item> = g.lineage.supplies.iter().filter(|s| s.kind == "heal" && !s.found).collect();
+    assert_eq!(line.n as usize, on_shelf.len(), "{line:?}");
+    assert_eq!(-line.delta, on_shelf.iter().map(|s| s.paid).sum::<i32>(), "{line:?}");
+    assert_eq!(line.n, 3);
 }

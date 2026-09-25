@@ -160,8 +160,8 @@ fn cohort_sets() -> Vec<(String, RuleSet)> {
     out
 }
 
-/// (set index, seed, the set's return rows cut) → (sends, stalls, deaths).
-type CohortStalls = BTreeMap<(usize, u64, bool), (u32, u32, u32)>;
+/// (set index, seed, the set's return rows cut) → (sends, stalls, deaths, dances).
+type CohortStalls = BTreeMap<(usize, u64, bool), (u32, u32, u32, u32)>;
 
 /// Cut 19 §2: `set` without its `return` rows (the death share's comparison).
 fn without_return(set: &RuleSet) -> RuleSet {
@@ -187,14 +187,15 @@ fn cohort_game(set: &RuleSet, seed: u64) -> Game {
     g
 }
 
-fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32, u32) {
+fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32, u32, u32) {
     let mut g = cohort_game(set, seed);
     riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
     // QA on 23ed91f (qaL): a run that reaches the tick cap is a stall that never ended (a
     // conjurer's blades reset the guard: 120 000 ticks, 3 000 kills) — counted with them.
     let capped = g.batch.run_ticks.iter().filter(|&&t| t >= riddle_core::engine::MAX_TURNS_PER_RUN).count() as u32;
     let deaths = g.batch.run_outcomes.iter().filter(|(_, c)| c.is_some()).count() as u32;
-    (g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths)
+    // QA on 778fa1b (qaV): runs with a bloodless dance (`Batch.dances`).
+    (g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths, g.batch.dances)
 }
 
 /// Cut 22 §1: one cohort set's gold over `hours` of watched sends (the repeat on, no absence's
@@ -1224,10 +1225,16 @@ fn main() {
     rows.push((format!("Stalls ≤ 1% of sends on DEFAULT (n={d_sends})"), format!("{d_stall:.1}%"), d_stall <= 1.0));
     // … and on the cohorts' own sets (`eval/cards/*.rules.json`), each over `seeds` × 4 h.
     let (mut c_sends, mut c_stalls, mut worst) = (0u32, 0u32, (0.0f64, String::new()));
+    let (mut c_dances, mut worst_dance) = (0u32, (0.0f64, String::new()));
     let mut ret_sets: Vec<(String, f64, f64)> = Vec::new();
     for (si, (name, _)) in sets.iter().enumerate() {
-        let (n, k, dd) = (1..=seeds).fold((0u32, 0u32, 0u32), |a, s| { let r = cohort[&(si, s, false)]; (a.0 + r.0, a.1 + r.1, a.2 + r.2) });
+        let (n, k, dd, dn) = (1..=seeds).fold((0u32, 0u32, 0u32, 0u32), |a, s| { let r = cohort[&(si, s, false)]; (a.0 + r.0, a.1 + r.1, a.2 + r.2, a.3 + r.3) });
         let p = pct(k as usize, n as usize);
+        let pd = pct(dn as usize, n as usize);
+        c_dances += dn;
+        if pd > worst_dance.0 {
+            worst_dance = (pd, name.clone());
+        }
         let death = pct(dd as usize, n as usize);
         // Cut 19 §2: a set with a return row, and the same set without it.
         let bare = cohort.contains_key(&(si, 1, true)).then(|| {
@@ -1236,10 +1243,10 @@ fn main() {
         });
         match bare {
             Some(b) => {
-                println!("  cohort set {name}: {k}/{n} ({p:.1}%) · death {death:.1}% (no return row {b:.1}%)");
+                println!("  cohort set {name}: {k}/{n} ({p:.1}%) · death {death:.1}% (no return row {b:.1}%) · dances {dn}");
                 ret_sets.push((name.clone(), death, b));
             }
-            None => println!("  cohort set {name}: {k}/{n} ({p:.1}%) · death {death:.1}%"),
+            None => println!("  cohort set {name}: {k}/{n} ({p:.1}%) · death {death:.1}% · dances {dn}"),
         }
         c_sends += n;
         c_stalls += k;
@@ -1250,6 +1257,12 @@ fn main() {
     if !sets.is_empty() {
         let c_pct = pct(c_stalls as usize, c_sends as usize);
         rows.push((format!("Stalls ≤ 1% of sends on every cohort set ({} sets, n={c_sends})", sets.len()), format!("{c_pct:.1}% · worst {:.1}%", worst.0), worst.0 <= 1.0));
+        // QA on 778fa1b (qaV: `R4 retreat` / `R6 attack` before two ogres for six minutes, no
+        // blood either way, no stall): a run with `DANCE_ACTIONS` foe-facing row actions in a
+        // row, `DANCE_MOVES` of them retreats, and no blood drawn is a loop the stall guard does
+        // not see.
+        let d_pct = pct(c_dances as usize, c_sends as usize);
+        rows.push((format!("Bloodless dances ≤ 1% of sends on every cohort set (≥ {} foe-facing actions, ≥ {} retreats, n={c_sends})", riddle_core::turn::DANCE_ACTIONS, riddle_core::turn::DANCE_MOVES), format!("{d_pct:.1}% · worst {:.1}% {}", worst_dance.0, worst_dance.1), worst_dance.0 <= 1.0));
     }
     // Cut 19 §2: a return walks — a set with a return row dies some nights (> 0), and less
     // than without the row (the same, to the send, when the row never acts: raterY's return

@@ -191,6 +191,22 @@ pub struct Run {
     /// inside `trace::GAMBLE_WINDOW` (`turn::damage_hero`; reset at each gamble).
     #[serde(default)]
     pub gamble_harm: i32,
+    /// QA on 778fa1b (qaV: `fire · D6 · GAP`, the trace's `R3 card last stand` 10 → 3 → 0 — the
+    /// card's own `throw fire` at an adjacent foe burned him): the hero's last throw whose harm
+    /// reached him (a fire or caustic blast over his tile, a poison thrown back) — (tick, kind)
+    /// — and the HP that harm has taken inside `trace::GAMBLE_WINDOW` (`turn::damage_hero`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub own_throw: Option<(u32, String)>,
+    #[serde(default)]
+    pub own_throw_harm: i32,
+    /// QA on 778fa1b (qaV: finds that ended in no named place): every unit the run found —
+    /// (item id, kind), one entry per unit (a leash merged into a stack is the stack's id) —
+    /// and the units that left the pack on the way, with where (`used` / `left` / `stolen`).
+    /// The exit reads them into `ExitLine.found` (`Game::found_rows`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub found_units: Vec<(u32, String)>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub found_gone: Vec<(u32, String, String)>,
     /// Cut 22 §3: a forecast's sim (`forecast::simulate_one`): each floor below the first draws
     /// from a stream of its own, (run seed, depth) — `turn::descend`. A send, and any replay of
     /// one, goes on drawing from the run's stream.
@@ -337,6 +353,17 @@ pub struct Run {
     pub row_streak: (i32, u32),
     #[serde(default)]
     pub row_suppressed: (i32, u32),
+    /// QA on 778fa1b (qaV: `R4 retreat` / `R6 attack` taking turns before two ogres for
+    /// minutes at 21/42): the policy retreats of the current engagement — how many, and the
+    /// nearest foe after the last (`turn::outpaced_guard`).
+    #[serde(default)]
+    pub retreats: (u32, i32),
+    /// QA on 778fa1b (qaV): foe-facing row actions since blood was last drawn either way, the
+    /// retreats among them, and the run's longest such stretch with `turn::DANCE_MOVES`
+    /// retreats (`Batch.dances`: runs whose stretch reached `turn::DANCE_ACTIONS` — the cohort
+    /// sets' dance gate).
+    #[serde(default)]
+    pub bloodless: (u32, u32, u32),
     /// Rests taken on this floor (the rest clock).
     #[serde(default)]
     pub rests: u32,
@@ -642,6 +669,49 @@ impl Run {
     /// The oscillation guard gave up on this foe for the floor (`ignore(id, u32::MAX)`).
     pub fn given_up(&self, id: u32) -> bool {
         self.ignored.get(&id).is_some_and(|until| *until == u32::MAX)
+    }
+    /// QA on 778fa1b (qaV): `units` of `kind` found into the pack as item `id` — unless the
+    /// item is coming back (a thief's take got back, a find put down and picked up again): then
+    /// the way it left is undone instead.
+    pub fn note_found(&mut self, id: u32, kind: &str, units: i32) {
+        let back = if self.stolen_ids.contains(&id) { "stolen" } else { "left" };
+        if self.found_gone.iter().any(|(g, k, f)| *g == id && k == kind && f == back) {
+            // (every unit that went that way is back: a stack comes back whole)
+            for _ in 0..units.max(1) {
+                match self.found_gone.iter().position(|(g, k, f)| *g == id && k == kind && f == back) {
+                    Some(i) => {
+                        self.found_gone.remove(i);
+                    }
+                    None => break,
+                }
+            }
+            return;
+        }
+        // (id 1 is the class's own arms, picked up again)
+        if id == 1 || self.supplies.contains(&id) || self.brought.contains(&id) {
+            return;
+        }
+        if self.found_units.iter().any(|(g, k)| *g == id && k == kind) && kind != "leash" {
+            return;
+        }
+        for _ in 0..units.max(1) {
+            self.found_units.push((id, kind.to_string()));
+        }
+    }
+    /// QA on 778fa1b (qaV): item `id` (of `kind`: a bones pile's finds keep their old run's
+    /// ids, so an id alone may name two items) left the pack (`used` / `left` / `stolen`) —
+    /// its found units still in it (up to `units`; a stack's) are gone there.
+    pub fn note_gone(&mut self, id: u32, kind: &str, fate: &str, units: i32) {
+        let left = self.found_left(id, kind);
+        for _ in 0..left.min(units.max(1) as usize) {
+            self.found_gone.push((id, kind.to_string(), fate.to_string()));
+        }
+    }
+    /// The found units of item `id` of `kind` still in the pack.
+    pub fn found_left(&self, id: u32, kind: &str) -> usize {
+        let found = self.found_units.iter().filter(|(g, k)| *g == id && k == kind).count();
+        let gone = self.found_gone.iter().filter(|(g, k, _)| *g == id && k == kind).count();
+        found.saturating_sub(gone)
     }
     pub fn ignore(&mut self, id: u32, actions: u32) {
         let until = self.actions.saturating_add(actions);
@@ -950,9 +1020,11 @@ fn default_start() -> u32 {
 /// Cut 21 §1: the waystones — each biome's first floor below the Warrens (Burrows D5, Fens D9,
 /// Crypt D14, Foundry D19, Deep D24, Sanctum D29).
 pub const WAYSTONES: [u32; 6] = [5, 9, 14, 19, 24, 29];
-/// Cut 21 §1: a start below D1 costs this many coins per floor (`waystone D9 −$45`; Cut 22 §1:
-/// was $10, a fraction of the start's reward now).
-pub const WAYSTONE_TOLL: i32 = 5;
+/// Cut 21 §1: a start below D1 costs this many coins per floor (Cut 22 §1: $10 → $5).
+/// QA on 778fa1b (qaV: a D5 start expected ~$25 against a $25 toll and reached D6 less often
+/// than D1): a waystone start is free — the skipped shallow loot and the added death risk are
+/// its cost. The pass / night bookkeeping stays and charges nothing.
+pub const WAYSTONE_TOLL: i32 = 0;
 
 /// Cut 16 §1: a night of runs (the ledger's "a night of 16 runs").
 pub const NIGHT_RUNS: u32 = 16;
@@ -1113,6 +1185,11 @@ impl LineageState {
     /// into it: an exit's salvage is one line). A zero movement is kept only for an exit
     /// (`why` starting with the tier word), so `+$0 died D5` explains what a death yields.
     pub fn gold_move(&mut self, delta: i32, why: &str) {
+        self.gold_move_n(delta, why, 0);
+    }
+    /// `gold_move` for `n` supplies bought or refunded at once — the line counts them
+    /// (`GoldLine.n`; QA on 778fa1b: `repeat heal ×1 · −$104` for four heals).
+    pub fn gold_move_n(&mut self, delta: i32, why: &str, n: u32) {
         self.gold += delta;
         let exit = why.starts_with("returned") || why.starts_with("banked") || why.starts_with("died") || why.starts_with("lost") || why.starts_with("stalled");
         // QA on 1a2a4a9: a re-pack the purse could not pay says so (`$0 repeat short`).
@@ -1123,10 +1200,11 @@ impl LineageState {
         if let Some(last) = self.gold_ledger.last_mut() {
             if last.t == t && last.why == why && !exit {
                 last.delta += delta;
+                last.n += n;
                 return;
             }
         }
-        self.gold_ledger.push(GoldLine { t, delta, why: why.into() });
+        self.gold_ledger.push(GoldLine { t, delta, why: why.into(), n });
         while self.gold_ledger.len() > GOLD_LEDGER_CAP {
             self.gold_ledger.remove(0);
         }
@@ -1736,6 +1814,10 @@ pub struct PendingExit {
     /// night's `auto_keep` puts them back before it keeps anything new (QA on 23ed91f).
     #[serde(default)]
     pub brought: Vec<u32>,
+    /// QA on 778fa1b (qaV): the items the run found among `items` — `keep` settles their
+    /// `sheet` rows on the exit line as `kept` or `salvaged`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub found: Vec<(u32, String)>,
 }
 
 fn default_pct() -> i32 {
@@ -1815,6 +1897,11 @@ pub struct Batch {
     pub stalls: u32,
     #[serde(default)]
     pub worst_stall: bool,
+    /// QA on 778fa1b (qaV): runs with a bloodless dance — `turn::DANCE_ACTIONS` foe-facing row
+    /// actions in a row with no blood drawn either way, `turn::DANCE_MOVES` of them retreats
+    /// (`Run.bloodless`).
+    #[serde(default)]
+    pub dances: u32,
     /// §3: what the automations bought this batch, per kind → (n, coins); the exact coins of
     /// salvage and of wake pay, so the night's gold reconciles to the coin
     /// (`gold_earned + salvage_gold + wake_pay − spent == the purse's delta`).
@@ -2215,7 +2302,7 @@ impl Game {
         for s in bought {
             if let Some(price) = refund_of(&s, &cat) {
                 let why = format!("refund {}", s.kind.replace('_', " "));
-                self.lineage.gold_move(price, &why);
+                self.lineage.gold_move_n(price, &why, 1);
             }
         }
     }
@@ -2564,6 +2651,10 @@ impl Game {
             floor_streams: false,
             gambles_survived: Vec::new(),
             gamble_harm: 0,
+            own_throw: None,
+            own_throw_harm: 0,
+            found_units: Vec::new(),
+            found_gone: Vec::new(),
             stolen: Vec::new(),
             stolen_ids: Vec::new(),
             recovered: Vec::new(),
@@ -2625,6 +2716,8 @@ impl Game {
             blocked_last: None,
             row_streak: (-9, 0),
             row_suppressed: (-9, 0),
+            retreats: (0, 0),
+            bloodless: (0, 0, 0),
             rests: 0,
             aimed: false,
             bones: self.lineage.bones.clone(),
@@ -2742,7 +2835,7 @@ impl Game {
             return (want, None, 0);
         }
         let toll = LineageState::start_toll(want);
-        let short = self.lineage.gold < toll || (self.offline && self.lineage.night_short == Some(want));
+        let short = toll > 0 && (self.lineage.gold < toll || (self.offline && self.lineage.night_short == Some(want)));
         if short {
             if self.offline {
                 self.lineage.night_short = Some(want);
@@ -2750,11 +2843,13 @@ impl Game {
             self.batch.start_short.get_or_insert((want, toll, 0)).2 += 1;
             return (1, Some(format!("Toll ${toll} short: from D1.")), 0);
         }
-        let why = format!("waystone D{want}");
-        self.lineage.gold_move(-toll, &why);
-        let e = self.batch.spent.entry(why).or_insert((0, 0));
-        e.0 += 1;
-        e.1 += toll;
+        if toll > 0 {
+            let why = format!("waystone D{want}");
+            self.lineage.gold_move(-toll, &why);
+            let e = self.batch.spent.entry(why).or_insert((0, 0));
+            e.0 += 1;
+            e.1 += toll;
+        }
         self.lineage.night_passes.insert(want);
         (want, None, toll)
     }
@@ -2832,7 +2927,7 @@ impl Game {
                 if let Some(Ev::Exit { line: l, trace, .. }) = events.iter_mut().rev().find(|e| matches!(e, Ev::Exit { .. })) {
                     // Cut 9 §5: the exit event carries the last-5 trace beside the line.
                     *trace = line.trace.clone();
-                    *l = Some(ExitLine { trace: None, ..line });
+                    *l = Some(Box::new(ExitLine { trace: None, ..line }));
                 }
             }
         }
@@ -3089,6 +3184,7 @@ impl Game {
             }
         }
         self.batch.stalls += stalled as u32;
+        self.batch.dances += (run.bloodless.2 >= crate::turn::DANCE_ACTIONS) as u32;
         self.batch.run_outcomes.push((run.depth, if tier == ExitTier::Death { run.death_cause.clone() } else { None }));
         self.batch.run_ticks.push(run.turn);
         self.batch.renderable_events += run.renderable_events;
@@ -3414,7 +3510,18 @@ impl Game {
         if let Some(a) = &run.hero.armour {
             all.push(a.clone());
         }
+        // QA on 778fa1b (qaV): the melee weapon parked while the bow is up comes home too.
+        if let Some(w) = &run.bow_swap {
+            all.push(w.clone());
+        }
         all.retain(|i| i.cat() != Cat::Gold && i.id != 1 && !matches!(i.kind.as_str(), "bones" | "trap"));
+        // QA on 778fa1b (qaV: finds in no named place): where each found item in the pack ends
+        // (`found_rows`), by id.
+        let mut pack: BTreeMap<(u32, String), i32> = BTreeMap::new();
+        for i in &all {
+            *pack.entry((i.id, i.kind.clone())).or_insert(0) += i.amount.max(1);
+        }
+        let mut exit_fate: BTreeMap<(u32, String), &'static str> = BTreeMap::new();
         let mut shelved: Vec<String> = Vec::new();
         if tier == ExitTier::Death {
             // Insured brought items come home (Melvor insurance); everything else stays on the
@@ -3425,6 +3532,9 @@ impl Game {
                 self.lineage.vault.push(it);
             }
             all = Vec::new();
+            for it in &rest {
+                exit_fate.insert((it.id, it.kind.clone()), "bones");
+            }
             if !rest.is_empty() {
                 let named = !self.batch.bests.is_empty() || !run.boss_kills.is_empty();
                 self.lineage.bones.push(Bones { heir: run.heir, depth: run.depth, items: rest.clone(), named });
@@ -3445,7 +3555,21 @@ impl Game {
             let (back, rest): (Vec<Item>, Vec<Item>) = all.into_iter().partition(|i| run.supplies.contains(&i.id) && i.kind != "leash");
             // The kennel's own leash goes back to the kennel, not to salvage (QA on 56f2a1d:
             // `leash ×1 · $1` salvaged, `leash 1/5` at the forge, the leash still on the shelf).
+            let kennel: Vec<Item> = rest.iter().filter(|i| i.kind == "leash" && i.free && run.supplies.contains(&i.id)).cloned().collect();
             all = rest.into_iter().filter(|i| !(i.kind == "leash" && i.free && run.supplies.contains(&i.id))).collect();
+            // QA on 778fa1b (qaV): leashes found and stacked on the kennel's go home as a find
+            // of their own (the kennel's stack goes back to the kennel; they went with it).
+            for k in kennel {
+                let found = run.found_left(k.id, &k.kind) as i32;
+                // (packed units are spent first: what is left of the stack is found first)
+                let n = found.min(k.amount);
+                if n > 0 {
+                    let mut it = k.clone();
+                    it.amount = n;
+                    it.free = false;
+                    all.push(it);
+                }
+            }
             let cap = self.lineage.supply_cap();
             for mut it in back {
                 if self.lineage.supplies.len() >= cap {
@@ -3461,7 +3585,11 @@ impl Game {
             // the cap, not to salvage — the next send packs it free. The kinds the repeat
             // re-packs are served first (a found heal stands in for a bought one); another
             // row's kind takes only a slot the repeat does not need.
+            let before: Vec<(u32, String)> = all.iter().map(|i| (i.id, i.kind.clone())).collect();
             let (to_shelf, rest) = self.shelve_found(all, &run);
+            for key in before.into_iter().filter(|(id, k)| !rest.iter().any(|i| i.id == *id && i.kind == *k)) {
+                exit_fate.insert(key, "shelved");
+            }
             all = rest;
             shelved = to_shelf;
         }
@@ -3476,6 +3604,19 @@ impl Game {
         };
         let eligible: Vec<Item> = all.iter().take(n_keep).cloned().collect();
         let rest_items: Vec<Item> = all.into_iter().skip(n_keep).collect();
+        for it in &eligible {
+            exit_fate.insert((it.id, it.kind.clone()), "sheet");
+        }
+        for it in &rest_items {
+            exit_fate.insert((it.id, it.kind.clone()), "salvaged");
+        }
+        // (one entry a unit: a stack of found leashes settles each)
+        // (the finds on the sheet, one entry a unit — as `found_rows` counts them)
+        let found_ids: Vec<(u32, String)> = exit_fate
+            .iter()
+            .filter(|(_, f)| **f == "sheet")
+            .flat_map(|(key, _)| std::iter::repeat_n(key.clone(), found_in_pack(&run, &pack, key) as usize))
+            .collect();
         let cut_coins = self.salvage(&rest_items, pct);
         // Per kind, the coins the cut brought — the ledger's own (QA on 92eb880: `sold
         // aggravate $2` on the keep sheet, `aggravate ×1 · $1` in the report).
@@ -3487,7 +3628,7 @@ impl Game {
         }
         let cut_rows: Vec<crate::wire::SalvageRow> = cut.into_iter().map(|(k, (n, c))| crate::wire::SalvageRow { kind: self.lineage.wire_name(&k), n, gold: c }).filter(|r| r.gold > 0).collect();
         let brought: Vec<u32> = eligible.iter().filter(|i| run.brought.contains(&i.id)).map(|i| i.id).collect();
-        self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible, pct, brought });
+        self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible, pct, brought, found: found_ids });
         // Death: graveyard, grudge, heir, record.
         if tier == ExitTier::Death {
             let cause = run.death_cause.clone().unwrap_or_else(|| "unknown".into());
@@ -3647,6 +3788,8 @@ impl Game {
         }
         // Cut 9 §5: every exit carries its last five hero turns (read off the run's own trace
         // ring: nothing more per tick).
+        line.found = found_rows(&run, &pack, &exit_fate, |k| self.lineage.wire_name(k).replace('_', " "));
+        line.found_n = run.found_units.len() as u32;
         line.trace = Some(exit_trace(&run, &self.prov));
         line.salvaged = cut_rows;
         line.run_id = run.id;
@@ -3795,9 +3938,17 @@ impl Game {
         let worth = salvage_coins(&p.items, p.pct, self.lineage.gold_carry);
         let mut paid: Vec<(Item, i32)> = Vec::new();
         let mut salvage: Vec<Item> = Vec::new();
+        let mut settled: Vec<(String, &'static str)> = Vec::new();
+        let mut done: Vec<(u32, String)> = Vec::new();
         for (it, coin) in p.items.into_iter().zip(worth) {
+            let key = (it.id, it.kind.clone());
+            let was_found = if done.contains(&key) { 0 } else { p.found.iter().filter(|f| **f == key).count() };
+            done.push(key);
             // `bones_only`: nothing enters the vault; only bones piles carry gear.
             if !ids.contains(&it.id) || slots == 0 {
+                for _ in 0..was_found {
+                    settled.push((it.kind.clone(), "salvaged"));
+                }
                 paid.push((it, coin));
                 continue;
             }
@@ -3817,13 +3968,40 @@ impl Game {
             if self.lineage.vault.len() > slots {
                 if let Some(d) = self.lineage.vault.pop() {
                     if d.id == v.id {
+                        for _ in 0..was_found {
+                            settled.push((d.kind.clone(), "salvaged"));
+                        }
                         paid.push((d, coin));
                         continue;
                     }
                     salvage.push(d);
                 }
             }
+            for _ in 0..was_found {
+                settled.push((v.kind.clone(), "kept"));
+            }
             self.batch.found.push(v);
+        }
+        // QA on 778fa1b (qaV): the exit line's `sheet` finds, settled.
+        let settle = |line: &mut ExitLine, wire: &dyn Fn(&str) -> String| {
+            for (kind, fate) in &settled {
+                let k = wire(kind);
+                if let Some(r) = line.found.iter_mut().find(|r| r.kind == k && r.fate == "sheet" && r.n > 0) {
+                    r.n -= 1;
+                }
+                match line.found.iter_mut().find(|r| r.kind == k && r.fate == *fate) {
+                    Some(r) => r.n += 1,
+                    None => line.found.push(crate::wire::FoundRow { kind: k, n: 1, fate: fate.to_string() }),
+                }
+            }
+            line.found.retain(|r| r.n > 0);
+        };
+        let wire = |k: &str| self.lineage.wire_name(k).replace('_', " ");
+        if let Some(line) = self.last_exit.as_mut().filter(|l| l.run_id == p.run_id) {
+            settle(line, &wire);
+        }
+        if let Some(line) = self.batch.exits.iter_mut().rev().find(|l| l.run_id == p.run_id) {
+            settle(line, &wire);
         }
         let (items, coins): (Vec<Item>, Vec<i32>) = paid.into_iter().unzip();
         self.salvage_paid(&items, p.pct, &coins);
@@ -4026,7 +4204,7 @@ impl Game {
         if self.lineage.gold < entry.price {
             return Err("not enough gold".into());
         }
-        self.lineage.gold_move(-entry.price, why);
+        self.lineage.gold_move_n(-entry.price, why, 1);
         let id = self.lineage.next_vault_id;
         self.lineage.next_vault_id += 1;
         let mut it = Item::new(id, kind);
@@ -4080,7 +4258,7 @@ impl Game {
         } else if !s.free {
             if let Some(price) = refund_of(&s, &self.supply_catalogue()) {
                 let why = format!("refund {}", s.kind.replace('_', " "));
-                self.lineage.gold_move(price, &why);
+                self.lineage.gold_move_n(price, &why, 1);
             }
             if let Some(k) = self.lineage.last_supplies.iter().position(|k| *k == s.kind) {
                 self.lineage.last_supplies.remove(k);
@@ -4101,7 +4279,7 @@ impl Game {
             }
             if let Some(price) = refund_of(&s, &cat) {
                 let why = format!("refund {}", s.kind.replace('_', " "));
-                self.lineage.gold_move(price, &why);
+                self.lineage.gold_move_n(price, &why, 1);
             }
         }
         // Cut 4: clearing the shelf is an order; the automation does not undo it.
@@ -4185,6 +4363,65 @@ impl Game {
     }
 }
 
+/// QA on 778fa1b (qaV: FOUND `dagger ×2` beside SALVAGED `dagger ×1`, a `leather +1` in no
+/// named place): where each unit the run found ended — the ways it left the pack on the way
+/// (`Run.found_gone`: used, left, stolen), then its item's place at the exit (`fate`, by id:
+/// kept on the sheet, salvaged, shelved, bones); a stack's units not in it at the exit were
+/// spent (`used`: a leash on a tame, chalk on a floor); any other unit is `lost` (none should be).
+pub fn found_rows(run: &Run, pack: &BTreeMap<(u32, String), i32>, fate: &BTreeMap<(u32, String), &'static str>, wire: impl Fn(&str) -> String) -> Vec<crate::wire::FoundRow> {
+    let mut rows: Vec<crate::wire::FoundRow> = Vec::new();
+    let mut add = |kind: &str, fate: &str, n: u32| {
+        if n == 0 {
+            return;
+        }
+        let k = wire(kind);
+        match rows.iter_mut().find(|r| r.kind == k && r.fate == fate) {
+            Some(r) => r.n += n,
+            None => rows.push(crate::wire::FoundRow { kind: k, n, fate: fate.into() }),
+        }
+    };
+    let mut keys: Vec<(u32, String)> = Vec::new();
+    for key in &run.found_units {
+        if !keys.contains(key) {
+            keys.push(key.clone());
+        }
+    }
+    for key in keys {
+        let (id, kind) = (key.0, key.1.as_str());
+        let found = run.found_units.iter().filter(|x| **x == key).count() as u32;
+        let mut gone = 0u32;
+        for (_, _, f) in run.found_gone.iter().filter(|(g, k, _)| *g == id && k == kind) {
+            add(kind, f, 1);
+            gone += 1;
+        }
+        let left = found.saturating_sub(gone);
+        let stack = crate::defs::item_def(kind).cat == Cat::Misc;
+        let in_pack = match fate.get(&key) {
+            Some(f) => {
+                let n = found_in_pack(run, pack, &key);
+                add(kind, f, n);
+                n
+            }
+            None => 0,
+        };
+        add(kind, if stack { "used" } else { "lost" }, left - in_pack);
+    }
+    rows
+}
+
+/// The found units of `key` (id, kind) in the pack at the exit: a stack's up to its amount
+/// (packed units are spent first), an item's one (items sharing a bones find's id and kind
+/// count once).
+pub fn found_in_pack(run: &Run, pack: &BTreeMap<(u32, String), i32>, key: &(u32, String)) -> u32 {
+    let Some(a) = pack.get(key) else { return 0 };
+    let left = run.found_left(key.0, &key.1) as u32;
+    if crate::defs::item_def(&key.1).cat == Cat::Misc {
+        left.min((*a).max(1) as u32)
+    } else {
+        left.min(1)
+    }
+}
+
 /// Cut 6 §1: the exit's ledger line, ≤ 14 words (`$84 carried · return keeps 60% → $50`;
 /// death: `$144 carried · death keeps 0% → $0 · bones: 7 items on D5`; a run that hit the cap:
 /// `lost thread keeps 0%`).
@@ -4223,7 +4460,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, wake: 0 }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, wake: 0, found: Vec::new(), found_n: 0 }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:

@@ -152,7 +152,7 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       // QA a946e04 (T: three cards bought, all three went into the rules): a card that will not join the set on its buy says so — it is
       // owned, and its chip's `add` puts it in
       isCard(u) ? h("div", { class: `dim num card-joins${u.auto_insert === true ? " joins" : ""}` },
-        u.auto_insert === true ? /* copy:unlock_card */ `joins at R${(joinAt ?? app.rules.rows.length) + 1}` : /* copy:unlock_card */ "owned · add separately") : "");
+        u.auto_insert === true ? /* copy:unlock_card */ `joins at R${(joinAt ?? app.rules.rows.length) + 1}` : (u.owned ? /* copy:unlock_card */ "owned · add separately" : /* copy:unlock_card */ "after buy · add separately")) : "");   // QA 778fa1b (qaV: `owned · add separately` before the buy read as owned)
   });
 }
 /** QA a946e04: the chain's next step as the sheet shows it — `next ◆4 or $600` (its price once this one is bought with marks) and,
@@ -166,7 +166,9 @@ function nextPrice(app: App, u: UnlockInfo): HTMLElement | null {
   const price = [n.cost ? `◆${n.cost}` : "", n.gold ? `$${n.gold}` : ""].filter(Boolean).join(/* copy:label */ " or ");
   if (!price) return null;
   return h("div", { class: "dim num next-price" }, /* copy:callout */ `next ${price}`,
-    n.gold_after_gold && n.gold_after_gold !== n.gold ? h("span", { class: "after-gold" }, /* copy:callout */ ` · $ buy → $${n.gold_after_gold}`) : "");
+    // QA 778fa1b (qaV: `next ◆4 or $600 · $ buy → $750` — "two next prices on one line"; qaU: a $ buy raised `verb: throw` and `cond:
+    // alert` too, unsaid): a $ buy raises every $ price — the line says so, by how much, not a second price for this one
+    n.gold_after_gold && n.gold && n.gold_after_gold !== n.gold ? h("span", { class: "after-gold" }, /* copy:callout */ ` · $ buy: all $ +${Math.round((n.gold_after_gold / n.gold - 1) * 100)}%`) : "");
 }
 /** The core's gold price is `GOLD_PER_MARK × cost × (4 + gold_buys) / 4` (meta.rs): each gold buy raises every gold price by
  *  1 / (4 + gold_buys) — 25 % at the first, 20 % at the second, … — read back off this card's price. */

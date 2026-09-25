@@ -60,29 +60,37 @@ export function moveOf(m: VsMove | number | undefined): { pts: number; text: str
   return flat ? { pts, text: "≈", dir: "flat" } : { pts, text: signedPts(pts), dir: pts > 0 ? "up" : "down" };
 }
 /** Cut 22 §3: a notch's or a gem's move as a tiny mark — `▲6`, `▼3` (nothing inside its ±). */
-export function moveMark(m: VsMove | number | undefined, bare = false): HTMLElement | "" {
+export function moveMark(m: VsMove | number | undefined, bare = false, worse = false): HTMLElement | "" {
   // a move inside its ± marks nothing on a notch, a bar or a gem (a column of `≈` is noise); the line's `D8 ≈` says it
   const v = moveOf(m); if (!v || v.dir === "flat") return "";
   // `bare`: the arrow alone (a gem in the narrow shaft; its number is on the line under it)
-  return h("i", { class: `vsm dlt ${v.dir}` }, `${v.dir === "up" ? "▲" : "▼"}${bare ? "" : Math.abs(v.pts)}`);
+  return h("i", { class: `vsm dlt ${tone(v.dir, worse)}` }, `${v.dir === "up" ? "▲" : "▼"}${bare ? "" : Math.abs(v.pts)}`);
 }
+/** QA 778fa1b (qaV: `death −90` and `death 9% ▼` drawn red — "a drop in death drawn as good"): the colour says good or bad, the arrow
+ *  and the sign say which way — a share where more is worse (death) takes the other colour. */
+const tone = (dir: "up" | "down" | "flat", worse: boolean): string => !worse || dir === "flat" ? dir : dir === "up" ? "down" : "up";
 /** Cut 22 §3: the line under the shaft — `vs last · D8 +6 · bank +4`: the depth whose move is the largest outside its ± (else the
  *  frontier's, `D8 ≈`), the bank's move when the gems show, and the death's when it clears its ±. Null without a move to show. */
 export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, withEnds: boolean): HTMLElement | null {
-  if (!vs) return null;
+  // QA 778fa1b (qaV): an edit whose move is still being measured reads `vs sent …`, never the last move or a hollow `≈`
+  if (!vs) return app.vsPending() ? h("div", { class: "shaft-vs num rough pending" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs sent", "…")) : null;
+  const rough = vs.refined === false;
   const start = forecastStart(app, f), next = Math.max(start, app.lineage.best_depth + 1);
   const ds = vs.depths.filter((d) => d.depth >= start && d.depth <= (f?.known_to ?? Infinity));
   let head = ds.map((d) => ({ d, m: moveOf(d)! })).filter((x) => x.m && x.m.dir !== "flat").sort((a, b) => Math.abs(b.m.pts) - Math.abs(a.m.pts) || b.d.depth - a.d.depth)[0];
   if (!head) { const d = ds.find((x) => x.depth === next) ?? ds[ds.length - 1]; if (d) head = { d, m: moveOf(d)! }; }
-  const term = (label: string, m: ReturnType<typeof moveOf>, key: string): HTMLElement =>
-    h("span", { class: "vs-term", "data-k": key }, h("i", { class: "sep" }, " · "), label, " ", h("b", { class: `dlt ${m!.dir}` }, m!.text));
+  // a first-pass move inside its ± is not yet a call: `…` until the refine's lands (a move outside it shows, dim)
+  const term = (label: string, m: ReturnType<typeof moveOf>, key: string, worse = false): HTMLElement =>
+    h("span", { class: "vs-term", "data-k": key }, h("i", { class: "sep" }, " · "), label, " ", h("b", { class: `dlt ${tone(m!.dir, worse)}` }, rough && m!.dir === "flat" ? "…" : m!.text));
   const terms: HTMLElement[] = [];
   if (head?.m) terms.push(term(`D${head.d.depth}`, head.m, "depth"));
   const bank = moveOf(vs.bank), death = moveOf(vs.death);
   if (withEnds && bank) terms.push(term(/* copy:label */ "bank", bank, "bank"));
-  if (withEnds && death && death.dir !== "flat") terms.push(term(/* copy:label */ "death", death, "death"));
+  if (withEnds && death && death.dir !== "flat") terms.push(term(/* copy:label */ "death", death, "death", true));
   if (!terms.length) return null;
-  return h("div", { class: "shaft-vs num" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs last"), ...terms);
+  // QA 778fa1b (qaU: `death −10` stayed while the refine beside it read 22 → 27 %): a move paired on the first pass trails `…` and
+  // reads dim until the refine's is asked again and lands (`ForecastVs.refined`; absent on an older core: no mark)
+  return h("div", { class: `shaft-vs num${rough ? " rough" : ""}`, "data-refined": rough ? "0" : vs.refined ? "1" : "" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs sent", rough ? "…" : ""), ...terms);
 }
 
 export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
@@ -96,7 +104,10 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   // Cut 22 §3: the edit's paired move, the shaft's line, under the ends (and a mark on each bar)
   const vsHost = h("div", { class: "fc-vs", hidden: true });
   const paintVs = (): void => { const line = vsLine(app, app.vs, app.lastForecast, true); vsHost.hidden = !line; replace(vsHost, line ?? ""); };
-  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast"), bars, ends, vsHost, picked, yours, causes);
+  // QA 778fa1b (qaU: 94/78/42 then 95/73/36 for the same rules, "no sign it was settling"): the first pass's label trails `…`
+  const settling = h("span", { class: "fc-settling", hidden: true }, "…");
+  // QA 778fa1b (qaV: `D1 100%` beside `death 100%` read as dying on D1): the bars say what they count — the share that reaches each floor
+  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast", settling), h("div", { class: "label reach-label dim" }, /* copy:label */ "reach"), bars, ends, vsHost, picked, yours, causes);
   // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
@@ -127,6 +138,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     el.dataset.refined = f.refined === undefined ? "" : f.refined ? "1" : "0";   // dev: tools read which pass painted
     // QA 92eb880 (M: "D6 32%±13 → 38%±10 on opening edit"): the first pass paints dim, its ± trailing `…`, until the refine lands
     el.classList.toggle("rough", f.refined === false);
+    settling.hidden = f.refined !== false;
     const first = f.refined === false ? "…" : "";   // Cut 13 §5: the first paint's ± trails `…`; the refine's does not
     const next = app.lineage.best_depth + 1;
     // Cut 4 §8 names the top cause on best+1; QA 23ed91f (L: `D9 0% ±1 · rat` for a set that dies on D1–D2): when nobody gets near
@@ -163,7 +175,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         tr ? h("span", { class: "track-cell" }, track, h("small", { class: "try" }, /* copy:none */ `try: ${tr.text}`)) : track,
         // a `try` row keeps one line (its hint rides the track; the boss beside the number, as before)
         h("span", { class: "n num" }, pct(d.reach), dpm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${dpm}${first}`) : "", moveMark(vsBy.get(d.depth)), ...(tr ? why : [])),
-        !tr && why.length ? h("span", { class: "why num" }, ...why) : "",
+        // QA 778fa1b (qaU: a leading `· goblin archer` under the D1 bar): on a line of its own the first cause drops its separator
+        !tr && why.length ? h("span", { class: "why num" }, ...why.map((w) => { if (w instanceof HTMLElement && w.firstChild?.nodeType === 3 && /^ · /.test(w.firstChild.textContent ?? "")) { w.firstChild.textContent = (w.firstChild.textContent ?? "").slice(3); w.prepend(h("i", { class: "sep" }, " · ")); } return w; })) : "",
       ];
       // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
       bars.appendChild(tr
@@ -182,7 +195,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, "…"), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
   // a rule edit (or a set switch) dims the numbers until the engine's next forecast paints — an empty set's takes seconds and
   // the old set's bars read as the new one's meanwhile (QA on 952e306: "set '2 0' showed set 1's D4 72%")
-  const stale = (): void => { paintYours(); el.classList.add("stale"); };
+  const stale = (): void => { paintYours(); paintVs(); el.classList.add("stale"); };
   // QA a946e04 (S: the shaft `D5 22% ±11 · return 78%` beside the panel's `21% ±8 · return 76%` on one screen): the panel and the shaft
   // paint one forecast — `app.lastForecast`, the event both are handed (the first pass `…`, then the refine) — and the panel starts
   // from it, never from a pass of its own
@@ -213,8 +226,9 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   const notches = h("div", { class: "notches" });
   const ends = h("div", { class: "shaft-ends num", hidden: true });
   // Cut 22 §3: the last edit's paired move, a small line under the shaft (`vs last · D8 +6 · bank +4`), cleared by the next edit. It is
-  // the camp's to place (`vsEl`): the well pins it to its bottom edge under the shaft's column, so the move is in view the moment it
-  // lands, whatever the well's scroll (the shaft's 72 px column cannot hold the line, and its gems sit at the fold)
+  // the camp's to place (`vsEl`): a row of its own under the well (QA 778fa1b, qaV: pinned over the well it hid R4 and the gems), so the
+  // move is in view the moment it lands, whatever the well's scroll, and covers nothing. QA 778fa1b: measured against the set sent
+  // (`vs sent`), `…` while an edit's move is pending
   const vsHost = h("div", { class: "shaft-vs-host", hidden: true });
   const el = h("button", { class: "shaft", onclick: () => onOpen() }, notches, ends);
   let last: Forecast | null = app.lastForecast;
@@ -238,8 +252,11 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     const folded: HTMLElement[] = [];
     if (from > start) {
       const hi = from - 1, d = byDepth.get(hi), reach = d ? d.reach : hi <= known ? 1 : 0;
+      // QA 778fa1b (qaV: an empty set's `D1–3 0%` — "D1 is 100%, every run starts there"): a fold whose floors differ reads its span,
+      // the first floor's reach to the last's (`100–0%`)
+      const d0 = byDepth.get(start), r0 = d0 ? d0.reach : 1, span = hi > start && Math.round(r0 * 100) !== Math.round(reach * 100);
       const n = h("span", { class: `notch fold${d && Math.round(d.reach * 100) === 0 ? " zero" : ""}`, "data-d": hi, "data-from": start },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, hi > start ? `D${start}–${hi}` : `D${hi}`), h("small", { class: "dp" }, d || hi <= known ? pct(reach) : "?"));
+        h("span", { class: "hex" }), h("span", { class: "dl" }, hi > start ? `D${start}–${hi}` : `D${hi}`), h("small", { class: "dp" }, d || hi <= known ? (span ? `${Math.round(r0 * 100)}–${pct(reach)}` : pct(reach)) : "?"));
       n.style.setProperty("--reach", reach.toFixed(3));
       folded.push(n);
     }
@@ -264,12 +281,15 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     const e = last?.ends;
     ends.hidden = !e || !showEnds();
     if (e && !ends.hidden) replace(ends,
-      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, pct(e.bank)), moveMark(vs?.bank, true)),
-      h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, pct(e.return)), moveMark(vs?.return, true)),
+      // QA 778fa1b (qaU: the `▲`/`▼` after `return 92%` / `death 8%` clipped at the panel's edge): the arrow rides the number (`b`), raised
+      // over its end, inside the column
+      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, pct(e.bank), moveMark(vs?.bank, true))),
+      h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, pct(e.return), moveMark(vs?.return, true))),
       // QA 23ed91f (L: "`bank 0% · return 0% · death 96%` never sums to 100; `stall` only in the panel"): a stall share is its own gem
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
-      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, pct(e.death)), moveMark(vs?.death, true)),
-      h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`));
+      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, pct(e.death), moveMark(vs?.death, true, true))),
+      // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
+      h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`, rough ? h("i", { class: "settling" }, "…") : ""));
     const line = vsLine(app, vs, last, !!e && showEnds());
     vsHost.hidden = !line; replace(vsHost, line ?? "");
     el.dataset.vs = line ? "1" : "";

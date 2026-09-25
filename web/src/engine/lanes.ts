@@ -9,7 +9,7 @@ import type { AsyncEngine } from "./types";
 /** The calls that run on the background lane. */
 export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas"]);
 /** Foreground calls that leave the lineage as it was (the mirror stays in sync across them). */
-const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary"]);
+const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastVs", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary"]);
 
 type Calls = Record<string, (...a: unknown[]) => Promise<unknown>>;
 
@@ -40,6 +40,9 @@ export function twoLanes(fg: AsyncEngine, bgOf: () => Promise<AsyncEngine | null
       out[m] = (...a: unknown[]) => { if (!READ_ONLY.has(m)) gen++; return F[m](...a); };
     }
   }
+  // QA 778fa1b: the refine runs here, so the refined camp panel is cached on this lane's engine — the edit's move asked again after it
+  // (`forecastVsRefined`: `forecastVs` on the background lane, behind the refine) pairs the refined panels (`ForecastVs.refined`)
+  if (typeof F.forecastVs === "function") out.forecastVsRefined = (...a: unknown[]) => { const p = chain.then(() => background("forecastVs", a)); chain = p.catch(() => undefined); return p; };
   return out as unknown as AsyncEngine;
 }
 

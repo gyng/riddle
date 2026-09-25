@@ -281,7 +281,8 @@ try {
   await fakeDeath({ notes: ["The green one: fire.", "Gambled: fire potion."] });
   await waitFor((x) => x?.screen === "death", "a death with notes");
   d = await deathScreen();
-  check(d.notes.join(" | ") === "The green one: fire. | Gambled: fire potion." && d.said === null, `the death screen shows the run's last two notes verbatim (a gap death says no forecast): ${JSON.stringify(d.notes)}`);
+  // QA 778fa1b (qaU: `Goblin Captain: telegraph.` read as a sentence): a fact note (`Name: tag.`) drops its stop
+  check(d.notes.join(" | ") === "The green one: fire | Gambled: fire potion" && d.said === null, `the death screen shows the run's last two notes (their stops dropped) (a gap death says no forecast): ${JSON.stringify(d.notes)}`);
   await shot("08-death-notes");
 
   // ---- §5: the forecast's noise shown as noise

@@ -121,4 +121,8 @@ export function combosIn(rows: Row[], table: Combo[] | undefined): ComboHit[] {
 
 /** QA 1a2a4a9 (O: `The monkey stole the leash (3).` — "the (3) refers to nothing"): an item's charges in the core's label (`leash (3)`)
  *  leave a note's text; the note names the thing, not its count. */
-export const noteText = (t: string): string => t.replace(/ \(\d+\)(?=[.?!]?$)/, "");
+// QA 778fa1b (qaU: `Goblin Captain: telegraph.` read as a sentence under the seal): a fact note (`Name: tag.`) drops its stop
+// QA 778fa1b (qaU: `Recovered heir 1's bones` beside `♟1` everywhere else): an heir reads as the bar names him
+export const noteText = (t: string): string => t.replace(/ \(\d+\)(?=[.?!]?$)/, "").replace(/^([^.!?:]+: [a-z]+(?: [a-z]+)?)\.$/, "$1").replace(/\bheir (\d+)'s\b/g, "♟$1's")
+  // QA 778fa1b (qaU, qaV: `R1 returned; died to jackal.` read as a return that worked): a return row that fired and did not get him home
+  .replace(/\bR(\d+) (return|bank)(?:ed); died\b/g, /* copy:diary_line */ "R$1 $2 too late; died");

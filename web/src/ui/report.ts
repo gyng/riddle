@@ -15,7 +15,7 @@ import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
 import { exitExtras, wakeShown } from "./death";
 import { openUnlockSheet, priceLabel, visible, withRowsGate } from "./unlocks";
-import { lostLabel, rowLabel } from "./tokens";
+import { lostLabel, noteText, rowLabel } from "./tokens";
 import { traceChip } from "./trace";
 import { openGoldSheet, runRange } from "./gold";
 import { gem, portrait, renderBar, renderConsole, tile as cmdTile } from "./frame";
@@ -39,8 +39,10 @@ export function exitDepth(app: App, x: ExitLine, newer: ExitLine[] = []): number
 export function traceLabel(app: App, x: ExitLine, newer: ExitLine[] = []): string {
   const tier = /^(banked|returned|died)/.exec(x.text)?.[1] ?? exitLead(x).split(" ")[0];
   // QA 1a2a4a9 (O: `… on D8 D8 · DIED · TRACE`): a line that already names the floor keeps it once — the chip reads `died · trace`
-  const d = exitDepth(app, x, newer), named = d !== undefined && new RegExp(/* copy:none */ `\\bD${d}\\b`).test(x.text);
-  return /* copy:callout */ `${d !== undefined && !named ? `D${d} · ` : ""}${tier} · trace`;
+  // QA 778fa1b (qaU: `died · trace` beside every `D8 · returned · trace`): the chip sits in its own column now (Cut 20), so it names the
+  // floor always, even when the line beside it says `on D6`
+  const d = exitDepth(app, x, newer);
+  return /* copy:callout */ `${d !== undefined ? `D${d} · ` : ""}${tier} · trace`;
 }
 
 /** Cut 10 §3: an exit line's lead — the tier from its keep share and the sum kept: `returned $61` · `banked $84` · `died $0`. */
@@ -51,10 +53,10 @@ export function exitLead(x: ExitLine): string {
 
 /** The ledger line with its lead in bold: the engine's text leads with `died $0 · …` (Cut 10 §3) and is split there; a text
  *  without a lead (an older slice) gets one in front — never two (`died $0 · died $0 · $190 carried` on every real report). */
-export function ledgerText(x: ExitLine): (string | HTMLElement)[] {
+export function ledgerText(x: ExitLine, name?: (label: string) => string): (string | HTMLElement)[] {
   const m = /^((?:banked|returned|died) \$-?\d+)(?: · )?(.*)$/s.exec(x.text);
-  if (m) return [h("b", { class: "lead" }, m[1]), m[2] ? " · " : "", wakeShown(m[2]), exitExtras(x)];
-  return [h("b", { class: "lead" }, exitLead(x)), " · ", wakeShown(x.text), exitExtras(x)];
+  if (m) return [h("b", { class: "lead" }, m[1]), m[2] ? " · " : "", wakeShown(m[2]), exitExtras(x, name)];
+  return [h("b", { class: "lead" }, exitLead(x)), " · ", wakeShown(x.text), exitExtras(x, name)];
 }
 
 /** Cut 16 §1: the depths picked clean as one line — consecutive depths collapse (`D1–4 · thinned`, `D3 · D5 · thinned`).
@@ -133,7 +135,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
   // Cut 13 §3: the gold line — what the exits brought (banked / returned, off the exit lines), the salvage, the automations' spending
   const goldLine = (): HTMLElement | null => {
-    if (!r.spent && !r.salvaged && !r.gold && !r.restock_capped && !r.repeat_short) return null;
+    if (!r.spent && !r.salvaged && !r.gold && !r.restock_capped && !r.repeat_short && !r.swapped) return null;
     const ex = r.exits ?? [];
     const bankedG = ex.filter((x) => x.keep_pct >= 100).reduce((a, x) => a + x.kept, 0), returnedG = ex.filter((x) => x.keep_pct > 0 && x.keep_pct < 100).reduce((a, x) => a + x.kept, 0);
     const salvageG = (r.salvaged ?? []).reduce((a, x) => a + x.gold, 0), spentG = (r.spent ?? []).reduce((a, x) => a + x.gold, 0);
@@ -151,13 +153,19 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       // QA e75ec29 (Q, R: `+$40 heir purse` after one death, `+$30` after others, none after three): the purse rule — each death tops the
       // next heir's purse up to `wake_cap`; the top-ups counted (`+$70 purse ×2`), the deaths that found it full named (`purse full ×1`)
       if (r.gold.wake > 0) pieces.push(h("span", { class: "up" }, `+$${r.gold.wake} ${WORD.wake}`, r.gold.wake_n && r.gold.wake_n > 1 ? ` ×${r.gold.wake_n}` : ""));
-      const full = r.gold.wake_n !== undefined ? Math.max(0, deathsN - r.gold.wake_n) : 0;
-      if (full > 0) pieces.push(h("span", { class: "dim purse-full" }, /* copy:callout */ `purse full${full > 1 ? ` ×${full}` : ""}`));
+      // QA 778fa1b (qaU: `purse full` beside $999 read as the camp's cap): the deaths the core flags (a purse just over the top-up line,
+      // `ExitLine.purse_full`) read `no top-up`; a richer lineage's deaths say nothing of the purse
+      const full = ex.filter((x) => x.purse_full).length;
+      if (full > 0) pieces.push(h("span", { class: "dim purse-full" }, /* copy:callout */ `no top-up${full > 1 ? ` ×${full}` : ""}`));
       piece(r.gold.spent, "−", WORD.spent, "down");
     }
     else { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); piece(salvageG, "+", WORD.salvage, "up"); piece(spentG, "−", WORD.spent, "down"); }
     // Cut 19 §3: the repeat stopped once the night's spending reached what it brought home — Cut 21 §3 (AE, AF: `restock capped`
     // unread): it says the rule, `restock ≤ income`; both it and `repeat short` open the gold sheet, where the ledger lines are
+    // QA 778fa1b (qaU: `carry $61 −$37 swapped` on the strip, in no ledger): what the pack's swaps took off the carry (`ReturnReport.swapped`,
+    // else the lines' own) — already out of `carried`, so a dim note, not a movement of the purse
+    const swapped = r.swapped ?? ex.reduce((a, x) => a + (x.swapped ?? 0), 0);
+    if (swapped > 0) pieces.push(h("span", { class: "dim swapped" }, /* copy:callout */ `−$${swapped} swapped`));
     if (r.restock_capped) pieces.push(h("button", { class: "capped warn ledger-link", onclick: () => openGoldSheet(app) }, /* copy:callout */ "restock ≤ income"));
     // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay
     if (r.repeat_short) pieces.push(h("button", { class: "capped warn ledger-link", onclick: () => openGoldSheet(app) }, /* copy:callout */ "repeat short"));
@@ -187,7 +195,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // two tap targets stacked 0 px apart — the line is a row now: the text (the gold sheet) on the left, the chip (the trace) in its
     // own column on the right, never under the text
     exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line exit-row num dim" },
-      h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x)),
+      h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x, named)),
       h("span", { class: "sep", "aria-hidden": "true" }, " · "),   // a break between the line and its chip (QA on 3d71c33: `keeps 60%D7`; QA 1a2a4a9, O: `◆+2 D3 · RETURNED` glued)
       traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
       hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} earlier`) : "",
@@ -296,7 +304,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "spent", r.spent?.length ? h("ul", { class: "lines" }, ...r.spent.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num down" }, `−$${s.gold}`)))) : null),
     section(/* copy:label */ "renown", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "") : null),   // a rank pays a mark: the tiles' ◆ reconciles with the rows (QA on 56f2a1d: ◆+9 vs rows ◆+6)
     pendingSec,
-    section(/* copy:label */ "reel", reel(r.reel.map((x) => x.text))),
+    section(/* copy:label */ "reel", reel(r.reel.map((x) => noteText(x.text)))),
   );
   const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el);
   return { el, dispose: () => bar.dispose() };

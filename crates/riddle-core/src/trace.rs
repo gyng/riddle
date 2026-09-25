@@ -66,7 +66,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let cause = if stall {
         format!("stalled · {}", run.stuck_cause.as_deref().unwrap_or("paced"))
     } else {
-        run.death_cause.clone().unwrap_or_else(|| "unknown".into())
+        own_cause(run).or_else(|| run.death_cause.clone()).unwrap_or_else(|| "unknown".into())
     };
     // Cut 10 §3: `3 hp short` (was `3 over`, which no rater could read): the HP that would have
     // kept the hero standing through the killing blow. A stall keeps nothing: `keeps $0`.
@@ -187,6 +187,8 @@ fn death_notes(run: &Run, stall: bool) -> Vec<String> {
 /// · `caustic` for gas). A title is matched whole (`goblin` is not `goblin archer`), plural
 /// allowed.
 pub fn death_note_names(note: &str, cause: &str) -> bool {
+    // (`own fire`: the hero's own harm names as the harm does)
+    let cause = cause.strip_prefix("own ").unwrap_or(cause);
     let lower = note.to_lowercase();
     let words: Vec<String> = match cause {
         "poison" => vec!["poison".into()],
@@ -238,21 +240,65 @@ pub fn gamble_cause(kind: &str) -> Option<&'static str> {
 /// Cut 21 §3: the set's own row whose unknown gamble dealt this death (`DeathRec.gamble_row`):
 /// the cause is the harm of a malevolent kind gambled on this floor within `GAMBLE_WINDOW`
 /// ticks, and the trace's action at that tick is a `drink unknown` / `read unknown` row of the
-/// set that is not a card's. A gamble the trait or a chore made names no row.
+/// set. A gamble the trait or a chore made names no row.
 ///
 /// QA on a946e04 (qaT: ~30 deaths all `gap`, `R1 drank poison at 17/36 hp` among them): or
 /// the last gamble's harm made the difference — a poison that took 8 HP from a hero a
 /// goblin's blow then killed 3 HP short (`Run.gamble_harm ≥ Run.death_short`): without the
 /// gamble he stood through the blow.
+///
+/// QA on 778fa1b (qaV: `fire · D6 · GAP`, the trace `R3 card last stand` 10 → 3 → 0): or the
+/// hero's own throw whose harm reached him (`Run.own_throw`: a fire blast on his own tile), by
+/// a `throw` row — and a card row counts as the player's here: the card is his choice, and its
+/// gamble or its throw is the row that killed him.
 fn gamble_row(run: &Run, rules: &RuleSet) -> Option<usize> {
+    own_harm(run).and_then(|(t, _, thrown)| own_harm_row(run, rules, t, thrown))
+}
+
+/// The tick and kind of the hero's own harm that dealt this death (a malevolent gamble, or
+/// his own throw — `true`), the latest that did: its harm is the death's cause, or (the last
+/// one) it took at least the HP he died short.
+fn own_harm(run: &Run) -> Option<(u32, String, bool)> {
     let cause = run.death_cause.as_deref()?;
     let last = run.gambles.len().checked_sub(1);
-    let (t, _, _) = run.gambles.iter().enumerate().rev().find(|(i, (t, k, mal))| *mal && run.turn.saturating_sub(*t) <= GAMBLE_WINDOW && (gamble_cause(k) == Some(cause) || (Some(*i) == last && gamble_cause(k).is_some() && run.gamble_harm >= run.death_short.max(1)))).map(|(_, g)| g)?;
-    let turn = run.trace.iter().rev().find(|x| x.t <= *t)?;
-    let gamble = matches!(turn.verb.v.as_str(), "drink" | "read") && turn.verb.a.as_deref() == Some("unknown");
+    let window = |t: u32| run.turn.saturating_sub(t) <= GAMBLE_WINDOW;
+    let gamble = run
+        .gambles
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(i, (t, k, mal))| *mal && window(*t) && (gamble_cause(k) == Some(cause) || (Some(*i) == last && gamble_cause(k).is_some() && run.gamble_harm >= run.death_short.max(1))))
+        .map(|(_, (t, k, _))| (*t, k.clone(), false));
+    let thrown = run.own_throw.as_ref().filter(|(t, k)| window(*t) && (gamble_cause(k) == Some(cause) || (gamble_cause(k).is_some() && run.own_throw_harm >= run.death_short.max(1)))).map(|(t, k)| (*t, k.clone(), true));
+    match (gamble, thrown) {
+        (Some(g), Some(o)) => Some(if o.0 >= g.0 { o } else { g }),
+        (g, o) => g.or(o),
+    }
+}
+
+/// The row of `rules` that acted at tick `t`: the set's own gamble row (`drink` / `read
+/// unknown`) or, for a throw (`thrown`), its `throw` row — or a card whose rows carry such a
+/// verb (the trace names the card, not its row).
+fn own_harm_row(run: &Run, rules: &RuleSet, t: u32, thrown: bool) -> Option<usize> {
+    let turn = run.trace.iter().rev().find(|x| x.t <= t)?;
     let at = usize::try_from(turn.row).ok()?;
     let row = rules.rows.get(at)?;
-    (gamble && !row.is_card() && row.verb == turn.verb).then_some(at)
+    let gamble = |v: &crate::rules::Verb| matches!(v.v.as_str(), "drink" | "read") && v.a.as_deref() == Some("unknown");
+    let fits = |v: &crate::rules::Verb| if thrown { v.v == "throw" } else { gamble(v) };
+    let ok = match row.card() {
+        Some(card) => crate::meta::unlock_rows(card).is_some_and(|rows| rows.iter().any(|r| fits(&r.verb))),
+        None => fits(&turn.verb) && row.verb == turn.verb,
+    };
+    ok.then_some(at)
+}
+
+/// QA on 778fa1b (qaV: the banner's `FIRE` read as a monster until the morgue said `slain by
+/// fire`): a death the hero's own harm dealt — his gamble's or his throw's fire, gas or poison
+/// was the killing blow — is named as his (`own fire`) on the death record.
+pub fn own_cause(run: &Run) -> Option<String> {
+    let cause = run.death_cause.as_deref()?;
+    let (_, k, _) = own_harm(run)?;
+    (gamble_cause(&k) == Some(cause)).then(|| format!("own {cause}"))
 }
 
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
@@ -1381,13 +1427,21 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     // Cut 21 §3: the gamble's harm killed him — his own unknown row is the verdict, whatever
     // an added row would survive (the cut leads the patches as any `row` verdict's does).
     // (A death the unpatched replays all survive was not reproduced: never `row` — the dice.)
-    let gamble_at = rec.gamble_row.filter(|_| !rec.stall && baseline < 1.0 - 1e-9);
+    let mut gamble_at = rec.gamble_row.filter(|_| !rec.stall && baseline < 1.0 - 1e-9);
+    let own_cut = gamble_at.map(|at| cut_patch(rec, &base, ticks, at).unwrap_or_else(|| Patch { row: rec.rules.rows[at].clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false }));
+    // QA on 778fa1b (qaV): a card's own throw or gamble is the verdict when the set without the
+    // card lives longer than it did (the card's cut beats the unpatched replays) — otherwise
+    // the moment killed him whatever the card did, and the verdict is the moment's.
+    if gamble_at.is_some_and(|at| rec.rules.rows[at].is_card()) && own_cut.as_ref().is_some_and(|p| p.survive <= baseline + 1e-9) {
+        gamble_at = None;
+        rec.gamble_row = None;
+    }
     let chased = gamble_at.is_none() && chase_cut.is_some();
     if chased {
         rec.chase_row = chase_cut.as_ref().map(|p| p.insert_at.max(0) as usize);
     }
     let row_cut = match gamble_at {
-        Some(at) => Some(cut_patch(rec, &base, ticks, at).unwrap_or_else(|| Patch { row: rec.rules.rows[at].clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false })),
+        Some(_) => own_cut,
         None => row_cut.or(chase_cut),
     };
     let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false }).collect();
@@ -1547,6 +1601,28 @@ fn margin_lines(rec: &mut DeathRec, heal_saves: bool, unknown_saves: (bool, bool
             rec.death.margin.push_str(" · curious: clear only");
         }
     }
+    // QA on 778fa1b (qaV: `ogre · D5 · GAP` while the trace's five turns were `R2 attack nearest`
+    // at 4 HP into `ogre winds up` — "`row`, or a line saying why the attack row is not the
+    // cause"): an engagement row striking into the killer's telegraph is the fight's, not the
+    // row's (cutting the strike "survives" by never fighting); the gap is the row above it that
+    // answers the telegraph, and the margin says so.
+    if telegraph_unanswered(rec) {
+        rec.death.margin.push_str(" · telegraph unanswered");
+    }
+}
+
+/// The dying action was a foe-facing row of the set while the killer showed its telegraph
+/// (`ogre winds up` on the trace's last turn).
+pub fn telegraph_unanswered(rec: &DeathRec) -> bool {
+    let Some(last) = rec.death.trace.turns.last() else { return false };
+    let cause = rec.death.cause.as_str();
+    // (a heavy blow wound up in plain sight — an ogre's, a slag crawler's: an archer's draw is
+    // its shot, and the answer to it is the strike)
+    if last.row < 0 || !crate::turn::targets_foes(&last.verb) || !crate::defs::MONSTERS.iter().any(|m| m.kind == cause && m.tags.contains(&"telegraph") && m.tags.contains(&"heavy")) {
+        return false;
+    }
+    let word = monster_def(cause).title.split_whitespace().last().unwrap_or("foe").to_lowercase();
+    last.telegraphs.iter().any(|t| t.strip_prefix(word.as_str()).is_some_and(|r| r.starts_with(' ')))
 }
 
 /// The margin's `N unknown unused` count (`margin_lines`).

@@ -242,8 +242,12 @@ fn check_forecast_bank_at(t: &mut Tally, bank: &mut BankTally, g: &Game, seed: u
 /// after the night moved; at 12 0.782, at 18 0.803: the gap was the sends' own noise (a fresh
 /// lineage's panel and 60 sends agree to 0.01, before and after a night), so the check runs on
 /// a sample that can tell. The band narrows with it.
-const SENDS: u32 = 18;
-const BANK_SIMS: u32 = 20;
+/// QA on 778fa1b: 54 sends and 60 sims (were 18 and 20) — at 18/20 the pooled 95 % band
+/// (±0.039) was about the two samples' own spread, and runs of the same engine read +0.023
+/// and −0.039 across a change that altered only item ids (a bones pile's finds re-numbered):
+/// at 54/60 the band is ±0.023 and the gap 0.013, the stricter reading (+~10 s).
+const SENDS: u32 = 54;
+const BANK_SIMS: u32 = 60;
 
 /// Σ over seeds, per [the good set, its bank-depth variants]: (forecast banks, forecast sims,
 /// real banks, real sends).
@@ -489,7 +493,8 @@ fn check_reel(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::ReturnReport)
             continue;
         }
         let Some(rec) = g.deaths.get(&h.run_id).filter(|x| !x.stall) else { continue };
-        let cause = &rec.death.cause;
+        // (`own fire` — the hero's own harm — reads in the reel as the harm: `died to fire`)
+        let cause = &rec.death.cause.strip_prefix("own ").unwrap_or(&rec.death.cause).to_string();
         let phrase = cause_phrase(cause);
         let end = h.text.strip_suffix('.').and_then(|b| b.rsplit("; ").next()).unwrap_or("");
         let killer_led = cause_key(&arc.threat) == cause_key(cause);
@@ -566,13 +571,10 @@ fn check_waystone_leg(t: &mut Tally, g: &Game, seed: u64) {
         let r = h.run_offline(4 * 3600);
         let tolls: u32 = r.spent.iter().filter(|x| x.kind.starts_with("waystone")).map(|x| x.n).sum();
         let nights = (before + r.runs).div_ceil(riddle_core::engine::NIGHT_RUNS).max(1);
-        if rich {
-            t.check("a night's waystone tolls ≤ 1 pass per chosen start", tolls <= nights && r.start_short.is_none(), || format!("seed {seed}: {tolls} tolls over {} runs ({nights} nights) · short {:?}", r.runs, r.start_short));
-        } else {
-            let ok = tolls == 0 || r.start_short.is_some();
-            let shorted = r.start_short.as_ref().map(|s| s.runs).unwrap_or(0);
-            t.check("a short purse's sends from D1 are named (report `start_short`)", ok && (tolls > 0 || shorted > 0 || r.runs == 0), || format!("seed {seed}: {tolls} tolls · short {:?} · {} runs", r.start_short, r.runs));
-        }
+        // QA on 778fa1b (qaV): a waystone start is free — no toll line, rich or broke, and no
+        // send falls back to D1 for want of gold.
+        let label = if rich { "a waystone start pays no toll (rich purse)" } else { "a waystone start pays no toll and is never short (empty purse)" };
+        t.check(label, tolls == 0 && r.start_short.is_none(), || format!("seed {seed}: {tolls} tolls over {} runs ({nights} nights) · short {:?}", r.runs, r.start_short));
     }
 }
 
@@ -601,6 +603,8 @@ fn check_found_supply_leg(t: &mut Tally, g: &Game, seed: u64) {
     }
     for _ in 0..6 {
         h.send();
+        let vid = h.lineage.next_vault_id;
+        let vault_before: Vec<u32> = h.lineage.vault.iter().map(|v| v.id).collect();
         for _ in 0..4000 {
             let r = h.step(50);
             if r.run_over {
@@ -621,9 +625,47 @@ fn check_found_supply_leg(t: &mut Tally, g: &Game, seed: u64) {
             }
             let _ = h.keep(vec![]);
         }
+        check_exit_found(t, &h, seed, &vault_before, "found supply leg");
+        check_repeat_lines(t, &h, seed, vid);
         if h.lineage.gold < 100 {
             h.lineage.gold_move(100, "qa purse");
         }
+    }
+}
+
+/// QA on 778fa1b (qaV: FOUND `dagger ×2`, SALVAGED `dagger ×1`; a `leather +1` in no named
+/// place): every find of the last exit (settled by `keep`) ends in a named place — Σ
+/// `found[].n` == `found_n`, none `lost` or still on the `sheet`, the `shelved` finds are the
+/// line's shelved supplies, the `kept` ones are in the vault.
+fn check_exit_found(t: &mut Tally, g: &Game, seed: u64, vault_before: &[u32], at: &str) {
+    // (the batch's copy: `step` hands `last_exit` to the exit event; `keep` settles both)
+    let Some(line) = g.batch.exits.last() else { return };
+    let sum: u32 = line.found.iter().map(|r| r.n).sum();
+    let by = |f: &str| line.found.iter().filter(|r| r.fate == f).map(|r| r.n).sum::<u32>();
+    t.check("found at an exit == kept + salvaged + shelved + used + left + stolen + bones", sum == line.found_n && by("lost") == 0 && by("sheet") == 0, || format!("seed {seed} {at} run {}: {sum} placed of {} found · {:?}", line.run_id, line.found_n, line.found));
+    let shelved: u32 = line.shelved.iter().map(|k| k.n).sum();
+    t.check("an exit's shelved finds == its shelved supplies", by("shelved") == shelved, || format!("seed {seed} {at} run {}: found shelved {} · line shelved {shelved}", line.run_id, by("shelved")));
+    let added = g.lineage.vault.iter().filter(|v| !vault_before.contains(&v.id)).count() as u32;
+    t.check("an exit's kept finds are in the vault", by("kept") <= added, || format!("seed {seed} {at} run {}: kept {} · vault +{added}", line.run_id, by("kept")));
+}
+
+/// QA on 778fa1b (qaV: `repeat heal ×1 · −$104` for four heals at $26; `SHELVED found heal
+/// ×7` beside `SPENT heal ×25`): the last exit's `repeat` lines count what they bought — `n`
+/// == the new bought units of the kind on the shelf, the amount == Σ their price — and the
+/// repeat never tops a kind past the plan: found units of it on the shelf stood in for a
+/// purchase (the shelf holds ≤ the plan's count of any kind it re-bought).
+fn check_repeat_lines(t: &mut Tally, g: &Game, seed: u64, vid: u32) {
+    let ledger = &g.lineage.gold_ledger;
+    let Some(exit) = ledger.iter().rposition(|x| ["returned", "banked", "died", "lost", "stalled"].iter().any(|w| x.why.starts_with(w))) else { return };
+    for x in ledger[exit + 1..].iter().filter(|x| x.why.starts_with("repeat ") && x.why != riddle_core::engine::REPEAT_SHORT) {
+        let kind = x.why.trim_start_matches("repeat ").replace(' ', "_");
+        let bought: Vec<&riddle_core::item::Item> = g.lineage.supplies.iter().filter(|s| s.kind == kind && !s.found && !s.free && s.id >= vid).collect();
+        let paid: i32 = bought.iter().map(|s| s.paid).sum();
+        t.check("a repeat line's count × price == its amount", x.n as usize == bought.len() && -x.delta == paid && x.n >= 1, || format!("seed {seed}: `{}` n {} · −${} · shelf bought {} for ${paid}", x.why, x.n, -x.delta, bought.len()));
+        let on_shelf = g.lineage.supplies.iter().filter(|s| s.kind == kind && !s.free).count();
+        let found = g.lineage.supplies.iter().filter(|s| s.kind == kind && s.found).count();
+        let plan = g.lineage.last_supplies.iter().filter(|k| **k == kind).count();
+        t.check("the repeat never re-buys a kind past its plan while found units sat on the shelf", on_shelf <= plan || found == 0, || format!("seed {seed}: {kind} shelf {on_shelf} (found {found}, bought {}) · plan {plan}", bought.len()));
     }
 }
 
@@ -887,6 +929,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         }
     }
     check_gold(t, &g, seed, "after the run");
+    check_exit_found(t, &g, seed, &[], "first run");
     // Cut 20 §4 (AC: a silent repeat charge on death): a re-pack charged at a death's exit is
     // a `repeat` line in the gold ledger and on the death record's ledger line.
     if let (Some(id), Some(line)) = (died, g.last_exit.clone()) {
@@ -914,7 +957,8 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         if d.verdict == "row" || d.cause_row.is_some() {
             let last = d.trace.turns.last().map(|x| x.row);
             let gamble = g.deaths.get(&id).and_then(|r| r.gamble_row).map(|r| r as i32);
-            let own = d.cause_row.is_some_and(|r| d.rules.as_ref().is_some_and(|rs| rs.rows.get(r as usize).is_some_and(|x| !x.is_card())));
+            // (QA on 778fa1b, qaV: a card's own gamble or throw that dealt the death names the card)
+            let own = d.cause_row.is_some_and(|r| d.rules.as_ref().is_some_and(|rs| rs.rows.get(r as usize).is_some_and(|x| !x.is_card() || gamble == Some(r as i32))));
             let cuts = |p: &riddle_core::wire::Patch| (p.remove || p.replace) && Some(p.insert_at) == d.cause_row.map(|r| r as i32);
             let ok = d.verdict == "row"
                 && own
@@ -1053,6 +1097,12 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     let spent: i32 = b.spent.values().map(|(_, c)| *c).sum();
     t.check("night gold: earned + salvage + wake pay − spent == delta", b.gold_earned + b.salvage_gold + b.wake_pay - spent == g.lineage.gold - before, || format!("seed {seed}: {} + {} + {} − {spent} vs {}", b.gold_earned, b.salvage_gold, b.wake_pay, g.lineage.gold - before));
     t.check("report spent == the batch's", r.spent.iter().map(|s| s.gold).sum::<i32>() == spent, || format!("seed {seed}"));
+    // QA on 778fa1b (qaV): the night's exits place every find.
+    for x in &r.exits {
+        let sum: u32 = x.found.iter().map(|f| f.n).sum();
+        let bad: u32 = x.found.iter().filter(|f| f.fate == "lost" || f.fate == "sheet").map(|f| f.n).sum();
+        t.check("found at an exit == kept + salvaged + shelved + used + left + stolen + bones", sum == x.found_n && bad == 0, || format!("seed {seed} night run {}: {sum} placed of {} · {:?}", x.run_id, x.found_n, x.found));
+    }
     check_labels(t, &g, seed, &g.batch.found.clone(), "report found");
     for f in &r.found {
         t.check("report `found` never labels `?` when known", !f.known || !f.label.contains('?'), || format!("seed {seed}: {f:?}"));

@@ -108,7 +108,7 @@ try {
   await waitFor((s) => s?.screen === "death", "the second death");
   await applyTop(); await sleep(200);
   rows = await sheet();
-  check(rows.map((r) => r.fired).join(" ") === "· 0/10 · 5/10 · 3/10 · 2/10" && rows[0].least && rows.filter((r) => r.least).length === 1, `each row carries its fired count, the least-fired marked (${rows.map((r) => `${r.text.slice(0, 2)}${r.fired}${r.least ? "↓" : ""}`).join(" ")})`);
+  check(rows.map((r) => r.fired).join(" ") === "· 0/10 fires · 5/10 fires · 3/10 fires · 2/10 fires" && rows[0].least && rows.filter((r) => r.least).length === 1, `each row carries its fired count, the least-fired marked (${rows.map((r) => `${r.text.slice(0, 2)}${r.fired}${r.least ? "↓" : ""}`).join(" ")})`);
   const before2 = over;   // the camp as the last drop left it
   await page.locator(".sheet-wrap .drop-row[data-row='3']").click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "camp", "camp after the second drop"); await sleep(200);

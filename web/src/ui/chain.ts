@@ -90,7 +90,7 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
       h("span", { class: "at-t dim" }, l.to > l.from ? `t${l.from}–${l.to}` : `t${l.from}`),
       h("span", { class: "r" }, `R${l.row + 1}`, verb ? h("small", { class: "dim" }, ` ${verb}`) : ""),
       h("span", { class: "why" }, l.why));
-    if (l.because) { if (!shown.some((s) => sameLink(s, l.because!))) shown.push(l.because); if (!foeBlockerOnMove(verb, l.because.text)) line.append(...link(l.because, ctx.runId)); }
+    if (l.because) { const dup = shown.some((s) => s.text === l.because!.text); if (!dup) shown.push(l.because); if (!dup && !foeBlockerOnMove(verb, l.because.text)) line.append(...link(l.because, ctx.runId)); }
     return line;
   };
   const tickOlder = ticks.length > TICKS_SHOW ? ticks.slice(0, ticks.length - TICKS_SHOW) : [];
@@ -100,14 +100,15 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
     const line = h("div", { class: "chain-row" },
       h("span", { class: "r" }, `R${r.row + 1}`, verb ? h("small", { class: "dim" }, ` ${verb}`) : ""),
       h("span", { class: "why" }, r.why));
-    if (r.because) { shown.push(r.because); if (!foeBlockerOnMove(verb, r.because.text)) line.append(...link(r.because, ctx.runId)); }
+    // QA 778fa1b (qaV: `← found heal on D1 · watch` first and last): a reason an earlier tick's line already linked is not linked again
+    if (r.because) { const dup = shown.some((s) => s.text === r.because!.text); shown.push(r.because); if (!dup && !foeBlockerOnMove(verb, r.because.text)) line.append(...link(r.because, ctx.runId)); }
     return line;
   });
   if (last && last.row >= 0) lines.push(h("div", { class: "chain-row fired" },
     h("span", { class: "r" }, `R${last.row + 1}`, h("small", { class: "dim" }, ` ${verbLabel(last.verb)}`)),
     h("span", { class: "why" }, /* copy:label */ "fired")));
   for (const b of extra) {
-    if (shown.some((s) => sameLink(s, b))) continue;
+    if (shown.some((s) => sameLink(s, b) || s.text === b.text)) continue;
     shown.push(b);
     lines.push(h("div", { class: "chain-row extra" }, ...link(b, ctx.runId)));
   }
