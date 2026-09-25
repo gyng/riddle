@@ -49,13 +49,15 @@ export type VaultChoice = { items: InvItem[]; left?: number;   // Cut 14: ticks 
  *  with the current preference's. `depth`: the bar `reach` is read at (the set's bank row's depth, else the lineage best); `delta`:
  *  the picker's headline — `bank_delta` when either panel banks, else `reach_delta`; `pm`: the ± of `reach` (0..1 fractions). */
 export type CageOption = { pref: string; current: boolean; depth: number; reach: number; reach_delta: number; bank: number; bank_delta: number;
-                           gold: number; gold_delta: number; delta: number; pm: number };
+                           gold: number; gold_delta: number; delta: number; pm: number;
+                           refined?: boolean };                // QA 778fa1b (core): measured on the refined panels (the forecast's own sims once refined)
 /** Cut 21 §1: one start measured for the active set (`startForecast()`): D1 and each lit waystone, like `CageOption` — the camp
  *  panel with the run starting on `start`, paired with the current start's. `toll`: what the send pays for it (`$10 × depth`, 0 at D1);
  *  `depth`: the floor `reach` is read at; `delta`: the headline (`bank_delta` when either panel banks, else `reach_delta`). */
 export type StartOption = { start: number; current: boolean; toll?: number; biome?: string; depth: number; reach: number; reach_delta: number;
                             bank: number; bank_delta: number; gold: number; gold_delta: number; delta: number; pm: number;
                             short?: boolean;                    // core: the purse cannot pay the toll now — that send starts on D1 (the numbers are D1's)
+                            refined?: boolean;                  // QA 778fa1b (core): measured on the refined panels (the forecast's own sims once refined)
                             pass?: boolean;                     // QA a946e04 (core): tonight's pass for this start is paid — the next send from it pays nothing (`toll` is the next night's); `net` is the next send's
                             net?: number; net_delta?: number;   // core: `gold − toll` per send, and its move against the current start
                             death?: number;                     // Cut 22 §4: the death share of a send from this start (0..1), shown beside the bank move
@@ -75,6 +77,8 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          xp?: number; level_ups?: number;                                                   // QA 92eb880: the XP this run earned (the part that crossed a level included) and the levels crossed — the watched report's `xp` line, never a client-side ladder (web's 40·L² was not the core's; `fighter +0 · L4 ↑1`)
                          stolen?: string[];                                                                 // QA e75ec29 (qaR): what thieves took this run and it never got back (`· stolen heal`; flavour-named while unidentified)
                          purse_full?: boolean;
+                         swapped?: number;                                                                  // QA 778fa1b (core): the carried gold this run's pack swaps took off (a find taken in the place of a dearer carried item — the strip's `−$37 swapped`, summed); `carried` is after it
+                         wake?: number;                                                                     // QA 778fa1b (core): the heir purse's top-up this death paid (the text's `+$N wake`); `purse_full` now only when the purse was under $80 (just over the $40 line) — a richer death has no purse word
                          stolen_gold?: number;                                                              // QA a946e04 (core, optional): the carried gold thieves took this run (`$36`, the STOLEN list's gold line); else the client sums the `steal` events' amounts
                          start?: number; start_short?: number | boolean;                                    // QA a946e04 (core, optional): the floor the run started on, and (core: a number) the waystone it wanted and did not start on — the toll short or unlit (`from D1 · toll short`); absent when it started where chosen
                          toll?: number;                                                                     // QA a946e04 (core): the toll this run's send paid (0/absent from D1 or on the night's pass) — the report's gold line counts it (qaT: `+$71 banked · −$40 spent` beside `$51 → $32`)
@@ -124,7 +128,7 @@ export type ForecastDepth = { depth: number; reach: number; cause?: string; pm?:
 export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share: number }[];
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
                          ends?: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number };
-                         refined?: boolean;
+                         refined?: boolean;                              // QA 778fa1b: always present from the core (false = the first pass, true = the refine); absent only on an older core
                          start?: number;                                 // Cut 21 §1: the floor the sims started on (`Lineage.start` when lit and payable, else 1); rows above it read reach 1.0
                          shadowed_by?: (number | null)[];                                                    // QA 92eb880: per row of the set (by index), the earlier row (0-based) that takes every moment it could fire — mark it `shadowed by R{n+1}`; null = free; absent = none shadowed   // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
                          vs?: ForecastVs };                              // Cut 22 §3: the paired move against the last painted set (absent without an edit, or on a core that answers `forecastVs(prev)` instead)
@@ -133,7 +137,7 @@ export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share
  *  ends (`bank`, `death`, …) may come as a bare delta or as `{delta, pm}`. */
 export type VsMove = { delta: number; pm?: number };
 export type ForecastVs = { depths: ({ depth: number; abs_pm?: number } & VsMove)[]; bank?: number | VsMove; death?: number | VsMove; return?: number | VsMove; gold?: number | VsMove;
-                           sims?: number };   // core: `abs_pm` = the active bar's own ± at that depth; `sims` = the paired seeds both panels ran
+                           sims?: number; refined?: boolean };   // QA 778fa1b (core): `refined` — the panels paired are the refined ones; a vs read before the refine is false, ask again after it   // core: `abs_pm` = the active bar's own ± at that depth; `sims` = the paired seeds both panels ran
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
 export type ForecastTry = { row: Row; text: string; boss?: string };
@@ -157,6 +161,7 @@ export type Patch = { row: Row; insert_at: number; survive: number; forecast_del
                       root?: { text: string }; below_bar?: boolean;
                       forecast_depth?: number; forecast_pm?: number;                         // QA 23ed91f: the camp bar `forecast_delta` moves (death's depth + 1, ≤ known_to) and its 95 % ± — set by `deathDeltas`
                       camp_pending?: boolean;                                                // QA 23ed91f: on `death()`'s patches — `forecast_delta` is the verdict's 12-sim ranking estimate, NOT the camp's; paint reach as pending until `deathDeltas(id)` lands
+                      exits?: boolean;                                                       // QA 778fa1b (core): the row ends the run (`return`/`bank` inserted or narrowed; a cut of one is not) — its cost is floors: name it (`return early`) beside its reach. A costly exit (reach ≤ −10) never leads beside a patch beating the base by 15
                       drops?: number;                                                        // Cut 19 §4: an insert onto a full set drops this own row (set index; the dead run's least-fired, ties the lowest) — `+ drop R5`, the drop sheet opens on it
                       unlock?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
 export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row";   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
@@ -188,6 +193,7 @@ export type ReturnReport = {
   salvaged: { kind: string; n: number; gold: number }[];                    // Addendum D; `kind` an unidentified kind's flavour (`brittle scroll?`) until identified (QA 1a2a4a9)
   renown: { gained: number; rank: number; ranks_up: number };               // Addendum D
   rested_s?: number; banked?: number; returned?: number; bones_found?: string[]; // Cut 2 §1–2
+  swapped?: number;                                                           // QA 778fa1b (core): carried gold the absence's pack swaps took (Σ `exits[].swapped`)
   stolen_gold?: number;                                                       // QA a946e04 (core, optional): carried gold thieves took this absence (Σ `stolen[].gold`: a stolen item's worth leaves the carry with it)
   start_short?: { depth: number; toll: number; runs: number };                // QA a946e04 (core): the waystone whose night pass the purse could not pay, its toll, and the sends that went from D1 instead (`D5 · toll $50 short · 3 runs from D1`)
   stolen?: { label: string; n: number; gold?: number }[];                                    // QA e75ec29 (qaR): what thieves took this absence and no run got back, per label (flavour-named while unidentified), most first; `gold.wake_cap` = the heir purse's top-up line ($40, each death tops up to it; `wake_n` deaths did), a death that found it full reads `purse full` on its exit line
@@ -223,6 +229,7 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         shadowed_by?: (number | null)[];                                                              // QA 92eb880: the active set's shadowed rows, as Forecast.shadowed_by (absent when none)
                         repeat?: boolean; repeat_kinds?: string[]; repeat_gold?: number;                              // Cut 19 §3: the loadout repeats (true unless cleared by `setRestock(false)`); the kinds the next send re-packs and their shelf price (`repeat · $120`); QA 1a2a4a9: a shelf of bought supplies is the next pack, so the badge is its price (the re-pack tops the shelf up, never more)
                         repeat_short?: string[];                                                                      // QA 1a2a4a9: kinds the last re-pack could not pay for (`repeat short`)
+                        repeat_due?: string[]; repeat_unpaid?: string[];                                              // QA 778fa1b (core): of the repeat's kinds, those the shelf lacks that the next send re-packs at the send (`+heal at send`), and those the purse (after the toll) or the shelf cap will not let it — the tile reads `repeat short`. The exit's re-pack pays the price quoted at its send (the badge's), so `repeat_gold` is what is charged
                         bounty?: { depth: number };
                         waystones?: number[];                                                                         // Cut 21 §1: the lit waystones (a biome's first floor the lineage has banked at or past: 5 · 9 · 14 · 19 · 24 · 29), ascending
                         start?: number;

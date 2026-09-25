@@ -1166,7 +1166,7 @@ export class FakeEngine implements Engine {
       return { delta: m, pm: 1.96 * Math.sqrt(v / N) };
     };
     const depths = Array.from({ length: Math.min(15, known_to) }, (_, k) => ({ depth: k + 1, ...move((r) => (r.depth >= k + 1 ? 1 : 0)) }));
-    return { depths, bank: move((r) => (r.exit === "bank" ? 1 : 0)), death: move((r) => ((r.exit ?? "death") === "death" ? 1 : 0)), return: move((r) => (r.exit === "return" ? 1 : 0)) };
+    return { depths, bank: move((r) => (r.exit === "bank" ? 1 : 0)), death: move((r) => ((r.exit ?? "death") === "death" ? 1 : 0)), return: move((r) => (r.exit === "return" ? 1 : 0)), refined: false };   // QA 778fa1b: one pass here
   }
   private forecastN(N: number): Forecast {
     const L = this.s.lineage; const known_to = L.best_depth + 1;
@@ -1507,6 +1507,8 @@ export class FakeEngine implements Engine {
     // Cut 11 §2: a locked-condition root — the unlock as a pseudo-patch (`◆2 cond: alert`, insert_at −1): the client buys, then inserts the row
     if (!L.unlocks.includes("cond_alert") && replay.alert >= 1) { const row: Row = { conds: [{ k: "alert>=", n: 3 }], verb: { v: "return" } }; const sv = survive({ rows: [row, ...log.rules.rows] }); patches.push({ row, insert_at: -1, survive: sv, forecast_delta: Math.round((sv - base) * 100) / 100, root: { text: `◆${UNLOCK_COST.cond_alert} cond: alert` }, ...(sv < 0.6 ? { below_bar: true } : {}) }); }
     patches = patches.slice(0, 4);
+    // QA 778fa1b stand-in: a patch whose row ends the run says so (`exits`) — the client names its cost (`return early`)
+    patches = patches.map((p) => (!p.remove && (p.row.verb.v === "return" || p.row.verb.v === "bank") ? { ...p, exits: true } : p));
     const margin = log.stalled ? "no path" : `${Math.max(1, log.hpMargin)} hp short`;   // a stall's headline: the guard's reason, not an hp margin
     const morgue = [`riddle · seed ${L.seed} · heir ${log.heir} · ${log.cls} · ${log.trait}`, `D${log.depth} · ${replay.cause ?? "?"} · ${margin} · ${verdict} · turn ${log.turns}`, "", ...log.rules.rows.map((r, i) => `R${i + 1} ${rowText(r)}`), "", ...replay.trace.map((t) => `t${t.t * 10} R${t.row + 1} ${verbText(t.verb)} hp${t.hp} foes${t.foes}${t.telegraphs.length ? " " + t.telegraphs.join(",") : ""}`), ...chain.map((c) => `← ${c.text} t${c.t * 10}`)].join("\n");
     const d: Death = { run_id: runId, depth: log.depth, cause: log.stalled ? "stalled" : replay.cause ?? log.cause ?? "?", margin, verdict, baseline: base, trace: { turns: scaleTrace(replay.trace) }, patches, morgue, line: log.line ?? replay.line, rules: log.rules,

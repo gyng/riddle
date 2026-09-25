@@ -322,7 +322,12 @@ fn boss_of(run: &Run, cause: &str) -> Option<String> {
 pub fn pinnable_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
     let kind = rec.boss.clone()?;
     let row = crate::facts::boss_counter_row(&game.lineage.facts, &kind)?;
-    if has_counter_verb(&rec.rules, &row) || !game.vocabulary().verbs.contains(&row.verb) {
+    // QA on 778fa1b (qaU: `foe: boss → attack boss` beside an editor whose lists had neither):
+    // the counter is offered only as a row the editor can write — its verb and every cond in
+    // the lineage's vocabulary (`foe: boss` opens on the boss's sight, the counter on his
+    // telegraph; a counter known before its tag waits for it).
+    let v = game.vocabulary();
+    if has_counter_verb(&rec.rules, &row) || !v.verbs.contains(&row.verb) || !row.conds.iter().all(|c| v.conds.iter().any(|x| x.same_token(c))) {
         return None;
     }
     Some(row)
@@ -906,7 +911,7 @@ fn pin_counter(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Opti
         return None;
     }
     rec.counter = Some(row.clone());
-    Some(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None })
+    Some(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false })
 }
 
 /// Cut 11 §2: the root-cause patch. A theft root: `foe_tag:thief → attack tag:thief` (the
@@ -934,7 +939,7 @@ fn root_patch(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Optio
     let mut b = base.sim_clone();
     unlock_base(&mut b, rec);
     let insert_at = if unlock.is_some() { -1 } else { 0 };
-    let patch = Patch { row: row.clone(), insert_at, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: Some(PatchRoot { text }), below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None };
+    let patch = Patch { row: row.clone(), insert_at, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: Some(PatchRoot { text }), below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false };
     let rules = patched_rules(&rec.rules, &patch, max_rows(rec));
     let pos = rules.rows.iter().position(|r| *r == row).unwrap_or(0);
     let mut rp = Replayer::new(&b, &rules, ticks, rec.stall)?;
@@ -966,7 +971,7 @@ fn cut_patch(rec: &DeathRec, base: &Game, ticks: u32, at: usize) -> Option<Patch
     if moving && row.conds.len() < 2 && !row.conds.iter().any(|c| c.k == "adj>=") && rec.vocab.conds.iter().any(|c| c.k == "adj>=") {
         let mut narrowed = row.clone();
         narrowed.conds.push(Cond::n("adj>=", 1));
-        cands.push(Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None });
+        cands.push(Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false });
     }
     // Cut 19 §2/§4: a way home written too late (the walk met the floor) — the same row 20
     // points sooner (`hp < 20% → return` → `hp < 40%`), beside cutting it.
@@ -974,9 +979,9 @@ fn cut_patch(rec: &DeathRec, base: &Game, ticks: u32, at: usize) -> Option<Patch
     if let (false, true, Some(i)) = (rec.stall, matches!(row.verb.v.as_str(), "return" | "bank"), late) {
         let mut sooner = row.clone();
         sooner.conds[i].n = sooner.conds[i].n.map(|n| n + 20);
-        cands.push(Patch { row: sooner, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None });
+        cands.push(Patch { row: sooner, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false });
     }
-    cands.push(Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None });
+    cands.push(Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false });
     let mut best: Option<Patch> = None;
     for mut p in cands {
         let rules = patched_rules(&rec.rules, &p, max_rows(rec));
@@ -1056,11 +1061,11 @@ fn chase_cause(rec: &DeathRec, base: &Game, ticks: u32, baseline: f64) -> Option
         return None;
     }
     let row = rec.rules.rows[at].clone();
-    let mut cands = vec![Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }];
+    let mut cands = vec![Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false }];
     if !row.conds.iter().any(|c| c.k == "adj>=") && rec.vocab.conds.iter().any(|c| c.k == "adj>=") {
         let mut narrowed = row.clone();
         narrowed.conds.push(Cond::n("adj>=", 1));
-        cands.insert(0, Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None });
+        cands.insert(0, Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false });
     }
     let mut best: Option<Patch> = None;
     for mut p in cands {
@@ -1382,10 +1387,10 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
         rec.chase_row = chase_cut.as_ref().map(|p| p.insert_at.max(0) as usize);
     }
     let row_cut = match gamble_at {
-        Some(at) => Some(cut_patch(rec, &base, ticks, at).unwrap_or_else(|| Patch { row: rec.rules.rows[at].clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None })),
+        Some(at) => Some(cut_patch(rec, &base, ticks, at).unwrap_or_else(|| Patch { row: rec.rules.rows[at].clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false })),
         None => row_cut.or(chase_cut),
     };
-    let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }).collect();
+    let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false }).collect();
     // Cut 11 §2: the chain's root — the theft's answer or the unlock — measured at the top,
     // scored like any other (its edge counts for the verdict; its delta is simulated first).
     if let Some(r) = root_patch(game, rec, &base, ticks) {
@@ -1503,7 +1508,7 @@ fn floor_verdict(game: &Game, rec: &mut DeathRec, cands: &[Row], pinnable: Optio
     let heal = scored.iter().any(|(r, row)| (uses(row, "drink", "heal") || uses(row, "read", "heal")) && *r >= MARGIN_BAR - 1e-9);
     let unknown = (scored.iter().any(|(r, row)| uses(row, "drink", "unknown") && *r >= MARGIN_BAR - 1e-9), scored.iter().any(|(r, row)| uses(row, "read", "unknown") && *r >= MARGIN_BAR - 1e-9));
     scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap().then(a.1.conds.is_empty().cmp(&b.1.conds.is_empty())).then(a.1.conds.len().cmp(&b.1.conds.len())));
-    let patches: Vec<Patch> = scored.into_iter().map(|(rate, row)| Patch { row, insert_at: 0, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }).collect();
+    let patches: Vec<Patch> = scored.into_iter().map(|(rate, row)| Patch { row, insert_at: 0, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false }).collect();
     rec.death.patches = one_per_family(patches);
     rec.death.baseline = fbase;
     rec.death.verdict = "gap".into();
@@ -1773,6 +1778,7 @@ pub fn compute_deltas(game: &Game, rec: &mut DeathRec) {
     // unpatched rules (a 100 % baseline: the replays win the fight he lost) says so.
     rec.death.nothing_beats_base = is_dice && !rec.death.patches.is_empty() && rec.death.patches.iter().all(|p| p.survive <= baseline + 1e-9);
     set_drops(rec);
+    mark_exits(&mut rec.death.patches);
 }
 
 /// Cut 11 §4: on a `dice` death after a telegraph, `foe_tag:telegraph → retreat` is measured
@@ -1790,7 +1796,7 @@ fn dice_telegraph(game: &Game, rec: &mut DeathRec) {
         return;
     }
     let below_bar = survive < survive_bar(rec.death.baseline) - 1e-9 || survive <= rec.death.baseline + 1e-9;
-    rec.death.patches.push(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None });
+    rec.death.patches.push(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false });
     rec.deltas_done = false;
 }
 
@@ -1826,7 +1832,7 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
         }
         let Some(mut rp) = Replayer::new(&base, &patched(rec, &row, 0), ticks, rec.stall) else { continue };
         let (survive, fired) = measure(&mut rp, &row, 0);
-        measured.push((Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: true, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }, fired));
+        measured.push((Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: true, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false }, fired));
     }
     // Cut 15 §6: a candidate that survives 0 % is no alternative (U: `survives 0% · base 0%`).
     if measured.iter().any(|(p, _)| p.survive > 1e-9) {
@@ -1870,13 +1876,23 @@ pub const SURVIVE_BAND: f64 = 0.10;
 /// e75ec29 (qaQ: `rest · 83%` above two `100%` rows whose ranking reach was −8 %, one of
 /// twelve sims): it no longer sinks under patches that survive more than the band less.
 /// Ties keep the incoming order.
-pub fn rank_patches(patches: &mut [Patch], _baseline: f64) {
+///
+/// QA on 778fa1b (qaU: `hp < 40% → return · survives 100%` led `read unknown · 67%`; applied,
+/// the camp read `D5 −54`): an exit patch whose reach costs `EXIT_COST` or more
+/// (`costly_exit`) survives the moment by ending the run early — it does not set the band's
+/// top, nor take a place, while a patch that is not one beats the baseline by
+/// `PATCH_MARGIN` (`exit_alternative`): it does not lead (from the second place on the
+/// order is the usual one — the safe way home stays on the list, named for its cost). At
+/// equal survival and reach (a reach still pending reads alike), a non-exit patch goes first.
+pub fn rank_patches(patches: &mut [Patch], baseline: f64) {
     let by_delta = patches.iter().any(|p| p.forecast_delta > DELTA_BAR);
     let mut pool: Vec<Patch> = patches.to_vec();
     let mut out: Vec<Patch> = Vec::with_capacity(patches.len());
     while !pool.is_empty() {
-        let top = pool.iter().map(|p| p.survive).fold(f64::NEG_INFINITY, f64::max);
-        let within = |p: &Patch| p.survive >= top - SURVIVE_BAND - 1e-9;
+        let alt = out.is_empty() && exit_alternative(&pool, baseline);
+        let eligible = |p: &Patch| !(alt && costly_exit(p));
+        let top = pool.iter().filter(|p| eligible(p)).map(|p| p.survive).fold(f64::NEG_INFINITY, f64::max);
+        let within = |p: &Patch| eligible(p) && p.survive >= top - SURVIVE_BAND - 1e-9;
         let any_afloat = pool.iter().any(|p| within(p) && p.forecast_delta >= DELTA_SINK);
         let mut best: Option<usize> = None;
         for (i, p) in pool.iter().enumerate() {
@@ -1886,7 +1902,10 @@ pub fn rank_patches(patches: &mut [Patch], _baseline: f64) {
             let better = best.is_none_or(|b| {
                 let q = &pool[b];
                 let (d, s) = (p.forecast_delta - q.forecast_delta, p.survive - q.survive);
-                if by_delta {
+                let tie = d.abs() <= 1e-9 && s.abs() <= 1e-9;
+                if tie {
+                    !patch_exits(p) && patch_exits(q)
+                } else if by_delta {
                     d > 1e-9 || (d.abs() <= 1e-9 && s > 1e-9)
                 } else {
                     s > 1e-9 || (s.abs() <= 1e-9 && d > 1e-9)
@@ -1901,6 +1920,51 @@ pub fn rank_patches(patches: &mut [Patch], _baseline: f64) {
     patches.clone_from_slice(&out);
 }
 
+/// QA on 778fa1b: the patch's row ends the run (`return` / `bank`): `Patch.exits`.
+pub fn exits(row: &Row) -> bool {
+    matches!(row.verb.v.as_str(), "return" | "bank")
+}
+
+/// QA on 778fa1b: an exit patch's reach cost (the forecast's move, a 0..1 share) at or past
+/// which it is `costly_exit` — two sims in the verdict's twelve, five in the camp's fifty.
+pub const EXIT_COST: f64 = 0.10;
+
+/// QA on 778fa1b: an exit patch that buys the moment with floors (`forecast_delta ≤
+/// −EXIT_COST`, the verdict's estimate or the camp's number).
+/// (An insert only: a cut that narrows the set's own exit row — the `row` verdict's answer —
+/// keeps its place by the verdict's rules.)
+pub fn costly_exit(p: &Patch) -> bool {
+    patch_exits(p) && !p.replace && p.forecast_delta <= -EXIT_COST + 1e-9
+}
+
+/// The patch puts an exit row in the set (a cut of one does not: it removes it).
+pub fn patch_exits(p: &Patch) -> bool {
+    exits(&p.row) && !p.remove
+}
+
+/// QA on 778fa1b: among `patches`, one that is not a costly exit, is advice (not
+/// `below_bar`, inserts a row or cuts one) and beats `baseline` by `PATCH_MARGIN` — while
+/// one does, a costly exit neither sets the best survival nor leads.
+pub fn exit_alternative(patches: &[Patch], baseline: f64) -> bool {
+    patches.iter().any(|p| !costly_exit(p) && !p.below_bar && p.insert_at >= 0 && p.survive >= baseline + PATCH_MARGIN - 1e-9)
+}
+
+/// Whether `p` counts toward the best survival the head must stay within `SURVIVE_BAND` of
+/// (`survival_first`, and the qa invariant): not the escape family on a boss death (Cut 6
+/// §8), not a costly exit beside an alternative (QA on 778fa1b).
+pub fn counts_as_best(p: &Patch, all: &[Patch], baseline: f64, boss: bool) -> bool {
+    let boss_escape = boss && family(&p.row) == "escape";
+    let costly = costly_exit(p) && exit_alternative(all, baseline);
+    !boss_escape && !costly
+}
+
+/// Set `exits` on each patch (QA on 778fa1b).
+pub fn mark_exits(patches: &mut [Patch]) {
+    for p in patches.iter_mut() {
+        p.exits = patch_exits(p);
+    }
+}
+
 /// QA on e75ec29 (qaQ: the gem applied `92 %` above `100 %`, `83 %` above two `100 %`): the
 /// patch the gem applies survives within `SURVIVE_BAND` of the best shown. A pinned head (the
 /// boss counter, a cut, the root, a dice death's telegraph answer) keeps it only so; else the
@@ -1909,7 +1973,9 @@ pub fn rank_patches(patches: &mut [Patch], _baseline: f64) {
 /// A `row` verdict whose cut loses the head this way is a `gap` (a missing row saves more).
 fn survival_first(rec: &mut DeathRec) {
     let boss = rec.boss.is_some();
-    let counts = |p: &Patch| !(boss && family(&p.row) == "escape");
+    let all = rec.death.patches.clone();
+    let baseline = rec.death.baseline;
+    let counts = |p: &Patch| counts_as_best(p, &all, baseline, boss);
     let Some(best) = rec.death.patches.iter().filter(|p| counts(p)).map(|p| p.survive).reduce(f64::max) else { return };
     let ok = |p: &Patch| counts(p) && p.survive >= best - SURVIVE_BAND - 1e-9;
     if rec.death.patches.first().is_none_or(ok) {
@@ -2013,6 +2079,7 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
     // band) — the pinned heads keep their places.
     rerank_free(rec);
     survival_first(rec);
+    mark_exits(&mut rec.death.patches);
     // The camp reads these panels next (the base, the tapped patch's set).
     for c in [g, unlocked] {
         for (k, v) in c.panel_cache.into_inner() {
@@ -2240,7 +2307,7 @@ mod tests_trace {
     }
 
     fn patch(verb: Verb, survive: f64, delta: f64) -> Patch {
-        Patch { row: Row::new(vec![Cond::n("hp<", 20)], verb), insert_at: 0, survive, forecast_delta: delta, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None }
+        Patch { row: Row::new(vec![Cond::n("hp<", 20)], verb), insert_at: 0, survive, forecast_delta: delta, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false }
     }
 
     #[test]
@@ -2266,9 +2333,33 @@ mod tests_trace {
         let mut ps = vec![patch(Verb::new("rest"), 0.83, 0.167), patch(Verb::new("back_corridor"), 1.0, -0.083), patch(Verb::new("descend"), 1.0, -0.083)];
         rank_patches(&mut ps, 0.0);
         assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["back_corridor", "descend", "rest"]);
+        // QA on 778fa1b (qaU): an exit that costs `EXIT_COST` of reach does not lead while a
+        // patch beats the base by `PATCH_MARGIN` — the best of the others does, and the exit
+        // keeps the second place (the safe way home, named for its cost).
         let mut ps = vec![patch(Verb::new("return"), 1.0, -0.2), patch(Verb::new("retreat"), 0.7, 0.0), patch(Verb::arg("drink", "unknown"), 0.65, 0.05)];
         rank_patches(&mut ps, 0.0);
-        assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["return", "drink", "retreat"]);
+        assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["drink", "return", "retreat"]);
+        // (seed 2015's first death: `return · 100 % · D6 −52` over `read unknown · 67 % · +0`)
+        let mut ps = vec![patch(Verb::new("return"), 1.0, -0.52), patch(Verb::arg("read", "unknown"), 0.67, 0.0), patch(Verb::new("retreat"), 0.25, -0.06)];
+        rank_patches(&mut ps, 0.0);
+        assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["read", "return", "retreat"]);
+        // With no alternative over the base's margin the exit leads as before …
+        let mut ps = vec![patch(Verb::new("return"), 1.0, -0.52), patch(Verb::new("retreat"), 0.1, 0.0)];
+        rank_patches(&mut ps, 0.0);
+        assert_eq!(ps[0].row.verb, Verb::new("return"));
+        // … and a cheap exit (reach within `EXIT_COST`) is ranked like any patch.
+        let mut ps = vec![patch(Verb::new("return"), 1.0, -0.05), patch(Verb::arg("read", "unknown"), 0.67, 0.0)];
+        rank_patches(&mut ps, 0.0);
+        assert_eq!(ps[0].row.verb, Verb::new("return"));
+        // At equal survival and reach (a reach still pending), the non-exit patch goes first.
+        let mut ps = vec![patch(Verb::new("return"), 1.0, 0.0), patch(Verb::new("retreat"), 1.0, 0.0)];
+        rank_patches(&mut ps, 0.0);
+        assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["retreat", "return"]);
+        // `exits` names the rows that end the run; a cut of one does not.
+        let mut ps = vec![patch(Verb::new("return"), 1.0, 0.0), patch(Verb::new("bank"), 1.0, 0.0), patch(Verb::new("retreat"), 1.0, 0.0)];
+        ps[1].remove = true;
+        mark_exits(&mut ps);
+        assert_eq!(ps.iter().map(|p| p.exits).collect::<Vec<_>>(), [true, false, false]);
     }
 
     #[test]

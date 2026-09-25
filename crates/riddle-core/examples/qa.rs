@@ -261,11 +261,32 @@ fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
     // QA on e75ec29 (qaQ: the gem applied `83 %` above two `100 %`; `92 %` above `100 %`): the
     // head survives within `SURVIVE_BAND` of the best shown — on a boss death the escape family
     // does not count as the best (Cut 6 §8; a boss death's escape patches sit below the rest).
+    // QA on 778fa1b (qaU: `hp < 40% → return · survives 100%` led; applied, `D5 −54`): nor does
+    // an exit patch that costs `EXIT_COST` of reach beside a patch that beats the base
+    // (`trace::counts_as_best`).
     let boss = g.deaths.get(&d.run_id).is_some_and(|r| r.boss.is_some());
-    let counts = |p: &&riddle_core::wire::Patch| !(boss && riddle_core::trace::family(&p.row) == "escape");
+    let counts = |p: &&riddle_core::wire::Patch| riddle_core::trace::counts_as_best(p, &d.patches, d.baseline, boss);
     if let (Some(head), Some(best)) = (d.patches.first(), d.patches.iter().filter(counts).map(|p| p.survive).reduce(f64::max)) {
         let ok = !counts(&head) || head.survive >= best - riddle_core::trace::SURVIVE_BAND - 1e-9;
         t.check("the top patch survives within 10 pts of the best shown", ok, || format!("seed {seed} run {}: {} {:.2} vs best {best:.2} · {}", d.run_id, head.row.describe(), head.survive, d.verdict));
+    }
+    // QA on 778fa1b: every shown patch says whether it ends the run (`exits`), and a costly
+    // exit never leads a list with an alternative that beats the base.
+    for p in &d.patches {
+        t.check("a patch's `exits` ⇔ its row returns or banks", p.exits == riddle_core::trace::patch_exits(p), || format!("seed {seed} run {}: {} exits {}", d.run_id, p.row.describe(), p.exits));
+    }
+    if let Some(head) = d.patches.first() {
+        let pinned = g.deaths.get(&d.run_id).is_some_and(|r| r.counter.as_ref() == Some(&head.row)) || head.root.is_some() || head.remove || head.replace;
+        t.check("a costly exit never leads beside an alternative", pinned || !(riddle_core::trace::costly_exit(head) && riddle_core::trace::exit_alternative(&d.patches, d.baseline)), || format!("seed {seed} run {}: {} reach {:+.2} · {:?}", d.run_id, head.row.describe(), head.forecast_delta, d.patches.iter().map(|p| (p.row.describe(), p.survive)).collect::<Vec<_>>()));
+    }
+    // QA on 778fa1b (qaU: `foe: boss → attack boss` offered while the editor's lists had
+    // neither): a patch's row is written in the lineage's vocabulary — every cond a token the
+    // editor offers, the verb one it lists (a card row is its card's; the unlock pseudo-patch
+    // names a locked cond by design).
+    let v = g.vocabulary();
+    for p in d.patches.iter().filter(|p| p.insert_at >= 0 && !p.remove && !p.row.is_card()) {
+        let conds = p.row.conds.iter().all(|c| v.conds.iter().any(|x| x.same_token(c)));
+        t.check("a patch's conds and verb are in the vocabulary", conds && v.verbs.contains(&p.row.verb), || format!("seed {seed} run {}: {} (conds {conds}, verb {})", d.run_id, p.row.describe(), v.verbs.contains(&p.row.verb)));
     }
     // QA on e75ec29 (qaQ: `survives 100% · base 100%` under GAP): replays that all survive
     // unpatched did not reproduce the death — it is never a `gap` or a `row`.

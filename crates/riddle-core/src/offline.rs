@@ -283,6 +283,7 @@ pub(crate) fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collec
         stall,
         start_short: b.start_short.map(|(depth, toll, runs)| crate::wire::StartShort { depth, toll, runs }),
         stolen_gold: b.stolen_gold.values().sum(),
+        swapped: b.swapped,
         deepest: b.run_outcomes.iter().map(|(d, _)| *d).max().unwrap_or(0),
         // Cut 13 §3: the night's ledger — what the automations bought, per kind in coins.
         stalled: b.stalls,
@@ -333,6 +334,8 @@ pub fn stall_verdict(game: &mut Game) -> Option<Stall> {
         }
     };
     let trace = game.stall.traces.get(&row).cloned();
+    let mut patches = patches;
+    crate::trace::mark_exits(&mut patches);
     Some(Stall { row: row as usize, fired, text, patches, trace })
 }
 
@@ -380,7 +383,7 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     let has_verb = |v: &Verb| vocab.verbs.contains(v);
     let has_cond = |k: &str, t: Option<&str>| vocab.conds.iter().any(|c| c.k == k && (t.is_none() || c.t.as_deref() == t));
     let present = |r: &Row| rules.rows.contains(r);
-    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None };
+    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false };
     let mut cands: Vec<Patch> = Vec::new();
     // (a) the ending row, its threshold pushed deeper.
     let mut deeper = ending.clone();

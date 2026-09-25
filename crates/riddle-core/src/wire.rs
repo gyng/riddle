@@ -133,6 +133,9 @@ pub struct CageOption {
     pub delta: f64,
     /// The 95 % half-width of `reach` (a delta inside it reads `~0`).
     pub pm: f64,
+    /// QA on 778fa1b: measured on the refined panels (the forecast's own sims once refined).
+    #[serde(default)]
+    pub refined: bool,
 }
 
 fn default_vision() -> i32 {
@@ -216,8 +219,20 @@ pub struct ExitLine {
     /// never got back took off it (each stolen item's worth).
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub stolen_gold: i32,
+    /// QA on 778fa1b (qaU: `carry $61 −$37 swapped`, `$106 −$9 swapped` on the strip and in
+    /// no ledger): the carried gold this run's pack swaps took off (coins; a find taken in the
+    /// place of a dearer carried item — the strip's falls, summed). `carried` is after them:
+    /// what the run picked up less `stolen_gold` less this.
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub swapped: i32,
+    /// QA on 778fa1b: the heir purse's top-up this death paid (the `+$N wake` of `text`), 0 when
+    /// none.
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub wake: i32,
     /// QA on e75ec29 (qaR): a death whose heir purse was already at `engine::WAKE_PAY` — no
-    /// top-up (`purse full`); a top-up reads `+$N wake` in `text`.
+    /// top-up (`purse full`); a top-up reads `+$N wake` in `text` (and `wake`). QA on 778fa1b
+    /// (qaU: `purse full` beside $1434 read as a cap): only while the purse is under
+    /// `engine::PURSE_FULL_BAND` ($80) — a richer death has nothing to say of the purse.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub purse_full: bool,
     /// Cut 21 §2: the found supplies this exit put on the shelf, per kind (the client's `found
@@ -447,8 +462,11 @@ pub struct Forecast {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ends: Option<ForecastEnds>,
     /// Cut 13 §5: this forecast is the refine pass (100 sims); a first paint (50) is marked
-    /// `…` by the client so a re-read does not look like a re-roll.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    /// `…` by the client so a re-read does not look like a re-roll. QA on 778fa1b (qaU: the
+    /// camp painted 94/78/42 then 95/73/36 for the same rules with no sign it was settling —
+    /// `false` was skipped on the wire, so the client could not tell a first pass from an old
+    /// core): always serialised, `false` on the first pass.
+    #[serde(default)]
     pub refined: bool,
     /// QA on 92eb880: per row of the forecast's set (by index), the earlier row that takes
     /// every moment it could fire (`RuleSet::shadowed_by`) — the editor marks it; `null` for a
@@ -495,6 +513,11 @@ pub struct ForecastVs {
     pub return_: VsMove,
     pub gold: VsMove,
     pub sims: u32,
+    /// QA on 778fa1b (qaU: `VS LAST · death −10` stayed from the first paint while the refined
+    /// panel beside it read 22 → 27 %): the panels paired are the refined ones (the active
+    /// set's camp panel was refined) — a vs read before the refine is `false`; ask again after.
+    #[serde(default)]
+    pub refined: bool,
 }
 
 /// Cut 21 §1: one start the camp's tablet offers (`Game::start_forecast`): D1 or a lit
@@ -535,6 +558,9 @@ pub struct StartOption {
     pub death: f64,
     #[serde(default)]
     pub death_delta: f64,
+    /// QA on 778fa1b: measured on the refined panels (the forecast's own sims once refined).
+    #[serde(default)]
+    pub refined: bool,
 }
 
 /// Cut 12 §3: how a send ends — `bank` / `return` / `death` as shares of a panel of sends run
@@ -630,6 +656,12 @@ pub struct Patch {
     /// inserted set's; `offline::apply_patch` drops this row.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drops: Option<i32>,
+    /// QA on 778fa1b (qaU: `hp < 40% → return · survives 100%` ranked first; applied, `vs last
+    /// · D5 −54 · death −94`): the patch's row ends the run (`return` / `bank`) — it survives
+    /// the moment by going home, so its cost is floors: the client names it (`return early`)
+    /// beside its reach. Set on every shown patch (`trace::mark_exits`).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub exits: bool,
 }
 
 fn is_zero_u32(n: &u32) -> bool {
@@ -786,6 +818,9 @@ pub struct ReturnReport {
     /// QA on a946e04 (qaT): the carried gold the absence's kept thefts took (Σ `stolen[].gold`).
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub stolen_gold: i32,
+    /// QA on 778fa1b: the carried gold the absence's pack swaps took (Σ `exits[].swapped`).
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub swapped: i32,
     /// Stall verdict (addition): present when the last ≥ 4 runs all came home with no new depth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stall: Option<Stall>,
@@ -1118,6 +1153,15 @@ pub struct Lineage {
     /// has a `$0 repeat short` line at that exit). Empty once a re-pack paid for everything.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub repeat_short: Vec<String>,
+    /// QA on 778fa1b (qaU: the tile's `repeat on · $26` over a `1/3` shelf the absence's
+    /// capped re-pack left empty): of the repeat's kinds, the ones the shelf lacks that the
+    /// next send's re-pack buys at the send (`+heal at send`), and the ones it will not — the
+    /// purse (after the start's toll) or the shelf's cap will not let it: the tile reads
+    /// `repeat short` (`Game::repeat_at_send`). Both empty when the shelf holds the repeat.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repeat_due: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repeat_unpaid: Vec<String>,
     /// Cut 20 §5: tonight's bounty floor (set at each night's end: best depth + 2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bounty: Option<Bounty>,

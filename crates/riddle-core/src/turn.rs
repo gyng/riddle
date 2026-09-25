@@ -2025,6 +2025,15 @@ pub fn pray(run: &mut Run, cx: &mut Ctx, want_row: bool) {
     callout(run, cx, "prayed");
 }
 
+/// A pack swap's move of the carried gold (`raw`: the find's value less what the dropped
+/// item counted): what it took off the carry, in coins as the stake shows it, is the run's
+/// `swapped` (QA on 778fa1b: `−$37 swapped` on the strip, in no ledger).
+fn swap_loot(run: &mut Run, raw: i32) {
+    let before = run.loot;
+    run.loot_add(raw);
+    run.swapped += (before - run.loot).max(0);
+}
+
 /// Pick up whatever lies on the hero's tile. Cut 20 §1: an item a thief stole this run,
 /// taken back, is a note (`Got the heal back.`).
 pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
@@ -2130,7 +2139,7 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
                 let here = run.hero.pos;
                 let it = run.items.remove(ii).item;
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
-                run.loot_add(it.value() - run.loot_value(&dropped));
+                swap_loot(run, it.value() - run.loot_value(&dropped));
                 crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
                 crate::provenance::found(run, cx, &it.kind, &label);
                 run.hero.inv.push(it);
@@ -2154,7 +2163,7 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
                 let here = run.hero.pos;
                 let it = run.items.remove(ii).item;
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
-                run.loot_add(it.value() - run.loot_value(&dropped));
+                swap_loot(run, it.value() - run.loot_value(&dropped));
                 crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
                 crate::provenance::found(run, cx, &it.kind, &label);
                 run.hero.inv.push(it);

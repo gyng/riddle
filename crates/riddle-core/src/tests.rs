@@ -1325,7 +1325,7 @@ fn a_set_that_dies_has_no_stall() {
 fn stall_patches_apply_as_replace_remove_or_insert() {
     use crate::offline::apply_patch;
     let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")), Row::new(vec![], Verb::new("attack"))], name: None };
-    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None };
+    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false };
     let deeper = Row::new(vec![Cond::n("hp<", 10)], Verb::new("return"));
     let r = apply_patch(&rules, &mk(deeper.clone(), 0, true, false), 8);
     assert_eq!(r.rows, vec![deeper.clone(), rules.rows[1].clone()]);
@@ -3993,7 +3993,6 @@ fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
     g.start_run(None);
     assert!(g.lineage.supplies.is_empty(), "the shelf went into the pack");
     assert_eq!(g.run.as_ref().unwrap().supplies.len(), 2);
-    let gold_before = g.lineage.gold;
     {
         // Cut 13: the send used both (an unused one would come back on its own, unbought).
         let (run, mut cx) = g.ctx();
@@ -4004,9 +4003,11 @@ fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
     assert_eq!(g.lineage.supplies.len(), 2, "restocked on coming home");
     assert!(g.lineage.supplies.iter().all(|s| s.kind == "heal"));
     assert_eq!(g.lineage().supplies.len(), 2, "and the wire lineage shows it");
-    // Cut 22 §1: at today's price (the bank moved the best depth, and the price with it).
-    let now = g.supply_catalogue().iter().find(|e| e.kind == "heal").unwrap().price;
-    assert_eq!(g.lineage.gold, gold_before - 2 * now, "paid from gold (was {price} for two)");
+    // Cut 22 §1: priced by depth. QA on 778fa1b (qaU: `repeat on · $20`, then `−$26` at the
+    // return): at the price the send quoted — the camp's badge — whatever the bank did to it.
+    let repeat: i32 = g.lineage.gold_ledger.iter().filter(|l| l.why == "repeat heal").map(|l| -l.delta).sum();
+    assert_eq!(repeat, price, "paid from gold at the send's price (was {price} for two)");
+    assert!(g.supply_catalogue().iter().find(|e| e.kind == "heal").unwrap().price > price / 2, "the bank moved the shelf's price");
     g.keep(vec![]).unwrap();
     assert_eq!(g.lineage.supplies.len(), 2, "no double restock after the vault decision");
     g.start_run(None);
@@ -8296,7 +8297,7 @@ fn an_insert_on_a_full_set_drops_the_least_fired_row() {
         name: None,
     };
     let new = Row::new(vec![Cond::n("hp<", 20)], Verb::new("return"));
-    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0) };
+    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false };
     let r = apply_patch(&rules, &p, 3);
     assert_eq!(r.rows, vec![new.clone(), rules.rows[1].clone(), rules.rows[2].clone()], "R1 dropped, the patch where it was measured");
     let r = apply_patch(&rules, &Patch { drops: Some(2), ..p.clone() }, 3);
@@ -8951,7 +8952,7 @@ fn a_death_the_replays_all_survive_is_dice_and_its_patches_act_on_the_floor() {
             assert!(f >= crate::trace::FIRED_BAR, "{} acts in {:.0}% of the floor's replays", p.row.describe(), f * 100.0);
         }
     }
-    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None };
+    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false };
     let f = crate::trace::floor_fired(&g, &rec, &rest).unwrap();
     assert!(f < crate::trace::FIRED_BAR, "rest acts in {:.0}% of the floor's replays", f * 100.0);
 }
@@ -9864,4 +9865,108 @@ fn an_attack_row_that_chased_into_the_death_is_the_row_verdict() {
     let cut = d.patches.iter().find(|p| p.insert_at == 2 && (p.remove || p.replace)).expect("the chase's cut is shown");
     assert!(cut.survive >= crate::trace::ROW_BAR - 1e-9 && cut.survive - d.baseline >= crate::trace::PATCH_MARGIN - 1e-9, "{:.2} vs base {:.2}", cut.survive, d.baseline);
     assert!(d.patches.first().is_some_and(|p| p.survive >= cut.survive - 1e-9), "the best patch leads");
+}
+
+/// QA on 778fa1b (qaU: the camp painted 94/78/42, then 95/73/36 for the same rules with no
+/// sign it was settling): `refined` is on the wire whichever pass a forecast is — `false` on
+/// the first, `true` on the refine — and so on the vs, cage and start reads.
+#[test]
+fn forecast_refined_is_always_on_the_wire() {
+    let g = Game::new(3);
+    let first = serde_json::to_value(g.forecast()).unwrap();
+    assert_eq!(first.get("refined"), Some(&serde_json::Value::Bool(false)), "{first}");
+    let prev = g.lineage.rules().clone();
+    assert!(!g.forecast_vs(&prev).refined);
+    assert!(g.cage_forecast().iter().all(|o| !o.refined));
+    assert!(g.start_forecast().iter().all(|o| !o.refined));
+    let refined = serde_json::to_value(g.forecast_refine()).unwrap();
+    assert_eq!(refined.get("refined"), Some(&serde_json::Value::Bool(true)));
+    // After the refine every read is the refined panel, and says so.
+    assert!(g.forecast().refined);
+    let vs = serde_json::to_value(g.forecast_vs(&prev)).unwrap();
+    assert_eq!(vs.get("refined"), Some(&serde_json::Value::Bool(true)));
+    assert!(g.cage_forecast().iter().all(|o| o.refined));
+    assert!(g.start_forecast().iter().all(|o| o.refined));
+}
+
+/// QA on 778fa1b (qaU: `carry $61 −$37 swapped` on the strip, in no ledger): a pack swap that
+/// takes a find in the place of a dearer carried item lowers the carry by what the strip shows,
+/// and the exit line names it (`swapped`); the report sums them.
+#[test]
+fn a_pack_swap_that_lowers_the_carry_is_on_the_exit_line() {
+    let mut g = arena();
+    g.run.as_mut().unwrap().loot_add(1000);
+    for _ in 0..crate::hero::INV_SLOTS {
+        let id = give(&mut g, "sword");
+        let run = g.run.as_mut().unwrap();
+        run.hero.inv.iter_mut().find(|i| i.id == id).unwrap().enchant = 3;
+    }
+    {
+        let run = g.run.as_mut().unwrap();
+        let id = run.new_item_id();
+        let pos = run.hero.pos;
+        run.items.push(crate::engine::FloorItem { pos, item: Item::new(id, "heal") });
+    }
+    let before = g.run.as_ref().unwrap().loot;
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::pickup_here(run, &mut cx);
+    }
+    let run = g.run.as_ref().unwrap();
+    assert!(run.hero.inv.iter().any(|i| i.kind == "heal"), "the heal took a spare sword's slot");
+    let fall = before - run.loot;
+    assert!(fall > 0, "a +3 sword counted more than the heal");
+    assert_eq!(run.swapped, fall);
+    finish_with(&mut g, ExitTier::Return);
+    assert_eq!(g.last_exit.as_ref().unwrap().swapped, fall);
+    assert_eq!(g.batch.swapped, fall);
+    let json = serde_json::to_value(g.last_exit.as_ref().unwrap()).unwrap();
+    assert_eq!(json.get("swapped").and_then(|v| v.as_i64()), Some(fall as i64));
+}
+
+/// QA on 778fa1b (qaU: `purse full` on death lines carrying $66 and $257 while the camp held
+/// $1434): the flag is a death's that found the purse just over the top-up line (under
+/// `PURSE_FULL_BAND`); a richer death says nothing of it; a top-up is `wake`.
+#[test]
+fn purse_full_only_near_the_top_up_line() {
+    use crate::engine::{PURSE_FULL_BAND, WAKE_PAY};
+    for (gold, full, wake) in [(0, false, WAKE_PAY), (WAKE_PAY + 10, true, 0), (PURSE_FULL_BAND, false, 0), (1434, false, 0)] {
+        let mut g = arena();
+        g.lineage.gold = gold;
+        g.run.as_mut().unwrap().hero.hp = 0;
+        finish_with(&mut g, ExitTier::Death);
+        let line = g.last_exit.clone().unwrap();
+        assert_eq!((line.purse_full, line.wake), (full, wake), "gold {gold}: {}", line.text);
+    }
+}
+
+/// QA on 778fa1b (qaU: after the absence the shelf was `1/3` — the capped re-pack left the
+/// heal — while the tile read `repeat on · $26`): the lineage names what the next send's
+/// re-pack buys then (`repeat_due`) and what the purse will not let it (`repeat_unpaid`: the
+/// tile's `repeat short`).
+#[test]
+fn the_repeat_says_what_the_send_will_and_will_not_pack() {
+    let mut g = Game::new(5);
+    no_kennel_leash(&mut g);
+    g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
+    g.lineage.last_supplies = vec!["heal".into()];
+    g.lineage.gold = 1000;
+    let l = g.lineage();
+    assert_eq!((l.repeat_due.clone(), l.repeat_unpaid.clone()), (vec!["heal".to_string()], vec![]));
+    assert!(l.repeat_gold > 0);
+    // A purse that cannot pay it: `repeat short`.
+    g.lineage.gold = 0;
+    let l = g.lineage();
+    assert_eq!((l.repeat_due.clone(), l.repeat_unpaid.clone()), (vec![], vec!["heal".to_string()]));
+    let json = serde_json::to_value(&l).unwrap();
+    assert!(json.get("repeat_unpaid").is_some());
+    // A shelf that holds the repeat: nothing due.
+    g.lineage.gold = 1000;
+    g.buy_supply("heal").unwrap();
+    let l = g.lineage();
+    assert!(l.repeat_due.is_empty() && l.repeat_unpaid.is_empty());
+    // Off: nothing either way.
+    g.set_restock(false);
+    let l = g.lineage();
+    assert!(l.repeat_due.is_empty() && l.repeat_unpaid.is_empty());
 }

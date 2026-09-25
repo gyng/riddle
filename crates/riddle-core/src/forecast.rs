@@ -299,6 +299,7 @@ pub fn cage_forecast(game: &Game) -> Vec<crate::wire::CageOption> {
             gold_delta,
             delta: if banks { bank_delta } else { reach_delta },
             pm: half_width(reach, n),
+            refined: sims > FORECAST_SIMS,
         });
     }
     out
@@ -496,6 +497,7 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
             pm: half_width(reach, n),
             death,
             death_delta: death - base.4,
+            refined: sims > FORECAST_SIMS,
         });
     }
     out
@@ -531,6 +533,7 @@ pub fn forecast_vs(game: &Game, prev: &RuleSet) -> crate::wire::ForecastVs {
         return_: paired(a, b, tier(ExitTier::Return)),
         gold: paired(a, b, |r| r.loot_kept as f64),
         sims: n as u32,
+        refined: sims > FORECAST_SIMS,
     }
 }
 
