@@ -99,7 +99,8 @@ try {
   });
   await sleep(300);
   const cardRow = await rowText(0);
-  check(/\[card\] pack break · foe: pack/.test(cardRow), `card chip reads its trigger: "${cardRow.split("\n")[0].slice(0, 60)}"`);
+  // QA 912e135: the trigger rides the card's first inline row (the chip no longer repeats it)
+  check(/\[card\] pack break\b/.test(cardRow) && /foe: pack →/.test(cardRow) && (cardRow.match(/foe: pack/g) ?? []).length === 1, `card reads its name and its trigger once: "${cardRow.slice(0, 80)}"`);
   const yours = await page.evaluate(() => document.querySelector(".fc-yours")?.textContent ?? "");
   check(/^yours: 1 of 1 row/.test(yours) && !/card R\d+ first/.test(yours), `yours line, no card-first suffix: "${yours}"`);
   // the card below the player row: no warning

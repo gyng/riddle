@@ -15,6 +15,7 @@
 // Cut 16 §2: beside them, while `Lineage.class_offer` stands, a chip per owned class with its signature verb (`rogue · vanish`;
 // one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
 // row stands in for the class button while it is up.
+import { lookStud } from "./look";
 import type { App, Mounted } from "../app";
 import type { CageOption, Lineage, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
@@ -209,6 +210,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       label: h("span", { class: "plabel-in" }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
         // QA 92eb880: the bar is the core's own ladder (`classes[c].next`, the XP the next level costs; 0 at the top: full)
         h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round(Math.min(1, lvl.next ? lvl.xp / lvl.next : lvl.next === 0 ? 1 : 0) * 100)}%` }))) });
+    if (R.has("edit")) next.el.appendChild(lookStud(app));   // hero looks: the stud opens the look sheet — from the first death, like the picker (a fresh camp stays ≤ 8 controls)
     face.el.replaceWith(next.el); face.el = next.el;
     paintRest();
   }
@@ -220,7 +222,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 2 §1: camp rest remaining; `send` skips it, so the number just disappears
   function paintRest(): void {
     const restS = app.lineage.rest_left_s ?? 0;
-    replace(rest, /* copy:callout */ `rest ${spanOf(restS)} · send skips`);
+    // QA 912e135 (qaW: "`rest 20m · send skips` — no screen says what rests or what `send skips` means"): who rests, and what the send skips
+    replace(rest, /* copy:callout */ `heir rests ${spanOf(restS)}`, /* copy:callout */ " · send skips rest");
     rest.hidden = restS <= 0;
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
@@ -304,10 +307,17 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // kind — a vault full of other kinds takes none, and the line says so (`keeps armour · vault full`)
     const CAT: Record<string, RegExp> = { weapon: /^(dagger|sword|axe|bow|spear|mace)$/, armour: /^(leather|mail|plate|scale)$/ };   // core defs.rs
     const blocked = !!auto?.length && L.vault.length >= slots && auto.every((k) => !L.vault.some((v) => CAT[k]?.test(v.kind) ?? v.kind === k));
+    // QA 912e135 (qaX: `vault full` shown under `keeps weapon` and gone under `keeps armour` with the vault still 1/1): `vault full` whenever
+    // it is; that the preference then keeps nothing new is its own word (`none kept`)
+    const full = L.vault.length >= slots && slots > 0;
     if (auto) prefs.appendChild(h("small", { class: "keep-auto dim num" }, auto.length ? /* copy:callout */ `keeps ${auto.join(" · ")}` : /* copy:callout */ "keeps nothing",
-      blocked ? h("b", { class: "warn vault-full" }, /* copy:callout */ " · vault full") : ""));
+      full ? h("b", { class: `${blocked ? "warn " : ""}vault-full` }, /* copy:callout */ " · vault full", blocked ? /* copy:callout */ " · none kept" : "") : ""));
     vault.appendChild(prefs);
     // Cut 19 §1: the cage's preference left this panel for its own tablet beside the rules (`cage → armour`)
+    // QA 912e135 (qaW: `home: armour` set here, `cage → weapon` on the tablet — "one preference, one name"): they are two settings, and
+    // this panel shows both — the cage's row under the home row, its chip opening the same picker as the tablet
+    if (revealed(app).has("cage")) vault.appendChild(h("div", { class: "chips prefs cage" }, h("span", { class: "dim" }, /* copy:label */ "cage"),
+      h("button", { class: "chip on cage-pref", onclick: () => openCagePicker() }, /* copy:callout */ `takes ${L.vault_pref ?? "weapon"}`)));
   }
   function paintCage(): void {
     const on = revealed(app).has("cage");
@@ -456,7 +466,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         // Cut 10 §3: a greyed supply says why under its price — the slots, the engine's gate, or the gold missing
         const why = full ? /* copy:callout */ `${picks.length}/${cap} slots` : e.needs ? e.needs.replace(/_/g, " ") : L.gold < e.price ? /* copy:callout */ `$${e.price - L.gold} short` : "";
         shopEl.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind)) },
-          h("span", { class: "buy-main" }, h("span", null, e.label, " ", h("b", { class: "num gold" }, `$${e.price}`)), h("small", { class: "why num dim" }, why || "\u00a0"))));
+          h("span", { class: "buy-main" }, h("span", null, e.label, " ", h("b", { class: "num gold" }, e.price > 0 ? `$${e.price}` : /* copy:label */ "free")), h("small", { class: "why num dim" }, why || "\u00a0"))));   // QA 912e135: the kennel's leash, taken back
       }
     };
     if (app.supplyCat.length) shop(app.supplyCat);

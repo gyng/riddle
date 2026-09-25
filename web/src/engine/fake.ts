@@ -951,7 +951,7 @@ const WHY_GLOSS: Record<string, string> = {
   "no path": "way blocked", "no target": "no foe reachable", "no line": "shot blocked", "no bow": "needs a bow", "cooldown": "skill recharging",
   "no item": "none in pack", "unknown item": "kind unidentified", "no unknown": "no unknowns held", "no use": "no effect now", "no leash": "needs a leash",
   "none weak": "none weak enough", "not safe": "foes too near", "no stairs": "stairs not found", "going home": "heading home", "prayed": "prayed already",
-  "no shrine": "no shrine here", "no way": "exit unreachable", "card passed": "card not triggered", "brave held": "bravery held it", "stuck": "loop guard waits",
+  "no shrine": "no shrine here", "no way": "exit unreachable", "card passed": "its rows idle", "card idle": "no trigger foe", "card blocked": "its move blocked", "brave held": "bravery held it", "stuck": "loop guard waits",
   "row guard": "row rested (loop)", "same as R": "earlier row covers", "trait first": "trait acted first", "hazard first": "left the hazard", "recall sense": "recall read first",
   "paralysed": "cannot act", "confused": "stumbled instead", "bail": "called home", "locked cond": "cond not bought", "fired, free": "free action",
 };
@@ -1049,6 +1049,7 @@ export class FakeEngine implements Engine {
   lineage(): Lineage {
     for (const c of Object.values(this.s.lineage.classes ?? {})) c.next = c.level < XP_LEVEL_CAP ? xpToNext(c.level) : 0;   // QA 92eb880: the ladder is the engine's (`ClassProg.next`)
     this.s.lineage.ledger = this.ledger();
+    this.s.lineage.look = (this.s as { look?: string }).look ?? (["rogue", "ranger"].includes(this.s.lineage.class) ? "female" : "male");   // hero looks
     this.s.lineage.counters = this.counters();
     this.s.lineage.combos = combosIn(this.s.rules.rows, COMBOS);   // Cut 8B §1
     if (this.s.lineage.best_depth >= 1) this.s.lineage.bounty = { depth: this.s.lineage.best_depth + 2 }; else delete this.s.lineage.bounty;   // Cut 20 §5 stand-in: tonight's bounty floor, best + 2 (none before a best)
@@ -1392,6 +1393,8 @@ export class FakeEngine implements Engine {
   }
   /** QA 23ed91f: the skipped sheet's call — the fake's preference pick (`autoKeep`). */
   autoKeep(): Lineage { const run = this.pending; if (!run) return this.lineage(); return this.keep(this.prefPick(run)); }
+  // hero looks: cosmetic; the class's own until set (`look` rides the save)
+  setLook(look: string): Lineage { if (!["male", "female", "cat"].includes(look)) throw new Error(`unknown look ${look}`); (this.s as { look?: string }).look = look; return this.lineage(); }
   setKeepPref(pref: string): Lineage { if (["best_weapon", "best_armour", "none"].includes(pref)) this.s.lineage.keep_pref = pref; return this.lineage(); }
   // Cut 5 stand-ins: the fake places no vaults, so `choose` only answers with the live snapshot; `bail` ends the run on the next step
   private bailed = false;

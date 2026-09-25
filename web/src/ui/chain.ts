@@ -24,7 +24,14 @@ export type ChainCtx = { rows?: Row[]; verbs?: string[]; runId?: number; chain?:
                          provenance?: boolean;     // §3: also list the trace's provenance log (the exit sheet; the death screen keeps to its chain)
                          home?: boolean;           // Cut 14: the trace of a bank/return — its last row is the way home, not the killing blow (QA on 56f2a1d: painted red)
                          depth?: number;           // QA a946e04: the floor the trace's turns are on (a death's) — a present-state blocker stamped on another floor is re-stamped to its turn here
-                         window?: number };        // Cut 21 §3: the turns the table shows (its last N) — their row reasons join the chain, not only the last turn's
+                         window?: number;          // Cut 21 §3: the turns the table shows (its last N) — their row reasons join the chain, not only the last turn's
+                         onRow?: (row: number) => void };   // QA 912e135 (qaW: `R1 unknown item` and the trace rows inert on the death screen): a row's name opens it
+
+/** QA 912e135: a row's name (`R1` and its verb) — a button that opens the row when the screen can (`ChainCtx.onRow`), else text. */
+export function rowRef(row: number, verb: string | undefined, onRow?: (row: number) => void): HTMLElement {
+  const kids = [`R${row + 1}`, verb ? h("small", { class: "dim" }, ` ${verb}`) : ""];
+  return onRow ? h("button", { class: "r row-link", "data-row": row, onclick: (e: Event) => { e.stopPropagation(); onRow(row); } }, ...kids) : h("span", { class: "r" }, ...kids);
+}
 
 /** Cut 11 §2: the verbs of the rules that ran, off a morgue's `R1 HP<40% → drink heal` lines (core and fake write them), so an
  *  old death from the chronicle labels its chain with its own rules, not the current set's. Undefined without such lines. */
@@ -96,7 +103,7 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
     const verb = verbOf(l.row);
     const line = h("div", { class: "chain-row tick", "data-row": l.row },
       h("span", { class: "at-t dim" }, l.to > l.from ? `t${l.from}–${l.to}` : `t${l.from}`),
-      h("span", { class: "r" }, `R${l.row + 1}`, verb ? h("small", { class: "dim" }, ` ${verb}`) : ""),
+      rowRef(l.row, verb, ctx.onRow),
       whySpan(l.why));
     if (l.because) { const dup = shown.some((s) => s.text === l.because!.text); if (!dup) shown.push(l.because); if (!dup && !foeBlockerOnMove(verb, l.because.text)) line.append(...link(l.because, ctx.runId)); }
     return line;
@@ -106,14 +113,14 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
   const lines: HTMLElement[] = rows.map((r) => {
     const verb = verbOf(r.row);
     const line = h("div", { class: "chain-row" },
-      h("span", { class: "r" }, `R${r.row + 1}`, verb ? h("small", { class: "dim" }, ` ${verb}`) : ""),
+      rowRef(r.row, verb, ctx.onRow),
       whySpan(r.why));
     // QA 778fa1b (qaV: `← found heal on D1 · watch` first and last): a reason an earlier tick's line already linked is not linked again
     if (r.because) { const dup = shown.some((s) => s.text === r.because!.text); shown.push(r.because); if (!dup && !foeBlockerOnMove(verb, r.because.text)) line.append(...link(r.because, ctx.runId)); }
     return line;
   });
   if (last && last.row >= 0) lines.push(h("div", { class: "chain-row fired" },
-    h("span", { class: "r" }, `R${last.row + 1}`, h("small", { class: "dim" }, ` ${verbLabel(last.verb)}`)),
+    rowRef(last.row, verbLabel(last.verb), ctx.onRow),
     h("span", { class: "why" }, /* copy:label */ "fired")));
   for (const b of extra) {
     if (shown.some((s) => sameLink(s, b) || s.text === b.text)) continue;
@@ -136,7 +143,9 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
  *  does not name the floor). */
 function link(b: Because, runId: number | undefined): (HTMLElement | string)[] {
   const out: (HTMLElement | string)[] = [h("span", { class: "because" }, "← ", b.text)];
-  if (/^never /.test(b.text)) return out;   // `never found` / `never met`: there is no moment (the core stamps the death tick)
+  // `never found` / `never met`: there is no moment (the core stamps the death tick); QA 912e135 (qaX: `← repeat short · watch` opened the
+  // killing blow): nor for a camp event (`repeat short`, the send's re-pack the purse could not pay)
+  if (/^(never |repeat short\b)/.test(b.text)) return out;
   if (replayable(runId, b)) {
     const log = lastRun()!;
     out.push(h("button", { class: "chip mini link", "data-t": b.t, onclick: () => openReplay(log, b) }, /* copy:button */ "watch"));

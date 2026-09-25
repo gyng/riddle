@@ -1,0 +1,63 @@
+You are painting HEADSHOT PORTRAITS for the game "Riddle" (a phone roguelike). FIRST look at
+/home/g/p/riddle/art/ui/targets/watch.png, camp.png and death.png (you may read those three images): the round portrait well at the bottom-left of the console
+(the brown-haired hero in a crimson cloak) and the mini portrait in the top bar are the TARGET for
+every portrait below. Use your built-in image_gen tool, one call per portrait. Do NOT write code
+beyond a PIL resample, do NOT touch anything outside /home/g/p/riddle/art/ui/portraits/. Do not
+leave scratch files behind. OVERWRITE existing files.
+
+Every portrait:
+- 1024x1024 PNG (resample with PIL Lanczos if needed), full square, fully opaque.
+- A painted anime-styled BUST: head and shoulders, the face large and centred slightly above the
+  middle (the eyes on the upper-third line), turned slightly to the RIGHT (3/4 view). The game shows
+  it inside a CIRCLE (a round iron well masks the square), so keep the face and hair well inside the
+  central circle; nothing important in the four corners.
+- Register (same as the game's sprites): crisp dark-fantasy character painting — clean confident dark
+  outlines, three-tone shading, warm amber KEY LIGHT from the upper-left (torchlight), strong value
+  contrast, a subtle watercolour wash texture in the fills (not smooth digital gradients, not loose wet
+  watercolour, no white paper showing). Grounded earthy palette like watch.png.
+- Background: a plain dark warm umber-to-black vignette (no scenery, no frame, no ring, no border).
+- Never: text, letters, numbers, logos, watermarks, a frame or ring, photorealism, 3D render.
+
+=== CLASS REFERENCES ===
+You MAY read the accepted portraits of this set and MUST match their rendering exactly (same painter,
+same bust framing and 3/4 turn to the right, same warm torchlight, same watercolour texture, same
+umber vignette): /home/g/p/riddle/art/ui/portraits/hero_fighter.png, hero_rogue.png, hero_ranger.png,
+hero_caster.png. Each new portrait is the SAME CLASS costume as that class's reference but a
+different look (a man, a woman, or a cat-folk adventurer with a cat's head — fully a cat face, not a
+human with ears). Keep the class colours: fighter crimson+steel, rogue charcoal+plum+bone sash,
+ranger deep green+leather, caster dusty violet+ivory+ember crystal.
+
+=== PORTRAITS ===
+--- 1. hero_fighter_female
+Output path: /home/g/p/riddle/art/ui/portraits/hero_fighter_female.png
+Subject: the FIGHTER heir as a young WOMAN: chestnut-brown hair in a long high ponytail, determined dark eyes, a crimson cloak over dented steel pauldrons, the rim of a round wooden shield at one shoulder. Brave, a little tired.
+
+--- 2. hero_fighter_cat
+Output path: /home/g/p/riddle/art/ui/portraits/hero_fighter_cat.png
+Subject: the FIGHTER heir as a CAT-FOLK adventurer: a ginger-orange tabby cat's head with a cream muzzle, whiskers, amber slit-pupil eyes, two large upright cat ears, a crimson cloak over dented steel pauldrons, the rim of a round wooden shield at one shoulder. Brave, a little tired.
+
+--- 3. hero_rogue_male
+Output path: /home/g/p/riddle/art/ui/portraits/hero_rogue_male.png
+Subject: the ROGUE heir as a lean young MAN: short dark hair under a charcoal-and-plum hood, sharp clever eyes, a light stubble, a bone-white sash across the chest, the hilt of a dagger at the shoulder. Wry half-smile.
+
+--- 4. hero_rogue_cat
+Output path: /home/g/p/riddle/art/ui/portraits/hero_rogue_cat.png
+Subject: the ROGUE heir as a CAT-FOLK adventurer: a smoky grey tabby cat's head with a pale muzzle, whiskers, sly green slit-pupil eyes, two large cat ears poking out through slits in a charcoal-and-plum hood, a bone-white sash across the chest, the hilt of a dagger at the shoulder. Wry.
+
+--- 5. hero_ranger_male
+Output path: /home/g/p/riddle/art/ui/portraits/hero_ranger_male.png
+Subject: the RANGER heir as a lean young MAN: deep-green hood UP shading calm eyes, short auburn hair and a short beard, fletched arrows of a quiver rising behind the shoulder, moss-and-leather collar.
+
+--- 6. hero_ranger_cat
+Output path: /home/g/p/riddle/art/ui/portraits/hero_ranger_cat.png
+Subject: the RANGER heir as a CAT-FOLK adventurer: a warm brown tabby cat's head with a cream chest ruff, whiskers, calm green slit-pupil eyes, two large cat ears poking out through slits in a deep-green hood, fletched arrows of a quiver rising behind the shoulder, moss-and-leather collar.
+
+--- 7. hero_caster_female
+Output path: /home/g/p/riddle/art/ui/portraits/hero_caster_female.png
+Subject: the CASTER heir as a slender young WOMAN: long pale ash-blond hair flowing out of a soft dusty-violet hood, ivory robe collar, the top of a gnarled staff beside the face with a small ember-orange crystal. Serene, intent.
+
+--- 8. hero_caster_cat
+Output path: /home/g/p/riddle/art/ui/portraits/hero_caster_cat.png
+Subject: the CASTER heir as a CAT-FOLK adventurer: a cream-white cat's head with dark brown points on the ears and face mask, whiskers, serene amber slit-pupil eyes, two large cat ears poking out through a soft dusty-violet hood, ivory robe collar, the top of a gnarled staff beside the face with a small ember-orange crystal.
+
+When all are saved, list the final paths and sizes. Do nothing else.

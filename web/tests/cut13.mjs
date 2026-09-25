@@ -120,7 +120,7 @@ try {
     r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, worst_death: worst } });
   });
   await sleep(200);
-  await page.locator("main.report button", { hasText: /^worst$/ }).first().click({ timeout: 5000 });
+  await page.locator("main.report button", { hasText: /^deepest$/ }).first().click({ timeout: 5000 });
   await waitFor((x) => x?.screen === "death", "the worst stall from the report");
   d = await deathScreen();
   check(d.pill === "stall" && d.line === "stalled · D2 · archer, no path · stall" && d.notes.length === 2, `the report's open shows the stall verdict: "${d.line}"`);
@@ -291,7 +291,7 @@ try {
   // QA e75ec29 (Q: `D1 100% ±1`): a share that reads 0 % or 100 % carries no ± — the ± is asked of the rows strictly between
   const fc = () => page.evaluate(() => { const L = window.__riddle.lastForecast; const inside = (x) => { const r = Math.round(x * 100); return r > 0 && r < 100; };
     return { refined: document.querySelector(".forecast")?.dataset.refined, pms: [...document.querySelectorAll(".fc-bars .pm")].map((e) => e.textContent), want: (L?.depths ?? []).filter((d) => d.pm !== undefined && inside(d.reach)).length, deathInside: !!L?.ends && inside(L.ends.death), ends: document.querySelector(".fc-ends:not([hidden])")?.textContent ?? "", stale: document.querySelector(".forecast")?.classList.contains("stale") }; });
-  const endsOk = (f, tail) => f.deathInside ? new RegExp(` · death \\d+% ±\\d+${tail} · ~\\$\\d+$`).test(f.ends) : / · death (0|100)% · ~\$\d+$/.test(f.ends);
+  const endsOk = (f, tail) => f.deathInside ? new RegExp(` · death \\d+% ±\\d+${tail} · ~\\$\\d+$`).test(f.ends) : / · death (0|100|[<>]\d+)% · ~\$\d+$/.test(f.ends);
   await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "0", null, { timeout: 15_000 });
   let f = await fc();
   check(f.refined === "0" && f.pms.length === f.want && f.pms.every((p) => /^ ±\d+…$/.test(p)), `the first paint's ± trail …, one per share strictly inside 0–100 %: ${f.pms.join(",")} (${f.want} wanted)`);
@@ -366,7 +366,7 @@ try {
   const chipsQ = await page.evaluate(() => [...document.querySelectorAll(".report .chip.fact")].map((c) => { const b = c.getBoundingClientRect(); return { text: c.textContent.replace(/\s+/g, " ").trim(), right: b.right, over: c.scrollWidth > c.clientWidth + 1 }; }));
   const warlord = chipsQ.find((c) => /goblin warlord/.test(c.text));
   check(!!warlord && /boss · buffer · summoner · telegraph$/.test(warlord.text) && warlord.right <= 400.5 && !warlord.over, `a long LEARNED chip wraps inside the viewport: "${warlord?.text}" right ${warlord?.right}`);
-  check(chipsQ.some((c) => c.text === "alert · rising") && !chipsQ.some((c) => /:/.test(c.text)), `alert:rising reads with a dot: ${chipsQ.map((c) => `"${c.text}"`).join(", ")}`);
+  check(chipsQ.some((c) => c.text === "alert rises · alert ≥ open") && !chipsQ.some((c) => /:/.test(c.text)), `alert:rising reads with a dot: ${chipsQ.map((c) => `"${c.text}"`).join(", ")}`);
   await shot("11-report-chips");
   await page.locator(".report .exit-lines .chip.mini", { hasText: /\btrace$/ }).first().click({ timeout: 5000 }); await sleep(200);   // Cut 14 §4: the chip reads `D5 · died · trace`
   const traceSheet = await page.evaluate(() => {

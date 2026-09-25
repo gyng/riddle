@@ -257,6 +257,13 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Hero looks: the heirs' cosmetic look (`male | female | cat`); returns the Lineage.
+    #[wasm_bindgen(js_name = setLook)]
+    pub fn set_look(&mut self, look: &str) -> Result<String, JsError> {
+        self.inner.set_look(look).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     // ---- Cut 5: bail, the vault choice, the vault preference
 
     /// §5: queue a `return` for the hero's next action (the rules untouched).

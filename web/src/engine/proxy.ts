@@ -11,6 +11,7 @@ const METHODS: (keyof Engine)[] = [
   "forecastRefine",   // Cut 6: optional on the engine; the proxy rejects when the engine lacks it (the client treats that as "no refine")
   "dropSupply",       // Cut 12 §6: optional likewise (the client falls back to clear + rebuy)
   "setTrait",         // Cut 13 §2: optional likewise (no offer without it)
+  "setLook",          // hero looks: optional likewise (the class's own look without it)
   "buyUnlockGold",    // Cut 15 §2: optional likewise (the sheet's `$ buy` is off without a gold price)
   "autoKeep",         // QA 23ed91f: optional likewise (the skipped keep sheet's preference keep)
   "deathDeltas",      // QA 23ed91f: optional likewise (the camp's reach for a death's patches, after `death`)

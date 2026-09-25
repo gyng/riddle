@@ -1140,12 +1140,21 @@ fn set_drops(rec: &mut DeathRec) {
     let about = [rec.death.cause_row.map(|r| r as usize), rec.root.as_ref().map(|r| r.row)];
     let rules = rec.rules.clone();
     let fired = rec.row_fired.clone();
+    // QA on 912e135 (qaX: the lead patch `drops R1 · 1/238 fires`, R1 the heal row the death's chain had just credited — `← R1 drank
+    // heal at 1/36 hp`): a row that acted in the death's own trace, or that its chain names, is the death's evidence — never dropped.
+    let mut acted: Vec<usize> = rec.death.trace.turns.iter().filter(|t| t.row >= 0).map(|t| t.row as usize).collect();
+    let links = rec.death.trace.turns.iter().flat_map(|t| t.rows.iter().flatten().filter_map(|w| w.because.as_ref()));
+    for b in rec.death.chain.iter().flatten().chain(links) {
+        if let Some(n) = b.text.strip_prefix('R').and_then(|x| x.split(' ').next()).and_then(|n| n.parse::<usize>().ok()) {
+            acted.push(n.saturating_sub(1));
+        }
+    }
     let least = |p: &Patch| -> Option<i32> {
         rules
             .rows
             .iter()
             .enumerate()
-            .filter(|(i, r)| !r.is_card() && !matches!(r.verb.v.as_str(), "return" | "bank") && r.verb.v != p.row.verb.v && !about.contains(&Some(*i)))
+            .filter(|(i, r)| !r.is_card() && !matches!(r.verb.v.as_str(), "return" | "bank") && r.verb.v != p.row.verb.v && !about.contains(&Some(*i)) && !acted.contains(i))
             .map(|(i, _)| (fired.get(i).copied().unwrap_or(0), i))
             .fold(None, |best: Option<(u32, usize)>, x| if best.is_none_or(|b| x.0 <= b.0) { Some(x) } else { best })
             .map(|(_, i)| i as i32)
@@ -1591,9 +1600,20 @@ fn margin_lines(rec: &mut DeathRec, heal_saves: bool, unknown_saves: (bool, bool
     if rec.heal_held && heal_saves {
         rec.death.margin.push_str(" · heal unused");
     }
-    let n = unknown_unused(rec, unknown_saves);
+    let (potions, scrolls) = unknown_unused(rec, unknown_saves);
+    let n = potions + scrolls;
     if n > 0 {
-        rec.death.margin.push_str(&format!(" · {n} unknown unused"));
+        // QA on 912e135 (qaW: `3 unknown unused` beside `left` listing six unknowns, one a
+        // potion): the count names what it counts — the unknowns held that the set could use,
+        // by kind (`3 unknown potions unused`); both kinds keep the bare noun.
+        let what = match (potions, scrolls) {
+            (1, 0) => "unknown potion",
+            (_, 0) => "unknown potions",
+            (0, 1) => "unknown scroll",
+            (0, _) => "unknown scrolls",
+            _ => "unknowns",
+        };
+        rec.death.margin.push_str(&format!(" · {n} {what} unused"));
         // QA on e75ec29 (qaQ: `2 unknown unused` on a `curious · drinks unknowns` hero): the
         // trait uses an unknown only when clear (no foe in view, ≥ 50 % HP, once a floor —
         // `turn::decide`); the row that would have used them in the fight is the gap, and the
@@ -1607,7 +1627,10 @@ fn margin_lines(rec: &mut DeathRec, heal_saves: bool, unknown_saves: (bool, bool
     // cause"): an engagement row striking into the killer's telegraph is the fight's, not the
     // row's (cutting the strike "survives" by never fighting); the gap is the row above it that
     // answers the telegraph, and the margin says so.
-    if telegraph_unanswered(rec) {
+    // QA on 912e135 (qaX: `telegraph unanswered · GAP` over one patch, `hp < 40% → return`, that answers no telegraph): the
+    // margin names the gap only while a patch that answers it is offered (a `foe: telegraph` row), as `heal unused` does.
+    let answered = rec.death.patches.iter().any(|p| p.row.conds.iter().any(|c| c.k == "foe_tag" && c.t.as_deref() == Some("telegraph")));
+    if answered && telegraph_unanswered(rec) {
         rec.death.margin.push_str(" · telegraph unanswered");
     }
 }
@@ -1627,24 +1650,19 @@ pub fn telegraph_unanswered(rec: &DeathRec) -> bool {
 }
 
 /// The margin's `N unknown unused` count (`margin_lines`).
-fn unknown_unused(rec: &DeathRec, (potion_saves, scroll_saves): (bool, bool)) -> u32 {
+fn unknown_unused(rec: &DeathRec, (potion_saves, scroll_saves): (bool, bool)) -> (u32, u32) {
     let reads = |v: &str| rec.rules.rows.iter().any(|r| r.verb.v == v && r.verb.a.as_deref() == Some("unknown"));
     let (drinks, reads) = (reads("drink"), reads("read"));
     let any_row = drinks || reads;
     let said_none = rec.death.trace.turns.last().and_then(|t| t.rows.as_ref()).is_some_and(|rows| rows.iter().any(|w| w.why == "no unknown"));
     if said_none {
-        return 0;
+        return (0, 0);
     }
     let scrolls = rec.unknown_scrolls.min(rec.unknown_held);
     let potions = rec.unknown_held - scrolls;
-    let mut n = 0;
-    if potion_saves && (drinks || !any_row) {
-        n += potions;
-    }
-    if scroll_saves && (reads || !any_row) {
-        n += scrolls;
-    }
-    n
+    let p = if potion_saves && (drinks || !any_row) { potions } else { 0 };
+    let s = if scroll_saves && (reads || !any_row) { scrolls } else { 0 };
+    (p, s)
 }
 
 /// Cut 14 §2: the survival a consumable's row must reach for the margin to call it unused.

@@ -166,6 +166,11 @@ pub struct Stake {
     /// the HUD reads `carry $78 · bank keeps $78 · death $0`.
     #[serde(default)]
     pub death_keep: i32,
+    /// QA on 912e135 (qaW: the strip's `−$8 swap` twice against the death line's `−$2
+    /// swapped`): the carry this run's pack swaps have taken so far (`Run.swapped`, the exit
+    /// line's `swapped` at the end) — the strip names a fall `swap` by this counter's rise.
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub swapped: i32,
 }
 
 /// Cut 6 §1: the ledger line of an exit — one arithmetic line the player can check.
@@ -245,6 +250,11 @@ pub struct ExitLine {
     /// heal → shelf`; `text` does not carry it).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shelved: Vec<KindCount>,
+    /// QA on 912e135 (qaW: `bones: 12 items on D6` beside a list of 14 — `leash ×3` counted
+    /// charges; `11 items on D6` beside 10 — the list held only the finds): the death's whole
+    /// pile per kind, `n` the items (a stack is one) — Σ `n` is the `bones: N items` of `text`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bones: Vec<KindCount>,
 }
 
 /// Cut 21 §2: a kind and how many (`ExitLine.shelved`).
@@ -283,6 +293,10 @@ pub struct GoldLine {
     /// up); 0 on any other line.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub n: u32,
+    /// QA on 912e135 (qaW: sixteen `$0 died D6` rows and none of the ~$1,900 the runs carried):
+    /// on an exit's line, the carried gold the exit did not keep (`$0 died D6 · $157 lost`).
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub lost: i32,
 }
 
 /// Cut 6 §5: a boss whose counter row is known (`Lineage.counters`): the row and its ≤ 3-word
@@ -524,6 +538,12 @@ pub struct Forecast {
 pub struct VsMove {
     pub delta: f64,
     pub pm: f64,
+    /// QA on 912e135 (qaW: `D6 61%` read `▲32`, then `▲38` unedited; a bought leash took D6 63 →
+    /// 79 % while `▲` fell): the sent set's own share on the same seeds, under today's lineage
+    /// (the kit, the facts) — `base + delta` is the active panel's share, the number the shaft
+    /// shows when the forecast painted is the same pass (`sims`).
+    #[serde(default)]
+    pub base: f64,
 }
 
 /// Cut 22 §3: a depth's paired move (`D8 +6`).
@@ -534,6 +554,9 @@ pub struct VsDepth {
     pub pm: f64,
     /// The absolute bar's own half-width at this depth (the active panel's `ForecastDepth.pm`).
     pub abs_pm: f64,
+    /// QA on 912e135: the sent set's reach here on the same seeds (`VsMove.base`).
+    #[serde(default)]
+    pub base: f64,
 }
 
 /// Cut 22 §3: an edit's paired move against the previous set (`Game::forecast_vs`): per depth
@@ -546,6 +569,10 @@ pub struct ForecastVs {
     #[serde(rename = "return")]
     pub return_: VsMove,
     pub gold: VsMove,
+    /// QA on 912e135 (qaX: `pack break` added — `death −11` in green while `stall 11%` came up
+    /// and D8 fell): the stall share's move (a timed-out send), so a death traded for a stall reads.
+    #[serde(default)]
+    pub stall: VsMove,
     pub sims: u32,
     /// QA on 778fa1b (qaU: `VS LAST · death −10` stayed from the first paint while the refined
     /// panel beside it read 22 → 27 %): the panels paired are the refined ones (the active
@@ -904,6 +931,10 @@ pub struct ReturnReport {
     /// `found heal ×12 → shelf`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shelved: Vec<SalvageRow>,
+    /// QA on 912e135 (qaW: `♟18` over a report of ♟2–♟17, read as the heir who ran): the first
+    /// and the last heir who ran these runs (`[2, 17]`; one heir `[5, 5]`); empty with no run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heirs: Vec<u32>,
 }
 
 /// Cut 20 §5: the bounty floor (`Lineage.bounty`): each night the lineage's best depth + 2 —
@@ -945,6 +976,11 @@ pub struct GoldSummary {
     /// How many of the absence's deaths topped the purse up (the rest found it full).
     #[serde(default)]
     pub wake_n: u32,
+    /// QA on 912e135 (qaW: `STALLED $224 lost` and sixteen `$N carried` lines while the gold
+    /// sheet named none of it): the carried gold the absence's exits did not keep (a death's,
+    /// a stall's whole carry; a return's 40 %) — no movement of the purse, what it could have held.
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub lost: i32,
 }
 
 /// QA on e75ec29: a kind thieves took and kept (`ReturnReport.stolen`): the label, how many.
@@ -1244,6 +1280,10 @@ pub struct Lineage {
     /// (`LineageState::row_stats`); `null` before any send under that row.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub row_why: Vec<Option<RowStat>>,
+    /// Hero looks: the heir's cosmetic look (`male | female | cat`; the class's own until
+    /// `setLook`); sprites and portraits are `hero_<class>_<look>`.
+    #[serde(default)]
+    pub look: String,
 }
 
 fn yes() -> bool {
@@ -1384,6 +1424,10 @@ pub struct KitNext {
     pub affordable: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nights: Option<u32>,
+    /// QA on 912e135 (qaW: `7 nights` with no income on screen): the night's net the estimate
+    /// divides by (`kit::nights`), shown beside it (`7 nights · $44/night`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per_night: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub depth: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

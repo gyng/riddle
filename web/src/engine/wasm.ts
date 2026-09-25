@@ -66,6 +66,7 @@ export class WasmEngine implements Engine {
   keep(ids: number[]): Lineage { return this.call("keep", JSON.stringify(ids)); }
   autoKeep(): Lineage { return this.call("autoKeep"); }
   setKeepPref(pref: string): Lineage { return this.call("setKeepPref", pref); }
+  setLook(look: string): Lineage { return this.call("setLook", look); }   // hero looks
   insure(id: number): Lineage { return this.call("insure", id); }
   // core additions
   unlocks(): UnlockInfo[] { return this.call("unlocks"); }

@@ -219,7 +219,7 @@ try {
     }
     const c = await read();
     check(bought.length === 3, `three cards bought on a full set (${bought.join(", ")})`);
-    check(c.own === c.max && c.tab === `fighter · ${c.own}` && c.count.startsWith(`${c.own}/${c.max} · 3 cards`) && c.rows === c.own + 3 && (await state()).sheets === 0, `the tab counts own rows: "${c.tab}" beside "${c.count}" (${c.rows} rows listed, no sheet)`);
+    check(c.own === c.max && c.tab === `fighter · ${c.own}` && c.count.startsWith(`${c.own}/${c.max} rows + 3 cards`) && c.rows === c.own + 3 && (await state()).sheets === 0, `the tab counts own rows: "${c.tab}" beside "${c.count}" (${c.rows} rows listed, no sheet)`);
   }
 
   // ---- 5: the unlock sheet's disabled buys look disabled; a short `$ buy` says `$N short` (a fresh lineage: ◆0, $120)

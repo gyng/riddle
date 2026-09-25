@@ -8,6 +8,7 @@
 // up. A move tweens across the tile over the actor's action interval, inferred by peeking at
 // the actor's next queued event (default 10 ticks, clamped 3..20), progress quantised to whole
 // ticks (10 fps cadence at 1×). Callouts stay on a real-time 1 s cadence.
+import { heroKind } from "./look";
 import type { Ev, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
 import { KNOWN_ENTITY_KINDS } from "./palette";
 
@@ -92,6 +93,10 @@ export class ReplayState {
   fight = false;
   caption: Callout | null = null;
   screenShake: ScreenShake | null = null;
+  /** juice (docs/JUICE.md): every event applied in play, for render-only feedback (fx.ts); never called while a seek or a skip
+   *  replays the past (`bulk`) */
+  onEvent: ((ev: Ev) => void) | null = null;
+  private bulk = false;
   private snap: Snapshot | null = null;
   private queue: Ev[] = [];
   private log: Ev[] = [];     // applied since load, in order (for seek)
@@ -155,7 +160,7 @@ export class ReplayState {
   }
   private addEntity(e: Entity, hero: boolean): EntState {
     const st: EntState = {
-      id: e.id, kind: e.kind, ally: !!e.ally, hero, cid: e.cid ?? null, x: e.x, y: e.y, px: e.x, py: e.y,
+      id: e.id, kind: hero ? heroKind(e.kind) : e.kind, ally: !!e.ally, hero, cid: e.cid ?? null, x: e.x, y: e.y, px: e.x, py: e.y,
       move: null, lunge: null, shake: null, flashUntil: -Infinity, fade: 0, dying: null, spawning: null,
       hp: e.hp, maxHp: e.max_hp, flip: false, glyph: e.telegraph ? "!" : null, glyphT: this.clock,
       ringFrom: -Infinity, remembered: !!e.remembered,
@@ -253,6 +258,7 @@ export class ReplayState {
   // Fast-forward: apply instantly until the head is "interesting", then start playing there.
   skipToEvent(): void {
     let first = true;
+    this.bulk = true;
     while (this.queue.length > 0) {
       const head = this.queue[0]!;
       if (!first && INTERESTING.has(head.k)) break;
@@ -260,6 +266,7 @@ export class ReplayState {
       this.log.push(this.queue.shift()!);
       this.applyOne(head);
     }
+    this.bulk = false;
     this.clock = this.queue.length > 0 ? this.queue[0]!.t : this.lastT + IDLE_TAIL;
     this.wholeTick = Math.floor(this.clock);
     this.finishTweens();
@@ -273,10 +280,12 @@ export class ReplayState {
     this.log = [];
     this.queue = [];
     this.reset(this.snap);
+    this.bulk = true;
     for (const ev of all) {
       if (ev.t <= t) { this.log.push(ev); this.applyOne(ev); }
       else this.queue.push(ev);
     }
+    this.bulk = false;
     this.clock = t;
     this.wholeTick = Math.floor(t);
     // the replayed past sets no text: a caption or callout from an event before the landing tick is stale (QA on 3d71c33: a chain
@@ -301,6 +310,7 @@ export class ReplayState {
 
   private applyOne(ev: Ev): void {
     const t = ev.t;
+    if (!this.bulk) this.onEvent?.(ev);
     this.lastT = Math.max(this.lastT, t);
     // `see` is not in the wire types yet (engine track): accept {e: Entity} or {id} and flash for a boss
     if ((ev as { k: string }).k === "see") {

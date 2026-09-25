@@ -83,6 +83,15 @@ pub fn row_gold(l: &LineageState, id: &str) -> Option<u32> {
     ROW_MULT.iter().find(|(r, _)| *r == id).map(|(_, m)| unit(l.best_depth) * m)
 }
 
+/// The night's net `nights` divides by (the last full night's, or tonight's when larger).
+pub fn per_night(l: &LineageState) -> i32 {
+    l.last_night_net.max(l.night_net)
+}
+
+fn s_short(l: &LineageState, price: u32) -> i64 {
+    price as i64 - l.gold as i64
+}
+
 /// The shelf's cap before the pack steps (3, or 5 with `supply_cap_5`).
 pub fn base_cap(l: &LineageState) -> usize {
     if l.unlocks.contains("supply_cap_5") {
@@ -98,7 +107,7 @@ pub fn nights(l: &LineageState, short: i64) -> Option<u32> {
     if short <= 0 {
         return Some(0);
     }
-    let per = l.last_night_net.max(l.night_net);
+    let per = per_night(l);
     (per > 0).then(|| ((short + per as i64 - 1) / per as i64) as u32)
 }
 
@@ -109,7 +118,8 @@ pub fn ladders(l: &LineageState) -> Vec<KitLadder> {
         .map(|slot| {
             let n = owned(l, slot) as usize;
             let steps: Vec<KitStep> = (0..mults(slot).len()).map(|i| KitStep { label: step_label(l, slot, i), price: price(l, slot, i), owned: i < n }).collect();
-            let next = steps.get(n).map(|s| KitNext { label: s.label.clone(), price: s.price, affordable: l.gold >= s.price as i32, nights: nights(l, s.price as i64 - l.gold as i64), ..Default::default() });
+            let short = s_short(l, steps.get(n).map(|s| s.price).unwrap_or(0));
+            let next = steps.get(n).map(|s| KitNext { label: s.label.clone(), price: s.price, affordable: l.gold >= s.price as i32, nights: nights(l, s.price as i64 - l.gold as i64), per_night: (short > 0 && per_night(l) > 0).then(|| per_night(l)), ..Default::default() });
             KitLadder { slot: (*slot).into(), owned: n as u32, steps, next }
         })
         .collect()

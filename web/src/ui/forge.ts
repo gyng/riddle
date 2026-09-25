@@ -49,7 +49,9 @@ export function openForge(app: App): void {
           const inner = [h("span", { class: "kit-label" }, n.label),
             move ? h("b", { class: `num kit-move dlt ${move.includes("≈") ? "flat" : move.includes("−") !== move.startsWith("death") ? "down" : "up"}` }, ` · ${move}`) : pending ? h("small", { class: "num dim kit-move" }, " · …") : "",
             h("b", { class: "num gold kit-price" }, ` · $${n.price}`),
-            !n.affordable && n.nights !== undefined && n.nights > 0 ? h("small", { class: "num dim kit-nights" }, /* copy:callout */ ` · ${n.nights === 1 ? "1 night" : `${n.nights} nights`}`) : ""];
+            // QA 912e135 (qaW: `7 nights` at 0 banked, 0 returned — "the income behind it is not on screen"): the net it divides by
+            !n.affordable && n.nights !== undefined && n.nights > 0 ? h("small", { class: "num dim kit-nights" }, /* copy:callout */ ` · ${n.nights === 1 ? "1 night" : `${n.nights} nights`}`,
+              n.per_night ? h("span", { class: "per-night" }, /* copy:callout */ ` at $${n.per_night}`) : "") : ""];
           if (n.affordable && app.engine.buyKit) {
             // two taps (`ok $340`); armed, it stays armed through the deltas' repaint (the key) until a tap lands elsewhere
             const b = twoTap(inner.filter((x): x is HTMLElement => typeof x !== "string"), /* copy:button */ `ok $${n.price}`, () => void buyStep(lad.slot), { class: "chip kit-next buyable", key: `kit:${lad.slot}:${n.label}` });

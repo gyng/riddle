@@ -153,7 +153,14 @@ export class App {
   resetVs(): void { this.vsBase = cloneSet(this.rules); this.vsBaseShadow = [...this.shadowedBy()]; this.fcRules = cloneSet(this.rules); this.fcShadow = [...this.vsBaseShadow]; this.fcFresh = true; this.setVs(null); }
   /** QA 778fa1b (qaV: `D10 ≈ · bank ≈` held 16 s after an edit that took bank 0 → 86 %): an edit's move is being measured — the rules
    *  differ from the base and no move for them has landed yet (the line reads `vs sent …`, never a stale `≈`). */
-  vsPending(): boolean { return !this.vs && !this.vsOff && !!this.engine.forecastVs && !!this.vsBase && !this.overBudget && !sameSet(this.vsBase, this.rules); }
+  vsPending(): boolean { return !this.vsShown() && !this.vsOff && !!this.engine.forecastVs && !!this.vsBase && !this.overBudget && !sameSet(this.vsBase, this.rules); }
+  /** QA 912e135 (qaW: `D6 61%` read `▲32`, then `▲38` with nothing edited — the refined bars under the first pass's move): the move shown
+   *  is the one paired with the forecast painted (the same sims: `base + delta` is the bar's own share); until the refine's move lands
+   *  the line reads `vs sent …` and the marks wait. */
+  vsShown(): ForecastVs | null {
+    const v = this.vs, f = this.lastForecast;
+    return v && f && v.sims && f.sims && v.sims !== f.sims ? null : v;
+  }
   /** QA 92eb880: the active set's shadowed rows (`Forecast.shadowed_by`, per row the earlier row that takes all its moments) as of the
    *  last forecast painted for the rules now; `null` until one lands after an edit (then the lineage's own read, for the set it holds). */
   private shadow: (number | null)[] | null = null;
@@ -443,6 +450,8 @@ export class App {
         const f = await this.engine.forecastRefine!();
         if (seq !== this.refineSeq) return;
         this.publishForecast(f);
+        // QA 912e135: the first pass's move is not the refined bars' — the marks wait (`vsShown`) and the line reads `vs sent …` until it lands
+        if (this.vs && !this.vs.refined) for (const fn of this.vsListeners) { try { fn(); } catch (e) { console.warn("vs listener", e); } }
         // Cut 22 §3: the refine's move — the one it carries, else `forecastVs` asked again now the panels paired are the refined ones
         if (this.vsBase && !sameSet(this.vsBase, this.rules)) { if (f.vs) this.setVs(f.vs); else this.measureVs(f, cloneSet(this.rules), true); }
       } catch (e) { this.refineOff = true; console.warn("forecastRefine unavailable", e); }
@@ -566,6 +575,8 @@ export class App {
     return this.mutate(async () => { let L = await this.engine.clearSupplies(); for (const k of rest) L = await this.engine.buySupply(k); return L; });
   }
   setClass(cls: string): Promise<boolean> { return this.mutate(() => this.engine.setClass(cls)); }
+  /** Hero looks: the heirs' cosmetic look; false on an engine without it. */
+  setLook(look: string): Promise<boolean> { const e = this.engine; return e.setLook ? this.mutate(() => e.setLook!(look)) : Promise.resolve(false); }
   setLoadout(ids: number[]): void { this.loadout = ids; void this.engine.loadout(ids); this.persist(); this.emitChange(); }
   async resetLineage(): Promise<void> {
     clearBlob();
@@ -703,10 +714,12 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     start_short: !a.start_short ? b.start_short : !b.start_short ? a.start_short : { ...b.start_short, runs: a.start_short.runs + (a.start_short.depth === b.start_short.depth ? b.start_short.runs : 0) },
     shelved: mergeCounts(a.shelved?.map((x) => ({ label: x.kind, n: x.n })), b.shelved?.map((x) => ({ label: x.kind, n: x.n })))?.map((x) => ({ kind: x.label, n: x.n })),   // Cut 21 §2: found supplies to the shelf, per kind
     exits: cat(a.exits, b.exits),                          // Cut 6 §1: one ledger line per exit
+    heirs: a.heirs?.length && b.heirs?.length ? [Math.min(a.heirs[0], b.heirs[0]), Math.max(a.heirs[1], b.heirs[1])] : b.heirs?.length ? b.heirs : a.heirs,   // QA 912e135
     elapsed_s: a.elapsed_s + b.elapsed_s, runs: a.runs + b.runs, sampled: a.sampled || b.sampled,
     deepest: a.deepest === undefined && b.deepest === undefined ? undefined : Math.max(a.deepest ?? 0, b.deepest ?? 0),
     gold: a.gold || b.gold ? { home: (a.gold?.home ?? 0) + (b.gold?.home ?? 0), salvage: (a.gold?.salvage ?? 0) + (b.gold?.salvage ?? 0), wake: (a.gold?.wake ?? 0) + (b.gold?.wake ?? 0), spent: (a.gold?.spent ?? 0) + (b.gold?.spent ?? 0),
-      ...(a.gold?.wake_cap ?? b.gold?.wake_cap) !== undefined ? { wake_cap: b.gold?.wake_cap ?? a.gold?.wake_cap, wake_n: (a.gold?.wake_n ?? 0) + (b.gold?.wake_n ?? 0) } : {} } : undefined,
+      ...(a.gold?.wake_cap ?? b.gold?.wake_cap) !== undefined ? { wake_cap: b.gold?.wake_cap ?? a.gold?.wake_cap, wake_n: (a.gold?.wake_n ?? 0) + (b.gold?.wake_n ?? 0) } : {},
+      ...(a.gold?.lost ?? b.gold?.lost) !== undefined ? { lost: (a.gold?.lost ?? 0) + (b.gold?.lost ?? 0) } : {} } : undefined,   // QA 912e135
     learned: union(a.learned, b.learned), bests: collapseBests(union(a.bests, b.bests)),
     found: [...a.found, ...b.found],
     deaths: [...deaths].map(([cause, n]) => ({ cause, n })).sort((x, y) => y.n - x.n),
@@ -733,7 +746,7 @@ export const cloneSet = (s: RuleSet): RuleSet => ({ rows: s.rows.map(cloneRow), 
 /** QA 778fa1b: a move with every delta at 0 (a dead edit's) — the line reads `≈`, the marks show nothing. */
 const flatVs = (v: ForecastVs): ForecastVs => {
   const z = (m: ForecastVs["bank"]): ForecastVs["bank"] => (m === undefined ? m : { delta: 0 });
-  return { ...v, depths: v.depths.map((d) => ({ ...d, delta: 0, pm: 0 })), bank: z(v.bank), death: z(v.death), return: z(v.return), gold: z(v.gold) };
+  return { ...v, depths: v.depths.map((d) => ({ ...d, delta: 0, pm: 0 })), bank: z(v.bank), death: z(v.death), return: z(v.return), gold: z(v.gold), stall: v.stall ? { delta: 0 } : undefined };
 };
 const sameSet = (a: RuleSet, b: RuleSet): boolean => a.rows.length === b.rows.length && a.rows.every((r, i) => rowKey(r) === rowKey(b.rows[i]));
 

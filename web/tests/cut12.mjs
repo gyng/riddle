@@ -85,13 +85,13 @@ try {
   await sleep(700);
   c = await camp();
   check(c.rows.length === 3 && c.rows[1].card && /thief guard/.test(c.rows[1].text) && /attack/.test(c.rows[2].text), `the card sits at R2, above attack: ${c.rows.map((r) => r.text.slice(0, 24)).join(" | ")}`);
-  check(c.count === "2/4 · 1 card", `the chip counts own rows and the card beside: "${c.count}"`);
+  check(c.count === "2/4 rows + 1 card", `the chip counts own rows and the card beside: "${c.count}"`);
   check(/^yours: 0 of 2 rows/.test(c.yours) && !/card R\d+ first/.test(c.yours), `yours counts own rows, no "card R2 first" (a card sits before attack on purpose): "${c.yours}"`);
   await page.evaluate(() => window.__riddle.buy("pack_break"));
   await sleep(700);
   c = await camp();
   check(c.rows.length === 4 && c.rows[2].card && /pack break/.test(c.rows[2].text) && /attack/.test(c.rows[3].text), `the second card also sits above attack: ${c.rows.map((r) => r.text.slice(0, 24)).join(" | ")}`);
-  check(c.count === "2/4 · 2 cards" && !c.countRed && c.sendDisabled === false, `two cards, still 2/4: "${c.count}", send ${c.sendDisabled ? "disabled" : "enabled"}`);
+  check(c.count === "2/4 rows + 2 cards" && !c.countRed && c.sendDisabled === false, `two cards, still 2/4: "${c.count}", send ${c.sendDisabled ? "disabled" : "enabled"}`);
   await shot("01-cards-above-attack");
 
   // four own rows + two cards: full, sends; the fifth own row is refused as `5/4 · drop one` with the mark on an own row
@@ -101,7 +101,7 @@ try {
   await sleep(1200);
   c = await camp();
   check(/^ends bank <?\d+% · return [1-9]\d*%( · stall <?\d+%)? · death <?\d+%( ±\d+…?)? · ~\$\d+$/.test(c.ends), `with a return row the ends line shows a return share: "${c.ends}"`);
-  check(c.count === "4/4 · 2 cards" && !c.countRed && c.sendDisabled === false && !c.plus, `4 own + 2 cards: "${c.count}", send enabled, no +`);
+  check(c.count === "4/4 rows + 2 cards" && !c.countRed && c.sendDisabled === false && !c.plus, `4 own + 2 cards: "${c.count}", send enabled, no +`);
   check(!/fill rows|rows full/.test(c.rowCard) && /\+1 row/.test(c.rowCard), `+1 row lifted at 4/4 without a run: "${c.rowCard}"`);
   const engineRows = await page.evaluate(async () => (await window.__riddle.engine.lineage()).sets[window.__riddle.active].rows.length);
   check(engineRows === 6, `the engine took all six rows (${engineRows})`);
@@ -109,13 +109,13 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [{ k: "alert>=", n: 5 }], verb: { v: "return" } }, r.rules.rows.length); r.go({ kind: "camp" }); });
   await sleep(600);
   c = await camp();
-  check(c.count === "5/4 · 2 cards" && c.countRed && c.sendDisabled === true && c.send === "5/4 · drop one", `the fifth own row: "${c.count}" red, send "${c.send}"`);
+  check(c.count === "5/4 rows + 2 cards" && c.countRed && c.sendDisabled === true && c.send === "5/4 · drop one", `the fifth own row: "${c.count}" red, send "${c.send}"`);
   check(c.rows.filter((r) => r.drop).length === 1 && c.rows[6].drop && !c.rows[6].card, "the drop mark is on the last own row, never a card");
   await shot("03-fifth-own-row");
   await page.locator(".editor .row.drop .x").first().click({ timeout: 5000 });
   await sleep(300);
   c = await camp();
-  check(c.count === "4/4 · 2 cards" && c.sendDisabled === false, `after ×: "${c.count}", send enabled`);
+  check(c.count === "4/4 rows + 2 cards" && c.sendDisabled === false, `after ×: "${c.count}", send enabled`);
 
   // §1: the verb picker — a card another row holds is not offered; picking a card verb clears the row's conds
   await page.locator(".editor .row").nth(4).locator(".chip.verb").click({ timeout: 5000 });   // R5 `hp > 90% → rest`, an own row
@@ -133,7 +133,7 @@ try {
   await sleep(400);
   c = await camp();
   check(c.rows[3].card && c.rows[3].conds === 0 && /thief guard/.test(c.rows[3].text) && !/hp >/.test(c.rows[3].text), `picking a card verb cleared the conds: "${c.rows[3].text.slice(0, 40)}"`);
-  check(c.count === "3/4 · 2 cards", `the row moved from own to card: "${c.count}"`);
+  check(c.count === "3/4 rows + 2 cards", `the row moved from own to card: "${c.count}"`);
   await shot("04-card-verb-cleared-conds");
 
   // §6: a supply line's × removes that line only (the fake has `dropSupply`); the fallback (an engine without it) rebuys the rest

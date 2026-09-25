@@ -30,9 +30,11 @@ const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!
 const note = (what) => { if (verbose) out.push(`     ${what}`); };
 
 // buttons the itinerary walks (they lead to another screen) and the documented toggles (a click need not change the text)
-const NAV = new Set(["send", "keep", "edit", "camp", "open", "worst", "buy", "insert", "add", "ok", "import", "export", "reset", "again", "trace", "watch"]);
+const NAV = new Set(["send", "keep", "edit", "camp", "open", "worst", "deepest", "buy", "insert", "add", "ok", "import", "export", "reset", "again", "trace", "watch"]);
 const TOGGLES = new Set(["mute", "fights", "fast", "⏸", "▶", "▶▶|", "bail", "▲", "▼", "≡"]);
-const INERT_SEL = ".gem.patch-gem, .grip, .interstitial, .prefs .chip.on, .tabs .tab.on, .classes .chip.on, .chip.trait.on, .chip.cls-offer.on, button.patch, .cline.kept, .chip.mini.trace, .bar.try";
+// QA 912e135: the death screen's seal and banner scroll to the patches / the trace (in-page links: the text does not change), and a
+// row's name opens the camp's editor on it (a death cannot be re-entered from here: ui.mjs clicks it)
+const INERT_SEL = ".gem.patch-gem, .grip, .interstitial, .prefs .chip.on, .tabs .tab.on, .classes .chip.on, .chip.trait.on, .chip.cls-offer.on, button.patch, .cline.kept, .chip.mini.trace, .bar.try, .death-line .cause-btn, .death-line button.verdict, button.row-link";
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 2 });

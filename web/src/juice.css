@@ -1,0 +1,67 @@
+/* ===== Juice (docs/JUICE.md) — UI motion. Everything is gated on html[data-juice="on"] (web/src/juice.ts: off under
+   prefers-reduced-motion and in headless automation) and on prefers-reduced-motion: no-preference. Opacity and transforms only,
+   short (≤ 520 ms), never on text the tooling reads mid-change. ===== */
+@property --n { syntax: "<integer>"; inherits: false; initial-value: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* a place arrives: the frame fades in (opacity only: a transform would re-anchor the fixed HUD inside it) */
+  html[data-juice="on"] #app > main:not(.watch) { animation: j-screen .26s ease-out both; }
+  @keyframes j-screen { from { opacity: 0; } to { opacity: 1; } }
+  html[data-juice="on"] #app > main:not(.watch) > .well-wrap, html[data-juice="on"] #app > main:not(.watch) > .well { animation: j-rise .32s cubic-bezier(.2, .9, .3, 1.1) both; }
+  @keyframes j-rise { from { transform: translateY(8px); } to { transform: none; } }
+
+  /* sheets: the backdrop fades, the panel rises and settles (a slight overshoot) */
+  html[data-juice="on"] .sheet-wrap { animation: j-fade .16s ease-out both; }
+  html[data-juice="on"] .sheet-wrap > .sheet { animation: j-sheet .24s cubic-bezier(.2, 1.25, .4, 1) both; transform-origin: 50% 100%; }
+  html[data-juice="on"] .sheet-wrap.anchored-top > .sheet { transform-origin: 50% 0; }
+  @keyframes j-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes j-sheet { from { opacity: .4; transform: translateY(22px) scale(.97); } to { opacity: 1; transform: none; } }
+
+  /* the camp's panels unfold from the console (UI.md §3: scale-y from the anchoring tile) */
+  html[data-juice="on"] .panel-host.open > .panel { animation: j-unfold .18s cubic-bezier(.2, 1.2, .4, 1) both; transform-origin: 50% 100%; }
+  @keyframes j-unfold { from { transform: scaleY(.86); opacity: .3; } to { transform: none; opacity: 1; } }
+
+  /* press depth on every button family (tiles and the gem already have theirs) */
+  html[data-juice="on"] :is(.btn, .chip, .patch, .row button, .close-stud, .sheet-x) { transition: transform .07s ease-out, filter .07s ease-out; }
+  html[data-juice="on"] :is(.btn, .chip, .patch):not(:disabled):active { transform: translateY(2px) scale(.985); filter: brightness(.86); }
+
+  /* the iron plate and the carved console catch a slow sweep of torchlight */
+  html[data-juice="on"] .topbar::after, html[data-juice="on"] .console::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 5; mix-blend-mode: screen;
+    background: linear-gradient(105deg, transparent 42%, rgba(255, 214, 150, .10) 49%, rgba(255, 236, 190, .16) 50%, rgba(255, 214, 150, .10) 51%, transparent 58%) no-repeat;
+    background-size: 300% 100%; background-position: 150% 0; animation: j-sheen 11s ease-in-out infinite; }
+  html[data-juice="on"] .console::after { animation-delay: 5.5s; }
+  @keyframes j-sheen { 0%, 84% { background-position: 150% 0; } 100% { background-position: -50% 0; } }
+
+  /* the primary gem breathes a warm rune glow while it waits */
+  html[data-juice="on"] .gem.pulse:not(:disabled)::after { content: ""; position: absolute; inset: 8%; border-radius: 50%; pointer-events: none;
+    box-shadow: 0 0 18px 4px rgba(255, 150, 40, .35); animation: j-rune 2.4s ease-in-out infinite; }
+  @keyframes j-rune { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+
+  /* the purse: counts up to the new sum (a pseudo-element over the real text) and glints on a gain */
+  html[data-juice="on"] .stat.gold .jn { position: relative; }
+  html[data-juice="on"] .stat.gold .jn.count { color: transparent; }
+  html[data-juice="on"] .stat.gold .jn.count::after { content: "$" counter(n); counter-reset: n var(--n); position: absolute; left: 0; top: 0; color: #f3d27a;
+    animation: j-count .8s cubic-bezier(.2, .8, .3, 1) both; }
+  @keyframes j-count { from { --n: var(--from); } to { --n: var(--to); } }
+  html[data-juice="on"] .stat.gold.glint { animation: j-glint .9s ease-out; }
+  @keyframes j-glint { 0% { filter: none; } 18% { filter: brightness(1.6) drop-shadow(0 0 6px rgba(255, 210, 90, .9)); transform: scale(1.08); } 100% { filter: none; transform: none; } }
+
+  /* death: the banner drops and swings to rest; the verdict word lands after it */
+  html[data-juice="on"] .death .banner-cloth { animation: j-banner .56s cubic-bezier(.3, 1.4, .5, 1) both; transform-origin: 50% 0; }
+  @keyframes j-banner { from { transform: translateY(-60px) rotate(-3deg); opacity: 0; } 60% { transform: translateY(4px) rotate(1deg); opacity: 1; } to { transform: none; } }
+  html[data-juice="on"] .death .banner-cloth .cause { display: inline-block; animation: j-slam .34s .32s cubic-bezier(.3, 1.6, .5, 1) both; }
+  @keyframes j-slam { from { transform: scale(1.7); opacity: 0; filter: brightness(2); } to { transform: none; opacity: 1; filter: none; } }
+  html[data-juice="on"] .death .patch { animation: j-in .3s ease-out both; }
+  html[data-juice="on"] .death .patch:nth-child(2) { animation-delay: .45s; }
+  html[data-juice="on"] .death .patch:nth-child(3) { animation-delay: .52s; }
+  html[data-juice="on"] .death .patch:nth-child(n+4) { animation-delay: .59s; }
+  @keyframes j-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+
+  /* report: the score parchment's lines settle in one after another */
+  html[data-juice="on"] .report :is(.rsec, .ledger-line, .plaque) { animation: j-in .28s ease-out both; }
+  html[data-juice="on"] .report :is(.rsec, .ledger-line, .plaque):nth-child(2) { animation-delay: .05s; }
+  html[data-juice="on"] .report :is(.rsec, .ledger-line, .plaque):nth-child(3) { animation-delay: .1s; }
+  html[data-juice="on"] .report :is(.rsec, .ledger-line, .plaque):nth-child(4) { animation-delay: .15s; }
+  html[data-juice="on"] .report :is(.rsec, .ledger-line, .plaque):nth-child(n+5) { animation-delay: .2s; }
+}

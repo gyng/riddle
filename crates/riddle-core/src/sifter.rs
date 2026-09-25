@@ -679,7 +679,8 @@ pub fn cause_phrase(cause: &str) -> String {
         "nest" => "the nest".into(),
         "stray" => "a stray".into(),
         "den" => "the den".into(),
-        "lock" => "the lock".into(),
+        // QA on 912e135 (qaW: `The lock took him to 2 HP` — "the lock is not a foe in LEARNED or DEATHS"): the lock is its bloats
+        "lock" => "lock bloats".into(),
         "captive" => "the captive".into(),
         "hunger" => "the hunger".into(),
         k if is_boss(k) => format!("the {}", boss_short(k)),
@@ -703,7 +704,7 @@ fn subject(ep: &Episode, short: bool) -> String {
         "nest" => "The nest".into(),
         "vault" => "The cage".into(),
         "den" => "The den".into(),
-        "lock" => "The lock".into(),
+        "lock" => "Lock bloats".into(),
         "captive" => "The captive".into(),
         "hunger" => "The hunger".into(),
         "stray" => {
@@ -1271,7 +1272,7 @@ mod tests {
         blades.cornered = true;
         assert_eq!(story_line(&blades), "Spectral blades cornered him to 5 HP; no row; died to fire.");
         let lock = ep(&[("lock", 1)], 4, -2, "wait", Resolution::Died { cause: "gas".into() });
-        assert_eq!(story_line(&lock), "The lock took him to 4 HP; no row; died to gas.");
+        assert_eq!(story_line(&lock), "Lock bloats took him to 4 HP; no row; died to gas.");
         let mut monkey = ep(&[("monkey", 1)], 2, -2, "wait", Resolution::Died { cause: "goblin_archer".into() });
         monkey.chased = true;
         let s = story_line(&monkey);

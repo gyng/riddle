@@ -465,7 +465,15 @@ pub fn block_reason(run: &Run, cx: &Ctx, verb: &Verb, v: &View) -> &'static str 
         }
         "return" | "bank" | "recall" => "no way",
         _ if crate::turn::targets_foes(verb) => {
-            if v.engage.is_empty() {
+            // QA on 912e135 (qaW: `attack ✗ no target` with a jackal and a goblin on screen; `R5 attack nearest · no target` beside
+            // `foes 2`): foes in view that a melee row will not go for say why — running, or given up on
+            if v.engage.is_empty() && !v.foes.is_empty() && !matches!(verb.v.as_str(), "shoot" | "volley" | "double_shot" | "throw" | "bolt" | "slow" | "drain" | "mark") {
+                if v.foes.iter().all(|&i| run.monsters[i].fleeing || run.monsters[i].fear > 0) {
+                    "foes fleeing"
+                } else {
+                    "given up"
+                }
+            } else if v.engage.is_empty() {
                 "no target"
             } else if class_cooldown(run, verb) {
                 "cooldown"

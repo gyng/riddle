@@ -25,6 +25,15 @@ impl Class {
             Class::Caster => "caster",
         }
     }
+    /// Hero looks: the cosmetic looks a heir may wear (`Game::set_look`); never read by a run.
+    pub const LOOKS: [&'static str; 3] = ["male", "female", "cat"];
+    /// Hero looks: the look a lineage that never picked one wears (the class's first painting).
+    pub fn default_look(self) -> &'static str {
+        match self {
+            Class::Fighter | Class::Caster => "male",
+            Class::Rogue | Class::Ranger => "female",
+        }
+    }
     pub fn parse(s: &str) -> Option<Class> {
         match s {
             "fighter" => Some(Class::Fighter),

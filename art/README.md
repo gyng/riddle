@@ -349,3 +349,17 @@ Gap list: `art/ui/ART_GAP.md`. Style authority updated in `ART.md` (keyed regist
 - Batches of six, three concurrent, took ~9 min wall clock end to end; a two-id critique retry
   ~5 min. Codex's own single retry now covers most colour-science misses, so check
   `review.py` for `corners=False` and judge the sheet before deciding on a retry.
+
+## Hero looks (2026-09-25) — class × male / female / cat, sprites and portraits
+
+`prompts/hero_looks.txt` (index) → batches `hero_looks_a.txt` (fighter female/cat, rogue ×3), `hero_looks_b.txt`
+(ranger male/cat, caster ×3), `hero_looks_p.txt` (8 portraits), three concurrent, ~8 min; retries `hero_looks_r1.txt`
+(`hero_ranger_female`: the old ranger read as a boy at 48 px, its braid hidden in the hood → "a long braid OUT of the hood,
+behind the back") and `hero_looks_r1p.txt` (portrait `hero_caster_male`: the old long-haired caster read androgynous → short
+hair, stubble). Each prompt lets Codex read the class's accepted master as its reference; the look's tag is in the silhouette
+(man: short hair; woman: a ponytail/braid shape behind the head; cat-folk: two tall ears + a curving tail). 16/18 first try.
+Reused as-is: sprite `hero_fighter_male` (= the v2 fighter), portraits `hero_fighter_male`, `hero_rogue_female`,
+`hero_ranger_female`. `hero_<class>` stays as the default-look alias (a copy of fighter/caster `_male`, rogue/ranger
+`_female`, `Class::default_look`); the replaced v2 masters are `archive/superseded/hero_{rogue,ranger,caster}_v2.png` and
+`archive/superseded/portrait_hero_caster_v1.png`. Ids: `hero_<class>_<look>` in the atlas and in `ui/portraits/`; the client
+falls back to `hero_<class>`, then the procedural silhouette (`render/look.ts`, `ui/frame.ts paintFace`).

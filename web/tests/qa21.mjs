@@ -154,7 +154,7 @@ try {
   await openPanel(page, "unlocks", { all: true }); await sleep(300);
   await page.locator(".unlocks .card", { hasText: "+1 row" }).first().click({ timeout: 5000 }); await sleep(250);
   const next = await txt(".sheet-wrap .next-price"), climb = await txt(".sheet-wrap .gold-climb");
-  check(next === "next ◆4 or $600 · $ buy: all $ +25%" && climb === null, `the \`+1 row\` sheet names the next step's price ("${next}"; no rate: ${climb})`);
+  check(next === "next ◆4 or $600 · each $ buy: $ prices +25%" && climb === null, `the \`+1 row\` sheet names the next step's price ("${next}"; no rate: ${climb})`);
   await shot("qa21-row-next");
   await page.keyboard.press("Escape"); await sleep(150);
 
@@ -174,7 +174,7 @@ try {
   await openPanel(page, "unlocks", { all: true }); await sleep(300);
   await page.locator(".unlocks .card", { hasText: "kite archers" }).first().click({ timeout: 5000 }); await sleep(250);
   const joins = await txt(".sheet-wrap .card-joins");
-  check(joins === "after buy · add separately", `a card that will not join says so on its sheet (QA 778fa1b, qaV: unowned, never owned) ("${joins}")`);
+  check(joins === "buy, then add to rules", `a card that will not join says so on its sheet (QA 778fa1b, qaV: unowned, never owned) ("${joins}")`);
   await shot("qa21-card-sheet");
   await page.keyboard.press("Escape"); await sleep(150);
   const b1 = await buyCard(undefined);

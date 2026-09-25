@@ -93,7 +93,7 @@ try {
     };
     poll();
   }));
-  check(s.card === "1" && s.cardShown && /^D\d+( · \d+ rooms| · the [A-Z][a-z]+)? · (\$\d+|an? [a-z]+)$/.test(s.cardText), `the interstitial reads the ambient line: "${s.cardText}"`);
+  check(s.card === "1" && s.cardShown && /^D\d+( · \d+ rooms| · the [A-Z][a-z]+)? · (carry \$\d+|an? [a-z]+)$/.test(s.cardText), `the interstitial reads the ambient line: "${s.cardText}"`);
   check(s.speed === 0, `the clock holds under the card (speed ${s.speed})`);
   // a tap on the card holds the map at 8× until the next fight (shown whatever it costs) — tapped above
   s = await waitFor((x) => !inRun(x) || (x.card === "0" && x.frame === "map"), "the map after tapping the card", 2000);

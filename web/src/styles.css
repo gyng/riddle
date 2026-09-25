@@ -1113,3 +1113,27 @@ body.framed .sheet-wrap:not(.modeless) { bottom: calc(var(--console-h, 0px) - 6p
 .supplies .chips.shop .buy-main { min-width: 0; }
 .chain-row button.why.has-gloss { background: none; border: 0; padding: 0; min-height: 0; font: inherit; color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
 .chain-row .why .gloss { text-decoration: none; display: inline; }
+/* QA 912e135 (qaW: the seal, the banner, the trace rows and `R1 unknown item` answered no tap): each is a button now — the seal lights the
+   patches, the banner brings up the trace, a row's name opens it in the editor (a dotted underline marks the row links) */
+.death-line .cause-btn { display: block; width: 100%; text-align: center; font: inherit; }
+.patch.flash { animation: hl-tablet 1.6s ease-out; }
+button.r.row-link { display: inline; min-height: 0; text-align: left; text-decoration: underline dotted; text-underline-offset: 3px; }
+.patches .patches-moment { font-size: 12px; margin: 2px 0 4px; text-align: center; }
+/* QA 912e135: a row that waits on an identification (`⊘ identify heal`) */
+.editor .row.inert .inert-mark { margin-left: 6px; font: 600 11px/1 var(--sans); color: #c9a86a; white-space: nowrap; align-self: center; }
+.editor .row.inert .grip .inert-mark { display: block; margin: 2px 0 0; font-size: 10px; }
+.editor .row.inert > .chips { opacity: .6; }
+.tile .heirs-ran { display: block; margin-top: 2px; font-size: 12px; }   /* QA 912e135: `♟2–17` under RUNS */
+.shaft .shaft-more { display: block; font-size: 11px; opacity: .6; text-align: center; margin-top: 2px; }   /* QA 912e135 */
+
+/* hero looks: the stud on the camp's portrait well and the look sheet (three headshots, one tap swaps) */
+.portrait .look-stud { position: absolute; right: -2px; top: -2px; z-index: 2; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 13px; line-height: 1; color: #f0dca8; background: radial-gradient(circle at 35% 30%, #6a5236, #2a1d12); box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #a8844a; cursor: pointer; }
+.portrait .look-stud:active { filter: brightness(.8); }
+.look-sheet .looks { display: flex; justify-content: center; gap: 12px; padding: 6px 0 4px; }
+.look-sheet .look { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0; background: none; border: 0; color: inherit; cursor: pointer; }
+.look-sheet .look-well { position: relative; width: 84px; height: 84px; border-radius: 50%; overflow: hidden; background: #2a1a18; box-shadow: 0 0 0 4px #4a3c2c, 0 0 0 5px #000; }
+.look-sheet .look-well .face { position: absolute; inset: 0; border-radius: 50%; background-repeat: no-repeat; }
+.look-sheet .look.on .look-well { box-shadow: 0 0 0 4px #c9a24a, 0 0 0 5px #000, 0 0 12px rgba(201, 162, 74, .6); }
+.look-sheet .look-name { font-size: 12px; opacity: .8; }
+.look-sheet .look.on .look-name { opacity: 1; color: #8a5a16; font-weight: 700; }

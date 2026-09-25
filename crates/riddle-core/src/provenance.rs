@@ -143,9 +143,10 @@ pub fn cooldown(run: &Run, cx: &mut Ctx, verb: &str) {
     log(run, cx, ProvKind::Cooldown, format!("cooldown:{verb}"), text, true);
 }
 
-/// A hostile stepped out of view: `jackal last seen D6 (17,3)`.
-pub fn seen(run: &Run, cx: &mut Ctx, kind: &str, x: i32, y: i32) {
-    let text = format!("{} last seen D{} ({x},{y})", crate::engine::kind_title(kind).to_lowercase(), run.depth);
+/// A hostile stepped out of view: `jackal last seen D6` (QA on 912e135, qaX: the raw `(26,23)`
+/// named nothing on screen; the link's tick scrubs the replay to the spot).
+pub fn seen(run: &Run, cx: &mut Ctx, kind: &str, _x: i32, _y: i32) {
+    let text = format!("{} last seen D{}", crate::engine::kind_title(kind).to_lowercase(), run.depth);
     log(run, cx, ProvKind::Seen, format!("seen:{kind}"), text, true);
 }
 

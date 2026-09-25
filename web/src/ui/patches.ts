@@ -65,7 +65,10 @@ function firesOf(app: App, trace?: Trace): number[] {
  *  `depth`: the floor a stall patch's reach is measured on (`reach D7 17%`; N: "reach of which floor?"). */
 /** `stall`: a stall's verdict screen — the core's `survive` is the share of replays that end the loop (the hero came home either way):
  *  `unstuck 100% · base 8%`, never `survives` (QA 1a2a4a9, P: "`survives 100%` for a hero who came home"). */
-export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: boolean; select?: (btn: HTMLButtonElement) => void };
+export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: boolean; select?: (btn: HTMLButtonElement) => void;
+  /** QA 912e135 (qaW: `survives 100% · unpatched 50%` read as the run surviving, and as "a coin flip" under GAP): the floor of the death
+   *  the shares are replays of — a head over the block says so (`D6 death · replayed`) */
+  moment?: number };
 export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace, opts: PatchOpts = {}): HTMLElement {
   const head = opts.nothingBeatsBase && patches.length
     ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `nothing beats unpatched ${pct(baseline ?? 1)}`) : null;
@@ -146,7 +149,9 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const more: HTMLButtonElement = h("button", { class: "mini more patches-more", onclick: () => { fold.hidden = false; more.remove(); } }, /* copy:button */ "others", h("small", { class: "num dim" }, ` ${rows.length}`));
     const box = h("div", { class: "patches none-beats" }, head, more, fold); renumber(fold); return box;
   }
-  const box = h("div", { class: "patches" }, ...rows); renumber(box); return box;
+  const moment = opts.moment !== undefined && baseline !== undefined && !opts.stall && rows.length
+    ? h("div", { class: "patches-moment num dim" }, /* copy:callout */ `D${opts.moment} death · replayed`) : null;
+  const box = h("div", { class: "patches" }, moment, ...rows); renumber(box); return box;
 }
 /** QA e75ec29 (Q: "I read the gem as the best fix … rank by what is shown or show the ranking key"): the tablets carry their place
  *  (`1.` `2.` `3.`), renumbered whenever the order changes (the camp's reach landing re-ranks them). */

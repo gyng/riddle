@@ -13,6 +13,7 @@
 // texels per env texel: a tile is still an 8×8 world quad). They are optional: `envTile`/`hue` return undefined without
 // them and the viewer draws the 8×8 register as before. `wallTop(biome, mask)` derives an edge-rimmed wall top per
 // 4-neighbour mask (N 1, E 2, S 4, W 8 = the side that meets open floor) on first request.
+import { heroBase } from "./look";
 import * as THREE from "three";
 import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, paletteFor, setPalettes, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
 import { FONT_CELL_H, FONT_CELL_W, FONT_H, FONT_W, glyphBits } from "./font";
@@ -151,7 +152,8 @@ export class Atlas {
     return this.env.get(`tile:${biome}_env_bones`) ?? this.env.get(`tile:${biome}_bones_${frame & 1}`) ?? this.env.get(`tile:${biome}_bones_0`) ?? this.envSlot("item:bones");
   }
   // ---- sprite-density ids -------------------------------------------------------------------
-  entity(kind: string): Slot { return this.spriteSlot(`ent:${kind}`); }
+  // hero looks: `hero_<class>_<look>` when packed, else `hero_<class>` (atlas or procedural)
+  entity(kind: string): Slot { const base = heroBase(kind); return (base && this.sprite.get(`ent:${kind}`)) || this.spriteSlot(`ent:${base ?? kind}`); }
 
   private envSlot(id: string): Slot {
     const s = this.env.get(id);

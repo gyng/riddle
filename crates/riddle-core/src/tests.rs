@@ -2668,7 +2668,7 @@ fn patches_offer_the_id_policy_when_unknown_potions_went_unused() {
         }
     }
     let d = g.death(id.expect("died")).unwrap();
-    assert!(d.margin.contains("unknown unused"));
+    assert!(d.margin.split(" · ").any(|x| x.contains("unknown") && x.ends_with(" unused")), "{}", d.margin);
     assert_eq!(d.verdict, "gap");
     assert!(d.patches.iter().any(|p| p.row.verb.v == "drink" && p.row.verb.a.as_deref() == Some("unknown") && !p.row.conds.is_empty()), "{:?}", d.patches);
     for p in &d.patches {
@@ -4585,13 +4585,20 @@ fn ledger_line_reconciles_on_every_exit() {
             assert_eq!(line.kept, carried * pct / 100, "seed {seed}");
             assert!(word_count(&line.text) <= 14, "{}", line.text);
             // Cut 10 §3: the verb and what came home lead (`returned $50 · $84 carried · keeps 60%`).
+            // QA on 912e135: a timed-out run leads with its own word; an exit that kept nothing says what it lost.
             let verb = match tier {
+                _ if timed_out => if line.text.starts_with("stalled") { "stalled" } else { "lost thread" },
                 ExitTier::Bank => "banked",
                 ExitTier::Return => "returned",
                 ExitTier::Death => "died",
             };
-            assert!(line.text.starts_with(&format!("{verb} ${} · ${carried} carried · keeps {pct}%", line.kept)), "{}", line.text);
-            assert_eq!(line.text.contains("lost thread") || line.text.contains("stalled"), timed_out, "{}", line.text);
+            if pct == 0 {
+                assert!(line.text.starts_with(&format!("{verb} $0 · ${carried} lost")), "{}", line.text);
+            } else {
+                assert!(line.text.starts_with(&format!("{verb} ${} · ${carried} carried · keeps {pct}%", line.kept)), "{}", line.text);
+            }
+            assert_eq!(line.text.starts_with("lost thread") || line.text.starts_with("stalled"), timed_out, "{}", line.text);
+            assert_eq!(line.bones.iter().map(|b| b.n as usize).sum::<usize>(), g.lineage.bones.last().filter(|b| b.heir == heir && tier == ExitTier::Death).map(|b| b.items.len()).unwrap_or(0), "{}", line.text);
             if tier == ExitTier::Death {
                 deaths += 1;
                 assert!(line.text.starts_with("died $0 · "), "{}", line.text);
@@ -4845,7 +4852,8 @@ fn row_reasons_name_the_condition_or_the_block() {
     let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
     assert_eq!(t.row, 3, "{t:?}");
     let whys: Vec<&str> = t.rows.as_ref().unwrap().iter().map(|w| w.why.as_str()).collect();
-    assert_eq!(whys, ["card passed", "no unknown", "locked cond"], "{t:?}");
+    // QA on 912e135: a foe-keyed card with no such foe in view is `card idle` (a rat is no gas foe)
+    assert_eq!(whys, ["card idle", "no unknown", "locked cond"], "{t:?}");
     // A chore: every row accounted for; a pre-empting trait: every row `trait first`.
     let mut g = arena_seed(2);
     rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")), Row::new(vec![Cond::n("hp<", 50)], Verb::new("rest"))]);
@@ -6172,12 +6180,14 @@ fn exit_line_leads_with_the_verb() {
     let line = |tier: ExitTier, timed_out: bool, bones: usize| -> String { crate::engine::exit_line(84, tier.pct(), 84 * tier.pct() / 100, 0, vec![], tier, timed_out, bones, 5).text };
     assert_eq!(line(ExitTier::Return, false, 0), "returned $50 · $84 carried · keeps 60%");
     assert_eq!(line(ExitTier::Bank, false, 0), "banked $84 · $84 carried · keeps 100%");
-    assert_eq!(line(ExitTier::Death, false, 7), "died $0 · $84 carried · keeps 0% · bones: 7 items on D5");
-    assert_eq!(line(ExitTier::Return, true, 0), "returned $50 · $84 carried · keeps 60% · lost thread");
+    // QA on 912e135 (qaW): an exit that kept nothing names what it lost; a timed-out run leads with its word.
+    assert_eq!(line(ExitTier::Death, false, 7), "died $0 · $84 lost · bones: 7 items on D5");
+    let lost = crate::engine::exit_line(84, 0, 0, 0, vec![], ExitTier::Return, true, 0, 5).text;
+    assert_eq!(lost, "lost thread $0 · $84 lost");
     // A stall says so (the chronicle's "Stalled."), and a supply the send spent unused is counted.
     let stalled = crate::engine::exit_line_of(15, 0, 0, 0, vec![], ExitTier::Return, true, true, 1, 0, 2).text;
-    assert_eq!(stalled, "returned $0 · $15 carried · keeps 0% · stalled · 1 supply back");
-    for t in [line(ExitTier::Return, true, 0), line(ExitTier::Death, false, 7), stalled] {
+    assert_eq!(stalled, "stalled $0 · $15 lost · 1 supply back");
+    for t in [lost, line(ExitTier::Death, false, 7), stalled] {
         assert!(word_count(&t) <= 14, "{t}");
     }
 }
@@ -6392,7 +6402,7 @@ fn because_names_the_lost_target_the_cooldown_the_lock_and_the_blocker() {
     let w = &t.rows.as_ref().unwrap()[0];
     assert_eq!(w.why, "not in view", "{t:?}");
     let b = w.because.as_ref().expect("last seen");
-    assert!(b.text.starts_with("jackal last seen D1 ("), "{b:?}");
+    assert_eq!(b.text, "jackal last seen D1", "{b:?}");
     assert!(crate::provenance::because_ok(&b.text));
     // Cooldown: a fighter's shield bash used, then blocked by its cooldown.
     let mut g = arena();
@@ -10300,7 +10310,7 @@ fn every_row_says_why_not() {
 fn every_cross_and_shout_has_a_reason() {
     // (the verb blocks, `ai::block_reason`, and the guards and pre-emptions; a cond reason —
     // `hp not <30%` — explains itself)
-    let blocks = ["no path", "no target", "no line", "no bow", "cooldown", "no item", "unknown item", "no unknown", "no use", "no leash", "none weak", "not safe", "no stairs", "going home", "prayed", "no shrine", "no way", "card passed", "brave held", "stuck", "row guard", "same as R", "trait first", "hazard first", "recall sense", "paralysed", "confused", "bail", "locked cond", "fired, free"];
+    let blocks = ["no path", "no target", "no line", "no bow", "cooldown", "no item", "unknown item", "no unknown", "no use", "no leash", "none weak", "not safe", "no stairs", "going home", "prayed", "no shrine", "no way", "card passed", "card idle", "card blocked", "brave held", "stuck", "row guard", "same as R", "trait first", "hazard first", "recall sense", "paralysed", "confused", "bail", "locked cond", "fired, free"];
     for r in blocks.iter().filter(|r| crate::turn::ROW_REASONS.contains(r)) {
         let g = crate::turn::why_gloss("attack", r).unwrap_or_else(|| panic!("no gloss for {r:?}"));
         assert!(word_count(g) <= 3, "{g}");
@@ -10367,3 +10377,76 @@ fn the_walls_answer_the_forge() {
     assert_eq!(g.run.as_ref().unwrap().monsters[qi].hp, hp0 - 15, "her brood takes half");
 }
 
+
+/// Hero looks: a cosmetic lineage field — saved, inherited by the next heir, on the wire as the
+/// class's own until set, and never part of what a sim starts from (`lineage_key`).
+#[test]
+fn look_is_cosmetic_saved_and_inherited() {
+    let mut g = Game::new(7);
+    assert_eq!(g.lineage().look, g.lineage.class.default_look());
+    let key = crate::forecast::lineage_key(&g);
+    let plain = crate::save::save(&g);
+    assert!(g.set_look("dog").is_err());
+    g.set_look("cat").unwrap();
+    assert_eq!(g.lineage().look, "cat");
+    assert_eq!(crate::forecast::lineage_key(&g), key);
+    let g2 = crate::save::load(&crate::save::save(&g)).unwrap();
+    assert_eq!(g2.lineage().look, "cat");
+    // an older save (no field) loads with the class's own look, and serialises unchanged
+    let old = crate::save::load(&plain).unwrap();
+    assert_eq!(old.lineage.look, None);
+    assert_eq!(crate::save::save(&old), plain);
+    let mut g3 = g2;
+    g3.lineage.new_heir();
+    assert_eq!(g3.lineage().look, "cat");
+}
+
+/// QA on 912e135 (qaW: `D6 61%` read `▲32` then `▲38` unedited; a bought leash moved the bar
+/// while `▲` fell): the paired move carries the sent set's share on the same seeds — `base +
+/// delta` is the active panel's own reach, the number the bar shows for the same pass.
+#[test]
+fn a_paired_move_carries_the_sent_sets_share() {
+    let mut g = Game::new(2201);
+    g.lineage.best_depth = 4;
+    let prev = g.lineage.rules().clone();
+    let mut rows = prev.rows.clone();
+    rows.insert(0, Row::new(vec![Cond::n("hp<", 40)], Verb::new("return")));
+    g.set_rules(RuleSet { rows, name: None }).unwrap();
+    let f = g.forecast();
+    let vs = g.forecast_vs(&prev);
+    assert_eq!(vs.sims, f.sims, "one pass");
+    for d in f.depths.iter().filter(|d| d.depth >= f.start) {
+        let v = vs.depths.iter().find(|v| v.depth == d.depth).expect("the depth's move");
+        assert!((v.base + v.delta - d.reach).abs() < 1e-9, "D{}: base {} + delta {} vs bar {}", d.depth, v.base, v.delta, d.reach);
+    }
+    let e = f.ends.expect("ends");
+    assert!((vs.death.base + vs.death.delta - e.death).abs() < 1e-9 && (vs.bank.base + vs.bank.delta - e.bank).abs() < 1e-9);
+    assert!((vs.stall.base + vs.stall.delta - e.stall).abs() < 1e-9);
+}
+
+/// QA on 912e135 (qaW: `sword +1 · $300 · 7 nights` after a night of deaths with the purse held
+/// at $40): the heir purse's top-up is no income — a night of deaths nets nothing toward a step.
+#[test]
+fn the_heir_purse_is_no_income() {
+    let mut g = Game::new(3);
+    let before = g.lineage.night_net;
+    g.lineage.gold_move(40, "wake pay");
+    assert_eq!(g.lineage.night_net, before);
+    g.lineage.gold_move(50, "returned D4");
+    assert_eq!(g.lineage.night_net, before + 50);
+}
+
+/// QA on 912e135 (qaW: the kennel's free leash, dropped, came back only at $30): while nothing is
+/// tamed the kennel's leash is free to take back, and it goes back on the shelf free.
+#[test]
+fn the_kennel_leash_comes_back_free() {
+    let mut g = Game::new(5);
+    let leash = g.lineage.supplies.iter().find(|s| s.kind == "leash" && s.free).map(|s| s.id).expect("the kennel's leash");
+    g.drop_supply(leash).unwrap();
+    assert_eq!(g.supply_catalogue().iter().find(|s| s.kind == "leash").map(|s| s.price), Some(0));
+    let gold = g.lineage.gold;
+    g.buy_supply("leash").unwrap();
+    assert_eq!(g.lineage.gold, gold);
+    assert!(g.lineage.supplies.iter().any(|s| s.kind == "leash" && s.free));
+    assert_eq!(g.supply_catalogue().iter().find(|s| s.kind == "leash").map(|s| s.price), Some(30));
+}

@@ -25,12 +25,14 @@ import { revealed } from "./reveal";
 import { openLedger } from "./party";
 
 const EXITS_SHOW = 8;
+/** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
+const LEAD = /^(banked|returned|died|stalled|lost thread)\b/;
 
 /** Cut 14 §4: the floor an exit ended on — the ledger's exit line it claims (`returned D5`, the gold sheet's own match), else
  *  the line's own `bones: 7 items on D5`; undefined when neither knows. `newer` = the exits after it in the same report. */
 export function exitDepth(app: App, x: ExitLine, newer: ExitLine[] = []): number | undefined {
   const ledger = app.lineage.gold_ledger ?? [];
-  const same = (a: ExitLine, b: ExitLine): boolean => a.kept === b.kept && /^(banked|returned|died)/.exec(a.text)?.[1] === /^(banked|returned|died)/.exec(b.text)?.[1];
+  const same = (a: ExitLine, b: ExitLine): boolean => a.kept === b.kept && LEAD.exec(a.text)?.[1] === LEAD.exec(b.text)?.[1];
   const range = runRange(ledger, x, newer.filter((y) => same(y, x)).length);
   const why = range ? ledger.slice(range[0], range[1] + 1).map((g) => g.why).find((w) => /^(returned|banked|died|lost|stalled)\b.*\bD\d+/.test(w)) : undefined;
   const m = /\bD(\d+)\b/.exec(why ?? "") ?? /\bon D(\d+)\b/.exec(x.text);
@@ -38,7 +40,7 @@ export function exitDepth(app: App, x: ExitLine, newer: ExitLine[] = []): number
 }
 /** Cut 14 §4: a trace chip's label, ≤ 3 words: `D5 · died · trace` (`died · trace` without a depth). */
 export function traceLabel(app: App, x: ExitLine, newer: ExitLine[] = []): string {
-  const tier = /^(banked|returned|died)/.exec(x.text)?.[1] ?? exitLead(x).split(" ")[0];
+  const tier = LEAD.exec(x.text)?.[1] ?? exitLead(x).split(" ")[0];
   // QA 1a2a4a9 (O: `… on D8 D8 · DIED · TRACE`): a line that already names the floor keeps it once — the chip reads `died · trace`
   // QA 778fa1b (qaU: `died · trace` beside every `D8 · returned · trace`): the chip sits in its own column now (Cut 20), so it names the
   // floor always, even when the line beside it says `on D6`
@@ -55,7 +57,7 @@ export function exitLead(x: ExitLine): string {
 /** The ledger line with its lead in bold: the engine's text leads with `died $0 · …` (Cut 10 §3) and is split there; a text
  *  without a lead (an older slice) gets one in front — never two (`died $0 · died $0 · $190 carried` on every real report). */
 export function ledgerText(x: ExitLine, name?: (label: string) => string): (string | HTMLElement)[] {
-  const m = /^((?:banked|returned|died) \$-?\d+)(?: · )?(.*)$/s.exec(x.text);
+  const m = /^((?:banked|returned|died|stalled|lost thread) \$-?\d+)(?: · )?(.*)$/s.exec(x.text);
   if (m) return [h("b", { class: "lead" }, m[1]), m[2] ? " · " : "", wakeShown(m[2]), exitExtras(x, name)];
   return [h("b", { class: "lead" }, exitLead(x)), " · ", wakeShown(x.text), exitExtras(x, name)];
 }
@@ -88,6 +90,12 @@ export function renamer(L: Pick<Lineage, "renamed" | "facts">): (label: string) 
   };
 }
 
+/** QA 912e135: `♟2–17` (one heir `♟5`) under the runs tile — the heirs who ran, the core's `ReturnReport.heirs`. */
+function withHeirs(el: HTMLElement, heirs: number[] | undefined): HTMLElement {
+  if (heirs?.length === 2) el.appendChild(h("span", { class: "num heirs-ran dim" }, heirs[0] === heirs[1] ? `♟${heirs[0]}` : `♟${heirs[0]}–${heirs[1]}`));
+  return el;
+}
+
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
   const L = app.lineage;
   const named = renamer(L);
@@ -117,7 +125,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     return [banked, returned, stalled];
   };
   const tiles = h("div", { class: `tiles${exits ? " six" : ""}${absence ? " fade-in" : ""}` },
-    tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"),
+    // QA 912e135 (qaW: `♟18` over a report of ♟2–♟17, read as the heir who ran): the runs tile names whose runs they were
+    withHeirs(tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"), r.heirs),
     exits ? null : tile(`${deathsN}`, /* copy:label */ "deaths"),
     // the send's deepest floor, a delta like the tiles beside it (the lineage best is in the header; both QA players read
     // `1 RUNS · D4 BEST` as this send's); an old wire without it shows the lineage best
@@ -156,9 +165,13 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       if (r.gold.wake > 0) pieces.push(h("span", { class: "up" }, `+$${r.gold.wake} ${WORD.wake}`, r.gold.wake_n && r.gold.wake_n > 1 ? ` ×${r.gold.wake_n}` : ""));
       // QA 778fa1b (qaU: `purse full` beside $999 read as the camp's cap): the deaths the core flags (a purse just over the top-up line,
       // `ExitLine.purse_full`) read `no top-up`; a richer lineage's deaths say nothing of the purse
+      // QA 912e135 (qaW: `no top-up ×16` — "the top-up it refers to is never shown"): the purse the deaths found, `heir purse ≥$40`
       const full = ex.filter((x) => x.purse_full).length;
-      if (full > 0) pieces.push(h("span", { class: "dim purse-full" }, /* copy:callout */ `no top-up${full > 1 ? ` ×${full}` : ""}`));
+      if (full > 0) pieces.push(h("span", { class: "dim purse-full" }, /* copy:callout */ `heir purse ≥$${r.gold.wake_cap ?? 40}${full > 1 ? ` ×${full}` : ""}`));
       piece(r.gold.spent, "−", WORD.spent, "down");
+      // QA 912e135 (qaW: `STALLED $224 lost` and ~$1,900 carried by the dead, named nowhere on the gold side): what the exits did not keep —
+      // a dim note beside the movements (it never was in the purse)
+      if (r.gold.lost && r.gold.lost > 0) pieces.push(h("span", { class: "dim lost" }, /* copy:callout */ `$${r.gold.lost} lost`));
     }
     else { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); piece(salvageG, "+", WORD.salvage, "up"); piece(spentG, "−", WORD.spent, "down"); }
     // Cut 19 §3: the repeat stopped once the night's spending reached what it brought home — Cut 21 §3 (AE, AF: `restock capped`
@@ -197,7 +210,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // own column on the right, never under the text
     exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line exit-row num dim" },
       h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x, named)),
-      h("span", { class: "sep", "aria-hidden": "true" }, " · "),   // a break between the line and its chip (QA on 3d71c33: `keeps 60%D7`; QA 1a2a4a9, O: `◆+2 D3 · RETURNED` glued)
+      // QA 912e135 (qaW, qaX: a lone `·` before every `D7 · died · trace`): the chip is its own flex column (Cut 20) — no separator glyph
       traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
       hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} earlier`) : "",
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
@@ -277,7 +290,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     gem: gem({ label: /* copy:button */ "camp", cls: "camp-gem", pulse: true, onclick: () => app.go({ kind: "camp" }) }),
     tiles: [
       // QA e75ec29 (Q: "`open` opens ♟5's death, not the newest; the label names nothing"): it is the absence's worst death — it says so
-      r.worst_death ? cmdTile({ id: "open", label: /* copy:button */ "worst", icon: "trace", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }) : null,
+      // QA 912e135 (qaW: "`worst` — I read it as the shallowest death"): the tile says what it ranks by — the deepest death (a stall at
+      // its floor yields to it)
+      r.worst_death ? cmdTile({ id: "open", label: /* copy:button */ "deepest", icon: "trace", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }) : null,
       cmdTile({ id: "gold", label: /* copy:button */ "gold", icon: "gold", onclick: () => openGoldSheet(app) }),
       revealed(app).has("heirs") ? cmdTile({ id: "ledger", label: /* copy:button */ "ledger", icon: "ledger", onclick: () => openLedger(app) }) : null,
     ],
@@ -349,6 +364,12 @@ function factChips(facts: string[], counters: Counter[] = []): HTMLElement | nul
     if (bn) { rest.push(h("span", { class: "chip fact" }, /* copy:label */ "bones", h("small", null, ` D${bn[1]}`))); continue; }
     const c = /^boss:([^:]+):counter(?:=.*)?$/.exec(f);
     if (c) { bossCounters.set(c[1], counters.find((k) => k.boss === c[1])?.text ?? ""); continue; }
+    // QA 912e135 (qaW: LEARNED `vault`, `alert · rising`, `counter · gas>pack` named no action or number): each says what it is and what it
+    // opens — the cage seen (its tablet), the alert rising (`cond: alert`), a tag that beats another (the companions' counters)
+    if (f === "vault") { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ "cage seen")); continue; }
+    if (f === "alert:rising") { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ "alert rises", h("small", null, /* copy:callout */ " · alert ≥ open"))); continue; }
+    const ct = /^counter:([^>]+)>(.+)$/.exec(f);
+    if (ct) { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ `${nice(ct[1])} beats ${nice(ct[2])}`)); continue; }
     // any other `kind:detail` fact reads like the foe chips (`alert · rising`, not `alert:rising`; QA on 50bb162)
     const kv = /^([^:]+):(.+)$/.exec(f);
     if (kv) { rest.push(h("span", { class: "chip fact" }, nice(kv[1]), h("small", null, ` · ${kv[2].split(":").map(nice).join(" · ")}`))); continue; }

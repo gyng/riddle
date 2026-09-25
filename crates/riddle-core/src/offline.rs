@@ -288,13 +288,14 @@ pub(crate) fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collec
         // Cut 13 §3: the night's ledger — what the automations bought, per kind in coins.
         stalled: b.stalls,
         spent: b.spent.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).filter(|r| r.gold > 0).collect(),
-        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n }),
+        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n, lost: b.gold_lost }),
         exits: b.exits.clone(),
         picked: game.lineage.picked_clean(),
         restock_capped: b.restock_capped,
         bounty: b.bounty.clone(),
         repeat_short: b.repeat_short,
         shelved: b.shelved.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).collect(),
+        heirs: b.heirs.map(|(lo, hi)| vec![lo, hi]).unwrap_or_default(),
     }
 }
 

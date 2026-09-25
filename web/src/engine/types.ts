@@ -69,7 +69,9 @@ export type StartOption = { start: number; current: boolean; toll?: number; biom
 export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number;
                       stalling?: boolean;                                            // Cut 13 §1: the guard has fired this floor — a stall pays nothing (`keeps $0 · stalling`)
                       returning?: boolean;                                           // QA 1a2a4a9: a return/bank row acted — the walk home replaces the chores until the exit (`returning`)
-                      death_keep?: number };                                         // Cut 20 §4: what a death now would keep (the death tier's share) — `carry $78 · bank keeps $78 · death $0`
+                      death_keep?: number;                                           // Cut 20 §4 (below)
+                      swapped?: number };                                            // QA 912e135 (core): the carry the run's pack swaps took so far — the strip names a fall `swap` by its rise (`Run.swapped`; the exit line's `swapped` at the end)
+                                                                                     // Cut 20 §4: what a death now would keep (the death tier's share) — `carry $78 · bank keeps $78 · death $0`
 /** Cut 6 §1 — the ledger line of an exit: one arithmetic line the player can check, `text` is shown verbatim
  *  (`$84 carried · return keeps 60% → $50 · supplies −$12 → $68`). Fractions: `keep_pct` 0..100. */
 export type ExitLine = { carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string;
@@ -86,9 +88,11 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          found?: { kind: string; n: number; fate: "kept" | "salvaged" | "shelved" | "used" | "left" | "stolen" | "bones" | "sheet" | "lost" }[];   // QA 778fa1b (qaV): where each find ended, per kind and place (`sheet`: on the keep sheet — the core settles it at `keep`; `lost` never); Σ n == found_n
                          found_n?: number;                                                                  // QA 778fa1b (qaV): the units the run found (a leash stack counts each)
                          toll?: number;                                                                     // QA a946e04 (core): the toll this run's send paid (0/absent from D1 or on the night's pass) — the report's gold line counts it (qaT: `+$71 banked · −$40 spent` beside `$51 → $32`)
+                         bones?: { kind: string; n: number }[];                                            // QA 912e135 (core): a death's whole pile per kind, `n` items (a stack is one) — Σ n is the text's `bones: N items`
                          shelved?: { kind: string; n: number }[] };                                        // Cut 21 §2: found supplies of a kind the shelf sells, put on the shelf at this exit (not salvaged) — `found heal → shelf`                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
-export type GoldLine = { t: number; delta: number; why: string; n?: number };   // QA on 778fa1b (qaV): `n` — the supplies the line bought or refunded (`repeat heal` · n 4 · −$104); absent on other lines
+export type GoldLine = { t: number; delta: number; why: string; n?: number; lost?: number };   // QA 912e135 (core): `lost` — on an exit's line, the carried gold the exit did not keep (`$0 died D6 · $157 lost`)
+                                                                                                   // QA on 778fa1b (qaV): `n` — the supplies the line bought or refunded (`repeat heal` · n 4 · −$104); absent on other lines
 /** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */
 export type Counter = { boss: string; row?: Row | string; text: string };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent";
@@ -142,8 +146,9 @@ export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share
 /** Cut 22 §3 — an edit's paired move: this set's panel minus the previous set's, on the same seeds (so far tighter than either
  *  absolute bar). `delta`: the move (a 0..1 fraction, signed); `pm`: its own paired half-width — a move inside it reads `≈`. The
  *  ends (`bank`, `death`, …) may come as a bare delta or as `{delta, pm}`. */
-export type VsMove = { delta: number; pm?: number };
+export type VsMove = { delta: number; pm?: number; base?: number };   // QA 912e135 (core): `base` — the sent set's own share on the same seeds (today's kit); base + delta is the active panel's
 export type ForecastVs = { depths: ({ depth: number; abs_pm?: number } & VsMove)[]; bank?: number | VsMove; death?: number | VsMove; return?: number | VsMove; gold?: number | VsMove;
+                          stall?: VsMove;   // QA 912e135 (core): the stall share's move — a death traded for a stall reads (`stall 0→11%`)
                            sims?: number; refined?: boolean };   // QA 778fa1b (core): `refined` — the panels paired are the refined ones; a vs read before the refine is false, ask again after it   // core: `abs_pm` = the active bar's own ± at that depth; `sims` = the paired seeds both panels ran
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
@@ -192,7 +197,9 @@ export type ReturnReport = {
   deepest?: number;                                                            // the send's deepest floor (a delta, like the tiles beside it); absent on an old wire
   stalled?: number;                                                            // Cut 13 §1: sends that stalled (among `returned`, keeping nothing); the tiles count them apart
   spent?: { kind: string; n: number; gold: number }[];                         // Cut 13 §3: what the automations bought this absence, per kind (the SPENT section)
-  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number };       // Cut 13 §3: the absence's movements to the coin (home + salvage + wake − spent = the header's delta)
+  heirs?: number[];                                                                           // QA 912e135 (core): the first and last heir who ran these runs (`♟2–17` under RUNS)
+  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number; lost?: number };   // QA 912e135 (core): `lost` — the carry the exits did not keep
+        // Cut 13 §3: the absence's movements to the coin (home + salvage + wake − spent = the header's delta)
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; worst_death_id?: number; live?: Snapshot;
   tamed: string[]; hatched: string[]; lost: string[];                        // Addendum A
@@ -212,7 +219,7 @@ export type ReturnReport = {
   shelved?: { kind: string; n: number; gold?: number }[];                     // (core: `gold` = their price on the shelf) Cut 21 §2: found supplies the exits put on the shelf this absence (the next send packs them free) — `heal ×3 → shelf`
   bounty?: { depth: number; taken: boolean; gold: number };                  // Cut 20 §5: the night's bounty floor — `bounty D12 · taken $412` / `bounty D12 · missed`
 };
-export type Lineage = { seed: number; heir: number; trait: string; trait_offer?: string[]; class: string; best_depth: number; marks: number;   // Cut 13 §2: `trait_offer` — two traits a new heir may wake with; `setTrait(name)` picks
+export type Lineage = { seed: number; heir: number; trait: string; trait_offer?: string[]; class: string; look?: string; best_depth: number; marks: number;   // Cut 13 §2: `trait_offer` — two traits a new heir may wake with; `setTrait(name)` picks
                         facts: string[]; unlocks: string[]; vault: InvItem[];
                         graveyard: { heir: number; depth: number; cause: string; deeds: string[]; death_id?: number }[];   // death_id: Cut 9 §7, a kept death (`death(id)` answers)
                         trophies: string[]; sets: RuleSet[]; active_set: number; ended: boolean;
@@ -261,7 +268,7 @@ export type ClassChip = { class: string; signature: string; level: number; opens
  *  `bank`/`death` the ends' moves — the chip reads `mail +1 · D9 +7 · $340`. */
 export type KitStep = { label: string; price: number; owned: boolean };
 export type KitLadder = { slot: "weapon" | "armour" | "pack"; owned: number; steps: KitStep[];
-                          next?: { label: string; price: number; affordable: boolean; nights?: number;
+                          next?: { label: string; price: number; affordable: boolean; nights?: number; per_night?: number;   // QA 912e135 (core): the night's net `nights` divides by
                                    depth?: number; delta?: number; pm?: number; bank?: number; death?: number } };
 /** Cut 23 §3 — a row's why-not over the recent sends (the rows the set still holds; a changed row starts over). `sends` the
  *  sends it sat in, `actions` the hero's actions over them, `fired` the actions it took, `matched` the actions its conds held
@@ -319,6 +326,7 @@ export interface Engine {
    *  first; a keep replaces only a weaker vault item of its own category). The skipped sheet's call; `keep([])` keeps nothing.
    *  Optional on old builds. */
   autoKeep?(): Lineage;
+  setLook?(look: string): Lineage;     // hero looks: the heirs' cosmetic look (`male | female | cat`; optional: an older core has none)
   setKeepPref(pref: string): Lineage;   // core addition (README): keep preference for offline exits
   insure(id: number): Lineage;          // core addition: gold bet that keeps a brought vault item on death
   // core additions (crates/riddle-core/README.md)

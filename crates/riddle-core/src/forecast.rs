@@ -545,7 +545,7 @@ pub fn forecast_vs(game: &Game, prev: &RuleSet) -> crate::wire::ForecastVs {
         .map(|d| {
             let m = paired(a, b, |r| ind(r.max_depth >= d));
             let reach = a.iter().filter(|r| r.max_depth >= d).count() as f64 / n.max(1) as f64;
-            crate::wire::VsDepth { depth: d, delta: m.delta, pm: m.pm, abs_pm: half_width(reach, n) }
+            crate::wire::VsDepth { depth: d, delta: m.delta, pm: m.pm, abs_pm: half_width(reach, n), base: m.base }
         })
         .collect();
     let tier = |t: ExitTier| move |r: &SimResult| ind(r.tier == t && !r.timed_out);
@@ -555,6 +555,7 @@ pub fn forecast_vs(game: &Game, prev: &RuleSet) -> crate::wire::ForecastVs {
         death: paired(a, b, |r| ind(r.tier == ExitTier::Death)),
         return_: paired(a, b, tier(ExitTier::Return)),
         gold: paired(a, b, |r| r.loot_kept as f64),
+        stall: paired(a, b, |r| ind(r.timed_out)),
         sims: n as u32,
         refined: sims > FORECAST_SIMS,
     }
@@ -570,7 +571,8 @@ pub fn paired(a: &[SimResult], b: &[SimResult], f: impl Fn(&SimResult) -> f64) -
     let d: Vec<f64> = a.iter().zip(b).map(|(x, y)| f(x) - f(y)).collect();
     let mean = d.iter().sum::<f64>() / n as f64;
     let var = if n > 1 { d.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / (n - 1) as f64 } else { 0.0 };
-    crate::wire::VsMove { delta: mean, pm: 1.96 * (var / n as f64).sqrt() }
+    let base = b[..n].iter().map(&f).sum::<f64>() / n as f64;
+    crate::wire::VsMove { delta: mean, pm: 1.96 * (var / n as f64).sqrt(), base }
 }
 
 /// Cut 10 §2: the `try` of a forecast row — reaching `depth` means passing the boss on the

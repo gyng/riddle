@@ -41,19 +41,28 @@ export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t
  *  strip and nowhere after) rides the line; the coins thieves kept join the stolen list (`stolen scroll, $3` — STOLEN $3 matched no
  *  line); `name` reads a stolen flavour by its name now (`amber potion?` → `caustic`, LEARNED's word). */
 const dTag = (d: number): string => /* copy:none */ `D${d}`;
-export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "stolen_gold" | "purse_full" | "wake" | "swapped" | "shelved" | "start" | "start_short" | "found">, name: (label: string) => string = (l) => l.replace(/_/g, " ")): string => {
-  const stolen = [...(x.stolen ?? []).map(name), ...(x.stolen_gold && x.stolen_gold > 0 ? [`$${x.stolen_gold}`] : [])];
+export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "stolen_gold" | "purse_full" | "wake" | "swapped" | "shelved" | "start" | "start_short" | "found" | "bones">, name: (label: string) => string = (l) => l.replace(/_/g, " ")): string => {
+  // QA 912e135 (qaW: `stolen blink, $3` read as the blink's worth): the coins thieves kept are their own term — `stolen blink + $3`
+  const items = (x.stolen ?? []).map(name), coins = x.stolen_gold && x.stolen_gold > 0 ? `$${x.stolen_gold}` : "";
+  const stolen = items.length ? `${items.join(", ")}${coins ? ` + ${coins}` : ""}` : coins;
   // QA a946e04 (T: a D5 start at $32 ran from D1 with no word): the run's start fell back — the toll was more than the purse
   return (x.start_short && !/toll short/.test(x.text) ? /* copy:callout */ ` · from ${dTag(x.start ?? 1)} · toll short` : "")
-    + (stolen.length && !/\bstolen\b/.test(x.text) ? /* copy:callout */ ` · stolen ${stolen.join(", ")}` : "")
+    + (stolen && !/\bstolen\b/.test(x.text) ? /* copy:callout */ ` · stolen ${stolen}` : "")
     + (x.swapped && x.swapped > 0 && !/\bswapped\b/.test(x.text) ? /* copy:callout */ ` · −$${x.swapped} swapped` : "")
     + (x.wake && x.wake > 0 && !/\bwake\b|heir purse/.test(x.text) ? /* copy:callout */ ` · heir purse +$${x.wake}` : "")
-    + (x.purse_full && !/purse full|no top-up/.test(x.text) ? /* copy:callout */ " · no top-up" : "")
+    // QA 912e135 (qaW: `no top-up` on every line — "the top-up it refers to is never shown"): the purse the death found, already at the line
+    + (x.purse_full && !/purse full|no top-up|heir purse/.test(x.text) ? /* copy:callout */ ` · heir purse ≥$${PURSE_LINE}` : "")
     + (x.shelved?.length && !/→ shelf\b/.test(x.text) ? /* copy:callout */ ` · found ${shelvedText(x.shelved)} → shelf` : "")
-    + fatesText(x.found);
+    + fatesText(x.found, x.bones ? undefined : "bones")
+    // QA 912e135 (qaW: `bones: 12 items on D6` listing 14 — `leash ×3` counted charges; `11 items` listing 10 — only the finds): the
+    // pile the count counts, one an item (`ExitLine.bones`, the core's); an older line keeps its finds' list
+    + (x.bones?.length ? /* copy:callout */ ` · bones ${shelvedText(x.bones.map((b) => ({ kind: name(b.kind), n: b.n })))}` : "");
 };
-/** QA 778fa1b (V: found items that ended in no named place): the finds the other words don't place — `· left mail · bones leash`. */
-const fatesText = (xs: ExitLine["found"]): string => (["left", "bones"] as const).map((f) => {
+/** The heir purse's top-up line (the core's `WAKE_PAY`; a death tops the next heir's purse up to it — `heir purse +$30 → $40`). */
+const PURSE_LINE = 40;
+/** QA 778fa1b (V: found items that ended in no named place): the finds the other words don't place — `· left mail · bones leash`.
+ *  QA 912e135: `bones` only for a line without the pile's own list (`ExitLine.bones` names every item of it). */
+const fatesText = (xs: ExitLine["found"], bones?: "bones"): string => (["left", ...(bones ? [bones] : [])] as const).map((f) => {
   const ys = (xs ?? []).filter((y) => y.fate === f && y.n > 0);
   return ys.length ? /* copy:callout */ ` · ${f} ${shelvedText(ys)}` : "";
 }).join("");
@@ -75,12 +84,17 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const causeEl = d.verdict === "stall"
     ? h("span", { class: "cause" }, ...causeText.split(" · ").flatMap((seg, i, all) => [i ? " " : "", h("span", { class: "seg" }, seg, i < all.length - 1 ? " ·" : "")]))
     : h("span", { class: "cause" }, causeText);
-  const line = h("h1", { class: "death-line" }, causeEl, h("span", { class: "sep" }, " · "), h("span", { class: /* copy:none */ `verdict ${d.verdict}` }, d.verdict));
+  // QA 912e135 (qaW: the seal `GAP` and the banner answered no tap): the seal names what the patches answer — a tap brings them up and
+  // lights the first; the banner names the moment — a tap brings up the trace
+  const seal = h("button", { class: /* copy:none */ `verdict ${d.verdict}`, onclick: () => { patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } }, d.verdict);
+  const line = h("h1", { class: "death-line" }, h("button", { class: "cause-btn", onclick: () => tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }) }, causeEl), h("span", { class: "sep" }, " · "), seal);
   // Cut 13 §4: the run's last two notes, engine data verbatim (`The green one: fire. Gambled: fire potion.`)
   // QA 92eb880: never a `… saved him.` over a death (M, N: read as the verdict), nor the cage's loot beat (`Took the axe +1 from the cage.`,
   // M: "unrelated to the ogre") — the core filters the first; the client keeps both off whatever the build
   const shownNotes = (d.notes ?? []).filter((n) => !/ saved him\.$/.test(n) && !/^The cage opens\b|^Took .* from the cage\.$/.test(n));
-  const notes = shownNotes.length ? h("div", { class: "death-notes num dim" }, ...shownNotes.slice(-2).map((n) => h("div", { class: "note" }, noteText(n)))) : null;
+  // QA 912e135 (qaX: `ogre: telegraph` / `ogre: heavy` under the banner read as tappable because-lines): a fact the run learned says so
+  const noteLine = (n: string): string => /^[A-Z][a-z]+(?: [a-z]+)?: [a-z_]+\.$/.test(n) ? /* copy:callout */ `learned ${noteText(n)}` : noteText(n);
+  const notes = shownNotes.length ? h("div", { class: "death-notes num dim" }, ...shownNotes.slice(-2).map((n) => h("div", { class: "note" }, noteLine(n)))) : null;
   // Cut 13 §5: a `dice` death says what the forecast said for that depth — the reach the camp showed for the floor, verbatim
   // an old death (the chronicle) was sent under another forecast: today's would be a false number (QA on 56f2a1d: `forecast said D7 0%`)
   const said = d.verdict === "dice" && !kept ? forecastSaid(app, d.depth) : undefined;
@@ -97,11 +111,17 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Cut 11 §2: the accounting is the chain; the rules that ran label its rows (the morgue's, else the editing copy)
   // The run's own rules label the accounting (`R1 drink unknown · no use`, as the editor spells it); a death from before
   // the wire carried them falls back to the morgue's short forms
-  const trace = traceTable(d.trace, { rows: d.rules?.rows ?? app.rules.rows, verbs: d.rules ? undefined : morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain, depth: d.depth });
+  // QA 912e135 (qaW: the trace rows and `R1 unknown item` answered no tap): a row's name opens the editor on it (the rules that ran,
+  // when they are the set now — an older death's rows name rows the set may not hold)
+  const sameRules = !d.rules || JSON.stringify(d.rules.rows.map((r) => [r.conds, r.verb])) === JSON.stringify(app.rules.rows.map((r) => [r.conds, r.verb]));
+  const onRow = sameRules && !kept ? (i: number): void => { if (i < app.rules.rows.length) { app.editing = true; app.go({ kind: "camp", highlight: i }); } } : undefined;
+  const trace = traceTable(d.trace, { rows: d.rules?.rows ?? app.rules.rows, verbs: d.rules ? undefined : morgueVerbs(d.morgue), runId: d.run_id, chain: d.chain, depth: d.depth, onRow });
   // Fractions 0..1 from the core: baseline (survival of the unpatched rules) is on every row (Cut 4 §2).
   // QA 1a2a4a9 (O): a tap on a tablet lights it (the gem takes its number); the gem applies the lit one — the only apply on this screen
-  const select = (btn: HTMLButtonElement): void => { patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches, btn); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
-  const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base, stall: d.verdict === "stall", select });   // Cut 14 §4: the trace names the least-fired row on a full set
+  let picked = false;   // the player lit a tablet (the landing never moves his pick)
+  const light = (btn: HTMLButtonElement): void => { patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches, btn); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
+  const select = (btn: HTMLButtonElement): void => { picked = true; light(btn); };
+  const patches = patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base, stall: d.verdict === "stall", select, moment: d.depth });   // Cut 14 §4: the trace names the least-fired row on a full set
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
   const openMorgue = (): void => {
     // QA a946e04 (S: `slain by goblin_archer`): ids read as words (`goblin archer`), in the sheet and the copy alike
@@ -136,11 +156,12 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     tile({ id: "morgue", label: /* copy:button */ "morgue", icon: "morgue", onclick: openMorgue }),
     tile({ id: "camp", label: /* copy:button */ "camp", icon: "camp", onclick: () => app.go({ kind: "camp" }) }),
   ] });
+  const tracePanel = h("div", { class: "parchment trace-panel" }, ...trace);
   const well = h("div", { class: "well death-well" },
     h("div", { class: "defeat" }, h("div", { class: "banner-cloth" }, line), notes, forecastLine, ledger, eggs, bones),
     // QA 23ed91f (K: "the patches sit below the fold, under the console"): the patches, the screen's point, before the trace
     patches,
-    h("div", { class: "parchment trace-panel" }, ...trace));
+    tracePanel);
   const el = h("main", { class: `death frame${stalled ? " stalled" : ""}` }, bar.el, well, cons.el);
   // Cut 18 §4: a stall's cause is the rows' loop (`R2 retreat ↔ explore`) — it reads whole on one line: the face steps down until it fits
   if (d.verdict === "stall") { line.classList.add("loop"); fitLine(line.querySelector<HTMLElement>(".cause")); }
@@ -151,7 +172,18 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     const shown = d.patches;
     // QA 778fa1b (qaU: the lit tablet and the gem moved 1 → 2 on their own ~5 s after arrival): the landing fills each tablet's reach
     // and dims a loss; the order and the lit tablet (the gem's) stay as the screen first put them
-    setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => { if (!gone && f?.length) { fillReach(patches, shown, f); } }).catch((e) => console.warn("deathDeltas", e)); }, 0);
+    // QA 912e135 (qaX: the gem's `100% APPLY` stayed on `foe: telegraph → retreat · drops R1` once its reach landed at `D8 −62`): the
+    // screen's own lit tablet (not the player's pick) that the landing shows losing 10 points or more yields the light to the first
+    // tablet that does not lose — a patch that costs that much never leads
+    setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => {
+      if (gone || !f?.length) return;
+      fillReach(patches, shown, f);
+      const btns = [...patches.querySelectorAll<HTMLButtonElement>("button.patch")];
+      // (an exit's cost is its word, `return early`, and the core keeps a costly exit off the lead: only a row that stays in the fight moves)
+      const cost = (b: HTMLButtonElement): number => { const p = shown[btns.indexOf(b)]; return p && p.insert_at >= 0 && !p.camp_pending && !(p.exits ?? /^(return|bank)$/.test(p.row.verb.v)) ? Math.round(p.forecast_delta * 100) : 0; };
+      const lit = top?.btn;
+      if (!picked && lit && cost(lit) <= -10) { const alt = btns.find((b) => b !== lit && !b.classList.contains("below") && !b.classList.contains("neg") && cost(b) > -10); if (alt) light(alt); }
+    }).catch((e) => console.warn("deathDeltas", e)); }, 0);
   }
   return { el, dispose: () => { gone = true; bar.dispose(); } };
 }

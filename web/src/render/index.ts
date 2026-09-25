@@ -48,6 +48,10 @@ import { paletteFor } from "./palette";
 import { FONT_ADVANCE, FONT_CELL_H, FONT_CELL_W } from "./font";
 import { TAG_CHAR, TAG_H, TAG_PAD, TagLayer, allyName, type Tag } from "./tags";
 import { PROPS, ReplayState, type EntState } from "./state";
+import { Quality } from "./quality";
+import { LightField, MAX_FIELD, type FieldLight } from "./light";
+import { Bloom, EMISSIVE_TAG } from "./bloom";
+import { Juice } from "./fx";
 import type { Ev, Snapshot } from "./types";
 
 /** deterministic per-tile hash in [0, 1) (render-only dressing; never game truth) */
@@ -106,6 +110,7 @@ export type ViewerStats = {
   // elapsed time for the whole pipeline (NaN without EXT_disjoint_timer_query_webgl2); p95 over
   // the last 120 frames; fps over the last second of rAF callbacks.
   cpuMs: number; cpuP95: number; buildMs: number; gpuMs: number; gpuP95: number; gpuTimer: boolean; fps: number;
+  fx: string;   // juice (docs/JUICE.md): the effects tier this frame (low · med · high)
 };
 
 const TILE = 8;
@@ -173,7 +178,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   const st = new ReplayState();
   const cam = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0 };
   const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, frame: "map", kMap: 1, shake: [0, 0], glyphs: 0, caption: null, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, fade: 0, hero: [0, 0], projectiles: 0, ents: 0, drawn: 0, camera: [0, 0],
-    cpuMs: NaN, cpuP95: NaN, buildMs: NaN, gpuMs: NaN, gpuP95: NaN, gpuTimer: gpu.available, fps: NaN };
+    cpuMs: NaN, cpuP95: NaN, buildMs: NaN, gpuMs: NaN, gpuP95: NaN, gpuTimer: gpu.available, fps: NaN, fx: "low" };
   let k = 1, kMap = 1, iw = 1, ih = 1, W = 3, H = 3, devW = 0, devH = 0, dpr = 1;
   let lastCss = "";
   let mode: Frame = "map", fixedFocus: Focus | null = null, cutFrames = 0; // Cut 8A
@@ -186,6 +191,30 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   let quiet = false;   // Cut 22: `setQuiet` — the watch's held beat owns the line
   const tags: Tag[] = [], tagLayer = new TagLayer(canvas);   // second art pass: the hostiles' serif name plates (DOM)
   const lights: [number, number][] = [];   // art pass: this frame's torch flames (world env texels)
+  const syncPx = new Uint8Array(4);
+  // juice (docs/JUICE.md): the effects tier, the light field, bloom and the event-driven feedback; `low` keeps the pre-juice look
+  const quality = new Quality(renderer.getContext());
+  const field = new LightField();
+  const bloom = new Bloom(rt.texture);
+  const juice = new Juice(env, quality, () => atlas.solid("#ffffff"), (ch) => atlas.font(ch));
+  scene.add(juice.emit.mesh, juice.matte.mesh, juice.nums.mesh);
+  st.onEvent = (ev) => juice.onEvent(ev);
+  const fieldLights: FieldLight[] = [];
+  const fires: [number, number][] = [], gases: [number, number][] = [];
+  let fxLevel = -1, simDt = 0;
+  function applyFx(): void {
+    const lv = quality.at("high") ? 2 : quality.at("med") ? 1 : 0;
+    if (lv === fxLevel) return;
+    fxLevel = lv; stats.fx = quality.fx;
+    blit.setFx(lv);
+    const u = blit.material.uniforms;
+    u.uLightMap!.value = field.target.texture; u.uBloom!.value = bloom.a.texture;
+    // emissive layers (torch flames, fire and gas) write the bloom's tag; the pre-juice blit treats it as a sprite, like 0.5
+    for (const l of [L.decorHue, L.overlays]) ((l.mesh.material as THREE.ShaderMaterial).uniforms.uTag!.value = lv ? EMISSIVE_TAG : 0.5);
+    if (!lv) juice.reset();
+  }
+  quality.onChange = () => applyFx();
+  applyFx();
   let raf = 0;
   let last = performance.now();
   let disposed = false;
@@ -576,8 +605,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // QA 1a2a4a9 (P: "on `R1 drank heal` a large cream blob covers the hero and the conjurer for the whole moment"): a hit is a tint
       // toward the palette's brightest, never a solid silhouette (the hero hit every tick read as a blob), and a stopped clock (⏸, the
       // replay's pause on its last frame) holds no flash
-      const flash = st.flashing(e) && st.speed > 0 ? FLASH_MIX : 0;
-      L.ents.push(fx, fy, z, s.w / 2, s.h / 2, s.u0, s.v0, s.u1, s.v1, e.ally && !e.hero ? 1.1 : 1, flash, e.fade, e.flip ? 1 : 0);
+      const flash = st.flashing(e) && st.speed > 0 ? Math.max(FLASH_MIX, juice.hitFlash(e.id, st.clock, e.hero)) : 0;
+      // juice: squash & stretch (a hit, a lunge, a spawn's pop, a death's slump) — the feet stay put; `rects` keep the true size
+      const [sqx, sqy] = juice.squash(e.id, st.clock);
+      L.ents.push(fx, fy, z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, e.ally && !e.hero ? 1.1 : 1, flash, e.fade, e.flip ? 1 : 0);
       // Cut 8A: in the fight frame the hero and his allies carry an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
       // above the sprite; glyphs sit above the bar. Second art pass: a hostile's bar is on its name tag instead.
       let top = fy + h + 2;
@@ -639,6 +670,17 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
     }
     L.shadows.end(); L.ents.end(); L.glyphs.end(); L.hud.end();
+    // juice: particles, numbers and this frame's events (fx.ts); nothing at `low`
+    fires.length = 0; gases.length = 0;
+    if (fxLevel > 0) {
+      for (const o of st.overlays) if (st.visible[o.y * st.w + o.x]) (o.k === "fire" ? fires : gases).push([o.x * TILE + TILE / 2, -(o.y + 1) * TILE + TILE / 2]);
+      const hh = st.hero, dustC = p[Math.min(3, p.length - 1)]!;
+      juice.update(simDt, now, st.clock, {
+        ent: (id) => { const e = st.ents.get(id); if (!e) return null; const [x, y] = feet(e); return { x, y, h: atlas.entity(e.kind).h / 2, kind: e.kind, hero: e.hero, boss: e.boss, maxHp: e.maxHp, ally: e.ally }; },
+        heroId: st.heroId, speed: st.speed, fight, quiet, cam: [camSX, camSY], half: [iw / 2, ih / 2], fires, gases, torches: lights,
+        motes: !!hh && !!roomLit[hh.y * st.w + hh.x], dust: [dustC[0], dustC[1], dustC[2]],
+      });
+    } else juice.update(0, now, st.clock, { ent: () => null, heroId: -1, speed: 0, fight, quiet, cam: [0, 0], half: [0, 0], fires, gases, torches: lights, motes: false, dust: [0, 0, 0] });
 
     // callout: bitmap text above the hero (env density)
     const hero = st.hero;
@@ -700,7 +742,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const dt = Math.max(0, Math.min(250, now - last));
     last = now;
     const resized = measure();
-    st.tick(dt, now);
+    quality.sample(dt, stats.cpuMs, now); applyFx();
+    simDt = dt;
+    st.tick(dt * juice.timeScale(now), now);   // juice: a hit-stop holds the clock, a death's slow-mo slows it (med+, motion on)
     const snapCam = st.cameraSnap || (resized && !st.hero);
     st.cameraSnap = false;
     updateCamera(dt / 1000, snapCam);
@@ -708,7 +752,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const t0 = performance.now();
     // snap camera to the env-texel grid; remainder → blit UV offset quantised to device px. Cut 8A: the fight frame's
     // screen shake displaces the snapped centre by whole texels
-    const [shx, shy] = mode === "fight" ? st.shakeOffset() : [0, 0];
+    const [shx0, shy0] = mode === "fight" ? st.shakeOffset() : [0, 0];
+    const [kx, ky] = juice.shake(now);
+    const shx = shx0 + kx, shy = shy0 + ky;
     const sx = Math.round(cam.x) + shx, sy = Math.round(cam.y) + shy;
     camSX = sx; camSY = sy;
     build(now);
@@ -729,10 +775,38 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
     renderer.info.reset();
     gpu.begin();
+    if (fxLevel > 0) {   // juice: the light field for this frame (walls → shadows; torches, the hero, fire, bolts, pops)
+      let wh = st.depth * 7919 + st.w * 131 + st.h;
+      for (let i = 0; i < st.tiles.length; i++) if (st.tiles[i] === "wall") wh = (Math.imul(wh, 31) + i) | 0;
+      field.setMask(st.w, st.h, (i) => st.tiles[i] === "wall", `${st.w}x${st.h}:${wh}`);
+      fieldLights.length = 0;
+      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(5.5, st.vision + 0.5), c: [0.78, 0.64, 0.46] }); }
+      juice.lights(now, fieldLights);
+      for (const [px, py] of st.projectilePositions()) fieldLights.push({ x: px + 0.5, y: py + 0.5, r: 2, c: [0.7, 0.6, 0.4] });
+      const fl = (i: number, a: number, b: number): number => quality.at("high") ? 0.88 + 0.08 * Math.sin(now * a + i * 1.7) + 0.05 * Math.sin(now * b + i * 4.1) : 1;
+      fires.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD - 4) { const k = fl(i, 0.017, 0.041) * 0.9; fieldLights.push({ x: x / TILE, y: -y / TILE, r: 3, c: [1 * k, 0.5 * k, 0.15 * k] }); } });
+      gases.slice(0, 4).forEach(([x, y]) => fieldLights.push({ x: x / TILE, y: -y / TILE, r: 1.8, c: [0.12, 0.2, 0.03] }));
+      lights.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD) { const k = fl(i, 0.011, 0.029); fieldLights.push({ x: x / TILE, y: -y / TILE, r: 4.2, c: [1 * k, 0.72 * k, 0.4 * k] }); } });
+      field.setLights(fieldLights);
+      field.render(renderer);
+    }
     renderer.setRenderTarget(rt);
     renderer.setClearColor(clear, 0);   // art pass: a=0 = the void (no quad drew here): never lit, never dithered
     renderer.clear(true, true, false);
     renderer.render(scene, camera);
+    if (fxLevel > 0) {   // juice: bloom off the emissive tag; the blit's juice uniforms
+      bloom.setSize(W * 2, H * 2);
+      bloom.render(renderer);
+      const vg = juice.vignette(now, hero && hero.maxHp > 0 && !hero.dying ? hero.hp / hero.maxHp : 1);
+      (u.uMap!.value as THREE.Vector2).set(st.w, st.h);
+      (u.uTexel!.value as THREE.Vector2).set(1 / (W * 2), 1 / (H * 2));
+      (u.uVig!.value as THREE.Vector4).set(vg.c[0], vg.c[1], vg.c[2], vg.a);
+      u.uVigBase!.value = vg.base; u.uDesat!.value = vg.desat; u.uBloomK!.value = 1.35; u.uAmbK!.value = 0.66; u.uTime!.value = now / 1000;
+      const heat = u.uHeat!.value as THREE.Vector2[];
+      const hn = quality.at("high") && quality.motion ? Math.min(8, fires.length) : 0;
+      for (let i = 0; i < hn; i++) heat[i]!.set(fires[i]![0], fires[i]![1]);
+      u.uHeatN!.value = hn;
+    }
 
     renderer.setRenderTarget(null);
     renderer.setViewport(0, 0, devW, devH);
@@ -742,6 +816,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     renderer.setViewport(0, devH - ih * k, iw * k, ih * k);
     renderer.render(blit.scene, blit.camera);
     gpu.end();
+    // juice (docs/JUICE.md): `window.__riddleSyncTiming` drains the GPU each frame (a 1-px readback) so cpuMs is the whole
+    // pipeline's cost where the timer query never resolves (this harness); measurement only, never on in play
+    if ((window as { __riddleSyncTiming?: boolean }).__riddleSyncTiming) { const g = renderer.getContext(); g.readPixels(0, 0, 1, 1, g.RGBA, g.UNSIGNED_BYTE, syncPx); }
     const t2 = performance.now();
     buildHist.push(t1 - t0); cpuHist.push(t2 - t0);
     stats.buildMs = t1 - t0; stats.cpuMs = t2 - t0; stats.gpuMs = gpu.ms; stats.gpuTimer = gpu.available;
@@ -787,6 +864,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       cancelAnimationFrame(raf);
       for (const l of Object.values(L)) l.dispose();
       blit.dispose();
+      field.dispose(); bloom.dispose(); juice.dispose();
       tagLayer.dispose();
       gpu.dispose();
       rt.dispose();

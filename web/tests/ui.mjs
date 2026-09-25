@@ -97,6 +97,17 @@ async function qaK() {
   check(d.heads.join(",") === "t,R,hp,foes", `no empty \`tele\` column (${d.heads.join(",")})`);
   check(/^died \$0 · \$111 carried · bones/.test(d.ledger ?? ""), `a death's line says \`died $0\` once, no \`keeps 0%\` after it ("${d.ledger}")`);
   await shot("ui-qaK-death");
+  // QA 912e135 (qaW: the seal, the banner, the trace rows and `R1 no item` answered no tap; the header's `$40` was no button here): each
+  // is a button — the header opens GOLD, a row's name opens the editor on it
+  const taps = await page.evaluate(() => ({ seal: !!document.querySelector(".death-line button.verdict"), cause: !!document.querySelector(".death-line button.cause-btn"),
+    rows: [...document.querySelectorAll(".death button.row-link")].map((b) => b.textContent), gold: !!document.querySelector(".death .topbar button.stat.gold") }));
+  check(taps.seal && taps.cause && taps.gold && taps.rows.length >= 6 && taps.rows.includes("R1"), `the death's seal, banner, header \`$\` and row names are buttons (${JSON.stringify(taps)})`);
+  await page.locator(".death .topbar button.stat.gold").click({ timeout: 3000 }); await sleep(250);
+  check(!!(await page.locator(".sheet-wrap .gold-sheet").count()), "the death's header `$` opens the gold sheet");
+  await page.keyboard.press("Escape"); await sleep(150);
+  await page.locator(".death button.row-link", { hasText: /^R1$/ }).first().click({ timeout: 3000 });
+  await waitFor((x) => x?.screen === "camp", "the camp from a row's name");
+  check(await page.evaluate(() => window.__riddle.editing === true), "a row's name on the death screen opens the editor");
   turns[4] = { ...turns[4], telegraphs: ["monkey reaches"] };
   await go({ kind: "death", death: { ...kDeath, trace: { turns } } }); await sleep(250);
   d = await page.evaluate(() => [...document.querySelectorAll(".death .trace thead th")].map((t) => t.textContent));
@@ -591,7 +602,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [{ k: "hp<", n: 50 }], verb: { v: "attack", a: "nearest" } }, 2); r.go({ kind: "camp" }); });
   await page.waitForFunction(() => document.querySelector(".shaft .shaft-ends")?.hidden === false, null, { timeout: 15_000 }).catch(() => {});
   const ends = await page.evaluate(() => [...document.querySelectorAll(".shaft .shaft-ends .end")].map((e) => e.textContent.replace(/\s+/g, " ").trim()));
-  check(ends.length === 4 && /^bank <?\d+%$/.test(ends[0]) && /^return <?\d+%$/.test(ends[1]) && /^death <?\d+%$/.test(ends[2]) && /^~\$\d+…?$/.test(ends[3]), `a 3rd row lights the shaft's gems (QA 778fa1b: \`…\` on the first pass): ${ends.join(" · ")}`);
+  check(ends.length === 4 && /^bank <?\d+%$/.test(ends[0]) && /^return <?\d+%$/.test(ends[1]) && /^death [<>]?\d+%$/.test(ends[2]) && /^~\$\d+…?$/.test(ends[3]), `a 3rd row lights the shaft's gems (QA 778fa1b: \`…\` on the first pass): ${ends.join(" · ")}`);
   // 5 heirs: ledger, chronicle, the set tabs
   check(!(await tileIds()).includes("ledger") && !(await page.locator(".tabs:not([hidden]) .tab").count()), "before the 5th heir: no ledger, no chronicle, no set tabs");
   check(await patchSave((e) => { e.lineage.heir = 5; }), "the lineage took its 5th heir");

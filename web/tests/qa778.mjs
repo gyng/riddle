@@ -95,9 +95,9 @@ try {
   const rep = await page.evaluate(() => ({ lines: [...document.querySelectorAll(".report .exit-row .ledger-btn")].map((b) => b.textContent.replace(/\s+/g, " ").trim()),
     chips: [...document.querySelectorAll(".report .exit-row .chip")].map((b) => b.textContent.replace(/\s+/g, " ").trim()), gold: document.querySelector(".report .gold-line")?.textContent.replace(/\s+/g, " ").trim(), reel: document.querySelector(".report")?.textContent ?? "" }));
   const all = rep.lines.join(" | ");
-  check(/· −\$37 swapped/.test(all) && /stolen caustic, \$3/.test(all), `a swap and the coins thieves kept are on the line, a flavour by its name now (${all})`);
-  check(/heir purse \+\$40/.test(all) && /no top-up/.test(all) && !/purse full/.test(all + rep.gold), `the purse reads \`heir purse +$40\` / \`no top-up\`, never \`purse full\` (${all})`);
-  check(/−\$37 swapped/.test(rep.gold ?? "") && /no top-up/.test(rep.gold ?? ""), `the gold line counts the swaps and the deaths with no top-up ("${rep.gold}")`);
+  check(/· −\$37 swapped/.test(all) && /stolen caustic \+ \$3/.test(all), `a swap and the coins thieves kept are on the line, a flavour by its name now (${all})`);
+  check(/heir purse \+\$40/.test(all) && /heir purse ≥\$40/.test(all) && !/purse full|no top-up/.test(all + rep.gold), `the purse reads \`heir purse +$40\` / \`heir purse ≥$40\` (QA 912e135: no top-up word), never \`purse full\` (${all})`);
+  check(/−\$37 swapped/.test(rep.gold ?? "") && /heir purse ≥\$40/.test(rep.gold ?? ""), `the gold line counts the swaps and the deaths with no top-up ("${rep.gold}")`);
   check(rep.chips.some((c) => /^D6 · died · trace$/.test(c)), `a death's trace chip names its floor (${rep.chips.join(" | ")})`);
   check(/R1 return too late; died to jackal/.test(rep.reel), "a return that did not get him home reads `too late`");
   await shot("qa778-report");

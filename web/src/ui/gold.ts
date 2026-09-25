@@ -20,8 +20,9 @@ import { openSheet } from "./sheet";
  *  kept nothing — its keep share alone would say `died`); a timed-out return's ledger line is `lost thread D3` or
  *  `stalled D2`. */
 const tierWord = (x: ExitLine): RegExp => {
-  const lead = /^(banked|returned|died)\b/.exec(x.text)?.[1] ?? (x.keep_pct >= 100 ? "banked" : x.keep_pct <= 0 ? "died" : "returned");
-  return lead === "banked" ? /^banked\b/ : lead === "died" ? /^died\b/ : /^(returned|lost|stalled)\b/;
+  const lead = /^(banked|returned|died|stalled|lost thread)\b/.exec(x.text)?.[1] ?? (x.keep_pct >= 100 ? "banked" : x.keep_pct <= 0 ? "died" : "returned");
+  // QA 912e135: a timed-out run's line leads with its own word (`stalled $0 · $224 lost`), the ledger's
+  return lead === "banked" ? /^banked\b/ : lead === "died" ? /^died\b/ : lead === "stalled" ? /^stalled\b/ : lead === "lost thread" ? /^lost\b/ : /^(returned|lost|stalled)\b/;
 };
 const isExit = (g: GoldLine): boolean => /^(returned|banked|died|lost|stalled)\b/.test(g.why);
 /** An exit's tail: its salvage and a death's wake pay, at the exit's tick (a supply bought in camp at that tick is the next run's). */
@@ -83,7 +84,9 @@ export function openGoldSheet(app: App, only?: ExitLine, newer: ExitLine[] = [])
       const bal = (n: number, word: string, cls: string): HTMLElement => h("div", { class: `lrow num bal ${cls}` }, h("span", { class: "k" }, `$${n}`), h("span", { class: "why dim" }, word));
       list.replaceChildren(
         run && range[1] < ledger.length - 1 ? bal(endBal, /* copy:label */ "end", "end") : "",
-        ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, wakeShown(g.why.replace(/_/g, " ")), g.n && g.n > 1 ? ` ×${g.n}` : ""))),
+        ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, wakeShown(g.why.replace(/_/g, " ")), g.n && g.n > 1 ? ` ×${g.n}` : "",
+          // QA 912e135 (qaW: sixteen `$0 died D6` rows, none of the $224 a stall carried): an exit's row names what it did not keep
+          g.lost && g.lost > 0 ? h("span", { class: "lost dim" }, /* copy:callout */ ` · $${g.lost} lost`) : ""))),
         lines.length ? "" : h("div", { class: "lrow num dim empty-line" }, /* copy:callout */ "no movements"),
         run ? bal(startBal, /* copy:label */ "start", "start") : "");   // QA 92eb880 (N: a fresh lineage's sheet read `$0 · ·`)
     };

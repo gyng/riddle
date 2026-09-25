@@ -65,7 +65,7 @@ try {
   });
   await page.waitForFunction(() => !!document.querySelector(".shaft .notch.bounty"), null, { timeout: 10_000 }).catch(() => {});
   const notch = await page.evaluate(() => { const n = document.querySelector(".shaft .notch.bounty"); return { text: n?.querySelector(".dl")?.textContent ?? "", best: window.__riddle.lineage.best_depth, bounty: window.__riddle.lineage.bounty?.depth, glint: n ? getComputedStyle(n.querySelector(".hex")).boxShadow : "" }; });
-  check(notch.text === `D${notch.best + 2} ×2` && notch.bounty === notch.best + 2 && /rgb/.test(notch.glint), `the shaft's bounty notch reads \`D${notch.best + 2} ×2\` with a glint ("${notch.text}", lineage bounty D${notch.bounty})`);
+  check(notch.text === `D${notch.best + 2} $×2` && notch.bounty === notch.best + 2 && /rgb/.test(notch.glint), `the shaft's bounty notch reads \`D${notch.best + 2} ×2\` with a glint ("${notch.text}", lineage bounty D${notch.bounty})`);
   await shot("cut20-shaft");
 
   // ---- §2 the party: a tap selects, a second tap keeps it, `×` drops it (a companion put in the kennel through the save)

@@ -29,9 +29,20 @@ export type EditorOpts = { compact?: () => boolean; onTablet?: (i: number) => vo
 export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; cardRows?(id: string): Row[] | undefined;
                         shadowedBy?(): (number | null)[];   // QA 92eb880: per row, the earlier row that takes all its moments (the engine's read)
                         nums?(k: string): number[] | undefined;   // Cut 21 §3: a cond's values read off the lineage (`depth ≥` to best + 2); else the table's
-                        rowWhy?(): (RowWhy | null)[] };           // Cut 23 §3: per row, what it did over the recent sends and why not (the core's `row_why`)
+                        rowWhy?(): (RowWhy | null)[];             // Cut 23 §3: per row, what it did over the recent sends and why not (the core's `row_why`)
+                        inert?(row: Row): string | undefined };   // QA 912e135: a row that cannot act yet, and what it waits on (`identify heal`)
+/** QA 912e135 (qaW: the default `hp < 30% → drink heal` ran inert all night — `0/760 · blocked · unknown item` — while `has: heal` read
+ *  `⊘ identify heal` in the cond sheet): a row whose verb uses a kind the lineage has not identified (the vocabulary's locked `has:`) and
+ *  no packed supply of it (a bought one is known) waits on it — `identify heal` on the tablet. */
+export function inertOf(app: App, r: Row): string | undefined {
+  const a = r.verb.a;
+  if (!a || a === "unknown" || !["drink", "read", "throw"].includes(r.verb.v)) return undefined;
+  if (!(app.vocab?.locked ?? []).some((l) => l.cond.k === "item" && l.cond.t === a)) return undefined;
+  if ((app.lineage?.supplies ?? []).some((s) => s.kind === a) || (app.lineage?.vault ?? []).some((v) => v.kind === a && app.loadout.includes(v.id))) return undefined;
+  return /* copy:callout */ `identify ${a.replace(/_/g, " ")}`;
+}
 export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id), shadowedBy: () => app.shadowedBy(),
-  nums: (k) => k === "depth>=" ? depthNums(app.lineage?.best_depth ?? 0, app.vocab) : undefined, rowWhy: () => app.rowWhy() });
+  nums: (k) => k === "depth>=" ? depthNums(app.lineage?.best_depth ?? 0, app.vocab) : undefined, rowWhy: () => app.rowWhy(), inert: (r) => inertOf(app, r) });
 
 /** Cut 6 §6: a row as read-only chips (`foe: ranged → kite`), shared by the card sheet and the shelf. */
 export function rowChips(row: Row): HTMLElement {
@@ -95,8 +106,10 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       a.classList.add("combo-a"); b.classList.add("combo-b"); a.dataset.combo = c.name;
     }
     // Cut 12 §1: own rows against the cap, the card rows counted beside (`3/4 · 2 cards`)
+    // QA 912e135 (qaW: `4/5 · 1 card` under R1–R5, read as four rows shown): the cap names its unit and the card adds to it — `4/5 rows +
+    // 1 card`, the tablets on screen the sum
     foot.append(
-      h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`, cards ? h("small", { class: "dim cards" }, /* copy:callout */ ` · ${cards} card${cards === 1 ? "" : "s"}`) : ""),
+      h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`, cards ? /* copy:callout */ " rows" : "", cards ? h("small", { class: "dim cards" }, /* copy:callout */ ` + ${cards} card${cards === 1 ? "" : "s"}`) : ""),
       // QA 778fa1b (qaV friction: the new `hp < 50% → …` row landed last, under `foes ≥ 1 → attack nearest`, shadowed until stepped up 4
       // times): it goes in above the first own row with no hp cond (the broad engagement rows), under the hp rows before it
       n < max ? h("button", { class: "btn ghost", onclick: () => { const rs = rows(); const at = rs.findIndex((r) => r.verb.v !== "tactic" && !r.conds.some((c) => c.k === "hp<")); rs.splice(at < 0 ? rs.length : at, 0, defaultRow()); commit(); } }, "+") : "",
@@ -117,7 +130,15 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       const by = sh[i] ?? (rows[i] ? formShadow(rows, i) : null);
       const on = by !== null && by !== undefined && by < i;
       el.classList.toggle("shadowed", on);
-      for (const m of el.querySelectorAll(":scope > .rtext > .shadow-mark, :scope > .grip > .shadow-mark, :scope > .shadow-mark")) m.remove();
+      for (const m of el.querySelectorAll(":scope > .rtext > .shadow-mark, :scope > .grip > .shadow-mark, :scope > .shadow-mark, :scope > .rtext > .inert-mark, :scope > .grip > .inert-mark, :scope > .inert-mark")) m.remove();
+      // QA 912e135: a row waiting on an identification says so (dim, like a shadowed one); a shadowed row's mark wins
+      const inert = !on && rows[i] ? bind.inert?.(rows[i]) : undefined;
+      el.classList.toggle("inert", !!inert);
+      if (inert) {
+        const m = h("small", { class: "inert-mark num" }, `⊘ ${inert}`);
+        const text = el.querySelector(":scope > .rtext"), grip = el.querySelector(":scope > .grip");
+        if (text) text.appendChild(m); else if (grip) grip.appendChild(m); else el.appendChild(m);
+      }
       if (!on) return;
       const mark = h("small", { class: "shadow-mark num", title: `R${by + 1}` }, `↑ R${by + 1}`);
       // compact: inside the tablet's text; editing: under the row's number on its grip (the chips stay the row's cond → verb)
@@ -144,7 +165,9 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       const cardRows = bind.cardRows?.(id);
       // Cut 9 §4: the card's trigger — its first row's conds as text — on the chip: `[card] pack break · foes ≥ 2`
       const trigger = cardTrigger(cardRows);
-      const inner = [h("small", { class: "dim" }, /* copy:rule_token */ "[card]"), " ", id.replace(/_/g, " "), trigger ? h("small", { class: "dim trigger" }, ` · ${trigger}`) : ""];
+      // QA 912e135 (qaW: `[card] kite archers · foe: ranged · foe: telegraph` over the same conds drawn under it): with the card's rows
+      // inline the trigger is theirs to show — the chip keeps the name
+      const inner = [h("small", { class: "dim" }, /* copy:rule_token */ "[card]"), " ", id.replace(/_/g, " "), trigger && !cardRows?.length ? h("small", { class: "dim trigger" }, ` · ${trigger}`) : ""];
       chips.appendChild(cardRows?.length ? h("button", { class: "chip verb locked", onclick: () => openRowsSheet(cardRows) }, ...inner) : h("span", { class: "chip verb locked" }, ...inner));
       // Cut 8B §4: the card's rows, inline and dim — rows the player could have written
       if (cardRows?.length) chips.appendChild(h("div", { class: "card-inline" }, ...cardRows.map((r) => rowChips(r))));
@@ -250,7 +273,9 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     openSheet((close) => h("div", { class: "sheet-body row-why", "data-row": i },
       h("div", { class: "label row-label" }, /* copy:label */ "why", " ", h("small", { class: "num dim" }, `R${i + 1}`)),
       h("div", { class: "why-row chips-inline dim" }, rowLabel(row)),
-      h("div", { class: "why-line num" }, w.text),
+      // QA 912e135 (qaW: `8/15317` on R1 and `23/16077` on R3 of one set — "denominators differ"): the count is over the sends the row
+      // sat in (an edited row starts over), and the line says how many (`8/15317 · 14 sends`)
+      h("div", { class: "why-line num" }, w.text, w.sends > 0 ? h("small", { class: "dim why-sends" }, /* copy:callout */ ` · ${w.sends} send${w.sends === 1 ? "" : "s"}`) : ""),
       g ? h("div", { class: "why-gloss num" }, h("span", { class: "dim" }, `${reason} · `), g) : "",
       by !== null && by !== undefined && by < i ? h("div", { class: "why-gloss num" }, /* copy:callout */ `↑ R${by + 1} first`) : "",
       edit ? h("button", { class: "btn primary wide why-edit", onclick: () => { close(); edit(); } }, /* copy:button */ "edit") : ""), { anchor });

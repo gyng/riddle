@@ -327,7 +327,7 @@ fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
     }
     // QA on 1a2a4a9 (qaO: `heal unused · 1 unknown unused` beside `R1 no unknown`).
     let said_none = d.trace.turns.last().and_then(|x| x.rows.as_ref()).is_some_and(|rows| rows.iter().any(|w| w.why == "no unknown"));
-    t.check("a margin's unknown count never contradicts a row's `no unknown`", !(said_none && d.margin.contains("unknown unused")), || format!("seed {seed} run {}: `{}`", d.run_id, d.margin));
+    t.check("a margin's unknown count never contradicts a row's `no unknown`", !(said_none && d.margin.split(" · ").any(|x| x.contains("unknown") && x.ends_with(" unused"))), || format!("seed {seed} run {}: `{}`", d.run_id, d.margin));
     check_foe_reasons(t, seed, &d.trace, &format!("run {} death trace", d.run_id));
     // QA on 1a2a4a9 (qaP: `+ drop R1` on every patch, R1 the return row).
     if let Some(rules) = &d.rules {
@@ -642,6 +642,7 @@ fn check_found_supply_leg(t: &mut Tally, g: &Game, seed: u64) {
 fn check_exit_found(t: &mut Tally, g: &Game, seed: u64, vault_before: &[u32], at: &str) {
     // (the batch's copy: `step` hands `last_exit` to the exit event; `keep` settles both)
     let Some(line) = g.batch.exits.last() else { return };
+    check_exit_line(t, seed, line, at);
     let sum: u32 = line.found.iter().map(|r| r.n).sum();
     let by = |f: &str| line.found.iter().filter(|r| r.fate == f).map(|r| r.n).sum::<u32>();
     t.check("found at an exit == kept + salvaged + shelved + used + left + stolen + bones", sum == line.found_n && by("lost") == 0 && by("sheet") == 0, || format!("seed {seed} {at} run {}: {sum} placed of {} found · {:?}", line.run_id, line.found_n, line.found));
@@ -649,6 +650,20 @@ fn check_exit_found(t: &mut Tally, g: &Game, seed: u64, vault_before: &[u32], at
     t.check("an exit's shelved finds == its shelved supplies", by("shelved") == shelved, || format!("seed {seed} {at} run {}: found shelved {} · line shelved {shelved}", line.run_id, by("shelved")));
     let added = g.lineage.vault.iter().filter(|v| !vault_before.contains(&v.id)).count() as u32;
     t.check("an exit's kept finds are in the vault", by("kept") <= added, || format!("seed {seed} {at} run {}: kept {} · vault +{added}", line.run_id, by("kept")));
+}
+
+/// QA on 912e135 (qaW, qaX): an exit line's mechanics — one tier word, at its lead (`returned $0 ·
+/// … · stalled` read as two); a lead that kept nothing keeps 0; the `bones: N items` count is
+/// the pile the line lists (`ExitLine.bones`, Σ n == N; `leash ×3` counted charges).
+fn check_exit_line(t: &mut Tally, seed: u64, x: &riddle_core::wire::ExitLine, at: &str) {
+    const LEADS: [&str; 5] = ["banked ", "returned ", "died ", "stalled ", "lost thread "];
+    let lead = LEADS.iter().find(|w| x.text.starts_with(**w)).copied();
+    let later = x.text.split(" · ").skip(1).filter(|seg| ["banked", "returned", "died", "stalled", "lost thread"].contains(seg)).count();
+    t.check("an exit line leads with one tier word and names no other", lead.is_some() && later == 0, || format!("seed {seed} {at} run {}: `{}`", x.run_id, x.text));
+    t.check("a died / stalled / lost-thread line kept nothing", !matches!(lead, Some("died " | "stalled " | "lost thread ")) || (x.kept == 0 && x.keep_pct == 0), || format!("seed {seed} {at} run {}: `{}` kept {}", x.run_id, x.text, x.kept));
+    let n: u32 = x.text.split(" · ").find_map(|seg| seg.strip_prefix("bones: ").and_then(|r| r.split(' ').next()).and_then(|n| n.parse().ok())).unwrap_or(0);
+    let listed: u32 = x.bones.iter().map(|b| b.n).sum();
+    t.check("an exit's `bones: N items` == the pile it lists", n == listed, || format!("seed {seed} {at} run {}: `{}` lists {listed} · {:?}", x.run_id, x.text, x.bones));
 }
 
 /// QA on 778fa1b (qaV: `repeat heal ×1 · −$104` for four heals at $26; `SHELVED found heal
@@ -898,6 +913,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         t.check("`brought` == the loadout", g.snapshot().stake.brought.len() == run.brought.len(), || format!("seed {seed}"));
     }
     // Run to the exit.
+    let mut swapped_seen = 0;
     let mut died = None;
     let mut n = 0;
     loop {
@@ -906,6 +922,12 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         // Cut 20 §4: the stake names what a death keeps beside the exit row's keep.
         let st = &r.snapshot.stake;
         t.check("the stake's death keep == the death tier's share of carried", st.death_keep == st.loot.max(0) * ExitTier::Death.pct() / 100, || format!("seed {seed}: death keep {} of carried {}", st.death_keep, st.loot));
+        // QA on 912e135 (qaW: `−$8 swap` on the strip twice, `−$2 swapped` on the death line): the stake's swap counter only rises,
+        // and the exit line's `swapped` is the run's own count
+        t.check("the stake's swapped never falls within a run", st.swapped >= swapped_seen || r.run_over, || format!("seed {seed}: {} after {swapped_seen}", st.swapped));
+        if !r.run_over {
+            swapped_seen = st.swapped;
+        }
         if r.run_over {
             if r.events.iter().any(|e| matches!(e, Ev::Exit { tier, .. } if tier == "death")) {
                 died = Some(r.snapshot.run.id);
@@ -932,6 +954,10 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     }
     check_gold(t, &g, seed, "after the run");
     check_exit_found(t, &g, seed, &[], "first run");
+    // (the exit's line is the batch's once the run is settled)
+    if let Some(line) = g.batch.exits.last() {
+        t.check("the exit line's swapped ≥ the stake's last", line.swapped >= swapped_seen, || format!("seed {seed}: line ${} · stake ${swapped_seen}", line.swapped));
+    }
     // Cut 20 §4 (AC: a silent repeat charge on death): a re-pack charged at a death's exit is
     // a `repeat` line in the gold ledger and on the death record's ledger line.
     if let (Some(id), Some(line)) = (died, g.last_exit.clone()) {
@@ -1100,7 +1126,18 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     t.check("night gold: earned + salvage + wake pay − spent == delta", b.gold_earned + b.salvage_gold + b.wake_pay - spent == g.lineage.gold - before, || format!("seed {seed}: {} + {} + {} − {spent} vs {}", b.gold_earned, b.salvage_gold, b.wake_pay, g.lineage.gold - before));
     t.check("report spent == the batch's", r.spent.iter().map(|s| s.gold).sum::<i32>() == spent, || format!("seed {seed}"));
     // QA on 778fa1b (qaV): the night's exits place every find.
+    // QA on 912e135 (qaW, qaX): the night's exit lines, one tier each; the stalled lines are the stalled tile's; the swaps the
+    // lines carry are the report's (every exit listed); the ledger's exit lines name what they did not keep.
+    let stalled_lines = r.exits.iter().filter(|x| x.text.starts_with("stalled ")).count() as u32;
+    t.check("the report's stalled lines ≤ its stalled tile ≤ its returned", stalled_lines <= r.stalled && r.stalled <= r.returned, || format!("seed {seed}: {stalled_lines} lines · {} stalled · {} returned", r.stalled, r.returned));
+    if !r.sampled && r.exits.len() as u32 == r.runs {
+        let lines: i32 = r.exits.iter().map(|x| x.swapped).sum();
+        t.check("the night's swaps: Σ exit lines == the report's", lines == r.swapped, || format!("seed {seed}: lines ${lines} · report ${}", r.swapped));
+        let lost: i32 = r.exits.iter().map(|x| (x.carried - x.kept).max(0)).sum();
+        t.check("the night's lost gold: Σ exit lines == the report's", r.gold.as_ref().is_none_or(|gs| gs.lost == lost), || format!("seed {seed}: lines ${lost} · report {:?}", r.gold.as_ref().map(|gs| gs.lost)));
+    }
     for x in &r.exits {
+        check_exit_line(t, seed, x, "night");
         let sum: u32 = x.found.iter().map(|f| f.n).sum();
         let bad: u32 = x.found.iter().filter(|f| f.fate == "lost" || f.fate == "sheet").map(|f| f.n).sum();
         t.check("found at an exit == kept + salvaged + shelved + used + left + stolen + bones", sum == x.found_n && bad == 0, || format!("seed {seed} night run {}: {sum} placed of {} · {:?}", x.run_id, x.found_n, x.found));

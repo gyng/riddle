@@ -9,7 +9,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px."
+      "description": "Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_fighter_male; the class's looks are hero_fighter_{male,female,cat}.)"
     },
     {
       "id": "hero_rogue",
@@ -18,7 +18,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px."
+      "description": "Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_rogue_female; the class's looks are hero_rogue_{male,female,cat}.)"
     },
     {
       "id": "hero_ranger",
@@ -27,7 +27,7 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch."
+      "description": "Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_ranger_female; the class's looks are hero_ranger_{male,female,cat}.)"
     },
     {
       "id": "hero_caster",
@@ -36,7 +36,115 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger."
+      "description": "Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_caster_male; the class's looks are hero_caster_{male,female,cat}.)"
+    },
+    {
+      "id": "hero_fighter_male",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px. (Look 'male': the v2 hero_fighter master, copied.)"
+    },
+    {
+      "id": "hero_fighter_female",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The FIGHTER class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: round wooden shield on the forward arm + short broad sword held low, dented steel breastplate and pauldrons, crimson cloak/tunic. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px."
+    },
+    {
+      "id": "hero_fighter_cat",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The FIGHTER class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: round wooden shield on the forward arm + short broad sword held low, dented steel breastplate and pauldrons, crimson cloak/tunic. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: ginger-orange tabby fur with a cream muzzle. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px."
+    },
+    {
+      "id": "hero_rogue_male",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The ROGUE class, look 'male'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: low forward crouch, a reversed dagger held low and a throwing knife in the other hand, charcoal-and-plum hooded half-cloak, bone-white sash. LOOK = MALE: a young MAN — broad shoulders, square jaw, SHORT hair (nothing past the collar), a masculine anime face. At 48 px he must read as a man: short hair, broad frame. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px."
+    },
+    {
+      "id": "hero_rogue_female",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The ROGUE class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: low forward crouch, a reversed dagger held low and a throwing knife in the other hand, charcoal-and-plum hooded half-cloak, bone-white sash. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px."
+    },
+    {
+      "id": "hero_rogue_cat",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The ROGUE class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: low forward crouch, a reversed dagger held low and a throwing knife in the other hand, charcoal-and-plum hooded half-cloak, bone-white sash. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: smoky grey tabby fur with a pale muzzle and green eyes. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px."
+    },
+    {
+      "id": "hero_ranger_male",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The RANGER class, look 'male'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall longbow held out in front with a nocked arrow half-drawn, full quiver of bone-white fletched arrows over the shoulder, deep-green hooded cloak, moss-and-leather tunic, tall boots. LOOK = MALE: a young MAN — broad shoulders, square jaw, SHORT hair (nothing past the collar), a masculine anime face. At 48 px he must read as a man: short hair, broad frame. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch."
+    },
+    {
+      "id": "hero_ranger_female",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The RANGER class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall longbow held out in front with a nocked arrow half-drawn, full quiver of bone-white fletched arrows over the shoulder, deep-green hooded cloak, moss-and-leather tunic, tall boots. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch. RETRY NOTE: the first ranger read as a boy at 48 px (the braid hid inside the hood). Give her a LONG thick auburn BRAID that comes OUT of the hood and swings down BEHIND her back past the shoulder blades, clearly separated from the cloak by the outline, like the female rogue's ponytail; a softer face with visible lashes."
+    },
+    {
+      "id": "hero_ranger_cat",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The RANGER class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall longbow held out in front with a nocked arrow half-drawn, full quiver of bone-white fletched arrows over the shoulder, deep-green hooded cloak, moss-and-leather tunic, tall boots. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: warm brown tabby fur with a cream chest. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch."
+    },
+    {
+      "id": "hero_caster_male",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The CASTER class, look 'male'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall gnarled staff held upright with a bright ember-orange crystal at its tip (a flat jewel, NOT a glow), long layered dusty-violet and ivory robes to the ankles with a wide hem, soft hood, free hand open. LOOK = MALE: a young MAN — broad shoulders, square jaw, SHORT hair (nothing past the collar), a masculine anime face. At 48 px he must read as a man: short hair, broad frame. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger."
+    },
+    {
+      "id": "hero_caster_female",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The CASTER class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall gnarled staff held upright with a bright ember-orange crystal at its tip (a flat jewel, NOT a glow), long layered dusty-violet and ivory robes to the ankles with a wide hem, soft hood, free hand open. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger."
+    },
+    {
+      "id": "hero_caster_cat",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "The CASTER class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall gnarled staff held upright with a bright ember-orange crystal at its tip (a flat jewel, NOT a glow), long layered dusty-violet and ivory robes to the ankles with a wide hem, soft hood, free hand open. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: cream-white fur with dark brown points on the ears, face mask and tail tip. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger."
     },
     {
       "id": "rat",

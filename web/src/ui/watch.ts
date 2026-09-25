@@ -119,6 +119,7 @@ import type { Ev, ExitLine, Highlight, InvItem, ReturnReport, Row, Snapshot, Ste
 import { h, clear, items, replace, spanOf } from "./dom";
 import { gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile } from "./frame";
 import { icon } from "./skin";
+import { syncLook } from "./look";
 import { makeViewer, type Viewer } from "./viewer";
 import { verbsAt } from "../engine/classes";
 import { openSheet } from "./sheet";
@@ -312,7 +313,7 @@ export function renderWatch(app: App): Mounted {
   // Cut 17: along the console's top edge
   const scrubHead = h("div", { class: "head" }), scrubDot = h("div", { class: "dot" });
   const scrub = h("div", { class: "scrub", hidden: true }, scrubHead, scrubDot);
-  const bar = renderBar(app);
+  const bar = renderBar(app, { watch: true });
   const busyHost = h("span", { hidden: true });   // the engine's busy label at the end (the next gem says it): not in the corner
   const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, skip, bail], gem: pause, top: scrub });
   const el = h("main", { class: "watch frame" }, bar.el,
@@ -486,29 +487,39 @@ export function renderWatch(app: App): Mounted {
   function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
   let lastLoot: number | undefined, lastLootRun = -1, lootDrop = 0, lootDropUntil = 0, lootWhy = "";
+  let lastLootTurn = -Infinity, lastSwapped = 0;   // QA 912e135: the tick and the core's swap counter of the snapshot the strip shows
   let lastPickT = -Infinity, lastStealT = -Infinity, lastPickItem = "", lootItem = "";   // engine ticks of the last `pickup` / `steal` (the loot's fall names which)
   let tollShort = false;   // QA a946e04 (T): the send's waystone start fell back to D1 (the purse could not pay the toll)
   let stolenGold = 0;   // QA a946e04 (T: `−$36 stolen` on the strip, nothing in STOLEN): what the run's thefts took off the carry (the `steal` amounts)
   function paintStake(s: Snapshot): void {
+    // QA 912e135 (qaW: `carry $110` → `$102 −$8 swap → ashen scroll?` — the core's carry never fell there; the death line's `−$2 swapped`):
+    // the stake paints from two clocks (a batch's snapshot at its tick, a floor load's older one when the viewer reaches the floor) — an
+    // older snapshot of the same run is behind what the strip already shows, and never reads as a fall
+    if (s.stake && s.run.id === lastLootRun && s.turn < lastLootTurn) return;
     hudSnap = s;
     if (cardUp) paintCardText();
     const st = s.stake;
     stake.hidden = !st;
     if (!st) return;
+    // QA 912e135: a `swap` is the core's own counter rising (`Stake.swapped`, the exit line's `swapped` at the end) — one source for the
+    // strip and the death line, its size the counter's rise; an older core falls back to the pickup's window
+    const swapD = st.swapped !== undefined && s.run.id === lastLootRun ? st.swapped - lastSwapped : 0;
     // QA 92eb880 (M: "gold `$77 → $65` in the den with only `snatched …` lines"): a fall in the loot shows its size beside it for 2.5 s
     // (`$65 −$12`) — a theft of an item takes its worth with it
-    if (lastLoot !== undefined && st.loot < lastLoot && s.run.id === lastLootRun) {
-      const why = s.turn - lastStealT <= 20 ? /* copy:label */ "stolen" : s.turn - lastPickT <= 20 ? /* copy:label */ "swap" : "", item = why === "swap" ? lastPickItem : "";
+    if (lastLoot !== undefined && s.run.id === lastLootRun && (swapD > 0 || st.loot < lastLoot)) {
+      const why = swapD > 0 ? /* copy:label */ "swap" : s.turn - lastStealT <= 20 ? /* copy:label */ "stolen"
+        : st.swapped === undefined && s.turn - lastPickT <= 20 ? /* copy:label */ "swap" : "", item = why === "swap" ? lastPickItem : "";
       // QA 778fa1b (qaV: `−$33 → −$42 → −$58 swapped` — "swapped for what?"): a swap's fall is its own, beside the find it made room for
       // (`−$37 swap → leather +1`); only falls of one cause and one find inside the window add up
       const same = performance.now() < lootDropUntil && why === lootWhy && item === lootItem;
-      lootDrop = lastLoot - st.loot + (same ? lootDrop : 0); lootDropUntil = performance.now() + 2500; lootItem = item;
+      const fell = why === "swap" && st.swapped !== undefined ? swapD : lastLoot - st.loot;
+      lootDrop = fell + (same ? lootDrop : 0); lootDropUntil = performance.now() + 2500; lootItem = item;
       // QA 1a2a4a9 (O, P: `$46 −$8`, `$283 −$100` — "minuses that don't match any line"): the fall says what took it — a thief, or an
       // item used up (the loot counts what he carries at its worth)
       // QA a946e04 (S, T: `−$32`, `−$20`, `−$13 used` with no line): the carry falls on two things only (the core's `loot_add`): a theft,
       // and a swap — a spare weapon or armour dropped for a find (a pickup; the spare counted more). A use never takes from it.
       lootWhy = why; }
-    lastLoot = st.loot; lastLootRun = s.run.id;
+    lastLoot = st.loot; lastLootRun = s.run.id; lastLootTurn = s.turn; lastSwapped = st.swapped ?? 0;
     // QA 1a2a4a9 (O: the bar's `$0` and the line's `$3 · death: lose all` on one screen, "neither labelled"): the run's own purse says so
     const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "carry"), ` $${st.loot}`];
     if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? ` → ${lootItem.replace(/_/g, " ")}` : ""}`));
@@ -988,7 +999,8 @@ export function renderWatch(app: App): Mounted {
     // Cut 21 §1: a run sent from a waystone names it on its first floor (`D9 · the Fens · waystone`)
     const way = first && d > 1 && d === (app.lineage.start ?? 1);
     const text = way ? /* copy:callout */ `D${d}${title ? ` · ${title}` : ""} · waystone`
-      : /* copy:callout */ `D${d}${title ? ` · ${title}` : rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `$${hudSnap?.stake?.loot ?? hudSnap?.loot ?? 0}`}`;
+      // QA 912e135 (qaX: `D2 · 16 rooms · $16` beside the header's `$16` — "which $"): the card's gold is the carry, named as the strip names it
+      : /* copy:callout */ `D${d}${title ? ` · ${title}` : rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `carry $${hudSnap?.stake?.loot ?? hudSnap?.loot ?? 0}`}`;
     if (text !== cardText) { cardText = text; replace(card, text); }
   }
   /** Cut 20 §3: `fights` on the first floors — no card, the map at EARLY_TRAVEL, every fight at EARLY_FIGHT. */
@@ -1649,7 +1661,7 @@ export function renderWatch(app: App): Mounted {
     const rows = new Map<string, { kind: string; n: number; gold: number }>();
     // QA a946e04 (S: SALVAGED `potion ×2 · $2` beside `blue potion? ×2`): an unknown item is its flavour (`blue potion?`), as the core's rows name it
     p.items.forEach((it, i) => { if (kept.has(it.id)) return; const k = it.known ? it.kind : it.label; const r = rows.get(k) ?? { kind: k, n: 0, gold: 0 }; r.n++; r.gold += p.worth?.[i] ?? salvageValue(it.kind, p.tier); rows.set(k, r); });
-    return [...rows.values()].filter((r) => r.gold > 0);
+    return [...rows.values()];   // QA 912e135 (qaX: the forge counted a `$0` leash the SALVAGED list left out): every item let go is named
   }
   async function finishAfterRefresh(tier: Tier, guard: number): Promise<void> {
     clearTimeout(guard);
@@ -1714,7 +1726,7 @@ export function renderWatch(app: App): Mounted {
     let diff = lines.reduce((a, g) => a + g.delta, 0) - rows.reduce((a, r) => a + r.gold, 0);
     const out = rows.map((r) => ({ ...r })).sort((a, b) => b.gold - a.gold);
     for (const r of out) { if (!diff) break; const take = Math.max(-r.gold, diff); r.gold += take; diff -= take; }
-    return out.filter((r) => r.gold > 0);
+    return out.filter((r) => r.n > 0);   // QA 912e135: a `$0` item is still named (the forge counts it)
   }
   const spentRows = (ledger: { t: number; delta: number; why: string; n?: number }[]): { kind: string; n: number; gold: number }[] => spentOf(ledger, app.supplyCat);
   // Addendum D: choose what to keep before the run settles
@@ -1775,7 +1787,7 @@ export function renderWatch(app: App): Mounted {
     if (disposed) { v0.dispose(); return; }
     // Cut 11 §2: every floor load and event batch is kept in the run log, so the death screen's chain can scrub a replay
     const v = recordRun(v0, runId, s.run.started_turn);
-    viewer = v; v.resize?.(); v.load(s); el.dataset.frame = frame; fbTick = s.turn; fbAt = performance.now();
+    syncLook(app); viewer = v; v.resize?.(); v.load(s); el.dataset.frame = frame; fbTick = s.turn; fbAt = performance.now();
     worldT = s.turn; lastPumpMs = performance.now(); scrub.hidden = false; paintScrub(s.turn);   // Cut 14 §6: the world clock starts; the strip shows
     speed = -1; applyFrame(); applySpeed();   // Cut 10 §1: the card and the mode's rate (fights: 16× under it) from the first frame
     if ("__riddle" in window) (window as unknown as { __viewer: Viewer }).__viewer = v;   // dev inspection

@@ -32,11 +32,20 @@ export function clientTry(app: App, cause: string | undefined): ForecastTry | un
   return app.rules.rows.some((r) => sameRow(r, c.row as Row)) ? undefined : { row: c.row, text: c.text };
 }
 
+/** QA 912e135: a forecast killer by name, `unmet <name>` for a kind the bestiary lists as not seen (a hazard or an unlisted cause as is). */
+export function killerName(app: App, cause: string): string {
+  const key = cause.replace(/ pack$/, "").trim().replace(/ /g, "_");
+  const row = (app.lineage.ledger ?? []).find((r) => r.kind === key);
+  const name = cause.replace(/_/g, " ");
+  return row && !row.seen ? /* copy:callout */ `unmet ${wallName(key)}` : name;
+}
+
 /** Cut 18 §3: the sealing boss's kind as one word (`goblin_warlord` → `warlord`). */
 export const wallName = (kind: string): string => kind.replace(/_/g, " ").trim().split(/\s+/).pop() ?? kind;
 
 /** Cut 20 §5: the bounty's multiplier as the notch reads it (`×2`; a number on the wire above 1 is the multiplier). */
-export const bountyMult = (b: boolean | number | undefined): string => `×${typeof b === "number" && b > 1 ? b : 2}`;
+/** QA 912e135 (qaW: `D8 ×2` in the shaft — "no source"): the multiplier says what it multiplies — the floor's gold (`$×2`). */
+export const bountyMult = (b: boolean | number | undefined): string => `$×${typeof b === "number" && b > 1 ? b : 2}`;
 
 /** Cut 9 §3: the half-width (a 0..1 fraction like `reach`) in percentage points, never `±0` — a forecast is never exact. */
 export const pmPts = (pm: number): number => Math.max(1, Math.round(pm * 100));
@@ -55,6 +64,12 @@ export function share(x: number, low: number | undefined): string {
   if (low === undefined || !Number.isFinite(x) || Math.round(x * 100) > 0) return pct(x);
   return x > 0 ? "<1%" : `<${Math.max(1, Math.round(low))}%`;
 }
+/** QA 912e135 (qaW: `bank <2% · return <2% · death 100%` — "sums past 100"): an end's share sampled at N of N prints `>{100 − low}%`
+ *  (`death >98%`), so the three ends never read past 100 together; above the low end it prints as `share`. */
+export function endShare(x: number, low: number | undefined): string {
+  if (low !== undefined && Number.isFinite(x) && Math.round(x * 100) >= 100) return x < 1 ? ">99%" : `>${100 - Math.max(1, Math.round(low))}%`;
+  return share(x, low);
+}
 /** The low end of the forecast now painted (`Forecast.low`, else from its `sims`). */
 export const lowOf = (f: { low?: number; sims?: number } | null | undefined): number | undefined => f?.low ?? (f?.sims ? Math.ceil(100 / f.sims) : undefined);
 
@@ -63,9 +78,11 @@ export const signedPts = (pts: number): string => `${pts < 0 ? "−" : "+"}${Mat
 /** Cut 22 §3: a paired move as it reads — `+6` / `−3`, `≈` inside its own ± (or rounding to 0): no call. */
 export function moveOf(m: VsMove | number | undefined): { pts: number; text: string; dir: "up" | "down" | "flat" } | null {
   if (m === undefined || m === null) return null;
-  const mv = typeof m === "number" ? { delta: m } : m;
+  const mv: VsMove = typeof m === "number" ? { delta: m } : m;
   if (typeof mv.delta !== "number" || !Number.isFinite(mv.delta)) return null;
-  const pts = Math.round(mv.delta * 100);
+  // QA 912e135 (qaW: `▲` against the bars' own numbers): with the sent set's share (`base`) the points are the two shown shares'
+  // difference (`29% → 61%` is `▲32`, never `▲31` by rounding the delta alone)
+  const pts = typeof mv.base === "number" ? Math.round((mv.base + mv.delta) * 100) - Math.round(mv.base * 100) : Math.round(mv.delta * 100);
   const flat = pts === 0 || (mv.pm !== undefined && Math.abs(mv.delta) <= mv.pm);
   return flat ? { pts, text: "≈", dir: "flat" } : { pts, text: signedPts(pts), dir: pts > 0 ? "up" : "down" };
 }
@@ -87,16 +104,27 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
   const rough = vs.refined === false;
   const start = forecastStart(app, f), next = Math.max(start, app.lineage.best_depth + 1);
   const ds = vs.depths.filter((d) => d.depth >= start && d.depth <= (f?.known_to ?? Infinity));
-  let head = ds.map((d) => ({ d, m: moveOf(d)! })).filter((x) => x.m && x.m.dir !== "flat").sort((a, b) => Math.abs(b.m.pts) - Math.abs(a.m.pts) || b.d.depth - a.d.depth)[0];
+  // QA 912e135 (qaW: the patch read `reach D7 +24`, the camp after it `vs sent · D6 +34`): the frontier's move leads when it clears its ±
+  // (the floor a death's patch measures, best + 1); else the largest outside its ±
+  const moved = ds.map((d) => ({ d, m: moveOf(d)! })).filter((x) => x.m && x.m.dir !== "flat");
+  let head = moved.find((x) => x.d.depth === next) ?? moved.sort((a, b) => Math.abs(b.m.pts) - Math.abs(a.m.pts) || b.d.depth - a.d.depth)[0];
   if (!head) { const d = ds.find((x) => x.depth === next) ?? ds[ds.length - 1]; if (d) head = { d, m: moveOf(d)! }; }
   // a first-pass move inside its ± is not yet a call: `…` until the refine's lands (a move outside it shows, dim)
-  const term = (label: string, m: ReturnType<typeof moveOf>, key: string, worse = false): HTMLElement =>
-    h("span", { class: "vs-term", "data-k": key }, h("i", { class: "sep" }, " · "), label, " ", h("b", { class: `dlt ${tone(m!.dir, worse)}` }, rough && m!.dir === "flat" ? "…" : m!.text));
+  // QA 912e135 (qaW: "▲ = the shown % minus the sent set's %, or it says what it is measured against"): a term reads the sent set's
+  // share and the shown one (`D6 29→61%`, the bar's own number), the move's colour on the arrow; an older core's bare move stays `+6`
+  const term = (label: string, m: ReturnType<typeof moveOf>, key: string, worse = false, raw?: VsMove | number): HTMLElement => {
+    const b = typeof raw === "object" && typeof raw.base === "number" ? raw : undefined;
+    const txt = m!.dir === "flat" ? (rough ? "…" : m!.text) : b ? `${Math.round(b.base! * 100)}→${Math.round((b.base! + b.delta) * 100)}%` : m!.text;
+    return h("span", { class: "vs-term", "data-k": key }, h("i", { class: "sep" }, " · "), label, " ", h("b", { class: `dlt ${tone(m!.dir, worse)}` }, txt));
+  };
   const terms: HTMLElement[] = [];
-  if (head?.m) terms.push(term(`D${head.d.depth}`, head.m, "depth"));
+  if (head?.m) terms.push(term(`D${head.d.depth}`, head.m, "depth", false, head.d));
   const bank = moveOf(vs.bank), death = moveOf(vs.death);
-  if (withEnds && bank) terms.push(term(/* copy:label */ "bank", bank, "bank"));
-  if (withEnds && death && death.dir !== "flat") terms.push(term(/* copy:label */ "death", death, "death", true));
+  if (withEnds && bank) terms.push(term(/* copy:label */ "bank", bank, "bank", false, vs.bank));
+  if (withEnds && death && death.dir !== "flat") terms.push(term(/* copy:label */ "death", death, "death", true, vs.death));
+  // QA 912e135 (qaX: `death −11` in green while the stall share rose 0 → 11 %): a stall that moves outside its ± is its own term, worse up
+  const stall = moveOf(vs.stall);
+  if (withEnds && stall && stall.dir !== "flat") terms.push(term(/* copy:label */ "stall", stall, "stall", true, vs.stall));
   if (!terms.length) return null;
   // QA 778fa1b (qaU: `death −10` stayed while the refine beside it read 22 → 27 %): a move paired on the first pass trails `…` and
   // reads dim until the refine's is asked again and lands (`ForecastVs.refined`; absent on an older core: no mark)
@@ -113,7 +141,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const paintPicked = (): void => { const p = app.lineage.picked ?? []; picked.hidden = !p.length; replace(picked, p.length ? pickedLine(p) : ""); };
   // Cut 22 §3: the edit's paired move, the shaft's line, under the ends (and a mark on each bar)
   const vsHost = h("div", { class: "fc-vs", hidden: true });
-  const paintVs = (): void => { const line = vsLine(app, app.vs, app.lastForecast, true); vsHost.hidden = !line; replace(vsHost, line ?? ""); };
+  const paintVs = (): void => { const line = vsLine(app, app.vsShown(), app.lastForecast, true); vsHost.hidden = !line; replace(vsHost, line ?? ""); };
   // QA 778fa1b (qaU: 94/78/42 then 95/73/36 for the same rules, "no sign it was settling"): the first pass's label trails `…`
   const settling = h("span", { class: "fc-settling", hidden: true }, "…");
   // QA 778fa1b (qaV: `D1 100%` beside `death 100%` read as dying on D1): the bars say what they count — the share that reaches each floor
@@ -132,11 +160,11 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     if (!e) return;
     // a stall share only when there is one: `bank 0% · return 20% · stall 50% · death 30% · ~$25`
     const stall = e.stall && Math.round(e.stall * 100) > 0 ? /* copy:callout */ ` · stall ${pct(e.stall)}` : "";
-    const lo = lowOf(f), sh = (x: number): string => share(x, lo);
+    const lo = lowOf(f), eh = (x: number): string => endShare(x, lo);
     const epm = pmShown(e.death, e.pm);
     const pm = epm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${epm}${f.refined === false ? "…" : ""}`) : "";
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
-    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${sh(e.bank)} · return ${sh(e.return)}`, stall, /* copy:callout */ ` · death ${sh(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
+    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${eh(e.bank)} · return ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -145,7 +173,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   };
   const paint = (f: Forecast): void => {
     clear(bars); clear(causes); paintEnds(f); paintPicked(); paintVs();
-    const vsBy = new Map((app.vs?.depths ?? []).map((d) => [d.depth, d]));
+    const vsBy = new Map((app.vsShown()?.depths ?? []).map((d) => [d.depth, d]));
     el.dataset.refined = f.refined === undefined ? "" : f.refined ? "1" : "0";   // dev: tools read which pass painted
     // QA 92eb880 (M: "D6 32%±13 → 38%±10 on opening edit"): the first pass paints dim, its ± trailing `…`, until the refine lands
     el.classList.toggle("rough", f.refined === false);
@@ -200,7 +228,9 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     const per = f.ends ? f.ends.death : 1;
     // QA 1a2a4a9 (O: `goblin 26% · ogre 21%` "with no heading"): the killers' line says what it lists
     if (f.causes.length) causes.appendChild(h("span", { class: "label causes-label" }, /* copy:label */ "killers"));
-    for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, c.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, share(c.share * per, lowOf(f)))));
+    // QA 912e135 (qaX: `KILLERS goblin warlord 38%` while the ledger had him unseen, no screen naming him): a killer the lineage has not met
+    // reads as one — `unmet warlord`
+    for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, killerName(app, c.cause), " ", h("b", { class: "num" }, share(c.share * per, lowOf(f)))));
   };
   // until the first forecast arrives (≈1 s in the worker): the unknown row only
   bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, "…"), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
@@ -257,7 +287,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     const capD = bankCap(app.rules.rows), known0 = last?.known_to ?? 0;
     const next = Math.max(start, app.lineage.best_depth + 1), deepest = Math.max(next, bountyD ?? 0, capD !== undefined && capD <= known0 + 1 ? capD : 0), from = deepest - start + 1 > MAX ? deepest - MAX + 2 : start;
     const byDepth = new Map((last?.depths ?? []).map((d) => [d.depth, d]));
-    const vs = app.vs, vsBy = new Map((vs?.depths ?? []).map((d) => [d.depth, d]));
+    const vs = app.vsShown(), vsBy = new Map((vs?.depths ?? []).map((d) => [d.depth, d]));
     const known = last?.known_to ?? 0;
     const rough = last?.refined === false, cap = bankCap(app.rules.rows);
     const folded: HTMLElement[] = [];
@@ -288,17 +318,20 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       return n;
-    }));
+    }),
+    // QA 912e135 (qaW: the first camp's shaft was `D1 100%` alone, then D1–D7 after a death): the floors below the shaft's last are
+    // there and unknown — a dim `D2+ ?` under it while the shaft is short
+    deepest - from + 1 < MAX ? h("span", { class: "shaft-more num dim" }, `D${deepest + 1}+ ?`) : "");
     const e = last?.ends;
     ends.hidden = !e || !showEnds();
     if (e && !ends.hidden) replace(ends,
       // QA 778fa1b (qaU: the `▲`/`▼` after `return 92%` / `death 8%` clipped at the panel's edge): the arrow rides the number (`b`), raised
       // over its end, inside the column
-      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, share(e.bank, lowOf(last)), moveMark(vs?.bank, true))),
-      h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, share(e.return, lowOf(last)), moveMark(vs?.return, true))),
+      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, endShare(e.bank, lowOf(last)), moveMark(vs?.bank, true))),
+      h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, endShare(e.return, lowOf(last)), moveMark(vs?.return, true))),
       // QA 23ed91f (L: "`bank 0% · return 0% · death 96%` never sums to 100; `stall` only in the panel"): a stall share is its own gem
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
-      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, share(e.death, lowOf(last)), moveMark(vs?.death, true, true))),
+      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true))),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
       h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`, rough ? h("i", { class: "settling" }, "…") : ""));
     const line = vsLine(app, vs, last, !!e && showEnds());

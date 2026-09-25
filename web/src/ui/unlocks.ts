@@ -4,6 +4,7 @@
 // Cut 9 §2: every buy goes through `openUnlockSheet` — the card's rows / effect, `◆cost`, `needs` when gated, `reach ±N%`
 // when known, then `buy`. No card buys on its own tap; a disabled card still opens the sheet to show its gate.
 import type { App } from "../app";
+import { revealed } from "./reveal";
 import { engagementRow } from "../app";
 import type { Lineage, UnlockInfo } from "../engine/types";
 import { CLASSES, isFreeClass } from "../engine/classes";
@@ -91,7 +92,9 @@ export function priceLabel(u: UnlockInfo): string {
 export function effectLine(app: App, u: UnlockInfo): string | undefined {
   const L = app.lineage;
   if (/^row\d+$/.test(u.id)) return /* copy:callout */ `rows ${app.vocab.max_rows} → ${app.vocab.max_rows + 1}`;
-  if (/^vault\d$/.test(u.id)) { const n = vaultSlots(L.unlocks); return /* copy:callout */ `vault ${n} → ${n + 1}`; }
+  // QA 912e135 (qaW: `vault 1 → 2` before any vault tile existed, then `VAULT 0/2`): while the vault is not yet on the console its first
+  // slot was never seen — the line reads what the buy shows (`vault · 2 slots`)
+  if (/^vault\d$/.test(u.id)) { const n = vaultSlots(L.unlocks); return revealed(app).has("vault") ? /* copy:callout */ `vault ${n} → ${n + 1}` : /* copy:callout */ `vault · ${n + 1} slots`; }
   if (/^party_slot_\d$/.test(u.id)) return /* copy:callout */ `party ${L.party_slots} → ${L.party_slots + 1}`;
   return undefined;
 }
@@ -154,7 +157,7 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       // QA a946e04 (T: three cards bought, all three went into the rules): a card that will not join the set on its buy says so — it is
       // owned, and its chip's `add` puts it in
       isCard(u) ? h("div", { class: `dim num card-joins${u.auto_insert === true ? " joins" : ""}` },
-        u.auto_insert === true ? /* copy:unlock_card */ `joins at R${(joinAt ?? app.rules.rows.length) + 1}` : (u.owned ? /* copy:unlock_card */ "owned · add separately" : /* copy:unlock_card */ "after buy · add separately")) : "");   // QA 778fa1b (qaV: `owned · add separately` before the buy read as owned)
+        u.auto_insert === true ? /* copy:unlock_card */ `joins at R${(joinAt ?? app.rules.rows.length) + 1}` : (u.owned ? /* copy:unlock_card */ "owned · add to rules" : /* copy:unlock_card */ "buy, then add to rules")) : "");   // QA 912e135 (qaW: `after buy · add separately` unexplained)   // QA 778fa1b (qaV: `owned · add separately` before the buy read as owned)
   });
 }
 /** QA a946e04: the chain's next step as the sheet shows it — `next ◆4 or $600` (its price once this one is bought with marks) and,
@@ -170,7 +173,7 @@ function nextPrice(app: App, u: UnlockInfo): HTMLElement | null {
   return h("div", { class: "dim num next-price" }, /* copy:callout */ `next ${price}`,
     // QA 778fa1b (qaV: `next ◆4 or $600 · $ buy → $750` — "two next prices on one line"; qaU: a $ buy raised `verb: throw` and `cond:
     // alert` too, unsaid): a $ buy raises every $ price — the line says so, by how much, not a second price for this one
-    n.gold_after_gold && n.gold && n.gold_after_gold !== n.gold ? h("span", { class: "after-gold" }, /* copy:callout */ ` · $ buy: all $ +${Math.round((n.gold_after_gold / n.gold - 1) * 100)}%`) : "");
+    n.gold_after_gold && n.gold && n.gold_after_gold !== n.gold ? h("span", { class: "after-gold" }, /* copy:callout */ ` · each $ buy: $ prices +${Math.round((n.gold_after_gold / n.gold - 1) * 100)}%`) : "");   // QA 912e135 (qaW: `$ buy: all $ +25%` unexplained)
 }
 /** The core's gold price is `GOLD_PER_MARK × cost × (4 + gold_buys) / 4` (meta.rs): each gold buy raises every gold price by
  *  1 / (4 + gold_buys) — 25 % at the first, 20 % at the second, … — read back off this card's price. */

@@ -223,9 +223,92 @@ function script(biome: string): Ev[] {
   return ev;
 }
 
+// Juice (docs/JUICE.md): `?busy=1&biome=burrows&depth=5` — a sustained melee in the SE room for frame-time measurement: six foes
+// round the hero, fire and gas on the floor, arrows, a hit every ~3 ticks, a death and a respawn every ~25, for `ticks` ticks.
+const BUSY_KINDS: Record<string, string[]> = {
+  warrens: ["rat", "jackal", "goblin", "goblin_archer", "monkey", "goblin_conjurer"],
+  burrows: ["goblin", "jackal", "goblin_archer", "goblin_captain", "monkey", "goblin_conjurer"],
+  fens: ["eel", "bloat", "pink_jelly", "jackal", "goblin", "ogre"],
+  crypt: ["skeleton", "ghoul", "wraith", "skeleton", "acolyte", "ghoul"],
+  foundry: ["forge_imp", "iron_golem", "slag_crawler", "smith", "forge_imp", "bell_sentinel"],
+  deep: ["lurker", "cave_troll", "siren", "eel", "lurker", "echo"],
+  sanctum: ["warden", "mirror_shade", "acolyte", "sentinel", "warden", "echo"],
+};
+function busyFloor(depth: number, biome: string): Snapshot {
+  const f = makeFloor(depth, biome);
+  f.hero = { ...f.hero, x: 16, y: 16 };
+  const kinds = BUSY_KINDS[biome] ?? BUSY_KINDS.warrens!;
+  const ring: [number, number][] = [[15, 15], [17, 15], [15, 17], [17, 17], [14, 16], [18, 16]];
+  f.entities = ring.map(([x, y], i) => ({ id: 100 + i, kind: kinds[i]!, x, y, hp: 12, max_hp: 12, tags: i === 3 ? ["boss"] : [] }));
+  f.entities.push({ id: 20, kind: "jackal", x: 16, y: 18, hp: 6, max_hp: 6, tags: ["pack", "fast"], ally: true, cid: 1 });
+  const ov = (k: "fire" | "gas", ps: number[][]): Snapshot["overlays"] => ps.map(([x, y]) => ({ x: x!, y: y!, k, ttl: 9999 }));
+  f.overlays = [...ov("fire", [[13, 14], [13, 15], [14, 18], [19, 19], [20, 19]]), ...ov("gas", [[19, 13], [20, 13], [20, 14], [21, 14], [12, 19]])];
+  f.tiles = f.tiles.map((t, i) => (t === "water" && i % 3 ? "floor" : t));
+  return f;
+}
+function busyScript(biome: string, ticks: number): Ev[] {
+  const kinds = BUSY_KINDS[biome] ?? BUSY_KINDS.warrens!;
+  const ring: [number, number][] = [[15, 15], [17, 15], [15, 17], [17, 17], [14, 16], [18, 16]];
+  const ev: Ev[] = [];
+  const hp = new Map<number, number>(ring.map((_, i) => [100 + i, 12]));
+  const at = new Map<number, [number, number]>(ring.map((p, i) => [100 + i, p]));
+  let heroHp = 60, next = 200, r = 7;
+  const rnd = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  for (let t = 5; t < ticks; t += 3) {
+    const ids = [...hp.keys()];
+    const id = ids[Math.floor(rnd() * ids.length)]!;
+    if (rnd() < 0.55) {   // the hero strikes
+      const dmg = 2 + Math.floor(rnd() * 5), left = Math.max(0, hp.get(id)! - dmg);
+      ev.push({ t, k: "attack", src: 1, dst: id, dmg, hit: true, verb: "attack" }, { t, k: "hurt", id, dmg, hp: left, cause: "hero" });
+      hp.set(id, left);
+      if (left === 0) {
+        ev.push({ t, k: "die", id, cause: "hero" });
+        hp.delete(id);
+        const p = at.get(id)!; at.delete(id);
+        const nid = next++;
+        ev.push({ t: t + 8, k: "spawn", e: { id: nid, kind: kinds[nid % kinds.length]!, x: p[0], y: p[1], hp: 12, max_hp: 12, tags: [] } });
+        hp.set(nid, 12); at.set(nid, p);
+      }
+    } else if (rnd() < 0.3) {   // an arrow
+      const p = at.get(id)!, dmg = 1 + Math.floor(rnd() * 3);
+      const path = line([p[0] + 3, p[1] - 3], [16, 16]);
+      ev.push({ t, k: "projectile", src: id, dst: 1, path });
+      heroHp = Math.max(8, heroHp - dmg);
+      ev.push({ t: t + path.length, k: "hurt", id: 1, dmg, hp: heroHp, cause: "arrow" });
+    } else {   // a foe strikes
+      const dmg = rnd() < 0.2 ? 0 : 1 + Math.floor(rnd() * 4);
+      heroHp = dmg ? Math.max(8, heroHp - dmg) : heroHp;
+      if (heroHp <= 10) heroHp = 60;
+      ev.push({ t, k: "attack", src: id, dst: 1, dmg, hit: dmg > 0 });
+      if (dmg) ev.push({ t, k: "hurt", id: 1, dmg, hp: heroHp, cause: kinds[0]! });
+    }
+    if (t % 60 === 5) ev.push({ t, k: "telegraph", id, what: "winds up" });
+  }
+  ev.sort((a, b) => a.t - b.t);
+  return ev;
+}
+
 function main(): void {
   const canvas = document.getElementById("view") as HTMLCanvasElement;
-  const viewer = createViewer(canvas);
+  const q = new URLSearchParams(location.search);
+  const viewer = createViewer(canvas, q.get("texels") ? { baseTexels: Number(q.get("texels")) } : {});
+  if (q.get("busy") === "1") {
+    const biome = q.get("biome") ?? "burrows", depth = Number(q.get("depth") ?? 5), ticks = Number(q.get("ticks") ?? 3000);
+    const floor = busyFloor(depth, biome);
+    floor.seen = floor.seen.map(() => false);
+    viewer.load(floor);
+    viewer.apply(busyScript(biome, ticks));
+    viewer.setSpeed(Number(q.get("speed") ?? 1));
+    if (q.get("fight") !== "0") viewer.setFrame("fight");
+    const seekT = q.get("seek");
+    if (seekT !== null) setTimeout(() => { viewer.seek(Number(seekT)); viewer.setSpeed(0); }, 600);
+    window.addEventListener("resize", () => viewer.resize());
+    (window as unknown as { viewer: unknown }).viewer = viewer;
+    document.getElementById("bar")!.style.display = "none";
+    const hud = document.getElementById("hud")!;
+    if (q.get("hud") === "0") hud.hidden = true;
+    return;
+  }
   const biomes = ["warrens", "fens", "crypt"];
   let depth = 1;
   let floor = makeFloor(depth, biomes[0]!);

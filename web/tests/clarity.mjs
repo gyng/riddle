@@ -98,7 +98,7 @@ try {
     await page.evaluate(() => { const r = window.__riddle; r.lineage.rest_left_s = 1200; r.go({ kind: "camp" }); });
     await sleep(300);
     const rest = await page.evaluate(() => { const el = document.querySelector(".rest-line .rest"); return { text: el?.textContent.trim(), hidden: el?.hidden, tag: el?.tagName }; });
-    check(rest.text === "rest 20m · send skips" && !rest.hidden, `the rest chip reads "${rest.text}"`);
+    check(rest.text === "heir rests 20m · send skips rest" && !rest.hidden, `the rest chip reads "${rest.text}"`);
   }
   // §2 the try row: the counter fact known, the row absent → `D5 0% · goblin warlord · try: attack boss`; a tap inserts it at the top
   {
@@ -319,7 +319,7 @@ try {
         if (x.card !== null) {
           cards++;
           const cd = /^D(\d+)/.exec(x.card)?.[1], hd = /^D(\d+)$/.exec(x.depth)?.[1];
-          const cl = /· \$(\d+)$/.exec(x.card)?.[1], sl = /^(?:carry )?\$(\d+)/.exec(x.stake)?.[1];
+          const cl = /· (?:carry )?\$(\d+)$/.exec(x.card)?.[1], sl = /^(?:carry )?\$(\d+)/.exec(x.stake)?.[1];
           if (cd !== hd || (cl !== undefined && sl !== undefined && cl !== sl)) bad.push(`${x.depth} ${x.stake.split(" · ")[0]} vs "${x.card}"`);
         }
         await sleep(100);

@@ -4,7 +4,7 @@
 // Cut 11 §2–3: when the wire carries a `because`, the accounting is the chain (ui/chain.ts: `R1 drink heal · no item ←
 // den took the heal, D3 [watch]`); exit traces show their last 10 turns, the death screen keeps 5 above its chain.
 import type { Trace } from "../engine/types";
-import { chainOf, type ChainCtx } from "./chain";
+import { chainOf, rowRef, type ChainCtx } from "./chain";
 import { h } from "./dom";
 import { openSheet } from "./sheet";
 import { verbLabel } from "./tokens";
@@ -21,7 +21,9 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
     h("thead", null, h("tr", null, /* copy:label */ ...["t", "R", "hp", "foes", ...(tele ? ["tele"] : [])].map((s) => h("th", null, s)))),
     h("tbody", null, ...turns.map((t) => h("tr", null,
       h("td", null, `${t.t}`),
-      h("td", { class: "r" }, t.row >= 0 ? `R${t.row + 1}` : t.row === -1 ? /* copy:label */ "trait" : "·", " ", h("small", { class: "dim" }, verbLabel(t.verb))),
+      // QA 912e135: a player row's turn names the row as a button when the screen can open it (`ChainCtx.onRow`)
+      h("td", { class: "r" }, ...(t.row >= 0 && ctx.onRow ? [rowRef(t.row, verbLabel(t.verb), ctx.onRow)]
+        : [t.row >= 0 ? `R${t.row + 1}` : t.row === -1 ? /* copy:label */ "trait" : "·", " ", h("small", { class: "dim" }, verbLabel(t.verb))])),
       h("td", null, `${t.hp}`),
       h("td", null, `${t.foes}`),
       tele ? h("td", { class: "tele" }, t.telegraphs.join(" · ")) : "",
@@ -30,7 +32,7 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
   if (chain) return [table, chain];
   const lastRows = turns[turns.length - 1]?.rows ?? [];
   // each `R2 foes appeared after` whole on its line (the list wraps between reasons, never inside one)
-  const rowsLine = lastRows.length ? h("div", { class: "rows-line num dim" }, ...lastRows.flatMap((r, i) => [i ? " · " : "", h("span", { class: "rw" }, `R${r.row + 1} ${r.why}`)])) : null;
+  const rowsLine = lastRows.length ? h("div", { class: "rows-line num dim" }, ...lastRows.flatMap((r, i) => [i ? " · " : "", ctx.onRow ? h("span", { class: "rw" }, rowRef(r.row, undefined, ctx.onRow), ` ${r.why}`) : h("span", { class: "rw" }, `R${r.row + 1} ${r.why}`)])) : null;
   return rowsLine ? [table, rowsLine] : [table];
 }
 /** Cut 9 §5: a `trace` chip; tapping it opens the table (Cut 11 §3: the last 10 turns and the chain) in a sheet.

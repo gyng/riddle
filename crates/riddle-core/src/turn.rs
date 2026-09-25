@@ -583,7 +583,15 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         // Cut 4: a row whose conditions hold but whose verb cannot execute is shown as such
         // (`R1 retreat ✗ no path`), the first such row per action; cards fall through by design.
         if row.verb.v == "tactic" {
-            row_why(run, cx, i, "card passed", None, None);
+            // QA on 912e135 (qaW: `card passed · card not triggered` for `kite archers` with an
+            // archer drawing in the trace): a card keyed on a foe says whether that foe was in
+            // view — `card idle` (none) or `card blocked` (there, and its move had no way).
+            let why = match crate::meta::card_situation(row.verb.a.as_deref().unwrap_or("")) {
+                Some(tag) if v.foes.iter().any(|&m| run.monsters[m].has_tag(&tag)) => "card blocked",
+                Some(_) => "card idle",
+                None => "card passed",
+            };
+            row_why(run, cx, i, why, None, None);
         } else {
             let reason = ai::block_reason(run, cx, &row.verb, v);
             row_why(run, cx, i, reason, Some(row), None);
@@ -639,7 +647,7 @@ pub const ROW_REASONS: &[&str] = &[
     "hp not <", "hp not >", "foes not ≥", "foes fleeing", "foes appeared after", "adj not ≥", "not in view", "no weak foe", "none held", "no unknown", "seen not ≥",
     "depth not ≥", "alert not ≥", "not corridor", "no path", "no ally", "loot not ≥", "turns not >", "not hurt", "no kill",
     "nothing new", "no ", "party hp ok", "locked cond", "no target", "no line", "no bow", "cooldown", "no item", "no use",
-    "no leash", "none weak", "not safe", "no stairs", "no way", "going home", "prayed", "no shrine", "unknown item", "card passed", "brave held", "fired, free",
+    "no leash", "none weak", "not safe", "no stairs", "no way", "going home", "prayed", "no shrine", "unknown item", "card passed", "card idle", "card blocked", "given up", "brave held", "fired, free",
     "stuck", "row guard", "same as R", "trait first", "hazard first", "recall sense", "paralysed", "confused", "bail",
 ];
 
@@ -777,7 +785,11 @@ pub const WHY_GLOSS: &[(&str, &str)] = &[
     ("prayed", "prayed already"),
     ("no shrine", "no shrine here"),
     ("no way", "exit unreachable"),
-    ("card passed", "card not triggered"),
+    ("card passed", "its rows idle"),
+    ("card idle", "no trigger foe"),
+    ("given up", "chase given up"),
+    ("foes fleeing", "foes running off"),
+    ("card blocked", "its move blocked"),
     ("brave held", "bravery held it"),
     ("stuck", "loop guard waits"),
     ("row guard", "row rested (loop)"),

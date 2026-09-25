@@ -147,7 +147,7 @@ try {
   rs = await rows();
   // where a buy puts it: before the engagement row (R2 `attack`), never the end the stale catalogue would say
   check((await sheets()) === 0 && rs.length === 3 && rs[1].card && /thief guard/.test(rs[1].text) && /attack/.test(rs[2].text), `insert put the card back above attack: ${rs.map((r) => r.text.slice(0, 20)).join(" | ")}`);
-  check((await count()) === "2/4 · 1 card", `the counter: "${await count()}"`);
+  check((await count()) === "2/4 rows + 1 card", `the counter: "${await count()}"`);
 
   // 1: a screen change closes every sheet; Escape on a kept death goes to the camp, on a fresh death it stays
   await page.locator("button.gear").click({ timeout: 5000 }); await sleep(150);
