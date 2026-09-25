@@ -426,6 +426,9 @@ export class ReplayState {
         break;
       case "callout":
         if (ev.text === "choose one") break;   // Cut 19 §1: the cage is the watch's beat (`took mail`), never a `CHOOSE ONE` over the hero
+        // Cut 22 (AH: the boss moment's "clutter of overlapping text"): a boss's break is the watch's beat (`WARLORD BREAKS` on the line
+        // under the fight) — one line wins, never a second `WARLORD BREAKS` over the hero at once
+        if (/^(?:the )?[a-z]+ breaks\.?$/i.test(ev.text.trim())) break;
         this.callout = { text: ev.text.slice(0, 24), until: performance.now() + 1000, t };
         break;
       case "tame": {

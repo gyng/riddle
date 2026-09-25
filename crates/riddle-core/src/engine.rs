@@ -188,6 +188,11 @@ pub struct Run {
     /// inside `trace::GAMBLE_WINDOW` (`turn::damage_hero`; reset at each gamble).
     #[serde(default)]
     pub gamble_harm: i32,
+    /// Cut 22 §3: a forecast's sim (`forecast::simulate_one`): each floor below the first draws
+    /// from a stream of its own, (run seed, depth) — `turn::descend`. A send, and any replay of
+    /// one, goes on drawing from the run's stream.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub floor_streams: bool,
     pub stolen: Vec<(u32, String)>,
     /// Cut 20 §1: the ids of the items thieves took this run, and what was taken back from a
     /// killed thief's drop (turn, label).
@@ -915,6 +920,13 @@ pub struct LineageState {
     /// `start_short`); cleared at the night's end. A watched send asks each time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub night_short: Option<u32>,
+    /// Cut 22 §1 (AH: "the monkey stole the heal potion … 8 seconds after I paid $40"): the
+    /// repeat re-buys a supply thieves kept once a night — this night's one is spent — and
+    /// the kinds a later theft took wait for the night's end (`theft_skip`; `night` clears both).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub night_theft_rebought: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub theft_skip: Vec<String>,
 }
 
 fn default_start() -> u32 {
@@ -924,8 +936,9 @@ fn default_start() -> u32 {
 /// Cut 21 §1: the waystones — each biome's first floor below the Warrens (Burrows D5, Fens D9,
 /// Crypt D14, Foundry D19, Deep D24, Sanctum D29).
 pub const WAYSTONES: [u32; 6] = [5, 9, 14, 19, 24, 29];
-/// Cut 21 §1: a start below D1 costs this many coins per floor (`waystone D9 −$90`).
-pub const WAYSTONE_TOLL: i32 = 10;
+/// Cut 21 §1: a start below D1 costs this many coins per floor (`waystone D9 −$45`; Cut 22 §1:
+/// was $10, a fraction of the start's reward now).
+pub const WAYSTONE_TOLL: i32 = 5;
 
 /// Cut 16 §1: a night of runs (the ledger's "a night of 16 runs").
 pub const NIGHT_RUNS: u32 = 16;
@@ -1036,6 +1049,8 @@ impl LineageState {
             night_seen: BTreeSet::new(),
             night_passes: BTreeSet::new(),
             night_short: None,
+            night_theft_rebought: false,
+            theft_skip: Vec::new(),
             den_thefts: 0,
             den_wakes: 0,
             bounty: None,
@@ -1443,6 +1458,8 @@ impl LineageState {
         // QA on a946e04: a new night buys a new waystone pass.
         self.night_passes.clear();
         self.night_short = None;
+        self.night_theft_rebought = false;
+        self.theft_skip.clear();
         // Cut 20 §5 (AC: "after the absence 15 of 16 runs banked, so the second half had
         // little at stake"): the deep calls — the next night's bounty floor.
         self.bounty = Some(bounty_floor(self.best_depth, &self.kills));
@@ -1635,6 +1652,10 @@ pub struct DeathRec {
     /// gamble was this floor's, shortly before. Whatever the row's origin, the verdict is `row`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gamble_row: Option<usize>,
+    /// Cut 22 §4: the set's own attack row that chased into the death (`trace::chase_cause`),
+    /// set by the verdict: its `row` stands whatever an added row would survive.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chase_row: Option<usize>,
 }
 
 fn is_zero_u64(n: &u64) -> bool {
@@ -2125,9 +2146,9 @@ impl Game {
         let (bought, kept): (Vec<Item>, Vec<Item>) = std::mem::take(&mut self.lineage.supplies).into_iter().partition(|s| !s.free && !s.found);
         self.lineage.supplies = kept;
         for s in bought {
-            if let Some(e) = cat.iter().find(|e| e.kind == s.kind) {
+            if let Some(price) = refund_of(&s, &cat) {
                 let why = format!("refund {}", s.kind.replace('_', " "));
-                self.lineage.gold_move(e.price, &why);
+                self.lineage.gold_move(price, &why);
             }
         }
     }
@@ -2165,7 +2186,19 @@ impl Game {
                 .cloned()
                 .collect()
         };
-        let kinds: Vec<String> = kinds.into_iter().filter(|k| used.contains(k)).collect();
+        let mut skip = self.lineage.theft_skip.clone();
+        let kinds: Vec<String> = kinds
+            .into_iter()
+            .filter(|k| used.contains(k))
+            // Cut 22 §1: a kind thieves kept after the night's one re-buy waits for the night's end.
+            .filter(|k| match skip.iter().position(|s| s == k) {
+                Some(i) if self.lineage.supplies.iter().all(|s| s.kind != *k) => {
+                    skip.remove(i);
+                    false
+                }
+                _ => true,
+            })
+            .collect();
         let gold = kinds.iter().filter_map(|k| cat.iter().find(|e| e.kind == *k).map(|e| e.price)).sum();
         (kinds, gold)
     }
@@ -2458,6 +2491,7 @@ impl Game {
             low20_t: None,
             near_deaths: Vec::new(),
             gambles: Vec::new(),
+            floor_streams: false,
             gambles_survived: Vec::new(),
             gamble_harm: 0,
             stolen: Vec::new(),
@@ -2958,7 +2992,8 @@ impl Game {
         }
         let kept_gold: i32 = kept.iter().map(|(_, g)| *g).sum();
         let kept_kinds: Vec<String> = kept.into_iter().map(|(k, _)| k).collect();
-        let kept_by_thieves: Vec<String> = kept_kinds.iter().map(|k| self.lineage.wire_name(k).replace('_', " ")).collect();
+        // (Cut 22 §2: stolen coins are the line's `−$6 stolen`, not an item it names)
+        let kept_by_thieves: Vec<String> = kept_kinds.iter().filter(|k| k.as_str() != "gold").map(|k| self.lineage.wire_name(k).replace('_', " ")).collect();
         self.batch.den_wakes += run.den_wakes;
         // Cut 20 §5: the bounty floor — taken when the run reached it and came home. QA on
         // e75ec29 (qaQ: `bounty D10 · missed` after the first absence, no bounty on the camp
@@ -3474,6 +3509,18 @@ impl Game {
         }
         // Cut 13 §3: what this run used to no effect is not rebought for the next.
         self.lineage.last_wasted = run.wasted_kinds.clone();
+        // Cut 22 §1: a bought supply thieves kept is re-bought once a night; a later one waits
+        // for the night's end.
+        for (id, kind, _) in &run.stolen_kinds {
+            if !run.supplies.contains(id) || !run.stolen_ids.contains(id) || kind == "leash" {
+                continue;
+            }
+            if self.lineage.night_theft_rebought {
+                self.lineage.theft_skip.push(kind.clone());
+            } else {
+                self.lineage.night_theft_rebought = true;
+            }
+        }
         // Cut 21 §2 (AF: `returned $0 · stalled · repeat −$80`): a stall does not re-pack on
         // top of the loss — the next send's re-pack buys what the shelf lacks then.
         let spent_on = if stalled { Vec::new() } else { self.restock() };
@@ -3855,8 +3902,7 @@ impl Game {
         let mut out = vec![SupplyInfo { kind: "leash".into(), price: 30, label: "leash".into() }];
         for d in crate::defs::ITEMS {
             let base = match d.cat {
-                Cat::Potion => Some(40),
-                Cat::Scroll => Some(60),
+                Cat::Potion | Cat::Scroll => Some(supply_price(d.cat, self.lineage.best_depth)),
                 _ => None,
             };
             let identified = crate::item::is_identified(&self.lineage.facts, &self.lineage.flavours, d.kind);
@@ -3910,6 +3956,7 @@ impl Game {
             it.amount = 1;
             self.lineage.kennel_declined = false;
         }
+        it.paid = entry.price;
         self.lineage.supplies.push(it);
         Ok(())
     }
@@ -3943,9 +3990,9 @@ impl Game {
             // Cut 21 §2: a found supply off the shelf is salvaged, as the exit would have.
             self.salvage(std::slice::from_ref(&s), 100);
         } else if !s.free {
-            if let Some(e) = self.supply_catalogue().iter().find(|e| e.kind == s.kind) {
+            if let Some(price) = refund_of(&s, &self.supply_catalogue()) {
                 let why = format!("refund {}", s.kind.replace('_', " "));
-                self.lineage.gold_move(e.price, &why);
+                self.lineage.gold_move(price, &why);
             }
             if let Some(k) = self.lineage.last_supplies.iter().position(|k| *k == s.kind) {
                 self.lineage.last_supplies.remove(k);
@@ -3964,9 +4011,9 @@ impl Game {
                 self.salvage(std::slice::from_ref(&s), 100);
                 continue;
             }
-            if let Some(e) = cat.iter().find(|e| e.kind == s.kind) {
+            if let Some(price) = refund_of(&s, &cat) {
                 let why = format!("refund {}", s.kind.replace('_', " "));
-                self.lineage.gold_move(e.price, &why);
+                self.lineage.gold_move(price, &why);
             }
         }
         // Cut 4: clearing the shelf is an order; the automation does not undo it.
@@ -4000,12 +4047,17 @@ impl Game {
         // Cut 21 §2 (AE: a strength potion no row drinks re-bought sixteen times): only the
         // kinds a row of the active set can use are re-bought (`LineageState::row_kinds`).
         let used = self.lineage.row_kinds();
+        let mut skip = self.lineage.theft_skip.clone();
         for kind in self.lineage.last_supplies.clone() {
             if let Some(i) = on_shelf.iter().position(|k| *k == kind) {
                 on_shelf.remove(i);
                 continue;
             }
             if wasted.contains(&kind) || !used.contains(&kind) {
+                continue;
+            }
+            if let Some(i) = skip.iter().position(|k| *k == kind) {
+                skip.remove(i);
                 continue;
             }
             if self.offline {
@@ -4156,6 +4208,31 @@ pub fn salvage_value(kind: &str) -> i32 {
         Cat::Misc => 5,
         Cat::Gold => 0,
     }
+}
+
+/// Cut 22 §1 (AG: "+$77 returned · −$160 spent"; AH: "a treadmill"): a potion on the shelf
+/// costs `$10 + 2 × best depth` (D8 $26, D20 $50) and a scroll 1.5× that — a D8 lineage's heal
+/// is not a D20 lineage's (was a flat $40 / $60).
+/// The most a potion costs (a scroll 1.5×).
+pub const SUPPLY_PRICE_CAP: i32 = 26;
+
+pub fn supply_price(cat: Cat, best_depth: u32) -> i32 {
+    // capped: a deep lineage starting at a waystone skips the shallow income, so a price that
+    // kept climbing with depth made its sends lose money (the waystone column, Cut 22 §1)
+    let potion = (10 + 2 * best_depth as i32).min(SUPPLY_PRICE_CAP);
+    match cat {
+        Cat::Scroll => potion * 3 / 2,
+        _ => potion,
+    }
+}
+
+/// Cut 22 §1: a bought supply's refund — what was paid for it (`Item.paid`), else the shelf's
+/// price today (a save from before the price moved); None when the shelf does not sell it.
+fn refund_of(s: &Item, cat: &[SupplyInfo]) -> Option<i32> {
+    if s.paid > 0 {
+        return Some(s.paid);
+    }
+    cat.iter().find(|e| e.kind == s.kind).map(|e| e.price)
 }
 
 /// Insurance premium: 25% of salvage value ×10 (Melvor style).

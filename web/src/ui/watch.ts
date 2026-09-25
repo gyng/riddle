@@ -116,7 +116,7 @@
 // cadence above. `data-frame="map|fight"` on the element for tooling.
 import type { App, Mounted } from "../app";
 import type { Ev, ExitLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, Trace, VaultChoice } from "../engine/types";
-import { h, items, replace, spanOf } from "./dom";
+import { h, clear, items, replace, spanOf } from "./dom";
 import { gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile } from "./frame";
 import { icon } from "./skin";
 import { makeViewer, type Viewer } from "./viewer";
@@ -193,7 +193,7 @@ const VAULT_GRACE = 50;             // the core's grace (ticks) between a cage o
 const CAGE_WAIT_CAP_MS = 8000;      // Cut 19 §1: the world waits for the cage beat's line at most this long (a beat the playhead never reaches)
 /** Cut 19 §1: the cage beat's line — `took mail` (the pick's last two words: a callout is ≤ 3 words). */
 export const tookText = (label: string): string => /* copy:callout */ `took ${label.trim().split(/\s+/).slice(-2).join(" ")}`;
-const BOSS_BANNER_MS = 3000;        // Cut 2 §7: `boss · counter: known|unknown` on first sight
+const BOSS_BANNER_MS = 3000;        // Cut 2 §7: `counter: known|unknown` on first sight (Cut 22: the boss bar's lit second line)
 const REST_BEAT_MS = 1400;
 const REST_BEAT_FAST_MS = 700;      // QA e75ec29: in `fast` the rest line holds 0.7 s — `fights` on D1–3 ramps its travel now, and `fast` keeps ≤ 0.4 of it (Cut 20 §3)
 const VAULT_FULL_MS = 1200;         // QA e75ec29: `vault full` before the report when the preference kept (no sheet)          // Cut 2 §1: `rest 12m` after the exit, before the exit flow continues
@@ -276,7 +276,12 @@ export function renderWatch(app: App): Mounted {
   // Cut 16 §4: the boss's bar under the hero's while one is in view (`warlord` + a thin track)
   const bossFill = h("span", { class: "fill" }), bossName = h("span", { class: "name" });
   const bossFace = h("span", { class: "face" });   // art pass: the boss's painted headshot (else its sprite crop)
-  const bossBar = h("div", { class: "boss-hp", hidden: true }, h("span", { class: "boss-face", "aria-hidden": "true" }, bossFace), bossName, h("span", { class: "track" }, bossFill));
+  // Cut 22 (AH: "'WARLORD RALLIES' overlapped by the 'BOSS · COUNTER: ATTACK BOSS' banner and goblin nameplates stacked — cluttered at the
+  // key moment"): the counter is the boss bar's second line (`counter: attack boss`, lit for BOSS_BANNER_MS, then dim) — the top lane;
+  // the hero's callout keeps the middle, the ticker's beat the bottom, and the renderer draws only the boss's plate while he is in view
+  const bossCounter = h("span", { class: "counter num", hidden: true });
+  let counterTimer = 0, quietTimer = 0;
+  const bossBar = h("div", { class: "boss-hp", hidden: true }, h("span", { class: "boss-face", "aria-hidden": "true" }, bossFace), bossName, h("span", { class: "track" }, bossFill), bossCounter);
   let bossFaceKind = "";
   const depth = h("span", { class: "num depth" });
   const alert = h("span", { class: "alert num" });
@@ -456,6 +461,7 @@ export function renderWatch(app: App): Mounted {
     if (!bossHud) return;
     replace(bossName, oneWord(bossHud.kind));
     if (bossFaceKind !== bossHud.kind) {
+      if (bossFaceKind) { bossCounter.hidden = true; clear(bossCounter); }   // another boss: his own counter line, when sighted
       bossFaceKind = bossHud.kind;
       const k = bossHud.kind.replace(/^boss_/, "");
       if (!paintPortrait(bossFace, `boss_${k}`)) paintSprite(bossFace, `boss_${k}`, 26, k);
@@ -523,6 +529,11 @@ export function renderWatch(app: App): Mounted {
     replace(banner, text); banner.className = `banner num show ${cls}`;
     clearTimeout(bannerTimer); bannerTimer = window.setTimeout(() => banner.classList.remove("show"), ms);
   }
+  /** Cut 22: the boss's counter on his bar's second line, lit for `ms`, then dim (it stays while he is in view). */
+  function showCounter(text: string, ms: number): void {
+    replace(bossCounter, text); bossCounter.hidden = false; bossCounter.classList.add("lit");
+    clearTimeout(counterTimer); counterTimer = window.setTimeout(() => bossCounter.classList.remove("lit"), ms);
+  }
   function bossSighted(s: Snapshot): void {
     for (const e of s.entities) {
       if (!e.tags.includes("boss") || bossSeen.has(e.id) || !s.visible[e.y * s.w + e.x]) continue;
@@ -534,7 +545,7 @@ export function renderWatch(app: App): Mounted {
       at(s.turn, () => {
         const show = (): void => {
           const named = counters.find((c) => c.boss === e.kind)?.text;
-          showBanner(named ? /* copy:callout */ `boss · counter: ${named}` : known() ? /* copy:callout */ "boss · counter: known" : /* copy:callout */ "boss · counter: unknown", BOSS_BANNER_MS, "boss");
+          showCounter(named ? /* copy:callout */ `counter: ${named}` : known() ? /* copy:callout */ "counter: known" : /* copy:callout */ "counter: unknown", BOSS_BANNER_MS);
         };
         app.engine.lineage().then((L) => { counters = L.counters ?? counters; }).catch(() => { /* the mounted lineage's counters stand */ }).finally(() => { if (!disposed) show(); });
       });
@@ -621,6 +632,9 @@ export function renderWatch(app: App): Mounted {
     // hold is on the beat, not on the frame after it
     if (!b.exit && viewerTick() > b.from + 4 && viewerTick() >= b.until - 4) { seekTo(b.from); }
     beatHoldUntil = now + dur; holdLineUntil = now + dur; heldBeat = b;
+    // Cut 22 (AH: the boss moment's "clutter of overlapping text"): a boss's break or kill and the exit hold one line — nothing drawn
+    // over the hero meanwhile (a telegraph's `RALLIED!` over `WARLORD BREAKS`)
+    if (b.hold || b.exit) { viewer?.setQuiet?.(true); clearTimeout(quietTimer); quietTimer = window.setTimeout(() => viewer?.setQuiet?.(false), dur); }
     // the picture already past the stop (the stairs' fade applied): back to the beat's tick
     if (!b.exit && viewerTick() > beatStop()) seekTo(Math.max(b.from, beatStop() - 1));
     if (b.exit) exitBeatUntil = now + SCENE_MS;
@@ -639,7 +653,7 @@ export function renderWatch(app: App): Mounted {
     return Math.min(b.until, d !== undefined ? d - 2 : Infinity);
   }
   /** Cut 18 §1: a ▶▶| (or a frozen skip) lets the beat go. */
-  function releaseBeat(): void { beatHoldUntil = 0; holdLineUntil = 0; beatNext.length = 0; el.dataset.held = "0"; }
+  function releaseBeat(): void { beatHoldUntil = 0; holdLineUntil = 0; beatNext.length = 0; el.dataset.held = "0"; clearTimeout(quietTimer); viewer?.setQuiet?.(false); }
   /** Cut 14 §4: a chore's callout (`pick up`) repeats on its own line with a count — `pick up ×8` — until another line shows
    *  (rater T: "dead stretches of eight consecutive `pick up` reads"); the count is repainted in place, never queued. */
   function choreCallout(text: string): void {
@@ -769,7 +783,7 @@ export function renderWatch(app: App): Mounted {
           // Cut 6 §5: the counter learned mid-fight (the boss's first telegraph) names itself: `boss · counter: attack boss`
           const m = /^boss:([a-z_]+):counter(?:=|$)/.exec(ev.fact);
           if (m) at(ev.t, () => { app.engine.lineage().then((L) => { counters = L.counters ?? counters; }).catch(() => { /* keep */ }).finally(() => {
-            const named = counters.find((c) => c.boss === m[1])?.text; if (named && !disposed) showBanner(/* copy:callout */ `boss · counter: ${named}`, BOSS_BANNER_MS, "boss");
+            const named = counters.find((c) => c.boss === m[1])?.text; if (named && !disposed) showCounter(/* copy:callout */ `counter: ${named}`, BOSS_BANNER_MS);
           }); });
           break;
         }
@@ -1724,7 +1738,7 @@ export function renderWatch(app: App): Mounted {
   const onVisibility = (): void => { freeze(paused, document.hidden); if (!hidden) goLiveOwed = true; applySpeed(); };
   document.addEventListener("visibilitychange", onVisibility);
   return { el, dispose: () => {
-    disposed = true; bar.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); viewer?.dispose();
+    disposed = true; bar.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
     if (vaultClose) { const c = vaultClose; vaultClose = null; c(); }
     if (prepended && !done) void app.engine.setRules(app.rules);
   } };

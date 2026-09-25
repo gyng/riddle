@@ -1,6 +1,6 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
-import type { AsyncEngine, ComboHit, Death, Forecast, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary } from "./engine/types";
+import type { AsyncEngine, ComboHit, Death, Forecast, ForecastVs, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary } from "./engine/types";
 import { combosIn, isCardRow, isFreeSupply, ownRowCount } from "./ui/tokens";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
@@ -99,6 +99,36 @@ export class App {
   lastForecast: Forecast | null = null;
   /** QA a946e04: bumps with every forecast handed to the listeners (the shaft and the panel tag the one they painted: `data-fc`). */
   forecastSeq = 0;
+  /** Cut 22 §3: the last edit's paired move (`vs last · D8 +6 · bank +4`) — the forecast's own `vs`, else `forecastVs(prev)` asked after
+   *  the first paint; null until an edit's forecast painted, and cleared by the next edit (the shaft's line goes with it). */
+  vs: ForecastVs | null = null;
+  /** Cut 22 §3: the set the move is measured against — the one the last painted forecast measured when the edit came (a burst of
+   *  edits before the next paint keeps the first's). Null after a set switch or a send: no edit to measure. */
+  private vsBase: RuleSet | null = null;
+  private fcRules: RuleSet | null = null;   // the set the last painted forecast measured
+  private fcFresh = false;                  // a forecast painted since the last edit
+  private editSeq = 0;
+  private vsOff = false;
+  private vsListeners = new Set<() => void>();
+  onVs(fn: () => void): () => void { this.vsListeners.add(fn); return () => this.vsListeners.delete(fn); }
+  private setVs(v: ForecastVs | null): void {
+    if (v === this.vs) return;
+    this.vs = v;
+    for (const fn of this.vsListeners) { try { fn(); } catch (e) { console.warn("vs listener", e); } }
+  }
+  /** Cut 22 §3: after a forecast painted for the rules now — the move against the base set: the forecast's own `vs`, else the
+   *  engine's `forecastVs(base)`, asked now (behind the paint in the worker's queue, never before it). */
+  private measureVs(f: Forecast, asked: RuleSet): void {
+    const base = this.vsBase;
+    if (!base || sameSet(base, asked)) return;
+    if (f.vs) { this.setVs(f.vs); return; }
+    if (this.vsOff || !this.engine.forecastVs || f.refined === true) return;
+    const seq = this.editSeq;
+    void this.engine.forecastVs(cloneSet(base)).then((v) => { if (seq === this.editSeq && v) this.setVs(v); })
+      .catch((e) => { this.vsOff = true; console.warn("forecastVs unavailable", e); });
+  }
+  /** Cut 22 §3: a send (or a set switch) starts over — the set that runs is the next edit's base, and no move is shown. */
+  resetVs(): void { this.vsBase = null; this.fcRules = cloneSet(this.rules); this.fcFresh = true; this.setVs(null); }
   /** QA 92eb880: the active set's shadowed rows (`Forecast.shadowed_by`, per row the earlier row that takes all its moments) as of the
    *  last forecast painted for the rules now; `null` until one lands after an edit (then the lineage's own read, for the set it holds). */
   private shadow: (number | null)[] | null = null;
@@ -315,6 +345,9 @@ export class App {
   get overBudget(): boolean { return this.ownRows() > this.vocab.max_rows; }
   rulesChanged(): void {
     this.rowFires = null; this.rowFiresOf = undefined;   // Cut 14 §4: the counts were the set that ran
+    // Cut 22 §3: the edit's base is the set the last painted forecast measured; the shown move clears until this edit's lands
+    if (this.fcFresh && this.fcRules) this.vsBase = this.fcRules;
+    this.fcFresh = false; this.editSeq++; this.setVs(null);
     this.persist();
     clearTimeout(this.fcTimer); clearTimeout(this.refineTimer); this.refineSeq++;
     this.shadow = null; this.shadowEdited = true;   // QA 92eb880: the marks wait for the forecast of the rules now
@@ -342,12 +375,15 @@ export class App {
     if (this.fcInFlight || this.offlineRunning) { this.fcDirty = true; return; }
     this.fcInFlight = true; this.fcDirty = false;
     try {
+      const asked = cloneSet(this.rules);
       const f = await this.busy(/* copy:label */ "forecast", () => this.engine.forecast());
       // QA 23ed91f (L: switching to an empty set, the shaft kept the old set's `return 94%` for ~5 s, then flipped): a forecast whose
       // rules changed while it ran is not painted (the shaft stays dimmed `stale`); the next one, for the rules now, is
       if (!this.fcDirty) {
+        this.fcRules = asked; this.fcFresh = true;
         this.publishForecast(f);
         this.scheduleRefine();
+        this.measureVs(f, asked);
       }
     } catch (e) { console.warn("forecast failed", e); }
     finally { this.fcInFlight = false; }
@@ -371,6 +407,7 @@ export class App {
         const f = await this.engine.forecastRefine!();
         if (seq !== this.refineSeq) return;
         this.publishForecast(f);
+        if (f.vs && this.vsBase && !sameSet(this.vsBase, this.rules)) this.setVs(f.vs);   // Cut 22 §3: the refine's move, when it carries one
       } catch (e) { this.refineOff = true; console.warn("forecastRefine unavailable", e); }
     }, REFINE_MS);
   }
@@ -389,6 +426,7 @@ export class App {
     this.active = i;
     void this.engine.selectSet(i).catch((e) => console.warn("selectSet", e));
     this.rulesChanged();
+    this.vsBase = null;   // Cut 22 §3: a switch is not an edit — no move against the other set
     this.emitChange();
   }
   /** Inserts even when the set is full (Cut 4 §1: overflow is the player's decision, see `overBudget`).
@@ -536,6 +574,7 @@ export class App {
     this.mounted?.dispose?.();
     if (screen.kind === "camp" && this.lineage.ended) screen = { kind: "ending" };
     this.view = screen;
+    if (screen.kind === "watch") this.resetVs();   // Cut 22 §3: the set that runs is the next edit's base
     let m: Mounted;
     switch (screen.kind) {
       case "camp": m = renderCamp(this, screen.highlight); break;
@@ -653,6 +692,8 @@ export const cloneRow = (r: Row): Row => ({ conds: r.conds.map((c) => ({ ...c })
 const rowKey = (r: Row): string => `${r.conds.map((c) => `${c.k}|${c.n ?? ""}|${c.t ?? ""}`).join(" ")} → ${r.verb.v}|${r.verb.a ?? ""}`;
 const asOrigin = (o: unknown): RowOrigin | undefined => (o === "preset" || o === "patch" || o === "card" || o === "player" ? o : undefined);
 export const cloneSet = (s: RuleSet): RuleSet => ({ rows: s.rows.map(cloneRow), name: s.name });
+/** Cut 22 §3: two sets with the same rows (text and order; origins aside). */
+const sameSet = (a: RuleSet, b: RuleSet): boolean => a.rows.length === b.rows.length && a.rows.every((r, i) => rowKey(r) === rowKey(b.rows[i]));
 
 /** `dev` is non-null in dev builds or with `?dev=1` (main.ts): boot options plus `window.__riddle` for inspection
  *  (`__riddle.screen`, `__riddle.text()`, `__riddle.engineBusy`, `__riddle.booted`, and the App itself). */

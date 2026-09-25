@@ -462,6 +462,41 @@ pub struct Forecast {
     pub start: u32,
 }
 
+/// Cut 22 §3 (AH: "most edits moved the forecast less than its ±10–13 error, so I couldn't tell
+/// good from bad"): one paired move — the active set's panel minus the previous set's on the
+/// same seeds (`forecast::forecast_vs`): `delta` the mean per-seed difference (a 0..1 share,
+/// or coins for `gold`), `pm` its own 95 % half-width (1.96 · sd of the per-seed differences
+/// / √n) — far tighter than either absolute bar's ± when the two sets mostly play alike. A
+/// move inside its `pm` reads `≈`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct VsMove {
+    pub delta: f64,
+    pub pm: f64,
+}
+
+/// Cut 22 §3: a depth's paired move (`D8 +6`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct VsDepth {
+    pub depth: u32,
+    pub delta: f64,
+    pub pm: f64,
+    /// The absolute bar's own half-width at this depth (the active panel's `ForecastDepth.pm`).
+    pub abs_pm: f64,
+}
+
+/// Cut 22 §3: an edit's paired move against the previous set (`Game::forecast_vs`): per depth
+/// of the shaft and on the ends (`vs last · D8 +6 · bank +4`), over `sims` paired seeds.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ForecastVs {
+    pub depths: Vec<VsDepth>,
+    pub bank: VsMove,
+    pub death: VsMove,
+    #[serde(rename = "return")]
+    pub return_: VsMove,
+    pub gold: VsMove,
+    pub sims: u32,
+}
+
 /// Cut 21 §1: one start the camp's tablet offers (`Game::start_forecast`): D1 or a lit
 /// waystone, measured for the active set on the camp's seeds (paired with the current
 /// start's panel), like `CageOption`. `start` is the floor, `biome` its biome, `toll` what the
@@ -494,6 +529,12 @@ pub struct StartOption {
     pub delta: f64,
     /// The 95 % half-width of `reach`.
     pub pm: f64,
+    /// Cut 22 §4 (AG: `D9 · bank +3%` beside a 61 % death): the death share of a send from
+    /// this start (0..1), and its move against the current start.
+    #[serde(default)]
+    pub death: f64,
+    #[serde(default)]
+    pub death_delta: f64,
 }
 
 /// Cut 12 §3: how a send ends — `bank` / `return` / `death` as shares of a panel of sends run
@@ -1085,7 +1126,7 @@ pub struct Lineage {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub waystones: Vec<u32>,
     /// Cut 21 §1: the floor the next send starts on (`setStart`; 1 by default) and the toll it
-    /// pays at the send (`$10 × depth`; 0 from D1). A toll the purse cannot pay starts on D1.
+    /// pays at the send (`$5 × depth`, Cut 22 §1; 0 from D1). A toll the purse cannot pay starts on D1.
     #[serde(default = "one")]
     pub start: u32,
     #[serde(default)]

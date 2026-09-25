@@ -73,7 +73,7 @@ try {
   await sleep(700);
   const landed = await opts();
   check(pending.length === 3 && pending[1] === "D5 … · $50" && pending[2] === "D9 … · $90", `the picker lists D1 and each lit waystone, \`…\` until measured (${pending.join(" | ")})`);
-  const shape = /^D1 · (bank|D\d+) \d+%\*$/.test(landed[0] ?? "") && /^D5 · (bank|D\d+) [+−]\d+% · \$50$/.test(landed[1] ?? "") && /^D9 · (bank|D\d+) [+−]\d+% · \$90$/.test(landed[2] ?? "");
+  const shape = /^D1 · (bank|D\d+) \d+%( · death \d+%)?\*$/.test(landed[0] ?? "") && /^D5 · (bank|D\d+) [+−]\d+( · death \d+%)? · \$50$/.test(landed[1] ?? "") && /^D9 · (bank|D\d+) [+−]\d+( · death \d+%)? · \$90$/.test(landed[2] ?? "");
   check(shape, `each option: its forecast move and its toll (${landed.join(" | ")})`);
   await shot("cut21-start-picker");
   await page.locator(".sheet-wrap .start-opt[data-start='9']").click({ timeout: 5000 }); await sleep(500);

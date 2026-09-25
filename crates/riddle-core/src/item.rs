@@ -34,11 +34,20 @@ pub struct Item {
     /// player packed) and a drop salvages it rather than refunding a price never paid.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub found: bool,
+    /// Cut 22 §1: what the shelf charged for a bought supply — the price moves with the
+    /// lineage's best depth, and a refund pays back what was paid (0: not bought, or bought
+    /// before the price moved; the refund then pays today's price).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub paid: i32,
+}
+
+fn is_zero(x: &i32) -> bool {
+    *x == 0
 }
 
 impl Item {
     pub fn new(id: u32, kind: &str) -> Item {
-        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false }
+        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0 }
     }
     /// Cut 6 §2: known by name (bought, crafted, vaulted) or by an identified flavour.
     pub fn is_known(&self, facts: &BTreeSet<String>, flavours: &Flavours) -> bool {

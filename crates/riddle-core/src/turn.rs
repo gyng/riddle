@@ -1617,6 +1617,9 @@ fn tick_alert(run: &mut Run, cx: &mut Ctx) {
 }
 
 /// Go down a floor (or reach the ending).
+/// Cut 22 §3: the tag of a floor's own random stream (`descend`).
+pub const FLOOR_STREAM: u64 = 0xF100_2201_0000_0000;
+
 pub fn descend(run: &mut Run, cx: &mut Ctx) {
     note_saved(run, cx);
     // Cut 5 §1: the floor changing after a low resolves the episode; §4: an open vault is
@@ -1669,6 +1672,15 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
         return;
     }
     let biome = biome_for(next);
+    // Cut 22 §3 (AH: "most edits moved the forecast less than its ±10–13 error"): in a
+    // forecast's sim, each floor draws from a stream of its own — (run seed, depth) — so two
+    // sims on one seed walk into the same floors whatever their rules did above (common random
+    // numbers: the camp's paired edit delta is a difference of the same dungeons, not of two
+    // draws). The same distribution as a send's, whose floors (and replays) go on drawing from
+    // the run's stream, unchanged (`Run.floor_streams`).
+    if run.floor_streams {
+        run.rng = crate::rng::Rng::derive(run.seed, FLOOR_STREAM ^ next as u64);
+    }
     let floor = generate(&mut run.rng, biome, next);
     run.depth = next;
     run.max_depth = run.max_depth.max(next);
@@ -2021,15 +2033,24 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
         return;
     }
     let here = run.hero.pos;
-    let back: Vec<u32> = run.items.iter().filter(|fi| fi.pos == here && run.stolen_ids.contains(&fi.item.id)).map(|fi| fi.item.id).collect();
+    let back: Vec<(u32, Option<i32>)> = run.items.iter().filter(|fi| fi.pos == here && run.stolen_ids.contains(&fi.item.id)).map(|fi| (fi.item.id, (fi.item.kind == "gold").then_some(fi.item.amount))).collect();
     pickup_item_here(run, cx);
-    for id in back {
-        let Some(it) = run.hero.inv.iter().chain(run.hero.weapon.iter()).chain(run.hero.armour.iter()).find(|i| i.id == id) else { continue };
-        let (_, _, label) = crate::item::describe(it, cx.facts, cx.flavours);
-        let label = label.trim_end_matches('?').to_string();
+    for (id, coins) in back {
+        // Cut 22 §2: stolen coins picked up are in the carry, not the pack (`Got $6 back.`).
+        let (label, text) = match coins {
+            Some(n) if !run.items.iter().any(|fi| fi.item.id == id) => (format!("${n}"), format!("Got ${n} back.")),
+            Some(_) => continue,
+            None => {
+                let Some(it) = run.hero.inv.iter().chain(run.hero.weapon.iter()).chain(run.hero.armour.iter()).find(|i| i.id == id) else { continue };
+                let (_, _, label) = crate::item::describe(it, cx.facts, cx.flavours);
+                let label = label.trim_end_matches('?').to_string();
+                let text = format!("Got the {label} back.");
+                (label, text)
+            }
+        };
         run.stolen_ids.retain(|x| *x != id);
-        run.recovered.push((run.turn, label.clone()));
-        note(run, cx, format!("Got the {label} back."));
+        run.recovered.push((run.turn, label));
+        note(run, cx, text);
         callout(run, cx, "got it back");
     }
 }

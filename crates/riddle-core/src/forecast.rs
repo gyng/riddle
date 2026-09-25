@@ -81,6 +81,8 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32)
     let _ = g.set_rules(rules.clone());
     let seed = splitmix(game.lineage.seed ^ splitmix(tag ^ (i as u64 + 1).wrapping_mul(0xA24B_AED4_963E_E407)));
     g.start_run(Some(seed));
+    // Cut 22 §3: the panel's sims share their floors seed by seed (`Run.floor_streams`).
+    g.run.as_mut().unwrap().floor_streams = true;
     let mut n = 0;
     while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.max_depth < stop_depth) && n < SIM_MAX_TICKS {
         g.tick();
@@ -432,14 +434,15 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
     let current = game.lineage.start.max(1);
     let mut options: Vec<u32> = vec![1];
     options.extend(game.lineage.waystones.iter().copied());
-    /// (reach at `bar`, bank share, gold per send, sims).
-    type Read = (f64, f64, f64, usize);
+    /// (reach at `bar`, bank share, gold per send, sims, death share).
+    type Read = (f64, f64, f64, usize, f64);
     let read = |ended: &[SimResult]| -> Read {
         let n = ended.len().max(1) as f64;
         let reach = ended.iter().filter(|r| r.max_depth >= bar).count() as f64 / n;
         let bank = ended.iter().filter(|r| r.tier == ExitTier::Bank && !r.timed_out).count() as f64 / n;
         let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
-        (reach, bank, gold, ended.len())
+        let death = ended.iter().filter(|r| r.tier == ExitTier::Death).count() as f64 / n;
+        (reach, bank, gold, ended.len(), death)
     };
     let base = read(&camp_panel(game, &rules, sims));
     let base_toll = if sim_start(game) > 1 && !game.lineage.night_passes.contains(&current) { crate::engine::LineageState::start_toll(current) } else { 0 };
@@ -461,7 +464,7 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
         // QA on a946e04: tonight's pass is paid — the next send from it pays nothing.
         let pass = game.lineage.night_passes.contains(&d);
         let short = !game.lineage.start_payable(d);
-        let (reach, bank, gold, n) = if d == current {
+        let (reach, bank, gold, n, death) = if d == current {
             base
         } else {
             let (r, panels) = m.next().expect("one panel per other start");
@@ -491,9 +494,57 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
             net_delta: net - (base.2 - base_toll as f64),
             delta: if banks { bank - base.1 } else { reach - base.0 },
             pm: half_width(reach, n),
+            death,
+            death_delta: death - base.4,
         });
     }
     out
+}
+
+/// Cut 22 §3: the paired move of the active set against `prev` — both camp panels at the
+/// active set's sims count (the same seeds: `forecast_tag` at `known_to`, the rules not in
+/// it), memoised like the forecast (the previous set's panel is usually still cached from its
+/// own paint). Per depth of the shaft and on the ends: the mean per-seed difference and its
+/// 95 % half-width from the per-seed differences (`paired`), over the seeds both panels ran.
+pub fn forecast_vs(game: &Game, prev: &RuleSet) -> crate::wire::ForecastVs {
+    let rules = game.lineage.rules().clone();
+    let sims = camp_sims(game, &rules);
+    let a = camp_panel(game, &rules, sims);
+    let b = camp_panel(game, prev, sims);
+    let n = a.len().min(b.len());
+    let (a, b) = (&a[..n], &b[..n]);
+    let known_to = game.lineage.best_depth + 1;
+    let last = known_to.max(game.lineage.bounty.unwrap_or(0));
+    let ind = |x: bool| if x { 1.0 } else { 0.0 };
+    let depths = (1..=last)
+        .map(|d| {
+            let m = paired(a, b, |r| ind(r.max_depth >= d));
+            let reach = a.iter().filter(|r| r.max_depth >= d).count() as f64 / n.max(1) as f64;
+            crate::wire::VsDepth { depth: d, delta: m.delta, pm: m.pm, abs_pm: half_width(reach, n) }
+        })
+        .collect();
+    let tier = |t: ExitTier| move |r: &SimResult| ind(r.tier == t && !r.timed_out);
+    crate::wire::ForecastVs {
+        depths,
+        bank: paired(a, b, tier(ExitTier::Bank)),
+        death: paired(a, b, |r| ind(r.tier == ExitTier::Death)),
+        return_: paired(a, b, tier(ExitTier::Return)),
+        gold: paired(a, b, |r| r.loot_kept as f64),
+        sims: n as u32,
+    }
+}
+
+/// Cut 22 §3: the mean of `f(a_i) − f(b_i)` over paired sims and its 95 % half-width
+/// (`1.96 · s / √n`, `s` the sample deviation of the differences; 0 when every seed agrees).
+pub fn paired(a: &[SimResult], b: &[SimResult], f: impl Fn(&SimResult) -> f64) -> crate::wire::VsMove {
+    let n = a.len().min(b.len());
+    if n == 0 {
+        return crate::wire::VsMove::default();
+    }
+    let d: Vec<f64> = a.iter().zip(b).map(|(x, y)| f(x) - f(y)).collect();
+    let mean = d.iter().sum::<f64>() / n as f64;
+    let var = if n > 1 { d.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / (n - 1) as f64 } else { 0.0 };
+    crate::wire::VsMove { delta: mean, pm: 1.96 * (var / n as f64).sqrt() }
 }
 
 /// Cut 10 §2: the `try` of a forecast row — reaching `depth` means passing the boss on the

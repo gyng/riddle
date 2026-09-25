@@ -2019,15 +2019,21 @@ fn supplies_are_bought_with_gold_and_never_kept_back() {
     assert!(g.buy_supply("heal").is_err(), "unidentified");
     g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
     let cat = g.supply_catalogue();
-    assert!(cat.iter().any(|s| s.kind == "heal" && s.price == 40));
+    // Cut 22 §1: `$10 + 2 × best depth` (a new lineage: $10), a scroll 1.5×.
+    assert!(cat.iter().any(|s| s.kind == "heal" && s.price == 10));
+    g.lineage.best_depth = 8;
+    assert!(g.supply_catalogue().iter().any(|s| s.kind == "heal" && s.price == 26));
+    assert_eq!(crate::engine::supply_price(crate::defs::Cat::Scroll, 20), 39, "a deep lineage pays the cap (potion $26, scroll 1.5×)");
+    g.lineage.best_depth = 0;
     g.buy_supply("heal").unwrap();
     g.buy_supply("leash").unwrap();
-    assert_eq!(g.lineage.gold, 30);
+    assert_eq!(g.lineage.gold, 60);
     assert_eq!(g.lineage().supplies.len(), 2);
     g.buy_supply("leash").unwrap();
     assert!(g.buy_supply("leash").unwrap_err().contains("max"));
     g.clear_supplies();
     assert_eq!(g.lineage.gold, 100);
+    g.lineage.gold = 40;
     assert!(g.buy_supply("heal").is_ok() && g.buy_supply("heal").is_ok() && g.buy_supply("leash").unwrap_err().contains("gold"));
     g.clear_supplies();
     g.buy_supply("heal").unwrap();
@@ -2241,7 +2247,8 @@ fn auto_keep_follows_the_chip_and_never_evicts_across_categories() {
 fn death_deltas_are_the_camp_forecasts_move() {
     // Cut 20 §1: seed 1015's first death moved (one theft a run); 1022's offers the rest patch.
     // QA on e75ec29 (the first night's bounty floor from the start moved 1022's): 1048's.
-    let mut g = Game::new(1048);
+    // Cut 22 §3 (a forecast's sims draw each floor from its own stream): 1033's.
+    let mut g = Game::new(1033);
     g.send();
     let mut died = None;
     for _ in 0..4000 {
@@ -2251,7 +2258,7 @@ fn death_deltas_are_the_camp_forecasts_move() {
             break;
         }
     }
-    let id = died.expect("seed 1048's first heir dies");
+    let id = died.expect("seed 1033's first heir dies");
     g.keep(vec![]).unwrap();
     let d = g.death(id).unwrap();
     assert!(!d.patches.is_empty() && d.patches.iter().all(|p| p.camp_pending && p.forecast_depth == 0), "{:?}", d.patches);
@@ -3893,7 +3900,9 @@ fn a_cards_best_place_does_not_stall() {
     assert_eq!(b.at, Some(7), "{b:?}");
     assert!(best_place(&[], 0.0).is_none());
     // The catalogue: the card's delta is read where it does not stall, and says its stall move.
-    let mut g = Game::new(1216);
+    // (Cut 22 §3: seed 1218 — a forecast's sims draw each floor from its own stream now, and
+    // 1216's bottom place stalled 7 of 18)
+    let mut g = Game::new(1218);
     for u in ["kite_archers", "pack_break", "gas_step", "row5", "row6", "row7", "cond_telegraph"] {
         g.lineage.unlocks.insert(u.into());
     }
@@ -3995,7 +4004,9 @@ fn auto_supply_restocks_the_shelf_when_the_hero_comes_home() {
     assert_eq!(g.lineage.supplies.len(), 2, "restocked on coming home");
     assert!(g.lineage.supplies.iter().all(|s| s.kind == "heal"));
     assert_eq!(g.lineage().supplies.len(), 2, "and the wire lineage shows it");
-    assert_eq!(g.lineage.gold, gold_before - price, "paid from gold");
+    // Cut 22 §1: at today's price (the bank moved the best depth, and the price with it).
+    let now = g.supply_catalogue().iter().find(|e| e.kind == "heal").unwrap().price;
+    assert_eq!(g.lineage.gold, gold_before - 2 * now, "paid from gold (was {price} for two)");
     g.keep(vec![]).unwrap();
     assert_eq!(g.lineage.supplies.len(), 2, "no double restock after the vault decision");
     g.start_run(None);
@@ -4656,10 +4667,11 @@ fn exit_event_stake_and_report_carry_the_ledger() {
     // Purchases, insurance, a refund and a hatch are ledger lines with ≤ 3-word reasons.
     g.lineage.facts.insert(ident_fact(&g.lineage.flavours, "heal").unwrap());
     let before = g.lineage.gold;
+    let p = crate::engine::supply_price(crate::defs::Cat::Potion, g.lineage.best_depth);
     g.buy_supply("heal").unwrap();
-    assert_eq!(g.lineage.gold_ledger.last().map(|l| (l.delta, l.why.as_str())), Some((-40, "heal")));
+    assert_eq!(g.lineage.gold_ledger.last().map(|l| (l.delta, l.why.as_str())), Some((-p, "heal")));
     g.clear_supplies();
-    assert_eq!(g.lineage.gold_ledger.last().map(|l| (l.delta, l.why.as_str())), Some((40, "refund heal")));
+    assert_eq!(g.lineage.gold_ledger.last().map(|l| (l.delta, l.why.as_str())), Some((p, "refund heal")));
     assert_eq!(g.lineage.gold, before);
     g.lineage.vault.push(Item::new(100_001, "sword"));
     g.lineage.gold_move(500, "gift");
@@ -7218,7 +7230,7 @@ fn the_nights_ledger_reconciles_and_a_wasted_kind_is_not_rebought() {
         assert_eq!(r.spent.iter().map(|s| s.gold).sum::<i32>(), spent, "the report's SPENT rows are the batch's");
         // Cut 21 §2: a found heal on the shelf stands in for a bought one — the repeat's heal
         // is re-bought or shelved.
-        let bought = r.spent.iter().find(|s| s.kind == "heal").inspect(|row| assert!(row.n >= 1 && row.gold == 40 * row.n as i32, "{row:?}")).is_some();
+        let bought = r.spent.iter().find(|s| s.kind == "heal").inspect(|row| assert!(row.n >= 1 && row.gold >= 10 * row.n as i32, "{row:?}")).is_some();
         bought || r.shelved.iter().any(|s| s.kind == "heal")
     };
     let spent_seen = std::thread::scope(|sc| (1..=20u64).map(|seed| sc.spawn(move || night(seed))).collect::<Vec<_>>().into_iter().filter_map(|h| h.join().unwrap().then_some(())).count());
@@ -7244,13 +7256,13 @@ fn the_nights_ledger_reconciles_and_a_wasted_kind_is_not_rebought() {
     g.finish_run();
     let kinds: Vec<&str> = g.lineage.supplies.iter().map(|s| s.kind.as_str()).collect();
     assert_eq!(kinds, vec!["strength"], "the wasted heal is not rebought");
-    assert_eq!(g.batch.spent.get("strength"), Some(&(1, 40)));
+    assert_eq!(g.batch.spent.get("strength"), Some(&(1, crate::engine::supply_price(crate::defs::Cat::Potion, g.lineage.best_depth))));
     // The shop grows with the forge: a craftable potion is for sale before the hero drank one.
     let mut g = Game::new(5);
     assert!(!g.supply_catalogue().iter().any(|s| s.kind == "strength"));
     g.lineage.forge.insert("strength".into(), ForgeRow::at(5));
     let entry = g.supply_catalogue().into_iter().find(|s| s.kind == "strength").expect("craftable strength on the shelf");
-    assert_eq!((entry.price, entry.label.as_str()), (40, "strength potion"));
+    assert_eq!((entry.price, entry.label.as_str()), (10, "strength potion"), "a new lineage's price (Cut 22 §1)");
 }
 
 /// Cut 13 §5 (both raters: "±10 between re-rolls", "pack break +7 % then −14 %"): a catalogue
@@ -7966,7 +7978,8 @@ fn a_dice_death_at_a_full_base_says_nothing_beats_it() {
     // still among its deaths, and says so.
     let mut full_base: Vec<Death> = Vec::new();
     let mut ids: Vec<u32> = Vec::new();
-    for _ in 0..4 {
+    // (Cut 22 §2: thieves take coins before the heal; this seed's first such death is on its 8th night)
+    for _ in 0..8 {
         g.run_offline(8 * 3600);
         ids = g.deaths.keys().copied().collect();
         full_base = ids.iter().filter_map(|id| g.death(*id)).filter(|d| d.verdict == "dice" && d.baseline >= 1.0 - 1e-9).collect();
@@ -8466,6 +8479,8 @@ fn the_loadout_repeats_unless_cleared() {
     no_kennel_leash(&mut g);
     identify(&mut g, "heal");
     g.lineage.gold = 1000;
+    g.lineage.best_depth = 5;
+    let p = crate::engine::supply_price(crate::defs::Cat::Potion, 5);
     g.buy_supply("heal").unwrap();
     g.buy_supply("heal").unwrap();
     assert!(g.lineage().repeat);
@@ -8477,12 +8492,12 @@ fn the_loadout_repeats_unless_cleared() {
     }
     g.finish_run();
     assert_eq!(g.lineage.supplies.iter().filter(|s| s.kind == "heal").count(), 2, "re-packed at the send's return");
-    assert!(g.lineage.gold_ledger.iter().any(|l| l.why == "repeat heal" && l.delta == -80), "{:?}", g.lineage.gold_ledger.iter().rev().take(3).collect::<Vec<_>>());
+    assert!(g.lineage.gold_ledger.iter().any(|l| l.why == "repeat heal" && l.delta == -2 * p), "{:?}", g.lineage.gold_ledger.iter().rev().take(3).collect::<Vec<_>>());
     let l = g.lineage();
-    assert_eq!((l.repeat_kinds.clone(), l.repeat_gold), (vec!["heal".to_string(), "heal".to_string()], 80));
+    assert_eq!((l.repeat_kinds.clone(), l.repeat_gold), (vec!["heal".to_string(), "heal".to_string()], 2 * p));
     let gold = g.lineage.gold;
     g.set_restock(false);
-    assert!(g.lineage.supplies.iter().all(|s| s.free) && g.lineage.gold == gold + 80, "cleared: refunded");
+    assert!(g.lineage.supplies.iter().all(|s| s.free) && g.lineage.gold == gold + 2 * p, "cleared: refunded");
     assert!(!g.lineage().repeat);
     g.keep(vec![]).ok();
     g.start_run(None);
@@ -8519,6 +8534,7 @@ fn the_repeat_badge_is_the_repack_price() {
     set.rows.push(Row::new(vec![Cond::n("hp<", 1)], Verb::arg("read", "mapping")));
     g.set_rules_raw(set).unwrap();
     g.lineage.gold = 1000;
+    g.lineage.best_depth = 5;
     g.buy_supply("heal").unwrap();
     let price = |g: &Game, k: &str| g.supply_catalogue().iter().find(|e| e.kind == k).unwrap().price;
     assert_eq!(g.lineage().repeat_gold, price(&g, "heal"));
@@ -9119,7 +9135,7 @@ fn waystones_light_on_a_bank_and_the_start_round_trips() {
     assert!(g.set_start(14).is_err());
     g.set_start(9).unwrap();
     let l = g.lineage();
-    assert_eq!((l.start, l.start_toll, l.waystones.clone()), (9, 90, vec![5, 9]));
+    assert_eq!((l.start, l.start_toll, l.waystones.clone()), (9, 45, vec![5, 9]));
     let h = Game::load(&g.save()).unwrap();
     assert_eq!((h.lineage.start, h.lineage.waystones.clone()), (9, vec![5, 9]));
     // A save from before the waystones: lit from its deepest bank at the load.
@@ -9131,7 +9147,7 @@ fn waystones_light_on_a_bank_and_the_start_round_trips() {
     assert_eq!((h.lineage.start, h.lineage.waystones.clone()), (1, vec![5, 9]));
 }
 
-/// Cut 21 §1: a start below D1 pays `$10 × depth` at the send (`waystone D9` in the gold
+/// Cut 21 §1: a start below D1 pays `$5 × depth` (Cut 22 §1; was $10) at the send (`waystone D9` in the gold
 /// ledger) and begins on that floor — generated at that depth, the heir's kit and level as
 /// from D1; short of the toll the run starts on D1 and says so. Offline, every run of the
 /// night starts there.
@@ -9149,18 +9165,18 @@ fn a_waystone_start_pays_its_toll_and_begins_on_its_floor() {
     assert_eq!(run.biome(), crate::descent::Biome::Fens, "the floor is a Fens floor");
     assert_eq!(run.hero.level, 3, "the heir's level");
     assert_eq!(run.hero.pos, run.floor.stairs_up);
-    assert_eq!(g.lineage.gold, 410);
-    assert!(g.lineage.gold_ledger.iter().any(|l| l.why == "waystone D9" && l.delta == -90), "{:?}", g.lineage.gold_ledger);
+    assert_eq!(g.lineage.gold, 455);
+    assert!(g.lineage.gold_ledger.iter().any(|l| l.why == "waystone D9" && l.delta == -45), "{:?}", g.lineage.gold_ledger);
     assert!(run.notes.iter().any(|(_, n)| n == "Heir 1 enters D9, the Fens."), "{:?}", run.notes);
     // QA on a946e04 (qaT): the toll bought tonight's pass — the next send from D9 is free, and
     // the wire says the start is payable on the pass.
     assert!(g.lineage.night_passes.contains(&9));
     g.run = None;
-    g.lineage.gold = 50;
+    g.lineage.gold = 40;
     assert!(g.lineage().start_payable && g.lineage().start_pass);
     g.start_run(None);
     let run = g.run.as_ref().unwrap();
-    assert_eq!((run.depth, run.toll, g.lineage.gold), (9, 0, 50), "the night's pass");
+    assert_eq!((run.depth, run.toll, g.lineage.gold), (9, 0, 40), "the night's pass");
     // A new night, short of the toll: D1, with a note, nothing charged.
     g.lineage.night();
     g.run = None;
@@ -9168,8 +9184,8 @@ fn a_waystone_start_pays_its_toll_and_begins_on_its_floor() {
     g.start_run(None);
     let run = g.run.as_ref().unwrap();
     assert_eq!((run.depth, run.start_short), (1, Some(9)));
-    assert_eq!(g.lineage.gold, 50);
-    assert!(run.notes.iter().any(|(_, n)| n == "Toll $90 short: from D1."), "{:?}", run.notes);
+    assert_eq!(g.lineage.gold, 40);
+    assert!(run.notes.iter().any(|(_, n)| n == "Toll $45 short: from D1."), "{:?}", run.notes);
     assert_eq!(g.lineage.start, 9, "the choice stands for the next send");
     // Offline: every run starts on D9 while the purse pays — one pass a night.
     g.run = None;
@@ -9180,7 +9196,7 @@ fn a_waystone_start_pays_its_toll_and_begins_on_its_floor() {
     let nights = (nights_before + r.runs).div_ceil(crate::engine::NIGHT_RUNS);
     assert!(r.runs >= 2 && tolls >= 1 && tolls <= nights, "{} runs, {tolls} tolls, {nights} nights", r.runs);
     assert!(g.batch.run_outcomes.iter().all(|(d, _)| *d >= 9), "{:?}", g.batch.run_outcomes);
-    assert!(r.spent.iter().any(|s| s.kind == "waystone D9" && s.gold == 90 * s.n as i32), "{:?}", r.spent);
+    assert!(r.spent.iter().any(|s| s.kind == "waystone D9" && s.gold == 45 * s.n as i32), "{:?}", r.spent);
     assert!(r.start_short.is_none());
     // An absence that cannot pay the pass: the night goes from D1, and the report says so.
     g.lineage.night();
@@ -9188,7 +9204,7 @@ fn a_waystone_start_pays_its_toll_and_begins_on_its_floor() {
     g.lineage.restock_off = true;
     let r = g.run_offline(2 * 3600);
     let s = r.start_short.clone().expect("the report names the start it could not pay");
-    assert_eq!((s.depth, s.toll), (9, 90));
+    assert_eq!((s.depth, s.toll), (9, 45));
     assert!(s.runs >= 1 && g.batch.run_outcomes.iter().all(|(d, _)| *d < 9 || s.runs < r.runs), "{s:?} · {:?}", g.batch.run_outcomes);
     g.lineage.restock_off = false;
     g.lineage.gold = 100_000;
@@ -9199,11 +9215,11 @@ fn a_waystone_start_pays_its_toll_and_begins_on_its_floor() {
     // The start tablet: D1 and each lit waystone, the current one marked, paired with it.
     let opts = g.start_forecast();
     assert_eq!(opts.iter().map(|o| o.start).collect::<Vec<_>>(), vec![1, 5, 9]);
-    assert_eq!(opts.iter().map(|o| o.toll).collect::<Vec<_>>(), vec![0, 50, 90]);
+    assert_eq!(opts.iter().map(|o| o.toll).collect::<Vec<_>>(), vec![0, 25, 45]);
     let cur = opts.iter().find(|o| o.current).unwrap();
     assert_eq!(cur.start, 9);
     assert!(cur.delta.abs() < 1e-9 && cur.gold_delta.abs() < 1e-9 && cur.net_delta.abs() < 1e-9);
-    assert!((opts[0].net - opts[0].gold).abs() < 1e-9 && (cur.net - (cur.gold - 90.0)).abs() < 1e-9);
+    assert!((opts[0].net - opts[0].gold).abs() < 1e-9 && (cur.net - (cur.gold - 45.0)).abs() < 1e-9);
     // Bots start at D1: a new lineage's start is 1 whatever it banks.
     assert_eq!(Game::new(3).lineage.start, 1);
 }
@@ -9236,7 +9252,7 @@ fn found_supplies_go_to_the_shelf_and_the_repeat_buys_only_used_kinds() {
     assert_eq!(line.shelved, vec![KindCount { kind: "heal".into(), n: 1 }]);
     assert!(!line.text.contains("shelf"), "{}", line.text);
     assert!(!g.batch.salvaged.contains_key("heal"), "the heal was not salvaged");
-    assert_eq!(g.batch.shelved.get("heal"), Some(&(1, 40)));
+    assert_eq!(g.batch.shelved.get("heal"), Some(&(1, crate::engine::supply_price(crate::defs::Cat::Potion, g.lineage.best_depth))));
     assert!(!g.batch.spent.contains_key("heal") && !g.batch.spent.contains_key("strength"), "{:?}", g.batch.spent);
     let pending: Vec<u32> = g.pending_exit.as_ref().unwrap().items.iter().map(|i| i.id).collect();
     assert!(pending.contains(&poison) && !pending.contains(&heal), "the poison waits on the keep sheet, the heal does not");
@@ -9617,7 +9633,7 @@ fn stolen_rows_carry_their_gold_and_exit_lines_their_toll() {
     }
     g.finish_run();
     let line = g.last_exit.clone().unwrap();
-    assert_eq!((line.toll, line.start, line.start_short), (50, 5, None));
+    assert_eq!((line.toll, line.start, line.start_short), (25, 5, None));
     g.auto_keep();
     g.lineage.night();
     g.lineage.gold = 10;
@@ -9629,4 +9645,223 @@ fn stolen_rows_carry_their_gold_and_exit_lines_their_toll() {
     g.finish_run();
     let line = g.last_exit.clone().unwrap();
     assert_eq!((line.toll, line.start, line.start_short), (0, 1, Some(5)));
+}
+
+// ---------------------------------------------------------------- Cut 22: the gold loop pays
+
+/// Cut 22 §2 (AH: "the monkey stole the heal potion on D1 … 8 seconds after I paid $40"): a
+/// thief takes what the run found first, a coin pile's worth next (`stolen $6` on D1), and the
+/// packed supply only when the pack holds nothing else.
+#[test]
+fn a_thief_takes_the_found_then_coins_then_a_packed_supply() {
+    let setup = |found: bool, carried: i32| -> (Game, u32, Option<u32>) {
+        let mut g = arena();
+        hold_rules(&mut g);
+        let heal = give(&mut g, "heal");
+        g.run.as_mut().unwrap().supplies.push(heal);
+        let sword = found.then(|| give(&mut g, "sword"));
+        g.run.as_mut().unwrap().loot_add_gold(carried);
+        add_monster(&mut g, "monkey", 5, 5);
+        (g, heal, sword)
+    };
+    // A found sword beside the packed heal: the sword goes.
+    let (mut g, heal, sword) = setup(true, 20);
+    let evs = ticks(&mut g, 60);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Steal { .. })), "{:?}", ev_kinds(&evs));
+    let run = g.run.as_ref().unwrap();
+    assert_eq!(run.stolen_ids, vec![sword.unwrap()]);
+    assert!(run.hero.inv.iter().any(|i| i.id == heal), "the bought heal stays");
+    // Only the packed heal, $20 carried: a coin pile's worth ($4 + 2 × depth).
+    let (mut g, heal, _) = setup(false, 20);
+    let evs = ticks(&mut g, 60);
+    assert!(evs.iter().any(|e| matches!(e, Ev::Steal { amount: Some(6), .. })), "{:?}", ev_kinds(&evs));
+    let run = g.run.as_ref().unwrap();
+    assert!(run.hero.inv.iter().any(|i| i.id == heal), "the bought heal stays");
+    assert_eq!(run.loot, 14);
+    assert_eq!(run.stolen_kinds.iter().map(|(_, k, g)| (k.as_str(), *g)).collect::<Vec<_>>(), vec![("gold", 6)]);
+    assert!(run.notes.iter().any(|(_, n)| n == "The monkey stole $6."), "{:?}", run.notes);
+    // Nothing else to take: the packed heal.
+    let (mut g, heal, _) = setup(false, 0);
+    ticks(&mut g, 60);
+    assert_eq!(g.run.as_ref().unwrap().stolen_ids, vec![heal]);
+    // The den's order: the same, the weapon in hand last.
+    let (mut g, _, _) = setup(false, 0);
+    let run = g.run.as_mut().unwrap();
+    run.hero.inv.clear();
+    assert!(matches!(crate::ai::thief_pick(run, false, false, true), Some(crate::ai::Take::Weapon)));
+    assert!(crate::ai::thief_pick(run, false, false, false).is_none());
+    run.loot_add_gold(3);
+    assert!(matches!(crate::ai::thief_pick(run, false, false, true), Some(crate::ai::Take::Coins(3))));
+    assert!(crate::ai::thief_pick(run, true, false, false).is_none(), "a forge imp takes potions only");
+}
+
+/// Cut 22 §2: stolen coins a killed thief drops come back into the carry (`Got $6 back.`), and
+/// the den counts them as got back.
+#[test]
+fn stolen_coins_come_back_from_a_killed_thief() {
+    let mut g = arena();
+    hold_rules(&mut g);
+    g.run.as_mut().unwrap().loot_add_gold(20);
+    let m = add_monster(&mut g, "monkey", 5, 5);
+    ticks(&mut g, 60);
+    assert_eq!(g.run.as_ref().unwrap().loot, 14);
+    let run = g.run.as_mut().unwrap();
+    let mi = run.monsters.iter().position(|mm| mm.id == m).unwrap();
+    let coins = run.monsters[mi].stolen.clone().expect("the monkey holds the coins");
+    assert_eq!((coins.kind.as_str(), coins.amount), ("gold", 6));
+    // Dropped where it fell, picked up on the hero's tile.
+    let at = run.hero.pos;
+    run.items.push(crate::engine::FloorItem { pos: at, item: coins });
+    let mut evs = Vec::new();
+    let mut prov = Vec::new();
+    let Game { run, lineage, .. } = &mut g;
+    let run = run.as_mut().unwrap();
+    let set = lineage.active_set;
+    let max_rows = lineage.max_rows();
+    let mut cx = crate::engine::Ctx {
+        facts: &mut lineage.facts,
+        kill_counts: &mut lineage.kill_counts,
+        flavours: &lineage.flavours,
+        rules: &lineage.sets[set],
+        unlocks: &lineage.unlocks,
+        grudges: &lineage.grudges,
+        forge: &lineage.forge,
+        max_rows,
+        events: &mut evs,
+        sim: true,
+        prov: &mut prov,
+        variant: "",
+        hunter: None,
+        vault_pref: "weapon",
+        lost: &lineage.lost,
+        sets: &lineage.sets,
+        active_set: set,
+        trophies: &[],
+    };
+    crate::turn::pickup_here(run, &mut cx);
+    assert_eq!(run.loot, 20);
+    assert!(run.stolen_ids.is_empty());
+    assert!(run.notes.iter().any(|(_, n)| n == "Got $6 back."), "{:?}", run.notes);
+}
+
+/// Cut 22 §1: a bought supply thieves kept is re-bought by the repeat once a night; a second
+/// waits for the night's end. A refund pays what was paid, whatever the price is now.
+#[test]
+fn a_stolen_supply_is_rebought_once_a_night_and_a_refund_pays_what_was_paid() {
+    let mut g = Game::new(5);
+    no_kennel_leash(&mut g);
+    identify(&mut g, "heal");
+    g.lineage.gold = 1000;
+    g.lineage.best_depth = 5;
+    g.buy_supply("heal").unwrap();
+    let steal = |g: &mut Game| {
+        g.start_run(None);
+        let run = g.run.as_mut().unwrap();
+        let i = run.hero.inv.iter().position(|i| i.kind == "heal").expect("the heal was packed");
+        let it = run.hero.inv.remove(i);
+        run.stolen_ids.push(it.id);
+        run.stolen_kinds.push((it.id, it.kind.clone(), 0));
+        run.stolen_labels.push((it.id, "heal potion".into()));
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Return);
+        g.finish_run();
+        g.auto_keep();
+    };
+    steal(&mut g);
+    assert!(g.lineage.supplies.iter().any(|s| s.kind == "heal"), "the night's one re-buy");
+    assert!(g.lineage.night_theft_rebought);
+    steal(&mut g);
+    assert!(!g.lineage.supplies.iter().any(|s| s.kind == "heal"), "a second theft waits for the night");
+    assert!(g.lineage().repeat_kinds.is_empty(), "{:?}", g.lineage().repeat_kinds);
+    g.start_run(None);
+    assert!(g.run.as_ref().unwrap().supplies.is_empty(), "the send packs nothing");
+    g.run = None;
+    g.lineage.night();
+    g.restock();
+    assert!(g.lineage.supplies.iter().any(|s| s.kind == "heal"), "a new night re-buys it");
+    // Bought at D5's price ($20), refunded at it after the price moved.
+    let s = g.lineage.supplies.iter().find(|s| s.kind == "heal").unwrap().clone();
+    assert_eq!(s.paid, 20);
+    g.lineage.best_depth = 20;
+    let gold = g.lineage.gold;
+    g.drop_supply(s.id).unwrap();
+    assert_eq!(g.lineage.gold, gold + 20);
+}
+
+/// Cut 22 §3: an edit's paired move — the active panel minus the previous set's on the same
+/// seeds: nothing moves against itself, the move at each depth is the two bars' difference,
+/// and on AH's set a one-notch edit's ± sits well inside the bars' own.
+#[test]
+fn an_edits_paired_delta_is_the_bars_difference_and_tighter_than_them() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../eval/cards/6da3ed0.raterAH.rules.json")).unwrap();
+    let set = RuleSet::parse(&text).unwrap();
+    let mut g = Game::new(7);
+    for u in crate::meta::UNLOCKS {
+        g.lineage.unlocks.insert(u.id.into());
+    }
+    identify(&mut g, "heal");
+    g.lineage.best_depth = 8;
+    g.set_rules_raw(set.clone()).unwrap();
+    let base = g.forecast();
+    let same = g.forecast_vs(&set);
+    assert!(same.depths.iter().all(|d| d.delta == 0.0 && d.pm == 0.0) && same.bank.pm == 0.0 && same.death.delta == 0.0, "{same:?}");
+    assert_eq!(same.depths.len(), base.depths.len());
+    // R3 `hp < 20 → return` to 25.
+    let mut edit = set.clone();
+    edit.rows[2].conds[0].n = Some(25);
+    g.set_rules_raw(edit).unwrap();
+    let f = g.forecast();
+    let vs = g.forecast_vs(&set);
+    assert_eq!(vs.sims, 50);
+    for (d, (a, b)) in vs.depths.iter().zip(f.depths.iter().zip(&base.depths)) {
+        assert!((d.delta - (a.reach - b.reach)).abs() < 1e-9, "D{}: {} vs {} − {}", d.depth, d.delta, a.reach, b.reach);
+        assert!((d.abs_pm - a.pm.unwrap()).abs() < 1e-9);
+    }
+    let ends = |f: &Forecast| f.ends.clone().unwrap();
+    assert!((vs.death.delta - (ends(&f).death - ends(&base).death)).abs() < 1e-9);
+    assert!((vs.gold.delta - (ends(&f).gold - ends(&base).gold)).abs() < 1e-6);
+    let (p, a): (f64, f64) = vs.depths.iter().filter(|d| d.abs_pm > 0.0).fold((0.0, 0.0), |s, d| (s.0 + d.pm, s.1 + d.abs_pm));
+    assert!(p < a, "paired ± {p:.2} vs absolute ± {a:.2}: {:?}", vs.depths);
+}
+
+/// Cut 22 §4 (AH, run 10: `R3 attack ranged ×4` through a pack — hp 24 → 9 — then `R2 return`
+/// at 5 hp, dead to a jackal, sealed GAP): an attack row that chased into the death is `row`,
+/// naming it, when cutting or narrowing it survives ≥ 50 % of the replays and beats the base by
+/// 15 points; its cut is among the patches whatever an added row survives.
+#[test]
+fn an_attack_row_that_chased_into_the_death_is_the_row_verdict() {
+    // AH's set at run 10 (the notes; R5 the preset's strike).
+    let mut rows = vec![
+        Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")),
+        Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")),
+        Row::new(vec![Cond::t("foe_tag", "ranged")], Verb::arg("attack", "tag:ranged")),
+        Row::new(vec![Cond::t("foe_tag", "thief")], Verb::arg("tame", "tag:thief")),
+        Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
+        Row::new(vec![Cond::n("depth>=", 8)], Verb::new("bank")),
+    ];
+    for (i, r) in rows.iter_mut().enumerate() {
+        r.origin = Some(if i == 4 { "preset" } else { "player" }.into());
+    }
+    let mut g = Game::new(1919);
+    g.max_deaths = 1000;
+    for u in ["row5", "row6", "tame", "cond_on_see"] {
+        g.lineage.unlocks.insert(u.into());
+    }
+    for f in ["foe:goblin_archer:ranged", "foe:monkey:thief", "foe:jackal:pack"] {
+        g.lineage.facts.insert(f.into());
+    }
+    identify(&mut g, "heal");
+    g.set_rules_raw(RuleSet { rows, name: None }).unwrap();
+    g.lineage.gold = 300;
+    g.buy_supply("heal").unwrap();
+    g.buy_supply("heal").unwrap();
+    g.run_offline(8 * 3600);
+    let ids: Vec<u32> = g.deaths.keys().copied().collect();
+    let chased: Vec<Death> = ids.iter().filter_map(|id| g.death(*id)).filter(|d| d.verdict == "row" && d.cause_row == Some(2)).collect();
+    let d = chased.first().expect("a death R3 chased into, named");
+    let tail = &d.trace.turns[d.trace.turns.len().saturating_sub(crate::trace::CHASE_TURNS)..];
+    assert!(tail.iter().filter(|t| t.row == 2).count() >= 2, "R3 took the last actions: {:?}", tail.iter().map(|t| t.row).collect::<Vec<_>>());
+    let cut = d.patches.iter().find(|p| p.insert_at == 2 && (p.remove || p.replace)).expect("the chase's cut is shown");
+    assert!(cut.survive >= crate::trace::ROW_BAR - 1e-9 && cut.survive - d.baseline >= crate::trace::PATCH_MARGIN - 1e-9, "{:.2} vs base {:.2}", cut.survive, d.baseline);
+    assert!(d.patches.first().is_some_and(|p| p.survive >= cut.survive - 1e-9), "the best patch leads");
 }

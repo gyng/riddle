@@ -47,6 +47,10 @@ impl Game {
     pub fn start_forecast(&self) -> Vec<StartOption> {
         forecast::start_forecast(self)
     }
+    /// Cut 22 §3: the active set's paired move against `prev` (`forecast::forecast_vs`).
+    pub fn forecast_vs(&self, prev: &RuleSet) -> ForecastVs {
+        forecast::forecast_vs(self, prev)
+    }
     pub fn run_offline(&mut self, elapsed_s: u64) -> ReturnReport {
         offline::run_offline(self, elapsed_s)
     }

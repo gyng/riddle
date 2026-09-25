@@ -1,7 +1,7 @@
 // Fake Engine: a tiny deterministic mini-sim with canned-shaped output so the UI can be built and
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
-  BonesPile, CageOption, StartOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, Highlight, InvItem, LedgerRow, Lineage, Overlay,
+  BonesPile, CageOption, StartOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
@@ -1009,7 +1009,7 @@ export class FakeEngine implements Engine {
     this.s.lineage.start ??= 1;
     // QA a946e04 stand-ins: each trait's real rule (the core's `Trait::rule`), and whether the next send starts on `start`
     this.s.lineage.trait_rules = { greedy: "grabs loot once a floor", cowardly: "backs off once a floor under 50%", curious: "tries one unknown a floor", brave: "skips one retreat a floor" };
-    { const L = this.s.lineage; const st = L.start ?? 1; L.start_payable = st <= 1 || ((L.waystones ?? []).includes(st) && L.gold >= 10 * st); }
+    { const L = this.s.lineage; const st = L.start ?? 1; L.start_payable = st <= 1 || ((L.waystones ?? []).includes(st) && L.gold >= 5 * st); }
     { const L = this.s.lineage; const qm = L.unlocks.includes("quartermaster");   // QA 23ed91f: what an unwatched exit keeps
       L.keep_auto = L.keep_pref === "best_armour" ? (qm ? ["armour", "weapon"] : ["armour"]) : L.keep_pref === "best_weapon" ? (qm ? ["weapon", "armour"] : ["weapon"]) : []; }
     // Cut 16 §2: the wake's class chips (owned classes, the current first) while the trait offer stands
@@ -1151,9 +1151,23 @@ export class FakeEngine implements Engine {
 
   forecast(): Forecast { return { ...this.forecastN(20), refined: false, start: this.payableStart(), ...shadowField(this.s.rules.rows) }; }
   /** Cut 21 §1 stand-in: the floor the next send starts on — the chosen waystone when lit and the purse pays its toll, else D1. */
-  private payableStart(): number { const L = this.s.lineage, st = L.start ?? 1; return st > 1 && (L.waystones ?? []).includes(st) && L.gold >= 10 * st ? st : 1; }   // Cut 13 §5: the first paint is marked (`±6…`)
+  private payableStart(): number { const L = this.s.lineage, st = L.start ?? 1; return st > 1 && (L.waystones ?? []).includes(st) && L.gold >= 5 * st ? st : 1; }   // Cut 13 §5: the first paint is marked (`±6…`)
   /** Cut 6 §9: the same forecast at 100 sims (the client asks 2 s after a quiet paint). Same seeds ⇒ the first 20 agree. */
   forecastRefine(): Forecast { return { ...this.forecastN(100), refined: true, start: this.payableStart(), ...shadowField(this.s.rules.rows) }; }
+  /** Cut 22 §3 stand-in: the active set's panel minus `prev`'s on the same 20 seeds — per depth and on the ends, each with its paired
+   *  half-width (1.96 σ of the per-seed difference / √N), far tighter than either bar's own ± when the two sets mostly agree. */
+  forecastVs(prev: RuleSet): ForecastVs {
+    const L = this.s.lineage, N = 20, known = this.known(), known_to = L.best_depth + 1;
+    const a: Run[] = [], b: Run[] = [];
+    for (let i = 0; i < N; i++) { const seed = hash(`fc:${L.seed}:${i}`); a.push(this.simOne(seed, this.s.rules, known)); b.push(this.simOne(seed, prev, known)); }
+    const move = (f: (r: Run) => number): VsMove => {
+      const d = a.map((r, i) => f(r) - f(b[i])), m = d.reduce((x, y) => x + y, 0) / N;
+      const v = d.reduce((x, y) => x + (y - m) * (y - m), 0) / Math.max(1, N - 1);
+      return { delta: m, pm: 1.96 * Math.sqrt(v / N) };
+    };
+    const depths = Array.from({ length: Math.min(15, known_to) }, (_, k) => ({ depth: k + 1, ...move((r) => (r.depth >= k + 1 ? 1 : 0)) }));
+    return { depths, bank: move((r) => (r.exit === "bank" ? 1 : 0)), death: move((r) => ((r.exit ?? "death") === "death" ? 1 : 0)), return: move((r) => (r.exit === "return" ? 1 : 0)) };
+  }
   private forecastN(N: number): Forecast {
     const L = this.s.lineage; const known_to = L.best_depth + 1;
     const reach = new Array(16).fill(0); const causes: Record<string, number> = {};
@@ -1186,8 +1200,8 @@ export class FakeEngine implements Engine {
     const id = this.s.runCounter; const seed = hash(`run:${L.seed}:${id}`);
     // Cut 21 §1 stand-in: a lit waystone start pays its toll (`waystone D9 −$90`); short of the toll the run starts on D1
     let start = L.start ?? 1;
-    if (start > 1 && (!(L.waystones ?? []).includes(start) || L.gold < 10 * start)) start = 1;
-    if (start > 1) this.gold(-10 * start, `waystone D${start}`);
+    if (start > 1 && (!(L.waystones ?? []).includes(start) || L.gold < 5 * start)) start = 1;
+    if (start > 1) this.gold(-5 * start, `waystone D${start}`);
     const run = makeRun(id, L.heir, seed, L.class, L.trait, this.known(), this.brought(), this.ctx(), L.party, this.classLevel(), start);
     run.startedTotal = this.s.totalTurns;
     this.s.logs[id] = { seed, rules: JSON.parse(JSON.stringify(this.s.rules)) as RuleSet, depth: 1, turns: 0, exit: "", known: [...this.known()], cls: L.class, trait: L.trait, heir: L.heir, hpMargin: 0 };
@@ -1348,10 +1362,11 @@ export class FakeEngine implements Engine {
   startForecast(): StartOption[] {
     const L = this.s.lineage; const f = this.forecastN(20); const bank = f.ends?.bank ?? 0, gold = f.ends?.gold ?? 0;
     const cur = L.start ?? 1; const starts = [1, ...(L.waystones ?? [])];
-    const at = (s0: number): { bank: number; gold: number; reach: number } => { const k = (s0 - 1) / 30; return { bank: Math.max(0, Math.min(1, bank + (bank > 0 ? 0.3 * k : 0) - 0.4 * k * k)), gold: gold * (1 + 2 * k), reach: Math.max(0, 1 - k) }; };
+    const death0 = f.ends?.death ?? 0;   // Cut 22 §4 stand-in: a deeper start dies more (the start picker's `death 61%`)
+    const at = (s0: number): { bank: number; gold: number; reach: number; death: number } => { const k = (s0 - 1) / 30; return { bank: Math.max(0, Math.min(1, bank + (bank > 0 ? 0.3 * k : 0) - 0.4 * k * k)), gold: gold * (1 + 2 * k), reach: Math.max(0, 1 - k), death: Math.min(1, death0 + 1.8 * k) }; };
     const c = at(cur);
-    return starts.map((st) => { const o = at(st); return { start: st, current: st === cur, toll: st > 1 ? 10 * st : 0, short: st > 1 && L.gold < 10 * st, biome: biomeOf(st), depth: Math.max(1, L.best_depth), reach: o.reach, reach_delta: o.reach - c.reach,
-      bank: o.bank, bank_delta: o.bank - c.bank, gold: o.gold, gold_delta: o.gold - c.gold, delta: bank > 0 ? o.bank - c.bank : o.reach - c.reach, pm: 1.96 * Math.sqrt(o.bank * (1 - o.bank) / 20) }; });
+    return starts.map((st) => { const o = at(st); return { start: st, current: st === cur, toll: st > 1 ? 5 * st : 0, short: st > 1 && L.gold < 5 * st, biome: biomeOf(st), depth: Math.max(1, L.best_depth), reach: o.reach, reach_delta: o.reach - c.reach,
+      bank: o.bank, bank_delta: o.bank - c.bank, gold: o.gold, gold_delta: o.gold - c.gold, delta: bank > 0 ? o.bank - c.bank : o.reach - c.reach, pm: 1.96 * Math.sqrt(o.bank * (1 - o.bank) / 20), death: o.death }; });
   }
   /** Cut 19 §3 stand-in: the fake has no repeat; the flag is kept on the lineage so the tile can toggle. */
   setRestock(on: boolean): Lineage { (this.s.lineage as Lineage).repeat = on; if (!on) return this.clearSupplies(); return this.lineage(); }

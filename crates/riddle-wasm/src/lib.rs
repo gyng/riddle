@@ -315,6 +315,17 @@ impl Game {
         js(&self.inner.start_forecast())
     }
 
+    /// Cut 22 §3: the edit's paired move — the active set's camp panel minus `prev`'s (JSON
+    /// RuleSet: the set as it was at the last painted forecast) on the same seeds —
+    /// `ForecastVs` (`depths[{depth, delta, pm, abs_pm}]`, `bank`/`death`/`return`/`gold` as
+    /// `{delta, pm}`, `sims`). The active panel is the forecast's own (cached); the previous
+    /// set's is usually cached from its paint. Call it after the forecast's first paint.
+    #[wasm_bindgen(js_name = forecastVs)]
+    pub fn forecast_vs(&self, prev: &str) -> Result<String, JsError> {
+        let prev = riddle_core::RuleSet::parse(prev).map_err(err)?;
+        Ok(js(&self.inner.forecast_vs(&prev)))
+    }
+
     // ---- Cut 3: ascension
 
     /// After the ending: a new lineage under `variant` (`no_rest | short_list | bones_only |

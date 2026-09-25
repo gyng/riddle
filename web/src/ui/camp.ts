@@ -17,10 +17,10 @@
 // row stands in for the class button while it is up.
 import type { App, Mounted } from "../app";
 import type { CageOption, Lineage, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
-import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
+import { h, clear, flash, pct, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
-import { renderForecast, renderShaft } from "./forecast";
+import { renderForecast, renderShaft, signedPts } from "./forecast";
 import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
@@ -50,7 +50,8 @@ export function cageDelta(o: Pick<CageOption, "current" | "depth" | "reach" | "b
   if (o.current) return { text: `${at} ${Math.round((banks ? o.bank : o.reach) * 100)}%`, cls: "cur" };
   const d = Math.round(o.delta * 100);
   const pm = Math.round(o.pm * 100);
-  return { text: `${at} ${d < 0 ? "−" : "+"}${Math.abs(d)}%`, cls: `${d > 0 ? "up" : d < 0 ? "down" : ""}${Math.abs(d) <= pm ? " flat" : ""}` };
+  // Cut 22 §4 (AG: "the red `−18%` confused me; is it a delta?"): a move is signed points in the delta look (`bank −18`), never a `%`
+  return { text: `${at} ${signedPts(d)}`, cls: `dlt ${d > 0 ? "up" : d < 0 ? "down" : "flat"}${Math.abs(d) <= pm ? " flat" : ""}` };
 }
 /** Cut 21 §1: the last `startForecast()` and what it was measured for (the set, the start, the lit waystones, the best). */
 let startMemo: { key: string; opts: StartOption[] } | null = null;
@@ -148,7 +149,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, editor.el, cageTab, startTab), shaft.el), h("div", { class: "rest-line" }, rest));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, editor.el, cageTab, startTab), shaft.el), h("div", { class: "rest-line" }, rest), shaft.vsEl);
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
   const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, panelHost, panelStore), cons.el);
@@ -335,7 +336,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         replace(list, ...CAGE_PREFS.map((p) => {
           const o = opts?.find((x) => x.pref === p); const d = o ? cageDelta(o) : null;
           return h("button", { class: `chip cage-opt${p === cur ? " on" : ""}`, "data-pref": p, onclick: async () => { close(); if (p !== cur) await app.mutate(() => app.engine.setVaultPref(p)); } },
-            h("span", null, p), d ? h("b", { class: `num delta ${d.cls}` }, ` ${d.text}`) : pending && p !== cur ? h("small", { class: "num dim" }, " …") : "");
+            h("span", null, p), d ? h("b", { class: `num ${d.cls === "cur" ? "level cur" : `delta ${d.cls}`}` }, ` ${d.text}`) : pending && p !== cur ? h("small", { class: "num dim" }, " …") : "");
         }));
       };
       const k = key(), memo = cageMemo?.key === k ? cageMemo.opts : null;
@@ -367,7 +368,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function currentFromPanel(o: StartOption): StartOption {
     const f = app.lastForecast; if (!f?.ends || (f.start ?? app.lineage.start ?? 1) !== o.start) return o;
     const r = f.depths.find((x) => x.depth === o.depth)?.reach;
-    return { ...o, bank: f.ends.bank, reach: r ?? o.reach, pm: f.ends.pm ?? o.pm };
+    return { ...o, bank: f.ends.bank, reach: r ?? o.reach, pm: f.ends.pm ?? o.pm, death: f.ends.death };
   }
   function openStartPicker(): void {
     const L0 = app.lineage;
@@ -381,14 +382,17 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           const o = opts?.find((x) => x.start === st); const toll = startToll(st, o);
           // QA a946e04 (T: `START D1 · bank 86%` beside the panel's `bank 85%`): the current start's own level is the camp forecast's —
           // the number the shaft and the panel show — never a second measure of the same set
-          const d = o ? cageDelta(o.current ? currentFromPanel(o) : o) : null;
+          const oo = o ? (o.current ? currentFromPanel(o) : o) : undefined;
+          const d = oo ? cageDelta(oo) : null, death = oo?.death;
           // QA a946e04 (T): a toll the purse cannot pay dims its option and says so (`D5 · $50 short`); the current one stays lit
           const pass = st > 1 && (o?.pass === true || (st === cur && app.lineage.start_pass === true));
           const short = !pass && startShort(app.lineage, st, o);
           return h("button", { class: `chip start-opt${st === cur ? " on" : ""}${short ? " off short" : ""}`, "data-start": st, disabled: short && st !== cur,
             onclick: async () => { close(); if (st !== cur && app.engine.setStart) await app.mutate(() => app.engine.setStart!(st)); } },
             h("span", { class: "num" }, `D${st}`),
-            d ? h("b", { class: `num delta ${d.cls}` }, ` · ${d.text}`) : pending && st !== cur ? h("small", { class: "num dim" }, " …") : "",
+            d ? h("b", { class: `num ${d.cls === "cur" ? "level cur" : `delta ${d.cls}`}` }, ` · ${d.text}`) : pending && st !== cur ? h("small", { class: "num dim" }, " …") : "",
+            // Cut 22 §4 (AG: "`D9 · bank +3% · $90` — but the shaft then says death 61%"): the start's death share beside its bank move
+            d && death !== undefined ? h("span", { class: `num start-death${death >= 0.5 ? " warn" : ""}` }, /* copy:callout */ ` · death ${pct(death)}`) : "",
             pass ? h("small", { class: "num toll pass" }, /* copy:callout */ " · pass") : toll > 0 ? h("small", { class: `num toll${short ? " warn" : ""}` }, short ? /* copy:callout */ ` · $${toll} short` : ` · $${toll}`) : "");
         }));
       };
@@ -534,7 +538,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     send.disabled = app.overBudget;
     send.classList.toggle("pulse", !app.overBudget);
     send.classList.toggle("small", app.overBudget);
-    replace(send, app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one` : /* copy:button */ "send");   // Cut 12 §1: own rows
+    // Cut 22 (AG, AH: "the watch stayed on `fast 4×` from the earlier run — I hadn't noticed"): the remembered mode is kept (QA on
+    // e0f87e7 asked for it) and the gem says it — `send` over a small `fast` — so the next run's pace is never a surprise
+    const fast = app.watchMode === "fast";
+    send.dataset.mode = app.watchMode;
+    replace(send, app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
+      : fast ? h("span", { class: "send-l" }, /* copy:button */ "send", h("small", { class: "send-mode" }, /* copy:label */ "fast")) : /* copy:button */ "send");   // Cut 12 §1: own rows
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }

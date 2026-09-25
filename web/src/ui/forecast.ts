@@ -15,7 +15,7 @@
 // re-roll; the ends line has its own `±` on the death share (`death 5% ±4`, `ForecastEnds.pm`).
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
 import type { App } from "../app";
-import type { Forecast, ForecastTry, Row } from "../engine/types";
+import type { Forecast, ForecastTry, ForecastVs, Row, VsMove } from "../engine/types";
 import { h, clear, pct, replace } from "./dom";
 import { closeAllSheets } from "./sheet";
 import { pickedLine } from "./report";
@@ -48,6 +48,43 @@ export const pmShown = (share: number, pm: number | undefined): number | undefin
   return r <= 0 || r >= 100 ? undefined : Math.min(pmPts(pm), 100 - r, r);
 };
 
+/** Cut 22 §4: a move in whole points, signed (`+6`, `−3`), never a `%` — a delta must not read as a chance. */
+export const signedPts = (pts: number): string => `${pts < 0 ? "−" : "+"}${Math.abs(pts)}`;
+/** Cut 22 §3: a paired move as it reads — `+6` / `−3`, `≈` inside its own ± (or rounding to 0): no call. */
+export function moveOf(m: VsMove | number | undefined): { pts: number; text: string; dir: "up" | "down" | "flat" } | null {
+  if (m === undefined || m === null) return null;
+  const mv = typeof m === "number" ? { delta: m } : m;
+  if (typeof mv.delta !== "number" || !Number.isFinite(mv.delta)) return null;
+  const pts = Math.round(mv.delta * 100);
+  const flat = pts === 0 || (mv.pm !== undefined && Math.abs(mv.delta) <= mv.pm);
+  return flat ? { pts, text: "≈", dir: "flat" } : { pts, text: signedPts(pts), dir: pts > 0 ? "up" : "down" };
+}
+/** Cut 22 §3: a notch's or a gem's move as a tiny mark — `▲6`, `▼3` (nothing inside its ±). */
+export function moveMark(m: VsMove | number | undefined, bare = false): HTMLElement | "" {
+  // a move inside its ± marks nothing on a notch, a bar or a gem (a column of `≈` is noise); the line's `D8 ≈` says it
+  const v = moveOf(m); if (!v || v.dir === "flat") return "";
+  // `bare`: the arrow alone (a gem in the narrow shaft; its number is on the line under it)
+  return h("i", { class: `vsm dlt ${v.dir}` }, `${v.dir === "up" ? "▲" : "▼"}${bare ? "" : Math.abs(v.pts)}`);
+}
+/** Cut 22 §3: the line under the shaft — `vs last · D8 +6 · bank +4`: the depth whose move is the largest outside its ± (else the
+ *  frontier's, `D8 ≈`), the bank's move when the gems show, and the death's when it clears its ±. Null without a move to show. */
+export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, withEnds: boolean): HTMLElement | null {
+  if (!vs) return null;
+  const start = forecastStart(app, f), next = Math.max(start, app.lineage.best_depth + 1);
+  const ds = vs.depths.filter((d) => d.depth >= start && d.depth <= (f?.known_to ?? Infinity));
+  let head = ds.map((d) => ({ d, m: moveOf(d)! })).filter((x) => x.m && x.m.dir !== "flat").sort((a, b) => Math.abs(b.m.pts) - Math.abs(a.m.pts) || b.d.depth - a.d.depth)[0];
+  if (!head) { const d = ds.find((x) => x.depth === next) ?? ds[ds.length - 1]; if (d) head = { d, m: moveOf(d)! }; }
+  const term = (label: string, m: ReturnType<typeof moveOf>, key: string): HTMLElement =>
+    h("span", { class: "vs-term", "data-k": key }, h("i", { class: "sep" }, " · "), label, " ", h("b", { class: `dlt ${m!.dir}` }, m!.text));
+  const terms: HTMLElement[] = [];
+  if (head?.m) terms.push(term(`D${head.d.depth}`, head.m, "depth"));
+  const bank = moveOf(vs.bank), death = moveOf(vs.death);
+  if (withEnds && bank) terms.push(term(/* copy:label */ "bank", bank, "bank"));
+  if (withEnds && death && death.dir !== "flat") terms.push(term(/* copy:label */ "death", death, "death"));
+  if (!terms.length) return null;
+  return h("div", { class: "shaft-vs num" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs last"), ...terms);
+}
+
 export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const bars = h("div", { class: "fc-bars" });
   const causes = h("div", { class: "fc-causes" });
@@ -56,7 +93,10 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   // Cut 16 §1: the depths picked clean (`Lineage.picked`), small and dim under the ends line — why the `~$N` is lower than it was
   const picked = h("div", { class: "fc-picked num dim", hidden: true });
   const paintPicked = (): void => { const p = app.lineage.picked ?? []; picked.hidden = !p.length; replace(picked, p.length ? pickedLine(p) : ""); };
-  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast"), bars, ends, picked, yours, causes);
+  // Cut 22 §3: the edit's paired move, the shaft's line, under the ends (and a mark on each bar)
+  const vsHost = h("div", { class: "fc-vs", hidden: true });
+  const paintVs = (): void => { const line = vsLine(app, app.vs, app.lastForecast, true); vsHost.hidden = !line; replace(vsHost, line ?? ""); };
+  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast"), bars, ends, vsHost, picked, yours, causes);
   // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
@@ -82,7 +122,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     return (app.lineage.counters ?? []).find((c) => c.boss === key || key.endsWith(c.boss))?.text;
   };
   const paint = (f: Forecast): void => {
-    clear(bars); clear(causes); paintEnds(f); paintPicked();
+    clear(bars); clear(causes); paintEnds(f); paintPicked(); paintVs();
+    const vsBy = new Map((app.vs?.depths ?? []).map((d) => [d.depth, d]));
     el.dataset.refined = f.refined === undefined ? "" : f.refined ? "1" : "0";   // dev: tools read which pass painted
     // QA 92eb880 (M: "D6 32%±13 → 38%±10 on opening edit"): the first pass paints dim, its ± trailing `…`, until the refine lands
     el.classList.toggle("rough", f.refined === false);
@@ -121,7 +162,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         h("span", { class: "d num" }, `D${d.depth}`),
         tr ? h("span", { class: "track-cell" }, track, h("small", { class: "try" }, /* copy:none */ `try: ${tr.text}`)) : track,
         // a `try` row keeps one line (its hint rides the track; the boss beside the number, as before)
-        h("span", { class: "n num" }, pct(d.reach), dpm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${dpm}${first}`) : "", ...(tr ? why : [])),
+        h("span", { class: "n num" }, pct(d.reach), dpm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${dpm}${first}`) : "", moveMark(vsBy.get(d.depth)), ...(tr ? why : [])),
         !tr && why.length ? h("span", { class: "why num" }, ...why) : "",
       ];
       // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
@@ -147,11 +188,12 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   // from it, never from a pass of its own
   const fresh = (): void => { const f = app.lastForecast; if (!f) return; el.classList.remove("stale"); el.dataset.fc = String(app.forecastSeq); paint(f); };
   const off = app.onForecast(fresh), offRules = app.onRules(stale), offChange = app.onChange(paintYours);
+  const offVs = app.onVs(() => { const f = app.lastForecast; if (f && !el.classList.contains("stale")) paint(f); else paintVs(); });
   paintYours(); paintPicked(); fresh();
   // the first forecast posts after the camp's own fetches (the worker answers in order: a forecast posted first held the
   // supply shop and the unlock shelf behind it — QA B on 952e306: "while FORECAST shows '…' the shop chips and UNLOCKS are gone")
   setTimeout(() => void app.emitForecast(), 0);
-  return { el, dispose: () => { off(); offRules(); offChange(); } };
+  return { el, dispose: () => { off(); offRules(); offChange(); offVs(); } };
 }
 
 /** QA a946e04: where the shown forecast's sims started — `Forecast.start` (1 when the purse cannot pay the toll), else the lineage's. */
@@ -167,9 +209,13 @@ export function bankCap(rows: Row[]): number | undefined {
  *  its reach (amber alpha = reach, the `±` a thin halo), `?` past what the forecast knows; under it (from a 3rd row on, the reveal
  *  ladder) three gems — bank · return · death — with their shares and `~$N`. The shaft is one button: it opens the forecast panel
  *  (`onOpen`), where the bars, the causes and the `try` rows live. */
-export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolean): { el: HTMLElement; dispose(): void; paint(): void } {
+export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolean): { el: HTMLElement; vsEl: HTMLElement; dispose(): void; paint(): void } {
   const notches = h("div", { class: "notches" });
   const ends = h("div", { class: "shaft-ends num", hidden: true });
+  // Cut 22 §3: the last edit's paired move, a small line under the shaft (`vs last · D8 +6 · bank +4`), cleared by the next edit. It is
+  // the camp's to place (`vsEl`): the well pins it to its bottom edge under the shaft's column, so the move is in view the moment it
+  // lands, whatever the well's scroll (the shaft's 72 px column cannot hold the line, and its gems sit at the fold)
+  const vsHost = h("div", { class: "shaft-vs-host", hidden: true });
   const el = h("button", { class: "shaft", onclick: () => onOpen() }, notches, ends);
   let last: Forecast | null = app.lastForecast;
   // notches shown at most: D1 … the deepest (best+1, or the bounty floor). QA e75ec29 (R: "the column starts at D7 but the run starts
@@ -186,6 +232,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     const capD = bankCap(app.rules.rows), known0 = last?.known_to ?? 0;
     const next = Math.max(start, app.lineage.best_depth + 1), deepest = Math.max(next, bountyD ?? 0, capD !== undefined && capD <= known0 + 1 ? capD : 0), from = deepest - start + 1 > MAX ? deepest - MAX + 2 : start;
     const byDepth = new Map((last?.depths ?? []).map((d) => [d.depth, d]));
+    const vs = app.vs, vsBy = new Map((vs?.depths ?? []).map((d) => [d.depth, d]));
     const known = last?.known_to ?? 0;
     const rough = last?.refined === false, cap = bankCap(app.rules.rows);
     const folded: HTMLElement[] = [];
@@ -208,7 +255,8 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const bounty = depth === bountyD;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${depth === start && start > 1 ? " start" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
         h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : ""),
-        h("small", { class: "dp" }, d ? pct(d.reach) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm" }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : ""));
+        h("small", { class: "dp" }, d ? pct(d.reach) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm" }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : "",
+          d ? moveMark(vsBy.get(depth)) : ""));   // Cut 22 §3: the edit's move on the notch (`▲6`, `≈`)
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       return n;
@@ -216,12 +264,15 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     const e = last?.ends;
     ends.hidden = !e || !showEnds();
     if (e && !ends.hidden) replace(ends,
-      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, pct(e.bank))),
-      h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, pct(e.return))),
+      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, pct(e.bank)), moveMark(vs?.bank, true)),
+      h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, pct(e.return)), moveMark(vs?.return, true)),
       // QA 23ed91f (L: "`bank 0% · return 0% · death 96%` never sums to 100; `stall` only in the panel"): a stall share is its own gem
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
-      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, pct(e.death))),
+      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, pct(e.death)), moveMark(vs?.death, true)),
       h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`));
+    const line = vsLine(app, vs, last, !!e && showEnds());
+    vsHost.hidden = !line; replace(vsHost, line ?? "");
+    el.dataset.vs = line ? "1" : "";
   };
   paint(); if (last) el.dataset.fc = String(app.forecastSeq);
   // QA 23ed91f (K: "the shaft moves with no edit … the ± only shows in the forecast sheet"): the first pass (`refined` false) paints
@@ -229,5 +280,6 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   const off = app.onForecast(() => { const f = app.lastForecast; if (!f) return; last = f; el.dataset.fc = String(app.forecastSeq); el.classList.remove("stale"); el.classList.toggle("rough", f.refined === false); paint(); });
   const offRules = app.onRules(() => { el.classList.add("stale"); paint(); });   // the bank cap follows the rows at once
   const offChange = app.onChange(paint);
-  return { el, paint, dispose: () => { off(); offRules(); offChange(); } };
+  const offVs = app.onVs(paint);   // Cut 22 §3: the move lands after the paint (or clears on an edit)
+  return { el, vsEl: vsHost, paint, dispose: () => { off(); offRules(); offChange(); offVs(); } };
 }

@@ -58,15 +58,16 @@ export function deltaLabel(u: UnlockInfo, d: number, rows?: number): string {
   const where = !isCard(u) ? "" : at !== undefined ? /* copy:unlock_card */ ` at R${at + 1}` : /* copy:unlock_card */ " at end";
   // Cut 18 §5: a card whose best reach is within its ± names when it matters (`reach ~0 at R1 · vs archers`) — every card read
   // `reach ~0 at R4` to both raters, so they skipped them all
-  if (deltaIsNoise(u)) return /* copy:unlock_card */ `reach ~0${where}${u.situation ? ` · ${situationLabel(u.situation)}` : ""}`;
+  // Cut 22 §4: a move is signed points (`reach +12 ±4`), `≈` inside its ± — never a `%`, which reads as a chance
+  if (deltaIsNoise(u)) return /* copy:unlock_card */ `reach ≈${where}${u.situation ? ` · ${situationLabel(u.situation)}` : ""}`;
   const pm = u.pm !== undefined ? ` ±${Math.max(1, Math.round(u.pm * 100))}` : "";
-  return /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}%${pm}${where}`;
+  return /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}${pm}${where}`;
 }
 /** QA 92eb880 (N: "`corridor fighting · reach ~0 at R6` bought … the shaft went bank 81 % → 44 %, stall 35 %"): a card that raises the
  *  stall share at its place says so — `stall +11%` (the engine's `UnlockInfo.stall`, 0..1); empty under a point. */
 export function stallLabel(u: UnlockInfo): string {
   const pts = u.stall !== undefined && !u.owned ? Math.round(u.stall * 100) : 0;
-  return pts > 0 ? /* copy:callout */ `stall +${pts}%` : "";
+  return pts > 0 ? /* copy:callout */ `stall +${pts}` : "";
 }
 /** Cut 18 §5: the foe tag a card answers, as the foes it meets (`ranged` → `vs archers`). */
 /* copy:unlock_card */

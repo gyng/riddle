@@ -470,25 +470,18 @@ pub fn den_pounces(run: &Run) -> bool {
     !run.den_thin || crate::rng::splitmix(run.seed ^ ((run.depth as u64) << 32) ^ 0xDE_7E1F).is_multiple_of(3)
 }
 
-/// A den thief takes one thing: a vault-brought pack item, else any pack item, else the
-/// weapon in hand; then it runs.
+/// A den thief takes one thing, then runs. Cut 22 §2: what the run found first, a
+/// vault-brought item next, a coin pile's worth, a packed supply only when the pack holds
+/// nothing else, the weapon in hand last (`ai::thief_pick`; was: a brought item, else the
+/// pack's first — the heal just bought).
 fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
-    let inv = &run.hero.inv;
-    let pick = inv.iter().position(|i| run.brought.contains(&i.id)).or_else(|| (!inv.is_empty()).then_some(0));
-    let it = match pick {
-        Some(i) => run.hero.inv.remove(i),
-        None => match run.hero.weapon.take() {
-            Some(w) => w,
-            None => return,
-        },
-    };
+    let Some(take) = crate::ai::thief_pick(run, false, false, true) else { return };
+    let (it, amount) = crate::ai::thief_take(run, take);
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     run.den_stolen.push(it.id);
     run.den_snatches += 1;
     crate::provenance::stolen(run, cx, &it.kind, "monkey", true, &label);
-    let before = run.loot;
-    run.loot_add(-run.loot_value(&it));
-    let amount = (before > run.loot).then(|| before - run.loot);
+    let coins = it.kind == "gold";
     let id = run.monsters[mi].id;
     run.stolen_ids.push(it.id);
     run.stolen_kinds.push((it.id, it.kind.clone(), amount.unwrap_or(0)));
@@ -497,7 +490,11 @@ fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
     cx.events.push(Ev::Steal { t: run.turn, id, item: label.clone(), amount });
     run.stolen.push((run.turn, label.clone()));
     run.stolen_labels.push((run.stolen_ids.last().copied().unwrap_or(0), label.clone()));
-    note(run, cx, format!("A thief snatched the {label}."));
+    if coins {
+        note(run, cx, format!("A thief snatched ${}.", amount.unwrap_or(0)));
+    } else {
+        note(run, cx, format!("A thief snatched the {label}."));
+    }
     match amount {
         Some(g) => callout(run, cx, &format!("stolen ${g}")),
         None => callout(run, cx, "stolen!"),
@@ -604,7 +601,8 @@ pub fn on_leave_floor(run: &mut Run, cx: &mut Ctx) {
     let met = |run: &Run, what: &str| run.situations.iter().any(|(_, s)| s == what);
     match at(run).map(str::to_string).as_deref() {
         Some("den") if met(run, "den") => {
-            let has = |run: &Run, id: u32| run.hero.inv.iter().chain(run.hero.weapon.iter()).chain(run.hero.armour.iter()).any(|i| i.id == id);
+            // (stolen coins got back are in the carry: no longer out — Cut 22 §2)
+            let has = |run: &Run, id: u32| run.hero.inv.iter().chain(run.hero.weapon.iter()).chain(run.hero.armour.iter()).any(|i| i.id == id) || !run.stolen_ids.contains(&id);
             // QA on a946e04 (qaS: `A den of thieves. Nothing lost to the den.` in the report
             // that said `stolen red potion?`): nothing is lost while any theft of the run is
             // still out — a thief outside the den (a monkey on the den's floor, or on an

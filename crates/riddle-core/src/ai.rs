@@ -2570,6 +2570,68 @@ fn engaged(run: &Run, mi: usize) -> bool {
     (mp.adjacent(run.hero.pos) && !run.hero.untargetable()) || adjacent_ally(run, mi).is_some()
 }
 
+/// Cut 22 §2: what a thief can take from the hero.
+pub(crate) enum Take {
+    Inv(usize),
+    Coins(i32),
+    Weapon,
+}
+
+/// Cut 22 §2 (AH: "the monkey stole the heal potion on D1 … 8 seconds after I paid $40"): a
+/// thief takes what the run found first (its own loot, and the kennel's free leash), then a
+/// vault-brought item (the run's stake, Cut 7), then a coin pile's worth of the carried gold
+/// (`$4 + 2 × depth`: `stolen $6` on D1), and a packed supply only when the pack holds nothing
+/// else; `weapon`: last, the weapon in hand (the den's snatch). `random`: among the kind's candidates by the run's rng, else the
+/// first. A forge imp (`potions_only`) takes potions only, never coins.
+pub(crate) fn thief_pick(run: &mut Run, potions_only: bool, random: bool, weapon: bool) -> Option<Take> {
+    // (the kennel's free leash was never bought: it goes with the found — FULL−D28 held the
+    // Queen's wall on 22 of 30 seeds with it kept from the D1 monkeys, bar 27)
+    let found = |run: &Run, i: usize| run.hero.inv[i].free || (!run.brought.contains(&run.hero.inv[i].id) && !run.supplies.contains(&run.hero.inv[i].id));
+    let brought = |run: &Run, i: usize| run.brought.contains(&run.hero.inv[i].id);
+    for class in 0..2 {
+        let c: Vec<usize> = (0..run.hero.inv.len())
+            .filter(|&i| !potions_only || run.hero.inv[i].cat() == Cat::Potion)
+            .filter(|&i| if class == 0 { found(run, i) } else { brought(run, i) })
+            .collect();
+        if !c.is_empty() {
+            let k = if random { run.rng.below(c.len() as u32) as usize } else { 0 };
+            return Some(Take::Inv(c[k]));
+        }
+    }
+    if !potions_only && run.loot > 0 {
+        return Some(Take::Coins(run.loot.min(4 + 2 * run.depth as i32)));
+    }
+    let c: Vec<usize> = (0..run.hero.inv.len()).filter(|&i| !potions_only || run.hero.inv[i].cat() == Cat::Potion).collect();
+    if !c.is_empty() {
+        let k = if random { run.rng.below(c.len() as u32) as usize } else { 0 };
+        return Some(Take::Inv(c[k]));
+    }
+    (weapon && run.hero.weapon.is_some()).then_some(Take::Weapon)
+}
+
+/// Takes `take` off the hero: the item (coins as a gold pile the thief drops when killed) and
+/// what it cost the carried gold (Cut 10 §3: `$26 → $10` read as a bug without it — the gold
+/// `loot_add` takes off the run for the item's value; coins are their own worth).
+pub(crate) fn thief_take(run: &mut Run, take: Take) -> (Item, Option<i32>) {
+    let before = run.loot;
+    let it = match take {
+        Take::Inv(i) => {
+            let it = run.hero.inv.remove(i);
+            run.loot_add(-run.loot_value(&it));
+            it
+        }
+        Take::Coins(n) => {
+            let mut it = Item::new(run.new_item_id(), "gold");
+            it.amount = n;
+            run.loot_add_gold(-n);
+            it
+        }
+        Take::Weapon => run.hero.weapon.take().expect("a weapon in hand"),
+    };
+    let amount = (before > run.loot).then(|| before - run.loot);
+    (it, amount)
+}
+
 /// Monster attack on the hero (or, failing adjacency, an ally) with tag riders. `mult` doubles ogre hits.
 fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str) {
     let mp = run.monsters[mi].pos;
@@ -2612,12 +2674,11 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
     if run.monsters[mi].has_tag("thief") && dmg > 0 && run.monsters[mi].stolen.is_none() && !run.stolen.is_empty() && !run.monsters[mi].ally {
         run.monsters[mi].fear = run.monsters[mi].fear.max(THIEF_FLEE);
     } else if run.monsters[mi].has_tag("thief") && dmg > 0 && run.monsters[mi].stolen.is_none() {
-        // A forge imp only steals potions.
+        // A forge imp only steals potions. Cut 22 §2: what was found first, a coin pile's
+        // worth next, a packed supply last (`thief_pick`).
         let potions_only = kind == "forge_imp";
-        let stealable: Vec<usize> = (0..run.hero.inv.len()).filter(|&i| !potions_only || run.hero.inv[i].cat() == Cat::Potion).collect();
-        if !stealable.is_empty() {
-            let ii = stealable[run.rng.below(stealable.len() as u32) as usize];
-            let it = run.hero.inv.remove(ii);
+        if let Some(take) = thief_pick(run, potions_only, true, false) {
+            let (it, amount) = thief_take(run, take);
             // Cut 7 §3: a den thief's theft counts against the den.
             if run.monsters[mi].situation.as_deref() == Some("den") {
                 run.den_stolen.push(it.id);
@@ -2625,11 +2686,7 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
             let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
             let by_den = run.monsters[mi].situation.as_deref() == Some("den");
             crate::provenance::stolen(run, cx, &it.kind, &kind, by_den, &label);
-            // Cut 10 §3: a theft says what it cost the loot (`$26 → $10` read as a bug without
-            // it): the gold `loot_add` takes off the run for the item's value.
-            let before = run.loot;
-            run.loot_add(-run.loot_value(&it));
-            let amount = (before > run.loot).then(|| before - run.loot);
+            let coins = it.cat() == Cat::Gold;
             run.stolen_ids.push(it.id);
             run.stolen_kinds.push((it.id, it.kind.clone(), amount.unwrap_or(0)));
             run.monsters[mi].stolen = Some(it);
@@ -2638,7 +2695,11 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
             run.stolen.push((run.turn, label.clone()));
             run.stolen_labels.push((run.stolen_ids.last().copied().unwrap_or(0), label.clone()));
             // An unknown's label ends in `?`; the note takes no second stop (`black potion?.`).
-            note(run, cx, format!("The {} stole the {label}{}", crate::engine::kind_title(&kind), if label.ends_with('?') { "" } else { "." }));
+            if coins {
+                note(run, cx, format!("The {} stole ${}.", crate::engine::kind_title(&kind), amount.unwrap_or(0)));
+            } else {
+                note(run, cx, format!("The {} stole the {label}{}", crate::engine::kind_title(&kind), if label.ends_with('?') { "" } else { "." }));
+            }
             match amount {
                 Some(g) => callout(run, cx, &format!("stolen ${g}")),
                 None => callout(run, cx, "stolen!"),

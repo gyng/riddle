@@ -83,6 +83,7 @@ export type Viewer = {
   debugRects?(): DebugRect[];     // Cut 14 §3: every entity drawn this frame, its on-screen rect in CSS px (the gates measure a foe's height)
   debugLabels?(): DebugLabel[];   // Cut 14 §3: every name drawn this frame (text, its row's bottom in CSS px)
   debugText?(): { kind: "callout" | "caption"; text: string }[];   // Cut 18 §2: the lines of text drawn over the fight this frame
+  setQuiet?(on: boolean): void;   // Cut 22: a held beat's line is the one line — no callout or caption drawn over the fight meanwhile
   atlasInfo?(): unknown;
   debugBiome?(): string;          // Cut 16 §3: the biome the floor draws in (its palette)
   preload?(snap: Snapshot): void;   // add unknown entities before a batch's events
@@ -182,6 +183,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   let roomLit = new Uint8Array(0), roomKey = "";
   const rects: DebugRect[] = [], labels: DebugLabel[] = [];   // Cut 14 §3: what this frame drew, for the gates
   const texts: { kind: "callout" | "caption"; text: string }[] = [];   // Cut 18 §2
+  let quiet = false;   // Cut 22: `setQuiet` — the watch's held beat owns the line
   const tags: Tag[] = [], tagLayer = new TagLayer(canvas);   // second art pass: the hostiles' serif name plates (DOM)
   const lights: [number, number][] = [];   // art pass: this frame's torch flames (world env texels)
   let raf = 0;
@@ -484,7 +486,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // `JACKALCKAL`: the callout above the hero and the name under a foe one tile up, on one row)
     const heroEnt = st.hero;
     let calloutBox: [number, number, number, number] | null = null;   // x0, y0, x1, y1 (world; y up)
-    if (st.callout && heroEnt) {
+    if (st.callout && heroEnt && !quiet) {
       const [hx, hy] = feet(heroEnt);
       const width = st.callout.text.length * FONT_ADVANCE + 1;
       const cy = hy + atlas.entity(heroEnt.kind).h / 2 + (fight ? (heroEnt.glyph ? (fight ? TILE * 2 : TILE) + 6 : 5) : 6);
@@ -504,6 +506,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const g = stacks.get(vi); if (g) g.push(e.id); else stacks.set(vi, [e.id]);
     }
     const tagBoxes: [number, number, number, number][] = [];   // Cut 15 §4: the name tags drawn so far this frame (world x0, y0, x1, y1)
+    // Cut 22 (AH: "goblin nameplates stacked — cluttered at the key moment"): while a boss is in view his plate is the one drawn (and
+    // the allies'); his horde carries the small pixel hp bar instead of a plate
+    let bossInView = false;
+    for (const e of st.ents.values()) if (e.boss && !e.dying && !e.remembered && st.visible[e.y * st.w + e.x]) { bossInView = true; break; }
     // Cut 18 §2: the hero's drawn rect (world: x0, x1, y0, y1) — his feet with his stack's fan — so a sprite over him can be moved off
     let heroBox: [number, number, number, number] | null = null;
     if (heroEnt && !heroEnt.dying) {
@@ -577,7 +583,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       let top = fy + h + 2;
       // QA e75ec29 (R: "the pet is an unlabelled sprite with no hp"): an ally carries a tag too — green-tinted, its kind and name
       // (`jackal Skog`; a summoned ally, unnamed, its kind), with the same short hp bar
-      const tagged = !e.hero && !e.neutral && !e.dying;
+      const tagged = !e.hero && !e.neutral && !e.dying && (!bossInView || e.boss || !!e.ally);
       const tagText = e.ally ? allyName(e.kind, e.name) : e.name;
       if (fight && barBg && barFg && !tagged && !e.dying && !e.neutral && e.maxHp > 0) {
         const fill = Math.max(0, Math.min(BAR_W, Math.round((BAR_W * e.hp) / e.maxHp)));
@@ -636,7 +642,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
     // callout: bitmap text above the hero (env density)
     const hero = st.hero;
-    if (st.callout && hero) {
+    if (st.callout && hero && !quiet) {
       const [fx, fy] = feet(hero);
       // in the fight frame the callout clears the hp bar and, when up, the 2× glyph above it
       // Cut 13 §4: centred on the hero but kept inside the frame — a hero at the edge used to lose its callout's right half
@@ -645,7 +651,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
     // Cut 8A: the firing row as a caption at the top of the fight frame (`R2 attack goblin`), under the DOM hud
     // Cut 18 §2: one line over the fight — a telegraph (the core's callout over the hero) takes it; the row goes to the ticker (watch)
-    if (fight && st.caption && !(st.callout && hero)) { fitText(st.caption.text, camSX, camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - FONT_CELL_H, 4.1, false); texts.push({ kind: "caption", text: st.caption.text }); }
+    if (fight && st.caption && !quiet && !(st.callout && hero)) { fitText(st.caption.text, camSX, camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - FONT_CELL_H, 4.1, false); texts.push({ kind: "caption", text: st.caption.text }); }
     L.text.end();
   }
 
@@ -793,6 +799,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     debugBiome() { return st.biome; },
     debugLabels() { return labels.map((l) => ({ ...l })); },
     debugText() { return texts.map((t) => ({ ...t })); },
+    setQuiet(on) { quiet = on; },
     debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, ally: !!e.ally, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
     stats() { return { ...stats }; },
     /** dev: every entity the state holds and whether the draw loop would show it */

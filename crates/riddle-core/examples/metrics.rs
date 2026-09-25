@@ -170,7 +170,7 @@ fn without_return(set: &RuleSet) -> RuleSet {
 
 /// A lineage that owns what a cohort set needs (its cards, its condition tokens, eight
 /// rows, the common facts), playing that set: (sends, stalls) over `hours`.
-fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32, u32) {
+fn cohort_game(set: &RuleSet, seed: u64) -> Game {
     let mut g = setup(Bot::Edited, seed);
     for r in &set.rows {
         if let Some(c) = r.card() {
@@ -184,12 +184,177 @@ fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32, u32) {
     }
     // `_raw`: the lineage has not met what a token's lock needs (`see: captive`); the run has.
     g.set_rules_raw(set.clone()).unwrap_or_else(|e| panic!("cohort set {:?}: {e}", set.name));
+    g
+}
+
+fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32, u32) {
+    let mut g = cohort_game(set, seed);
     riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
     // QA on 23ed91f (qaL): a run that reaches the tick cap is a stall that never ended (a
     // conjurer's blades reset the guard: 120 000 ticks, 3 000 kills) — counted with them.
     let capped = g.batch.run_ticks.iter().filter(|&&t| t >= riddle_core::engine::MAX_TURNS_PER_RUN).count() as u32;
     let deaths = g.batch.run_outcomes.iter().filter(|(_, c)| c.is_some()).count() as u32;
     (g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths)
+}
+
+/// Cut 22 §1: one cohort set's gold over `hours` of watched sends (the repeat on, no absence's
+/// `restock ≤ income` cap — the sends the raters watched): what came home, what the exits
+/// salvaged, what the shelf and the tolls cost, per send.
+#[derive(Clone, Copy, Default)]
+struct GoldTally {
+    sends: u32,
+    /// Sends that banked or returned.
+    home_sends: u32,
+    home: i64,
+    salvage: i64,
+    /// Supplies bought (the repeat, the first pack excluded: the shelf starts and ends packed).
+    spent: i64,
+    tolls: i64,
+    /// Everything else (the heir purse's wake pay, refunds).
+    other: i64,
+    /// Thefts of a bought (packed, not found) supply, and all thefts.
+    supply_thefts: u32,
+    thefts: u32,
+    /// The sends that returned (60 %) and their own net: the safe run the raters called a
+    /// treadmill (AG: "+$77 returned · +$19 salvage · −$160 spent").
+    ret_sends: u32,
+    ret_net: i64,
+}
+
+impl GoldTally {
+    fn add(&mut self, o: &GoldTally) {
+        self.sends += o.sends;
+        self.home_sends += o.home_sends;
+        self.home += o.home;
+        self.salvage += o.salvage;
+        self.spent += o.spent;
+        self.tolls += o.tolls;
+        self.other += o.other;
+        self.supply_thefts += o.supply_thefts;
+        self.thefts += o.thefts;
+        self.ret_sends += o.ret_sends;
+        self.ret_net += o.ret_net;
+    }
+    fn net(&self) -> i64 {
+        self.home + self.salvage - self.spent - self.tolls + self.other
+    }
+}
+
+/// The supplies a player packs for `set`: 2 of a kind the set drinks to heal, 1 of each other
+/// kind a row names that the shelf sells, up to the cap.
+fn pack_for(g: &mut Game) {
+    let kinds = g.lineage.row_kinds();
+    let cat = g.supply_catalogue();
+    for k in kinds.iter().filter(|k| cat.iter().any(|e| e.kind == **k) && k.as_str() != "leash") {
+        for _ in 0..if k == "heal" { 2 } else { 1 } {
+            let _ = g.buy_supply(k);
+        }
+    }
+}
+
+/// Cut 22 §1: `hours` of sends on `set` from `start` (1, or the deepest lit waystone when
+/// `waystone`), each followed by its rest, the repeat on.
+fn cohort_gold(set: &RuleSet, seed: u64, hours: u64, waystone: bool) -> GoldTally {
+    let mut g = cohort_game(set, seed);
+    g.lineage.gold = 400;
+    pack_for(&mut g);
+    let budget = hours * 3600 * riddle_core::offline::TICKS_PER_SECOND;
+    let mut consumed = 0u64;
+    let mut t = GoldTally::default();
+    while consumed < budget {
+        // Each send's lines are read and cleared (a send's first lines share the last one's turn).
+        g.lineage.gold_ledger.clear();
+        g.lineage.rest_left = 0;
+        g.lineage.start = if waystone { g.lineage.waystones.iter().copied().max().unwrap_or(1) } else { 1 };
+        g.start_run(None);
+        g.events.clear();
+        let bought: Vec<u32> = {
+            let r = g.run.as_ref().unwrap();
+            r.hero.inv.iter().filter(|i| r.supplies.contains(&i.id) && !i.found && !i.free).map(|i| i.id).collect()
+        };
+        let mut n = 0u32;
+        while g.run.as_ref().is_some_and(|r| r.over.is_none()) && n < riddle_core::engine::MAX_TURNS_PER_RUN {
+            g.tick();
+            g.events.clear();
+            n += 1;
+        }
+        let (turns, tier) = {
+            let r = g.run.as_ref().unwrap();
+            t.thefts += r.stolen_kinds.len() as u32;
+            t.supply_thefts += r.stolen_kinds.iter().filter(|(id, _, _)| bought.contains(id)).count() as u32;
+            (r.turn, r.over.unwrap_or(ExitTier::Return))
+        };
+        consumed += turns as u64 + g.rest_after(turns, tier) as u64;
+        g.finish_run();
+        g.auto_keep();
+        g.events.clear();
+        t.sends += 1;
+        if tier != ExitTier::Death {
+            t.home_sends += 1;
+        }
+        let before = t.net();
+        for l in &g.lineage.gold_ledger {
+            let w = l.why.as_str();
+            let d = l.delta as i64;
+            if ["returned", "banked", "died", "lost", "stalled"].iter().any(|p| w.starts_with(p)) {
+                t.home += d;
+            } else if w.starts_with("salvage") {
+                t.salvage += d;
+            } else if w.starts_with("waystone") {
+                t.tolls -= d;
+            } else if w.starts_with("repeat") {
+                t.spent -= d;
+            } else {
+                t.other += d;
+            }
+        }
+        if tier == ExitTier::Return {
+            t.ret_sends += 1;
+            t.ret_net += t.net() - before;
+        }
+    }
+    t
+}
+
+/// Cut 22 §3: every one-notch edit of `set` (each numeric condition ±5 for a share, ±1
+/// otherwise) against the set, on a D8 lineage owning every token: (edits, Σ paired ±,
+/// Σ absolute ±) over the shaft's depths whose bar has a ±.
+fn paired_edits(set: &RuleSet) -> (u32, f64, f64) {
+    let mut g = Game::new(7);
+    for u in riddle_core::meta::UNLOCKS {
+        g.lineage.unlocks.insert(u.id.into());
+    }
+    for k in ["heal", "poison", "fire", "teleport", "blink"] {
+        if let Some(f) = riddle_core::item::ident_fact(&g.lineage.flavours, k) {
+            g.lineage.facts.insert(f);
+        }
+    }
+    g.lineage.best_depth = 8;
+    if g.set_rules_raw(set.clone()).is_err() {
+        return (0, 0.0, 0.0);
+    }
+    let _ = g.forecast();
+    let (mut n, mut sp, mut sa) = (0u32, 0.0, 0.0);
+    for (ri, r) in set.rows.iter().enumerate() {
+        for (ci, c) in r.conds.iter().enumerate() {
+            let Some(v) = c.n else { continue };
+            let step = if c.k.starts_with("hp") { 5 } else { 1 };
+            for sign in [-1, 1] {
+                let mut edit = set.clone();
+                edit.rows[ri].conds[ci].n = Some((v + sign * step).max(0));
+                if edit == *set || g.set_rules_raw(edit).is_err() {
+                    continue;
+                }
+                let vs = g.forecast_vs(set);
+                for d in vs.depths.iter().filter(|d| d.abs_pm > 0.0) {
+                    sp += d.pm;
+                    sa += d.abs_pm;
+                }
+                n += 1;
+            }
+        }
+    }
+    (n, sp, sa)
 }
 
 fn setup(bot: Bot, seed: u64) -> Game {
@@ -490,6 +655,71 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
     r
 }
 
+type Golds = BTreeMap<(usize, u64, bool), GoldTally>;
+/// Cut 22 §3: set index → (edits, Σ paired ±, Σ absolute ±) (`paired_edits`).
+type Paireds = BTreeMap<usize, (u32, f64, f64)>;
+
+fn gold_report(sets: &[(String, RuleSet)], golds: &Golds, seeds: u64, hours: u64, rows: &mut Vec<(String, String, bool)>) {
+    // Cut 22 §1: a safe run nets gold — per send, after its supplies, tolls and thefts, on every
+    // cohort set whose sends mostly come home (bank or return ≥ 60 %), from D1. The deepest
+    // waystone's numbers print beside (a start the player picks, not the gate's).
+    let (mut g_ok, mut g_n, mut g_worst) = (0usize, 0usize, (f64::INFINITY, String::new()));
+    let (mut th_all, mut th_sup, mut th_sends) = (0u32, 0u32, 0u32);
+    println!("\nnet gold per send (Cut 22 §1; {hours} h watched, repeat on): home + salvage − spent − tolls (+ other) over sends");
+    for (si, (name, _)) in sets.iter().enumerate() {
+        let tally = |way: bool| {
+            let mut t = GoldTally::default();
+            for s in 1..=seeds {
+                t.add(&golds[&(si, s, way)]);
+            }
+            t
+        };
+        let (d1, ws) = (tally(false), tally(true));
+        let per = |t: &GoldTally, x: i64| x as f64 / t.sends.max(1) as f64;
+        let home_pct = pct(d1.home_sends as usize, d1.sends as usize);
+        let mostly = home_pct >= 60.0;
+        let net = per(&d1, d1.net());
+        println!(
+            "  {name}: D1 {:.1} sends · home {home_pct:.0}% · +${:.1} home · +${:.1} salvage · −${:.1} spent · −${:.1} tolls · {:+.1} other → net {net:+.1}/send{} · a return nets {:+.1} · supply thefts {:.2}/send ({} thefts) │ waystone: {:.1} sends · net {:+.1}/send · +${:.1} home · +${:.1} salvage · −${:.1} spent · tolls −${:.1} · {:+.1} other · home {:.0}%",
+            d1.sends as f64 / seeds as f64,
+            per(&d1, d1.home),
+            per(&d1, d1.salvage),
+            per(&d1, d1.spent),
+            per(&d1, d1.tolls),
+            per(&d1, d1.other),
+            if mostly { "" } else { " (not mostly home)" },
+            d1.ret_net as f64 / d1.ret_sends.max(1) as f64,
+            d1.supply_thefts as f64 / d1.sends.max(1) as f64,
+            d1.thefts,
+            ws.sends as f64 / seeds as f64,
+            per(&ws, ws.net()),
+            per(&ws, ws.home),
+            per(&ws, ws.salvage),
+            per(&ws, ws.spent),
+            per(&ws, ws.tolls),
+            per(&ws, ws.other),
+            pct(ws.home_sends as usize, ws.sends as usize),
+        );
+        th_all += d1.thefts + ws.thefts;
+        th_sup += d1.supply_thefts + ws.supply_thefts;
+        th_sends += d1.sends + ws.sends;
+        if mostly {
+            g_n += 1;
+            if net >= 20.0 {
+                g_ok += 1;
+            }
+            if net < g_worst.0 {
+                g_worst = (net, name.clone());
+            }
+        }
+    }
+    let sup_per = th_sup as f64 / th_sends.max(1) as f64;
+    println!("  bought-supply thefts {th_sup} of {th_all} thefts over {th_sends} sends ({sup_per:.3}/send; Cut 22 §2 target ≤ 0.1)");
+    if g_n > 0 {
+        rows.push((format!("Net gold per send ≥ +$20 on every mostly-home cohort set ({g_n})"), format!("{g_ok}/{g_n} · worst {:+.0}", g_worst.0), g_ok == g_n));
+    }
+}
+
 fn pct(n: usize, d: usize) -> f64 {
     if d == 0 {
         0.0
@@ -552,15 +782,27 @@ fn main() {
     enum Job {
         Counter(u64),
         Cohort(usize, u64, bool),
+        Gold(usize, u64, bool),
+        Paired(usize),
         Bot(usize, u64),
     }
     let sets = Arc::new(cohort_sets());
+    // `--gold`: the Cut 22 §1 gold table alone (the cohort sets' sends; ~20 s).
+    let gold_only = args.iter().any(|a| a == "--gold");
     let mut jobs: Vec<Job> = (1..=seeds).map(Job::Counter).collect();
     jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| Job::Cohort(si, s, false))));
     // Cut 19 §2: a set with a return row also plays without it (the night's death share, beside).
     let returning: Vec<usize> = (0..sets.len()).filter(|&si| sets[si].1.rows.iter().any(|r| r.verb.v == "return")).collect();
     jobs.extend(returning.iter().flat_map(|&si| (1..=seeds).map(move |s| Job::Cohort(si, s, true))));
+    // Cut 22 §1: each cohort set's gold per send over 8 h of watched sends, from D1 and from its
+    // deepest lit waystone.
+    jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).flat_map(move |s| [Job::Gold(si, s, false), Job::Gold(si, s, true)])));
     jobs.extend(BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Bot(bi, s))));
+    // Cut 22 §3: each cohort set's one-notch edits, paired against the set.
+    jobs.extend((0..sets.len()).map(Job::Paired));
+    if gold_only {
+        jobs.retain(|j| matches!(j, Job::Gold(..)));
+    }
     // `--threads N` leaves cores to whatever runs beside the table (gates.mjs: the dayplayer's
     // sequential chains, which the full 32 starved — docs/ITERATION_SPEED.md §3.2).
     let threads = get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(4).min(32)) as usize;
@@ -568,9 +810,11 @@ fn main() {
     let cohort: Arc<Mutex<CohortStalls>> = Arc::new(Mutex::new(BTreeMap::new()));
     type Counters = BTreeMap<u64, (bool, f64, f64, f64)>;
     let counters: Arc<Mutex<Counters>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let golds: Arc<Mutex<Golds>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let paireds: Arc<Mutex<Paireds>> = Arc::new(Mutex::new(BTreeMap::new()));
     let mut handles = Vec::new();
     for _ in 0..threads {
-        let (jobs, results, cohort, counters, sets) = (Arc::clone(&jobs), Arc::clone(&results), Arc::clone(&cohort), Arc::clone(&counters), Arc::clone(&sets));
+        let (jobs, results, cohort, counters, sets, golds, paireds) = (Arc::clone(&jobs), Arc::clone(&results), Arc::clone(&cohort), Arc::clone(&counters), Arc::clone(&sets), Arc::clone(&golds), Arc::clone(&paireds));
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some(job) = job else { break };
@@ -588,6 +832,14 @@ fn main() {
                     let r = cohort_stalls(&set, seed, 4);
                     cohort.lock().unwrap().insert((si, seed, bare), r);
                 }
+                Job::Gold(si, seed, way) => {
+                    let r = cohort_gold(&sets[si].1, seed, hours, way);
+                    golds.lock().unwrap().insert((si, seed, way), r);
+                }
+                Job::Paired(si) => {
+                    let r = paired_edits(&sets[si].1);
+                    paireds.lock().unwrap().insert(si, r);
+                }
                 Job::Counter(seed) => {
                     let r = riddle_core::probes::counter_trial(seed);
                     counters.lock().unwrap().insert(seed, r);
@@ -599,6 +851,21 @@ fn main() {
         h.join().unwrap();
     }
     phase("jobs");
+    if gold_only {
+        let mut rows = Vec::new();
+        gold_report(&sets, &golds.lock().unwrap(), seeds, hours, &mut rows);
+    // Cut 22 §3: an edit's paired move is far tighter than the bars' own ± — over every
+    // one-notch edit of every cohort set, Σ paired ± ≤ ½ Σ absolute ± (the depths with a ±).
+    let paireds = paireds.lock().unwrap();
+    let (pe, pp, pa) = paireds.values().fold((0u32, 0.0f64, 0.0f64), |a, r| (a.0 + r.0, a.1 + r.1, a.2 + r.2));
+    let worst = paireds.iter().map(|(si, r)| (r.1 / r.2.max(1e-9), sets[*si].0.clone())).fold((0.0f64, String::new()), |a, b| if b.0 > a.0 { b } else { a });
+    println!("paired edit delta (Cut 22 §3): {pe} one-notch edits over {} sets · paired ± / absolute ± {:.2} (worst set {} {:.2})", sets.len(), pp / pa.max(1e-9), worst.1, worst.0);
+    rows.push((format!("Paired edit ± ≤ ½ absolute ± ({pe} cohort edits)"), format!("{:.2}", pp / pa.max(1e-9)), pp <= 0.5 * pa));
+        for (name, value, ok) in &rows {
+            println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
+        }
+        return;
+    }
     let cohort = cohort.lock().unwrap();
     let results = results.lock().unwrap();
     let per_bot = |bot: Bot| -> Vec<&SeedResult> {
@@ -992,6 +1259,14 @@ fn main() {
         let worst = ret_sets.iter().map(|(_, d, b)| d - b).fold(f64::NEG_INFINITY, f64::max);
         rows.push((format!("Return row: 0 < death share < without it ({} cohort sets; = if it never acts)", ret_sets.len()), format!("{ok}/{} · worst {worst:+.1} pts", ret_sets.len()), ok == ret_sets.len()));
     }
+    gold_report(&sets, &golds.lock().unwrap(), seeds, hours, &mut rows);
+    // Cut 22 §3: an edit's paired move is far tighter than the bars' own ± — over every
+    // one-notch edit of every cohort set, Σ paired ± ≤ ½ Σ absolute ± (the depths with a ±).
+    let paireds = paireds.lock().unwrap();
+    let (pe, pp, pa) = paireds.values().fold((0u32, 0.0f64, 0.0f64), |a, r| (a.0 + r.0, a.1 + r.1, a.2 + r.2));
+    let worst = paireds.iter().map(|(si, r)| (r.1 / r.2.max(1e-9), sets[*si].0.clone())).fold((0.0f64, String::new()), |a, b| if b.0 > a.0 { b } else { a });
+    println!("paired edit delta (Cut 22 §3): {pe} one-notch edits over {} sets · paired ± / absolute ± {:.2} (worst set {} {:.2})", sets.len(), pp / pa.max(1e-9), worst.1, worst.0);
+    rows.push((format!("Paired edit ± ≤ ½ absolute ± ({pe} cohort edits)"), format!("{:.2}", pp / pa.max(1e-9)), pp <= 0.5 * pa));
     let (sv_n, sv_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_verdicts.0, a.1 + r.stall_verdicts.1));
     rows.push((format!("Stall verdicts: ≥ 1 patch fired ≥ 50% (n={sv_n})"), format!("{sv_ok}/{sv_n}"), sv_ok == sv_n));
     let (sr_n, sr_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_reel.0, a.1 + r.stall_reel.1));

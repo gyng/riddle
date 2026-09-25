@@ -13,6 +13,7 @@ export interface Viewer {
   idle?(): boolean;   // queue drained and tails played out (real renderer)
   tick?(): number;    // current tick of the playback clock (real renderer)
   sync?(snap: Snapshot): void; // Cut 4 §3: adopt `remembered` flags (and last-seen tiles) from a step's snapshot
+  setQuiet?(on: boolean): void;   // Cut 22: a held beat owns the line — no callout or caption drawn over the fight meanwhile
   stats?(): unknown;   // renderer diagnostics (dev: `window.__viewer.stats()` while a run is mounted)
 }
 type RenderMod = { createViewer(canvas: HTMLCanvasElement, opts?: { baseTexels?: number }): Viewer };

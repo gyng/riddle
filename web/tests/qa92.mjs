@@ -166,7 +166,7 @@ try {
   const tt = (l) => tiles.find((x) => x.label === l);
   check(tt("auto: restock")?.needs === "◆2 more", `a marks shortfall the gold covers carries no \`⊘\` ("${tt("auto: restock")?.needs}")`);
   const corr = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card")].find((c) => /corridor/.test(c.textContent))?.querySelector(".stall-risk")?.textContent);
-  check(corr === "stall +11%", `a card that raises the stall share says so on its tile ("${corr}")`);
+  check(corr === "stall +11", `a card that raises the stall share says so on its tile ("${corr}")`);
   check(tt("class: rogue")?.cost === "free", `a door that costs nothing reads \`free\` ("${tt("class: rogue")?.cost}")`);
   const owned = await text(".unlocks .chips.owned .chip");
   check(owned.some((o) => /verb: throw/.test(o)) && !owned.some((o) => /\+1 row/.test(o)), `the owned row lists a bought verb, not the counted steps (${owned.join(" · ")})`);
@@ -228,7 +228,7 @@ try {
   // inside the band; a loss is dim and never the gem's, but keeps its survival's place
   check(order === "hp < 20% → return | foe: telegraph → retreat | hp < 20% → rest | foes ≥ 3 → retreat", `the landing re-ranks survival-first, the reach inside the band (${order})`);
   check(d.rows[1]?.neg && !d.rows.filter((_, i) => i !== 1).some((x) => x.neg) && d.rows[0]?.top && d.gem === "100%" && before === "100%", `the loss is dim and the gem stays on the top (gem ${before} → ${d.gem}; ${d.rows.map((x) => x.reach).join(" · ")})`);
-  check(d.rows[2]?.reach === "reach D8 +0% ±2", `a move inside the ± reads \`+0%\` ("${d.rows[2]?.reach}")`);
+  check(d.rows[2]?.reach === "reach D8 ≈ ±2", `a move inside the ± reads \`≈\` (Cut 22 §4) ("${d.rows[2]?.reach}")`);
   await shot("qa92-rerank");
 
   // ---- the report: one tile order; the shadowed pending line; LEARNED; the gold words; the plateau's floor

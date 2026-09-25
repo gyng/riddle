@@ -57,7 +57,9 @@ export type StartOption = { start: number; current: boolean; toll?: number; biom
                             bank: number; bank_delta: number; gold: number; gold_delta: number; delta: number; pm: number;
                             short?: boolean;                    // core: the purse cannot pay the toll now — that send starts on D1 (the numbers are D1's)
                             pass?: boolean;                     // QA a946e04 (core): tonight's pass for this start is paid — the next send from it pays nothing (`toll` is the next night's); `net` is the next send's
-                            net?: number; net_delta?: number }; // core: `gold − toll` per send, and its move against the current start
+                            net?: number; net_delta?: number;   // core: `gold − toll` per send, and its move against the current start
+                            death?: number;                     // Cut 22 §4: the death share of a send from this start (0..1), shown beside the bank move
+                            death_delta?: number };             // core: its move against the current start
 /** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any.
  *  Cut 6 §1: `kept` = what that row would bring home now (`$84 · keeps $50`). */
 export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number;
@@ -124,7 +126,14 @@ export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share
                          ends?: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number };
                          refined?: boolean;
                          start?: number;                                 // Cut 21 §1: the floor the sims started on (`Lineage.start` when lit and payable, else 1); rows above it read reach 1.0
-                         shadowed_by?: (number | null)[] };                                                    // QA 92eb880: per row of the set (by index), the earlier row (0-based) that takes every moment it could fire — mark it `shadowed by R{n+1}`; null = free; absent = none shadowed   // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
+                         shadowed_by?: (number | null)[];                                                    // QA 92eb880: per row of the set (by index), the earlier row (0-based) that takes every moment it could fire — mark it `shadowed by R{n+1}`; null = free; absent = none shadowed   // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
+                         vs?: ForecastVs };                              // Cut 22 §3: the paired move against the last painted set (absent without an edit, or on a core that answers `forecastVs(prev)` instead)
+/** Cut 22 §3 — an edit's paired move: this set's panel minus the previous set's, on the same seeds (so far tighter than either
+ *  absolute bar). `delta`: the move (a 0..1 fraction, signed); `pm`: its own paired half-width — a move inside it reads `≈`. The
+ *  ends (`bank`, `death`, …) may come as a bare delta or as `{delta, pm}`. */
+export type VsMove = { delta: number; pm?: number };
+export type ForecastVs = { depths: ({ depth: number; abs_pm?: number } & VsMove)[]; bank?: number | VsMove; death?: number | VsMove; return?: number | VsMove; gold?: number | VsMove;
+                           sims?: number };   // core: `abs_pm` = the active bar's own ± at that depth; `sims` = the paired seeds both panels ran
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
 export type ForecastTry = { row: Row; text: string; boss?: string };
@@ -295,6 +304,9 @@ export interface Engine {
   setRestock?(on: boolean): Lineage;    // §3: the loadout's repeat on/off (off refunds the re-packed shelf; on re-packs an empty shelf now)
   // Cut 21
   setStart?(depth: number): Lineage;    // §1: where the next send starts (1 or a lit waystone)
+  /** Cut 22 §3: the paired move of the active set against `prev` (the set as it was at the last painted forecast); optional —
+   *  a core that puts `vs` on the forecast itself needs no call. Called after the forecast's first paint, never before it. */
+  forecastVs?(prev: RuleSet): ForecastVs;
   startForecast?(): StartOption[];      // §1: D1 and each lit waystone measured for the active set (memoised; seconds in wasm — call when the picker opens)
 }
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)

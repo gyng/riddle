@@ -18,6 +18,7 @@ const METHODS: (keyof Engine)[] = [
   "setRestock",       // Cut 19 §3: optional likewise (the loadout's repeat toggle)
   "setStart",         // Cut 21 §1: optional likewise (the start tablet)
   "startForecast",    // Cut 21 §1: optional likewise (the start picker's per-start moves)
+  "forecastVs",       // Cut 22 §3: optional likewise (the edit's paired move under the shaft)
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

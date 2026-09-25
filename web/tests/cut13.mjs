@@ -306,11 +306,11 @@ try {
   await openPanel(page, "unlocks", { all: true });
   await page.waitForFunction(() => document.querySelectorAll(".unlocks .card .delta").length > 0, null, { timeout: 15_000 });
   const deltas = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((e) => ({ text: e.textContent, cls: e.className })));
-  check(deltas.length > 0 && deltas.every((x) => /^reach (~0|[+−]\d+% ±\d+) at (R\d+|end)( · vs [a-z ]+)?$/.test(x.text)), `card deltas carry their ± or read ~0: ${deltas.map((x) => x.text).join(" · ")}`);
-  check(deltas.some((x) => /~0/.test(x.text) && /flat/.test(x.cls)) && deltas.some((x) => /±/.test(x.text)), "both forms occur on the fake's catalogue (a ~0 is flat, not up or down)");
-  await page.locator(".unlocks .card").filter({ hasText: "reach ~0" }).first().click({ timeout: 5000 }); await sleep(200);
+  check(deltas.length > 0 && deltas.every((x) => /^reach (≈|[+−]\d+ ±\d+) at (R\d+|end)( · vs [a-z ]+)?$/.test(x.text)), `card deltas carry their ± or read ~0: ${deltas.map((x) => x.text).join(" · ")}`);
+  check(deltas.some((x) => /≈/.test(x.text) && /flat/.test(x.cls)) && deltas.some((x) => /±/.test(x.text)), "both forms occur on the fake's catalogue (a ~0 is flat, not up or down)");
+  await page.locator(".unlocks .card").filter({ hasText: "reach ≈" }).first().click({ timeout: 5000 }); await sleep(200);
   const sheetDelta = await page.evaluate(() => document.querySelector(".sheet-wrap .delta")?.textContent ?? "");
-  check(/^reach ~0 at (R\d+|end)$/.test(sheetDelta), `the unlock sheet reads the same: "${sheetDelta}"`);
+  check(/^reach ≈ at (R\d+|end)$/.test(sheetDelta), `the unlock sheet reads the same: "${sheetDelta}"`);
   await shot("09-forecast-noise");
   await page.keyboard.press("Escape"); await sleep(100);
   // a dice death says what the forecast said for its depth (reach[d] − reach[d+1]); a gap death does not
@@ -351,7 +351,7 @@ try {
   await fakeDeath({ patches: [{ row, insert_at: 0, survive: 0.5, forecast_delta: 0.002 }, { row: { ...row, verb: { v: "attack" } }, insert_at: 0, survive: 0.6, forecast_delta: 0.25 }] });
   await sleep(100);
   const reaches = await page.evaluate(() => [...document.querySelectorAll("button.patch")].map((p) => ({ delta: p.querySelector(".delta")?.textContent ?? null, cls: p.querySelector(".delta")?.className ?? "" })));
-  check(reaches.length === 2 && reaches[0].delta === "reach +0%" && /flat/.test(reaches[0].cls) && reaches[1].delta === "reach +25%", `every patch carries a reach line: ${reaches.map((r) => r.delta).join(" · ")}`);
+  check(reaches.length === 2 && reaches[0].delta === "reach ≈" && /flat/.test(reaches[0].cls) && reaches[1].delta === "reach +25", `every patch carries a reach line: ${reaches.map((r) => r.delta).join(" · ")}`);
   // the report: the LEARNED chips wrap and `alert:rising` reads `alert · rising`; the TRACE sheet from a ledger line
   await page.evaluate(() => {
     const r = window.__riddle; const L = r.lineage;

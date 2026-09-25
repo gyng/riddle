@@ -115,7 +115,7 @@ async function qaK() {
   const landed = await page.evaluate(() => [...document.querySelectorAll("button.patch .delta")].map((x) => x.textContent));
   await page.evaluate(() => { const r = window.__riddle; r.engine.deathDeltas = r.__origDD; });
   check(pend.reach.every((x) => x === "reach …") && pend.gem === "100%", `the death paints at once, each reach pending (${pend.reach.join(" · ")}; gem ${pend.gem})`);
-  check(landed.join(" · ") === "reach D6 +8% ±3 · reach D6 +0% ±3 · reach D6 −5% ±3", `the camp's reach lands on the tablets: the depth, the ±, +0% inside it (QA 92eb880: never \`~0\`) (${landed.join(" · ")})`);
+  check(landed.join(" · ") === "reach D6 +8 ±3 · reach D6 ≈ ±3 · reach D6 −5 ±3", `the camp's reach lands on the tablets: the depth, the ±, +0% inside it (QA 92eb880: never \`~0\`) (${landed.join(" · ")})`);
 
   // ---- 2. the report: newest run first; bests named; a stall patch's numbers add up
   const L = await page.evaluate(() => window.__riddle.lineage);
@@ -130,7 +130,7 @@ async function qaK() {
   const bests = await page.evaluate(() => [...[...document.querySelectorAll(".report .rsec")].find((x) => /bests/i.test(x.querySelector(".label")?.textContent ?? ""))?.querySelectorAll("li") ?? []].map((l) => l.textContent));
   check(/^returned \$41/.test(d.lines[0] ?? "") && /^returned \$34/.test(d.lines[7] ?? "") && /earlier/.test(d.lines[8] ?? ""), `the run rows read newest first, \`· N earlier\` under them (${d.lines[0]?.slice(0, 12)} … ${d.lines[7]?.slice(0, 12)} · ${d.lines[8]})`);
   check(bests.join(" | ") === "new best D8 | ★ rank 3 | no heal to D5", `BESTS names its depth and its rank (${bests.join(" | ")})`);
-  check(d.patch === "reach D8 92% · base 9% +83%", `a stall patch's numbers add up, \`reach\` once ("${d.patch}")`);
+  check(d.patch === "reach D8 92% · base 9% +83", `a stall patch's numbers add up, \`reach\` once ("${d.patch}")`);
 
   // ---- 3. strings: the hp lost names hp; the alert HUD
   check(await mod("/src/ui/watch.ts", (m) => m.hurtText(1, "monkey")) === "−1 hp · monkey", "the hero's hurt callout reads `−1 hp · monkey` (not a kill count)");
@@ -358,7 +358,7 @@ async function cut19() {
   const pending = await opt();
   await sleep(600);
   const landed = await opt();
-  check(pending.includes("armour …") && landed.join(" · ") === "weapon bank 54%* · armour bank +36% · potion bank +0% · scroll bank −5%", `the picker shows each preference's delta (${pending.join(" · ")} → ${landed.join(" · ")})`);
+  check(pending.includes("armour …") && landed.join(" · ") === "weapon bank 54%* · armour bank +36 · potion bank +0 · scroll bank −5", `the picker shows each preference's delta (${pending.join(" · ")} → ${landed.join(" · ")})`);
   await shot("ui-cut19-cage-picker");
   await page.locator(".sheet-wrap .cage-opt[data-pref=armour]").click({ timeout: 5000 }); await sleep(400);
   const picked = await cageTab(), prefs = await page.evaluate(() => window.__riddle.__prefs);
@@ -484,7 +484,7 @@ async function cut18() {
   const t = (label) => tiles.find((x) => x.label === label);
   check(t("card: kite archers")?.cost === "◆3 or $450" && t("+1 vault")?.cost === "◆3 or $300", `an unlock tile shows both prices (${tiles.map((x) => `${x.label} ${x.cost}`).join(" · ")})`);
   check(/\bbuyable\b/.test(t("+1 vault")?.cls ?? "") && !/\bbuyable\b/.test(t("card: kite archers")?.cls ?? "") && !/\bbuyable\b/.test(t("cond: alert")?.cls ?? ""), `a tile the gold buys glows like one the marks buy; one short of gold or gated does not (${tiles.map((x) => `${x.label}: ${x.cls}`).join(" · ")})`);
-  check(t("card: kite archers")?.delta === "reach ~0 at R1 · vs archers", `a card's \`~0\` names its situation ("${t("card: kite archers")?.delta}")`);
+  check(t("card: kite archers")?.delta === "reach ≈ at R1 · vs archers", `a card's \`~0\` names its situation ("${t("card: kite archers")?.delta}")`);
   await shot("ui-cut18-unlocks");
   // ---- §3: a wall says it is a wall — `ForecastDepth.wall` on D9 (best D8): the notch `D9 · warlord`, the panel's row `D9 0% · warlord wall`
   await page.evaluate(() => { const r = window.__riddle; r.engine.unlocks = async () => []; r.engine.unlockDeltas = async () => []; r.lineage = { ...r.lineage, best_depth: 8 }; r.go({ kind: "camp" }); });
