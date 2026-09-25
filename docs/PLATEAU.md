@@ -586,3 +586,34 @@ tension both read it.
    archer through six foes, sealed GAP).
 4. **D1–D4 still repeat** (AG); the waystone only helps from D5.
 5. **Misleading numbers**: `D9 · bank +3%` beside death 61 % (AG); a delta read as a chance.
+
+## Cohort 18 (build afa0eed: Cut 22 + QA U/V — the gold loop pays, free waystones, bloodless-dance guard)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AI | 2101 | 71.4 | none |
+| AJ | 2102 | 66.5 | none |
+
+α = 0.897. Mean **68.95** — **down 2.15**. Both "promising".
+
+### The read
+
+Cut 22 fixed the early treadmill and exposed the other end: after the absence both raters held
+~$2100 and nothing worth buying (supplies at $22–50, a $1650 row). Gold went from a leak to a
+non-decision.
+
+1. **Gold stops mattering** (both, first): AI "$2073 and nothing to spend it on"; AJ "$2131 …
+   nothing meaningful to buy", while a late run still netted −$117 in restocks.
+2. **Deaths look the same** (AJ): 4 of 5 watched deaths and all 3 offline were `return too late`
+   at 1–2 HP on the walk home; the camp read `death 0%` and the next run died.
+3. **Only exit rows matter** (AJ): most other edits read `≈`; paid cards are rows he could type;
+   `foe: gas → throw unknown` fired 0/164 with no word. AI: `foe: heavy → read summon ally` never
+   fired against Drix, unexplained.
+4. **Undecodable words** (both): `read ✗ no use`, `attack ✗ no target`, `IT SHELLS`, `−$11 swap →
+   folded scroll?`, a patch `survives 92% … reach D5 −88`.
+5. **Editor friction** (both): the option sheet covers chips and eats taps; a drop confirm undid
+   itself; the supply × is tiny; a layout jump bought a confusion potion; ~5 s to settle.
+6. **The leash is stolen nearly every run** (AI) until he dropped it.
+
+Kept: the forecast as experiment (`vs sent · D6 −56 · bank +31`), row-naming deaths, the reel
+crediting rows, plateau notes that lead to an edit, bones and avenging.

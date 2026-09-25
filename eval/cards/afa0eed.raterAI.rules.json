@@ -1,0 +1,115 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "preset"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        },
+        {
+          "k": "foes>=",
+          "n": 2
+        }
+      ],
+      "verb": {
+        "v": "read",
+        "a": "teleport"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        },
+        {
+          "k": "depth>=",
+          "n": 5
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "caster"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:caster"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "heavy"
+        }
+      ],
+      "verb": {
+        "v": "read",
+        "a": "summon_ally"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "depth>=",
+          "n": 7
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "pack"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:pack"
+      },
+      "origin": "patch"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "preset"
+    }
+  ],
+  "name": "fighter"
+}

@@ -1,0 +1,70 @@
+{
+  "$comment": "Blind rater raterAI, seed 2101, build afa0eed served on :5230, headed GPU driver 400x800 3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md s1-3, the template (and the tools/driver.mjs header for its ops, and the idle-roguelike weights in eval/presets.json to know weight-0 axes). No accidental reads of PLAN/research/CUT/cards/source. Audio unassessed: window.__audio logged rule/hit/slay/telegraph cues but I could not hear them.",
+  "game": "Riddle",
+  "build": "afa0eed",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAI",
+  "horizon": {
+    "activeMinutes": 57,
+    "absences": ["simulated overnight ?absent=8h (taken at minute 38; 'rested 320m', 16 offline runs)"],
+    "runsWatched": 9,
+    "runsOffline": 16,
+    "ruleEdits": 8,
+    "$note": "38 min cold, then the 8h simulated absence, then 19 min on return. Watched: 5 runs at 1x (normal speed), 1 in 'fights' mode, 3 'fast'; each run lasted 27-62 s of wall time, so 'a few minutes at 1x' was spread across several runs. Edits: 7 of my own rows/thresholds (drink unknown, bank at depth 5/6/7, hp<40% then 25% + depth>=5 bank, foe: heavy -> read summon ally, hp<25% + foes>=2 -> read teleport, foe: caster -> attack caster) plus 1 offered patch applied (foe: pack -> attack pack). Deaths read: 4 (ogre D4 GAP, goblin pack D4 GAP, goblin conjurer D5 GAP, offline jackal D5 DICE)."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: After the overnight report told me 'R2 bank ended 7 runs, none past D6', I dropped my bank-when-hurt threshold from 40% to 25% and pushed the depth bank to D7, and slotted a teleport scroll in place of the leash the monkeys kept stealing. On the next 1x run the ogre Drix and a jackal nest took the fighter down to 5/42 on D4 and I was sure I had just killed him with my own greed. Instead the reel said 'R2 read teleport saved him.' and he walked into D5 and banked $108 - the row I wrote twenty seconds earlier was the reason he lived."
+  },
+  "probes": {
+    "clarity": "Did I know what to do? Mostly: the first camp shows two rows and a SEND gem, and after the first death the forecast column ('D5 · bank 63%', 'VS SENT · D6 −56 · bank +31') told me what each edit would do; I lost the thread on 'read ✗ no use', '−$11 swap → folded scroll?' and a patch captioned 'survives 92% ... reach D5 −88'.",
+    "decisions": "I chose 'depth ≥ 6 → bank' over 'depth ≥ 5' when the forecast showed ~$74 at 62% against ~$70 at 91%, and I would make the reverse call again after it died on D5 - that was a real choice; buying supplies stopped being one when I had $2073 and only $22-$50 items to buy.",
+    "mastery": "An hour ago I didn't know banking was a verb; now I write 'hp < 25% + depth ≥ 5 → bank' and 'hp < 25% + foes ≥ 2 → read teleport' and my forecast went from 'death 99%' to 'D7 · bank 62%'.",
+    "tension": "I sweated when the header read 'carry $104 · bank keeps $104 · death $0' on D5 at 15/36 hp, and again watching hp tick 12 → 9 → 5 → 3 → 1 in the goblin nest; on fast and offline the stakes resolve before I feel them.",
+    "feel": "Frames were smooth on the GPU window and the sprite, floating '−6 hp · ogre' and HP counter read well, but half the watch screen is black below a small room and a 'fights' run looked like a 1x run; audio I could not hear.",
+    "surprise": "'The den wakes: thieves on every side.', 'The nest wakes.' with six goblins, and 'Found ♟1's bones: 11 items.' changed what I wrote; 'The monkey stole the leash.' happened on almost every run and became wallpaper.",
+    "expression": "My set - heal, teleport escape, hurt-bank at D5, caster/heavy/pack answers, depth-7 bank - is recognisably a cautious gold-farmer's list, different from the offered patches I declined.",
+    "story": "'Drix the ogre is avenged.' on the run after Drix killed ♟1, the chronicle line '♟4 the greedy fighter · D6 · found ♟2, ♟3's bones · fell to a jackal', and 'R2 read teleport saved him.'",
+    "pacing": "In-run: a 1x run is 30-60 s with a callout every 2 s and no dead stretch I noticed; administration: the chip-sheet editor ate the time (the verb sheet overlapped the chips, the leash 'drop' confirm undid itself once), and each forecast takes ~5 s to settle.",
+    "failure": "'GOBLIN · D4 · GAP', a trace table 't 5550 R5 attack nearest hp 1 foes 5', the morgue line 'slain by goblin · blow 1 · 1 hp short', and a patch 'foe: pack → attack pack · drops R2 · 0/81 fires' that told me my drink-unknown row had never once fired.",
+    "social": "None; single-player with named foes but no relationship.",
+    "autonomy": "I chose to stop tapping the offered 'hp < 20% → rest' patches and instead chase D7 by lowering the hurt-bank threshold; the dungeon itself is one staircase down.",
+    "progression": "Within a run the hero took 'sword +1' from a cage; between runs I bought rows 4→8, throw, rogue, cond alert/turns/loot, ranked ★1→★5, fighter L1→L4, vault 'sword +3 → vault' and trophies ('trophy: no heal D5'); gold inflated to $2073 with nothing to sink it into.",
+    "aesthetic": "The painted camp banner of two figures descending into a green-lit crypt and the torn red death banner with a wax 'GAP' seal are handsome; the dungeon watch is a single sprite in a brown room over a black void.",
+    "return": "I came back to '16 RUNS · 14 BANKED · 2 DEATHS · +$1520 banked' and 'PLATEAU R2 bank ended 7 runs, none past D6', and because of that plateau line I changed R2 from hp<40% to hp<25% within two minutes; I did not wish I had stayed.",
+    "attribution": "'An archer took him to 2 HP; R2 bank too late; died to jackal.' - that was my R2, I set it too late; and 'R2 read teleport saved him.' - that was my rule too; I credited and blamed myself both times (my retelling uses 'I' / 'my' eight times)."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.8, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Forecast column updates per edit ('VS SENT · D5 −20 · death −10' when I tried 'foe: telegraph → retreat') made the goal and the effect of every change visible. Lapse: several callouts I could not decode - 'read ✗ no use', '−$11 swap → folded scroll?', a patch reading 'survives 92% ... reach D5 −88', and my 'foe: heavy → read summon ally' row not firing against Drix on run 3 with no explanation I could find." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "'depth ≥ 5 → bank' (bank 87%, ~$78) vs 'depth ≥ 6' (D6 62%, ~$74) and teleport row 'D7 53% ~$93 death 12%' vs without 'D7 62% ~$114 death 15%' were both defensible and I argued with myself. Lapse: gold stopped mattering - $2073 in the purse with supplies at $22-$50 and rows at ◆ - so the shop half of the check-in was not a decision." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Forecast went 'death 99%' (first set) → 'bank 90% ~$92' → 'D7 · bank 62%' as I learned banking, hurt thresholds and escapes; but deepest stayed D6 across the hour and the D8 '×2' hex stayed at 0%, so the next thing to learn was visible but not yet reachable." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Header 'carry $104 · bank keeps $104 · death $0' with hp 15/36 on D5 is real chosen stake, and the nest run's hp 12→1 was tense. Fast and offline runs resolve the stake before I feel it, and banking at 90%+ made most runs safe once tuned." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Headed GPU watch ran smoothly; '−6 hp · ogre', 'ogre winds up', 'BANKED $104' callouts land at ~1 per 2 s. But the room occupies the top half and the lower half is black; 'fights' mode felt the same as 1x (run 4 took 62 s vs 57 s). Audio unassessed (cues logged in window.__audio, not heard)." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Dens, the goblin nest ('The nest wakes.'), named bosses ('Ulix the goblin conjurer is avenged.'), ancestors' bones and the cage choice varied; causes of death varied (ogre, goblin pack, conjurer, jackal). Repeats: 'The monkey stole the leash.' on nearly every run and D1-D4 felt the same after run 4." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "8 rows of my own composition ('hp < 25% foes ≥ 2 → read teleport', 'foe: caster → attack caster') plus trait/class/loadout; recognisably mine. Not yet sure a second player would land somewhere different - the bank-when-hurt shape feels like the obvious optimum." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Setup/turn/end came unprompted: Drix kills ♟1, 'Drix the ogre is avenged.' next run, 'Found ♟1's bones: 11 items.'; chronicle '♟4 the greedy fighter · D6 · found ♟2, ♟3's bones · fell to a jackal'; 'R2 read teleport saved him.'. Lapse: the 16-run offline reel is five templated lines ('A goblin took him to 14 HP; R2 banked; banked $89.') that blur together." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-play: 1x runs of 28-62 s with no dead stretch; 'fast' 27-50 s. Administrative: the editor's chip sheets overlapped and swallowed clicks, the leash 'drop' confirm reverted once, each forecast takes ~5 s to settle ('reach …'), and the return report is a long ledger wall before CAMP. Check-in loop is bounded and ends cleanly on SEND." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Every death I read named cause, verdict, margin and rule: 'ogre · D4 · 7 unknown unused · telegraph unanswered', 'slain by goblin · blow 1 · 1 hp short', trace rows 'R2 bank hp 2 foes 3', patches with 'survives 100% · unpatched 17%'; next run is one tap. Lapse: the patch cost line 'reach D5 −88' / 'reach D6 −54' contradicted 'survives 100%' in my head, and 'DICE' with 'nothing beats unpatched 100%' needed a second read." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goals (farm gold safely, then chase D7) with a large vocabulary (tame, pray row, throw, shrine/vault/den conds, start waystone 'start → D1/D5'); the dungeon is a single descent, so freedom is in the policy, not the route." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run: 'took sword +1' from cages, fighter L1→L4. Persistent: rows 4→8, verb throw, class rogue, conds loot/alert/turns, ★1→★5, vault 'sword +3 → vault', forge, trophies ('trophy: studied all warrens'), lineage ♟1→♟6. Lapse: gold inflation - $2073 unspendable except $1650 rows - so the gold layer lost meaning after the absence." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Painted camp vista and the torn red death banner with a 'GAP' wax seal are striking; the watch is a small pixel room in a mostly black frame. Audio unheard." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Returned to '16 RUNS · 14 BANKED · 2 DEATHS', 'PLATEAU R2 bank ended 7 runs, none past D6', 'R4 fired 4 of 16 runs: depth ≥ 6 → bank', a readable worst death and three affordable unlocks; I made a better edit within two minutes. Lapse: the report is a long scroll of near-identical 'banked $X · keeps 100% · ◆+1 frontier' lines and the gold it paid ($1520 + $442 salvage) had nothing to buy." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Reel and verdicts name my rows by number: 'R2 bank too late; died to jackal', 'R2 read teleport saved him.', patch 'drops R2 · 0/81 fires' (my drink-unknown row). I told the story in first person. Lapse: the offline DICE death ('nothing beats unpatched 100%') felt like the game's, not mine, and one of my rows (summon vs Drix) silently did nothing." }
+  ]
+}

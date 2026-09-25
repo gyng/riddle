@@ -1,6 +1,6 @@
 # AGENTS.md — operating manual for Riddle
 
-Read `PLAN.md` (canonical design) and `docs/CUT22.md` (the current implementation contract),
+Read `PLAN.md` (canonical design) and `docs/CUT23.md` (the current implementation contract),
 then this file. `CLAUDE.md` is a bare import of this file.
 
 ## What the game is

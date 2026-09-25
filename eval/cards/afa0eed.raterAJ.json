@@ -1,0 +1,71 @@
+{
+  "$comment": "Blind rater AJ on afa0eed, served build at :5230, headed GPU driver 400x800 @3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, eval-fun FRAMEWORK.md sections 1-3, the template and the preset weights in eval/presets.json. Did not open PLAN.md, research/, docs/CUT*.md, other cards or source. Horizon deviation: cold block was ~33 min, not 40.",
+  "game": "Riddle",
+  "build": "afa0eed",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAJ (blind agent)",
+  "horizon": {
+    "activeMinutes": 51,
+    "absences": ["8h simulated via ?dev=1&absent=8h (taken once, same sitting; not a real overnight)"],
+    "runsWatched": 14,
+    "runsOffline": 16,
+    "ruleEdits": 14,
+    "notes": "seed 2102 fresh; cold 16:02-16:35 (9 sends: 6 at 1x, 3 in 'fights' mode; 2 deaths), absence, return 16:35-16:53 (5 sends, 2 deaths). Deaths read: 5 death screens (gas D6 GAP; goblin D5 R2 ROW; worst = jackal D7 DICE; spectral blade D6 R2 ROW; goblin archer D7 R3 ROW) plus the 3 reel lines of the offline deaths. Own edits: return threshold (40/25/10/25/20/30/40), foe:gas->throw unknown, loot>=200->bank, foe:summoner->attack summoner, foe:ranged->attack ranged, adjacent>=2->cleave, foe:telegraph->retreat (stall 33%, reverted) -> shield bash, depth>=10->bank, foe:boss->attack boss, hp<25%->read teleport. One offered patch applied (R3 hp<50% return), then overridden to 40%. Bought: +1 row x3, verb throw, cond loot, supplies 3->5, heal/teleport supplies. Audio: cues logged in window.__audio (rule/hit/slay), not heard -> unassessed."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "wantedToComeBackBeforeSeeing": "mildly yes: I wanted to know whether the loot>=200 bank row and the 20% return would hold overnight",
+    "delayedRecall": "same-day: ♟2, with my 25% return and a heal row, went to D8 for the first time and met the goblin warlord, who kept rallying goblins while the fight dragged through two refills of HP. At 7/36 the return row I had written pulled him out through a conjurer's spectral blades with $323 on his back. He walked home with $193 and the reel said 'R2 return saved him.'"
+  },
+  "probes": {
+    "clarity": "I never lost track of what I was doing: the camp column said 'D9 · warlord 0%' and 'bank 27% return 61% death 12%', but in the watch I could not explain 'IT SHELLS' or 'attack ✗ no target'.",
+    "decisions": "I put R2 'hp < 40% → return' in and the panel said 'D5 −40 · death −91'; I would make it again, and I wavered between 20, 25, 30 and 40 all session.",
+    "mastery": "Now I know to answer telegraphs with shield bash (that edit read 'D9 +23 · bank +33') and to bank by depth, not by loot; I did not know either an hour ago.",
+    "tension": "I sweated at 'near death 2/40' on D7 when he walked home past an ogre that 'winds up', and the header 'carry $100 · return keeps $60 · death $0' told me what was on the line.",
+    "feel": "Rows flashing over the hero ('R2 ATTACK JACKAL', 'R4 · shield bash') felt good; audio cues logged in window.__audio but I could not hear them, so audio is unassessed.",
+    "surprise": "'Found ♟1's bones: 12 items' and 'Thim the goblin is avenged' surprised me; the bloats at D6-D7 ('The air stings: bloats ahead') came every run and stopped surprising.",
+    "expression": "My set (drink heal, teleport, return 40, shield bash, attack ranged, bank at D10, attack boss, attack nearest) is a cautious fighter who runs home early, but it reads like the one everyone would write.",
+    "story": "Best run: ♟2 reached D8, fought the warlord for over a minute and got out at 7/36 with $193; the chronicle keeps a line per heir ('♟5 the curious fighter · D8 · found ♟4's bones · fell to a goblin conjurer').",
+    "pacing": "A run takes 75-240 s at 1x; the warlord fight on D8 was about 100 s of 'R4 · attack nearest' and HP going up and down, and fiddly sheets (tiny × to drop a supply, a mis-tap that bought a confusion potion) slowed my check-ins.",
+    "failure": "'goblin · D5 · R2 return · ROW' with a trace showing 'R2 return hp not <10%' at 5 HP told me the death was my 10% edit; still, the next set showed 'death 0%' and he died next run anyway.",
+    "social": "No one else; heirs and named nemeses (Ashul, Thim, Grusk) are flavour only.",
+    "autonomy": "I picked the goal of reaching the warlord myself and chose where to bank ('depth ≥ 10 → bank') and whether to start at the D5 waystone ('D5 · bank 28% · death 22%').",
+    "progression": "Rows went 4→8, verbs grew (throw, cleave, attack boss), supplies 3→5, ★5, but the offline $2131 had little to buy apart from heals, and one late run netted −$18 ('+$78 returned · +$21 salvage · −$117 spent').",
+    "aesthetic": "The painted stair art over camp and the warm pixel dungeon look good; I would not sit in the camp doing nothing.",
+    "return": "I came back to '16 RUNS · 5 BANKED · 8 RETURNED · 3 DEATHS', $2131, and three reel lines that each said 'R2 return too late'; I raised the return and bought supplies because of that, and would not have rather stayed.",
+    "attribution": "'R2 read teleport saved him' was my row, and the three offline deaths were my return threshold; my 'foe: gas → throw unknown' fired '0/164', and the descend chore took him down at 5/38 HP, which I did not choose."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Forecast column 'bank 0% return 91% death 9% ~$50' and the trace 'R2 return hp not <10%' made goal and last action clear; callouts 'IT SHELLS', 'attack ✗ no target' and 'unpatched 58%' I could not explain." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Return threshold was a real trade I argued with all session ('VS SENT · D5 −40 · death −91' at 40%, 'D6 −77 · bank −49' at 50%), and 'foe: telegraph → retreat' showed 'stall 33%' before I sent it. Lapse: most other edits (gas retreat vs attack gas, corridor, the 'reach ≈' cards) came back '≈', so outside the return/bank rows choices felt flat." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "I learned shield bash vs telegraph ('D9 +23') and depth-banking, but deepest stayed D8 from run 3 to the end and four of five deaths were the same 'return too late'." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'near death 2/40' on D7 and the header 'carry $235 · return keeps $141 · death $0' gave stakes I chose; but the loss was capped (heir purse, gold banked elsewhere) and I finished with $2092, so a death cost little." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Samples every 3 s nearly always had a new line ('R5 · attack ranged', '−3 hp · gas', 'pick up ×10') and rule banners over the hero read well; the warlord fight was long stretches of the same 'R4 · attack nearest'. Audio unassessed (cues logged, not heard)." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "'The den wakes: thieves on every side', 'Found ♟1's bones', the warlord's 'COUNTER: ATTACK BOSS' each changed a row; but D5-D7 repeated the same bloats/conjurer/archer mix every run and four deaths were the same shape." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My 8 rows ('hp < 25% → read teleport', 'depth ≥ 10 → bank', 'foe: boss → attack boss') are mine, but they are the obvious careful-fighter set; nothing in the hour pushed me toward a distinct style (tame, rogue left unclaimed)." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Reel 'Down to 4 HP. R2 read teleport saved him. Returned with $78.' and the chronicle of heirs finding each other's bones have a turn; most reels were 'D7: the Burrows. The air stings: bloats ahead.' filler." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-play: 75-240 s runs with events every few seconds, but ~100 s of warlord slog. Admin: 'rest 20m · send skips' is fine, the forecast recomputes in ~5 s, but small targets (× on a supply chip, a layout jump that made my second tap buy a confusion potion) and deep sheets slowed check-ins." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Every death named cause, depth and the row ('spectral blade · D6 · R2 return · ROW'), with a 5-tick trace and patches priced in reach ('hp < 20% → return · drops R4 · 0/164 fires'); the next run starts on its own. Lapse: the camp read 'death 0%' and the very next run died to a goblin archer on the walk home." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goal (the D9 warlord) and chose bank depth and start ('START D1 · bank 69% … D5 · bank 28%'); within the run the route is the hero's." },
+    { "id": "progression", "human": 0.6, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Both layers seen: within-run kit ('took axe +1 from the cage', L1→L4) and persistent rows 4→8, verbs throw/cleave/attack boss, 'supplies 3 → 5', 'repeat on' restock as automation. Kept at 0.6: after the absence '$2131' had nothing that mattered to buy, and a late run netted '−$117 spent' against '+$78 returned'." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Painted camp header (two heroes descending a stair) and the warm pixel dungeon with labelled foes look coherent; UI parchment sheets are handsome. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "The return screen read '16 RUNS · 5 BANKED · 8 RETURNED · 3 DEATHS', '+$1026 banked', and a reel of three 'R2 return too late' lines, which drove my first edit in under a minute. Lapse: the 'worst' death it opened was a DICE death, and the gold windfall had no decision attached." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "'R2 read teleport saved him' and 'R2 return saved him' were my rows and my deaths were my thresholds, I said 'my 10% edit killed him'. Lapse: my 'foe: gas → throw unknown' never fired ('0/164 fires') and the descend chore walked him down at 5/38 HP, which I did not write." }
+  ]
+}
