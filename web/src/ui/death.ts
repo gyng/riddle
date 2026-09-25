@@ -90,7 +90,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const seg = headlineMargin(d.margin ?? "");
   const margin = seg ? ` · ${seg}` : "";
   // Cut 19 §4: a `row` verdict — the player's own row was the dying action; the headline names it (`R2 drink unknown`), the seal reads ROW
-  const causeRow = d.verdict === "row" && d.cause_row !== undefined ? rowName(d.cause_row, (d.rules?.rows ?? app.rules.rows)[d.cause_row]) : "";
+  // Cut 25 §2: an `order` verdict names both rows — the one that would have acted and the one above that won every tick (`R5 under R2`)
+  const causeRow = d.verdict === "row" && d.cause_row !== undefined ? rowName(d.cause_row, (d.rules?.rows ?? app.rules.rows)[d.cause_row])
+    : d.verdict === "order" && d.cause_row !== undefined && d.order_over !== undefined ? /* copy:death_line */ `R${d.cause_row + 1} under R${d.order_over + 1}` : "";
   // Cut 17 §4: the line is laid on the defeat banner — the cause and depth in the display face, the verdict in the seal under it
   // (one word, engine data: `gap` · `dice` · `stall`); the text reads as before (`goblin archer · D6 · gap`)
   const causeText = /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}`;

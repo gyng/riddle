@@ -284,6 +284,14 @@ fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
         let last = d.trace.turns.last().map(|x| x.t).unwrap_or(0);
         let ok = d.trace.blow.as_ref().is_some_and(|b| b.hp == 0 && !b.by.is_empty() && b.dmg > 0 && b.t >= last);
         t.check("a death trace ends at 0 hp (the killing blow)", ok, || format!("seed {seed} run {}: blow {:?} · last turn t{last}", d.run_id, d.trace.blow));
+        // Cut 25 §3 (AN: `14 → 0` on one `goblin −2` row): every blow after the last action is a row
+        // — they step the hp down from the last action's to 0, the last one `blow`.
+        if !d.trace.blows.is_empty() {
+            let bs = &d.trace.blows;
+            let steps = bs.windows(2).all(|w| w[1].hp <= w[0].hp && w[1].t >= w[0].t) && bs.iter().all(|b| b.t >= last && b.dmg > 0);
+            let ends = bs.last() == d.trace.blow.as_ref();
+            t.check("a death trace's blows step the hp down to the killing blow", steps && ends, || format!("seed {seed} run {}: {:?}", d.run_id, bs));
+        }
     }
     // QA on 0c6e126 (qaY: `drink invisibility · survives 92%` applied; the next heir had none):
     // a patch's named item is in the next heir's pack, or the patch is offered with its purchase.
@@ -315,7 +323,7 @@ fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
     }
     // QA on e75ec29 (qaQ: `survives 100% · base 100%` under GAP): replays that all survive
     // unpatched did not reproduce the death — it is never a `gap` or a `row`.
-    t.check("a gap or row verdict has a baseline under 100 %", !(d.verdict == "gap" || d.verdict == "row") || d.baseline < 1.0 - 1e-9, || format!("seed {seed} run {}: {} base {:.2}", d.run_id, d.verdict, d.baseline));
+    t.check("a gap or row verdict has a baseline under 100 %", !(d.verdict == "gap" || d.verdict == "row" || d.verdict == "order") || d.baseline < 1.0 - 1e-9, || format!("seed {seed} run {}: {} base {:.2}", d.run_id, d.verdict, d.baseline));
     // QA on a946e04 (qaS: an archer death's notes `Goblin Captain: summoner.`, the run's last
     // note a floor earlier; a poison death's `The black one: confusion.`): a death's note names
     // its killer or the harm that killed him (a stall's notes say what it paid).
@@ -566,6 +574,45 @@ fn check_den_leg(t: &mut Tally, g: &Game, seed: u64) {
                 break;
             }
         }
+        if h.pending_exit.is_some() {
+            let _ = h.keep(vec![]);
+        }
+    }
+}
+
+/// Cut 25 §3 (AN, AM: `pick up ×441` scrolling while alert rose to 8/8 — a full pack walking onto a
+/// scroll it could not take, stepping off, walking back): watched sends from a copy of the night's
+/// camp — on every floor, the `pick up` chores in a row with nothing taken (a `pickup` resets the
+/// count; the watch's `pick up ×N`) stay ≤ `CHORE_STREAK`.
+const CHORE_STREAK: u32 = 50;
+fn check_chore_leg(t: &mut Tally, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    for _ in 0..6 {
+        h.send();
+        let (mut dry, mut worst, mut depth) = (0u32, (0u32, 0u32), 1u32);
+        for _ in 0..4000 {
+            let r = h.step(50);
+            for e in &r.events {
+                match e {
+                    Ev::Descend { depth: d, .. } => {
+                        dry = 0;
+                        depth = *d;
+                    }
+                    Ev::Pickup { id: 1, .. } => dry = 0,
+                    Ev::Rule { row: -2, verb, .. } if verb.v == "pick_up" => {
+                        dry += 1;
+                        if dry > worst.0 {
+                            worst = (dry, depth);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if r.run_over {
+                break;
+            }
+        }
+        t.check("a floor's `pick up` chores with nothing taken ≤ 50", worst.0 <= CHORE_STREAK, || format!("seed {seed}: {} on D{}", worst.0, worst.1));
         if h.pending_exit.is_some() {
             let _ = h.keep(vec![]);
         }
@@ -1085,16 +1132,18 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         let rules = g.lineage.rules().clone();
         for p in &d.patches {
             // (a cut — `remove` / `replace` — names a row of the set by design)
-            let dup = p.insert_at >= 0 && !p.remove && !p.replace && rules.rows.iter().any(|r| r.conds == p.row.conds && r.verb == p.row.verb);
+            let dup = p.insert_at >= 0 && !p.remove && !p.replace && p.moves_from.is_none() && rules.rows.iter().any(|r| r.conds == p.row.conds && r.verb == p.row.verb);
             t.check("no patch already in the set", !dup, || format!("seed {seed} run {id}: {} is R{}", p.row.describe(), rules.rows.iter().position(|r| *r == p.row).map(|i| i + 1).unwrap_or(0)));
         }
-        t.check("a death has a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "row") && !d.trace.turns.is_empty(), || format!("seed {seed} run {id}: {} · {} turns", d.verdict, d.trace.turns.len()));
+        t.check("a death has a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "row" || d.verdict == "order") && !d.trace.turns.is_empty(), || format!("seed {seed} run {id}: {} · {} turns", d.verdict, d.trace.turns.len()));
         // Cut 19 §4: a `row` verdict names a row of the set that acted on the death tick (the
         // trace's last turn), and its first patch cuts that row. Cut 21 §3: or the set's own
         // row whose unknown gamble dealt the death (`DeathRec.gamble_row`) — its cut is shown
         // first, or second behind a patch surviving `SURVIVE_BAND` more.
-        if d.verdict == "row" || d.cause_row.is_some() {
+        if d.verdict == "row" || (d.cause_row.is_some() && d.verdict != "order") {
             let last = d.trace.turns.last().map(|x| x.row);
+            // Cut 25 §2: or any own row that acted in the last `ORDER_TURNS` actions (its cut the best of theirs)
+            let tail: Vec<i32> = d.trace.turns.iter().rev().take(riddle_core::trace::ORDER_TURNS).map(|x| x.row).collect();
             let gamble = g.deaths.get(&id).and_then(|r| r.gamble_row).map(|r| r as i32);
             // (QA on 778fa1b, qaV: a card's own gamble or throw that dealt the death names the card)
             let own = d.cause_row.is_some_and(|r| d.rules.as_ref().is_some_and(|rs| rs.rows.get(r as usize).is_some_and(|x| !x.is_card() || gamble == Some(r as i32))));
@@ -1103,9 +1152,25 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
                 && own
                 && match gamble.filter(|r| Some(*r) == d.cause_row.map(|c| c as i32)) {
                     Some(_) => d.patches.iter().take(2).any(cuts),
-                    None => d.cause_row.map(|r| r as i32) == last && d.patches.first().is_some_and(cuts),
+                    None => d.cause_row.is_some_and(|r| tail.contains(&(r as i32))) && d.patches.first().is_some_and(cuts),
                 };
-            t.check("a `row` verdict names a row that fired on the death tick", ok, || format!("seed {seed} run {id}: {} R{:?} last {:?}", d.verdict, d.cause_row, last));
+            t.check("a `row` verdict names a row that fired in the last actions", ok, || format!("seed {seed} run {id}: {} R{:?} last {:?}", d.verdict, d.cause_row, last));
+        }
+        // Cut 25 §2: an `order` verdict names two rows of the set (the shadowed one under the one
+        // that won) and leads with the move, which survives `ORDER_BAR` and beats the base.
+        if d.verdict == "order" {
+            let lead = d.patches.first();
+            let ok = matches!((d.cause_row, d.order_over), (Some(c), Some(o)) if c > o)
+                && lead.is_some_and(|p| p.moves_from.map(|f| f as u32) == d.cause_row && Some(p.insert_at as u32) == d.order_over && p.survive >= riddle_core::trace::ORDER_BAR - 1e-9 && p.survive - d.baseline >= riddle_core::trace::PATCH_MARGIN - 1e-9);
+            t.check("an `order` verdict leads with its move (R_n under R_m)", ok, || format!("seed {seed} run {id}: R{:?} under R{:?} · {:?}", d.cause_row, d.order_over, lead.map(|p| (p.moves_from, p.insert_at, p.survive))));
+        }
+        // Cut 25 §2: a DICE death has no own row that acted in its last actions whose cut survives more.
+        if d.verdict == "dice" {
+            if let Some(rec) = g.deaths.get(&id).cloned() {
+                let cuts = riddle_core::trace::recent_own_cuts(&g, &rec);
+                let beat = cuts.iter().find(|(_, s)| *s >= riddle_core::trace::ROW_BAR - 1e-9 && *s - d.baseline >= riddle_core::trace::PATCH_MARGIN - 1e-9);
+                t.check("a DICE death has no recent own row whose cut survives more", beat.is_none(), || format!("seed {seed} run {id}: R{:?} base {:.2}", beat.map(|b| (b.0 + 1, b.1)), d.baseline));
+            }
         }
         check_death(t, &g, seed, &d);
         t.check("death()'s patches are camp_pending until death_deltas", d.patches.iter().all(|p| p.camp_pending), || format!("seed {seed} run {id}"));
@@ -1285,6 +1350,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     at(pool, 55, "salvage leg", &g, |o, g, seed| check_salvage_leg(&mut o.t, g, seed));
     at(pool, 50, "shadow leg", &g, |o, g, seed| check_shadowed(&mut o.t, g, seed));
     at(pool, 45, "den leg", &g, |o, g, seed| check_den_leg(&mut o.t, g, seed));
+    at(pool, 45, "chore leg", &g, |o, g, seed| check_chore_leg(&mut o.t, g, seed));
     at(pool, 45, "saved-by leg", &g, |o, g, seed| check_saved_leg(&mut o.t, g, seed));
     at(pool, 45, "waystone leg", &g, |o, g, seed| check_waystone_leg(&mut o.t, g, seed));
     at(pool, 45, "found supply leg", &g, |o, g, seed| check_found_supply_leg(&mut o.t, g, seed));
@@ -1300,7 +1366,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     check_reel(t, &g, seed, &r);
     lp.lap("report checks");
     if let Some(d) = &r.worst_death {
-        t.check("worst death carries a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "stall" || d.verdict == "row") && !d.trace.turns.is_empty(), || format!("seed {seed}: {}", d.verdict));
+        t.check("worst death carries a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "stall" || d.verdict == "row" || d.verdict == "order") && !d.trace.turns.is_empty(), || format!("seed {seed}: {}", d.verdict));
         check_death(t, &g, seed, d);
     }
     // One more of the night's deaths (the last one that is not the worst), in full.

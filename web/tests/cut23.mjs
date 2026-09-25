@@ -86,7 +86,8 @@ try {
   await page.locator(sel).click({ timeout: 5000 });
   await sleep(3600);
   const armed = await page.evaluate((s) => { const b = document.querySelector(s); return b ? { armed: b.classList.contains("armed"), text: b.textContent } : null; }, sel);
-  check(armed?.armed && armed.text === `ok $${price}`, `the first tap arms the step and it stays armed (3.6 s later: "${armed?.text}")`);
+  // Cut 25 §6 (AN): armed, the line stays and its price reads `ok $N` where it stood
+  check(armed?.armed && armed.text.endsWith(` · ok $${price}`), `the first tap arms the step and it stays armed (3.6 s later: "${armed?.text}")`);
   await page.locator(sel).click({ timeout: 5000 });
   await until(() => page.evaluate((g) => window.__riddle.lineage.gold < g, gold0), "the buy");
   await sleep(200);

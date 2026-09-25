@@ -243,6 +243,10 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     } else if run.fight_t.is_none() {
         run.fight_t = Some(run.turn);
     }
+    // Cut 25 §3: a foe in view ends a drain stretch (the next bite with none is a new one).
+    if !v.foes.is_empty() {
+        run.drain_on = None;
+    }
     let seen_before = seen_foes(run, None);
     let hp_before = run.hero.hp;
     let inv_before = run.hero.inv.len() + run.hero.weapon.is_some() as usize + run.hero.armour.is_some() as usize;
@@ -327,6 +331,15 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     } else {
         run.pickup_streak = 0;
     }
+    // Cut 25 §3: a `pick up` chore that stands on what it walked to and still leaves it lying there
+    // (the pack would not take it after all) gives that item up for the floor — whatever the
+    // steps between (`pick up` ↔ `explore` paced a full pack over one scroll 616 times on D6).
+    let inv_after = run.hero.inv.len() + run.hero.weapon.is_some() as usize + run.hero.armour.is_some() as usize;
+    if verb.v == "pick_up" && row == -2 && inv_after <= inv_before {
+        let here = run.hero.pos;
+        let stuck: Vec<u32> = run.items.iter().filter(|fi| fi.pos == here && !run.skip_items.contains(&fi.item.id)).map(|fi| fi.item.id).collect();
+        run.skip_items.extend(stuck);
+    }
     run.recent_pos.push(run.hero.pos);
     if run.recent_pos.len() > 12 {
         run.recent_pos.remove(0);
@@ -348,6 +361,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     if run.trace.len() > 16 {
         run.trace.remove(0);
     }
+    run.blows.clear();
     run.hurt_last = run.hurt_since_action;
     run.hurt_since_action = false;
     run.kill_last = run.kill_since_action;
@@ -1404,6 +1418,11 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         run.hurt_since_boss = true;
     }
     cx.events.push(Ev::Hurt { t: run.turn, id: HERO_ID, dmg, hp: run.hero.hp.max(0), cause: cause.into() });
+    // Cut 25 §3 (AN: an offline trace 14 → 0 on one `goblin −2` row): every blow since the hero's
+    // last action, for the death trace's rows (`Trace.blows`).
+    if run.blows.len() < BLOWS_CAP {
+        run.blows.push(crate::wire::TraceBlow { t: run.turn, by: cause.into(), dmg, hp: run.hero.hp.max(0) });
+    }
     let pct = run.hero.hp_pct();
     if run.hero.hp > 0 {
         run.low_hp = run.low_hp.min(run.hero.hp);
@@ -1817,9 +1836,34 @@ fn tick_overlays(run: &mut Run, cx: &mut Ctx) {
     run.overlays.retain(|o| o.ttl > 0);
 }
 
+/// Cut 25 §3: the blows a death trace itemises after the last action (`Run.blows`).
+pub const BLOWS_CAP: usize = 24;
+
+/// Cut 25 §3: a drain bite (a hunger bite, poison) — with no foe in view, the stretch's first
+/// sends `Ev::Drain` with its word (`starving`, `poisoned`); once per stretch (`Run.drain_on`,
+/// cleared when a foe comes into view and at the stairs).
+pub fn drain_mark(run: &mut Run, cx: &mut Ctx, cause: &str) {
+    if seen_foes(run, None) > 0 {
+        return;
+    }
+    let word = match cause {
+        "hunger" => "starving",
+        "poison" => "poisoned",
+        _ => "drained",
+    };
+    if run.drain_on.as_deref() == Some(word) {
+        return;
+    }
+    run.drain_on = Some(word.into());
+    cx.events.push(Ev::Drain { t: run.turn, cause: word.into() });
+}
+
 fn tick_poison(run: &mut Run, cx: &mut Ctx) {
     if run.hero.poison.1 > 0 {
         let d = run.hero.poison.0;
+        if d > 0 {
+            drain_mark(run, cx, "poison");
+        }
         damage_hero(run, cx, d, &Src::Poison);
         if run.over.is_some() {
             return;
@@ -2144,6 +2188,8 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.trait_floor = 0;
     run.items_until = 0;
     run.pickup_streak = 0;
+    run.skip_items.clear();
+    run.drain_on = None;
     run.gambles.clear();
     run.own_throw = None;
     run.retreats = (0, 0);
@@ -2744,7 +2790,9 @@ pub fn would_take(run: &Run, cx: &Ctx, item: &Item) -> bool {
     }
     if item.is_consumable() || item.def().ranged {
         let need = if item.def().ranged && !h.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
-        let spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged && !row_needs(run, cx, i)).count() >= need;
+        // Cut 25 §3: the forged kit is never put down (`pickup_here`'s own spares skip it) — counted here as a
+        // spare it made a full pack walk onto a scroll it could not take, step off, walk back: `pick up ×441`.
+        let spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged && !row_needs(run, cx, i) && !crate::kit::is_kit_id(i.id)).count() >= need;
         if spare(Cat::Weapon) || spare(Cat::Armour) {
             return true;
         }
@@ -2763,7 +2811,7 @@ pub fn can_take(h: &crate::hero::Hero, item: &Item) -> bool {
         return true;
     }
     let need = if item.def().ranged && !h.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
-    let second_spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged).count() >= need;
+    let second_spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged && !crate::kit::is_kit_id(i.id)).count() >= need;
     matches!(item.cat(), Cat::Gold)
         || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash"))
         || !h.inv_full()
@@ -2779,7 +2827,7 @@ fn item_replaces_gear(h: &crate::hero::Hero, item: &Item) -> bool {
             let cur = h.weapon.as_ref().map(|w| w.atk().0 + w.atk().1).unwrap_or(0);
             item.atk().0 + item.atk().1 > cur
         }
-        Cat::Armour => item.def_bonus() > h.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0),
+        Cat::Armour => crate::hero::armour_worth(item) > h.armour.as_ref().map(crate::hero::armour_worth).unwrap_or(i32::MIN),
         _ => false,
     }
 }

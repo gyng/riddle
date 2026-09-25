@@ -350,6 +350,14 @@ pub fn apply_patch(rules: &RuleSet, p: &Patch, max_rows: usize) -> RuleSet {
         return r;
     }
     let at = p.insert_at as usize;
+    // Cut 25 §2: a move — the set's own row goes above the row at `insert_at`.
+    if let Some(from) = p.moves_from.and_then(|f| usize::try_from(f).ok()) {
+        if from < r.rows.len() && at < from {
+            let row = r.rows.remove(from);
+            r.rows.insert(at, row);
+        }
+        return r;
+    }
     if p.remove {
         if at < r.rows.len() {
             r.rows.remove(at);
@@ -386,7 +394,7 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     let has_verb = |v: &Verb| vocab.verbs.contains(v);
     let has_cond = |k: &str, t: Option<&str>| vocab.conds.iter().any(|c| c.k == k && (t.is_none() || c.t.as_deref() == t));
     let present = |r: &Row| rules.rows.contains(r);
-    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None };
+    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None };
     let mut cands: Vec<Patch> = Vec::new();
     // (a) the ending row, its threshold pushed deeper.
     let mut deeper = ending.clone();

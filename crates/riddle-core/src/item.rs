@@ -71,6 +71,10 @@ impl Item {
     }
     pub fn atk(&self) -> (i32, i32) {
         let a = self.def().a;
+        // Cut 25 §1: the forged arm's steps are aim (`Hero::hit_pct`), not a harder blow.
+        if crate::kit::is_kit_id(self.id) {
+            return a;
+        }
         (a.0 + self.enchant, a.1 + self.enchant)
     }
     pub fn def_bonus(&self) -> i32 {

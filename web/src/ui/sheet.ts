@@ -6,12 +6,16 @@ import { h } from "./dom";
 import { stud } from "./frame";
 
 const stack: HTMLElement[] = [];
+/** Cut 25 §6 (AN: "a sheet over a sheet to buy a row"): one sheet at a time — a sheet opened from a sheet replaces it (the one under it
+ *  hides, kept as it was) and carries a back (`‹`); back, Escape and the backdrop return to it, the `×` closes both. */
+const closers = new Map<HTMLElement, () => void>();
+const parentOf = new Map<HTMLElement, HTMLElement>();
 let idle: (() => void) | null = null;
 let panelEscape: (() => boolean) | null = null;
 /** Cut 17 §2: the camp's open panel takes Escape before `onEscapeIdle` (returns whether it closed one). */
 export function setPanelEscape(fn: (() => boolean) | null): void { panelEscape = fn; }
 
-export function closeSheet(): void { stack.pop()?.remove(); }
+export function closeSheet(): void { const top = stack[stack.length - 1]; if (!top) return; const c = closers.get(top); if (c) c(); else { stack.pop(); top.remove(); } }
 export function closeAllSheets(): void { while (stack.length) closeSheet(); }
 export const sheetOpen = (): boolean => stack.length > 0;
 /** QA 23ed91f (L: the settings sheet opened over the open UNLOCKS panel — two studs): every sheet and the camp's panel closed. */
@@ -41,11 +45,26 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
   };
   const wrap = h("div", { class: `sheet-wrap${opts.modeless ? " modeless" : ""}`, onclick: (e) => { if (e.target !== wrap) return; const pass = passThrough(e as MouseEvent); close(); pass?.click(); } });
   let ro: ResizeObserver | null = null;
-  const close = (): void => { const i = stack.indexOf(wrap); if (i >= 0) { stack.splice(i, 1); wrap.remove(); ro?.disconnect(); opts.anchor?.classList.remove("sheet-anchor"); } };
+  // Cut 25 §6: the sheet this one replaces (the top non-modeless one), hidden until this one goes
+  const parent = opts.modeless ? undefined : [...stack].reverse().find((w) => !w.classList.contains("modeless"));
+  const close = (): void => {
+    const i = stack.indexOf(wrap); if (i < 0) return;
+    stack.splice(i, 1); wrap.remove(); ro?.disconnect(); opts.anchor?.classList.remove("sheet-anchor"); closers.delete(wrap); parentOf.delete(wrap);
+    if (parent && stack.includes(parent)) { parent.hidden = false; parent.classList.remove("under"); }
+  };
+  /** The `×` of a sheet that replaced another closes the chain (this one and every one it replaced). */
+  const closeChain = (): void => { let w: HTMLElement | undefined = wrap; while (w) { const up = parentOf.get(w); closers.get(w)?.(); w = up; } };
+  closers.set(wrap, close);
+  if (parent) { parentOf.set(wrap, parent); parent.hidden = true; parent.classList.add("under"); }
   wrap.appendChild(panel);
   panel.appendChild(build(close));
   // Cut 17 §2: every sheet is a panel with a close stud (×) top-right — its own `closeX` when the body carries one
   if (!panel.querySelector(".sheet-x")) panel.prepend(stud(close));
+  if (parent) {
+    // the `×` (the body's own `closeX`, or the stud) is rebuilt without its listener: it closes the chain
+    for (const x of panel.querySelectorAll<HTMLElement>(".sheet-x, .close-stud")) { const nx = x.cloneNode(true) as HTMLElement; nx.onclick = (e: Event) => { e.stopPropagation(); closeChain(); }; x.replaceWith(nx); }
+    panel.prepend(h("button", { class: "sheet-back stud", "aria-label": "back", onclick: () => close() }, "‹"));
+  }
   document.body.appendChild(wrap);
   stack.push(wrap);
   const anchor = opts.anchor;

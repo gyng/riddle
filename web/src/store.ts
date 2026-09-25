@@ -4,7 +4,7 @@
 // tag the engine save does not carry.
 // `watch`: the last chosen watch mode (`fights | fast`), so the next run starts in it (QA on e0f87e7: "`fast` chosen in run 3
 // was not remembered: run 4 started on fights").
-export type SaveBlob = { v: 1 | 2; engine: string; loadout: number[]; last_seen: number; runs?: number; origins?: string[][]; watch?: "fights" | "fast" };
+export type SaveBlob = { v: 1 | 2; engine: string; loadout: number[]; last_seen: number; runs?: number; origins?: string[][]; watch?: "fights" | "fast" | "one" };
 const KEY = "riddle.save";
 
 export function readBlob(): SaveBlob | null {

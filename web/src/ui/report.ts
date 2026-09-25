@@ -9,7 +9,7 @@
 // Cut 14 §4: every exit's `trace` chip carries its exit (`D5 · died · trace`; the depth off the ledger line the exit claims, else
 // off the line's own text) — rater S: "the seventh unlabelled TRACE button"; the stalled tile carries what the stalls cost
 // (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
-import { openForge } from "./forge";
+import { measureKit, openForge } from "./forge";
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
 import { h, items, spanOf } from "./dom";
@@ -143,6 +143,9 @@ function withHeirs(el: HTMLElement, heirs: number[] | undefined): HTMLElement {
 }
 
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
+  // Cut 25 §4: after an absence the forge's steps are measured while the report is read (the forge's own lane), so the camp's forge sheet
+  // paints them at once
+  if (absence && (revealed(app).has("forge") || revealed(app).has("kit"))) setTimeout(() => void measureKit(app)?.catch(() => undefined), 0);
   const L = app.lineage;
   const named = renamer(L);
   const deathsN = r.deaths.reduce((n, d) => n + d.n, 0);
@@ -331,8 +334,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   };
   const lines = (xs: string[]): HTMLElement | null => xs.length ? h("ul", { class: "lines" }, ...xs.map((x) => h("li", null, nice(rowSpelt(x))))) : null;
   // identical reel lines (the same pattern in several runs) collapse to one with a count
-  const reel = (xs: string[]): HTMLElement | null => {
-    const n = new Map<string, number>(); for (const x of xs) n.set(x, (n.get(x) ?? 0) + 1);
+  // Cut 25 §5: a line the absence merged by its shape carries its count (`Highlight.n`, app.ts `mergeReel`)
+  const reel = (xs: { text: string; n?: number }[]): HTMLElement | null => {
+    const n = new Map<string, number>(); for (const x of xs) n.set(x.text, (n.get(x.text) ?? 0) + (x.n ?? 1));
     return n.size ? h("ul", { class: "lines" }, ...[...n].map(([x, k]) => h("li", null, x, k > 1 ? h("b", { class: "num" }, ` ×${k}`) : ""))) : null;
   };
   // pending: the engine's lines, with affordable unlocks shown as cards once the catalogue arrives
@@ -411,7 +415,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "spent", r.spent?.length ? h("ul", { class: "lines" }, ...r.spent.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num down" }, `−$${s.gold}`)))) : null),
     section(/* copy:label */ "renown", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "") : null),   // a rank pays a mark: the tiles' ◆ reconciles with the rows (QA on 56f2a1d: ◆+9 vs rows ◆+6)
     pendingSec,
-    section(/* copy:label */ "reel", reel(r.reel.map((x) => noteText(x.text)))),
+    section(/* copy:label */ "reel", reel(r.reel.map((x) => ({ text: noteText(x.text), n: x.n })))),
   );
   const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el);
   return { el, dispose: () => bar.dispose() };

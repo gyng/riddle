@@ -138,7 +138,11 @@ export type Ev =
   | { t: number; k: "bones"; heir: number; items: number }                  // Cut 2 §2: a bones pile (left on death, or recovered by a later heir)
   | { t: number; k: "see"; id: number; e?: Entity }                         // Cut 2 §7: first sight of an entity (renderer flashes on a boss); not emitted by the core yet
   | { t: number; k: "ending"; ticks: number }                               // Cut 7 §4: the last `ticks` before an exit start here (optional; else the client infers exit − 30)
-  | { t: number; k: "max_hp"; id: number; max: number; delta: number; cause: string };   // QA 1a2a4a9: max HP moved (`hunger`: −1 a bite on an unlit hunger floor; the callout reads `hunger −1 max`)
+  | { t: number; k: "max_hp"; id: number; max: number; delta: number; cause: string }   // QA 1a2a4a9: max HP moved (`hunger`: −1 a bite on an unlit hunger floor; the callout reads `hunger −1 max`)
+  // Cut 25 §3 (core): a drain stretch starts — hp or max hp falling with no foe in view; `cause` one word (`starving`, `poisoned`,
+  // `drained`), once per stretch. Until a foe is in view, the stairs or the run's end, the hero's `hurt` / `max_hp` with no foe in view are
+  // the drain's: dead time — play them at the travel rate and show the cause once.
+  | { t: number; k: "drain"; cause: string };
 
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            exit_pending?: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] } };                     // Addendum D; `worth`: each item's salvage at this exit, in coins
@@ -176,7 +180,8 @@ export type TraceTurn = { t: number; row: number; verb: Verb; hp: number; foes: 
 export type Because = { text: string; t: number; depth: number };
 export type Trace = { turns: TraceTurn[];
                       provenance?: Because[];                                                // Cut 11 §3: every `because` event of the run (exit traces)
-                      blow?: { t: number; by: string; dmg: number; hp: number } };           // QA 0c6e126 (qaY): a death's killing blow, the table's last row                                              // Cut 11 §3: every `because` event of the run (exit traces)
+                      blow?: { t: number; by: string; dmg: number; hp: number };
+                      blows?: { t: number; by: string; dmg: number; hp: number }[] };        // Cut 25 §3 (core; AN: `14 → 0` on one `goblin −2` row): every blow after the last action, oldest first, hp after each; the last is `blow`; absent when `blow` was the only one — the table shows one row per blow           // QA 0c6e126 (qaY): a death's killing blow, the table's last row                                              // Cut 11 §3: every `because` event of the run (exit traces)
 /** A candidate row. Death patches insert before `insert_at`; stall patches (core README) may instead `replace` the row at
  *  `insert_at` or `remove` it (`row` echoes the removed row).
  *  Cut 11 §2: `root` names the chain's root the row answers (`den took the heal`); `insert_at: -1` is an unlock pseudo-patch
@@ -189,8 +194,10 @@ export type Patch = { row: Row; insert_at: number; survive: number; forecast_del
                       exits?: boolean;                                                       // QA 778fa1b (core): the row ends the run (`return`/`bank` inserted or narrowed; a cut of one is not) — its cost is floors: name it (`return early`) beside its reach. A costly exit (reach ≤ −10) never leads beside a patch beating the base by 15
                       drops?: number;                                                        // Cut 19 §4: an insert onto a full set drops this own row (set index; the dead run's least-fired, ties the lowest) — `+ drop R5`, the drop sheet opens on it
                       buys?: { kind: string; label: string; price: number };                 // QA 0c6e126 (qaY; core): the row's named item the next heir will not carry — offered with its purchase (the tap buys it, then applies); its reach measured with it bought
+                      moves_from?: number;                                                   // Cut 25 §2 (core): a move — the set's own row at `moves_from` goes above the row at `insert_at` (`row` echoes it; nothing added or cut): `move R5 above R2`
                       unlock?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
-export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row";   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
+export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order";   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
+                      order_over?: number;                                                  // Cut 25 §2 (core): on `order`, the row (0-based) that won every tick `cause_row` would have acted on — `R5 under R2`; the lead patch moves R5 above it
                       cause_row?: number;                                                   // Cut 19 §4: on `row`, the set's row (0-based) that killed him (`R2`); patches[0] cuts it (`remove`, or `replace` narrowed)
                       baseline: number;                                                   // core addition: survival of the unpatched rules, 0..1
                       replays?: number;                                                   // QA 0c6e126 (qaY; core): the reseeded replays `survive`/`baseline` are shares of (12) — printed as counts, `7/12`
@@ -206,7 +213,10 @@ export type Death = { run_id: number; depth: number; cause: string; margin: stri
  *  last slice's wins on merge. */
 export type Stall = { row: number; fired: number; text: string; patches: Patch[]; trace?: Trace };   // trace: Cut 9 §5, the last run that row ended
 // Fractions: Forecast.depths[].reach, causes[].share, Death.baseline, patches[].survive and forecast_delta are 0..1.
-export type Highlight = { pattern: string; score: number; t: number; run_id: number; text: string };
+export type Highlight = { pattern: string; score: number; t: number; run_id: number; text: string;
+  /** Cut 25 §5: client-side, set by `mergeReel` — the times this line's shape (`reelShape`) came up across the absence's slices
+   *  (the report prints `×n` when > 1). Absent on a core line. */
+  n?: number };
 export type ReturnReport = {
   elapsed_s: number; runs: number; sampled: boolean;
   deepest?: number;                                                            // the send's deepest floor (a delta, like the tiles beside it); absent on an old wire
@@ -368,7 +378,8 @@ export interface Engine {
    *  a core that puts `vs` on the forecast itself needs no call. Called after the forecast's first paint, never before it. */
   forecastVs?(prev: RuleSet): ForecastVs;
   forecastVsRefined?(prev: RuleSet): ForecastVs;   // client (lanes.ts): `forecastVs` on the background lane, behind the refine — the refined panels paired
-  refineLane?: boolean;                 // Cut 24 §4 (client, lanes.ts): the refine runs on a lane of its own — the app asks it beside an edit's first pass
+  refineLane?: boolean;
+  parallelForecast?: boolean;           // Cut 25 §4 (client, lanes.ts): a forecast asked while one is in flight runs beside it (an idle mirror) — the app asks at once                 // Cut 24 §4 (client, lanes.ts): the refine runs on a lane of its own — the app asks it beside an edit's first pass
   startForecast?(): StartOption[];      // §1: D1 and each lit waystone measured for the active set (memoised; seconds in wasm — call when the picker opens)
   // Cut 23
   buyKit?(slot: string): Lineage;       // §1: buy the next forge step of `weapon | armour | pack` (gold; permanent; ledger `forge <label>`)

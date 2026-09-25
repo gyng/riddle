@@ -1287,7 +1287,9 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     // Cut 19 §2/§4: a return walks now — this seed's one death is a jackal on the way home, and
     // the verdict names the return row that walked him into it (`row`, R1); nothing else names
     // a missing row.
-    assert!(g.deaths.values().all(|d| d.death.verdict == "dice" || (d.death.verdict == "row" && d.death.cause_row == Some(0))), "a gap death: {:?}", g.deaths.values().map(|d| (&d.death.cause, &d.death.verdict)).collect::<Vec<_>>());
+    // Cut 25 §3: the chore fix moved the night — its one death is now an archer's on D6, a `gap`
+    // measured on its own replays; the stall still names the return row.
+    assert!(g.deaths.values().all(|d| matches!(d.death.verdict.as_str(), "dice" | "gap") || (d.death.verdict == "row" && d.death.cause_row == Some(0))), "{:?}", g.deaths.values().map(|d| (&d.death.cause, &d.death.verdict)).collect::<Vec<_>>());
     assert_eq!(stall.row, 0);
     assert!(stall.fired >= 4, "{}", stall.text);
     assert!(stall.text.starts_with("R1 return ended"), "{}", stall.text);
@@ -1329,7 +1331,7 @@ fn a_set_that_dies_has_no_stall() {
 fn stall_patches_apply_as_replace_remove_or_insert() {
     use crate::offline::apply_patch;
     let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")), Row::new(vec![], Verb::new("attack"))], name: None };
-    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None };
+    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None };
     let deeper = Row::new(vec![Cond::n("hp<", 10)], Verb::new("return"));
     let r = apply_patch(&rules, &mk(deeper.clone(), 0, true, false), 8);
     assert_eq!(r.rows, vec![deeper.clone(), rules.rows[1].clone()]);
@@ -6788,7 +6790,7 @@ fn cut11_wire_is_optional_and_snake_case() {
     let s = serde_json::to_string(&w).unwrap();
     assert_eq!(s, r#"{"row":0,"why":"no item","because":{"text":"den took the heal, D3","t":2140,"depth":3}}"#);
     assert_eq!(serde_json::from_str::<RowWhy>(&s).unwrap(), w);
-    let t = Trace { turns: vec![], provenance: None, blow: None };
+    let t = Trace { turns: vec![], provenance: None, blow: None, blows: Vec::new() };
     assert_eq!(serde_json::to_string(&t).unwrap(), r#"{"turns":[]}"#);
     let old: Trace = serde_json::from_str(r#"{"turns":[]}"#).unwrap();
     assert_eq!(old, t);
@@ -6816,8 +6818,9 @@ fn patches_never_offer_a_row_the_set_already_has() {
         for id in ids {
             let d = g.death(id).unwrap();
             let rows = g.deaths[&id].rules.rows.clone();
-            // (a `row` verdict's cut — `remove` / `replace` — names the set's own row: Cut 19 §4)
-            for p in d.patches.iter().filter(|p| p.insert_at >= 0 && !p.remove && !p.replace) {
+            // (a `row` verdict's cut — `remove` / `replace` — names the set's own row: Cut 19 §4; a
+            // move — Cut 25 §2 — reorders one)
+            for p in d.patches.iter().filter(|p| p.insert_at >= 0 && !p.remove && !p.replace && p.moves_from.is_none()) {
                 assert!(!rows.iter().any(|x| x.conds == p.row.conds && x.verb == p.row.verb), "seed {seed} death {id}: {:?} already in {rows:?}", p.row);
                 checked += 1;
             }
@@ -8323,7 +8326,7 @@ fn an_insert_on_a_full_set_drops_the_least_fired_row() {
         name: None,
     };
     let new = Row::new(vec![Cond::n("hp<", 20)], Verb::new("return"));
-    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false, buys: None };
+    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false, buys: None, moves_from: None };
     let r = apply_patch(&rules, &p, 3);
     assert_eq!(r.rows, vec![new.clone(), rules.rows[1].clone(), rules.rows[2].clone()], "R1 dropped, the patch where it was measured");
     let r = apply_patch(&rules, &Patch { drops: Some(2), ..p.clone() }, 3);
@@ -8981,7 +8984,7 @@ fn a_death_the_replays_all_survive_is_dice_and_its_patches_act_on_the_floor() {
             assert!(f >= crate::trace::FIRED_BAR, "{} acts in {:.0}% of the floor's replays", p.row.describe(), f * 100.0);
         }
     }
-    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None };
+    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None };
     let f = crate::trace::floor_fired(&g, &rec, &rest).unwrap();
     assert!(f < crate::trace::FIRED_BAR, "rest acts in {:.0}% of the floor's replays", f * 100.0);
 }
@@ -9436,10 +9439,12 @@ fn death_notes_name_the_death() {
     }
     let id = *g.deaths.keys().next().expect("seed 1815's first run dies");
     let d = g.death(id).unwrap();
-    assert_eq!(d.cause, "goblin_archer");
+    // (Cut 25 §3's chore fix moved this seed's killer from the archer to a goblin; the notes still
+    // name the death, never the D5 captain's.)
     assert!(d.notes.iter().all(|n| death_note_names(n, &d.cause)), "{:?}", d.notes);
     assert!(!d.notes.iter().any(|n| n.contains("Captain")), "{:?}", d.notes);
-    assert!(d.morgue.contains("slain by goblin archer"), "the morgue names the killer by its title");
+    let title = crate::engine::kind_title(&d.cause).to_lowercase();
+    assert!(d.morgue.to_lowercase().contains(&format!("slain by {title}")), "the morgue names the killer by its title: {}", d.morgue);
 }
 
 /// qaS (`A goblin took him to 3 HP; no row; died to gas.` under R2 `hp < 40% → return`): the
@@ -9701,20 +9706,22 @@ fn a_thief_takes_the_found_then_coins_then_a_packed_supply() {
     let (mut g, heal, _) = setup(false, 0);
     ticks(&mut g, 60);
     assert_eq!(g.run.as_ref().unwrap().stolen_ids, vec![heal]);
-    // The den's order: the same, the weapon in hand last.
+    // The den's order: the same; never what he wears.
     let (mut g, _, _) = setup(false, 0);
     let run = g.run.as_mut().unwrap();
     run.hero.inv.clear();
-    // Cut 24 §3: the kit's arm (the heir's own, `kit::WEAPON_ID`) is never taken; a found one is, last.
+    // Cut 24 §3: the kit's arm (the heir's own, `kit::WEAPON_ID`) is never taken. Cut 25 §5: nor a
+    // found arm in hand, nor the armour on him (what he wears is his, not loot).
     assert!(run.hero.weapon.as_ref().is_some_and(|w| crate::kit::is_kit_id(w.id)));
-    assert!(crate::ai::thief_pick(run, false, false, true).is_none(), "the kit's arm is never a thief's");
+    assert!(crate::ai::thief_pick(run, false, false).is_none(), "the kit's arm is never a thief's");
     let found = run.new_item_id();
     run.hero.weapon = Some(crate::item::Item::new(found, "axe"));
-    assert!(matches!(crate::ai::thief_pick(run, false, false, true), Some(crate::ai::Take::Weapon)));
-    assert!(crate::ai::thief_pick(run, false, false, false).is_none());
+    let worn = run.new_item_id();
+    run.hero.armour = Some(crate::item::Item::new(worn, "mail"));
+    assert!(crate::ai::thief_pick(run, false, false).is_none(), "the worn axe and mail are never a thief's");
     run.loot_add_gold(3);
-    assert!(matches!(crate::ai::thief_pick(run, false, false, true), Some(crate::ai::Take::Coins(3))));
-    assert!(crate::ai::thief_pick(run, true, false, false).is_none(), "a forge imp takes potions only");
+    assert!(matches!(crate::ai::thief_pick(run, false, false), Some(crate::ai::Take::Coins(3))));
+    assert!(crate::ai::thief_pick(run, true, false).is_none(), "a forge imp takes potions only");
 }
 
 /// Cut 22 §2: stolen coins a killed thief drops come back into the carry (`Got $6 back.`), and
@@ -9908,8 +9915,10 @@ fn forecast_refined_is_always_on_the_wire() {
     assert!(g.forecast().refined);
     let vs = serde_json::to_value(g.forecast_vs(&prev)).unwrap();
     assert_eq!(vs.get("refined"), Some(&serde_json::Value::Bool(true)));
-    assert!(g.cage_forecast().iter().all(|o| o.refined));
-    assert!(g.start_forecast().iter().all(|o| o.refined));
+    // Cut 25 §4: the option tablets are measured on the first pass's sims whatever (the panel the
+    // camp reads right after the tap) — and say so.
+    assert!(g.cage_forecast().iter().all(|o| !o.refined));
+    assert!(g.start_forecast().iter().all(|o| !o.refined));
 }
 
 /// QA on 778fa1b (qaU: `carry $61 −$37 swapped` on the strip, in no ledger): a pack swap that
@@ -10360,15 +10369,15 @@ fn a_thief_takes_the_leash_last() {
     g.run.as_mut().unwrap().supplies.push(heal);
     let run = g.run.as_mut().unwrap();
     // Found nothing, carried nothing: the packed heal before the leash.
-    match crate::ai::thief_pick(run, false, false, false) {
+    match crate::ai::thief_pick(run, false, false) {
         Some(crate::ai::Take::Inv(i)) => assert_eq!(run.hero.inv[i].id, heal),
         _ => panic!("the heal first"),
     }
     run.loot_add_gold(10);
-    assert!(matches!(crate::ai::thief_pick(run, false, false, false), Some(crate::ai::Take::Coins(_))), "coins before the leash");
+    assert!(matches!(crate::ai::thief_pick(run, false, false), Some(crate::ai::Take::Coins(_))), "coins before the leash");
     run.loot_add_gold(-10);
     run.hero.inv.retain(|i| i.id != heal);
-    match crate::ai::thief_pick(run, false, false, false) {
+    match crate::ai::thief_pick(run, false, false) {
         Some(crate::ai::Take::Inv(i)) => assert_eq!(run.hero.inv[i].kind, "leash", "nothing else: the leash"),
         _ => panic!("the leash last"),
     }
@@ -10763,9 +10772,9 @@ fn a_death_trace_ends_on_the_killing_blow() {
             break;
         }
     }
-    let d = g.death(1).expect("♟1 dies on D5");
+    let d = g.death(1).expect("♟1 dies");
     let b = d.trace.blow.clone().expect("a blow");
-    assert_eq!((b.hp, b.by.as_str()), (0, "spectral_blade"));
+    assert_eq!((b.hp, b.by.as_str()), (0, d.cause.as_str()));
     assert!(b.dmg > 0 && b.t >= d.trace.turns.last().unwrap().t, "{b:?}");
     assert_eq!(exit_trace.and_then(|t| t.blow), Some(b));
 }
@@ -10776,8 +10785,10 @@ fn a_death_trace_ends_on_the_killing_blow() {
 /// or it is not offered.
 #[test]
 fn a_patch_needing_an_item_comes_with_its_purchase_or_not_at_all() {
-    let play = |gold: i32| {
-        let mut g = Game::new(2401);
+    // (Cut 25 §3 moved seed 2401's first death — a full pack no longer paces over a scroll — so
+    // the test finds the first seed from 2401 whose first death offers a supply's patch.)
+    let play = |seed: u64, gold: i32| {
+        let mut g = Game::new(seed);
         g.send();
         loop {
             let r = g.step(200);
@@ -10787,7 +10798,7 @@ fn a_patch_needing_an_item_comes_with_its_purchase_or_not_at_all() {
             }
         }
         g.lineage.gold = gold;
-        let d = g.death(1).unwrap();
+        let d = g.death(1)?;
         let camp = crate::trace::camp_state(&g);
         let pack = crate::trace::next_pack_kinds(&camp);
         for p in &d.patches {
@@ -10795,11 +10806,11 @@ fn a_patch_needing_an_item_comes_with_its_purchase_or_not_at_all() {
                 assert!(pack.contains(k) || p.buys.as_ref().is_some_and(|b| b.kind == k && b.price <= gold), "{} · {:?}", p.row.describe(), p.buys);
             }
         }
-        d.patches.iter().find(|p| crate::trace::row_item(&p.row) == Some("invisibility")).map(|p| p.buys.clone())
+        d.patches.iter().find(|p| p.buys.is_some()).and_then(|p| p.buys.clone())
     };
-    let rich = play(40).expect("the invisibility patch is offered with its purchase");
-    assert_eq!(rich.as_ref().map(|b| b.kind.as_str()), Some("invisibility"));
-    assert!(play(0).is_none(), "an unaffordable item's patch is not offered");
+    let (seed, rich) = (2401..2460).find_map(|s| play(s, 40).map(|b| (s, b))).expect("a patch offered with its purchase");
+    assert!(rich.price <= 40, "{rich:?}");
+    assert!(play(seed, 0).is_none(), "an unaffordable item's patch is not offered");
 }
 
 /// QA on 0c6e126 (qaY: `♟6 · D8 · … left bones on D6` — "bones two floors above his depth"): an
@@ -10855,4 +10866,143 @@ fn packed_and_brought_are_not_finds() {
     g.auto_keep();
     assert!(g.lineage.vault.iter().any(|v| v.kind == "mail"), "the mail went back to the vault");
     assert!(!g.batch.found.iter().any(|v| v.kind == "mail"), "the brought mail is no find: {:?}", g.batch.found.iter().map(|v| v.kind.clone()).collect::<Vec<_>>());
+}
+
+/// Cut 25 §2 (AM: `hp < 30% → return` under `foes ≥ 1 → attack nearest` all run, never fired —
+/// stamped DICE): a row of the set whose conditions held but a row above it won every tick, and
+/// that moved up survives, is the `order` verdict — naming both rows, the move leading.
+#[test]
+fn a_shadowed_row_that_saves_him_is_the_order_verdict() {
+    let mut found = None;
+    for seed in 1..40u64 {
+        let mut g = arena_seed(seed);
+        if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "heal") {
+            g.lineage.facts.insert(f);
+        }
+        give(&mut g, "heal");
+        give(&mut g, "heal");
+        for (x, y) in [(9, 5), (9, 6), (10, 6)] {
+            add_monster(&mut g, "goblin", x, y);
+        }
+        g.run.as_mut().unwrap().hero.hp = 8;
+        let attack = Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")).from("player");
+        let heal = Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "heal")).from("player");
+        rules(&mut g, vec![attack, heal]);
+        let mut id = None;
+        for _ in 0..600 {
+            g.tick();
+            g.events.clear();
+            if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+                if g.run.as_ref().unwrap().over == Some(ExitTier::Death) {
+                    id = Some(g.run.as_ref().unwrap().id);
+                }
+                g.finish_run();
+                break;
+            }
+        }
+        let Some(id) = id else { continue };
+        let d = g.death(id).unwrap();
+        found = Some(d.clone());
+        if d.verdict == "order" {
+            break;
+        }
+    }
+    let d = found.expect("a death");
+    assert_eq!((d.verdict.as_str(), d.cause_row, d.order_over), ("order", Some(1), Some(0)), "{} base {:.2} {:?}", d.verdict, d.baseline, d.patches.iter().map(|p| (p.row.describe(), p.moves_from, p.insert_at, p.survive)).collect::<Vec<_>>());
+    let p = &d.patches[0];
+    assert_eq!((p.moves_from, p.insert_at), (Some(1), 0));
+    assert!(p.survive >= crate::trace::ORDER_BAR && p.survive - d.baseline >= crate::trace::PATCH_MARGIN - 1e-9, "{p:?}");
+    // Applied, the move reorders the set: nothing added, nothing cut.
+    let set = d.rules.clone().unwrap();
+    let moved = crate::offline::apply_patch(&set, p, 8);
+    assert_eq!(moved.rows.len(), set.rows.len());
+    assert_eq!((moved.rows[0].clone(), moved.rows[1].clone()), (set.rows[1].clone(), set.rows[0].clone()));
+}
+
+/// Cut 25 §3 (AN, AM: `pick up ×441` while alert rose 8/8): a full pack whose only spare weapon is
+/// the forged arm (never put down) does not walk onto a scroll it cannot take — and an item the
+/// chores stood on and left lying is given up for the floor.
+#[test]
+fn a_full_pack_never_paces_over_an_item_it_cannot_take() {
+    let mut g = arena_seed(3);
+    {
+        let run = g.run.as_mut().unwrap();
+        run.hero.inv.clear();
+        // The forged sword rides in the pack (a found axe in hand); nine more fill it.
+        let kit = Item::new(crate::kit::WEAPON_ID, "sword");
+        run.hero.inv.push(kit);
+        let axe = run.new_item_id();
+        run.hero.weapon = Some(Item::new(axe, "axe"));
+        let spare = run.new_item_id();
+        run.hero.inv.push(Item::new(spare, "sword"));
+        for _ in 0..9 {
+            let id = run.new_item_id();
+            run.hero.inv.push(Item::new(id, "heal"));
+        }
+        let id = run.new_item_id();
+        let pos = Pos::new(8, 5);
+        run.items.push(crate::engine::FloorItem { pos, item: Item::new(id, "aggravate") });
+        run.floor.map.update_vision(run.hero.pos, VISION);
+    }
+    assert!(g.run.as_ref().unwrap().hero.inv_full());
+    let item = g.run.as_ref().unwrap().items[0].item.clone();
+    // One spare melee weapon besides the kit: the pack keeps it (a spare makes way for a scroll only when two are).
+    assert!(!crate::turn::can_take(&g.run.as_ref().unwrap().hero, &item), "the forged sword is no spare");
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))]);
+    let evs = ticks(&mut g, 600);
+    let picks = evs.iter().filter(|e| matches!(e, Ev::Rule { row: -2, verb, .. } if verb.v == "pick_up")).count();
+    assert!(picks <= 10, "{picks} pick-ups toward a scroll the pack cannot take");
+}
+
+/// Cut 25 §3: a drain (a poison tick, a hunger bite) with no foe in view sends `Ev::Drain` once per
+/// stretch; a foe in view ends the stretch.
+#[test]
+fn a_drain_with_no_foe_in_view_is_named_once() {
+    let mut g = arena_seed(2);
+    hold_rules(&mut g);
+    g.run.as_mut().unwrap().hero.poison = (1, 40);
+    let evs = ticks(&mut g, 200);
+    let drains: Vec<&Ev> = evs.iter().filter(|e| matches!(e, Ev::Drain { .. })).collect();
+    assert_eq!(drains.len(), 1, "{:?}", ev_kinds(&evs));
+    assert!(matches!(drains[0], Ev::Drain { cause, .. } if cause == "poisoned"));
+    // A foe in view: no drain line.
+    let mut g = arena_seed(2);
+    hold_rules(&mut g);
+    add_monster(&mut g, "rat", 9, 5);
+    g.run.as_mut().unwrap().hero.poison = (1, 40);
+    let evs = ticks(&mut g, 30);
+    assert!(!evs.iter().any(|e| matches!(e, Ev::Drain { .. })), "{:?}", ev_kinds(&evs));
+}
+
+/// Cut 25 §3 (AN: an offline trace `14 → 0` on one `goblin −2` row): a death's trace itemises
+/// every blow after the last action, stepping the hp down to the killing blow.
+#[test]
+fn a_death_trace_itemises_every_blow_after_the_last_action() {
+    let mut blows_seen = false;
+    for seed in 1..30u64 {
+        let mut g = arena_seed(seed);
+        hold_rules(&mut g);
+        for (x, y) in [(5, 5), (5, 6), (4, 6), (3, 6), (3, 4)] {
+            add_monster(&mut g, "goblin", x, y);
+        }
+        g.run.as_mut().unwrap().hero.hp = 8;
+        ticks(&mut g, 400);
+        let run = g.run.as_ref().unwrap();
+        if run.over != Some(ExitTier::Death) {
+            continue;
+        }
+        let tr = crate::engine::exit_trace(run, &[]);
+        let blow = tr.blow.clone().expect("the killing blow");
+        assert_eq!(blow.hp, 0);
+        if tr.blows.len() >= 2 {
+            blows_seen = true;
+            assert_eq!(tr.blows.last(), Some(&blow));
+            assert!(tr.blows.windows(2).all(|w| w[1].hp <= w[0].hp), "{:?}", tr.blows);
+            let first = &tr.blows[0];
+            let last_hp = tr.turns.last().map(|t| t.hp).unwrap_or(8);
+            assert!(first.hp < last_hp, "the first blow steps down from the last action's {last_hp}: {:?}", tr.blows);
+            break;
+        }
+    }
+    assert!(blows_seen, "a death with several blows after the last action");
 }

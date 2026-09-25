@@ -14,7 +14,14 @@ import type { AsyncEngine } from "./types";
 /** The calls that run on the refine lane when there is one (latest only per call). */
 export const REFINE = new Set<string>(["forecastRefine", "forecastVsRefined"]);
 /** The calls that run on the background lane. */
-export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas"]);
+export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas", "startForecast"]);
+// Cut 25 §4 (AM: "~8 s for forge estimates on a D11 lineage after an absence"): measured on a D11 lineage after an 8 h absence (headed,
+// real wasm) the forge's `kitDeltas` (~6 s there) queued behind the camp's `unlockDeltas` (~9.7 s) on the one background lane — 15 s
+// from the camp's paint; `startForecast` ran on the foreground, ahead of an edit's forecast. The slow measures now run on lanes of their
+// own (a mirror each), so no measure waits behind another's: the unlock shelf's, the forge's (and the start picker's), the rest (the cage,
+// a death's patches). One lane on a machine with few cores (`MEASURE_LANES`).
+const MEASURE_LANE: Record<string, number> = { unlockDeltas: 0, kitDeltas: 1, startForecast: 1, cageForecast: 2, deathDeltas: 2, forecastRefine: 2, forecastVs: 2 };
+const MEASURE_LANES = typeof navigator !== "undefined" && (navigator.hardwareConcurrency ?? 4) >= 6 ? 3 : 1;
 /** Foreground calls that leave the lineage as it was (the mirror stays in sync across them). */
 const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastVs", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary"]);
 
@@ -26,9 +33,10 @@ export function twoLanes(fg: AsyncEngine, bgOf: () => Promise<AsyncEngine | null
   // takes the latest rules alone — an edit's refine starts at once, no 1 MB save through two workers)
   let gen = 0, fullGen = 0, lastRules: unknown[] | null = null;
   /** One mirrored engine and its sync state: a call on it reloads the foreground's save first when the lineage changed since. */
-  const mirrorOf = (of: () => Promise<AsyncEngine | null>): ((m: string, a: unknown[]) => Promise<unknown>) => {
-    let eng: Promise<AsyncEngine | null> | null = null, mirrorGen = -1;
-    return async (m, a) => {
+  type Mirror = ((m: string, a: unknown[]) => Promise<unknown>) & { cheap?: () => boolean };
+  const mirrorOf = (of: () => Promise<AsyncEngine | null>): Mirror => {
+    let eng: Promise<AsyncEngine | null> | null = null, mirrorGen = -1, ready = false;
+    const run: Mirror = async (m, a) => {
       eng ??= of().catch(() => null);
       const b = (await eng) as unknown as Calls | null;
       if (!b || typeof b[m] !== "function") return F[m](...a);   // no second engine: the one lane
@@ -39,26 +47,52 @@ export function twoLanes(fg: AsyncEngine, bgOf: () => Promise<AsyncEngine | null
         else await reload();
         mirrorGen = at;
       }
+      ready = true;
       const r = await b[m](...a);
       if (opts.mirror && m === "deathDeltas") mirrorGen = -1;   // `&mut` (it caches the verdict): the next sync reloads
       return r;
     };
+    /** Cut 25 §4: up and in step but for the rules (its sync is a `setRules`, never a save through the foreground). */
+    run.cheap = () => ready && mirrorGen >= 0 && mirrorGen >= fullGen && !!lastRules;
+    return run;
   };
-  const background = mirrorOf(bgOf);
-  let chain: Promise<unknown> = Promise.resolve();   // the background lane's own order
-  const onBackground = (m: string, a: unknown[]): Promise<unknown> => { const p = chain.then(() => background(m, a)); chain = p.catch(() => undefined); return p; };
+  // Cut 25 §4: a mirror and an order per measure lane, made on first use
+  // (a measure whose own lane is busy — the forge's, behind a measure of the rules before an edit — takes an idle lane when there is one:
+  // the forge opened just after an edit waited ~5 s behind the stale one)
+  const lanes: { run: Mirror; chain: Promise<unknown>; busy: number }[] = [];
+  const laneAt = (i: number) => lanes[i] ??= { run: mirrorOf(bgOf), chain: Promise.resolve(), busy: 0 };
+  const onBackground = (m: string, a: unknown[]): Promise<unknown> => {
+    const own = Math.min(MEASURE_LANES - 1, MEASURE_LANE[m] ?? 0);
+    let lane = laneAt(own);
+    if (lane.busy && m !== "deathDeltas") for (let i = 0; i < MEASURE_LANES; i++) { const l = laneAt(i); if (!l.busy) { lane = l; break; } }   // (a death's patches stay on their lane: its cache)
+    const L = lane; L.busy++;
+    const p = L.chain.then(() => L.run(m, a)); L.chain = p.catch(() => undefined).finally(() => { L.busy--; }); return p;
+  };
   // Cut 24 §4: the refine lane — its own mirror, one call at a time, at most one waiting per call (the latest ask)
   const refineLane = refineOf ? latestOnly(mirrorOf(refineOf)) : null;
   const out: Calls = {};
+  // Cut 25 §4 (clarity: an edit 250 ms after another painted in 1.5 s — its forecast queued behind the stale one on the foreground): while
+  // the foreground is busy, an edit's `forecast` runs on an idle measure lane already in step but for the rules (bit-identical answers)
+  let fgBusy = 0;
+  const onFg = (m: string, a: unknown[]): Promise<unknown> => {
+    if (!READ_ONLY.has(m)) { gen++; if (m === "setRules") lastRules = a; else fullGen = gen; }
+    fgBusy++; const p = F[m](...a); void p.catch(() => undefined).finally(() => { fgBusy--; }); return p;
+  };
   for (const m of Object.keys(F)) {
     if (refineLane && REFINE.has(m)) out[m] = (...a: unknown[]) => refineLane(m, a);
     else if (BACKGROUND.has(m)) out[m] = (...a: unknown[]) => onBackground(m, a);
-    else out[m] = (...a: unknown[]) => { if (!READ_ONLY.has(m)) { gen++; if (m === "setRules") lastRules = a; else fullGen = gen; } return F[m](...a); };
+    else if (m === "forecast" && opts.mirror) out[m] = (...a: unknown[]) => {
+      const L = fgBusy > 0 ? lanes.find((l) => l && !l.busy && l.run.cheap?.()) : undefined;
+      if (!L) return onFg(m, a);
+      L.busy++; const p = L.chain.then(() => L.run(m, a)); L.chain = p.catch(() => undefined).finally(() => { L.busy--; }); return p;
+    };
+    else out[m] = (...a: unknown[]) => onFg(m, a);
   }
   // QA 778fa1b: the refine runs on its lane, so the refined camp panel is cached on that lane's engine — the edit's move asked again after
   // it (`forecastVsRefined`: `forecastVs` on the same lane, behind the refine) pairs the refined panels (`ForecastVs.refined`)
   if (typeof F.forecastVs === "function") out.forecastVsRefined = refineLane ? (...a: unknown[]) => refineLane("forecastVs", a, "forecastVsRefined") : (...a: unknown[]) => onBackground("forecastVs", a);
-  if (refineLane) out.refineLane = true as unknown as Calls[string];   // the app starts an edit's refine beside its first pass
+  if (refineLane) out.refineLane = true as unknown as Calls[string];
+  if (opts.mirror) out.parallelForecast = true as unknown as Calls[string];   // Cut 25 §4   // the app starts an edit's refine beside its first pass
   return out as unknown as AsyncEngine;
 }
 
@@ -87,7 +121,7 @@ export function latestOnly(run: (m: string, a: unknown[]) => Promise<unknown>): 
 
 /** Dev (`?engine=fake&fake_lag=1`): the fake behind a worker's timing — one lane's calls in order, each taking the wasm's
  *  order of magnitude for its kind, so the clarity gate can measure an edit's first paint against the slow measures. */
-const LAG_MS: Record<string, number> = { forecast: 350, forecastRefine: 2500, unlockDeltas: 3000, cageForecast: 3000, deathDeltas: 3000, death: 500 };
+const LAG_MS: Record<string, number> = { forecast: 350, forecastRefine: 2500, unlockDeltas: 3000, cageForecast: 3000, deathDeltas: 3000, kitDeltas: 3000, death: 500 };   // Cut 25 §4: the forge's measure too
 export function lagged(e: AsyncEngine, lag: Record<string, number> = LAG_MS): AsyncEngine {
   const E = e as unknown as Calls;
   let chain: Promise<unknown> = Promise.resolve();

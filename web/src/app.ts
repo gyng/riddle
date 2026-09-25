@@ -1,7 +1,7 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
 import type { RowWhy } from "./engine/types";
-import type { AsyncEngine, ComboHit, Death, Forecast, ForecastVs, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary } from "./engine/types";
+import type { AsyncEngine, ComboHit, Death, Highlight, Forecast, ForecastVs, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary } from "./engine/types";
 import { combosIn, isCardRow, isFreeSupply, ownRowCount, setWhyGloss } from "./ui/tokens";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
@@ -78,6 +78,8 @@ export class App {
   private lastSave = "";
   private fcTimer = 0;
   private fcInFlight = false;
+  private fcAsk = 0;       // Cut 25 §4: the latest forecast asked (only it paints)
+  private fcRunning = 0;   // … and how many are in flight
   private fcDirty = false;
   /** Cut 6 §9: the quiet second pass (100 sims) 2 s after a paint with the rules unchanged; off once the engine lacks it. */
   private refineTimer = 0;
@@ -94,7 +96,7 @@ export class App {
   runsSeen = 0;
   /** The last chosen watch mode; the next watch starts in it (persisted in the blob — QA on e0f87e7: "`fast` chosen in run 3
    *  was not remembered"). */
-  watchMode: "fights" | "fast" = "fights";
+  watchMode: "fights" | "fast" | "one" = "fights";
   /** Cut 17 §2: the camp's tablets carry the editor (chips, ▲▼, ×) while on; off, each row is one carved tablet (the targets'
    *  camp). Off by default; the `edit` tile toggles it, a tap on a tablet or the death's `edit` turns it on. A per-viewer
    *  preference (localStorage `riddle.editing`). */
@@ -256,7 +258,7 @@ export class App {
         this.lineage = await this.engine.load(blob.engine);
         this.loadout = blob.loadout;
         this.runsSeen = blob.runs ?? 0;
-        this.watchMode = blob.watch === "fast" ? "fast" : "fights";
+        this.watchMode = blob.watch === "fast" || blob.watch === "one" ? blob.watch : "fights";
         this.savedOrigins = blob.origins ?? null;
         elapsed = Math.max(0, (Date.now() - blob.last_seen) / 1000);
         loaded = true;
@@ -452,14 +454,21 @@ export class App {
   onForecast(fn: (f: Forecast) => void): () => void { this.fcListeners.add(fn); return () => this.fcListeners.delete(fn); }
   async emitForecast(): Promise<void> {
     if (!this.fcListeners.size) return;
-    if (this.fcInFlight || this.offlineRunning) { this.fcDirty = true; return; }
-    this.fcInFlight = true; this.fcDirty = false;
+    // Cut 25 §4: with lanes that can take it (`parallelForecast`) an edit's forecast starts at once — a stale one in flight is left to finish
+    // unpainted (it no longer holds the fresh one behind it: 1.5 s after a burst of edits, where the bar is 1.2)
+    const par = !!this.engine.parallelForecast;
+    if (this.offlineRunning || (this.fcInFlight && !par)) { this.fcDirty = true; return; }
+    const ask = ++this.fcAsk;
+    this.fcInFlight = true; this.fcDirty = false; this.fcRunning++;
     try {
       const asked = cloneSet(this.rules), key = this.fcKey(), refinedBefore = this.refinedN;
+      // Cut 25 §4 (deep lineage: the camp's refine landed 4.2 s after its mount — 1 s after the first paint, then 2 s): with a refine lane
+      // any state's refine starts beside its first pass, not only an edit's
+      if (this.engine.refineLane && this.refineKey !== key && !this.overBudget) this.scheduleRefine(REFINE_PAR_MS, true);
       const f = await this.busy(/* copy:label */ "forecast", () => this.engine.forecast());
       // QA 23ed91f (L: switching to an empty set, the shaft kept the old set's `return 94%` for ~5 s, then flipped): a forecast whose
       // rules changed while it ran is not painted (the shaft stays dimmed `stale`); the next one, for the rules now, is
-      if (!this.fcDirty) {
+      if (!this.fcDirty && ask === this.fcAsk) {
         this.fcRules = asked; this.fcShadow = f.shadowed_by ?? []; this.fcFresh = true;
         // Cut 24 §4: the refine of this very state may have painted while this pass ran (it runs beside it) — the first pass is then
         // older news; a state no refine was asked for gets one now
@@ -467,8 +476,8 @@ export class App {
         if (this.refineKey !== key) this.scheduleRefine(REFINE_MS);
       }
     } catch (e) { console.warn("forecast failed", e); }
-    finally { this.fcInFlight = false; }
-    if (this.fcDirty) await this.emitForecast();
+    finally { if (--this.fcRunning <= 0) { this.fcRunning = 0; this.fcInFlight = false; } }
+    if (this.fcDirty && !this.fcInFlight) await this.emitForecast();
   }
   /** QA a946e04 (S: the shaft and the panel showed two passes at once): one forecast to every listener — each in its own try, so a
    *  listener that throws never leaves the ones after it on the previous pass. */
@@ -531,6 +540,12 @@ export class App {
    *  there. Returns the row to highlight in the camp (none after a removal). Replace never overflows; insert may. */
   applyPatch(p: Patch): number | undefined {
     const rows = this.rules.rows;
+    // Cut 25 §2: a move — the set's own row at `moves_from` goes above the row at `insert_at` (as `offline::apply_patch`)
+    if (p.moves_from !== undefined && p.moves_from >= 0) {
+      const from = p.moves_from, at = p.insert_at;
+      if (from < rows.length && at >= 0 && at < from) { const [r] = rows.splice(from, 1); rows.splice(at, 0, r); this.rulesChanged(); }
+      return at;
+    }
     if (p.remove) { if (p.insert_at < rows.length) rows.splice(p.insert_at, 1); this.rulesChanged(); return undefined; }
     if (p.replace && p.insert_at < rows.length) { rows[p.insert_at] = { ...cloneRow(p.row), origin: p.row.origin ?? "patch" }; this.rulesChanged(); return p.insert_at; }
     return this.insertRow(p.row, p.insert_at, p.row.origin ?? "patch");
@@ -652,7 +667,7 @@ export class App {
       const b = JSON.parse(text) as SaveBlob;
       if (!b || typeof b.engine !== "string") return false;
       this.lineage = await this.engine.load(b.engine);
-      this.loadout = b.loadout ?? []; this.runsSeen = b.runs ?? 0; this.watchMode = b.watch === "fast" ? "fast" : "fights";
+      this.loadout = b.loadout ?? []; this.runsSeen = b.runs ?? 0; this.watchMode = b.watch === "fast" || b.watch === "one" ? b.watch : "fights";
       this.savedOrigins = b.origins ?? null; this.sets = [];   // Cut 7 §2: the imported blob's origins, not the old sets'
       this.adoptSets();
       await this.engine.setRules(this.rules); await this.engine.loadout(this.loadout);
@@ -722,6 +737,19 @@ function mergeStolen(x?: { label: string; n: number; gold?: number }[], y?: { la
   for (const r of [...(x ?? []), ...(y ?? [])]) { const c = m.get(r.label) ?? { label: r.label, n: 0 }; c.n += r.n; if (r.gold !== undefined) c.gold = (c.gold ?? 0) + r.gold; m.set(r.label, c); }
   return [...m.values()].sort((p, q) => q.n - p.n);
 }
+/** Cut 25 §5 (AM: five copies of `Lock bloats took him to N HP; R1 drank` in one night's reel): a reel line's shape — its
+ *  text with the numbers out (`… to 7 HP …` and `… to 9 HP …` are one shape). */
+export function reelShape(text: string): string { return text.replace(/\d+/g, "N"); }
+/** Cut 25 §5: two slices' reels merged — one line per shape (the best-scored of it), `n` the times the shape came up across the
+ *  absence (`×5` on the report), the top five shapes by score: a shape never repeats. */
+export function mergeReel(a: Highlight[], b: Highlight[]): Highlight[] {
+  const byShape = new Map<string, Highlight>();
+  for (const x of [...a, ...b]) {
+    const k = reelShape(x.text), cur = byShape.get(k), n = (cur?.n ?? (cur ? 1 : 0)) + (x.n ?? 1);
+    byShape.set(k, !cur || x.score > cur.score ? { ...x, n } : { ...cur, n });
+  }
+  return [...byShape.values()].sort((x, y) => y.score - x.score).slice(0, 5);
+}
 export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const union = (x: string[], y: string[]): string[] => [...new Set([...x, ...y])];
   // `rank 1 … rank 9` and `fighter L2 … L5` collapse to the highest of each ladder
@@ -773,7 +801,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     deaths: [...deaths].map(([cause, n]) => ({ cause, n })).sort((x, y) => y.n - x.n),
     pending: mergePending(a.pending, b.pending),          // state lines from the last slice; `R1 fired n of m runs` summed across slices
     stall: b.stall,                                       // likewise: the window is on the game, the last slice knows
-    reel: [...a.reel, ...b.reel].sort((x, y) => y.score - x.score).slice(0, 5),
+    reel: mergeReel(a.reel, b.reel),                      // Cut 25 §5: one line per shape, its count in `n`
     marks_earned: a.marks_earned + b.marks_earned, worst_death: worst, live: b.live,
     tamed: [...a.tamed, ...b.tamed], hatched: [...a.hatched, ...b.hatched], lost: [...a.lost, ...b.lost],
     xp: { class: b.xp.class, gained: a.xp.gained + b.xp.gained, level_ups: a.xp.level_ups + b.xp.level_ups },

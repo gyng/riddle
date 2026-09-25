@@ -225,6 +225,9 @@ const DEV_STALL = (typeof location !== "undefined" && Number(new URLSearchParams
 // ways, the guard asleep): a fight that cannot progress, for the watch's dead-stretch gate (fights.mjs)
 const DEV_SHRUG = (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_shrug"))) || 0;
 let shrugNow = false;
+// Cut 25 §3 dev knob: `?engine=fake&fake_drain=1` — from a floor's 20th tick the hero starves every 10 ticks a 0-damage `hurt` (`hunger`, as the core's unlit hunger floor bites), max hp −1 (to 6) and its `hunger −1 max` callout: a drain stretch for the
+// watch's gate (fights.mjs / cut25.mjs)
+const DEV_DRAIN = typeof location !== "undefined" && new URLSearchParams(location.search).get("fake_drain") === "1";
 const shrugRuns = new WeakMap<object, number>();
 /** Cut 13 §4: the situation notes the core writes on first sight (verbatim; the client cuts the fight frame in on them). */
 // the three-item room is the `vault` inside and the *cage* to the player (core situations.rs `twist_word`; QA on 50bb162)
@@ -866,6 +869,13 @@ function simTurn_(run: Run, ctx: SimCtx): Ev[] {
     o.ttl--;
   }
   run.floor.overlays = run.floor.overlays.filter((o) => o.ttl > 0);
+  if (DEV_DRAIN && run.floorTurn >= 20 && run.floorTurn % 10 === 0) {
+    if (run.floorTurn === 20) ev.push({ t: run.turn, k: "drain", cause: "starving" });   // the core's word opens the stretch
+    const bite = run.hero.max_hp > 6;   // the max stops at 6; the bites go on (0-damage `hurt`s, as the core's)
+    if (bite) { run.hero.max_hp -= 1; run.hero.hp = Math.min(run.hero.hp, run.hero.max_hp); ev.push({ t: run.turn, k: "max_hp", id: 0, max: run.hero.max_hp, delta: -1, cause: "hunger" }); }
+    ev.push({ t: run.turn, k: "hurt", id: 0, dmg: 0, hp: run.hero.hp, cause: "hunger" });
+    if (bite) ev.push({ t: run.turn, k: "callout", text: "hunger −1 max" });
+  }
   if (run.hero.hp <= 0) { die(run, ev); return ev; }
   // sightings
   run.saw = false;
@@ -1572,12 +1582,17 @@ export class FakeEngine implements Engine {
     const rootPatches: Patch[] = roots.filter((r) => fresh(r.row)).map((r) => ({ ...score(r.row), root: { text: r.root } }));
     const rootTexts = new Set(rootPatches.map((p) => rowText(p.row)));
     const scored = cands.filter((c) => fresh(c) && !rootTexts.has(rowText(c))).map(score).sort((a, b) => b.survive - a.survive).slice(0, 3);
-    const verdict: Death["verdict"] = log.stalled ? "stall" : [...rootPatches, ...scored].some((p) => p.survive >= 0.6) ? "gap" : "dice";
+    let verdict: Death["verdict"] = log.stalled ? "stall" : [...rootPatches, ...scored].some((p) => p.survive >= 0.6) ? "gap" : "dice";
+    // Cut 25 §2 stand-in: a `return` row under the set's first attack row never fired — the `order` verdict (`R5 under R2`), its move leading
+    const atk = log.rules.rows.findIndex((r) => r.verb.v === "attack"), home = log.rules.rows.findIndex((r, i) => i > atk && r.verb.v === "return");
+    const order = !log.stalled && atk >= 0 && home > atk ? { cause_row: home, order_over: atk } : undefined;
+    if (order) verdict = "order";
     // Cut 11 §4: a candidate under the bar is still named, dimmed (`survives 40% · below bar`); `dice` never shows an empty list
     let patches: Patch[] = [...rootPatches, ...scored].map((p) => (p.survive < 0.6 ? { ...p, below_bar: true } : p));
     // Cut 11 §2: a locked-condition root — the unlock as a pseudo-patch (`◆2 cond: alert`, insert_at −1): the client buys, then inserts the row
     if (!L.unlocks.includes("cond_alert") && replay.alert >= 1) { const row: Row = { conds: [{ k: "alert>=", n: 3 }], verb: { v: "return" } }; const sv = survive({ rows: [row, ...log.rules.rows] }); patches.push({ row, insert_at: -1, survive: sv, forecast_delta: Math.round((sv - base) * 100) / 100, root: { text: `◆${UNLOCK_COST.cond_alert} cond: alert` }, ...(sv < 0.6 ? { below_bar: true } : {}) }); }
     patches = patches.slice(0, 4);
+    if (order) patches.unshift({ row: log.rules.rows[order.cause_row], insert_at: order.order_over, survive: Math.min(1, base + 0.5), forecast_delta: 0.05, moves_from: order.cause_row });
     // QA 778fa1b stand-in: a patch whose row ends the run says so (`exits`) — the client names its cost (`return early`)
     patches = patches.map((p) => (!p.remove && (p.row.verb.v === "return" || p.row.verb.v === "bank") ? { ...p, exits: true } : p));
     const margin = log.stalled ? "no path" : `${Math.max(1, log.hpMargin)} hp short`;   // a stall's headline: the guard's reason, not an hp margin
@@ -1585,6 +1600,7 @@ export class FakeEngine implements Engine {
     const d: Death = { run_id: runId, depth: log.depth, cause: log.stalled ? "stalled" : replay.cause ?? log.cause ?? "?", margin, verdict, baseline: base, trace: { turns: scaleTrace(replay.trace) }, patches, morgue, line: log.line ?? replay.line, rules: log.rules,
       chain: chain.length ? chain.map((c) => ({ text: c.text, t: c.t * 10, depth: c.depth })) : undefined,
       notes: (log.notes ?? replay.notes).slice(-2).filter((n) => !n.includes("saved him")),   // Cut 13 §4; never a `saved him` (QA 92eb880)
+      ...(order ?? {}),
       ...(verdict === "dice" && patches.length && patches.every((p) => p.survive <= base) ? { nothing_beats_base: true } : {}) };
     this.lastDeath[runId] = d; return d;
   }

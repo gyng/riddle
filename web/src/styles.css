@@ -200,6 +200,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .verdict.dice { background: var(--panel2); color: var(--dim); }
 .verdict.stall { background: var(--warn); color: #1a1400; }   /* Cut 13 §1: a stalled run's verdict */
 .verdict.row { background: var(--hp); color: #fff; }   /* Cut 19 §4: the player's own row killed him */
+.verdict.order { background: var(--hp); color: #fff; }   /* Cut 25 §2: the player's order killed him (R5 under R2) */
 .death-notes { margin: -6px 0 10px; font-size: 13px; line-height: 1.4; }   /* Cut 13 §4: the run's last two notes */
 .forecast-said { margin: -4px 0 10px; font-size: 13px; }               /* Cut 13 §5: `forecast said 5%` on a dice death */
 .trace { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -747,7 +748,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .skin-seal .death .death-line .verdict { background: url(/ui/frames/seal.png) center / 100% 100% no-repeat; }
 .death .death-line .verdict.dice { filter: grayscale(.75) brightness(1.1); }
 .death .death-line .verdict.stall { filter: hue-rotate(28deg) saturate(1.2); }
-.death .death-line .verdict.row { filter: hue-rotate(-18deg) saturate(1.5) brightness(.9); }
+.death .death-line .verdict.row, .death .death-line .verdict.order { filter: hue-rotate(-18deg) saturate(1.5) brightness(.9); }
 .death .death-notes, .death .forecast-said, .death .ledger-line, .death .bones-line { width: 100%; margin: 0; text-align: center; }
 .death .death-news { width: 100%; margin: 0; text-align: center; font: 600 12px/1.35 var(--display); letter-spacing: .03em; color: #f0c870; text-shadow: 0 1px 3px #000; }   /* Cut 24 §2 */
 .trace-panel { padding: 10px 12px; }
@@ -1103,7 +1104,8 @@ body.framed .sheet-wrap:not(.modeless) { bottom: calc(var(--console-h, 0px) - 6p
 .forge .pip.on { background: #c9922f; box-shadow: 0 0 4px rgba(255, 180, 60, .6); }
 .forge .kit-next { justify-content: flex-start; min-height: 44px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .forge .kit-next.off { opacity: .55; }
-.forge .kit-next.armed { color: var(--acc); font-weight: 600; justify-content: center; }
+.forge .kit-next.armed { border-color: var(--acc); }
+.forge .kit-next.armed .kit-ok { color: var(--acc); font-weight: 700; }
 .forge .kit-top { align-self: center; }
 .forge .kit-later { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .forge .salvage { margin-top: 4px; }
@@ -1161,3 +1163,18 @@ button.r.row-link { display: inline; min-height: 0; text-align: left; text-decor
 /* QA 0c6e126 (qaY): a stalled / driven tile reaches its lines (report.ts `reach`) */
 .report .tile.tile-link { cursor: pointer; }
 .report .exit-row.flash { animation: hl-tablet 1.6s ease-out; }
+
+/* Cut 25 §6: a sheet opened from a sheet replaces it — its back (‹) top-left, the one under it hidden */
+.sheet-wrap.under { display: none; }
+.sheet-back { position: sticky; top: 0; float: left; z-index: 3; width: 36px; height: 36px; min-width: 36px; min-height: 36px; margin: -4px 8px 4px -4px; padding: 0;
+  border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 700 22px/1 var(--sans); color: #d8c29a; border: 0;
+  background: radial-gradient(circle at 40% 35%, #6a5a48, #2a221a 70%); box-shadow: 0 0 0 2px #1a130d, 0 2px 4px #000; }
+.sheet-back:active { transform: translateY(1px); filter: brightness(.8); }
+/* …and a camp panel (unlocks, loadout, vault) under a sheet it opened waits hidden: the sheet's close returns to it */
+body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
+/* Cut 25 §6: a bought card's cell stays (fixed cells) — `✓`, inert */
+.card.done { opacity: .45; pointer-events: none; border-style: dotted; }
+/* Cut 25 §2: a move patch names its rows (`move R5 above R2`) */
+.patch .move-tag { color: var(--acc); font-weight: 600; }
+/* Cut 25 §2: `ORDER` is the seal's longest word — one line, a step smaller */
+.death .death-line .verdict.order { font-size: 21px; letter-spacing: 0; white-space: nowrap; }

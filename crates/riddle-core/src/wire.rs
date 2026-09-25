@@ -442,6 +442,12 @@ pub enum Ev {
     /// the hero's max HP moved — `delta` (−1 per hunger bite on an unlit hunger floor), `max`
     /// after it, `cause` (`hunger`). The callout beside it reads `hunger −1 max`.
     MaxHp { t: u32, id: u32, max: i32, delta: i32, cause: String },
+    /// Cut 25 §3 (AN: ~55 s of max hp draining 41 → 17 on D10 with only numbers moving): a drain
+    /// stretch starts — the hero's hp or max hp falls with no foe in view (a hunger bite, poison).
+    /// `cause` is one word (`starving`, `poisoned`, `drained`), sent once per stretch; until a foe
+    /// comes into view, the stairs or the run's end, the hero's `hurt` / `max_hp` events with no
+    /// foe in view are the drain's: dead time (the watch plays them at the travel rate).
+    Drain { t: u32, cause: String },
 }
 
 impl Ev {
@@ -472,7 +478,8 @@ impl Ev {
             | Ev::Projectile { t, .. }
             | Ev::Rest { t, .. }
             | Ev::Bones { t, .. }
-            | Ev::Ending { t, .. } => *t,
+            | Ev::Ending { t, .. }
+            | Ev::Drain { t, .. } => *t,
         }
     }
     /// Renderable, non-movement events (the "events per 60 turns" gate).
@@ -740,6 +747,11 @@ pub struct Trace {
     /// of them — a death's trace ends with it (the tick, what hit, the damage, `hp 0`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub blow: Option<TraceBlow>,
+    /// Cut 25 §3 (AN: `14 → 0` on one `goblin −2` row — the tick's other blows not itemised): a
+    /// death's every blow after the last action, oldest first, each with the hp after it; the last
+    /// is `blow`. Empty when `blow` was the only one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blows: Vec<TraceBlow>,
 }
 
 /// QA on 0c6e126: a death trace's last row — the blow that killed (`Trace.blow`).
@@ -809,6 +821,12 @@ pub struct Patch {
     /// all (`trace::pack_need`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub buys: Option<PatchBuy>,
+    /// Cut 25 §2 (AM: his `hp < 30% → return` sat under `foes ≥ 1 → attack nearest` all run and
+    /// never fired — stamped DICE): a move — the set's own row at `moves_from` (0-based) goes
+    /// above the row at `insert_at` (`row` echoes it; nothing is added or cut). The client reads
+    /// `move R5 above R2`; `offline::apply_patch` moves it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub moves_from: Option<i32>,
 }
 
 fn is_zero_u32(n: &u32) -> bool {
@@ -900,6 +918,11 @@ pub struct Death {
     /// `row` and names it (`R2`). `None` on every other verdict.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cause_row: Option<u32>,
+    /// Cut 25 §2: on an `order` verdict, the row (0-based) that won every tick the cause row
+    /// (`cause_row`) would have acted on — the verdict reads `R5 under R2` (`cause_row` 4,
+    /// `order_over` 1), and the lead patch moves R5 above R2. `None` on every other verdict.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order_over: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

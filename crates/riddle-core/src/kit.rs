@@ -8,6 +8,7 @@ use crate::engine::{Game, LineageState};
 use crate::hero::Hero;
 use crate::item::Item;
 use crate::wire::{KitLadder, KitNext, KitStep};
+use std::collections::BTreeMap;
 
 /// The ladders, in the camp's order.
 pub const KIT_SLOTS: [&str; 3] = ["weapon", "armour", "pack"];
@@ -16,6 +17,9 @@ pub const KIT_SLOTS: [&str; 3] = ["weapon", "armour", "pack"];
 /// 4–5 steps: a fourth, +4, doubled the fighter's blow at depth and broke the D33 wall without
 /// its counter — the kitted FULL−D33 passed on 3–5 of 30 seeds, bar 3.)
 pub const WEAPON_MULT: [u32; 3] = [1, 4, 9];
+/// Cut 25 §1 (AN: the forge moved bank more than any row): a weapon step is aim — this many
+/// points on the 80 % to hit — not damage (`Hero::hit_pct`; the arm's blow is the class's own).
+pub const AIM_PER_STEP: u32 = 4;
 /// Armour steps: (kind, enchant) and their multiples. The top is mail +1 (4 armour): armour
 /// subtracts from every blow, and a fifth point (mail +2) made the Deep's lurkers harmless —
 /// the kitted FULL−D28 passed the Queen's wall on 11 of 30 seeds without her counter.
@@ -202,7 +206,8 @@ pub fn equip(l: &LineageState, hero: &mut Hero) {
 /// game's panel cache, keyed by the lineage fingerprint, which carries the kit).
 pub fn deltas(game: &Game) -> Vec<KitLadder> {
     let rules = game.lineage.rules().clone();
-    let sims = crate::forecast::camp_sims(game, &rules);
+    // Cut 25 §4: the first pass's sims (`forecast::option_sims`).
+    let sims = crate::forecast::option_sims(game, &rules);
     let base = crate::forecast::camp_panel(game, &rules, sims);
     // the move is read where the set's own reach is nearest even (best + 1 sits under 1 %, so
     // every step read `≈`): the deepest floor the base reaches on about half its runs
@@ -215,6 +220,21 @@ pub fn deltas(game: &Game) -> Vec<KitLadder> {
         let Some(next) = lad.next.as_mut() else { continue };
         let mut g = game.sim_clone();
         *g.lineage.kit.entry(lad.slot.clone()).or_insert(0) += 1;
+        // Cut 25 §4: a pack step holds one more supply — measured holding it (the shelf's most
+        // packed kind, one more), not empty (an empty slot is the same panel as the base, a
+        // third of the forge's time for an exact 0).
+        if lad.slot == "pack" {
+            let mut n: BTreeMap<&str, usize> = BTreeMap::new();
+            for it in &game.lineage.supplies {
+                *n.entry(it.kind.as_str()).or_insert(0) += 1;
+            }
+            if let Some((kind, _)) = n.into_iter().max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(a.0))) {
+                let gold = g.lineage.gold;
+                g.lineage.gold = i32::MAX / 2;
+                let _ = g.buy_supply(kind);
+                g.lineage.gold = gold;
+            }
+        }
         *g.panel_cache.borrow_mut() = game.panel_cache.borrow().clone();
         let a = crate::forecast::camp_panel(&g, &rules, sims);
         for (k, v) in g.panel_cache.into_inner() {
@@ -223,7 +243,14 @@ pub fn deltas(game: &Game) -> Vec<KitLadder> {
         let n = a.len().min(base.len());
         let (a, b) = (&a[..n], &base[..n]);
         let ind = |x: bool| if x { 1.0 } else { 0.0 };
-        let reach = crate::forecast::paired(a, b, |r| ind(r.max_depth >= depth));
+        // Cut 25 §6 (AM: the forge `≈` on every item late): the move is read where it is clearest —
+        // the floor whose paired move clears its ± by the most — else where the reach is nearest
+        // half (the step moves nothing past its ±: `≈ ±N` there, honestly).
+        let clear = (2..=game.lineage.best_depth + 1)
+            .map(|d| (d, crate::forecast::paired(a, b, |r| ind(r.max_depth >= d))))
+            .filter(|(_, m)| m.delta.abs() > m.pm + 1e-9)
+            .max_by(|x, y| (x.1.delta.abs() - x.1.pm).total_cmp(&(y.1.delta.abs() - y.1.pm)).then(x.0.cmp(&y.0)));
+        let (depth, reach) = clear.unwrap_or_else(|| (depth, crate::forecast::paired(a, b, |r| ind(r.max_depth >= depth))));
         next.depth = Some(depth);
         next.delta = Some(reach.delta);
         next.pm = Some(reach.pm);

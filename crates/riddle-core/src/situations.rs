@@ -470,10 +470,10 @@ pub fn den_pounces(run: &Run) -> bool {
 
 /// A den thief takes one thing, then runs. Cut 22 §2: what the run found first, a
 /// vault-brought item next, a coin pile's worth, a packed supply only when the pack holds
-/// nothing else, the weapon in hand last (`ai::thief_pick`; was: a brought item, else the
+/// nothing else — never what he wears (Cut 25 §5; `ai::thief_pick`; was: a brought item, else the
 /// pack's first — the heal just bought).
 fn snatch(run: &mut Run, cx: &mut Ctx, mi: usize) {
-    let Some(take) = crate::ai::thief_pick(run, false, false, true) else { return };
+    let Some(take) = crate::ai::thief_pick(run, false, false) else { return };
     let (it, amount) = crate::ai::thief_take(run, take);
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     run.den_stolen.push(it.id);
@@ -561,6 +561,8 @@ pub fn hunger_tick(run: &mut Run, cx: &mut Ctx) {
         crate::sifter::on_hurt(run, "hunger", Some("hunger"));
     }
     // QA on 1a2a4a9: the bite names what it took (`hunger −1 max`, an `Ev::MaxHp`).
+    // Cut 25 §3: with no foe in view, the stretch is a drain (`starving`, once).
+    crate::turn::drain_mark(run, cx, "hunger");
     callout(run, cx, "hunger −1 max");
     cx.events.push(Ev::MaxHp { t: run.turn, id: crate::engine::HERO_ID, max: run.hero.max_hp, delta: -1, cause: "hunger".into() });
     cx.events.push(Ev::Hurt { t: run.turn, id: crate::engine::HERO_ID, dmg: 0, hp: run.hero.hp, cause: "hunger".into() });

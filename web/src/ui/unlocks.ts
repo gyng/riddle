@@ -30,6 +30,10 @@ const LABEL: Record<string, string> = {
 };
 const AFTER: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", row9: "row8", row10: "row9", vault3: "vault2", vault4: "vault3", vault5: "vault4", party_slot_3: "party_slot_2", party_slot_4: "party_slot_3" };
 
+/** Cut 25 §6: the chain step a card follows (`row6` → `row5`), undefined for a first step. */
+export const afterOf = (id: string): string | undefined => AFTER[id];
+/** An unlock's shelf label (`+1 row`, `card: kite archers`). */
+export const labelOf = (id: string): string => LABEL[id] ?? id.replace(/_/g, " ");
 export type UnlockCard = UnlockInfo & { label: string; gated: boolean };
 /** Cut 10 §3: a `+1 row` card waits until the set is full: a client-side gate when the core sends none. The gate reads as a
  *  requirement, `⊘ fill rows` — both QA players on 952e306 read the core's `rows full` as a state ("rows full vs 2/4?"), so the
@@ -167,6 +171,10 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
 function nextPrice(app: App, u: UnlockInfo): HTMLElement | null {
   const id = Object.entries(AFTER).find(([, prev]) => prev === u.id)?.[0];
   const cat = id ? app.unlockCat.find((x) => x.id === id) : undefined;
+  // Cut 25 §6 (AN: row 8 bought, the sheet read `next ◆8 or $6050` — "cheaper next, and I'm at the cap?"): the last step of a chain, or
+  // one whose next waits on a gate the marks and gold cannot pass (`3 boss kinds`), reads `max` (and the gate), never a price
+  const gate = cat?.needs && !/^◆\d+ more$/.test(cat.needs) && !["rows full", "fill rows", u.id].includes(cat.needs) ? cat.needs : undefined;
+  if (/^(row|vault|party_slot_)/.test(u.id) && (!id || gate)) return h("div", { class: "dim num next-price max" }, /* copy:callout */ "max", gate ? h("span", { class: "gate" }, ` · ⊘ ${gate.replace(/_/g, " ")}`) : "");
   const n = u.next ?? (cat && !cat.owned ? { id: cat.id, cost: cat.cost, gold: cat.gold ?? 0, gold_after_gold: 0 } : undefined);
   if (!n) return null;
   const price = [n.cost ? `◆${n.cost}` : "", n.gold ? `$${n.gold}` : ""].filter(Boolean).join(/* copy:label */ " or ");

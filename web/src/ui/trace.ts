@@ -30,12 +30,14 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
     )),
     // QA 0c6e126 (qaY: "the last row is never the killing blow — 05 ends at `hp 1`"): a death's table ends on the blow that killed —
     // its tick, what hit and for how much, `hp 0` (engine data: `Trace.blow`)
-    ...(trace.blow ? [h("tr", { class: "blow" },
-      h("td", null, `${trace.blow.t}`),
-      h("td", { class: "r" }, trace.blow.by.replace(/_/g, " "), " ", h("small", { class: "dim" }, `−${trace.blow.dmg}`)),
-      h("td", null, `${trace.blow.hp}`),
+    // Cut 25 §6 (AN: `14 → 0` on one `goblin −2` row): every blow after the last action, one row each, hp after each (`Trace.blows`,
+    // the last is `blow`); an older core's lone `blow`
+    ...(trace.blows?.length ? trace.blows : trace.blow ? [trace.blow] : []).map((b) => h("tr", { class: "blow" },
+      h("td", null, `${b.t}`),
+      h("td", { class: "r" }, b.by.replace(/_/g, " "), " ", h("small", { class: "dim" }, `−${b.dmg}`)),
+      h("td", null, `${b.hp}`),
       h("td", null, `${turns[turns.length - 1]?.foes ?? ""}`),
-      tele ? h("td", { class: "tele" }) : "")] : [])));
+      tele ? h("td", { class: "tele" }) : ""))));
   const chain = chainOf(trace, { window: rows, ...ctx });
   if (chain) return [table, chain];
   const lastRows = turns[turns.length - 1]?.rows ?? [];

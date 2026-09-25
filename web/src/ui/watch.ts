@@ -183,10 +183,28 @@ const LEAD_PROBE = 120;             // Cut 18 §1: `fast`'s engine lead — a fi
 // travel rate, ramping like `fast`'s dead stretch), in any mode and any frame, the fight's included, and lands at the next one
 const DEAD_TICKS = 100, DEAD_MAX_FIGHTS = 48;   // ten actions (a tick is a tenth of one): 5 s of a fight at 2×
 const DEAD_RAMP_MS = 300, DEAD_STEP_MS = 200, DEAD_LAND_MS = 150, FAST_MAX = 128;   // Cut 18 §1: `fast`'s dead-stretch ramp (see `deadRate`)            // Cut 14 §6: the engine's biggest step when the world is behind its clock (a paused or hidden viewer)
-type Mode = "fights" | "fast";
-const RATE: Record<Mode, number> = { fights: 16, fast: 32 };  // fights: the map when it shows without a hold (draining to an exit); fast: the travel (Cut 12 §6, was 8×; Cut 20 §3: 32× from the first tick, was 16× ramping)
+/** Cut 25 §3 (AN: ~55 s of max hp draining 41 → 17 with only numbers moving): a drain — the hero's hp or max hp falling with no blow
+ *  (hunger, poison, a curse). The core's `drain` (its word, or `true`) when it sends one, else a cause the word table knows. A drain is
+ *  no progress (the dead stretch plays it as travel) and no fight (no near hold); its word shows once a floor. */
+/* copy:callout */
+const DRAIN_WORDS: Record<string, string> = { hunger: "starving", starving: "starving", starve: "starving", poison: "poisoned", poisoned: "poisoned", curse: "cursed", cursed: "cursed", drain: "drained", drained: "drained", bleed: "bleeding", bleeding: "bleeding", wither: "withering" };
+const drainWord = (cause: string): string => DRAIN_WORDS[cause] ?? cause.replace(/_/g, " ");
+const DRAIN_CALLOUT = /^(hunger|poison|curse|drain(ed)?|bleed) [−-]\d+( max)?$/;
+export function drainOf(e: Ev): string | null {
+  if (e.k !== "hurt" && e.k !== "max_hp") return null;
+  const d = (e as { drain?: string | boolean }).drain;
+  if (d === false) return null;
+  if (typeof d === "string" && d) return drainWord(d);
+  if (d === true) return drainWord(e.cause);
+  // without the core's word, only a cause no blow carries (hunger, a curse) reads as one — poison may be a fight's (the core's `drain` says when not)
+  return /^(hunger|starv|curse)/.test(e.cause) ? drainWord(e.cause) : null;
+}
+// Cut 25 §3 (AM: "I never found a plain 1x"): `one` — the plain 1×: every frame at 1×, no card; a dead stretch (a drain included) still
+// plays as travel (from AUTO_FAST, ramping), as in every mode
+type Mode = "fights" | "fast" | "one";
+const RATE: Record<Mode, number> = { fights: 16, fast: 32, one: 1 };  // fights: the map when it shows without a hold (draining to an exit); fast: the travel (Cut 12 §6, was 8×; Cut 20 §3: 32× from the first tick, was 16× ramping)
 const FAST_NEAR = 4;                // Cut 12 §6: `fast` watches anything near at 2× — Cut 14: 4× ("way too slow")
-const FIGHT_RATE: Record<Mode, number> = { fights: 2, fast: FAST_NEAR };   // Cut 14: the fight frame's clock (was 1× · 2×)
+const FIGHT_RATE: Record<Mode, number> = { fights: 2, fast: FAST_NEAR, one: 1 };   // Cut 14: the fight frame's clock (was 1× · 2×)
 // Cut 20 §3 (AD: "early runs at 1× too short to follow" — 22–67 s of card-skipped travel): in `fights` on D1–D3 there is no card —
 // the travel plays at EARLY_TRAVEL and every fight at EARLY_FIGHT (the fight is what to follow)
 // (dev: `?early=0` turns it off, so the card's own gates can run on the fake's gentle D1)
@@ -308,10 +326,11 @@ export function renderWatch(app: App): Mounted {
   // Cut 17 §1: `⏸ / ▶` is the console's gem (the glyph stays the button's text; the icon is drawn over it)
   const pause = gem({ label: "", cls: "hud-btn", onclick: () => togglePause() });
   // the last chosen mode is the next run's (app.watchMode, persisted — QA on e0f87e7: "`fast` chosen in run 3 was not remembered")
-  const mode0: Mode = app.watchMode === "fast" ? "fast" : "fights";
+  const mode0: Mode = app.watchMode === "fast" || app.watchMode === "one" ? app.watchMode : "fights";
   const modeBtn: Record<Mode, HTMLButtonElement> = {
     fights: tile({ id: "fights", cls: "hud-btn", on: mode0 === "fights", icon: "fights", label: /* copy:button */ "fights", onclick: () => setMode("fights") }),
     fast: tile({ id: "fast", cls: "hud-btn", on: mode0 === "fast", icon: "fast", label: /* copy:button */ "fast", onclick: () => setMode("fast") }),
+    one: tile({ id: "one", cls: "hud-btn", on: mode0 === "one", icon: "one", glyph: "1", label: /* copy:button */ "1×", onclick: () => setMode("one") }),
   };
   const skip = tile({ id: "skip", cls: "hud-btn", icon: "skip", label: "▶▶|", onclick: () => skipToEvent() });
   const bail = tile({ id: "bail", cls: "hud-btn bail", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
@@ -323,7 +342,7 @@ export function renderWatch(app: App): Mounted {
   const scrub = h("div", { class: "scrub", hidden: true }, scrubHead, scrubDot);
   const bar = renderBar(app, { watch: true });
   const busyHost = h("span", { hidden: true });   // the engine's busy label at the end (the next gem says it): not in the corner
-  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, skip, bail], gem: pause, top: scrub });
+  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail], gem: pause, top: scrub });
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card,
       h("div", { class: "hud top" }, depth, alert, bossBar, stake),
@@ -380,6 +399,13 @@ export function renderWatch(app: App): Mounted {
   let held: { evs: Ev[]; snap: Snapshot; tier: Tier } | null = null;
   let lastAmbient = -Infinity, ambientUntil = 0, lastAlert = 0;
   const refused = new Set<string>();  // Cut 12 §6: sanity refusals shown (`drink ✗ no use@3`): once per text per floor
+  const drainsShown = new Set<string>();
+  // Cut 25 §3 (core): the drain stretch the core opened (`Ev drain`, its word) — until a foe is in view, the stairs or the run's end the
+  // hero's `hurt` / `max_hp` are the drain's; `drainEvs`: the events read as a drain (no progress, no near hold)
+  let drainOn: string | null = null;
+  const drainEvs = new WeakSet<Ev>();
+  const isDrain = (e: Ev): boolean => drainEvs.has(e) || !!drainOf(e);
+  const drainTicks: number[] = [];   // Cut 25 §3: the hero's drain ticks (a drain since the last move is a dead stretch at once)   // Cut 25 §3: a drain's word shown (`starving@9`): once per floor
   let rallyBy: string | undefined;    // Cut 12 §6: the kind whose `rallies` telegraph came last, so the core's `rallied!` names it
   let speed = 1, done = false, disposed = false, overridden = false, tickerTimer = 0, bannerTimer = 0, pumpTimer = 0;
   let tickerAt = 0, tickerMs = 0; const tickerQueue: { text: string; cls: string; ms: number }[] = [];   // Cut 13 §4: callouts waiting their turn
@@ -391,7 +417,7 @@ export function renderWatch(app: App): Mounted {
   let counters = app.lineage.counters ?? [];   // Cut 6 §5: bosses with a named counter row, re-read on a sighting
   let snap: Snapshot | null = null;
   let runId = -1, engineTick = 0, startTick = 0, inflight = false, lastPersist = performance.now();
-  const loads: { snap: Snapshot; rest: Ev[] }[] = [];   // Cut 14 §6: floors the engine reached that the viewer has not (a queue, oldest first)
+  const loads: { snap: Snapshot; rest: Ev[]; at?: number }[] = [];   // at: Cut 25 §3, the descend tick that opens the floor   // Cut 14 §6: floors the engine reached that the viewer has not (a queue, oldest first)
   // Cut 14 §6: the world clock (engine ticks, wall time × worldRate), the pump's last wall stamp, the hidden tab, the seek to live owed
   // after a catch-up, the engine batches landed (the dot's beats), fight spans the viewer has yet to reach
   let worldT = 0, lastPumpMs = performance.now(), hidden = false, goLiveOwed = false, pulses = 0, lastPulseMs = 0;
@@ -761,7 +787,10 @@ export function renderWatch(app: App): Mounted {
     const heroId = s.hero.id;
     for (const e of s.entities) { if (e.ally) allies.add(e.id); else if (e.id !== heroId) victims.set(e.id, (e.name ?? e.kind).replace(/_/g, " ")); if (e.tags.includes("boss")) bossIds.add(e.id); }
     for (const ev of evs) {
-      if (ev.k === "telegraph" || ev.k === "attack" || ev.k === "use" || (ev.k === "hurt" && ev.id === heroId)) near(ev.t);   // Cut 5 §5: always at 1×
+      if (ev.k === "drain") drainOn = drainWord(ev.cause);
+      else if (ev.k === "descend" || ev.k === "exit" || (ev.k === "attack" && ev.dst === heroId)) drainOn = null;   // the stairs, the end, a blow: the stretch is over
+      else if (drainOn && (ev.k === "hurt" || ev.k === "max_hp") && ev.id === heroId) drainEvs.add(ev);
+      if (ev.k === "telegraph" || ev.k === "attack" || ev.k === "use" || (ev.k === "hurt" && ev.id === heroId && !isDrain(ev))) near(ev.t);   // Cut 25 §3: a drain is no fight   // Cut 5 §5: always at 1×
       switch (ev.k) {
         // Cut 10 §3: the core's companion-death callout (`Ashar fell`) gets its kind in front: `jackal Ashar fell`
         case "callout": {
@@ -770,6 +799,8 @@ export function renderWatch(app: App): Mounted {
           if (breakBeat(ev.t, ev.text)) break;   // Cut 16 §4: `warlord breaks` is the beat's, not a plain callout
           // Cut 12 §6: a sanity refusal (`drink ✗ no use`) shows once per floor, not once per streak
           if (ev.text.includes("✗")) { const key = `${ev.text}@${s.depth}`; if (refused.has(key)) break; refused.add(key); }
+          // Cut 25 §3: a drain's own callouts (`hunger −1 max`, bite after bite) — never; its word shows once a floor instead (`starving`)
+          if (DRAIN_CALLOUT.test(ev.text)) break;
           let f = ev.text;
           // Cut 12 §6: a summoned ally (no name) reads `ally hound fell`; a companion keeps `jackal Ashar fell`
           if (fell && fell.t === ev.t && fell.kind && ev.text === (fell.name ? `${fell.name} fell` : `${fell.kind} fell`)) f = fell.name ? `${fell.kind} ${fell.name} fell` : /* copy:callout */ `ally ${oneWord(fell.kind)} fell`;
@@ -797,8 +828,22 @@ export function renderWatch(app: App): Mounted {
           if (ev.row >= 0) { const home = ev.verb.v === "return"; at(ev.t, () => { if (home !== walkingHome) { walkingHome = home; if (hudSnap) paintStake(hudSnap); } }); }   // Cut 19 §2
           break;
         }
+        case "drain": {   // Cut 25 §3 (core): the stretch's word, once (a floor)
+          if (!drainTicks.length || drainTicks[drainTicks.length - 1] < ev.t) { drainTicks.push(ev.t); if (drainTicks.length > 64) drainTicks.shift(); }
+          const w = drainWord(ev.cause), key = `${w}@${s.depth}`;
+          at(ev.t, () => { el.dataset.drain = String(ev.t); if (!drainsShown.has(key)) { drainsShown.add(key); callout(w, "hurt", HURT_MS * 2); } });
+          break;
+        }
         case "hurt": if (bossIds.has(ev.id)) { const id = ev.id, hp = ev.hp; at(ev.t, () => { if (bossHud?.id === id) { bossHud.hp = hp; paintBoss(); } }); }
-          if (ev.id === heroId) at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) { callout(hurtText(ev.dmg, ev.cause), "hurt", HURT_MS); cue("hit", { dmg: ev.dmg }); } }); break;
+          if (ev.id === heroId) {
+            // Cut 25 §3: a drain (no blow: hunger, poison, a curse) — no number per bite; its word once a floor (`starving`)
+            const dw = drainOf(ev) ?? (drainEvs.has(ev) ? drainOn : null);
+            if (dw) { if (!drainTicks.length || drainTicks[drainTicks.length - 1] < ev.t) { drainTicks.push(ev.t); if (drainTicks.length > 64) drainTicks.shift(); }
+              at(ev.t, () => { el.dataset.drain = String(ev.t); });   // tooling: the last drain the picture reached
+              const key = `${dw}@${s.depth}`; at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (!drainsShown.has(key)) { drainsShown.add(key); callout(dw, "hurt", HURT_MS * 2); } }); break; }
+            at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) { callout(hurtText(ev.dmg, ev.cause), "hurt", HURT_MS); cue("hit", { dmg: ev.dmg }); } });
+          }
+          break;
         // the kill gets its own line (cohort 5: "−3 goblin" was still up after the goblin had dissolved)
         case "die": {
           if (ev.id === heroId) { heroCause = ev.cause; break; }
@@ -818,10 +863,15 @@ export function renderWatch(app: App): Mounted {
         // Cut 10 §3: a theft names its amount when the engine sends one (`stolen $16`)
         // QA 1a2a4a9 (P: `12/38` → `6/16`, "nothing in the run said why"): the core's `max_hp` event moves the HUD's max at its tick
         // (the `hunger −1 max` callout comes as a callout of its own)
-        case "max_hp": if (ev.id === heroId) { const m = ev.max; at(ev.t, () => { hud.maxHp = m; paintHud(); }); } break;
+        case "max_hp": if (ev.id === heroId) {
+          const m = ev.max, dw = ev.delta < 0 ? drainOf(ev) ?? (drainEvs.has(ev) ? drainOn : null) : null, key = dw ? `${dw}@${s.depth}` : "";
+          if (dw && (!drainTicks.length || drainTicks[drainTicks.length - 1] < ev.t)) { drainTicks.push(ev.t); if (drainTicks.length > 64) drainTicks.shift(); }
+          at(ev.t, () => { hud.maxHp = m; paintHud(); if (dw && !drainsShown.has(key)) { drainsShown.add(key); callout(dw, "hurt", HURT_MS * 2); } });
+        } break;
         case "steal": lastStealT = ev.t; if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; stolenGold += n; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
         case "descend": {
           descends.push(ev.t);   // Cut 18 §1
+          at(ev.t, () => { chore = null; });   // Cut 25 §3: a floor's chore count starts over
           floors.set(ev.depth, { ...floors.get(ev.depth), biome: ev.biome });
           const rooms = s.depth === ev.depth ? s.rooms : undefined;   // Cut 7 §4: `D3 · 4 rooms` when the snapshot counts them
           at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); if (hudSnap) paintStake(hudSnap); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
@@ -837,6 +887,8 @@ export function renderWatch(app: App): Mounted {
           break;
         }
         case "pickup": {
+          // Cut 25 §3: `pick up ×N` counts the tries since the last thing picked up (it grew across a floor: `×441`)
+          if (ev.id === heroId) at(ev.t, () => { if (chore?.text === CHORE_CALLOUT.pick_up) chore = null; });
           if (ev.id === heroId) { lastPickT = ev.t; lastPickItem = /^gold\b/.test(ev.item) ? lastPickItem : ev.item; }
           const gold = /^gold\b\D*(\d+)/.exec(ev.item);   // Cut 7 §4: `+$47` on a gold pickup (`gold (47)` core, `gold 47` fake)
           // QA 92eb880 (M: "FOUND gold `$1 · $2 ×3 · …` = $27 but `$38 carried`"): gold is the ledger line's, not a find — FOUND lists items;
@@ -883,6 +935,8 @@ export function renderWatch(app: App): Mounted {
         default: break;
       }
     }
+    // Cut 25 §3: a foe in view at the batch's end ends the drain stretch (the core opens the next with its own `drain`)
+    if (drainOn && s.entities.some((e) => !e.ally && e.id !== heroId && e.hp > 0 && !!s.visible[e.y * s.w + e.x])) drainOn = null;
     return exit;
   }
   /** Cut 10 §4: a combat cue, only while the fight is watched (the fight frame up, or the clock at 1×). */
@@ -940,7 +994,7 @@ export function renderWatch(app: App): Mounted {
     if (last && last.from === fightFrom) last.until = fightUntil; else spans.push({ from: fightFrom, until: fightUntil });
   }
   /** The next queued floor load, taken. */
-  function takeLoad(): { snap: Snapshot; rest: Ev[] } | null { return loads.shift() ?? null; }
+  function takeLoad(): { snap: Snapshot; rest: Ev[]; at?: number } | null { return loads.shift() ?? null; }
   /** Cut 14 §6: load every queued floor into the viewer (the last one is the picture; the ones between were never watched). */
   function drainLoads(): void { if (!viewer) return; for (let p = takeLoad(); p; p = takeLoad()) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); } }
   /** Cut 14 §6: the viewer lands on the frontier (live) — every queued floor loaded, the clock at the engine's tick (the ending's
@@ -1096,14 +1150,14 @@ export function renderWatch(app: App): Mounted {
     // Cut 14 §6: floors the viewer has not reached queue; a later batch appends to the newest floor (or opens the next)
     if (loads.length) {
       const last = loads[loads.length - 1];
-      if (di >= 0) { last.rest.push(...evs.slice(0, di + 1)); loads.push({ snap: s, rest: evs.slice(di + 1) }); }
+      if (di >= 0) { last.rest.push(...evs.slice(0, di + 1)); loads.push({ snap: s, rest: evs.slice(di + 1), at: evs[di].t }); }
       else last.rest.push(...evs);
       return;
     }
     // entities that appear inside this batch must exist before their events apply (they are not tweened in;
     // the first event they own places them)
     (viewer as Viewer & { preload?: (x: Snapshot) => void } | null)?.preload?.(s);
-    if (viewer && di >= 0) { viewer.apply(evs.slice(0, di + 1)); loads.push({ snap: s, rest: evs.slice(di + 1) }); }
+    if (viewer && di >= 0) { viewer.apply(evs.slice(0, di + 1)); loads.push({ snap: s, rest: evs.slice(di + 1), at: evs[di].t }); }
     else { viewer?.apply(evs); if (viewer?.sync) { const v = viewer; at(s.turn, () => v.sync!(s)); } } // Cut 4 §3: remembered foes
   }
   /** Cut 14 §6: the world's rate — the viewer's decisions read off the engine's own tick; ≥ 1× while the run is live, 0 once it is over. */
@@ -1113,6 +1167,7 @@ export function renderWatch(app: App): Mounted {
     if (!frozen() && beatHeld() && heldBeat && !heldBeat.exit) return Math.max(0, speed);   // Cut 18 §1: a held beat is the watch's own pacing — the world keeps the picture's pace (no catch-up owed after it)
     if (fightOn && app.slowdowns) return mode === "fights" && engineTick >= slowUntil && !(beat && engineTick < beat.until) && !(foeSpans.length && foeSpans[foeSpans.length - 1].until > engineTick) ? RATE.fights : fightRate();   // Cut 15 §4: a chore stretch at the flat rate
     if (mode === "fights") return RATE.fights;
+    if (mode === "one") return hidden ? RATE.fast : 1;   // Cut 25 §3: a hidden tab's world runs on (offline is never slower)
     return !app.slowdowns || overridden || (engineTick >= slowUntil && engineTick >= sceneUntil) ? RATE.fast : FAST_NEAR;
   }
   /** Cut 14 §6: the strip — the playhead at the viewer's share of the run so far, the dot at the frontier. */
@@ -1151,7 +1206,11 @@ export function renderWatch(app: App): Mounted {
     else if (loads.length) {
       // Cut 10 §1: under the card the floor changes at once (nothing is watched); otherwise the viewer drains first (Cut 14 §6:
       // never while the picture is frozen; the world below steps on regardless)
-      if ((cardUp || viewerIdle()) && !beatHeld()) { const p = takeLoad()!; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }   // Cut 18 §1: not under a held beat
+      // Cut 25 §3 (AM: "one watch frame at D4 was an empty black board with only `A dropped purse in the dust.`"): the descend's fade had
+      // gone to black and the new floor's own beat (the purse, on its first tick) held the load behind it — a beat on the floor the load
+      // opens never holds it (only one on the floor being left: the kill's frame)
+      const beatHere = beatHeld() && !(heldBeat && loads[0].at !== undefined && heldBeat.from >= loads[0].at);
+      if ((cardUp || viewerIdle()) && !beatHere) { const p = takeLoad()!; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }   // Cut 18 §1: not under a held beat
     }
     else if (held) {
       // Cut 7 §4: the clock runs on (8× through dead air) to the ending, then the exit batch plays and the exit flow waits for it
@@ -1287,7 +1346,7 @@ export function renderWatch(app: App): Mounted {
     for (const e of evs) {
       const moved = boss
         ? e.k === "descend" || e.k === "exit" || ((e.k === "hurt" || e.k === "die") && bossIds.has(e.id)) || (e.k === "attack" && e.hit && e.dmg > 0 && bossIds.has(e.dst))
-        : e.k === "hurt" || e.k === "die" || e.k === "pickup" || e.k === "descend" || e.k === "use" || e.k === "exit" || (e.k === "attack" && e.hit && e.dmg > 0);
+        : (e.k === "hurt" && !isDrain(e)) || e.k === "die" || e.k === "pickup" || e.k === "descend" || e.k === "use" || e.k === "exit" || (e.k === "attack" && e.hit && e.dmg > 0);
       if (moved && (!progress.length || e.t > progress[progress.length - 1])) progress.push(e.t);
     }
     while (progress.length > 64 && progress[1] < viewerTick() - 4000) progress.shift();   // the playhead never seeks back that far
@@ -1300,14 +1359,16 @@ export function renderWatch(app: App): Mounted {
   const progressAfter = (v: number): number => progress.find((t) => t > v) ?? Infinity;
   /** Cut 24 §1: is the playhead DEAD_TICKS past the last move (and not on a boss's kill or break, the card, the ending)? */
   function deadAt(v: number): boolean {
-    if (v - progressBefore(v) < DEAD_TICKS) return false;
+    // Cut 25 §3: a drain since the last move makes the stretch dead at once (no DEAD_TICKS wait: 10 s at the plain 1×) — the bites are its only news
+    const p = progressBefore(v);
+    if (v - p < DEAD_TICKS && !drainTicks.some((t) => t > p && t <= v)) return false;
     if (beat?.hold && v >= beat.from && v < beat.until) return false;
     return !(mode === "fights" && (cardUp || cardWait));
   }
   /** Cut 24 §1: a dead stretch's rate — the travel's, ramping as `fast`'s dead stretch does, landing on the next move DEAD_LAND_MS out. */
   function deadStretch(was: number, v: number): number {
     deadSince = was < 0 ? performance.now() : was;
-    const base = earlyFloor() ? EARLY_TRAVEL : RATE[mode], age = performance.now() - deadSince;
+    const base = earlyFloor() ? EARLY_TRAVEL : mode === "one" ? AUTO_FAST : RATE[mode], age = performance.now() - deadSince;
     // `fights` tops out at DEAD_MAX_FIGHTS (a stretch the core cuts at 60 actions is ~1 s there; its engine lead stays short of a cage)
     let r = age < DEAD_RAMP_MS ? base : Math.min(mode === "fights" ? DEAD_MAX_FIGHTS : FAST_MAX, base * 2 ** (1 + Math.floor((age - DEAD_RAMP_MS) / DEAD_STEP_MS)));
     // lands DEAD_LAND_MS before the next move, the stairs, the ending; never past the frontier (the engine is stepped to the lead)
@@ -1345,6 +1406,7 @@ export function renderWatch(app: App): Mounted {
     if ((el.dataset.dead === "1") !== dead) el.dataset.dead = dead ? "1" : "0";
     el.dataset.progress = String(progressBefore(v));
     if (dead) return deadStretch(was, v);
+    if (mode === "one") return 1;   // Cut 25 §3: the plain 1× — every live frame at 1× (the dead stretch above still travels)
     if (frame === "fight" && !flat && beat?.hold && v >= beat.from && v < beat.until) return 1;   // Cut 15 §4: a boss's kill holds SCENE_MS
     if (frame === "fight" && !flat) return choreAt(v) ? (earlyFloor() ? earlyTravel(was, v) : RATE[mode]) : fightRate();   // Cut 18 §1: `fast`'s chore stretch at its flat rate too   // Cut 8A: a fight is watched slow (Cut 14: 2× in `fights`, 4× in `fast`); Cut 15 §4: a chore stretch in `fights` at the flat rate
     if (mode === "fights") return cardWait || cardUp ? 0 : earlyFloor() && !flat ? earlyTravel(was, v) : mapHold ? (cardLive ? RATE.fights : AUTO_FAST) : RATE.fights;   // the clock holds under the card: the cut seeks
@@ -1406,7 +1468,7 @@ export function renderWatch(app: App): Mounted {
     const wasCard = cardUp;
     mode = m; freeze(false, hidden); mapHold = false; cardLive = false; el.dataset.mode = m;
     // Cut 14 §6: leaving the card (`fights` → `fast`) lands live — the travel under it was the world's skip, not a replay owed
-    if (wasCard && m === "fast" && !held && !exitTier) goLive();
+    if (wasCard && m !== "fights" && !held && !exitTier) goLive();
     for (const k of Object.keys(modeBtn) as Mode[]) modeBtn[k].classList.toggle("on", k === m);
     paintPause(); paintCard(frame); applySpeed();
   }
@@ -1673,7 +1735,7 @@ export function renderWatch(app: App): Mounted {
     // QA 92eb880 (N: "VERDICT appears while the hero is still up (8/36), three more hits follow"): during the walk-out the gem slot holds
     // the stilled pause; the verdict / report gem comes once the last frame has played (`nextGem`)
     pause.disabled = true;
-    for (const b of [modeBtn.fights, modeBtn.fast, skip, bail]) b.disabled = true;
+    for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail]) b.disabled = true;
   }
   function nextGem(): void {
     if (el.dataset.next === "1" || !pause.isConnected) return;
@@ -1777,6 +1839,8 @@ export function renderWatch(app: App): Mounted {
       stolen_gold: exitLine?.stolen_gold ?? (stolenGold > 0 ? stolenGold : undefined),   // QA a946e04 (T): the carry's thefts, beside the items
       banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, stalled: stalled ? 1 : 0, driven: exitLine?.driven ? 1 : 0,   // Cut 18 §4: the stall the exit line names anywhere in it (`… · stalled · 1 supply back`), or the stake's flag bones_found: bonesFound,   // rest is still ahead: the camp shows it
       exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
+      // Cut 25 §6 (AM: `RUNS 1 · DEATHS 0` after the last heir's death read as the lineage's): the runs tile names the heir who ran (`♟2`)
+      heirs: snap?.run?.heir !== undefined ? [snap.run.heir, snap.run.heir] : undefined,
     };
     app.go({ kind: "report", report });
   }

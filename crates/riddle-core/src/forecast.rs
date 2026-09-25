@@ -188,6 +188,11 @@ pub fn camp_sims(game: &Game, rules: &RuleSet) -> u32 {
     }
 }
 
+/// Cut 25 §4: the sims an option tablet (forge, cage, start) measures with — the first pass's.
+pub fn option_sims(_game: &Game, _rules: &RuleSet) -> u32 {
+    FORECAST_SIMS
+}
+
 /// Memoise a camp panel: a full cache keeps the active set's own panels (both passes) and
 /// drops the rest — the panel the camp shows is never the one evicted.
 pub fn panel_insert(game: &Game, key: String, v: Vec<SimResult>) {
@@ -219,8 +224,12 @@ pub fn forecast_tag(game: &Game, depth: u32) -> u64 {
     splitmix(0x5EED_F0C4 ^ game.lineage.seed.rotate_left(17) ^ ((depth as u64) << 40))
 }
 
-/// The tick budget of the camp's panel (`forecast_with` at `FORECAST_SIMS`).
-pub const CAMP_TICK_BUDGET: u64 = FORECAST_TICK_BUDGET + DELTA_TICK_BUDGET;
+/// The tick budget of the camp's panel (`forecast_with` at `FORECAST_SIMS`). Cut 25 §4 (AM: 5–9 s
+/// of `…` after an edit, ~8 s for the forge, on a D11 lineage after an absence — sims there run
+/// ~15 000 ticks, so a panel spends its whole budget; the forge and the cage are three panels
+/// each): 450 000 (was 550 000) — a shallow lineage's 50 sims stay under it, a D11 panel runs
+/// ~30 sims first and the refine twice that.
+pub const CAMP_TICK_BUDGET: u64 = 450_000;
 
 /// QA on 23ed91f: the camp's panel for `rules` — every sim to its exit on the camp's seeds
 /// (`forecast_tag` at `known_to`) under the camp's budget, `sims` of them — memoised on the
@@ -263,7 +272,10 @@ pub const PANEL_CACHE_MAX: usize = 32;
 /// fingerprint, which carries the preference).
 pub fn cage_forecast(game: &Game) -> Vec<crate::wire::CageOption> {
     let rules = game.lineage.rules().clone();
-    let sims = camp_sims(game, &rules);
+    // Cut 25 §4 (AM: ~8 s for the forge's estimates on a D11 lineage): an option is measured on
+    // the first pass's sims — the panel the camp reads right after the tap (its refine comes
+    // later) — never the refined 2× (each option panel a full camp panel: 6 s of wasm at D11).
+    let sims = option_sims(game, &rules);
     // The bar the reach is read at: the set's bank row's depth (`depth ≥ d → bank`), else the
     // lineage's best depth.
     let bank_depth = rules.rows.iter().filter(|r| r.verb.v == "bank").filter_map(|r| r.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n)).map(|n| n.max(1) as u32).min();
@@ -478,7 +490,10 @@ pub fn sim_start(game: &Game) -> u32 {
 /// carries the start).
 pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
     let rules = game.lineage.rules().clone();
-    let sims = camp_sims(game, &rules);
+    // Cut 25 §4 (AM: ~8 s for the forge's estimates on a D11 lineage): an option is measured on
+    // the first pass's sims — the panel the camp reads right after the tap (its refine comes
+    // later) — never the refined 2× (each option panel a full camp panel: 6 s of wasm at D11).
+    let sims = option_sims(game, &rules);
     let bank_depth = rules.rows.iter().filter(|r| r.verb.v == "bank").filter_map(|r| r.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n)).map(|n| n.max(1) as u32).min();
     let bar = bank_depth.unwrap_or(game.lineage.best_depth).clamp(1, game.lineage.best_depth + 1);
     let current = game.lineage.start.max(1);

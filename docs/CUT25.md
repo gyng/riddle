@@ -85,3 +85,16 @@ AM: 5–9 s of `…` after an edit; ~8 s for forge estimates on a D11 lineage af
 | Seams | tests, ui.mjs |
 | Bots, dice, stalls, dances, no-hp stretches, DEFAULT yields 0 | `node tools/gates.mjs --full` |
 | Cohort 21: mean ≥ 78; expression or pacing 0.8 from both; α ≥ 0.80 | two blind cards |
+
+## Deviations (core, recorded)
+
+- §1's "best single-row move" is the largest of: dropping one of the set's own rows (on the forged
+  or the bare hero), or the best one-row edit/patch on the bare hero — exit rows and the plain
+  `foes ≥ N → attack nearest` are never dropped. Against improving edits alone a tuned set's best
+  edit is ~+5, which would have made any forge worthless; the drop form asks whether a single rule
+  still carries more weight than the whole forge. Before: forge +53…+99 (AN +76); after: +0…+47,
+  every set's best row beats it (24/24, smallest margin +11).
+- The forge's armour blunts (a third of each blow gets through) and its weapon adds aim, not damage;
+  found armour still subtracts in full (blunting it broke the COUNTERED and FULL deep gates).
+- Option tablets (forge, cage, start) measure on the first pass's sims only; camp tick budget
+  550k → 450k.

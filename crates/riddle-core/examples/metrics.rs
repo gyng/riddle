@@ -8,6 +8,8 @@ use riddle_core::{Ev, Game, RuleSet};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+#[path = "lever_lib/mod.rs"]
+mod lever;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Bot {
@@ -517,6 +519,43 @@ fn forge_report(sets: &[(String, RuleSet)], forges: &BTreeMap<(usize, u64), Forg
     }
 }
 
+/// (set index, seed) → (kit move, best row move, the row).
+type Levers = BTreeMap<(usize, u64), (f64, f64, String)>;
+
+/// Cut 25 §1: the lever's measure — each banking cohort set's lineage after a day of its own
+/// sends (`LEVER_HOURS`), `LEVER_SIMS` paired sends per arm, `LEVER_SEEDS` seeds pooled.
+const LEVER_HOURS: u64 = 24;
+const LEVER_SIMS: u32 = 64;
+const LEVER_SEEDS: u64 = 3;
+/// A row move this far past the seed's kit move ends the seed's search (the table's `row ≥`).
+const LEVER_MARGIN: f64 = 0.05;
+
+/// Cut 25 §1 (AN: three forge buys took bank 40 → 95 %, more than any row he wrote): on every
+/// banking cohort set, the whole forge's paired bank move is less than the set's best single-row
+/// move (`lever::gate`), pooled over the seeds; a forge that moves nothing passes.
+fn lever_report(sets: &[(String, RuleSet)], levers: &Levers, seeds: u64, rows: &mut Vec<(String, String, bool)>) {
+    println!("\nlever (Cut 25 §1; the set's lineage after {LEVER_HOURS} h, {LEVER_SIMS} paired sends × {seeds} seeds): whole-forge bank move · best row move (the first past the forge) per seed");
+    let (mut ok_n, mut n, mut worst) = (0usize, 0usize, (f64::MAX, String::new()));
+    for (si, (name, _)) in sets.iter().enumerate() {
+        let ms: Vec<&(f64, f64, String)> = (1..=seeds).filter_map(|s| levers.get(&(si, s))).collect();
+        if ms.is_empty() {
+            continue;
+        }
+        let kit = ms.iter().map(|m| m.0).sum::<f64>() / ms.len() as f64;
+        let row = ms.iter().map(|m| m.1).sum::<f64>() / ms.len() as f64;
+        let ok = kit < row || kit <= 0.005;
+        n += 1;
+        ok_n += ok as usize;
+        if row - kit < worst.0 {
+            worst = (row - kit, name.clone());
+        }
+        println!("  {name}: forge {:+.1} · row ≥ {:+.1} ({}){}", 100.0 * kit, 100.0 * row, ms.iter().map(|m| format!("{:+.0}/{:+.0} {}", 100.0 * m.0, 100.0 * m.1, m.2)).collect::<Vec<_>>().join(" · "), if ok { "" } else { " · FAIL" });
+    }
+    if n > 0 {
+        rows.push((format!("Whole forge's bank move < best row's ({n} banking sets)"), format!("{ok_n}/{n} · min gap {:+.0}", 100.0 * worst.0), ok_n == n));
+    }
+}
+
 /// Cut 22 §3: every one-notch edit of `set` (each numeric condition ±5 for a share, ±1
 /// otherwise) against the set, on a D8 lineage owning every token: (edits, Σ paired ±,
 /// Σ absolute ±) over the shaft's depths whose bar has a ±.
@@ -788,7 +827,9 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: bool
             // number is the forecast delta, not the moment's replays — exempt here. §4: so is
             // a `dice` death's below-bar alternative (labelled as such on the screen).
             // Cut 19 §4: a `row` verdict's cut (a removed or narrowed row) inserts nothing.
-            for p in d.patches.iter().filter(|p| p.insert_at >= 0 && p.root.is_none() && !p.below_bar && !p.remove && !p.replace) {
+            // Cut 25 §2: a move reorders the set (kept only when it acts in ≥ `FIRED_BAR` of the
+            // death's own replays: `trace::order_moves`).
+            for p in d.patches.iter().filter(|p| p.insert_at >= 0 && p.root.is_none() && !p.below_bar && !p.remove && !p.replace && p.moves_from.is_none()) {
                 let mut rules = rec.rules.clone();
                 let at = (p.insert_at as usize).min(rules.rows.len());
                 rules.rows.insert(at, p.row.clone());
@@ -1006,6 +1047,8 @@ fn main() {
         Kit(usize, u64),
         /// Cut 23 §1: a cohort set's forge after an 8 h absence.
         Forge(usize, u64),
+        /// Cut 25 §1: a cohort set's lever — the whole forge's bank move against its best row's.
+        Lever(usize, u64),
     }
     let sets = Arc::new(cohort_sets());
     // `--gold`: the Cut 22 §1 gold table alone (the cohort sets' sends; ~20 s).
@@ -1024,6 +1067,13 @@ fn main() {
     jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).flat_map(move |s| [Job::Gold(si, s, false), Job::Gold(si, s, true)])));
     jobs.extend(KIT_BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Kit(bi, s))));
     jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| Job::Forge(si, s))));
+    // Cut 25 §1: the lever (`lever::gate`), on the sets that bank; `LEVER_SEEDS` seeds each (the
+    // full table; `--lever` alone prints it).
+    let lever_only = args.iter().any(|a| a == "--lever");
+    let lever_seeds = get("--lever-seeds", LEVER_SEEDS);
+    if !quick || lever_only {
+        jobs.extend((0..sets.len()).filter(|&si| sets[si].1.rows.iter().any(|r| r.verb.v == "bank")).flat_map(|si| (1..=lever_seeds).map(move |s| Job::Lever(si, s))));
+    }
     jobs.extend(BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Bot(bi, s))));
     // Cut 22 §3: each cohort set's one-notch edits, paired against the set.
     jobs.extend((0..sets.len()).map(Job::Paired));
@@ -1035,6 +1085,9 @@ fn main() {
     }
     if forge_only {
         jobs.retain(|j| matches!(j, Job::Kit(..) | Job::Forge(..)) || matches!(j, Job::Bot(bi, _) if matches!(BOTS[*bi], Bot::Default | Bot::Edited | Bot::Learned)));
+    }
+    if lever_only {
+        jobs.retain(|j| matches!(j, Job::Lever(..)));
     }
     // `--threads N` leaves cores to whatever runs beside the table (gates.mjs: the dayplayer's
     // sequential chains, which the full 32 starved — docs/ITERATION_SPEED.md §3.2).
@@ -1049,10 +1102,11 @@ fn main() {
     let cnohp: Arc<Mutex<BTreeMap<(usize, u64), NoHp>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let kresults: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let forges: Arc<Mutex<BTreeMap<(usize, u64), ForgeTally>>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let levers: Arc<Mutex<Levers>> = Arc::new(Mutex::new(BTreeMap::new()));
     let mut handles = Vec::new();
     for _ in 0..threads {
         let (jobs, results, cohort, counters, sets, golds, paireds, cdeaths) = (Arc::clone(&jobs), Arc::clone(&results), Arc::clone(&cohort), Arc::clone(&counters), Arc::clone(&sets), Arc::clone(&golds), Arc::clone(&paireds), Arc::clone(&cdeaths));
-        let (kresults, forges, cnohp) = (Arc::clone(&kresults), Arc::clone(&forges), Arc::clone(&cnohp));
+        let (kresults, forges, cnohp, levers) = (Arc::clone(&kresults), Arc::clone(&forges), Arc::clone(&cnohp), Arc::clone(&levers));
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some(job) = job else { break };
@@ -1065,6 +1119,10 @@ fn main() {
                 Job::Forge(si, seed) => {
                     let r = cohort_forge(&sets[si].1, seed, hours);
                     forges.lock().unwrap().insert((si, seed), r);
+                }
+                Job::Lever(si, seed) => {
+                    let r = lever::gate(&sets[si].1, seed, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN);
+                    levers.lock().unwrap().insert((si, seed), r);
                 }
                 Job::Bot(bi, seed) => {
                     let r = run_seed(BOTS[bi], seed, hours, verdicts_per_seed, false);
@@ -1101,6 +1159,15 @@ fn main() {
         h.join().unwrap();
     }
     phase("jobs");
+    let lever_rows = |rows: &mut Vec<(String, String, bool)>| lever_report(&sets, &levers.lock().unwrap(), lever_seeds, rows);
+    if lever_only {
+        let mut rows = Vec::new();
+        lever_rows(&mut rows);
+        for (name, value, ok) in &rows {
+            println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
+        }
+        return;
+    }
     if forge_only {
         let mut rows = Vec::new();
         forge_report(&sets, &forges.lock().unwrap(), &kresults.lock().unwrap(), &results.lock().unwrap(), seeds, &mut rows);
@@ -1569,6 +1636,9 @@ fn main() {
     }
     gold_report(&sets, &golds.lock().unwrap(), seeds, hours, &mut rows);
     forge_report(&sets, &forges.lock().unwrap(), &kresults.lock().unwrap(), &results, seeds, &mut rows);
+    if !quick {
+        lever_rows(&mut rows);
+    }
     // Cut 23 §2: the death mix (reported, not gated: the contract's bar is the measure).
     let (dm_flag, dm_n) = death_mix_report(&sets, &cdeaths.lock().unwrap(), seeds);
     println!("  sets with one cause over half their deaths: {dm_flag}/{dm_n}");

@@ -102,7 +102,9 @@ pub fn gate(l: &LineageState, id: &str) -> Option<String> {
         "party_slot_3" => need(l.tamed_kinds() >= 3, "tame 3 kinds"),
         "rogue" => need(!l.banked_depths.is_empty(), "bank once"),
         "ranger" => need(l.bosses_slain() >= 1, "slay a boss"),
-        "caster" => need(l.bosses_slain() >= 2, "slay 2 bosses"),
+        // Cut 25 §6 (AM: `+1 row ⊘ slay 3 bosses` locked after four Warlord kills): the count is of
+        // boss kinds slain (`LineageState::kills` holds kinds) — the copy says so.
+        "caster" => need(l.bosses_slain() >= 2, "2 boss kinds"),
         "tame" => need(l.facts.contains("item:leash"), "find a leash"),
         "cond_alert" => need(l.facts.contains("alert:rising"), "see alert rise"),
         "cond_on_kill" => need(!l.kills.is_empty(), "a kill"),
@@ -120,8 +122,8 @@ pub fn gate(l: &LineageState, id: &str) -> Option<String> {
         "bone_sense" => need(l.facts.iter().any(|f| f.starts_with("bones:")), "a death"),
         "third_tag" => need(!l.bred.is_empty(), "breed once"),
         // Cut 3 tier 2.
-        "row9" | "vault5" => need(l.bosses_slain() >= 3, "slay 3 bosses"),
-        "row10" => need(l.bosses_slain() >= 4, "slay 4 bosses"),
+        "row9" | "vault5" => need(l.bosses_slain() >= 3, "3 boss kinds"),
+        "row10" => need(l.bosses_slain() >= 4, "4 boss kinds"),
         "party_slot_4" => need(l.tamed_kinds() >= 6, "tame 6 kinds"),
         "cadence" => need(has_tag_fact(&l.facts, "mirror"), "fact: mirror"),
         "noise_discipline" => need(has_tag_fact(&l.facts, "blind"), "fact: blind"),
@@ -682,6 +684,10 @@ pub fn pending(game: &Game) -> Vec<String> {
             if let (true, Some(r)) = (rec.death.verdict == "row", rec.death.cause_row) {
                 out.push(format!("patch D{}: cut R{}", rec.death.depth, r + 1));
             }
+            // Cut 25 §2: an `order` death's patch moves his own row up.
+            if let (true, Some(r), Some(o)) = (rec.death.verdict == "order", rec.death.cause_row, rec.death.order_over) {
+                out.push(format!("patch D{}: move R{} above R{}", rec.death.depth, r + 1, o + 1));
+            }
         }
     }
     if !game.batch.found.is_empty() {
@@ -731,7 +737,7 @@ mod tests {
         }
         let l = LineageState::new(2);
         let cat = catalogue(&l);
-        assert_eq!(cat.iter().find(|u| u.id == "row9").unwrap().needs.as_deref(), Some("slay 3 bosses"));
+        assert_eq!(cat.iter().find(|u| u.id == "row9").unwrap().needs.as_deref(), Some("3 boss kinds"));
         assert_eq!(cat.iter().find(|u| u.id == "cadence").unwrap().needs.as_deref(), Some("fact: mirror"));
         assert_eq!(cat.iter().find(|u| u.id == "lantern_rig").unwrap().needs.as_deref(), Some("find a lantern"));
         let l = LineageState::new(1);

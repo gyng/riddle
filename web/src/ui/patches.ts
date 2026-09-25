@@ -88,12 +88,15 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const unlock = p.insert_at < 0;
     // A row the set already holds (an old death opened from the chronicle, a patch tapped twice) is not inserted again:
     // the row reads `at R2` and the tap opens the camp on it (QA: "tapped patch → R1 inserted AGAIN → 5/4")
-    const held = unlock || p.remove || p.replace ? -1 : app.rules.rows.findIndex((r) => sameRow(r, p.row));
+    // Cut 25 §2: a move (`moves_from`) puts the set's own row above another — the row is held by design; it reads `move R5 above R2`
+    const move = !unlock && p.moves_from !== undefined && p.moves_from >= 0;
+    const held = unlock || p.remove || p.replace || move ? -1 : app.rules.rows.findIndex((r) => sameRow(r, p.row));
     const stallish = baseline === undefined && held < 0 && !p.below_bar;   // the first line already says `reach`
     // Cut 15 §3: an insert onto a full set asks which own row to drop (`+ drop one`)
-    const full = !unlock && !p.remove && !p.replace && held < 0 && app.rowsFull && app.rules.rows.some((r) => !isCardRow(r));
+    const full = !unlock && !move && !p.remove && !p.replace && held < 0 && app.rowsFull && app.rules.rows.some((r) => !isCardRow(r));
     // QA a946e04 (S: `R1 − hp < 20% · foes ≥ 1 → drink unknown` — "delete R1?"): a cut reads as one (`cut R1`); a replace keeps `R1 ↻`
-    const target = p.remove || p.replace ? h("small", { class: "dim target" }, p.remove ? /* copy:callout */ `cut R${p.insert_at + 1} ` : `R${p.insert_at + 1} ↻ `)
+    const target = move ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move R${p.moves_from! + 1} above R${p.insert_at + 1} `)
+      : p.remove || p.replace ? h("small", { class: "dim target" }, p.remove ? /* copy:callout */ `cut R${p.insert_at + 1} ` : `R${p.insert_at + 1} ↻ `)
       // Cut 19 §4: the core names the row the insert drops (`Patch.drops`, the dead run's least-fired own row) — `+ drop R5`; the tap
       // still opens the drop sheet on it (marked), so the player may drop another
       : "";
@@ -144,7 +147,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const root = unlock ? (p.root ? h("small", { class: "dim" }, rowLabel(p.row)) : "") : p.root ? h("small", { class: "root" }, "← ", p.root.text) : "";
     // QA 1a2a4a9 (O: "tapping a patch card applied it and jumped to camp; I meant to select it"): with `opts.select` (the death screen)
     // a tap lights the tablet and the gem applies the lit one — one model: tablets choose, the gem acts
-    const btn: HTMLButtonElement = h("button", { class: `patch tablet${p.remove ? " remove" : ""}${p.below_bar || held >= 0 || opts.nothingBeatsBase || noGain ? " below" : ""}${noGain ? " no-gain" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
+    const btn: HTMLButtonElement = h("button", { class: `patch tablet${move ? " move" : ""}${p.remove ? " remove" : ""}${p.below_bar || held >= 0 || opts.nothingBeatsBase || noGain ? " below" : ""}${noGain ? " no-gain" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
       onclick: opts.select ? () => opts.select!(btn) : act, ...(full ? { "data-full": "1" } : {}), ...(p.buys ? { "data-buys": p.buys.kind } : {}) },
       h("b", { class: "rank num", "aria-hidden": "true" }), h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
@@ -187,7 +190,7 @@ function reachSpan(p: Patch, stallish = false): HTMLElement {
   // QA a946e04 (S: `hp < 20% → return · reach D7 +0%` — "a return ends the run") hid an exit's reach; QA 778fa1b (qaU: `hp < 40% →
   // return · survives 100%` looked best, applied: `D5 −54 · death −94`): a patch whose row ends the run (`Patch.exits`, else its verb)
   // survives by going home — its cost is floors, so it says so, `return early`, beside the reach it costs (`reach D6 −49`)
-  const exits = !stallish && !p.remove && (p.exits ?? EXIT_VERBS.has(p.row.verb.v));
+  const exits = !stallish && !p.remove && (p.exits ?? (p.moves_from === undefined && EXIT_VERBS.has(p.row.verb.v)));   // Cut 25 §2: a move adds no exit unless the core says so
   // Cut 23 §3 (AI: `survives 92% … reach D5 −88` — "a number I could not read"): one form — an exit's point is surviving, so it loses its
   // number and says what it costs in a word (`return early`); every other patch reads its reach move (`reach D6 +8 ±3`)
   if (exits) return h("span", { class: "num delta exit early" }, p.row.verb.v === "bank" ? /* copy:callout */ "bank early" : /* copy:callout */ "return early");

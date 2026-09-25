@@ -14,6 +14,20 @@ import { audio } from "../audio";
 /** The last `kitDeltas()` and what it was measured for (the set, the kit owned, the best, the start): the sheet paints it at once. */
 let kitMemo: { key: string; kit: KitLadder[] } | null = null;
 const kitKey = (app: App): string => JSON.stringify([app.rules.rows, (app.lineage.kit ?? []).map((k) => k.owned), app.lineage.best_depth, app.lineage.start ?? 1]);
+/** Cut 25 §4: the measure in flight and the state it measures — the sheet opened meanwhile waits on it rather than asking again. */
+let kitAsk: { key: string; p: Promise<KitLadder[]> } | null = null;
+/** Cut 25 §4 (AM: ~8 s of `…` on the forge's steps after an absence): the forge's moves measured ahead of the tap — the report after an
+ *  absence and a quiet camp (a refined forecast) ask for them (on the forge's own lane), so the sheet paints them at once. Nothing when
+ *  the forge has no step to measure, the memo already holds this state, or its measure is in flight. */
+export function measureKit(app: App): Promise<KitLadder[]> | null {
+  if (!app.engine.kitDeltas || !(app.lineage.kit ?? []).some((k) => k.next)) return null;
+  const k = kitKey(app);
+  if (kitMemo?.key === k) return Promise.resolve(kitMemo.kit);
+  if (kitAsk?.key === k) return kitAsk.p;
+  const p = app.engine.kitDeltas().then((m) => { kitMemo = { key: k, kit: m }; return m; });
+  kitAsk = { key: k, p }; void p.catch(() => undefined).finally(() => { if (kitAsk?.p === p) kitAsk = null; });
+  return p;
+}
 /* copy:label */
 const SLOT_LABEL: Record<string, string> = { weapon: "weapon", armour: "armour", pack: "pack" };
 
@@ -63,7 +77,10 @@ export function openForge(app: App): void {
               n.per_night ? h("span", { class: "per-night" }, /* copy:callout */ ` at $${n.per_night}`) : "") : ""];
           if (n.affordable && app.engine.buyKit) {
             // two taps (`ok $340`); armed, it stays armed through the deltas' repaint (the key) until a tap lands elsewhere
-            const b = twoTap(inner.filter((x): x is HTMLElement => typeof x !== "string"), /* copy:button */ `ok $${n.price}`, () => void buyStep(lad.slot), { class: "chip kit-next buyable", key: `kit:${lad.slot}:${n.label}` });
+            // Cut 25 §6 (AN): armed, the line stays as it was and its price turns `ok $340` where it stood (nothing moves: the second tap
+            // lands where the first did)
+            const armedContent = (): Node[] => inner.filter((x): x is HTMLElement => typeof x !== "string").map((x) => x.classList.contains("kit-price") ? h("b", { class: "num kit-price kit-ok" }, /* copy:button */ ` · ok $${n.price}`) : x.cloneNode(true));
+            const b = twoTap(inner.filter((x): x is HTMLElement => typeof x !== "string"), /* copy:button */ `ok $${n.price}`, () => void buyStep(lad.slot), { class: "chip kit-next buyable", key: `kit:${lad.slot}:${n.label}`, armedContent });
             b.dataset.slot = lad.slot; act = b;
           } else act = h("button", { class: "chip kit-next off", disabled: true, "data-slot": lad.slot }, ...inner);
         }
@@ -84,8 +101,8 @@ export function openForge(app: App): void {
     function measure(): void {
       const k = kitKey(app);
       if (kitMemo?.key === k) { paint(kitMemo.kit, false); return; }
-      if (!app.engine.kitDeltas) return;
-      void app.engine.kitDeltas().then((m) => { kitMemo = { key: k, kit: m }; if (kit.isConnected && kitKey(app) === k) paint(m, false); }).catch((e) => { console.warn("kitDeltas", e); if (kit.isConnected) paint(null, false); });
+      const ask = measureKit(app); if (!ask) return;
+      void ask.then((m) => { if (kit.isConnected && kitKey(app) === k) paint(m, false); }).catch((e) => { console.warn("kitDeltas", e); if (kit.isConnected) paint(null, false); });
     }
     const memo = kitMemo?.key === kitKey(app) ? kitMemo.kit : null;
     paint(memo, !memo && !!app.engine.kitDeltas);

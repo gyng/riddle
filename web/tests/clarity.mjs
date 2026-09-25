@@ -22,6 +22,7 @@
 //
 //   node web/tests/clarity.mjs        (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
@@ -492,6 +493,41 @@ try {
     check(kind === "wasm", `the real engine answers (${kind})`);
     check(med <= 1000 && t.burst.first <= 1200 && t.busy.first <= 1200, `real wasm (${kind}): an edit's first pass paints ≤ 1 s (quiet ${t.quiet.map((q) => q.first).join("/")} ms, median ${med}; after a burst ${t.burst.first}; slow measures in flight ${t.busy.first})`);
     check(refines.every((x) => x <= 3000), `real wasm: the refine lands ≤ 3 s (quiet ${t.quiet.map((q) => q.refine).join("/")} ms; after a burst ${t.burst.refine}; slow measures in flight ${t.busy.refine})`);
+  }
+  // Cut 25 §4 (AM: 5–9 s of `…` after an edit, ~8 s for the forge's estimates on a D11 lineage after an absence): the deep fixture
+  // (`tests/fixtures/deep.json`, the core's engine save of AM's shape — `crates/riddle-core/examples/deep.rs`), real wasm: the camp's
+  // first paint and refine, an edit's (the median of three), and the forge's estimates opened from the camp — reported against the
+  // contract's bars (first paint ≤ 1.2 s, refine ≤ 3 s, forge ≤ 3 s); `RIDDLE_DEEP_GATE=1` makes them checks (headed, a quiet machine)
+  const deepPath = process.env.RIDDLE_DEEP ?? resolve(ROOT, "web/tests/fixtures/deep.json");   // (`RIDDLE_DEEP=path` another save)
+  if (!process.argv.includes("--no-wasm") && existsSync(deepPath)) {
+    const save = readFileSync(deepPath, "utf8").trim();
+    const engine = save.startsWith("{\"v\"") && JSON.parse(save).engine ? JSON.parse(save).engine : save;   // an engine save, or a client blob
+    await page.goto(`${url}?dev=1&fresh=1&seed=2501`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && s.screen === "camp", "the real engine's camp", 120_000);
+    const ok = await page.evaluate((engine) => window.__riddle.importSave(JSON.stringify({ v: 2, engine, loadout: [], last_seen: Date.now(), runs: 0 })), engine);
+    await waitFor((s) => s?.booted && s.screen === "camp", "the deep camp", 60_000);
+    const t = await page.evaluate(async () => {
+      const r = window.__riddle, log = [];
+      r.onForecast((f) => log.push({ t: performance.now(), refined: f.refined }));
+      const until = (pred, ms) => new Promise((res) => { const t0 = performance.now(); const tick = () => { if (pred() || performance.now() - t0 > ms) res(pred()); else setTimeout(tick, 15); }; tick(); });
+      const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+      const took = async (at) => { await until(() => log.some((x) => x.refined === true), 30_000); return { first: Math.round((log.find((x) => x.refined === false)?.t ?? NaN) - at), refine: Math.round((log.find((x) => x.refined === true)?.t ?? NaN) - at) }; };
+      log.length = 0; let at = performance.now(); r.go({ kind: "camp" });
+      const camp = await took(at); await wait(8000);
+      const i = r.rules.rows.findIndex((x) => x.conds.some((c) => c.n !== undefined));
+      const c = r.rules.rows[i]?.conds.find((x) => x.n !== undefined);
+      const edits = [];
+      for (const d of [5, -5, 10]) { if (!c) break; log.length = 0; at = performance.now(); c.n = Math.max(5, c.n + d); r.rulesChanged(); edits.push(await took(at)); await wait(1500); }
+      await wait(4000);   // the quiet camp (its prefetch)
+      at = performance.now(); document.querySelector(".cmd .tile[data-tile=forge]")?.click();
+      await until(() => { const m = [...document.querySelectorAll(".sheet-wrap .forge .kit-move")]; return m.length > 0 && m.every((x) => !/…/.test(x.textContent)); }, 30_000);
+      const forge = Math.round(performance.now() - at);
+      return { camp, edits, forge, best: r.lineage.best_depth, kit: !!document.querySelector(".sheet-wrap .forge .kit-move") };
+    });
+    const med = t.edits.map((e) => e.first).sort((a, b) => a - b)[1], medR = t.edits.map((e) => e.refine).sort((a, b) => a - b)[1];
+    const line = `deep D${t.best} (real wasm): camp first ${t.camp.first} ms · refine ${t.camp.refine}; an edit's first ${t.edits.map((e) => e.first).join("/")} (median ${med}) · refine ${t.edits.map((e) => e.refine).join("/")} (median ${medR}); forge ${t.kit ? `${t.forge} ms` : "no step"} — bars 1.2 s · 3 s · 3 s`;
+    if (process.env.RIDDLE_DEEP_GATE === "1") check(ok && med <= 1200 && medR <= 3000 && (!t.kit || t.forge <= 3000), line);
+    else out.push(`note ${line}`);
   }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);

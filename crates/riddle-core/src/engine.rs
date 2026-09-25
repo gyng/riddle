@@ -354,6 +354,17 @@ pub struct Run {
     pub pickup_inv: usize,
     #[serde(default)]
     pub items_until: u32,
+    /// Cut 25 §3: floor items the chores give up on this floor (a `pick up` that stood on one and
+    /// left it lying: the pack would not take it). Cleared at the stairs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skip_items: Vec<u32>,
+    /// Cut 25 §3: the drain stretch under way (`Ev::Drain`'s word) — `None` once a foe is in view
+    /// or at the stairs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drain_on: Option<String>,
+    /// Cut 25 §3: the blows on the hero since his last action (`Trace.blows`), oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blows: Vec<crate::wire::TraceBlow>,
     /// Where hostiles were last seen (id → position, action), so pathing does not flip
     /// between "blocked" and "open" as a corridor foe drifts in and out of view.
     #[serde(default)]
@@ -1987,6 +1998,10 @@ pub struct DeathRec {
     /// set by the verdict: its `row` stands whatever an added row would survive.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chase_row: Option<usize>,
+    /// Cut 25 §2: the verdict's moves (`trace::order_moves`) — every own row shadowed while its
+    /// conditions held, moved above the rows that won; joined to the shown patches last.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub moves: Vec<crate::wire::Patch>,
 }
 
 fn is_zero_u64(n: &u64) -> bool {
@@ -2995,6 +3010,9 @@ impl Game {
             pickup_streak: 0,
             pickup_inv: 0,
             items_until: 0,
+            skip_items: Vec::new(),
+            drain_on: None,
+            blows: Vec::new(),
             known_foes: BTreeMap::new(),
             loot_raw: 0,
             low_hp: i32::MAX,
@@ -4950,7 +4968,7 @@ pub fn found_in_pack(run: &Run, pack: &BTreeMap<(u32, String), i32>, key: &(u32,
 /// Cut 9 §5: the last `EXIT_TRACE_LEN` hero turns of a run, from its trace ring. Cut 11 §3:
 /// plus the run's provenance log (every `because` event), when it has one.
 pub fn exit_trace(run: &Run, prov: &[crate::provenance::Prov]) -> Trace {
-    Trace { turns: run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect(), provenance: crate::provenance::all(prov), blow: death_blow(run) }
+    Trace { turns: run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect(), provenance: crate::provenance::all(prov), blow: death_blow(run), blows: death_blows(run) }
 }
 
 /// QA on 0c6e126 (qaY): a death's killing blow, the trace's last row (`Trace.blow`); none on
@@ -4961,6 +4979,19 @@ pub fn death_blow(run: &Run) -> Option<crate::wire::TraceBlow> {
     }
     let by = run.death_cause.clone()?;
     Some(crate::wire::TraceBlow { t: run.death_t.unwrap_or(run.turn), by, dmg: run.death_blow.max(1), hp: 0 })
+}
+
+/// Cut 25 §3: a death's blows after the last action, oldest first, the killing one last (`Trace.blows`);
+/// empty when there was only the one (`Trace.blow` says it).
+pub fn death_blows(run: &Run) -> Vec<crate::wire::TraceBlow> {
+    if run.over != Some(ExitTier::Death) || run.blows.len() < 2 {
+        return Vec::new();
+    }
+    let mut out = run.blows.clone();
+    if let (Some(last), Some(b)) = (out.last_mut(), death_blow(run)) {
+        *last = b;
+    }
+    out
 }
 
 #[allow(clippy::too_many_arguments)]

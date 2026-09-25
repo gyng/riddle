@@ -224,6 +224,13 @@ pub struct Hero {
     pub max_hp_base: i32,
 }
 
+/// Cut 25 §1: what a piece of armour is worth to wear — twice its armour, a forged piece's
+/// three less (it blunts where found armour negates: `Hero::blunt`), so a found piece within a
+/// point of it is worn and the forged one rides in the pack.
+pub fn armour_worth(a: &Item) -> i32 {
+    2 * a.def_bonus() - 3 * crate::kit::is_kit_id(a.id) as i32
+}
+
 impl Hero {
     pub fn new(class: Class, pos: Pos) -> Hero {
         let max_hp = class.base_hp();
@@ -282,12 +289,32 @@ impl Hero {
     pub fn def(&self) -> i32 {
         self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0) + if self.bulwark_t > 0 { 3 } else { 0 } + if self.ward_t > 0 { 2 } else { 0 }
     }
+    /// Cut 25 §1 (AN: three forge buys took bank 40 → 95 %, more than any row): the forged
+    /// armour blunts a blow, never negates it — a third of a blow (rounded) always lands through
+    /// it (mail +1 had made the D1–D10 bands' 1–3 blows harmless). Found armour subtracts as it always did
+    /// (the Deep's walls are measured on it); a verb's guard (`bulwark`, `ward`) subtracts in full.
+    pub fn blunt(&self, roll: i32) -> i32 {
+        let armour = self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0).max(0);
+        let forged = self.armour.as_ref().is_some_and(|a| crate::kit::is_kit_id(a.id));
+        let guard = if self.bulwark_t > 0 { 3 } else { 0 } + if self.ward_t > 0 { 2 } else { 0 };
+        let through = if forged { (roll - armour).max((roll + 1) / 3) } else { (roll - armour).max(0) };
+        (through - guard).max(0)
+    }
+    /// Cut 25 §1: the chance a blow lands — the forged weapon's steps are aim (`kit::AIM_PER_STEP`
+    /// a step), not damage; any other arm hits 80 %.
+    pub fn hit_pct(&self) -> u32 {
+        match &self.weapon {
+            Some(w) if crate::kit::is_kit_id(w.id) => 80 + crate::kit::AIM_PER_STEP * w.enchant.max(0) as u32,
+            _ => 80,
+        }
+    }
     pub fn speed(&self) -> i32 {
         let mut s = 10;
         if let Some(w) = &self.weapon {
             s += w.def().speed;
         }
-        if let Some(a) = &self.armour {
+        // Cut 25 §1: the forged piece is fitted to the heir — no mail's drag (its blows blunt instead).
+        if let Some(a) = self.armour.as_ref().filter(|a| !crate::kit::is_kit_id(a.id)) {
             s += a.def().speed;
         }
         if self.speed_t > 0 {
@@ -341,8 +368,8 @@ impl Hero {
                 }
             }
             Cat::Armour => {
-                let cur = self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0);
-                if item.def_bonus() > cur {
+                let cur = self.armour.as_ref().map(armour_worth).unwrap_or(i32::MIN);
+                if armour_worth(&item) > cur {
                     let old = self.armour.replace(item);
                     if let Some(o) = old {
                         if !self.inv_full() || crate::kit::is_kit_id(o.id) {

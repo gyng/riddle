@@ -26,8 +26,8 @@ import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
 import { openChronicle } from "./chronicle";
-import { kitAffordable, openForge } from "./forge";
-import { stallLabel, classList, deltaClass, deltaLabel, deltaPts, goldAffordable, addCard, isCard, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
+import { kitAffordable, measureKit, openForge } from "./forge";
+import { afterOf, labelOf, stallLabel, classList, deltaClass, deltaLabel, deltaPts, goldAffordable, addCard, isCard, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS } from "../engine/classes";
@@ -499,6 +499,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     }).catch((e) => console.warn("catalogue", e));
   }
   let supplyGen = 0, unlockGen = 0;
+  const KIT_QUIET_MS = 2000;   // Cut 25 §4
+  let cellIds: string[] = [], cellHeights: number[] = [];   // Cut 25 §6: the unlock grid's fixed cells (this camp's)
   let unlockCat: Parameters<typeof classList>[1];
   function paintUnlocks(): void {
     const gen = ++unlockGen;
@@ -530,6 +532,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   function paintShelf(cat: UnlockInfo[]): void {
     {
+      // Cut 25 §6: the cells' heights as painted (a hidden panel measures 0: nothing recorded)
+      const was = [...unlocks.querySelectorAll<HTMLElement>(".cards > .card")].map((el) => el.getBoundingClientRect().height);
+      was.forEach((x, i) => { if (x > (cellHeights[i] ?? 0)) cellHeights[i] = x; });
       clear(unlocks);
       // Cut 10 §3: `+1 row` waits for the rows to fill (a client-side gate; the core may send the same `needs`)
       const list = visible(cat).map((u) => withRowsGate(u, app.ownRows(), app.vocab.max_rows));   // Cut 12 §1: own rows
@@ -550,8 +555,29 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // QA 1a2a4a9 (O, P: "offers stay put between two opens"; the report's PENDING and the shelf differed): the core's short list
       // (`UnlockInfo.short`, from the lineage alone) when it sends one — the same three here and in the report
       if (list.some((u) => u.short !== undefined)) next = list.filter((u) => u.short);
-      const shown = unlocksAll() || list.length <= 3 ? list : list.filter((u) => next.includes(u));
-      for (const u of shown) {
+      const picked = unlocksAll() || list.length <= 3 ? list : list.filter((u) => next.includes(u));
+      // Cut 25 §6 (AN: "the grid reflowed under my finger after a buy — bought path: bones by accident"): fixed cells — while the camp is
+      // up each card keeps the cell it was first painted in; a bought step's successor takes its cell (`+1 row` → the next `+1 row`), any
+      // other bought card leaves its cell as `✓` (a tap there buys nothing); a new card takes the next free cell; a cell never shrinks
+      // (a card that left the short list unbought frees its cell for the next one picked: the short list stays three)
+      const byId = new Map(picked.map((u) => [u.id, u]));
+      const cells: (typeof list[number] | string | null)[] = [];
+      const placed = new Set<string>();
+      for (const id of cellIds) {
+        const succ = list.find((u) => afterOf(u.id) === id && !placed.has(u.id));
+        const u = byId.get(id) ?? succ;
+        if (u && !placed.has(u.id)) { cells.push(u); placed.add(u.id); }
+        else if (cat.some((x) => x.id === id && x.owned)) cells.push(id);
+        else cells.push(null);
+      }
+      for (const u of picked) if (!placed.has(u.id)) { const free = cells.indexOf(null); if (free >= 0) cells[free] = u; else cells.push(u); placed.add(u.id); }
+      while (cells.length && cells[cells.length - 1] === null) cells.pop();
+      cellIds = cells.map((c) => c === null ? "" : typeof c === "string" ? c : c.id);
+      const shown = cells.filter((c): c is typeof list[number] => !!c && typeof c !== "string");
+      for (const c of cells) {
+        if (c === null) { grid.appendChild(h("div", { class: "card done empty", "aria-hidden": "true" })); continue; }
+        if (typeof c === "string") { grid.appendChild(h("div", { class: "card done", "data-id": c, "aria-hidden": "true" }, h("span", { class: "card-main" }, h("span", null, labelOf(c))), h("span", { class: "num cost" }, "✓"))); continue; }
+        const u = c;
         // `available` = prerequisite + fact gate + affordable (engine truth). Two dims: gated (the `needs` line
         // is what is missing, marks are there) and unaffordable.
         // Cut 4 §9: the forecast delta of buying (tactic cards), only when the catalogue carries one and it is not 0
@@ -565,10 +591,13 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           h("span", { class: "card-main" }, h("span", null, u.label), u.carries ? h("small", { class: "carries dim" }, u.carries) : "", u.needs ? h("small", { class: "needs dim" }, u.gated && !byGold ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
             d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d, app.rules.rows.length)) : "",
             stallLabel(u) ? h("small", { class: "num delta down stall-risk" }, stallLabel(u)) : ""),   // QA 92eb880: the stall risk before buying
-          h("span", { class: "num cost" }, priceLabel(u))));   // QA 23ed91f: a free door reads no `◆0`; Cut 18 §5: both prices, `◆3 · $450`
+          h("span", { class: "num cost" }, priceLabel(u))));
+        (grid.lastElementChild as HTMLElement).dataset.id = u.id;   // QA 23ed91f: a free door reads no `◆0`; Cut 18 §5: both prices, `◆3 · $450`
       }
       unlocks.appendChild(grid);
-      if (shown.length < list.length) unlocks.appendChild(h("button", { class: "mini more", onclick: () => { setUnlocksAll(true); paintFrom(cat); } }, /* copy:button */ "more"));
+      // a cell keeps the height it had (a delta line landing or a card's successor never pulls the cells under it up)
+      [...grid.children].forEach((el, i) => { const hgt = cellHeights[i]; if (hgt) (el as HTMLElement).style.minHeight = `${hgt}px`; });
+      if (shown.length < list.length) unlocks.appendChild(h("button", { class: "mini more", onclick: () => { setUnlocksAll(true); cellIds = []; cellHeights = []; paintFrom(cat); } }, /* copy:button */ "more"));
       // an owned chip reads `card: thief guard · owned` (QA on 952e306: "bought card appears at the end with no cost"); its sheet
       // carries the title and, for a card whose row was dropped, `insert`
       // QA e75ec29: a card owned but off the set carries its own `add` (the buy put it in only where the core measured it helps)
@@ -583,10 +612,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     send.classList.toggle("small", app.overBudget);
     // Cut 22 (AG, AH: "the watch stayed on `fast 4×` from the earlier run — I hadn't noticed"): the remembered mode is kept (QA on
     // e0f87e7 asked for it) and the gem says it — `send` over a small `fast` — so the next run's pace is never a surprise
-    const fast = app.watchMode === "fast";
+    const fast = app.watchMode !== "fights";   // Cut 25 §3: `fast` or the plain `1×` under the gem
     send.dataset.mode = app.watchMode;
     replace(send, app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
-      : fast ? h("span", { class: "send-l" }, /* copy:button */ "send", h("small", { class: "send-mode" }, /* copy:label */ "fast")) : /* copy:button */ "send");   // Cut 12 §1: own rows
+      : fast ? h("span", { class: "send-l" }, /* copy:button */ "send", h("small", { class: "send-mode" }, app.watchMode === "one" ? /* copy:label */ "1×" : /* copy:label */ "fast")) : /* copy:button */ "send");   // Cut 12 §1: own rows
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }
@@ -601,6 +630,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
-  const offShadow = app.onForecast(() => editor.paintShadow());   // QA 92eb880: a shadowed row's mark lands with the forecast of the rules now
-  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); fc.dispose(); shaft.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  // Cut 25 §4: a quiet camp (the refine landed, then KIT_QUIET_MS with no forecast asked) measures the forge's steps ahead of the tap, on
+  // the forge's own lane — only when a step is affordable (the tile's badge: the tap it invites); a burst of edits never queues a measure
+  let kitTimer = 0;
+  const offShadow = app.onForecast((f) => {
+    editor.paintShadow(); clearTimeout(kitTimer);
+    if (f.refined && kitAffordable(app.lineage) > 0 && (revealed(app).has("forge") || revealed(app).has("kit"))) { const seq = app.forecastSeq, rows = JSON.stringify(app.rules.rows); kitTimer = window.setTimeout(() => { if (seq === app.forecastSeq && rows === JSON.stringify(app.rules.rows) && el.isConnected) void measureKit(app)?.catch(() => undefined); }, KIT_QUIET_MS); }
+  });   // QA 92eb880: a shadowed row's mark lands with the forecast of the rules now
+  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); fc.dispose(); shaft.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

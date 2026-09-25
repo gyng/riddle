@@ -40,14 +40,16 @@ if (typeof document !== "undefined") document.addEventListener("pointerdown", (e
   const t = e.target as Node | null;
   for (const [el, disarm] of [...armedNow]) if (!(t && el.contains(t))) disarm();
 }, true);
-export function twoTap(label: string | Node[], armedLabel: string, act: () => void, attrs: { class?: string; disabled?: boolean; key?: string } = {}): HTMLButtonElement {
+/** Cut 25 §6 (AN: "a two-tap `ok $275`"): `armedContent` — the armed face as nodes, in place of the bare `armedLabel` (the forge's step keeps
+ *  its line and turns its price into `ok $340` where it stood: the second tap lands where the first was). */
+export function twoTap(label: string | Node[], armedLabel: string, act: () => void, attrs: { class?: string; disabled?: boolean; key?: string; armedContent?: () => Node[] } = {}): HTMLButtonElement {
   const content = (): Child[] => (typeof label === "string" ? [label] : label);
   const plain = typeof label === "string" ? label : armedLabel;
   const b: HTMLButtonElement = h("button", { class: attrs.class ?? "chip mini", disabled: attrs.disabled, "aria-label": plain });
   const key = attrs.key;
   let armed = false;
   const disarm = (): void => { armed = false; armedNow.delete(b); if (key) armedKeys.delete(key); if (!b.isConnected) return; b.classList.remove("armed"); replace(b, ...content()); b.setAttribute("aria-label", plain); };
-  const arm = (): void => { armed = true; armedNow.set(b, disarm); if (key) armedKeys.add(key); b.classList.add("armed"); replace(b, armedLabel); b.setAttribute("aria-label", armedLabel); };
+  const arm = (): void => { armed = true; armedNow.set(b, disarm); if (key) armedKeys.add(key); b.classList.add("armed"); replace(b, ...(attrs.armedContent ? attrs.armedContent() : [armedLabel])); b.setAttribute("aria-label", armedLabel); };
   b.onclick = (e: Event): void => {
     e.stopPropagation();
     if (armed) { armed = false; armedNow.delete(b); if (key) armedKeys.delete(key); act(); return; }

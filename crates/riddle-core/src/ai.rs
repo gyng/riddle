@@ -24,7 +24,12 @@ pub const THIEF_FLEE: i32 = 600;
 
 /// 80% to hit; damage = roll(atk) − def, min 0.
 pub fn roll_hit(rng: &mut crate::rng::Rng, atk: (i32, i32), def: i32) -> (bool, i32) {
-    let hit = rng.chance(80);
+    roll_hit_pct(rng, atk, def, 80)
+}
+
+/// `roll_hit` at `pct` to hit (Cut 25 §1: the forged weapon's steps are aim, `Hero::hit_pct`).
+pub fn roll_hit_pct(rng: &mut crate::rng::Rng, atk: (i32, i32), def: i32, pct: u32) -> (bool, i32) {
+    let hit = rng.chance(pct);
     let roll = rng.range(atk.0, atk.1);
     (hit, if hit { (roll - def).max(0) } else { 0 })
 }
@@ -161,7 +166,7 @@ fn nearest_item_step(run: &mut Run, cx: &mut Ctx, chore: bool) -> bool {
     let cands: Vec<Pos> = run
         .items
         .iter()
-        .filter(|fi| run.floor.map.is_seen(fi.pos) && crate::turn::would_take(run, cx, &fi.item) && !(chore && run.in_den_zone(fi.pos)))
+        .filter(|fi| run.floor.map.is_seen(fi.pos) && crate::turn::would_take(run, cx, &fi.item) && !(chore && run.in_den_zone(fi.pos)) && !(chore && run.skip_items.contains(&fi.item.id)))
         .map(|fi| fi.pos)
         .collect();
     if cands.is_empty() {
@@ -1333,7 +1338,7 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
     let atk = run.hero.atk();
     let atk = (atk.0 * mult, atk.1 * mult);
     let def = run.monsters[mi].effective_def();
-    let (hit, dmg) = roll_hit(&mut run.rng, atk, def);
+    let (hit, dmg) = roll_hit_pct(&mut run.rng, atk, def, run.hero.hit_pct());
     let id = run.monsters[mi].id;
     run.last_hit_verb = Some(verb.into());
     if verb == "shoot" {
@@ -2602,7 +2607,6 @@ fn engaged(run: &Run, mi: usize) -> bool {
 pub(crate) enum Take {
     Inv(usize),
     Coins(i32),
-    Weapon,
 }
 
 /// Cut 22 §2 (AH: "the monkey stole the heal potion on D1 … 8 seconds after I paid $40"): a
@@ -2615,7 +2619,7 @@ pub(crate) enum Take {
 /// Cut 23 §5 (AI: "the leash stolen nearly every run"; 0.24 leash thefts a send over the
 /// cohort sets): a leash — the only pet gear, the kennel's free one included — is taken only
 /// when the pack holds nothing else, after the packed supplies.
-pub(crate) fn thief_pick(run: &mut Run, potions_only: bool, random: bool, weapon: bool) -> Option<Take> {
+pub(crate) fn thief_pick(run: &mut Run, potions_only: bool, random: bool) -> Option<Take> {
     let pet_gear = |run: &Run, i: usize| run.hero.inv[i].kind == "leash";
     // Cut 24 §3 (AL: a thief took the leather +1 just forged): the kit is never a thief's.
     let kit = |run: &Run, i: usize| crate::kit::is_kit_id(run.hero.inv[i].id);
@@ -2641,7 +2645,9 @@ pub(crate) fn thief_pick(run: &mut Run, potions_only: bool, random: bool, weapon
             return Some(Take::Inv(c[k]));
         }
     }
-    (weapon && run.hero.weapon.as_ref().is_some_and(|w| !crate::kit::is_kit_id(w.id))).then_some(Take::Weapon)
+    // Cut 25 §5 (AN: a monkey took the weapon in hand on D1–D3 in five runs): what the hero wears
+    // is his, not loot — the weapon in hand and the armour on him are never a thief's.
+    None
 }
 
 /// Takes `take` off the hero: the item (coins as a gold pile the thief drops when killed) and
@@ -2661,7 +2667,6 @@ pub(crate) fn thief_take(run: &mut Run, take: Take) -> (Item, Option<i32>) {
             run.loot_add_gold(-n);
             it
         }
-        Take::Weapon => run.hero.weapon.take().expect("a weapon in hand"),
     };
     if it.kind != "gold" {
         run.note_gone(it.id, &it.kind, "stolen", it.amount.max(1));
@@ -2693,8 +2698,9 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
     }
     let m = &run.monsters[mi];
     let atk = (m.atk.0 * mult, m.atk.1 * mult);
-    let def = run.hero.def();
-    let (hit, dmg) = roll_hit(&mut run.rng, atk, def);
+    // Cut 25 §1: armour blunts a blow, never negates it (`Hero::blunt`).
+    let (hit, roll) = roll_hit(&mut run.rng, atk, 0);
+    let dmg = if hit { run.hero.blunt(roll) } else { 0 };
     let id = run.monsters[mi].id;
     let kind = run.monsters[mi].kind.clone();
     cx.events.push(Ev::Attack { t: run.turn, src: id, dst: HERO_ID, dmg, hit, verb: Some(verb.into()) });
@@ -2715,7 +2721,7 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
         // A forge imp only steals potions. Cut 22 §2: what was found first, a coin pile's
         // worth next, a packed supply last (`thief_pick`).
         let potions_only = kind == "forge_imp";
-        if let Some(take) = thief_pick(run, potions_only, true, false) {
+        if let Some(take) = thief_pick(run, potions_only, true) {
             let (it, amount) = thief_take(run, take);
             // Cut 7 §3: a den thief's theft counts against the den.
             if run.monsters[mi].situation.as_deref() == Some("den") {
