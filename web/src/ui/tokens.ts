@@ -126,3 +126,18 @@ export function combosIn(rows: Row[], table: Combo[] | undefined): ComboHit[] {
 export const noteText = (t: string): string => t.replace(/ \(\d+\)(?=[.?!]?$)/, "").replace(/^([^.!?:]+: [a-z]+(?: [a-z]+)?)\.$/, "$1").replace(/\bheir (\d+)'s\b/g, "♟$1's")
   // QA 778fa1b (qaU, qaV: `R1 returned; died to jackal.` read as a return that worked): a return row that fired and did not get him home
   .replace(/\bR(\d+) (return|bank)(?:ed); died\b/g, /* copy:diary_line */ "R$1 $2 too late; died");
+
+/** Cut 23 §3: a reason's gloss — the core's `Vocabulary.why_gloss` (reason prefix → ≤ 3 words), the longest prefix that matches
+ *  (`same as R2` → `same as R`); undefined when none does. A `✗` callout passes its reason (`read ✗ no use` → `no use`). */
+export function glossOf(table: Record<string, string> | undefined, why: string | undefined): string | undefined {
+  if (!table || !why) return undefined;
+  const w = why.includes("✗") ? why.slice(why.indexOf("✗") + 1).trim() : why.trim();
+  let best: string | undefined;
+  for (const k of Object.keys(table)) if (w.startsWith(k) && (!best || k.length > best.length)) best = k;
+  return best !== undefined ? table[best] : undefined;
+}
+
+/** Cut 23 §3: the vocabulary's gloss table as last fetched (the app sets it), for reason lines drawn without the app at hand. */
+let whyTable: Record<string, string> | undefined;
+export function setWhyGloss(t: Record<string, string> | undefined): void { whyTable = t; }
+export const whyGloss = (why: string | undefined): string | undefined => glossOf(whyTable, why);

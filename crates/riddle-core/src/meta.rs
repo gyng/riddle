@@ -36,8 +36,11 @@ pub const UNLOCKS: &[UnlockDef] = &[
     UnlockDef { id: "cond_on_see", cost: 2, prereq: None },
     UnlockDef { id: "cond_party_hp", cost: 2, prereq: None },
     UnlockDef { id: "corridor_fighting", cost: 3, prereq: None },
-    UnlockDef { id: "kite_archers", cost: 3, prereq: None },
-    UnlockDef { id: "stair_dance", cost: 3, prereq: None },
+    // Cut 23 §3 (AJ: "paid cards are rows he could type"): a card whose rows are all in the
+    // typed vocabulary is free (`card_carries`: kite archers, stair dance, noise discipline,
+    // deep march); the paid ones carry a verb or a bound target no row can.
+    UnlockDef { id: "kite_archers", cost: 0, prereq: None },
+    UnlockDef { id: "stair_dance", cost: 0, prereq: None },
     UnlockDef { id: "gas_step", cost: 3, prereq: None },
     UnlockDef { id: "pack_break", cost: 3, prereq: None },
     UnlockDef { id: "thief_guard", cost: 3, prereq: None },
@@ -56,9 +59,9 @@ pub const UNLOCKS: &[UnlockDef] = &[
     UnlockDef { id: "vault5", cost: 8, prereq: Some("vault4") },
     UnlockDef { id: "party_slot_4", cost: 8, prereq: Some("party_slot_3") },
     UnlockDef { id: "cadence", cost: 5, prereq: None },
-    UnlockDef { id: "noise_discipline", cost: 5, prereq: None },
+    UnlockDef { id: "noise_discipline", cost: 0, prereq: None },
     UnlockDef { id: "reflect_read", cost: 5, prereq: None },
-    UnlockDef { id: "deep_march", cost: 5, prereq: None },
+    UnlockDef { id: "deep_march", cost: 0, prereq: None },
     UnlockDef { id: "lantern_rig", cost: 6, prereq: None },
     UnlockDef { id: "recall_sense", cost: 8, prereq: None },
 ];
@@ -169,13 +172,13 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             let available = !owned && needs.is_none();
             // Cut 12 §1: a tactic card says where its row goes (before the engagement row).
             let insert_at = (!owned && is_tactic_card(u.id)).then(|| card_insert_at(l.rules()));
-            let gold = if owned { 0 } else { gold_price(u.cost, l.gold_buys) };
+            let gold = if owned { 0 } else { unlock_gold(l, u, l.gold_buys) };
             // Cut 19 §3: the next row unlock is pinned to the short list.
             let pinned = !owned && is_row_unlock(u.id) && u.prereq.is_none_or(|p| l.unlocks.contains(p));
             // QA on a946e04: the chain's next step and its prices (`UnlockInfo.next`).
-            let next = UNLOCKS.iter().find(|n| n.prereq == Some(u.id) && !l.unlocks.contains(n.id)).map(|n| crate::wire::NextUnlock { id: n.id.into(), cost: n.cost, gold: gold_price(n.cost, l.gold_buys), gold_after_gold: gold_price(n.cost, l.gold_buys + 1) });
-            let gold_next = if owned { 0 } else { gold_price(u.cost, l.gold_buys + 1) };
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned, short: false, auto_insert: false, next, gold_next }
+            let next = UNLOCKS.iter().find(|n| n.prereq == Some(u.id) && !l.unlocks.contains(n.id)).map(|n| crate::wire::NextUnlock { id: n.id.into(), cost: n.cost, gold: unlock_gold(l, n, l.gold_buys), gold_after_gold: unlock_gold(l, n, l.gold_buys + 1) });
+            let gold_next = if owned { 0 } else { unlock_gold(l, u, l.gold_buys + 1) };
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned, short: false, auto_insert: false, next, gold_next, carries: card_carries(u.id).map(str::to_string) }
         })
         .collect();
     mark_short(l, &mut cat);
@@ -255,6 +258,31 @@ pub fn unlock_rows(id: &str) -> Option<Vec<Row>> {
         "recall_sense" => Some(vec![rowa(vec![n("hp<", 15)], "read", "recall")]),
         _ => None,
     }
+}
+
+/// Cut 23 §3 (AJ: "paid cards are rows he could type"): what a paid card holds that no typed
+/// row can — a verb or a cond outside the typed vocabulary, or a pre-bound target — ≤ 4 words.
+/// `None` for a card that carries nothing outside the vocabulary — those cost 0 (kite
+/// archers, stair dance, noise discipline, deep march, and the mastery cards, which a class
+/// earns) — and for every other unlock (`cards_carry_outside_the_vocabulary` test).
+///
+/// The paid cards and what they carry: `hold` (a verb no row types: stand and let the foe
+/// come) in corridor fighting, gas step, pack break and cadence; `throw fire` bound to a tag
+/// (`fire,tag:thief`, `fire,tag:boss`) in thief guard, boss focus, reflect read, and bound to
+/// the nearest foe at 30 % in last stand (the vocabulary's throws are `unknown` or a kind at
+/// `nearest` only once identified).
+pub fn card_carries(id: &str) -> Option<&'static str> {
+    Some(match id {
+        "corridor_fighting" => "hold in corridors",
+        "gas_step" => "hold off gas",
+        "pack_break" => "hold vs packs",
+        "thief_guard" => "fire at thieves",
+        "boss_focus" => "fire at the boss",
+        "last_stand" => "fire point blank",
+        "cadence" => "hold, then fire",
+        "reflect_read" => "fire at the boss",
+        _ => return None,
+    })
 }
 
 /// Cut 18 §5: the foe tag a tactic card answers (its card row's `foe_tag`: `kite_archers` →
@@ -554,6 +582,16 @@ pub fn gold_price(cost: u32, gold_buys: u32) -> u32 {
     GOLD_PER_MARK * cost * (4 + gold_buys) / 4
 }
 
+/// Cut 23 §1 (both cohort-18 raters: "a $1650 row" beside nothing else to buy): an unlock's
+/// gold price — a row slot sits on the forge's ladder (`kit::row_gold`: a multiple of the
+/// lineage's unit, never climbing with other gold buys); any other unlock is `gold_price`.
+pub fn unlock_gold(l: &LineageState, u: &UnlockDef, gold_buys: u32) -> u32 {
+    if u.cost == 0 {
+        return 0;
+    }
+    crate::kit::row_gold(l, u.id).unwrap_or_else(|| gold_price(u.cost, gold_buys))
+}
+
 /// Cut 15 §2: buy an unlock with gold instead of marks — the same gates as `buy` (owned,
 /// prerequisite, fact/trophy gate), the gold price instead of the marks; the marks are left
 /// alone, the ledger reads `unlock <id>`, and the next gold price climbs.
@@ -572,12 +610,15 @@ pub fn buy_gold(game: &mut Game, id: &str) -> Result<(), String> {
     if let Some(n) = gate(l, id) {
         return Err(format!("needs {n}"));
     }
-    let price = gold_price(def.cost, l.gold_buys);
+    let price = unlock_gold(l, def, l.gold_buys);
     if l.gold < price as i32 {
         return Err("not enough gold".into());
     }
     l.gold_move(-(price as i32), &format!("unlock {id}"));
-    l.gold_buys += 1;
+    // (a row slot's price is the forge's ladder: it does not raise the other gold prices)
+    if !is_row_unlock(id) {
+        l.gold_buys += 1;
+    }
     l.unlocks.insert(id.into());
     Ok(())
 }
@@ -590,6 +631,12 @@ pub fn pending(game: &Game) -> Vec<String> {
     for u in catalogue(l) {
         if u.available && u.short {
             out.push(format!("unlock {} ({})", u.id, u.cost));
+        }
+    }
+    // Cut 23 §1: a forge step the purse pays now (`forge sword +1 · $300`).
+    for lad in crate::kit::ladders(l) {
+        if let Some(n) = lad.next.filter(|n| n.affordable) {
+            out.push(format!("forge {} · ${}", n.label, n.price));
         }
     }
     let rules = l.rules();
@@ -666,15 +713,17 @@ mod tests {
         let cost: u32 = UNLOCKS.iter().map(|u| u.cost).sum();
         // Cut 8B: the rogue and `tame` cost nothing (were 4 and 2: 6 off the Cut 3 sum).
         // Cut 19 §3: `auto_supply` (4) left the catalogue — the repeat is the free default.
-        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 6 + 8 + 2 + 12 + 24 + 5 + 6 + 4 + 3 + 3 + 6 + 8 + 12 + 8 + 8 + 20 + 6 + 8);
+        // Cut 23 §3: kite archers, stair dance (3 each), noise discipline and deep march (5 each)
+        // carry nothing outside the typed vocabulary: free.
+        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 6 + 8 + 2 + 12 + 18 + 5 + 6 + 4 + 3 + 3 + 6 + 8 + 12 + 8 + 8 + 10 + 6 + 8);
         assert_eq!(UNLOCKS.iter().find(|u| u.id == "rogue").unwrap().cost, 0);
         assert_eq!(UNLOCKS.iter().find(|u| u.id == "tame").unwrap().cost, 0);
         let by = |id: &str| UNLOCKS.iter().find(|u| u.id == id).unwrap();
         assert_eq!(by("row9").prereq, Some("row8"));
         assert_eq!(by("row10").cost, 12);
-        // Cut 4: tier 2 costs 8–12.
+        // Cut 4: tier 2 costs 8–12 (Cut 23 §3: or nothing, a card a player could type).
         for u in UNLOCKS.iter().skip(35) {
-            assert!((5..=12).contains(&u.cost), "{} costs {}", u.id, u.cost);
+            assert!((5..=12).contains(&u.cost) || (u.cost == 0 && card_carries(u.id).is_none()), "{} costs {}", u.id, u.cost);
         }
         let l = LineageState::new(2);
         let cat = catalogue(&l);

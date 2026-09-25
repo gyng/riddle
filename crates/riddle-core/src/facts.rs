@@ -238,7 +238,7 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
             run.boss_seen_t = Some(run.turn);
             run.hurt_since_boss = false;
             let title = run.monsters[i].title();
-            cx.events.push(Ev::Callout { t: run.turn, text: title.clone() });
+            cx.events.push(Ev::Callout { t: run.turn, text: title.clone(), why: None });
             crate::chronicle::note(run, cx, format!("The {title} waits."));
             // Cut 5 §1/§3: the boss leads its own episode; the hero has a word for it.
             crate::sifter::seal(run);

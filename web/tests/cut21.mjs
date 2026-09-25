@@ -78,7 +78,7 @@ try {
   check(pending.length === 3 && pending[1] === "D5 …" && pending[2] === "D9 …", `the picker lists D1 and each lit waystone, \`…\` until measured (${pending.join(" | ")})`);
   // QA 778fa1b (qaV: `D1 · bank 100%` beside `D5 · bank −10` read as −$10): every option in one absolute form — its level, its death share,
   // the gold a send brings home net of the toll (`~$N`), then the toll (Cut 22: $5 × depth)
-  const shape = /^D1 · (bank|D\d+) \d+%( · death \d+%)? · ~\$-?\d+\*$/.test(landed[0] ?? "") && new RegExp(`^D5 · (bank|D\\d+) \\d+%( · death \\d+%)? · ~\\$-?\\d+${T(5).replace("$", "\\$")}$`).test(landed[1] ?? "") && new RegExp(`^D9 · (bank|D\\d+) \\d+%( · death \\d+%)? · ~\\$-?\\d+${T(9).replace("$", "\\$")}$`).test(landed[2] ?? "");
+  const shape = /^D1 · (bank|D\d+) <?\d+%( · death <?\d+%)? · ~\$-?\d+\*$/.test(landed[0] ?? "") && new RegExp(`^D5 · (bank|D\\d+) <?\\d+%( · death <?\\d+%)? · ~\\$-?\\d+${T(5).replace("$", "\\$")}$`).test(landed[1] ?? "") && new RegExp(`^D9 · (bank|D\\d+) <?\\d+%( · death <?\\d+%)? · ~\\$-?\\d+${T(9).replace("$", "\\$")}$`).test(landed[2] ?? "");
   check(shape, `each option: its forecast move and its toll (${landed.join(" | ")})`);
   await shot("cut21-start-picker");
   await page.locator(".sheet-wrap .start-opt[data-start='9']").click({ timeout: 5000 }); await sleep(500);

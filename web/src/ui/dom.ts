@@ -32,14 +32,28 @@ export const items = (n: number): string => `${n} item${n === 1 ? "" : "s"}`;
 /** Seconds → `12m` (whole minutes up); under a minute `40s`. */
 export const spanOf = (s: number): string => (s >= 60 ? `${Math.ceil(s / 60)}m` : `${Math.max(0, Math.round(s))}s`);
 /** QA e75ec29 (R: the `$50` hatch and the `$75` insure charged on one tap): a paid chip takes two taps — the first arms it (its label
- *  becomes `ok $50`, `.armed`), a second within 3 s pays; untouched, it disarms. */
-export function twoTap(label: string, armedLabel: string, act: () => void, attrs: { class?: string; disabled?: boolean } = {}): HTMLButtonElement {
-  let armed = 0;
-  const b: HTMLButtonElement = h("button", { class: attrs.class ?? "chip mini", disabled: attrs.disabled, "aria-label": label, onclick: (e: Event) => {
+ *  becomes `ok $50`, `.armed`), the second pays. Cut 23 §4 (AI: "the drop confirm undid itself"): an armed chip stays armed until it
+ *  is tapped again or a tap lands elsewhere — never on a timer — and a repaint that rebuilds it with the same `key` keeps it armed. */
+const armedKeys = new Set<string>();
+const armedNow = new Map<HTMLElement, () => void>();
+if (typeof document !== "undefined") document.addEventListener("pointerdown", (e) => {
+  const t = e.target as Node | null;
+  for (const [el, disarm] of [...armedNow]) if (!(t && el.contains(t))) disarm();
+}, true);
+export function twoTap(label: string | Node[], armedLabel: string, act: () => void, attrs: { class?: string; disabled?: boolean; key?: string } = {}): HTMLButtonElement {
+  const content = (): Child[] => (typeof label === "string" ? [label] : label);
+  const plain = typeof label === "string" ? label : armedLabel;
+  const b: HTMLButtonElement = h("button", { class: attrs.class ?? "chip mini", disabled: attrs.disabled, "aria-label": plain });
+  const key = attrs.key;
+  let armed = false;
+  const disarm = (): void => { armed = false; armedNow.delete(b); if (key) armedKeys.delete(key); if (!b.isConnected) return; b.classList.remove("armed"); replace(b, ...content()); b.setAttribute("aria-label", plain); };
+  const arm = (): void => { armed = true; armedNow.set(b, disarm); if (key) armedKeys.add(key); b.classList.add("armed"); replace(b, armedLabel); b.setAttribute("aria-label", armedLabel); };
+  b.onclick = (e: Event): void => {
     e.stopPropagation();
-    if (armed && performance.now() - armed < 3000) { armed = 0; act(); return; }
-    armed = performance.now(); b.classList.add("armed"); replace(b, armedLabel); b.setAttribute("aria-label", armedLabel);
-    setTimeout(() => { if (b.isConnected && armed) { armed = 0; b.classList.remove("armed"); replace(b, label); b.setAttribute("aria-label", label); } }, 3000);
-  } }, label);
+    if (armed) { armed = false; armedNow.delete(b); if (key) armedKeys.delete(key); act(); return; }
+    arm();
+  };
+  append(b, content());
+  if (key && armedKeys.has(key) && !attrs.disabled) arm();
   return b;
 }

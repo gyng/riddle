@@ -144,7 +144,8 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let loop_row = if stall { run.stuck_row.and_then(|r| usize::try_from(r).ok()).filter(|&r| r < rules.rows.len()) } else { None };
     let row_fired = run.row_fired.clone();
     let gamble_row = if stall { None } else { gamble_row(run, &rules) };
-    DeathRec { death, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.clone().filter(|(f, _)| f.id == run.id && f.depth == run.depth), gamble_row, chase_row: None }
+    let home = run.home_at.map(|(t, hp, _)| (hp, run.turn.saturating_sub(t)));
+    DeathRec { death, home, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.clone().filter(|(f, _)| f.id == run.id && f.depth == run.depth), gamble_row, chase_row: None }
 }
 
 /// QA on a946e04: how far back from the end a death's notes reach (ticks; 60 hero turns).

@@ -397,7 +397,7 @@ try {
   await waitFor((x) => x?.booted && x.screen === "camp", "camp with an empty forge"); await sleep(300);
   await page.locator(".cmd .tile[data-tile=forge]").first().click({ timeout: 5000 }); await sleep(200);
   const forgeT = await page.evaluate(() => { const w = document.querySelector(".sheet-wrap"); return w ? { text: w.innerText.replace(/\s+/g, " ").trim(), heads: w.querySelectorAll(".lrow.head").length, empty: w.querySelector(".forge .empty-line")?.textContent ?? null } : null; });
-  check(forgeT?.empty === "nothing salvaged" && forgeT.heads === 0 && /^forge nothing salvaged$/i.test(forgeT.text), `an empty forge says so under its label: "${forgeT?.text}"`);
+  check(forgeT?.empty === "nothing salvaged" && forgeT.heads === 0 && /^forge( .*)? nothing salvaged$/i.test(forgeT.text), `an empty forge says so under its label (Cut 23: under the kit ladders): "${forgeT?.text}"`);
   await shot("13-forge-empty");
   await page.keyboard.press("Escape"); await sleep(100);
   // the death frame: at the run's end the floor stays lit, the run controls are dead, ⏸ is gone while `verdict` runs

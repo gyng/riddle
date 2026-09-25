@@ -12,7 +12,8 @@
 import type { App, Mounted } from "../app";
 import type { Death, ExitLine, Row } from "../engine/types";
 import { morgueVerbs } from "./chain";
-import { h, copyText, items, pct } from "./dom";
+import { h, copyText, items } from "./dom";
+import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
 import { applyOf, fillReach, patchRows } from "./patches";
 import { openSheet } from "./sheet";
@@ -83,7 +84,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Cut 13 §5: a `dice` death says what the forecast said for that depth — the reach the camp showed for the floor, verbatim
   // an old death (the chronicle) was sent under another forecast: today's would be a false number (QA on 56f2a1d: `forecast said D7 0%`)
   const said = d.verdict === "dice" && !kept ? forecastSaid(app, d.depth) : undefined;
-  const forecastLine = said !== undefined ? h("div", { class: "forecast-said num dim" }, /* copy:callout */ `forecast said D${d.depth} ${pct(said)}`) : null;
+  const forecastLine = said !== undefined ? h("div", { class: "forecast-said num dim" }, /* copy:callout */ `forecast said D${d.depth} ${share(said, lowOf(app.lastForecast))}`) : null;
   // Cut 6 §1: the exit's arithmetic, verbatim from the engine (`$144 carried · death keeps 0% → $0 · bones: 7 items on D5`)
   // Cut 11 §5: tappable — the gold sheet filtered to this run's movements
   // Cut 20 §4 (AC: "$80 gone after death, `repeat · $80` — only understood when removing refunded $40"): the loadout's re-pack for

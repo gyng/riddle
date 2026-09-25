@@ -2,7 +2,7 @@
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
   BonesPile, CageOption, StartOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
-  Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because,
+  Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 import { combosIn } from "../ui/tokens";
@@ -448,7 +448,7 @@ function killMon(run: Run, m: Mon, cause: string, ev: Ev[]): void {
   run.floor.mons = run.floor.mons.filter((x) => x !== m);
   ev.push({ t: run.turn, k: "die", id: m.id, cause });
   run.killed = true; run.kills[m.kind] = (run.kills[m.kind] ?? 0) + 1; run.killXp += 1 + run.depth / 5; run.score += m.tags.includes("boss") ? 25 : Math.ceil(m.max_hp / 4);
-  if (m.tags.includes("gas")) { for (const [dx, dy] of [[0, 0], ...DIRS]) { const x = m.x + dx, y = m.y + dy; if (inb(x, y) && passable(run.floor.tiles[idx(x, y)])) { run.floor.overlays.push({ x, y, k: "gas", ttl: 4 }); ev.push({ t: run.turn, k: "overlay", x, y, ov: "gas", ttl: 4 }); } } ev.push({ t: run.turn, k: "callout", text: "bloat pops" }); learn(run, `foe:${m.kind}:gas`, ev); gasNear(run, m); }
+  if (m.tags.includes("gas")) { for (const [dx, dy] of [[0, 0], ...DIRS]) { const x = m.x + dx, y = m.y + dy; if (inb(x, y) && passable(run.floor.tiles[idx(x, y)])) { run.floor.overlays.push({ x, y, k: "gas", ttl: 4 }); ev.push({ t: run.turn, k: "overlay", x, y, ov: "gas", ttl: 4 }); } } ev.push({ t: run.turn, k: "callout", text: "bloat pops", why: "gas burst" }); learn(run, `foe:${m.kind}:gas`, ev); gasNear(run, m); }
   if (m.tags.includes("splitter") && m.max_hp >= 6) { for (let i = 0; i < 2; i++) { const [dx, dy] = DIRS[i]; const x = m.x + dx, y = m.y + dy; if (inb(x, y) && passable(run.floor.tiles[idx(x, y)]) && !occupied(run, x, y)) { const c: Mon = { ...m, id: run.nextId++, x, y, hp: Math.ceil(m.max_hp / 2), max_hp: Math.ceil(m.max_hp / 2) }; run.floor.mons.push(c); ev.push({ t: run.turn, k: "spawn", e: ent(c) }); } } learn(run, `foe:${m.kind}:splitter`, ev); }
   if (m.tags.includes("boss")) { run.hl.push({ pattern: "boss", score: 6, t: run.turn, run_id: run.id, text: `${nameOf(m)} slain on D${run.depth}` }); ev.push({ t: run.turn, k: "note", text: `${nameOf(m)} slain` }); }
 }
@@ -935,10 +935,29 @@ type State = {
   lineage: Lineage; rules: RuleSet; loadout: number[]; killed: string[]; runCounter: number; logs: Record<number, RunLog>; nextItem: number;
   tamedKinds: string[]; bredKinds: string[]; nextCid: number; killCounts: Record<string, number>;
   totalTurns: number;   // Cut 11 §5: the lineage tick (×10 like the events): `GoldLine.t` and `Snapshot.run.started_turn`, as the core's `total_turns`
+  kit?: Record<string, number>;   // Cut 23 §1: forge steps owned per ladder (the core's `LineageState.kit`)
 };
 
 /** Cut 15 §2: the core's `meta::gold_price` — `150 × cost × (4 + gold_buys) / 4`, integer; 0 for a free unlock. */
 const goldPrice = (cost: number, goldBuys: number): number => Math.floor(150 * cost * (4 + goldBuys) / 4);
+/** Cut 23 §1: the core's forge (`kit::*`) — a unit price from the lineage's best depth (`100 + 25 × best`), each step a multiple. */
+const kitUnit = (best: number): number => 100 + 25 * best;
+const KIT_MULT: Record<string, number[]> = { weapon: [1, 4, 9], armour: [1, 4, 8, 14], pack: [2, 5, 10, 16] };
+const KIT_ARMOUR = ["leather", "leather +1", "mail", "mail +1"];
+/** Cut 23 §1: the row slots on the same ladder (`row5` … `row10`). */
+const ROW_MULT: Record<string, number> = { row5: 2, row6: 5, row7: 10, row8: 16, row9: 22, row10: 30 };
+/** Cut 23 §3: the core's `why_gloss` — every reason a row did not act → its reason on tap (≤ 3 words). */
+const WHY_GLOSS: Record<string, string> = {
+  "no path": "way blocked", "no target": "no foe reachable", "no line": "shot blocked", "no bow": "needs a bow", "cooldown": "skill recharging",
+  "no item": "none in pack", "unknown item": "kind unidentified", "no unknown": "no unknowns held", "no use": "no effect now", "no leash": "needs a leash",
+  "none weak": "none weak enough", "not safe": "foes too near", "no stairs": "stairs not found", "going home": "heading home", "prayed": "prayed already",
+  "no shrine": "no shrine here", "no way": "exit unreachable", "card passed": "card not triggered", "brave held": "bravery held it", "stuck": "loop guard waits",
+  "row guard": "row rested (loop)", "same as R": "earlier row covers", "trait first": "trait acted first", "hazard first": "left the hazard", "recall sense": "recall read first",
+  "paralysed": "cannot act", "confused": "stumbled instead", "bail": "called home", "locked cond": "cond not bought", "fired, free": "free action",
+};
+/** Cut 23 §3: what each paid card holds outside the typed vocabulary (the core's `meta::card_carries`). */
+const CARD_CARRIES: Record<string, string> = { corridor_fighting: "four rows, one slot", kite_archers: "two rows, one slot", stair_dance: "three rows, one slot", gas_step: "four rows, one slot",
+  pack_break: "four rows, one slot", thief_guard: "den raid first", boss_focus: "three rows, one slot", last_stand: "five rows, one slot" };
 
 export class FakeEngine implements Engine {
   private s!: State;
@@ -946,6 +965,36 @@ export class FakeEngine implements Engine {
   private lastDeath: Record<number, Death> = {};
   private settled = new Set<number>();
   private goldBuys = 0;   // Cut 15 §2: gold buys so far (the core's `LineageState.gold_buys`)
+  private get kitOwned(): Record<string, number> { return (this.s.kit ??= { weapon: 0, armour: 0, pack: 0 }); }   // Cut 23 §1 stand-in, saved with the state
+  private kitLadders(deltas = false): KitLadder[] {
+    const L = this.s.lineage; const unit = kitUnit(L.best_depth); const w = L.class === "fighter" ? "sword" : L.class === "ranger" ? "bow" : "dagger";
+    return (["weapon", "armour", "pack"] as const).map((slot) => {
+      const mult = KIT_MULT[slot]; const owned = this.kitOwned[slot] ?? 0;
+      const label = (i: number): string => slot === "weapon" ? `${w} +${i + 1}` : slot === "armour" ? KIT_ARMOUR[i] : `pack ${4 + i}`;
+      const steps = mult.map((m, i) => ({ label: label(i), price: unit * m, owned: i < owned }));
+      const nx = steps[owned]; const night = 1200;
+      const next = nx ? { label: nx.label, price: nx.price, affordable: L.gold >= nx.price, nights: L.gold >= nx.price ? 0 : Math.ceil((nx.price - L.gold) / night),
+        ...(deltas ? { depth: L.best_depth + 1, delta: 0.03 + 0.02 * owned, pm: 0.02, bank: 0.02, death: -0.02 } : {}) } : undefined;
+      return next ? { slot, owned, steps, next } : { slot, owned, steps };
+    });
+  }
+  buyKit(slot: string): Lineage {
+    const L = this.s.lineage; const lad = this.kitLadders().find((k) => k.slot === slot);
+    if (!lad) throw new Error("unknown slot"); if (!lad.next) throw new Error("top of the ladder"); if (L.gold < lad.next.price) throw new Error("not enough gold");
+    this.gold(-lad.next.price, `forge ${lad.next.label}`); this.kitOwned[slot] = (this.kitOwned[slot] ?? 0) + 1; return this.lineage();
+  }
+  kitDeltas(): KitLadder[] { return this.kitLadders(true); }
+  /** Cut 23 §3 stand-in: a row's why-not (`0/164 · no gas met`), from the row's shape; null before the first send. */
+  private rowWhy(): (RowWhy | null)[] {
+    const sends = this.s.runCounter; if (!sends) return this.s.rules.rows.map(() => null);
+    return this.s.rules.rows.map((r, i) => {
+      const actions = 40 * sends; const tag = r.conds.find((c) => c.k === "foe_tag")?.t;
+      if (tag && Math.abs(hash(`${tag}`)) % 2 === 0) return { sends, actions, fired: 0, matched: 0, unmet: { why: tag, n: actions }, text: `0/${actions} · no ${tag} met` };
+      if (r.verb.v === "read" || r.verb.v === "throw") { const n = 3 + i; return { sends, actions, fired: 0, matched: n, blocked: { why: "no item", n }, text: `0/${actions} · blocked · no item` }; }
+      const fired = Math.abs(hash(`${i}:${r.verb.v}`)) % (actions / 2);
+      return { sends, actions, fired, matched: fired, text: `${fired}/${actions}` };
+    });
+  }
 
   private flavourMap(): Map<string, string> {
     const r = mulberry32(this.s.lineage.seed ^ 0x5eed); const f = [...FLAVOURS], m = new Map<string, string>();
@@ -962,7 +1011,7 @@ export class FakeEngine implements Engine {
   }
   /** Cut 12 §1: the cap on the player's OWN rows; card rows (`{v:"tactic"}`) sit outside it, one per owned card. */
   private maxRows(): number { return 4 + ["row5", "row6", "row7", "row8"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
-  private supplyCap(): number { return this.s.lineage.unlocks.includes("supply_cap_5") ? 5 : 3; }
+  private supplyCap(): number { return Math.min(8, (this.s.lineage.unlocks.includes("supply_cap_5") ? 5 : 3) + (this.s?.kit?.pack ?? 0)); }   // Cut 23 §1: each pack step +1
   /** Cut 12 §1: where a bought card's row goes — before the set's engagement row (the first `attack` / `shoot`), else the end. */
   private cardInsertAt(): number { const i = this.s.rules.rows.findIndex((r) => r.verb.v === "attack" || r.verb.v === "shoot"); return i < 0 ? this.s.rules.rows.length : i; }
   private vaultSlots(): number { return 1 + ["vault2", "vault3", "vault4"].filter((u) => this.s.lineage.unlocks.includes(u)).length; }
@@ -1021,6 +1070,8 @@ export class FakeEngine implements Engine {
       else delete L.class_offer; }
     // Cut 9 §10: the forge ladder's next rung per kind (`3/5 → craftable`, `6/15 → +1`, `20/40 → +2`; none at the top)
     for (const f of Object.values(this.s.lineage.forge ?? {})) { const rung = FORGE_LADDER.find((r) => f.salvaged < r.need); if (rung) f.next = { ...rung }; else delete f.next; }
+    this.s.lineage.kit = this.kitLadders();   // Cut 23 §1
+    this.s.lineage.row_why = this.rowWhy();   // Cut 23 §3
     return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage;
   }
   /** Cut 6 §5: bosses whose counter fact is known, with the counter as a row. */
@@ -1133,7 +1184,7 @@ export class FakeEngine implements Engine {
     if (L.unlocks.includes("tame")) { verbs.push({ v: "tame", a: "nearest" }); for (const t of tags) verbs.push({ v: "tame", a: `tag:${t}` }); }
     if (L.party.length) { verbs.push({ v: "recall" }, { v: "send" }); }
     for (const c of TACTIC_CARDS) if (L.unlocks.includes(c)) verbs.push({ v: "tactic", a: c });
-    return { conds: gated, verbs, max_rows: this.maxRows(), combos: COMBOS, locked };
+    return { conds: gated, verbs, max_rows: this.maxRows(), combos: COMBOS, locked, why_gloss: WHY_GLOSS };   // Cut 23 §3: why_gloss
   }
   setRules(set: RuleSet): void {
     // Cut 12 §1: own rows ≤ max_rows and card rows ≤ cards owned (one per card) — refused, never truncated
@@ -1200,7 +1251,7 @@ export class FakeEngine implements Engine {
     // Cut 18 §3: reach falls to ≤ 5 % below a boss's floor (from over 5 % on it): the row names the wall (`D9 0% · warlord wall`)
     for (const d of depths) { const boss = BOSS[d.depth - 1]; const above = depths.find((x) => x.depth === d.depth - 1); if (boss && above && d.reach <= 0.05 && above.reach > 0.05) d.wall = boss; }
     const death = ends.death / N;
-    return { depths, causes: top, known_to, ends: { bank: ends.bank / N, return: ends.return / N, death, gold: ends.gold / N, pm: 1.96 * Math.sqrt((death * (1 - death)) / N) } };   // Cut 13 §5: the ends line's own ±
+    return { depths, causes: top, known_to, sims: N, low: Math.ceil(100 / N), ends: { bank: ends.bank / N, return: ends.return / N, death, gold: ends.gold / N, pm: 1.96 * Math.sqrt((death * (1 - death)) / N) } };   // Cut 13 §5: the ends line's own ±; Cut 23 §2: `low` — a 0 of N prints `<low%`
   }
 
   private startRun(): Run {
@@ -1374,7 +1425,7 @@ export class FakeEngine implements Engine {
     const at = (s0: number): { bank: number; gold: number; reach: number; death: number } => { const k = (s0 - 1) / 30; return { bank: Math.max(0, Math.min(1, bank + (bank > 0 ? 0.3 * k : 0) - 0.4 * k * k)), gold: gold * (1 + 2 * k), reach: Math.max(0, 1 - k), death: Math.min(1, death0 + 1.8 * k) }; };
     const c = at(cur);
     return starts.map((st) => { const o = at(st); return { start: st, current: st === cur, toll: st > 1 ? WAYSTONE_TOLL * st : 0, short: st > 1 && L.gold < WAYSTONE_TOLL * st, biome: biomeOf(st), depth: Math.max(1, L.best_depth), reach: o.reach, reach_delta: o.reach - c.reach,
-      bank: o.bank, bank_delta: o.bank - c.bank, gold: o.gold, gold_delta: o.gold - c.gold, delta: bank > 0 ? o.bank - c.bank : o.reach - c.reach, pm: 1.96 * Math.sqrt(o.bank * (1 - o.bank) / 20), death: o.death }; });
+      bank: o.bank, bank_delta: o.bank - c.bank, gold: o.gold, gold_delta: o.gold - c.gold, delta: bank > 0 ? o.bank - c.bank : o.reach - c.reach, pm: 1.96 * Math.sqrt(o.bank * (1 - o.bank) / 20), death: o.death, low: 5 }; });
   }
   /** Cut 19 §3 stand-in: the fake has no repeat; the flag is kept on the lineage so the tile can toggle. */
   setRestock(on: boolean): Lineage { (this.s.lineage as Lineage).repeat = on; if (!on) return this.clearSupplies(); return this.lineage(); }
@@ -1543,7 +1594,7 @@ export class FakeEngine implements Engine {
     if (cost === 0) throw new Error("not for gold");
     if (!this.unlockVisible(unlock)) throw new Error("prerequisite missing");
     const u = UNLOCKS[unlock]; if (u?.gate && !u.gate(L)) throw new Error(`needs ${u.needs}`);
-    const price = goldPrice(cost, this.goldBuys);
+    const price = ROW_MULT[unlock] ? ROW_MULT[unlock] * kitUnit(L.best_depth) : goldPrice(cost, this.goldBuys);   // Cut 23 §1: rows on the forge's ladder
     if (L.gold < price) throw new Error("not enough gold");
     this.gold(-price, `unlock ${unlock}`); this.goldBuys++;
     L.unlocks.push(unlock); if (unlock === "party_slot_2") L.party_slots = 2; if (unlock === "party_slot_3") L.party_slots = 3;
@@ -1568,6 +1619,8 @@ export class FakeEngine implements Engine {
       ...(TACTIC_CARDS.includes(id) && !owned && ((Math.abs(hash(id)) % 9) - 2) >= 0 && this.s.rules.rows.filter((r) => r.verb.v === "tactic").length < 3 ? { auto_insert: true } : {}),
       // QA a946e04 stand-in: the chain's next step and its prices (`row5` → `row6`), and this card's price after one more gold buy
       ...(nextOf[id] && UNLOCKS[nextOf[id]] && !L.unlocks.includes(nextOf[id]) ? { next: { id: nextOf[id], cost: UNLOCKS[nextOf[id]].cost, gold: goldPrice(UNLOCKS[nextOf[id]].cost, this.goldBuys), gold_after_gold: goldPrice(UNLOCKS[nextOf[id]].cost, this.goldBuys + 1) } } : {}),
+      ...(CARD_CARRIES[id] ? { carries: CARD_CARRIES[id] } : {}),                                      // Cut 23 §3
+      ...(ROW_MULT[id] && !owned ? { gold: ROW_MULT[id] * kitUnit(L.best_depth) } : {}),                  // Cut 23 §1: a row slot on the forge's ladder
       gold_next: owned ? 0 : goldPrice(u.cost, this.goldBuys + 1) };
     });
   }

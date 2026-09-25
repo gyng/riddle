@@ -15,10 +15,10 @@
 // over budget marks the last own rows, `+` waits on own rows); picking a card verb clears the row's conds (a card row carries
 // none) and the picker never offers a card another row already holds.
 import type { App } from "../app";
-import type { Cond, Row, RuleSet, Verb, Vocabulary } from "../engine/types";
+import type { Cond, Row, RowWhy, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash } from "./dom";
 import { openSheet } from "./sheet";
-import { NUMS, PCT, combosIn, depthNums, condLabel, condName, isCardRow, needsN, ownRowCount, rowLabel, sameCond, sameVerb, verbLabel } from "./tokens";
+import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, sameCond, sameVerb, verbLabel } from "./tokens";
 
 export type Editor = { el: HTMLElement; refresh(): void; paintShadow(): void };
 /** Cut 17 §2: the camp's tablets. `compact()` true: each row is one carved tablet (`R1  hp < 30% → drink unknown`), a single
@@ -28,9 +28,10 @@ export type EditorOpts = { compact?: () => boolean; onTablet?: (i: number) => vo
 /** What the editor edits: the hero's active set, or a companion's own rows. */
 export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; cardRows?(id: string): Row[] | undefined;
                         shadowedBy?(): (number | null)[];   // QA 92eb880: per row, the earlier row that takes all its moments (the engine's read)
-                        nums?(k: string): number[] | undefined };   // Cut 21 §3: a cond's values read off the lineage (`depth ≥` to best + 2); else the table's
+                        nums?(k: string): number[] | undefined;   // Cut 21 §3: a cond's values read off the lineage (`depth ≥` to best + 2); else the table's
+                        rowWhy?(): (RowWhy | null)[] };           // Cut 23 §3: per row, what it did over the recent sends and why not (the core's `row_why`)
 export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id), shadowedBy: () => app.shadowedBy(),
-  nums: (k) => k === "depth>=" ? depthNums(app.lineage?.best_depth ?? 0, app.vocab) : undefined });
+  nums: (k) => k === "depth>=" ? depthNums(app.lineage?.best_depth ?? 0, app.vocab) : undefined, rowWhy: () => app.rowWhy() });
 
 /** Cut 6 §6: a row as read-only chips (`foe: ranged → kite`), shared by the card sheet and the shelf. */
 export function rowChips(row: Row): HTMLElement {
@@ -76,8 +77,11 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     const compact = opts.compact?.() ?? false;
     el.classList.toggle("compact", compact);
     if (compact) {
-      rows().forEach((row, i) => list.appendChild(h("button", { class: `row tablet compact${isCardRow(row) ? " locked" : ""}`, "data-i": i, onclick: () => opts.onTablet?.(i) },
-        h("span", { class: "rn num" }, `R${i + 1}`), h("span", { class: "rtext" }, rowLabel(row)))));
+      // Cut 23 §3 (AJ: `foe: gas → throw unknown` fired 0/164, no word): a tablet with a why-not (the row sat through a send) opens it on
+      // tap — `0/164 · no gas met`, `3/164 · blocked · no scroll` and the reason's gloss — with `edit` under it; else the tap edits
+      rows().forEach((row, i) => { const b: HTMLButtonElement = h("button", { class: `row tablet compact${isCardRow(row) ? " locked" : ""}`, "data-i": i,
+        onclick: () => { const w = bind.rowWhy?.()[i]; if (w) openWhy(i, b, () => opts.onTablet?.(i)); else opts.onTablet?.(i); } },
+        h("span", { class: "rn num" }, `R${i + 1}`), h("span", { class: "rtext" }, rowLabel(row))); list.appendChild(b); });
       paintShadow();
       return;
     }
@@ -145,10 +149,10 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       // Cut 8B §4: the card's rows, inline and dim — rows the player could have written
       if (cardRows?.length) chips.appendChild(h("div", { class: "card-inline" }, ...cardRows.map((r) => rowChips(r))));
     } else {
-      row.conds.forEach((c, ci) => chips.appendChild(h("button", { class: "chip cond", onclick: () => pickCond(row, ci) }, condLabel(c))));
-      if (row.conds.length < 2) chips.appendChild(h("button", { class: "chip cond add", onclick: () => pickCond(row, row.conds.length) }, "+"));
+      row.conds.forEach((c, ci) => chips.appendChild(h("button", { class: "chip cond", onclick: (e: Event) => pickCond(row, ci, rowOf(e)) }, condLabel(c))));
+      if (row.conds.length < 2) chips.appendChild(h("button", { class: "chip cond add", onclick: (e: Event) => pickCond(row, row.conds.length, rowOf(e)) }, "+"));
       chips.appendChild(h("span", { class: "arrow" }, "→"));
-      chips.appendChild(h("button", { class: "chip verb", onclick: () => pickVerb(row) }, verbLabel(row.verb)));
+      chips.appendChild(h("button", { class: "chip verb", onclick: (e: Event) => pickVerb(row, rowOf(e)) }, verbLabel(row.verb)));
     }
     const grip = h("button", { class: "grip", onpointerdown: (e) => startDrag(e as PointerEvent, i) }, "≡", h("small", { class: "rn num" }, `R${i + 1}`));
     const n = rows().length;
@@ -161,7 +165,9 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   }
 
   // --- sheets ---
-  function pickCond(row: Row, ci: number): void {
+  /** Cut 23 §4: the row a chip sits on — its option sheet opens beside it, never over it. */
+  const rowOf = (e: Event): HTMLElement | undefined => ((e.currentTarget as HTMLElement | null)?.closest(".row") as HTMLElement | null) ?? undefined;
+  function pickCond(row: Row, ci: number, anchor?: HTMLElement): void {
     const existing = row.conds[ci];
     openSheet((close) => {
       const body = h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "cond"));   // Cut 13 §6: every sheet is titled
@@ -191,7 +197,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       }
       body.appendChild(grid);
       return body;
-    });
+    }, { anchor });
   }
   function pickN(body: HTMLElement, c: Cond, done: (n: number) => void, cur?: number): void {
     clear(body);
@@ -202,7 +208,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     for (const n of numsOf(c.k) ?? []) grid.appendChild(h("button", { class: `chip num${n === cur ? " on" : ""}`, onclick: () => done(n) }, `${n}${pctish ? "%" : ""}`));
     body.appendChild(grid);
   }
-  function pickVerb(row: Row): void {
+  function pickVerb(row: Row, anchor?: HTMLElement): void {
     openSheet((close) => {
       const grid = h("div", { class: "grid" });
       // QA 23ed91f (K: "`drink heal` is the default R1 verb, but it is missing from the VERB list"): the row's own verb is on the list
@@ -230,7 +236,24 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
         grid.appendChild(h("span", { class: "chip verb locked off", "aria-disabled": "true" }, "⊘ ", key, why ? h("small", { class: "needs dim" }, why) : ""));
       }
       return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "verb"), grid);
-    });
+    }, { anchor });
+  }
+
+  /** Cut 23 §3: a row's why-not, anchored to its tablet (never over it): the core's line (`0/164 · no gas met`), the reason's gloss
+   *  (`no item` → `none in pack`), the row that shadows it; `edit` when opened from a compact tablet. */
+  function openWhy(i: number, anchor: HTMLElement, edit?: () => void): void {
+    const row = rows()[i], w = bind.rowWhy?.()[i]; if (!row || !w) return;
+    const gloss = bind.vocab().why_gloss;
+    const reason = w.blocked?.why;
+    const g = glossOf(gloss, reason);
+    const by = bind.shadowedBy?.()[i] ?? formShadow(rows(), i);
+    openSheet((close) => h("div", { class: "sheet-body row-why", "data-row": i },
+      h("div", { class: "label row-label" }, /* copy:label */ "why", " ", h("small", { class: "num dim" }, `R${i + 1}`)),
+      h("div", { class: "why-row chips-inline dim" }, rowLabel(row)),
+      h("div", { class: "why-line num" }, w.text),
+      g ? h("div", { class: "why-gloss num" }, h("span", { class: "dim" }, `${reason} · `), g) : "",
+      by !== null && by !== undefined && by < i ? h("div", { class: "why-gloss num" }, /* copy:callout */ `↑ R${by + 1} first`) : "",
+      edit ? h("button", { class: "btn primary wide why-edit", onclick: () => { close(); edit(); } }, /* copy:button */ "edit") : ""), { anchor });
   }
 
   // --- drag to reorder ---
@@ -244,12 +267,16 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     me.classList.add("dragging");
     const others = rowEls.filter((r) => r !== me);
     const move = (ev: PointerEvent): void => {
+      if (Math.abs(ev.clientY - y0) > 4) moved = true;
       me.style.transform = /* copy:none */ `translateY(${ev.clientY - y0}px)`;
       to = others.filter((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 < ev.clientY; }).length;
       others.forEach((r, k) => { r.classList.toggle("before", k === to); r.classList.toggle("after", to === others.length && k === others.length - 1); });
     };
-    const up = (): void => {
+    let moved = false;
+    const up = (ev: PointerEvent): void => {
       grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
+      // Cut 23 §3: a tap on the grip (no drag) opens the row's why-not
+      if (!moved && ev.type === "pointerup" && bind.rowWhy?.()[from]) { me.classList.remove("dragging"); me.style.transform = ""; openWhy(from, me); return; }
       me.classList.remove("dragging"); me.style.transform = "";
       rowEls.forEach((r) => r.classList.remove("before", "after"));
       if (to !== from) { const rs = rows(); const [r] = rs.splice(from, 1); rs.splice(to, 0, r); hl = to; hlUntil = performance.now() + 1600; commit(); }

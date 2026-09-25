@@ -72,3 +72,16 @@ nothing else, like a packed supply; measure leash thefts per run on the cohort s
 | Leash thefts ≤ 0.1 per run | measured |
 | Bots, dice, stalls, dances, DEFAULT yields 0 | `node tools/gates.mjs --full` |
 | Cohort 19: mean ≥ 76; progression 0.8 from both; α ≥ 0.80 | two blind cards |
+
+## Deviations (core, recorded)
+
+- The weapon ladder has 3 steps (class arm +1…+3), not 4–5: a +4 step broke the D33 wall (kitted
+  FULL−D33 25–27/30). Armour tops out at mail +1: mail +2 made lurkers harmless.
+- The forge gate counts mostly-home sets (like Cut 22's gold gate); T, AE, U print ungated.
+- The walls were thin once kitted: the Lurker Queen takes half damage while a called lurker lives
+  (called lurkers bite +2, up to 8); the Mirror King heals twice what he reflects. Unkitted walls
+  stay ~29–30/30.
+- §2: deaths still mostly come after the turn for home (50–100 % on return sets) — reported, not
+  gated; no single walk × killer cause exceeds half on any set (0/21).
+- Bought-supply thefts rose 0.001 → 0.019 per send (leash moved behind supplies); Cut 22's ≤ 0.1
+  holds.

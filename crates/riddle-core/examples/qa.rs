@@ -351,7 +351,7 @@ fn check_gold_buy(t: &mut Tally, g: &Game, seed: u64) {
     let ok = h.buy_unlock_gold(&u.id).is_ok();
     let line = h.lineage.gold_ledger.last().map(|l| (l.delta, l.why.clone()));
     let after = h.unlocks();
-    let climbed = before.iter().filter(|b| b.id != u.id && !b.owned && b.gold > 0).all(|b| after.iter().any(|a| a.id == b.id && a.gold == riddle_core::meta::gold_price(b.cost, buys + 1) && a.gold > b.gold));
+    let climbed = before.iter().filter(|b| b.id != u.id && !b.owned && b.gold > 0 && riddle_core::kit::row_gold(&h.lineage, &b.id).is_none()).all(|b| after.iter().any(|a| a.id == b.id && a.gold == riddle_core::meta::gold_price(b.cost, buys + 1) && a.gold > b.gold));
     t.check(
         "a gold buy spends gold not marks and raises the next price",
         ok && h.lineage.unlocks.contains(&u.id) && h.lineage.gold == gold - u.gold as i32 && h.lineage.marks == marks && line == Some((-(u.gold as i32), format!("unlock {}", u.id))) && climbed,
@@ -532,7 +532,9 @@ fn check_den_leg(t: &mut Tally, g: &Game, seed: u64) {
             for e in &r.events {
                 match e {
                     Ev::Steal { .. } => out += 1,
-                    Ev::Note { text, .. } if text.starts_with("Got the ") && text.ends_with(" back.") => back += 1,
+                    // (Cut 22 §2: stolen coins come back as `Got $6 back.` — Cut 23 §5 made coins the
+                    // thieves' usual take once the leash went last)
+                    Ev::Note { text, .. } if (text.starts_with("Got the ") || text.starts_with("Got $")) && text.ends_with(" back.") => back += 1,
                     Ev::Note { t: at, text } if text == "Nothing lost to the den." => {
                         t.check("`Nothing lost to the den` never beside a theft still out", out == back, || format!("seed {seed} t{at}: {out} thefts, {back} got back"));
                     }

@@ -12,7 +12,12 @@ pub fn note(run: &mut Run, cx: &mut Ctx, text: String) {
 }
 
 pub fn callout(run: &Run, cx: &mut Ctx, text: &str) {
-    cx.events.push(Ev::Callout { t: run.turn, text: clamp_words(text, 3) });
+    cx.events.push(Ev::Callout { t: run.turn, text: clamp_words(text, 3), why: None });
+}
+
+/// Cut 23 §3: a callout with its reason on tap (≤ 3 words).
+pub fn callout_why(run: &Run, cx: &mut Ctx, text: &str, why: Option<&str>) {
+    cx.events.push(Ev::Callout { t: run.turn, text: clamp_words(text, 3), why: why.map(|w| clamp_words(w, 3)) });
 }
 
 pub fn clamp_words(s: &str, max: usize) -> String {

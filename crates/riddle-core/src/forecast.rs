@@ -401,7 +401,29 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
     let death = share(ExitTier::Death);
     let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()) });
-    Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start }
+    let n_sims = ended.len() as u32;
+    Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start, sims: n_sims, low: low_pct(n_sims) }
+}
+
+/// Cut 23 §2: the smallest share one of `sims` sims makes, in whole percent (`⌈100 / sims⌉`;
+/// 100 with no sims) — a share sampled at 0 reads `<{low}%`.
+pub fn low_pct(sims: u32) -> u32 {
+    if sims == 0 {
+        100
+    } else {
+        100u32.div_ceil(sims)
+    }
+}
+
+/// Cut 23 §2 (AJ: `death 0%`, then death): a sampled share as the camp prints it — whole
+/// percent, and `<N%` (N = `low_pct`) for a share no sim of `sims` showed: a panel of 50 that
+/// saw no death says `death <2%`, never `0%`.
+pub fn share_label(share: f64, sims: u32) -> String {
+    if share <= 0.0 {
+        format!("<{}%", low_pct(sims))
+    } else {
+        format!("{}%", (share * 100.0).round() as i64)
+    }
 }
 
 /// Cut 21 §1: the floor the camp's sims start on — the lineage's start when it is lit and the
@@ -498,6 +520,7 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
             death,
             death_delta: death - base.4,
             refined: sims > FORECAST_SIMS,
+            low: low_pct(n as u32),
         });
     }
     out
@@ -705,5 +728,7 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&format!("start {} {:?}", l.start, l.waystones));
     // QA on a946e04: the night's waystone passes (a sim's send from one pays no toll).
     feed(&format!("passes {:?}", l.night_passes));
+    // Cut 23 §1: the forge's steps (the heir's starting kit).
+    feed(&format!("kit {:?}", l.kit));
     h
 }

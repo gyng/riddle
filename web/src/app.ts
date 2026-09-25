@@ -1,7 +1,8 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
+import type { RowWhy } from "./engine/types";
 import type { AsyncEngine, ComboHit, Death, Forecast, ForecastVs, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary } from "./engine/types";
-import { combosIn, isCardRow, isFreeSupply, ownRowCount } from "./ui/tokens";
+import { combosIn, isCardRow, isFreeSupply, ownRowCount, setWhyGloss } from "./ui/tokens";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
 import { renderCamp } from "./ui/camp";
@@ -43,7 +44,8 @@ const SAVE_DEBOUNCE_MS = 1000;
 // (~3 s per slice; one `death(id)` at the end instead), so slices are a flat 30 min. On a stale wasm build
 // without it, the full call is used with slices that grow with the absence (80 min for 8 h, 2 h cap).
 const OFFLINE_SLICE_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES = 6;
-const REFINE_MS = 2000;
+// Cut 23 §4 (AI: "each forecast takes ~5 s to settle"): the refine starts 1 s after a quiet paint (was 2 s; it runs on the background lane)
+const REFINE_MS = 1000;
 /** Cut 20 §3: an edit's forecast waits this long for the next edit (was 250 ms; the first paint is due ≤ 1 s after the edit). */
 const FC_DEBOUNCE_MS = 100;
 const SLOWDOWNS_KEY = "riddle.slowdowns";
@@ -55,7 +57,10 @@ export class App {
   kind: EngineKind = "fake";
   version = "";
   lineage!: Lineage;
-  vocab!: Vocabulary;
+  private vocab_!: Vocabulary;
+  get vocab(): Vocabulary { return this.vocab_; }
+  /** Cut 23 §3: the vocabulary's `why_gloss` is every reason line's gloss on tap (the trace's chain rows read it through `whyGloss`). */
+  set vocab(v: Vocabulary) { this.vocab_ = v; setWhyGloss(v?.why_gloss); }
   /** Editing copies of the engine's saved sets; `setRules` pushes the active one to the engine. */
   sets: RuleSet[] = [];
   active = 0;
@@ -154,6 +159,17 @@ export class App {
   private shadow: (number | null)[] | null = null;
   private shadowEdited = false;
   shadowedBy(): (number | null)[] { return this.shadow ?? (this.shadowEdited ? [] : this.lineage?.shadowed_by ?? []); }
+  /** Cut 23 §3: each row's why-not (`Lineage.row_why`, per row of the engine's active set as last fetched), matched to the editing copy
+   *  by the row's shape — a row moved keeps its line, a row edited (or new) has none (the core starts it over). */
+  rowWhy(): (RowWhy | null)[] {
+    const L = this.lineage, why = L?.row_why; if (!why?.length) return this.rules.rows.map(() => null);
+    const was = L.sets?.[L.active_set ?? 0]?.rows ?? []; const used = new Set<number>();
+    return this.rules.rows.map((r, i) => {
+      const k = rowKey(r);
+      const j = was[i] && !used.has(i) && rowKey(was[i]) === k ? i : was.findIndex((w, x) => !used.has(x) && rowKey(w) === k);
+      if (j < 0) return null; used.add(j); return why[j] ?? null;
+    });
+  }
   /** Cut 14: the watch's dynamic slowdowns (the fight frame's 2× / 4×, the near and scene holds); off, the clock runs the mode's
    *  flat rate. Persisted in localStorage like `mute` (`riddle.slowdowns`), on by default; the settings sheet toggles it. */
   slowdowns = readSlowdowns();

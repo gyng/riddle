@@ -69,7 +69,7 @@ fn main() {
                             }
                         }
                         Ev::Hurt { t, id, dmg, hp, cause } => println!("{t:>6}   hurt #{id} -{dmg} → {hp} ({cause})"),
-                        Ev::Callout { t, text } => println!("{t:>6}   [{text}]"),
+                        Ev::Callout { t, text, .. } => println!("{t:>6}   [{text}]"),
                         Ev::Use { t, item, outcome } => println!("{t:>6}   use {item}: {outcome}"),
                         Ev::Descend { t, depth, biome } => println!("{t:>6} === D{depth} {biome}"),
                         Ev::Exit { t, tier, loot_kept, .. } => println!("{t:>6} === exit {tier} loot {loot_kept}"),

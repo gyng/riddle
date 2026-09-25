@@ -57,7 +57,7 @@ impl Game {
     }
 
     pub fn vocabulary(&self) -> String {
-        js(&self.inner.vocabulary())
+        js(&self.inner.vocabulary_wire())
     }
 
     #[wasm_bindgen(js_name = setRules)]
@@ -324,6 +324,19 @@ impl Game {
     pub fn forecast_vs(&self, prev: &str) -> Result<String, JsError> {
         let prev = riddle_core::RuleSet::parse(prev).map_err(err)?;
         Ok(js(&self.inner.forecast_vs(&prev)))
+    }
+
+    /// Cut 23 §1: buy the next forge step of `weapon | armour | pack`; returns the Lineage.
+    #[wasm_bindgen(js_name = buyKit)]
+    pub fn buy_kit(&mut self, slot: &str) -> Result<String, JsError> {
+        riddle_core::kit::buy(&mut self.inner, slot).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 23 §1: the forge's ladders with each next step's paired forecast move.
+    #[wasm_bindgen(js_name = kitDeltas)]
+    pub fn kit_deltas(&self) -> String {
+        js(&riddle_core::kit::deltas(&self.inner))
     }
 
     // ---- Cut 3: ascension

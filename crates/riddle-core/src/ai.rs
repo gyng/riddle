@@ -844,9 +844,14 @@ fn mirror_learn(run: &mut Run, cx: &mut Ctx, mi: usize) {
     callout(run, cx, "mirrored!");
 }
 
+/// Cut 23 §1 (the forge's full kit broke the D33 wall without its counter — the harder the
+/// blow, the faster he fell between his mirrors): he heals twice what he sends back, so a
+/// rhythm that repeats gains nothing on him however hard it hits.
+pub const MIRROR_HEAL: i32 = 2;
+
 fn mirror_heal(run: &mut Run, mi: usize, dmg: i32) {
     let m = &mut run.monsters[mi];
-    m.hp = (m.hp + dmg.max(0)).min(m.max_hp);
+    m.hp = (m.hp + MIRROR_HEAL * dmg.max(0)).min(m.max_hp);
 }
 
 /// Cut 5: the Mirror King mirrors the pack too — an ally's third blow of a kind in a row
@@ -2593,16 +2598,19 @@ pub(crate) enum Take {
 }
 
 /// Cut 22 §2 (AH: "the monkey stole the heal potion on D1 … 8 seconds after I paid $40"): a
-/// thief takes what the run found first (its own loot, and the kennel's free leash), then a
-/// vault-brought item (the run's stake, Cut 7), then a coin pile's worth of the carried gold
-/// (`$4 + 2 × depth`: `stolen $6` on D1), and a packed supply only when the pack holds nothing
-/// else; `weapon`: last, the weapon in hand (the den's snatch). `random`: among the kind's candidates by the run's rng, else the
-/// first. A forge imp (`potions_only`) takes potions only, never coins.
+/// thief takes what the run found first (its own loot), then a vault-brought item (the run's
+/// stake, Cut 7), then a coin pile's worth of the carried gold (`$4 + 2 × depth`: `stolen $6`
+/// on D1), and a packed supply only when the pack holds nothing else; `weapon`: last, the
+/// weapon in hand (the den's snatch). `random`: among the kind's candidates by the run's rng,
+/// else the first. A forge imp (`potions_only`) takes potions only, never coins.
+///
+/// Cut 23 §5 (AI: "the leash stolen nearly every run"; 0.24 leash thefts a send over the
+/// cohort sets): a leash — the only pet gear, the kennel's free one included — is taken only
+/// when the pack holds nothing else, after the packed supplies.
 pub(crate) fn thief_pick(run: &mut Run, potions_only: bool, random: bool, weapon: bool) -> Option<Take> {
-    // (the kennel's free leash was never bought: it goes with the found — FULL−D28 held the
-    // Queen's wall on 22 of 30 seeds with it kept from the D1 monkeys, bar 27)
-    let found = |run: &Run, i: usize| run.hero.inv[i].free || (!run.brought.contains(&run.hero.inv[i].id) && !run.supplies.contains(&run.hero.inv[i].id));
-    let brought = |run: &Run, i: usize| run.brought.contains(&run.hero.inv[i].id);
+    let pet_gear = |run: &Run, i: usize| run.hero.inv[i].kind == "leash";
+    let found = |run: &Run, i: usize| !pet_gear(run, i) && !run.brought.contains(&run.hero.inv[i].id) && !run.supplies.contains(&run.hero.inv[i].id);
+    let brought = |run: &Run, i: usize| !pet_gear(run, i) && run.brought.contains(&run.hero.inv[i].id);
     for class in 0..2 {
         let c: Vec<usize> = (0..run.hero.inv.len())
             .filter(|&i| !potions_only || run.hero.inv[i].cat() == Cat::Potion)
@@ -2616,10 +2624,12 @@ pub(crate) fn thief_pick(run: &mut Run, potions_only: bool, random: bool, weapon
     if !potions_only && run.loot > 0 {
         return Some(Take::Coins(run.loot.min(4 + 2 * run.depth as i32)));
     }
-    let c: Vec<usize> = (0..run.hero.inv.len()).filter(|&i| !potions_only || run.hero.inv[i].cat() == Cat::Potion).collect();
-    if !c.is_empty() {
-        let k = if random { run.rng.below(c.len() as u32) as usize } else { 0 };
-        return Some(Take::Inv(c[k]));
+    for gear in [false, true] {
+        let c: Vec<usize> = (0..run.hero.inv.len()).filter(|&i| (!potions_only || run.hero.inv[i].cat() == Cat::Potion) && pet_gear(run, i) == gear).collect();
+        if !c.is_empty() {
+            let k = if random { run.rng.below(c.len() as u32) as usize } else { 0 };
+            return Some(Take::Inv(c[k]));
+        }
     }
     (weapon && run.hero.weapon.is_some()).then_some(Take::Weapon)
 }
@@ -2794,7 +2804,8 @@ pub fn telegraph(run: &mut Run, cx: &mut Ctx, mi: usize, what: &str, pending: Pe
         let kind = run.monsters[mi].kind.clone();
         // The title's last word, lowercase as every callout is (`warlord rallies`, `bloat swells`).
         let title = run.monsters[mi].def().title.split_whitespace().last().unwrap_or("foe").to_lowercase();
-        callout(run, cx, &format!("{title} {what}"));
+        // Cut 23 §3 (AJ: "`IT SHELLS` I could not explain"): the shout says what comes next on tap.
+        crate::chronicle::callout_why(run, cx, &format!("{title} {what}"), Some(pending.why()));
         learn_tag(run, cx, &kind, "telegraph");
         if run.monsters[mi].is_boss() {
             // Every boss telegraphs its mechanic on the first turn; seeing it is the counter fact.
@@ -2802,6 +2813,9 @@ pub fn telegraph(run: &mut Run, cx: &mut Ctx, mi: usize, what: &str, pending: Pe
         }
     }
 }
+
+/// Cut 23 §1: what the Lurker Queen's called lurkers add to a wild lurker's bite (2–5 → 4–7).
+pub const BROOD_BITE: i32 = 2;
 
 /// Living summons that belong to a boss (goblins for the Warlord, skeletons for the Lich).
 /// Rallies the Warlord has in him (two goblins each): past these he fights alone.
@@ -2900,8 +2914,11 @@ fn resolve_pending(run: &mut Run, cx: &mut Ctx, mi: usize, p: Pending) {
             let before = run.monsters.len();
             summon_near(run, cx, mi_pos(run, mi), "lurker", 2, Some(150));
             let heard = run.noise.map(|(p, _)| p);
+            // Cut 23 §1: her called brood bites harder than a wild lurker (`BROOD_BITE`): a kitted
+            // hero's armour shrugged the wild ones off and the wall fell without its counter.
             for m in run.monsters[before..].iter_mut() {
                 m.last_seen = heard;
+                m.atk = (m.atk.0 + BROOD_BITE, m.atk.1 + BROOD_BITE);
             }
             if visible {
                 learn_tag(run, cx, &kind, "summoner");

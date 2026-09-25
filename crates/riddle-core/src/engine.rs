@@ -318,6 +318,9 @@ pub struct Run {
     /// Sims and verdict replays play the same rule (it is the run's own state).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub homeward: Option<i32>,
+    /// Cut 23 §2: when the walk home was committed — (tick, hp %, hp) — for the death mix.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home_at: Option<(u32, i32, i32)>,
     /// The committing row was a `bank` (the walk exits at 100 %), else a `return`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub homeward_bank: bool,
@@ -621,7 +624,7 @@ impl Run {
     /// when it was found on this run, nothing when it never counted — the starting arms, a
     /// brought vault item, a packed supply. A theft or a swap takes off only what was added.
     pub fn loot_value(&self, it: &Item) -> i32 {
-        if it.id == 1 || self.brought.contains(&it.id) || self.supplies.contains(&it.id) {
+        if crate::kit::is_kit_id(it.id) || self.brought.contains(&it.id) || self.supplies.contains(&it.id) {
             0
         } else {
             it.value()
@@ -688,7 +691,7 @@ impl Run {
             return;
         }
         // (id 1 is the class's own arms, picked up again)
-        if id == 1 || self.supplies.contains(&id) || self.brought.contains(&id) {
+        if crate::kit::is_kit_id(id) || self.supplies.contains(&id) || self.brought.contains(&id) {
             return;
         }
         if self.found_units.iter().any(|(g, k)| *g == id && k == kind) && kind != "leash" {
@@ -804,6 +807,9 @@ pub struct Ctx<'a> {
     pub lost: &'a [Lost],
     pub sets: &'a [RuleSet],
     pub active_set: usize,
+    /// Cut 23 §3: the live run's why-not tally per row of the set (`Game.row_tally`; sims
+    /// never write it).
+    pub tally: &'a mut Vec<RowTally>,
 }
 
 /// Cut 5 §4: a companion that died on an expedition (its kennel entry is gone); a later run
@@ -1011,7 +1017,40 @@ pub struct LineageState {
     pub night_theft_rebought: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub theft_skip: Vec<String>,
+    // Cut 23
+    /// §1: the forge — steps owned per ladder (`kit::KIT_SLOTS`), permanent for the lineage.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub kit: BTreeMap<String, u32>,
+    /// §1: this night's net gold (every movement but the player's purchases: unlocks, the
+    /// forge, insurance, hatching) and the last full night's (`kit::nights`).
+    #[serde(default)]
+    pub night_net: i32,
+    #[serde(default)]
+    pub last_night_net: i32,
+    /// §3: per row the recent sends sat under, its why-not tally (`RowTally`), keyed by the
+    /// row's conds and verb; rows no set holds any more are dropped.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub row_stats: Vec<(crate::rules::Row, RowTally)>,
 }
+
+/// Cut 23 §3: one row's why-not over the recent sends (`LineageState::row_stats`). Halved
+/// once `actions` passes `ROW_TALLY_CAP`, so it reads the recent nights.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RowTally {
+    pub sends: u32,
+    pub actions: u32,
+    pub fired: u32,
+    pub matched: u32,
+    /// Reached with its conds holding and did not act: reason → count.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub blocked: BTreeMap<String, u32>,
+    /// Its first failing cond (the cond's own word: `gas`, `hp<`) → count.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub unmet: BTreeMap<String, u32>,
+}
+
+/// Cut 23 §3: a row's tally is halved past this many actions (≈ two nights of sends).
+pub const ROW_TALLY_CAP: u32 = 20_000;
 
 fn default_start() -> u32 {
     1
@@ -1144,6 +1183,10 @@ impl LineageState {
             restock_off: false,
             waystones: Vec::new(),
             start: 1,
+            kit: BTreeMap::new(),
+            night_net: 0,
+            last_night_net: 0,
+            row_stats: Vec::new(),
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -1191,6 +1234,10 @@ impl LineageState {
     /// (`GoldLine.n`; QA on 778fa1b: `repeat heal ×1 · −$104` for four heals).
     pub fn gold_move_n(&mut self, delta: i32, why: &str, n: u32) {
         self.gold += delta;
+        // Cut 23 §1: the night's net is income less upkeep — the player's own purchases are not in it.
+        if !["unlock ", "forge ", "insure ", "hatch", "egg", "ascended"].iter().any(|p| why.starts_with(p)) {
+            self.night_net += delta;
+        }
         let exit = why.starts_with("returned") || why.starts_with("banked") || why.starts_with("died") || why.starts_with("lost") || why.starts_with("stalled");
         // QA on 1a2a4a9: a re-pack the purse could not pay says so (`$0 repeat short`).
         if delta == 0 && !exit && why != REPEAT_SHORT {
@@ -1270,6 +1317,52 @@ impl LineageState {
     pub fn class_level(&self) -> u32 {
         self.classes.get(self.class.name()).map(|c| c.level).unwrap_or(1)
     }
+    /// Cut 23 §3: fold a run's why-not tally (indexed by the active set's rows) into
+    /// `row_stats`, keyed by each row's conds and verb; rows no set holds are dropped.
+    pub fn fold_row_tally(&mut self, tally: &[RowTally]) {
+        let set = self.rules().clone();
+        for (i, r) in set.rows.iter().enumerate() {
+            let Some(t) = tally.get(i).filter(|t| t.actions > 0) else { continue };
+            let pos = self.row_stats.iter().position(|(x, _)| x.conds == r.conds && x.verb == r.verb);
+            let e = match pos {
+                Some(p) => &mut self.row_stats[p].1,
+                None => {
+                    self.row_stats.push((crate::rules::Row::new(r.conds.clone(), r.verb.clone()), RowTally::default()));
+                    &mut self.row_stats.last_mut().expect("pushed").1
+                }
+            };
+            e.sends += 1;
+            e.actions += t.actions;
+            e.fired += t.fired;
+            e.matched += t.matched;
+            for (k, n) in &t.blocked {
+                *e.blocked.entry(k.clone()).or_insert(0) += n;
+            }
+            for (k, n) in &t.unmet {
+                *e.unmet.entry(k.clone()).or_insert(0) += n;
+            }
+            if e.actions > ROW_TALLY_CAP {
+                e.sends = e.sends.div_ceil(2);
+                e.actions /= 2;
+                e.fired /= 2;
+                e.matched /= 2;
+                for n in e.blocked.values_mut().chain(e.unmet.values_mut()) {
+                    *n /= 2;
+                }
+                e.blocked.retain(|_, n| *n > 0);
+                e.unmet.retain(|_, n| *n > 0);
+            }
+        }
+        let sets = self.sets.clone();
+        self.row_stats.retain(|(r, _)| sets.iter().any(|s| s.rows.iter().any(|x| x.conds == r.conds && x.verb == r.verb)));
+    }
+    /// Cut 23 §3: the active set's rows' why-not (`Lineage.row_why`).
+    pub fn row_why(&self) -> Vec<Option<crate::wire::RowStat>> {
+        if self.row_stats.is_empty() {
+            return Vec::new();
+        }
+        self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
+    }
     pub fn to_wire(&self) -> Lineage {
         Lineage {
             seed: self.seed,
@@ -1337,6 +1430,8 @@ impl LineageState {
             start_payable: self.start_payable(self.start.max(1)),
             start_pass: self.night_passes.contains(&self.start.max(1)),
             renamed: self.renamed(),
+            kit: crate::kit::ladders(self),
+            row_why: self.row_why(),
         }
     }
     /// QA on a946e04: every identified flavoured kind's flavour label → its wire name
@@ -1433,11 +1528,8 @@ impl LineageState {
     }
     /// Supplies per expedition (Cut 2 §3 `supply_cap_5`).
     pub fn supply_cap(&self) -> usize {
-        if self.unlocks.contains("supply_cap_5") {
-            5
-        } else {
-            3
-        }
+        // Cut 23 §1: each pack step of the forge holds one more.
+        (crate::kit::base_cap(self) + crate::kit::owned(self, "pack") as usize).min(crate::kit::SUPPLY_CAP_MAX)
     }
     /// Rests an egg needs (Cut 2 §1; `incubator`).
     pub fn egg_rests(&self) -> u32 {
@@ -1550,6 +1642,8 @@ impl LineageState {
         }
         self.picked.retain(|_, p| *p > 0);
         self.night_runs = 0;
+        // Cut 23 §1: the night's net, for the forge's `nights`.
+        self.last_night_net = std::mem::take(&mut self.night_net);
         // QA on a946e04: a new night buys a new waystone pass.
         self.night_passes.clear();
         self.night_short = None;
@@ -1654,6 +1748,9 @@ pub fn trait_offer(seed: u64, heir: u32, last: Option<Trait>, first: Trait) -> [
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DeathRec {
     pub death: Death,
+    /// Cut 23 §2: the run was walking home when it died — (hp % at the commit, ticks walked).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home: Option<(i32, u32)>,
     pub t10: Option<Run>,
     pub t10_facts: BTreeSet<String>,
     pub rules: RuleSet,
@@ -2058,6 +2155,11 @@ pub struct Game {
     /// clears it): a watched bank grants +50% class XP.
     #[serde(default)]
     pub watched: bool,
+    /// Cut 23 §3: the live run's why-not tally per row of the set (`turn::tally_rows`), off the
+    /// run so the history ring's clones do not carry it; folded into
+    /// `LineageState::row_stats` at the run's end.
+    #[serde(default, skip)]
+    pub row_tally: Vec<RowTally>,
 }
 
 fn refined_empty(r: &std::cell::RefCell<std::collections::BTreeSet<String>>) -> bool {
@@ -2097,6 +2199,7 @@ impl Game {
             forecast_cache: Default::default(),
             panel_cache: Default::default(),
             refined_panels: Default::default(),
+            row_tally: Vec::new(),
         }
     }
 
@@ -2126,6 +2229,7 @@ impl Game {
             forecast_cache: Default::default(),
             panel_cache: Default::default(),
             refined_panels: Default::default(),
+            row_tally: Vec::new(),
             last_exit: None,
             watched: false,
             bounty_seen: self.bounty_seen,
@@ -2436,6 +2540,10 @@ impl Game {
         l.banked_depths.clear();
         l.waystones.clear();
         l.start = 1;
+        // Cut 23 §1: the forge starts over with the gold.
+        l.kit.clear();
+        l.night_net = 0;
+        l.last_night_net = 0;
         l.renown = 0;
         l.rank = 0;
         l.graveyard.clear();
@@ -2549,8 +2657,8 @@ impl Game {
         let floor = generate(&mut rng, biome_for(start), start);
         let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
         hero.apply_level(self.lineage.class_level());
-        // Starting arms by class (id 1 is never loot).
-        hero.auto_equip(Item::new(1, self.lineage.class.starting_weapon()));
+        // Starting arms by class, at the forge's steps (Cut 23 §1; the kit's ids are never loot).
+        crate::kit::equip(&self.lineage, &mut hero);
         let mut brought = Vec::new();
         let mut loadout = std::mem::take(&mut self.loadout);
         loadout.sort();
@@ -2698,6 +2806,7 @@ impl Game {
             stuck_cause: None,
             stuck_row: None,
             homeward: None,
+            home_at: None,
             homeward_bank: false,
             repeat_short: self.lineage.repeat_short.clone(),
             trait_last: None,
@@ -2798,6 +2907,7 @@ impl Game {
         let vision = run.vision(&self.lineage.unlocks);
         run.floor.map.update_vision(run.hero.pos, vision);
         self.history.clear();
+        self.row_tally.clear();
         self.facts_at_run_start = self.lineage.facts.len();
         self.run = Some(run);
         let mut cx = self.ctx();
@@ -2856,7 +2966,7 @@ impl Game {
 
     /// Borrow the run and a context together.
     pub fn ctx(&mut self) -> (&mut Run, Ctx<'_>) {
-        let Game { run, lineage, events, sim, prov, .. } = self;
+        let Game { run, lineage, events, sim, prov, row_tally, .. } = self;
         let run = run.as_mut().expect("no live run");
         let set = lineage.active_set.min(lineage.sets.len() - 1);
         let max_rows = lineage.max_rows();
@@ -2879,6 +2989,7 @@ impl Game {
             prov,
             variant: &lineage.variant,
             hunter: lineage.hunter.as_ref(),
+            tally: row_tally,
         };
         (run, cx)
     }
@@ -3238,6 +3349,9 @@ impl Game {
                 }
             }
         }
+        // Cut 23 §3: the run's why-not tally joins the lineage's, row by row.
+        let tally = std::mem::take(&mut self.row_tally);
+        self.lineage.fold_row_tally(&tally);
         // Camp rest (Cut 2 §1): as long as the expedition, capped; a death is a fixed wake.
         let rest = self.rest_after(run.turn, tier);
         self.lineage.rest_left = rest;
@@ -3514,7 +3628,7 @@ impl Game {
         if let Some(w) = &run.bow_swap {
             all.push(w.clone());
         }
-        all.retain(|i| i.cat() != Cat::Gold && i.id != 1 && !matches!(i.kind.as_str(), "bones" | "trap"));
+        all.retain(|i| i.cat() != Cat::Gold && !crate::kit::is_kit_id(i.id) && !matches!(i.kind.as_str(), "bones" | "trap"));
         // QA on 778fa1b (qaV: finds in no named place): where each found item in the pack ends
         // (`found_rows`), by id.
         let mut pack: BTreeMap<(u32, String), i32> = BTreeMap::new();
@@ -4037,6 +4151,14 @@ impl Game {
 
     pub fn vocabulary(&self) -> Vocabulary {
         crate::tokens::vocabulary(&self.lineage)
+    }
+
+    /// Cut 23 §3: the vocabulary as the wire sends it — with the reasons' glosses
+    /// (`Vocabulary.why_gloss`), which stored copies (a death's) do not carry.
+    pub fn vocabulary_wire(&self) -> Vocabulary {
+        let mut v = self.vocabulary();
+        v.why_gloss = crate::turn::WHY_GLOSS.iter().map(|(k, g)| (k.to_string(), g.to_string())).collect();
+        v
     }
 
     // ---- Companions (Addendum A)

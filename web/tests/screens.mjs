@@ -253,8 +253,9 @@ try {
     await waitFor((x) => x?.sheets === 0, "the gold buy sheet closed"); await settle();
     const h1 = await head();
     check(enabled && h1.L.gold === h0.L.gold - price && h1.L.marks === h0.L.marks && h1.gold === `$${h1.L.gold}` && h1.marks === `◆${h1.L.marks}`, `$ buy spent $${price}, not marks: header ${h0.gold} ${h0.marks} → ${h1.gold} ${h1.marks}`);
-    const next = await page.evaluate(async () => (await window.__riddle.engine.unlocks()).find((u) => !u.owned && u.gold)?.gold ?? 0);
-    const cost0 = await page.evaluate(async () => { const u = (await window.__riddle.engine.unlocks()).find((x) => !x.owned && x.gold); return u ? 150 * u.cost : 0; });
+    // Cut 23 §1: a row slot is priced on the forge's ladder (it does not climb with gold buys) — the climb is read off another card
+    const next = await page.evaluate(async () => (await window.__riddle.engine.unlocks()).find((u) => !u.owned && u.gold && !/^row\d+$/.test(u.id))?.gold ?? 0);
+    const cost0 = await page.evaluate(async () => { const u = (await window.__riddle.engine.unlocks()).find((x) => !x.owned && x.gold && !/^row\d+$/.test(x.id)); return u ? 150 * u.cost : 0; });
     check(next > cost0, `the next gold price climbs ($${next} > $${cost0} at the base rate)`);
   }
   if (await page.locator(".unlocks .chip.owned").count()) { await openPanel(page, "unlocks"); await openAndLint(".unlocks .chip.owned", "owned sheet"); await closeSheets(); }

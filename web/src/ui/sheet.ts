@@ -23,15 +23,37 @@ export function onEscapeIdle(fn: (() => void) | null): void { idle = fn; }
 
 /** `modeless`: the backdrop lets taps through to the screen under it (the watch's HUD around the cage sheet — QA on 3d71c33:
  *  "⏸ and ▶▶| don't work while the cage sheet waits"); only the panel takes taps, Escape still closes it. */
-export function openSheet(build: (close: () => void) => Node, opts: { modeless?: boolean } = {}): void {
+/** `anchor` (Cut 23 §4, AI/AJ: "the option sheet covers the chips it edits"): the element the sheet edits (a row's chips) — the panel
+ *  unfolds on whichever side of it has more room and never over it (its height capped to that side), re-placed as its body changes.
+ *  A tap outside the panel (the backdrop, the anchor's row under it) only closes the sheet: it never reaches what lies beneath. */
+export function openSheet(build: (close: () => void) => Node, opts: { modeless?: boolean; anchor?: HTMLElement | null } = {}): void {
   const panel = h("div", { class: "sheet", role: "dialog" });
   const wrap = h("div", { class: `sheet-wrap${opts.modeless ? " modeless" : ""}`, onclick: (e) => { if (e.target === wrap) close(); } });
-  const close = (): void => { const i = stack.indexOf(wrap); if (i >= 0) { stack.splice(i, 1); wrap.remove(); } };
+  let ro: ResizeObserver | null = null;
+  const close = (): void => { const i = stack.indexOf(wrap); if (i >= 0) { stack.splice(i, 1); wrap.remove(); ro?.disconnect(); opts.anchor?.classList.remove("sheet-anchor"); } };
   wrap.appendChild(panel);
   panel.appendChild(build(close));
   // Cut 17 §2: every sheet is a panel with a close stud (×) top-right — its own `closeX` when the body carries one
   if (!panel.querySelector(".sheet-x")) panel.prepend(stud(close));
   document.body.appendChild(wrap);
   stack.push(wrap);
+  const anchor = opts.anchor;
+  if (anchor && anchor.isConnected) {
+    anchor.classList.add("sheet-anchor");
+    const place = (): void => { if (anchor.isConnected) placeBeside(wrap, panel, anchor); };
+    place();
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(() => place()); ro.observe(panel.firstElementChild ?? panel); }
+  }
+}
+/** The side of `anchor` with more room (inside the backdrop) takes the panel: below it (the bottom sheet, its height capped so its
+ *  top stays under the anchor) or above it (hung from the backdrop's top, its height capped so it ends over the anchor). */
+function placeBeside(wrap: HTMLElement, panel: HTMLElement, anchor: HTMLElement): void {
+  const a = anchor.getBoundingClientRect(), w = wrap.getBoundingClientRect(), GAP = 6;
+  const below = w.bottom - a.bottom - GAP, above = a.top - w.top - GAP;
+  const top = above > below;
+  wrap.classList.toggle("anchored-top", top);
+  wrap.classList.add("anchored");
+  panel.style.maxHeight = `${Math.max(120, Math.floor(top ? above : below))}px`;
+  wrap.dataset.side = top ? "above" : "below";
 }
 window.addEventListener("keydown", (e) => { if (e.key !== "Escape") return; if (stack.length) closeSheet(); else if (!panelEscape?.()) idle?.(); });

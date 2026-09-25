@@ -91,7 +91,7 @@ try {
   const ns = await notches(), f = await page.evaluate(() => window.__riddle.lastForecast);
   const marked = ns.filter((n) => n.mark !== null);
   check(marked.every((n) => /^[▲▼]\d+$/.test(n.mark)) && ns.every((n) => n.mark === null || !/≈/.test(n.mark)), `a notch carries its move when it clears its ± (nothing inside it) (${ns.map((n) => `D${n.d} ${n.mark ?? "-"}`).join(" · ")})`);
-  const absOk = ns.every((n) => { const d = f.depths.find((x) => x.depth === n.d); return !d || n.abs.startsWith(pctOf(d.reach)); });
+  const absOk = ns.every((n) => { const d = f.depths.find((x) => x.depth === n.d); return !d || (n.abs.startsWith(pctOf(d.reach)) || (Math.round(d.reach * 100) === 0 && /^<\d+%/.test(n.abs))); });
   check(absOk, `the notches' absolute numbers are the forecast's own (${ns.map((n) => n.abs).join(" · ")})`);
   const gems = await page.evaluate(() => [...document.querySelectorAll(".camp .shaft-ends .end .vsm")].map((m) => m.closest(".end").className.replace("end ", "") + " " + m.textContent));
   check(gems.every((g) => /^(bank|return|stall|death) [▲▼]$/.test(g)), `a gem carries a bare arrow when it moves (${gems.join(" · ") || "none"})`);
@@ -150,7 +150,7 @@ try {
   await until(() => page.evaluate(() => document.querySelector(".camp .shaft")?.dataset.fc), "the forecast"); await sleep(300);
   await page.locator(".camp .start-tab").click({ timeout: 5000 }); await sleep(150);
   const opts = await until(async () => { const o = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .start-picker .start-opt")].map((b) => `${b.textContent.replace(/\s+/g, " ").trim()}${b.classList.contains("on") ? "*" : ""}`)); return o.length === 3 && !o.some((x) => x.includes("…")) ? o : null; }, "the measured starts");
-  check(/^D1 · (bank|D\d+) \d+% · death \d+% · ~\$-?\d+\*$/.test(opts[0]), `the current start: its own levels, its death share, its gold (${opts[0]})`);
+  check(/^D1 · (bank|D\d+) <?\d+% · death <?\d+% · ~\$-?\d+\*$/.test(opts[0]), `the current start: its own levels, its death share, its gold (${opts[0]})`);
   // QA 778fa1b (qaV): every start in one absolute form — no signed move beside an absolute level
   check(/^D5 · (bank|D\d+) \d+% · death \d+% · ~\$-?\d+( · \$\d+)?$/.test(opts[1]) && /^D9 · (bank|D\d+) \d+% · death \d+% · ~\$-?\d+( · \$\d+)?$/.test(opts[2]), `each start: its level, the death share, the net gold, the toll (${opts.slice(1).join(" | ")})`);
   const deathWarn = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .start-opt .start-death")].map((d) => `${d.textContent.trim()}${d.classList.contains("warn") ? "!" : ""}`));

@@ -125,7 +125,7 @@ import { openSheet } from "./sheet";
 import { salvageValue } from "./salvage";
 import { setBusyHost } from "./progress";
 import { vaultSlots } from "./unlocks";
-import { kindGlyph, noteText, verbLabel } from "./tokens";
+import { glossOf, kindGlyph, noteText, verbLabel } from "./tokens";
 import { traceChip } from "./trace";
 import { exitExtras } from "./death";
 import { markEnd, recordRun } from "./runlog";
@@ -186,6 +186,8 @@ const EARLY_FIGHT = 1.5, EARLY_TRAVEL = 8, EARLY_TRAVEL_MAX = 64;
 const EARLY_DEPTH = (() => { try { const q = new URLSearchParams(location.search).get("early"); return (import.meta.env.DEV || new URLSearchParams(location.search).get("dev") === "1") && q !== null ? Number(q) : 3; } catch { return 3; } })();
 const AUTO_FAST = 8, AUTO_TAIL = 10; // a tapped card holds the map at 8×; the pump's "fast" threshold; near holds until AUTO_TAIL ticks after the last sighting / hp change (Cut 14: 10, was 20)
 const CALLOUT_MIN_MS = 500;         // Cut 12 §6: a callout stays readable at 16×
+/** Cut 23 §3: a tap within this long of a reasoned line (a `✗` refusal, a shouted word) opens its reason; the reason shows this long. */
+const WHY_TAP_MS = 6000, WHY_SHOW_MS = 3500;
 const EXIT_GRACE_MS = 4000;         // wait for the viewer to drain after an exit, at most this long
 const PERSIST_MS = 5000;
 const VAULT_WAIT_MS = 10_000;       // Cut 15 §5: the override sheet holds the world this long at most (wall time); Cut 19 §1: it opens only on a tap on
@@ -288,6 +290,10 @@ export function renderWatch(app: App): Mounted {
   const depth = h("span", { class: "num depth" });
   const alert = h("span", { class: "alert num" });
   const ticker = h("div", { class: "ticker" });
+  // Cut 23 §3: a reasoned line's reason, on tap (the line's text → the reason), over the ticker
+  const whyTip = h("div", { class: "why-tip num", "aria-live": "polite" });
+  const whyOf = new Map<string, string>();
+  let lastWhy: { text: string; why: string; at: number } | null = null, whyTimer = 0;
   const stake = h("div", { class: "stake num" });
   const banner = h("div", { class: "banner num" });
   // Cut 17 §1: `⏸ / ▶` is the console's gem (the glyph stays the button's text; the icon is drawn over it)
@@ -312,7 +318,7 @@ export function renderWatch(app: App): Mounted {
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card,
       h("div", { class: "hud top" }, depth, alert, bossBar, stake),
-      banner, ticker),
+      banner, ticker, whyTip),
     cons.el);
 
   let viewer: Viewer | null = null;
@@ -589,7 +595,7 @@ export function renderWatch(app: App): Mounted {
   function showTicker(text: string, cls: string, ms: number): void {
     if (chore && text !== chore.shown) chore = null;   // Cut 14 §4: another line ends the chore streak
     lastShown = text; tickerAt = performance.now(); tickerMs = ms;
-    replace(ticker, text); ticker.className = `ticker show ${cls}`;
+    replace(ticker, text); ticker.className = `ticker show ${cls}${whyOf.has(text) ? " has-why" : ""}`;
     scheduleTicker();
   }
   /** The ticker's next move: the queued callout once the current has had CALLOUT_MIN_MS, else the hide at the current's end. */
@@ -739,7 +745,11 @@ export function renderWatch(app: App): Mounted {
           if (fell && fell.t === ev.t && fell.kind && ev.text === (fell.name ? `${fell.name} fell` : `${fell.kind} fell`)) f = fell.name ? `${fell.kind} ${fell.name} fell` : /* copy:callout */ `ally ${oneWord(fell.kind)} fell`;
           // Cut 12 §6: the core's `rallied!` names the boss whose telegraph it answers (`warlord rallies`)
           else if (ev.text === /* copy:none */ "rallied!") f = /* copy:callout */ `${oneWord(rallyBy ?? "boss")} rallies`;
-          at(ev.t, () => { callout(f, f !== ev.text && f.endsWith(" fell") ? "hurt" : "", f !== ev.text && f.endsWith(" fell") ? FELL_MS : undefined); coreLine(); });
+          // Cut 23 §3 (AI, AJ: `read ✗ no use`, `IT SWELLS` — "unclear"): a `✗` refusal and a shouted word carry their reason on tap —
+          // the core's `why`, else a refusal's gloss off the vocabulary (`no use` → the core's words)
+          const why = ev.why ?? (ev.text.includes("✗") ? glossOf(app.vocab?.why_gloss, ev.text) : undefined);
+          if (why) whyOf.set(f, why);
+          at(ev.t, () => { if (why) noteWhy(f, why); callout(f, f !== ev.text && f.endsWith(" fell") ? "hurt" : "", f !== ev.text && f.endsWith(" fell") ? FELL_MS : undefined); coreLine(); });
           break;
         }
         case "rule": {
@@ -1512,7 +1522,18 @@ export function renderWatch(app: App): Mounted {
     if (!cage || cage.done || vaultClose || !ticker.classList.contains("cage") || !(beatHeld() && heldBeat?.cage)) return;
     vaultSheet(cage.vc, cage.pick?.id);
   }
-  ticker.onclick = cageTap;
+  ticker.onclick = () => { if (cage && !cage.done && ticker.classList.contains("cage")) { cageTap(); return; } whyTap(); };
+  canvas.onclick = (): void => whyTap();
+  /** Cut 23 §3: the last line with a reason (a `✗` refusal, a shouted word) and when it was released. */
+  function noteWhy(text: string, why: string): void { lastWhy = { text, why, at: performance.now() }; }
+  /** Cut 23 §3: a tap on the line (or the picture) within WHY_TAP_MS of a reasoned line opens its reason under it — `read ✗ no use`
+   *  `→ nothing to learn` — for WHY_SHOW_MS. */
+  function whyTap(): void {
+    const w = lastWhy; if (!w || performance.now() - w.at > WHY_TAP_MS) return;
+    replace(whyTip, h("span", { class: "dim" }, w.text), " → ", h("b", null, w.why));
+    whyTip.classList.add("show"); whyTip.dataset.text = w.text;
+    clearTimeout(whyTimer); whyTimer = window.setTimeout(() => whyTip.classList.remove("show"), WHY_SHOW_MS);
+  }
   function vaultSheet(vc: VaultChoice, pickId?: number): void {
     let sent = false;
     vaultAt = performance.now(); vaultItems = vc.items; vaultChosen = false;

@@ -7,7 +7,7 @@
 import type { AsyncEngine } from "./types";
 
 /** The calls that run on the background lane. */
-export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas"]);
+export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas"]);
 /** Foreground calls that leave the lineage as it was (the mirror stays in sync across them). */
 const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastVs", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary"]);
 

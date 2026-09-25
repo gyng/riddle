@@ -48,6 +48,16 @@ export const pmShown = (share: number, pm: number | undefined): number | undefin
   return r <= 0 || r >= 100 ? undefined : Math.min(pmPts(pm), 100 - r, r);
 };
 
+/** Cut 23 §2 (AJ: `death 0%`, and the next run died): a share the sims sampled at 0 of N prints `<N%` (the smallest share one sim
+ *  makes, the core's `Forecast.low`: `death <2%`), never `0%`; a share above 0 that rounds to 0 prints `<1%`. Without `low` (an
+ *  older core) the share prints as before. */
+export function share(x: number, low: number | undefined): string {
+  if (low === undefined || !Number.isFinite(x) || Math.round(x * 100) > 0) return pct(x);
+  return x > 0 ? "<1%" : `<${Math.max(1, Math.round(low))}%`;
+}
+/** The low end of the forecast now painted (`Forecast.low`, else from its `sims`). */
+export const lowOf = (f: { low?: number; sims?: number } | null | undefined): number | undefined => f?.low ?? (f?.sims ? Math.ceil(100 / f.sims) : undefined);
+
 /** Cut 22 §4: a move in whole points, signed (`+6`, `−3`), never a `%` — a delta must not read as a chance. */
 export const signedPts = (pts: number): string => `${pts < 0 ? "−" : "+"}${Math.abs(pts)}`;
 /** Cut 22 §3: a paired move as it reads — `+6` / `−3`, `≈` inside its own ± (or rounding to 0): no call. */
@@ -122,10 +132,11 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     if (!e) return;
     // a stall share only when there is one: `bank 0% · return 20% · stall 50% · death 30% · ~$25`
     const stall = e.stall && Math.round(e.stall * 100) > 0 ? /* copy:callout */ ` · stall ${pct(e.stall)}` : "";
+    const lo = lowOf(f), sh = (x: number): string => share(x, lo);
     const epm = pmShown(e.death, e.pm);
     const pm = epm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${epm}${f.refined === false ? "…" : ""}`) : "";
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
-    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${pct(e.bank)} · return ${pct(e.return)}`, stall, /* copy:callout */ ` · death ${pct(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
+    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${sh(e.bank)} · return ${sh(e.return)}`, stall, /* copy:callout */ ` · death ${sh(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -174,7 +185,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         h("span", { class: "d num" }, `D${d.depth}`),
         tr ? h("span", { class: "track-cell" }, track, h("small", { class: "try" }, /* copy:none */ `try: ${tr.text}`)) : track,
         // a `try` row keeps one line (its hint rides the track; the boss beside the number, as before)
-        h("span", { class: "n num" }, pct(d.reach), dpm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${dpm}${first}`) : "", moveMark(vsBy.get(d.depth)), ...(tr ? why : [])),
+        h("span", { class: "n num" }, share(d.reach, lowOf(f)), dpm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${dpm}${first}`) : "", moveMark(vsBy.get(d.depth)), ...(tr ? why : [])),
         // QA 778fa1b (qaU: a leading `· goblin archer` under the D1 bar): on a line of its own the first cause drops its separator
         !tr && why.length ? h("span", { class: "why num" }, ...why.map((w) => { if (w instanceof HTMLElement && w.firstChild?.nodeType === 3 && /^ · /.test(w.firstChild.textContent ?? "")) { w.firstChild.textContent = (w.firstChild.textContent ?? "").slice(3); w.prepend(h("i", { class: "sep" }, " · ")); } return w; })) : "",
       ];
@@ -189,7 +200,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     const per = f.ends ? f.ends.death : 1;
     // QA 1a2a4a9 (O: `goblin 26% · ogre 21%` "with no heading"): the killers' line says what it lists
     if (f.causes.length) causes.appendChild(h("span", { class: "label causes-label" }, /* copy:label */ "killers"));
-    for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, c.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, pct(c.share * per))));
+    for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, c.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, share(c.share * per, lowOf(f)))));
   };
   // until the first forecast arrives (≈1 s in the worker): the unknown row only
   bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, "…"), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
@@ -256,7 +267,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       // the first floor's reach to the last's (`100–0%`)
       const d0 = byDepth.get(start), r0 = d0 ? d0.reach : 1, span = hi > start && Math.round(r0 * 100) !== Math.round(reach * 100);
       const n = h("span", { class: `notch fold${d && Math.round(d.reach * 100) === 0 ? " zero" : ""}`, "data-d": hi, "data-from": start },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, hi > start ? `D${start}–${hi}` : `D${hi}`), h("small", { class: "dp" }, d || hi <= known ? (span ? `${Math.round(r0 * 100)}–${pct(reach)}` : pct(reach)) : "?"));
+        h("span", { class: "hex" }), h("span", { class: "dl" }, hi > start ? `D${start}–${hi}` : `D${hi}`), h("small", { class: "dp" }, d || hi <= known ? (span ? `${Math.round(r0 * 100)}–${share(reach, d ? lowOf(last) : undefined)}` : share(reach, d ? lowOf(last) : undefined)) : "?"));
       n.style.setProperty("--reach", reach.toFixed(3));
       folded.push(n);
     }
@@ -272,7 +283,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const bounty = depth === bountyD;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${depth === start && start > 1 ? " start" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
         h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : ""),
-        h("small", { class: "dp" }, d ? pct(d.reach) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm" }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : "",
+        h("small", { class: "dp" }, d ? share(d.reach, lowOf(last)) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm" }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : "",
           d ? moveMark(vsBy.get(depth)) : ""));   // Cut 22 §3: the edit's move on the notch (`▲6`, `≈`)
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
@@ -283,11 +294,11 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     if (e && !ends.hidden) replace(ends,
       // QA 778fa1b (qaU: the `▲`/`▼` after `return 92%` / `death 8%` clipped at the panel's edge): the arrow rides the number (`b`), raised
       // over its end, inside the column
-      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, pct(e.bank), moveMark(vs?.bank, true))),
-      h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, pct(e.return), moveMark(vs?.return, true))),
+      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, share(e.bank, lowOf(last)), moveMark(vs?.bank, true))),
+      h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, share(e.return, lowOf(last)), moveMark(vs?.return, true))),
       // QA 23ed91f (L: "`bank 0% · return 0% · death 96%` never sums to 100; `stall` only in the panel"): a stall share is its own gem
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
-      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, pct(e.death), moveMark(vs?.death, true, true))),
+      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, share(e.death, lowOf(last)), moveMark(vs?.death, true, true))),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
       h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`, rough ? h("i", { class: "settling" }, "…") : ""));
     const line = vsLine(app, vs, last, !!e && showEnds());

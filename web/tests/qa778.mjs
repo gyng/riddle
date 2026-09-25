@@ -115,7 +115,7 @@ try {
     order: [...document.querySelectorAll(".patches > button.patch .chips-inline")].map((c) => c.textContent.replace(/\s+/g, " ").trim()).join(" | "), reach: [...document.querySelectorAll(".patches > button.patch .delta")].map((d) => d.textContent.replace(/\s+/g, " ").trim()) }));
   const d0 = await pick(); await sleep(900); const d1 = await pick();
   check(d0.top === d1.top && d0.gem === d1.gem && d0.order === d1.order, `the reach lands and nothing moves (lit ${d0.top} → ${d1.top}, gem ${d0.gem} → ${d1.gem})`);
-  check(d1.reach[0] === "return early · reach D6 −49 ±3" && d1.reach[1] === "reach D6 ≈" && d1.reach[2] === "reach D6 +10 ±5", `an exit names its cost, a flat reach is \`≈\` alone (${d1.reach.join(" · ")})`);
+  check(d1.reach[0] === "return early" && d1.reach[1] === "reach D6 ≈" && d1.reach[2] === "reach D6 +10 ±5", `an exit names its cost in a word (Cut 23 §3: no number), a flat reach is \`≈\` alone (${d1.reach.join(" · ")})`);
   await shot("qa778-death");
 
   // ---- one surface: the vault tile under an open sheet

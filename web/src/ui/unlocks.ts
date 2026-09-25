@@ -140,6 +140,8 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r))))
         : VERB_OF[u.id] ? h("div", { class: "card-rows" }, h("div", { class: "row locked" }, h("div", { class: "chips" }, h("span", { class: "chip verb locked" }, VERB_OF[u.id])))) : "",
       effectLine(app, u) ? h("div", { class: "effect-line num" }, effectLine(app, u)!) : "",
+      // Cut 23 §3 (AJ: "paid cards are rows I could type"): what the card holds that no typed row can (the core's `carries`)
+      u.carries ? h("div", { class: "carries num" }, h("span", { class: "dim" }, /* copy:label */ "holds "), u.carries) : "",
       // QA 92eb880 (N: "`⊘ ◆1 more` while `$ buy` is enabled"): a marks shortfall the gold covers is no lock — the line drops its `⊘`
       needs ? h("div", { class: "needs-line dim" }, canGold && !gateNeeds ? "" : "⊘ ", needs.replace(/_/g, " ")) : "",
       d ? h("div", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d, app.rules.rows.length)) : "",   // Cut 10 §3 / Cut 12 §1 / Cut 13 §5

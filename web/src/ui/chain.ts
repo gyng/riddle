@@ -8,7 +8,15 @@ import type { Because, Row, Trace } from "../engine/types";
 import { h } from "./dom";
 import { lastRun, replayable } from "./runlog";
 import { openReplay } from "./replay";
-import { verbLabel } from "./tokens";
+import { verbLabel, whyGloss } from "./tokens";
+
+/** Cut 23 §3: a reason (`no use`, `no path`) with a gloss is a tap target — the tap adds the gloss after it (`no use · no effect now`). */
+export function whySpan(why: string): HTMLElement {
+  const g = whyGloss(why);
+  if (!g) return h("span", { class: "why" }, why);
+  const b: HTMLButtonElement = h("button", { class: "why has-gloss", onclick: (e: Event) => { e.stopPropagation(); if (b.querySelector(".gloss")) return; b.appendChild(h("small", { class: "gloss" }, ` · ${g}`)); } }, why);
+  return b;
+}
 
 /** What a chain needs beyond the trace: the rules that ran (verb labels: `verbs` as the engine wrote them, else `rows` —
  *  the editing copy, right after the run), the run (replay), extra links. */
@@ -89,7 +97,7 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
     const line = h("div", { class: "chain-row tick", "data-row": l.row },
       h("span", { class: "at-t dim" }, l.to > l.from ? `t${l.from}–${l.to}` : `t${l.from}`),
       h("span", { class: "r" }, `R${l.row + 1}`, verb ? h("small", { class: "dim" }, ` ${verb}`) : ""),
-      h("span", { class: "why" }, l.why));
+      whySpan(l.why));
     if (l.because) { const dup = shown.some((s) => s.text === l.because!.text); if (!dup) shown.push(l.because); if (!dup && !foeBlockerOnMove(verb, l.because.text)) line.append(...link(l.because, ctx.runId)); }
     return line;
   };
@@ -99,7 +107,7 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
     const verb = verbOf(r.row);
     const line = h("div", { class: "chain-row" },
       h("span", { class: "r" }, `R${r.row + 1}`, verb ? h("small", { class: "dim" }, ` ${verb}`) : ""),
-      h("span", { class: "why" }, r.why));
+      whySpan(r.why));
     // QA 778fa1b (qaV: `← found heal on D1 · watch` first and last): a reason an earlier tick's line already linked is not linked again
     if (r.because) { const dup = shown.some((s) => s.text === r.because!.text); shown.push(r.because); if (!dup && !foeBlockerOnMove(verb, r.because.text)) line.append(...link(r.because, ctx.runId)); }
     return line;

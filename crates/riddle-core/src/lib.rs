@@ -11,6 +11,7 @@ pub mod gen;
 pub mod geom;
 pub mod hero;
 pub mod item;
+pub mod kit;
 pub mod meta;
 pub mod monster;
 pub mod offline;

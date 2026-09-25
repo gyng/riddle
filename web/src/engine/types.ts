@@ -13,7 +13,8 @@ export type RuleSet = { rows: Row[]; name?: string };
 export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number;   // max_rows: Cut 12 §1, the cap on the player's OWN rows; card rows (verb.v === "tactic") sit outside it, one per owned card
                            combos?: Combo[];                                // Cut 8B §1: the combo table (adjacent-row verb pairs the engine names)
                            locked?: LockedCond[];                           // Cut 9 §1: gated conds the sheet shows dim with their gate, never selectable
-                           depth_max?: number };                            // Cut 21 §3: the deepest `depth ≥` the picker offers (the lineage best + 2, at least 8)
+                           depth_max?: number;                              // Cut 21 §3: the deepest `depth ≥` the picker offers (the lineage best + 2, at least 8)
+                           why_gloss?: { [reason: string]: string } };      // Cut 23 §3 (core): every block/why reason the core emits (`no use`, `no target`, `row guard`) → its reason on tap, ≤ 3 words (`nothing to learn`); keys are reason prefixes (longest match wins)
 /** Cut 9 §1 — a condition the lineage cannot use yet and the gate as the player reads it (`foe: any`, `◆2`). */
 export type LockedCond = { cond: Cond; needs: string };
 /** Cut 8B §1 — a combo: verb patterns for two adjacent rows (`shield_bash`, or `drink unknown` for one argument) and the name the
@@ -61,7 +62,8 @@ export type StartOption = { start: number; current: boolean; toll?: number; biom
                             pass?: boolean;                     // QA a946e04 (core): tonight's pass for this start is paid — the next send from it pays nothing (`toll` is the next night's); `net` is the next send's
                             net?: number; net_delta?: number;   // core: `gold − toll` per send, and its move against the current start
                             death?: number;                     // Cut 22 §4: the death share of a send from this start (0..1), shown beside the bank move
-                            death_delta?: number };             // core: its move against the current start
+                            death_delta?: number;               // core: its move against the current start
+                            low?: number };                     // Cut 23 §2 (core): as Forecast.low — a `death` of 0 prints `<{low}%`
 /** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any.
  *  Cut 6 §1: `kept` = what that row would bring home now (`$84 · keeps $50`). */
 export type Stake = { loot: number; brought: { label: string; insured: boolean }[]; return_row?: number; kept?: number;
@@ -110,7 +112,8 @@ export type Ev =
   | { t: number; k: "descend"; depth: number; biome: string }
   | { t: number; k: "exit"; tier: "bank"|"return"|"death"; loot_kept: number; line?: ExitLine; trace?: Trace }   // line: Cut 6 §1; trace: Cut 9 §5
   | { t: number; k: "note"; text: string }                                  // chronicle line, ≤ 8 words
-  | { t: number; k: "callout"; text: string }                               // ≤ 3 words, for the renderer
+  | { t: number; k: "callout"; text: string; why?: string }                               // ≤ 3 words, for the renderer
+                                                                            // Cut 23 §3 (core): `why` — the reason on tap, ≤ 3 words: a `✗` callout's block gloss (`read ✗ no use` → `nothing to learn`), a telegraph shout's foe trait (`bloat swells` → `gas burst next`)
   | { t: number; k: "tame"; id: number; kind: string; ok: boolean }         // Addendum A
   | { t: number; k: "hatch"; kind: string }                                 // Addendum A
   | { t: number; k: "level"; class: string; level: number }                 // Addendum C
@@ -133,6 +136,8 @@ export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share
                          refined?: boolean;                              // QA 778fa1b: always present from the core (false = the first pass, true = the refine); absent only on an older core
                          start?: number;                                 // Cut 21 §1: the floor the sims started on (`Lineage.start` when lit and payable, else 1); rows above it read reach 1.0
                          shadowed_by?: (number | null)[];                                                    // QA 92eb880: per row of the set (by index), the earlier row (0-based) that takes every moment it could fire — mark it `shadowed by R{n+1}`; null = free; absent = none shadowed   // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
+                         sims?: number;                                  // Cut 23 §2 (core): the sims the shares were drawn from
+                         low?: number;                                   // Cut 23 §2 (core): the smallest share one sim makes, in whole percent (⌈100 / sims⌉): a share sampled at 0 prints `<{low}%` (`death <2%`), never `0%`; a reach of 1.0 below `start` is not sampled (prints as is)
                          vs?: ForecastVs };                              // Cut 22 §3: the paired move against the last painted set (absent without an edit, or on a core that answers `forecastVs(prev)` instead)
 /** Cut 22 §3 — an edit's paired move: this set's panel minus the previous set's, on the same seeds (so far tighter than either
  *  absolute bar). `delta`: the move (a 0..1 fraction, signed); `pm`: its own paired half-width — a move inside it reads `≈`. The
@@ -240,12 +245,32 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         start_payable?: boolean;                                                                      // QA a946e04 (core, optional): the purse pays `start_toll` now (or tonight's pass is held); false → the next send starts on D1 (`start → D5 · $50 short`); absent → the client compares `gold` with the toll
                         start_pass?: boolean;                                                                         // QA a946e04 (core): the toll is paid once per night (16 runs) — tonight's pass for `start` is held, the next send pays nothing
                         trait_rules?: { [trait: string]: string };                                                    // QA a946e04 (core): each trait's real rule (`cowardly` → `backs off once a floor under 50%`), the chip's words
-                        renamed?: { [label: string]: string } };                                                      // QA a946e04 (core): an identified flavour's old label (`blue potion?`) → its name now (`poison`); labels stored before read through it                                                                  // Cut 21 §2 (core): kinds the last send packed that no row uses — the repeat does not re-buy them (`strength · no row`)                                                                             // Cut 21 §1: where the next send starts (1, or a lit waystone; `setStart(d)`); the send pays `$10 × start` below D1                                                                 // Cut 20 §5: tonight's bounty floor (best + 2; moves every night)
+                        renamed?: { [label: string]: string };
+                        kit?: KitLadder[];                                                                            // Cut 23 §1 (core): the forge — the heir's starting kit, a ladder per slot (weapon · armour · pack); `buyKit(slot)` buys the ladder's next step
+                        row_why?: (RowWhy | null)[] };                                                                // Cut 23 §3 (core): per row of the active set (by index), what it did over the recent sends and why not — null = no sends under this row yet                                                      // QA a946e04 (core): an identified flavour's old label (`blue potion?`) → its name now (`poison`); labels stored before read through it                                                                  // Cut 21 §2 (core): kinds the last send packed that no row uses — the repeat does not re-buy them (`strength · no row`)                                                                             // Cut 21 §1: where the next send starts (1, or a lit waystone; `setStart(d)`); the send pays `$10 × start` below D1                                                                 // Cut 20 §5: tonight's bounty floor (best + 2; moves every night)
 /** Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id (`shield_bash | vanish | mark | slow`);
  *  `level` the class's level; `opens` the level the signature opens at (`mark L7` while level < opens).
  *  §4 (no new wire): the Warlord's break is a callout `warlord breaks` + a note `The Warlord breaks.` (visible only), once, at ≤ 50 % hp.
  *  §3 (no new wire): D5–8 are biome `burrows` (Snapshot.biome, descend.biome, fact `biome:burrows`). */
 export type ClassChip = { class: string; signature: string; level: number; opens: number };
+/** Cut 23 §1 — the forge: one slot of the heir's starting kit, bought with gold, permanent for the lineage (every heir starts
+ *  with every owned step; a death loses none). `owned` = steps bought (0..steps.length); `steps[i].label` the kit at that step
+ *  (`sword +1`, `mail`, `pack 4`), `price` its gold. `next` = the next step (absent at the top): `affordable` now; `nights` the
+ *  core's estimate of nights of income until it is (0 = now; absent when there is no income to go on). With `kitDeltas()`:
+ *  `delta` = the paired forecast move of buying it at `depth` (0..1, signed; the same paired panel as edits), `pm` its ±, and
+ *  `bank`/`death` the ends' moves — the chip reads `mail +1 · D9 +7 · $340`. */
+export type KitStep = { label: string; price: number; owned: boolean };
+export type KitLadder = { slot: "weapon" | "armour" | "pack"; owned: number; steps: KitStep[];
+                          next?: { label: string; price: number; affordable: boolean; nights?: number;
+                                   depth?: number; delta?: number; pm?: number; bank?: number; death?: number } };
+/** Cut 23 §3 — a row's why-not over the recent sends (the rows the set still holds; a changed row starts over). `sends` the
+ *  sends it sat in, `actions` the hero's actions over them, `fired` the actions it took, `matched` the actions its conds held
+ *  (whether or not a row above acted first). `blocked`: the most common reason it did not act when its conds held and it was
+ *  reached (`no scroll`, `no target`, `same as R2`, `row guard`), with its count; `unmet`: its most common failing cond (`gas`
+ *  for `foe: gas` never in view — `no gas met`). `text`: the core's line for the tablet (`0/164 · no gas met`,
+ *  `3/164 · blocked · no scroll`, `41/164`), ≤ 5 words. */
+export type RowWhy = { sends: number; actions: number; fired: number; matched: number;
+                       blocked?: { why: string; n: number }; unmet?: { why: string; n: number }; text: string };
 /** Cut 3: times the lineage ascended and the variant it plays under (`""` at level 0). */
 export type Ascension = { level: number; variant: string };
 export const VARIANTS = ["no_rest", "short_list", "bones_only", "hunted"] as const;
@@ -318,6 +343,9 @@ export interface Engine {
   forecastVs?(prev: RuleSet): ForecastVs;
   forecastVsRefined?(prev: RuleSet): ForecastVs;   // client (lanes.ts): `forecastVs` on the background lane, behind the refine — the refined panels paired
   startForecast?(): StartOption[];      // §1: D1 and each lit waystone measured for the active set (memoised; seconds in wasm — call when the picker opens)
+  // Cut 23
+  buyKit?(slot: string): Lineage;       // §1: buy the next forge step of `weapon | armour | pack` (gold; permanent; ledger `forge <label>`)
+  kitDeltas?(): KitLadder[];            // §1: `Lineage.kit` with each `next` measured (paired forecast; seconds in wasm — call after paint, memoised)
 }
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
                            delta?: number;                                                                 // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards
@@ -331,6 +359,7 @@ export type UnlockInfo = { id: string; cost: number; owned: boolean; available: 
                            auto_insert?: boolean;                                                          // QA e75ec29 (qaR): a tactic card's buy puts its row in the set (at `insert_at`) only when set — measured, reach not down at its best place, stall share up ≤ 5 pts, fewer than 3 card rows in the set; otherwise owned, not in the set (offer `add`)
                            next?: NextUnlock;                                                              // QA a946e04 (core): the chain's next step once this one is owned (`row5` → `row6`) and its prices — the sheet's `next ◆4 or $600`
                            gold_next?: number;                                                             // QA a946e04 (core): this card's own gold price after one more gold buy
+                           carries?: string;                                                               // Cut 23 §3 (core): what a paid card holds that no typed row can (`verb: bash`, `pre-aimed: boss`), ≤ 3 words; absent on a card that carries nothing outside the vocabulary (those cost 0)
                            gold?: number };                                                                 // Cut 15 §2: today's gold price (`150 × cost × (4 + gold buys) / 4`); 0 when owned or free (not gold-buyable). A card short only of marks (`needs` = `◆N more`) buys with gold when the lineage has it
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */

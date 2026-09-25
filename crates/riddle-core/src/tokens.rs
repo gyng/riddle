@@ -176,7 +176,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
         }
     }
     let locked = locked_conds(l, &conds);
-    Vocabulary { conds, verbs, max_rows: l.max_rows(), combos: crate::rules::combo_table(), locked, depth_max: depth_max(l) }
+    Vocabulary { conds, verbs, max_rows: l.max_rows(), combos: crate::rules::combo_table(), locked, depth_max: depth_max(l), why_gloss: Default::default() }
 }
 
 /// Cut 9 §1: every condition token the editor knows of but this lineage cannot use yet, with
@@ -260,7 +260,7 @@ pub fn companion_vocabulary(l: &LineageState, c: &Companion) -> Vocabulary {
     }
     verbs.push(Verb::new("follow"));
     verbs.push(Verb::new("recall"));
-    Vocabulary { conds, verbs, max_rows: c.max_rows, combos: Vec::new(), locked: Vec::new(), depth_max: depth_max(l) }
+    Vocabulary { conds, verbs, max_rows: c.max_rows, combos: Vec::new(), locked: Vec::new(), depth_max: depth_max(l), why_gloss: Default::default() }
 }
 
 #[cfg(test)]

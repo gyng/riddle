@@ -59,6 +59,11 @@ pub struct Vocabulary {
     /// picker offers — the lineage's best + 2, never under 8 (every depth from 2 up to it).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub depth_max: u32,
+    /// Cut 23 §3: every reason the core gives for a row not acting → its reason on tap, ≤ 3
+    /// words (`turn::WHY_GLOSS`; keys are reason prefixes). Filled on the wire's vocabulary
+    /// (`Game::vocabulary`), empty on stored copies.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub why_gloss: std::collections::BTreeMap<String, String>,
 }
 
 fn is_zero(n: &u32) -> bool {

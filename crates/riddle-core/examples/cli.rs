@@ -94,7 +94,7 @@ fn main() {
                     };
                     println!("  t{t:<5} {label:<5} {text}")
                 }
-                Ev::Callout { t, text } if verbose => println!("  t{t:<5} ! {text}"),
+                Ev::Callout { t, text, .. } if verbose => println!("  t{t:<5} ! {text}"),
                 Ev::Die { t, id, cause } if verbose && *id != 1 => println!("  t{t:<5} † #{id} by {cause}"),
                 Ev::Hurt { t, id, dmg, hp, cause } if verbose && *id != 1 && *hp > 0 => println!("  t{t:<5} · #{id} -{dmg} → {hp} by {cause}"),
                 _ => {}

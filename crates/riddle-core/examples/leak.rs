@@ -35,7 +35,7 @@ fn main() {
                     for e in &events[start..] {
                         match e {
                             Ev::Rule { t, row, text, .. } if *row != -2 => println!("  t{t} R{row} {text}"),
-                            Ev::Callout { t, text } => println!("  t{t} ! {text}"),
+                            Ev::Callout { t, text, .. } => println!("  t{t} ! {text}"),
                             Ev::Note { t, text } => println!("  t{t} {text}"),
                             Ev::Hurt { t, id, dmg, hp, cause } => println!("  t{t} #{id} -{dmg} → {hp} ({cause})"),
                             Ev::Use { t, item, outcome } => println!("  t{t} use {item}: {outcome}"),
@@ -52,7 +52,7 @@ fn main() {
                     for e in &events[start..=end] {
                         match e {
                             Ev::Rule { t, row, text, .. } if *row != -2 || text.contains("stuck") => println!("  t{t} R{row} {text}"),
-                            Ev::Callout { t, text } => println!("  t{t} ! {text}"),
+                            Ev::Callout { t, text, .. } => println!("  t{t} ! {text}"),
                             Ev::Note { t, text } => println!("  t{t} {text}"),
                             Ev::Die { t, id, cause } => println!("  t{t} † #{id} {cause}"),
                             Ev::Hurt { t, id, dmg, hp, cause } if *id != 1 => println!("  t{t} #{id} -{dmg} → {hp} ({cause})"),

@@ -1065,3 +1065,51 @@ body.framed .sheet-wrap:not(.modeless) { bottom: calc(var(--console-h, 0px) - 6p
 /* QA 778fa1b (qaU: a leading `· goblin archer` under the D1 bar): the first cause on its own line drops its separator */
 .bar .why > :first-child > .sep { display: none; }
 .bar .why .sep { font-style: normal; }
+/* Cut 23 §4 (AI, AJ: "the option sheet covers the chips it edits"): a sheet anchored to the row it edits sits on the side with more
+   room, never over it; the row reads lit through the backdrop */
+.sheet-wrap.anchored-top { align-items: flex-start; }
+.sheet-wrap.anchored-top .sheet { transform-origin: 50% 0; }
+.sheet-anchor { outline: 2px solid var(--acc); outline-offset: 1px; }
+/* Cut 23 §1: the forge — a tablet per kit slot: its pips, the next step (kit · move · price), the later steps' prices; each tablet one
+   height whatever is bought (a buy never moves the sheet under the finger) */
+.cmd .tile .kit-n { position: absolute; right: 2px; top: 2px; z-index: 2; padding: 0 3px; border-radius: 3px; background: rgba(12, 9, 7, .8); color: #1a1206; background: #f0b44a; font-weight: 700; font-size: 10px; line-height: 13px; pointer-events: none; }
+.forge .kit { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
+.forge .kit-slot { display: grid; grid-template-rows: 20px 44px 16px; gap: 3px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 3px; }
+.forge .kit-head { display: flex; align-items: center; gap: 8px; }
+.forge .kit-name { font-family: var(--display, inherit); text-transform: uppercase; letter-spacing: .06em; font-size: 12px; min-width: 60px; }
+.forge .pips { display: inline-flex; gap: 3px; flex: 1; }
+.forge .pip { width: 12px; height: 12px; transform: rotate(45deg); border: 1px solid #8a6a3a; background: transparent; }
+.forge .pip.on { background: #c9922f; box-shadow: 0 0 4px rgba(255, 180, 60, .6); }
+.forge .kit-next { justify-content: flex-start; min-height: 44px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.forge .kit-next.off { opacity: .55; }
+.forge .kit-next.armed { color: var(--acc); font-weight: 600; justify-content: center; }
+.forge .kit-top { align-self: center; }
+.forge .kit-later { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.forge .salvage { margin-top: 4px; }
+/* Cut 23 §3: a row's why-not */
+.row-why .why-row { font-size: 13px; margin: 2px 0 6px; }
+.row-why .why-line { font-size: 17px; margin: 4px 0; }
+.row-why .why-gloss { font-size: 14px; margin: 2px 0; }
+.row-why .why-edit { margin-top: 10px; }
+/* Cut 23 §3: a `✗` refusal or a shouted word has its reason on tap — the line is a tap target (a small `?` after it, drawn), the
+   reason shows over the ticker */
+.watch .ticker.has-why.show { pointer-events: auto; cursor: pointer; }
+.watch .ticker.has-why.show::after { content: " ?"; font-size: .7em; opacity: .7; vertical-align: super; }
+.watch .why-tip { position: absolute; left: 12px; right: 12px; bottom: 46px; z-index: 3; text-align: center; font: 600 15px/1.25 var(--sans); color: var(--fg);
+  opacity: 0; transition: opacity .15s; pointer-events: none; }
+.watch .why-tip.show { opacity: 1; }
+.watch .why-tip > * { padding: 0 2px; }
+.watch .why-tip.show { background: rgba(12, 9, 7, .85); border: 1px solid #5a4630; border-radius: 3px; padding: 4px 8px; }
+/* Cut 23 §4: the shelf is `cap` fixed slots, the shop a fixed two-column grid of one-height chips — a buy never moves a chip under the
+   finger; the supply `×` is a 36 px target */
+.supplies .chips.packed { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.supplies .chips.packed > .chip { min-width: 0; height: 44px; justify-content: space-between; padding: 0 0 0 10px; }
+.supplies .chips.packed > .chip .item-l { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.supplies .chips.packed > .chip.slot.empty { min-width: 0; }
+.supplies .chip.item .x { min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 20px; flex: none; }
+.supplies .chip.item .x.armed { min-width: 48px; }
+.supplies .chips.shop { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.supplies .chips.shop > .chip.buy { min-width: 0; height: 48px; overflow: hidden; }
+.supplies .chips.shop .buy-main { min-width: 0; }
+.chain-row button.why.has-gloss { background: none; border: 0; padding: 0; min-height: 0; font: inherit; color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+.chain-row .why .gloss { text-decoration: none; display: inline; }

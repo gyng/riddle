@@ -9,6 +9,7 @@
 // Cut 14 §4: every exit's `trace` chip carries its exit (`D5 · died · trace`; the depth off the ledger line the exit claims, else
 // off the line's own text) — rater S: "the seventh unlabelled TRACE button"; the stalled tile carries what the stalls cost
 // (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
+import { openForge } from "./forge";
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, Lineage, ReturnReport } from "../engine/types";
 import { h, items, spanOf } from "./dom";
@@ -248,7 +249,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     const quiet = (p: string): boolean => { const m = /^R\d+ fired (\d+) of (\d+) runs/.exec(p); return !m || Number(m[1]) * 3 < Number(m[2]); };
     const pendingLines = (affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending).filter(quiet);
     pendingBody.replaceChildren();
-    const ul = lines(pendingLines); if (ul) pendingBody.appendChild(ul);
+    // Cut 23 §1: the core's `forge sword +1 · $300` (a kit step the purse buys now) opens the forge
+    const forgeLines = pendingLines.filter((p) => /^forge /.test(p));
+    const ul = lines(pendingLines.filter((p) => !/^forge /.test(p))); if (ul) pendingBody.appendChild(ul);
+    if (forgeLines.length) pendingBody.appendChild(h("div", { class: "chips forge-pending" }, ...forgeLines.map((p) => h("button", { class: "chip mini forge-line num", onclick: () => openForge(app) }, p))));
     // Cut 9 §2: the card opens its sheet; the buy is there, and the report repaints itself after one
     // QA 1a2a4a9: the core's short list (`UnlockInfo.short`) when sent — the camp's shelf shows the same three
     const coreShort = affordable.some((u) => u.short !== undefined);

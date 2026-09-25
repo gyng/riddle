@@ -357,7 +357,9 @@ pub enum Ev {
         trace: Option<Trace>,
     },
     Note { t: u32, text: String },
-    Callout { t: u32, text: String },
+    /// Cut 23 §3: `why` — the reason on tap, ≤ 3 words: a `✗` callout's block gloss (`read ✗
+    /// no use` → `nothing to learn`), a telegraph's foe trait (`bloat swells` → `gas burst next`).
+    Callout { t: u32, text: String, #[serde(default, skip_serializing_if = "Option::is_none")] why: Option<String> },
     Tame { t: u32, id: u32, kind: String, ok: bool },
     Hatch { t: u32, kind: String },
     Level { t: u32, class: String, level: u32 },
@@ -503,6 +505,13 @@ pub struct Forecast {
     /// tick); the shaft shows from here.
     #[serde(default = "one")]
     pub start: u32,
+    /// Cut 23 §2 (AJ: `death 0%`, then the next run died): the sims the shares were drawn from,
+    /// and the smallest share one sim makes in whole percent (`⌈100 / sims⌉`) — a share sampled
+    /// at 0 of `sims` prints `<{low}%` (`death <2%`), never `0%` (`forecast::share_label`).
+    #[serde(default)]
+    pub sims: u32,
+    #[serde(default)]
+    pub low: u32,
 }
 
 /// Cut 22 §3 (AH: "most edits moved the forecast less than its ±10–13 error, so I couldn't tell
@@ -586,6 +595,9 @@ pub struct StartOption {
     /// QA on 778fa1b: measured on the refined panels (the forecast's own sims once refined).
     #[serde(default)]
     pub refined: bool,
+    /// Cut 23 §2: as `Forecast.low` — a `death` of 0 prints `<{low}%`.
+    #[serde(default)]
+    pub low: u32,
 }
 
 /// Cut 12 §3: how a send ends — `bank` / `return` / `death` as shares of a panel of sends run
@@ -1085,7 +1097,7 @@ pub struct Grave {
     pub death_id: Option<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Lineage {
     pub seed: u64,
     pub heir: u32,
@@ -1225,6 +1237,13 @@ pub struct Lineage {
     /// until the night ends (a night is `NIGHT_RUNS` runs).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub start_pass: bool,
+    /// Cut 23 §1: the forge — the heir's starting kit, a ladder per slot (`meta::kit_ladders`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kit: Vec<KitLadder>,
+    /// Cut 23 §3: per row of the active set (by index), its why-not over the recent sends
+    /// (`LineageState::row_stats`); `null` before any send under that row.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub row_why: Vec<Option<RowStat>>,
 }
 
 fn yes() -> bool {
@@ -1340,6 +1359,77 @@ pub struct UnlockInfo {
     /// 0 when not gold-buyable.
     #[serde(default)]
     pub gold_next: u32,
+    /// Cut 23 §3 (AJ: "paid cards are rows he could type"): what a paid card holds that no
+    /// typed row can (`meta::card_carries`: `four rows, one slot`, `den raid first`), ≤ 4
+    /// words. Absent on every other unlock.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub carries: Option<String>,
+}
+
+/// Cut 23 §1: one step of a forge ladder (`sword +1`, `mail`, `pack 4`) and its gold price.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KitStep {
+    pub label: String,
+    pub price: u32,
+    pub owned: bool,
+}
+
+/// Cut 23 §1: a ladder's next step — its price, whether the purse pays it now, the nights of
+/// income until it does (`None` without an income to go on), and with `kitDeltas` its paired
+/// forecast move at `depth` (`delta` ± `pm`, 0..1) and the ends' moves.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct KitNext {
+    pub label: String,
+    pub price: u32,
+    pub affordable: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nights: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub depth: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delta: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pm: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bank: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death: Option<f64>,
+}
+
+/// Cut 23 §1: the forge — one slot of the heir's starting kit (`weapon | armour | pack`), its
+/// ladder, the steps owned, and the next step.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct KitLadder {
+    pub slot: String,
+    pub owned: u32,
+    pub steps: Vec<KitStep>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<KitNext>,
+}
+
+/// Cut 23 §3: a count behind a reason (`RowStat.blocked` / `unmet`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct WhyCount {
+    pub why: String,
+    pub n: u32,
+}
+
+/// Cut 23 §3 (AJ: `foe: gas → throw unknown` fired 0/164, no word): a row's why-not over the
+/// recent sends it sat in (`LineageState::row_stats`): the sends and the hero's actions over
+/// them, the actions it took, the actions its conds held; the most common reason it did not
+/// act when reached with its conds holding (`blocked`), and its most common failing cond
+/// (`unmet`: `gas` for `foe: gas` never in view). `text` is the tablet's line.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RowStat {
+    pub sends: u32,
+    pub actions: u32,
+    pub fired: u32,
+    pub matched: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blocked: Option<WhyCount>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unmet: Option<WhyCount>,
+    pub text: String,
 }
 
 /// QA on a946e04: the chain's next unlock and its prices (`UnlockInfo.next`).

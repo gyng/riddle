@@ -21,6 +21,25 @@ pub enum Pending {
     Hammer,
 }
 
+impl Pending {
+    /// Cut 23 §3: what a telegraph announces, ≤ 3 words — the reason on tap of its shout
+    /// (`bloat swells` → `gas burst next`).
+    pub fn why(self) -> &'static str {
+        match self {
+            Pending::Shoot => "arrow next",
+            Pending::HeavyHit => "heavy blow next",
+            Pending::Rally => "calls more goblins",
+            Pending::Swell => "gas burst next",
+            Pending::Chant => "raises the dead",
+            Pending::Gaze => "stun gaze next",
+            Pending::Flip => "reflects melee now",
+            Pending::Call => "calls for help",
+            Pending::Mirror => "mirrors the rhythm",
+            Pending::Hammer => "hammer blow next",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Monster {
     pub id: u32,

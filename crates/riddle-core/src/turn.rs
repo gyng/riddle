@@ -260,7 +260,12 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
             }
         }
     }
+    // Cut 23 §3: which rows' conds held at the decision, for the why-not tally.
+    let held = if cx.sim { Vec::new() } else { rows_held(run, cx, &v) };
     let (row, verb) = choose_and_act(run, cx, &v);
+    if !cx.sim {
+        tally_rows(run, cx, &held, row);
+    }
     // Cut 7 §4: the last 30 ticks before a foreseeable exit are announced.
     foresee_ending(run, cx, &verb, &v);
     // Cut 5 §1: the episode records the action (the row at the low point when one is awaited)
@@ -462,6 +467,8 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         rows.push((cx.rules.rows.len(), r.clone()));
     }
     let mut brave_said = false;
+    // Cut 23 §2: the committed walk home gave way to a row under it that answers (`answers_on_walk`).
+    let mut walk_only = false;
     let stuck = run.stuck_until > run.actions;
     let suppressed = if run.row_suppressed.1 > run.actions { run.row_suppressed.0 } else { -9 };
     run.last_target = None;
@@ -492,6 +499,23 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         // still walks, below, with its conditions lapsed).
         let failing = row.conds.iter().find(|c| !cond_holds(run, cx, v, c));
         let holds = failing.is_none();
+        // Cut 23 §2 (AJ: every death `return too late` at 1–2 HP; the cohort sets with a way
+        // home died on the walk in 70–100 % of their deaths, jackals biting a back that never
+        // turned, a heal row under the return never read): once a `return` / `bank` row has
+        // committed the walk (`Run.homeward`), the walk is the chore — the committed row no
+        // longer takes every action from the rows under it. A row below that answers on the
+        // walk (a drink, a read, a throw, or a strike at a foe at the elbow) acts; when none
+        // does, the walk goes on.
+        if holds && run.homeward.is_some() && matches!(row.verb.v.as_str(), "return" | "bank") && rows[k + 1..].iter().any(|(_, r)| answers_on_walk(run, cx, v, r)) {
+            row_why(run, cx, i, "going home", None, None);
+            walk_only = true;
+            continue;
+        }
+        // (under a committed walk only the rows that answer on it act)
+        if walk_only && holds && !answers_on_walk(run, cx, v, row) {
+            row_why(run, cx, i, "going home", None, None);
+            continue;
+        }
         if let Some(c) = failing.filter(|_| !cx.sim) {
             row_why(run, cx, i, &cond_reason(run, cx, c), Some(row), Some(c));
         }
@@ -523,6 +547,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             }
             if run.over.is_none() && run.homeward.is_none() && matches!(row.verb.v.as_str(), "return" | "bank") {
                 run.homeward = Some(i as i32);
+                run.home_at = Some((run.turn, hp_pct, run.hero.hp));
                 run.homeward_bank = row.verb.v == "bank";
             }
             // Cut 4: the first row to act after the hero fell to ≤ 20 % is the one the
@@ -568,7 +593,8 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 // (`back ✗ no path` named no row — QA on 50bb162).
                 let short = format!("{} ✗ {reason}", row.verb.short().split(' ').next().unwrap_or(&row.verb.v));
                 if run.blocked_last.as_deref() != Some(&short) {
-                    crate::chronicle::callout(run, cx, &short);
+                    // Cut 23 §3: the reason on tap (`read ✗ no use` → `nothing to learn`).
+                    crate::chronicle::callout_why(run, cx, &short, why_gloss(&row.verb.v, reason));
                 }
                 run.blocked_last = Some(short);
             }
@@ -616,6 +642,167 @@ pub const ROW_REASONS: &[&str] = &[
     "no leash", "none weak", "not safe", "no stairs", "no way", "going home", "prayed", "no shrine", "unknown item", "card passed", "brave held", "fired, free",
     "stuck", "row guard", "same as R", "trait first", "hazard first", "recall sense", "paralysed", "confused", "bail",
 ];
+
+/// Cut 23 §2: a row that answers on the walk home — its conds hold and it drinks, reads or
+/// throws, or strikes (not steps away from) a foe at the hero's elbow that outpaces him (a
+/// walk leaves a slower or an even-paced foe behind; a faster one bites the back that turns).
+fn answers_on_walk(run: &Run, cx: &Ctx, v: &View, r: &crate::rules::Row) -> bool {
+    let h = &run.hero;
+    let held = |kind: &str, cat: Option<Cat>| match kind {
+        "" | "unknown" => h.inv.iter().any(|i| cat.is_none_or(|c| i.cat() == c) && i.is_consumable() && !i.is_known(cx.facts, cx.flavours)),
+        k => h.inv.iter().any(|i| i.kind == k && i.is_known(cx.facts, cx.flavours)),
+    };
+    let arg = r.verb.a.as_deref().unwrap_or("");
+    let answers = match r.verb.v.as_str() {
+        "return" | "bank" | "descend" | "retreat" | "back_corridor" | "rest" | "explore" | "pick_up" => false,
+        // (a drink or a read of something held — the walk does not stop for a row with nothing to use)
+        "drink" => held(arg, Some(Cat::Potion)),
+        "read" => held(arg, Some(Cat::Scroll)),
+        "throw" => held(arg.split(',').next().unwrap_or(""), None) && !v.foes.is_empty(),
+        _ => targets_foes(&r.verb) && v.foes.iter().any(|&i| {
+            let m = &run.monsters[i];
+            m.pos.adjacent(run.hero.pos) && m.effective_speed() > run.hero.speed()
+        }),
+    };
+    answers && r.conds.iter().all(|c| cond_holds(run, cx, v, c))
+}
+
+/// Cut 23 §3: each active row of the set (not a lent row) — whether its conds held at the
+/// decision, and else its first failing cond's key (`unmet_key`).
+fn rows_held(run: &Run, cx: &Ctx, v: &View) -> Vec<(usize, bool, Option<String>)> {
+    cx.rules
+        .active(cx.max_rows)
+        .map(|(i, r)| {
+            let failing = r.conds.iter().find(|c| !cond_holds(run, cx, v, c));
+            (i, failing.is_none(), failing.map(unmet_key))
+        })
+        .collect()
+}
+
+/// Cut 23 §3: a failing cond's key in the tally — the thing never met for a tag, a sight, a
+/// party member or an item (`gas`, `den`, `heal`), else the cond as written (`hp<30`).
+pub fn unmet_key(c: &Cond) -> String {
+    match (c.k.as_str(), c.t.as_deref()) {
+        ("foe_tag" | "on_see" | "party" | "item", Some(t)) if !t.is_empty() => t.to_string(),
+        (k, _) => match c.n {
+            Some(n) => format!("{k}{n}"),
+            None => k.to_string(),
+        },
+    }
+}
+
+/// Cut 23 §3: one action's why-not for every row: an action counted, the rows whose conds
+/// held counted `matched`, the acting row `fired`; a row whose conds held that did not act
+/// counts its reason (`no item`, `row guard`, `same as R2`, or `R3 first` when a row above
+/// took the action before it was read); a row whose conds did not hold counts its first
+/// failing cond.
+fn tally_rows(run: &Run, cx: &mut Ctx, held: &[(usize, bool, Option<String>)], acted: i32) {
+    let need = held.iter().map(|(i, _, _)| i + 1).max().unwrap_or(0);
+    if cx.tally.len() < need {
+        cx.tally.resize(need, Default::default());
+    }
+    let pre = run.rows_why.first().map(|w| w.why.clone());
+    for (i, h, unmet) in held {
+        let t = &mut cx.tally[*i];
+        t.actions += 1;
+        if *i as i32 == acted {
+            t.fired += 1;
+        }
+        if *h {
+            t.matched += 1;
+            if *i as i32 != acted {
+                let why = match run.rows_why.iter().find(|w| w.row == *i) {
+                    Some(w) => w.why.clone(),
+                    None if acted >= 0 => format!("R{} first", acted + 1),
+                    None => pre.clone().unwrap_or_else(|| "chore first".into()),
+                };
+                if why != "fired, free" {
+                    *t.blocked.entry(why).or_insert(0) += 1;
+                }
+            }
+        } else if let Some(u) = unmet {
+            *t.unmet.entry(u.clone()).or_insert(0) += 1;
+        }
+    }
+}
+
+/// Cut 23 §3: a row's tally as the tablet reads it (`Lineage.row_why`): `fired/actions`, then
+/// what kept it quiet — its conds never met (`0/164 · no gas met`), or blocked when they held
+/// (`2/164 · blocked · no scroll`) when the block outnumbers the fires.
+pub fn row_stat(row: &crate::rules::Row, t: &crate::engine::RowTally) -> crate::wire::RowStat {
+    let top = |m: &std::collections::BTreeMap<String, u32>| m.iter().max_by(|a, b| a.1.cmp(b.1).then(b.0.cmp(a.0))).map(|(k, n)| crate::wire::WhyCount { why: k.clone(), n: *n });
+    let blocked = top(&t.blocked);
+    let unmet = top(&t.unmet);
+    let head = format!("{}/{}", t.fired, t.actions);
+    let text = if t.matched == 0 {
+        match unmet.as_ref() {
+            Some(u) => {
+                let tagged = row.conds.iter().any(|c| matches!(c.k.as_str(), "foe_tag" | "on_see" | "party" | "item") && c.t.as_deref() == Some(u.why.as_str()));
+                if tagged {
+                    let verb = if row.conds.iter().any(|c| c.k == "item" && c.t.as_deref() == Some(u.why.as_str())) { "held" } else { "met" };
+                    format!("{head} · no {} {verb}", u.why.replace('_', " "))
+                } else {
+                    format!("{head} · never {}", u.why)
+                }
+            }
+            None => head,
+        }
+    } else {
+        match blocked.as_ref() {
+            Some(b) if b.n > t.fired => format!("{head} · blocked · {}", b.why),
+            _ => head,
+        }
+    };
+    crate::wire::RowStat { sends: t.sends, actions: t.actions, fired: t.fired, matched: t.matched, blocked, unmet, text }
+}
+
+/// Cut 23 §3 (AJ: "`read ✗ no use`, `attack ✗ no target` I could not explain"): every reason
+/// a row does not act (`ROW_REASONS`' verb blocks, guards and pre-emptions) → its reason on
+/// tap, ≤ 3 words. Keys are reason prefixes (`same as R` covers `same as R2`).
+pub const WHY_GLOSS: &[(&str, &str)] = &[
+    ("no path", "way blocked"),
+    ("no target", "no foe reachable"),
+    ("no line", "shot blocked"),
+    ("no bow", "needs a bow"),
+    ("cooldown", "skill recharging"),
+    ("no item", "none in pack"),
+    ("unknown item", "kind unidentified"),
+    ("no unknown", "no unknowns held"),
+    ("no use", "no effect now"),
+    ("no leash", "needs a leash"),
+    ("none weak", "none weak enough"),
+    ("not safe", "foes too near"),
+    ("no stairs", "stairs not found"),
+    ("going home", "heading home"),
+    ("prayed", "prayed already"),
+    ("no shrine", "no shrine here"),
+    ("no way", "exit unreachable"),
+    ("card passed", "card not triggered"),
+    ("brave held", "bravery held it"),
+    ("stuck", "loop guard waits"),
+    ("row guard", "row rested (loop)"),
+    ("same as R", "earlier row covers"),
+    ("trait first", "trait acted first"),
+    ("hazard first", "left the hazard"),
+    ("recall sense", "recall read first"),
+    ("paralysed", "cannot act"),
+    ("confused", "stumbled instead"),
+    ("bail", "called home"),
+    ("locked cond", "cond not bought"),
+    ("fired, free", "free action"),
+];
+
+/// Cut 23 §3: the gloss of a block reason for the verb it blocked — `read ✗ no use` →
+/// `nothing to learn`, `drink ✗ no use` → `not needed now`; else `WHY_GLOSS`.
+pub fn why_gloss(verb: &str, why: &str) -> Option<&'static str> {
+    match (verb, why) {
+        ("read", "no use") => return Some("nothing to learn"),
+        ("drink", "no use") => return Some("not needed now"),
+        ("throw", "no line") => return Some("no clear throw"),
+        _ => {}
+    }
+    WHY_GLOSS.iter().filter(|(k, _)| why.starts_with(k)).max_by_key(|(k, _)| k.len()).map(|(_, g)| *g)
+}
 
 /// A condition this lineage can use (`LineageState::shadowed_by`'s test): a row whose
 /// condition it does not own never fires, so it shadows nothing.
@@ -1243,7 +1430,14 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
     }
     let cause = src.cause(run);
     let cause = cause.as_str();
-    let dmg = dmg.max(0);
+    let mut dmg = dmg.max(0);
+    // Cut 23 §1 (the forge's full kit broke the D28 wall without its counter: FULL−D28 kitted
+    // passed on 16 of 30 seeds, the Queen dead to four blows before her second call): while a
+    // lurker she called lives, her brood shields her — half of every blow. Silence (no calls)
+    // or clearing the brood first is the answer.
+    if dmg > 0 && run.monsters[mi].kind == "lurker_queen" && run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.summoned && m.kind == "lurker") {
+        dmg = (dmg + 1) / 2;
+    }
     let (dmg, counter) = {
         let m = &run.monsters[mi];
         counter_damage(run, src, dmg, Some(mi), m.pos, m.hostile())
@@ -1553,10 +1747,11 @@ pub fn noise(run: &mut Run, cx: &mut Ctx, at: Pos, radius: i32) {
         return;
     }
     run.noise = Some((at, run.turn));
-    // The Queen hears twelve tiles around and keeps up to six called lurkers in the hunt
-    // (they fade after 150 ticks: silence lets the storm pass).
+    // The Queen hears twelve tiles around and keeps up to eight called lurkers in the hunt
+    // (they fade after 150 ticks: silence lets the storm pass). Cut 23 §1: eight (was six) —
+    // the kitted FULL−D28 outlasted six.
     let called = run.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && m.summoned && m.kind == "lurker").count();
-    const QUEEN_PACK: usize = 6;
+    const QUEEN_PACK: usize = 8;
     for mi in 0..run.monsters.len() {
         let m = &run.monsters[mi];
         let queen = m.kind == "lurker_queen";

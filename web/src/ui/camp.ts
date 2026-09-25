@@ -17,14 +17,15 @@
 // row stands in for the class button while it is up.
 import type { App, Mounted } from "../app";
 import type { CageOption, Lineage, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
-import { h, clear, flash, pct, replace, spanOf, twoTap } from "./dom";
+import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
-import { renderForecast, renderShaft, signedPts } from "./forecast";
+import { lowOf, renderForecast, renderShaft, share, signedPts } from "./forecast";
 import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
 import { openChronicle } from "./chronicle";
+import { kitAffordable, openForge } from "./forge";
 import { stallLabel, classList, deltaClass, deltaLabel, deltaPts, goldAffordable, addCard, isCard, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
@@ -67,7 +68,7 @@ export function startShort(L: Pick<Lineage, "gold" | "start" | "start_payable" |
   return L.gold < toll;
 }
 /** Cut 17 §3: which step carves each console tile (the tile glints on its first appearance). */
-const STEP_OF: Record<string, Step> = { edit: "edit", loadout: "loadout", unlocks: "unlocks", vault: "vault", forge: "forge", party: "party", ledger: "heirs", chronicle: "heirs" };
+const STEP_OF: Record<string, Step> = { edit: "edit", loadout: "loadout", unlocks: "unlocks", vault: "vault", forge: "kit", party: "party", ledger: "heirs", chronicle: "heirs" };
 const ALL_KEY = "riddle.unlocks.all";
 const unlocksAll = (): boolean => { try { return localStorage.getItem(ALL_KEY) === "1"; } catch { return false; } };
 const setUnlocksAll = (on: boolean): void => { try { localStorage.setItem(ALL_KEY, on ? "1" : "0"); } catch { /* a per-viewer convenience */ } };
@@ -159,11 +160,13 @@ export function renderCamp(app: App, highlight?: number): Mounted {
 
   // QA 1a2a4a9 (P: "nothing on the camp shows what's packed — only opening SUPPLIES does"): the loadout tile carries the pack's count
   const withPack = (el: HTMLElement): HTMLElement => { const n = app.lineage.supplies?.length ?? 0; if (n) el.appendChild(h("span", { class: "pack-n num" }, `${n}/${supplyCap(app.lineage.unlocks)}`)); return el; };
+  /** Cut 23 §1: the forge tile's badge — the kit steps the purse can buy now (`2`), none when there are none. */
+  const kitBadge = (): HTMLElement | null => { const n = kitAffordable(app.lineage); return n ? h("span", { class: "kit-n num", "data-n": n }, `${n}`) : null; };
   const withBadge = (el: HTMLElement, badge: HTMLElement | null): HTMLElement => { if (badge) { el.appendChild(badge); el.classList.add("badged"); } return el; };
   /** Cut 17 §1/§3: the command card as revealed — edit · loadout · unlocks · vault · forge · party · ledger · chronicle. */
   function paintTiles(): void {
     const R = revealed(app);
-    const t = (id: string, label: string, ico: string, onclick: () => void, on = false): HTMLElement => tile({ id, label, icon: ico, onclick: () => { closeAllSheets(); onclick(); }, on, fresh: R.fresh(STEP_OF[id]) });
+    const t = (id: string, label: string, ico: string, onclick: () => void, on = false): HTMLElement => tile({ id, label, icon: ico, onclick: () => { closeAllSheets(); onclick(); }, on, fresh: R.fresh(STEP_OF[id]) || (id === "forge" && R.fresh("forge")) });
     cons.setTiles([
       // QA 92eb880 (N: "the `edit` tile toggles: tapping it while editing closes the editor (I lost the next tap twice)"): it turns
       // editing on and stays lit; a second tap closes the open panel, never the editor
@@ -171,7 +174,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
       R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
       R.has("vault") && t("vault", /* copy:button */ "vault", "vault", () => togglePanel("vault"), open === "vault"),
-      R.has("forge") && t("forge", /* copy:button */ "forge", "forge", () => openForge(app)),
+      // Cut 23 §1: the forge sells the heir's kit — carved at the first salvage or the first kit step the purse can buy; its badge counts
+      // the steps affordable now
+      (R.has("forge") || R.has("kit")) && withBadge(t("forge", /* copy:button */ "forge", "forge", () => openForge(app)), kitBadge()),
       R.has("party") && t("party", /* copy:button */ "party", "party", () => togglePanel("party"), open === "party"),
       R.has("heirs") && t("ledger", /* copy:button */ "ledger", "ledger", () => openLedger(app)),
       R.has("heirs") && t("chronicle", /* copy:button */ "chronicle", "chronicle", () => openChronicle(app)),
@@ -217,21 +222,6 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const restS = app.lineage.rest_left_s ?? 0;
     replace(rest, /* copy:callout */ `rest ${spanOf(restS)} · send skips`);
     rest.hidden = restS <= 0;
-  }
-  // Cut 9 §10: each kind shows its ladder — `sword · salvaged 3/5 → craftable` (the engine's `next` rung); at the top, the count alone
-  function openForge(app2: App): void {
-    openSheet(() => {
-      const L = app2.lineage; const rows = Object.entries(L.forge ?? {}).sort((a, b) => b[1].salvaged - a[1].salvaged);
-      const head = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), h("span", null, ""), /* copy:label */ ...["craft", "tier"].map((s) => h("span", { class: "dot-h" }, s)));
-      // the sheet's title (QA on 952e306: "forge: 'CRAFT TIER' header only"); with nothing salvaged yet, one dim line says so
-      // instead of bare headers (QA on 50bb162: "FORGE sheet shows only the headers")
-      if (!rows.length) return h("div", { class: "sheet-body ledger forge" }, h("div", { class: "label" }, /* copy:label */ "forge"), h("div", { class: "empty-line dim" }, /* copy:callout */ "nothing salvaged"));
-      return h("div", { class: "sheet-body ledger forge" }, h("div", { class: "label" }, /* copy:label */ "forge"), head, ...rows.map(([kind, f]) => h("div", { class: "lrow" },
-        h("span", { class: "k" }, kind.replace(/_/g, " ")),
-        h("span", { class: "ladder num dim" }, /* copy:label */ "salvaged", " ", f.next ? h("span", null, `${f.salvaged}/${f.next.need}`, " → ", h("span", { class: "rung" }, f.next.label.replace(/_/g, " "))) : `${f.salvaged}`),
-        // QA 778fa1b (qaU: `· | ·` read as missing values; qaV: `⚒` looked like a button): a mark, not a tool — `✓` / `–`
-        h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "✓" : "–"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "–"))));
-    });
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
   // Cut 5 §6: each row carries the class's verb ladder as chips (`L1 shield bash · L3 cleave · …`), reached rungs lit.
@@ -345,7 +335,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       paint(memo, !memo && !!app.engine.cageForecast);
       if (!memo && app.engine.cageForecast) void app.engine.cageForecast().then((opts) => { cageMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); }).catch((e) => { console.warn("cageForecast", e); if (list.isConnected) paint(null, false); });
       return h("div", { class: "sheet-body cage-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "cage"), list);
-    });
+    }, { anchor: cageTab });   // Cut 23 §4: beside the tablet it sets, never over it
   }
   function paintStart(): void {
     const L = app.lineage, on = revealed(app).has("start");
@@ -389,7 +379,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           // form, absolute — `D5 · bank 40% · death 10% · ~$25` (the bank share, or the reach at the option's depth when no start banks;
           // the gold a send brings home net of the toll), the current start marked by its lit chip
           const banks = (opts ?? []).some((x) => x.bank > 0);
-          const d = oo ? { text: banks ? `${/* copy:label */ "bank"} ${pct(oo.bank)}` : `D${oo.depth} ${pct(oo.reach)}`, cls: "level" } : null, death = oo?.death;
+          const lo = oo?.low ?? lowOf(app.lastForecast);
+          const d = oo ? { text: banks ? `${/* copy:label */ "bank"} ${share(oo.bank, lo)}` : `D${oo.depth} ${share(oo.reach, lo)}`, cls: "level" } : null, death = oo?.death;
           const net = oo ? Math.round(oo.net ?? oo.gold - (oo.toll ?? 0)) : undefined;
           // QA a946e04 (T): a toll the purse cannot pay dims its option and says so (`D5 · $50 short`); the current one stays lit
           const pass = st > 1 && (o?.pass === true || (st === cur && app.lineage.start_pass === true));
@@ -399,7 +390,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
             h("span", { class: "num" }, `D${st}`),
             d ? h("b", { class: `num level${st === cur ? " cur" : ""}` }, ` · ${d.text}`) : pending && st !== cur ? h("small", { class: "num dim" }, " …") : "",
             // Cut 22 §4 (AG: "`D9 · bank +3% · $90` — but the shaft then says death 61%"): the start's death share beside its bank
-            d && death !== undefined ? h("span", { class: `num start-death${death >= 0.5 ? " warn" : ""}` }, /* copy:callout */ ` · death ${pct(death)}`) : "",
+            d && death !== undefined ? h("span", { class: `num start-death${death >= 0.5 ? " warn" : ""}` }, /* copy:callout */ ` · death ${share(death, lo)}`) : "",
             d && net !== undefined ? h("span", { class: `num start-gold gold${net <= 0 ? " warn" : ""}` }, ` · ~$${net}`) : "",
             pass ? h("small", { class: "num toll pass" }, /* copy:callout */ " · pass") : toll > 0 ? h("small", { class: `num toll${short ? " warn" : ""}` }, short ? /* copy:callout */ ` · $${toll} short` : ` · $${toll}`) : "");
         }));
@@ -408,7 +399,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       paint(memo, !memo && !!app.engine.startForecast);
       if (!memo && app.engine.startForecast) void app.engine.startForecast().then((opts) => { startMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); paintStart(); }).catch((e) => { console.warn("startForecast", e); if (list.isConnected) paint(null, false); });
       return h("div", { class: "sheet-body start-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "start"), list);
-    });
+    }, { anchor: startTab });
   }
   /** Cut 19 §3: the loadout repeats by default — the tile carries `repeat · $120` (the kinds the next send re-packs, at the shelf's
    *  price); a tap on it clears the repeat (`setRestock(false)`, the shelf refunded), `repeat off` a tap turns it back on. */
@@ -434,35 +425,38 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
     clear(supplies);
     supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/${cap}`)));
-    const chips = h("div", { class: "chips" });
+    // Cut 23 §4 (AJ: "a layout jump bought a confusion potion"): the shelf is `cap` fixed slots (a bought line fills the next empty one)
+    // and the shop a fixed grid under it whose chips keep one height (the `why` line always there) — a buy never moves a chip under the finger
+    const chips = h("div", { class: "chips packed" });
     // Cut 12 §6: each line carries its own `×` (the header's cleared the whole shelf: "I lost the leash"); a free line reads `· kennel`
     // QA 92eb880 (M, N: "`leash · kennel` — kennel?"; "× drops the free leash at once, no undo; re-buying costs $30"): a free line reads
-    // `· free`, and its `×` takes two taps — the first arms it (`drop`), the second within 3 s drops it
+    // `· free`, and its `×` takes two taps — the first arms it (`drop`), the second drops it. Cut 23 §4 (AI: "the drop confirm undid
+    // itself"): armed, it stays armed until the second tap or a tap elsewhere (never a timer; a repaint keeps it); the `×` is ≥ 32 px
     for (const p of picks) {
       const free = isFreeSupply(L, p);
-      let armed = 0;
-      const x: HTMLButtonElement = h("button", { class: "x", onclick: () => {
-        if (!free || (armed && performance.now() - armed < 3000)) { void app.dropSupply(p.id); return; }
-        armed = performance.now(); x.classList.add("armed"); replace(x, /* copy:button */ "drop");
-        setTimeout(() => { if (x.isConnected) { armed = 0; x.classList.remove("armed"); replace(x, "×"); } }, 3000);
-      } }, "×");
+      const x: HTMLButtonElement = free
+        ? twoTap("×", /* copy:button */ "drop", () => void app.dropSupply(p.id), { class: "x", key: `drop:${p.id}` })
+        : h("button", { class: "x", "aria-label": /* copy:button */ "drop", onclick: () => void app.dropSupply(p.id) }, "×");
       // Cut 21 §2: a line an exit shelved reads `· found` (packed free); with the repeat on, a kind no row names reads `· no row` — the
       // next send will not re-buy it (the core's narrowed `repeat_kinds`)
       const noRow = !free && !p.found && L.repeat !== false && L.repeat_kinds !== undefined && !L.repeat_kinds.includes(p.kind);
-      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, p.label, free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
-        noRow ? h("small", { class: "dim no-row" }, /* copy:callout */ " · no row") : "", x));
+      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, h("span", { class: "item-l" }, p.label, free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
+        noRow ? h("small", { class: "dim no-row" }, /* copy:callout */ " · no row") : ""), x));
     }
+    for (let i = picks.length; i < cap; i++) chips.appendChild(h("span", { class: "chip slot empty", "aria-hidden": "true" }, ""));
     supplies.appendChild(chips);
+    const shopEl = h("div", { class: "chips shop" });
+    supplies.appendChild(shopEl);
     // the shop from the last catalogue at once, the engine's replacing it when it arrives (QA B on 952e306: "while FORECAST
     // shows '…' the SUPPLIES shop chips are gone"); the gold and the slots are read live either way
     const shop = (cat: SupplyEntry[]): void => {
-      for (const b of [...chips.querySelectorAll(".chip.buy")]) b.remove();
+      for (const b of [...shopEl.querySelectorAll(".chip.buy")]) b.remove();
       for (const e of cat) {
         const can = !full && !e.needs && L.gold >= e.price;
         // Cut 10 §3: a greyed supply says why under its price — the slots, the engine's gate, or the gold missing
         const why = full ? /* copy:callout */ `${picks.length}/${cap} slots` : e.needs ? e.needs.replace(/_/g, " ") : L.gold < e.price ? /* copy:callout */ `$${e.price - L.gold} short` : "";
-        chips.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind)) },
-          h("span", { class: "buy-main" }, h("span", null, e.label, " ", h("b", { class: "num gold" }, `$${e.price}`)), why ? h("small", { class: "why num dim" }, why) : "")));
+        shopEl.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind)) },
+          h("span", { class: "buy-main" }, h("span", null, e.label, " ", h("b", { class: "num gold" }, `$${e.price}`)), h("small", { class: "why num dim" }, why || "\u00a0"))));
       }
     };
     if (app.supplyCat.length) shop(app.supplyCat);
@@ -500,6 +494,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     }).catch((e) => console.warn("unlocks", e));
   }
   function paintFrom(cat: UnlockInfo[]): void {
+    keepScroll(() => paintShelf(cat));
+  }
+  function paintShelf(cat: UnlockInfo[]): void {
     {
       clear(unlocks);
       // Cut 10 §3: `+1 row` waits for the rows to fill (a client-side gate; the core may send the same `needs`)
@@ -533,7 +530,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         const byGold = !u.available && goldAffordable(u, app.lineage.gold);
         grid.appendChild(h("button", { class: `card${u.available ? " buyable" : byGold ? " buyable gold-ok" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u) },
           // QA 92eb880 (N: "`AUTO: RESTOCK · ⊘ ◆1 more` while `$ buy` is enabled"): a marks shortfall the gold covers carries no `⊘`
-          h("span", { class: "card-main" }, h("span", null, u.label), u.needs ? h("small", { class: "needs dim" }, u.gated && !byGold ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
+          h("span", { class: "card-main" }, h("span", null, u.label), u.carries ? h("small", { class: "carries dim" }, u.carries) : "", u.needs ? h("small", { class: "needs dim" }, u.gated && !byGold ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
             d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d, app.rules.rows.length)) : "",
             stallLabel(u) ? h("small", { class: "num delta down stall-risk" }, stallLabel(u)) : ""),   // QA 92eb880: the stall risk before buying
           h("span", { class: "num cost" }, priceLabel(u))));   // QA 23ed91f: a free door reads no `◆0`; Cut 18 §5: both prices, `◆3 · $450`
@@ -561,7 +558,14 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }
-  function paintAll(): void { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  /** Cut 23 §4: a repaint rebuilds the open panel's content — its scroll (and the well's) is kept, so nothing moves under the finger. */
+  function keepScroll(fn: () => void): void {
+    const boxes = [panelHost.querySelector<HTMLElement>(".panel-body"), panelHost.querySelector<HTMLElement>(".panel"), well];
+    const tops = boxes.map((b) => b?.scrollTop ?? 0);
+    fn();
+    boxes.forEach((b, i) => { if (b && b.scrollTop !== tops[i]) b.scrollTop = tops[i]; });
+  }
+  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);

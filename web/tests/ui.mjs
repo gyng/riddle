@@ -214,7 +214,7 @@ async function qaL() {
   await fake({ depths: depthsF, known_to: 9, causes: [{ cause: "rat", share: 1 }], ends: { bank: 0, return: 0.04, death: 0.66, stall: 0.3, gold: 3, pm: 0.03 }, refined: true });
   await sleep(150);
   const ends = await page.evaluate(() => [...document.querySelectorAll(".shaft .shaft-ends .end")].map((e) => e.textContent.replace(/\s+/g, " ").trim()));
-  const sum = ends.map((e) => /(\d+)%$/.exec(e)).filter(Boolean).reduce((a, m) => a + Number(m[1]), 0);
+  const sum = ends.map((e) => /(<?)(\d+)%$/.exec(e)).filter(Boolean).reduce((a, m) => a + (m[1] ? 0 : Number(m[2])), 0);   // Cut 23 §2: a `<N%` share is a 0 sampled
   check(ends.some((e) => e === "stall 30%") && sum === 100, `the shaft's gems sum to 100 with a stall gem (${ends.join(" · ")})`);
   await page.locator(".shaft").click({ timeout: 5000 }); await sleep(200);
   const killer = await page.evaluate(() => [...document.querySelectorAll(".panel .fc-bars .bar")].filter((b) => /rat/.test(b.textContent)).map((b) => b.querySelector(".d")?.textContent));
@@ -231,8 +231,8 @@ async function qaL() {
   const rest = await page.evaluate(() => { const e = document.querySelector(".rest-line .rest"); return e && !e.hidden ? { tag: e.tagName, border: getComputedStyle(e).borderTopStyle } : null; });
   check(!!rest && rest.tag !== "BUTTON" && rest.border === "none", `\`rest … · send skips\` is a note, not a boxed control (${JSON.stringify(rest)})`);
   await page.locator(".cmd .tile[data-tile=forge]").click({ timeout: 5000 }); await sleep(200);
-  const forge = await page.evaluate(() => ({ text: document.querySelector(".sheet-wrap .forge")?.textContent ?? "", buttons: [...document.querySelectorAll(".sheet-wrap .forge button")].filter((b) => !b.classList.contains("close-stud")).length }));
-  check(!/○/.test(forge.text) && forge.buttons === 0, `the forge's marks are marks: no \`○\`, no control but the stud (${forge.buttons} buttons)`);
+  const forge = await page.evaluate(() => ({ text: document.querySelector(".sheet-wrap .forge .salvage")?.textContent ?? "", buttons: [...document.querySelectorAll(".sheet-wrap .forge .salvage button")].filter((b) => !b.classList.contains("close-stud")).length }));
+  check(!/○/.test(forge.text) && forge.buttons === 0, `the forge's marks are marks: no \`○\`, no control in the salvage ladder (Cut 23: the kit steps above it are buys) (${forge.buttons} buttons)`);
   await page.keyboard.press("Escape"); await sleep(100);
   await page.locator(".cmd .tile[data-tile=unlocks]").click({ timeout: 5000 }); await sleep(200);
   await page.locator("button.gear").click({ timeout: 5000 }); await sleep(250);
@@ -497,7 +497,7 @@ async function cut18() {
   await shot("ui-cut18-shaft");
   await openPanel(page, "forecast"); await sleep(200);
   const row = await page.evaluate(() => [...document.querySelectorAll(".panel .fc-bars .bar")].map((b) => b.textContent.replace(/\s+/g, " ").trim()).find((t) => /^D9/.test(t)));
-  check(/^D9 ?0%( ±\d+)? · warlord wall$/.test(row ?? ""), `the panel's row reads \`D9 0% · warlord wall\` ("${row}")`);
+  check(/^D9 ?(0%|<\d+%)( ±\d+)? · warlord wall$/.test(row ?? ""), `the panel's row reads \`D9 0% · warlord wall\` ("${row}")`);
   await shot("ui-cut18-wall");
   await page.keyboard.press("Escape"); await sleep(100);
   // ---- §4: a stall's cause names the rows' loop (`R2 retreat ↔ explore`): the loop whole on one line; QA 1a2a4a9 (P: the headline
@@ -591,7 +591,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [{ k: "hp<", n: 50 }], verb: { v: "attack", a: "nearest" } }, 2); r.go({ kind: "camp" }); });
   await page.waitForFunction(() => document.querySelector(".shaft .shaft-ends")?.hidden === false, null, { timeout: 15_000 }).catch(() => {});
   const ends = await page.evaluate(() => [...document.querySelectorAll(".shaft .shaft-ends .end")].map((e) => e.textContent.replace(/\s+/g, " ").trim()));
-  check(ends.length === 4 && /^bank \d+%$/.test(ends[0]) && /^return \d+%$/.test(ends[1]) && /^death \d+%$/.test(ends[2]) && /^~\$\d+…?$/.test(ends[3]), `a 3rd row lights the shaft's gems (QA 778fa1b: \`…\` on the first pass): ${ends.join(" · ")}`);
+  check(ends.length === 4 && /^bank <?\d+%$/.test(ends[0]) && /^return <?\d+%$/.test(ends[1]) && /^death <?\d+%$/.test(ends[2]) && /^~\$\d+…?$/.test(ends[3]), `a 3rd row lights the shaft's gems (QA 778fa1b: \`…\` on the first pass): ${ends.join(" · ")}`);
   // 5 heirs: ledger, chronicle, the set tabs
   check(!(await tileIds()).includes("ledger") && !(await page.locator(".tabs:not([hidden]) .tab").count()), "before the 5th heir: no ledger, no chronicle, no set tabs");
   check(await patchSave((e) => { e.lineage.heir = 5; }), "the lineage took its 5th heir");

@@ -87,7 +87,7 @@ try {
   check(ch.at.length > 0 && ch.at.every((a) => a === "D4 · t7840") && !/D2/.test(ch.text), `the link names the death's floor and turn (${ch.at.join(" | ")})`);
   const ret = ch.patches.find((p) => /return/.test(p.text)), noGain = ch.patches.find((p) => /retreat/.test(p.text));
   // QA 778fa1b (qaU: `hp < 40% → return · survives 100%` looked best and cost D5 −54): an exit row's patch names its cost — `return early` beside the reach
-  check(!!ret && /return early · reach/.test(ret.text), `an exit row's patch says it goes home early, with its reach ("${ret?.text}")`);
+  check(!!ret && /return early/.test(ret.text) && !/reach D\d/.test(ret.text), `an exit row's patch says it goes home early, its cost in a word, no reach number — Cut 23 §3 ("${ret?.text}")`);
   check(!!noGain && /survives 42% · no gain/.test(noGain.text) && /\bbelow\b/.test(noGain.cls), `a patch that survives no more than the base is dim, \`no gain\` ("${noGain?.text}")`);
   await shot("qa21-death");
 

@@ -166,8 +166,10 @@ function reachSpan(p: Patch, stallish = false): HTMLElement {
   // return · survives 100%` looked best, applied: `D5 −54 · death −94`): a patch whose row ends the run (`Patch.exits`, else its verb)
   // survives by going home — its cost is floors, so it says so, `return early`, beside the reach it costs (`reach D6 −49`)
   const exits = !stallish && !p.remove && (p.exits ?? EXIT_VERBS.has(p.row.verb.v));
-  const early = exits ? h("small", { class: "early" }, p.row.verb.v === "bank" ? /* copy:callout */ "bank early" : /* copy:callout */ "return early", " · ") : "";
-  if (p.camp_pending) return h("span", { class: `num delta pending${exits ? " exit" : ""}` }, early, /* copy:callout */ "reach …");
+  // Cut 23 §3 (AI: `survives 92% … reach D5 −88` — "a number I could not read"): one form — an exit's point is surviving, so it loses its
+  // number and says what it costs in a word (`return early`); every other patch reads its reach move (`reach D6 +8 ±3`)
+  if (exits) return h("span", { class: "num delta exit early" }, p.row.verb.v === "bank" ? /* copy:callout */ "bank early" : /* copy:callout */ "return early");
+  if (p.camp_pending) return h("span", { class: "num delta pending" }, /* copy:callout */ "reach …");
   const delta = Math.round(p.forecast_delta * 100);
   const pm = p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : undefined;
   const flat = delta === 0 || (pm !== undefined && Math.abs(delta) <= pm);
@@ -177,8 +179,8 @@ function reachSpan(p: Patch, stallish = false): HTMLElement {
   // QA 92eb880 (M: "`reach D7 ~0` … the camp then shows D7 12%"): a move inside the ± reads as a move, never as a reach of ~0
   // Cut 22 §4: a move is signed points in the delta look (`reach D6 +8 ±3`), `≈` inside its ± — a move, never a reach level or a chance.
   // QA 778fa1b (qaU: `reach D6 ≈ ±14` — "a spread with no value"): `≈` is no call and stands alone; the ± rides only a move
-  return flat ? h("span", { class: `num delta flat${exits ? " exit" : ""}` }, early, `${word}${at}≈`)
-    : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}${exits ? " exit" : ""}` }, early, `${word}${at}${delta > 0 ? "+" : "−"}${Math.abs(delta)}`, pmTag);
+  return flat ? h("span", { class: "num delta flat" }, `${word}${at}≈`)
+    : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, `${word}${at}${delta > 0 ? "+" : "−"}${Math.abs(delta)}`, pmTag);
 }
 
 /** QA 23ed91f: the camp's reach for a death's patches landed (`deathDeltas`, same order): each patch takes its numbers, and each

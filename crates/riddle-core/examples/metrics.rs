@@ -30,6 +30,11 @@ enum Bot {
 }
 
 const BOTS: [Bot; 13] = [Bot::Default, Bot::Edited, Bot::Random, Bot::Passive, Bot::Learned, Bot::Pets, Bot::Levelled, Bot::Trivial, Bot::Countered, Bot::Full, Bot::FullNo23, Bot::FullNo28, Bot::FullNo33];
+/// Cut 23 §1: the bots that also play with every forge step bought (`kit::buy_all`) — the gates
+/// hold with the whole kit: KITTED (DEFAULT kitted) dies by D8, EDITED kitted beats it by 15,
+/// RANDOM and PASSIVE lose, LEARNED kitted gains ≤ 2 floors on it, TRIVIAL never passes D8,
+/// the FULL walls hold.
+const KIT_BOTS: [Bot; 9] = [Bot::Default, Bot::Edited, Bot::Random, Bot::Passive, Bot::Learned, Bot::Trivial, Bot::FullNo23, Bot::FullNo28, Bot::FullNo33];
 /// Cut 3: the FULL bots play three 8 h absences.
 const FULL_BATCHES: u64 = 3;
 
@@ -162,6 +167,15 @@ fn cohort_sets() -> Vec<(String, RuleSet)> {
 
 /// (set index, seed, the set's return rows cut) → (sends, stalls, deaths, dances).
 type CohortStalls = BTreeMap<(usize, u64, bool), (u32, u32, u32, u32)>;
+/// Cut 23 §2: one death of a cohort set — its killer, whether the hero was walking home
+/// (and his hp % when he turned), and its verdict (sampled).
+#[derive(Clone, Debug)]
+struct DeathMix {
+    killer: String,
+    home: Option<i32>,
+    verdict: Option<String>,
+}
+type CohortDeaths = BTreeMap<(usize, u64), Vec<DeathMix>>;
 
 /// Cut 19 §2: `set` without its `return` rows (the death share's comparison).
 fn without_return(set: &RuleSet) -> RuleSet {
@@ -187,15 +201,78 @@ fn cohort_game(set: &RuleSet, seed: u64) -> Game {
     g
 }
 
-fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> (u32, u32, u32, u32) {
+fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> ((u32, u32, u32, u32), Vec<DeathMix>) {
     let mut g = cohort_game(set, seed);
+    g.max_deaths = 100_000;
     riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
+    // Cut 23 §2: the death mix — every death's killer and walk home; verdicts on two a seed.
+    let ids: Vec<u32> = g.deaths.iter().filter(|(_, r)| !r.stall).map(|(id, _)| *id).collect();
+    let step = (ids.len() / 2).max(1);
+    let sampled: Vec<u32> = ids.iter().step_by(step).take(2).copied().collect();
+    let mut mix = Vec::new();
+    for id in &ids {
+        let verdict = if sampled.contains(id) { riddle_core::trace::verdict(&mut g, *id) } else { None };
+        let rec = &g.deaths[id];
+        mix.push(DeathMix { killer: rec.death.cause.clone(), home: rec.home.map(|h| h.0), verdict });
+    }
     // QA on 23ed91f (qaL): a run that reaches the tick cap is a stall that never ended (a
     // conjurer's blades reset the guard: 120 000 ticks, 3 000 kills) — counted with them.
     let capped = g.batch.run_ticks.iter().filter(|&&t| t >= riddle_core::engine::MAX_TURNS_PER_RUN).count() as u32;
     let deaths = g.batch.run_outcomes.iter().filter(|(_, c)| c.is_some()).count() as u32;
     // QA on 778fa1b (qaV): runs with a bloodless dance (`Batch.dances`).
-    (g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths, g.batch.dances)
+    ((g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths, g.batch.dances), mix)
+}
+
+/// Cut 23 §2: the death mix per cohort set — the share of deaths on the walk home, the top
+/// killer, and the sampled verdicts × killer; a set whose single top (walk, killer) cause is
+/// over half its deaths is flagged.
+fn death_mix_report(sets: &[(String, RuleSet)], deaths: &CohortDeaths, seeds: u64) -> (usize, usize) {
+    println!("\ndeath mix (Cut 23 §2; cohort sets, 4 h × {seeds} seeds): deaths · walking home (hp % at the turn) · top killer · top cause (walk × killer) · sampled verdicts");
+    let (mut flagged, mut n_sets) = (0usize, 0usize);
+    for (si, (name, _)) in sets.iter().enumerate() {
+        let all: Vec<&DeathMix> = (1..=seeds).flat_map(|s| deaths.get(&(si, s)).into_iter().flatten()).collect();
+        if all.is_empty() {
+            println!("  {name}: no deaths");
+            continue;
+        }
+        n_sets += 1;
+        let n = all.len();
+        let home: Vec<i32> = all.iter().filter_map(|d| d.home).collect();
+        let home_hp = if home.is_empty() { 0.0 } else { home.iter().sum::<i32>() as f64 / home.len() as f64 };
+        let count = |f: &dyn Fn(&DeathMix) -> String| {
+            let mut m: BTreeMap<String, usize> = BTreeMap::new();
+            for d in &all {
+                *m.entry(f(d)).or_insert(0) += 1;
+            }
+            let mut v: Vec<(String, usize)> = m.into_iter().collect();
+            v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+            v
+        };
+        let killers = count(&|d| d.killer.clone());
+        let causes = count(&|d| format!("{}{}", if d.home.is_some() { "walk · " } else { "" }, d.killer));
+        let verdicts: Vec<String> = all.iter().filter_map(|d| d.verdict.as_ref().map(|v| format!("{v} × {}{}", if d.home.is_some() { "walk · " } else { "" }, d.killer))).collect();
+        let mut vc: BTreeMap<&str, usize> = BTreeMap::new();
+        for v in &verdicts {
+            *vc.entry(v.as_str()).or_insert(0) += 1;
+        }
+        let mut vv: Vec<(&str, usize)> = vc.into_iter().collect();
+        vv.sort_by_key(|b| std::cmp::Reverse(b.1));
+        let top = &causes[0];
+        let top_share = pct(top.1, n);
+        let walk_share = pct(home.len(), n);
+        // (the contract's bar: one cause — walk × killer — over half; the walk share prints beside)
+        let flag = top_share > 50.0;
+        flagged += flag as usize;
+        println!(
+            "  {name}: {n} · walk {walk_share:.0}% (hp {home_hp:.0}%) · killer {} {:.0}% · top {} {top_share:.0}%{} · {}",
+            killers[0].0,
+            pct(killers[0].1, n),
+            top.0,
+            if flag { " · OVER HALF" } else { "" },
+            vv.iter().take(3).map(|(v, k)| format!("{v} ×{k}")).collect::<Vec<_>>().join(", ")
+        );
+    }
+    (flagged, n_sets)
 }
 
 /// Cut 22 §1: one cohort set's gold over `hours` of watched sends (the repeat on, no absence's
@@ -216,6 +293,8 @@ struct GoldTally {
     /// Thefts of a bought (packed, not found) supply, and all thefts.
     supply_thefts: u32,
     thefts: u32,
+    /// Cut 23 §5: thefts of a leash (the only pet gear).
+    leash_thefts: u32,
     /// The sends that returned (60 %) and their own net: the safe run the raters called a
     /// treadmill (AG: "+$77 returned · +$19 salvage · −$160 spent").
     ret_sends: u32,
@@ -233,6 +312,7 @@ impl GoldTally {
         self.other += o.other;
         self.supply_thefts += o.supply_thefts;
         self.thefts += o.thefts;
+        self.leash_thefts += o.leash_thefts;
         self.ret_sends += o.ret_sends;
         self.ret_net += o.ret_net;
     }
@@ -283,6 +363,7 @@ fn cohort_gold(set: &RuleSet, seed: u64, hours: u64, waystone: bool) -> GoldTall
             let r = g.run.as_ref().unwrap();
             t.thefts += r.stolen_kinds.len() as u32;
             t.supply_thefts += r.stolen_kinds.iter().filter(|(id, _, _)| bought.contains(id)).count() as u32;
+            t.leash_thefts += r.stolen_kinds.iter().filter(|(_, k, _)| k == "leash").count() as u32;
             (r.turn, r.over.unwrap_or(ExitTier::Return))
         };
         consumed += turns as u64 + g.rest_after(turns, tier) as u64;
@@ -315,6 +396,121 @@ fn cohort_gold(set: &RuleSet, seed: u64, hours: u64, waystone: bool) -> GoldTall
         }
     }
     t
+}
+
+/// Cut 23 §1: a cohort set's forge after an absence — the gold it brought home (from an empty
+/// purse, the shelf packed), the steps it could then buy (cheapest first), and the nights of that
+/// income the next step is away.
+#[derive(Clone, Copy, Default, Debug)]
+struct ForgeTally {
+    /// Sends that banked or returned, of all sends.
+    home: (u32, u32),
+    income: i64,
+    bought: u32,
+    first_price: u32,
+    next_price: u32,
+    nights: f64,
+    best: u32,
+}
+
+fn cohort_forge(set: &RuleSet, seed: u64, hours: u64) -> ForgeTally {
+    let mut g = cohort_game(set, seed);
+    g.lineage.gold = 400;
+    pack_for(&mut g);
+    g.lineage.gold = 0;
+    let report = riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
+    let income = g.lineage.gold as i64;
+    let price = |g: &Game| riddle_core::kit::ladders(&g.lineage).iter().filter_map(|l| l.next.as_ref().map(|n| (n.price, l.slot.clone()))).min();
+    let mut t = ForgeTally { income, best: g.lineage.best_depth, home: (report.banked + report.returned, report.runs), ..Default::default() };
+    t.first_price = price(&g).map(|p| p.0).unwrap_or(0);
+    while let Some((p, slot)) = price(&g) {
+        if (p as i32) > g.lineage.gold || riddle_core::kit::buy(&mut g, &slot).is_err() {
+            break;
+        }
+        t.bought += 1;
+    }
+    if let Some((p, _)) = price(&g) {
+        t.next_price = p;
+        let short = (p as i64 - g.lineage.gold as i64).max(0) as f64;
+        t.nights = if income > 0 { short / income as f64 } else { f64::INFINITY };
+    }
+    t
+}
+
+/// Cut 23 §1: the forge's rows — on each cohort set an 8 h absence leaves a step affordable and
+/// the next ≤ 3 nights away (≥ 80 % of seeds; the median seed's nights); the kitted bots hold
+/// the bot gates.
+fn forge_report(sets: &[(String, RuleSet)], forges: &BTreeMap<(usize, u64), ForgeTally>, kres: &BTreeMap<(usize, u64), SeedResult>, res: &BTreeMap<(usize, u64), SeedResult>, seeds: u64, rows: &mut Vec<(String, String, bool)>) {
+    println!("\nforge (Cut 23 §1; an 8 h absence from an empty purse): income · first step · steps bought · next step · nights to it (median) · affordable seeds");
+    let (mut ok_n, mut n, mut worst) = (0usize, 0usize, (0.0f64, String::new()));
+    for (si, (name, _)) in sets.iter().enumerate() {
+        let ts: Vec<&ForgeTally> = (1..=seeds).filter_map(|s| forges.get(&(si, s))).collect();
+        if ts.is_empty() {
+            continue;
+        }
+        // (the Cut 22 gold gate's sets: sends that mostly come home — a set that dies most nights
+        // has no night's income to price a step from; printed, not gated)
+        let (h, r) = ts.iter().fold((0u32, 0u32), |a, t| (a.0 + t.home.0, a.1 + t.home.1));
+        let mostly = pct(h as usize, r as usize) >= 60.0;
+        let afford = pct(ts.iter().filter(|t| t.bought >= 1).count(), ts.len());
+        let mut nights: Vec<f64> = ts.iter().map(|t| t.nights).collect();
+        nights.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let med = nights[nights.len() / 2];
+        let mean = |f: &dyn Fn(&ForgeTally) -> f64| ts.iter().map(|t| f(t)).sum::<f64>() / ts.len() as f64;
+        let ok = afford >= 80.0 && med <= 3.0;
+        if mostly {
+            n += 1;
+            ok_n += ok as usize;
+            if med > worst.0 {
+                worst = (med, name.clone());
+            }
+        }
+        println!("  {name}: home {:.0}% · +${:.0} · first ${:.0} · bought {:.1} · next ${:.0} · {med:.2} nights · affordable {afford:.0}% · best D{:.1}{}", pct(h as usize, r as usize), mean(&|t| t.income as f64), mean(&|t| t.first_price as f64), mean(&|t| t.bought as f64), mean(&|t| t.next_price as f64), mean(&|t| t.best as f64), if !mostly { " (not mostly home)" } else if ok { "" } else { " · FAIL" });
+    }
+    if n > 0 {
+        rows.push((format!("Forge: a step after 8 h, next ≤ 3 nights ({n} mostly-home sets)"), format!("{ok_n}/{n} · worst {:.1} n", worst.0), ok_n == n));
+    }
+    let ns = seeds as usize;
+    let kit = |b: Bot| -> Vec<&SeedResult> {
+        let bi = KIT_BOTS.iter().position(|x| *x == b).unwrap();
+        (1..=seeds).filter_map(|s| kres.get(&(bi, s))).collect()
+    };
+    let plain = |b: Bot| -> Vec<&SeedResult> {
+        let bi = BOTS.iter().position(|x| *x == b).unwrap();
+        (1..=seeds).filter_map(|s| res.get(&(bi, s))).collect()
+    };
+    if kit(Bot::Default).len() < ns {
+        return;
+    }
+    let mean_best = |rs: &[&SeedResult]| rs.iter().map(|r| r.best_depth as f64).sum::<f64>() / rs.len().max(1) as f64;
+    let mean_death = |rs: &[&SeedResult]| {
+        let d: Vec<u32> = rs.iter().flat_map(|r| r.run_depths.iter().copied()).collect();
+        d.iter().sum::<u32>() as f64 / d.len().max(1) as f64
+    };
+    println!("kitted bots (every forge step): best-depth mean · mean run depth");
+    for b in KIT_BOTS {
+        let rs = kit(b);
+        let p = plain(b);
+        println!("  {:<10} kitted {:>6.2} · {:>5.2}{}", b.name(), mean_best(&rs), mean_death(&rs), if p.len() == ns { format!("   (unkitted {:.2} · {:.2})", mean_best(&p), mean_death(&p)) } else { String::new() });
+    }
+    let d = kit(Bot::Default);
+    let d_le8 = pct(d.iter().filter(|r| r.best_depth <= 8).count(), ns);
+    rows.push(("KITTED (DEFAULT + every step) dies by ≤ D8 ≥ 80%".into(), format!("{d_le8:.0}%"), d_le8 >= 80.0));
+    let e = kit(Bot::Edited);
+    let (e10, d10) = (pct(e.iter().filter(|r| r.best_depth >= 10).count(), ns), pct(d.iter().filter(|r| r.best_depth >= 10).count(), ns));
+    rows.push(("Kitted: EDITED − KITTED (≥ D10) ≥ 15 pts".into(), format!("{:.0} pts", e10 - d10), e10 - d10 >= 15.0));
+    let r_lose = pct(kit(Bot::Random).iter().filter(|r| r.best_depth < 19).count(), ns);
+    rows.push(("Kitted: RANDOM loses 100%".into(), format!("{r_lose:.0}%"), r_lose >= 100.0));
+    let p_le3 = pct(kit(Bot::Passive).iter().filter(|r| r.best_depth <= 3).count(), ns);
+    rows.push(("Kitted: PASSIVE loses by ≤ D3 100%".into(), format!("{p_le3:.0}%"), p_le3 >= 100.0));
+    let (ml, md) = (mean_death(&kit(Bot::Learned)), mean_death(&d));
+    rows.push(("Kitted: LEARNED mean depth ≤ KITTED + 2".into(), format!("{ml:.2} vs {md:.2}"), ml <= md + 2.0));
+    let t8 = pct(kit(Bot::Trivial).iter().filter(|r| r.best_depth <= 8).count(), ns);
+    rows.push(("Kitted: TRIVIAL never passes D8 ≥ 90%".into(), format!("{t8:.0}%"), t8 >= 90.0));
+    for (bot, boss) in [(Bot::FullNo23, 23u32), (Bot::FullNo28, 28), (Bot::FullNo33, 33)] {
+        let held = pct(kit(bot).iter().filter(|r| r.best_depth <= boss).count(), ns);
+        rows.push((format!("Kitted: {} never passes D{boss} ≥ 90%", bot.name()), format!("{held:.0}%"), held >= 90.0));
+    }
 }
 
 /// Cut 22 §3: every one-notch edit of `set` (each numeric condition ±5 for a share, ±1
@@ -474,8 +670,15 @@ fn patch_fired(g: &Game, rec: &riddle_core::engine::DeathRec, rules: &RuleSet, r
     false
 }
 
-fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedResult {
+fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: bool) -> SeedResult {
     let mut g = setup(bot, seed);
+    if kit {
+        riddle_core::kit::buy_all(&mut g.lineage);
+        // `KIT_ONLY=weapon,armour`: the kitted bots with those ladders alone (tuning).
+        if let Ok(only) = std::env::var("KIT_ONLY") {
+            g.lineage.kit.retain(|k, _| only.split(',').any(|o| o == k));
+        }
+    }
     let mut r = SeedResult::default();
     let mut secs = 0.0;
     for _ in 0..bot.batches() {
@@ -557,7 +760,7 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
     // Cut 13 §1: stall records live beside the deaths (`DeathRec.stall`); the death gates
     // sample the deaths alone.
     let ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| !rec.stall).map(|(id, _)| *id).collect();
-    let step = (ids.len() / verdicts_per_seed).max(1);
+    let step = (ids.len() / verdicts_per_seed.max(1)).max(1);
     for id in ids.iter().step_by(step).take(verdicts_per_seed) {
         let t = Instant::now();
         if let Some(v) = riddle_core::trace::verdict(&mut g, *id) {
@@ -571,7 +774,7 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
     }
     // Cut 2 §6 patch quality: the shown patches (full `death()`, two per seed on the
     // player-shaped bots) must have fired in ≥ 50% of 12 reseeded replays of the death.
-    if matches!(bot, Bot::Default | Bot::Edited) {
+    if matches!(bot, Bot::Default | Bot::Edited) && !kit {
         for id in ids.iter().step_by(step).take(2) {
             let t = Instant::now();
             let Some(d) = g.death(*id) else { continue };
@@ -618,7 +821,7 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize) -> SeedRe
         }
     }
     // Cut 11 §2: root-cause patches on the player-shaped bots (≤ 3 root deaths per seed).
-    if matches!(bot, Bot::Default | Bot::Edited | Bot::Pets | Bot::Levelled) {
+    if matches!(bot, Bot::Default | Bot::Edited | Bot::Pets | Bot::Levelled) && !kit {
         let root_ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| rec.root.is_some() && !rec.stall).map(|(id, _)| *id).take(3).collect();
         for id in root_ids {
             let Some(d) = g.death(id) else { continue };
@@ -665,7 +868,8 @@ fn gold_report(sets: &[(String, RuleSet)], golds: &Golds, seeds: u64, hours: u64
     // cohort set whose sends mostly come home (bank or return ≥ 60 %), from D1. The deepest
     // waystone's numbers print beside (a start the player picks, not the gate's).
     let (mut g_ok, mut g_n, mut g_worst) = (0usize, 0usize, (f64::INFINITY, String::new()));
-    let (mut th_all, mut th_sup, mut th_sends) = (0u32, 0u32, 0u32);
+    let (mut th_all, mut th_sup, mut th_sends, mut th_leash) = (0u32, 0u32, 0u32, 0u32);
+    let mut leash_worst = (0.0f64, String::new());
     println!("\nnet gold per send (Cut 22 §1; {hours} h watched, repeat on): home + salvage − spent − tolls (+ other) over sends");
     for (si, (name, _)) in sets.iter().enumerate() {
         let tally = |way: bool| {
@@ -703,6 +907,11 @@ fn gold_report(sets: &[(String, RuleSet)], golds: &Golds, seeds: u64, hours: u64
         );
         th_all += d1.thefts + ws.thefts;
         th_sup += d1.supply_thefts + ws.supply_thefts;
+        th_leash += d1.leash_thefts + ws.leash_thefts;
+        let lp = (d1.leash_thefts + ws.leash_thefts) as f64 / (d1.sends + ws.sends).max(1) as f64;
+        if lp > leash_worst.0 {
+            leash_worst = (lp, name.clone());
+        }
         th_sends += d1.sends + ws.sends;
         if mostly {
             g_n += 1;
@@ -716,6 +925,9 @@ fn gold_report(sets: &[(String, RuleSet)], golds: &Golds, seeds: u64, hours: u64
     }
     let sup_per = th_sup as f64 / th_sends.max(1) as f64;
     println!("  bought-supply thefts {th_sup} of {th_all} thefts over {th_sends} sends ({sup_per:.3}/send; Cut 22 §2 target ≤ 0.1)");
+    let leash_per = th_leash as f64 / th_sends.max(1) as f64;
+    println!("  leash thefts {th_leash} over {th_sends} sends ({leash_per:.3}/send; worst set {} {:.3}; Cut 23 §5 target ≤ 0.1)", leash_worst.1, leash_worst.0);
+    rows.push((format!("Leash thefts ≤ 0.1 per send, every cohort set (n={th_sends})"), format!("{leash_per:.3} · worst {:.3}", leash_worst.0), leash_worst.0 <= 0.1));
     if g_n > 0 {
         rows.push((format!("Net gold per send ≥ +$20 on every mostly-home cohort set ({g_n})"), format!("{g_ok}/{g_n} · worst {:+.0}", g_worst.0), g_ok == g_n));
     }
@@ -786,10 +998,18 @@ fn main() {
         Gold(usize, u64, bool),
         Paired(usize),
         Bot(usize, u64),
+        /// Cut 23 §1: a `KIT_BOTS` bot with every forge step.
+        Kit(usize, u64),
+        /// Cut 23 §1: a cohort set's forge after an 8 h absence.
+        Forge(usize, u64),
     }
     let sets = Arc::new(cohort_sets());
     // `--gold`: the Cut 22 §1 gold table alone (the cohort sets' sends; ~20 s).
     let gold_only = args.iter().any(|a| a == "--gold");
+    // `--deaths`: the Cut 23 §2 death mix alone (the cohort sets' 4 h absences).
+    let deaths_only = args.iter().any(|a| a == "--deaths");
+    // `--forge`: the Cut 23 §1 forge rows alone (the kitted bots and the cohort sets' forge).
+    let forge_only = args.iter().any(|a| a == "--forge");
     let mut jobs: Vec<Job> = (1..=seeds).map(Job::Counter).collect();
     jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| Job::Cohort(si, s, false))));
     // Cut 19 §2: a set with a return row also plays without it (the night's death share, beside).
@@ -798,11 +1018,19 @@ fn main() {
     // Cut 22 §1: each cohort set's gold per send over 8 h of watched sends, from D1 and from its
     // deepest lit waystone.
     jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).flat_map(move |s| [Job::Gold(si, s, false), Job::Gold(si, s, true)])));
+    jobs.extend(KIT_BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Kit(bi, s))));
+    jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| Job::Forge(si, s))));
     jobs.extend(BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Bot(bi, s))));
     // Cut 22 §3: each cohort set's one-notch edits, paired against the set.
     jobs.extend((0..sets.len()).map(Job::Paired));
     if gold_only {
         jobs.retain(|j| matches!(j, Job::Gold(..)));
+    }
+    if deaths_only {
+        jobs.retain(|j| matches!(j, Job::Cohort(_, _, false)));
+    }
+    if forge_only {
+        jobs.retain(|j| matches!(j, Job::Kit(..) | Job::Forge(..)) || matches!(j, Job::Bot(bi, _) if matches!(BOTS[*bi], Bot::Default | Bot::Edited | Bot::Learned)));
     }
     // `--threads N` leaves cores to whatever runs beside the table (gates.mjs: the dayplayer's
     // sequential chains, which the full 32 starved — docs/ITERATION_SPEED.md §3.2).
@@ -813,16 +1041,28 @@ fn main() {
     let counters: Arc<Mutex<Counters>> = Arc::new(Mutex::new(BTreeMap::new()));
     let golds: Arc<Mutex<Golds>> = Arc::new(Mutex::new(BTreeMap::new()));
     let paireds: Arc<Mutex<Paireds>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let cdeaths: Arc<Mutex<CohortDeaths>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let kresults: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let forges: Arc<Mutex<BTreeMap<(usize, u64), ForgeTally>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let mut handles = Vec::new();
     for _ in 0..threads {
-        let (jobs, results, cohort, counters, sets, golds, paireds) = (Arc::clone(&jobs), Arc::clone(&results), Arc::clone(&cohort), Arc::clone(&counters), Arc::clone(&sets), Arc::clone(&golds), Arc::clone(&paireds));
+        let (jobs, results, cohort, counters, sets, golds, paireds, cdeaths) = (Arc::clone(&jobs), Arc::clone(&results), Arc::clone(&cohort), Arc::clone(&counters), Arc::clone(&sets), Arc::clone(&golds), Arc::clone(&paireds), Arc::clone(&cdeaths));
+        let (kresults, forges) = (Arc::clone(&kresults), Arc::clone(&forges));
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some(job) = job else { break };
             let tj = Instant::now();
             match job {
+                Job::Kit(bi, seed) => {
+                    let r = run_seed(KIT_BOTS[bi], seed, hours, 0, true);
+                    kresults.lock().unwrap().insert((bi, seed), r);
+                }
+                Job::Forge(si, seed) => {
+                    let r = cohort_forge(&sets[si].1, seed, hours);
+                    forges.lock().unwrap().insert((si, seed), r);
+                }
                 Job::Bot(bi, seed) => {
-                    let r = run_seed(BOTS[bi], seed, hours, verdicts_per_seed);
+                    let r = run_seed(BOTS[bi], seed, hours, verdicts_per_seed, false);
                     if std::env::var("METRICS_PHASES").is_ok() {
                         eprintln!("job {} {seed} {:.1}s", BOTS[bi].name(), tj.elapsed().as_secs_f64());
                     }
@@ -830,8 +1070,11 @@ fn main() {
                 }
                 Job::Cohort(si, seed, bare) => {
                     let set = if bare { without_return(&sets[si].1) } else { sets[si].1.clone() };
-                    let r = cohort_stalls(&set, seed, 4);
+                    let (r, mix) = cohort_stalls(&set, seed, 4);
                     cohort.lock().unwrap().insert((si, seed, bare), r);
+                    if !bare {
+                        cdeaths.lock().unwrap().insert((si, seed), mix);
+                    }
                 }
                 Job::Gold(si, seed, way) => {
                     let r = cohort_gold(&sets[si].1, seed, hours, way);
@@ -852,6 +1095,19 @@ fn main() {
         h.join().unwrap();
     }
     phase("jobs");
+    if forge_only {
+        let mut rows = Vec::new();
+        forge_report(&sets, &forges.lock().unwrap(), &kresults.lock().unwrap(), &results.lock().unwrap(), seeds, &mut rows);
+        for (name, value, ok) in &rows {
+            println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
+        }
+        return;
+    }
+    if deaths_only {
+        let (flagged, n) = death_mix_report(&sets, &cdeaths.lock().unwrap(), seeds);
+        println!("sets with one cause over half their deaths: {flagged}/{n}");
+        return;
+    }
     if gold_only {
         let mut rows = Vec::new();
         gold_report(&sets, &golds.lock().unwrap(), seeds, hours, &mut rows);
@@ -1273,6 +1529,10 @@ fn main() {
         rows.push((format!("Return row: 0 < death share < without it ({} cohort sets; = if it never acts)", ret_sets.len()), format!("{ok}/{} · worst {worst:+.1} pts", ret_sets.len()), ok == ret_sets.len()));
     }
     gold_report(&sets, &golds.lock().unwrap(), seeds, hours, &mut rows);
+    forge_report(&sets, &forges.lock().unwrap(), &kresults.lock().unwrap(), &results, seeds, &mut rows);
+    // Cut 23 §2: the death mix (reported, not gated: the contract's bar is the measure).
+    let (dm_flag, dm_n) = death_mix_report(&sets, &cdeaths.lock().unwrap(), seeds);
+    println!("  sets with one cause over half their deaths: {dm_flag}/{dm_n}");
     // Cut 22 §3: an edit's paired move is far tighter than the bars' own ± — over every
     // one-notch edit of every cohort set, Σ paired ± ≤ ½ Σ absolute ± (the depths with a ±).
     let paireds = paireds.lock().unwrap();
