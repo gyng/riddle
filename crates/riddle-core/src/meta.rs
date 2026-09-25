@@ -21,7 +21,8 @@ pub const UNLOCKS: &[UnlockDef] = &[
     UnlockDef { id: "party_slot_3", cost: 9, prereq: Some("party_slot_2") },
     UnlockDef { id: "vault2", cost: 3, prereq: None },
     UnlockDef { id: "vault3", cost: 6, prereq: Some("vault2") },
-    UnlockDef { id: "vault4", cost: 10, prereq: Some("vault3") },
+    // Cut 24: 9 (was 10) — the dayplayer's deeper lineages held 9 marks with the rest gated.
+    UnlockDef { id: "vault4", cost: 9, prereq: Some("vault3") },
     // Cut 8B §2: the rogue is free at the first bank (a second class in the first hour).
     UnlockDef { id: "rogue", cost: 0, prereq: None },
     UnlockDef { id: "ranger", cost: 6, prereq: None },
@@ -610,6 +611,7 @@ pub fn buy_gold(game: &mut Game, id: &str) -> Result<(), String> {
     if let Some(n) = gate(l, id) {
         return Err(format!("needs {n}"));
     }
+    crate::kit::lock_unit(l);
     let price = unlock_gold(l, def, l.gold_buys);
     if l.gold < price as i32 {
         return Err("not enough gold".into());
@@ -715,7 +717,9 @@ mod tests {
         // Cut 19 §3: `auto_supply` (4) left the catalogue — the repeat is the free default.
         // Cut 23 §3: kite archers, stair dance (3 each), noise discipline and deep march (5 each)
         // carry nothing outside the typed vocabulary: free.
-        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 10 + 6 + 8 + 2 + 12 + 18 + 5 + 6 + 4 + 3 + 3 + 6 + 8 + 12 + 8 + 8 + 10 + 6 + 8);
+        // Cut 24 (the Warlord's drive-off teaches his counter: the dayplayer's lineages went
+        // deeper, ranked up and held 9 marks with every card gated): vault4 10 → 9.
+        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 9 + 6 + 8 + 2 + 12 + 18 + 5 + 6 + 4 + 3 + 3 + 6 + 8 + 12 + 8 + 8 + 10 + 6 + 8);
         assert_eq!(UNLOCKS.iter().find(|u| u.id == "rogue").unwrap().cost, 0);
         assert_eq!(UNLOCKS.iter().find(|u| u.id == "tame").unwrap().cost, 0);
         let by = |id: &str| UNLOCKS.iter().find(|u| u.id == id).unwrap();

@@ -1263,8 +1263,9 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     // Cut 8B: 16 h (the first stray on D2 moved the bests again). Cut 13: `hp < 35 %` (at
     // 20 % the set died three times in 16 h once running thieves stopped counting as foes).
     // The client's path (below) runs beside the 16 h night: two games, one thread each.
+    // Cut 24 (the floors' arrival events, named foes resting, the kit never stolen): seed 6.
     let chunked = std::thread::spawn(|| {
-        let mut q = Game::new(10);
+        let mut q = Game::new(6);
         let mut set = q.lineage.rules().clone();
         set.rows.insert(0, Row::new(vec![Cond::n("hp<", 35)], Verb::new("return")));
         q.set_rules(set).unwrap();
@@ -1274,7 +1275,7 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
         }
         last
     });
-    let mut g = Game::new(10);
+    let mut g = Game::new(6);
     let mut set = g.lineage.rules().clone();
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 35)], Verb::new("return")));
     g.set_rules(set).unwrap();
@@ -2252,7 +2253,8 @@ fn death_deltas_are_the_camp_forecasts_move() {
     // QA on e75ec29 (the first night's bounty floor from the start moved 1022's): 1048's.
     // Cut 22 §3 (a forecast's sims draw each floor from its own stream): 1033's.
     // Cut 23 (thieves take the leash last, a walk home answers): 1010's.
-    let mut g = Game::new(1010);
+    // Cut 24 (the floors' arrival events, named foes resting): 1047's.
+    let mut g = Game::new(1047);
     g.send();
     let mut died = None;
     for _ in 0..4000 {
@@ -2262,7 +2264,7 @@ fn death_deltas_are_the_camp_forecasts_move() {
             break;
         }
     }
-    let id = died.expect("seed 1010's first heir dies");
+    let id = died.expect("seed 1047's first heir dies");
     g.keep(vec![]).unwrap();
     let d = g.death(id).unwrap();
     assert!(!d.patches.is_empty() && d.patches.iter().all(|p| p.camp_pending && p.forecast_depth == 0), "{:?}", d.patches);
@@ -4569,9 +4571,9 @@ fn ledger_line_reconciles_on_every_exit() {
             g.lineage.rest_left = 0;
             g.start_run(None);
             g.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
-            let (carried, tier, timed_out, depth, heir) = {
+            let (carried, tier, timed_out, depth, heir, pct) = {
                 let r = g.run.as_ref().unwrap();
-                (r.loot.max(0), r.over.unwrap(), r.timed_out, r.depth, r.heir)
+                (r.loot.max(0), r.over.unwrap(), r.timed_out, r.depth, r.heir, r.yield_pct(r.over.unwrap()))
             };
             let before = g.lineage.gold;
             let lines_before = g.lineage.gold_ledger.len();
@@ -4579,7 +4581,7 @@ fn ledger_line_reconciles_on_every_exit() {
             g.auto_keep();
             let after = g.lineage.gold;
             let line = g.batch.exits.last().cloned().expect("an exit line");
-            let pct = if timed_out { 0 } else { tier.pct() };
+            // (Cut 24 §1: a drive-off with no way home written keeps nothing, as a stall)
             assert_eq!(line.carried, carried, "seed {seed}");
             assert_eq!(line.keep_pct, pct, "seed {seed}");
             assert_eq!(line.kept, carried * pct / 100, "seed {seed}");
@@ -7901,7 +7903,7 @@ fn a_boss_wall_names_the_boss_until_the_set_passes_him() {
     assert_eq!(wall_at(9, 0.2, 0.8), None, "passable");
     assert_eq!(wall_at(9, 0.0, 0.03), None, "the fall came before the boss");
     assert_eq!(wall_at(8, 0.0, 0.8), None, "no boss above D8");
-    assert!(serde_json::to_value(ForecastDepth { depth: 4, reach: 0.5, pm: None, try_: None, wall: None, bounty: false }).unwrap().get("wall").is_none());
+    assert!(serde_json::to_value(ForecastDepth { depth: 4, reach: 0.5, pm: None, try_: None, wall: None, bounty: false, boss: None }).unwrap().get("wall").is_none());
 }
 
 // ---------------------------------------------------------------- QA on 92eb880 (qaM, seed 1215)
@@ -8067,7 +8069,11 @@ fn the_keep_sheets_prices_are_the_ledgers() {
             if let Some(l) = &line {
                 assert_eq!(l.salvaged.iter().map(|s| s.gold).sum::<i32>(), paid_cut, "seed {seed}: cut rows vs ledger");
                 for s in &l.salvaged {
-                    assert_eq!(g.batch.salvaged_coins.get(&s.kind).copied().unwrap_or(0) - coins0.get(&s.kind).copied().unwrap_or(0), s.gold, "seed {seed}: cut {}", s.kind);
+                    // (the batch keys a kind; the line names it as the exit read it — an unidentified
+                    // potion by its flavour, `violet potion?`)
+                    let named = |k: &String| *k == s.kind || g.lineage.wire_name(k).replace('_', " ") == s.kind || crate::item::describe(&crate::item::Item::new(0, k), &Default::default(), &g.lineage.flavours).2 == s.kind;
+                    let paid: i32 = g.batch.salvaged_coins.iter().filter(|(k, _)| named(k)).map(|(k, v)| v - coins0.get(k).copied().unwrap_or(0)).sum();
+                    assert_eq!(paid, s.gold, "seed {seed}: cut {}", s.kind);
                 }
             }
             let (Some(pe), Some(p)) = (r.exit_pending.clone(), g.pending_exit.clone()) else { continue };
@@ -9694,6 +9700,11 @@ fn a_thief_takes_the_found_then_coins_then_a_packed_supply() {
     let (mut g, _, _) = setup(false, 0);
     let run = g.run.as_mut().unwrap();
     run.hero.inv.clear();
+    // Cut 24 §3: the kit's arm (the heir's own, `kit::WEAPON_ID`) is never taken; a found one is, last.
+    assert!(run.hero.weapon.as_ref().is_some_and(|w| crate::kit::is_kit_id(w.id)));
+    assert!(crate::ai::thief_pick(run, false, false, true).is_none(), "the kit's arm is never a thief's");
+    let found = run.new_item_id();
+    run.hero.weapon = Some(crate::item::Item::new(found, "axe"));
     assert!(matches!(crate::ai::thief_pick(run, false, false, true), Some(crate::ai::Take::Weapon)));
     assert!(crate::ai::thief_pick(run, false, false, false).is_none());
     run.loot_add_gold(3);
@@ -9849,7 +9860,8 @@ fn an_attack_row_that_chased_into_the_death_is_the_row_verdict() {
     for (i, r) in rows.iter_mut().enumerate() {
         r.origin = Some(if i == 4 { "preset" } else { "player" }.into());
     }
-    let mut g = Game::new(1919);
+    // Cut 24 (the floors' arrival events, named foes resting): 1900's night.
+    let mut g = Game::new(1900);
     g.max_deaths = 1000;
     for u in ["row5", "row6", "tame", "cond_on_see"] {
         g.lineage.unlocks.insert(u.into());
@@ -10449,4 +10461,234 @@ fn the_kennel_leash_comes_back_free() {
     assert_eq!(g.lineage.gold, gold);
     assert!(g.lineage.supplies.iter().any(|s| s.kind == "leash" && s.free));
     assert_eq!(g.supply_catalogue().iter().find(|s| s.kind == "leash").map(|s| s.price), Some(30));
+}
+
+// ---------------------------------------------------------------- Cut 24
+
+/// AL's set before the boss row (`eval/cards/4b15a61.raterAL-preboss.rules.json`) on a lineage
+/// with the kit AL had bought (sword +1, leather +1).
+fn al_preboss(seed: u64) -> Game {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../eval/cards/4b15a61.raterAL-preboss.rules.json")).unwrap();
+    let set = RuleSet::parse(&text).unwrap();
+    let mut g = Game::new(seed);
+    g.max_deaths = 1000;
+    for u in ["row5", "row6", "row7", "kite_archers"] {
+        g.lineage.unlocks.insert(u.into());
+    }
+    for f in ["foe:goblin_warlord:boss", "foe:monkey:thief", "foe:bloat:gas"] {
+        g.lineage.facts.insert(f.into());
+    }
+    identify(&mut g, "heal");
+    g.lineage.kit.insert("weapon".into(), 1);
+    g.lineage.kit.insert("armour".into(), 2);
+    g.set_rules_raw(set).unwrap();
+    g
+}
+
+/// Cut 24 §1 (AL: the Warlord > 4 min on `attack nearest`, his bar full): a boss whose HP does
+/// not move for `BOSS_STILL` of the hero's actions drives him off — a return-tier exit whose
+/// line reads `no counter` with the boss's defence and the counter to write; a set with a way
+/// home keeps the return's share, the fight never runs past the bound.
+#[test]
+fn a_boss_that_cannot_be_hurt_drives_the_hero_off() {
+    let mut g = al_preboss(2302);
+    let mut driven = None;
+    for _ in 0..12 {
+        g.lineage.rest_left = 0;
+        g.start_run(None);
+        g.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
+        let r = g.run.as_ref().unwrap();
+        assert!(r.nohp.2 <= crate::turn::BOSS_STILL.max(crate::turn::NOHP_ACTIONS), "a stretch of {} actions", r.nohp.2);
+        let (off, carried, pct) = (r.driven_off.clone(), r.loot.max(0), r.yield_pct(ExitTier::Return));
+        g.finish_run();
+        g.auto_keep();
+        if off.is_some() {
+            driven = Some((g.batch.exits.last().cloned().unwrap(), carried, pct));
+            break;
+        }
+    }
+    let (line, carried, pct) = driven.expect("AL's pre-boss set is driven off by the Warlord");
+    let d = line.driven.as_ref().expect("the exit names the drive-off");
+    assert_eq!((d.boss.as_str(), d.verdict.as_str(), d.defence.as_str(), d.counter.as_str()), ("goblin_warlord", "no counter", "shield wall", "attack boss"));
+    assert_eq!(d.row, crate::facts::counter_row("goblin_warlord"));
+    assert_eq!(pct, ExitTier::Return.pct(), "a set with a return row keeps the return's share");
+    assert_eq!(line.kept, carried * pct / 100);
+    assert!(line.text.starts_with("returned ") && line.text.contains("no counter"), "{}", line.text);
+    assert!(g.lineage.facts.iter().any(|f| f.starts_with("boss:goblin_warlord:counter")), "the counter is learned");
+    // No way home written (the DEFAULT set): the drive-off keeps nothing, as a stall.
+    let mut g = Game::new(5);
+    g.start_run(None);
+    let run = g.run.as_mut().unwrap();
+    run.loot = 40;
+    run.driven_lost = true;
+    assert_eq!(run.yield_pct(ExitTier::Return), 0);
+}
+
+/// Cut 24 §1: a fight that merely runs long (both bars moving) never trips: the FULL set's boss
+/// fights, counters written, end with the boss slain inside the bound, never driven off.
+#[test]
+fn a_fight_that_moves_is_never_driven_off() {
+    let n: u32 = par_seeds(1..=3u64, |seed| {
+        let mut g = Game::new(seed);
+        g.max_deaths = 1000;
+        for u in crate::meta::UNLOCKS {
+            g.lineage.unlocks.insert(u.id.into());
+        }
+        crate::probes::learn_everything(&mut g);
+        g.lineage.classes.insert(Class::Fighter.name().into(), crate::wire::ClassProg { level: 10, xp: 0, next: 0 });
+        g.lineage.unlocks.insert(crate::hero::mastery_card(Class::Fighter).into());
+        crate::kit::buy_all(&mut g.lineage);
+        g.set_rules(crate::probes::full()).unwrap();
+        let mut n = 0;
+        for _ in 0..3 {
+            g.lineage.rest_left = 0;
+            g.start_run(None);
+            g.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
+            let r = g.run.as_ref().unwrap();
+            n += r.boss_kills.len() as u32;
+            // (the Queen's floor: FULL's hero may yet meet a queen he cannot silence in time)
+            assert!(r.driven_off.as_deref().is_none_or(|k| k == "lurker_queen" || k == "foundry_master"), "seed {seed}: driven off by {:?} at D{}", r.driven_off, r.depth);
+            g.finish_run();
+            g.auto_keep();
+        }
+        n
+    })
+    .into_iter()
+    .sum();
+    assert!(n >= 6, "FULL slew {n} bosses");
+}
+
+/// Cut 24 §2 (AK: `Ulak is avenged.`, then Ulak again): an avenged grudge retires for good; an
+/// unavenged one keeps its floor.
+#[test]
+fn an_avenged_grudge_retires() {
+    for avenged in [false, true] {
+        let mut g = Game::new(11);
+        g.lineage.grudges.push(crate::descent::Grudge { kind: "goblin".into(), name: "Ulak".into(), depth: 2, heir: 1, avenged });
+        g.start_run(None);
+        g.descend_to(2);
+        let met = g.run.as_ref().unwrap().monsters.iter().any(|m| m.name.as_deref() == Some("Ulak"));
+        assert_eq!(met, !avenged, "avenged {avenged}");
+    }
+}
+
+/// Cut 24 §2 (AK: `Ashul the jackal` on D3 run after run): a named foe (the first stray) met in
+/// a run rests the next two — at most every third run.
+#[test]
+fn a_named_foe_rotates() {
+    let g0 = (1..200).map(Game::new).find(|g| g.lineage.first_stray().is_some()).expect("a lineage with a first stray");
+    let mut g = g0;
+    let (depth, name) = g.lineage.first_stray().unwrap();
+    let mut met = Vec::new();
+    for _ in 0..7 {
+        g.lineage.rest_left = 0;
+        g.start_run(None);
+        let due = g.run.as_ref().unwrap().first_stray.is_some();
+        g.descend_to(depth);
+        let placed = g.run.as_ref().unwrap().named_placed.contains(&name);
+        met.push(placed);
+        assert!(!placed || due, "placed only when due");
+        let r = g.run.as_mut().unwrap();
+        r.over = Some(ExitTier::Return);
+        g.finish_run();
+        g.auto_keep();
+    }
+    assert!(met.iter().any(|m| *m), "{met:?}");
+    for w in met.windows(3) {
+        assert!(w.iter().filter(|m| **m).count() <= 1, "met twice within three runs: {met:?}");
+    }
+}
+
+/// Cut 24 §2: the floor events draw from pools of ≥ 3 lines, never one of the last three runs'
+/// while one is left (`chronicle::variant` over the lineage's `event_recent`).
+#[test]
+fn a_floor_event_line_never_repeats_within_three_runs() {
+    let mut g = Game::new(3);
+    let mut shown: Vec<String> = Vec::new();
+    for _ in 0..9 {
+        g.lineage.rest_left = 0;
+        g.start_run(None);
+        let r = g.run.as_mut().unwrap();
+        shown.push(crate::chronicle::variant(r, "shrine"));
+        r.over = Some(ExitTier::Return);
+        g.finish_run();
+        g.auto_keep();
+    }
+    for w in shown.windows(3) {
+        assert!(w[0] != w[1] && w[1] != w[2] && w[0] != w[2], "{shown:?}");
+    }
+    assert!(crate::chronicle::pool("shrine").contains(&shown[0].as_str()));
+}
+
+/// Cut 24 §2: the exit's news leads with what was new — a record depth, a first boss — and a run
+/// with nothing new says the one thing that differed.
+#[test]
+fn an_exit_names_what_was_new() {
+    let mut g = Game::new(4);
+    g.lineage.best_depth = 3;
+    g.lineage.found_kinds.insert("dagger".into());
+    g.start_run(None);
+    let run = g.run.as_mut().unwrap();
+    run.max_depth = 5;
+    run.over = Some(ExitTier::Return);
+    let news = g.run_news(g.run.as_ref().unwrap(), ExitTier::Return, 60);
+    assert_eq!(news.first().map(|n| (n.k.as_str(), n.text.as_str())), Some(("record", "record: D5")));
+    // Nothing new: the thing that differed from the last run.
+    g.lineage.best_depth = 9;
+    g.lineage.last_run = Some(crate::engine::RunBrief { depth: 4, tier: "return".into(), ..Default::default() });
+    let news = g.run_news(g.run.as_ref().unwrap(), ExitTier::Return, 60);
+    assert_eq!(news.iter().map(|n| (n.k.as_str(), n.text.as_str())).collect::<Vec<_>>(), vec![("differ", "deeper: D5, last D4")]);
+}
+
+/// Cut 24 §3 (AL: leather +1 $1000 → $1100 → $1400 as the best deepened): a step's price is
+/// fixed once the forge is shown; the kit is never a thief's and never put down.
+#[test]
+fn the_forge_keeps_its_price_and_the_kit_is_never_loot() {
+    let mut g = Game::new(6);
+    g.lineage.best_depth = 4;
+    let before = crate::kit::price(&g.lineage, "armour", 1);
+    g.lineage.gold = crate::kit::price(&g.lineage, "weapon", 0) as i32;
+    crate::kit::lock_unit(&mut g.lineage);
+    g.lineage.best_depth = 14;
+    assert_eq!(crate::kit::price(&g.lineage, "armour", 1), before, "fixed once shown");
+    assert_eq!(crate::kit::row_gold(&g.lineage, "row8"), Some(crate::kit::unit(4) * 16));
+    // The kit takes no pack slot and a full pack never puts it down.
+    let mut h = crate::hero::Hero::new(Class::Fighter, Pos::new(0, 0));
+    h.auto_equip(Item::new(crate::kit::ARMOUR_ID, "leather"));
+    for i in 0..crate::hero::INV_SLOTS as u32 {
+        h.inv.push(Item::new(100 + i, "heal"));
+    }
+    let old = h.auto_equip(Item::new(99, "mail"));
+    assert_eq!(old.map(|o| o.id), Some(crate::kit::ARMOUR_ID));
+    assert!(h.inv.iter().any(|i| i.id == crate::kit::ARMOUR_ID), "the kit rides over a full pack");
+    assert!(h.inv_full());
+    h.inv.retain(|i| i.id != 100);
+    assert!(!h.inv_full(), "the kit takes no slot");
+}
+
+/// Cut 24 §5 (AK: "the warlord forecast on D9, met on D8"): the forecast names each boss on the
+/// floor he is met on; the row below keeps his `try` and says where he stands.
+#[test]
+fn the_forecast_names_the_boss_on_his_floor() {
+    let mut g = Game::new(8);
+    g.lineage.best_depth = 9;
+    g.lineage.facts.insert(crate::facts::boss_counter_fact("goblin_warlord"));
+    let f = g.forecast();
+    let at = |d: u32| f.depths.iter().find(|x| x.depth == d).unwrap();
+    assert_eq!(at(8).boss.as_deref(), Some("goblin_warlord"));
+    assert!(at(9).boss.is_none() && at(7).boss.is_none());
+    if let Some(t) = &at(9).try_ {
+        assert_eq!(t.met, 8);
+    }
+}
+
+/// Cut 24 §4: the refine continues the first pass's panel (its sims are the refine's first) —
+/// the same numbers as a refine from a cold cache.
+#[test]
+fn the_refine_reuses_the_first_pass() {
+    let mut g = Game::new(9);
+    g.lineage.best_depth = 5;
+    let cold = g.clone().forecast_refine();
+    let _ = g.forecast();
+    assert_eq!(g.forecast_refine(), cold);
 }

@@ -75,7 +75,9 @@ export const lowOf = (f: { low?: number; sims?: number } | null | undefined): nu
 
 /** Cut 22 §4: a move in whole points, signed (`+6`, `−3`), never a `%` — a delta must not read as a chance. */
 export const signedPts = (pts: number): string => `${pts < 0 ? "−" : "+"}${Math.abs(pts)}`;
-/** Cut 22 §3: a paired move as it reads — `+6` / `−3`, `≈` inside its own ± (or rounding to 0): no call. */
+/** Cut 22 §3: a paired move as it reads — `+6` / `−3`, `≈` inside its own ± (or rounding to 0): no call. Cut 24 §4 (AK: "the live
+ *  forecast solves most edits"; AL: own rows `≈`): inside a ± it reads `≈ ±4` — a small real move is unresolved, not "no change";
+ *  `≈` alone only where there is no ± (a dead edit's move, `flatVs`: zero by construction). */
 export function moveOf(m: VsMove | number | undefined): { pts: number; text: string; dir: "up" | "down" | "flat" } | null {
   if (m === undefined || m === null) return null;
   const mv: VsMove = typeof m === "number" ? { delta: m } : m;
@@ -84,7 +86,7 @@ export function moveOf(m: VsMove | number | undefined): { pts: number; text: str
   // difference (`29% → 61%` is `▲32`, never `▲31` by rounding the delta alone)
   const pts = typeof mv.base === "number" ? Math.round((mv.base + mv.delta) * 100) - Math.round(mv.base * 100) : Math.round(mv.delta * 100);
   const flat = pts === 0 || (mv.pm !== undefined && Math.abs(mv.delta) <= mv.pm);
-  return flat ? { pts, text: "≈", dir: "flat" } : { pts, text: signedPts(pts), dir: pts > 0 ? "up" : "down" };
+  return flat ? { pts, text: mv.pm ? `≈ ±${pmPts(mv.pm)}` : "≈", dir: "flat" } : { pts, text: signedPts(pts), dir: pts > 0 ? "up" : "down" };
 }
 /** Cut 22 §3: a notch's or a gem's move as a tiny mark — `▲6`, `▼3` (nothing inside its ±). */
 export function moveMark(m: VsMove | number | undefined, bare = false, worse = false): HTMLElement | "" {
@@ -188,13 +190,20 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     // Cut 21 §1: a waystone start skips the floors above it (they are not run) — the bars start on the start floor; QA a946e04 (T: the
     // tablet read D5 while the sims ran from D1 — `D5 88%`): the floor the forecast's sims started on (`Forecast.start`) when it says
     const start = forecastStart(app, f);
+    // Cut 24 §5 (AK: "the warlord forecast on D9, met on D8"): a `try` is the boss's, read on the floor he is met on (`ForecastTry.met`)
+    // when that floor is on the panel — the D9 row keeps his wall, the D8 row names him and carries the counter
+    const shown = new Set(f.depths.filter((d) => d.depth >= start).map((d) => d.depth));
+    const tryAt = new Map<number, NonNullable<typeof f.depths[number]["try"]>>();
+    for (const d of f.depths) if (d.try) tryAt.set(d.try.met !== undefined && shown.has(d.try.met) ? d.try.met : d.depth, d.try);
     for (const d of f.depths) {
       if (d.depth < start) continue;
       // Cut 18 §3: a floor the boss above seals (`ForecastDepth.wall`) names him as the cause: `D9 0% · warlord wall`
       const wall = d.wall ? wallName(d.wall) : undefined;
       const cause = wall ? undefined : d.cause ?? (d.depth === causeAt ? f.causes[0]?.cause : undefined);
       // Cut 10 §2: the known-but-absent counter — the wire's `try`, else the client's read of the counters against the set
-      const tr = d.try ?? (d.depth === next ? clientTry(app, cause) : undefined);
+      const tr = tryAt.get(d.depth) ?? (d.depth === next && !d.try && !tryAt.size ? clientTry(app, cause) : undefined);
+      // Cut 24 §5: the floor a boss stands on names him (`D8 · warlord`) unless its cause already does
+      const boss = d.boss && !(cause && cause.replace(/_/g, " ").includes(wallName(d.boss))) && !wall ? wallName(d.boss) : undefined;
       // Cut 6 §5: `D6 0% · goblin warlord · counter: attack boss` when the top cause is a boss whose counter row is known (and held)
       const counter = cause && d.depth === next && !tr ? counterFor(cause) : undefined;
       // the try hint rides the track, on the depth's own line, the track as wide as every other row's (QA on 50bb162: `D9 0% ±1`
@@ -205,6 +214,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
       const dpm = pmShown(d.reach, d.pm);
       const why = [
         cause ? h("small", { class: "dim" }, ` · ${cause.replace(/_/g, " ")}`) : "",
+        boss ? h("small", { class: "boss-here" }, ` · ${boss}`) : "",
         wall ? h("small", { class: "wall" }, /* copy:callout */ ` · ${wall} wall`) : "",
         d.bounty ? h("small", { class: "bounty-x" }, ` · ${bountyMult(d.bounty)}`) : "",   // Cut 20 §5: the bounty floor
         counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "",
@@ -220,7 +230,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
       // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
       bars.appendChild(tr
         ? h("button", { class: `bar next try${wall ? " walled" : ""}`, onclick: () => { const i = app.applyPatch({ row: tr.row, insert_at: 0, survive: 0, forecast_delta: 0 }); closeAllSheets(); app.go({ kind: "camp", highlight: i }); } }, ...inner)
-        : h("div", { class: `bar${cause || wall ? " next" : ""}${wall ? " walled" : ""}` }, ...inner));
+        : h("div", { class: `bar${cause || wall || boss ? " next" : ""}${wall ? " walled" : ""}` }, ...inner));
     }
     bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, `D${f.known_to + 1}+`), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
     // QA 23ed91f (K: "`jackal 100%` beside `death 1%` — I read it as jackal kills 100%"): a cause's share of the deaths is shown as its
@@ -306,13 +316,15 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const reach = d ? d.reach : depth <= known ? 1 : 0;
       // Cut 18 §3: a walled floor's notch names the boss who seals it (`D9 · warlord`)
       const wall = d?.wall ? wallName(d.wall) : undefined;
+      // Cut 24 §5: the floor he stands on names him too (`D8 · warlord`); his wall below keeps its own mark
+      const bossHere = d?.boss && !wall ? wallName(d.boss) : undefined;
       // QA 92eb880 (N: "D7 and D8 read 0% … the D8 label stays gold at 0%"): a notch nobody reaches is dim, label and all; a floor past
       // the set's own `depth ≥ N → bank` row is capped (dim), and the bank floor says so (`D6 · bank`)
       const zero = !!d && Math.round(d.reach * 100) === 0;
       const capped = cap !== undefined && depth > cap, bankHere = cap === depth && !wall;
       const bounty = depth === bountyD;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${depth === start && start > 1 ? " start" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : ""),
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wall}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
         h("small", { class: "dp" }, d ? share(d.reach, lowOf(last)) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm" }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : "",
           d ? moveMark(vsBy.get(depth)) : ""));   // Cut 22 §3: the edit's move on the notch (`▲6`, `≈`)
       n.style.setProperty("--reach", reach.toFixed(3));

@@ -255,6 +255,44 @@ pub struct ExitLine {
     /// pile per kind, `n` the items (a stack is one) — Σ `n` is the `bones: N items` of `text`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bones: Vec<KindCount>,
+    /// Cut 24 §1 (AL: the Warlord > 4 min on `attack nearest`, his bar full): a boss whose HP
+    /// did not move for `turn::BOSS_STILL` of the hero's actions drove him off his floor — a
+    /// `return`-tier exit (keeps 60 %) whose verdict is `no counter`. Absent on every other exit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driven: Option<DrivenOff>,
+    /// Cut 24 §2 (AK: identical end-of-run summaries run after run): what was new this run,
+    /// most telling first, ≤ 3 — a first (`first: Warlord slain`), a record (`record: D10`),
+    /// a named kill (`avenged Ulak`), a find kind never found (`new find: mail`), a first
+    /// situation (`first: the captive`), a drive-off (`driven off: Warlord`), facts learned
+    /// (`learned 3`); a run with nothing new has one line, the thing that differed from the last
+    /// run (`k` `differ`: `deeper: D9, last D8` · `banked, last returned` · `+$23 on last`).
+    /// The report leads with these, before the counts.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub news: Vec<News>,
+}
+
+/// Cut 24 §2: one line of `ExitLine.news` — its kind (`first` · `record` · `named` · `find`
+/// · `situation` · `driven` · `learned` · `differ`) and its text (≤ 6 words, lower case).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct News {
+    pub k: String,
+    pub text: String,
+}
+
+/// Cut 24 §1: the `no counter` exit — the boss (`goblin_warlord`, `Warlord`), the floor, the
+/// verdict word, the defence that shrugged every blow (`shield wall`, ≤ 3 words), and the
+/// counter to write, as a row the editor can insert (`foe: boss → attack boss`) and in words
+/// (`attack boss`). The client renders `Warlord · no counter · shield wall · try: attack boss`
+/// and offers `row` like a death's patch.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct DrivenOff {
+    pub boss: String,
+    pub title: String,
+    pub depth: u32,
+    pub verdict: String,
+    pub defence: String,
+    pub counter: String,
+    pub row: crate::rules::Row,
 }
 
 /// Cut 21 §2: a kind and how many (`ExitLine.shelved`).
@@ -476,6 +514,12 @@ pub struct ForecastDepth {
     /// Cut 20 §5: this notch is the lineage's bounty floor (`D12 ×2`).
     #[serde(default, skip_serializing_if = "is_false")]
     pub bounty: bool,
+    /// Cut 24 §5 (AK: "the warlord forecast on D9, met on D8"): on the floor a boss stands on —
+    /// the floor he is met on (`descent::BOSS_DEPTHS`: the Warlord D8) — his kind. `try` and
+    /// `wall` stay on the floor below it (reaching D9 is passing him); the client names the boss
+    /// on this row (`D8 · warlord`) and reads the next row's `try` / `wall` as his.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boss: Option<String>,
 }
 
 /// Cut 10 §2: a forecast row's `try` — the known-but-absent counter of the boss whose floor
@@ -485,6 +529,9 @@ pub struct ForecastTry {
     pub boss: String,
     pub row: Row,
     pub text: String,
+    /// Cut 24 §5: the floor the boss is met on (this row's depth − 1).
+    #[serde(default)]
+    pub met: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -892,6 +939,10 @@ pub struct ReturnReport {
     /// count them apart — `1 RETURNED` for a stall read as a return to two QA players.
     #[serde(default)]
     pub stalled: u32,
+    /// Cut 24 §1: sends a boss drove off (`no counter`; they are among `returned`) — the tiles
+    /// can count them apart as they do the stalls.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub driven: u32,
     /// Cut 13 §3: what the automations bought during the absence, per kind in coins
     /// (`heal ×16 · −$640`), the report's SPENT section; `banked + returned + salvage − spent`
     /// is the header's delta.

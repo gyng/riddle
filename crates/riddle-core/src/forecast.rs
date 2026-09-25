@@ -31,6 +31,9 @@ pub struct SimResult {
     pub loot_kept: i32,
     /// The send hit the turn cap or stalled: a return by nothing in the rules (its own share).
     pub timed_out: bool,
+    /// Cut 24 §4: the ticks the sim ran (its share of the panel's budget) — the refine pass
+    /// continues the first pass's panel from its last sim (`camp_panel`).
+    pub ticks: u32,
 }
 
 /// Simulate `sims` fresh expeditions from the current lineage with `rules`, each stopping once
@@ -41,24 +44,35 @@ pub fn simulate(game: &Game, rules: &RuleSet, sims: u32, tag: u64, stop_depth: u
 }
 
 pub fn simulate_budget(game: &Game, rules: &RuleSet, sims: u32, tag: u64, stop_depth: u32, budget: u64) -> Vec<SimResult> {
+    simulate_budget_from(game, rules, sims, tag, stop_depth, budget, Vec::new())
+}
+
+/// `simulate_budget` continuing from `prefix` — the panel's first sims already run (a pure
+/// function of their index, so a shorter panel on the same seeds is this one's prefix: Cut 24
+/// §4, the refine pass reuses the first pass's sims instead of running them again).
+pub fn simulate_budget_from(game: &Game, rules: &RuleSet, sims: u32, tag: u64, stop_depth: u32, budget: u64, prefix: Vec<SimResult>) -> Vec<SimResult> {
+    let from = (prefix.len() as u32).min(sims);
+    let spent0: u64 = prefix.iter().map(|r| r.ticks as u64).sum();
+    let mut ran: Vec<(u32, SimResult)> = prefix.into_iter().take(sims as usize).map(|r| (r.ticks, r)).collect();
+    // (the prefix already ends the panel: nothing more to run)
+    let done = from >= MIN_SIMS && spent0 >= budget;
     // Every sim is a pure function of (lineage, rules, tag, i); the tick budget only decides
     // how many of them count, in order. Natively they run on all cores and the budget is
     // applied to the ordered results afterwards, so the answer is the sequential one exactly.
-    let ran: Vec<(u32, SimResult)> = if parallel_sims() && sims > 1 {
-        par_map(game, (0..sims).collect(), |base, &i| simulate_one(base, rules, tag, stop_depth, i))
+    if done {
+    } else if parallel_sims() && sims > from + 1 {
+        ran.extend(par_map(game, (from..sims).collect(), |base, &i| simulate_one(base, rules, tag, stop_depth, i)));
     } else {
-        let mut out = Vec::with_capacity(sims as usize);
-        let mut spent: u64 = 0;
-        for i in 0..sims {
+        let mut spent: u64 = spent0;
+        for i in from..sims {
             if i >= MIN_SIMS && spent >= budget {
                 break;
             }
             let r = simulate_one(game, rules, tag, stop_depth, i);
             spent += r.0 as u64;
-            out.push(r);
+            ran.push(r);
         }
-        out
-    };
+    }
     let mut out = Vec::with_capacity(ran.len());
     let mut spent: u64 = 0;
     for (i, (n, r)) in ran.into_iter().enumerate() {
@@ -80,6 +94,9 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32)
     g.history.clear();
     let _ = g.set_rules(rules.clone());
     let seed = splitmix(game.lineage.seed ^ splitmix(tag ^ (i as u64 + 1).wrapping_mul(0xA24B_AED4_963E_E407)));
+    // Cut 24 §2: a named foe rests two runs in three (`LineageState::named_resting`) — the panel
+    // plays the sends from here, so its sims turn through the three.
+    g.lineage.next_run_id += i % 3;
     g.start_run(Some(seed));
     // Cut 22 §3: the panel's sims share their floors seed by seed (`Run.floor_streams`).
     g.run.as_mut().unwrap().floor_streams = true;
@@ -90,8 +107,8 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32)
     }
     let run = g.run.as_ref().unwrap();
     let tier = run.over.unwrap_or(ExitTier::Return);
-    let loot_kept = if run.timed_out { 0 } else { run.loot.max(0) * tier.pct() / 100 };
-    (n, SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out })
+    let loot_kept = run.loot.max(0) * run.yield_pct(tier) / 100;
+    (n, SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks: n })
 }
 
 /// `f` over every job, results in job order. Natively (and unless `set_parallel_sims(false)`)
@@ -217,7 +234,10 @@ pub fn camp_panel(game: &Game, rules: &RuleSet, sims: u32) -> Vec<SimResult> {
     if let Some(v) = game.panel_cache.borrow().get(&key) {
         return v.clone();
     }
-    let ended = simulate_budget(game, rules, sims, tag, u32::MAX, budget);
+    // Cut 24 §4 (AK: "edits wait 3–7 s to settle"): the refine's first sims are the first
+    // pass's own — continued from its panel when it is cached, not run again.
+    let prefix = if sims > FORECAST_SIMS { game.panel_cache.borrow().get(&panel_key(game, rules, FORECAST_SIMS)).cloned().unwrap_or_default() } else { Vec::new() };
+    let ended = simulate_budget_from(game, rules, sims, tag, u32::MAX, budget, prefix);
     if sims >= REFINE_SIMS {
         let mut r = game.refined_panels.borrow_mut();
         if r.len() >= REFINED_MAX {
@@ -378,7 +398,7 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
             let reach = reach_at(d);
             let wall = wall_at(d, reach, reach_at(d.saturating_sub(1)));
             let try_ = if d > start { try_row(game, rules, d) } else { None };
-            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_, wall, bounty: game.lineage.bounty == Some(d) }
+            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_, wall, bounty: game.lineage.bounty == Some(d), boss: crate::descent::boss_for(d).map(str::to_string) }
         })
         .collect();
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
@@ -585,7 +605,7 @@ pub fn try_row(game: &Game, rules: &RuleSet, depth: u32) -> Option<ForecastTry> 
     if crate::trace::has_counter_verb(rules, &row) {
         return None;
     }
-    Some(ForecastTry { boss: kind.to_string(), text: crate::facts::counter_text(&row), row })
+    Some(ForecastTry { boss: kind.to_string(), text: crate::facts::counter_text(&row), row, met: depth - 1 })
 }
 
 /// Cut 18 §3: a forecast row's reach at or under this is a wall when a boss seals the stairs

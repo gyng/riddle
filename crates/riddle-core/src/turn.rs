@@ -310,6 +310,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
         run.row_streak = (row, 1);
     }
     outpaced_guard(run, cx, row, &verb);
+    nohp_guard(run, cx, row, &verb);
     // pick_up sanity: three picks in a row must have put something in the pack.
     if verb.v == "pick_up" {
         if run.pickup_streak == 0 {
@@ -380,6 +381,8 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     }
     let foes = v.foes.len() as i32;
     let hp_pct = run.hero.hp_pct();
+    let hp_now = run.hero.hp;
+    let was_low = run.low20_t.is_some() || run.low10_t.is_some();
     let tr = run.trait_;
     // Trait deviations, announced: at most one per 5 actions, and never below 25% HP
     // (cowardice excepted, since fleeing at low HP is its point). Cut 13 §2: and at most
@@ -491,7 +494,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             row_why(run, cx, i, "stuck", None, None);
             continue;
         }
-        if i as i32 == suppressed {
+        if i as i32 == suppressed || (run.rows_rested.1 > run.actions && run.rows_rested.0.contains(&(i as i32))) {
             row_why(run, cx, i, "row guard", None, None);
             continue;
         }
@@ -552,8 +555,13 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
             }
             // Cut 4: the first row to act after the hero fell to ≤ 20 % is the one the
             // chronicle credits if the floor is survived.
-            if run.saved_by.is_none() && (run.low20_t.is_some() || run.low10_t.is_some()) {
+            // Cut 24 §5 (AL: `Down to 1 HP. R2 drink heal saved him.` — R2 drank at 4 HP, then
+            // `R4 read teleport` at 1 HP got him out): the row that fired at the floor's lowest
+            // HP (the latest at a tie).
+            // (low before the row acted: a blow its own action drew — a bloat it popped — is no rescue)
+            if was_low && (run.saved_by.is_none() || hp_now <= run.saved_low) {
                 run.saved_by = Some(i as i32);
+                run.saved_low = hp_now;
             }
             if matches!(row.verb.v.as_str(), "recall" | "send") {
                 row_why(run, cx, i, "fired, free", None, None);
@@ -975,6 +983,91 @@ fn outpaced_guard(run: &mut Run, cx: &mut Ctx, row: i32, verb: &Verb) {
     }
 }
 
+/// Cut 24 §1: the hero's actions in one engagement (a foe in view; `NOHP_CLEAR` actions out of
+/// sight end it) with no HP moved on either side (`Run.nohp`) before the guard ends the dance.
+/// 60: the cohort sets' fights that move never go 60 actions without a blow landing (p50 of the
+/// sends' longest stretch 20–40), and the FULL set's countered boss fights' still stretches peak
+/// at 27–40 (the Lich, the Warlord).
+pub const NOHP_ACTIONS: u32 = 60;
+/// Cut 24 §1: the hero's actions with a boss in view and its HP unmoved before it wins its
+/// fight (`Run.boss_still`).
+pub const BOSS_STILL: u32 = 60;
+/// Actions with no foe in view that end an engagement (a retreat out of sight and back is one).
+const NOHP_CLEAR: u32 = 10;
+
+/// Cut 24 §1: a fight that cannot progress ends. The measure (`Run.nohp`): the hero's actions
+/// with a foe in view since HP last moved on either side (a summon's blood, or a summon's blow,
+/// is no progress: reserves are endless). A boss in view whose HP has not moved for
+/// `BOSS_STILL` of the hero's actions — nor has one of his own summons (a Lich's skeletons, a
+/// rally's goblins; never a shield-wall reserve) fallen — has won (`Run.boss_still`): the hero
+/// is driven off (`driven_off`). A dance (`NOHP_ACTIONS`) rests the rows that danced.
+fn nohp_guard(run: &mut Run, cx: &mut Ctx, row: i32, verb: &Verb) {
+    if run.over.is_some() {
+        return;
+    }
+    let map = &run.floor.map;
+    let in_view = run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && !m.dormant && map.is_visible(m.pos));
+    if in_view {
+        // (every action counts while a foe is in view: a dance whose other half is a chore —
+        // `R8 pack break ↔ descend` — is as dead to watch)
+        run.nohp.1 = 0;
+        run.nohp.0 += 1;
+    } else {
+        run.nohp.1 += 1;
+        if run.nohp.1 >= NOHP_CLEAR {
+            run.nohp.0 = 0;
+        }
+    }
+    let boss = run.monsters.iter().position(|m| m.hp > 0 && m.hostile() && m.is_boss() && map.is_visible(m.pos));
+    if let Some(bi) = boss {
+        let (id, hp) = (run.monsters[bi].id, run.monsters[bi].hp);
+        run.boss_still = match run.boss_still {
+            Some((bid, bhp, n)) if bid == id && bhp == hp => Some((id, hp, n + 1)),
+            _ => Some((id, hp, 0)),
+        };
+    }
+    let still = run.boss_still.map_or(0, |b| b.2);
+    run.nohp.2 = run.nohp.2.max(run.nohp.0).max(still);
+    // A boss whose HP has not moved in `BOSS_STILL` of the hero's actions with it in view (his
+    // blows all shrugged — a shield wall, a counter unwritten) wins its fight.
+    if let Some(bi) = boss.filter(|_| still >= BOSS_STILL) {
+        driven_off(run, cx, bi);
+        return;
+    }
+    // A dance (both bars still for `NOHP_ACTIONS` foe-facing actions): the rows that danced
+    // rest for 30 actions and the next row decides — the attack row fights, or the chores go on.
+    if run.nohp.0 >= NOHP_ACTIONS {
+        let mut rows: Vec<i32> = run.trace.iter().filter(|t| t.row >= 0 && targets_foes(&t.verb)).map(|t| t.row).collect();
+        if row >= 0 && targets_foes(verb) {
+            rows.push(row);
+        }
+        rows.sort();
+        rows.dedup();
+        run.nohp.0 = 0;
+        if !rows.is_empty() {
+            run.rows_rested = (rows, run.actions + 30);
+            run.row_streak = (-9, 0);
+            emit_rule(run, cx, -2, &Verb::new("stuck"), "stuck → chores");
+        }
+    }
+}
+
+/// Cut 24 §1: the boss at `bi` drove the hero off his floor — a `return`-tier exit whose line
+/// reads `no counter` with the boss's defence and the counter to learn (`ExitLine.driven`).
+/// Watching him shrug every blow teaches the counter, if the telegraph had not.
+pub fn driven_off(run: &mut Run, cx: &mut Ctx, bi: usize) {
+    let kind = run.monsters[bi].kind.clone();
+    run.driven_off = Some(kind.clone());
+    // (the player's own way home carries the pack out; with none written, it is dropped)
+    run.driven_lost = !cx.rules.active(cx.max_rows).any(|(_, r)| matches!(r.verb.v.as_str(), "return" | "bank")) && run.lent_row.as_ref().is_none_or(|r| !matches!(r.verb.v.as_str(), "return" | "bank"));
+    crate::facts::learn_boss_counter(run, cx, &kind);
+    callout(run, cx, "driven off");
+    emit_rule(run, cx, -2, &Verb::new("return"), "driven off");
+    let depth = run.depth;
+    note(run, cx, format!("Driven off D{depth} by the {}.", crate::sifter::boss_short(&kind)));
+    end_run(run, cx, ExitTier::Return);
+}
+
 /// If the last 12 actions visited ≤ 2 tiles with no damage dealt or taken, give up on the
 /// visible foes for 30 actions and let chores proceed; one `stuck` chore event explains it.
 fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
@@ -1280,6 +1373,11 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         }
     }
     run.hero.hp -= dmg;
+    // Cut 24 §1: the hero's HP moved — the fight is going somewhere, unless a summon drew it
+    // (a boss's endless reserves are no progress either way).
+    if !matches!(src, Src::Mon(i) if run.monsters[*i].summoned) {
+        run.fight_moved();
+    }
     // QA on a946e04 (qaT: `R1 drank poison at 17/36 hp`, then a goblin's blow — ~30 deaths,
     // never a `row`): the harm the last unknown gamble has dealt so far (its poison, its
     // caustic cloud, its fire, inside `trace::GAMBLE_WINDOW`) — a death it made the difference
@@ -1393,6 +1491,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
                 g.awake = true;
                 g.last_seen = Some(run.hero.pos);
                 g.summoned = true;
+                g.reserve = true;
                 g.extra_tags.push("summoned".into());
                 let e = crate::engine::monster_entity(&g, cx.facts);
                 run.monsters.push(g);
@@ -1481,6 +1580,23 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
     // that would kill it from above that is still a kill.
     let dmg = if dmg >= run.monsters[mi].hp && crate::ai::pet_wounded(&run.monsters[mi]) && !crate::ai::pet_cornered(run, mi) { run.monsters[mi].hp - 1 } else { dmg };
     run.monsters[mi].hp -= dmg;
+    // Cut 24 §1: a real foe's HP moved (a summon's does not: reserves are endless), by any
+    // hand but another foe's.
+    if dmg > 0 && run.monsters[mi].hostile() && !matches!(src, Src::Mon(j) if !run.monsters[*j].ally) {
+        if !run.monsters[mi].summoned {
+            run.fight_moved();
+        } else if !run.monsters[mi].reserve {
+            // (a boss's own summons cut down — a Lich's skeletons, a rally's goblins — are its
+            // fight moving: they are finite, or the counter itself; a reserve is a shrug, and
+            // another foe's summons — a conjurer's blades — are not the boss's)
+            let kind = run.monsters[mi].kind.clone();
+            if let Some(b) = run.boss_still {
+                if run.monsters.iter().find(|m| m.id == b.0).is_some_and(|m| crate::engine::boss_escort(&m.kind) == kind) {
+                    run.boss_still = Some((b.0, b.1, 0));
+                }
+            }
+        }
+    }
     if run.monsters[mi].kind == "bloat_mother" && run.monsters[mi].hp > 0 && matches!(src, Src::Hero { ranged: false }) {
         let at = run.monsters[mi].pos;
         place_overlay(run, cx, at, 2, OverlayKind::Gas, 30);
@@ -1547,7 +1663,8 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         }
     } else if m.neutral && m.situation.as_deref() == Some("captive") {
         // Cut 7 §3: the coward's way through the gate.
-        note(run, cx, "Cut the captive down. The stairs are clear.".into());
+        let text = crate::chronicle::variant(run, "cut_captive");
+        note(run, cx, text);
         callout(run, cx, "no friends");
         if !run.trophies_run.contains(&"no_friends".to_string()) {
             run.trophies_run.push("no_friends".into());
@@ -1567,6 +1684,14 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         run.kill_since_action = true;
         crate::facts::on_kill(run, cx, &kind);
         if m.is_boss() {
+            // Cut 24 §1: with the boss down his summons are no endless reserve — their blood is
+            // the fight moving again (the guards read it: a Warlord slain, then three stalls
+            // against his last goblins, their blows `no progress`).
+            let escort = crate::engine::boss_escort(&kind);
+            for o in run.monsters.iter_mut().filter(|o| o.hp > 0 && o.summoned && o.kind == escort) {
+                o.summoned = false;
+                o.reserve = false;
+            }
             run.boss_kills.push((run.turn, kind.clone()));
             note(run, cx, format!("Slew the {}.", m.title()));
             callout(run, cx, "boss down");
@@ -1917,6 +2042,8 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     }
     run.low20_t = None;
     run.saved_by = None;
+    run.nohp.0 = 0;
+    run.boss_still = None;
     let floor_gambles: Vec<(u32, String, bool)> = run.gambles.clone();
     for (t, k, mal) in floor_gambles {
         if mal && !run.gambles_survived.iter().any(|(gt, _)| *gt == t) {
@@ -2043,6 +2170,8 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
         learn(run, cx, format!("biome:{}", biome.name()));
     }
     note(run, cx, format!("D{}: {}.", next, biome.title()));
+    // Cut 24 §2: the biome's arrival event, on a third of its floors.
+    crate::situations::omen(run, cx);
     if next == 5 {
         if !run.drank_heal && !run.trophies_run.contains(&"no_heal_D5".to_string()) {
             run.trophies_run.push("no_heal_D5".into());
@@ -2114,13 +2243,15 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
         note_saved(run, cx);
     }
     run.over = Some(tier);
-    let loot_kept = if run.timed_out { 0 } else { run.loot * tier.pct() / 100 };
+    let loot_kept = run.loot * run.yield_pct(tier) / 100;
     // Cut 5 §1: the exit resolves every open episode.
     let res = match tier {
         ExitTier::Bank => Resolution::Banked { gold: loot_kept },
         // Cut 13 §1: a stall names its cause (the reel line reads what the trace does).
         ExitTier::Return if run.timed_out && run.stuck_fires >= crate::engine::STALL_FIRES => Resolution::Stalled { cause: run.stuck_cause.clone().unwrap_or_else(|| "paced".into()) },
         ExitTier::Return if run.timed_out => Resolution::Lost { stalled: false },
+        // Cut 24 §1: a boss that could not be hurt drove him off.
+        ExitTier::Return if run.driven_off.is_some() => Resolution::DrivenOff { kind: run.driven_off.clone().unwrap_or_default() },
         ExitTier::Return => Resolution::Returned { gold: loot_kept },
         ExitTier::Death => Resolution::Died { cause: run.death_cause.clone().unwrap_or_else(|| "unknown".into()) },
     };
@@ -2166,12 +2297,9 @@ fn situations_seen(run: &mut Run, cx: &mut Ctx) {
     let stray = run.monsters.iter().find(|m| m.stray && m.hp > 0 && map.is_visible(m.pos)).map(|m| (m.name.clone().unwrap_or_default(), m.kind.clone()));
     for k in seen {
         if run.met_situation(k) {
-            let note_text = match k {
-                "shrine" => "A shrine. Pray, at a price.",
-                "vault" => "A cage: three inside, one to take.",
-                _ => "A den. Something sleeps.",
-            };
-            note(run, cx, note_text.into());
+            // Cut 24 §2: each drawn from its pool (`chronicle::variant`).
+            let note_text = crate::chronicle::variant(run, k);
+            note(run, cx, note_text);
             learn(run, cx, k.into());
         }
     }
@@ -2434,7 +2562,7 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
         if wants_slot {
             let need = if item.def().ranged && !run.hero.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
             let spare = |cat: Cat| -> Option<usize> {
-                let spares: Vec<usize> = run.hero.inv.iter().enumerate().filter(|(_, i)| i.cat() == cat && !i.def().ranged && !row_needs(run, cx, i)).map(|(k, _)| k).collect();
+                let spares: Vec<usize> = run.hero.inv.iter().enumerate().filter(|(_, i)| i.cat() == cat && !i.def().ranged && !row_needs(run, cx, i) && !crate::kit::is_kit_id(i.id)).map(|(k, _)| k).collect();
                 if spares.len() >= need {
                     spares.into_iter().min_by_key(|&k| (run.hero.inv[k].value(), run.hero.inv[k].id))
                 } else {

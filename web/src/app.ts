@@ -45,9 +45,12 @@ const SAVE_DEBOUNCE_MS = 1000;
 // without it, the full call is used with slices that grow with the absence (80 min for 8 h, 2 h cap).
 const OFFLINE_SLICE_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES = 6;
 // Cut 23 §4 (AI: "each forecast takes ~5 s to settle"): the refine starts 1 s after a quiet paint (was 2 s; it runs on the background lane)
-const REFINE_MS = 1000;
+// Cut 24 §4 (AK: "3–7 s to settle"): with a refine lane of its own (engine/lanes.ts `refineLane`, latest only) an edit's refine starts
+// beside its first pass (REFINE_PAR_MS, the forecast's own debounce) and an edit meanwhile waits at most for the one in flight (≤ 1.3 s
+// in wasm), never for a queue of stale ones; a paint no edit asked for (a camp, a buy) and one lane (the fake, `?lanes=0`) keep Cut 23's 1 s
+const REFINE_MS = 1000, REFINE_PAR_MS = 30;
 /** Cut 20 §3: an edit's forecast waits this long for the next edit (was 250 ms; the first paint is due ≤ 1 s after the edit). */
-const FC_DEBOUNCE_MS = 100;
+const FC_DEBOUNCE_MS = 30;   // Cut 24 §4: 30 ms (was 100) — a first pass ≤ 1 s in wasm needs the room
 const SLOWDOWNS_KEY = "riddle.slowdowns";
 const EDITING_KEY = "riddle.editing";
 function readSlowdowns(): boolean { try { return localStorage.getItem(SLOWDOWNS_KEY) !== "0"; } catch { return true; } }
@@ -399,7 +402,13 @@ export class App {
     const seq = ++this.rulesSeq;
     void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) this.shelfCheck(); }).catch((e) => console.warn("rules rejected", e));
     this.fcTimer = window.setTimeout(() => void this.emitForecast(), FC_DEBOUNCE_MS);
+    // Cut 24 §4: the edit's refine starts beside its first pass (its own lane, the rules alone synced), not after it
+    if (this.engine.refineLane) this.scheduleRefine(REFINE_PAR_MS, true);
   }
+  /** Cut 24 §4: the state a forecast measures — the edit and the lineage it was asked on. */
+  private fcKey(): string { this.lineageIds.has(this.lineage) || this.lineageIds.set(this.lineage, ++this.lineageN); return `${this.editSeq}:${this.lineageIds.get(this.lineage)}`; }
+  private lineageIds = new WeakMap<object, number>(); private lineageN = 0;
+  private refineKey = ""; private refinedKey = ""; private refinedN = 0;   // the state the refine scheduled measures; the one whose refine painted (and a count of refines painted)
   /** Cut 12 §6: the unlock shelf's `+1 row ⊘ fill rows` is the engine's read of its own set, so it repaints once a rule edit
    *  crosses `max_rows` — after `setRules` resolved (the rules listeners fire before the engine call). */
   private shelfCheck(): void {
@@ -418,15 +427,16 @@ export class App {
     if (this.fcInFlight || this.offlineRunning) { this.fcDirty = true; return; }
     this.fcInFlight = true; this.fcDirty = false;
     try {
-      const asked = cloneSet(this.rules);
+      const asked = cloneSet(this.rules), key = this.fcKey(), refinedBefore = this.refinedN;
       const f = await this.busy(/* copy:label */ "forecast", () => this.engine.forecast());
       // QA 23ed91f (L: switching to an empty set, the shaft kept the old set's `return 94%` for ~5 s, then flipped): a forecast whose
       // rules changed while it ran is not painted (the shaft stays dimmed `stale`); the next one, for the rules now, is
       if (!this.fcDirty) {
         this.fcRules = asked; this.fcShadow = f.shadowed_by ?? []; this.fcFresh = true;
-        this.publishForecast(f);
-        this.scheduleRefine();
-        this.measureVs(f, asked);
+        // Cut 24 §4: the refine of this very state may have painted while this pass ran (it runs beside it) — the first pass is then
+        // older news; a state no refine was asked for gets one now
+        if (!(this.refinedKey === key && this.refinedN !== refinedBefore)) { this.publishForecast(f); this.measureVs(f, asked); }
+        if (this.refineKey !== key) this.scheduleRefine(REFINE_MS);
       }
     } catch (e) { console.warn("forecast failed", e); }
     finally { this.fcInFlight = false; }
@@ -440,22 +450,25 @@ export class App {
   }
   /** Cut 6 §9: after the forecast paints and the rules stay unchanged for REFINE_MS, `forecastRefine` (100 sims) repaints
    *  quietly (no progress bar). A rule edit or a fresh forecast cancels it; an engine without it is asked once. */
-  private scheduleRefine(): void {
+  private scheduleRefine(ms: number, beside = false): void {
     clearTimeout(this.refineTimer);
     if (this.refineOff || !this.engine.forecastRefine) return;
-    const seq = ++this.refineSeq;
+    const seq = ++this.refineSeq, key = this.fcKey();
+    this.refineKey = key;
+    // Cut 24 §4: an edit's refine on its own lane runs beside the first pass (`beside`); any other waits for a quiet paint as before
     this.refineTimer = window.setTimeout(async () => {
-      if (seq !== this.refineSeq || this.fcInFlight || this.offlineRunning || this.overBudget) return;
+      if (seq !== this.refineSeq || (!beside && this.fcInFlight) || this.offlineRunning || this.overBudget) { if (seq === this.refineSeq) this.refineKey = ""; return; }
       try {
         const f = await this.engine.forecastRefine!();
         if (seq !== this.refineSeq) return;
+        this.refinedKey = key; this.refinedN++;
         this.publishForecast(f);
         // QA 912e135: the first pass's move is not the refined bars' — the marks wait (`vsShown`) and the line reads `vs sent …` until it lands
         if (this.vs && !this.vs.refined) for (const fn of this.vsListeners) { try { fn(); } catch (e) { console.warn("vs listener", e); } }
         // Cut 22 §3: the refine's move — the one it carries, else `forecastVs` asked again now the panels paired are the refined ones
         if (this.vsBase && !sameSet(this.vsBase, this.rules)) { if (f.vs) this.setVs(f.vs); else this.measureVs(f, cloneSet(this.rules), true); }
       } catch (e) { this.refineOff = true; console.warn("forecastRefine unavailable", e); }
-    }, REFINE_MS);
+    }, ms);
   }
   /** Cut 5 §6: the set's name (≤ 12 chars; empty clears it to the default). It rides the RuleSet through `setRules`, so the
    *  engine save carries it and the core can quote it in the chronicle. Renaming a set that is not active selects it first. */
@@ -700,7 +713,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const sum = (x?: number, y?: number): number | undefined => x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0);
   const cat = <T,>(x?: T[], y?: T[]): T[] | undefined => x === undefined && y === undefined ? undefined : [...(x ?? []), ...(y ?? [])];
   return {
-    rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned), stalled: sum(a.stalled, b.stalled),
+    rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned), stalled: sum(a.stalled, b.stalled), driven: sum(a.driven, b.driven),
     bones_found: cat(a.bones_found, b.bones_found),
     picked: b.picked ?? a.picked,                          // Cut 16 §1: a state — the last slice knows
     restock_capped: a.restock_capped || b.restock_capped || undefined,   // Cut 19 §3: any slice's repeat stopped at the night's income

@@ -184,7 +184,8 @@ function reachSpan(p: Patch, stallish = false): HTMLElement {
   // QA 92eb880 (M: "`reach D7 ~0` … the camp then shows D7 12%"): a move inside the ± reads as a move, never as a reach of ~0
   // Cut 22 §4: a move is signed points in the delta look (`reach D6 +8 ±3`), `≈` inside its ± — a move, never a reach level or a chance.
   // QA 778fa1b (qaU: `reach D6 ≈ ±14` — "a spread with no value"): `≈` is no call and stands alone; the ± rides only a move
-  return flat ? h("span", { class: "num delta flat" }, `${word}${at}≈`)
+  // Cut 24 §4: …but a ± the move sits inside is what makes it `≈` — it reads with it (`reach D6 ≈ ±5`): unresolved, not "no change"
+  return flat ? h("span", { class: "num delta flat" }, `${word}${at}≈`, pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`) : "")
     : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, `${word}${at}${delta > 0 ? "+" : "−"}${Math.abs(delta)}`, pmTag);
 }
 

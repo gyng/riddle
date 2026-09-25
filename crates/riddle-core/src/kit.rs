@@ -43,6 +43,27 @@ pub fn unit(best_depth: u32) -> u32 {
     100 + 25 * best_depth
 }
 
+/// Cut 24 §3 (AL: leather +1 $1000 → $1100 → $1400, mail $2800 → $3600 as the best deepened —
+/// "the gold I banked overnight chases a price that rises with my best"): the lineage's unit,
+/// fixed the first time the forge is shown (`lock_unit`: a step owned, or the purse able to buy
+/// a first step) — every step's price is then fixed for good; until then it is today's.
+pub fn unit_of(l: &LineageState) -> u32 {
+    l.kit_unit.unwrap_or_else(|| unit(l.best_depth))
+}
+
+/// Cut 24 §3: fix the unit (`LineageState::kit_unit`) once the forge is shown — a step owned, or
+/// a first step (a ladder's cheapest) the purse can buy. Called where the purse or the kit moves
+/// (an exit, a purchase).
+pub fn lock_unit(l: &mut LineageState) {
+    if l.kit_unit.is_some() {
+        return;
+    }
+    let first = KIT_SLOTS.iter().map(|s| mults(s)[0]).min().unwrap_or(1) * unit(l.best_depth);
+    if KIT_SLOTS.iter().any(|s| owned(l, s) > 0) || l.gold >= first as i32 {
+        l.kit_unit = Some(unit(l.best_depth));
+    }
+}
+
 pub fn mults(slot: &str) -> &'static [u32] {
     match slot {
         "weapon" => &WEAPON_MULT,
@@ -73,14 +94,14 @@ pub fn step_label(l: &LineageState, slot: &str, i: usize) -> String {
     }
 }
 
-/// The price of step `i` of a ladder today.
+/// The price of step `i` of a ladder (fixed once the forge is shown: `unit_of`).
 pub fn price(l: &LineageState, slot: &str, i: usize) -> u32 {
-    unit(l.best_depth) * mults(slot).get(i).copied().unwrap_or(0)
+    unit_of(l) * mults(slot).get(i).copied().unwrap_or(0)
 }
 
 /// Cut 23 §1: a row slot's gold price on the forge's ladder (`None` for any other unlock).
 pub fn row_gold(l: &LineageState, id: &str) -> Option<u32> {
-    ROW_MULT.iter().find(|(r, _)| *r == id).map(|(_, m)| unit(l.best_depth) * m)
+    ROW_MULT.iter().find(|(r, _)| *r == id).map(|(_, m)| unit_of(l) * m)
 }
 
 /// The night's net `nights` divides by (the last full night's, or tonight's when larger).
@@ -131,6 +152,7 @@ pub fn buy(game: &mut Game, slot: &str) -> Result<(), String> {
         return Err("unknown slot".into());
     }
     let l = &mut game.lineage;
+    lock_unit(l);
     let n = owned(l, slot) as usize;
     if n >= mults(slot).len() {
         return Err("top of the ladder".into());

@@ -246,8 +246,12 @@ fn check_forecast_bank_at(t: &mut Tally, bank: &mut BankTally, g: &Game, seed: u
 /// (±0.039) was about the two samples' own spread, and runs of the same engine read +0.023
 /// and −0.039 across a change that altered only item ids (a bones pile's finds re-numbered):
 /// at 54/60 the band is ±0.023 and the gap 0.013, the stricter reading (+~10 s).
-const SENDS: u32 = 54;
-const BANK_SIMS: u32 = 60;
+/// Cut 24: 108 sends and 120 sims — the Cut 24 engine read the depth variant 0.906 vs 0.883
+/// (±0.020) at 54/60, while fresh-lineage nights on seeds 1–30 / 31–60 / 61–90 read +0.007,
+/// −0.023, +0.002 (no bias: the sends' own spread); at 108/120 it reads 0.908 vs 0.896 ±0.013,
+/// the stricter reading again (+~30 s).
+const SENDS: u32 = 108;
+const BANK_SIMS: u32 = 120;
 
 /// Σ over seeds, per [the good set, its bank-depth variants]: (forecast banks, forecast sims,
 /// real banks, real sends).
@@ -548,6 +552,53 @@ fn check_den_leg(t: &mut Tally, g: &Game, seed: u64) {
         if h.pending_exit.is_some() {
             let _ = h.keep(vec![]);
         }
+    }
+}
+
+/// Cut 24 §5 (AL: `Down to 1 HP. R2 drink heal saved him.` — R2 drank at 4 HP, `R4 read
+/// teleport` fired at 1 HP): a floor's `Rk … saved him.` names the row that fired at the lowest
+/// HP any row fired at after the fall (the latest at a tie) — six sends tick by tick, the rows'
+/// firings read from the trace (HP at the decision) once the fall is on record.
+fn check_saved_leg(t: &mut Tally, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    for _ in 0..6 {
+        if h.pending_exit.is_some() {
+            let _ = h.keep(vec![]);
+        }
+        h.send();
+        h.events.clear();
+        let mut fired: Vec<(i32, i32)> = Vec::new();
+        let mut last_t = h.run.as_ref().and_then(|r| r.trace.last().map(|x| x.t));
+        for _ in 0..200_000 {
+            let Some(r) = h.run.as_ref() else { break };
+            if r.over.is_some() {
+                break;
+            }
+            let low_before = r.low20_t.is_some() || r.low10_t.is_some();
+            let depth = r.depth;
+            h.tick();
+            let r = h.run.as_ref().unwrap();
+            let low_now = r.low20_t.is_some() || r.low10_t.is_some();
+            for x in r.trace.iter().filter(|x| last_t.is_none_or(|l| x.t > l)) {
+                if x.row >= 0 && (low_before || (low_now && x.hp * 100 / r.hero.max_hp.max(1) <= 20)) {
+                    fired.push((x.row, x.hp));
+                }
+            }
+            last_t = r.trace.last().map(|x| x.t).or(last_t);
+            for e in std::mem::take(&mut h.events) {
+                if let Ev::Note { t: at, text } = e {
+                    let Some(k) = text.strip_suffix(" saved him.").and_then(|s| s.strip_prefix('R')).and_then(|s| s.split(' ').next()).and_then(|n| n.parse::<i32>().ok()) else { continue };
+                    let min = fired.iter().map(|x| x.1).min();
+                    let at_min = fired.iter().rev().find(|x| Some(x.1) == min).map(|x| x.0 + 1);
+                    t.check("a `saved him` note names the row that fired at the low point", at_min == Some(k), || format!("seed {seed} t{at}: `{text}` · fired {fired:?}"));
+                }
+            }
+            if h.run.as_ref().is_some_and(|r| r.depth != depth) {
+                fired.clear();
+            }
+        }
+        h.finish_run();
+        h.events.clear();
     }
 }
 
@@ -1027,7 +1078,12 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
             if let Some(pos) = if p.replace { Some(p.insert_at as usize) } else { patched.rows.iter().position(|r| *r == p.row) } {
                 let mut h = g.clone();
                 let mut fired = 0u32;
-                for _ in 0..6 {
+                // Cut 24 (a boss's counter row, measured on replays of a death on his floor, has
+                // its moment only on sends that reach it — a DEFAULT set's next six sends may all
+                // end above D8): six sends that reach the death's floor, of at most 18.
+                let (mut reached, mut sends) = (0u32, 0u32);
+                while reached < 6 && sends < 18 {
+                    sends += 1;
                     h.send();
                     let mut runs_fired = false;
                     for _ in 0..4000 {
@@ -1037,12 +1093,14 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
                             break;
                         }
                     }
+                    let deep = h.run.as_ref().map_or(0, |r| r.max_depth).max(h.batch.run_outcomes.last().map_or(0, |o| o.0));
+                    reached += (deep >= d.depth || runs_fired) as u32;
                     if h.pending_exit.is_some() {
                         let _ = h.keep(vec![]);
                     }
                     fired += runs_fired as u32;
                 }
-                t.check("the top patch, applied, acts in one of the next 6 sends", fired > 0, || format!("seed {seed} run {id}: {} at R{} · {} · fired in 0 of 6", p.row.describe(), pos + 1, d.verdict));
+                t.check("the top patch, applied, acts in one of the next 6 sends that reach its floor", fired > 0, || format!("seed {seed} run {id}: {} at R{} · {} · fired in 0 of {sends} ({reached} reached D{})", p.row.describe(), pos + 1, d.verdict, d.depth));
             }
             if let Some(before) = before {
                 let after = g.forecast();
@@ -1166,6 +1224,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     at(pool, 55, "salvage leg", &g, |o, g, seed| check_salvage_leg(&mut o.t, g, seed));
     at(pool, 50, "shadow leg", &g, |o, g, seed| check_shadowed(&mut o.t, g, seed));
     at(pool, 45, "den leg", &g, |o, g, seed| check_den_leg(&mut o.t, g, seed));
+    at(pool, 45, "saved-by leg", &g, |o, g, seed| check_saved_leg(&mut o.t, g, seed));
     at(pool, 45, "waystone leg", &g, |o, g, seed| check_waystone_leg(&mut o.t, g, seed));
     at(pool, 45, "found supply leg", &g, |o, g, seed| check_found_supply_leg(&mut o.t, g, seed));
     if seed.is_multiple_of(3) {

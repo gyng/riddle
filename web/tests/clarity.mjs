@@ -17,6 +17,8 @@
 //              the tap; untouched it closes by 6.5 s and the world goes on
 //
 //   Cut 20 §3  an edit's first forecast paints ≤ 1.2 s with the slow measures in flight (the fake behind a worker's timing)
+//   Cut 24 §4  real wasm: an edit's first pass ≤ 1 s, its refine ≤ 3 s — quiet, after a burst, with the slow measures in flight
+//              (`--no-wasm` skips it)
 //
 //   node web/tests/clarity.mjs        (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
@@ -84,7 +86,7 @@ try {
   // §3 a card's reach delta says where the card goes — Cut 12 §1: `at R2` (before the engagement row, the catalogue's `insert_at`), else `at end`
   {
     const delta = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((d) => d.textContent.trim()));
-    check(delta.length > 0 && delta.every((d) => /^reach ([+−]\d+( ±\d+)?|≈) at (R\d+|end)( · vs [a-z ]+)?$/.test(d)), `card deltas say where the card goes: ${delta.slice(0, 2).join(" · ")}`);
+    check(delta.length > 0 && delta.every((d) => /^reach ([+−]\d+( ±\d+)?|≈( ±\d+)?) at (R\d+|end)( · vs [a-z ]+)?$/.test(d)), `card deltas say where the card goes: ${delta.slice(0, 2).join(" · ")}`);
   }
   // §3 a greyed supply says why under its price
   {
@@ -457,6 +459,39 @@ try {
     });
     check(t.first >= 0 && t.first <= 1200, `an edit's first forecast paints ≤ 1.2 s with the refine and the unlock deltas in flight (${t.first} ms)`);
     check(t.refine > t.first, `the refine lands after the first paint (${t.refine} ms)`);
+  }
+  // Cut 24 §4 (AK: "each edit makes you wait 3–7 s for the forecast to settle"): the real engine (wasm in its workers, an 8 h lineage):
+  // an edit's first pass paints ≤ 1 s (the median of three quiet edits) and its refine lands ≤ 3 s — quiet, after a burst of four edits
+  // 250 ms apart (from the last; the stale refines never queue: the refine lane runs the latest only), and with the forge's, the
+  // unlocks' and the cage's measures in flight (they ride the background lane, the refine its own)
+  if (!process.argv.includes("--no-wasm")) {
+    await page.goto(`${url}?dev=1&fresh=1&seed=2302&absent=8h`, { waitUntil: "domcontentloaded" });
+    await waitFor((s) => s?.booted && ["camp", "report"].includes(s.screen), "the real engine's camp", 120_000);
+    const kind = await page.evaluate(() => window.__riddle.kind);
+    await page.evaluate(() => window.__riddle.go({ kind: "camp" }));
+    await sleep(6000);   // the camp's own measures settle
+    const t = await page.evaluate(async () => {
+      const r = window.__riddle, log = [];
+      r.onForecast((f) => log.push({ t: performance.now(), refined: f.refined }));
+      const until = (pred, ms) => new Promise((res) => { const t0 = performance.now(); const tick = () => { if (pred() || performance.now() - t0 > ms) res(pred()); else setTimeout(tick, 15); }; tick(); });
+      const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+      const took = async (at) => { await until(() => log.some((x) => x.refined === true), 15_000); return { first: Math.round((log.find((x) => x.refined === false)?.t ?? NaN) - at), refine: Math.round((log.find((x) => x.refined === true)?.t ?? NaN) - at) }; };
+      r.insertRow({ conds: [{ k: "hp<", n: 30 }], verb: { v: "rest" } }, 0);
+      await until(() => log.some((x) => x.refined === true), 15_000); await wait(1000);
+      const quiet = [];
+      for (const n of [40, 50, 60]) { log.length = 0; const at = performance.now(); r.rules.rows[0].conds[0].n = n; r.rulesChanged(); quiet.push(await took(at)); await wait(1000); }
+      for (const n of [25, 35, 45, 55]) { r.rules.rows[0].conds[0].n = n; r.rulesChanged(); log.length = 0; await wait(250); }
+      const burst = await took(performance.now() - 250); await wait(1000);
+      void r.engine.kitDeltas?.(); void r.engine.unlockDeltas(); void r.engine.cageForecast?.(); await wait(100);
+      log.length = 0; const at = performance.now(); r.rules.rows[0].conds[0].n = 20; r.rulesChanged();
+      const busy = await took(at);
+      return { quiet, burst, busy };
+    });
+    const med = [...t.quiet.map((q) => q.first)].sort((a, b) => a - b)[1];
+    const refines = [...t.quiet.map((q) => q.refine), t.burst.refine, t.busy.refine];
+    check(kind === "wasm", `the real engine answers (${kind})`);
+    check(med <= 1000 && t.burst.first <= 1200 && t.busy.first <= 1200, `real wasm (${kind}): an edit's first pass paints ≤ 1 s (quiet ${t.quiet.map((q) => q.first).join("/")} ms, median ${med}; after a burst ${t.burst.first}; slow measures in flight ${t.busy.first})`);
+    check(refines.every((x) => x <= 3000), `real wasm: the refine lands ≤ 3 s (quiet ${t.quiet.map((q) => q.refine).join("/")} ms; after a burst ${t.burst.refine}; slow measures in flight ${t.busy.refine})`);
   }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);

@@ -126,7 +126,7 @@ async function qaK() {
   const landed = await page.evaluate(() => [...document.querySelectorAll("button.patch .delta")].map((x) => x.textContent));
   await page.evaluate(() => { const r = window.__riddle; r.engine.deathDeltas = r.__origDD; });
   check(pend.reach.every((x) => x === "reach …") && pend.gem === "100%", `the death paints at once, each reach pending (${pend.reach.join(" · ")}; gem ${pend.gem})`);
-  check(landed.join(" · ") === "reach D6 +8 ±3 · reach D6 ≈ · reach D6 −5 ±3", `the camp's reach lands on the tablets: the depth, the ±, +0% inside it (QA 92eb880: never \`~0\`) (${landed.join(" · ")})`);
+  check(landed.join(" · ") === "reach D6 +8 ±3 · reach D6 ≈ ±3 · reach D6 −5 ±3", `the camp's reach lands on the tablets: the depth, the ±, +0% inside it (QA 92eb880: never \`~0\`) (${landed.join(" · ")})`);
 
   // ---- 2. the report: newest run first; bests named; a stall patch's numbers add up
   const L = await page.evaluate(() => window.__riddle.lineage);
@@ -495,7 +495,7 @@ async function cut18() {
   const t = (label) => tiles.find((x) => x.label === label);
   check(t("card: kite archers")?.cost === "◆3 or $450" && t("+1 vault")?.cost === "◆3 or $300", `an unlock tile shows both prices (${tiles.map((x) => `${x.label} ${x.cost}`).join(" · ")})`);
   check(/\bbuyable\b/.test(t("+1 vault")?.cls ?? "") && !/\bbuyable\b/.test(t("card: kite archers")?.cls ?? "") && !/\bbuyable\b/.test(t("cond: alert")?.cls ?? ""), `a tile the gold buys glows like one the marks buy; one short of gold or gated does not (${tiles.map((x) => `${x.label}: ${x.cls}`).join(" · ")})`);
-  check(t("card: kite archers")?.delta === "reach ≈ at R1 · vs archers", `a card's \`~0\` names its situation ("${t("card: kite archers")?.delta}")`);
+  check(t("card: kite archers")?.delta === "reach ≈ ±3 at R1 · vs archers", `a card's \`~0\` names its situation ("${t("card: kite archers")?.delta}")`);
   await shot("ui-cut18-unlocks");
   // ---- §3: a wall says it is a wall — `ForecastDepth.wall` on D9 (best D8): the notch `D9 · warlord`, the panel's row `D9 0% · warlord wall`
   await page.evaluate(() => { const r = window.__riddle; r.engine.unlocks = async () => []; r.engine.unlockDeltas = async () => []; r.lineage = { ...r.lineage, best_depth: 8 }; r.go({ kind: "camp" }); });

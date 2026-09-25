@@ -367,6 +367,27 @@ pub struct Run {
     /// sets' dance gate).
     #[serde(default)]
     pub bloodless: (u32, u32, u32),
+    /// Cut 24 §1 (AL: the Warlord > 4 min on `attack nearest`, the boss bar full; AK: ~100 s of
+    /// retreat ↔ pack break before archers): the hero's actions with a foe in view since the
+    /// fight last moved — a real foe (not a summon) lost HP, or the hero lost HP to anything but
+    /// a summon — the actions since a foe was last in view, and the run's longest stretch (this
+    /// or a boss's `boss_still`; `turn::NOHP_ACTIONS` ends one: `turn::nohp_guard`).
+    #[serde(default)]
+    pub nohp: (u32, u32, u32),
+    /// Cut 24 §1: the boss in view — (id, its HP, the hero's actions since that HP last moved).
+    /// `turn::BOSS_STILL` of them and the boss wins its fight: the hero is driven off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boss_still: Option<(u32, i32, u32)>,
+    /// Cut 24 §1: the boss that drove the hero off (its kind), for the exit's `no counter`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driven_off: Option<String>,
+    /// Cut 24 §1: driven off with no way home written (no `return` / `bank` row in play): the
+    /// carry is dropped — the game's exit pays nothing, as a stall's does (DEFAULT yields 0).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub driven_lost: bool,
+    /// Cut 24 §1: the rows a dance rested (`turn::nohp_guard`) and the action they rest until.
+    #[serde(default)]
+    pub rows_rested: (Vec<i32>, u32),
     /// Rests taken on this floor (the rest clock).
     #[serde(default)]
     pub rests: u32,
@@ -424,6 +445,9 @@ pub struct Run {
     /// the chronicle credits when the floor is survived).
     #[serde(default)]
     pub saved_by: Option<i32>,
+    /// Cut 24 §5: the HP at which `saved_by`'s row fired (the lowest a row fired at).
+    #[serde(default)]
+    pub saved_low: i32,
     /// The foe the last foe-targeting row acted on, and that row: the hunt continues to its
     /// last-seen tile when it steps out of view.
     #[serde(default)]
@@ -552,6 +576,23 @@ pub struct Run {
     /// later kill of the same named foe reads `slain`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub avenged: Vec<String>,
+    // Cut 24 §2
+    /// Named foes (a stray, the first jackal) met in the last two runs (`LineageState::
+    /// named_met`): they rest this run — a named foe appears at most every third run unless it
+    /// holds a grudge. And the names this run placed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub named_rest: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub named_placed: Vec<String>,
+    /// The floor events' lines (by kind: `shrine`, `lock`, `omen:fens` …) shown in the last two
+    /// runs and this one, oldest first (`chronicle::variant`), and this run's picks.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub event_recent: BTreeMap<String, Vec<u8>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub event_used: Vec<(String, u8)>,
+    /// The facts this run learned, in order (`facts::learn`; `ExitLine.news`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub learned: Vec<String>,
     // Cut 16
     /// §1: the freshness of the floors this run may generate, in permille by depth (only
     /// thinned depths; `LineageState::thin_map` at the send) — a floor's gold piles and item
@@ -716,6 +757,19 @@ impl Run {
         let gone = self.found_gone.iter().filter(|(g, k, _)| *g == id && k == kind).count();
         found.saturating_sub(gone)
     }
+    /// The share of the carry (and of the salvage, XP and renown) an exit at `tier` keeps: a
+    /// timed-out run and a drive-off with no way home written keep nothing (Cut 2 §2, Cut 24 §1).
+    pub fn yield_pct(&self, tier: ExitTier) -> i32 {
+        if self.timed_out || self.driven_lost {
+            0
+        } else {
+            tier.pct()
+        }
+    }
+    /// Cut 24 §1: HP moved on either side of the fight (`turn::nohp_guard`).
+    pub fn fight_moved(&mut self) {
+        self.nohp.0 = 0;
+    }
     pub fn ignore(&mut self, id: u32, actions: u32) {
         let until = self.actions.saturating_add(actions);
         self.ignored.insert(id, until);
@@ -727,6 +781,7 @@ impl Run {
     pub fn unstick(&mut self) {
         self.stuck_until = 0;
         self.row_suppressed = (-9, 0);
+        self.rows_rested.1 = 0;
         self.ignored.retain(|_, until| *until == u32::MAX);
     }
     /// Cut 4: hostiles the hero remembers but cannot see — alive, out of view, seen within
@@ -1035,6 +1090,40 @@ pub struct LineageState {
     /// row's conds and verb; rows no set holds any more are dropped.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub row_stats: Vec<(crate::rules::Row, RowTally)>,
+    // Cut 24 §2
+    /// A named foe (not a grudge) → the run that last met it (`Run.named_rest`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub named_met: BTreeMap<String, u32>,
+    /// A floor event's kind → the (run, line) it showed in the last two runs (`chronicle::variant`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub event_recent: BTreeMap<String, Vec<(u32, u8)>>,
+    /// The item kinds any run has found (`ExitLine.news`: `new find`).
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub found_kinds: BTreeSet<String>,
+    /// The last run in brief — for the news of a run with nothing new (`ExitLine.news`: the one
+    /// thing that differed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_run: Option<RunBrief>,
+    /// Cut 24 §3: the forge's unit, fixed the first time the forge was shown (`kit::unit_of`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kit_unit: Option<u32>,
+}
+
+/// Cut 24 §2: a finished run in brief (`LineageState::last_run`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RunBrief {
+    pub depth: u32,
+    pub tier: String,
+    #[serde(default)]
+    pub cause: Option<String>,
+    #[serde(default)]
+    pub twists: Vec<String>,
+    #[serde(default)]
+    pub kept: i32,
+    #[serde(default)]
+    pub turns: u32,
+    #[serde(default)]
+    pub kills: u32,
 }
 
 /// Cut 23 §3: one row's why-not over the recent sends (`LineageState::row_stats`). Halved
@@ -1192,6 +1281,11 @@ impl LineageState {
             night_net: 0,
             last_night_net: 0,
             row_stats: Vec::new(),
+            named_met: BTreeMap::new(),
+            event_recent: BTreeMap::new(),
+            found_kinds: BTreeSet::new(),
+            last_run: None,
+            kit_unit: None,
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -1213,6 +1307,11 @@ impl LineageState {
         it.known = true;
         it.free = true;
         self.supplies.push(it);
+    }
+    /// Cut 24 §2 (AK: `Ashul the jackal` on D3 run after run): a named foe met in one of the two
+    /// runs before `run` rests — it appears at most every third run (a grudge excepted).
+    pub fn named_resting(&self, name: &str, run: u32) -> bool {
+        self.named_met.get(name).is_some_and(|&m| run < m + 3)
     }
     /// Cut 8B §3: the first stray — a lineage that has never tamed (and has lost no companion
     /// to go wild) meets a stray jackal on D2 or D3 on 80% of seeds, the same jackal every run
@@ -1923,6 +2022,10 @@ pub struct PendingExit {
     /// `sheet` rows on the exit line as `kept` or `salvaged`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub found: Vec<(u32, String)>,
+    /// Cut 24: the exit was a stall — `keep` does not re-pack on top of the loss either (Cut
+    /// 21 §2: the exit's own re-pack skips a stall; the keep's topped the shelf up after it).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub stalled: bool,
 }
 
 fn default_pct() -> i32 {
@@ -2013,6 +2116,12 @@ pub struct Batch {
     /// (`Run.bloodless`).
     #[serde(default)]
     pub dances: u32,
+    /// Cut 24 §1: each real run's longest no-HP stretch in hero actions (`Run.nohp`'s longest,
+    /// or a boss's still stretch) — the metrics' p99 ≤ 60 row — and the runs a boss drove off.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub nohp: Vec<u32>,
+    #[serde(default)]
+    pub driven_off: u32,
     /// §3: what the automations bought this batch, per kind → (n, coins); the exact coins of
     /// salvage and of wake pay, so the night's gold reconciles to the coin
     /// (`gold_earned + salvage_gold + wake_pay − spent == the purse's delta`).
@@ -2842,6 +2951,7 @@ impl Game {
             loot_raw: 0,
             low_hp: i32::MAX,
             saved_by: None,
+            saved_low: 0,
             last_target: None,
             hunt: None,
             blocked_now: None,
@@ -2850,6 +2960,11 @@ impl Game {
             row_suppressed: (-9, 0),
             retreats: (0, 0),
             bloodless: (0, 0, 0),
+            nohp: (0, 0, 0),
+            boss_still: None,
+            driven_off: None,
+            driven_lost: false,
+            rows_rested: (Vec::new(), 0),
             rests: 0,
             aimed: false,
             bones: self.lineage.bones.clone(),
@@ -2874,7 +2989,7 @@ impl Game {
             prayed: false,
             lent_row: None,
             stray_placed: false,
-            first_stray: self.lineage.first_stray(),
+            first_stray: self.lineage.first_stray().filter(|(_, n)| !self.lineage.named_resting(n, id)),
             strays_tamed: Vec::new(),
             bail: false,
             dens: Vec::new(),
@@ -2889,6 +3004,11 @@ impl Game {
             bounty: self.lineage.bounty,
             bounty_gold: 0,
             avenged: Vec::new(),
+            named_rest: self.lineage.named_met.keys().filter(|n| self.lineage.named_resting(n, id)).cloned().collect(),
+            named_placed: Vec::new(),
+            event_recent: self.lineage.event_recent.iter().map(|(k, v)| (k.clone(), v.iter().filter(|(r, _)| r + 2 >= id).map(|(_, i)| *i).collect::<Vec<u8>>())).filter(|(_, v)| !v.is_empty()).collect(),
+            event_used: Vec::new(),
+            learned: Vec::new(),
             gas_dmg_floor: 0,
             lock_last_pop: 0,
             lit: false,
@@ -3113,6 +3233,16 @@ impl Game {
         // return's share was tried (QA on 952e306: four stalls in an hour, $72–$145 forfeited)
         // and let the DEFAULT set profit over 8 h, a gated invariant; the line says `stalled`
         // and counts the unused supplies instead.
+        // Cut 24 §1: a floor stalled before a boss met there (his fight could not progress: a
+        // corridor of his goblins, a dance before him, his stairs sealed) is his win — driven
+        // off, not a stall.
+        if run.stuck_fires >= STALL_FIRES && run.over.is_none() {
+            // (met on this floor — `boss_still` is the floor's — and alive: his stairs are sealed)
+            let met = run.boss_still.map(|b| b.0);
+            if let Some(bi) = run.monsters.iter().position(|m| m.hp > 0 && m.hostile() && m.is_boss() && (run.floor.map.is_visible(m.pos) || Some(m.id) == met)) {
+                crate::turn::driven_off(run, &mut cx, bi);
+            }
+        }
         if run.stuck_fires >= STALL_FIRES && run.over.is_none() {
             run.timed_out = true;
             // Cut 13 §1: the note names the guard's moment, as the record and the reel do
@@ -3254,6 +3384,102 @@ impl Game {
         }
     }
 
+    /// Cut 24 §2: what was new in `run` (`ExitLine.news`), read against the lineage as it
+    /// stood before the run: ≤ 3 lines, most telling first; none new → the one thing that
+    /// differed from the last run.
+    pub fn run_news(&self, run: &Run, tier: ExitTier, pct: i32) -> Vec<crate::wire::News> {
+        let l = &self.lineage;
+        let mut out: Vec<crate::wire::News> = Vec::new();
+        let push = |out: &mut Vec<crate::wire::News>, k: &str, text: String| out.push(crate::wire::News { k: k.into(), text });
+        for e in &run.episodes {
+            if let crate::sifter::Resolution::FirstBoss { kind } = &e.resolution {
+                push(&mut out, "first", format!("first: {} slain", crate::sifter::boss_short(kind)));
+            }
+        }
+        if run.max_depth > l.best_depth && l.best_depth > 0 {
+            push(&mut out, "record", format!("record: D{}", run.max_depth));
+        }
+        for name in &run.avenged {
+            push(&mut out, "named", format!("avenged {name}"));
+        }
+        if let Some(kind) = &run.driven_off {
+            push(&mut out, "driven", format!("driven off: {}", crate::sifter::boss_short(kind)));
+        }
+        let mut finds: Vec<String> = Vec::new();
+        for (_, k) in &run.found_units {
+            if k != "gold" && !l.found_kinds.contains(k) && !finds.contains(k) {
+                finds.push(k.clone());
+            }
+        }
+        // (a lineage from before Cut 24 has found things it never recorded: its first run says none)
+        if !l.found_kinds.is_empty() || l.next_run_id <= 2 {
+            for k in finds.iter().take(2) {
+                push(&mut out, "find", format!("new find: {}", l.wire_name(k).replace('_', " ")));
+            }
+        }
+        for what in &run.learned {
+            if crate::situations::TWISTS.contains(&what.as_str()) {
+                push(&mut out, "situation", format!("first: the {}", crate::situations::twist_word(what)));
+            }
+        }
+        let learned = run.learned.len();
+        if out.is_empty() && learned > 0 {
+            push(&mut out, "learned", format!("learned {learned}"));
+        }
+        out.dedup();
+        out.truncate(3);
+        if !out.is_empty() {
+            return out;
+        }
+        // Nothing new: the one thing that differed from the last run.
+        let kept = run.loot.max(0) * pct / 100;
+        let Some(last) = &l.last_run else { return vec![crate::wire::News { k: "differ".into(), text: format!("D{} · {}", run.max_depth, tier.name()) }] };
+        let twists: Vec<String> = run.situations.iter().map(|(_, s)| s.clone()).filter(|s| crate::situations::TWISTS.contains(&s.as_str()) && !last.twists.contains(s)).collect();
+        let text = if run.max_depth > last.depth {
+            format!("deeper: D{}, last D{}", run.max_depth, last.depth)
+        } else if run.max_depth < last.depth {
+            format!("shallower: D{}, last D{}", run.max_depth, last.depth)
+        } else if tier.name() != last.tier {
+            format!("{}, last {}", past(tier.name()), past(&last.tier))
+        } else if tier == ExitTier::Death && run.death_cause != last.cause {
+            format!("died to {}, last {}", kind_title(run.death_cause.as_deref().unwrap_or("?")).to_lowercase(), kind_title(last.cause.as_deref().unwrap_or("?")).to_lowercase())
+        } else if let Some(t) = twists.first() {
+            format!("this time: the {}", crate::situations::twist_word(t))
+        } else if kept != last.kept {
+            format!("{}${} on last", if kept > last.kept { "+" } else { "−" }, (kept - last.kept).abs())
+        } else if run.kills.len() as u32 != last.kills {
+            format!("{} kills, last {}", run.kills.len(), last.kills)
+        } else if run.turn < last.turns {
+            "quicker than last".into()
+        } else {
+            "slower than last".into()
+        };
+        vec![crate::wire::News { k: "differ".into(), text }]
+    }
+
+    /// Cut 24 §2: the lineage takes in what `run` met — the named foes it placed, the floor
+    /// events' lines it showed, the item kinds it found, and the run in brief.
+    fn settle_novelty(&mut self, run: &Run, tier: ExitTier, pct: i32) {
+        let l = &mut self.lineage;
+        for n in &run.named_placed {
+            l.named_met.insert(n.clone(), run.id);
+        }
+        for (k, i) in &run.event_used {
+            l.event_recent.entry(k.clone()).or_default().push((run.id, *i));
+        }
+        for v in l.event_recent.values_mut() {
+            v.retain(|(r, _)| r + 1 >= run.id);
+        }
+        l.event_recent.retain(|_, v| !v.is_empty());
+        for (_, k) in &run.found_units {
+            if k != "gold" {
+                l.found_kinds.insert(k.clone());
+            }
+        }
+        let twists = run.situations.iter().map(|(_, s)| s.clone()).collect();
+        l.last_run = Some(RunBrief { depth: run.max_depth, tier: tier.name().into(), cause: run.death_cause.clone(), twists, kept: run.loot.max(0) * pct / 100, turns: run.turn, kills: run.kills.len() as u32 });
+    }
+
     /// Bank the run's outcome into the lineage: marks, xp, renown, companions, deaths, rest.
     /// The vault decision (Addendum D) is left pending; `keep` or `auto_keep` finalises it.
     /// Cut 2 §2: yield follows the exit — bank 1.0 / return 0.6 / death 0.0 for gold, salvage,
@@ -3262,11 +3488,14 @@ impl Game {
         let run = self.run.take()?;
         let tier = run.over.unwrap_or(ExitTier::Return);
         // Yield follows the exit (Cut 2 §2); a timed-out run yields nothing.
-        let pct: i32 = if run.timed_out { 0 } else { tier.pct() };
+        let pct: i32 = run.yield_pct(tier);
         // Cut 13 §1: a stall (the guard fired `STALL_FIRES` times on one floor) is a run the
         // player can read: it gets a death-style record below.
         let stalled = run.timed_out && run.stuck_fires >= STALL_FIRES;
         let t = run.turn;
+        // Cut 24 §2: what was new (against the lineage before this run settles into it).
+        let news = if self.sim { Vec::new() } else { self.run_news(&run, tier, pct) };
+        self.settle_novelty(&run, tier, pct);
         let mut outcome = RunOutcome {
             run_id: run.id,
             depth: run.depth,
@@ -3302,7 +3531,7 @@ impl Game {
         // camp shows the new one on the return.
         if let Some(bd) = run.bounty.filter(|b| Some(*b) == self.bounty_seen) {
             let taken = tier != ExitTier::Death && run.max_depth >= bd;
-            let gold = if taken { run.bounty_gold.max(0) * tier.pct() / 100 } else { 0 };
+            let gold = if taken { run.bounty_gold.max(0) * run.yield_pct(tier) / 100 } else { 0 };
             match self.batch.bounty.as_mut() {
                 Some(b) if b.depth == bd => {
                     b.taken |= taken;
@@ -3319,6 +3548,8 @@ impl Game {
         }
         self.batch.stalls += stalled as u32;
         self.batch.dances += (run.bloodless.2 >= crate::turn::DANCE_ACTIONS) as u32;
+        self.batch.nohp.push(run.nohp.2);
+        self.batch.driven_off += run.driven_off.is_some() as u32;
         self.batch.run_outcomes.push((run.depth, if tier == ExitTier::Death { run.death_cause.clone() } else { None }));
         self.batch.run_ticks.push(run.turn);
         self.batch.renderable_events += run.renderable_events;
@@ -3773,7 +4004,7 @@ impl Game {
         // return's cut names every item it salvaged, a $0 one too (the forge counts them all); a death salvages nothing.
         let cut_rows: Vec<crate::wire::SalvageRow> = cut.into_iter().map(|(k, (n, c))| crate::wire::SalvageRow { kind: self.lineage.wire_name(&k), n, gold: c }).filter(|_| pct > 0).collect();
         let brought: Vec<u32> = eligible.iter().filter(|i| run.brought.contains(&i.id)).map(|i| i.id).collect();
-        self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible, pct, brought, found: found_ids });
+        self.pending_exit = Some(PendingExit { run_id: run.id, tier, items: eligible, pct, brought, found: found_ids, stalled });
         // Death: graveyard, grudge, heir, record.
         if tier == ExitTier::Death {
             let cause = run.death_cause.clone().unwrap_or_else(|| "unknown".into());
@@ -3894,6 +4125,15 @@ impl Game {
         let bones_n = pile.len();
         let unused = run.hero.inv.iter().filter(|i| run.supplies.contains(&i.id) && i.kind != "leash").count();
         let mut line = exit_line_of(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, run.stuck_fires >= STALL_FIRES, unused, bones_n, run.depth);
+        line.news = news;
+        // Cut 24 §1: a boss that could not be hurt drove him off — `no counter` with its defence
+        // and the counter row to write (`ExitLine.driven`); the text ends `· no counter`.
+        if let Some(kind) = &run.driven_off {
+            let row = crate::facts::counter_row(kind);
+            let d = crate::wire::DrivenOff { boss: kind.clone(), title: crate::sifter::boss_short(kind).into(), depth: run.depth, verdict: "no counter".into(), defence: crate::facts::boss_trait(kind).into(), counter: crate::facts::counter_text(&row), row };
+            line.text.push_str(" · no counter");
+            line.driven = Some(d);
+        }
         // What the run earned besides gold, on its own line (QA on 50bb162: `◆7` and `$40` at
         // the camp after a death with no source on the death screen).
         // Cut 15 §1: a frontier bank's mark is part of the total and named once: `◆+1
@@ -3963,6 +4203,8 @@ impl Game {
             self.batch.exits.remove(0);
         }
         self.last_exit = Some(line);
+        // Cut 24 §3: the forge's prices are fixed the first time it is shown.
+        crate::kit::lock_unit(&mut self.lineage);
         Some(outcome)
     }
 
@@ -4162,7 +4404,9 @@ impl Game {
         let (items, coins): (Vec<Item>, Vec<i32>) = paid.into_iter().unzip();
         self.salvage_paid(&items, p.pct, &coins);
         self.salvage(&salvage, p.pct);
-        self.restock_at(true);
+        if !p.stalled {
+            self.restock_at(true);
+        }
         self.lineage.kennel_leash();
         Ok(())
     }
@@ -4633,7 +4877,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new() }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new() }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:
@@ -4818,14 +5062,7 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         let pos = if near.is_empty() { take(&mut run.rng, &open, &mut cursor) } else { *run.rng.pick(&near) };
         let id = run.new_id();
         run.monsters.push(Monster::spawn(id, boss, pos, depth));
-        let escort = match boss {
-            "goblin_warlord" | "goblin_captain" => "goblin",
-            "bloat_mother" => "bloat",
-            "foundry_master" => "smith",
-            "lurker_queen" => "lurker",
-            "mirror_king" => "mirror_shade",
-            _ => "skeleton",
-        };
+        let escort = boss_escort(boss);
         // The Captain keeps a thinner guard than a boss.
         let guard = if crate::defs::monster_def(boss).boss { 40 } else { 15 };
         for q in pos.neighbours8() {
@@ -4837,8 +5074,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
     }
     // Grudge monsters live on the floor they killed on; the `hunted` stalker is on every floor
     // from D3, awake and already on the hero's trail.
-    let hunted = hunter.filter(|_| depth >= 3);
-    for g in grudges.iter().filter(|g| g.depth == depth).chain(hunted) {
+    // Cut 24 §2 (AK: `Ulak is avenged.`, then Ulak again): an avenged grudge retires for good.
+    let hunted = hunter.filter(|h| depth >= 3 && !h.avenged);
+    for g in grudges.iter().filter(|g| g.depth == depth && !g.avenged).chain(hunted) {
         let pos = take(&mut run.rng, &open, &mut cursor);
         if run.occupied(pos) {
             continue;
@@ -4846,7 +5084,6 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         let id = run.new_id();
         let mut m = Monster::spawn(id, &g.kind, pos, depth);
         m.make_grudge(&g.name);
-        // Cut 19 §5: a grudge already avenged is still met, and its kill reads `slain`.
         m.avenged = g.avenged;
         if hunted.is_some_and(|h| std::ptr::eq(h, g)) {
             m.awake = true;
@@ -5085,6 +5322,9 @@ pub fn place_bones(run: &mut Run) {
 /// `Run.floor_twist` names it for the interstitial and the reel.
 pub fn place_situations(run: &mut Run, lost: &[Lost]) {
     run.last_twist = run.floor_twist.take();
+    // Cut 24 §2: a lost companion met in the last two runs rests (`Run.named_rest`).
+    let lost: Vec<Lost> = lost.iter().filter(|l| !run.named_rest.contains(&l.name)).cloned().collect();
+    let lost = &lost[..];
     if run.depth >= 3 {
         crate::situations::place_twist(run, lost);
         return;
@@ -5261,6 +5501,7 @@ pub fn place_stray(run: &mut Run, rng: &mut Rng, kind: &str, name: &str, used: &
     m.level = 1;
     run.monsters.push(m);
     run.stray_placed = true;
+    run.named_placed.push(name.to_string());
     true
 }
 
@@ -5305,6 +5546,29 @@ pub fn kind_title(kind: &str) -> String {
         crate::defs::monster_def(kind).title.to_string()
     } else {
         kind.replace('_', " ")
+    }
+}
+
+/// A boss's escort and summons (`populate_floor`; Cut 24 §1: the summons whose fall moves his
+/// fight, `turn::nohp_guard`).
+pub fn boss_escort(boss: &str) -> &'static str {
+    match boss {
+        "goblin_warlord" | "goblin_captain" => "goblin",
+        "bloat_mother" => "bloat",
+        "foundry_master" => "smith",
+        "lurker_queen" => "lurker",
+        "mirror_king" => "mirror_shade",
+        _ => "skeleton",
+    }
+}
+
+/// A tier's word in the past (`bank` → `banked`), for `Game::run_news`.
+fn past(tier: &str) -> String {
+    match tier {
+        "bank" => "banked".into(),
+        "return" => "returned".into(),
+        "death" => "died".into(),
+        t => t.to_string(),
     }
 }
 

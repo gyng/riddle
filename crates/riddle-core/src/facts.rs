@@ -10,6 +10,7 @@ pub fn learn(run: &mut Run, cx: &mut Ctx, fact: String) -> bool {
         return false;
     }
     cx.facts.insert(fact.clone());
+    run.learned.push(fact.clone());
     cx.events.push(Ev::Fact { t: run.turn, fact: fact.clone() });
     let note = fact_note(&fact);
     if !note.is_empty() {
@@ -99,6 +100,20 @@ pub fn counter_row(kind: &str) -> Row {
         "lurker_queen" => Row::new(vec![boss], Verb::arg("read", "silence")),
         "mirror_king" => Row::new(vec![boss], Verb::arg("tactic", "cadence")),
         _ => Row::new(vec![boss], Verb::arg("attack", "tag:boss")),
+    }
+}
+
+/// Cut 24 §1: a boss's defence, ≤ 3 words — what shrugs the blows of a set without its counter
+/// (the `no counter` exit names it: `Warlord · shield wall · attack boss`).
+pub fn boss_trait(kind: &str) -> &'static str {
+    match kind {
+        "goblin_warlord" => "shield wall",
+        "bloat_mother" => "heals in gas",
+        "lich" => "endless dead",
+        "foundry_master" => "reflects blows",
+        "lurker_queen" => "brood shields",
+        "mirror_king" => "mirrors verbs",
+        _ => "unhurt",
     }
 }
 

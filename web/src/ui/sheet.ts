@@ -28,7 +28,18 @@ export function onEscapeIdle(fn: (() => void) | null): void { idle = fn; }
  *  A tap outside the panel (the backdrop, the anchor's row under it) only closes the sheet: it never reaches what lies beneath. */
 export function openSheet(build: (close: () => void) => Node, opts: { modeless?: boolean; anchor?: HTMLElement | null } = {}): void {
   const panel = h("div", { class: "sheet", role: "dialog" });
-  const wrap = h("div", { class: `sheet-wrap${opts.modeless ? " modeless" : ""}`, onclick: (e) => { if (e.target === wrap) close(); } });
+  // Cut 24 §5 (AK: "the chip tap didn't open the verb sheet a second time"): a tap on another chip of the anchor's own row (the verb
+  // while the cond sheet is up) closes this sheet and opens that one — the row being edited stays live; anywhere else a tap only closes
+  const opener = opts.anchor && document.activeElement instanceof HTMLElement && opts.anchor.contains(document.activeElement) ? document.activeElement : null;
+  const passThrough = (e: MouseEvent): HTMLElement | null => {
+    const a = opts.anchor; if (!a || !a.isConnected) return null;
+    const r = a.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return null;
+    wrap.style.pointerEvents = "none"; const under = document.elementFromPoint(e.clientX, e.clientY); wrap.style.pointerEvents = "";
+    const btn = under?.closest<HTMLElement>("button.chip");
+    return btn && a.contains(btn) && btn !== opener ? btn : null;
+  };
+  const wrap = h("div", { class: `sheet-wrap${opts.modeless ? " modeless" : ""}`, onclick: (e) => { if (e.target !== wrap) return; const pass = passThrough(e as MouseEvent); close(); pass?.click(); } });
   let ro: ResizeObserver | null = null;
   const close = (): void => { const i = stack.indexOf(wrap); if (i >= 0) { stack.splice(i, 1); wrap.remove(); ro?.disconnect(); opts.anchor?.classList.remove("sheet-anchor"); } };
   wrap.appendChild(panel);

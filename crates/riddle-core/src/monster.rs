@@ -76,6 +76,10 @@ pub struct Monster {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub avenged: bool,
     pub summoned: bool,
+    /// Cut 24 §1: a Warlord's shield-wall reserve (stepped in to take an unaimed blow): its
+    /// blood is the boss shrugging the blow, not the fight moving (`Run.boss_still`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reserve: bool,
     /// Companion id when this ally is a party member (Addendum A).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cid: Option<u32>,
@@ -173,6 +177,7 @@ impl Monster {
             grudge: false,
             avenged: false,
             summoned: d.tags.contains(&"summoned"),
+            reserve: false,
             cid: None,
             extra_tags: Vec::new(),
             level: 0,

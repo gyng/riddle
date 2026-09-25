@@ -12,6 +12,7 @@
 // (`__viewer.debugRects` / `debugLabels`); a bank exit opens the fight frame with `BANKED $N` as its callout before the sheet.
 // Cut 15 §4: a boss's kill opens (holds) the fight frame with `GOBLIN WARLORD DOWN` in `fast` and `fights`; two name tags whose
 // boxes would intersect draw on two rows (no two tags drawn in a frame intersect).
+// Cut 24 §1: no 15 s of dead watch — a stretch with no hp change, kill, pickup or descent plays at the travel rate (fights included).
 // Cut 16 §4: while a boss is in view the HUD carries his bar under the hero's (`warlord` + a thin track at his hp); `warlord
 // breaks` (the core's callout + note) is a beat — the fight frame holds on `WARLORD BREAKS` like the kill. §3: the run's first
 // floor of a biome names it on the card (`D1 · the Warrens · $0`).
@@ -405,6 +406,32 @@ try {
   }));
   check(!!lines.both && lines.both.length === 1 && lines.maxLines <= 1, `a row and a telegraph on one tick draw one line over the fight (${lines.both ? lines.both.join(" · ") : "telegraph never drawn"}; at most ${lines.maxLines} a frame)`);
   check(lines.rule === "R1 · attack nearest", `the row reads on the ticker meanwhile ("${lines.rule ?? "never"}")`);
+  // Cut 24 §1 (AL: a Warlord fight > 4 min at 1×, the boss bar full; AK: ~100 s of retreat ↔ pack break): the watch never shows more
+  // than 15 s of wall time without an hp change, a kill, a pickup or a descent — a stretch that cannot progress (`fake_shrug=100`: the
+  // run's first 400 ticks beside a foe shrug every blow, the guard asleep) plays at the travel rate, the fight frame's included; in
+  // `fights` on its first floors (no card: every fight watched) and in `fast`
+  for (const m of ["fights", "fast"]) {
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&fake_shrug=100`, { waitUntil: "domcontentloaded" });
+    await waitFor((x) => x?.booted && inRun(x) && x.mode, `the watch (${m}, shrug)`);
+    if (m === "fast") await press("fast");
+    const d = await page.evaluate(() => new Promise((res) => {
+      const t0 = performance.now(); let cur = null, since = 0, sinceTick = 0, maxMs = 0, maxTicks = 0, deadFight = 0, fastest = 0, at = "";
+      const poll = () => {
+        const w = document.querySelector(".watch"), now = performance.now();
+        const live = window.__riddle?.screen === "watch" && w && w.dataset.ending !== "1" && !document.querySelector(".sheet-wrap");
+        if (live && w.dataset.progress !== undefined && w.dataset.tick !== undefined) {
+          const p = w.dataset.progress, tick = Number(w.dataset.tick);
+          if (p !== cur) { cur = p; since = now; sinceTick = tick; }
+          else { const ms = now - since; if (ms > maxMs) { maxMs = ms; at = `D${document.querySelector(".hud .depth")?.textContent ?? "?"} t${sinceTick}`; } maxTicks = Math.max(maxTicks, tick - sinceTick); }
+          if (w.dataset.dead === "1" && w.dataset.frame === "fight") { deadFight++; fastest = Math.max(fastest, Number(w.dataset.speed)); }
+        } else cur = null;
+        if (now - t0 > 60_000 || (window.__riddle?.screen !== "watch" && now - t0 > 3000)) { res({ maxMs: Math.round(maxMs), maxTicks, deadFight, fastest, at }); return; }
+        requestAnimationFrame(poll);
+      };
+      poll();
+    }));
+    check(d.deadFight > 0 && d.maxTicks >= 300 && d.maxMs <= 15_000, `${m}: a fight that cannot progress plays as travel — the longest stretch without a move ${(d.maxMs / 1000).toFixed(1)} s wall over ${d.maxTicks} ticks (≤ 15 s; ≥ 300 ticks is 15 s at the fight's 2×), the fight frame dead at up to ${d.fastest}× (${d.at})`);
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

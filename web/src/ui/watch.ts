@@ -124,6 +124,7 @@ import { makeViewer, type Viewer } from "./viewer";
 import { verbsAt } from "../engine/classes";
 import { openSheet } from "./sheet";
 import { salvageValue } from "./salvage";
+import { mergeFinds } from "./report";
 import { setBusyHost } from "./progress";
 import { vaultSlots } from "./unlocks";
 import { glossOf, kindGlyph, noteText, verbLabel } from "./tokens";
@@ -175,6 +176,10 @@ const PULSE_MS = 120;               // Cut 14 §6: the strip's dot retriggers it
 const CATCHUP_RATE = 32;            // Cut 14 §6: `fast` on the map, behind live by more than the lead: the picture catches up at this rate
 const CATCHUP_MAX = 200;
 const LEAD_PROBE = 120;             // Cut 18 §1: `fast`'s engine lead — a fight is costed (shown or dropped, as under the card) before the picture meets it
+// Cut 24 §1 (AL: a Warlord fight > 4 min at 1× with the boss bar full; AK: ~100 s of retreat ↔ pack break): the watch never shows more
+// than 15 s without an hp change, a kill, a pickup or a descent — a stretch DEAD_TICKS past the last of them plays as travel (the mode's
+// travel rate, ramping like `fast`'s dead stretch), in any mode and any frame, the fight's included, and lands at the next one
+const DEAD_TICKS = 100, DEAD_MAX_FIGHTS = 48;   // ten actions (a tick is a tenth of one): 5 s of a fight at 2×
 const DEAD_RAMP_MS = 300, DEAD_STEP_MS = 200, DEAD_LAND_MS = 150, FAST_MAX = 128;   // Cut 18 §1: `fast`'s dead-stretch ramp (see `deadRate`)            // Cut 14 §6: the engine's biggest step when the world is behind its clock (a paused or hidden viewer)
 type Mode = "fights" | "fast";
 const RATE: Record<Mode, number> = { fights: 16, fast: 32 };  // fights: the map when it shows without a hold (draining to an exit); fast: the travel (Cut 12 §6, was 8×; Cut 20 §3: 32× from the first tick, was 16× ramping)
@@ -222,7 +227,8 @@ const petNoteLine = (t: string): string => { const m = PET_NOTE_RE.exec(t)!; ret
 const BEAT_MAX_MS = 6000;                  // a beat's line is gone after this whatever the clock did, and at a floor change (QA on 50bb162: `A den.` over D2→D4 for 15 s)
 const CALLOUT_QUEUE = 3, SAME_TICK_MS = 40;   // Cut 13 §4: callouts that land on one tick (one pump pass) wait their turn, at most this many
 /** Cut 13 §4: the notes that are beats — the core's situation lines (verbatim), a theft, the stray, a heir's bones. */
-const BEAT_RE = /^(A den\.|A cage:|A shrine\.|The cage opens|A cry from the dark|The air stings|The nest wakes|The den wakes|Found heir \d+'s bones|found the bones|Freed the captive|Cut the captive|Lit the shrine)|snatched|\bstole\b|, gone wild\.$|is avenged/i;
+// Cut 24 §2: each biome band's omen (`omen:<biome>`, three variants each, core chronicle.rs) cuts in like a situation
+const BEAT_RE = /^(A den\.|A cage:|A shrine\.|The cage opens|A cry from the dark|The air stings|The nest wakes|The den wakes|Found heir \d+'s bones|found the bones|Freed the captive|Cut the captive|Lit the shrine|A loose brick|A rat's hoard|A dropped purse|A dead delver's pack|Old bones clutch|A satchel under|A clean spring|Rain through a crack|Sweet water in the reeds|A bell tolls|Bells in the dark|A far bell|A cooling ingot|Slag with silver|A smith's lost purse|A drowned purse|Coins in a lurker's|A glint under the black water|Offerings on a cold altar|Coins in a dry font|A pilgrim's purse)|snatched|\bstole\b|, gone wild\.$|is avenged/i;
 /** The cause of a `hurt` as one word: `goblin_archer` → `archer`. */
 const oneWord = (cause: string): string => cause.replace(/_/g, " ").trim().split(/\s+/).pop() ?? "";
 /** A player row's callout, ≤ 3 words: `R2 · attack nearest`, `R4 · pack break` (QA 23ed91f, L: `R4 PACK BREAK GOBLIN` — the target goes). */
@@ -362,6 +368,8 @@ export function renderWatch(app: App): Mounted {
   const beatNext: Beat[] = [];
   let heldBeat: Beat | null = null;   // the beat the hold is for
   const descends: number[] = [];      // engine ticks of the run's descends (a held beat stops short of the stairs)
+  // Cut 24 §1: the engine ticks where the watch moved — a blow that landed, a hurt, a drink, a kill, a pickup, a descent (ascending)
+  const progress: number[] = [];
   let deadSince = -1;                 // Cut 18 §1: `fast` — when the current dead stretch began (wall ms; -1 none): its rate ramps
   let chore: { text: string; n: number; shown: string } | null = null;   // Cut 14 §4: the chore callout streak on the ticker (`pick up ×8`)
   const rowFires: number[] = [];      // Cut 14 §4: this run's `rule` events per row (the death screen's least-fired row)
@@ -399,6 +407,9 @@ export function renderWatch(app: App): Mounted {
   // what the exit sheet let go, at the engine's worth — the report's `salvaged` rows (QA on 952e306: "camp $76 after
   // 'Returned with $57'; only the gold sheet shows +$19 salvage"); the deepest floor this send reached (its `deepest` tile)
   let salvagedRows: { kind: string; n: number; gold: number }[] = [];
+  // Cut 24 §5 (AK, AL: "I tapped `pearly potion?`, then keep — SALVAGED listed it"): the engine kept the tapped one (a twin of the same
+  // flavour, or the return's cut, was what sold) and the vault named it by its kind — the report says what went in (`KEPT strength → vault`)
+  let keptLabels: string[] = [];
   let deepest = 0;
   // Cut 5 §4: the open vault sheet's close, and the cage it was opened for (a dismissed sheet is not reopened)
   let vaultClose: (() => void) | null = null, vaultKey = "", vaultAt = 0;   // Cut 15 §5: vaultAt — when the sheet opened (wall ms)
@@ -1046,6 +1057,7 @@ export function renderWatch(app: App): Mounted {
     if (s.alert > lastAlert) { const n = s.alert; at(s.turn, () => ambient(/* copy:callout */ `alert ${n}`)); }   // Cut 7 §4
     lastAlert = s.alert;
     const exit = absorb(r.events, s);
+    noteProgress(r.events, s);   // (after `absorb`: the batch's bosses are known)
     snap = s;
     // Cut 14 §6: the stake and the max hp land at the viewer's clock like the rest of the HUD (the picture may be behind the world)
     at(s.turn, () => { hud.maxHp = s.hero.max_hp; paintHud(); paintStake(s); bossFrom(s); }); bossSighted(s);
@@ -1178,6 +1190,8 @@ export function renderWatch(app: App): Mounted {
     // stepped over the whole choice (the sheet reads the batch's last snapshot) — near an unopened cage the engine steps in short batches
     const short = !!snap && cageNear(snap);
     if (short) n = Math.min(n, CAGE_BATCH);
+    // Cut 24 §1: a dead stretch's longer lead is walked in `fights`'s own batches — a fight's close is met within one (the engine waits there)
+    if (el.dataset.dead === "1" && mode === "fights") n = Math.min(n, BATCH_FIGHTS);
     inflight = true;
     // Cut 20 §3: near a cage the batches are short (each snapshot is checked for the choice) — they chain up to the pump's target in
     // one pass instead of one short batch a pump (the picture in `fast` stood at the frontier ~2 s waiting for the engine to walk past a cage)
@@ -1187,7 +1201,10 @@ export function renderWatch(app: App): Mounted {
         inflight = false;
         if (!disposed && !done) handle(r);
         if (skipQueued) { skipQueued = false; void skipToEvent(); return; }
-        if (short && left > 0 && !disposed && !done && !r.run_over && !r.snapshot.vault_choice && !held && !exitTier && !cageWaits() && engineTick < target && snap && cageNear(snap)) { inflight = true; chain(CAGE_BATCH, left - 1); }
+        // Cut 24 §1: a dead stretch in `fights` walks to its lead in its own short batches, chained (a fight's close is met within one)
+        const go = left > 0 && !disposed && !done && !r.run_over && !r.snapshot.vault_choice && !held && !exitTier && !cageWaits() && engineTick < target && !!snap;
+        if (go && short && cageNear(snap!)) { inflight = true; chain(CAGE_BATCH, left - 1); }
+        else if (go && !short && fightOn && el.dataset.dead === "1" && mode === "fights" && !cageNear(snap!)) { inflight = true; chain(BATCH_FIGHTS, left - 1); }
       }).catch((e) => { inflight = false; console.warn("step failed", e); exitTier = "return"; exitAt = 0; endControls(); });
     };
     chain(n, CAGE_CHAIN);
@@ -1251,6 +1268,44 @@ export function renderWatch(app: App): Mounted {
     if (stallSince < 0) stallSince = snap.turn;
     return snap.turn - stallSince >= STALL_FLAT_TICKS;
   }
+  /** Cut 24 §1: the batch's moves (an hp change, a kill, a pickup, a descent) as progress ticks. With a boss in view (the batch's
+   *  snapshot) only his hp, his fall, a descent or the exit move it — the Warlord's summons hitting the hero and dying under his
+   *  shield wall is a dead stretch (the coordinator's read of AL's four minutes: the hero's bar moved, the boss's never did). */
+  function noteProgress(evs: Ev[], s: Snapshot): void {
+    const boss = s.entities.some((e) => e.tags.includes("boss") && !e.ally && e.hp > 0 && !!s.visible[e.y * s.w + e.x]);
+    for (const e of evs) {
+      const moved = boss
+        ? e.k === "descend" || e.k === "exit" || ((e.k === "hurt" || e.k === "die") && bossIds.has(e.id)) || (e.k === "attack" && e.hit && e.dmg > 0 && bossIds.has(e.dst))
+        : e.k === "hurt" || e.k === "die" || e.k === "pickup" || e.k === "descend" || e.k === "use" || e.k === "exit" || (e.k === "attack" && e.hit && e.dmg > 0);
+      if (moved && (!progress.length || e.t > progress[progress.length - 1])) progress.push(e.t);
+    }
+    while (progress.length > 64 && progress[1] < viewerTick() - 4000) progress.shift();   // the playhead never seeks back that far
+  }
+  /** The last progress tick at or before v (the run's start when none). */
+  function progressBefore(v: number): number {
+    for (let i = progress.length - 1; i >= 0; i--) if (progress[i] <= v) return progress[i];
+    return progress.length ? progress[0] : v;
+  }
+  const progressAfter = (v: number): number => progress.find((t) => t > v) ?? Infinity;
+  /** Cut 24 §1: is the playhead DEAD_TICKS past the last move (and not on a boss's kill or break, the card, the ending)? */
+  function deadAt(v: number): boolean {
+    if (v - progressBefore(v) < DEAD_TICKS) return false;
+    if (beat?.hold && v >= beat.from && v < beat.until) return false;
+    return !(mode === "fights" && (cardUp || cardWait));
+  }
+  /** Cut 24 §1: a dead stretch's rate — the travel's, ramping as `fast`'s dead stretch does, landing on the next move DEAD_LAND_MS out. */
+  function deadStretch(was: number, v: number): number {
+    deadSince = was < 0 ? performance.now() : was;
+    const base = earlyFloor() ? EARLY_TRAVEL : RATE[mode], age = performance.now() - deadSince;
+    // `fights` tops out at DEAD_MAX_FIGHTS (a stretch the core cuts at 60 actions is ~1 s there; its engine lead stays short of a cage)
+    let r = age < DEAD_RAMP_MS ? base : Math.min(mode === "fights" ? DEAD_MAX_FIGHTS : FAST_MAX, base * 2 ** (1 + Math.floor((age - DEAD_RAMP_MS) / DEAD_STEP_MS)));
+    // lands DEAD_LAND_MS before the next move, the stairs, the ending; never past the frontier (the engine is stepped to the lead)
+    // (and before a beat not yet shown — a cage's, a situation's: at 128× the playhead jumped a cage's whole beat and its tap with it)
+    const d = descends.find((t) => t >= v), b = beat && !beat.shown && beat.from >= v ? beat.from : Infinity;
+    const next = Math.min(progressAfter(v), d ?? Infinity, b, ...beatNext.filter((x) => !x.shown && x.from >= v).map((x) => x.from), endingFrom >= v ? endingFrom : Infinity, engineTick);
+    if (Number.isFinite(next)) r = Math.min(r, ((next - v) * 100) / DEAD_LAND_MS);
+    return Math.max(base, r);   // never under the travel's rate: the engine is stepped to the playing picture's lead (a 0 at the frontier stood both)
+  }
   function rate(): number {
     const was = deadSince;
     deadSince = -1;
@@ -1274,6 +1329,11 @@ export function renderWatch(app: App): Mounted {
     // QA 23ed91f (L: `fast` ran a 4-minute summoner stall at the fight's slow clock): a stall is watched at the mode's flat rate — no
     // fight, near or scene hold
     const flat = !app.slowdowns || stalling();   // Cut 14: `slowdowns` off — no fight, near or scene hold; the mode's flat rate
+    // Cut 24 §1: nothing has moved for DEAD_TICKS — the travel's rate, whatever the frame
+    const dead = deadAt(v);
+    if ((el.dataset.dead === "1") !== dead) el.dataset.dead = dead ? "1" : "0";
+    el.dataset.progress = String(progressBefore(v));
+    if (dead) return deadStretch(was, v);
     if (frame === "fight" && !flat && beat?.hold && v >= beat.from && v < beat.until) return 1;   // Cut 15 §4: a boss's kill holds SCENE_MS
     if (frame === "fight" && !flat) return choreAt(v) ? (earlyFloor() ? earlyTravel(was, v) : RATE[mode]) : fightRate();   // Cut 18 §1: `fast`'s chore stretch at its flat rate too   // Cut 8A: a fight is watched slow (Cut 14: 2× in `fights`, 4× in `fast`); Cut 15 §4: a chore stretch in `fights` at the flat rate
     if (mode === "fights") return cardWait || cardUp ? 0 : earlyFloor() && !flat ? earlyTravel(was, v) : mapHold ? (cardLive ? RATE.fights : AUTO_FAST) : RATE.fights;   // the clock holds under the card: the cut seeks
@@ -1652,6 +1712,7 @@ export function renderWatch(app: App): Mounted {
         const gained = app.lineage.vault.filter((v) => !vaultBefore.has(v.id)).map((v) => v.kind);
         for (const kind of gained) { const it = skipped.items.find((x) => x.kind === kind && !kept.has(x.id)); if (it) kept.add(it.id); }
         salvagedRows = letGoRows(skipped, kept);
+        keptLabels = app.lineage.vault.filter((v) => !vaultBefore.has(v.id)).map((v) => v.label);
       }
     } finally { /* guard cleared on every normal path below */ }
     await finishAfterRefresh(tier, guard);
@@ -1700,10 +1761,10 @@ export function renderWatch(app: App): Mounted {
       stolen: exitLine?.stolen?.length ? [...exitLine.stolen.reduce((m, l) => m.set(l, (m.get(l) ?? 0) + 1), new Map<string, number>())].map(([label, n]) => ({ label, n })) : undefined,   // QA e75ec29 (R)
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,
       xp: { class: cls, ...xpOfRun() },
-      salvaged: reconcileSalvage(mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), L.gold_ledger ?? []), deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
+      salvaged: reconcileSalvage(mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), L.gold_ledger ?? []), kept: keptLabels.length ? keptLabels : undefined, deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
       spent: [...(exitLine?.toll !== undefined ? (exitLine.toll > 0 ? [{ kind: /* copy:none */ `waystone D${exitLine.start ?? L.start ?? 1}`, n: 1, gold: exitLine.toll }] : []) : tollOf(L.gold_ledger ?? [])), ...spentRows(L.gold_ledger ?? [])],   // Cut 13 §3: what the automations bought at this exit (`heal ×1 · −$40`); QA a946e04: the send's toll first
       stolen_gold: exitLine?.stolen_gold ?? (stolenGold > 0 ? stolenGold : undefined),   // QA a946e04 (T): the carry's thefts, beside the items
-      banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, stalled: stalled ? 1 : 0,   // Cut 18 §4: the stall the exit line names anywhere in it (`… · stalled · 1 supply back`), or the stake's flag bones_found: bonesFound,   // rest is still ahead: the camp shows it
+      banked: tier === "bank" ? 1 : 0, returned: tier === "return" ? 1 : 0, stalled: stalled ? 1 : 0, driven: exitLine?.driven ? 1 : 0,   // Cut 18 §4: the stall the exit line names anywhere in it (`… · stalled · 1 supply back`), or the stake's flag bones_found: bonesFound,   // rest is still ahead: the camp shows it
       exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
     };
     app.go({ kind: "report", report });
@@ -1752,6 +1813,9 @@ export function renderWatch(app: App): Mounted {
       // for an exit line without it (two QA players on 50bb162: "bones: 8 items on D4 ... bones left · 8 items")
       const bones = p.tier === "death" && bonesLeft !== undefined && !/\bbones:/.test(exitLine?.text ?? "") ? h("div", { class: "bones-line dim num" }, /* copy:callout */ `bones left · ${items(bonesLeft)}`) : null;
       const ledger = exitLine?.text ? h("div", { class: "ledger-line num dim" }, exitLine.text + exitExtras(exitLine)) : null;   // Cut 6 §1: engine data, verbatim
+      // Cut 24 §2: what was new this run leads the sheet's lines (`record: D10 · avenged Ulak`), before the counts
+      const newsT = mergeFinds((exitLine?.news ?? []).filter((n) => n.k !== "differ")).map((n) => n.text);
+      const news = newsT.length ? h("div", { class: "keep-news num" }, newsT.slice(0, 3).join(" · ")) : null;
       const trace = traceChip(exitTrace ?? exitLine?.trace, "chip mini", { rows: app.rules.rows, runId, home: p.tier !== "death" });   // Cut 9 §5: the trace on a chip; Cut 11 §3: with its chain; Cut 14: a home trace's last row is not red
       // the sheet counts picks against free slots, so its label is `keep 0/1`, not the camp's `vault 1/2` (QA on e0f87e7:
       // "VAULT 0/1 while camp shows VAULT 1/2 · same counter")
@@ -1763,11 +1827,12 @@ export function renderWatch(app: App): Mounted {
         exitLine.salvaged.map((r) => `${r.kind.replace(/_/g, " ")}${r.n > 1 ? ` ×${r.n}` : ""} $${r.gold}`).join(" · ")) : null;
       return h("div", { class: "sheet-body" },
         h("div", { class: "label row-label" }, /* copy:label */ "keep", " ", count, trace),
-        chips, legend, cut, bones, ledger,
+        chips, legend, cut, bones, news, ledger,
         h("button", { class: "btn primary wide", onclick: () => {
           if (sent) return; sent = true;
           salvagedRows = letGoRows(p, keep);
-          app.engine.keep([...keep]).then((L) => { app.lineage = L; }).catch((e) => console.warn("keep", e)).finally(() => { close(); then(); });
+          const vaultBefore = new Set(app.lineage.vault.map((v) => v.id));
+          app.engine.keep([...keep]).then((L) => { app.lineage = L; keptLabels = L.vault.filter((v) => !vaultBefore.has(v.id)).map((v) => v.label); }).catch((e) => console.warn("keep", e)).finally(() => { close(); then(); });
         } }, /* copy:button */ "keep"));
     });
   }
@@ -1791,7 +1856,7 @@ export function renderWatch(app: App): Mounted {
     worldT = s.turn; lastPumpMs = performance.now(); scrub.hidden = false; paintScrub(s.turn);   // Cut 14 §6: the world clock starts; the strip shows
     speed = -1; applyFrame(); applySpeed();   // Cut 10 §1: the card and the mode's rate (fights: 16× under it) from the first frame
     if ("__riddle" in window) (window as unknown as { __viewer: Viewer }).__viewer = v;   // dev inspection
-    lastHp = s.hero.hp; lastAlert = s.alert; sceneFrom(s);
+    lastHp = s.hero.hp; lastAlert = s.alert; sceneFrom(s); progress.push(s.turn);
     pumpTimer = window.setInterval(pump, PUMP_MS);
   }
   void init();

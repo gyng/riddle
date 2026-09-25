@@ -60,7 +60,8 @@ export function deltaLabel(u: UnlockInfo, d: number, rows?: number): string {
   // Cut 18 §5: a card whose best reach is within its ± names when it matters (`reach ~0 at R1 · vs archers`) — every card read
   // `reach ~0 at R4` to both raters, so they skipped them all
   // Cut 22 §4: a move is signed points (`reach +12 ±4`), `≈` inside its ± — never a `%`, which reads as a chance
-  if (deltaIsNoise(u)) return /* copy:unlock_card */ `reach ≈${where}${u.situation ? ` · ${situationLabel(u.situation)}` : ""}`;
+  // Cut 24 §4: `≈` carries the ± it sits inside (`reach ≈ ±5 at R1`) — unresolved, not "no change"
+  if (deltaIsNoise(u)) return /* copy:unlock_card */ `reach ≈${u.pm ? ` ±${Math.max(1, Math.round(u.pm * 100))}` : ""}${where}${u.situation ? ` · ${situationLabel(u.situation)}` : ""}`;
   const pm = u.pm !== undefined ? ` ±${Math.max(1, Math.round(u.pm * 100))}` : "";
   return /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}${pm}${where}`;
 }

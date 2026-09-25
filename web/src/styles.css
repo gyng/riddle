@@ -749,6 +749,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .death .death-line .verdict.stall { filter: hue-rotate(28deg) saturate(1.2); }
 .death .death-line .verdict.row { filter: hue-rotate(-18deg) saturate(1.5) brightness(.9); }
 .death .death-notes, .death .forecast-said, .death .ledger-line, .death .bones-line { width: 100%; margin: 0; text-align: center; }
+.death .death-news { width: 100%; margin: 0; text-align: center; font: 600 12px/1.35 var(--display); letter-spacing: .03em; color: #f0c870; text-shadow: 0 1px 3px #000; }   /* Cut 24 §2 */
 .trace-panel { padding: 10px 12px; }
 .skin-panel .trace-panel { padding: 2px 6px 6px; }
 .death .patches { margin-top: 2px; gap: 6px; }
@@ -780,6 +781,15 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .report .rsec .label::before, .report .rsec .label::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(80, 55, 30, .55), transparent); }
 .report .rsec.stall { margin-top: 6px; padding: 6px 10px 10px; border-radius: 4px; border: 2px solid #b08a3a; box-shadow: 0 0 10px rgba(240, 180, 74, .35); background: rgba(90, 60, 20, .12); }
 .report .exit-lines { margin-top: 10px; }
+/* Cut 24 §2: what was new leads the report — the first line large, the rest under it; §1: a boss's counter as a tablet */
+.report .news { margin: 2px 2px 12px; text-align: center; }
+.report .news-line { font: 600 14px/1.35 var(--display); color: #4a3218; letter-spacing: .02em; }
+.report .news-line.lead { font: 700 19px/1.2 var(--display); color: #3a1a02; text-shadow: 0 1px 0 rgba(255, 236, 170, .6); margin-bottom: 2px; }
+.report .news-line.k-differ { color: #6a5438; font-weight: 500; }
+.report .rsec.driven .driven-line { display: flex; flex-direction: column; align-items: flex-start; width: 100%; gap: 2px; text-align: left; }
+.report .rsec.driven .try { color: #2f7a3e; font-weight: 600; }
+.report .ledger-btn .news-lead { font-weight: 700; color: #4a3218; }
+.keep-news { margin: 6px 0 2px; font-weight: 600; color: #5a3a10; }   /* Cut 24 §2 (the sheet is parchment) */
 
 /* the ending keeps its full-bleed title art (not a framed place) */
 
@@ -867,6 +877,9 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .notch .dl .wall { display: block; margin-top: 2px; font: 600 10px/1 var(--sans); font-style: normal; color: #e0876a; white-space: nowrap; letter-spacing: 0; }
 .notch.walled .hex { box-shadow: inset 0 0 0 1px #8a3a26; }
 .forecast .bar .wall { color: #e0876a; }
+/* Cut 24 §5: the floor a boss stands on names him (`D8 · warlord`) */
+.notch .dl .boss-here { display: block; margin-top: 2px; font: 600 10px/1 var(--sans); font-style: normal; color: #e0b46a; white-space: nowrap; letter-spacing: 0; }
+.forecast .bar .boss-here { color: #8a5412; font-weight: 600; }
 /* Cut 18 §5: a tile the lineage can buy now glows — with marks or with gold alike; the gold price rides beside the marks (`◆3 · $450`) */
 .unlocks .card.buyable { border-color: #9a7434; box-shadow: 0 0 10px rgba(240, 180, 74, .28), inset 0 0 0 1px rgba(240, 180, 74, .18); }
 .unlocks .card.gold-ok .cost { color: #f3d27a; }

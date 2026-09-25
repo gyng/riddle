@@ -20,7 +20,7 @@ import { openSheet } from "./sheet";
 import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
 import { lostLabel, noteText, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
-import { renamer } from "./report";
+import { mergeFinds, renamer } from "./report";
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
@@ -94,6 +94,10 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const shownNotes = (d.notes ?? []).filter((n) => !/ saved him\.$/.test(n) && !/^The cage opens\b|^Took .* from the cage\.$/.test(n));
   // QA 912e135 (qaX: `ogre: telegraph` / `ogre: heavy` under the banner read as tappable because-lines): a fact the run learned says so
   const noteLine = (n: string): string => /^[A-Z][a-z]+(?: [a-z]+)?: [a-z_]+\.$/.test(n) ? /* copy:callout */ `learned ${noteText(n)}` : noteText(n);
+  // Cut 24 §2: what was new this run (the core's `ExitLine.news`: a first, a record, a named kill), under the banner before the notes —
+  // a death that also slew the Warlord says so; the `differ` line of a run with nothing new is left to the report
+  const newsTexts = mergeFinds((d.line?.news ?? []).filter((n) => n.k !== "differ")).map((n) => n.text);
+  const news = newsTexts.length && !kept ? h("div", { class: "death-news num" }, newsTexts.slice(0, 3).join(" · ")) : null;
   const notes = shownNotes.length ? h("div", { class: "death-notes num dim" }, ...shownNotes.slice(-2).map((n) => h("div", { class: "note" }, noteLine(n)))) : null;
   // Cut 13 §5: a `dice` death says what the forecast said for that depth — the reach the camp showed for the floor, verbatim
   // an old death (the chronicle) was sent under another forecast: today's would be a false number (QA on 56f2a1d: `forecast said D7 0%`)
@@ -158,7 +162,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   ] });
   const tracePanel = h("div", { class: "parchment trace-panel" }, ...trace);
   const well = h("div", { class: "well death-well" },
-    h("div", { class: "defeat" }, h("div", { class: "banner-cloth" }, line), notes, forecastLine, ledger, eggs, bones),
+    h("div", { class: "defeat" }, h("div", { class: "banner-cloth" }, line), news, notes, forecastLine, ledger, eggs, bones),
     // QA 23ed91f (K: "the patches sit below the fold, under the console"): the patches, the screen's point, before the trace
     patches,
     tracePanel);

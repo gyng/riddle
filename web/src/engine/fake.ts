@@ -113,7 +113,7 @@ export const UNLOCKS: Record<string, UnlockDef> = {
   row5: { cost: 2 }, row6: { cost: 4 }, row7: { cost: 7 }, row8: { cost: 11 },
   party_slot_2: { cost: 4, needs: "tamed ≥ 1", gate: (L) => L.ledger.filter((r) => r.tamed).length >= 1 },
   party_slot_3: { cost: 9, needs: "tamed ≥ 3", gate: (L) => L.ledger.filter((r) => r.tamed).length >= 3 },
-  vault2: { cost: 3 }, vault3: { cost: 6 }, vault4: { cost: 10 },
+  vault2: { cost: 3 }, vault3: { cost: 6 }, vault4: { cost: 9 },
   // Cut 8B §2–3: the rogue is free at the first bank; `tame` costs nothing and is owned from the start
   rogue: { cost: 0, needs: "bank once", gate: (L) => (L.gold_ledger ?? []).some((g) => g.why.startsWith("banked")) },
   ranger: { cost: 6, needs: "boss 1", gate: (L) => bossKills(L) >= 1 }, caster: { cost: 8, needs: "boss 2", gate: (L) => bossKills(L) >= 2 },
@@ -221,6 +221,11 @@ const STALL_FIRES = 30;
 // UI dev knob: `?engine=fake&fake_stall=N` freezes the hero's chores after N turns on a floor (the chore loop the core's guard
 // catches), so a run stalls: `keeps $0 · stalling` on the HUD, then the stall verdict screen.
 const DEV_STALL = (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_stall"))) || 0;
+// Cut 24 §1 dev knob: `?engine=fake&fake_shrug=N` — the run's first N actions with a foe beside the hero shrug every blow (hits for 0 both
+// ways, the guard asleep): a fight that cannot progress, for the watch's dead-stretch gate (fights.mjs)
+const DEV_SHRUG = (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_shrug"))) || 0;
+let shrugNow = false;
+const shrugRuns = new WeakMap<object, number>();
 /** Cut 13 §4: the situation notes the core writes on first sight (verbatim; the client cuts the fight frame in on them). */
 // the three-item room is the `vault` inside and the *cage* to the player (core situations.rs `twist_word`; QA on 50bb162)
 const PROP_NOTE: Record<string, string> = { shrine: "A shrine. Pray, at a price.", vault: "A cage: three inside, one to take.", nest: "A den. Something sleeps." };
@@ -435,6 +440,7 @@ function stepAway(run: Run, from: Mon[], ev: Ev[], preferCorridor: boolean): boo
   if (!best) return false; moveHero(run, best[0], best[1], ev); return true;
 }
 function hitRoll(rng: Rng, atk: [number, number], def: number): { hit: boolean; dmg: number } {
+  if (shrugNow) { rng(); return { hit: true, dmg: 0 }; }
   const hit = rng() < 0.8; return { hit, dmg: hit ? Math.max(0, ri(rng, atk[0], atk[1]) - def) : 0 };
 }
 function nameOf(m: Mon): string { return m.name ?? m.kind.replace(/_/g, " "); }
@@ -704,7 +710,8 @@ function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   // Cut 9 §5: every exit carries its last-5 trace (row accounting included), on the event and on the ledger line
   // Cut 11 §3: every exit trace carries the run's provenance (the `because` events) beside its turns; ticks ×10 as on the events
   const trace: Trace = { turns: scaleTrace(run.trace), provenance: Object.values(run.prov).sort((a, b) => a.t - b.t).map((p) => ({ text: p.text, t: p.t * 10, depth: p.depth })) };
-  run.line = { carried: run.loot, keep_pct, kept: run.loot_kept, spent, spent_on: run.spent.map((x) => x.label), text: parts.join(" · "), trace };
+  run.line = { carried: run.loot, keep_pct, kept: run.loot_kept, spent, spent_on: run.spent.map((x) => x.label), text: parts.join(" · "), trace,
+    news: [{ k: "differ", text: `reached D${run.depth}` }] };   // Cut 24 §2 stand-in: the core's `news` (what was new; else the one thing that differed)
   ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept, line: run.line, trace });
   // Cut 2 §1: camp rest as long as the expedition (one turn ≈ 1 s), capped; a death is a fixed wake
   run.rest_s = tier === "death" ? WAKE_S : Math.min(REST_CAP_S, run.turn);
@@ -754,7 +761,7 @@ function heroTurn(run: Run, ctx: SimCtx, ev: Ev[]): void {
   run.trace.push(tr); if (run.trace.length > TRACE_TURNS) run.trace.shift();   // Cut 11 §3: the last 10 hero turns
   // Cut 13 §1: the guard — a fired row (or a frozen chore) that left the world as it was counts; anything that moved resets it
   const sig = `${run.depth}|${h.x},${h.y}|${h.hp}|${run.loot}|${h.inv.length}|${run.floor.mons.reduce((a, m) => a + m.hp, 0)}|${run.floor.items.length}`;
-  if (!run.over && (tr.row >= 0 || frozen) && sig === run.lastSig) run.stuckFires++; else run.stuckFires = 0;
+  if (!run.over && (tr.row >= 0 || frozen) && sig === run.lastSig && !shrugNow) run.stuckFires++; else run.stuckFires = 0;
   run.lastSig = sig;
   if (!run.over && run.stuckFires >= STALL_FIRES) {
     run.stalled = true;
@@ -869,6 +876,7 @@ function simTurn_(run: Run, ctx: SimCtx): Ev[] {
     if (m.tags.includes("fast") && run.turn % 2 === 0) learn(run, `foe:${m.kind}:fast`, ev);
   }
   const hp0 = run.hero.hp;
+  if (DEV_SHRUG) { const n = shrugRuns.get(run) ?? 0; shrugNow = n < DEV_SHRUG && run.floor.mons.some((m) => !m.ally && cheb(m.x, m.y, run.hero.x, run.hero.y) <= 1); if (shrugNow) shrugRuns.set(run, n + 1); }
   heroTurn(run, ctx, ev);
   run.hurt = false; run.killed = false;
   if (run.over) return ev;
@@ -1247,9 +1255,10 @@ export class FakeEngine implements Engine {
     for (const d of depths) {
       const boss = BOSS[d.depth]; const c = boss && COUNTER[boss];
       if (!c || !this.known().has(`boss:${boss}:counter`) || this.s.rules.rows.some((r) => rowText(r) === rowText(c.row))) continue;
-      d.cause ??= boss; d.try = { row: JSON.parse(JSON.stringify(c.row)) as Row, text: c.text };
+      d.cause ??= boss; d.try = { row: JSON.parse(JSON.stringify(c.row)) as Row, text: c.text, met: d.depth };
     }
     // Cut 18 §3: reach falls to ≤ 5 % below a boss's floor (from over 5 % on it): the row names the wall (`D9 0% · warlord wall`)
+    for (const d of depths) if (BOSS[d.depth]) d.boss = BOSS[d.depth];   // Cut 24 §5 stand-in: the boss named on the floor he is met on
     for (const d of depths) { const boss = BOSS[d.depth - 1]; const above = depths.find((x) => x.depth === d.depth - 1); if (boss && above && d.reach <= 0.05 && above.reach > 0.05) d.wall = boss; }
     const death = ends.death / N;
     return { depths, causes: top, known_to, sims: N, low: Math.ceil(100 / N), ends: { bank: ends.bank / N, return: ends.return / N, death, gold: ends.gold / N, pm: 1.96 * Math.sqrt((death * (1 - death)) / N) } };   // Cut 13 §5: the ends line's own ±; Cut 23 §2: `low` — a 0 of N prints `<low%`

@@ -11,7 +11,7 @@
 // (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
 import { openForge } from "./forge";
 import type { App, Mounted } from "../app";
-import type { Counter, ExitLine, Lineage, ReturnReport } from "../engine/types";
+import type { Counter, ExitLine, Lineage, News, ReturnReport, Row } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { patchRows } from "./patches";
 import { exitExtras, wakeShown } from "./death";
@@ -90,6 +90,45 @@ export function renamer(L: Pick<Lineage, "renamed" | "facts">): (label: string) 
   };
 }
 
+/** Cut 24 §2 (AK: "identical end-of-run summaries, run after run"): what was new leads the report, before the counts — a watched run's
+ *  own lines (the core's order, ≤ 3; a run with nothing new has its one `differ` line); an absence's, the newest runs' firsts
+ *  across its exits (no `differ`, no `learned` — LEARNED lists them), ≤ 4, each once. Nothing on an older core. */
+export function newsLines(r: Pick<ReturnReport, "runs" | "exits">): News[] {
+  const all = (r.exits ?? []).map((x) => x.news ?? []);
+  if (r.runs <= 1 || all.length <= 1) return mergeFinds((all[all.length - 1] ?? []).slice(0, 3));
+  const seen = new Set<string>(), out: News[] = [];
+  for (const ns of [...all].reverse()) for (const n of ns) { if (n.k === "differ" || n.k === "learned" || seen.has(n.text)) continue; seen.add(n.text); out.push(n); }
+  return mergeFinds(out).slice(0, 4);
+}
+/** `new find: bow` · `new find: amber potion?` → `new find: bow, amber potion?` (one line, in the first's place). */
+export function mergeFinds(ns: News[], most = 3): News[] {
+  const out: News[] = []; const kinds = new Map<News, { head: string; items: string[] }>(); let finds: News | null = null;
+  for (const n of ns) {
+    const m = n.k === "find" ? /^([^:]+): (.+)$/.exec(n.text) : null;
+    const k = finds ? kinds.get(finds) : undefined;
+    if (m && k && k.head === m[1]) { k.items.push(m[2]); continue; }
+    const x = { ...n }; out.push(x); if (m) { finds = x; kinds.set(x, { head: m[1], items: [m[2]] }); }
+  }
+  // a night's finds stay one short line: the first `most`, then `+N`
+  for (const [x, k] of kinds) x.text = `${k.head}: ${k.items.slice(0, most).join(", ")}${k.items.length > most ? ` +${k.items.length - most}` : ""}`;
+  return out;
+}
+/** Cut 24 §2: an absence's exit line leads with its run's first news (`record: D10 · returned $48 · …`); a watched run's report already
+ *  leads with its news, so its one line does not repeat it. */
+function newsLead(x: ExitLine, runs: number): (string | HTMLElement)[] {
+  const n = runs > 1 ? mergeFinds((x.news ?? []).filter((y) => y.k !== "differ"))[0] : undefined;
+  return n ? [h("b", { class: "news-lead" }, n.text), " · "] : [];
+}
+function newsBlock(r: ReturnReport): HTMLElement | null {
+  const ns = newsLines(r);
+  if (!ns.length) return null;
+  return h("div", { class: "news" }, ...ns.map((n, i) => h("div", { class: `news-line k-${n.k}${i === 0 ? " lead" : ""}` }, n.text)));
+}
+
+/** Two rows with the same tokens (conds in order with their numbers, the verb). */
+const sameRowShape = (a: Row, b: Row): boolean => a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length &&
+  a.conds.every((c, i) => c.k === b.conds[i].k && (c.n ?? "") === (b.conds[i].n ?? "") && (c.t ?? "") === (b.conds[i].t ?? ""));
+
 /** QA 912e135: `♟2–17` (one heir `♟5`) under the runs tile — the heirs who ran, the core's `ReturnReport.heirs`. */
 function withHeirs(el: HTMLElement, heirs: number[] | undefined): HTMLElement {
   if (heirs?.length === 2) el.appendChild(h("span", { class: "num heirs-ran dim" }, heirs[0] === heirs[1] ? `♟${heirs[0]}` : `♟${heirs[0]}–${heirs[1]}`));
@@ -101,7 +140,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const named = renamer(L);
   const deathsN = r.deaths.reduce((n, d) => n + d.n, 0);
   // Cut 17 §4: the tiles are engraved score plaques on the parchment (an icon per count)
-  const PLAQUE: Record<string, string> = { runs: "fast", deaths: "morgue", deepest: "depth", best: "depth", marks: "mark", banked: "gold", returned: "bail", stalled: "pause" };
+  const PLAQUE: Record<string, string> = { runs: "fast", deaths: "morgue", deepest: "depth", best: "depth", marks: "mark", banked: "gold", returned: "bail", stalled: "pause", driven: "bail" };
   const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile plaque" }, icon(PLAQUE[label] ?? "depth"),
     h("b", { class: "num" }, ...(n.startsWith("◆") ? [h("span", { class: "g" }, "◆"), n.slice(1)] : [n])), h("span", { class: "label" }, label));
   // Cut 2 §1: `banked · returned · deaths` as a second row of three when the core reports exits; else the Cut 1 four
@@ -109,7 +148,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // a stall is inside the core's `returned` (a return that kept nothing); the tiles count it apart — `returned` is the returns
   // that came home with something, `stalled` its own tile when there were any (a QA player on 50bb162 read `1 RETURNED` for a
   // run whose line said `returned $0 · … · stalled`). With no banks the stall tile takes `banked`'s place so the row stays three.
-  const stalledN = r.stalled ?? 0, bankedN = r.banked ?? 0, returnedN = Math.max(0, (r.returned ?? 0) - stalledN);
+  // Cut 24 §1: a send a boss drove off (`no counter`, among the core's `returned`) is counted apart too — its own tile
+  const stalledN = r.stalled ?? 0, drivenN = r.driven ?? 0, bankedN = r.banked ?? 0, returnedN = Math.max(0, (r.returned ?? 0) - stalledN - drivenN);
   const banked = tile(`${bankedN}`, /* copy:label */ "banked"), returned = tile(`${returnedN}`, /* copy:label */ "returned");
   // Cut 14 §4: the stalls' cost — what the stalled runs carried home for nothing (their lines' `carried`; lines the slices
   // dropped are not counted, so the sum is a floor) — `2 STALLED · $161 lost` (rater T: "`2 STALLED` says nothing about what the
@@ -117,12 +157,13 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const stallLost = (r.exits ?? []).filter((x) => /\bstalled\b/.test(x.text)).reduce((a, x) => a + Math.max(0, x.carried), 0);
   const stalled = stalledN > 0 ? tile(`${stalledN}`, /* copy:label */ "stalled") : null;
   if (stalled) stalled.appendChild(h("span", { class: "num cost down" }, /* copy:callout */ `$${stallLost} lost`));
+  const drivenTile = drivenN > 0 ? tile(`${drivenN}`, /* copy:label */ "driven") : null;
   const exitTiles = (): (HTMLElement | null)[] => {
     // QA 92eb880 (M, N: "the first report orders `BANKED · RETURNED`, the absence report `RETURNED · BANKED`; I read the wrong tile"):
     // one order always, the camp's gems' — banked, returned (Cut 10 §3's larger-first swap withdrawn); a stall with no bank takes
     // `banked`'s slot, so `returned` never moves
-    if (stalled && bankedN === 0) return [stalled, returned];
-    return [banked, returned, stalled];
+    if (stalled && bankedN === 0) return [stalled, returned, drivenTile];
+    return [banked, returned, stalled, drivenTile];
   };
   const tiles = h("div", { class: `tiles${exits ? " six" : ""}${absence ? " fade-in" : ""}` },
     // QA 912e135 (qaW: `♟18` over a report of ♟2–♟17, read as the heir who ran): the runs tile names whose runs they were
@@ -209,13 +250,23 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // two tap targets stacked 0 px apart — the line is a row now: the text (the gold sheet) on the left, the chip (the trace) in its
     // own column on the right, never under the text
     exitLines.replaceChildren(...shown.map((x, i) => h("div", { class: "ledger-line exit-row num dim" },
-      h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...ledgerText(x, named)),
+      h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...newsLead(x, r.runs), ...ledgerText(x, named)),
       // QA 912e135 (qaW, qaX: a lone `·` before every `D7 · died · trace`): the chip is its own flex column (Cut 20) — no separator glyph
       traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
       hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} earlier`) : "",
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
   };
   paintExits(false);
+  // Cut 24 §1 (AL: a Warlord fight > 4 min, the boss bar full): a boss no blow could move drove the hero off (`ExitLine.driven`, core) —
+  // one tablet a boss, `Warlord · no counter · shield wall`, `try: attack boss` under it; a tap writes the counter at the top (or finds it)
+  const drivenOff = [...new Map(allExits.filter((x) => x.driven).map((x) => [x.driven!.boss, x.driven!])).values()];
+  const driven = drivenOff.length ? h("section", { class: "rsec driven" }, h("div", { class: "label" }, /* copy:label */ "counter"),
+    ...drivenOff.map((d) => {
+      const have = app.rules.rows.findIndex((r) => sameRowShape(r, d.row));
+      return h("button", { class: `patch tablet driven-line${have >= 0 ? " held" : ""}`, onclick: () => app.go({ kind: "camp", highlight: have >= 0 ? have : app.insertRow(d.row, 0, "patch") }) },
+        h("span", { class: "chips-inline" }, [d.title, d.verdict, d.defence].filter(Boolean).join(" · ")),
+        h("small", { class: "try" }, have >= 0 ? /* copy:callout */ `at R${have + 1}` : /* copy:callout */ `try: ${d.counter}`));
+    })) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
   const stall = r.stall ? h("section", { class: "rsec stall" },
@@ -298,7 +349,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     ],
   });
   const sheet = h("div", { class: "parchment report-sheet" },
-    tiles, goldLine(), startShort, bounty, picked, exitLines, rested, stall,
+    newsBlock(r), tiles, goldLine(), startShort, bounty, picked, exitLines, driven, rested, stall,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
     section(/* copy:label */ "learned", factChips(r.learned.filter((f) => !/^bones:\d+$/.test(f)), L.counters ?? [])),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
@@ -316,6 +367,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       ...mergeRows((r.stolen ?? []).map((x) => ({ kind: named(x.label.replace(/\s*\(\d+\)$/, "")), n: x.n, gold: x.gold ?? 0 }))).map((x) => h("span", { class: "chip stolen" }, x.kind, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", x.gold > 0 ? h("small", { class: "num dim" }, ` $${x.gold}`) : ""))) : null),
     section(/* copy:label */ "bones", lines((r.bones_found ?? []).map(bonesLine))),
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
+    // Cut 24 §5 (AK, AL: the tapped chip read as salvaged — a twin or the return's cut sold, the kept one renamed by the vault): what
+    // the keep sheet sent to the vault leads the sell-off
+    section(/* copy:label */ "kept", r.kept?.length ? h("div", { class: "chips kept" }, ...r.kept.map((x) => h("span", { class: "chip kept" }, named(x), /* copy:callout */ " → vault"))) : null),
     // Cut 21 §2: found supplies the exits put on the shelf (the next send packs them free), before what was sold
     section(/* copy:label */ "shelved", r.shelved?.length ? h("div", { class: "chips shelved" }, ...r.shelved.map((x) => h("span", { class: "chip shelf" }, /* copy:callout */ `found ${x.kind.replace(/_/g, " ")}`, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", /* copy:callout */ " → shelf"))) : null),
     section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...mergeRows(r.salvaged.map((x) => ({ ...x, kind: named(x.kind) }))).map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),

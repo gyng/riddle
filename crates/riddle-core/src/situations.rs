@@ -368,12 +368,9 @@ pub fn seen(run: &mut Run, cx: &mut Ctx) {
         _ => has_situation(run, what),
     };
     if met && run.met_situation(what) {
-        let text = match what {
-            "den" => "A den of thieves.",
-            "lock" => "The air stings: bloats ahead.",
-            _ => "A cry from the dark: a captive, chained.",
-        };
-        note(run, cx, text.into());
+        // Cut 24 §2: each drawn from its pool (`chronicle::variant`).
+        let text = crate::chronicle::variant(run, if what == "den" || what == "lock" { what } else { "captive" });
+        note(run, cx, text);
         learn(run, cx, what.into());
     }
     // Den thieves and lock bloats stir when the hero is close or in their sight.
@@ -432,7 +429,8 @@ pub fn before_action(run: &mut Run, cx: &mut Ctx) {
     run.met_situation("den");
     run.den_wakes += 1;
     learn(run, cx, "den".into());
-    note(run, cx, "The den wakes: thieves on every side.".into());
+    let text = crate::chronicle::variant(run, "den_wakes");
+    note(run, cx, text);
     callout(run, cx, "thieves!");
     for mi in thieves {
         let m = &mut run.monsters[mi];
@@ -557,7 +555,8 @@ pub fn hunger_tick(run: &mut Run, cx: &mut Ctx) {
     run.hero.max_hp -= 1;
     run.hero.hp = run.hero.hp.min(run.hero.max_hp);
     if run.met_situation("hunger") {
-        note(run, cx, "The floor is hungry. Find light.".into());
+        let text = crate::chronicle::variant(run, "hunger");
+        note(run, cx, text);
         learn(run, cx, "hunger".into());
         crate::sifter::on_hurt(run, "hunger", Some("hunger"));
     }
@@ -587,13 +586,14 @@ pub fn pass(run: &mut Run, cx: &mut Ctx, what: &str) {
         return;
     }
     run.passed.push(what.into());
+    // (the den's line is fixed: the report's thefts are read against it)
     let text = match what {
-        "den" => "Nothing lost to the den.",
-        "lock" => "Through the lock, barely touched.",
-        "captive" => "The captive fights for him.",
-        _ => "Light held.",
+        "den" => "Nothing lost to the den.".to_string(),
+        "lock" => crate::chronicle::variant(run, "pass_lock"),
+        "captive" => crate::chronicle::variant(run, "pass_captive"),
+        _ => crate::chronicle::variant(run, "pass_hunger"),
     };
-    note(run, cx, text.into());
+    note(run, cx, text);
 }
 
 /// The floor is being left: the den and the lock are judged now.
@@ -624,6 +624,56 @@ pub fn on_leave_floor(run: &mut Run, cx: &mut Ctx) {
     run.den_bolted = false;
     run.lock_tiles.clear();
     run.lit = false;
+}
+
+/// Cut 24 §2: a floor's arrival event rolls on this share of the non-boss floors from D2.
+pub const OMEN_PCT: u32 = 33;
+
+/// Cut 24 §2 (AK: "the same floors, the same lines"): one new floor event per biome, met on
+/// arrival (the floor's own side stream; a boss's floor has none) and said in one line drawn
+/// from its pool (`chronicle::variant`): the Warrens' hoard, the Foundry's ingot, the Deep's
+/// drowned purse and the Sanctum's offerings (a gold pile beside him), the Burrows' dead delver
+/// (a flask beside him), the Fens' spring (a fifth of his HP back), the Crypt's bell (the alert
+/// +1). Nothing below the Fens heals: the walls from D23 are their counters' (FULL−D28 kitted
+/// must not pass the Queen on a spring).
+pub fn omen(run: &mut Run, cx: &mut Ctx) {
+    use crate::descent::Biome;
+    let depth = run.depth;
+    if depth < 2 || crate::descent::boss_for(depth).is_some() {
+        return;
+    }
+    let mut rng = run.rng.side(crate::rng::hash_str("omen") ^ depth as u64);
+    if !rng.chance(OMEN_PCT) {
+        return;
+    }
+    let biome = run.biome();
+    let kind = format!("omen:{}", biome.name());
+    if crate::chronicle::pool(&kind).is_empty() {
+        return;
+    }
+    let at = run.hero.pos;
+    match biome {
+        Biome::Warrens | Biome::Foundry | Biome::Deep | Biome::Sanctum => {
+            let mut it = crate::item::Item::new(run.new_item_id(), "gold");
+            it.amount = ((rng.range(6, 12) * depth as i32 + crate::engine::GOLD_DIVISOR / 2) / crate::engine::GOLD_DIVISOR).max(1);
+            crate::turn::drop_near(run, at, it);
+        }
+        Biome::Burrows => {
+            let k = if rng.chance(60) { "heal" } else { "strength" };
+            let it = crate::item::Item::new(run.new_item_id(), k);
+            crate::turn::drop_near(run, at, it);
+        }
+        Biome::Crypt => {
+            run.alert = (run.alert + 1).min(8);
+        }
+        _ => {
+            let h = &mut run.hero;
+            h.hp = (h.hp + (h.max_hp / 5).max(1)).min(h.max_hp);
+            cx.events.push(Ev::Hurt { t: run.turn, id: crate::engine::HERO_ID, dmg: 0, hp: run.hero.hp, cause: "rest".into() });
+        }
+    }
+    let text = crate::chronicle::variant(run, &kind);
+    note(run, cx, text);
 }
 
 #[cfg(test)]

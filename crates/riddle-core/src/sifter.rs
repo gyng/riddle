@@ -108,6 +108,10 @@ pub enum Resolution {
     Died {
         cause: String,
     },
+    /// Cut 24 §1: a boss that could not be hurt drove him off his floor (a return).
+    DrivenOff {
+        kind: String,
+    },
     Fell {
         kind: String,
         name: String,
@@ -125,7 +129,7 @@ impl Resolution {
         matches!(self, Resolution::FirstBoss { .. } | Resolution::BossSlain { .. } | Resolution::Fell { .. })
     }
     pub fn is_exit(&self) -> bool {
-        matches!(self, Resolution::Banked { .. } | Resolution::Returned { .. } | Resolution::Lost { .. } | Resolution::Stalled { .. } | Resolution::Died { .. })
+        matches!(self, Resolution::Banked { .. } | Resolution::Returned { .. } | Resolution::Lost { .. } | Resolution::Stalled { .. } | Resolution::Died { .. } | Resolution::DrivenOff { .. })
     }
 }
 
@@ -849,6 +853,7 @@ fn resolution_form(res: &Resolution, level: u8) -> String {
             }
             _ => "died".into(),
         },
+        Resolution::DrivenOff { kind } => if level > 0 { "driven off".into() } else { format!("driven off by the {}", boss_short(kind)) },
         Resolution::Fell { kind, name } => {
             if level > 0 {
                 format!("{name} fell")
@@ -919,6 +924,7 @@ pub fn routine_line(ep: &Episode) -> Option<String> {
         Resolution::Banked { gold } => format!("banked ${}", gold.max(&0)),
         Resolution::Lost { stalled } => if *stalled { "stalled" } else { "lost the thread" }.into(),
         Resolution::Stalled { cause } => format!("stalled, {}", stall_short(cause)),
+        Resolution::DrivenOff { kind } => format!("driven off by the {}", boss_short(kind)),
         _ => return None,
     };
     let home = matches!(ep.resolution, Resolution::Returned { .. } | Resolution::Banked { .. });
@@ -938,7 +944,7 @@ pub fn routine_ok(text: &str) -> bool {
         Some((r, rest)) if r.starts_with('R') && r[1..].chars().all(|c| c.is_ascii_digit()) && r.len() > 1 => rest,
         _ => tail,
     };
-    let res_ok = tail == "lost the thread" || stalled_ok(tail) || ["returned $", "banked $"].iter().any(|k| tail.strip_prefix(k).is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())));
+    let res_ok = tail == "lost the thread" || stalled_ok(tail) || driven_ok(tail) || ["returned $", "banked $"].iter().any(|k| tail.strip_prefix(k).is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())));
     depth_ok && twist_ok && res_ok && word_count(text) <= STORY_WORDS
 }
 
@@ -957,6 +963,11 @@ pub fn stall_note_cause(cause: &str) -> String {
         Some((kind, why)) => format!("the {}, {why}", kind.rsplit(' ').next().unwrap_or(kind)),
         None => cause.to_string(),
     }
+}
+
+/// Cut 24 §1: the grammar's driven-off resolution — `driven off`, or `driven off by the <boss>`.
+pub fn driven_ok(end: &str) -> bool {
+    end == "driven off" || end.strip_prefix("driven off by the ").is_some_and(|b| crate::descent::BOSS_DEPTHS.iter().any(|(k, _)| boss_short(k) == b))
 }
 
 /// Cut 13 §1: the grammar's stall resolution — `stalled` alone, or `stalled, <word> no path`
@@ -1009,7 +1020,7 @@ pub fn story_ok(text: &str) -> bool {
         head_ok && forms.contains(&rest)
     };
     let end = beats[2];
-    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "died", "lived"].iter().any(|k| end.starts_with(k)) || stalled_ok(end) || end.ends_with(" fell");
+    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "died", "lived"].iter().any(|k| end.starts_with(k)) || stalled_ok(end) || driven_ok(end) || end.ends_with(" fell");
     setup_ok && turn_ok && end_ok
 }
 
@@ -1047,6 +1058,7 @@ fn weight(res: &Resolution, named: bool) -> i32 {
         Resolution::FirstBoss { .. } => 5,
         Resolution::BossSlain { .. } => 2,
         Resolution::Returned { .. } | Resolution::Lost { .. } | Resolution::Stalled { .. } | Resolution::Survived => 1,
+        Resolution::DrivenOff { .. } => 2,
         Resolution::Died { .. } => {
             if named {
                 5

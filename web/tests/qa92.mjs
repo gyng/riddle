@@ -228,7 +228,7 @@ try {
   // never re-orders the list or moves the lit tablet (the core's `rank_patches` order stands)
   check(order === "foe: telegraph → retreat | hp < 20% → rest | hp < 20% → return | foes ≥ 3 → retreat", `the landing keeps the core's order (${order})`);
   check(d.rows[0]?.neg && d.rows[0]?.top && !d.rows.slice(1).some((x) => x.neg) && d.gem === "100%" && before === "100%", `a loss is dim and says its move; the lit tablet and the gem stay (gem ${before} → ${d.gem}; ${d.rows.map((x) => x.reach).join(" · ")})`);
-  check(d.rows[1]?.reach === "reach D8 ≈" && d.rows[2]?.reach === "return early", `a move inside the ± reads \`≈\` alone (QA 778fa1b: no ± beside it); an exit says so ("${d.rows[1]?.reach}" · "${d.rows[2]?.reach}")`);
+  check(/^reach D8 ≈ ±\d+$/.test(d.rows[1]?.reach ?? "") && d.rows[2]?.reach === "return early", `a move inside the ± reads \`≈ ±N\` (Cut 24 §4; was \`≈\` alone, QA 778fa1b); an exit says so ("${d.rows[1]?.reach}" · "${d.rows[2]?.reach}")`);
   await shot("qa92-rerank");
 
   // ---- the report: one tile order; the shadowed pending line; LEARNED; the gold words; the plateau's floor

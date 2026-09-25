@@ -2617,8 +2617,10 @@ pub(crate) enum Take {
 /// when the pack holds nothing else, after the packed supplies.
 pub(crate) fn thief_pick(run: &mut Run, potions_only: bool, random: bool, weapon: bool) -> Option<Take> {
     let pet_gear = |run: &Run, i: usize| run.hero.inv[i].kind == "leash";
-    let found = |run: &Run, i: usize| !pet_gear(run, i) && !run.brought.contains(&run.hero.inv[i].id) && !run.supplies.contains(&run.hero.inv[i].id);
-    let brought = |run: &Run, i: usize| !pet_gear(run, i) && run.brought.contains(&run.hero.inv[i].id);
+    // Cut 24 §3 (AL: a thief took the leather +1 just forged): the kit is never a thief's.
+    let kit = |run: &Run, i: usize| crate::kit::is_kit_id(run.hero.inv[i].id);
+    let found = |run: &Run, i: usize| !pet_gear(run, i) && !kit(run, i) && !run.brought.contains(&run.hero.inv[i].id) && !run.supplies.contains(&run.hero.inv[i].id);
+    let brought = |run: &Run, i: usize| !pet_gear(run, i) && !kit(run, i) && run.brought.contains(&run.hero.inv[i].id);
     for class in 0..2 {
         let c: Vec<usize> = (0..run.hero.inv.len())
             .filter(|&i| !potions_only || run.hero.inv[i].cat() == Cat::Potion)
@@ -2633,13 +2635,13 @@ pub(crate) fn thief_pick(run: &mut Run, potions_only: bool, random: bool, weapon
         return Some(Take::Coins(run.loot.min(4 + 2 * run.depth as i32)));
     }
     for gear in [false, true] {
-        let c: Vec<usize> = (0..run.hero.inv.len()).filter(|&i| (!potions_only || run.hero.inv[i].cat() == Cat::Potion) && pet_gear(run, i) == gear).collect();
+        let c: Vec<usize> = (0..run.hero.inv.len()).filter(|&i| (!potions_only || run.hero.inv[i].cat() == Cat::Potion) && pet_gear(run, i) == gear && !kit(run, i)).collect();
         if !c.is_empty() {
             let k = if random { run.rng.below(c.len() as u32) as usize } else { 0 };
             return Some(Take::Inv(c[k]));
         }
     }
-    (weapon && run.hero.weapon.is_some()).then_some(Take::Weapon)
+    (weapon && run.hero.weapon.as_ref().is_some_and(|w| !crate::kit::is_kit_id(w.id))).then_some(Take::Weapon)
 }
 
 /// Takes `take` off the hero: the item (coins as a gold pile the thief drops when killed) and

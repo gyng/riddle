@@ -77,17 +77,25 @@ try {
     e.forecastVs = async (prev) => { r.__log.push(`vs:${document.querySelector(".camp .shaft")?.dataset.fc}:${prev.rows.length}`); return vs(prev); };
   });
   const fc0 = await page.evaluate(() => Number(document.querySelector(".camp .shaft").dataset.fc));
+  // Cut 24 §4: the refine starts 0.1 s after the first paint (its own lane) — every line the shaft shows is logged as it lands
+  await page.evaluate(() => {
+    const r = window.__riddle; r.__vsSeen = [];
+    const host = document.querySelector(".camp .shaft-vs-host");
+    const note = () => { const e = host?.querySelector(".shaft-vs"); const t = e ? e.textContent.replace(/\s+/g, " ").trim() : null; const last = r.__vsSeen[r.__vsSeen.length - 1]; if (t && (!last || last.t !== t || last.refined !== e.dataset.refined)) r.__vsSeen.push({ t, refined: e.dataset.refined }); };
+    if (host) new MutationObserver(note).observe(host, { subtree: true, childList: true, characterData: true, attributes: true });
+  });
   await page.evaluate(() => window.__riddle.insertRow({ conds: [{ k: "hp<", n: 20 }], verb: { v: "return" } }, 0));
   const during = await vsText();
   check(during === null || during === PENDING, `an edit shows no move while its forecast runs ("${during}")`);
   const line0 = await until(vsLanded, "the move under the shaft");
   // QA 778fa1b: the first pass's move is marked (`vs sent…`, dim) and asked again once the refine lands — the refined move replaces it
-  const rough0 = await page.evaluate(() => document.querySelector(".camp .shaft-vs-host .shaft-vs")?.dataset.refined);
   const line = await until(async () => (await page.evaluate(() => document.querySelector(".camp .shaft-vs-host .shaft-vs")?.dataset.refined)) === "1" ? vsLanded() : null, "the refined move", 15_000);
-  check(rough0 === "0" && /^vs sent…/.test(line0) && !/…/.test(line), `the first-pass move reads \`vs sent…\`, the refine's replaces it ("${line0}" → "${line}")`);
+  const vsSeen = await page.evaluate(() => window.__riddle.__vsSeen.filter((x) => x.t !== "vs sent…"));
+  const rough = vsSeen.find((x) => x.refined === "0"), fine = vsSeen.findLast((x) => x.refined === "1");
+  check(!!rough && /^vs sent…/.test(rough.t) && !!fine && vsSeen.indexOf(rough) < vsSeen.indexOf(fine) && !/…/.test(line), `the first-pass move reads \`vs sent…\`, the refine's replaces it ("${rough?.t ?? line0}" → "${line}")`);
   const log = await page.evaluate(() => window.__riddle.__log);
   check(log[0] === "forecast" && log[1] === `vs:${fc0 + 1}:3`, `the paired call waits for the paint and measures against the set before the edit (${log.join(" → ")})`);
-  check(/^vs sent · D\d+ ([+−]\d+|≈) · bank ([+−]\d+|≈)( · death [+−]\d+)?$/.test(line), `the line under the shaft: "${line}"`);
+  check(/^vs sent · D\d+ ([+−]\d+|≈( ±\d+)?) · bank ([+−]\d+|≈( ±\d+)?)( · death [+−]\d+)?$/.test(line), `the line under the shaft: "${line}"`);
   const ns = await notches(), f = await page.evaluate(() => window.__riddle.lastForecast);
   const marked = ns.filter((n) => n.mark !== null);
   check(marked.every((n) => /^[▲▼]\d+$/.test(n.mark)) && ns.every((n) => n.mark === null || !/≈/.test(n.mark)), `a notch carries its move when it clears its ± (nothing inside it) (${ns.map((n) => `D${n.d} ${n.mark ?? "-"}`).join(" · ")})`);
@@ -123,7 +131,7 @@ try {
   await page.evaluate(() => { window.__riddle.engine.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: 0.02, pm: 0.04 })), bank: { delta: 0.004, pm: 0.03 } }); });
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 45; r.rulesChanged(); });
   const line3 = await until(vsLanded, "the flat move");
-  check(line3 === "vs sent · D6 ≈ · bank ≈", `an edit that moves nothing reads ≈ on the frontier ("${line3}")`);
+  check(/^vs sent · D6 ≈ ±\d+ · bank ≈ ±\d+$/.test(line3), `an edit that moves nothing reads ≈ ±N on the frontier (Cut 24 §4) ("${line3}")`);
   await shot("cut22-vs-flat");
   // a set switch is not an edit
   await page.evaluate(() => window.__riddle.selectSet(1));

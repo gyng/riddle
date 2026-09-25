@@ -20,17 +20,26 @@ const SLOT_LABEL: Record<string, string> = { weapon: "weapon", armour: "armour",
 /** Cut 23 §1: steps the purse can buy now (the tile's badge; the reveal ladder's `kit` step). */
 export const kitAffordable = (L: Pick<Lineage, "kit">): number => (L.kit ?? []).filter((k) => k.next?.affordable).length;
 
-/** The next step's measured move as it reads (`D9 +7`, `D9 ≈`; `bank +4` when the depth does not move and the bank does); null
- *  until measured. */
-export function kitMove(n: NonNullable<KitLadder["next"]>): string | null {
+/** The next step's measured move in the edits' form (Cut 24 §3, AL: `leather +1 · death +7` read as armour raising death): the depth
+ *  first, then the ends that clear their ± — `D9 +7 · death −7`, `D9 ≈ ±4 · bank +6`; null until measured. `worse`: more is worse. */
+export function kitTerms(n: NonNullable<KitLadder["next"]>): { label: string; text: string; dir: "up" | "down" | "flat"; worse: boolean }[] | null {
   if (n.delta === undefined) return null;
   const d = moveOf({ delta: n.delta, pm: n.pm });
+  if (!d) return null;
+  const out = [{ label: `D${n.depth ?? "?"}`, text: d.text, dir: d.dir, worse: false }];
   const bank = n.bank !== undefined ? moveOf({ delta: n.bank, pm: n.pm }) : null;
   const death = n.death !== undefined ? moveOf({ delta: n.death, pm: n.pm }) : null;
-  if (d && d.dir === "flat" && bank && bank.dir !== "flat") return /* copy:callout */ `bank ${bank.text}`;
-  if (d && d.dir === "flat" && death && death.dir !== "flat") return /* copy:callout */ `death ${death.text}`;
-  return d ? `D${n.depth ?? "?"} ${d.text}` : null;
+  if (bank && bank.dir !== "flat") out.push({ label: /* copy:label */ "bank", text: bank.text, dir: bank.dir, worse: false });
+  if (death && death.dir !== "flat") out.push({ label: /* copy:label */ "death", text: death.text, dir: death.dir, worse: true });
+  return out;
 }
+/** The move as one line (`D9 +7 · death −7`). */
+export function kitMove(n: NonNullable<KitLadder["next"]>): string | null {
+  const t = kitTerms(n);
+  return t ? t.map((x) => `${x.label} ${x.text}`).join(" · ") : null;
+}
+/** A term's colour: good or bad, whichever way its sign points (a death that falls is good). */
+const kitTone = (x: { dir: "up" | "down" | "flat"; worse: boolean }): string => x.dir === "flat" ? "flat" : (x.dir === "up") !== x.worse ? "up" : "down";
 
 export function openForge(app: App): void {
   openSheet(() => {
@@ -45,9 +54,9 @@ export function openForge(app: App): void {
         let act: HTMLElement;
         if (!n) act = h("span", { class: "kit-top num dim" }, /* copy:callout */ "top step");
         else {
-          const move = kitMove(n);
+          const terms = kitTerms(n);
           const inner = [h("span", { class: "kit-label" }, n.label),
-            move ? h("b", { class: `num kit-move dlt ${move.includes("≈") ? "flat" : move.includes("−") !== move.startsWith("death") ? "down" : "up"}` }, ` · ${move}`) : pending ? h("small", { class: "num dim kit-move" }, " · …") : "",
+            terms ? h("span", { class: "num kit-move" }, ...terms.flatMap((x) => [" · ", h("b", { class: `dlt ${kitTone(x)}` }, `${x.label} ${x.text}`)])) : pending ? h("small", { class: "num dim kit-move" }, " · …") : "",
             h("b", { class: "num gold kit-price" }, ` · $${n.price}`),
             // QA 912e135 (qaW: `7 nights` at 0 banked, 0 returned — "the income behind it is not on screen"): the net it divides by
             !n.affordable && n.nights !== undefined && n.nights > 0 ? h("small", { class: "num dim kit-nights" }, /* copy:callout */ ` · ${n.nights === 1 ? "1 night" : `${n.nights} nights`}`,

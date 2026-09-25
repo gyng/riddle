@@ -171,7 +171,9 @@ try {
   const other = await rect(`.editor .row[data-i="${nRows - 1}"] .chip.verb`);
   const sheetR = await rect(".sheet-wrap .sheet");
   const target = !overlap(other, sheetR) ? other : await rect(".camp .shaft");
-  await page.mouse.click(target.x + target.w / 2, target.y + target.h / 2); await sleep(300);
+  // (a point of the target outside the sheet: Cut 24's boss labels made the shaft taller, its middle under the sheet)
+  const py = sheetR && target.top + 10 < sheetR.top ? target.top + 10 : target.y + target.h / 2;
+  await page.mouse.click(target.x + target.w / 2, py); await sleep(300);
   const afterTap = await page.evaluate(() => ({ sheets: document.querySelectorAll(".sheet-wrap").length, rows: JSON.stringify(window.__riddle.rules.rows), panel: !!document.querySelector(".panel-host.open") }));
   check(afterTap.sheets === 0 && afterTap.rows === before && !afterTap.panel, `a tap outside the sheet closes it and does nothing else (${afterTap.sheets} sheets, rules ${afterTap.rows === before ? "held" : "changed"}, panel ${afterTap.panel})`);
 

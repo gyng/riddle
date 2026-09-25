@@ -309,7 +309,8 @@ impl Hero {
         self.vanish_t > 0
     }
     pub fn inv_full(&self) -> bool {
-        self.inv.len() >= INV_SLOTS
+        // Cut 24 §3: the forged kit rides free — never put down, it takes no slot.
+        self.inv.iter().filter(|i| !crate::kit::is_kit_id(i.id)).count() >= INV_SLOTS
     }
     pub fn has_kind(&self, kind: &str) -> bool {
         self.inv.iter().any(|i| i.kind == kind)
@@ -329,7 +330,8 @@ impl Hero {
                 if new > cur {
                     let old = self.weapon.replace(item);
                     if let Some(o) = old {
-                        if !self.inv_full() {
+                        // Cut 24 §3: the forged kit is never put down (it rides over a full pack).
+                        if !self.inv_full() || crate::kit::is_kit_id(o.id) {
                             self.inv.push(o.clone());
                         }
                         return Some(o);
@@ -343,7 +345,7 @@ impl Hero {
                 if item.def_bonus() > cur {
                     let old = self.armour.replace(item);
                     if let Some(o) = old {
-                        if !self.inv_full() {
+                        if !self.inv_full() || crate::kit::is_kit_id(o.id) {
                             self.inv.push(o.clone());
                         }
                         return Some(o);

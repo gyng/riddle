@@ -307,11 +307,11 @@ try {
   await openPanel(page, "unlocks", { all: true });
   await page.waitForFunction(() => document.querySelectorAll(".unlocks .card .delta").length > 0, null, { timeout: 15_000 });
   const deltas = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((e) => ({ text: e.textContent, cls: e.className })));
-  check(deltas.length > 0 && deltas.every((x) => /^reach (≈|[+−]\d+ ±\d+) at (R\d+|end)( · vs [a-z ]+)?$/.test(x.text)), `card deltas carry their ± or read ~0: ${deltas.map((x) => x.text).join(" · ")}`);
+  check(deltas.length > 0 && deltas.every((x) => /^reach (≈( ±\d+)?|[+−]\d+ ±\d+) at (R\d+|end)( · vs [a-z ]+)?$/.test(x.text)), `card deltas carry their ± or read ~0: ${deltas.map((x) => x.text).join(" · ")}`);
   check(deltas.some((x) => /≈/.test(x.text) && /flat/.test(x.cls)) && deltas.some((x) => /±/.test(x.text)), "both forms occur on the fake's catalogue (a ~0 is flat, not up or down)");
   await page.locator(".unlocks .card").filter({ hasText: "reach ≈" }).first().click({ timeout: 5000 }); await sleep(200);
   const sheetDelta = await page.evaluate(() => document.querySelector(".sheet-wrap .delta")?.textContent ?? "");
-  check(/^reach ≈ at (R\d+|end)$/.test(sheetDelta), `the unlock sheet reads the same: "${sheetDelta}"`);
+  check(/^reach ≈( ±\d+)? at (R\d+|end)$/.test(sheetDelta), `the unlock sheet reads the same: "${sheetDelta}"`);
   await shot("09-forecast-noise");
   await page.keyboard.press("Escape"); await sleep(100);
   // a dice death says what the forecast said for its depth (reach[d] − reach[d+1]); a gap death does not

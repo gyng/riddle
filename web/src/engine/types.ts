@@ -89,7 +89,15 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          found_n?: number;                                                                  // QA 778fa1b (qaV): the units the run found (a leash stack counts each)
                          toll?: number;                                                                     // QA a946e04 (core): the toll this run's send paid (0/absent from D1 or on the night's pass) — the report's gold line counts it (qaT: `+$71 banked · −$40 spent` beside `$51 → $32`)
                          bones?: { kind: string; n: number }[];                                            // QA 912e135 (core): a death's whole pile per kind, `n` items (a stack is one) — Σ n is the text's `bones: N items`
-                         shelved?: { kind: string; n: number }[] };                                        // Cut 21 §2: found supplies of a kind the shelf sells, put on the shelf at this exit (not salvaged) — `found heal → shelf`                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
+                         shelved?: { kind: string; n: number }[];
+                         driven?: DrivenOff;
+                         news?: News[] };                                                                  // Cut 24 §2 (core): what was new this run, most telling first, ≤ 3 (`first: Warlord slain` · `record: D10` · `avenged Ulak` · `new find: mail` · `first: the captive` · `driven off: Warlord` · `learned 3`); a run with nothing new has one `differ` line (`deeper: D9, last D8` · `banked, last returned` · `+$23 on last`) — the report leads with these, before the counts                                                              // Cut 24 §1 (core): a boss whose HP did not move for 60 of the hero's actions drove him off — a return-tier exit (keeps 60%), verdict `no counter`; the text reads `returned $N · … · no counter`                                        // Cut 21 §2: found supplies of a kind the shelf sells, put on the shelf at this exit (not salvaged) — `found heal → shelf`                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
+/** Cut 24 §1 (core) — the `no counter` exit: the boss kind + short title (`goblin_warlord`, `Warlord`), the floor, the verdict word
+ *  (`no counter`), the defence that shrugged every blow (`shield wall`, ≤ 3 words), the counter in words (`attack boss`) and as a row
+ *  the editor can insert (like a patch's). Render `Warlord · no counter · shield wall · try: attack boss`. */
+/** Cut 24 §2 (core) — one line of `ExitLine.news`: `k` first | record | named | find | situation | driven | learned | differ; `text` ≤ 6 words, lower case. */
+export type News = { k: "first" | "record" | "named" | "find" | "situation" | "driven" | "learned" | "differ"; text: string };
+export type DrivenOff = { boss: string; title: string; depth: number; verdict: string; defence: string; counter: string; row: Row };
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
 export type GoldLine = { t: number; delta: number; why: string; n?: number; lost?: number };   // QA 912e135 (core): `lost` — on an exit's line, the carried gold the exit did not keep (`$0 died D6 · $157 lost`)
                                                                                                    // QA on 778fa1b (qaV): `n` — the supplies the line bought or refunded (`repeat heal` · n 4 · −$104); absent on other lines
@@ -133,7 +141,8 @@ export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            exit_pending?: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] } };                     // Addendum D; `worth`: each item's salvage at this exit, in coins
 
 /** Cut 20 §5: `bounty` — tonight's bounty floor (the lineage best + 2: gold ×2 and a guaranteed item), the shaft's `D12 ×2`. */
-export type ForecastDepth = { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry; wall?: string; bounty?: boolean | number };
+export type ForecastDepth = { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry; wall?: string; bounty?: boolean | number;
+                              boss?: string };   // Cut 24 §5 (core): on the floor a boss stands on (met there: the Warlord D8), his kind — name him on this row; the next row's `try` / `wall` are his
 export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share: number }[];
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
                          ends?: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number };
@@ -152,7 +161,7 @@ export type ForecastVs = { depths: ({ depth: number; abs_pm?: number } & VsMove)
                            sims?: number; refined?: boolean };   // QA 778fa1b (core): `refined` — the panels paired are the refined ones; a vs read before the refine is false, ask again after it   // core: `abs_pm` = the active bar's own ± at that depth; `sims` = the paired seeds both panels ran
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
-export type ForecastTry = { row: Row; text: string; boss?: string };
+export type ForecastTry = { row: Row; text: string; boss?: string; met?: number };   // Cut 24 §5 (core): `met` — the floor the boss is met on (this row's depth − 1)
 /** Cut 4: `blocked` = the first row whose conds held but whose verb could not execute. Cut 6 §3: `rows` = every row above the
  *  fired one with one reason why it did not fire (`none held`, `no path`, `not in view`, `hp 8% ≥ 30%`). */
 /** QA 92eb880: `foes` = the player's count (every hostile seen from this action to the next, running thieves and the killer
@@ -204,6 +213,8 @@ export type ReturnReport = {
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; worst_death_id?: number; live?: Snapshot;
   tamed: string[]; hatched: string[]; lost: string[];                        // Addendum A
   xp: { class: string; gained: number; level_ups: number };                 // Addendum C
+  kept?: string[];                                                          // Cut 24 §5 (client, the watched report): what the keep sheet put in the vault, by its vault label (`strength potion`)
+  driven?: number;                                                          // Cut 24 §1 (core): sends a boss drove off (`no counter`; among `returned`) — count them apart like `stalled`; sum across slices
   salvaged: { kind: string; n: number; gold: number }[];                    // Addendum D; `kind` an unidentified kind's flavour (`brittle scroll?`) until identified (QA 1a2a4a9)
   renown: { gained: number; rank: number; ranks_up: number };               // Addendum D
   rested_s?: number; banked?: number; returned?: number; bones_found?: string[]; // Cut 2 §1–2
@@ -350,6 +361,7 @@ export interface Engine {
    *  a core that puts `vs` on the forecast itself needs no call. Called after the forecast's first paint, never before it. */
   forecastVs?(prev: RuleSet): ForecastVs;
   forecastVsRefined?(prev: RuleSet): ForecastVs;   // client (lanes.ts): `forecastVs` on the background lane, behind the refine — the refined panels paired
+  refineLane?: boolean;                 // Cut 24 §4 (client, lanes.ts): the refine runs on a lane of its own — the app asks it beside an edit's first pass
   startForecast?(): StartOption[];      // §1: D1 and each lit waystone measured for the active set (memoised; seconds in wasm — call when the picker opens)
   // Cut 23
   buyKit?(slot: string): Lineage;       // §1: buy the next forge step of `weapon | armour | pack` (gold; permanent; ledger `forge <label>`)
@@ -371,7 +383,7 @@ export type UnlockInfo = { id: string; cost: number; owned: boolean; available: 
                            gold?: number };                                                                 // Cut 15 §2: today's gold price (`150 × cost × (4 + gold buys) / 4`); 0 when owned or free (not gold-buyable). A card short only of marks (`needs` = `◆N more`) buys with gold when the lineage has it
 
 /** The Engine with every method returning a Promise: the wasm engine lives in a Web Worker. */
-export type AsyncEngine = { [K in keyof Engine]: NonNullable<Engine[K]> extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : never };
+export type AsyncEngine = { [K in keyof Engine]: NonNullable<Engine[K]> extends (...a: infer A) => infer R ? (...a: A) => Promise<R> : Engine[K] };   // Cut 24: a flag (`refineLane`) stays itself
 /** QA a946e04: the chain's next unlock — its marks, its gold price after a ◆ buy of this one (`gold`) and after a $ buy (`gold_after_gold`). */
 export type NextUnlock = { id: string; cost: number; gold: number; gold_after_gold: number };
 export type SupplyEntry = { kind: string; price: number; label: string;

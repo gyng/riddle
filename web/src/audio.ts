@@ -47,6 +47,8 @@ function hitSpec(dmg: number): CueSpec {
 type Ctx = AudioContext;
 type Drone = { a: OscillatorNode; b: OscillatorNode; g: GainNode; biome: string };
 
+/** Cut 24 §5: at most BURST_N cues in one task (a skip's released backlog is one sound, not fifteen stacked). */
+const BURST_N = 3;
 class Audio {
   private ctx: Ctx | null = null;
   private mutedFlag = readMute();
@@ -55,6 +57,7 @@ class Audio {
   private armed = false;
   /** Dev: the cues scheduled so far (name, seconds), for tests that assert on events (the spy sees the nodes). */
   readonly log: { cue: CueName; at: number }[] = [];
+  private burst = 0;   // cues played in the current task (reset on its microtask checkpoint)
 
   get muted(): boolean { return this.mutedFlag; }
   get unlocked(): boolean { return !!this.ctx; }
@@ -83,6 +86,11 @@ class Audio {
   /** Play a cue now. Dropped while muted or before the first gesture. */
   cue(name: CueName, opts: { dmg?: number } = {}): boolean {
     if (this.mutedFlag || !this.ctx) return false;
+    // Cut 24 §5 (AK: "a burst of ~15 cues at one timestamp at a run's end"): a picture that lands on the ending releases its queued
+    // events in one task — past BURST_N cues in one task the rest of the burst is dropped (the exit's own cue always plays)
+    if (!this.burst) { this.burst = 0; queueMicrotask(() => { this.burst = 0; }); }
+    if (!name.startsWith("exit_") && this.burst >= BURST_N) return false;
+    this.burst++;
     const spec = name === "hit" ? hitSpec(opts.dmg ?? 4) : CUES[name];
     const ctx = this.ctx, t0 = ctx.currentTime;
     const env = ctx.createGain();

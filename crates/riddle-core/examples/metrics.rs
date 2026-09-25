@@ -201,7 +201,10 @@ fn cohort_game(set: &RuleSet, seed: u64) -> Game {
     g
 }
 
-fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> ((u32, u32, u32, u32), Vec<DeathMix>) {
+/// Cut 24 §1: a cohort job's sends' longest no-HP stretches, and the sends a boss drove off.
+type NoHp = (Vec<u32>, u32);
+
+fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> ((u32, u32, u32, u32), Vec<DeathMix>, NoHp) {
     let mut g = cohort_game(set, seed);
     g.max_deaths = 100_000;
     riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
@@ -220,7 +223,8 @@ fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> ((u32, u32, u32, u32),
     let capped = g.batch.run_ticks.iter().filter(|&&t| t >= riddle_core::engine::MAX_TURNS_PER_RUN).count() as u32;
     let deaths = g.batch.run_outcomes.iter().filter(|(_, c)| c.is_some()).count() as u32;
     // QA on 778fa1b (qaV): runs with a bloodless dance (`Batch.dances`).
-    ((g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths, g.batch.dances), mix)
+    // Cut 24 §1: each send's longest no-HP stretch, and the sends a boss drove off.
+    ((g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths, g.batch.dances), mix, (g.batch.nohp.clone(), g.batch.driven_off))
 }
 
 /// Cut 23 §2: the death mix per cohort set — the share of deaths on the walk home, the top
@@ -1042,12 +1046,13 @@ fn main() {
     let golds: Arc<Mutex<Golds>> = Arc::new(Mutex::new(BTreeMap::new()));
     let paireds: Arc<Mutex<Paireds>> = Arc::new(Mutex::new(BTreeMap::new()));
     let cdeaths: Arc<Mutex<CohortDeaths>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let cnohp: Arc<Mutex<BTreeMap<(usize, u64), NoHp>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let kresults: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let forges: Arc<Mutex<BTreeMap<(usize, u64), ForgeTally>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let mut handles = Vec::new();
     for _ in 0..threads {
         let (jobs, results, cohort, counters, sets, golds, paireds, cdeaths) = (Arc::clone(&jobs), Arc::clone(&results), Arc::clone(&cohort), Arc::clone(&counters), Arc::clone(&sets), Arc::clone(&golds), Arc::clone(&paireds), Arc::clone(&cdeaths));
-        let (kresults, forges) = (Arc::clone(&kresults), Arc::clone(&forges));
+        let (kresults, forges, cnohp) = (Arc::clone(&kresults), Arc::clone(&forges), Arc::clone(&cnohp));
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some(job) = job else { break };
@@ -1070,10 +1075,11 @@ fn main() {
                 }
                 Job::Cohort(si, seed, bare) => {
                     let set = if bare { without_return(&sets[si].1) } else { sets[si].1.clone() };
-                    let (r, mix) = cohort_stalls(&set, seed, 4);
+                    let (r, mix, nohp) = cohort_stalls(&set, seed, 4);
                     cohort.lock().unwrap().insert((si, seed, bare), r);
                     if !bare {
                         cdeaths.lock().unwrap().insert((si, seed), mix);
+                        cnohp.lock().unwrap().insert((si, seed), nohp);
                     }
                 }
                 Job::Gold(si, seed, way) => {
@@ -1519,6 +1525,39 @@ fn main() {
         // not see.
         let d_pct = pct(c_dances as usize, c_sends as usize);
         rows.push((format!("Bloodless dances ≤ 1% of sends on every cohort set (≥ {} foe-facing actions, ≥ {} retreats, n={c_sends})", riddle_core::turn::DANCE_ACTIONS, riddle_core::turn::DANCE_MOVES), format!("{d_pct:.1}% · worst {:.1}% {}", worst_dance.0, worst_dance.1), worst_dance.0 <= 1.0));
+    }
+    // Cut 24 §1 (AL: the Warlord > 4 min on `attack nearest`; AK: ~100 s of retreat ↔ pack
+    // break): the longest no-HP stretch of each send (foe-facing row actions with neither side's
+    // HP moved, or a boss in view unhurt), p99 per set; the pre-boss set of AL reaches the
+    // Warlord and is driven off (the loop ends).
+    {
+        let cn = cnohp.lock().unwrap();
+        let mut worst = (0u32, String::new());
+        let (mut n_all, mut driven_all) = (0usize, 0u32);
+        for (si, (name, _)) in sets.iter().enumerate() {
+            let mut v: Vec<u32> = (1..=seeds).filter_map(|s| cn.get(&(si, s))).flat_map(|x| x.0.clone()).collect();
+            let driven: u32 = (1..=seeds).filter_map(|s| cn.get(&(si, s))).map(|x| x.1).sum();
+            if v.is_empty() {
+                continue;
+            }
+            v.sort();
+            let p99 = v[((v.len() as f64 - 1.0) * 0.99).round() as usize];
+            println!("  no-HP stretch {name}: p50 {} · p99 {p99} · max {} · driven off {driven}/{}", v[v.len() / 2], v[v.len() - 1], v.len());
+            n_all += v.len();
+            driven_all += driven;
+            if p99 > worst.0 || worst.1.is_empty() {
+                worst = (p99, name.clone());
+            }
+        }
+        if n_all > 0 {
+            rows.push((format!("Longest no-HP stretch p99 ≤ {} actions, every cohort set (n={n_all}, driven off {driven_all})", riddle_core::turn::NOHP_ACTIONS), format!("worst {} {}", worst.0, worst.1), worst.0 <= riddle_core::turn::NOHP_ACTIONS));
+        }
+        let al: Vec<usize> = sets.iter().enumerate().filter(|(_, (n, _))| n.contains("raterAL-preboss")).map(|(i, _)| i).collect();
+        if let Some(&si) = al.first() {
+            let driven: u32 = (1..=seeds).filter_map(|s| cn.get(&(si, s))).map(|x| x.1).sum();
+            let long = (1..=seeds).filter_map(|s| cn.get(&(si, s))).flat_map(|x| x.0.iter()).filter(|&&x| x > riddle_core::turn::BOSS_STILL).count();
+            rows.push(("AL's pre-boss set: the Warlord drives it off, no fight > 60".into(), format!("driven {driven} · longer {long}"), driven > 0 && long == 0));
+        }
     }
     // Cut 19 §2: a return walks — a set with a return row dies some nights (> 0), and less
     // than without the row (the same, to the send, when the row never acts: raterY's return
