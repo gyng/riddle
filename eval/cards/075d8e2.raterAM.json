@@ -1,0 +1,169 @@
+{
+  "$comment": "Blind rater AM on 075d8e2. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md §1-3, the template (and eval/presets.json for the social weight). Headed GPU driver, 400x800 at 3x. Criterion + probes answered before awards. Audio unassessed (cues logged in window.__audio: slay/rule/hit, not heard).",
+  "game": "Riddle",
+  "build": "075d8e2",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAM",
+  "horizon": {
+    "activeMinutes": 58,
+    "absences": [
+      "8h simulated overnight (?dev=1&absent=8h), once, after ~40 min active"
+    ],
+    "runsWatched": 18,
+    "runsOffline": 16,
+    "ruleEdits": 19,
+    "deathsRead": 5,
+    "notes": "Seed 2501, fresh lineage. 12 runs before the absence (heirs 1-5), 6 after (heirs 5-6). Every run watched to its end in the watch at the default speed (one in `fights`, one in `fast`); I never found a plain 1x toggle, the fights button showed 2x-32x labels. 18 of 19 edits were my own rows/thresholds/order; one was an applied patch (hp < 40% -> return) which I then overrode. Bought 3 rows (◆2, ◆4, ◆7) + 1 (◆11), forged leather, leather +1, mail. Deepest D11, best bank $304."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 6,
+    "playAgainTomorrow_1to7": 6,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: After the overnight I had the leather +1 forged, put my own `foe: boss -> attack boss` row just above `attack nearest` and pushed the bank row to D9, and on D6 my retreat and corridor rows walked him out of Drog the ogre's swings until the reel said \"Drog the ogre is avenged.\" On D8 the Goblin Warlord came in with `COUNTER: ATTACK BOSS`, my R6 fired, `WARLORD BREAKS` and `GOBLIN WARLORD DOWN` for the first time, after a heir two generations earlier had died on that floor with $285 on him. He dropped into a new teal biome (the Fens) with eels and pink jellies and my `depth >= 9 -> bank` row brought him home with $112 and a lit waystone."
+  },
+  "probes": {
+    "clarity": "The first camp showed two rows (`hp < 30% -> drink heal`, `foes >= 1 -> attack nearest`) and a `D1 100%` shaft; I sent without being told, and every screen after that said what the last run did, except the death I misread (see failure).",
+    "decisions": "I chose `depth >= 6 -> bank` over `>= 7` because both forecast `~$80` but D6 showed `death 15%` against `32%`; later I pushed it to D9/D10/D11 as armour came in, and I would make the same calls again.",
+    "mastery": "An hour in I know rows are order-sensitive (a return row under `foes >= 1 -> attack` never fires in a fight), that retreating from archers gets you shot, and that the forge's `D8 +38` tells me which purchase actually moves depth.",
+    "tension": "I sweated the D8 run with `carry $276 · return keeps $165 · death $0` on screen while the Warlord's bar sat full; he died with `$285 lost`, and later the Warlord went down in four seconds every run.",
+    "feel": "Big pixel callouts (`R3 ATTACK`, `COWARDLY > RETREAT`, `WARLORD BREAKS`) land on the hit, hp flashes on the portrait; but one watch frame at D4 was an empty black board with only `A dropped purse in the dust.`, and `pick up ×385` scrolled past.",
+    "surprise": "`The den wakes: they were never asleep.`, a cage (`three prizes, one key`), my own dead heirs' bones (`Found ♟4's bones: 9 items`), a wraith draining max hp 42->29 and `The floor is hungry. Find light.` all changed runs; shrine/purse/loose-brick lines came every run.",
+    "expression": "My set reads `heal < 30 · return < 30 · shoot the archer first · back off a telegraph under half · corridor from gas · hit the boss · hit anything · bank at D11`, a careful fighter who banks deep.",
+    "story": "Four grudges I set and paid off: Asheth the ogre (killed heir 1, `avenged` by heir 2), Thim the goblin archer, Grusk the jackal, Drog the ogre, each a line on the report headline.",
+    "pacing": "A run is 50-135 s of watch and a check-in is about a minute, but every edit leaves the forecast on `…` for 5-9 s and the forge's per-item numbers took ~8 s to appear.",
+    "failure": "`ogre · D4 · telegraph unanswered · GAP` with a trace (`R2 attack nearest 3 hp · ogre winds up`) and three replayed patches (`survives 11/12 · unpatched 9/12`) told me exactly why heir 1 died; the D8 death was stamped `DICE · nothing beats unpatched 12/12` though my return row had been dead weight all run.",
+    "social": "Nobody else; the heirs have traits and names on bones but no relationship develops.",
+    "autonomy": "I chose to hunt the Warlord and set my own bank depth each run; the waystone sheet offered `D9 · bank 94% · ~$77` against `D1 · ~$174` and I kept starting from D1.",
+    "progression": "Within a run: cage weapons, XP (fighter L4), heals; between runs: rows 2->8, forge leather/leather +1/mail, waystones D5/D9, vocabulary grew (`foe: ranged / gas / boss`), record D4->D11.",
+    "aesthetic": "The camp painting of two delvers above a lit stairwell and the brown Warrens turning teal in the Fens are pleasant; the board is often mostly black around a lit room and I would not sit in it doing nothing.",
+    "return": "I came back to `16 RUNS · 10 BANKED · 6 RETURNED · 0 DEATHS`, $518 -> $2318, a `PLATEAU · R8 bank ended 10 runs, none past D8` with a `+37` boss row, and forge items pending; I bought leather +1 and wrote the boss row within a minute.",
+    "attribution": "\"My archer row killed Thim; my return row was below my attack row so heir 2 died at D8; my 20% return got heir 5 killed in the Fens\" — I describe all of it as mine, except the traits (`curious drank heal at 34/36 hp`, `cowardly -> retreat`) that act outside my rows."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "\"↑ R2\" appeared under a row I had placed below `attack nearest`, and `WHY · R1 · 0/806 · blocked · no item` told me why a row never fired. Lapse: `+1 row ⊘ slay 3 bosses` stayed locked after I had killed the Goblin Warlord four times, and the per-heir report said `RUNS 1 · DEATHS 0` right after a death."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Moving the return threshold 40% -> 25% read `D5 40->81% · death 11->52%` at the same `~$40`, a real bank-or-push call I made several ways across heirs. Lapse: once the forecast shows `~$N` for every tweak, many edits became reading off the biggest number, and late in the session the forge said `≈` for every item."
+    },
+    {
+      "id": "mastery",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Record went D4 -> D8 -> D9 -> D10 -> D11 as I learned row order, archers-first, and bank depth; `R2 · attack ranged` then `Thim the goblin archer is avenged.` was a lesson paid off. Lapse: after the absence the next thing to learn was mostly +1 bank depth per run."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "`carry $276 · return keeps $165 · death $0` on the D8 run was stakes I chose, and `$285 lost` hurt. But the forecast (`death 2%`, `bank 88%`) takes most doubt out before send, and the Warlord became a four-second formality (`WARLORD BREAKS` -> `GOBLIN WARLORD DOWN`)."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Pixel callouts `R3 ATTACK` / `COWARDLY > RETREAT` / `OGRE WINDS UP` land on the beat and the watch kept 1-3 lines every 2 s. Lapses: a D4 frame that was a black board with only `A dropped purse in the dust.`, `pick up ×385` spam, and no plain 1x speed I could find. Audio unassessed (cues logged, not heard)."
+    },
+    {
+      "id": "surprise",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Archers made me write `foe: ranged -> attack ranged`, gas in the Fens made me write a corridor row, the Warlord a boss row; dens waking, cages, prior heirs' bones and a wraith's `drained` hp kept runs different. Lapse: shrine/purse/loose-brick lines recur every run and the offline reel is five copies of `Lock bloats took him to N HP; R1 drank; reached D8.`"
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "My eight rows (archers first, corridor from gas, bank at D11) are a style I can describe, but the pieces are the ones the game's patches and cards named (`foe: boss -> attack boss`, `kite archers`), and the 8-row cap forced swaps rather than flourishes."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Report headlines `avenged Asheth`, `avenged Thim`, `avenged Grusk`, `first: Warlord slain · record: D9 · avenged Drog` gave every good run a setup (grudge from a named death) and a turn. Lapse: the overnight's sixteen runs produced no story, only the repeated reel line."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-play: runs of 50-135 s with no dead stretch I noticed. Administrative: each edit leaves the forecast on `…` for 5-9 s, forge estimates arrive after ~8 s, and supplies/forge need two taps (`ok $800`); I often waited on the numbers before sending."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "`gas · D10 · R2 return · ROW` with `R2 ↻ hp < 40% -> return · survives 12/12 · unpatched 0/12` and a trace reading `R2 return · no way ← ogre holds the way` is the cause, margin and my row in one screen. Lapse: heir 2's D8 death was stamped `DICE · nothing beats unpatched 12/12` when my return row sat under `attack nearest` all run."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0"
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I set my own goals (kill the Warlord, bank deeper), and the start sheet offered `D9 · bank 94% · ~$77`; but the route is fixed downward and the only goal besides depth is money."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Both layers seen: within a run cage weapons and XP (fighter L4, cleave); between runs rows 2->8, forge leather/leather +1/mail (`D8 +38 · bank +38`), waystones D5/D9, conditions like `foe: gas` appearing after meeting gas. Lapse: late forge items all read `≈`, and `+1 row` jumped to `◆8 or $4400` behind a boss gate I could not read."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Painted camp header, torn red death banner with a wax `GAP` seal, brown Warrens and teal Fens are handsome; much of the watch is black around one lit room. Audio unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Overnight: `16 RUNS · +$1354 banked · +$402 returned`, `PLATEAU · R8 bank ended 10 runs, none past D8` with a `+37` patch, and `forge leather +1 · $800` pending; I acted within a minute. Lapse: for the first ~10 s the page showed camp with `?` on every floor before the report appeared, and with 0 deaths there was nothing to read in the reel beyond one repeated line."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "`R4 return saved him.` and `R2 · attack ranged` -> `Thim ... avenged` were my rows; my deaths were my ordering (return under attack) and my 20% threshold. Lapse: heir traits act outside my list (`curious drank heal at 34/36 hp` wasted run 1's potion, `cowardly -> retreat` on its own)."
+    }
+  ]
+}

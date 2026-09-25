@@ -1,0 +1,83 @@
+{
+  "$comment": "Blind rater AN, seed 2502, served build on :5230 (commit 075d8e2 per brief). Headed GPU driver, 400x800 at 3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, eval-fun FRAMEWORK.md sections 1-3, the template, and the driver header (tools/driver.mjs top comment, to learn the ops). No design docs, cards or source opened.",
+  "game": "Riddle",
+  "build": "075d8e2",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAN (blind agent)",
+  "horizon": {
+    "activeMinutes": 53,
+    "absences": [
+      { "kind": "simulated overnight", "via": "?dev=1&absent=8h", "length": "8h", "note": "loaded once after 37 min cold play; 16 offline runs (heirs 3-9) were waiting" }
+    ],
+    "runsWatched": 17,
+    "runsOffline": 16,
+    "ruleEdits": 12,
+    "deathsRead": 5,
+    "note": "Cold session 03:11-03:48 (37 min, 13 runs watched: 5 at 1x, the rest in fast mode, which stayed on once chosen). Return session 03:48-04:04 (16 min, 4 runs watched). The absence was simulated, not taken, so return was scored the same day. Own edits (not tapped patches): foe: gas -> retreat (then + adjacent >= 1), hp < 20/30% -> return and its position, depth >= 7/8/9/10 -> bank, foe: ranged -> attack ranged, foe: thief -> attack thief, foe: telegraph -> retreat / attack telegraph (both reverted or noise), foe: boss -> attack boss, adjacent >= 2 -> cleave, hp < 25% -> read teleport. Offered patches never applied as-is. Bought: rows 4->8, throw, alert, forge sword +1/+2, leather/+1, pack 4, auto keep weapon+armour, supplies 3->5, path: bones (mis-tap), heal/teleport supplies."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: My third heir kept getting driven off D8 by the Goblin Warlord's shield wall in four seconds, until the report said `try: attack boss` and I wrote foe: boss -> attack boss, which moved D9 from <2% to 53% on the forecast. On the next send I watched `WARLORD BREAKS`, then `GOBLIN WARLORD DOWN`, with the hero left on 3 of 40 hp, and my own hp < 30% -> return row walked him home with $117 (`R5 return saved him`). Two runs later the same rules banked $205 on D9 for a new record and lit the Fens waystone."
+  },
+  "probes": {
+    "clarity": "Did you ever not know what to do? Rarely: the rule I added showed `↑ R2` and greyed out until I moved it above `foes ≥ 1 → attack nearest`, and every edit printed a delta like `VS SENT · D8 30→39%`; I did misread one trace, where hp went 14 to 0 on a row that only said `goblin −2`.",
+    "decisions": "The one I would make again: hp < 40% → return showed `death 92→5%` but `D8 30→2%`, so I settled on 20% (later 30%, moved above the attack row), trading depth for keeping the carry.",
+    "mastery": "An hour ago I didn't know a boss could be a wall; now I read `COUNTER · Warlord · no counter · shield wall · try: attack boss`, wrote the row, and D9 went `<2%` to `53%`.",
+    "tension": "I sweated the D8 run that ended `Down to 3 HP` with `carry $195 · return keeps $117 · death $0` on screen; after the forge trio took the forecast to `bank 95%`, the sends went quiet.",
+    "feel": "`WARLORD BREAKS` and `GOBLIN WARLORD DOWN` stamped across the pixel scene felt good, and the watch never stuttered at 3x; the D10 stretch where max hp drained 41→17 over about 55 s showed nothing but falling numbers. Audio unassessed (no audible check; window.__audio exposes only a ctx/log object).",
+    "surprise": "`The monkey stole the sword +1.` on D1 made me write a thief rule, and `Found ♟1's bones: 12 items.` surprised me; but the monkey-steals-my-weapon-on-D1 opener happened in at least five runs.",
+    "expression": "My set reads: teleport at 25%, heal at 30%, go home at 30%, back off gas only when it's adjacent, kill the boss, shoot archers, fight, bank at D10 — recognisably cautious, but most of it is what the death patches pointed at.",
+    "story": "`grudge: Thog the ogre` on my second death, then `Thog the ogre is avenged.` two runs later, and the chronicle line `♟3 the greedy fighter · best D9 · took the Warlord · found ♟1, ♟2's bones · fell to the Warlord`.",
+    "pacing": "Runs were 60-100 s and a camp visit 1-3 min; the drag was administration (a sheet over a sheet to buy a row, a two-tap `ok $275`, the unlock grid reflowing so I bought path: bones by accident) and the D10 drain.",
+    "failure": "The first death named `bloat: gas`, a GAP stamp, the trace `R2 attack nearest 13 hp … gas −3 → 0`, and `foe: gas · adjacent ≥ 1 → retreat · survives 12/12 · unpatched 0/12`; one D10 death was stamped DICE while its trace showed my own R2 retreat firing five times at 2 hp.",
+    "social": "Nobody else; named foes (Krak, Morak, Zelix) came back, but that's story, not relationship. weight 0.",
+    "autonomy": "Nothing asked me to push past the warlord; I set bank to depth ≥ 9 on my own to see what the wall was, and was `DRIVEN $93`.",
+    "progression": "Within a run: kit and carry; between runs: rows 4→8, forge sword +2 / leather +1 / pack 4, ◆ unlocks; automation: `repeat on · ≤$24`, `auto keeps best weapon+armour`, `supplies 3 → 5`.",
+    "aesthetic": "The painted camp banner and the chunky pixel warlord with his cleaver read well at phone size; I'd sit in camp, not in the dim brown corridors, which looked alike from D1 to D8.",
+    "return": "I came back to `16 RUNS · 8 BANKED · 6 DEATHS · $2909`, `GRUDGE: MORAK THE GOBLIN · AVENGED GRUSK`, eight unknown potions identified, and exactly the forge buys I'd been promised (`sword +2 … 1 night at $1119`); I bought all three and re-tuned the bank depth.",
+    "attribution": "The reel says `R5 return saved him` and `Warlord cornered him to 3 HP; R3 attacked him; died to Warlord.` — both were my rows, and I'd say 'my gas rule killed him on D10'; but the forge buys moved the forecast more than any row I wrote."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.8, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Every edit prints its delta (`VS SENT · D8 30→39%`, `death 92→42%`), shadowed rows say `↑ R2`, why-not reads `0/1176 · no gas met`. Lapse: the offline trace went 14→0 on a single `goblin −2` row, and `+1 row … next ◆8 or $6050` appeared at the 8-row cap." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Return threshold (`death 92→5%` vs `D8 30→2%`), bank depth (D9 `~$146` vs D10 `bank −29, death 16→33%`), pack now vs `sword +2 · 1 night at $1119` were all defensible both ways. Lapse: kit purchases were strictly 'buy the next one' and dwarfed rules (leather `bank 40→65%`; forge trio to `bank 95%`)." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Learned facts turned into rows I wrote: `counter: attack boss` → foe: boss → attack boss took D9 from `<2%` to `53%`; my bare gas-retreat rule looped at 2 hp and I added `adjacent ≥ 1`. Lapse: after the absence most gains came from the forge, not from knowing more." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "`carry $195 · return keeps $117 · death $0` on screen during the 3-HP warlord kill was real stakes I chose. Once kitted the forecast read `bank 95% · death 3%` and sends lost their doubt until I pushed the bank depth myself." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "`WARLORD BREAKS` / `GOBLIN WARLORD DOWN` stamps and smooth headed 3x playback; but the D10 max-hp drain (41→17 over ~55 s of the watch) showed only numbers ticking, and several runs said `stalling` with `pick up ×441`. Audio unassessed (not heard; no verifiable cue timing)." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Den omens (`A den of thieves. Small, quick hands.`), the captive (`Cut the captive down. The stairs are clear.`), a boss shield wall, jelly splits, finding earlier heirs' bones; several changed my rows (thief, boss, gas, teleport). Lapse: `The monkey stole the sword +1.` on D1-D3 opened at least five runs." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Eight rows I arranged and tuned (`hp < 25% → read teleport` on top, `depth ≥ 10 → bank` last) read as a cautious style, but most rows are the obvious answer to a death I was shown; the card shop (`stair dance · reach −62`) steered me off alternatives rather than inviting them." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "`grudge: Thog the ogre` → `Thog the ogre is avenged.`; the warlord at `Down to 3 HP`; chronicle `♟3 the greedy fighter · best D9 · took the Warlord · found ♟1, ♟2's bones · fell to the Warlord`. Lapse: the offline reel lines were templated (`A goblin took him down; R3 attacked him; died on D8.`)." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-play: runs of 60-100 s with an event every 3 s, except the D10 hp-drain (~55 s) and `stalling` pickup loops. Administration: sheet-over-sheet buys, two-tap forge `ok $275`, the unlock grid reflowing after each buy (bought path: bones by accident); a camp visit was still only 1-3 min." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Each death screen gave cause + depth, a GAP/DICE stamp, the last rows of the trace, why-not per row (`R1 drink heal · no item`) and patches with `survives 12/12 · unpatched 0/12`; recovery was one tap. Lapse: a D10 death stamped DICE (`nothing beats unpatched 0/12`) while the trace showed my R2 retreat firing five times at 2 hp." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I chose bank depth, when to push the warlord (`DRIVEN $93` on purpose), start floor (`start → D9 · bank 98% · ~$2`), what to forge; the goal (next depth) is always the same one." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Rows 4→8, verbs throw/cleave/attack boss, forge ladders shown with `1 night at $…`, automation (`repeat on · ≤$24`, `auto keeps best weapon+armour`, `supplies 3 → 5`), D7→D10 in an hour. Lapse: `each $ buy +25%` and supply prices creeping ($24→$26) made gold buys feel taxed." },
+    { "id": "aesthetic", "human": 0.8, "bot": "na", "proxy": "none", "note": "Painted camp key art, parchment sheets, a big pixel warlord with a cleaver and red cape read well on a phone. Lapse: D1-D8 corridors are one brown palette until `Entered the fens.` Sound not assessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Came back to `16 RUNS · D9 · 8 BANKED · 2 RETURNED · 6 DEATHS`, grudges, identified potions, `PENDING · forge sword +2 · $1100 · forge leather +1 · $1100 · forge pack 4 · $550`, which I bought within a minute and then re-tuned the bank depth. Lapse: the report was a very long wall (8 run lines, 20 salvage lines) and `restock ≤ $2067 earned` I couldn't parse." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "The reel credits rows by number (`R5 return saved him`, `R3 attacked him; died to Warlord`) and I retell deaths as 'my gas rule looped him'. Lapse: the biggest swings in the forecast came from the forge, not from rows, so some wins felt bought rather than written." }
+  ],
+  "gripes": [
+    "Kit beats rules: leather took bank 40→65% and the forge trio took it to 95%, more than any row I wrote all hour.",
+    "The same openers repeat (a monkey steals the weapon on D1-D3 in most runs), and some watches stall: `pick up ×441` at alert 8/8, and a 55 s max-hp drain on D10 with nothing to look at but numbers.",
+    "Admin friction: sheets stacked on sheets, the unlock grid reflowed under my tap so I bought path: bones by mistake, plus odd numbers (`next ◆8` at the cap, 14→0 on a `goblin −2` row, DICE on a death my own row caused)."
+  ],
+  "tellAFriend": [
+    "You write eight if-then rows and the game shows you, before you send, how each change moves the odds per floor — `death 92→42%` — and you can feel yourself getting better.",
+    "The Goblin Warlord is a wall until the game tells you what it learned about him; one row later the hero breaks him and limps home on 3 HP.",
+    "Leave it overnight and your heirs come back with grudges, avenged rivals, each other's bones and exactly the gold for the forge upgrade it promised."
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "preset"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "ranged"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:ranged"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "telegraph"
+        },
+        {
+          "k": "hp<",
+          "n": 50
+        }
+      ],
+      "verb": {
+        "v": "retreat"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "gas"
+        },
+        {
+          "k": "hp<",
+          "n": 50
+        }
+      ],
+      "verb": {
+        "v": "back_corridor"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "preset"
+    },
+    {
+      "conds": [
+        {
+          "k": "depth>=",
+          "n": 11
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    }
+  ],
+  "name": "fighter"
+}

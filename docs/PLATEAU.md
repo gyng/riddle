@@ -648,3 +648,36 @@ despite the juice pass — pacing, not polish, is what they name.
 
 Kept: rows that name their failure, boss counters learned then written (`D9 <2% → 89%`),
 named foes and bones, the overnight shopping list, the plateau note naming the ceiling row.
+
+## Cohort 20 (build 075d8e2: Cut 24 + QA Y/Z — fights that can't progress end, runs differ, the forge holds its price)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AM | 2501 | 74.1 | none |
+| AN | 2502 | 74.6 | none |
+
+α = 0.969. Mean **74.35** — **up 2.7**, level with cohort 15's best; both "fun". Surprise went to
+0.8 from both (Cut 24's rotation and pools); AN gave aesthetic 0.8 (the juice pass). Tension, feel,
+expression, pacing and autonomy hold 0.6 from both.
+
+### The read
+
+1. **Kit beats rules** (AN, first): three forge buys took bank 40 % → 95 %, more than any row he
+   wrote. Policy has to stay the lever (AGENTS.md invariant); the forge is currently the bigger one.
+2. **A death the player's order caused is stamped DICE** (both): AM's return row sat below
+   `attack nearest` all run and never fired — `DICE · nothing beats unpatched 12/12`; AN's own
+   gas-retreat row fired five times at 2 hp — DICE.
+3. **Dead watch time the dead-stretch rule misses** (both): `pick up ×385` / `×441` scrolling while
+   alert rose to 8/8 (a chore that raises alert and repeats); ~55 s of max hp draining 41 → 17 on
+   D10 with only numbers moving; an empty black board frame; no plain 1× (AM).
+4. **Waiting on numbers** (AM): 5–9 s of `…` after an edit, ~8 s for forge estimates, on a D11
+   lineage after an absence — not the 1.8 s measured on a fresh lineage.
+5. **Repetition left**: a monkey stole the weapon on D1–D3 in five runs (AN); the overnight reel
+   five copies of `Lock bloats took him to N HP; R1 drank` (AM).
+6. **Seams**: `+1 row ⊘ slay 3 bosses` locked after four Warlord kills; `RUNS 1 · DEATHS 0` after a
+   death; forge `≈` on every item late; the unlock grid reflowed under a tap (bought the wrong
+   card); sheets stack on sheets; the row sheet at the cap still offered the next row; an offline
+   trace 14 → 0 on one `goblin −2` row.
+
+Kept: the Warlord arc (a wall → `try: attack boss` → `D9 <2% → 53%` → `GOBLIN WARLORD DOWN` on
+3 hp → home), rows that save him by name, grudges avenged, a night that brings what the forge said.
