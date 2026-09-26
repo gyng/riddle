@@ -51,6 +51,7 @@ import { PROPS, ReplayState, type EntState } from "./state";
 import { Quality } from "./quality";
 import { LightField, MAX_FIELD, type FieldLight } from "./light";
 import { Bloom, EMISSIVE_TAG } from "./bloom";
+import { SpriteNormals } from "./normals";
 import { Juice } from "./fx";
 import type { Ev, Snapshot } from "./types";
 
@@ -118,6 +119,7 @@ const TILE = 8;
 const WALL_TOP_DIM = 0.72; // second art pass: a wall top a step under the floor
 const MEMORY_DIM = 0.68;  // second art pass: a remembered tile (Cut 14 §3; was 0.6)
 const FLASH_MIX = 0.5;     // QA 1a2a4a9: a hit's flash, the share mixed toward the palette's brightest (was 1: a cream silhouette)
+const BOSS_FALL_FLASH = 0.2; // juice pass 3: the flash on a boss's killing blow (the slow-mo holds it; FLASH_MIX washed him out)
 const REMEMBERED_DIM = 0.5; // Cut 4 §3: a remembered foe, like a memory tile
 const CUT_FRAMES = 2;       // Cut 8A: dark frames on a frame change (a cut, not a tween)
 const BAR_W = 8;            // Cut 8A: hp bar width in env texels (1 tall)
@@ -132,7 +134,7 @@ const ROOM_MAX = 600;              // Cut 14 §3: the room flood's cap in tiles 
 const fadeDim = (e: { fade: number }): number => e.fade <= 0 ? 1 : Math.max(0.12, 1 - e.fade * 0.9);
 /** the cast of the hero's and the torches' light per biome (rgb multipliers on the warm amber; the Warrens and the Burrows keep it) */
 const LIGHT_TINT: Record<string, [number, number, number]> = {
-  default: [1, 1, 1], fens: [0.72, 1.02, 1.05], crypt: [0.8, 0.88, 1.2], deep: [0.7, 0.85, 1.25], sanctum: [0.95, 0.95, 1.05], foundry: [1.08, 0.9, 0.8],
+  default: [1, 1, 1], fens: [0.6, 1, 1.1], crypt: [0.8, 0.88, 1.2], deep: [0.7, 0.85, 1.25], sanctum: [0.95, 0.95, 1.05], foundry: [1.08, 0.9, 0.8],
 };
 const HERO_Z = 3.2, HERO_COVER = 0.3; // Cut 18 §2: the hero's depth (over every sprite, under the glyphs) and the most of his rect a sprite may cover
 const MAX_LIGHTS = 12;             // art pass: torches lighting the blit (nearest the camera)
@@ -206,6 +208,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   const field = new LightField();
   const bloom = new Bloom(rt.texture);
   const juice = new Juice(env, quality, () => atlas.solid("#ffffff"), (ch) => atlas.font(ch));
+  const normals = new SpriteNormals(spr);   // juice pass 2: derived sprite normals, drawn by a twin of the entity layer (high)
+  normals.add(L.ents.twin(normals.material));
   scene.add(juice.emit.mesh, juice.matte.mesh, juice.nums.mesh);
   st.onEvent = (ev) => juice.onEvent(ev);
   const fieldLights: FieldLight[] = [];
@@ -219,7 +223,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     fxLevel = lv; stats.fx = quality.fx;
     blit.setFx(lv);
     const u = blit.material.uniforms;
-    u.uLightMap!.value = field.target.texture; u.uBloom!.value = bloom.a.texture;
+    u.uLightMap!.value = field.target.texture; u.uBloom!.value = bloom.a.texture; u.uNormal!.value = normals.target.texture;
     // emissive layers (torch flames, fire and gas) write the bloom's tag; the pre-juice blit treats it as a sprite, like 0.5
     for (const l of [L.decorHue, L.overlays]) ((l.mesh.material as THREE.ShaderMaterial).uniforms.uTag!.value = lv ? EMISSIVE_TAG : 0.5);
     if (!lv) juice.reset();
@@ -248,6 +252,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     W = iw + 2; H = ih + 2;
     renderer.setSize(devW, devH, false);
     rt.setSize(W * 2, H * 2);
+    normals.setSize(W * 2, H * 2);
     camera.left = -W / 2; camera.right = W / 2; camera.top = H / 2; camera.bottom = -H / 2;
     camera.updateProjectionMatrix();
     blit.material.uniforms.uUvScale!.value.set(iw / W, ih / H);
@@ -567,7 +572,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // Cut 22 (AH: "goblin nameplates stacked — cluttered at the key moment"): while a boss is in view his plate is the one drawn (and
     // the allies'); his horde carries the small pixel hp bar instead of a plate
     let bossInView = false;
-    for (const e of st.ents.values()) if (e.boss && !e.dying && !e.remembered && st.visible[e.y * st.w + e.x]) { bossInView = true; break; }
+    for (const e of st.ents.values()) if (e.boss && !e.dying && !e.remembered && st.visible[e.y * st.w + e.x]) { bossInView = true; if (st.speed > 0 && !e.ally) juice.bossIn(e.id); break; }   // juice pass 2: the entrance
     // Cut 18 §2: the hero's drawn rect (world: x0, x1, y0, y1) — his feet with his stack's fan — so a sprite over him can be moved off
     let heroBox: [number, number, number, number] | null = null;
     if (heroEnt && !heroEnt.dying) {
@@ -634,7 +639,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // QA 1a2a4a9 (P: "on `R1 drank heal` a large cream blob covers the hero and the conjurer for the whole moment"): a hit is a tint
       // toward the palette's brightest, never a solid silhouette (the hero hit every tick read as a blob), and a stopped clock (⏸, the
       // replay's pause on its last frame) holds no flash
-      const flash = st.flashing(e) && st.speed > 0 ? Math.max(FLASH_MIX, juice.hitFlash(e.id, st.clock, e.hero)) : 0;
+      // juice pass 3: a falling boss's killing blow flashes lightly — the slow-mo stretched its two-tick flash into a pale silhouette
+      const flash = !st.flashing(e) || st.speed <= 0 ? 0 : e.boss && e.dying ? BOSS_FALL_FLASH : Math.max(FLASH_MIX, juice.hitFlash(e.id, st.clock, e.hero));
       // juice: squash & stretch (a hit, a lunge, a spawn's pop, a death's slump) — the feet stay put; `rects` keep the true size
       const [sqx, sqy] = juice.squash(e.id, st.clock);
       L.ents.push(fx, fy, z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.ally && !e.hero ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);
@@ -827,6 +833,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     renderer.setClearColor(clear, 0);   // art pass: a=0 = the void (no quad drew here): never lit, never dithered
     renderer.clear(true, true, false);
     renderer.render(scene, camera);
+    if (fxLevel > 1) { normals.sync(atlas.sprite); normals.render(renderer, camera); }   // juice pass 2: the sprites' normals (high)
     if (fxLevel > 0) {   // juice: bloom off the emissive tag; the blit's juice uniforms
       bloom.setSize(W * 2, H * 2);
       bloom.render(renderer);
@@ -897,7 +904,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       cancelAnimationFrame(raf);
       for (const l of Object.values(L)) l.dispose();
       blit.dispose();
-      field.dispose(); bloom.dispose(); juice.dispose();
+      field.dispose(); bloom.dispose(); juice.dispose(); normals.dispose();
       tagLayer.dispose();
       gpu.dispose();
       rt.dispose();

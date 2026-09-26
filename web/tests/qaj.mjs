@@ -21,6 +21,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { editRows, openPanel } from "./lib/frame.mjs";
+import { measured } from "./lib/load.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -53,7 +54,9 @@ const recordExit = () => page.evaluate(() => {
 
 try {
   // ---- 1: `BANKED $N` at the exit, not over an earlier fight replayed behind the frontier (seed 7 fights on D1, banks on D2)
-  {
+  // (a wall-clock reading — the exit's grace lets the beat go when the picture lags on a loaded machine: `measured` retries it once
+  // then, the bar unchanged; tests/lib/load.mjs)
+  const banked = await measured(async () => {
     const rules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=2 → bank");
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=fast&rules=${rules}`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s) && Number.isFinite(s.tick), "the fast watch");
@@ -71,8 +74,9 @@ try {
       await sleep(40);
     }
     const early = seen.filter((s) => s.tick < exit.t - 2 || s.depth !== `D${exit.depth}`);
-    check(!!exit && exit.tier === "bank" && seen.length > 0 && early.length === 0, `BANKED shows at the exit only (exit t${exit?.t} D${exit?.depth}; seen at ${[...new Set(seen.map((s) => `t${s.tick} ${s.depth}`))].slice(0, 4).join(", ") || "never"})`);
-  }
+    return { ok: !!exit && exit.tier === "bank" && seen.length > 0 && early.length === 0, line: `BANKED shows at the exit only (exit t${exit?.t} D${exit?.depth}; seen at ${[...new Set(seen.map((s) => `t${s.tick} ${s.depth}`))].slice(0, 4).join(", ") || "never"})` };
+  });
+  check(banked.ok, banked.line);
 
   // ---- 2: a chain link's clip — its floor, its tick inside the window, no caption from before the window
   {
@@ -165,7 +169,9 @@ try {
 
   // ---- 3: one card per floor entry, never over a fight (two `fights` runs, 25 s each). "Over a fight": a hero blow / a hit on the
   // hero / a telegraph in the 10 ticks before the playhead, or a visible hostile adjacent in an engine snapshot of those ticks
+  // (read off the frames as they come — a card's tick is the frame's: `measured` takes the run once more on a loaded machine)
   for (const seed of [516, 7]) {
+    const cards = await measured(async () => {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s), "the fights watch");
     await page.evaluate(() => {
@@ -192,9 +198,14 @@ try {
     while (Date.now() - t0 < 25_000) { if (!inRun(await state())) break; await sleep(200); }
     const { log, ticks } = await page.evaluate(() => ({ log: window.__cards, ticks: window.__fightTicks }));
     const per = {}; for (const d of log.shown) per[d] = (per[d] ?? 0) + 1;
-    check(log.shown.length >= 1 && Object.values(per).every((n) => n === 1), `seed ${seed}: one card per floor (${Object.entries(per).map(([d, n]) => `${d} ×${n}`).join(" · ")})`);
+    const one = { ok: log.shown.length >= 1 && Object.values(per).every((n) => n === 1), line: `seed ${seed}: one card per floor (${Object.entries(per).map(([d, n]) => `${d} ×${n}`).join(" · ")})` };
     const over = log.ups.filter((u) => ticks.some((t) => t <= u.tick && t > u.tick - 10));
-    check(log.ups.length >= 2 && over.length === 0, `seed ${seed}: no card over a fight (${log.ups.length} cards${over.length ? `; over: ${over.slice(0, 3).map((u) => `${u.text} t${u.tick}`).join(" | ")}` : ""})`);
+    const clear = { ok: log.ups.length >= 2 && over.length === 0, line: `seed ${seed}: no card over a fight (${log.ups.length} cards${over.length ? `; over: ${over.slice(0, 3).map((u) => `${u.text} t${u.tick}`).join(" | ")}` : ""})` };
+    return { ok: one.ok && clear.ok, line: `${one.line} · ${clear.line}`, one, clear };
+    });
+    const retried = cards.line.includes(" [retried") ? cards.line.slice(cards.line.indexOf(" [retried")) : "";
+    check(cards.one.ok, cards.one.line);
+    check(cards.clear.ok, cards.clear.line + retried);
   }
 
   // ---- 4: the tab counts own rows; the counter the cards beside. Three cards bought on a full set (the fake's own buy; cards sit

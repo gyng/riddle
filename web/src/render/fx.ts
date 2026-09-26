@@ -108,6 +108,12 @@ const C = {
   gas: [0.5, 0.62, 0.18] as Rgb, gold: [1, 0.84, 0.35] as Rgb, heal: [0.5, 1, 0.55] as Rgb, magic: [0.62, 0.7, 1] as Rgb,
   summon: [0.75, 0.42, 1] as Rgb, mote: [1, 0.92, 0.72] as Rgb, dust: [0.55, 0.5, 0.42] as Rgb,
 };
+/** juice pass 3: a boss's own colour — its fall's motes, ring, light and flash take it (a cream plume over every boss read as a pale blob) */
+const BOSS_COLS: [RegExp, Rgb][] = [
+  [/warlord|captain/, [0.55, 0.85, 0.22]], [/bloat/, [0.72, 0.82, 0.2]], [/lich/, [0.4, 0.95, 0.85]], [/foundry|master/, [1, 0.5, 0.14]],
+  [/lurker|queen/, [0.62, 0.42, 1]], [/mirror|king/, [1, 0.82, 0.38]],
+];
+const bossCol = (kind: string): Rgb => BOSS_COLS.find(([re]) => re.test(kind))?.[1] ?? C.gold;
 const SPARKY = /skeleton|golem|sentinel|warden|mirror|echo|bell|slag|forge_imp|iron/;
 const GHOSTLY = /wraith|spectral|shade|lich|siren/;
 
@@ -157,6 +163,9 @@ export class Juice {
   private kick = { t0: -1e9, amp: 0, dur: 0 };
   private vig = { t0: -1e9, c: [0, 0, 0] as Rgb, a: 0, dur: 1 };
   private deadAt = -1;
+  private bossMet = new Set<number>();   // juice pass 2: bosses whose entrance played (once each)
+  private lastBoss = -1;
+  private bossPlayed = new Set<number>();
   private rnd = 0x2545f491;
   private emitAcc = 0;
   clock = 0;   // the replay clock (ticks) as of the last update: squash is timed in ticks
@@ -176,7 +185,10 @@ export class Juice {
   /** the replay state's hook: every event applied in play (not while a seek or a skip replays the past) */
   onEvent(ev: Ev): void { if (this.on() && this.queue.length < 400) this.queue.push(ev); }
 
-  reset(): void { this.queue.length = 0; this.numbers.length = 0; this.pops.length = 0; this.squashes.clear(); this.live = 0; this.deadAt = -1; this.slowUntil = 0; this.stopUntil = 0; this.vig.a = 0; }
+  reset(): void { this.bossMet.clear(); this.bossPlayed.clear(); this.lastBoss = -1; this.queue.length = 0; this.numbers.length = 0; this.pops.length = 0; this.squashes.clear(); this.live = 0; this.deadAt = -1; this.slowUntil = 0; this.stopUntil = 0; this.vig.a = 0; }
+
+  /** juice pass 2: a boss is in view for the first time (the viewer's per-frame check — the core sends no `see`) */
+  bossIn(id: number): void { if (this.on() && !this.bossMet.has(id)) { this.bossMet.add(id); this.queue.push({ t: this.clock, k: "see", id } as Ev); } }
 
   /** the replay clock's rate this frame: 0 in a hit-stop, < 1 in a slow-mo, else 1 */
   timeScale(now: number): number {
@@ -283,6 +295,7 @@ export class Juice {
         if (!e || ev.dmg <= 0) break;
         const cx = e.x, cy = e.y + e.h * 0.45;
         const heavy = e.maxHp > 0 && ev.dmg >= e.maxHp * 0.15;
+        if (e.boss) this.lastBoss = ev.id;
         this.squashes.set(ev.id, { t0: ev.t, kind: "hurt", ax: 0, ay: 0 });
         const n = Math.min(14, 5 + ev.dmg);
         if (SPARKY.test(e.kind)) this.burst(n, cx, cy, 55, C.spark, 0.35, 0.5, { glow: true, grav: -90, drag: 2 }, 12);
@@ -317,11 +330,21 @@ export class Juice {
         this.squashes.set(ev.id, { t0: ev.t, kind: "die", ax: 0, ay: 0 });
         const cx = e.x, cy = e.y + e.h * 0.35;
         this.burst(16, cx, e.y + 2, 30, x.dust, 0.8, 1, { drag: 2.5, alpha: 0.85 }, 8);
-        this.burst(e.boss ? 18 : 6, cx, cy, 10, C.soul, 1.3, 0.5, { glow: true, drag: 0.5, sway: 6 }, 16);
+        if (!e.boss) this.burst(6, cx, cy, 10, C.soul, 1.3, 0.5, { glow: true, drag: 0.5, sway: 6 }, 16);
         if (!SPARKY.test(e.kind) && !GHOSTLY.test(e.kind)) this.burst(8, cx, cy, 50, C.blood, 0.9, 1, { grav: -170, floor: e.y - 1 - this.rand() * 4 }, 20);
-        this.pop(cx, cy, e.boss ? 5 : 3, e.hero ? [0.9, 0.1, 0.05] : [1, 0.62, 0.3], e.boss ? 700 : 320, now);
+        if (!e.boss) this.pop(cx, cy, 3, e.hero ? [0.9, 0.1, 0.05] : [1, 0.62, 0.3], 320, now);
         if (e.hero) { this.deadAt = now; if (mv) { this.slowUntil = now + 1100; this.slowRate = 0.35; } this.kickShake(3, 320, now); this.flashVig([0.6, 0.02, 0.02], 0.5, 900, now); }
-        else if (e.boss) { if (mv) { this.slowUntil = now + 700; this.slowRate = 0.4; } this.kickShake(3, 400, now); this.flashVig([1, 0.85, 0.5], 0.3, 700, now); }
+        else if (e.boss) {
+          // juice pass 2: the boss's fall is the floor's biggest beat — a dust ring, a ring and motes, a flash, a slow-mo. Pass 3 (the
+          // "pale blob": a cream plume, a white-gold light and a long flash washed the Warlord out before he fell): all in the boss's own
+          // colour, smaller and shorter — the light a small pop at his chest, the motes few and rising off him, the flash and slow-mo brief
+          const bc = bossCol(e.kind);
+          if (mv) { this.slowUntil = now + 700; this.slowRate = 0.3; }
+          this.kickShake(3, 420, now); this.flashVig(bc, 0.3, 480, now);
+          this.ring(28, cx, e.y + 1, 60, x.dust, 0.6, false); this.ring(16, cx, e.y + 1, 32, bc, 0.5, true);
+          this.burst(10, cx, e.y + e.h * 0.7, 8, bc, 0.9, 0.5, { glow: true, drag: 0.6, sway: 5 }, 18);
+          this.pop(cx, cy, 3.5, [bc[0] * 0.8, bc[1] * 0.8, bc[2] * 0.8], 420, now);
+        }
         else if (x.speed <= 1.5) this.hitStop(55, now);
         break;
       }
@@ -331,7 +354,7 @@ export class Juice {
         this.squashes.set(ev.e.id, { t0: ev.t, kind: "spawn", ax: 0, ay: 0 });
         this.burst(10, e.x, e.y + 4, 16, e.ally ? C.heal : C.summon, 0.7, 0.5, { glow: true, drag: 1.5, sway: 4 }, 14);
         this.pop(e.x, e.y + 4, 2.5, e.ally ? [0.3, 0.8, 0.4] : [0.6, 0.3, 0.9], 400, now);
-        if (e.boss) { this.flashVig([0.35, 0.05, 0.45], 0.45, 900, now); this.kickShake(2, 450, now); }
+        if (e.boss) this.bossEntrance(ev.e.id, e, now, x);
         break;
       }
       case "use": {
@@ -358,11 +381,45 @@ export class Juice {
         break;
       }
       case "see": {
-        const e = x.ent((ev as { id: number }).id);
-        if (e?.boss) { this.flashVig([0.35, 0.05, 0.45], 0.4, 800, now); this.kickShake(2, 350, now); }
+        const id = (ev as { id: number }).id, e = x.ent(id);
+        if (e?.boss) this.bossEntrance(id, e, now, x);
+        break;
+      }
+      case "callout": case "note": {   // juice pass 2: `warlord breaks` — the boss's break is a hit of its own
+        if (this.lastBoss >= 0 && /\bbreaks?\b/i.test((ev as { text: string }).text)) {
+          const e = x.ent(this.lastBoss); if (!e || !e.boss) break;
+          const cx = e.x, cy = e.y + e.h * 0.5;
+          // pass 3: the break's pop lit the hero beside the boss into a cream silhouette — a smaller, dimmer, shorter light
+          this.burst(22, cx, cy, 80, C.spark, 0.4, 0.5, { glow: true, grav: -120, drag: 2 }, 20);
+          this.ring(22, cx, e.y + 1, 50, C.ember, 0.35, true);
+          this.pop(cx, cy, 3, [0.9, 0.45, 0.14], 380, now);
+          this.flashVig([1, 0.5, 0.12], 0.3, 420, now); this.kickShake(3, 380, now);
+          if (x.speed <= 1.5) this.hitStop(110, now);
+          this.squashes.set(this.lastBoss, { t0: this.clock, kind: "hurt", ax: 0, ay: 0 });
+        }
         break;
       }
       default: break;
+    }
+  }
+
+  /** juice pass 2: a boss steps in — a dark ring of dust, rising violet motes, a violet pop light, a shake and a held breath */
+  private bossEntrance(id: number, e: EntView, now: number, x: JuiceCtx): void {
+    this.bossMet.add(id); this.lastBoss = id;
+    if (this.bossPlayed.has(id)) return;
+    this.bossPlayed.add(id);
+    this.ring(32, e.x, e.y + 1, 60, x.dust, 0.55, false);
+    this.burst(16, e.x, e.y + e.h * 0.4, 12, [0.7, 0.4, 1], 1.4, 0.5, { glow: true, drag: 0.6, sway: 5 }, 22);
+    this.pop(e.x, e.y + e.h * 0.5, 6.5, [0.75, 0.3, 1.1], 1000, now);
+    this.flashVig([0.35, 0.05, 0.45], 0.55, 1100, now); this.kickShake(3, 520, now);
+    if (x.speed <= 1.5) this.hitStop(140, now);
+    this.squashes.set(id, { t0: this.clock, kind: "spawn", ax: 0, ay: 0 });
+  }
+  /** a flat ring (top-down: squashed vertically) of n particles flying out from (cx, cy) */
+  private ring(n: number, cx: number, cy: number, speed: number, c: Rgb, life: number, glow: boolean): void {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + this.rand() * 0.1, s = speed * (0.9 + 0.2 * this.rand());
+      this.spawn(cx + Math.cos(a) * 2, cy + Math.sin(a) * 1.2, Math.cos(a) * s, Math.sin(a) * s * 0.55, life, 1, c, { glow, drag: 3.2, alpha: glow ? 1 : 0.85 });
     }
   }
 

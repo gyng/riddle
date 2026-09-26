@@ -164,7 +164,7 @@ pub fn measure(set: &RuleSet, seed: u64, hours: u64, sims: u32) -> Lever {
     let mut g = cohort_game(set, seed);
     g.lineage.gold = 400;
     fill_shelf(&mut g);
-    let _ = riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
+    let _ = riddle_core::offline::run_offline_counts(&mut g, hours * 3600);
     g.run = None;
     g.pending_exit = None;
     g.lineage.gold = 0;
@@ -250,7 +250,7 @@ pub fn gate(set: &RuleSet, seed: u64, hours: u64, sims: u32, margin: f64) -> (f6
     let mut g = cohort_game(set, seed);
     g.lineage.gold = 400;
     fill_shelf(&mut g);
-    let _ = riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
+    let _ = riddle_core::offline::run_offline_counts(&mut g, hours * 3600);
     g.run = None;
     g.pending_exit = None;
     g.lineage.gold = 0;

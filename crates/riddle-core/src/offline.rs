@@ -16,13 +16,22 @@ pub const STALL_DELTA: f64 = 0.02;
 pub const STALL_SHOWN: usize = 3;
 
 pub fn run_offline(game: &mut Game, elapsed_s: u64) -> ReturnReport {
-    run_offline_with(game, elapsed_s, true)
+    run_offline_with(game, elapsed_s, true, true)
 }
 
 /// Same batch, but the worst death is returned by id only (no verdict or patch forecasts, which
 /// cost ~3 s); the client calls `death(id)` once at the end of a chunked absence.
 pub fn run_offline_quick(game: &mut Game, elapsed_s: u64) -> ReturnReport {
-    run_offline_with(game, elapsed_s, false)
+    run_offline_with(game, elapsed_s, false, true)
+}
+
+/// `run_offline_quick` for tools that read the batch and the report's counts, never its
+/// `stall` (the stall verdict's patch forecasts were 50–80 % of a gate job's CPU — the plateau
+/// the player reads, not a count; docs/ITERATION_SPEED.md round 3): `stall` is `None`, and
+/// nothing else differs — the verdict only reads the game (its memo, `stall_cache`, is read by
+/// nothing but the verdict).
+pub fn run_offline_counts(game: &mut Game, elapsed_s: u64) -> ReturnReport {
+    run_offline_with(game, elapsed_s, false, false)
 }
 
 /// Rest that follows a run of `turns` ticks ending in `tier` (Cut 2 §1). Cut 12 §5: after a
@@ -36,7 +45,7 @@ pub fn rest_after(turns: u32, tier: ExitTier) -> u32 {
     }
 }
 
-fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport {
+fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: bool) -> ReturnReport {
     let budget: u64 = elapsed_s * TICKS_PER_SECOND;
     // Renown of runs watched since the last report settles as its own absence.
     game.settle_renown(0);
@@ -45,6 +54,10 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
     game.offline = true;
     // Cut 7 §5: nothing in an absence is watched (a run left mid-watch finishes unwatched).
     game.watched = false;
+    // Cut 27 §1: the absence's sends from a waystone are paid the passage the camp priced for the
+    // set as it stands (once: the rules do not change in an absence).
+    let rules = game.lineage.rules().clone();
+    game.passage = crate::forecast::sim_passage(game, &rules);
     let facts_before = game.lineage.facts.clone();
     let class = game.lineage.class.name().to_string();
     let rank_before = game.lineage.rank;
@@ -179,7 +192,7 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
     }
     game.stall_runs = stall;
     game.offline = false;
-    report(game, elapsed_s, &facts_before, &class, rank_before, sampled, full)
+    report_with(game, elapsed_s, &facts_before, &class, rank_before, sampled, full, with_stall)
 }
 
 /// Cut 13 §6: `total` split in proportion to `weights` (largest remainder), summing to
@@ -199,14 +212,20 @@ pub fn apportion(total: u32, weights: &[u32]) -> Vec<u32> {
     out
 }
 
+#[cfg(test)]
 pub(crate) fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTreeSet<String>, class: &str, rank_before: u32, sampled: bool, full: bool) -> ReturnReport {
+    report_with(game, elapsed_s, facts_before, class, rank_before, sampled, full, true)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTreeSet<String>, class: &str, rank_before: u32, sampled: bool, full: bool, with_stall: bool) -> ReturnReport {
     let t = game.run.as_ref().map(|r| r.turn).unwrap_or(0);
     game.settle_renown(t);
     let learned: Vec<String> = game.lineage.facts.difference(facts_before).cloned().collect();
     let worst_death_id = game.batch.worst_death;
     let worst_death = if full { worst_death_id.and_then(|id| crate::trace::death(game, id)) } else { None };
     let pending = crate::meta::pending(game);
-    let stall = stall_verdict(game);
+    let stall = if with_stall { stall_verdict(game) } else { None };
     // Cut 12: no run is started here — an idle run at turn 0 would have packed the supplies
     // before the player bought them at camp (`start_run` packs). `live` is the run in
     // progress only when one exists (never after an absence; kept on the wire as optional).
@@ -408,7 +427,7 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     let has_verb = |v: &Verb| vocab.verbs.contains(v);
     let has_cond = |k: &str, t: Option<&str>| vocab.conds.iter().any(|c| c.k == k && (t.is_none() || c.t.as_deref() == t));
     let present = |r: &Row| rules.rows.contains(r);
-    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None };
+    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
     let mut cands: Vec<Patch> = Vec::new();
     // (a) the ending row, its threshold pushed deeper.
     let mut deeper = ending.clone();

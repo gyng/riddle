@@ -24,6 +24,7 @@ import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { measured } from "./lib/load.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -264,6 +265,8 @@ try {
   // Cut 18 §1: `fast` is never slower than `fights` — the same fake run (seed 157, rater P's) played through in each mode, untouched;
   // `fast` shows the fights `fights` shows (costed ahead of the picture) at 4×, and its dead stretches ramp past 16×
   {
+    // (two wall-clock readings: `measured` plays both runs once more on a loaded machine, the bar unchanged — tests/lib/load.mjs)
+    const ratio = await measured(async () => {
     const wall = {};
     for (const mode of ["fights", "fast"]) {
       await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
@@ -273,7 +276,9 @@ try {
       wall[mode] = { ms: Date.now() - t0, screen: s2.screen };
     }
     // Cut 20 §3: `fast` takes ≤ 40 % of `fights`'s wall time over the run (32× dead stretches, 4× fights, a situation's beat 1 s)
-    check(wall.fast.ms <= 0.4 * wall.fights.ms, `\`fast\` ≤ 0.4 × \`fights\` on one world (fast ${(wall.fast.ms / 1000).toFixed(1)} s · fights ${(wall.fights.ms / 1000).toFixed(1)} s = ${(wall.fast.ms / wall.fights.ms).toFixed(2)}, both ${wall.fast.screen}/${wall.fights.screen})`);
+    return { ok: wall.fast.ms <= 0.4 * wall.fights.ms, line: `\`fast\` ≤ 0.4 × \`fights\` on one world (fast ${(wall.fast.ms / 1000).toFixed(1)} s · fights ${(wall.fights.ms / 1000).toFixed(1)} s = ${(wall.fast.ms / wall.fights.ms).toFixed(2)}, both ${wall.fast.screen}/${wall.fights.screen})` };
+    });
+    check(ratio.ok, ratio.line);
   }
 
   // Cut 16 §4: the boss bar and the break beat. From tick 20 the engine's snapshots carry a warlord beside the hero (in view) for
@@ -344,6 +349,9 @@ try {
 
   // Cut 18 §2: the hero is never covered — a boss beside him and a foe on his own tile in the fight frame: he draws in front of every
   // sprite (`debugRects` z), and no sprite's rect covers more than 30 % of his (≥ 70 % of him unoccluded, whatever draws behind)
+  // (the rects are read two frames after the seek, the sprites still easing to their tiles on a loaded machine: `measured` takes
+  // the scene once more then — tests/lib/load.mjs)
+  const cover = await measured(async () => {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   for (let tries = 0; tries < 6; tries++) {
     s = await waitFor((x) => x?.booted && inRun(x) && x.frame === "fight", "a fight frame for the hero's rect", 30_000);
@@ -366,13 +374,20 @@ try {
     // the union of what could hide him (a grid of his rect's points under any sprite drawn in front) and of everything drawn at all
     const grid = (pred) => { let n = 0, hit = 0; for (let i = 0; i < 20; i++) for (let j = 0; j < 20; j++) { const x = hr.x + ((i + 0.5) / 20) * hr.w, y = hr.y + ((j + 0.5) / 20) * hr.h; n++; if (others.some((r) => pred(r) && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h)) hit++; } return hit / n; };
     const hidden = hr ? grid((r) => r.z >= hr.z) : 1;
-    check(occl.frame === "fight" && !!hr && others.some((r) => r.kind === "goblin_warlord") && covers.every((c) => !c.front), `the hero draws in front of every sprite beside him (${covers.map((c) => `${c.kind} ${c.front ? "front" : "behind"}`).join(" · ")})`);
-    check(!!hr && 1 - hidden >= 0.7 && covers.every((c) => c.share <= 0.31), `with a boss adjacent the hero's rect is ≥ 70 % unoccluded (${Math.round((1 - hidden) * 100)} %; each sprite covers ${covers.map((c) => `${c.kind} ${Math.round(c.share * 100)} %`).join(" · ")})`);
+    const front = { ok: occl.frame === "fight" && !!hr && others.some((r) => r.kind === "goblin_warlord") && covers.every((c) => !c.front), line: `the hero draws in front of every sprite beside him (${covers.map((c) => `${c.kind} ${c.front ? "front" : "behind"}`).join(" · ")})` };
+    const clear = { ok: !!hr && 1 - hidden >= 0.7 && covers.every((c) => c.share <= 0.31), line: `with a boss adjacent the hero's rect is ≥ 70 % unoccluded (${Math.round((1 - hidden) * 100)} %; each sprite covers ${covers.map((c) => `${c.kind} ${Math.round(c.share * 100)} %`).join(" · ")})` };
+    return { ok: front.ok && clear.ok, line: `${front.line} · ${clear.line}`, front, clear };
   }
+  });
+  const coverRetried = cover.line.includes(" [retried") ? cover.line.slice(cover.line.indexOf(" [retried")) : "";
+  check(cover.front.ok, cover.front.line);
+  check(cover.clear.ok, cover.clear.line + coverRetried);
 
   // Cut 18 §2: one line of callout over a fight — a row and a telegraph on one tick: the renderer draws the telegraph alone over the
   // hero (`debugText`), the row reads on the ticker (`rule`, visible in the fight frame). A goblin stands beside the hero in the
   // engine's snapshots from tick 20 (the fight frame), its `attack` and the two callouts on one tick.
+  // (read off frames as they come: `measured` takes the scene once more on a loaded machine)
+  const callout = await measured(async () => {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && inRun(x) && x.mode === "fights", "the fights run for the callout line");
   const lines = await page.evaluate(() => new Promise((res) => {
@@ -404,13 +419,20 @@ try {
     };
     poll();
   }));
-  check(!!lines.both && lines.both.length === 1 && lines.maxLines <= 1, `a row and a telegraph on one tick draw one line over the fight (${lines.both ? lines.both.join(" · ") : "telegraph never drawn"}; at most ${lines.maxLines} a frame)`);
-  check(lines.rule === "R1 · attack nearest", `the row reads on the ticker meanwhile ("${lines.rule ?? "never"}")`);
+  const one = { ok: !!lines.both && lines.both.length === 1 && lines.maxLines <= 1, line: `a row and a telegraph on one tick draw one line over the fight (${lines.both ? lines.both.join(" · ") : "telegraph never drawn"}; at most ${lines.maxLines} a frame)` };
+  const row = { ok: lines.rule === "R1 · attack nearest", line: `the row reads on the ticker meanwhile ("${lines.rule ?? "never"}")` };
+  return { ok: one.ok && row.ok, line: `${one.line} · ${row.line}`, one, row };
+  });
+  const calloutRetried = callout.line.includes(" [retried") ? callout.line.slice(callout.line.indexOf(" [retried")) : "";
+  check(callout.one.ok, callout.one.line + calloutRetried);
+  check(callout.row.ok, callout.row.line);
   // Cut 24 §1 (AL: a Warlord fight > 4 min at 1×, the boss bar full; AK: ~100 s of retreat ↔ pack break): the watch never shows more
   // than 15 s of wall time without an hp change, a kill, a pickup or a descent — a stretch that cannot progress (`fake_shrug=100`: the
   // run's first 400 ticks beside a foe shrug every blow, the guard asleep) plays at the travel rate, the fight frame's included; in
   // `fights` on its first floors (no card: every fight watched) and in `fast`
+  // (wall-clock readings: on a loaded machine `measured` takes the scene once more, the bar unchanged — tests/lib/load.mjs)
   for (const m of ["fights", "fast"]) {
+    const dead = await measured(async () => {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&fake_shrug=100`, { waitUntil: "domcontentloaded" });
     await waitFor((x) => x?.booted && inRun(x) && x.mode, `the watch (${m}, shrug)`);
     if (m === "fast") await press("fast");
@@ -430,7 +452,33 @@ try {
       };
       poll();
     }));
-    check(d.deadFight > 0 && d.maxTicks >= 300 && d.maxMs <= 15_000, `${m}: a fight that cannot progress plays as travel — the longest stretch without a move ${(d.maxMs / 1000).toFixed(1)} s wall over ${d.maxTicks} ticks (≤ 15 s; ≥ 300 ticks is 15 s at the fight's 2×), the fight frame dead at up to ${d.fastest}× (${d.at})`);
+    return { ok: d.deadFight > 0 && d.maxTicks >= 300 && d.maxMs <= 15_000, line: `${m}: a fight that cannot progress plays as travel — the longest stretch without a move ${(d.maxMs / 1000).toFixed(1)} s wall over ${d.maxTicks} ticks (≤ 15 s; ≥ 300 ticks is 15 s at the fight's 2×), the fight frame dead at up to ${d.fastest}× (${d.at})` };
+    });
+    check(dead.ok, dead.line);
+  }
+  // Cut 27 §1: solved floors fold — a send whose forecast clears D1 ≥ 95 % (`fake_fold`, the fake's stand-in for the core's `fold_to`) opens
+  // on the fold line and lands below it; the screen time on the folded floors is ≤ 5 s a floor, in `fights` and `fast` alike
+  for (const m of ["fights", "fast"]) {
+    const fold = await measured(async () => {
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=26&fake_fold=2`, { waitUntil: "domcontentloaded" });
+    await waitFor((x) => x?.booted && x.screen === "camp", "the camp (fold)");
+    await page.evaluate((m) => { window.__riddle.watchMode = m; }, m);
+    await page.waitForFunction(() => window.__riddle.lastForecast?.fold_to !== undefined, null, { timeout: 15_000 }).catch(() => {});
+    const t0 = Date.now();
+    await page.evaluate(() => document.querySelector("button.gem.send")?.click());
+    const s = await page.evaluate(() => new Promise((res) => {
+      const t0 = performance.now(), poll = () => {
+        const w = document.querySelector(".watch"), log = (window.__foldLog ?? [])[0];
+        if (log && w?.dataset.fold === "0") { res({ log, depth: Number(document.querySelector(".watch .depth")?.textContent?.slice(1)), ending: w.dataset.ending === "1" }); return; }
+        if (performance.now() - t0 > 20_000) { res(null); return; }
+        requestAnimationFrame(poll);
+      };
+      poll();
+    }));
+    const ms = Date.now() - t0, floors = s?.log.floors ?? 1;
+    return { ok: !!s && s.log.perFloor <= 5000 && (s.depth > s.log.to || s.ending), line: `${m}: folded floors D${s?.log.from}–${s?.log.to} take ${s?.log.perFloor} ms of screen a floor (≤ 5 s; ${Math.round(ms / floors)} ms a floor from the send tap), the watch opens on D${s?.depth}${s?.ending ? " (the run ended inside the fold)" : ""}` };
+    });
+    check(fold.ok, fold.line);
   }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);

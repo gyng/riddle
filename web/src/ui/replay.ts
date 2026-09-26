@@ -4,9 +4,9 @@
 // so only floors the watch loaded can be scrubbed (`runlog.ts`); the Canvas-2D placeholder has no clock and no seek — it
 // shows the floor at the end of the window instead. At the pause the viewer keeps drawing its last frame (nothing is
 // disposed or cleared until the sheet closes), and the floor's fade-to-dark events are not replayed.
-import type { Because } from "../engine/types";
+import type { Because, Ev, Snapshot } from "../engine/types";
 import { h } from "./dom";
-import { clipWindow, floorFor, floorSnapshot, type RunLog } from "./runlog";
+import { clipWindow, floorFor, floorSnapshot, floorStart, type RunLog } from "./runlog";
 import { openSheet } from "./sheet";
 import { makeViewer, type Viewer } from "./viewer";
 
@@ -52,6 +52,52 @@ export function openReplay(log: RunLog, b: Because): void {
       });
     });
     canvas.onclick = () => { if (!playing) play(); };
+    return body;
+  });
+}
+
+/** Cut 27 §1 — a fold line's replay: the folded floors `from..to` of the run log, one after another in the map frame at FOLD_RATE (a tap
+ *  on the picture goes on to the next floor), captioned with the floor; `onClose` once the sheet goes (the watch thaws its picture). */
+const FOLD_RATE = 32;
+export type ReplayFloor = { snap: Snapshot; evs: Ev[] };
+/** The run log's floors `from..to` as the replay plays them (each floor's snapshot with its later entities folded in). */
+export function foldFloorsOf(log: RunLog, from: number, to: number): ReplayFloor[] {
+  return log.floors.filter((f) => f.snap.depth >= from && f.snap.depth <= to).map((f) => ({ snap: { ...floorSnapshot(f), turn: floorStart(f) }, evs: f.evs }));
+}
+export function openFoldReplay(floors: ReplayFloor[], from: number, to: number, onClose: () => void): void {
+  if (!floors.length) { onClose(); return; }
+  openSheet(() => {
+    const canvas = h("canvas", { class: "replay-view fold-replay-view" });
+    const at = h("span", { class: "num dim fold-at" });
+    const body = h("div", { class: "sheet-body replay fold-replay", "data-from": from, "data-to": to },
+      h("div", { class: "label row-label" }, h("span", { class: "because" }, to > from ? `D${from}–${to}` : `D${from}`), " ", at), canvas);
+    let viewer: SeekViewer | null = null, timer = 0, k = -1, end = 0;
+    const stop = (): void => { clearInterval(timer); viewer?.dispose(); viewer = null; onClose(); };
+    const next = (): void => {
+      if (!viewer) return;
+      k++;
+      if (k >= floors.length) { viewer.setSpeed(0); body.dataset.done = "1"; return; }
+      const f = floors[k];
+      viewer.load(f.snap); viewer.apply(f.evs.filter((e) => e.k !== "descend" && e.k !== "exit"));
+      viewer.setFrame?.("map");
+      const t0 = Math.min(f.snap.turn, f.evs[0]?.t ?? f.snap.turn); end = f.evs.length ? f.evs[f.evs.length - 1].t : f.snap.turn;
+      viewer.seek?.(t0); viewer.setSpeed(FOLD_RATE);
+      at.textContent = `D${f.snap.depth} · ${k + 1}/${floors.length}`;
+      body.dataset.floor = String(f.snap.depth);
+    };
+    requestAnimationFrame(() => {
+      if (!document.contains(canvas)) { onClose(); return; }
+      void makeViewer(canvas).then(({ viewer: v }) => {
+        if (!document.contains(canvas)) { v.dispose(); onClose(); return; }
+        viewer = v; v.resize?.(); next();
+        timer = window.setInterval(() => {
+          if (!document.contains(canvas)) { stop(); return; }
+          if (viewer?.tick && viewer.tick() >= end) next();
+          else if (!viewer?.tick) next();   // placeholder: no clock — each floor as it ends
+        }, POLL_MS * 4);
+      });
+    });
+    canvas.onclick = () => next();
     return body;
   });
 }

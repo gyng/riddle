@@ -1,7 +1,7 @@
 // Fake Engine: a tiny deterministic mini-sim with canned-shaped output so the UI can be built and
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
-  BonesPile, CageOption, StartOption, ForkOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
+  BonesPile, CageOption, Divergence, DivergenceBranch, DivergenceEnd, FoldBeat, FoldFloor, FoldLine, RowFires, StartOption, ForkOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
@@ -250,6 +250,55 @@ type Run = {
 };
 /** Cut 13 §1: the fake's guard — this many fires with nothing changed end the run as a stall (the core's `STALL_FIRES`). */
 const STALL_FIRES = 30;
+/** Cut 27 §1: the core's `forecast::FOLD_CLEAR` — a floor the set clears this often folds on the watch. */
+const FOLD_CLEAR = 0.95;
+// Cut 27 §1 dev knob: `?engine=fake&fake_fold=N` — the forecast folds D1–N whatever the sims say (a fold on a fresh lineage, for UI work)
+const DEV_FOLD = (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_fold"))) || 0;
+/** Cut 27 §1 stand-in: the core's `fold::beat` — an event that changes what the run holds, as a chip beat (≤ 3 words). */
+function fakeBeat(e: Ev, depth: number): FoldBeat[] {
+  const b = (kind: string, text: string): FoldBeat[] => [{ depth, t: e.t, kind, text: text.split(/\s+/).slice(0, 3).join(" ") }];
+  switch (e.k) {
+    case "steal": return b("theft", `stolen ${e.item}`);
+    case "pickup": return e.item.startsWith("gold") ? b("gold", e.item.replace(/^gold /, "")) : b("find", `found ${e.item}`);
+    case "use": return b("use", `used ${e.item}`);
+    case "fact": return b("fact", e.fact.split(/[:=]/).slice(1).join(" ").replace(/_/g, " ") || e.fact);
+    case "max_hp": return b("max_hp", `max ${e.delta > 0 ? "+" : ""}${e.delta}`);
+    case "bones": return b("bones", `bones · ${e.items}`);
+    case "level": return b("level", `level ${e.level}`);
+    case "tame": return e.ok ? b("pet", `tamed ${e.kind.replace(/_/g, " ")}`) : [];
+    case "ally": return b("pet", `pet ${e.state}`);
+    case "callout": return e.text === "boss down" ? b("boss", e.text) : e.text.startsWith("passage ") ? b("passage", e.text) : [];
+    default: return [];
+  }
+}
+/** Cut 27 §1 stand-in: the floor's lowest hero hp at or under 30 % of max, as a `dip` beat (the core's `fold::DIP_SHARE`). */
+function fakeDip(events: Ev[], max: number): { t: number; kind: string; text: string } | null {
+  let low: { hp: number; t: number } | null = null;
+  for (const e of events) if (e.k === "hurt" && e.id === 0 && e.hp <= 0.3 * max && (!low || e.hp < low.hp)) low = { hp: e.hp, t: e.t };
+  return low ? { t: low.t, kind: "dip", text: `hp ${low.hp}/${max}` } : null;
+}
+/** Cut 27 §1 stand-in: the core's `fold::chips` — one chip per kind, the beat alone or a count; gold is the line's `+$`. */
+function fakeChips(beats: FoldBeat[]): string[] {
+  const ORDER: [string, string][] = [["theft", "thefts"], ["dip", ""], ["boss", "bosses down"], ["pet", "pet beats"], ["find", "finds"], ["use", "used"], ["max_hp", ""], ["fact", "learned"], ["bones", "bones"], ["level", ""], ["hatch", "hatched"]];
+  const out: string[] = [];
+  for (const [k, many] of ORDER) {
+    const of = beats.filter((b) => b.kind === k); if (!of.length) continue;
+    if (k === "dip") out.push(of.map((b) => b.text).sort((x, y) => Number(x.split(/[ /]/)[1]) - Number(y.split(/[ /]/)[1]))[0]);
+    else if (k === "max_hp") { const n = of.reduce((s, b) => s + Number(b.text.replace(/^max /, "")), 0); out.push(`max ${n > 0 ? "+" : ""}${n}`); }
+    else if (k === "level") out.push(of[of.length - 1].text);
+    else out.push(of.length === 1 ? of[0].text : `${of.length} ${many}`);
+  }
+  return out;
+}
+/** Cut 27 §2 stand-in: the rows whose fires moved between the sent set and the new (the fake counts none: each row present in only one
+ *  set, at a nominal rate). */
+function fakeFires(prev: RuleSet, rules: RuleSet, n: number): RowFires[] {
+  const key = (r: Row): string => JSON.stringify([r.conds, r.verb]);
+  const out: RowFires[] = [];
+  rules.rows.forEach((r, j) => { if (!prev.rows.some((p) => key(p) === key(r))) out.push({ new_row: j, text: `R${j + 1} ${r.verb.v.replace(/_/g, " ")}`, sent: 0, new: Math.max(1, Math.round(n / 5)) }); });
+  prev.rows.forEach((p, k) => { if (!rules.rows.some((r) => key(r) === key(p))) out.push({ sent_row: k, text: `R${k + 1} ${p.verb.v.replace(/_/g, " ")}`, sent: Math.max(1, Math.round(n / 5)), new: 0 }); });
+  return out.slice(0, 4);
+}
 // UI dev knob: `?engine=fake&fake_stall=N` freezes the hero's chores after N turns on a floor (the chore loop the core's guard
 // catches), so a run stalls: `keeps $0 · stalling` on the HUD, then the stall verdict screen.
 const DEV_STALL = (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_stall"))) || 0;
@@ -1347,8 +1396,14 @@ export class FakeEngine implements Engine {
     // Cut 18 §3: reach falls to ≤ 5 % below a boss's floor (from over 5 % on it): the row names the wall (`D9 0% · warlord wall`)
     for (const d of depths) { const b = bossOn(d.depth, route); if (b) d.boss = b; }   // Cut 24 §5 stand-in: the boss named on the floor he is met on
     for (const d of depths) { const boss = bossOn(d.depth - 1, route); const above = depths.find((x) => x.depth === d.depth - 1); if (boss && above && d.reach <= 0.05 && above.reach > 0.05) d.wall = boss; }
+    // Cut 27 §1 stand-in: each floor's clear (the sims on it that got through it) and the fold — every floor from the start that clears
+    // ≥ 95 % and is known (≤ the best depth); `?fake_fold=N` folds D1–N whatever the sims say (UI dev)
+    const start = this.payableStart(); let fold_to: number | undefined;
+    for (const d of depths) if (d.depth >= start && reach[d.depth] > 0) d.clear = (reach[d.depth + 1] ?? 0) / reach[d.depth];
+    for (let d = start; d <= L.best_depth; d++) { const c = depths.find((x) => x.depth === d)?.clear; if (c === undefined || c < FOLD_CLEAR) break; fold_to = d; }
+    if (DEV_FOLD > 0) { const to = Math.min(DEV_FOLD, Math.max(L.best_depth, 1)); if (to >= start) { fold_to = Math.max(fold_to ?? 0, to); for (const d of depths) if (d.depth >= start && d.depth <= to) d.clear = 1; } }
     const death = ends.death / N;
-    return { depths, causes: top, known_to, sims: N, low: Math.ceil(100 / N), ends: { bank: ends.bank / N, return: ends.return / N, death, gold: ends.gold / N, pm: 1.96 * Math.sqrt((death * (1 - death)) / N) } };   // Cut 13 §5: the ends line's own ±; Cut 23 §2: `low` — a 0 of N prints `<low%`
+    return { depths, causes: top, known_to, sims: N, low: Math.ceil(100 / N), ...(fold_to !== undefined ? { fold_to } : {}), ends: { bank: ends.bank / N, return: ends.return / N, death, gold: ends.gold / N, pm: 1.96 * Math.sqrt((death * (1 - death)) / N) } };   // Cut 13 §5: the ends line's own ±; Cut 23 §2: `low` — a 0 of N prints `<low%`
   }
 
   private startRun(): Run {
@@ -1363,7 +1418,81 @@ export class FakeEngine implements Engine {
     this.s.logs[id] = { seed, rules: JSON.parse(JSON.stringify(this.s.rules)) as RuleSet, depth: 1, turns: 0, exit: "", known: [...this.known()], cls: L.class, trait: L.trait, heir: L.heir, hpMargin: 0 };
     return run;
   }
-  send(): Snapshot { this.s.lineage.rest_left_s = 0; delete this.s.lineage.trait_offer; return this.peek(); }   // Cut 13 §2: the send settles the heir's trait
+  send(): Snapshot {
+    // Cut 27 §1 stand-in: the send's fold, from the camp's panel as it stands (the core's `fold_plan`)
+    if (!this.live || this.live.over) { const f = this.forecastN(20); this.foldPlan = f.fold_to !== undefined ? { to: f.fold_to, clears: new Map(f.depths.filter((d) => d.clear !== undefined).map((d) => [d.depth, d.clear as number])) } : null; }
+    this.s.lineage.rest_left_s = 0; delete this.s.lineage.trait_offer; return this.peek();   // Cut 13 §2: the send settles the heir's trait
+  }
+  private foldPlan: { to: number; clears: Map<number, number> } | null = null;
+  /** Cut 27 §1 stand-in: the core's `fold()` — the live run stepped through the folded floors, one floor entry per floor (its first
+   *  snapshot, its events, its beats), the line's clear/gold/chips, and the whole as one `step()`. */
+  fold(): FoldLine {
+    const plan = this.foldPlan; this.foldPlan = null;
+    if (!this.live || this.live.over) this.live = this.startRun();
+    const from = this.live.depth, to = plan?.to ?? 0;
+    const cur = (): Snapshot => { const s = snapshot(this.live!, this.s.rules); s.turn *= 10; return s; };
+    if (!plan || to < from) return { from, to: from - 1, clear: 1, gold: 0, beats: [], chips: [], floors: [], step: { events: [], snapshot: cur(), run_over: false } };
+    const floors: FoldFloor[] = []; const all: Ev[] = [];
+    let f: FoldFloor = { depth: from, clear: plan.clears.get(from) ?? 1, gold: 0, snapshot: cur(), events: [], beats: [] }; let loot0 = this.live.loot;
+    let last: StepResult = { events: [], snapshot: f.snapshot, run_over: false };
+    const close = (loot: number): void => { f.gold = loot - loot0; const dip = fakeDip(f.events, f.snapshot.hero.max_hp); if (dip) f.beats.push({ depth: f.depth, ...dip }); f.beats.sort((a, b) => a.t - b.t); floors.push(f); };
+    for (let guard = 0; guard < 5000; guard++) {
+      if (this.live.over || this.live.depth > to) break;
+      const lootBefore = this.live.loot;
+      last = this.step(10); all.push(...last.events);
+      const k = last.events.findIndex((e) => e.k === "descend");
+      if (k >= 0 && last.snapshot.depth !== f.depth) {
+        const old = last.events.slice(0, k), nu = last.events.slice(k);
+        f.events.push(...old); f.beats.push(...old.flatMap((e) => fakeBeat(e, f.depth)));
+        close(lootBefore); loot0 = lootBefore;
+        f = { depth: last.snapshot.depth, clear: plan.clears.get(last.snapshot.depth) ?? 1, gold: 0, snapshot: last.snapshot, events: [...nu], beats: last.snapshot.depth <= to ? nu.flatMap((e) => fakeBeat(e, last.snapshot.depth)) : [] };
+      } else { f.events.push(...last.events); f.beats.push(...last.events.flatMap((e) => fakeBeat(e, f.depth))); }
+    }
+    if (last.run_over && f.depth <= to) close(this.live.loot);
+    const beats = floors.flatMap((x) => x.beats);
+    const clear = floors.reduce((p, x) => p * x.clear, 1), gold = floors.reduce((g, x) => g + x.gold, 0);
+    return { from, to: floors.length ? floors[floors.length - 1].depth : from - 1, clear, gold, beats, chips: fakeChips(beats), floors, step: { ...last, events: all } };
+  }
+  /** Cut 27 §2 stand-in: the core's `divergence(prev)` — on the forecast's seeds, the first whose ends differ (else the first where the
+   *  sets act differently), played in step to the first turn the rows fired differ; both branches' next seconds re-played from a few
+   *  turns before it. Turns ×10 on the wire, as `step`'s. */
+  divergence(prev: RuleSet): Divergence | null {
+    const L = this.s.lineage, N = this.fcRefined ? 100 : 20, known = this.known(), rules = this.s.rules;
+    const seeds = Array.from({ length: N }, (_, i) => hash(`fc:${L.seed}:${i}`));
+    const a = seeds.map((sd) => this.simOne(sd, rules, known)), b = seeds.map((sd) => this.simOne(sd, prev, known));
+    const gap = (x: Run, y: Run): number => ((x.exit === "death") !== (y.exit === "death") ? 1000 : 0) + (x.depth !== y.depth ? 100 + Math.abs(x.depth - y.depth) : 0) + (x.exit !== y.exit ? 10 : 0) + (x.turn !== y.turn ? 1 : 0);
+    const order = seeds.map((_, i) => i).sort((i, j) => gap(a[j], b[j]) - gap(a[i], b[i]) || i - j);
+    const mk = (sd: number, rs: RuleSet): { run: Run; ctx: SimCtx } => { const ctx = this.ctx(rs); return { run: makeRun(0, L.heir, sd, L.class, L.trait, new Set(known), [], ctx, [], this.classLevel()), ctx }; };
+    const plain = (es: Ev[], rs: RuleSet): string => JSON.stringify(es.map((e) => (e.k === "rule" ? { ...e, row: e.row >= 0 ? JSON.stringify(rs.rows[e.row] ? [rs.rows[e.row].conds, rs.rows[e.row].verb] : e.row) : e.row } : e)));
+    const firedRow = (es: Ev[]): number | undefined => { for (const e of es) if (e.k === "rule" && e.row >= 0) return e.row; return undefined; };
+    for (const i of order.slice(0, 8)) {
+      const s = mk(seeds[i], prev), w = mk(seeds[i], rules);
+      let t0 = -1, rs: number | undefined, rw: number | undefined;
+      for (let t = 0; t < 3000 && t0 < 0; t++) {
+        if (s.run.over || w.run.over) { if (s.run.over && w.run.over) break; t0 = s.run.turn; break; }
+        const es = simTurn(s.run, s.ctx), ew = simTurn(w.run, w.ctx);
+        if (plain(es, prev) !== plain(ew, rules)) { t0 = s.run.turn; rs = firedRow(es); rw = firedRow(ew); }
+      }
+      if (t0 < 0) continue;
+      const from = Math.max(0, t0 - 2), depth = s.run.depth;
+      const branch = (rs0: RuleSet, row: number | undefined): DivergenceBranch => {
+        const g = mk(seeds[i], rs0);
+        while (g.run.turn < from && !g.run.over) simTurn(g.run, g.ctx);
+        const snap = (): Snapshot => { const x = snapshot(g.run, rs0); x.turn *= 10; return x; };
+        const first = snap(); const events: Ev[] = [];
+        while (g.run.turn < t0 + 6 && !g.run.over) { const es = simTurn(g.run, g.ctx); const k = es.findIndex((e) => e.k === "descend"); if (k >= 0) { events.push(...es.slice(0, k)); break; } events.push(...es); }
+        for (const e of events) e.t *= 10;
+        const verb = row !== undefined ? rs0.rows[row]?.verb : undefined;
+        return { ...(row !== undefined ? { row } : {}), text: row !== undefined && verb ? `R${row + 1} ${verb.v.replace(/_/g, " ")}` : "—", snapshot: first, events, end_snapshot: snap() };
+      };
+      const end = (r: Run): DivergenceEnd => ({ tier: r.stalled ? "stall" : r.exit ?? "death", depth: r.depth, ...(r.exit === "death" && r.cause ? { cause: r.cause } : {}), gold: r.loot_kept });
+      const vs = this.forecastVs(prev);
+      const mv = [...vs.depths.map((d) => ({ d: Math.abs(d.delta), pm: d.pm ?? 0 })), ...[vs.bank, vs.death, vs.return].map((m) => (typeof m === "object" ? { d: Math.abs(m.delta), pm: m.pm ?? 0 } : { d: 0, pm: 0 }))].sort((x, y) => y.d - x.d)[0] ?? { d: 0, pm: 0 };
+      const sent = branch(prev, rs), nu = branch(rules, rw);
+      return { seed: i, tick: t0 * 10, depth, ...(rs !== undefined ? { sent_row: rs } : {}), ...(rw !== undefined ? { new_row: rw } : {}), sent_end: end(b[i]), new_end: end(a[i]), sent, new: nu, moved: mv.d, inside: mv.d <= mv.pm, fires: fakeFires(prev, rules, b.length), sims: N };
+    }
+    return null;
+  }
   /** The live run's first frame without a send (the report's `live`): the trait offer stands. */
   private peek(): Snapshot { if (!this.live || this.live.over) this.live = this.startRun(); const snap = snapshot(this.live, this.s.rules); snap.turn *= 10; return snap; }
   /** Cut 13 §2: pick one of the offered traits; an idle live run is rebuilt so the next send wakes with it. */
@@ -1560,6 +1689,7 @@ export class FakeEngine implements Engine {
     const coins = Math.floor(salvageOf(it.kind) / 4); if (coins > 0) this.gold(coins, `salvage ${it.label}`); return this.lineage();
   }
   runOfflineQuick(elapsedS: number): ReturnReport { const r = this.runOffline(elapsedS); return { ...r, worst_death_id: r.worst_death?.run_id, worst_death: undefined }; }
+  runOfflineSlice(elapsedS: number, _last: boolean): ReturnReport { return this.runOfflineQuick(elapsedS); }
   runOffline(elapsedS: number): ReturnReport {
     const L = this.s.lineage;
     const bountyD = L.best_depth >= 1 ? L.best_depth + 2 : 0;   // Cut 20 §5 stand-in: the night's bounty floor as the absence began (none before a best)

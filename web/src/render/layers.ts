@@ -12,7 +12,7 @@ float bayer4(vec2 p) {
   return (4.0 * b2(mod(q, 2.0)) + b2(floor(q * 0.5))) / 16.0;
 }`;
 
-const VERT = /* glsl */ `
+export const QUAD_VERT = /* glsl */ `
 attribute vec3 iPos;
 attribute vec2 iSize;
 attribute vec4 iUV;
@@ -40,7 +40,10 @@ void main() {
   // screen-door dissolve (die fade) on the target pixel grid
   if (vParam.z > 0.0 && vParam.z > bayer4(gl_FragCoord.xy)) discard;
   vec3 col = c.rgb * vParam.x;
-  col = mix(col, uFlash, vParam.y);
+  // juice pass 3: a flash keeps the ink — the outline and the darkest shading stay dark, so a struck sprite reads as itself lit up,
+  // never a pale silhouette (the hero struck by a boss, stretched by the hit-stop, read as a cream cloud)
+  float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+  col = mix(col, uFlash, vParam.y * smoothstep(0.06, 0.3, l));
   gl_FragColor = vec4(col, uTag);
 }`;
 
@@ -76,7 +79,7 @@ export class QuadLayer {
     g.instanceCount = 0;
     this.geom = g;
     const mat = new THREE.ShaderMaterial({
-      vertexShader: VERT,
+      vertexShader: QUAD_VERT,
       fragmentShader: FRAG,
       uniforms: { map: { value: texture }, uTag: { value: tag }, uFlash: { value: new THREE.Color(0.98, 0.95, 0.9) } },
       transparent: false,
@@ -117,6 +120,9 @@ export class QuadLayer {
   }
 
   get count(): number { return this.n; }
+
+  /** juice pass 2: a second mesh over the same instances with another material (the sprites' normal pass, normals.ts) */
+  twin(material: THREE.Material): THREE.Mesh { const m = new THREE.Mesh(this.geom, material); m.frustumCulled = false; m.renderOrder = this.mesh.renderOrder; return m; }
 
   // the colour a `flash` param mixes toward (Cut 8A: the fight frame flashes hurt sprites to the palette's brightest)
   setFlash(r: number, g: number, b: number): void { ((this.mesh.material as THREE.ShaderMaterial).uniforms.uFlash!.value as THREE.Color).setRGB(r, g, b); }

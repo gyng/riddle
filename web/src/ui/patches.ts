@@ -97,6 +97,8 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     // QA a946e04 (S: `R1 − hp < 20% · foes ≥ 1 → drink unknown` — "delete R1?"): a cut reads as one (`cut R1`); a replace keeps `R1 ↻`
     const target = move ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move R${p.moves_from! + 1} above R${p.insert_at + 1} `)
       : p.remove || p.replace ? h("small", { class: "dim target" }, p.remove ? /* copy:callout */ `cut R${p.insert_at + 1} ` : `R${p.insert_at + 1} ↻ `)
+      // Cut 27 §5 (AT: a gas death after cutting the bloat row stamped `dice`): a row the player removed, put back where it was
+      : p.restores !== undefined ? h("small", { class: "target restore-tag" }, /* copy:callout */ `restore R${p.restores + 1} `)
       // Cut 19 §4: the core names the row the insert drops (`Patch.drops`, the dead run's least-fired own row) — `+ drop R5`; the tap
       // still opens the drop sheet on it (marked), so the player may drop another
       : "";
@@ -159,7 +161,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
         unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
         h("span", { class: "num surv" }, line),
         reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish, campBaseAt(app)),
-        stallish || opts.stall ? "" : wholeSpan(p)));
+        stallish ? "" : wholeSpan(p)));   // Cut 27 §4: a stall's patches carry their whole-run move too (the gem's guard reads it)
     applyOf.set(btn, act);
     return btn;
   });
@@ -266,7 +268,7 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
   const byKey = new Map(filled.map((f) => [keyOf(f), f]));
   patches.forEach((p, i) => {
     const f = byKey.get(keyOf(p)); if (!f) return;
-    Object.assign(p, { forecast_delta: f.forecast_delta, forecast_depth: f.forecast_depth, forecast_pm: f.forecast_pm, whole: f.whole, camp_pending: false });
+    Object.assign(p, { forecast_delta: f.forecast_delta, forecast_depth: f.forecast_depth, forecast_pm: f.forecast_pm, whole: f.whole, camp_pending: false, gem: f.gem });
     buttons[i]?.querySelector(".delta")?.replaceWith(reachSpan(p, false, baseOf.get(el)));
     buttons[i]?.querySelector(".whole")?.replaceWith(wholeSpan(p));
     buttons[i]?.classList.toggle("harms", !!p.whole?.harms);
@@ -296,6 +298,28 @@ export function sinkHarms(el: HTMLElement, patches: Patch[]): boolean {
   for (const b of order) host.appendChild(b);
   renumber(host);
   return true;
+}
+
+/** Cut 27 §4 (AS: the stall gem pre-selected `cut R1` 1/12 above a 12/12 patch): once the whole run is measured, the tablets take the
+ *  landed order (the core's rank on the camp's numbers, `deathDeltas`) and the tablet the gem lights goes first — the gem is always the
+ *  first shown. `lead` is that tablet; the block is renumbered. */
+export function leadFirst(el: HTMLElement, patches: Patch[], filled: Patch[], lead: HTMLElement | null): void {
+  const host = el.querySelector<HTMLElement>(":scope > .patches-fold") ?? el;
+  const buttons = [...host.querySelectorAll<HTMLElement>(":scope > button.patch")];
+  if (buttons.length !== patches.length) return;
+  const keyOf = (p: Patch): string => JSON.stringify([p.row.conds.map((c) => [c.k, c.n ?? null, c.t ?? null]), p.row.verb.v, p.row.verb.a ?? null, p.insert_at, !!p.replace, !!p.remove, p.moves_from ?? null]);
+  const rank = new Map(filled.map((f, i) => [keyOf(f), i]));
+  const idx = patches.map((_, i) => i);
+  const sunk = (i: number): number => (patches[i]?.whole?.harms ? 1 : 0);   // (a tablet that harms whole runs stays after the rest: `sinkHarms`)
+  idx.sort((a, b) => sunk(a) - sunk(b) || (rank.get(keyOf(patches[a])) ?? 1e6 + a) - (rank.get(keyOf(patches[b])) ?? 1e6 + b));
+  const li = lead ? buttons.indexOf(lead) : -1;
+  if (li >= 0) { idx.splice(idx.indexOf(li), 1); idx.unshift(li); }
+  const order = idx.map((i) => buttons[i]), moved = idx.map((i) => patches[i]);
+  patches.splice(0, patches.length, ...moved);
+  const anchor = order[0]?.previousElementSibling ?? null;   // (a head or a moment line stays above the tablets)
+  let prev: Element | null = anchor;
+  for (const b of order) { if (prev) prev.after(b); else host.prepend(b); prev = b; }
+  renumber(host);
 }
 
 /** Cut 15 §3: the drop sheet — the set's own rows (a card's row never; it sits outside `max_rows`), `R5 <row> · 0/16` with the

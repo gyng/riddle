@@ -129,8 +129,10 @@ async function qaK() {
   }, kDeath);
   await sleep(150);
   const pend = await page.evaluate(() => ({ reach: [...document.querySelectorAll("button.patch .delta")].map((x) => x.textContent), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent }));
-  await sleep(1000);
-  const landed = await page.evaluate(() => [...document.querySelectorAll("button.patch .delta")].map((x) => x.textContent));
+  // (the measure lands 700 ms after the paint: polled up to 5 s — a fixed 1 s read `reach …` on a loaded machine)
+  const readLanded = () => page.evaluate(() => [...document.querySelectorAll("button.patch .delta")].map((x) => x.textContent));
+  let landed = await readLanded();
+  for (let i = 0; i < 50 && (landed.length === 0 || landed.some((x) => /…/.test(x))); i++) { await sleep(100); landed = await readLanded(); }
   await page.evaluate(() => { const r = window.__riddle; r.engine.deathDeltas = r.__origDD; });
   // (QA 308f045, qaAD: the gem offers no apply until the whole-run measure lands — it reads `…` meanwhile)
   check(pend.reach.every((x) => x === "reach …") && pend.gem === "…", `the death paints at once, each reach pending (${pend.reach.join(" · ")}; gem ${pend.gem})`);
@@ -236,7 +238,16 @@ async function qaL() {
   const sum = ends.map((e) => /(<?)(\d+)%$/.exec(e)).filter(Boolean).reduce((a, m) => a + (m[1] ? 0 : Number(m[2])), 0);   // Cut 23 §2: a `<N%` share is a 0 sampled
   check(ends.some((e) => e === "stall 30%") && sum === 100, `the shaft's gems sum to 100 with a stall gem (${ends.join(" · ")})`);
   await page.locator(".shaft").click({ timeout: 5000 }); await sleep(200);
-  const killer = await page.evaluate(() => [...document.querySelectorAll(".panel .fc-bars .bar")].filter((b) => /rat/.test(b.textContent)).map((b) => b.querySelector(".d")?.textContent));
+  // (the panel's bars, polled up to 3 s; a camp measure landing late on a loaded machine repaints the real forecast over the
+  // injected one — then it is injected once more and read again)
+  const readKiller = () => page.evaluate(() => [...document.querySelectorAll(".panel .fc-bars .bar")].filter((b) => /rat/.test(b.textContent)).map((b) => b.querySelector(".d")?.textContent));
+  let killer = await readKiller();
+  for (let i = 0; i < 30 && killer.length === 0; i++) { await sleep(100); killer = await readKiller(); }
+  if (killer.length === 0) {
+    await settle();
+    await fake({ depths: depthsF, known_to: 9, causes: [{ cause: "rat", share: 1 }], ends: { bank: 0, return: 0.04, death: 0.66, stall: 0.3, gold: 3, pm: 0.03 }, refined: true });
+    for (let i = 0; i < 30 && killer.length === 0; i++) { await sleep(100); killer = await readKiller(); }
+  }
   check(killer.length === 1 && killer[0] !== "D9", `the killer sits on the floor where the reach falls, not on D9 (${killer.join(",") || "none"})`);
   await page.keyboard.press("Escape"); await sleep(100);
   const stale = await page.evaluate(async () => {

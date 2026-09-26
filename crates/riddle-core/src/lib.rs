@@ -6,6 +6,8 @@ pub mod defs;
 pub mod descent;
 pub mod engine;
 pub mod facts;
+pub mod fold;
+pub mod divergence;
 pub mod forecast;
 pub mod gen;
 pub mod geom;
@@ -111,3 +113,7 @@ impl Game {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_cut27;
+#[cfg(test)]
+mod tests_cut27_seams;

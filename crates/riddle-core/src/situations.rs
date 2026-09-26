@@ -364,7 +364,7 @@ pub fn sees(run: &Run, what: &str) -> bool {
     let map = &run.floor.map;
     match what {
         "den" | "lock" => run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.situation.as_deref() == Some(what) && map.is_visible(m.pos)),
-        "captive" => run.monsters.iter().any(|m| m.hp > 0 && m.neutral && m.situation.as_deref() == Some("captive") && map.is_visible(m.pos)),
+        "captive" => run.monsters.iter().any(|m| m.hp > 0 && m.neutral && m.situation.as_deref() == Some("captive") && (map.is_visible(m.pos) || run.freeing == Some(m.id))),
         "hunger" => hunger_floor(run) && !lit(run),
         _ => false,
     }
@@ -407,7 +407,9 @@ fn wake(run: &mut Run, cx: &mut Ctx, what: &str) {
         return;
     }
     let hp = run.hero.pos;
-    let hd = crate::turn::hero_dist(run).to_vec();
+    // (the field as far as the sense reaches: a farther lock reads its distance or −1, out of it either way)
+    crate::turn::hero_dist_within(run, SENSE_STEPS);
+    let hd = &run.hero_dist;
     let map = &run.floor.map;
     let near = run.monsters.iter().any(|m| {
         m.hp > 0 && m.situation.as_deref() == Some(what) && {

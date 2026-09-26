@@ -1,0 +1,46 @@
+You are generating ENVIRONMENT PIXEL ART for the game "Riddle" (a phone roguelike seen top-down).
+FIRST look at /home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read nothing
+else in the repository). Its dungeon is the target: top-down dark-fantasy PIXEL ART — dressed stone
+walls with a lit capstone ledge and a brick front face, worn flagstone floors with moss and dried
+blood, iron torch sconces, barrels, crates, bones, a portcullis, crimson banners. Match that
+material language, that value range and that crisp pixel-art register.
+
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL
+resample; do NOT touch anything outside /home/g/p/riddle/art/generated/. Do not leave
+_inspection_*.png or any other scratch file behind. If a file already exists at an output path,
+OVERWRITE it.
+
+=== HOW THESE ARE USED (critical) ===
+Each asset is a TINY pixel-art game tile: the game box-downscales the 1024 px image to the stated
+texel grid (16x16, 16x24 or 16x32 pixels). So paint it AS that tiny pixel-art tile, enlarged:
+- A crisp pixel grid of the stated size, every pixel a flat square block of one colour
+  (e.g. 16x16 -> each pixel is a 64x64 px flat block). No anti-aliasing, no gradients inside a
+  block, no blur, no painterly texture, no noise finer than one block.
+- Few, clear shapes; strong value structure; a 1-block dark edge where an object meets the
+  floor; key light from the UPPER-LEFT, always (lit top/left edges, shaded bottom/right edges).
+- Top-down three-quarter camera like watch.png (you see floors from above, wall FRONT faces and
+  object fronts slightly from above).
+- Opaque TILES ("bg: env") fill the whole square edge to edge and must TILE SEAMLESSLY with
+  copies of themselves (the edges continue across). Keep them muted and low-contrast: floors are
+  background and must never compete with the characters that stand on them.
+- The game recolours every tile into a per-dungeon 8-colour ramp by VALUE, so what matters most is
+  a clean value structure (dark mortar, mid stone, a few lit edges). Paint environment tiles in
+  neutral warm grey-olive stone like watch.png.
+- Keyed decals/props ("bg: env_keyed"): the object on a flat, uniform, edge-to-edge pure blue
+  #0000FF background (RGB 0,0,255), nothing else in the image; no floor under it, no cast
+  shadow pool, no glow halo. Keep every object pixel at least RGB-distance 150 from (0,0,255): no
+  blue anywhere on the object. Object centred; ~6% margin.
+- Never: text, letters, logos, signatures, watermarks, photorealism, 3D render, smooth shading.
+
+=== ASSETS ===
+--- 1. id: env_sanctum_crate  (env_prop, bg: env_keyed)
+Output path: /home/g/p/riddle/art/generated/env_sanctum_crate.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art sprite (in-game size 16x16); 
+Brief: An ornate RELIQUARY CHEST seen from a top-down three-quarter camera, filling most of the tile: a PALE IVORY-WHITE stone chest (like marble) with a rounded domed lid, a single thin GOLD band across the lid and one gold clasp on the front. Simple big shapes: the lid lighter, the front face darker, a clear 1-pixel dark outline. NO red, NO brown, no clutter. The previous attempt was a noisy red-brown jumble. Flat #0000FF background.
+
+--- 2. id: env_burrows_pot  (env_prop, bg: env_keyed)
+Output path: /home/g/p/riddle/art/generated/env_burrows_pot.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art sprite (in-game size 16x16); 
+Brief: A big dented iron COOKING POT (a cauldron) seen from a top-down three-quarter camera, FILLING about 70% of the tile: a wide round black-iron belly, a thick lighter rim ellipse on top with a dark opening inside it, a wooden ladle handle sticking up out of it, two small stubby legs. Lit upper-left with a clear grey highlight on the rim and belly. The previous attempt was tiny and all black: make it LARGE and readable. Flat #0000FF background.
+
+When all assets are saved, list the final paths and their pixel sizes. Do nothing else.

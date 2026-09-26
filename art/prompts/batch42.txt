@@ -1,0 +1,103 @@
+You are generating ENVIRONMENT PIXEL ART for the game "Riddle" (a phone roguelike seen top-down).
+FIRST look at /home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read nothing
+else in the repository). Its dungeon is the target: top-down dark-fantasy PIXEL ART — dressed stone
+walls with a lit capstone ledge and a brick front face, worn flagstone floors with moss and dried
+blood, iron torch sconces, barrels, crates, bones, a portcullis, crimson banners. Match that
+material language, that value range and that crisp pixel-art register.
+
+These briefs pin exact pixel rows and colours: for the TILES, DRAW each 16x16 grid pixel by pixel with a short PIL script
+(or image_gen, then snap it) — every pixel one palette colour, no noise; then scale up 64x, nearest. For the TILES you
+MAY use a short PIL script to snap the image to its 16x16 grid and to the palette below and to fix the rows a brief pins
+(then scale up 64x, nearest) — nothing else; do NOT touch anything outside /home/g/p/riddle/art/generated/. Do not leave
+_inspection_*.png or any other scratch file behind. If a file already exists at an output path,
+OVERWRITE it.
+
+=== HOW THESE ARE USED (critical) ===
+Each asset is a TINY pixel-art game tile: the game box-downscales the 1024 px image to the stated
+texel grid (16x16, 16x24 or 16x32 pixels). So paint it AS that tiny pixel-art tile, enlarged:
+- A crisp pixel grid of the stated size, every pixel a flat square block of one colour
+  (e.g. 16x16 -> each pixel is a 64x64 px flat block). No anti-aliasing, no gradients inside a
+  block, no blur, no painterly texture, no noise finer than one block.
+- Few, clear shapes; strong value structure; a 1-block dark edge where an object meets the
+  floor; key light from the UPPER-LEFT, always (lit top/left edges, shaded bottom/right edges).
+- Top-down three-quarter camera like watch.png (you see floors from above, wall FRONT faces and
+  object fronts slightly from above).
+- Opaque TILES ("bg: env") fill the whole square edge to edge and must TILE SEAMLESSLY with
+  copies of themselves (the edges continue across). Keep them muted and low-contrast: floors are
+  background and must never compete with the characters that stand on them.
+- The TILES of this batch keep their colours: paint them in the palette given below, with a clean value
+  structure (dark gaps, a mid field, a few lit edges).
+- Keyed decals/props ("bg: env_keyed"): the object on a flat, uniform, edge-to-edge pure blue
+  #0000FF background (RGB 0,0,255), nothing else in the image; no floor under it, no cast
+  shadow pool, no glow halo. Keep every object pixel at least RGB-distance 150 from (0,0,255): no
+  blue anywhere on the object. Object centred; ~6% margin.
+- Never: text, letters, logos, signatures, watermarks, photorealism, 3D render, smooth shading.
+
+=== THIS BATCH: ONE DUNGEON BIOME ===
+Every asset below belongs to the FENS: a drowned marsh where the WATER dominates — grey weathered plank boardwalks with clear dark water gaps, open teal pools and channels, log palisades standing in water, reeds, hanging moss. Wet, cool, calm; NO flagstones, NO mud speckle.
+The game already has a generic grey-olive flagstone set (watch.png's); THIS set must look like a DIFFERENT PLACE at a glance:
+different materials, different shapes, different layout of lines — not the same flagstones and brick courses recoloured. Keep
+the pixel-art rules above (flat blocks, the stated grid, upper-left light, a clear value structure: darkest joints/gaps, a mid
+field, a few lit edges). Paint the tiles in the palette below. All tiles of one kind (the four floors; the two wall faces) must share one value
+range so they mix together.
+
+=== THE PALETTE (critical for the TILES in this batch; props/keyed objects may ignore it) ===
+The game maps every pixel of a tile to the NEAREST of these 8 colours, so paint the tiles using ONLY these exact flat colours,
+each in its role (hue matters here: the water must stay teal and the planks grey wood):
+- #060f0f  near-black gaps and deep shadow
+- #0c2426  deep water
+- #174040  water
+- #2a5d55  lit water, ripples
+- #373628  plank shadow, wood grain
+- #4f4d3b  plank (weathered grey wood)
+- #6e6b52  plank lit edge, pale reed tips
+- #46663a  reed and moss green
+Floors are mostly ONE flat field colour with a few features: calm, low-noise, never speckled.
+
+=== ASSETS ===
+--- 1. id: env_fens_floor_0  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_fens_floor_0.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: The calm, common Fens floor: a BOARDWALK of 4 horizontal planks, each 3 pixels tall, rows 3, 7, 11 and 15 are 1-pixel gaps of deep water (#0c2426). Each plank is LONG: one single butt joint (1 near-black pixel, #060f0f, 1 pixel wide over the plank's 3 rows) per plank, at x = 3, 11, 6, 13 for the four planks. Planks are the plank colour #4f4d3b; ONLY 2-3 lit pixels (#6e6b52) at the top-left end of each plank (NOT a lit row along every plank: that reads as bricks); one 4-6 pixel grain streak (#373628) on two of the planks. Nothing else. It must read as long wooden boards over dark water, not as bricks or stone courses. Seamless when tiled (edges continue across copies).
+
+--- 2. id: env_fens_floor_1  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_fens_floor_1.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: The same boardwalk as floor_0 (a BOARDWALK of 4 horizontal planks, each 3 pixels tall, rows 3, 7, 11 and 15 are 1-pixel gaps of deep water (#0c2426). Each plank is LONG: one single butt joint (1 near-black pixel, #060f0f, 1 pixel wide over the plank's 3 rows) per plank, at x = 3, 11, 6, 13 for the four planks. Planks are the plank colour #4f4d3b; ONLY 2-3 lit pixels (#6e6b52) at the top-left end of each plank (NOT a lit row along every plank: that reads as bricks); one 4-6 pixel grain streak (#373628) on two of the planks), but the second plank (rows 4-6) is MISSING from x=5 to x=11: that hole is teal bog WATER (#174040, one 3-pixel ripple dash #2a5d55), with a near-black (#060f0f) texel at each splintered plank end. Seamless when tiled (edges continue across copies).
+
+--- 3. id: env_fens_floor_2  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_fens_floor_2.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: A POOL in the boardwalk: the top plank (rows 0-2) and the bottom plank (rows 12-14) as in floor_0 (plank colour, one joint each, 2 lit pixels), deep-water gaps on rows 3 and 15; rows 4-11 are open teal WATER edge to edge: #174040 field, a 1-pixel darker band (#0c2426) on row 4 under the plank, one LILY PAD (#46663a, 3x2, a notch) and two short ripple dashes (#2a5d55, 2-3 pixels). Flat and calm, no speckle. Seamless when tiled (edges continue across copies).
+
+--- 4. id: env_fens_floor_3  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_fens_floor_3.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: The same boardwalk as floor_0 (a BOARDWALK of 4 horizontal planks, each 3 pixels tall, rows 3, 7, 11 and 15 are 1-pixel gaps of deep water (#0c2426). Each plank is LONG: one single butt joint (1 near-black pixel, #060f0f, 1 pixel wide over the plank's 3 rows) per plank, at x = 3, 11, 6, 13 for the four planks. Planks are the plank colour #4f4d3b; ONLY 2-3 lit pixels (#6e6b52) at the top-left end of each plank (NOT a lit row along every plank: that reads as bricks); one 4-6 pixel grain streak (#373628) on two of the planks) with a clump of 5 thin vertical REED blades (#46663a, the top pixel of each #6e6b52), 4-6 pixels tall, rising from the gap on row 11 near x=12, drawn over the planks above it. Seamless when tiled (edges continue across copies).
+
+--- 5. id: env_fens_water  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_fens_water.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: Deep open BOG WATER, NO planks, calm and FLAT: the field is ONE colour, water #174040, over 80% of the tile; a few soft darker patches of #0c2426 (3-5 pixel blobs, not speckle); 3 short horizontal ripple dashes (#2a5d55, 2-4 pixels long); one LILY PAD (#46663a disc 4x3 with a notch, one #6e6b52 highlight pixel). No near-black noise. Seamless when tiled (edges continue across copies).
+
+--- 6. id: env_fens_wall_top  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_fens_wall_top.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: The TOP of the wall mass seen straight down, dark and calm: a flat #060f0f field with a few long diagonal reed strokes (#0c2426 and a few #373628, each 3-5 pixels long, 1 pixel wide), no speckle, no single-pixel noise. Seamless in every direction.
+
+--- 7. id: env_fens_door  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_fens_door.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: A sagging swamp GATE front-on: two log posts (3 pixels wide, #4f4d3b with a #6e6b52 left column and #373628 right column) at x=0-2 and x=13-15; between them 4 vertical boards (#4f4d3b, lit top pixel #6e6b52) with 1-pixel near-black (#060f0f) gaps, one diagonal brace board (#373628) from lower-left to upper-right, a strand of moss (#46663a) hanging from the top; the bottom 2 rows dark water (#0c2426). Flat colour areas, no speckle.
+
+--- 8. id: env_fens_stairs_down  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_fens_stairs_down.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: Wooden PLANK STEPS going DOWN into water, seen from above, flat colours, no speckle: rows 0-3 a plank step (#4f4d3b, top row #6e6b52), row 4 near-black; rows 5-7 a second plank step one shade darker (#373628); row 8 near-black; rows 9-11 a third step half under water (#174040 with #373628 plank edges); rows 12-15 deep water (#0c2426 fading to #060f0f). Log posts (#373628, 2 pixels wide) at x=0-1 and x=14-15.
+
+--- 9. id: env_fens_stairs_up  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_fens_stairs_up.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: Wooden PLANK STEPS going UP out of the water, seen from above, flat colours, no speckle: rows 0-3 the top step, the lightest (#6e6b52 top row, #4f4d3b), row 4 near-black; rows 5-8 a second plank step (#4f4d3b), row 9 near-black; rows 10-12 a third step (#373628); rows 13-15 water (#174040). Log posts (#373628, 2 pixels wide) at x=0-1 and x=14-15.
+
+When all assets are saved, list the final paths and their pixel sizes. Do nothing else.

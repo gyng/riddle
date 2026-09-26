@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Green = cut done.
-#   tools/verify.sh --quick   tests (fast profile) → tsc → copy-lint                 (~20 s warm)
-#   tools/verify.sh           + clippy → wasm (fast) → web build → quick gates       (~2 min warm)
-#   tools/verify.sh --full    + shipping wasm (wasm-pack --release) → full gate table (~5 min)
+#   tools/verify.sh --quick   tests (fast profile) → tsc → copy-lint                 (~45 s warm)
+#   tools/verify.sh           + clippy → wasm (fast) → web build → quick gates       (~5 min warm)
+#   tools/verify.sh --full    + shipping wasm (wasm-pack --release) → full gate table (~11 min)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mode=${1:-}

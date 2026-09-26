@@ -288,10 +288,41 @@ function busyScript(biome: string, ticks: number): Ev[] {
   return ev;
 }
 
+// Juice pass 2: `?boss=1&biome=burrows&depth=8` — the boss moments in a row: the entrance (a spawn), a melee, the break, the fall
+const BOSS_OF: Record<string, string> = { warrens: "goblin_warlord", burrows: "goblin_warlord", fens: "bloat_mother", crypt: "lich", foundry: "foundry_master", deep: "lurker_queen", sanctum: "mirror_king" };
+function bossScript(biome: string): Ev[] {
+  const kind = BOSS_OF[biome] ?? "goblin_warlord", ev: Ev[] = [];
+  const name = kind.split("_").pop()!;
+  ev.push({ t: 12, k: "spawn", e: { id: 300, kind, x: 18, y: 15, hp: 80, max_hp: 80, tags: ["boss"] } });
+  let hp = 80, heroHp = 60;
+  for (let t = 30; t < 150; t += 4) {
+    if ((t / 4) % 2 === 0) { const dmg = 5; hp = Math.max(1, hp - dmg); ev.push({ t, k: "attack", src: 1, dst: 300, dmg, hit: true, verb: "attack" }, { t, k: "hurt", id: 300, dmg, hp, cause: "hero" }); }
+    else { const dmg = 4; heroHp = Math.max(20, heroHp - dmg); ev.push({ t, k: "attack", src: 300, dst: 1, dmg, hit: true }, { t, k: "hurt", id: 1, dmg, hp: heroHp, cause: kind }); }
+    if (t === 90) ev.push({ t, k: "callout", text: `${name} breaks` });
+  }
+  ev.push({ t: 152, k: "attack", src: 1, dst: 300, dmg: hp, hit: true, verb: "attack" }, { t: 152, k: "hurt", id: 300, dmg: hp, hp: 0, cause: "hero" }, { t: 152, k: "die", id: 300, cause: "hero" });
+  return ev;
+}
+
 function main(): void {
   const canvas = document.getElementById("view") as HTMLCanvasElement;
   const q = new URLSearchParams(location.search);
   const viewer = createViewer(canvas, q.get("texels") ? { baseTexels: Number(q.get("texels")) } : {});
+  if (q.get("boss") === "1") {
+    const biome = q.get("biome") ?? "burrows", depth = Number(q.get("depth") ?? 8);
+    const floor = busyFloor(depth, biome);
+    floor.entities = floor.entities.filter((e) => e.ally);
+    floor.seen = floor.seen.map(() => false);
+    viewer.load(floor);
+    viewer.apply(bossScript(biome));
+    viewer.setSpeed(Number(q.get("speed") ?? 1));
+    if (q.get("fight") !== "0") viewer.setFrame("fight");
+    window.addEventListener("resize", () => viewer.resize());
+    (window as unknown as { viewer: unknown }).viewer = viewer;
+    document.getElementById("bar")!.style.display = "none";
+    if (q.get("hud") === "0") document.getElementById("hud")!.hidden = true;
+    return;
+  }
   if (q.get("busy") === "1") {
     const biome = q.get("biome") ?? "burrows", depth = Number(q.get("depth") ?? 5), ticks = Number(q.get("ticks") ?? 3000);
     const floor = busyFloor(depth, biome);

@@ -724,6 +724,24 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .watch .banner.rest { bottom: 16px; top: auto; }
 .watch .interstitial { background: radial-gradient(ellipse at 50% 45%, #1f1712, #0b0806 70%); font: 600 24px/1.3 var(--display); color: #e8d6b0; }
 .watch .interstitial::after { bottom: 24px; background: #5a4630; }
+/* Cut 27 §1: the fold line — a folded stretch as one interstitial (`D1–6 · 100% · +$84` and a chip per state change), docked small under
+   the HUD once the watch opens below it; a tap plays the folded floors */
+.watch .fold-line { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: 0 22px; border: 0; background: radial-gradient(ellipse at 50% 45%, #1f1712, #0b0806 70%); color: #e8d6b0; cursor: pointer; text-align: center; }
+.watch .fold-line[hidden] { display: none; }
+.watch .fold-line .fold-head { font: 600 26px/1.25 var(--display); letter-spacing: .03em; }
+.watch .fold-line .fold-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 340px; }
+.watch .fold-line .fchip { font: 600 14px/1 var(--sans); font-style: normal; padding: 5px 8px; border-radius: 3px; background: rgba(90, 70, 48, .45); box-shadow: inset 0 0 0 1px #5a4630; color: #e8d6b0; }
+.watch .fold-line .fchip.k-stolen, .watch .fold-line .fchip.k-hp { color: #ff9a86; box-shadow: inset 0 0 0 1px #7c2a20; }
+.watch .fold-line .fchip.k-took, .watch .fold-line .fchip.k-found, .watch .fold-line .fchip.k-boss { color: #f3c25a; }
+.watch .fold-line::after { content: "▸"; position: absolute; left: 50%; bottom: 22px; margin-left: -6px; color: #5a4630; font-size: 18px; }
+.watch .fold-line.docked { inset: auto 8px auto auto; top: 70px; max-width: 72%; flex-direction: row; flex-wrap: wrap; justify-content: flex-end; gap: 4px; padding: 3px 7px;
+  border-radius: 3px; background: rgba(12, 9, 7, .72); box-shadow: inset 0 0 0 1px #3d2f22; transition: opacity .6s; }
+.watch .fold-line.docked .fold-head { font: 600 13px/1.2 var(--sans); }
+.watch .fold-line.docked .fchip { font-size: 11px; padding: 2px 5px; }
+.watch .fold-line.docked::after { display: none; }
+.watch .fold-line.docked.faded { opacity: .55; }
+.fold-replay .fold-at { margin-left: 6px; }
 .watch .stake { font-size: 14px; }
 /* QA 1a2a4a9 (P: the stake line "sits straight on wall tiles and torches"): a dark plate under it, readable over any tile */
 .watch .stake { justify-self: start; max-width: max-content; padding: 1px 6px; border-radius: 3px; background: rgba(12, 9, 7, .62); }
@@ -1082,10 +1100,10 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .shaft-ends .end b .vsm { position: absolute; right: -2px; top: -8px; margin: 0; font-size: 8px; line-height: 1; }
 /* QA 778fa1b (qaV: the `vs last` strip drew over R4, `rest 20m` and the shaft's `death 12%` / `~$104`): the line is a row of its own
    under the well (the well-wrap's second row), outside the scroll — always in view, never over a number */
-.camp .well-wrap { grid-template-rows: minmax(0, 1fr) auto auto; }
-.camp .well-wrap > .panel-host { grid-area: 1 / 1 / 4 / 2; }
+.camp .well-wrap { grid-template-rows: minmax(0, 1fr) auto auto auto; }
+.camp .well-wrap > .panel-host { grid-area: 1 / 1 / 5 / 2; }
 /* QA 0c6e126 (qaZ): the rest line under the well, outside its scroll — never cut by the console */
-.camp .well-wrap > .rest-line { grid-area: 3 / 1; margin: 0; padding: 2px 12px 4px; background: rgba(12, 9, 7, .92); }
+.camp .well-wrap > .rest-line { grid-area: 4 / 1; margin: 0; padding: 2px 12px 4px; background: rgba(12, 9, 7, .92); }
 .camp .well-wrap > .rest-line[hidden] { display: none; }
 .camp .well-wrap > .shaft-vs-host { grid-area: 2 / 1; position: static; margin: 0; padding: 3px 12px 4px; background: rgba(12, 9, 7, .92); border-top: 1px solid #3a2e22; pointer-events: auto; }
 /* QA 778fa1b (qaV: `REST 20M` over a fading `RETURNED $96`): the rest beat cuts the callout line at once (no fade under the banner) */
@@ -1236,3 +1254,29 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 /* QA 308f045 (qaAC): a lane's run on the shaft (`→ D13`), an exit patch's price beside `return early` */
 .notch .dl .lane-to { display: block; font: 600 9px/1 var(--sans); font-style: normal; color: var(--dim); white-space: nowrap; }
 .patch .exit-cost { white-space: nowrap; }
+
+/* Cut 27 §2: the edit as a scene — over the well's foot, the sent branch then the edited one on the renderer, each ending on its run's
+   end (`dies · D7`, `lives · D9`); a tap lets it go. Its line stays under `vs sent` (`R5 now → lives · D9 · vs dies · D7`). */
+.camp .well-wrap > .div-scene { grid-area: 1 / 1; align-self: end; position: relative; z-index: 3; height: 210px; margin: 0 8px 6px;
+  border-radius: 4px; overflow: hidden; background: #0b0806; box-shadow: 0 0 0 2px #5a4630, 0 6px 18px rgba(0, 0, 0, .8); pointer-events: none; }
+.camp .well-wrap > .div-scene[hidden] { display: block; visibility: hidden; pointer-events: none; }   /* (the renderer keeps its size between scenes) */
+.div-scene .div-view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.div-scene[data-state="still"] .div-view { display: none; }
+.div-scene .div-tag { position: absolute; left: 8px; top: 6px; padding: 2px 7px; border-radius: 3px; background: rgba(12, 9, 7, .78); font: 700 15px/1.2 var(--sans); color: #e8d6b0; }
+.div-scene .div-tag .was { color: #c9b48f; }
+.div-scene .div-tag .now { color: #f3c25a; }
+.div-scene .div-end { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(.9); opacity: 0; padding: 4px 12px; border-radius: 4px;
+  background: rgba(12, 9, 7, .82); font: 700 24px/1.2 var(--display); letter-spacing: .03em; transition: opacity .15s, transform .15s; pointer-events: none; }
+.div-scene .div-end.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.div-scene .div-end.down, .div-scene .div-cap.down, .div-line .down { color: #ff8a76; }
+.div-scene .div-end.up, .div-scene .div-cap.up, .div-line .up { color: #9fe07a; }
+.div-scene .div-stills { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; background: #3a2e22; }
+.div-scene .div-pane { position: relative; background: #0b0806; }
+.div-scene .div-still { position: absolute; inset: 0 0 24px; width: 100%; height: calc(100% - 24px); display: block; }
+.div-scene .div-cap { position: absolute; left: 0; right: 0; bottom: 3px; text-align: center; font: 700 12px/1.3 var(--sans); }
+.camp .well-wrap > .div-line { grid-area: 3 / 1; display: block; width: 100%; margin: 0; padding: 2px 12px 4px; border: 0; border-top: 1px solid #3a2e22;
+  background: rgba(12, 9, 7, .92); color: #e8d6b0; font: 600 13px/1.3 var(--sans); text-align: right; cursor: pointer; }
+.camp .well-wrap > .div-line[hidden] { display: none; }
+.div-line .now { color: #f3c25a; }
+.div-line .div-flat { color: #c9b48f; }
+@media (prefers-reduced-motion: reduce) { .div-scene .div-end { transition: none; } }

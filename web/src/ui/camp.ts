@@ -22,6 +22,7 @@ import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { lowOf, renderForecast, renderShaft, share } from "./forecast";
+import { renderScene } from "./divergence";
 import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
@@ -179,7 +180,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const restLine = h("div", { class: "rest-line" }, rest);
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
-  const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, shaft.vsEl, restLine, panelHost, panelStore), cons.el);
+  // Cut 27 §2: the edit as a scene — over the well's foot after an edit's refine (before · after on the renderer), then its line under `vs sent`
+  const scene = renderScene(app);
+  const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, scene.el, shaft.vsEl, scene.line, restLine, panelHost, panelStore), cons.el);
   setBusyHost(busyStrip);
   function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
 
@@ -452,6 +455,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
             // Cut 22 §4 (AG: "`D9 · bank +3% · $90` — but the shaft then says death 61%"): the start's death share beside its bank
             d && death !== undefined ? h("span", { class: `num start-death${death >= 0.5 ? " warn" : ""}` }, /* copy:callout */ ` · death ${share(death, lo)}`) : "",
             d && net !== undefined ? h("span", { class: `num start-gold gold${net <= 0 ? " warn" : ""}` }, ` · ~$${net}`) : "",
+            // Cut 27 §1: a waystone start the set clears the floors above ≥ 95 % is paid their gold at the start (`+$84 passage`, in `~$`)
+            oo?.passage ? h("small", { class: "num passage gold" }, /* copy:callout */ ` · +$${oo.passage} passage`) : "",
             pass ? h("small", { class: "num toll pass" }, /* copy:callout */ " · pass") : toll > 0 ? h("small", { class: `num toll${short ? " warn" : ""}` }, short ? /* copy:callout */ ` · $${toll} short` : ` · $${toll}`) : "");
         }),
         // Cut 26 §2: the (lane, depth) pairs lit on another route (`Lineage.lanes`, not `current`) — shown dim, not a start for this set
@@ -757,5 +762,5 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     editor.paintShadow(); clearTimeout(kitTimer);
     if (f.refined && kitAffordable(app.lineage) > 0 && (revealed(app).has("forge") || revealed(app).has("kit"))) { const seq = app.forecastSeq, rows = JSON.stringify(app.rules.rows); kitTimer = window.setTimeout(() => { if (seq === app.forecastSeq && rows === JSON.stringify(app.rules.rows) && el.isConnected) void measureKit(app)?.catch(() => undefined); }, KIT_QUIET_MS); }
   });   // QA 92eb880: a shadowed row's mark lands with the forecast of the rules now
-  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); fc.dispose(); shaft.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

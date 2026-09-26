@@ -363,7 +363,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       return h("button", { class: `patch tablet driven-line${have >= 0 ? " held" : ""}`, onclick: write },
         // QA 524827b (qaAA: COUNTER `no counter` beside LEARNED `counter: attack boss`): the counter is known — the set lacked it
         // QA 524827b (qaAB: 12 of 16 sends driven off, twelve like lines): the tablet counts the sends that boss drove off (`Warlord ×12`)
-        h("span", { class: "chips-inline" }, [`${d.title}${drivenBy(d.boss) > 1 ? ` ×${drivenBy(d.boss)}` : ""}`, d.verdict === "no counter" ? /* copy:callout */ "counter unwritten" : d.verdict, d.defence].filter(Boolean).join(" · ")),
+        h("span", { class: "chips-inline" }, [`${d.title}${drivenBy(d.boss) > 1 ? ` ×${drivenBy(d.boss)}` : ""}`, d.verdict === "no counter" ? (have >= 0 ? /* copy:callout */ "order" : /* copy:callout */ "counter unwritten") : d.verdict, d.defence].filter(Boolean).join(" · ")),
         h("small", { class: "try" }, have >= 0 ? /* copy:callout */ `at R${have + 1}` : /* copy:callout */ `try: ${d.counter}`),
         // Cut 26 §6 (AP): the drive-off opens its verdict, as a death's line does (here when no exit line of his carries its own chip)
         allExits.some((y) => y.driven?.boss === d.boss) ? "" : h("span", { class: "chip mini verdict-chip", role: "button", onclick: (e: Event) => { e.stopPropagation(); closeAllSheets(); const x = allExits.find((y) => y.driven?.boss === d.boss && (d.run_id === undefined || y.run_id === d.run_id)); app.go({ kind: "death", death: drivenDeath(x ?? d, d.run_id ?? x?.run_id ?? 0), kept: true, from: { report: r } }); } }, /* copy:button */ "verdict"));

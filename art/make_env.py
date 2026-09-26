@@ -74,15 +74,62 @@ BIOME_REMAP: dict[str, dict[int, int]] = {
     "foundry": {3: 4, 4: 6, 5: 6},
 }
 BIOME_REMAP_KEEP = {"moss_0", "moss_1"}   # moss stays in the biome's own hue steps
+# juice pass 2 (2026-09-26): the Burrows gets its own tile art (it was the Warrens' recoloured at runtime, atlas.ts TILE_ALIAS);
+# its ramp is web/src/render/palette.ts's (warm ochre earth since juice pass 3, on the Warrens' luminance steps). Env-only: the 8x8 register
+# (make_tiles.py) keeps six biomes and the Burrows keeps the runtime alias as its fallback there.
+ENV_PALETTES: dict[str, list[str]] = {**PALETTES, "burrows": ["#140b05", "#2b190b", "#43280f", "#5e3f18", "#7a5724", "#a57d3a", "#c9a25a", "#ecd6a0"]}
+
+
+# juice pass 3 (2026-09-26): the Burrows and the Fens meet at the D5 fork and must tell apart at a glance. A luminance ramp maps
+# plank and water (or root and earth) of one value to one colour, so their drawings read as the same speckle recoloured. Their TILES
+# are drawn by Codex in a fixed 8-colour palette with hue roles and converted by NEAREST COLOUR (each texel's block median), so the
+# water stays water-coloured under a plank-coloured boardwalk and a root stays a root on the earth. Props, decals and the shared
+# drawings keep the ramp path. Roles are listed so make_prompts.py can hand the palette to Codex.
+FREE_PALETTES: dict[str, list[tuple[str, str]]] = {
+    "fens": [("#060f0f", "near-black gaps and deep shadow"), ("#0c2426", "deep water"), ("#174040", "water"),
+             ("#2a5d55", "lit water, ripples"), ("#373628", "plank shadow, wood grain"), ("#4f4d3b", "plank (weathered grey wood)"),
+             ("#6e6b52", "plank lit edge, pale reed tips"), ("#46663a", "reed and moss green")],
+    "burrows": [("#140b05", "near-black gaps and holes"), ("#2b190b", "deep earth shadow"), ("#43280f", "root, dark earth"),
+                ("#5e3f18", "packed ochre earth (the field)"), ("#7a5724", "earth lit, pebbles"), ("#a57d3a", "brightest ochre highlight"),
+                ("#6b3a1e", "timber (reddish wood)"), ("#8e5530", "timber lit edge")],
+}
+# a colour swap after the nearest-colour pass, per (biome, class): the Fens' boards read as brick courses where each plank's lit end
+# met a near-black butt joint every 16 texels — the lit ends go to the plank colour and the joints to the grain colour, so a floor is
+# long boards between dark-water lines
+FREE_SWAP: dict[tuple[str, str], dict[str, str]] = {("fens", "floor"): {"#6e6b52": "#4f4d3b", "#060f0f": "#373628"}}
+FREE_NAMES = {"floor_0", "floor_1", "floor_2", "floor_3", "wall_face_0", "wall_face_1", "wall_top", "door", "stairs_down", "stairs_up", "water"}
+
+
+def to_free(biome: str, name: str, texels: tuple[int, int], src: str) -> Image.Image:
+    """nearest colour in the biome's FREE palette, per texel, of the median of the texel block's inner half (a Codex pixel grid is
+    rarely exact: the median of the block's middle ignores the seams between blocks)."""
+    rgba = key_source(SRC / f"{src}.png")
+    tw, th = texels
+    H, W = rgba.shape[:2]
+    pal = np.array([hex_rgb(c) for c, _ in FREE_PALETTES[biome]], np.float32)
+    w8 = np.array([0.35, 0.5, 0.25], np.float32)   # a rough perceptual weight (green carries value)
+    out = np.zeros((th, tw, 4), np.uint8)
+    for y in range(th):
+        for x in range(tw):
+            y0, y1 = int((y + 0.25) * H / th), int((y + 0.75) * H / th)
+            x0, x1 = int((x + 0.25) * W / tw), int((x + 0.75) * W / tw)
+            c = np.median(rgba[y0:y1, x0:x1, :3].reshape(-1, 3), axis=0)
+            k = int(np.argmin((((pal - c) ** 2) * w8).sum(-1)))
+            out[y, x, :3] = pal[k]
+            out[y, x, 3] = 255
+    for a, b in FREE_SWAP.get((biome, name.split("_")[0]), {}).items():
+        m = np.all(out[..., :3] == np.array(hex_rgb(a), np.uint8), axis=-1)
+        out[m, :3] = hex_rgb(b)
+    return Image.fromarray(out, "RGBA")
 
 
 def lum(rgb: np.ndarray) -> np.ndarray:
     return rgb[..., 0] * 0.2126 + rgb[..., 1] * 0.7152 + rgb[..., 2] * 0.0722
 
 
-def load(name: str, texels: tuple[int, int], keyed: bool) -> np.ndarray:
-    """float RGBA at texel size (alpha binarised)."""
-    rgba = key_source(SRC / f"env_{name}.png")
+def load(name: str, texels: tuple[int, int], keyed: bool, src: str | None = None) -> np.ndarray:
+    """float RGBA at texel size (alpha binarised). `src`: the source id when it is not `env_<name>` (a per-biome drawing)."""
+    rgba = key_source(SRC / f"{src or 'env_' + name}.png")
     tw, th = texels
     if not keyed:
         rgba[..., 3] = 255.0
@@ -112,9 +159,44 @@ def edge_mask(alpha: np.ndarray) -> np.ndarray:
     return m & ~(p[:-2, 1:-1] & p[2:, 1:-1] & p[1:-1, :-2] & p[1:-1, 2:])
 
 
-def to_index(name: str, px: np.ndarray) -> np.ndarray:
+# juice pass 2: an organic floor (earth, mud, cave rock) has no mortar — the flagstones' 15 % darkest texels read as speckle on it
+ORGANIC_FLOOR = ([1, 2, 3, 4], [0.05, 0.9, 0.992])
+BIOME_CUTS: dict[tuple[str, str], tuple[list[int], list[float]]] = {
+    **{("burrows", f"floor_{i}"): ORGANIC_FLOOR for i in range(4)},
+    **{("deep", f"floor_{i}"): ORGANIC_FLOOR for i in range(4)},
+    ("fens", "floor_1"): ORGANIC_FLOOR, ("fens", "floor_2"): ORGANIC_FLOOR,
+}
+
+
+# juice pass 2: a per-biome drawing keeps its OWN value structure — its luminance, normalised between its 2nd and 98th percentiles, is
+# cut at fixed points (a floor's thresholds keep it quiet: most texels on its two middle steps) instead of at fixed quantiles, which
+# sprayed a two-value checker or a riveted plate into speckle (the shared drawings keep the quantiles: their floors must tile together)
+STRUCT_T: dict[str, list[float]] = {"floor": [0.28, 0.7, 0.9]}
+STRUCT_T_BIOME: dict[tuple[str, str], list[float]] = {("sanctum", "floor"): [0.1, 0.45, 0.93]}   # the marble's checker on two adjacent pale steps
+STRUCT_OFF = {"fens"}   # the Fens' painted mud and reeds read better on the quantiles (its structure is texture, not lines)
+BIOME_IDX: dict[tuple[str, str], list[int]] = {("foundry", "water"): [2, 3, 5, 7]}   # the molten channel keeps the foundry's oranges
+REMAP_SKIP = {("foundry", "water")}
+
+
+def to_index_struct(name: str, px: np.ndarray, biome: str) -> np.ndarray:
+    idx_list = BIOME_IDX.get((biome, name), RAMP[name][0])
+    L = lum(px[..., :3])
+    vis = px[..., 3] > 0
+    lo, hi = np.quantile(L[vis], [0.02, 0.98]) if vis.any() else (0.0, 1.0)
+    t = np.clip((L - lo) / max(1e-6, hi - lo), 0, 1)
+    n = len(idx_list)
+    cls = name.split("_")[0]
+    cuts = STRUCT_T_BIOME.get((biome, cls)) or STRUCT_T.get(cls, [(i + 1) / n for i in range(n - 1)])
+    k = np.searchsorted(np.array(cuts), t, side="right")
+    out = np.array(idx_list)[np.clip(k, 0, n - 1)]
+    if name in PROPS:
+        out = np.where(edge_mask(px[..., 3]), 0, out)
+    return np.where(vis, out, -1)
+
+
+def to_index(name: str, px: np.ndarray, biome: str | None = None) -> np.ndarray:
     """ramp index per texel (-1 = transparent)."""
-    idx_list, cuts = RAMP[name]
+    idx_list, cuts = BIOME_CUTS.get((biome or "", name), RAMP[name])
     L = lum(px[..., :3])
     vis = px[..., 3] > 0
     qs = np.quantile(L[vis], cuts) if vis.any() else np.zeros(len(cuts))
@@ -223,7 +305,10 @@ def nest_frame1(idx: np.ndarray) -> np.ndarray:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
-    assets = [a for a in manifest["assets"] if a["bg"].startswith("env")]
+    every = [a for a in manifest["assets"] if a["bg"].startswith("env")]
+    assets = [a for a in every if not a.get("biome")]
+    # juice pass 2: per-biome drawings (`env_<biome>_<name>`, manifest `biome`/`name`) replace the shared drawing for that biome
+    own: dict[tuple[str, str], dict] = {(a["biome"], a["name"]): a for a in every if a.get("biome") and (SRC / f"{a['id']}.png").exists()}
     written: dict[str, Image.Image] = {}
     missing = []
     for a in assets:
@@ -239,7 +324,7 @@ def main() -> int:
             if name == "shrine":
                 f0, f1 = shrine_frames(px)
                 del written["env_shrine"]
-                for biome in PALETTES:   # per-biome ids, so the renderer's `<biome>_env_shrine_<f>` lookup finds it everywhere
+                for biome in ENV_PALETTES:   # per-biome ids, so the renderer's `<biome>_env_shrine_<f>` lookup finds it everywhere
                     written[f"{biome}_env_shrine_0"] = Image.fromarray(np.clip(f0, 0, 255).astype(np.uint8), "RGBA")
                     written[f"{biome}_env_shrine_1"] = Image.fromarray(np.clip(f1, 0, 255).astype(np.uint8), "RGBA")
                 continue
@@ -254,13 +339,27 @@ def main() -> int:
         elif name == "nest":
             frames = {"nest_0": index, "nest_1": nest_frame1(index)}
         for fname, findex in frames.items():
-            for biome, ramp in PALETTES.items():
+            for biome, ramp in ENV_PALETTES.items():
+                if (biome, name) in own:
+                    continue
                 idx = findex
                 remap = BIOME_REMAP.get(biome)
                 if remap and name not in BIOME_REMAP_KEEP:
                     lut = np.array([remap.get(i, i) for i in range(8)])
                     idx = np.where(findex >= 0, lut[np.clip(findex, 0, 7)], -1)
                 written[f"{biome}_env_{fname}"] = paint(idx, ramp)
+    for (biome, name), a in own.items():
+        tw, th = (int(v) for v in a["texels"].split("x"))
+        if biome in FREE_PALETTES and name in FREE_NAMES:
+            written[f"{biome}_env_{name}"] = to_free(biome, name, (tw, th), a["id"])
+            continue
+        src = load(name, (tw, th), a["bg"] == "env_keyed", a["id"])
+        index = to_index(name, src, biome) if biome in STRUCT_OFF else to_index_struct(name, src, biome)
+        remap = BIOME_REMAP.get(biome)
+        if remap and name not in BIOME_REMAP_KEEP and (biome, name) not in REMAP_SKIP:
+            lut = np.array([remap.get(i, i) for i in range(8)])
+            index = np.where(index >= 0, lut[np.clip(index, 0, 7)], -1)
+        written[f"{biome}_env_{name}"] = paint(index, ENV_PALETTES[biome])
     for k, im in written.items():
         im.save(OUT / f"{k}.png")
         n = len({tuple(p) for p in np.asarray(im).reshape(-1, 4) if p[3] > 0})
@@ -276,7 +375,7 @@ def main() -> int:
 
 def sheet(t: dict[str, Image.Image], s: int = 4) -> Image.Image:
     """per biome: every env tile at s x, then a dressed 8x5 sample room at s x."""
-    biomes = list(PALETTES)
+    biomes = list(ENV_PALETTES)
     names = sorted({k.split("_env_", 1)[1] for k in t if "_env_" in k})
     hue = sorted(k for k in t if k.startswith("env_"))
     cell = 16 * s + 4

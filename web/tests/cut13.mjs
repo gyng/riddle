@@ -31,6 +31,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser, launchGpu } from "../../tools/browser.mjs";
 import { editRows, openPanel } from "./lib/frame.mjs";
+import { measured } from "./lib/load.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -489,6 +490,8 @@ try {
   check(marksRead.after === `◆${marksRead.marks}` && marksRead.after !== marksRead.before && marksRead.dt < 600, `the header's ◆ repaints as the buy's lineage lands (${marksRead.before} → ${marksRead.after} in ${marksRead.dt} ms, vocabulary held 1.5 s)`);
 
   // ---- QA on 50bb162 (qaF): the watch — ▶▶| in `fast` is the run's end; a beat's line clears at a floor change and within 6 s
+  // (wall-clock readings: on a loaded machine `measured` takes each scene once more, the bars unchanged — tests/lib/load.mjs)
+  const beatScene = await measured(async () => {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for the beat's clearing");
   // a den note on a quiet map batch, then a floor change (the same floor's snapshot) on the batch after: the beat's line goes
@@ -518,9 +521,15 @@ try {
     await sleep(40);
     s = await state();
   }
-  check(beatSeen && beatGoneBy !== null && beatGoneBy <= 6500, `the beat's line is gone within 6 s (shown ${Math.round(beatLongest)} ms, gone by ${beatGoneBy === null ? "never" : Math.round(beatGoneBy)} ms)`);
-  check(beatAfterDescend === false, `the beat's line clears at the floor change (the den's beat shown after descend: ${beatAfterDescend})`);
+  const gone = { ok: beatSeen && beatGoneBy !== null && beatGoneBy <= 6500, line: `the beat's line is gone within 6 s (shown ${Math.round(beatLongest)} ms, gone by ${beatGoneBy === null ? "never" : Math.round(beatGoneBy)} ms)` };
+  const cleared = { ok: beatAfterDescend === false, line: `the beat's line clears at the floor change (the den's beat shown after descend: ${beatAfterDescend})` };
+  return { ok: gone.ok && cleared.ok, line: `${gone.line} · ${cleared.line}`, gone, cleared };
+  });
+  const beatRetried = beatScene.line.includes(" [retried") ? beatScene.line.slice(beatScene.line.indexOf(" [retried")) : "";
+  check(beatScene.gone.ok, beatScene.gone.line + beatRetried);
+  check(beatScene.cleared.ok, beatScene.cleared.line);
   // ▶▶| in `fast`: one press reaches the run's end (the ending, or the screen after it) — not the next fight
+  const skipScene = await measured(async () => {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for ▶▶|");
   await sleep(300);   // Cut 20's fast can reach the fake run's last tick inside 1.5 s: press early
@@ -530,8 +539,13 @@ try {
   await page.evaluate(() => { for (const b of document.querySelectorAll("main.watch button.hud-btn")) if (b.textContent === "▶▶|") b.click(); });
   while (Date.now() - t0 < 20_000 && es.screen === "watch" && !es.ending) { await sleep(60); es = await endState(); }
   // reaching the end is the point; a press that lands on the run's last tick advances no tick
-  check(!wasEnding && (es.ending || es.screen !== "watch") && es.tick >= tick0, `one ▶▶| in fast reaches the run's end (${es.screen}${es.ending ? ", ending" : ""}, tick ${tick0} → ${es.tick}, after ${Date.now() - t0} ms)`);
-  check(Date.now() - t0 < 15_000, `the end comes within seconds (${Date.now() - t0} ms)`);
+  const reached = { ok: !wasEnding && (es.ending || es.screen !== "watch") && es.tick >= tick0, line: `one ▶▶| in fast reaches the run's end (${es.screen}${es.ending ? ", ending" : ""}, tick ${tick0} → ${es.tick}, after ${Date.now() - t0} ms)` };
+  const quick = { ok: Date.now() - t0 < 15_000, line: `the end comes within seconds (${Date.now() - t0} ms)` };
+  return { ok: reached.ok && quick.ok, line: `${reached.line} · ${quick.line}`, reached, quick };
+  });
+  const retried = skipScene.line.includes(" [retried") ? skipScene.line.slice(skipScene.line.indexOf(" [retried")) : "";
+  check(skipScene.reached.ok, skipScene.reached.line + retried);
+  check(skipScene.quick.ok, skipScene.quick.line);
   // the ending plays out, then the exit flow: the keep sheet or the verdict
   s = await waitFor((x) => x && x.screen !== "watch", "the screen after the skip", 60_000);
   if (s.screen === "exit") { await page.locator(".sheet-wrap button.btn.primary.wide").first().click({ timeout: 5000 }); s = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit" && !x.busy, "the screen after keep", 30_000); }

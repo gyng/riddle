@@ -4,6 +4,7 @@
 // falls through to `onEscapeIdle` (the app: a kept death back to the camp).
 import { h } from "./dom";
 import { stud } from "./frame";
+import { sheetGhost } from "../juice";   // juice pass 2: the close eases out (a ghost of the panel; the sheet itself goes at once)
 
 const stack: HTMLElement[] = [];
 /** Cut 25 §6 (AN: "a sheet over a sheet to buy a row"): one sheet at a time — a sheet opened from a sheet replaces it (the one under it
@@ -56,7 +57,7 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
   const parent = opts.modeless ? undefined : [...stack].reverse().find((w) => !w.classList.contains("modeless"));
   const close = (): void => {
     const i = stack.indexOf(wrap); if (i < 0) return;
-    stack.splice(i, 1); wrap.remove(); ro?.disconnect(); opts.anchor?.classList.remove("sheet-anchor"); closers.delete(wrap); parentOf.delete(wrap);
+    stack.splice(i, 1); sheetGhost(wrap); wrap.remove(); ro?.disconnect(); opts.anchor?.classList.remove("sheet-anchor"); closers.delete(wrap); parentOf.delete(wrap);
     if (parent && stack.includes(parent)) { parent.hidden = false; parent.classList.remove("under"); }
   };
   /** The `×` of a sheet that replaced another closes the chain (this one and every one it replaced). */

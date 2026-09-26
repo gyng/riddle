@@ -23,6 +23,9 @@ const METHODS: (keyof Engine)[] = [
   "buyKit",           // Cut 23 §1: optional likewise (the forge)
   "kitDeltas",        // Cut 23 §1: optional likewise (the forge steps' measured moves)
   "forkForecast",     // Cut 26 §2: optional likewise (the fork chip's two stairs)
+  "fold",             // Cut 27 §1: optional likewise (the watch steps the folded floors itself without it)
+  "divergence",       // Cut 27 §2: optional likewise (no scene without it)
+  "runOfflineSlice",  // round 3: optional likewise (`runOfflineQuick` for every slice without it)
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

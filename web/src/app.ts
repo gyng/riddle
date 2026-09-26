@@ -124,6 +124,10 @@ export class App {
     const live = (set: RuleSet, sh: (number | null)[]): RuleSet => ({ rows: set.rows.filter((_, i) => sh[i] === null || sh[i] === undefined), ...routeOf(set) });
     return sameSet(live(base, this.vsBaseShadow), live(this.rules, this.shadow));
   }
+  /** Cut 27 §2: the set the camp's `vs sent` measures against (the set sent), while the rules now differ from it; else null. */
+  sentSet(): RuleSet | null { return this.vsBase && !sameSet(this.vsBase, this.rules) ? cloneSet(this.vsBase) : null; }
+  /** Cut 27 §1: the forecast painted for the rules now (the set a send takes), else null — the watch folds the floors it clears. */
+  forecastOfRules(): Forecast | null { const f = this.lastForecast; return f && this.fcRules && sameSet(this.fcRules, this.rules) ? f : null; }
   private fcFresh = false;                  // a forecast painted since the last edit
   private editSeq = 0;
   private vsOff = false;
@@ -345,7 +349,7 @@ export class App {
     this.root.inert = true;
     const b = showBusy(/* copy:label */ "offline");
     let merged: ReturnReport | null = null;
-    let quick = true;
+    let quick = true, sliced = true;
     let worst: { id: number; depth: number } | null = null;
     let graves = this.lineage.graveyard.length;
     try {
@@ -353,7 +357,15 @@ export class App {
       for (let left = elapsedS; left > 0; left -= slice) {
         let r: ReturnReport;
         if (quick) {
-          try { r = await this.engine.runOfflineQuick(Math.min(left, slice)); }
+          // (round 3: the slices before the last skip the stall verdict — the merged report is the last slice's —
+          // on an engine that has `runOfflineSlice`; `runOfflineQuick` else)
+          const last = left <= slice;
+          try {
+            const n = Math.min(left, slice);
+            r = sliced && this.engine.runOfflineSlice
+              ? await this.engine.runOfflineSlice(n, last).catch((e) => { if (merged) throw e; sliced = false; return this.engine.runOfflineQuick(n); })
+              : await this.engine.runOfflineQuick(n);
+          }
           catch (e) {
             if (merged) throw e;
             // stale wasm build without runOfflineQuick: the full call, larger slices (each pays the verdict)

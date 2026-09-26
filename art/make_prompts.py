@@ -157,9 +157,63 @@ def env_block(i: int, a: dict) -> str:
             f"Brief: {a['description']}\n\n")
 
 
+BIOME_BRIEF = {
+    "burrows": "the BURROWS: goblin-dug tunnels in WARM OCHRE packed earth, root-veined earth banks, shored with rough reddish timber posts and beams, pebbles, loot sacks. Dry, warm, cramped, organic; NO dressed flagstones, NO brick courses, NO water.",
+    "fens": "the FENS: a drowned marsh where the WATER dominates — grey weathered plank boardwalks with clear dark water gaps, open teal pools and channels, log palisades standing in water, reeds, hanging moss. Wet, cool, calm; NO flagstones, NO mud speckle.",
+    "crypt": "the CRYPT: an orderly cold tomb of large engraved burial slabs, ossuary niches with skulls and bones, carved tomb doors, sarcophagi and urns. Regular, solemn, architectural.",
+    "foundry": "the FOUNDRY: an industrial forge of riveted iron plates, gratings, pipes with valve wheels, soot-black firebrick, anvils, coal and molten metal. Hard-edged, mechanical, riveted.",
+    "deep": "the DEEP: a natural lightless cave, jagged unworked rock, fissures, stalactites and stalagmites, pale crystals and cave mushrooms, black pools. NO masonry at all: every edge irregular.",
+    "sanctum": "the SANCTUM: a pale temple of polished marble, diagonal checker and rosette inlays, fluted pilasters, gilded double doors, braziers, reliquaries, amphorae. Elegant, symmetrical, bright.",
+}
+
+BIOME_RULES = """=== THIS BATCH: ONE DUNGEON BIOME ===
+Every asset below belongs to {what}
+The game already has a generic grey-olive flagstone set (watch.png's); THIS set must look like a DIFFERENT PLACE at a glance:
+different materials, different shapes, different layout of lines — not the same flagstones and brick courses recoloured. Keep
+the pixel-art rules above (flat blocks, the stated grid, upper-left light, a clear value structure: darkest joints/gaps, a mid
+field, a few lit edges). Paint in this biome's natural colours; the game recolours by VALUE into its own ramp, so value
+structure matters most and hue is free. All tiles of one kind (the four floors; the two wall faces) must share one value
+range so they mix together.
+
+"""
+
+
+# juice pass 3: the Burrows' and the Fens' tiles are converted by NEAREST COLOUR in a fixed palette (make_env.FREE_PALETTES), so
+# their prompts hand Codex the palette and its roles instead of "hue is free"
+PALETTE_RULES = """=== THE PALETTE (critical for the TILES in this batch; props/keyed objects may ignore it) ===
+The game maps every pixel of a tile to the NEAREST of these 8 colours, so paint the tiles using ONLY these exact flat colours,
+each in its role (hue matters here: {hint}):
+{rows}
+Floors are mostly ONE flat field colour with a few features: calm, low-noise, never speckled.
+
+"""
+PALETTE_HINT = {"fens": "the water must stay teal and the planks grey wood", "burrows": "the earth must stay ochre, the roots dark, the timber reddish"}
+
+
 def build(n: int, ids: list[str]) -> Path:
     if all(BY_ID[i]["bg"].startswith("env") for i in ids):
-        body = ENV_HEADER + "".join(env_block(i + 1, BY_ID[x]) for i, x in enumerate(ids))
+        biomes = {BY_ID[i].get("biome") for i in ids}
+        extra = BIOME_RULES.format(what=BIOME_BRIEF[next(iter(biomes))]) if len(biomes) == 1 and None not in biomes else ""
+        from make_env import FREE_PALETTES
+        if extra and next(iter(biomes)) in FREE_PALETTES:
+            b = next(iter(biomes))
+            extra = extra.replace("Paint in this biome's natural colours; the game recolours by VALUE into its own ramp, so value\nstructure matters most and hue is free.",
+                                  "Paint the tiles in the palette below.")
+            extra += PALETTE_RULES.format(hint=PALETTE_HINT[b], rows="\n".join(f"- {c}  {role}" for c, role in FREE_PALETTES[b]))
+            header = ENV_HEADER.replace(
+                "Do NOT write code beyond a PIL\nresample;",
+                "For the TILES, after image_gen you\nMAY use a short PIL script to snap the image to its 16x16 grid and to the palette below and to fix the rows a brief pins\n(then scale up 64x, nearest) — nothing else;",
+            ).replace(
+                "- The game recolours every tile into a per-dungeon 8-colour ramp by VALUE, so what matters most is\n  a clean value structure (dark mortar, mid stone, a few lit edges). Paint environment tiles in\n  neutral warm grey-olive stone like watch.png.",
+                "- The TILES of this batch keep their colours: paint them in the palette given below, with a clean value\n  structure (dark gaps, a mid field, a few lit edges).",
+            )
+            assert header != ENV_HEADER
+            body = header.replace("=== ASSETS ===\n", extra + "=== ASSETS ===\n") + "".join(env_block(i + 1, BY_ID[x]) for i, x in enumerate(ids))
+            body += "When all assets are saved, list the final paths and their pixel sizes. Do nothing else.\n"
+            p = ROOT / "prompts" / f"batch{n}.txt"
+            p.write_text(body)
+            return p
+        body = ENV_HEADER.replace("=== ASSETS ===\n", extra + "=== ASSETS ===\n") + "".join(env_block(i + 1, BY_ID[x]) for i, x in enumerate(ids))
         body += "When all assets are saved, list the final paths and their pixel sizes. Do nothing else.\n"
         p = ROOT / "prompts" / f"batch{n}.txt"
         p.write_text(body)

@@ -28,6 +28,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { editRows, openPanel } from "./lib/frame.mjs";
+import { measured } from "./lib/load.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -259,8 +260,6 @@ try {
 
   // 12 · 13 · 14: a fake run that returns with items (seed 13, return at D3), watched in `fast`
   const rules = encodeURIComponent("depth>=3 → return\nfoes>=1 → attack nearest");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=13&rules=${rules}&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
-  await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
   // 15: in `fights` the interstitial names the HUD's floor whenever both show (QA on e0f87e7: "`D1 · 16 rooms · $18` while the
   // HUD reads `32/40 D2`") — sampled through the drive below, ▶▶| pressed every 300 ms as the QA player did
   const cardSample = () => page.evaluate(() => { const c = document.querySelector(".interstitial"); const card = c && !c.hidden ? c.textContent : null; const hud = document.querySelector(".watch .depth")?.textContent ?? ""; return { card, hud, mismatch: !!card && !!hud && !card.startsWith(`${hud} `) }; });
@@ -277,15 +276,28 @@ try {
   let picked = false;
   const pickFast = () => page.evaluate(() => { for (const b of document.querySelectorAll("main.watch .cmd .hud-btn")) if (b.textContent === "fast" && !b.disabled) b.click(); });
   const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); if (sample && !picked && (cardSamples.filter((c) => c.card).length >= 2 || (cardSamples.some((c) => c.card) && cardSamples.length >= 4))) { picked = true; await pickFast(); } await page.locator(".cmd .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {}); await sleep(300); } return state(); };
-  let s2 = await drive(true);
-  check(s2?.screen === "exit", `the run ended on the keep sheet (${s2?.screen})`);
+  // (the run is sampled from here as it plays — ▶▶| every 300 ms, the card read between: on a loaded machine the run can end
+  // before two cards were read and `fast` picked; `measured` plays it once more then — tests/lib/load.mjs)
+  const firstRun = await measured(async () => {
+  cardSamples.length = 0; picked = false;
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=13&rules=${rules}&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
+  await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
+  const s2 = await drive(true);
+  const ended = { ok: s2?.screen === "exit", line: `the run ended on the keep sheet (${s2?.screen})` };
   const shownCards = cardSamples.filter((c) => c.card), mism = cardSamples.filter((c) => c.mismatch);
-  check(shownCards.length > 0 && mism.length === 0, `the card named the HUD's floor in every sample it showed (${shownCards.length} samples${mism.length ? `; off: ${mism.map((m) => `${m.card} | ${m.hud}`).join(", ")}` : ""})`);
+  const named = { ok: shownCards.length > 0 && mism.length === 0, line: `the card named the HUD's floor in every sample it showed (${shownCards.length} samples${mism.length ? `; off: ${mism.map((m) => `${m.card} | ${m.hud}`).join(", ")}` : ""})` };
   // 12: the `fast` chosen mid-run is the next run's mode; at the exit the mode buttons are dead
   if (!picked) await pickFast();   // the run ended before three cards showed: the click then lands on a dead button (the check says so)
   const saved = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, blob: JSON.parse(window.__riddle.exportSave()).watch, dead: [...document.querySelectorAll("main.watch .cmd .hud-btn")].every((b) => b.disabled) }));
-  check(saved.mode === "fast" && saved.blob === "fast", `fast chosen mid-run: the watch is in it and the save blob carries it (${saved.mode}, ${saved.blob}, picked ${picked})`);
-  check(saved.dead, "at the exit the mode buttons, ▶▶| and bail are dead");
+  const fast = { ok: saved.mode === "fast" && saved.blob === "fast", line: `fast chosen mid-run: the watch is in it and the save blob carries it (${saved.mode}, ${saved.blob}, picked ${picked})` };
+  return { ok: ended.ok && named.ok && fast.ok && saved.dead, line: `${ended.line} · ${named.line} · ${fast.line}`, s2, ended, named, fast, dead: saved.dead };
+  });
+  let s2 = firstRun.s2;
+  const firstRetried = firstRun.line.includes(" [retried") ? firstRun.line.slice(firstRun.line.indexOf(" [retried")) : "";
+  check(firstRun.ended.ok, firstRun.ended.line);
+  check(firstRun.named.ok, firstRun.named.line + firstRetried);
+  check(firstRun.fast.ok, firstRun.fast.line);
+  check(firstRun.dead, "at the exit the mode buttons, ▶▶| and bail are dead");
   const keepSheet = () => page.evaluate(() => { const w = [...document.querySelectorAll(".sheet-wrap")].pop(); const lab = w?.querySelector(".label.row-label"); return { label: lab?.firstChild?.textContent?.trim() ?? "", count: lab?.querySelector(".num")?.textContent ?? "", on: [...(w?.querySelectorAll(".chips .chip.item") ?? [])].map((c) => c.classList.contains("on")), n: w?.querySelectorAll(".chips .chip.item").length ?? 0 }; });
   let ks = await keepSheet();
   check(ks.label === "keep" && ks.count === "0/1" && ks.n >= 3, `the sheet counts picks against free slots as keep: "${ks.label} ${ks.count}" over ${ks.n} chips`);

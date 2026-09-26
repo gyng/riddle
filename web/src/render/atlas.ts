@@ -37,6 +37,8 @@ class Sheet {
 
   readonly w: number;
   readonly h: number;
+  /** juice pass 2: bumped on every slot drawn (normals.ts re-derives the sprite normals when it moves) */
+  version = 0;
 
   constructor(w: number, h: number) {
     this.w = w;
@@ -68,6 +70,7 @@ class Sheet {
     // UVs at texel edges; flipY=true means v=1 is canvas row 0.
     const slot: Slot = { x, y, w, h, u0: x / this.w, v0: 1 - (y + h) / this.h, u1: (x + w) / this.w, v1: 1 - y / this.h };
     this.slots.set(id, slot);
+    this.version++;
     this.ctx.clearRect(x, y, w, h);
     this.texture.needsUpdate = true;
     return slot;
@@ -238,6 +241,7 @@ export class Atlas {
       const from = paletteFor(alias).map((c) => c.map((x) => Math.round(x * 255))), to = paletteFor(biome).map((c) => c.map((x) => Math.round(x * 255)));
       for (const id of this.loadedIds) {
         if (!id.startsWith(`${alias}_`)) continue;
+        if (this.loadedIds.has(`${biome}_${id.slice(alias.length + 1)}`)) continue;   // juice pass 2: the biome's own art wins
         const src = g.get(`tile:${id}`); if (!src) continue;
         const px = g.ctx.getImageData(src.x, src.y, src.w, src.h), d = px.data;
         for (let i = 0; i < d.length; i += 4) {

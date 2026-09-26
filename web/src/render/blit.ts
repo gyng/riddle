@@ -52,6 +52,7 @@ uniform float uAmbK;          // the ambient's share under the light field (the 
 uniform float uTime;
 uniform vec2 uHeat[8];        // fires (world env texels): the air shimmers over them
 uniform int uHeatN;
+uniform sampler2D uNormal;    // juice pass 2: the sprites' derived normals (normals.ts; rgb = n / 2 + 0.5, a = 1 where a sprite drew)
 #endif
 varying vec2 vUv;
 ${BAYER_GLSL}
@@ -145,6 +146,16 @@ void main() {
       c += (1.0 - toward) * normalize(LF + vec3(0.05)) * 0.55 * min(1.0, lfl * 1.2);
       c *= 1.0 - 0.14 * (1.0 - away) * min(1.0, lfl);
     }
+    // juice pass 2: the derived normal map — N·L toward the light field's gradient (a soft key from the upper left where the field
+    // is flat) shades the sprite as a lit volume; the light's strength scales it, so a sprite in the dark stays as painted
+    vec4 nm = texture2D(uNormal, tuv);
+    if (spr > 0.5 && nm.a > 0.5) {
+      vec3 N = normalize(nm.rgb * 2.0 - 1.0);
+      vec3 Ldir = normalize(vec3(mix(vec2(-0.45, 0.55), ld, min(1.0, gm * 6.0)), 0.75));
+      float ndl = dot(N, Ldir);
+      float k = min(1.0, lfl * 1.4);
+      c *= 1.0 + k * (0.34 * clamp(ndl - 0.55, -0.6, 0.45) + 0.1 * pow(max(0.0, ndl), 8.0));
+    }
   }
 #endif
   float dth = (bayer4(floor(world)) - 0.5) * uDither * env;
@@ -172,8 +183,9 @@ void main() {
 const GRADES: Record<string, [number, number, number, number, number, number]> = {
   default: [1, 1, 1, 0.84, 0.65, 1],
   warrens: [1.14, 0.96, 0.78, 0.8, 0.95, 0.55],
-  burrows: [1, 0.94, 0.88, 0.8, 0.7, 0.85],
-  fens: [0.96, 1, 1, 0.82, 0.65, 0.9],
+  // juice pass 3: the fork's two lanes apart at a glance — the Burrows warm ochre (full saturation), the Fens cool teal
+  burrows: [1, 0.92, 0.8, 0.78, 0.72, 1],
+  fens: [0.88, 1, 1.06, 0.82, 0.62, 1],
   crypt: [1, 1, 1.02, 0.82, 0.65, 0.9],
   foundry: [1, 0.94, 0.88, 0.82, 0.6, 0.9],
   deep: [1, 1, 1, 0.9, 0.7, 1],
@@ -216,7 +228,7 @@ export class Blit {
         // juice (docs/JUICE.md): read only when FX > 0
         uLightMap: { value: null }, uMap: { value: new THREE.Vector2(1, 1) }, uBloom: { value: null }, uBloomK: { value: 0 },
         uTexel: { value: new THREE.Vector2(1, 1) }, uVig: { value: new THREE.Vector4(0, 0, 0, 0) }, uVigBase: { value: 0 }, uDesat: { value: 0 },
-        uAmbK: { value: 0.8 }, uTime: { value: 0 }, uHeat: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) }, uHeatN: { value: 0 },
+        uAmbK: { value: 0.8 }, uTime: { value: 0 }, uNormal: { value: null }, uHeat: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) }, uHeatN: { value: 0 },
       },
       defines: { FX: 0 },
       depthTest: false,

@@ -40,7 +40,8 @@ export type Snapshot = {
   depth: number; biome: string; w: number; h: number; tiles: Tile[]; seen: boolean[]; visible: boolean[];
   overlays: Overlay[]; hero: Entity & { inv: InvItem[]; weapon?: string; armour?: string; class: string; trait: string };
   entities: Entity[]; items: FloorItem[]; alert: number; turn: number; loot: number;
-  run: { id: number; heir: number; started_turn: number; start?: number };   // start: QA a946e04 (core, optional) — the floor the run started on (a toll the purse could not pay starts it on D1)
+  run: { id: number; heir: number; started_turn: number; start?: number;   // start: QA a946e04 (core, optional) — the floor the run started on (a toll the purse could not pay starts it on D1)
+         passage?: number };                                              // Cut 27 §1 (core): the passage paid at a waystone start (`+$84 passage`, coins, into the purse at the send — ledger `passage D9`; a `passage +$84` callout opens the run); absent from D1 / when the set does not clear the floors above ≥ 95 %   // start: QA a946e04 (core, optional) — the floor the run started on (a toll the purse could not pay starts it on D1)
   stake?: Stake;                                                          // Cut 2 §7: what is on the line right now
   vision?: number;                                                        // Cut 3: the hero's sight radius on this floor (Deep 4, else 7; +2 lantern)
   vault_choice?: VaultChoice;                                             // Cut 5 §4: an opened vault waiting for `choose(itemId)` (50-tick grace, then `vault_pref` picks)
@@ -88,6 +89,7 @@ export type StartOption = { start: number; current: boolean; toll?: number; biom
                             net?: number; net_delta?: number;   // core: `gold − toll` per send, and its move against the current start
                             death?: number;                     // Cut 22 §4: the death share of a send from this start (0..1), shown beside the bank move
                             death_delta?: number;               // core: its move against the current start
+                            passage?: number;                   // Cut 27 §1 (core): the passage a send from here is paid (`+$84 passage`, into the purse at the send; `gold`/`net` count it; 0 from D1 or when the set does not clear the floors above ≥ 95 %)
                             low?: number };                     // Cut 23 §2 (core): as Forecast.low — a `death` of 0 prints `<{low}%`
 /** Cut 2 §7 — loot on the hero, brought items (insured = kept on death), the row that would bank/return if any.
  *  Cut 6 §1: `kept` = what that row would bring home now (`$84 · keeps $50`). */
@@ -126,6 +128,7 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
 /** Cut 24 §2 (core) — one line of `ExitLine.news`: `k` first | record | named | find | situation | driven | learned | differ; `text` ≤ 6 words, lower case. */
 export type News = { k: "first" | "record" | "named" | "find" | "situation" | "driven" | "learned" | "differ"; text: string };
 export type DrivenOff = { boss: string; title: string; depth: number; verdict: string; defence: string; counter: string; row: Row;
+                          held?: number; over?: number;   // Cut 27 §5 (core): `verdict: "order"` — the counter row is in the set at `held` (0-based) under `over`, which acted first: show `R{held+1} under R{over+1}`; the fix is a move (row `held` above `over`), not a new row
                           run_id?: number; hp?: number; max_hp?: number; lost?: number };   // Cut 26 §6 (core; AP: a drive-off at 25/36 hp, no verdict screen): the run (open its verdict from the report), the hero's hp at the drive-off, the carry it lost
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
 export type GoldLine = { t: number; delta: number; why: string; n?: number; lost?: number };   // QA 912e135 (core): `lost` — on an exit's line, the carried gold the exit did not keep (`$0 died D6 · $157 lost`)
@@ -177,6 +180,7 @@ export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
 /** Cut 20 §5: `bounty` — tonight's bounty floor (the lineage best + 2: gold ×2 and a guaranteed item), the shaft's `D12 ×2`. */
 export type ForecastDepth = { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry; wall?: string; bounty?: boolean | number;
                               biome?: string;    // Cut 26 §2 (core): on a set with a route, the biome this floor sits in on it (`fens` at D5 for route [5]); absent on the base order
+                              clear?: number;    // Cut 27 §1 (core): the share of the sims on this floor that got through it (0..1); absent where no sim stood on it
                               boss?: string };   // Cut 24 §5 (core): on the floor a boss stands on (met there: the Warlord D8), his kind — name him on this row; the next row's `try` / `wall` are his
 export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share: number }[];
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
@@ -186,6 +190,7 @@ export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share
                          shadowed_by?: (number | null)[];                                                    // QA 92eb880: per row of the set (by index), the earlier row (0-based) that takes every moment it could fire — mark it `shadowed by R{n+1}`; null = free; absent = none shadowed   // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
                          sims?: number;                                  // Cut 23 §2 (core): the sims the shares were drawn from
                          low?: number;                                   // Cut 23 §2 (core): the smallest share one sim makes, in whole percent (⌈100 / sims⌉): a share sampled at 0 prints `<{low}%` (`death <2%`), never `0%`; a reach of 1.0 below `start` is not sampled (prints as is)
+                         fold_to?: number;                               // Cut 27 §1 (core): the last floor the watch folds for this set (every floor from `start` to it clears ≥ 95 %: `ForecastDepth.clear`); absent = nothing folds
                          vs?: ForecastVs };                              // Cut 22 §3: the paired move against the last painted set (absent without an edit, or on a core that answers `forecastVs(prev)` instead)
 /** Cut 22 §3 — an edit's paired move: this set's panel minus the previous set's, on the same seeds (so far tighter than either
  *  absolute bar). `delta`: the move (a 0..1 fraction, signed); `pm`: its own paired half-width — a move inside it reads `≈`. The
@@ -194,6 +199,35 @@ export type VsMove = { delta: number; pm?: number; base?: number };   // QA 912e
 export type ForecastVs = { depths: ({ depth: number; abs_pm?: number } & VsMove)[]; bank?: number | VsMove; death?: number | VsMove; return?: number | VsMove; gold?: number | VsMove;
                           stall?: VsMove;   // QA 912e135 (core): the stall share's move — a death traded for a stall reads (`stall 0→11%`)
                            sims?: number; refined?: boolean };   // QA 778fa1b (core): `refined` — the panels paired are the refined ones; a vs read before the refine is false, ask again after it   // core: `abs_pm` = the active bar's own ± at that depth; `sims` = the paired seeds both panels ran
+/** Cut 27 §1 (core) — a state change on a folded floor, a chip on the fold line. `kind`: `theft` · `find` · `gold` · `use` · `fact` ·
+ *  `dip` (the floor's lowest hp when ≤ 30 % of max) · `max_hp` · `pet` · `boss` · `bones` · `level` · `hatch`; `text` ≤ 3 words. */
+export type FoldBeat = { depth: number; t: number; kind: string; text: string };
+/** Cut 27 §1 (core) — one folded floor: its snapshot at its first tick (later entities/items and seen tiles folded in — as
+ *  `runlog.floorSnapshot`), its events (a tap on the fold line plays them: `load(snapshot)`, `apply(events)`), its clear, gold and beats. */
+export type FoldFloor = { depth: number; clear: number; gold: number; snapshot: Snapshot; events: Ev[]; beats: FoldBeat[] };
+/** Cut 27 §1 (core) — `fold()` right after `send()`: the live run played through the floors the set clears ≥ 95 % —
+ *  `D{from}–{to} · {clear%} · +${gold} · chips…` (`chips`: the line's words by kind, ≤ 3 words each, e.g. `stolen heal`, `2 finds`,
+ *  `hp 9/40`; `beats`: every state change, each on its floor). `step` is the fold as one `step()`: all its events, the snapshot on the
+ *  first unfolded floor (the watch opens there), `run_over`/`exit_pending` if the run ended inside it. Nothing folded: `to < from`,
+ *  no tick ran, `floors` empty, `step.snapshot` the current one. */
+export type FoldLine = { from: number; to: number; clear: number; gold: number; beats: FoldBeat[]; chips: string[]; floors: FoldFloor[]; step: StepResult };
+/** Cut 27 §2 (core) — how a divergence branch's whole run ended (the panel's own result for that seed). `tier`: bank · return · death · stall. */
+export type DivergenceEnd = { tier: string; depth: number; cause?: string; gold: number };
+/** Cut 27 §2 (core) — one branch's seconds: `snapshot` a few ticks before the divergence (the same state in both branches unless the
+ *  sets packed differently), `events` from it to ~60 ticks past the divergence tick (earlier at a descend or the run's end), `end_snapshot`
+ *  its last frame. `row`: the row (0-based, in its own set) that fired at the divergence tick (absent: none — a chore or a step);
+ *  `text` its words (`R5 bank`, `—`). */
+export type DivergenceBranch = { row?: number; text: string; snapshot: Snapshot; events: Ev[]; end_snapshot: Snapshot };
+/** Cut 27 §2 (core) — a row's mean fires per send in each set on the paired panel (`R3 fires 4× more`); indices 0-based, absent where
+ *  the set lacks the row. */
+export type RowFires = { sent_row?: number; new_row?: number; text: string; sent: number; new: number };
+/** Cut 27 §2 (core) — the edit as a scene (`divergence(prev)`): on paired panel seed `seed` the first `tick` where the active set acts
+ *  differently from `prev` (the sent set), on floor `depth`; `sent_row`/`new_row` what fired there; the branches' next seconds
+ *  (`sent`, `new`: play them side by side / before-after on the renderer) and each whole run's end (`sent_end`/`new_end`: `lives · D9`
+ *  vs `dies · D7`). `moved`: the paired move's headline |Δ| (0..1, max over the shaft and the ends); `inside`: it sat within its ±
+ *  (show `≈ ±6 · R3 fires 4× more` from `fires`). Null from the engine: the sets play alike on every seed tried. */
+export type Divergence = { seed: number; tick: number; depth: number; sent_row?: number; new_row?: number; sent_end: DivergenceEnd; new_end: DivergenceEnd;
+                           sent: DivergenceBranch; new: DivergenceBranch; moved: number; inside: boolean; fires?: RowFires[]; sims: number };
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
 export type ForecastTry = { row: Row; text: string; boss?: string; met?: number };   // Cut 24 §5 (core): `met` — the floor the boss is met on (this row's depth − 1)
@@ -219,6 +253,8 @@ export type Trace = { turns: TraceTurn[];
  *  (`root.text` = `◆2 cond: alert`; the client buys the cond's unlock, then inserts the row at the top); `below_bar` marks a
  *  §4 candidate under the verdict bar (`survives 40% · below bar`), shown dimmed. */
 export type Patch = { row: Row; insert_at: number; survive: number; forecast_delta: number; replace?: boolean; remove?: boolean;
+                      gem?: boolean;       // Cut 27 §4 (core): after `deathDeltas` lands (death and stall screens) — the gem: the best whole-run patch that does not harm, always patches[0]; none flagged → no gem (`edit`)
+                      restores?: number;   // Cut 27 §5 (core): a row the player removed since an earlier send, restored at its old index (0-based, = insert_at): label `restore R{n+1}`
                       root?: { text: string }; below_bar?: boolean;
                       forecast_depth?: number; forecast_pm?: number;                         // QA 23ed91f: the camp bar `forecast_delta` moves (death's depth + 1, ≤ known_to) and its 95 % ± — set by `deathDeltas`
                       camp_pending?: boolean;                                                // QA 23ed91f: on `death()`'s patches — `forecast_delta` is the verdict's 12-sim ranking estimate, NOT the camp's; paint reach as pending until `deathDeltas(id)` lands
@@ -379,6 +415,7 @@ export interface Engine {
   step(turns: number): StepResult;     // advance live view
   runOffline(elapsedS: number): ReturnReport;
   runOfflineQuick(elapsedS: number): ReturnReport;   // no worst-death verdict (~3 s saved per slice)
+  runOfflineSlice?(elapsedS: number, last: boolean): ReturnReport;   // round 3: `runOfflineQuick`, and no stall verdict before the `last` slice
   death(runId: number): Death;
   /** QA 23ed91f: the death's shown patches (same order as `death(id).patches`) with the camp's own reach: `forecast_delta` is
    *  the camp forecast's bar move at `forecast_depth` once the patch is applied (same insert, same lineage state), `forecast_pm`
@@ -438,6 +475,9 @@ export interface Engine {
   // Cut 23
   buyKit?(slot: string): Lineage;       // §1: buy the next forge step of `weapon | armour | pack` (gold; permanent; ledger `forge <label>`)
   kitDeltas?(): KitLadder[];            // §1: `Lineage.kit` with each `next` measured (paired forecast; seconds in wasm — call after paint, memoised)
+  // Cut 27
+  fold?(): FoldLine;                    // §1: right after `send()` — plays the floors the set clears ≥ 95 % (`Forecast.fold_to` at the send) and returns the fold line; the watch opens on `step.snapshot` (foreground: it ticks the live run)
+  divergence?(prev: RuleSet): Divergence | null;   // §2: the edit as a scene against `prev` (the sent set) — background lane, after the forecast (reads its paired panels; ~one sim's cost)
 }
 export type UnlockInfo = { id: string; cost: number; owned: boolean; available: boolean; needs?: string;   // needs: Cut 2 §3, the gate still missing (absent once met)
                            delta?: number;                                                                 // Cut 4 §9: forecast reach delta of buying (0..1), tactic cards

@@ -1,0 +1,68 @@
+You are generating ENVIRONMENT PIXEL ART for the game "Riddle" (a phone roguelike seen top-down).
+FIRST look at /home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read nothing
+else in the repository). Its dungeon is the target: top-down dark-fantasy PIXEL ART — dressed stone
+walls with a lit capstone ledge and a brick front face, worn flagstone floors with moss and dried
+blood, iron torch sconces, barrels, crates, bones, a portcullis, crimson banners. Match that
+material language, that value range and that crisp pixel-art register.
+
+These briefs pin exact pixel rows and colours: for the TILES, DRAW each 16x16 grid pixel by pixel with a short PIL script
+(or image_gen, then snap it) — every pixel one palette colour, no noise; then scale up 64x, nearest. For the TILES you
+MAY use a short PIL script to snap the image to its 16x16 grid and to the palette below and to fix the rows a brief pins
+(then scale up 64x, nearest) — nothing else; do NOT touch anything outside /home/g/p/riddle/art/generated/. Do not leave
+_inspection_*.png or any other scratch file behind. If a file already exists at an output path,
+OVERWRITE it.
+
+=== HOW THESE ARE USED (critical) ===
+Each asset is a TINY pixel-art game tile: the game box-downscales the 1024 px image to the stated
+texel grid (16x16, 16x24 or 16x32 pixels). So paint it AS that tiny pixel-art tile, enlarged:
+- A crisp pixel grid of the stated size, every pixel a flat square block of one colour
+  (e.g. 16x16 -> each pixel is a 64x64 px flat block). No anti-aliasing, no gradients inside a
+  block, no blur, no painterly texture, no noise finer than one block.
+- Few, clear shapes; strong value structure; a 1-block dark edge where an object meets the
+  floor; key light from the UPPER-LEFT, always (lit top/left edges, shaded bottom/right edges).
+- Top-down three-quarter camera like watch.png (you see floors from above, wall FRONT faces and
+  object fronts slightly from above).
+- Opaque TILES ("bg: env") fill the whole square edge to edge and must TILE SEAMLESSLY with
+  copies of themselves (the edges continue across). Keep them muted and low-contrast: floors are
+  background and must never compete with the characters that stand on them.
+- The TILES of this batch keep their colours: paint them in the palette given below, with a clean value
+  structure (dark gaps, a mid field, a few lit edges).
+- Keyed decals/props ("bg: env_keyed"): the object on a flat, uniform, edge-to-edge pure blue
+  #0000FF background (RGB 0,0,255), nothing else in the image; no floor under it, no cast
+  shadow pool, no glow halo. Keep every object pixel at least RGB-distance 150 from (0,0,255): no
+  blue anywhere on the object. Object centred; ~6% margin.
+- Never: text, letters, logos, signatures, watermarks, photorealism, 3D render, smooth shading.
+
+=== THIS BATCH: ONE DUNGEON BIOME ===
+Every asset below belongs to the BURROWS: goblin-dug tunnels in WARM OCHRE packed earth, root-veined earth banks, shored with rough reddish timber posts and beams, pebbles, loot sacks. Dry, warm, cramped, organic; NO dressed flagstones, NO brick courses, NO water.
+The game already has a generic grey-olive flagstone set (watch.png's); THIS set must look like a DIFFERENT PLACE at a glance:
+different materials, different shapes, different layout of lines — not the same flagstones and brick courses recoloured. Keep
+the pixel-art rules above (flat blocks, the stated grid, upper-left light, a clear value structure: darkest joints/gaps, a mid
+field, a few lit edges). Paint the tiles in the palette below. All tiles of one kind (the four floors; the two wall faces) must share one value
+range so they mix together.
+
+=== THE PALETTE (critical for the TILES in this batch; props/keyed objects may ignore it) ===
+The game maps every pixel of a tile to the NEAREST of these 8 colours, so paint the tiles using ONLY these exact flat colours,
+each in its role (hue matters here: the earth must stay ochre, the roots dark, the timber reddish):
+- #140b05  near-black gaps and holes
+- #2b190b  deep earth shadow
+- #43280f  root, dark earth
+- #5e3f18  packed ochre earth (the field)
+- #7a5724  earth lit, pebbles
+- #a57d3a  brightest ochre highlight
+- #6b3a1e  timber (reddish wood)
+- #8e5530  timber lit edge
+Floors are mostly ONE flat field colour with a few features: calm, low-noise, never speckled.
+
+=== ASSETS ===
+--- 1. id: env_burrows_floor_2  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_burrows_floor_2.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: The same packed earth as floor_0 (#5e3f18 field, flat, no speckle) with a small cluster of 4 rounded PEBBLES near the lower-left (each 2x2: #7a5724 with a #a57d3a top-left pixel and a #2b190b bottom-right pixel) and one faint 5-pixel rut (#43280f) near the top-right. NO claw marks, no letter-like strokes. Seamless when tiled (edges continue across copies).
+
+--- 2. id: env_burrows_wall_face_0  (env_tile, bg: env)
+Output path: /home/g/p/riddle/art/generated/env_burrows_wall_face_0.png
+Size: exactly 1024x1024 px PNG, painted as a 16x16-pixel pixel-art tile (in-game size 16x16); 
+Brief: The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); seamless left-to-right. An EARTH BANK VEINED WITH ROOTS, drawn in FLAT colour areas with NO single-pixel speckle: rows 0-2 the lip, packed earth #7a5724 with row 0 #a57d3a; rows 3-15 a flat #2b190b field; over it 3 thick ROOTS, each a continuous 2-pixel-wide #43280f line with a #7a5724 pixel on its upper side every 3 pixels: root A from (1,3) curving down to (5,15), root B from (8,3) down to (12,12) ending in a 3-pixel dangling tip, root C from (15,6) to (10,15); two pebbles (2x2 #5e3f18 with a #140b05 corner) at (3,10) and (13,5). Nothing else. No bricks, no planks.
+
+When all assets are saved, list the final paths and their pixel sizes. Do nothing else.

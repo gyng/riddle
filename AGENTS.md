@@ -33,13 +33,13 @@ research/              the four research reports behind the plan
 ## Commands (iteration tiers — use the cheapest that answers the question)
 
 ```sh
-tools/verify.sh --quick        # tests (fast profile) ∥ tsc + copy-lint            ~13 s
-tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~2 min
-tools/verify.sh --full         # + shipping wasm → full gate table                  ~5 min
-cargo test -q --workspace --profile fast                     # ~9 s warm; never plain `cargo test` (7× slower)
-node tools/gates.mjs [--full] [--fresh]                      # quick: 8 seeds × 8 h × 3 verdicts + dayplayer + the wire invariants (examples/qa.rs) alongside (~90 s); full: 30 × 8 × 8 (~3.5 min); cached by binary hash — a client-only change reprints in 0.2 s
-(cd web && pnpm -s test)                                     # the client gates, all at once, headless (~30 s); `node tests/run.mjs fights cut12` for a few
-tools/wasm.sh [--ship]                                       # fast wasm (~15 s incremental) / wasm-pack release (~40 s)
+tools/verify.sh --quick        # tests (fast profile) ∥ tsc + copy-lint            ~45 s
+tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~5 min (the quick gate ~4 min fresh)
+tools/verify.sh --full         # + shipping wasm → full gate table                  ~11 min
+cargo test -q --workspace --profile fast                     # ~36 s warm (CPU-bound on the cores); never plain `cargo test` (7× slower)
+node tools/gates.mjs [--full] [--fresh]                      # quick: 8 seeds × 8 h × 3 verdicts + dayplayer + the wire invariants (examples/qa.rs) alongside (~4 min); full: 30 × 8 × 8 (~8 min on a shared box); each leg cached by its own binary hash — a client-only change reprints in 0.2 s, a new qa invariant reruns qa alone
+(cd web && pnpm -s test)                                     # the client gates, headless, on the suite's own no-HMR Vite server (~5 min); `node tests/run.mjs fights clarity:paint` for a few
+tools/wasm.sh [--ship]                                       # fast wasm (~8 s after a core edit) / wasm-pack release (~2 min)
 tools/ship.sh [--preview]                                    # cohort build on :5230 (fat LTO, ~2 min); --preview: fast wasm, ~25 s, for QA rounds
 cargo run -q --profile fast -p riddle-core --example cli -- --seed 1 --rules crates/riddle-core/presets/good.json --runs 3
 cargo run -q --profile fast -p riddle-core --example timing -- 1 8   # where a gate job spends its time

@@ -376,19 +376,24 @@ impl Gate {
 /// lane, and its gold/hr on its own. The gate picks each lane's best on the pooled reads (the
 /// search's own 48-sim numbers carry a winner's curse; the gate reads every candidate afresh).
 pub fn gate_seed(found: &[Found], fork: u32, seed: u64, n: u32) -> Vec<(usize, f64, f64, f64)> {
+    gate_candidates(found, fork).into_iter().map(|i| gate_one(found, fork, seed, n, i)).collect()
+}
+
+/// The candidates `gate_seed` reads at `fork`: each distinct (lane, set) once, in `found` order.
+pub fn gate_candidates(found: &[Found], fork: u32) -> Vec<usize> {
+    (0..found.len()).filter(|&i| found[i].fork == fork && !found[..i].iter().any(|o| o.fork == fork && o.lane == found[i].lane && o.set.rows == found[i].set.rows)).collect()
+}
+
+/// One candidate's read on one seed (its own game): `gate_seed`'s entry for `i` — the metrics
+/// pool runs these as jobs of their own (a seed's 21 candidates were one 3-minute job).
+pub fn gate_one(found: &[Found], fork: u32, seed: u64, n: u32, i: usize) -> (usize, f64, f64, f64) {
     let lanes = lanes(fork);
-    let mut out = Vec::new();
-    for (i, f) in found.iter().enumerate() {
-        if f.fork != fork || found[..i].iter().any(|o| o.fork == fork && o.lane == f.lane && o.set.rows == f.set.rows) {
-            continue;
-        }
-        let game = lane_game(&f.set, seed, fork);
-        let set = game.lineage.rules().clone();
-        let own = read(&sends(&game, &set, lanes[f.lane], fork, n), fork);
-        let cross = read(&sends(&game, &set, lanes[1 - f.lane], fork, n), fork);
-        out.push((i, own.reach, cross.reach, own.gold_hr));
-    }
-    out
+    let f = &found[i];
+    let game = lane_game(&f.set, seed, fork);
+    let set = game.lineage.rules().clone();
+    let own = read(&sends(&game, &set, lanes[f.lane], fork, n), fork);
+    let cross = read(&sends(&game, &set, lanes[1 - f.lane], fork, n), fork);
+    (i, own.reach, cross.reach, own.gold_hr)
 }
 
 /// The gate from the pooled `gate_seed` reads: each lane's best candidate (the highest mean own

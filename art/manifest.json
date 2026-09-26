@@ -751,6 +751,826 @@
       "gen": "1024x1024",
       "texels": "16x16",
       "description": "A small pile of GOLD COINS: 5-7 round gold coins stacked and scattered, bright yellow-gold with pale highlight pixels on their top edges and ochre-brown shadow edges. Dark outline all round. Fills about 60% of the tile, bottom-centred. Flat #0000FF background."
+    },
+    {
+      "id": "env_burrows_floor_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "floor_0",
+      "description": "The calm, common Burrows floor: PACKED OCHRE EARTH. One flat earth colour covers about 80% of the tile; 2-3 tiny PEBBLES (2x2: a lit top-left pixel, a dark bottom-right pixel) and one faint darker rut 4-5 pixels long. No stones grid, no mortar, no roots. Quiet. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_burrows_floor_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "floor_1",
+      "description": "The same packed earth as floor_0 (#5e3f18 field) crossed by ONE thick ROOT: a continuous 2-pixel-wide root (#43280f) that enters at the left edge on rows 7-8 and leaves at the right edge on rows 7-8 (so it tiles), gently wavy (rising to rows 5-6 in the middle), its upper edge lit (#7a5724) on every third pixel, one 3-pixel side-branch going down. No dotted line: the root is one solid continuous shape. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_burrows_floor_2",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "floor_2",
+      "description": "The same packed earth as floor_0 (#5e3f18 field, flat, no speckle) with a small cluster of 4 rounded PEBBLES near the lower-left (each 2x2: #7a5724 with a #a57d3a top-left pixel and a #2b190b bottom-right pixel) and one faint 5-pixel rut (#43280f) near the top-right. NO claw marks, no letter-like strokes. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_burrows_floor_3",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "floor_3",
+      "description": "The same packed earth as floor_0 (#5e3f18 field, no speckle) with a shallow dug HOLLOW: a solid darker oval (#43280f) about 7x4 pixels in the middle, its lower-right rim lit (#7a5724), its upper-left edge #2b190b; 2 loose clods (2x2, #7a5724 with a #43280f pixel) beside it. Everything else the flat field. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_burrows_wall_face_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "wall_face_0",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); seamless left-to-right. An EARTH BANK VEINED WITH ROOTS, drawn in FLAT colour areas with NO single-pixel speckle: rows 0-2 the lip, packed earth #7a5724 with row 0 #a57d3a; rows 3-15 a flat #2b190b field; over it 3 thick ROOTS, each a continuous 2-pixel-wide #43280f line with a #7a5724 pixel on its upper side every 3 pixels: root A from (1,3) curving down to (5,15), root B from (8,3) down to (12,12) ending in a 3-pixel dangling tip, root C from (15,6) to (10,15); two pebbles (2x2 #5e3f18 with a #140b05 corner) at (3,10) and (13,5). Nothing else. No bricks, no planks."
+    },
+    {
+      "id": "env_burrows_wall_face_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "wall_face_1",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3 pixel rows are a lighter lip running edge to edge; seamless left-to-right. TIMBER SHORING in the earth bank: a horizontal timber BEAM forms the lip (3 pixels tall, full width, reddish timber, lit top row, dark bottom row, two peg heads); under it a heavy vertical timber POST 4 pixels wide in the middle (lit left column, dark right column), dug earth with one root vein either side of the post. No bricks."
+    },
+    {
+      "id": "env_burrows_wall_top",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "wall_top",
+      "description": "The TOP of the thick earth mass seen straight down, dark and unlit (clearly darker than the floor), low contrast: heaped dark earth and clods with a few root fibres, organic lumpy shapes, using only the three darkest colours. Seamless in every direction."
+    },
+    {
+      "id": "env_burrows_door",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "door",
+      "description": "A crude goblin DOOR in an earth bank, front-on: 4 rough vertical timber planks (reddish timber) with ragged tops and near-black gaps, tied with two dark rope bands, between two timber posts under a timber lintel; dark earth either side."
+    },
+    {
+      "id": "env_burrows_stairs_down",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "stairs_down",
+      "description": "A dug EARTHEN STAIR going DOWN into a dark tunnel mouth, seen from above: three short steps, each with a reddish timber RISER board along its front edge, each lower step darker, the bottom a near-black hole; root-veined earth banks left and right."
+    },
+    {
+      "id": "env_burrows_stairs_up",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "stairs_up",
+      "description": "Dug earthen steps going UP, seen from above: three steps with reddish timber riser boards, the TOP step the lightest ochre, root-veined earth banks left and right."
+    },
+    {
+      "id": "env_burrows_barrel",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "barrel",
+      "description": "A LARGE lumpy burlap LOOT SACK tied at the neck with dark rope, filling about 75% of the tile: PALE straw-beige cloth (much paler than earth), a clear lit left side and a dark right side, two gold coins spilling from the open neck, a sewn patch. Three-quarter top-down view. Flat #0000FF background."
+    },
+    {
+      "id": "env_burrows_crate",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "crate",
+      "description": "A crude goblin CRATE of rough mismatched planks nailed crooked, three-quarter top-down view (lighter top face, darker front face), a bone tied to one corner. Flat #0000FF background."
+    },
+    {
+      "id": "env_burrows_pot",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "burrows",
+      "name": "pot",
+      "description": "A big dented iron COOKING POT (a cauldron) seen from a top-down three-quarter camera, FILLING about 70% of the tile: a wide round black-iron belly, a thick lighter rim ellipse on top with a dark opening inside it, a wooden ladle handle sticking up out of it, two small stubby legs. Lit upper-left with a clear grey highlight on the rim and belly. The previous attempt was tiny and all black: make it LARGE and readable. Flat #0000FF background."
+    },
+    {
+      "id": "env_fens_floor_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "floor_0",
+      "description": "The calm, common Fens floor: a BOARDWALK of 4 horizontal planks, each 3 pixels tall, rows 3, 7, 11 and 15 are 1-pixel gaps of deep water (#0c2426). Each plank is LONG: one single butt joint (1 near-black pixel, #060f0f, 1 pixel wide over the plank's 3 rows) per plank, at x = 3, 11, 6, 13 for the four planks. Planks are the plank colour #4f4d3b; ONLY 2-3 lit pixels (#6e6b52) at the top-left end of each plank (NOT a lit row along every plank: that reads as bricks); one 4-6 pixel grain streak (#373628) on two of the planks. Nothing else. It must read as long wooden boards over dark water, not as bricks or stone courses. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_fens_floor_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "floor_1",
+      "description": "The same boardwalk as floor_0 (a BOARDWALK of 4 horizontal planks, each 3 pixels tall, rows 3, 7, 11 and 15 are 1-pixel gaps of deep water (#0c2426). Each plank is LONG: one single butt joint (1 near-black pixel, #060f0f, 1 pixel wide over the plank's 3 rows) per plank, at x = 3, 11, 6, 13 for the four planks. Planks are the plank colour #4f4d3b; ONLY 2-3 lit pixels (#6e6b52) at the top-left end of each plank (NOT a lit row along every plank: that reads as bricks); one 4-6 pixel grain streak (#373628) on two of the planks), but the second plank (rows 4-6) is MISSING from x=5 to x=11: that hole is teal bog WATER (#174040, one 3-pixel ripple dash #2a5d55), with a near-black (#060f0f) texel at each splintered plank end. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_fens_floor_2",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "floor_2",
+      "description": "A POOL in the boardwalk: the top plank (rows 0-2) and the bottom plank (rows 12-14) as in floor_0 (plank colour, one joint each, 2 lit pixels), deep-water gaps on rows 3 and 15; rows 4-11 are open teal WATER edge to edge: #174040 field, a 1-pixel darker band (#0c2426) on row 4 under the plank, one LILY PAD (#46663a, 3x2, a notch) and two short ripple dashes (#2a5d55, 2-3 pixels). Flat and calm, no speckle. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_fens_floor_3",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "floor_3",
+      "description": "The same boardwalk as floor_0 (a BOARDWALK of 4 horizontal planks, each 3 pixels tall, rows 3, 7, 11 and 15 are 1-pixel gaps of deep water (#0c2426). Each plank is LONG: one single butt joint (1 near-black pixel, #060f0f, 1 pixel wide over the plank's 3 rows) per plank, at x = 3, 11, 6, 13 for the four planks. Planks are the plank colour #4f4d3b; ONLY 2-3 lit pixels (#6e6b52) at the top-left end of each plank (NOT a lit row along every plank: that reads as bricks); one 4-6 pixel grain streak (#373628) on two of the planks) with a clump of 5 thin vertical REED blades (#46663a, the top pixel of each #6e6b52), 4-6 pixels tall, rising from the gap on row 11 near x=12, drawn over the planks above it. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_fens_wall_face_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "wall_face_0",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3 pixel rows are a lighter lip running edge to edge; seamless left-to-right. A ROTTING LOG PALISADE standing in water: the lip is the flat-cut log tops (plank-lit colour); below it 4 vertical round LOGS, each 3 pixels wide (a lit left column, a plank-colour middle, a dark right column) with 1-pixel near-black gaps between them; one horizontal rope lashing across all logs at row 5; two strands of hanging MOSS (reed green) dripping down two logs; the bottom 2 rows are the logs' feet in dark water. No bricks, no stones."
+    },
+    {
+      "id": "env_fens_wall_face_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "wall_face_1",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3 pixel rows are a lighter lip running edge to edge; seamless left-to-right. The SAME log palisade (same lip, same 3-pixel logs and 1-pixel dark gaps, same rope at row 5, same water at the feet) but a thick curtain of hanging MOSS and weed (reed green, a few pale tips) covers the middle two logs from the rope down. No bricks, no stones."
+    },
+    {
+      "id": "env_fens_wall_top",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "wall_top",
+      "description": "The TOP of the wall mass seen straight down, dark and calm: a flat #060f0f field with a few long diagonal reed strokes (#0c2426 and a few #373628, each 3-5 pixels long, 1 pixel wide), no speckle, no single-pixel noise. Seamless in every direction."
+    },
+    {
+      "id": "env_fens_door",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "door",
+      "description": "A sagging swamp GATE front-on: two log posts (3 pixels wide, #4f4d3b with a #6e6b52 left column and #373628 right column) at x=0-2 and x=13-15; between them 4 vertical boards (#4f4d3b, lit top pixel #6e6b52) with 1-pixel near-black (#060f0f) gaps, one diagonal brace board (#373628) from lower-left to upper-right, a strand of moss (#46663a) hanging from the top; the bottom 2 rows dark water (#0c2426). Flat colour areas, no speckle."
+    },
+    {
+      "id": "env_fens_stairs_down",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "stairs_down",
+      "description": "Wooden PLANK STEPS going DOWN into water, seen from above, flat colours, no speckle: rows 0-3 a plank step (#4f4d3b, top row #6e6b52), row 4 near-black; rows 5-7 a second plank step one shade darker (#373628); row 8 near-black; rows 9-11 a third step half under water (#174040 with #373628 plank edges); rows 12-15 deep water (#0c2426 fading to #060f0f). Log posts (#373628, 2 pixels wide) at x=0-1 and x=14-15."
+    },
+    {
+      "id": "env_fens_stairs_up",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "stairs_up",
+      "description": "Wooden PLANK STEPS going UP out of the water, seen from above, flat colours, no speckle: rows 0-3 the top step, the lightest (#6e6b52 top row, #4f4d3b), row 4 near-black; rows 5-8 a second plank step (#4f4d3b), row 9 near-black; rows 10-12 a third step (#373628); rows 13-15 water (#174040). Log posts (#373628, 2 pixels wide) at x=0-1 and x=14-15."
+    },
+    {
+      "id": "env_fens_water",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "water",
+      "description": "Deep open BOG WATER, NO planks, calm and FLAT: the field is ONE colour, water #174040, over 80% of the tile; a few soft darker patches of #0c2426 (3-5 pixel blobs, not speckle); 3 short horizontal ripple dashes (#2a5d55, 2-4 pixels long); one LILY PAD (#46663a disc 4x3 with a notch, one #6e6b52 highlight pixel). No near-black noise. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_fens_barrel",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "barrel",
+      "description": "A rotten TREE STUMP with a few roots and a shelf fungus on its side, three-quarter top-down view, the cut top showing growth rings, lit upper-left. Flat #0000FF background."
+    },
+    {
+      "id": "env_fens_crate",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "crate",
+      "description": "A woven wicker FISH TRAP / creel basket lying on its side, three-quarter view, criss-cross weave, a dark funnel mouth. Flat #0000FF background."
+    },
+    {
+      "id": "env_fens_pot",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "pot",
+      "description": "A tall clay JAR crusted with moss and slime, a cracked lip, three-quarter top-down view, lit upper-left. Flat #0000FF background."
+    },
+    {
+      "id": "env_crypt_floor_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "floor_0",
+      "description": "Large regular BURIAL SLABS: two big rectangular stone slabs side by side (each the full tile height), crisp dark joints, each slab with a thin ENGRAVED border line inset 2 pixels from its edge. Cold and orderly. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_crypt_floor_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "floor_1",
+      "description": "A GRAVE SLAB set in the floor: one big rectangular slab with an engraved CROSS/ankh-like mark (simple, not a letter) and a carved border, surrounded by a 2-pixel frame of small stones. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_crypt_floor_2",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "floor_2",
+      "description": "Worn dressed flagstones in a strict square grid of 4 equal squares, crisp dark joints, one square with a hairline crack and a scatter of grave dust. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_crypt_floor_3",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "floor_3",
+      "description": "A cracked burial slab with a corner broken away revealing a dark void beneath, bone chips at the break, the rest a large engraved-border slab. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_crypt_wall_face_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "wall_face_0",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3-4 pixel rows are a lighter ledge/lip running edge to edge; seamless left-to-right. An OSSUARY wall: under a carved stone cornice, two rows of small arched NICHES (dark hollows), each niche holding a pale SKULL (a round lit dome with two dark eye dots). Stone between the niches. No bricks."
+    },
+    {
+      "id": "env_crypt_wall_face_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "wall_face_1",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3-4 pixel rows are a lighter ledge/lip running edge to edge; seamless left-to-right. The same ossuary wall section but the niches hold stacked long BONES (horizontal pale bars) instead of skulls, under the same carved cornice; interchangeable with the skull version."
+    },
+    {
+      "id": "env_crypt_wall_top",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "wall_top",
+      "description": "The TOP of the thick wall mass seen straight down, dark and unlit (darker than the floor), low contrast. Seamless in every direction. Large smooth dressed ashlar blocks in a regular grid with thin dark joints, cold and orderly."
+    },
+    {
+      "id": "env_crypt_door",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "door",
+      "description": "A heavy carved STONE TOMB DOOR front-on in a pointed arch: two tall stone leaves meeting in the middle with a dark seam, each leaf with a carved recessed panel, a round iron RING handle on each; a carved arch frame around."
+    },
+    {
+      "id": "env_crypt_stairs_down",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "stairs_down",
+      "description": "Narrow steep carved STONE STEPS going DOWN into a dark crypt, seen from above: four steps between two carved stone balustrades, each step darker, the bottom black."
+    },
+    {
+      "id": "env_crypt_stairs_up",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "stairs_up",
+      "description": "Narrow carved stone steps going UP between two carved balustrades, seen from above, top step lightest."
+    },
+    {
+      "id": "env_crypt_barrel",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "barrel",
+      "description": "A stone SARCOPHAGUS short end-on / a lidded stone chest-tomb, three-quarter top-down view, carved lid with a raised rim, lit upper-left, dark front. Flat #0000FF background."
+    },
+    {
+      "id": "env_crypt_crate",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "crate",
+      "description": "A plain wooden COFFIN lying lengthwise diagonally, three-quarter top-down view, the classic six-sided shape, the lid slightly ajar showing a dark gap. Flat #0000FF background."
+    },
+    {
+      "id": "env_crypt_pot",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "crypt",
+      "name": "pot",
+      "description": "A lidded funerary URN with two small handles and a knob on the lid, a carved band, three-quarter top-down view, lit upper-left. Flat #0000FF background."
+    },
+    {
+      "id": "env_foundry_floor_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "floor_0",
+      "description": "Riveted IRON FLOOR PLATES: four square steel plates in a grid with dark seams, a raised RIVET (lit dot) at each plate corner, a diamond tread texture faint on two plates. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_foundry_floor_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "floor_1",
+      "description": "An iron GRATING in the floor: a grid of thick lit iron bars with dark square holes between them, and a faint lighter glow in the holes (embers far below), a solid plate frame around. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_foundry_floor_2",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "floor_2",
+      "description": "Floor of scorched BRICK PAVERS laid in a herringbone pattern with ash and a few slag droplets. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_foundry_floor_3",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "floor_3",
+      "description": "Iron floor plate with a thick PIPE running horizontally across it (a lit round top, dark underside, a flange ring with bolts), plate seams around. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_foundry_wall_face_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "wall_face_0",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3-4 pixel rows are a lighter ledge/lip running edge to edge; seamless left-to-right. An INDUSTRIAL wall: riveted iron plates (rows of lit rivet dots along the seams) over the lower two thirds, a thick horizontal PIPE running across just under the top ledge with a valve wheel. No stone bricks."
+    },
+    {
+      "id": "env_foundry_wall_face_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "wall_face_1",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3-4 pixel rows are a lighter ledge/lip running edge to edge; seamless left-to-right. Soot-blackened firebrick in stretcher bond with an iron BAND and rivets across the middle and a small dark vent grille; interchangeable with the plated version."
+    },
+    {
+      "id": "env_foundry_wall_top",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "wall_top",
+      "description": "The TOP of the thick wall mass seen straight down, dark and unlit (darker than the floor), low contrast. Seamless in every direction. Thick iron plating seen from above: large plates with dark seams and a few bolt heads, soot streaks."
+    },
+    {
+      "id": "env_foundry_door",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "door",
+      "description": "A heavy IRON BLAST DOOR front-on: a single thick riveted steel slab in a steel frame, a big horizontal locking BAR across the middle and a round valve WHEEL on it, hazard-like diagonal notches on the frame."
+    },
+    {
+      "id": "env_foundry_stairs_down",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "stairs_down",
+      "description": "Iron GRATED STAIRS going DOWN into a dark forge pit, seen from above: four open-grate steel steps with lit front edges, each darker, between two steel handrail stringers, the bottom black."
+    },
+    {
+      "id": "env_foundry_stairs_up",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "stairs_up",
+      "description": "Iron grated steel steps going UP between two steel stringers, seen from above, top step lightest, lit front edges."
+    },
+    {
+      "id": "env_foundry_water",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "water",
+      "description": "A channel of MOLTEN METAL seen from above: bright glowing liquid with a darker cooling crust in floating patches and a few bright bubbles. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_foundry_barrel",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "barrel",
+      "description": "A blacksmith's ANVIL on a squat wooden stump, three-quarter top-down view: the horn pointing right, a lit flat top face, dark iron body. Flat #0000FF background."
+    },
+    {
+      "id": "env_foundry_crate",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "crate",
+      "description": "An iron COAL BIN / ore tub with riveted sides, heaped with dark lumps of coal and two glinting ore chunks on top, three-quarter top-down view. Flat #0000FF background."
+    },
+    {
+      "id": "env_foundry_pot",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "foundry",
+      "name": "pot",
+      "description": "A clay-and-iron CRUCIBLE: a tapered heavy vessel with a pouring lip, glowing bright metal inside its dark mouth, three-quarter top-down view. Flat #0000FF background."
+    },
+    {
+      "id": "env_deep_floor_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "floor_0",
+      "description": "Natural CAVE FLOOR: uneven bare rock with soft irregular lumps and hollows (no straight lines, no slabs), a few small pebbles. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_deep_floor_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "floor_1",
+      "description": "Natural cave rock floor with a long irregular FISSURE crack running across and a few loose shards. No slabs. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_deep_floor_2",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "floor_2",
+      "description": "Cave floor with a small cluster of pale CRYSTAL shards (3 thin angular spikes with a lit face each) growing from the rock in one corner, rest bare uneven rock. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_deep_floor_3",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "floor_3",
+      "description": "Cave floor with a tiny cluster of pale round-capped FUNGUS/mushrooms (3 small caps) and a damp dark patch, rest uneven rock. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_deep_wall_face_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "wall_face_0",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3-4 pixel rows are a lighter ledge/lip running edge to edge; seamless left-to-right. A NATURAL CAVE WALL: jagged irregular rock face (no bricks, no courses) with big angular facets lit on their upper-left, and two pointed STALACTITE drips hanging from the top ledge."
+    },
+    {
+      "id": "env_deep_wall_face_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "wall_face_1",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3-4 pixel rows are a lighter ledge/lip running edge to edge; seamless left-to-right. The same jagged natural rock face with a vein of pale crystal running diagonally across it and a dark crevice; interchangeable with the other. No bricks."
+    },
+    {
+      "id": "env_deep_wall_top",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "wall_top",
+      "description": "The TOP of the thick wall mass seen straight down, dark and unlit (darker than the floor), low contrast. Seamless in every direction. Rounded dark boulders and rock masses crammed together, irregular, no grid."
+    },
+    {
+      "id": "env_deep_door",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "door",
+      "description": "A natural ROCK CLEFT passage front-on: a tall narrow irregular dark opening in a jagged rock face, a rough wooden brace wedged across it and an old hanging chain; the opening is the darkest value."
+    },
+    {
+      "id": "env_deep_stairs_down",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "stairs_down",
+      "description": "Rough natural ROCK LEDGES descending into a black abyss, seen from above: three irregular broken ledges stepping down, each darker, the bottom pitch black."
+    },
+    {
+      "id": "env_deep_stairs_up",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "stairs_up",
+      "description": "Rough natural rock ledges climbing UP, seen from above, irregular, top ledge lightest."
+    },
+    {
+      "id": "env_deep_water",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "water",
+      "description": "A black still UNDERGROUND POOL seen from above: near-black water with 3 single-pixel pale glints like reflected crystals and one faint ring ripple. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_deep_barrel",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "barrel",
+      "description": "A STALAGMITE: a pointed conical rock spire rising from a wide base, three-quarter view, lit upper-left, dark right side, a drip ring at the tip. Flat #0000FF background."
+    },
+    {
+      "id": "env_deep_crate",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "crate",
+      "description": "A cluster of pale CRYSTALS: 4-5 angular prismatic crystal spikes of different heights growing from a rock base, flat facets lit upper-left. Flat #0000FF background."
+    },
+    {
+      "id": "env_deep_pot",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "deep",
+      "name": "pot",
+      "description": "A clump of tall pale cave MUSHROOMS: three stalks with round caps of different sizes, the caps lit on top with pale dots, three-quarter view. Flat #0000FF background."
+    },
+    {
+      "id": "env_sanctum_floor_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "floor_0",
+      "description": "Polished MARBLE floor in a DIAGONAL CHECKER: diamond-shaped tiles alternating two close light values, crisp thin dark joints, one small inlaid square dot at each diamond meeting point. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_sanctum_floor_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "floor_1",
+      "description": "A marble floor MEDALLION: a circular ROSETTE inlay (a ring with 8 petal points) centred in the tile on a pale marble field, thin joint lines to the edges. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_sanctum_floor_2",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "floor_2",
+      "description": "Large pale marble slabs with a thin INLAID border band (a bright metal line) running along two edges, polished, crisp joints. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_sanctum_floor_3",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "floor_3",
+      "description": "A pale marble slab CRACKED through with a dark branching crack and a chipped corner, the other slabs whole. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_sanctum_wall_face_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "wall_face_0",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3-4 pixel rows are a lighter ledge/lip running edge to edge; seamless left-to-right. A TEMPLE WALL: two FLUTED PILASTERS (vertical columns with lit and dark flutes and a capital block at the top) at the left and right, between them a recessed pale panel with a round-arched niche outline; a carved frieze ledge on top."
+    },
+    {
+      "id": "env_sanctum_wall_face_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "wall_face_1",
+      "description": "The FRONT FACE of a wall seen from a top-down three-quarter camera (the face points DOWN the screen, toward the viewer); the top 3-4 pixel rows are a lighter ledge/lip running edge to edge; seamless left-to-right. Smooth pale ashlar courses with a bright gilded trim band across the middle and a carved egg-and-dart frieze on the top ledge; interchangeable with the pilaster version."
+    },
+    {
+      "id": "env_sanctum_wall_top",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "wall_top",
+      "description": "The TOP of the thick wall mass seen straight down, dark and unlit (darker than the floor), low contrast. Seamless in every direction. Smooth pale dressed stone slabs with fine joints and a thin bright trim line along one edge."
+    },
+    {
+      "id": "env_sanctum_door",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "door",
+      "description": "A gilded DOUBLE DOOR front-on in a round arch: two tall panelled doors with bright metal studs and two ring handles, a carved arch frame with a keystone above, a dark seam between the leaves."
+    },
+    {
+      "id": "env_sanctum_stairs_down",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "stairs_down",
+      "description": "Wide pale MARBLE STEPS going DOWN, seen from above: four wide steps with crisp lit front edges between two carved stone plinths, each step darker, the bottom in shadow."
+    },
+    {
+      "id": "env_sanctum_stairs_up",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "stairs_up",
+      "description": "Wide pale marble steps going UP between carved plinths, seen from above, top step lightest, crisp lit edges."
+    },
+    {
+      "id": "env_sanctum_water",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "water",
+      "description": "A still REFLECTING POOL seen from above: calm pale-grey water with a mirrored soft light band and two thin ripple lines. Seamless when tiled (edges continue across copies)."
+    },
+    {
+      "id": "env_sanctum_barrel",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "barrel",
+      "description": "A stone BRAZIER on a fluted pedestal, a shallow bowl on top holding pale glowing coals, three-quarter view, lit upper-left. Flat #0000FF background."
+    },
+    {
+      "id": "env_sanctum_crate",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "crate",
+      "description": "An ornate RELIQUARY CHEST seen from a top-down three-quarter camera, filling most of the tile: a PALE IVORY-WHITE stone chest (like marble) with a rounded domed lid, a single thin GOLD band across the lid and one gold clasp on the front. Simple big shapes: the lid lighter, the front face darker, a clear 1-pixel dark outline. NO red, NO brown, no clutter. The previous attempt was a noisy red-brown jumble. Flat #0000FF background."
+    },
+    {
+      "id": "env_sanctum_pot",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "sanctum",
+      "name": "pot",
+      "description": "A tall elegant AMPHORA vase with two curled handles and a narrow neck, a decorated band, three-quarter view, lit upper-left. Flat #0000FF background."
     }
   ]
 }

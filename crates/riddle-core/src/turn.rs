@@ -120,13 +120,38 @@ fn foe_reasons(t: &mut TraceTurn, running: i32) {
     }
 }
 
-/// The cached hero distance field, recomputed when the hero has moved.
+/// The cached hero distance field, recomputed when the hero has moved (the whole floor).
 pub fn hero_dist(run: &mut Run) -> &[i32] {
+    hero_flood(run, None, None);
+    &run.hero_dist
+}
+
+/// The hero distance field settled for every tile within `steps` of him: those read their
+/// distance, any farther tile its distance or −1 (not yet flooded).
+pub fn hero_dist_within(run: &mut Run, steps: i32) -> &[i32] {
+    hero_flood(run, None, Some(steps));
+    &run.hero_dist
+}
+
+/// The hero distance field settled as far as `to` (the whole floor when `to` is unreachable):
+/// every tile nearer the hero than `to` has its distance, `to` too — all a monster's step down
+/// the field reads (`Map::step_down` takes a neighbour only if it is nearer than the monster's
+/// own tile). Tiles past it may still read −1. The floods of the monsters' approach were a
+/// fifth of a sim's time, most of each past the monster.
+pub fn hero_dist_to(run: &mut Run, to: Pos) -> &[i32] {
+    let at = run.floor.map.in_bounds(to).then(|| run.floor.map.idx(to));
+    hero_flood(run, Some(at.unwrap_or(usize::MAX)), None);
+    &run.hero_dist
+}
+
+fn hero_flood(run: &mut Run, until: Option<usize>, within: Option<i32>) {
     if run.hero_dist_pos != Some(run.hero.pos) || run.hero_dist.len() != run.floor.map.tiles.len() {
-        run.hero_dist = run.floor.map.bfs(run.hero.pos, false, &|_| false);
+        run.floor.map.flood_start(run.hero.pos, &mut run.hero_dist, &mut run.hero_flood, &mut run.hero_flood_head);
         run.hero_dist_pos = Some(run.hero.pos);
     }
-    &run.hero_dist
+    // (an out-of-bounds `to` has no tile to wait for: the flood runs out, as `None`)
+    let until = until.filter(|&u| u < run.hero_dist.len());
+    run.floor.map.flood_resume(&mut run.hero_dist, &mut run.hero_flood, &mut run.hero_flood_head, until, within);
 }
 
 pub fn tick(run: &mut Run, cx: &mut Ctx) {
@@ -217,6 +242,51 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
     trace_seen(run, None);
 }
 
+/// Cut 27 §3 (AO, AS: bank beat return on every number — both walked to the up-stairs, the
+/// same walk at 60 % against 100 %; on the cohort sets most deaths of a banking set were on
+/// that walk): the ticks a return walks before he is out where he stands (his own actions:
+/// `RETURN_TICKS / TICKS_PER_TURN`). A bank must reach the stairs.
+pub const RETURN_TICKS: u32 = 60;
+
+/// The committed walk home is a return's and its `RETURN_TICKS` are spent.
+pub fn return_due(run: &Run) -> bool {
+    run.over.is_none() && run.homeward.is_some() && !run.homeward_bank && run.home_at.is_some_and(|(t, ..)| run.turn >= t + RETURN_TICKS)
+}
+
+/// Ticks left of a committed return's walk (`None`: no return walking).
+pub fn return_left(run: &Run) -> Option<u32> {
+    if run.homeward.is_none() || run.homeward_bank {
+        return None;
+    }
+    run.home_at.map(|(t, ..)| (t + RETURN_TICKS).saturating_sub(run.turn))
+}
+
+/// Cut 27 §3: the carry's scent — the tiles a bank walk's gold is heard across: `BANK_SCENT_BASE`
+/// plus one per `BANK_SCENT_PER` coins carried, at most `BANK_SCENT_MAX`.
+pub const BANK_SCENT_BASE: i32 = 4;
+pub const BANK_SCENT_PER: i32 = 25;
+pub const BANK_SCENT_MAX: i32 = 20;
+
+/// Cut 27 §3: a bank exposes the carry — when the walk to the up-stairs commits, the floor's
+/// hostiles within the carry's scent (`BANK_SCENT_*`) wake and come for where he stands (a boss,
+/// a dormant den or cage stays put). A return (60 %, out where he stands) leaves no trail.
+pub fn gold_scent(run: &mut Run, cx: &mut Ctx) {
+    let r = (BANK_SCENT_BASE + run.loot.max(0) / BANK_SCENT_PER).min(BANK_SCENT_MAX);
+    let at = run.hero.pos;
+    let mut woke = 0;
+    for m in run.monsters.iter_mut() {
+        if m.hp <= 0 || !m.hostile() || m.is_boss() || m.dormant || m.nest || m.situation.is_some() || m.pos.cheb(at) > r {
+            continue;
+        }
+        woke += (!m.awake) as u32;
+        m.awake = true;
+        m.last_seen = Some(at);
+    }
+    if woke > 0 {
+        callout(run, cx, "gold draws them");
+    }
+}
+
 fn hero_action(run: &mut Run, cx: &mut Ctx) {
     run.actions += 1;
     run.note_foes();
@@ -268,6 +338,16 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
                 run.hero.inv.push(bow);
             }
         }
+    }
+    // Cut 27 §3: a return walks from anywhere — `RETURN_TICKS` after it committed he is out
+    // where he stands (the stairs, if he reaches them first, as before); a bank still walks to
+    // the up-stairs.
+    if return_due(run) {
+        if run.exit_row.is_none() {
+            run.exit_row = run.homeward;
+        }
+        end_run(run, cx, ExitTier::Return);
+        return;
     }
     // Cut 23 §3: which rows' conds held at the decision, for the why-not tally.
     let held = if cx.sim { Vec::new() } else { rows_held(run, cx, &v) };
@@ -591,6 +671,9 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 run.homeward = Some(i as i32);
                 run.home_at = Some((run.turn, hp_pct, run.hero.hp));
                 run.homeward_bank = row.verb.v == "bank";
+                if run.homeward_bank {
+                    gold_scent(run, cx);
+                }
             }
             // Cut 4: the first row to act after the hero fell to ≤ 20 % is the one the
             // chronicle credits if the floor is survived.
@@ -1157,6 +1240,12 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     // cause, and it stays the floor's cause through the later guards (whose windows are the
     // guard's own waiting); the verdict's first patch addresses that row (`stuck_row`).
     if let Some((cause, row)) = row_loop(&run.trace) {
+        // Cut 27 §4: a card taking turns with a chore (`R8 pack ↔ pick up`) is the engine's own
+        // loop — the card's sub-rows are not the player's — counted apart (the metrics' row).
+        let card = cx.rules.rows.get(row as usize).is_some_and(|r| r.verb.v == "tactic");
+        let chore = run.trace.iter().rev().take(LOOP_WINDOW).any(|t| t.row == -2 && t.verb.v != "stuck");
+        run.card_loops += (card && chore) as u32;
+        run.loop_causes.push(cause.clone());
         run.stuck_cause = Some(cause);
         run.stuck_row = Some(row);
     } else if run.stuck_row.is_none() {
@@ -1735,6 +1824,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
         if let Some(cid) = m.cid {
             let name = run.companion(cid).map(|c| c.name.clone()).unwrap_or_else(|| kind.clone());
             run.lost_companions.push((run.turn, name.clone()));
+            run.fell_why.push((name.clone(), format!("fell D{} to {}", run.depth, cause.replace('_', " "))));
             note(run, cx, format!("{name} the {} fell.", crate::engine::kind_title(&kind)));
             // Cut 10 §3: the callout uses the chronicle's verb (`Ashar slain` read as a foe).
             callout(run, cx, &format!("{name} fell"));
@@ -2260,6 +2350,8 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.stuck_first_t = None;
     run.stuck_cause = None;
     run.stuck_row = None;
+    run.freeing = None;
+    run.card_fell = None;
     run.trait_floor = 0;
     run.items_until = 0;
     run.pickup_streak = 0;
@@ -2328,7 +2420,8 @@ fn foresee_ending(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View) {
     };
     let dying = run.hero.hp_pct() <= 15 && v.adj >= 1;
     // Cut 19 §2: a return walks to the up-stairs as a bank does.
-    let banking = matches!(verb.v.as_str(), "bank" | "return") && (0..=3).contains(&steps_to(run, run.floor.stairs_up));
+    // Cut 27 §3: a return is out where he stands once its walk is spent.
+    let banking = (matches!(verb.v.as_str(), "bank" | "return") && (0..=3).contains(&steps_to(run, run.floor.stairs_up))) || return_left(run).is_some_and(|l| l <= 30);
     let bottom = verb.v == "descend" && run.depth + 1 >= ENDING_DEPTH && (0..=3).contains(&steps_to(run, run.floor.stairs_down));
     let ticks = if run.over.is_some() {
         Some(0)
@@ -2438,7 +2531,13 @@ fn situations_seen(run: &mut Run, cx: &mut Ctx) {
     }
     if let Some((name, kind)) = stray {
         if run.met_situation("stray") {
-            note(run, cx, format!("{name} the {}, gone wild.", crate::engine::kind_title(&kind)));
+            // Cut 27 §5 (AT: "is that my hatched jackal?"): the line says how it was lost.
+            let why = cx.lost.iter().rev().find(|l| l.name == name).map(|l| l.why.clone()).filter(|w| !w.is_empty());
+            match why {
+                // (a note is ≤ 8 words: the name is the player's own pet's)
+                Some(w) => note(run, cx, format!("{name}, gone wild: {w}.")),
+                None => note(run, cx, format!("{name} the {}, gone wild.", crate::engine::kind_title(&kind))),
+            }
             learn(run, cx, "stray".into());
         }
     }

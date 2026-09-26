@@ -1,7 +1,7 @@
 //! Bot gates (docs/CUT1.md): 30 seeds × the 8 h offline model per bot. Prints PASS/FAIL and
 //! exits non-zero on any FAIL. Never weaken a gate; tune content.
 //!   cargo run --release --example metrics [-- --seeds 30 --hours 8]
-use riddle_core::engine::ExitTier;
+use riddle_core::engine::{without_history, ExitTier};
 use riddle_core::hero::Class;
 use riddle_core::rng::{splitmix, Rng};
 use riddle_core::{Ev, Game, RuleSet};
@@ -12,6 +12,8 @@ use std::time::Instant;
 mod lever;
 #[path = "lanes_lib/mod.rs"]
 mod lanes;
+#[path = "exits_lib/mod.rs"]
+mod exits;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Bot {
@@ -170,7 +172,8 @@ fn cohort_sets() -> Vec<(String, RuleSet)> {
 }
 
 /// (set index, seed, the set's return rows cut) → (sends, stalls, deaths, dances).
-type CohortStalls = BTreeMap<(usize, u64, bool), (u32, u32, u32, u32)>;
+/// (sends, stalls, deaths, dances, sends with a card ↔ chore loop the guard caught — Cut 27 §4).
+type CohortStalls = BTreeMap<(usize, u64, bool), StallCounts>;
 /// Cut 23 §2: one death of a cohort set — its killer, whether the hero was walking home
 /// (and his hp % when he turned), and its verdict (sampled).
 #[derive(Clone, Debug)]
@@ -207,17 +210,24 @@ fn cohort_game(set: &RuleSet, seed: u64) -> Game {
 
 /// Cut 24 §1: a cohort job's sends' longest no-HP stretches, and the sends a boss drove off.
 type NoHp = (Vec<u32>, u32);
+/// Cut 27 §4: a cohort job's loops' causes and its stalls' (cause, depth) — `METRICS_LOOPS=1` prints them.
+type LoopLog = (Vec<String>, Vec<(String, u32)>);
+/// (sends, stalls, deaths, dances, card ↔ chore loops) — `CohortStalls`' value.
+type StallCounts = (u32, u32, u32, u32, u32);
 
-fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> ((u32, u32, u32, u32), Vec<DeathMix>, NoHp, bool) {
+/// `mix`: the death mix and its sampled verdicts (the without-return twin reads only the counts,
+/// and a verdict reads the game and writes its own death's record — nothing the counts read).
+fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64, mix: bool) -> (StallCounts, Vec<DeathMix>, NoHp, bool, LoopLog) {
     let mut g = cohort_game(set, seed);
     g.max_deaths = 100_000;
-    riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
+    riddle_core::offline::run_offline_counts(&mut g, hours * 3600);
     // Cut 23 §2: the death mix — every death's killer and walk home; verdicts on two a seed.
     let ids: Vec<u32> = g.deaths.iter().filter(|(_, r)| !r.stall).map(|(id, _)| *id).collect();
     let step = (ids.len() / 2).max(1);
     let sampled: Vec<u32> = ids.iter().step_by(step).take(2).copied().collect();
+    let want_mix = mix;
     let mut mix = Vec::new();
-    for id in &ids {
+    for id in ids.iter().filter(|_| want_mix) {
         let verdict = if sampled.contains(id) { riddle_core::trace::verdict(&mut g, *id) } else { None };
         let rec = &g.deaths[id];
         mix.push(DeathMix { killer: rec.death.cause.clone(), home: rec.home.map(|h| h.0), verdict });
@@ -230,7 +240,7 @@ fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> ((u32, u32, u32, u32),
     // Cut 24 §1: each send's longest no-HP stretch, and the sends a boss drove off.
     // Cut 26 §4: whether the lineage saw the D9 fork (D8's two stairs) before the absence ended.
     let fork9 = g.lineage.facts.contains("fork:9");
-    ((g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths, g.batch.dances), mix, (g.batch.nohp.clone(), g.batch.driven_off), fork9)
+    ((g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths, g.batch.dances, g.batch.card_loops), mix, (g.batch.nohp.clone(), g.batch.driven_off), fork9, (g.batch.loop_causes.clone(), g.deaths.values().filter(|r| r.stall).map(|r| (r.death.cause.clone(), r.death.depth)).collect()))
 }
 
 /// Cut 26 §4: the first-hour agent — a fresh lineage on the preset that writes the first patch its
@@ -344,6 +354,14 @@ struct GoldTally {
     /// treadmill (AG: "+$77 returned · +$19 salvage · −$160 spent").
     ret_sends: u32,
     ret_net: i64,
+    /// Cut 27 §1: the ticks the sends and their rests took (gold per hour), the sends that started
+    /// below D1, and those paid a passage.
+    ticks: u64,
+    way_sends: u32,
+    paid_sends: u32,
+    /// The paid sends' own net and ticks (the set cleared the floors above its start then).
+    paid_net: i64,
+    paid_ticks: u64,
 }
 
 impl GoldTally {
@@ -360,6 +378,19 @@ impl GoldTally {
         self.leash_thefts += o.leash_thefts;
         self.ret_sends += o.ret_sends;
         self.ret_net += o.ret_net;
+        self.ticks += o.ticks;
+        self.way_sends += o.way_sends;
+        self.paid_sends += o.paid_sends;
+        self.paid_net += o.paid_net;
+        self.paid_ticks += o.paid_ticks;
+    }
+    /// Cut 27 §1: net gold per hour over the sends paid a passage.
+    fn paid_per_hour(&self) -> f64 {
+        self.paid_net as f64 / (self.paid_ticks.max(1) as f64 / (riddle_core::offline::TICKS_PER_SECOND as f64 * 3600.0))
+    }
+    /// Cut 27 §1: net gold per hour of sends and rests.
+    fn per_hour(&self) -> f64 {
+        self.net() as f64 / (self.ticks.max(1) as f64 / (riddle_core::offline::TICKS_PER_SECOND as f64 * 3600.0))
     }
     fn net(&self) -> i64 {
         self.home + self.salvage - self.spent - self.tolls + self.other
@@ -380,19 +411,67 @@ fn pack_for(g: &mut Game) {
 
 /// Cut 22 §1: `hours` of sends on `set` from `start` (1, or the deepest lit waystone when
 /// `waystone`), each followed by its rest, the repeat on.
+///
+/// Both starts in one job (`cohort_golds`: (from D1, from the waystone)): until a waystone past
+/// D1 is lit the two play the same sends on the same game — the start is D1 either way and the
+/// passage is priced only below it — so the waystone twin is the D1 game cloned at its first
+/// send that would start deeper, played on from there (a set that never lights one: the D1
+/// tally itself). The same sends as two jobs, bit for bit, once.
+fn cohort_golds(set: &RuleSet, seed: u64, hours: u64) -> (GoldTally, GoldTally) {
+    let mut g = cohort_game(set, seed);
+    g.lineage.gold = 400;
+    pack_for(&mut g);
+    let budget = hours * 3600 * riddle_core::offline::TICKS_PER_SECOND;
+    let (mut t, mut consumed) = (GoldTally::default(), 0u64);
+    let mut fork = None;
+    gold_sends(&mut g, &mut t, &mut consumed, budget, false, Some(&mut fork));
+    let way = match fork {
+        Some((mut g2, mut t2, mut c2)) => {
+            gold_sends(&mut g2, &mut t2, &mut c2, budget, true, None);
+            t2
+        }
+        None => t,
+    };
+    (t, way)
+}
+
+#[allow(dead_code)]
 fn cohort_gold(set: &RuleSet, seed: u64, hours: u64, waystone: bool) -> GoldTally {
     let mut g = cohort_game(set, seed);
     g.lineage.gold = 400;
     pack_for(&mut g);
     let budget = hours * 3600 * riddle_core::offline::TICKS_PER_SECOND;
-    let mut consumed = 0u64;
-    let mut t = GoldTally::default();
-    while consumed < budget {
+    let (mut t, mut consumed) = (GoldTally::default(), 0u64);
+    gold_sends(&mut g, &mut t, &mut consumed, budget, waystone, None);
+    t
+}
+
+/// `cohort_gold`'s sends from `consumed` to `budget`. `fork` (D1 sends only): the game, tally
+/// and clock at the first send a waystone start would begin below D1.
+#[allow(clippy::type_complexity)]
+fn gold_sends(g: &mut Game, t: &mut GoldTally, consumed: &mut u64, budget: u64, waystone: bool, mut fork: Option<&mut Option<(Game, GoldTally, u64)>>) {
+    while *consumed < budget {
+        if let Some(f) = fork.as_deref_mut() {
+            if f.is_none() && g.lineage.waystones.iter().copied().max().unwrap_or(1) != 1 {
+                *f = Some((g.clone(), *t, *consumed));
+            }
+        }
         // Each send's lines are read and cleared (a send's first lines share the last one's turn).
         g.lineage.gold_ledger.clear();
         g.lineage.rest_left = 0;
         g.lineage.start = if waystone { g.lineage.waystones.iter().copied().max().unwrap_or(1) } else { 1 };
+        // Cut 27 §1: the passage the camp prices for this start — re-priced when the start moves
+        // and every few sends (a player's camp re-reads it as the lineage grows)
+        if g.lineage.start > 1 && (g.passage.is_none_or(|p| p.0 != g.lineage.start) || t.way_sends.is_multiple_of(5)) {
+            let rules = g.lineage.rules().clone();
+            g.passage = riddle_core::forecast::sim_passage(g, &rules);
+        }
         g.start_run(None);
+        let paid = g.run.as_ref().is_some_and(|r| r.start > 1 && r.passage > 0);
+        if let Some(r) = g.run.as_ref().filter(|r| r.start > 1) {
+            t.way_sends += 1;
+            t.paid_sends += (r.passage > 0) as u32;
+        }
         g.events.clear();
         let bought: Vec<u32> = {
             let r = g.run.as_ref().unwrap();
@@ -411,7 +490,8 @@ fn cohort_gold(set: &RuleSet, seed: u64, hours: u64, waystone: bool) -> GoldTall
             t.leash_thefts += r.stolen_kinds.iter().filter(|(_, k, _)| k == "leash").count() as u32;
             (r.turn, r.over.unwrap_or(ExitTier::Return))
         };
-        consumed += turns as u64 + g.rest_after(turns, tier) as u64;
+        *consumed += turns as u64 + g.rest_after(turns, tier) as u64;
+        t.ticks += turns as u64 + g.rest_after(turns, tier) as u64;
         g.finish_run();
         g.auto_keep();
         g.events.clear();
@@ -439,8 +519,11 @@ fn cohort_gold(set: &RuleSet, seed: u64, hours: u64, waystone: bool) -> GoldTall
             t.ret_sends += 1;
             t.ret_net += t.net() - before;
         }
+        if paid {
+            t.paid_net += t.net() - before;
+            t.paid_ticks += turns as u64 + g.rest_after(turns, tier) as u64;
+        }
     }
-    t
 }
 
 /// Cut 23 §1: a cohort set's forge after an absence — the gold it brought home (from an empty
@@ -463,7 +546,7 @@ fn cohort_forge(set: &RuleSet, seed: u64, hours: u64) -> ForgeTally {
     g.lineage.gold = 400;
     pack_for(&mut g);
     g.lineage.gold = 0;
-    let report = riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
+    let report = riddle_core::offline::run_offline_counts(&mut g, hours * 3600);
     let income = g.lineage.gold as i64;
     let price = |g: &Game| riddle_core::kit::ladders(&g.lineage).iter().filter_map(|l| l.next.as_ref().map(|n| (n.price, l.slot.clone()))).min();
     let mut t = ForgeTally { income, best: g.lineage.best_depth, home: (report.banked + report.returned, report.runs), ..Default::default() };
@@ -636,6 +719,71 @@ fn paired_edits(set: &RuleSet) -> (u32, f64, f64) {
     (n, sp, sa)
 }
 
+/// Cut 27 §2: one cohort set's camp edits and their scenes — (edits moving the forecast ≥ 5 pts,
+/// divergences found for them, found at a row, edits inside their ± with a scene, the slowest
+/// scene in ms).
+type Diverged = (u32, u32, u32, u32, f64);
+
+/// Cut 27 §2: the edits a player makes in a turn at camp — each row cut, each row moved up one,
+/// each row's first number nudged (hp ±10, else ±1) — on a D8 lineage owning the set's tokens,
+/// each paired against the set (`forecast_vs`); for each that moves the forecast ≥ 5 pts (the
+/// largest |Δ| over the shaft and the ends), whether the core finds its divergence.
+fn diverge_edits(set: &RuleSet) -> Diverged {
+    let mut g = cohort_game(set, 7);
+    g.lineage.best_depth = 8;
+    let _ = g.forecast();
+    let mut edits: Vec<RuleSet> = Vec::new();
+    for ri in 0..set.rows.len() {
+        let mut e = set.clone();
+        e.rows.remove(ri);
+        edits.push(e);
+        if ri > 0 {
+            let mut e = set.clone();
+            e.rows.swap(ri - 1, ri);
+            edits.push(e);
+        }
+        if let Some((ci, c)) = set.rows[ri].conds.iter().enumerate().find(|(_, c)| c.n.is_some()) {
+            let step = if c.k.starts_with("hp") { 10 } else { 1 };
+            for sign in [-1, 1] {
+                let mut e = set.clone();
+                e.rows[ri].conds[ci].n = Some((c.n.unwrap() + sign * step).max(0));
+                if e != *set {
+                    edits.push(e);
+                }
+            }
+        }
+    }
+    let (mut n5, mut found, mut rows, mut inside, mut slow) = (0u32, 0u32, 0u32, 0u32, 0.0f64);
+    for e in edits {
+        if g.set_rules_raw(e).is_err() {
+            continue;
+        }
+        let vs = g.forecast_vs(set);
+        let mut moves: Vec<(f64, f64)> = vs.depths.iter().map(|d| (d.delta, d.pm)).collect();
+        moves.extend([(vs.bank.delta, vs.bank.pm), (vs.death.delta, vs.death.pm), (vs.return_.delta, vs.return_.pm), (vs.stall.delta, vs.stall.pm)]);
+        let (moved, pm) = moves.iter().copied().fold((0.0f64, 0.0f64), |a, (d, p)| if d.abs() > a.0 { (d.abs(), p) } else { a });
+        if moved < 0.05 && moved > pm {
+            continue;
+        }
+        let t = Instant::now();
+        let d = g.divergence(set);
+        let ms = t.elapsed().as_secs_f64() * 1e3;
+        if ms > 400.0 {
+            eprintln!("  slow scene {ms:.0} ms on {:?}: {:?}", set.name, d.as_ref().map(|d| (d.seed, d.tick, d.sent_row, d.new_row)));
+        }
+        slow = slow.max(ms);
+        if moved >= 0.05 {
+            n5 += 1;
+            found += d.is_some() as u32;
+            rows += d.as_ref().is_some_and(|d| d.sent_row.is_some() || d.new_row.is_some()) as u32;
+        } else if d.is_some() {
+            inside += 1;
+        }
+    }
+    let _ = g.set_rules_raw(set.clone());
+    (n5, found, rows, inside, slow)
+}
+
 fn setup(bot: Bot, seed: u64) -> Game {
     let mut g = Game::new(seed);
     g.max_deaths = 100_000;
@@ -781,8 +929,23 @@ fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: bool
     run_seed_on(bot, seed, hours, verdicts_per_seed, kit, riddle_core::descent::Route::BASE)
 }
 
-/// `run_seed` on `route` (every fork seen; the bot's set written with it).
+/// `run_seed_on` for the kitted and the route bots, whose rows read a seed's best depth, run
+/// depths, deaths and sampled verdicts only (`forge_report`, the routes' rows): the stall
+/// deaths' screens, the shown patches' replays, the root and dice patches, the trace reasons and
+/// the `known_to` forecast are the plain bots' rows (`all`), computed there and nowhere else.
+/// A stall screen (`death`) and those after the verdicts write only their deaths' records,
+/// which no later send reads — the depths, deaths and verdicts are the same (the table's text
+/// is unchanged, byte for byte).
+fn run_seed_lean(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: bool, route: riddle_core::descent::Route) -> SeedResult {
+    run_seed_with(bot, seed, hours, verdicts_per_seed, kit, route, true)
+}
+
 fn run_seed_on(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: bool, route: riddle_core::descent::Route) -> SeedResult {
+    run_seed_with(bot, seed, hours, verdicts_per_seed, kit, route, false)
+}
+
+/// `run_seed` on `route` (every fork seen; the bot's set written with it).
+fn run_seed_with(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: bool, route: riddle_core::descent::Route, lean: bool) -> SeedResult {
     let mut g = setup(bot, seed);
     if !route.is_base() {
         for f in riddle_core::descent::FORKS {
@@ -802,7 +965,7 @@ fn run_seed_on(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: b
     let mut secs = 0.0;
     for _ in 0..bot.batches() {
         let t = Instant::now();
-        let report = riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
+        let report = riddle_core::offline::run_offline_counts(&mut g, hours * 3600);
         secs += t.elapsed().as_secs_f64();
         r.learned += report.learned.len();
         r.pending += report.pending.len();
@@ -847,7 +1010,7 @@ fn run_seed_on(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: b
         // throw unknown stuck`").
         r.stalls.0 += g.batch.run_outcomes.len() as u32;
         r.stalls.1 += g.batch.stalls;
-        let stall_ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| rec.stall).map(|(id, _)| *id).filter(|id| g.batch.highlights.iter().any(|h| h.run_id == *id)).take(2).collect();
+        let stall_ids: Vec<u32> = g.deaths.iter().filter(|(_, rec)| rec.stall && !lean).map(|(id, _)| *id).filter(|id| g.batch.highlights.iter().any(|h| h.run_id == *id)).take(2).collect();
         for id in stall_ids {
             let Some(d) = g.death(id) else { continue };
             let rec = g.deaths.get(&id).cloned().unwrap();
@@ -890,6 +1053,9 @@ fn run_seed_on(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: b
             }
             r.verdicts.push(v);
         }
+    }
+    if lean {
+        return r;
     }
     // Cut 2 §6 patch quality: the shown patches (full `death()`, two per seed on the
     // player-shaped bots) must have fired in ≥ 50% of 12 reseeded replays of the death.
@@ -991,6 +1157,7 @@ fn gold_report(sets: &[(String, RuleSet)], golds: &Golds, seeds: u64, hours: u64
     let (mut g_ok, mut g_n, mut g_worst) = (0usize, 0usize, (f64::INFINITY, String::new()));
     let (mut th_all, mut th_sup, mut th_sends, mut th_leash) = (0u32, 0u32, 0u32, 0u32);
     let mut leash_worst = (0.0f64, String::new());
+    let (mut w_ok, mut w_n, mut w_worst) = (0usize, 0usize, (f64::INFINITY, String::new()));
     println!("\nnet gold per send (Cut 22 §1; {hours} h watched, repeat on): home + salvage − spent − tolls (+ other) over sends");
     for (si, (name, _)) in sets.iter().enumerate() {
         let tally = |way: bool| {
@@ -1026,6 +1193,22 @@ fn gold_report(sets: &[(String, RuleSet)], golds: &Golds, seeds: u64, hours: u64
             per(&ws, ws.other),
             pct(ws.home_sends as usize, ws.sends as usize),
         );
+        // Cut 27 §1: gold per hour from D1 and from the waystone; the gate reads the sets whose
+        // waystone sends were mostly paid their passage (the set clears the floors above ≥ 95 %)
+        // (the sends that cleared: the lineage priced the passage and was paid it; a set with at
+        // least a fifth of its waystone sends paid, over 10 of them, is read)
+        let paid = ws.paid_sends >= 10 && ws.paid_sends * 5 >= ws.way_sends;
+        println!("    $/h: D1 {:+.0} · waystone {:+.0} · its paid sends {:+.0} ({} of {} sends paid a passage){}", d1.per_hour(), ws.per_hour(), ws.paid_per_hour(), ws.paid_sends, ws.way_sends, if paid && ws.paid_per_hour() < d1.per_hour() { " · FAIL" } else { "" });
+        if paid {
+            w_n += 1;
+            if ws.paid_per_hour() >= d1.per_hour() {
+                w_ok += 1;
+            }
+            let r = ws.paid_per_hour() / d1.per_hour().max(1e-9);
+            if r < w_worst.0 {
+                w_worst = (r, name.clone());
+            }
+        }
         th_all += d1.thefts + ws.thefts;
         th_sup += d1.supply_thefts + ws.supply_thefts;
         th_leash += d1.leash_thefts + ws.leash_thefts;
@@ -1052,6 +1235,43 @@ fn gold_report(sets: &[(String, RuleSet)], golds: &Golds, seeds: u64, hours: u64
     if g_n > 0 {
         rows.push((format!("Net gold per send ≥ +$20 on every mostly-home cohort set ({g_n})"), format!("{g_ok}/{g_n} · worst {:+.0}", g_worst.0), g_ok == g_n));
     }
+    // Cut 27 §1: a lit waystone start is never worse on gold/hr than D1 for a set that clears the
+    // floors above it (its sends paid their passage)
+    rows.push((format!("Waystone $/h ≥ D1 $/h, cohort sets paid a passage ({w_n})"), format!("{w_ok}/{w_n} · worst {:.2}× {}", if w_worst.0.is_finite() { w_worst.0 } else { 1.0 }, w_worst.1), w_ok == w_n && w_n > 0));
+}
+
+/// A gate row that measured nothing (a count of 0 in its name: `(n=0)`, `(0 cohort edits)`,
+/// `(0 sets, …)`) FAILS — a gate silently doing nothing is not a pass (Cut 27 follow-up: a
+/// `--gold` run printed `Paired edit ± … (0 cohort edits) PASS` with the edits' jobs filtered out).
+fn vacuous(name: &str) -> bool {
+    let b = name.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        let at = if b[i..].starts_with(b"n=0") {
+            Some(i + 3)
+        } else if b[i..].starts_with(b"(0") {
+            Some(i + 2)
+        } else {
+            None
+        };
+        if let Some(j) = at {
+            if b.get(j).is_none_or(|c| !c.is_ascii_digit() && *c != b'.' && *c != b'/' && *c != b'%') {
+                return true;
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
+/// Every row that measured nothing fails (`vacuous`), its value marked.
+fn seal(rows: &mut [(String, String, bool)]) {
+    for (name, value, ok) in rows.iter_mut() {
+        if vacuous(name) {
+            *ok = false;
+            value.push_str(" · n=0");
+        }
+    }
 }
 
 fn pct(n: usize, d: usize) -> f64 {
@@ -1059,6 +1279,33 @@ fn pct(n: usize, d: usize) -> f64 {
         0.0
     } else {
         100.0 * n as f64 / d as f64
+    }
+}
+
+/// This thread's CPU seconds (Linux: `/proc/thread-self/schedstat`), 0 where the kernel does not say.
+fn thread_cpu() -> f64 {
+    thread_cpu_opt().unwrap_or(0.0)
+}
+
+fn thread_cpu_opt() -> Option<f64> {
+    std::fs::read_to_string("/proc/thread-self/schedstat").ok().and_then(|t| t.split_whitespace().next().and_then(|x| x.parse::<f64>().ok())).map(|ns| ns / 1e9)
+}
+
+/// The clock of the table's single-threaded timing rows (per-tick cost, verdict time): this
+/// thread's CPU seconds, so a loaded machine — qa beside the table, other agents' browsers —
+/// is not read as a slower engine (the wall read 3.3 → 5.0 µs/tick under a load of ~70 with the
+/// same binary; the bars are unchanged). The wall where the kernel does not say.
+struct Clock(Option<f64>, Instant);
+
+impl Clock {
+    fn start() -> Clock {
+        Clock(thread_cpu_opt(), Instant::now())
+    }
+    fn secs(&self) -> f64 {
+        match (self.0, thread_cpu_opt()) {
+            (Some(a), Some(b)) => b - a,
+            _ => self.1.elapsed().as_secs_f64(),
+        }
     }
 }
 
@@ -1074,7 +1321,8 @@ fn main() {
     let hours = get("--hours", 8);
     let verdicts_per_seed = get("--verdicts", if quick { 3 } else { 8 }) as usize;
     let t_start = std::time::Instant::now();
-    // `METRICS_PHASES=1`: each phase's wall to stderr, and every job's (docs/ITERATION_SPEED.md).
+    // `METRICS_PHASES=1`: each phase's wall to stderr, and every job's (docs/ITERATION_SPEED.md). `METRICS_JOBCPU=1`: every
+    // job's kind, thread CPU seconds and wall (`jobcpu <kind> <cpu> <wall>`) — what the table's time is made of.
     let phases = std::env::var("METRICS_PHASES").is_ok();
     let phase = |name: &str| if phases { eprintln!("phase {name}: {:.1}s", t_start.elapsed().as_secs_f64()) };
     // Cut 3: the quiet per-tick cost — one run to its end per bot, single-threaded, before the
@@ -1085,7 +1333,7 @@ fn main() {
             let mut g = setup(*b, 1);
             g.sim = true;
             let mut ticks = 0u64;
-            let t = Instant::now();
+            let t = Clock::start();
             for _ in 0..3 {
                 g.lineage.rest_left = 0;
                 g.start_run(None);
@@ -1097,7 +1345,7 @@ fn main() {
                 g.finish_run();
                 g.auto_keep();
             }
-            (b.name(), t.elapsed().as_secs_f64() * 1e6 / ticks.max(1) as f64)
+            (b.name(), t.secs() * 1e6 / ticks.max(1) as f64)
         })
         .collect();
     phase("quiet ticks");
@@ -1116,7 +1364,8 @@ fn main() {
     enum Job {
         Counter(u64),
         Cohort(usize, u64, bool),
-        Gold(usize, u64, bool),
+        /// Cut 22 §1: a cohort set's gold from D1 and from its deepest lit waystone (`cohort_golds`).
+        Gold(usize, u64),
         Paired(usize),
         Bot(usize, u64),
         /// Cut 23 §1: a `KIT_BOTS` bot with every forge step.
@@ -1130,7 +1379,11 @@ fn main() {
         /// Cut 26 §4: the first-hour agent on a fresh lineage (`first_fork`).
         FirstFork(u64),
         /// Cut 26 §3: a fork's lane gate on one lineage seed (`lanes::gate`).
-        Lane(u32, u64),
+        Lane(u32, u64, usize),
+        /// Cut 27 §2: a cohort set's camp edits and their divergences (`diverge_edits`).
+        Diverge(usize),
+        /// Cut 27 §3: a cohort set's bank twin (false) or return twin (true) on one seed (`exits::run`).
+        Exit(usize, u64, bool),
     }
     let sets = Arc::new(cohort_sets());
     // `--gold`: the Cut 22 §1 gold table alone (the cohort sets' sends; ~20 s).
@@ -1146,7 +1399,7 @@ fn main() {
     jobs.extend(returning.iter().flat_map(|&si| (1..=seeds).map(move |s| Job::Cohort(si, s, true))));
     // Cut 22 §1: each cohort set's gold per send over 8 h of watched sends, from D1 and from its
     // deepest lit waystone.
-    jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).flat_map(move |s| [Job::Gold(si, s, false), Job::Gold(si, s, true)])));
+    jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| Job::Gold(si, s))));
     jobs.extend(KIT_BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Kit(bi, s))));
     jobs.extend((0..sets.len()).flat_map(|si| (1..=seeds).map(move |s| Job::Forge(si, s))));
     // Cut 25 §1: the lever (`lever::gate`), on the sets that bank; `LEVER_SEEDS` seeds each (the
@@ -1159,10 +1412,29 @@ fn main() {
     jobs.extend(ROUTE_BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Route(bi, s))));
     jobs.extend((1..=seeds).map(Job::FirstFork));
     let found = Arc::new(lane_found());
-    jobs.extend(lanes::LANE_FORKS.iter().filter(|f| found.iter().any(|x| x.fork == **f)).flat_map(|&f| (1..=LANE_SEEDS).map(move |s| Job::Lane(f, s))));
+    // (one job per (fork, seed, candidate): `lanes::gate_one`; `gate_seed`'s vector is reassembled in candidate order)
+    for f in lanes::LANE_FORKS.iter().copied().filter(|f| found.iter().any(|x| x.fork == *f)) {
+        let cands = lanes::gate_candidates(&found, f);
+        jobs.extend((1..=LANE_SEEDS).flat_map(|s| cands.iter().map(move |&i| Job::Lane(f, s, i))));
+    }
     jobs.extend(BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Bot(bi, s))));
     // Cut 22 §3: each cohort set's one-notch edits, paired against the set.
     jobs.extend((0..sets.len()).map(Job::Paired));
+    jobs.extend((0..sets.len()).map(Job::Diverge));
+    // Cut 27 §3: each cohort set with an exit row, as its bank twin and its return twin.
+    // `--exits`: these rows alone.
+    let exits_only = args.iter().any(|a| a == "--exits");
+    let exit_seeds = get("--exit-seeds", seeds.min(exits::EXIT_SEEDS));
+    let exit_hours = get("--exit-hours", exits::EXIT_HOURS);
+    jobs.extend((0..sets.len()).filter(|&si| exits::has_exit(&sets[si].1)).flat_map(|si| (1..=exit_seeds).flat_map(move |s| [Job::Exit(si, s, false), Job::Exit(si, s, true)])));
+    if exits_only {
+        jobs.retain(|j| matches!(j, Job::Exit(..)));
+    }
+    // `--diverge`: the Cut 27 §2 divergence row alone.
+    let diverge_only = args.iter().any(|a| a == "--diverge");
+    if diverge_only {
+        jobs.retain(|j| matches!(j, Job::Diverge(..)));
+    }
     if gold_only {
         jobs.retain(|j| matches!(j, Job::Gold(..)));
     }
@@ -1188,12 +1460,32 @@ fn main() {
     // `--threads N` leaves cores to whatever runs beside the table (gates.mjs: the dayplayer's
     // sequential chains, which the full 32 starved — docs/ITERATION_SPEED.md §3.2).
     let threads = get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(4).min(32)) as usize;
+    // Longest first (`pop` takes from the end): each kind's typical thread-seconds on the full table
+    // (`METRICS_JOBCPU=1` prints every job's), so a 2-minute lever or divergence job never starts
+    // behind the short ones and ends the table alone. A stable sort: within a kind the order stays.
+    let cost = |j: &Job| -> u32 {
+        match j {
+            Job::Lever(..) => 300,
+            Job::Diverge(..) => 250,
+            Job::Bot(bi, _) if BOTS[*bi].is_full() => 200,
+            Job::Kit(bi, _) if KIT_BOTS[*bi].is_full() => 190,
+            Job::Paired(..) => 150,
+            Job::Route(..) | Job::Bot(..) => 60,
+            Job::Lane(..) => 50,
+            Job::Gold(..) | Job::Forge(..) | Job::Kit(..) => 30,
+            Job::Cohort(..) => 25,
+            Job::Counter(..) | Job::FirstFork(..) => 15,
+            Job::Exit(..) => 10,
+        }
+    };
+    jobs.sort_by_key(cost);
     let jobs = Arc::new(Mutex::new(jobs));
     let cohort: Arc<Mutex<CohortStalls>> = Arc::new(Mutex::new(BTreeMap::new()));
     type Counters = BTreeMap<u64, (bool, f64, f64, f64)>;
     let counters: Arc<Mutex<Counters>> = Arc::new(Mutex::new(BTreeMap::new()));
     let golds: Arc<Mutex<Golds>> = Arc::new(Mutex::new(BTreeMap::new()));
     let paireds: Arc<Mutex<Paireds>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let diverged: Arc<Mutex<BTreeMap<usize, Diverged>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let cdeaths: Arc<Mutex<CohortDeaths>> = Arc::new(Mutex::new(BTreeMap::new()));
     let cnohp: Arc<Mutex<BTreeMap<(usize, u64), NoHp>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let kresults: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
@@ -1204,34 +1496,57 @@ fn main() {
     let ffork: Arc<Mutex<BTreeMap<u64, Option<u32>>>> = Arc::new(Mutex::new(BTreeMap::new()));
     type LaneReads = Vec<(usize, f64, f64, f64)>;
     let lgates: Arc<Mutex<BTreeMap<(u32, u64), LaneReads>>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let exit_tallies: Arc<Mutex<exits::Exits>> = Arc::new(Mutex::new(BTreeMap::new()));
     let mut handles = Vec::new();
     for _ in 0..threads {
+        let exit_tallies = Arc::clone(&exit_tallies);
         let (jobs, results, cohort, counters, sets, golds, paireds, cdeaths) = (Arc::clone(&jobs), Arc::clone(&results), Arc::clone(&cohort), Arc::clone(&counters), Arc::clone(&sets), Arc::clone(&golds), Arc::clone(&paireds), Arc::clone(&cdeaths));
         let (kresults, forges, cnohp, levers, rresults) = (Arc::clone(&kresults), Arc::clone(&forges), Arc::clone(&cnohp), Arc::clone(&levers), Arc::clone(&rresults));
         let (cforks, ffork, lgates, found) = (Arc::clone(&cforks), Arc::clone(&ffork), Arc::clone(&lgates), Arc::clone(&found));
+        let diverged = Arc::clone(&diverged);
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some(job) = job else { break };
             let tj = Instant::now();
+            let cj = thread_cpu();
+            let kind: String = match job {
+                Job::Counter(_) => "counter".into(),
+                Job::Cohort(_, _, b) => if b { "cohort-bare".into() } else { "cohort".into() },
+                Job::Gold(..) => "gold".into(),
+                Job::Paired(_) => "paired".into(),
+                Job::Bot(bi, _) => format!("bot-{}", BOTS[bi].name()),
+                Job::Kit(bi, _) => format!("kit-{}", KIT_BOTS[bi].name()),
+                Job::Forge(..) => "forge".into(),
+                Job::Lever(..) => "lever".into(),
+                Job::Route(bi, _) => format!("route-{}", ROUTE_BOTS[bi].name()),
+                Job::FirstFork(_) => "firstfork".into(),
+                Job::Lane(..) => "lane".into(),
+                Job::Diverge(_) => "diverge".into(),
+                Job::Exit(..) => "exit".into(),
+            };
             match job {
                 Job::Kit(bi, seed) => {
-                    let r = run_seed(KIT_BOTS[bi], seed, hours, 0, true);
+                    // (no verdicts, no death screens: the history ring feeds only those — `without_history`)
+                    let r = without_history(|| run_seed_lean(KIT_BOTS[bi], seed, hours, 0, true, riddle_core::descent::Route::BASE));
                     kresults.lock().unwrap().insert((bi, seed), r);
                 }
                 Job::Forge(si, seed) => {
-                    let r = cohort_forge(&sets[si].1, seed, hours);
+                    let r = without_history(|| cohort_forge(&sets[si].1, seed, hours));
                     forges.lock().unwrap().insert((si, seed), r);
                 }
                 Job::Lever(si, seed) => {
-                    let r = lever::gate(&sets[si].1, seed, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN);
+                    let r = without_history(|| lever::gate(&sets[si].1, seed, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN));
                     levers.lock().unwrap().insert((si, seed), r);
                 }
-                Job::Lane(fork, seed) => {
-                    let r = lanes::gate_seed(&found, fork, seed, LANE_SIMS);
+                Job::Lane(fork, seed, i) => {
+                    let r = lanes::gate_one(&found, fork, seed, LANE_SIMS, i);
                     if std::env::var("METRICS_PHASES").is_ok() {
-                        eprintln!("job LANE D{fork} {seed} {:.1}s", tj.elapsed().as_secs_f64());
+                        eprintln!("job LANE D{fork} {seed} #{i} {:.1}s", tj.elapsed().as_secs_f64());
                     }
-                    lgates.lock().unwrap().insert((fork, seed), r);
+                    let mut lg = lgates.lock().unwrap();
+                    let v = lg.entry((fork, seed)).or_default();
+                    let at = v.partition_point(|x: &(usize, f64, f64, f64)| x.0 < i);
+                    v.insert(at, r);
                 }
                 Job::FirstFork(seed) => {
                     let r = first_fork(seed, FIRST_FORK_CAP);
@@ -1239,7 +1554,7 @@ fn main() {
                 }
                 Job::Route(bi, seed) => {
                     // (half the base's verdict sample: the routes' dice share reads over ~600 verdicts)
-                    let r = run_seed_on(ROUTE_BOTS[bi], seed, hours, verdicts_per_seed.div_ceil(2), false, sampled_route(seed));
+                    let r = run_seed_lean(ROUTE_BOTS[bi], seed, hours, verdicts_per_seed.div_ceil(2), false, sampled_route(seed));
                     if std::env::var("METRICS_PHASES").is_ok() {
                         eprintln!("job ROUTE {} {seed} {:.1}s", ROUTE_BOTS[bi].name(), tj.elapsed().as_secs_f64());
                     }
@@ -1254,7 +1569,17 @@ fn main() {
                 }
                 Job::Cohort(si, seed, bare) => {
                     let set = if bare { without_return(&sets[si].1) } else { sets[si].1.clone() };
-                    let (r, mix, nohp, fork9) = cohort_stalls(&set, seed, 4);
+                    // (the without-return twin reads counts only: no verdicts, so no history ring)
+                    let play = || cohort_stalls(&set, seed, 4, !bare);
+                    let (r, mix, nohp, fork9, (loops, stalled)) = if bare { without_history(play) } else { play() };
+                    if std::env::var("METRICS_LOOPS").is_ok() && !bare {
+                        for l in &loops {
+                            eprintln!("loop {} {seed}: {l}", sets[si].0);
+                        }
+                        for (c, d) in &stalled {
+                            eprintln!("stall {} {seed}: D{d} {c}", sets[si].0);
+                        }
+                    }
                     cohort.lock().unwrap().insert((si, seed, bare), r);
                     if !bare {
                         cforks.lock().unwrap().insert((si, seed), fork9);
@@ -1262,18 +1587,32 @@ fn main() {
                         cnohp.lock().unwrap().insert((si, seed), nohp);
                     }
                 }
-                Job::Gold(si, seed, way) => {
-                    let r = cohort_gold(&sets[si].1, seed, hours, way);
-                    golds.lock().unwrap().insert((si, seed, way), r);
+                Job::Gold(si, seed) => {
+                    let (d1, way) = without_history(|| cohort_golds(&sets[si].1, seed, hours));
+                    let mut golds = golds.lock().unwrap();
+                    golds.insert((si, seed, false), d1);
+                    golds.insert((si, seed, true), way);
+                }
+                Job::Exit(si, seed, ret) => {
+                    let set = exits::twin(&sets[si].1, if ret { "return" } else { "bank" });
+                    let r = without_history(|| exits::run(&set, seed, exit_hours));
+                    exit_tallies.lock().unwrap().insert((si, seed, ret), r);
                 }
                 Job::Paired(si) => {
                     let r = paired_edits(&sets[si].1);
                     paireds.lock().unwrap().insert(si, r);
                 }
+                Job::Diverge(si) => {
+                    let r = diverge_edits(&sets[si].1);
+                    diverged.lock().unwrap().insert(si, r);
+                }
                 Job::Counter(seed) => {
                     let r = riddle_core::probes::counter_trial(seed);
                     counters.lock().unwrap().insert(seed, r);
                 }
+            }
+            if std::env::var("METRICS_JOBCPU").is_ok() {
+                eprintln!("jobcpu {kind} {:.3} {:.3}", thread_cpu() - cj, tj.elapsed().as_secs_f64());
             }
         }));
     }
@@ -1281,6 +1620,25 @@ fn main() {
         h.join().unwrap();
     }
     phase("jobs");
+    // Cut 27 §2: the divergence is found for ≥ 90 % of the cohort sets' ≥ 5-pt edits.
+    let diverge_rows = |rows: &mut Vec<(String, String, bool)>| {
+        let dv = diverged.lock().unwrap();
+        let (n5, found, by_rows, inside, slow) = dv.values().fold((0u32, 0u32, 0u32, 0u32, 0.0f64), |a, r| (a.0 + r.0, a.1 + r.1, a.2 + r.2, a.3 + r.3, a.4.max(r.4)));
+        println!("divergence (Cut 27 §2): {n5} edits ≥ 5 pts over {} sets · found {found} ({:.0}%) · at a row {by_rows} · inside ± with a scene {inside} · slowest {slow:.0} ms", dv.len(), pct(found as usize, n5 as usize));
+        for (si, r) in dv.iter().filter(|(_, r)| r.1 < r.0) {
+            println!("  {}: {}/{} found", sets[*si].0, r.1, r.0);
+        }
+        rows.push((format!("Divergence found ≥ 90% of ≥ 5-pt edits ({n5} cohort edits)"), format!("{:.0}% · at a row {:.0}%", pct(found as usize, n5 as usize), pct(by_rows as usize, n5 as usize)), n5 > 0 && found as f64 >= 0.9 * n5 as f64));
+    };
+    if diverge_only {
+        let mut rows = Vec::new();
+        diverge_rows(&mut rows);
+        seal(&mut rows);
+        for (name, value, ok) in &rows {
+            println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
+        }
+        return;
+    }
     if forks_only {
         let ns = seeds as usize;
         let ff = ffork.lock().unwrap();
@@ -1300,6 +1658,7 @@ fn main() {
     if lever_only {
         let mut rows = Vec::new();
         lever_rows(&mut rows);
+        seal(&mut rows);
         for (name, value, ok) in &rows {
             println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
         }
@@ -1308,6 +1667,16 @@ fn main() {
     if forge_only {
         let mut rows = Vec::new();
         forge_report(&sets, &forges.lock().unwrap(), &kresults.lock().unwrap(), &results.lock().unwrap(), seeds, &mut rows);
+        seal(&mut rows);
+        for (name, value, ok) in &rows {
+            println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
+        }
+        return;
+    }
+    if exits_only {
+        let mut rows = Vec::new();
+        exits::report(&sets, &exit_tallies.lock().unwrap(), exit_seeds, exit_hours, &mut rows);
+        seal(&mut rows);
         for (name, value, ok) in &rows {
             println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
         }
@@ -1316,18 +1685,18 @@ fn main() {
     if deaths_only {
         let (flagged, n) = death_mix_report(&sets, &cdeaths.lock().unwrap(), seeds);
         println!("sets with one cause over half their deaths: {flagged}/{n}");
+        // Cut 27 §4: the cohort stall row's per-set counts beside (the same jobs).
+        let cohort = cohort.lock().unwrap();
+        for (si, (name, _)) in sets.iter().enumerate() {
+            let (n, k, lp) = (1..=seeds).fold((0u32, 0u32, 0u32), |a, s| cohort.get(&(si, s, false)).map_or(a, |r| (a.0 + r.0, a.1 + r.1, a.2 + r.4)));
+            println!("  stalls {name}: {k}/{n} ({:.1}%) · card ↔ chore loops {lp}", pct(k as usize, n as usize));
+        }
         return;
     }
     if gold_only {
         let mut rows = Vec::new();
         gold_report(&sets, &golds.lock().unwrap(), seeds, hours, &mut rows);
-    // Cut 22 §3: an edit's paired move is far tighter than the bars' own ± — over every
-    // one-notch edit of every cohort set, Σ paired ± ≤ ½ Σ absolute ± (the depths with a ±).
-    let paireds = paireds.lock().unwrap();
-    let (pe, pp, pa) = paireds.values().fold((0u32, 0.0f64, 0.0f64), |a, r| (a.0 + r.0, a.1 + r.1, a.2 + r.2));
-    let worst = paireds.iter().map(|(si, r)| (r.1 / r.2.max(1e-9), sets[*si].0.clone())).fold((0.0f64, String::new()), |a, b| if b.0 > a.0 { b } else { a });
-    println!("paired edit delta (Cut 22 §3): {pe} one-notch edits over {} sets · paired ± / absolute ± {:.2} (worst set {} {:.2})", sets.len(), pp / pa.max(1e-9), worst.1, worst.0);
-    rows.push((format!("Paired edit ± ≤ ½ absolute ± ({pe} cohort edits)"), format!("{:.2}", pp / pa.max(1e-9)), pp <= 0.5 * pa));
+        seal(&mut rows);
         for (name, value, ok) in &rows {
             println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
         }
@@ -1638,9 +2007,9 @@ fn main() {
             let _ = g.run_offline(3600 * 2);
             let ids: Vec<u32> = g.deaths.keys().copied().collect();
             for id in ids.iter().take(4) {
-                let t = std::time::Instant::now();
+                let t = Clock::start();
                 let _ = riddle_core::trace::verdict(&mut g, *id);
-                v.push(t.elapsed().as_secs_f64());
+                v.push(t.secs());
             }
         }
         v
@@ -1823,6 +2192,18 @@ fn main() {
     if !sets.is_empty() {
         let c_pct = pct(c_stalls as usize, c_sends as usize);
         rows.push((format!("Stalls ≤ 1% of sends on every cohort set ({} sets, n={c_sends})", sets.len()), format!("{c_pct:.1}% · worst {:.1}%", worst.0), worst.0 <= 1.0));
+        // Cut 27 §4 (AS: `R8 pack ↔ pick up`, 12 turns among four foes — a stall no stall row saw: the
+        // cohort lineage's sends recovered from it, 20 of 213 on AS's set before the fix, 0 stalls): a card
+        // taking turns with a chore is the engine's loop (a card's sub-rows are not the player's), counted
+        // whether the guard's give-up recovered the send or not.
+        let loops = |si: usize| (1..=seeds).fold((0u32, 0u32), |a, s| { let r = cohort[&(si, s, false)]; (a.0 + r.0, a.1 + r.4) });
+        let (l_sends, l_n, l_worst) = (0..sets.len()).fold((0u32, 0u32, (0.0f64, String::new())), |a, si| {
+            let (n, k) = loops(si);
+            let p = pct(k as usize, n as usize);
+            (a.0 + n, a.1 + k, if p > a.2 .0 { (p, sets[si].0.clone()) } else { a.2 })
+        });
+        println!("card ↔ chore loops (Cut 27 §4): {l_n}/{l_sends} sends · worst {:.1}% {}", l_worst.0, l_worst.1);
+        rows.push((format!("Card ↔ chore loops ≤ 1% of sends on every cohort set (n={l_sends})"), format!("{:.1}% · worst {:.1}%", pct(l_n as usize, l_sends as usize), l_worst.0), l_worst.0 <= 1.0));
         // QA on 778fa1b (qaV: `R4 retreat` / `R6 attack` before two ogres for six minutes, no
         // blood either way, no stall): a run with `DANCE_ACTIONS` foe-facing row actions in a
         // row, `DANCE_MOVES` of them retreats, and no blood drawn is a loop the stall guard does
@@ -1872,6 +2253,7 @@ fn main() {
         rows.push((format!("Return row: 0 < death share < without it ({} cohort sets; = if it never acts)", ret_sets.len()), format!("{ok}/{} · worst {worst:+.1} pts", ret_sets.len()), ok == ret_sets.len()));
     }
     gold_report(&sets, &golds.lock().unwrap(), seeds, hours, &mut rows);
+    exits::report(&sets, &exit_tallies.lock().unwrap(), exit_seeds, exit_hours, &mut rows);
     forge_report(&sets, &forges.lock().unwrap(), &kresults.lock().unwrap(), &results, seeds, &mut rows);
     if !quick {
         lever_rows(&mut rows);
@@ -1886,6 +2268,7 @@ fn main() {
     let worst = paireds.iter().map(|(si, r)| (r.1 / r.2.max(1e-9), sets[*si].0.clone())).fold((0.0f64, String::new()), |a, b| if b.0 > a.0 { b } else { a });
     println!("paired edit delta (Cut 22 §3): {pe} one-notch edits over {} sets · paired ± / absolute ± {:.2} (worst set {} {:.2})", sets.len(), pp / pa.max(1e-9), worst.1, worst.0);
     rows.push((format!("Paired edit ± ≤ ½ absolute ± ({pe} cohort edits)"), format!("{:.2}", pp / pa.max(1e-9)), pp <= 0.5 * pa));
+    diverge_rows(&mut rows);
     let (sv_n, sv_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_verdicts.0, a.1 + r.stall_verdicts.1));
     rows.push((format!("Stall verdicts: ≥ 1 patch fired ≥ 50% (n={sv_n})"), format!("{sv_ok}/{sv_n}"), sv_ok == sv_n));
     let (sr_n, sr_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_reel.0, a.1 + r.stall_reel.1));
@@ -1894,6 +2277,7 @@ fn main() {
     println!();
     println!("{:<52} {:>18}  result", "gate", "value");
     let mut fails = 0;
+    seal(&mut rows);
     for (name, value, ok) in &rows {
         println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
         if !ok {

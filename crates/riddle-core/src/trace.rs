@@ -152,7 +152,15 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let row_fired = run.row_fired.clone();
     let gamble_row = if stall { None } else { gamble_row(run, &rules) };
     let home = run.home_at.map(|(t, hp, _)| (hp, run.turn.saturating_sub(t)));
-    DeathRec { death, home, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.clone().filter(|(f, _)| f.id == run.id && f.depth == run.depth), gamble_row, chase_row: None, moves: Vec::new() }
+    DeathRec { death, home, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.clone().filter(|(f, _)| f.id == run.id && f.depth == run.depth), gamble_row, chase_row: None, moves: Vec::new(), removed: removed_rows(&game.lineage.sent_sets, &game.lineage.rules().clone()) }
+}
+
+/// Cut 27 §5: the rows of the latest sent set other than `now` that `now` no longer holds (by
+/// conditions and verb), each with its index in that set. Card rows are the unlock's, not taken out.
+pub fn removed_rows(sent: &[RuleSet], now: &RuleSet) -> Vec<(Row, usize)> {
+    let key = crate::forecast::rules_key(now);
+    let Some(prev) = sent.iter().rev().find(|s| crate::forecast::rules_key(s) != key) else { return Vec::new() };
+    prev.rows.iter().enumerate().filter(|(_, r)| !r.is_card() && !now.rows.iter().any(|x| x.conds == r.conds && x.verb == r.verb)).map(|(i, r)| (r.clone(), i)).collect()
 }
 
 /// QA on a946e04: how far back from the end a death's notes reach (ticks; 60 hero turns).
@@ -408,6 +416,23 @@ pub fn pinnable_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
 }
 
 /// A row with the counter's verb (`attack tag:boss` under any conditions) is in the set.
+/// Cut 27 §5: a drive-off whose counter the set already holds — (the row carrying the counter's
+/// verb, the row above it that acted most in `trace`, the fight's last actions; ties: the higher
+/// row). (None, None) when no row carries it; `over` None when no row above it acted.
+pub fn driven_order(rules: &RuleSet, counter: &Row, trace: &[crate::wire::TraceTurn]) -> (Option<u32>, Option<u32>) {
+    let carries = |r: &Row| r.verb == counter.verb || r.card().and_then(crate::meta::unlock_rows).is_some_and(|rows| rows.iter().any(|x| x.verb == counter.verb));
+    let Some(held) = rules.rows.iter().position(carries) else { return (None, None) };
+    let mut counts: Vec<(i32, usize)> = Vec::new();
+    for t in trace.iter().filter(|t| t.row >= 0 && (t.row as usize) < held) {
+        match counts.iter_mut().find(|c| c.0 == t.row) {
+            Some(c) => c.1 += 1,
+            None => counts.push((t.row, 1)),
+        }
+    }
+    let over = counts.iter().max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0))).map(|c| c.0 as u32);
+    (Some(held as u32), over)
+}
+
 pub fn has_counter_verb(rules: &RuleSet, counter: &Row) -> bool {
     // A card row counts by the rows it carries (QA on e0f87e7: `try: attack boss` beside an
     // owned `boss focus` whose first row is `foe: boss → attack boss`).
@@ -1011,7 +1036,7 @@ fn pin_counter(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Opti
         return None;
     }
     rec.counter = Some(row.clone());
-    Some(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None })
+    Some(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None })
 }
 
 /// Cut 11 §2: the root-cause patch. A theft root: `foe_tag:thief → attack tag:thief` (the
@@ -1039,7 +1064,7 @@ fn root_patch(game: &Game, rec: &mut DeathRec, base: &Game, ticks: u32) -> Optio
     let mut b = base.sim_clone();
     unlock_base(&mut b, rec);
     let insert_at = if unlock.is_some() { -1 } else { 0 };
-    let patch = Patch { row: row.clone(), insert_at, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: Some(PatchRoot { text }), below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None };
+    let patch = Patch { row: row.clone(), insert_at, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: Some(PatchRoot { text }), below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
     let rules = patched_rules(&rec.rules, &patch, max_rows(rec));
     let pos = rules.rows.iter().position(|r| *r == row).unwrap_or(0);
     let mut rp = Replayer::new(&b, &rules, ticks, rec.stall)?;
@@ -1086,7 +1111,7 @@ fn cut_candidates(rec: &DeathRec, at: usize) -> Vec<Patch> {
     if moving && row.conds.len() < 2 && !row.conds.iter().any(|c| c.k == "adj>=") && rec.vocab.conds.iter().any(|c| c.k == "adj>=") {
         let mut narrowed = row.clone();
         narrowed.conds.push(Cond::n("adj>=", 1));
-        cands.push(Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None });
+        cands.push(Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None });
     }
     // Cut 19 §2/§4: a way home written too late (the walk met the floor) — the same row 20
     // points sooner (`hp < 20% → return` → `hp < 40%`), beside cutting it.
@@ -1094,9 +1119,9 @@ fn cut_candidates(rec: &DeathRec, at: usize) -> Vec<Patch> {
     if let (false, true, Some(i)) = (rec.stall, matches!(row.verb.v.as_str(), "return" | "bank"), late) {
         let mut sooner = row.clone();
         sooner.conds[i].n = sooner.conds[i].n.map(|n| n + 20);
-        cands.push(Patch { row: sooner, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None });
+        cands.push(Patch { row: sooner, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None });
     }
-    cands.push(Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None });
+    cands.push(Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None });
     cands
 }
 
@@ -1226,7 +1251,7 @@ fn order_moves(rec: &DeathRec, base: &Game, ticks: u32) -> Vec<Patch> {
     let max_rows = max_rows(rec);
     let rec_ref: &DeathRec = rec;
     let moved: Vec<Option<Patch>> = crate::forecast::par_map(base, jobs, |base, &j| {
-        let p = Patch { row: rec_ref.rules.rows[j].clone(), insert_at: top as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: Some(j as i32), whole: None };
+        let p = Patch { row: rec_ref.rules.rows[j].clone(), insert_at: top as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: Some(j as i32), whole: None, gem: false, restores: None };
         let rules = patched_rules(&rec_ref.rules, &p, max_rows);
         let mut rp = Replayer::new(base, &rules, ticks, false)?;
         let (survive, fired) = measure(&mut rp, &p.row, top);
@@ -1276,11 +1301,11 @@ fn chase_cause(rec: &DeathRec, base: &Game, ticks: u32, baseline: f64) -> Option
         return None;
     }
     let row = rec.rules.rows[at].clone();
-    let mut cands = vec![Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None }];
+    let mut cands = vec![Patch { row: row.clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None }];
     if !row.conds.iter().any(|c| c.k == "adj>=") && rec.vocab.conds.iter().any(|c| c.k == "adj>=") {
         let mut narrowed = row.clone();
         narrowed.conds.push(Cond::n("adj>=", 1));
-        cands.insert(0, Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None });
+        cands.insert(0, Patch { row: narrowed, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: true, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None });
     }
     let mut best: Option<Patch> = None;
     for mut p in cands {
@@ -1566,6 +1591,14 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
         Some(t10) => candidates(&rec.vocab, &rec.rules, t10, &rec.t10_facts, &game.lineage.flavours, &rec.death.trace),
         None => Vec::new(),
     };
+    // Cut 27 §5 (AT: the bloat row deleted, then a gas death stamped DICE): a row the player took
+    // out since the last set sent is a candidate too — measured where it stood (`restore R4`).
+    let restores: Vec<(Row, usize)> = if rec.stall { Vec::new() } else { rec.removed.iter().map(|(r, i)| (r.clone(), (*i).min(rec.rules.rows.len()))).collect() };
+    for (r, _) in &restores {
+        if !cands.contains(r) {
+            cands.push(r.clone());
+        }
+    }
     // A row the set already carries is not a patch (cohort 8, rater O: `foe: boss → attack
     // boss` offered at the top while it sat at R2). Moving a row is the editor's job.
     cands.retain(|r| !rec.rules.rows.iter().any(|x| x.conds == r.conds && x.verb == r.verb));
@@ -1586,7 +1619,11 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
         .iter()
         .enumerate()
         .filter(|(_, r)| pinnable.as_ref() != Some(*r))
-        .flat_map(|(ci, _)| positions.iter().copied().chain(safe[ci].filter(|s| !positions.contains(s))).map(move |pos| (ci, pos)))
+        .flat_map(|(ci, r)| {
+            // (a removed row is measured where it stood as well)
+            let back = restores.iter().find(|(x, at)| x == r && !positions.contains(at) && safe[ci] != Some(*at)).map(|(_, at)| *at);
+            positions.iter().copied().chain(safe[ci].filter(|s| !positions.contains(s))).chain(back).map(move |pos| (ci, pos)).collect::<Vec<_>>()
+        })
         .collect();
     let rec_ref: &DeathRec = rec;
     let scored: Vec<Option<(f64, Row, usize)>> = crate::forecast::par_map(&base, jobs, |base, &(ci, pos)| {
@@ -1623,7 +1660,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     // an added row would survive (the cut leads the patches as any `row` verdict's does).
     // (A death the unpatched replays all survive was not reproduced: never `row` — the dice.)
     let mut gamble_at = rec.gamble_row.filter(|_| !rec.stall && baseline < 1.0 - 1e-9);
-    let own_cut = gamble_at.map(|at| cut_patch(rec, &base, ticks, at).unwrap_or_else(|| Patch { row: rec.rules.rows[at].clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None }));
+    let own_cut = gamble_at.map(|at| cut_patch(rec, &base, ticks, at).unwrap_or_else(|| Patch { row: rec.rules.rows[at].clone(), insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: true, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None }));
     // QA on 778fa1b (qaV): a card's own throw or gamble is the verdict when the set without the
     // card lives longer than it did (the card's cut beats the unpatched replays) — otherwise
     // the moment killed him whatever the card did, and the verdict is the moment's.
@@ -1665,7 +1702,11 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     } else {
         scored.retain(|(_, row, pos)| positions.contains(pos) || safe_slot(&rec.rules, row) != Some(*pos));
     }
-    let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None }).collect();
+    let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None }).collect();
+    // Cut 27 §5: a removed row measured where it stood reads `restore R4`.
+    for p in patches.iter_mut() {
+        p.restores = restores.iter().find(|(r, at)| *r == p.row && *at as i32 == p.insert_at).map(|(_, at)| *at as u32);
+    }
     // Cut 11 §2: the chain's root — the theft's answer or the unlock — measured at the top,
     // scored like any other (its edge counts for the verdict; its delta is simulated first).
     if let Some(r) = root_patch(game, rec, &base, ticks) {
@@ -1845,7 +1886,7 @@ fn floor_verdict(game: &Game, rec: &mut DeathRec, cands: &[Row], pinnable: Optio
     let heal = scored.iter().any(|(r, row)| (uses(row, "drink", "heal") || uses(row, "read", "heal")) && *r >= MARGIN_BAR - 1e-9);
     let unknown = (scored.iter().any(|(r, row)| uses(row, "drink", "unknown") && *r >= MARGIN_BAR - 1e-9), scored.iter().any(|(r, row)| uses(row, "read", "unknown") && *r >= MARGIN_BAR - 1e-9));
     scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap().then(a.1.conds.is_empty().cmp(&b.1.conds.is_empty())).then(a.1.conds.len().cmp(&b.1.conds.len())));
-    let patches: Vec<Patch> = scored.into_iter().map(|(rate, row)| Patch { row, insert_at: 0, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None }).collect();
+    let patches: Vec<Patch> = scored.into_iter().map(|(rate, row)| Patch { row, insert_at: 0, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None }).collect();
     rec.death.patches = one_per_family(patches);
     rec.death.baseline = fbase;
     rec.death.verdict = "gap".into();
@@ -2257,7 +2298,7 @@ fn dice_telegraph(game: &Game, rec: &mut DeathRec) {
         return;
     }
     let below_bar = survive < survive_bar(rec.death.baseline) - 1e-9 || survive <= rec.death.baseline + 1e-9;
-    rec.death.patches.push(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None });
+    rec.death.patches.push(Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None });
     rec.deltas_done = false;
 }
 
@@ -2294,7 +2335,7 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
         }
         let Some(mut rp) = Replayer::new(&base, &patched(rec, &row, 0), ticks, rec.stall) else { continue };
         let (survive, fired) = measure(&mut rp, &row, 0);
-        measured.push((Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: true, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None }, fired));
+        measured.push((Patch { row, insert_at: 0, survive, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: true, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None }, fired));
     }
     // Cut 15 §6: a candidate that survives 0 % is no alternative (U: `survives 0% · base 0%`).
     if measured.iter().any(|(p, _)| p.survive > 1e-9) {
@@ -2576,6 +2617,8 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
     survival_first(rec);
     sink_harms(&mut rec.death.patches);
     mark_exits(&mut rec.death.patches);
+    // Cut 27 §4: the gem leads — the best whole-run patch that never harms.
+    pick_gem(&mut rec.death.patches);
     // The camp reads these panels next (the base, the tapped patch's set).
     for c in [g, unlocked] {
         for (k, v) in c.panel_cache.into_inner() {
@@ -2665,6 +2708,43 @@ pub fn sink_harms(patches: &mut Vec<Patch>) {
 /// reads `edit`).
 pub fn gem_patch(patches: &[Patch]) -> Option<&Patch> {
     patches.iter().find(|p| !p.below_bar && !patch_harms(p))
+}
+
+/// Cut 27 §4 (AS: a stall's gem applied `depth ≥ 5 → return · drops R10` — the whole run's
+/// return > 99 %, reach D7 < 1 % — over `cut R8`; a death's `cut R1 · 1/12` lit above a 12/12):
+/// whether a measured patch may be the gem — advice (not `below_bar`) whose whole run neither
+/// raises death past its ± nor lowers the reach past its own, an exit's reach included (the gem
+/// is a one-tap default: an exit's floors are a price the player picks, never the default).
+pub fn gem_eligible(p: &Patch) -> bool {
+    let worse = |w: &crate::wire::PatchWhole| w.harms || (w.death > 1e-9 && w.death > w.death_pm + 1e-9) || (w.reach < -1e-9 && w.reach < -w.reach_pm - 1e-9);
+    !p.below_bar && p.whole.as_ref().is_some_and(|w| !worse(w))
+}
+
+/// Cut 27 §4: a gem candidate's whole-run value — its reach move less its death move (the paired
+/// means on the camp's panel).
+pub fn gem_score(p: &Patch) -> f64 {
+    p.whole.as_ref().map_or(f64::NEG_INFINITY, |w| w.reach - w.death)
+}
+
+/// Cut 27 §4: the gem is the best whole-run patch (`gem_score`, the earlier on a tie) of those
+/// that may be (`gem_eligible`), marked `Patch.gem` and shown first — the pre-selection and the
+/// order agree. None marked when no patch may be (the gem reads `edit`).
+pub fn pick_gem(patches: &mut Vec<Patch>) {
+    for p in patches.iter_mut() {
+        p.gem = false;
+    }
+    let best = patches.iter().enumerate().filter(|(_, p)| gem_eligible(p)).fold(None::<(usize, f64)>, |a, (i, p)| {
+        let s = gem_score(p);
+        match a {
+            Some((_, b)) if s <= b + 1e-9 => a,
+            _ => Some((i, s)),
+        }
+    });
+    if let Some((i, _)) = best {
+        let mut g = patches.remove(i);
+        g.gem = true;
+        patches.insert(0, g);
+    }
 }
 
 /// Cut 19 §4: `rank_patches` over the shown list's unpinned patches, in their own slots — the
@@ -2886,7 +2966,7 @@ mod tests_trace {
     }
 
     fn patch(verb: Verb, survive: f64, delta: f64) -> Patch {
-        Patch { row: Row::new(vec![Cond::n("hp<", 20)], verb), insert_at: 0, survive, forecast_delta: delta, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None }
+        Patch { row: Row::new(vec![Cond::n("hp<", 20)], verb), insert_at: 0, survive, forecast_delta: delta, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None }
     }
 
     #[test]
@@ -2972,6 +3052,11 @@ mod tests_trace {
     }
 
     /// Verdict speed (Cut 2 §6: ≤ 0.4 s native); measured on the optimised profiles only.
+    /// The time is the verdict's CPU on one thread, single-threaded: each runs on a `par_map`
+    /// worker, where its replays run in place (never threads of threads), and the thread's own
+    /// CPU clock reads it — the suite's other tests loading the cores no longer read as a slow
+    /// verdict (the wall of a parallel verdict under that load flaked). The bar is unchanged and
+    /// the measure stricter: one thread's CPU is ~5× the wall of the verdict spread over the cores.
     #[cfg(not(debug_assertions))]
     #[test]
     fn a_verdict_takes_under_point_six_seconds() {
@@ -2979,13 +3064,18 @@ mod tests_trace {
         g.run_offline(2 * 3600);
         let ids: Vec<u32> = g.deaths.iter().filter(|(_, r)| !r.verdict_done).map(|(id, _)| *id).take(3).collect();
         assert!(!ids.is_empty(), "no unjudged death in two hours");
-        let mut best = f64::MAX;
-        for id in ids {
-            let t = std::time::Instant::now();
-            verdict(&mut g, id);
-            best = best.min(t.elapsed().as_secs_f64());
-        }
-        assert!(best < 0.6, "fastest verdict {best:.2}s");
+        // (this thread's CPU seconds; the wall where the kernel does not say)
+        let t0 = std::time::Instant::now();
+        let cpu = move || std::fs::read_to_string("/proc/thread-self/schedstat").ok().and_then(|t| t.split_whitespace().next()?.parse::<f64>().ok()).map(|ns| ns / 1e9).unwrap_or_else(|| t0.elapsed().as_secs_f64());
+        let recs: Vec<Option<DeathRec>> = ids.iter().map(|id| g.deaths.get(id).cloned()).chain(std::iter::once(None)).collect();
+        let times = crate::forecast::par_map(&g, recs, |base, rec| {
+            let mut rec = rec.clone()?;
+            let c = cpu();
+            compute_verdict(base, &mut rec);
+            Some(cpu() - c)
+        });
+        let best = times.into_iter().flatten().fold(f64::MAX, f64::min);
+        assert!(best < 0.6, "fastest verdict {best:.2}s (one thread's CPU)");
     }
 }
 

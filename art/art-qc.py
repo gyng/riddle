@@ -70,6 +70,10 @@ def main() -> int:
     for a in assets:
         if a["bg"].startswith("env") and a["id"] in generated_ids:
             name = a["id"][4:]
+            if a.get("biome"):   # juice pass 2: a per-biome drawing converts to that biome's tile only
+                if f"{a['biome']}_env_{a['name']}" not in tile_ids:
+                    failures.append(f"{a['id']}: no converted tile (run art/make_env.py)")
+                continue
             if not ({f"warrens_env_{name}", f"warrens_env_{name}_0", f"env_{name}", f"env_{name}_0"} & tile_ids):
                 failures.append(f"{a['id']}: no converted tile (run art/make_env.py)")
     expected_frames = (keyed_ids & generated_ids) | tile_ids

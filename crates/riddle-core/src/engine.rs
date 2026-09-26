@@ -21,6 +21,23 @@ pub const HERO_ID: u32 = 1;
 /// half its HP (up to this many turns back), so slow bleeds are attributable to a row, not to dice.
 pub const HISTORY_TURNS: usize = 30;
 pub const HISTORY_STRIDE: u32 = 10;
+
+thread_local! {
+    /// `without_history`: this thread's games keep no history ring.
+    static NO_HISTORY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// `f` with the history ring off on this thread: no snapshot every `HISTORY_STRIDE` ticks, so a
+/// death recorded meanwhile has no checkpoint (`DeathRec.t10` is `None`: no verdict, no patch can
+/// be measured). For tools that play sends and never judge a death (the gate table's gold, forge,
+/// exit and kitted jobs): the ring only ever feeds a death's checkpoint, and cloning the run every
+/// ten ticks was a fifth of their time. Everything else a send does is the same, bit for bit.
+pub fn without_history<R>(f: impl FnOnce() -> R) -> R {
+    let was = NO_HISTORY.with(|c| c.replace(true));
+    let r = f();
+    NO_HISTORY.with(|c| c.set(was));
+    r
+}
 /// Cut 4: a hostile that stepped out of view is remembered (snapshot `remembered`, the hunt)
 /// for this many hero actions after it was last seen.
 pub const REMEMBER_ACTIONS: u32 = 10;
@@ -152,6 +169,10 @@ pub struct Run {
     /// `−$50 waystone D5`): the toll this send paid (0 from D1 or on the night's pass).
     #[serde(default)]
     pub toll: i32,
+    /// Cut 27 §1: the passage paid at this run's waystone start (coins, into the purse at the
+    /// send): the skipped floors' gold when the set clears them ≥ 95 % (`forecast::passage_for`).
+    #[serde(default)]
+    pub passage: i32,
     /// QA on a946e04 (qaT: a short purse sent the run from D1 unsaid): the waystone the send
     /// wanted and did not start on (the toll short, or unlit) — `ExitLine.start_short`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -265,6 +286,9 @@ pub struct Run {
     pub recalled: Vec<u32>,
     pub tamed: Vec<(u32, String)>,
     pub lost_companions: Vec<(u32, String)>,
+    /// Cut 27 §5: each companion that fell this run and how (`fell D7 to ogre`) — `Lost.why`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fell_why: Vec<(String, String)>,
     /// Item ids of camp supplies (never kept back).
     /// QA on 0c6e126 (qaZ: `new find: leash`, the free supply back from bones): the kinds the
     /// send packed (its supplies), never a find of the run.
@@ -287,11 +311,28 @@ pub struct Run {
     /// to a corridor, which would undo the step it just took.
     #[serde(default)]
     pub pack_go: u32,
+    /// Cut 27 §4: the tile a card (`pack break`, `thief guard`) last fell back to a corridor from —
+    /// back on it (a chore walked the hero out again), the card does not fall back again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub card_fell: Option<Pos>,
+    /// Cut 27 §4 (AS: `R5 free ↔ descend` stalled a D9 send): the captive a `free captive` row
+    /// set out for (its id) — the row's `on see: captive` holds on the way while it lives
+    /// chained, though a corner hides it (the step toward it broke the sight line, the `descend`
+    /// chore stepped back, the row stepped in again).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub freeing: Option<u32>,
     /// Cached BFS field from the hero (recomputed when the hero moves).
     #[serde(skip)]
     pub hero_dist: Vec<i32>,
     #[serde(skip)]
     pub hero_dist_pos: Option<Pos>,
+    /// `hero_dist`'s flood (FIFO queue and head) while it is still partial: a monster's step
+    /// reads the field only as far as its own tile (`turn::hero_dist_to`), the rest is flooded
+    /// on demand — the values are the full flood's (a tile's distance is final when found).
+    #[serde(skip)]
+    pub hero_flood: Vec<u32>,
+    #[serde(skip)]
+    pub hero_flood_head: usize,
     /// Ids visible at the last vision pass (to skip unchanged passes).
     #[serde(skip)]
     pub last_visible: Vec<u32>,
@@ -336,6 +377,13 @@ pub struct Run {
     /// 1), for the stall verdict's first patch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stuck_row: Option<i32>,
+    /// Cut 27 §4: the oscillation guards this run whose window was a card taking turns with a
+    /// chore (`R8 pack ↔ pick up`: the card's sub-rows are the engine's) — recovered or not.
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub card_loops: u32,
+    /// (the loops' causes, for the metrics' breakdown; not saved)
+    #[serde(skip)]
+    pub loop_causes: Vec<String>,
     /// QA on 1a2a4a9 (qaP: `returning` at 6/38, then hp came back, the row stopped holding
     /// and he went on down to D8): a return is a commitment. The row (set index) whose
     /// `return` / `bank` acted: from then on the walk home replaces the chores — when no row
@@ -948,6 +996,10 @@ pub struct Lost {
     pub name: String,
     pub gen: u32,
     pub heir: u32,
+    /// Cut 27 §5 (AT: `Krak the jackal, gone wild` — "is that my hatched jackal?"): how it was
+    /// lost (`fell D7 to ogre`), for the stray's line when a later heir meets it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub why: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -1147,6 +1199,10 @@ pub struct LineageState {
     /// night's end clears them (`night`).
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub night_passes: BTreeSet<u32>,
+    /// Cut 27 §5: the last `SENT_SETS` distinct rule sets sent (live or offline), oldest first —
+    /// a death's verdict offers back a row the player took out since (`DeathRec.removed`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sent_sets: Vec<RuleSet>,
     /// QA on a946e04: the waystone whose pass an absence's purse could not pay this night —
     /// the night's later offline sends start on D1 without asking again (the report's
     /// `start_short`); cleared at the night's end. A watched send asks each time.
@@ -1244,6 +1300,8 @@ pub const WAYSTONES: [u32; 6] = [5, 9, 14, 19, 24, 29];
 /// than D1): a waystone start is free — the skipped shallow loot and the added death risk are
 /// its cost. The pass / night bookkeeping stays and charges nothing.
 pub const WAYSTONE_TOLL: i32 = 0;
+/// Cut 27 §5: how many distinct sent sets the lineage remembers (`LineageState::sent_sets`).
+pub const SENT_SETS: usize = 3;
 
 /// Cut 16 §1: a night of runs (the ledger's "a night of 16 runs").
 pub const NIGHT_RUNS: u32 = 16;
@@ -1360,6 +1418,7 @@ impl LineageState {
             night_runs: 0,
             night_seen: BTreeSet::new(),
             night_passes: BTreeSet::new(),
+            sent_sets: Vec::new(),
             night_short: None,
             night_theft_rebought: false,
             theft_skip: Vec::new(),
@@ -2155,6 +2214,11 @@ pub struct DeathRec {
     /// conditions held, moved above the rows that won; joined to the shown patches last.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub moves: Vec<crate::wire::Patch>,
+    /// Cut 27 §5 (AT: a gas death stamped DICE after he had deleted the bloat row): the rows of
+    /// the set sent before this one that this set no longer holds, each with its index there —
+    /// the verdict's `restore` candidates (`LineageState::sent_sets`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub removed: Vec<(crate::rules::Row, usize)>,
 }
 
 fn is_zero_u64(n: &u64) -> bool {
@@ -2329,6 +2393,12 @@ pub struct Batch {
     /// (`Run.bloodless`).
     #[serde(default)]
     pub dances: u32,
+    /// Cut 27 §4: real runs with a card ↔ chore loop the oscillation guard caught (`Run.card_loops`).
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub card_loops: u32,
+    /// (the loops' causes, for the metrics' breakdown; not saved)
+    #[serde(skip)]
+    pub loop_causes: Vec<String>,
     /// Cut 24 §1: each real run's longest no-HP stretch in hero actions (`Run.nohp`'s longest,
     /// or a boss's still stretch) — the metrics' p99 ≤ 60 row — and the runs a boss drove off.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -2499,6 +2569,15 @@ pub struct Game {
     /// `LineageState::row_stats` at the run's end.
     #[serde(default, skip)]
     pub row_tally: Vec<RowTally>,
+    /// Cut 27 §1: the passage a send from a waystone is paid — (start, coins), set by `send` and
+    /// at an absence's start (`forecast::sim_passage`), read by `start_run` when the run starts
+    /// on that floor; the sims carry their own (`forecast::simulate_one`).
+    #[serde(skip)]
+    pub passage: Option<(u32, i32)>,
+    /// Cut 27 §1: the floors the watch folds for the send in flight — (last folded floor, each
+    /// floor's clear from the start), from the camp's panel at `send` (`Game::fold`).
+    #[serde(skip)]
+    pub fold_plan: Option<(u32, Vec<(u32, f64)>)>,
 }
 
 fn refined_empty(r: &std::cell::RefCell<std::collections::BTreeSet<String>>) -> bool {
@@ -2539,6 +2618,8 @@ impl Game {
             panel_cache: Default::default(),
             refined_panels: Default::default(),
             row_tally: Vec::new(),
+            passage: None,
+            fold_plan: None,
         }
     }
 
@@ -2572,6 +2653,8 @@ impl Game {
             last_exit: None,
             watched: false,
             bounty_seen: self.bounty_seen,
+            passage: self.passage,
+            fold_plan: None,
         }
     }
 
@@ -2974,6 +3057,16 @@ impl Game {
         self.bounty_seen = self.lineage.bounty;
         self.lineage.rest_left = 0;
         self.watched = true;
+        // Cut 27 §1: a run begun here is priced as the camp priced it — its passage and the floors
+        // the watch folds come from the camp's panels for the lineage as it stands (cached from the
+        // forecast the camp painted).
+        // (a run the camp's rest clock already began — `step` while resting — is still at its
+        // first tick: it folds too)
+        let rules = self.lineage.rules().clone();
+        if self.run.is_none() {
+            self.passage = crate::forecast::sim_passage(self, &rules);
+        }
+        self.fold_plan = if self.run.as_ref().is_none_or(|r| r.turn == 0 && r.over.is_none()) { crate::forecast::fold_plan(self, &rules) } else { None };
         self.ensure_run()
     }
 
@@ -3018,6 +3111,17 @@ impl Game {
         // toll here (`waystone D9 −$90`); a toll the purse cannot pay (or a start no longer
         // lit) starts on D1 and says so.
         let (start, start_note, toll) = self.pay_start();
+        // Cut 27 §5: the set this send plays, remembered while it is one of the last few sent.
+        if !self.sim {
+            let played = crate::forecast::rules_key(self.lineage.rules());
+            if self.lineage.sent_sets.last().is_none_or(|s| crate::forecast::rules_key(s) != played) {
+                let set = self.lineage.rules().clone();
+                self.lineage.sent_sets.push(set);
+                while self.lineage.sent_sets.len() > SENT_SETS {
+                    self.lineage.sent_sets.remove(0);
+                }
+            }
+        }
         let wanted = self.lineage.start.max(1);
         let mut rng = Rng::new(seed);
         let route = self.lineage.rules().route();
@@ -3092,6 +3196,7 @@ impl Game {
             depth: start,
             start,
             toll,
+            passage: 0,
             start_short: (start != wanted).then_some(wanted),
             floor,
             hero,
@@ -3157,12 +3262,17 @@ impl Game {
             recalled: Vec::new(),
             tamed: Vec::new(),
             lost_companions: Vec::new(),
+            fell_why: Vec::new(),
             supplies: Vec::new(),
             taunt_t: 0,
             kited: None,
             pack_go: 0,
+            card_fell: None,
+            freeing: None,
             hero_dist: Vec::new(),
             hero_dist_pos: None,
+            hero_flood: Vec::new(),
+            hero_flood_head: 0,
             last_visible: vec![u32::MAX],
             idle_actions: 0,
             cowardly_streak: 0,
@@ -3178,6 +3288,8 @@ impl Game {
             stuck_first_t: None,
             stuck_cause: None,
             stuck_row: None,
+            card_loops: 0,
+            loop_causes: Vec::new(),
             homeward: None,
             home_at: None,
             homeward_bank: false,
@@ -3306,7 +3418,17 @@ impl Game {
         self.history.clear();
         self.row_tally.clear();
         self.facts_at_run_start = self.lineage.facts.len();
+        // Cut 27 §1: a waystone start the set would have reached at ≥ 95 % a floor is paid the
+        // skipped floors' gold at the send, into the purse (`passage D9 +$84`): the floors above it
+        // would have come home with the send nineteen times in twenty.
+        let paid = self.passage.filter(|(at, n)| *at == run.depth && run.depth > 1 && *n > 0).map(|p| p.1);
+        run.passage = paid.unwrap_or(0);
         self.run = Some(run);
+        if let Some(coins) = paid {
+            let d = self.run.as_ref().map_or(1, |r| r.depth);
+            self.lineage.gold_move(coins, &format!("passage D{d}"));
+            self.events.push(Ev::Callout { t: 0, text: format!("passage +${coins}"), why: None });
+        }
         let mut cx = self.ctx();
         let run = cx.0;
         crate::facts::on_vision(run, &mut cx.1);
@@ -3426,6 +3548,12 @@ impl Game {
                 break;
             }
         }
+        self.step_result(events, run_over)
+    }
+
+    /// The end of a `step` (and of a `fold`): the snapshot, and when the run ended the settled
+    /// exit (its ledger line and trace on the exit event, the keep sheet pending).
+    pub fn step_result(&mut self, mut events: Vec<Ev>, run_over: bool) -> StepResult {
         let snapshot = self.snapshot();
         if run_over {
             self.finish_run();
@@ -3458,7 +3586,7 @@ impl Game {
         if self.run.as_ref().is_none_or(|r| r.over.is_some()) {
             return;
         }
-        if !self.sim && self.run.as_ref().unwrap().turn.is_multiple_of(HISTORY_STRIDE) {
+        if !self.sim && self.run.as_ref().unwrap().turn.is_multiple_of(HISTORY_STRIDE) && !NO_HISTORY.with(|c| c.get()) {
             let r = self.run.as_ref().unwrap();
             self.history.push_back((r.clone(), self.lineage.facts.clone()));
             while self.history.len() > HISTORY_TURNS + 1 {
@@ -3624,7 +3752,7 @@ impl Game {
             alert: run.alert,
             turn: run.turn,
             loot: run.loot,
-            run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn, start: run.start.max(1) },
+            run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn, start: run.start.max(1), passage: run.passage },
             stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some(), death_keep: run.loot.max(0) * ExitTier::Death.pct() / 100, swapped: run.swapped, swap_left: run.swap_left.last().cloned() },
             vision: run.vision(&l.unlocks),
             vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice {
@@ -3820,6 +3948,8 @@ impl Game {
         }
         self.batch.stalls += stalled as u32;
         self.batch.dances += (run.bloodless.2 >= crate::turn::DANCE_ACTIONS) as u32;
+        self.batch.card_loops += (run.card_loops > 0) as u32;
+        self.batch.loop_causes.extend(run.loop_causes.iter().cloned());
         self.batch.nohp.push(run.nohp.2);
         self.batch.driven_off += run.driven_off.is_some() as u32;
         self.batch.run_outcomes.push((run.depth, if tier == ExitTier::Death { run.death_cause.clone() } else { None }));
@@ -4025,7 +4155,8 @@ impl Game {
                 // Cut 5 §4: the lost companion may be met again, gone wild, by a later heir.
                 let heir = run.heir;
                 self.lineage.lost.retain(|l| l.name != rec.name);
-                self.lineage.lost.push(Lost { kind: rec.kind.clone(), name: rec.name.clone(), gen: rec.gen, heir });
+                let why = run.fell_why.iter().rev().find(|(n, _)| *n == rec.name).map(|(_, w)| w.clone()).unwrap_or_default();
+                self.lineage.lost.push(Lost { kind: rec.kind.clone(), name: rec.name.clone(), gen: rec.gen, heir, why });
                 while self.lineage.lost.len() > 6 {
                     self.lineage.lost.remove(0);
                 }
@@ -4460,7 +4591,11 @@ impl Game {
         // drove him off (`· by Warlord`); `no counter` is the COUNTER tablet's verdict, beside its `try:`.
         if let Some(kind) = &run.driven_off {
             let row = crate::facts::counter_row(kind);
-            let d = crate::wire::DrivenOff { boss: kind.clone(), title: crate::sifter::boss_short(kind).into(), depth: run.depth, verdict: "no counter".into(), defence: crate::facts::boss_trait(kind).into(), counter: crate::facts::counter_text(&row), row, run_id: run.id, hp: run.hero.hp, max_hp: run.hero.max_hp, lost: line.carried - line.kept };
+            // Cut 27 §5: the counter already in the set (a row of its verb, or a card carrying one) is
+            // an `order` drive-off — the rows above it that acted in the fight kept it from its turn.
+            let (held, over) = crate::trace::driven_order(self.lineage.rules(), &row, &run.trace);
+            let verdict = if held.is_some() { "order" } else { "no counter" };
+            let d = crate::wire::DrivenOff { boss: kind.clone(), title: crate::sifter::boss_short(kind).into(), depth: run.depth, verdict: verdict.into(), defence: crate::facts::boss_trait(kind).into(), counter: crate::facts::counter_text(&row), row, run_id: run.id, hp: run.hero.hp, max_hp: run.hero.max_hp, lost: line.carried - line.kept, held, over };
             if !self.sim {
                 self.batch.drives.push(d.clone());
                 while self.batch.drives.len() > EXITS_CAP {
@@ -6050,4 +6185,8 @@ pub fn auto_keep_plan(p: &PendingExit, vault: &[Item], slots: usize, keep_pref: 
         }
     }
     (ids, evict)
+}
+
+fn is_zero_u32(n: &u32) -> bool {
+    *n == 0
 }

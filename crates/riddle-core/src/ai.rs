@@ -9,7 +9,7 @@ use crate::monster::{Monster, Pending};
 use crate::rules::Verb;
 use crate::hero::{class_has_verb, Class};
 use crate::tiles::{OverlayKind, Tile, VISION};
-use crate::turn::{cond_holds, damage_hero, damage_monster, descend, end_run, hero_dist, noise, pickup_here, place_overlay, view, Src, View};
+use crate::turn::{cond_holds, damage_hero, damage_monster, descend, end_run, noise, pickup_here, place_overlay, view, Src, View};
 use crate::wire::Ev;
 
 pub const THROW_RANGE: i32 = 6;
@@ -52,27 +52,35 @@ pub fn random_step(run: &mut Run, cx: &mut Ctx) {
     move_hero(run, cx, q);
 }
 
-/// BFS from the hero over seen tiles; visible hostiles block, allies are swapped past.
-/// Water is avoided (eels) unless nothing is reachable without it.
-fn hero_bfs(run: &Run) -> (Vec<i32>, Vec<i32>) {
-    hero_bfs_water(run, true)
-}
-
+/// The hero's flood: over seen tiles from the hero, `hero_avoids`' obstacles.
 /// Chores and approaches path through monsters (a hostile on the first step simply stops the
 /// step; the rules decide what to do about it). Paths never depend on what is in view, so
 /// explore and descend cannot disagree about which corridor is open.
-fn hero_bfs_water(run: &Run, avoid: bool) -> (Vec<i32>, Vec<i32>) {
-    run.floor.map.bfs_parent(run.hero.pos, true, &hero_avoids(run, avoid))
+///
+/// The nearest of `goals` by (distance, x, y) on a flood from the hero over seen tiles with
+/// `blocked` (the hero's flood's shape), and the flood's parents: it stops at the first distance holding
+/// a goal — every nearer tile, that distance's goals and the paths to them are the full flood's —
+/// where the whole floor was flooded to choose among a target's eight neighbours. `None`: none
+/// reachable (the flood ran out).
+fn nearest_goal(run: &Run, blocked: &impl Fn(Pos) -> bool, goals: &[Pos]) -> (Option<Pos>, Vec<i32>) {
+    let map = &run.floor.map;
+    let at: Vec<usize> = goals.iter().filter(|q| map.in_bounds(**q)).map(|q| map.idx(*q)).collect();
+    let mut found = None;
+    let (_, parent) = map.bfs_parent_layers(run.hero.pos, true, blocked, |_, layer| {
+        found = layer.iter().filter(|i| at.contains(i)).map(|&i| map.pos(i)).min_by_key(|q| (q.x, q.y));
+        found.is_some()
+    });
+    (found, parent)
 }
 
-/// `hero_bfs_water`'s obstacles. Cut 7: lingering gas is terrain too when another way exists.
+/// The hero's flood's obstacles. Cut 7: lingering gas is terrain too when another way exists.
 fn hero_avoids(run: &Run, avoid: bool) -> impl Fn(Pos) -> bool + '_ {
     let map = &run.floor.map;
     let hp = run.hero.pos;
     move |p| avoid && p != hp && (map.get(p) == Tile::Water || run.mirrors.iter().any(|m| m.cheb(p) <= 1) || run.in_den_zone(p) || run.sleepers.contains(&p) || run.overlays.iter().any(|o| o.x == p.x && o.y == p.y))
 }
 
-/// `hero_bfs`'s parents toward `goal` (the flood stops there — `Map::bfs_parent_to`).
+/// The hero's flood's parents toward `goal` (the flood stops there — `Map::bfs_parent_to`).
 fn hero_path_to(run: &Run, goal: Pos) -> Vec<i32> {
     run.floor.map.bfs_parent_to(run.hero.pos, true, &hero_avoids(run, true), goal)
 }
@@ -263,9 +271,14 @@ pub fn escape_hazard(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
 /// Cut 3 chore: an identified enchant scroll or strength potion has no downside — the hero
 /// uses it when nothing is in view rather than carry it (a full pack of them blocked every
 /// throwable in the Foundry).
+///
+/// Cut 27 §5 (AS: `R1 fired 0 of 8 runs: foe: boss → drink strength` beside a trace's `← drunk
+/// strength at 20/42 hp D7` — the chore drank it before any boss came): a kind a row of the set
+/// uses by name is the row's to use, never the chore's.
 fn use_boosts(run: &mut Run, cx: &mut Ctx) -> Option<Verb> {
-    let enchant_known = is_identified(cx.facts, cx.flavours, "enchant");
-    let strength_known = is_identified(cx.facts, cx.flavours, "strength");
+    let row_uses = |cx: &Ctx, v: &str, k: &str| cx.rules.active(cx.max_rows).any(|(_, r)| r.verb.v == v && r.verb.a.as_deref() == Some(k));
+    let enchant_known = is_identified(cx.facts, cx.flavours, "enchant") && !row_uses(cx, "read", "enchant");
+    let strength_known = is_identified(cx.facts, cx.flavours, "strength") && !row_uses(cx, "drink", "strength");
     if enchant_known && run.hero.weapon.is_some() && run.hero.inv.iter().any(|i| i.kind == "enchant") {
         let v = view(run);
         if verb_read(run, cx, "enchant", &v) {
@@ -1024,13 +1037,9 @@ fn verb_double_shot(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View) -> bool {
 fn approach_target(run: &mut Run, cx: &mut Ctx, mi: usize) -> bool {
     let hp = run.hero.pos;
     let mp = run.monsters[mi].pos;
-    let (dist, parent) = hero_bfs(run);
-    let map = &run.floor.map;
-    let goal = mp
-        .neighbours8()
-        .into_iter()
-        .filter(|q| map.in_bounds(*q) && dist[map.idx(*q)] >= 0 && (!run.occupied(*q) || *q == hp))
-        .min_by_key(|q| (dist[map.idx(*q)], q.x, q.y));
+    // (the nearest free tile beside the target: `nearest_goal` floods only as far as it)
+    let goals: Vec<Pos> = mp.neighbours8().into_iter().filter(|q| run.floor.map.in_bounds(*q) && (!run.occupied(*q) || *q == hp)).collect();
+    let (goal, parent) = nearest_goal(run, &hero_avoids(run, true), &goals);
     match goal {
         Some(g) if g != hp => step_towards(run, cx, g, &parent),
         _ => false,
@@ -1270,25 +1279,19 @@ fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bo
     // Approach: path to a tile adjacent to the target, around other monsters (Cut 7: and
     // round lingering gas or fire) if there is a way, otherwise straight through whoever
     // stands in the way.
-    let around = {
-        let map = &run.floor.map;
-        map.bfs_parent(run.hero.pos, true, &|p| run.monster_at(p).is_some_and(|k| k != mi && run.monsters[k].hostile()) || run.overlays.iter().any(|o| o.x == p.x && o.y == p.y))
+    // The goal is the nearest free tile beside the target by (distance, x, y) — on the flood round
+    // the others when one is reachable that way, else on the hero's plain flood's; each flood stops at its
+    // nearest (`nearest_goal`). The hero beside the target is his own nearest (distance 0): no
+    // step, whichever flood.
+    if mp.neighbours8().contains(&hp) {
+        return false;
+    }
+    let goals: Vec<Pos> = mp.neighbours8().into_iter().filter(|q| run.floor.map.in_bounds(*q) && !run.occupied(*q)).collect();
+    let around = |p: Pos| run.monster_at(p).is_some_and(|k| k != mi && run.monsters[k].hostile()) || run.overlays.iter().any(|o| o.x == p.x && o.y == p.y);
+    let (goal, parent) = match nearest_goal(run, &around, &goals) {
+        (Some(g), parent) => (Some(g), parent),
+        _ => nearest_goal(run, &hero_avoids(run, true), &goals),
     };
-    let (dist, parent) = {
-        let map = &run.floor.map;
-        let reachable = mp.neighbours8().into_iter().any(|q| map.in_bounds(q) && around.0[map.idx(q)] > 0 && !run.occupied(q));
-        if reachable {
-            around
-        } else {
-            hero_bfs(run)
-        }
-    };
-    let map = &run.floor.map;
-    let goal = mp
-        .neighbours8()
-        .into_iter()
-        .filter(|q| map.in_bounds(*q) && dist[map.idx(*q)] >= 0 && (!run.occupied(*q) || *q == hp))
-        .min_by_key(|q| (dist[map.idx(*q)], q.x, q.y));
     match goal {
         Some(g) if g == hp => false,
         Some(g) => {
@@ -1461,7 +1464,8 @@ fn verb_back_corridor(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     if foes.is_empty() && !v.foes.is_empty() {
         return false;
     }
-    let (dist, parent) = hero_bfs(run);
+    // (the flood as far as 5 steps: every tile within reach, and its path, is the full flood's)
+    let (dist, parent) = run.floor.map.bfs_parent_layers(run.hero.pos, true, &hero_avoids(run, true), |d, _| d > 5);
     let map = &run.floor.map;
     let mut best: Option<(i32, Pos)> = None;
     for (i, d) in dist.iter().enumerate() {
@@ -1971,7 +1975,18 @@ pub fn projectile(run: &Run, cx: &mut Ctx, src: u32, dst: u32, from: Pos, to: Po
 fn verb_free_captive(run: &mut Run, cx: &mut Ctx) -> bool {
     let map = &run.floor.map;
     let hp = run.hero.pos;
-    let Some(ci) = run.monsters.iter().position(|m| m.hp > 0 && m.neutral && map.is_visible(m.pos)) else { return false };
+    // Cut 27 §4: the captive already set out for first, though a corner hides it now (`Run.freeing`).
+    // (and the chained captive in view before any other neutral: the row's `on see: captive` saw it —
+    // walking to another one lost it from view, and the chore walked back)
+    let Some(ci) = run
+        .monsters
+        .iter()
+        .position(|m| m.hp > 0 && m.neutral && run.freeing == Some(m.id))
+        .or_else(|| run.monsters.iter().position(|m| m.hp > 0 && m.neutral && m.situation.as_deref() == Some("captive") && map.is_visible(m.pos)))
+        .or_else(|| run.monsters.iter().position(|m| m.hp > 0 && m.neutral && map.is_visible(m.pos)))
+    else {
+        return false;
+    };
     let cp = run.monsters[ci].pos;
     if cp.adjacent(hp) {
         let m = &mut run.monsters[ci];
@@ -1990,11 +2005,16 @@ fn verb_free_captive(run: &mut Run, cx: &mut Ctx) -> bool {
         }
         return true;
     }
-    let (dist, parent) = hero_bfs(run);
-    let map = &run.floor.map;
-    let goal = cp.neighbours8().into_iter().filter(|q| map.in_bounds(*q) && dist[map.idx(*q)] >= 0).min_by_key(|q| (dist[map.idx(*q)], q.x, q.y));
+    let (goal, parent) = nearest_goal(run, &hero_avoids(run, true), &cp.neighbours8());
     match goal {
-        Some(g) => step_towards(run, cx, g, &parent),
+        Some(g) => {
+            let id = run.monsters[ci].id;
+            let moved = step_towards(run, cx, g, &parent);
+            if moved && run.monsters[ci].situation.as_deref() == Some("captive") {
+                run.freeing = Some(id);
+            }
+            moved
+        }
         None => false,
     }
 }
@@ -2022,6 +2042,8 @@ pub fn curious_use(run: &mut Run, cx: &mut Ctx) -> Option<Verb> {
 const KITE_WINDOW: u32 = 40;
 /// Actions the `pack break` card keeps going for a pack it stepped out to meet.
 const PACK_GO: u32 = 12;
+/// Cut 27 §4: the distance inside which the `pack break` card falls back to a corridor.
+const PACK_NEAR: i32 = 6;
 
 fn break_los_step(run: &mut Run, cx: &mut Ctx, from: Pos) -> bool {
     let hp = run.hero.pos;
@@ -2137,7 +2159,10 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                     hero_attack(run, cx, other, "attack", false);
                     return true;
                 }
-                return true; // wait for the bloat to drift in; it dies to the next swing on open ground
+                // wait for the bloat to drift in; it dies to the next swing on open ground — Cut 27 §4: a
+                // bloat the chase gave up on (not in `engage`: no path, across water) never drifts in, and the
+                // card stood before it until the guard called the send a stall (`bloat, no path` · AS's set)
+                return v.foes.iter().any(|&i| run.monsters[i].has_tag("gas") && v.engage.contains(&i));
             }
             false
         }
@@ -2147,10 +2172,22 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             // The pack is the foes the guard has not given up on (`threats()`): a pack it paced in
             // front of and gave up on for the floor held the card in its corridor, and the guard
             // fired again on the same jackals (QA on 23ed91f, qaL run 5).
-            let pack = threats(run, v);
+            // Cut 27 §4 (AS: `R8 pack ↔ pick up`, 12 turns standing among four foes on D5): nor a foe
+            // the chase gave up on for now (not in `engage`: unreachable, not closing) — the card
+            // backed into its corridor from it, the `pick up` chore stepped out toward an item,
+            // and back, until the guard called the send a stall. A foe at the elbow still counts.
+            let hp = run.hero.pos;
+            let pack: Vec<usize> = threats(run, v).into_iter().filter(|&i| v.engage.contains(&i) || run.monsters[i].pos.adjacent(hp)).collect();
             let foes = pack.len() as i32;
             let going = run.pack_go > run.actions;
-            if foes >= 2 && !in_corr && !going && verb_back_corridor(run, cx, v) {
+            // Cut 27 §4: and only from a pack within `PACK_NEAR` — two goblins idling nine tiles off
+            // were out of sight from the corridor's mouth, so the `pick up` chore stepped out, saw
+            // them, and the card stepped back in (`R8 pack ↔ pick up`); a pack that far is held below.
+            let near = pack.iter().map(|&i| run.monsters[i].pos.cheb(hp)).min().is_some_and(|d| d <= PACK_NEAR);
+            // (and once from a tile: a chore that walked the hero back out to it undoes the fall-back —
+            // `R8 pack ↔ pick up` before two archers — so from there the card holds or goes)
+            if foes >= 2 && near && !in_corr && !going && run.card_fell != Some(hp) && verb_back_corridor(run, cx, v) {
+                run.card_fell = Some(hp);
                 return true;
             }
             if v.adj >= 1 {
@@ -2219,7 +2256,13 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             // Keep the pack away from a thief that is actually coming (≤ 3 tiles): back into a
             // corridor if one is at hand. A thief loitering at range is not a reason to shuffle
             // (rater F: `to corridor` ↔ `pick up` for minutes at frozen HP).
-            !in_corr && mp.cheb(hp) <= 3 && verb_back_corridor(run, cx, v)
+            // Cut 27 §4: nor from one the chase gave up on for now (not in `engage`) — the card
+            // backed in, the chores (`descend`, `pick up`) stepped out, and back (`R3 thief ↔ descend`).
+            if !in_corr && mp.cheb(hp) <= 3 && v.engage.contains(&i) && run.card_fell != Some(hp) && verb_back_corridor(run, cx, v) {
+                run.card_fell = Some(hp);
+                return true;
+            }
+            false
         }
         // boss_focus: the boss's own counter — the Warlord himself (aimed), the Bloat
         // Mother at range, the Lich's summons first — then the boss.
@@ -2502,9 +2545,10 @@ fn can_see_hero(run: &Run, mi: usize) -> bool {
 }
 
 fn approach(run: &mut Run, cx: &mut Ctx, mi: usize) -> bool {
-    // The cached field itself (no copy per monster per tick): nothing below writes it.
-    hero_dist(run);
+    // The cached field itself (no copy per monster per tick): nothing below writes it — settled
+    // as far as the monster's own tile (`hero_dist_to`: all `step_down` reads).
     let mp = run.monsters[mi].pos;
+    crate::turn::hero_dist_to(run, mp);
     let water_only = run.monsters[mi].has_tag("water");
     let map = &run.floor.map;
     let occ = |q: Pos| run.occupied(q) || (water_only && map.get(q) != Tile::Water);
@@ -3550,9 +3594,7 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
     let hp = run.hero.pos;
     let mp = run.monsters[mi].pos;
     if !mp.adjacent(hp) {
-        let (dist, parent) = hero_bfs(run);
-        let map = &run.floor.map;
-        let goal = mp.neighbours8().into_iter().filter(|q| map.in_bounds(*q) && dist[map.idx(*q)] >= 0).min_by_key(|q| (dist[map.idx(*q)], q.x, q.y));
+        let (goal, parent) = nearest_goal(run, &hero_avoids(run, true), &mp.neighbours8());
         return match goal {
             Some(g) if g != hp => step_towards(run, cx, g, &parent),
             _ => false,

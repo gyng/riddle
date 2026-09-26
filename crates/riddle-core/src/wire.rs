@@ -50,6 +50,16 @@ pub struct RunRef {
     /// started on (1, or the waystone it paid for).
     #[serde(default = "one")]
     pub start: u32,
+    /// Cut 27 §1: the passage this run was paid at its waystone start (`+$84 passage`: the
+    /// skipped floors' gold, into the purse at the send — ledger `passage D9` — when the set
+    /// clears them ≥ 95 %);
+    /// 0 from D1 or when the set does not clear the floors above its start.
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub passage: i32,
+}
+
+fn is_zero_i32(n: &i32) -> bool {
+    *n == 0
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -333,6 +343,16 @@ pub struct DrivenOff {
     pub max_hp: i32,
     #[serde(default)]
     pub lost: i32,
+    /// Cut 27 §5 (AT: `D8 · counter unwritten` offered `foe: boss → attack boss at R7` — his own
+    /// R7, pre-empted by the archers' rows above it): the set's row (0-based) that already
+    /// carries the counter's verb; `verdict` then reads `order` (not `no counter`) and the fix is a
+    /// move, not a new row. `None` when the counter is unwritten.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held: Option<u32>,
+    /// Cut 27 §5: on an `order` drive-off, the row above `held` that acted most in the boss fight
+    /// (the run's last actions) — the move puts `held` above it (`R7 under R2` → move R7 above R2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub over: Option<u32>,
 }
 
 /// Cut 21 §2: a kind and how many (`ExitLine.shelved`).
@@ -571,6 +591,11 @@ pub struct ForecastDepth {
     /// for `route: [5]`); absent on the base order.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub biome: Option<String>,
+    /// Cut 27 §1: the share of the sims on this floor that got through it (reached the next
+    /// floor) — a floor at ≥ `forecast::FOLD_CLEAR` (95 %) from the start down is folded on the
+    /// watch (`Forecast.fold_to`). Absent where no sim stood on the floor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clear: Option<f64>,
 }
 
 /// Cut 10 §2: a forecast row's `try` — the known-but-absent counter of the boss whose floor
@@ -624,6 +649,11 @@ pub struct Forecast {
     pub sims: u32,
     #[serde(default)]
     pub low: u32,
+    /// Cut 27 §1: the last floor the watch folds for this set — every floor from `start` to it
+    /// clears ≥ 95 % on this panel (`ForecastDepth.clear`) and is known (≤ the best depth).
+    /// Absent when the start floor itself is below the bar.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fold_to: Option<u32>,
 }
 
 /// Cut 22 §3 (AH: "most edits moved the forecast less than its ±10–13 error, so I couldn't tell
@@ -723,6 +753,11 @@ pub struct StartOption {
     /// Cut 23 §2: as `Forecast.low` — a `death` of 0 prints `<{low}%`.
     #[serde(default)]
     pub low: u32,
+    /// Cut 27 §1: the passage a send from this start is paid (`+$84 passage`, into the purse at
+    /// the send; 0 from D1, or when the set does not clear the floors above it ≥ 95 %). `gold`
+    /// and `net` count it (a send's gold is what it brings home and what its start paid).
+    #[serde(default)]
+    pub passage: i32,
 }
 
 /// Cut 12 §3: how a send ends — `bank` / `return` / `death` as shares of a panel of sends run
@@ -887,6 +922,16 @@ pub struct Patch {
     /// `camp_pending`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub whole: Option<PatchWhole>,
+    /// Cut 27 §4: the gem's patch — set by `death_deltas` (never while `camp_pending`) on the
+    /// best whole-run patch that does not harm (`trace::pick_gem`), which is then the first
+    /// shown; on no patch when none may be the gem (the gem reads `edit`).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub gem: bool,
+    /// Cut 27 §5 (AT: the bloat row deleted, a gas death stamped DICE): the patch puts back a row
+    /// the set sent before this one held, at its old place (0-based; `insert_at` is the same) —
+    /// the client reads `restore R4`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restores: Option<u32>,
 }
 
 /// QA on 524827b: a patch's whole-run move on the camp's panel (the same seeds, the same
@@ -1816,6 +1861,128 @@ pub struct NextUnlock {
     pub gold: u32,
     /// Its gold price after this one is bought with gold.
     pub gold_after_gold: u32,
+}
+
+/// Cut 27 §1: one state-changing beat on a folded floor — a chip on the fold line. `kind`:
+/// `theft` (a foe took from the hero), `find` (the hero picked up an item), `gold` (a gold
+/// pile), `use` (a potion / scroll / bell spent), `fact` (a fact learned), `dip` (the floor's
+/// lowest hp when ≤ 30 % of max: death-adjacent), `max_hp` (max hp moved), `pet` (a companion
+/// tamed, freed, lost, fallen or stealing), `boss` (a boss slain), `bones` (bones found),
+/// `level`, `hatch`. `text` ≤ 3 words (`stolen heal`, `hp 9/40`); `t` the run tick.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FoldBeat {
+    pub depth: u32,
+    pub t: u32,
+    pub kind: String,
+    pub text: String,
+}
+
+/// Cut 27 §1: one folded floor as the sim played it — its snapshot at the floor's first tick
+/// (with the entities and items first seen later on it folded in, and every tile seen on it:
+/// what `runlog.floorSnapshot` builds) and its events, so a tap on the fold line can play it on
+/// the renderer (`load(snapshot)`, `apply(events)`); `clear` the forecast's share through it,
+/// `gold` the loot it added (coins), `beats` its state changes.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct FoldFloor {
+    pub depth: u32,
+    pub clear: f64,
+    pub gold: i32,
+    pub snapshot: Snapshot,
+    pub events: Vec<Ev>,
+    pub beats: Vec<FoldBeat>,
+}
+
+/// Cut 27 §1: the watch's fold (`Game::fold`, called right after `send`): the live run played
+/// through the floors the set clears ≥ 95 % (`Forecast.fold_to` at the send), one line
+/// `D{from}–{to} · {clear} · +${gold} · chips`. `clear` is the forecast's share through all of
+/// them (the product of the floors' clears); `gold` the loot added over them; `beats` every
+/// state change on them (`FoldBeat`), and `chips` the line's words (≤ 3 words each, by kind:
+/// `stolen heal`, `2 finds`, `hp 9/40`). `step` is the fold as one `step()` — every event, the
+/// snapshot on the first unfolded floor, `run_over` / `exit_pending` when the run ended inside
+/// the fold (the watch then shows the exit as after any step). Nothing folded (`to < from`):
+/// no tick ran, `floors` is empty and `step` is the current snapshot.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct FoldLine {
+    pub from: u32,
+    pub to: u32,
+    pub clear: f64,
+    pub gold: i32,
+    pub beats: Vec<FoldBeat>,
+    pub chips: Vec<String>,
+    pub floors: Vec<FoldFloor>,
+    pub step: StepResult,
+}
+
+/// Cut 27 §2: how one branch of a divergence's paired sim ended (the panel's own result for
+/// that seed): `tier` `bank` / `return` / `death` / `stall`, `depth` the deepest floor, `cause`
+/// the killer on a death, `gold` kept.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct DivergenceEnd {
+    pub tier: String,
+    pub depth: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cause: Option<String>,
+    pub gold: i32,
+}
+
+/// Cut 27 §2: one branch's seconds from the divergence — `snapshot` a few ticks before `tick`
+/// (`DIVERGENCE_LEAD`: both branches' are the same state unless the sets packed differently),
+/// `events` from it to `DIVERGENCE_AFTER` ticks past `tick` (ending early at the run's end or a
+/// descend), for the renderer (`load(snapshot)`, `apply(events)`); `end_snapshot` the last frame.
+/// `row` the row (0-based, in its own set) that fired at `tick` (`None`: no row — a chore, or
+/// the hero only moved), `text` its words (`R5 bank`, `—`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct DivergenceBranch {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row: Option<u32>,
+    pub text: String,
+    pub snapshot: Snapshot,
+    pub events: Vec<Ev>,
+    pub end_snapshot: Snapshot,
+}
+
+/// Cut 27 §2: a row's mean fires per send in each set on the paired panel (matched by the
+/// row's conditions and verb; `sent_row` / `new_row` its index in each set, absent where the
+/// set lacks it) — `≈ ±6 · R3 fires 4× more`. The rows whose fires moved most, first.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct RowFires {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sent_row: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub new_row: Option<u32>,
+    pub text: String,
+    pub sent: f64,
+    pub new: f64,
+}
+
+/// Cut 27 §2: the edit as a scene (`Game::divergence(prev)`): on the paired panel seed `seed`
+/// (the sim index; both sets played the same dungeon) the first `tick` at which the active set
+/// acts differently from `prev` (the sent set), on floor `depth`: `sent_row` / `new_row` what
+/// each fired there, the two branches' next seconds (`sent` / `new`), and each branch's whole
+/// run's end (`sent_end` / `new_end`: `lives · D9` vs `dies · D7`). The seed is the first whose
+/// ends differ most (a death against none, then the deepest floor, then the exit), else the
+/// first where the sets act differently at all. `moved` is the paired move's headline (the
+/// largest |Δ| over the shaft and the ends, 0..1) and `inside` whether it sat within its ±.
+/// `fires` the rows whose fire counts moved (`R3 fires 4× more`). None: the sets play alike
+/// on every seed tried.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Divergence {
+    pub seed: u32,
+    pub tick: u32,
+    pub depth: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sent_row: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub new_row: Option<u32>,
+    pub sent_end: DivergenceEnd,
+    pub new_end: DivergenceEnd,
+    pub sent: DivergenceBranch,
+    pub new: DivergenceBranch,
+    pub moved: f64,
+    pub inside: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fires: Vec<RowFires>,
+    pub sims: u32,
 }
 
 #[cfg(test)]

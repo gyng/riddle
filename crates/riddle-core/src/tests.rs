@@ -26,7 +26,7 @@ fn par_seeds<T: Send>(seeds: impl IntoIterator<Item = u64>, f: impl Fn(u64) -> T
 }
 
 /// A game with a live run on an open 16×12 room, no monsters or items.
-fn arena() -> Game {
+pub(crate) fn arena() -> Game {
     arena_seed(1)
 }
 
@@ -61,7 +61,7 @@ fn arena_seed(seed: u64) -> Game {
     g
 }
 
-fn add_monster(g: &mut Game, kind: &str, x: i32, y: i32) -> u32 {
+pub(crate) fn add_monster(g: &mut Game, kind: &str, x: i32, y: i32) -> u32 {
     let run = g.run.as_mut().unwrap();
     let id = run.new_id();
     let depth = run.depth;
@@ -72,7 +72,7 @@ fn add_monster(g: &mut Game, kind: &str, x: i32, y: i32) -> u32 {
     id
 }
 
-fn give(g: &mut Game, kind: &str) -> u32 {
+pub(crate) fn give(g: &mut Game, kind: &str) -> u32 {
     let run = g.run.as_mut().unwrap();
     let id = run.new_item_id();
     let mut it = Item::new(id, kind);
@@ -85,11 +85,11 @@ fn give(g: &mut Game, kind: &str) -> u32 {
 
 /// Rows straight into the set, locks and all (the arena tests are about the engine, not the
 /// editor's door; `set_rules_refuses_a_locked_token` tests the door).
-fn rules(g: &mut Game, rows: Vec<Row>) {
+pub(crate) fn rules(g: &mut Game, rows: Vec<Row>) {
     g.set_rules_raw(RuleSet { rows, name: None, route: Vec::new() }).unwrap();
 }
 
-fn ticks(g: &mut Game, n: u32) -> Vec<Ev> {
+pub(crate) fn ticks(g: &mut Game, n: u32) -> Vec<Ev> {
     let mut out = Vec::new();
     for _ in 0..n {
         g.tick();
@@ -1002,6 +1002,57 @@ fn finish_with(g: &mut Game, tier: ExitTier) -> u32 {
     id
 }
 
+/// Cut 27 §3: a return is out where he stands once `RETURN_TICKS` are spent (short of the
+/// stairs); a bank walks on to them.
+#[test]
+fn a_return_is_out_where_he_stands() {
+    for bank in [false, true] {
+        let mut g = arena();
+        rules(&mut g, vec![Row::new(vec![], Verb::new(if bank { "bank" } else { "return" }))]);
+        let run = g.run.as_mut().unwrap();
+        run.hero.pos = Pos::new(13, 10);
+        let far = run.hero.pos.cheb(run.floor.stairs_up) as u32;
+        assert!(far * crate::engine::TICKS_PER_TURN > crate::turn::RETURN_TICKS + 20);
+        let mut n = 0;
+        while g.run.as_ref().unwrap().over.is_none() && n < 2_000 {
+            g.tick();
+            n += 1;
+        }
+        let run = g.run.as_ref().unwrap();
+        let tier = if bank { ExitTier::Bank } else { ExitTier::Return };
+        assert_eq!(run.over, Some(tier));
+        assert_eq!(run.hero.pos == run.floor.stairs_up, bank, "bank {bank}: out at {:?} after {n} ticks", run.hero.pos);
+        if !bank {
+            assert!(n <= crate::turn::RETURN_TICKS + 2 * crate::engine::TICKS_PER_TURN, "{n}");
+        }
+    }
+}
+
+/// Cut 27 §3: a bank's walk wakes the hostiles within the carry's scent — wider the more he
+/// carries; a return's does not.
+#[test]
+fn a_bank_walk_wakes_the_carrys_scent() {
+    for (loot, verb, woke) in [(0, "bank", false), (200, "bank", true), (200, "return", false)] {
+        let mut g = arena();
+        rules(&mut g, vec![Row::new(vec![], Verb::new(verb))]);
+        let id = add_monster(&mut g, "goblin", 13, 10);
+        let run = g.run.as_mut().unwrap();
+        run.loot = loot;
+        let m = run.monsters.iter_mut().find(|m| m.id == id).unwrap();
+        m.awake = false;
+        m.last_seen = None;
+        let mut n = 0;
+        while g.run.as_ref().unwrap().homeward.is_none() && n < 20 {
+            g.tick();
+            n += 1;
+        }
+        let run = g.run.as_ref().unwrap();
+        assert!(run.homeward.is_some());
+        let m = run.monsters.iter().find(|m| m.id == id).unwrap();
+        assert_eq!(m.awake, woke, "{verb} with ${loot}");
+    }
+}
+
 #[test]
 fn bank_keeps_all_loot_and_gold() {
     let mut g = arena();
@@ -1333,7 +1384,7 @@ fn a_set_that_dies_has_no_stall() {
 fn stall_patches_apply_as_replace_remove_or_insert() {
     use crate::offline::apply_patch;
     let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")), Row::new(vec![], Verb::new("attack"))], name: None, route: Vec::new() };
-    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None };
+    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
     let deeper = Row::new(vec![Cond::n("hp<", 10)], Verb::new("return"));
     let r = apply_patch(&rules, &mk(deeper.clone(), 0, true, false), 8);
     assert_eq!(r.rows, vec![deeper.clone(), rules.rows[1].clone()]);
@@ -4436,7 +4487,7 @@ fn the_shrine_lends_a_row_or_swaps_the_trait_for_a_fifth_of_max_hp() {
 #[test]
 fn a_lost_companion_returns_as_a_stray_and_tames_at_sixty_percent() {
     let mut g = arena();
-    g.lineage.lost.push(crate::engine::Lost { kind: "jackal".into(), name: "Uleth".into(), gen: 2, heir: 1 });
+    g.lineage.lost.push(crate::engine::Lost { kind: "jackal".into(), name: "Uleth".into(), gen: 2, heir: 1, why: String::new() });
     g.lineage.unlocks.insert("tame".into());
     g.lineage.facts.insert("item:leash".into());
     let id = add_monster(&mut g, "jackal", 6, 5);
@@ -4457,7 +4508,7 @@ fn a_lost_companion_returns_as_a_stray_and_tames_at_sixty_percent() {
     let mut tries = 0;
     for seed in 1..=30u64 {
         let mut g = arena_seed(seed);
-        g.lineage.lost.push(crate::engine::Lost { kind: "jackal".into(), name: "Uleth".into(), gen: 2, heir: 1 });
+        g.lineage.lost.push(crate::engine::Lost { kind: "jackal".into(), name: "Uleth".into(), gen: 2, heir: 1, why: String::new() });
         g.lineage.unlocks.insert("tame".into());
         let id = add_monster(&mut g, "jackal", 5, 5);
         {
@@ -6814,8 +6865,9 @@ fn cut11_wire_is_optional_and_snake_case() {
 /// unlock pseudo-patch (insert_at −1) may name the set's own locked row.
 #[test]
 fn patches_never_offer_a_row_the_set_already_has() {
-    let mut checked = 0;
-    for seed in 1..=4u64 {
+    // (a thread per seed: `par_seeds`)
+    let checked: usize = par_seeds(1..=4u64, |seed| {
+        let mut checked = 0;
         let mut g = Game::new(seed);
         for u in ["row5", "row6", "row7", "row8"] {
             g.lineage.unlocks.insert(u.into());
@@ -6833,7 +6885,10 @@ fn patches_never_offer_a_row_the_set_already_has() {
                 checked += 1;
             }
         }
-    }
+        checked
+    })
+    .into_iter()
+    .sum();
     assert!(checked >= 10, "{checked} patches checked");
 }
 
@@ -7916,7 +7971,7 @@ fn a_boss_wall_names_the_boss_until_the_set_passes_him() {
     assert_eq!(wall_at(9, 0.2, 0.8), None, "passable");
     assert_eq!(wall_at(9, 0.0, 0.03), None, "the fall came before the boss");
     assert_eq!(wall_at(8, 0.0, 0.8), None, "no boss above D8");
-    assert!(serde_json::to_value(ForecastDepth { depth: 4, reach: 0.5, pm: None, try_: None, wall: None, bounty: false, boss: None, biome: None }).unwrap().get("wall").is_none());
+    assert!(serde_json::to_value(ForecastDepth { depth: 4, reach: 0.5, pm: None, try_: None, wall: None, bounty: false, boss: None, biome: None, clear: None }).unwrap().get("wall").is_none());
 }
 
 // ---------------------------------------------------------------- QA on 92eb880 (qaM, seed 1215)
@@ -8335,7 +8390,7 @@ fn an_insert_on_a_full_set_drops_the_least_fired_row() {
         route: Vec::new(),
     };
     let new = Row::new(vec![Cond::n("hp<", 20)], Verb::new("return"));
-    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false, buys: None, moves_from: None, whole: None };
+    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
     let r = apply_patch(&rules, &p, 3);
     assert_eq!(r.rows, vec![new.clone(), rules.rows[1].clone(), rules.rows[2].clone()], "R1 dropped, the patch where it was measured");
     let r = apply_patch(&rules, &Patch { drops: Some(2), ..p.clone() }, 3);
@@ -8993,7 +9048,7 @@ fn a_death_the_replays_all_survive_is_dice_and_its_patches_act_on_the_floor() {
             assert!(f >= crate::trace::FIRED_BAR, "{} acts in {:.0}% of the floor's replays", p.row.describe(), f * 100.0);
         }
     }
-    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None };
+    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
     let f = crate::trace::floor_fired(&g, &rec, &rest).unwrap();
     assert!(f < crate::trace::FIRED_BAR, "rest acts in {:.0}% of the floor's replays", f * 100.0);
 }
@@ -10831,7 +10886,15 @@ fn a_patch_needing_an_item_comes_with_its_purchase_or_not_at_all() {
         }
         d.patches.iter().find(|p| p.buys.is_some()).and_then(|p| p.buys.clone())
     };
-    let (seed, rich) = (2401..2460).find_map(|s| play(s, 40).map(|b| (s, b))).expect("a patch offered with its purchase");
+    // (eight seeds at a time, the first in order that offers one: `par_seeds` keeps the order)
+    let mut found = None;
+    for from in (2401..2460u64).step_by(8) {
+        found = par_seeds(from..(from + 8).min(2460), |s| play(s, 40).map(|b| (s, b))).into_iter().flatten().next();
+        if found.is_some() {
+            break;
+        }
+    }
+    let (seed, rich) = found.expect("a patch offered with its purchase");
     assert!(rich.price <= 40, "{rich:?}");
     assert!(play(seed, 0).is_none(), "an unaffordable item's patch is not offered");
 }
@@ -11050,7 +11113,7 @@ fn safe_slot_is_under_the_top_safety_block() {
 #[test]
 fn whole_run_move_judges_a_patch() {
     use crate::forecast::SimResult;
-    let sim = |depth: u32, tier: ExitTier, cause: Option<&str>| SimResult { max_depth: depth, tier, cause: cause.map(str::to_string), loot_kept: 0, timed_out: false, ticks: 1 };
+    let sim = |depth: u32, tier: ExitTier, cause: Option<&str>| SimResult { max_depth: depth, tier, cause: cause.map(str::to_string), loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new() };
     let base: Vec<SimResult> = (0..50).map(|i| if i < 25 { sim(6, ExitTier::Return, None) } else { sim(5, ExitTier::Death, Some("goblin")) }).collect();
     // ten seeds that returned now die to fire
     let worse: Vec<SimResult> = (0..50).map(|i| if i < 10 { sim(5, ExitTier::Death, Some("fire")) } else { base[i].clone() }).collect();
@@ -11062,7 +11125,7 @@ fn whole_run_move_judges_a_patch() {
     // one seed apart is inside the ±
     let one: Vec<SimResult> = (0..50).map(|i| if i == 0 { sim(5, ExitTier::Death, Some("fire")) } else { base[i].clone() }).collect();
     assert!(!crate::trace::whole_move(&base, &one, 6, true).harms);
-    let mk = |v: &str, whole: Option<PatchWhole>| Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb { v: v.into(), a: None }), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 6, forecast_pm: 0.1, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole };
+    let mk = |v: &str, whole: Option<PatchWhole>| Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb { v: v.into(), a: None }), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 6, forecast_pm: 0.1, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole, gem: false, restores: None };
     let mut ps = vec![mk("rest", Some(w.clone())), mk("retreat", Some(same.clone())), mk("descend", None)];
     crate::trace::sink_harms(&mut ps);
     assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["retreat", "descend", "rest"]);
@@ -11146,6 +11209,15 @@ fn sends_hash(g: &mut Game, n: u32) -> u64 {
 
 /// Cut 26 §1: a 307dbed save (a D28 lineage, every unlock and fact, the FULL set) plays its next
 /// 10 sends exactly as 307dbed did — the default route is the base order.
+/// Cut 27 §3 re-baselined the hash (`476e6517d82b9054` → `adbe8cb9d2210f7a`): the exits trade — a
+/// return is out after `turn::RETURN_TICKS`, a bank's walk wakes the carry's scent; with both off
+/// (`RETURN_TICKS` unbounded, scent radius < 0) the save still hashes to 307dbed's.
+/// Cut 27 §5 moved it again (`adbe8cb9d2210f7a` → `d59e321d76373469`) without moving the play: a
+/// full event diff of the 10 sends (92 767 events, moves included) against the §3 tree differs in
+/// one event — send 8's Lich drive-off exit line, whose `driven.verdict` now reads `order` (with
+/// `held: 7`: the set's `foe: summoned → attack summoned` row is there, pre-empted) where it read
+/// `no counter` (§5, a drive-off whose counter row is in the set). Every tick, purse, depth and
+/// death is identical; §4's loop fixes do not act on these sends.
 #[test]
 fn saves_from_307dbed_send_identically() {
     let mut g = Game::load(include_str!("fixtures/save_307dbed.json")).unwrap();
@@ -11218,11 +11290,16 @@ fn replay_hash_per_route() {
         }
         (out, deepest)
     };
-    for route in Route::all() {
-        assert_eq!(hash(route, 1), hash(route, 1), "{route:?}");
+    // (each hash its own thread: `par_seeds` over the jobs' indices, results in order)
+    let routes = Route::all();
+    let fens = Route::from_forks(&[5]).unwrap();
+    let jobs: Vec<(Route, u32)> = routes.iter().flat_map(|r| [(*r, 1), (*r, 1)]).chain([(Route::BASE, 3), (fens, 3)]).collect();
+    let hashes = par_seeds(0..jobs.len() as u64, |i| hash(jobs[i as usize].0, jobs[i as usize].1));
+    for (i, route) in routes.iter().enumerate() {
+        assert_eq!(hashes[2 * i], hashes[2 * i + 1], "{route:?}");
     }
-    let (a, da) = hash(Route::BASE, 3);
-    let (b, db) = hash(Route::from_forks(&[5]).unwrap(), 3);
+    let n = hashes.len();
+    let ((a, da), (b, db)) = (hashes[n - 2].clone(), hashes[n - 1].clone());
     assert!(da >= 5 && db >= 5, "both reach the fork: {da} {db}");
     assert_ne!(a, b, "the Fens-first descent is another dungeon below D4");
 }
@@ -11520,7 +11597,7 @@ fn the_chain_keeps_each_rows_newest_reason() {
 #[test]
 fn a_patch_reads_the_floor_the_camp_leads_with() {
     use crate::forecast::SimResult;
-    let sim = |depth: u32, tier: ExitTier| SimResult { max_depth: depth, tier, cause: None, loot_kept: 0, timed_out: false, ticks: 1 };
+    let sim = |depth: u32, tier: ExitTier| SimResult { max_depth: depth, tier, cause: None, loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new() };
     // the sent set: half reach D7, none D9; the patch: 11 of those stop at D5 (D6 and D7 both −22: the deeper leads), still none D9
     let base: Vec<SimResult> = (0..50).map(|i| sim(if i < 25 { 7 } else { 5 }, ExitTier::Death)).collect();
     let worse: Vec<SimResult> = (0..50).map(|i| if i < 11 { sim(5, ExitTier::Death) } else { base[i].clone() }).collect();

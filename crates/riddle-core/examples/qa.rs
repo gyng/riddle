@@ -7,7 +7,7 @@
 //! cache) to the pool on copies of the game — the checks and their counts are the sequential
 //! order's. `METRICS_PHASES=1` prints each job's wall and each leg's thread-seconds.
 //!   cargo run --profile fast --example qa [-- --seeds 30 --threads 24]
-use riddle_core::engine::{salvage_coins, salvage_value, GOLD_DIVISOR, GOLD_LEDGER_CAP};
+use riddle_core::engine::{salvage_coins, salvage_value, without_history, GOLD_DIVISOR, GOLD_LEDGER_CAP};
 use riddle_core::item::{is_identified, to_inv};
 use riddle_core::engine::ExitTier;
 use riddle_core::rules::{Cond, Row, Verb};
@@ -550,6 +550,13 @@ fn check_reel(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::ReturnReport)
         let notes: Vec<&String> = r.reel.iter().filter(|h| h.run_id == x.run_id).map(|h| &h.text).collect();
         t.check("a drive-off's or a stall's reel never says `Returned with`", notes.iter().all(|n| !n.starts_with("Returned with")), || format!("seed {seed} run {}: {notes:?}", x.run_id));
     }
+    // Cut 27 §5 (AT: `D8 · counter unwritten` offered `foe: boss → attack boss` — his own R7): a drive-off whose counter
+    // the set already holds reads `order` and names the row; one whose counter is unwritten, `no counter`.
+    for d in r.exits.iter().filter_map(|x| x.driven.as_ref()) {
+        let (held, _) = riddle_core::trace::driven_order(g.lineage.rules(), &d.row, &[]);
+        let ok = d.held == held && (d.verdict == "order") == held.is_some() && (d.verdict == "no counter") == held.is_none();
+        t.check("a drive-off with its counter in the set says `order` (the held row), else `no counter`", ok, || format!("seed {seed} run {}: {} held {:?} · set holds {:?}", d.run_id, d.verdict, d.held, held));
+    }
     for h in &r.reel {
         let Some(arc) = &h.arc else { continue };
         if !arc.resolution.starts_with("died") {
@@ -630,11 +637,18 @@ fn check_report_headers(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::Ret
 /// QA on a946e04 (qaS: `A den of thieves. Nothing lost to the den.` in the run whose report
 /// said `stolen red potion?`): watched sends from a copy of the night's camp — a den's
 /// `Nothing lost` note is said only while every theft of the run so far was got back.
-fn check_den_leg(t: &mut Tally, g: &Game, seed: u64) {
+/// Cut 25 §3 (AN, AM: `pick up ×441` scrolling while alert rose to 8/8 — a full pack walking onto a
+/// scroll it could not take, stepping off, walking back): on the same sends, on every floor, the
+/// `pick up` chores in a row with nothing taken (a `pickup` resets the count; the watch's
+/// `pick up ×N`) stay ≤ `CHORE_STREAK`.
+/// The two were legs of their own, each on its own copy playing the identical six sends (`send`,
+/// `step(50)` to the run's end, `keep`: 7 % of qa's CPU apiece); one pass reads both off its events.
+fn check_den_chore_leg(t: &mut Tally, g: &Game, seed: u64) {
     let mut h = g.clone();
     for _ in 0..6 {
         h.send();
         let (mut out, mut back) = (0i32, 0i32);
+        let (mut dry, mut worst, mut depth) = (0u32, (0u32, 0u32), 1u32);
         for _ in 0..4000 {
             let r = h.step(50);
             for e in &r.events {
@@ -646,33 +660,6 @@ fn check_den_leg(t: &mut Tally, g: &Game, seed: u64) {
                     Ev::Note { t: at, text } if text == "Nothing lost to the den." => {
                         t.check("`Nothing lost to the den` never beside a theft still out", out == back, || format!("seed {seed} t{at}: {out} thefts, {back} got back"));
                     }
-                    _ => {}
-                }
-            }
-            if r.run_over {
-                break;
-            }
-        }
-        if h.pending_exit.is_some() {
-            let _ = h.keep(vec![]);
-        }
-    }
-}
-
-/// Cut 25 §3 (AN, AM: `pick up ×441` scrolling while alert rose to 8/8 — a full pack walking onto a
-/// scroll it could not take, stepping off, walking back): watched sends from a copy of the night's
-/// camp — on every floor, the `pick up` chores in a row with nothing taken (a `pickup` resets the
-/// count; the watch's `pick up ×N`) stay ≤ `CHORE_STREAK`.
-const CHORE_STREAK: u32 = 50;
-fn check_chore_leg(t: &mut Tally, g: &Game, seed: u64) {
-    let mut h = g.clone();
-    for _ in 0..6 {
-        h.send();
-        let (mut dry, mut worst, mut depth) = (0u32, (0u32, 0u32), 1u32);
-        for _ in 0..4000 {
-            let r = h.step(50);
-            for e in &r.events {
-                match e {
                     Ev::Descend { depth: d, .. } => {
                         dry = 0;
                         depth = *d;
@@ -697,6 +684,8 @@ fn check_chore_leg(t: &mut Tally, g: &Game, seed: u64) {
         }
     }
 }
+
+const CHORE_STREAK: u32 = 50;
 
 /// QA on 524827b (qaAB: a bought 2nd leash, $30, gone after a returned run — merged into the
 /// kennel's free stack at the pack, sent back to the kennel as the free one): on a copy given
@@ -1054,6 +1043,14 @@ fn check_stall_leg(t: &mut Tally, sum: &mut StallSum, g: &Game, seed: u64) {
     }
     h.run_offline(4 * 3600);
     let ids: Vec<u32> = h.deaths.iter().filter(|(_, rec)| rec.stall).map(|(id, _)| *id).collect();
+    // Cut 27 §4 (AS: the stall screen's gem applied `depth ≥ 5 → return · drops R10` over `cut R8`): the stall screen's
+    // gem is measured as the death screen's (the first stall of the leg: its whole-run panels are the leg's cost).
+    if let Some(&id) = ids.first() {
+        let mut k = h.clone();
+        if let Some(ps) = k.death_deltas(id) {
+            check_gem(t, seed, id, "stall", &ps);
+        }
+    }
     for id in ids {
         let Some(d) = h.death(id) else { continue };
         check_death(t, &h, seed, &d);
@@ -1070,6 +1067,24 @@ fn check_stall_leg(t: &mut Tally, sum: &mut StallSum, g: &Game, seed: u64) {
             sum.2 += 1;
         }
     }
+}
+
+/// Cut 27 §4 (AS: a stall's gem applied `depth ≥ 5 → return · drops R10` — whole-run return > 99 %, D7 < 1 % — over
+/// `cut R8`; a death's gem lit `cut R1 · 1/12` above a 12/12): once the whole runs are measured (`death_deltas`), the gem
+/// (`Patch.gem`) is the first shown, never harms (death up past its ±, or reach down past its own — an exit's included), is
+/// advice, and no other such patch scores more on whole runs (`trace::gem_score`); with none marked, no patch may be the gem.
+fn check_gem(t: &mut Tally, seed: u64, id: u32, screen: &str, ps: &[riddle_core::wire::Patch]) {
+    use riddle_core::trace::{gem_eligible, gem_score};
+    let gems: Vec<usize> = ps.iter().enumerate().filter(|(_, p)| p.gem).map(|(i, _)| i).collect();
+    let ok = match gems.as_slice() {
+        [0] => {
+            let g = &ps[0];
+            gem_eligible(g) && ps.iter().skip(1).filter(|p| gem_eligible(p)).all(|p| gem_score(p) <= gem_score(g) + 1e-9)
+        }
+        [] => !ps.iter().any(gem_eligible),
+        _ => false,
+    };
+    t.check("the gem on every screen is the first shown, never harms, and is the best whole-run patch", ok, || format!("seed {seed} run {id} ({screen}): {:?}", ps.iter().map(|p| (p.row.describe(), p.gem, p.below_bar, p.whole.clone())).collect::<Vec<_>>()));
 }
 
 /// What a job adds to the totals.
@@ -1383,6 +1398,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
             let harms = |p: &riddle_core::wire::Patch| p.whole.as_ref().is_some_and(|w| (w.death > 1e-9 && w.death > w.death_pm + 1e-9) || (!riddle_core::trace::patch_exits(p) && w.reach < -1e-9 && w.reach < -w.reach_pm - 1e-9));
             let ok = ps.iter().all(|p| p.whole.as_ref().is_some_and(|w| w.harms == harms(p))) && lead.is_none_or(|p| !harms(p) || advice.iter().all(|q| harms(q)));
             t.check("the gem's default patch never harms whole runs (death > ±, reach < −±)", ok, || format!("seed {seed} run {id}: {:?}", ps.iter().map(|p| (p.row.describe(), p.below_bar, p.whole.clone())).collect::<Vec<_>>()));
+            check_gem(t, seed, id, "death", ps);
         }
         let top = deltas.as_ref().unwrap_or(&d.patches).iter().find(|p| p.insert_at >= 0).cloned();
         if let Some(p) = top {
@@ -1558,7 +1574,8 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     };
     for d in bank_depths(&g) {
         let h = g.clone();
-        pool.push(80, "forecast vs sends", seed, move |o, _| check_forecast_bank_at(&mut o.t, &mut o.bank, &h, seed, d));
+        // (these legs judge no death: their sends keep no history ring — `without_history`, the same sends)
+        pool.push(80, "forecast vs sends", seed, move |o, _| without_history(|| check_forecast_bank_at(&mut o.t, &mut o.bank, &h, seed, d)));
     }
     at(pool, 75, "check_short", &g, |o, g, seed| check_short(&mut o.t, g, seed));
     at(pool, 70, "stall leg", &g, |o, g, seed| check_stall_leg(&mut o.t, &mut o.bank.1, g, seed));
@@ -1569,12 +1586,11 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     });
     at(pool, 55, "salvage leg", &g, |o, g, seed| check_salvage_leg(&mut o.t, g, seed));
     at(pool, 50, "shadow leg", &g, |o, g, seed| check_shadowed(&mut o.t, g, seed));
-    at(pool, 45, "den leg", &g, |o, g, seed| check_den_leg(&mut o.t, g, seed));
-    at(pool, 45, "chore leg", &g, |o, g, seed| check_chore_leg(&mut o.t, g, seed));
-    at(pool, 45, "leash leg", &g, |o, g, seed| check_leash_leg(&mut o.t, g, seed));
-    at(pool, 45, "saved-by leg", &g, |o, g, seed| check_saved_leg(&mut o.t, g, seed));
+    at(pool, 45, "den + chore legs", &g, |o, g, seed| without_history(|| check_den_chore_leg(&mut o.t, g, seed)));
+    at(pool, 45, "leash leg", &g, |o, g, seed| without_history(|| check_leash_leg(&mut o.t, g, seed)));
+    at(pool, 45, "saved-by leg", &g, |o, g, seed| without_history(|| check_saved_leg(&mut o.t, g, seed)));
     at(pool, 45, "waystone leg", &g, |o, g, seed| check_waystone_leg(&mut o.t, g, seed));
-    at(pool, 45, "found supply leg", &g, |o, g, seed| check_found_supply_leg(&mut o.t, g, seed));
+    at(pool, 45, "found supply leg", &g, |o, g, seed| without_history(|| check_found_supply_leg(&mut o.t, g, seed)));
     if seed.is_multiple_of(3) {
         at(pool, 45, "dead row leg", &g, |o, g, seed| check_dead_row(&mut o.t, g, seed));
     }

@@ -87,4 +87,18 @@ fn profile(g: &mut Game) {
     let _ = time("edit: forecast", || g.forecast());
     let _ = time("edit: forecast_vs", || g.forecast_vs(&rules));
     let _ = time("edit: refine", || g.forecast_refine());
+    // Cut 27 §2: the edit's scene, after the refine (the camp asks it then: the refined panels).
+    let _ = time("edit: forecast_vs (refined)", || g.forecast_vs(&rules));
+    let d = time("edit: divergence", || g.divergence(&rules));
+    match &d {
+        Some(d) => println!("    seed {} · t{} D{} · sent {} → {:?} D{} · new {} → {:?} D{} · moved {:.2} inside {} · {} + {} events", d.seed, d.tick, d.depth, d.sent.text, d.sent_end.tier, d.sent_end.depth, d.new.text, d.new_end.tier, d.new_end.depth, d.moved, d.inside, d.sent.events.len(), d.new.events.len()),
+        None => println!("    no divergence"),
+    }
+    // Cut 27 §1: the send's fold.
+    let _ = g.set_rules_raw(rules);
+    let f = g.forecast();
+    println!("  fold_to {:?} · clears {:?}", f.fold_to, f.depths.iter().map(|d| (d.depth, d.clear.map(|c| (c * 100.0).round() as i32))).collect::<Vec<_>>());
+    let _ = g.send();
+    let line = time("send → fold", || g.fold());
+    println!("    D{}–{} · {:.0}% · +${} · {:?} · {} floors · {} KB", line.from, line.to, line.clear * 100.0, line.gold, line.chips, line.floors.len(), serde_json::to_string(&line).map(|s| s.len() / 1024).unwrap_or(0));
 }

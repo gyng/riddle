@@ -102,6 +102,15 @@ impl Game {
         js(&riddle_core::offline::run_offline_quick(&mut self.inner, elapsed_s.max(0.0) as u64))
     }
 
+    /// One slice of a chunked absence (`runOfflineQuick`); a slice before the `last` carries no
+    /// stall verdict (the client reads the last slice's: its patch forecasts were most of an
+    /// absence's time on a plateaued lineage — 3 of the D11 fixture's 16 slices paid ~2 s each).
+    #[wasm_bindgen(js_name = runOfflineSlice)]
+    pub fn run_offline_slice(&mut self, elapsed_s: f64, last: bool) -> String {
+        let secs = elapsed_s.max(0.0) as u64;
+        js(&if last { riddle_core::offline::run_offline_quick(&mut self.inner, secs) } else { riddle_core::offline::run_offline_counts(&mut self.inner, secs) })
+    }
+
     pub fn death(&mut self, run_id: u32) -> Result<String, JsError> {
         self.inner.death(run_id).map(|d| js(&d)).ok_or_else(|| err(format!("no death record for run {run_id}")))
     }
@@ -361,6 +370,21 @@ impl Game {
     pub fn forecast_vs(&self, prev: &str) -> Result<String, JsError> {
         let prev = riddle_core::RuleSet::parse(prev).map_err(err)?;
         Ok(js(&self.inner.forecast_vs(&prev)))
+    }
+
+    /// Cut 27 §1: right after `send` — play the floors the set clears ≥ 95 % and return the fold
+    /// line (`FoldLine`: `from`, `to`, `clear`, `gold`, `beats`, `chips`, `floors[]` with each
+    /// floor's snapshot and events, `step` as one `step()`). Nothing folded: `to < from`.
+    pub fn fold(&mut self) -> String {
+        js(&self.inner.fold())
+    }
+
+    /// Cut 27 §2: the edit as a scene against `prev` (JSON RuleSet: the sent set) — `Divergence`
+    /// or `null` when the sets play alike on every seed tried. Reads the camp's paired panels
+    /// (cached by the forecast and its `vs`); call it after the forecast's `vs`.
+    pub fn divergence(&self, prev: &str) -> Result<String, JsError> {
+        let prev = riddle_core::RuleSet::parse(prev).map_err(err)?;
+        Ok(js(&self.inner.divergence(&prev)))
     }
 
     /// Cut 23 §1: buy the next forge step of `weapon | armour | pack`; returns the Lineage.

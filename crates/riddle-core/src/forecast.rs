@@ -27,13 +27,21 @@ pub struct SimResult {
     pub tier: ExitTier,
     pub cause: Option<String>,
     /// Cut 12 §3: the gold this send brings home — the loot by the exit's share (`ExitTier::pct`;
-    /// a run that timed out keeps nothing, as the exit's own maths has it).
+    /// a run that timed out keeps nothing, as the exit's own maths has it). Cut 27 §1: and the
+    /// passage its waystone start was paid.
     pub loot_kept: i32,
     /// The send hit the turn cap or stalled: a return by nothing in the rules (its own share).
     pub timed_out: bool,
     /// Cut 24 §4: the ticks the sim ran (its share of the panel's budget) — the refine pass
     /// continues the first pass's panel from its last sim (`camp_panel`).
     pub ticks: u32,
+    /// Cut 27 §1: the loot carried when the sim stopped (coins) — at `stop_depth`, the gold the
+    /// floors above it brought (`passage_for`).
+    pub loot: i32,
+    /// Cut 27 §2: how many times each row of the sim's set fired — (`row_key` of the row, fires),
+    /// the rows that fired, by key (a row that never fired is absent: a dead row reads the panel
+    /// of the set without it, `played_key`).
+    pub fires: Vec<(u64, u32)>,
 }
 
 /// Simulate `sims` fresh expeditions from the current lineage with `rules`, each stopping once
@@ -59,16 +67,18 @@ pub fn simulate_budget_from(game: &Game, rules: &RuleSet, sims: u32, tag: u64, s
     // Every sim is a pure function of (lineage, rules, tag, i); the tick budget only decides
     // how many of them count, in order. Natively they run on all cores and the budget is
     // applied to the ordered results afterwards, so the answer is the sequential one exactly.
+    // Cut 27 §1: a waystone start's passage, priced once for the panel (every sim is paid alike).
+    let passage = if done { None } else { sim_passage(game, rules) };
     if done {
     } else if parallel_sims() && sims > from + 1 {
-        ran.extend(par_map(game, (from..sims).collect(), |base, &i| simulate_one(base, rules, tag, stop_depth, i)));
+        ran.extend(par_map(game, (from..sims).collect(), |base, &i| simulate_one(base, rules, tag, stop_depth, i, passage)));
     } else {
         let mut spent: u64 = spent0;
         for i in from..sims {
             if i >= MIN_SIMS && spent >= budget {
                 break;
             }
-            let r = simulate_one(game, rules, tag, stop_depth, i);
+            let r = simulate_one(game, rules, tag, stop_depth, i, passage);
             spent += r.0 as u64;
             ran.push(r);
         }
@@ -85,13 +95,14 @@ pub fn simulate_budget_from(game: &Game, rules: &RuleSet, sims: u32, tag: u64, s
     out
 }
 
-/// One fresh expedition (`i`-th of the panel) under `rules`, to `stop_depth` or its end:
-/// (ticks spent, result).
-fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32) -> (u32, SimResult) {
+/// The `i`-th sim of a panel under `rules`, at its first tick (the run started on its seed,
+/// its passage paid): what `simulate_one` plays, and what `divergence` plays twice in step.
+pub fn sim_game(game: &Game, rules: &RuleSet, tag: u64, i: u32, passage: Option<(u32, i32)>) -> Game {
     let mut g = game.sim_clone();
     g.run = None;
     g.pending_exit = None;
     g.history.clear();
+    g.passage = passage;
     let _ = g.set_rules(rules.clone());
     let seed = splitmix(game.lineage.seed ^ splitmix(tag ^ (i as u64 + 1).wrapping_mul(0xA24B_AED4_963E_E407)));
     // Cut 24 §2: a named foe rests two runs in three (`LineageState::named_resting`) — the panel
@@ -100,15 +111,61 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32)
     g.start_run(Some(seed));
     // Cut 22 §3: the panel's sims share their floors seed by seed (`Run.floor_streams`).
     g.run.as_mut().unwrap().floor_streams = true;
+    g
+}
+
+/// One fresh expedition (`i`-th of the panel) under `rules`, to `stop_depth` or its end:
+/// (ticks spent, result).
+fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32, passage: Option<(u32, i32)>) -> (u32, SimResult) {
+    let mut g = sim_game(game, rules, tag, i, passage);
     let mut n = 0;
+    let mut fires = vec![0u32; rules.rows.len()];
     while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.max_depth < stop_depth) && n < SIM_MAX_TICKS {
         g.tick();
+        count_fires(&mut fires, &g.events);
+        g.events.clear();
         n += 1;
     }
     let run = g.run.as_ref().unwrap();
+    let mut keyed: Vec<(u64, u32)> = Vec::new();
+    for (r, f) in rules.rows.iter().zip(&fires).filter(|(_, f)| **f > 0) {
+        let k = row_key(r);
+        match keyed.iter_mut().find(|(x, _)| *x == k) {
+            Some(e) => e.1 += f,
+            None => keyed.push((k, *f)),
+        }
+    }
+    keyed.sort();
+    (n, sim_result(run, n, keyed))
+}
+
+/// Cut 27 §2: a row's key in `SimResult.fires` — its conditions and verb (not its origin).
+pub fn row_key(row: &crate::rules::Row) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in format!("{:?}|{:?}", row.conds, row.verb).bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    h
+}
+
+/// Cut 27 §2: the rows a tick's events say fired (`Ev::Rule` of a row of the set).
+fn count_fires(fires: &mut [u32], events: &[crate::wire::Ev]) {
+    for e in events {
+        if let crate::wire::Ev::Rule { row, .. } = e {
+            if let Some(f) = usize::try_from(*row).ok().and_then(|r| fires.get_mut(r)) {
+                *f += 1;
+            }
+        }
+    }
+}
+
+/// A finished (or stopped) sim's result.
+fn sim_result(run: &crate::engine::Run, ticks: u32, fires: Vec<(u64, u32)>) -> SimResult {
     let tier = run.over.unwrap_or(ExitTier::Return);
-    let loot_kept = run.loot.max(0) * run.yield_pct(tier) / 100;
-    (n, SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks: n })
+    // (Cut 27 §1: a waystone start's passage is the send's gold too — paid at the send)
+    let loot_kept = run.loot.max(0) * run.yield_pct(tier) / 100 + run.passage;
+    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires }
 }
 
 /// `f` over every job, results in job order. Natively (and unless `set_parallel_sims(false)`)
@@ -441,7 +498,7 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
             let reach = reach_at(d);
             let wall = wall_on(route, d, reach, reach_at(d.saturating_sub(1)));
             let try_ = if d > start { try_row(game, rules, d) } else { None };
-            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_, wall, bounty: game.lineage.bounty == Some(d), boss: route.boss(d).map(str::to_string), biome: (!route.is_base()).then(|| route.biome(d).name().to_string()) }
+            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_, wall, bounty: game.lineage.bounty == Some(d), boss: route.boss(d).map(str::to_string), biome: (!route.is_base()).then(|| route.biome(d).name().to_string()), clear: None }
         })
         .collect();
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
@@ -465,7 +522,86 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let death = share(ExitTier::Death);
     let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()) });
     let n_sims = ended.len() as u32;
-    Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start, sims: n_sims, low: low_pct(n_sims) }
+    let mut depths: Vec<ForecastDepth> = depths;
+    for d in depths.iter_mut().filter(|d| d.depth >= start) {
+        d.clear = floor_clear(&ended, d.depth);
+    }
+    let fold_to = fold_to(game, &ended, start);
+    Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start, sims: n_sims, low: low_pct(n_sims), fold_to }
+}
+
+/// Cut 27 §1: a floor the watch folds — the share of the sims on it that got through it is at
+/// least this (`ForecastDepth.clear`).
+pub const FOLD_CLEAR: f64 = 0.95;
+
+/// Cut 27 §1: the share of `ended`'s sims that stood on floor `d` and got through it (reached
+/// `d + 1`); None when none stood on it. A sim that ended on `d` — a death, a stall, a bank or a
+/// return there — did not clear it.
+pub fn floor_clear(ended: &[SimResult], d: u32) -> Option<f64> {
+    let on = ended.iter().filter(|r| r.max_depth >= d).count();
+    (on > 0).then(|| ended.iter().filter(|r| r.max_depth > d).count() as f64 / on as f64)
+}
+
+/// Cut 27 §1: the last floor of the fold — every floor from `start` to it clears ≥ `FOLD_CLEAR`
+/// on `ended` and is known (≤ the lineage's best depth: a floor never reached is never folded).
+pub fn fold_to(game: &Game, ended: &[SimResult], start: u32) -> Option<u32> {
+    let mut to = None;
+    for d in start.max(1)..=game.lineage.best_depth {
+        match floor_clear(ended, d) {
+            Some(c) if c >= FOLD_CLEAR - 1e-9 => to = Some(d),
+            _ => break,
+        }
+    }
+    to
+}
+
+/// Cut 27 §1: the send's fold (`Game::fold_plan`) — the last folded floor and each folded
+/// floor's clear, on the camp's panel for `rules` (the pass the camp painted: cached).
+pub fn fold_plan(game: &Game, rules: &RuleSet) -> Option<(u32, Vec<(u32, f64)>)> {
+    let ended = camp_panel(game, rules, camp_sims(game, rules));
+    let start = sim_start(game);
+    let to = fold_to(game, &ended, start)?;
+    Some((to, (start..=to).map(|d| (d, floor_clear(&ended, d).unwrap_or(1.0))).collect()))
+}
+
+/// Cut 27 §1: the sims a passage is priced on (the camp's seeds, from D1, each stopped on
+/// arriving at the start floor).
+pub const PASSAGE_SIMS: u32 = 20;
+
+/// Cut 27 §1: the passage of a send on `rules` from the lineage's start — (start, coins) when
+/// the sends start below D1 (`sim_start`), priced by `passage_for`; None from D1.
+pub fn sim_passage(game: &Game, rules: &RuleSet) -> Option<(u32, i32)> {
+    let start = sim_start(game);
+    (start > 1).then(|| (start, passage_for(game, rules, start)))
+}
+
+/// Cut 27 §1 (P2: "a lit waystone start is never dominated on gold/hr by D1 for a set that clears
+/// the band ≥ 95 %"): the gold the floors above `start` would have brought a send on `rules` —
+/// `PASSAGE_SIMS` sends from D1 on the camp's seeds, each stopped on arriving at `start`: when
+/// every floor above it clears ≥ `FOLD_CLEAR`, the mean loot carried on arrival (coins), else 0
+/// (a set that would not have cleared them is paid nothing). Memoised per (lineage, rules).
+pub fn passage_for(game: &Game, rules: &RuleSet, start: u32) -> i32 {
+    if start <= 1 {
+        return 0;
+    }
+    let mut g = game.sim_clone();
+    g.lineage.start = 1;
+    g.passage = None;
+    let key = format!("passage:{}:{start}:{}", lineage_key(&g), rules_key(rules));
+    if let Some(v) = game.forecast_cache.borrow().get(&key) {
+        return v.0 as i32;
+    }
+    let tag = forecast_tag(game, game.lineage.best_depth + 1);
+    let ended = simulate_budget(&g, rules, PASSAGE_SIMS, tag, start, DELTA_TICK_BUDGET);
+    let clears = (1..start).all(|d| floor_clear(&ended, d).is_some_and(|c| c >= FOLD_CLEAR - 1e-9));
+    let arrived: Vec<&SimResult> = ended.iter().filter(|r| r.max_depth >= start).collect();
+    let coins = if clears && !arrived.is_empty() { (arrived.iter().map(|r| r.loot as f64).sum::<f64>() / arrived.len() as f64).round() as i32 } else { 0 };
+    let mut cache = game.forecast_cache.borrow_mut();
+    if cache.len() + 1 >= FORECAST_CACHE_MAX {
+        cache.clear();
+    }
+    cache.insert(key, (coins as f64, ended.len() as u32));
+    coins
 }
 
 /// Cut 23 §2: the smallest share one of `sims` sims makes, in whole percent (`⌈100 / sims⌉`;
@@ -571,9 +707,12 @@ pub fn start_forecast_at(game: &Game, sims: u32) -> Vec<crate::wire::StartOption
         let paid = if short || pass { 0 } else { toll };
         let net = gold - paid as f64;
         let banks = bank > 0.0 || base.1 > 0.0;
+        // Cut 27 §1: the passage a send from here is paid (in `gold`; the option's panel paid it).
+        let passage = if short || d <= 1 { 0 } else { passage_for(game, &rules, d) };
         out.push(crate::wire::StartOption {
             start: d,
             current: d == current,
+            passage,
             toll,
             biome: rules.route().biome(d).name().into(),
             short,

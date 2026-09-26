@@ -153,6 +153,105 @@ recomputation, ~20 % of qa's CPU — and the client pays it on every open of the
 of wasm). Looking the option's `panel_key` up in `game.panel_cache` before `camp_panel` on the clone keeps every
 value and removes it.
 
+## 0d. Round 3b — the full gate, the client suite and the runtime, 2026-09-26 (0b5c20c + the Cut 27 tree)
+
+*The full gate had grown to ~15 min (its table 781–929 s with qa's 350 s beside it; the brief's 790–820 s), the client suite
+to ~464 s. A/B: HEAD's binaries (a copy of the tree taken at the start of the round, its own target dir) against the new ones,
+back to back under the same load (other agents' Codex, art and browsers kept the box at a load of 10–120 all round). Every
+engine change is bit-identical — `examples/fingerprint` a03cb4255e033978 before and after each, and the two full gates below
+print the same 436 table lines and 122 qa lines but for their timing lines (`Replay hash … c90e29222e6aceba` on both); the
+wasm's outputs hash the same in node (fresh seeds and the D11 fixture).*
+
+| Step | Before (HEAD) | After | How |
+|---|---|---|---|
+| full gate, end to end (`gates.mjs`'s orchestration, no cache; A/B back to back, load ~30–38) | **929 s** (table ends 929 · qa 352 · dayplayer 247) | **483 s** (483 · 232 · 212) | the table's CPU halved; below |
+| the table's thread-seconds (31 threads; the job CPU `METRICS_JOBCPU=1` prints) | 23.5 k | **11.6 k** (with qa beside it) | by kind below |
+| the gold rows alone, 8 seeds, 16 threads | 40.0 s · 620 user-s | **19.6 s · 296 user-s** | identical output |
+| a 60-sim FULL panel, one thread (pinned A/B, CPU) | 6.5–6.7 s | **5.6–5.9 s (−13…16 %)** | the engine |
+| `cargo test` core binary (16 test threads, `RIDDLE_THREADS=8`) | 42.7 s · 1060 CPU-s | **35.9 s · 966 CPU-s** | the engine; three seed loops on threads |
+| `tools/wasm.sh` after a code edit in `turn.rs` | 13.7 s | **7.6 s** | no DWARF for the wasm (bindgen stripped it from the pkg anyway) |
+| `(cd web && pnpm -s test)` | 464 s, 2 of 27 failing (clarity's walk 257 s with nothing beside it) | **317 s, 31/31** | clarity in parts, longest first, its own dev server, retries under load |
+| the client's 8 h absence on the D11 fixture (wasm, node) | 9.58 s | **4.39 s** | the stall verdict on the last slice only |
+| wasm (node): forecast · refine · `death()` · `deathDeltas()` · `unlockDeltas` (seeds 3, 7) | 0.59 · 0.69 · 1.02 · 2.68 · 1.65 s | **0.50 · 0.60 · 0.86 · 2.28 · 1.41 s** | the engine |
+| the table's quiet per-tick row / verdict-time row | 2.93 µs / 0.13 s (wall) | 2.53 µs / 0.11 s (this thread's CPU) | the clock, not the bar |
+
+**The table by kind** (thread-s, HEAD → now): gold 3916 → 1812 · forge 3747 → 532 · lever 2677 → 1841 · cohort 2574 → 1115 ·
+cohort-bare 1122 → 161 · kitted bots 2455 → 418 · diverge 1138 → 1031 · exit 751 → 217 · FULL bots 2766 → 2343 · lanes 525 →
+449 (and no 3-minute job) · paired 504 → 433.
+
+What moved it, in order of yield:
+
+1. **The history ring off where no death is judged** (`engine::without_history`, a thread-local switch). The ring's only reader
+   is a death's checkpoint (`DeathRec.t10`, the verdict's replays); cloning the `Run` — ~150 fields, a dozen logs that grow
+   with the run — every 10 live ticks was **~40 % of a watched send** (16-thread gold A/B: 358 → 213 user-s, the same
+   output). Off in the table's gold, forge, exit, lever, kitted and without-return jobs, and in qa's forecast-vs-sends,
+   den/chore, leash, saved-by and found-supply legs.
+2. **The report's stall verdict where no one reads it** (`offline::run_offline_counts`): its patch sims were 51–91 % of an
+   offline batch on a plateaued set, and no table row reads `ReturnReport.stall`. The client reads only the last slice's
+   (`app.ts mergeReports`), so the wasm's `runOfflineSlice(s, last)` skips it before the last slice: the D11 fixture's 8 h
+   absence 9.6 → 4.4 s in wasm, the same merged report and save (the old wasm falls back to `runOfflineQuick`).
+3. **Work shared or no longer thrown away**: the gold row's D1 and waystone jobs played the same sends until a waystone lit
+   — one job, the waystone twin cloned from the D1 game at its first deeper start (`cohort_golds`); the without-return twin
+   computed two verdicts a job it dropped; the kitted and route bots computed the stall screens, shown-patch replays, root
+   and dice patches and a `known_to` forecast that only the plain bots' rows read (`run_seed_lean`); qa's den and chore legs
+   played the same six sends on two copies (one pass now).
+4. **The engine**, bit-identical: a monster's step reads the hero's distance field only as far as its own tile
+   (`turn::hero_dist_to`, a resumable flood — every nearer tile's distance is final, all `Map::step_down` reads); the lock's
+   wake as far as the sense reaches (`hero_dist_within`); an approach to a target's neighbours stops at the first distance
+   holding one (`ai::nearest_goal` — verb_attack, the ranged approach, tame, free captive) and the corridor search at 5 steps;
+   `update_vision` tests each walk against a bitmask of the square's walls (`LosTable.masks`, radius ≤ 9) instead of walking
+   its points.
+5. **The table's shape**: the lanes' three 3-minute jobs are 66 per-candidate jobs; the queue is longest first by kind; the
+   per-tick and verdict-time rows read this thread's CPU clock (the wall read 3.3 → 5.0 µs a tick under a load of ~70, the
+   same binary, a microsecond from the 6 µs bar).
+6. **`gates.mjs` caches per leg** (metrics, qa, dayplayer, each by its own binary and what it reads at run time): a new qa
+   invariant reruns qa alone. The table's key now covers the cohort cards (`eval/cards/*.rules.json` are read at run time: a
+   new card changed the table without changing a binary, and the old cache could reprint a stale PASS).
+
+**Measured, not kept:** an interior fast path in the BFS (no gain: the flood is not bounds-bound); skipping a vision pass when
+the hero had not moved (12 % of passes: the key cost what it saved); a sorted index for `item_def` / `monster_def` (+20 %: the
+scan meets the common kinds first).
+
+**Not reached: the 4.5-minute bar.** The gate is CPU-bound — ~11.6 k thread-s of table and ~3–4 k of qa beside it on 32
+hardware threads is ~8 min; 4.5 min needs ~8.5 k in all. What is left is work some row reads: the lever (93 jobs, 86 % paired
+sims, one 133-s job), gold (72 % the waystone passage, re-priced every 5 sends as the camp does), the four FULL bots' 3 × 8 h
+batches with their verdicts, the divergence and paired-edit panels, cohort's sampled verdicts. Each cohort card costs ~350
+thread-s (33 cards). No row was sampled down; the next steps are a decision, not a speed-up: fewer seeds on the per-set rows
+whose worst set passes by a wide margin (forge worst 0.7 nights vs ≤ 3; net gold worst +$101 vs +$20; leash thefts 0.000 vs
+0.1 — each with its n printed), the lever at 2 seeds (it stops early), or retiring cards a rater's later set supersedes. The
+next engine step is the ring itself for the jobs that judge deaths (the bots, cohort, qa's prelude, every client absence): a
+`Run` split into hot fields and append-only logs behind `Arc`.
+
+**The client suite** (`web/tests/run.mjs`). clarity's walk was one 257-s test the runner kept alone (`TEST_BESIDE=0`), and
+cut25's real-wasm watch (180 s) started last and ended the suite alone. Now:
+- clarity runs as parts (`--part=core,watch | hold | card | paint | deep`, each opening its own pages); `node tests/run.mjs
+  clarity` runs them all, `clarity:paint` one;
+- the queue is longest first by each test's own seconds (`OWN`); the runner prints each test's own time beside when it ended;
+- the real engine's edit timings (`clarity:paint`, bars of 1 s and 3 s, wasm in a worker, ~30 s) run last with nothing beside,
+  on a server the other tests have warmed (they read 1.3 s at a load of 31 even with a retry, and a 3.4-s refine first on a
+  cold server); while a wall-clock gate runs (fights, cut13, clarity's card, deep and core+watch parts) at most
+  `TEST_HEAVY_WIDTH` = 3 browsers run in all (the old runner: 2, for 4 minutes; at 4 the frame-sampled checks flaked);
+- the suite starts its own Vite server (`tests/vite.test.config.ts`: no watcher, no HMR) on a free port for the run — on the
+  shared :5219 server another agent's edit in `web/src` reloaded every page mid-check (12 of 31 gates "Execution context was
+  destroyed" in one run). `RIDDLE_PORT` set by the caller is used as it is.
+
+**Wall-clock checks under load** (`web/tests/lib/load.mjs`): a timed or frame-sampled reading that fails while the 1-minute
+load is ≥ an eighth of the cores (4 on this box: three SwiftShader browsers read 4–12; one browser's GPU process alone takes ~5
+cores) is measured once more; the line prints both readings and the load. The bar never moves and an idle machine never
+retries. Wrapped: clarity (the first paint, real wasm's first pass and refine, the floor card, the lit chip's rate,
+slowdowns), fights (the dead stretch, the folded floors, fast ≤ 0.4 × fights, one callout line, the hero unoccluded), cut13
+(the beat's line, ▶▶| to the end), qaj (BANKED at the exit, a card per floor), qa9 (the first sampled run: its cards and
+`fast` picked mid-run), cut25 (the drain stretch, the dark frames). ui's two panel reads poll instead of fixed sleeps
+(and re-inject its fake forecast when a late camp measure painted over it); clarity's slowdowns sample in one round trip and
+allow the fight frame's tail at today's travel rate (32×, Cut 20 §3 — the check still said 16×). In the core,
+`a_verdict_takes_under_point_six_seconds` reads one thread's CPU with the verdict single-threaded on a `par_map` worker — the
+stricter reading (≈ 5× the wall of the verdict spread over the cores on a quiet box) and blind to the suite's own load.
+
+**The runtime** (headed on the RTX 3080 against the dev server, a shared box): boot to the camp 0.2–1.0 s and its first
+forecast 0.6–1.4 s (fresh, three loads); the D11 fixture's first forecast 0.53 s, JS heap 36 MB, its save 727 KB (the 31
+history `Run`s travel with it); the watch in `fights` 16.7 ms a frame median, p95 17.5, p99 31.9 (21 of 1130 over 20 ms);
+the pkg 3.88 MB fast, 3.03 MB shipped (`wasm-pack --release`, 2 m 10 s).
+
 ## 1. The evaluation loop (the afternoon)
 
 Today: QA round (2 players, parallel, ~55 min) → triage + fixes → reship → QA round 2 →

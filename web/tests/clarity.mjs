@@ -20,13 +20,15 @@
 //   Cut 24 §4  real wasm: an edit's first pass ≤ 1 s, its refine ≤ 3 s — quiet, after a burst, with the slow measures in flight
 //              (`--no-wasm` skips it)
 //
-//   node web/tests/clarity.mjs        (part of `pnpm test` in web/)
+//   node web/tests/clarity.mjs [--part=core|watch|hold|card|paint|deep]   (part of `pnpm test` in web/, which runs the parts side by
+//   side: the whole walk was one 4-minute test the suite waited on; each part opens its own pages)
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { editRows, openPanel } from "./lib/frame.mjs";
+import { measured } from "./lib/load.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -34,6 +36,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const errors = [], out = [];
 let failed = 0;
 const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
+const PART = process.argv.find((a) => a.startsWith("--part="))?.slice(7) ?? "all";
+const part = (p) => PART === "all" || PART.split(",").includes(p);
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 2 });
@@ -51,6 +55,7 @@ const rowTexts = () => page.evaluate(() => [...document.querySelectorAll(".edito
 const engineRows = () => page.evaluate(async () => (await window.__riddle.engine.lineage()).sets[window.__riddle.active].rows.map((r) => `${r.conds.map((c) => c.k + (c.t ?? "") + (c.n ?? "")).join(" ")}→${r.verb.v}${r.verb.a ?? ""}`));
 
 try {
+  if (part("core")) {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
@@ -187,6 +192,8 @@ try {
     const plain = [...seen].filter((x) => x === "pick up").length;
     check(best >= 4 && plain <= 1, `a repeated chore reads with a count: pick up ×${best} (lines: ${[...seen].filter((x) => /^pick up/.test(x)).slice(0, 4).join(" · ")})`);
   }
+  }
+  if (part("watch")) {
   // Cut 14: the `slowdowns` toggle off (settings; `riddle.slowdowns`) — the clock stays at the mode's flat 16× through a fake fight in
   // `fast` (the fight frame still opens); on again, the fight runs at 4×
   {
@@ -211,19 +218,26 @@ try {
     check(seenFight && fightSpeeds.length > 0 && fightSpeeds.every((x) => x === 32), `slowdowns off: the fight frame opens and the clock stays at the flat 32× (Cut 20 §3; ${[...new Set(fightSpeeds)].join("/") || "no fight"})`);
     // on again — a fresh run (the first may have ended by now), the toggle persisted
     await page.evaluate(() => window.__riddle.setSlowdowns(true));
+    // (frames sampled as they come: `measured` takes the run once more on a loaded machine — tests/lib/load.mjs)
+    const slow = await measured(async () => {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch again");
     fightSpeeds = []; const t1 = Date.now();
+    // (one round trip a sample, the screen with the frame: two a sample and a 60 ms sleep caught two samples of a short fight
+    // on a loaded machine)
+    const sample = () => page.evaluate(() => { const w = document.querySelector(".watch"); return { screen: window.__riddle?.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), ending: w?.dataset.ending === "1", held: !!w?.dataset.hold }; });
     while (Date.now() - t1 < 60_000) {   // Cut 18: fast passes cheap fights at travel speed, so a framed one can take longer to come
-      const s = await state(); if (s?.screen !== "watch") break;
-      const w = await watch(); if (w.ending) break;
+      const w = await sample(); if (w.screen !== "watch" || w.ending) break;
       // Cut 18 §1: a held beat eases the picture to its stop; that is the beat's rate, not the fight's
       if (w.frame === "fight" && !w.held) { fightSpeeds.push(w.speed); if (fightSpeeds.filter((x) => x === 4).length >= 4) break; }
-      await sleep(60);
+      await sleep(30);
     }
-    // the frame's first/last sample can straddle the cut (16× on either side): the fight's own rate is the median of its samples
-    // a framed fight plays at 4× (≥ 3 samples); the frame's tail may run on at the travel rate (16×) — nothing else is allowed
-    check(fightSpeeds.filter((x) => x === 4).length >= 3 && fightSpeeds.every((x) => x === 4 || x === 16), `slowdowns on: a fight in fast runs at 4× (${fightSpeeds.join("/") || "no fight"})`);
+    // the frame's first/last sample can straddle the cut (the travel rate on either side): the fight's own rate is the median of
+    // its samples. A framed fight plays at 4× (≥ 3 samples); the frame's tail may run on at the travel rate — 32× since Cut 20 §3
+    // (the `slowdowns off` check above reads it; 16× before) — nothing else is allowed
+    return { ok: fightSpeeds.filter((x) => x === 4).length >= 3 && fightSpeeds.every((x) => x === 4 || x === 16 || x === 32), line: `slowdowns on: a fight in fast runs at 4× (${fightSpeeds.join("/") || "no fight"})` };
+    });
+    check(slow.ok, slow.line);
   }
   // Cut 14 §6: the world runs on the wall clock — paused, the frontier (`data-frontier`) advances and the strip's dot beats
   // (`data-pulses`) while the playhead (`data-tick`, the strip's head) holds; `▶▶|` from behind lands on the frontier; a faked
@@ -278,6 +292,8 @@ try {
     const s2 = await waitFor((x) => x && x.screen !== "watch" && x.screen !== "exit", "the exit after the walk-out", 30_000);
     check(s2.screen === "death", `then the exit flow (${s2.screen})`);
   }
+  }
+  if (part("hold")) {
   // Cut 14 §6 (QA on 56f2a1d): `⏸` freezes the picture on the tap — the HUD, the card, the ticker and the viewer's tick stay as
   // they were for 1.5 s whatever the world does underneath (seed 516 in `fights`: the HUD ran `D1 34/36 $23` → `D3 31/36 $52` → a
   // beat after the tap: a card/travel drain and a fight cut kept moving the picture); sampled every 100 ms, three taps a run
@@ -330,6 +346,8 @@ try {
       check(cards >= 5 && bad.length === 0, `seed ${seed}: the card names the HUD's floor and loot on every sample (${cards}/${samples} with the card up${bad.length ? `; ${bad.length} off: ${bad.slice(0, 3).join(" · ")}` : ""})`);
     }
   }
+  }
+  if (part("card")) {
   // Cut 14 §4: the `rest 20m` banner never covers the death frame's callout line — it sits low (`.banner.rest`), under every
   // sprite and name the frame drew (rater S: `rest 20m` over `OGRE WINDS UP`)
   {
@@ -360,7 +378,9 @@ try {
   // `fast 16` on the travel, `fast 4` in a fight; `fights 2` in a fight; the other chip carries none
   {
     const chip = () => page.evaluate(() => { const w = document.querySelector(".watch"), on = document.querySelector(".cmd .hud-btn.on"), off = [...document.querySelectorAll(".cmd .hud-btn")].filter((b) => b !== on && b.dataset.rate); return { screen: window.__riddle.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), card: w?.dataset.card, text: on?.textContent, rate: on?.dataset.rate ?? "", after: on ? getComputedStyle(on, "::after").content : "", others: off.length }; });
+    // (the chip and the clock read in one sample, as frames come: `measured` takes the run once more on a loaded machine)
     for (const mode of ["fast", "fights"]) {
+      const lit = await measured(async () => {
       await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);
       const seen = new Map(); let bad = null; const t0 = Date.now();
@@ -371,13 +391,17 @@ try {
         if (c.rate && c.frame) seen.set(c.frame, `${c.text} ${c.rate}`);
         await sleep(50);
       }
-      check(!bad && seen.has("fight") && [...seen.values()].every((x) => new RegExp(`^${mode} \\d+$`).test(x)), `${mode}: the lit chip carries its rate (${[...seen].map(([f, x]) => `${f}: ${x}`).join(" · ")}${bad ? `; off: ${JSON.stringify(bad)}` : ""})`);
+      return { ok: !bad && seen.has("fight") && [...seen.values()].every((x) => new RegExp(`^${mode} \\d+$`).test(x)), line: `${mode}: the lit chip carries its rate (${[...seen].map(([f, x]) => `${f}: ${x}`).join(" · ")}${bad ? `; off: ${JSON.stringify(bad)}` : ""})` };
+      });
+      check(lit.ok, lit.line);
     }
   }
   // Cut 15 §4: the floor card is short — every span it is up lasts ≤ 1.2 s of wall time, and it is never up over the fight frame
   // (a MutationObserver on the watch's `data-card` / `data-frame`, two `fights` runs of 20 s)
   {
+    // (a wall-clock reading: `measured` takes a seed's run once more on a loaded machine, the bar unchanged — tests/lib/load.mjs)
     for (const seed of [516, 7]) {
+      const card = await measured(async () => {
       await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
       await page.evaluate(() => {
@@ -393,7 +417,9 @@ try {
       while (Date.now() - t0 < 20_000) { if ((await state())?.screen !== "watch") break; await sleep(200); }
       const log = await page.evaluate(() => window.__cardLog);
       const max = Math.max(0, ...log.spans);
-      check(log.spans.length >= 3 && max <= 1200 && log.over === 0, `seed ${seed}: the floor card is up ≤ 1.2 s a time (${log.spans.length} cards, longest ${Math.round(max)} ms, over a fight ${log.over})`);
+      return { ok: log.spans.length >= 3 && max <= 1200 && log.over === 0, line: `seed ${seed}: the floor card is up ≤ 1.2 s a time (${log.spans.length} cards, longest ${Math.round(max)} ms, over a fight ${log.over})` };
+      });
+      check(card.ok, card.line);
     }
   }
   // Cut 15 §5 → Cut 19 §1: a watched cage is a beat — `took mail` (the preference's pick, `VaultChoice.pick`) held on the ticker while
@@ -438,11 +464,15 @@ try {
       }
     }
   }
+  }
 
+  if (part("paint")) {
   // Cut 20 §3: an edit's forecast paints within 1.2 s though the slow measures are in flight — the fake behind a worker's timing
   // (`fake_lag=1`: forecast 0.35 s, refine 2.5 s, unlock deltas 3 s, one call at a time per lane); the refine, the unlock deltas and
   // the cage options ride the second lane (engine/lanes.ts), so the first pass never queues behind them; the refine lands after it
+  // (wall-clock readings, here and below: `measured` takes the scene once more on a loaded machine, the bars unchanged)
   {
+    const paint = await measured(async () => {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&fake_lag=1`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "camp (lagged)", 30_000);
     const t = await page.evaluate(async () => {
@@ -458,7 +488,10 @@ try {
       const first = log.find((x) => x.refined === false), refine = log.find((x) => x.refined === true);
       return { first: first ? Math.round(first.t - at) : -1, refine: refine ? Math.round(refine.t - at) : -1 };
     });
-    check(t.first >= 0 && t.first <= 1200, `an edit's first forecast paints ≤ 1.2 s with the refine and the unlock deltas in flight (${t.first} ms)`);
+    return { ok: t.first >= 0 && t.first <= 1200 && t.refine > t.first, line: `an edit's first forecast paints ≤ 1.2 s with the refine and the unlock deltas in flight (${t.first} ms)`, t };
+    });
+    const t = paint.t, retried = paint.line.includes(" [retried") ? paint.line.slice(paint.line.indexOf(" [retried")) : "";
+    check(t.first >= 0 && t.first <= 1200, `an edit's first forecast paints ≤ 1.2 s with the refine and the unlock deltas in flight (${t.first} ms)${retried}`);
     check(t.refine > t.first, `the refine lands after the first paint (${t.refine} ms)`);
   }
   // Cut 24 §4 (AK: "each edit makes you wait 3–7 s for the forecast to settle"): the real engine (wasm in its workers, an 8 h lineage):
@@ -466,6 +499,7 @@ try {
   // 250 ms apart (from the last; the stale refines never queue: the refine lane runs the latest only), and with the forge's, the
   // unlocks' and the cage's measures in flight (they ride the background lane, the refine its own)
   if (!process.argv.includes("--no-wasm")) {
+    const wasm = await measured(async () => {
     await page.goto(`${url}?dev=1&fresh=1&seed=2302&absent=8h`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && ["camp", "report"].includes(s.screen), "the real engine's camp", 120_000);
     const kind = await page.evaluate(() => window.__riddle.kind);
@@ -490,10 +524,17 @@ try {
     });
     const med = [...t.quiet.map((q) => q.first)].sort((a, b) => a - b)[1];
     const refines = [...t.quiet.map((q) => q.refine), t.burst.refine, t.busy.refine];
-    check(kind === "wasm", `the real engine answers (${kind})`);
-    check(med <= 1000 && t.burst.first <= 1200 && t.busy.first <= 1200, `real wasm (${kind}): an edit's first pass paints ≤ 1 s (quiet ${t.quiet.map((q) => q.first).join("/")} ms, median ${med}; after a burst ${t.burst.first}; slow measures in flight ${t.busy.first})`);
-    check(refines.every((x) => x <= 3000), `real wasm: the refine lands ≤ 3 s (quiet ${t.quiet.map((q) => q.refine).join("/")} ms; after a burst ${t.burst.refine}; slow measures in flight ${t.busy.refine})`);
+    const paint = { ok: med <= 1000 && t.burst.first <= 1200 && t.busy.first <= 1200, line: `real wasm (${kind}): an edit's first pass paints ≤ 1 s (quiet ${t.quiet.map((q) => q.first).join("/")} ms, median ${med}; after a burst ${t.burst.first}; slow measures in flight ${t.busy.first})` };
+    const refine = { ok: refines.every((x) => x <= 3000), line: `real wasm: the refine lands ≤ 3 s (quiet ${t.quiet.map((q) => q.refine).join("/")} ms; after a burst ${t.burst.refine}; slow measures in flight ${t.busy.refine})` };
+    return { ok: kind === "wasm" && paint.ok && refine.ok, line: `${paint.line} · ${refine.line}`, kind, paint, refine };
+    });
+    const retried = wasm.line.includes(" [retried") ? wasm.line.slice(wasm.line.indexOf(" [retried")) : "";
+    check(wasm.kind === "wasm", `the real engine answers (${wasm.kind})`);
+    check(wasm.paint.ok, wasm.paint.line + retried);
+    check(wasm.refine.ok, wasm.refine.line);
   }
+  }
+  if (part("deep")) {
   // Cut 25 §4 (AM: 5–9 s of `…` after an edit, ~8 s for the forge's estimates on a D11 lineage after an absence): the deep fixture
   // (`tests/fixtures/deep.json`, the core's engine save of AM's shape — `crates/riddle-core/examples/deep.rs`), real wasm: the camp's
   // first paint and refine, an edit's (the median of three), and the forge's estimates opened from the camp — reported against the
@@ -522,12 +563,25 @@ try {
       at = performance.now(); document.querySelector(".cmd .tile[data-tile=forge]")?.click();
       await until(() => { const m = [...document.querySelectorAll(".sheet-wrap .forge .kit-move")]; return m.length > 0 && m.every((x) => !/…/.test(x.textContent)); }, 30_000);
       const forge = Math.round(performance.now() - at);
-      return { camp, edits, forge, best: r.lineage.best_depth, kit: !!document.querySelector(".sheet-wrap .forge .kit-move") };
+      // Cut 27 §2: the edit as a scene — a big edit (the set's first row cut), its refine, the core's divergence, the scene's first frame
+      log.length = 0; r.go({ kind: "camp" }); await took(performance.now()); await wait(1500);
+      window.__scene = {}; log.length = 0; at = performance.now();
+      r.rules.rows.splice(0, 1); r.rulesChanged();
+      const sceneOn = await until(() => !!window.__scene.playAt || window.__scene.last === null || (window.__scene.answerAt && !document.querySelector(".camp .div-scene:not([hidden])")), 30_000);
+      await wait(300);
+      const sc = window.__scene;
+      const scene = { refine: Math.round((sc.refineAt ?? NaN) - at), answer: Math.round((sc.answerAt ?? NaN) - (sc.refineAt ?? NaN)), play: sc.playAt ? Math.round(sc.playAt - sc.refineAt) : null, found: sc.last ? `${sc.last.moved.toFixed(2)}${sc.last.inside ? " inside" : ""}` : sc.last === null ? "none" : "?", ok: sceneOn };
+      return { camp, edits, forge, scene, best: r.lineage.best_depth, kit: !!document.querySelector(".sheet-wrap .forge .kit-move") };
     });
     const med = t.edits.map((e) => e.first).sort((a, b) => a - b)[1], medR = t.edits.map((e) => e.refine).sort((a, b) => a - b)[1];
     const line = `deep D${t.best} (real wasm): camp first ${t.camp.first} ms · refine ${t.camp.refine}; an edit's first ${t.edits.map((e) => e.first).join("/")} (median ${med}) · refine ${t.edits.map((e) => e.refine).join("/")} (median ${medR}); forge ${t.kit ? `${t.forge} ms` : "no step"} — bars 1.2 s · 3 s · 3 s`;
     if (process.env.RIDDLE_DEEP_GATE === "1") check(ok && med <= 1200 && medR <= 3000 && (!t.kit || t.forge <= 3000), line);
     else out.push(`note ${line}`);
+    // Cut 27 §2: the scene ≤ 1.5 s after the refine (the divergence on the refine's lane, the renderer's context made while it runs)
+    const sline = `deep D${t.best} (real wasm): an edit's scene — refine ${t.scene.refine} ms after the edit, the divergence ${t.scene.answer} ms after the refine (move ${t.scene.found}), the scene's first frame ${t.scene.play ?? "—"} ms after the refine — bar 1.5 s`;
+    if (process.env.RIDDLE_DEEP_GATE === "1") check(t.scene.play !== null && t.scene.play <= 1500, sline);
+    else out.push(`note ${sline}`);
+  }
   }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
@@ -537,5 +591,5 @@ try {
 
 for (const l of out) console.log(l);
 for (const e of errors) console.error(e);
-if (failed || errors.length) { console.error(`clarity: FAIL (${failed} assertion(s), ${errors.length} error(s))`); process.exit(1); }
-console.log(`clarity: ok (${out.length} checks)`);
+if (failed || errors.length) { console.error(`clarity${PART === "all" ? "" : ` ${PART}`}: FAIL (${failed} assertion(s), ${errors.length} error(s))`); process.exit(1); }
+console.log(`clarity${PART === "all" ? "" : ` ${PART}`}: ok (${out.length} checks)`);

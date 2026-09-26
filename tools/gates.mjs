@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Bot gate table (examples/metrics.rs) on the `fast` cargo profile.
-//   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds alongside (~35–60 s)
-//   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts, dayplayer 3 seeds (~2.5 min); the number that counts
+//   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds alongside (~4 min: the per-set rows' edits and lanes do not scale with seeds)
+//   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts, dayplayer 3 seeds (~8 min on a shared box; docs/ITERATION_SPEED.md 0d); the number that counts
 // Cut 13 §6: the wire invariants (examples/qa.rs, 30 seeds, ~700 thread-s: ~45 s alone on the cores, ~120 s beside
 // the table) run beside both as a third job; the run fails if they do. `METRICS_PHASES=1` prints the table's and
 // qa's phase and job walls (qa: thread-seconds per leg). `QA_SHARE=0.5` gives qa that share of the cores (0.75).
-//   node tools/gates.mjs --fresh  ignore the cache (docs/ITERATION_SPEED.md §3.3: the printed table is kept under
-//                                 target/gates/<sha1 of the three binaries + the presets>.txt; a hit reprints and
-//                                 re-checks — a client-only commit skips the table entirely)
+//   node tools/gates.mjs --fresh  ignore the caches. Each leg's printout is kept under target/gates/<leg>-<sha1>.txt, keyed by
+//                                 its own binary (+ what it reads at run time: the presets and the cohort cards for the table)
+//                                 — a client-only commit reprints all three in 0.2 s, and an edit to one example (a new qa
+//                                 invariant, a metrics row) reruns that leg alone (docs/ITERATION_SPEED.md §3.3, round 3)
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -17,19 +18,26 @@ const fresh = process.argv.includes("--fresh");
 const extra = process.argv.slice(2).filter((a) => a !== "--full" && a !== "--fresh");
 const b = spawnSync("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", "--example", "metrics", "--example", "dayplayer", "--example", "qa"], { stdio: "inherit" });
 if (b.status !== 0) process.exit(b.status ?? 1);
-// The binaries hash every input exactly (sources, deps, rustc); the presets are read at run time.
-const hash = createHash("sha1");
-for (const f of ["target/fast/examples/metrics", "target/fast/examples/dayplayer", "target/fast/examples/qa"]) hash.update(readFileSync(f));
-for (const f of readdirSync("crates/riddle-core/presets").sort()) hash.update(readFileSync(`crates/riddle-core/presets/${f}`));
-hash.update(JSON.stringify({ full, extra }));
-const cacheFile = `target/gates/${hash.digest("hex").slice(0, 16)}${full ? "-full" : "-quick"}.txt`;
-if (!fresh && !extra.length && existsSync(cacheFile)) {
-  const cached = readFileSync(cacheFile, "utf8");
-  process.stdout.write(cached);
-  const ok = /gates: all PASS/.test(cached) && /qa: all PASS/.test(cached) && !/hard bars: FAIL/.test(cached);
-  console.log(`gates: ${ok ? "cached PASS" : "cached FAIL"} (${cacheFile}; --fresh to rerun)`);
-  process.exit(ok ? 0 : 1);
-}
+// The binaries hash every input exactly (sources, deps, rustc); the presets and the cohort cards are read at run time
+// (metrics.rs `cohort_sets`: every eval/cards/*.rules.json — a new card changes the table without changing a binary).
+const keyOf = (bin, parts) => {
+  const h = createHash("sha1");
+  h.update(readFileSync(bin));
+  for (const [name, text] of parts) h.update(name).update(text);
+  return h.digest("hex").slice(0, 16);
+};
+const runtimeInputs = [
+  ...readdirSync("crates/riddle-core/presets").sort().map((f) => [f, readFileSync(`crates/riddle-core/presets/${f}`)]),
+  ...readdirSync("eval/cards").filter((f) => f.endsWith(".rules.json")).sort().map((f) => [f, readFileSync(`eval/cards/${f}`)]),
+];
+const seeds = full ? 3 : 2;
+const legs = {
+  metrics: `target/gates/metrics-${keyOf("target/fast/examples/metrics", [...runtimeInputs, ["args", JSON.stringify({ full, extra })]])}.txt`,
+  qa: `target/gates/qa-${keyOf("target/fast/examples/qa", [["args", "--seeds 30"]])}.txt`,
+  dayplayer: `target/gates/dayplayer-${keyOf("target/fast/examples/dayplayer", [["args", `--gate --seeds ${seeds}`]])}.txt`,
+};
+const cached = (leg) => (!fresh && !extra.length && existsSync(legs[leg]) ? JSON.parse(readFileSync(legs[leg], "utf8")) : null);
+const keep = (leg, r) => { if (!extra.length) { mkdirSync("target/gates", { recursive: true }); writeFileSync(legs[leg], JSON.stringify({ status: r.status, stdout: r.stdout })); } };
 // The table fills every core seed by seed for ~40 s; the fourteen-day probe is a few long
 // sequential chains (one per seed) that would otherwise run alone afterwards — they overlap.
 // `signal`: a stderr line that resolves `started` (forwarded stderr otherwise untouched).
@@ -57,21 +65,23 @@ const run = (bin, args, signal, env) => {
 // The dayplayer's chains start first. They were the critical path while the table left them
 // their cores; with the table at ~2.5 min and the chains at ~1 min alone (docs/ITERATION_SPEED.md,
 // 2026-09-24), the table is, so it takes every core but one and shares them while the others run.
-const seeds = full ? 3 : 2;
 const QA_SHARE = Number(process.env.QA_SHARE ?? 0.75);
 const cores = os.availableParallelism();
-const dayplayer = run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds)]).done;
-const table = run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - 1)), ...extra], "metrics: quiet ticks measured", { METRICS_QUIET_SIGNAL: "1" });
+const hit = { metrics: cached("metrics"), qa: cached("qa"), dayplayer: cached("dayplayer") };
+const done = (r) => ({ ready: Promise.resolve(), done: Promise.resolve(r) });
+const dayplayer = (hit.dayplayer ? done(hit.dayplayer) : run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds)])).done;
+const table = hit.metrics ? done(hit.metrics) : run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - 1)), ...extra], "metrics: quiet ticks measured", { METRICS_QUIET_SIGNAL: "1" });
 // The invariants (a job pool of seeds and their legs) start once the table's single-threaded quiet
 // per-tick measurement is done (a few seconds), then take three quarters of the cores beside the
 // table's all-but-one: at four threads they were the gate's critical path (305 s beside a 200 s
 // table); at 24 they end in ~115 s and hand the cores back to the table, which is the critical path
 // again (docs/ITERATION_SPEED.md, round 3).
-const qaThreads = Math.max(4, Math.round(cores * QA_SHARE));
-const qa = table.ready.then(() => run("target/fast/examples/qa", ["--seeds", "30", "--threads", String(qaThreads)]).done);
+// (a cached table leaves qa every core)
+const qaThreads = hit.metrics ? cores : Math.max(4, Math.round(cores * QA_SHARE));
+const qa = hit.qa ? Promise.resolve(hit.qa) : table.ready.then(() => run("target/fast/examples/qa", ["--seeds", "30", "--threads", String(qaThreads)]).done);
 const [r, p, q] = await Promise.all([table.done, dayplayer, qa]);
-let printed = "";
-const say = (t) => { printed += t; process.stdout.write(t); };
+for (const [leg, res] of [["metrics", r], ["qa", q], ["dayplayer", p]]) if (!hit[leg]) keep(leg, res);
+const say = (t) => process.stdout.write(t);
 say(r.stdout ?? "");
 if (r.status !== 0 || !/gates: all PASS/.test(r.stdout ?? "")) { console.error("gates: FAIL"); process.exit(1); }
 say(q.stdout ?? "");
@@ -83,4 +93,5 @@ const out = p.stdout ?? ""; say(out.slice(out.lastIndexOf("bar ")));
 const hardFails = [...out.matchAll(/^(Marks unspent|Empty check-ins|Class L10)[^\n]*FAIL/gm)].map((m) => m[0]);
 if (hardFails.length) { console.error("dayplayer hard bars: FAIL\n" + hardFails.join("\n")); process.exit(1); }
 say("dayplayer: hard bars pass (content bars informational until M7)\n");
-if (!extra.length) { mkdirSync("target/gates", { recursive: true }); writeFileSync(cacheFile, printed); }
+const legsCached = Object.entries(hit).filter(([, v]) => v).map(([k]) => k);
+if (legsCached.length) console.log(`gates: ${legsCached.join(", ")} cached (${legsCached.map((k) => legs[k]).join(" ")}; --fresh to rerun)`);

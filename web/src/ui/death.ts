@@ -17,7 +17,7 @@ import { openReplay } from "./replay";
 import { h, copyText, items } from "./dom";
 import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
-import { applyOf, fillReach, openDropSheet, patchRows, sinkHarms } from "./patches";
+import { applyOf, fillReach, leadFirst, openDropSheet, patchRows, sinkHarms } from "./patches";
 import { closeX, openSheet } from "./sheet";
 import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
 import { lostLabel, noteText, rowLabel, verbLabel } from "./tokens";
@@ -170,7 +170,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const select = (btn: HTMLButtonElement): void => { picked = true; light(btn); };
   // Cut 26 §6 (AP: a drive-off at 25/36 hp, `driven $0 · $297 lost`, and no verdict screen): a drive-off opens its verdict — the boss,
   // the floor, the defence; the seal `driven`; one tablet, the counter (`try: attack boss`), the gem writes it
-  const patches = drove ? drivenBlock(app, drove, select)
+  const patches = drove ? drivenBlock(app, drove, select, d.trace)
     : d.verdict === "route" && d.route_cause ? routeBlock(app, d, select)
     : patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base, stall: d.verdict === "stall", select, moment: d.depth, replays: d.replays });   // Cut 14 §4: the trace names the least-fired row on a full set
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
@@ -200,13 +200,16 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // QA 308f045 (qaAD: `retreat · drops R3 · survives 12/12` applied from the gem, then `vs sent · bank −30 · death +29`): the gem offers no
   // one-tap apply until the lit patch's whole run is measured (`deathDeltas` landed) — it reads `…` — and a lit tablet that harms whole runs
   // says so on the stone (`harms`, never `apply`: the player's own pick still applies, warned)
-  let measuring = !drove && !(d.verdict === "route" && d.route_cause) && d.patches.some((p) => p.camp_pending) && !!app.engine.deathDeltas;
+  // Cut 27 §4 (AS: the stall screen's gem applied `depth ≥ 5 → return · drops R10` over `cut R8`): a stall's gem goes through the same
+  // guard — its patches are measured on whole runs (`deathDeltas`) before the gem offers one, and never a harming one
+  const measureAll = !drove && !(d.verdict === "route" && d.route_cause) && (d.patches.some((p) => p.camp_pending) || (d.verdict === "stall" && d.patches.some((p) => p.insert_at >= 0)));
+  let measuring = measureAll && !!app.engine.deathDeltas;
   const isPatchTop = (): boolean => !!top && !top.btn.classList.contains("unlock") && !top.btn.classList.contains("held") && top.btn.classList.contains("patch") && !top.btn.classList.contains("driven-line");
   const makeGem = (): HTMLButtonElement => top && measuring && isPatchTop()
     ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, "…"), h("small", { class: "gem-w" }, /* copy:label */ "measuring")), cls: "patch-gem pending", onclick: () => undefined })
     : top
     // QA 23ed91f (K: "the gem reads `100%` with no label … I read it as the run's result"): the number, and the word the tap does under it
-    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" && top.label !== "edit" && top.label !== "write" ? h("small", { class: "gem-w" }, top.btn.classList.contains("harms") ? /* copy:label */ "harms" : /* copy:label */ "apply") : ""), cls: `patch-gem${top.btn.classList.contains("harms") ? " harms" : ""}`, pulse: !top.btn.classList.contains("harms"), onclick: () => { if (top) void applyOf.get(top.btn)?.(); } })
+    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" && top.label !== "edit" && top.label !== "write" && top.label !== "move" ? h("small", { class: "gem-w" }, top.btn.classList.contains("harms") ? /* copy:label */ "harms" : /* copy:label */ "apply") : ""), cls: `patch-gem${top.btn.classList.contains("harms") ? " harms" : ""}`, pulse: !top.btn.classList.contains("harms"), onclick: () => { if (top) void applyOf.get(top.btn)?.(); } })
     : gem({ label: /* copy:button */ "edit", pulse: true, onclick: () => app.go({ kind: "camp" }) });
   let gemBtn = makeGem();
   const cons = renderConsole({ portrait: face.el, gem: gemBtn, tiles: [
@@ -229,7 +232,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // QA 23ed91f: the patches' reach is the camp's own measure, landing after the paint (`deathDeltas`: seconds in wasm) — the
   // screen never waits on it; a reach still pending reads `reach …` until then
   let gone = false;
-  if (d.patches.some((p) => p.camp_pending) && app.engine.deathDeltas) {
+  if (measureAll && app.engine.deathDeltas) {
     const shown = d.patches;
     // QA 778fa1b (qaU: the lit tablet and the gem moved 1 → 2 on their own ~5 s after arrival): the landing fills each tablet's reach
     // and dims a loss; the order and the lit tablet (the gem's) stay as the screen first put them
@@ -240,6 +243,24 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
       if (gone) return;
       if (!f?.length) { measuring = false; const g1 = makeGem(); gemBtn.replaceWith(g1); gemBtn = g1; return; }
       fillReach(patches, shown, f);
+      // Cut 27 §4 (core): the landing names the gem (`Patch.gem`: the best whole-run patch that does not harm, always the core's first) —
+      // the tablets take the core's order and the gem lights it; none flagged, no gem (`edit`). An older core falls to the client's rules below
+      if (f.some((p) => p.gem !== undefined)) {
+        const tabs = [...patches.querySelectorAll<HTMLButtonElement>("button.patch:not(.unlock)")];
+        if (tabs.length && tabs.every((b) => b.classList.contains("harms"))) {
+          const head = patches.querySelector<HTMLElement>(":scope > .patches-moment");
+          if (head && !head.querySelector(".all-harm")) head.appendChild(h("span", { class: "all-harm down" }, /* copy:callout */ " · all harm"));
+        }
+        if (!picked) {
+          leadFirst(patches, shown, f, null);
+          const gi = shown.findIndex((p) => p.gem === true), host = patches.querySelector<HTMLElement>(":scope > .patches-fold") ?? patches;
+          const gb = gi >= 0 ? host.querySelectorAll<HTMLButtonElement>(":scope > button.patch")[gi] : undefined;
+          if (gb) light(gb); else { top?.btn.classList.remove("top"); top = null; }
+          el.dataset.gemFirst = top ? (top.btn === patches.querySelector("button.patch") ? "1" : "0") : "";
+        }
+        measuring = false; const g3 = makeGem(); gemBtn.replaceWith(g3); gemBtn = g3;
+        return;
+      }
       const btns = [...patches.querySelectorAll<HTMLButtonElement>("button.patch")];
       // (an exit's cost is its word, `return early`, and the core keeps a costly exit off the lead: only a row that stays in the fight moves)
       const cost = (b: HTMLButtonElement): number => { const p = shown[btns.indexOf(b)]; return p && p.insert_at >= 0 && !p.camp_pending && !(p.exits ?? /^(return|bank)$/.test(p.row.verb.v)) ? Math.round(p.forecast_delta * 100) : 0; };
@@ -263,6 +284,17 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
           if (alt) light(alt);
           else { cur.classList.remove("top"); top = null; const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; }
         }
+      }
+      // Cut 27 §4 (AS: the stall gem lit `cut R1` 1/12 above a 12/12): unless the player lit one, the gem takes the best whole-run patch —
+      // the landed order (the core's rank on whole runs), the first that neither loses nor harms — and it is the first tablet shown
+      if (!picked) {
+        leadFirst(patches, shown, f, null);
+        // (a reach loss the lead rule above let stand keeps its light — only a harm or a below-bar tablet yields it)
+        const lit0 = top?.btn;
+        const best = [...patches.querySelectorAll<HTMLButtonElement>("button.patch")].find((b) => !b.classList.contains("below") && !b.classList.contains("harms") && (!b.classList.contains("neg") || b === lit0));
+        if (best && best !== top?.btn) light(best);
+        leadFirst(patches, shown, f, top?.btn ?? null);
+        el.dataset.gemFirst = top?.btn === patches.querySelector("button.patch") ? "1" : "0";
       }
       measuring = false; const g2 = makeGem(); gemBtn.replaceWith(g2); gemBtn = g2;
     }).catch((e) => { console.warn("deathDeltas", e); measuring = false; const g2 = makeGem(); gemBtn.replaceWith(g2); gemBtn = g2; }); }, 0);
@@ -339,20 +371,37 @@ export function drivenDeath(line: ExitLine | DrivenOff, runId: number, trace?: D
 export const isDriven = (d: Death): boolean => (d.verdict as string) === "driven" && !!d.line?.driven;
 /** The drive-off's one tablet: the boss's counter as a row (`try: attack boss`, or `at R2` when the set holds it); the gem writes it at
  *  the top (a full set asks which row it replaces, as a patch does). */
-function drivenBlock(app: App, dv: DrivenOff, select: (b: HTMLButtonElement) => void): HTMLElement {
+function drivenBlock(app: App, dv: DrivenOff, select: (b: HTMLButtonElement) => void, trace?: Death["trace"]): HTMLElement {
   const same = (a: Row, b: Row): boolean => a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && JSON.stringify(a.conds) === JSON.stringify(b.conds);
-  const have = app.rules.rows.findIndex((r) => same(r, dv.row));
+  const dvo = dv as DrivenOff & { held?: number; over?: number; verdict?: string };
+  const have = dvo.verdict === "order" && dvo.held !== undefined && dvo.held < app.rules.rows.length ? dvo.held : app.rules.rows.findIndex((r) => same(r, dv.row));
+  // Cut 27 §5 (AT: the drive-off said `counter unwritten` and offered the counter row his R7 already was): a counter the set holds lost on
+  // priority — `order`: the row above it that took the moments (`R7 under R2`; the core's `order_over`, else the trace's busiest row
+  // above it), and the tablet moves it above that row
+  const over = have >= 0 ? orderOver(dv, have, trace) : -1;
   const write = (): void => {
+    if (have >= 0 && over >= 0) { const i = app.applyPatch({ row: app.rules.rows[have], insert_at: over, moves_from: have, survive: 0, forecast_delta: 0 }); app.go({ kind: "camp", highlight: i }); return; }
     if (have >= 0) { app.go({ kind: "camp", highlight: have }); return; }
     if (app.rowsFull) { openDropSheet(app, { row: { ...dv.row, origin: "patch" }, insert_at: 0, survive: 0, forecast_delta: 0 } as Patch); return; }
     app.go({ kind: "camp", highlight: app.insertRow(dv.row, 0, "patch") });
   };
-  const btn: HTMLButtonElement = h("button", { class: `patch tablet driven-line${have >= 0 ? " held" : ""}`, onclick: () => select(btn), "data-gem": have >= 0 ? /* copy:button */ "edit" : /* copy:button */ "write" },
+  const moveIt = have >= 0 && over >= 0;
+  const btn: HTMLButtonElement = h("button", { class: `patch tablet driven-line${have >= 0 && !moveIt ? " held" : ""}${moveIt ? " move" : ""}`, onclick: () => select(btn), "data-gem": moveIt ? /* copy:button */ "move" : have >= 0 ? /* copy:button */ "edit" : /* copy:button */ "write" },
     h("b", { class: "rank num", "aria-hidden": "true" }, "1."),
-    h("span", { class: "patch-main" }, h("span", { class: "chips-inline" }, rowLabel(dv.row))),
-    h("span", { class: "patch-nums" }, h("span", { class: "num surv" }, have >= 0 ? /* copy:callout */ `at R${have + 1}` : /* copy:callout */ `try: ${dv.counter}`)));
+    h("span", { class: "patch-main" }, h("span", { class: "chips-inline" }, moveIt ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move R${have + 1} above R${over + 1} `) : "", rowLabel(dv.row))),
+    h("span", { class: "patch-nums" }, h("span", { class: "num surv" }, moveIt ? /* copy:callout */ `R${have + 1} under R${over + 1}` : have >= 0 ? /* copy:callout */ `at R${have + 1}` : /* copy:callout */ `try: ${dv.counter}`)));
   applyOf.set(btn, write);
-  return h("div", { class: "patches driven" }, h("div", { class: "patches-moment num dim" }, /* copy:callout */ `D${dv.depth} · counter unwritten`), btn);
+  return h("div", { class: "patches driven" }, h("div", { class: "patches-moment num dim" }, have >= 0 ? /* copy:callout */ `D${dv.depth} · order` : /* copy:callout */ `D${dv.depth} · counter unwritten`), btn);
+}
+/** Cut 27 §5: the row above the held counter `have` that won the boss's moments — the core's (`DrivenOff.order_over`), else the row above
+ *  it that acted most in the drive-off's trace; -1 when neither says. */
+export function orderOver(dv: DrivenOff, have: number, trace?: Death["trace"]): number {
+  const core = (dv as DrivenOff & { order_over?: number; over?: number }).over ?? (dv as DrivenOff & { order_over?: number }).order_over;
+  if (typeof core === "number" && core >= 0 && core < have) return core;
+  const n = new Map<number, number>();
+  for (const t of trace?.turns ?? []) if (t.row >= 0 && t.row < have) n.set(t.row, (n.get(t.row) ?? 0) + 1);
+  let best = -1, most = 0; for (const [r, k] of n) if (k > most || (k === most && r < best)) { best = r; most = k; }
+  return best;
 }
 
 /** Cut 26 (core, risks): a `route` death's lead is a route edit — the other stair at that fork (`take burrows`), its replays' count beside

@@ -83,7 +83,10 @@ try {
   check(droneNodes.filter((n) => n.kind === "osc").length === 2 && droneNodes.some((n) => n.kind === "gain" && n.ramps.some((r) => r[0] === "linearRampToValueAtTime" && r[1] <= 0.03)), "the drone is two oscillators under a very quiet gain (≤ 0.03)");
 
   // every cue: ≤ 2 oscillators, exactly 1 gain envelope, every oscillator stops within 200 ms of its start
-  const cues = [["hit", { dmg: 1 }], ["hit", { dmg: 20 }], ["slay"], ["rule"], ["telegraph"], ["exit_bank"], ["exit_return"], ["level"], ["unlock"]];
+  // juice pass 2: the family timbres, the boss moments, the chrome and the Cut 27 surfaces keep the same instrument bar
+  const cues = [["hit", { dmg: 1 }], ["hit", { dmg: 20 }], ["slay"], ["rule"], ["telegraph"], ["exit_bank"], ["exit_return"], ["level"], ["unlock"],
+    ["strike", { dmg: 5, kind: "skeleton" }], ["strike", { dmg: 5, kind: "iron_golem" }], ["slay", { kind: "bloat" }], ["hit", { dmg: 6, kind: "wraith" }],
+    ["boss_in"], ["click"], ["boss_break"], ["edit"], ["boss_down"], ["buy"], ["verdict"], ["fold"], ["scene"], ["scene_end", { up: true }]];
   const pitch = [];
   for (const [name, opts] of cues) {
     const { played, nodes } = await cue(name, opts);
@@ -93,7 +96,12 @@ try {
     check(len <= CUE_MAX + 1e-6, `${name}: schedules ${Math.round(len * 1000)} ms ≤ 200 ms`);
     if (name === "hit") pitch.push(oscs[0].freqs[0][0]);
   }
-  check(pitch.length === 2 && pitch[0] > pitch[1], `hit pitch falls with damage (${pitch.map((p) => Math.round(p)).join(" → ")} Hz)`);
+  check(pitch.length >= 2 && pitch[0] > pitch[1], `hit pitch falls with damage (${pitch.slice(0, 2).map((p) => Math.round(p)).join(" → ")} Hz)`);
+  {  // juice pass 2: no two consecutive blows are the same sound (pitch, filter, noise slice and length are jittered per cue)
+    const sigs = [];
+    for (let i = 0; i < 8; i++) { await page.evaluate(() => window.__audio.cue("strike", { dmg: 4, kind: "goblin" })); sigs.push(await page.evaluate(() => window.__audio.log.at(-1)?.v)); await sleep(20); }
+    check(sigs.every((v, i) => i === 0 || (v && v !== sigs[i - 1])), `8 strikes in a row: no two consecutive identical (${new Set(sigs).size} distinct)`);
+  }
   {
     const { nodes } = await cue("exit_death");
     const oscs = nodes.filter((n) => n.kind === "osc"), gains = nodes.filter((n) => n.kind === "gain");
@@ -123,6 +131,8 @@ try {
   await waitFor((s) => s?.screen === "watch", "watch");
   await sleep(500);
   check((await page.evaluate(() => window.__audio.droneState())) === null, "in a run the drone is gone");
+  const bed = await page.evaluate(() => window.__audio.bedState());
+  check(bed === "warrens", `in a run the biome's ambience bed is up (${bed})`);
   const t = Date.now();
   while (Date.now() - t < 90_000) {
     const s = await state();
@@ -130,6 +140,8 @@ try {
     if (s?.screen !== "watch") break;
     await sleep(200);
   }
+  await sleep(300);
+  check((await page.evaluate(() => window.__audio.bedState())) === null, "out of the run the bed is gone");
   const fired = await page.evaluate(() => window.__audio.log.map((x) => x.cue));
   const kinds = new Set(fired);
   check(kinds.has("hit") || kinds.has("slay"), `the run fired combat cues: ${[...kinds].join(", ")}`);

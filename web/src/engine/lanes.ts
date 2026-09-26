@@ -20,7 +20,7 @@ export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "ca
 // from the camp's paint; `startForecast` ran on the foreground, ahead of an edit's forecast. The slow measures now run on lanes of their
 // own (a mirror each), so no measure waits behind another's: the unlock shelf's, the forge's (and the start picker's), the rest (the cage,
 // a death's patches). One lane on a machine with few cores (`MEASURE_LANES`).
-const MEASURE_LANE: Record<string, number> = { unlockDeltas: 0, kitDeltas: 1, startForecast: 1, forkForecast: 1, cageForecast: 2, deathDeltas: 2, forecastRefine: 2, forecastVs: 2 };
+const MEASURE_LANE: Record<string, number> = { unlockDeltas: 0, kitDeltas: 1, startForecast: 1, forkForecast: 1, cageForecast: 2, deathDeltas: 2, forecastRefine: 2, forecastVs: 2, divergence: 2 };
 const MEASURE_LANES = typeof navigator !== "undefined" && (navigator.hardwareConcurrency ?? 4) >= 6 ? 3 : 1;
 /** Foreground calls that leave the lineage as it was (the mirror stays in sync across them). */
 const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastVs", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary"]);
@@ -91,6 +91,8 @@ export function twoLanes(fg: AsyncEngine, bgOf: () => Promise<AsyncEngine | null
   // QA 778fa1b: the refine runs on its lane, so the refined camp panel is cached on that lane's engine — the edit's move asked again after
   // it (`forecastVsRefined`: `forecastVs` on the same lane, behind the refine) pairs the refined panels (`ForecastVs.refined`)
   if (typeof F.forecastVs === "function") out.forecastVsRefined = refineLane ? (...a: unknown[]) => refineLane("forecastVs", a, "forecastVsRefined") : (...a: unknown[]) => onBackground("forecastVs", a);
+  // Cut 27 §2: the edit's scene reads the paired panels the refine just ran — on the refine's lane, behind it (latest only), else a measure lane
+  if (typeof F.divergence === "function") out.divergence = refineLane ? (...a: unknown[]) => refineLane("divergence", a) : (...a: unknown[]) => onBackground("divergence", a);
   if (refineLane) out.refineLane = true as unknown as Calls[string];
   if (opts.mirror) out.parallelForecast = true as unknown as Calls[string];   // Cut 25 §4   // the app starts an edit's refine beside its first pass
   return out as unknown as AsyncEngine;

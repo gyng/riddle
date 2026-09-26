@@ -115,7 +115,7 @@
 // so the cut lands when the foes are on screen. The fight frame runs at 1× whatever the mode; the map frame keeps the
 // cadence above. `data-frame="map|fight"` on the element for tooling.
 import type { App, Mounted } from "../app";
-import type { Ev, ExitLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, Trace, VaultChoice } from "../engine/types";
+import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, clear, items, replace, spanOf } from "./dom";
 import { gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile } from "./frame";
 import { icon } from "./skin";
@@ -131,8 +131,10 @@ import { glossOf, kindGlyph, noteText, verbLabel } from "./tokens";
 import { EXIT_TRACE_ROWS, traceTable } from "./trace";
 import { drivenDeath, exitExtras } from "./death";
 import { laneTitle, seenForks } from "./route";
-import { markEnd, recordRun } from "./runlog";
-import { audio } from "../audio";
+import { lastRun, markEnd, recordRun } from "./runlog";
+import { FoldTally, foldFloors, stretchShare } from "./fold";
+import { foldFloorsOf, openFoldReplay } from "./replay";
+import { audio, type CueName, type CueOpts } from "../audio";
 
 type Tier = "bank" | "return" | "death";
 /** QA 92eb880 (N: the `fights` chip read `1.332247798006322×` over the portrait): a rate as the chip shows it — whole from 2×, one
@@ -226,7 +228,10 @@ const VAULT_GRACE = 50;             // the core's grace (ticks) between a cage o
 const CAGE_WAIT_CAP_MS = 8000;      // Cut 19 §1: the world waits for the cage beat's line at most this long (a beat the playhead never reaches)
 /** Cut 19 §1: the cage beat's line — `took mail` (the pick's last two words: a callout is ≤ 3 words). */
 export const tookText = (label: string): string => /* copy:callout */ `took ${label.trim().split(/\s+/).slice(-2).join(" ")}`;
-const BOSS_BANNER_MS = 3000;        // Cut 2 §7: `counter: known|unknown` on first sight (Cut 22: the boss bar's lit second line)
+const BOSS_BANNER_MS = 3000;
+// Cut 27 §1: a folded stretch's line holds at least this long as the interstitial (the stepping under it is ~0.1–0.3 s a floor), and
+// the fold gives up (lands live) after FOLD_WALL_MS of stepping — a stall or a loop on a solved floor is watched, never folded away
+const FOLD_MIN_MS = 1400, FOLD_WALL_MS = 8000, FOLD_DOCK_MS = 5000;        // Cut 2 §7: `counter: known|unknown` on first sight (Cut 22: the boss bar's lit second line)
 const REST_BEAT_MS = 1400;
 const REST_BEAT_FAST_MS = 700;      // QA e75ec29: in `fast` the rest line holds 0.7 s — `fights` on D1–3 ramps its travel now, and `fast` keeps ≤ 0.4 of it (Cut 20 §3)
 const VAULT_FULL_MS = 1200;         // QA e75ec29: `vault full` before the report when the preference kept (no sheet)          // Cut 2 §1: `rest 12m` after the exit, before the exit flow continues
@@ -253,7 +258,7 @@ const BEAT_MAX_MS = 6000;                  // a beat's line is gone after this w
 const CALLOUT_QUEUE = 3, SAME_TICK_MS = 40;   // Cut 13 §4: callouts that land on one tick (one pump pass) wait their turn, at most this many
 /** Cut 13 §4: the notes that are beats — the core's situation lines (verbatim), a theft, the stray, a heir's bones. */
 // Cut 24 §2: each biome band's omen (`omen:<biome>`, three variants each, core chronicle.rs) cuts in like a situation
-const BEAT_RE = /^(A den\.|A cage:|A shrine\.|The cage opens|A cry from the dark|The air stings|The nest wakes|The den wakes|Found heir \d+'s bones|found the bones|Freed the captive|Cut the captive|Lit the shrine|A loose brick|A rat's hoard|A dropped purse|A dead delver's pack|Old bones clutch|A satchel under|A clean spring|Rain through a crack|Sweet water in the reeds|A bell tolls|Bells in the dark|A far bell|A cooling ingot|Slag with silver|A smith's lost purse|A drowned purse|Coins in a lurker's|A glint under the black water|Offerings on a cold altar|Coins in a dry font|A pilgrim's purse)|snatched|\bstole\b|, gone wild\.$|is avenged/i;
+const BEAT_RE = /^(A den\.|A cage:|A shrine\.|The cage opens|A cry from the dark|The air stings|The nest wakes|The den wakes|Found heir \d+'s bones|found the bones|Freed the captive|Cut the captive|Lit the shrine|A loose brick|A rat's hoard|A dropped purse|A dead delver's pack|Old bones clutch|A satchel under|A clean spring|Rain through a crack|Sweet water in the reeds|A bell tolls|Bells in the dark|A far bell|A cooling ingot|Slag with silver|A smith's lost purse|A drowned purse|Coins in a lurker's|A glint under the black water|Offerings on a cold altar|Coins in a dry font|A pilgrim's purse)|snatched|\bstole\b|, gone wild\b|is avenged/i;
 /** The cause of a `hurt` as one word: `goblin_archer` → `archer`. */
 const oneWord = (cause: string): string => cause.replace(/_/g, " ").trim().split(/\s+/).pop() ?? "";
 /** A player row's callout, ≤ 3 words: `R2 · attack nearest`, `R4 · pack break` (QA 23ed91f, L: `R4 PACK BREAK GOBLIN` — the target goes). */
@@ -341,6 +346,10 @@ export function renderWatch(app: App): Mounted {
   const bail = tile({ id: "bail", cls: "hud-btn bail", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
   // Cut 10 §1: the interstitial — the ambient line over the map while the travel runs underneath; a tap holds the map at 8×
   const card = h("button", { class: "interstitial num", hidden: true, onclick: () => holdMap() });
+  // Cut 27 §1: the fold line — the interstitial over a folded stretch (`D1–6 · 100% · +$84` and its chips), docked under the HUD once the
+  // watch opens below it; a tap plays the folded floors
+  const foldHead = h("span", { class: "fold-head num" }), foldChips = h("span", { class: "fold-chips num" });
+  const foldLine = h("button", { class: "fold-line", hidden: true, onclick: () => foldTap() }, foldHead, foldChips);
   // Cut 14 §6: the scrub strip — the playhead (the viewer's share of the run) and the frontier's dot (beats per engine batch);
   // Cut 17: along the console's top edge
   const scrubHead = h("div", { class: "head" }), scrubDot = h("div", { class: "dot" });
@@ -349,7 +358,7 @@ export function renderWatch(app: App): Mounted {
   const busyHost = h("span", { hidden: true });   // the engine's busy label at the end (the next gem says it): not in the corner
   const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail], gem: pause, top: scrub });
   const el = h("main", { class: "watch frame" }, bar.el,
-    h("div", { class: "stage" }, canvas, card,
+    h("div", { class: "stage" }, canvas, card, foldLine,
       h("div", { class: "hud top" }, depth, alert, bossBar, stake),
       banner, ticker, whyTip),
     cons.el);
@@ -470,6 +479,7 @@ export function renderWatch(app: App): Mounted {
   const before = { best: app.lineage.best_depth, marks: app.lineage.marks, level: app.lineage.classes?.[cls]?.level ?? 1, xp: app.lineage.classes?.[cls]?.xp ?? 0, renown: app.lineage.renown ?? 0, rank: app.lineage.rank ?? 0 };
   const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [], tamed: string[] = [], lost: string[] = [];
   const kinds = new Map<number, string>(), names = new Map<number, string>();
+  const bossHeard = new Set<number>();   // juice pass 2: the bosses whose entrance was heard (once each)
   const partyAtStart = (app.lineage.party ?? []).map((c) => `${c.kind} · ${c.name}`);
   const tamedIds: number[] = [], lostIds: number[] = [];
   const compLabel = (id: number): string => { const n = names.get(id); return `${kinds.get(id) ?? "?"}${n ? ` · ${n}` : ""}`; };
@@ -531,9 +541,10 @@ export function renderWatch(app: App): Mounted {
     const b = s.entities.find((e) => e.tags.includes("boss") && !e.ally && e.hp > 0 && !!s.visible[e.y * s.w + e.x]);
     const was = bossHud?.id;
     bossHud = b ? { id: b.id, kind: b.kind, hp: b.hp, max: b.max_hp } : null;
+    if (b && b.id !== was && !bossHeard.has(b.id)) { bossHeard.add(b.id); cue("boss_in"); }   // juice pass 2: a boss's entrance is a beat you hear
     if (b || was !== undefined) paintBoss();
   }
-  function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
+  function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); if (!disposed) audio.bed(s.biome); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
   let lastLoot: number | undefined, lastLootRun = -1, lootDrop = 0, lootDropUntil = 0, lootWhy = "";
   let lastLootTurn = -Infinity, lastSwapped = 0;   // QA 912e135: the tick and the core's swap counter of the snapshot the strip shows
@@ -611,6 +622,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** Cut 22: the boss's counter on his bar's second line, lit for `ms`, then dim (it stays while he is in view). */
   function showCounter(text: string, ms: number): void {
+    if (folding) return;
     replace(bossCounter, text); bossCounter.hidden = false; bossCounter.classList.add("lit");
     clearTimeout(counterTimer); counterTimer = window.setTimeout(() => bossCounter.classList.remove("lit"), ms);
   }
@@ -632,7 +644,7 @@ export function renderWatch(app: App): Mounted {
     }
   }
   function callout(text: string, cls = "", ms: number = Math.max(CALLOUT_MIN_MS, 1800 / Math.max(1, speed))): void {
-    if (cardUp) return;                                                                    // Cut 10 §1: nothing under the card is watched
+    if (cardUp || folding) return;                                                         // Cut 10 §1: nothing under the card is watched (Cut 27 §1: nor under the fold)
     if (performance.now() < exitBeatUntil || performance.now() < holdLineUntil) return;     // Cut 14 §3: `BANKED $N` keeps the line (Cut 15 §4: `WARLORD DOWN` too)
     if (cls !== "ambient" && cls !== "hurt" && cls !== "beat" && performance.now() < ambientUntil) return;   // Cut 7 §4: an ambient keeps the ticker for its 1.5 s
     // Cut 13 §4: a second callout on the same tick (one pump pass) waits its turn instead of replacing the first before it was
@@ -648,6 +660,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** QA e75ec29: a companion's line — at once when the picture is watched, else queued (`petNews`) for the next watched moment. */
   function petLine(text: string): void {
+    if (folding) return;   // Cut 27 §1: a folded floor's companion news is a chip on its line
     if (skipping || cardUp || !petFree()) { if (!petNews.includes(text)) petNews.push(text); return; }
     lastPetAt = performance.now(); callout(text, "ally", FELL_MS);
   }
@@ -781,7 +794,7 @@ export function renderWatch(app: App): Mounted {
   function breakBeat(t: number, text: string): boolean {
     const m = BREAK_RE.exec(text.trim()); if (!m) return false;
     const name = oneWord(m[1]).toUpperCase(), key = `${name}@${hud.depth}`;
-    if (!broke.has(key)) { broke.add(key); beatAt(t, /* copy:callout */ `${name} BREAKS`, false, true); at(t, () => cue("telegraph")); }
+    if (!broke.has(key)) { broke.add(key); beatAt(t, /* copy:callout */ `${name} BREAKS`, false, true); at(t, () => cue("boss_break")); }
     return true;
   }
   function at(t: number, f: () => void): void { timed.push({ t, f }); }
@@ -856,8 +869,8 @@ export function renderWatch(app: App): Mounted {
               at(ev.t, () => { el.dataset.drain = String(ev.t); });   // tooling: the last drain the picture reached
               const key = `${dw}@${s.depth}`; at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (!drainsShown.has(key)) { drainsShown.add(key); callout(dw, "hurt", HURT_MS * 2); } }); break; }
             if (ev.hp <= 0 && ev.dmg > 0) killBlow = hurtText(ev.dmg, ev.cause);   // the blow the 0-hp frame names (`paintHud`)
-            at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) { callout(hurtText(ev.dmg, ev.cause), "hurt", HURT_MS); cue("hit", { dmg: ev.dmg }); } });
-          }
+            at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) { callout(hurtText(ev.dmg, ev.cause), "hurt", HURT_MS); cue("hit", { dmg: ev.dmg, kind: ev.cause }); } });
+          } else if (ev.dmg > 0 && !allies.has(ev.id)) { const kind = kinds.get(ev.id) ?? victims.get(ev.id), dmg = ev.dmg; at(ev.t, () => cue("strike", { dmg, kind })); }   // juice pass 2: the blow lands, by the foe's family
           break;
         // the kill gets its own line (cohort 5: "−3 goblin" was still up after the goblin had dissolved)
         case "die": {
@@ -870,8 +883,8 @@ export function renderWatch(app: App): Mounted {
             break;
           }
           // Cut 15 §4: a boss's kill is a beat — the frame holds on it with `WARLORD DOWN` (its own line, not `slain`)
-          if (bossIds.has(ev.id) && !allies.has(ev.id)) { const id = ev.id; at(ev.t, () => { if (bossHud?.id === id) { bossHud = null; paintBoss(); } }); beatAt(ev.t, bossDown(kinds.get(ev.id) ?? victims.get(ev.id) ?? "boss"), false, true); at(ev.t, () => cue("slay")); break; }
-          const v = victims.get(ev.id); if (v) at(ev.t, () => { callout(/* copy:callout */ `${v} slain`, "kill", HURT_MS); cue("slay"); });
+          if (bossIds.has(ev.id) && !allies.has(ev.id)) { const id = ev.id; at(ev.t, () => { if (bossHud?.id === id) { bossHud = null; paintBoss(); } }); beatAt(ev.t, bossDown(kinds.get(ev.id) ?? victims.get(ev.id) ?? "boss"), false, true); at(ev.t, () => cue("boss_down")); break; }
+          const v = victims.get(ev.id), vk = kinds.get(ev.id) ?? v; if (v) at(ev.t, () => { callout(/* copy:callout */ `${v} slain`, "kill", HURT_MS); cue("slay", { kind: vk }); });
           break;
         }
         case "telegraph": if (ev.what === "rallies") rallyBy = kinds.get(ev.id) ?? rallyBy; at(ev.t, () => cue("telegraph")); break;
@@ -956,7 +969,7 @@ export function renderWatch(app: App): Mounted {
           if (fresh && kind && !named && ev.state === "freed" && /spectral/.test(kind)) at(ev.t, () => petLine(/* copy:callout */ `${oneWord(kind)} summoned`));
           allies.add(ev.id); victims.delete(ev.id); } break;
         case "spawn": note_(ev.e); if (ev.e.tags?.includes("boss")) bossIds.add(ev.e.id); break;
-        case "level": for (const v of verbsAt(ev.class, ev.level)) learned.push(`verb:${v}`); at(ev.t, () => { callout(`${ev.class} L${ev.level}`); audio.cue("level"); }); break;
+        case "level": for (const v of verbsAt(ev.class, ev.level)) learned.push(`verb:${v}`); at(ev.t, () => { callout(`${ev.class} L${ev.level}`); if (!folding) audio.cue("level"); }); break;
         case "rank": at(ev.t, () => callout(`★${ev.rank}`)); break;
         case "rest": restS = ev.seconds; break;
         case "bones":
@@ -971,7 +984,7 @@ export function renderWatch(app: App): Mounted {
     return exit;
   }
   /** Cut 10 §4: a combat cue, only while the fight is watched (the fight frame up, or the clock at 1×). */
-  function cue(name: "hit" | "slay" | "rule" | "telegraph", opts?: { dmg?: number }): void { if (frame === "fight" || speed <= FAST_NEAR) audio.cue(name, opts); }
+  function cue(name: CueName, opts?: CueOpts): void { if (!folding && (frame === "fight" || speed <= FAST_NEAR)) audio.cue(name, opts); }
   // Cut 5 §5 / Cut 7 §4: what holds auto at 1× — a scene (a room with SCENE_FOES awake hostiles), the hero's hp moving
   const hostile = (e: { ally?: boolean; kind: string; tags: string[] }): boolean => !e.ally && e.kind !== "bones" && e.kind !== "captive" && !e.tags.includes("captive") && !e.tags.includes("ally");
   /** Cut 7 §4: the hero's room and its awake hostiles; without `room` in the wire, the hostiles in view stand in (one "room"). */
@@ -1082,7 +1095,7 @@ export function renderWatch(app: App): Mounted {
   /** Cut 10 §1: the interstitial is up while `fights` shows the map, unless a tap holds the map, the vault sheet is up, or the
    *  run's ending plays. Its line is the ambient one: `D3 · 4 rooms · $47`. */
   function paintCard(want: FrameName): void {
-    const up = mode === "fights" && want === "map" && !mapHeld() && !cageWaits() && !done && !exitTier && viewerTick() < endingFrom && !beatHeld();
+    const up = mode === "fights" && want === "map" && !mapHeld() && !cageWaits() && !done && !exitTier && viewerTick() < endingFrom && !beatHeld() && !folding;
     if (up !== cardUp) {
       cardUp = up; el.dataset.card = up ? "1" : "0";
       // a card per floor: the full minimum when the floor is new, a beat between fights on the same floor — drawn only on a new floor
@@ -1105,7 +1118,9 @@ export function renderWatch(app: App): Mounted {
     const title = f?.biome && (prev ? prev !== f.biome : first) ? BIOME_TITLE[f.biome] : undefined;
     // Cut 21 §1: a run sent from a waystone names it on its first floor (`D9 · the Fens · waystone`)
     const way = first && d > 1 && d === (app.lineage.start ?? 1);
-    const text = way ? /* copy:callout */ `D${d}${title ? ` · ${title}` : ""} · waystone`
+    // Cut 27 §1: the passage the waystone start was paid (`+$84 passage`: the skipped floors' gold, when the set clears them ≥ 95 %)
+    const passage = way ? hudSnap?.run.passage ?? snap?.run.passage ?? 0 : 0;
+    const text = way ? /* copy:callout */ `D${d}${title ? ` · ${title}` : ""} · waystone${passage > 0 ? ` · +$${passage} passage` : ""}`
       // QA 912e135 (qaX: `D2 · 16 rooms · $16` beside the header's `$16` — "which $"): the card's gold is the carry, named as the strip names it
       : /* copy:callout */ `D${d}${title ? ` · ${title}` : rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `carry $${hudSnap?.stake?.loot ?? hudSnap?.loot ?? 0}`}`;
     if (text !== cardText) { cardText = text; replace(card, text); }
@@ -1153,6 +1168,7 @@ export function renderWatch(app: App): Mounted {
     if (s.alert > lastAlert) { const n = s.alert; at(s.turn, () => ambient(/* copy:callout */ `alert ${n}/${ALERT_TOP}`)); }   // Cut 7 §4
     lastAlert = s.alert;
     const exit = absorb(r.events, s);
+    if (folding) folding.tally.absorb(r.events, s);   // Cut 27 §1: the stretch's state changes, chips on its line
     noteProgress(r.events, s);   // (after `absorb`: the batch's bosses are known)
     snap = s;
     // Cut 14 §6: the stake and the max hp land at the viewer's clock like the rest of the HUD (the picture may be behind the world)
@@ -1209,6 +1225,9 @@ export function renderWatch(app: App): Mounted {
   }
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
+    // Cut 27 §1: while a stretch folds the world stands under its line (the fold steps it); the line holds its minimum, then docks
+    if (folding) { paintScrub(viewerTick()); if (!folding.stepping && performance.now() >= folding.holdUntil) endFold(); return; }
+    if (!inflight && !frozen() && foldDue()) { void foldRun(); return; }
     if (vaultClose && !document.querySelector(".vault-choice")) { vaultClose = null; if (cage) cage.done = true; }   // dismissed by backdrop / Escape: the engine's grace decides
     if (vaultClose && !frozen() && performance.now() - vaultAt > VAULT_WAIT_MS) vaultClose();    // Cut 15 §5: the wait is over; the engine's grace and preference proceed (⏸ stops the wait)
     const still = frozen();   // Cut 14 §6: a frozen picture — no cut, no release, no floor load; the world below steps on
@@ -1312,7 +1331,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** Cut 10 §1: is the engine free to run ahead under the card — `fights`, the card up and not held, no fight found yet, no exit. */
   function travelling(): boolean {
-    return mode === "fights" && cardUp && !cardWait && !mapHeld() && !frozen() && !held && !exitTier && !done && !disposed && !fightAhead(viewerTick());
+    return mode === "fights" && cardUp && !cardWait && !mapHeld() && !frozen() && !held && !exitTier && !done && !disposed && !fightAhead(viewerTick()) && !foldDue();
   }
   function travel(): void {
     app.engine.step(BATCH_FIGHTS).then((r) => {
@@ -1526,6 +1545,126 @@ export function renderWatch(app: App): Mounted {
     seekTo(t); release(t); letGo(t); cardSince = -Infinity; applyFrame(); applySpeed();
   }
   function paintPause(): void { pause.classList.toggle("on", paused); pause.classList.toggle("pulse", paused); replace(pause, icon(paused ? "play" : "pause"), h("span", { class: "gem-glyph" }, paused ? "▶" : "⏸")); }
+  // Cut 27 §1 — solved floors fold: the floors the camp's forecast says the sent set clears ≥ 95 % (`foldFloors`) are stepped flat out
+  // under the fold line, never watched; the watch opens at the first floor below the bar. The world stands while the line holds.
+  let foldSet = new Set<number>();
+  type Fold = { tally: FoldTally; from: number; to: number; t0: number; holdUntil: number; stepping: boolean; skip: boolean; replay: boolean; core?: FoldLine };
+  let folding: Fold | null = null;
+  let lastFold: { from: number; to: number; core?: FoldLine } | null = null;
+  const foldsDone: string[] = [];
+  let dockTimer = 0;
+  /** The last floor of the folded stretch that opens on `d` (the plan). */
+  const planTo = (d: number): number => { let t = d; while (foldSet.has(t + 1)) t++; return t; };
+  function paintFold(f: Fold): void {
+    const L = f.core;
+    if (L) {
+      // the core's line (`fold()`): its clear through the stretch, the gold it added, its chips (≤ 3 words each, by kind)
+      replace(foldHead, `${L.to > L.from ? `D${L.from}–${L.to}` : `D${L.from}`} · ${Math.round(L.clear * 100)}%${L.gold ? ` · ${L.gold > 0 ? "+" : "−"}$${Math.abs(L.gold)}` : ""}`);
+      replace(foldChips, ...L.chips.map((c) => h("i", { class: `fchip k-${coreKind(c, L)}`, "data-k": coreKind(c, L) }, c)));
+      foldLine.dataset.kinds = [...new Set(L.beats.map((b) => b.kind))].join(",");
+      foldLine.dataset.src = "core";
+      return;
+    }
+    replace(foldHead, f.tally.head(f.to));
+    const chips = f.tally.list();
+    replace(foldChips, ...chips.map((c) => h("i", { class: `fchip k-${c.k}`, "data-k": c.k }, c.text)));
+    foldLine.dataset.kinds = [...new Set(chips.map((c) => c.k))].join(",");
+    foldLine.dataset.src = "client";
+  }
+  /** A core chip's kind (for its colour): the kind of the beat whose words it carries, else by its first word. */
+  const coreKind = (chip: string, L: FoldLine): string => {
+    const b = L.beats.find((x) => x.text === chip); if (b) return b.kind === "theft" ? "stolen" : b.kind === "dip" ? "hp" : b.kind === "find" ? "found" : b.kind;
+    return /^stolen\b/.test(chip) ? "stolen" : /^hp\b/.test(chip) ? "hp" : /\bfinds?\b|^found\b/.test(chip) ? "found" : "beat";
+  };
+  const foldedAway = new Set<number>();   // floors a fold already stepped (a fold that gave up on one never folds it again)
+  /** Is the floor the picture meets next (a queued load, else the HUD's own floor with the engine on it) the first of a folded stretch? */
+  function foldDue(): boolean {
+    if (folding || held || exitTier || done || !foldSet.size || overridden || !snap || !viewer) return false;
+    const d = loads.length ? loads[0].snap.depth : hud.depth;
+    if (!foldSet.has(d) || foldedAway.has(d)) return false;
+    return loads.length ? (cardUp || viewerIdle()) && !beatHeld() : snap.depth === d;
+  }
+  /** Step the folded stretch flat out under its line; the watch lands on the first floor below the bar (or the run's ending). */
+  async function foldRun(): Promise<void> {
+    if (folding || !viewer || !snap) return;
+    const from = loads.length ? loads[0].snap.depth : snap.depth, to = planTo(from);
+    const tally = new FoldTally(from, stretchShare(app.forecastOfRules(), from, to, foldStartOf()));
+    tally.loot0 = (hudSnap ?? snap).stake?.loot ?? (hudSnap ?? snap).loot;
+    const f: Fold = { tally, from, to, t0: performance.now(), holdUntil: Infinity, stepping: true, skip: false, replay: false };
+    folding = f; el.dataset.fold = "1";
+    releaseBeat(); clearTimeout(dockTimer);
+    cardUp = false; card.hidden = true; el.dataset.card = "0"; ticker.classList.remove("show"); tickerQueue.length = 0;
+    foldLine.classList.remove("docked", "faded"); foldLine.hidden = false; paintFold(f);
+    inflight = true;
+    // Cut 27 §1 (core): right after the send the core plays the stretch itself (`fold()`: the line, its floors for the replay, the whole
+    // stretch as one step); a core without it — or a stretch later in the run — is stepped here, batch by batch
+    let core: FoldLine | null | undefined;
+    if (app.engine.fold && from === startDepth && snap.turn === startTick) { try { core = await app.engine.fold(); } catch (e) { console.warn("fold unavailable", e); core = undefined; } }
+    if (disposed) return;
+    if (core) {
+      if (core.to < core.from) { folding = null; el.dataset.fold = "0"; foldLine.hidden = true; foldSet.clear(); inflight = false; applyFrame(); applySpeed(); return; }   // nothing folded: the watch as ever
+      f.core = core; f.to = core.to;
+      handle(core.step);
+      if (cage && !cage.done) { cage.done = true; cage.shown = true; }
+      drainLoads(); paintFold(f);
+    }
+    try {
+      drainLoads();
+      while (!core && !disposed && !held && foldSet.has(snap.depth) && performance.now() - f.t0 < FOLD_WALL_MS) {
+        const r = await app.engine.step(SKIP_END_BATCH);
+        if (disposed) return;
+        handle(r);
+        if (cage && !cage.done) { cage.done = true; cage.shown = true; }   // Cut 19 §1: under the fold the preference picks (its pick is a chip)
+        drainLoads();
+        paintFold(f);
+        if (r.run_over || held || stalling()) break;
+      }
+    } catch (e) { console.warn("fold failed", e); }
+    inflight = false;
+    if (disposed) return;
+    f.stepping = false;
+    if (!core) f.to = Math.max(from, Math.min(planTo(from), foldSet.has(snap.depth) ? snap.depth : snap.depth - 1));
+    paintFold(f);
+    f.holdUntil = f.skip ? 0 : f.t0 + FOLD_MIN_MS;
+    // the picture lands at the first floor below the bar — its stairs' tick (the floor the engine is on), or the ending's start
+    const d = descends[descends.length - 1];
+    const t = held ? Math.max(viewerTick(), endingFrom) : Math.max(viewerTick(), d !== undefined && snap.depth > from ? d : engineTick);
+    seekTo(t); release(t); letGo(t);
+    worldT = Math.max(worldT, engineTick); lastPumpMs = performance.now();
+    if (f.replay) { f.replay = false; foldTap(); }
+  }
+  /** The fold's line has held its minimum (or a press waived it): it docks under the HUD and the watch plays on from the landing. */
+  function endFold(): void {
+    const f = folding; if (!f) return;
+    folding = null; el.dataset.fold = "0";
+    lastFold = { from: f.from, to: f.to, core: f.core };
+    for (let d = f.from; d <= Math.max(f.to, snap?.depth ?? f.to); d++) if (foldSet.has(d)) foldedAway.add(d);
+    foldsDone.push(`${f.from}-${f.to}`); el.dataset.folded = foldsDone.join(",");
+    const ms = Math.round(performance.now() - f.t0), floors = f.to - f.from + 1;
+    if ("__riddle" in window) ((window as unknown as { __foldLog?: unknown[] }).__foldLog ??= []).push({ from: f.from, to: f.to, floors, ms, perFloor: Math.round(ms / floors), src: f.core ? "core" : "client", kinds: f.core ? [...new Set(f.core.beats.map((b) => b.kind))] : [...f.tally.kinds()], chips: f.core ? f.core.chips : f.tally.list().map((c) => c.text), shown: [...foldChips.children].map((c) => c.textContent), head: foldHead.textContent });   // dev
+    foldLine.classList.add("docked");
+    dockTimer = window.setTimeout(() => foldLine.classList.add("faded"), FOLD_DOCK_MS);
+    if (hudSnap) { hudFrom(hudSnap); }
+    if (held) toEnding(); else { applyFrame(); applySpeed(); }
+  }
+  /** A tap on the fold line plays the folded floors (the run log's, at the travel rate); the watch's picture freezes meanwhile. */
+  function foldTap(): void {
+    if (folding?.stepping) { folding.replay = true; return; }
+    const span = folding ? { from: folding.from, to: folding.to, core: folding.core } : lastFold;
+    const log = lastRun(); if (!span) return;
+    // the core's floors (each from its first tick) when it folded, else the run log's (the floors the watch loaded under the line)
+    const floors = span.core ? span.core.floors.map((x) => ({ snap: x.snapshot, evs: x.events })) : log && log.runId === runId ? foldFloorsOf(log, span.from, span.to) : [];
+    if (!floors.length) return;
+    if (folding) folding.holdUntil = 0;
+    const wasPaused = paused;
+    if (!wasPaused) { freeze(true, hidden); paintPause(); applySpeed(); }
+    el.dataset.foldReplay = "1";
+    openFoldReplay(floors, span.from, span.to, () => { el.dataset.foldReplay = "0"; if (!wasPaused && !disposed && paused) { freeze(false, hidden); paintPause(); applySpeed(); } });
+  }
+  /** The floor the send started on (the forecast's sims start there too; a fold never runs past what they measured). */
+  const foldStartOf = (): number => (snap?.run.start ?? startDepth);
+  let startDepth = 1;
+
   let skipQueued = false;
   function skipToCard(): void {
     skipEarly = true; mapHold = false; cardLive = false;
@@ -1539,6 +1678,7 @@ export function renderWatch(app: App): Mounted {
   }
   async function skipToEvent0(): Promise<void> {
     if (done || !viewer || exitTier) return;
+    if (folding) { folding.skip = true; folding.holdUntil = 0; return; }   // Cut 27 §1: the press lets the fold line go (the watch lands below it)
     // QA on 3d71c33: under the cage sheet ▶▶| picks nothing — the sheet goes and the engine's grace and the preference decide
     if (vaultClose) vaultClose();
     if (cage) cage.done = true;   // Cut 19 §1: …and the cage beat: the preference picks
@@ -1981,6 +2121,9 @@ export function renderWatch(app: App): Mounted {
       if (want > 1 && from < want) { tollShort = true; showBanner(/* copy:callout */ `from ${"D" + from} · toll short`, TOLL_BANNER_MS, "rest toll-short"); } }
     for (const e of s.entities) note_(e);
     hudFrom(s);
+    // Cut 27 §1: the floors this send folds — the camp's forecast for the rules sent, from the floor the sims started on (a send whose
+    // start fell back — a toll short — is not the one the forecast measured: nothing folds)
+    { const f = app.forecastOfRules(); startDepth = s.run.start ?? s.depth; if (f && (f.start ?? 1) === startDepth) foldSet = foldFloors(f, startDepth); el.dataset.foldPlan = [...foldSet].join(","); }
     const { viewer: v0 } = await makeViewer(canvas);
     if (disposed) { v0.dispose(); return; }
     // Cut 11 §2: every floor load and event batch is kept in the run log, so the death screen's chain can scrub a replay
@@ -1990,6 +2133,7 @@ export function renderWatch(app: App): Mounted {
     speed = -1; applyFrame(); applySpeed();   // Cut 10 §1: the card and the mode's rate (fights: 16× under it) from the first frame
     if ("__riddle" in window) (window as unknown as { __viewer: Viewer }).__viewer = v;   // dev inspection
     lastHp = s.hero.hp; lastAlert = s.alert; sceneFrom(s); progress.push(s.turn);
+    if (foldDue()) void foldRun();   // Cut 27 §1: the watch opens at the first floor below the bar
     pumpTimer = window.setInterval(pump, PUMP_MS);
   }
   void init();
@@ -1999,7 +2143,7 @@ export function renderWatch(app: App): Mounted {
   const onVisibility = (): void => { freeze(paused, document.hidden); if (!hidden) goLiveOwed = true; applySpeed(); };
   document.addEventListener("visibilitychange", onVisibility);
   return { el, dispose: () => {
-    disposed = true; bar.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
+    disposed = true; audio.bed(null); clearTimeout(dockTimer); bar.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
     if (vaultClose) { const c = vaultClose; vaultClose = null; c(); }
     if (prepended && !done) void app.engine.setRules(app.rules);
   } };

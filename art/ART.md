@@ -101,6 +101,36 @@ warm brown stone), warm torch pools, a small halo on each flame, the hero's own 
 falloff; lift and halo shrink on pale stone (no Sanctum bloom). A portcullis only in a horizontal
 wall, one per run of doors; other doors draw as open doorways.
 
+### Register 3b — per-biome drawings (juice pass 2, 2026-09-26)
+
+Every biome was the same drawing recoloured (307dbed rater AR: "the Fens looked like the Burrows"). Each biome but the Warrens
+(whose set *is* watch.png's) now has its own drawings of the classes that make a place — floors ×4, wall faces ×2, wall top, door,
+stairs down/up, three props (the `barrel`/`crate`/`pot` slots) and, where the material differs, water:
+
+| biome | materials | props (barrel · crate · pot) | water |
+|---|---|---|---|
+| burrows | packed warm-ochre earth, root veins, pebbles; root-veined earth banks and timber shoring (beam lip, post); a lashed plank door | loot sack · goblin crate · iron cauldron | — |
+| fens | a grey plank boardwalk over dark water (long boards, dark-water gaps), open teal pools, reeds through the gaps; a log palisade standing in water | stump · fish trap · mossy jar | open bog water + lily pad |
+| crypt | engraved burial slabs; ossuary niches (skulls, bones); a carved tomb door | sarcophagus · coffin · urn | — |
+| foundry | riveted plates, gratings, pipes; firebrick; a blast door | anvil · coal bin · crucible | molten metal (oranges kept) |
+| deep | unworked cave rock, fissures, crystals, fungus; a rock cleft | stalagmite · crystals · mushrooms | black pool |
+| sanctum | diagonal marble checker, rosette, gilded bands; fluted pilasters; gilded double door | brazier · reliquary · amphora | reflecting pool |
+
+Ids `env_<biome>_<name>` (manifest `biome`, `name`); `make_env.py` converts them to the same `<biome>_env_<name>` the renderer
+already keys by biome (the route puts biomes at different depths — nothing keys by depth), so a missing drawing falls back to the
+shared one, and a missing tile to the 8×8 register. A per-biome drawing keeps its own value structure (`to_index_struct`: luminance
+normalised to its 2–98th percentiles, cut at fixed points — floors at 0.28 / 0.7 / 0.9) instead of the shared set's quantiles, which
+sprayed the Sanctum's checker and the Foundry's rivets into speckle; the Fens keep the quantiles (their mud and reeds are texture).
+The Burrows has its own ramp in the env register (`ENV_PALETTES`, the palette.ts ramp); its 8×8 register stays the runtime alias.
+
+**Juice pass 3 (2026-09-26): the fork's two lanes.** The Burrows and the Fens meet at the D5 fork, and a luminance ramp drew plank and
+water (root and earth) of one value in one colour: both read as the same speckle recoloured. Their tiles (floors, wall faces, wall top,
+door, stairs, water — `make_env.FREE_NAMES`) are now drawn in a fixed 8-colour palette with hue roles (`FREE_PALETTES`, handed to
+Codex by `make_prompts.py`) and converted by NEAREST COLOUR per texel (the median of each block's middle), so water stays teal under
+grey boards and a root stays dark on ochre earth; `FREE_SWAP` drops the Fens boards' lit ends and near-black joints (they read as
+brick courses). Props and decals keep the ramp path. The Burrows' runtime ramp is warm ochre (was red clay); the grades (`blit.ts`
+`GRADES`) push the Burrows ochre at full saturation and the Fens cool, and the Fens' torch light is teal (`index.ts` `LIGHT_TINT`).
+
 ### Register 2 — environment tiles (hand-authored pixel art, `art/tiles/`)
 
 8×8 texels, ≤ 8 colours from the biome palette, drawn procedurally-but-designed by

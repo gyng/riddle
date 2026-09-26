@@ -363,3 +363,25 @@ Reused as-is: sprite `hero_fighter_male` (= the v2 fighter), portraits `hero_fig
 `_female`, `Class::default_look`); the replaced v2 masters are `archive/superseded/hero_{rogue,ranger,caster}_v2.png` and
 `archive/superseded/portrait_hero_caster_v1.png`. Ids: `hero_<class>_<look>` in the atlas and in `ui/portraits/`; the client
 falls back to `hero_<class>`, then the procedural silhouette (`render/look.ts`, `ui/frame.ts paintFace`).
+
+## Per-biome tile sets (juice pass 2, 2026-09-26) — 82 ids, 6 biomes
+
+`prompts/batch30..35.txt` (one biome per batch: burrows, fens, crypt, foundry, deep, sanctum; 13–14 ids each, `make_prompts.py`
+adds a biome paragraph — "a DIFFERENT PLACE at a glance, not the same flagstones recoloured"), three concurrent, ~9 min per round.
+80/82 accepted first try; retry `batch36` (`env_sanctum_crate`: a red-brown jumble → "a pale ivory chest, one gold band, no red";
+`env_burrows_pot`: tiny and all black → "LARGE, a grey rim highlight, a ladle"), both accepted; originals in
+`archive/superseded/env_*_r1.png`. Judged on per-biome sheets (source · converted · sample room) and in the headed render-demo.
+Known weak: the Fens' mud floors are busy at 4×; the Burrows' loot sack reads as a lump.
+
+
+## The fork's two lanes (juice pass 3, 2026-09-26) — Burrows and Fens tiles redrawn
+
+`prompts/batch40` (Fens, 11 tiles) and `batch41` (Burrows, 10 tiles + the loot sack), two concurrent, ~12 min; the briefs pin
+rows and name the palette's colours (`make_env.FREE_PALETTES`, a palette paragraph from `make_prompts.py`). Codex drew most tiles as
+16×16 grids and snapped them to the palette itself. Retries (`batch42`/`43`/`44`, whose header was hand-edited to *prefer* drawing
+the pinned grid pixel by pixel with PIL): Fens floors ×4 (every plank's lit row + joints read as bricks → long boards, one joint,
+2–3 lit pixels), water / wall top / door / stairs (image_gen speckle → flat areas); Burrows floor_1 (a dotted root → one solid 2-px
+root), floor_3 (speckle), floor_2 (claw marks read as letters → pebbles only), wall_face_0 (speckle twice → roots at pinned
+coordinates). All accepted; `FREE_SWAP` evens the Fens boards' remaining lit ends and joints. Superseded: `archive/superseded/
+env_*_j2.png` (juice pass 2's drawings), `env_*_j3r1.png` / `env_burrows_wall_face_0_j3r2.png` (this round's rejects). Judged at the
+watch's zoom in the headed render-demo (`scratchpad/juice3/biomes-before-after.png`) and a real D5 watch.

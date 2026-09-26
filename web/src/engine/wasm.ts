@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  CageOption, Death, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary,
+  CageOption, Death, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary,
 } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
@@ -45,6 +45,7 @@ export class WasmEngine implements Engine {
   step(turns: number): StepResult { return this.call("step", turns); }
   runOffline(elapsedS: number): ReturnReport { return this.call("runOffline", elapsedS); }
   runOfflineQuick(elapsedS: number): ReturnReport { return this.call("runOfflineQuick", elapsedS); }
+  runOfflineSlice(elapsedS: number, last: boolean): ReturnReport { return this.call("runOfflineSlice", elapsedS, last); }
   death(runId: number): Death { return this.call("death", runId); }
   deathDeltas(runId: number): Patch[] { return this.call("deathDeltas", runId); }
   buy(unlock: string): Lineage { return this.call("buy", unlock); }
@@ -100,6 +101,9 @@ export class WasmEngine implements Engine {
   // Cut 23 §1: throw `wasm: buyKit` / `wasm: kitDeltas` on a build without them (the camp shows no forge)
   buyKit(slot: string): Lineage { return this.call("buyKit", slot); }
   kitDeltas(): KitLadder[] { return this.call("kitDeltas"); }
+  // Cut 27: throw `wasm: fold` / `wasm: divergence` on a build without them (the watch then plays every floor; the camp shows no scene)
+  fold(): FoldLine { return this.call("fold"); }
+  divergence(prev: RuleSet): Divergence | null { return this.call("divergence", JSON.stringify(prev)); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

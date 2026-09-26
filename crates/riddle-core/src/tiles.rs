@@ -200,6 +200,42 @@ impl Map {
         // the precomputed offsets (`los_table`): the same points in the same order.
         let table = los_table(radius);
         let (w, tiles) = (self.w, &self.tiles[..]);
+        if radius <= LOS_MASK_MAX {
+            // The square's sight-blocking tiles as bits, read once; a tile is in view when no
+            // point of its walk is one (`LosTable.masks`: each walk's points as bits) — the same
+            // test as the walk's, on every in-bounds end (their points are in the square).
+            let (side, h) = (2 * radius + 1, self.h);
+            let mut walls = [0u64; LOS_MASK_WORDS];
+            for dy in -radius..=radius {
+                let y = from.y + dy;
+                if y < 0 || y >= h {
+                    continue;
+                }
+                for dx in -radius..=radius {
+                    let x = from.x + dx;
+                    if x >= 0 && x < w && tiles[(y * w + x) as usize].blocks_sight() {
+                        let bit = ((dy + radius) * side + dx + radius) as usize;
+                        walls[bit >> 6] |= 1 << (bit & 63);
+                    }
+                }
+            }
+            let mut k = 0;
+            for dy in -radius..=radius {
+                for dx in -radius..=radius {
+                    let m = &table.masks[k];
+                    k += 1;
+                    let p = from.step((dx, dy));
+                    // (branch-free: the six words' overlaps ORed)
+                    let hit = (m[0] & walls[0]) | (m[1] & walls[1]) | (m[2] & walls[2]) | (m[3] & walls[3]) | (m[4] & walls[4]) | (m[5] & walls[5]);
+                    if hit == 0 && self.in_bounds(p) {
+                        let i = self.idx(p);
+                        self.visible[i] = true;
+                        self.seen[i] = true;
+                    }
+                }
+            }
+            return;
+        }
         let mut k = 0;
         for dy in -radius..=radius {
             for dx in -radius..=radius {
@@ -260,6 +296,13 @@ impl Map {
             found.is_some()
         });
         found.map(|i| (self.pos(i), parent))
+    }
+    /// `bfs_parent` stopped by `stop(d, layer)` (`bfs_layers`): every tile nearer than the layer it
+    /// stopped at, and that layer's, has the full flood's distance and parent; farther ones −1.
+    pub fn bfs_parent_layers(&self, start: Pos, seen_only: bool, blocked: &(impl Fn(Pos) -> bool + ?Sized), stop: impl FnMut(i32, &[usize]) -> bool) -> (Vec<i32>, Vec<i32>) {
+        let mut parent = vec![-1i32; self.tiles.len()];
+        let dist = self.bfs_layers(start, seen_only, blocked, Some(&mut parent), stop);
+        (dist, parent)
     }
     /// `bfs_parent` stopped once `goal` is reached: the parents along its path are final (a
     /// tile's parent is set when it is discovered), which is all `first_step` toward it reads.
@@ -330,6 +373,51 @@ impl Map {
         }
         dist
     }
+    /// `bfs(start, false, no blocks)` in resumable steps: `dist`/`queue`/`head` hold a flood
+    /// begun by `flood_start` and carried on here in the same FIFO, `DIRS8` order with the same
+    /// tests, so every distance it assigns is the full flood's. With `until`, it stops once
+    /// that tile has a distance (after finishing the tile being expanded); with `within`, once
+    /// every tile that near has one (the next to expand is that far: the queue is in distance
+    /// order); neither runs it out.
+    pub fn flood_start(&self, start: Pos, dist: &mut Vec<i32>, queue: &mut Vec<u32>, head: &mut usize) {
+        dist.clear();
+        dist.resize(self.tiles.len(), -1);
+        queue.clear();
+        *head = 0;
+        if self.in_bounds(start) {
+            let si = self.idx(start);
+            dist[si] = 0;
+            queue.push(si as u32);
+        }
+    }
+    pub fn flood_resume(&self, dist: &mut [i32], queue: &mut Vec<u32>, head: &mut usize, until: Option<usize>, within: Option<i32>) {
+        let (w, h) = (self.w, self.h);
+        let tiles = &self.tiles[..];
+        while *head < queue.len() {
+            let pi = queue[*head] as usize;
+            if until.is_some_and(|u| dist[u] >= 0) || within.is_some_and(|l| dist[pi] >= l) {
+                return;
+            }
+            *head += 1;
+            let d = dist[pi] + 1;
+            let (px, py) = (pi as i32 % w, pi as i32 / w);
+            for (dx, dy) in DIRS8 {
+                let (qx, qy) = (px + dx, py + dy);
+                if qx < 0 || qy < 0 || qx >= w || qy >= h {
+                    continue;
+                }
+                let qi = (qy * w + qx) as usize;
+                if dist[qi] >= 0 || !tiles[qi].passable() {
+                    continue;
+                }
+                if dx != 0 && dy != 0 && (tiles[(py * w + qx) as usize] == Tile::Wall || tiles[(qy * w + px) as usize] == Tile::Wall) {
+                    continue;
+                }
+                dist[qi] = d;
+                queue.push(qi as u32);
+            }
+        }
+    }
     /// First step from `start` toward `goal` along BFS parents (None if unreachable or equal).
     pub fn first_step(&self, parent: &[i32], start: Pos, goal: Pos) -> Option<Pos> {
         if goal == start || !self.in_bounds(goal) {
@@ -377,7 +465,14 @@ const LOS_TABLE_MAX: i32 = 32;
 struct LosTable {
     spans: Vec<(u32, u32)>,
     offs: Vec<(i8, i8)>,
+    /// Radius ≤ `LOS_MASK_MAX`: each walk's points as bits of the square (row-major from the
+    /// top-left corner), for `update_vision`'s one-pass test.
+    masks: Vec<[u64; LOS_MASK_WORDS]>,
 }
+
+/// The largest radius whose square fits `LOS_MASK_WORDS` words of bits (19 × 19 = 361 ≤ 384).
+const LOS_MASK_MAX: i32 = 9;
+const LOS_MASK_WORDS: usize = 6;
 
 fn los_table(radius: i32) -> std::rc::Rc<LosTable> {
     thread_local! {
@@ -403,7 +498,23 @@ fn los_table(radius: i32) -> std::rc::Rc<LosTable> {
                     spans.push((a, offs.len() as u32));
                 }
             }
-            std::rc::Rc::new(LosTable { spans, offs })
+            let side = 2 * radius + 1;
+            let masks = if radius <= LOS_MASK_MAX {
+                spans
+                    .iter()
+                    .map(|&(a, b)| {
+                        let mut m = [0u64; LOS_MASK_WORDS];
+                        for &(ox, oy) in &offs[a as usize..b as usize] {
+                            let bit = ((oy as i32 + radius) * side + ox as i32 + radius) as usize;
+                            m[bit >> 6] |= 1 << (bit & 63);
+                        }
+                        m
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            std::rc::Rc::new(LosTable { spans, offs, masks })
         })
         .clone()
     })

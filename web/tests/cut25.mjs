@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { editRows, openPanel } from "./lib/frame.mjs";
+import { measured } from "./lib/load.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -102,7 +103,9 @@ try {
     });
     check(w.join(",") === "starving,starving,,,drained,", `a drain reads its word (hunger → starving, the core's \`drain\` word); a blow, gas or a bare poison is none (${w.map((x) => x ?? "·").join(",")})`);
   }
+  // (a wall-clock reading: `measured` takes the mode's run once more on a loaded machine, the bar unchanged — tests/lib/load.mjs)
   for (const m of ["fights", "fast", "one"]) {
+    const drain = await measured(async () => {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=9&fake_drain=1`, { waitUntil: "domcontentloaded" });
     await camp();
     await page.evaluate((m) => { window.__riddle.watchMode = m; window.__riddle.go({ kind: "watch" }); }, m);
@@ -128,8 +131,11 @@ try {
       };
       poll();
     }));
+    return { ok: d.dead > 0 && d.maxMs > 0 && d.maxMs <= 5000, line: `${m}: a drain stretch plays ≤ 5 s (the longest wall time from a bite to the next move, held beats aside, ${(d.maxMs / 1000).toFixed(1)} s at ${d.at}; dead frames ${d.dead})`, d };
+    });
+    const d = drain.d;
     const starving = d.words.filter((x) => /starving/i.test(x)).length, bites = d.words.filter((x) => /hunger −1 max/i.test(x)).length;
-    check(d.dead > 0 && d.maxMs > 0 && d.maxMs <= 5000, `${m}: a drain stretch plays ≤ 5 s (the longest wall time from a bite to the next move, held beats aside, ${(d.maxMs / 1000).toFixed(1)} s at ${d.at}; dead frames ${d.dead})`);
+    check(drain.ok, drain.line);
     check(starving >= 1 && bites === 0, `${m}: the drain shows its word (\`starving\` ×${starving} across floors), never a bite's \`hunger −1 max\` (${bites})`);
     await page.evaluate(() => document.querySelectorAll(".sheet-wrap").forEach((x) => x.remove()));
   }
@@ -237,6 +243,7 @@ try {
 
   // ---- §3: the black frame (real wasm): seed 2501's first run, fights — no dark stretch over 6 frames
   if (!process.argv.includes("--no-wasm")) {
+    const black = await measured(async () => {
     await page.goto(`${url}?dev=1&fresh=1&seed=2501`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "the real engine's camp", 120_000);
     const kind = await page.evaluate(() => window.__riddle.kind);
@@ -256,7 +263,9 @@ try {
       requestAnimationFrame(f);
     }));
     // (the stairs' own fade-through and a frame cut are dark by design: ≤ 400 ms; the purse's held load was 3 s)
-    check(kind === "wasm" && r.ms <= 400, `real wasm (${kind}): no empty board — the longest dark stretch ${r.frames} frames / ${r.ms} ms ("${r.text}"; AM's purse beat held a new floor's load 3 s)`);
+    return { ok: kind === "wasm" && r.ms <= 400, line: `real wasm (${kind}): no empty board — the longest dark stretch ${r.frames} frames / ${r.ms} ms ("${r.text}"; AM's purse beat held a new floor's load 3 s)` };
+    });
+    check(black.ok, black.line);
   }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
