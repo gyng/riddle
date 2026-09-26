@@ -715,3 +715,26 @@ trade (`2/8 · 2/7 · 2/5 · BANKED $620`), the absence as a present.
 
 The plateau (cohorts 15–21: 74.35, 73.25, 71.1, 68.95, 71.65, 74.35, 72.15) says fixing seams
 holds the score but doesn't raise it; the six 0.6 axes need a structural change, not polish.
+
+## Control cohort (build 307dbed, unchanged — the new protocol: three absences 20m / 4h / 8h)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AQ | 2801 | 65.7 | none |
+| AR | 2802 | 65.7 | none |
+
+Mean **65.7** vs cohort 21's **72.15** on the same build under one absence: the protocol costs
+~6.5 points. Autonomy fell to 0.3 from both; decisions, tension, story and progression to 0.6
+(AQ). Cohort 22 (Cut 26) is compared against 65.7, not 72.15.
+
+### What the extra absences exposed
+
+1. **A 20-minute return is empty** (both): `0 RUNS · D0` — the heir rests 20 minutes after a run.
+2. **The forecast decides** (both): AQ `rest at 75%` took bank 60 → 97 %, then 11 of 13 sends
+   banked — tension drained; AR "trying options and keeping the highest number".
+3. **Gold inflates with nothing to buy** (both): $40 → $11,816 (AQ), $9,750 (AR); forge lines `≈`
+   or negative (`mail +1 · D11 −17`); unlocks run down to `cond: turns / cond: loot`.
+4. **Patch lines contradict at a glance** (AQ): `nothing beats unpatched 12/12` above `survives
+   12/12`; `survives 12/12 … death +74`.
+5. **One corridor** (AR): D1–7 the same foes every run; the Fens look like the Burrows; the ogre
+   drawn as a checkerboard (a renderer dither).

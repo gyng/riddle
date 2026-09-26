@@ -1,0 +1,121 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "depth>=",
+          "n": 14
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "adj>=",
+          "n": 2
+        }
+      ],
+      "verb": {
+        "v": "cleave"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "gas_step"
+      },
+      "origin": "card"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "boss_focus"
+      },
+      "origin": "card"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "water"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:water"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "fast"
+        }
+      ],
+      "verb": {
+        "v": "tame",
+        "a": "tag:fast"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "preset"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 60
+        }
+      ],
+      "verb": {
+        "v": "rest"
+      },
+      "origin": "player"
+    }
+  ],
+  "name": "fighter"
+}

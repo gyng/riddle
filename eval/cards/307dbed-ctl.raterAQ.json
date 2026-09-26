@@ -1,0 +1,170 @@
+{
+  "$comment": "Blind rater AQ, 2026-09-26. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md sections 1-3 (and the idle-roguelike weights in eval/presets.json), and the template. Nothing else opened. Headed GPU driver, 400x800 at 3x. Audio: cues fire in window.__audio (rule/hit/slay logged in step with the callouts) but I could not listen, so audio is unassessed.",
+  "game": "Riddle",
+  "build": "307dbed-ctl",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAQ (blind agent, seed 2801)",
+  "horizon": {
+    "activeMinutes": 66,
+    "absences": [
+      "20m (simulated, ?absent=20m) + ~4 min",
+      "4h (simulated) + ~5 min",
+      "8h overnight (simulated) + ~19 min"
+    ],
+    "runsWatched": 19,
+    "runsOffline": 24,
+    "ruleEdits": 17,
+    "notes": "Every run of mine was watched on screen to its end: runs 1-11 at 1x or in the 'fights' mode, a few later ones on 'fast'. Runs last 45 s to 5 min at 1x. 3 deaths I sent myself (D3 jackal DICE, D4 goblin conjurer GAP) plus 3 offline deaths to gas (read one verdict in full). About 12 of the rule edits were my own (rest, bank depth, summoner, attack boss, throw fire + depth, cleave, attack drain, read identify), not offered patches; one patch applied then edited (return 30% moved under drink heal and cut to 20%)."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: Heir 3, the greedy fighter, went down with my bank row pushed to D15 past a boss I had never met, cleaved through the Fens and reached the Bloat Mother on D13 at 15/33 hp. My 'attack boss' row broke her while her gas ate him to 5, then 2 HP, and my 'hp < 20% -> return' row walked him home with $391 of $652 and the Mother's first kill. I then added a 'foe: gas -> throw fire' row, and overnight three heirs died to gas on D13 because that row had thrown the only fire potion at a bloat on D9 at 45/46 hp, so I made it wait for depth 12."
+  },
+  "probes": {
+    "clarity": "After the first death I knew what to try, and every edit printed its result ('VS SENT · D4 90→100%'), but the first death screen said 'nothing beats unpatched 12/12' directly above a patch reading 'survives 12/12', and I could not tell which to believe.",
+    "decisions": "I picked 'start → D1 · bank 91% · ~$797' over 'D14 · bank 66% · ~$215', and bank depth 14 (death 28%) versus 13 (death 13%) before the Mother; would do both again, though the forecast mostly makes the choice for me.",
+    "mastery": "An hour ago I died to a jackal on D3 with an unidentified heal in my pack; now I know the Warlord wants 'attack boss', the Mother 'throw fire, boss', the lich 'attack summoned', and I bank on D19.",
+    "tension": "I sweated when the watch read 'BLOAT MOTHER DOWN | 5/33' then '2/33 · R2 · return', and when a wraith drained him to '14/14' just before 'BANKED $609'; between those, eleven sends in a row banked.",
+    "feel": "The big pixel callouts ('R5 ATTACK GOBLIN', 'SHIELDED', 'WARLORD BREAKS') land on the hit and the hp number beside the portrait drops in step; I never heard the sound.",
+    "surprise": "The monkey stealing my only identify scroll, the wraith taking max hp 42 → 14, the Fens after the Warlord and the Crypt after the Mother each changed a row; D1–D7 was the same corridor every send.",
+    "expression": "My set: drink heal <40%, return <20%, rest <75%, fire at gas past D12, cleave on 2 adjacent, attack drain, attack boss, attack nearest, bank at D19 — a cautious brawler who rests a lot and only spends fire on the Mother.",
+    "story": "'♟3 the greedy fighter · D13 · took the Warlord · took the Mother · found ♟1, ♟2's bones · fell to gas' is a line I would retell.",
+    "pacing": "In-run: something every 3 s at 1x, no dead stretch; admin: editing on a phone is tap-heavy (cond sheet → value sheet → verb sheet); cadence: 20 min away returned '0 RUNS · D0' because the heir was resting, 4 h gave 8 runs, 8 h gave 16.",
+    "failure": "The offline gas death named 'GAP', listed each row and why it did not fire, and 'R4 throw fire · no item ← R4 threw fire at 45/46 hp D9': the cause was my own row, one screen, and the next send started itself.",
+    "social": "Nobody else; the heirs finding each other's bones ('found ♟3's bones · D13 · 10 items') is lineage flavour, not a relationship.",
+    "autonomy": "I chose to go after the lich before the forecast told me to; otherwise the only route is down one floor at a time, and 'start → D1/D5/D9/D14' is the only branch.",
+    "progression": "Rows 2 → 9, verbs throw/cleave/attack boss, classes, forge to mail +1; gold ran from $40 to $11,816 with little left worth buying (the forge read 'D15 ≈' on most lines).",
+    "aesthetic": "Dark pixel dungeon that turns green in the Fens and has a painted camp scene of two heroes on the stair; I would look at it, not sit in it.",
+    "return": "After 8 h: '16 RUNS · 11 BANKED · 3 DEATHS · gas ×3', a PLATEAU verdict after 4 h ('R7 bank ended 7 runs … try depth ≥ 14'), and forge lines pending; after 20 min: nothing to read.",
+    "attribution": "'R2 return saved him.' — my row; the gas deaths were my fire row misfiring on D9; 'no row; died to gas' in the reel was my gap."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Evidence: every edit prints its own consequence before sending ('VS SENT · D4 90→100%', 'bank 0→95% · death 100→5%'), and each row has a WHY sheet ('0/424 acts · blocked · no item'). Lapse: the first death screen ('DICE', 'nothing beats unpatched 12/12') sat over a patch that 'survives 12/12', and '⊘ identify heal' took four runs to understand."
+    },
+    {
+      "id": "decisions",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "'start → D1 · bank 91% · ~$797' versus 'D14 · bank 66% · ~$215', and the return patch at 30% ('bank 87→39%') versus 20%, were real trade-offs I weighed; but the forecast settles most of them by number, and 'rest' at 75% was a plain dominant move (bank 60→97%)."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Deepest went D3 → D5 → D9 → D13 → D19 by learning named counters ('COUNTER: ATTACK BOSS', 'COUNTER: THROW FIRE, BOSS', 'counter: attack summoned'); after the Warlord much of the depth came from moving the bank number while the forecast held."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "'carry $216 · death: lose all' at '4/38 · near death' and 'BLOAT MOTHER DOWN | 5/33 … 2/33 · R2 return' were real sweats over stakes I chose (bank depth past a boss); but after run 5 eleven of thirteen sends I watched banked, and the percentages took the doubt out of most."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Callouts land on the blow ('R5 ATTACK GOBLIN', 'SHIELDED', 'WARLORD BREAKS'), the hp counter drops in step, smooth at 3x on the GPU. Audio unassessed (cues log in window.__audio; not listened)."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "'The monkey stole the identify scroll', the wraith taking max hp 42→14, cages, captives, the Fens and Crypt each changed a row; D1–D8 replayed near-identically every send."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "My nine rows (rest <75%, fire only past D12 at gas, attack drain, attack boss, bank D19) read as mine and differ from the default; the forecast pushes every player toward the same dominant moves, and 'set 2 · 0 / set 3 · 0' stayed unused."
+    },
+    {
+      "id": "story",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "The chronicle line '♟3 the greedy fighter · took the Warlord · took the Mother · found ♟1, ♟2's bones · fell to gas' and the 2-HP Mother run have a turn; the offline reel is formulaic ('An ogre took him to 21 HP; R6 attacked; reached D13.')."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-run: an event every ~3 s at 1x, runs 45 s–5 min, no dead stretch. Admin: each edit is cond sheet → value sheet → verb sheet, and arrows to reorder, on a phone. Cadence: 20 min away gave '0 RUNS · D0' (heir resting), 4 h gave 8 runs, 8 h gave 16 — the short return is empty."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "The gas death shows 'GAP', the last ten turns with hp, every row's reason ('R3 rest · not safe', 'R4 throw fire · no item ← R4 threw fire at 45/46 hp D9 · t11229') and three replayed patches; the cause was on one screen and recovery was free. Lapse: patch lines contradict at a glance ('survives 12/12 · unpatched 2/12 … death +74 ±20')."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0"
+    },
+    {
+      "id": "autonomy",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I set my own goal (take the lich), and 'start → D1 / D5 / D9 / D14' is a real choice, but the dungeon is one stair down; there is no route to pick."
+    },
+    {
+      "id": "progression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Within run: kit and cage picks ('took sword +1'). Between runs: rows 2→9, verbs (throw, cleave, attack boss), rogue class, forge to mail +1, heirs, waystones. But gold inflates ($40 → $11,816) against a forge that reads 'D15 ≈' and an unlock list that ran down to 'cond: turns · cond: loot'."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Painted camp scene, readable pixel sprites, biomes recoloured (Burrows brown, Fens green, Crypt). Sound unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "4 h and 8 h returns had something to read and decide: 'PLATEAU · R7 bank ended 7 runs … try depth ≥ 14', '3 DEATHS · gas ×3' with a verdict that led to my 'depth ≥ 12' fire edit, forge lines pending. Lapse: the 20-minute return was '0 RUNS · D0 · DEEPEST' — the heir rested the whole absence."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "'R2 return saved him.' and 'R4 threw fire at 45/46 hp D9' — I retell the runs as 'my return row', 'my fire row'. Lapse: early deaths and some offline reels end on the engine's chores ('the chores explored; died to gas', 'no row; died to gas')."
+    }
+  ]
+}

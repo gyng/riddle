@@ -1,0 +1,73 @@
+{
+  "$comment": "Blind rater AR, 307dbed control build served on :5230, seed 2802, headed GPU driver at 400x800 3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md sections 1-3 and the template (skimmed the first 60 lines of tools/driver.mjs for the op list, as the brief directs; no source, PLAN.md, research, CUT docs or other cards opened). Audio: window.__audio showed rule/hit/slay/unlock cues firing in step with watched events; I could not listen, so audio is unassessed.",
+  "game": "Riddle",
+  "build": "307dbed-ctl",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAR (blind agent)",
+  "horizon": {
+    "activeMinutes": 64,
+    "absences": [
+      "20m simulated (?absent=20m): returned to 0 runs ('heir rests 20m'); about 3 minutes of play after it, not the 5 the brief asked for",
+      "4h simulated (?absent=4h): 8 runs, 6 banked, 2 returned, 0 deaths, record D12; about 5 minutes of play after it",
+      "8h simulated (?absent=8h): 16 runs, 14 banked, 2 deaths (ogre, wraith), heirs 3 to 5, plateau D13; about 19 minutes of play after it"
+    ],
+    "runsWatched": 20,
+    "runsOffline": 24,
+    "ruleEdits": 17
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: On my third heir the rules were finally mine: drink the heal I had identified, walk home at a quarter HP, rest when nothing was in view, shield-bash the heavy ones, and a boss-focus card I had bought after the Warlord first sent him home at 8 HP. He went down at 1x with $252 on his back and 13/40 HP; the banner read WARLORD, then WARLORD BREAKS, then GOBLIN WARLORD DOWN three seconds later, and he banked $255 on D9, a new record. The turn was the edit before it, not the fight: moving 'hp < 60% -> rest' under 'attack nearest' took the D8 forecast from 61% to 94%, and that single row is why the Warlord met a full-health hero."
+  },
+  "probes": {
+    "clarity": "The first camp told me what everything meant: 'R1 hp < 30% -> drink heal ⊘ identify heal' said my heal row could not fire yet, and after the first death the banner read 'ogre · D6 · 6 unknown potions unused · GAP'.",
+    "decisions": "I set bank at D6 and not D5 because the shaft read 'D6 · bank 75%' against D5's 96% at a higher expected take, and I would do it again. I dropped 'last stand' after it moved D7 from 66% to 60%.",
+    "mastery": "After an hour I know heals have to be identified before 'drink heal' does anything, that the Warlord's counter is 'attack boss', and that 'water beats fire' against the Bloat Mother. At the start I knew none of it.",
+    "tension": "I sweated through run 13's Warlord fight at 1x as HP went 26, 16, 12, 24, 8 and 'R2 · return' fired at 7/40. Once a forecast reads 94%, though, the run mostly just confirms it.",
+    "feel": "At 1x the callouts ('R2 ATTACK', 'ARCHER DRAWS', 'WARLORD BREAKS') land on the sprite, and runs last 45 to 220 seconds. The ogre drew as a checkerboard blob.",
+    "surprise": "Things that changed my configuration: 'The monkey stole the heal potion.', 'Found ♟1's bones: 12 items.', 'tame ✗ no leash', and 'Learned: water beats fire.'",
+    "expression": "To a friend: a cautious brawler who drinks at 30%, walks home at 25%, rests only when the room is empty, bashes anything heavy, hits eels first and tries to leash jackals.",
+    "story": "'Vrix the ogre is avenged' landed three heirs after Vrix killed my first hero on D6, and 'Morim the jackal fell' closed out the pet I had tamed the run before.",
+    "pacing": "Play drags in the camp. Each edit repaints the forecast with '…' for 5 to 12 seconds, and a whole send-watch-report loop is about 2 to 4 minutes. The 20-minute absence returned '0 RUNS' because 'heir rests 20m'.",
+    "failure": "The wraith death showed 'R1 drink heal · no item', 'R2 return · going home' at 6 HP, and 'since full hp · eel −28 · wraith −10 · ogre −6'. The patch list offered 'foe: telegraph -> retreat · survives 11/12 · unpatched 1/12'.",
+    "social": "The only relationship was Morim the tamed jackal, who lasted one run.",
+    "autonomy": "Nobody asked me to tame a jackal or haul fire potions at the Bloat Mother. Every goal still came down to 'depth ≥ N -> bank' on a single line of floors.",
+    "progression": "Within a run: kit from cages ('took axe +1'). Between runs: rows 2 -> 8, classes, cards, forge. Automation: 'auto: keep weapon+armour' and 'supplies 3 -> 5 · auto 5 supplies'. Gold piled up to $9750 with little worth buying ('sword +1 · D13 ≈ ±8').",
+    "aesthetic": "The painted camp scene of two delvers on a stair is lovely and the pixel Burrows are warm-lit. The Fens looked much the same, and the ogre sprite was missing.",
+    "return": "After 8h I came back to '16 RUNS · 14 BANKED · 2 DEATHS', a PLATEAU card ('R3 bank ended 11 runs, none past D13'), two deaths to read and a reel ('The Warlord cornered him to 18 HP; R6 aimed him; boss slain. ×2'), and I decided to go after the Mother. After 20m there was nothing.",
+    "attribution": "The last run ended with my R3 bank row taking him out at D13. The Mother death was my gas-step card holding him in the gas ('R5 card gas step' six times from 21 HP to 0), my choice, though I never wrote those sub-rows."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "'R1 hp < 30% -> drink heal ⊘ identify heal' and the live shaft ('VS SENT · D6 0->70% · bank 96->70%') made every edit legible. Some numbers I could not explain kept it from strong: forge 'mail +1 · D11 −17' (an armour upgrade that lowers reach), 'D6 death · replayed · tied', and craft rows reading 'salvaged 14/15 -> tier 1 ✓ –'." },
+    { "id": "decisions", "human": 0.6, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Real trade-offs showed up in numbers: bank D5 96% vs D6 75% at a bigger take; 'hp < 40% -> return' took death 2%->1% but bank 96%->15%. Most choices, though, were solved by trying each option and reading the forecast (last stand -6, retreat from heavy -9, shield bash +5), so few stayed defensible both ways." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Knowledge accumulated: heal identification (then 'drink heal' took D6 +44), 'counter: attack boss', 'bloat: gas', 'water resist fire'. Record went D6 -> D14 attempt. Much of the learning was the forecast's, not mine." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'carry $162 · death: lose all' then '$162 lost' made the stakes real, and the Warlord fight at 1x (HP 26->12->24->8, 'R2 · return' at 7/40) had me sweating. Most runs were forecast at 90%+ and played out as announced." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "At 1x there is an event every ~2 s and callouts ('R4 ATTACK OGRE', 'WARLORD BREAKS', 'GOBLIN WARLORD DOWN') sit on the sprite. The ogre rendered as a checkered placeholder, the Warlord fight resolved in ~6 s, and audio is unassessed (cues logged in window.__audio, not heard)." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Named, config-changing situations: monkey thieves ('stole the heal potion'), cage picks, 'Found ♟1's bones', Zelim 'gone wild', 'Learned: water beats fire'. D1-D7 repeated the same rats/jackals/goblins/ogre/bloats every run, and the second biome (Fens) felt like a reskin." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My 8-row set ('hp < 60% -> rest' under attack, 'foe: water -> attack water', 'foe: fast -> tame fast') is recognisably mine. The forecast pulled me towards whatever read highest, so it is a tuned set more than a style." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "'Vrix the ogre is avenged.' three heirs after Vrix's kill, 'Found ♟2's bones: 9 items.', 'R2 return saved him.', and 'Morim the jackal fell.' all gave a run a turn. Most reel lines are logistics ('D7: the Burrows. Banked $188.')." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 45 to 220 s at 1x with no dead stretch over ~6 s. Check-in: every edit shows '…' for 5 to 12 s before the forecast settles (worst after the 8h return), and the report -> CAMP -> edit -> send loop is several taps. Cadence: the 20m absence produced '0 RUNS' ('heir rests 20m'), while 4h and 8h were distinct and rich." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Each death named the gap and the rows: 'R1 drink heal · no item ← R1 drank heal at 11/38 hp', 'R4 cleave · cooldown 50 ticks left', 'since full hp · jackal −18 · goblin −17', and patches with 'survives 11/12 · unpatched 6/12 · reach D6 −92'. Lapse: the Mother death blamed a GAP when my own gas-step card held him in the gas six turns, and 'reach …' patch values often never resolved while I read." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0 (a tamed jackal 'Morim' lasted one run)" },
+    { "id": "autonomy", "human": 0.3, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Self-set goals existed (taming a jackal, bringing fire to the Mother), but every run is 'depth ≥ N -> bank' down one line of floors. 'start -> D1 / D5' was the only route choice, and the plateau card literally offered 'R3 ↻ depth ≥ 14'." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "All three layers observed: cage kit in-run, rows 2->8 plus classes/cards/verbs ('verb: throw', 'card: boss focus'), and automation ('auto: keep weapon+armour', 'supplies 3 -> 5 · auto 5 supplies'). Lapse: gold outran its sinks ($9750 banked, forge upgrades reading '≈ ±8' or negative)." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "The painted camp scene and parchment reports are handsome, and the torch-lit pixel Burrows read well at 3x. The ogre was a checkerboard blob and the Fens looked like the Burrows. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "4h: '8 RUNS · record: D12 · PLATEAU R3 bank ended 5 runs' with a one-tap '+56' patch. 8h: '16 RUNS · 2 DEATHS · avenged Thar, Thim', two verdicts to read, and the Mother to plan for. Named lapse: the 20m return was '0 RUNS · 0 MARKS' because the heir was resting." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "The reel credits my rows in the first person of the rule list ('R2 return saved him.', 'R6 aimed him; boss slain', 'R1 drank; reached D12'), and I retell runs as 'my rest row'. Lapse: traits and chores act outside my list ('cowardly -> retreat', 'the chores explored'), and bought cards bring sub-rows I never wrote that decided the Mother death." }
+  ]
+}
