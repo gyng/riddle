@@ -30,8 +30,10 @@ set if you like.
 
 Horizon (fixed, do not shorten): about 40 minutes of active play from a fresh lineage (send the
 hero, watch at least two runs at 1× for a few minutes each, read every death, edit rules, buy
-what you can), then simulate an overnight absence by loading `{URL}?dev=1&absent=8h` (once; the `dev=1` is required on a production build), then
-about 20 minutes on return. Read at least three deaths; attempt at least two rule edits of your
+what you can), then three simulated absences, each by loading the URL once (the `dev=1` is required
+on a production build): `{URL}?dev=1&absent=20m` then ~5 minutes of play, `{URL}?dev=1&absent=4h`
+then ~5 minutes, `{URL}?dev=1&absent=8h` (overnight) then about 20 minutes on return. Note how each
+return felt (the cadence: a short break, an afternoon, a night). Read at least three deaths; attempt at least two rule edits of your
 own (not only tapping offered patches). Write down what you saw as you go.
 
 Then fill a copy of the template as `eval/cards/{BUILD}.{RATER}.json`: criterion probes first,
