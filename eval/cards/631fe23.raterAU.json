@@ -1,0 +1,86 @@
+{
+  "$comment": "Blind rater AU on 631fe23, seed 3101, served at :5230, headed GPU driver 400x800 @3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md sections 1-3, the template. No accidental reads of PLAN/research/CUT docs/other cards/source. Audio unassessed (agent cannot listen; did not verify cue timing).",
+  "game": "Riddle",
+  "build": "631fe23",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAU (blind agent)",
+  "horizon": {
+    "activeMinutes": 54,
+    "activeNote": "Wall clock was shorter than the contract: about 26 min of cold active play before the first absence (not 40), then ~5 min after 20m, ~6 min after 4h, ~17 min after 8h. Horizon honestly under-filled on the cold segment.",
+    "absences": [
+      { "simulated": "20m", "note": "1 offline run, banked $194 at D7; report + two pending 'R4 fired 0 of 1 runs' notes; thin but readable" },
+      { "simulated": "4h", "note": "8 runs, 7 banked, 1 death (gas, D7, verdict ROW on R4 bank); new heir; +$755 banked; felt like an afternoon's worth" },
+      { "simulated": "8h", "note": "16 runs, 14 banked, 2 deaths (one by my own 'foe: boss -> throw fire' row), first Mother kill, record D9, PLATEAU callout naming R4; felt like a real overnight present" }
+    ],
+    "runsWatched": 20,
+    "runsWatchedNote": "3 at 1x (one full 3-minute run to D7, ~1.5 min and ~1.5 min partials), the rest in the default 'fights' mode (30-100 s each)",
+    "runsOffline": 25,
+    "ruleEdits": 22,
+    "deathsRead": 5
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: After the Goblin Warlord killed ♟7 on D13 with $344 in his pockets, I added 'depth ≥ 14 → bank' at R2 and swapped my summoner row for 'foe: boss → attack boss', then bought a mail coat. ♟8 walked into the Warlord on D13, the screen stamped WARLORD BREAKS then GOBLIN WARLORD DOWN on the R3 row I had just written, and he took a caged sword on the way down. He hit D14, the Crypt, and my new R2 banked $424, a record and the Warlord's first kill."
+  },
+  "probes": {
+    "clarity": "The first camp had two rows and a D1 100% / D2+ ? shaft; I did not realise the hero never banks until the editor showed 'bank <1% · return <1% · death >99%'.",
+    "decisions": "Choosing R3 'hp < 50% → bank' at depth ≥ 4 vs ≥ 5 vs ≥ 6 was a real trade: the tablet read 'D6 4→54% · bank ≈' for one and 'D4 63→91% · bank 96→90% · death 4→10%' for another, and I would defend each for its moment.",
+    "mastery": "An hour ago I died on D5 with two rows; now I run a bank ladder (depth ≥ 11 at half hp, depth ≥ 14 always), a rest row at hp < 75% and a cleave row, and the heir banks $424 from D14.",
+    "tension": "I sweated the D13 run carrying '$344 · bank keeps $344 · death $0 · banking' while 6 foes stood around at 6/42; most other runs the forecast already said 'bank 96–99%' so nothing was in doubt.",
+    "feel": "The pixel stamp 'R3 BANK' over the bloat mother's gas cloud and 'BLOAT MOTHER DOWN' landed; but the stamp text and the 'gas>pack' / 'bp 5/40' / '14 finds' chips overlapped on the same line and were hard to read.",
+    "surprise": "The curious heir 'Gambled: recall scroll' on D11 and teleported home with $44 after I paid a $152 passage to start at D9; and 'The Mother cornered him to 3 HP; R5 threw; died to fire' — my own throw-fire row burnt him.",
+    "expression": "My set is recognisably mine: a depth-gated bank ladder with a rest row and cleave, and the editor tagged my R1 '⌐ gambler' when it drank unknowns.",
+    "story": "Zeleth the goblin captain killed ♟1, ♟2 found ♟1's bones on D5 and the banner read 'Zeleth the Goblin Captain is avenged' before an archer took him.",
+    "pacing": "Fights-mode runs are 30–100 s with solved floors folded to 'D1–7 · 100% · +$123'; at 1x a 3-minute run had ~50 s of 'pick up ×4 / pick up ×10' and 9–12 s gaps with nothing appearing.",
+    "failure": "'GAS · D7 · R4 BANK · ROW', trace table '7790 R4 bank 5 4 / 7800 R7 attack nearest 5 4', and two measured patches, one 'bank early · D8 84→2%'; but several verdicts said '10/12 live unpatched' or '11/12 live unpatched' which read as dice.",
+    "social": "None; the chronicle lists heirs ('♟3 the brave fighter · best D8 · fell to gas') but that is story, not relationship.",
+    "autonomy": "I chose the fens fork, then a D9 burrows waystone start and a D14 bank target to hunt the Warlord; nothing asked me to.",
+    "progression": "Rows 2→8, verbs grew from facts (cleave, throw fire, attack boss, taunt), waystones D5/D9/D14, forge leather gave 'D5 +34'; but later forge buys read 'D12 ≈ ±6' and gold piled to $4003 with little to spend it on.",
+    "aesthetic": "The fens are a teal-tinted tile field with reeds, the bloat mother a spiky green sphere venting checkered gas; camp art of two delvers on the stair is lovely; I would not sit in it doing nothing, it is a workshop.",
+    "return": "After 8h I came back to '16 RUNS · D9 DEEPEST · first: Mother slain' plus 'PLATEAU R4 bank ended 4 runs, none past D9' and a reel line that my throw-fire row killed him; I rewrote R5 into 'hp < 75% → rest' within a minute because of it.",
+    "attribution": "The last run ended because I had put 'depth ≥ 14 → bank' at R2 and 'foe: boss → attack boss' at R3 — my decision; the D7 gas death I owned too ('R4 bank' too low at 25%), but the offline eel death felt like the dungeon's."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Forecast tablet is superb once found ('VS SENT · D6 21→3% · bank 0→96% · death 100→4%', 'R4 now → lives · D3 · vs dies · D7'), the WHY sheet ('0/507 acts · never hp<30'). But I misread three things: the watch defaults to 'fights' so my 'first 1x watch' was not 1x; verdict tablets saying 'survives 0/12 · no gain' beside a green 'reach D14 0→24%'; and with the kite-archers card added the forecast sat on '…' until I dropped it." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Bank threshold hp<40% gave 'bank 89% · ~$69', hp<50% 'bank 96% · ~$68', hp<30% vs hp<40% on R4 was 'D9 29→23%' vs 'D9 −30 · bank +10': real, defensible trade-offs at every check-in. Lapse: forge buys late read '≈ ±6' / '≈ ±8' (no visible gain), so spending became a formality." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "D5 death on two rows → banked D14 $424 on an 8-row set I wrote; I learned row order matters the hard way ('R4 bank' sat below 'attack nearest' and never finished). Lapse: the forecast does much of the learning for me; I tuned numbers against it rather than reasoning about the dungeon." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Real stakes when pushing: '$344 lost' at D13, '$172 lost' at D5 with 'death: lose all' in red on the HUD. But once tuned, most sends said 'bank 96–99%' and resolved exactly as forecast; the chosen-risk moments were maybe 3 of 20 sends." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Stamps land ('ARCHER DRAWS !', 'R3 BANK', 'BLOAT MOTHER DOWN', 'WARLORD BREAKS'), hit numbers '−3 hp · gas', smooth on the GPU. Lapse: stamps collide with the fold chips and foe labels ('archer' printed across 'R7 ATTACK ARCHER'). Audio unassessed." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Captain summons, monkey thieves ('A thief snatched the heal potion'), wraith max-hp drain ('13/28'), the curious heir's 'Gambled: recall scroll' yanking him home from D11, my own fire throw killing him at the Mother. Many runs, though, were D1–7 folds and 'pick up ×N' repeats." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My bank ladder + rest + cleave set is mine and I could describe it without naming the game; but patches and plateau hints ('hp < 90% → rest · reach D10 63%') point everyone at similar rows, and I took the rest idea from the hint." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Grudges and avengings ('grudge: Zeleth the goblin captain' → 'Zeleth the Goblin Captain is avenged'), bones of previous heirs found on the floor they died, reel lines like 'The Mother cornered him to 3 HP; R5 threw; died to fire'. Lapse: the chronicle page is one line per heir and most reels end 'Banked $X.' with no turn." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: fights mode 30–100 s with solved floors folded is good; at 1x a 3-minute run had ~50 s of 'pick up ×N' and 9–12 s gaps with no new line. Admin: keep sheet, report, camp, then a sheet per purchase with two-tap 'ok $225' confirms; each check-in ~3–5 min. Cadence distinct: 20m=1 run, 4h=8, 8h=16 with a first boss kill." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "'GAS · D7 · R4 BANK · ROW', 'since full hp · gas −39 · pink jelly −12 · healed +45', per-tick trace with the row that fired and 'R6 cleave cooldown ← 30 ticks left', measured patches. Lapse: 'N/12 live unpatched' at 7–11 of 12 on several deaths made them read as bad luck, and the GAP deaths offered '0/12 · below bar' patches only." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Fens/burrows fork, waystone start at D9 ('+$152 passage'), bank depth as my own goal; I set out to kill the Warlord unasked. The route beyond D8 is fixed by the fork and the sealed crypt, so freedom is mostly target depth." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run: carry, supplies, cage picks. Between runs: rows 2→8, verbs from facts (cleave, throw fire, attack boss, taunt, 'COUNTER: THROW FIRE, BOSS' in the ledger), waystones, forge, ★9. Automation: 'repeat on · held ≤$44' restocks heals. Lapse: late gold ($4003) had little meaningful to buy; forge '≈' purchases felt inert." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Painted camp key art, pixel fens with teal tint, the bloat mother and gas plume, torn red verdict banner with a wax seal. Text walls on report/death screens and overlapping HUD chips pull it down. Sound unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "8h: '16 RUNS · first: Mother slain · record: D9', 'PLATEAU R4 bank ended 4 runs, none past D9', pending 'R2 fired 4 of 16 runs', a readable reel, a verdict to open — I edited within a minute. Lapse: the 20m return was one run and 'rested 20m', thin, and the report is a wall of salvage lines before the decision." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Verdicts name my rows ('R4 BANK · ROW'; 'R5 threw; died to fire'), the camp line 'R4 now → lives · D5 · vs dies · D8' ties outcomes to my edit, and my best run turned on rows I had just written. Lapse: offline deaths with '8/12 live unpatched' felt like the dungeon's decision, not mine." }
+  ],
+  "gripes": [
+    "Watch defaults to 'fights' mode silently; at true 1x the in-run has long 'pick up ×N' stretches with 9–12 s of nothing new.",
+    "Numbers everywhere, some contradictory at a glance: 'survives 0/12 · no gain' next to a green 'reach D14 0→24%', 'N/12 live unpatched' on deaths; the report is a wall of salvage/found lines before anything to decide.",
+    "Late economy goes flat: forge upgrades show '≈', gold piles to $4003; and traits can backfire invisibly (curious read a recall scroll and wasted a $152 passage)."
+  ],
+  "tellAFriend": [
+    "You write eight if-then rows and the forecast shows, before you send, exactly how each edit moves the odds ('D6 4→54%').",
+    "Every death is a banner naming the row that failed, with the tick-by-tick trace and measured fixes.",
+    "Leaving it overnight brings back a real story: 16 runs, a first boss kill, and a line telling you your own rule burnt the hero."
+  ]
+}

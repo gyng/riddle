@@ -768,3 +768,35 @@ another card printed while checking the format).
 
 Kept: the Warlord arc (drive-off → counter → `D9 0 → 71 %` → WARLORD DOWN → record), the plateau note
 that leads to an edit, deaths naming the row, grudges and bones.
+
+## Cohort 23 (build 631fe23: Cut 27 + juice passes 2–3 + optimisation 3b; three absences)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AU | 3101 | 70.8 | none |
+| AV | 3102 | 72.4 | none |
+
+α = 0.968. Mean **71.6** — **+5.9 over the control (65.7)**, +2.95 over cohort 22; AV "fun". Decisions
+and mastery 0.8 from both; surprise 0.8 (AV). Feel, pacing, expression, autonomy, aesthetic, clarity
+and tension hold 0.6 from both. AU's cold segment ran ~26 min (not 40).
+
+### The read
+
+1. **The late game is inert** (both): every forge step `≈` (AV's $2,400 mail); gold to $4,003; after
+   the 8 h return every run is the same D13 bank; the D14 Mother a wall with no visible path (`D14
+   2%`); `bounty D13 · missed` never says what it pays or needs.
+2. **The explanation blames the wrong thing** (both): the divergence scene said `R2 now → dies` when
+   the forecast moved because both pets had died (the party, not the rows); `heal unused` at 6 hp
+   with `R1 hp not <30%` — the drained max hp not shown; `7–11/12 live unpatched` banners read as bad
+   luck; `survives 0/12 · no gain` beside a green `reach D14 0→24%`; reports open with salvage walls.
+3. **Dead time below the fold** (AU): the watch defaults to `fights` silently; at 1× ~50 s of
+   `pick up ×N` and 9–12 s gaps deeper in the run.
+4. **Defects**: the `kite archers` card left the camp forecast on `…` forever (AU); watch stamps over
+   the chips and name plates; a one-slot vault salvaged a caged sword +1 with no choice; `send skips
+   rest` sent a 9/40 heir; the reel `R2 return saved him` four runs running and `A goblin took him to
+   40 HP`; the pet's name as a grudge killer (`grudge: Drix the jackal`); the class picker on the
+   portrait never opened (AV).
+
+Kept: the forecast re-pricing every edit (`death 96 → 14%` from one move), the `order` verdict
+naming the row that walked him into a wraith, `patches tie · all harm` admitted honestly, the lineage
+story, the PLATEAU note that says what to change.
