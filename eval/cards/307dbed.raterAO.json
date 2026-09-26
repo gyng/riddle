@@ -1,0 +1,69 @@
+{
+  "$comment": "Blind rater AO, seed 2701, build 307dbed served on :5230 (production build, ?dev=1). Headed GPU driver, phone 400x800 at 3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md sections 1-3 and the template; also glanced at tools/driver.mjs header (as the brief directs) and eval/presets.json weights (to know social is weight 0). No design docs, no other cards, no source. Audio: cues fire in window.__audio (unlock, slay, rule, hit) but I could not hear them or verify their timing against the picture: unassessed.",
+  "game": "Riddle",
+  "build": "307dbed",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAO",
+  "horizon": {
+    "activeMinutes": 70,
+    "absences": ["simulated 8h overnight via ?absent=8h (not a real-time absence; same sitting)"],
+    "runsWatched": 8,
+    "runsOffline": 16,
+    "ruleEdits": 8,
+    "notes": "~45 min cold (6 sends: 4 at 1x, 1 fights, 1 fast), then ?absent=8h, then ~25 min on return (2 sends: 1 at 1x, 1 fights). Deaths read: 2 live (D5 goblin captain, D8 goblin while banking) + 1 offline (D10 ogre, 'telegraph unanswered') + the four-line death reel on return. Own edits: add return/bank row + threshold tuning, alert>=4 descend, foe: boss -> attack boss, return->bank swap, foe: gas -> retreat (reverted, worse) -> foe: ranged -> attack ranged, telegraph -> retreat (disaster) -> shield bash, foe: summoner -> attack summoner, foe: boss -> throw fire. Never tapped an offered patch."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": "same-day: My third heir, a cowardly fighter, walked down to D8 and met the Goblin Warlord that had cornered my second heir at 6 HP, and this time the row I had written after reading 'counter: attack boss' fired — 'R4 · attack boss', WARLORD BREAKS, GOBLIN WARLORD DOWN in about eight seconds. Past the sealed floor he found his predecessor's bones, drank at a clean spring, cut a captive down on D12 and waded into eels and pink jellies in the Fens. At 5 HP on D13 my bank row fired and he came home with $683, the lineage's best run, which paid for the pack upgrade I then sent the next heir with."
+  },
+  "probes": {
+    "clarity": "Did you ever not know what to do, or what just happened? — I always knew: the forecast column answered every edit ('VS SENT · D9 0→39%'), but the first death was stamped GAP while saying 'unpatched 10/12' on the second one, and I could not tell whether that death was my fault or luck.",
+    "decisions": "Name a choice and why — I replaced 'alert ≥ 4 → descend' (flagged 'R3 fired 1 of 16 runs') with 'foe: telegraph → retreat', watched it forecast 'stall 25% · D9 −80', and switched the verb to shield bash for 'D12 +14'; I would make it again.",
+    "mastery": "What can you do now that you couldn't an hour ago? — Read a boss's 'COUNTER:' line and turn it into a row above my attack row, and read the '↑ R4' hint that a new row is shadowed.",
+    "tension": "Where did you sweat? — 'bloat mother · MOTHER · COUNTER: THROW FIRE, BOSS' took him from 21 to 1 HP, 'near death', then 'BANKED $772'; the reel said 'Down to 1 HP. R2 bank saved him.'",
+    "feel": "What did you see or feel? — Big pixel callouts ('R4 ATTACK GOBLIN', 'WARLORD BREAKS') over small readable sprites; fights mode kept it moving, but most of the watch is a lone sprite walking dark rooms. Audio unassessed.",
+    "surprise": "What surprised you? — 'The monkey stole the inked scroll?', a cage ('three inside, one to take'), my own dead heir's bones ('Found ♟1's bones: 10 items'), and the Bloat Mother's gas blast; D1–D6 were the same rats and jackals every run.",
+    "expression": "Describe your build — a cautious fighter who drinks at 40%, banks at 30%, bashes anything winding up, and targets bosses, archers and summoners by name; by the end every row was 'foe: X → attack X', which the game's facts had more or less dictated.",
+    "story": "Tell me a run in three sentences — see delayedRecall; the grudge ('grudge: Kreth the goblin' → 'Kreth the goblin is avenged') gave run 2 a revenge arc I did not script.",
+    "pacing": "Where did it drag? — Run 2's Warlord fight was ~40 s of 'R4 · attack nearest' and hp ticking down at 1×; camp administration (forge two-tap, sheets, a 'repeat on' tooltip sitting over the unlocks button) cost more time than the decisions in it.",
+    "failure": "Why did you lose? — 'goblin · D5 · 5 unknowns unused · curious: safe only' with a trace ending 'goblin −2 · 0' and 'R1 drink heal · no item ← curious drank heal at 26/36 hp' — the trait spent my one heal; clear and mine to fix.",
+    "autonomy": "What did you decide that the game didn't ask? — To stop tapping offered patches entirely and write every row myself; the game allowed it and forecast it.",
+    "progression": "What grew? — Within a run: cage picks (sword +1, axe +1), levels (L4); between runs: rows 2→8, vault, forge (leather, leather +1, sword +1, pack 4/5), classes, waystones ('Waystone D5 lit'), renown ★7.",
+    "aesthetic": "Describe the place — Painted camp splash of two delvers at a stair, dark sepia pixel floors; handsome but the watch is mostly black around a small lit room.",
+    "return": "What did you come back to? — '16 RUNS · 12 BANKED · 4 DEATHS · +$2868', a PLATEAU card ('R2 bank ended 4 runs, none past D10 · cut R2 +14'), an inert-row flag and a death reel; I decided to rewrite R3 and spend $3000 in the forge. I did not wish I had stayed.",
+    "attribution": "Tell me how the last run ended; whose decision? — My bank row at 30% brought him home from D11 with $343; the D8 death was my bank row walking him home through goblins at 7 HP — mine, though the verdict thought only 2 in 12 replays would do that."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.8, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Every edit repriced live: 'VS SENT · D6 61→78% · death 90→17%'. Lapse: the D8 death is stamped GAP yet shows 'unpatched 10/12' (mostly luck?), and the 'repeat on · held ≤$20' bubble covers the unlocks button so it cannot be tapped by label." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Real trade-offs with foreseeable prices: 'foe: telegraph → retreat' forecast 'stall 25% · D9 −80' vs shield bash 'D12 +14'; 'foe: gas → retreat' cost 'D10 −15'. Lapse: swapping return for bank read 'bank 0→79% · ~$138 → ~$230' with nothing lost — return looked dominated once bank was known." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "I learned to convert 'COUNTER: ATTACK BOSS' into a row (Warlord 40 s fight → 'WARLORD BREAKS' in ~8 s) and to read '↑ R4' shadowing. Lapse: after the return the lineage plateaued at D10–D13 ('shallower: D11, last D13') and the next lesson (Mother, D14 sealed) was not reached in the horizon." },
+    { "id": "tension", "human": 0.8, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'COUNTER: THROW FIRE, BOSS' → 21→1 HP → 'near death' → 'BANKED $772'; carrying '$250 lost' on a death stung because I chose bank at 20%. Lapse: D1–D6 read '100%' in the forecast and played as a formality every run." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Smooth at 3× on the GPU; the rule callout 'R4 ATTACK GOBLIN' and 'WARLORD BREAKS' land on the action, fights/fast modes compress travel. Much of 1× is a small sprite in black rooms. Audio unassessed (cues logged in window.__audio, not heard)." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Monkeys stealing ('The monkey stole the heal potion'), cages, a predecessor's bones, captives, a bloat biome omen ('The air stings: bloats in the doors') and a new boss that changed my rows; but the first six floors repeated rats/jackals/goblins in every one of 8 watched runs." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "All eight rows are mine and the forecast let me try odd ones, but the set converged to 'foe: boss → attack boss', 'foe: ranged → attack ranged', 'foe: summoner → attack summoner' — the facts pick the row, I only order them." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "'grudge: Kreth the goblin' on death 1 → 'Kreth the goblin is avenged' + 'Found ♟1's bones' on the next heir; the reel 'Down to 1 HP. R2 bank saved him.' Lapse: the offline reel is four near-identical lines ('X cornered him to N HP; R6 attacked; died to Y')." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "Runs are 1–3 min at 1×, 90 s fast; the return check-in (read, rewrite R3, forge, send) took ~10 min and ended on a send. Lapses: run 2's ~40 s Warlord grind at 1×; camp admin (two-tap forge, nested sheets, a tooltip over a button) is heavier than the decisions in it." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "'ogre · D10 · telegraph unanswered' with a trace of three 'ogre winds up' rows then 'ogre −8 · 0', every row's why ('R2 bank · hp not <30%'), and replayed patches 'survives 12/12 · unpatched 4/12'. Lapse: GAP on a death the same screen says 10/12 replays survive." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I set my own goal (write every row, never tap a patch; kill the Warlord) and the game supported it; route and depth are governed only indirectly through rows ('start → D1' waystones seen but not a real route choice)." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Rows 2→8, cards ('card: kite archers · free'), classes (rogue owned), forge tiers with forecast prices ('leather · D7 +27'), vault, waystones, renown ★1→★7, vocabulary growing with facts ('foe: boss', 'has: fire'). Lapse: gold piled up after the absence ($3437) faster than there were meaningful things to buy — pack 6 at $3000 forecast '≈ ±16'." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Painted camp splash and torn-banner death screen ('GAP' wax seal) are atmospheric; the dungeon is legible pixel art but dim and small on a phone. Sound not assessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "'16 RUNS · 12 BANKED · 4 DEATHS · +$2868', a PLATEAU card naming my bank row, 'R3 fired 1 of 16 runs', three readable offline deaths with verdicts: I acted within a minute (rewrote R3). Lapse: the absence was simulated in the same sitting, and the summary's list of 16 runs is long to scroll." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Retelling uses 'my bank row', 'my R4'; 'R4 · attack boss' firing on the Warlord was the best moment of the hour and it was a row I typed after reading his counter. Lapse: the heir's trait changes each generation ('curious', 'brave', 'cowardly') and one death was the trait's doing ('curious drank heal at 26/36 hp'), not mine." }
+  ]
+}

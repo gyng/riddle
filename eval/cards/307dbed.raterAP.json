@@ -1,0 +1,72 @@
+{
+  "$comment": "Blind rater AP on 307dbed, seed 2702, headed GPU driver 400x800 at 3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md sections 1-3 and the template (plus tools/driver.mjs header and eval/presets.json weights to operate/score). Did not open PLAN.md, research/, docs/CUT*.md, other cards or source. Audio: window.__audio shows cues (unlock, rule, slay) and a crypt drone firing, but I could not hear them, so audio is unassessed everywhere.",
+  "game": "Riddle",
+  "build": "307dbed",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAP",
+  "horizon": {
+    "activeMinutes": 51,
+    "activeNote": "wall clock: 34 min cold (the agent's turns are fast, so this covered 10 sends and 7 rule edits), then 17 min on return (6 sends, 3 own edits, 1 applied patch, a shopping pass); the 40/20 targets were not quite met by the clock, breadth was",
+    "absences": ["simulated 8h via ?dev=1&absent=8h, once"],
+    "runsWatched": 16,
+    "runsWatchedNote": "5 at 1x start to end (runs 1, 2, 4, 6, 9), the rest in fights/fast mode; run 14 was meant to be 1x but the watch kept my earlier fast 4x choice",
+    "runsOffline": 16,
+    "ruleEdits": 11,
+    "ruleEditsNote": "10 my own (drink unknown row, gas retreat, attack boss, bank threshold dial x3, dropped the kite card and wrote foe: ranged -> attack ranged, heavy retreat, on see hunger -> descend, foe: boss -> throw fire, adjacent >= 3 -> to corridor), 1 offered patch applied (the ORDER move); deaths read: 6 verdict screens (D5 GAP, D6 GAP, D4 GAP, D10 ROW, D13 GAP after return, D13 ORDER, D12 DICE)"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: My fifth heir went in with a row I had just written, bank at 20% hp, and an attack-boss row that finally cracked the Goblin Warlord who had driven his father off at D8 (\"WARLORD BREAKS\", \"GOBLIN WARLORD DOWN\"). He pushed on through the Fens to D10 with $377 on him while a wraith ate his max hp down to 16, and then an ogre wound up. My bank row fired at 1 hp three turns running while the ogre swung, and the death screen said it plainly: \"ogre · D10 · R3 bank\", ROW - my rule, too late."
+  },
+  "probes": {
+    "clarity": "The trace and the WHY sheet (\"R1 hp < 30% → drink heal · 6/3537 acts · blocked · unknown item\") told me what happened, but I wrote \"on see hunger → descend\" without seeing it was locked and only learned from a trace line \"R3 descend · locked cond ← ◆2 cond: on see\" after a death.",
+    "decisions": "I set my bank row to 40%, saw \"bank 0→94% · death 99→6%\" but \"D6 ▼48\", then tried 20% (\"bank 69% · ~$130 · D9 −9\") and 10% (\"~$121\") and kept 25%; I would make that call again.",
+    "mastery": "An hour ago I didn't know rules are first-match (\"↑ R4\" under my gas row taught me); now I place boss and crowd rows above attack nearest before I send.",
+    "tension": "At D13 with max hp eaten to 5 I watched \"2/8 · 2/7 · 2/5 · descend · BANKED $620\" and was actually holding my breath.",
+    "feel": "Callouts land on the moment: \"OGRE WINDS UP\", \"R3 DESCEND\" in big pixel type over three wraiths when my own row fired.",
+    "surprise": "The first wraith took max hp 36→27→16 and \"The floor is hungry. It feeds on him.\" - that made me write the hunger → descend row.",
+    "expression": "My set reads like me: bank at a quarter, run from hunger, throw fire at bosses, back into a corridor when three crowd in.",
+    "story": "Heirs finding each other: \"Found ♟1's bones: 12 items\" then \"Moreth the goblin archer is avenged.\" two runs after he killed my first heir.",
+    "pacing": "Runs are 45-175 s at the speeds I chose and a camp visit is 1-3 min, but after the absence every run became \"Warlord down, bank at D10-13 on single-digit hp\".",
+    "failure": "\"goblin · D13 · R8 under R5\" ORDER, with \"move R8 above R5 · survives 11/12 · unpatched 0/12\" - cause, margin and fix in one screen.",
+    "social": "No one else and no developing relationship; grudge names are flavour.",
+    "autonomy": "I chose to start at D9 to chase the Mother against a forecast saying \"bank 78→25%\", and died to dice at D12.",
+    "progression": "Rows 4→8, forge sword +2 / leather +1 / pack, supplies 3→5, auto keep weapon+armour, waystones D5/D9, ★1→★8 - but the D13 Mother (\"12%\") stayed out of reach.",
+    "aesthetic": "The painted camp banner and the torch-lit green Fens tiles with sprite wraiths; I'd sit in the Fens.",
+    "return": "I came back to \"16 RUNS · D13 · 10 BANKED · 6 DEATHS · FIRST: MOTHER SLAIN · GRUDGE: ASHIM\" and $3620, and spent five minutes deciding forge vs unlocks vs a fire row for the Mother; I did not wish I'd stayed.",
+    "attribution": "\"R4 bank saved him.\" / \"ogre · D10 · R3 bank\" - my row saved him four times and killed him once, and I can say which."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Evidence: \"R1 hp < 30% → drink heal · 6/3537 acts · blocked · unknown item\" and \"↑ R4\" shadow marks made first-match legible. Lapses that kept it off 0.8: a locked cond (on see) went into my row with no mark until a death trace; \"survives 12/12 · unpatched 7/12 · reach D5 −76\" I could not parse; \"carry $215 · stalling\" flashed mid-run with no reason; my kite card killing me was verdict GAP not ROW." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Evidence: the bank-threshold dial (40% \"bank 0→94% · D6 ▼48\" vs 20% \"bank 69% · ~$130\" vs 10% \"~$121\"), start D1/D5/D9 (\"~$184 / ~$87 / ~$42\"), 2 heals = \"D8 35→67%\". Named lapse: most of my own rows moved the forecast by \"≈\" only, and the forge showed sword +1 as \"· …\" until I'd paid, then showed leather \"bank +19\" - the better buy - too late." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Evidence: D5 → D6 → D8 → D10 → banked D13 in 10 sends as I learned first-match order, bank, attack boss. Plateau after return: D13 Mother at \"12%\" whatever I wrote; nothing new to learn surfaced in 17 min beyond the ORDER lesson." },
+    { "id": "tension", "human": 0.8, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Evidence: \"2/8 · 2/7 · 2/5 · descend · BANKED $620\" at D13 and \"carry $377 · bank keeps $377 · death $0\" on the HUD - stakes I chose via the bank row. Named lapse: after the absence the Warlord went down in ~6 s every time and banks at D10-13 on 3-9 hp became expected rather than sweated." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Evidence: headed GPU, smooth; big pixel callouts \"OGRE WINDS UP\", \"WARLORD BREAKS\", \"R3 DESCEND\" land on the beat; no dead stretch over ~6 s in samples. Audio unassessed (cues fire in window.__audio; not heard). Kept at 0.6: fast/fights modes persist silently across sends, and several camp taps needed a second tap or a closed sheet to register." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Evidence: wraiths eating max hp (\"The floor is hungry. It feeds on him.\") changed my rules; bloats, eels across water, captives (\"Cut the captive down. No one weeps.\"), monkeys stealing my sword. Repetition: the reel reprinted \"Down to 4 HP. R3 bank saved him.\" three runs running and the same D8 Warlord every run." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Evidence: final set is mine (bank <25%, on see hunger → descend, foe: boss → throw fire, adjacent ≥ 3 → to corridor). Kept at 0.6: most of my stylistic rows forecast \"≈\", so the set converged on one shape (bank low, attack nearest last) any player would reach." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Evidence: \"♟4 the greedy fighter · D10 · took the Warlord · fell to an ogre\"; grudges and avengings across heirs (Moreth, Drim, Skix, Ashim), \"Found ♟1's bones\". Named lapse: the post-absence reel is generic (\"Banked $479.\", \"D13: the Fens.\") and repeats per run." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 45-175 s runs, lines every 3 s sample, no dead stretch. Check-in: 1-3 min between sends; return check-in ~5 min then natural stop. Administration friction: forge needs two taps, sheets overlap tiles, patches push rows and shadow others (\"↑ R5\") so I re-ordered by hand. Cadence repetition after return keeps it at 0.6." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Evidence: \"ogre · D10 · R3 bank\" ROW, \"goblin · D13 · R8 under R5\" ORDER with \"survives 11/12 · unpatched 0/12\", DICE with \"nothing beats\"; next heir ready at once. Named lapse: the Warlord drive-off \"driven $0 · $297 lost\" with hp 25/36 had no verdict screen and felt like a death; my own card's retreat loop was called GAP." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Evidence: I picked start depth (D9 push against \"bank 78→25%\"), bank vs push threshold, class (stayed fighter, rogue owned), what to forge. Goals are self-set but the gold economy pushes one answer (start D1, bank low)." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run: kit, levels (L1→L5), max hp swings. Persistent: rows 4→8, forge, pack, supplies 3→5, waystones, ★8, ledger fills. Automation: \"repeat on · held ≤$78\" restock, auto keep weapon+armour, \"found fire → supplies\". Named lapse: D13 Mother wall - forecast 8-12% after every purchase." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Evidence: painted camp banner, parchment sheets, green torch-lit Fens with readable sprites. Audio unassessed. Chrome is dense text (\"carry $X · bank keeps $X · death $0 · bank at 25%\") over the scene." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Evidence: \"16 RUNS · D13 DEEPEST · 10 BANKED · 6 DEATHS · FIRST: MOTHER SLAIN\", \"+$3086 banked · −$520 spent · $2725 lost\", PENDING forge ×3 + unlocks, a verdict per death, learned \"bloat mother · counter: throw fire\" -> I wrote the fire row. First action < 30 s. Named lapse: the reel's five death lines are the same shape (\"X cornered him to N HP; R5 retreated; died to ogre\") and the waystone start that the return offered earns less gold." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Evidence: \"R4 bank saved him.\", the \"R3 DESCEND\" callout when my hunger row fired, \"ogre · D10 · R3 bank\" - I tell runs in first person (\"my bank row fired too late\"). Named lapse: when my free card (kite archers) looped retreat into two archers the verdict said GAP, and the locked cond sat silently in my row." }
+  ]
+}

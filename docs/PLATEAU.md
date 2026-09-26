@@ -681,3 +681,37 @@ expression, pacing and autonomy hold 0.6 from both.
 
 Kept: the Warlord arc (a wall → `try: attack boss` → `D9 <2% → 53%` → `GOBLIN WARLORD DOWN` on
 3 hp → home), rows that save him by name, grudges avenged, a night that brings what the forge said.
+
+## Cohort 21 (build 307dbed: Cut 25 + QA AA/AB — rules are the lever, `order` verdicts, deep-lineage speed)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AO | 2701 | 73.5 | none |
+| AP | 2702 | 70.8 | none |
+
+α = 0.937. Mean **72.15** — **down 2.2**. AO "fun", AP "promising". Tension reached 0.8 from both
+(first time); surprise and aesthetic fell back to 0.6 from both; feel, expression, pacing and
+autonomy hold 0.6 from both — eight cohorts in a row.
+
+### The read
+
+1. **Verdicts still read as unfair or opaque** (both): AO's D8 `GAP` beside `unpatched 10/12`
+   (fault or luck?); AP's free `kite archers` card retreating into two archers → GAP, not the row;
+   `survives 12/12 · reach D5 −76` unreadable; a drive-off at 25/36 hp `driven $0 · $297 lost` with
+   no verdict screen.
+2. **Bank dominates return** (AO): return → bank moved ~$138 → $230, bank 0 → 79 %, nothing lost.
+3. **Samey after the absence** (both): D1–6 at 100 % and identical every run (AO); after the
+   absence every run is the Warlord down in ~6 s then a bank at D10–13 on single-digit hp; the D13
+   Mother at 8–12 % whatever is bought or written (AP).
+4. **Numbers late or flat** (AP): own rows `≈`; the forge `· …` until paid; a locked cond (`on
+   see`) accepted into a row with no mark, found only as `R3 descend · locked cond` in a trace;
+   `stalling` flashed with no reason.
+5. **Camp chores** (AO): two-tap forge, sheets inside sheets, the `repeat` bubble covering unlocks;
+   the Warlord at 1× ~40 s of plain hitting.
+
+Kept: the live reprice of every edit (`telegraph → retreat` showing `stall 25% · D9 −80` before
+the send), writing the counter and watching `WARLORD BREAKS`, the bank-threshold dial as a real
+trade (`2/8 · 2/7 · 2/5 · BANKED $620`), the absence as a present.
+
+The plateau (cohorts 15–21: 74.35, 73.25, 71.1, 68.95, 71.65, 74.35, 72.15) says fixing seams
+holds the score but doesn't raise it; the six 0.6 axes need a structural change, not polish.
