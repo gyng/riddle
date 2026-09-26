@@ -1,0 +1,81 @@
+{
+  "$comment": "Blind rater raterAW, seed 3201, headed GPU driver at 400x800 3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md s1-3, the template. Did not open PLAN.md, research/, docs/CUT*.md, other cards or source. Audio unassessed (window.__audio showed click/edit/scene cues firing, not heard).",
+  "game": "Riddle",
+  "build": "9720ff7",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAW",
+  "horizon": {
+    "activeMinutes": 72,
+    "absences": ["20m (?absent=20m) + ~5 min", "4h (?absent=4h) + ~6 min", "8h overnight (?absent=8h) + ~22 min"],
+    "runsWatched": 14,
+    "runsOffline": 25,
+    "ruleEdits": 14,
+    "notes": "~41 min cold (incl. ~7 min lost to a frozen watch after WebGL context loss; reload resumed the same run), then three simulated absences. 2 full runs watched at 1x (114 s, 267 s) plus one 195 s 1x run after the overnight; the rest in 'fights'/'fast'. 6 deaths read in full (D4 archer GAP, D6 burst ROW, D8 own fire ROW, D8 ogre GAP after 4h, D8 warlord GAP, D13 gas GAP) plus one 'DRIVEN' verdict. Edits written by me: R1 drink heal->drink unknown (+unknown item), hp<50 drink heal, hp<50/40/60 bank then 30, reordering bank above attack, foe: boss attack boss, has: fire + foe: boss throw fire, hp<30 retreat, adjacent>=3 to corridor, hp<75 rest, has: leash + foe: fast tame fast, foe: summoned attack summoned; deleted drink unknown. Took no offered patch verbatim. Bought kite archers card, throw, +1 row x3, rogue class, cond alert, leather, leather+1, sword+1, sword+2; swore 3 oaths (Warlord fire: kept; tame a new kind: kept; Mother fire: open, 9-12%)."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false,
+    "notes": "Not a crash by my reading but close: at ~24 min the console logged 'CONTEXT_LOST_WEBGL' then 'Web page caused context loss and was blocked'; the watch showed a placeholder and sat on 'D4 · pick up ×2 · 21/38' for 7 minutes, ▶▶| did nothing. Reloading ?dev=1 returned to camp and the next send resumed the same run (D4, 19/38) and banked it, so nothing was lost. May be the WSLg GPU path rather than the game."
+  },
+  "criterion": {
+    "fun_1to7": 6,
+    "playAgainTomorrow_1to7": 6,
+    "recommend_0to10": 8,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: My third heir went down with $357 in his pack and never banked, because I'd put my 'hp < 50% → bank' row under 'attack nearest', and at 9 HP my own 'drink unknown' row made him drink a fire potion ('own fire · D8 · R2 drink unknown · ROW'). So I put bank above the fights, deleted the gamble, bought throw and wrote 'has: fire · foe: boss → throw fire'. The next heir met the Warlord on D8 ('WARLORD BREAKS', 'GOBLIN WARLORD DOWN'), then my bank row fired on D9 and he came home with $343 and a D9 record."
+  },
+  "probes": {
+    "clarity": "The first death said 'goblin archer · D4 · 9 unknowns unused · GAP' with R1 marked '⊘ identify heal', so I knew right away that my heal row could never fire; I did misread one thing later, when the 20m report printed 'UNLOCK COND_ALERT (2)'.",
+    "decisions": "Moving the bank row between hp < 40/50/60% shifted the forecast from 'bank 47% ~$57' to '68% ~$73' to '96% ~$67'; I took 50% for depth, and later the forge offered 'mail · D13 +32 · bank −47 · death +42', which I turned down.",
+    "mastery": "An hour ago I didn't know rows are a priority list; by the end I had learned from 'R2 bank · going home' while 'R5 attack boss' kept firing that banking needs its own escape, and the plateau line 'R2 bank ended 7 runs, none past D12' taught me to add 'hp < 75% → rest', which the forecast scored 'D14 +17'.",
+    "tension": "Watching 'carry $357 · bank keeps $357 · death $0' at 1× while the Warlord's archers drew was the part where I sweated, and it landed when he died with '$357 lost'; after the overnight a banked run came home at '3/35'.",
+    "feel": "The pixel callouts 'R2 ATTACK GRAK', 'OGRE WINDS UP' and 'WARLORD BREAKS' pop over the fight, and the damage numbers are readable at 1× on the GPU; the weak spot was a 7-minute frozen placeholder view after the WebGL context died.",
+    "surprise": "Things that changed what I did: 'The monkey stole the heal potion', 'Gambled: fire potion' killing my own hero, the Warlord's 'shields up' ending a run as 'DRIVEN' with 'monkey Morusk fell', and a hunger floor that cut max hp '57→22'.",
+    "expression": "My set is heal at half, bank at 30%, burn bosses with fire, tame fast things with a leash, and rest below 75%, and the Warlord oath gave it a name: 'title: Warlord-burner'.",
+    "story": "The Skix grudge ('grudge: Skix the goblin archer' → next run 'Skix the goblin archer is avenged.') and the Warlord run above are anecdotes I'd tell.",
+    "pacing": "The 1× watches were dense, with new lines about every 3 s and the longest gap about 6 s in a 195 s run; the admin side dragged: each reorder took ▲ taps one at a time, × wants a second 'drop', and the forecast re-measures for 5–12 s after every edit ('…').",
+    "failure": "Every death came with a stamped verdict (GAP/ROW), 'a max hit at 2 hp · 1 in 4', the last ten trace ticks with the row that fired, and replayed patches like 'hp < 40% → return · survives 12/12 · unpatched 9/12'.",
+    "social": "No people. The tamed monkey 'Morusk' levelled ('Morusk level 3') and then 'fell', which only brushes against a relationship.",
+    "autonomy": "I picked my own goals from the oaths ('Warlord · fire', 'tame · a new kind'), chose which forge item to skip based on its forecast, and the route showed 'D5 burrows' / 'fens'.",
+    "progression": "Rows went '4 → 5' → 8, the vocabulary grew from 2 verbs to 'throw fire', 'tame fast', 'attack summoned', the forge added sword +2 / leather +1, and the record went D4 → D6 → D8 → D9 → D12 → D13.",
+    "aesthetic": "The camp art (two heroes at a flooded stair) and the teal Fens tiles with bloat sprites made places I'd sit in; audio unassessed.",
+    "return": "After 20m: '1 runs · D8 · R4 fired 0 of 1 runs: … throw fire'. After 4h: 'RECORD D12 · 1 DEATH · OGRE' with three forge buttons. After overnight: 'PLATEAU: NONE PAST D13' with ranked fixes ('hp < 90% → rest … +48'); each one gave me a different next move.",
+    "attribution": "I say 'my R1 drank poison' because the banner said 'burst · D6 · R1 drink unknown · ROW' and 'Gambled: poison potion'; the one I couldn't own was 'Warlord · D8 · shields up · DRIVEN', where every row read 'stuck' and the suggested fix, 'foe: boss → attack boss at R6', was a row I already had."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "'⊘ identify heal' on R1 and the '↑ R2' shadow marker made the rule list readable, and 'VS SENT · D7 3→34% · bank 0→68%' showed what each edit did. Lapses kept it from strong: 'UNLOCK COND_ALERT (2)' and 'COND_TURNS' raw ids in report headlines; the oath odds did not move when I bought a second fire potion ('12% ±10' both times); a row marked '↑ R7' (shadowed) arrived with a forecast gain I couldn't pin on it; the DRIVEN fix repeated my existing R6." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "'bank at hp<60%: bank 96% ~$67' vs 'hp<50%: bank 68% ~$73' was a real depth-vs-safety call I made twice with different answers, and 'mail · D13 +32 · bank −47 · death +42' was an upgrade I refused. Named lapse: several of my rows came back as dead weight ('R8 fired 0 of 16 runs: adjacent ≥ 3 → to corridor', '≈ ±3'), so some choices turned out not to be choices." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Records went D4→D6→D8→D9→D12→D13 as I learned ordering (bank placed under attack never fired; 'R2 bank · going home' while R5 kept attacking). Lapse: the overnight plateau fix I took ('rest') was close to the game's own top suggestion, so the last jump was partly handed to me." },
+    { "id": "tension", "human": 0.8, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "'carry $357 · bank keeps $357 · death $0 · bank at 50%' on screen during the D8 Warlord fight, then '$357 lost'; later 'BANKED $398' at 3/35 hp. Lapse: the Mother oath sat at '9% ±8' with no lever I could find, so that stake felt like luck." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Callouts like 'R2 ATTACK GRAK' and 'OGRE WINDS UP', floating damage and 'WARLORD BREAKS' land well at 1× on the GPU. Lapses: WebGL context loss left a placeholder view frozen for 7 minutes, and every edit brought a 5–12 s re-measure ('…'). Audio unassessed." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "'The monkey stole the heal potion.', 'Gambled: fire potion' (own fire), 'shields up' → DRIVEN, the D12 hunger 'max hp 57→22', captives, tamed 'monkey Morusk'; each one made me edit. Lapse: D8 Warlord deaths repeated three times in the same shape." },
+    { "id": "expression", "human": 0.8, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Heal-bank-burn-boss-tame-rest is my set, oath titles name it ('title: Warlord-burner'). Lapse: two of my rows were dead weight the game flagged ('drops R8 · 0/235 fires')." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "'grudge: Skix the goblin archer' → 'Skix the goblin archer is avenged.'; the $357 own-fire death then 'first: Warlord slain · record: D9'. Lapse: overnight reel lines are formulaic ('A goblin took him down; R6 attacked him; died on D8')." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 1× runs of 114–267 s with lines about every 3 s and the longest gap about 6 s. Admin: reorders are one ▲ tap per step, deletes need 'drop', the forecast re-measures after every chip, and three sheets had to open for one row. Check-ins were bounded (5–10 min) and ended on a send." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "'own fire · D8 · R2 drink unknown · ROW', 'a max hit at 2 hp · 1 in 4', the tick table and 'hp < 40% → return · survives 12/12 · unpatched 9/12' all in one screen, and the next heir goes out on send. Lapse: the DRIVEN screen's only fix was 'foe: boss → attack boss at R6', which I already had, and the overnight headline read '1 DEATH · GOBLIN' over a tile that said 4 DEATHS." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Picking which oath to swear ('Warlord · fire' over 'D3 · no rest') and when to refuse forge upgrades were my own goals; the route ('D5 burrows' / 'fens') was visible but I never found a way to steer it." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within a run: cage picks ('took sword +1'), tames. Between runs: rows 4→8, verbs throw/tame/attack summoned, forge sword +2/leather +1, fighter L1→L5, records D4→D13. Lapse: prices jumped fast ('next ◆4 or $1000', '+1 row ◆11 or $3200') and ◆ piled up (◆46) with little left to spend it on." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "The camp painting and the teal Fens with bloat sprites are atmospheric; the death banner is striking. Lapse: the placeholder view after context loss; audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "20m: '1 RUNS · D8 · R4 fired 0 of 1 runs'. 4h: 'RECORD D12 · 8 RUNS · 1 DEATH · OGRE' with forge buttons. Overnight: 'PLATEAU: NONE PAST D13' with ranked patches ('+48'). Each gave a different decision within 30 s. Lapse: raw 'UNLOCK COND_ALERT (2)' in the 20m headline, and the overnight headline's death count didn't match the tile." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Four of my six deaths named a row I wrote ('R1 drink unknown · ROW', 'R2 drink unknown', 'R5 attack him'), and I retell the runs as 'I'. Lapse: the DRIVEN run ('paced 12 turns, foes ignored', every row 'stuck') had no decision I could own." }
+  ],
+  "gripes": [
+    "Editing is slow: ▲ one step at a time, × then 'drop', and a 5–12 s re-measure after every chip before I can see what I changed.",
+    "Raw ids and mismatched counts in the headlines ('UNLOCK COND_ALERT (2)', '1 DEATH · GOBLIN' over '4 DEATHS'), and fixes that repeat a row I already have (DRIVEN: 'foe: boss → attack boss at R6').",
+    "The watch froze for 7 minutes on a placeholder view after a WebGL context loss (possibly the harness GPU path)."
+  ],
+  "tellAFriend": [
+    "Every death tells you which of your rules killed him, and tests three fixes against 12 replays before you pick one.",
+    "You program the hero, then watch him meet a boss your rule was written for ('WARLORD BREAKS'), and coming back after a night gives you a plateau diagnosis instead of a pile of gold.",
+    "Oaths let you set your own goal ('burn the Warlord with fire') and hand you a title when the hero pulls it off."
+  ]
+}

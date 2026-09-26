@@ -800,3 +800,33 @@ and tension hold 0.6 from both. AU's cold segment ran ~26 min (not 40).
 Kept: the forecast re-pricing every edit (`death 96 → 14%` from one move), the `order` verdict
 naming the row that walked him into a wraith, `patches tie · all harm` admitted honestly, the lineage
 story, the PLATEAU note that says what to change.
+
+## Cohort 24 (build 9720ff7: Cut 28 — oaths, the answer names its cause; three absences)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AW | 3201 | 75.1 | none |
+| AX | 3202 | 71.4 | none |
+
+Mean **73.25** — **+7.55 over the control (65.7)**, +1.65 over cohort 23; AW "fun" and the highest
+single card of the session. Firsts: expression 0.8 and tension 0.8 (AW — oaths: "set your own goal",
+`title: Warlord-burner`); autonomy 0.8 (AX); criterion fun 6 from both, recommend 8 from both. Clarity,
+feel, pacing, aesthetic hold 0.6.
+
+### The read
+
+1. **Editing is slow** (AW): reorder one ▲ at a time, × needs a second tap, every chip change waits
+   5–12 s for the forecast.
+2. **Copy that doesn't add up** (both): raw ids in headlines (`UNLOCK COND_ALERT (2)`); `1 DEATH · GOBLIN`
+   above `4 DEATHS`; the DRIVEN fix suggesting a row already held; the Mother oath odds unmoved by a
+   second fire potion; `D3 · no return` unclear (AX); `R4 now → lives · D5 vs dies · D7` (AX).
+3. **Stakes flatten once heals are packed** (AX): 99 % forecasts, 24 offline runs with 0 deaths; forge
+   `≈`; gold to $4,775; the reel one template.
+4. **A companion vanished unannounced** (AX): Greth the tamed ogre (L5) gone with only `party −1 ogre`;
+   "Greth is avenged" while he was an ally; the Warlord kill missing from that run's reel.
+5. **The watch froze for 7 minutes on a WebGL context loss** (AW): `CONTEXT_LOST_WEBGL`, a placeholder
+   view, ▶▶| dead until a reload (nothing lost).
+6. **Defects**: pack 4 bought, supplies still 3/3; a D12 bank of $81 against a ~$260 forecast (AX).
+
+Kept: oaths as self-set goals with titles, rows that beat bosses and set records, the plateau
+diagnosis on return, verdicts naming the player's own rule.

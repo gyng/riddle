@@ -1,0 +1,70 @@
+{
+  "$comment": "Blind rater raterAX, seed 3202, headed GPU driver at 400x800 3x. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, eval-fun FRAMEWORK.md sections 1-3 and the template (plus tools/driver.mjs header and the driver's click implementation to operate it). Notes: scratchpad/raterAX/notes.md. Shots: scratchpad/raterAX/shots/.",
+  "game": "Riddle",
+  "build": "9720ff7",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAX (agent, blind)",
+  "horizon": {
+    "activeMinutes": 55,
+    "absences": ["20m (simulated, ?absent=20m) + ~5 min play", "4h (simulated, ?absent=4h) + ~6 min play", "8h overnight (simulated, ?absent=8h) + ~8 min play (short of the 20 min asked: the loop ran out of new decisions after the mother boss and I stopped)"],
+    "runsWatched": 18,
+    "runsOffline": 25,
+    "ruleEdits": 19,
+    "$note": "Cold block ~37 min wall. 18 active sends: 8 watched at 1x (runs are 30-110 s; solved floors fold), 5 in 'fights' mode, 5 in 'fast'. Offline: 1 run (20m), 8 (4h), 16 (8h). 19 edits of my own plus 1 offered patch applied and 2 free cards taken (one dropped after the forecast). Deaths read: 2 on my lineage (D5 GAP, D4 ORDER) and a 3rd on a throwaway lineage after the driver restart lost the browser storage (harness, not the game): 'burst · D6 · GAP'. My lineage never died again after run 3 (0 deaths across 25 offline runs)."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 6,
+    "playAgainTomorrow_1to7": 6,
+    "recommend_0to10": 8,
+    "checkInTomorrowUnprompted_1to7": 6,
+    "delayedRecall": "same-day: My first heir was killed on D5 by Greth the ogre, who became a named grudge, and a few runs later the row I wrote myself, 'foe: heavy → tame heavy', turned Greth into my companion without my even noticing until the forecast said 'party +1 ogre'. Greth fought beside the next heirs up to level 5, and when the forecast showed D9 'sealed by warlord · warlord: ?' I dropped my bank row to go meet the warlord, got told 'COUNTER: ATTACK BOSS', wrote that rule and the next run broke him ('WARLORD BREAKS', 'GOBLIN WARLORD DOWN') and banked a record D10. The turn I remember is that Greth was simply gone from the party afterwards and nothing I read told me how he fell."
+  },
+  "probes": {
+    "clarity": "The death banner 'jackal · D4 · R5 under R3' with the ORDER seal told me exactly what I had done wrong, but I never understood what the oath 'D3 · no return' actually required, and 'unlock cond_alert (2)' read like an internal id.",
+    "decisions": "Moving the bank row from depth ≥ 6 to 7 showed 'bank 60→32%' and '~$91' against '~$103', so I kept 6; later heal potions in the loadout made D7 '99%' and I moved it to 8, a choice I would make again.",
+    "mastery": "An hour ago I sent the default rules into an ogre at 2 hp; by the end I was reading a sealed floor ('warlord: ?'), fetching the counter on purpose and writing 'depth ≥ 8 → attack boss', then 'depth ≥ 13 → throw fire' for the mother.",
+    "tension": "I sweated at 'Down to 1 HP. R2 return pulled him through.' and at 'RETURNED $59' on 2/33 hp, but after the first hour the overnight showed 16 runs and '0 DEATHS', so the stakes I carried into absences were mostly nil.",
+    "feel": "The pixel callouts ('ARCHER DRAWS', 'WARLORD BREAKS', 'SHIELDS UP') and the boss bar at the top land, but the first warlord meeting was framed with the boss off the right edge and an 'ATTACK × NO PATH' popped with an archer visibly adjacent; audio unassessed (window.__audio logged click/edit/scene cues and a fens drone, I could not hear them).",
+    "surprise": "I did not expect my tame row to catch the very ogre that killed heir #1, nor pink jellies splitting under 'cleave', nor a wraith draining max hp from 44 to 38 mid-run.",
+    "expression": "My set is 'heal, return at 25%, fire at 13, boss at 8, bank at 12, tame the heavy ones, cleave when flanked' with seven ogres in the kennel — an ogre-tamer who banks deep; recognisable, though the first four rows are what anyone would write.",
+    "story": "Greth: killed me, got a grudge line, was tamed by my rule, 'Greth: level 5', then vanished from the party after the warlord run with no line saying so; the warlord kill itself is missing from that run's reel ('Gambled: recall scroll · Banked $227 · Waystone D9 lit').",
+    "pacing": "Runs at 1x last 30-110 s because 'D1–6 · 97% · +$111' folds solved floors; check-ins lead with the decision (plateau box, pending, forge buttons); the dullest stretch was a D7 archer kite ('archer draws' five times in 20 s) and the 8h return sat on an 'OFFLINE' camp for ~20 s.",
+    "failure": "Every death screen named cause, rule and margin: 'R1 drink heal · no item · ← never found', 'R2 attack nearest' at 2 hp five times, patches 'survives 12/12 · unpatched 4/12' and 'death 100→4%'.",
+    "social": "No other people; the tamed ogres have names and levels ('Thusk L5', 'Asheth L2') but no relationship develops beyond a number — weight 0.",
+    "autonomy": "Nobody asked me to go meet the warlord; I dropped my bank row ('bank 91→0%') just to learn its counter, chose the untried fens, and later started runs at the D9 waystone.",
+    "progression": "Within a run: kit from cages ('took sword +1'), levels (fighter L1→L5); between runs: rows 4→8, verbs (throw, cleave, attack boss), forge (leather, packs), a kennel, waystones, D5→D14; automation: the loadout restocks itself ('restock ≤ $1279 earned').",
+    "aesthetic": "The camp's painted stair-into-the-dark banner and the teal fens tiles with a pink jelly are a place I'd sit in; sound not heard.",
+    "return": "20m gave one banked run and a free row to buy; 4h gave 'PLATEAU: NONE PAST D8 · R3 bank ended 7 runs' — my own rule named as the ceiling — and 8h gave '$1598→$4775', a new plateau with two patches, three forge buttons and a new boss hint; I would not rather have stayed.",
+    "attribution": "The last run ended 'RETURNED $59' at 2/33 because I pushed the bank to D14 and my own R2 'hp < 25% → return' dragged him out; the one I lost, I lost because I took the kite-archers card and it kept retreating while a jackal bit."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Death screens and the forecast shaft ('D9 · sealed by warlord · warlord: ?') are clear, but several things I could not explain: the oath 'D3 · no return' semantics, 'R4 now → lives · D5 · vs dies · D7', forge 'pack' vs supply slots (3/3 after buying pack 4), 'unlock cond_alert', Greth's disappearance, 'Greth the ogre is avenged' after he was my ally, and a D12 bank of '$81' against a '~$260' forecast." },
+    { "id": "decisions", "human": 0.8, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "'bank 60→32% · ~$91' vs '~$103' at depth 6 vs 7; route 'fens D7 43%' vs 'burrows 50%'; start D9 '+$135 passage'; a free 'stair dance' card I dropped because it read 'death 0→6%'. Named lapse: most rows I authored beyond the core (thief, telegraph, corridor) read '≈ ±4', and sword/mail in the forge read '≈' all session, so a big part of the menu was flat." },
+    { "id": "mastery", "human": 0.8, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "D5 death → D14 record by learning counters ('COUNTERS goblin warlord counter: attack boss', 'bloat mother counter: throw fire, boss') and ordering (ORDER verdict). Lapse: much of the learning is reading the forecast's percentages rather than understanding the sim; I rarely had to predict before the number told me." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Real sweat on '9/36 → 1/36 R2 return' and the chosen warlord trip ('death 2→10%'), but after heal potions the forecast read '99%' at D7 and the 4h/8h absences returned '0 DEATHS' across 24 runs; nothing I carried into an absence was at risk." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Callouts, hit sparks, boss health bar and 'WARLORD BREAKS' read well at 3x on the GPU. Lapses: the first warlord framed at the screen edge, 'ATTACK × NO PATH' with an archer adjacent, 'stalling' in the top bar mid-boss-fight. Audio unassessed (cues logged in window.__audio, not heard)." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Taming my own killer, pink jellies splitting, wraith max-hp drain, captives, shrines, the fens biome, two bosses with learnable counters — each changed a row. Lapse: the D6–D10 banked loops of the 4h/8h absences repeat ('A bloat took him to 7 HP; the chores explored; reached D10. ×3')." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Ogre-tamer banking deep with fire at D13 is mine, and the kennel of seven named ogres is a visible signature, but four of my eight rows (heal, return, bank, attack nearest) are what any player writes, and only one party slot means the kennel barely shows in play." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "The Greth arc (grudge → tamed by my row → 'Greth: level 5' → gone) is a real anecdote, but the game dropped its ending, contradicted it ('avenged Greth') and left the warlord kill out of that run's reel; offline reels are templated." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: solved floors fold ('D1–7 · 95% · +$179'), runs 30–110 s, fights mode 16x through quiet spans; one dull 20 s archer kite on D7. Check-in: reports lead with the decision (plateau, pending, forge) — bounded, 2–6 min. Cadence: 20m/4h/8h were distinct (1 / 8 / 16 runs, plateau called out). Held below 0.8 because every camp sheet (forge, loadout, unlocks, party, oaths, route, start) is a separate layer and a check-in after 8h was a lot of admin taps, and the 8h return sat ~20 s on 'OFFLINE'." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Verdict seal (GAP / ORDER), cause line 'jackal · D4 · R5 under R3', hp-by-tick trace with the firing rule, 'since full hp · jackal −20 · goblin archer −10', replayed patches with 'survives 12/12 · unpatched 6/12'; next run starts at once with 'heir purse +$40'. Lapse: only three deaths in the horizon, and my companion's death was never shown at all." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.8, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Route (burrows/fens), start depth (D1/D5/D9 waystones), oaths I chose, deliberate trips to learn a boss counter. Lapse: oaths offered three fixed choices with unclear terms, and D9+/D14+ gating is fixed by bosses." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Long-goal layer: depth and bosses (D5 → D14, two bosses), with rows 4→8, verbs (tame, throw, cleave, attack boss), conds by discovery ('on see lock', 'party: ogre'), forge tiers, a kennel, auto-restock. Lapse: forge weapon/armour upgrades read '≈' and money piled up ($4775) with nothing I wanted to buy after the packs." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Painted camp banner, parchment sheets, teal fens and ochre burrows pixel tiles, torn-banner death screen. Visual only; sound not heard. Some screens are dense text walls (report details)." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Each absence produced content and a decision in < 30 s: 20m → 'UNLOCK ROW8 (11)'; 4h → 'PLATEAU: NONE PAST D8 · R3 bank ended 7 runs' (my rule named as the cap) → I went for the warlord; 8h → '$1598→$4775', 'PLATEAU: NONE PAST D10' with two patches and three forge buttons. Lapse: the 20m return was one run with a pending line 'R2 fired 0 of 1 runs' that meant nothing, and offline reels are templated." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "I retell in the first person and can name the row: 'R2 return pulled him through', 'R5 under R3' (my card choice), 'R4 bank ended 14 runs', the warlord kill after my 'attack boss' row, Greth tamed by my 'tame heavy'. Lapse: the forecast/patch system often wrote the fix for me (the offered 'move R5 above R3' and the plateau patches), so some wins were the game's idea rather than mine." }
+  ]
+}
