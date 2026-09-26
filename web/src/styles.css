@@ -912,7 +912,9 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .forecast .fc-bars, .report-sheet .facts .chips.items { margin-top: 4px; }
 /* QA 92eb880 (N: "`· 8 earlier` (orange on parchment) and the `keep` button (pale on yellow) are hard to read") */
 .report-sheet .exit-lines button.ledger-more { color: #7a3d10; font-weight: 600; }
-.sheet .btn.primary, .panel .btn.primary { color: #1a1000; text-shadow: none; }
+/* QA 308f045 (qaAC: the exit sheet's `keep` white on pale yellow): the parchment's control colour rule counts `button.bar.try` in its `:is()`
+   (0,3,1) and out-ranked this one — the primary's dark ink matches it and comes later */
+.sheet .btn.primary, .panel .btn.primary, :is(.sheet, .panel, .parchment) button.btn.primary { color: #1a1000; text-shadow: none; }
 .editor .row.shadowed .grip .shadow-mark { display: block; margin: 2px 0 0; font-size: 10px; }
 .editor .row.shadowed { opacity: 1; }
 .editor .row.shadowed > .chips, .editor .row.shadowed > .grip .rn { opacity: .45; }
@@ -1213,6 +1215,10 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 .route-picker .fork-at { color: var(--acc); font-size: 15px; white-space: nowrap; }
 .route-picker .route-opt { min-height: 48px; justify-content: flex-start; font-size: 16px; padding: 0 10px; border-width: 2px; flex-wrap: wrap; }
 .route-picker .route-opt .level { font-size: 14px; margin-left: 2px; }
+/* QA 308f045 (qaAC: the unpicked `fens` in its green lane border beside the picked `burrows` in gold — "both look selected"): one "on"
+   look — the stair the set takes carries the lit outline and its lane colour; the other stair a plain border */
+.route-picker .route-opt:not(.on) { border-color: var(--line); outline: none; }
+.route-picker .route-opt.on { box-shadow: 0 0 10px rgba(240, 180, 74, .45); }
 /* Cut 26 §2–3: a band's lane on the shaft (`D5 fens`), the untaken lane a dashed frontier under its fork (`crypt · D9 · ?`) */
 .notch .dl .lane { display: block; margin-top: 2px; font: 600 10px/1 var(--sans); font-style: normal; color: #b9c9a8; white-space: nowrap; letter-spacing: 0; }
 .notch .frontier { grid-column: 1 / -1; margin: 2px 0 0 12px; padding: 1px 4px; border-left: 1px dashed #8a7a5a; font: 600 10px/1.2 var(--sans); color: var(--dim); white-space: nowrap; }
@@ -1224,3 +1230,9 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 /* Cut 26 §6: a stamp most unpatched replays survive — `dice-leaning` beside it; a block whose every tablet harms says so */
 .death .death-line .lean { display: block; margin-top: 4px; font: 600 13px/1 var(--sans); color: var(--dim); letter-spacing: .02em; text-transform: none; }
 .patches-moment .all-harm { color: var(--hp); }
+/* QA 308f045 (qaAD): the death gem waits for the whole-run measure (`…`, no pulse) and a lit tablet that harms reads `harms` on the stone */
+.gem.patch-gem.pending { filter: saturate(.55) brightness(.85); cursor: progress; }
+.gem.patch-gem.harms .gem-w { color: #ffb0a0; }
+/* QA 308f045 (qaAC): a lane's run on the shaft (`→ D13`), an exit patch's price beside `return early` */
+.notch .dl .lane-to { display: block; font: 600 9px/1 var(--sans); font-style: normal; color: var(--dim); white-space: nowrap; }
+.patch .exit-cost { white-space: nowrap; }

@@ -52,9 +52,17 @@ impl Game {
     pub fn start_forecast(&self) -> Vec<StartOption> {
         forecast::start_forecast(self)
     }
+    /// QA on 308f045: the starts on the camp's own pass (`refined`: the 100-sim panels).
+    pub fn start_forecast_refined(&self, refined: bool) -> Vec<StartOption> {
+        forecast::start_forecast_at(self, if refined { forecast::REFINE_SIMS } else { forecast::FORECAST_SIMS })
+    }
     /// Cut 26 §2: both stairs of the fork at `fork` for the active set (`forecast::fork_forecast`).
     pub fn fork_forecast(&self, fork: u32) -> Vec<ForkOption> {
         forecast::fork_forecast(self, fork)
+    }
+    /// QA on 308f045: the stairs on the camp's own pass (`refined`: the 100-sim panels).
+    pub fn fork_forecast_refined(&self, fork: u32, refined: bool) -> Vec<ForkOption> {
+        forecast::fork_forecast_at(self, fork, if refined { forecast::REFINE_SIMS } else { forecast::FORECAST_SIMS })
     }
     /// Cut 22 §3: the active set's paired move against `prev` (`forecast::forecast_vs`).
     pub fn forecast_vs(&self, prev: &RuleSet) -> ForecastVs {

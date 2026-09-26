@@ -144,7 +144,16 @@ pub fn is_tactic_card(id: &str) -> bool {
 /// first `attack` / `shoot`), else the end. Both cohort-8 raters moved every card up by hand
 /// from the bottom, where it never fired below `attack nearest`.
 pub fn card_insert_at(rules: &crate::rules::RuleSet) -> usize {
-    rules.rows.iter().position(|r| matches!(r.verb.v.as_str(), "attack" | "shoot")).unwrap_or(rules.rows.len())
+    let eng = rules.rows.iter().position(|r| matches!(r.verb.v.as_str(), "attack" | "shoot")).unwrap_or(rules.rows.len());
+    eng.max(safety_end(rules)).min(rules.rows.len())
+}
+
+/// QA on 308f045 (qaAD): the place under the set's safety rows (`trace::is_safety`: a heal
+/// drink, a return or a bank on hp alone) that sit above its engagement row — a card goes there
+/// or lower, never over the rows that keep the hero alive.
+pub fn safety_end(rules: &crate::rules::RuleSet) -> usize {
+    let eng = rules.rows.iter().position(|r| matches!(r.verb.v.as_str(), "attack" | "shoot")).unwrap_or(rules.rows.len());
+    rules.rows[..eng].iter().rposition(crate::trace::is_safety).map_or(0, |i| i + 1)
 }
 
 /// Cut 9 §2: the gate still shut on an unlock — its fact/trophy gate, else its prerequisite,
@@ -521,10 +530,15 @@ pub fn best_place(measured: &[Measured], base_stall: f64) -> Option<Measured> {
 /// Cut 18 §5: where a card's row may go, in order — where the buy used to put it (before the
 /// engagement row, `card_insert_at`), the top, and before the set's first own row (the first
 /// row that is not a card); deduplicated. The catalogue measures each and keeps the best.
+///
+/// QA on 308f045 (qaAD: `kite archers` added at R1 and `gas step` at R2 over `hp < 30% → drink
+/// heal`; both absence deaths then read `R4 under R2`): never above the set's safety rows — every
+/// place is at or under `safety_end`.
 pub fn card_positions(rules: &crate::rules::RuleSet) -> Vec<usize> {
     let first_own = rules.rows.iter().position(|r| r.verb.v != "tactic").unwrap_or(rules.rows.len());
+    let floor = safety_end(rules);
     let mut out: Vec<usize> = Vec::new();
-    for at in [card_insert_at(rules), 0, first_own] {
+    for at in [card_insert_at(rules), 0, first_own].map(|a| a.max(floor).min(rules.rows.len())) {
         if !out.contains(&at) {
             out.push(at);
         }

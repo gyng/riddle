@@ -806,7 +806,9 @@ export function renderWatch(app: App): Mounted {
         // Cut 10 §3: the core's companion-death callout (`Ashar fell`) gets its kind in front: `jackal Ashar fell`
         case "callout": {
           if (ev.text === "explore") break;
-          if (/^two stairs$/i.test(ev.text)) { const key = `stairs@${s.depth}`; if (refused.has(key)) break; refused.add(key); }   // Cut 26 §2: once a floor
+          // Cut 26 §2: once a floor. QA 308f045 (qaAD: `TWO STAIRS` seen once in ten runs, inside a `▶▶|`; fights and fast runs crossed D4 → D5
+          // without it): the fork is a beat, cut in as the situations are (the fight frame, its line), in every mode — not a callout the mode drops
+          if (/^two stairs$/i.test(ev.text)) { const key = `stairs@${s.depth}`; if (!refused.has(key)) { refused.add(key); beatAt(ev.t, /* copy:callout */ "TWO STAIRS"); } break; }
           if (ev.text === /* copy:none */ "choose one") break;   // Cut 19 §1: the cage beat names the pick instead
           if (breakBeat(ev.t, ev.text)) break;   // Cut 16 §4: `warlord breaks` is the beat's, not a plain callout
           // Cut 12 §6: a sanity refusal (`drink ✗ no use`) shows once per floor, not once per streak
@@ -815,7 +817,7 @@ export function renderWatch(app: App): Mounted {
           if (DRAIN_CALLOUT.test(ev.text)) break;
           let f = ev.text;
           // Cut 12 §6: a summoned ally (no name) reads `ally hound fell`; a companion keeps `jackal Ashar fell`
-          if (fell && fell.t === ev.t && fell.kind && ev.text === (fell.name ? `${fell.name} fell` : `${fell.kind} fell`)) f = fell.name ? `${fell.kind} ${fell.name} fell` : /* copy:callout */ `ally ${oneWord(fell.kind)} fell`;
+          if (fell && fell.t === ev.t && fell.kind && ev.text === (fell.name ? `${fell.name} fell` : `${fell.kind} fell`)) f = fell.name ? `${fell.kind} ${fell.name} fell` : /* copy:callout */ `summoned ${oneWord(fell.kind)} fell`;
           // Cut 12 §6: the core's `rallied!` names the boss whose telegraph it answers (`warlord rallies`)
           else if (ev.text === /* copy:none */ "rallied!") f = /* copy:callout */ `${oneWord(rallyBy ?? "boss")} rallies`;
           // Cut 23 §3 (AI, AJ: `read ✗ no use`, `IT SWELLS` — "unclear"): a `✗` refusal and a shouted word carry their reason on tap —
@@ -864,7 +866,7 @@ export function renderWatch(app: App): Mounted {
           if (allies.has(ev.id)) {
             fell = { t: ev.t, name: names.get(ev.id) ?? "", kind: (kinds.get(ev.id) ?? "").replace(/_/g, " ") };
             // under the card or inside a skip the core's `Ashar fell` line is never watched: the fall waits for the ticker
-            const f = fell; at(ev.t, () => { if (skipping || cardUp) petLine(f.name ? /* copy:callout */ `${oneWord(f.kind)} ${f.name} fell` : /* copy:callout */ `ally ${oneWord(f.kind)} fell`); });
+            const f = fell; at(ev.t, () => { if (skipping || cardUp) petLine(f.name ? /* copy:callout */ `${oneWord(f.kind)} ${f.name} fell` : /* copy:callout */ `summoned ${oneWord(f.kind)} fell`); });
             break;
           }
           // Cut 15 §4: a boss's kill is a beat — the frame holds on it with `WARLORD DOWN` (its own line, not `slain`)
@@ -879,7 +881,9 @@ export function renderWatch(app: App): Mounted {
         case "max_hp": if (ev.id === heroId) {
           const m = ev.max, dw = ev.delta < 0 ? drainOf(ev) ?? (drainEvs.has(ev) ? drainOn : null) : null, key = dw ? `${dw}@${s.depth}` : "";
           if (dw && (!drainTicks.length || drainTicks[drainTicks.length - 1] < ev.t)) { drainTicks.push(ev.t); if (drainTicks.length > 64) drainTicks.shift(); }
-          at(ev.t, () => { hud.maxHp = m; paintHud(); if (dw && !drainsShown.has(key)) { drainsShown.add(key); callout(dw, "hurt", HURT_MS * 2); } });
+          // QA 308f045 (qaAC: `36/36` → `22/22` → `12/24` with no cause): the shrine's price names itself (`shrine −7 max`)
+          const priced = ev.cause === "shrine" && ev.delta < 0 ? /* copy:callout */ `shrine −${-ev.delta} max` : null;
+          at(ev.t, () => { hud.maxHp = m; paintHud(); if (priced) callout(priced, "hurt", HURT_MS * 2); else if (dw && !drainsShown.has(key)) { drainsShown.add(key); callout(dw, "hurt", HURT_MS * 2); } });
         } break;
         case "steal": lastStealT = ev.t; if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; stolenGold += n; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
         case "descend": {
@@ -897,7 +901,7 @@ export function renderWatch(app: App): Mounted {
           learned.push(ev.fact);
           // Cut 26 §2: the first time a hero stands on a fork floor's two stairs (the fact `fork D5`) the watch says so — `TWO STAIRS`,
           // once a floor (a core callout of the same words stands for it)
-          if (/^fork\b/i.test(ev.fact)) { const key = `stairs@${s.depth}`; if (!refused.has(key)) { refused.add(key); at(ev.t, () => callout(/* copy:callout */ "two stairs", "ambient", 1800)); } }
+          if (/^fork\b/i.test(ev.fact)) { const key = `stairs@${s.depth}`; if (!refused.has(key)) { refused.add(key); beatAt(ev.t, /* copy:callout */ "TWO STAIRS"); } }
           // Cut 6 §5: the counter learned mid-fight (the boss's first telegraph) names itself: `boss · counter: attack boss`
           const m = /^boss:([a-z_]+):counter(?:=|$)/.exec(ev.fact);
           if (m) at(ev.t, () => { app.engine.lineage().then((L) => { counters = L.counters ?? counters; }).catch(() => { /* keep */ }).finally(() => {
@@ -937,12 +941,20 @@ export function renderWatch(app: App): Mounted {
           // QA 0c6e126 (qaZ: `RETURNED $115` over a run the report's tiles counted `1 DRIVEN`): the beat's word is the exit line's own lead
           // (`driven` · `stalled` · `lost thread`), `RETURNED` only for a return
           const lead = ev.line?.driven ? "driven" : /^(stalled|lost thread|driven)\b/.exec(ev.line?.text ?? "")?.[1];
-          if (tier !== "death") beatAt(ev.t, tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${lead.toUpperCase()} $${ev.loot_kept}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`, true);
+          // QA 308f045 (qaAC: `DRIVEN $0` at 19/36 over `carry $186` — "nothing says a drive-off also loses the carry"): an end that kept
+          // less than it carried says what it lost (`DRIVEN $0 · −$186`)
+          const lostC = ev.line ? Math.max(0, ev.line.carried - ev.line.kept) : 0;
+          if (tier !== "death") beatAt(ev.t, tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${lead.toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`, true);
           break;
         }
         case "ending": endingCue = ev.t; break;                                                                                       // Cut 7 §4: the core's marker (see `exit`)
         case "tame": if (ev.ok) { tamedIds.push(ev.id); kinds.set(ev.id, ev.kind); allies.add(ev.id); victims.delete(ev.id); const id = ev.id; at(ev.t, () => petLine(/* copy:callout */ `tamed ${compLabel(id).replace(" · ", " ").replace(/_/g, " ")}`)); } break;
-        case "ally": if (ev.state === "lost") lostIds.push(ev.id); else { allies.add(ev.id); victims.delete(ev.id); } break;
+        case "ally": if (ev.state === "lost") lostIds.push(ev.id); else {
+          // QA 308f045 (qaAC: the death's `ally hound fell` with no hound anywhere before): a summon (an unnamed ally the scroll called)
+          // says so as it arrives (`hound summoned`)
+          const fresh = !allies.has(ev.id), kind = kinds.get(ev.id), named = names.has(ev.id);
+          if (fresh && kind && !named && ev.state === "freed" && /spectral/.test(kind)) at(ev.t, () => petLine(/* copy:callout */ `${oneWord(kind)} summoned`));
+          allies.add(ev.id); victims.delete(ev.id); } break;
         case "spawn": note_(ev.e); if (ev.e.tags?.includes("boss")) bossIds.add(ev.e.id); break;
         case "level": for (const v of verbsAt(ev.class, ev.level)) learned.push(`verb:${v}`); at(ev.t, () => { callout(`${ev.class} L${ev.level}`); audio.cue("level"); }); break;
         case "rank": at(ev.t, () => callout(`★${ev.rank}`)); break;
@@ -1827,7 +1839,9 @@ export function renderWatch(app: App): Mounted {
     lost.push(...lostIds.map(compLabel));
     // Cut 13 §1: a run that came home stalled (`… · stalled` on its line; the stake was `stalling` at the exit) gets a verdict screen
     // like a death's — the core records the stall, `death(runId)` answers `verdict: "stall"`; an older core falls back to the report
-    const stalled = tier === "return" && (/\bstalled\b/.test(exitLine?.text ?? "") || (!!snap?.stake?.stalling && (exitLine?.kept ?? 1) === 0));
+    // QA 308f045 (qaAC: one run read `1 STALLED · $0 lost` and `1 DRIVEN` under `1 RUNS`): one outcome per run — a drive-off (the line's
+    // `driven`, the core's word) is never a stall, whatever the stake said while the boss's shields held
+    const stalled = tier === "return" && !exitLine?.driven && !/^driven\b/.test(exitLine?.text ?? "") && (/\bstalled\b/.test(exitLine?.text ?? "") || (!!snap?.stake?.stalling && (exitLine?.kept ?? 1) === 0));
     if (tier === "death") for (const c of partyAtStart) if (!lost.some((l) => l === c || l.endsWith(c.slice(c.indexOf(" · "))))) lost.push(c);
     // Cut 26 §6 (AP): a drive-off opens its verdict (the exit line's `driven`: the boss, the defence, the counter to write)
     if (tier === "return" && exitLine?.driven && !stalled) { app.go({ kind: "death", death: drivenDeath(exitLine, runId, exitTrace), lost }); return; }
@@ -1902,6 +1916,10 @@ export function renderWatch(app: App): Mounted {
     // QA 23ed91f: the owned automations' picks come pre-ticked (`ExitPending.auto_keep`), as many as the free slots take
     const keep = new Set<number>((p.auto_keep ?? []).filter((id) => p.items.some((it) => it.id === id)).slice(0, free));
     let sent = false;
+    // QA 308f045 (qaAC: `mail $0 · sword $0 · … · unkept → salvage` after a drive-off that kept nothing): an exit whose salvage pays nothing
+    // prices nothing — the chips carry no `$0` and the legend says the unkept are lost
+    const worthOf = (i: number): number => p.worth?.[i] ?? salvageValue(p.items[i].kind, p.tier);
+    const unpaid = p.items.length > 0 && p.items.every((_, i) => worthOf(i) <= 0);
     openSheet((close) => {
       const chips = h("div", { class: "chips" });
       const count = h("span", { class: "num dim" });
@@ -1913,7 +1931,7 @@ export function renderWatch(app: App): Mounted {
           if (keep.has(it.id)) keep.delete(it.id);
           else { if (keep.size >= free) { const oldest = keep.values().next().value; if (oldest === undefined) return; keep.delete(oldest); } keep.add(it.id); }
           paint();
-        } }, it.label, " ", /* QA 1a2a4a9 (P: "`axe ⌂` — what ⌂ means"): a kept pick reads where it goes */ keep.has(it.id) ? h("b", null, "→ ", /* copy:label */ "vault") : h("b", { class: "num gold" }, `$${p.worth?.[i] ?? salvageValue(it.kind, p.tier)}`))));   // the engine's worth at this exit (its old client table read 4×)
+        } }, it.label, " ", /* QA 1a2a4a9 (P: "`axe ⌂` — what ⌂ means"): a kept pick reads where it goes */ keep.has(it.id) ? h("b", null, "→ ", /* copy:label */ "vault") : unpaid ? "" : h("b", { class: "num gold" }, `$${worthOf(i)}`))));   // the engine's worth at this exit (its old client table read 4×)
       };
       paint();
       // the pile once: the exit line carries `bones: 8 items on D4` (the core's), so the client's `bones left` line only stands in
@@ -1936,7 +1954,7 @@ export function renderWatch(app: App): Mounted {
       // QA 23ed91f (K: "`$5`, `$4`, `$1` on each item: a cost to keep, or a sale price?" and the report's SALVAGED listed `mapping ·
       // teleport · poison` the sheet never offered): the prices are what an unkept item sells for, and the exit's own cut (a
       // return's share, sold before the sheet: `ExitLine.salvaged`) is named under the chips
-      const legend = h("div", { class: "keep-legend dim num" }, /* copy:callout */ "unkept → salvage");
+      const legend = h("div", { class: "keep-legend dim num" }, unpaid ? /* copy:callout */ "unkept → lost" : /* copy:callout */ "unkept → salvage");
       const cut = exitLine?.salvaged?.length ? h("div", { class: "keep-cut dim num" }, /* copy:label */ "sold", " ",
         exitLine.salvaged.map((r) => `${r.kind.replace(/_/g, " ")}${r.n > 1 ? ` ×${r.n}` : ""} $${r.gold}`).join(" · ")) : null;
       return h("div", { class: "sheet-body" },

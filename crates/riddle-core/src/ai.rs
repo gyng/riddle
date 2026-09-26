@@ -2761,6 +2761,8 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
     if run.monsters[mi].has_tag("drain") && dmg > 0 && run.hero.max_hp > 5 {
         run.hero.max_hp -= 1;
         run.hero.hp = run.hero.hp.min(run.hero.max_hp);
+        // QA on 308f045 (qaAC: `36/36` → `22/22` → `12/24`, "the cause?"): every max-HP loss is an event naming it
+        cx.events.push(Ev::MaxHp { t: run.turn, id: crate::engine::HERO_ID, max: run.hero.max_hp, delta: -1, cause: "drain".into() });
         callout(run, cx, "drained");
         learn_tag(run, cx, &kind, "drain");
     }
@@ -3243,6 +3245,7 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
                 if run.over.is_none() && run.hero.max_hp > 5 {
                     run.hero.max_hp -= 1;
                     run.hero.hp = run.hero.hp.min(run.hero.max_hp);
+                    cx.events.push(Ev::MaxHp { t: run.turn, id: crate::engine::HERO_ID, max: run.hero.max_hp, delta: -1, cause: "drain".into() });
                 }
             } else if summons == 0 || dist > 4 {
                 chase(run, cx, mi, sees);

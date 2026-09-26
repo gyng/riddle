@@ -145,7 +145,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // a camp opened on a lit tablet (a patch applied, `highlight`) keeps its send deaf for SEND_ARM_MS, so the tap (or a second one) that
   // applied never lands on `send`; the player sends
   const armedAt = performance.now() + (highlight !== undefined ? SEND_ARM_MS : 0);
-  const send = gem({ label: /* copy:button */ "send", cls: "send", pulse: true, onclick: () => { if (performance.now() < armedAt) return; if (!app.overBudget) app.go({ kind: "watch" }); } });
+  const send = gem({ label: /* copy:button */ "send", cls: "send", pulse: true, onclick: () => { if (performance.now() < armedAt) return; if (!app.overBudget && app.rules.rows.length > 0) app.go({ kind: "watch" }); } });
   // Cut 10 §3: the rest chip says what it means all the time (`rest 20m · send skips`), no tap needed
   const rest = h("span", { class: "rest chip num" });
   // the engine's busy label (`forecast` · `offline`) in its own strip under the header (QA on 50bb162: it drew over `D4 ★0`)
@@ -321,6 +321,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // an empty slot is a plain marker, never a tap target (QA on 952e306: "vault slot '·' tap: nothing happened")
     for (let i = L.vault.length; i < slots; i++) chips.appendChild(h("span", { class: "chip empty", "aria-hidden": "true" }, ""));   // an empty slot is an empty chip (QA on 56f2a1d: `·` read as a chip that says `·`)
     vault.appendChild(chips);
+    // QA 308f045 (qaAC: `home armour` answered `vault full · axe stays` and nothing took the axe out): a full vault offers each item out —
+    // `sell axe`, a second tap salvages it at a bank's share (the gold sheet's `salvage` line), and the slot is free for the preference
+    if (app.engine.sellVault && slots > 0 && L.vault.length >= slots) vault.appendChild(h("div", { class: "chips vault-sell" }, ...L.vault.map((it) =>
+      twoTap(/* copy:button */ `sell ${it.label.replace(/_/g, " ")}`, /* copy:button */ "ok", () => void app.mutate(() => app.engine.sellVault!(it.id), /* copy:callout */ "sold"), { class: "chip mini sell", key: `sell:${it.id}` }))));
     // keep preference for offline exits
     // QA 23ed91f: two rows that cannot be confused — `home` (what an unwatched exit keeps for the vault) and `cage` (what an
     // unanswered cage in the dungeon takes); K set `vault potion` as "what the home vault keeps"
@@ -412,12 +416,18 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   function openStartPicker(): void {
     const L0 = app.lineage;
-    const key = (): string => JSON.stringify([app.rules.rows, (app.rules as { route?: number[] }).route ?? [], app.lineage.start ?? 1, app.lineage.waystones ?? [], app.lineage.best_depth, simKey(app)]);
+    // QA 308f045 (qaAD: `D1 · bank 90% · death 10%` beside the shaft's `bank 92% · death 8%`): the starts on the pass the camp shows
+    const refined = app.lastForecast?.refined === true;
+    const key = (): string => JSON.stringify([app.rules.rows, (app.rules as { route?: number[] }).route ?? [], app.lineage.start ?? 1, app.lineage.waystones ?? [], app.lineage.best_depth, simKey(app), refined]);
     openSheet((close) => {
       const list = h("div", { class: "chips start-opts" });
       const paint = (opts: StartOption[] | null, pending: boolean): void => {
         const cur = app.lineage.start ?? 1;
-        const starts = [...new Set([1, ...(app.lineage.waystones ?? L0.waystones ?? [])])].sort((a, b) => a - b);
+        // QA 308f045 (qaAD: `Waystone D5 lit.` on the burrows route, then the start sheet's `D5 burrows` greyed `other-lane`): which lit
+        // pairs are this set's is read against the set's route as the camp holds it now (`onRoute`), never a lineage read from before the
+        // route edit reached the core
+        const lanes = app.lineage.lanes;
+        const starts = [...new Set([1, ...(lanes?.length ? lanes.filter((x) => onRoute(x)).map((x) => x.depth) : (app.lineage.waystones ?? L0.waystones ?? []))])].sort((a, b) => a - b);
         // Cut 26 §2: a waystone is lit per route prefix — once a fork was seen each start names its lane (`D9 crypt`: the pair lit)
         const laneOn = seenForks(app.lineage).length > 0;   // (no fork seen: every lane is the base order's — nothing to name)
         replace(list, ...starts.map((st) => {
@@ -445,19 +455,25 @@ export function renderCamp(app: App, highlight?: number): Mounted {
             pass ? h("small", { class: "num toll pass" }, /* copy:callout */ " · pass") : toll > 0 ? h("small", { class: `num toll${short ? " warn" : ""}` }, short ? /* copy:callout */ ` · $${toll} short` : ` · $${toll}`) : "");
         }),
         // Cut 26 §2: the (lane, depth) pairs lit on another route (`Lineage.lanes`, not `current`) — shown dim, not a start for this set
-        ...(app.lineage.lanes ?? []).filter((x) => !x.current && x.depth > 1).map((x) => h("span", { class: "chip start-opt other-lane off dim", "data-start": x.depth, "data-biome": x.lane, "aria-disabled": "true" },
+        ...(app.lineage.lanes ?? []).filter((x) => !onRoute(x) && x.depth > 1).map((x) => h("span", { class: "chip start-opt other-lane off dim", "data-start": x.depth, "data-biome": x.lane, "aria-disabled": "true" },
           h("span", { class: "num" }, `D${x.depth}`), h("span", { class: "lane" }, ` ${x.lane}`), x.route?.length ? h("small", { class: "num dim" }, ` · ⑂ ${x.route.map((f) => `D${f}`).join(" ")}`) : "")));
       };
       const k = key(), memo = startMemo?.key === k ? startMemo.opts : null;
       paint(memo, !memo && !!app.engine.startForecast);
-      if (!memo && app.engine.startForecast) void app.engine.startForecast().then((opts) => { startMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); paintStart(); }).catch((e) => { console.warn("startForecast", e); if (list.isConnected) paint(null, false); });
+      if (!memo && app.engine.startForecast) void app.engine.startForecast(refined).then((opts) => { startMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); paintStart(); }).catch((e) => { console.warn("startForecast", e); if (list.isConnected) paint(null, false); });
       return h("div", { class: "sheet-body start-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "start"), list);
     }, { anchor: startTab });
   }
-  /** Cut 26 §2: the lane a start sits in for this set — the core's lit pair (`Lineage.lanes`, `current`), the option's own biome, else the
-   *  base order's table while the set takes every near stair */
+  /** Cut 26 §2: the lane a start sits in for this set — the core's lit pair on this set's route (`onRoute`), the option's own biome, else
+   *  the base order's table while the set takes every near stair */
   function laneOf(st: number, o?: StartOption): string | undefined {
-    return app.lineage.lanes?.find((x) => x.depth === st && x.current)?.lane ?? o?.biome ?? (!routeForks(app.rules).length && !app.lineage.forks?.length ? biomeAt([], st) : undefined);
+    return app.lineage.lanes?.find((x) => x.depth === st && onRoute(x))?.lane ?? o?.biome ?? (!routeForks(app.rules).length && !app.lineage.forks?.length ? biomeAt([], st) : undefined);
+  }
+  /** QA 308f045 (qaAD): a lit (lane, depth) pair is this set's when its route prefix — the far stairs taken above its floor — is the set's
+   *  own prefix to that floor (the core's `Route::prefix`), read off the set as it is now. */
+  function onRoute(x: { depth: number; route?: number[] }): boolean {
+    const mine = routeForks(app.rules).filter((f) => f <= x.depth).sort((a, b) => a - b), theirs = [...(x.route ?? [])].sort((a, b) => a - b);
+    return mine.length === theirs.length && mine.every((f, i) => f === theirs[i]);
   }
   function paintRoute(): void {
     const chips = routeChips(app.rules, app.lineage);
@@ -471,7 +487,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
    *  · burrows D8 34%`), the core's `forkForecast(fork)` (first-pass sims on the camp's seeds, memoised; seconds in wasm) painting `…`
    *  until it lands; the stair the set takes lit. A tap writes the route — an edit of the set (the forecast reprices; `vs sent` reads it). */
   function openRoutePicker(): void {
-    const key = (fork: number): string => JSON.stringify([fork, app.rules.rows, routeForks(app.rules), app.lineage.best_depth, simKey(app), app.lineage.facts?.length]);
+    // QA 308f045 (qaAC: the sheet's `fens D8 12%`, picked, the shaft's `D8 16%`): both stairs on the pass the camp shows (`refined`), so the
+    // stair taken is the shaft's number and a pick lands where the sheet said (the cage sheet's rule)
+    const refined = app.lastForecast?.refined === true;
+    const key = (fork: number): string => JSON.stringify([fork, app.rules.rows, routeForks(app.rules), app.lineage.best_depth, simKey(app), app.lineage.facts?.length, refined]);
     openSheet((close) => {
       const list = h("div", { class: "route-opts" });
       const got = new Map<number, ForkOption[] | null>();   // per fork: the options landed (null: pending or none)
@@ -487,7 +506,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
             const reach = said ?? o?.reach, low = o?.low || lo;
             return h("button", { class: `chip route-opt${cur ? " on" : ""}`, "data-fork": c.depth, "data-far": far ? "1" : "0", "data-biome": biome,
               onclick: () => { close(); if (!cur) setRoute(o?.route ?? withFork(r, c.depth, far, app.lineage)); } },
-              h("span", null, biome), reach !== undefined && at !== undefined ? h("b", { class: `num level${cur ? " cur" : ""}` }, ` D${at} ${share(reach, low)}`) : pending ? h("small", { class: "num dim" }, " …") : "");
+              // QA 308f045 (qaAC: the sheet opened on `burrows … · fens …` numbers that moved ~8 s later): a first-pass number reads as one
+              // (`…` after it, dim) until the camp's refine lands — the forecast's own mark
+              h("span", null, biome), reach !== undefined && at !== undefined ? h("b", { class: `num level${cur ? " cur" : ""}${refined ? "" : " rough"}` }, ` D${at} ${share(reach, low)}`, refined ? "" : h("small", { class: "dim" }, "…")) : pending ? h("small", { class: "num dim" }, " …") : "");
           };
           return h("div", { class: "route-fork", "data-fork": c.depth }, h("span", { class: "num fork-at" }, `⑂ D${c.depth}`), stair(false), stair(true));
         }));
@@ -496,7 +517,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       for (const c of routeChips(app.rules, app.lineage).filter((x) => x.open)) {
         const k = key(c.depth), memo = forkMemo.get(k);
         if (memo) { got.set(c.depth, memo); continue; }
-        if (app.engine.forkForecast) void app.engine.forkForecast(c.depth).then((opts) => { forkMemo.set(k, opts); got.set(c.depth, opts); if (list.isConnected) paint(); })
+        if (app.engine.forkForecast) void app.engine.forkForecast(c.depth, refined).then((opts) => { forkMemo.set(k, opts); got.set(c.depth, opts); if (list.isConnected) paint(); })
           .catch((e) => { console.warn("forkForecast", e); got.set(c.depth, []); if (list.isConnected) paint(); });
       }
       if (forkMemo.size > 32) forkMemo.clear();
@@ -523,12 +544,21 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const short = on && (unpaid || (L.repeat_unpaid === undefined && !!L.repeat_short?.length));
     const dueText = due.length === 1 ? `+${due[0].replace(/_/g, " ")}` : `+${due.length}`;
 
-    return h("span", { class: `repeat-badge num${on ? " on" : ""}${short ? " short" : ""}${due.length ? " due" : ""}`, role: "switch", "aria-checked": on ? "true" : "false", "data-repeat": on ? "1" : "0",
-      onclick: (e: Event) => { e.stopPropagation(); void app.mutate(() => app.engine.setRestock!(!on), /* copy:callout */ "repeat"); } },
+    // QA 308f045 (qaAD: one tap on `repeat on · held ≤$24` → `repeat off`, and four packed supplies refunded, `loadout 5/5` → `1/5`): turning
+    // the repeat off with bought supplies on the shelf unpacks them — the first tap says so (`refund 4`), only the second does it
+    const packed = on ? (L.supplies ?? []).filter((x) => !isFreeSupply(L, x) && !x.found).length : 0;
+    let armed = false;
+    const badge: HTMLElement = h("span", { class: `repeat-badge num${on ? " on" : ""}${short ? " short" : ""}${due.length ? " due" : ""}`, role: "switch", "aria-checked": on ? "true" : "false", "data-repeat": on ? "1" : "0",
+      onclick: (e: Event) => {
+        e.stopPropagation();
+        if (packed > 0 && !armed) { armed = true; badge.classList.add("armed"); replace(badge, /* copy:callout */ `refund ${packed}?`); return; }
+        void app.mutate(() => app.engine.setRestock!(!on), /* copy:callout */ "repeat");
+      } },
       // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay reads so on the tile
       // QA a946e04 (T: "`repeat · $40` reads like a price to pay"; its tap refunded $40): the badge is a switch and reads as one —
       // `repeat on · $40` (the tap turns it off and refunds the re-packed shelf) / `repeat off`
-      on ? (short ? /* copy:callout */ "repeat short" : due.length ? /* copy:callout */ `${dueText} at send` : /* copy:callout */ `repeat on · held ≤$${L.repeat_gold ?? 0}`) : /* copy:callout */ "repeat off");   // QA 524827b (qaAB: `≤$24` beside the shop's `heal potion $26` — the repeat pays the quote it showed, held)   // QA 778fa1b (qaV: `repeat on · $104` read as a per-send cost; nothing was charged when the supplies came back): the most it re-buys
+      on ? (short ? /* copy:callout */ "repeat short" : due.length ? /* copy:callout */ `${dueText} at send` : /* copy:callout */ `repeat on · held ≤$${L.repeat_gold ?? 0}`) : /* copy:callout */ "repeat off");
+    return badge;   // QA 524827b (qaAB: `≤$24` beside the shop's `heal potion $26` — the repeat pays the quote it showed, held)   // QA 778fa1b (qaV: `repeat on · $104` read as a per-send cost; nothing was charged when the supplies came back): the most it re-buys
   }
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
@@ -693,16 +723,18 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   // Cut 4 §1: `send` waits while the set is over budget (the editor shows which row to drop). Cut 6 §4: it says so: `6/5 · drop one`.
   function paintSend(): void {
-    send.disabled = app.overBudget;
-    send.classList.toggle("pulse", !app.overBudget);
-    send.classList.toggle("small", app.overBudget);
+    // QA 308f045 (qaAD: the empty `set 2 · 0` tab tapped, the camp read `death >98% · ~$0` with SEND armed): a set with no rows is no send
+    const empty = app.rules.rows.length === 0;
+    send.disabled = app.overBudget || empty;
+    send.classList.toggle("pulse", !app.overBudget && !empty);
+    send.classList.toggle("small", app.overBudget || empty);
     // Cut 22 (AG, AH: "the watch stayed on `fast 4×` from the earlier run — I hadn't noticed"): the remembered mode is kept (QA on
     // e0f87e7 asked for it) and the gem says it — `send` over a small `fast` — so the next run's pace is never a surprise
     // QA 524827b (qaAA: `SEND / FAST` read as one word pair, or a second button): the pace reads as the watch's own mode — a play mark,
     // lower case, on a pill (`▸ fast`), never a second word of the gem
     const fast = app.watchMode !== "fights";   // Cut 25 §3: `fast` or the plain `1×` under the gem
     send.dataset.mode = app.watchMode;
-    replace(send, app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
+    replace(send, empty ? /* copy:callout */ "no rows" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
       : fast ? h("span", { class: "send-l" }, /* copy:button */ "send", h("small", { class: "send-mode", title: "watch pace" }, /* copy:none */ "▸ ", app.watchMode === "one" ? /* copy:label */ "1×" : /* copy:label */ "fast")) : /* copy:button */ "send");   // Cut 12 §1: own rows
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists

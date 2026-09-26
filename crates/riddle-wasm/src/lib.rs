@@ -245,6 +245,13 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// QA on 308f045: take an item out of the vault — salvaged at a bank's share (the lineage).
+    #[wasm_bindgen(js_name = sellVault)]
+    pub fn sell_vault(&mut self, id: u32) -> Result<String, JsError> {
+        self.inner.sell_vault(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Insure a vault item against loss on death (25% of salvage value ×10).
     pub fn insure(&mut self, id: u32) -> Result<String, JsError> {
         self.inner.insure(id).map_err(err)?;
@@ -323,8 +330,12 @@ impl Game {
     /// `bank`/`bank_delta`, `gold`, `net`/`net_delta`, `pm`). One camp panel per option (seconds
     /// in wasm): call it when the tablet opens, or after the refine; memoised like the forecast.
     #[wasm_bindgen(js_name = startForecast)]
-    pub fn start_forecast(&self) -> String {
-        js(&self.inner.start_forecast())
+    pub fn start_forecast(&self, refined: Option<bool>) -> String {
+        // QA on 308f045: `refined` — the camp's pass (the cage tablet's rule); absent, the camp's own
+        match refined {
+            Some(r) => js(&self.inner.start_forecast_refined(r)),
+            None => js(&self.inner.start_forecast()),
+        }
     }
 
     /// Cut 26 §2: the fork chip's option tablet — both stairs of the fork at `fork` (5, 9, 14, 19,
@@ -333,8 +344,12 @@ impl Game {
     /// `gold`, `death`, `delta`, `pm`). One camp panel (the other stair's); memoised. A route
     /// edit itself is `setRules` with the set's `route` (fork depths of its far stairs).
     #[wasm_bindgen(js_name = forkForecast)]
-    pub fn fork_forecast(&self, fork: u32) -> String {
-        js(&self.inner.fork_forecast(fork))
+    pub fn fork_forecast(&self, fork: u32, refined: Option<bool>) -> String {
+        // QA on 308f045: `refined` — the camp's pass (the cage tablet's rule); absent, the camp's own
+        match refined {
+            Some(r) => js(&self.inner.fork_forecast_refined(fork, r)),
+            None => js(&self.inner.fork_forecast(fork)),
+        }
     }
 
     /// Cut 22 §3: the edit's paired move — the active set's camp panel minus `prev`'s (JSON

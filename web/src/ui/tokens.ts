@@ -89,7 +89,8 @@ export function lostLabel(k: string): string {
   const i = k.indexOf(" · ");
   if (i >= 0) return /* copy:callout */ `${k.slice(0, i).replace(/_/g, " ")} ${k.slice(i + 3)} fell`;
   const w = k.replace(/_/g, " ").trim().split(/\s+/).pop() ?? k;
-  return /* copy:callout */ `ally ${w} fell`;
+  // QA 308f045 (qaAC: `ally hound fell` — "no hound shown anywhere before"): an unnamed ally is a summon (the scroll's hound) and says so
+  return /* copy:callout */ `summoned ${w} fell`;
 }
 /** Cut 12 §6: a supply the camp gave rather than sold — the wire's `free`, else the kennel's leash (a lineage that has never
  *  tamed carries one free leash; the core sends no flag yet). */

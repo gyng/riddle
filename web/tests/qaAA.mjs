@@ -69,7 +69,7 @@ try {
     await deathWith(ps, filled);
     const before = await tablets();
     check(before[0]?.top && /drink/.test(before[0].row ?? ""), `before the landing the verdict's lead is lit (${before.map((t) => t.row).join(" | ")})`);
-    check(/· tied$/.test(await head()), `three alike read \`tied\` ("${await head()}")`);
+    check(/· patches tie$/.test(await head()), `three alike read \`patches tie\` ("${await head()}")`);
     await sleep(700);
     const after = await tablets();
     const lead = after[0], last = after[after.length - 1];
@@ -84,7 +84,7 @@ try {
     const filled = ps.map((p) => ({ ...p, camp_pending: false, forecast_depth: 6, forecast_pm: 0.1, whole: w(0.2, true) }));
     await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await waitFor((s) => s?.screen === "camp", "camp");
     await deathWith(ps, filled);
-    check(!/tied/.test(await head()), `12/12 over 10/12 is no tie ("${await head()}")`);
+    check(!/tie/.test(await head()), `12/12 over 10/12 is no tie ("${await head()}")`);
     await sleep(700);
     const t = await tablets();
     check(!t.some((x) => x.top) && /edit/i.test(await gemText()), `every tablet harms: none lit, the gem reads edit ("${await gemText()}")`);
@@ -96,7 +96,7 @@ try {
                 { row: ret, insert_at: 0, survive: 1, forecast_delta: 0, camp_pending: true, exits: true }];
     await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await waitFor((s) => s?.screen === "camp", "camp");
     await deathWith(ps, ps.map((p) => ({ ...p, camp_pending: false, whole: w(0, false) })));
-    check(/· tied$/.test(await head()), `#1 and #3 both 12/12 read \`tied\` ("${await head()}")`);
+    check(/· patches tie$/.test(await head()), `#1 and #3 both 12/12 read \`patches tie\` ("${await head()}")`);
   }
 
   // ---- vs sent after a lineage move: the shown numbers; an unnamed change clears the move line

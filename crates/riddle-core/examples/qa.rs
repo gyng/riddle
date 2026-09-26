@@ -328,6 +328,14 @@ fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
     // a gap (row, order) most of whose unpatched replays survive says it leans to the dice, and only it does.
     let leans = matches!(d.verdict.as_str(), "gap" | "row" | "order") && d.baseline > riddle_core::trace::STAMP_BASE + 1e-9;
     t.check("a stamp never contradicts its replay counts (a gap most replays survive leans `dice`)", (d.lean.as_deref() == Some("dice")) == leans, || format!("seed {seed} run {}: {} · unpatched {:.0}/{} · lean {:?}", d.run_id, d.verdict, d.baseline * d.replays.max(1) as f64, d.replays, d.lean));
+    // QA on 308f045 (qaAC: `← never met` over `R1 attack boss · not in view`, R1 having fired four times on that floor): a
+    // chain link is its row's newest reason — never one the row outlived (fired after it, or gave another reason since).
+    for b in d.chain.iter().flatten() {
+        let turns = &d.trace.turns;
+        let src = turns.iter().enumerate().rev().find_map(|(i, x)| x.rows.iter().flatten().find(|w| w.because.as_ref().is_some_and(|c| c.text == b.text)).map(|w| (i, w.row)));
+        let ok = src.is_some_and(|(i, row)| turns[i + 1..].iter().all(|x| x.row != row as i32 && x.rows.iter().flatten().filter(|w| w.row == row).all(|w| w.because.as_ref().is_some_and(|c| c.text == b.text))));
+        t.check("a death's chain link is its row's newest reason (never one the row outlived)", ok, || format!("seed {seed} run {}: `{}` · {src:?}", d.run_id, b.text));
+    }
     // Cut 26: a `route` verdict names its fork, and only it does.
     t.check("a route verdict names its fork (and only it)", (d.verdict == "route") == d.route_cause.is_some(), || format!("seed {seed} run {}: {} · {:?}", d.run_id, d.verdict, d.route_cause));
     // Cut 26 §6 (AP: `reach D5 −76`): a patch's whole-run reach reads from→to, and they agree with its move.
@@ -529,6 +537,19 @@ fn check_shadowed_on(t: &mut Tally, g: &Game, seed: u64) {
 /// a bare `died` only when the setup's threat is the killer.
 fn check_reel(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::ReturnReport) {
     use riddle_core::sifter::{cause_key, cause_phrase};
+    // QA on 308f045 (qaAC: one run read `1 STALLED` and `1 DRIVEN` beside `1 RUNS`): one outcome per run — the tiles
+    // (banked, returned, deaths) sum to the runs, and the stalls and drive-offs are returns counted apart, never both
+    // for one run.
+    if !r.sampled {
+        let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
+        t.check("a report's outcome tiles sum to its runs (stalled + driven ≤ returned)", r.banked + r.returned + deaths == r.runs && r.stalled + r.driven <= r.returned, || format!("seed {seed}: runs {} · banked {} returned {} deaths {deaths} · stalled {} driven {}", r.runs, r.banked, r.returned, r.stalled, r.driven));
+    }
+    // QA on 308f045 (qaAC: the reel's `Returned with $0.` under `0 RETURNED · 1 DRIVEN`): a drive-off's or a stall's
+    // story never says it returned.
+    for x in r.exits.iter().filter(|x| x.driven.is_some() || x.text.starts_with("stalled")) {
+        let notes: Vec<&String> = r.reel.iter().filter(|h| h.run_id == x.run_id).map(|h| &h.text).collect();
+        t.check("a drive-off's or a stall's reel never says `Returned with`", notes.iter().all(|n| !n.starts_with("Returned with")), || format!("seed {seed} run {}: {notes:?}", x.run_id));
+    }
     for h in &r.reel {
         let Some(arc) = &h.arc else { continue };
         if !arc.resolution.starts_with("died") {
@@ -1358,7 +1379,8 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
             // own — unless every patch shown does (the gem then reads `edit`).
             let advice: Vec<&riddle_core::wire::Patch> = ps.iter().filter(|p| !p.below_bar).collect();
             let lead = advice.first();
-            let harms = |p: &riddle_core::wire::Patch| p.whole.as_ref().is_some_and(|w| (w.death > 1e-9 && w.death > w.death_pm + 1e-9) || (w.reach < -1e-9 && w.reach < -w.reach_pm - 1e-9));
+            // (QA on 308f045: an exit's reach is its price — `return early · D6 56→20%` — not a harm; only its death share can harm)
+            let harms = |p: &riddle_core::wire::Patch| p.whole.as_ref().is_some_and(|w| (w.death > 1e-9 && w.death > w.death_pm + 1e-9) || (!riddle_core::trace::patch_exits(p) && w.reach < -1e-9 && w.reach < -w.reach_pm - 1e-9));
             let ok = ps.iter().all(|p| p.whole.as_ref().is_some_and(|w| w.harms == harms(p))) && lead.is_none_or(|p| !harms(p) || advice.iter().all(|q| harms(q)));
             t.check("the gem's default patch never harms whole runs (death > ±, reach < −±)", ok, || format!("seed {seed} run {id}: {:?}", ps.iter().map(|p| (p.row.describe(), p.below_bar, p.whole.clone())).collect::<Vec<_>>()));
         }
@@ -1405,6 +1427,19 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
                     _ => false,
                 };
                 t.check("a patch's reach == the camp forecast's move once applied (± its bar)", ok, || format!("seed {seed} run {id}: {} at R{} · reach {:+.3} at D{} · camp {:?} → {:?}", p.row.describe(), p.insert_at + 1, p.forecast_delta, p.forecast_depth, bar(&before), bar(&after)));
+                // QA on 308f045 (qaAC: `survives 12/12 · reach D9 ≈ ±1`, applied: the camp's `vs sent · D6 −21 · death >99%`): the
+                // patch's whole-run move is the camp's `vs sent` once applied — the same floor the line leads with (the frontier when
+                // it moves, else the floor that moves most), the same move and ±, and the same death move.
+                if let Some(w) = p.whole.as_ref().filter(|_| p.buys.is_none() && p.insert_at >= 0) {
+                    let vs = g.forecast_vs(&rules);
+                    let (start, front) = (riddle_core::forecast::sim_start(&g), g.lineage.best_depth + 1);
+                    let pts = |m: &riddle_core::wire::VsDepth| ((m.base + m.delta) * 100.0).round() as i64 - (m.base * 100.0).round() as i64;
+                    let moved: Vec<&riddle_core::wire::VsDepth> = vs.depths.iter().filter(|x| x.depth >= start.min(front) && x.depth <= front && pts(x) != 0 && x.delta.abs() > x.pm).collect();
+                    let head = moved.iter().find(|x| x.depth == front).or_else(|| moved.iter().max_by_key(|x| (pts(x).abs(), x.depth))).map(|x| x.depth);
+                    let at = vs.depths.iter().find(|x| x.depth == w.depth);
+                    let ok = head.is_none_or(|h| h == w.depth) && at.is_some_and(|x| (x.delta - w.reach).abs() < 1e-9 && (x.pm - w.reach_pm).abs() < 1e-9) && (vs.death.delta - w.death).abs() < 1e-9 && p.forecast_depth == w.depth;
+                    t.check("a patch's whole-run move is the camp's `vs sent` once applied (its floor, move, ± and death)", ok, || format!("seed {seed} run {id}: {} · whole D{} {:+.3}±{:.3} death {:+.3} · vs head {head:?} at {:?} death {:+.3}", p.row.describe(), w.depth, w.reach, w.reach_pm, w.death, at.map(|x| (x.delta, x.pm)), vs.death.delta));
+                }
             }
         }
     }

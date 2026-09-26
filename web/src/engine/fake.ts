@@ -1553,6 +1553,12 @@ export class FakeEngine implements Engine {
     this.gold(-price, `insure ${it.label}`); L.insured = [...(L.insured ?? []), id]; return this.lineage();
   }
 
+  /** QA 308f045 stand-in: an item out of the vault, salvaged at a bank's share (the client table ÷ 4, the core's divisor). */
+  sellVault(id: number): Lineage {
+    const L = this.s.lineage; const i = L.vault.findIndex((v) => v.id === id); if (i < 0) return this.lineage();
+    const [it] = L.vault.splice(i, 1); L.insured = (L.insured ?? []).filter((x) => x !== id);
+    const coins = Math.floor(salvageOf(it.kind) / 4); if (coins > 0) this.gold(coins, `salvage ${it.label}`); return this.lineage();
+  }
   runOfflineQuick(elapsedS: number): ReturnReport { const r = this.runOffline(elapsedS); return { ...r, worst_death_id: r.worst_death?.run_id, worst_death: undefined }; }
   runOffline(elapsedS: number): ReturnReport {
     const L = this.s.lineage;

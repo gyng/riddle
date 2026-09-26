@@ -43,12 +43,12 @@ export function exitDepth(app: App, x: ExitLine, newer: ExitLine[] = []): number
 /** QA 524827b (qaAB: the absence's two deaths opened only a TRACE — no verdict word, no patches): a death line whose record the core
  *  keeps (`engine.death(run_id)`, the last few deaths) carries a `verdict` chip — the death screen for that run, as the chronicle opens
  *  a kept death; a line without a record (older than the kept few) the core refuses, and the chip says nothing more. */
-function verdictChip(app: App, x: ExitLine, label: string): HTMLElement | "" {
+function verdictChip(app: App, x: ExitLine, label: string, from?: { report: ReturnReport }): HTMLElement | "" {
   // Cut 26 §6 (AP: `driven $0 · $297 lost` with no verdict): a drive-off's line opens its verdict too — from the line itself
-  if (x.driven) return h("button", { class: "chip mini verdict-chip", onclick: () => { closeAllSheets(); app.go({ kind: "death", death: drivenDeath(x, x.run_id ?? 0), kept: true }); } }, /* copy:button */ "verdict");
+  if (x.driven) return h("button", { class: "chip mini verdict-chip", onclick: () => { closeAllSheets(); app.go({ kind: "death", death: drivenDeath(x, x.run_id ?? 0), kept: true, from }); } }, /* copy:button */ "verdict");
   if (!x.run_id || !/\bdied\b/.test(label)) return "";
   const btn: HTMLButtonElement = h("button", { class: "chip mini verdict-chip", onclick: () => {
-    void app.busy(/* copy:label */ "verdict", () => app.engine.death(x.run_id!)).then((death) => { closeAllSheets(); app.go({ kind: "death", death, kept: true }); })
+    void app.busy(/* copy:label */ "verdict", () => app.engine.death(x.run_id!)).then((death) => { closeAllSheets(); app.go({ kind: "death", death, kept: true, from }); })
       .catch((e) => { btn.disabled = true; console.warn("offline death", e); });
   } }, /* copy:button */ "verdict");
   return btn;
@@ -166,7 +166,10 @@ export function mergeFinds(ns: News[], most = 3): News[] {
     const x = { ...n }; out.push(x); if (m) { lead.set(`${n.k}|${m[1]}`, x); kinds.set(x, { head: m[1], sep: m[2], items: [m[3]] }); }
   }
   // a night's finds stay one short line: the first `most`, then `+N`
-  for (const [x, k] of kinds) x.text = `${k.head}${k.sep}${k.items.slice(0, most).join(", ")}${k.items.length > most ? ` +${k.items.length - most}` : ""}`;
+  // QA 308f045 (qaAC: `avenged Theth, Morix, Grim +1` with two avenged lines in view — "what the +N counts"): the names avenged are
+  // named, all of them up to five (a name is short; the lines that carry them may sit under `· N earlier`); past that `+N more`
+  for (const [x, k] of kinds) { const cap = k.head === "avenged" ? Math.max(most, 5) : most;
+    x.text = `${k.head}${k.sep}${k.items.slice(0, cap).join(", ")}${k.items.length > cap ? (k.head === "avenged" ? /* copy:callout */ ` +${k.items.length - cap} more` : ` +${k.items.length - cap}`) : ""}`; }
   return out;
 }
 /** Cut 24 §2: an absence's exit line leads with its run's first news (`record: D10 · returned $48 · …`); a watched run's report already
@@ -321,7 +324,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...newsLead(x, r.runs), ...ledgerText(x, named)),
       // QA 912e135 (qaW, qaX: a lone `·` before every `D7 · died · trace`): the chip is its own flex column (Cut 20) — no separator glyph
       traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))),
-      verdictChip(app, x, traceLabel(app, x, shown.slice(i + 1))))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
+      verdictChip(app, x, traceLabel(app, x, shown.slice(i + 1)), { report: r }))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
       hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} earlier`) : "",
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
     // QA 524827b (qaAA: "`grudge: Zelul` (older) below `avenged Zelul` (newer) — I read the grudge as coming back"): the order is named
@@ -363,7 +366,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
         h("span", { class: "chips-inline" }, [`${d.title}${drivenBy(d.boss) > 1 ? ` ×${drivenBy(d.boss)}` : ""}`, d.verdict === "no counter" ? /* copy:callout */ "counter unwritten" : d.verdict, d.defence].filter(Boolean).join(" · ")),
         h("small", { class: "try" }, have >= 0 ? /* copy:callout */ `at R${have + 1}` : /* copy:callout */ `try: ${d.counter}`),
         // Cut 26 §6 (AP): the drive-off opens its verdict, as a death's line does (here when no exit line of his carries its own chip)
-        allExits.some((y) => y.driven?.boss === d.boss) ? "" : h("span", { class: "chip mini verdict-chip", role: "button", onclick: (e: Event) => { e.stopPropagation(); closeAllSheets(); const x = allExits.find((y) => y.driven?.boss === d.boss && (d.run_id === undefined || y.run_id === d.run_id)); app.go({ kind: "death", death: drivenDeath(x ?? d, d.run_id ?? x?.run_id ?? 0), kept: true }); } }, /* copy:button */ "verdict"));
+        allExits.some((y) => y.driven?.boss === d.boss) ? "" : h("span", { class: "chip mini verdict-chip", role: "button", onclick: (e: Event) => { e.stopPropagation(); closeAllSheets(); const x = allExits.find((y) => y.driven?.boss === d.boss && (d.run_id === undefined || y.run_id === d.run_id)); app.go({ kind: "death", death: drivenDeath(x ?? d, d.run_id ?? x?.run_id ?? 0), kept: true, from: { report: r } }); } }, /* copy:button */ "verdict"));
     })) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
@@ -444,7 +447,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       // QA e75ec29 (Q: "`open` opens ♟5's death, not the newest; the label names nothing"): it is the absence's worst death — it says so
       // QA 912e135 (qaW: "`worst` — I read it as the shallowest death"): the tile says what it ranks by — the deepest death (a stall at
       // its floor yields to it)
-      r.worst_death ? cmdTile({ id: "open", label: /* copy:button */ "deepest", icon: "trace", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [] }) }) : null,
+      r.worst_death ? cmdTile({ id: "open", label: /* copy:button */ "deepest", icon: "trace", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [], from: { report: r } }) }) : null,
       cmdTile({ id: "gold", label: /* copy:button */ "gold", icon: "gold", onclick: () => openGoldSheet(app) }),
       revealed(app).has("heirs") ? cmdTile({ id: "ledger", label: /* copy:button */ "ledger", icon: "ledger", onclick: () => openLedger(app) }) : null,
     ],
@@ -454,7 +457,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const sheet = h("div", { class: "parchment report-sheet" },
     newsBlock(r, named), tiles, goldLine(), startShort, bounty, picked, exitLines, driven, rested, stall,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
-    section(/* copy:label */ "learned", factChips(r.learned.filter((f) => !/^bones:\d+$/.test(f)), L.counters ?? [])),
+    section(/* copy:label */ "learned", factChips(r.learned.filter((f) => !/^bones:\d+$/.test(f)), L.counters ?? [], (app.vocab?.locked ?? []).find((l) => l.cond.k === "alert>=" && /^◆\d+/.test(l.needs))?.needs)),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),
     // Cut 10 §3: a companion `◯ jackal · Ashar fell` (the name small); Cut 12 §6: a summoned ally `ally hound fell`
@@ -523,7 +526,7 @@ const SEEN_FACTS = ["den", "lock", "captive", "nest", "shrine", "stray", "hunger
 /** Facts grouped for reading: `foe:x`, `foe:x:t1`, `foe:x:t2` → one chip "x · t1 · t2"; `item:f=k` → "k (f)";
  *  `biome:x` → "x"; `boss:x:counter[=row]` → "x counter: attack boss" (Cut 6 §5: the lineage's counter text names the row);
  *  others verbatim. */
-function factChips(facts: string[], counters: Counter[] = []): HTMLElement | null {
+function factChips(facts: string[], counters: Counter[] = [], alertLock?: string): HTMLElement | null {
   const nice = (x: string): string => x.replace(/_/g, " ");
   const foes = new Map<string, string[]>();
   const rest: HTMLElement[] = [], itemChips: HTMLElement[] = [];
@@ -547,7 +550,9 @@ function factChips(facts: string[], counters: Counter[] = []): HTMLElement | nul
     // QA 0c6e126 (qaY: `alert rises · alert ≥ open`, `lock`, `shrine` on their own lines, tied to nothing): each says what it opens — the
     // `alert ≥` card for sale; a floor event seen, the `on see` condition that names it
     // QA 524827b (qaAA: `unlocks alert ≥` read as a verb with no object): the fact, then the cond it makes writable (`cond alert ≥`)
-    if (f === "alert:rising") { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ "alert rises", h("small", null, /* copy:callout */ " · cond alert ≥"))); continue; }
+    // QA 308f045 (qaAC: `alert rises · cond alert ≥`, and the cond picker still read `⊘ alert ≥ ◆2`): while the cond is still for sale the
+    // fact says its gate (`cond alert ≥ · ◆2`), the picker's own words
+    if (f === "alert:rising") { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ "alert rises", h("small", null, /* copy:callout */ " · cond alert ≥", alertLock ? h("span", { class: "gate" }, ` · ${alertLock}`) : ""))); continue; }
     if (SEEN_FACTS.includes(f)) { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ `${nice(f)} seen`, h("small", null, /* copy:callout */ ` · on see ${nice(f)}`))); continue; }
     const ct = /^counter:([^>]+)>(.+)$/.exec(f);
     // QA 0c6e126 (qaZ: `pack beats lone` with no source): a companion's counter — it says whose (`· allies`)

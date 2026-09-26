@@ -4,10 +4,10 @@
 //       stairs priced for the set (`routeForecast()`: `burrows D8 61%` · `fens D8 34%`), the set's stair lit; a tap writes the route (a set
 //       edit: the engine gets `route: [5]`, the forecast reprices, the chips read `⑂ D5 fens`); a set imported with a route keeps it
 //       (export round-trip); the `in: <biome>` cond in the picker (open ones selectable, locked ones `⊘` with their gate); the shaft names
-//       each band's lane (`D5 fens`) and hangs the untaken lane as a frontier (`burrows · D5 · ?`); the start sheet lists (lane, depth)
+//       each band's lane (`D5 fens`) and hangs the untaken lane as a frontier (`burrows · D5 · untried`); the start sheet lists (lane, depth)
 //       pairs (`D9 crypt`); the report names each band's lane (`D5–8 · the Fens`); the renderer shows a fork floor's two stairs, the
 //       route's stair lit (`Snapshot.stairs`); the watch's `TWO STAIRS` on the fork fact
-//   §6  a `gap` whose unpatched replays mostly survive reads `dice-leaning` beside the stamp (`Death.lean`); a drive-off opens its verdict
+//   §6  a `gap` whose unpatched replays mostly survive reads its count beside the stamp (`10/12 live unpatched`) (`Death.lean`); a drive-off opens its verdict
 //       (the seal `driven`, the counter tablet, the gem writes it; the report's drive-off line has `verdict`); a patch's reach is from→to
 //       (`reach D5 80→4%`), never a signed delta; a locked cond in a row is marked (`⊘`, `locked · ◆2`); the `repeat` plate covers no
 //       button (the forge's second tap in place: cut25.mjs)
@@ -71,7 +71,7 @@ try {
     await page.locator(".camp .route-line").click({ timeout: 5000 });
     await page.waitForFunction(() => [...document.querySelectorAll(".sheet-wrap .route-opt")].every((b) => /%/.test(b.textContent)), null, { timeout: 15_000 }).catch(() => {});
     const sheet = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .route-opt")].map((b) => ({ t: b.textContent.replace(/\s+/g, " ").trim(), on: b.classList.contains("on") })));
-    check(sheet.length === 2 && /^burrows D5 <?\d+%$/.test(sheet[0].t) && sheet[0].on && /^fens D5 <?\d+%$/.test(sheet[1].t) && !sheet[1].on,
+    check(sheet.length === 2 && /^burrows D5 <?\d+%…?$/.test(sheet[0].t) && sheet[0].on && /^fens D5 <?\d+%…?$/.test(sheet[1].t) && !sheet[1].on,   // (`…`: a first-pass number, QA 308f045)
       `the fork tablet prices both stairs for this set, the set's lit (${sheet.map((s) => `${s.t}${s.on ? " ●" : ""}`).join(" · ")})`);
     await shot("cut26-fork-tablet");
     const seq0 = await page.evaluate(() => window.__riddle.forecastSeq);
@@ -104,7 +104,7 @@ try {
     await shot("cut26-shaft");
     await page.evaluate(() => { const r = window.__riddle; delete r.rules.route; r.rulesChanged(); r.lineage = { ...r.lineage, facts: r.lineage.facts.filter((f) => f !== "biome:fens") }; r.go({ kind: "camp" }); }); await sleep(700);
     const f2 = await txt(".shaft .notch[data-d='4'] .frontier");
-    check(f2 === "fens · D4 · ?", `on the near stair the far lane, never entered, is the frontier ("${f2}")`);
+    check(f2 === "fens · D4 · untried", `on the near stair the far lane, never entered, is the frontier ("${f2}")`);
   }
 
   // ---- §2: the start sheet lists lit (lane, depth) pairs — this route's selectable, another route's dim
@@ -161,7 +161,7 @@ try {
     await page.evaluate((d) => window.__riddle.go({ kind: "death", death: d }), death(10 / 12));
     await waitFor((x) => x?.screen === "death", "the lucky gap"); await sleep(300);
     const a = await page.evaluate(() => ({ seal: document.querySelector(".death-line .verdict")?.textContent, lean: document.querySelector(".death-line .lean")?.textContent, surv: document.querySelector("button.patch .surv")?.textContent, reach: document.querySelector("button.patch .delta")?.textContent.replace(/\s+/g, " ").trim() }));
-    check(a.seal === "gap" && a.lean === "dice-leaning" && /unpatched 10\/12/.test(a.surv ?? ""), `a gap 10 of 12 unpatched replays survive reads \`${a.seal} · ${a.lean}\` beside "${a.surv}" (the stamp and its counts agree)`);
+    check(a.seal === "gap" && a.lean === "10/12 live unpatched" && /unpatched 10\/12/.test(a.surv ?? ""), `a gap 10 of 12 unpatched replays survive reads \`${a.seal} · ${a.lean}\` beside "${a.surv}" (the stamp and its counts agree)`);
     check(a.reach === "reach D5 80→4% ±3", `a patch's reach reads from→to ("${a.reach}"; AP: \`reach D5 −76\`)`);
     await shot("cut26-dice-lean");
     await page.evaluate((d) => window.__riddle.go({ kind: "death", death: d }), death(2 / 12)); await sleep(300);
@@ -170,7 +170,7 @@ try {
     // the core's own `lean` stands whatever the counts
     await page.evaluate((d) => window.__riddle.go({ kind: "death", death: { ...d, lean: "dice" } }), death(5 / 12)); await sleep(300);
     const c = await txt(".death-line .lean");
-    check(c === "dice-leaning", `the core's \`lean: dice\` reads beside the stamp ("${c}")`);
+    check(/live unpatched$/.test(c ?? ""), `the core's \`lean: dice\` reads beside the stamp ("${c}")`);
   }
 
   // ---- Cut 26 (core, risks): a `route` death names the stair (`D5 fens`), its lead tablet takes the other (`take burrows`)

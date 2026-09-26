@@ -92,7 +92,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         verdict: if stall { "stall" } else { "dice" }.into(),
         baseline: 0.0,
         replays: REPLAYS,
-        trace: Trace { turns, provenance, blow: if stall { None } else { crate::engine::death_blow(run) }, blows: if stall { Vec::new() } else { crate::engine::death_blows(run) }, hp_lost: if stall { Vec::new() } else { crate::engine::hp_lost(run) } },
+        trace: Trace { turns, provenance, blow: if stall { None } else { crate::engine::death_blow(run) }, blows: if stall { Vec::new() } else { crate::engine::death_blows(run) }, hp_lost: if stall { Vec::new() } else { crate::engine::hp_lost(run) }, hp_healed: if stall { 0 } else { crate::engine::hp_healed(run) } },
         patches: Vec::new(),
         morgue: morgue(game, run, &rules, stall),
         line: None,
@@ -160,7 +160,7 @@ pub const NOTE_WINDOW: u32 = 600;
 
 /// The notes the screen already says (the headline's own), or that no death is about.
 fn note_noise(n: &str) -> bool {
-    n.ends_with(" saved him.") || n.starts_with("Slain by") || n.starts_with("Down to ") || n.starts_with("Returned with") || n.starts_with("Lost the thread") || n.ends_with(": studied.") || n.starts_with("Met a ") || n.starts_with("Met an ") || n.starts_with("Learned")
+    n.ends_with(" saved him.") || n.starts_with("Slain by") || n.starts_with("Down to ") || n.starts_with("Returned with") || n.starts_with("Came home with") || n.starts_with("Lost the thread") || n.ends_with(": studied.") || n.starts_with("Met a ") || n.starts_with("Met an ") || n.starts_with("Learned")
 }
 
 /// Cut 13 §4 / QA on a946e04 (qaS: an archer death's notes read `Goblin Captain: summoner.`
@@ -312,16 +312,36 @@ pub fn own_cause(run: &Run) -> Option<String> {
 /// Cut 11 §2: the chain — the `because` entries of the killing turn's rows, in row order,
 /// deduped by text. Cut 21 §3: then the earlier turns' (newest first), so a row that did not
 /// fire over the last ticks is explained on each (AF: `hp < 30% → bank` at 9/42 for six ticks).
+/// QA on 308f045 (qaAC: `← never met` over `R1 attack boss · not in view`, R1 having fired four
+/// times on that floor): a row's reason is its newest — an older one the row outlived (it fired
+/// after it, or said something else since) is no cause of this death and stays off the chain.
 fn chain_of(turns: &[crate::wire::TraceTurn]) -> Option<Vec<Because>> {
-    let mut out: Vec<Because> = Vec::new();
+    let out: Vec<Because> = chain_links(turns).into_iter().map(|(_, b)| b).collect();
+    (!out.is_empty()).then_some(out)
+}
+
+/// The chain's links with the row each explains (`chain_of`): per row its newest reason only,
+/// and none once the row fired after it; deduped by text, newest turn first.
+pub fn chain_links(turns: &[crate::wire::TraceTurn]) -> Vec<(usize, Because)> {
+    let mut out: Vec<(usize, Because)> = Vec::new();
+    let mut seen: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
     for turn in turns.iter().rev() {
-        for b in turn.rows.iter().flatten().filter_map(|w| w.because.as_ref()) {
-            if !out.iter().any(|o| o.text == b.text) {
-                out.push(b.clone());
+        let fired = (turn.row >= 0).then_some(turn.row as usize);
+        for w in turn.rows.iter().flatten() {
+            if !seen.insert(w.row) {
+                continue;
+            }
+            if let Some(b) = &w.because {
+                if !out.iter().any(|(_, o)| o.text == b.text) {
+                    out.push((w.row, b.clone()));
+                }
             }
         }
+        if let Some(r) = fired {
+            seen.insert(r);
+        }
     }
-    (!out.is_empty()).then_some(out)
+    out
 }
 
 /// Cut 11 §2: the killing turn's root when a row above the fired one was emptied by a theft
@@ -872,7 +892,7 @@ fn insert_positions(rules: &RuleSet, trace: &Trace) -> Vec<usize> {
 
 /// QA on 524827b: a safety row — a heal drink or an exit whose conds are an hp threshold alone
 /// (`hp < 30% → drink heal`, `hp < 40% → return`).
-fn is_safety(r: &Row) -> bool {
+pub fn is_safety(r: &Row) -> bool {
     let verb = matches!(r.verb.v.as_str(), "return" | "bank") || (r.verb.v == "drink" && r.verb.a.as_deref() == Some("heal"));
     verb && !r.conds.is_empty() && r.conds.iter().all(|c| c.k == "hp<")
 }
@@ -2515,8 +2535,12 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
     let mut unlocked = g.sim_clone();
     unlock_base(&mut unlocked, rec);
     let base_panel = crate::forecast::camp_panel(&g, &rec.rules, crate::forecast::FORECAST_SIMS);
+    let mut panels: Vec<Vec<crate::forecast::SimResult>> = Vec::with_capacity(rec.death.patches.len());
     for p in rec.death.patches.iter_mut() {
-        let rules = patched_rules(&rec.rules, p, max_rows);
+        // QA on 308f045 (qaAD: `retreat · drops R3 · survives 12/12`, applied: `vs sent · bank −30 · death +29`): an insert onto a
+        // full set is measured as the tap applies it — its `drops` row out (`offline::apply_patch`, the client's `applyPatchOver`),
+        // never over the cap with every row kept
+        let rules = if p.drops.is_some() && p.insert_at >= 0 { crate::offline::apply_patch(&rec.rules, p, rec.vocab.max_rows) } else { patched_rules(&rec.rules, p, max_rows) };
         // QA on 0c6e126: a patch offered with its purchase is measured with it bought.
         let bought = with_buy(&g, p);
         let at = if p.insert_at < 0 { &unlocked } else { bought.as_ref().unwrap_or(&g) };
@@ -2526,7 +2550,25 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
         p.forecast_pm = crate::forecast::half_width(r, n as usize);
         p.camp_pending = false;
         // QA on 524827b: the whole run's move on the same panel (a cache hit: `camp_reach`'s).
-        p.whole = Some(whole_move(&base_panel, &crate::forecast::camp_panel(at, &rules, crate::forecast::FORECAST_SIMS), depth, is_gamble(&p.row) && !p.remove));
+        panels.push(crate::forecast::camp_panel(at, &rules, crate::forecast::FORECAST_SIMS));
+    }
+    // QA on 308f045 (qaAC: `survives 12/12 · reach D9 ≈ ±1`, applied: the camp's `vs sent · D6 −21`): the bar the move is read at
+    // is the camp's `vs sent` head — the frontier when it moves, else the depth that moves most — so the patch and the camp after
+    // the tap name the same floor and the same number: paired over each patched panel's sims, the sent set's panel run on to the
+    // longest of them once (as `forecast_vs` runs it on) — one base for every patch (qaAD: `D6 42→92%` beside `40→30%`).
+    let longest = panels.iter().map(Vec::len).max().unwrap_or(0);
+    let base_n = if base_panel.len() < longest {
+        let tag = crate::forecast::forecast_tag(&g, g.lineage.best_depth + 1);
+        crate::forecast::simulate_budget_from(&g, &rec.rules, longest as u32, tag, u32::MAX, u64::MAX, base_panel.clone())
+    } else {
+        base_panel.clone()
+    };
+    for (p, patched) in rec.death.patches.iter_mut().zip(panels.iter()) {
+        let w = whole_move_on(&base_n, patched, crate::forecast::sim_start(&g), depth, is_gamble(&p.row) && !p.remove, patch_exits(p));
+        p.forecast_depth = w.depth;
+        p.forecast_delta = w.reach;
+        p.forecast_pm = w.reach_pm;
+        p.whole = Some(w);
     }
     // Cut 19 §4: the camp's numbers rank the list again (survival first, reach within the
     // band) — the pinned heads keep their places.
@@ -2548,18 +2590,45 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
 /// runs too — `base` and `patched` are the camp's panels before and after it (the same
 /// seeds), `depth` the bar its reach is read at. Paired over the sims both ran.
 pub fn whole_move(base: &[crate::forecast::SimResult], patched: &[crate::forecast::SimResult], depth: u32, gamble: bool) -> crate::wire::PatchWhole {
+    whole_move_on(base, patched, depth, depth, gamble, false)
+}
+
+/// QA on 308f045 (qaAC: a patch read `survives 12/12 · reach D9 ≈ ±1` — the frontier, where no
+/// sim of either set arrived — and applied, the camp read `vs sent · D6 −21 · death >99%`): the
+/// reach is read where the camp's `vs sent` line reads it (`vsLine`'s head) — over the floors
+/// `start..=frontier`, the frontier when its move clears its ±, else the floor whose move clears
+/// its ± by the most points (the deeper on a tie); with no move, the frontier while a sim of
+/// either set still reaches it (`WALL_REACH`), else the deepest floor that one does. A patch
+/// harms when that move is down past its ± (an exit's reach is its price, `return early`, not a
+/// harm) or when the death share rises past its own.
+pub fn whole_move_on(base: &[crate::forecast::SimResult], patched: &[crate::forecast::SimResult], start: u32, frontier: u32, gamble: bool, exits: bool) -> crate::wire::PatchWhole {
     use crate::engine::ExitTier;
     let n = base.len().min(patched.len());
     let (a, b) = (&patched[..n], &base[..n]);
     let ind = |x: bool| if x { 1.0 } else { 0.0 };
-    let reach = crate::forecast::paired(a, b, |r| ind(r.max_depth >= depth));
+    let reach_at = |d: u32| crate::forecast::paired(a, b, |r| ind(r.max_depth >= d));
+    let pts = |m: &crate::wire::VsMove| ((m.base + m.delta) * 100.0).round() as i64 - (m.base * 100.0).round() as i64;
+    let moved = |m: &crate::wire::VsMove| pts(m) != 0 && m.delta.abs() > m.pm;
+    let lo = start.max(1).min(frontier.max(1));
+    let floors: Vec<(u32, crate::wire::VsMove)> = (lo..=frontier.max(1)).map(|d| (d, reach_at(d))).collect();
+    let open = |m: &crate::wire::VsMove| m.base > crate::forecast::WALL_REACH || m.base + m.delta > crate::forecast::WALL_REACH;
+    let head = floors
+        .iter()
+        .rev()
+        .find(|(d, m)| *d == frontier && moved(m))
+        .or_else(|| floors.iter().filter(|(_, m)| moved(m)).max_by_key(|(d, m)| (pts(m).abs(), *d)))
+        .or_else(|| floors.iter().rev().find(|(_, m)| open(m)))
+        .or(floors.last())
+        .cloned()
+        .unwrap_or((frontier, crate::wire::VsMove::default()));
+    let (depth, reach) = head;
     let death = crate::forecast::paired(a, b, |r| ind(r.tier == ExitTier::Death));
     // The self-dealt harms a gamble deals (`gamble`: the row drinks or reads an unknown): the
     // one whose deaths rise most, by `RISK_SIMS` or more.
     let count = |xs: &[crate::forecast::SimResult], c: &str| xs.iter().filter(|r| r.tier == ExitTier::Death && r.cause.as_deref() == Some(c)).count() as i64;
     let risk = ["fire", "poison", "gas"].iter().filter(|_| gamble).map(|c| (count(a, c) - count(b, c), *c)).filter(|(k, _)| *k >= RISK_SIMS).max_by_key(|(k, _)| *k).map(|(_, c)| c.to_string());
-    let mut w = crate::wire::PatchWhole { reach: reach.delta, reach_pm: reach.pm, reach_from: reach.base, reach_to: reach.base + reach.delta, death: death.delta, death_pm: death.pm, harms: false, risk };
-    w.harms = whole_harms(&w);
+    let mut w = crate::wire::PatchWhole { reach: reach.delta, reach_pm: reach.pm, reach_from: reach.base, reach_to: reach.base + reach.delta, death: death.delta, death_pm: death.pm, harms: false, risk, depth, death_from: death.base };
+    w.harms = whole_harms(&w) && !(exits && !(w.death > 1e-9 && w.death > w.death_pm + 1e-9));
     w
 }
 

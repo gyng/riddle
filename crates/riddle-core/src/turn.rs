@@ -836,7 +836,8 @@ pub const WHY_GLOSS: &[(&str, &str)] = &[
     ("card passed", "its rows idle"),
     ("card idle", "no trigger foe"),
     // QA on 0c6e126 (qaY: `given up · chase given up` — one segment twice): the gloss says what the reason did not
-    ("given up", "out of reach"),
+    // QA on 308f045 (qaAC: `given up · out of reach` — "given up by whom, what was out of reach"): who gave up what
+    ("given up", "hero quit chasing"),
     // QA on 524827b (qaAB: `foes fleeing · foes running off`, `row guard` — the gloss restated the reason): what the row did not do
     ("foes fleeing", "melee skips runners"),
     ("card blocked", "its move blocked"),
@@ -1478,6 +1479,9 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     // QA on 524827b (qaAA): the hp lost since full, per cause — a blow from full hp starts it over.
     if run.hero.hp + dmg >= run.hero.max_hp {
         run.hp_lost.clear();
+    }
+    if run.hp_lost.is_empty() {
+        run.hp_lost_from = run.hero.hp + dmg;
     }
     match run.hp_lost.iter_mut().find(|(c, _)| c == cause) {
         Some(e) => e.1 += dmg,
@@ -2379,6 +2383,15 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
     cx.events.push(Ev::Exit { t: run.turn, tier: tier.name().into(), loot_kept, line: None, trace: None });
     match tier {
         ExitTier::Bank => note(run, cx, format!("Banked ${loot_kept}.")),
+        // QA on 308f045 (qaAC: the reel's `Returned with $0.` under `0 RETURNED · 1 DRIVEN`): a drive-off and a
+        // stall end on their own note (`Driven off D8 by the Warlord.`, `Stalled: …`) — a drive-off that kept
+        // its share says what it brought home, never that it returned.
+        ExitTier::Return if run.timed_out => {}
+        ExitTier::Return if run.driven_off.is_some() => {
+            if loot_kept > 0 {
+                note(run, cx, format!("Came home with ${loot_kept}."));
+            }
+        }
         ExitTier::Return => note(run, cx, format!("Returned with ${loot_kept}.")),
         ExitTier::Death => {}
     }
@@ -2534,9 +2547,12 @@ pub fn pray(run: &mut Run, cx: &mut Ctx, want_row: bool) {
     }
     run.prayed = true;
     let cost = run.hero.max_hp * crate::engine::PRAY_COST_PCT / 100;
+    let before = run.hero.max_hp;
     run.hero.max_hp = (run.hero.max_hp - cost).max(1);
     run.hero.max_hp_base = (run.hero.max_hp_base - cost).max(1);
     run.hero.hp = run.hero.hp.min(run.hero.max_hp);
+    // QA on 308f045 (qaAC): the shrine's price moves the HUD's max at its tick, named.
+    cx.events.push(Ev::MaxHp { t: run.turn, id: crate::engine::HERO_ID, max: run.hero.max_hp, delta: run.hero.max_hp - before, cause: "shrine".into() });
     // The shrine's price opens an episode of its own.
     if run.arc.has_low() {
         sifter::seal(run);

@@ -204,10 +204,10 @@ try {
   let d = await page.evaluate(() => ({ head: document.querySelector(".patches .patches-head")?.textContent, surv: [...document.querySelectorAll("button.patch .surv")].map((x) => x.textContent), gem: document.querySelector(".death .gem")?.textContent,
     notes: [...document.querySelectorAll(".death-notes .note")].map((n) => n.textContent), heir: document.querySelector(".death .topbar .heir")?.textContent, trait: document.querySelector(".death .topbar .trait")?.textContent,
     egg: document.querySelector(".death .eggs-line")?.textContent, eggBtn: !!document.querySelector(".death .eggs-line button, .death .chip.egg") }));
-  check(d.head === "nothing beats unpatched 100%" && d.surv.every((s) => s === "tried · no gain") && /edit/i.test(d.gem ?? ""), `a dice death nothing beats: the block says so, no \`below bar\`, the gem is \`edit\` (${d.head} · ${d.surv.join(" | ")} · gem ${d.gem})`);
+  check(d.head === "nothing beats unpatched 100%" && d.surv.every((s) => s === "replayed · no gain") && /edit/i.test(d.gem ?? ""), `a dice death nothing beats: the block says so, no \`below bar\`, the gem is \`edit\` (${d.head} · ${d.surv.join(" | ")} · gem ${d.gem})`);
   check(d.notes.length === 0, `no \`saved him\` and no cage loot over a death (${d.notes.join(" | ") || "none"})`);
   check(d.heir === "♟2" && d.trait === "curious", `the bar names the hero who died (${d.heir} · ${d.trait})`);
-  check(/ally hound fell/.test(d.egg ?? "") && !d.eggBtn, `a lost ally is a line, not a chip ("${d.egg}")`);
+  check(/summoned hound fell/.test(d.egg ?? "") && !d.eggBtn, `a lost ally is a line, not a chip ("${d.egg}")`);
   await shot("qa92-dice");
   // the camp's reach lands: a loss drops to the bottom, dim, never the gem's; inside the ± the higher survival leads
   await page.evaluate(() => {
@@ -227,7 +227,7 @@ try {
   // QA 778fa1b (qaU: the lit tablet and the gem moved 1 → 2 on their own ~5 s after arrival): the landing fills the reach and dims a loss,
   // never re-orders the list or moves the lit tablet (the core's `rank_patches` order stands)
   check(order === "foe: telegraph → retreat | hp < 20% → rest | hp < 20% → return | foes ≥ 3 → retreat", `the landing keeps the core's order (${order})`);
-  check(d.rows[0]?.neg && d.rows[0]?.top && !d.rows.slice(1).some((x) => x.neg) && d.gem === "100%" && before === "100%", `a loss is dim and says its move; the lit tablet and the gem stay (gem ${before} → ${d.gem}; ${d.rows.map((x) => x.reach).join(" · ")})`);
+  check(d.rows[0]?.neg && d.rows[0]?.top && !d.rows.slice(1).some((x) => x.neg) && d.gem === "100%" && before === "…", `a loss is dim and says its move; the lit tablet stays, the gem waits for the measure (QA 308f045) (gem ${before} → ${d.gem}; ${d.rows.map((x) => x.reach).join(" · ")})`);
   check(/^reach D8 ≈ ±\d+$/.test(d.rows[1]?.reach ?? "") && d.rows[2]?.reach === "return early", `a move inside the ± reads \`≈ ±N\` (Cut 24 §4; was \`≈\` alone, QA 778fa1b); an exit says so ("${d.rows[1]?.reach}" · "${d.rows[2]?.reach}")`);
   await shot("qa92-rerank");
 

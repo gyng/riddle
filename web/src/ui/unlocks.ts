@@ -5,7 +5,7 @@
 // when known, then `buy`. No card buys on its own tap; a disabled card still opens the sheet to show its gate.
 import type { App } from "../app";
 import { revealed } from "./reveal";
-import { engagementRow } from "../app";
+import { engagementRow, safetyEnd } from "../app";
 import type { Lineage, UnlockInfo } from "../engine/types";
 import { CLASSES, isFreeClass } from "../engine/classes";
 import { h } from "./dom";
@@ -30,6 +30,8 @@ const LABEL: Record<string, string> = {
 };
 const AFTER: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", row9: "row8", row10: "row9", vault3: "vault2", vault4: "vault3", vault5: "vault4", party_slot_3: "party_slot_2", party_slot_4: "party_slot_3" };
 
+/** QA 308f045: a reach band (±, points) past which a card's move is no read (`reach unsettled`). */
+const WIDE_PM = 25;
 /** Cut 25 §6: the chain step a card follows (`row6` → `row5`), undefined for a first step. */
 export const afterOf = (id: string): string | undefined => AFTER[id];
 /** An unlock's shelf label (`+1 row`, `card: kite archers`). */
@@ -65,6 +67,9 @@ export function deltaLabel(u: UnlockInfo, d: number, rows?: number): string {
   // `reach ~0 at R4` to both raters, so they skipped them all
   // Cut 22 §4: a move is signed points (`reach +12 ±4`), `≈` inside its ± — never a `%`, which reads as a chance
   // Cut 24 §4: `≈` carries the ± it sits inside (`reach ≈ ±5 at R1`) — unresolved, not "no change"
+  // QA 308f045 (qaAC: `reach ≈ ±46 at R1 · vs archers` — "the noise band says nothing"): a band wider than `WIDE_PM` points is no read at
+  // all — it says so (`reach unsettled`), never a number
+  if (deltaIsNoise(u) && (u.pm ?? 0) * 100 > WIDE_PM) return /* copy:unlock_card */ `reach unsettled${where}${u.situation ? ` · ${situationLabel(u.situation)}` : ""}`;
   if (deltaIsNoise(u)) return /* copy:unlock_card */ `reach ≈${u.pm ? ` ±${Math.max(1, Math.round(u.pm * 100))}` : ""}${where}${u.situation ? ` · ${situationLabel(u.situation)}` : ""}`;
   const pm = u.pm !== undefined ? ` ±${Math.max(1, Math.round(u.pm * 100))}` : "";
   return /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}${pm}${where}`;
@@ -140,12 +145,16 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
     const goldShort = gold > 0 && !gateNeeds && app.lineage.gold < gold ? gold - app.lineage.gold : 0;
     let sent = false;
     // the card's place as this sheet shows it (the catalogue's `insert_at`, never past the set's end)
-    const joinAt = u.insert_at !== undefined ? Math.min(u.insert_at, app.rules.rows.length) : undefined;
+    const joinAt = u.insert_at !== undefined ? Math.min(Math.max(u.insert_at, safetyEnd(app.rules.rows)), app.rules.rows.length) : undefined;   // QA 308f045: never over the safety rows
+    // QA 308f045 (qaAC: a `free` card took open → `◆ buy` at `◆0` → `add`, three taps for a free thing): a card that costs nothing is added
+    // by the sheet's one button (`add`: owned and in the set at its place, the buy and the add in one)
+    const freeCard = isCard(u) && !u.owned && u.cost === 0 && !gold && can;
     const go = (withGold: boolean) => (): void => {
       if (sent) return; sent = true;
-      void app.buy(u.id, withGold, isCard(u) ? { join: u.auto_insert === true, at: joinAt } : undefined).then((ok) => { close(); if (ok) after?.(); });   // QA a946e04: the buy does what the sheet said, where it said
+      void app.buy(u.id, withGold, isCard(u) ? { join: freeCard || u.auto_insert === true, at: joinAt } : undefined).then((ok) => { close(); if (ok) after?.(); });   // QA a946e04: the buy does what the sheet said, where it said
     };
-    const buy = h("button", { class: `btn primary buy marks${can ? "" : " off"}`, disabled: !can, onclick: go(false) }, "◆ ", /* copy:button */ "buy");
+    const buy = freeCard ? h("button", { class: "btn primary buy marks free-add", onclick: go(false) }, /* copy:button */ "add")
+      : h("button", { class: `btn primary buy marks${can ? "" : " off"}`, disabled: !can, onclick: go(false) }, "◆ ", /* copy:button */ "buy");
     const buyGold = gold ? h("button", { class: `btn buy gold${canGold ? "" : " off"}`, disabled: !canGold, onclick: go(true) }, "$ ", /* copy:button */ "buy") : "";
     return h("div", { class: "sheet-body unlock-sheet" },
       h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`, gold ? h("span", { class: "gold-price" }, /* copy:label */ ` or $${gold}`) : "")),
@@ -166,7 +175,7 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       // QA a946e04 (T: three cards bought, all three went into the rules): a card that will not join the set on its buy says so — it is
       // owned, and its chip's `add` puts it in
       isCard(u) ? h("div", { class: `dim num card-joins${u.auto_insert === true ? " joins" : ""}` },
-        u.auto_insert === true ? /* copy:unlock_card */ `joins at R${(joinAt ?? app.rules.rows.length) + 1}` : (u.owned ? /* copy:unlock_card */ "owned · add to rules" : /* copy:unlock_card */ "buy, then add to rules")) : "");   // QA 912e135 (qaW: `after buy · add separately` unexplained)   // QA 778fa1b (qaV: `owned · add separately` before the buy read as owned)
+        u.auto_insert === true || freeCard ? /* copy:unlock_card */ `joins at R${(joinAt ?? app.rules.rows.length) + 1}` : (u.owned ? /* copy:unlock_card */ "owned · add to rules" : /* copy:unlock_card */ "buy, then add to rules")) : "");   // QA 912e135 (qaW: `after buy · add separately` unexplained)   // QA 778fa1b (qaV: `owned · add separately` before the buy read as owned)
   });
 }
 /** QA a946e04: the chain's next step as the sheet shows it — `next ◆4 or $600` (its price once this one is bought with marks) and,

@@ -514,10 +514,16 @@ pub fn sim_start(game: &Game) -> u32 {
 /// carries the start).
 pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
     let rules = game.lineage.rules().clone();
-    // Cut 25 §4 (AM: ~8 s for the forge's estimates on a D11 lineage): an option is measured on
-    // the first pass's sims — the panel the camp reads right after the tap (its refine comes
-    // later) — never the refined 2× (each option panel a full camp panel: 6 s of wasm at D11).
-    let sims = option_sims(game, &rules);
+    start_forecast_at(game, camp_sims(game, &rules))
+}
+
+/// QA on 308f045 (qaAD: the start sheet's `D1 · bank 90% · death 10%` beside the shaft's `bank
+/// 92% · death 8%`): the starts measured on the pass the camp shows (`sims`: the caller's, as the
+/// cage and fork tablets'), so the start the camp plays reads the camp's own numbers. Cut 25 §4
+/// kept options on the first pass for speed; a refined camp reuses each panel's first pass.
+pub fn start_forecast_at(game: &Game, sims: u32) -> Vec<crate::wire::StartOption> {
+    let rules = game.lineage.rules().clone();
+    let sims = if sims > FORECAST_SIMS { REFINE_SIMS } else { FORECAST_SIMS };
     let bank_depth = rules.rows.iter().filter(|r| r.verb.v == "bank").filter_map(|r| r.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n)).map(|n| n.max(1) as u32).min();
     let bar = bank_depth.unwrap_or(game.lineage.best_depth).clamp(1, game.lineage.best_depth + 1);
     let current = game.lineage.start.max(1);
@@ -598,15 +604,36 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
 /// first pass: one more panel), read at the band's last floor (`fens D8 61% · burrows D8 34%`).
 /// Memoised like the start tablet. Empty for a fork the route gives no choice at, or unseen.
 pub fn fork_forecast(game: &Game, fork: u32) -> Vec<crate::wire::ForkOption> {
+    let rules = game.lineage.rules().clone();
+    fork_forecast_at(game, fork, camp_sims(game, &rules))
+}
+
+/// QA on 308f045 (qaAC: the sheet's `fens D8 12%`, picked: the shaft's `D8 16%`; `burrows D8
+/// 57%` → `50%`): both stairs are measured on the pass the camp shows (`sims`: the caller's, as
+/// the cage tablet's — the refined 100 once the camp refined), so the stair taken reads the
+/// shaft's own number and the stair picked is the camp's next panel at the same pass.
+pub fn fork_forecast_at(game: &Game, fork: u32, sims: u32) -> Vec<crate::wire::ForkOption> {
     use crate::descent::{Route, BANDS, BASE_ORDER, FORKS};
     let rules = game.lineage.rules().clone();
+    let sims = if sims > FORECAST_SIMS { REFINE_SIMS } else { FORECAST_SIMS };
     let Some(i) = FORKS.iter().position(|f| *f == fork) else { return Vec::new() };
     let route = rules.route();
     if !route.fork_open(fork) || !crate::descent::OPEN_FORKS.contains(&fork) {
         return Vec::new();
     }
-    let sims = option_sims(game, &rules);
-    let bar = BANDS[i].1;
+    // QA on 308f045 (qaAD: `burrows D8 <2% · fens D8 <2%` before the absence, the shaft differing at D6 27 % vs 14 %): the
+    // lanes are compared where they have signal — the band's last floor while a sim of either lane reaches it (over
+    // `WALL_REACH`), else the deepest floor of the band one does, else the fork's own floor.
+    let panels: Vec<(Route, Vec<SimResult>)> = [false, true]
+        .into_iter()
+        .map(|far| {
+            let r: Route = route.with(fork, far);
+            let p = if r == route { camp_panel(game, &rules, sims) } else { camp_panel(game, &rules.clone().with_route(r), sims) };
+            (r, p)
+        })
+        .collect();
+    let share_at = |p: &[SimResult], d: u32| p.iter().filter(|r| r.max_depth >= d).count() as f64 / p.len().max(1) as f64;
+    let bar = (fork..=BANDS[i].1).rev().find(|d| panels.iter().any(|(_, p)| share_at(p, *d) > WALL_REACH)).unwrap_or(fork);
     type Read = (f64, f64, f64, usize, f64);
     let read = |ended: &[SimResult]| -> Read {
         let n = ended.len().max(1) as f64;
@@ -616,12 +643,12 @@ pub fn fork_forecast(game: &Game, fork: u32) -> Vec<crate::wire::ForkOption> {
         let death = ended.iter().filter(|r| r.tier == ExitTier::Death).count() as f64 / n;
         (reach, bank, gold, ended.len(), death)
     };
-    let base = read(&camp_panel(game, &rules, sims));
+    let base = read(&panels.iter().find(|(r, _)| *r == route).map(|(_, p)| p.clone()).unwrap_or_default());
     let mut out = Vec::with_capacity(2);
-    for far in [false, true] {
-        let r: Route = route.with(fork, far);
+    for (far, (r, panel)) in [false, true].into_iter().zip(panels.iter()) {
+        let r: Route = *r;
         let current = r == route;
-        let (reach, bank, gold, n, death) = if current { base } else { read(&camp_panel(game, &rules.clone().with_route(r), sims)) };
+        let (reach, bank, gold, n, death) = if current { base } else { read(panel) };
         let banks = bank > 0.0 || base.1 > 0.0;
         out.push(crate::wire::ForkOption {
             fork,

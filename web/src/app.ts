@@ -19,7 +19,7 @@ import { applySkin } from "./ui/skin";
 export type Screen =
   | { kind: "camp"; highlight?: number }
   | { kind: "watch" }
-  | { kind: "death"; death: Death; lost?: string[]; kept?: boolean }   // kept: an old death opened from the chronicle (Cut 9 §7); Escape leads back to the camp
+  | { kind: "death"; death: Death; lost?: string[]; kept?: boolean; from?: { report: ReturnReport; absence?: boolean } }   // from: QA 308f045 (qaAD) — a verdict opened from a report leads back to it   // kept: an old death opened from the chronicle (Cut 9 §7); Escape leads back to the camp
   | { kind: "report"; report: ReturnReport; absence?: boolean }   // absence: Cut 10 §3, the tiles fade in (the merged report is complete)
   | { kind: "ending" };
 
@@ -654,7 +654,10 @@ export class App {
    *  Also the owned card's `insert` after the player dropped its row (QA on 952e306: "no way to re-insert a dropped card (◆3
    *  spent)"). Returns the row's index. */
   insertCard(id: string, at?: number): number {
-    return this.insertRow({ conds: [], verb: { v: "tactic", a: id } }, at ?? engagementRow(this.rules.rows), "card");
+    // QA 308f045 (qaAD: `kite archers` added at R1, `gas step` at R2 over `hp < 30% → drink heal`; both absence deaths read `R4 under R2`):
+    // a card never goes above the set's safety rows (the core's `meta::safety_end`)
+    const rows = this.rules.rows;
+    return this.insertRow({ conds: [], verb: { v: "tactic", a: id } }, Math.min(rows.length, Math.max(at ?? engagementRow(rows), safetyEnd(rows))), "card");
   }
   /** Cut 12 §6: one supply off the shelf. An engine without `dropSupply` clears the shelf and rebuys the other bought
    *  lines in order (a free line — the kennel's leash — comes back at the next exit). */
@@ -721,7 +724,7 @@ export class App {
       case "camp": m = renderCamp(this, screen.highlight); break;
       case "ending": m = renderEnding(this); break;
       case "watch": m = renderWatch(this); break;
-      case "death": m = renderDeath(this, screen.death, screen.lost ?? [], !!screen.kept); break;
+      case "death": m = renderDeath(this, screen.death, screen.lost ?? [], !!screen.kept, screen.from); break;
       case "report": m = renderReport(this, screen.report, screen.absence); break;
     }
     this.mounted = m;
@@ -844,6 +847,12 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
 
 /** Cut 12 §1: the set's engagement row — the first `attack` / `shoot` — where a bought card goes; the end when there is none. */
 export function engagementRow(rows: Row[]): number { const i = rows.findIndex((r) => r.verb.v === "attack" || r.verb.v === "shoot"); return i < 0 ? rows.length : i; }
+/** QA 308f045 (core `meta::safety_end`): the place under the safety rows (a heal drink, a return or a bank on hp alone) above the engagement row. */
+export function safetyEnd(rows: Row[]): number {
+  const safe = (r: Row): boolean => (r.verb.v === "return" || r.verb.v === "bank" || (r.verb.v === "drink" && r.verb.a === "heal")) && r.conds.length > 0 && r.conds.every((c) => c.k === "hp<");
+  let end = 0; rows.slice(0, engagementRow(rows)).forEach((r, i) => { if (safe(r)) end = i + 1; });
+  return end;
+}
 export const cloneRow = (r: Row): Row => ({ conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb }, ...(r.origin ? { origin: r.origin } : {}) });
 /** Cut 7 §2: a row's identity for origin carry-over (tokens only, never the origin). */
 const rowKey = (r: Row): string => `${r.conds.map((c) => `${c.k}|${c.n ?? ""}|${c.t ?? ""}`).join(" ")} → ${r.verb.v}|${r.verb.a ?? ""}`;

@@ -6224,7 +6224,9 @@ fn card_delta_is_measured_where_the_buy_puts_it() {
     // Cut 18 §5: the delta is the paired reach of the bare card row at its best place — the
     // buy's old place (before `attack nearest`), the top, before the first own row — minus
     // the base, and `insert_at` is that place (the buy puts it there), ties to the old place.
-    assert_eq!(crate::meta::card_positions(g.lineage.rules()), vec![1, 0]);
+    // QA on 308f045 (qaAD: cards added over `hp < 30% → drink heal`, ORDER deaths after): never above the safety rows — the
+    // heal at R1 keeps the top
+    assert_eq!(crate::meta::card_positions(g.lineage.rules()), vec![1]);
     let cat = g.unlock_deltas();
     let card = cat.iter().find(|u| u.id == "gas_step").unwrap();
     let delta = card.delta.expect("open card");
@@ -6239,9 +6241,8 @@ fn card_delta_is_measured_where_the_buy_puts_it() {
         set.rows.insert(i, Row::new(vec![], Verb::arg("tactic", "gas_step")).from("card"));
         crate::forecast::reach_paired(&sim, &set, depth, n, tag)
     };
-    let (r1, r0) = (at(1), at(0));
-    let (best_at, best) = if r0 > r1 + 1e-9 { (0, r0) } else { (1, r1) };
-    assert!((delta - (best - base)).abs() < 1e-9, "delta {delta} vs best {best} − base {base} (R2 {r1}, top {r0})");
+    let (best_at, best) = (1, at(1));
+    assert!((delta - (best - base)).abs() < 1e-9, "delta {delta} vs best {best} − base {base}");
     assert_eq!(card.insert_at, Some(best_at), "the card goes where it was measured best");
     assert_eq!(card.situation.as_deref(), Some("gas"));
 }
@@ -6254,7 +6255,9 @@ fn a_card_reads_its_best_place_and_its_situation() {
     // A card under an own row that always fires first (`foes ≥ 1 → retreat` then the rest)
     // is measured at the top as well, and the top wins or ties.
     let rules = RuleSet { rows: vec![Row::new(vec![], Verb::arg("tactic", "thief_guard")), Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))], name: None, route: Vec::new() };
-    assert_eq!(crate::meta::card_positions(&rules), vec![2, 0, 1], "old place, the top, before the first own row");
+    assert_eq!(crate::meta::card_positions(&rules), vec![2], "old place — never over the heal row (QA on 308f045), so neither the top nor before it");
+    let open = RuleSet { rows: vec![Row::new(vec![], Verb::arg("tactic", "thief_guard")), Row::new(vec![Cond::n("foes>=", 2)], Verb::new("retreat")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))], name: None, route: Vec::new() };
+    assert_eq!(crate::meta::card_positions(&open), vec![2, 0, 1], "old place, the top, before the first own row");
     let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))], name: None, route: Vec::new() };
     assert_eq!(crate::meta::card_positions(&rules), vec![0]);
     let sit = |id: &str| crate::meta::card_situation(id);
@@ -6795,7 +6798,7 @@ fn cut11_wire_is_optional_and_snake_case() {
     let s = serde_json::to_string(&w).unwrap();
     assert_eq!(s, r#"{"row":0,"why":"no item","because":{"text":"den took the heal, D3","t":2140,"depth":3}}"#);
     assert_eq!(serde_json::from_str::<RowWhy>(&s).unwrap(), w);
-    let t = Trace { turns: vec![], provenance: None, blow: None, blows: Vec::new(), hp_lost: Vec::new() };
+    let t = Trace { turns: vec![], provenance: None, blow: None, blows: Vec::new(), hp_lost: Vec::new(), hp_healed: 0 };
     assert_eq!(serde_json::to_string(&t).unwrap(), r#"{"turns":[]}"#);
     let old: Trace = serde_json::from_str(r#"{"turns":[]}"#).unwrap();
     assert_eq!(old, t);
@@ -9931,7 +9934,9 @@ fn forecast_refined_is_always_on_the_wire() {
     let cur = g.cage_forecast().into_iter().find(|o| o.current).unwrap();
     let bar = f.depths.iter().find(|d| d.depth == cur.depth).map(|d| d.reach);
     assert_eq!(bar, Some(cur.reach), "the current option is the camp's own bar");
-    assert!(g.start_forecast().iter().all(|o| !o.refined));
+    // QA on 308f045 (qaAD: `D1 · bank 90%` beside the shaft's refined 92 %): the starts follow the camp's pass too.
+    assert!(g.start_forecast().iter().all(|o| o.refined));
+    assert!(g.start_forecast_refined(false).iter().all(|o| !o.refined));
 }
 
 /// QA on 778fa1b (qaU: `carry $61 −$37 swapped` on the strip, in no ledger): a pack swap that
@@ -10527,6 +10532,11 @@ fn a_boss_that_cannot_be_hurt_drives_the_hero_off() {
         let r = g.run.as_ref().unwrap();
         assert!(r.nohp.2 <= crate::turn::BOSS_STILL.max(crate::turn::NOHP_ACTIONS), "a stretch of {} actions", r.nohp.2);
         let (off, carried, pct) = (r.driven_off.clone(), r.loot.max(0), r.yield_pct(ExitTier::Return));
+        // QA on 308f045 (qaAC: the reel's `Returned with $0.` under `1 DRIVEN`): a drive-off never says it returned.
+        if off.is_some() {
+            assert!(r.notes.iter().all(|(_, n)| !n.starts_with("Returned with")), "{:?}", r.notes);
+            assert!(r.notes.iter().any(|(_, n)| n.starts_with("Driven off")), "{:?}", r.notes);
+        }
         g.finish_run();
         g.auto_keep();
         if off.is_some() {
@@ -11084,6 +11094,21 @@ fn a_bought_leash_comes_home_from_a_return() {
 
 /// Cut 26 §1: `examples/compat.rs`'s hash of a save's next `n` sends — every event but the
 /// fork's own beats (`TWO STAIRS`, the `fork:` fact), and each run's end state.
+/// `"key":<integer>` removed from serialized JSON (a field added after a fixture was recorded).
+fn strip_key(json: &str, key: &str) -> String {
+    let pat = format!(",\"{key}\":");
+    let mut out = String::with_capacity(json.len());
+    let mut rest = json;
+    while let Some(i) = rest.find(&pat) {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i + pat.len()..];
+        let n = tail.find(|c: char| !(c.is_ascii_digit() || c == '-')).unwrap_or(tail.len());
+        rest = &tail[n..];
+    }
+    out.push_str(rest);
+    out
+}
+
 fn sends_hash(g: &mut Game, n: u32) -> u64 {
     let mut h = 0xcbf29ce484222325u64;
     let fnv = |h: &mut u64, s: &str| {
@@ -11100,7 +11125,15 @@ fn sends_hash(g: &mut Game, n: u32) -> u64 {
                 if matches!(e, Ev::Callout { text, .. } if text == "TWO STAIRS") || matches!(e, Ev::Fact { fact, .. } if fact.starts_with("fork:")) {
                     continue;
                 }
-                fnv(&mut h, &serde_json::to_string(e).unwrap());
+                // QA on 308f045 (qaAC): what the screen is told, not what is played — a max-HP loss's own
+                // event (drain, the shrine; hunger's was 307dbed's) and the exit note a drive-off or a stall
+                // no longer writes (`Returned with $0.`)
+                if matches!(e, Ev::MaxHp { cause, .. } if cause != "hunger") || matches!(e, Ev::Note { text, .. } if text.starts_with("Returned with") || text.starts_with("Came home with")) {
+                    continue;
+                }
+                // (QA on 308f045: a death trace's `hp_healed` is a new read of the same run)
+                // (and a reason's gloss reworded since: `given up · hero quit chasing` was `· out of reach`)
+                fnv(&mut h, &strip_key(&serde_json::to_string(e).unwrap(), "hp_healed").replace("hero quit chasing", "out of reach"));
             }
             if r.run_over {
                 break;
@@ -11453,4 +11486,56 @@ fn a_stamp_never_contradicts_its_counts() {
         let leans = matches!(d.verdict.as_str(), "gap" | "row" | "order") && d.baseline > crate::trace::STAMP_BASE + 1e-9;
         assert_eq!(d.lean.as_deref() == Some("dice"), leans, "run {id}: {} base {:.2} lean {:?}", d.verdict, d.baseline, d.lean);
     }
+}
+
+/// QA on 308f045 (qaAC: `← never met` over `R1 attack boss · not in view`, R1 having fired four
+/// times on the floor; `← R4 drank heal` with no row): a chain link is its row's newest reason —
+/// a reason the row outlived (it fired after it, or said something else since) is off the chain.
+#[test]
+fn the_chain_keeps_each_rows_newest_reason() {
+    use crate::wire::{Because, RowWhy, TraceTurn};
+    let b = |text: &str, t: u32| Some(Because { text: text.into(), t, depth: 8 });
+    let turn = |t: u32, row: i32, rows: Vec<RowWhy>| TraceTurn { t, row, verb: Verb::new("attack"), hp: 10, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: Some(rows), blows: Vec::new() };
+    let turns = vec![
+        // R1 (`attack boss`) never met the boss, R2's heal was drunk by R4
+        turn(10, 2, vec![RowWhy { row: 0, why: "not in view".into(), because: b("never met", 10) }, RowWhy { row: 1, why: "no item".into(), because: b("R4 drank heal at 17/36 hp", 5) }]),
+        // R1 fires on the boss
+        turn(20, 0, vec![]),
+        // the boss slain: R1 not in view, slain; R2 still no heal
+        turn(30, 2, vec![RowWhy { row: 0, why: "not in view".into(), because: b("bloat mother slain D8", 25) }, RowWhy { row: 1, why: "no item".into(), because: b("R4 drank heal at 17/36 hp", 5) }]),
+    ];
+    let links = crate::trace::chain_links(&turns);
+    let texts: Vec<(usize, &str)> = links.iter().map(|(r, b)| (*r, b.text.as_str())).collect();
+    assert_eq!(texts, [(0, "bloat mother slain D8"), (1, "R4 drank heal at 17/36 hp")]);
+    // R1 fired after its `never met`, and nothing newer: no link for it at all
+    let fired_last = vec![turns[0].clone(), turns[1].clone()];
+    let links = crate::trace::chain_links(&fired_last);
+    assert_eq!(links.iter().map(|(r, b)| (*r, b.text.as_str())).collect::<Vec<_>>(), [(1, "R4 drank heal at 17/36 hp")]);
+}
+
+/// QA on 308f045 (qaAC: a patch read `reach D9 ≈ ±1` — the frontier no sim reached either way —
+/// and applied, the camp's `vs sent` led with `D6 −21`): the whole-run move is read where the camp
+/// reads it — the frontier when it moves, else the floor that moves most; an exit's reach is its
+/// price, not a harm.
+#[test]
+fn a_patch_reads_the_floor_the_camp_leads_with() {
+    use crate::forecast::SimResult;
+    let sim = |depth: u32, tier: ExitTier| SimResult { max_depth: depth, tier, cause: None, loot_kept: 0, timed_out: false, ticks: 1 };
+    // the sent set: half reach D7, none D9; the patch: 11 of those stop at D5 (D6 and D7 both −22: the deeper leads), still none D9
+    let base: Vec<SimResult> = (0..50).map(|i| sim(if i < 25 { 7 } else { 5 }, ExitTier::Death)).collect();
+    let worse: Vec<SimResult> = (0..50).map(|i| if i < 11 { sim(5, ExitTier::Death) } else { base[i].clone() }).collect();
+    let w = crate::trace::whole_move_on(&base, &worse, 1, 9, false, false);
+    assert_eq!(w.depth, 7, "{w:?}");
+    assert!((w.reach + 0.22).abs() < 1e-9 && (w.reach_from - 0.5).abs() < 1e-9 && w.harms, "{w:?}");
+    assert!((w.death_from - 1.0).abs() < 1e-9);
+    // the same move on an exit is its price
+    let home: Vec<SimResult> = (0..50).map(|i| if i < 11 { sim(5, ExitTier::Return) } else { base[i].clone() }).collect();
+    let e = crate::trace::whole_move_on(&base, &home, 1, 9, false, true);
+    assert!(e.depth == 7 && e.reach < 0.0 && !e.harms && e.death < 0.0, "{e:?}");
+    // nothing moves: the deepest floor a sim still reaches, never the sealed frontier
+    let same = crate::trace::whole_move_on(&base, &base, 1, 9, false, false);
+    assert_eq!(same.depth, 7, "{same:?}");
+    // the frontier moving leads, whatever moves more above it
+    let front: Vec<SimResult> = (0..50).map(|i| if i < 25 { sim(9, ExitTier::Death) } else { sim(3, ExitTier::Death) }).collect();
+    assert_eq!(crate::trace::whole_move_on(&base, &front, 1, 9, false, false).depth, 9);
 }

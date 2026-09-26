@@ -44,10 +44,20 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
   // QA 524827b (qaAA: the table opens at 1 hp exploring — "where 36 hp went takes a replay"): over it, where the hp went since he was
   // last at full hp (engine data: `Trace.hp_lost`, most first; the few largest, the rest counted)
   const lost = trace.hp_lost ?? [];
-  const HP_LOST_SHOW = 4, rest = lost.slice(HP_LOST_SHOW).reduce((a, x) => a + x.dmg, 0);
+  // QA 308f045 (qaAC: killer `goblin conjurer −2`, the loss line `goblin −22 · jackal −15 · … · others −2` never naming him): the killing
+  // blow's cause is always one of the named, in its place by size (it takes the last named slot when it would fall under `others`)
+  const HP_LOST_SHOW = 4, killer = (trace.blows?.length ? trace.blows[trace.blows.length - 1] : trace.blow)?.by;
+  let named = lost.slice(0, HP_LOST_SHOW);
+  const k = killer ? lost.find((x) => x.by === killer) : undefined;
+  if (k && !named.includes(k)) named = [...named.slice(0, HP_LOST_SHOW - 1), k];
+  const rest = lost.filter((x) => !named.includes(x)).reduce((a, x) => a + x.dmg, 0);
+  // QA 308f045 (qaAC: `since full hp` summing to 72 on a 36-hp hero — "the heals are part of it; nothing says so"): what was healed over
+  // the stretch reads beside it (`healed +36`, the core's `Trace.hp_healed`)
+  const healed = trace.hp_healed ?? 0;
   const lostLine = lost.length ? h("div", { class: "hp-lost num dim" }, /* copy:callout */ "since full hp",
-    ...lost.slice(0, HP_LOST_SHOW).map((x) => h("span", { class: "hp-by" }, ` · ${x.by.replace(/_/g, " ")} `, h("b", { class: "down" }, `−${x.dmg}`))),
-    rest > 0 ? h("span", { class: "hp-by" }, /* copy:callout */ ` · others −${rest}`) : "") : null;
+    ...named.map((x) => h("span", { class: `hp-by${x.by === killer ? " killer" : ""}` }, ` · ${x.by.replace(/_/g, " ")} `, h("b", { class: "down" }, `−${x.dmg}`))),
+    rest > 0 ? h("span", { class: "hp-by" }, /* copy:callout */ ` · others −${rest}`) : "",
+    healed > 0 ? h("span", { class: "hp-by healed" }, /* copy:callout */ ` · healed `, h("b", { class: "up" }, `+${healed}`)) : "") : null;
   const chain = chainOf(trace, { window: rows, ...ctx });
   if (chain) return lostLine ? [lostLine, table, chain] : [table, chain];
   if (lostLine) { const r = traceTableRest(turns, ctx); return [lostLine, table, ...r]; }

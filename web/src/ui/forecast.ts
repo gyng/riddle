@@ -343,6 +343,9 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       if (b && up && b !== up) return b;
       return !b && route.length === 0 && BANDS.some(([a]) => a === depth) && chips.every((x) => (FORKS as readonly number[]).includes(x.depth)) ? biomeAt(route, depth) : undefined;
     };
+    // QA 308f045 (qaAC: `D9 fens · sealed` under the route `D5 burrows`, read as the lane not picked — it is the next band): a lane's name
+    // says where it runs to (`D9 fens → D13`), the band's last floor
+    const laneEnd = (depth: number): number | undefined => BANDS.find(([a]) => a === depth)?.[1];
     replace(notches, ...folded, ...Array.from({ length: deepest - from + 1 }, (_, k) => {
       const depth = from + k, d = byDepth.get(depth);
       const lane = laneAt(depth), fr = front.get(depth);
@@ -359,12 +362,13 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const capped = cap !== undefined && depth > cap, bankHere = cap === depth && !wall;
       const bounty = depth === bountyD;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${depth === start && start > 1 ? " start" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, lane ? h("i", { class: "lane", "data-biome": lane }, ` ${lane}`) : "", bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wallText}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, lane ? h("i", { class: "lane", "data-biome": lane }, ` ${lane}`) : "", lane && laneEnd(depth) ? h("i", { class: "lane-to dim" }, ` → D${laneEnd(depth)}`) : "", bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wallText}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
         h("small", { class: "dp" }, d ? share(d.reach, lowOf(last)) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm" }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : "",
           d ? moveMark(vsBy.get(depth)) : ""));   // Cut 22 §3: the edit's move on the notch (`▲6`, `≈`)
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
-      if (fr) n.appendChild(h("small", { class: `frontier${fr.entered ? " entered" : ""}`, "data-biome": fr.biome }, /* copy:callout */ `${fr.biome} · D${fr.fork}${fr.entered ? "" : " · ?"}`));
+      // QA 308f045 (qaAC: `fens · D5 · ?` — "what the `?` asks"): a lane never entered says so (`untried`)
+      if (fr) n.appendChild(h("small", { class: `frontier${fr.entered ? " entered" : ""}`, "data-biome": fr.biome }, /* copy:callout */ `${fr.biome} · D${fr.fork}${fr.entered ? "" : " · untried"}`));
       return n;
     }),
     // QA 912e135 (qaW: the first camp's shaft was `D1 100%` alone, then D1–D7 after a death): the floors below the shaft's last are

@@ -394,6 +394,10 @@ pub struct Run {
     /// QA on 524827b: the hp lost since the hero was last at full hp, per cause (`Trace.hp_lost`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hp_lost: Vec<(String, i32)>,
+    /// QA on 308f045 (qaAC: `since full hp` summing to 72 on a 36-hp hero): the hp he had when
+    /// the count began (`hp_lost`'s first blow) — what the losses beyond it were healed from.
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub hp_lost_from: i32,
     /// Where hostiles were last seen (id → position, action), so pathing does not flip
     /// between "blocked" and "open" as a corridor foe drifts in and out of view.
     #[serde(default)]
@@ -2157,6 +2161,10 @@ fn is_zero_u64(n: &u64) -> bool {
     *n == 0
 }
 
+fn is_zero_i32(n: &i32) -> bool {
+    *n == 0
+}
+
 fn is_zero(n: &u32) -> bool {
     *n == 0
 }
@@ -3185,6 +3193,7 @@ impl Game {
             drain_on: None,
             blows: Vec::new(),
             hp_lost: Vec::new(),
+            hp_lost_from: 0,
             known_foes: BTreeMap::new(),
             loot_raw: 0,
             low_hp: i32::MAX,
@@ -5002,6 +5011,18 @@ impl Game {
         Ok(())
     }
 
+    /// QA on 308f045 (qaAC: `home armour` answered `vault full · axe stays` and the vault offered
+    /// no way to take the axe out): an item out of the vault — salvaged at a bank's share, as a
+    /// shelved find is (`salvage <kind>` on the ledger); off the loadout and its insurance too.
+    pub fn sell_vault(&mut self, id: u32) -> Result<i32, String> {
+        let i = self.lineage.vault.iter().position(|v| v.id == id).ok_or("not in the vault")?;
+        let it = self.lineage.vault.remove(i);
+        self.lineage.insured.retain(|x| *x != id);
+        self.loadout.retain(|x| *x != id);
+        let coins = self.salvage(std::slice::from_ref(&it), 100);
+        Ok(coins.iter().sum())
+    }
+
     /// Cut 12 §6: one line off the shelf (rater O: the header's `×` cleared the whole list —
     /// "I lost the leash"). A bought supply is refunded; the kennel's leash (free) is simply
     /// put back — it returns at the next exit while the lineage has never tamed.
@@ -5189,7 +5210,7 @@ pub fn found_in_pack(run: &Run, pack: &BTreeMap<(u32, String), i32>, key: &(u32,
 /// Cut 9 §5: the last `EXIT_TRACE_LEN` hero turns of a run, from its trace ring. Cut 11 §3:
 /// plus the run's provenance log (every `because` event), when it has one.
 pub fn exit_trace(run: &Run, prov: &[crate::provenance::Prov]) -> Trace {
-    Trace { turns: run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect(), provenance: crate::provenance::all(prov), blow: death_blow(run), blows: death_blows(run), hp_lost: hp_lost(run) }
+    Trace { turns: run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect(), provenance: crate::provenance::all(prov), blow: death_blow(run), blows: death_blows(run), hp_lost: hp_lost(run), hp_healed: hp_healed(run) }
 }
 
 /// QA on 524827b (qaAA): a death's hp lost since full, per cause, most first (`Trace.hp_lost`);
@@ -5201,6 +5222,17 @@ pub fn hp_lost(run: &Run) -> Vec<crate::wire::HpLoss> {
     let mut v: Vec<crate::wire::HpLoss> = run.hp_lost.iter().map(|(by, dmg)| crate::wire::HpLoss { by: by.clone(), dmg: *dmg }).collect();
     v.sort_by(|a, b| b.dmg.cmp(&a.dmg).then(a.by.cmp(&b.by)));
     v
+}
+
+/// QA on 308f045 (qaAC: `since full hp · warlord −26 · fire −10 · … · others −18` = 72 on a 36-hp
+/// hero): the hp healed since the count began — the losses beyond the hp he started it with
+/// (`Trace.hp_healed`); 0 on any other exit.
+pub fn hp_healed(run: &Run) -> i32 {
+    if run.over != Some(ExitTier::Death) || run.hp_lost.is_empty() {
+        return 0;
+    }
+    let lost: i32 = run.hp_lost.iter().map(|(_, d)| *d).sum();
+    (lost - run.hp_lost_from.max(0)).max(0)
 }
 
 /// QA on 0c6e126 (qaY): a death's killing blow, the trace's last row (`Trace.blow`); none on

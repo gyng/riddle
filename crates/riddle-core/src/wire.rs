@@ -794,6 +794,10 @@ pub struct Trace {
     /// (`jackal −24 · monkey −8`). Empty on any other exit.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hp_lost: Vec<HpLoss>,
+    /// QA on 308f045 (qaAC: `hp_lost` summing to twice his max): the hp healed over the same
+    /// stretch (heals, rest, regeneration) — `Σ hp_lost − hp_healed` is the hp he began it with.
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub hp_healed: i32,
 }
 
 /// QA on 524827b: one cause's share of a death's hp lost since full (`Trace.hp_lost`).
@@ -908,6 +912,15 @@ pub struct PatchWhole {
     /// or more on the panel — the gamble the moment's replays did not show (`risk fire`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub risk: Option<String>,
+    /// QA on 308f045 (qaAC: `reach D9 ≈ ±1` on the patch, `vs sent · D6 −21` on the camp after
+    /// it): the floor the reach is read at — the camp's `vs sent` head (`trace::whole_move_on`);
+    /// `Patch.forecast_depth` is the same floor.
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub depth: u32,
+    /// QA on 308f045 (qaAC: `death −100 ±1` — "points? percent of runs?"): the death share
+    /// before the patch (0..1) — the screen prints the move as from→to (`death 100→0%`).
+    #[serde(default)]
+    pub death_from: f64,
 }
 
 fn is_zero_u32(n: &u32) -> bool {

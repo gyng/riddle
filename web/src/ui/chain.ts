@@ -85,6 +85,22 @@ export function tickLines(turns: Trace["turns"]): TickLine[] {
   return out.filter((l) => !(l.at === turns.length - 2 && lastOf.get(l.row) === l.key)).map(({ from, to, row, why, because }) => ({ from, to, row, why, because }));
 }
 
+/** QA 308f045 (qaAC): the core's `trace::chain_links` — per row its newest reason with a `because` (and none once the row fired after
+ *  it), newest turn first, deduped by text; each with the row, its reason and the turn's tick. */
+export function chainLinks(turns: Trace["turns"]): { row: number; why: string; t: number; because: Because }[] {
+  const out: { row: number; why: string; t: number; because: Because }[] = [], seen = new Set<number>();
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const turn = turns[i];
+    for (const w of turn.rows ?? []) {
+      if (seen.has(w.row)) continue;
+      seen.add(w.row);
+      if (w.because && !out.some((o) => o.because.text === w.because!.text)) out.push({ row: w.row, why: w.why, t: turn.t, because: w.because });
+    }
+    if (turn.row >= 0) seen.add(turn.row);
+  }
+  return out;
+}
+
 /** The chain of a trace's last turn, or null when nothing on the wire carries a `because`. */
 export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
   const last = trace.turns[trace.turns.length - 1];
@@ -97,8 +113,15 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
   let prov = ctx.provenance && !ctx.home ? (trace.provenance ?? []).filter((b) => !rowLinks.some((s) => sameLink(s, b))) : [];
   let earlier = 0, older: Because[] = [];
   if (prov.length > PROVENANCE_SHOW) { prov = [...prov].sort((a, b) => a.t - b.t); earlier = prov.length - PROVENANCE_SHOW; older = prov.slice(0, earlier); prov = prov.slice(-PROVENANCE_SHOW); }
-  const extra = [...(ctx.chain ?? []).map((b) => restamp(b, last?.t ?? b.t, ctx.depth)), ...prov];
-  if (!rows.some((r) => r.because) && !ticks.some((l) => l.because) && !extra.length) return null;
+  // QA 308f045 (qaAC: `← never met` and `← R4 drank heal at 17/36 hp` with no row in front; `← never met` over `R1 attack boss`, which
+  // fired four times on that floor): a chain link is a row's reason — it reads under its row (`R3 drink heal · no item ← …`), and only the
+  // row's newest one, never one the row outlived (it fired after it, or said something else since: `chainLinks`, the core's rule); a link
+  // no turn of the trace carries stays bare, but a bare `never met` / `never found` (no row, no object) says nothing and is left off
+  const owned = new Map(chainLinks(trace.turns).map((x) => [x.because.text, x]));
+  const chainEntries = (ctx.chain ?? []).filter((b) => owned.has(b.text) || (!/^never (met|found)$/.test(b.text) && !trace.turns.some((t) => (t.rows ?? []).some((r) => r.because?.text === b.text))));
+  const extra = [...chainEntries.filter((b) => !owned.has(b.text)).map((b) => restamp(b, last?.t ?? b.t, ctx.depth)), ...prov];
+  const ownedLines = chainEntries.filter((b) => owned.has(b.text)).map((b) => owned.get(b.text)!);
+  if (!rows.some((r) => r.because) && !ticks.some((l) => l.because) && !extra.length && !ownedLines.length) return null;
   const shown: Because[] = [];
   const verbOf = (i: number): string | undefined => { const v = ctx.verbs?.[i]; if (v) return v; const r = ctx.rows?.[i]; return r ? verbLabel(r.verb) : undefined; };
   const tickLine = (l: TickLine): HTMLElement => {
@@ -123,7 +146,15 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
   });
   // QA 524827b (qaAA: `R4 attack nearest · fired · ← cowardly ran first` read as why R4 fired): the chain's own links are the earlier
   // moments — they go before the last turn's lines, and the fired row closes the chain, never followed by a bare `←`
-  const extraEls: HTMLElement[] = [];
+  const extraEls: HTMLElement[] = [], ownedEls: HTMLElement[] = [];
+  for (const o of ownedLines) {
+    const b = restamp(o.because, o.t, ctx.depth);
+    if (shown.some((s) => sameLink(s, b) || s.text === b.text)) continue;
+    shown.push(b);
+    const verb = verbOf(o.row);
+    ownedEls.unshift(h("div", { class: "chain-row tick owned", "data-row": o.row }, h("span", { class: "at-t dim" }, `t${o.t}`), rowRef(o.row, verb, ctx.onRow), whySpan(o.why),
+      ...(foeBlockerOnMove(verb, b.text) ? [] : link(b, ctx.runId))));
+  }
   for (const b of extra) {
     if (shown.some((s) => sameLink(s, b) || s.text === b.text)) continue;
     shown.push(b);
@@ -135,7 +166,7 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
     h("span", { class: "why" }, /* copy:label */ "fired")));
   // QA e75ec29 (R: "`· 20 earlier` … does nothing when tapped"): the older links unfold in place
   const tickMore: HTMLElement | "" = tickOlder.length ? h("button", { class: "chain-row tick earlier dim", onclick: (e: Event) => { (e.currentTarget as HTMLElement).replaceWith(...tickOlder.map(tickLine)); } }, /* copy:button */ `· ${tickOlder.length} earlier`) : "";
-  const box = h("div", { class: "chain num" }, tickMore, ...tickEls, ...lines);
+  const box = h("div", { class: "chain num" }, ...ownedEls, tickMore, ...tickEls, ...lines);   // the older rows' reasons first, oldest first
   if (earlier > 0) {
     const more: HTMLButtonElement = h("button", { class: "chain-row extra earlier dim", onclick: () => {
       more.replaceWith(...older.filter((b) => !shown.some((x) => sameLink(x, b))).map((b) => h("div", { class: "chain-row extra" }, ...link(b, ctx.runId))));

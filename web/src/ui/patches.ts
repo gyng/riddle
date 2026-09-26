@@ -113,9 +113,10 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
       ? /* copy:callout */ `at R${held + 1}`
       // Cut 26 §6 (control rater AQ: `nothing beats unpatched 12/12` over a tablet reading `survives 12/12`): a candidate that does not
       // beat the unpatched replays was tried, not a help — its count never reads as a headline
-      : opts.nothingBeatsBase ? /* copy:callout */ "tried · no gain"
+      : opts.nothingBeatsBase ? /* copy:callout */ "replayed · no gain"
       : p.below_bar
-      ? /* copy:callout */ `tried · ${rs(p.survive)} · below bar`
+      // QA 308f045 (qaAD: `move R6 above R4 … tried · 0/12 · below bar` — "I never tried it"): the replays tried it — `replayed`
+      ? /* copy:callout */ `replayed · ${rs(p.survive)} · below bar`
       : baseline === undefined
         ? /* copy:callout */ `reach ${opts.depth !== undefined ? `D${opts.depth} ` : ""}${pct(p.survive)} · base ${Math.max(0, Math.round(p.survive * 100) - delta)}%`
         // QA a946e04 (S: `base 25%` on every patch — "the base of what?"): the rules as they ran, replayed — `unpatched 25%`
@@ -178,7 +179,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
   const best = offered.length ? Math.max(...offered.map(sv)) : -1;
   const tied = offered.filter((p) => sv(p) === best).length > 1;
   const moment = opts.moment !== undefined && baseline !== undefined && !opts.stall && rows.length
-    ? h("div", { class: "patches-moment num dim" }, /* copy:callout */ `D${opts.moment} death · replayed`, tied ? h("span", { class: "tied" }, /* copy:callout */ " · tied") : "") : null;
+    ? h("div", { class: "patches-moment num dim" }, /* copy:callout */ `D${opts.moment} death · replayed`, tied ? h("span", { class: "tied" }, /* copy:callout */ " · patches tie") : "") : null;   // QA 308f045 (qaAC: `GAP` over `replayed · tied`, read as "no gap"): what ties is the patches
   const box = h("div", { class: "patches" }, moment, ...rows); renumber(box); baseOf.set(box, campBaseAt(app)); return box;
 }
 /** QA e75ec29 (Q: "I read the gem as the best fix … rank by what is shown or show the ranking key"): the tablets carry their place
@@ -206,7 +207,12 @@ function reachSpan(p: Patch, stallish = false, base?: BaseAt): HTMLElement {
   const exits = !stallish && !p.remove && (p.exits ?? (p.moves_from === undefined && EXIT_VERBS.has(p.row.verb.v)));   // Cut 25 §2: a move adds no exit unless the core says so
   // Cut 23 §3 (AI: `survives 92% … reach D5 −88` — "a number I could not read"): one form — an exit's point is surviving, so it loses its
   // number and says what it costs in a word (`return early`); every other patch reads its reach move (`reach D6 +8 ±3`)
-  if (exits) return h("span", { class: "num delta exit early" }, p.row.verb.v === "bank" ? /* copy:callout */ "bank early" : /* copy:callout */ "return early");
+  // QA 308f045 (qaAC: the gem lit `10/12` over `hp < 20% → return · survives 11/12`, `9/12` over a `12/12` return — "a visible reason the
+  // lower one leads"): once the whole run is measured, an exit says the floors it costs beside its word (`return early · D6 56→20%`) —
+  // why it survives more and still does not lead
+  const w0 = p.whole, cost = exits && w0 && !p.camp_pending && w0.reach_from !== undefined && w0.reach_to !== undefined && w0.reach < 0 && Math.abs(w0.reach) > w0.reach_pm
+    ? h("span", { class: "exit-cost down" }, ` · D${w0.depth ?? p.forecast_depth ?? ""} ${Math.round(w0.reach_from * 100)}→${Math.round(w0.reach_to * 100)}%`) : "";
+  if (exits) return h("span", { class: "num delta exit early" }, p.row.verb.v === "bank" ? /* copy:callout */ "bank early" : /* copy:callout */ "return early", cost);
   if (p.camp_pending) return h("span", { class: "num delta pending" }, /* copy:callout */ "reach …");
   const delta = Math.round(p.forecast_delta * 100);
   // QA 524827b: a move's ± is the paired one (`PatchWhole.reach_pm`, the camp's `vs sent` measure) once the whole run is measured
@@ -239,7 +245,11 @@ function wholeSpan(p: Patch): HTMLElement {
   const d = Math.round(w.death * 100), pm = Math.max(1, Math.round(w.death_pm * 100));
   const moved = d !== 0 && Math.abs(w.death) > w.death_pm + 1e-9;
   const parts: HTMLElement[] = [];
-  if (moved) parts.push(h("span", { class: `dlt ${d > 0 ? "down" : "up"}` }, /* copy:callout */ `death ${d > 0 ? "+" : "−"}${Math.abs(d)}`, h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`)));
+  // QA 308f045 (qaAC: `death −100 ±1` — "points? percent of runs?"): the death share before and after, as the reach reads (`death 100→0%`);
+  // an older core without `death_from` keeps the signed move
+  const from = w.death_from !== undefined ? Math.round(w.death_from * 100) : undefined;
+  const deathText = from !== undefined ? `${from}→${Math.max(0, Math.min(100, Math.round((w.death_from! + w.death) * 100)))}%` : `${d > 0 ? "+" : "−"}${Math.abs(d)}`;
+  if (moved) parts.push(h("span", { class: `dlt ${d > 0 ? "down" : "up"}` }, /* copy:callout */ `death ${deathText}`, from !== undefined ? "" : h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`)));
   if (w.risk) parts.push(h("span", { class: "dlt down risk" }, /* copy:callout */ `risk ${w.risk}`));
   return h("span", { class: `num whole${w.harms ? " harms" : ""}` }, ...parts.flatMap((x, i) => (i ? [" · ", x] : [x])));
 }
@@ -249,8 +259,13 @@ function wholeSpan(p: Patch): HTMLElement {
 export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): void {
   const host = el.querySelector<HTMLElement>(":scope > .patches-fold") ?? el;   // Cut 20 §4: the folded block's tablets
   const buttons = [...host.querySelectorAll<HTMLElement>(":scope > button.patch")];
+  // QA 308f045 (qaAC: patch 1 read `survives 12/12 · reach D9 ≈ ±1`, applied, the camp read `D6 −21`): the core re-ranks the list on its
+  // camp numbers (`death_deltas`: survival first, a harm sunk), so the landed list is matched patch by patch — by its row and its place —
+  // never by index (by index, a tablet showed another patch's reach and the gem applied a patch whose numbers were not the ones shown)
+  const keyOf = (p: Patch): string => JSON.stringify([p.row.conds.map((c) => [c.k, c.n ?? null, c.t ?? null]), p.row.verb.v, p.row.verb.a ?? null, p.insert_at, !!p.replace, !!p.remove, p.moves_from ?? null]);
+  const byKey = new Map(filled.map((f) => [keyOf(f), f]));
   patches.forEach((p, i) => {
-    const f = filled[i]; if (!f) return;
+    const f = byKey.get(keyOf(p)); if (!f) return;
     Object.assign(p, { forecast_delta: f.forecast_delta, forecast_depth: f.forecast_depth, forecast_pm: f.forecast_pm, whole: f.whole, camp_pending: false });
     buttons[i]?.querySelector(".delta")?.replaceWith(reachSpan(p, false, baseOf.get(el)));
     buttons[i]?.querySelector(".whole")?.replaceWith(wholeSpan(p));
@@ -261,7 +276,8 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
   // ~5 s later patch 2 lit and `67% apply`, no tap): the landing never moves the list or the lit tablet — the order is the core's
   // (`rank_patches`, which already keeps a costly exit off the lead), the player has read it by the time the camp's reach lands
   const pmOf = (p: Patch): number => p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : 0;
-  const moveOf = (p: Patch): number => { const d = Math.round(p.forecast_delta * 100); return p.insert_at < 0 || Math.abs(d) <= pmOf(p) ? 0 : d; };
+  // (an exit's reach is its price, `return early · D6 54→30%` — not a loss that dims it; the core keeps a costly exit off the lead)
+  const moveOf = (p: Patch): number => { const d = Math.round(p.forecast_delta * 100); return p.insert_at < 0 || Math.abs(d) <= pmOf(p) || (!p.remove && (p.exits ?? (p.moves_from === undefined && EXIT_VERBS.has(p.row.verb.v)))) ? 0 : d; };
   // QA 524827b: a patch that harms whole runs (`PatchWhole.harms`: death up or reach down beyond its ±) is a loss too
   patches.forEach((p, i) => { const b = buttons[i]; if (b && !(b.classList.contains("below") && !b.classList.contains("neg"))) b.classList.toggle("neg", moveOf(p) < 0 || !!p.whole?.harms); });
 }

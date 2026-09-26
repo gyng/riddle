@@ -10,7 +10,7 @@
 // §5: a `dice` death names what the forecast said for that depth — the camp's own reach line, verbatim (`forecast said D4 100%`)
 // when the last forecast knows the floor (QA on 50bb162: "`forecast said 36%` while the camp forecast read `D4 100% ±1`").
 import type { App, Mounted } from "../app";
-import type { Death, DrivenOff, ExitLine, Patch, Row } from "../engine/types";
+import type { Death, DrivenOff, ExitLine, Patch, ReturnReport, Row } from "../engine/types";
 import { morgueVerbs } from "./chain";
 import { lastRun, replayable } from "./runlog";
 import { openReplay } from "./replay";
@@ -92,7 +92,7 @@ export const lineShown = (x: ExitLine, name?: (label: string) => string, opts: E
   return ledgerShown(text) + exitExtras(x, name, { ...opts, pileShown: !!m });
 };
 
-export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false): Mounted {
+export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false, from?: { report: ReturnReport; absence?: boolean }): Mounted {
   const drove = isDriven(d) ? d.line!.driven! : undefined;   // Cut 26 §6: a drive-off's verdict (below)
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
   const seg = headlineMargin(d.margin ?? "");
@@ -124,7 +124,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const moment = d.trace.blow ? { text: d.cause.replace(/_/g, " "), t: d.trace.blow.t, depth: d.depth } : null;
   const onCause = (): void => { const log = lastRun(); if (moment && log && replayable(d.run_id, moment)) openReplay(log, moment); else tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }); };
   const line = h("h1", { class: "death-line" }, h("button", { class: "cause-btn", onclick: onCause }, causeEl), h("span", { class: "sep" }, " · "), seal,
-    lean ? h("small", { class: "lean num" }, /* copy:callout */ "dice-leaning") : "");
+    // QA 308f045 (qaAD: `GAP` over `dice-leaning` — "two verdicts on one death"): beside the stamp the lean is the count it rests on, a fact
+    // and not a second verdict (`10/12 live unpatched`; without the count, `most live unpatched`)
+    lean ? h("small", { class: "lean num" }, d.replays ? /* copy:callout */ `${Math.round((d.baseline ?? 0) * d.replays)}/${d.replays} live unpatched` : /* copy:callout */ "most live unpatched") : "");
   // Cut 13 §4: the run's last two notes, engine data verbatim (`The green one: fire. Gambled: fire potion.`)
   // QA 92eb880: never a `… saved him.` over a death (M, N: read as the verdict), nor the cage's loot beat (`Took the axe +1 from the cage.`,
   // M: "unrelated to the ogre") — the core filters the first; the client keeps both off whatever the build
@@ -195,14 +197,24 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // QA 1a2a4a9 (P: "the hero came home but the portrait is greyed like a corpse"): a stall is no death — the face stays lit
   const stalled = d.verdict === "stall" || !!drove;
   const face = portrait(app, stalled ? { hp: 1, label: `D${d.depth}` } : { hp: 0, dead: true, label: `D${d.depth}` });
-  const makeGem = (): HTMLButtonElement => top
+  // QA 308f045 (qaAD: `retreat · drops R3 · survives 12/12` applied from the gem, then `vs sent · bank −30 · death +29`): the gem offers no
+  // one-tap apply until the lit patch's whole run is measured (`deathDeltas` landed) — it reads `…` — and a lit tablet that harms whole runs
+  // says so on the stone (`harms`, never `apply`: the player's own pick still applies, warned)
+  let measuring = !drove && !(d.verdict === "route" && d.route_cause) && d.patches.some((p) => p.camp_pending) && !!app.engine.deathDeltas;
+  const isPatchTop = (): boolean => !!top && !top.btn.classList.contains("unlock") && !top.btn.classList.contains("held") && top.btn.classList.contains("patch") && !top.btn.classList.contains("driven-line");
+  const makeGem = (): HTMLButtonElement => top && measuring && isPatchTop()
+    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, "…"), h("small", { class: "gem-w" }, /* copy:label */ "measuring")), cls: "patch-gem pending", onclick: () => undefined })
+    : top
     // QA 23ed91f (K: "the gem reads `100%` with no label … I read it as the run's result"): the number, and the word the tap does under it
-    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" && top.label !== "edit" && top.label !== "write" ? h("small", { class: "gem-w" }, /* copy:label */ "apply") : ""), cls: "patch-gem", pulse: true, onclick: () => { if (top) void applyOf.get(top.btn)?.(); } })
+    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" && top.label !== "edit" && top.label !== "write" ? h("small", { class: "gem-w" }, top.btn.classList.contains("harms") ? /* copy:label */ "harms" : /* copy:label */ "apply") : ""), cls: `patch-gem${top.btn.classList.contains("harms") ? " harms" : ""}`, pulse: !top.btn.classList.contains("harms"), onclick: () => { if (top) void applyOf.get(top.btn)?.(); } })
     : gem({ label: /* copy:button */ "edit", pulse: true, onclick: () => app.go({ kind: "camp" }) });
   let gemBtn = makeGem();
   const cons = renderConsole({ portrait: face.el, gem: gemBtn, tiles: [
     top ? tile({ id: "edit", label: /* copy:button */ "edit", icon: "edit", onclick: () => { app.editing = true; app.go({ kind: "camp" }); } }) : null,
     d.morgue ? tile({ id: "morgue", label: /* copy:button */ "morgue", icon: "morgue", onclick: openMorgue }) : null,
+    // QA 308f045 (qaAD: a verdict opened from the return report had no way back — `edit · morgue · camp`, browser back to the camp): a
+    // verdict opened from a report leads back to it
+    from ? tile({ id: "report", label: /* copy:button */ "report", icon: "trace", onclick: () => app.go({ kind: "report", report: from.report }) }) : null,
     tile({ id: "camp", label: /* copy:button */ "camp", icon: "camp", onclick: () => app.go({ kind: "camp" }) }),
   ] });
   const tracePanel = h("div", { class: "parchment trace-panel", hidden: !!drove && !d.trace.turns.length }, ...trace);   // a drive-off's line may carry no trace
@@ -225,7 +237,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     // screen's own lit tablet (not the player's pick) that the landing shows losing 10 points or more yields the light to the first
     // tablet that does not lose — a patch that costs that much never leads
     setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => {
-      if (gone || !f?.length) return;
+      if (gone) return;
+      if (!f?.length) { measuring = false; const g1 = makeGem(); gemBtn.replaceWith(g1); gemBtn = g1; return; }
       fillReach(patches, shown, f);
       const btns = [...patches.querySelectorAll<HTMLButtonElement>("button.patch")];
       // (an exit's cost is its word, `return early`, and the core keeps a costly exit off the lead: only a row that stays in the fight moves)
@@ -251,7 +264,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
           else { cur.classList.remove("top"); top = null; const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; }
         }
       }
-    }).catch((e) => console.warn("deathDeltas", e)); }, 0);
+      measuring = false; const g2 = makeGem(); gemBtn.replaceWith(g2); gemBtn = g2;
+    }).catch((e) => { console.warn("deathDeltas", e); measuring = false; const g2 = makeGem(); gemBtn.replaceWith(g2); gemBtn = g2; }); }, 0);
   }
   return { el, dispose: () => { gone = true; bar.dispose(); } };
 }

@@ -68,6 +68,7 @@ export class WasmEngine implements Engine {
   setKeepPref(pref: string): Lineage { return this.call("setKeepPref", pref); }
   setLook(look: string): Lineage { return this.call("setLook", look); }   // hero looks
   insure(id: number): Lineage { return this.call("insure", id); }
+  sellVault(id: number): Lineage { return this.call("sellVault", id); }   // QA 308f045: an item out of the vault, salvaged
   // core additions
   unlocks(): UnlockInfo[] { return this.call("unlocks"); }
   unlockDeltas(): UnlockInfo[] { return this.call("unlockDeltas"); }
@@ -91,9 +92,9 @@ export class WasmEngine implements Engine {
   setRestock(on: boolean): Lineage { return this.call("setRestock", on); }
   // Cut 21 §1: throw `wasm: setStart` / `wasm: startForecast` on a build without them
   setStart(depth: number): Lineage { return this.call("setStart", depth); }
-  startForecast(): StartOption[] { return this.call("startForecast"); }
+  startForecast(refined?: boolean): StartOption[] { return this.call("startForecast", refined); }   // QA 308f045: on the camp's pass
   // Cut 26 §2: throws `wasm: forkForecast` on a build without it (the fork chip's sheet then shows the chips alone)
-  forkForecast(fork: number): ForkOption[] { return this.call("forkForecast", fork); }
+  forkForecast(fork: number, refined?: boolean): ForkOption[] { return this.call("forkForecast", fork, refined); }   // QA 308f045: on the camp's pass
   // Cut 22 §3: throws `wasm: forecastVs` on a build without it (the client then reads `Forecast.vs`, or shows no move)
   forecastVs(prev: RuleSet): ForecastVs { return this.call("forecastVs", JSON.stringify(prev)); }
   // Cut 23 §1: throw `wasm: buyKit` / `wasm: kitDeltas` on a build without them (the camp shows no forge)

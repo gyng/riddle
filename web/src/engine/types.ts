@@ -211,7 +211,8 @@ export type Trace = { turns: TraceTurn[];
                       provenance?: Because[];                                                // Cut 11 §3: every `because` event of the run (exit traces)
                       blow?: { t: number; by: string; dmg: number; hp: number };
                       blows?: { t: number; by: string; dmg: number; hp: number }[];
-                      hp_lost?: { by: string; dmg: number }[] };                             // QA 524827b (core; qaAA: "where 36 hp went takes a replay"): a death's hp lost since full, per cause, most first        // Cut 25 §3 (core; AN: `14 → 0` on one `goblin −2` row): every blow after the last action, oldest first, hp after each; the last is `blow`; absent when `blow` was the only one — the table shows one row per blow           // QA 0c6e126 (qaY): a death's killing blow, the table's last row                                              // Cut 11 §3: every `because` event of the run (exit traces)
+                      hp_lost?: { by: string; dmg: number }[];
+                      hp_healed?: number };   // QA 308f045 (core; qaAC: `since full hp` summing past his max): the hp healed over the same stretch                             // QA 524827b (core; qaAA: "where 36 hp went takes a replay"): a death's hp lost since full, per cause, most first        // Cut 25 §3 (core; AN: `14 → 0` on one `goblin −2` row): every blow after the last action, oldest first, hp after each; the last is `blow`; absent when `blow` was the only one — the table shows one row per blow           // QA 0c6e126 (qaY): a death's killing blow, the table's last row                                              // Cut 11 §3: every `because` event of the run (exit traces)
 /** A candidate row. Death patches insert before `insert_at`; stall patches (core README) may instead `replace` the row at
  *  `insert_at` or `remove` it (`row` echoes the removed row).
  *  Cut 11 §2: `root` names the chain's root the row answers (`den took the heal`); `insert_at: -1` is an unlock pseudo-patch
@@ -231,7 +232,9 @@ export type Patch = { row: Row; insert_at: number; survive: number; forecast_del
  *  at `forecast_depth` and the death share, paired over the camp's sims, each with its 95 % ±; `harms` (worse beyond a ±: never the lead,
  *  never the gem's default); `risk` the self-dealt harm the patch raises (`fire`). Fractions 0..1. */
 export type PatchWhole = { reach: number; reach_pm: number; death: number; death_pm: number; harms?: boolean; risk?: string;
-                           reach_from?: number; reach_to?: number };   // Cut 26 §6 (core; AP: `reach D5 −76`): the bar's reach before/after the patch (0..1) — print the move as from→to (`reach D5 90→14%`), never a signed delta                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
+                           reach_from?: number; reach_to?: number;
+                           depth?: number;        // QA 308f045 (core; qaAC: `reach D9 ≈ ±1`, then the camp's `vs sent · D6 −21`): the floor the reach is read at — the camp's `vs sent` head (the frontier when it moves, else the floor that moves most); `Patch.forecast_depth` is the same
+                           death_from?: number };  // QA 308f045 (core; qaAC: `death −100 ±1`): the death share before the patch (0..1) — print `death 100→0%`   // Cut 26 §6 (core; AP: `reach D5 −76`): the bar's reach before/after the patch (0..1) — print the move as from→to (`reach D5 90→14%`), never a signed delta                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
 export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order"|"route";   // route: Cut 26 (core) — the far stair the set's route took killed him (`route_cause`)
                       lean?: "dice";                                                        // Cut 26 §6 (core; AO: `GAP` beside `unpatched 10/12`): a gap/row/order most of whose unpatched replays survive (> 6/12) — stamp it beside the counts (`GAP · dice-leaning`)
                       route_cause?: RouteCause;                                             // Cut 26 risks (core): on `route`, the fork, the stair taken and the other; its lead patch is a route edit (`route_cause.route`)   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
@@ -402,6 +405,7 @@ export interface Engine {
   autoKeep?(): Lineage;
   setLook?(look: string): Lineage;     // hero looks: the heirs' cosmetic look (`male | female | cat`; optional: an older core has none)
   setKeepPref(pref: string): Lineage;   // core addition (README): keep preference for offline exits
+  sellVault?(id: number): Lineage;     // QA 308f045 (core; qaAC: `vault full · axe stays`, no way to take it out): the item out of the vault, salvaged at a bank's share
   insure(id: number): Lineage;          // core addition: gold bet that keeps a brought vault item on death
   // core additions (crates/riddle-core/README.md)
   unlocks(): UnlockInfo[];              // the catalogue; `available` = prereq + fact gate + affordable
@@ -426,9 +430,11 @@ export interface Engine {
   forecastVsRefined?(prev: RuleSet): ForecastVs;   // client (lanes.ts): `forecastVs` on the background lane, behind the refine — the refined panels paired
   refineLane?: boolean;
   parallelForecast?: boolean;           // Cut 25 §4 (client, lanes.ts): a forecast asked while one is in flight runs beside it (an idle mirror) — the app asks at once                 // Cut 24 §4 (client, lanes.ts): the refine runs on a lane of its own — the app asks it beside an edit's first pass
-  startForecast?(): StartOption[];      // §1: D1 and each lit waystone measured for the active set (memoised; seconds in wasm — call when the picker opens)
+  startForecast?(refined?: boolean): StartOption[];   // QA 308f045 (qaAD: `D1 · bank 90%` beside the shaft's 92%): `refined` — on the camp's pass
+       // §1: D1 and each lit waystone measured for the active set (memoised; seconds in wasm — call when the picker opens)
   // Cut 26
-  forkForecast?(fork: number): ForkOption[];   // §2: both stairs of a seen fork for the active set (one extra camp panel, memoised; seconds in wasm — call when the fork chip's sheet opens)
+  forkForecast?(fork: number, refined?: boolean): ForkOption[];   // QA 308f045 (qaAC: `fens D8 12%`, picked: `D8 16%`): `refined` — measured on the pass the camp shows, like `cageForecast`
+    // §2: both stairs of a seen fork for the active set (one extra camp panel, memoised; seconds in wasm — call when the fork chip's sheet opens)
   // Cut 23
   buyKit?(slot: string): Lineage;       // §1: buy the next forge step of `weapon | armour | pack` (gold; permanent; ledger `forge <label>`)
   kitDeltas?(): KitLadder[];            // §1: `Lineage.kit` with each `next` measured (paired forecast; seconds in wasm — call after paint, memoised)

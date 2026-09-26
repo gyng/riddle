@@ -132,7 +132,8 @@ async function qaK() {
   await sleep(1000);
   const landed = await page.evaluate(() => [...document.querySelectorAll("button.patch .delta")].map((x) => x.textContent));
   await page.evaluate(() => { const r = window.__riddle; r.engine.deathDeltas = r.__origDD; });
-  check(pend.reach.every((x) => x === "reach …") && pend.gem === "100%", `the death paints at once, each reach pending (${pend.reach.join(" · ")}; gem ${pend.gem})`);
+  // (QA 308f045, qaAD: the gem offers no apply until the whole-run measure lands — it reads `…` meanwhile)
+  check(pend.reach.every((x) => x === "reach …") && pend.gem === "…", `the death paints at once, each reach pending (${pend.reach.join(" · ")}; gem ${pend.gem})`);
   check(landed.join(" · ") === "reach D6 +8 ±3 · reach D6 ≈ ±3 · reach D6 −5 ±3", `the camp's reach lands on the tablets: the depth, the ±, +0% inside it (QA 92eb880: never \`~0\`) (${landed.join(" · ")})`);
 
   // ---- 2. the report: newest run first; bests named; a stall patch's numbers add up
@@ -386,7 +387,8 @@ async function cut19() {
   await page.evaluate(() => {
     const r = window.__riddle; r.__restock = [];
     r.engine.setRestock = async (on) => { r.__restock.push(on); return { ...r.lineage, repeat: on }; };
-    r.lineage = { ...r.lineage, gold: 300, repeat: true, repeat_kinds: ["heal"], repeat_gold: 120 }; r.go({ kind: "camp" });
+    // (an empty shelf: the switch flips in one tap — a shelf of bought supplies asks first, qaAC.mjs)
+    r.lineage = { ...r.lineage, gold: 300, repeat: true, repeat_kinds: ["heal"], repeat_gold: 120, supplies: [] }; r.go({ kind: "camp" });
   });
   await sleep(300);
   const badge = () => page.evaluate(() => document.querySelector(".cmd .tile[data-tile=loadout] .repeat-badge")?.textContent ?? null);
