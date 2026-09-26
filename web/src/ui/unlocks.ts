@@ -105,6 +105,10 @@ export function effectLine(app: App, u: UnlockInfo): string | undefined {
 }
 /** QA 92eb880 (N: "`verb: throw` sheet has only prices, no line of what it does"): a verb unlock shows the verb it adds as a chip. */
 const VERB_OF: Record<string, string> = { throw: "throw", tame: "tame" };
+/** QA 524827b (qaAA: the `verb: throw` sheet — "nothing says what is thrown"): what the verb does, beside its chip (the core's
+ *  `verb_throw`: a potion from the pack at a foe, `throw fire` / `throw poison`; `verb_tame`: the leash on a foe under a quarter hp). */
+/* copy:unlock_card */
+const VERB_DOES: Record<string, string> = { throw: "a potion at a foe", tame: "leash on a weak foe" };
 /** Cut 13 §5: |delta| within its half-width. */
 export const deltaIsNoise = (u: UnlockInfo): boolean => u.delta !== undefined && u.pm !== undefined && Math.abs(u.delta) <= u.pm;
 /** The delta in whole points as the shelf shows it; 0 = nothing to show (no delta, or a bare 0 without a `pm` to call it noise). */
@@ -146,7 +150,7 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
     return h("div", { class: "sheet-body unlock-sheet" },
       h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`, gold ? h("span", { class: "gold-price" }, /* copy:label */ ` or $${gold}`) : "")),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r))))
-        : VERB_OF[u.id] ? h("div", { class: "card-rows" }, h("div", { class: "row locked" }, h("div", { class: "chips" }, h("span", { class: "chip verb locked" }, VERB_OF[u.id])))) : "",
+        : VERB_OF[u.id] ? h("div", { class: "card-rows" }, h("div", { class: "row locked" }, h("div", { class: "chips" }, h("span", { class: "chip verb locked" }, VERB_OF[u.id]), VERB_DOES[u.id] ? h("small", { class: "dim verb-does" }, ` ${VERB_DOES[u.id]}`) : ""))) : "",
       effectLine(app, u) ? h("div", { class: "effect-line num" }, effectLine(app, u)!) : "",
       // Cut 23 §3 (AJ: "paid cards are rows I could type"): what the card holds that no typed row can (the core's `carries`)
       u.carries ? h("div", { class: "carries num" }, h("span", { class: "dim" }, /* copy:label */ "holds "), u.carries) : "",
@@ -182,7 +186,7 @@ function nextPrice(app: App, u: UnlockInfo): HTMLElement | null {
   return h("div", { class: "dim num next-price" }, /* copy:callout */ `next ${price}`,
     // QA 778fa1b (qaV: `next ◆4 or $600 · $ buy → $750` — "two next prices on one line"; qaU: a $ buy raised `verb: throw` and `cond:
     // alert` too, unsaid): a $ buy raises every $ price — the line says so, by how much, not a second price for this one
-    n.gold_after_gold && n.gold && n.gold_after_gold !== n.gold ? h("span", { class: "after-gold" }, /* copy:callout */ ` · each $ buy: $ prices +${Math.round((n.gold_after_gold / n.gold - 1) * 100)}%`) : "");   // QA 912e135 (qaW: `$ buy: all $ +25%` unexplained)
+    n.gold_after_gold && n.gold && n.gold_after_gold !== n.gold ? h("span", { class: "after-gold" }, /* copy:callout */ ` · each $ buy +$${n.gold_after_gold - n.gold}`) : "");   // QA 524827b (qaAB: `+1 vault` read `+20%`, every other sheet `+25%` — the climb is a quarter of the first price each buy, so its % falls; the dollars are one rule)   // QA 912e135 (qaW: `$ buy: all $ +25%` unexplained)
 }
 /** The core's gold price is `GOLD_PER_MARK × cost × (4 + gold_buys) / 4` (meta.rs): each gold buy raises every gold price by
  *  1 / (4 + gold_buys) — 25 % at the first, 20 % at the second, … — read back off this card's price. */

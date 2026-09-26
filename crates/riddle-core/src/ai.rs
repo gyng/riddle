@@ -1708,9 +1708,11 @@ fn verb_read(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         "enchant" => {
             if let Some(w) = run.hero.weapon.as_mut() {
                 w.enchant += 1;
+                w.enchanted += 1;
                 "weapon +1".into()
             } else if let Some(ar) = run.hero.armour.as_mut() {
                 ar.enchant += 1;
+                ar.enchanted += 1;
                 "armour +1".into()
             } else {
                 "nothing".into()

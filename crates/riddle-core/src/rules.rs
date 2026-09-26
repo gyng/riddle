@@ -51,7 +51,7 @@ pub struct Vocabulary {
     #[serde(default)]
     pub combos: Vec<Combo>,
     /// Cut 9 §1: condition tokens that exist but are gated for this lineage, each with the
-    /// gate as the player reads it (`fact: pack`, `◆2`, `see: stray`, `tame once`). The sheet
+    /// gate as the player reads it (`fact: pack`, `◆2`, `see: stray`, `tame a foe`). The sheet
     /// shows them dim; `set_rules` refuses a row that uses one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub locked: Vec<LockedCond>,

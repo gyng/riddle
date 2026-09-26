@@ -146,7 +146,7 @@ try {
     });
     await sleep(300);
     const d = await section("counter");
-    check(d === "counter warlord · no counter · shield wall try: attack boss", `a boss that drove him off reads its counter ("${d}")`);
+    check(d === "counter warlord · counter unwritten · shield wall try: attack boss", `a boss that drove him off reads its counter ("${d}")`);
     const lead = await page.evaluate(() => { const n = document.querySelector(".report .news"), t = document.querySelector(".report .tiles"); return { lines: [...(n?.querySelectorAll(".news-line") ?? [])].map((x) => x.textContent), before: !!n && !!t && !!(n.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING), lead: n?.querySelector(".news-line.lead")?.textContent ?? null }; });
     check(lead.before && lead.lead === "first: the captive" && lead.lines.join(" | ") === "first: the captive | driven off: Warlord", `what was new leads the report, before the counts (${lead.lines.join(" | ") || "none"})`);
     await shot("cut24-driven");
@@ -186,8 +186,8 @@ try {
     const notch = await page.evaluate(() => ({ d8: document.querySelector('.shaft .notch[data-d="8"] .dl')?.textContent ?? null, d9: document.querySelector('.shaft .notch[data-d="9"] .dl')?.textContent ?? null }));
     await page.locator(".shaft").click({ timeout: 5000 }); await sleep(250);
     const bars = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".panel .fc-bars .bar")].map((b) => [b.querySelector(".d")?.textContent, { text: b.textContent.replace(/\s+/g, " ").trim(), try: !!b.querySelector(".try") }])));
-    check(f && notch.d8 === "D8 · warlord" && notch.d9 === "D9 · wall", `the shaft names him on his floor and his wall below (QA 0c6e126, qaY: the wall under his named floor reads \`· wall\`, never a second warlord) (${notch.d8} | ${notch.d9})`);
-    check(bars.D8?.try && /try: attack boss/.test(bars.D8.text) && /warlord/.test(bars.D8.text) && !bars.D9?.try && /warlord wall/.test(bars.D9?.text ?? ""), `the panel reads his counter on D8, where he is met (D8: "${bars.D8?.text}" · D9: "${bars.D9?.text}")`);
+    check(f && notch.d8 === "D8 · warlord" && notch.d9 === "D9 · sealed", `the shaft names him on his floor and his wall below (QA 0c6e126, qaY: the wall under his named floor reads \`· sealed\`, never a second warlord) (${notch.d8} | ${notch.d9})`);
+    check(bars.D8?.try && /try: attack boss/.test(bars.D8.text) && /warlord/.test(bars.D8.text) && !bars.D9?.try && /sealed by warlord/.test(bars.D9?.text ?? ""), `the panel reads his counter on D8, where he is met (D8: "${bars.D8?.text}" · D9: "${bars.D9?.text}")`);
     await shot("cut24-boss-floor");
     await page.keyboard.press("Escape"); await sleep(150);
   }

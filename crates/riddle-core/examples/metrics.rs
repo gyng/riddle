@@ -1089,6 +1089,11 @@ fn main() {
     if lever_only {
         jobs.retain(|j| matches!(j, Job::Lever(..)));
     }
+    // `--bots`: the bots alone — the per-bot table and the verdict sample (the dice measure; ~2 min).
+    let bots_only = args.iter().any(|a| a == "--bots");
+    if bots_only {
+        jobs.retain(|j| matches!(j, Job::Bot(..)));
+    }
     // `--threads N` leaves cores to whatever runs beside the table (gates.mjs: the dayplayer's
     // sequential chains, which the full 32 starved — docs/ITERATION_SPEED.md §3.2).
     let threads = get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(4).min(32)) as usize;
@@ -1317,6 +1322,9 @@ fn main() {
     let row = weighted("row");
     let gap = weighted("gap") + row;
     println!("verdict sample: {} verdicts, raw dice share {raw_dice:.1}% · death-weighted {dice:.1}% · row {row:.1}%", verdicts.len());
+    if bots_only {
+        return;
+    }
     // A share near 5% needs a few hundred verdicts to read: the quick mode's ~240 give ±2.8 pts.
     // Under 500 the bar is applied with that half-width; the full table is the gate that counts.
     let dice_n = verdicts.len() as f64;

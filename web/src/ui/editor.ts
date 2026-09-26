@@ -331,6 +331,9 @@ export function formShadow(rows: Row[], j: number): number | null {
   });
   for (let i = 0; i < j; i++) {
     const ri = rows[i];
+    // QA 524827b (qaAA: R1 `hp < 40% → return` over R2 `hp < 30% → drink heal`, "the heal row can never fire", no mark): an exit row whose
+    // every cond holds whenever this row's do takes its moments (it yields only while the way home is blocked) — marked like a shadow
+    if ((ri.verb.v === "return" || ri.verb.v === "bank") && rj.verb.v !== ri.verb.v && ri.conds.length && ri.conds.every((c) => implied(c, rj.conds))) return i;
     if (ri.verb.v !== "attack" || !ri.conds.length || !ri.conds.some((c) => presence(c.k))) continue;
     const a = ri.verb.a ?? "nearest";
     const tagged = rj.conds.find((c) => c.k === "foe_tag")?.t;

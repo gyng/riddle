@@ -43,7 +43,14 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
     const btn = under?.closest<HTMLElement>("button.chip");
     return btn && a.contains(btn) && btn !== opener ? btn : null;
   };
-  const wrap = h("div", { class: `sheet-wrap${opts.modeless ? " modeless" : ""}`, onclick: (e) => { if (e.target !== wrap) return; const pass = passThrough(e as MouseEvent); close(); pass?.click(); } });
+  // QA 524827b (qaAA: with the SUPPLIES sheet up, a tap on the `unlocks` tile only closed the sheet — two taps for one): a tap on a
+  // console tile under the backdrop closes the sheet and reaches the tile (the command card is never "beneath" a sheet; the gem is)
+  const tileUnder = (e: MouseEvent): HTMLElement | null => {
+    wrap.style.pointerEvents = "none"; const under = document.elementFromPoint(e.clientX, e.clientY); wrap.style.pointerEvents = "";
+    const t = under?.closest<HTMLElement>("footer.console button.tile");
+    return t && !(t as HTMLButtonElement).disabled ? t : null;
+  };
+  const wrap = h("div", { class: `sheet-wrap${opts.modeless ? " modeless" : ""}`, onclick: (e) => { if (e.target !== wrap) return; const pass = passThrough(e as MouseEvent) ?? tileUnder(e as MouseEvent); close(); pass?.click(); } });
   let ro: ResizeObserver | null = null;
   // Cut 25 §6: the sheet this one replaces (the top non-modeless one), hidden until this one goes
   const parent = opts.modeless ? undefined : [...stack].reverse().find((w) => !w.classList.contains("modeless"));

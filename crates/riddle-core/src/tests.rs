@@ -903,6 +903,8 @@ fn scrolls_read_identify_and_take_effect() {
     let _ = g;
     let (g, _) = read_test("enchant", |_| {});
     assert_eq!(hero(&g).weapon.as_ref().unwrap().enchant, 1);
+    // QA on 524827b (qaAA: KEPT `axe +7` after `took axe +1`): the scroll's +1 is counted on the item
+    assert_eq!(hero(&g).weapon.as_ref().unwrap().enchanted, 1);
     assert_eq!(hero(&g).weapon.as_ref().unwrap().kind, "sword", "the fighter starts with a sword");
     let (g, _) = read_test("darkness", |g| {
         add_monster(g, "rat", 5, 5);
@@ -1331,7 +1333,7 @@ fn a_set_that_dies_has_no_stall() {
 fn stall_patches_apply_as_replace_remove_or_insert() {
     use crate::offline::apply_patch;
     let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")), Row::new(vec![], Verb::new("attack"))], name: None };
-    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None };
+    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None };
     let deeper = Row::new(vec![Cond::n("hp<", 10)], Verb::new("return"));
     let r = apply_patch(&rules, &mk(deeper.clone(), 0, true, false), 8);
     assert_eq!(r.rows, vec![deeper.clone(), rules.rows[1].clone()]);
@@ -1752,7 +1754,7 @@ fn trophies_pacifist_and_no_heal() {
     g.run.as_mut().unwrap().hero.pos = Pos::new(14, 10);
     rules(&mut g, vec![Row::new(vec![], Verb::new("descend"))]);
     let evs = ticks(&mut g, 10);
-    assert!(evs.iter().any(|e| matches!(e, Ev::Note { text, .. } if text.contains("pacifist"))));
+    assert!(evs.iter().any(|e| matches!(e, Ev::Note { text, .. } if text.contains("without a kill"))));
     assert!(evs.iter().any(|e| matches!(e, Ev::Note { text, .. } if text.contains("no heal"))));
     let run = g.run.as_ref().unwrap();
     assert!(run.trophies_run.contains(&"pacifist_floor".to_string()));
@@ -5592,7 +5594,7 @@ fn vocabulary_lists_locked_conds_and_set_rules_refuses_them() {
     let v = g.vocabulary();
     assert!(v.conds.contains(&Cond::t("foe_tag", "pack")) && needs(&v, &Cond::t("foe_tag", "pack")).is_none());
     assert_eq!(needs(&v, &Cond::n("foe_hp<", 25)).as_deref(), Some("study a kind"));
-    assert_eq!(needs(&v, &Cond::n("party_hp<", 50)).as_deref(), Some("tame once"));
+    assert_eq!(needs(&v, &Cond::n("party_hp<", 50)).as_deref(), Some("tame a foe"));
     assert!(needs(&v, &Cond::t("item", "heal")).is_some_and(|n| n.starts_with("identify ")));
     assert_eq!(needs(&v, &Cond::t("item", "lantern")).as_deref(), Some("find: lantern"));
     assert!(needs(&v, &Cond::t("item", "leash")).is_none(), "the kennel's leash is a fact from the start");
@@ -5621,7 +5623,7 @@ fn vocabulary_lists_locked_conds_and_set_rules_refuses_them() {
 }
 
 /// §2: every unlock that is not `available` carries a non-empty ≤ 3-word `needs` — at a
-/// fresh lineage, with marks to spare, and after an ascension; party slots read `tame once`.
+/// fresh lineage, with marks to spare, and after an ascension; party slots read `tame a foe`.
 #[test]
 fn every_unavailable_unlock_carries_needs() {
     let check = |g: &Game, when: &str| {
@@ -5639,7 +5641,7 @@ fn every_unavailable_unlock_carries_needs() {
     let mut g = Game::new(4);
     check(&g, "fresh");
     let by = |g: &Game, id: &str| g.unlocks().into_iter().find(|u| u.id == id).unwrap();
-    assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame once"));
+    assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame a foe"));
     // Cut 10 §3: a row unlock is dimmed while the set has a free row (the preset is two of four).
     assert_eq!(by(&g, "row5").needs.as_deref(), Some("fill rows"));
     assert_eq!(by(&g, "row6").needs.as_deref(), Some("row5"));
@@ -5655,7 +5657,7 @@ fn every_unavailable_unlock_carries_needs() {
     g.lineage.marks = 0;
     assert_eq!(by(&g, "row5").needs.as_deref(), Some("◆2 more"));
     g.lineage.marks = 100;
-    assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame once"));
+    assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame a foe"));
     let mut g = finished_lineage();
     g.ascend("short_list").unwrap();
     check(&g, "ascended");
@@ -6111,7 +6113,8 @@ fn death_margin_reads_hp_short() {
     let d = g.death(id).unwrap();
     assert!(d.margin.starts_with(&format!("{short} hp short")), "{}", d.margin);
     assert!(!d.margin.contains(" over"), "{}", d.margin);
-    assert!(d.morgue.contains(&format!("blow {blow} · {short} hp short")), "{}", d.morgue);
+    // QA on 524827b (qaAB): the morgue names the hp the blow landed on (`blow 3 at 2 hp`)
+    assert!(d.morgue.contains(&format!("blow {blow} at {} hp", blow + 1 - short)), "{}", d.morgue);
 }
 
 /// §3: a theft says what it cost the loot — `Ev::steal.amount` is the item's value and the
@@ -6790,7 +6793,7 @@ fn cut11_wire_is_optional_and_snake_case() {
     let s = serde_json::to_string(&w).unwrap();
     assert_eq!(s, r#"{"row":0,"why":"no item","because":{"text":"den took the heal, D3","t":2140,"depth":3}}"#);
     assert_eq!(serde_json::from_str::<RowWhy>(&s).unwrap(), w);
-    let t = Trace { turns: vec![], provenance: None, blow: None, blows: Vec::new() };
+    let t = Trace { turns: vec![], provenance: None, blow: None, blows: Vec::new(), hp_lost: Vec::new() };
     assert_eq!(serde_json::to_string(&t).unwrap(), r#"{"turns":[]}"#);
     let old: Trace = serde_json::from_str(r#"{"turns":[]}"#).unwrap();
     assert_eq!(old, t);
@@ -7821,7 +7824,7 @@ fn a_stall_names_the_rules_loop_and_its_first_patch_addresses_the_row() {
 /// moving row alone; a targeting row alone, a trait's step or three actors are no loop.
 #[test]
 fn row_loop_reads_two_actors_or_one_moving_row() {
-    let turn = |row: i32, verb: Verb| TraceTurn { t: 0, row, verb, hp: 18, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None };
+    let turn = |row: i32, verb: Verb| TraceTurn { t: 0, row, verb, hp: 18, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() };
     let alt = |a: TraceTurn, b: TraceTurn| (0..6).flat_map(|_| [a.clone(), b.clone()]).collect::<Vec<_>>();
     let tr = alt(turn(1, Verb::new("retreat")), turn(-2, Verb::new("explore")));
     assert_eq!(crate::turn::row_loop(&tr), Some(("R2 retreat ↔ explore".to_string(), 1)));
@@ -8326,7 +8329,7 @@ fn an_insert_on_a_full_set_drops_the_least_fired_row() {
         name: None,
     };
     let new = Row::new(vec![Cond::n("hp<", 20)], Verb::new("return"));
-    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false, buys: None, moves_from: None };
+    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false, buys: None, moves_from: None, whole: None };
     let r = apply_patch(&rules, &p, 3);
     assert_eq!(r.rows, vec![new.clone(), rules.rows[1].clone(), rules.rows[2].clone()], "R1 dropped, the patch where it was measured");
     let r = apply_patch(&rules, &Patch { drops: Some(2), ..p.clone() }, 3);
@@ -8984,7 +8987,7 @@ fn a_death_the_replays_all_survive_is_dice_and_its_patches_act_on_the_floor() {
             assert!(f >= crate::trace::FIRED_BAR, "{} acts in {:.0}% of the floor's replays", p.row.describe(), f * 100.0);
         }
     }
-    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None };
+    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None };
     let f = crate::trace::floor_fired(&g, &rec, &rest).unwrap();
     assert!(f < crate::trace::FIRED_BAR, "rest acts in {:.0}% of the floor's replays", f * 100.0);
 }
@@ -9573,8 +9576,8 @@ fn a_gambles_harm_that_made_the_difference_names_its_row() {
         let rec = {
             let run = g.run.as_mut().unwrap();
             run.turn = 500;
-            run.trace.push(TraceTurn { t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None });
-            run.trace.push(TraceTurn { t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None });
+            run.trace.push(TraceTurn { t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
+            run.trace.push(TraceTurn { t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
             run.gambles.push((400, "poison".into(), true));
             run.gamble_harm = harm;
             run.death_short = short;
@@ -9915,9 +9918,16 @@ fn forecast_refined_is_always_on_the_wire() {
     assert!(g.forecast().refined);
     let vs = serde_json::to_value(g.forecast_vs(&prev)).unwrap();
     assert_eq!(vs.get("refined"), Some(&serde_json::Value::Bool(true)));
-    // Cut 25 §4: the option tablets are measured on the first pass's sims whatever (the panel the
-    // camp reads right after the tap) — and say so.
-    assert!(g.cage_forecast().iter().all(|o| !o.refined));
+    // Cut 25 §4: the start tablets are measured on the first pass's sims whatever (the panel the
+    // camp reads right after the tap) — and say so. QA on 524827b (qaAA: the cage sheet's current
+    // option `D6 6%` under the camp's refined `D6 11%`): the cage's options are on the camp's own
+    // pass — the refined one once the camp refined (and the caller may name the pass).
+    assert!(g.cage_forecast().iter().all(|o| o.refined));
+    assert!(g.cage_forecast_refined(false).iter().all(|o| !o.refined));
+    let f = g.forecast();
+    let cur = g.cage_forecast().into_iter().find(|o| o.current).unwrap();
+    let bar = f.depths.iter().find(|d| d.depth == cur.depth).map(|d| d.reach);
+    assert_eq!(bar, Some(cur.reach), "the current option is the camp's own bar");
     assert!(g.start_forecast().iter().all(|o| !o.refined));
 }
 
@@ -10523,7 +10533,7 @@ fn a_boss_that_cannot_be_hurt_drives_the_hero_off() {
     }
     let (line, carried, pct) = driven.expect("AL's pre-boss set is driven off by the Warlord");
     let d = line.driven.as_ref().expect("the exit names the drive-off");
-    assert_eq!((d.boss.as_str(), d.verdict.as_str(), d.defence.as_str(), d.counter.as_str()), ("goblin_warlord", "no counter", "shield wall", "attack boss"));
+    assert_eq!((d.boss.as_str(), d.verdict.as_str(), d.defence.as_str(), d.counter.as_str()), ("goblin_warlord", "no counter", "shields up", "attack boss"));
     assert_eq!(d.row, crate::facts::counter_row("goblin_warlord"));
     assert_eq!(pct, ExitTier::Return.pct(), "a set with a return row keeps the return's share");
     assert_eq!(line.kept, carried * pct / 100);
@@ -11005,4 +11015,64 @@ fn a_death_trace_itemises_every_blow_after_the_last_action() {
         }
     }
     assert!(blows_seen, "a death with several blows after the last action");
+}
+
+/// QA on 524827b (qaAA: `hp < 50% → read unknown` went in at R1 above the set's heal and return
+/// rows): a low-hp candidate is measured under the set's top block of safety rows too; a
+/// safety row itself, or a row with no hp threshold, has no such slot.
+#[test]
+fn safe_slot_is_under_the_top_safety_block() {
+    let row = |conds: Vec<Cond>, v: &str, a: Option<&str>| Row::new(conds, Verb { v: v.into(), a: a.map(str::to_string) });
+    let set = RuleSet { rows: vec![row(vec![Cond::n("hp<", 40)], "return", None), row(vec![Cond::n("hp<", 30)], "drink", Some("heal")), row(vec![Cond::n("foes>=", 1)], "attack", Some("nearest"))], name: None };
+    assert_eq!(crate::trace::safe_slot(&set, &row(vec![Cond::n("hp<", 50)], "read", Some("unknown"))), Some(2));
+    assert_eq!(crate::trace::safe_slot(&set, &row(vec![Cond::n("hp<", 20)], "return", None)), None, "a safety row itself");
+    assert_eq!(crate::trace::safe_slot(&set, &row(vec![Cond::n("foes>=", 2)], "retreat", None)), None, "no hp threshold");
+    let bare = RuleSet { rows: vec![row(vec![Cond::n("foes>=", 1)], "attack", Some("nearest"))], name: None };
+    assert_eq!(crate::trace::safe_slot(&bare, &row(vec![Cond::n("hp<", 50)], "read", Some("unknown"))), None, "no safety block");
+}
+
+/// QA on 524827b (qaAA: `drink unknown · 12/12` led; the camp's killers then read fire · poison):
+/// a patch's whole-run move is paired over the camp panels; worse beyond its ± it harms, sinks
+/// under the rest and is never the gem's; a gamble's rising self-harm is its `risk`.
+#[test]
+fn whole_run_move_judges_a_patch() {
+    use crate::forecast::SimResult;
+    let sim = |depth: u32, tier: ExitTier, cause: Option<&str>| SimResult { max_depth: depth, tier, cause: cause.map(str::to_string), loot_kept: 0, timed_out: false, ticks: 1 };
+    let base: Vec<SimResult> = (0..50).map(|i| if i < 25 { sim(6, ExitTier::Return, None) } else { sim(5, ExitTier::Death, Some("goblin")) }).collect();
+    // ten seeds that returned now die to fire
+    let worse: Vec<SimResult> = (0..50).map(|i| if i < 10 { sim(5, ExitTier::Death, Some("fire")) } else { base[i].clone() }).collect();
+    let w = crate::trace::whole_move(&base, &worse, 6, true);
+    assert!(w.death > 0.19 && w.harms && w.risk.as_deref() == Some("fire"), "{w:?}");
+    assert!(crate::trace::whole_move(&base, &worse, 6, false).risk.is_none(), "no gamble, no risk");
+    let same = crate::trace::whole_move(&base, &base, 6, true);
+    assert!(!same.harms && same.death == 0.0 && same.risk.is_none(), "{same:?}");
+    // one seed apart is inside the ±
+    let one: Vec<SimResult> = (0..50).map(|i| if i == 0 { sim(5, ExitTier::Death, Some("fire")) } else { base[i].clone() }).collect();
+    assert!(!crate::trace::whole_move(&base, &one, 6, true).harms);
+    let mk = |v: &str, whole: Option<PatchWhole>| Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb { v: v.into(), a: None }), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 6, forecast_pm: 0.1, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole };
+    let mut ps = vec![mk("rest", Some(w.clone())), mk("retreat", Some(same.clone())), mk("descend", None)];
+    crate::trace::sink_harms(&mut ps);
+    assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["retreat", "descend", "rest"]);
+    assert_eq!(crate::trace::gem_patch(&ps).map(|p| p.row.verb.v.as_str()), Some("retreat"));
+}
+
+/// QA on 524827b (qaAB: a bought 2nd leash, $30, gone after a returned run — the pack merged it
+/// into the kennel's free stack, and the exit sent the stack back to the kennel as the free one):
+/// the bought leash comes home to the shelf, bought, beside the kennel's.
+#[test]
+fn a_bought_leash_comes_home_from_a_return() {
+    let mut g = Game::new(2602);
+    g.lineage.gold = 500;
+    assert!(g.lineage.supplies.iter().any(|s| s.kind == "leash" && s.free), "the kennel's leash");
+    g.buy_supply("leash").unwrap();
+    g.send();
+    {
+        let (run, mut cx) = g.ctx();
+        crate::turn::end_run(run, &mut cx, ExitTier::Return);
+    }
+    g.finish_run();
+    let leashes: Vec<(bool, i32)> = g.lineage.supplies.iter().filter(|s| s.kind == "leash").map(|s| (s.free, s.paid)).collect();
+    assert!(leashes.contains(&(false, 30)), "the bought leash is back on the shelf: {leashes:?}");
+    assert!(leashes.iter().any(|l| l.0), "and the kennel's: {leashes:?}");
+    assert!(g.last_exit.as_ref().is_some_and(|l| l.text.contains("leash")), "the exit line names it: {:?}", g.last_exit.as_ref().map(|l| &l.text));
 }

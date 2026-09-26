@@ -290,7 +290,7 @@ pub(crate) fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collec
         stalled: b.stalls,
         driven: b.driven_off,
         spent: b.spent.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).filter(|r| r.gold > 0).collect(),
-        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n, lost: b.gold_lost }),
+        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n, lost: b.gold_lost, unkept: b.gold_unkept }),
         exits: b.exits.clone(),
         picked: game.lineage.picked_clean(),
         restock_capped: b.restock_capped,
@@ -394,7 +394,7 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     let has_verb = |v: &Verb| vocab.verbs.contains(v);
     let has_cond = |k: &str, t: Option<&str>| vocab.conds.iter().any(|c| c.k == k && (t.is_none() || c.t.as_deref() == t));
     let present = |r: &Row| rules.rows.contains(r);
-    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None };
+    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None };
     let mut cands: Vec<Patch> = Vec::new();
     // (a) the ending row, its threshold pushed deeper.
     let mut deeper = ending.clone();
@@ -447,6 +447,22 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     // QA on 0c6e126 (qaZ: PLATEAU `reach D7 17% · base 8%` between the camp's `D7 16%` and `21%` for the same set): the base
     // is the camp's own measure — its first pass's seeds (`forecast_tag` at the lineage's frontier) and sims — and every
     // candidate replays exactly those, so the plateau's base is the camp's number and a patch's reach its paired move.
+    // QA on 524827b (qaAB: PLATEAU `foe: boss → attack boss · drops one` while a death's patch read
+    // `drops R6 · 11/1026 fires`): an insert onto a full set names the row it drops — the own row
+    // the absence's sends fired least in (`Batch.row_runs`; ties: the lowest in the list), never a
+    // card, an exit, the stall's own row or a row of the patch's verb — as `apply_patch` drops it (set before the measure: the numbers are that set's).
+    if rules.own_rows() >= max_rows {
+        for p in cands.iter_mut().filter(|p| !p.replace && !p.remove) {
+            p.drops = rules
+                .rows
+                .iter()
+                .enumerate()
+                .filter(|(i, r)| *i != row && !r.is_card() && !matches!(r.verb.v.as_str(), "return" | "bank") && r.verb.v != p.row.verb.v)
+                .map(|(i, _)| (game.batch.row_runs.get(i).copied().unwrap_or(0), i))
+                .fold(None, |best: Option<(u32, usize)>, x| if best.is_none_or(|b| x.0 <= b.0) { Some(x) } else { best })
+                .map(|(_, i)| i as i32);
+        }
+    }
     let tag = crate::forecast::forecast_tag(game, game.lineage.best_depth + 1);
     let budget = crate::forecast::CAMP_TICK_BUDGET;
     let (base, n) = crate::forecast::reach_counted(game, rules, target, sims, tag, budget);

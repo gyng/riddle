@@ -354,7 +354,7 @@ async function autoKeepCheck() {
 async function cut19() {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp for Cut 19"); await settle();
-  // ---- §1: no cage seen, no tablet; a `vault` fact carves it (`cage → weapon`)
+  // ---- §1: no cage seen, no tablet; a `vault` fact carves it (`cage pick → weapon`)
   const cageTab = () => page.evaluate(() => { const t = document.querySelector(".camp .cage-tab"); return t && !t.hidden && t.getClientRects().length ? t.textContent.replace(/\s+/g, " ").trim() : null; });
   await page.evaluate(() => { const r = window.__riddle; r.lineage = { ...r.lineage, facts: r.lineage.facts.filter((f) => f !== "vault") }; r.go({ kind: "camp" }); }); await sleep(250);
   const before = await cageTab();
@@ -368,7 +368,7 @@ async function cut19() {
   });
   await sleep(250);
   const after = await cageTab();
-  check(before === null && after === "cage → weapon", `the cage tablet is carved by a seen cage, beside the rules (${before} → ${after})`);
+  check(before === null && after === "cage pick → weapon", `the cage tablet is carved by a seen cage, beside the rules (${before} → ${after})`);
   const inCol = await page.evaluate(() => !!document.querySelector(".camp-main .tablets .editor + .cage-tab"));
   check(inCol, "the cage tablet sits under the rule tablets");
   await page.locator(".camp .cage-tab").click({ timeout: 5000 }); await sleep(120);
@@ -380,7 +380,7 @@ async function cut19() {
   await shot("ui-cut19-cage-picker");
   await page.locator(".sheet-wrap .cage-opt[data-pref=armour]").click({ timeout: 5000 }); await sleep(400);
   const picked = await cageTab(), prefs = await page.evaluate(() => window.__riddle.__prefs);
-  check(picked === "cage → armour" && prefs.join() === "armour" && !(await page.locator(".sheet-wrap .cage-picker").count()), `a tap on an option sets the cage (${prefs.join()}; tablet \`${picked}\`)`);
+  check(picked === "cage pick → armour" && prefs.join() === "armour" && !(await page.locator(".sheet-wrap .cage-picker").count()), `a tap on an option sets the cage (${prefs.join()}; tablet \`${picked}\`)`);
   await shot("ui-cut19-cage");
   // ---- §3: the loadout tile carries `repeat · $120`; a tap on it clears the repeat (the shelf stays shut); a second turns it back on
   await page.evaluate(() => {
@@ -396,7 +396,7 @@ async function cut19() {
   const b1 = await badge(), panel = await page.locator(".panel[data-panel=loadout]").count();
   await page.locator(".cmd .tile[data-tile=loadout] .repeat-badge").click({ timeout: 5000 }).catch(() => {}); await sleep(300);
   const b2 = await badge(), calls = await page.evaluate(() => window.__riddle.__restock);
-  check(b0 === "repeat on · ≤$120" && b1 === "repeat off" && b2 === "repeat on · ≤$120" && calls.join() === "false,true" && panel === 0, `the loadout tile: \`${b0}\` → \`${b1}\` → \`${b2}\` (setRestock ${calls.join()}; shelf ${panel ? "opened" : "shut"})`);
+  check(b0 === "repeat on · held ≤$120" && b1 === "repeat off" && b2 === "repeat on · held ≤$120" && calls.join() === "false,true" && panel === 0, `the loadout tile: \`${b0}\` → \`${b1}\` → \`${b2}\` (setRestock ${calls.join()}; shelf ${panel ? "opened" : "shut"})`);
   // ---- §3: the short list always carries the pinned `+1 row`, ranked last or not
   await page.evaluate(() => {
     const r = window.__riddle;
@@ -504,7 +504,7 @@ async function cut18() {
   check(/\bbuyable\b/.test(t("+1 vault")?.cls ?? "") && !/\bbuyable\b/.test(t("card: kite archers")?.cls ?? "") && !/\bbuyable\b/.test(t("cond: alert")?.cls ?? ""), `a tile the gold buys glows like one the marks buy; one short of gold or gated does not (${tiles.map((x) => `${x.label}: ${x.cls}`).join(" · ")})`);
   check(t("card: kite archers")?.delta === "reach ≈ ±3 at R1 · vs archers", `a card's \`~0\` names its situation ("${t("card: kite archers")?.delta}")`);
   await shot("ui-cut18-unlocks");
-  // ---- §3: a wall says it is a wall — `ForecastDepth.wall` on D9 (best D8): the notch `D9 · warlord`, the panel's row `D9 0% · warlord wall`
+  // ---- §3: a wall says it is a wall — `ForecastDepth.wall` on D9 (best D8): the notch `D9 · warlord`, the panel's row `D9 0% · sealed by warlord`
   await page.evaluate(() => { const r = window.__riddle; r.engine.unlocks = async () => []; r.engine.unlockDeltas = async () => []; r.lineage = { ...r.lineage, best_depth: 8 }; r.go({ kind: "camp" }); });
   await settle();
   await page.evaluate(() => { const r = window.__riddle; const depths = Array.from({ length: 9 }, (_, i) => ({ depth: i + 1, reach: i < 8 ? 0.9 - i * 0.05 : 0, pm: 0.02, ...(i === 8 ? { wall: "goblin_warlord", cause: "goblin_warlord" } : {}) }));
@@ -515,7 +515,7 @@ async function cut18() {
   await shot("ui-cut18-shaft");
   await openPanel(page, "forecast"); await sleep(200);
   const row = await page.evaluate(() => [...document.querySelectorAll(".panel .fc-bars .bar")].map((b) => b.textContent.replace(/\s+/g, " ").trim()).find((t) => /^D9/.test(t)));
-  check(/^D9 ?(0%|<\d+%)( ±\d+)? · warlord wall$/.test(row ?? ""), `the panel's row reads \`D9 0% · warlord wall\` ("${row}")`);
+  check(/^D9 ?(0%|<\d+%)( ±\d+)? · sealed by warlord$/.test(row ?? ""), `the panel's row reads \`D9 0% · sealed by warlord\` ("${row}")`);
   await shot("ui-cut18-wall");
   await page.keyboard.press("Escape"); await sleep(100);
   // ---- §4: a stall's cause names the rows' loop (`R2 retreat ↔ explore`): the loop whole on one line; QA 1a2a4a9 (P: the headline

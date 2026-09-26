@@ -97,8 +97,8 @@ pub fn unlock_cost(id: &str) -> u32 {
 pub fn gate(l: &LineageState, id: &str) -> Option<String> {
     let need = |ok: bool, text: &str| if ok { None } else { Some(text.to_string()) };
     match id {
-        // Cut 9 §2/§10: the party slots read as the player does (`tame once`).
-        "party_slot_2" => need(l.tamed_kinds() >= 1, "tame once"),
+        // Cut 9 §2/§10: the party slots read as the player does (`tame a foe`).
+        "party_slot_2" => need(l.tamed_kinds() >= 1, "tame a foe"),
         "party_slot_3" => need(l.tamed_kinds() >= 3, "tame 3 kinds"),
         "rogue" => need(!l.banked_depths.is_empty(), "bank once"),
         "ranger" => need(l.bosses_slain() >= 1, "slay a boss"),
@@ -109,7 +109,7 @@ pub fn gate(l: &LineageState, id: &str) -> Option<String> {
         "cond_alert" => need(l.facts.contains("alert:rising"), "see alert rise"),
         "cond_on_kill" => need(!l.kills.is_empty(), "a kill"),
         "cond_on_see" => need(l.facts.iter().any(|f| f.starts_with("foe:")), "meet a foe"),
-        "cond_party_hp" => need(l.tamed_kinds() >= 1, "tame once"),
+        "cond_party_hp" => need(l.tamed_kinds() >= 1, "tame a foe"),
         "corridor_fighting" => need(has_tag_fact(&l.facts, "pack"), "fact: pack"),
         "kite_archers" => need(has_tag_fact(&l.facts, "ranged"), "fact: ranged"),
         "stair_dance" => need(has_boss_counter(&l.facts), "a boss counter"),
@@ -699,8 +699,12 @@ pub fn pending(game: &Game) -> Vec<String> {
     if l.eggs.iter().any(|e| e.from_loss) && l.gold >= 50 {
         out.push("egg: hatch (50 gold)".into());
     }
+    // QA on 524827b (qaAA: `bones: 2 on the floor` — "no floor bones anywhere on screen"): where they wait (`bones on D6 · D8`)
     if !l.bones.is_empty() {
-        out.push(format!("bones: {} on the floor", l.bones.len()));
+        let mut ds: Vec<u32> = l.bones.iter().map(|b| b.depth).collect();
+        ds.sort_unstable();
+        ds.dedup();
+        out.push(format!("bones on {}", ds.iter().map(|d| format!("D{d}")).collect::<Vec<_>>().join(" · ")));
     }
     out
 }

@@ -39,6 +39,10 @@ pub struct Item {
     /// before the price moved; the refund then pays today's price).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub paid: i32,
+    /// QA on 524827b (qaAA: KEPT `axe +7 → vault` after the cage's `took axe +1`): how many of
+    /// its `enchant` came from enchant scrolls the heirs read on it (`InvItem.enchanted`).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub enchanted: i32,
 }
 
 fn is_zero(x: &i32) -> bool {
@@ -47,7 +51,7 @@ fn is_zero(x: &i32) -> bool {
 
 impl Item {
     pub fn new(id: u32, kind: &str) -> Item {
-        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0 }
+        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0, enchanted: 0 }
     }
     /// Cut 6 §2: known by name (bought, crafted, vaulted) or by an identified flavour.
     pub fn is_known(&self, facts: &BTreeSet<String>, flavours: &Flavours) -> bool {
@@ -136,6 +140,10 @@ pub struct InvItem {
     /// Cut 21 §2: found on a run and put on the shelf for free (`found`); a drop salvages it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub found: bool,
+    /// QA on 524827b (qaAA): the `+N` of `enchant` that enchant scrolls read on it added
+    /// (`axe +7 → vault · enchanted ×6`); absent when none.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub enchanted: i32,
 }
 
 /// Wire: item on the floor.
@@ -173,7 +181,7 @@ pub fn describe(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> (
 
 pub fn to_inv(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> InvItem {
     let (known, kind, label) = describe(item, facts, flavours);
-    InvItem { id: item.id, kind, known, label, hint: if known { None } else { item.hint }, free: item.free, found: item.found }
+    InvItem { id: item.id, kind, known, label, hint: if known { None } else { item.hint }, free: item.free, found: item.found, enchanted: item.enchanted }
 }
 
 #[cfg(test)]

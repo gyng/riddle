@@ -131,7 +131,7 @@ try {
   await page.locator(tab).click({ timeout: 5000 }); await sleep(250);
   const why = await page.evaluate(() => { const s = document.querySelector(".sheet-wrap .row-why"); return s ? { line: s.querySelector(".why-line")?.textContent ?? "", gloss: [...s.querySelectorAll(".why-gloss")].map((g) => g.textContent.replace(/\s+/g, " ").trim()), edit: !!s.querySelector(".why-edit") } : null; });
   const tr = await rect(tab), sr = await rect(".sheet-wrap .sheet");
-  check(!!why && /^\d+\/\d+ · blocked · no item( · \d+ sends?)?$/.test(why.line) && why.gloss.some((g) => /^no item · none in pack$/.test(g)) && why.edit, `a blocked row's tablet opens its why-not with the reason's gloss (${JSON.stringify(why)})`);
+  check(!!why && /^\d+\/\d+ acts · blocked · no item( · \d+ sends?)?$/.test(why.line) && why.gloss.some((g) => /^no item · none in pack$/.test(g)) && why.edit, `a blocked row's tablet opens its why-not with the reason's gloss (${JSON.stringify(why)})`);
   check(!overlap(tr, sr), `the why sheet sits beside the tablet, never over it (tablet ${Math.round(tr?.top)}–${Math.round(tr?.bottom)}, sheet ${Math.round(sr?.top)}–${Math.round(sr?.bottom)})`);
   await shot("cut23-row-why");
   await page.locator(".sheet-wrap .why-edit").click({ timeout: 5000 }); await sleep(250);

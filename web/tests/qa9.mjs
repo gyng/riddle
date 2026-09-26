@@ -185,7 +185,7 @@ try {
   // 10: the yours line, with the card above attack, carries no `card R2 first`
   const yours = await page.evaluate(() => document.querySelector(".fc-yours")?.textContent ?? "");
   rs = await rows();
-  check(rs.some((r) => r.card) && /^yours: \d+ of \d+ rows/.test(yours) && !/card R\d+ first/.test(yours), `no card-first suffix with a card at R2: "${yours}"`);
+  check(rs.some((r) => r.card) && /^written: \d+ of \d+ rows/.test(yours) && !/card R\d+ first/.test(yours), `no card-first suffix with a card at R2: "${yours}"`);
 
   // 9: a gated unlock's sheet has buy off — the engine's `needs` (caster: boss 2), and a card that lies `available` while the
   // marks are short (the stale catalogue of a card painted before a buy)

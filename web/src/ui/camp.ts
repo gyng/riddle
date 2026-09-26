@@ -37,6 +37,9 @@ import { setBusyHost } from "./progress";
 import { icon } from "./skin";
 
 const SET_NAME_MAX = 12;
+/** QA 524827b (qaAA): a supply whose name does not say its use — its use under the shop chip (≤ 3 words). */
+/* copy:callout */
+const SUPPLY_USE: Record<string, string> = { leash: "tames a foe", chalk: "marks a floor", bell: "lures hunters" };
 /** Cut 19 §1: the cage's preferences, the picker's order. */
 const CAGE_PREFS = ["weapon", "armour", "potion", "scroll"];
 /** Cut 19 §1: the last `cageForecast()` and what it was measured for (the set, the preference, the best) — the picker paints it at once. */
@@ -206,13 +209,15 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     bar.paint();
     // Cut 13 §2: the offer as chips while it stands (the bar's plain trait otherwise); Cut 16 §2: the class chips beside them
     const traits = (L.trait_offer?.length ?? 0) >= 2
-      ? h("span", { class: "chips traits" }, ...L.trait_offer!.map((t) => h("button", { class: `chip trait${t === L.trait ? " on" : ""}`, disabled: t === L.trait, onclick: () => void pickTrait(t), "aria-pressed": t === L.trait ? "true" : "false" },
+      // QA 524827b (qaAA: a bare `✓` over the first chip, "the trait is picked for you"): the row says what it picks (`trait`) — the ✓ is
+      // the heir's own, the other chip the swap
+      ? h("span", { class: "chips traits" }, h("small", { class: "dim offer-label" }, /* copy:label */ "trait"), ...L.trait_offer!.map((t) => h("button", { class: `chip trait${t === L.trait ? " on" : ""}`, disabled: t === L.trait, onclick: () => void pickTrait(t), "aria-pressed": t === L.trait ? "true" : "false" },
           // QA 1a2a4a9 (O: "the ✓ is only visual; the text shows no selection"): the mark is text, not a CSS `::before`
           t === L.trait ? h("b", { class: "tick" }, "✓ ") : "", h("span", null, t), traitRule(L, t) ? h("small", { class: "rule dim" }, traitRule(L, t)) : "")))
       : "";
     const offer = (L.class_offer?.length ?? 0) >= 2;
     const classes = offer
-      ? h("span", { class: "chips classes-offer" }, ...L.class_offer!.map((c) => h("button", { class: `chip cls-offer${c.class === L.class ? " on" : ""}`, disabled: c.class === L.class, "data-class": c.class, onclick: () => void app.setClass(c.class), "aria-pressed": c.class === L.class ? "true" : "false" },
+      ? h("span", { class: "chips classes-offer" }, h("small", { class: "dim offer-label" }, /* copy:label */ "class"), ...L.class_offer!.map((c) => h("button", { class: `chip cls-offer${c.class === L.class ? " on" : ""}`, disabled: c.class === L.class, "data-class": c.class, onclick: () => void app.setClass(c.class), "aria-pressed": c.class === L.class ? "true" : "false" },
           c.class === L.class ? h("b", { class: "tick" }, "✓ ") : "", h("span", null, c.class, " ", h("b", { class: "num" }, `L${c.level}`)),
           c.signature ? h("small", { class: `rule dim${c.level < c.opens ? " locked" : ""}` }, verbLabel({ v: c.signature }), c.level < c.opens ? ` ⊘L${c.opens}` : "") : "")))   // QA 1a2a4a9 (P: "`mark L7` under an L1 ranger"): locked until L7
       : "";
@@ -326,8 +331,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // QA 912e135 (qaX: `vault full` shown under `keeps weapon` and gone under `keeps armour` with the vault still 1/1): `vault full` whenever
     // it is; that the preference then keeps nothing new is its own word (`none kept`)
     const full = L.vault.length >= slots && slots > 0;
-    if (auto) prefs.appendChild(h("small", { class: "keep-auto dim num" }, auto.length ? /* copy:callout */ `keeps ${auto.join(" · ")}` : /* copy:callout */ "keeps nothing",
-      full ? h("b", { class: `${blocked ? "warn " : ""}vault-full` }, /* copy:callout */ " · vault full", blocked ? /* copy:callout */ ` · ${L.vault.length === 1 ? (L.vault[0].label ?? L.vault[0].kind).replace(/_/g, " ") : "all"} stays` : "") : ""));   // QA 0c6e126 (qaY: `vault full · none kept` beside a vault holding mail — "the vault holds armour, keeps weapon"): the line names what stays
+    // QA 524827b (qaAB: `keeps weapon · vault full · summon ally scroll stays`, later `keeps armour · weapon · vault full` — "two keeps, and
+    // the preference does nothing"): the kinds read as one list (`keeps armour + weapon`); a full vault of other kinds keeps none of them,
+    // and then the line says only that (`vault full · scroll stays`), never a `keeps` that will not happen
+    const stays = blocked ? (L.vault.length === 1 ? (L.vault[0].label ?? L.vault[0].kind).replace(/_/g, " ") : "all") : "";
+    if (auto) prefs.appendChild(h("small", { class: "keep-auto dim num" }, blocked ? "" : auto.length ? /* copy:callout */ `keeps ${auto.join(" + ")}` : /* copy:callout */ "keeps nothing",
+      full ? h("b", { class: `${blocked ? "warn " : ""}vault-full` }, blocked ? /* copy:callout */ "vault full" : /* copy:callout */ " · vault full", blocked ? /* copy:callout */ ` · ${stays} stays` : "") : ""));   // QA 0c6e126 (qaY: `vault full · none kept` beside a vault holding mail — "the vault holds armour, keeps weapon"): the line names what stays
     vault.appendChild(prefs);
     // Cut 19 §1: the cage's preference left this panel for its own tablet beside the rules (`cage → armour`)
     // QA 912e135 (qaW: `home: armour` set here, `cage → weapon` on the tablet — "one preference, one name"): they are two settings, and
@@ -340,7 +349,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     cageTab.hidden = !on;
     if (!on) return;
     replace(cageTab, h("span", { class: "rn num" }, icon("vault", "▣")),
-      h("span", { class: "rtext" }, /* copy:rule_token */ "cage", h("span", { class: "arrow" }, " → "), app.lineage.vault_pref ?? "weapon"));
+      // QA 524827b (qaAA: `cage → weapon` after the first death, "no source" for the D4 cage's "take one, leave two"): the tablet names
+      // what it sets — the pick at a cage (`cage pick → weapon`)
+      h("span", { class: "rtext" }, /* copy:rule_token */ "cage pick", h("span", { class: "arrow" }, " → "), app.lineage.vault_pref ?? "weapon"));
   }
   /** Cut 19 §1: the picker — the four preferences, each with its forecast delta against the current one (`armour +36%`); the tap sets it.
    *  The deltas are `cageForecast()` (three extra camp panels, memoised by the core; seconds in wasm): the last measure paints at once
@@ -348,7 +359,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function openCagePicker(): void {
     // QA 0c6e126 (qaY: `weapon D5 72%` on the sheet beside the camp's D5 66% — the memo was measured before a purchase): the memo is
     // this set's under this lineage — what a sim starts from (`simKey`: the purse, the shelf, the vault, the kit, the facts…)
-    const key = (): string => JSON.stringify([app.rules.rows, app.lineage.vault_pref ?? "weapon", app.lineage.best_depth, simKey(app)]);
+    // QA 524827b (qaAA: `weapon D6 6%` on the sheet under the camp's refined `D6 11%`; `armour 60% ▲54`, picked: `57% · cage +46`): the
+    // options are measured on the pass the camp shows (`refined`), so the current one is the camp's number and a pick lands where it said
+    const refined = app.lastForecast?.refined === true;
+    const key = (): string => JSON.stringify([app.rules.rows, app.lineage.vault_pref ?? "weapon", app.lineage.best_depth, simKey(app), refined]);
     openSheet((close) => {
       const list = h("div", { class: "chips cage-opts" });
       const paint = (opts: CageOption[] | null, pending: boolean): void => {
@@ -361,7 +375,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       };
       const k = key(), memo = cageMemo?.key === k ? cageMemo.opts : null;
       paint(memo, !memo && !!app.engine.cageForecast);
-      if (!memo && app.engine.cageForecast) void app.engine.cageForecast().then((opts) => { cageMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); }).catch((e) => { console.warn("cageForecast", e); if (list.isConnected) paint(null, false); });
+      if (!memo && app.engine.cageForecast) void app.engine.cageForecast(refined).then((opts) => { cageMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); }).catch((e) => { console.warn("cageForecast", e); if (list.isConnected) paint(null, false); });
       return h("div", { class: "sheet-body cage-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "cage"), list);
     }, { anchor: cageTab });   // Cut 23 §4: beside the tablet it sets, never over it
   }
@@ -448,7 +462,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay reads so on the tile
       // QA a946e04 (T: "`repeat · $40` reads like a price to pay"; its tap refunded $40): the badge is a switch and reads as one —
       // `repeat on · $40` (the tap turns it off and refunds the re-packed shelf) / `repeat off`
-      on ? (short ? /* copy:callout */ "repeat short" : due.length ? /* copy:callout */ `${dueText} at send` : /* copy:callout */ `repeat on · ≤$${L.repeat_gold ?? 0}`) : /* copy:callout */ "repeat off");   // QA 778fa1b (qaV: `repeat on · $104` read as a per-send cost; nothing was charged when the supplies came back): the most it re-buys
+      on ? (short ? /* copy:callout */ "repeat short" : due.length ? /* copy:callout */ `${dueText} at send` : /* copy:callout */ `repeat on · held ≤$${L.repeat_gold ?? 0}`) : /* copy:callout */ "repeat off");   // QA 524827b (qaAB: `≤$24` beside the shop's `heal potion $26` — the repeat pays the quote it showed, held)   // QA 778fa1b (qaV: `repeat on · $104` read as a per-send cost; nothing was charged when the supplies came back): the most it re-buys
   }
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
@@ -469,7 +483,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // Cut 21 §2: a line an exit shelved reads `· found` (packed free); with the repeat on, a kind no row names reads `· no row` — the
       // next send will not re-buy it (the core's narrowed `repeat_kinds`)
       const noRow = !free && !p.found && L.repeat !== false && L.repeat_kinds !== undefined && !L.repeat_kinds.includes(p.kind);
-      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, h("span", { class: "item-l", title: p.label }, shelfLabel(p.label), free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
+      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, h("span", { class: "item-l", title: SUPPLY_USE[p.kind] ? `${p.label} · ${SUPPLY_USE[p.kind]}` : p.label }, shelfLabel(p.label), free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
         noRow ? h("small", { class: "dim no-row" }, /* copy:callout */ " · no row") : ""), x));
     }
     for (let i = picks.length; i < cap; i++) chips.appendChild(h("span", { class: "chip slot empty", "aria-hidden": "true" }, ""));
@@ -486,7 +500,13 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         // (free while nothing is tamed); the shop's is a second one, and says so
         const second = e.kind === "leash" && picks.some((p) => p.kind === "leash");
         // Cut 10 §3: a greyed supply says why under its price — the slots, the engine's gate, or the gold missing
-        const why = full ? /* copy:callout */ `${picks.length}/${cap} slots` : e.needs ? e.needs.replace(/_/g, " ") : L.gold < e.price ? /* copy:callout */ `$${e.price - L.gold} short` : second ? /* copy:callout */ "2nd leash" : "";
+        // QA 524827b (qaAA: `leash · free`, `leash $30 · 2nd leash` — "nothing says what a leash does"): a line whose name does not say its
+        // use carries it (`tames a foe`: the leash is `tame`'s, a foe under a quarter hp); the buy stays one tap — its `×` refunds it
+        const use = SUPPLY_USE[e.kind];
+        // QA 524827b (qaAB: `summon ally scroll $33` beside the vault's own — read as packing the kept one; it bought a new one): a kind the
+        // vault holds says the shop's is another (`new · 1 in vault`; the vault's chip packs the kept one)
+        const vaulted = (L.vault ?? []).filter((v) => v.kind === e.kind).length;
+        const why = full ? /* copy:callout */ `${picks.length}/${cap} slots` : e.needs ? e.needs.replace(/_/g, " ") : L.gold < e.price ? /* copy:callout */ `$${e.price - L.gold} short` : second ? /* copy:callout */ "2nd · tames foe" : vaulted ? /* copy:callout */ `new · ${vaulted} in vault` : use ?? "";
         shopEl.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind), /* copy:callout */ "buy") },
           h("span", { class: "buy-main" }, h("span", null, e.label, " ", h("b", { class: "num gold" }, e.price > 0 ? `$${e.price}` : /* copy:label */ "free")), h("small", { class: "why num dim" }, why || "\u00a0"))));   // QA 912e135: the kennel's leash, taken back
       }
@@ -612,10 +632,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     send.classList.toggle("small", app.overBudget);
     // Cut 22 (AG, AH: "the watch stayed on `fast 4×` from the earlier run — I hadn't noticed"): the remembered mode is kept (QA on
     // e0f87e7 asked for it) and the gem says it — `send` over a small `fast` — so the next run's pace is never a surprise
+    // QA 524827b (qaAA: `SEND / FAST` read as one word pair, or a second button): the pace reads as the watch's own mode — a play mark,
+    // lower case, on a pill (`▸ fast`), never a second word of the gem
     const fast = app.watchMode !== "fights";   // Cut 25 §3: `fast` or the plain `1×` under the gem
     send.dataset.mode = app.watchMode;
     replace(send, app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
-      : fast ? h("span", { class: "send-l" }, /* copy:button */ "send", h("small", { class: "send-mode" }, app.watchMode === "one" ? /* copy:label */ "1×" : /* copy:label */ "fast")) : /* copy:button */ "send");   // Cut 12 §1: own rows
+      : fast ? h("span", { class: "send-l" }, /* copy:button */ "send", h("small", { class: "send-mode", title: "watch pace" }, /* copy:none */ "▸ ", app.watchMode === "one" ? /* copy:label */ "1×" : /* copy:label */ "fast")) : /* copy:button */ "send");   // Cut 12 §1: own rows
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }

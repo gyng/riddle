@@ -241,13 +241,16 @@ fn view_because(run: &Run, cx: &Ctx, tag: &str) -> Because {
             return now("asleep in view");
         }
     }
-    if let Some(p) = cx.prov.iter().rev().find(|p| p.kind == ProvKind::Seen && p.key.strip_prefix("seen:").is_some_and(|k| crate::defs::monster_def(k).tags.contains(&tag))) {
-        return p.because();
+    // (QA on 524827b, qaAA: the newer of the two — a thief slain on D1 is not why none is in view on
+    // D5 after the D4 den's thieves were left behind)
+    let seen = cx.prov.iter().rev().find(|p| p.kind == ProvKind::Seen && p.key.strip_prefix("seen:").is_some_and(|k| crate::defs::monster_def(k).tags.contains(&tag))).map(Prov::because);
+    let slain = run.kills.iter().rev().find(|(_, k, _)| crate::defs::monster_def(k).tags.contains(&tag)).map(|(t, kind, depth)| Because { text: format!("{} slain D{depth}", crate::engine::kind_title(kind).to_lowercase()), t: *t, depth: *depth });
+    match (seen, slain) {
+        (Some(a), Some(b)) => if b.t > a.t { b } else { a },
+        (Some(a), None) => a,
+        (None, Some(b)) => b,
+        (None, None) => now("never met"),
     }
-    if let Some((t, kind, depth)) = run.kills.iter().rev().find(|(_, k, _)| crate::defs::monster_def(k).tags.contains(&tag)) {
-        return Because { text: format!("{} slain D{depth}", crate::engine::kind_title(kind).to_lowercase()), t: *t, depth: *depth };
-    }
-    now("never met")
 }
 
 /// The last event that emptied a slot; `never found` when the run has no event for the kind

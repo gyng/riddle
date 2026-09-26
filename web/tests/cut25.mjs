@@ -148,7 +148,7 @@ try {
     check([...rates].every((r) => /^1×?$/.test(r) || r === "dead") && [...rates].some((r) => /^1×?$/.test(r)), `the plain 1× runs its live frames at 1× (${[...rates].join(" ")})`);
     await page.evaluate(() => { document.querySelectorAll(".sheet-wrap").forEach((x) => x.remove()); window.__riddle.go({ kind: "camp" }); }); await camp();
     const gemTxt = await page.evaluate(() => document.querySelector(".gem[data-mode]")?.textContent ?? document.querySelector("[data-mode]")?.textContent);
-    check(/send\s*1×/i.test(gemTxt ?? ""), `the send gem says the remembered 1× ("${gemTxt}")`);
+    check(/send\s*▸?\s*1×/i.test(gemTxt ?? ""), `the send gem says the remembered 1× ("${gemTxt}")`);
   }
 
   // ---- §4: the forge's measure never waits behind the unlock shelf's

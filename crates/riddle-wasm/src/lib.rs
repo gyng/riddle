@@ -291,9 +291,14 @@ impl Game {
     /// `current`, `depth`, `reach`/`reach_delta`, `bank`/`bank_delta`, `gold`/`gold_delta`,
     /// `delta` — the picker's headline — and `pm`). Four camp panels (three new): call it when
     /// the cage tablet's picker opens, or after the refine; memoised like the forecast.
+    /// QA on 524827b: `refined` — measure on the camp's refined pass (the sheet's current option
+    /// is then the camp's number); absent, the lineage's own read (`forecast::camp_sims`).
     #[wasm_bindgen(js_name = cageForecast)]
-    pub fn cage_forecast(&self) -> String {
-        js(&self.inner.cage_forecast())
+    pub fn cage_forecast(&self, refined: Option<bool>) -> String {
+        match refined {
+            Some(r) => js(&self.inner.cage_forecast_refined(r)),
+            None => js(&self.inner.cage_forecast()),
+        }
     }
 
     /// §3: the loadout's repeat on or off (off refunds the re-packed shelf); returns the Lineage.

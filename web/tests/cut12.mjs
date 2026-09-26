@@ -73,7 +73,7 @@ try {
   let c = await camp();
   await page.keyboard.press("Escape"); await sleep(100);   // the panel closes over the tablets
   check(c.count === "2/4" && c.rows.length === 2, `the preset reads ${c.count}, ${c.rows.length} rows`);
-  check(/^yours: 0 of 2 rows · gambler$/.test(c.yours), `the yours line names the combo: "${c.yours}"`);
+  check(/^written: 0 of 2 rows · gambler$/.test(c.yours), `the yours line names the combo: "${c.yours}"`);
   check(/^ends bank <?\d+% · return <?\d+%( · stall <?\d+%)? · death <?\d+%( ±\d+…?)? · ~\$\d+$/.test(c.ends), `the forecast's ends line: "${c.ends}"`);
   check(/⊘ fill rows/.test(c.rowCard) && !/rows full/.test(c.rowCard), `+1 row waits on the rows at 2/4, as a requirement: "${c.rowCard}"`);
   check(c.supplies.length === 1 && /^leash · free ×$/.test(c.supplies[0]), `the kennel's leash reads free (QA 92eb880: kennel was unexplained): "${c.supplies[0]}"`);
@@ -86,7 +86,7 @@ try {
   c = await camp();
   check(c.rows.length === 3 && c.rows[1].card && /thief guard/.test(c.rows[1].text) && /attack/.test(c.rows[2].text), `the card sits at R2, above attack: ${c.rows.map((r) => r.text.slice(0, 24)).join(" | ")}`);
   check(c.count === "2/4 rows + 1 card", `the chip counts own rows and the card beside: "${c.count}"`);
-  check(/^yours: 0 of 2 rows/.test(c.yours) && !/card R\d+ first/.test(c.yours), `yours counts own rows, no "card R2 first" (a card sits before attack on purpose): "${c.yours}"`);
+  check(/^written: 0 of 2 rows/.test(c.yours) && !/card R\d+ first/.test(c.yours), `yours counts own rows, no "card R2 first" (a card sits before attack on purpose): "${c.yours}"`);
   await page.evaluate(() => window.__riddle.buy("pack_break"));
   await sleep(700);
   c = await camp();

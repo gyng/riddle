@@ -733,6 +733,12 @@ pub struct TraceTurn {
     /// the reason it did not fire (`none held` · `no path` · `not in view` · `hp not <30%`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rows: Option<Vec<RowWhy>>,
+    /// QA on 524827b (qaAB: `8002 R1 return 12 · 8013 R1 return 6` — hp fell with no row): the
+    /// blows on the hero since the previous action, before this one (oldest first, the hp after
+    /// each) — the table's rows between two actions. Blows during this action's tick roll to the
+    /// next action's (the last action's are `Trace.blows`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blows: Vec<TraceBlow>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -752,6 +758,18 @@ pub struct Trace {
     /// is `blow`. Empty when `blow` was the only one.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blows: Vec<TraceBlow>,
+    /// QA on 524827b (qaAA: the trace starts at 1 hp exploring — "where 36 hp went takes a
+    /// replay"): a death's hp lost since the hero was last at full hp, per cause, most first
+    /// (`jackal −24 · monkey −8`). Empty on any other exit.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hp_lost: Vec<HpLoss>,
+}
+
+/// QA on 524827b: one cause's share of a death's hp lost since full (`Trace.hp_lost`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HpLoss {
+    pub by: String,
+    pub dmg: i32,
 }
 
 /// QA on 0c6e126: a death trace's last row — the blow that killed (`Trace.blow`).
@@ -827,6 +845,32 @@ pub struct Patch {
     /// `move R5 above R2`; `offline::apply_patch` moves it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub moves_from: Option<i32>,
+    /// QA on 524827b (qaAA: `hp < 20% → drink unknown · survives 12/12` led, and the camp's
+    /// killers then read fire 28 % · poison 26 %; `read unknown · 11/12` went in as R1 and the
+    /// camp read `death +6`): the patch judged on whole runs — the camp panel's paired move
+    /// once applied (`trace::camp_deltas`, set with the camp's numbers; `None` while
+    /// `camp_pending`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub whole: Option<PatchWhole>,
+}
+
+/// QA on 524827b: a patch's whole-run move on the camp's panel (the same seeds, the same
+/// lineage state as the camp after the tap): the reach at `Patch.forecast_depth` and the
+/// death share, each a paired mean difference with its 95 % half-width (`forecast::paired`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct PatchWhole {
+    pub reach: f64,
+    pub reach_pm: f64,
+    pub death: f64,
+    pub death_pm: f64,
+    /// Worse than the set as it is beyond its ± — death up past `death_pm` or reach down past
+    /// `reach_pm` (`trace::whole_harms`): never the lead, never the gem's default.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub harms: bool,
+    /// The self-dealt harm (`fire`, `poison`, `gas`) whose deaths the patch raises by two sims
+    /// or more on the panel — the gamble the moment's replays did not show (`risk fire`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub risk: Option<String>,
 }
 
 fn is_zero_u32(n: &u32) -> bool {
@@ -1108,6 +1152,10 @@ pub struct GoldSummary {
     /// a stall's whole carry; a return's 40 %) — no movement of the purse, what it could have held.
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub lost: i32,
+    /// QA on 524827b (qaAA: `$936 lost` on a return report with 0 deaths): the part of `lost`
+    /// the exits that kept something left unkept (a return's 40 %) — `not kept`, not `lost`.
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub unkept: i32,
 }
 
 /// QA on e75ec29: a kind thieves took and kept (`ReturnReport.stolen`): the label, how many.

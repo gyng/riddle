@@ -104,10 +104,11 @@ pub fn counter_row(kind: &str) -> Row {
 }
 
 /// Cut 24 §1: a boss's defence, ≤ 3 words — what shrugs the blows of a set without its counter
-/// (the `no counter` exit names it: `Warlord · shield wall · attack boss`).
+/// (the `no counter` exit names it: `Warlord · shields up · attack boss`). QA on 524827b (qaAA:
+/// `shield wall` "appears nowhere else"): the Warlord's is the watch's own callout, `shields up`.
 pub fn boss_trait(kind: &str) -> &'static str {
     match kind {
-        "goblin_warlord" => "shield wall",
+        "goblin_warlord" => "shields up",
         "bloat_mother" => "heals in gas",
         "lich" => "endless dead",
         "foundry_master" => "reflects blows",

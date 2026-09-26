@@ -683,8 +683,9 @@ pub fn cause_phrase(cause: &str) -> String {
         "nest" => "the nest".into(),
         "stray" => "a stray".into(),
         "den" => "the den".into(),
-        // QA on 912e135 (qaW: `The lock took him to 2 HP` — "the lock is not a foe in LEARNED or DEATHS"): the lock is its bloats
-        "lock" => "lock bloats".into(),
+        // QA on 912e135 (qaW: `The lock took him to 2 HP` — "the lock is not a foe in LEARNED or DEATHS"): the lock is its bloats;
+        // QA on 524827b (qaAA: `Lock bloats` — "named nowhere else"): by the name LEARNED and the bestiary give them, `bloat`
+        "lock" => "a bloat".into(),
         "captive" => "the captive".into(),
         "hunger" => "the hunger".into(),
         k if is_boss(k) => format!("the {}", boss_short(k)),
@@ -708,7 +709,7 @@ fn subject(ep: &Episode, short: bool) -> String {
         "nest" => "The nest".into(),
         "vault" => "The cage".into(),
         "den" => "The den".into(),
-        "lock" => "Lock bloats".into(),
+        "lock" => if n == 1 { "A bloat".into() } else { "Bloats".into() },
         "captive" => "The captive".into(),
         "hunger" => "The hunger".into(),
         "stray" => {
@@ -853,7 +854,13 @@ fn resolution_form(res: &Resolution, level: u8) -> String {
             }
             _ => "died".into(),
         },
-        Resolution::DrivenOff { kind } => if level > 0 { "driven off".into() } else { format!("driven off by the {}", boss_short(kind)) },
+        // QA on 524827b (qaAA: `An ogre took him to 17 HP; R5 attacked; driven off.` — the Warlord drove him off): the mid form keeps
+        // the boss in three words (`fled the Warlord`); only the short form (the boss already the setup's subject) drops him
+        Resolution::DrivenOff { kind } => match level {
+            0 => format!("driven off by the {}", boss_short(kind)),
+            1 => format!("fled the {}", boss_short(kind)),
+            _ => "driven off".into(),
+        },
         Resolution::Fell { kind, name } => {
             if level > 0 {
                 format!("{name} fell")
@@ -878,6 +885,8 @@ pub fn story_line(ep: &Episode) -> String {
     // `died`; the no-row beat shortens to `no row` first.
     let killer_named = match &ep.resolution {
         Resolution::Died { cause } => ep.threat.first().is_some_and(|(k, _)| cause_key(k) == cause_key(cause)),
+        // QA on 524827b (qaAA): a drive-off keeps the boss who drove him off unless he is the setup's threat
+        Resolution::DrivenOff { kind } => ep.threat.first().is_some_and(|(k, _)| k == kind),
         _ => true,
     };
     let mut s = String::new();
@@ -965,9 +974,9 @@ pub fn stall_note_cause(cause: &str) -> String {
     }
 }
 
-/// Cut 24 §1: the grammar's driven-off resolution — `driven off`, or `driven off by the <boss>`.
+/// Cut 24 §1: the grammar's driven-off resolution — `driven off`, `driven off by the <boss>`, or `fled the <boss>`.
 pub fn driven_ok(end: &str) -> bool {
-    end == "driven off" || end.strip_prefix("driven off by the ").is_some_and(|b| crate::descent::BOSS_DEPTHS.iter().any(|(k, _)| boss_short(k) == b))
+    end == "driven off" || end.strip_prefix("driven off by the ").or_else(|| end.strip_prefix("fled the ")).is_some_and(|b| crate::descent::BOSS_DEPTHS.iter().any(|(k, _)| boss_short(k) == b))
 }
 
 /// Cut 13 §1: the grammar's stall resolution — `stalled` alone, or `stalled, <word> no path`
@@ -1284,7 +1293,7 @@ mod tests {
         blades.cornered = true;
         assert_eq!(story_line(&blades), "Spectral blades cornered him to 5 HP; no row; died to fire.");
         let lock = ep(&[("lock", 1)], 4, -2, "wait", Resolution::Died { cause: "gas".into() });
-        assert_eq!(story_line(&lock), "Lock bloats took him to 4 HP; no row; died to gas.");
+        assert_eq!(story_line(&lock), "A bloat took him to 4 HP; no row; died to gas.");
         let mut monkey = ep(&[("monkey", 1)], 2, -2, "wait", Resolution::Died { cause: "goblin_archer".into() });
         monkey.chased = true;
         let s = story_line(&monkey);

@@ -106,13 +106,15 @@ try {
   const chain = await page.evaluate(() => [...document.querySelectorAll(".chain .chain-row")].map((el) => ({
     text: el.innerText.replace(/\s+/g, " ").trim(), watch: !!el.querySelector("button.link"), at: el.querySelector(".at")?.textContent ?? "", cls: el.className })));
   check(chain.length === 4, `chain: ${chain.length} lines (2 rows + fired + 1 extra chain link): ${chain.map((c) => c.text).join(" | ")}`);
-  check(/^R1 .*no item ← den took the heal, D3/.test(chain[0]?.text ?? ""), `R1 reads reason ← because: "${chain[0]?.text}"`);
-  check(chain[0]?.watch === true, "R1's because (inside the run) carries a watch chip");
-  check(/^R2 .*no path ← gas cloud rose/.test(chain[1]?.text ?? "") && chain[1].watch === false, `R2's because (past the run) has no watch chip: "${chain[1]?.text}"`);
-  check(new RegExp(`D${fl.depth + 1} · t${outT}$`).test(chain[1]?.at ?? ""), `R2's line ends with the depth and tick instead: "${chain[1]?.at}"`);
-  check(/fired$/.test(chain[2]?.text ?? "") && chain[2].cls.includes("fired"), `the fired row closes the rows: "${chain[2]?.text}"`);
-  check(/never found a scroll/.test(chain[3]?.text ?? "") && chain[3].cls.includes("extra"), `Death.chain entries beyond the rows follow: "${chain[3]?.text}"`);
-  check(chain[3]?.watch === false && !chain[3]?.at, `a \`never\` entry has no watch chip and no tick: "${chain[3]?.text}"`);
+  // QA 524827b (qaAA: `R4 · fired · ← cowardly ran first` read as why R4 fired): the chain's own entries lead, the fired row closes it
+  check(/never found a scroll/.test(chain[0]?.text ?? "") && chain[0].cls.includes("extra"), `Death.chain entries beyond the rows come first: "${chain[0]?.text}"`);
+  check(chain[0]?.watch === false && !chain[0]?.at, `a \`never\` entry has no watch chip and no tick: "${chain[0]?.text}"`);
+  check(/^R1 .*no item ← den took the heal, D3/.test(chain[1]?.text ?? ""), `R1 reads reason ← because: "${chain[1]?.text}"`);
+  check(chain[1]?.watch === true, "R1's because (inside the run) carries a watch chip");
+  check(/^R2 .*no path ← gas cloud rose/.test(chain[2]?.text ?? "") && chain[2].watch === false, `R2's because (past the run) has no watch chip: "${chain[2]?.text}"`);
+  check(new RegExp(`D${fl.depth + 1} · t${outT}$`).test(chain[2]?.at ?? ""), `R2's line ends with the depth and tick instead: "${chain[2]?.at}"`);
+  check(/fired$/.test(chain[3]?.text ?? "") && chain[3].cls.includes("fired") && chain.length === 4, `the fired row closes the chain: "${chain[3]?.text}"`);
+
   check(death.rowsN >= 2, `the active set has rows for verb labels (${death.rowsN})`);
 
   // patches: root marker in the accent colour, below-bar dimming, the unlock pseudo-patch

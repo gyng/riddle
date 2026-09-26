@@ -44,6 +44,10 @@ impl Game {
     pub fn cage_forecast(&self) -> Vec<CageOption> {
         forecast::cage_forecast(self)
     }
+    /// QA on 524827b: the options on the camp's own pass (`refined`: the 100-sim panels).
+    pub fn cage_forecast_refined(&self, refined: bool) -> Vec<CageOption> {
+        forecast::cage_forecast_at(self, if refined { forecast::REFINE_SIMS } else { forecast::FORECAST_SIMS })
+    }
     /// Cut 21 §1: each start's forecast for the active set (`forecast::start_forecast`).
     pub fn start_forecast(&self) -> Vec<StartOption> {
         forecast::start_forecast(self)

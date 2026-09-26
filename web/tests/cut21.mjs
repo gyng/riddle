@@ -121,7 +121,7 @@ try {
   check(shelf.join() === "found heal ×3 → supplies", `the report's \`shelved\` (${shelf.join(" · ") || "absent"})`);
   // §3 on the same report: the words
   const pk = await txt(".report .picked-line"), gl = await txt(".report .gold-line");
-  check(pk === "D3 · loot thinned", `\`picked clean\` reads \`thinned\` ("${pk}")`);
+  check(pk === "D3 · recently looted", `\`picked clean\` reads \`thinned\` ("${pk}")`);
   check(/restock ≤ \$218 earned$/.test(gl ?? ""), `\`restock capped\` reads the cap with its number, \`restock ≤ $218 earned\` (QA 0c6e126: \`≤ income\` unexplained) ("${gl}")`);
   await shot("cut21-report");
   await page.locator(".report .gold-line .ledger-link").first().click({ timeout: 3000 }); await sleep(250);

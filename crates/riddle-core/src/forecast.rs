@@ -272,10 +272,19 @@ pub const PANEL_CACHE_MAX: usize = 32;
 /// fingerprint, which carries the preference).
 pub fn cage_forecast(game: &Game) -> Vec<crate::wire::CageOption> {
     let rules = game.lineage.rules().clone();
-    // Cut 25 §4 (AM: ~8 s for the forge's estimates on a D11 lineage): an option is measured on
-    // the first pass's sims — the panel the camp reads right after the tap (its refine comes
-    // later) — never the refined 2× (each option panel a full camp panel: 6 s of wasm at D11).
-    let sims = option_sims(game, &rules);
+    cage_forecast_at(game, camp_sims(game, &rules))
+}
+
+/// QA on 524827b (qaAA: the cage sheet's current choice read `weapon D6 6%` while the camp above
+/// it read `D6 11%` — the sheet on the first pass's 50 sims, the camp on its refined 100; `armour
+/// D6 60% ▲54`, and picked the camp read `57% · cage +46`): the options are measured on the
+/// sims the camp shows (`sims`: the caller's — a measure lane's mirror does not know whether
+/// the camp refined), so the current option *is* the camp's number, and the option picked is
+/// the camp's next panel at the same pass. Cut 25 §4 kept options on the first pass for speed;
+/// a refined camp now costs the sheet its refined panels (the prefix of each is reused).
+pub fn cage_forecast_at(game: &Game, sims: u32) -> Vec<crate::wire::CageOption> {
+    let rules = game.lineage.rules().clone();
+    let sims = if sims > FORECAST_SIMS { REFINE_SIMS } else { FORECAST_SIMS };
     // The bar the reach is read at: the set's bank row's depth (`depth ≥ d → bank`), else the
     // lineage's best depth.
     let bank_depth = rules.rows.iter().filter(|r| r.verb.v == "bank").filter_map(|r| r.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n)).map(|n| n.max(1) as u32).min();
@@ -577,7 +586,15 @@ pub fn forecast_vs(game: &Game, prev: &RuleSet) -> crate::wire::ForecastVs {
     let rules = game.lineage.rules().clone();
     let sims = camp_sims(game, &rules);
     let a = camp_panel(game, &rules, sims);
-    let b = camp_panel(game, prev, sims);
+    let mut b = camp_panel(game, prev, sims);
+    // QA on 524827b (qaAA: `vs sent…` held > 25 s after a cage change): under the tick budget the
+    // two panels may run different counts of sims, and a move paired over fewer than the bars'
+    // own never matched the forecast painted (`ForecastVs.sims` ≠ `Forecast.sims`) — the sent
+    // set's panel runs on to the active set's count (the same seeds: a pure function of the index).
+    if b.len() < a.len() {
+        let tag = forecast_tag(game, game.lineage.best_depth + 1);
+        b = simulate_budget_from(game, prev, a.len() as u32, tag, u32::MAX, u64::MAX, b);
+    }
     let n = a.len().min(b.len());
     let (a, b) = (&a[..n], &b[..n]);
     let known_to = game.lineage.best_depth + 1;

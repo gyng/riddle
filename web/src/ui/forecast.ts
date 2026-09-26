@@ -32,12 +32,13 @@ export function clientTry(app: App, cause: string | undefined): ForecastTry | un
   return app.rules.rows.some((r) => sameRow(r, c.row as Row)) ? undefined : { row: c.row, text: c.text };
 }
 
-/** QA 912e135: a forecast killer by name, `unmet <name>` for a kind the bestiary lists as not seen (a hazard or an unlisted cause as is). */
+/** QA 912e135: a forecast killer by name, `unseen <name>` for a kind the bestiary lists as not seen (a hazard or an unlisted cause as is). */
 export function killerName(app: App, cause: string): string {
   const key = cause.replace(/ pack$/, "").trim().replace(/ /g, "_");
   const row = (app.lineage.ledger ?? []).find((r) => r.kind === key);
   const name = cause.replace(/_/g, " ");
-  return row && !row.seen ? /* copy:callout */ `unmet ${wallName(key)}` : name;
+  // QA 524827b (qaAA: `unmet archer 21%` unexplained): a kind the bestiary has not seen reads `unseen` (the bestiary's own sense)
+  return row && !row.seen ? /* copy:callout */ `unseen ${wallName(key)}` : name;
 }
 
 /** Cut 18 §3: the sealing boss's kind as one word (`goblin_warlord` → `warlord`). */
@@ -45,7 +46,8 @@ export const wallName = (kind: string): string => kind.replace(/_/g, " ").trim()
 
 /** Cut 20 §5: the bounty's multiplier as the notch reads it (`×2`; a number on the wire above 1 is the multiplier). */
 /** QA 912e135 (qaW: `D8 ×2` in the shaft — "no source"): the multiplier says what it multiplies — the floor's gold (`$×2`). */
-export const bountyMult = (b: boolean | number | undefined): string => `$×${typeof b === "number" && b > 1 ? b : 2}`;
+/** QA 524827b (qaAA: `D8 $×2 · warlord` unexplained): the multiplier names itself (`bounty $×2`). */
+export const bountyMult = (b: boolean | number | undefined): string => /* copy:callout */ `bounty $×${typeof b === "number" && b > 1 ? b : 2}`;
 
 /** Cut 9 §3: the half-width (a 0..1 fraction like `reach`) in percentage points, never `±0` — a forecast is never exact. */
 export const pmPts = (pm: number): number => Math.max(1, Math.round(pm * 100));
@@ -140,8 +142,11 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
  *  (`App.lmove`) at the frontier — `buy · D5 ≈ ±9` inside the bar's ±, else `buy · D5 −6`. Null once the rules differ. */
 export function lmoveLine(app: App, f: Forecast | null): HTMLElement | null {
   const lm = app.lmove; if (!lm || !f || lm.rules !== JSON.stringify(app.rules.rows)) return null;
-  const next = Math.max(forecastStart(app, f), app.lineage.best_depth + 1);
-  const d = lm.depths.find((x) => x.depth === next) ?? lm.depths[lm.depths.length - 1]; if (!d) return null;
+  // QA 524827b (qaAB: the cage sheet quoted `armour D6 …`, the line after the pick read `cage · D7 +20`): the depth is the cage sheet's —
+  // the frontier while the sims still reach it (over 5 %, the core's `WALL_REACH`), else the floor above it
+  const front = Math.max(forecastStart(app, f), app.lineage.best_depth + 1);
+  const open = (f.depths.find((x) => x.depth === front)?.reach ?? 0) > 0.05 ? front : Math.max(forecastStart(app, f), front - 1);
+  const d = lm.depths.find((x) => x.depth === open) ?? lm.depths.find((x) => x.depth === front) ?? lm.depths[lm.depths.length - 1]; if (!d) return null;
   const m = moveOf({ delta: d.delta, pm: d.pm }); if (!m) return null;
   return h("div", { class: `shaft-lm num dlt-line`, "data-k": lm.label }, h("span", { class: "vs-label" }, lm.label), h("span", { class: "vs-term" }, h("i", { class: "sep" }, " · "), `D${d.depth} `, h("b", { class: `dlt ${m.dir}` }, m.text)));
 }
@@ -164,7 +169,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
     const n = app.playerRows(), m = app.ownRows(), combos = app.combos();
-    replace(yours, h("span", { class: n ? "" : "dim" }, /* copy:callout */ `yours: ${n} of ${m} row${m === 1 ? "" : "s"}`),
+    replace(yours, h("span", { class: n ? "" : "dim" }, /* copy:callout */ `written: ${n} of ${m} row${m === 1 ? "" : "s"}`),
       combos.length ? h("span", { class: "combos" }, ` · ${combos.map((c) => c.name).join(" · ")}`) : "");
   };
   // Cut 12 §3: `bank 40% · return 35% · death 25% · ~$54` — the three shown always so the trade reads; absent on an older core
@@ -225,9 +230,11 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
       // the bounty and the counter go on a line of their own under the track (`.why`), never into the number's column
       const dpm = pmShown(d.reach, d.pm);
       const why = [
-        cause ? h("small", { class: "dim" }, ` · ${cause.replace(/_/g, " ")}`) : "",
+        // QA 524827b (qaAB: a bare `goblin` under D7, `warlord wall` — unexplained): the name says it is the floor's top killer, and the
+        // wall says what it does (the boss above seals the stairs)
+        cause ? h("small", { class: "dim" }, /* copy:callout */ ` · killer: ${cause.replace(/_/g, " ")}`) : "",
         boss ? h("small", { class: "boss-here" }, ` · ${boss}`) : "",
-        wall ? h("small", { class: "wall" }, /* copy:callout */ ` · ${wall} wall`) : "",
+        wall ? h("small", { class: "wall" }, /* copy:callout */ ` · sealed by ${wall}`) : "",
         d.bounty ? h("small", { class: "bounty-x" }, ` · ${bountyMult(d.bounty)}`) : "",   // Cut 20 §5: the bounty floor
         counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "",
       ].filter((x) => x !== "");
@@ -331,7 +338,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       // Cut 24 §5: the floor he stands on names him too (`D8 · warlord`); his wall below keeps its own mark
       const bossHere = d?.boss && !wall ? wallName(d.boss) : undefined;
       // QA 0c6e126 (qaY: `D8 · warlord` over `D9 · warlord` — "two warlords"): under a notch that names him the wall reads `· wall`
-      const above = byDepth.get(depth - 1), wallText = wall && above?.boss && !above.wall && depth - 1 >= from ? /* copy:callout */ "wall" : wall;
+      const above = byDepth.get(depth - 1), wallText = wall && above?.boss && !above.wall && depth - 1 >= from ? /* copy:callout */ "sealed" : wall;   // QA 524827b (qaAA: `D9 · wall <1%` unexplained): the boss above seals the stairs
       // QA 92eb880 (N: "D7 and D8 read 0% … the D8 label stays gold at 0%"): a notch nobody reaches is dim, label and all; a floor past
       // the set's own `depth ≥ N → bank` row is capped (dim), and the bank floor says so (`D6 · bank`)
       const zero = !!d && Math.round(d.reach * 100) === 0;

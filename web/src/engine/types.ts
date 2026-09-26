@@ -108,7 +108,8 @@ export type GoldLine = { t: number; delta: number; why: string; n?: number; lost
 export type Counter = { boss: string; row?: Row | string; text: string };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent";
                         free?: boolean;                                    // Cut 12 §6: a supply the camp gave (the kennel's leash) reads `leash · kennel`; the core always sends it
-                        found?: boolean };                                 // Cut 21 §2: a shelf line an exit put there (found in the dungeon, packed free) — `heal · found`
+                        found?: boolean;                                   // Cut 21 §2: a shelf line an exit put there (found in the dungeon, packed free) — `heal · found`
+                        enchanted?: number };                              // QA 524827b (core): the `+N` enchant scrolls read on it added (KEPT `axe +7 → vault · enchanted ×6`)
 
 export type Ev =
   | { t: number; k: "move"; id: number; x: number; y: number }
@@ -174,14 +175,16 @@ export type ForecastTry = { row: Row; text: string; boss?: string; met?: number 
 /** QA 92eb880: `foes` = the player's count (every hostile seen from this action to the next, running thieves and the killer
  *  included); `rule_foes` = what `foes>=` counted (optional on old saves). */
 export type TraceTurn = { t: number; row: number; verb: Verb; hp: number; foes: number; rule_foes?: number; telegraphs: string[];
-                          blocked?: string; rows?: { row: number; why: string; because?: Because }[] };   // because: Cut 11 §1; why `foes fleeing` / `foes appeared after` where `foes not ≥N` met a foes column ≥ N (QA 1a2a4a9)
+                          blocked?: string; rows?: { row: number; why: string; because?: Because }[];
+                          blows?: { t: number; by: string; dmg: number; hp: number }[] };   // QA 524827b (core; qaAB): the blows since the previous action, before this one — the table's rows between two actions   // because: Cut 11 §1; why `foes fleeing` / `foes appeared after` where `foes not ≥N` met a foes column ≥ N (QA 1a2a4a9)
 /** Cut 11 §1 — why a state reason held: the most recent event that put it there (`den took the heal, D3`, ≤ 8 words),
  *  its tick and floor. The client scrubs the run's replay to `t` when it still holds the run's events. */
 export type Because = { text: string; t: number; depth: number };
 export type Trace = { turns: TraceTurn[];
                       provenance?: Because[];                                                // Cut 11 §3: every `because` event of the run (exit traces)
                       blow?: { t: number; by: string; dmg: number; hp: number };
-                      blows?: { t: number; by: string; dmg: number; hp: number }[] };        // Cut 25 §3 (core; AN: `14 → 0` on one `goblin −2` row): every blow after the last action, oldest first, hp after each; the last is `blow`; absent when `blow` was the only one — the table shows one row per blow           // QA 0c6e126 (qaY): a death's killing blow, the table's last row                                              // Cut 11 §3: every `because` event of the run (exit traces)
+                      blows?: { t: number; by: string; dmg: number; hp: number }[];
+                      hp_lost?: { by: string; dmg: number }[] };                             // QA 524827b (core; qaAA: "where 36 hp went takes a replay"): a death's hp lost since full, per cause, most first        // Cut 25 §3 (core; AN: `14 → 0` on one `goblin −2` row): every blow after the last action, oldest first, hp after each; the last is `blow`; absent when `blow` was the only one — the table shows one row per blow           // QA 0c6e126 (qaY): a death's killing blow, the table's last row                                              // Cut 11 §3: every `because` event of the run (exit traces)
 /** A candidate row. Death patches insert before `insert_at`; stall patches (core README) may instead `replace` the row at
  *  `insert_at` or `remove` it (`row` echoes the removed row).
  *  Cut 11 §2: `root` names the chain's root the row answers (`den took the heal`); `insert_at: -1` is an unlock pseudo-patch
@@ -195,7 +198,12 @@ export type Patch = { row: Row; insert_at: number; survive: number; forecast_del
                       drops?: number;                                                        // Cut 19 §4: an insert onto a full set drops this own row (set index; the dead run's least-fired, ties the lowest) — `+ drop R5`, the drop sheet opens on it
                       buys?: { kind: string; label: string; price: number };                 // QA 0c6e126 (qaY; core): the row's named item the next heir will not carry — offered with its purchase (the tap buys it, then applies); its reach measured with it bought
                       moves_from?: number;                                                   // Cut 25 §2 (core): a move — the set's own row at `moves_from` goes above the row at `insert_at` (`row` echoes it; nothing added or cut): `move R5 above R2`
+                      whole?: PatchWhole;                                                    // QA 524827b (core): the whole-run move on the camp's panel once applied (paired, with `deathDeltas`); absent while `camp_pending`
                       unlock?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
+/** QA 524827b (qaAA: `drink unknown · 12/12` led, then the camp's killers read fire 28 % · poison 26 %): a patch's whole-run move — reach
+ *  at `forecast_depth` and the death share, paired over the camp's sims, each with its 95 % ±; `harms` (worse beyond a ±: never the lead,
+ *  never the gem's default); `risk` the self-dealt harm the patch raises (`fire`). Fractions 0..1. */
+export type PatchWhole = { reach: number; reach_pm: number; death: number; death_pm: number; harms?: boolean; risk?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
 export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order";   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
                       order_over?: number;                                                  // Cut 25 §2 (core): on `order`, the row (0-based) that won every tick `cause_row` would have acted on — `R5 under R2`; the lead patch moves R5 above it
                       cause_row?: number;                                                   // Cut 19 §4: on `row`, the set's row (0-based) that killed him (`R2`); patches[0] cuts it (`remove`, or `replace` narrowed)
@@ -223,7 +231,7 @@ export type ReturnReport = {
   stalled?: number;                                                            // Cut 13 §1: sends that stalled (among `returned`, keeping nothing); the tiles count them apart
   spent?: { kind: string; n: number; gold: number }[];                         // Cut 13 §3: what the automations bought this absence, per kind (the SPENT section)
   heirs?: number[];                                                                           // QA 912e135 (core): the first and last heir who ran these runs (`♟2–17` under RUNS)
-  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number; lost?: number };   // QA 912e135 (core): `lost` — the carry the exits did not keep
+  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number; lost?: number; unkept?: number };   // QA 912e135 (core): `lost` — the carry the exits did not keep; QA 524827b (qaAA): `unkept` — the part of it exits that kept something left (a return's 40 %: `not kept`)
         // Cut 13 §3: the absence's movements to the coin (home + salvage + wake − spent = the header's delta)
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; worst_death_id?: number; live?: Snapshot;
@@ -370,7 +378,7 @@ export interface Engine {
   // Cut 6
   forecastRefine?(): Forecast;          // §9: the same forecast at 100 sims (optional; the client calls it 2 s after a quiet paint)
   // Cut 19
-  cageForecast?(): CageOption[];        // §1: every cage preference's forecast for the active set (three extra camp panels, memoised; seconds in wasm — call when the picker opens or after the refine)
+  cageForecast?(refined?: boolean): CageOption[];        // §1: every cage preference's forecast for the active set (three extra camp panels, memoised; seconds in wasm — call when the picker opens or after the refine)
   setRestock?(on: boolean): Lineage;    // §3: the loadout's repeat on/off (off refunds the re-packed shelf; on re-packs an empty shelf now)
   // Cut 21
   setStart?(depth: number): Lineage;    // §1: where the next send starts (1 or a lit waystone)

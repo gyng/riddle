@@ -35,7 +35,9 @@ const ARG: Record<string, string> = {
   silence: "silence", earthquake: "earthquake", mirror: "mirror", lantern: "lantern", bell: "bell", salt: "salt", chalk: "chalk", mirror_shard: "mirror shard",
   reflect_melee: "reflects melee", reflect: "reflects", alarm: "alarm", blind: "blind", aura: "aura", gaze: "gaze", healer: "healer", echo: "echo", buffer: "buffer",
   // Cut 5 §4: situations (`on_see: nest`, `pray row`) and the stray — plain words
-  nest: "nest", shrine: "shrine", vault: "vault", stray: "stray", row: "row", trait: "trait",
+  // QA 524827b (qaAA: `pray row`, `pray trait`, `on see stray` unexplained): what the prayer asks for (a lent row, a new trait), the
+  // stray a lost heir's pet
+  nest: "nest", shrine: "shrine", vault: "vault", stray: "stray pet", row: "for row", trait: "for trait",
 };
 /** Cut 5 §4: an item kind's glyph for the vault choice — weapon · armour · potion · scroll. */
 const WEAPON_KINDS = new Set(["dagger", "sword", "axe", "bow", "spear", "mace"]), ARMOUR_KINDS = new Set(["leather", "mail", "plate", "scale"]);

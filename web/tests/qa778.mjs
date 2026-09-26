@@ -79,7 +79,7 @@ try {
     return txt(".camp .cmd .repeat-badge");
   };
   const b1 = await badge({ repeat_unpaid: ["heal"] }), b2 = await badge({ repeat_due: ["heal"] }), b3 = await badge({});
-  check(b1 === "repeat short" && b2 === "+heal at send" && b3 === "repeat on · ≤$26", `the repeat badge: unpaid \`${b1}\`, due \`${b2}\`, else \`${b3}\``);
+  check(b1 === "repeat short" && b2 === "+heal at send" && b3 === "repeat on · held ≤$26", `the repeat badge: unpaid \`${b1}\`, due \`${b2}\`, else \`${b3}\``);
 
   // ---- exit lines on the report
   const L = await page.evaluate(() => window.__riddle.lineage);
@@ -95,7 +95,7 @@ try {
   const rep = await page.evaluate(() => ({ lines: [...document.querySelectorAll(".report .exit-row .ledger-btn")].map((b) => b.textContent.replace(/\s+/g, " ").trim()),
     chips: [...document.querySelectorAll(".report .exit-row .chip")].map((b) => b.textContent.replace(/\s+/g, " ").trim()), gold: document.querySelector(".report .gold-line")?.textContent.replace(/\s+/g, " ").trim(), reel: document.querySelector(".report")?.textContent ?? "" }));
   const all = rep.lines.join(" | ");
-  check(/· −\$37 swapped/.test(all) && /stolen caustic \+ \$3/.test(all), `a swap and the coins thieves kept are on the line, a flavour by its name now (${all})`);
+  check(/· swapped · carry −\$37/.test(all) && /stolen caustic · carry −\$3/.test(all), `a swap and the coins thieves kept are on the line, a flavour by its name now (${all})`);
   // QA 0c6e126 (qaY: `heir purse ≥$40 ×12` with no ledger line behind it): only a top-up the ledger holds is named — `+$40 heir purse`
   check(/heir purse \+\$40/.test(all) && !/≥\$40|purse full|no top-up/.test(all + rep.gold), `the purse reads \`heir purse +$40\` where it was paid, never \`≥$40\` or \`purse full\` (${all})`);
   // QA 0c6e126 (qaZ: `−$7 swapped` summed into the headline, off the balance by 7): the swaps are the lines', not a term of the gold line

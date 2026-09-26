@@ -121,14 +121,18 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
     if (r.because) { const dup = shown.some((s) => s.text === r.because!.text); shown.push(r.because); if (!dup && !foeBlockerOnMove(verb, r.because.text)) line.append(...link(r.because, ctx.runId)); }
     return line;
   });
-  if (last && last.row >= 0) lines.push(h("div", { class: "chain-row fired" },
-    rowRef(last.row, verbLabel(last.verb), ctx.onRow),
-    h("span", { class: "why" }, /* copy:label */ "fired")));
+  // QA 524827b (qaAA: `R4 attack nearest · fired · ← cowardly ran first` read as why R4 fired): the chain's own links are the earlier
+  // moments — they go before the last turn's lines, and the fired row closes the chain, never followed by a bare `←`
+  const extraEls: HTMLElement[] = [];
   for (const b of extra) {
     if (shown.some((s) => sameLink(s, b) || s.text === b.text)) continue;
     shown.push(b);
-    lines.push(h("div", { class: "chain-row extra" }, ...link(b, ctx.runId)));
+    extraEls.push(h("div", { class: "chain-row extra" }, ...link(b, ctx.runId)));
   }
+  lines.unshift(...extraEls);
+  if (last && last.row >= 0) lines.push(h("div", { class: "chain-row fired" },
+    rowRef(last.row, verbLabel(last.verb), ctx.onRow),
+    h("span", { class: "why" }, /* copy:label */ "fired")));
   // QA e75ec29 (R: "`· 20 earlier` … does nothing when tapped"): the older links unfold in place
   const tickMore: HTMLElement | "" = tickOlder.length ? h("button", { class: "chain-row tick earlier dim", onclick: (e: Event) => { (e.currentTarget as HTMLElement).replaceWith(...tickOlder.map(tickLine)); } }, /* copy:button */ `· ${tickOlder.length} earlier`) : "";
   const box = h("div", { class: "chain num" }, tickMore, ...tickEls, ...lines);

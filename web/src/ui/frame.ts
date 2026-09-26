@@ -20,7 +20,7 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
   const el = h("header", { class: "strip topbar" });
   const mini = portraitMini(app);
   function paint(): void {
-    const L = app.lineage, R = revealed(app);
+    const L = app.lineage, R = revealed(app), past = opts.heir !== undefined && opts.heir !== L.heir;
     // the glyph (`◆` `★`) stays in the text (the tooling reads `◆7`) but the icon stands for it on screen
     const stat = (cls: string, ico: string, glyph: string, n: string | number, on = true): HTMLElement | "" => on ? h("span", { class: `num stat ${cls}` }, icon(ico), glyph ? h("span", { class: "g" }, glyph) : "", String(n)) : "";
     replace(el,
@@ -31,13 +31,15 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
       h("div", { class: "stats" },
         // QA 0c6e126 (qaY: `♟14 cowardly` beside `$40 · ◆23 · D8` — "I took $40 as ♟14's purse"): a past heir's bar marks the totals as
         // the lineage's now
-        opts.heir !== undefined && opts.heir !== L.heir ? h("small", { class: "dim now" }, /* copy:label */ "now") : "",
+        // QA 524827b (qaAA: `♟13 curious · now · $40 ◆21 D8` — "I read ◆21 as that hero's"): the word says whose (`lineage`), and the
+        // best depth and rank, which read as the dead hero's floor and standing, stay on the camp's bar
+        past ? h("small", { class: "dim now" }, /* copy:label */ "lineage") : "",
         // QA 912e135 (qaW: "the header `$40` is not a button on the death screen; on camp it opens GOLD"): the purse opens the ledger on
         // every screen but the watch (a sheet over the run is the exit sheet's place)
         !opts.watch ? h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), `$${L.gold}`) : h("span", { class: "num stat gold" }, icon("gold"), `$${L.gold}`),
         stat("marks", "mark", "◆", L.marks, R.has("unlocks")),
-        stat("rank", "renown", "★", L.rank ?? 0, R.has("rank")),
-        stat("best", "depth", "", `D${L.best_depth}`, R.has("depth")),
+        stat("rank", "renown", "★", L.rank ?? 0, R.has("rank") && !past),
+        stat("best", "depth", "", `D${L.best_depth}`, R.has("depth") && !past),
       ),
       h("button", { class: "gear stud", "aria-label": "settings", onclick: () => openSettings(app) }, icon("settings", "⚙")),
       offers,

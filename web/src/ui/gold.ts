@@ -85,8 +85,9 @@ export function openGoldSheet(app: App, only?: ExitLine, newer: ExitLine[] = [])
       list.replaceChildren(
         run && range[1] < ledger.length - 1 ? bal(endBal, /* copy:label */ "end", "end") : "",
         ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, wakeShown(g.why.replace(/_/g, " ")), g.n && g.n > 1 ? ` ×${g.n}` : "",
-          // QA 912e135 (qaW: sixteen `$0 died D6` rows, none of the $224 a stall carried): an exit's row names what it did not keep
-          g.lost && g.lost > 0 ? h("span", { class: "lost dim" }, /* copy:callout */ ` · $${g.lost} lost`) : ""))),
+          // QA 912e135 (qaW: sixteen `$0 died D6` rows, none of the $224 a stall carried): an exit's row names what it did not keep —
+          // QA 524827b (qaAA: `returned D8 · $77 lost`): an exit that kept some says `not kept`, `lost` is a whole carry gone
+          g.lost && g.lost > 0 ? h("span", { class: "lost dim" }, g.delta > 0 ? /* copy:callout */ ` · $${g.lost} not kept` : /* copy:callout */ ` · $${g.lost} lost`) : ""))),
         lines.length ? "" : h("div", { class: "lrow num dim empty-line" }, /* copy:callout */ "no movements"),
         run ? bal(startBal, /* copy:label */ "start", "start") : "");   // QA 92eb880 (N: a fresh lineage's sheet read `$0 · ·`)
     };

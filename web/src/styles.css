@@ -987,6 +987,9 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .topbar { flex-wrap: nowrap; }
 .topbar:has(.offers:not([hidden])) { flex-wrap: wrap; }
 .topbar .trait { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* QA 524827b (qaAB: a death's bar `♟7 cowardly now $2360 ◆15 ★5 D10 ⚙` 420 px in a 400 px viewport, the gear clipped): the stats give
+   way before the gear does — tighter gaps on a phone, the lineage word small */
+@media (max-width: 440px) { .topbar .stats { gap: 6px; min-width: 0; } .topbar .stats .now { font-size: 11px; } .topbar { gap: 2px 6px; } }
 .topbar .stats { flex: 0 1 auto; min-width: 0; gap: 7px; }
 .topbar .gear { min-width: 30px; }
 .vault .chip.insure { margin-left: 0; }
@@ -1056,7 +1059,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .bar .n .vsm { margin-left: 4px; font-size: 10px; }
 /* Cut 22: the send gem names a remembered `fast` watch under its word */
 .gem.send .send-l { display: inline-flex; flex-direction: column; align-items: center; line-height: 1; }
-.gem.send .send-mode { margin-top: 3px; font: 600 10px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.gem.send .send-mode { margin-top: 4px; padding: 1px 5px; border-radius: 6px; background: rgba(0,0,0,.28); font: 600 10px/1.2 var(--sans); letter-spacing: .04em; text-transform: none; opacity: .85; }
 .start-opt .start-death { font-weight: 400; }
 .start-opt .start-death.warn { color: var(--warn); }
 :is(.sheet, .panel, .parchment) .start-opt .start-death.warn { color: #a3481f; }
@@ -1178,3 +1181,6 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 .patch .move-tag { color: var(--acc); font-weight: 600; }
 /* Cut 25 §2: `ORDER` is the seal's longest word — one line, a step smaller */
 .death .death-line .verdict.order { font-size: 21px; letter-spacing: 0; white-space: nowrap; }
+/* QA 524827b: a patch's whole-run move under its reach (`death −8 ±8 · risk fire`) */
+.patch-nums .whole { font-size: 12px; }
+.patch-nums .whole:empty { display: none; }

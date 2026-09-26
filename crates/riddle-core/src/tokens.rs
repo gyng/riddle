@@ -189,7 +189,7 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
 /// its gate in ≤ 3 words — the cond unlocks (`◆2`, or the unlock's own gate while that is
 /// shut), `foe_hp<` (`study a kind`), the unlearned tags of kinds met (`fact: pack`), unidentified potions and
 /// scrolls (`identify poison`), unfound misc items (`find: lantern`), unseen situations
-/// (`see: stray`) and `party_hp<` without a companion (`tame once`). Nothing in `conds` is
+/// (`see: stray`) and `party_hp<` without a companion (`tame a foe`). Nothing in `conds` is
 /// listed; `party: K` is not a gate (a companion comes and goes).
 pub fn locked_conds(l: &LineageState, open: &[Cond]) -> Vec<LockedCond> {
     let mut out: Vec<LockedCond> = Vec::new();
@@ -208,7 +208,7 @@ pub fn locked_conds(l: &LineageState, open: &[Cond]) -> Vec<LockedCond> {
         };
         let needs = if l.unlocks.contains(u) {
             // Owned: only `party_hp<` stays shut (no companion yet).
-            "tame once".to_string()
+            "tame a foe".to_string()
         } else {
             crate::meta::gate(l, u).unwrap_or_else(|| format!("◆{}", crate::meta::unlock_cost(u)))
         };
@@ -226,7 +226,10 @@ pub fn locked_conds(l: &LineageState, open: &[Cond]) -> Vec<LockedCond> {
     for i in ITEMS {
         if matches!(i.cat, Cat::Potion | Cat::Scroll) {
             // `identify identify` read as a typo (QA on 56f2a1d): the identify scroll says `know`.
-            lock(Cond::t("item", i.kind), if i.kind == "identify" { "know identify".into() } else { format!("identify {}", i.kind) });
+            // QA on 524827b (qaAB: `⊘ has: fire · identify fire` while the shop sold `fire potion`):
+            // a kind the forge sells (craftable) is learned by buying one — the gate says so.
+            let sold = l.forge.get(i.kind).is_some_and(|f| f.craftable);
+            lock(Cond::t("item", i.kind), if sold { format!("buy {}", i.kind) } else if i.kind == "identify" { "know identify".into() } else { format!("identify {}", i.kind) });
         }
     }
     lock(Cond::t("item", "leash"), "find: leash".into());

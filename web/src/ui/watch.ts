@@ -128,7 +128,7 @@ import { mergeFinds } from "./report";
 import { setBusyHost } from "./progress";
 import { vaultSlots } from "./unlocks";
 import { glossOf, kindGlyph, noteText, verbLabel } from "./tokens";
-import { traceChip } from "./trace";
+import { EXIT_TRACE_ROWS, traceTable } from "./trace";
 import { exitExtras } from "./death";
 import { markEnd, recordRun } from "./runlog";
 import { audio } from "../audio";
@@ -165,6 +165,9 @@ const BLOW_TICKS = 20;              // Cut 10 §1: in `fights` the frame holds o
 // pass under the card (a DEFAULT run's fights alone ran ~110 s at 1×; the gate is 90 s with ≥ 3 shown)
 const SHOW_HURT = 4, SHOW_HP = 0.25;
 const STALL_FLAT_TICKS = 300;       // a stall flag that has held this long is a stall: flat rate, ▶▶| to the run's end
+// QA 524827b (qaAB: ▶▶| every 0.4 s in `fights`, a D10 run still took 114 s — each floor started the count over): presses in quick
+// succession on any floors, this many, also take the run's end (the player is asking for it, not for the next fight)
+const PRESS_ANY = 8;
 const PRESS_GAP_MS = 2500, PRESS_LOOP = 3;   // QA 778fa1b (qaV): ▶▶| pressed again within this long on the same floor, this many times over, is a loop — the run's end
 const SKIP_WALL_MS = 4000;          // QA 23ed91f (L: 60 taps of ▶▶| over a 4-minute stall, 300 s on D1 in `fights`): a skip steps for at most this much wall time, then lands live — the press always moves the picture; the next press goes on
 const SKIP_END_BATCH = 100;         // ▶▶| in `fast` steps to the run's end in batches this size: a step's cost is its snapshot, not its ticks (≈ 30 ms a call on the fast wasm build, so 10-tick batches took 15 s to a D5 death)
@@ -228,6 +231,7 @@ const REST_BEAT_FAST_MS = 700;      // QA e75ec29: in `fast` the rest line holds
 const VAULT_FULL_MS = 1200;         // QA e75ec29: `vault full` before the report when the preference kept (no sheet)          // Cut 2 §1: `rest 12m` after the exit, before the exit flow continues
 const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "descend", pick_up: /* copy:callout */ "pick up" }; // explore never (Cut 4 §4)
 const CORE_LINE_MS = 1000, CAPTION_LINE_MS = 1500;   // Cut 18 §2: the renderer's callout and caption lifetimes (render/state.ts)
+const KILL_MS = 60_000;             // QA 524827b: the killing blow's line stays on the 0-hp frame
 const HURT_MS = 600;                // Cut 4 §4: `−7 archer` in red
 const FELL_MS = 1400;               // Cut 10 §3: `jackal Ashar fell` stays long enough to read a name
 const SCENE_MS = 4000, SCENE_TICKS = 40;   // Cut 13 §4: a situation's beat holds the fight frame this long (~4 s at 1×)
@@ -372,6 +376,7 @@ export function renderWatch(app: App): Mounted {
   el.dataset.mode = mode; el.dataset.fights = "0"; el.dataset.card = "0";
   const allies = new Set<number>();   // Cut 10 §3: ids the snapshot flags as allies, so a companion's death reads `jackal Ashar fell`
   let fell: { t: number; name: string; kind: string } | null = null;   // the companion whose death the core's own callout (`Ashar fell`) names next
+  let killBlow = "";                  // QA 524827b (qaAA): the hero's killing blow as its callout (`−1 hp · monkey`), once absorbed
   let heroCause: string | undefined;  // the hero's `die` cause (the client-built report counts the death it came from)
   // Cut 7 §4: the scene's room (null = none) and the tick auto may run fast again after one ends; the ending's first tick;
   // the exit batch held back until the viewer is ENDING_TICKS from the exit; the ambient callout limiter; the last alert
@@ -392,7 +397,7 @@ export function renderWatch(app: App): Mounted {
   // Cut 24 §1: the engine ticks where the watch moved — a blow that landed, a hurt, a drink, a kill, a pickup, a descent (ascending)
   const progress: number[] = [];
   let deadSince = -1;                 // Cut 18 §1: `fast` — when the current dead stretch began (wall ms; -1 none): its rate ramps
-  let chore: { text: string; n: number; shown: string } | null = null;   // Cut 14 §4: the chore callout streak on the ticker (`pick up ×8`)
+  let chore: { text: string; n: number; shown: string; depth: number } | null = null;   // Cut 14 §4: the chore callout streak on the ticker (`pick up ×8`)
   const rowFires: number[] = [];      // Cut 14 §4: this run's `rule` events per row (the death screen's least-fired row)
   // Cut 10 §1: the fight the engine is running through under the card (its cost so far), and whether the found fight is to be shown
   let probe: { hurt: number; low: boolean; boss: boolean; ally: boolean; steal: boolean } | null = null, fightShow = false;
@@ -503,6 +508,9 @@ export function renderWatch(app: App): Mounted {
     // QA 0c6e126 (qaY: `alert 1` / `alert 2` with no scale): the level out of its top (the core's cap, 8: each rise calls wanderers)
     if (snap) replace(alert, snap.alert > 0 ? /* copy:callout */ `alert ${snap.alert}/${ALERT_TOP}` : "");
     if (cardUp) paintCardText();
+    // QA 524827b (qaAA: the final frame `0/36` under `−1 hp · jackal`, the trace's last blow the monkey's): at 0 hp the line names the
+    // killing blow — whatever a skip released last, a held beat or a queue kept on the ticker
+    if (hud.hp <= 0 && killBlow && !cardUp && lastShown !== killBlow) { tickerQueue.length = 0; showTicker(killBlow, "hurt", KILL_MS); }
   }
   /** Cut 16 §4: the boss bar — the name one word, the track its hp share; hidden with no boss in view. */
   function paintBoss(): void {
@@ -728,6 +736,8 @@ export function renderWatch(app: App): Mounted {
   /** Cut 14 §4: a chore's callout (`pick up`) repeats on its own line with a count — `pick up ×8` — until another line shows
    *  (rater T: "dead stretches of eight consecutive `pick up` reads"); the count is repainted in place, never queued. */
   function choreCallout(text: string): void {
+    // QA 524827b (qaAA: `descend ×13`, `pick up ×10` — the approach to D4 in one line): a streak is one floor's; the stairs start another
+    if (chore && chore.depth !== hud.depth) chore = null;
     if (chore && chore.text === text) {
       chore.n++;
       const line = /* copy:callout */ `${text} ×${chore.n}`;
@@ -736,7 +746,7 @@ export function renderWatch(app: App): Mounted {
       if (inPlace) showTicker(line, "", Math.max(CALLOUT_MIN_MS, 1800 / Math.max(1, speed))); else callout(line);
       return;
     }
-    chore = { text, n: 1, shown: text };
+    chore = { text, n: 1, shown: text, depth: hud.depth };
     callout(text);
   }
   /** Cut 18 §2: one line over the fight. The renderer draws the core's callout (a telegraph: `archer draws`) over the hero and hides
@@ -838,9 +848,10 @@ export function renderWatch(app: App): Mounted {
           if (ev.id === heroId) {
             // Cut 25 §3: a drain (no blow: hunger, poison, a curse) — no number per bite; its word once a floor (`starving`)
             const dw = drainOf(ev) ?? (drainEvs.has(ev) ? drainOn : null);
-            if (dw) { if (!drainTicks.length || drainTicks[drainTicks.length - 1] < ev.t) { drainTicks.push(ev.t); if (drainTicks.length > 64) drainTicks.shift(); }
+            if (dw) { if (ev.hp <= 0) killBlow = dw; if (!drainTicks.length || drainTicks[drainTicks.length - 1] < ev.t) { drainTicks.push(ev.t); if (drainTicks.length > 64) drainTicks.shift(); }
               at(ev.t, () => { el.dataset.drain = String(ev.t); });   // tooling: the last drain the picture reached
               const key = `${dw}@${s.depth}`; at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (!drainsShown.has(key)) { drainsShown.add(key); callout(dw, "hurt", HURT_MS * 2); } }); break; }
+            if (ev.hp <= 0 && ev.dmg > 0) killBlow = hurtText(ev.dmg, ev.cause);   // the blow the 0-hp frame names (`paintHud`)
             at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) { callout(hurtText(ev.dmg, ev.cause), "hurt", HURT_MS); cue("hit", { dmg: ev.dmg }); } });
           }
           break;
@@ -1501,7 +1512,7 @@ export function renderWatch(app: App): Mounted {
     goLive(); paintCard(frame); cardSince = -Infinity; applyFrame(); applySpeed();
   }
   let stuckFight = -Infinity;   // QA 778fa1b (qaV): the fight a ▶▶| could not close (its `fightFrom`)
-  let lastPressAt = -Infinity, pressDepth = -1, pressRun = 0;   // QA 778fa1b (qaV): presses in a row on one floor
+  let lastPressAt = -Infinity, pressDepth = -1, pressRun = 0, pressAny = 0;   // QA 778fa1b (qaV): presses in a row on one floor
   async function skipToEvent(): Promise<void> {
     skipping = true;
     try { await skipToEvent0(); } finally { skipping = false; lastPressAt = performance.now(); }
@@ -1527,6 +1538,8 @@ export function renderWatch(app: App): Mounted {
     // in quick succession that leave him on the same floor are a loop the fights keep opening — the fourth takes the run's end
     const nowMs = performance.now();
     if (nowMs - lastPressAt < PRESS_GAP_MS && hud.depth === pressDepth) pressRun++; else { pressRun = 0; pressDepth = hud.depth; }
+    pressAny = nowMs - lastPressAt < PRESS_GAP_MS ? pressAny + 1 : 0;
+    if (pressAny >= PRESS_ANY) pressRun = Math.max(pressRun, PRESS_LOOP);
     lastPressAt = nowMs;
     if (mode === "fights" && earlyFloor() && frame !== "fight" && !stalling() && pressRun < PRESS_LOOP) { skipToCard(); return; }
     inflight = true;
@@ -1891,7 +1904,14 @@ export function renderWatch(app: App): Mounted {
       // Cut 24 §2: what was new this run leads the sheet's lines (`record: D10 · avenged Ulak`), before the counts
       const newsT = mergeFinds((exitLine?.news ?? []).filter((n) => n.k !== "differ")).map((n) => n.text);
       const news = newsT.length ? h("div", { class: "keep-news num" }, newsT.slice(0, 3).join(" · ")) : null;
-      const trace = traceChip(exitTrace ?? exitLine?.trace, "chip mini", { rows: app.rules.rows, runId, home: p.tier !== "death" });   // Cut 9 §5: the trace on a chip; Cut 11 §3: with its chain; Cut 14: a home trace's last row is not red
+      // Cut 9 §5: the trace on a chip; Cut 11 §3: with its chain; Cut 14: a home trace's last row is not red. QA 524827b (qaAB: the TRACE
+      // replaced the item grid — `‹` back before an item could be kept): the chip unfolds the trace under the chips, in the sheet
+      const tr = exitTrace ?? exitLine?.trace;
+      const traceBox = h("div", { class: "keep-trace", hidden: true });
+      const trace = tr?.turns.length ? h("button", { class: "chip mini", onclick: () => {
+        if (!traceBox.childElementCount) traceBox.append(...traceTable(tr, { rows: app.rules.rows, runId, home: p.tier !== "death", provenance: true }, EXIT_TRACE_ROWS));
+        traceBox.hidden = !traceBox.hidden;
+      } }, /* copy:button */ "trace") : null;
       // the sheet counts picks against free slots, so its label is `keep 0/1`, not the camp's `vault 1/2` (QA on e0f87e7:
       // "VAULT 0/1 while camp shows VAULT 1/2 · same counter")
       // QA 23ed91f (K: "`$5`, `$4`, `$1` on each item: a cost to keep, or a sale price?" and the report's SALVAGED listed `mapping ·
@@ -1903,7 +1923,7 @@ export function renderWatch(app: App): Mounted {
       return h("div", { class: "sheet-body" },
         // QA 0c6e126 (qaZ: `KEEP 1/1` after a bought slot, read as "the vault is one slot"): the count is of the free slots — `keep 1/1 free`
         h("div", { class: "label row-label" }, /* copy:label */ "keep", " ", count, h("small", { class: "dim" }, /* copy:label */ " free"), trace),
-        chips, legend, cut, bones, news, ledger,
+        chips, legend, cut, bones, news, ledger, traceBox,
         h("button", { class: "btn primary wide", onclick: () => {
           if (sent) return; sent = true;
           salvagedRows = letGoRows(p, keep);

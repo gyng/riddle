@@ -548,6 +548,38 @@ fn check_reel(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::ReturnReport)
     }
 }
 
+/// QA on 524827b (qaAA): the report's lines say each thing once and agree with each other —
+/// a drive-off's line names the boss once (`driven $0 · … · by Warlord`); a reel line whose run
+/// a boss drove off names that boss (`An ogre took him to 17 HP; R5 attacked; driven off.` under
+/// `by Warlord`); every `new find` the exits' news names is on FOUND's list (`new_finds`); a
+/// kept item's `+N` is its forge base (and the cage's +1) plus the enchant scrolls read on it
+/// (`axe +7` = `+1` and `enchanted ×6`).
+fn check_report_headers(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::ReturnReport) {
+    for x in &r.exits {
+        if let Some(d) = &x.driven {
+            let n = x.text.matches(d.title.as_str()).count();
+            t.check("a drive-off's line names the boss once", n == 1, || format!("seed {seed} run {}: `{}`", x.run_id, x.text));
+        }
+        for n in x.news.iter().filter(|n| n.k == "find") {
+            let name = n.text.strip_prefix("new find: ").unwrap_or(&n.text);
+            t.check("a headline find is on FOUND", r.new_finds.iter().any(|f| f == name), || format!("seed {seed} run {}: `{}` · {:?}", x.run_id, n.text, r.new_finds));
+        }
+    }
+    for h in &r.reel {
+        let Some(arc) = &h.arc else { continue };
+        let Some(boss) = arc.resolution.strip_prefix("driven off by the ") else { continue };
+        let named = h.text.contains(&format!("driven off by the {boss}")) || h.text.contains(&format!("fled the {boss}")) || h.text.starts_with(boss) || h.text.starts_with(&format!("The {boss}"));
+        t.check("a reel drive-off names the boss who drove him off", named, || format!("seed {seed} run {}: `{}` · {}", h.run_id, h.text, arc.resolution));
+    }
+    for it in &g.batch.found {
+        let gear = matches!(riddle_core::defs::item_def(&it.kind).cat, riddle_core::defs::Cat::Weapon | riddle_core::defs::Cat::Armour);
+        if gear {
+            let base = it.enchant - it.enchanted;
+            t.check("a kept item's `+N` is its forge base plus the enchants read on it", it.enchanted >= 0 && base >= 0 && base <= g.lineage.forge_tier(&it.kind) + 1, || format!("seed {seed}: {} +{} · enchanted {} · forge {}", it.kind, it.enchant, it.enchanted, g.lineage.forge_tier(&it.kind)));
+        }
+    }
+}
+
 /// QA on a946e04 (qaS: `A den of thieves. Nothing lost to the den.` in the run whose report
 /// said `stolen red potion?`): watched sends from a copy of the night's camp — a den's
 /// `Nothing lost` note is said only while every theft of the run so far was got back.
@@ -615,6 +647,57 @@ fn check_chore_leg(t: &mut Tally, g: &Game, seed: u64) {
         t.check("a floor's `pick up` chores with nothing taken ≤ 50", worst.0 <= CHORE_STREAK, || format!("seed {seed}: {} on D{}", worst.0, worst.1));
         if h.pending_exit.is_some() {
             let _ = h.keep(vec![]);
+        }
+    }
+}
+
+/// QA on 524827b (qaAB: a bought 2nd leash, $30, gone after a returned run — merged into the
+/// kennel's free stack at the pack, sent back to the kennel as the free one): on a copy given
+/// gold, a leash bought; six sends — after each that came home (not a death), tamed nothing and
+/// lost no leash to a thief, the shelf holds as many bought leashes as it did before the send.
+/// And a kind the shop names is one the lineage knows (qaAB: `fire potion $26` for sale while
+/// the pickers read `identify fire`).
+fn check_leash_leg(t: &mut Tally, g: &Game, seed: u64) {
+    let mut h = g.clone();
+    h.lineage.gold_move(1000, "test");
+    let _ = h.buy_supply("leash");
+    let bought = |h: &Game| h.lineage.supplies.iter().filter(|s| s.kind == "leash" && !s.free).count();
+    for _ in 0..6 {
+        let before = bought(&h);
+        h.send();
+        let (mut died, mut tamed, mut stolen) = (false, false, false);
+        for _ in 0..4000 {
+            let r = h.step(50);
+            for e in &r.events {
+                match e {
+                    Ev::Exit { tier, .. } if tier == "death" => died = true,
+                    Ev::Tame { .. } => tamed = true,
+                    Ev::Steal { item, .. } if item.contains("leash") => stolen = true,
+                    _ => {}
+                }
+            }
+            if r.run_over {
+                break;
+            }
+        }
+        if h.pending_exit.is_some() {
+            let _ = h.keep(vec![]);
+        }
+        if !died && !tamed && !stolen {
+            t.check("a bought leash comes home from a run that tamed nothing", bought(&h) >= before, || format!("seed {seed}: {before} bought leashes → {}", bought(&h)));
+        }
+        // (a kind for sale the lineage has not identified is learned by the buy, and its picker gate says `buy`)
+        let v = h.vocabulary();
+        for e in h.supply_catalogue() {
+            if riddle_core::item::is_identified(&h.lineage.facts, &h.lineage.flavours, &e.kind) {
+                continue;
+            }
+            let mut b = h.clone();
+            b.lineage.gold_move(1000, "test");
+            b.lineage.supplies.clear();
+            let learns = b.buy_supply(&e.kind).is_ok() && riddle_core::item::is_identified(&b.lineage.facts, &b.lineage.flavours, &e.kind);
+            let gate = v.locked.iter().find(|x| x.cond.k == "item" && x.cond.t.as_deref() == Some(e.kind.as_str())).map(|x| x.needs.clone());
+            t.check("an unknown kind for sale is learned by buying it, and its gate says `buy`", learns && gate.as_deref().is_none_or(|g| g.starts_with("buy ")), || format!("seed {seed}: {} learns {learns} · gate {gate:?}", e.kind));
         }
     }
 }
@@ -1052,6 +1135,42 @@ impl Pool {
 /// A seed: the protocol through the engine (send → exit → `death()` → patch → the camp's
 /// reads → buy → the night), the night's legs handed to the pool on copies of the game, then
 /// the night's deaths, the shop and the save on the game itself.
+/// QA on 524827b (qaAA): a death's killing blow is the run's last blow to the hero (the watch's
+/// 0-hp frame names it: `−1 hp · monkey`, never an older `jackal`), and a `not in view` because
+/// names the newest event of that tag — never a foe slain floors above when one was left behind
+/// or seen since (`monkey slain D1` under the D4 den's thieves).
+fn check_blow_and_view(t: &mut Tally, seed: u64, d: &riddle_core::Death, last_hurt: Option<&str>) {
+    if d.verdict != "stall" {
+        let word = |s: &str| s.replace('_', " ").to_lowercase();
+        let by = d.trace.blow.as_ref().map(|b| word(&b.by));
+        t.check("a death's blow is the run's last hurt to the hero", by.is_some() && by.as_deref() == last_hurt.map(word).as_deref(), || format!("seed {seed} run {}: blow {by:?} · last hurt {last_hurt:?}", d.run_id));
+    }
+    let (Some(rules), Some(prov)) = (&d.rules, &d.trace.provenance) else { return };
+    for turn in &d.trace.turns {
+        for w in turn.rows.iter().flatten().filter(|w| w.why == "not in view") {
+            let Some(b) = w.because.as_ref().filter(|b| b.text.contains(" slain D")) else { continue };
+            let Some(tag) = rules.rows.get(w.row).and_then(|r| r.conds.iter().find_map(|c| c.t.clone())) else { continue };
+            let newer = prov.iter().find(|p| p.t > b.t && p.text.split(" last seen D").next().is_some_and(|k| { let k = k.replace(' ', "_"); let def = riddle_core::defs::monster_def(&k); p.text.contains(" last seen D") && def.kind == k && def.tags.contains(&tag.as_str()) }));
+            t.check("a `not in view` because names the newest event of its tag", newer.is_none(), || format!("seed {seed} run {}: R{} `{}` t{} · newer `{}` t{}", d.run_id, w.row + 1, b.text, b.t, newer.map(|p| p.text.as_str()).unwrap_or(""), newer.map(|p| p.t).unwrap_or(0)));
+        }
+    }
+}
+
+/// QA on 524827b (qaAB: `8002 R1 return 12 · 8013 R1 return 6`, `8385 attack 8 · burst −3 2` — hp
+/// fell with no row): every hp the hero loses between two of a trace's actions is a blow row
+/// (`TraceTurn.blows`), and a death's last action down to 0 is its `blows`/`blow`.
+fn check_trace_hp(t: &mut Tally, seed: u64, trace: &riddle_core::Trace, at: &str) {
+    for w in trace.turns.windows(2) {
+        let drop = w[0].hp - w[1].hp;
+        let dealt: i32 = w[1].blows.iter().map(|b| b.dmg).sum();
+        t.check("a trace's hp never falls without a blow row", drop <= dealt, || format!("seed {seed} {at}: t{} hp {} → t{} hp {} · blows {:?}", w[0].t, w[0].hp, w[1].t, w[1].hp, w[1].blows));
+    }
+    if let (Some(last), Some(blow)) = (trace.turns.last(), trace.blow.as_ref()) {
+        let dealt: i32 = if trace.blows.is_empty() { blow.dmg } else { trace.blows.iter().map(|b| b.dmg).sum() };
+        t.check("a death's last hp falls to 0 in blow rows", last.hp <= dealt, || format!("seed {seed} {at}: t{} hp {} · blows {:?} · blow {blow:?}", last.t, last.hp, trace.blows));
+    }
+}
+
 fn play(o: &mut Out, pool: &Pool, seed: u64) {
     let Out { t, lp, .. } = o;
     let mut g = Game::new(seed);
@@ -1074,9 +1193,17 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     let mut swapped_seen = 0;
     let mut died = None;
     let mut n = 0;
+    let mut last_hurt: Option<String> = None;
     loop {
         let r = g.step(50);
         n += 1;
+        for e in &r.events {
+            if let Ev::Hurt { id, dmg, cause, .. } = e {
+                if *id == riddle_core::engine::HERO_ID && *dmg > 0 {
+                    last_hurt = Some(cause.clone());
+                }
+            }
+        }
         // Cut 20 §4: the stake names what a death keeps beside the exit row's keep.
         let st = &r.snapshot.stake;
         t.check("the stake's death keep == the death tier's share of carried", st.death_keep == st.loot.max(0) * ExitTier::Death.pct() / 100, || format!("seed {seed}: death keep {} of carried {}", st.death_keep, st.loot));
@@ -1173,6 +1300,12 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
             }
         }
         check_death(t, &g, seed, &d);
+        check_blow_and_view(t, seed, &d, last_hurt.as_deref());
+        check_trace_hp(t, seed, &d.trace, &format!("run {id} death trace"));
+        // QA on 524827b (qaAA: `0/587 · blocked` — "587 of what"): a row's why-not count names its unit.
+        for w in g.lineage().row_why.iter().flatten() {
+            t.check("a row's why-not count names its unit (`acts`)", w.text.split(" · ").next().is_some_and(|h| h.ends_with(" acts")), || format!("seed {seed}: `{}`", w.text));
+        }
         t.check("death()'s patches are camp_pending until death_deltas", d.patches.iter().all(|p| p.camp_pending), || format!("seed {seed} run {id}"));
         // QA on 23ed91f (`rest · reach +8%`, then the camp's D6 34 % → 64 %): the patch's
         // `reach` (`death_deltas`) is the camp forecast's own move at its depth once applied.
@@ -1191,6 +1324,16 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
             b.sort();
             let again = g.death(id).map(|x| x.patches.iter().map(key).collect::<Vec<_>>());
             t.check("death_deltas returns death()'s patches, measured", a == b && ps.iter().all(|p| !p.camp_pending) && again == Some(ps.iter().map(key).collect()), || format!("seed {seed} run {id}"));
+            // QA on 524827b (qaAA: `drink unknown · 12/12` led and the camp's killers turned to
+            // fire and poison; `read unknown · 11/12` in at R1 and the camp read `death +6`): every
+            // measured patch carries its whole-run move, and the one the gem applies by default
+            // (the first advice shown) never moves death up past its ± or reach down past its
+            // own — unless every patch shown does (the gem then reads `edit`).
+            let advice: Vec<&riddle_core::wire::Patch> = ps.iter().filter(|p| !p.below_bar).collect();
+            let lead = advice.first();
+            let harms = |p: &riddle_core::wire::Patch| p.whole.as_ref().is_some_and(|w| (w.death > 1e-9 && w.death > w.death_pm + 1e-9) || (w.reach < -1e-9 && w.reach < -w.reach_pm - 1e-9));
+            let ok = ps.iter().all(|p| p.whole.as_ref().is_some_and(|w| w.harms == harms(p))) && lead.is_none_or(|p| !harms(p) || advice.iter().all(|q| harms(q)));
+            t.check("the gem's default patch never harms whole runs (death > ±, reach < −±)", ok, || format!("seed {seed} run {id}: {:?}", ps.iter().map(|p| (p.row.describe(), p.below_bar, p.whole.clone())).collect::<Vec<_>>()));
         }
         let top = deltas.as_ref().unwrap_or(&d.patches).iter().find(|p| p.insert_at >= 0).cloned();
         if let Some(p) = top {
@@ -1269,7 +1412,19 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     let bounty_before = g.lineage.bounty;
     let chronicle_before = g.lineage.chronicle.len();
     let deeds_before: Vec<String> = g.lineage.heir_deeds.clone();
+    let sends_before: Vec<(riddle_core::rules::Row, u32)> = g.lineage.row_stats.iter().map(|(r, x)| (r.clone(), x.sends)).collect();
     let r = g.run_offline(8 * 3600);
+    // QA on 524827b (qaAB: over one 16-run absence the WHY sheet's `sends` rose R1 3→11, R2 11→17…):
+    // the rows of the set that ran all night count the same sends.
+    {
+        let set = g.lineage.rules().clone();
+        let rose: Vec<u32> = set.rows.iter().filter_map(|row| {
+            let b = sends_before.iter().find(|(x, _)| x.conds == row.conds && x.verb == row.verb)?.1;
+            let a = g.lineage.row_stats.iter().find(|(x, _)| x.conds == row.conds && x.verb == row.verb)?.1.sends;
+            Some(a - b)
+        }).collect();
+        t.check("the rows that ran all night count the same sends", rose.windows(2).all(|w| w[0] == w[1]), || format!("seed {seed}: sends rose {rose:?} over {} runs", r.runs));
+    }
     // QA on e75ec29 (qaQ: `bounty D10 · missed`, no bounty on the camp before the absence): the
     // report's bounty is the one the camp showed when the absence began.
     t.check("the report's bounty is the camp's before the absence", r.bounty.as_ref().is_none_or(|b| Some(b.depth) == bounty_before), || format!("seed {seed}: report {:?} · camp {bounty_before:?}", r.bounty));
@@ -1321,6 +1476,9 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     }
     for x in &r.exits {
         check_exit_line(t, seed, x, "night");
+        if let Some(tr) = &x.trace {
+            check_trace_hp(t, seed, tr, &format!("night run {} trace", x.run_id));
+        }
         let sum: u32 = x.found.iter().map(|f| f.n).sum();
         let bad: u32 = x.found.iter().filter(|f| f.fate == "lost" || f.fate == "sheet").map(|f| f.n).sum();
         t.check("found at an exit == kept + salvaged + shelved + used + left + stolen + bones", sum == x.found_n && bad == 0, || format!("seed {seed} night run {}: {sum} placed of {} · {:?}", x.run_id, x.found_n, x.found));
@@ -1351,6 +1509,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     at(pool, 50, "shadow leg", &g, |o, g, seed| check_shadowed(&mut o.t, g, seed));
     at(pool, 45, "den leg", &g, |o, g, seed| check_den_leg(&mut o.t, g, seed));
     at(pool, 45, "chore leg", &g, |o, g, seed| check_chore_leg(&mut o.t, g, seed));
+    at(pool, 45, "leash leg", &g, |o, g, seed| check_leash_leg(&mut o.t, g, seed));
     at(pool, 45, "saved-by leg", &g, |o, g, seed| check_saved_leg(&mut o.t, g, seed));
     at(pool, 45, "waystone leg", &g, |o, g, seed| check_waystone_leg(&mut o.t, g, seed));
     at(pool, 45, "found supply leg", &g, |o, g, seed| check_found_supply_leg(&mut o.t, g, seed));
@@ -1364,6 +1523,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         }
     }
     check_reel(t, &g, seed, &r);
+    check_report_headers(t, &g, seed, &r);
     lp.lap("report checks");
     if let Some(d) = &r.worst_death {
         t.check("worst death carries a verdict and a trace", (d.verdict == "gap" || d.verdict == "dice" || d.verdict == "stall" || d.verdict == "row" || d.verdict == "order") && !d.trace.turns.is_empty(), || format!("seed {seed}: {}", d.verdict));

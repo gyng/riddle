@@ -970,7 +970,7 @@ const WHY_GLOSS: Record<string, string> = {
   "no item": "none in pack", "unknown item": "kind unidentified", "no unknown": "no unknowns held", "no use": "no effect now", "no leash": "needs a leash",
   "none weak": "none weak enough", "not safe": "foes too near", "no stairs": "stairs not found", "going home": "heading home", "prayed": "prayed already",
   "no shrine": "no shrine here", "no way": "exit unreachable", "card passed": "its rows idle", "card idle": "no trigger foe", "card blocked": "its move blocked", "brave held": "bravery held it", "stuck": "loop guard waits",
-  "row guard": "row rested (loop)", "same as R": "earlier row covers", "trait first": "trait acted first", "hazard first": "left the hazard", "recall sense": "recall read first",
+  "row guard": "paused: it looped", "same as R": "earlier row covers", "trait first": "trait acted first", "hazard first": "left the hazard", "recall sense": "recall read first",
   "paralysed": "cannot act", "confused": "stumbled instead", "bail": "called home", "locked cond": "cond not bought", "fired, free": "free action",
 };
 /** Cut 23 §3: what each paid card holds outside the typed vocabulary (the core's `meta::card_carries`). */
@@ -1007,10 +1007,10 @@ export class FakeEngine implements Engine {
     const sends = this.s.runCounter; if (!sends) return this.s.rules.rows.map(() => null);
     return this.s.rules.rows.map((r, i) => {
       const actions = 40 * sends; const tag = r.conds.find((c) => c.k === "foe_tag")?.t;
-      if (tag && Math.abs(hash(`${tag}`)) % 2 === 0) return { sends, actions, fired: 0, matched: 0, unmet: { why: tag, n: actions }, text: `0/${actions} · no ${tag} met` };
-      if (r.verb.v === "read" || r.verb.v === "throw") { const n = 3 + i; return { sends, actions, fired: 0, matched: n, blocked: { why: "no item", n }, text: `0/${actions} · blocked · no item` }; }
+      if (tag && Math.abs(hash(`${tag}`)) % 2 === 0) return { sends, actions, fired: 0, matched: 0, unmet: { why: tag, n: actions }, text: `0/${actions} acts · no ${tag} met` };
+      if (r.verb.v === "read" || r.verb.v === "throw") { const n = 3 + i; return { sends, actions, fired: 0, matched: n, blocked: { why: "no item", n }, text: `0/${actions} acts · blocked · no item` }; }
       const fired = Math.abs(hash(`${i}:${r.verb.v}`)) % (actions / 2);
-      return { sends, actions, fired, matched: fired, text: `${fired}/${actions}` };
+      return { sends, actions, fired, matched: fired, text: `${fired}/${actions} acts` };
     });
   }
 
@@ -1546,7 +1546,8 @@ export class FakeEngine implements Engine {
   }
 
   /** QA 23ed91f: the fake's patch deltas are already its forecast's; the same patches, not pending. */
-  deathDeltas(runId: number): Patch[] { return this.death(runId).patches.map((p) => ({ ...p, camp_pending: false })); }
+  // QA 524827b stand-in: the whole-run move mirrors the reach (death falls as reach rises); nothing harms
+  deathDeltas(runId: number): Patch[] { return this.death(runId).patches.map((p) => ({ ...p, camp_pending: false, whole: { reach: p.forecast_delta, reach_pm: 0.05, death: -p.forecast_delta / 2, death_pm: 0.05 } })); }
   death(runId: number): Death {
     if (this.lastDeath[runId]) return this.lastDeath[runId];
     const log = this.s.logs[runId]; const L = this.s.lineage;

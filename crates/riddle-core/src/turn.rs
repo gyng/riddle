@@ -249,6 +249,10 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     }
     let seen_before = seen_foes(run, None);
     let hp_before = run.hero.hp;
+    // QA on 524827b (qaAB): the blows before this action (the trace row's own); those its tick deals after roll on
+    let blows_before = run.blows.len();
+    // (the events before this action: a hero `Ev::Pickup` after them is something taken — `pickup_dry`)
+    let ev_before = cx.events.len();
     let inv_before = run.hero.inv.len() + run.hero.weapon.is_some() as usize + run.hero.armour.is_some() as usize;
     run.last_hit_verb = None;
     // Cut 3 `reflect_read`: the bow goes back in the pack once no mirror is in view (free).
@@ -340,6 +344,22 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
         let stuck: Vec<u32> = run.items.iter().filter(|fi| fi.pos == here && !run.skip_items.contains(&fi.item.id)).map(|fi| fi.item.id).collect();
         run.skip_items.extend(stuck);
     }
+    // QA on 524827b (seed 30's D5: `pick up` chores between a row's attacks — the streak guard
+    // above resets on every other action — 60 on the floor with nothing taken): the floor's dry
+    // `pick up` chores are counted whatever came between; at `PICKUP_DRY_MAX` the floor's items
+    // are given up until the stairs.
+    // Something taken is any hero pickup the action made (the qa leg's reset, `Ev::Pickup`): gold
+    // and a stacked potion leave the pack's slots as they were — counted as dry, a sweep's 40th
+    // coin gave the floor's heals up (FULL's deaths, `dice` 19.8 → 27.4%).
+    let took = inv_after > inv_before || cx.events.get(ev_before..).is_some_and(|es| es.iter().any(|e| matches!(e, Ev::Pickup { id: HERO_ID, .. })));
+    if took {
+        run.pickup_dry = 0;
+    } else if verb.v == "pick_up" && row == -2 {
+        run.pickup_dry += 1;
+        if run.pickup_dry >= PICKUP_DRY_MAX {
+            run.items_until = u32::MAX;
+        }
+    }
     run.recent_pos.push(run.hero.pos);
     if run.recent_pos.len() > 12 {
         run.recent_pos.remove(0);
@@ -355,13 +375,13 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     // Cut 6 §3: every row above the one that acted, with its reason (none when R1 acted).
     let whys = std::mem::take(&mut run.rows_why);
     let rows = if whys.is_empty() { None } else { Some(whys) };
-    let mut turn = TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows };
+    let before: Vec<crate::wire::TraceBlow> = run.blows.drain(..blows_before.min(run.blows.len())).collect();
+    let mut turn = TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows, blows: before };
     foe_reasons(&mut turn, (seen_before - v.foes.len() as i32).max(0));
     run.trace.push(turn);
     if run.trace.len() > 16 {
         run.trace.remove(0);
     }
-    run.blows.clear();
     run.hurt_last = run.hurt_since_action;
     run.hurt_since_action = false;
     run.kill_last = run.kill_since_action;
@@ -530,7 +550,11 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         }
         // (under a committed walk only the rows that answer on it act)
         if walk_only && holds && !answers_on_walk(run, cx, v, row) {
-            row_why(run, cx, i, "going home", None, None);
+            // QA on 524827b (qaAB: `R5 drink heal · going home` at 4/40 hp, dying): a drink or a read the walk did not stop
+            // for had nothing to use — that is its reason, not the walk
+            let item_row = matches!(row.verb.v.as_str(), "drink" | "read");
+            let why = if !item_row { "going home" } else if row.verb.a.as_deref().is_none_or(|a| a == "unknown") { "no unknown" } else { "no item" };
+            row_why(run, cx, i, why, None, None);
             continue;
         }
         if let Some(c) = failing.filter(|_| !cx.sim) {
@@ -756,14 +780,15 @@ fn tally_rows(run: &Run, cx: &mut Ctx, held: &[(usize, bool, Option<String>)], a
     }
 }
 
-/// Cut 23 §3: a row's tally as the tablet reads it (`Lineage.row_why`): `fired/actions`, then
-/// what kept it quiet — its conds never met (`0/164 · no gas met`), or blocked when they held
-/// (`2/164 · blocked · no scroll`) when the block outnumbers the fires.
+/// Cut 23 §3: a row's tally as the tablet reads it (`Lineage.row_why`): `fired/actions acts`, then
+/// what kept it quiet — its conds never met (`0/164 acts · no gas met`), or blocked when they held
+/// (`2/164 acts · blocked · no scroll`) when the block outnumbers the fires.
 pub fn row_stat(row: &crate::rules::Row, t: &crate::engine::RowTally) -> crate::wire::RowStat {
     let top = |m: &std::collections::BTreeMap<String, u32>| m.iter().max_by(|a, b| a.1.cmp(b.1).then(b.0.cmp(a.0))).map(|(k, n)| crate::wire::WhyCount { why: k.clone(), n: *n });
     let blocked = top(&t.blocked);
     let unmet = top(&t.unmet);
-    let head = format!("{}/{}", t.fired, t.actions);
+    // QA on 524827b (qaAA: `0/587 · blocked` — "587 of what"): the count's unit, the hero's actions
+    let head = format!("{}/{} acts", t.fired, t.actions);
     let text = if t.matched == 0 {
         match unmet.as_ref() {
             Some(u) => {
@@ -811,11 +836,12 @@ pub const WHY_GLOSS: &[(&str, &str)] = &[
     ("card idle", "no trigger foe"),
     // QA on 0c6e126 (qaY: `given up · chase given up` — one segment twice): the gloss says what the reason did not
     ("given up", "out of reach"),
-    ("foes fleeing", "foes running off"),
+    // QA on 524827b (qaAB: `foes fleeing · foes running off`, `row guard` — the gloss restated the reason): what the row did not do
+    ("foes fleeing", "melee skips runners"),
     ("card blocked", "its move blocked"),
     ("brave held", "bravery held it"),
     ("stuck", "loop guard waits"),
-    ("row guard", "row rested (loop)"),
+    ("row guard", "paused: it looped"),
     ("same as R", "earlier row covers"),
     ("trait first", "trait acted first"),
     ("hazard first", "left the hazard"),
@@ -1148,6 +1174,10 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     emit_rule(run, cx, -2, &verb, "stuck → chores");
 }
 
+/// QA on 524827b: a floor's `pick up` chores with nothing taken (whatever came between) after
+/// which the floor's items are given up (the qa invariant's bar is 50).
+pub const PICKUP_DRY_MAX: u32 = 40;
+
 /// Cut 18 §4: the rules' loop in the guard's window (the last `LOOP_WINDOW` actions): exactly
 /// two actors taking turns, each at least `LOOP_MIN` times, one of them a row (`R2 retreat ↔
 /// explore`, `R5 corridor ↔ R8 attack`), or one moving row alone (`R1 retreat paced`) — ≤ 4
@@ -1422,6 +1452,18 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     // last action, for the death trace's rows (`Trace.blows`).
     if run.blows.len() < BLOWS_CAP {
         run.blows.push(crate::wire::TraceBlow { t: run.turn, by: cause.into(), dmg, hp: run.hero.hp.max(0) });
+    } else if let Some(last) = run.blows.last_mut() {
+        // (past the cap the last row carries the rest: the rows still add up to the hp lost)
+        last.dmg += dmg;
+        last.hp = run.hero.hp.max(0);
+    }
+    // QA on 524827b (qaAA): the hp lost since full, per cause — a blow from full hp starts it over.
+    if run.hero.hp + dmg >= run.hero.max_hp {
+        run.hp_lost.clear();
+    }
+    match run.hp_lost.iter_mut().find(|(c, _)| c == cause) {
+        Some(e) => e.1 += dmg,
+        None => run.hp_lost.push((cause.into(), dmg)),
     }
     let pct = run.hero.hp_pct();
     if run.hero.hp > 0 {
@@ -2098,10 +2140,21 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     }
     if run.kills_floor == 0 && run.depth >= 2 && !run.trophies_run.contains(&"pacifist_floor".to_string()) {
         run.trophies_run.push("pacifist_floor".into());
-        if !cx.trophies.iter().any(|t| t == "pacifist_floor") { note(run, cx, "Trophy: pacifist floor.".into()); }
+        if !cx.trophies.iter().any(|t| t == "pacifist_floor") { note(run, cx, "Trophy: a floor passed without a kill.".into()); }
     }
     // Cut 7 §3: the band's situation is judged as the floor is left.
     crate::situations::on_leave_floor(run, cx);
+    // QA on 524827b (qaAA: `attack thief · not in view ← monkey slain D1` a floor under the den
+    // that woke thieves round him on D4): the hostiles in view as he takes the stairs are left
+    // behind — each one's `last seen D4`, as one stepping out of view is (`facts::on_vision`).
+    if !cx.sim {
+        let map = &run.floor.map;
+        let mut left: Vec<String> = run.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && map.is_visible(m.pos)).map(|m| m.kind.clone()).collect();
+        left.dedup();
+        for kind in left {
+            crate::provenance::seen(run, cx, &kind, 0, 0);
+        }
+    }
     let next = run.depth + 1;
     // Cut 3: chalk in the pack marks the floor left behind (`chalk:<depth>`): the next heir here
     // goes straight for the stairs.
@@ -2189,6 +2242,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.items_until = 0;
     run.pickup_streak = 0;
     run.skip_items.clear();
+    run.pickup_dry = 0;
     run.drain_on = None;
     run.gambles.clear();
     run.own_throw = None;
@@ -2488,7 +2542,9 @@ pub fn pray(run: &mut Run, cx: &mut Ctx, want_row: bool) {
     };
     run.met_situation("shrine");
     learn(run, cx, "shrine".into());
-    note(run, cx, format!("Prayed: {what}, −{cost} max HP."));
+    // QA on 524827b (qaAB: `first: the shrine` on a death whose lines never showed a shrine — they read `Prayed: …`): the
+    // line names the shrine the news does
+    note(run, cx, format!("Prayed at a shrine: {what}, −{cost} max HP."));
     callout(run, cx, "prayed");
 }
 

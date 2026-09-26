@@ -17,9 +17,17 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
   const turns = trace.turns.slice(-rows);
   // QA 23ed91f (K: "the `tele` column is empty on every row"): the column only when a shown turn has a telegraph
   const tele = turns.some((t) => t.telegraphs.length > 0);
+  const blowRow = (b: { t: number; by: string; dmg: number; hp: number }, foes?: number): HTMLElement => h("tr", { class: "blow" },
+    h("td", null, `${b.t}`),
+    h("td", { class: "r" }, b.by.replace(/_/g, " "), " ", h("small", { class: "dim" }, `−${b.dmg}`)),
+    h("td", null, `${b.hp}`),
+    h("td", null, `${foes ?? ""}`),
+    tele ? h("td", { class: "tele" }) : "");
   const table = h("table", { class: `trace num${ctx.home ? " home" : ""}` },
     h("thead", null, h("tr", null, /* copy:label */ ...["t", "R", "hp", "foes", ...(tele ? ["tele"] : [])].map((s) => h("th", null, s)))),
-    h("tbody", null, ...turns.map((t) => h("tr", null,
+    // QA 524827b (qaAB: `8002 R1 return 12 · 8013 R1 return 6` — hp fell with no row): the blows between two shown actions are rows of
+    // their own before the second (engine data: `TraceTurn.blows`), so every hp step reads
+    h("tbody", null, ...turns.flatMap((t, i) => [...(i > 0 ? (t.blows ?? []).map((b) => blowRow(b)) : []), h("tr", null,
       h("td", null, `${t.t}`),
       // QA 912e135: a player row's turn names the row as a button when the screen can open it (`ChainCtx.onRow`)
       h("td", { class: "r" }, ...(t.row >= 0 && ctx.onRow ? [rowRef(t.row, verbLabel(t.verb), ctx.onRow)]
@@ -27,23 +35,30 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
       h("td", null, `${t.hp}`),
       h("td", null, `${t.foes}`),
       tele ? h("td", { class: "tele" }, t.telegraphs.join(" · ")) : "",
-    )),
+    )]),
     // QA 0c6e126 (qaY: "the last row is never the killing blow — 05 ends at `hp 1`"): a death's table ends on the blow that killed —
     // its tick, what hit and for how much, `hp 0` (engine data: `Trace.blow`)
     // Cut 25 §6 (AN: `14 → 0` on one `goblin −2` row): every blow after the last action, one row each, hp after each (`Trace.blows`,
     // the last is `blow`); an older core's lone `blow`
-    ...(trace.blows?.length ? trace.blows : trace.blow ? [trace.blow] : []).map((b) => h("tr", { class: "blow" },
-      h("td", null, `${b.t}`),
-      h("td", { class: "r" }, b.by.replace(/_/g, " "), " ", h("small", { class: "dim" }, `−${b.dmg}`)),
-      h("td", null, `${b.hp}`),
-      h("td", null, `${turns[turns.length - 1]?.foes ?? ""}`),
-      tele ? h("td", { class: "tele" }) : ""))));
+    ...(trace.blows?.length ? trace.blows : trace.blow ? [trace.blow] : []).map((b) => blowRow(b, turns[turns.length - 1]?.foes))));
+  // QA 524827b (qaAA: the table opens at 1 hp exploring — "where 36 hp went takes a replay"): over it, where the hp went since he was
+  // last at full hp (engine data: `Trace.hp_lost`, most first; the few largest, the rest counted)
+  const lost = trace.hp_lost ?? [];
+  const HP_LOST_SHOW = 4, rest = lost.slice(HP_LOST_SHOW).reduce((a, x) => a + x.dmg, 0);
+  const lostLine = lost.length ? h("div", { class: "hp-lost num dim" }, /* copy:callout */ "since full hp",
+    ...lost.slice(0, HP_LOST_SHOW).map((x) => h("span", { class: "hp-by" }, ` · ${x.by.replace(/_/g, " ")} `, h("b", { class: "down" }, `−${x.dmg}`))),
+    rest > 0 ? h("span", { class: "hp-by" }, /* copy:callout */ ` · others −${rest}`) : "") : null;
   const chain = chainOf(trace, { window: rows, ...ctx });
-  if (chain) return [table, chain];
+  if (chain) return lostLine ? [lostLine, table, chain] : [table, chain];
+  if (lostLine) { const r = traceTableRest(turns, ctx); return [lostLine, table, ...r]; }
+  return [table, ...traceTableRest(turns, ctx)];
+}
+/** The last turn's row reasons as one line (an older core's chain), or nothing. */
+function traceTableRest(turns: Trace["turns"], ctx: ChainCtx): HTMLElement[] {
   const lastRows = turns[turns.length - 1]?.rows ?? [];
   // each `R2 foes appeared after` whole on its line (the list wraps between reasons, never inside one)
   const rowsLine = lastRows.length ? h("div", { class: "rows-line num dim" }, ...lastRows.flatMap((r, i) => [i ? " · " : "", ctx.onRow ? h("span", { class: "rw" }, rowRef(r.row, undefined, ctx.onRow), ` ${r.why}`) : h("span", { class: "rw" }, `R${r.row + 1} ${r.why}`)])) : null;
-  return rowsLine ? [table, rowsLine] : [table];
+  return rowsLine ? [rowsLine] : [];
 }
 /** Cut 9 §5: a `trace` chip; tapping it opens the table (Cut 11 §3: the last 10 turns and the chain) in a sheet.
  *  `null` when the exit carries no trace. `head` is the sheet's header line under the label — the exit's ledger line, engine

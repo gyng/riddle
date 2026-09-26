@@ -1,7 +1,7 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
 import type { RowWhy } from "./engine/types";
-import type { AsyncEngine, ComboHit, Death, Highlight, Forecast, ForecastVs, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary } from "./engine/types";
+import type { AsyncEngine, ComboHit, Death, Highlight, Forecast, ForecastVs, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary, VsMove } from "./engine/types";
 import { combosIn, isCardRow, isFreeSupply, ownRowCount, setWhyGloss } from "./ui/tokens";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
@@ -161,9 +161,10 @@ export class App {
   // (qaZ: `D5 46→20%`, `42→18%`, `51→20%` with nothing sent — the base read again on each pass: only the share last painted counts)
   private baseShown = new Map<string, number>();
   private noteBaseShown(f: Forecast): void {
+    this.baseMoved = false;   // QA 524827b: the sent set painted under the lineage now — the paired move reads against it again
     const add = (k: string, x: number | undefined): void => { if (typeof x === "number") this.baseShown.set(k, Math.round(x * 100)); };
     for (const d of f.depths) add(`D${d.depth}`, d.reach);
-    if (f.ends) { add("bank", f.ends.bank); add("death", f.ends.death); add("stall", f.ends.stall); }
+    if (f.ends) { add("bank", f.ends.bank); add("death", f.ends.death); add("stall", f.ends.stall); add("return", f.ends.return); }
   }
   /** QA 0c6e126 (qaY: the invisibility potion R1 drinks, bought — `D5 71→65`, `D6 25→21` on the bars with no word; dropping the
    *  leash put them back): a lineage change's move on the same rules and the same seeds — the forecast after it less the one painted
@@ -183,16 +184,42 @@ export class App {
   }
   /** Was the sent set's share `pct` for `key` (`D5`, `bank`, `death`, `stall`) painted in this camp? */
   baseWasShown(key: string, pct: number): boolean { return this.baseShown.get(key) === pct; }
-  resetVs(): void { this.lmove = null; this.lmPending = null; this.baseShown.clear(); if (this.lastForecast && this.fcRules && sameSet(this.fcRules, this.rules)) this.noteBaseShown(this.lastForecast); this.vsBase = cloneSet(this.rules); this.vsBaseShadow = [...this.shadowedBy()]; this.fcRules = cloneSet(this.rules); this.fcShadow = [...this.vsBaseShadow]; this.fcFresh = true; this.setVs(null); }
+  resetVs(): void { this.lmove = null; this.lmPending = null; this.baseShown.clear(); this.baseMoved = false; if (this.lastForecast && this.fcRules && sameSet(this.fcRules, this.rules)) this.noteBaseShown(this.lastForecast); this.vsBase = cloneSet(this.rules); this.vsBaseShadow = [...this.shadowedBy()]; this.fcRules = cloneSet(this.rules); this.fcShadow = [...this.vsBaseShadow]; this.fcFresh = true; this.setVs(null); }
   /** QA 778fa1b (qaV: `D10 ≈ · bank ≈` held 16 s after an edit that took bank 0 → 86 %): an edit's move is being measured — the rules
    *  differ from the base and no move for them has landed yet (the line reads `vs sent …`, never a stale `≈`). */
-  vsPending(): boolean { return !this.vsShown() && !this.vsOff && !!this.engine.forecastVs && !!this.vsBase && !this.overBudget && !sameSet(this.vsBase, this.rules); }
+  // QA 524827b (qaAA: `vs sent…` held > 25 s after a cage change): a refined move that landed and still pairs other sims than the bars
+  // painted will not be replaced — the line drops (no `…` forever)
+  vsPending(): boolean {
+    const v = this.vs, f = this.lastForecast;
+    if (v && f && v.refined && v.sims && f.sims && v.sims !== f.sims && f.refined) return false;
+    return !this.vsShown() && !this.vsOff && !!this.engine.forecastVs && !!this.vsBase && !this.overBudget && !sameSet(this.vsBase, this.rules);
+  }
   /** QA 912e135 (qaW: `D6 61%` read `▲32`, then `▲38` with nothing edited — the refined bars under the first pass's move): the move shown
    *  is the one paired with the forecast painted (the same sims: `base + delta` is the bar's own share); until the refine's move lands
    *  the line reads `vs sent …` and the marks wait. */
   vsShown(): ForecastVs | null {
     const v = this.vs, f = this.lastForecast;
-    return v && f && v.sims && f.sims && v.sims !== f.sims ? null : v;
+    if (!v || (f && v.sims && f.sims && v.sims !== f.sims)) return null;
+    return this.baseMoved ? this.rebased(v) : v;
+  }
+  /** QA 524827b (qaAA: after a leash bought D6 went 11 → 17 % and read `▼27 · vs sent −27`, one edit earlier 11 % read `▼15` — the
+   *  sent set measured again under the new kit, 44 %, a number no bar showed): once the lineage moved (a purchase, a drop, the cage, the
+   *  kit…) since the sent set was painted, a term whose painted share differs from the paired base is read against the share painted —
+   *  `▼`/`▲` is the shown number now less the sent set's shown one (`D6 26→17%`), with the bar's own ± (two panels, not paired). A term
+   *  whose base still reads as painted keeps its paired move. Set by `mutate` / `dropSupply`; cleared when the sent set is painted again. */
+  private baseMoved = false;
+  private rebased(v: ForecastVs): ForecastVs {
+    const n = v.sims ?? this.lastForecast?.sims ?? 0;
+    const hw = (p: number): number => n > 0 ? 1.96 * Math.sqrt(Math.max(0, p * (1 - p)) / n) : 0;
+    const re = <T extends VsMove>(m: T, key: string): T => {
+      const shown = this.baseShown.get(key);
+      if (shown === undefined || typeof m.base !== "number" || Math.round(m.base * 100) === shown) return m;
+      const now = m.base + m.delta, was = shown / 100;
+      return { ...m, base: was, delta: now - was, pm: hw(now) };
+    };
+    const end = (m: number | VsMove | undefined, key: string): number | VsMove | undefined => typeof m === "object" && m ? re(m, key) : m;
+    return { ...v, depths: v.depths.map((d) => { const r = re(d, `D${d.depth}`); return r === d ? d : { ...r, abs_pm: r.pm }; }),
+      bank: end(v.bank, "bank"), death: end(v.death, "death"), return: end(v.return, "return"), stall: v.stall ? re(v.stall, "stall") : v.stall };
   }
   /** QA 92eb880: the active set's shadowed rows (`Forecast.shadowed_by`, per row the earlier row that takes all its moments) as of the
    *  last forecast painted for the rules now; `null` until one lands after an edit (then the lineage's own read, for the set it holds). */
@@ -583,8 +610,12 @@ export class App {
   async mutate(fn: () => Promise<Lineage>, move?: string): Promise<boolean> {
     // QA 0c6e126 (qaY): a purchase, a drop, a cage or a kit step (`move`, its word) — the camp's next forecast for these rules is read
     // against the one painted before it (`lineageMove`)
+    // QA 524827b (qaAA: after `+1 row` and `verb: throw` bought, the line under the forecast still read `drop · D6 ≈ ±6` from the leash
+    // drop): an unnamed change clears the last move's line — the line names the last move or none
     if (move) { this.lmPending = { label: move, before: this.lastForecast, rules: JSON.stringify(this.rules.rows) }; this.lmove = null; }
+    else { this.lmPending = null; this.lmove = null; }
     try { this.lineage = await fn(); } catch (e) { this.lmPending = null; console.warn("engine refused", e); return false; }
+    this.baseMoved = true;
     await this.afterLineage();
     return true;
   }
@@ -631,7 +662,7 @@ export class App {
     const picks = this.lineage.supplies ?? [];
     const it = picks.find((p) => p.id === id); if (!it) return false;
     this.lmPending = { label: /* copy:callout */ "drop", before: this.lastForecast, rules: JSON.stringify(this.rules.rows) }; this.lmove = null;
-    try { this.lineage = await this.engine.dropSupply!(id); await this.afterLineage(); return true; }   // the proxy always has it; an engine without it rejects
+    try { this.lineage = await this.engine.dropSupply!(id); this.baseMoved = true; await this.afterLineage(); return true; }   // the proxy always has it; an engine without it rejects
     catch (e) { console.warn("dropSupply unavailable, clear + rebuy", e); }
     const rest = picks.filter((p) => p.id !== id && !isFreeSupply(this.lineage, p)).map((p) => p.kind);
     return this.mutate(async () => { let L = await this.engine.clearSupplies(); for (const k of rest) L = await this.engine.buySupply(k); return L; });
@@ -795,7 +826,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     deepest: a.deepest === undefined && b.deepest === undefined ? undefined : Math.max(a.deepest ?? 0, b.deepest ?? 0),
     gold: a.gold || b.gold ? { home: (a.gold?.home ?? 0) + (b.gold?.home ?? 0), salvage: (a.gold?.salvage ?? 0) + (b.gold?.salvage ?? 0), wake: (a.gold?.wake ?? 0) + (b.gold?.wake ?? 0), spent: (a.gold?.spent ?? 0) + (b.gold?.spent ?? 0),
       ...(a.gold?.wake_cap ?? b.gold?.wake_cap) !== undefined ? { wake_cap: b.gold?.wake_cap ?? a.gold?.wake_cap, wake_n: (a.gold?.wake_n ?? 0) + (b.gold?.wake_n ?? 0) } : {},
-      ...(a.gold?.lost ?? b.gold?.lost) !== undefined ? { lost: (a.gold?.lost ?? 0) + (b.gold?.lost ?? 0) } : {} } : undefined,   // QA 912e135
+      ...(a.gold?.lost ?? b.gold?.lost) !== undefined ? { lost: (a.gold?.lost ?? 0) + (b.gold?.lost ?? 0), unkept: (a.gold?.unkept ?? 0) + (b.gold?.unkept ?? 0) } : {} } : undefined,   // QA 912e135
     learned: union(a.learned, b.learned), bests: collapseBests(union(a.bests, b.bests)),
     found: [...a.found, ...b.found],
     deaths: [...deaths].map(([cause, n]) => ({ cause, n })).sort((x, y) => y.n - x.n),

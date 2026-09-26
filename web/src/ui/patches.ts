@@ -154,7 +154,8 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
         // Cut 17 §4: `survives N %` as a gauge on the patch tablet (the number stays beside it)
         unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
         h("span", { class: "num surv" }, line),
-        reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish)));
+        reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish),
+        stallish || opts.stall ? "" : wholeSpan(p)));
     applyOf.set(btn, act);
     return btn;
   });
@@ -167,8 +168,12 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
   }
   // QA 0c6e126 (qaZ: three patches all `survives 100% · unpatched 83%` — "I could not tell which the gem ranks first or why"): when the
   // offered patches survive alike the head says so (`tied`): their order is then the reach's, once it lands, else the set's shape
+  // QA 524827b (qaAA: `D8 death · replayed` over #1 and #3 both `survives 12/12`, `D4` over two `11/12`): `tied` whenever the lead's
+  // survival is matched by another offered patch — the top two, not all three
   const offered = patches.filter((p) => !p.below_bar && p.insert_at >= 0);
-  const tied = offered.length > 1 && offered.every((p) => Math.round(p.survive * 100) === Math.round(offered[0].survive * 100));
+  const sv = (p: Patch): number => opts.replays ? Math.round(p.survive * opts.replays) : Math.round(p.survive * 100);
+  const best = offered.length ? Math.max(...offered.map(sv)) : -1;
+  const tied = offered.filter((p) => sv(p) === best).length > 1;
   const moment = opts.moment !== undefined && baseline !== undefined && !opts.stall && rows.length
     ? h("div", { class: "patches-moment num dim" }, /* copy:callout */ `D${opts.moment} death · replayed`, tied ? h("span", { class: "tied" }, /* copy:callout */ " · tied") : "") : null;
   const box = h("div", { class: "patches" }, moment, ...rows); renumber(box); return box;
@@ -196,7 +201,9 @@ function reachSpan(p: Patch, stallish = false): HTMLElement {
   if (exits) return h("span", { class: "num delta exit early" }, p.row.verb.v === "bank" ? /* copy:callout */ "bank early" : /* copy:callout */ "return early");
   if (p.camp_pending) return h("span", { class: "num delta pending" }, /* copy:callout */ "reach …");
   const delta = Math.round(p.forecast_delta * 100);
-  const pm = p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : undefined;
+  // QA 524827b: a move's ± is the paired one (`PatchWhole.reach_pm`, the camp's `vs sent` measure) once the whole run is measured
+  const pmRaw = p.whole ? p.whole.reach_pm : p.forecast_pm;
+  const pm = pmRaw !== undefined ? Math.max(1, Math.round(pmRaw * 100)) : undefined;
   const flat = delta === 0 || (pm !== undefined && Math.abs(delta) <= pm);
   const word = stallish ? "" : /* copy:label */ "reach ";
   const at = p.forecast_depth !== undefined ? `D${p.forecast_depth} ` : "";
@@ -209,6 +216,21 @@ function reachSpan(p: Patch, stallish = false): HTMLElement {
     : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, `${word}${at}${delta > 0 ? "+" : "−"}${Math.abs(delta)}`, pmTag);
 }
 
+/** QA 524827b (qaAA: `hp < 20% → drink unknown · survives 12/12` led, and applied the camp's killers read fire 28 % · poison 26 %;
+ *  `read unknown · 11/12` applied, `death +6`): beside the moment's count, the whole run's — the death share's paired move once the camp
+ *  measured it (`death −8`, `death +6` in the loss colour; nothing inside its ±) and the gamble's own harm when it rises (`risk fire`).
+ *  Empty (a placeholder `fillReach` fills) until then. */
+function wholeSpan(p: Patch): HTMLElement {
+  const w = p.whole;
+  if (!w || p.camp_pending) return h("span", { class: "num whole pending" });
+  const d = Math.round(w.death * 100), pm = Math.max(1, Math.round(w.death_pm * 100));
+  const moved = d !== 0 && Math.abs(w.death) > w.death_pm + 1e-9;
+  const parts: HTMLElement[] = [];
+  if (moved) parts.push(h("span", { class: `dlt ${d > 0 ? "down" : "up"}` }, /* copy:callout */ `death ${d > 0 ? "+" : "−"}${Math.abs(d)}`, h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`)));
+  if (w.risk) parts.push(h("span", { class: "dlt down risk" }, /* copy:callout */ `risk ${w.risk}`));
+  return h("span", { class: `num whole${w.harms ? " harms" : ""}` }, ...parts.flatMap((x, i) => (i ? [" · ", x] : [x])));
+}
+
 /** QA 23ed91f: the camp's reach for a death's patches landed (`deathDeltas`, same order): each patch takes its numbers, and each
  *  tablet in `el` (patchRows' own, in order) repaints its reach line. */
 export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): void {
@@ -216,8 +238,10 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
   const buttons = [...host.querySelectorAll<HTMLElement>(":scope > button.patch")];
   patches.forEach((p, i) => {
     const f = filled[i]; if (!f) return;
-    Object.assign(p, { forecast_delta: f.forecast_delta, forecast_depth: f.forecast_depth, forecast_pm: f.forecast_pm, camp_pending: false });
+    Object.assign(p, { forecast_delta: f.forecast_delta, forecast_depth: f.forecast_depth, forecast_pm: f.forecast_pm, whole: f.whole, camp_pending: false });
     buttons[i]?.querySelector(".delta")?.replaceWith(reachSpan(p));
+    buttons[i]?.querySelector(".whole")?.replaceWith(wholeSpan(p));
+    buttons[i]?.classList.toggle("harms", !!p.whole?.harms);
   });
   el.dataset.reach = "camp";
   // QA 92eb880 (N): a loss once the camp's reach is in is dim (`.neg`) and says its move. QA 778fa1b (qaU: patch 1 lit with `100% apply`,
@@ -225,7 +249,24 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
   // (`rank_patches`, which already keeps a costly exit off the lead), the player has read it by the time the camp's reach lands
   const pmOf = (p: Patch): number => p.forecast_pm !== undefined ? Math.max(1, Math.round(p.forecast_pm * 100)) : 0;
   const moveOf = (p: Patch): number => { const d = Math.round(p.forecast_delta * 100); return p.insert_at < 0 || Math.abs(d) <= pmOf(p) ? 0 : d; };
-  patches.forEach((p, i) => { const b = buttons[i]; if (b && !(b.classList.contains("below") && !b.classList.contains("neg"))) b.classList.toggle("neg", moveOf(p) < 0); });
+  // QA 524827b: a patch that harms whole runs (`PatchWhole.harms`: death up or reach down beyond its ±) is a loss too
+  patches.forEach((p, i) => { const b = buttons[i]; if (b && !(b.classList.contains("below") && !b.classList.contains("neg"))) b.classList.toggle("neg", moveOf(p) < 0 || !!p.whole?.harms); });
+}
+
+/** QA 524827b (qaAA): once the whole run is measured, a tablet that harms it never leads — unless the player lit one, the tablets that
+ *  harm go after the rest (in their order) and the block is renumbered. Returns whether the order changed. */
+export function sinkHarms(el: HTMLElement, patches: Patch[]): boolean {
+  const host = el.querySelector<HTMLElement>(":scope > .patches-fold") ?? el;
+  const buttons = [...host.querySelectorAll<HTMLElement>(":scope > button.patch")];
+  const bad = buttons.filter((_, i) => !!patches[i]?.whole?.harms);
+  if (!bad.length || bad.length === buttons.length || buttons.slice(buttons.length - bad.length).every((b) => bad.includes(b))) return false;
+  const good = buttons.filter((b) => !bad.includes(b));
+  const order = [...good, ...bad];
+  const moved = order.map((b) => patches[buttons.indexOf(b)]);
+  patches.splice(0, patches.length, ...moved);
+  for (const b of order) host.appendChild(b);
+  renumber(host);
+  return true;
 }
 
 /** Cut 15 §3: the drop sheet — the set's own rows (a card's row never; it sits outside `max_rows`), `R5 <row> · 0/16` with the

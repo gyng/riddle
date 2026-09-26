@@ -86,7 +86,8 @@ export class WasmEngine implements Engine {
   // Cut 13 §2: throws `wasm: setTrait` on a build without it (the camp shows no chips without an offer anyway)
   setTrait(name: string): Lineage { return this.call("setTrait", name); }
   // Cut 19: throw `wasm: cageForecast` / `wasm: setRestock` on a build without them
-  cageForecast(): CageOption[] { return this.call("cageForecast"); }
+  // QA 524827b: `refined` — the options on the camp's refined pass (the sheet's current option is the camp's number)
+  cageForecast(refined?: boolean): CageOption[] { return this.call("cageForecast", refined); }
   setRestock(on: boolean): Lineage { return this.call("setRestock", on); }
   // Cut 21 §1: throw `wasm: setStart` / `wasm: startForecast` on a build without them
   setStart(depth: number): Lineage { return this.call("setStart", depth); }

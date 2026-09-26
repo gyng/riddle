@@ -194,7 +194,7 @@ try {
   // ---- AG/AH: the send gem names a remembered `fast`
   await page.evaluate(() => { const r = window.__riddle; r.watchMode = "fast"; r.go({ kind: "camp" }); }); await sleep(250);
   const sendFast = await page.evaluate(() => { const b = document.querySelector(".gem.send"); return { t: b?.textContent.replace(/\s+/g, " ").trim(), mode: b?.dataset.mode }; });
-  check(sendFast.t === "sendfast" && sendFast.mode === "fast", `a remembered \`fast\` is on the send gem (${JSON.stringify(sendFast)})`);
+  check(sendFast.t === "send▸ fast" && sendFast.mode === "fast", `a remembered \`fast\` is on the send gem (${JSON.stringify(sendFast)})`);
   await shot("cut22-send-fast");
   await page.evaluate(() => { const r = window.__riddle; r.watchMode = "fights"; r.go({ kind: "camp" }); }); await sleep(250);
   const sendFights = await page.evaluate(() => document.querySelector(".gem.send")?.textContent.trim());

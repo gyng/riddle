@@ -12,10 +12,12 @@
 import type { App, Mounted } from "../app";
 import type { Death, ExitLine, Row } from "../engine/types";
 import { morgueVerbs } from "./chain";
+import { lastRun, replayable } from "./runlog";
+import { openReplay } from "./replay";
 import { h, copyText, items } from "./dom";
 import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
-import { applyOf, fillReach, patchRows } from "./patches";
+import { applyOf, fillReach, patchRows, sinkHarms } from "./patches";
 import { closeX, openSheet } from "./sheet";
 import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
 import { lostLabel, noteText, rowLabel, verbLabel } from "./tokens";
@@ -47,15 +49,18 @@ const dTag = (d: number): string => /* copy:none */ `D${d}`;
  *  the `left` finds and the pile print as counts (`left 3`), the core's `bones: N items on D6` already naming the pile. */
 export type ExtrasOpts = { brief?: boolean; /** the pile's list is already in the text (`lineShown`) */ pileShown?: boolean };
 export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "stolen_gold" | "purse_full" | "wake" | "swapped" | "swap_left" | "shelved" | "start" | "start_short" | "found" | "bones">, name: (label: string) => string = (l) => l.replace(/_/g, " "), opts: ExtrasOpts = {}): string => {
-  // QA 912e135 (qaW: `stolen blink, $3` read as the blink's worth): the coins thieves kept are their own term — `stolen blink + $3`
-  const items = (x.stolen ?? []).map(name), coins = x.stolen_gold && x.stolen_gold > 0 ? `$${x.stolen_gold}` : "";
-  // QA 0c6e126 (qaZ): stolen gear carries its enchant (`leather +1`); the coins stay their own term (`stolen leather +1 + $6`, qaW's form)
-  const stolen = items.length ? `${items.join(", ")}${coins ? ` + ${coins}` : ""}` : coins;
+  // QA 912e135 (qaW: `stolen blink, $3` read as the blink's worth); QA 524827b (qaAA: `stolen pearly potion? + $3` still read as the
+  // potion's value): what the thefts took off the carry is the watch strip's own term, `carry −$3` — never a price beside an item
+  const items = (x.stolen ?? []).map(name), coins = x.stolen_gold && x.stolen_gold > 0 ? x.stolen_gold : 0;
+  // QA 0c6e126 (qaZ): stolen gear carries its enchant (`leather +1`)
+  const stolen = items.length || coins ? `${items.length ? /* copy:callout */ `stolen ${items.join(", ")}` : /* copy:callout */ "stolen"}${coins ? /* copy:callout */ ` · carry −$${coins}` : ""}` : "";
   // QA a946e04 (T: a D5 start at $32 ran from D1 with no word): the run's start fell back — the toll was more than the purse
   return (x.start_short && !/toll short/.test(x.text) ? /* copy:callout */ ` · from ${dTag(x.start ?? 1)} · toll short` : "")
-    + (stolen && !/\bstolen\b/.test(x.text) ? /* copy:callout */ ` · stolen ${stolen}` : "")
-    // QA 0c6e126 (qaY: `−$5 swapped` named no item): the costly swaps' toll names what they left on the floor (`−$5 left axe`)
-    + (x.swapped && x.swapped > 0 && !/\bswapped\b/.test(x.text) ? x.swap_left?.length ? /* copy:callout */ ` · −$${x.swapped} left ${shelvedText(x.swap_left.map((b) => ({ kind: name(b.kind), n: b.n })))}` : /* copy:callout */ ` · −$${x.swapped} swapped` : "")
+    + (stolen && !/\bstolen\b/.test(x.text) ? ` · ${stolen}` : "")
+    // QA 0c6e126 (qaY: `−$5 swapped` named no item): the costly swaps name what they left on the floor. QA 524827b (qaAA: `−$1 left
+    // leather` beside `left 14` — "left" twice, a `−$` the gold sheet never shows): a swap reads as one (`swapped out leather`), its
+    // cost the carry's (`carry −$1`, the strip's word: no purse movement); `left` is only the finds left behind
+    + (x.swapped && x.swapped > 0 && !/\bswapped\b/.test(x.text) ? x.swap_left?.length ? /* copy:callout */ ` · swapped out ${shelvedText(x.swap_left.map((b) => ({ kind: name(b.kind), n: b.n })))} · carry −$${x.swapped}` : /* copy:callout */ ` · swapped · carry −$${x.swapped}` : "")
     + (x.wake && x.wake > 0 && !/\bwake\b|heir purse/.test(x.text) ? /* copy:callout */ ` · heir purse +$${x.wake}` : "")
     // QA 912e135 (qaW: `no top-up` on every line — "the top-up it refers to is never shown"); QA 0c6e126 (qaY: `heir purse ≥$40` — "the
     // `≥` has no source", twelve of them against one `+$20 heir purse` in the ledger): only a top-up the ledger carries is named (`wake`)
@@ -73,7 +78,9 @@ export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "stolen_gold" |
 const fatesText = (xs: ExitLine["found"], bones?: "bones", brief = false): string => (["left", ...(bones ? [bones] : [])] as const).map((f) => {
   const ys = (xs ?? []).filter((y) => y.fate === f && y.n > 0);
   if (!ys.length) return "";
-  return brief ? /* copy:callout */ ` · ${f} ${ys.reduce((a, y) => a + y.n, 0)}` : /* copy:callout */ ` · ${f}${f === "bones" ? ":" : ""} ${shelvedText(ys)}`;
+  // QA 524827b (qaAA: `left dagger`, `left 14` — "left" as a verb and a bare count): the finds left behind, with the unit when counted
+  if (f === "left") return brief ? /* copy:callout */ ` · ${ys.reduce((a, y) => a + y.n, 0)} left behind` : /* copy:callout */ ` · left behind: ${shelvedText(ys)}`;
+  return brief ? /* copy:callout */ ` · ${f} ${ys.reduce((a, y) => a + y.n, 0)}` : /* copy:callout */ ` · ${f}: ${shelvedText(ys)}`;
 }).join("");
 /** Cut 21 §2 (AE: "sells heal potions he finds for $2 while I pay $40"): found supplies the exit put on the shelf — `heal ×2, fire`. */
 export const shelvedText = (xs: { kind: string; n: number }[]): string => xs.map((y) => `${y.kind.replace(/_/g, " ")}${y.n > 1 ? ` ×${y.n}` : ""}`).join(", ");
@@ -104,7 +111,11 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // QA 912e135 (qaW: the seal `GAP` and the banner answered no tap): the seal names what the patches answer — a tap brings them up and
   // lights the first; the banner names the moment — a tap brings up the trace
   const seal = h("button", { class: /* copy:none */ `verdict ${d.verdict}`, onclick: () => { patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } }, d.verdict);
-  const line = h("h1", { class: "death-line" }, h("button", { class: "cause-btn", onclick: () => tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }) }, causeEl), h("span", { class: "sep" }, " · "), seal);
+  // QA 524827b (qaAB: tapped `gas · D6` expecting the clip; it only scrolled to the trace): the cause opens the moment — the killing
+  // blow's replay when this session still holds the run — else brings up the trace
+  const moment = d.trace.blow ? { text: d.cause.replace(/_/g, " "), t: d.trace.blow.t, depth: d.depth } : null;
+  const onCause = (): void => { const log = lastRun(); if (moment && log && replayable(d.run_id, moment)) openReplay(log, moment); else tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }); };
+  const line = h("h1", { class: "death-line" }, h("button", { class: "cause-btn", onclick: onCause }, causeEl), h("span", { class: "sep" }, " · "), seal);
   // Cut 13 §4: the run's last two notes, engine data verbatim (`The green one: fire. Gambled: fire potion.`)
   // QA 92eb880: never a `… saved him.` over a death (M, N: read as the verdict), nor the cage's loot beat (`Took the axe +1 from the cage.`,
   // M: "unrelated to the ogre") — the core filters the first; the client keeps both off whatever the build
@@ -206,6 +217,18 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
       const cost = (b: HTMLButtonElement): number => { const p = shown[btns.indexOf(b)]; return p && p.insert_at >= 0 && !p.camp_pending && !(p.exits ?? /^(return|bank)$/.test(p.row.verb.v)) ? Math.round(p.forecast_delta * 100) : 0; };
       const lit = top?.btn;
       if (!picked && lit && cost(lit) <= -10) { const alt = btns.find((b) => b !== lit && !b.classList.contains("below") && !b.classList.contains("neg") && cost(b) > -10); if (alt) light(alt); }
+      // QA 524827b (qaAA: `drink unknown · 12/12` lit, and applied the camp's killers read fire · poison; `read unknown · 11/12`, then
+      // `death +6`): a tablet that harms whole runs (`PatchWhole.harms`) is never the lead nor the gem's — unless the player lit it, the
+      // harming tablets go after the rest and the light takes the first that does not harm; when every one harms the gem reads `edit`
+      if (!picked) {
+        sinkHarms(patches, shown);
+        const cur = top?.btn;
+        if (cur && cur.classList.contains("harms")) {
+          const alt = [...patches.querySelectorAll<HTMLButtonElement>("button.patch")].find((b) => !b.classList.contains("below") && !b.classList.contains("neg") && !b.classList.contains("harms"));
+          if (alt) light(alt);
+          else { cur.classList.remove("top"); top = null; const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; }
+        }
+      }
     }).catch((e) => console.warn("deathDeltas", e)); }, 0);
   }
   return { el, dispose: () => { gone = true; bar.dispose(); } };
