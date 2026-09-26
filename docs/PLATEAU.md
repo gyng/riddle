@@ -738,3 +738,33 @@ Mean **65.7** vs cohort 21's **72.15** on the same build under one absence: the 
    12/12`; `survives 12/12 … death +74`.
 5. **One corridor** (AR): D1–7 the same foes every run; the Fens look like the Burrows; the ogre
    drawn as a checkerboard (a renderer dither).
+
+## Cohort 22 (build 420f27c: Cut 26 — the descent forks; three-absence protocol)
+
+| Rater | Seed | Total | Gates |
+|---|---|---|---|
+| AS | 3001 | 68.1 | none |
+| AT | 3002 | 69.2 | none |
+
+α = 0.966. Mean **68.65** — **+2.95 over the control (65.7)** on the same protocol. Autonomy back
+to 0.6 from both (control 0.3); AT mastery 0.8. Neither card names the fork as a decision; AT sees
+`TWO STAIRS` as one more repeated beat on D1–5. AS disclosed a blindness breach after play (part of
+another card printed while checking the format).
+
+### The read
+
+1. **The forecast is still the oracle** (both): "turn a chip, read the number" (AS); many edits `≈`,
+   pick the higher `~$` (AT).
+2. **D1–8 is a commute** (both): a monkey theft, a shrine, a cage, two stairs, every run; the
+   Warlord routine after his counter.
+3. **Gold has no late use** (both): $4,005 / $4,914 with forge steps `≈`.
+4. **Bank beats return on every number** (AS: ~$235 vs ~$141 at the same depth) — again (AO, 21).
+5. **A new loop and a harmful gem** (AS): `R8 pack ↔ pick up` stall at D5, 12 turns standing among 4
+   foes; the stall screen's gem applied `depth ≥ 5 → return · drops R10` (return > 99 %) over
+   `cut R8`; earlier the gem pre-selected `cut R1` (1/12) above a 12/12 patch.
+6. **Seams**: a drive-off suggesting a counter row the set already has (AT — priority was the
+   problem); a gas death after deleting the bloat row stamped DICE (AT); `R1 fired 0 of 8 runs`
+   beside a trace crediting it (AS); a pet `gone wild` unexplained (AT).
+
+Kept: the Warlord arc (drive-off → counter → `D9 0 → 71 %` → WARLORD DOWN → record), the plateau note
+that leads to an edit, deaths naming the row, grudges and bones.

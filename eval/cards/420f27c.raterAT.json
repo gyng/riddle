@@ -1,0 +1,193 @@
+{
+  "$comment": "Copy me per build and rater. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md. One quoted observation per axis. bot: green|amber|red|na is a cap, never an award. Answer criterion + idle probes BEFORE awarding.",
+  "game": "Riddle",
+  "build": "420f27c",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAT (blind agent rater, seed 3002, headed GPU 400x800@3x)",
+  "horizon": {
+    "activeMinutes": 70,
+    "absences": [
+      {
+        "simulated": "20m",
+        "playAfterMin": 5,
+        "note": "1 offline run (D7 returned $89), found ♟2's bones, learned mapping + summon ally, pending 'R4 fired 0 of 1 runs'. A small, readable present; one decision (bank depth)."
+      },
+      {
+        "simulated": "4h",
+        "playAfterMin": 5,
+        "note": "8 offline runs: 5 banked, 2 returned, 1 death to goblin archer Krusk (grudge) then 'avenged Krusk'; +$615 banked; a DICE verdict to read; forge + party choices."
+      },
+      {
+        "simulated": "8h",
+        "playAfterMin": 16,
+        "note": "16 offline runs: 12 banked at D8, 1 death to gas; PLATEAU 'R4 bank ended 7 runs, none past D8'; 'R3 fired 0 of 16 runs'. This led to meeting and then killing the Warlord with a rule I wrote."
+      }
+    ],
+    "runsWatched": 17,
+    "runsOffline": 25,
+    "ruleEdits": 22,
+    "deathsRead": 5,
+    "notes": "40+ min cold (15:48-16:32), then three dev-param absences. Runs 1-11 watched mostly at 1x (75-135 s each), later ones at 'fights'/'fast'. Deaths read: burst D7 (GAP), goblin archer D7 (GAP), goblin archer D5 (DICE, offline), gas D7 (DICE, offline), plus a Warlord drive-off. Audio unassessed (cues visible in window.__audio: rule/slay/hit/telegraph; not heard). Frame rate measured during a watch: 59.7 fps, worst frame 33 ms. Did not open PLAN.md, research/, CUT docs, other cards or source."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: My fifth heir, a brave fighter, went down through the Burrows at D8 because on the 8-hour return the game told me my bank rule had ended seven runs without passing D8, and on the previous run the Warlord had driven him off. The run before that had taught the hero 'counter: attack boss', so I rewrote a dead row as 'foe: boss → attack boss'; the forecast jumped from 0% to 71% for D9, and on the watch R7 fired, the banner read WARLORD BREAKS and then GOBLIN WARLORD DOWN. He walked into the teal Fens and banked $231 on D9, a record, carrying the lineage past the floor where ♟1 died to a bloat."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "The camp forecast rewrites itself on every edit ('VS SENT · D5 68→51% · death 100→25%') and the watch names the firing row ('R7 · attack boss'), but I misread things more than once: 'Krak the jackal, gone wild' appeared at D1 while Krak was in my party, a picker button labelled '2' hit the forge badge, and the Warlord drive-off screen said 'counter unwritten' and suggested 'foe: boss → attack boss at R7', which was already my R7."
+    },
+    {
+      "id": "decisions",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Some edits were real trade-offs I could see before sending: swapping the inert 'drink heal' row for 'drink unknown' moved bank 59→69% but death 3→19%, and 'depth ≥ 6 → bank' vs '≥ 7' was a safe 89% against a risky 36% at about the same ~$91. But most of my edits (thief rule, heavy→shield bash, read fear, sword +1 at the forge) came back '≈', and with the forecast pricing everything before I sent, choosing mostly meant reading the higher '~$' number."
+    },
+    {
+      "id": "mastery",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "An hour in I knew bloats burst when you kill them next to you, archers volley in threes ('ARCHER DRAWS'), heal is the pearly one, and the Warlord needs 'attack boss'; my deepest went D7 → D8 → D9 and banking went from never (forecast 'bank <1%') to 12 of 16 overnight runs. Lapse: between the D8 wall and the warlord fact nothing I edited helped (the 8h 'PLATEAU' found it for me), and after D9 routine runs still went back to returning at D6."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "The HUD line 'carry $139 · return keeps $83 · death $0 · return at 20%' puts the stake on screen, and 'Down to 3 HP. R2 return saved him.' landed several times on watched runs; the Warlord run had me watching the hp. But with my rules the forecast usually said death 1-13%, so most watches were settled by the number before they started, and once losing everything became unlikely a run was a question of how much, not whether."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Headed GPU watch held 59.7 fps (worst frame 33 ms), with big pixel callouts ('SHIELDS UP', 'WARLORD BREAKS', 'pops!'), a hit flash and the carry ticker climbing; audio unassessed (cues logged in window.__audio but I cannot hear). The callout text covers the sprites it describes, and at 1x a lot of the watch is 'pick up ×3' and descending."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Things changed my rules: bloats bursting (my first death, 'burst · D7'), finding '♟1's bones: 12 items' on D8, a fallen pet coming back as 'Sketh the jackal, gone wild', a named grudge archer 'Zelog', and the Warlord's 'counter: attack boss'. But D1-D6 repeat the same beats every run: a monkey steals something almost every run, 'A shrine. The idol watches him.', 'TWO STAIRS', and a cage with 'take one, leave two'."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "My set reads like me, a cautious greedy fighter: 'hp < 20% → return', 'foe: gas → throw poison', 'foe: boss → attack boss', 'adjacent ≥ 2 → to corridor', 'depth ≥ 11 → bank', and the chronicle calls my heirs 'the chokepoint fighter'. But every row was pushed toward the forecast's highest number, and the free cards ('kite archers', 'stair dance') are premade rows, so another player at the same wall would probably write rows much like mine."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "The chronicle reads like a family history: '♟2 the chokepoint fighter · best D8 · tamed a jackal · found ♟1's bones · fell to a goblin archer · left bones on D7', and my Warlord kill has a setup, a turn and an ending (driven off, the rule rewritten, 'GOBLIN WARLORD DOWN', 'Entered the fens'). Lapse: most run reels end on the same two lines, 'R2 return saved him. Returned with $X.'"
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In play: a run at 1x is 75-135 s with a new line every 2 s and no dead stretch I noticed; check-ins after an absence took 2-5 min. Admin drags: every edit re-measures ('…' then numbers after ~6-8 s), tiles and pickers have unlabeled or duplicate buttons (a '+' per row, '▲' per row), rule-edit menus hold 100+ chips, and in the second half I switched to 'fast' because D1-D5 had nothing new."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "The death screen is the best thing in the game: 'GOBLIN ARCHER · D7 · 6 UNKNOWN SCROLLS UNUSED · GAP', a tick trace showing 'R6 attack ranged' firing while hp went 12→0 under three archers, and patches each measured against replays ('hp < 40% → return · survives 12/12 · unpatched 2/12'); recovery is free because the next heir starts at once. Lapse: the gas death at 9/42 hp, which I saw as a gap I had made by deleting my bloat row, was stamped 'DICE · nothing beats unpatched 12/12', and the Warlord drive-off suggested the row I already had."
+    },
+    {
+      "id": "social",
+      "human": 0.0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0 for this preset; named pets, a grudge archer and 'avenged Krusk' noted under story."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I set my own goal (kill the Warlord, then reach D10) against the forecast's advice when it gave 'death 37%', and chose the route ('D5 burrows' D7 32% vs 'fens' 10%), the start waystone and the bank depth. But the start picker always favoured D1 (~$175 vs D5 ~$34 / D9 ~$65), and the route choice was one comparison."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Rows went 4 → 8 (◆2, 4, 7, 11), vocabulary grew from learned facts (read teleport/fear, throw poison, attack boss, cleave), plus classes, forge leather/leather +1, ★7, waystones D5/D9, and I went from $0 to $4005. Lapse: gold piled up with nothing that moved the forecast ('sword +1 · D7 ≈', 'pack 4 · D7 ≈'); the next row needs '⊘ 3 boss kinds'."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "none",
+      "note": "The painted camp banner, chunky pixel dungeon with lit torches and a warlord sprite with a cleaver, and the Fens turning teal made places I liked looking at; audio unassessed. Chrome is dense small type ('carry −$3 · swapped out leather · carry −$1 · left behind: …') and the forecast column is cut off at the right edge ('fens · D5 · untrie')."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Each absence came back different and pointed at a decision: 20m gave 1 run and 'R4 fired 0 of 1 runs'; 4h gave 8 runs, a death verdict to read and 'avenged Krusk'; 8h gave 16 runs and 'PLATEAU · R4 bank ended 7 runs, none past D8', which is what sent me to the Warlord. Lapse: the 20-minute return was thin, and on every return the gold ($2021, $3421) had almost nothing worth buying."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "I talk about the hero's runs as mine because the game credits the rows: the reel says 'R2 return saved him', 'A goblin archer took him to 14 HP; R8 attacked', my own R6 'attack ranged' was the row on screen when he died, and my 'foe: boss → attack boss' killed the Warlord. Lapse: some reel lines credit 'the chores explored' rather than a rule, and the gas death I blamed on my deleted row was called dice."
+    }
+  ],
+  "probes": {
+    "clarity": "Twice I wasn't sure what had happened: a jackal with my pet's name 'gone wild' at D1, and a drive-off screen asking me to add the R7 I already had.",
+    "decisions": "I swapped 'drink heal' for 'drink unknown' when heal was unidentified, and would again: bank 59→69% for death 3→19%.",
+    "mastery": "Now I write 'foe: gas' and 'foe: boss' rows before the hero meets them; an hour ago I didn't know bloats burst.",
+    "tension": "I sweated on the Warlord run at 18/42 hp with $231 carried; the game marked the win with 'GOBLIN WARLORD DOWN'.",
+    "feel": "The 'WARLORD BREAKS' callout and the carry ticker at 60 fps felt good; I didn't hear the sound.",
+    "surprise": "'Found ♟1's bones: 12 items' on D8 surprised me; monkeys stealing every run stopped surprising me by run 4.",
+    "expression": "A fighter who hides in corridors, heads home at 20%, throws poison at bloats and goes for the boss first.",
+    "story": "The heir who read the plateau note, got driven off by the Warlord, then killed it with a rule I wrote and walked into the Fens.",
+    "pacing": "The rule editor dragged (measuring '…' after every chip); D1-D5 watching dragged after run 8; I wanted one more send after the Warlord.",
+    "failure": "Zelog's archers: my own 'foe: ranged → attack ranged' row kept him in a crossfire from 12 hp to 0. My fault.",
+    "social": "Named jackals and a grudge archer, nobody to play with.",
+    "autonomy": "I went for the Warlord at 'death 37%' when the forecast said to bank at D7.",
+    "progression": "Rows 4→8 and new verbs grew; $4005 sits unspent because the forge says '≈'.",
+    "aesthetic": "A torch-lit brown pixel dungeon that turns teal in the Fens under a painted banner; I'd leave the camp open.",
+    "return": "After 8h I came back to 'PLATEAU … none past D8' and decided to fight the Warlord; I didn't wish I'd stayed.",
+    "attribution": "'R2 return saved him' ... 'my R7 killed the Warlord' ... 'my R6 got him shot'. Pronoun count in my retelling: I/my 7, he/him 6."
+  },
+  "gripes": [
+    "The forecast solves most edits before I send; many edits read '≈' and the watch rarely changes what I expect.",
+    "Legibility snags: fallen pets reappear 'gone wild' with no explanation, the drive-off suggests a row I already have, and a gas death I caused reads 'DICE'.",
+    "Gold piles up (to $4005) with nothing that moves the needle; D1-D5 replays the same shrine/monkey/cage beats every run."
+  ],
+  "tellAFriend": [
+    "You write the hero's brain as eight if-then rows and the death screen shows you which row killed him, with patches measured on replays.",
+    "Coming back after a night gives you a stack of runs plus a note on what's holding you back ('PLATEAU … none past D8').",
+    "Killing the Warlord with a rule you wrote after it drove you off feels earned."
+  ]
+}

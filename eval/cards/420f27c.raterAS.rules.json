@@ -1,0 +1,126 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 40
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 50
+        },
+        {
+          "k": "depth>=",
+          "n": 12
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 3
+        }
+      ],
+      "verb": {
+        "v": "read",
+        "a": "unknown"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "on_see",
+          "t": "captive"
+        }
+      ],
+      "verb": {
+        "v": "free_captive"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "gas_step"
+      },
+      "origin": "card"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      },
+      "origin": "patch"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "kite_archers"
+      },
+      "origin": "card"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "thief"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:thief"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "preset"
+    }
+  ],
+  "name": "fighter"
+}

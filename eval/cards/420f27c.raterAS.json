@@ -1,0 +1,75 @@
+{
+  "$comment": "Blind rater AS on 420f27c. Read eval/RATING.md, docs/FUN_EVAL_IDLE.md, ../eval-fun/docs/FRAMEWORK.md §1-3, the template, and eval/presets.json (social weight). DISCLOSURE: while checking the card format I accidentally printed the keys, horizon, criterion and the start of the probes of another card (eval/cards/075d8e2.raterAM.json); I had already finished playing and had written my notes, and I did not change any observation because of it. Headed GPU driver, 400x800 at 3x. Criterion + probes answered before awards. Audio unassessed (window.__audio logs rule/hit/slay cues during the watch; I could not listen).",
+  "game": "Riddle",
+  "build": "420f27c",
+  "genre": "idle-roguelike",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "raterAS",
+  "horizon": {
+    "activeMinutes": 52,
+    "absences": [
+      "20m simulated (?dev=1&absent=20m) after ~30 min active (I moved to the absences earlier than the brief's ~40 min), then ~5 min play",
+      "4h simulated (?dev=1&absent=4h), then ~5 min play",
+      "8h simulated overnight (?dev=1&absent=8h), then ~16 min play"
+    ],
+    "runsWatched": 18,
+    "runsOffline": 25,
+    "ruleEdits": 15,
+    "deathsRead": 6,
+    "notes": "Seed 3001, fresh lineage, heirs ♟1–♟8. 18 sends watched to the end: 7 at the default speed (1× button showing), 11 in `fast`. Offline runs: 1 (20m) + 8 (4h, 2 deaths) + 16 (8h, all banked). About 15 edits were my own rows, thresholds, orderings and compound conditions; 2 were applied patches (`foe: boss → attack boss` via WRITE, and one death-gem tap that applied `depth ≥ 5 → return`, which I undid). Bought: pack break, kite archers (free), boss focus, gas step cards; rows 4→8; supplies 3→5; class ranger (unused); auto insure, auto keep weapon+armour, cond loot; forged leather, sword +1, sword +2, leather +1, pack 6. Deepest D13, best bank $576 (D12). One stall (D5, card vs pick-up chore)."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": "same-day: ♟4, the brave fighter, went down with the `foe: boss → attack boss` row I had written after the Warlord drove his father off, broke the Warlord on D8 (`WARLORD BREAKS` · `GOBLIN WARLORD DOWN`) and walked into the Fens for the first time. Wraiths drained him from 38 max hp to 18 and pink jellies split around him, so by D13 he was on 5/18 when my `hp < 30% → return` row fired. He brought home $412 of $687, a new best of D13, and the next heir's forecast opened on the Mother."
+  },
+  "probes": {
+    "clarity": "My first send happened with no instructions and was over in 60 s; the banner `JACKAL · D5 · 1 UNKNOWN POTION UNUSED` with `GAP` told me what was missing. The chrome I had to learn by poking: the cond sheet's threshold row, `↑ R4` shadow marks, a card that needed `add` after buying, and a death gem that once applied a patch I had not meant to pick.",
+    "decisions": "The best choice I made was a compound row, `hp < 50% · depth ≥ 9 → bank` plus a plain `hp < 30% → bank`: the forecast went from death 32% to 15%, while the offered patch `hp < 50% → bank` cut D7 from 97% to 11%. I'd make it again. Against that, `bank` turned out to beat `return` on every number I checked (~$235 vs ~$141 at the same depth), and at $4914 the forge showed only `D10 ≈`, so the gold had nothing to decide.",
+    "mastery": "An hour in I know an ogre `winds up` for 9, that a bank or return row fires too late below ~30% because the walk home is where he dies (runs 4 and 8), and that a row's order beats its threshold: the 4h death had `R2 attack boss` running from 14 hp to 0 while my bank row waited underneath it.",
+    "tension": "I sweated `2/18` on D13 while `banking` scrolled, and `forecast said D4 100%` right before an archer killed him on the way home. But once the set was tuned, the overnight came back `16 BANKED · 0 DEATHS` and every banked run after that felt safe.",
+    "feel": "The pixel hero with its hp bar, the red `death: lose all` tag next to the carry, and the `WARLORD BREAKS` / `pops!` / `splits!` callouts all read well at 3× on the GPU. At 1× the first run covered D1–D5 in 60 s. Audio: unassessed (cues are in `window.__audio`).",
+    "surprise": "The Fens changed my set: wraiths `drained` max hp 44→18, the `A cry from the dark: a captive, chained.` line led to my `on see captive → free captive` row (D13 4→19%), and the stall `R8 pack ↔ pick up` made me drop a card. D1–D8 and the Warlord came up every run and were routine by the fifth time.",
+    "expression": "My set: heal at 40, bank at 30, bank at 50 only from D12, read unknown scrolls when three foes close in, free captives, gas step, boss, kite archers, thieves. You could tell it apart from the default, but three of the rows are the patches' own vocabulary.",
+    "story": "The grudge chain carried the stories: `grudge: Thix the jackal` → `avenged Thix` one heir later, `Found ♟1's bones`, `Zelul` and `Skusk` avenged on the D8 run. The chronicle reads `♟4 the brave fighter · best D13 · took the Warlord · found ♟3, ♟2's bones · fell to an ogre`. Sixteen overnight banks produced nothing I would retell.",
+    "pacing": "In play, a run takes 60–130 s at the default speed, and there were a couple of `stalling` stretches (the archer attrition on run 2, the D5 stall). Admin: a check-in took 2–6 minutes of reading the verdict, turning a chip and watching the forecast settle (`…` then numbers, 3–5 s). Three sheets deep for a buy; the unlock list is long.",
+    "failure": "Every death named a row and replayed it: `goblin archer · D6 · R1 drink unknown` · `ROW` · `Gambled: caustic potion`; `ogre · D9` · `DICE` · `nothing beats unpatched 12/12`. The stall screen said `Came home empty-handed` and cost $110 because of a card fighting a chore, and I had not written that interaction.",
+    "social": "weight 0: no other people. Named enemy grudges and the heir lineage are story, not relationships.",
+    "autonomy": "Routes (`D5 burrows` vs `fens`, D8 53% vs 44%), waystone starts (D9 start ~$36 vs D1 ~$305) and freeing captives were mine to choose. I checked the route once and never had a reason to go back to it.",
+    "progression": "Fighter L1→L5 (`L3 cleave`), rows 4→8, ★0→10, cards and conds bought, forge sword +2 / leather +1, and automation (`auto: keep weapon+armour`, `auto: insure`, restock via `repeat`). Gold inflated to $4914 with the forge showing `≈` gains.",
+    "aesthetic": "The camp key art (two heroes above a green-lit underground stair), the torn red banners with wax stamps, and a sepia pixel dungeon with a torch-lit hero. A lot of the floors are near-black with a small lit island. Audio unassessed.",
+    "return": "20m: `SHALLOWER: D9` · 1 run · $242 banked and enough for sword +2. 4h: 8 runs, 2 deaths, `R1 fired 0 of 8 runs: foe: boss → drink strength` and a death trace that showed my ordering bug. 8h: 16 runs, +$3916, 6 scrolls identified, and `PLATEAU R3 bank ended 15 runs … none past D11` with `cut R3 … reach D12 61% · base 3%`. That one made me push the bank row to D12, and the next run reached D13.",
+    "attribution": "Retelling my runs I say `my R1 killed him` (caustic gas at 5 hp), `my return row walked him into the archer`, `my bank row was below attack boss`; the reel itself says `R3 return saved him.` The DICE death at D9 and the stall are the two I would not claim."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "\"JACKAL · D5 · 1 UNKNOWN POTION UNUSED · GAP\" told me what to fix on death 1. Adequate, not strong: the edit sheets had to be learned by poking (`↑ R4` shadowing, `add` after buying a card), the death gem once applied a patch I had not chosen (`depth ≥ 5 → return`, which took the forecast to return >99%), and `R1 fired 0 of 8 runs` contradicted a trace note `← drunk strength at 20/42 hp`." },
+    { "id": "decisions", "human": 0.6, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "\"hp < 50% · depth ≥ 9 → bank\" (death 32→15%) against the offered `hp < 50% → bank` (D7 97→11%) was a real choice I would defend. Held at adequate because the live forecast makes most choices chip-and-read, `bank` dominated `return` (~$235 vs ~$141), and the forge's `D10 ≈` left $4914 with nothing to decide." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Learned that the 4h death was `R2 attack boss` running 14→0 above my bank row, and that an ogre `winds up` for 9, so bank at 30% is late. Depth went D5→D6→D8→D13. Then it plateaued (`none past D11`) until the game's own patch pointed at the ceiling." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "\"2/18\" on D13 while `banking` scrolled, and `$342 carried · return keeps $205 · death $0` on screen during every run, are chosen stakes. But after tuning, the overnight came back `16 BANKED · 0 DEATHS` and the stakes went flat." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Visual callouts `WARLORD BREAKS`, `GOBLIN WARLORD DOWN`, `splits!`, `pops!` land on the moment, and the carry line flips to `returning`/`banking`. The D1–D8 stretch is a repeated commute at 1×. Audio unassessed." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "\"A cry from the dark: a captive, chained.\" led to a new row (mother 4→19%); wraith `drained` max hp 44→18. The Warlord and D1–D8 repeated every send and became routine." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My set has a depth-gated bank at D12, `foes ≥ 3 → read unknown` and `on see captive → free captive`, which reads as mine. Several rows are the verdict's suggested vocabulary, and the forecast pulls every tuning toward the same optimum." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "\"grudge: Thix the jackal\" → \"avenged Thix\" → \"Found ♟3's bones: 10 items\" → \"record: D8 · avenged Skusk, Zelul\": the lineage produced anecdotes with turns. Lapse: the 16-run overnight was only bank lines, with no turn to tell." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "Runs of 60–130 s, and check-ins of 2–6 min ending on a send. Drag came from `stalling` attrition stretches, a 3–5 s forecast re-measure after every chip, and deep buy sheets." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "\"goblin archer · D4 · R3 return · ROW · 10/12 live unpatched · forecast said D4 100%\", plus a replayed trace and ranked patches, on one screen every time. The next heir starts on its own. Lapse: the D5 stall (`R8 pack ↔ pick up`, `Came home empty-handed`, $110 lost) was a card vs chore interaction I had not written." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "weight 0" },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Route sheet `burrows D8 53% · fens D8 44%`, waystone starts `D9 · bank 98% · ~$36`, and freeing captives were mine to choose. But one route won on the numbers and I never went back to it." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Fighter L1→L5, rows 4→8, ★0→10, scroll identities learned overnight, and automation bought (`auto: keep weapon+armour`, `auto: insure`, `repeat` restock). Lapse: gold inflated to $4914 while the forge showed `sword +3 · D10 ≈`." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "The key art and the torn red banner with its wax `GAP`/`ROW`/`DICE` stamp are handsome, but most dungeon frames were a small torch-lit island in black. Visual only; audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "The three absences read differently: 20m gave one run and enough for sword +2; 4h gave 8 runs, 2 deaths, `R1 fired 0 of 8 runs` and my ordering bug; 8h gave `PLATEAU R3 bank … none past D11` with a priced patch that I acted on, and the next run reached D13. Lapse: the 20m return was thin, and gold piled up with nowhere to spend it." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "4 of 6 deaths I read ended on a row I wrote (`R1 drink unknown`, `R3 return`, `R4 bank`, bank row under `attack boss`), and the reel says \"R3 return saved him.\" Lapse: the D9 `DICE` death and the card-vs-chore stall did not feel like mine." }
+  ]
+}
