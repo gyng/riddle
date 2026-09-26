@@ -1,7 +1,7 @@
 // Fake Engine: a tiny deterministic mini-sim with canned-shaped output so the UI can be built and
 // exercised before the Rust core lands. Not game truth. Selected with ?engine=fake or when pkg/ is absent.
 import type {
-  BonesPile, CageOption, StartOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
+  BonesPile, CageOption, StartOption, ForkOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
@@ -31,8 +31,7 @@ const pick = <T>(r: Rng, a: T[]): T => a[Math.floor(r() * a.length)];
 const hash = (s: string): number => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 
 const W = 24, H = 24, VIS = 7;
-const BIOMES: [string, number, number][] = [["warrens", 1, 3], ["burrows", 4, 5], ["fens", 6, 10], ["crypt", 11, 15]];   // Cut 16 §3: the fake's bands, the Burrows before the fens
-const biomeOf = (d: number): string => (BIOMES.find(([, lo, hi]) => d >= lo && d <= hi) ?? BIOMES[2])[0];
+// Cut 16 §3: the fake's bands (warrens D1–3, the Burrows D4–5, the Fens D6–10, the Crypt D11–15) — Cut 26: `FAKE_BANDS` and the route (`biomeOn`)
 
 type MonDef = { hp: number; atk: [number, number]; def: number; tags: string[]; lo: number; hi: number };
 const MON: Record<string, MonDef> = {
@@ -54,7 +53,38 @@ const MON: Record<string, MonDef> = {
   lich:            { hp: 45, atk: [5, 9], def: 3, tags: ["boss", "undead"],  lo: 15, hi: 15 },
   blade:           { hp: 3,  atk: [1, 3], def: 0, tags: [],                  lo: 99, hi: 99 },
 };
-const BOSS: Record<number, string> = { 5: "goblin_warlord", 10: "bloat_mother", 15: "lich" };
+// Cut 26 §1 stand-in: the fake's descent forks at the stairs into D4 (the Burrows, or the Fens early) and into D6 (the Fens, or the
+// Crypt early); a far stair swaps the two bands' biomes (the deferred one is taken next, no fork there). Bosses go with their biome,
+// on the band's last floor. A route is a set's `route` (fork depths taking the far stair). `?fake_fork=1` learns the D4 fork at boot.
+const FAKE_BANDS: [number, number][] = [[4, 5], [6, 10], [11, 15]];
+const FAKE_ORDER = ["burrows", "fens", "crypt"];
+export const FAKE_FORKS = [4, 6];
+const BIOME_BOSS: Record<string, string> = { burrows: "goblin_warlord", fens: "bloat_mother", crypt: "lich" };
+const DEV_FORK = typeof location !== "undefined" && ["1", "2"].includes(new URLSearchParams(location.search).get("fake_fork") ?? "");
+/** The core ships the first fork only (`descent::OPEN_FORKS`, Cut 26 §3's fallback); `?fake_fork=2` opens the second too, for the chip line's UI. */
+const FAKE_OPEN = typeof location !== "undefined" && new URLSearchParams(location.search).get("fake_fork") === "2" ? [4, 6] : [4];
+function routeOrder(route: number[] = []): string[] {
+  const o = [...FAKE_ORDER];
+  FAKE_FORKS.forEach((f, i) => { if (route.includes(f)) [o[i], o[i + 1]] = [o[i + 1], o[i]]; });
+  return o;
+}
+function biomeOn(d: number, route?: number[]): string {
+  if (d < FAKE_BANDS[0][0]) return "warrens";
+  const i = FAKE_BANDS.findIndex(([a, b]) => d >= a && d <= b);
+  return routeOrder(route)[i < 0 ? 2 : i];
+}
+function bossOn(d: number, route?: number[]): string | undefined {
+  const i = FAKE_BANDS.findIndex(([, b]) => b === d);
+  return i < 0 ? undefined : BIOME_BOSS[routeOrder(route)[i]];
+}
+const forkOpen = (f: number, route: number[] = []): boolean => { const i = FAKE_FORKS.indexOf(f); return i === 0 || (i > 0 && !route.includes(FAKE_FORKS[i - 1])); };
+/** The route with the stair at `f` set (a far stair drops the neighbouring far stairs it overlaps), as the core's `Route::with`. */
+function routeWith(route: number[] = [], f: number, far: boolean): number[] {
+  const i = FAKE_FORKS.indexOf(f);
+  const out = route.filter((x) => x !== f && (!far || (x !== FAKE_FORKS[i - 1] && x !== FAKE_FORKS[i + 1])));
+  if (far) out.push(f);
+  return out.sort((a, b) => a - b);
+}
 // Cut 6 §5: the counter each boss teaches on first sight, as a row (the core's fact carries the row text)
 const COUNTER: Record<string, { row: Row; text: string }> = {
   goblin_warlord: { row: { conds: [{ k: "foe_tag", t: "boss" }], verb: { v: "attack", a: "tag:boss" } }, text: "attack boss" },
@@ -177,17 +207,18 @@ function parseCond(s: string): Cond | null {
   return /^[a-z_]+$/.test(s) ? { k: s } : null;
 }
 export function parseRules(text: string): RuleSet {
-  const rows: Row[] = [];
+  const rows: Row[] = []; const route: number[] = [];
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
+    if (line.startsWith("⑂")) { route.push(...line.slice(1).trim().split(/\s+/).map(Number).filter((n) => n > 0)); continue; }   // Cut 26 §2
     const [lhs, rhs] = line.split("→").map((s) => s.trim());
     if (rhs === undefined) continue;
     const conds = lhs ? lhs.split("·").map((s) => parseCond(s.trim())).filter((c): c is Cond => !!c) : [];
     const [v, a] = rhs.split(/\s+/);
     rows.push({ conds: conds.slice(0, 2), verb: a ? { v, a } : { v } });
   }
-  return { rows };
+  return route.length ? { rows, route } : { rows };
 }
 
 // --- world ---
@@ -215,6 +246,7 @@ type Run = {
   twist?: string;                                                                             // Cut 12 §4: the floor's one situation from D3 (`nest`), never the previous floor's kind
   stuckFires: number; lastSig: string; stalled: boolean;                                      // Cut 13 §1: the guard — a row (or a frozen chore) that changed nothing, counted; at STALL_FIRES the run ends stalled
   noted: Set<string>; notes: string[];                                                        // Cut 13 §4: situations noted on this floor (`A den. Something sleeps.`); the run's last two notes (`Death.notes`)
+  route: number[]; forkSeen: number;                                                          // Cut 26: the set's route at the send; the deepest fork whose two stairs this run saw
 };
 /** Cut 13 §1: the fake's guard — this many fires with nothing changed end the run as a stall (the core's `STALL_FIRES`). */
 const STALL_FIRES = 30;
@@ -258,7 +290,7 @@ function los(tiles: Tile[], x0: number, y0: number, x1: number, y1: number): boo
   }
 }
 
-function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known: Set<string>, nextId: () => number): Floor {
+function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known: Set<string>, nextId: () => number, route: number[] = []): Floor {
   const tiles: Tile[] = new Array(W * H).fill("wall");
   const roomOf = new Int8Array(W * H).fill(-1);
   const rooms: Rect[] = [];
@@ -284,7 +316,7 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
     const n = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => roomOf[idx(x + dx, y + dy)] >= 0).length;
     if (n === 1 && rng() < 0.7) tiles[idx(x, y)] = "door";
   }
-  const biome = biomeOf(depth);
+  const biome = biomeOn(depth, route);
   if (biome === "fens" || biome === "crypt") {
     for (const r of rooms.slice(1, 3)) {
       const px = r.x + ri(rng, 0, Math.max(0, r.w - 3)), py = r.y + ri(rng, 0, Math.max(0, r.h - 2));
@@ -326,7 +358,7 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
     mons.push(mk(kind, x, y));
     if (MON[kind].tags.includes("pack")) { const [px, py] = spot(r); mons.push(mk(kind, px, py)); if (rng() < 0.4) { const [qx, qy] = spot(r); mons.push(mk(kind, qx, qy)); } }
   }
-  if (BOSS[depth]) { const [x, y] = spot(last); mons.push(mk(BOSS[depth], x, y)); }
+  { const boss = bossOn(depth, route); if (boss) { const [x, y] = spot(last); mons.push(mk(boss, x, y)); } }
   const seen = new Array(W * H).fill(false), visible = new Array(W * H).fill(false);
   return { tiles, seen, visible, overlays: [], rooms, items, mons, roomOf };
 }
@@ -357,6 +389,7 @@ function makeRun(id: number, heir: number, seed: number, cls: string, trait: str
     level, killXp: 0, windUsed: false, bulwark: 0, cleaveCd: 0, gear: [], score: 0, bonesFound: [], bonesPiles: ctx.bones, rest_s: 0, insured: ctx.insured, broughtItems: brought.map((b) => ({ ...b })),
     gold: ctx.gold, spent: ctx.spent, prov: {}, startedTotal: 0,
     stuckFires: 0, lastSig: "", stalled: false, noted: new Set(), notes: [],
+    route: [...(ctx.rules.route ?? [])], forkSeen: 0,
   };
   run.nextId = 1000;
   run.recalled = run.party.map((c) => companionMon(run, c));
@@ -386,7 +419,7 @@ function descendTo(run: Run, depth: number, ctx: SimCtx, ev: Ev[]): void {
   // Cut 12 §4: from D3 every floor rolls one situation, never the previous floor's kind
   run.twist = depth >= 3 ? pick(run.rng, TWISTS.filter((t) => t !== run.twist)) : undefined;
   if (run.floor) for (const m of run.floor.mons) if (m.ally && m.cid !== undefined) run.recalled.push(m);
-  run.floor = genFloor(run.rng, depth, ctx.flav, run.known, () => run.nextId++);
+  run.floor = genFloor(run.rng, depth, ctx.flav, run.known, () => run.nextId++, run.route);
   const up = run.floor.tiles.indexOf("stairs_up");
   run.hero.x = up % W; run.hero.y = Math.floor(up / W);
   placeAllies(run);
@@ -395,11 +428,24 @@ function descendTo(run: Run, depth: number, ctx: SimCtx, ev: Ev[]): void {
     const room = run.floor.rooms[run.floor.rooms.length - 1]; const x = room.x + Math.floor(room.w / 2), y = room.y + Math.floor(room.h / 2);
     run.floor.items.push({ id: run.nextId++, x, y, kind: "bones", known: true, label: `bones ♟${b.heir}` });
   }
-  ev.push({ t: run.turn, k: "descend", depth, biome: biomeOf(depth) });
-  ev.push({ t: run.turn, k: "callout", text: `D${depth} ${biomeOf(depth)}` });
-  const bf = `biome:${biomeOf(depth)}`;
+  const biome = biomeOn(depth, run.route);
+  ev.push({ t: run.turn, k: "descend", depth, biome });
+  ev.push({ t: run.turn, k: "callout", text: `D${depth} ${biome}` });
+  const bf = `biome:${biome}`;
   if (!run.known.has(bf)) { run.known.add(bf); run.facts.push(bf); ev.push({ t: run.turn, k: "fact", fact: bf }); }
   updateVis(run);
+  forkSeen(run, ev);
+}
+/** Cut 26 §2 stand-in (the core's `facts::fork_seen`): the hero sees a fork's down stairs — the `fork:<d>` fact once, `TWO STAIRS` once a run. */
+function forkSeen(run: Run, ev: Ev[]): void {
+  const next = run.depth + 1;
+  if (run.forkSeen >= next || !FAKE_OPEN.includes(next) || !forkOpen(next, run.route)) return;
+  const s = run.floor.tiles.indexOf("stairs_down");
+  if (s < 0 || !run.floor.visible[s]) return;
+  run.forkSeen = next;
+  const f = `fork:${next}`;   // the fact, silently (the core's `fact_note` has no line for it); the callout is the beat
+  if (!run.known.has(f)) { run.known.add(f); run.facts.push(f); ev.push({ t: run.turn, k: "fact", fact: f }); }
+  ev.push({ t: run.turn, k: "callout", text: "TWO STAIRS" });
 }
 function updateVis(run: Run): void {
   const f = run.floor, h = run.hero;
@@ -429,7 +475,7 @@ function bfsStep(run: Run, goal: (x: number, y: number) => boolean, avoidMons = 
   let cur = found; while (prev[cur] !== q[0]) cur = prev[cur];
   return [cur % W, Math.floor(cur / W)];
 }
-function moveHero(run: Run, x: number, y: number, ev: Ev[]): void { run.hero.x = x; run.hero.y = y; ev.push({ t: run.turn, k: "move", id: 0, x, y }); updateVis(run); bossInView(run, ev); }
+function moveHero(run: Run, x: number, y: number, ev: Ev[]): void { run.hero.x = x; run.hero.y = y; ev.push({ t: run.turn, k: "move", id: 0, x, y }); updateVis(run); bossInView(run, ev); forkSeen(run, ev); }
 /** Cut 6 §5: seeing the boss is the counter fact (the core learns it on the boss's first telegraph, the same step). */
 function bossInView(run: Run, ev: Ev[]): void { for (const m of visibleFoes(run)) if (m.tags.includes("boss")) learn(run, `boss:${m.kind}:counter`, ev); }
 function stepAway(run: Run, from: Mon[], ev: Ev[], preferCorridor: boolean): boolean {
@@ -599,6 +645,7 @@ function condHolds(run: Run, c: Cond): boolean {
     case "on_see": return run.saw;
     case "party_hp<": return companions(run).some((m) => (m.hp / m.max_hp) * 100 < (c.n ?? 0));
     case "party": return companions(run).some((m) => m.kind === c.t);
+    case "in": return biomeOn(run.depth, run.route) === c.t;   // Cut 26 §2
     default: return false;
   }
 }
@@ -920,7 +967,7 @@ function bonesKit(run: Run): InvItem[] {
 function snapshot(run: Run, rules?: RuleSet): Snapshot {
   const h = run.hero;
   return {
-    depth: run.depth, biome: biomeOf(run.depth), w: W, h: H, tiles: run.floor.tiles.slice(), seen: run.floor.seen.slice(), visible: run.floor.visible.slice(),
+    depth: run.depth, biome: biomeOn(run.depth, run.route), w: W, h: H, tiles: run.floor.tiles.slice(), seen: run.floor.seen.slice(), visible: run.floor.visible.slice(),
     overlays: run.floor.overlays.map((o) => ({ ...o })),
     hero: { id: 0, kind: `hero_${run.cls}`, x: h.x, y: h.y, hp: h.hp, max_hp: h.max_hp, tags: h.invis ? ["invisible"] : [], inv: h.inv.map((i) => ({ ...i })), weapon: h.weapon, armour: h.armour, class: run.cls, trait: run.trait },
     // Cut 4 §3 (UI dev stand-in for the core): a hostile seen before and out of sight now is `remembered`
@@ -930,7 +977,17 @@ function snapshot(run: Run, rules?: RuleSet): Snapshot {
     stake: stakeOf(run, rules), vision: DEV_VISION,
     room: roomOf(run), rooms: run.floor.rooms.length,   // Cut 7 §4
     ...(run.twist ? { floor_twist: twistWord(run.twist) } : {}),   // Cut 12 §4; the cage's word on the wire
+    ...forkSnap(run),                                                // Cut 26 §2
   };
+}
+/** Cut 26 §2 stand-in: the fork at this floor's down stairs — the other stair drawn beside the real one. */
+function forkSnap(run: Run): { fork?: Snapshot["fork"] } {
+  const next = run.depth + 1; const i = FAKE_FORKS.indexOf(next);
+  if (i < 0 || !FAKE_OPEN.includes(next) || !forkOpen(next, run.route)) return {};
+  const taken = biomeOn(next, run.route); const other = taken === FAKE_ORDER[i] ? FAKE_ORDER[i + 1] : FAKE_ORDER[i];
+  const s = run.floor.tiles.indexOf("stairs_down"); const sx = s % W, sy = Math.floor(s / W);
+  const at = DIRS.map(([dx, dy]) => [sx + dx, sy + dy]).filter(([x, y]) => inb(x, y) && passable(run.floor.tiles[idx(x, y)])).sort((a, b) => a[1] - b[1] || a[0] - b[0])[0] ?? [sx, sy];
+  return { fork: { depth: next, taken, other, x: at[0], y: at[1] } };
 }
 /** Cut 7 §4: the room the hero stands in (0 = corridor) and the hostiles in it (the fake has no sleep: all awake). */
 function roomOf(run: Run): Snapshot["room"] {
@@ -1050,6 +1107,7 @@ export class FakeEngine implements Engine {
       },
       rules: copy(), loadout: [], killed: [], runCounter: 0, logs: {}, nextItem: 50000, tamedKinds: ["jackal", "goblin_archer"], bredKinds: ["bloat"], nextCid: 10, killCounts: {}, totalTurns: 0,
     };
+    if (DEV_FORK) this.s.lineage.facts.push(...FAKE_OPEN.map((f) => `fork:${f}`), "biome:burrows", "biome:fens", ...(FAKE_OPEN.length > 1 ? ["biome:crypt"] : []));   // Cut 26 dev knob: the D4 fork seen, both lanes entered
     this.live = null; this.lastDeath = {};
     return this.lineage();
   }
@@ -1091,6 +1149,15 @@ export class FakeEngine implements Engine {
     for (const f of Object.values(this.s.lineage.forge ?? {})) { const rung = FORGE_LADDER.find((r) => f.salvaged < r.need); if (rung) f.next = { ...rung }; else delete f.next; }
     this.s.lineage.kit = this.kitLadders();   // Cut 23 §1
     this.s.lineage.row_why = this.rowWhy();   // Cut 23 §3
+    // Cut 26 §2 stand-ins: the seen forks (the chip line), every lit (lane, depth), the rows whose conds this lineage cannot use
+    { const L = this.s.lineage; const route = this.s.rules.route ?? [];
+      const forks = FAKE_FORKS.filter((f) => L.facts.includes(`fork:${f}`)).map((f) => { const i = FAKE_FORKS.indexOf(f); return { depth: f, near: FAKE_ORDER[i], far: FAKE_ORDER[i + 1], taken: biomeOn(f, route), open: forkOpen(f, route) }; });
+      if (forks.length) L.forks = forks; else delete L.forks;
+      const lanes = (L.waystones ?? []).map((d) => ({ depth: d, lane: biomeOn(d, route), current: true }));
+      if (lanes.length) L.lanes = lanes; else delete L.lanes;
+      const v = this.vocabulary(); const open = (c: Cond): boolean => v.conds.some((o) => o.k === c.k && (o.t ?? "") === (c.t ?? "")) || ["hp<", "hp>", "foes>=", "adj>=", "depth>=", "floor_seen>="].includes(c.k);
+      const locked = this.s.rules.rows.map((r) => { const c = r.conds.find((x) => !open(x)); return c ? (v.locked?.find((l) => l.cond.k === c.k && (l.cond.t ?? "") === (c.t ?? ""))?.needs ?? (c.k === "in" ? `enter ${c.t}` : "locked")) : null; });
+      if (locked.some((x) => x)) L.locked_rows = locked; else delete L.locked_rows; }
     return JSON.parse(JSON.stringify(this.s.lineage)) as Lineage;
   }
   /** Cut 6 §5: bosses whose counter fact is known, with the counter as a row. */
@@ -1187,9 +1254,12 @@ export class FakeEngine implements Engine {
     if (L.party.length || L.kennel.length) { conds.push({ k: "party_hp<" }); for (const k of new Set([...L.party, ...L.kennel].map((c) => c.kind))) conds.push({ k: "party", t: k }); }
     // Cut 2 §3: condition tokens are unlocks now. Cut 9 §1: the gated ones ride along as `locked` with the gate as text
     // (the fact still missing, else the price) so the sheet shows why, and never offers them.
+    // Cut 26 §2: `in: <biome>` once entered (its `biome:` fact); a biome a seen fork offers and not yet entered is locked (`enter fens`)
+    for (const b of FAKE_ORDER) if (L.facts.includes(`biome:${b}`)) conds.push({ k: "in", t: b });
     const gated = conds.filter((c) => !COND_UNLOCK[c.k] || L.unlocks.includes(COND_UNLOCK[c.k]));
     const locked = conds.filter((c) => COND_UNLOCK[c.k] && !L.unlocks.includes(COND_UNLOCK[c.k]))
       .map((cond) => { const u = UNLOCKS[COND_UNLOCK[cond.k]]; return { cond, needs: u.gate && !u.gate(L) ? u.needs ?? "?" : `◆${u.cost}` }; });
+    FAKE_FORKS.forEach((f, i) => { if (!L.facts.includes(`fork:${f}`)) return; for (const b of [FAKE_ORDER[i], FAKE_ORDER[i + 1]]) if (!L.facts.includes(`biome:${b}`) && !locked.some((l) => l.cond.k === "in" && l.cond.t === b)) locked.push({ cond: { k: "in", t: b }, needs: `enter ${b}` }); });
     const verbs: Verb[] = [{ v: "attack", a: "nearest" }, { v: "attack", a: "lowest" }];
     for (const t of tags) verbs.push({ v: "attack", a: `tag:${t}` });
     verbs.push({ v: "retreat" }, { v: "back_corridor" });
@@ -1211,8 +1281,13 @@ export class FakeEngine implements Engine {
     const cards = set.rows.filter((r) => r.verb.v === "tactic").map((r) => r.verb.a ?? "");
     if (new Set(cards).size !== cards.length) throw new Error("a card twice");
     for (const c of cards) if (!this.s.lineage.unlocks.includes(c)) throw new Error(`card ${c} not owned`);
+    // Cut 26 §2: a route takes only seen forks, never two overlapping far stairs; an `in:` cond needs its biome entered
+    const route = [...(set.route ?? [])].sort((a, b) => a - b);
+    for (const f of route) { if (!FAKE_FORKS.includes(f)) throw new Error(`no fork at D${f}`); if (!this.s.lineage.facts.includes(`fork:${f}`)) throw new Error(`D${f} fork unseen`); }
+    if (route.some((f, i) => i > 0 && FAKE_FORKS.indexOf(f) === FAKE_FORKS.indexOf(route[i - 1]) + 1)) throw new Error("forks overlap");
+    for (const [i, r] of set.rows.entries()) for (const c of r.conds) if (c.k === "in" && !this.s.lineage.facts.includes(`biome:${c.t}`)) throw new Error(`row ${i + 1}: in ${c.t} is locked (enter ${c.t})`);
     this.home = 0;                                                           // a rule edit opens a fresh stall window
-    this.s.rules = { rows: set.rows.map((r) => ({ conds: (r.verb.v === "tactic" ? [] : r.conds.slice(0, 2)).map((c) => ({ ...c })), verb: { ...r.verb } })), name: set.name };
+    this.s.rules = { rows: set.rows.map((r) => ({ conds: (r.verb.v === "tactic" ? [] : r.conds.slice(0, 2)).map((c) => ({ ...c })), verb: { ...r.verb } })), name: set.name, ...(route.length ? { route } : {}) };
     this.s.lineage.sets[this.s.lineage.active_set] = JSON.parse(JSON.stringify(this.s.rules)) as RuleSet;
   }
   loadout(itemIds: number[]): void { this.s.loadout = itemIds.filter((id) => this.s.lineage.vault.some((v) => v.id === id)); this.dropIdleRun(); }
@@ -1262,14 +1337,16 @@ export class FakeEngine implements Engine {
     const depths: Forecast["depths"] = []; for (let d = 1; d <= Math.min(15, Math.max(known_to, bountyD)); d++) { const p = reach[d] / N; depths.push({ depth: d, reach: p, pm: 1.96 * Math.sqrt((p * (1 - p)) / N), ...(d === bountyD ? { bounty: true } : {}) }); }
     const top = Object.entries(causes).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([cause, n]) => ({ cause, share: n / N }));
     // Cut 10 §2: a boss floor whose counter fact is known and whose row is absent from the set names it: `try: attack boss`
+    const route = this.s.rules.route ?? [];
+    if (route.length) for (const d of depths) d.biome = biomeOn(d.depth, route);   // Cut 26 §2: the floor's biome on the set's route
     for (const d of depths) {
-      const boss = BOSS[d.depth]; const c = boss && COUNTER[boss];
+      const boss = bossOn(d.depth, route); const c = boss && COUNTER[boss];
       if (!c || !this.known().has(`boss:${boss}:counter`) || this.s.rules.rows.some((r) => rowText(r) === rowText(c.row))) continue;
       d.cause ??= boss; d.try = { row: JSON.parse(JSON.stringify(c.row)) as Row, text: c.text, met: d.depth };
     }
     // Cut 18 §3: reach falls to ≤ 5 % below a boss's floor (from over 5 % on it): the row names the wall (`D9 0% · warlord wall`)
-    for (const d of depths) if (BOSS[d.depth]) d.boss = BOSS[d.depth];   // Cut 24 §5 stand-in: the boss named on the floor he is met on
-    for (const d of depths) { const boss = BOSS[d.depth - 1]; const above = depths.find((x) => x.depth === d.depth - 1); if (boss && above && d.reach <= 0.05 && above.reach > 0.05) d.wall = boss; }
+    for (const d of depths) { const b = bossOn(d.depth, route); if (b) d.boss = b; }   // Cut 24 §5 stand-in: the boss named on the floor he is met on
+    for (const d of depths) { const boss = bossOn(d.depth - 1, route); const above = depths.find((x) => x.depth === d.depth - 1); if (boss && above && d.reach <= 0.05 && above.reach > 0.05) d.wall = boss; }
     const death = ends.death / N;
     return { depths, causes: top, known_to, sims: N, low: Math.ceil(100 / N), ends: { bank: ends.bank / N, return: ends.return / N, death, gold: ends.gold / N, pm: 1.96 * Math.sqrt((death * (1 - death)) / N) } };   // Cut 13 §5: the ends line's own ±; Cut 23 §2: `low` — a 0 of N prints `<low%`
   }
@@ -1446,8 +1523,26 @@ export class FakeEngine implements Engine {
     const death0 = f.ends?.death ?? 0;   // Cut 22 §4 stand-in: a deeper start dies more (the start picker's `death 61%`)
     const at = (s0: number): { bank: number; gold: number; reach: number; death: number } => { const k = (s0 - 1) / 30; return { bank: Math.max(0, Math.min(1, bank + (bank > 0 ? 0.3 * k : 0) - 0.4 * k * k)), gold: gold * (1 + 2 * k), reach: Math.max(0, 1 - k), death: Math.min(1, death0 + 1.8 * k) }; };
     const c = at(cur);
-    return starts.map((st) => { const o = at(st); return { start: st, current: st === cur, toll: st > 1 ? WAYSTONE_TOLL * st : 0, short: st > 1 && L.gold < WAYSTONE_TOLL * st, biome: biomeOf(st), depth: Math.max(1, L.best_depth), reach: o.reach, reach_delta: o.reach - c.reach,
+    return starts.map((st) => { const o = at(st); return { start: st, current: st === cur, toll: st > 1 ? WAYSTONE_TOLL * st : 0, short: st > 1 && L.gold < WAYSTONE_TOLL * st, biome: biomeOn(st, this.s.rules.route), depth: Math.max(1, L.best_depth), reach: o.reach, reach_delta: o.reach - c.reach,
       bank: o.bank, bank_delta: o.bank - c.bank, gold: o.gold, gold_delta: o.gold - c.gold, delta: bank > 0 ? o.bank - c.bank : o.reach - c.reach, pm: 1.96 * Math.sqrt(o.bank * (1 - o.bank) / 20), death: o.death, low: 5 }; });
+  }
+  /** Cut 26 §2 stand-in: both stairs of a seen fork for the active set — each route's own 20-sim panel, read at the band's last floor. */
+  forkForecast(fork: number): ForkOption[] {
+    const i = FAKE_FORKS.indexOf(fork); const cur = this.s.rules.route ?? [];
+    if (i < 0 || !forkOpen(fork, cur) || !this.s.lineage.facts.includes(`fork:${fork}`)) return [];
+    const bar = FAKE_BANDS[i][1]; const L = this.s.lineage; const N = 20;
+    const read = (route: number[]): { reach: number; bank: number; gold: number; death: number } => {
+      const rules = { ...this.s.rules, route }; let reach = 0, bank = 0, gold = 0, death = 0;
+      for (let k = 0; k < N; k++) { const r = this.simOne(hash(`fc:${L.seed}:${k}`), rules, this.known()); if (r.depth >= bar) reach++; if (r.exit === "bank") bank++; if (r.exit === "death") death++; gold += r.loot_kept; }
+      return { reach: reach / N, bank: bank / N, gold: gold / N, death: death / N };
+    };
+    const base = read(cur);
+    return [false, true].map((far) => {
+      const route = routeWith(cur, fork, far); const current = route.join() === [...cur].sort((a, b) => a - b).join(); const o = current ? base : read(route);
+      return { fork, biome: FAKE_ORDER[i + (far ? 1 : 0)], far, current, route, depth: bar, reach: o.reach, reach_delta: o.reach - base.reach, bank: o.bank, bank_delta: o.bank - base.bank,
+               gold: o.gold, gold_delta: o.gold - base.gold, death: o.death, death_delta: o.death - base.death, delta: o.bank > 0 || base.bank > 0 ? o.bank - base.bank : o.reach - base.reach,
+               pm: 1.96 * Math.sqrt(o.reach * (1 - o.reach) / N), refined: false, low: 5 };
+    });
   }
   /** Cut 19 §3 stand-in: the fake has no repeat; the flag is kept on the lineage so the tile can toggle. */
   setRestock(on: boolean): Lineage { (this.s.lineage as Lineage).repeat = on; if (!on) return this.clearSupplies(); return this.lineage(); }
@@ -1509,6 +1604,7 @@ export class FakeEngine implements Engine {
       salvaged: Object.entries(salvMap).map(([kind, v]) => ({ kind, ...v })), renown: { gained: renownGained, rank: L.rank, ranks_up: ranksUp },
       spent: Object.entries(spentMap).map(([kind, v]) => ({ kind, ...v })),   // Cut 13 §3
       rested_s: rested, banked, returned, stalled, bones_found: bonesFound, stall: verdictStall, deepest, exits,
+      lanes: FAKE_BANDS.filter(([a]) => deepest >= a).map(([a, b]) => { const n = biomeOn(a, this.s.rules.route); return `D${a}–${b} · the ${n[0].toUpperCase()}${n.slice(1)}`; }),   // Cut 26 §2 stand-in
       shelved: (() => { const m: Record<string, number> = {}; for (const x of exits) for (const y of x.shelved ?? []) m[y.kind] = (m[y.kind] ?? 0) + y.n; const o = Object.entries(m).map(([kind, n]) => ({ kind, n })); return o.length ? o : undefined; })(),   // Cut 21 §2 stand-in (the kept exits')
       bounty: bountyD <= 0 ? undefined : { depth: bountyD, taken: deepest >= bountyD, gold: deepest >= bountyD ? Math.max(0, ...exits.map((x) => x.kept)) : 0 } };   // Cut 20 §5 stand-in
   }
@@ -1672,7 +1768,7 @@ export class FakeEngine implements Engine {
     Object.assign(this.s.lineage, keep, { party: [], unlocks: old.unlocks.filter((u) => ["rogue", "ranger", "caster"].includes(u)), ascension: { level, variant } });
     return this.selectSet(old.active_set);
   }
-  exportRules(): string { return this.s.rules.rows.map(rowText).join("\n"); }
+  exportRules(): string { const r = this.s.rules.route ?? []; return [...(r.length ? [`⑂ ${r.join(" ")}`] : []), ...this.s.rules.rows.map(rowText)].join("\n"); }   // Cut 26 §2: the route rides the export (`⑂ 4`)
   importRules(text: string): RuleSet { const set = parseRules(text); this.setRules(set); return JSON.parse(JSON.stringify(this.s.rules)) as RuleSet; }
 }
 

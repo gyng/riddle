@@ -129,7 +129,7 @@ thread_local! {
 }
 
 fn par_map_threads<T: Send + Sync, R: Send>(game: &Game, jobs: Vec<T>, f: impl Fn(&Game, &T) -> R + Sync) -> Vec<R> {
-    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(jobs.len());
+    let threads = max_threads().min(jobs.len());
     let next = std::sync::atomic::AtomicUsize::new(0);
     let mut slots: Vec<Option<R>> = (0..jobs.len()).map(|_| None).collect();
     let slots_ref = std::sync::Mutex::new(&mut slots);
@@ -149,6 +149,13 @@ fn par_map_threads<T: Send + Sync, R: Send>(game: &Game, jobs: Vec<T>, f: impl F
         }
     });
     slots.into_iter().map(|r| r.expect("every job ran")).collect()
+}
+
+/// The worker count of `par_map`: every core, or `RIDDLE_THREADS` when set (a tool sharing the
+/// machine keeps its load moderate).
+pub fn max_threads() -> usize {
+    static N: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *N.get_or_init(|| std::env::var("RIDDLE_THREADS").ok().and_then(|v| v.parse().ok()).filter(|n: &usize| *n > 0).unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)))
 }
 
 /// Whether a panel's sims run on all cores (native default) or one after another (wasm, and
@@ -381,7 +388,7 @@ pub fn played_key(game: &Game, rules: &RuleSet) -> String {
     let active = l.active_set.min(l.sets.len().saturating_sub(1));
     let lent = |r: &crate::rules::Row| l.sets.iter().enumerate().any(|(i, s)| i != active && s.rows.contains(r));
     let rows: Vec<crate::rules::Row> = rules.rows.iter().enumerate().filter(|(i, r)| shadowed.get(*i).copied().flatten().is_none() || lent(r)).map(|(_, r)| r.clone()).collect();
-    let played = RuleSet { rows, name: rules.name.clone() };
+    let played = RuleSet { rows, name: rules.name.clone(), route: rules.route.clone() };
     format!("{}|{kinds:?}", rules_key(&played))
 }
 
@@ -391,7 +398,13 @@ pub fn played_key(game: &Game, rules: &RuleSet) -> String {
 /// panel, not a new first pass.
 pub fn rules_key(rules: &RuleSet) -> String {
     let rows: Vec<(&Vec<crate::rules::Cond>, &crate::rules::Verb)> = rules.rows.iter().map(|r| (&r.conds, &r.verb)).collect();
-    serde_json::to_string(&rows).unwrap_or_default()
+    let key = serde_json::to_string(&rows).unwrap_or_default();
+    // Cut 26 §2: the route is played (the base order keys as before).
+    if rules.route.is_empty() {
+        key
+    } else {
+        format!("{key}|route {:?}", rules.route)
+    }
 }
 
 /// The camp bar at `depth` for `rules` (`camp_panel` at `FORECAST_SIMS`): (reach, sims).
@@ -421,12 +434,14 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     // Cut 21 §1: a row at or above the start floor is passed by every send (reach 1.0): no
     // boss stands between, so no `try`.
     let start = sim_start(game);
+    // Cut 26 §2: the forecast prices the set's route (its bosses where the route puts them).
+    let route = rules.route();
     let depths = (1..=last)
         .map(|d| {
             let reach = reach_at(d);
-            let wall = wall_at(d, reach, reach_at(d.saturating_sub(1)));
+            let wall = wall_on(route, d, reach, reach_at(d.saturating_sub(1)));
             let try_ = if d > start { try_row(game, rules, d) } else { None };
-            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_, wall, bounty: game.lineage.bounty == Some(d), boss: crate::descent::boss_for(d).map(str::to_string) }
+            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_, wall, bounty: game.lineage.bounty == Some(d), boss: route.boss(d).map(str::to_string), biome: (!route.is_base()).then(|| route.biome(d).name().to_string()) }
         })
         .collect();
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
@@ -507,7 +522,7 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
     let bar = bank_depth.unwrap_or(game.lineage.best_depth).clamp(1, game.lineage.best_depth + 1);
     let current = game.lineage.start.max(1);
     let mut options: Vec<u32> = vec![1];
-    options.extend(game.lineage.waystones.iter().copied());
+    options.extend(game.lineage.stones());
     /// (reach at `bar`, bank share, gold per send, sims, death share).
     type Read = (f64, f64, f64, usize, f64);
     let read = |ended: &[SimResult]| -> Read {
@@ -554,7 +569,7 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
             start: d,
             current: d == current,
             toll,
-            biome: crate::descent::biome_for(d).name().into(),
+            biome: rules.route().biome(d).name().into(),
             short,
             pass,
             depth: bar,
@@ -570,6 +585,61 @@ pub fn start_forecast(game: &Game) -> Vec<crate::wire::StartOption> {
             pm: half_width(reach, n),
             death,
             death_delta: death - base.4,
+            refined: sims > FORECAST_SIMS,
+            low: low_pct(n as u32),
+        });
+    }
+    out
+}
+
+/// Cut 26 §2: the fork chip's tablet — both stairs of the fork at `fork` for the active set:
+/// the camp's panel for the set's own route and for the route taking the other stair (a far
+/// stair drops the neighbouring far stairs it overlaps: `Route::with`), on the camp's seeds (the
+/// first pass: one more panel), read at the band's last floor (`fens D8 61% · burrows D8 34%`).
+/// Memoised like the start tablet. Empty for a fork the route gives no choice at, or unseen.
+pub fn fork_forecast(game: &Game, fork: u32) -> Vec<crate::wire::ForkOption> {
+    use crate::descent::{Route, BANDS, BASE_ORDER, FORKS};
+    let rules = game.lineage.rules().clone();
+    let Some(i) = FORKS.iter().position(|f| *f == fork) else { return Vec::new() };
+    let route = rules.route();
+    if !route.fork_open(fork) || !crate::descent::OPEN_FORKS.contains(&fork) {
+        return Vec::new();
+    }
+    let sims = option_sims(game, &rules);
+    let bar = BANDS[i].1;
+    type Read = (f64, f64, f64, usize, f64);
+    let read = |ended: &[SimResult]| -> Read {
+        let n = ended.len().max(1) as f64;
+        let reach = ended.iter().filter(|r| r.max_depth >= bar).count() as f64 / n;
+        let bank = ended.iter().filter(|r| r.tier == ExitTier::Bank && !r.timed_out).count() as f64 / n;
+        let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
+        let death = ended.iter().filter(|r| r.tier == ExitTier::Death).count() as f64 / n;
+        (reach, bank, gold, ended.len(), death)
+    };
+    let base = read(&camp_panel(game, &rules, sims));
+    let mut out = Vec::with_capacity(2);
+    for far in [false, true] {
+        let r: Route = route.with(fork, far);
+        let current = r == route;
+        let (reach, bank, gold, n, death) = if current { base } else { read(&camp_panel(game, &rules.clone().with_route(r), sims)) };
+        let banks = bank > 0.0 || base.1 > 0.0;
+        out.push(crate::wire::ForkOption {
+            fork,
+            biome: BASE_ORDER[i + far as usize].name().into(),
+            far,
+            current,
+            route: r.forks(),
+            depth: bar,
+            reach,
+            reach_delta: reach - base.0,
+            bank,
+            bank_delta: bank - base.1,
+            gold,
+            gold_delta: gold - base.2,
+            death,
+            death_delta: death - base.4,
+            delta: if banks { bank - base.1 } else { reach - base.0 },
+            pm: half_width(reach, n),
             refined: sims > FORECAST_SIMS,
             low: low_pct(n as u32),
         });
@@ -639,7 +709,7 @@ pub fn paired(a: &[SimResult], b: &[SimResult], f: impl Fn(&SimResult) -> f64) -
 /// counter's verb, the row names it (`D9 0% · warlord · try: attack boss`). Position is the
 /// point: the client inserts it at the top, and the gate measures that placement.
 pub fn try_row(game: &Game, rules: &RuleSet, depth: u32) -> Option<ForecastTry> {
-    let kind = crate::descent::boss_for(depth.checked_sub(1)?)?;
+    let kind = rules.route().boss(depth.checked_sub(1)?)?;
     let row = crate::facts::boss_counter_row(&game.lineage.facts, kind)?;
     if crate::trace::has_counter_verb(rules, &row) {
         return None;
@@ -656,7 +726,12 @@ pub const WALL_REACH: f64 = 0.05;
 /// stairs, `ai::stairs_sealed`): the boss's kind. Rater Z: "`D9 0%` for every rule set, with
 /// no reason given, until I met the Goblin Warlord".
 pub fn wall_at(depth: u32, reach: f64, reach_above: f64) -> Option<String> {
-    let kind = crate::descent::boss_for(depth.checked_sub(1)?)?;
+    wall_on(crate::descent::Route::BASE, depth, reach, reach_above)
+}
+
+/// `wall_at` on a route (Cut 26 §1).
+pub fn wall_on(route: crate::descent::Route, depth: u32, reach: f64, reach_above: f64) -> Option<String> {
+    let kind = route.boss(depth.checked_sub(1)?)?;
     (reach <= WALL_REACH + 1e-9 && reach_above > WALL_REACH + 1e-9).then(|| kind.to_string())
 }
 
@@ -787,6 +862,9 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&format!("{:?}", l.trophies));
     // Cut 21 §1: where the sends start (and whether that waystone is lit).
     feed(&format!("start {} {:?}", l.start, l.waystones));
+    if !l.lane_stones.is_empty() {
+        feed(&format!("lanes {:?}", l.lane_stones));
+    }
     // QA on a946e04: the night's waystone passes (a sim's send from one pays no toll).
     feed(&format!("passes {:?}", l.night_passes));
     // Cut 23 §1: the forge's steps (the heir's starting kit).

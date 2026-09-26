@@ -121,7 +121,7 @@ export class App {
   /** QA 778fa1b: the edit changed only rows that never fire — the base's live rows (not shadowed) are the set's live rows now. */
   private deadEdit(): boolean {
     const base = this.vsBase; if (!base || !this.shadow) return false;
-    const live = (set: RuleSet, sh: (number | null)[]): RuleSet => ({ rows: set.rows.filter((_, i) => sh[i] === null || sh[i] === undefined) });
+    const live = (set: RuleSet, sh: (number | null)[]): RuleSet => ({ rows: set.rows.filter((_, i) => sh[i] === null || sh[i] === undefined), ...routeOf(set) });
     return sameSet(live(base, this.vsBaseShadow), live(this.rules, this.shadow));
   }
   private fcFresh = false;                  // a forecast painted since the last edit
@@ -296,7 +296,7 @@ export class App {
     if (dev?.rules) {
       try {
         const set = await this.engine.importRules(dev.rules);
-        this.sets[this.active] = { rows: set.rows.map(cloneRow) };
+        this.sets[this.active] = { rows: set.rows.map(cloneRow), ...routeOf(set) };
         await this.engine.setRules(this.rules);
       } catch (e) { console.warn("dev rules rejected", e); }
     }
@@ -587,7 +587,7 @@ export class App {
   }
   async setRulesText(text: string): Promise<void> {
     const set = await this.engine.importRules(text);
-    this.sets[this.active] = { rows: set.rows.map((r) => ({ ...cloneRow(r), origin: r.origin ?? "player" })), name: this.sets[this.active]?.name };
+    this.sets[this.active] = { rows: set.rows.map((r) => ({ ...cloneRow(r), origin: r.origin ?? "player" })), name: this.sets[this.active]?.name, ...routeOf(set) };   // Cut 26 §2: an export carries its route
     this.rulesChanged();
     this.emitChange();
   }
@@ -848,14 +848,17 @@ export const cloneRow = (r: Row): Row => ({ conds: r.conds.map((c) => ({ ...c })
 /** Cut 7 §2: a row's identity for origin carry-over (tokens only, never the origin). */
 const rowKey = (r: Row): string => `${r.conds.map((c) => `${c.k}|${c.n ?? ""}|${c.t ?? ""}`).join(" ")} → ${r.verb.v}|${r.verb.a ?? ""}`;
 const asOrigin = (o: unknown): RowOrigin | undefined => (o === "preset" || o === "patch" || o === "card" || o === "player" ? o : undefined);
-export const cloneSet = (s: RuleSet): RuleSet => ({ rows: s.rows.map(cloneRow), name: s.name });
+export const cloneSet = (s: RuleSet): RuleSet => ({ rows: s.rows.map(cloneRow), name: s.name, ...routeOf(s) });
+/** Cut 26 §2: a set's route (the fork depths whose far stair it takes) — carried whole, absent when it takes every near stair. */
+export const routeOf = (s: RuleSet): { route?: number[] } => { const r = (s as RuleSet & { route?: number[] }).route; return r?.length ? { route: [...r] } : {}; };
 /** Cut 22 §3: two sets with the same rows (text and order; origins aside). */
 /** QA 778fa1b: a move with every delta at 0 (a dead edit's) — the line reads `≈`, the marks show nothing. */
 const flatVs = (v: ForecastVs): ForecastVs => {
   const z = (m: ForecastVs["bank"]): ForecastVs["bank"] => (m === undefined ? m : { delta: 0 });
   return { ...v, depths: v.depths.map((d) => ({ ...d, delta: 0, pm: 0 })), bank: z(v.bank), death: z(v.death), return: z(v.return), gold: z(v.gold), stall: v.stall ? { delta: 0 } : undefined };
 };
-const sameSet = (a: RuleSet, b: RuleSet): boolean => a.rows.length === b.rows.length && a.rows.every((r, i) => rowKey(r) === rowKey(b.rows[i]));
+const sameSet = (a: RuleSet, b: RuleSet): boolean => a.rows.length === b.rows.length && a.rows.every((r, i) => rowKey(r) === rowKey(b.rows[i]))
+  && JSON.stringify(routeOf(a).route ?? []) === JSON.stringify(routeOf(b).route ?? []);   // Cut 26 §2: a route change is an edit (`vs sent` reads it)
 
 /** `dev` is non-null in dev builds or with `?dev=1` (main.ts): boot options plus `window.__riddle` for inspection
  *  (`__riddle.screen`, `__riddle.text()`, `__riddle.engineBusy`, `__riddle.booted`, and the App itself). */

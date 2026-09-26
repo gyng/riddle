@@ -23,6 +23,9 @@ pub const FIRED_BAR: f64 = 0.5;
 pub const DELTA_CANDIDATES: usize = 6;
 /// A patch must beat the unpatched baseline by this much to count as the fix.
 pub const PATCH_MARGIN: f64 = 0.15;
+/// Cut 26 §6: a `gap` (or `row`, `order`) whose unpatched replays survive more than this share
+/// leans to the dice (`Death.lean`): the stamp reads it beside the counts (`compute_verdict`).
+pub const STAMP_BASE: f64 = 0.5;
 pub const TRACE_LEN: usize = 10;
 pub const MAX_CANDIDATES: usize = 16;
 pub const HP_THRESHOLDS: [i32; 4] = [20, 30, 40, 50];
@@ -104,6 +107,8 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         nothing_beats_base: false,
         cause_row: None,
         order_over: None,
+        route_cause: None,
+        lean: None,
     };
     let n = game.history.len();
     let pick = if stall {
@@ -359,7 +364,7 @@ fn boss_of(run: &Run, cause: &str) -> Option<String> {
         .map(|m| m.kind.clone());
     // Cut 10 §2: a death on a boss's own floor while the boss lives is a wall death whatever
     // took the blow (his rallied goblins, out of his sight) — the counter still gets its pin.
-    near.or_else(|| run.monsters.iter().find(|m| m.hp > 0 && m.is_boss() && crate::descent::boss_depth(&m.kind) == Some(run.depth)).map(|m| m.kind.clone()))
+    near.or_else(|| run.monsters.iter().find(|m| m.hp > 0 && m.is_boss() && run.route.boss_depth(&m.kind) == Some(run.depth)).map(|m| m.kind.clone()))
 }
 
 /// Cut 10 §2: the boss counter row a death's patches pin at the top, when the boss is known,
@@ -1727,7 +1732,52 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
             unknown_saves = u;
         }
     }
+    // Cut 26 §6 (AO: `GAP` beside `unpatched 10/12` — fault or luck?): a gap most of whose
+    // unpatched replays survive leans to the dice — the stamp says so (`Death.lean`), so it never
+    // contradicts its counts; a patch still beats the base by the margin, so it stays a gap.
+    if matches!(rec.death.verdict.as_str(), "gap" | "row" | "order") && rec.death.baseline > STAMP_BASE + 1e-9 {
+        rec.death.lean = Some("dice".into());
+    }
+    route_verdict(game, rec);
     margin_lines(rec, heal_saves, unknown_saves);
+}
+
+/// Cut 26 (risks: attribution): a `route` verdict's bar — the near stair's sends get past the
+/// death's floor at least this often, and `PATCH_MARGIN` more often than the route taken.
+pub const ROUTE_BAR: f64 = 0.5;
+/// The paired sends each route plays for it.
+pub const ROUTE_SIMS: u32 = 12;
+
+/// Cut 26: a death on a far lane is the route's when the near stair would have carried the set
+/// past the death's floor: the set on its route and on the route with the near stair at the fork
+/// whose bands the floor sits in, `ROUTE_SIMS` paired sends each from the camp; the near one past
+/// the floor in ≥ `ROUTE_BAR` and `PATCH_MARGIN` over the far one → `route` (`D5 fens`), unless
+/// the player's own row, order or a stall is the verdict.
+fn route_verdict(game: &Game, rec: &mut DeathRec) {
+    let route = rec.rules.route();
+    if route.is_base() || rec.stall || !matches!(rec.death.verdict.as_str(), "dice" | "gap") {
+        return;
+    }
+    let d = rec.death.depth;
+    let Some(&fork) = route.forks().iter().find(|f| {
+        let i = crate::descent::FORKS.iter().position(|x| x == *f).unwrap_or(0);
+        (**f..=crate::descent::BANDS[(i + 1).min(crate::descent::BANDS.len() - 1)].1).contains(&d)
+    }) else {
+        return;
+    };
+    let near = route.with(fork, false);
+    let camp = camp_state(game);
+    let tag = crate::rng::splitmix(0x2026_0A7E ^ rec.death.run_id as u64);
+    let past = |r: crate::descent::Route| -> f64 {
+        let rules = rec.rules.clone().with_route(r);
+        let rs = crate::forecast::simulate_budget(&camp, &rules, ROUTE_SIMS, tag, d + 1, u64::MAX);
+        rs.iter().filter(|x| x.max_depth > d).count() as f64 / rs.len().max(1) as f64
+    };
+    let (base, survive) = (past(route), past(near));
+    if survive >= ROUTE_BAR - 1e-9 && survive - base >= PATCH_MARGIN - 1e-9 {
+        rec.death.verdict = "route".into();
+        rec.death.route_cause = Some(crate::wire::RouteCause { fork, taken: route.biome(fork).name().into(), other: near.biome(fork).name().into(), route: near.forks(), survive, base });
+    }
 }
 
 /// QA on e75ec29: the floor-window verdict. The unpatched set replayed `FLOOR_REPLAYS` times
@@ -2508,7 +2558,7 @@ pub fn whole_move(base: &[crate::forecast::SimResult], patched: &[crate::forecas
     // one whose deaths rise most, by `RISK_SIMS` or more.
     let count = |xs: &[crate::forecast::SimResult], c: &str| xs.iter().filter(|r| r.tier == ExitTier::Death && r.cause.as_deref() == Some(c)).count() as i64;
     let risk = ["fire", "poison", "gas"].iter().filter(|_| gamble).map(|c| (count(a, c) - count(b, c), *c)).filter(|(k, _)| *k >= RISK_SIMS).max_by_key(|(k, _)| *k).map(|(_, c)| c.to_string());
-    let mut w = crate::wire::PatchWhole { reach: reach.delta, reach_pm: reach.pm, death: death.delta, death_pm: death.pm, harms: false, risk };
+    let mut w = crate::wire::PatchWhole { reach: reach.delta, reach_pm: reach.pm, reach_from: reach.base, reach_to: reach.base + reach.delta, death: death.delta, death_pm: death.pm, harms: false, risk };
     w.harms = whole_harms(&w);
     w
 }
@@ -2633,7 +2683,7 @@ mod tests_trace {
     }
 
     fn set_rules(g: &mut Game, rows: Vec<Row>) {
-        g.set_rules(RuleSet { rows, name: None }).unwrap();
+        g.set_rules(RuleSet { rows, name: None, route: Vec::new() }).unwrap();
     }
 
     fn attack_rules(g: &mut Game) {

@@ -90,6 +90,22 @@ pub struct Snapshot {
     /// absent on a floor without one (D1–2, a boss's cave floor, the bottom).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub floor_twist: Option<String>,
+    /// Cut 26 §2: this floor's down stairs are a fork's (D4's, on the base order): the stair the
+    /// run's route takes is the floor's own down stairs (`taken`, its biome); the other stair
+    /// (`other`) is drawn at (`x`, `y`) beside it. The hero never takes it — the set's route
+    /// decides; the callout is `TWO STAIRS`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fork: Option<SnapFork>,
+}
+
+/// Cut 26 §2: a fork on the floor (`Snapshot.fork`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct SnapFork {
+    pub depth: u32,
+    pub taken: String,
+    pub other: String,
+    pub x: i32,
+    pub y: i32,
 }
 
 /// Cut 7 §4: a room as a scene — the viewer holds 1× while a room with ≥ 2 hostiles is not
@@ -306,6 +322,17 @@ pub struct DrivenOff {
     pub defence: String,
     pub counter: String,
     pub row: crate::rules::Row,
+    /// Cut 26 §6 (AP: a drive-off at 25/36 hp, `driven $0 · $297 lost`, no verdict screen): the
+    /// run, so a report's drive-off opens its verdict (`ReturnReport.drives`) as a death does;
+    /// `hp`/`max_hp` the hero's at the drive-off, `lost` the carry it did not keep.
+    #[serde(default)]
+    pub run_id: u32,
+    #[serde(default)]
+    pub hp: i32,
+    #[serde(default)]
+    pub max_hp: i32,
+    #[serde(default)]
+    pub lost: i32,
 }
 
 /// Cut 21 §2: a kind and how many (`ExitLine.shelved`).
@@ -540,6 +567,10 @@ pub struct ForecastDepth {
     /// on this row (`D8 · warlord`) and reads the next row's `try` / `wall` as his.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boss: Option<String>,
+    /// Cut 26 §2: on a set that writes a route, the biome this floor sits in on it (`fens` at D5
+    /// for `route: [5]`); absent on the base order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub biome: Option<String>,
 }
 
 /// Cut 10 §2: a forecast row's `try` — the known-but-absent counter of the boss whose floor
@@ -861,6 +892,12 @@ pub struct Patch {
 pub struct PatchWhole {
     pub reach: f64,
     pub reach_pm: f64,
+    /// Cut 26 §6 (AP: `survives 12/12 · reach D5 −76`, unreadable): the reach at the bar before
+    /// and after the patch (0..1) — the screen prints the move as from→to (`reach D5 90→14%`).
+    #[serde(default)]
+    pub reach_from: f64,
+    #[serde(default)]
+    pub reach_to: f64,
     pub death: f64,
     pub death_pm: f64,
     /// Worse than the set as it is beyond its ± — death up past `death_pm` or reach down past
@@ -967,6 +1004,31 @@ pub struct Death {
     /// `order_over` 1), and the lead patch moves R5 above R2. `None` on every other verdict.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub order_over: Option<u32>,
+    /// Cut 26 (risks: attribution): on a `route` verdict, the far stair the set's route took and
+    /// the near one whose sends survive the death's floor (`D5 fens · route`, the fix `take
+    /// burrows`: `route` is the set's route with that stair). `None` on every other verdict.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub route_cause: Option<RouteCause>,
+    /// Cut 26 §6 (AO: `GAP` beside `unpatched 10/12` — "fault or luck?"): `dice` on a `gap`, `row`
+    /// or `order` whose unpatched replays mostly survive (over `trace::STAMP_BASE`) — the stamp
+    /// reads it beside the counts (`GAP · dice-leaning`), so it never contradicts them. `None`
+    /// otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lean: Option<String>,
+}
+
+/// Cut 26: a `route` verdict's cause (`Death.route_cause`): at `fork` the route took `taken`;
+/// the set on the route with `other` instead (`route`) gets past the death's floor in `survive`
+/// of the sends (≥ `trace::ROUTE_BAR`, and `trace::PATCH_MARGIN` over the route it took,
+/// `base`), on paired seeds.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct RouteCause {
+    pub fork: u32,
+    pub taken: String,
+    pub other: String,
+    pub route: Vec<u32>,
+    pub survive: f64,
+    pub base: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -1097,6 +1159,14 @@ pub struct ReturnReport {
     /// missed` / `taken $412`); absent when the lineage had no bounty during the absence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bounty: Option<BountyReport>,
+    /// Cut 26 §6: every drive-off of the absence (the last `EXITS_CAP`), each opening its verdict
+    /// (`no counter`, the boss's defence, the counter row to write) by its `run_id`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub drives: Vec<DrivenOff>,
+    /// Cut 26 §2: each band the absence's sends reached and the lane the route played there
+    /// (`D5–8 · the Fens`), shallowest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lanes: Vec<String>,
     /// Cut 21 §2: found supplies the absence's exits put on the shelf instead of salvaging,
     /// per kind — `gold` is their price on the shelf (what the repeat did not have to pay;
     /// `found heal ×12 → shelf`).
@@ -1459,6 +1529,79 @@ pub struct Lineage {
     /// `setLook`); sprites and portraits are `hero_<class>_<look>`.
     #[serde(default)]
     pub look: String,
+    /// Cut 26 §2: the forks the hero has seen (a `fork:<d>` fact each), shallowest first — the
+    /// route chip line above the rows (`⑂ D5 fens · D14 crypt`); empty until D4's two stairs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub forks: Vec<ForkChip>,
+    /// Cut 26 §2: every lit waystone as a (lane, depth) pair, ascending by depth — the start
+    /// sheet lists them; `current` marks the ones lit for the active set's route (the ones a send
+    /// can start on: `waystones`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lanes: Vec<LaneStone>,
+    /// Cut 26 §6 (AP: `R3 descend · locked cond` found only in a trace): per row of the active set,
+    /// the gate of its first cond this lineage cannot use (`see: den`, `enter fens`, `◆2`), `null`
+    /// for a row whose conds are all open; empty when none is locked.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub locked_rows: Vec<Option<String>>,
+}
+
+/// Cut 26 §2: a seen fork — the stairs into the band at `depth`: `near` the band's own biome,
+/// `far` the next one early; `taken` the biome the active set's route takes there. `open` false:
+/// the fork above took its far stair, so this band is the deferred biome's (`taken`), no choice.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ForkChip {
+    pub depth: u32,
+    pub near: String,
+    pub far: String,
+    pub taken: String,
+    #[serde(default = "yes")]
+    pub open: bool,
+}
+
+/// Cut 26 §2: a lit waystone on a lane — its floor, the biome there (`lane`), the route's far
+/// stairs above it (`route`, the prefix it was lit on; empty on the base order) and whether it is
+/// lit for the active set's route (`current`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct LaneStone {
+    pub depth: u32,
+    pub lane: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub route: Vec<u32>,
+    #[serde(default)]
+    pub current: bool,
+}
+
+/// Cut 26 §2: one stair of a fork on the fork chip's option tablet (`Game::fork_forecast`): the
+/// active set with the route taking `biome` at `fork` (`far`: the far stair), measured on the
+/// camp's seeds (the first pass, paired with the current route's panel) like `StartOption`.
+/// `depth` is the bar: the band's last floor (`fens D8 61% · burrows D8 34%`); `delta` the
+/// headline — `bank_delta` when either panel banks, else `reach_delta`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ForkOption {
+    pub fork: u32,
+    pub biome: String,
+    pub far: bool,
+    pub current: bool,
+    /// The route the option plays (fork depths of its far stairs).
+    #[serde(default)]
+    pub route: Vec<u32>,
+    pub depth: u32,
+    pub reach: f64,
+    pub reach_delta: f64,
+    pub bank: f64,
+    pub bank_delta: f64,
+    pub gold: f64,
+    pub gold_delta: f64,
+    #[serde(default)]
+    pub death: f64,
+    #[serde(default)]
+    pub death_delta: f64,
+    pub delta: f64,
+    pub pm: f64,
+    #[serde(default)]
+    pub refined: bool,
+    #[serde(default)]
+    pub low: u32,
 }
 
 fn yes() -> bool {

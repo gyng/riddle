@@ -90,6 +90,12 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
             conds.push(Cond::t("on_see", k));
         }
     }
+    // Cut 26 §2: `in: <biome>` once the biome has been entered (its `biome:` fact).
+    for b in crate::descent::BASE_ORDER {
+        if l.facts.contains(&format!("biome:{}", b.name())) {
+            conds.push(Cond::t("in", b.name()));
+        }
+    }
     if l.all_companions().next().is_some() && owned("party_hp<") {
         conds.push(Cond::n("party_hp<", 50));
     }
@@ -238,6 +244,26 @@ pub fn locked_conds(l: &LineageState, open: &[Cond]) -> Vec<LockedCond> {
     }
     for k in SITUATION_TOKENS {
         lock(Cond::t("on_see", k), format!("see: {k}"));
+    }
+    // Cut 26 §2: a biome a seen fork offers, not yet entered (`enter fens`); the ones no fork
+    // has shown stay off the sheet.
+    for b in fork_biomes(l) {
+        lock(Cond::t("in", b.name()), format!("enter {}", b.name()));
+    }
+    out
+}
+
+/// Cut 26 §2: the biomes the lineage's seen forks offer (both stairs of each `fork:<d>` fact).
+pub fn fork_biomes(l: &LineageState) -> Vec<crate::descent::Biome> {
+    let mut out = Vec::new();
+    for (i, f) in crate::descent::FORKS.iter().enumerate() {
+        if l.facts.contains(&format!("fork:{f}")) {
+            for b in [crate::descent::BASE_ORDER[i], crate::descent::BASE_ORDER[i + 1]] {
+                if !out.contains(&b) {
+                    out.push(b);
+                }
+            }
+        }
     }
     out
 }

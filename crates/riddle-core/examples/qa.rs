@@ -324,6 +324,18 @@ fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
     // QA on e75ec29 (qaQ: `survives 100% · base 100%` under GAP): replays that all survive
     // unpatched did not reproduce the death — it is never a `gap` or a `row`.
     t.check("a gap or row verdict has a baseline under 100 %", !(d.verdict == "gap" || d.verdict == "row" || d.verdict == "order") || d.baseline < 1.0 - 1e-9, || format!("seed {seed} run {}: {} base {:.2}", d.run_id, d.verdict, d.baseline));
+    // Cut 26 §6 (AO: `GAP` beside `unpatched 10/12`): a stamp never contradicts its replay counts —
+    // a gap (row, order) most of whose unpatched replays survive says it leans to the dice, and only it does.
+    let leans = matches!(d.verdict.as_str(), "gap" | "row" | "order") && d.baseline > riddle_core::trace::STAMP_BASE + 1e-9;
+    t.check("a stamp never contradicts its replay counts (a gap most replays survive leans `dice`)", (d.lean.as_deref() == Some("dice")) == leans, || format!("seed {seed} run {}: {} · unpatched {:.0}/{} · lean {:?}", d.run_id, d.verdict, d.baseline * d.replays.max(1) as f64, d.replays, d.lean));
+    // Cut 26: a `route` verdict names its fork, and only it does.
+    t.check("a route verdict names its fork (and only it)", (d.verdict == "route") == d.route_cause.is_some(), || format!("seed {seed} run {}: {} · {:?}", d.run_id, d.verdict, d.route_cause));
+    // Cut 26 §6 (AP: `reach D5 −76`): a patch's whole-run reach reads from→to, and they agree with its move.
+    for p in &d.patches {
+        if let Some(w) = &p.whole {
+            t.check("a patch's reach from→to agrees with its move", (w.reach_to - w.reach_from - w.reach).abs() < 1e-9 && (0.0..=1.0).contains(&w.reach_from) && (-1e-9..=1.0 + 1e-9).contains(&w.reach_to), || format!("seed {seed} run {}: {} {:?}", d.run_id, p.row.describe(), w));
+        }
+    }
     // QA on a946e04 (qaS: an archer death's notes `Goblin Captain: summoner.`, the run's last
     // note a floor earlier; a poison death's `The black one: confusion.`): a death's note names
     // its killer or the harm that killed him (a stall's notes say what it paid).
@@ -340,6 +352,7 @@ fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
     // QA on 92eb880 (qaM: `DICE` over three `survives 100% · below bar`): a dice death whose
     // patches none beat the base says so, and only then.
     let beaten = d.patches.iter().any(|p| p.survive > d.baseline + 1e-9);
+    // Cut 26 §6 (AQ): a dice death no patch beats lists none (`nothing beats base` alone).
     t.check("`nothing_beats_base` ⇔ a dice death no patch beats", d.nothing_beats_base == (d.verdict == "dice" && !d.patches.is_empty() && !beaten), || format!("seed {seed} run {}: {} base {:.2} flag {}", d.run_id, d.verdict, d.baseline, d.nothing_beats_base));
     for p in &d.patches {
         t.check("no death screen carries a patch under its baseline (unless below_bar)", p.below_bar || p.survive >= d.baseline - 1e-9, || format!("seed {seed} run {}: {} survives {:.2} · base {:.2} · {}", d.run_id, p.row.describe(), p.survive, d.baseline, d.verdict));
@@ -555,6 +568,19 @@ fn check_reel(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::ReturnReport)
 /// kept item's `+N` is its forge base (and the cage's +1) plus the enchant scrolls read on it
 /// (`axe +7` = `+1` and `enchanted ×6`).
 fn check_report_headers(t: &mut Tally, g: &Game, seed: u64, r: &riddle_core::ReturnReport) {
+    // Cut 26 §6 (AP: a drive-off with no verdict screen): every drive-off the report counts is
+    // listed with its run (the last `EXITS_CAP`), and each names its boss's counter.
+    t.check("the report lists its drive-offs (by run)", r.drives.len() as u32 == r.driven.min(riddle_core::engine::EXITS_CAP as u32) && r.drives.iter().all(|d| d.run_id > 0 && !d.counter.is_empty()), || format!("seed {seed}: driven {} · listed {:?}", r.driven, r.drives.iter().map(|d| d.run_id).collect::<Vec<_>>()));
+    // Cut 26 §6 (AP: `R3 descend · locked cond` found only in a trace): a row whose cond the
+    // lineage cannot use is marked on the wire.
+    let l = g.lineage();
+    let rules = g.lineage.rules();
+    let vocab = g.vocabulary();
+    for (i, row) in rules.rows.iter().enumerate() {
+        let open = row.conds.iter().all(|c| vocab.conds.iter().any(|o| o.same_token(c)) || matches!(c.k.as_str(), "party" | "self_hp<" | "self_hp>"));
+        let marked = l.locked_rows.get(i).cloned().flatten().is_some();
+        t.check("a row with a locked cond is marked on the wire (and only it)", open != marked, || format!("seed {seed}: R{} {} · marked {marked}", i + 1, row.describe()));
+    }
     for x in &r.exits {
         if let Some(d) = &x.driven {
             let n = x.text.matches(d.title.as_str()).count();
@@ -1000,6 +1026,7 @@ fn check_stall_leg(t: &mut Tally, sum: &mut StallSum, g: &Game, seed: u64) {
             Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
         ],
         name: None,
+        route: Vec::new(),
     };
     if h.set_rules_raw(set).is_err() {
         return;

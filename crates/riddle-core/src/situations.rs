@@ -94,17 +94,39 @@ const ROOMS_POOL: &[&str] = &["den", "lock", "captive", "nest", "vault", "shrine
 const DEEP_POOL: &[&str] = &["captive", "den", "nest", "vault", "shrine", "stray"];
 
 pub fn band(depth: u32) -> Option<Band> {
+    band_on(crate::descent::Route::BASE, depth)
+}
+
+/// Cut 26 §1: the band a floor rolls from on a route — a biome keeps its situations wherever it
+/// sits: the Burrows their lock, the Fens the captive's floors then the hunger's (the last two of
+/// five, the last two of four), the Crypt, the Foundry, the Deep and the Sanctum their pools. The
+/// base order keeps its Cut 12 bands exactly (the den's band runs to D5, the Burrows' first).
+pub fn band_on(route: crate::descent::Route, depth: u32) -> Option<Band> {
+    use crate::descent::Biome;
     let b = |first, last, flagship, pool| Some(Band { first, last, flagship, pool });
-    match depth {
-        3..=5 => b(3, 5, Some("den"), WARRENS_POOL),
-        6..=8 => b(6, 8, Some("lock"), WARRENS_DEEP_POOL),
-        9..=11 => b(9, 11, Some("captive"), FENS_POOL),
-        12..=13 => b(12, 13, Some("hunger"), FENS_POOL),
-        14..=18 => b(14, 18, None, CRYPT_POOL),
-        19..=23 => b(19, 23, None, ROOMS_POOL),
-        24..=28 => b(24, 28, None, DEEP_POOL),
-        29..=33 => b(29, 33, None, ROOMS_POOL),
-        _ => None,
+    let biome = route.biome(depth);
+    let den_to = if route.biome(5) == Biome::Burrows { 5 } else { 4 };
+    if (3..=den_to).contains(&depth) {
+        return b(3, den_to, Some("den"), WARRENS_POOL);
+    }
+    if !(3..crate::descent::ENDING_DEPTH).contains(&depth) {
+        return None;
+    }
+    let (first, last) = route.span(biome);
+    match biome {
+        Biome::Warrens => None,
+        Biome::Burrows => b(first.max(den_to + 1), last, Some("lock"), WARRENS_DEEP_POOL),
+        Biome::Fens => {
+            let split = last - 1;
+            if depth < split {
+                b(first, split - 1, Some("captive"), FENS_POOL)
+            } else {
+                b(split, last, Some("hunger"), FENS_POOL)
+            }
+        }
+        Biome::Crypt => b(first, last, None, CRYPT_POOL),
+        Biome::Foundry | Biome::Sanctum => b(first, last, None, ROOMS_POOL),
+        Biome::Deep => b(first, last, None, DEEP_POOL),
     }
 }
 
@@ -113,7 +135,7 @@ pub fn band(depth: u32) -> Option<Band> {
 fn flagship_depth(run: &Run, band: &Band, lost: &[Lost]) -> Option<u32> {
     band.flagship?;
     let due: Vec<u32> = stray_due_depths(run, band, lost);
-    let cands: Vec<u32> = (band.first..=band.last).filter(|d| crate::descent::boss_for(*d).is_none() && !due.contains(d)).collect();
+    let cands: Vec<u32> = (band.first..=band.last).filter(|d| run.route.boss(*d).is_none() && !due.contains(d)).collect();
     if cands.is_empty() {
         return None;
     }
@@ -143,11 +165,11 @@ fn stray_due_depths(run: &Run, band: &Band, lost: &[Lost]) -> Vec<u32> {
 /// falls through to the next; the floor's word is what was placed.
 pub fn place_twist(run: &mut Run, lost: &[Lost]) {
     let depth = run.depth;
-    let Some(band) = self::band(depth) else { return };
+    let Some(band) = band_on(run.route, depth) else { return };
     let mut rng = run.rng.side(crate::rng::hash_str("twist") ^ depth as u64);
     let last = run.last_twist.clone();
     let stray_ok = crate::engine::wild_for(run, lost).is_some();
-    let boss = crate::descent::boss_for(depth).is_some();
+    let boss = run.route.boss(depth).is_some();
     let flag_at = flagship_depth(run, &band, lost);
     let mut order: Vec<&str> = Vec::new();
     if let Some(k) = run.next_twist.take() {
@@ -166,7 +188,7 @@ pub fn place_twist(run: &mut Run, lost: &[Lost]) {
     // The pool, shuffled, minus the flagship (its own floor), the last floor's kind, the
     // next band's flagship on this band's last floor (so it never repeats across the seam),
     // the stray when none is due, and — on a boss's floor — everything but the room kinds.
-    let next_flag = if depth == band.last { self::band(depth + 1).and_then(|b| b.flagship) } else { None };
+    let next_flag = if depth == band.last { band_on(run.route, depth + 1).and_then(|b| b.flagship) } else { None };
     let mut pool: Vec<&str> = band.pool.iter().copied().filter(|k| Some(*k) != band.flagship && Some(*k) != last.as_deref() && Some(*k) != next_flag && (*k != "stray" || stray_ok) && (!boss || ROOM_KINDS.contains(k))).collect();
     rng.shuffle(&mut pool);
     order.extend(pool);
@@ -641,7 +663,7 @@ pub const OMEN_PCT: u32 = 33;
 pub fn omen(run: &mut Run, cx: &mut Ctx) {
     use crate::descent::Biome;
     let depth = run.depth;
-    if depth < 2 || crate::descent::boss_for(depth).is_some() {
+    if depth < 2 || run.route.boss(depth).is_some() {
         return;
     }
     let mut rng = run.rng.side(crate::rng::hash_str("omen") ^ depth as u64);

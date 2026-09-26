@@ -21,6 +21,7 @@ fn preset_rows(class: Class) -> RuleSet {
                 Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")),
                 Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
             ],
+            route: Vec::new(),
         },
         Class::Rogue => RuleSet {
             name: Some("rogue".into()),
@@ -29,6 +30,7 @@ fn preset_rows(class: Class) -> RuleSet {
                 Row::new(vec![Cond::n("hp<", 40), Cond::n("foes>=", 2)], Verb::new("vanish")),
                 Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
             ],
+            route: Vec::new(),
         },
         Class::Ranger => RuleSet {
             name: Some("ranger".into()),
@@ -37,6 +39,7 @@ fn preset_rows(class: Class) -> RuleSet {
                 Row::new(vec![Cond::n("adj>=", 1)], Verb::new("kite")),
                 Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("shoot", "nearest")),
             ],
+            route: Vec::new(),
         },
         Class::Caster => RuleSet {
             name: Some("caster".into()),
@@ -45,6 +48,7 @@ fn preset_rows(class: Class) -> RuleSet {
                 Row::new(vec![Cond::n("adj>=", 1)], Verb::new("ward")),
                 Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("bolt", "nearest")),
             ],
+            route: Vec::new(),
         },
     }
 }
@@ -65,6 +69,7 @@ pub fn good() -> RuleSet {
             Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest")),
             Row::new(vec![Cond::n("floor_seen>=", 60)], Verb::new("descend")),
         ],
+        route: Vec::new(),
     }
 }
 
@@ -93,6 +98,7 @@ pub fn full() -> RuleSet {
             Row::new(vec![Cond::n("foes>=", 3), Cond::n("hp<", 70)], Verb::new("back_corridor")),
             Row::new(vec![Cond::n("hp<", 90)], Verb::arg("tactic", "noise_discipline")),
         ],
+        route: Vec::new(),
     }
 }
 
@@ -106,6 +112,7 @@ pub fn trivial() -> RuleSet {
             Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest")),
             Row::new(vec![], Verb::arg("attack", "nearest")),
         ],
+        route: Vec::new(),
     }
 }
 
@@ -125,6 +132,7 @@ pub fn countered() -> RuleSet {
             Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest")),
             Row::new(vec![], Verb::arg("attack", "nearest")),
         ],
+        route: Vec::new(),
     }
 }
 
@@ -144,7 +152,7 @@ pub fn random_rules(rng: &mut Rng, vocab: &Vocabulary, rows: usize) -> RuleSet {
         let verb = rng.pick(&vocab.verbs).clone();
         out.push(Row::new(conds, verb));
     }
-    RuleSet { rows: out, name: Some("random".into()) }
+    RuleSet { rows: out, name: Some("random".into()), route: Vec::new() }
 }
 
 /// Default rows for a companion, derived from its tags (Addendum A).
@@ -173,7 +181,7 @@ pub fn default_companion_rules(tags: &[String], level: u32) -> RuleSet {
     rows.push(Row::new(vec![Cond::n("adj>=", 1)], Verb::new("attack")));
     rows.push(Row::new(vec![Cond::n("self_hp<", 25)], Verb::new("follow")));
     rows.truncate(max);
-    RuleSet { rows, name: None }
+    RuleSet { rows, name: None, route: Vec::new() }
 }
 
 /// Give a game every fact (LEARNED bot).

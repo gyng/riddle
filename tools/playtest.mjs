@@ -156,7 +156,7 @@ async function attempt() {
     if (s.screen === "death") {
       await dump("death");
       // a patch card selects (Cut 19 QA); the gem applies it
-      if (await page.locator("button.patch").count()) { await clickBtn("button.patch"); if (await page.locator(".patch-gem").count()) await page.locator(".patch-gem").first().click(); await waitFor((x) => x?.screen === "camp", "camp after the patch"); await settle(); await dump("camp", { note: "patched" }); }
+      if (await page.locator("button.patch:visible").count()) { await clickBtn("button.patch:visible");   /* a `nothing beats unpatched` death folds its tablets under `others` */ if (await page.locator(".patch-gem").count()) await page.locator(".patch-gem").first().click(); await waitFor((x) => x?.screen === "camp", "camp after the patch"); await settle(); await dump("camp", { note: "patched" }); }
       else { await clickBtn("main.death button", "edit"); await waitFor((x) => x?.screen === "camp", "camp after edit"); await settle(); await dump("camp", { note: "no patch offered" }); }
     } else if (s.screen === "report") {
       await dump("report", { note: "returned" });

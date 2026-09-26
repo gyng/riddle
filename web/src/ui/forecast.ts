@@ -14,6 +14,7 @@
 // Cut 13 §5: the first paint (`Forecast.refined` false) carries `…` after each `±` so the refine's landing does not read as a
 // re-roll; the ends line has its own `±` on the death share (`death 5% ±4`, `ForecastEnds.pm`).
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
+import { BANDS, FORKS, biomeAt, frontiers, routeChips, routeForks } from "./route";
 import type { App } from "../app";
 import type { Forecast, ForecastTry, ForecastVs, Row, VsMove } from "../engine/types";
 import { h, clear, pct, replace } from "./dom";
@@ -330,8 +331,21 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       n.style.setProperty("--reach", reach.toFixed(3));
       folded.push(n);
     }
+    // Cut 26 §2–3: once a fork was seen, a band's first notch names its lane on the set's route (`D5 fens`), and the lane the route does
+    // not take at that fork hangs under it as a frontier (`crypt · D9 · ?`) — the next goal
+    const chips = routeChips(app.rules, app.lineage), route = routeForks(app.rules);
+    const front = new Map(frontiers(app.rules, app.lineage).map((f) => [f.fork, f]));
+    // a band's first floor: a seen fork's depth (its lane the chip's), or where the forecast's own lane changes (`ForecastDepth.biome`)
+    const laneAt = (depth: number): string | undefined => {
+      if (!chips.length) return undefined;
+      const c = chips.find((x) => x.depth === depth); if (c) return c.taken;
+      const b = byDepth.get(depth)?.biome, up = byDepth.get(depth - 1)?.biome;
+      if (b && up && b !== up) return b;
+      return !b && route.length === 0 && BANDS.some(([a]) => a === depth) && chips.every((x) => (FORKS as readonly number[]).includes(x.depth)) ? biomeAt(route, depth) : undefined;
+    };
     replace(notches, ...folded, ...Array.from({ length: deepest - from + 1 }, (_, k) => {
       const depth = from + k, d = byDepth.get(depth);
+      const lane = laneAt(depth), fr = front.get(depth);
       const reach = d ? d.reach : depth <= known ? 1 : 0;
       // Cut 18 §3: a walled floor's notch names the boss who seals it (`D9 · warlord`)
       const wall = d?.wall ? wallName(d.wall) : undefined;
@@ -345,11 +359,12 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const capped = cap !== undefined && depth > cap, bankHere = cap === depth && !wall;
       const bounty = depth === bountyD;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${depth === start && start > 1 ? " start" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wallText}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, lane ? h("i", { class: "lane", "data-biome": lane }, ` ${lane}`) : "", bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wallText}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
         h("small", { class: "dp" }, d ? share(d.reach, lowOf(last)) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm" }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : "",
           d ? moveMark(vsBy.get(depth)) : ""));   // Cut 22 §3: the edit's move on the notch (`▲6`, `≈`)
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
+      if (fr) n.appendChild(h("small", { class: `frontier${fr.entered ? " entered" : ""}`, "data-biome": fr.biome }, /* copy:callout */ `${fr.biome} · D${fr.fork}${fr.entered ? "" : " · ?"}`));
       return n;
     }),
     // QA 912e135 (qaW: the first camp's shaft was `D1 100%` alone, then D1–D7 after a death): the floors below the shaft's last are

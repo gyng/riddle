@@ -111,8 +111,11 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const rs = (x: number): string => replayShare(x, opts.replays);
     const line = held >= 0
       ? /* copy:callout */ `at R${held + 1}`
+      // Cut 26 §6 (control rater AQ: `nothing beats unpatched 12/12` over a tablet reading `survives 12/12`): a candidate that does not
+      // beat the unpatched replays was tried, not a help — its count never reads as a headline
+      : opts.nothingBeatsBase ? /* copy:callout */ "tried · no gain"
       : p.below_bar
-      ? opts.nothingBeatsBase ? /* copy:callout */ `survives ${rs(p.survive)}` : /* copy:callout */ `survives ${rs(p.survive)} · below bar`
+      ? /* copy:callout */ `tried · ${rs(p.survive)} · below bar`
       : baseline === undefined
         ? /* copy:callout */ `reach ${opts.depth !== undefined ? `D${opts.depth} ` : ""}${pct(p.survive)} · base ${Math.max(0, Math.round(p.survive * 100) - delta)}%`
         // QA a946e04 (S: `base 25%` on every patch — "the base of what?"): the rules as they ran, replayed — `unpatched 25%`
@@ -154,7 +157,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
         // Cut 17 §4: `survives N %` as a gauge on the patch tablet (the number stays beside it)
         unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
         h("span", { class: "num surv" }, line),
-        reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish),
+        reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish, campBaseAt(app)),
         stallish || opts.stall ? "" : wholeSpan(p)));
     applyOf.set(btn, act);
     return btn;
@@ -164,7 +167,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
   if (head) {
     const fold = h("div", { class: "patches-fold", hidden: true }, ...rows);
     const more: HTMLButtonElement = h("button", { class: "mini more patches-more", onclick: () => { fold.hidden = false; more.remove(); } }, /* copy:button */ "others", h("small", { class: "num dim" }, ` ${rows.length}`));
-    const box = h("div", { class: "patches none-beats" }, head, more, fold); renumber(fold); return box;
+    const box = h("div", { class: "patches none-beats" }, head, more, fold); renumber(fold); baseOf.set(box, campBaseAt(app)); return box;
   }
   // QA 0c6e126 (qaZ: three patches all `survives 100% · unpatched 83%` — "I could not tell which the gem ranks first or why"): when the
   // offered patches survive alike the head says so (`tied`): their order is then the reach's, once it lands, else the set's shape
@@ -176,7 +179,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
   const tied = offered.filter((p) => sv(p) === best).length > 1;
   const moment = opts.moment !== undefined && baseline !== undefined && !opts.stall && rows.length
     ? h("div", { class: "patches-moment num dim" }, /* copy:callout */ `D${opts.moment} death · replayed`, tied ? h("span", { class: "tied" }, /* copy:callout */ " · tied") : "") : null;
-  const box = h("div", { class: "patches" }, moment, ...rows); renumber(box); return box;
+  const box = h("div", { class: "patches" }, moment, ...rows); renumber(box); baseOf.set(box, campBaseAt(app)); return box;
 }
 /** QA e75ec29 (Q: "I read the gem as the best fix … rank by what is shown or show the ranking key"): the tablets carry their place
  *  (`1.` `2.` `3.`), renumbered whenever the order changes (the camp's reach landing re-ranks them). */
@@ -191,7 +194,12 @@ export const applyOf = new WeakMap<HTMLElement, () => void | Promise<void>>();
  *  `reach D6 ~0` inside the ± (as an unlock card's); `reach …` while the camp's measure is pending (`camp_pending`: the verdict's
  *  12-sim estimate is not the camp's number — QA 23ed91f, K: "`reach +8%` … the shaft went D5 79% → 78%"). A stall patch's first
  *  line already says `reach`: its delta is bare (`+84%`). */
-function reachSpan(p: Patch, stallish = false): HTMLElement {
+/** Cut 26 §6 (AP: `survives 12/12 · reach D5 −76` — "a number I could not read"): with the camp's reach at the patch's floor known,
+ *  a move reads from→to (`reach D5 80→4%`), never a signed delta; `base` looks that reach up (0..1). */
+type BaseAt = (depth: number) => number | undefined;
+const baseOf = new WeakMap<HTMLElement, BaseAt>();
+export const campBaseAt = (app: App): BaseAt => (d) => { const f = app.lastForecast; if (!f || d > f.known_to) return undefined; return f.depths.find((x) => x.depth === d)?.reach; };
+function reachSpan(p: Patch, stallish = false, base?: BaseAt): HTMLElement {
   // QA a946e04 (S: `hp < 20% → return · reach D7 +0%` — "a return ends the run") hid an exit's reach; QA 778fa1b (qaU: `hp < 40% →
   // return · survives 100%` looked best, applied: `D5 −54 · death −94`): a patch whose row ends the run (`Patch.exits`, else its verb)
   // survives by going home — its cost is floors, so it says so, `return early`, beside the reach it costs (`reach D6 −49`)
@@ -212,8 +220,13 @@ function reachSpan(p: Patch, stallish = false): HTMLElement {
   // Cut 22 §4: a move is signed points in the delta look (`reach D6 +8 ±3`), `≈` inside its ± — a move, never a reach level or a chance.
   // QA 778fa1b (qaU: `reach D6 ≈ ±14` — "a spread with no value"): `≈` is no call and stands alone; the ± rides only a move
   // Cut 24 §4: …but a ± the move sits inside is what makes it `≈` — it reads with it (`reach D6 ≈ ±5`): unresolved, not "no change"
+  // the core's own pair once the whole run is measured (`PatchWhole.reach_from/_to`), else the camp bar's level plus the move
+  const w = !stallish ? p.whole : undefined;
+  const from = !stallish && p.forecast_depth !== undefined ? base?.(p.forecast_depth) : undefined;
+  const fromTo = w?.reach_from !== undefined && w.reach_to !== undefined ? `${Math.round(w.reach_from * 100)}→${Math.round(w.reach_to * 100)}%`
+    : from !== undefined ? (() => { const a = Math.round(from * 100); return `${a}→${Math.max(0, Math.min(100, a + delta))}%`; })() : undefined;
   return flat ? h("span", { class: "num delta flat" }, `${word}${at}≈`, pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`) : "")
-    : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, `${word}${at}${delta > 0 ? "+" : "−"}${Math.abs(delta)}`, pmTag);
+    : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, `${word}${at}${fromTo ?? `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`}`, pmTag);
 }
 
 /** QA 524827b (qaAA: `hp < 20% → drink unknown · survives 12/12` led, and applied the camp's killers read fire 28 % · poison 26 %;
@@ -239,7 +252,7 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
   patches.forEach((p, i) => {
     const f = filled[i]; if (!f) return;
     Object.assign(p, { forecast_delta: f.forecast_delta, forecast_depth: f.forecast_depth, forecast_pm: f.forecast_pm, whole: f.whole, camp_pending: false });
-    buttons[i]?.querySelector(".delta")?.replaceWith(reachSpan(p));
+    buttons[i]?.querySelector(".delta")?.replaceWith(reachSpan(p, false, baseOf.get(el)));
     buttons[i]?.querySelector(".whole")?.replaceWith(wholeSpan(p));
     buttons[i]?.classList.toggle("harms", !!p.whole?.harms);
   });

@@ -86,6 +86,7 @@ export type Viewer = {
   debugPos?(): unknown[];
   debugRects?(): DebugRect[];     // Cut 14 §3: every entity drawn this frame, its on-screen rect in CSS px (the gates measure a foe's height)
   debugLabels?(): DebugLabel[];   // Cut 14 §3: every name drawn this frame (text, its row's bottom in CSS px)
+  debugStairs?(): { x: number; y: number; text: string; taken: boolean }[];   // Cut 26 §2: a fork floor's stairs drawn this frame (their plates)
   debugText?(): { kind: "callout" | "caption"; text: string }[];   // Cut 18 §2: the lines of text drawn over the fight this frame
   setQuiet?(on: boolean): void;   // Cut 22: a held beat's line is the one line — no callout or caption drawn over the fight meanwhile
   atlasInfo?(): unknown;
@@ -125,6 +126,14 @@ const FIGHT_TOP_CSS = 96;   // Cut 8A: the caption sits this many CSS px below t
 const BASE_TEXELS = 160; // Cut 14 §3 (was 200, before that 270): ~20 tiles across at 400 CSS px, a 40-texel foe ≥ 24 CSS px tall
 const STACK_SPREAD = TILE * 2 / 3; // Cut 14 §3: a stack's members fan over ±⅓ tile
 const ROOM_MAX = 600;              // Cut 14 §3: the room flood's cap in tiles (a cave floor is not one room)
+/** 307dbed control rater AR ("the ogre drew as a checkerboard blob"): a sprite's fade (a death's dissolve, a spawn, the fallen hero's
+ *  half) was a screen door on the pixel grid — at ½ a checkerboard over the sprite, held on a paused last frame. It darkens instead:
+ *  the sprite stays whole and readable, its light going (the fallen hero at ½ reads dimmed, never checkered). */
+const fadeDim = (e: { fade: number }): number => e.fade <= 0 ? 1 : Math.max(0.12, 1 - e.fade * 0.9);
+/** the cast of the hero's and the torches' light per biome (rgb multipliers on the warm amber; the Warrens and the Burrows keep it) */
+const LIGHT_TINT: Record<string, [number, number, number]> = {
+  default: [1, 1, 1], fens: [0.72, 1.02, 1.05], crypt: [0.8, 0.88, 1.2], deep: [0.7, 0.85, 1.25], sanctum: [0.95, 0.95, 1.05], foundry: [1.08, 0.9, 0.8],
+};
 const HERO_Z = 3.2, HERO_COVER = 0.3; // Cut 18 §2: the hero's depth (over every sprite, under the glyphs) and the most of his rect a sprite may cover
 const MAX_LIGHTS = 12;             // art pass: torches lighting the blit (nearest the camera)
 const HERO_TEXELS = 24;            // Cut 14 §3: the hero sprite's height in env texels (48 sprite texels); the fight k keeps it ≤ 1/5 of the screen
@@ -200,6 +209,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   scene.add(juice.emit.mesh, juice.matte.mesh, juice.nums.mesh);
   st.onEvent = (ev) => juice.onEvent(ev);
   const fieldLights: FieldLight[] = [];
+  const stairsSeen: [number, number][] = [];                                       // Cut 26 §2: this frame's seen down stairs
+  const stairPlates: { x: number; y: number; text: string; taken: boolean }[] = [];   // …and the plates a fork floor gave them
   const fires: [number, number][] = [], gases: [number, number][] = [];
   let fxLevel = -1, simDt = 0;
   function applyFx(): void {
@@ -457,10 +468,12 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const hd = atlas.envTile(b, "floor_0") !== undefined;   // art pass: register 3 loaded for this biome
     L.tiles.begin(); L.decor.begin(); L.decorHue.begin();
     lights.length = 0;
+    stairsSeen.length = 0;
     for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) {
       const i = y * st.w + x;
       if (!st.seen[i]) continue;
       const t = st.tiles[i]!;
+      if (t === "stairs_down") stairsSeen.push([x, y]);
       const prop = PROPS.has(t);
       const dim = light(i);   // Cut 14 §3: the hero's room stays lit
       const s = (hd ? envTileFor(b, x, y, t, prop) : undefined) ?? atlas.tile(b, prop ? "floor" : t, ((x * 7 + y * 13) % 11) < 2);
@@ -535,6 +548,22 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const g = stacks.get(vi); if (g) g.push(e.id); else stacks.set(vi, [e.id]);
     }
     const tagBoxes: [number, number, number, number][] = [];   // Cut 15 §4: the name tags drawn so far this frame (world x0, y0, x1, y1)
+    // Cut 26 §2: a fork floor shows its two stairs — each seen stair carries its lane's plate (the core's `Snapshot.stairs`), the stair the
+    // set's route takes lit (a gold plate and a warm light), the other dim; with no lanes on the wire both stairs still glow
+    stairPlates.length = 0;
+    if (stairsSeen.length >= 2) {
+      const px = dpr / k;
+      for (const [x, y] of stairsSeen) {
+        const info = st.stairs.find((s) => s.x === x && s.y === y);
+        const taken = !!info?.taken, text = info?.biome ?? "";
+        stairPlates.push({ x, y, text, taken });
+        if (!text) continue;
+        const nw = (text.length * TAG_CHAR + TAG_PAD) * px, th = TAG_H * px, wx = x * TILE + TILE / 2, wy = -y * TILE + 1;
+        tagBoxes.push([wx - nw / 2, wy, wx + nw / 2, wy + th]);
+        const [cx, cy] = toCss(wx, wy);
+        tags.push({ id: -1000 - y * st.w - x, text, x: cx, y: cy, w: (nw * k) / dpr, hp: -1, stair: taken ? "taken" : "other" });
+      }
+    }
     // Cut 22 (AH: "goblin nameplates stacked — cluttered at the key moment"): while a boss is in view his plate is the one drawn (and
     // the allies'); his horde carries the small pixel hp bar instead of a plate
     let bossInView = false;
@@ -593,14 +622,14 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const z = e.hero ? HERO_Z : 2 + Math.min(1, e.py / Math.max(1, st.h)) + (stackN > 1 ? stackI * 0.001 : 0);   // a stack's members never z-fight
       { const [cx, cy] = toCss(fx - w / 2, fy + h); rects.push({ id: e.id, kind: e.kind, hero: !!e.hero, x: cx, y: cy, w: (w * k) / dpr, h: (h * k) / dpr, stack: stackN, z }); }
       if (e.remembered) {
-        L.ents.push(fx, fy, z, s.w / 2, s.h / 2, s.u0, s.v0, s.u1, s.v1, REMEMBERED_DIM, 0, e.fade, e.flip ? 1 : 0);
+        L.ents.push(fx, fy, z, s.w / 2, s.h / 2, s.u0, s.v0, s.u1, s.v1, REMEMBERED_DIM * fadeDim(e), 0, 0, e.flip ? 1 : 0);
         continue;
       }
       if (!e.dying) {
         // contact shadow; companions (ally + cid, or tamed this run) get a 1-texel light ring
         const ring = st.ringShown(e);
         const sh = atlas.shadow(Math.min(w - 2, 12), ring);
-        L.shadows.push(fx, fy - (ring ? 2 : 1), 1.5, sh.w, sh.h, sh.u0, sh.v0, sh.u1, sh.v1, 1, 0, e.fade);
+        L.shadows.push(fx, fy - (ring ? 2 : 1), 1.5, sh.w, sh.h, sh.u0, sh.v0, sh.u1, sh.v1, 1, 0, e.fade >= 0.75 ? 1 : 0);
       }
       // QA 1a2a4a9 (P: "on `R1 drank heal` a large cream blob covers the hero and the conjurer for the whole moment"): a hit is a tint
       // toward the palette's brightest, never a solid silhouette (the hero hit every tick read as a blob), and a stopped clock (⏸, the
@@ -608,7 +637,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const flash = st.flashing(e) && st.speed > 0 ? Math.max(FLASH_MIX, juice.hitFlash(e.id, st.clock, e.hero)) : 0;
       // juice: squash & stretch (a hit, a lunge, a spawn's pop, a death's slump) — the feet stay put; `rects` keep the true size
       const [sqx, sqy] = juice.squash(e.id, st.clock);
-      L.ents.push(fx, fy, z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, e.ally && !e.hero ? 1.1 : 1, flash, e.fade, e.flip ? 1 : 0);
+      L.ents.push(fx, fy, z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.ally && !e.hero ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);
       // Cut 8A: in the fight frame the hero and his allies carry an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
       // above the sprite; glyphs sit above the bar. Second art pass: a hostile's bar is on its name tag instead.
       let top = fy + h + 2;
@@ -780,13 +809,17 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       for (let i = 0; i < st.tiles.length; i++) if (st.tiles[i] === "wall") wh = (Math.imul(wh, 31) + i) | 0;
       field.setMask(st.w, st.h, (i) => st.tiles[i] === "wall", `${st.w}x${st.h}:${wh}`);
       fieldLights.length = 0;
-      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(5.5, st.vision + 0.5), c: [0.78, 0.64, 0.46] }); }
+      // 307dbed control rater AR ("the Fens looked like the Burrows"): the pools were one warm amber everywhere, and an amber pool on the
+      // Fens' teal reads as the Burrows' clay — the hero's and the torches' light take the biome's own cast (the flames stay flames)
+      const tint = LIGHT_TINT[st.biome] ?? LIGHT_TINT.default!;
+      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(5.5, st.vision + 0.5), c: [0.78 * tint[0], 0.64 * tint[1], 0.46 * tint[2]] }); }
       juice.lights(now, fieldLights);
       for (const [px, py] of st.projectilePositions()) fieldLights.push({ x: px + 0.5, y: py + 0.5, r: 2, c: [0.7, 0.6, 0.4] });
       const fl = (i: number, a: number, b: number): number => quality.at("high") ? 0.88 + 0.08 * Math.sin(now * a + i * 1.7) + 0.05 * Math.sin(now * b + i * 4.1) : 1;
       fires.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD - 4) { const k = fl(i, 0.017, 0.041) * 0.9; fieldLights.push({ x: x / TILE, y: -y / TILE, r: 3, c: [1 * k, 0.5 * k, 0.15 * k] }); } });
       gases.slice(0, 4).forEach(([x, y]) => fieldLights.push({ x: x / TILE, y: -y / TILE, r: 1.8, c: [0.12, 0.2, 0.03] }));
-      lights.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD) { const k = fl(i, 0.011, 0.029); fieldLights.push({ x: x / TILE, y: -y / TILE, r: 4.2, c: [1 * k, 0.72 * k, 0.4 * k] }); } });
+      for (const sp of stairPlates) if (fieldLights.length < MAX_FIELD - 2) fieldLights.push({ x: sp.x + 0.5, y: sp.y + 0.5, r: sp.taken ? 2.6 : 1.6, c: sp.taken ? [0.95, 0.75, 0.35] : [0.35, 0.3, 0.22] });
+      lights.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD) { const k = fl(i, 0.011, 0.029); fieldLights.push({ x: x / TILE, y: -y / TILE, r: 4.2, c: [1 * k * tint[0], 0.72 * k * tint[1], 0.4 * k * tint[2]] }); } });
       field.setLights(fieldLights);
       field.render(renderer);
     }
@@ -876,6 +909,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     debugRects() { return rects.map((r) => ({ ...r })); },
     debugBiome() { return st.biome; },
     debugLabels() { return labels.map((l) => ({ ...l })); },
+    debugStairs() { return stairPlates.map((p) => ({ ...p })); },
     debugText() { return texts.map((t) => ({ ...t })); },
     setQuiet(on) { quiet = on; },
     debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, ally: !!e.ally, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },

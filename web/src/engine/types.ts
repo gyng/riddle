@@ -8,7 +8,12 @@ export type Verb = { v: string; a?: string };                      // {v:"drink"
  *  `preset`, `applyPatch` rows `patch`, bought card rows `card`, anything the player adds or edits a token of `player`). */
 export type RowOrigin = "preset" | "patch" | "card" | "player";
 export type Row  = { conds: Cond[]; verb: Verb; origin?: RowOrigin };
-export type RuleSet = { rows: Row[]; name?: string };
+export type RuleSet = { rows: Row[]; name?: string;
+                        /** Cut 26 §2 (core): the set's route — the fork depths (5 · 9 · 14 · 19 · 24) whose FAR stair the hero takes; absent/[] = the
+                         *  near stair everywhere (the base order). Non-overlapping: a far stair at D5 excludes D9 (the deferred biome is taken there).
+                         *  Written with `setRules` (the whole set, rows untouched), exported/imported and restored with sets 1–3 like the rows. The
+                         *  core refuses a fork the hero has not seen (`D9 fork unseen`). */
+                        route?: number[] };
 
 export type Vocabulary = { conds: Cond[]; verbs: Verb[]; max_rows: number;   // max_rows: Cut 12 §1, the cap on the player's OWN rows; card rows (verb.v === "tactic") sit outside it, one per owned card
                            combos?: Combo[];                                // Cut 8B §1: the combo table (adjacent-row verb pairs the engine names)
@@ -42,7 +47,27 @@ export type Snapshot = {
   room?: { id: number; hostiles: number };                                // Cut 7 §4: the room the hero is in (0 = corridor); awake hostiles in it (optional)
   rooms?: number;                                                         // Cut 7 §4: rooms on this floor, for `D3 · 4 rooms` (optional)
   floor_twist?: string;                                                   // Cut 12 §4: the floor's one situation, one word (`nest`), for `D4 · 9 rooms · a nest` (optional; absent on D1–D2)
+  fork?: SnapFork;                                                        // Cut 26 §2 (core): this floor's down stairs are a fork's (D4 on the base order) — draw a second stair at (x, y); the real stairs are `taken`'s
 };
+/** Cut 26 §2 (core) — the fork at this floor's down stairs: `depth` the band's first floor (5 · 9 · 14 · 19 · 24), `taken` the biome the
+ *  run's route takes (the floor's own `stairs_down`), `other` the stair not taken, drawn at (`x`, `y`) beside it. The hero never takes
+ *  `other`; the callout is `TWO STAIRS` (an ordinary `callout` event, once per run and fork). */
+export type SnapFork = { depth: number; taken: string; other: string; x: number; y: number };
+/** Cut 26 §2 (core) — a seen fork on the rule set's chip line (the core ships the D5 fork only — `descent::OPEN_FORKS`, Cut 26 §3's
+ *  fallback — so `Lineage.forks` holds at most `[5]` today; build for several) (`⑂ D5 fens · D14 crypt`): `near` the band's own biome, `far` the next one
+ *  early, `taken` what the active set's route takes. `open: false` — the fork above took its far stair, so this band is the deferred
+ *  biome's (`taken`), no choice (dim chip). A route edit is `setRules({...set, route})`; `forkForecast(depth)` prices both stairs. */
+export type ForkChip = { depth: number; near: string; far: string; taken: string; open?: boolean };
+/** Cut 26 §2 (core) — a lit waystone as a (lane, depth) pair: `lane` the biome there, `route` the far stairs above it it was lit on
+ *  (absent = the base order), `current` lit for the active set's route (a send can start there: `Lineage.waystones`). */
+export type LaneStone = { depth: number; lane: string; route?: number[]; current?: boolean };
+/** Cut 26 §2 (core) — one stair of a fork on the fork chip's tablet (`forkForecast(fork)`), like `StartOption`: the active set with its
+ *  route taking `biome` at `fork` (`far`), on the camp's seeds (first pass, paired with the current route's panel). `depth` = the band's
+ *  last floor (the boss's) — the chip reads `fens D8 61% · burrows D8 34%`; `delta` = `bank_delta` when either banks, else `reach_delta`;
+ *  `route` = the set's route with this stair (setRules it to take it). Fractions 0..1. */
+export type ForkOption = { fork: number; biome: string; far: boolean; current: boolean; route: number[]; depth: number;
+                           reach: number; reach_delta: number; bank: number; bank_delta: number; gold: number; gold_delta: number;
+                           death?: number; death_delta?: number; delta: number; pm: number; refined?: boolean; low?: number };
 /** Cut 5 §4 — the three items of an opened vault; `choose(id)` takes one, the rest vanish. */
 export type VaultChoice = { items: InvItem[]; left?: number;   // Cut 14: ticks of the 50-tick grace left at this snapshot (the sheet's shrinking bar)
                             pick?: number };                   // Cut 19 §1: the item id `vault_pref` takes when `left` runs out (the beat's `took mail`); `choose(id)` overrides while left > 0
@@ -100,7 +125,8 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
  *  the editor can insert (like a patch's). Render `Warlord · no counter · shield wall · try: attack boss`. */
 /** Cut 24 §2 (core) — one line of `ExitLine.news`: `k` first | record | named | find | situation | driven | learned | differ; `text` ≤ 6 words, lower case. */
 export type News = { k: "first" | "record" | "named" | "find" | "situation" | "driven" | "learned" | "differ"; text: string };
-export type DrivenOff = { boss: string; title: string; depth: number; verdict: string; defence: string; counter: string; row: Row };
+export type DrivenOff = { boss: string; title: string; depth: number; verdict: string; defence: string; counter: string; row: Row;
+                          run_id?: number; hp?: number; max_hp?: number; lost?: number };   // Cut 26 §6 (core; AP: a drive-off at 25/36 hp, no verdict screen): the run (open its verdict from the report), the hero's hp at the drive-off, the carry it lost
 /** Cut 6 §1 — one gold movement in the camp's `gold` sheet: `+$50 returned D5`, `−$40 heal`, `−$8 insure sword`. */
 export type GoldLine = { t: number; delta: number; why: string; n?: number; lost?: number };   // QA 912e135 (core): `lost` — on an exit's line, the carried gold the exit did not keep (`$0 died D6 · $157 lost`)
                                                                                                    // QA on 778fa1b (qaV): `n` — the supplies the line bought or refunded (`repeat heal` · n 4 · −$104); absent on other lines
@@ -150,6 +176,7 @@ export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
 
 /** Cut 20 §5: `bounty` — tonight's bounty floor (the lineage best + 2: gold ×2 and a guaranteed item), the shaft's `D12 ×2`. */
 export type ForecastDepth = { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry; wall?: string; bounty?: boolean | number;
+                              biome?: string;    // Cut 26 §2 (core): on a set with a route, the biome this floor sits in on it (`fens` at D5 for route [5]); absent on the base order
                               boss?: string };   // Cut 24 §5 (core): on the floor a boss stands on (met there: the Warlord D8), his kind — name him on this row; the next row's `try` / `wall` are his
 export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share: number }[];
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
@@ -203,8 +230,11 @@ export type Patch = { row: Row; insert_at: number; survive: number; forecast_del
 /** QA 524827b (qaAA: `drink unknown · 12/12` led, then the camp's killers read fire 28 % · poison 26 %): a patch's whole-run move — reach
  *  at `forecast_depth` and the death share, paired over the camp's sims, each with its 95 % ±; `harms` (worse beyond a ±: never the lead,
  *  never the gem's default); `risk` the self-dealt harm the patch raises (`fire`). Fractions 0..1. */
-export type PatchWhole = { reach: number; reach_pm: number; death: number; death_pm: number; harms?: boolean; risk?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
-export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order";   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
+export type PatchWhole = { reach: number; reach_pm: number; death: number; death_pm: number; harms?: boolean; risk?: string;
+                           reach_from?: number; reach_to?: number };   // Cut 26 §6 (core; AP: `reach D5 −76`): the bar's reach before/after the patch (0..1) — print the move as from→to (`reach D5 90→14%`), never a signed delta                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
+export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order"|"route";   // route: Cut 26 (core) — the far stair the set's route took killed him (`route_cause`)
+                      lean?: "dice";                                                        // Cut 26 §6 (core; AO: `GAP` beside `unpatched 10/12`): a gap/row/order most of whose unpatched replays survive (> 6/12) — stamp it beside the counts (`GAP · dice-leaning`)
+                      route_cause?: RouteCause;                                             // Cut 26 risks (core): on `route`, the fork, the stair taken and the other; its lead patch is a route edit (`route_cause.route`)   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
                       order_over?: number;                                                  // Cut 25 §2 (core): on `order`, the row (0-based) that won every tick `cause_row` would have acted on — `R5 under R2`; the lead patch moves R5 above it
                       cause_row?: number;                                                   // Cut 19 §4: on `row`, the set's row (0-based) that killed him (`R2`); patches[0] cuts it (`remove`, or `replace` narrowed)
                       baseline: number;                                                   // core addition: survival of the unpatched rules, 0..1
@@ -215,7 +245,10 @@ export type Death = { run_id: number; depth: number; cause: string; margin: stri
                       chain?: Because[];                                                     // Cut 11 §2: the death's chain, root first (the rows' `because`s, deduplicated)
                       rules?: RuleSet;                                                       // the rules the run died under (the accounting's row labels; else the morgue's lines)
                       notes?: string[];                                                      // Cut 13 §4: the run's last two chronicle notes, under the headline (never a `saved him` — QA 92eb880)
-                      nothing_beats_base?: boolean };                                        // QA 92eb880: a `dice` death none of whose patches survives more than `baseline` (a 100 % base: the replays win the fight he lost) — say `nothing beats base · base N%`, not `below bar`
+                      nothing_beats_base?: boolean };                                        // QA 92eb880: a `dice` death none of whose patches survives more than `baseline` (a 100 % base: the replays win the fight he lost) — say `nothing beats base · base N%`, not `below bar`. Cut 26 §6 (control rater AQ: `nothing beats unpatched 12/12` over a patch reading `survives 12/12`): the patches of such a death are what was TRIED, never help — do not print their `survives N/12` as a headline (e.g. `tried · same as base`)
+/** Cut 26 (core) — a `route` verdict: at the fork `fork` the set's route took `taken`; the near/other stair's replays survive `survive`
+ *  (≥ 50 %, beating `baseline` by ≥ 15 pts) — `D5 fens · route`, the fix `take burrows` = `setRules({...set, route})`. */
+export type RouteCause = { fork: number; taken: string; other: string; route: number[]; survive: number; base?: number };   // base: the route taken, past the floor (paired)
 /** Core addition: the last ≥ 4 runs all came home with no new depth — the row that ended them, how many, a ≤ 12-word line,
  *  and up to 3 patches with forecast deltas at the stall depth + 1 (`survive` = the patched reach there). A state: the
  *  last slice's wins on merge. */
@@ -254,6 +287,8 @@ export type ReturnReport = {
   repeat_short?: boolean;                                                     // QA 1a2a4a9: a re-pack ran short of gold and bought what it could — `repeat short` (a `$0 repeat short` ledger line at that exit)
   shelved?: { kind: string; n: number; gold?: number }[];                     // (core: `gold` = their price on the shelf) Cut 21 §2: found supplies the exits put on the shelf this absence (the next send packs them free) — `heal ×3 → shelf`
   bounty?: { depth: number; taken: boolean; gold: number };                  // Cut 20 §5: the night's bounty floor — `bounty D12 · taken $412` / `bounty D12 · missed`
+  drives?: DrivenOff[];                                                       // Cut 26 §6 (core): every drive-off of the absence (the last 5), each by `run_id` — open its verdict (`no counter`, defence, the counter row to insert) as a death's opens
+  lanes?: string[];                                                           // Cut 26 §2 (core): each band the absence's sends reached, with the lane the route played there (`D5–8 · the Fens`), shallowest first
 };
 export type Lineage = { seed: number; heir: number; trait: string; trait_offer?: string[]; class: string; look?: string; best_depth: number; marks: number;   // Cut 13 §2: `trait_offer` — two traits a new heir may wake with; `setTrait(name)` picks
                         facts: string[]; unlocks: string[]; vault: InvItem[];
@@ -290,7 +325,10 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         trait_rules?: { [trait: string]: string };                                                    // QA a946e04 (core): each trait's real rule (`cowardly` → `backs off once a floor under 50%`), the chip's words
                         renamed?: { [label: string]: string };
                         kit?: KitLadder[];                                                                            // Cut 23 §1 (core): the forge — the heir's starting kit, a ladder per slot (weapon · armour · pack); `buyKit(slot)` buys the ladder's next step
-                        row_why?: (RowWhy | null)[] };                                                                // Cut 23 §3 (core): per row of the active set (by index), what it did over the recent sends and why not — null = no sends under this row yet                                                      // QA a946e04 (core): an identified flavour's old label (`blue potion?`) → its name now (`poison`); labels stored before read through it                                                                  // Cut 21 §2 (core): kinds the last send packed that no row uses — the repeat does not re-buy them (`strength · no row`)                                                                             // Cut 21 §1: where the next send starts (1, or a lit waystone; `setStart(d)`); the send pays `$10 × start` below D1                                                                 // Cut 20 §5: tonight's bounty floor (best + 2; moves every night)
+                        row_why?: (RowWhy | null)[];
+                        forks?: ForkChip[];                                                                          // Cut 26 §2 (core): the forks the hero has seen (fact `fork:<d>`), shallowest first — the chip line above the rows; absent until D4's two stairs are seen
+                        lanes?: LaneStone[];                                                                         // Cut 26 §2 (core): every lit (lane, depth) waystone; `waystones` is now the active route's lit ones (the start sheet lists `lanes`)
+                        locked_rows?: (string | null)[] };                                                           // Cut 26 §6 (core): per row of the active set, the gate of its first cond this lineage cannot use (`see: den`, `enter fens`, `◆2`) — mark the row; absent when none                                                                // Cut 23 §3 (core): per row of the active set (by index), what it did over the recent sends and why not — null = no sends under this row yet                                                      // QA a946e04 (core): an identified flavour's old label (`blue potion?`) → its name now (`poison`); labels stored before read through it                                                                  // Cut 21 §2 (core): kinds the last send packed that no row uses — the repeat does not re-buy them (`strength · no row`)                                                                             // Cut 21 §1: where the next send starts (1, or a lit waystone; `setStart(d)`); the send pays `$10 × start` below D1                                                                 // Cut 20 §5: tonight's bounty floor (best + 2; moves every night)
 /** Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id (`shield_bash | vanish | mark | slow`);
  *  `level` the class's level; `opens` the level the signature opens at (`mark L7` while level < opens).
  *  §4 (no new wire): the Warlord's break is a callout `warlord breaks` + a note `The Warlord breaks.` (visible only), once, at ≤ 50 % hp.
@@ -389,6 +427,8 @@ export interface Engine {
   refineLane?: boolean;
   parallelForecast?: boolean;           // Cut 25 §4 (client, lanes.ts): a forecast asked while one is in flight runs beside it (an idle mirror) — the app asks at once                 // Cut 24 §4 (client, lanes.ts): the refine runs on a lane of its own — the app asks it beside an edit's first pass
   startForecast?(): StartOption[];      // §1: D1 and each lit waystone measured for the active set (memoised; seconds in wasm — call when the picker opens)
+  // Cut 26
+  forkForecast?(fork: number): ForkOption[];   // §2: both stairs of a seen fork for the active set (one extra camp panel, memoised; seconds in wasm — call when the fork chip's sheet opens)
   // Cut 23
   buyKit?(slot: string): Lineage;       // §1: buy the next forge step of `weapon | armour | pack` (gold; permanent; ledger `forge <label>`)
   kitDeltas?(): KitLadder[];            // §1: `Lineage.kit` with each `next` measured (paired forecast; seconds in wasm — call after paint, memoised)

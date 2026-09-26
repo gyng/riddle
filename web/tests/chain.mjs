@@ -126,7 +126,7 @@ try {
   const hex2rgb = (hx) => `rgb(${parseInt(hx.slice(1, 3), 16)}, ${parseInt(hx.slice(3, 5), 16)}, ${parseInt(hx.slice(5, 7), 16)})`;
   check(patches.length === 3, `3 patches shown (${patches.length})`);
   check(patches[0]?.root === "← den took the heal" && patches[0].rootColor === hex2rgb(acc), `root patch marks its root in the accent: "${patches[0]?.root}" ${patches[0]?.rootColor}`);
-  check(patches[1]?.cls.includes("below") && patches[1].opacity < 0.7 && /survives 40% · below bar/.test(patches[1].text), `below-bar patch dimmed (${patches[1]?.opacity}): "${patches[1]?.text}"`);
+  check(patches[1]?.cls.includes("below") && patches[1].opacity < 0.7 && /tried · 40% · below bar/.test(patches[1].text), `below-bar patch dimmed, read as tried (Cut 26 §6) (${patches[1]?.opacity}): "${patches[1]?.text}"`);
   check(patches[2]?.cls.includes("unlock") && /◆2 cond: alert · buy/.test(patches[2].text), `unlock pseudo-patch reads ◆2 cond: alert · buy: "${patches[2]?.text}"`);
   // the tap buys the cond's unlock, then inserts the row at the top (app.buy stubbed: the fake's marks are not the point)
   const before = await page.evaluate(() => { const r = window.__riddle; r.__buys = []; r.__buy0 = r.buy; r.buy = async (id) => { r.__buys.push(id); return true; }; return r.rules.rows.length; });

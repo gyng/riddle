@@ -40,6 +40,11 @@ pub struct RuleSet {
     pub rows: Vec<Row>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Cut 26 §2: the set's route — the fork depths whose far stair the hero takes (`[5]`: the
+    /// Fens at D5–8, the Burrows at D9–13; `descent::Route`). Written, never steered; empty is
+    /// the near stair at every fork (the base order).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub route: Vec<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -151,6 +156,8 @@ pub const COND_KEYS: &[&str] = &[
     "alert>=", "in_corridor", "path_stairs", "ally", "loot>=", "turns>", "on_hurt", "on_kill", "on_see",
     // Addendum A (party scope, companion self)
     "party", "party_hp<", "self_hp<", "self_hp>",
+    // Cut 26 §2: the biome the floor sits in (`in: fens`), open once the biome has been entered
+    "in",
 ];
 
 pub const VERB_KEYS: &[&str] = &[
@@ -208,6 +215,7 @@ impl Cond {
             "party_hp<" => format!("pet<{n}%"),
             "self_hp<" => format!("self<{n}%"),
             "self_hp>" => format!("self>{n}%"),
+            "in" => format!("in {}", self.t.clone().unwrap_or_default()),
             other => other.to_string(),
         }
     }
@@ -350,7 +358,7 @@ impl RuleSet {
     }
     /// Cut 12 §1: the set cut to `max_rows` own rows (`active`, materialised).
     pub fn fit(&self, max_rows: usize) -> RuleSet {
-        RuleSet { rows: self.active(max_rows).map(|(_, r)| r.clone()).collect(), name: self.name.clone() }
+        RuleSet { rows: self.active(max_rows).map(|(_, r)| r.clone()).collect(), name: self.name.clone(), route: self.route.clone() }
     }
     /// Cut 12 §1: the door's check for a player's set — at most `max_rows` own rows (a card's
     /// row is the card's, outside the cap), one row per card, every card owned. Errors ≤ 6
@@ -373,7 +381,18 @@ impl RuleSet {
         }
         Ok(())
     }
+    /// Cut 26 §2: the set's route (`descent::Route`; an invalid list reads as the base order —
+    /// `validate` refuses it at the door).
+    pub fn route(&self) -> crate::descent::Route {
+        crate::descent::Route::from_forks(&self.route).unwrap_or_default()
+    }
+    /// The same set taking `route`.
+    pub fn with_route(mut self, route: crate::descent::Route) -> RuleSet {
+        self.route = route.forks();
+        self
+    }
     pub fn validate(&self) -> Result<(), String> {
+        crate::descent::Route::from_forks(&self.route)?;
         if self.own_rows() > crate::engine::MAX_ROWS {
             return Err(format!("more than {} rows", crate::engine::MAX_ROWS));
         }
@@ -476,7 +495,7 @@ mod tests {
             Row::new(vec![Cond::flag("unknown_item")], Verb::arg("drink", "unknown")),
             Row::new(vec![], Verb::arg("tactic", "boss_focus")),
         ];
-        let set = RuleSet { rows, name: None };
+        let set = RuleSet { rows, name: None, route: Vec::new() };
         let hits = set.combos();
         assert_eq!(hits.len(), 2, "{hits:?}");
         assert_eq!((hits[0].rows, hits[0].name.as_str()), ([1, 2], "bait"));

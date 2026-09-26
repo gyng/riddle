@@ -51,6 +51,12 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
     let mut consumed: u64 = 0;
     let mut stall = game.stall_runs;
     let mut sampled = false;
+    // Cut 26 (seam, control rater AR: `0 RUNS` after a 20-minute break): the rest after a run the
+    // player watched was the camp time he spent on its exit; the absence starts rested.
+    if game.lineage.rest_watched {
+        game.lineage.rest_left = 0;
+        game.lineage.rest_watched = false;
+    }
     while consumed < budget {
         // Camp rest first (the heir at camp: no run, or a run not yet begun).
         if game.lineage.rest_left > 0 && game.run.as_ref().is_none_or(|r| r.turn == 0) {
@@ -77,7 +83,10 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool) -> ReturnReport
         // at camp and the next send packs what the player bought and runs the rules they
         // edited (cohort 8: a return's first run resumed a night-old run from D2 with an
         // empty pack, and its trace read `no item ← never found` beside 5/5 supplies).
-        if game.run.as_ref().is_some_and(|r| r.over.is_none() && r.turn > 0) {
+        // Cut 26 (seam): a rest that ends inside the absence — to its last tick — sends the next
+        // heir, whose run finishes past the budget like any begun run (a 20-minute break after a
+        // 20-minute rest yields its run).
+        if game.run.as_ref().is_some_and(|r| r.over.is_none() && (r.turn > 0 || consumed >= budget)) {
             let before = game.run.as_ref().unwrap().turn;
             game.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
             game.events.clear();
@@ -295,6 +304,11 @@ pub(crate) fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collec
         picked: game.lineage.picked_clean(),
         restock_capped: b.restock_capped,
         bounty: b.bounty.clone(),
+        drives: b.drives.clone(),
+        lanes: {
+            let deepest = b.run_outcomes.iter().map(|(d, _)| *d).max().unwrap_or(0);
+            game.lineage.rules().route().lanes().into_iter().filter(|(a, _, _)| deepest >= *a).map(|(a, z, biome)| format!("D{a}–{z} · {}", biome.title())).collect()
+        },
         repeat_short: b.repeat_short,
         shelved: b.shelved.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).collect(),
         heirs: b.heirs.map(|(lo, hi)| vec![lo, hi]).unwrap_or_default(),
@@ -422,7 +436,7 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     // (b) the ending row removed.
     cands.push(patch(ending.clone(), row, false, true));
     // (c) the boss counter on a boss floor the hero has met.
-    if let Some(kind) = crate::descent::boss_for(depth) {
+    if let Some(kind) = rules.route().boss(depth) {
         let facts = &game.lineage.facts;
         let known = crate::facts::boss_counter_known(facts, kind) || facts.contains(&format!("foe:{kind}"));
         if known && has_cond("foe_tag", Some("boss")) {

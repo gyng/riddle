@@ -13,7 +13,7 @@ import { audio } from "../audio";
 
 /** The last `kitDeltas()` and what it was measured for (the set, the kit owned, the best, the start): the sheet paints it at once. */
 let kitMemo: { key: string; kit: KitLadder[] } | null = null;
-const kitKey = (app: App): string => JSON.stringify([app.rules.rows, (app.lineage.kit ?? []).map((k) => k.owned), app.lineage.best_depth, app.lineage.start ?? 1]);
+const kitKey = (app: App): string => JSON.stringify([app.rules.rows, (app.rules as { route?: number[] }).route ?? [], (app.lineage.kit ?? []).map((k) => k.owned), app.lineage.best_depth, app.lineage.start ?? 1]);
 /** Cut 25 §4: the measure in flight and the state it measures — the sheet opened meanwhile waits on it rather than asking again. */
 let kitAsk: { key: string; p: Promise<KitLadder[]> } | null = null;
 /** Cut 25 §4 (AM: ~8 s of `…` on the forge's steps after an absence): the forge's moves measured ahead of the tap — the report after an

@@ -229,7 +229,9 @@ export class Juice {
   hitFlash(id: number, clock: number, hero: boolean): number {
     if (!this.on() || hero) return 0;
     const s = this.squashes.get(id);
-    return s && s.kind === "hurt" && clock - s.t0 >= 0 && clock - s.t0 < 0.7 ? 0.85 : 0;
+    // 307dbed control rater AR ("the ogre drew as a checkerboard blob"): at 0.85 a struck foe turned a cream silhouette on every blow of
+    // a long fight — a big sprite read as a placeholder; the struck foe keeps its drawing under a lighter flash
+    return s && s.kind === "hurt" && clock - s.t0 >= 0 && clock - s.t0 < 0.7 ? 0.6 : 0;
   }
 
   /** the pop lights live this frame (tile coordinates, row space — light.ts) */

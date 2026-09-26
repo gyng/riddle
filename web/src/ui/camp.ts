@@ -17,7 +17,7 @@
 // row stands in for the class button while it is up.
 import { lookStud } from "./look";
 import type { App, Mounted } from "../app";
-import type { CageOption, Lineage, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
+import type { CageOption, ForkOption, Lineage, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
@@ -35,6 +35,7 @@ import { isFreeSupply, ownRowCount, verbLabel } from "./tokens";
 import { closeAllSheets, openSheet, setPanelEscape } from "./sheet";
 import { setBusyHost } from "./progress";
 import { icon } from "./skin";
+import { biomeAt, routeChips, routeForks, seenForks, withFork } from "./route";
 
 const SET_NAME_MAX = 12;
 /** QA 524827b (qaAA): a supply whose name does not say its use — its use under the shop chip (≤ 3 words). */
@@ -64,6 +65,7 @@ export function cageDelta(o: Pick<CageOption, "current" | "depth" | "reach" | "b
 }
 /** Cut 21 §1: the last `startForecast()` and what it was measured for (the set, the start, the lit waystones, the best). */
 let startMemo: { key: string; opts: StartOption[] } | null = null;
+const forkMemo = new Map<string, ForkOption[]>();   // Cut 26 §2: the fork tablet's measures (per fork, this set's, this lineage's)
 /** Cut 21 §1: a start's toll — the engine's, else the contract's `$10 × depth` (0 at D1). */
 export const startToll = (_d: number, o?: Pick<StartOption, "toll">): number => o?.toll ?? 0;   // QA 778fa1b (qaV; core): the toll is going — the wire's toll only, no client guess
 /** QA a946e04 (T: `start → D5 · $50` at $32, and the run began on D1 with no word): can the purse pay a start's toll now? The engine's
@@ -130,6 +132,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 21 §1: where the send starts — its own tablet beside the rules and the cage (`start → D9 · $90`), carved when the first
   // waystone lights; the tap opens the picker (D1 and each lit waystone, each with its forecast move and toll)
   const startTab = h("button", { class: "row tablet compact start-tab", hidden: true, onclick: () => openStartPicker() });
+  // Cut 26 §2: the set's route — a chip line above the rows (`⑂ D5 fens · D14 crypt`), carved once a hero has stood on two stairs (the
+  // fact `fork D5`); the tap opens the fork tablet (both stairs priced for this set)
+  const routeTab = h("button", { class: "route-line", hidden: true, onclick: () => openRoutePicker() });
   const party = renderParty(app);
   const fc = renderForecast(app);
   const shaft = renderShaft(app, () => togglePanel("forecast"), () => revealed(app).has("gems"));
@@ -168,7 +173,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, editor.el, cageTab, startTab), shaft.el));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab), shaft.el));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   const restLine = h("div", { class: "rest-line" }, rest);
@@ -362,7 +367,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // QA 524827b (qaAA: `weapon D6 6%` on the sheet under the camp's refined `D6 11%`; `armour 60% ▲54`, picked: `57% · cage +46`): the
     // options are measured on the pass the camp shows (`refined`), so the current one is the camp's number and a pick lands where it said
     const refined = app.lastForecast?.refined === true;
-    const key = (): string => JSON.stringify([app.rules.rows, app.lineage.vault_pref ?? "weapon", app.lineage.best_depth, simKey(app), refined]);
+    const key = (): string => JSON.stringify([app.rules.rows, (app.rules as { route?: number[] }).route ?? [], app.lineage.vault_pref ?? "weapon", app.lineage.best_depth, simKey(app), refined]);
     openSheet((close) => {
       const list = h("div", { class: "chips cage-opts" });
       const paint = (opts: CageOption[] | null, pending: boolean): void => {
@@ -391,6 +396,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     startTab.classList.toggle("short", short);
     replace(startTab, h("span", { class: "rn num" }, icon("depth", "▼")),
       h("span", { class: "rtext" }, /* copy:rule_token */ "start", h("span", { class: "arrow" }, " → "), h("span", { class: "num" }, `D${st}`),
+        st > 1 && seenForks(L).length && laneOf(st, o) ? h("span", { class: "lane" }, ` ${laneOf(st, o)}`) : "",
         pass ? h("small", { class: "num toll pass dim" }, /* copy:rule_token */ " · pass")
           : toll > 0 ? h("small", { class: `num toll${short ? " short warn" : " dim"}` }, short ? /* copy:rule_token */ ` · $${toll} short` : ` · $${toll}`) : ""));
   }
@@ -406,12 +412,14 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   function openStartPicker(): void {
     const L0 = app.lineage;
-    const key = (): string => JSON.stringify([app.rules.rows, app.lineage.start ?? 1, app.lineage.waystones ?? [], app.lineage.best_depth, simKey(app)]);
+    const key = (): string => JSON.stringify([app.rules.rows, (app.rules as { route?: number[] }).route ?? [], app.lineage.start ?? 1, app.lineage.waystones ?? [], app.lineage.best_depth, simKey(app)]);
     openSheet((close) => {
       const list = h("div", { class: "chips start-opts" });
       const paint = (opts: StartOption[] | null, pending: boolean): void => {
         const cur = app.lineage.start ?? 1;
         const starts = [...new Set([1, ...(app.lineage.waystones ?? L0.waystones ?? [])])].sort((a, b) => a - b);
+        // Cut 26 §2: a waystone is lit per route prefix — once a fork was seen each start names its lane (`D9 crypt`: the pair lit)
+        const laneOn = seenForks(app.lineage).length > 0;   // (no fork seen: every lane is the base order's — nothing to name)
         replace(list, ...starts.map((st) => {
           const o = opts?.find((x) => x.start === st); const toll = startToll(st, o);
           // QA a946e04 (T: `START D1 · bank 86%` beside the panel's `bank 85%`): the current start's own level is the camp forecast's —
@@ -429,19 +437,77 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           const short = !pass && startShort(app.lineage, st, o);
           return h("button", { class: `chip start-opt${st === cur ? " on" : ""}${short ? " off short" : ""}`, "data-start": st, disabled: short && st !== cur,
             onclick: async () => { close(); if (st !== cur && app.engine.setStart) await app.mutate(() => app.engine.setStart!(st)); } },
-            h("span", { class: "num" }, `D${st}`),
+            h("span", { class: "num" }, `D${st}`), st > 1 && laneOn && laneOf(st, o) ? h("span", { class: "lane", "data-biome": laneOf(st, o) }, ` ${laneOf(st, o)}`) : "",
             d ? h("b", { class: `num level${st === cur ? " cur" : ""}` }, ` · ${d.text}`) : pending && st !== cur ? h("small", { class: "num dim" }, " …") : "",
             // Cut 22 §4 (AG: "`D9 · bank +3% · $90` — but the shaft then says death 61%"): the start's death share beside its bank
             d && death !== undefined ? h("span", { class: `num start-death${death >= 0.5 ? " warn" : ""}` }, /* copy:callout */ ` · death ${share(death, lo)}`) : "",
             d && net !== undefined ? h("span", { class: `num start-gold gold${net <= 0 ? " warn" : ""}` }, ` · ~$${net}`) : "",
             pass ? h("small", { class: "num toll pass" }, /* copy:callout */ " · pass") : toll > 0 ? h("small", { class: `num toll${short ? " warn" : ""}` }, short ? /* copy:callout */ ` · $${toll} short` : ` · $${toll}`) : "");
-        }));
+        }),
+        // Cut 26 §2: the (lane, depth) pairs lit on another route (`Lineage.lanes`, not `current`) — shown dim, not a start for this set
+        ...(app.lineage.lanes ?? []).filter((x) => !x.current && x.depth > 1).map((x) => h("span", { class: "chip start-opt other-lane off dim", "data-start": x.depth, "data-biome": x.lane, "aria-disabled": "true" },
+          h("span", { class: "num" }, `D${x.depth}`), h("span", { class: "lane" }, ` ${x.lane}`), x.route?.length ? h("small", { class: "num dim" }, ` · ⑂ ${x.route.map((f) => `D${f}`).join(" ")}`) : "")));
       };
       const k = key(), memo = startMemo?.key === k ? startMemo.opts : null;
       paint(memo, !memo && !!app.engine.startForecast);
       if (!memo && app.engine.startForecast) void app.engine.startForecast().then((opts) => { startMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); paintStart(); }).catch((e) => { console.warn("startForecast", e); if (list.isConnected) paint(null, false); });
       return h("div", { class: "sheet-body start-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "start"), list);
     }, { anchor: startTab });
+  }
+  /** Cut 26 §2: the lane a start sits in for this set — the core's lit pair (`Lineage.lanes`, `current`), the option's own biome, else the
+   *  base order's table while the set takes every near stair */
+  function laneOf(st: number, o?: StartOption): string | undefined {
+    return app.lineage.lanes?.find((x) => x.depth === st && x.current)?.lane ?? o?.biome ?? (!routeForks(app.rules).length && !app.lineage.forks?.length ? biomeAt([], st) : undefined);
+  }
+  function paintRoute(): void {
+    const chips = routeChips(app.rules, app.lineage);
+    routeTab.hidden = !chips.length;
+    if (!chips.length) return;
+    // a fork the stair above closed (its biome deferred here) is no choice: its chip is dim
+    replace(routeTab, h("span", { class: "fork-glyph", "aria-hidden": "true" }, "⑂"), " ",
+      ...chips.flatMap((c, i) => [i ? h("span", { class: "sep dim" }, " · ") : "", h("span", { class: `route-chip${c.isFar ? " far" : ""}${c.open ? "" : " closed dim"}`, "data-fork": c.depth, "data-biome": c.taken }, h("span", { class: "num" }, `D${c.depth}`), " ", c.taken)]));
+  }
+  /** Cut 26 §2: the fork tablet — per open fork, both stairs for the current set: the lane and its reach at the band's end (`fens D8 61%
+   *  · burrows D8 34%`), the core's `forkForecast(fork)` (first-pass sims on the camp's seeds, memoised; seconds in wasm) painting `…`
+   *  until it lands; the stair the set takes lit. A tap writes the route — an edit of the set (the forecast reprices; `vs sent` reads it). */
+  function openRoutePicker(): void {
+    const key = (fork: number): string => JSON.stringify([fork, app.rules.rows, routeForks(app.rules), app.lineage.best_depth, simKey(app), app.lineage.facts?.length]);
+    openSheet((close) => {
+      const list = h("div", { class: "route-opts" });
+      const got = new Map<number, ForkOption[] | null>();   // per fork: the options landed (null: pending or none)
+      const paint = (): void => {
+        const r = routeForks(app.rules), lo = lowOf(app.lastForecast);
+        replace(list, ...routeChips(app.rules, app.lineage).filter((c) => c.open).map((c) => {
+          const opts = got.get(c.depth) ?? null, pending = !!app.engine.forkForecast && !opts;
+          const stair = (far: boolean): HTMLElement => {
+            const biome = far ? c.far : c.near, cur = c.isFar === far;
+            const o = opts?.find((x) => x.far === far);
+            // the current stair's level is the camp forecast's own (the shaft's number) when it is this set's, at the option's bar
+            const at = o?.depth, said = cur && at !== undefined && app.lastForecast && app.lastForecast.known_to >= at ? app.lastForecast.depths.find((x) => x.depth === at)?.reach : undefined;
+            const reach = said ?? o?.reach, low = o?.low || lo;
+            return h("button", { class: `chip route-opt${cur ? " on" : ""}`, "data-fork": c.depth, "data-far": far ? "1" : "0", "data-biome": biome,
+              onclick: () => { close(); if (!cur) setRoute(o?.route ?? withFork(r, c.depth, far, app.lineage)); } },
+              h("span", null, biome), reach !== undefined && at !== undefined ? h("b", { class: `num level${cur ? " cur" : ""}` }, ` D${at} ${share(reach, low)}`) : pending ? h("small", { class: "num dim" }, " …") : "");
+          };
+          return h("div", { class: "route-fork", "data-fork": c.depth }, h("span", { class: "num fork-at" }, `⑂ D${c.depth}`), stair(false), stair(true));
+        }));
+      };
+      paint();
+      for (const c of routeChips(app.rules, app.lineage).filter((x) => x.open)) {
+        const k = key(c.depth), memo = forkMemo.get(k);
+        if (memo) { got.set(c.depth, memo); continue; }
+        if (app.engine.forkForecast) void app.engine.forkForecast(c.depth).then((opts) => { forkMemo.set(k, opts); got.set(c.depth, opts); if (list.isConnected) paint(); })
+          .catch((e) => { console.warn("forkForecast", e); got.set(c.depth, []); if (list.isConnected) paint(); });
+      }
+      if (forkMemo.size > 32) forkMemo.clear();
+      paint();
+      return h("div", { class: "sheet-body route-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "route"), list);
+    }, { anchor: routeTab });
+  }
+  function setRoute(route: number[]): void {
+    const set = app.rules;
+    if (route.length) set.route = route; else delete set.route;
+    app.rulesChanged(); paintRoute();
   }
   /** Cut 19 §3: the loadout repeats by default — the tile carries `repeat · $120` (the kinds the next send re-packs, at the shelf's
    *  price); a tap on it clears the repeat (`setRestock(false)`, the shelf refunded), `repeat off` a tap turns it back on. */
@@ -648,7 +714,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     fn();
     boxes.forEach((b, i) => { if (b && b.scrollTop !== tops[i]) b.scrollTop = tops[i]; });
   }
-  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintRoute(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);

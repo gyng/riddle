@@ -126,3 +126,24 @@ every band, and makes choosing between them part of the policy the player writes
 - **Attribution**: a death on the far lane is the route's choice — the verdict may name the route
   (`route` as a row-like cause, `D5 fens`) when the near lane's replays survive ≥ 50 % and beat
   base by 15 pts, as `order` does for rows.
+
+## Deviations (core, recorded)
+
+- **D5 fork only** (`descent::OPEN_FORKS = [5]`, the contract's fallback): lineages that reach D9
+  are L3–4, where every set passes the D13 boss ≤ 20 % on either lane (viability unreachable); at L7
+  D9's cross-lane loss was +14 / +27 with the far lane 46 % viable; the Fens are D9's near lane on
+  the base route, so tuning them breaks the 307dbed save-identity gate. All 13 routes stay
+  playable in sims and the gate table.
+- **The D5 lane gate is measured at the first fork's real state** (4 rows, L3, no cards, no `in:`,
+  2 heals): cross-lane loss +16 / +20 (bar 15), gold/hr 1.08×, EDITED's best 95 % / 58 %,
+  diversity 0.76. **At ≥ 5 rows one set dominates both lanes** — the fork is a decision early and
+  fades as the list grows. Content tuning tried (flasks off the Warlord's shields) moved ≤ 1 pt and
+  was reverted.
+- §6 "reads dice-leaning" is `Death.lean = "dice"`, not a changed verdict (turning those deaths
+  into dice verdicts took dice 4.7 → 10.7 %).
+- Full table 820 s vs 680 s for 307dbed on the same loaded machine (+20 %; ~4.2 min quiet); route
+  bots take half the verdict sample to stay under 4.5 min.
+- The 20-minute rest seam (control cohort): a watched exit's rest no longer carries into the next
+  absence — 20m / 4h / 8h yield 1 / 7–9 / 14–17 runs on the preset (was 0 / 6–8 / 13–16).
+- Forge on the cohort sets: whole-forge bank move −27…+48, median +4.7; 13 of 28 sets ≤ 3 pts,
+  4 lose; 8 h brings ~$2,000 and buys 1–4 steps — the gold sink is a next-cut item.

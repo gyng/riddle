@@ -1,6 +1,6 @@
 //! The game: lineage state, the live run, and the public API mirrored by the wasm bridge.
 use crate::defs::{spawn_table, Cat};
-use crate::descent::{biome_for, boss_for, Biome, Grudge, ENDING_DEPTH};
+use crate::descent::{Biome, Grudge, Route, ENDING_DEPTH};
 use crate::gen::{generate, Floor};
 use crate::geom::Pos;
 use crate::hero::{mastery_card, xp_to_next, Class, Hero, Trait};
@@ -119,6 +119,16 @@ pub struct Bones {
     /// The grave had deeds: recovering it is a highlight.
     #[serde(default)]
     pub named: bool,
+    /// Cut 26 §1: the biome of the floor the heir fell on (`None`: the base order's).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub biome: Option<Biome>,
+}
+
+impl Bones {
+    /// Cut 26 §1: whether the pile lies on this floor (its depth, its biome).
+    pub fn lies_on(&self, depth: u32, biome: Biome) -> bool {
+        self.depth == depth && self.biome.unwrap_or(crate::descent::biome_for(self.depth)) == biome
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -215,6 +225,12 @@ pub struct Run {
     /// one, goes on drawing from the run's stream.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub floor_streams: bool,
+    /// Cut 26 §1: the route this send descends — the active set's at the send (`RuleSet.route`).
+    #[serde(default, skip_serializing_if = "Route::is_base")]
+    pub route: Route,
+    /// Cut 26 §2: the deepest fork whose two stairs this run has seen (`facts::fork_seen`).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub fork_seen: u32,
     pub stolen: Vec<(u32, String)>,
     /// Cut 20 §1: the ids of the items thieves took this run, and what was taken back from a
     /// killed thief's drop (turn, label).
@@ -638,6 +654,23 @@ pub struct Run {
 }
 
 impl Run {
+    /// Cut 26 §2: the fork at this floor's down stairs, if its band offers two (`Snapshot.fork`):
+    /// the other stair beside the real one (the first open neighbour, top row first).
+    pub fn fork_snap(&self) -> Option<crate::wire::SnapFork> {
+        let next = self.depth + 1;
+        if !crate::descent::OPEN_FORKS.contains(&next) || !self.route.fork_open(next) {
+            return None;
+        }
+        let i = crate::descent::FORKS.iter().position(|f| *f == next)?;
+        let taken = self.route.biome(next);
+        let (near, far) = (crate::descent::BASE_ORDER[i], crate::descent::BASE_ORDER[i + 1]);
+        let other = if taken == near { far } else { near };
+        let s = self.floor.stairs_down;
+        let mut cands: Vec<Pos> = s.neighbours8().into_iter().filter(|q| self.floor.map.passable(*q) && *q != self.floor.stairs_up).collect();
+        cands.sort_by_key(|q| (q.y, q.x));
+        let at = cands.first().copied().unwrap_or(s);
+        Some(crate::wire::SnapFork { depth: next, taken: taken.name().into(), other: other.name().into(), x: at.x, y: at.y })
+    }
     /// Cut 5 §4: a tile the chores keep out of — within two of a sleeping den — while the
     /// hero is not tempted.
     pub fn in_den_zone(&self, p: Pos) -> bool {
@@ -730,7 +763,7 @@ impl Run {
         self.next_item_id
     }
     pub fn biome(&self) -> Biome {
-        biome_for(self.depth)
+        self.route.biome(self.depth)
     }
     pub fn allies(&self) -> impl Iterator<Item = &Monster> {
         self.monsters.iter().filter(|m| m.ally && m.hp > 0)
@@ -962,6 +995,11 @@ pub struct LineageState {
     /// Camp rest (or wake) left before the next expedition, in ticks. `send` skips it.
     #[serde(default)]
     pub rest_left: u32,
+    /// Cut 26 (seam, control rater AR: a 20-minute absence read `0 RUNS`): the rest left is a
+    /// watched run's — the player saw that exit, and the camp time since was its rest; the next
+    /// absence does not wait it out again (`offline::run_offline_with`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rest_watched: bool,
     /// Bones piles (§2), oldest first.
     #[serde(default)]
     pub bones: Vec<Bones>,
@@ -1090,6 +1128,11 @@ pub struct LineageState {
     /// lit from `banked_depths` at the load).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub waystones: Vec<u32>,
+    /// Cut 26 §2: waystones lit on a lane off the base order — (depth, the route's prefix to it:
+    /// `Route::prefix`), ascending. A waystone is a place: D9 in the Burrows (a Fens-first
+    /// route's) is not D9 in the Fens. The base order's stay in `waystones`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lane_stones: Vec<(u32, u8)>,
     /// §1: the floor the next send starts on — 1, or a lit waystone (`Game::set_start`). A
     /// start below D1 pays `WAYSTONE_TOLL × depth` at the send (`start_run`).
     #[serde(default = "default_start")]
@@ -1205,8 +1248,13 @@ pub const NIGHT_RUNS: u32 = 16;
 /// lineage has not passed (its boss unslain and the best depth not below it): a bounty is a
 /// floor a run can reach. Set once at the night's end; fixed for the night.
 pub fn bounty_floor(best_depth: u32, kills: &BTreeSet<String>) -> u32 {
+    bounty_floor_on(best_depth, kills, Route::BASE)
+}
+
+/// `bounty_floor` on a route (Cut 26 §1: the bosses where the route puts them).
+pub fn bounty_floor_on(best_depth: u32, kills: &BTreeSet<String>, route: Route) -> u32 {
     let want = best_depth + BOUNTY_BELOW;
-    let wall = crate::descent::BOSS_DEPTHS.iter().filter(|(k, d)| *d >= best_depth && !kills.contains(*k)).map(|(_, d)| *d).min();
+    let wall = route.bosses().into_iter().filter(|(k, d)| *d >= best_depth && !kills.contains(*k)).map(|(_, d)| d).min();
     want.min(wall.unwrap_or(u32::MAX)).clamp(1, crate::descent::ENDING_DEPTH - 1)
 }
 
@@ -1277,6 +1325,7 @@ impl LineageState {
             keep_pref: "best_weapon".into(),
             insured: Vec::new(),
             rest_left: 0,
+            rest_watched: false,
             bones: Vec::new(),
             kill_counts: BTreeMap::new(),
             last_supplies: Vec::new(),
@@ -1316,6 +1365,7 @@ impl LineageState {
             restock_off: false,
             look: None,
             waystones: Vec::new(),
+            lane_stones: Vec::new(),
             start: 1,
             kit: BTreeMap::new(),
             night_net: 0,
@@ -1582,7 +1632,7 @@ impl LineageState {
             bounty: self.bounty.map(|depth| crate::wire::Bounty { depth }),
             // (priced on the shelf by `Game::lineage`)
             repeat_gold: 0,
-            waystones: self.waystones.clone(),
+            waystones: self.stones(),
             start: self.start.max(1),
             start_toll: LineageState::start_toll(self.start),
             repeat_dropped: {
@@ -1597,7 +1647,59 @@ impl LineageState {
             renamed: self.renamed(),
             kit: crate::kit::ladders(self),
             row_why: self.row_why(),
+            forks: self.fork_chips(),
+            lanes: self.lane_list(),
+            locked_rows: self.locked_rows(self.rules()),
         }
+    }
+    /// Cut 26 §2: the seen forks, each with the active set's stair (`Lineage.forks`).
+    pub fn fork_chips(&self) -> Vec<crate::wire::ForkChip> {
+        let route = self.rules().route();
+        crate::descent::FORKS
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| self.facts.contains(&format!("fork:{f}")))
+            .map(|(i, f)| crate::wire::ForkChip {
+                depth: *f,
+                near: crate::descent::BASE_ORDER[i].name().into(),
+                far: crate::descent::BASE_ORDER[i + 1].name().into(),
+                taken: route.biome(*f).name().into(),
+                open: route.fork_open(*f),
+            })
+            .collect()
+    }
+    /// Cut 26 §2: every lit (lane, depth) pair (`Lineage.lanes`).
+    pub fn lane_list(&self) -> Vec<crate::wire::LaneStone> {
+        let route = self.rules().route();
+        let mut v: Vec<(u32, Route)> = self.waystones.iter().map(|d| (*d, Route::BASE)).chain(self.lane_stones.iter().map(|(d, p)| (*d, Route(*p)))).collect();
+        v.sort();
+        v.into_iter().map(|(d, r)| crate::wire::LaneStone { depth: d, lane: r.biome(d).name().into(), route: r.forks(), current: route.prefix(d) == r }).collect()
+    }
+    /// Cut 26 §6: per row of `rules`, the gate of its first cond this lineage cannot use
+    /// (`Lineage.locked_rows`); empty when every row's conds are open.
+    pub fn locked_rows(&self, rules: &RuleSet) -> Vec<Option<String>> {
+        let vocab = crate::tokens::vocabulary(self);
+        let locked = crate::tokens::locked_conds(self, &vocab.conds);
+        let open = |c: &crate::rules::Cond| vocab.conds.iter().any(|o| o.same_token(c)) || c.k == "party" || matches!(c.k.as_str(), "self_hp<" | "self_hp>");
+        let v: Vec<Option<String>> = rules
+            .rows
+            .iter()
+            .map(|r| {
+                r.conds.iter().find(|c| !open(c)).map(|c| {
+                    if let Some(l) = locked.iter().find(|l| l.cond.same_token(c)) {
+                        l.needs.clone()
+                    } else if c.k == "in" {
+                        format!("enter {}", c.t.as_deref().unwrap_or(""))
+                    } else {
+                        "locked".into()
+                    }
+                })
+            })
+            .collect();
+        if v.iter().all(|x| x.is_none()) {
+            return Vec::new();
+        }
+        v
     }
     /// QA on a946e04: every identified flavoured kind's flavour label → its wire name
     /// (`Lineage.renamed`).
@@ -1616,7 +1718,7 @@ impl LineageState {
     /// QA on 92eb880: `rules`' shadowed rows for this lineage (a row whose condition it does not
     /// own never fires, so it shadows nothing); empty when none is shadowed.
     pub fn shadowed_by(&self, rules: &RuleSet) -> Vec<Option<u32>> {
-        let v = rules.shadowed_by(self.max_rows(), |c| crate::meta::cond_unlock(&c.k).is_none_or(|u| self.unlocks.contains(u)) && (c.k != "on_see" || c.t.as_deref().is_none_or(|t| t.is_empty() || self.facts.contains(t))));
+        let v = rules.shadowed_by(self.max_rows(), |c| if c.k == "on_see" && c.t.as_deref().is_some_and(|t| !t.is_empty()) { c.t.as_deref().is_some_and(|t| self.facts.contains(t)) } else { crate::meta::cond_unlock(&c.k).is_none_or(|u| self.unlocks.contains(u)) });
         if v.iter().all(|x| x.is_none()) {
             return Vec::new();
         }
@@ -1816,7 +1918,7 @@ impl LineageState {
         self.theft_skip.clear();
         // Cut 20 §5 (AC: "after the absence 15 of 16 runs banked, so the second half had
         // little at stake"): the deep calls — the next night's bounty floor.
-        self.bounty = Some(bounty_floor(self.best_depth, &self.kills));
+        self.bounty = Some(bounty_floor_on(self.best_depth, &self.kills, self.rules().route()));
     }
 
     /// Cut 13 §2: pick one of the offered traits (the chip beside `♟3`); refused when it is
@@ -1829,15 +1931,47 @@ impl LineageState {
 
     /// Cut 21 §1: a bank from `depth` lights every waystone at or above it; the ones it lit.
     pub fn light_waystones(&mut self, depth: u32) -> Vec<u32> {
-        let lit: Vec<u32> = WAYSTONES.iter().copied().filter(|w| *w <= depth && !self.waystones.contains(w)).collect();
-        self.waystones.extend(lit.iter().copied());
-        self.waystones.sort_unstable();
+        self.light_waystones_on(depth, Route::BASE)
+    }
+    /// Cut 26 §2: a bank on `route` lights each waystone at or above its floor for the route's
+    /// prefix to it (the base order's in `waystones`, a lane's in `lane_stones`); the ones it lit.
+    pub fn light_waystones_on(&mut self, depth: u32, route: Route) -> Vec<u32> {
+        let mut lit = Vec::new();
+        for w in WAYSTONES.iter().copied().filter(|w| *w <= depth) {
+            if self.stone_lit(w, route) {
+                continue;
+            }
+            let p = route.prefix(w);
+            if p.is_base() {
+                self.waystones.push(w);
+                self.waystones.sort_unstable();
+            } else {
+                self.lane_stones.push((w, p.0));
+                self.lane_stones.sort_unstable();
+            }
+            lit.push(w);
+        }
         lit
     }
+    /// Cut 26 §2: whether the waystone at `depth` is lit for `route` (its prefix to the floor).
+    pub fn stone_lit(&self, depth: u32, route: Route) -> bool {
+        let p = route.prefix(depth);
+        if p.is_base() {
+            self.waystones.contains(&depth)
+        } else {
+            self.lane_stones.contains(&(depth, p.0))
+        }
+    }
+    /// The waystones lit for the active set's route, ascending.
+    pub fn stones(&self) -> Vec<u32> {
+        let route = self.rules().route();
+        WAYSTONES.iter().copied().filter(|w| self.stone_lit(*w, route)).collect()
+    }
 
-    /// Cut 21 §1: the send's start floor — 1, or a lit waystone (`set_start`).
+    /// Cut 21 §1: the send's start floor — 1, or a lit waystone (`set_start`). Cut 26 §2: lit
+    /// for the active set's route.
     pub fn set_start(&mut self, depth: u32) -> Result<(), String> {
-        if depth != 1 && !self.waystones.contains(&depth) {
+        if depth != 1 && !self.stone_lit(depth, self.rules().route()) {
             return Err(format!("D{depth} not lit"));
         }
         self.start = depth;
@@ -1848,7 +1982,7 @@ impl LineageState {
     /// a send from `depth` starts there — D1, or a lit waystone whose pass is held tonight or
     /// that the purse pays now.
     pub fn start_payable(&self, depth: u32) -> bool {
-        depth <= 1 || (self.waystones.contains(&depth) && (self.night_passes.contains(&depth) || self.gold >= LineageState::start_toll(depth)))
+        depth <= 1 || (self.stone_lit(depth, self.rules().route()) && (self.night_passes.contains(&depth) || self.gold >= LineageState::start_toll(depth)))
     }
     /// Cut 21 §1: the toll a start at `depth` pays at the send (`$0` from D1).
     pub fn start_toll(depth: u32) -> i32 {
@@ -2193,6 +2327,9 @@ pub struct Batch {
     pub nohp: Vec<u32>,
     #[serde(default)]
     pub driven_off: u32,
+    /// Cut 26 §6: the batch's drive-offs (the last `EXITS_CAP`), for `ReturnReport.drives`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub drives: Vec<crate::wire::DrivenOff>,
     /// §3: what the automations bought this batch, per kind → (n, coins); the exact coins of
     /// salvage and of wake pay, so the night's gold reconciles to the coin
     /// (`gold_earned + salvage_gold + wake_pay − spent == the purse's delta`).
@@ -2457,7 +2594,7 @@ impl Game {
         let used = l.row_kinds();
         let mut skip = l.theft_skip.clone();
         let want = l.start.max(1);
-        let toll = if want > 1 && l.waystones.contains(&want) && !l.night_passes.contains(&want) && l.gold >= LineageState::start_toll(want) { LineageState::start_toll(want) } else { 0 };
+        let toll = if want > 1 && l.stone_lit(want, l.rules().route()) && !l.night_passes.contains(&want) && l.gold >= LineageState::start_toll(want) { LineageState::start_toll(want) } else { 0 };
         let mut gold = l.gold - toll;
         let mut n = l.supplies.len();
         let (mut due, mut unpaid) = (Vec::new(), Vec::new());
@@ -2514,6 +2651,16 @@ impl Game {
                     if let Some(l) = locked.iter().find(|l| l.cond.same_token(c)) {
                         return Err(format!("row {}: {} is locked ({})", i + 1, c.short(), l.needs));
                     }
+                    // Cut 26 §2: a biome never entered is no cond yet (seen at a fork or not).
+                    if c.k == "in" && !self.lineage.facts.contains(&format!("biome:{}", c.t.as_deref().unwrap_or(""))) {
+                        return Err(format!("row {}: {} is locked (enter {})", i + 1, c.short(), c.t.as_deref().unwrap_or("")));
+                    }
+                }
+            }
+            // Cut 26 §2: a route takes only forks the hero has seen.
+            for f in &set.route {
+                if !self.lineage.facts.contains(&format!("fork:{f}")) {
+                    return Err(format!("D{f} fork unseen"));
                 }
             }
         }
@@ -2749,6 +2896,7 @@ impl Game {
         l.best_depth = 0;
         l.banked_depths.clear();
         l.waystones.clear();
+        l.lane_stones.clear();
         l.start = 1;
         // Cut 23 §1: the forge starts over with the gold.
         l.kit.clear();
@@ -2864,7 +3012,8 @@ impl Game {
         let (start, start_note, toll) = self.pay_start();
         let wanted = self.lineage.start.max(1);
         let mut rng = Rng::new(seed);
-        let floor = generate(&mut rng, biome_for(start), start);
+        let route = self.lineage.rules().route();
+        let floor = generate(&mut rng, route.biome(start), start);
         let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
         hero.apply_level(self.lineage.class_level());
         // Starting arms by class, at the forge's steps (Cut 23 §1; the kit's ids are never loot).
@@ -2971,6 +3120,8 @@ impl Game {
             near_deaths: Vec::new(),
             gambles: Vec::new(),
             floor_streams: false,
+            route,
+            fork_seen: 0,
             gambles_survived: Vec::new(),
             gamble_harm: 0,
             own_throw: None,
@@ -3153,7 +3304,7 @@ impl Game {
         if let Some(text) = start_note {
             crate::chronicle::note(run, &mut cx.1, text);
         }
-        let (d, biome) = (run.depth, biome_for(run.depth));
+        let (d, biome) = (run.depth, run.biome());
         crate::chronicle::note(run, &mut cx.1, format!("Heir {} enters D{d}, {}.", run.heir, biome.title()));
         if d > 1 {
             crate::facts::learn(run, &mut cx.1, format!("biome:{}", biome.name()));
@@ -3175,7 +3326,7 @@ impl Game {
         if want == 1 {
             return (1, None, 0);
         }
-        if !self.lineage.waystones.contains(&want) {
+        if !self.lineage.stone_lit(want, self.lineage.rules().route()) {
             return (1, Some(format!("D{want} unlit: from D1.")), 0);
         }
         if self.lineage.night_passes.contains(&want) {
@@ -3475,6 +3626,7 @@ impl Game {
             room: Some(run.room_ref()),
             rooms: Some(run.floor.rooms.len() as u32),
             floor_twist: run.floor_twist.as_deref().map(|t| crate::situations::twist_word(t).to_string()),
+            fork: run.fork_snap(),
         }
     }
 
@@ -3720,6 +3872,7 @@ impl Game {
         // Camp rest (Cut 2 §1): as long as the expedition, capped; a death is a fixed wake.
         let rest = self.rest_after(run.turn, tier);
         self.lineage.rest_left = rest;
+        self.lineage.rest_watched = self.watched && !self.sim && !self.offline;
         self.events.push(Ev::Rest { t, seconds: rest.div_ceil(crate::offline::TICKS_PER_SECOND as u32) });
         // Marks (Cut 2 §2): new depth, boss, trophy, rank. First kills stay in bests and the ledger.
         let mut marks = 0;
@@ -3767,7 +3920,7 @@ impl Game {
         }
         // Cut 21 §1: a bank lights the waystones at or above its floor (`waystone D9`).
         if tier == ExitTier::Bank && !run.timed_out {
-            for d in self.lineage.light_waystones(run.depth) {
+            for d in self.lineage.light_waystones_on(run.depth, run.route) {
                 bests.push(format!("waystone D{d}"));
                 self.events.push(Ev::Note { t, text: format!("Waystone D{d} lit.") });
             }
@@ -4031,7 +4184,7 @@ impl Game {
             }
             if !rest.is_empty() {
                 let named = !self.batch.bests.is_empty() || !run.boss_kills.is_empty();
-                self.lineage.bones.push(Bones { heir: run.heir, depth: run.depth, items: rest.clone(), named });
+                self.lineage.bones.push(Bones { heir: run.heir, depth: run.depth, items: rest.clone(), named, biome: Some(run.biome()) });
                 while self.lineage.bones.len() > BONES_MAX {
                     self.lineage.bones.remove(0);
                 }
@@ -4183,7 +4336,7 @@ impl Game {
                     name = crate::descent::grudge_name(&mut self.lineage.rng);
                 }
                 new_grudge = Some(format!("grudge: {name} the {}", kind_title(&cause).to_lowercase()));
-                self.lineage.grudges.push(Grudge { kind: cause.clone(), name, depth: run.depth, heir: run.heir, avenged: false });
+                self.lineage.grudges.push(Grudge { kind: cause.clone(), name, depth: run.depth, heir: run.heir, avenged: false, biome: Some(run.biome()) });
             }
             // Cut 5 §2: the heir's line in the lineage chronicle.
             let bones_left = self.lineage.bones.last().is_some_and(|b| b.heir == run.heir);
@@ -4298,7 +4451,13 @@ impl Game {
         // drove him off (`· by Warlord`); `no counter` is the COUNTER tablet's verdict, beside its `try:`.
         if let Some(kind) = &run.driven_off {
             let row = crate::facts::counter_row(kind);
-            let d = crate::wire::DrivenOff { boss: kind.clone(), title: crate::sifter::boss_short(kind).into(), depth: run.depth, verdict: "no counter".into(), defence: crate::facts::boss_trait(kind).into(), counter: crate::facts::counter_text(&row), row };
+            let d = crate::wire::DrivenOff { boss: kind.clone(), title: crate::sifter::boss_short(kind).into(), depth: run.depth, verdict: "no counter".into(), defence: crate::facts::boss_trait(kind).into(), counter: crate::facts::counter_text(&row), row, run_id: run.id, hp: run.hero.hp, max_hp: run.hero.max_hp, lost: line.carried - line.kept };
+            if !self.sim {
+                self.batch.drives.push(d.clone());
+                while self.batch.drives.len() > EXITS_CAP {
+                    self.batch.drives.remove(0);
+                }
+            }
             if let Some(rest) = line.text.strip_prefix("returned ") {
                 line.text = format!("driven {rest}");
             }
@@ -5283,7 +5442,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
     }
     // Boss with escorts, near the down stairs. Cut 7 §1: the D5 lieutenant is placed the same
     // way (he holds the stairs), with goblins round him.
-    if let Some(boss) = boss_for(depth).or_else(|| crate::descent::lieutenant_for(depth)) {
+    // Cut 26 §1: the route's — a biome's boss on the last floor of the band it sits in, the
+    // Captain on the Burrows' first floor.
+    if let Some(boss) = run.route.boss(depth).or_else(|| run.route.lieutenant(depth)) {
         let near: Vec<Pos> = run
             .floor
             .open_tiles()
@@ -5307,7 +5468,7 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
     // from D3, awake and already on the hero's trail.
     // Cut 24 §2 (AK: `Ulak is avenged.`, then Ulak again): an avenged grudge retires for good.
     let hunted = hunter.filter(|h| depth >= 3 && !h.avenged);
-    for g in grudges.iter().filter(|g| g.depth == depth && !g.avenged).chain(hunted) {
+    for g in grudges.iter().filter(|g| g.lives_on(depth, biome) && !g.avenged).chain(hunted) {
         let pos = take(&mut run.rng, &open, &mut cursor);
         if run.occupied(pos) {
             continue;
@@ -5359,9 +5520,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         Biome::Fens => vec!["fire", "poison", if depth.is_multiple_of(2) { "fire" } else { "poison" }],
         Biome::Foundry => {
             // The smiths' rack: a bow on the doorstep (melee is reflected here).
-            if depth == crate::descent::biome_first(Biome::Foundry) {
+            if depth == run.route.first(Biome::Foundry) {
                 vec!["fire", "poison", "caustic", "bow"]
-            } else if boss_for(depth).is_some() {
+            } else if run.route.boss(depth).is_some() {
                 // The Master's own stockpile, for whoever reaches him.
                 vec!["fire", "fire", "poison", "caustic", "bow"]
             } else {
@@ -5369,9 +5530,9 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             }
         }
         Biome::Deep => {
-            if depth == crate::descent::biome_first(Biome::Deep) {
+            if depth == run.route.first(Biome::Deep) {
                 vec!["silence", "silence", "lantern", "regen"]
-            } else if boss_for(depth).is_none() {
+            } else if run.route.boss(depth).is_none() {
                 vec!["silence", "silence", "regen"]
             } else {
                 vec!["silence", "regen"]
@@ -5526,7 +5687,8 @@ pub fn tame_chance(facts: &BTreeSet<String>, kind: &str) -> u32 {
 /// item id is the dead heir's number).
 pub fn place_bones(run: &mut Run) {
     let depth = run.depth;
-    let heirs: Vec<u32> = run.bones.iter().filter(|b| b.depth == depth && !run.bones_found.contains(&b.heir)).map(|b| b.heir).collect();
+    let biome = run.biome();
+    let heirs: Vec<u32> = run.bones.iter().filter(|b| b.lies_on(depth, biome) && !run.bones_found.contains(&b.heir)).map(|b| b.heir).collect();
     if heirs.is_empty() {
         return;
     }

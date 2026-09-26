@@ -19,6 +19,20 @@ pub fn learn(run: &mut Run, cx: &mut Ctx, fact: String) -> bool {
     true
 }
 
+/// Cut 26 §2: the hero sees a fork's two stairs (the down stairs of the floor above a band whose
+/// stairs offer the near biome and the next one; not when the fork above took its far stair):
+/// the `fork:<depth>` fact, once per lineage (the editor shows the fork from then on), and the
+/// `TWO STAIRS` callout, once per run and fork. The route decides which stair the hero takes.
+pub fn fork_seen(run: &mut Run, cx: &mut Ctx) {
+    let next = run.depth + 1;
+    if run.fork_seen >= next || !crate::descent::OPEN_FORKS.contains(&next) || !run.route.fork_open(next) || !run.floor.map.is_visible(run.floor.stairs_down) {
+        return;
+    }
+    run.fork_seen = next;
+    learn(run, cx, format!("fork:{next}"));
+    crate::chronicle::callout(run, cx, "TWO STAIRS");
+}
+
 pub fn learn_tag(run: &mut Run, cx: &mut Ctx, kind: &str, tag: &str) -> bool {
     learn(run, cx, format!("foe:{kind}:{tag}"))
 }

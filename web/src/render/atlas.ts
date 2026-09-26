@@ -266,7 +266,7 @@ export class Atlas {
       const kind = id.replace(/^boss_/, "");
       const [bw, bh] = ENTITY_BOX[kind] ?? [32, 32];
       const sc = texelH ? texelH / r.h : Math.min(bw / r.w, bh / r.h);
-      put(this.sprite, `ent:${kind}`, Math.max(1, Math.round(r.w * sc)), Math.max(1, Math.round(r.h * sc)));
+      putDown(this.sprite, `ent:${kind}`, img, r, Math.max(1, Math.round(r.w * sc)), Math.max(1, Math.round(r.h * sc)));
     } else if (ovm) {
       const frames = ovm[2] === undefined ? [0, 1] : [Number(ovm[2])];
       for (const f of frames) put(this.env, `ov:${ovm[1]}_${f}`, 8, 8);
@@ -276,6 +276,36 @@ export class Atlas {
       put(this.env, `item:${id.replace(/^item_/, "")}`, 8, 8);
     }
   }
+}
+
+/** 307dbed control rater AR ("the ogre drew as a checkerboard blob"): a painted 2× master cut to its runtime size by nearest sampling
+ *  keeps every other texel of its dither — the ogre's hide read as noise. A sprite is cut down by area: each texel the coverage-weighted
+ *  mean of the master texels under it (colour weighted by alpha), kept where the master covers ≥ half of it (a crisp silhouette, the
+ *  shader's alpha test unchanged). Same slot, same size; a master already at size is copied as before. */
+function putDown(sheet: Sheet, id: string, img: HTMLImageElement, r: Rect, w: number, h: number): void {
+  const slot = sheet.alloc(id, w, h);
+  if (w >= r.w && h >= r.h) { sheet.ctx.imageSmoothingEnabled = false; sheet.ctx.drawImage(img, r.x, r.y, r.w, r.h, slot.x, slot.y, w, h); return; }
+  const src = document.createElement("canvas"); src.width = r.w; src.height = r.h;
+  const sc = src.getContext("2d", { willReadFrequently: true })!; sc.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+  const s = sc.getImageData(0, 0, r.w, r.h).data, out = sheet.ctx.createImageData(w, h), d = out.data;
+  const fx = r.w / w, fy = r.h / h;
+  for (let Y = 0; Y < h; Y++) {
+    const y0 = Y * fy, y1 = y0 + fy;
+    for (let X = 0; X < w; X++) {
+      const x0 = X * fx, x1 = x0 + fx;
+      let cr = 0, cg = 0, cb = 0, ca = 0, area = 0;
+      for (let yy = Math.floor(y0); yy < Math.ceil(y1); yy++) {
+        const wy = Math.min(y1, yy + 1) - Math.max(y0, yy);
+        for (let xx = Math.floor(x0); xx < Math.ceil(x1); xx++) {
+          const wgt = (Math.min(x1, xx + 1) - Math.max(x0, xx)) * wy, i = (yy * r.w + xx) * 4, a = (s[i + 3]! / 255) * wgt;
+          cr += s[i]! * a; cg += s[i + 1]! * a; cb += s[i + 2]! * a; ca += a; area += wgt;
+        }
+      }
+      const o = (Y * w + X) * 4;
+      if (ca / area >= 0.5) { d[o] = Math.round(cr / ca); d[o + 1] = Math.round(cg / ca); d[o + 2] = Math.round(cb / ca); d[o + 3] = 255; }
+    }
+  }
+  sheet.ctx.putImageData(out, slot.x, slot.y);
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

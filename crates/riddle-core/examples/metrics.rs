@@ -10,6 +10,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 #[path = "lever_lib/mod.rs"]
 mod lever;
+#[path = "lanes_lib/mod.rs"]
+mod lanes;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Bot {
@@ -181,7 +183,7 @@ type CohortDeaths = BTreeMap<(usize, u64), Vec<DeathMix>>;
 
 /// Cut 19 §2: `set` without its `return` rows (the death share's comparison).
 fn without_return(set: &RuleSet) -> RuleSet {
-    RuleSet { rows: set.rows.iter().filter(|r| r.verb.v != "return").cloned().collect(), name: set.name.clone() }
+    RuleSet { rows: set.rows.iter().filter(|r| r.verb.v != "return").cloned().collect(), name: set.name.clone(), route: set.route.clone() }
 }
 
 /// A lineage that owns what a cohort set needs (its cards, its condition tokens, eight
@@ -206,7 +208,7 @@ fn cohort_game(set: &RuleSet, seed: u64) -> Game {
 /// Cut 24 §1: a cohort job's sends' longest no-HP stretches, and the sends a boss drove off.
 type NoHp = (Vec<u32>, u32);
 
-fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> ((u32, u32, u32, u32), Vec<DeathMix>, NoHp) {
+fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> ((u32, u32, u32, u32), Vec<DeathMix>, NoHp, bool) {
     let mut g = cohort_game(set, seed);
     g.max_deaths = 100_000;
     riddle_core::offline::run_offline_quick(&mut g, hours * 3600);
@@ -226,7 +228,44 @@ fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64) -> ((u32, u32, u32, u32),
     let deaths = g.batch.run_outcomes.iter().filter(|(_, c)| c.is_some()).count() as u32;
     // QA on 778fa1b (qaV): runs with a bloodless dance (`Batch.dances`).
     // Cut 24 §1: each send's longest no-HP stretch, and the sends a boss drove off.
-    ((g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths, g.batch.dances), mix, (g.batch.nohp.clone(), g.batch.driven_off))
+    // Cut 26 §4: whether the lineage saw the D9 fork (D8's two stairs) before the absence ended.
+    let fork9 = g.lineage.facts.contains("fork:9");
+    ((g.batch.run_outcomes.len() as u32, g.batch.stalls + capped, deaths, g.batch.dances), mix, (g.batch.nohp.clone(), g.batch.driven_off), fork9)
+}
+
+/// Cut 26 §4: the first-hour agent — a fresh lineage on the preset that writes the first patch its
+/// first death offers, sending until the hero sees the D5 fork (D4's two stairs): the sends it took
+/// (`None`: not within `cap`).
+fn first_fork(seed: u64, cap: u32) -> Option<u32> {
+    let mut g = Game::new(seed);
+    let mut patched = false;
+    for send in 1..=cap {
+        g.lineage.rest_left = 0;
+        g.start_run(None);
+        let mut n = 0;
+        while g.run.as_ref().is_some_and(|r| r.over.is_none()) && n < riddle_core::engine::MAX_TURNS_PER_RUN {
+            g.tick();
+            g.events.clear();
+            n += 1;
+        }
+        let died = g.run.as_ref().is_some_and(|r| r.over == Some(ExitTier::Death));
+        let id = g.run.as_ref().map(|r| r.id).unwrap_or(0);
+        g.finish_run();
+        g.auto_keep();
+        g.events.clear();
+        if g.lineage.facts.contains("fork:5") {
+            return Some(send);
+        }
+        if died && !patched {
+            if let Some(d) = g.death(id) {
+                if let Some(p) = d.patches.iter().find(|p| p.insert_at >= 0 && !p.below_bar) {
+                    let set = riddle_core::offline::apply_patch(g.lineage.rules(), p, g.lineage.max_rows());
+                    patched = g.set_rules(set).is_ok();
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Cut 23 §2: the death mix per cohort set — the share of deaths on the walk home, the top
@@ -713,8 +752,45 @@ fn patch_fired(g: &Game, rec: &riddle_core::engine::DeathRec, rules: &RuleSet, r
     false
 }
 
+/// Cut 26 §3: the lane gate's lineage seeds and paired sends per lane and seed.
+const LANE_SEEDS: u64 = 3;
+const LANE_SIMS: u32 = 96;
+
+/// Cut 26 §3: the plateau search's results (`examples/lanes.rs --search`), shipped as a preset:
+/// the per-lane best sets are re-read on fresh paired seeds by the table.
+fn lane_found() -> Vec<lanes::Found> {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/presets/lanes.json");
+    std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+/// Cut 26 §4: the first-hour agent's sends (the first fork is due within six).
+const FIRST_FORK_CAP: u32 = 12;
+const FIRST_FORK_SENDS: u32 = 6;
+
+/// Cut 26 §5: the bots the gate table also plays on a swapped route, one per seed.
+const ROUTE_BOTS: [Bot; 5] = [Bot::Default, Bot::Edited, Bot::Random, Bot::Passive, Bot::Learned];
+
+/// Cut 26 §5: the swapped route a seed plays (the gate table's sample, as verdicts are sampled):
+/// the 12 routes off the base order in turn, so 30 seeds cover each of them.
+fn sampled_route(seed: u64) -> riddle_core::descent::Route {
+    let all = riddle_core::descent::Route::all();
+    all[1 + ((seed as usize).saturating_sub(1)) % (all.len() - 1)]
+}
+
 fn run_seed(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: bool) -> SeedResult {
+    run_seed_on(bot, seed, hours, verdicts_per_seed, kit, riddle_core::descent::Route::BASE)
+}
+
+/// `run_seed` on `route` (every fork seen; the bot's set written with it).
+fn run_seed_on(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit: bool, route: riddle_core::descent::Route) -> SeedResult {
     let mut g = setup(bot, seed);
+    if !route.is_base() {
+        for f in riddle_core::descent::FORKS {
+            g.lineage.facts.insert(format!("fork:{f}"));
+        }
+        let set = g.lineage.rules().clone().with_route(route);
+        g.set_rules_raw(set).expect("the bot's set on a route");
+    }
     if kit {
         riddle_core::kit::buy_all(&mut g.lineage);
         // `KIT_ONLY=weapon,armour`: the kitted bots with those ladders alone (tuning).
@@ -1049,6 +1125,12 @@ fn main() {
         Forge(usize, u64),
         /// Cut 25 §1: a cohort set's lever — the whole forge's bank move against its best row's.
         Lever(usize, u64),
+        /// Cut 26 §5: a `ROUTE_BOTS` bot on the seed's swapped route (`sampled_route`).
+        Route(usize, u64),
+        /// Cut 26 §4: the first-hour agent on a fresh lineage (`first_fork`).
+        FirstFork(u64),
+        /// Cut 26 §3: a fork's lane gate on one lineage seed (`lanes::gate`).
+        Lane(u32, u64),
     }
     let sets = Arc::new(cohort_sets());
     // `--gold`: the Cut 22 §1 gold table alone (the cohort sets' sends; ~20 s).
@@ -1074,6 +1156,10 @@ fn main() {
     if !quick || lever_only {
         jobs.extend((0..sets.len()).filter(|&si| sets[si].1.rows.iter().any(|r| r.verb.v == "bank")).flat_map(|si| (1..=lever_seeds).map(move |s| Job::Lever(si, s))));
     }
+    jobs.extend(ROUTE_BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Route(bi, s))));
+    jobs.extend((1..=seeds).map(Job::FirstFork));
+    let found = Arc::new(lane_found());
+    jobs.extend(lanes::LANE_FORKS.iter().filter(|f| found.iter().any(|x| x.fork == **f)).flat_map(|&f| (1..=LANE_SEEDS).map(move |s| Job::Lane(f, s))));
     jobs.extend(BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Bot(bi, s))));
     // Cut 22 §3: each cohort set's one-notch edits, paired against the set.
     jobs.extend((0..sets.len()).map(Job::Paired));
@@ -1090,9 +1176,14 @@ fn main() {
         jobs.retain(|j| matches!(j, Job::Lever(..)));
     }
     // `--bots`: the bots alone — the per-bot table and the verdict sample (the dice measure; ~2 min).
+    // `--forks`: the Cut 26 rows alone — the first fork's sends and the lanes' gate (~1–2 min).
+    let forks_only = args.iter().any(|a| a == "--forks");
+    if forks_only {
+        jobs.retain(|j| matches!(j, Job::FirstFork(..) | Job::Lane(..)));
+    }
     let bots_only = args.iter().any(|a| a == "--bots");
     if bots_only {
-        jobs.retain(|j| matches!(j, Job::Bot(..)));
+        jobs.retain(|j| matches!(j, Job::Bot(..) | Job::Route(..)));
     }
     // `--threads N` leaves cores to whatever runs beside the table (gates.mjs: the dayplayer's
     // sequential chains, which the full 32 starved — docs/ITERATION_SPEED.md §3.2).
@@ -1108,10 +1199,16 @@ fn main() {
     let kresults: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let forges: Arc<Mutex<BTreeMap<(usize, u64), ForgeTally>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let levers: Arc<Mutex<Levers>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let rresults: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let cforks: Arc<Mutex<BTreeMap<(usize, u64), bool>>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let ffork: Arc<Mutex<BTreeMap<u64, Option<u32>>>> = Arc::new(Mutex::new(BTreeMap::new()));
+    type LaneReads = Vec<(usize, f64, f64, f64)>;
+    let lgates: Arc<Mutex<BTreeMap<(u32, u64), LaneReads>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let mut handles = Vec::new();
     for _ in 0..threads {
         let (jobs, results, cohort, counters, sets, golds, paireds, cdeaths) = (Arc::clone(&jobs), Arc::clone(&results), Arc::clone(&cohort), Arc::clone(&counters), Arc::clone(&sets), Arc::clone(&golds), Arc::clone(&paireds), Arc::clone(&cdeaths));
-        let (kresults, forges, cnohp, levers) = (Arc::clone(&kresults), Arc::clone(&forges), Arc::clone(&cnohp), Arc::clone(&levers));
+        let (kresults, forges, cnohp, levers, rresults) = (Arc::clone(&kresults), Arc::clone(&forges), Arc::clone(&cnohp), Arc::clone(&levers), Arc::clone(&rresults));
+        let (cforks, ffork, lgates, found) = (Arc::clone(&cforks), Arc::clone(&ffork), Arc::clone(&lgates), Arc::clone(&found));
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some(job) = job else { break };
@@ -1129,6 +1226,25 @@ fn main() {
                     let r = lever::gate(&sets[si].1, seed, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN);
                     levers.lock().unwrap().insert((si, seed), r);
                 }
+                Job::Lane(fork, seed) => {
+                    let r = lanes::gate_seed(&found, fork, seed, LANE_SIMS);
+                    if std::env::var("METRICS_PHASES").is_ok() {
+                        eprintln!("job LANE D{fork} {seed} {:.1}s", tj.elapsed().as_secs_f64());
+                    }
+                    lgates.lock().unwrap().insert((fork, seed), r);
+                }
+                Job::FirstFork(seed) => {
+                    let r = first_fork(seed, FIRST_FORK_CAP);
+                    ffork.lock().unwrap().insert(seed, r);
+                }
+                Job::Route(bi, seed) => {
+                    // (half the base's verdict sample: the routes' dice share reads over ~600 verdicts)
+                    let r = run_seed_on(ROUTE_BOTS[bi], seed, hours, verdicts_per_seed.div_ceil(2), false, sampled_route(seed));
+                    if std::env::var("METRICS_PHASES").is_ok() {
+                        eprintln!("job ROUTE {} {seed} {:.1}s", ROUTE_BOTS[bi].name(), tj.elapsed().as_secs_f64());
+                    }
+                    rresults.lock().unwrap().insert((bi, seed), r);
+                }
                 Job::Bot(bi, seed) => {
                     let r = run_seed(BOTS[bi], seed, hours, verdicts_per_seed, false);
                     if std::env::var("METRICS_PHASES").is_ok() {
@@ -1138,9 +1254,10 @@ fn main() {
                 }
                 Job::Cohort(si, seed, bare) => {
                     let set = if bare { without_return(&sets[si].1) } else { sets[si].1.clone() };
-                    let (r, mix, nohp) = cohort_stalls(&set, seed, 4);
+                    let (r, mix, nohp, fork9) = cohort_stalls(&set, seed, 4);
                     cohort.lock().unwrap().insert((si, seed, bare), r);
                     if !bare {
+                        cforks.lock().unwrap().insert((si, seed), fork9);
                         cdeaths.lock().unwrap().insert((si, seed), mix);
                         cnohp.lock().unwrap().insert((si, seed), nohp);
                     }
@@ -1164,6 +1281,21 @@ fn main() {
         h.join().unwrap();
     }
     phase("jobs");
+    if forks_only {
+        let ns = seeds as usize;
+        let ff = ffork.lock().unwrap();
+        let mut sends: Vec<u32> = ff.values().map(|v| v.unwrap_or(99)).collect();
+        sends.sort();
+        let within = pct(sends.iter().filter(|s| **s <= FIRST_FORK_SENDS).count(), ns);
+        println!("first fork: within {FIRST_FORK_SENDS} sends {within:.0}% · {:?}", sends);
+        let lg = lgates.lock().unwrap();
+        for fork in lanes::LANE_FORKS {
+            let gs: Vec<LaneReads> = (1..=LANE_SEEDS).filter_map(|s| lg.get(&(fork, s)).cloned()).collect();
+            let Some((g, win)) = lanes::gate_pool(&found, fork, &gs) else { continue };
+            println!("lanes D{fork}: loss {:+.0} · {:+.0} · own {:.0}% {:.0}% · cross {:.0}% {:.0}% · EDITED's {:.0}% {:.0}% · $/h {:.2}× · near {} · far {}", 100.0 * g.loss(0), 100.0 * g.loss(1), 100.0 * g.own[0], 100.0 * g.own[1], 100.0 * g.cross[0], 100.0 * g.cross[1], 100.0 * g.edited[0], 100.0 * g.edited[1], g.gold_ratio(), found[win[0]].seed_set, found[win[1]].seed_set);
+        }
+        return;
+    }
     let lever_rows = |rows: &mut Vec<(String, String, bool)>| lever_report(&sets, &levers.lock().unwrap(), lever_seeds, rows);
     if lever_only {
         let mut rows = Vec::new();
@@ -1320,7 +1452,8 @@ fn main() {
     let dice = weighted("dice");
     // Cut 19 §4: a `row` death traces to a row too — the one the player wrote.
     let row = weighted("row");
-    let gap = weighted("gap") + row;
+    // Cut 26: a `route` death traces to the route the set wrote (a row-like cause).
+    let gap = weighted("gap") + row + weighted("route");
     println!("verdict sample: {} verdicts, raw dice share {raw_dice:.1}% · death-weighted {dice:.1}% · row {row:.1}%", verdicts.len());
     if bots_only {
         return;
@@ -1332,6 +1465,102 @@ fn main() {
     let dice_ok = if dice_n < 500.0 { dice <= 5.0 + dice_pm } else { dice <= 5.0 };
     rows.push((format!("Unfair deaths (dice) ≤ 5% (n={}, death-weighted{})", verdicts.len(), if dice_n < 500.0 { format!(", ±{dice_pm:.1} sample") } else { String::new() }), format!("{dice:.1}%"), dice_ok));
     rows.push(("Deaths tracing to a row (gap + row) ≥ 70%".into(), format!("{gap:.1}%"), gap >= 70.0));
+    // Cut 26 §5: the bots again on each seed's swapped route (`sampled_route`: the twelve in turn).
+    {
+        let rres = rresults.lock().unwrap();
+        let on_route = |bot: Bot| -> Vec<&SeedResult> {
+            let bi = ROUTE_BOTS.iter().position(|b| *b == bot).unwrap();
+            (1..=seeds).filter_map(|s| rres.get(&(bi, s))).collect()
+        };
+        if on_route(Bot::Default).len() == ns {
+            let (rd, re) = (on_route(Bot::Default), on_route(Bot::Edited));
+            let covered: std::collections::BTreeSet<_> = (1..=seeds).map(sampled_route).collect();
+            println!("routes (Cut 26 §5): {} of {} swapped routes sampled across {seeds} seeds", covered.len(), riddle_core::descent::Route::all().len() - 1);
+            for bot in ROUTE_BOTS {
+                let rs = on_route(bot);
+                println!("  {:<8} on routes: best-depth mean {:.2} · mean death depth {:.2} · ≤D8 {:.0}% · ≥D10 {:.0}%", bot.name(), rs.iter().map(|r| r.best_depth as f64).sum::<f64>() / ns as f64, mean_death(&rs), pct(rs.iter().filter(|r| r.best_depth <= 8).count(), ns), pct(rs.iter().filter(|r| r.best_depth >= 10).count(), ns));
+            }
+            let d_le8 = pct(rd.iter().filter(|r| r.best_depth <= 8).count(), ns);
+            rows.push(("Routes: DEFAULT dies by ≤ D8 ≥ 80% of seeds".into(), format!("{d_le8:.0}%"), d_le8 >= 80.0));
+            let (e10, d10) = (pct(re.iter().filter(|r| r.best_depth >= 10).count(), ns), pct(rd.iter().filter(|r| r.best_depth >= 10).count(), ns));
+            rows.push(("Routes: EDITED − DEFAULT (≥ D10) ≥ 15 pts".into(), format!("{:.0} pts", e10 - d10), e10 - d10 >= 15.0));
+            let r_lose = pct(on_route(Bot::Random).iter().filter(|r| r.best_depth < 19).count(), ns);
+            rows.push(("Routes: RANDOM loses 100%".into(), format!("{r_lose:.0}%"), r_lose >= 100.0));
+            let p_le3 = pct(on_route(Bot::Passive).iter().filter(|r| r.best_depth <= 3).count(), ns);
+            rows.push(("Routes: PASSIVE loses by ≤ D3 100%".into(), format!("{p_le3:.0}%"), p_le3 >= 100.0));
+            let (ml, md) = (mean_death(&on_route(Bot::Learned)), mean_death(&rd));
+            rows.push(("Routes: LEARNED mean depth ≤ DEFAULT + 2".into(), format!("{ml:.2} vs {md:.2}"), ml <= md + 2.0));
+            let (mut num, mut den, mut nv) = (0.0, 0usize, 0usize);
+            for bot in ROUTE_BOTS {
+                let rs = on_route(bot);
+                let vs: Vec<&String> = rs.iter().flat_map(|r| r.verdicts.iter()).collect();
+                let deaths: usize = rs.iter().map(|r| r.causes.len()).sum();
+                nv += vs.len();
+                if vs.is_empty() || deaths == 0 {
+                    continue;
+                }
+                num += deaths as f64 * vs.iter().filter(|v| v.as_str() == "dice").count() as f64 / vs.len() as f64;
+                den += deaths;
+            }
+            let rdice = 100.0 * num / den.max(1) as f64;
+            let rpm = if nv > 0 { 196.0 * (0.05 * 0.95 / nv as f64).sqrt() } else { 0.0 };
+            let rok = if nv < 500 { rdice <= 5.0 + rpm } else { rdice <= 5.0 };
+            rows.push((format!("Routes: dice ≤ 5% (n={nv}, death-weighted{})", if nv < 500 { format!(", ±{rpm:.1} sample") } else { String::new() }), format!("{rdice:.1}%"), rok));
+        }
+    }
+    // Cut 26 §3: lanes that want different sets — at each fork the per-lane best set (the plateau
+    // search's, `presets/lanes.json`) loses ≥ 15 pts on the other lane, paired; EDITED's best per
+    // lane reaches the band's end ≥ 50 %; gold/hr within 1.5×; the clears' sets diverse.
+    {
+        let lg = lgates.lock().unwrap();
+        for fork in lanes::LANE_FORKS {
+            let gs: Vec<LaneReads> = (1..=LANE_SEEDS).filter_map(|s| lg.get(&(fork, s)).cloned()).collect();
+            let Some((g, win)) = lanes::gate_pool(&found, fork, &gs) else { continue };
+            let names = [found[win[0]].seed_set.clone(), found[win[1]].seed_set.clone()];
+            for (l, w) in win.iter().enumerate() {
+                println!("  D{fork} {} best (from {}): {}", ["near", "far"][l], found[*w].seed_set, found[*w].set.rows.iter().map(|r| r.describe()).collect::<Vec<_>>().join(" | "));
+            }
+            let [near, far] = lanes::lanes(fork);
+            println!("lanes D{fork} (Cut 26 §3; {} rows, L{}, {LANE_SIMS} paired sends × {} seeds): near {} best {} {:.0}% (on {} {:.0}%) · far {} best {} {:.0}% (on {} {:.0}%) · $/h {:.0} · {:.0} · EDITED's {:.0}% · {:.0}%", lanes::rows_cap(fork), lanes::level(fork), gs.len(), near.biome(fork).name(), names[0], 100.0 * g.own[0], far.biome(fork).name(), 100.0 * g.cross[0], far.biome(fork).name(), names[1], 100.0 * g.own[1], near.biome(fork).name(), 100.0 * g.cross[1], g.gold[0], g.gold[1], 100.0 * g.edited[0], 100.0 * g.edited[1]);
+            let (a, b) = (g.loss(0), g.loss(1));
+            let ev = g.edited[0].min(g.edited[1]);
+            // (a fork the descent keeps closed — `descent::OPEN_FORKS` — is measured and printed, not gated)
+            if !riddle_core::descent::OPEN_FORKS.contains(&fork) {
+                println!("  D{fork} fork closed (recorded): loss {:+.0} · {:+.0} · EDITED's {:.0}% · {:.0}% · $/h ratio {:.2}×", 100.0 * a, 100.0 * b, 100.0 * g.edited[0], 100.0 * g.edited[1], g.gold_ratio());
+                continue;
+            }
+            rows.push((format!("Lanes D{fork}: no set dominates (cross-lane loss ≥ 15 pts, paired)"), format!("{:+.0} · {:+.0}", 100.0 * a, 100.0 * b), a >= 0.15 - 1e-9 && b >= 0.15 - 1e-9));
+            rows.push((format!("Lanes D{fork}: both viable (EDITED's best ≥ 50% band end)"), format!("{:.0}% · {:.0}%", 100.0 * g.edited[0], 100.0 * g.edited[1]), ev >= 0.5 - 1e-9));
+            rows.push((format!("Lanes D{fork}: gold/hr ratio ≤ 1.5×"), format!("{:.2}×", g.gold_ratio()), g.gold_ratio() <= 1.5 + 1e-9));
+        }
+        // The diversity of the sets that clear the open forks' bands (≥ 50 % past the band's boss),
+        // over every seed set and lane of the search.
+        let open: Vec<lanes::Found> = found.iter().filter(|f| riddle_core::descent::OPEN_FORKS.contains(&f.fork)).cloned().collect();
+        if !open.is_empty() {
+            let (d, c) = lanes::diversity(&open);
+            let div = d as f64 / c.max(1) as f64;
+            rows.push((format!("Lanes: rule-set diversity over band clears ≥ 0.5 (n={c})"), format!("{d}/{c} = {div:.2}"), div >= 0.5 - 1e-9 && c > 0));
+        }
+    }
+    // Cut 26 §4: the first fork arrives in the first hour; the D9 fork before the cohort absence ends.
+    {
+        let ff = ffork.lock().unwrap();
+        if ff.len() == ns {
+            let mut sends: Vec<u32> = ff.values().map(|v| v.unwrap_or(99)).collect();
+            sends.sort();
+            let within = pct(sends.iter().filter(|s| **s <= FIRST_FORK_SENDS).count(), ns);
+            println!("first fork (Cut 26 §4): sends to D4's two stairs, preset + first patch: median {} · {:?}", sends[ns / 2], sends.iter().map(|s| if *s == 99 { "–".to_string() } else { s.to_string() }).collect::<Vec<_>>().join(" "));
+            rows.push((format!("First fork (D5) seen within {FIRST_FORK_SENDS} sends ≥ 50% of fresh lineages"), format!("{within:.0}%"), within >= 50.0));
+        }
+        let cf = cforks.lock().unwrap();
+        if !riddle_core::descent::OPEN_FORKS.contains(&9) {
+            println!("D9 fork closed (Cut 26 §3 fallback): not seen by design");
+        } else if !cf.is_empty() {
+            let seen = pct(cf.values().filter(|v| **v).count(), cf.len());
+            println!("D9 fork seen by the end of a 4 h absence: {seen:.0}% of {} cohort lineages", cf.len());
+            rows.push((format!("D9 fork seen by cohort lineages by the absence's end ≥ 50% (n={})", cf.len()), format!("{seen:.0}%"), seen >= 50.0));
+        }
+    }
     let mut causes: BTreeMap<&str, usize> = BTreeMap::new();
     let mut n_causes = 0;
     for r in &all {

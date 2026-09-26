@@ -8,6 +8,7 @@ const COND: Record<string, string> = {
   in_corridor: "corridor", path_stairs: "stairs seen", ally: "ally", "loot>=": "loot ≥", "turns>": "turns >",
   on_hurt: "on hurt", on_kill: "on kill", on_see: "on see",
   "self_hp<": "self hp <", "party_hp<": "party hp <", party: "party:",
+  in: "in:", biome: "in:",   // Cut 26 §2: `in: fens` — the lane the hero is in (open once the biome was entered)
 };
 /* copy:rule_token */
 const VERB: Record<string, string> = {

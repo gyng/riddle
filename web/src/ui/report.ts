@@ -14,7 +14,8 @@ import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
 import { h, items, spanOf } from "./dom";
 import { openDropSheet, patchRows } from "./patches";
-import { exitExtras, wakeShown } from "./death";
+import { BANDS, laneTitle, lanes, routeForks, seenForks } from "./route";
+import { drivenDeath, exitExtras, wakeShown } from "./death";
 import { openUnlockSheet, priceLabel, visible, withRowsGate } from "./unlocks";
 import { lostLabel, noteText, rowLabel } from "./tokens";
 import { traceChip } from "./trace";
@@ -43,6 +44,8 @@ export function exitDepth(app: App, x: ExitLine, newer: ExitLine[] = []): number
  *  keeps (`engine.death(run_id)`, the last few deaths) carries a `verdict` chip — the death screen for that run, as the chronicle opens
  *  a kept death; a line without a record (older than the kept few) the core refuses, and the chip says nothing more. */
 function verdictChip(app: App, x: ExitLine, label: string): HTMLElement | "" {
+  // Cut 26 §6 (AP: `driven $0 · $297 lost` with no verdict): a drive-off's line opens its verdict too — from the line itself
+  if (x.driven) return h("button", { class: "chip mini verdict-chip", onclick: () => { closeAllSheets(); app.go({ kind: "death", death: drivenDeath(x, x.run_id ?? 0), kept: true }); } }, /* copy:button */ "verdict");
   if (!x.run_id || !/\bdied\b/.test(label)) return "";
   const btn: HTMLButtonElement = h("button", { class: "chip mini verdict-chip", onclick: () => {
     void app.busy(/* copy:label */ "verdict", () => app.engine.death(x.run_id!)).then((death) => { closeAllSheets(); app.go({ kind: "death", death, kept: true }); })
@@ -50,6 +53,20 @@ function verdictChip(app: App, x: ExitLine, label: string): HTMLElement | "" {
   } }, /* copy:button */ "verdict");
   return btn;
 }
+
+/** Cut 26 §2: the lanes the night walked — each band down to the deepest floor it reached, on the route it played (`D5–8 · the Fens`);
+ *  the core's `lanes` when the wire carries them, else the active set's route (the night plays it). Shown once a fork was seen. */
+function lanesSection(app: App, r: ReturnReport): HTMLElement | null {
+  const line = (text: string, biome?: string): HTMLElement => h("div", { class: "lane-line num", ...(biome ? { "data-biome": biome } : {}) }, text);
+  // the core's lines verbatim (`D5–8 · the Fens`), shallowest first
+  if (r.lanes?.length) return h("section", { class: "rsec lanes" }, h("div", { class: "label" }, /* copy:label */ "lanes"), ...r.lanes.map((t) => line(t)));
+  if (!seenForks(app.lineage).length) return null;
+  const deepest = Math.max(r.deepest ?? 0, r.live?.depth ?? 0, ...(r.exits ?? []).map((x) => exitDepthOf(x) ?? 0));
+  const ls = deepest >= BANDS[0][0] ? lanes(routeForks(app.rules), deepest) : [];
+  if (!ls.length) return null;
+  return h("section", { class: "rsec lanes" }, h("div", { class: "label" }, /* copy:label */ "lanes"), ...ls.map((l) => line(`D${l.from}–${l.to} · ${laneTitle(l.biome)}`, l.biome)));
+}
+const exitDepthOf = (x: ExitLine): number | undefined => { const m = /\bD(\d+)\b/.exec(x.text); return m ? Number(m[1]) : undefined; };
 
 /** Cut 14 §4: a trace chip's label, ≤ 3 words: `D5 · died · trace` (`died · trace` without a depth). */
 export function traceLabel(app: App, x: ExitLine, newer: ExitLine[] = []): string {
@@ -326,7 +343,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   reach(stalled, /^stalled\b/); reach(drivenTile, /^driven\b/);
   // Cut 24 §1 (AL: a Warlord fight > 4 min, the boss bar full): a boss no blow could move drove the hero off (`ExitLine.driven`, core) —
   // one tablet a boss, `Warlord · no counter · shield wall`, `try: attack boss` under it; a tap writes the counter at the top (or finds it)
-  const drivenOff = [...new Map(allExits.filter((x) => x.driven).map((x) => [x.driven!.boss, x.driven!])).values()];
+  // Cut 26 §6 (core): the absence's drive-offs (`ReturnReport.drives`, each with its run) join the exit lines' — one tablet a boss
+  const drivenOff = [...new Map([...allExits.filter((x) => x.driven).map((x) => ({ ...x.driven!, run_id: x.driven!.run_id ?? x.run_id })), ...(r.drives ?? [])].map((d) => [d.boss, d])).values()];
   // (the tile's count when one boss drove every send off — the lines the slices kept may be fewer; else the lines')
   const drivenBy = (boss: string): number => drivenOff.length === 1 && drivenN > 0 ? drivenN : allExits.filter((x) => x.driven?.boss === boss).length;
   const driven = drivenOff.length ? h("section", { class: "rsec driven" }, h("div", { class: "label" }, /* copy:label */ "counter"),
@@ -343,7 +361,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
         // QA 524827b (qaAA: COUNTER `no counter` beside LEARNED `counter: attack boss`): the counter is known — the set lacked it
         // QA 524827b (qaAB: 12 of 16 sends driven off, twelve like lines): the tablet counts the sends that boss drove off (`Warlord ×12`)
         h("span", { class: "chips-inline" }, [`${d.title}${drivenBy(d.boss) > 1 ? ` ×${drivenBy(d.boss)}` : ""}`, d.verdict === "no counter" ? /* copy:callout */ "counter unwritten" : d.verdict, d.defence].filter(Boolean).join(" · ")),
-        h("small", { class: "try" }, have >= 0 ? /* copy:callout */ `at R${have + 1}` : /* copy:callout */ `try: ${d.counter}`));
+        h("small", { class: "try" }, have >= 0 ? /* copy:callout */ `at R${have + 1}` : /* copy:callout */ `try: ${d.counter}`),
+        // Cut 26 §6 (AP): the drive-off opens its verdict, as a death's line does (here when no exit line of his carries its own chip)
+        allExits.some((y) => y.driven?.boss === d.boss) ? "" : h("span", { class: "chip mini verdict-chip", role: "button", onclick: (e: Event) => { e.stopPropagation(); closeAllSheets(); const x = allExits.find((y) => y.driven?.boss === d.boss && (d.run_id === undefined || y.run_id === d.run_id)); app.go({ kind: "death", death: drivenDeath(x ?? d, d.run_id ?? x?.run_id ?? 0), kept: true }); } }, /* copy:button */ "verdict"));
     })) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
@@ -440,6 +460,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // Cut 10 §3: a companion `◯ jackal · Ashar fell` (the name small); Cut 12 §6: a summoned ally `ally hound fell`
     section(/* copy:label */ "lost", chips((r.lost ?? []).map((k) => k.includes(" · ") ? /* copy:callout */ `◯ ${k} fell` : lostLabel(k)), "chip egg")),
     section(/* copy:label */ "bests", lines(collapseBests(r.bests).map(bestLabel))),
+    lanesSection(app, r),
     r.xp && (r.xp.gained > 0 || r.xp.level_ups > 0) ? section(/* copy:label */ "xp", h("div", { class: "xp-line num" }, `${r.xp.class} +${r.xp.gained}`, " · ", /* copy:label */ `L${L.classes?.[r.xp.class]?.level ?? 1}`, r.xp.level_ups > 0 ? h("b", null, ` ↑${r.xp.level_ups}`) : "")) : null,
     // QA 0c6e126 (qaY: the header's `new find: bow, leather` beside FOUND `mail +1` — the item the send brought from the vault): an
     // absence's FOUND is its first finds (`ReturnReport.new_finds`, the core's, every one the header's `new find` names); what went to

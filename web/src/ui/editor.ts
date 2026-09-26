@@ -30,7 +30,8 @@ export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; 
                         shadowedBy?(): (number | null)[];   // QA 92eb880: per row, the earlier row that takes all its moments (the engine's read)
                         nums?(k: string): number[] | undefined;   // Cut 21 §3: a cond's values read off the lineage (`depth ≥` to best + 2); else the table's
                         rowWhy?(): (RowWhy | null)[];             // Cut 23 §3: per row, what it did over the recent sends and why not (the core's `row_why`)
-                        inert?(row: Row): string | undefined };   // QA 912e135: a row that cannot act yet, and what it waits on (`identify heal`)
+                        inert?(row: Row): string | undefined;
+                        lockedGate?(row: Row, i: number): string | undefined };   // Cut 26 §6: the core's gate for a row's locked cond (`Lineage.locked_rows`)   // QA 912e135: a row that cannot act yet, and what it waits on (`identify heal`)
 /** QA 912e135 (qaW: the default `hp < 30% → drink heal` ran inert all night — `0/760 · blocked · unknown item` — while `has: heal` read
  *  `⊘ identify heal` in the cond sheet): a row whose verb uses a kind the lineage has not identified (the vocabulary's locked `has:`) and
  *  no packed supply of it (a bought one is known) waits on it — `identify heal` on the tablet. */
@@ -41,8 +42,24 @@ export function inertOf(app: App, r: Row): string | undefined {
   if ((app.lineage?.supplies ?? []).some((s) => s.kind === a) || (app.lineage?.vault ?? []).some((v) => v.kind === a && app.loadout.includes(v.id))) return undefined;
   return /* copy:callout */ `identify ${a.replace(/_/g, " ")}`;
 }
+/** Cut 26 §6 (AP: `on see hunger → descend` went into a row with no mark, found only as `R3 descend · locked cond` in a trace): a cond the
+ *  lineage cannot use yet (the vocabulary's `locked`, the gate as `needs`) — every row holding one is marked wherever it came from
+ *  (a text import, an old set, a card's counter) and the chip carries `⊘`. */
+export function lockedOf(V: Vocabulary | undefined, c: Cond): string | undefined {
+  if (!V?.locked?.length || V.conds.some((x) => sameCond(x, c))) return undefined;
+  const l = V.locked.find((x) => x.cond.k === c.k && (x.cond.t === undefined || x.cond.t === c.t));
+  return l ? l.needs.replace(/_/g, " ") : undefined;
+}
+/** The first locked cond of a row, as its mark (`locked · ◆2`). */
+export function rowLocked(V: Vocabulary | undefined, r: Row): string | undefined {
+  if (isCardRow(r)) return undefined;
+  for (const c of r.conds) { const n = lockedOf(V, c); if (n !== undefined) return /* copy:callout */ `locked · ${n}`; }
+  return undefined;
+}
 export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id), shadowedBy: () => app.shadowedBy(),
-  nums: (k) => k === "depth>=" ? depthNums(app.lineage?.best_depth ?? 0, app.vocab) : undefined, rowWhy: () => app.rowWhy(), inert: (r) => inertOf(app, r) });
+  nums: (k) => k === "depth>=" ? depthNums(app.lineage?.best_depth ?? 0, app.vocab) : undefined, rowWhy: () => app.rowWhy(), inert: (r) => inertOf(app, r),
+  // the core's read of the set it holds — the row at `i` there must be this row (an edit since has not reached it yet)
+  lockedGate: (r, i) => { const L = app.lineage, held = L?.sets?.[L.active_set ?? 0]?.rows[i]; return held && JSON.stringify([held.conds, held.verb]) === JSON.stringify([r.conds, r.verb]) ? L.locked_rows?.[i] ?? undefined : undefined; } });
 
 /** Cut 6 §6: a row as read-only chips (`foe: ranged → kite`), shared by the card sheet and the shelf. */
 export function rowChips(row: Row): HTMLElement {
@@ -134,7 +151,10 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       el.classList.toggle("shadowed", on);
       for (const m of el.querySelectorAll(":scope > .rtext > .shadow-mark, :scope > .grip > .shadow-mark, :scope > .shadow-mark, :scope > .rtext > .inert-mark, :scope > .grip > .inert-mark, :scope > .inert-mark")) m.remove();
       // QA 912e135: a row waiting on an identification says so (dim, like a shadowed one); a shadowed row's mark wins
-      const inert = !on && rows[i] ? bind.inert?.(rows[i]) : undefined;
+      const gate = rows[i] ? bind.lockedGate?.(rows[i], i) : undefined;
+      const lock = rows[i] ? rowLocked(vocab(), rows[i]) ?? (gate ? /* copy:callout */ `locked · ${gate}` : undefined) : undefined;   // Cut 26 §6: a locked cond is marked even on a shadowed row
+      const inert = lock ?? (!on && rows[i] ? bind.inert?.(rows[i]) : undefined);
+      el.classList.toggle("has-locked", !!lock);
       el.classList.toggle("inert", !!inert);
       if (inert) {
         const m = h("small", { class: "inert-mark num" }, `⊘ ${inert}`);
@@ -174,7 +194,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       // Cut 8B §4: the card's rows, inline and dim — rows the player could have written
       if (cardRows?.length) chips.appendChild(h("div", { class: "card-inline" }, ...cardRows.map((r) => rowChips(r))));
     } else {
-      row.conds.forEach((c, ci) => chips.appendChild(h("button", { class: "chip cond", onclick: (e: Event) => pickCond(row, ci, rowOf(e)) }, condLabel(c))));
+      row.conds.forEach((c, ci) => { const lk = lockedOf(vocab(), c); chips.appendChild(h("button", { class: `chip cond${lk !== undefined ? " locked-in" : ""}`, onclick: (e: Event) => pickCond(row, ci, rowOf(e)) }, lk !== undefined ? "⊘ " : "", condLabel(c), lk ? h("small", { class: "needs dim" }, ` ${lk}`) : "")); });
       if (row.conds.length < 2) chips.appendChild(h("button", { class: "chip cond add", onclick: (e: Event) => pickCond(row, row.conds.length, rowOf(e)) }, "+"));
       chips.appendChild(h("span", { class: "arrow" }, "→"));
       chips.appendChild(h("button", { class: "chip verb", onclick: (e: Event) => pickVerb(row, rowOf(e)) }, verbLabel(row.verb)));

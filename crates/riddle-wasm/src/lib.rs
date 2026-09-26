@@ -327,6 +327,16 @@ impl Game {
         js(&self.inner.start_forecast())
     }
 
+    /// Cut 26 §2: the fork chip's option tablet — both stairs of the fork at `fork` (5, 9, 14, 19,
+    /// 24) for the active set: `ForkOption[]` (`biome`, `far`, `current`, `route` — the set's
+    /// route with that stair —, `depth` the band's last floor, `reach`/`reach_delta`, `bank`,
+    /// `gold`, `death`, `delta`, `pm`). One camp panel (the other stair's); memoised. A route
+    /// edit itself is `setRules` with the set's `route` (fork depths of its far stairs).
+    #[wasm_bindgen(js_name = forkForecast)]
+    pub fn fork_forecast(&self, fork: u32) -> String {
+        js(&self.inner.fork_forecast(fork))
+    }
+
     /// Cut 22 §3: the edit's paired move — the active set's camp panel minus `prev`'s (JSON
     /// RuleSet: the set as it was at the last painted forecast) on the same seeds —
     /// `ForecastVs` (`depths[{depth, delta, pm, abs_pm}]`, `bank`/`death`/`return`/`gold` as

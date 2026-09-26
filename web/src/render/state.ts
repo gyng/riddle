@@ -65,8 +65,13 @@ const INTERESTING = new Set<string>(["attack", "die", "telegraph", "use", "exit"
 export const EXIT_DIM = 0.3;
 export const PROPS = new Set<string>(["shrine", "vault", "vault_open", "nest"]); // Cut 5 §4: floor-standing props in `tiles`
 
+/** Cut 26 §2: a fork floor's down stair and the lane it opens (`fens`), `taken` on the stair the set's route takes. */
+export type StairInfo = { x: number; y: number; biome?: string; taken?: boolean };
 export class ReplayState {
   w = 0; h = 0; biome = "warrens"; depth = 1;
+  /** Cut 26 §2: a fork floor's two stairs (`Snapshot.fork`): the floor's own down stairs, the lane the route takes (`taken`), and the
+   *  other stair drawn beside it (`other`) — empty on a floor with one stair */
+  stairs: StairInfo[] = [];
   tiles: Tile[] = [];
   seen: Uint8Array = new Uint8Array(0);
   visible: Uint8Array = new Uint8Array(0);
@@ -113,8 +118,15 @@ export class ReplayState {
 
   private reset(s: Snapshot): void {
     this.w = s.w; this.h = s.h; this.biome = s.biome; this.depth = s.depth;
+    // (the fork's other stair is not a tile of the floor: it is drawn at (x, y) beside the real one — render-only, never game truth)
+    this.stairs = [];
     this.vision = s.vision ?? VISION_R;
     this.tiles = s.tiles.slice();
+    if (s.fork) {
+      const real = s.tiles.indexOf("stairs_down"), i = s.fork.y * s.w + s.fork.x;
+      if (real >= 0) this.stairs.push({ x: real % s.w, y: Math.floor(real / s.w), biome: s.fork.taken, taken: true });
+      if (i >= 0 && i < this.tiles.length && i !== real && this.tiles[i] !== "wall") { this.tiles[i] = "stairs_down"; this.stairs.push({ x: s.fork.x, y: s.fork.y, biome: s.fork.other }); }
+    }
     this.seen = Uint8Array.from(s.seen, (b) => (b ? 1 : 0));
     this.visible = Uint8Array.from(s.visible, (b) => (b ? 1 : 0));
     this.engineVisible = Uint8Array.from(s.visible, (b) => (b ? 1 : 0));

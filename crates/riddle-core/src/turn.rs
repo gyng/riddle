@@ -3,7 +3,7 @@
 use crate::ai;
 use crate::chronicle::{callout, note};
 use crate::defs::{monster_def, Cat};
-use crate::descent::{biome_for, ENDING_DEPTH};
+use crate::descent::ENDING_DEPTH;
 use crate::engine::{populate_floor, Ctx, ExitTier, Run, ACT_ENERGY, HERO_ID, TICKS_PER_TURN, VAULT_GRACE};
 use crate::sifter::{self, Moment, Resolution};
 use crate::facts::{learn, learn_tag, tag_known};
@@ -157,6 +157,7 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
         let vision = run.vision(cx.unlocks);
         run.floor.map.update_vision(run.hero.pos, vision);
         crate::facts::on_vision(run, cx);
+        crate::facts::fork_seen(run, cx);
         for m in run.monsters.iter_mut() {
             m.acts_since_hero = 0;
         }
@@ -868,7 +869,12 @@ pub fn why_gloss(verb: &str, why: &str) -> Option<&'static str> {
 /// A condition this lineage can use (`LineageState::shadowed_by`'s test): a row whose
 /// condition it does not own never fires, so it shadows nothing.
 fn row_usable(cx: &Ctx, c: &Cond) -> bool {
-    crate::meta::cond_unlock(&c.k).is_none_or(|u| cx.unlocks.contains(u)) && (c.k != "on_see" || c.t.as_deref().is_none_or(|t| t.is_empty() || cx.facts.contains(t)))
+    // Cut 26 §6: `on_see: K` is gated by its situation's fact alone (`cond_holds`), never by the
+    // bare `on_see` cond's unlock.
+    if c.k == "on_see" && c.t.as_deref().is_some_and(|t| !t.is_empty()) {
+        return c.t.as_deref().is_some_and(|t| cx.facts.contains(t));
+    }
+    crate::meta::cond_unlock(&c.k).is_none_or(|u| cx.unlocks.contains(u))
 }
 
 /// A reason is from the table (a prefix match: the numbered shapes carry their number).
@@ -876,11 +882,20 @@ pub fn row_reason_ok(why: &str) -> bool {
     crate::rules::word_count(why) <= 3 && ROW_REASONS.iter().any(|r| why.starts_with(r))
 }
 
+/// Cut 26 §6: `cond_reason` for tests and tools.
+pub fn row_why_of(run: &Run, cx: &Ctx, c: &Cond) -> String {
+    cond_reason(run, cx, c)
+}
+
 /// The reason a condition does not hold, ≤ 3 words (`hp not <30%` reads `hp 8% ≥ 30%`).
 fn cond_reason(run: &Run, cx: &Ctx, c: &Cond) -> String {
     let n = c.n.unwrap_or(0);
     let t = c.t.as_deref().unwrap_or("");
-    if crate::meta::cond_unlock(&c.k).is_some_and(|u| !cx.unlocks.contains(u)) {
+    // Cut 26 §6 (AP: `R3 descend · locked cond` beside `see: hunger`, a token his sheet had
+    // offered): `on_see: K` is the situation's fact's, not the bare cond's unlock — it reads `no
+    // hunger seen` (or `locked cond` while the fact is unknown, as the run holds it).
+    let tagged_see = c.k == "on_see" && !t.is_empty();
+    if (tagged_see && !cx.facts.contains(t)) || (!tagged_see && crate::meta::cond_unlock(&c.k).is_some_and(|u| !cx.unlocks.contains(u))) {
         return "locked cond".into();
     }
     match c.k.as_str() {
@@ -894,6 +909,7 @@ fn cond_reason(run: &Run, cx: &Ctx, c: &Cond) -> String {
         "unknown_item" => "no unknown".into(),
         "floor_seen>=" => format!("seen not ≥{n}%"),
         "depth>=" => format!("depth not ≥{n}"),
+        "in" => format!("not in {t}"),
         "alert>=" => format!("alert not ≥{n}"),
         "in_corridor" => "not corridor".into(),
         "path_stairs" => "no path".into(),
@@ -1316,6 +1332,8 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
         "on_see" => run.new_seen,
         "party" => run.party_alive().any(|m| m.kind == t),
         "party_hp<" => run.party_alive().any(|m| m.hp * 100 / m.max_hp.max(1) < n),
+        // Cut 26 §2: the floor's biome on the run's route (a lane's rows fire in its lane).
+        "in" => run.biome().name() == t,
         _ => false,
     }
 }
@@ -2181,7 +2199,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
         end_run(run, cx, ExitTier::Bank);
         return;
     }
-    let biome = biome_for(next);
+    let biome = run.route.biome(next);
     // Cut 22 §3 (AH: "most edits moved the forecast less than its ±10–13 error"): in a
     // forecast's sim, each floor draws from a stream of its own — (run seed, depth) — so two
     // sims on one seed walk into the same floors whatever their rules did above (common random
@@ -2268,7 +2286,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     let vision = run.vision(cx.unlocks);
     run.floor.map.update_vision(run.hero.pos, vision);
     cx.events.push(Ev::Descend { t: run.turn, depth: next, biome: biome.name().into() });
-    if biome_for(next - 1) != biome {
+    if run.route.biome(next - 1) != biome {
         learn(run, cx, format!("biome:{}", biome.name()));
     }
     note(run, cx, format!("D{}: {}.", next, biome.title()));

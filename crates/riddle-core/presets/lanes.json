@@ -1,0 +1,1477 @@
+[
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "EDITED",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 35
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "tag:boss"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "good"
+    },
+    "reach": 0.9583333333333334
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "EDITED",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 35
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 80
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "pack"
+            },
+            {
+              "k": "in",
+              "t": "fens"
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "tag:pack"
+          }
+        }
+      ],
+      "name": "good"
+    },
+    "reach": 0.7291666666666666
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "075d8e2.raterAM",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "preset"
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            },
+            {
+              "k": "in",
+              "t": "burrows"
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "tag:boss"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.9375
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "075d8e2.raterAM",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "preset"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            },
+            {
+              "k": "in",
+              "t": "fens"
+            }
+          ],
+          "verb": {
+            "v": "throw",
+            "a": "fire,tag:boss"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.7916666666666666
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "075d8e2.raterAN",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            },
+            {
+              "k": "in",
+              "t": "burrows"
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "tag:boss"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "preset"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.875
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "075d8e2.raterAN",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 25
+            }
+          ],
+          "verb": {
+            "v": "read",
+            "a": "teleport"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "preset"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.8125
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "205d408.raterAA",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "preset"
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "tag:boss"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          },
+          "origin": "player"
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.9375
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "205d408.raterAA",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "preset"
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "tag:boss"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          },
+          "origin": "player"
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.75
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "205d408.raterAB",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 50
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "tag:boss"
+          },
+          "origin": "patch"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.9583333333333334
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "205d408.raterAB",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            }
+          ],
+          "verb": {
+            "v": "throw",
+            "a": "fire,tag:boss"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.7916666666666666
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "307dbed.raterAO",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 40
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "telegraph"
+            }
+          ],
+          "verb": {
+            "v": "shield_bash"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.9375
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "307dbed.raterAO",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 40
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            }
+          ],
+          "verb": {
+            "v": "throw",
+            "a": "poison,tag:boss"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.8333333333333334
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "307dbed.raterAP",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "preset"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "on_see",
+              "t": "hunger"
+            }
+          ],
+          "verb": {
+            "v": "descend"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 25
+            }
+          ],
+          "verb": {
+            "v": "bank"
+          },
+          "origin": "player"
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.0
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "307dbed.raterAP",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "preset"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            },
+            {
+              "k": "in",
+              "t": "fens"
+            }
+          ],
+          "verb": {
+            "v": "throw",
+            "a": "fire,tag:boss"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.7916666666666666
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "4b15a61.raterAK",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 40
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "lowest"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "gas"
+            },
+            {
+              "k": "adj>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "retreat"
+          },
+          "origin": "patch"
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 60
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            },
+            {
+              "k": "in",
+              "t": "burrows"
+            }
+          ],
+          "verb": {
+            "v": "throw",
+            "a": "caustic,tag:boss"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.0625
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "4b15a61.raterAK",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            },
+            {
+              "k": "in",
+              "t": "fens"
+            }
+          ],
+          "verb": {
+            "v": "throw",
+            "a": "fire,tag:boss"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "gas"
+            },
+            {
+              "k": "adj>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "retreat"
+          },
+          "origin": "patch"
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.6666666666666666
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "6da3ed0.raterAG",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "preset"
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "telegraph"
+            }
+          ],
+          "verb": {
+            "v": "shield_bash"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.9583333333333334
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "6da3ed0.raterAG",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "preset"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "gas"
+            }
+          ],
+          "verb": {
+            "v": "retreat"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.7708333333333334
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "afa0eed.raterAJ",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 40
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            },
+            {
+              "k": "in",
+              "t": "burrows"
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "tag:boss"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.9583333333333334
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "afa0eed.raterAJ",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 50
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 25
+            }
+          ],
+          "verb": {
+            "v": "read",
+            "a": "teleport"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.8125
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "fba365b.raterAC",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 50
+            },
+            {
+              "k": "depth>=",
+              "n": 10
+            }
+          ],
+          "verb": {
+            "v": "bank"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "on_see",
+              "t": "den"
+            }
+          ],
+          "verb": {
+            "v": "descend"
+          },
+          "origin": "player"
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.0
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "fba365b.raterAC",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            },
+            {
+              "k": "in",
+              "t": "fens"
+            }
+          ],
+          "verb": {
+            "v": "throw",
+            "a": "fire,tag:boss"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.7916666666666666
+  },
+  {
+    "fork": 5,
+    "lane": 0,
+    "seed_set": "fba365b.raterAD",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 40
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "adj>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "cleave"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "tag:boss"
+          },
+          "origin": "player"
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.6458333333333334
+  },
+  {
+    "fork": 5,
+    "lane": 1,
+    "seed_set": "fba365b.raterAD",
+    "set": {
+      "rows": [
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 30
+            }
+          ],
+          "verb": {
+            "v": "drink",
+            "a": "heal"
+          },
+          "origin": "player"
+        },
+        {
+          "conds": [
+            {
+              "k": "foes>=",
+              "n": 1
+            }
+          ],
+          "verb": {
+            "v": "attack",
+            "a": "nearest"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "foe_tag",
+              "t": "boss"
+            },
+            {
+              "k": "in",
+              "t": "fens"
+            }
+          ],
+          "verb": {
+            "v": "throw",
+            "a": "fire,tag:boss"
+          }
+        },
+        {
+          "conds": [
+            {
+              "k": "hp<",
+              "n": 90
+            }
+          ],
+          "verb": {
+            "v": "rest"
+          }
+        }
+      ],
+      "name": "fighter"
+    },
+    "reach": 0.7916666666666666
+  }
+]

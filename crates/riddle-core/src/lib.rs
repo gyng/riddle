@@ -52,6 +52,10 @@ impl Game {
     pub fn start_forecast(&self) -> Vec<StartOption> {
         forecast::start_forecast(self)
     }
+    /// Cut 26 §2: both stairs of the fork at `fork` for the active set (`forecast::fork_forecast`).
+    pub fn fork_forecast(&self, fork: u32) -> Vec<ForkOption> {
+        forecast::fork_forecast(self, fork)
+    }
     /// Cut 22 §3: the active set's paired move against `prev` (`forecast::forecast_vs`).
     pub fn forecast_vs(&self, prev: &RuleSet) -> ForecastVs {
         forecast::forecast_vs(self, prev)

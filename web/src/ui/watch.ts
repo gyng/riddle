@@ -129,7 +129,8 @@ import { setBusyHost } from "./progress";
 import { vaultSlots } from "./unlocks";
 import { glossOf, kindGlyph, noteText, verbLabel } from "./tokens";
 import { EXIT_TRACE_ROWS, traceTable } from "./trace";
-import { exitExtras } from "./death";
+import { drivenDeath, exitExtras } from "./death";
+import { laneTitle, seenForks } from "./route";
 import { markEnd, recordRun } from "./runlog";
 import { audio } from "../audio";
 
@@ -805,6 +806,7 @@ export function renderWatch(app: App): Mounted {
         // Cut 10 §3: the core's companion-death callout (`Ashar fell`) gets its kind in front: `jackal Ashar fell`
         case "callout": {
           if (ev.text === "explore") break;
+          if (/^two stairs$/i.test(ev.text)) { const key = `stairs@${s.depth}`; if (refused.has(key)) break; refused.add(key); }   // Cut 26 §2: once a floor
           if (ev.text === /* copy:none */ "choose one") break;   // Cut 19 §1: the cage beat names the pick instead
           if (breakBeat(ev.t, ev.text)) break;   // Cut 16 §4: `warlord breaks` is the beat's, not a plain callout
           // Cut 12 §6: a sanity refusal (`drink ✗ no use`) shows once per floor, not once per streak
@@ -885,11 +887,17 @@ export function renderWatch(app: App): Mounted {
           at(ev.t, () => { chore = null; });   // Cut 25 §3: a floor's chore count starts over
           floors.set(ev.depth, { ...floors.get(ev.depth), biome: ev.biome });
           const rooms = s.depth === ev.depth ? s.rooms : undefined;   // Cut 7 §4: `D3 · 4 rooms` when the snapshot counts them
-          at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); if (hudSnap) paintStake(hudSnap); ambient(rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
+          // Cut 26 §2: on a forked lineage the stairs into a band name the lane taken (`D5 · fens`)
+          const up = floors.get(ev.depth - 1)?.biome ?? (s.depth === ev.depth - 1 ? s.biome : undefined);
+          const lane = ev.biome && up && up !== ev.biome && ev.biome !== "warrens" && seenForks(app.lineage).length ? ev.biome : undefined;
+          at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); if (hudSnap) paintStake(hudSnap); ambient(lane ? /* copy:callout */ `D${ev.depth} · ${lane}` : rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
           break;
         }
         case "fact": {
           learned.push(ev.fact);
+          // Cut 26 §2: the first time a hero stands on a fork floor's two stairs (the fact `fork D5`) the watch says so — `TWO STAIRS`,
+          // once a floor (a core callout of the same words stands for it)
+          if (/^fork\b/i.test(ev.fact)) { const key = `stairs@${s.depth}`; if (!refused.has(key)) { refused.add(key); at(ev.t, () => callout(/* copy:callout */ "two stairs", "ambient", 1800)); } }
           // Cut 6 §5: the counter learned mid-fight (the boss's first telegraph) names itself: `boss · counter: attack boss`
           const m = /^boss:([a-z_]+):counter(?:=|$)/.exec(ev.fact);
           if (m) at(ev.t, () => { app.engine.lineage().then((L) => { counters = L.counters ?? counters; }).catch(() => { /* keep */ }).finally(() => {
@@ -1821,6 +1829,8 @@ export function renderWatch(app: App): Mounted {
     // like a death's — the core records the stall, `death(runId)` answers `verdict: "stall"`; an older core falls back to the report
     const stalled = tier === "return" && (/\bstalled\b/.test(exitLine?.text ?? "") || (!!snap?.stake?.stalling && (exitLine?.kept ?? 1) === 0));
     if (tier === "death") for (const c of partyAtStart) if (!lost.some((l) => l === c || l.endsWith(c.slice(c.indexOf(" · "))))) lost.push(c);
+    // Cut 26 §6 (AP): a drive-off opens its verdict (the exit line's `driven`: the boss, the defence, the counter to write)
+    if (tier === "return" && exitLine?.driven && !stalled) { app.go({ kind: "death", death: drivenDeath(exitLine, runId, exitTrace), lost }); return; }
     if (tier === "death" || stalled) {
       try {
         const death = await app.busy(/* copy:label */ "verdict", () => app.engine.death(runId));
@@ -1854,10 +1864,19 @@ export function renderWatch(app: App): Mounted {
       exits: exitLine ? [{ ...exitLine, trace: exitLine.trace ?? exitTrace }] : undefined,            // Cut 6 §1; Cut 9 §5: with its trace
       // Cut 25 §6 (AM: `RUNS 1 · DEATHS 0` after the last heir's death read as the lineage's): the runs tile names the heir who ran (`♟2`)
       heirs: snap?.run?.heir !== undefined ? [snap.run.heir, snap.run.heir] : undefined,
+      lanes: runLanes(),   // Cut 26 §2: the lanes this run walked (`D5–7 · the Fens`), once a fork was seen
     };
     app.go({ kind: "report", report });
   }
 
+  /** Cut 26 §2: the lanes the watched run walked, below the Warrens — each stretch of floors in one biome, as far as he got. */
+  function runLanes(): string[] | undefined {
+    if (!seenForks(app.lineage).length) return undefined;
+    const ds = [...floors.entries()].filter(([, f]) => f.biome && f.biome !== "warrens").sort((a, b) => a[0] - b[0]);
+    const out: { a: number; b: number; biome: string }[] = [];
+    for (const [d, f] of ds) { const last = out[out.length - 1]; if (last && last.biome === f.biome && d === last.b + 1) last.b = d; else out.push({ a: d, b: d, biome: f.biome! }); }
+    return out.length ? out.map((x) => /* copy:callout */ `${x.a === x.b ? `D${x.a}` : `D${x.a}–${x.b}`} · ${laneTitle(x.biome)}`) : undefined;
+  }
   /** The exit's own cut (on the line, from the engine) plus what the keep sheet let go, per kind. */
   function mergeSalvage(a: { kind: string; n: number; gold: number }[], b: { kind: string; n: number; gold: number }[]): { kind: string; n: number; gold: number }[] {
     const m = new Map<string, { kind: string; n: number; gold: number }>();

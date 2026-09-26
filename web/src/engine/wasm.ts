@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  CageOption, Death, KitLadder, ForecastVs, StartOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary,
+  CageOption, Death, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary,
 } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
@@ -92,6 +92,8 @@ export class WasmEngine implements Engine {
   // Cut 21 §1: throw `wasm: setStart` / `wasm: startForecast` on a build without them
   setStart(depth: number): Lineage { return this.call("setStart", depth); }
   startForecast(): StartOption[] { return this.call("startForecast"); }
+  // Cut 26 §2: throws `wasm: forkForecast` on a build without it (the fork chip's sheet then shows the chips alone)
+  forkForecast(fork: number): ForkOption[] { return this.call("forkForecast", fork); }
   // Cut 22 §3: throws `wasm: forecastVs` on a build without it (the client then reads `Forecast.vs`, or shows no move)
   forecastVs(prev: RuleSet): ForecastVs { return this.call("forecastVs", JSON.stringify(prev)); }
   // Cut 23 §1: throw `wasm: buyKit` / `wasm: kitDeltas` on a build without them (the camp shows no forge)

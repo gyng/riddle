@@ -4,7 +4,8 @@
 // The layer is a sibling of the canvas with the canvas's offset box, so the viewer's CSS coordinates (`toCss`) are its own.
 // Pooled elements; a frame writes only what changed. Cut 19: the serif is Alegreya (Google Fonts, index.html), Georgia before it loads.
 
-export type Tag = { id: number; text: string; x: number; y: number; w: number; hp: number; ally?: boolean };   // x centre, y bottom (CSS px); hp 0..1, <0 = no bar; ally: the green plate
+export type Tag = { id: number; text: string; x: number; y: number; w: number; hp: number; ally?: boolean;
+                    stair?: "taken" | "other" };   // Cut 26 §2: a fork floor's stair plate (its lane), the route's stair lit   // x centre, y bottom (CSS px); hp 0..1, <0 = no bar; ally: the green plate
 
 /** QA e75ec29: an ally's plate — its kind's last word and its name (`jackal Skog`), a nameless (summoned) ally its kind alone. */
 export function allyName(kind: string, name: string): string {
@@ -28,6 +29,9 @@ const CSS = `
 .rtag.ally b { color: #b9f0a4; }
 .rtag.ally i { box-shadow: 0 0 0 1px rgba(90,150,70,.55); }
 .rtag.ally i > s { background: linear-gradient(#6fd35a, #2f8a2a); }
+.rtag.stair b { font-size: 11px; color: #cdb892; letter-spacing: .04em; }
+.rtag.stair.taken b { color: #ffd76a; text-shadow: 0 0 6px rgba(255, 200, 90, .9), 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000; }
+.rtag.stair.other b { opacity: .7; }
 `;
 
 export class TagLayer {
@@ -70,13 +74,14 @@ export class TagLayer {
       const e = this.els[i]!, t = tags[i];
       if (!t) { if (e.key !== "") { e.el.style.display = "none"; e.key = ""; } continue; }
       const hp = t.hp < 0 ? -1 : Math.max(0, Math.min(1, t.hp));
-      const key = `${t.ally ? 1 : 0}|${t.text}|${Math.round(t.x)}|${Math.round(t.y)}|${Math.round(t.w)}|${hp.toFixed(2)}`;
+      const key = `${t.ally ? 1 : 0}|${t.stair ?? ""}|${t.text}|${Math.round(t.x)}|${Math.round(t.y)}|${Math.round(t.w)}|${hp.toFixed(2)}`;
       if (key === e.key) continue;
       e.key = key;
       e.el.style.display = "";
       if (e.name.textContent !== t.text) e.name.textContent = t.text;
       e.el.classList.toggle("nobar", hp < 0);
       e.el.classList.toggle("ally", !!t.ally);
+      e.el.classList.toggle("stair", !!t.stair); e.el.classList.toggle("taken", t.stair === "taken"); e.el.classList.toggle("other", t.stair === "other");
       if (hp >= 0) e.fill.style.width = `${Math.round(hp * 100)}%`;
       e.el.style.width = `${Math.round(t.w)}px`;
       e.el.style.transform = `translate(${Math.round(t.x - t.w / 2)}px, ${Math.round(t.y - TAG_H)}px)`;

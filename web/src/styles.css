@@ -937,6 +937,10 @@ body:not(.framed) .sheet { max-height: 72dvh; }
   font: 700 11px/1 var(--sans); color: #1a1400; background: var(--acc); border-radius: 9px; box-shadow: 0 1px 2px #000; cursor: pointer; }
 .cmd .tile .repeat-badge:not(.on) { color: var(--dim); background: #2a221a; border: 1px dashed #6a5638; }
 .cmd .tile .repeat-badge::before { content: ""; position: absolute; inset: -8px -4px; }   /* a finger-sized hit area around the plate */
+/* Cut 26 §6 (AO: "a 'repeat on' tooltip sitting over the unlocks button"): the plate rides above the tile row, never over a tile — its
+   bottom clear of the tiles' tops, its hit area grown up and sideways only */
+.cmd .tile .repeat-badge { top: auto; bottom: calc(100% + 3px); }
+.cmd .tile .repeat-badge::before { inset: -8px -4px 0; }
 /* Cut 19 §1: the in-run cage beat (`took mail`) is a tap target while it holds — the override sheet */
 .watch .ticker.cage.show { pointer-events: auto; cursor: pointer; }
 .watch .ticker.cage.show .cage-line { display: inline-block; padding: 4px 12px; border: 1px solid rgba(240, 180, 74, .6); border-radius: 14px; background: rgba(12, 10, 8, .55); }
@@ -1184,3 +1188,39 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 /* QA 524827b: a patch's whole-run move under its reach (`death −8 ±8 · risk fire`) */
 .patch-nums .whole { font-size: 12px; }
 .patch-nums .whole:empty { display: none; }
+/* Cut 26 §6: a drive-off's verdict — the seal `driven`, the banner not a corpse's */
+.verdict.driven { background: var(--warn); color: #1a1400; }
+.death .death-line .verdict.driven { filter: hue-rotate(28deg) saturate(1.2); }
+/* Cut 26 §6: a locked cond in a row is marked on its chip, never silent */
+.chip.cond.locked-in { border-color: var(--hp); color: var(--hp); }
+.chip.cond.locked-in .needs { font-size: 10px; }
+.row.has-locked .inert-mark { color: var(--hp); opacity: 1; }
+/* Cut 26 §2: the route — a chip line over the rows (`⑂ D5 fens · D14 crypt`), biome-tinted chips; its sheet a tablet per fork, two stairs */
+.route-line { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 4px; width: 100%; min-height: 36px; margin: 0 0 6px; padding: 4px 10px; box-sizing: border-box;
+  border: 1px solid #5a4a30; border-radius: 6px; background: linear-gradient(rgba(60, 48, 30, .55), rgba(20, 16, 10, .6)); color: #e8dcc0; font: 600 15px/1.2 var(--sans); text-align: left; cursor: pointer; }
+.route-line[hidden] { display: none; }
+.route-line .fork-glyph { color: var(--acc); font-size: 18px; margin-right: 4px; }
+.route-line .route-chip { display: inline-flex; gap: 4px; align-items: baseline; padding: 2px 8px; border-radius: 10px; background: rgba(0, 0, 0, .35); border: 1px solid rgba(255, 255, 255, .12); }
+.route-line .route-chip .num { color: var(--dim); font-size: 13px; }
+.route-chip[data-biome=burrows], .route-opt[data-biome=burrows] { border-color: #a2522a; }
+.route-chip[data-biome=fens], .route-opt[data-biome=fens] { border-color: #4f8a5a; }
+.route-chip[data-biome=crypt], .route-opt[data-biome=crypt] { border-color: #8d8aa0; }
+.route-chip[data-biome=foundry], .route-opt[data-biome=foundry] { border-color: #b8502c; }
+.route-chip[data-biome=deep], .route-opt[data-biome=deep] { border-color: #3c5c8a; }
+.route-chip[data-biome=sanctum], .route-opt[data-biome=sanctum] { border-color: #d8c078; }
+.route-picker .route-opts { display: grid; gap: 10px; margin-top: 8px; }
+.route-picker .route-fork { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; align-items: center; }
+.route-picker .fork-at { color: var(--acc); font-size: 15px; white-space: nowrap; }
+.route-picker .route-opt { min-height: 48px; justify-content: flex-start; font-size: 16px; padding: 0 10px; border-width: 2px; flex-wrap: wrap; }
+.route-picker .route-opt .level { font-size: 14px; margin-left: 2px; }
+/* Cut 26 §2–3: a band's lane on the shaft (`D5 fens`), the untaken lane a dashed frontier under its fork (`crypt · D9 · ?`) */
+.notch .dl .lane { display: block; margin-top: 2px; font: 600 10px/1 var(--sans); font-style: normal; color: #b9c9a8; white-space: nowrap; letter-spacing: 0; }
+.notch .frontier { grid-column: 1 / -1; margin: 2px 0 0 12px; padding: 1px 4px; border-left: 1px dashed #8a7a5a; font: 600 10px/1.2 var(--sans); color: var(--dim); white-space: nowrap; }
+.notch .frontier.entered { color: #b9c9a8; }
+.death .death-line .verdict.driven { font-size: 19px; letter-spacing: 0; white-space: nowrap; }
+/* Cut 26 (core, risks): a `route` death — the stair the route took; its lead tablet takes the other */
+.verdict.route { background: var(--hp); color: #fff; }
+.death .death-line .verdict.route { filter: hue-rotate(-18deg) saturate(1.5) brightness(.9); font-size: 21px; letter-spacing: 0; white-space: nowrap; }
+/* Cut 26 §6: a stamp most unpatched replays survive — `dice-leaning` beside it; a block whose every tablet harms says so */
+.death .death-line .lean { display: block; margin-top: 4px; font: 600 13px/1 var(--sans); color: var(--dim); letter-spacing: .02em; text-transform: none; }
+.patches-moment .all-harm { color: var(--hp); }

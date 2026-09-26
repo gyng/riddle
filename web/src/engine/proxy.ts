@@ -22,6 +22,7 @@ const METHODS: (keyof Engine)[] = [
   "forecastVs",       // Cut 22 §3: optional likewise (the edit's paired move under the shaft)
   "buyKit",           // Cut 23 §1: optional likewise (the forge)
   "kitDeltas",        // Cut 23 §1: optional likewise (the forge steps' measured moves)
+  "forkForecast",     // Cut 26 §2: optional likewise (the fork chip's two stairs)
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */
