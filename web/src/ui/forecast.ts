@@ -20,6 +20,7 @@ import type { Forecast, ForecastTry, ForecastVs, Row, VsMove } from "../engine/t
 import { h, clear, pct, replace } from "./dom";
 import { closeAllSheets } from "./sheet";
 import { pickedLine } from "./report";
+import { shaftOath } from "./oaths";
 
 const sameRow = (a: Row, b: Row): boolean =>
   a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length &&
@@ -45,6 +46,22 @@ export function killerName(app: App, cause: string): string {
 /** Cut 18 §3: the sealing boss's kind as one word (`goblin_warlord` → `warlord`). */
 export const wallName = (kind: string): string => kind.replace(/_/g, " ").trim().split(/\s+/).pop() ?? kind;
 
+/** Cut 28 §1 (AU, AV: `D14 2% · sealed by mother`, no visible path): the sealing boss's counter where the wall is — the lineage's learned
+ *  counter (`mother: fire`), else the core's hint for it (`ForecastDepth.counter_hint`: `mother: fire?`), else `mother: ?` (a fact to learn). */
+export function wallCounter(app: Pick<App, "lineage">, kind: string, d?: { counter?: string; counter_hint?: string }): string {
+  const name = wallName(kind), key = kind.replace(/ /g, "_");
+  // the core's wall (`Lineage.walls`): the counter as the lineage knows it (`mother: fire`, `mother: ?`)
+  const w = (app.lineage.walls ?? []).find((x) => x.boss === key || key.endsWith(x.boss) || x.boss.endsWith(key));
+  if (w?.fact) return w.fact;
+  const known = (app.lineage.counters ?? []).find((c) => c.boss === key || key.endsWith(c.boss) || c.boss.endsWith(name));
+  const text = d?.counter ?? known?.text?.replace(/,? ?boss$/, "").replace(/^(attack|throw|read|drink) /, "") ?? (d?.counter_hint ? `${d.counter_hint.replace(/\?$/, "")}?` : "?");
+  return `${name}: ${text}`;
+}
+/** Cut 28 §1 (AV: `bounty D13 · missed` never said what it pays or needs): the bounty says both — `bounty · D13 · $×2 · reach` (its
+ *  multiplier, and what it needs: the floor reached; the core's `needs` when it sends one, e.g. `mother: fire`). */
+export function bountyText(b: { depth: number; mult?: number; needs?: string; pays?: string; fact?: string }): string {
+  return /* copy:callout */ `bounty · D${b.depth} · ${b.pays ?? `$×${b.mult && b.mult > 1 ? b.mult : 2}`} · ${b.needs ?? "reach"}${b.fact ? ` · ${b.fact}` : ""}`;
+}
 /** Cut 20 §5: the bounty's multiplier as the notch reads it (`×2`; a number on the wire above 1 is the multiplier). */
 /** QA 912e135 (qaW: `D8 ×2` in the shaft — "no source"): the multiplier says what it multiplies — the floor's gold (`$×2`). */
 /** QA 524827b (qaAA: `D8 $×2 · warlord` unexplained): the multiplier names itself (`bounty $×2`). */
@@ -133,12 +150,43 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
   // QA 912e135 (qaX: `death −11` in green while the stall share rose 0 → 11 %): a stall that moves outside its ± is its own term, worse up
   const stall = moveOf(vs.stall);
   if (withEnds && stall && stall.dir !== "flat") terms.push(term(/* copy:label */ "stall", stall, "stall", true, vs.stall));
+  // Cut 28 §1: with an oath sworn, the edit's move on it is its own term (`oath +12`)
+  const oath = moveOf(vs.oath);
+  if (withEnds && oath && oath.dir !== "flat") terms.push(term(/* copy:label */ "oath", oath, "oath", false, vs.oath));
   if (!terms.length) return null;
   // QA 778fa1b (qaU: `death −10` stayed while the refine beside it read 22 → 27 %): a move paired on the first pass trails `…` and
   // reads dim until the refine's is asked again and lands (`ForecastVs.refined`; absent on an older core: no mark)
   return h("div", { class: `shaft-vs num${rough ? " rough" : ""}`, "data-refined": rough ? "0" : vs.refined ? "1" : "" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs sent", rough ? "…" : ""), ...terms);
 }
 
+/** Cut 28 §2 (AV: "death jumped 14 → 36 %; I blamed my new rows — the real cause was the party dying"): the state's part of the move
+ *  since the send, its own line (`party −2 jackals · death +24`), apart from the rows' `vs sent` (app.ts `smove`, ui/attrib.ts). */
+export function stateLine(app: App): HTMLElement | null {
+  // the core's attribution (`forecastMove`): one line per state part whose move clears its ± (the two largest), each its headline term
+  const fm = app.fmove;
+  if (fm) {
+    const parts = fm.parts.filter((p) => p.kind !== "rows" && p.kind !== "route").map((p) => ({ p, t: headTerm(app, p.move) })).filter((x) => x.t)
+      .sort((a, b) => Math.abs(b.t!.m.pts) - Math.abs(a.t!.m.pts)).slice(0, 2);
+    if (!parts.length) return null;
+    const box = h("div", { class: "shaft-states" });
+    for (const { p, t } of parts) box.appendChild(h("div", { class: `shaft-state num dlt-line${fm.refined ? "" : " rough"}`, "data-k": p.kind }, h("span", { class: "vs-label" }, p.text),
+      h("span", { class: "vs-term", "data-k": t!.key }, h("i", { class: "sep" }, " · "), t!.key, " ", h("b", { class: `dlt ${tone(t!.m.dir, t!.worse)}` }, t!.m.text))));
+    return box;
+  }
+  const sm = app.moveByCore ? null : app.smove; if (!sm || !sm.terms.length) return null;   // (the client's own read: an older core's fallback)
+  return h("div", { class: "shaft-states" }, h("div", { class: "shaft-state num dlt-line", "data-k": "state" }, h("span", { class: "vs-label" }, sm.label),
+    ...sm.terms.map((t) => h("span", { class: "vs-term", "data-k": t.key }, h("i", { class: "sep" }, " · "), t.key, " ", h("b", { class: `dlt ${tone(t.pts > 0 ? "up" : "down", t.worse)}` }, signedPts(t.pts))))));
+}
+/** A move's headline term: the death share when it clears its ±, else the bank's, else the frontier's depth (else the depth that moved most). */
+function headTerm(app: App, v: ForecastVs): { key: string; m: NonNullable<ReturnType<typeof moveOf>>; worse: boolean } | null {
+  const death = moveOf(v.death), bank = moveOf(v.bank);
+  if (death && death.dir !== "flat") return { key: /* copy:label */ "death", m: death, worse: true };
+  if (bank && bank.dir !== "flat") return { key: /* copy:label */ "bank", m: bank, worse: false };
+  const next = app.lineage.best_depth + 1;
+  const ds = v.depths.map((d) => ({ d, m: moveOf(d) })).filter((x): x is { d: typeof x.d; m: NonNullable<typeof x.m> } => !!x.m && x.m.dir !== "flat");
+  const hd = ds.find((x) => x.d.depth === next) ?? ds.sort((a, b) => Math.abs(b.m.pts) - Math.abs(a.m.pts))[0];
+  return hd ? { key: `D${hd.d.depth}`, m: hd.m, worse: false } : null;
+}
 /** QA 0c6e126 (qaY: a bought potion's `D5 71→65` read as a loss with no reason): the last lineage change's move on these rules
  *  (`App.lmove`) at the frontier — `buy · D5 ≈ ±9` inside the bar's ±, else `buy · D5 −6`. Null once the rules differ. */
 export function lmoveLine(app: App, f: Forecast | null): HTMLElement | null {
@@ -161,7 +209,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const paintPicked = (): void => { const p = app.lineage.picked ?? []; picked.hidden = !p.length; replace(picked, p.length ? pickedLine(p) : ""); };
   // Cut 22 §3: the edit's paired move, the shaft's line, under the ends (and a mark on each bar)
   const vsHost = h("div", { class: "fc-vs", hidden: true });
-  const paintVs = (): void => { const line = vsLine(app, app.vsShown(), app.lastForecast, true); vsHost.hidden = !line; replace(vsHost, line ?? ""); };
+  const paintVs = (): void => { const line = vsLine(app, app.vsShown(), app.lastForecast, true), st = stateLine(app); vsHost.hidden = !line && !st; replace(vsHost, st ?? "", line ?? ""); };
   // QA 778fa1b (qaU: 94/78/42 then 95/73/36 for the same rules, "no sign it was settling"): the first pass's label trails `…`
   const settling = h("span", { class: "fc-settling", hidden: true }, "…");
   // QA 778fa1b (qaV: `D1 100%` beside `death 100%` read as dying on D1): the bars say what they count — the share that reaches each floor
@@ -236,7 +284,9 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         cause ? h("small", { class: "dim" }, /* copy:callout */ ` · killer: ${cause.replace(/_/g, " ")}`) : "",
         boss ? h("small", { class: "boss-here" }, ` · ${boss}`) : "",
         wall ? h("small", { class: "wall" }, /* copy:callout */ ` · sealed by ${wall}`) : "",
-        d.bounty ? h("small", { class: "bounty-x" }, ` · ${bountyMult(d.bounty)}`) : "",   // Cut 20 §5: the bounty floor
+        wall ? h("small", { class: "wall-counter" }, ` · ${wallCounter(app, d.wall!, d as { counter?: string; counter_hint?: string })}`) : "",   // Cut 28 §1: the wall's path
+        // Cut 20 §5: the bounty floor; Cut 28 §1: what it pays and needs (`bounty · $×2 · item · reach`)
+        d.bounty ? h("small", { class: "bounty-x" }, ` · ${app.lineage.bounty?.depth === d.depth && (app.lineage.bounty.pays || app.lineage.bounty.needs) ? bountyText({ ...app.lineage.bounty, depth: d.depth }).replace(/^bounty · D\d+ · /, /* copy:callout */ "bounty · ") : bountyMult(d.bounty)}`) : "",
         counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "",
       ].filter((x) => x !== "");
       const inner = [
@@ -301,7 +351,9 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   // move is in view the moment it lands, whatever the well's scroll, and covers nothing. QA 778fa1b: measured against the set sent
   // (`vs sent`), `…` while an edit's move is pending
   const vsHost = h("div", { class: "shaft-vs-host", hidden: true });
-  const el = h("button", { class: "shaft", onclick: () => onOpen() }, notches, ends);
+  // Cut 28 §1: the sworn oath rides the shaft, under the notches, with the forecast's share of keeping it
+  const oathEl = h("div", { class: "shaft-oath-host" });
+  const el = h("button", { class: "shaft", onclick: () => onOpen() }, oathEl, notches, ends);
   let last: Forecast | null = app.lastForecast;
   // notches shown at most: D1 … the deepest (best+1, or the bounty floor). QA e75ec29 (R: "the column starts at D7 but the run starts
   // on D1"): past MAX the shallow floors fold into one notch (`D1–6`, lit by its deepest floor's reach — they are the ones every run
@@ -368,6 +420,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       // QA 308f045 (qaAC: `fens · D5 · ?` — "what the `?` asks"): a lane never entered says so (`untried`)
+      if (wall && d?.wall) n.appendChild(h("small", { class: "wall-counter num" }, wallCounter(app, d.wall, d as { counter?: string; counter_hint?: string })));   // Cut 28 §1
       if (fr) n.appendChild(h("small", { class: `frontier${fr.entered ? " entered" : ""}`, "data-biome": fr.biome }, /* copy:callout */ `${fr.biome} · D${fr.fork}${fr.entered ? "" : " · untried"}`));
       return n;
     }),
@@ -386,8 +439,9 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true))),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
       h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`, rough ? h("i", { class: "settling" }, "…") : ""));
-    const line = vsLine(app, vs, last, !!e && showEnds()), lm = lmoveLine(app, last);
-    vsHost.hidden = !line && !lm; replace(vsHost, lm ?? "", line ?? "");
+    replace(oathEl, shaftOath(app)); oathEl.hidden = !oathEl.childElementCount;
+    const line = vsLine(app, vs, last, !!e && showEnds()), lm = lmoveLine(app, last), st = stateLine(app);
+    vsHost.hidden = !line && !lm && !st; replace(vsHost, st ?? "", lm ?? "", line ?? "");
     el.dataset.vs = line ? "1" : "";
   };
   paint(); if (last) el.dataset.fc = String(app.forecastSeq);

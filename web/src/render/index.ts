@@ -88,7 +88,8 @@ export type Viewer = {
   debugRects?(): DebugRect[];     // Cut 14 §3: every entity drawn this frame, its on-screen rect in CSS px (the gates measure a foe's height)
   debugLabels?(): DebugLabel[];   // Cut 14 §3: every name drawn this frame (text, its row's bottom in CSS px)
   debugStairs?(): { x: number; y: number; text: string; taken: boolean }[];   // Cut 26 §2: a fork floor's stairs drawn this frame (their plates)
-  debugText?(): { kind: "callout" | "caption"; text: string }[];   // Cut 18 §2: the lines of text drawn over the fight this frame
+  debugText?(): { kind: "callout" | "caption"; text: string; x?: number; y?: number; w?: number; h?: number }[];   // Cut 18 §2: the lines of text drawn over the fight this frame (Cut 28 §4: + its box, CSS px)
+  setKeepOut?(rects: { x: number; y: number; w: number; h: number }[]): void;   // Cut 28 §4: the DOM's chips and plates over the canvas (CSS px, the canvas's) — no pixel text lands on them
   setQuiet?(on: boolean): void;   // Cut 22: a held beat's line is the one line — no callout or caption drawn over the fight meanwhile
   atlasInfo?(): unknown;
   debugBiome?(): string;          // Cut 16 §3: the biome the floor draws in (its palette)
@@ -198,7 +199,11 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   // the hero's logical tile changes (or the floor reloads); empty in a corridor
   let roomLit = new Uint8Array(0), roomKey = "";
   const rects: DebugRect[] = [], labels: DebugLabel[] = [];   // Cut 14 §3: what this frame drew, for the gates
-  const texts: { kind: "callout" | "caption"; text: string }[] = [];   // Cut 18 §2
+  const texts: { kind: "callout" | "caption"; text: string; x?: number; y?: number; w?: number; h?: number }[] = [];   // Cut 18 §2
+  // Cut 28 §4 (AU, AV: `R3 BANK` over the docked fold chips `gas>pack · bp 5/40`; `archer` printed across `R7 ATTACK ARCHER`): the
+  // watch's DOM over the canvas (the HUD, the fold line's chips, the banner, the ticker) as keep-out rects in CSS px — the callout,
+  // the caption and the name plates are placed off them (and the plates off the caption)
+  let keepOut: { x: number; y: number; w: number; h: number }[] = [];
   let quiet = false;   // Cut 22: `setQuiet` — the watch's held beat owns the line
   const tags: Tag[] = [], tagLayer = new TagLayer(canvas);   // second art pass: the hostiles' serif name plates (DOM)
   const lights: [number, number][] = [];   // art pass: this frame's torch flames (world env texels)
@@ -383,6 +388,18 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   const light = (i: number): number => (st.visible[i] || roomLit[i] ? 1 : MEMORY_DIM);
   /** Cut 14 §3: world → CSS px (the viewport's top-left is the canvas's; the sub-texel blit offset is ignored, ≤ 1 texel). */
   const toCss = (wx: number, wy: number): [number, number] => [((wx - (camSX - iw / 2)) * k) / dpr, (((camSY + ih / 2) - wy) * k) / dpr];
+  /** Cut 28 §4: the keep-out rects as world boxes (x0, y0, x1, y1; y up). */
+  const keepBoxes = (): [number, number, number, number][] => keepOut.map((r) => {
+    const x0 = camSX - iw / 2 + (r.x * dpr) / k, x1 = camSX - iw / 2 + ((r.x + r.w) * dpr) / k;
+    const yTop = camSY + ih / 2 - (r.y * dpr) / k, yBot = camSY + ih / 2 - ((r.y + r.h) * dpr) / k;
+    return [x0, yBot, x1, yTop];
+  });
+  const cssBox = (b: [number, number, number, number] | null): { x?: number; y?: number; w?: number; h?: number } => {
+    if (!b) return {};
+    const [x0, y0] = toCss(b[0], b[3]), [x1, y1] = toCss(b[2], b[1]);
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  };
+  const boxHit = (a: [number, number, number, number], b: [number, number, number, number]): boolean => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
 
   // ---- art pass (art/ui/ART_GAP.md): register 3 dressing, render-only, seeded by tile position ----------------------------
   const isWall = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < st.w && y < st.h && st.tiles[y * st.w + x] === "wall";
@@ -533,12 +550,34 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // `JACKALCKAL`: the callout above the hero and the name under a foe one tile up, on one row)
     const heroEnt = st.hero;
     let calloutBox: [number, number, number, number] | null = null;   // x0, y0, x1, y1 (world; y up)
+    const keeps = keepBoxes();
+    let calloutY = 0;   // Cut 28 §4: the callout's baseline — above the hero, else under his feet, else stepped down off the DOM
     if (st.callout && heroEnt && !quiet) {
       const [hx, hy] = feet(heroEnt);
       const width = st.callout.text.length * FONT_ADVANCE + 1;
-      const cy = hy + atlas.entity(heroEnt.kind).h / 2 + (fight ? (heroEnt.glyph ? (fight ? TILE * 2 : TILE) + 6 : 5) : 6);
+      const above = hy + atlas.entity(heroEnt.kind).h / 2 + (fight ? (heroEnt.glyph ? (fight ? TILE * 2 : TILE) + 6 : 5) : 6);
       const cx = textX(width, hx);
-      calloutBox = [cx - width / 2, cy - 1, cx + width / 2, cy + FONT_CELL_H + 1];
+      const boxAt = (y: number): [number, number, number, number] => [cx - width / 2, y - 1, cx + width / 2, y + FONT_CELL_H + 1];
+      const clear = (y: number): boolean => !keeps.some((b) => boxHit(boxAt(y), b));
+      let cy = above;
+      if (!clear(cy)) {
+        const below = hy - FONT_CELL_H - 3, floor = camSY - ih / 2 + 2;
+        cy = below;
+        for (let i = 0; i < 24 && !clear(cy) && cy - FONT_CELL_H > floor; i++) cy -= FONT_CELL_H;
+        if (!clear(cy)) { cy = above; for (let i = 0; i < 24 && !clear(cy); i++) cy += FONT_CELL_H; }
+      }
+      calloutY = cy;
+      calloutBox = boxAt(cy);
+    }
+    // Cut 28 §4: the caption's box (the fight frame's top line), placed under any DOM it would sit on; the plates keep off it too
+    let captionY = 0, captionBox: [number, number, number, number] | null = null;
+    if (fight && st.caption && !quiet && !(st.callout && heroEnt)) {
+      const room = iw - 2, w1 = st.caption.text.length * FONT_ADVANCE + 1;
+      const w = w1 <= room ? w1 : Math.min(room, st.caption.text.length * FONT_ADVANCE * 0.5 + 0.5), hgt = w1 <= room ? FONT_CELL_H : st.caption.text.length * FONT_ADVANCE * 0.5 + 0.5 <= room ? FONT_CELL_H * 0.5 : FONT_CELL_H + 1;
+      const boxAt = (y: number): [number, number, number, number] => [camSX - w / 2, y - 1, camSX + w / 2, y + hgt + 1];
+      let y = camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - FONT_CELL_H;
+      for (let i = 0; i < 8; i++) { const hit = keeps.find((b) => boxHit(boxAt(y), b)); if (!hit) break; y = hit[1] - hgt - 3; }
+      captionY = y; captionBox = boxAt(y);
     }
     const barBg = fight ? atlas.solid(BAR_RED) : null, barFg = fight ? atlas.solid(cssHex(bright)) : null;
     const gs = fight ? TILE * 2 : TILE; // Cut 8A: telegraph glyphs at 2× in the fight frame
@@ -666,8 +705,11 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         const nw = (tagText.length * TAG_CHAR + TAG_PAD) * px, th = TAG_H * px, nx = textX(nw, fx);
         let ny = fy + h + 1;
         const hits = (y: number): boolean => tagBoxes.some((b) => nx - nw / 2 < b[2] && nx + nw / 2 > b[0] && y < b[3] && y + th > b[1]);
-        const clash = (y: number): boolean => !!calloutBox && nx + nw / 2 > calloutBox[0] && nx - nw / 2 < calloutBox[2] && y + th > calloutBox[1] && y < calloutBox[3];
+        const clash = (y: number): boolean => [calloutBox, captionBox, ...keeps].some((b) => !!b && nx + nw / 2 > b[0] && nx - nw / 2 < b[2] && y + th > b[1] && y < b[3]);
+        const ny0 = ny;
         for (let i = 0; i < 8 && (hits(ny) || clash(ny)); i++) ny += th + px;
+        // Cut 28 §4: a plate pushed up into the HUD's chips tries under its foe instead
+        if (hits(ny) || clash(ny)) { ny = ny0 - th - px - h - 1; for (let i = 0; i < 8 && (hits(ny) || clash(ny)); i++) ny -= th + px; }
         if (!hits(ny) && !clash(ny)) {
           tagBoxes.push([nx - nw / 2, ny, nx + nw / 2, ny + th]);
           const [cx, cy] = toCss(nx, ny);
@@ -720,15 +762,15 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // callout: bitmap text above the hero (env density)
     const hero = st.hero;
     if (st.callout && hero && !quiet) {
-      const [fx, fy] = feet(hero);
+      const [fx] = feet(hero);
       // in the fight frame the callout clears the hp bar and, when up, the 2× glyph above it
       // Cut 13 §4: centred on the hero but kept inside the frame — a hero at the edge used to lose its callout's right half
-      fitText(st.callout.text, fx, fy + atlas.entity(hero.kind).h / 2 + (fight ? (hero.glyph ? gs + 6 : 5) : 6), 4, true);
-      texts.push({ kind: "callout", text: st.callout.text });
+      fitText(st.callout.text, fx, calloutY, 4, true);
+      texts.push({ kind: "callout", text: st.callout.text, ...cssBox(calloutBox) });
     }
     // Cut 8A: the firing row as a caption at the top of the fight frame (`R2 attack goblin`), under the DOM hud
     // Cut 18 §2: one line over the fight — a telegraph (the core's callout over the hero) takes it; the row goes to the ticker (watch)
-    if (fight && st.caption && !quiet && !(st.callout && hero)) { fitText(st.caption.text, camSX, camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - FONT_CELL_H, 4.1, false); texts.push({ kind: "caption", text: st.caption.text }); }
+    if (fight && st.caption && !quiet && !(st.callout && hero)) { fitText(st.caption.text, camSX, captionY, 4.1, false); texts.push({ kind: "caption", text: st.caption.text, ...cssBox(captionBox) }); }
     L.text.end();
   }
 
@@ -919,6 +961,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     debugStairs() { return stairPlates.map((p) => ({ ...p })); },
     debugText() { return texts.map((t) => ({ ...t })); },
     setQuiet(on) { quiet = on; },
+    setKeepOut(r) { keepOut = r; },
     debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, ally: !!e.ally, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
     stats() { return { ...stats }; },
     /** dev: every entity the state holds and whether the draw loop would show it */

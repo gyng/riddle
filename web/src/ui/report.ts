@@ -25,6 +25,8 @@ import { gem, portrait, renderBar, renderConsole, tile as cmdTile } from "./fram
 import { icon } from "./skin";
 import { revealed } from "./reveal";
 import { openLedger } from "./party";
+import { oathProgress } from "./oaths";
+import { bountyText } from "./forecast";
 
 const EXITS_SHOW = 8;
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
@@ -181,9 +183,15 @@ function newsLead(x: ExitLine, runs: number): (string | HTMLElement)[] {
   return n ? [h("b", { class: "news-lead" }, n.text), " · "] : [];
 }
 function newsBlock(r: ReturnReport, name?: (label: string) => string): HTMLElement | null {
-  const ns = newsLines(r, name);
-  if (!ns.length) return null;
-  return h("div", { class: "news" }, ...ns.map((n, i) => h("div", { class: `news-line k-${n.k}${i === 0 ? " lead" : ""}` }, n.text)));
+  // Cut 28 §2 (core `ReturnReport.lead`): the first screen leads with the decisions (`oath kept: D10 · no drink`, `plateau: none past
+  // D13`, `mother: fire learned`, `D9 death · order`), then what was new that they do not already say
+  const lead = r.lead ?? [];
+  const said = new Set(lead.map((l) => l.text));
+  const ns = newsLines(r, name).filter((n) => !said.has(n.text) && !lead.some((l) => l.k === "record" && n.k === "record"));
+  if (!ns.length && !lead.length) return null;
+  return h("div", { class: `news${lead.length ? " with-lead" : ""}` },
+    ...lead.map((l, i) => h("div", { class: `news-line decision k-${l.k}${i === 0 ? " lead" : ""}`, "data-k": l.k }, l.text)),
+    ...ns.slice(0, lead.length ? 2 : 4).map((n, i) => h("div", { class: `news-line k-${n.k}${i === 0 && !lead.length ? " lead" : ""}` }, n.text)));
 }
 
 /** Two rows with the same tokens (conds in order with their numbers, the verb). */
@@ -244,7 +252,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const picked = r.picked?.length ? h("div", { class: "picked-line dim num" }, pickedLine(r.picked)) : null;
   // Cut 20 §5: the night's bounty floor — `bounty D12 · taken $412`, or `bounty D12 · missed` (what the safe set left on the table)
   const bounty = r.bounty ? h("div", { class: `bounty-line num${r.bounty.taken ? " taken" : " missed dim"}` },
-    r.bounty.taken ? /* copy:callout */ `bounty D${r.bounty.depth} · taken $${r.bounty.gold}` : /* copy:callout */ `bounty D${r.bounty.depth} · missed`) : null;
+    // Cut 28 §1 (AV: `bounty D13 · missed` never said what it pays or needs): a missed bounty says both, then `missed`
+    ...(r.bounty.taken ? [/* copy:callout */ `bounty D${r.bounty.depth} · taken $${r.bounty.gold}`] : [bountyText({ ...(L.bounty?.depth === r.bounty.depth ? L.bounty : {}), depth: r.bounty.depth }), h("b", { class: "missed-w" }, /* copy:callout */ " · missed")])) : null;
   // QA a946e04 (T: 3 of 19 runs went from D1, the night's pass unpaid, nothing said so): `D5 short · 3 runs from D1`
   const startShort = r.start_short ? h("div", { class: "start-short-line warn num" }, /* copy:callout */ `${"D" + r.start_short.depth} short · ${r.start_short.runs} runs from ${"D1"}`) : null;
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
@@ -366,7 +375,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
         h("span", { class: "chips-inline" }, [`${d.title}${drivenBy(d.boss) > 1 ? ` ×${drivenBy(d.boss)}` : ""}`, d.verdict === "no counter" ? (have >= 0 ? /* copy:callout */ "order" : /* copy:callout */ "counter unwritten") : d.verdict, d.defence].filter(Boolean).join(" · ")),
         h("small", { class: "try" }, have >= 0 ? /* copy:callout */ `at R${have + 1}` : /* copy:callout */ `try: ${d.counter}`),
         // Cut 26 §6 (AP): the drive-off opens its verdict, as a death's line does (here when no exit line of his carries its own chip)
-        allExits.some((y) => y.driven?.boss === d.boss) ? "" : h("span", { class: "chip mini verdict-chip", role: "button", onclick: (e: Event) => { e.stopPropagation(); closeAllSheets(); const x = allExits.find((y) => y.driven?.boss === d.boss && (d.run_id === undefined || y.run_id === d.run_id)); app.go({ kind: "death", death: drivenDeath(x ?? d, d.run_id ?? x?.run_id ?? 0), kept: true, from: { report: r } }); } }, /* copy:button */ "verdict"));
+        // Cut 28 §2: the tablet is above the fold and the exit lines under it — it carries the verdict always
+        h("span", { class: "chip mini verdict-chip", role: "button", onclick: (e: Event) => { e.stopPropagation(); closeAllSheets(); const x = allExits.find((y) => y.driven?.boss === d.boss && (d.run_id === undefined || y.run_id === d.run_id)); app.go({ kind: "death", death: drivenDeath(x ?? d, d.run_id ?? x?.run_id ?? 0), kept: true, from: { report: r } }); } }, /* copy:button */ "verdict"));
     })) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
@@ -454,10 +464,21 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   });
   // QA 524827b (qaAA: KEPT `axe +7 → vault` after the cage's `took axe +1`): an item enchant scrolls raised says by how many
   const keptItems: { label: string; enchanted?: number }[] = r.kept ? r.kept.map((label) => ({ label })) : r.new_finds ? r.found : [];
+  // Cut 28 §2 (AU: "the report is a wall of salvage/found lines before anything to decide"): the first screen is what changed and what
+  // to do — the news, the tiles, the oath's progress, the plateau, a boss's counter (driven off, or newly learned), the bounty, pending;
+  // the ledger (exits, gold, salvage, bones, finds, the reel) folds under one `details` tap
+  const details = h("div", { class: "report-details", hidden: true });
+  const detailsBtn: HTMLButtonElement = h("button", { class: "details-fold num", "aria-expanded": "false", onclick: () => {
+    details.hidden = !details.hidden; detailsBtn.setAttribute("aria-expanded", details.hidden ? "false" : "true"); detailsBtn.classList.toggle("on", !details.hidden);
+  } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details");
+  const learnedFacts = r.learned.filter((f) => !/^bones:\d+$/.test(f));
+  const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
-    newsBlock(r, named), tiles, goldLine(), startShort, bounty, picked, exitLines, driven, rested, stall,
+    newsBlock(r, named), tiles, oathProgress(app, r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    detailsBtn, details);
+  details.append(...[goldLine(), picked, exitLines, rested,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
-    section(/* copy:label */ "learned", factChips(r.learned.filter((f) => !/^bones:\d+$/.test(f)), L.counters ?? [], (app.vocab?.locked ?? []).find((l) => l.cond.k === "alert>=" && /^◆\d+/.test(l.needs))?.needs)),
+    section(/* copy:label */ "learned", factChips(learnedFacts.filter((f) => !counterFacts.includes(f)), L.counters ?? [], (app.vocab?.locked ?? []).find((l) => l.cond.k === "alert>=" && /^◆\d+/.test(l.needs))?.needs)),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),
     // Cut 10 §3: a companion `◯ jackal · Ashar fell` (the name small); Cut 12 §6: a summoned ally `ally hound fell`
@@ -492,9 +513,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // rule: rank n+1 at 100·(n+1)² renown) — `★0 · 91/100`
     section(/* copy:label */ "renown", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "",
       typeof L.renown === "number" ? h("small", { class: "dim next-rank" }, ` · ${L.renown}/${100 * ((L.rank ?? r.renown.rank) + 1) ** 2}`) : "") : null),   // a rank pays a mark: the tiles' ◆ reconciles with the rows (QA on 56f2a1d: ◆+9 vs rows ◆+6)
-    pendingSec,
     section(/* copy:label */ "reel", reel(r.reel.map((x) => ({ text: noteText(x.text), n: x.n })))),
-  );
+  ].filter((x): x is HTMLElement => !!x));
+  detailsBtn.hidden = !details.childElementCount;
   const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el);
   return { el, dispose: () => bar.dispose() };
 }

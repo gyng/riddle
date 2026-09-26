@@ -37,6 +37,7 @@ import { closeAllSheets, openSheet, setPanelEscape } from "./sheet";
 import { setBusyHost } from "./progress";
 import { icon } from "./skin";
 import { biomeAt, routeChips, routeForks, seenForks, withFork } from "./route";
+import { openOathBoard, paintOathTab } from "./oaths";
 
 const SET_NAME_MAX = 12;
 /** QA 524827b (qaAA): a supply whose name does not say its use — its use under the shop chip (≤ 3 words). */
@@ -136,6 +137,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 26 §2: the set's route — a chip line above the rows (`⑂ D5 fens · D14 crypt`), carved once a hero has stood on two stairs (the
   // fact `fork D5`); the tap opens the fork tablet (both stairs priced for this set)
   const routeTab = h("button", { class: "route-line", hidden: true, onclick: () => openRoutePicker() });
+  // Cut 28 §1: the oath board — its own tablet under the start's (`oath → D10 no drink · 34%`, or `oaths 3`), carved when an oath is
+  // first affordable; the tap opens the board (three oaths, each its chips, its reward, its price)
+  const oathTab: HTMLButtonElement = h("button", { class: "row tablet compact oath-tab", hidden: true, onclick: () => openOathBoard(app, oathTab) });
+  const paintOath = (): void => { const R = revealed(app); if (R.has("oaths")) { paintOathTab(app, oathTab); oathTab.classList.toggle("reveal", R.fresh("oaths")); } else oathTab.hidden = true; };
   const party = renderParty(app);
   const fc = renderForecast(app);
   const shaft = renderShaft(app, () => togglePanel("forecast"), () => revealed(app).has("gems"));
@@ -174,7 +179,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab), shaft.el));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab, oathTab), shaft.el));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   const restLine = h("div", { class: "rest-line" }, rest);
@@ -234,7 +239,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // the portrait: the class and its level, the xp under it; a tap opens the class picker once classes can be had (the chip
     // row stands in for it while the wake's class offer is up)
     const R = revealed(app);
-    const picker = !offer && (R.has("edit") || R.has("unlocks"));   // from the first death (a second heir may take another class)
+    // Cut 28 §4 (AV: "couldn't open the class picker (portrait)"): the portrait opens it whenever classes can be had — while the wake's
+    // class chips stand too (the portrait was inert then, and it is where a player looks for the class)
+    const picker = R.has("edit") || R.has("unlocks");   // from the first death (a second heir may take another class)
     const next = portrait(app, { hp: 1, cls: picker ? "cls" : "", onclick: picker ? () => pickClass() : undefined,
       label: h("span", { class: "plabel-in" }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
         // QA 92eb880: the bar is the core's own ladder (`classes[c].next`, the XP the next level costs; 0 at the top: full)
@@ -737,10 +744,17 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // e0f87e7 asked for it) and the gem says it — `send` over a small `fast` — so the next run's pace is never a surprise
     // QA 524827b (qaAA: `SEND / FAST` read as one word pair, or a second button): the pace reads as the watch's own mode — a play mark,
     // lower case, on a pill (`▸ fast`), never a second word of the gem
-    const fast = app.watchMode !== "fights";   // Cut 25 §3: `fast` or the plain `1×` under the gem
+    // Cut 28 §3 (AU: "the watch defaults to `fights` so my first 1× watch was not 1×"): the gem names the mode always — `fights` too —
+    // and the pill is the choice: a tap on it steps `fights → 1× → fast` (remembered, `app.persist`) and never sends
     send.dataset.mode = app.watchMode;
+    const MODES = ["fights", "one", "fast"] as const;
+    /* copy:label */
+    const MODE_LABEL: Record<string, string> = { fights: "fights", one: "1×", fast: "fast" };
+    const pill = h("small", { class: "send-mode", role: "switch", "aria-checked": "true", "data-mode": app.watchMode, title: "watch pace",
+      onclick: (e: Event) => { e.stopPropagation(); e.preventDefault(); app.watchMode = MODES[(MODES.indexOf(app.watchMode) + 1) % MODES.length]; app.persist(); paintSend(); } },
+      /* copy:none */ "▸ ", MODE_LABEL[app.watchMode] ?? app.watchMode);
     replace(send, empty ? /* copy:callout */ "no rows" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
-      : fast ? h("span", { class: "send-l" }, /* copy:button */ "send", h("small", { class: "send-mode", title: "watch pace" }, /* copy:none */ "▸ ", app.watchMode === "one" ? /* copy:label */ "1×" : /* copy:label */ "fast")) : /* copy:button */ "send");   // Cut 12 §1: own rows
+      : h("span", { class: "send-l" }, /* copy:button */ "send", pill));   // Cut 12 §1: own rows
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }
@@ -751,7 +765,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     fn();
     boxes.forEach((b, i) => { if (b && b.scrollTop !== tops[i]) b.scrollTop = tops[i]; });
   }
-  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintRoute(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
@@ -759,7 +773,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // the forge's own lane — only when a step is affordable (the tile's badge: the tap it invites); a burst of edits never queues a measure
   let kitTimer = 0;
   const offShadow = app.onForecast((f) => {
-    editor.paintShadow(); clearTimeout(kitTimer);
+    editor.paintShadow(); clearTimeout(kitTimer); paintOath();
     if (f.refined && kitAffordable(app.lineage) > 0 && (revealed(app).has("forge") || revealed(app).has("kit"))) { const seq = app.forecastSeq, rows = JSON.stringify(app.rules.rows); kitTimer = window.setTimeout(() => { if (seq === app.forecastSeq && rows === JSON.stringify(app.rules.rows) && el.isConnected) void measureKit(app)?.catch(() => undefined); }, KIT_QUIET_MS); }
   });   // QA 92eb880: a shadowed row's mark lands with the forecast of the rules now
   return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };

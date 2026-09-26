@@ -68,3 +68,18 @@ Both: after the absence every run is the same D13 bank; gold piles up; forge ste
 | The defects | tests, ui.mjs |
 | Bots, dice, stalls, dances, lever, lanes, divergence, DEFAULT yields 0 | `node tools/gates.mjs --full` |
 | Cohort 24 (three absences): mean ≥ 74; expression or autonomy 0.8 from ≥ 1; α ≥ 0.80 | two blind cards |
+
+## Deviations (recorded)
+
+- Oath pool: `dry` (`D… · no drink`) cut — its best set was the bank-optimal set minus one row (the
+  ≥ 2-row gate); `quiet` cut (no set kept it). Pool: `bold` (no return) → a verb, `tamer` → a party
+  slot, `fire` → a title, `slayer` → the waystone past the boss, `lean` (no rest) → a card. Price:
+  max(forge unit, ½ last night's net); keeping spends it into the reward; forswearing refunds half;
+  one oath at a time. Measured: 19/19 oath·set pairs differ by ≥ 2 rows; 19/19 keepable ≥ 20 %/night;
+  the lever row holds with every reward owned (min gap +34).
+- The `kite archers` `…` hang did not reproduce in the core (50+ lineages native, a D14 save in
+  wasm); a regression test prices the card at every place; the client drops a refine unanswered
+  after 15 s so the shaft never sits on `…`.
+- `send skips rest` at 9/40 was the fold handing off a hurt hero — the hp rides the fold line.
+- `forecastMove` runs on measure lane 1 (beside the edits' vs and divergence on lane 2 it held the
+  refine after a burst).

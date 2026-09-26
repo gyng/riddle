@@ -126,7 +126,7 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
  *  (`no counter`), the defence that shrugged every blow (`shield wall`, ≤ 3 words), the counter in words (`attack boss`) and as a row
  *  the editor can insert (like a patch's). Render `Warlord · no counter · shield wall · try: attack boss`. */
 /** Cut 24 §2 (core) — one line of `ExitLine.news`: `k` first | record | named | find | situation | driven | learned | differ; `text` ≤ 6 words, lower case. */
-export type News = { k: "first" | "record" | "named" | "find" | "situation" | "driven" | "learned" | "differ"; text: string };
+export type News = { k: "first" | "record" | "named" | "find" | "situation" | "driven" | "learned" | "differ" | "oath"; text: string };   // Cut 28 §1 (core): `oath` — `oath kept: D10 · no drink`
 export type DrivenOff = { boss: string; title: string; depth: number; verdict: string; defence: string; counter: string; row: Row;
                           held?: number; over?: number;   // Cut 27 §5 (core): `verdict: "order"` — the counter row is in the set at `held` (0-based) under `over`, which acted first: show `R{held+1} under R{over+1}`; the fix is a move (row `held` above `over`), not a new row
                           run_id?: number; hp?: number; max_hp?: number; lost?: number };   // Cut 26 §6 (core; AP: a drive-off at 25/36 hp, no verdict screen): the run (open its verdict from the report), the hero's hp at the drive-off, the carry it lost
@@ -175,6 +175,11 @@ export type Ev =
   | { t: number; k: "drain"; cause: string };
 
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
+                           /** Cut 28 §3 (core): the step's calm stretches — `[from, to]` run ticks (inclusive, `Ev.t`) with no decision and no threat: no foe
+                            *  awake in view, no hurt, no row of the set acting (a chore / a `pick up` / `rest` row is calm), no beat (a descend, a fact, a
+                            *  telegraph, a theft, a death, a callout, a level, a tame, a new find). Play them at the travel rate in every mode, 1× included
+                            *  (1× keeps fights and beats at 1×). Absent when the step had none. */
+                           calm?: [number, number][];
                            exit_pending?: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] } };                     // Addendum D; `worth`: each item's salvage at this exit, in coins
 
 /** Cut 20 §5: `bounty` — tonight's bounty floor (the lineage best + 2: gold ×2 and a guaranteed item), the shaft's `D12 ×2`. */
@@ -191,12 +196,14 @@ export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share
                          sims?: number;                                  // Cut 23 §2 (core): the sims the shares were drawn from
                          low?: number;                                   // Cut 23 §2 (core): the smallest share one sim makes, in whole percent (⌈100 / sims⌉): a share sampled at 0 prints `<{low}%` (`death <2%`), never `0%`; a reach of 1.0 below `start` is not sampled (prints as is)
                          fold_to?: number;                               // Cut 27 §1 (core): the last floor the watch folds for this set (every floor from `start` to it clears ≥ 95 %: `ForecastDepth.clear`); absent = nothing folds
+                         oath?: OathShare;                               // Cut 28 §1 (core): the sworn oath priced on this panel (`oath · D10 no drink · 34%`); absent with none sworn
                          vs?: ForecastVs };                              // Cut 22 §3: the paired move against the last painted set (absent without an edit, or on a core that answers `forecastVs(prev)` instead)
 /** Cut 22 §3 — an edit's paired move: this set's panel minus the previous set's, on the same seeds (so far tighter than either
  *  absolute bar). `delta`: the move (a 0..1 fraction, signed); `pm`: its own paired half-width — a move inside it reads `≈`. The
  *  ends (`bank`, `death`, …) may come as a bare delta or as `{delta, pm}`. */
 export type VsMove = { delta: number; pm?: number; base?: number };   // QA 912e135 (core): `base` — the sent set's own share on the same seeds (today's kit); base + delta is the active panel's
-export type ForecastVs = { depths: ({ depth: number; abs_pm?: number } & VsMove)[]; bank?: number | VsMove; death?: number | VsMove; return?: number | VsMove; gold?: number | VsMove;
+export type ForecastVs = { oath?: VsMove;   // Cut 28 §1 (core): the sworn oath's share moved by the edit (same paired seeds); absent with none sworn
+                           depths: ({ depth: number; abs_pm?: number } & VsMove)[]; bank?: number | VsMove; death?: number | VsMove; return?: number | VsMove; gold?: number | VsMove;
                           stall?: VsMove;   // QA 912e135 (core): the stall share's move — a death traded for a stall reads (`stall 0→11%`)
                            sims?: number; refined?: boolean };   // QA 778fa1b (core): `refined` — the panels paired are the refined ones; a vs read before the refine is false, ask again after it   // core: `abs_pm` = the active bar's own ± at that depth; `sims` = the paired seeds both panels ran
 /** Cut 27 §1 (core) — a state change on a folded floor, a chip on the fold line. `kind`: `theft` · `find` · `gold` · `use` · `fact` ·
@@ -210,9 +217,13 @@ export type FoldFloor = { depth: number; clear: number; gold: number; snapshot: 
  *  `hp 9/40`; `beats`: every state change, each on its floor). `step` is the fold as one `step()`: all its events, the snapshot on the
  *  first unfolded floor (the watch opens there), `run_over`/`exit_pending` if the run ended inside it. Nothing folded: `to < from`,
  *  no tick ran, `floors` empty, `step.snapshot` the current one. */
-export type FoldLine = { from: number; to: number; clear: number; gold: number; beats: FoldBeat[]; chips: string[]; floors: FoldFloor[]; step: StepResult };
+export type FoldLine = { from: number; to: number; clear: number; gold: number; beats: FoldBeat[]; chips: string[]; floors: FoldFloor[]; step: StepResult;
+                         /** Cut 28 §4 (core; AV: "`send skips rest` sent a 9/40 heir" — it was the fold, handing off hurt): the hero's hp and max hp where the
+                          *  fold hands the run to the watch; `low` when hp ≤ half of max — say it on the fold line (`hp 9/40`; the chip is in `chips` too). */
+                         hp?: number; max_hp?: number; low?: boolean };
 /** Cut 27 §2 (core) — how a divergence branch's whole run ended (the panel's own result for that seed). `tier`: bank · return · death · stall. */
-export type DivergenceEnd = { tier: string; depth: number; cause?: string; gold: number };
+export type DivergenceEnd = { tier: string; depth: number; cause?: string; gold: number;
+                              oath?: boolean };   // Cut 28 §1 (core): with an oath sworn, whether this branch's whole run kept it
 /** Cut 27 §2 (core) — one branch's seconds: `snapshot` a few ticks before the divergence (the same state in both branches unless the
  *  sets packed differently), `events` from it to ~60 ticks past the divergence tick (earlier at a descend or the run's end), `end_snapshot`
  *  its last frame. `row`: the row (0-based, in its own set) that fired at the divergence tick (absent: none — a chore or a step);
@@ -236,12 +247,16 @@ export type ForecastTry = { row: Row; text: string; boss?: string; met?: number 
 /** QA 92eb880: `foes` = the player's count (every hostile seen from this action to the next, running thieves and the killer
  *  included); `rule_foes` = what `foes>=` counted (optional on old saves). */
 export type TraceTurn = { t: number; row: number; verb: Verb; hp: number; foes: number; rule_foes?: number; telegraphs: string[];
+                          max_hp?: number;   // Cut 28 §2 (core): the hero's max hp at this action (`6/9` — a drain or a curse shows); always sent by a Cut 28 core
                           blocked?: string; rows?: { row: number; why: string; because?: Because }[];
                           blows?: { t: number; by: string; dmg: number; hp: number }[] };   // QA 524827b (core; qaAB): the blows since the previous action, before this one — the table's rows between two actions   // because: Cut 11 §1; why `foes fleeing` / `foes appeared after` where `foes not ≥N` met a foes column ≥ N (QA 1a2a4a9)
 /** Cut 11 §1 — why a state reason held: the most recent event that put it there (`den took the heal, D3`, ≤ 8 words),
  *  its tick and floor. The client scrubs the run's replay to `t` when it still holds the run's events. */
 export type Because = { text: string; t: number; depth: number };
+/** Cut 28 §2 (core) — a max-hp step inside a trace's window (`hunger −1 max`): tick, max after, delta, cause (`hunger`, `drain`, `curse`). */
+export type MaxStep = { t: number; max: number; delta: number; cause: string };
 export type Trace = { turns: TraceTurn[];
+                      max_steps?: MaxStep[];   // Cut 28 §2 (core): the hero's max-hp steps from the trace's first turn to its end, oldest first; absent when the max never moved there
                       provenance?: Because[];                                                // Cut 11 §3: every `because` event of the run (exit traces)
                       blow?: { t: number; by: string; dmg: number; hp: number };
                       blows?: { t: number; by: string; dmg: number; hp: number }[];
@@ -263,6 +278,7 @@ export type Patch = { row: Row; insert_at: number; survive: number; forecast_del
                       buys?: { kind: string; label: string; price: number };                 // QA 0c6e126 (qaY; core): the row's named item the next heir will not carry — offered with its purchase (the tap buys it, then applies); its reach measured with it bought
                       moves_from?: number;                                                   // Cut 25 §2 (core): a move — the set's own row at `moves_from` goes above the row at `insert_at` (`row` echoes it; nothing added or cut): `move R5 above R2`
                       whole?: PatchWhole;                                                    // QA 524827b (core): the whole-run move on the camp's panel once applied (paired, with `deathDeltas`); absent while `camp_pending`
+                      no_gain?: boolean;                                                     // Cut 28 §2 (core): the patch survives no more replays than the unpatched rules (`survives 0/12 · no gain`) — never print a green move beside it
                       unlock?: string };                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
 /** QA 524827b (qaAA: `drink unknown · 12/12` led, then the camp's killers read fire 28 % · poison 26 %): a patch's whole-run move — reach
  *  at `forecast_depth` and the death share, paired over the camp's sims, each with its 95 % ±; `harms` (worse beyond a ±: never the lead,
@@ -284,6 +300,7 @@ export type Death = { run_id: number; depth: number; cause: string; margin: stri
                       chain?: Because[];                                                     // Cut 11 §2: the death's chain, root first (the rows' `because`s, deduplicated)
                       rules?: RuleSet;                                                       // the rules the run died under (the accounting's row labels; else the morgue's lines)
                       notes?: string[];                                                      // Cut 13 §4: the run's last two chronicle notes, under the headline (never a `saved him` — QA 92eb880)
+                      luck?: DeathLuck;                                                      // Cut 28 §2 (core): on a death most replays survive (a `dice`, or `lean: "dice"`) — the rare event that killed him and its odds; lead with it (`goblin −6 at 6 hp · 1 in 6`)
                       nothing_beats_base?: boolean };                                        // QA 92eb880: a `dice` death none of whose patches survives more than `baseline` (a 100 % base: the replays win the fight he lost) — say `nothing beats base · base N%`, not `below bar`. Cut 26 §6 (control rater AQ: `nothing beats unpatched 12/12` over a patch reading `survives 12/12`): the patches of such a death are what was TRIED, never help — do not print their `survives N/12` as a headline (e.g. `tried · same as base`)
 /** Cut 26 (core) — a `route` verdict: at the fork `fork` the set's route took `taken`; the near/other stair's replays survive `survive`
  *  (≥ 50 %, beating `baseline` by ≥ 15 pts) — `D5 fens · route`, the fix `take burrows` = `setRules({...set, route})`. */
@@ -297,7 +314,18 @@ export type Highlight = { pattern: string; score: number; t: number; run_id: num
   /** Cut 25 §5: client-side, set by `mergeReel` — the times this line's shape (`reelShape`) came up across the absence's slices
    *  (the report prints `×n` when > 1). Absent on a core line. */
   n?: number };
+/** Cut 28 §2 (core) — a luck-leaning death's event: `text` ≤ 6 words (`two blows at 6 hp`, `a max hit at 4 hp`, `goblin −6 at 6 hp`), `t` its tick,
+ *  `odds` the share of the reseeded replays that died too (0..1) and `one_in` = round(1 / odds) (`1 in 6`; 12+ when no replay died). */
+export type DeathLuck = { text: string; t: number; odds: number; one_in: number };
+/** Cut 28 §2 (core) — a report's first screen, decisions first: `k` oath · plateau · counter · record · death · driven · bounty · pending;
+ *  `text` ≤ 6 words (`oath kept: D10 · no drink`, `plateau: none past D13`, `mother: fire learned`, `record D14`, `D9 death · order`). */
+export type ReportLead = { k: string; text: string };
+/** Cut 28 §1 (core) — the sworn oath over an absence: `runs` the sends while it was sworn, `kept` those that met it, `done` it was kept (the reward
+ *  granted, the price spent into it), `reward` what it gave. */
+export type OathReport = { id: string; chips: string[]; text: string; runs: number; kept: number; done: boolean; reward?: OathReward; price?: number };
 export type ReturnReport = {
+  lead?: ReportLead[];                                                         // Cut 28 §2 (core): the report's first screen, ≤ 4, decisions first; salvage, bones and spent fold under `details`
+  oath?: OathReport;                                                           // Cut 28 §1 (core): the sworn oath's absence; absent with none sworn
   elapsed_s: number; runs: number; sampled: boolean;
   deepest?: number;                                                            // the send's deepest floor (a delta, like the tiles beside it); absent on an old wire
   stalled?: number;                                                            // Cut 13 §1: sends that stalled (among `returned`, keeping nothing); the tiles count them apart
@@ -354,7 +382,7 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         repeat?: boolean; repeat_kinds?: string[]; repeat_gold?: number;                              // Cut 19 §3: the loadout repeats (true unless cleared by `setRestock(false)`); the kinds the next send re-packs and their shelf price (`repeat · $120`); QA 1a2a4a9: a shelf of bought supplies is the next pack, so the badge is its price (the re-pack tops the shelf up, never more)
                         repeat_short?: string[];                                                                      // QA 1a2a4a9: kinds the last re-pack could not pay for (`repeat short`)
                         repeat_due?: string[]; repeat_unpaid?: string[];                                              // QA 778fa1b (core): of the repeat's kinds, those the shelf lacks that the next send re-packs at the send (`+heal at send`), and those the purse (after the toll) or the shelf cap will not let it — the tile reads `repeat short`. The exit's re-pack pays the price quoted at its send (the badge's), so `repeat_gold` is what is charged
-                        bounty?: { depth: number };
+                        bounty?: { depth: number; pays?: string; needs?: string; boss?: string; fact?: string };   // Cut 28 §1 (core): `pays` (`$×2 · item`), `needs` (`reach` · `slay mother`), and on a boss floor the boss and its counter fact (`mother: ?`) — `bounty · D13 · $×2 · reach`
                         waystones?: number[];                                                                         // Cut 21 §1: the lit waystones (a biome's first floor the lineage has banked at or past: 5 · 9 · 14 · 19 · 24 · 29), ascending
                         start?: number;
                         start_toll?: number;                                                                          // Cut 21 §1 (core): the toll the next send pays for `start` ($10 × start; 0 at D1)
@@ -367,6 +395,10 @@ export type Lineage = { seed: number; heir: number; trait: string; trait_offer?:
                         row_why?: (RowWhy | null)[];
                         forks?: ForkChip[];                                                                          // Cut 26 §2 (core): the forks the hero has seen (fact `fork:<d>`), shallowest first — the chip line above the rows; absent until D4's two stairs are seen
                         lanes?: LaneStone[];                                                                         // Cut 26 §2 (core): every lit (lane, depth) waystone; `waystones` is now the active route's lit ones (the start sheet lists `lanes`)
+                        oaths?: Oath[];                                                                              // Cut 28 §1 (core): the oath board — three standing oaths of the lineage (the sworn one flagged `sworn`)
+                        oath?: string | null;                                                                        // Cut 28 §1 (core): the sworn oath's id (null: none)
+                        titles?: string[];                                                                           // Cut 28 §1 (core): chronicle titles oaths earned (`Firebrand`), oldest first
+                        walls?: BossWall[];                                                                          // Cut 28 §1 (core): the band bosses from the Warlord to the first one past the best depth — each counter as a fact to learn
                         locked_rows?: (string | null)[] };                                                           // Cut 26 §6 (core): per row of the active set, the gate of its first cond this lineage cannot use (`see: den`, `enter fens`, `◆2`) — mark the row; absent when none                                                                // Cut 23 §3 (core): per row of the active set (by index), what it did over the recent sends and why not — null = no sends under this row yet                                                      // QA a946e04 (core): an identified flavour's old label (`blue potion?`) → its name now (`poison`); labels stored before read through it                                                                  // Cut 21 §2 (core): kinds the last send packed that no row uses — the repeat does not re-buy them (`strength · no row`)                                                                             // Cut 21 §1: where the next send starts (1, or a lit waystone; `setStart(d)`); the send pays `$10 × start` below D1                                                                 // Cut 20 §5: tonight's bounty floor (best + 2; moves every night)
 /** Cut 16 §2: a class chip at the wake (`rogue · vanish`). `signature` is a verb id (`shield_bash | vanish | mark | slow`);
  *  `level` the class's level; `opens` the level the signature opens at (`mark L7` while level < opens).
@@ -404,7 +436,36 @@ export type Egg = { id: number; kind: string; tags: string[]; gen: number; hatch
 export type LedgerRow = { kind: string; seen: boolean; known: boolean; tamed: boolean; bred: boolean; studied?: boolean;   // studied: Cut 2 §5
                           counter?: { row: Row; text: string } };                                                         // Cut 7 §1: a boss's known counter as a row (a chip on the bestiary card)
 
+/** Cut 28 §1 (core) — an oath's reward, never a stat: `card` (a tactic card, `id` its unlock), `slot` (a party slot), `row` (+1 row), `title` (a
+ *  chronicle title and a trophy), `waystone` (a lit waystone, `id` its depth), `verb` (a verb or cond unlock). `label` ≤ 3 words (`card: gas step`,
+ *  `+1 party`, `title: Firebrand`, `waystone D14`, `verb: throw`). */
+export type OathReward = { kind: "card" | "slot" | "row" | "title" | "waystone" | "verb"; id: string; label: string };
+/** Cut 28 §1 (core) — one standing oath: a constraint (`chips`, ≤ 3 words each: `D10` `no drink`; `text` = chips joined ` · `) and a reward that is not
+ *  a stat. `price` the gold swearing costs (priced from the lineage's income; spent into the reward when kept; forswearing refunds half). `kind` the
+ *  pool entry (`bold` · `tamer` · `fire` · `slayer` · `lean`). `boss` / `depth` / `counter` when it points at a band boss:
+ *  `counter` the boss's counter as a fact (`mother: fire`, or `mother: ?` while unknown — met, the counter is learned). */
+export type Oath = { id: string; kind: string; chips: string[]; text: string; reward: OathReward; price: number; sworn?: boolean;
+                     boss?: string; depth?: number; counter?: string };
+/** Cut 28 §1 (core) — the sworn oath on the camp's panel: `share` the sends that keep it (0..1) with its ± (`pm`); `night` the chance a night of 16
+ *  sends keeps it at least once. */
+export type OathShare = { id: string; text: string; share: number; pm: number; night: number };
+/** Cut 28 §1 (core) — a band boss as the wall ahead: `fact` its counter as the lineage knows it (`mother: fire`; `mother: ?` unknown — `learn` says how:
+ *  `meet her`); `row` the counter row (known only); `slain` once killed. */
+export type BossWall = { boss: string; title: string; depth: number; slain: boolean; known: boolean; fact: string; learn?: string; counter?: string; row?: Row };
+/** Cut 28 §2 (core) — one part of a forecast move (`forecastMove(sent)`): a state change since the send (`party` a pet died or joined, `kit` the vault /
+ *  forge / shelf / loadout, `purse` the gold, `start` the start floor / waystones, `facts` facts learned, `heir` a new heir / trait / class / level /
+ *  the floors' freshness) or the set's own edit (`route`, `rows`). `text` ≤ 3 words (`party −2 jackals`, `learned 3`, `new heir`, `rows`); `move` the
+ *  paired move this part alone made (the state changed in the order listed — the parts sum to `ForecastMove.whole` exactly). */
+export type MovePart = { kind: "party" | "kit" | "purse" | "start" | "facts" | "heir" | "route" | "rows"; text: string; move: ForecastVs };
+/** Cut 28 §2 (core) — the camp's move against the set sent, attributed: `whole` = the active set on today's lineage less the sent set on the lineage at
+ *  its send (paired seeds); `parts` in order (state first, then `route`, then `rows`), summing to `whole`; `lead` the kind whose headline move is the
+ *  largest; `rows` whether the set's rows differ from the sent set's (run the divergence scene only then, and only for the `rows` part's move);
+ *  `state` whether any state part is present. Null when the core recorded no send (a fresh lineage, an old save). */
+export type ForecastMove = { whole: ForecastVs; parts: MovePart[]; lead: string; rows: boolean; state: boolean; sims: number; refined: boolean };
 export interface Engine {
+  forecastMove?(prev: RuleSet): ForecastMove | null;   // Cut 28 §2: the move against `prev` (the set sent) attributed to state and rows — background lane, after the forecast (2–6 extra panels when the state changed)
+  swearOath?(id: string): Lineage;     // Cut 28 §1: swear a standing oath (pays `price`; one at a time — swearing another forswears the first)
+  forswearOath?(): Lineage;            // Cut 28 §1: forswear the sworn oath (refunds half its price)
   newLineage(seed: number): Lineage;
   load(save: string): Lineage;  save(): string;
   vocabulary(): Vocabulary;

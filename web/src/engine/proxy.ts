@@ -26,6 +26,9 @@ const METHODS: (keyof Engine)[] = [
   "fold",             // Cut 27 §1: optional likewise (the watch steps the folded floors itself without it)
   "divergence",       // Cut 27 §2: optional likewise (no scene without it)
   "runOfflineSlice",  // round 3: optional likewise (`runOfflineQuick` for every slice without it)
+  "forecastMove",     // Cut 28 §2: optional likewise (the move against the sent set attributed to state and rows)
+  "swearOath",        // Cut 28 §1: optional likewise (no oath board without it)
+  "forswearOath",     // Cut 28 §1: optional likewise
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

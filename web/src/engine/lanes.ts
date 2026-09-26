@@ -14,13 +14,13 @@ import type { AsyncEngine } from "./types";
 /** The calls that run on the refine lane when there is one (latest only per call). */
 export const REFINE = new Set<string>(["forecastRefine", "forecastVsRefined"]);
 /** The calls that run on the background lane. */
-export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas", "startForecast", "forkForecast"]);
+export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas", "startForecast", "forkForecast", "forecastMove"]);   // Cut 28 §2: `forecastMove` (2–6 camp panels)
 // Cut 25 §4 (AM: "~8 s for forge estimates on a D11 lineage after an absence"): measured on a D11 lineage after an 8 h absence (headed,
 // real wasm) the forge's `kitDeltas` (~6 s there) queued behind the camp's `unlockDeltas` (~9.7 s) on the one background lane — 15 s
 // from the camp's paint; `startForecast` ran on the foreground, ahead of an edit's forecast. The slow measures now run on lanes of their
 // own (a mirror each), so no measure waits behind another's: the unlock shelf's, the forge's (and the start picker's), the rest (the cage,
 // a death's patches). One lane on a machine with few cores (`MEASURE_LANES`).
-const MEASURE_LANE: Record<string, number> = { unlockDeltas: 0, kitDeltas: 1, startForecast: 1, forkForecast: 1, cageForecast: 2, deathDeltas: 2, forecastRefine: 2, forecastVs: 2, divergence: 2 };
+const MEASURE_LANE: Record<string, number> = { unlockDeltas: 0, kitDeltas: 1, startForecast: 1, forkForecast: 1, cageForecast: 2, deathDeltas: 2, forecastRefine: 2, forecastVs: 2, divergence: 2, forecastMove: 1 };   // (Cut 28 §2: the move after a send on the forge's lane — beside the edits' vs and divergence on lane 2 it held the refine after a burst)
 const MEASURE_LANES = typeof navigator !== "undefined" && (navigator.hardwareConcurrency ?? 4) >= 6 ? 3 : 1;
 /** Foreground calls that leave the lineage as it was (the mirror stays in sync across them). */
 const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastVs", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary"]);

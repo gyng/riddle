@@ -557,6 +557,11 @@ pub struct StepResult {
     pub run_over: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_pending: Option<ExitPending>,
+    /// Cut 28 §3 (AU: ~50 s of `pick up ×N` at 1×): the step's calm stretches — `[from, to]` run
+    /// ticks (inclusive, `Ev::t`) with no decision and no threat (`fold::calm_tick`): the watch plays
+    /// them at the travel rate in every mode. Empty when the step had none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub calm: Vec<[u32; 2]>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -654,6 +659,9 @@ pub struct Forecast {
     /// Absent when the start floor itself is below the bar.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fold_to: Option<u32>,
+    /// Cut 28 §1: the sworn oath priced on this panel (`oath · D10 no drink · 34%`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oath: Option<OathShare>,
 }
 
 /// Cut 22 §3 (AH: "most edits moved the forecast less than its ±10–13 error, so I couldn't tell
@@ -707,6 +715,9 @@ pub struct ForecastVs {
     /// set's camp panel was refined) — a vs read before the refine is `false`; ask again after.
     #[serde(default)]
     pub refined: bool,
+    /// Cut 28 §1: the sworn oath's share moved by the edit (the same paired seeds).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oath: Option<VsMove>,
 }
 
 /// Cut 21 §1: one start the camp's tablet offers (`Game::start_forecast`): D1 or a lit
@@ -805,6 +816,20 @@ pub struct TraceTurn {
     /// next action's (the last action's are `Trace.blows`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blows: Vec<TraceBlow>,
+    /// Cut 28 §2 (AV: `R1 hp not <30%` at 6 hp — his max drained 44 → 29, not shown): the hero's
+    /// max hp at this action.
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub max_hp: i32,
+}
+
+/// Cut 28 §2: one step of the hero's max hp (`Trace.max_steps`): the tick, the max after it, the
+/// move and its cause (`hunger`, `drain`, `shrine`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MaxStep {
+    pub t: u32,
+    pub max: i32,
+    pub delta: i32,
+    pub cause: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -833,6 +858,9 @@ pub struct Trace {
     /// stretch (heals, rest, regeneration) — `Σ hp_lost − hp_healed` is the hp he began it with.
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub hp_healed: i32,
+    /// Cut 28 §2: the hero's max-hp steps from the trace's first turn to its end, oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub max_steps: Vec<MaxStep>,
 }
 
 /// QA on 524827b: one cause's share of a death's hp lost since full (`Trace.hp_lost`).
@@ -932,6 +960,11 @@ pub struct Patch {
     /// the client reads `restore R4`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub restores: Option<u32>,
+    /// Cut 28 §2 (AU: `survives 0/12 · no gain` beside a green `reach D14 0→24%`): the patch
+    /// survives no more of the death's replays than the unpatched rules — the client prints no
+    /// green move beside it.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub no_gain: bool,
 }
 
 /// QA on 524827b: a patch's whole-run move on the camp's panel (the same seeds, the same
@@ -1073,6 +1106,22 @@ pub struct Death {
     /// otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lean: Option<String>,
+    /// Cut 28 §2 (AU/AV: `7–11/12 live unpatched` banners read as blame): on a death most replays
+    /// survive (`baseline` over `trace::STAMP_BASE`), the rare event that killed him and its odds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub luck: Option<DeathLuck>,
+}
+
+/// Cut 28 §2: a luck-leaning death's event (`Death.luck`): `text` ≤ 6 words (`two blows at 6 hp`,
+/// `a max hit at 4 hp`, `goblin −6 at 6 hp`), `t` its tick, `odds` the share of the reseeded
+/// replays that died too (0..1) and `one_in` = round(1 / odds) — `REPLAYS` when none died (rarer
+/// than 1 in 12).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct DeathLuck {
+    pub text: String,
+    pub t: u32,
+    pub odds: f64,
+    pub one_in: u32,
 }
 
 /// Cut 26: a `route` verdict's cause (`Death.route_cause`): at `fork` the route took `taken`;
@@ -1234,6 +1283,22 @@ pub struct ReturnReport {
     /// and the last heir who ran these runs (`[2, 17]`; one heir `[5, 5]`); empty with no run.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub heirs: Vec<u32>,
+    /// Cut 28 §2 (both raters: reports opened with salvage walls): the report's first screen,
+    /// decisions first (≤ `offline::LEAD_MAX`): the oath, the plateau, a counter learned, a record,
+    /// the worst death's verdict, a drive-off, the bounty, the first pending decision.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lead: Vec<ReportLead>,
+    /// Cut 28 §1: the sworn oath over the absence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oath: Option<OathReport>,
+}
+
+/// Cut 28 §2: one line of a report's first screen (`ReturnReport.lead`): `k` oath · plateau ·
+/// counter · record · death · driven · bounty · pending; `text` ≤ 6 words.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReportLead {
+    pub k: String,
+    pub text: String,
 }
 
 /// Cut 20 §5: the bounty floor (`Lineage.bounty`): each night the lineage's best depth + 2 —
@@ -1241,6 +1306,17 @@ pub struct ReturnReport {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Bounty {
     pub depth: u32,
+    /// Cut 28 §1 (both raters: `bounty D13 · missed` never said what it pays or needs): what the
+    /// floor pays (`$×2 · item`) and needs (`reach`, or `slay mother` on a boss floor the run must
+    /// win to come home from), and on a boss floor the boss and its counter fact (`mother: ?`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub pays: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub needs: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boss: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fact: Option<String>,
 }
 
 /// Cut 20 §5: the report's bounty — `taken` when a run reached the floor and came home
@@ -1601,6 +1677,119 @@ pub struct Lineage {
     /// for a row whose conds are all open; empty when none is locked.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub locked_rows: Vec<Option<String>>,
+    /// Cut 28 §1: the oath board — the lineage's standing oaths (≤ `oath::BOARD`), the sworn one
+    /// flagged; `oath` the sworn one's id; `titles` the chronicle titles oaths earned.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub oaths: Vec<Oath>,
+    #[serde(default)]
+    pub oath: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub titles: Vec<String>,
+    /// Cut 28 §1: the band bosses from the Warlord to the first unslain one past the best depth,
+    /// each counter as a fact the lineage knows or can learn (`mother: fire` / `mother: ?`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub walls: Vec<BossWall>,
+}
+
+/// Cut 28 §1: an oath's reward — never a stat: `card` · `slot` · `row` · `title` · `waystone` ·
+/// `verb`; `id` the unlock (or the title, or the waystone's depth), `label` ≤ 3 words.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OathReward {
+    pub kind: String,
+    pub id: String,
+    pub label: String,
+}
+
+/// Cut 28 §1: one standing oath (`oath::board`): its constraint as chips (≤ 3 words each) and
+/// `text` (the chips joined ` · `), its reward, its price in gold; `boss` / `depth` / `counter`
+/// when it points at a band boss (`counter`: `mother: fire`, or `mother: ?` unknown).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Oath {
+    pub id: String,
+    pub kind: String,
+    pub chips: Vec<String>,
+    pub text: String,
+    pub reward: OathReward,
+    pub price: i32,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub sworn: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boss: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub depth: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counter: Option<String>,
+}
+
+/// Cut 28 §1: the sworn oath on a panel (`Forecast.oath`): the share of the sends that keep it,
+/// its 95 % half-width, and `night` — the chance a night of `NIGHT_RUNS` sends keeps it once.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct OathShare {
+    pub id: String,
+    pub text: String,
+    pub share: f64,
+    pub pm: f64,
+    pub night: f64,
+}
+
+/// Cut 28 §1: the sworn oath over an absence (`ReturnReport.oath`): the sends while it was sworn,
+/// those that met it, whether it was kept (the reward granted).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OathReport {
+    pub id: String,
+    pub chips: Vec<String>,
+    pub text: String,
+    pub runs: u32,
+    pub kept: u32,
+    pub done: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reward: Option<OathReward>,
+    #[serde(default)]
+    pub price: i32,
+}
+
+/// Cut 28 §1: a band boss as the wall ahead (`Lineage.walls`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct BossWall {
+    pub boss: String,
+    pub title: String,
+    pub depth: u32,
+    pub slain: bool,
+    pub known: bool,
+    pub fact: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub learn: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row: Option<Row>,
+}
+
+/// Cut 28 §2: one part of an attributed forecast move (`ForecastMove.parts`): `kind` party · kit ·
+/// purse · start · facts · heir (state since the send) or route · rows (the set's edit); `text`
+/// ≤ 3 words; `move` the paired move this part alone made.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct MovePart {
+    pub kind: String,
+    pub text: String,
+    #[serde(rename = "move")]
+    pub move_: ForecastVs,
+}
+
+/// Cut 28 §2 (AV: the scene said `R2 now → dies` when both pets had died): the camp's move
+/// against the set sent, attributed (`forecast::forecast_move`): `whole` the active set on today's
+/// lineage less the sent set on the lineage at its send, on paired seeds; `parts` in order (state
+/// first, then route, then rows) sum to it; `lead` the part with the largest headline move; `rows`
+/// the rows differ (the divergence scene runs only then); `state` a state part is present.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ForecastMove {
+    pub whole: ForecastVs,
+    pub parts: Vec<MovePart>,
+    pub lead: String,
+    pub rows: bool,
+    pub state: bool,
+    pub sims: u32,
+    pub refined: bool,
 }
 
 /// Cut 26 §2: a seen fork — the stairs into the band at `depth`: `near` the band's own biome,
@@ -1911,6 +2100,15 @@ pub struct FoldLine {
     pub chips: Vec<String>,
     pub floors: Vec<FoldFloor>,
     pub step: StepResult,
+    /// Cut 28 §4 (AV: "`send skips rest` sent a 9/40 heir" — the fold handed off a hurt hero): his hp
+    /// and max hp where the fold hands the run to the watch; `low` at or under half his max (the
+    /// line says `hp 9/40`: a chip in `chips` too).
+    #[serde(default)]
+    pub hp: i32,
+    #[serde(default)]
+    pub max_hp: i32,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub low: bool,
 }
 
 /// Cut 27 §2: how one branch of a divergence's paired sim ended (the panel's own result for
@@ -1923,6 +2121,9 @@ pub struct DivergenceEnd {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cause: Option<String>,
     pub gold: i32,
+    /// Cut 28 §1: with an oath sworn, whether this branch's whole run kept it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oath: Option<bool>,
 }
 
 /// Cut 27 §2: one branch's seconds from the divergence — `snapshot` a few ticks before `tick`

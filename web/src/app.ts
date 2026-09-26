@@ -1,7 +1,7 @@
 // State machine: camp ⇄ watch ⇄ death ⇄ report. Owns the engine proxy (wasm in a worker, or the fake),
 // the editing copy of the three saved sets, and persistence.
 import type { RowWhy } from "./engine/types";
-import type { AsyncEngine, ComboHit, Death, Highlight, Forecast, ForecastVs, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary, VsMove } from "./engine/types";
+import type { AsyncEngine, ComboHit, Death, Highlight, Forecast, ForecastMove, ForecastVs, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary, VsMove } from "./engine/types";
 import { combosIn, isCardRow, isFreeSupply, ownRowCount, setWhyGloss } from "./ui/tokens";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
@@ -15,6 +15,7 @@ import { lastRun, type RunLog } from "./ui/runlog";
 import { showBusy } from "./ui/progress";
 import { audio } from "./audio";
 import { applySkin } from "./ui/skin";
+import { basesOf, linSum, readSnap, rulesKey, sharesOf, stateLabel, stateTerms, writeSnap, type StateMove, type StateSnap } from "./ui/attrib";
 
 export type Screen =
   | { kind: "camp"; highlight?: number }
@@ -49,6 +50,10 @@ const OFFLINE_SLICE_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES 
 // beside its first pass (REFINE_PAR_MS, the forecast's own debounce) and an edit meanwhile waits at most for the one in flight (≤ 1.3 s
 // in wasm), never for a queue of stale ones; a paint no edit asked for (a camp, a buy) and one lane (the fake, `?lanes=0`) keep Cut 23's 1 s
 const REFINE_MS = 1000, REFINE_PAR_MS = 30;
+/** Cut 28 §4: a refine not answered by then leaves the first pass standing (its `…` marks go). */
+const REFINE_STUCK_MS = 15_000;
+/** Cut 28 §2: the quiet the camp keeps before the move's attribution is asked. */
+const MOVE_QUIET_MS = 1500;
 /** Cut 20 §3: an edit's forecast waits this long for the next edit (was 250 ms; the first paint is due ≤ 1 s after the edit). */
 const FC_DEBOUNCE_MS = 30;   // Cut 24 §4: 30 ms (was 100) — a first pass ≤ 1 s in wasm needs the room
 const SLOWDOWNS_KEY = "riddle.slowdowns";
@@ -135,6 +140,8 @@ export class App {
   onVs(fn: () => void): () => void { this.vsListeners.add(fn); return () => this.vsListeners.delete(fn); }
   private setVs(v: ForecastVs | null): void {
     if (v === this.vs) return;
+    // Cut 28 §2: a refined move pairs the sent set on today's lineage (`base`) — after a run, its bases less the snap's are the state's part
+    if (v?.refined && this.snap?.ran && this.vsBase && this.snap.rules === rulesKey(this.vsBase) && this.lineage) { const b = basesOf(v); if (Object.keys(b.shares).length) this.noteState(this.snap.rules, b.shares, b.pm, v.sims ?? 0); }
     // QA 778fa1b (qaU: `hp < 50% → attack lowest` added under `foes ≥ 1 → attack nearest` read `vs last · death −10`): an edit that only
     // touched rows that can never fire (`shadowed_by`, on both sides) moves nothing — the sims' wobble is not the edit's, it reads `≈`
     if (v && this.deadEdit()) v = flatVs(v);
@@ -175,6 +182,55 @@ export class App {
    *  before, per depth, with the bar's ± (a move inside it reads `≈ ±N`: the sims, not the purchase). Shown under the shaft
    *  (`buy · D5 ≈ ±9`) until the rules or the lineage change again. */
   lmove: { label: string; rules: string; depths: { depth: number; delta: number; pm?: number }[] } | null = null;
+  /** Cut 28 §2: the state's part of the forecast's move since the last send (`party −2 jackals · death +24`) — the sent set's refined
+   *  shares now less the ones painted before it ran (ui/attrib.ts); its own line under the shaft until the next send. */
+  smove: StateMove | null = null;
+  /** Cut 28 §2 (core): the camp's move against the set sent, attributed to the state's changes and the rows' (`forecastMove(sent)`, asked
+   *  after each refined paint on a background lane); its state parts are the shaft's state lines. Null until it lands; cleared by a send. */
+  fmove: ForecastMove | null = null;
+  private moveOff = false;
+  /** The core attributes the move (`forecastMove`): the client's own read (`smove`) is only the fallback. */
+  get moveByCore(): boolean { return !!this.engine?.forecastMove && !this.moveOff; }
+  /** Asked once after a send, on the camp's first refined paint (the state changed by the run; purchases after it are `lmove`'s). */
+  private moveDue = false;
+  /** Cut 28 §4: how long a refine may go unanswered before the first pass stands (a field: the tests shorten it). */
+  refineStuckMs = REFINE_STUCK_MS;
+  private moveTimer = 0;
+  /** Asked once the camp is quiet (MOVE_QUIET_MS after a refined paint with no edit): its 2–6 panels never queue beside an edit's refine. */
+  private askMove(): void {
+    clearTimeout(this.moveTimer);
+    if (!this.moveDue) return;
+    const seq = this.editSeq;
+    this.moveTimer = window.setTimeout(() => { if (seq === this.editSeq) this.askMoveNow(); }, MOVE_QUIET_MS);
+  }
+  private askMoveNow(): void {
+    const e = this.engine; if (!this.moveDue || this.view.kind !== "camp" || this.moveOff || !e.forecastMove || this.overBudget || !this.lineage) return;
+    this.moveDue = false;
+    const sent = this.vsBase ? cloneSet(this.vsBase) : cloneSet(this.rules), lin = this.lineage;
+    void e.forecastMove(sent).then((m) => {
+      // (its state parts are the sent set's on the lineage now — an edit meanwhile leaves them standing; the rows' part is `vs sent`'s)
+      // the lineage replaced meanwhile (a refresh, a purchase): asked again
+      if (lin !== this.lineage) { this.moveDue = true; this.askMove(); return; }
+      this.fmove = m;
+      for (const fn of this.vsListeners) { try { fn(); } catch (err) { console.warn("vs listener", err); } }
+    }).catch((err) => { this.moveOff = true; console.warn("forecastMove unavailable", err); });
+  }
+  private snap: StateSnap | null = null;
+  /** The refined shares of `rules` under the lineage now: after a run (`snap.ran`) the move from the snap is the state's; then they are the snap. */
+  private noteState(rules: string, shares: Record<string, number>, pm: Record<string, number>, sims: number): void {
+    const lin = linSum(this.lineage), s = this.snap;
+    if (s?.ran && s.rules === rules) {
+      const label = stateLabel(s.lin, lin), terms = stateTerms(s, shares, pm);
+      this.smove = terms.length ? { label: label || /* copy:callout */ "since run", rules, terms } : null;
+    }
+    this.snap = { seed: this.lineage.seed, rules, lin, shares, pm, sims, ran: false };
+    writeSnap(this.snap);
+  }
+  /** A send of the rules now (a watched run, or an absence): the snap of these rules is what the state's move is read against. */
+  private markRan(): void {
+    this.smove = null; this.fmove = null; this.moveDue = true;
+    if (this.snap && this.snap.rules === rulesKey(this.rules)) { this.snap.ran = true; writeSnap(this.snap); }
+  }
   private lmPending: { label: string; before: Forecast | null; rules: string } | null = null;
   private noteLineageMove(f: Forecast): void {
     const p = this.lmPending; if (!p) return;
@@ -297,6 +353,7 @@ export class App {
     }
     if (!loaded) await this.fresh(dev?.seed);
     this.adoptSets();
+    this.snap = readSnap(this.lineage.seed);
     if (dev?.rules) {
       try {
         const set = await this.engine.importRules(dev.rules);
@@ -311,6 +368,7 @@ export class App {
     setInterval(() => { if (!document.hidden) void this.flush(); }, 30_000);
     if (dev?.absent) { elapsed = dev.absent; loaded = true; }
     if (loaded && elapsed >= OFFLINE_MIN_S) {
+      this.markRan();   // Cut 28 §2: the absence sends the rules now
       // the camp (last state) shows underneath, inert, while the batch runs (no forecast queued ahead of it)
       this.offlineRunning = true;
       this.go({ kind: "camp" });
@@ -524,6 +582,7 @@ export class App {
     this.lastForecast = f; this.shadow = f.shadowed_by ?? []; this.forecastSeq++;
     if (this.vsBase && sameSet(this.vsBase, this.rules)) this.noteBaseShown(f);
     this.noteLineageMove(f);
+    if (f.refined && !this.overBudget && this.lineage && this.view.kind === "camp") { const sh = sharesOf(f); this.noteState(rulesKey(this.rules), sh.shares, sh.pm, f.sims ?? 0); this.askMove(); }
     for (const fn of this.fcListeners) { try { fn(f); } catch (e) { console.warn("forecast listener", e); } }
   }
   /** Cut 6 §9: after the forecast paints and the rules stay unchanged for REFINE_MS, `forecastRefine` (100 sims) repaints
@@ -536,8 +595,17 @@ export class App {
     // Cut 24 §4: an edit's refine on its own lane runs beside the first pass (`beside`); any other waits for a quiet paint as before
     this.refineTimer = window.setTimeout(async () => {
       if (seq !== this.refineSeq || (!beside && this.fcInFlight) || this.offlineRunning || this.overBudget) { if (seq === this.refineSeq) this.refineKey = ""; return; }
+      // Cut 28 §4 (AU: with the `kite archers` card the forecast sat on `…` until the card was dropped): a refine that has not answered in
+      // REFINE_STUCK_MS leaves the first pass standing as the answer — its `…` marks go (`refined` unset, an older core's paint) — and a
+      // refine that lands later still paints over it
+      const stuck = window.setTimeout(() => {
+        const f0 = this.lastForecast;
+        if (seq !== this.refineSeq || !f0 || f0.refined !== false || !this.fcRules || !sameSet(this.fcRules, this.rules)) return;
+        console.warn("forecastRefine: no answer in", this.refineStuckMs, "ms");
+        const { refined: _r, ...rest } = f0; this.publishForecast({ ...rest, stuck: true } as Forecast);
+      }, this.refineStuckMs);
       try {
-        const f = await this.engine.forecastRefine!();
+        const f = await this.engine.forecastRefine!().finally(() => clearTimeout(stuck));
         if (seq !== this.refineSeq) return;
         this.refinedKey = key; this.refinedN++;
         this.publishForecast(f);
@@ -730,7 +798,7 @@ export class App {
     this.mounted?.dispose?.();
     if (screen.kind === "camp" && this.lineage.ended) screen = { kind: "ending" };
     this.view = screen;
-    if (screen.kind === "watch") this.resetVs();   // Cut 22 §3: the set that runs is the next edit's base
+    if (screen.kind === "watch") { this.resetVs(); this.markRan(); }   // Cut 22 §3: the set that runs is the next edit's base
     let m: Mounted;
     switch (screen.kind) {
       case "camp": m = renderCamp(this, screen.highlight); break;
@@ -741,6 +809,8 @@ export class App {
     }
     this.mounted = m;
     this.root.replaceChildren(m.el);
+    // Cut 28 §2: the first camp after a send asks the move's attribution (behind the camp's own first forecast)
+    if (screen.kind === "camp" && this.moveDue) this.askMove();
     this.root.dataset.screen = screen.kind;
     document.body.classList.toggle("framed", screen.kind !== "ending");   // Cut 17: sheets unfold above the console
     window.scrollTo(0, 0);
@@ -854,7 +924,23 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     salvaged: [...salv].map(([kind, v]) => ({ kind, ...v })),
     spent: spent ? [...spent].map(([kind, v]) => ({ kind, ...v })) : undefined,
     renown: { gained: a.renown.gained + b.renown.gained, rank: b.renown.rank, ranks_up: a.renown.ranks_up + b.renown.ranks_up },
+    ...mergeLead(a, b),
   };
+}
+/** Cut 28 §1–2: the sworn oath's night adds up across slices of one oath (a kept one wins: its reward was granted), and the report's
+ *  decisions (`lead`, the core's first screen) merge by kind — the later slice's word for a kind, the oath's rebuilt from the merged tally,
+ *  in the core's order (oath · plateau · counter · record · death · driven · bounty · pending), ≤ 4. */
+function mergeLead(a: ReturnReport, b: ReturnReport): Pick<ReturnReport, "oath" | "lead"> {
+  const oath = !a.oath ? b.oath : !b.oath ? a.oath : a.oath.id !== b.oath.id ? (a.oath.done ? a.oath : b.oath)
+    : { ...b.oath, runs: a.oath.runs + b.oath.runs, kept: a.oath.kept + b.oath.kept, done: a.oath.done || b.oath.done, reward: b.oath.reward ?? a.oath.reward };
+  if (!a.lead && !b.lead) return oath ? { oath } : {};
+  const ORDER = ["oath", "plateau", "counter", "record", "death", "driven", "bounty", "pending"];
+  const by = new Map<string, { k: string; text: string }>();
+  for (const l of [...(a.lead ?? []), ...(b.lead ?? [])]) if (l.k !== "plateau" || (b.lead ?? []).some((x) => x.k === "plateau")) by.set(l.k === "counter" ? `counter:${l.text}` : l.k, l);
+  if (oath && (a.oath && b.oath)) by.set("oath", { k: "oath", text: oath.done ? /* copy:none */ `oath kept: ${oath.text}` : /* copy:none */ `oath: ${oath.text} · ${oath.kept}/${oath.runs}` });
+  const rank = (k: string): number => { const i = ORDER.indexOf(k.split(":")[0]); return i < 0 ? ORDER.length : i; };
+  const lead = [...by.entries()].sort((x, y) => rank(x[0]) - rank(y[0])).map(([, l]) => l).slice(0, 4);
+  return { ...(oath ? { oath } : {}), lead };
 }
 
 /** Cut 12 §1: the set's engagement row — the first `attack` / `shoot` — where a bought card goes; the end when there is none. */

@@ -243,6 +243,7 @@ try {
   let ex = await exitsDom();
   check(ex.lines === 8 && ex.more === "· 4 earlier", `12 exits over 15 runs: 8 lines and an earlier button (${ex.lines} lines, "${ex.more}")`);
   check(ex.unlisted.length === 1 && ex.unlisted[0].text === "· 3 unlisted" && ex.unlisted[0].tag === "DIV" && ex.unlisted[0].dim, `the runs with no line: "${ex.unlisted[0]?.text}" (${ex.unlisted[0]?.tag}, dim ${ex.unlisted[0]?.dim})`);
+  await page.evaluate(() => document.querySelector('.report .details-fold[aria-expanded="false"]')?.click());   // Cut 28 §2: the ledger folds under `details`
   await page.locator(".report .exit-lines button.ledger-more").click({ timeout: 5000 }); await sleep(200);
   ex = await exitsDom();
   check(ex.lines === 12 && ex.more === null && ex.unlisted.length === 1, `more expands to every line, the unlisted count stays (${ex.lines} lines, more ${ex.more}, ${ex.unlisted.length} unlisted)`);

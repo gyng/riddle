@@ -118,7 +118,12 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const leanCounts = (d.verdict === "gap" || d.verdict === "row" || d.verdict === "order") && (d.replays ? Math.round((d.baseline ?? 0) * d.replays) * 2 > d.replays : (d.baseline ?? 0) > 0.5);
   const lean = !drove && (d.lean === "dice" || leanCounts);
   const word = d.verdict;
-  const seal = h("button", { class: /* copy:none */ `verdict ${word}`, onclick: () => { patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } }, word);
+  // Cut 28 §2 (AU: `8/12 live unpatched` deaths "felt like the dungeon's decision"; AV: `10/12 live unpatched` under GAP read as blame): a
+  // death most of whose replays live — or a `dice` — leads with the event that killed him and its odds (`goblin −6 at 6 hp · 1 in 6`), over
+  // the stamp, which steps back (the patches still answer it)
+  const luck = !drove && d.verdict !== "stall" && d.verdict !== "route" && (lean || word === "dice") ? luckOf(d) : null;
+  const luckLead = luck ? h("div", { class: "luck-lead num" }, h("span", { class: "luck-event" }, luck.event), h("span", { class: "luck-odds" }, /* copy:callout */ ` · 1 in ${luck.oneIn}`)) : null;
+  const seal = h("button", { class: /* copy:none */ `verdict ${word}${luck ? " lean-seal" : ""}`, onclick: () => { patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } }, word);
   // QA 524827b (qaAB: tapped `gas · D6` expecting the clip; it only scrolled to the trace): the cause opens the moment — the killing
   // blow's replay when this session still holds the run — else brings up the trace
   const moment = d.trace.blow ? { text: d.cause.replace(/_/g, " "), t: d.trace.blow.t, depth: d.depth } : null;
@@ -222,7 +227,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   ] });
   const tracePanel = h("div", { class: "parchment trace-panel", hidden: !!drove && !d.trace.turns.length }, ...trace);   // a drive-off's line may carry no trace
   const well = h("div", { class: "well death-well" },
-    h("div", { class: "defeat" }, h("div", { class: "banner-cloth" }, line), news, drivenHp, notes, forecastLine, ledger, eggs, bones),
+    h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}` }, luckLead, line), news, drivenHp, notes, forecastLine, ledger, eggs, bones),
     // QA 23ed91f (K: "the patches sit below the fold, under the console"): the patches, the screen's point, before the trace
     patches,
     tracePanel);
@@ -420,6 +425,18 @@ function routeBlock(app: App, d: Death, select: (b: HTMLButtonElement) => void):
   rest.insertBefore(btn, rest.querySelector(":scope > button.patch"));
   rest.querySelectorAll<HTMLElement>(":scope > button.patch > .rank").forEach((r, i) => { r.textContent = `${i + 1}.`; });
   return rest;
+}
+
+/** Cut 28 §2 — a luck-leaning death's lead: the event that killed him (the core's `Death.luck.text`, else the killing blow: `goblin −6 at 6
+ *  hp`, the hp he had before it) and how often the replays die of it — the core's `one_in`, else the unpatched replays that died
+ *  (`1 in round(n / died)`; none died: `1 in 12+`). */
+export function luckOf(d: Death): { event: string; oneIn: string } {
+  const core = (d as Death & { luck?: { text?: string; one_in?: number; odds?: number } }).luck;
+  const blow = d.trace.blows?.length ? d.trace.blows[d.trace.blows.length - 1] : d.trace.blow;
+  const event = core?.text ?? (blow ? /* copy:callout */ `${blow.by.replace(/_/g, " ")} −${blow.dmg} at ${blow.hp + blow.dmg} hp` : d.cause.replace(/_/g, " "));
+  const n = d.replays ?? 12, died = n - Math.round((d.baseline ?? 0) * n);
+  const one = core?.one_in ?? (core?.odds ? Math.max(1, Math.round(1 / core.odds)) : undefined);
+  return { event, oneIn: one !== undefined ? `${one}` : died > 0 ? `${Math.max(1, Math.round(n / died))}` : `${n}+` };
 }
 
 /** Cut 13 §5: the last forecast's reach at `depth` (a 0..1 fraction, the number the camp's bar showed); undefined without a

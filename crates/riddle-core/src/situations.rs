@@ -588,7 +588,7 @@ pub fn hunger_tick(run: &mut Run, cx: &mut Ctx) {
     // Cut 25 §3: with no foe in view, the stretch is a drain (`starving`, once).
     crate::turn::drain_mark(run, cx, "hunger");
     callout(run, cx, "hunger −1 max");
-    cx.events.push(Ev::MaxHp { t: run.turn, id: crate::engine::HERO_ID, max: run.hero.max_hp, delta: -1, cause: "hunger".into() });
+    crate::turn::hero_max_hp(run, cx, -1, "hunger");
     cx.events.push(Ev::Hurt { t: run.turn, id: crate::engine::HERO_ID, dmg: 0, hp: run.hero.hp, cause: "hunger".into() });
 }
 

@@ -1083,7 +1083,8 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .bar .n .vsm { margin-left: 4px; font-size: 10px; }
 /* Cut 22: the send gem names a remembered `fast` watch under its word */
 .gem.send .send-l { display: inline-flex; flex-direction: column; align-items: center; line-height: 1; }
-.gem.send .send-mode { margin-top: 4px; padding: 1px 5px; border-radius: 6px; background: rgba(0,0,0,.28); font: 600 10px/1.2 var(--sans); letter-spacing: .04em; text-transform: none; opacity: .85; }
+/* Cut 28 §3: the mode pill hangs at the gem's foot — off its centre, so a tap there always sends; a tap on the pill steps the mode */
+.gem.send .send-mode { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); white-space: nowrap; z-index: 1; padding: 3px 8px; min-height: 18px; cursor: pointer; pointer-events: auto; border-radius: 6px; background: rgba(14,10,8,.86); box-shadow: inset 0 0 0 1px #5a4630; color: #e8d6b0; font: 600 10px/1.2 var(--sans); letter-spacing: .04em; text-transform: none; }
 .start-opt .start-death { font-weight: 400; }
 .start-opt .start-death.warn { color: var(--warn); }
 :is(.sheet, .panel, .parchment) .start-opt .start-death.warn { color: #a3481f; }
@@ -1280,3 +1281,80 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 .div-line .now { color: #f3c25a; }
 .div-line .div-flat { color: #c9b48f; }
 @media (prefers-reduced-motion: reduce) { .div-scene .div-end { transition: none; } }
+
+/* Cut 28 §2 (death fork) — a luck-leaning death leads with the event and its odds; the stamp steps back; max-hp steps in the trace */
+.death .luck-lead { display: block; text-align: center; margin: 0 0 8px; font: 700 15px/1.2 var(--display); color: #f6dfa8; text-shadow: 0 2px 3px #000; }
+.death .luck-lead .luck-odds { font: 800 13px/1 var(--sans); color: #f0c870; letter-spacing: .04em; }
+.death .death-line .verdict.lean-seal { width: 56px; height: 56px; font-size: 14px; opacity: .8; filter: grayscale(.6); }
+.trace tr.max-step td { color: #b48cd8; }
+.trace tr.max-step td.down { color: var(--down, #e0705a); }
+.hp-max { margin-bottom: 2px; }
+.hp-max .down, .chain-row .hp-at { font-variant-numeric: tabular-nums; }
+.patch.tablet .quiet { color: var(--dim); }   /* Cut 28 §2: a `no gain` tablet's moves read neutral */
+/* Cut 28 §1 — oaths: the camp's oath tablet (the cage/start frame, a blood-gold tint), the board (three carved stone tablets on the
+   parchment: constraint chips, the reward's icon and word, the swear price), the wax seal on a sworn oath, the oath on the shaft */
+.row.tablet.compact.oath-tab { min-height: 48px; border-color: #6a4a22; background: linear-gradient(#33241a, #1c140e); }
+.row.tablet.compact.oath-tab[hidden] { display: none; }
+.row.tablet.compact.oath-tab .rn { display: flex; justify-content: center; }
+.row.tablet.compact.oath-tab .rtext { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 17px; color: #f0dcb0; }
+.row.tablet.compact.oath-tab .arrow { color: var(--acc); }
+.row.tablet.compact.oath-tab .chip.oath-c { min-height: 26px; padding: 0 7px; font-size: 14px; }
+.row.tablet.compact.oath-tab.sworn { border-color: #b08a3a; box-shadow: 0 0 10px rgba(240, 180, 74, .3); }
+.skin-tablet .row.tablet.compact.oath-tab { background: linear-gradient(rgba(150, 90, 30, .3), rgba(36, 22, 12, .4)); background-clip: padding-box; }
+.oath-seal { display: inline-block; width: 26px; height: 26px; flex: none; background: radial-gradient(circle at 40% 35%, #d4483a, #7a120c 70%); border-radius: 50%; box-shadow: 0 1px 2px #000; }
+.oath-seal::after { content: "⚜"; display: block; font: 700 15px/26px var(--display); text-align: center; color: rgba(255, 220, 190, .75); }
+.skin-seal .oath-seal { background: url(/ui/frames/seal.png) center / 100% 100% no-repeat; border-radius: 0; box-shadow: none; }
+.skin-seal .oath-seal::after { content: none; }
+.chip.oath-c { font-family: var(--sans); font-weight: 600; }
+.chip.oath-c.depth { color: #f3d27a; }
+.oath-share { font: 700 16px/1 var(--sans); color: #f3d27a; white-space: nowrap; }
+.oath-share.rough { opacity: .7; }
+.oath-share .vsm { font-size: 11px; margin-left: 2px; }
+.oath-board { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 8px; }
+.oath.tablet { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 4px; border: 2px solid #4e3f2e;
+  background: linear-gradient(#2e251d, #1b1611); box-shadow: 0 2px 3px #000; color: #e8d8b8; --fg: #e8d8b8; --dim: #a8987a; }
+.skin-tablet .oath.tablet { border: 2px solid transparent; border-image: url(/ui/frames/tablet.png) 24 fill / 12px stretch; background: none; box-shadow: none; }
+.oath.tablet.sworn { border-color: #b08a3a; box-shadow: 0 0 12px rgba(240, 180, 74, .35); }
+.skin-tablet-card .oath.tablet.sworn { border-image-source: url(/ui/frames/tablet_card.png); }
+.oath.tablet.done { opacity: .7; }
+.oath.tablet > .oath-seal { position: absolute; top: -8px; right: -6px; width: 34px; height: 34px; }
+.oath.tablet > .oath-seal::after { line-height: 34px; font-size: 19px; }
+.oath-head .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.oath-head .chip.oath-c { min-height: 30px; padding: 0 10px; font-size: 16px; }
+.oath-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.oath-reward { display: inline-flex; align-items: center; gap: 5px; font: 600 15px/1.1 var(--display); color: #f0d890; }
+.oath-reward .ico { width: 24px; height: 24px; }
+.oath-foot .chip.swear { margin-left: auto; min-height: 40px; padding: 0 14px; font-size: 16px; }
+.oath-foot .chip.swear.armed { background: #7a1c10; color: #fff2d0; }
+.oath-foot .oath-state { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+.oath-foot .why { flex-basis: 100%; text-align: right; }
+.oath.tablet.short .chip.swear { opacity: .55; }
+.oath-progress, .oath-counter { font-size: 13px; }
+.oath-counter { color: #e8a860; }
+.shaft-oath-host[hidden] { display: none; }
+.shaft-oath { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; padding: 0 2px 5px; border-bottom: 1px solid #3a2e22; font-size: 11px; line-height: 1.15; color: #e8d0a0; }
+.shaft-oath .oath-seal { width: 18px; height: 18px; }
+.shaft-oath .oath-seal::after { font-size: 11px; line-height: 18px; }
+.shaft-oath .so-c { flex-basis: 100%; font-weight: 600; }
+.shaft-oath .oath-share { font-size: 15px; }
+.shaft-oath .oath-share .pm { font-size: 10px; }
+.shaft .notch .wall-counter { grid-column: 2; font: 600 10px/1.1 var(--sans); color: #e8a860; }
+.forecast .wall-counter { color: #b0602a; font-weight: 600; }
+/* Cut 28 §2: the state's part of the forecast's move — its own line above the rows' `vs sent` */
+.shaft-vs-host { flex-wrap: wrap; }
+.shaft-states { flex-basis: 100%; display: flex; flex-direction: column; align-items: flex-end; }
+.fc-vs .shaft-states { align-items: flex-start; }
+.shaft-state { display: flex; justify-content: flex-end; align-items: baseline; font-size: 12px; line-height: 1.3; color: var(--dim); }
+.shaft-state .vs-label { font: 600 12px/1.2 var(--sans); color: #c9a8e8; }
+.shaft-state .sep { font-style: normal; white-space: pre; }
+.shaft-state .dlt.up { color: var(--ok, #7fd08a); } .shaft-state .dlt.down { color: var(--hp); }
+.shaft-state.rough { opacity: .6; }
+/* Cut 28 §2: the report's ledger folds under one `details` tap */
+.report .details-fold { display: block; margin: 14px auto 2px; min-height: 40px; padding: 0 18px; border-radius: 4px; border: 1px solid var(--ink-line, #8a7050);
+  background: rgba(90, 60, 20, .1); font: 600 15px/1 var(--display); color: #5a3a14; letter-spacing: .04em; }
+.report .details-fold[hidden], .report .report-details[hidden] { display: none; }
+.report .details-fold.on .fold-mark { display: inline-block; transform: rotate(90deg); }
+.report .rsec.oath-sec .oath.tablet { margin-top: 4px; }
+.report .bounty-line .missed-w { font-weight: 600; }
+.row.tablet.compact.oath-tab.reveal { position: relative; overflow: hidden; animation: carve .7s ease-out both; }
+.row.tablet.compact.oath-tab.reveal::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 230, 160, .6) 50%, transparent 70%); transform: translateX(-120%); animation: glint 1.1s .35s ease-out both; pointer-events: none; }

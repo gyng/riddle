@@ -36,7 +36,7 @@ impl Game {
         let clear_of = |d: u32| plan.as_ref().and_then(|p| p.1.iter().find(|(x, _)| *x == d).map(|(_, c)| *c)).unwrap_or(1.0);
         if live.is_none() || to < from {
             let snapshot = self.last_snapshot.clone().unwrap_or_else(|| self.snapshot());
-            return FoldLine { from, to: from.saturating_sub(1), clear: 1.0, gold: 0, beats: Vec::new(), chips: Vec::new(), floors: Vec::new(), step: StepResult { events: Vec::new(), snapshot, run_over: false, exit_pending: None } };
+            return FoldLine { hp: 0, max_hp: 0, low: false, from, to: from.saturating_sub(1), clear: 1.0, gold: 0, beats: Vec::new(), chips: Vec::new(), floors: Vec::new(), step: StepResult { calm: Vec::new(), events: Vec::new(), snapshot, run_over: false, exit_pending: None } };
         }
         let mut all: Vec<Ev> = Vec::new();
         let first = std::mem::take(&mut self.events);
@@ -96,9 +96,17 @@ impl Game {
         let clear = floors.iter().map(|f| f.clear).product::<f64>();
         let gold = floors.iter().map(|f| f.gold).sum();
         let beats: Vec<FoldBeat> = floors.iter().flat_map(|f| f.beats.iter().cloned()).collect();
-        let chips = chips(&beats);
+        let mut chips = chips(&beats);
         let to = floors.last().map_or(from.saturating_sub(1), |f| f.depth);
-        FoldLine { from, to, clear, gold, beats, chips, floors, step }
+        // Cut 28 §4 (AV: "`send skips rest` sent a 9/40 heir" — the fold handed him off hurt): the
+        // hero as the watch gets him, and `hp 9/40` on the line when at or under half his max.
+        let (hp, max_hp) = (step.snapshot.hero.entity.hp, step.snapshot.hero.entity.max_hp);
+        let low = !floors.is_empty() && !step.run_over && hp * 2 <= max_hp;
+        let chip = format!("hp {hp}/{max_hp}");
+        if low && !chips.contains(&chip) {
+            chips.push(chip);
+        }
+        FoldLine { from, to, clear, gold, beats, chips, floors, step, hp, max_hp, low }
     }
 
     /// The beats of `events` on the folded floor `acc` (the run as it stands after them).
@@ -218,3 +226,51 @@ pub fn chips(beats: &[FoldBeat]) -> Vec<String> {
     }
     out
 }
+
+/// Cut 28 §3 (AU: at 1× ~50 s of `pick up ×N` and 9–12 s gaps deeper in the run): a tick with no
+/// decision and no threat — no hostile awake in the hero's view, no row of the set acting (a chore,
+/// a trait's move, a `pick up` or `rest` row is no decision), and no beat: no blow, no death, no
+/// telegraph, theft, descent, fact, callout, use, tame, level, exit, and no find of a kind the
+/// lineage has not found before. A drain's bite with no foe in view (hunger, poison) is dead time
+/// too (Cut 25 §3). The watch plays such ticks at the travel rate in every mode.
+pub fn calm_tick(run: &crate::engine::Run, found: &std::collections::BTreeSet<String>, events: &[Ev]) -> bool {
+    if run.over.is_some() {
+        return false;
+    }
+    if run.monsters.iter().any(|m| m.hp > 0 && m.hostile() && m.awake && run.floor.map.is_visible(m.pos)) {
+        return false;
+    }
+    for e in events {
+        let loud = match e {
+            Ev::Rule { row, verb, .. } => *row >= 0 && !matches!(verb.v.as_str(), "pick_up" | "rest"),
+            Ev::Hurt { id, cause, .. } => !(*id == HERO_ID && matches!(cause.as_str(), "hunger" | "poison" | "starving")),
+            // (a gold pile, an unknown flavour, a kind found before: a pick-up chain is calm; a new kind or an enchanted piece is a find of note)
+            Ev::Pickup { item, .. } => !(item.starts_with("gold") || item.ends_with('?') || (found.contains(item.split(' ').next().unwrap_or("")) && !item.contains('+'))),
+            Ev::Move { .. } | Ev::Note { .. } | Ev::Overlay { .. } | Ev::Rest { .. } | Ev::Drain { .. } | Ev::MaxHp { .. } => false,
+            _ => true,
+        };
+        if loud {
+            return false;
+        }
+    }
+    true
+}
+
+/// Cut 28 §3: the calm stretches of a step — runs of consecutive calm ticks as `[from, to]` run ticks
+/// (`StepResult.calm`), from each played tick's (tick, calm) in order.
+pub fn calm_spans(ticks: &[(u32, bool)]) -> Vec<[u32; 2]> {
+    let mut out: Vec<[u32; 2]> = Vec::new();
+    let mut open: Option<[u32; 2]> = None;
+    for &(t, calm) in ticks {
+        match (calm, open.as_mut()) {
+            (true, Some(s)) => s[1] = t,
+            (true, None) => open = Some([t, t]),
+            (false, _) => {
+                out.extend(open.take());
+            }
+        }
+    }
+    out.extend(open);
+    out
+}
+

@@ -30,7 +30,7 @@ impl Game {
 }
 
 /// How a sim ended, as the scene's caption reads it.
-fn end_of(r: &SimResult) -> DivergenceEnd {
+fn end_of(r: &SimResult, sworn: bool) -> DivergenceEnd {
     let tier = if r.timed_out {
         "stall"
     } else {
@@ -40,7 +40,7 @@ fn end_of(r: &SimResult) -> DivergenceEnd {
             ExitTier::Death => "death",
         }
     };
-    DivergenceEnd { tier: tier.into(), depth: r.max_depth, cause: r.cause.clone(), gold: r.loot_kept }
+    DivergenceEnd { oath: sworn.then_some(r.oath), tier: tier.into(), depth: r.max_depth, cause: r.cause.clone(), gold: r.loot_kept }
 }
 
 /// How much two sims' ends differ: a death against none first, then the floor reached, then the
@@ -169,8 +169,8 @@ pub fn divergence(game: &Game, prev: &RuleSet) -> Option<Divergence> {
         depth,
         sent_row: sent.row,
         new_row: new.row,
-        sent_end: end_of(&b[i]),
-        new_end: end_of(&a[i]),
+        sent_end: end_of(&b[i], crate::oath::sworn(&game.lineage).is_some()),
+        new_end: end_of(&a[i], crate::oath::sworn(&game.lineage).is_some()),
         sent,
         new,
         moved,

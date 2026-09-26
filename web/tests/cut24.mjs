@@ -146,7 +146,8 @@ try {
     });
     await sleep(300);
     const d = await section("counter");
-    check(d === "counter warlord · counter unwritten · shield wall try: attack boss", `a boss that drove him off reads its counter ("${d}")`);
+    // (Cut 28 §2: the tablet sits above the report's fold and carries the drive-off's `verdict` chip always)
+    check(/^counter warlord · counter unwritten · shield wall try: attack boss( verdict)?$/.test(d), `a boss that drove him off reads its counter ("${d}")`);
     const lead = await page.evaluate(() => { const n = document.querySelector(".report .news"), t = document.querySelector(".report .tiles"); return { lines: [...(n?.querySelectorAll(".news-line") ?? [])].map((x) => x.textContent), before: !!n && !!t && !!(n.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING), lead: n?.querySelector(".news-line.lead")?.textContent ?? null }; });
     check(lead.before && lead.lead === "first: the captive" && lead.lines.join(" | ") === "first: the captive | driven off: Warlord", `what was new leads the report, before the counts (${lead.lines.join(" | ") || "none"})`);
     await shot("cut24-driven");

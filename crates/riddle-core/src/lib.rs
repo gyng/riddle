@@ -16,6 +16,7 @@ pub mod item;
 pub mod kit;
 pub mod meta;
 pub mod monster;
+pub mod oath;
 pub mod offline;
 pub mod probes;
 pub mod provenance;
@@ -103,6 +104,19 @@ impl Game {
     pub fn load(text: &str) -> Result<Game, String> {
         save::load(text)
     }
+    /// Cut 28 §1: swear a standing oath (`oath::swear`: pays its price; one at a time).
+    pub fn swear_oath(&mut self, id: &str) -> Result<(), String> {
+        oath::swear(self, id)
+    }
+    /// Cut 28 §1: forswear the sworn oath (half its price back).
+    pub fn forswear_oath(&mut self) -> Result<(), String> {
+        oath::forswear(self)
+    }
+    /// Cut 28 §2: the camp's move against the set sent, attributed to state and rows
+    /// (`forecast::forecast_move`); `None` when no send was recorded.
+    pub fn forecast_move(&self, prev: &RuleSet) -> Option<ForecastMove> {
+        forecast::forecast_move(self, prev)
+    }
     pub fn export_rules(&self) -> String {
         self.lineage.rules().to_text()
     }
@@ -117,3 +131,5 @@ mod tests;
 mod tests_cut27;
 #[cfg(test)]
 mod tests_cut27_seams;
+#[cfg(test)]
+mod tests_cut28;

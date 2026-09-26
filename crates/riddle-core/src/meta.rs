@@ -586,6 +586,8 @@ pub fn buy(game: &mut Game, id: &str) -> Result<(), String> {
     }
     l.marks -= def.cost;
     l.unlocks.insert(id.into());
+    // Cut 28 §1: an oath whose reward was just bought leaves the board.
+    crate::oath::refresh(l);
     Ok(())
 }
 
@@ -638,6 +640,7 @@ pub fn buy_gold(game: &mut Game, id: &str) -> Result<(), String> {
         l.gold_buys += 1;
     }
     l.unlocks.insert(id.into());
+    crate::oath::refresh(l);
     Ok(())
 }
 

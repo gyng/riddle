@@ -138,6 +138,7 @@ try {
   const b1 = await page.evaluate(() => document.querySelector(".report .bounty-line")?.textContent ?? "");
   check(b1 === "bounty D12 · taken $412", `the report names the bounty taken: "${b1}"`);
   await shot("cut20-report");
+  await page.evaluate(() => document.querySelector('.report .details-fold[aria-expanded="false"]')?.click());   // Cut 28 §2: the ledger folds under `details`
   const chip = await page.evaluate(() => {
     const line = [...document.querySelectorAll(".exit-lines .ledger-line")].find((l) => /^died/.test(l.querySelector(".ledger-btn")?.textContent ?? ""));
     const c = line.querySelector(".chip").getBoundingClientRect(), b = line.querySelector(".ledger-btn").getBoundingClientRect();
@@ -154,7 +155,7 @@ try {
   await closeSheets();
   await go({ kind: "report", report: report({ depth: 12, taken: false, gold: 0 }) }); await sleep(300);
   const b2 = await page.evaluate(() => document.querySelector(".report .bounty-line")?.textContent ?? "");
-  check(b2 === "bounty D12 · missed", `…or missed: "${b2}"`);
+  check(/^bounty · D12 · \$×2( · item)? · reach( · [a-z]+: [a-z?]+)? · missed$/.test(b2), `…or missed, with what it pays and needs (Cut 28 §1): "${b2}"`);
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

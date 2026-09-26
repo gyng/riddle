@@ -120,6 +120,7 @@ try {
   const shelf = await page.evaluate(() => { const s = [...document.querySelectorAll(".report .rsec")].find((x) => x.querySelector(".label")?.textContent === "shelved"); return s ? [...s.querySelectorAll(".chip")].map((c) => c.textContent.replace(/\s+/g, " ").trim()) : []; });
   check(shelf.join() === "found heal ×3 → supplies", `the report's \`shelved\` (${shelf.join(" · ") || "absent"})`);
   // §3 on the same report: the words
+  await page.evaluate(() => document.querySelector('.report .details-fold[aria-expanded="false"]')?.click());   // Cut 28 §2: the ledger folds under `details`
   const pk = await txt(".report .picked-line"), gl = await txt(".report .gold-line");
   check(pk === "D3 · recently looted", `\`picked clean\` reads \`thinned\` ("${pk}")`);
   check(/restock ≤ \$218 earned$/.test(gl ?? ""), `\`restock capped\` reads the cap with its number, \`restock ≤ $218 earned\` (QA 0c6e126: \`≤ income\` unexplained) ("${gl}")`);

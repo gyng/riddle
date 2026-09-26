@@ -387,6 +387,30 @@ impl Game {
         Ok(js(&self.inner.divergence(&prev)))
     }
 
+    /// Cut 28 §2: the camp's move against `prev` (JSON RuleSet: the set sent), attributed to the
+    /// state since the send and the rows (`ForecastMove`: `whole`, `parts[{kind, text, move}]`,
+    /// `lead`, `rows`, `state`), or `null` when no send was recorded. 2–6 camp panels: call it on
+    /// a background lane after the forecast.
+    #[wasm_bindgen(js_name = forecastMove)]
+    pub fn forecast_move(&self, prev: &str) -> Result<String, JsError> {
+        let prev = riddle_core::RuleSet::parse(prev).map_err(err)?;
+        Ok(js(&self.inner.forecast_move(&prev)))
+    }
+
+    /// Cut 28 §1: swear the standing oath `id` (pays its price); returns the Lineage.
+    #[wasm_bindgen(js_name = swearOath)]
+    pub fn swear_oath(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.swear_oath(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 28 §1: forswear the sworn oath (half its price back); returns the Lineage.
+    #[wasm_bindgen(js_name = forswearOath)]
+    pub fn forswear_oath(&mut self) -> Result<String, JsError> {
+        self.inner.forswear_oath().map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 23 §1: buy the next forge step of `weapon | armour | pack`; returns the Lineage.
     #[wasm_bindgen(js_name = buyKit)]
     pub fn buy_kit(&mut self, slot: &str) -> Result<String, JsError> {

@@ -10,6 +10,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 #[path = "lever_lib/mod.rs"]
 mod lever;
+#[path = "oath_lib/mod.rs"]
+mod oath_lib;
 #[path = "lanes_lib/mod.rs"]
 mod lanes;
 #[path = "exits_lib/mod.rs"]
@@ -137,6 +139,8 @@ struct SeedResult {
     stalls: (u32, u32),
     stall_verdicts: (u32, u32),
     stall_reel: (u32, u32),
+    /// Cut 28 §1: the lineage swore an oath (or kept one) — a bot never does.
+    swore: bool,
 }
 
 fn good() -> RuleSet {
@@ -1143,7 +1147,62 @@ fn run_seed_with(bot: Bot, seed: u64, hours: u64, verdicts_per_seed: usize, kit:
     // (docs/ITERATION_SPEED.md §3.2).
     let f = riddle_core::forecast::forecast_with(&g, g.lineage.rules(), riddle_core::forecast::MIN_SIMS);
     r.known_to_ok = f.known_to == g.lineage.best_depth + 1;
+    r.swore = g.lineage.oath_sworn.is_some() || g.lineage.oaths_kept > 0;
     r
+}
+
+/// Cut 28 §1: the cohort sets the oaths' gate plays — the last two cohorts' (the sets the oaths
+/// were designed against, cohort 23's among them).
+const OATH_SETS: [&str; 4] = ["631fe23.raterAU", "631fe23.raterAV", "420f27c.raterAS", "420f27c.raterAT"];
+/// (set index) → the bank-optimal set's (rules, bank share, edits); (set, pool kind) → the oath read.
+type OathBanks = BTreeMap<usize, (RuleSet, f64, Vec<String>)>;
+type OathReads = BTreeMap<(usize, usize), oath_lib::OathRead>;
+/// (set index) → the lever with every oath reward owned (kit move, best row move, the row).
+type OathLevers = BTreeMap<usize, (f64, f64, String)>;
+
+/// Cut 28 §1: the oaths' rows — on each oath set's lineage, every pool oath offered there: its best
+/// set (a plateau search) differs from the bank-optimal set by ≥ 2 rows; its best set keeps it in a
+/// night of 16 sends ≥ 20 % of the time; and the Cut 25 lever row holds with every oath reward owned.
+fn oath_report(sets: &[(String, RuleSet)], banks: &OathBanks, reads: &OathReads, levers: &OathLevers, rows: &mut Vec<(String, String, bool)>) {
+    println!("\noaths (Cut 28 §1; the set's lineage after {} h, searches of {} steps on {}/{} sends): per set and oath, the oath share with the set → with its best set · the night's chance · rows from the bank-optimal set", oath_lib::OATH_HOURS, oath_lib::STEPS, oath_lib::SCREEN, oath_lib::FULL);
+    let (mut n, mut diverse, mut done) = (0usize, 0usize, 0usize);
+    let (mut worst_night, mut worst_diff) = ((f64::MAX, String::new()), (usize::MAX, String::new()));
+    for (si, (name, _)) in sets.iter().enumerate() {
+        let Some(bank) = banks.get(&si) else { continue };
+        println!("  {name}: bank-optimal {:.0}% via {:?}", 100.0 * bank.1, bank.2);
+        for (ki, kind) in riddle_core::oath::KINDS.iter().enumerate() {
+            let Some(r) = reads.get(&(si, ki)) else { continue };
+            if !r.offered {
+                println!("    {kind:<7} not offered (D{})", r.best_depth);
+                continue;
+            }
+            // the rows the oath's best set differs from the bank-optimal one by (the two searches' sets)
+            let diff = oath_lib::row_diff(&r.best, &bank.0);
+            n += 1;
+            diverse += (diff >= 2) as usize;
+            done += (r.night() >= 0.2) as usize;
+            let tag = format!("{} {}", name.split('.').nth(1).unwrap_or(name), r.text);
+            if r.night() < worst_night.0 {
+                worst_night = (r.night(), tag.clone());
+            }
+            if diff < worst_diff.0 {
+                worst_diff = (diff, tag);
+            }
+            println!("    {kind:<7} {:<18} {:>3.0}% → {:>3.0}% · night {:>3.0}% · diff {diff} · {:?}", r.text, 100.0 * r.share_set, 100.0 * r.share_best, 100.0 * r.night(), r.edits);
+        }
+    }
+    if n > 0 {
+        rows.push((format!("Oath best set ≠ bank-optimal by ≥ 2 rows ({n} oath·sets)"), format!("{diverse}/{n} · min {} {}", worst_diff.0, worst_diff.1), diverse == n));
+        rows.push((format!("Oath completable ≥ 20%/night by a set ({n} oath·sets)"), format!("{done}/{n} · min {:.0}% {}", 100.0 * worst_night.0, worst_night.1), done == n));
+    }
+    if !levers.is_empty() {
+        let ok = levers.values().filter(|m| m.0 < m.1 || m.0 <= 0.005).count();
+        for (si, m) in levers {
+            println!("  lever with every oath reward · {}: forge {:+.1} · row ≥ {:+.1} ({})", sets[*si].0, 100.0 * m.0, 100.0 * m.1, m.2);
+        }
+        let gap = levers.values().map(|m| m.1 - m.0).fold(f64::MAX, f64::min);
+        rows.push((format!("Lever holds with every oath reward ({} sets)", levers.len()), format!("{ok}/{} · min gap {:+.0}", levers.len(), 100.0 * gap), ok == levers.len()));
+    }
 }
 
 type Golds = BTreeMap<(usize, u64, bool), GoldTally>;
@@ -1384,6 +1443,11 @@ fn main() {
         Diverge(usize),
         /// Cut 27 §3: a cohort set's bank twin (false) or return twin (true) on one seed (`exits::run`).
         Exit(usize, u64, bool),
+        /// Cut 28 §1: an oath set's bank-optimal set, one pool oath's best set on it, the lever with
+        /// every oath reward owned.
+        OathBank(usize),
+        Oath(usize, usize),
+        OathLever(usize),
     }
     let sets = Arc::new(cohort_sets());
     // `--gold`: the Cut 22 §1 gold table alone (the cohort sets' sends; ~20 s).
@@ -1408,6 +1472,16 @@ fn main() {
     let lever_seeds = get("--lever-seeds", LEVER_SEEDS);
     if !quick || lever_only {
         jobs.extend((0..sets.len()).filter(|&si| sets[si].1.rows.iter().any(|r| r.verb.v == "bank")).flat_map(|si| (1..=lever_seeds).map(move |s| Job::Lever(si, s))));
+    }
+    // Cut 28 §1: the oaths' gate on the oath sets (the full table; `--oaths` alone prints it).
+    let oaths_only = args.iter().any(|a| a == "--oaths");
+    let oath_sets: Vec<usize> = (0..sets.len()).filter(|&si| OATH_SETS.contains(&sets[si].0.as_str())).collect();
+    if !quick || oaths_only {
+        for &si in &oath_sets {
+            jobs.push(Job::OathBank(si));
+            jobs.push(Job::OathLever(si));
+            jobs.extend((0..riddle_core::oath::KINDS.len()).map(|ki| Job::Oath(si, ki)));
+        }
     }
     jobs.extend(ROUTE_BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Route(bi, s))));
     jobs.extend((1..=seeds).map(Job::FirstFork));
@@ -1447,6 +1521,9 @@ fn main() {
     if lever_only {
         jobs.retain(|j| matches!(j, Job::Lever(..)));
     }
+    if oaths_only {
+        jobs.retain(|j| matches!(j, Job::OathBank(..) | Job::Oath(..) | Job::OathLever(..)));
+    }
     // `--bots`: the bots alone — the per-bot table and the verdict sample (the dice measure; ~2 min).
     // `--forks`: the Cut 26 rows alone — the first fork's sends and the lanes' gate (~1–2 min).
     let forks_only = args.iter().any(|a| a == "--forks");
@@ -1465,7 +1542,9 @@ fn main() {
     // behind the short ones and ends the table alone. A stable sort: within a kind the order stays.
     let cost = |j: &Job| -> u32 {
         match j {
-            Job::Lever(..) => 300,
+            Job::Lever(..) | Job::OathLever(..) => 300,
+            Job::Oath(..) => 280,
+            Job::OathBank(..) => 120,
             Job::Diverge(..) => 250,
             Job::Bot(bi, _) if BOTS[*bi].is_full() => 200,
             Job::Kit(bi, _) if KIT_BOTS[*bi].is_full() => 190,
@@ -1497,6 +1576,9 @@ fn main() {
     type LaneReads = Vec<(usize, f64, f64, f64)>;
     let lgates: Arc<Mutex<BTreeMap<(u32, u64), LaneReads>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let exit_tallies: Arc<Mutex<exits::Exits>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let obanks: Arc<Mutex<OathBanks>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let oreads: Arc<Mutex<OathReads>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let olevers: Arc<Mutex<OathLevers>> = Arc::new(Mutex::new(BTreeMap::new()));
     let mut handles = Vec::new();
     for _ in 0..threads {
         let exit_tallies = Arc::clone(&exit_tallies);
@@ -1504,6 +1586,7 @@ fn main() {
         let (kresults, forges, cnohp, levers, rresults) = (Arc::clone(&kresults), Arc::clone(&forges), Arc::clone(&cnohp), Arc::clone(&levers), Arc::clone(&rresults));
         let (cforks, ffork, lgates, found) = (Arc::clone(&cforks), Arc::clone(&ffork), Arc::clone(&lgates), Arc::clone(&found));
         let diverged = Arc::clone(&diverged);
+        let (obanks, oreads, olevers) = (Arc::clone(&obanks), Arc::clone(&oreads), Arc::clone(&olevers));
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some(job) = job else { break };
@@ -1523,6 +1606,9 @@ fn main() {
                 Job::Lane(..) => "lane".into(),
                 Job::Diverge(_) => "diverge".into(),
                 Job::Exit(..) => "exit".into(),
+                Job::OathBank(..) => "oath-bank".into(),
+                Job::Oath(..) => "oath".into(),
+                Job::OathLever(..) => "oath-lever".into(),
             };
             match job {
                 Job::Kit(bi, seed) => {
@@ -1610,6 +1696,27 @@ fn main() {
                     let r = riddle_core::probes::counter_trial(seed);
                     counters.lock().unwrap().insert(seed, r);
                 }
+                Job::OathBank(si) => {
+                    let set = &sets[si].1;
+                    let r = without_history(|| {
+                        let g = oath_lib::lineage(set, 1);
+                        oath_lib::bank_best(&g, set)
+                    });
+                    obanks.lock().unwrap().insert(si, r);
+                }
+                Job::Oath(si, ki) => {
+                    let set = &sets[si].1;
+                    // (the bank-optimal set is its own job on the same deterministic lineage; the rows between are read at the report)
+                    let r = without_history(|| {
+                        let g = oath_lib::lineage(set, 1);
+                        oath_lib::measure(&g, set, riddle_core::oath::KINDS[ki], None)
+                    });
+                    oreads.lock().unwrap().insert((si, ki), r);
+                }
+                Job::OathLever(si) => {
+                    let r = without_history(|| lever::gate_with(&sets[si].1, 1, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN, |g| riddle_core::oath::grant_all(&mut g.lineage)));
+                    olevers.lock().unwrap().insert(si, r);
+                }
             }
             if std::env::var("METRICS_JOBCPU").is_ok() {
                 eprintln!("jobcpu {kind} {:.3} {:.3}", thread_cpu() - cj, tj.elapsed().as_secs_f64());
@@ -1655,6 +1762,15 @@ fn main() {
         return;
     }
     let lever_rows = |rows: &mut Vec<(String, String, bool)>| lever_report(&sets, &levers.lock().unwrap(), lever_seeds, rows);
+    if oaths_only {
+        let mut rows = Vec::new();
+        oath_report(&sets, &obanks.lock().unwrap(), &oreads.lock().unwrap(), &olevers.lock().unwrap(), &mut rows);
+        seal(&mut rows);
+        for (name, value, ok) in &rows {
+            println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
+        }
+        return;
+    }
     if lever_only {
         let mut rows = Vec::new();
         lever_rows(&mut rows);
@@ -1756,6 +1872,9 @@ fn main() {
     // Cut 7: the wall moved to D8 (the Warlord; D5 is the Captain); the bars moved with it.
     let d_le6 = pct(default.iter().filter(|r| r.best_depth <= 8).count(), ns);
     rows.push(("DEFAULT dies by ≤ D8 ≥ 80% of seeds".into(), format!("{d_le6:.0}%"), d_le6 >= 80.0));
+    // Cut 28 §1: nothing swears on its own — the bots play with the oaths off.
+    let swore = default.iter().chain(edited.iter()).filter(|r| r.swore).count();
+    rows.push(("DEFAULT/EDITED never swear an oath".into(), format!("{swore} seeds"), swore == 0));
     let e_ge10 = pct(edited.iter().filter(|r| r.best_depth >= 10).count(), ns);
     let d_ge10 = pct(default.iter().filter(|r| r.best_depth >= 10).count(), ns);
     rows.push(("EDITED reaches ≥ D10 ≥ 50% of seeds".into(), format!("{e_ge10:.0}%"), e_ge10 >= 50.0));
@@ -2257,6 +2376,7 @@ fn main() {
     forge_report(&sets, &forges.lock().unwrap(), &kresults.lock().unwrap(), &results, seeds, &mut rows);
     if !quick {
         lever_rows(&mut rows);
+        oath_report(&sets, &obanks.lock().unwrap(), &oreads.lock().unwrap(), &olevers.lock().unwrap(), &mut rows);
     }
     // Cut 23 §2: the death mix (reported, not gated: the contract's bar is the measure).
     let (dm_flag, dm_n) = death_mix_report(&sets, &cdeaths.lock().unwrap(), seeds);

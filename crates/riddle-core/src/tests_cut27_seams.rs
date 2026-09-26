@@ -73,7 +73,7 @@ fn pack_break_does_not_fall_back_from_a_far_pack() {
 /// it leads.
 #[test]
 fn the_gem_is_the_best_whole_run_patch_and_leads() {
-    let mk = |v: &str, whole: PatchWhole| Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb { v: v.into(), a: None }), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 6, forecast_pm: 0.1, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: Some(whole), gem: false, restores: None };
+    let mk = |v: &str, whole: PatchWhole| Patch { no_gain: false, row: Row::new(vec![Cond::n("hp<", 20)], Verb { v: v.into(), a: None }), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 6, forecast_pm: 0.1, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: Some(whole), gem: false, restores: None };
     let w = |reach: f64, death: f64| PatchWhole { reach, reach_pm: 0.05, death, death_pm: 0.05, ..Default::default() };
     // AS: `cut R8` (reach −4 ± 5) under an exit that costs the reach (−90) and a small gain.
     let mut ps = vec![mk("return", w(-0.9, -0.1)), mk("retreat", w(0.02, 0.0)), mk("rest", w(-0.04, 0.0)), mk("descend", w(0.3, 0.2))];
@@ -101,7 +101,7 @@ fn a_drive_off_with_its_counter_in_the_set_is_order() {
         name: None,
         route: Vec::new(),
     };
-    let turn = |row: i32| TraceTurn { t: 0, row, verb: Verb::new("attack"), hp: 10, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() };
+    let turn = |row: i32| TraceTurn { max_hp: 0, t: 0, row, verb: Verb::new("attack"), hp: 10, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() };
     let trace = vec![turn(1), turn(2), turn(1), turn(1), turn(-2)];
     assert_eq!(crate::trace::driven_order(&set, &counter, &trace), (Some(3), Some(1)));
     let without = RuleSet { rows: set.rows[..3].to_vec(), ..set.clone() };

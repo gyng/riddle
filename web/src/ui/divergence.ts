@@ -19,7 +19,8 @@ const FOCUS_R = 5;
 /** `lives · D9` · `dies · D7` · `stalls · D6` — how a branch's whole run ended, in the player's words. */
 export function endText(e: DivergenceEnd): string {
   const w = e.tier === "death" ? /* copy:callout */ "dies" : e.tier === "stall" ? /* copy:callout */ "stalls" : /* copy:callout */ "lives";
-  return `${w} · D${e.depth}`;
+  // Cut 28 §1: with an oath sworn, whether the branch's whole run kept it
+  return `${w} · D${e.depth}${e.oath === undefined ? "" : e.oath ? /* copy:callout */ " · oath ✓" : /* copy:callout */ " · oath ✗"}`;
 }
 /** The row a branch fired at the divergence (`R5`), or `—` when none did (a chore, a step). */
 const rowTag = (row: number | undefined): string => (row === undefined ? "—" : `R${row + 1}`);
@@ -135,6 +136,9 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
     if (gen !== rulesGen) return;
     const f = app.lastForecast, prev: RuleSet | null = app.sentSet();
     if (!f || f.refined !== true || !prev || !app.engine.divergence) return;
+    // Cut 28 §2 (AV: the scene said `R2 now → dies` when the pets had died): the scene is a row edit's — a route or any state change
+    // is not a row that fires differently (the state's part is its own line, `party −2 jackals · death +24`)
+    if (JSON.stringify(prev.rows.map((r) => [r.conds, r.verb])) === JSON.stringify(app.rules.rows.map((r) => [r.conds, r.verb]))) return;
     const key = JSON.stringify([prev.rows, app.rules.rows, (app.rules as RuleSet).route ?? []]);
     if (key === asked) return;
     asked = key;

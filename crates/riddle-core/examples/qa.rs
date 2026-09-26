@@ -1234,6 +1234,50 @@ fn check_trace_hp(t: &mut Tally, seed: u64, trace: &riddle_core::Trace, at: &str
     }
 }
 
+/// Cut 28 §2 (AV: the scene blamed the rows for a move the dead pets made): after a run, the camp's
+/// move against the set sent splits into the state's parts and the rows' — the parts sum to the
+/// whole on every term (the same paired seeds, the state moved a part at a time), the rows' part is
+/// the edit's own paired move (`forecast_vs`), and a move with no edit has no rows part.
+fn check_forecast_move(t: &mut Tally, g: &Game, seed: u64) {
+    let sent = g.lineage.rules().clone();
+    let mut e = g.clone();
+    if let Some(m) = e.forecast_move(&sent) {
+        t.check("a move with no edit has no rows part", !m.rows && m.parts.iter().all(|p| p.kind != "rows"), || format!("seed {seed}: {:?}", m.parts.iter().map(|p| &p.kind).collect::<Vec<_>>()));
+    }
+    let mut edit = sent.clone();
+    let row = riddle_core::Row::new(vec![riddle_core::Cond::n("hp<", 40)], riddle_core::Verb::new("return"));
+    if edit.rows.contains(&row) {
+        edit.rows.retain(|r| *r != row);
+    } else {
+        if edit.own_rows() >= e.lineage.max_rows() {
+            edit.rows.pop();
+        }
+        edit.rows.insert(0, row);
+    }
+    if e.set_rules_raw(edit).is_err() {
+        return;
+    }
+    let Some(m) = e.forecast_move(&sent) else {
+        t.check("a send is recorded after a run", false, || format!("seed {seed}"));
+        return;
+    };
+    type Term = fn(&riddle_core::ForecastVs) -> f64;
+    let terms: [(&str, Term); 5] = [("bank", |v| v.bank.delta), ("death", |v| v.death.delta), ("return", |v| v.return_.delta), ("stall", |v| v.stall.delta), ("gold", |v| v.gold.delta)];
+    for (name, f) in terms {
+        let sum: f64 = m.parts.iter().map(|p| f(&p.move_)).sum();
+        // (exact, far inside the move's own ± — the parts are differences of the same paired panels)
+        let eps = if name == "gold" { 1e-6 } else { 1e-9 };
+        t.check("a forecast move's parts sum to the whole", (sum - f(&m.whole)).abs() <= eps, || format!("seed {seed} {name}: Σ parts {sum:.4} vs whole {:.4}", f(&m.whole)));
+    }
+    for (i, d) in m.whole.depths.iter().enumerate() {
+        let sum: f64 = m.parts.iter().filter_map(|p| p.move_.depths.get(i)).map(|x| x.delta).sum();
+        t.check("a forecast move's parts sum to the whole", (sum - d.delta).abs() <= 1e-9, || format!("seed {seed} D{}: Σ parts {sum:.4} vs whole {:.4}", d.depth, d.delta));
+    }
+    let vs = e.forecast_vs(&sent);
+    let rows = m.parts.iter().find(|p| p.kind == "rows");
+    t.check("the rows' part is the edit's paired move", m.rows && rows.is_some_and(|p| (p.move_.bank.delta - vs.bank.delta).abs() < 1e-9 && (p.move_.death.delta - vs.death.delta).abs() < 1e-9), || format!("seed {seed}: rows {:?}", rows.map(|p| (p.move_.bank.delta, vs.bank.delta))));
+}
+
 fn play(o: &mut Out, pool: &Pool, seed: u64) {
     let Out { t, lp, .. } = o;
     let mut g = Game::new(seed);
@@ -1301,6 +1345,10 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
         }
     }
     check_gold(t, &g, seed, "after the run");
+    // Cut 28 §2: the camp's move against the set sent, attributed — every third seed (a few panels)
+    if seed.is_multiple_of(3) {
+        check_forecast_move(t, &g, seed);
+    }
     check_exit_found(t, &g, seed, &[], "first run");
     // (the exit's line is the batch's once the run is settled)
     if let Some(line) = g.batch.exits.last() {

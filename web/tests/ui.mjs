@@ -528,7 +528,7 @@ async function cut18() {
   await shot("ui-cut18-shaft");
   await openPanel(page, "forecast"); await sleep(200);
   const row = await page.evaluate(() => [...document.querySelectorAll(".panel .fc-bars .bar")].map((b) => b.textContent.replace(/\s+/g, " ").trim()).find((t) => /^D9/.test(t)));
-  check(/^D9 ?(0%|<\d+%)( ±\d+)? · sealed by warlord$/.test(row ?? ""), `the panel's row reads \`D9 0% · sealed by warlord\` ("${row}")`);
+  check(/^D9 ?(0%|<\d+%)( ±\d+)? · sealed by warlord( · warlord: [a-z ?]+)?$/.test(row ?? ""), `the panel's row reads \`D9 0% · sealed by warlord\` and its counter (Cut 28 §1) ("${row}")`);
   await shot("ui-cut18-wall");
   await page.keyboard.press("Escape"); await sleep(100);
   // ---- §4: a stall's cause names the rows' loop (`R2 retreat ↔ explore`): the loop whole on one line; QA 1a2a4a9 (P: the headline
@@ -583,7 +583,7 @@ try {
     }));
     check(f.stats.length === 1 && /\bgold\b/.test(f.stats[0]), `the bar shows $ only (${f.stats.join(", ")})`);
     check(f.tablets === 2 && f.notches.join(",") === "D1" && !f.ends, `two compact tablets, the shaft at D1 alone, no gems (${f.tablets} tablets, notches ${f.notches.join(",")}, ends ${f.ends})`);
-    check(/^send$/i.test(f.gem ?? "") && f.tiles === 0 && !f.tabs && !f.cls, `the gem SEND and nothing else: no tile, no set tab, no class picker (gem "${f.gem}", ${f.tiles} tiles)`);
+    check(/^send(▸ fights)?$/i.test(f.gem ?? "") && f.tiles === 0 && !f.tabs && !f.cls, `the gem SEND and nothing else: no tile, no set tab, no class picker (gem "${f.gem}", ${f.tiles} tiles)`);
     // a tablet is one tap: it opens the tablets for editing at that row
     await page.locator(".editor .row.tablet.compact").first().click({ timeout: 5000 }); await sleep(200);
     check(await page.locator(".editor .row .chip.cond").count() > 0, "a tap on a compact tablet opens it for editing (its chips)");
@@ -697,7 +697,7 @@ try {
     return { main: m?.className ?? "", bar: !!m?.querySelector(":scope > header.topbar"), console: !!m?.querySelector(":scope > footer.console"), gem: g ? { text: g.textContent.trim(), cls: g.className, visible: !!g.getClientRects().length && getComputedStyle(g).visibility !== "hidden" } : null };
   });
   let f = await frame();
-  check(f.bar && f.console && f.gem?.visible && /\bsend\b/.test(f.gem.cls) && f.gem.text === "send", `camp: bar + console, \`send\` in the gem (${JSON.stringify(f.gem)})`);
+  check(f.bar && f.console && f.gem?.visible && /\bsend\b/.test(f.gem.cls) && /^send▸ (fights|fast|1×)$/.test(f.gem.text), `camp: bar + console, \`send\` in the gem (${JSON.stringify(f.gem)})`);
   await page.locator("button.send").click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "watch", "the watch"); await sleep(1500);
   // QA 23ed91f: the last frame — record the bar's heir and the gem the moment the run is over (the exit's refresh follows)

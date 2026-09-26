@@ -42,6 +42,10 @@ pub struct SimResult {
     /// the rows that fired, by key (a row that never fired is absent: a dead row reads the panel
     /// of the set without it, `played_key`).
     pub fires: Vec<(u64, u32)>,
+    /// Cut 28 §1: the lineage's sworn oath was kept by this send (false with none sworn), and how
+    /// close it came (`oath::progress`, 0..1).
+    pub oath: bool,
+    pub oath_progress: f64,
 }
 
 /// Simulate `sims` fresh expeditions from the current lineage with `rules`, each stopping once
@@ -136,7 +140,10 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32,
         }
     }
     keyed.sort();
-    (n, sim_result(run, n, keyed))
+    let sworn = crate::oath::sworn(&g.lineage);
+    let oath = sworn.is_some_and(|o| crate::oath::kept(o, run));
+    let oath_progress = sworn.map_or(0.0, |o| crate::oath::progress(o, run));
+    (n, SimResult { oath, oath_progress, ..sim_result(run, n, keyed) })
 }
 
 /// Cut 27 §2: a row's key in `SimResult.fires` — its conditions and verb (not its origin).
@@ -165,7 +172,7 @@ fn sim_result(run: &crate::engine::Run, ticks: u32, fires: Vec<(u64, u32)>) -> S
     let tier = run.over.unwrap_or(ExitTier::Return);
     // (Cut 27 §1: a waystone start's passage is the send's gold too — paid at the send)
     let loot_kept = run.loot.max(0) * run.yield_pct(tier) / 100 + run.passage;
-    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires }
+    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires, oath: false, oath_progress: 0.0 }
 }
 
 /// `f` over every job, results in job order. Natively (and unless `set_parallel_sims(false)`)
@@ -527,7 +534,8 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
         d.clear = floor_clear(&ended, d.depth);
     }
     let fold_to = fold_to(game, &ended, start);
-    Forecast { depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start, sims: n_sims, low: low_pct(n_sims), fold_to }
+    let oath = crate::oath::share(&game.lineage, &ended);
+    Forecast { oath, depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start, sims: n_sims, low: low_pct(n_sims), fold_to }
 }
 
 /// Cut 27 §1: a floor the watch folds — the share of the sims on it that got through it is at
@@ -831,6 +839,12 @@ pub fn forecast_vs(game: &Game, prev: &RuleSet) -> crate::wire::ForecastVs {
         let tag = forecast_tag(game, game.lineage.best_depth + 1);
         b = simulate_budget_from(game, prev, a.len() as u32, tag, u32::MAX, u64::MAX, b);
     }
+    vs_between(game, &a, &b, sims > FORECAST_SIMS)
+}
+
+/// Cut 22 §3: the paired move `a − b` (two panels on the same seeds, over the sims both ran) per
+/// depth of the camp's shaft and on the ends.
+pub fn vs_between(game: &Game, a: &[SimResult], b: &[SimResult], refined: bool) -> crate::wire::ForecastVs {
     let n = a.len().min(b.len());
     let (a, b) = (&a[..n], &b[..n]);
     let known_to = game.lineage.best_depth + 1;
@@ -845,6 +859,7 @@ pub fn forecast_vs(game: &Game, prev: &RuleSet) -> crate::wire::ForecastVs {
         .collect();
     let tier = |t: ExitTier| move |r: &SimResult| ind(r.tier == t && !r.timed_out);
     crate::wire::ForecastVs {
+        oath: crate::oath::sworn(&game.lineage).map(|_| paired(a, b, |r| ind(r.oath))),
         depths,
         bank: paired(a, b, tier(ExitTier::Bank)),
         death: paired(a, b, |r| ind(r.tier == ExitTier::Death)),
@@ -852,9 +867,249 @@ pub fn forecast_vs(game: &Game, prev: &RuleSet) -> crate::wire::ForecastVs {
         gold: paired(a, b, |r| r.loot_kept as f64),
         stall: paired(a, b, |r| ind(r.timed_out)),
         sims: n as u32,
-        refined: sims > FORECAST_SIMS,
+        refined,
     }
 }
+
+/// Cut 28 §2: the state since a send, in the order the attribution applies it — each a part of
+/// the move (`MovePart.kind`) and what it moves of the lineage (`take` copies today's onto the
+/// send's).
+const STATE_PARTS: [&str; 6] = ["party", "kit", "purse", "start", "facts", "heir"];
+
+/// Copy the fields of state part `kind` from `now` onto `l` (the lineage at the send, being moved
+/// to today's a part at a time); `heir` takes the whole of today's lineage (all that is left).
+fn take_part(kind: &str, l: &mut crate::engine::LineageState, now: &crate::engine::LineageState) {
+    match kind {
+        "party" => {
+            l.party = now.party.clone();
+            l.kennel = now.kennel.clone();
+            l.eggs = now.eggs.clone();
+            l.bred = now.bred.clone();
+            l.lost = now.lost.clone();
+            l.next_comp_id = now.next_comp_id;
+        }
+        "kit" => {
+            l.vault = now.vault.clone();
+            l.supplies = now.supplies.clone();
+            l.last_supplies = now.last_supplies.clone();
+            l.forge = now.forge.clone();
+            l.kit = now.kit.clone();
+            l.insured = now.insured.clone();
+            l.keep_pref = now.keep_pref.clone();
+            l.vault_pref = now.vault_pref.clone();
+            l.unlocks = now.unlocks.clone();
+            l.restock_off = now.restock_off;
+            l.repeat_quote = now.repeat_quote.clone();
+            l.repeat_short = now.repeat_short.clone();
+            l.last_wasted = now.last_wasted.clone();
+            l.theft_skip = now.theft_skip.clone();
+            l.night_theft_rebought = now.night_theft_rebought;
+            l.next_vault_id = now.next_vault_id;
+        }
+        "purse" => {
+            l.gold = now.gold;
+            l.gold_carry = now.gold_carry;
+        }
+        "start" => {
+            l.start = now.start;
+            l.waystones = now.waystones.clone();
+            l.lane_stones = now.lane_stones.clone();
+            l.night_passes = now.night_passes.clone();
+            l.night_short = now.night_short;
+        }
+        "facts" => {
+            l.facts = now.facts.clone();
+            l.flavours = now.flavours.clone();
+            l.kill_counts = now.kill_counts.clone();
+            l.kills = now.kills.clone();
+            l.trophies = now.trophies.clone();
+            l.grudges = now.grudges.clone();
+            l.bones = now.bones.clone();
+        }
+        _ => *l = now.clone(),
+    }
+}
+
+/// Cut 28 §2: the words of a state part (≤ 3): `party −2 jackals`, `forge · pack`, `purse $640→$1874`,
+/// `start D5→D1`, `learned 3`, `new heir`.
+fn part_text(kind: &str, was: &crate::engine::LineageState, now: &crate::engine::LineageState) -> String {
+    match kind {
+        "party" => {
+            let kinds = |p: &[crate::wire::Companion]| -> Vec<String> {
+                let mut v: Vec<String> = p.iter().map(|c| c.kind.clone()).collect();
+                v.sort();
+                v
+            };
+            let (a, b) = (kinds(&was.party), kinds(&now.party));
+            let mut lost = a.clone();
+            for k in &b {
+                if let Some(i) = lost.iter().position(|x| x == k) {
+                    lost.remove(i);
+                }
+            }
+            let mut got = b.clone();
+            for k in &a {
+                if let Some(i) = got.iter().position(|x| x == k) {
+                    got.remove(i);
+                }
+            }
+            let name = |v: &[String]| -> String {
+                let mut u = v.to_vec();
+                u.dedup();
+                if u.len() == 1 {
+                    let k = crate::engine::kind_title(&u[0]).to_lowercase();
+                    if v.len() == 1 { format!(" {k}") } else { format!(" {k}s") }
+                } else {
+                    String::new()
+                }
+            };
+            match (lost.len(), got.len()) {
+                (l, 0) if l > 0 => format!("party −{l}{}", name(&lost)),
+                (0, g) if g > 0 => format!("party +{g}{}", name(&got)),
+                (0, 0) => "party".into(),
+                _ => format!("party {:+}", b.len() as i32 - a.len() as i32),
+            }
+        }
+        "kit" => {
+            let mut w: Vec<&str> = Vec::new();
+            if was.kit != now.kit || was.forge != now.forge {
+                w.push("forge");
+            }
+            if was.vault != now.vault {
+                w.push("vault");
+            }
+            if was.supplies != now.supplies || was.last_supplies != now.last_supplies {
+                w.push("pack");
+            }
+            if was.unlocks != now.unlocks {
+                w.push("unlocks");
+            }
+            if w.is_empty() {
+                w.push("kit");
+            }
+            w.truncate(2);
+            w.join(" · ")
+        }
+        "purse" => format!("purse ${}→${}", was.gold, now.gold),
+        "start" => {
+            if was.start != now.start {
+                format!("start D{}→D{}", was.start.max(1), now.start.max(1))
+            } else {
+                "waystones".into()
+            }
+        }
+        "facts" => {
+            let n = now.facts.difference(&was.facts).count();
+            if n > 0 {
+                format!("learned {n}")
+            } else {
+                "bestiary".into()
+            }
+        }
+        _ => {
+            if was.heir != now.heir {
+                "new heir".into()
+            } else if was.trait_ != now.trait_ || was.class != now.class {
+                format!("heir {}", now.trait_.name())
+            } else if was.class_level() != now.class_level() {
+                format!("level {}", now.class_level())
+            } else {
+                "the floors".into()
+            }
+        }
+    }
+}
+
+/// The headline of a paired move: its largest |Δ| over the ends and the shaft.
+pub fn headline(v: &crate::wire::ForecastVs) -> f64 {
+    let ends = [v.bank.delta, v.death.delta, v.return_.delta, v.stall.delta].into_iter().map(f64::abs).fold(0.0, f64::max);
+    v.depths.iter().map(|d| d.delta.abs()).fold(ends, f64::max)
+}
+
+/// Cut 28 §2 (AV: `death 14 → 36%` after a gas death, the scene saying `R2 now → dies` — both pets
+/// had died): the camp's move against the set sent, split into what the state did since the send
+/// and what the edit did. On one set of seeds (the camp's, at today's `known_to`) the sent set is
+/// played on the lineage as it was at the send (`Game::sent_state`), then with each state part
+/// moved to today's in turn (`STATE_PARTS`, only those that changed), then with the active set's
+/// route, then as the active set: each step's paired move against the one before is a part, so the
+/// parts sum to the whole exactly (the whole is the active set on today's lineage less the sent set
+/// on the lineage at the send). `None` when no send was recorded.
+pub fn forecast_move(game: &Game, prev: &RuleSet) -> Option<crate::wire::ForecastMove> {
+    let sent = game.sent_state.as_ref()?;
+    let now = &game.lineage;
+    let rules = now.rules().clone();
+    let sims = camp_sims(game, &rules);
+    let a = camp_panel(game, &rules, sims);
+    let n = a.len() as u32;
+    let tag = forecast_tag(game, now.best_depth + 1);
+    // today's lineage, the sent set (`forecast_vs`'s base), run on to the active panel's count
+    let mut today_prev = camp_panel(game, prev, sims);
+    if today_prev.len() < a.len() {
+        today_prev = simulate_budget_from(game, prev, n, tag, u32::MAX, u64::MAX, today_prev);
+    }
+    let today_prev: Vec<SimResult> = today_prev.into_iter().take(a.len()).collect();
+    // the chain from the send's lineage to today's (the saved sets are today's throughout: the rules
+    // are the parts `route` and `rows`, never the state)
+    let mut was = sent.lineage.clone();
+    was.sets = now.sets.clone();
+    was.active_set = now.active_set;
+    let mut g = game.sim_clone();
+    g.lineage = was.clone();
+    g.loadout = sent.loadout.clone();
+    let panel_of = |g: &Game, set: &RuleSet| -> Vec<SimResult> {
+        let key = format!("move:{}:{n}:{tag}:{}", lineage_key(g), played_key(g, set));
+        if let Some(v) = game.panel_cache.borrow().get(&key) {
+            return v.clone();
+        }
+        let v = simulate_budget_from(g, set, n, tag, u32::MAX, u64::MAX, Vec::new());
+        panel_insert(game, key, v.clone());
+        v
+    };
+    let mut parts: Vec<crate::wire::MovePart> = Vec::new();
+    let mut last = if lineage_key(&g) == lineage_key(game) { today_prev.clone() } else { panel_of(&g, prev) };
+    let base = last.clone();
+    let refined = sims > FORECAST_SIMS;
+    for kind in STATE_PARTS {
+        // (a part that moves nothing a sim reads — the lineage's key unchanged — is taken silently: no line)
+        let key0 = lineage_key(&g);
+        let before = g.lineage.clone();
+        take_part(kind, &mut g.lineage, now);
+        if kind == "kit" || kind == "heir" {
+            g.loadout = game.loadout.clone();
+        }
+        if lineage_key(&g) == key0 {
+            continue;
+        }
+        let next = if lineage_key(&g) == lineage_key(game) { today_prev.clone() } else { panel_of(&g, prev) };
+        parts.push(crate::wire::MovePart { kind: kind.into(), text: part_text(kind, &before, now), move_: vs_between(game, &next, &last, refined) });
+        last = next;
+    }
+    // (any state the parts did not name — the lineage is today's from here on)
+    if lineage_key(&g) != lineage_key(game) {
+        let before = g.lineage.clone();
+        g.lineage = now.clone();
+        g.loadout = game.loadout.clone();
+        let next = today_prev.clone();
+        parts.push(crate::wire::MovePart { kind: "heir".into(), text: part_text("heir", &before, now), move_: vs_between(game, &next, &last, refined) });
+        last = next;
+    }
+    let state = !parts.is_empty();
+    // the route, then the rows
+    let rows = rules_key(&RuleSet { rows: rules.rows.clone(), name: None, route: Vec::new() }) != rules_key(&RuleSet { rows: prev.rows.clone(), name: None, route: Vec::new() });
+    if rules.route != prev.route {
+        let routed = prev.clone().with_route(rules.route());
+        let next = if rows { panel_of(game, &routed) } else { a.clone() };
+        parts.push(crate::wire::MovePart { kind: "route".into(), text: "route".into(), move_: vs_between(game, &next, &last, refined) });
+        last = next;
+    }
+    if rows {
+        parts.push(crate::wire::MovePart { kind: "rows".into(), text: "rows".into(), move_: vs_between(game, &a, &last, refined) });
+    }
+    let whole = vs_between(game, &a, &base, refined);
+    let lead = parts.iter().max_by(|x, y| headline(&x.move_).total_cmp(&headline(&y.move_))).map(|p| p.kind.clone()).unwrap_or_else(|| "rows".into());
+    Some(crate::wire::ForecastMove { whole, parts, lead, rows, state, sims: n, refined })
+}
+
 
 /// Cut 22 §3: the mean of `f(a_i) − f(b_i)` over paired sims and its 95 % half-width
 /// (`1.96 · s / √n`, `s` the sample deviation of the differences; 0 when every seed agrees).
@@ -1035,5 +1290,9 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&format!("passes {:?}", l.night_passes));
     // Cut 23 §1: the forge's steps (the heir's starting kit).
     feed(&format!("kit {:?}", l.kit));
+    // Cut 28 §1: the sworn oath (a panel's sims say whether each kept it).
+    if let Some(o) = crate::oath::sworn(l) {
+        feed(&format!("oath {} {} {:?} {:?}", o.kind, o.depth, o.boss, o.seen));
+    }
     h
 }

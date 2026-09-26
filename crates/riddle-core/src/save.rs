@@ -23,6 +23,8 @@ pub fn load(text: &str) -> Result<Game, String> {
     g.max_deaths = g.max_deaths.max(crate::engine::KEPT_DEATHS);
     // QA on e75ec29: a load is a camp — its bounty floor is the one on the screen.
     g.bounty_seen = g.lineage.bounty;
+    // Cut 28 §1: a lineage from before the oaths draws its board.
+    crate::oath::refresh(&mut g.lineage);
     // Cut 21 §1: a lineage from before the waystones lights them from its banks.
     if g.lineage.waystones.is_empty() {
         if let Some(&d) = g.lineage.banked_depths.iter().next_back() {

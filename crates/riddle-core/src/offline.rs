@@ -266,7 +266,8 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
     for &(_, i) in order.iter().rev().filter(|&&(_, i)| salvaged[i].gold > 0).take((-short).max(0) as usize).collect::<Vec<_>>() {
         salvaged[i].gold -= 1;
     }
-    ReturnReport {
+    let oath = b.oath.as_ref().map(|(o, runs, kept, done)| crate::wire::OathReport { id: o.id.clone(), chips: crate::oath::chips(o), text: crate::oath::text(o), runs: *runs, kept: *kept, done: *done, reward: Some(o.reward.clone()), price: o.price });
+    let mut r = ReturnReport { lead: Vec::new(), oath,
         elapsed_s,
         runs: b.runs,
         sampled,
@@ -331,7 +332,54 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
         repeat_short: b.repeat_short,
         shelved: b.shelved.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).collect(),
         heirs: b.heirs.map(|(lo, hi)| vec![lo, hi]).unwrap_or_default(),
+    };
+    r.lead = lead_of(game, &r);
+    r
+}
+
+/// Cut 28 §2: the lines of a report's first screen (`ReturnReport.lead`).
+pub const LEAD_MAX: usize = 4;
+
+/// Cut 28 §2 (both cohort-23 raters: reports opened with salvage walls): what changed and what to do,
+/// decisions first — the oath (kept, or its count), the plateau, a counter learned, a record, the
+/// worst death's verdict, a drive-off, the bounty, the first pending decision; ≤ `LEAD_MAX`, each
+/// ≤ 6 words. Salvage, bones and spending are the details under it.
+pub fn lead_of(game: &Game, r: &ReturnReport) -> Vec<crate::wire::ReportLead> {
+    let mut out: Vec<crate::wire::ReportLead> = Vec::new();
+    let mut push = |k: &str, text: String| out.push(crate::wire::ReportLead { k: k.into(), text });
+    if let Some(o) = &r.oath {
+        push("oath", if o.done { format!("oath kept: {}", o.text) } else { format!("oath {} · {}/{}", o.text, o.kept, o.runs) });
     }
+    if r.stall.is_some() {
+        push("plateau", format!("plateau: none past D{}", game.lineage.best_depth));
+    }
+    for f in r.learned.iter().filter(|f| f.starts_with("boss:") && f.contains(":counter")) {
+        let kind = f.trim_start_matches("boss:").split(":counter").next().unwrap_or("");
+        push("counter", format!("{} learned", crate::oath::counter_fact(&game.lineage, kind)));
+    }
+    if let Some(best) = r.bests.iter().find(|b| b.starts_with('D') || b.starts_with("boss:")) {
+        let text = match best.strip_prefix("boss: ") {
+            Some(kind) => format!("first: {} slain", crate::sifter::boss_short(kind)),
+            None => format!("record {best}"),
+        };
+        push("record", text);
+    }
+    if let Some(d) = &r.worst_death {
+        push("death", format!("D{} death · {}", d.depth, d.lean.as_deref().filter(|_| d.verdict != "dice").map(|l| format!("{} · {l}", d.verdict)).unwrap_or_else(|| d.verdict.clone())));
+    } else if let Some(c) = r.deaths.first() {
+        push("death", format!("{} {} · {}", c.n, if c.n == 1 { "death" } else { "deaths" }, c.cause.replace('_', " ")));
+    }
+    if let Some(d) = r.drives.last() {
+        push("driven", format!("driven off: {} · {}", d.title, crate::oath::counter_fact(&game.lineage, &d.boss)));
+    }
+    if let Some(b) = &r.bounty {
+        push("bounty", if b.taken { format!("bounty D{} taken ${}", b.depth, b.gold) } else { format!("bounty D{} · missed · reach", b.depth) });
+    }
+    if let Some(p) = r.pending.iter().find(|p| p.starts_with("unlock ") || p.starts_with("forge ") || p.starts_with("patch ")) {
+        push("pending", crate::chronicle::clamp_words(p, 6));
+    }
+    out.truncate(LEAD_MAX);
+    out
 }
 
 // ---------------------------------------------------------------- stall verdict
@@ -427,7 +475,7 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     let has_verb = |v: &Verb| vocab.verbs.contains(v);
     let has_cond = |k: &str, t: Option<&str>| vocab.conds.iter().any(|c| c.k == k && (t.is_none() || c.t.as_deref() == t));
     let present = |r: &Row| rules.rows.contains(r);
-    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
+    let patch = |row: Row, at: usize, replace: bool, remove: bool| Patch { no_gain: false, row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
     let mut cands: Vec<Patch> = Vec::new();
     // (a) the ending row, its threshold pushed deeper.
     let mut deeper = ending.clone();

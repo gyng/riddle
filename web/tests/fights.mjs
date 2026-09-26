@@ -12,6 +12,7 @@
 // (`__viewer.debugRects` / `debugLabels`); a bank exit opens the fight frame with `BANKED $N` as its callout before the sheet.
 // Cut 15 §4: a boss's kill opens (holds) the fight frame with `GOBLIN WARLORD DOWN` in `fast` and `fights`; two name tags whose
 // boxes would intersect draw on two rows (no two tags drawn in a frame intersect).
+// Cut 28 §3: at 1× no stretch > 5 s without a fight, a beat, a pickup of note or a descent.
 // Cut 24 §1: no 15 s of dead watch — a stretch with no hp change, kill, pickup or descent plays at the travel rate (fights included).
 // Cut 16 §4: while a boss is in view the HUD carries his bar under the hero's (`warlord` + a thin track at his hp); `warlord
 // breaks` (the core's callout + note) is a beat — the fight frame holds on `WARLORD BREAKS` like the kill. §3: the run's first
@@ -455,6 +456,35 @@ try {
     return { ok: d.deadFight > 0 && d.maxTicks >= 300 && d.maxMs <= 15_000, line: `${m}: a fight that cannot progress plays as travel — the longest stretch without a move ${(d.maxMs / 1000).toFixed(1)} s wall over ${d.maxTicks} ticks (≤ 15 s; ≥ 300 ticks is 15 s at the fight's 2×), the fight frame dead at up to ${d.fastest}× (${d.at})` };
     });
     check(dead.ok, dead.line);
+  }
+  // Cut 28 §3 (AU: at 1× ~50 s of `pick up ×N` and 9–12 s gaps with nothing new): at the plain 1× no stretch passes 5 s of wall time
+  // without a fight, a beat, a pickup of note or a descent (`data-progress`: a coin or a repeat pickup is no move; a held beat is news) —
+  // the rest plays at the travel rate; a run read up to 60 s
+  {
+    const one = await measured(async () => {
+    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1`, { waitUntil: "domcontentloaded" });
+    await waitFor((x) => x?.booted && inRun(x) && x.mode, "the watch (1×)");
+    await press("1×");
+    const d = await page.evaluate(() => new Promise((res) => {
+      const t0 = performance.now(); let cur = null, since = 0, sinceTick = 0, maxMs = 0, maxTicks = 0, dead = 0, at = "", depth = "";
+      const poll = () => {
+        const w = document.querySelector(".watch"), now = performance.now();
+        const live = window.__riddle?.screen === "watch" && w && w.dataset.mode === "one" && w.dataset.ending !== "1" && w.dataset.speed !== "0" && !document.querySelector(".sheet-wrap");
+        if (live && w.dataset.progress !== undefined && w.dataset.tick !== undefined) {
+          depth = document.querySelector(".hud .depth")?.textContent ?? depth;
+          const key = `${w.dataset.progress}|${depth}|${w.dataset.hold ?? ""}`, tick = Number(w.dataset.tick);
+          if (key !== cur || w.dataset.hold) { cur = key; since = now; sinceTick = tick; }
+          else { const ms = now - since; if (ms > maxMs) { maxMs = ms; at = `${depth} t${sinceTick}`; } maxTicks = Math.max(maxTicks, tick - sinceTick); }
+          if (w.dataset.dead === "1") dead++;
+        } else { cur = null; }
+        if (now - t0 > 60_000 || (window.__riddle?.screen !== "watch" && now - t0 > 3000)) { res({ maxMs: Math.round(maxMs), maxTicks, dead, at, wall: Math.round(now - t0) }); return; }
+        requestAnimationFrame(poll);
+      };
+      poll();
+    }));
+    return { ok: d.maxMs <= 5000 && d.dead > 0, line: `1×: no stretch > 5 s without a fight, a beat, a pickup of note or a descent — the longest ${(d.maxMs / 1000).toFixed(1)} s over ${d.maxTicks} ticks (${d.at}; ${d.dead} dead frames at the travel rate; ${(d.wall / 1000).toFixed(0)} s read)` };
+    });
+    check(one.ok, one.line);
   }
   // Cut 27 §1: solved floors fold — a send whose forecast clears D1 ≥ 95 % (`fake_fold`, the fake's stand-in for the core's `fold_to`) opens
   // on the fold line and lands below it; the screen time on the folded floors is ≤ 5 s a floor, in `fights` and `fast` alike

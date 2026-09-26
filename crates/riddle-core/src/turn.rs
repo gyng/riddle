@@ -457,7 +457,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     let whys = std::mem::take(&mut run.rows_why);
     let rows = if whys.is_empty() { None } else { Some(whys) };
     let before: Vec<crate::wire::TraceBlow> = run.blows.drain(..blows_before.min(run.blows.len())).collect();
-    let mut turn = TraceTurn { t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows, blows: before };
+    let mut turn = TraceTurn { max_hp: run.hero.max_hp, t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows, blows: before };
     foe_reasons(&mut turn, (seen_before - v.foes.len() as i32).max(0));
     run.trace.push(turn);
     if run.trace.len() > 16 {
@@ -1358,6 +1358,15 @@ fn rule_text(run: &Run, row: &crate::rules::Row, hp_pct: i32) -> String {
     row.text(hp_pct)
 }
 
+/// The hero's max hp moved by `delta` (already applied): the `max_hp` event, and (Cut 28 §2) the
+/// run's own record of the step for the traces (`Run.max_steps` → `Trace.max_steps`).
+pub fn hero_max_hp(run: &mut Run, cx: &mut Ctx, delta: i32, cause: &str) {
+    cx.events.push(Ev::MaxHp { t: run.turn, id: crate::engine::HERO_ID, max: run.hero.max_hp, delta, cause: cause.into() });
+    if !cx.sim {
+        run.max_steps.push(crate::wire::MaxStep { t: run.turn, max: run.hero.max_hp, delta, cause: cause.into() });
+    }
+}
+
 pub fn emit_rule(run: &Run, cx: &mut Ctx, row: i32, verb: &Verb, text: &str) {
     cx.events.push(Ev::Rule { t: run.turn, row, verb: verb.clone(), text: crate::chronicle::clamp_words(text, 3) });
 }
@@ -1629,6 +1638,11 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
 pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Src) -> bool {
     if run.monsters[mi].hp <= 0 {
         return false;
+    }
+    // Cut 28 §1: a boss the fire hurt (the `fire` oath: slain by a run that burned him).
+    if *src == Src::Fire && run.monsters[mi].is_boss() && !run.burned.contains(&run.monsters[mi].kind) {
+        let k = run.monsters[mi].kind.clone();
+        run.burned.push(k);
     }
     // The Warlord's shield wall: a goblin beside him takes any incidental blow from the
     // hero's side (unaimed swings, allies, companions). Hazards and aimed strikes go through.
@@ -2138,6 +2152,7 @@ pub const REST_ALERT_EVERY: u32 = 8;
 /// Cut 3: every rest is a noise (radius 8) — the Deep's hunters come for it.
 pub fn rest_clock(run: &mut Run, cx: &mut Ctx) {
     run.rests += 1;
+    run.rested = true;
     let at = run.hero.pos;
     noise(run, cx, at, 8);
     if !run.rests.is_multiple_of(REST_ALERT_EVERY) {
@@ -2305,6 +2320,9 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     }
     let floor = generate(&mut run.rng, biome, next);
     run.depth = next;
+    if next > run.max_depth {
+        run.depth_t.push((next, run.turn));
+    }
     run.max_depth = run.max_depth.max(next);
     run.floor = floor;
     run.hero.pos = run.floor.stairs_up;
@@ -2446,7 +2464,9 @@ fn note_saved(run: &mut Run, cx: &mut Ctx) {
     }
     if let Some(r) = run.saved_by.take() {
         if let Some(row) = cx.rules.rows.get(r as usize) {
-            let text = format!("R{} {} saved him.", r + 1, row.verb.short());
+            let who = format!("R{} {}", r + 1, row.verb.short());
+            let tpl = crate::chronicle::variant(run, "saved");
+            let text = if tpl.is_empty() { format!("{who} saved him.") } else { tpl.replace("{r}", &who) };
             note(run, cx, text);
         }
     }
@@ -2606,6 +2626,7 @@ pub fn vault_take(run: &mut Run, cx: &mut Ctx, id: Option<u32>) {
     let Some((_, items)) = run.vault_choice.take() else { return };
     let pick = id.and_then(|id| items.iter().position(|i| i.id == id)).unwrap_or_else(|| vault_pick(&items, cx.vault_pref));
     let Some(it) = items.into_iter().nth(pick) else { return };
+    run.caged.push(it.id);
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     let here = run.hero.pos;
     run.loot_add(it.value());
@@ -2651,7 +2672,7 @@ pub fn pray(run: &mut Run, cx: &mut Ctx, want_row: bool) {
     run.hero.max_hp_base = (run.hero.max_hp_base - cost).max(1);
     run.hero.hp = run.hero.hp.min(run.hero.max_hp);
     // QA on 308f045 (qaAC): the shrine's price moves the HUD's max at its tick, named.
-    cx.events.push(Ev::MaxHp { t: run.turn, id: crate::engine::HERO_ID, max: run.hero.max_hp, delta: run.hero.max_hp - before, cause: "shrine".into() });
+    crate::turn::hero_max_hp(run, cx, run.hero.max_hp - before, "shrine");
     // The shrine's price opens an episode of its own.
     if run.arc.has_low() {
         sifter::seal(run);

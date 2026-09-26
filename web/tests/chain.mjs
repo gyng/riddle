@@ -218,6 +218,7 @@ try {
     r.go({ kind: "report", report: { elapsed_s: 60, runs: 1, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 1, exits: [line] } });
   }, { kept: lastExit.delta, tier: lastExit.why.split(" ")[0] === "lost" ? "returned" : lastExit.why.split(" ")[0] });
   await sleep(200);
+  await page.evaluate(() => document.querySelector('.report .details-fold[aria-expanded="false"]')?.click());   // Cut 28 §2: the ledger folds under `details`
   await page.locator(".report .exit-lines .ledger-line button.ledger-btn").first().click({ timeout: 5000 });
   await sleep(300);
   const gsR = await page.evaluate(() => { const b = document.querySelector(".sheet-wrap .gold-sheet"); return b ? { filter: b.dataset.filter, n: b.querySelectorAll(".lrow[data-t]").length } : null; });
@@ -236,6 +237,7 @@ try {
     return { chips: document.querySelectorAll(".report .exit-lines .chip.mini").length + document.querySelectorAll(".report .stall .chip.mini").length };
   }, { runId: log.runId, inT, depth: fl.depth });
   check(watchN.chips === 2, `the report's exit line and the stall carry trace chips (${watchN.chips})`);
+  await page.evaluate(() => document.querySelector('.report .details-fold[aria-expanded="false"]')?.click());   // Cut 28 §2: the ledger folds under `details`
   await page.locator(".report .exit-lines .chip.mini").first().click({ timeout: 5000 }); await sleep(300);
   const exitLinks = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .chain .chain-row")].map((el) => ({ text: el.innerText.replace(/\s+/g, " ").trim(), watch: !!el.querySelector("button.link") })));
   check(exitLinks.length >= 1 && exitLinks[0].watch, `a report exit line's trace has watch on its in-range link: ${JSON.stringify(exitLinks[0])}`);

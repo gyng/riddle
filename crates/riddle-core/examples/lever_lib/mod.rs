@@ -247,7 +247,13 @@ pub fn engagement(r: &Row) -> bool {
 /// (screened on a quarter of the sims, the best three on all). Stops once a row beats the kit by
 /// `margin` (the table prints the first that does).
 pub fn gate(set: &RuleSet, seed: u64, hours: u64, sims: u32, margin: f64) -> (f64, f64, String) {
+    gate_with(set, seed, hours, sims, margin, |_| {})
+}
+
+/// `gate` on a lineage `prep` has changed first (Cut 28 §1: every oath reward owned).
+pub fn gate_with(set: &RuleSet, seed: u64, hours: u64, sims: u32, margin: f64, prep: impl Fn(&mut Game)) -> (f64, f64, String) {
     let mut g = cohort_game(set, seed);
+    prep(&mut g);
     g.lineage.gold = 400;
     fill_shelf(&mut g);
     let _ = riddle_core::offline::run_offline_counts(&mut g, hours * 3600);

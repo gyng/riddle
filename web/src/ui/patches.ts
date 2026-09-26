@@ -109,7 +109,8 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
       fires !== undefined && total > 0 ? h("span", { class: "num fired" }, /* copy:callout */ ` · ${fires}/${total} fires`) : "") : "";
     // QA a946e04 (T: `retreat · survives 75% · base 75%` listed like a fix): a death patch that survives no more than the rules as they
     // are changes nothing — dim, `no gain`
-    const noGain = baseline !== undefined && !opts.stall && !p.below_bar && held < 0 && !unlock && Math.round(p.survive * 100) <= Math.round(baseline * 100);
+    // Cut 28 §2 (core `Patch.no_gain`): the core's word wins; else the survive share against the unpatched one
+    const noGain = (p.no_gain === true && !p.below_bar && held < 0 && !unlock) || (baseline !== undefined && !opts.stall && !p.below_bar && held < 0 && !unlock && Math.round(p.survive * 100) <= Math.round(baseline * 100));
     const rs = (x: number): string => replayShare(x, opts.replays);
     const line = held >= 0
       ? /* copy:callout */ `at R${held + 1}`
@@ -162,6 +163,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
         h("span", { class: "num surv" }, line),
         reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish, campBaseAt(app)),
         stallish ? "" : wholeSpan(p)));   // Cut 27 §4: a stall's patches carry their whole-run move too (the gem's guard reads it)
+    quietMoves(btn);
     applyOf.set(btn, act);
     return btn;
   });
@@ -272,6 +274,7 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
     buttons[i]?.querySelector(".delta")?.replaceWith(reachSpan(p, false, baseOf.get(el)));
     buttons[i]?.querySelector(".whole")?.replaceWith(wholeSpan(p));
     buttons[i]?.classList.toggle("harms", !!p.whole?.harms);
+    if (buttons[i]) quietMoves(buttons[i]);
   });
   el.dataset.reach = "camp";
   // QA 92eb880 (N): a loss once the camp's reach is in is dim (`.neg`) and says its move. QA 778fa1b (qaU: patch 1 lit with `100% apply`,
@@ -282,6 +285,14 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
   const moveOf = (p: Patch): number => { const d = Math.round(p.forecast_delta * 100); return p.insert_at < 0 || Math.abs(d) <= pmOf(p) || (!p.remove && (p.exits ?? (p.moves_from === undefined && EXIT_VERBS.has(p.row.verb.v)))) ? 0 : d; };
   // QA 524827b: a patch that harms whole runs (`PatchWhole.harms`: death up or reach down beyond its ±) is a loss too
   patches.forEach((p, i) => { const b = buttons[i]; if (b && !(b.classList.contains("below") && !b.classList.contains("neg"))) b.classList.toggle("neg", moveOf(p) < 0 || !!p.whole?.harms); });
+}
+
+/** Cut 28 §2 (AU: `survives 0/12 · no gain` beside a green `reach D14 0→24%` — "contradictory at a glance"): a tablet that reads `no gain`
+ *  (or below the bar, or under `nothing beats unpatched`) never carries a move in the gain colour — its reach and death moves read neutral
+ *  (the numbers stay). */
+export function quietMoves(btn: HTMLElement): void {
+  if (!btn.classList.contains("below")) return;
+  btn.querySelectorAll<HTMLElement>(".delta.up, .whole .dlt.up").forEach((e) => { e.classList.remove("up"); e.classList.add("quiet"); });
 }
 
 /** QA 524827b (qaAA): once the whole run is measured, a tablet that harms it never leads — unless the player lit one, the tablets that

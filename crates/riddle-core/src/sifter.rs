@@ -21,6 +21,29 @@ pub const STORY_WORDS: usize = 12;
 /// A low at or under this share of max HP is a low point; recovering past `RECOVER_PCT`
 /// afterwards seals the episode (its resolution is the next one the run reaches).
 pub const LOW_PCT: i32 = 25;
+/// Cut 28 §4: a story's `took him to N HP` needs N at or under this share of his max.
+pub const HURT_PCT: i32 = 50;
+/// Cut 28 §4 (AV: the same line four runs running): a reel holds a line's shape (its numbers aside)
+/// at most this many times.
+pub const SHAPE_MAX: usize = 2;
+
+/// A reel line's shape: its text with every number as `N` (the client's `reelShape`).
+pub fn shape(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut num = false;
+    for c in text.chars() {
+        if c.is_ascii_digit() {
+            if !num {
+                out.push('N');
+            }
+            num = true;
+        } else {
+            num = false;
+            out.push(c);
+        }
+    }
+    out
+}
 pub const RECOVER_PCT: i32 = 60;
 /// Sealed episodes waiting for a resolution (the deepest lows are kept).
 pub const SEALED_MAX: usize = 2;
@@ -222,8 +245,11 @@ impl Arc {
         *self = Arc { start_t: t, sealed, ..Arc::default() };
     }
     pub fn to_episode(&self, run: &Run, res: Resolution) -> Episode {
+        // Cut 28 §4 (AV: `A goblin took him to 40 HP` — his max, no low at all): a low above
+        // `HURT_PCT` of his max is no low point — the line is the run's routine one.
         let (low_hp, setup) = match self.low {
-            Some((hp, _)) => (hp, Setup::Hurt),
+            Some((hp, _)) if hp * 100 <= HURT_PCT * self.max_hp.max(1) => (hp, Setup::Hurt),
+            Some(_) => (run.hero.hp, Setup::Untouched),
             None => (run.hero.hp, Setup::Untouched),
         };
         Episode {
@@ -1186,7 +1212,7 @@ pub fn reel(highlights: &[Highlight], best_run: Option<u32>, recent: &[(String, 
     eps.sort_by(|a, b| names_row(b).cmp(&names_row(a)).then(b.score.cmp(&a.score)).then(a.run_id.cmp(&b.run_id)).then(a.t.cmp(&b.t)));
     let mut out: Vec<Highlight> = Vec::new();
     let mut seen: Vec<(String, String)> = recent.to_vec();
-    let fresh = |h: &Highlight, seen: &[(String, String)], out: &[Highlight]| !seen.contains(&pair(h).unwrap()) && !out.iter().any(|o| o.text == h.text);
+    let fresh = |h: &Highlight, seen: &[(String, String)], out: &[Highlight]| !seen.contains(&pair(h).unwrap()) && !out.iter().any(|o| o.text == h.text) && out.iter().filter(|o| shape(&o.text) == shape(&h.text)).count() < SHAPE_MAX;
     let mut mine: Vec<&Highlight> = eps.iter().copied().filter(|h| Some(h.run_id) == best_run).collect();
     mine.sort_by_key(|b| std::cmp::Reverse(b.t));
     if let Some(c) = mine.iter().find(|h| fresh(h, &seen, &out)) {
@@ -1215,6 +1241,9 @@ pub fn reel(highlights: &[Highlight], best_run: Option<u32>, recent: &[(String, 
     for h in rest {
         if out.len() >= 4 {
             break;
+        }
+        if out.iter().filter(|o| shape(&o.text) == shape(&h.text)).count() >= SHAPE_MAX {
+            continue;
         }
         out.push(h.clone());
     }

@@ -3,6 +3,7 @@
 import type {
   BonesPile, CageOption, Divergence, DivergenceBranch, DivergenceEnd, FoldBeat, FoldFloor, FoldLine, RowFires, StartOption, ForkOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
+  Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 import { combosIn } from "../ui/tokens";
@@ -1930,4 +1931,121 @@ function shadowField(rows: Row[]): { shadowed_by?: (number | null)[] } {
   };
   const out = rows.map((b, j) => { const i = rows.slice(0, j).findIndex((a) => shadows(a, b)); return i >= 0 ? i : null; });
   return out.some((x) => x !== null) ? { shadowed_by: out } : {};
+}
+
+// ---------------------------------------------------------------- Cut 28 stand-ins (the core's oaths, attribution, calm, luck)
+// Grafted onto the fake's prototype so the class above stays as it was: each wraps the method the core extends and adds the Cut 28 fields.
+type Fk = { s: { lineage: Lineage; rules: RuleSet; runCounter: number; oath28?: { board: Oath[]; sworn: string | null; titles: string[]; done: number; sent?: string } };
+            lineage(): Lineage; forecastVs(prev: RuleSet): ForecastVs; gold(delta: number, why: string): void; fcRefined: boolean };
+/** The stand-in's pool: (kind, chips of a best depth, reward) — the core's `oath::POOL` in miniature. */
+const OATH_POOL28: { kind: string; chips: (b: number) => string[]; reward: (b: number) => OathReward }[] = [
+  { kind: "lean", chips: (b) => [`D${b}`, "no rest"], reward: () => ({ kind: "card", id: "gas_step", label: "card: gas step" }) },
+  { kind: "tamer", chips: () => ["tame", "a new kind"], reward: () => ({ kind: "slot", id: "party_slot_2", label: "+1 party" }) },
+  { kind: "fire", chips: () => ["Warlord", "fire"], reward: () => ({ kind: "title", id: "Firebrand", label: "title: Firebrand" }) },
+  { kind: "slayer", chips: () => ["slay", "Mother"], reward: () => ({ kind: "waystone", id: "14", label: "waystone D14" }) },
+  { kind: "bold", chips: (b) => [`D${b + 1}`, "no return"], reward: () => ({ kind: "verb", id: "throw", label: "verb: throw" }) },
+];
+function fakeBoard28(e: Fk): { board: Oath[]; sworn: string | null; titles: string[]; done: number } {
+  const L = e.s.lineage; const st = (e.s.oath28 ??= { board: [], sworn: null, titles: [], done: 0 });
+  const b = Math.max(1, L.best_depth), price = Math.max(100, Math.round((100 + 25 * b) / 10) * 10);
+  while (st.board.length < 3) {
+    const i = (hash(`oath:${L.seed}:${st.done + st.board.length}`) + st.board.length) % OATH_POOL28.length;
+    const p = OATH_POOL28[(i + st.board.length) % OATH_POOL28.length];
+    if (st.board.some((o) => o.kind === p.kind)) { st.done++; continue; }
+    const chips = p.chips(b);
+    st.board.push({ id: `${p.kind}:${st.done + st.board.length}`, kind: p.kind, chips, text: chips.join(" · "), reward: p.reward(b), price,
+      ...(p.kind === "slayer" ? { boss: "bloat_mother", depth: 13, counter: L.facts.some((f) => f.startsWith("boss:bloat_mother:counter")) ? "mother: fire" : "mother: ?" } : {}) });
+  }
+  return st;
+}
+{
+  const P = FakeEngine.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
+  const lin = P.lineage; P.lineage = function (this: Fk): Lineage {
+    const L = lin.call(this) as Lineage; const st = fakeBoard28(this);
+    L.oaths = st.board.map((o) => ({ ...o, ...(o.id === st.sworn ? { sworn: true } : {}) })); L.oath = st.sworn; if (st.titles.length) L.titles = [...st.titles];
+    const mother = L.facts.some((f) => f.startsWith("boss:bloat_mother:counter"));
+    L.walls = [{ boss: "goblin_warlord", title: "Warlord", depth: 8, slain: L.best_depth > 8, known: L.facts.some((f) => f.startsWith("boss:goblin_warlord:counter")), fact: "warlord: attack boss", counter: "attack boss" },
+      { boss: "bloat_mother", title: "Mother", depth: 13, slain: L.best_depth > 13, known: mother, fact: mother ? "mother: fire" : "mother: ?", ...(mother ? { counter: "throw fire, boss" } : { learn: "meet her" }) }];
+    if (L.bounty) L.bounty = { ...L.bounty, pays: "$×2 · item", needs: L.bounty.depth === 13 ? "reach" : "reach", ...(L.bounty.depth === 13 ? { boss: "bloat_mother", fact: mother ? "mother: fire" : "mother: ?" } : {}) };
+    return L;
+  };
+  P.swearOath = function (this: Fk, id: unknown): Lineage {
+    const st = fakeBoard28(this); const o = st.board.find((x) => x.id === id); if (!o) throw new Error("no such oath");
+    if (st.sworn === o.id) return this.lineage();
+    if (this.s.lineage.gold < o.price) throw new Error("not enough gold");
+    if (st.sworn) { const was = st.board.find((x) => x.id === st.sworn); if (was) this.gold(Math.floor(was.price / 2), `forswear ${was.text}`); }
+    this.gold(-o.price, `oath ${o.text}`); st.sworn = o.id; return this.lineage();
+  };
+  P.forswearOath = function (this: Fk): Lineage {
+    const st = fakeBoard28(this); const o = st.board.find((x) => x.id === st.sworn);
+    if (o) this.gold(Math.floor(o.price / 2), `forswear ${o.text}`); st.sworn = null; return this.lineage();
+  };
+  const share28 = (e: Fk, n: number): OathShare | undefined => {
+    const st = fakeBoard28(e); const o = st.board.find((x) => x.id === st.sworn); if (!o) return undefined;
+    const drinks = e.s.rules.rows.filter((r) => r.verb.v === "rest").length, returns = e.s.rules.rows.filter((r) => r.verb.v === "return").length;
+    const base = o.kind === "lean" ? 0.45 - 0.15 * drinks : o.kind === "bold" ? 0.4 - 0.15 * returns : o.kind === "fire" ? (e.s.rules.rows.some((r) => r.verb.v === "throw") ? 0.3 : 0.02) : o.kind === "slayer" ? 0.04 : 0.2;
+    const share = Math.max(0, Math.min(1, base)); const pm = 1.96 * Math.sqrt(share * (1 - share) / n);
+    return { id: o.id, text: o.text, share, pm, night: 1 - Math.pow(1 - share, 16) };
+  };
+  for (const [name, n] of [["forecast", 20], ["forecastRefine", 100]] as const) {
+    const f = P[name]; P[name] = function (this: Fk): Forecast { const r = f.call(this) as Forecast; const o = share28(this, n); return o ? { ...r, oath: o } : r; };
+  }
+  const vs = P.forecastVs; P.forecastVs = function (this: Fk, prev: unknown): ForecastVs {
+    const r = vs.call(this, prev) as ForecastVs; const st = fakeBoard28(this);
+    if (!st.sworn) return r;
+    const d = (s: RuleSet): number => s.rows.filter((x) => x.verb.v === "rest" || x.verb.v === "return").length;
+    return { ...r, oath: { delta: -0.15 * (d(this.s.rules) - d(prev as RuleSet)), pm: 0.06 } };
+  };
+  /** The core's `forecastMove`: the stand-in has no state at the send, so the whole is the rows' move, with a `party` part while the kennel is empty. */
+  P.forecastMove = function (this: Fk, prev: unknown): ForecastMove | null {
+    const rowsMove = (this as unknown as { forecastVs(p: RuleSet): ForecastVs }).forecastVs(prev as RuleSet);
+    const rows = JSON.stringify((prev as RuleSet).rows.map((r) => [r.conds, r.verb])) !== JSON.stringify(this.s.rules.rows.map((r) => [r.conds, r.verb]));
+    const parts: MovePart[] = [];
+    if (!this.s.lineage.party.length && this.s.runCounter > 0) {
+      const zero = (m?: number | VsMove): VsMove => ({ delta: 0, pm: 0, base: typeof m === "object" ? m.base : undefined });
+      parts.push({ kind: "party", text: "party −1 jackal", move: { depths: rowsMove.depths.map((d) => ({ ...d, delta: -0.04, pm: 0.03 })), bank: { delta: -0.05, pm: 0.04 }, death: { delta: 0.06, pm: 0.04 }, return: zero(rowsMove.return), gold: zero(rowsMove.gold), sims: rowsMove.sims, refined: rowsMove.refined } });
+    }
+    if (rows) parts.push({ kind: "rows", text: "rows", move: rowsMove });
+    if (!parts.length) return null;
+    const sum = (k: "bank" | "death"): VsMove => ({ delta: parts.reduce((a, p) => a + ((p.move[k] as VsMove | undefined)?.delta ?? 0), 0), pm: 0.05 });
+    const whole: ForecastVs = { ...rowsMove, bank: sum("bank"), death: sum("death") };
+    const head = (p: MovePart): number => Math.max(Math.abs((p.move.bank as VsMove | undefined)?.delta ?? 0), Math.abs((p.move.death as VsMove | undefined)?.delta ?? 0));
+    const lead = [...parts].sort((a, b) => head(b) - head(a))[0].kind;
+    return { whole, parts, lead, rows, state: parts.some((p) => p.kind !== "rows" && p.kind !== "route"), sims: rowsMove.sims ?? 20, refined: !!rowsMove.refined };
+  };
+  const step = P.step; P.step = function (this: Fk, ticks: unknown): StepResult {
+    const r = step.call(this, ticks) as StepResult;
+    // calm: the step's ticks with no rule row ≥ 0 (a chore is calm), no attack/hurt/beat event
+    const loud = new Set(r.events.filter((e) => (e.k === "rule" && e.row >= 0 && e.verb.v !== "pick_up" && e.verb.v !== "rest") || ["attack", "hurt", "die", "telegraph", "steal", "descend", "fact", "callout", "tame", "level", "exit"].includes(e.k)).map((e) => e.t));
+    const ts = [...new Set(r.events.map((e) => e.t))].sort((a, b) => a - b); const calm: [number, number][] = [];
+    for (const t of ts) { if (loud.has(t)) continue; const last = calm[calm.length - 1]; if (last && t - last[1] <= 10) last[1] = t; else calm.push([t, t]); }
+    return calm.length ? { ...r, calm } : r;
+  };
+  const fold = P.fold; P.fold = function (this: Fk): FoldLine {
+    const r = fold.call(this) as FoldLine; const h = r.step.snapshot.hero;
+    const low = r.floors.length > 0 && h.hp * 2 <= h.max_hp;
+    return { ...r, hp: h.hp, max_hp: h.max_hp, low, chips: low && !r.chips.includes(`hp ${h.hp}/${h.max_hp}`) ? [...r.chips, `hp ${h.hp}/${h.max_hp}`] : r.chips };
+  };
+  const death = P.death; P.death = function (this: Fk, id: unknown): Death {
+    const d = death.call(this, id) as Death;
+    const turns = d.trace.turns.map((t, i) => ({ ...t, max_hp: Math.max(t.hp, 36 - (i > d.trace.turns.length - 3 ? 4 : 0)) }));
+    const steps = turns.length > 2 ? [{ t: turns[turns.length - 2].t, max: 32, delta: -4, cause: "hunger" }] : [];
+    const luck = d.verdict === "dice" || d.baseline > 0.5 ? { text: `${d.cause.replace(/_/g, " ")} −6 at 6 hp`, t: turns[turns.length - 1]?.t ?? 0, odds: Math.max(1 / 12, 1 - d.baseline), one_in: Math.max(1, Math.round(1 / Math.max(1 / 12, 1 - d.baseline))) } : undefined;
+    return { ...d, trace: { ...d.trace, turns, ...(steps.length ? { max_steps: steps } : {}) }, patches: d.patches.map((p) => (p.survive <= d.baseline ? { ...p, no_gain: true } : p)), ...(luck ? { luck } : {}) };
+  };
+  const off = P.runOffline; P.runOffline = function (this: Fk, s: unknown): ReturnReport {
+    const r = off.call(this, s) as ReturnReport; const st = fakeBoard28(this); const lead: ReportLead[] = [];
+    const o = st.board.find((x) => x.id === st.sworn);
+    if (o) {
+      const sh = share28(this, 20)?.share ?? 0; const kept = Math.round(r.runs * sh); const done = kept > 0;
+      r.oath = { id: o.id, chips: o.chips, text: o.text, runs: r.runs, kept, done, reward: o.reward, price: o.price };
+      lead.push({ k: "oath", text: done ? `oath kept: ${o.text}` : `oath: ${o.text} · 0/${r.runs}` });
+      if (done) { if (o.reward.kind === "title") st.titles.push(o.reward.id); st.board = st.board.filter((x) => x.id !== o.id); st.sworn = null; st.done++; }
+    }
+    if (r.stall) lead.push({ k: "plateau", text: `plateau: none past D${this.s.lineage.best_depth}` });
+    if (r.worst_death) lead.push({ k: "death", text: `D${r.worst_death.depth} death · ${r.worst_death.verdict}` });
+    for (const b of r.bests.slice(0, 1)) lead.push({ k: "record", text: b });
+    if (lead.length) r.lead = lead.slice(0, 4);
+    return r;
+  };
 }

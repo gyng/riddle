@@ -25,7 +25,9 @@ export type ChainCtx = { rows?: Row[]; verbs?: string[]; runId?: number; chain?:
                          home?: boolean;           // Cut 14: the trace of a bank/return — its last row is the way home, not the killing blow (QA on 56f2a1d: painted red)
                          depth?: number;           // QA a946e04: the floor the trace's turns are on (a death's) — a present-state blocker stamped on another floor is re-stamped to its turn here
                          window?: number;          // Cut 21 §3: the turns the table shows (its last N) — their row reasons join the chain, not only the last turn's
-                         onRow?: (row: number) => void };   // QA 912e135 (qaW: `R1 unknown item` and the trace rows inert on the death screen): a row's name opens it
+                         onRow?: (row: number) => void;
+                         /** Cut 28 §2: the hp over the max he had at a tick (`10/30`), when his max moved in the run — an `hp not <30%` reason reads it */
+                         hpAt?: (t: number, hp: number) => string };   // QA 912e135 (qaW: `R1 unknown item` and the trace rows inert on the death screen): a row's name opens it
 
 /** QA 912e135: a row's name (`R1` and its verb) — a button that opens the row when the screen can (`ChainCtx.onRow`), else text. */
 export function rowRef(row: number, verb: string | undefined, onRow?: (row: number) => void): HTMLElement {
@@ -139,7 +141,7 @@ export function chainOf(trace: Trace, ctx: ChainCtx = {}): HTMLElement | null {
     const verb = verbOf(r.row);
     const line = h("div", { class: "chain-row" },
       rowRef(r.row, verb, ctx.onRow),
-      whySpan(r.why));
+      whySpan(r.why), ctx.hpAt && last && /\bhp\b/.test(r.why) ? h("small", { class: "hp-at num dim" }, ` · ${ctx.hpAt(last.t, last.hp)}`) : "");
     // QA 778fa1b (qaV: `← found heal on D1 · watch` first and last): a reason an earlier tick's line already linked is not linked again
     if (r.because) { const dup = shown.some((s) => s.text === r.because!.text); shown.push(r.because); if (!dup && !foeBlockerOnMove(verb, r.because.text)) line.append(...link(r.because, ctx.runId)); }
     return line;

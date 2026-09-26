@@ -180,6 +180,7 @@ const ENDING_TICKS = 20;            // Cut 7 §4: the last ticks before any exit
 const SCENE_FOES = 2;               // Cut 7 §4: awake hostiles in the hero's room that make it a scene
 const AMBIENT_MS = 10_000, AMBIENT_SHOW_MS = 1500;   // Cut 7 §4: one ambient callout per 10 s, shown 1.5 s whatever the speed
 const PUMP_MS = 25;
+const KEEP_MS = 100;                // Cut 28 §4: the keep-out rects' refresh (a layout read)
 const PULSE_MS = 120;               // Cut 14 §6: the strip's dot retriggers its beat at most this often
 const CATCHUP_RATE = 32;            // Cut 14 §6: `fast` on the map, behind live by more than the lead: the picture catches up at this rate
 const CATCHUP_MAX = 200;
@@ -187,7 +188,11 @@ const LEAD_PROBE = 120;             // Cut 18 §1: `fast`'s engine lead — a fi
 // Cut 24 §1 (AL: a Warlord fight > 4 min at 1× with the boss bar full; AK: ~100 s of retreat ↔ pack break): the watch never shows more
 // than 15 s without an hp change, a kill, a pickup or a descent — a stretch DEAD_TICKS past the last of them plays as travel (the mode's
 // travel rate, ramping like `fast`'s dead stretch), in any mode and any frame, the fight's included, and lands at the next one
-const DEAD_TICKS = 100, DEAD_MAX_FIGHTS = 48;   // ten actions (a tick is a tenth of one): 5 s of a fight at 2×
+const DEAD_TICKS = 70, DEAD_MAX_FIGHTS = 48;   // seven actions (a tick is a tenth of one): 3.5 s of a fight at 2× (Cut 28 §3: was 100)
+// Cut 28 §3 (AU: ~50 s of `pick up ×N` and 9–12 s gaps at 1×): the plain 1× goes dead after 3.5 s of nothing (35 ticks at 1×, was 10 s),
+// so no 1× stretch passes 5 s without a fight, a beat, a pickup of note or a descent — the travel plays the rest
+const DEAD_TICKS_ONE = 35;
+const CALM_MIN = 10;                // Cut 28 §3: a core calm stretch this long (ticks, 1 s at 1×) or more plays as travel
 const DEAD_RAMP_MS = 300, DEAD_STEP_MS = 200, DEAD_LAND_MS = 150, FAST_MAX = 128;   // Cut 18 §1: `fast`'s dead-stretch ramp (see `deadRate`)            // Cut 14 §6: the engine's biggest step when the world is behind its clock (a paused or hidden viewer)
 /** Cut 25 §3 (AN: ~55 s of max hp draining 41 → 17 with only numbers moving): a drain — the hero's hp or max hp falling with no blow
  *  (hunger, poison, a curse). The core's `drain` (its word, or `true`) when it sends one, else a cause the word table knows. A drain is
@@ -1170,6 +1175,7 @@ export function renderWatch(app: App): Mounted {
     const exit = absorb(r.events, s);
     if (folding) folding.tally.absorb(r.events, s);   // Cut 27 §1: the stretch's state changes, chips on its line
     noteProgress(r.events, s);   // (after `absorb`: the batch's bosses are known)
+    noteCalm(r.calm);
     snap = s;
     // Cut 14 §6: the stake and the max hp land at the viewer's clock like the rest of the HUD (the picture may be behind the world)
     at(s.turn, () => { hud.maxHp = s.hero.max_hp; paintHud(); paintStake(s); bossFrom(s); }); bossSighted(s);
@@ -1223,8 +1229,29 @@ export function renderWatch(app: App): Mounted {
     scrubHead.style.left = `${Math.max(0, Math.min(100, ((v - startTick) / span) * 100)).toFixed(1)}%`;
     el.dataset.frontier = String(engineTick); el.dataset.world = String(Math.floor(worldT));
   }
+  /** Cut 28 §4: the DOM over the canvas — the HUD's line, the docked fold line's head and chips, the banner, the ticker, the reason —
+   *  handed to the renderer as keep-out rects (canvas CSS px) every KEEP_MS, so no pixel callout, caption or name plate lands on them. */
+  let keepAt = 0;
+  function paintKeepOut(): void {
+    const now = performance.now();
+    if (!viewer?.setKeepOut || now - keepAt < KEEP_MS) return;
+    keepAt = now;
+    const c = canvas.getBoundingClientRect();
+    const els: Element[] = [...el.querySelectorAll(".hud.top > *")];
+    if (!foldLine.hidden && foldLine.classList.contains("docked")) els.push(foldHead, ...foldChips.children);
+    for (const x of [banner, ticker, whyTip]) if (x.classList.contains("show")) els.push(x);
+    const rects: { x: number; y: number; w: number; h: number }[] = [];
+    for (const x of els) {
+      if ((x as HTMLElement).hidden) continue;
+      const r = x.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1 || getComputedStyle(x).opacity === "0") continue;
+      rects.push({ x: r.left - c.left - 2, y: r.top - c.top - 2, w: r.width + 4, h: r.height + 4 });
+    }
+    viewer.setKeepOut(rects);
+  }
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
+    paintKeepOut();
     // Cut 27 §1: while a stretch folds the world stands under its line (the fold steps it); the line holds its minimum, then docks
     if (folding) { paintScrub(viewerTick()); if (!folding.stepping && performance.now() >= folding.holdUntil) endFold(); return; }
     if (!inflight && !frozen() && foldDue()) { void foldRun(); return; }
@@ -1274,6 +1301,9 @@ export function renderWatch(app: App): Mounted {
     }
     else if (exitTier) {
       if (!(viewerIdle() || performance.now() > exitAt)) return;
+      // Cut 28 (a loaded machine: the 1× walk-out outlasted the grace and `BANKED $N` took the line at t791 of an exit at t800): the grace
+      // seeks the picture to the frontier first — the exit's line is released with the picture on the exit, never before it
+      if (!viewerIdle() && viewerTick() < engineTick) { seekTo(engineTick); applyFrame(); }
       release(Infinity);
       nextGem();   // QA 92eb880: the walk-out has played — now the gem says what comes next
       if (performance.now() < exitBeatUntil) return;   // Cut 14 §3: `BANKED $N` has its SCENE_MS first
@@ -1396,11 +1426,42 @@ export function renderWatch(app: App): Mounted {
     for (const e of evs) {
       const moved = boss
         ? e.k === "descend" || e.k === "exit" || ((e.k === "hurt" || e.k === "die") && bossIds.has(e.id)) || (e.k === "attack" && e.hit && e.dmg > 0 && bossIds.has(e.dst))
-        : (e.k === "hurt" && !isDrain(e)) || e.k === "die" || e.k === "pickup" || e.k === "descend" || e.k === "use" || e.k === "exit" || (e.k === "attack" && e.hit && e.dmg > 0);
+        : (e.k === "hurt" && !isDrain(e)) || e.k === "die" || (e.k === "pickup" && pickupOfNote(e)) || e.k === "descend" || e.k === "use" || e.k === "exit" || (e.k === "attack" && e.hit && e.dmg > 0);
       if (moved && (!progress.length || e.t > progress[progress.length - 1])) progress.push(e.t);
     }
     while (progress.length > 64 && progress[1] < viewerTick() - 4000) progress.shift();   // the playhead never seeks back that far
   }
+  /** Cut 28 §3: a pickup of note — no gold, a kind this run has not picked up before (a `pick up ×N` chain of coins and repeats is a
+   *  chore, no move). Judged once per event (the batch may be re-noted). */
+  const pickedKinds = new Set<string>(), pickupNote = new WeakMap<Ev, boolean>();
+  function pickupOfNote(e: Extract<Ev, { k: "pickup" }>): boolean {
+    const was = pickupNote.get(e); if (was !== undefined) return was;
+    const kind = e.item.replace(/\s*[×x]\d+$/, "").trim();
+    const note = !/^gold\b/.test(kind) && !pickedKinds.has(kind);
+    pickedKinds.add(kind); pickupNote.set(e, note);
+    return note;
+  }
+  /** Cut 28 §3 (core): the steps' calm stretches — run ticks with no decision and no threat (a pick-up chain, an empty corridor); the
+   *  playhead inside one of CALM_MIN ticks or more plays at the travel rate at once, in every mode (1× included), landing at its end.
+   *  Absent on the wire (an older core): the dead-stretch rule alone (DEAD_TICKS past the last move, pickups of note only). */
+  const calm: [number, number][] = [];
+  function noteCalm(c?: [number, number][]): void {
+    for (const [a, b] of c ?? []) {
+      const last = calm[calm.length - 1];
+      if (last && a <= last[1] + 1) last[1] = Math.max(last[1], b); else calm.push([a, b]);
+    }
+    while (calm.length > 64 && calm[0][1] < viewerTick() - 4000) calm.shift();
+  }
+  const calmAt = (v: number): [number, number] | undefined => {
+    // a beat (a cage's, an exit's, a situation's) is never inside a calm stretch: the stretch ends before it; a cage the world waits on
+    // or a held beat is no calm at all
+    if (cage && !cage.done || vaultClose || beatHeld()) return undefined;
+    const r = calm.find(([a, b]) => v >= a && v < b && b - a >= CALM_MIN);
+    if (!r) return undefined;
+    const bs = [beat, ...beatNext].filter((x): x is Beat => !!x && !x.shown && x.from >= v).map((x) => x.from);
+    const end = Math.min(r[1], ...bs.map((f) => f - 1), endingFrom - 1);
+    return end - v >= 1 ? [r[0], end] : undefined;
+  };
   /** The last progress tick at or before v (the run's start when none). */
   function progressBefore(v: number): number {
     for (let i = progress.length - 1; i >= 0; i--) if (progress[i] <= v) return progress[i];
@@ -1411,7 +1472,7 @@ export function renderWatch(app: App): Mounted {
   function deadAt(v: number): boolean {
     // Cut 25 §3: a drain since the last move makes the stretch dead at once (no DEAD_TICKS wait: 10 s at the plain 1×) — the bites are its only news
     const p = progressBefore(v);
-    if (v - p < DEAD_TICKS && !drainTicks.some((t) => t > p && t <= v)) return false;
+    if (v - p < (mode === "one" ? DEAD_TICKS_ONE : DEAD_TICKS) && !calmAt(v) && !drainTicks.some((t) => t > p && t <= v)) return false;
     if (beat?.hold && v >= beat.from && v < beat.until) return false;
     return !(mode === "fights" && (cardUp || cardWait));
   }
@@ -1424,7 +1485,8 @@ export function renderWatch(app: App): Mounted {
     // lands DEAD_LAND_MS before the next move, the stairs, the ending; never past the frontier (the engine is stepped to the lead)
     // (and before a beat not yet shown — a cage's, a situation's: at 128× the playhead jumped a cage's whole beat and its tap with it)
     const d = descends.find((t) => t >= v), b = beat && !beat.shown && beat.from >= v ? beat.from : Infinity;
-    const next = Math.min(progressAfter(v), d ?? Infinity, b, ...beatNext.filter((x) => !x.shown && x.from >= v).map((x) => x.from), endingFrom >= v ? endingFrom : Infinity, engineTick);
+    const cm = calmAt(v);
+    const next = Math.min(cm && v - progressBefore(v) < DEAD_TICKS ? cm[1] + 1 : Infinity, progressAfter(v), d ?? Infinity, b, ...beatNext.filter((x) => !x.shown && x.from >= v).map((x) => x.from), endingFrom >= v ? endingFrom : Infinity, engineTick);
     if (Number.isFinite(next)) r = Math.min(r, ((next - v) * 100) / DEAD_LAND_MS);
     return Math.max(base, r);   // never under the travel's rate: the engine is stepped to the playing picture's lead (a 0 at the frontier stood both)
   }
@@ -1560,7 +1622,10 @@ export function renderWatch(app: App): Mounted {
     if (L) {
       // the core's line (`fold()`): its clear through the stretch, the gold it added, its chips (≤ 3 words each, by kind)
       replace(foldHead, `${L.to > L.from ? `D${L.from}–${L.to}` : `D${L.from}`} · ${Math.round(L.clear * 100)}%${L.gold ? ` · ${L.gold > 0 ? "+" : "−"}$${Math.abs(L.gold)}` : ""}`);
-      replace(foldChips, ...L.chips.map((c) => h("i", { class: `fchip k-${coreKind(c, L)}`, "data-k": coreKind(c, L) }, c)));
+      // Cut 28 §3: a hero handed off low (`low`: hp ≤ half his max) — his `hp 9/40` chip leads the line (the core's, else built here)
+      const hpChip = L.low && L.hp !== undefined && L.max_hp !== undefined ? L.chips.find((c) => /^hp\b/.test(c)) ?? `hp ${L.hp}/${L.max_hp}` : undefined;
+      const chipList = hpChip ? [hpChip, ...L.chips.filter((c) => c !== hpChip)] : L.chips;
+      replace(foldChips, ...chipList.map((c) => h("i", { class: `fchip k-${c === hpChip ? "hp" : coreKind(c, L)}`, "data-k": c === hpChip ? "hp" : coreKind(c, L) }, c)));
       foldLine.dataset.kinds = [...new Set(L.beats.map((b) => b.kind))].join(",");
       foldLine.dataset.src = "core";
       return;

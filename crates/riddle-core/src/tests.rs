@@ -1384,7 +1384,7 @@ fn a_set_that_dies_has_no_stall() {
 fn stall_patches_apply_as_replace_remove_or_insert() {
     use crate::offline::apply_patch;
     let rules = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")), Row::new(vec![], Verb::new("attack"))], name: None, route: Vec::new() };
-    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
+    let mk = |row: Row, at: usize, replace: bool, remove: bool| Patch { no_gain: false, row, insert_at: at as i32, survive: 0.0, forecast_delta: 0.0, replace, remove, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
     let deeper = Row::new(vec![Cond::n("hp<", 10)], Verb::new("return"));
     let r = apply_patch(&rules, &mk(deeper.clone(), 0, true, false), 8);
     assert_eq!(r.rows, vec![deeper.clone(), rules.rows[1].clone()]);
@@ -6849,7 +6849,7 @@ fn cut11_wire_is_optional_and_snake_case() {
     let s = serde_json::to_string(&w).unwrap();
     assert_eq!(s, r#"{"row":0,"why":"no item","because":{"text":"den took the heal, D3","t":2140,"depth":3}}"#);
     assert_eq!(serde_json::from_str::<RowWhy>(&s).unwrap(), w);
-    let t = Trace { turns: vec![], provenance: None, blow: None, blows: Vec::new(), hp_lost: Vec::new(), hp_healed: 0 };
+    let t = Trace { max_steps: Vec::new(), turns: vec![], provenance: None, blow: None, blows: Vec::new(), hp_lost: Vec::new(), hp_healed: 0 };
     assert_eq!(serde_json::to_string(&t).unwrap(), r#"{"turns":[]}"#);
     let old: Trace = serde_json::from_str(r#"{"turns":[]}"#).unwrap();
     assert_eq!(old, t);
@@ -7884,7 +7884,7 @@ fn a_stall_names_the_rules_loop_and_its_first_patch_addresses_the_row() {
 /// moving row alone; a targeting row alone, a trait's step or three actors are no loop.
 #[test]
 fn row_loop_reads_two_actors_or_one_moving_row() {
-    let turn = |row: i32, verb: Verb| TraceTurn { t: 0, row, verb, hp: 18, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() };
+    let turn = |row: i32, verb: Verb| TraceTurn { max_hp: 0, t: 0, row, verb, hp: 18, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() };
     let alt = |a: TraceTurn, b: TraceTurn| (0..6).flat_map(|_| [a.clone(), b.clone()]).collect::<Vec<_>>();
     let tr = alt(turn(1, Verb::new("retreat")), turn(-2, Verb::new("explore")));
     assert_eq!(crate::turn::row_loop(&tr), Some(("R2 retreat ↔ explore".to_string(), 1)));
@@ -8390,7 +8390,7 @@ fn an_insert_on_a_full_set_drops_the_least_fired_row() {
         route: Vec::new(),
     };
     let new = Row::new(vec![Cond::n("hp<", 20)], Verb::new("return"));
-    let p = Patch { row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
+    let p = Patch { no_gain: false, row: new.clone(), insert_at: 1, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: Some(0), exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
     let r = apply_patch(&rules, &p, 3);
     assert_eq!(r.rows, vec![new.clone(), rules.rows[1].clone(), rules.rows[2].clone()], "R1 dropped, the patch where it was measured");
     let r = apply_patch(&rules, &Patch { drops: Some(2), ..p.clone() }, 3);
@@ -8958,7 +8958,10 @@ fn the_bounty_floor_moves_each_night_and_pays_double() {
         g.lineage.night_run(1, 1, false);
     }
     assert_eq!(g.lineage.bounty, Some(7));
-    assert_eq!(g.lineage().bounty, Some(Bounty { depth: 7 }));
+    assert_eq!(g.lineage().bounty.as_ref().map(|b| b.depth), Some(7));
+    // Cut 28 §1: the bounty says what it pays and needs.
+    let b = g.lineage().bounty.unwrap();
+    assert_eq!((b.pays.as_str(), b.needs.as_str()), ("$×2 · item", "reach"));
     let floor = |bounty: Option<u32>| {
         let mut g = Game::new(12);
         g.lineage.best_depth = 5;
@@ -9048,7 +9051,7 @@ fn a_death_the_replays_all_survive_is_dice_and_its_patches_act_on_the_floor() {
             assert!(f >= crate::trace::FIRED_BAR, "{} acts in {:.0}% of the floor's replays", p.row.describe(), f * 100.0);
         }
     }
-    let rest = Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
+    let rest = Patch { no_gain: false, row: Row::new(vec![Cond::n("hp<", 20)], Verb::new("rest")), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None };
     let f = crate::trace::floor_fired(&g, &rec, &rest).unwrap();
     assert!(f < crate::trace::FIRED_BAR, "rest acts in {:.0}% of the floor's replays", f * 100.0);
 }
@@ -9637,8 +9640,8 @@ fn a_gambles_harm_that_made_the_difference_names_its_row() {
         let rec = {
             let run = g.run.as_mut().unwrap();
             run.turn = 500;
-            run.trace.push(TraceTurn { t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
-            run.trace.push(TraceTurn { t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
+            run.trace.push(TraceTurn { max_hp: 0, t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
+            run.trace.push(TraceTurn { max_hp: 0, t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
             run.gambles.push((400, "poison".into(), true));
             run.gamble_harm = harm;
             run.death_short = short;
@@ -11113,7 +11116,7 @@ fn safe_slot_is_under_the_top_safety_block() {
 #[test]
 fn whole_run_move_judges_a_patch() {
     use crate::forecast::SimResult;
-    let sim = |depth: u32, tier: ExitTier, cause: Option<&str>| SimResult { max_depth: depth, tier, cause: cause.map(str::to_string), loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new() };
+    let sim = |depth: u32, tier: ExitTier, cause: Option<&str>| SimResult { oath_progress: 0.0, oath: false, max_depth: depth, tier, cause: cause.map(str::to_string), loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new() };
     let base: Vec<SimResult> = (0..50).map(|i| if i < 25 { sim(6, ExitTier::Return, None) } else { sim(5, ExitTier::Death, Some("goblin")) }).collect();
     // ten seeds that returned now die to fire
     let worse: Vec<SimResult> = (0..50).map(|i| if i < 10 { sim(5, ExitTier::Death, Some("fire")) } else { base[i].clone() }).collect();
@@ -11125,7 +11128,7 @@ fn whole_run_move_judges_a_patch() {
     // one seed apart is inside the ±
     let one: Vec<SimResult> = (0..50).map(|i| if i == 0 { sim(5, ExitTier::Death, Some("fire")) } else { base[i].clone() }).collect();
     assert!(!crate::trace::whole_move(&base, &one, 6, true).harms);
-    let mk = |v: &str, whole: Option<PatchWhole>| Patch { row: Row::new(vec![Cond::n("hp<", 20)], Verb { v: v.into(), a: None }), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 6, forecast_pm: 0.1, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole, gem: false, restores: None };
+    let mk = |v: &str, whole: Option<PatchWhole>| Patch { no_gain: false, row: Row::new(vec![Cond::n("hp<", 20)], Verb { v: v.into(), a: None }), insert_at: 0, survive: 1.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 6, forecast_pm: 0.1, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole, gem: false, restores: None };
     let mut ps = vec![mk("rest", Some(w.clone())), mk("retreat", Some(same.clone())), mk("descend", None)];
     crate::trace::sink_harms(&mut ps);
     assert_eq!(ps.iter().map(|p| p.row.verb.v.as_str()).collect::<Vec<_>>(), ["retreat", "descend", "rest"]);
@@ -11172,6 +11175,55 @@ fn strip_key(json: &str, key: &str) -> String {
     out
 }
 
+/// `strip_key` for a key whose value is an array (`,"key":[…]`, brackets balanced).
+fn strip_array(json: &str, key: &str) -> String {
+    let pat = format!(",\"{key}\":[");
+    let mut out = String::with_capacity(json.len());
+    let mut rest = json;
+    while let Some(i) = rest.find(&pat) {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i + pat.len() - 1..];
+        let mut depth = 0i32;
+        let mut end = tail.len();
+        for (k, c) in tail.char_indices() {
+            match c {
+                '[' => depth += 1,
+                ']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = k + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// `strip_key` only where the numeric key closes its object (`,"key":N}`) — a trace turn's last
+/// field, not an entity's `max_hp` mid-object.
+fn strip_tail_key(json: &str, key: &str) -> String {
+    let pat = format!(",\"{key}\":");
+    let mut out = String::with_capacity(json.len());
+    let mut rest = json;
+    while let Some(i) = rest.find(&pat) {
+        let tail = &rest[i + pat.len()..];
+        let n = tail.find(|c: char| !(c.is_ascii_digit() || c == '-')).unwrap_or(tail.len());
+        if tail[n..].starts_with('}') {
+            out.push_str(&rest[..i]);
+        } else {
+            out.push_str(&rest[..i + pat.len() + n]);
+        }
+        rest = &tail[n..];
+    }
+    out.push_str(rest);
+    out
+}
+
 fn sends_hash(g: &mut Game, n: u32) -> u64 {
     let mut h = 0xcbf29ce484222325u64;
     let fnv = |h: &mut u64, s: &str| {
@@ -11196,7 +11248,11 @@ fn sends_hash(g: &mut Game, n: u32) -> u64 {
                 }
                 // (QA on 308f045: a death trace's `hp_healed` is a new read of the same run)
                 // (and a reason's gloss reworded since: `given up · hero quit chasing` was `· out of reach`)
-                fnv(&mut h, &strip_key(&serde_json::to_string(e).unwrap(), "hp_healed").replace("hero quit chasing", "out of reach"));
+                // (Cut 28 §2/§4: a trace's max hp per turn and its max-hp steps are new reads of the same run; the `saved` note turns
+                // its words — `got him out`, `pulled him through` — and says the same)
+                let j = strip_key(&serde_json::to_string(e).unwrap(), "hp_healed").replace("hero quit chasing", "out of reach");
+                let j = strip_tail_key(&strip_array(&j, "max_steps"), "max_hp").replace(" got him out.", " saved him.").replace(" pulled him through.", " saved him.");
+                fnv(&mut h, &j);
             }
             if r.run_over {
                 break;
@@ -11572,7 +11628,7 @@ fn a_stamp_never_contradicts_its_counts() {
 fn the_chain_keeps_each_rows_newest_reason() {
     use crate::wire::{Because, RowWhy, TraceTurn};
     let b = |text: &str, t: u32| Some(Because { text: text.into(), t, depth: 8 });
-    let turn = |t: u32, row: i32, rows: Vec<RowWhy>| TraceTurn { t, row, verb: Verb::new("attack"), hp: 10, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: Some(rows), blows: Vec::new() };
+    let turn = |t: u32, row: i32, rows: Vec<RowWhy>| TraceTurn { max_hp: 0, t, row, verb: Verb::new("attack"), hp: 10, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: Some(rows), blows: Vec::new() };
     let turns = vec![
         // R1 (`attack boss`) never met the boss, R2's heal was drunk by R4
         turn(10, 2, vec![RowWhy { row: 0, why: "not in view".into(), because: b("never met", 10) }, RowWhy { row: 1, why: "no item".into(), because: b("R4 drank heal at 17/36 hp", 5) }]),
@@ -11597,7 +11653,7 @@ fn the_chain_keeps_each_rows_newest_reason() {
 #[test]
 fn a_patch_reads_the_floor_the_camp_leads_with() {
     use crate::forecast::SimResult;
-    let sim = |depth: u32, tier: ExitTier| SimResult { max_depth: depth, tier, cause: None, loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new() };
+    let sim = |depth: u32, tier: ExitTier| SimResult { oath_progress: 0.0, oath: false, max_depth: depth, tier, cause: None, loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new() };
     // the sent set: half reach D7, none D9; the patch: 11 of those stop at D5 (D6 and D7 both −22: the deeper leads), still none D9
     let base: Vec<SimResult> = (0..50).map(|i| sim(if i < 25 { 7 } else { 5 }, ExitTier::Death)).collect();
     let worse: Vec<SimResult> = (0..50).map(|i| if i < 11 { sim(5, ExitTier::Death) } else { base[i].clone() }).collect();
