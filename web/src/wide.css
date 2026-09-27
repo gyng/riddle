@@ -1,0 +1,146 @@
+/* ===== The wide frame (desktop, ≥ 1024 px) — docs/UI.md §2 laid out across a monitor: the top bar unchanged, the rules column left,
+   the well centre (the camp's vista and scene, the watch's stage, the death's banner, the report's parchment), the depth shaft right
+   with the diagnostics meters' slot under it, the console spanning the bottom. The same objects as the phone (tablets, shaft, console,
+   sheets) — placed, not redrawn. Phones never match the query: their layout is styles.css alone. ui/frame.ts `wideCols` builds the
+   columns a screen lacks (a phone's DOM is unchanged); sheets open beside the tile that opened them (ui/sheet.ts `placeWide`). ===== */
+
+/* the columns and the meters' slot exist on a phone only by accident (a resize across the breakpoint): never drawn there */
+.rules-col, .side-col, .meters-slot { display: none; }
+
+@media (min-width: 1024px) {
+  :root { --wide-l: clamp(360px, 28vw, 470px); --wide-r: clamp(230px, 17vw, 290px); }
+  body.framed { font-size: 18px; }
+
+  /* --- the frame: one grid, edge to edge --- */
+  main.frame, main.frame.watch { max-width: none; box-shadow: none;
+    grid-template-columns: var(--wide-l) minmax(0, 1fr) var(--wide-r);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "bar bar bar" "rules well side" "con con con"; }
+  main.frame > .topbar { grid-area: bar; }
+  main.frame > .console { grid-area: con; }
+  main.frame > .well, main.frame > .stage { grid-area: well; }
+  main.frame > .rules-col { grid-area: rules; }
+  main.frame > .side-col { grid-area: side; }
+
+  /* the side columns: carved stone (the console's own frame), the tablets / the shaft set into it */
+  .rules-col, .side-col { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+    padding: 14px 14px 16px; position: relative; z-index: 1;
+    background: radial-gradient(ellipse at 50% 0%, rgba(255, 170, 80, .07), transparent 60%), linear-gradient(90deg, #1d1510, #251b14 50%, #1a130e);
+    box-shadow: inset 0 0 0 1px #000, inset 0 0 24px rgba(0, 0, 0, .8); }
+  .skin-console :is(.rules-col, .side-col) { border: 16px solid transparent; border-image: url(/ui/frames/console.png) 48 fill / 20px stretch; background-clip: padding-box; padding: 2px 4px 6px; }
+  .rules-col { border-right: 0; }
+  .rules-col .editor { display: flex; flex-direction: column; gap: 8px; }
+  .rules-col .rows { display: flex; flex-direction: column; gap: 8px; }
+  .rules-col .row.tablet.ro { cursor: default; }
+  .rules-col .row.tablet.ro:active { filter: none; transform: none; }
+  .row.tablet .chip { font-size: 17px; }
+  .meters-slot { display: block; flex: 1 1 auto; min-height: 140px; border-radius: 4px;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .18) 0 2px, transparent 2px 22px), linear-gradient(#140f0b, #0c0907);
+    box-shadow: inset 0 0 0 2px #3a2e22, inset 0 0 18px rgba(0, 0, 0, .9), 0 1px 0 rgba(255, 220, 160, .08); }
+  .side-col .shaft { position: static; pointer-events: none; }
+  .side-col .shaft .shaft-head, .camp .shaft .shaft-head { font-size: 13px; }
+
+  /* --- desktop type: the tablets, the shaft's notches, the console's words --- */
+  .row.tablet.compact { min-height: 64px; }
+  .row.tablet.compact .rtext { font-size: 20px; }
+  .row.tablet.compact .rn { font-size: 16px; }
+  .rows-head, .shaft-head { font-size: 13px; }
+  .notch { grid-template-columns: 32px 1fr; column-gap: 8px; }
+  .notch .hex { width: 32px; height: 35px; }
+  .notch .dl { font-size: 19px; }
+  .notch .dp { font-size: 14px; }
+  .notch .dl i, .notch small:not(.dp) { font-size: 13px; }
+  .shaft-ends { font-size: 15px; gap: 6px; }
+  .shaft-ends .gemdot { width: 13px; height: 17px; }
+  .topbar .stat { font-size: 21px; }
+  .topbar .stat .ico { width: 24px; height: 24px; }
+  .topbar .heir { font-size: 17px; }
+
+  /* --- the console: full width, its contents one centred card (portrait · 8 tiles in a row · gem) --- */
+  .console-row { max-width: 1180px; margin: 0 auto; grid-template-columns: 124px minmax(0, 1fr) 124px; gap: 14px; }
+  .skin-console .console-row { margin: -2px auto -2px; }
+  .cmd { grid-template-columns: repeat(8, minmax(0, 1fr)); grid-auto-rows: 78px; gap: 8px; }
+  .cmd .tile .ico { width: 40px; height: 40px; }
+  .cmd .tile .tl { font-size: 14px; letter-spacing: 0; }
+  .portrait { width: 104px; height: 104px; }
+  .portrait .face { inset: 16px; }
+  .portrait .ring { inset: 11px; }
+  .portrait .plabel { font-size: 14px; max-width: 124px; }
+  .gem { width: 108px; height: 108px; min-width: 108px; font-size: 20px; }
+  .gem .ico { width: 46px; height: 46px; }
+
+  /* --- the camp: the well's wrappers dissolve into the frame's grid (rules left, vista + scene centre, shaft right) --- */
+  /* (the meters' slot has a track of its own under the shaft, spanning the vs / scene / rest lines' rows without growing them) */
+  main.camp.frame { grid-template-rows: auto auto minmax(0, 1fr) 150px auto auto auto auto;
+    grid-template-areas: "bar bar bar" "tabs well side" "rules well side" "rules well meters" "rules vs meters" "rules sline meters" "rules rest meters" "con con con"; }
+  main.camp > .well-wrap, main.camp .camp-well, main.camp .camp-main { display: contents; }
+  main.camp .camp-well > .busy-strip { grid-area: well; position: relative; top: auto; right: auto; z-index: 3; justify-self: end; align-self: start; margin: 10px 14px 0; }
+  main.camp .camp-well > .tabs { grid-area: tabs; padding: 12px 14px 4px; background: #1d1510; box-shadow: inset -1px 0 0 #000; }
+  main.camp .camp-main > .tablets { grid-area: rules; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 14px 18px; gap: 8px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(255, 170, 80, .07), transparent 60%), linear-gradient(90deg, #1d1510, #251b14 50%, #1a130e);
+    box-shadow: inset 0 0 0 1px #000, inset 0 0 24px rgba(0, 0, 0, .8); }
+  .skin-console main.camp .camp-main > .tablets { border: 16px solid transparent; border-image: url(/ui/frames/console.png) 48 fill / 20px stretch; background-clip: padding-box; padding: 2px 4px 8px; }
+  main.camp .camp-main > .shaft { grid-area: side; position: relative; align-self: stretch; overflow-y: auto; margin: 0; border-width: 3px; padding: 14px 12px; gap: 10px; }
+  main.camp .camp-main > .meters-slot { grid-area: meters; min-height: 0; margin: 8px 0 0; }
+  main.camp .camp-well > .vista { grid-area: well; height: auto; min-height: 0; margin: 0; background-position: center 55%;
+    box-shadow: inset 0 0 70px 16px rgba(8, 6, 4, .85), inset 0 -60px 50px -30px #0b0806, inset 0 0 0 2px #000; filter: saturate(.9) brightness(.9); }
+  main.camp .well-wrap > .div-scene { grid-area: well; align-self: end; height: min(62%, 520px); margin: 0 24px 18px; }
+  main.camp .well-wrap > .panel-host { grid-area: well; }
+  main.camp .well-wrap > .shaft-vs-host { grid-area: vs; }
+  main.camp .well-wrap > .div-line { grid-area: sline; }
+  main.camp .well-wrap > .rest-line { grid-area: rest; }
+  main.camp .well-wrap > .panel-store { display: none; }
+  main.camp .panel { inset: auto 24px 14px 24px; max-height: calc(100% - 28px); max-width: 760px; margin: 0 auto; }
+
+  /* --- the watch: the stage fills the centre --- */
+  main.watch > .stage { min-width: 0; }
+  .watch .hud.top .stake { font-size: 15px; }
+  .watch .depth { font-size: 22px; }
+
+  /* --- death and report: the well centred, wide enough to breathe, never a stretched phone --- */
+  main.death > .well, main.report > .well { padding: 18px max(24px, calc((100% - 820px) / 2)) 28px; }
+  .death .banner-cloth { width: min(100%, 320px); }
+  .death .patch { font-size: 18px; }
+  .death .patch .patch-nums { font-size: 15px; }
+  .death :is(.news, .notes, .ledger, .forecast-line, .bones-line) { font-size: 16px; }
+
+  /* --- sheets: beside the tile that opened them (ui/sheet.ts places the panel; the backdrop stays) --- */
+  .sheet-wrap.wide-beside { display: block; }
+  .sheet-wrap.wide-beside > .sheet { position: absolute; margin: 0; width: min(560px, 42vw); max-width: none; }
+}
+
+/* gfx round 2 (raters: "huge empty side panels dwarf the dungeon"): on the watch the columns narrow and the stage takes the width; the
+   rule that just acted glows on its tablet */
+@media (min-width: 1024px) {
+  main.frame.watch { grid-template-columns: clamp(270px, 20vw, 330px) minmax(0, 1fr) clamp(190px, 14vw, 240px); }
+  main.frame.watch .rules-col .row.tablet.compact .rtext { font-size: 17px; }
+  .rules-col .row.tablet.firing { animation: rule-fire 1.4s ease-out; }
+  @keyframes rule-fire { 0% { filter: brightness(1.6); box-shadow: 0 0 0 2px #f0b44a, 0 0 22px rgba(240, 180, 74, .8); } 100% { filter: none; box-shadow: none; } }
+}
+
+/* gfx round 3: the meters' slot waits as a carved inlay (a compass rose sunk in the stone) — no words, the meters' place kept; the desktop's
+   death banner a size up; the console's tiles read at arm's length */
+@media (min-width: 1024px) {
+  .meters-slot { position: relative; overflow: hidden; }
+  .meters-slot::before { content: ""; position: absolute; left: 50%; top: 50%; width: min(150px, 70%); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; opacity: .5;
+    background: repeating-conic-gradient(from 0deg, rgba(200, 150, 80, .22) 0 2deg, transparent 2deg 45deg),
+      radial-gradient(circle, transparent 0 30%, rgba(200, 150, 80, .25) 31% 32%, transparent 33% 60%, rgba(200, 150, 80, .3) 61% 63%, transparent 64%),
+      conic-gradient(from 45deg, rgba(0, 0, 0, .35) 0 25%, rgba(255, 210, 150, .06) 0 50%, rgba(0, 0, 0, .35) 0 75%, rgba(255, 210, 150, .06) 0);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, .9), 0 1px 0 rgba(255, 220, 160, .08); }
+  .death .banner-cloth { width: min(100%, 390px); }
+  .death .death-line { font-size: 24px; }
+  .cmd .tile .tl { font-size: 16px; }
+  .cmd .tile .ico { width: 46px; height: 46px; }
+}
+
+/* gfx round 4 (raters: "wood-grain side panels, not carved stone", "an empty radar dial"): the side columns are the carved wall itself —
+   a hooded knight in his alcove, a banner, a sconce (art/ui/deco/pillar.png) under the tablets and the shaft; the meters' slot is a
+   plain recess in it (no dial) */
+@media (min-width: 1024px) {
+  .skin-deco-pillar :is(.rules-col, .side-col), .skin-deco-pillar main.camp .camp-main > .tablets {
+    background: linear-gradient(rgba(14, 10, 7, .82), rgba(14, 10, 7, .5) 38%, rgba(14, 10, 7, .1) 75%), url(/ui/deco/pillar.webp) center bottom / 100% auto no-repeat, #16110c;
+    background-clip: padding-box; border-image-slice: 48; }   /* (no `fill`: the frame's centre would paint over the wall) */
+  .meters-slot::before { content: none; }
+  .meters-slot { background: rgba(8, 6, 4, .28); box-shadow: inset 0 0 0 1px rgba(110, 85, 55, .45), inset 0 0 16px rgba(0, 0, 0, .7); }
+  .skin-deco-pillar main.camp .camp-main > .meters-slot { background: linear-gradient(rgba(14, 10, 7, .55), rgba(14, 10, 7, .1)), url(/ui/deco/pillar.webp) center bottom / 100% auto no-repeat, #16110c; }
+}

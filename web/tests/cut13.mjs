@@ -113,7 +113,7 @@ try {
   const exitLine = await page.evaluate(() => document.querySelector(".report .exit-lines .ledger-btn")?.textContent ?? "");
   check(s.screen === "report" && /^returned \$0 · .* · stalled/.test(exitLine), `without a stall record the report shows the run (${s.screen}: "${exitLine}")`);
   const plaques = await page.evaluate(() => [...document.querySelectorAll(".report .tile.plaque")].map((t) => `${t.querySelector("b")?.textContent} ${t.querySelector(".label")?.textContent}`.toUpperCase()));
-  check(plaques.includes("1 RUNS") && plaques.includes("1 STALLED"), `the report after one stall reads RUNS 1 · STALLED 1 (${plaques.join(" · ")})`);
+  check(plaques.includes("1 RUNS") && plaques.includes("1/1 STALLED"), `the report after one stall reads RUNS 1 · STALLED 1 (${plaques.join(" · ")})`);
   // the report's `open` shows a stall verdict too
   await page.evaluate(() => {
     const r = window.__riddle; const L = r.lineage;
@@ -292,7 +292,7 @@ try {
   // QA e75ec29 (Q: `D1 100% ±1`): a share that reads 0 % or 100 % carries no ± — the ± is asked of the rows strictly between
   const fc = () => page.evaluate(() => { const L = window.__riddle.lastForecast; const inside = (x) => { const r = Math.round(x * 100); return r > 0 && r < 100; };
     return { refined: document.querySelector(".forecast")?.dataset.refined, pms: [...document.querySelectorAll(".fc-bars .pm")].map((e) => e.textContent), want: (L?.depths ?? []).filter((d) => d.pm !== undefined && inside(d.reach)).length, deathInside: !!L?.ends && inside(L.ends.death), ends: document.querySelector(".fc-ends:not([hidden])")?.textContent ?? "", stale: document.querySelector(".forecast")?.classList.contains("stale") }; });
-  const endsOk = (f, tail) => f.deathInside ? new RegExp(` · death \\d+% ±\\d+${tail} · ~\\$\\d+$`).test(f.ends) : / · death (0|100|[<>]\d+)% · ~\$\d+$/.test(f.ends);
+  const endsOk = (f, tail) => f.deathInside ? new RegExp(` · death \\d+% ±\\d+${tail} · ~\\$\\d+\\/run$`).test(f.ends) : / · death (0|100|[<>]\d+)% · ~\$\d+\/run$/.test(f.ends);
   await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "0", null, { timeout: 15_000 });
   let f = await fc();
   check(f.refined === "0" && f.pms.length === f.want && f.pms.every((p) => /^ ±\d+…$/.test(p)), `the first paint's ± trail …, one per share strictly inside 0–100 %: ${f.pms.join(",")} (${f.want} wanted)`);
@@ -308,11 +308,13 @@ try {
   await openPanel(page, "unlocks", { all: true });
   await page.waitForFunction(() => document.querySelectorAll(".unlocks .card .delta").length > 0, null, { timeout: 15_000 });
   const deltas = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((e) => ({ text: e.textContent, cls: e.className })));
-  check(deltas.length > 0 && deltas.every((x) => /^reach (≈( ±\d+)?|[+−]\d+ ±\d+) at (R\d+|end)( · vs [a-z ]+)?$/.test(x.text)), `card deltas carry their ± or read ~0: ${deltas.map((x) => x.text).join(" · ")}`);
-  check(deltas.some((x) => /≈/.test(x.text) && /flat/.test(x.cls)) && deltas.some((x) => /±/.test(x.text)), "both forms occur on the fake's catalogue (a ~0 is flat, not up or down)");
-  await page.locator(".unlocks .card").filter({ hasText: "reach ≈" }).first().click({ timeout: 5000 }); await sleep(200);
+  check(deltas.length > 0 && deltas.every((x) => /flat/.test(x.cls) ? /^(vs [a-z ]+)?$/.test(x.text) : /^reach [+−]\d+ ±\d+$/.test(x.text)), `card deltas carry their ± or, inside it, only the foes they answer: ${deltas.map((x) => x.text).join(" · ")}`);
+  check(deltas.some((x) => /^vs /.test(x.text) && /flat/.test(x.cls)) && deltas.some((x) => /±/.test(x.text)), "both forms occur on the fake's catalogue (a ~0 is flat, not up or down)");
+  const flatCard = page.locator(".unlocks .card").filter({ has: page.locator(".delta.flat") }).filter({ hasText: /vs [a-z]/ }).first();
+  const cardDelta = await flatCard.locator(".delta.flat").textContent();
+  await flatCard.click({ timeout: 5000 }); await sleep(200);
   const sheetDelta = await page.evaluate(() => document.querySelector(".sheet-wrap .delta")?.textContent ?? "");
-  check(/^reach ≈( ±\d+)? at (R\d+|end)$/.test(sheetDelta), `the unlock sheet reads the same: "${sheetDelta}"`);
+  check(/^vs [a-z ]+$/.test(sheetDelta) && sheetDelta === cardDelta, `the unlock sheet reads the same: "${sheetDelta}" (card "${cardDelta}")`);
   await shot("09-forecast-noise");
   await page.keyboard.press("Escape"); await sleep(100);
   // a dice death says what the forecast said for its depth (reach[d] − reach[d+1]); a gap death does not
@@ -320,7 +322,7 @@ try {
   await fakeDeath({ verdict: "dice", depth: 2 });
   await waitFor((x) => x?.screen === "death", "a dice death");
   d = await deathScreen();
-  check(d.said === "forecast said D2 80%" && d.pill === "dice", `a dice death names the reach the forecast showed for its floor, verbatim: "${d.said}"`);
+  check(d.said === "forecast said D2 80%" && d.pill === "luck", `a dice death names the reach the forecast showed for its floor, verbatim: "${d.said}"`);
   await shot("10-dice-forecast-said");
   await fakeDeath({ verdict: "dice", depth: 3 });
   await sleep(100); d = await deathScreen();
@@ -340,11 +342,11 @@ try {
   // Cut 17: the verdict screen's buttons are its console — the command card (morgue · camp, docs/CUT17.md §1) and the gem (edit,
   // with no patch to apply)
   const btns = await page.evaluate(() => [...document.querySelectorAll("main.death .console button")].map((b) => b.textContent.trim()));
-  check(d.line === "goblin archer · D3 · gap", `the headline drops the hp margin: "${d.line}"`);
+  check(d.line === "goblin archer · D3 · no rule for it · gap", `the headline drops the hp margin: "${d.line}"`);
   check(btns.join() === "morgue,camp,edit", `the verdict screen's buttons are morgue · camp and the edit gem only: [${btns.join(", ")}]`);
   await fakeDeath({ margin: "3 over" });
   await sleep(100); d = await deathScreen();
-  check(d.line === "goblin archer · D3 · gap", `the core's \`3 over\` is dropped too: "${d.line}"`);
+  check(d.line === "goblin archer · D3 · no rule for it · gap", `the core's \`3 over\` is dropped too: "${d.line}"`);
   await fakeDeath({ cause: "stalled", margin: "archer, no path", verdict: "stall" });
   await sleep(100); d = await deathScreen();
   check(d.line === "stalled · D3 · archer, no path · stall", `a stall keeps the guard's reason: "${d.line}"`);
@@ -353,7 +355,7 @@ try {
   await fakeDeath({ patches: [{ row, insert_at: 0, survive: 0.5, forecast_delta: 0.002 }, { row: { ...row, verb: { v: "attack" } }, insert_at: 0, survive: 0.6, forecast_delta: 0.25 }] });
   await sleep(100);
   const reaches = await page.evaluate(() => [...document.querySelectorAll("button.patch")].map((p) => ({ delta: p.querySelector(".delta")?.textContent ?? null, cls: p.querySelector(".delta")?.className ?? "" })));
-  check(reaches.length === 2 && reaches[0].delta === "reach ≈" && /flat/.test(reaches[0].cls) && reaches[1].delta === "reach +25", `every patch carries a reach line: ${reaches.map((r) => r.delta).join(" · ")}`);
+  check(reaches.length === 2 && reaches[0].delta === "reach same" && /flat/.test(reaches[0].cls) && reaches[1].delta === "reach +25", `every patch carries a reach line: ${reaches.map((r) => r.delta).join(" · ")}`);
   // the report: the LEARNED chips wrap and `alert:rising` reads `alert · rising`; the TRACE sheet from a ledger line
   await page.evaluate(() => {
     const r = window.__riddle; const L = r.lineage;
@@ -378,7 +380,7 @@ try {
   check(traceSheet?.head === "died $0 · $117 carried · keeps 0%", `the TRACE sheet's header is the exit line, verbatim: "${traceSheet?.head}"`);
   const extras = (traceSheet?.rows ?? []).filter((r) => /^← found item/.test(r));
   check(extras.length === 8 && /item 5 /.test(extras[0]) && /item 12 /.test(extras[7]), `the provenance under the chain is the last 8 by tick: ${extras.length} (${extras[0]} … ${extras[7]})`);
-  check((traceSheet?.rows ?? []).at(-1) === "· 4 earlier" && (traceSheet?.rows ?? []).some((r) => /^R1 .*no item.*← den took the heal/.test(r)), `the rest is one dim line, the row's own link stays: ${JSON.stringify(traceSheet?.rows)}`);
+  check((traceSheet?.rows ?? []).at(-1) === "· 4 earlier" && (traceSheet?.rows ?? []).some((r) => /^drink unknown at 30%.*no item.*← den took the heal/.test(r)), `the rest is one dim line, the row's own link stays: ${JSON.stringify(traceSheet?.rows)}`);
   await shot("12-trace-sheet");
   await page.keyboard.press("Escape"); await sleep(100);
   // the camp: the rule-set tabs, the empty forge
@@ -386,11 +388,11 @@ try {
   await waitFor((x) => x?.booted && x.screen === "camp", "camp");
   await sleep(300);
   const tabsT = await page.evaluate(() => [...document.querySelectorAll(".tabs .tab:not(.edit)")].map((t) => t.textContent.replace(/\s+/g, " ").trim()));
-  check(tabsT.length >= 2 && tabsT.slice(1).every((t) => /^set \d+ · \d+$/.test(t)), `an unnamed set's tab reads \`set 2 · 0\`: [${tabsT.join(" | ")}]`);
+  check(tabsT.length >= 2 && tabsT.slice(1).every((t) => /^set \d+ · (\d+ rules?|empty)$/.test(t)), `an unnamed set's tab reads \`set 2 · 2 rules\`: [${tabsT.join(" | ")}]`);
   await page.evaluate(() => window.__riddle.renameSet(1, "tank"));
   await sleep(200);
   const tabsN = await page.evaluate(() => [...document.querySelectorAll(".tabs .tab:not(.edit)")].map((t) => t.textContent.replace(/\s+/g, " ").trim()));
-  check(/^tank · \d+$/.test(tabsN[1] ?? ""), `a named set reads \`name · N\`: [${tabsN.join(" | ")}]`);
+  check(/^tank · (\d+ rules?|empty)$/.test(tabsN[1] ?? ""), `a named set reads \`name · N rules\`: [${tabsN.join(" | ")}]`);
   await page.locator(".tabs .tab", { hasText: /^set 3/ }).first().click({ timeout: 5000 }); await sleep(200);
   check((await page.evaluate(() => window.__riddle.active)) === 2, "tapping `set 3` selects the third set");
   await page.evaluate(() => window.__riddle.selectSet(0)); await sleep(100);
@@ -423,7 +425,7 @@ try {
     const w = document.querySelector(".watch"); const v = window.__viewer;
     const btn = (t) => [...document.querySelectorAll("main.watch .hud-btn")].find((b) => b.textContent === t);
     return { screen: window.__riddle.screen, busy: window.__riddle.engineBusy, over: w?.dataset.over ?? "0", fade: v?.stats?.().fade ?? null,
-      dead: ["fights", "fast", "▶▶|", "bail"].map((t) => btn(t)?.disabled ?? null), pause: btn("⏸")?.hidden ?? btn("▶")?.hidden ?? "gone", label: document.querySelector(".busy-label")?.textContent ?? "",
+      dead: ["highlights", "fast", "▶▶|", "bail"].map((t) => btn(t)?.disabled ?? null), pause: btn("⏸")?.hidden ?? btn("▶")?.hidden ?? "gone", label: document.querySelector(".busy-label")?.textContent ?? "",
       gem: document.querySelector("main.watch .gem-slot > .gem")?.textContent ?? "", heir: document.querySelector("main.watch .topbar .heir")?.textContent ?? "" };
   });
   s = await waitFor((x) => x?.screen !== "watch" || x.busy, "the verdict's busy window", 40_000);
@@ -578,16 +580,16 @@ try {
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 4, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, stalled: 1 } }); });
   await sleep(150);
   let tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "stalled 1 · returned 2 · deaths 1", `no banks: the stall tile takes banked's place, returned counts the rest (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "stalled 1/4 · returned 2/4 · deaths 1/4", `no banks: the stall tile takes banked's place, returned counts the rest (${tiles.slice(3).join(" · ")})`);
   await shot("qaF-report-stalled");
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 6, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 2, returned: 3, stalled: 1 } }); });
   await sleep(150);
   tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "returned 2 · banked 2 · stalled 1 · deaths 1" || tiles.slice(3).join(" · ") === "banked 2 · returned 2 · stalled 1 · deaths 1", `with banks nothing is dropped (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "returned 2/6 · banked 2/6 · stalled 1/6 · deaths 1/6" || tiles.slice(3).join(" · ") === "banked 2/6 · returned 2/6 · stalled 1/6 · deaths 1/6", `with banks nothing is dropped (${tiles.slice(3).join(" · ")})`);
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3 } }); });
   await sleep(150);
   tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "banked 0 · returned 3 · deaths 0", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "banked 0/3 · returned 3/3 · deaths 0/3", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
   const fakeStalled = await page.evaluate(async () => { const rep = await window.__riddle.engine.runOfflineQuick(600); return typeof rep.stalled; });
   check(fakeStalled === "number", `the fake's report carries stalled (${fakeStalled})`);
   // the pile once: the exit line's `bones: 8 items on D4` stands alone; the client's `bones left` line only without it

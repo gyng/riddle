@@ -81,7 +81,7 @@ try {
   let rows = await sheet();
   check((await state()).screen === "death" && rows.length === max, `the tap opens the drop sheet on the death screen (${rows.length} rows)`);
   check((await setNow()) === set0, "no row left before a row is tapped");
-  check(rows.every((r, i) => r.row === i && r.text.startsWith(`R${i + 1} `) && r.fired === ""), `the sheet lists the set's rows, no count when none is known (${rows.map((r) => r.text.slice(0, 18)).join(" · ")})`);
+  check(rows.every((r, i) => r.row === i && / → /.test(r.text) && r.fired === ""), `the sheet lists the set's rows, no count when none is known (${rows.map((r) => r.text.slice(0, 18)).join(" · ")})`);
   check(rows.filter((r) => r.least).length === 0, "nothing fired: all rows tie, none is marked (QA on 3d71c33: the last row was an arbitrary pick)");
   // dismissed: the set whole, the death screen up
   await page.keyboard.press("Escape"); await sleep(200);
@@ -141,7 +141,7 @@ try {
   await waitFor((s) => s?.screen === "death", "death again");
   const heldText = await page.locator("button.patch .surv").first().innerText();
   const heldTarget = await page.evaluate(() => document.querySelector("button.patch .target")?.textContent.trim() ?? "");
-  check(heldText === "at R2" && heldTarget === "", `a held patch reads where it sits: "${heldText}" (no drop)`);
+  check(heldText === "already written" && heldTarget === "", `a held patch reads where it sits: "${heldText}" (no drop)`);
   await applyTop();
   await waitFor((s) => s?.screen === "camp", "camp after the held tap");
   await sleep(200);

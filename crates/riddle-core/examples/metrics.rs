@@ -16,6 +16,8 @@ mod oath_lib;
 mod lanes;
 #[path = "exits_lib/mod.rs"]
 mod exits;
+#[path = "progression_lib/mod.rs"]
+mod prog;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Bot {
@@ -791,6 +793,9 @@ fn diverge_edits(set: &RuleSet) -> Diverged {
 fn setup(bot: Bot, seed: u64) -> Game {
     let mut g = Game::new(seed);
     g.max_deaths = 100_000;
+    // Cut 29 §2: the bots play with every system open (the curriculum gates the editor and the camp,
+    // never a sim: their play is what it was).
+    riddle_core::systems::open_all(&mut g.lineage);
     match bot {
         Bot::Default => {}
         Bot::Edited => {
@@ -1448,6 +1453,8 @@ fn main() {
         OathBank(usize),
         Oath(usize, usize),
         OathLever(usize),
+        /// Cut 29 §1: a rater set's fourteen days from a fresh lineage (`progression_lib::play`, no measures).
+        Prog(usize, u64),
     }
     let sets = Arc::new(cohort_sets());
     // `--gold`: the Cut 22 §1 gold table alone (the cohort sets' sends; ~20 s).
@@ -1484,6 +1491,13 @@ fn main() {
         }
     }
     jobs.extend(ROUTE_BOTS.iter().enumerate().flat_map(|(bi, _)| (1..=seeds).map(move |s| Job::Route(bi, s))));
+    // Cut 29 §1: the progression rows — each rater set of the last cohorts (`progression_lib::rater_sets`)
+    // as a fourteen-day lineage, 2 seeds (1 in --quick). `--progression` alone prints them.
+    let prog_only = args.iter().any(|a| a == "--progression");
+    let psets = Arc::new(prog::rater_sets());
+    let prog_seeds = get("--prog-seeds", if quick { 1 } else { 2 });
+    let prog_days = get("--prog-days", 14) as usize;
+    jobs.extend((0..psets.len()).flat_map(|si| (1..=prog_seeds).map(move |s| Job::Prog(si, s))));
     jobs.extend((1..=seeds).map(Job::FirstFork));
     let found = Arc::new(lane_found());
     // (one job per (fork, seed, candidate): `lanes::gate_one`; `gate_seed`'s vector is reassembled in candidate order)
@@ -1524,6 +1538,9 @@ fn main() {
     if oaths_only {
         jobs.retain(|j| matches!(j, Job::OathBank(..) | Job::Oath(..) | Job::OathLever(..)));
     }
+    if prog_only {
+        jobs.retain(|j| matches!(j, Job::Prog(..)));
+    }
     // `--bots`: the bots alone — the per-bot table and the verdict sample (the dice measure; ~2 min).
     // `--forks`: the Cut 26 rows alone — the first fork's sends and the lanes' gate (~1–2 min).
     let forks_only = args.iter().any(|a| a == "--forks");
@@ -1542,6 +1559,8 @@ fn main() {
     // behind the short ones and ends the table alone. A stable sort: within a kind the order stays.
     let cost = |j: &Job| -> u32 {
         match j {
+            // (a fourteen-day chain: the longest job — it starts first)
+            Job::Prog(..) => 900,
             Job::Lever(..) | Job::OathLever(..) => 300,
             Job::Oath(..) => 280,
             Job::OathBank(..) => 120,
@@ -1579,6 +1598,7 @@ fn main() {
     let obanks: Arc<Mutex<OathBanks>> = Arc::new(Mutex::new(BTreeMap::new()));
     let oreads: Arc<Mutex<OathReads>> = Arc::new(Mutex::new(BTreeMap::new()));
     let olevers: Arc<Mutex<OathLevers>> = Arc::new(Mutex::new(BTreeMap::new()));
+    let pouts: Arc<Mutex<BTreeMap<(usize, u64), prog::Out>>> = Arc::new(Mutex::new(BTreeMap::new()));
     let mut handles = Vec::new();
     for _ in 0..threads {
         let exit_tallies = Arc::clone(&exit_tallies);
@@ -1587,6 +1607,7 @@ fn main() {
         let (cforks, ffork, lgates, found) = (Arc::clone(&cforks), Arc::clone(&ffork), Arc::clone(&lgates), Arc::clone(&found));
         let diverged = Arc::clone(&diverged);
         let (obanks, oreads, olevers) = (Arc::clone(&obanks), Arc::clone(&oreads), Arc::clone(&olevers));
+        let (pouts, psets) = (Arc::clone(&pouts), Arc::clone(&psets));
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some(job) = job else { break };
@@ -1598,6 +1619,7 @@ fn main() {
                 Job::Gold(..) => "gold".into(),
                 Job::Paired(_) => "paired".into(),
                 Job::Bot(bi, _) => format!("bot-{}", BOTS[bi].name()),
+                Job::Prog(..) => "progression".into(),
                 Job::Kit(bi, _) => format!("kit-{}", KIT_BOTS[bi].name()),
                 Job::Forge(..) => "forge".into(),
                 Job::Lever(..) => "lever".into(),
@@ -1717,6 +1739,11 @@ fn main() {
                     let r = without_history(|| lever::gate_with(&sets[si].1, 1, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN, |g| riddle_core::oath::grant_all(&mut g.lineage)));
                     olevers.lock().unwrap().insert(si, r);
                 }
+                Job::Prog(si, seed) => {
+                    let (name, set) = psets[si].clone();
+                    let o = prog::play(name, prog::Mode::Rater(set), seed, prog_days, &prog::three_absence(), false, false);
+                    pouts.lock().unwrap().insert((si, seed), o);
+                }
             }
             if std::env::var("METRICS_JOBCPU").is_ok() {
                 eprintln!("jobcpu {kind} {:.3} {:.3}", thread_cpu() - cj, tj.elapsed().as_secs_f64());
@@ -1762,6 +1789,28 @@ fn main() {
         return;
     }
     let lever_rows = |rows: &mut Vec<(String, String, bool)>| lever_report(&sets, &levers.lock().unwrap(), lever_seeds, rows);
+    // Cut 29 §1: the progression rows (the rater lineages' fourteen days).
+    let prog_rows = |rows: &mut Vec<(String, String, bool)>| {
+        let po = pouts.lock().unwrap();
+        let outs: Vec<&prog::Out> = po.values().collect();
+        for o in &outs {
+            let (raw, known) = prog::stalls(o);
+            let unl = o.days.iter().filter(|d| prog::unlock_day(d)).count();
+            let marks = o.days.iter().skip(2).map(|d| d.marks_max).max().unwrap_or(0);
+            println!("progression {} s{}: best D{} · unlock days {unl} · stall {known} (raw {raw}) · marks ≤ {marks} · purse {:.2}×", o.name, o.seed, o.days.last().map(|d| d.best).unwrap_or(0), prog::purse_worst(o));
+        }
+        let owned: Vec<prog::Out> = outs.into_iter().cloned().collect();
+        rows.extend(prog::bars(&owned));
+    };
+    if prog_only {
+        let mut rows = Vec::new();
+        prog_rows(&mut rows);
+        seal(&mut rows);
+        for (name, value, ok) in &rows {
+            println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
+        }
+        return;
+    }
     if oaths_only {
         let mut rows = Vec::new();
         oath_report(&sets, &obanks.lock().unwrap(), &oreads.lock().unwrap(), &olevers.lock().unwrap(), &mut rows);
@@ -2389,6 +2438,7 @@ fn main() {
     println!("paired edit delta (Cut 22 §3): {pe} one-notch edits over {} sets · paired ± / absolute ± {:.2} (worst set {} {:.2})", sets.len(), pp / pa.max(1e-9), worst.1, worst.0);
     rows.push((format!("Paired edit ± ≤ ½ absolute ± ({pe} cohort edits)"), format!("{:.2}", pp / pa.max(1e-9)), pp <= 0.5 * pa));
     diverge_rows(&mut rows);
+    prog_rows(&mut rows);
     let (sv_n, sv_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_verdicts.0, a.1 + r.stall_verdicts.1));
     rows.push((format!("Stall verdicts: ≥ 1 patch fired ≥ 50% (n={sv_n})"), format!("{sv_ok}/{sv_n}"), sv_ok == sv_n));
     let (sr_n, sr_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_reel.0, a.1 + r.stall_reel.1));

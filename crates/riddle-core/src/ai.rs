@@ -3617,10 +3617,17 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         let n = run.tamed.len() as u32;
         let cid = 1_000_000 + run.id * 100 + n;
         // A stray keeps the name a previous heir gave it.
-        let name = match run.monsters[mi].name.clone().filter(|_| stray) {
+        // Cut 29 §6 (AX): a grudge tamed keeps its name — its grudge closes as tamed (never
+        // avenged: `LineageState::grudges`, at the run's end).
+        let grudge = run.monsters[mi].grudge.then(|| run.monsters[mi].name.clone()).flatten();
+        let name = match run.monsters[mi].name.clone().filter(|_| stray).or(grudge.clone()) {
             Some(n) => n,
             None => crate::descent::grudge_name(&mut run.rng),
         };
+        if let Some(g) = grudge {
+            run.monsters[mi].grudge = false;
+            run.tamed_grudges.push(g);
+        }
         {
             let m = &mut run.monsters[mi];
             m.ally = true;
@@ -3645,6 +3652,7 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         run.tamed.push((run.turn, kind.clone()));
         learn(run, cx, format!("tamed:{kind}"));
         note(run, cx, format!("Tamed a {}: {}.", crate::engine::kind_title(&kind), name));
+        crate::oath::beat(run, cx, run.acting_row);   // Cut 28b: a `tame a new kind` oath is kept here
         callout(run, cx, "tamed!");
     } else {
         callout(run, cx, "slipped");

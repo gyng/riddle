@@ -14,7 +14,7 @@
 //   heirs   5 heirs                the `chronicle` and `ledger` tiles; set tabs 2–3
 //   cage    a cage seen (`vault`)  the cage tablet under the rules (`cage → armour`, Cut 19 §1)
 //   start   a waystone lit         the start tablet beside them (`start → D9`, Cut 21 §1)
-//   oaths   an oath affordable     the oath tablet beside them (`oath → D10 no drink 34%`, Cut 28 §1); the sworn oath on the shaft
+//   oaths   a wall or a plateau    the oath tablet beside them (`D10 no drink → ▤ 34%`, Cut 28 §1; Cut 28b: a band boss seen or the first plateau, the core's `oath_open`); the sworn oath on the shaft
 //   (a second class owned: the wake's class chips — the core offers them only then)
 import type { App } from "../app";
 import { isFreeSupply, ownRowCount } from "./tokens";
@@ -50,7 +50,7 @@ export function earned(app: App): Set<Step> {
   if ((L.facts ?? []).includes("vault")) out.add("cage");
   // Cut 21 §1: the first waystone lit carves the start tablet
   if ((L.waystones?.length ?? 0) > 0) out.add("start");
-  // Cut 28 §1: the oath board is carved when the purse first affords an oath
+  // Cut 28b: the oath board is carved at the lineage's first wall or plateau (not when the purse first covers a price)
   if (oathsEarned(L)) out.add("oaths");
   return out;
 }

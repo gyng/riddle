@@ -52,6 +52,8 @@ const tablets = () => page.evaluate(() => [...document.querySelectorAll(".patche
   row: b.querySelector(".patch-main")?.textContent.trim(), rank: b.querySelector(".rank")?.textContent, top: b.classList.contains("top"),
   harms: b.classList.contains("harms"), whole: b.querySelector(".whole")?.textContent.trim() ?? "" })));
 const head = () => page.evaluate(() => document.querySelector(".patches-moment")?.textContent.trim() ?? "");
+// docs/COPY.md pass 2: the head reads `fixes · 12 replays of D5`; a tie is the head's `.tied` mark, no word (`patches tie` read "no idea")
+const tied = () => page.evaluate(() => !!document.querySelector(".patches-moment .tied"));
 const gemText = () => page.evaluate(() => document.querySelector(".patch-gem, .gem")?.textContent.trim() ?? "");
 
 try {
@@ -69,7 +71,7 @@ try {
     await deathWith(ps, filled);
     const before = await tablets();
     check(before[0]?.top && /drink/.test(before[0].row ?? ""), `before the landing the verdict's lead is lit (${before.map((t) => t.row).join(" | ")})`);
-    check(/· patches tie$/.test(await head()), `three alike read \`patches tie\` ("${await head()}")`);
+    check(/^fixes · 12 replays of D\d+$/.test(await head()) && (await tied()), `three alike are marked tied ("${await head()}", tied ${await tied()})`);
     await sleep(700);
     const after = await tablets();
     const lead = after[0], last = after[after.length - 1];
@@ -84,7 +86,7 @@ try {
     const filled = ps.map((p) => ({ ...p, camp_pending: false, forecast_depth: 6, forecast_pm: 0.1, whole: w(0.2, true) }));
     await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await waitFor((s) => s?.screen === "camp", "camp");
     await deathWith(ps, filled);
-    check(!/tie/.test(await head()), `12/12 over 10/12 is no tie ("${await head()}")`);
+    check(!/tie/.test(await head()) && !(await tied()), `12/12 over 10/12 is no tie ("${await head()}", tied ${await tied()})`);
     await sleep(700);
     const t = await tablets();
     check(!t.some((x) => x.top) && /edit/i.test(await gemText()), `every tablet harms: none lit, the gem reads edit ("${await gemText()}")`);
@@ -96,7 +98,7 @@ try {
                 { row: ret, insert_at: 0, survive: 1, forecast_delta: 0, camp_pending: true, exits: true }];
     await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await waitFor((s) => s?.screen === "camp", "camp");
     await deathWith(ps, ps.map((p) => ({ ...p, camp_pending: false, whole: w(0, false) })));
-    check(/· patches tie$/.test(await head()), `#1 and #3 both 12/12 read \`patches tie\` ("${await head()}")`);
+    check(/^fixes · 12 replays of D\d+$/.test(await head()) && (await tied()), `#1 and #3 both 12/12 are marked tied ("${await head()}", tied ${await tied()})`);
   }
 
   // ---- vs sent after a lineage move: the shown numbers; an unnamed change clears the move line

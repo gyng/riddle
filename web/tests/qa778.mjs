@@ -55,9 +55,9 @@ try {
     e.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: -0.1, pm: 0.02 })), bank: { delta: -0.1, pm: 0.02 }, death: { delta: 0.1, pm: 0.02 } });
     r.insertRow({ conds: [{ k: "hp<", n: 50 }], verb: { v: "attack", a: "lowest" } }, 2);
   });
-  const dead = await until(async () => { const t = await txt(".camp .shaft-vs-host .shaft-vs"); return t && t !== "vs sent…" ? t : null; }, "the dead edit's line");
+  const dead = await until(async () => { const t = await txt(".camp .shaft-vs-host .shaft-vs"); return t && t !== "vs last run…" ? t : null; }, "the dead edit's line");
   const marks = await page.evaluate(() => document.querySelectorAll(".camp .shaft .vsm").length);
-  check(/^vs sent · D\d+ ≈ · bank ≈$/.test(dead) && marks === 0, `a row that never fires moves nothing: "${dead}", ${marks} marks`);
+  check(/^vs last run · D\d+ same · bank same$/.test(dead) && marks === 0, `a row that never fires moves nothing: "${dead}", ${marks} marks`);
   // the strip is its own row: under the well, over nothing
   const lay = await page.evaluate(() => {
     const well = document.querySelector(".camp .camp-well").getBoundingClientRect(), strip = document.querySelector(".camp .shaft-vs-host").getBoundingClientRect();
@@ -95,13 +95,13 @@ try {
   const rep = await page.evaluate(() => ({ lines: [...document.querySelectorAll(".report .exit-row .ledger-btn")].map((b) => b.textContent.replace(/\s+/g, " ").trim()),
     chips: [...document.querySelectorAll(".report .exit-row .chip")].map((b) => b.textContent.replace(/\s+/g, " ").trim()), gold: document.querySelector(".report .gold-line")?.textContent.replace(/\s+/g, " ").trim(), reel: document.querySelector(".report")?.textContent ?? "" }));
   const all = rep.lines.join(" | ");
-  check(/· swapped · carry −\$37/.test(all) && /stolen caustic · carry −\$3/.test(all), `a swap and the coins thieves kept are on the line, a flavour by its name now (${all})`);
+  check(/· swapped · paid \$37/.test(all) && /stolen caustic · stolen \$3/.test(all), `a swap and the coins thieves kept are on the line, a flavour by its name now (${all})`);
   // QA 0c6e126 (qaY: `heir purse ≥$40 ×12` with no ledger line behind it): only a top-up the ledger holds is named — `+$40 heir purse`
-  check(/heir purse \+\$40/.test(all) && !/≥\$40|purse full|no top-up/.test(all + rep.gold), `the purse reads \`heir purse +$40\` where it was paid, never \`≥$40\` or \`purse full\` (${all})`);
+  check(/next heir \+\$40/.test(all) && !/≥\$40|purse full|no top-up/.test(all + rep.gold), `the purse reads \`next heir +$40\` where it was paid, never \`≥$40\` or \`purse full\` (${all})`);
   // QA 0c6e126 (qaZ: `−$7 swapped` summed into the headline, off the balance by 7): the swaps are the lines', not a term of the gold line
-  check(!/swapped/.test(rep.gold ?? "") && /\+\$40 heir purse/.test(rep.gold ?? "") && !/≥/.test(rep.gold ?? ""), `the gold line holds only the ledger's terms — the top-up it paid, no swaps ("${rep.gold}")`);
+  check(!/swapped/.test(rep.gold ?? "") && /\+\$40 next heir/.test(rep.gold ?? "") && !/≥/.test(rep.gold ?? ""), `the gold line holds only the ledger's terms — the top-up it paid, no swaps ("${rep.gold}")`);
   check(rep.chips.some((c) => /^D6 · died · trace$/.test(c)), `a death's trace chip names its floor (${rep.chips.join(" | ")})`);
-  check(/R1 return too late; died to jackal/.test(rep.reel), "a return that did not get him home reads `too late`");
+  check(/HP; return too late; died to jackal/.test(rep.reel), "a return that did not get him home reads `too late`");
   await shot("qa778-report");
 
   // ---- the death screen: the reach lands; nothing moves; `≈` alone; `return early`
@@ -118,7 +118,7 @@ try {
   const d0 = await pick(); await sleep(900); const d1 = await pick();
   // (QA 308f045, qaAD: the gem waits for the whole-run measure — `…` — and reads its count once it lands; the lit tablet and the order stay)
   check(d0.top === d1.top && d0.gem === "…" && d1.gem !== "…" && !!d1.gem && d0.order === d1.order, `the reach lands and nothing moves (lit ${d0.top} → ${d1.top}, gem ${d0.gem} → ${d1.gem})`);
-  check(d1.reach[0] === "return early" && /^reach D6 ≈ ±\d+$/.test(d1.reach[1]) && d1.reach[2] === "reach D6 +10 ±5", `an exit names its cost in a word (Cut 23 §3: no number), a flat reach is \`≈ ±N\` (Cut 24 §4: unresolved, not no change) (${d1.reach.join(" · ")})`);
+  check(d1.reach[0] === "return early" && d1.reach[1] === "reach D6 same" && d1.reach[2] === "reach D6 +10", `an exit names its cost in a word (Cut 23 §3: no number), a flat reach is \`same\` (Cut 24 §4: unresolved, not no change) (${d1.reach.join(" · ")})`);
   await shot("qa778-death");
 
   // ---- one surface: the vault tile under an open sheet

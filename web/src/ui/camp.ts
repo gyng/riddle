@@ -23,7 +23,7 @@ import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { lowOf, renderForecast, renderShaft, share } from "./forecast";
 import { renderScene } from "./divergence";
-import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
+import { gem, metersSlot, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
 import { openChronicle } from "./chronicle";
@@ -32,7 +32,7 @@ import { afterOf, labelOf, stallLabel, classList, deltaClass, deltaLabel, deltaP
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS } from "../engine/classes";
-import { isFreeSupply, ownRowCount, verbLabel } from "./tokens";
+import { isFreeSupply, ownRowCount, setRefRows, verbLabel } from "./tokens";
 import { closeAllSheets, openSheet, setPanelEscape } from "./sheet";
 import { setBusyHost } from "./progress";
 import { icon } from "./skin";
@@ -117,6 +117,7 @@ export function simKey(app: Pick<App, "lineage" | "loadout">): string {
  *  (`invisibility`); the shop's chip keeps the full name. */
 export const shelfLabel = (label: string): string => label.length > 14 ? label.replace(/ (potion|scroll)$/, "") : label;
 export function renderCamp(app: App, highlight?: number): Mounted {
+  setRefRows(() => app.rules.rows);
   // Cut 17: the frame — the bar (the strip: heir, `$`, `◆`, `★`, best, the stud; the wake's offers under it), the well (the
   // tablets and the depth shaft; the set tabs from the 5th heir; the panels over it), the console (the portrait, the command
   // card as revealed, the gem `send`)
@@ -179,7 +180,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab, oathTab), shaft.el));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab, oathTab), shaft.el, metersSlot()));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   const restLine = h("div", { class: "rest-line" }, rest);
@@ -192,7 +193,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
 
   // QA 1a2a4a9 (P: "nothing on the camp shows what's packed — only opening SUPPLIES does"): the loadout tile carries the pack's count
-  const withPack = (el: HTMLElement): HTMLElement => { const n = app.lineage.supplies?.length ?? 0; if (n) el.appendChild(h("span", { class: "pack-n num" }, `${n}/${supplyCap(app.lineage.unlocks)}`)); return el; };
+  const withPack = (el: HTMLElement): HTMLElement => { const n = app.lineage.supplies?.length ?? 0; if (n) el.appendChild(h("span", { class: "pack-n num" }, `${n}/${app.lineage.supply_cap ?? supplyCap(app.lineage.unlocks)}`)); return el; };
   /** Cut 23 §1: the forge tile's badge — the kit steps the purse can buy now (`2`), none when there are none. */
   const kitBadge = (): HTMLElement | null => { const n = kitAffordable(app.lineage); return n ? h("span", { class: "kit-n num", "data-n": n }, `${n}`) : null; };
   const withBadge = (el: HTMLElement, badge: HTMLElement | null): HTMLElement => { if (badge) { el.appendChild(badge); el.classList.add("badged"); } return el; };
@@ -259,7 +260,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function paintRest(): void {
     const restS = app.lineage.rest_left_s ?? 0;
     // QA 912e135 (qaW: "`rest 20m · send skips` — no screen says what rests or what `send skips` means"): who rests, and what the send skips
-    replace(rest, /* copy:callout */ `heir rests ${spanOf(restS)}`, /* copy:callout */ " · send skips rest");
+    replace(rest, /* copy:callout */ `heir rests ${spanOf(restS)}`);   // docs/COPY.md pass 2: `send skips rest` read as a cost; nothing punishes a send
     rest.hidden = restS <= 0; restLine.hidden = rest.hidden;
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
@@ -297,8 +298,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     app.sets.forEach((s, i) => {
       const named = !!(s.name ?? "").trim();
       tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) },
-        named ? setName(s, i) : /* copy:label */ `set ${i + 1}`, h("small", { class: "dim" }, ` · ${ownRowCount(s.rows)}`)));   // `fighter · 3` like `set 2 · 0` (QA on 56f2a1d: `fighter 3` read as a hero number); own rows, the editor's `6/6` (QA on 3d71c33: `fighter · 8` beside `6/6 · 3 cards`)
-      if (i === app.active) tabs.appendChild(h("button", { class: "tab edit", onclick: () => renameSet(i) }, "✎"));
+        named ? setName(s, i) : /* copy:label */ `set ${i + 1}`, h("small", { class: "dim" }, ownRowCount(s.rows) ? /* copy:callout */ ` · ${ownRowCount(s.rows)} rules` : "")));   // `fighter · 3` like `set 2 · 0` (QA on 56f2a1d: `fighter 3` read as a hero number); own rows, the editor's `6/6` (QA on 3d71c33: `fighter · 8` beside `6/6 · 3 cards`)
+      if (i === app.active) tabs.appendChild(h("button", { class: "tab edit", "aria-label": "rename", onclick: () => renameSet(i) }, /* copy:button */ "rename"));
     });
   }
   function renameSet(i: number): void {
@@ -338,7 +339,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // keep preference for offline exits
     // QA 23ed91f: two rows that cannot be confused — `home` (what an unwatched exit keeps for the vault) and `cage` (what an
     // unanswered cage in the dungeon takes); K set `vault potion` as "what the home vault keeps"
-    const prefs = h("div", { class: "chips prefs home" }, h("span", { class: "dim" }, /* copy:label */ "home"),
+    const prefs = h("div", { class: "chips prefs home" }, h("span", { class: "dim" }, /* copy:callout */ "keep for heirs"),   // docs/COPY.md pass 3: `keep weapon` read as "keep it as a weapon"
       /* copy:label */ ...[["best_weapon", "weapon"], ["best_armour", "armour"], ["none", "none"]].map(([id, lbl]) =>
         h("button", { class: `chip${(L.keep_pref ?? "best_weapon") === id ? " on" : ""}`, onclick: () => void app.mutate(() => app.engine.setKeepPref(id)) }, lbl)));
     // what the home pref does at an unwatched exit, on its row (the core's `keep_auto`, in order: `keeps armour · weapon`)
@@ -360,8 +361,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // Cut 19 §1: the cage's preference left this panel for its own tablet beside the rules (`cage → armour`)
     // QA 912e135 (qaW: `home: armour` set here, `cage → weapon` on the tablet — "one preference, one name"): they are two settings, and
     // this panel shows both — the cage's row under the home row, its chip opening the same picker as the tablet
-    if (revealed(app).has("cage")) vault.appendChild(h("div", { class: "chips prefs cage" }, h("span", { class: "dim" }, /* copy:label */ "cage"),
-      h("button", { class: "chip on cage-pref", onclick: () => openCagePicker() }, /* copy:callout */ `takes ${L.vault_pref ?? "weapon"}`)));
+    if (revealed(app).has("cage")) vault.appendChild(h("div", { class: "chips prefs cage" }, h("span", { class: "dim" }, /* copy:rule_token */ "from cages"),
+      h("button", { class: "chip on cage-pref", onclick: () => openCagePicker() }, L.vault_pref ?? "weapon")));   // docs/COPY.md: the tablet's own words (`cage pick → weapon`)
   }
   function paintCage(): void {
     const on = revealed(app).has("cage");
@@ -370,7 +371,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     replace(cageTab, h("span", { class: "rn num" }, icon("vault", "▣")),
       // QA 524827b (qaAA: `cage → weapon` after the first death, "no source" for the D4 cage's "take one, leave two"): the tablet names
       // what it sets — the pick at a cage (`cage pick → weapon`)
-      h("span", { class: "rtext" }, /* copy:rule_token */ "cage pick", h("span", { class: "arrow" }, " → "), app.lineage.vault_pref ?? "weapon"));
+      h("span", { class: "rtext" }, /* copy:rule_token */ "from cages", h("span", { class: "arrow" }, " → "), app.lineage.vault_pref ?? "weapon"));
   }
   /** Cut 19 §1: the picker — the four preferences, each with its forecast delta against the current one (`armour +36%`); the tap sets it.
    *  The deltas are `cageForecast()` (three extra camp panels, memoised by the core; seconds in wasm): the last measure paints at once
@@ -468,7 +469,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         }),
         // Cut 26 §2: the (lane, depth) pairs lit on another route (`Lineage.lanes`, not `current`) — shown dim, not a start for this set
         ...(app.lineage.lanes ?? []).filter((x) => !onRoute(x) && x.depth > 1).map((x) => h("span", { class: "chip start-opt other-lane off dim", "data-start": x.depth, "data-biome": x.lane, "aria-disabled": "true" },
-          h("span", { class: "num" }, `D${x.depth}`), h("span", { class: "lane" }, ` ${x.lane}`), x.route?.length ? h("small", { class: "num dim" }, ` · ⑂ ${x.route.map((f) => `D${f}`).join(" ")}`) : "")));
+          h("span", { class: "num" }, `D${x.depth}`), h("span", { class: "lane" }, ` ${x.lane}`), x.route?.length ? h("small", { class: "num dim" }, ` · fork ${x.route.map((f) => `D${f}`).join(" ")}`) : "")));
       };
       const k = key(), memo = startMemo?.key === k ? startMemo.opts : null;
       paint(memo, !memo && !!app.engine.startForecast);
@@ -492,7 +493,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     routeTab.hidden = !chips.length;
     if (!chips.length) return;
     // a fork the stair above closed (its biome deferred here) is no choice: its chip is dim
-    replace(routeTab, h("span", { class: "fork-glyph", "aria-hidden": "true" }, "⑂"), " ",
+    // docs/COPY.md pass 3: the `⑂` read "no idea" 8/8, the chip `D5 burrows` as "on floor 5" — the tablet says what it sets: the route taken
+    // at each fork (`route · D5 burrows`)
+    replace(routeTab, h("span", { class: "fork-glyph dim" }, /* copy:label */ "route"), " ",
       ...chips.flatMap((c, i) => [i ? h("span", { class: "sep dim" }, " · ") : "", h("span", { class: `route-chip${c.isFar ? " far" : ""}${c.open ? "" : " closed dim"}`, "data-fork": c.depth, "data-biome": c.taken }, h("span", { class: "num" }, `D${c.depth}`), " ", c.taken)]));
   }
   /** Cut 26 §2: the fork tablet — per open fork, both stairs for the current set: the lane and its reach at the band's end (`fens D8 61%
@@ -522,7 +525,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
               // (`…` after it, dim) until the camp's refine lands — the forecast's own mark
               h("span", null, biome), reach !== undefined && at !== undefined ? h("b", { class: `num level${cur ? " cur" : ""}${refined ? "" : " rough"}` }, ` D${at} ${share(reach, low)}`, refined ? "" : h("small", { class: "dim" }, "…")) : pending ? h("small", { class: "num dim" }, " …") : "");
           };
-          return h("div", { class: "route-fork", "data-fork": c.depth }, h("span", { class: "num fork-at" }, `⑂ D${c.depth}`), stair(false), stair(true));
+          return h("div", { class: "route-fork", "data-fork": c.depth }, h("span", { class: "num fork-at" }, /* copy:callout */ `fork D${c.depth}`), stair(false), stair(true));
         }));
       };
       paint();
@@ -573,7 +576,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     return badge;   // QA 524827b (qaAB: `≤$24` beside the shop's `heal potion $26` — the repeat pays the quote it showed, held)   // QA 778fa1b (qaV: `repeat on · $104` read as a per-send cost; nothing was charged when the supplies came back): the most it re-buys
   }
   function paintSupplies(): void {
-    const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
+    const L = app.lineage; const picks = L.supplies ?? []; const cap = L.supply_cap ?? supplyCap(L.unlocks); const full = picks.length >= cap;   // Cut 29 §6 (AX: `pack 4` bought, the shelf read 3/3): the core's cap (forge pack steps included)
     clear(supplies);
     supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/${cap}`)));
     // Cut 23 §4 (AJ: "a layout jump bought a confusion potion"): the shelf is `cap` fixed slots (a bought line fills the next empty one)
@@ -749,11 +752,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     send.dataset.mode = app.watchMode;
     const MODES = ["fights", "one", "fast"] as const;
     /* copy:label */
-    const MODE_LABEL: Record<string, string> = { fights: "fights", one: "1×", fast: "fast" };
+    const MODE_LABEL: Record<string, string> = { fights: "highlights", one: "normal", fast: "fast" };
     const pill = h("small", { class: "send-mode", role: "switch", "aria-checked": "true", "data-mode": app.watchMode, title: "watch pace",
       onclick: (e: Event) => { e.stopPropagation(); e.preventDefault(); app.watchMode = MODES[(MODES.indexOf(app.watchMode) + 1) % MODES.length]; app.persist(); paintSend(); } },
       /* copy:none */ "▸ ", MODE_LABEL[app.watchMode] ?? app.watchMode);
-    replace(send, empty ? /* copy:callout */ "no rows" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
+    replace(send, empty ? /* copy:callout */ "no rules" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
       : h("span", { class: "send-l" }, /* copy:button */ "send", pill));   // Cut 12 §1: own rows
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists

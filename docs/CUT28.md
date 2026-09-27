@@ -83,3 +83,34 @@ Both: after the absence every run is the same D13 bank; gold piles up; forge ste
 - `send skips rest` at 9/40 was the fold handing off a hurt hero — the hp rides the fold line.
 - `forecastMove` runs on measure lane 1 (beside the edits' vs and divergence on lane 2 it held the
   refine after a burst).
+
+## Cut 28b — oaths explain themselves (owner: "it's not clear what oaths do, especially to new players")
+
+Structure and consequence, no tutorial text. Probe: `scratchpad/oaths-clarity/probe.mjs` (real engine, headless: the board, a
+sworn oath, a watched send, the exit, an absence's report, the chronicle), before/after in `scratchpad/oaths-clarity/`.
+
+- **The deal reads as a formula** wherever the oath is — board, rules tablet, shaft, report: `[D3] [no rest] → ▤ card: gas step`,
+  the way a rule reads `cond → verb`. The price is a stake (`stake $280`); sworn, the tablet shows the stake's fate (`$280 · 0/1`)
+  and what forswearing returns (`forswear +$140`).
+- **The price model is kept** (decided): the stake is paid on swearing, spent into the reward when a send keeps the oath, half back
+  on forswearing; a send that breaks or misses it costs nothing more — the stake rides to the next send. A broken send losing the
+  stake was rejected: every absence would forfeit it on its first send (punishing absence), and the ≥ 20 %/night gate reads a
+  night of tries.
+- **Teach by consequence**: the core says a sworn oath's fate once per send as it happens (`Ev::Oath { kept, row, cause }`): kept
+  the moment a lasting condition is met (a new kind tamed, the boss slain), or at the end for a depth oath; broken at the row that
+  used the tool it forbids (`no rest`: a rest; `no return`: a `return` committed — the walk home that dies on the way no longer
+  keeps it); missed at an end short of it (quiet). The watch beats `OATH KEPT` / `OATH BROKEN · R2 return` (at the end it rides the
+  exit's beat: `BANKED $120 · OATH KEPT`); the exit line's news (`oath broken: R2 return`), the run's notes (`Broke the oath: R2
+  return.`), and the report (`kept 0/17 · broken 11 · R2 return`; lead `oath broken: R2 return ×11`) say the same.
+- **Arrive when it means something**: the board is carved at the lineage's first band boss seen or first plateau
+  (`Lineage.oath_open`; old saves with an oath sworn, kept, a band boss slain or a counter known stay open), not when the purse first
+  covers a price; its first carve glints.
+- **Cohort 24 reads** (9720ff7): AX "never understood what `D3 · no return` required" — a depth oath's floor is a goal chip
+  (`reach D3` `no return`). AW "the Mother oath sat at `9% ±8` with no lever … `12% ±10` after a second fire potion" — measured:
+  the panel does re-price the pack (the state key holds the supplies), but the kept share sits inside its noise; the sworn oath's
+  panel now names its steps (`OathShare.steps`: `D13 40% · met 34% · burned 6%`), so the lever shows where the funnel leaks (on
+  AW's set most sends that meet her never burn her: the throw row, not the potions).
+- A broken fold: an oath kept or broken on a folded floor rides the fold line's chips (`oath broken`); the heir's chronicle line
+  names the oath deed first (`kept the oath …` / `broke the oath …`).
+- Gate: `tests_cut28` (the fate said once per send and agreeing with the settle, news, notes; the board opens at a wall or plateau),
+  cut28.mjs (the formula, the stake, the fate and refund, the beat words), the Cut 28 metrics rows.

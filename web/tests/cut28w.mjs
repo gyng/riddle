@@ -43,11 +43,11 @@ try {
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp");
   await sleep(300);
   const g0 = await gemText();
-  check(g0.text === "send▸ fights" && g0.mode === "fights", `a fresh camp's gem names the default mode (${JSON.stringify(g0)})`);
+  check(g0.text === "send▸ highlights" && g0.mode === "fights", `a fresh camp's gem names the default mode (${JSON.stringify(g0)})`);
   await page.locator(".gem.send .send-mode").click();
   await sleep(200);
   const g1 = await gemText(), s1 = await screen();
-  check(s1.screen === "camp" && g1.text === "send▸ 1×" && g1.mode === "one", `a tap on the pill steps the mode to 1× and does not send (${JSON.stringify(g1)}, ${s1.screen})`);
+  check(s1.screen === "camp" && g1.text === "send▸ normal" && g1.mode === "one", `a tap on the pill steps the mode to normal and does not send (${JSON.stringify(g1)}, ${s1.screen})`);
   await shot("cut28w-send-mode");
   await page.evaluate(() => window.__riddle.flush?.());
   await sleep(1200);   // the save's debounce
@@ -55,7 +55,7 @@ try {
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp after a reload");
   await sleep(300);
   const g2 = await gemText();
-  check(g2.mode === "one" && g2.text === "send▸ 1×", `the chosen mode is remembered across a reload (${JSON.stringify(g2)})`);
+  check(g2.mode === "one" && g2.text === "send▸ normal", `the chosen mode is remembered across a reload (${JSON.stringify(g2)})`);
   await page.evaluate(() => { window.__riddle.watchMode = "fights"; window.__riddle.persist(); });
 
   // ---- §4: no pixel text on the DOM chips, no plate on either

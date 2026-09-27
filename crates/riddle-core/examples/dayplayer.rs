@@ -35,6 +35,12 @@ struct Day {
     ascended: bool,
     /// Cut 15 §2: unlocks bought with gold this day (counted in `unlocks` too).
     gold_buys: u32,
+    /// Cut 29 §1: oaths kept this day, systems opened (the curriculum), a wall's edit taken (E1).
+    oaths_kept: u32,
+    systems: u32,
+    wall: u32,
+    sworn: u32,
+    forge: u32,
 }
 
 struct SeedOut {
@@ -285,6 +291,27 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                     }
                 }
             }
+            // 1c. Cut 29 §1 (E1): at a wall held two days the report offers the edit that passes it
+            //     (`ReturnReport.wall`: the plateau search's best one-row edit); a human who reads it
+            //     takes it, as the client offers it.
+            if std::env::var("DP_NO_WALL").is_err() {
+                if let Some(w) = &rep.wall {
+                    if g.set_rules(w.rules.clone()).is_ok() {
+                        if verbose {
+                            eprintln!("  day {} wall D{}: {} ({:.2} → {:.2})", day + 1, w.depth, w.edits.join(" ; "), w.before, w.after);
+                        }
+                        d.edits += 1;
+                        d.wall += 1;
+                        decided = true;
+                        stalled_days = 0;
+                    }
+                }
+            }
+            d.systems += rep.systems_opened.len() as u32;
+            d.oaths_kept += rep.oath.as_ref().is_some_and(|o| o.done) as u32 + rep.oaths_kept.len() as u32;
+            if verbose && (rep.oath.as_ref().is_some_and(|o| o.done) || !rep.oaths_kept.is_empty()) {
+                eprintln!("  day {} oath kept: {:?} {:?}", day + 1, rep.oath.as_ref().filter(|o| o.done).map(|o| o.text.clone()), rep.oaths_kept.iter().map(|o| o.label.clone()).collect::<Vec<_>>());
+            }
             // 2. A wall held a day and the counter is known: a human who read the fact (the
             //    forecast names the boss at `best+1`, Cut 4 §8) inserts the counter row (once
             //    per boss) and buys the card or verb it needs if affordable.
@@ -383,9 +410,15 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                 if bought > 0 && g.lineage.marks <= 8 {
                     break;
                 }
-                let mut opts: Vec<_> = g.unlocks().into_iter().filter(|u| !u.owned && u.available && u.cost <= g.lineage.marks).collect();
+                let mut opts: Vec<_> = g.unlocks().into_iter().filter(|u| !u.owned && u.available && !u.gold_only && u.cost <= g.lineage.marks).collect();
                 opts.sort_by(|a, b| a.cost.cmp(&b.cost).then(a.id.cmp(&b.id)));
-                let Some(u) = opts.first() else { break };
+                let Some(u) = opts.first() else {
+                    // Cut 29 §1: nothing left to buy — marks past the reserve draw a fresh oath (◆2).
+                    if g.lineage.marks > 8 && g.draw_oath().is_ok() {
+                        continue;
+                    }
+                    break;
+                };
                 if g.buy(&u.id).is_err() {
                     break;
                 }
@@ -408,7 +441,7 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
             //     card short only of marks, when the purse holds twice its price (the shelf
             //     still needs restocking).
             if std::env::var("DP_NO_GOLD").is_err() {
-                let mut opts: Vec<_> = g.unlocks().into_iter().filter(|u| !u.owned && u.gold > 0 && u.needs.as_deref().is_none_or(|n| n.starts_with('◆')) && g.lineage.gold >= 2 * u.gold as i32).collect();
+                let mut opts: Vec<_> = g.unlocks().into_iter().filter(|u| !u.owned && u.gold > 0 && u.needs.as_deref().is_none_or(|n| n.starts_with('◆') || n.starts_with('$')) && g.lineage.gold >= 2 * u.gold as i32).collect();
                 opts.sort_by(|a, b| a.gold.cmp(&b.gold).then(a.id.cmp(&b.id)));
                 if let Some(u) = opts.first() {
                     if g.buy_unlock_gold(&u.id).is_ok() {
@@ -429,6 +462,39 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
             if verbose && g.lineage.marks > 8 {
                 let gated: Vec<String> = g.unlocks().into_iter().filter(|u| !u.owned).map(|u| format!("{}:{}{}", u.id, u.cost, u.needs.as_ref().map(|n| format!("[{n}]")).unwrap_or_default())).collect();
                 eprintln!("  day {} marks {} unspent; catalogue: {}", day + 1, g.lineage.marks, gated.join(" "));
+            }
+            // 3c. Cut 29: the gold sinks a player of this build uses (as `examples/progression.rs`'s
+            //     `+sinks`): every forge step the purse pays with $150 to spare for the shelf (Cut 23),
+            //     then, the board open and a slot free, the first standing oath it pays the same way
+            //     (Cut 28–29: the late game's goals; an oath lapses at the day's end).
+            if std::env::var("DP_NO_SINKS").is_err() {
+                loop {
+                    let lads = riddle_core::kit::ladders(&g.lineage);
+                    let Some((slot, price)) = lads.iter().filter_map(|l| l.next.as_ref().map(|n| (l.slot.clone(), n.price))).min_by_key(|x| x.1) else { break };
+                    if g.lineage.gold < price as i32 + 150 || riddle_core::kit::buy(&mut g, &slot).is_err() {
+                        break;
+                    }
+                    d.forge += 1;
+                    decided = true;
+                }
+                if riddle_core::oath::open(&g.lineage) {
+                    riddle_core::oath::refresh(&mut g.lineage);
+                    loop {
+                        let sworn = riddle_core::oath::sworn_ids(&g.lineage);
+                        if sworn.len() >= riddle_core::oath::slots(&g.lineage) {
+                            break;
+                        }
+                        let Some(o) = g.lineage.oaths.iter().find(|o| !sworn.contains(&o.id) && g.lineage.gold >= o.price + 150).cloned() else { break };
+                        if g.swear_oath(&o.id).is_err() {
+                            break;
+                        }
+                        if verbose {
+                            eprintln!("  day {} swore {} → {} (${})", day + 1, riddle_core::oath::text(&o), o.reward.label, o.price);
+                        }
+                        d.sworn += 1;
+                        decided = true;
+                    }
+                }
             }
             // 3b. Bring the vault (a human sends the heir out with what it has).
             let ids: Vec<u32> = g.lineage.vault.iter().map(|i| i.id).collect();
@@ -548,7 +614,11 @@ fn main() {
     }
     // Probes and bars (docs/CUT2.md).
     let n = outs.len() as f64;
-    let unlock_days: Vec<usize> = outs.iter().map(|o| o.table.iter().filter(|d| d.unlocks > 0).count()).collect();
+    // Cut 29 §1 (docs/PROGRESSION.md G1): a day with an unlock, an oath kept or a system opened;
+    // `content` — an unlock or an oath kept (no system) — printed beside it.
+    let unlock_days: Vec<usize> = outs.iter().map(|o| o.table.iter().filter(|d| d.unlocks > 0 || d.oaths_kept > 0 || d.systems > 0).count()).collect();
+    let content_days: Vec<usize> = outs.iter().map(|o| o.table.iter().filter(|d| d.unlocks > 0 || d.oaths_kept > 0).count()).collect();
+    let wall_takes: Vec<u32> = outs.iter().map(|o| o.table.iter().map(|d| d.wall).sum()).collect();
     let unlock_mean = unlock_days.iter().sum::<usize>() as f64 / n;
     let empty: u32 = outs.iter().map(|o| o.table.iter().map(|d| d.empty).sum::<u32>()).sum();
     let cis: u32 = outs.iter().map(|o| o.table.iter().map(|d| d.checkins).sum::<u32>()).sum();
@@ -570,11 +640,11 @@ fn main() {
     let asc: Vec<u32> = outs.iter().map(|o| o.ascension).collect();
     println!("  final best depth per seed       {final_best:?}   ending at {} · ascensions {asc:?}", riddle_core::descent::ENDING_DEPTH);
     println!("  expeditions per day (mean)      {runs_day:.1}");
-    println!("  days with ≥1 unlock per seed    {unlock_days:?}");
+    println!("  days with ≥1 unlock per seed    {unlock_days:?}   (content only {content_days:?}; wall edits taken {wall_takes:?})");
     let gold_buys: Vec<u32> = outs.iter().map(|o| o.table.iter().map(|d| d.gold_buys).sum()).collect();
     println!("  gold buys per seed (Cut 15 §2)  {gold_buys:?}");
     let bars: Vec<(String, String, bool)> = vec![
-        (format!("Days with ≥ 1 unlock ≥ 10 / {days} (mean)"), format!("{unlock_mean:.1}"), unlock_mean >= 10.0),
+        (format!("Days with ≥ 1 unlock, oath kept or system opened ≥ 10 / {days} (mean)"), format!("{unlock_mean:.1}"), unlock_mean >= 10.0),
         ("Marks unspent at any check-in after day 2 ≤ 8".into(), format!("{marks_max}"), marks_max <= 8),
         ("Empty check-ins ≤ 15%".into(), format!("{empty_pct:.0}%"), empty_pct <= 15.0),
         ("Class L10 not before day 7".into(), l10_min.map(|d| format!("day {d}")).unwrap_or_else(|| "never".into()), l10_min.is_none_or(|d| d >= 7)),

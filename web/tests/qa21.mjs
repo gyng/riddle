@@ -152,9 +152,9 @@ try {
   await sleep(400);
   await page.evaluate(() => localStorage.setItem("riddle.unlocks.all", "1"));
   await openPanel(page, "unlocks", { all: true }); await sleep(300);
-  await page.locator(".unlocks .card", { hasText: "+1 row" }).first().click({ timeout: 5000 }); await sleep(250);
+  await page.locator(".unlocks .card", { hasText: "+1 rule" }).first().click({ timeout: 5000 }); await sleep(250);
   const next = await txt(".sheet-wrap .next-price"), climb = await txt(".sheet-wrap .gold-climb");
-  check(next === "next ◆4 or $600 · each $ buy +$150" && climb === null, `the \`+1 row\` sheet names the next step's price ("${next}"; no rate: ${climb})`);
+  check(next === "next ◆4 or $600 · each $ buy +$150" && climb === null, `the \`+1 rule\` sheet names the next step's price ("${next}"; no rate: ${climb})`);
   await shot("qa21-row-next");
   await page.keyboard.press("Escape"); await sleep(150);
 

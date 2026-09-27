@@ -87,6 +87,19 @@
   "skip",
   "trace",
   "unlocks",
+  "v_attack",
+  "v_corridor",
+  "v_descend",
+  "v_drink",
+  "v_explore",
+  "v_magic",
+  "v_read",
+  "v_rest",
+  "v_retreat",
+  "v_shadow",
+  "v_shield",
+  "v_shoot",
+  "v_throw",
   "vault"
  ],
  "portraits": [
@@ -113,5 +126,13 @@
   "pet_jackal",
   "pet_monkey",
   "pet_rat"
+ ],
+ "backdrops": [
+  "death",
+  "report"
+ ],
+ "deco": [
+  "brazier",
+  "pillar"
  ]
 }

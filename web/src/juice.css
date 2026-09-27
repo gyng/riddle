@@ -6,7 +6,7 @@
 @media (prefers-reduced-motion: no-preference) {
   /* a place arrives: the frame fades in (opacity only: a transform would re-anchor the fixed HUD inside it) */
   html[data-juice="on"] #app > main:not(.watch) { animation: j-screen .26s ease-out both; }
-  @keyframes j-screen { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes j-screen { from { opacity: .35; } to { opacity: 1; } }   /* gfx round 5: from a dim frame, never a black one */
   html[data-juice="on"] #app > main:not(.watch) > .well-wrap, html[data-juice="on"] #app > main:not(.watch) > .well { animation: j-rise .32s cubic-bezier(.2, .9, .3, 1.1) both; }
   @keyframes j-rise { from { transform: translateY(8px); } to { transform: none; } }
 
@@ -106,4 +106,134 @@
   html[data-juice="on"] .div-scene .div-stills .div-pane:nth-child(2) { animation-delay: .12s; }
   html[data-juice="on"] .camp .well-wrap > .div-line:not([hidden]) { animation: j-line .5s ease-out both; }
   @keyframes j-line { 0% { opacity: 0; } 30% { opacity: 1; background-color: rgba(60, 44, 24, .95); } 100% { background-color: rgba(12, 9, 7, .92); } }
+}
+
+/* ===== gfx round 1 (docs/JUICE.md §10): life on the still screens — the blind raters scored every UI screen "frozen apart from the orb
+   pulse". Embers drift up over the well, the vista's fire breathes, the death banner sways on its rod and the seal catches a glint,
+   the forecast's troughs fill in turn and a sheen runs along them. Opacity/transform/background only; nothing text reads moves. ===== */
+@media (prefers-reduced-motion: no-preference) {
+  /* (a compositor-only drift: the layer is one pattern tile taller than the frame and slides up by it — a background-position animation
+     with a blend repainted the whole frame every frame: camp p95 16.8 → 33 ms) */
+  html[data-juice="on"] main.frame:not(.watch) { overflow: hidden; }
+  html[data-juice="on"] main.frame:not(.watch)::after {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 660px); z-index: 3; pointer-events: none; opacity: .75; will-change: transform;
+    background-image:
+      radial-gradient(2.4px 2.4px at 20% 30%, rgba(255, 186, 82, 1), rgba(255, 120, 30, .35) 60%, transparent 75%),
+      radial-gradient(1.8px 1.8px at 70% 60%, rgba(255, 216, 130, .95), transparent 72%),
+      radial-gradient(3px 3px at 45% 80%, rgba(255, 150, 50, .9), rgba(255, 90, 20, .3) 60%, transparent 75%),
+      radial-gradient(1.8px 1.8px at 85% 15%, rgba(255, 206, 106, .9), transparent 72%),
+      radial-gradient(1.5px 1.5px at 10% 70%, rgba(255, 230, 160, .85), transparent 72%);
+    background-size: 210px 330px, 170px 220px, 260px 660px, 140px 165px, 230px 330px;
+    animation: j-embers 12s linear infinite; }
+  @keyframes j-embers { from { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(14px, -330px, 0); } to { transform: translate3d(0, -660px, 0); } }
+
+  /* the camp's vista: the fire under the stair breathes and the air above it glows */
+  html[data-juice="on"] .vista { position: relative; overflow: hidden; }
+  html[data-juice="on"] .vista::after { content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
+    background: radial-gradient(60% 60% at 50% 100%, rgba(255, 140, 40, .5), transparent 70%), radial-gradient(34% 44% at 18% 70%, rgba(255, 170, 70, .32), transparent 70%),
+      radial-gradient(26% 36% at 86% 62%, rgba(120, 200, 190, .22), transparent 70%);
+    animation: j-flicker 1.9s steps(11) infinite; }
+  /* gfx round 4 (camp.png: a flame brazier at each side of the vista): the braziers stand at its feet, their fire breathing */
+  html[data-juice="on"].skin-deco-brazier .vista::after { mix-blend-mode: normal;
+    background: url(/ui/deco/brazier.webp) left -6px bottom -10px / auto 78% no-repeat, url(/ui/deco/brazier.webp) right -6px bottom -10px / auto 78% no-repeat,
+      radial-gradient(16% 38% at 7% 62%, rgba(255, 150, 50, .55), transparent 70%), radial-gradient(16% 38% at 93% 62%, rgba(255, 150, 50, .55), transparent 70%),
+      radial-gradient(60% 60% at 50% 100%, rgba(255, 140, 40, .35), transparent 70%),
+      radial-gradient(2px 2px at 30% 40%, #ffd27a, transparent 70%), radial-gradient(2px 2px at 30% 40%, #ffb04a, transparent 70%);
+    background-size: auto 78%, auto 78%, 100% 100%, 100% 100%, 100% 100%, 26px 44px, 22px 37px;
+    background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat-y, repeat-y;
+    animation: j-fire 1.3s steps(9) infinite, j-sparks 1.5s linear infinite; }
+  /* the sparks: two thin columns of embers rising off the braziers' fires (only these layers move) */
+  @keyframes j-sparks {
+    from { background-position: left -6px bottom -10px, right -6px bottom -10px, 0 0, 0 0, 0 0, 5% 0, 95% 0; }
+    to { background-position: left -6px bottom -10px, right -6px bottom -10px, 0 0, 0 0, 0 0, 5% -88px, 95% -74px; } }
+  @keyframes j-fire { 0% { filter: brightness(.82); } 15% { filter: brightness(1.3); } 30% { filter: brightness(.9); } 45% { filter: brightness(1.4); } 60% { filter: brightness(1); }
+    75% { filter: brightness(1.25); } 90% { filter: brightness(.85); } 100% { filter: brightness(.82); } }
+  @keyframes j-flicker { 0% { opacity: .55; } 12% { opacity: .9; } 25% { opacity: .62; } 37% { opacity: 1; } 50% { opacity: .7; } 63% { opacity: .95; } 76% { opacity: .58; } 88% { opacity: .85; } 100% { opacity: .55; } }
+  html[data-juice="on"] .vista::before { content: ""; position: absolute; inset: -6%; pointer-events: none; background: inherit; background-size: cover;
+    animation: j-drift 14s ease-in-out infinite alternate; }
+  @keyframes j-drift { from { transform: scale(1.03) translate(1.5%, 0); } to { transform: scale(1.12) translate(-3.5%, -2%); } }
+
+  /* death: after the drop, the banner hangs and sways on its rod; the seal's wax catches a glint every few seconds */
+  html[data-juice="on"] .death .banner-cloth { animation: j-banner .56s cubic-bezier(.3, 1.4, .5, 1) both, j-sway 5.2s ease-in-out .6s infinite; }
+  @keyframes j-sway { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(1.6deg) translateX(1px); } 75% { transform: rotate(-1.6deg) translateX(-1px); } }
+  html[data-juice="on"] .death .death-line .verdict::after { content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background: linear-gradient(115deg, transparent 35%, rgba(255, 230, 190, .55) 50%, transparent 65%) no-repeat; background-size: 250% 100%;
+    animation: j-seal 3.4s ease-in-out 1.2s infinite; }
+  @keyframes j-seal { 0%, 60% { background-position: 150% 0; } 100% { background-position: -60% 0; } }
+
+  /* the forecast: the troughs fill in turn when the sheet opens, and a slow sheen runs along the liquid */
+  html[data-juice="on"] :is(.sheet-wrap > .sheet, .panel-host.open > .panel) .bar .fill { transform-origin: 0 50%; animation: j-fill .9s cubic-bezier(.2, .9, .3, 1) .12s both; }
+  html[data-juice="on"] :is(.sheet, .panel) .bar:nth-child(2) .fill { animation-delay: .05s; }
+  html[data-juice="on"] :is(.sheet, .panel) .bar:nth-child(3) .fill { animation-delay: .1s; }
+  html[data-juice="on"] :is(.sheet, .panel) .bar:nth-child(4) .fill { animation-delay: .15s; }
+  html[data-juice="on"] :is(.sheet, .panel) .bar:nth-child(5) .fill { animation-delay: .2s; }
+  html[data-juice="on"] :is(.sheet, .panel) .bar:nth-child(n+6) .fill { animation-delay: .25s; }
+  @keyframes j-fill { from { transform: scaleX(0); } to { transform: none; } }
+  html[data-juice="on"] :is(.sheet, .panel) .bar .fill::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(90deg, transparent 0 40%, rgba(255, 255, 230, .45) 50%, transparent 60% 100%) no-repeat; background-size: 300% 100%;
+    animation: j-liquid 2.8s ease-in-out .8s infinite; }
+  @keyframes j-liquid { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+
+  /* the primary plaque: a glint crosses it now and then */
+  html[data-juice="on"] .btn.primary:not(:disabled) { overflow: hidden; }
+  html[data-juice="on"] .btn.primary:not(:disabled)::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(110deg, transparent 38%, rgba(255, 250, 220, .6) 50%, transparent 62%) no-repeat; background-size: 250% 100%;
+    animation: j-seal 3.8s ease-in-out .5s infinite; }
+
+  /* parchment: a candle's light moves over every sheet */
+  html[data-juice="on"] .sheet-wrap > .sheet { position: relative; }
+  /* a sheet rises whole (raters: "the opening crossfade shows the camp through it — a double exposure"); the camp behind it dims and softens */
+  html[data-juice="on"] .sheet-wrap > .sheet { animation-name: j-sheet2; }
+  @keyframes j-sheet2 { from { clip-path: inset(0 0 100% 0); transform: translateY(-10px); } 65% { clip-path: inset(0 0 0 0); transform: translateY(3px); } to { clip-path: inset(0 0 0 0); transform: none; } }
+  html[data-juice="on"] .sheet-wrap > .sheet { animation-duration: .4s; animation-timing-function: cubic-bezier(.25, .9, .3, 1); }
+  html[data-juice="on"] .sheet-wrap:not(.modeless) { background: rgba(0, 0, 0, .62); }   /* (a backdrop blur cost the sheet's first frame ~0.2 s: a plain dim) */
+  html[data-juice="on"] .sheet-wrap > .sheet::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0; mix-blend-mode: soft-light;
+    background: radial-gradient(70% 50% at 30% 20%, rgba(255, 210, 140, .5), transparent 70%); animation: j-candle 3.1s steps(11) infinite; }
+  @keyframes j-candle { 0% { opacity: .5; } 20% { opacity: .85; } 40% { opacity: .6; } 60% { opacity: 1; } 80% { opacity: .7; } 100% { opacity: .5; } }
+}
+
+/* ===== gfx round 2 ===== */
+@media (prefers-reduced-motion: no-preference) {
+  /* the report's plaques stamp in one after another (a drop, a flash of the metal), then a glint crosses the parchment */
+  html[data-juice="on"] .report .tile.plaque { animation: j-plaque .42s cubic-bezier(.3, 1.5, .5, 1) both; }
+  html[data-juice="on"] .report .tile.plaque:nth-child(1) { animation-delay: 0s; }
+  html[data-juice="on"] .report .tile.plaque:nth-child(2) { animation-delay: .07s; }
+  html[data-juice="on"] .report .tile.plaque:nth-child(3) { animation-delay: .14s; }
+  html[data-juice="on"] .report .tile.plaque:nth-child(4) { animation-delay: .21s; }
+  html[data-juice="on"] .report .tile.plaque:nth-child(5) { animation-delay: .28s; }
+  html[data-juice="on"] .report .tile.plaque:nth-child(6) { animation-delay: .35s; }
+  html[data-juice="on"] .report .tile.plaque:nth-child(n+7) { animation-delay: .42s; }
+  @keyframes j-plaque { from { opacity: 0; transform: translateY(-14px) scale(1.12); filter: brightness(1.8); } 60% { opacity: 1; filter: brightness(1.25); } to { opacity: 1; transform: none; filter: none; } }
+  html[data-juice="on"] .report .tile.plaque .ico { animation: j-icon 3.6s ease-in-out 1s infinite; }
+  @keyframes j-icon { 0%, 100% { filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 4px rgba(255, 190, 90, .2)); } 50% { filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 9px rgba(255, 200, 100, .6)); } }
+  /* the death's seal lands with a thud: a harder slam and a ring of dust off the wax */
+  html[data-juice="on"] .death .death-line .verdict { animation: j-seal-slam .5s cubic-bezier(.3, 1.7, .45, 1) .5s both; }
+  @keyframes j-seal-slam { from { transform: rotate(-9deg) scale(2.2); opacity: 0; filter: brightness(2); } 55% { transform: rotate(-9deg) scale(.92); opacity: 1; } to { transform: rotate(-9deg); filter: none; } }
+  html[data-juice="on"] .death .death-line .verdict::before { content: ""; position: absolute; inset: -30%; border-radius: 50%; pointer-events: none;
+    border: 3px solid rgba(210, 170, 120, .55); animation: j-dust .7s ease-out .72s both; }
+  @keyframes j-dust { from { transform: scale(.5); opacity: .9; } to { transform: scale(1.35); opacity: 0; } }
+}
+
+/* ===== gfx round 3 ===== */
+@media (prefers-reduced-motion: no-preference) {
+  /* the oath board deals its tablets in, one after another */
+  html[data-juice="on"] .oath-board > .oath { animation: j-deal .42s cubic-bezier(.25, 1.3, .4, 1) both; }
+  html[data-juice="on"] .oath-board > .oath:nth-child(2) { animation-delay: .1s; }
+  html[data-juice="on"] .oath-board > .oath:nth-child(3) { animation-delay: .2s; }
+  html[data-juice="on"] .oath-board > .oath:nth-child(n+4) { animation-delay: .3s; }
+  @keyframes j-deal { from { opacity: 0; transform: translateX(40px) rotate(3deg); } to { opacity: 1; transform: none; } }
+  /* the rule tablets: a glint crosses each in turn now and then (the stone catching the fire) */
+  html[data-juice="on"] .row.tablet.compact { overflow: hidden; }
+  html[data-juice="on"] .editor.compact .row.tablet.compact::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(105deg, transparent 40%, rgba(255, 220, 160, .14) 50%, transparent 60%) no-repeat; background-size: 300% 100%; background-position: 150% 0;
+    animation: j-tab-glint 7s ease-in-out infinite; }
+  html[data-juice="on"] .editor.compact .row.tablet.compact:nth-child(2)::after { animation-delay: .35s; }
+  html[data-juice="on"] .editor.compact .row.tablet.compact:nth-child(3)::after { animation-delay: .7s; }
+  html[data-juice="on"] .editor.compact .row.tablet.compact:nth-child(4)::after { animation-delay: 1.05s; }
+  html[data-juice="on"] .editor.compact .row.tablet.compact:nth-child(n+5)::after { animation-delay: 1.4s; }
+  @keyframes j-tab-glint { 0%, 80% { background-position: 150% 0; } 100% { background-position: -50% 0; } }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* a camp panel unrolls from its top edge too (its unfold from 30 % opacity read as "a double exposure" in the strip) */
+  html[data-juice="on"] .panel-host.open > .panel { animation: j-sheet2 .38s cubic-bezier(.25, .9, .3, 1) both; transform-origin: 50% 0; }
 }

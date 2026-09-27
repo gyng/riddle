@@ -164,7 +164,28 @@ void main() {
   o += uWarm * lit * 0.2;
   o = mix(o, wc, world_);
   o += vec3(1.0, 0.55, 0.18) * 0.32 * min(glow, 1.0) * (1.0 - 0.7 * smoothstep(0.4, 0.85, lum)) * uLightK * step(0.25, s.a) * (1.0 - env * (1.0 - world_));
+#if FX > 0
+  {  // gfx round 1 (the blind raters: "half the viewport is empty black void"): the unexplored rock is a dark coursed-stone mass in the
+     // biome's darkest two colours — texel-crisp blocks and mortar that fade out away from the hero — never a flat black (no truth: it
+     // draws only where no tile drew, and never reveals one)
+    vec2 wt = floor(world) + 0.5;
+    vec2 cell = floor(wt / 7.0);
+    float f1 = 1e9, f2 = 1e9, n = 0.0;
+    for (int yy = -1; yy <= 1; yy++) for (int xx = -1; xx <= 1; xx++) {
+      vec2 c = cell + vec2(float(xx), float(yy));
+      vec2 h = fract(sin(vec2(dot(c, vec2(127.1, 311.7)), dot(c, vec2(269.5, 183.3)))) * 43758.5453);
+      float dd = length(wt - (c + 0.15 + 0.7 * h) * 7.0);
+      if (dd < f1) { f2 = f1; f1 = dd; n = h.x; } else if (dd < f2) { f2 = dd; }
+    }
+    float crack = 1.0 - smoothstep(0.6, 1.4, f2 - f1);
+    float g = fract(sin(dot(wt, vec2(39.3468, 11.1353))) * 24634.6345);
+    vec3 rock = mix(uPal[0], uPal[1], 0.16 + 0.3 * n + 0.08 * g) * mix(1.0, 0.45, crack) * (1.0 - 0.25 * smoothstep(1.0, 3.5, f1) * n);
+    rock *= 0.62 * (0.15 + 0.85 * (1.0 - smoothstep(1.5, 7.0, d)));   // gfx round 4: the rock shows at the lit edge, fading to black (raters: "a flat black pattern")
+    o = mix(rock, o, step(0.25, s.a));
+  }
+#else
   o = mix(uPal[0], o, step(0.25, s.a));   // the void is exactly the palette's darkest (as before the art pass)
+#endif
 #if FX > 0
   o += texture2D(uBloom, tuv).rgb * uBloomK * fog;
   float vr = length((vUv - 0.5) * vec2(0.9, 1.0));
@@ -182,7 +203,7 @@ void main() {
 // stone (watch.png's floor averages (63, 50, 27)); the pale Sanctum gets a low ambient and a weak lift so a torch never blooms.
 const GRADES: Record<string, [number, number, number, number, number, number]> = {
   default: [1, 1, 1, 0.84, 0.65, 1],
-  warrens: [1.14, 0.96, 0.78, 0.8, 0.95, 0.55],
+  warrens: [1.14, 0.96, 0.78, 0.84, 0.95, 0.78],   // gfx round 1: saturation 0.55 → 0.78 (the floor read as "brown mush")
   // juice pass 3: the fork's two lanes apart at a glance — the Burrows warm ochre (full saturation), the Fens cool teal
   burrows: [1, 0.92, 0.8, 0.78, 0.72, 1],
   fens: [0.88, 1, 1.06, 0.82, 0.62, 1],

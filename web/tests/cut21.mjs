@@ -170,9 +170,9 @@ try {
   await waitFor((s) => s?.screen === "death", "the death"); await sleep(300);
   const chain = await page.evaluate(() => [...document.querySelectorAll(".death .chain .chain-row")].map((r) => ({ cls: r.className, text: [...r.childNodes].map((c) => c.textContent.trim()).filter(Boolean).join(" ").replace(/\s+/g, " ") })));
   const ticks = chain.filter((c) => /\btick\b/.test(c.cls)).map((c) => c.text);
-  check(ticks.some((t) => /^t800–820 R2 bank no way ← foes held the way/.test(t)), `an earlier stretch's reason carries its because (${ticks.join(" | ") || "none"})`);
-  check(!ticks.some((t) => /R1 drink heal/.test(t)), "a reason the last tick repeats stays on the last tick's line");
-  check(chain.some((c) => /^R1 drink heal no item ← drank the last heal/.test(c.text)) && chain.some((c) => /fired/.test(c.cls) && /^R2 bank fired$/.test(c.text)), `the last tick's lines stand (${chain.filter((c) => !/tick/.test(c.cls)).map((c) => c.text).join(" | ")})`);
+  check(ticks.some((t) => /^t800–820 bank at 30% no way ← foes held the way/.test(t)), `an earlier stretch's reason carries its because (${ticks.join(" | ") || "none"})`);
+  check(!ticks.some((t) => /drink heal at 30%/.test(t)), "a reason the last tick repeats stays on the last tick's line");
+  check(chain.some((c) => /^drink heal at 30% no item ← drank the last heal/.test(c.text)) && chain.some((c) => /fired/.test(c.cls) && /^bank at 30% fired$/.test(c.text)), `the last tick's lines stand (${chain.filter((c) => !/tick/.test(c.cls)).map((c) => c.text).join(" | ")})`);
   await shot("cut21-chain");
 } catch (e) {
   errors.push(`exception: ${e.message}`);

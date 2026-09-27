@@ -95,7 +95,7 @@ try {
     r.rulesChanged(); r.go({ kind: "camp" }); });
   await settle(); await sleep(600);
   let sh = await page.evaluate(() => [...document.querySelectorAll(".editor .row")].map((r) => ({ on: r.classList.contains("shadowed"), mark: r.querySelector(".shadow-mark")?.textContent ?? "", op: getComputedStyle(r.querySelector(":scope > .chips")).opacity })));
-  check(sh.length === 3 && !sh[0].on && !sh[1].on && sh[2].on && sh[2].mark === "↑ R1" && Number(sh[2].op) < 0.8, `R3 under R1 (both hp < 30%) is a dim tablet marked \`↑ R1\` (${sh.map((x) => `${x.on ? "dim" : "·"}${x.mark ? ` ${x.mark}` : ""}`).join(" | ")})`);
+  check(sh.length === 3 && !sh[0].on && !sh[1].on && sh[2].on && sh[2].mark === "under return at 30%" && Number(sh[2].op) < 0.8, `R3 under R1 (both hp < 30%) is a dim tablet marked \`under return at 30%\` (${sh.map((x) => `${x.on ? "dim" : "·"}${x.mark ? ` ${x.mark}` : ""}`).join(" | ")})`);
   await shot("qa92-shadow");
   // an edit clears the mark until the forecast of the rules now lands; moving R3 to the top frees it
   await page.evaluate(() => { const r = window.__riddle; const [x] = r.rules.rows.splice(2, 1); r.rules.rows.unshift(x); r.rulesChanged(); r.go({ kind: "camp" }); });
@@ -109,7 +109,7 @@ try {
   await paintForecast({ shadowed_by: [null, null, 1] });
   await sleep(150);
   const compact = await text(".editor.compact .row.shadowed .shadow-mark");
-  check(compact.join() === "↑ R2", `a compact tablet carries the mark (${compact.join() || "none"})`);
+  check(compact.join() === "under return at 30%", `a compact tablet carries the mark (${compact.join() || "none"})`);
   await page.evaluate(() => { window.__riddle.editing = true; window.__riddle.go({ kind: "camp" }); });
   await settle();
 
@@ -169,11 +169,11 @@ try {
   check(corr === "stall +11", `a card that raises the stall share says so on its tile ("${corr}")`);
   check(tt("class: rogue")?.cost === "free", `a door that costs nothing reads \`free\` ("${tt("class: rogue")?.cost}")`);
   const owned = await text(".unlocks .chips.owned .chip");
-  check(owned.some((o) => /verb: throw/.test(o)) && !owned.some((o) => /\+1 row/.test(o)), `the owned row lists a bought verb, not the counted steps (${owned.join(" · ")})`);
-  await page.locator(".unlocks .card", { hasText: "+1 row" }).first().click({ timeout: 5000 }); await sleep(200);
+  check(owned.some((o) => /action: throw/.test(o)) && !owned.some((o) => /\+1 rule/.test(o)), `the owned row lists a bought verb, not the counted steps (${owned.join(" · ")})`);
+  await page.locator(".unlocks .card", { hasText: "+1 rule slot" }).first().click({ timeout: 5000 }); await sleep(200);
   const eff = await text(".sheet-wrap .unlock-sheet .effect-line");
   const vmax = await page.evaluate(() => window.__riddle.vocab.max_rows);
-  check(eff.join() === `rows ${vmax} → ${vmax + 1}`, `the \`+1 row\` sheet says what it gives ("${eff.join()}")`);
+  check(eff.join() === `rows ${vmax} → ${vmax + 1}`, `the \`+1 rule slot\` sheet says what it gives ("${eff.join()}")`);
   await page.keyboard.press("Escape"); await sleep(100);
   await page.locator(".unlocks .card", { hasText: "auto: restock" }).first().click({ timeout: 5000 }); await sleep(200);
   const needsLine = await text(".sheet-wrap .unlock-sheet .needs-line:not(.gold-short)");
@@ -204,9 +204,9 @@ try {
   let d = await page.evaluate(() => ({ head: document.querySelector(".patches .patches-head")?.textContent, surv: [...document.querySelectorAll("button.patch .surv")].map((x) => x.textContent), gem: document.querySelector(".death .gem")?.textContent,
     notes: [...document.querySelectorAll(".death-notes .note")].map((n) => n.textContent), heir: document.querySelector(".death .topbar .heir")?.textContent, trait: document.querySelector(".death .topbar .trait")?.textContent,
     egg: document.querySelector(".death .eggs-line")?.textContent, eggBtn: !!document.querySelector(".death .eggs-line button, .death .chip.egg") }));
-  check(d.head === "nothing beats unpatched 100%" && d.surv.every((s) => s === "replayed · no gain") && /edit/i.test(d.gem ?? ""), `a dice death nothing beats: the block says so, no \`below bar\`, the gem is \`edit\` (${d.head} · ${d.surv.join(" | ")} · gem ${d.gem})`);
+  check(d.head === "none beats 100% as is" && d.surv.every((s) => s === "replayed · no gain") && /edit/i.test(d.gem ?? ""), `a dice death nothing beats: the block says so, no \`below bar\`, the gem is \`edit\` (${d.head} · ${d.surv.join(" | ")} · gem ${d.gem})`);
   check(d.notes.length === 0, `no \`saved him\` and no cage loot over a death (${d.notes.join(" | ") || "none"})`);
-  check(d.heir === "♟2" && d.trait === "curious", `the bar names the hero who died (${d.heir} · ${d.trait})`);
+  check(d.heir === "2nd heir" && d.trait === "curious", `the bar names the hero who died (${d.heir} · ${d.trait})`);
   check(/summoned hound fell/.test(d.egg ?? "") && !d.eggBtn, `a lost ally is a line, not a chip ("${d.egg}")`);
   await shot("qa92-dice");
   // the camp's reach lands: a loss drops to the bottom, dim, never the gem's; inside the ± the higher survival leads
@@ -228,7 +228,7 @@ try {
   // never re-orders the list or moves the lit tablet (the core's `rank_patches` order stands)
   check(order === "foe: telegraph → retreat | hp < 20% → rest | hp < 20% → return | foes ≥ 3 → retreat", `the landing keeps the core's order (${order})`);
   check(d.rows[0]?.neg && d.rows[0]?.top && !d.rows.slice(1).some((x) => x.neg) && d.gem === "100%" && before === "…", `a loss is dim and says its move; the lit tablet stays, the gem waits for the measure (QA 308f045) (gem ${before} → ${d.gem}; ${d.rows.map((x) => x.reach).join(" · ")})`);
-  check(/^reach D8 ≈ ±\d+$/.test(d.rows[1]?.reach ?? "") && d.rows[2]?.reach === "return early", `a move inside the ± reads \`≈ ±N\` (Cut 24 §4; was \`≈\` alone, QA 778fa1b); an exit says so ("${d.rows[1]?.reach}" · "${d.rows[2]?.reach}")`);
+  check(d.rows[1]?.reach === "reach D8 same" && d.rows[2]?.reach === "return early", `a move inside the ± reads \`same\` (Cut 24 §4; was \`≈\` alone, QA 778fa1b); an exit says so ("${d.rows[1]?.reach}" · "${d.rows[2]?.reach}")`);
   await shot("qa92-rerank");
 
   // ---- the report: one tile order; the shadowed pending line; LEARNED; the gold words; the plateau's floor
@@ -252,10 +252,10 @@ try {
     return { pending: [...(sec("pending")?.querySelectorAll("li") ?? [])].map((l) => l.textContent), items: [...(sec("learned")?.querySelectorAll(".chips.items .chip") ?? [])].map((c) => c.textContent),
       foes: [...(sec("learned")?.querySelectorAll(".chips:not(.items) .chip") ?? [])].map((c) => c.textContent), gold: document.querySelector(".report .gold-line")?.textContent, stall: document.querySelector(".stall .patch .surv")?.textContent };
   });
-  check(rep.pending.some((p) => /R3 fired 0 of 16 runs: hp < 30% → drink heal · shadowed by R1$/.test(p)), `PENDING keeps the shadowing row (${rep.pending.join(" | ")})`);
+  check(rep.pending.some((p) => /hp < 30% → drink heal · fired in 0 of 16 runs · shadowed by return at 30%$/.test(p)), `PENDING keeps the shadowing row (${rep.pending.join(" | ")})`);
   check(rep.items.join(" | ") === "blink (ashen) | speed (amber)" && rep.foes.includes("stray · lock") && rep.foes.includes("alert rises · cond alert ≥"), `LEARNED: identities on their own row, a foe's tags after \` · \` (${rep.items.join(" | ")} · ${rep.foes.join(" | ")})`);
   check(/^\+\$100 banked · \+\$30 returned · \+\$5 salvage$/.test(rep.gold ?? "") && !/home/.test(rep.gold ?? ""), `the gold line says banked / returned, never \`home\` ("${rep.gold}")`);
-  check(/^reach D7 17% · base 0%$/.test(rep.stall ?? ""), `a plateau patch names its floor ("${rep.stall}")`);
+  check(/^reach D7 17% · was 0%$/.test(rep.stall ?? ""), `a plateau patch names its floor ("${rep.stall}")`);
   await shot("qa92-report");
 
   // ---- the watch's helpers

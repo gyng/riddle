@@ -104,19 +104,19 @@ try {
 
   // 3: the gate on the card and in its sheet
   await openPanel(page, "unlocks");
-  const rowCard = page.locator(".unlocks .card", { hasText: "+1 row" }).first();
+  const rowCard = page.locator(".unlocks .card", { hasText: "+1 rule slot" }).first();
   const cardText = (await rowCard.innerText()).replace(/\s+/g, " ");
-  check(/⊘ fill rows/.test(cardText) && !/rows full/.test(cardText), `the +1 row card reads a requirement: "${cardText}"`);
+  check(/⊘ fill rules/.test(cardText) && !/rows full/.test(cardText), `the +1 rule slot card reads a requirement: "${cardText}"`);
   await rowCard.click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
-  check(/⊘ fill rows/.test(s?.text ?? "") && !/rows full/.test(s?.text ?? ""), `so does its sheet: "${s?.text}"`);
+  check(/⊘ fill rules/.test(s?.text ?? "") && !/rows full/.test(s?.text ?? ""), `so does its sheet: "${s?.text}"`);
   await page.keyboard.press("Escape"); await sleep(150);
   await page.keyboard.press("Escape"); await sleep(150);   // the panel
 
   // 7: the cond picker's × leads the sheet; it removes the cond
   await page.locator(".editor .row").first().locator(".chip.cond").first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
-  check(s?.label === "cond" && s.buttons[0] === "×", `the cond picker's × is its first control (under the sheet's title): ${s?.first} · [${s?.buttons[0]}]`);   // Cut 13 §6: every sheet is titled
+  check(s?.label === "condition" && s.buttons[0] === "×", `the cond picker's × is its first control (under the sheet's title): ${s?.first} · [${s?.buttons[0]}]`);   // Cut 13 §6: every sheet is titled
   await page.locator(".sheet-wrap .sheet-body > button.btn.ghost.wide").first().click({ timeout: 5000 }); await sleep(300);
   let rs = await rows();
   check((await sheets()) === 0 && rs[0].conds === 0, `× removed R1's cond: "${rs[0].text}"`);
@@ -129,10 +129,10 @@ try {
   await openPanel(page, "unlocks");
   const chip = page.locator(".unlocks .chip.owned", { hasText: "thief guard" }).first();
   const chipText = (await chip.innerText()).replace(/\s+/g, " ").trim();
-  check(chipText === "card: thief guard · owned", `the owned chip reads owned: "${chipText}"`);
+  check(chipText === "rule: thief guard · owned", `the owned chip reads owned: "${chipText}"`);
   await chip.click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
-  check(s?.label === "card: thief guard" && !s.buttons.includes("add") && !s.buttons.includes("buy"), `the owned sheet is titled, no add while the set holds the row: [${s?.buttons.join(", ")}]`);
+  check(s?.label === "rule: thief guard" && !s.buttons.includes("add") && !s.buttons.includes("buy"), `the owned sheet is titled, no add while the set holds the row: [${s?.buttons.join(", ")}]`);
   await page.keyboard.press("Escape"); await sleep(150);
   await page.keyboard.press("Escape"); await sleep(150);   // the panel
   await page.locator(".editor .row").nth(1).locator(".x").click({ timeout: 5000 }); await sleep(150);   // QA 0c6e126 (qaY): two taps — arm, then drop
@@ -142,14 +142,14 @@ try {
   await openPanel(page, "unlocks");
   await page.locator(".unlocks .chip.owned", { hasText: "thief guard" }).first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
-  check(s?.label === "card: thief guard" && s.buttons.includes("add"), `the owned sheet offers add once the row is gone: [${s?.buttons.join(", ")}]`);
+  check(s?.label === "rule: thief guard" && s.buttons.includes("add"), `the owned sheet offers add once the row is gone: [${s?.buttons.join(", ")}]`);
   await page.locator(".sheet-wrap button", { hasText: "add" }).first().click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "camp", "camp after insert");
   await sleep(500);
   rs = await rows();
   // where a buy puts it: before the engagement row (R2 `attack`), never the end the stale catalogue would say
   check((await sheets()) === 0 && rs.length === 3 && rs[1].card && /thief guard/.test(rs[1].text) && /attack/.test(rs[2].text), `insert put the card back above attack: ${rs.map((r) => r.text.slice(0, 20)).join(" | ")}`);
-  check((await count()) === "2/4 rows + 1 card", `the counter: "${await count()}"`);
+  check((await count()) === "2/4 rules + 1 tactic", `the counter: "${await count()}"`);
 
   // 1: a screen change closes every sheet; Escape on a kept death goes to the camp, on a fresh death it stays
   await page.locator("button.gear").click({ timeout: 5000 }); await sleep(150);
@@ -186,7 +186,7 @@ try {
   // 10: the yours line, with the card above attack, carries no `card R2 first`
   const yours = await page.evaluate(() => document.querySelector(".fc-yours")?.textContent ?? "");
   rs = await rows();
-  check(rs.some((r) => r.card) && /^written: \d+ of \d+ rows/.test(yours) && !/card R\d+ first/.test(yours), `no card-first suffix with a card at R2: "${yours}"`);
+  check(rs.some((r) => r.card) && /^written: \d+ of \d+ rules/.test(yours) && !/card R\d+ first/.test(yours), `no card-first suffix with a card at R2: "${yours}"`);
 
   // 9: a gated unlock's sheet has buy off — the engine's `needs` (caster: boss 2), and a card that lies `available` while the
   // marks are short (the stale catalogue of a card painted before a buy)
@@ -248,7 +248,7 @@ try {
   ex = await exitsDom();
   check(ex.lines === 12 && ex.more === null && ex.unlisted.length === 1, `more expands to every line, the unlisted count stays (${ex.lines} lines, more ${ex.more}, ${ex.unlisted.length} unlisted)`);
   const bones = await page.evaluate(() => [...document.querySelectorAll(".report .rsec")].filter((s) => s.querySelector(".label")?.textContent === "bones").flatMap((s) => [...s.querySelectorAll("li")].map((l) => l.textContent)));
-  check(bones.length === 3 && bones[0] === "found ♟3's bones · D8 · 11 items" && bones[1] === "found bones · D5 · 7 items" && bones[2] === "found bones · D6 · 4 items", `bones piles read as found: ${JSON.stringify(bones)}`);
+  check(bones.length === 3 && bones[0] === "heir 3 bones found · D8 · 11 items" && bones[1] === "found bones · D5 · 7 items" && bones[2] === "found bones · D6 · 4 items", `bones piles read as found: ${JSON.stringify(bones)}`);
   // no line without a line: 8 exits over 8 runs show neither `more` nor `unlisted`
   await page.evaluate(() => {
     const r = window.__riddle; const L = r.lineage;

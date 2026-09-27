@@ -81,18 +81,20 @@ try {
   }
   // §3 `+1 row` dimmed `⊘ fill rows` while free rows exist (a fresh fake set has fewer rows than max_rows)
   {
-    const info = await page.evaluate(() => { const r = window.__riddle; const card = [...document.querySelectorAll(".unlocks .card")].find((c) => /^\+1 row/.test(c.textContent)); return { rows: r.rules.rows.length, max: r.vocab.max_rows, has: !!card, gated: card?.classList.contains("gated"), needs: card?.querySelector(".needs")?.textContent.trim() }; });
-    check(info.rows < info.max && info.has && info.gated && /fill rows$/.test(info.needs ?? ""), `the +1 row card is dimmed (${info.rows}/${info.max} rows): "${info.needs}"`);
+    const info = await page.evaluate(() => { const r = window.__riddle; const card = [...document.querySelectorAll(".unlocks .card")].find((c) => /^\+1 rule/.test(c.textContent)); return { rows: r.rules.rows.length, max: r.vocab.max_rows, has: !!card, gated: card?.classList.contains("gated"), needs: card?.querySelector(".needs")?.textContent.trim() }; });
+    check(info.rows < info.max && info.has && info.gated && /fill rules$/.test(info.needs ?? ""), `the +1 row card is dimmed (${info.rows}/${info.max} rows): "${info.needs}"`);
     // fill the set: the card's gate lifts (the fake's own gate then decides)
     await page.evaluate(() => { const r = window.__riddle; while (r.rules.rows.length < r.vocab.max_rows) r.rules.rows.push({ conds: [{ k: "hp<", n: 30 }], verb: { v: "retreat" }, origin: "player" }); r.rulesChanged(); r.go({ kind: "camp" }); });
     await settle();
-    const full = await page.evaluate(() => { const card = [...document.querySelectorAll(".unlocks .card")].find((c) => /^\+1 row/.test(c.textContent)); return card?.querySelector(".needs")?.textContent.trim() ?? ""; });
-    check(!/fill rows|rows full/.test(full), `with the set full the card no longer says fill rows ("${full}")`);
+    const full = await page.evaluate(() => { const card = [...document.querySelectorAll(".unlocks .card")].find((c) => /^\+1 rule/.test(c.textContent)); return card?.querySelector(".needs")?.textContent.trim() ?? ""; });
+    check(!/fill rules|rows full/.test(full), `with the set full the card no longer says fill rows ("${full}")`);
   }
   // §3 a card's reach delta says where the card goes — Cut 12 §1: `at R2` (before the engagement row, the catalogue's `insert_at`), else `at end`
   {
     const delta = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card .delta")].map((d) => d.textContent.trim()));
-    check(delta.length > 0 && delta.every((d) => /^reach ([+−]\d+( ±\d+)?|≈( ±\d+)?) at (R\d+|end)( · vs [a-z ]+)?$/.test(d)), `card deltas say where the card goes: ${delta.slice(0, 2).join(" · ")}`);
+    // docs/COPY.md pass 3–4: where the card joins is the sheet's (`joins above attack boss`); the card's line is its move, or inside
+    // its ± only the foes it answers (`vs archers`), else nothing
+    check(delta.some((d) => d !== "") && delta.every((d) => /^(reach [+−]\d+( ±\d+)?|vs [a-z ]+|)$/.test(d)), `card deltas read their move or their foes: ${delta.slice(0, 2).join(" · ")}`);
   }
   // §3 a greyed supply says why under its price
   {
@@ -106,7 +108,7 @@ try {
     await page.evaluate(() => { const r = window.__riddle; r.lineage.rest_left_s = 1200; r.go({ kind: "camp" }); });
     await sleep(300);
     const rest = await page.evaluate(() => { const el = document.querySelector(".rest-line .rest"); return { text: el?.textContent.trim(), hidden: el?.hidden, tag: el?.tagName }; });
-    check(rest.text === "heir rests 20m · send skips rest" && !rest.hidden, `the rest chip reads "${rest.text}"`);
+    check(rest.text === "heir rests 20m" && !rest.hidden, `the rest chip reads "${rest.text}"`);
   }
   // §2 the try row: the counter fact known, the row absent → `D5 0% · goblin warlord · try: attack boss`; a tap inserts it at the top
   {
@@ -146,7 +148,7 @@ try {
     await page.evaluate(() => { const r = window.__riddle; r.go({ kind: "death", death: { run_id: 1, depth: 3, cause: "goblin_pack", margin: "3 over", verdict: "gap", baseline: 0.4, trace: { turns: [] }, patches: [], morgue: "" }, lost: ["jackal · Ashar"] }); });
     await sleep(300);
     const d = await page.evaluate(() => ({ line: document.querySelector(".death-line")?.textContent.replace(/\s+/g, " ").trim(), egg: document.querySelector(".death .eggs-line .egg")?.textContent.replace(/\s+/g, " ").trim() }));
-    check(/^goblin pack · D3 · gap$/.test(d.line ?? ""), `the death line reads "${d.line}" (no hp margin)`);
+    check(/^goblin pack · D3 · no rule for it · gap$/.test(d.line ?? ""), `the death line reads "${d.line}" (no hp margin)`);
     check(d.egg === "◯ jackal Ashar fell", `the lost companion reads "${d.egg}"`);
   }
   // §3 the report: `banked · returned · deaths` always (QA 92eb880 withdrew the larger-first swap); exit lines lead with `returned $61`; lost chips `fell`;
@@ -384,14 +386,15 @@ try {
       await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);
       const seen = new Map(); let bad = null; const t0 = Date.now();
+      const word = mode === "fights" ? "highlights" : mode;   // (the mode id stays `fights`; its button reads `highlights`)
       while (Date.now() - t0 < 25_000 && !(seen.has("fight") && seen.has("map"))) {
         const c = await chip(); if (c.screen !== "watch") break;
         const want = c.speed > 0 ? (c.speed >= 2 ? String(Math.round(c.speed)) : String(Math.round(c.speed * 10) / 10)) : c.card === "1" ? "16" : "";   // QA 92eb880: the chip's rate rounds (`7`, never `6.666…`)
-        if (c.rate !== want || c.text !== mode || c.others || (c.rate && c.after !== `"${c.rate}×"`)) bad ??= c;
+        if (c.rate !== want || c.text !== word || c.others || (c.rate && c.after !== `"${c.rate}×"`)) bad ??= c;
         if (c.rate && c.frame) seen.set(c.frame, `${c.text} ${c.rate}`);
         await sleep(50);
       }
-      return { ok: !bad && seen.has("fight") && [...seen.values()].every((x) => new RegExp(`^${mode} \\d+$`).test(x)), line: `${mode}: the lit chip carries its rate (${[...seen].map(([f, x]) => `${f}: ${x}`).join(" · ")}${bad ? `; off: ${JSON.stringify(bad)}` : ""})` };
+      return { ok: !bad && seen.has("fight") && [...seen.values()].every((x) => new RegExp(`^${word} \\d+$`).test(x)), line: `${mode}: the lit chip carries its rate (${[...seen].map(([f, x]) => `${f}: ${x}`).join(" · ")}${bad ? `; off: ${JSON.stringify(bad)}` : ""})` };
       });
       check(lit.ok, lit.line);
     }

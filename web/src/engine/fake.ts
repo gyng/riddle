@@ -3,7 +3,7 @@
 import type {
   BonesPile, CageOption, Divergence, DivergenceBranch, DivergenceEnd, FoldBeat, FoldFloor, FoldLine, RowFires, StartOption, ForkOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
-  Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead,
+  Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead, MeterWire, SystemInfo, StandingOrders,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 import { combosIn } from "../ui/tokens";
@@ -172,6 +172,8 @@ const REST_CAP_S = 30 * 60, WAKE_S = 20 * 60, BONES_MAX = 3, STUDIED_KILLS = 5, 
 const WAYSTONE_TOLL = 0;
 // UI dev knob: `?engine=fake&fake_depth=5` starts every run on D5 (boss floor) so the boss HUD can be seen.
 const DEV_START_DEPTH = Math.max(1, (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_depth"))) || 1);
+// UI/render dev knob: `?engine=fake&fake_god=1` — the hero never falls below 1 hp (tools/gfx-eval.mjs films a boss's entrance, break and fall).
+const DEV_GOD = typeof location !== "undefined" && new URLSearchParams(location.search).get("fake_god") === "1";
 // UI dev knob: `?engine=fake&fake_vision=4` reports the Deep's sight radius (renderer fog bands follow it).
 const DEV_VISION = (typeof location !== "undefined" && Number(new URLSearchParams(location.search).get("fake_vision"))) || 7;
 const SALVAGE: Record<string, number> = { dagger: 10, sword: 20, axe: 30, bow: 20, leather: 15, mail: 25, plate: 40, leash: 5 };
@@ -397,7 +399,9 @@ function genFloor(rng: Rng, depth: number, flav: (kind: string) => string, known
     items.push({ id: nextId(), x, y, kind, known: knownIt, label });
   }
   const mons: Mon[] = [];
-  const kinds = Object.keys(MON).filter((k) => !MON[k].tags.includes("boss") && k !== "blade" && depth >= MON[k].lo && depth <= MON[k].hi);
+  const kinds0 = Object.keys(MON).filter((k) => !MON[k].tags.includes("boss") && k !== "blade" && depth >= MON[k].lo && depth <= MON[k].hi);
+  // (past the bestiary's deepest band — reachable under `?fake_god=1` — the floor draws from every kind)
+  const kinds = kinds0.length ? kinds0 : Object.keys(MON).filter((k) => !MON[k].tags.includes("boss") && k !== "blade");
   const n = Math.min(8, 2 + Math.ceil(depth / 2));
   const mk = (kind: string, x: number, y: number): Mon => {
     const d = MON[kind]; const boost = 1 + (depth - d.lo) * 0.08;
@@ -544,7 +548,7 @@ function hitRoll(rng: Rng, atk: [number, number], def: number): { hit: boolean; 
 }
 function nameOf(m: Mon): string { return m.name ?? m.kind.replace(/_/g, " "); }
 function hurtHero(run: Run, dmg: number, cause: string, ev: Ev[]): void {
-  const before = run.hero.hp; run.hero.hp = Math.max(0, run.hero.hp - dmg); run.hurt = true;
+  const before = run.hero.hp; run.hero.hp = Math.max(DEV_GOD ? 1 : 0, run.hero.hp - dmg); run.hurt = true;
   run.lastHurt = { cause, dmg, hpBefore: before };
   ev.push({ t: run.turn, k: "hurt", id: 0, dmg, hp: run.hero.hp, cause });
   if (run.hero.hp > 0 && run.hero.hp <= run.hero.max_hp * 0.1 && !run.nearDeath) { run.nearDeath = true; ev.push({ t: run.turn, k: "callout", text: `hp ${run.hero.hp}` }); }
@@ -711,7 +715,13 @@ function heroAttack(run: Run, m: Mon, ev: Ev[], verb: string, mult = 1): void {
   if (cheb(m.x, m.y, h.x, h.y) > 1 && h.weapon !== "bow") { const s = bfsStep(run, (x, y) => cheb(x, y, m.x, m.y) <= 1); if (s) moveHero(run, s[0], s[1], ev); return; }
   const r = hitRoll(run.rng, h.atk, m.def); const dmg = r.dmg * mult;
   ev.push({ t: run.turn, k: "attack", src: 0, dst: m.id, dmg, hit: r.hit, verb });
-  if (r.hit) { m.hp -= dmg; if (m.hp <= 0) killMon(run, m, verb, ev); }
+  if (r.hit) {
+    // a boss's break at half hp (the core's callout and note), then the kill (the fake sends no foe `hurt`: the watch's pacing gates are
+    // calibrated to that)
+    const was = m.hp; m.hp -= dmg;
+    if (m.tags.includes("boss") && was > m.max_hp / 2 && m.hp <= m.max_hp / 2 && m.hp > 0) { const w = m.kind.split("_").pop(); ev.push({ t: run.turn, k: "callout", text: `${w} breaks` }, { t: run.turn, k: "note", text: `${w} breaks` }); }
+    if (m.hp <= 0) killMon(run, m, verb, ev);
+  }
 }
 // returns true if the verb executed
 function exec(run: Run, v: Verb, ctx: SimCtx, ev: Ev[]): boolean {
@@ -836,7 +846,8 @@ function heroTurn(run: Run, ctx: SimCtx, ev: Ev[]): void {
     if (exec(run, r.verb, ctx, ev)) {
       fire(i, r.verb, rowText(r));
       const hpc = r.conds.find((c) => c.k === "hp<");
-      ev.push({ t: run.turn, k: "callout", text: hpc ? `hp ${Math.round((h.hp / h.max_hp) * 100)}% → ${r.verb.v.replace("_", " ")} R${i + 1}` : `${r.verb.v.replace("_", " ")} R${i + 1}` });
+      // the core's order (`R2 attack`: the client names the rule — `attack attack nearest` read the id after the verb)
+      ev.push({ t: run.turn, k: "callout", text: hpc ? `hp ${Math.round((h.hp / h.max_hp) * 100)}% → R${i + 1} ${r.verb.v.replace("_", " ")}` : `R${i + 1} ${r.verb.v.replace("_", " ")}` });
       done = true; break;
     }
     rows.push({ row: i, why: verbWhy(r.verb), because: becauseOf(run, null, r.verb) });   // Cut 11 §1
@@ -1939,11 +1950,11 @@ type Fk = { s: { lineage: Lineage; rules: RuleSet; runCounter: number; oath28?: 
             lineage(): Lineage; forecastVs(prev: RuleSet): ForecastVs; gold(delta: number, why: string): void; fcRefined: boolean };
 /** The stand-in's pool: (kind, chips of a best depth, reward) — the core's `oath::POOL` in miniature. */
 const OATH_POOL28: { kind: string; chips: (b: number) => string[]; reward: (b: number) => OathReward }[] = [
-  { kind: "lean", chips: (b) => [`D${b}`, "no rest"], reward: () => ({ kind: "card", id: "gas_step", label: "card: gas step" }) },
+  { kind: "lean", chips: (b) => [`reach D${b}`, "no rest"], reward: () => ({ kind: "card", id: "gas_step", label: "card: gas step" }) },
   { kind: "tamer", chips: () => ["tame", "a new kind"], reward: () => ({ kind: "slot", id: "party_slot_2", label: "+1 party" }) },
   { kind: "fire", chips: () => ["Warlord", "fire"], reward: () => ({ kind: "title", id: "Firebrand", label: "title: Firebrand" }) },
   { kind: "slayer", chips: () => ["slay", "Mother"], reward: () => ({ kind: "waystone", id: "14", label: "waystone D14" }) },
-  { kind: "bold", chips: (b) => [`D${b + 1}`, "no return"], reward: () => ({ kind: "verb", id: "throw", label: "verb: throw" }) },
+  { kind: "bold", chips: (b) => [`reach D${b + 1}`, "no return"], reward: () => ({ kind: "verb", id: "throw", label: "verb: throw" }) },
 ];
 function fakeBoard28(e: Fk): { board: Oath[]; sworn: string | null; titles: string[]; done: number } {
   const L = e.s.lineage; const st = (e.s.oath28 ??= { board: [], sworn: null, titles: [], done: 0 });
@@ -1963,6 +1974,8 @@ function fakeBoard28(e: Fk): { board: Oath[]; sworn: string | null; titles: stri
   const lin = P.lineage; P.lineage = function (this: Fk): Lineage {
     const L = lin.call(this) as Lineage; const st = fakeBoard28(this);
     L.oaths = st.board.map((o) => ({ ...o, ...(o.id === st.sworn ? { sworn: true } : {}) })); L.oath = st.sworn; if (st.titles.length) L.titles = [...st.titles];
+    // Cut 28b: the board opens at the first wall (the Warlord's floor reached) or once one is sworn or kept
+    L.oath_open = L.best_depth >= 8 || !!st.sworn || st.titles.length > 0;
     const mother = L.facts.some((f) => f.startsWith("boss:bloat_mother:counter"));
     L.walls = [{ boss: "goblin_warlord", title: "Warlord", depth: 8, slain: L.best_depth > 8, known: L.facts.some((f) => f.startsWith("boss:goblin_warlord:counter")), fact: "warlord: attack boss", counter: "attack boss" },
       { boss: "bloat_mother", title: "Mother", depth: 13, slain: L.best_depth > 13, known: mother, fact: mother ? "mother: fire" : "mother: ?", ...(mother ? { counter: "throw fire, boss" } : { learn: "meet her" }) }];
@@ -1985,7 +1998,9 @@ function fakeBoard28(e: Fk): { board: Oath[]; sworn: string | null; titles: stri
     const drinks = e.s.rules.rows.filter((r) => r.verb.v === "rest").length, returns = e.s.rules.rows.filter((r) => r.verb.v === "return").length;
     const base = o.kind === "lean" ? 0.45 - 0.15 * drinks : o.kind === "bold" ? 0.4 - 0.15 * returns : o.kind === "fire" ? (e.s.rules.rows.some((r) => r.verb.v === "throw") ? 0.3 : 0.02) : o.kind === "slayer" ? 0.04 : 0.2;
     const share = Math.max(0, Math.min(1, base)); const pm = 1.96 * Math.sqrt(share * (1 - share) / n);
-    return { id: o.id, text: o.text, share, pm, night: 1 - Math.pow(1 - share, 16) };
+    const steps = o.kind === "fire" || o.kind === "slayer" ? [{ k: `D${o.depth ?? 13}`, share: Math.min(1, share * 5) }, { k: "met", share: Math.min(1, share * 3) }, ...(o.kind === "fire" ? [{ k: "burned", share: Math.min(1, share * 1.5) }] : [])]
+      : o.kind === "lean" || o.kind === "bold" ? [{ k: o.chips[0].replace(/^reach /, ""), share: Math.min(1, share * 1.6) }] : [];
+    return { id: o.id, text: o.text, share, pm, night: 1 - Math.pow(1 - share, 16), ...(steps.length ? { steps } : {}) };
   };
   for (const [name, n] of [["forecast", 20], ["forecastRefine", 100]] as const) {
     const f = P[name]; P[name] = function (this: Fk): Forecast { const r = f.call(this) as Forecast; const o = share28(this, n); return o ? { ...r, oath: o } : r; };
@@ -2014,7 +2029,18 @@ function fakeBoard28(e: Fk): { board: Oath[]; sworn: string | null; titles: stri
     return { whole, parts, lead, rows, state: parts.some((p) => p.kind !== "rows" && p.kind !== "route"), sims: rowsMove.sims ?? 20, refined: !!rowsMove.refined };
   };
   const step = P.step; P.step = function (this: Fk, ticks: unknown): StepResult {
-    const r = step.call(this, ticks) as StepResult;
+    const r0 = step.call(this, ticks) as StepResult;
+    // Cut 28b: the sworn oath's fate, before the exit — `no rest` broken at a rest row, `no return` at a return, kept on a bank, else missed
+    const st28 = fakeBoard28(this), sw = st28.board.find((x) => x.id === st28.sworn), xi = r0.events.findIndex((e) => e.k === "exit");
+    let r = r0;
+    if (sw && xi >= 0) {
+      const x = r0.events[xi] as Extract<Ev, { k: "exit" }>;
+      const tool = sw.kind === "lean" ? "rest" : sw.kind === "bold" ? "return" : "";
+      const used = tool ? r0.events.find((e): e is Extract<Ev, { k: "rule" }> => e.k === "rule" && e.verb.v === tool) : undefined;
+      const ev: Ev = used ? { t: used.t, k: "oath", kept: false, row: used.row, cause: tool }
+        : x.tier === "bank" ? { t: x.t, k: "oath", kept: true, row: -1, cause: "" } : { t: x.t, k: "oath", kept: false, row: -1, cause: "" };
+      r = { ...r0, events: [...r0.events.slice(0, xi), ev, ...r0.events.slice(xi)] };
+    }
     // calm: the step's ticks with no rule row ≥ 0 (a chore is calm), no attack/hurt/beat event
     const loud = new Set(r.events.filter((e) => (e.k === "rule" && e.row >= 0 && e.verb.v !== "pick_up" && e.verb.v !== "rest") || ["attack", "hurt", "die", "telegraph", "steal", "descend", "fact", "callout", "tame", "level", "exit"].includes(e.k)).map((e) => e.t));
     const ts = [...new Set(r.events.map((e) => e.t))].sort((a, b) => a - b); const calm: [number, number][] = [];
@@ -2038,8 +2064,11 @@ function fakeBoard28(e: Fk): { board: Oath[]; sworn: string | null; titles: stri
     const o = st.board.find((x) => x.id === st.sworn);
     if (o) {
       const sh = share28(this, 20)?.share ?? 0; const kept = Math.round(r.runs * sh); const done = kept > 0;
-      r.oath = { id: o.id, chips: o.chips, text: o.text, runs: r.runs, kept, done, reward: o.reward, price: o.price };
-      lead.push({ k: "oath", text: done ? `oath kept: ${o.text}` : `oath: ${o.text} · 0/${r.runs}` });
+      const tool = o.kind === "lean" ? "rest" : o.kind === "bold" ? "return" : "";
+      const row = tool ? this.s.rules.rows.findIndex((x) => x.verb.v === tool) : -1;
+      const broken = !done && row >= 0 ? r.runs : 0, cause = broken ? `R${row + 1} ${tool}` : undefined;
+      r.oath = { id: o.id, chips: o.chips, text: o.text, runs: r.runs, kept, done, reward: o.reward, price: o.price, ...(broken ? { broken, cause } : {}) };
+      lead.push({ k: "oath", text: done ? `oath kept: ${o.text}` : broken ? `oath broken: ${cause} ×${broken}` : `oath: ${o.text} · 0/${r.runs}` });
       if (done) { if (o.reward.kind === "title") st.titles.push(o.reward.id); st.board = st.board.filter((x) => x.id !== o.id); st.sworn = null; st.done++; }
     }
     if (r.stall) lead.push({ k: "plateau", text: `plateau: none past D${this.s.lineage.best_depth}` });
@@ -2047,5 +2076,113 @@ function fakeBoard28(e: Fk): { board: Oath[]; sworn: string | null; titles: stri
     for (const b of r.bests.slice(0, 1)) lead.push({ k: "record", text: b });
     if (lead.length) r.lead = lead.slice(0, 4);
     return r;
+  };
+}
+
+// ---------------------------------------------------------------- Cut 29 stand-ins (the core's curriculum, meters, standing orders, tiers)
+// Grafted like Cut 28's: the curriculum read off the fake lineage (`systems::SYSTEMS` in miniature), a meter built from the step's own
+// events (the core folds its event stream the same way), the standing orders over the fake's own fields, the late sinks.
+const SYSTEMS29: [string, string][] = [["send", ""], ["dial", ""], ["headline", ""], ["edit", "first death"], ["death", "first death"],
+  ["exits", "first gold home"], ["loadout", "first gold home"], ["unlocks", "first mark"], ["reorder", "first plateau"], ["vs", "first plateau"],
+  ["tags", "first foe fact"], ["party", "first stray"], ["cage", "first cage"], ["walls", "meet Warlord"], ["divergence", "meet Warlord"],
+  ["forge", "slay Warlord"], ["start", "slay Warlord"], ["route", "D5 fork twice"], ["oaths", "plateau or Warlord"], ["automations", "meet Lich"],
+  ["route2", "an oath kept"], ["heir_pick", "an oath kept"], ["class", "second class"]];
+type Fk29 = { s: { lineage: Lineage; rules: RuleSet; sys29?: { open: string[]; fresh: string[]; plateau: boolean; works: string[]; meters: MeterWire[]; insure: boolean } };
+              lineage(): Lineage; gold(delta: number, why: string): void };
+const emptyMeter = (): MeterWire => ({ seconds: 0, dealt: { hero: 0, pets: 0, foes: 0 }, taken: { hero: 0, pets: 0, foes: 0 }, dps_dealt: { hero: 0, pets: 0, foes: 0 }, dps_taken: { hero: 0, pets: 0, foes: 0 },
+  healed: [], hps: 0, time: { fight: 0, travel: 0, chores: 0, rest: 0 }, time_s: { fight: 0, travel: 0, chores: 0, rest: 0 }, rows: [], actions: 0, supplies: {}, gold: 0, gold_per_min: 0, hits_hero: 0, hits_pets: 0, fights: 0 });
+/** The core's `meters::fold` over a stretch of events (ticks: the distinct `t`s; the hero is id 0, every other id a foe — the fake has no pets in fights). */
+function meter29(evs: Ev[]): MeterWire {
+  const m = emptyMeter(); const ts = new Set<number>(); const rows = new Map<number, number>(); let acts = 0;
+  for (const e of evs) {
+    ts.add(e.t);
+    if (e.k === "attack" && e.hit && e.dmg > 0) { if (e.src === 0) m.dealt.hero += e.dmg; else m.dealt.foes += e.dmg; m.time.fight++; }
+    if (e.k === "hurt" && e.dmg > 0) { if (e.id === 0) { m.taken.hero += e.dmg; m.hits_hero++; } else m.taken.foes += e.dmg; }
+    if (e.k === "heal") { const h = m.healed.find((x) => x.src === e.src); if (h) h.total += e.amount; else m.healed.push({ src: e.src, total: e.amount, per_s: 0 }); }
+    if (e.k === "rule") { rows.set(e.row, (rows.get(e.row) ?? 0) + 1); acts++; if (e.verb.v === "rest") m.time.rest++; }
+    if (e.k === "use") m.supplies[e.item] = (m.supplies[e.item] ?? 0) + 1;
+    if (e.k === "exit") m.gold += e.loot_kept;
+  }
+  const ticks = ts.size ? Math.max(...ts) - Math.min(...ts) + 1 : 0; const sec = Math.max(0.1, ticks / 10); const r3 = (x: number): number => Math.round(x * 1000) / 1000;
+  m.time.travel = Math.max(0, ticks - m.time.fight - m.time.rest); m.seconds = ticks / 10;
+  m.time_s = { fight: m.time.fight / 10, travel: m.time.travel / 10, chores: 0, rest: m.time.rest / 10 };
+  m.dps_dealt = { hero: r3(m.dealt.hero / sec), pets: 0, foes: r3(m.dealt.foes / sec) }; m.dps_taken = { hero: r3(m.taken.hero / sec), pets: 0, foes: r3(m.taken.foes / sec) };
+  for (const h of m.healed) h.per_s = r3(h.total / sec);
+  m.hps = r3(m.healed.reduce((a, h) => a + h.total, 0) / sec); m.actions = acts; m.fights = m.time.fight > 0 ? 1 : 0;
+  m.rows = [...rows.entries()].sort((a, b) => a[0] - b[0]).map(([row, fires]) => ({ row, fires, share: r3(fires / Math.max(1, acts)) }));
+  m.gold_per_min = r3(m.gold / (sec / 60));
+  return m;
+}
+function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; works: string[]; meters: MeterWire[]; insure: boolean } {
+  const st = (e.s.sys29 ??= { open: ["send", "dial", "headline"], fresh: [], plateau: false, works: [], meters: [], insure: true });
+  const L = e.s.lineage; const met = (d: number): boolean => L.best_depth >= d;
+  const hit: Record<string, boolean> = {
+    edit: L.graveyard.length > 0 || L.heir > 1, death: L.graveyard.length > 0 || L.heir > 1, exits: L.gold > 0 || (L.gold_ledger ?? []).some((g) => g.delta > 0), loadout: L.gold > 0,
+    unlocks: L.marks > 0, reorder: st.plateau, vs: st.plateau, tags: L.facts.some((f) => f.split(":").length === 3 && f.startsWith("foe:")), party: L.facts.includes("stray") || L.party.length + L.kennel.length > 0,
+    cage: L.facts.includes("vault"), walls: met(8), divergence: met(8), forge: met(9), start: met(9), route: (L.forks ?? []).length > 0, oaths: st.plateau || met(8),
+    automations: met(18), route2: L.unlocks.includes("route2"), heir_pick: L.unlocks.includes("heir_pick"), class: L.unlocks.includes("ranger") || L.unlocks.includes("caster"),
+  };
+  for (const [id] of SYSTEMS29) if (!st.open.includes(id) && hit[id]) { st.open.push(id); st.fresh.push(id); }
+  return st;
+}
+{
+  const P = FakeEngine.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
+  const lin = P.lineage; P.lineage = function (this: Fk29): Lineage {
+    const L = lin.call(this) as Lineage; const st = sys29(this);
+    L.systems = SYSTEMS29.map(([id, trigger]): SystemInfo => ({ id, open: st.open.includes(id), ...(trigger ? { trigger } : {}), ...(st.fresh.includes(id) ? { new: true } : {}) }));
+    const met = [8, 13, 18, 23, 28].filter((d) => L.best_depth >= d).length;
+    L.tier = L.best_depth >= 1 || met > 0 ? Math.min(6, 1 + met) : 0;
+    L.oath_slots = 1 + (L.unlocks.includes("oath_slot_2") ? 1 : 0) + (L.unlocks.includes("oath_slot_3") ? 1 : 0);
+    L.sworn = L.oath ? [L.oath] : [];
+    L.oath_draw = L.tier >= 2 ? (L.marks >= 2 ? { cost: 2, available: true } : { cost: 2, available: false, needs: `◆${2 - L.marks} more` }) : { cost: 2, available: false, needs: "meet Warlord" };
+    const price = Math.round(10 * (100 + 25 * L.best_depth) * Math.pow(1.25, st.works.length) / 10) * 10;
+    if (st.works.length) L.works = [...st.works];
+    L.commission = { price, label: ["heir's statue", "camp hall", "chronicle wall", "boss trophies"][st.works.length % 4], available: L.gold >= price };
+    L.orders = { keep: L.keep_pref, cage: L.vault_pref ?? "weapon", start: L.start ?? 1, repeat: L.repeat ?? true, insure: st.insure } as StandingOrders;
+    L.supply_cap = Math.min(8, (L.unlocks.includes("supply_cap_5") ? 5 : 3) + ((L.kit ?? []).find((k) => k.slot === "pack")?.owned ?? 0));
+    const fire = this.s.rules.rows.find((r) => r.origin === "player" && r.verb.v === "throw" && (r.verb.a ?? "").startsWith("fire"));
+    if (fire && !(L.repeat_kinds ?? []).includes("fire")) L.repeat_added = [{ kind: "fire", row: "throw fire" }];
+    if (st.meters.length) L.meters = { runs: st.meters.slice(-2), night: st.meters[st.meters.length - 1] };
+    return L;
+  };
+  const step = P.step; P.step = function (this: Fk29, ticks: unknown): StepResult {
+    const r = step.call(this, ticks) as StepResult; const st = sys29(this);
+    const run = meter29(r.events);
+    const out: StepResult = { ...r, snapshot: { ...r.snapshot, meters: { run, ...(run.fights ? { fight: run } : {}), fighting: run.time.fight > 0 } } };
+    if (r.run_over) { st.meters.push(run); if (st.meters.length > 2) st.meters.shift(); }
+    if (r.exit_pending) {
+      const vault = this.s.lineage.vault;
+      const beats = r.exit_pending.items.some((i) => vault.some((v) => v.kind === i.kind && (i.label ?? "") > (v.label ?? "")));
+      out.exit_pending = { ...r.exit_pending, decide: beats || r.exit_pending.items.length > 2, ...(r.exit_pending.items[0] ? { note: `kept ${r.exit_pending.items[0].label}` } : {}) };
+    }
+    return out;
+  };
+  const off = P.runOffline; P.runOffline = function (this: Fk29, s: unknown): ReturnReport {
+    const before = [...sys29(this).open]; const r = off.call(this, s) as ReturnReport; const st = sys29(this);
+    st.plateau ||= !!r.stall;
+    const opened = sys29(this).open.filter((x) => !before.includes(x));
+    return { ...r, night_marks: r.banked || r.returned ? 1 : 0, ...(opened.length ? { systems_opened: opened } : {}), meters: { ...emptyMeter(), seconds: r.elapsed_s, fights: r.runs, gold: r.gold?.home ?? 0 } };
+  };
+  const death = P.death; P.death = function (this: Fk29, id: unknown): Death {
+    const d = death.call(this, id) as Death; if (d.verdict === "stall") return d;
+    const m = emptyMeter(); m.seconds = 8; m.dealt.hero = 24; m.taken.hero = 40; m.dps_dealt.hero = 3; m.dps_taken.hero = 5; m.hits_hero = 9; m.fights = 1; m.time.fight = 80; m.time_s.fight = 8;
+    return { ...d, fight: m };
+  };
+  const fc = P.forecast; P.forecast = function (this: Fk29): Forecast { const f = fc.call(this) as Forecast; return f.ends ? { ...f, ends: { ...f.ends, passage: 0 } } : f; };
+  P.seenSystems = function (this: Fk29): Lineage { sys29(this).fresh = []; return this.lineage(); };
+  P.setOrders = function (this: Fk29, o: unknown): Lineage {
+    const x = o as StandingOrders; const L = this.s.lineage;
+    if (!["best_weapon", "best_armour", "none"].includes(x.keep)) throw new Error("unknown keep_pref");
+    L.keep_pref = x.keep; L.vault_pref = x.cage; L.start = x.start; L.repeat = x.repeat; sys29(this).insure = x.insure; return this.lineage();
+  };
+  P.drawOath = function (this: Fk29): Lineage {
+    const L = this.s.lineage; if (L.marks < 2) throw new Error("not enough marks"); L.marks -= 2;
+    const st = (this as unknown as Fk).s.oath28; if (st) { st.board = st.board.filter((o) => o.id === st.sworn); st.done++; }
+    return this.lineage();
+  };
+  P.forswearOathId = function (this: Fk29, id: unknown): Lineage { const fs = P.forswearOath; void id; return fs.call(this) as Lineage; };
+  P.commission = function (this: Fk29): Lineage {
+    const L = this.lineage(); const c = L.commission!; if (!c.available) throw new Error("not enough gold");
+    this.gold(-c.price, `forge commission ${c.label}`); sys29(this).works.push(c.label); return this.lineage();
   };
 }

@@ -14,8 +14,11 @@
 // them and the viewer draws the 8×8 register as before. `wallTop(biome, mask)` derives an edge-rimmed wall top per
 // 4-neighbour mask (N 1, E 2, S 4, W 8 = the side that meets open floor) on first request.
 import { heroBase } from "./look";
+/** gfx round 1: a kind drawn with another's sprite (the fake engine's summoned `blade` is the core's `spectral_blade`; its fallback read
+ *  as a magenta placeholder jug) */
+const KIND_ALIAS: Record<string, string> = { blade: "spectral_blade" };
 import * as THREE from "three";
-import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, paletteFor, setPalettes, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
+import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, PALETTES, paletteFor, setPalettes, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
 import { FONT_CELL_H, FONT_CELL_W, FONT_H, FONT_W, glyphBits } from "./font";
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -156,7 +159,7 @@ export class Atlas {
   }
   // ---- sprite-density ids -------------------------------------------------------------------
   // hero looks: `hero_<class>_<look>` when packed, else `hero_<class>` (atlas or procedural)
-  entity(kind: string): Slot { const base = heroBase(kind); return (base && this.sprite.get(`ent:${kind}`)) || this.spriteSlot(`ent:${base ?? kind}`); }
+  entity(kind: string): Slot { kind = KIND_ALIAS[kind] ?? kind; const base = heroBase(kind); return (base && this.sprite.get(`ent:${kind}`)) || this.spriteSlot(`ent:${base ?? kind}`); }
 
   private envSlot(id: string): Slot {
     const s = this.env.get(id);
@@ -226,6 +229,7 @@ export class Atlas {
       for (const [id, r] of Object.entries(json.frames)) this.override(id, img, r, json.meta?.sprites?.[id]?.texel_h);
       this.loadedIds = new Set(Object.keys(json.frames));
       this.aliasTiles();
+      this.waterTiles();
       return true;
     } catch {
       return false;
@@ -253,6 +257,27 @@ export class Atlas {
         const dst = g.alloc(`tile:${biome}_${id.slice(alias.length + 1)}`, src.w, src.h);
         g.ctx.putImageData(px, dst.x, dst.y);
       }
+    }
+  }
+
+  /** gfx round 1 (raters: "the checkered water reads as noise"): only the Fens have drawn water — every other biome's pool is the
+   *  Fens' drawing moved into its own ramp (index for index), a calm pool with a few ripples instead of a 1-texel checker. */
+  private waterTiles(): void {
+    const g = this.env, src = g.get("tile:fens_env_water"); if (!src) return;
+    const from = paletteFor("fens").map((c) => c.map((x) => Math.round(x * 255)));
+    const base = g.ctx.getImageData(src.x, src.y, src.w, src.h);
+    for (const biome of Object.keys(PALETTES)) {
+      if (biome === "fens" || biome === "boss_flash") continue;
+      const dst = g.get(`tile:${biome}_env_water`); if (!dst || dst.w !== src.w || dst.h !== src.h) continue;
+      const to = paletteFor(biome).map((c) => c.map((x) => Math.round(x * 255)));
+      const px = new ImageData(new Uint8ClampedArray(base.data), src.w, src.h), d = px.data;
+      for (let i = 0; i < d.length; i += 4) {
+        if (!d[i + 3]) continue;
+        let best = 0, bd = Infinity;
+        for (let k = 0; k < from.length; k++) { const f = from[k]!, e = (d[i]! - f[0]!) ** 2 + (d[i + 1]! - f[1]!) ** 2 + (d[i + 2]! - f[2]!) ** 2; if (e < bd) { bd = e; best = k; } }
+        const t = to[Math.min(best, to.length - 1)]!; d[i] = t[0]!; d[i + 1] = t[1]!; d[i + 2] = t[2]!;
+      }
+      g.ctx.putImageData(px, dst.x, dst.y);
     }
   }
 

@@ -14,6 +14,13 @@ export function allyName(kind: string, name: string): string {
   return /* copy:callout */ `${k} ${name}`;
 }
 
+/** gfx round 1 (the blind raters: "giant 'ATTACK NEAREST' pixel text over the sprites"; watch.png's `R2 ATTACK` plate): the callout
+ *  over the hero and the fight frame's caption are a small iron plate with the serif caps and a notch pointing down at him — DOM,
+ *  crisp at any k, placed by the viewer like the name tags. `CALL_*` are its CSS metrics (the viewer lays its box out from them). */
+export type Plate = { kind: "callout" | "caption" | "boss"; text: string; x: number; y: number; w: number };   // x centre, y bottom (CSS px)
+export const CALL_H = 24;        // CSS px: the plate (the notch hangs below it)
+export const CALL_CHAR = 8.6;    // CSS px per character of the 12 px Cinzel caps
+export const CALL_PAD = 20;      // CSS px of side padding
 export const TAG_H = 19;          // CSS px: the name's line (13) + the bar (4) + gaps
 export const TAG_CHAR = 6.4;      // CSS px per character of the 12 px serif (lowercase average; the plate's width estimate)
 export const TAG_PAD = 8;         // CSS px of side padding inside the plate
@@ -32,7 +39,39 @@ const CSS = `
 .rtag.stair b { font-size: 11px; color: #cdb892; letter-spacing: .04em; }
 .rtag.stair.taken b { color: #ffd76a; text-shadow: 0 0 6px rgba(255, 200, 90, .9), 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000; }
 .rtag.stair.other b { opacity: .7; }
+.rcall { position: absolute; left: 0; top: 0; height: ${CALL_H}px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+  padding: 0 8px; white-space: nowrap; font: 700 12px/1 "Cinzel", "Trajan Pro", Georgia, serif; letter-spacing: .06em; text-transform: uppercase; color: #f4e3b8;
+  background: linear-gradient(#2c241d, #15100c); border: 1px solid #7a5a32; border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 220, 150, .18), inset 0 0 0 1px #0a0705, 0 2px 6px rgba(0, 0, 0, .75); text-shadow: 0 1px 0 #000, 0 0 6px rgba(255, 180, 80, .35); will-change: transform; }
+.rcall::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 9px; height: 9px; margin-left: -5px; background: #15100c; border: solid #7a5a32; border-width: 0 1px 1px 0; transform: rotate(45deg); }
+.rcall.caption::after { display: none; }
+.rcall.caption { color: #ffd98a; }
+.rcall.boss { height: 40px; font-size: 22px; letter-spacing: .12em; color: #ffe2a0; border-color: #b0822f; background: linear-gradient(#3a1512, #1a0808);
+  box-shadow: inset 0 1px 0 rgba(255, 200, 150, .25), inset 0 0 0 1px #0a0404, 0 0 0 2px #1a0808, 0 0 22px rgba(200, 60, 30, .55), 0 4px 12px rgba(0, 0, 0, .8);
+  text-shadow: 0 2px 0 #000, 0 0 12px rgba(255, 120, 40, .8); }
+.rcall.boss::after { display: none; }
+.rnum { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; will-change: transform, opacity;
+  font: 800 18px/1 "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: .01em;
+  text-shadow: 0 2px 0 #000, 2px 0 0 #000, -2px 0 0 #000, 0 -2px 0 #000, 1.5px 1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px -1.5px 0 #000, 0 0 8px rgba(0, 0, 0, .8); }
+.rnum.big { font-size: 24px; }
+.rshatter { position: absolute; left: 0; top: 0; width: 92px; height: 92px; pointer-events: none; }
+.rshatter::before { content: ""; position: absolute; inset: -30%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 230, 170, .85), rgba(255, 150, 60, .35) 40%, transparent 70%); animation: rsh-glow 1.1s ease-out both; }
+@keyframes rsh-glow { 0% { opacity: 0; transform: scale(.4); } 15% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
+.rshatter i { position: absolute; inset: 0; background: center / 100% 100% no-repeat; filter: drop-shadow(0 0 6px rgba(255, 220, 160, .9)) drop-shadow(0 2px 2px #000); }
+.rshatter i:first-child { clip-path: polygon(0 0, 58% 0, 44% 38%, 56% 62%, 40% 100%, 0 100%); animation: rsh-l 1.2s cubic-bezier(.2, .7, .4, 1) both; }
+.rshatter i:last-child { clip-path: polygon(58% 0, 100% 0, 100% 100%, 40% 100%, 56% 62%, 44% 38%); animation: rsh-r 1.2s cubic-bezier(.2, .7, .4, 1) both; }
+@keyframes rsh-l { 0% { transform: scale(1.6); opacity: 0; } 10% { transform: scale(1); opacity: 1; } 42% { transform: translate(-3px, 0) rotate(-4deg); opacity: 1; } 100% { transform: translate(-40px, 46px) rotate(-50deg); opacity: 0; } }
+@keyframes rsh-r { 0% { transform: scale(1.6); opacity: 0; } 10% { transform: scale(1); opacity: 1; } 42% { transform: translate(3px, 0) rotate(4deg); opacity: 1; } 100% { transform: translate(40px, 52px) rotate(55deg); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .rshatter i { animation-duration: .01s !important; } }
+@media (prefers-reduced-motion: no-preference) { html[data-juice="on"] .rcall.boss.fresh { animation: rboss-in 2.2s cubic-bezier(.2, 1.1, .3, 1) both; } }
+@keyframes rboss-in { 0% { opacity: 0; scale: 1.8; letter-spacing: .5em; } 14% { opacity: 1; scale: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) { html[data-juice="on"] .rcall.fresh { animation: rcall-in .22s cubic-bezier(.2, 1.5, .4, 1) both; } }
+@keyframes rcall-in { from { opacity: 0; scale: .7; } to { opacity: 1; scale: 1; } }
 `;
+
+const SHIELD = "/ui/icons/v_shield.png";
+let shieldOk = false;
+if (typeof Image !== "undefined") { const im = new Image(); im.onload = () => { shieldOk = true; }; im.src = SHIELD; }
 
 export class TagLayer {
   private root: HTMLDivElement | null = null;
@@ -88,5 +127,52 @@ export class TagLayer {
     }
   }
 
-  dispose(): void { this.root?.remove(); this.root = null; this.els = []; }
+  private calls: { el: HTMLDivElement; key: string; text: string }[] = [];
+  /** gfx round 1: the callout / caption plates this frame (≤ 2). A plate whose text changes pops in (`fresh`). */
+  plates(list: readonly (Plate | null)[]): void {   // fixed slots (boss · callout · caption): a slot's element keeps its plate
+    const r = this.root; if (!r) return;
+    this.place();
+    while (this.calls.length < list.length) { const el = document.createElement("div"); el.className = "rcall"; el.style.display = "none"; r.appendChild(el); this.calls.push({ el, key: "", text: "" }); }
+    for (let i = 0; i < this.calls.length; i++) {
+      const c = this.calls[i]!, p = list[i];
+      if (!p) { if (c.key !== "") { c.el.style.display = "none"; c.key = ""; } continue; }
+      const key = `${p.kind}|${p.text}|${Math.round(p.x)}|${Math.round(p.y)}|${Math.round(p.w)}`;
+      if (key === c.key) continue;
+      c.key = key; c.el.style.display = "";
+      if (c.text !== p.text) { c.text = p.text; c.el.textContent = p.text; c.el.classList.remove("fresh"); void c.el.offsetWidth; c.el.classList.add("fresh"); }
+      c.el.classList.toggle("caption", p.kind === "caption"); c.el.classList.toggle("boss", p.kind === "boss");
+      const H = p.kind === "boss" ? 40 : CALL_H;
+      c.el.style.width = `${Math.round(p.w)}px`;
+      c.el.style.transform = `translate(${Math.round(p.x - p.w / 2)}px, ${Math.round(p.y - H)}px)`;
+    }
+  }
+
+  /** gfx round 1 (raters: "no shield-shatter", "no clear break"): a boss's guard breaks — his shield icon splits in two over him and
+   *  falls away (CSS, 0.8 s). Only once the icon has loaded (art never blocks: no icon, no shatter). */
+  shatter(x: number, y: number): void {
+    const r = this.root; if (!r || !shieldOk) return;
+    const el = document.createElement("div"); el.className = "rshatter";
+    el.style.transform = `translate(${Math.round(x - 46)}px, ${Math.round(y - 46)}px)`;
+    for (let i = 0; i < 2; i++) { const h = document.createElement("i"); h.style.backgroundImage = `url(${SHIELD})`; el.appendChild(h); }
+    r.appendChild(el); setTimeout(() => el.remove(), 1300);
+  }
+
+  private nums: { el: HTMLDivElement; key: string }[] = [];
+  /** gfx round 6: the damage numbers (CSS px: x centre, y baseline) — pooled, the game's face with a black outline, popping (sc). */
+  numbers(list: readonly { x: number; y: number; text: string; col: readonly number[]; sc: number; a: number; big: boolean }[]): void {
+    const r = this.root; if (!r) return;
+    this.place();
+    while (this.nums.length < list.length) { const el = document.createElement("div"); el.className = "rnum"; el.style.display = "none"; r.appendChild(el); this.nums.push({ el, key: "" }); }
+    for (let i = 0; i < this.nums.length; i++) {
+      const n = this.nums[i]!, p = list[i];
+      if (!p) { if (n.key !== "") { n.el.style.display = "none"; n.key = ""; } continue; }
+      const c = `rgb(${Math.round(p.col[0]! * 255)},${Math.round(p.col[1]! * 255)},${Math.round(p.col[2]! * 255)})`;
+      const key = `${p.text}|${c}|${p.big ? 1 : 0}`;
+      if (key !== n.key) { n.key = key; n.el.textContent = p.text; n.el.style.color = c; n.el.classList.toggle("big", p.big); n.el.style.display = ""; }
+      n.el.style.opacity = p.a.toFixed(2);
+      n.el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) translate(-50%, -100%) scale(${(p.sc / 0.75).toFixed(2)})`;
+    }
+  }
+
+  dispose(): void { this.root?.remove(); this.root = null; this.els = []; this.calls = []; this.nums = []; }
 }

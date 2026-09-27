@@ -50,8 +50,8 @@ try {
       if (performance.now() - t0 > 4000 || window.__riddle.screen !== "watch") { res([...seen]); return; } requestAnimationFrame(poll); };
     poll();
   }));
-  const full = stakes.filter((x) => /^carry \$\d+( −\$\d+(?: \w+)?)? · bank keeps \$\d+ · death \$0( · [^·]+)* · bank at D9$/.test(x));
-  check(stakes.length > 0 && full.length > 0, `the stake reads \`carry $N · bank keeps $N · death $0 · bank at D9\` (${stakes.slice(0, 2).join(" | ") || "never shown"})`);
+  const full = stakes.filter((x) => /^carrying \$\d+( −\$\d+(?: \w+)?)? · bank keeps \$\d+ · death \$0( · [^·]+)* · bank at D9$/.test(x));
+  check(stakes.length > 0 && full.length > 0, `the stake reads \`carrying $N · bank keeps $N · death $0 · bank at D9\` (${stakes.slice(0, 2).join(" | ") || "never shown"})`);
   check(stakes.every((x) => !/\bkeeps\b/.test(x) || /· death \$\d+/.test(x)), `\`keeps\` never shows without the death's share (${stakes.filter((x) => !/death \$/.test(x)).slice(0, 2).join(" | ") || "none alone"})`);
   await shot("cut20-stake");
 
@@ -65,7 +65,7 @@ try {
   });
   await page.waitForFunction(() => !!document.querySelector(".shaft .notch.bounty"), null, { timeout: 10_000 }).catch(() => {});
   const notch = await page.evaluate(() => { const n = document.querySelector(".shaft .notch.bounty"); return { text: n?.querySelector(".dl")?.textContent ?? "", best: window.__riddle.lineage.best_depth, bounty: window.__riddle.lineage.bounty?.depth, glint: n ? getComputedStyle(n.querySelector(".hex")).boxShadow : "" }; });
-  check(notch.text === `D${notch.best + 2} bounty $×2` && notch.bounty === notch.best + 2 && /rgb/.test(notch.glint), `the shaft's bounty notch reads \`D${notch.best + 2} ×2\` with a glint ("${notch.text}", lineage bounty D${notch.bounty})`);
+  check(notch.text === `D${notch.best + 2} bounty 2× gold` && notch.bounty === notch.best + 2 && /rgb/.test(notch.glint), `the shaft's bounty notch reads \`D${notch.best + 2} ×2\` with a glint ("${notch.text}", lineage bounty D${notch.bounty})`);
   await shot("cut20-shaft");
 
   // ---- §2 the party: a tap selects, a second tap keeps it, `×` drops it (a companion put in the kennel through the save)
@@ -122,7 +122,7 @@ try {
   await sleep(300);
   const nb = await page.evaluate(() => { const b = document.querySelector(".death .patches"); const vis = [...b.querySelectorAll("button.patch")].filter((x) => x.getClientRects().length);
     return { head: b.querySelector(".patches-head")?.textContent, visible: vis.length, all: b.querySelectorAll("button.patch").length, dim: [...b.querySelectorAll("button.patch")].every((x) => x.classList.contains("below")), more: b.querySelector(".patches-more")?.textContent?.replace(/\s+/g, " ").trim(), gem: document.querySelector(".death .gem")?.textContent?.trim() }; });
-  check(nb.head === "nothing beats unpatched 100%" && nb.visible === 0 && nb.all === 3 && nb.dim && /^others 3$/.test(nb.more ?? "") && /edit/i.test(nb.gem ?? ""), `under \`nothing beats base\` no patch shows as one: folded behind \`${nb.more}\`, dim, the gem \`${nb.gem}\` (${nb.visible}/${nb.all} visible)`);
+  check(nb.head === "none beats 100% as is" && nb.visible === 0 && nb.all === 3 && nb.dim && /^others 3$/.test(nb.more ?? "") && /edit/i.test(nb.gem ?? ""), `under \`nothing beats base\` no patch shows as one: folded behind \`${nb.more}\`, dim, the gem \`${nb.gem}\` (${nb.visible}/${nb.all} visible)`);
   await shot("cut20-nothing-beats");
   await page.locator(".death .patches-more").click({ timeout: 3000 }); await sleep(200);
   const nb2 = await page.evaluate(() => [...document.querySelectorAll(".death .patches button.patch")].filter((x) => x.getClientRects().length).length);
@@ -155,7 +155,7 @@ try {
   await closeSheets();
   await go({ kind: "report", report: report({ depth: 12, taken: false, gold: 0 }) }); await sleep(300);
   const b2 = await page.evaluate(() => document.querySelector(".report .bounty-line")?.textContent ?? "");
-  check(/^bounty · D12 · \$×2( · item)? · reach( · [a-z]+: [a-z?]+)? · missed$/.test(b2), `…or missed, with what it pays and needs (Cut 28 §1): "${b2}"`);
+  check(/^bounty · D12 · 2× gold( · needs [a-z]+(: [a-z?]+)?)? · missed$/.test(b2), `…or missed, with what it pays and needs (Cut 28 §1): "${b2}"`);
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

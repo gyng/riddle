@@ -136,7 +136,7 @@ try {
         v.apply([{ t: t + 1, k: "rule", row: 6, verb: { v: "attack", a: "nearest" }, text: "foes>=1 → yyy at" }]); v.seek(t + 1); await frame();
         return { before, at: v.stats().caption };
       });
-      check(cap.before === null && cap.at === "R7 yyy at", `a seek drops a caption from before its tick (${cap.before ?? "none"}) and keeps one at it (${cap.at})`);
+      check(cap.before === null && cap.at === "yyy at", `a seek drops a caption from before its tick (${cap.before ?? "none"}) and keeps one at it (${cap.at})`);
       await page.keyboard.press("Escape"); await sleep(200);
     }
     check(pick.early === 2 && pick.other === null && pick.late === 2, `a link before its floor's snapshot finds its floor, never another depth's (t520 D2 → D${pick.early}, t520 D3 → ${pick.other === null ? "none" : `D${pick.other}`}, t650 D2 → D${pick.late})`);
@@ -158,7 +158,7 @@ try {
       }
       const allowed = await page.evaluate(({ from, to, depth }) => {
         const l = window.__riddle.runLog(); const f = l.floors.find((x) => x.snap.depth === depth);
-        return (f?.evs ?? []).filter((e) => e.k === "rule" && e.row >= -1 && e.t >= from && e.t <= to).map((e) => { const tail = e.text.includes("→") ? e.text.slice(e.text.lastIndexOf("→") + 1).trim() : e.text; return (e.row >= 0 ? `R${e.row + 1} ${tail}` : e.text.replace(/→/g, ">")).slice(0, 24); });
+        return (f?.evs ?? []).filter((e) => e.k === "rule" && e.row >= -1 && e.t >= from && e.t <= to).map((e) => { const tail = e.text.includes("→") ? e.text.slice(e.text.lastIndexOf("→") + 1).trim() : e.text; return (e.row >= 0 ? tail.trim().split(/\s+/).slice(0, 3).join(" ") : e.text.replace(/→/g, ">")).slice(0, 24); });   // render/state.ts: ≤ 3 words of the verb, no row id (docs/COPY.md)
       }, clip ?? { from: 0, to: 0, depth: 0 });
       const stale = caps.filter((c) => !allowed.includes(c));
       check(!!clip && clip.depth === k.depth && clip.from <= k.t && k.t <= clip.to, `D${k.depth} t${k.t} (floor snap t${k.snap}, first t${k.first}): the clip is on D${clip?.depth}, t${clip?.from}–t${clip?.to}`);
@@ -230,7 +230,7 @@ try {
     }
     const c = await read();
     check(bought.length === 3, `three cards bought on a full set (${bought.join(", ")})`);
-    check(c.own === c.max && c.tab === `fighter · ${c.own}` && c.count.startsWith(`${c.own}/${c.max} rows + 3 cards`) && c.rows === c.own + 3 && (await state()).sheets === 0, `the tab counts own rows: "${c.tab}" beside "${c.count}" (${c.rows} rows listed, no sheet)`);
+    check(c.own === c.max && c.tab === `fighter · ${c.own} rules` && c.count.startsWith(`${c.own}/${c.max} rules + 3 tactics`) && c.rows === c.own + 3 && (await state()).sheets === 0, `the tab counts own rows: "${c.tab}" beside "${c.count}" (${c.rows} rows listed, no sheet)`);
   }
 
   // ---- 5: the unlock sheet's disabled buys look disabled; a short `$ buy` says `$N short` (a fresh lineage: ◆0, $120)

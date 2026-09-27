@@ -86,12 +86,12 @@ say(r.stdout ?? "");
 if (r.status !== 0 || !/gates: all PASS/.test(r.stdout ?? "")) { console.error("gates: FAIL"); process.exit(1); }
 say(q.stdout ?? "");
 if (q.status !== 0 || !/qa: all PASS/.test(q.stdout ?? "")) { console.error("qa invariants: FAIL"); process.exit(1); }
-// Fourteen-day pacing probe. Two of its bars (unlock days ≥ 10/14, stall ≤ 3 d) assume the full
-// 30-floor dungeon; with v1's 16 floors a competent player finishes on day 4–9, so until M7 content
-// lands the probe is printed and only its remaining bars fail the run (docs/CUT2.md deviation).
+// Fourteen-day pacing probe. Cut 29 §1: every bar is hard — the "informational until M7" carve-out for
+// the unlock days (≥ 10/14) and the stall (≤ 3 d) is gone (the descent is 34 floors; they fail for the
+// reasons docs/PROGRESSION.md measures, not for missing content).
 const out = p.stdout ?? ""; say(out.slice(out.lastIndexOf("bar ")));
-const hardFails = [...out.matchAll(/^(Marks unspent|Empty check-ins|Class L10)[^\n]*FAIL/gm)].map((m) => m[0]);
-if (hardFails.length) { console.error("dayplayer hard bars: FAIL\n" + hardFails.join("\n")); process.exit(1); }
-say("dayplayer: hard bars pass (content bars informational until M7)\n");
+const hardFails = [...out.matchAll(/^[^\n]*\bFAIL$/gm)].map((m) => m[0]).filter((l) => !l.startsWith("dayplayer:"));
+if (hardFails.length || p.status !== 0 || !/dayplayer: all PASS/.test(out)) { console.error("dayplayer bars: FAIL\n" + hardFails.join("\n")); process.exit(1); }
+say("dayplayer: all bars pass\n");
 const legsCached = Object.entries(hit).filter(([, v]) => v).map(([k]) => k);
 if (legsCached.length) console.log(`gates: ${legsCached.join(", ")} cached (${legsCached.map((k) => legs[k]).join(" ")}; --fresh to rerun)`);

@@ -76,12 +76,47 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
   document.body.appendChild(wrap);
   stack.push(wrap);
   const anchor = opts.anchor;
-  if (anchor && anchor.isConnected) {
+  // the wide frame (desktop): the panel stands beside what opened it — the anchor, else the control last tapped
+  const beside = wideNow() && !opts.modeless ? (anchor?.isConnected ? anchor : lastTap?.isConnected && !wrap.contains(lastTap) ? lastTap : null) : null;
+  if (beside) {
+    const place = (): void => { if (beside.isConnected) placeWide(wrap, panel, beside); };
+    place();
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(() => place()); ro.observe(panel.firstElementChild ?? panel); }
+    if (anchor) anchor.classList.add("sheet-anchor");
+  } else if (anchor && anchor.isConnected) {
     anchor.classList.add("sheet-anchor");
     const place = (): void => { if (anchor.isConnected) placeBeside(wrap, panel, anchor); };
     place();
     if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(() => place()); ro.observe(panel.firstElementChild ?? panel); }
   }
+}
+/** The wide frame (wide.css): a tap's control, kept so a sheet it opens can stand beside it. */
+let lastTap: HTMLElement | null = null;
+if (typeof document !== "undefined") document.addEventListener("pointerdown", (e) => { const t = e.target instanceof Element ? e.target.closest<HTMLElement>("button, [role=button], .row, .tile, .shaft") : null; if (t && !t.closest(".sheet-wrap")) lastTap = t; }, true);
+const wideNow = (): boolean => typeof matchMedia !== "undefined" && matchMedia("(min-width: 1024px)").matches;
+/** Desktop: the panel beside `el` — right of it when it sits in the left half, left of it in the right half, over it when it is a
+ *  console tile (the bottom); its top level with the element's, kept between the bar and the console, never over the element. */
+function placeWide(wrap: HTMLElement, panel: HTMLElement, el: HTMLElement): void {
+  wrap.classList.add("wide-beside"); wrap.classList.remove("anchored", "anchored-top");
+  const a = el.getBoundingClientRect(), w = wrap.getBoundingClientRect(), GAP = 12;
+  const top0 = (document.querySelector("main.frame > .topbar")?.getBoundingClientRect().bottom ?? 0) + GAP - w.top;
+  const bot = w.height - GAP;
+  const pw = panel.offsetWidth, room = Math.max(160, bot - top0);
+  panel.style.maxHeight = `${Math.floor(room)}px`;
+  const ph = Math.min(panel.scrollHeight, room);
+  const inConsole = !!el.closest("footer.console");
+  let left: number, top: number;
+  if (inConsole) {
+    left = a.left + a.width / 2 - pw / 2 - w.left;
+    top = bot - ph;
+  } else {
+    left = a.left + a.width / 2 < innerWidth / 2 ? a.right + GAP - w.left : a.left - GAP - pw - w.left;
+    top = a.top - w.top;
+  }
+  left = Math.max(GAP, Math.min(w.width - pw - GAP, left));
+  top = Math.max(top0, Math.min(bot - ph, top));
+  panel.style.left = `${Math.round(left)}px`; panel.style.top = `${Math.round(top)}px`;
+  wrap.dataset.side = inConsole ? "above" : "beside";
 }
 /** The side of `anchor` with more room (inside the backdrop) takes the panel: below it (the bottom sheet, its height capped so its
  *  top stays under the anchor) or above it (hung from the backdrop's top, its height capped so it ends over the anchor). */

@@ -102,7 +102,7 @@ try {
   // QA 912e135: the trigger rides the card's first inline row (the chip no longer repeats it)
   check(/\[card\] pack break\b/.test(cardRow) && /foe: pack →/.test(cardRow) && (cardRow.match(/foe: pack/g) ?? []).length === 1, `card reads its name and its trigger once: "${cardRow.slice(0, 80)}"`);
   const yours = await page.evaluate(() => document.querySelector(".fc-yours")?.textContent ?? "");
-  check(/^written: 1 of 1 row/.test(yours) && !/card R\d+ first/.test(yours), `yours line, no card-first suffix: "${yours}"`);
+  check(/^written: 1 of 1 rule/.test(yours) && !/card R\d+ first|first/.test(yours), `yours line, no card-first suffix: "${yours}"`);
   // the card below the player row: no warning
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows.reverse(); r.rulesChanged(); });
   await sleep(200);

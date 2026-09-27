@@ -6,15 +6,16 @@
 // differently somewhere, and its line says what changed (`≈ ±6 · R3 fires 4× more`). Under `prefers-reduced-motion` the scene is the
 // two branches' end frames side by side, still. Shown for a move ≥ SCENE_MOVE outside its ±, or any `≈` move with a divergence.
 import type { App } from "../app";
-import type { Divergence, DivergenceBranch, DivergenceEnd, RowFires, RuleSet } from "../engine/types";
+import type { Divergence, DivergenceBranch, DivergenceEnd, Row, RowFires, RuleSet } from "../engine/types";
 import { h, replace } from "./dom";
+import { nameRefs, refName, ruleName } from "./tokens";
 import { makeViewer, type Viewer } from "./viewer";
 
 const SCENE_MOVE = 0.05;
 const PHASE_MS = 1500, END_MS = 500, LINGER_MS = 600;   // each branch plays PHASE_MS, its end holds END_MS; the scene lingers, then folds to its line
 type SceneViewer = Viewer & { seek?(t: number): void; setFrame?(frame: "map" | "fight", focus?: { x: number; y: number; radius: number }): void };
 /** The fight frame on the hero where the branch starts (a few tiles around him: the moment, not the floor). */
-const FOCUS_R = 5;
+const FOCUS_R = 3;   // gfx round 1 (raters: "zoom the inset so the sprites are big"; was 5)
 
 /** `lives · D9` · `dies · D7` · `stalls · D6` — how a branch's whole run ended, in the player's words. */
 export function endText(e: DivergenceEnd): string {
@@ -23,12 +24,12 @@ export function endText(e: DivergenceEnd): string {
   return `${w} · D${e.depth}${e.oath === undefined ? "" : e.oath ? /* copy:callout */ " · oath ✓" : /* copy:callout */ " · oath ✗"}`;
 }
 /** The row a branch fired at the divergence (`R5`), or `—` when none did (a chore, a step). */
-const rowTag = (row: number | undefined): string => (row === undefined ? "—" : `R${row + 1}`);
+const rowTag = (row: number | undefined, text?: string, rows?: Row[]): string => (row === undefined ? "—" : rows?.[row] ? ruleName(rows, row) : text ? nameRefs(text) : refName(row));
 /** `R3 fires 4× more` / `R3 fires 2× less` / `R3 fires new` — the row whose fires moved most (the `≈` edit's what-changed). */
-export function firesText(f: RowFires | undefined): string | null {
+export function firesText(f: RowFires | undefined, rows?: Row[]): string | null {
   if (!f) return null;
   const r = f.new_row ?? f.sent_row; if (r === undefined) return null;
-  const tag = `R${r + 1}`;
+  const tag = rowTag(f.new_row ?? f.sent_row, f.text, f.new_row !== undefined ? rows : undefined);
   if (f.new_row === undefined) return /* copy:callout */ `${tag} gone`;
   if (f.sent <= 0.05 && f.new > 0) return /* copy:callout */ `${tag} fires new`;
   if (f.new <= 0.05 && f.sent > 0) return /* copy:callout */ `${tag} never fires`;
@@ -54,7 +55,7 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
   const clearTimers = (): void => { for (const t of timers) clearTimeout(t); timers = []; };
   const dev = (k: string, v: unknown): void => { if ("__riddle" in window) ((window as unknown as { __scene?: Record<string, unknown> }).__scene ??= {})[k] = v; };
   /** The viewer, made once the scene may play (a WebGL context only while the camp has one to show). */
-  const ensureViewer = (): Promise<SceneViewer | null> => viewerP ??= makeViewer(view).then(({ viewer: v }) => { if (gone) { v.dispose(); return null; } viewer = v as SceneViewer; return viewer; }).catch(() => null);
+  const ensureViewer = (): Promise<SceneViewer | null> => viewerP ??= makeViewer(view).then(({ viewer: v }) => { if (gone) { v.dispose(); return null; } viewer = v as SceneViewer; viewer.setQuiet?.(true); return viewer; }).catch(() => null);
 
   function stop(): void {
     clearTimers(); seq++; viewer?.setSpeed(0);
@@ -86,7 +87,7 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
     // before: the sent set's branch, ending on its run's end
     el.dataset.state = "playing"; el.dataset.phase = "sent";
     dev("playAt", performance.now()); dev("replayed", replayed);
-    replace(tag, h("span", { class: "was" }, /* copy:callout */ `sent · ${rowTag(d.sent_row)}`));
+    replace(tag, h("span", { class: "was" }, /* copy:callout */ `last run · ${rowTag(d.sent_row, d.sent.text)}`));
     branch(v, d.sent);
     dev("ends", []);
     later(PHASE_MS, () => { if (my !== seq) return; replace(end, endText(d.sent_end)); ((window as unknown as { __scene?: { ends?: string[] } }).__scene?.ends)?.push(endText(d.sent_end)); end.className = `div-end num show ${d.sent_end.tier === "death" ? "down" : "up"}`; });
@@ -94,7 +95,7 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
     later(PHASE_MS + END_MS, () => {
       if (my !== seq || !viewer) return;
       el.dataset.phase = "new"; end.classList.remove("show");
-      replace(tag, h("span", { class: "now" }, /* copy:callout */ `${rowTag(d.new_row)} now`));
+      replace(tag, h("span", { class: "now" }, /* copy:callout */ `${rowTag(d.new_row, d.new.text, app.rules.rows)} now`));
       branch(viewer, d.new);
     });
     later(2 * PHASE_MS + END_MS, () => { if (my !== seq) return; replace(end, endText(d.new_end)); ((window as unknown as { __scene?: { ends?: string[] } }).__scene?.ends)?.push(endText(d.new_end)); end.className = `div-end num show ${d.new_end.tier === "death" ? "down" : "up"}`; });
@@ -107,11 +108,11 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
       const c = h("canvas", { class: "div-still" });
       return { c, el: h("div", { class: "div-pane" }, c, h("div", { class: `div-cap num ${e.tier === "death" ? "down" : "up"}` }, label, " → ", endText(e))) };
     };
-    const a = pane(d.sent_end, /* copy:callout */ `sent · ${rowTag(d.sent_row)}`), b = pane(d.new_end, /* copy:callout */ `${rowTag(d.new_row)} now`);
+    const a = pane(d.sent_end, /* copy:callout */ `last run · ${rowTag(d.sent_row, d.sent.text)}`), b = pane(d.new_end, /* copy:callout */ `${rowTag(d.new_row, d.new.text, app.rules.rows)} now`);
     box.append(a.el, b.el); el.append(box);
     el.dataset.state = "still"; dev("playAt", performance.now());
     for (const [p, br] of [[a, d.sent], [b, d.new]] as const) {
-      const { viewer: v } = await makeViewer(p.c);
+      const { viewer: v } = await makeViewer(p.c); v.setQuiet?.(true);   // gfx round 4: a still names one foe, no plate over the hero
       if (my !== seq || gone) { v.dispose(); return; }
       const sv = v as SceneViewer; stills.push(sv); sv.resize?.();
       sv.load(br.end_snapshot); sv.setFrame?.("fight", { x: br.end_snapshot.hero.x, y: br.end_snapshot.hero.y, radius: FOCUS_R }); sv.setSpeed(0);
@@ -119,14 +120,13 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
   }
   /** The line under `vs sent`: `R5 now → lives · D9 · vs dies · D7`; inside the ±, `≈ ±6 · R3 fires 4× more` before it. */
   function paintLine(d: Divergence): void {
-    const vs = app.vsShown(), pm = vs ? Math.max(0, ...vs.depths.map((x) => x.pm ?? 0)) : 0;
-    const fires = firesText(d.fires?.[0]);
+    const fires = firesText(d.fires?.[0], app.rules.rows);
     line.hidden = false;
     replace(line,
-      d.inside ? h("span", { class: "div-flat" }, `≈${pm ? ` ±${Math.max(1, Math.round(pm * 100))}` : ""}${fires ? ` · ${fires}` : ""}`, h("i", { class: "sep" }, " · ")) : "",
-      h("b", { class: "now" }, /* copy:callout */ `${rowTag(d.new_row)} now`), " → ",
+      d.inside ? h("span", { class: "div-flat" }, /* copy:callout */ `same${fires ? ` · ${fires}` : ""}`, h("i", { class: "sep" }, " · ")) : "",
+      h("b", { class: "now" }, /* copy:callout */ `${rowTag(d.new_row, d.new.text, app.rules.rows)} now`), " → ",
       h("span", { class: d.new_end.tier === "death" ? "down" : "up" }, endText(d.new_end)),
-      h("i", { class: "sep" }, " · "), /* copy:callout */ "vs ", h("span", { class: d.sent_end.tier === "death" ? "down" : "up" }, endText(d.sent_end)));
+      h("i", { class: "sep" }, " · "), /* copy:callout */ "was ", h("span", { class: d.sent_end.tier === "death" ? "down" : "up" }, endText(d.sent_end)));
     line.dataset.inside = d.inside ? "1" : "0";
   }
   /** After an edit's refine: ask where the edited set first acts differently from the set sent, then play it (the lane is the refine's). */

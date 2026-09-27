@@ -101,7 +101,7 @@ try {
         seal: document.querySelector(".death-line .verdict")?.className, sealW: document.querySelector(".death-line .verdict")?.getBoundingClientRect().width, leanTxt: document.querySelector(".death-line .lean")?.textContent };
     });
     check(a.lead === "goblin −6 at 6 hp · 1 in 6" && a.first, `a gap 10/12 replays live leads with its event and odds ("${a.lead}", above the stamp: ${a.first})`);
-    check(/lean-seal/.test(a.seal ?? "") && (a.sealW ?? 99) < 70 && a.leanTxt === "10/12 live unpatched", `the stamp steps back beside its count (${a.seal}, ${Math.round(a.sealW ?? 0)} px; "${a.leanTxt}")`);
+    check(/lean-seal/.test(a.seal ?? "") && (a.sealW ?? 99) < 70 && a.leanTxt === "10/12 replays survive", `the stamp steps back beside its count (${a.seal}, ${Math.round(a.sealW ?? 0)} px; "${a.leanTxt}")`);
     await shot("cut28d-luck");
     await go(deathOf({ cause: "goblin", depth: 8, baseline: 2 / 12, trace: { turns: [turn(880, 1, 6)], blow } }));
     check((await txt(".death .luck-lead")) === null, "a gap most replays die of has no luck line");

@@ -89,6 +89,8 @@ export class LightField {
     this.scene.add(q);
   }
 
+  /** cohort 24: after a GL context restore, the next setMask re-uploads (three re-creates its textures; this drops our key) */
+  invalidate(): void { this.maskKey = ""; this.mask.needsUpdate = true; }
   /** the wall mask (re-uploaded only when `key` — the floor and its tile revision — changes) */
   setMask(w: number, h: number, isWall: (i: number) => boolean, key: string): void {
     if (key === this.maskKey) return;

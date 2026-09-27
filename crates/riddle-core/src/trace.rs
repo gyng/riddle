@@ -110,6 +110,8 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         route_cause: None,
         lean: None,
         luck: None,
+        // Cut 29 §3: the fight he died in, metered (the death screen's breakdown).
+        fight: (!run.meters.is_empty() && run.meters.fight.ticks > 0).then(|| crate::meters::wire(&run.meters.fight)),
     };
     let n = game.history.len();
     let pick = if stall {
@@ -1366,11 +1368,8 @@ fn set_drops(rec: &mut DeathRec) {
 
 /// Cut 11 §2: an unlock as the root text: `◆2 cond: on see`, `◆3 card: thief guard`.
 pub fn unlock_label(id: &str) -> String {
-    let cost = crate::meta::unlock_cost(id);
-    match id.strip_prefix("cond_") {
-        Some(k) => format!("◆{cost} cond: {}", k.replace('_', " ")),
-        None => format!("◆{cost} card: {}", id.replace('_', " ")),
-    }
+    // (Cut 29 §1: a free word's or card's lock is its gate — `lock_text_static`)
+    crate::meta::lock_text_static(id)
 }
 
 /// Cut 11 §2: the row that answers a theft, and the unlock it needs when the lineage cannot

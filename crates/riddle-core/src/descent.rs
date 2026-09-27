@@ -134,6 +134,11 @@ pub const FORKS: [u32; 5] = [5, 9, 14, 19, 24];
 /// their lanes want different sets (`examples/lanes.rs`).
 pub const OPEN_FORKS: [u32; 1] = [5];
 
+/// Cut 29 §1: the forks a lineage sees — `OPEN_FORKS`, and the D9 fork once an oath gave `route2`.
+pub fn fork_open_for(route2: bool, fork: u32) -> bool {
+    OPEN_FORKS.contains(&fork) || (route2 && fork == 9)
+}
+
 /// A biome's boss (on the last floor of the band it sits in).
 pub fn biome_boss(b: Biome) -> Option<&'static str> {
     match b {
@@ -291,6 +296,10 @@ pub struct Grudge {
     /// Cut 19 §5: killed once (`X is avenged.`); a later kill of the named foe reads `X slain.`
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub avenged: bool,
+    /// Cut 29 §6 (AX: `Greth is avenged` while Greth was his ally): tamed — the grudge closes as
+    /// tamed, never avenged; it lives on no floor any more.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub tamed: bool,
     /// Cut 26 §1: the biome of the floor it killed on — it lives on that biome's floor at that
     /// depth, whatever route sends a run there (`None`: the base order's, a save from before).
     #[serde(default, skip_serializing_if = "Option::is_none")]

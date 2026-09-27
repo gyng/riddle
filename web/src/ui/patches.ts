@@ -12,7 +12,10 @@ import type { App } from "../app";
 import type { Patch, Row, Trace } from "../engine/types";
 import { h, pct } from "./dom";
 import { closeX, openSheet } from "./sheet";
-import { isCardRow, rowLabel, sameCond, sameVerb } from "./tokens";
+import { isCardRow, refName, rowLabel, sameCond, sameVerb } from "./tokens";
+import { icon, verbIcon } from "./skin";
+/** gfx round 2 (raters: "the three fix rows are plain brown slabs — give each an icon, as the target does"): the fix's action plaque. */
+const patchPlaque = (row: Row | undefined): HTMLElement | "" => { const id = row ? verbIcon(row.verb.v) : null; return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
 
 const sameRow = (a: Row, b: Row): boolean => a.conds.length === b.conds.length && a.conds.every((c, i) => sameCond(c, b.conds[i]) && c.n === b.conds[i].n) && sameVerb(a.verb, b.verb);
 
@@ -76,7 +79,7 @@ export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: bo
 const replayShare = (x: number, n?: number): string => n ? `${Math.round(x * n)}/${n}` : pct(x);
 export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace, opts: PatchOpts = {}): HTMLElement {
   const head = opts.nothingBeatsBase && patches.length
-    ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `nothing beats unpatched ${replayShare(baseline ?? 1, opts.replays)}`) : null;
+    ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `none beats ${replayShare(baseline ?? 1, opts.replays)} as is`) : null;
   // QA 778fa1b (qaU: PLATEAU `base 8%` on patch 1, `base 9%` on patch 2 — "two bases for one lineage"): a stall block has one base, the
   // unpatched reach (the first patch's reach less its move, unrounded), and each patch's move is its rounded reach less it
   const lead = baseline === undefined ? patches.find((p) => !p.below_bar) : undefined;
@@ -95,17 +98,17 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     // Cut 15 §3: an insert onto a full set asks which own row to drop (`+ drop one`)
     const full = !unlock && !move && !p.remove && !p.replace && held < 0 && app.rowsFull && app.rules.rows.some((r) => !isCardRow(r));
     // QA a946e04 (S: `R1 − hp < 20% · foes ≥ 1 → drink unknown` — "delete R1?"): a cut reads as one (`cut R1`); a replace keeps `R1 ↻`
-    const target = move ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move R${p.moves_from! + 1} above R${p.insert_at + 1} `)
-      : p.remove || p.replace ? h("small", { class: "dim target" }, p.remove ? /* copy:callout */ `cut R${p.insert_at + 1} ` : `R${p.insert_at + 1} ↻ `)
+    const target = move ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move above ${refName(p.insert_at)} `)
+      : p.remove || p.replace ? h("small", { class: "dim target" }, p.remove ? /* copy:callout */ "cut " : /* copy:callout */ `replaces ${refName(p.insert_at)} `)
       // Cut 27 §5 (AT: a gas death after cutting the bloat row stamped `dice`): a row the player removed, put back where it was
-      : p.restores !== undefined ? h("small", { class: "target restore-tag" }, /* copy:callout */ `restore R${p.restores + 1} `)
+      : p.restores !== undefined ? h("small", { class: "target restore-tag" }, /* copy:callout */ "restore ")
       // Cut 19 §4: the core names the row the insert drops (`Patch.drops`, the dead run's least-fired own row) — `+ drop R5`; the tap
       // still opens the drop sheet on it (marked), so the player may drop another
       : "";
     // QA 1a2a4a9 (O: `+ drop R2 hp < 40% → drink heal` read as "put it at R2"): the drop trails the row it makes room for — `drops R2`
     // QA 778fa1b (qaU: `drops R4` and the drop sheet then marked R4 `16/16` — the busiest row): the named drop carries its fires when known
     const named = full ? dropsOf(app, p) : -1, fires = named >= 0 && app.rowFires ? app.rowFires[named] ?? 0 : undefined, total = app.rowFiresOf ?? (app.rowFires ? app.rowFires.reduce((a, b) => a + b, 0) : 0);
-    const dropTag = full ? h("small", { class: "dim target drop-tag" }, " · ", named >= 0 ? /* copy:callout */ `drops R${named + 1}` : /* copy:callout */ "drops one",
+    const dropTag = full ? h("small", { class: "dim target drop-tag" }, " · ", named >= 0 ? /* copy:callout */ `drops ${refName(named)}` : /* copy:callout */ "drops one",
       fires !== undefined && total > 0 ? h("span", { class: "num fired" }, /* copy:callout */ ` · ${fires}/${total} fires`) : "") : "";
     // QA a946e04 (T: `retreat · survives 75% · base 75%` listed like a fix): a death patch that survives no more than the rules as they
     // are changes nothing — dim, `no gain`
@@ -113,7 +116,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const noGain = (p.no_gain === true && !p.below_bar && held < 0 && !unlock) || (baseline !== undefined && !opts.stall && !p.below_bar && held < 0 && !unlock && Math.round(p.survive * 100) <= Math.round(baseline * 100));
     const rs = (x: number): string => replayShare(x, opts.replays);
     const line = held >= 0
-      ? /* copy:callout */ `at R${held + 1}`
+      ? /* copy:callout */ "already written"
       // Cut 26 §6 (control rater AQ: `nothing beats unpatched 12/12` over a tablet reading `survives 12/12`): a candidate that does not
       // beat the unpatched replays was tried, not a help — its count never reads as a headline
       : opts.nothingBeatsBase ? /* copy:callout */ "replayed · no gain"
@@ -121,10 +124,10 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
       // QA 308f045 (qaAD: `move R6 above R4 … tried · 0/12 · below bar` — "I never tried it"): the replays tried it — `replayed`
       ? /* copy:callout */ `replayed · ${rs(p.survive)} · below bar`
       : baseline === undefined
-        ? /* copy:callout */ `reach ${opts.depth !== undefined ? `D${opts.depth} ` : ""}${pct(p.survive)} · base ${Math.max(0, Math.round(p.survive * 100) - delta)}%`
+        ? /* copy:callout */ `reach ${opts.depth !== undefined ? `D${opts.depth} ` : ""}${pct(p.survive)} · was ${Math.max(0, Math.round(p.survive * 100) - delta)}%`
         // QA a946e04 (S: `base 25%` on every patch — "the base of what?"): the rules as they ran, replayed — `unpatched 25%`
-        : opts.stall ? /* copy:callout */ `unstuck ${rs(p.survive)} · unpatched ${rs(baseline)}`
-        : noGain ? /* copy:callout */ `survives ${rs(p.survive)} · no gain` : /* copy:callout */ `survives ${rs(p.survive)} · unpatched ${rs(baseline)}`;
+        : opts.stall ? /* copy:callout */ `unstuck ${rs(p.survive)} · was ${rs(baseline)}`
+        : noGain ? /* copy:callout */ `survives ${rs(p.survive)} · no gain` : /* copy:callout */ `survives ${rs(p.survive)} · was ${rs(baseline)}`;
     const onclick = unlock
       ? async (): Promise<void> => {
           const id = unlockOf(app, p);
@@ -156,7 +159,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     // a tap lights the tablet and the gem applies the lit one — one model: tablets choose, the gem acts
     const btn: HTMLButtonElement = h("button", { class: `patch tablet${move ? " move" : ""}${p.remove ? " remove" : ""}${p.below_bar || held >= 0 || opts.nothingBeatsBase || noGain ? " below" : ""}${noGain ? " no-gain" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
       onclick: opts.select ? () => opts.select!(btn) : act, ...(full ? { "data-full": "1" } : {}), ...(p.buys ? { "data-buys": p.buys.kind } : {}) },
-      h("b", { class: "rank num", "aria-hidden": "true" }), h("span", { class: "patch-main" }, label, root),
+      h("b", { class: "rank num", "aria-hidden": "true" }), patchPlaque(p.row), h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
         // Cut 17 §4: `survives N %` as a gauge on the patch tablet (the number stays beside it)
         unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
@@ -183,7 +186,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
   const best = offered.length ? Math.max(...offered.map(sv)) : -1;
   const tied = offered.filter((p) => sv(p) === best).length > 1;
   const moment = opts.moment !== undefined && baseline !== undefined && !opts.stall && rows.length
-    ? h("div", { class: "patches-moment num dim" }, /* copy:callout */ `D${opts.moment} death · replayed`, tied ? h("span", { class: "tied" }, /* copy:callout */ " · patches tie") : "") : null;   // QA 308f045 (qaAC: `GAP` over `replayed · tied`, read as "no gap"): what ties is the patches
+    ? h("div", { class: "patches-moment num dim" }, /* copy:label */ "fixes", " · ", opts.replays ? /* copy:callout */ `${opts.replays} replays of D${opts.moment}` : /* copy:callout */ `D${opts.moment} replayed`, tied ? h("span", { class: "tied" }) : "") : null;   // pass 2: the tablets read as his own rules (7/8) — they are fixes; `patches tie` read "no idea".   // QA 308f045 (qaAC: `GAP` over `replayed · tied`, read as "no gap"): what ties is the patches
   const box = h("div", { class: "patches" }, moment, ...rows); renumber(box); baseOf.set(box, campBaseAt(app)); return box;
 }
 /** QA e75ec29 (Q: "I read the gem as the best fix … rank by what is shown or show the ranking key"): the tablets carry their place
@@ -215,7 +218,7 @@ function reachSpan(p: Patch, stallish = false, base?: BaseAt): HTMLElement {
   // lower one leads"): once the whole run is measured, an exit says the floors it costs beside its word (`return early · D6 56→20%`) —
   // why it survives more and still does not lead
   const w0 = p.whole, cost = exits && w0 && !p.camp_pending && w0.reach_from !== undefined && w0.reach_to !== undefined && w0.reach < 0 && Math.abs(w0.reach) > w0.reach_pm
-    ? h("span", { class: "exit-cost down" }, ` · D${w0.depth ?? p.forecast_depth ?? ""} ${Math.round(w0.reach_from * 100)}→${Math.round(w0.reach_to * 100)}%`) : "";
+    ? h("span", { class: "exit-cost down" }, /* copy:callout */ ` · reach D${w0.depth ?? p.forecast_depth ?? ""} ${Math.round(w0.reach_from * 100)}→${Math.round(w0.reach_to * 100)}%`) : "";
   if (exits) return h("span", { class: "num delta exit early" }, p.row.verb.v === "bank" ? /* copy:callout */ "bank early" : /* copy:callout */ "return early", cost);
   if (p.camp_pending) return h("span", { class: "num delta pending" }, /* copy:callout */ "reach …");
   const delta = Math.round(p.forecast_delta * 100);
@@ -225,7 +228,8 @@ function reachSpan(p: Patch, stallish = false, base?: BaseAt): HTMLElement {
   const flat = delta === 0 || (pm !== undefined && Math.abs(delta) <= pm);
   const word = stallish ? "" : /* copy:label */ "reach ";
   const at = p.forecast_depth !== undefined ? `D${p.forecast_depth} ` : "";
-  const pmTag = pm !== undefined && !flat ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`) : "";
+  // docs/COPY.md pass 4 (`reach D6 78→26% ±14` — the ±14 read "no idea" by 4 of 6): the tablet's colour says a move is outside its noise
+  const pmTag = "";
   // QA 92eb880 (M: "`reach D7 ~0` … the camp then shows D7 12%"): a move inside the ± reads as a move, never as a reach of ~0
   // Cut 22 §4: a move is signed points in the delta look (`reach D6 +8 ±3`), `≈` inside its ± — a move, never a reach level or a chance.
   // QA 778fa1b (qaU: `reach D6 ≈ ±14` — "a spread with no value"): `≈` is no call and stands alone; the ± rides only a move
@@ -235,7 +239,8 @@ function reachSpan(p: Patch, stallish = false, base?: BaseAt): HTMLElement {
   const from = !stallish && p.forecast_depth !== undefined ? base?.(p.forecast_depth) : undefined;
   const fromTo = w?.reach_from !== undefined && w.reach_to !== undefined ? `${Math.round(w.reach_from * 100)}→${Math.round(w.reach_to * 100)}%`
     : from !== undefined ? (() => { const a = Math.round(from * 100); return `${a}→${Math.max(0, Math.min(100, a + delta))}%`; })() : undefined;
-  return flat ? h("span", { class: "num delta flat" }, `${word}${at}≈`, pm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`) : "")
+  // docs/COPY.md (pass 1: both blind readers took `reach D5 ≈ ±14` for "about D5, give or take 14"): a move inside its ± is `≈` alone
+  return flat ? h("span", { class: "num delta flat" }, `${word}${at}`, /* copy:callout */ "same")
     : h("span", { class: `num delta ${delta > 0 ? "up" : "down"}` }, `${word}${at}${fromTo ?? `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`}`, pmTag);
 }
 
@@ -351,7 +356,7 @@ export function openDropSheet(app: App, p: Patch, trace?: Trace): void {
       class: `drop-row${i === least ? " least" : ""}`, "data-row": String(i),
       onclick: () => { close(); const at = app.applyPatchOver(p, i); app.go({ kind: "camp", highlight: at }); },
     },
-    h("b", { class: "num" }, `R${i + 1}`), " ", h("span", { class: "chips-inline" }, rowLabel(r)),
+    h("span", { class: "chips-inline" }, rowLabel(r)),
     fires ? h("span", { class: "num fired dim" }, /* copy:callout */ ` · ${fires[i] ?? 0}/${total} fires`) : "",   // QA 778fa1b (qaU: `· 15/16` with no unit)
     i === least ? h("span", { class: "num mark" }, "↓") : ""))));
 }

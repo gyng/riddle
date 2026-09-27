@@ -18,7 +18,10 @@ import type { App } from "../app";
 import type { Cond, Row, RowWhy, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash, twoTap } from "./dom";
 import { openSheet } from "./sheet";
-import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, sameCond, sameVerb, verbLabel } from "./tokens";
+import { icon, verbIcon } from "./skin";
+/** gfx round 1: the action's icon plaque at a tablet's right end (camp.png); nothing when its icon is not packed. */
+const verbPlaque = (row: Row): HTMLElement | "" => { const id = verbIcon(row.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
+import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, ruleName, sameCond, sameVerb, verbLabel } from "./tokens";
 
 export type Editor = { el: HTMLElement; refresh(): void; paintShadow(): void };
 /** Cut 17 §2: the camp's tablets. `compact()` true: each row is one carved tablet (`R1  hp < 30% → drink unknown`), a single
@@ -71,7 +74,7 @@ export function rowChips(row: Row): HTMLElement {
 }
 /** Cut 6 §6: the sheet behind a `[card]` row or an owned automation: its rows as chips, nothing else. */
 export function openRowsSheet(rows: Row[]): void {
-  openSheet(() => h("div", { class: "sheet-body card-rows" }, h("div", { class: "label row-label" }, /* copy:label */ "card"), ...rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))));
+  openSheet(() => h("div", { class: "sheet-body card-rows" }, h("div", { class: "label row-label" }, /* copy:label */ "tactic"), ...rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))));
 }
 /** Cut 9 §4: a card's trigger as text — the conds of its first row (`foes ≥ 2 · corridor`); `always` when that row has none. */
 export function cardTrigger(cardRows: Row[] | undefined): string | undefined {
@@ -89,7 +92,8 @@ export function dropRows(rows: Row[], max: number): Set<number> {
 export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts = {}): Editor {
   const list = h("div", { class: "rows" });
   const foot = h("div", { class: "rows-foot" });
-  const el = h("section", { class: "editor" }, list, foot);
+  // docs/COPY.md pass 5 (the tablets' `1`, `2` read as order, never as which acts first — 6/6): the column says what its numbers are
+  const el = h("section", { class: "editor" }, h("small", { class: "rows-head dim" }, /* copy:label */ "priority"), list, foot);
   let hl = highlight;
   let hlUntil = highlight !== undefined ? performance.now() + 2400 : 0; // survives the camp's repaint right after mount
   const vocab = (): Vocabulary => bind.vocab();
@@ -109,7 +113,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       // tap — `0/164 · no gas met`, `3/164 · blocked · no scroll` and the reason's gloss — with `edit` under it; else the tap edits
       rows().forEach((row, i) => { const b: HTMLButtonElement = h("button", { class: `row tablet compact${isCardRow(row) ? " locked" : ""}`, "data-i": i,
         onclick: () => { const w = bind.rowWhy?.()[i]; if (w) openWhy(i, b, () => opts.onTablet?.(i)); else opts.onTablet?.(i); } },
-        h("span", { class: "rn num" }, `R${i + 1}`), h("span", { class: "rtext" }, rowLabel(row))); list.appendChild(b); });
+        h("span", { class: "rn num" }, `${i + 1}`), h("span", { class: "rtext" }, rowLabel(row)), verbPlaque(row)); list.appendChild(b); });
       paintShadow();
       return;
     }
@@ -126,7 +130,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     // QA 912e135 (qaW: `4/5 · 1 card` under R1–R5, read as four rows shown): the cap names its unit and the card adds to it — `4/5 rows +
     // 1 card`, the tablets on screen the sum
     foot.append(
-      h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`, cards ? /* copy:callout */ " rows" : "", cards ? h("small", { class: "dim cards" }, /* copy:callout */ ` + ${cards} card${cards === 1 ? "" : "s"}`) : ""),
+      h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`, cards ? /* copy:callout */ " rules" : "", cards ? h("small", { class: "dim cards" }, /* copy:callout */ ` + ${cards} tactic${cards === 1 ? "" : "s"}`) : ""),
       // QA 778fa1b (qaV friction: the new `hp < 50% → …` row landed last, under `foes ≥ 1 → attack nearest`, shadowed until stepped up 4
       // times): it goes in above the first own row with no hp cond (the broad engagement rows), under the hp rows before it
       // QA 0c6e126 (qaY: "`+` adds `hp < 50% → attack lowest` in the middle (R3) instead of at the end, so every add needs a reorder"): the `+`
@@ -162,7 +166,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
         if (text) text.appendChild(m); else if (grip) grip.appendChild(m); else el.appendChild(m);
       }
       if (!on) return;
-      const mark = h("small", { class: "shadow-mark num", title: `R${by + 1}` }, `↑ R${by + 1}`);
+      const mark = h("small", { class: "shadow-mark num" }, /* copy:callout */ `under ${ruleName(rows, by)}`);
       // compact: inside the tablet's text; editing: under the row's number on its grip (the chips stay the row's cond → verb)
       const text = el.querySelector(":scope > .rtext"), grip = el.querySelector(":scope > .grip");
       if (text) text.appendChild(mark); else if (grip) grip.appendChild(mark); else el.appendChild(mark);
@@ -199,7 +203,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       chips.appendChild(h("span", { class: "arrow" }, "→"));
       chips.appendChild(h("button", { class: "chip verb", onclick: (e: Event) => pickVerb(row, rowOf(e)) }, verbLabel(row.verb)));
     }
-    const grip = h("button", { class: "grip", onpointerdown: (e) => startDrag(e as PointerEvent, i) }, "≡", h("small", { class: "rn num" }, `R${i + 1}`));
+    const grip = h("button", { class: "grip", onpointerdown: (e) => startDrag(e as PointerEvent, i) }, "≡", h("small", { class: "rn num" }, `${i + 1}`));
     const n = rows().length;
     const swap = (to: number): void => { const rs = rows(); const [r] = rs.splice(i, 1); rs.splice(to, 0, r); hl = to; hlUntil = performance.now() + 1600; commit(); };
     const updown = h("div", { class: "updown" },
@@ -217,7 +221,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   function pickCond(row: Row, ci: number, anchor?: HTMLElement): void {
     const existing = row.conds[ci];
     openSheet((close) => {
-      const body = h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "cond"));   // Cut 13 §6: every sheet is titled
+      const body = h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "condition"));   // Cut 13 §6: every sheet is titled
       // the row's `×` (remove this cond) sits at the top, above the ~90 tokens (QA on 952e306: "× at the very bottom of a ~90-entry list")
       if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); edited(row); close(); } }, "×"));
       // QA 92eb880 (M, N: "a threshold change is three taps … the chip opens the whole list, not the value"): a chip with a number
@@ -249,7 +253,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   function pickN(body: HTMLElement, c: Cond, done: (n: number) => void, cur?: number): void {
     clear(body);
     const pctish = PCT.has(c.k);
-    body.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "cond"));
+    body.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "condition"));
     body.appendChild(h("div", { class: "sheet-head" }, condName(c.k)));
     const grid = h("div", { class: "grid nums" });
     for (const n of numsOf(c.k) ?? []) grid.appendChild(h("button", { class: `chip num${n === cur ? " on" : ""}`, onclick: () => done(n) }, `${n}${pctish ? "%" : ""}`));
@@ -282,7 +286,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
         const why = (r.verb.v === "drink" || r.verb.v === "read") && r.verb.a && r.verb.a !== "unknown" ? /* copy:rule_token */ "unknown" : "";
         grid.appendChild(h("span", { class: "chip verb locked off", "aria-disabled": "true" }, "⊘ ", key, why ? h("small", { class: "needs dim" }, why) : ""));
       }
-      return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "verb"), grid);
+      return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "action"), grid);
     }, { anchor });
   }
 
@@ -296,13 +300,14 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     const g0 = glossOf(gloss, reason), g = g0 && reason && g0.includes(reason) ? undefined : g0;
     const by = bind.shadowedBy?.()[i] ?? formShadow(rows(), i);
     openSheet((close) => h("div", { class: "sheet-body row-why", "data-row": i },
-      h("div", { class: "label row-label" }, /* copy:label */ "why", " ", h("small", { class: "num dim" }, `R${i + 1}`)),
-      h("div", { class: "why-row chips-inline dim" }, rowLabel(row)),
+      h("div", { class: "label row-label" }, /* copy:label */ "why"),
+      h("div", { class: "why-row chips-inline dim" }, verbPlaque(row), rowLabel(row)),   // gfx round 2: the rule's action icon heads its why
       // QA 912e135 (qaW: `8/15317` on R1 and `23/16077` on R3 of one set — "denominators differ"): the count is over the sends the row
       // sat in (an edited row starts over), and the line says how many (`8/15317 · 14 sends`)
-      h("div", { class: "why-line num" }, w.text, w.sends > 0 ? h("small", { class: "dim why-sends" }, /* copy:callout */ ` · ${w.sends} send${w.sends === 1 ? "" : "s"}`) : ""),
+      // docs/COPY.md (pass 1: `19/13754 acts · 17 sends` — "acts? sends?"): the glossary's words, `turns` and `runs`
+      h("div", { class: "why-line num" }, w.text.replace(/^(\d+)\/(\d+) acts\b/, /* copy:callout */ "fired $1/$2 turns"), w.sends > 0 ? h("small", { class: "dim why-sends" }, /* copy:callout */ ` · ${w.sends} run${w.sends === 1 ? "" : "s"}`) : ""),
       g ? h("div", { class: "why-gloss num" }, h("span", { class: "dim" }, `${reason} · `), g) : "",
-      by !== null && by !== undefined && by < i ? h("div", { class: "why-gloss num" }, /* copy:callout */ `↑ R${by + 1} first`) : "",
+      by !== null && by !== undefined && by < i ? h("div", { class: "why-gloss num" }, /* copy:callout */ `under ${ruleName(rows(), by)}`) : "",
       edit ? h("button", { class: "btn primary wide why-edit", onclick: () => { close(); edit(); } }, /* copy:button */ "edit") : ""), { anchor });
   }
 

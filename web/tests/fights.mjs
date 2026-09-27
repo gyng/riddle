@@ -81,8 +81,8 @@ try {
   // (the fake's D4 kills a hero in his first costly fight: the card's gates run on its gentle D1 with the first floors' mode off, `early=0`)
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
   let s = await waitFor((x) => x?.booted && inRun(x) && x.mode, "the watch");
-  check(s.mode === "fights" && s.on.join() === "fights", `fights is the default mode (on: ${s.on.join(", ")})`);
-  check(s.buttons.join(" ") === "fights fast 1× ▶▶| bail", `the buttons read fights · fast · 1× · ▶▶| · bail (Cut 25 §3: the plain 1×) (${s.buttons.join(" · ")})`);
+  check(s.mode === "fights" && s.on.join() === "highlights", `fights is the default mode (on: ${s.on.join(", ")})`);
+  check(s.buttons.join(" ") === "highlights fast normal ▶▶| bail", `the buttons read highlights · fast · normal · ▶▶| · bail (Cut 25 §3: the plain 1×, docs/COPY.md: its word \`normal\`) (${s.buttons.join(" · ")})`);
   // the card: the ambient line over the map, the clock held; then the first fight at 1×
   // Cut 15 §4: the card is short (≤ 1.2 s; 0.5 s before a beat — seed 5 opens on a situation), so the tap is made in the page the
   // frame the card is seen
@@ -118,9 +118,9 @@ try {
     await press("fast");
     s = await waitFor((x) => !inRun(x) || (x.mode === "fast" && x.card === "0"), "fast mode", 2000);
     check(s.mode === "fast" && s.on.join() === "fast" && s.card === "0" && (s.speed >= 16 || s.speed === 4 || s.speed === 1 || (s.held && s.speed <= 4)), `fast: the card is gone and the clock runs 16× / 4× (speed ${s.speed}${s.held ? ", a beat held" : ""})`);
-    await press("fights");
+    await press("highlights");
     s = await waitFor((x) => !inRun(x) || x.mode === "fights", "fights mode again", 2000);
-    check(s.mode === "fights" && s.on.join() === "fights", "fights again");
+    check(s.mode === "fights" && s.on.join() === "highlights", "fights again");
   }
   // the run ends on its own within the budget
   s = await waitFor((x) => x && x.screen !== "watch", "the run's end", 120_000);
@@ -421,7 +421,7 @@ try {
     poll();
   }));
   const one = { ok: !!lines.both && lines.both.length === 1 && lines.maxLines <= 1, line: `a row and a telegraph on one tick draw one line over the fight (${lines.both ? lines.both.join(" · ") : "telegraph never drawn"}; at most ${lines.maxLines} a frame)` };
-  const row = { ok: lines.rule === "R1 · attack nearest", line: `the row reads on the ticker meanwhile ("${lines.rule ?? "never"}")` };
+  const row = { ok: lines.rule === "attack nearest", line: `the row reads on the ticker meanwhile ("${lines.rule ?? "never"}")` };
   return { ok: one.ok && row.ok, line: `${one.line} · ${row.line}`, one, row };
   });
   const calloutRetried = callout.line.includes(" [retried") ? callout.line.slice(callout.line.indexOf(" [retried")) : "";
@@ -464,7 +464,7 @@ try {
     const one = await measured(async () => {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1`, { waitUntil: "domcontentloaded" });
     await waitFor((x) => x?.booted && inRun(x) && x.mode, "the watch (1×)");
-    await press("1×");
+    await press("normal");
     const d = await page.evaluate(() => new Promise((res) => {
       const t0 = performance.now(); let cur = null, since = 0, sinceTick = 0, maxMs = 0, maxTicks = 0, dead = 0, at = "", depth = "";
       const poll = () => {

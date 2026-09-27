@@ -133,6 +133,9 @@ try {
   check((await page.evaluate(() => window.__audio.droneState())) === null, "in a run the drone is gone");
   const bed = await page.evaluate(() => window.__audio.bedState());
   check(bed === "warrens", `in a run the biome's ambience bed is up (${bed})`);
+  // gfx round 4 (docs/JUICE.md §10): a big moment ducks the bed under it (a boss's entrance here)
+  const ducked = await page.evaluate(() => { const a = window.__audio, n0 = a.ducks; a.cue("boss_in"); return a.ducks - n0; });
+  check(ducked === 1, `a boss's entrance ducks the ambience bed (${ducked} duck)`);
   const t = Date.now();
   while (Date.now() - t < 90_000) {
     const s = await state();

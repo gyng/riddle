@@ -932,12 +932,14 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
  *  in the core's order (oath · plateau · counter · record · death · driven · bounty · pending), ≤ 4. */
 function mergeLead(a: ReturnReport, b: ReturnReport): Pick<ReturnReport, "oath" | "lead"> {
   const oath = !a.oath ? b.oath : !b.oath ? a.oath : a.oath.id !== b.oath.id ? (a.oath.done ? a.oath : b.oath)
-    : { ...b.oath, runs: a.oath.runs + b.oath.runs, kept: a.oath.kept + b.oath.kept, done: a.oath.done || b.oath.done, reward: b.oath.reward ?? a.oath.reward };
+    : { ...b.oath, runs: a.oath.runs + b.oath.runs, kept: a.oath.kept + b.oath.kept, done: a.oath.done || b.oath.done, reward: b.oath.reward ?? a.oath.reward,
+        // Cut 28b: the sends that broke it add up; the cause is the slice's that broke it most
+        broken: (a.oath.broken ?? 0) + (b.oath.broken ?? 0), cause: (b.oath.broken ?? 0) >= (a.oath.broken ?? 0) ? b.oath.cause ?? a.oath.cause : a.oath.cause ?? b.oath.cause };
   if (!a.lead && !b.lead) return oath ? { oath } : {};
   const ORDER = ["oath", "plateau", "counter", "record", "death", "driven", "bounty", "pending"];
   const by = new Map<string, { k: string; text: string }>();
   for (const l of [...(a.lead ?? []), ...(b.lead ?? [])]) if (l.k !== "plateau" || (b.lead ?? []).some((x) => x.k === "plateau")) by.set(l.k === "counter" ? `counter:${l.text}` : l.k, l);
-  if (oath && (a.oath && b.oath)) by.set("oath", { k: "oath", text: oath.done ? /* copy:none */ `oath kept: ${oath.text}` : /* copy:none */ `oath: ${oath.text} · ${oath.kept}/${oath.runs}` });
+  if (oath && (a.oath && b.oath)) by.set("oath", { k: "oath", text: oath.done ? /* copy:none */ `oath kept: ${oath.text}` : oath.broken && oath.cause ? /* copy:none */ `oath broken: ${oath.cause} ×${oath.broken}` : /* copy:none */ `oath: ${oath.text} · ${oath.kept}/${oath.runs}` });
   const rank = (k: string): number => { const i = ORDER.indexOf(k.split(":")[0]); return i < 0 ? ORDER.length : i; };
   const lead = [...by.entries()].sort((x, y) => rank(x[0]) - rank(y[0])).map(([, l]) => l).slice(0, 4);
   return { ...(oath ? { oath } : {}), lead };

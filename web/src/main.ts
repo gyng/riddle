@@ -1,5 +1,6 @@
 // Entry. app.ts owns the state machine (client track); render/ owns the viewer (renderer track).
 import "./styles.css";
+import "./wide.css";   // the wide frame (desktop ≥ 1024 px): rules left, the well centre, the shaft right
 import "./juice";   // juice (docs/JUICE.md): UI motion switch + purse count-up (juice.css)
 import { start, type DevOptions } from "./app";
 start(readDevParams());

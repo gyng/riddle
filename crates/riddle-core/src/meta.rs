@@ -8,64 +8,180 @@ pub struct UnlockDef {
     pub id: &'static str,
     pub cost: u32,
     pub prereq: Option<&'static str>,
+    /// Cut 29 §1: the tier that opens it (`tier`: T0 from the start, T1 at the first bank, T*k*
+    /// once *k* − 1 band bosses have been met — their floor reached).
+    pub tier: u32,
+    /// How it is had (`Via`).
+    pub via: Via,
 }
 
-/// The catalogue, in the contract's order. Costs in marks; `needs` (fact/trophy gates) are
-/// in `gate` below and surfaced as `UnlockInfo.needs`.
+/// Cut 29 §1: how an unlock is had.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Via {
+    /// Bought with marks (`cost`), or for gold on the forge's ladder when it is a row slot.
+    Marks,
+    /// Free vocabulary: owned the moment its gate opens (`grant_free`) — the condition words and
+    /// the cards that carry nothing a row cannot type (0/18 lineages moved by them).
+    Free,
+    /// Bought with gold only, at this many forge units (`kit::unit_of`): the automations.
+    Gold(u32),
+    /// Never sold: an oath's reward (`oath::POOL`).
+    Oath,
+}
+
+const fn m(id: &'static str, cost: u32, prereq: Option<&'static str>, tier: u32) -> UnlockDef {
+    UnlockDef { id, cost, prereq, tier, via: Via::Marks }
+}
+const fn free(id: &'static str, tier: u32) -> UnlockDef {
+    UnlockDef { id, cost: 0, prereq: None, tier, via: Via::Free }
+}
+const fn gold(id: &'static str, units: u32) -> UnlockDef {
+    UnlockDef { id, cost: 0, prereq: None, tier: 4, via: Via::Gold(units) }
+}
+const fn oath(id: &'static str, prereq: Option<&'static str>, tier: u32) -> UnlockDef {
+    UnlockDef { id, cost: 0, prereq, tier, via: Via::Oath }
+}
+
+/// The catalogue (Cut 29 §1, docs/PROGRESSION.md §4): six tiers opened by meeting the band bosses,
+/// every price ≤ ◆8, the rows monotonic (3 · 4 · 5 · 6 · 7 · 8). The condition words and the cards a
+/// row could type are free vocabulary; the automations are gold (at the Lich); the party slots, gas
+/// step, last stand, the verb `hold`, the D9 route and the heir pick are oath rewards, never sold.
+/// Fact gates (`gate`) stand as before. (Cut 29 §4: `quartermaster` and `auto_insure` left the
+/// catalogue — both are the default now: `LineageState::keep_auto`, the standing orders' insure.)
 pub const UNLOCKS: &[UnlockDef] = &[
-    UnlockDef { id: "row5", cost: 2, prereq: None },
-    UnlockDef { id: "row6", cost: 4, prereq: Some("row5") },
-    UnlockDef { id: "row7", cost: 7, prereq: Some("row6") },
-    UnlockDef { id: "row8", cost: 11, prereq: Some("row7") },
-    UnlockDef { id: "party_slot_2", cost: 4, prereq: None },
-    UnlockDef { id: "party_slot_3", cost: 9, prereq: Some("party_slot_2") },
-    UnlockDef { id: "vault2", cost: 3, prereq: None },
-    UnlockDef { id: "vault3", cost: 6, prereq: Some("vault2") },
-    // Cut 24: 9 (was 10) — the dayplayer's deeper lineages held 9 marks with the rest gated.
-    UnlockDef { id: "vault4", cost: 9, prereq: Some("vault3") },
-    // Cut 8B §2: the rogue is free at the first bank (a second class in the first hour).
-    UnlockDef { id: "rogue", cost: 0, prereq: None },
-    UnlockDef { id: "ranger", cost: 6, prereq: None },
-    UnlockDef { id: "caster", cost: 8, prereq: None },
-    // Cut 8B §3: `tame` is owned from the start (the kennel's leash is on the shelf); cost 0.
-    UnlockDef { id: "tame", cost: 0, prereq: None },
-    UnlockDef { id: "throw", cost: 2, prereq: None },
-    UnlockDef { id: "cond_alert", cost: 2, prereq: None },
-    UnlockDef { id: "cond_turns", cost: 2, prereq: None },
-    UnlockDef { id: "cond_loot", cost: 2, prereq: None },
-    UnlockDef { id: "cond_on_kill", cost: 2, prereq: None },
-    UnlockDef { id: "cond_on_see", cost: 2, prereq: None },
-    UnlockDef { id: "cond_party_hp", cost: 2, prereq: None },
-    UnlockDef { id: "corridor_fighting", cost: 3, prereq: None },
-    // Cut 23 §3 (AJ: "paid cards are rows he could type"): a card whose rows are all in the
-    // typed vocabulary is free (`card_carries`: kite archers, stair dance, noise discipline,
-    // deep march); the paid ones carry a verb or a bound target no row can.
-    UnlockDef { id: "kite_archers", cost: 0, prereq: None },
-    UnlockDef { id: "stair_dance", cost: 0, prereq: None },
-    UnlockDef { id: "gas_step", cost: 3, prereq: None },
-    UnlockDef { id: "pack_break", cost: 3, prereq: None },
-    UnlockDef { id: "thief_guard", cost: 3, prereq: None },
-    UnlockDef { id: "boss_focus", cost: 3, prereq: None },
-    UnlockDef { id: "last_stand", cost: 3, prereq: None },
-    UnlockDef { id: "quartermaster", cost: 5, prereq: None },
-    UnlockDef { id: "auto_insure", cost: 6, prereq: None },
-    UnlockDef { id: "incubator", cost: 4, prereq: None },
-    UnlockDef { id: "supply_cap_5", cost: 3, prereq: None },
-    UnlockDef { id: "bone_sense", cost: 3, prereq: None },
-    UnlockDef { id: "third_tag", cost: 6, prereq: None },
-    // Cut 3: tier 2 (needs a boss). Cut 4: 8–12 (income after the cheap catalogue is ~2
-    // marks a day plus a first-bank mark per depth; 14–18 stalled the fortnight's purchases).
-    UnlockDef { id: "row9", cost: 8, prereq: Some("row8") },
-    UnlockDef { id: "row10", cost: 12, prereq: Some("row9") },
-    UnlockDef { id: "vault5", cost: 8, prereq: Some("vault4") },
-    UnlockDef { id: "party_slot_4", cost: 8, prereq: Some("party_slot_3") },
-    UnlockDef { id: "cadence", cost: 5, prereq: None },
-    UnlockDef { id: "noise_discipline", cost: 0, prereq: None },
-    UnlockDef { id: "reflect_read", cost: 5, prereq: None },
-    UnlockDef { id: "deep_march", cost: 0, prereq: None },
-    UnlockDef { id: "lantern_rig", cost: 6, prereq: None },
-    UnlockDef { id: "recall_sense", cost: 8, prereq: None },
+    // T0 · free vocabulary (still fact-gated), the leash, the rogue (first bank).
+    free("cond_alert", 0),
+    free("cond_turns", 0),
+    free("cond_loot", 0),
+    free("cond_on_kill", 0),
+    free("cond_on_see", 0),
+    free("cond_party_hp", 0),
+    free("tame", 0),
+    free("rogue", 0),
+    free("kite_archers", 0),
+    free("stair_dance", 0),
+    free("noise_discipline", 0),
+    free("deep_march", 0),
+    // T1 · the first bank.
+    m("row5", 3, None, 1),
+    m("throw", 3, None, 1),
+    m("vault2", 3, None, 1),
+    // T2 · the Warlord met (D8).
+    m("row6", 4, Some("row5"), 2),
+    m("corridor_fighting", 4, None, 2),
+    m("pack_break", 4, None, 2),
+    m("thief_guard", 4, None, 2),
+    // T3 · the Mother met (D13).
+    m("row7", 5, Some("row6"), 3),
+    m("ranger", 6, None, 3),
+    m("boss_focus", 4, None, 3),
+    m("vault3", 5, Some("vault2"), 3),
+    m("oath_slot_2", 6, None, 3),
+    // T4 · the Lich met (D18).
+    m("row8", 6, Some("row7"), 4),
+    m("caster", 8, None, 4),
+    m("reflect_read", 5, None, 4),
+    m("vault4", 6, Some("vault3"), 4),
+    // T5 · the Foundry Master met (D23).
+    m("row9", 7, Some("row8"), 5),
+    m("cadence", 5, None, 5),
+    m("lantern_rig", 5, None, 5),
+    m("recall_sense", 6, None, 5),
+    m("vault5", 7, Some("vault4"), 5),
+    // T6 · the Lurker Queen met (D28).
+    m("row10", 8, Some("row9"), 6),
+    m("oath_slot_3", 8, Some("oath_slot_2"), 6),
+    // Automations: gold, at the Lich (T4), 3–5 forge units.
+    gold("supply_cap_5", 5),
+    gold("bone_sense", 3),
+    gold("incubator", 3),
+    gold("third_tag", 4),
+    // Oath rewards (never sold): `oath::POOL`.
+    oath("party_slot_2", None, 2),
+    oath("hold", None, 2),
+    oath("gas_step", None, 3),
+    oath("party_slot_3", Some("party_slot_2"), 3),
+    oath("route2", None, 4),
+    oath("last_stand", None, 4),
+    oath("heir_pick", None, 5),
+    oath("party_slot_4", Some("party_slot_3"), 5),
 ];
+
+/// Cut 29 §1: the band bosses met — each whose floor the lineage's best depth has reached, or
+/// whom it has seen (`foe:<kind>`) or slain.
+pub fn bosses_met(l: &LineageState) -> u32 {
+    crate::descent::BOSS_DEPTHS.iter().filter(|(k, d)| l.best_depth >= *d || l.kills.contains(*k) || l.facts.contains(&format!("foe:{k}"))).count() as u32
+}
+
+/// Cut 29 §1: the lineage's tier — 0 before the first bank, 1 after it, then one more per band
+/// boss met (T2 the Warlord, … T6 the Lurker Queen).
+pub fn tier(l: &LineageState) -> u32 {
+    let met = bosses_met(l);
+    let banked = !l.banked_depths.is_empty() || met > 0;
+    if banked {
+        (1 + met).min(6)
+    } else {
+        0
+    }
+}
+
+/// The gate of a tier (≤ 3 words): what opens it.
+pub fn tier_need(t: u32) -> &'static str {
+    match t {
+        0 => "",
+        1 => "bank once",
+        2 => "meet Warlord",
+        3 => "meet Mother",
+        4 => "meet Lich",
+        5 => "meet Foundry",
+        _ => "meet Queen",
+    }
+}
+
+pub fn def(id: &str) -> Option<&'static UnlockDef> {
+    UNLOCKS.iter().find(|u| u.id == id)
+}
+
+/// Cut 29 §1: the free vocabulary whose gate is open, owned now (`Via::Free`); the ids granted.
+pub fn grant_free(l: &mut LineageState) -> Vec<&'static str> {
+    let t = tier(l);
+    let mut out = Vec::new();
+    for u in UNLOCKS.iter().filter(|u| u.via == Via::Free && u.tier <= t) {
+        if !l.unlocks.contains(u.id) && gate(l, u.id).is_none() {
+            l.unlocks.insert(u.id.to_string());
+            out.push(u.id);
+        }
+    }
+    out
+}
+
+/// Cut 29 §1: what lifts a lock on `id` (a cond word, a card), ≤ 4 words: `◆3 card: boss focus`
+/// for a sold one; the free vocabulary's own gate (`see alert rise`), or `cond: alert` once open.
+pub fn lock_text(l: &LineageState, id: &str) -> String {
+    let (kind, word) = match id.strip_prefix("cond_") {
+        Some(k) => ("cond", k.replace('_', " ")),
+        None => ("card", id.replace('_', " ")),
+    };
+    match def(id).map(|d| d.via) {
+        Some(Via::Free) => gate(l, id).unwrap_or_else(|| format!("{kind}: {word}")),
+        _ => format!("◆{} {kind}: {word}", unlock_cost(id)),
+    }
+}
+
+/// `lock_text` without the lineage (a run's reasons): a free word's gate as its text says it.
+pub fn lock_text_static(id: &str) -> String {
+    match id {
+        "cond_alert" => "see alert rise".into(),
+        "cond_on_kill" => "a kill".into(),
+        "cond_on_see" => "meet a foe".into(),
+        "cond_party_hp" => "tame a foe".into(),
+        _ => lock_text(&LineageState::new(0), id),
+    }
+}
+
+/// Cut 29 §1: the oath draw — ◆2 for a fresh standing oath, repeatable, from T2.
+pub const OATH_DRAW_COST: u32 = 2;
+pub const OATH_DRAW_TIER: u32 = 2;
 
 /// The eight tactic cards (Cut 2 §3) plus the four mastery cards (class L10).
 pub const TACTIC_CARDS: [&str; 8] = ["corridor_fighting", "kite_archers", "stair_dance", "gas_step", "pack_break", "thief_guard", "boss_focus", "last_stand"];
@@ -88,7 +204,7 @@ pub fn cond_unlock(k: &str) -> Option<&'static str> {
     COND_UNLOCKS.iter().find(|(t, _)| *t == k).map(|(_, u)| *u)
 }
 
-/// An unlock's cost in marks (0 for an unknown id).
+/// An unlock's cost in marks (0 for an unknown id, a free, gold-only or oath unlock).
 pub fn unlock_cost(id: &str) -> u32 {
     UNLOCKS.iter().find(|u| u.id == id).map(|u| u.cost).unwrap_or(0)
 }
@@ -96,15 +212,16 @@ pub fn unlock_cost(id: &str) -> u32 {
 /// The fact/trophy gate of an unlock: `None` when open, else the human-readable need.
 pub fn gate(l: &LineageState, id: &str) -> Option<String> {
     let need = |ok: bool, text: &str| if ok { None } else { Some(text.to_string()) };
+    // Cut 29 §1: the tier first (a boss met opens it), then the unlock's own fact gate.
+    if let Some(d) = def(id) {
+        if tier(l) < d.tier {
+            return Some(tier_need(d.tier).to_string());
+        }
+    }
     match id {
         // Cut 9 §2/§10: the party slots read as the player does (`tame a foe`).
-        "party_slot_2" => need(l.tamed_kinds() >= 1, "tame a foe"),
-        "party_slot_3" => need(l.tamed_kinds() >= 3, "tame 3 kinds"),
         "rogue" => need(!l.banked_depths.is_empty(), "bank once"),
-        "ranger" => need(l.bosses_slain() >= 1, "slay a boss"),
-        // Cut 25 §6 (AM: `+1 row ⊘ slay 3 bosses` locked after four Warlord kills): the count is of
-        // boss kinds slain (`LineageState::kills` holds kinds) — the copy says so.
-        "caster" => need(l.bosses_slain() >= 2, "2 boss kinds"),
+        // (Cut 29 §1: the classes open with their tier — the Mother met, the Lich met)
         "tame" => need(l.facts.contains("item:leash"), "find a leash"),
         "cond_alert" => need(l.facts.contains("alert:rising"), "see alert rise"),
         "cond_on_kill" => need(!l.kills.is_empty(), "a kill"),
@@ -121,10 +238,7 @@ pub fn gate(l: &LineageState, id: &str) -> Option<String> {
         "incubator" => need(l.eggs_laid >= 1 || !l.eggs.is_empty(), "an egg"),
         "bone_sense" => need(l.facts.iter().any(|f| f.starts_with("bones:")), "a death"),
         "third_tag" => need(!l.bred.is_empty(), "breed once"),
-        // Cut 3 tier 2.
-        "row9" | "vault5" => need(l.bosses_slain() >= 3, "3 boss kinds"),
-        "row10" => need(l.bosses_slain() >= 4, "4 boss kinds"),
-        "party_slot_4" => need(l.tamed_kinds() >= 6, "tame 6 kinds"),
+        // (Cut 29 §1: rows 9–10 and vault 5 open with their tiers; the party slots are oath rewards)
         "cadence" => need(has_tag_fact(&l.facts, "mirror"), "fact: mirror"),
         "noise_discipline" => need(has_tag_fact(&l.facts, "blind"), "fact: blind"),
         "reflect_read" => need(has_tag_fact(&l.facts, "reflect_melee"), "fact: reflect_melee"),
@@ -162,7 +276,20 @@ pub fn needs(l: &LineageState, u: &UnlockDef) -> Option<String> {
     gate(l, u.id)
         .or_else(|| u.prereq.filter(|p| !l.unlocks.contains(*p)).map(|p| p.to_string()))
         .or_else(|| (is_row_unlock(u.id) && l.rules().own_rows() < l.max_rows()).then(|| "fill rows".to_string()))
-        .or_else(|| (l.marks < u.cost).then(|| format!("◆{} more", u.cost - l.marks)))
+        .or_else(|| match u.via {
+            // Cut 29 §1: an automation is gold only — short of the purse, the gold it wants.
+            Via::Gold(_) => {
+                let price = unlock_gold(l, u, l.gold_buys) as i32;
+                (l.gold < price).then(|| format!("${} more", price - l.gold))
+            }
+            _ => (l.marks < u.cost).then(|| format!("◆{} more", u.cost - l.marks)),
+        })
+}
+
+/// Cut 29 §1: an unlock the camp sells (marks, or gold for an automation) — the free vocabulary
+/// arrives on its own and the oath rewards are never sold.
+pub fn sold(u: &UnlockDef) -> bool {
+    matches!(u.via, Via::Marks | Via::Gold(_))
 }
 
 /// Cut 10 §3: a row unlock (`row5`…`row10`) reads `needs: fill rows` (a requirement, not a state — both QA players on 952e306 read `rows full` as one) while the active set
@@ -176,6 +303,7 @@ pub fn is_row_unlock(id: &str) -> bool {
 pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
     let mut cat: Vec<UnlockInfo> = UNLOCKS
         .iter()
+        .filter(|u| sold(u))
         .map(|u| {
             let owned = l.unlocks.contains(u.id);
             // Cut 9 §2: every card that is not `available` says why (a shut gate, a missing
@@ -188,9 +316,9 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
             // Cut 19 §3: the next row unlock is pinned to the short list.
             let pinned = !owned && is_row_unlock(u.id) && u.prereq.is_none_or(|p| l.unlocks.contains(p));
             // QA on a946e04: the chain's next step and its prices (`UnlockInfo.next`).
-            let next = UNLOCKS.iter().find(|n| n.prereq == Some(u.id) && !l.unlocks.contains(n.id)).map(|n| crate::wire::NextUnlock { id: n.id.into(), cost: n.cost, gold: unlock_gold(l, n, l.gold_buys), gold_after_gold: unlock_gold(l, n, l.gold_buys + 1) });
+            let next = UNLOCKS.iter().filter(|n| sold(n)).find(|n| n.prereq == Some(u.id) && !l.unlocks.contains(n.id)).map(|n| crate::wire::NextUnlock { id: n.id.into(), cost: n.cost, gold: unlock_gold(l, n, l.gold_buys), gold_after_gold: unlock_gold(l, n, l.gold_buys + 1) });
             let gold_next = if owned { 0 } else { unlock_gold(l, u, l.gold_buys + 1) };
-            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned, short: false, auto_insert: false, next, gold_next, carries: card_carries(u.id).map(str::to_string) }
+            UnlockInfo { id: u.id.into(), cost: u.cost, owned, available, needs, delta: None, rows: unlock_rows(u.id), insert_at, pm: None, gold, situation: card_situation(u.id), stall: None, pinned, short: false, auto_insert: false, next, gold_next, carries: card_carries(u.id).map(str::to_string), tier: u.tier, gold_only: matches!(u.via, Via::Gold(_)) }
         })
         .collect();
     mark_short(l, &mut cat);
@@ -575,6 +703,13 @@ pub fn buy(game: &mut Game, id: &str) -> Result<(), String> {
     if l.unlocks.contains(id) {
         return Err("already owned".into());
     }
+    // Cut 29 §1: only the marks catalogue is bought with marks.
+    match def.via {
+        Via::Marks => {}
+        Via::Gold(_) => return Err("for gold".into()),
+        Via::Free => return Err("free with its gate".into()),
+        Via::Oath => return Err("an oath's reward".into()),
+    }
     if def.prereq.is_some_and(|p| !l.unlocks.contains(p)) {
         return Err("prerequisite missing".into());
     }
@@ -605,10 +740,13 @@ pub fn gold_price(cost: u32, gold_buys: u32) -> u32 {
 /// gold price — a row slot sits on the forge's ladder (`kit::row_gold`: a multiple of the
 /// lineage's unit, never climbing with other gold buys); any other unlock is `gold_price`.
 pub fn unlock_gold(l: &LineageState, u: &UnlockDef, gold_buys: u32) -> u32 {
-    if u.cost == 0 {
-        return 0;
+    let _ = gold_buys;
+    // Cut 29 §1 (docs/PROGRESSION.md §4: with $213k purses any climbing gold price buys the whole
+    // catalogue by day 10): gold buys the row slots (the forge's ladder) and the automations only.
+    match u.via {
+        Via::Gold(units) => units * crate::kit::unit_of(l),
+        _ => crate::kit::row_gold(l, u.id).unwrap_or(0),
     }
-    crate::kit::row_gold(l, u.id).unwrap_or_else(|| gold_price(u.cost, gold_buys))
 }
 
 /// Cut 15 §2: buy an unlock with gold instead of marks — the same gates as `buy` (owned,
@@ -620,7 +758,7 @@ pub fn buy_gold(game: &mut Game, id: &str) -> Result<(), String> {
     if l.unlocks.contains(id) {
         return Err("already owned".into());
     }
-    if def.cost == 0 {
+    if unlock_gold(l, def, l.gold_buys) == 0 {
         return Err("not for gold".into());
     }
     if def.prereq.is_some_and(|p| !l.unlocks.contains(p)) {
@@ -731,68 +869,95 @@ mod tests {
     use super::*;
     #[test]
     fn catalogue_matches_the_contract() {
-        assert_eq!(UNLOCKS.len(), 44, "35 (Cut 2) + 10 (Cut 3 tier 2) − auto_supply (Cut 19 §3: the repeat is free)");
+        // Cut 29 §1 (docs/PROGRESSION.md §4): 44 − quartermaster − auto_insure (the default now)
+        // + the two oath slots + three oath rewards of their own (`hold`, `route2`, `heir_pick`).
+        assert_eq!(UNLOCKS.len(), 47);
         let ids: Vec<&str> = UNLOCKS.iter().map(|u| u.id).collect();
         for c in TACTIC_CARDS.iter().chain(TIER2_CARDS.iter()) {
             assert!(ids.contains(c), "{c}");
         }
         for (_, u) in COND_UNLOCKS {
             assert!(ids.contains(&u), "{u}");
+            assert_eq!(def(u).unwrap().via, Via::Free, "{u}: condition words are free vocabulary");
         }
-        let cost: u32 = UNLOCKS.iter().map(|u| u.cost).sum();
-        // Cut 8B: the rogue and `tame` cost nothing (were 4 and 2: 6 off the Cut 3 sum).
-        // Cut 19 §3: `auto_supply` (4) left the catalogue — the repeat is the free default.
-        // Cut 23 §3: kite archers, stair dance (3 each), noise discipline and deep march (5 each)
-        // carry nothing outside the typed vocabulary: free.
-        // Cut 24 (the Warlord's drive-off teaches his counter: the dayplayer's lineages went
-        // deeper, ranked up and held 9 marks with every card gated): vault4 10 → 9.
-        assert_eq!(cost, 2 + 4 + 7 + 11 + 4 + 9 + 3 + 6 + 9 + 6 + 8 + 2 + 12 + 18 + 5 + 6 + 4 + 3 + 3 + 6 + 8 + 12 + 8 + 8 + 10 + 6 + 8);
-        assert_eq!(UNLOCKS.iter().find(|u| u.id == "rogue").unwrap().cost, 0);
-        assert_eq!(UNLOCKS.iter().find(|u| u.id == "tame").unwrap().cost, 0);
-        let by = |id: &str| UNLOCKS.iter().find(|u| u.id == id).unwrap();
-        assert_eq!(by("row9").prereq, Some("row8"));
-        assert_eq!(by("row10").cost, 12);
-        // Cut 4: tier 2 costs 8–12 (Cut 23 §3: or nothing, a card a player could type).
-        for u in UNLOCKS.iter().skip(35) {
-            assert!((5..=12).contains(&u.cost) || (u.cost == 0 && card_carries(u.id).is_none()), "{} costs {}", u.id, u.cost);
+        // G7: every price ≤ ◆8; the rows monotonic 3 · 4 · 5 · 6 · 7 · 8 and each a tier later.
+        for u in UNLOCKS {
+            assert!(u.cost <= 8, "{} costs ◆{}", u.id, u.cost);
+            assert!(u.tier <= 6, "{}", u.id);
+            match u.via {
+                Via::Marks => assert!(u.cost > 0, "{}", u.id),
+                _ => assert_eq!(u.cost, 0, "{}: sold for marks only when `Via::Marks`", u.id),
+            }
         }
-        let l = LineageState::new(2);
+        let rows: Vec<(u32, u32)> = ["row5", "row6", "row7", "row8", "row9", "row10"].iter().map(|r| (def(r).unwrap().cost, def(r).unwrap().tier)).collect();
+        assert_eq!(rows, vec![(3, 1), (4, 2), (5, 3), (6, 4), (7, 5), (8, 6)]);
+        // the automations are gold at the Lich; the party slots, gas step and last stand are oath rewards
+        for a in ["supply_cap_5", "bone_sense", "incubator", "third_tag"] {
+            assert!(matches!(def(a).unwrap().via, Via::Gold(3..=5)) && def(a).unwrap().tier == 4, "{a}");
+        }
+        for o in ["party_slot_2", "party_slot_3", "party_slot_4", "gas_step", "last_stand", "hold", "route2", "heir_pick"] {
+            assert_eq!(def(o).unwrap().via, Via::Oath, "{o}");
+        }
+        assert!(def("quartermaster").is_none() && def("auto_insure").is_none());
+        // Tiers: nothing past T0 before the first bank; T2 with the Warlord met; T6 with the Queen.
+        let mut l = LineageState::new(2);
+        assert_eq!(tier(&l), 0);
         let cat = catalogue(&l);
-        assert_eq!(cat.iter().find(|u| u.id == "row9").unwrap().needs.as_deref(), Some("3 boss kinds"));
+        assert!(cat.iter().all(|u| u.id != "cond_alert" && u.id != "party_slot_2"), "free words and oath rewards are not sold");
+        assert_eq!(cat.iter().find(|u| u.id == "row5").unwrap().needs.as_deref(), Some("bank once"));
+        l.banked_depths.insert(3);
+        l.best_depth = 3;
+        assert_eq!(tier(&l), 1);
+        let cat = catalogue(&l);
+        assert_eq!(cat.iter().find(|u| u.id == "row6").unwrap().needs.as_deref(), Some("meet Warlord"));
+        assert_eq!(cat.iter().find(|u| u.id == "row9").unwrap().needs.as_deref(), Some("meet Foundry"));
+        l.best_depth = 28;
+        assert_eq!(tier(&l), 6);
+        let cat = catalogue(&l);
         assert_eq!(cat.iter().find(|u| u.id == "cadence").unwrap().needs.as_deref(), Some("fact: mirror"));
         assert_eq!(cat.iter().find(|u| u.id == "lantern_rig").unwrap().needs.as_deref(), Some("find a lantern"));
-        let l = LineageState::new(1);
+        // short of marks is a need too (`◆3 more`); gold only for an automation (`$N more`)
+        assert_eq!(cat.iter().find(|u| u.id == "throw").unwrap().needs.as_deref(), Some("◆3 more"));
+        assert!(cat.iter().find(|u| u.id == "bone_sense").unwrap().gold_only);
+        l.marks = 3;
         let cat = catalogue(&l);
-        let kite = cat.iter().find(|u| u.id == "kite_archers").unwrap();
-        assert_eq!(kite.needs.as_deref(), Some("fact: ranged"));
-        assert!(cat.iter().find(|u| u.id == "row6").unwrap().needs.as_deref() == Some("row5"));
-        // Cut 9 §2: short of marks is a need too (`◆2 more`); with the marks, none.
-        assert_eq!(cat.iter().find(|u| u.id == "cond_turns").unwrap().needs.as_deref(), Some("◆2 more"));
-        let mut l = LineageState::new(1);
-        l.marks = 2;
-        let cat = catalogue(&l);
-        let ct = cat.iter().find(|u| u.id == "cond_turns").unwrap();
-        assert!(ct.needs.is_none() && ct.available);
+        let t = cat.iter().find(|u| u.id == "throw").unwrap();
+        assert!(t.needs.is_none() && t.available);
+        // no card is gold-buyable (Cut 29: gold buys the rows' ladder and the automations only)
+        assert_eq!(t.gold, 0);
+    }
+
+    /// Cut 29 §1: the free vocabulary is owned the moment its gate opens.
+    #[test]
+    fn free_words_arrive_with_their_gate() {
+        let mut l = LineageState::new(4);
+        grant_free(&mut l);
+        assert!(!l.unlocks.contains("cond_alert") && !l.unlocks.contains("cond_on_kill"));
+        l.kills.insert("rat".into());
+        l.facts.insert("alert:rising".into());
+        let got = grant_free(&mut l);
+        assert!(got.contains(&"cond_on_kill") && got.contains(&"cond_alert"), "{got:?}");
+        assert!(!l.unlocks.contains("rogue"), "the rogue waits for a bank");
+        l.banked_depths.insert(2);
+        grant_free(&mut l);
+        assert!(l.unlocks.contains("rogue"));
     }
 
     /// Cut 8B §2–3: the rogue costs nothing and opens at the first bank; `tame` is owned from
     /// the start with the kennel's leash on the shelf and its fact held.
     #[test]
     fn rogue_free_at_first_bank_and_tame_from_the_start() {
+        // Cut 29 §1: the rogue is free vocabulary — owned at the first bank, never bought.
         let mut g = crate::engine::Game::new(7);
-        let cat = catalogue(&g.lineage);
-        let rogue = cat.iter().find(|u| u.id == "rogue").unwrap();
-        assert_eq!((rogue.cost, rogue.available, rogue.needs.as_deref()), (0, false, Some("bank once")));
-        assert!(cat.iter().find(|u| u.id == "tame").unwrap().owned);
+        assert!(g.lineage.unlocks.contains("tame"));
+        assert!(!g.lineage.unlocks.contains("rogue"));
         assert!(g.lineage.facts.contains("item:leash"));
         assert!(g.lineage.supplies.iter().any(|s| s.kind == "leash" && s.known && s.free));
         assert!(g.vocabulary().verbs.contains(&Verb::arg("tame", "nearest")));
-        assert_eq!(buy(&mut g, "rogue").unwrap_err(), "needs bank once");
-        // One bank, no marks to spare: the rogue is bought.
+        assert_eq!(buy(&mut g, "rogue").unwrap_err(), "free with its gate");
         g.lineage.banked_depths.insert(2);
-        g.lineage.marks = 0;
-        assert!(catalogue(&g.lineage).iter().find(|u| u.id == "rogue").unwrap().available);
-        buy(&mut g, "rogue").unwrap();
+        grant_free(&mut g.lineage);
+        assert!(g.lineage.unlocks.contains("rogue"));
         assert!(g.set_class("rogue").is_ok());
         // The free leash refunds nothing and is not rebought by the automation.
         g.clear_supplies();
@@ -809,7 +974,7 @@ mod tests {
         let cat = catalogue(&l);
         for u in &cat {
             let card = TACTIC_CARDS.contains(&u.id.as_str()) || TIER2_CARDS.contains(&u.id.as_str());
-            let auto = matches!(u.id.as_str(), "quartermaster" | "auto_supply" | "auto_insure" | "incubator" | "supply_cap_5" | "bone_sense" | "third_tag" | "lantern_rig" | "recall_sense");
+            let auto = matches!(u.id.as_str(), "incubator" | "supply_cap_5" | "bone_sense" | "third_tag" | "lantern_rig" | "recall_sense");
             match &u.rows {
                 Some(rows) => {
                     assert!(card || auto, "{} carries rows", u.id);

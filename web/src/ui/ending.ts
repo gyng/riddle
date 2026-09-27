@@ -4,6 +4,7 @@
 import type { App, Mounted } from "../app";
 import { VARIANTS } from "../engine/types";
 import { h } from "./dom";
+import { heirOrd } from "./tokens";
 
 /* copy:rule_token */
 const VARIANT_LABEL: Record<string, string> = { no_rest: "no rest", short_list: "short list", bones_only: "bones only", hunted: "hunted" };
@@ -19,7 +20,7 @@ export function renderEnding(app: App): Mounted {
   const el = h("main", { class: "ending" },
     h("img", { class: "title-art", src: "/art/title.png", alt: "" }),
     h("div", { class: "ending-body" },
-      h("div", { class: "ending-heir num" }, `♟${L.heir}`, " ", h("span", { class: "dim" }, `D${L.best_depth}`)),
+      h("div", { class: "ending-heir num" }, heirOrd(L.heir), " ", h("span", { class: "dim" }, `D${L.best_depth}`)),
       h("div", { class: "tiles" },
         tile(`${app.totalRuns()}`, /* copy:label */ "runs"),
         tile(`${L.graveyard.length}`, /* copy:label */ "deaths"),

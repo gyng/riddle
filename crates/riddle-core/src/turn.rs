@@ -671,6 +671,11 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 run.homeward = Some(i as i32);
                 run.home_at = Some((run.turn, hp_pct, run.hero.hp));
                 run.homeward_bank = row.verb.v == "bank";
+                // Cut 28b: a `return` committed breaks a `no return` oath at the row that did it
+                if !run.homeward_bank {
+                    run.home_return = true;
+                    crate::oath::beat(run, cx, i as i32);
+                }
                 if run.homeward_bank {
                     gold_scent(run, cx);
                 }
@@ -1883,6 +1888,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             }
             run.boss_kills.push((run.turn, kind.clone()));
             note(run, cx, format!("Slew the {}.", m.title()));
+            crate::oath::beat(run, cx, run.acting_row);   // Cut 28b: a `slay` / `fire` oath is kept here
             callout(run, cx, "boss down");
             // Cut 5 §1: a boss dying closes the episode (`first boss` the first time the
             // lineage kills the kind).
@@ -2153,6 +2159,7 @@ pub const REST_ALERT_EVERY: u32 = 8;
 pub fn rest_clock(run: &mut Run, cx: &mut Ctx) {
     run.rests += 1;
     run.rested = true;
+    crate::oath::beat(run, cx, run.acting_row);   // Cut 28b: a `no rest` oath breaks here
     let at = run.hero.pos;
     noise(run, cx, at, 8);
     if !run.rests.is_multiple_of(REST_ALERT_EVERY) {
@@ -2480,6 +2487,9 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
         note_saved(run, cx);
     }
     run.over = Some(tier);
+    // Cut 28b: the oath's fate, if the run has not said it yet — before the exit's own event
+    let row = if run.acting_row >= 0 { run.acting_row } else { run.exit_row.or(run.homeward).unwrap_or(-1) };
+    crate::oath::beat(run, cx, row);
     let loot_kept = run.loot * run.yield_pct(tier) / 100;
     // Cut 5 §1: the exit resolves every open episode.
     let res = match tier {

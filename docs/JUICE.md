@@ -235,3 +235,128 @@ of the three passed on a quiet re-run (`clarity: ok (67)`, `cut25: ok (22)`, `qa
 - **Numbers**: rAF p50/p95 16.7/16.7–16.8 in every scene of `measure.mjs` (headed D3D12, high, 1.5×; `scratchpad/juice3/perf-after`),
   as in pass 2; draw calls 17–18. Client gates fights, looks, cut13, cut16, cut22, cut25, cut26, qaj pass (fights/cut13/cut25/qaj
   failed differently under load 30–78 and passed alone on a quiet window).
+
+## 10. The gfx eval (2026-09-27): a blind-rated harness, six rounds, the desktop frame, context loss
+
+Brief (`scratchpad/queued/gfx-eval-brief.md`): an eval harness with blind visual raters, then improve → re-rate rounds until the mean is
+≥ 8.0 with no moment under 7.0, or stop after three consecutive rounds of < +0.2 and name what blocks the next gain. It stopped on that rule:
+**4.90 → 5.97** (min 3.65 → 5.00), rounds 4–6 at −0.04, −0.02, +0.19.
+
+### 10.1 The harness (tools/)
+
+- `tools/gfx-round.sh <out>` — one round on a **frozen server** (a fresh no-HMR Vite, `web/tests/vite.test.config.ts`: another agent's edit
+  reloaded the walk's pages mid-capture twice) → `tools/gfx-eval.mjs`: headed Chromium on the GPU, the same walk every round — the real
+  engine (seed 4242: a run watched at `normal`, `?absent=8h` → the report, the worst death, the camp with four rules, an edit and its scene,
+  the why sheet, the forecast, the oath board), the fake engine with `?fake_god=1` (new dev knob, `engine/fake.ts`: the hero never drops under
+  1 hp) for the Fens at D6 and a fight, `render-demo.html?boss=1` for the boss's entrance, break and fall, and 1440 × 900 for desktop
+  camp / watch / death / report / why sheet. Per moment: `<name>.png`; `<name>-strip.png`, 4 frames 180 ms apart from the compositor's
+  screencast (CDP `Page.startScreencast`, timestamped — screenshots took 100–300 ms each under load and missed openings), anchored on the
+  tap for sheets (a DOM click: Playwright's actionability waits pushed the opening out of the window); `frames.json` (rAF p50/p95/p99, the
+  viewer's cpuMs); `anims.json` (every CSS animation running after the trigger: name, duration, delay, easing); `layout.json` (the owner's
+  check (a): console, portrait and gem on screen, nothing over the gem at its centre and four inner points, no horizontal scroll).
+- `rater/`: every shot under a neutral name + `prompt.txt` (`tools/gfx-rater-prompt.txt`): an art director's brief, the four targets, 0–10 on
+  readability · hierarchy · target · motion · juice with one quoted reason each and three changes. Two fresh general-purpose raters a round,
+  never reused (A–N); `scratchpad/gfx-eval/score.py` averages them. The two raters' means agreed within 0.52 every round.
+- `tools/gfx-audio.mjs` — the §7 measurement as a tool (OfflineAudioContext through the game's chain).
+- `web/tests/layout.mjs` — the IA checks as a gate (phone: every screen, every sheet, the scene; desktop: three columns, console ≥ 90 %,
+  a sheet beside its tablet). `web/tests/ctxloss.mjs` — the context-loss must-fix (§10.4).
+
+### 10.2 Scores (mean of the two raters' five criteria; `scratchpad/gfx-eval/round*/`)
+
+| moment | r0 | r1 | r2 | r3 | r4 | r5 | r6 (final) | Δ |
+|---|---|---|---|---|---|---|---|---|
+| watch-warrens | 5.35 | 5.20 | 5.25 | 5.55 | 5.50 | 5.50 | 5.75 | +0.40 |
+| report | 5.45 | 5.60 | 5.90 | 6.15 | 5.40 | 6.30 | 5.35 | -0.10 |
+| death | 5.95 | 6.80 | 6.65 | 6.70 | 6.90 | 6.90 | 7.20 | +1.25 |
+| camp | 5.35 | 5.70 | 5.55 | 5.15 | 6.15 | 5.80 | 5.40 | +0.05 |
+| scene | 4.80 | 5.80 | 5.40 | 5.15 | 6.40 | 4.50 | 5.45 | +0.65 |
+| edit | 4.55 | 5.40 | 5.60 | 5.90 | 5.45 | 6.30 | 6.10 | +1.55 |
+| forecast | 4.75 | 5.30 | 5.75 | 6.30 | 5.75 | 6.40 | 6.35 | +1.60 |
+| oaths | 4.75 | 4.60 | 5.20 | 5.90 | 5.80 | 6.10 | 6.25 | +1.50 |
+| watch-fens | 3.65 | 4.60 | 4.80 | 5.00 | 4.80 | 3.90 | 5.05 | +1.40 |
+| fight | 4.80 | 5.10 | 5.35 | 5.90 | 5.15 | 5.40 | 5.55 | +0.75 |
+| boss-in | 5.85 | 6.50 | 6.40 | 6.95 | 5.80 | 6.70 | 7.00 | +1.15 |
+| boss-break | 5.45 | 5.70 | 5.15 | 6.10 | 6.20 | 6.10 | 6.80 | +1.35 |
+| boss-fall | 5.15 | 5.70 | 5.65 | 6.35 | 6.05 | 5.60 | 6.65 | +1.50 |
+| d-watch | 3.85 | 4.40 | 4.85 | 5.15 | 6.15 | 5.50 | 5.90 | +2.05 |
+| d-report | 4.65 | 4.60 | 5.35 | 5.50 | 5.20 | 5.80 | 5.00 | +0.35 |
+| d-death | 5.20 | 5.80 | 5.60 | 6.10 | 6.75 | 6.20 | 6.60 | +1.40 |
+| d-camp | 4.55 | 6.10 | 5.60 | 5.75 | 5.65 | 5.50 | 5.75 | +1.20 |
+| d-edit | 4.05 | 4.50 | 5.00 | 5.45 | 5.35 | 5.60 | 5.35 | +1.30 |
+| **mean** | **4.90** | **5.41** | **5.50** | **5.84** | **5.80** | **5.78** | **5.97** | **+1.08** |
+| min | 3.65 | 4.40 | 4.80 | 5.00 | 4.80 | 3.90 | 5.00 | |
+
+Before/after: `scratchpad/gfx-eval/sheet.png` (phone, round 0 over round 6), `sheet-desktop.png`.
+
+### 10.3 What each round changed (all kept: each round's losses were strip timing or a regression fixed the round after)
+
+- **Round 1** — render: the callout and the fight caption are a DOM iron plate with a notch (`tags.ts` `Plate`; `debugText` boxes kept), the
+  unexplored void a dark Voronoi rock that fades from the lit edge (`blit.ts`, FX ≥ 1 only), ambient 0.66 → 0.95 of the field, a wider warmer
+  hero light, the Warrens' saturation 0.55 → 0.78, damage numbers at full size, slash crescents on landed blows, the Burrows/Warrens/Crypt
+  water redrawn from the Fens' art in their ramps (it was a 1-texel checker), glowing gas puffs (the 55 % screen-door read as a checker), the
+  phone watch zoomed (`PHONE_TEXELS` 120 → 100, desktop 112). Fake engine: `R2 attack` callouts in the core's order (`attack attack nearest`),
+  `blade` drawn as `spectral_blade` (a magenta fallback jug). Art (Codex, QC'd): 13 action icons `v_*`, the death and report backdrops.
+  CSS: the gilded primary plaque, amber reach troughs, the scene's iron frame, embers, the vista's fire, the banner's sway and seal glint.
+- **Round 2** — the action's icon plaque on every rule tablet, the why sheet, the fix tablets and the desktop's read-only tablets; the forecast's
+  try row back in ink on parchment; the primary as a dark iron plaque with rivets and gilt letters (the gold face drowned its word at 1440);
+  the report's plaques stamp in; the seal slams with a dust ring; name plates capped to the hostiles nearest the hero; the ambience bed
+  ducks 9 dB under a boss's entrance, break or fall, the verdict and a run's end (`audio.ts`, gated in `audio.mjs`); the desktop rules column
+  lights the rule that acted.
+- **Round 3** — no black frames on a frame cut (`CUT_FRAMES` 2 → 0); the hero's hurt flash 0.5 → 0.28; sheets and panels unroll from their
+  top edge (they faded from 30–40 % opacity: "a double exposure"); the oath board deals its tablets in; rune plates in empty command slots (at QA K's ≤ 0.2 opacity, `ui.mjs`);
+  the stock in sunk wells (and the frame's grid column pinned to the viewport: the wells' min-content once pushed the console 6 px off
+  screen — the harness's layout check caught it).
+- **Round 4** — art (Codex): the carved pillar (a hooded knight's alcove, banner, sconce) behind the desktop's side columns and the braziers
+  at the vista's feet; the edit's scene is quiet (one name, no plate over the hero); a boss keeps off the hero (`BOSS_COVER` 0.1); the guard's
+  break splits his shield over him (`tags.ts` `shatter`); the shaft a size up.
+- **Round 5** — a boss drops into his arena (`fx.ts` `lift`, 3 ticks, then the landing squash); a small foe steps out from behind the hero;
+  gas tiles drift as smaller blobs inside denser puffs; the camera leans toward the seen ground when no foe frames it; glints and mist on
+  visible water; sheets without the backdrop blur (it cost their first frame ~0.2 s).
+- **Round 6** — damage numbers are outlined DOM glyphs (the bitmap `80` read as `$0`); a plate that would climb over more than two other plates
+  is left off (a crowd keeps three rows of names); a small view (< 320 CSS px: the scene) lets the hero take 2/5 of its height; the viewer waits
+  ≤ 1.5 s for the atlas before its first frame (the scene showed the primitive fallback); rising sparks off the braziers.
+
+### 10.4 The must-fix and the IA additions
+
+- **WebGL context loss** (`render/index.ts`, new `render/view2d.ts`, `render/fallback.ts`): `webglcontextlost` is prevented, the view drops to a
+  Canvas-2D drawing of the same replay state (atlas tiles and sprites, hero light) while the clock, `▶▶|`, the beats and the exit run on;
+  `webglcontextrestored` rebuilds (a new GPU timer, textures and the light mask re-uploaded, normals re-derived) and hides the 2D view. A
+  renderer that cannot be created mounts the 2D viewer with the full Viewer API (the old placeholder had no clock: `▶▶|` died on it). Disposal
+  now forces the context loss, so the scene's and the stills' contexts are freed at once (Chrome drops the oldest past ~16 — a likely cause
+  of AW's). `web/tests/ctxloss.mjs`: loss mid-watch → 2D view, ticks advance, restore → GL again; loss → `▶▶|` reaches the exit; a page with no
+  WebGL at all → the run reaches its exit.
+- **Desktop** (`web/src/wide.css`, `ui/frame.ts` `wideCols`, `ui/sheet.ts` `placeWide`): ≥ 1024 px the frame is one grid edge to edge — the
+  rules column left, the well centre, the shaft right with the meters' slot under it, the console across the bottom, the top bar unchanged;
+  sheets open beside their tablet. Phones are untouched (everything inside the media query).
+- **Mobile**: the layout gate holds the console, portrait and gem visible and uncovered on every screen, sheet and the scene.
+
+### 10.5 Audio (`scratchpad/gfx-eval/round6/audio.json`)
+
+Unchanged cues measure as §7.1 (0 clipped samples; the three-cue stack −0.6 dBFS before the limiter; 12 live strikes, 0 consecutive
+identical). New: the bed ducks 9 dB (40 ms down, held 0.6 s, back over 0.9 s) under `boss_in`, `boss_break`, `boss_down`, `verdict`, `exit_*`.
+
+### 10.6 Frame times
+
+Captured on a machine another agent held at load 30–70 on 32 cores for the whole session, so no number here is a clean claim: round 0 (load
+13–30) read p50/p95 16.7/16.7–16.8 on every phone moment and the desktop watch; round 1 (load 15–20, after the ember layer was moved to a
+compositor transform — a blended background-position animation had taken the camp's p95 to 33 ms) read 16.7/16.7–16.8 on every phone moment,
+the desktop watch 16.7/33.4; round 6 (load 40–69) reads 16.7/16.7–16.8 on the camp, death, Fens, fight and boss, 33/50–83 on the Warrens watch,
+the report and the desktop watch — and the untouched `low` tier read the same 33/50 at 1440 × 900 in the same minute, so load, not the tier,
+sets those. The `low` tier's shader path is unchanged (the rock is `FX > 0`). A quiet-window run of `tools/gfx-round.sh` is owed.
+
+### 10.7 What blocks the next gain (why rounds 4–6 stalled)
+
+1. **Sprite scale vs tile scale** (every rater, every round: "the hero is 2–3 tiles tall, hides the foe he fights", "sprites at twice the
+   tiles' pixel density"). The sprites are authored at 2× the tiles; shrinking them in the renderer breaks the pixel grid. Needs an art call
+   (re-author the bestiary and heroes at tile density, a Codex batch of ~60) or a design call on the dungeon's zoom.
+2. **The black of the unexplored floor** ("half the view is void"). Fog of war is game truth; the rock texture and the camera's lean helped
+   (+0.40 on the Warrens watch). More needs a design call (a lit fog texture art pass, or a tighter frame per room).
+3. **Motion on still screens** (camp, report, desktop: 2.5–4 every round whatever the flicker, embers, sparks). Four frames 180 ms apart do
+   not show ambient life at half size; the raters score these screens as "frozen". Needs either larger ambient motion (a feel risk the owner
+   should rule on) or a rubric change for screens that should be still.
+4. **The report's arrival** (motion 2–3): its plaques render ~0.6 s after the screen mounts (the report's own async content), so the strip
+   is a dim, empty parchment. A client/engine timing fix (report.ts).
+5. **Copy-bound asks** the copy law forbids a visual pass to answer: `BROKEN`/`SLAIN` plates, the report's four-line head, the D8 row's
+   words, `fired 19/13754 turns`, the fix tablets' three numbers, `highlig…` truncated in the console. Needs the copy owner.
+6. **Fake-engine moments**: the Fens and the fight are shot from the fake engine (the real one never reached D5 in a scripted run); its
+   crowds pile on the hero. A dev fixture (a real save that starts at D6) would rate the real game.

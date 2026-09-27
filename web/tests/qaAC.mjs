@@ -81,11 +81,11 @@ try {
     const byRow = (re) => t.find((x) => re.test(x.row ?? ""));
     const g = byRow(/gas/), r = byRow(/return/), te = byRow(/telegraph/);
     check(g && /^reach D6 54→30%/.test(g.delta) && g.harms, `the gas retreat reads its own numbers (${g?.delta}), harming`);
-    check(r && /^return early · D5 86→24%$/.test(r.delta) && /^death 100→0%$/.test(r.whole) && !r.harms, `the return reads its price and its death move ("${r?.delta}" · "${r?.whole}")`);
+    check(r && /^return early · reach D5 86→24%$/.test(r.delta) && /^death 100→0%$/.test(r.whole) && !r.harms, `the return reads its price and its death move ("${r?.delta}" · "${r?.whole}")`);
     check(te && /^reach D6 54→22%/.test(te.delta), `the telegraph retreat reads its own numbers (${te?.delta})`);
     check(r?.top && /12\/12\s*apply/i.test(await gemText()), `the lit tablet is the one that does not harm; the gem applies it ("${await gemText()}")`);
     await page.locator(".patches button.patch", { hasText: "gas" }).first().click(); await sleep(150);
-    check(/harms/.test(await gemText()), `a lit tablet that harms says so on the stone ("${await gemText()}")`);
+    check(/risky/.test(await gemText()), `a lit tablet that harms says so on the stone ("${await gemText()}")`);
   }
 
   // ---- the chain: an older row's reason under its row; a reason the row outlived is off
@@ -104,7 +104,7 @@ try {
     await waitFor((x) => x?.screen === "death", "the chain death"); await sleep(200);
     const lines = await page.evaluate(() => [...document.querySelectorAll(".chain .chain-row")].map((l) => [...l.children].map((c) => c.textContent.trim()).join(" ").replace(/\s+/g, " ").trim()));
     check(!lines.some((l) => /never met/.test(l)), `a reason the row outlived (it fired after it) is off the chain (${lines.join(" | ")})`);
-    check(lines.some((l) => /R2 drink heal no item ← R4 drank heal at 17\/36 hp/.test(l)), `an older row's reason reads under its row (${lines.join(" | ")})`);
+    check(lines.some((l) => /drink heal at 30% no item ← drank heal at 17\/36 hp/.test(l)), `an older row's reason reads under its row (${lines.join(" | ")})`);
     check(!lines.some((l) => /^← /.test(l)), `no bare \`←\` line (${lines.join(" | ")})`);
   }
 
@@ -138,7 +138,7 @@ try {
       r.sets[r.active].rows = keep; r.rulesChanged(); r.go({ kind: "camp" });
       return out;
     });
-    check(s.disabled === true && s.text === "no rows", `an empty set's gem is off and says so ("${s.text}", disabled ${s.disabled})`);
+    check(s.disabled === true && s.text === "no rules", `an empty set's gem is off and says so ("${s.text}", disabled ${s.disabled})`);
   }
 
   // ---- a verdict opened from a report leads back to it

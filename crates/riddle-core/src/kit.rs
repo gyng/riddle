@@ -259,3 +259,41 @@ pub fn deltas(game: &Game) -> Vec<KitLadder> {
     }
     out
 }
+
+/// Cut 29 §5: a commission's price in forge units, before the climb (`commission_price`).
+pub const COMMISSION_UNITS: u32 = 10;
+
+/// The works a lineage commissions, in order (then numbered): no sim reads them.
+pub const WORKS: [&str; 8] = ["heir's statue", "camp hall", "chronicle wall", "boss trophies", "the forge's bell", "a banner", "the long table", "a lantern tower"];
+
+/// Cut 29 §5: the next commission's price — 10 forge units × 1.25ⁿ (n the works built), in tens.
+pub fn commission_price(l: &LineageState) -> i32 {
+    let base = (COMMISSION_UNITS * unit_of(l)) as f64;
+    ((base * 1.25f64.powi(l.works.len() as i32)) / 10.0).round() as i32 * 10
+}
+
+fn work_label(n: usize) -> String {
+    match WORKS.get(n) {
+        Some(w) => w.to_string(),
+        None => format!("{} {}", WORKS[n % WORKS.len()], n / WORKS.len() + 1),
+    }
+}
+
+pub fn commission_wire(l: &LineageState) -> crate::wire::Commission {
+    let price = commission_price(l);
+    crate::wire::Commission { price, label: work_label(l.works.len()), available: l.gold >= price }
+}
+
+/// Cut 29 §5: commission the next work (policy-neutral: the gold's sink, the chronicle's line).
+pub fn commission(game: &mut Game) -> Result<String, String> {
+    let l = &mut game.lineage;
+    lock_unit(l);
+    let price = commission_price(l);
+    if l.gold < price {
+        return Err("not enough gold".into());
+    }
+    let label = work_label(l.works.len());
+    l.gold_move(-price, &format!("forge commission {label}"));
+    l.works.push(label.clone());
+    Ok(label)
+}

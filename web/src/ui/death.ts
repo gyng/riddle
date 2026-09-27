@@ -19,8 +19,8 @@ import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
 import { applyOf, fillReach, leadFirst, openDropSheet, patchRows, sinkHarms } from "./patches";
 import { closeX, openSheet } from "./sheet";
-import { gem, portrait, renderBar, renderConsole, tile } from "./frame";
-import { lostLabel, noteText, rowLabel, verbLabel } from "./tokens";
+import { gem, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
+import { lostLabel, noteText, refName, rowLabel, ruleName, setRefRows, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
 
@@ -34,7 +34,7 @@ export const headlineMargin = (m: string): string => m.split(" · ").filter((x) 
 /** QA 23ed91f (K: "`died $0` and `keeps 0%` say the same thing twice"): a death's line drops its `keeps 0%` (the lead says it). */
 /** QA 1a2a4a9 (O, P, and many before: "`+$40 wake` — no source"): the core's wake pay tops the next heir's purse up to $40 — it reads
  *  as whose it is (`heir purse +$40`), here, on the gold sheet and in the report. */
-export const wakeShown = (t: string): string => t.replace(/\+\$(\d+) wake\b/g, /* copy:callout */ "heir purse +$$$1").replace(/\bwake pay\b/g, /* copy:callout */ "heir purse").replace(/\bpurse full\b/g, /* copy:callout */ "no top-up");
+export const wakeShown = (t: string): string => t.replace(/\+\$(\d+) wake\b/g, /* copy:callout */ "next heir +$$$1").replace(/\bwake pay\b/g, /* copy:callout */ "next heir").replace(/\bpurse full\b/g, /* copy:callout */ "no top-up");
 /** QA 0c6e126 (qaZ: `died $0 · $61 lost` — "I read `died $0` as died carrying $0"): the kept and the carried are named apart —
  *  `died · kept $0 · $61 lost`. */
 export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t) ? t.replace(/ · keeps 0%(?= · |$)/, "").replace(/^died \$0\b/, /* copy:callout */ "died · kept $$0") : t);
@@ -47,26 +47,27 @@ export const ledgerShown = (t: string): string => wakeShown(/^died \$0\b/.test(t
 const dTag = (d: number): string => /* copy:none */ `D${d}`;
 /** `brief` (the report's lines, QA 0c6e126 qaY: "16 runs of death lines each list 10–20 item names; the lines that differ are buried"):
  *  the `left` finds and the pile print as counts (`left 3`), the core's `bones: N items on D6` already naming the pile. */
-export type ExtrasOpts = { brief?: boolean; /** the pile's list is already in the text (`lineShown`) */ pileShown?: boolean };
+export type ExtrasOpts = { brief?: boolean; /** the pile's list is already in the text (`lineShown`) */ pileShown?: boolean;
+  /** docs/COPY.md pass 6: the death screen's line — kept, lost, the bones and the thefts; swaps and finds left behind are the gold sheet's */ lean?: boolean };
 export const exitExtras = (x: Pick<ExitLine, "text" | "stolen" | "stolen_gold" | "purse_full" | "wake" | "swapped" | "swap_left" | "shelved" | "start" | "start_short" | "found" | "bones">, name: (label: string) => string = (l) => l.replace(/_/g, " "), opts: ExtrasOpts = {}): string => {
   // QA 912e135 (qaW: `stolen blink, $3` read as the blink's worth); QA 524827b (qaAA: `stolen pearly potion? + $3` still read as the
   // potion's value): what the thefts took off the carry is the watch strip's own term, `carry −$3` — never a price beside an item
   const items = (x.stolen ?? []).map(name), coins = x.stolen_gold && x.stolen_gold > 0 ? x.stolen_gold : 0;
   // QA 0c6e126 (qaZ): stolen gear carries its enchant (`leather +1`)
-  const stolen = items.length || coins ? `${items.length ? /* copy:callout */ `stolen ${items.join(", ")}` : /* copy:callout */ "stolen"}${coins ? /* copy:callout */ ` · carry −$${coins}` : ""}` : "";
+  const stolen = [items.length ? /* copy:callout */ `stolen ${items.join(", ")}` : "", coins ? /* copy:callout */ `stolen $${coins}` : ""].filter(Boolean).join(" · ");
   // QA a946e04 (T: a D5 start at $32 ran from D1 with no word): the run's start fell back — the toll was more than the purse
   return (x.start_short && !/toll short/.test(x.text) ? /* copy:callout */ ` · from ${dTag(x.start ?? 1)} · toll short` : "")
     + (stolen && !/\bstolen\b/.test(x.text) ? ` · ${stolen}` : "")
     // QA 0c6e126 (qaY: `−$5 swapped` named no item): the costly swaps name what they left on the floor. QA 524827b (qaAA: `−$1 left
     // leather` beside `left 14` — "left" twice, a `−$` the gold sheet never shows): a swap reads as one (`swapped out leather`), its
     // cost the carry's (`carry −$1`, the strip's word: no purse movement); `left` is only the finds left behind
-    + (x.swapped && x.swapped > 0 && !/\bswapped\b/.test(x.text) ? x.swap_left?.length ? /* copy:callout */ ` · swapped out ${shelvedText(x.swap_left.map((b) => ({ kind: name(b.kind), n: b.n })))} · carry −$${x.swapped}` : /* copy:callout */ ` · swapped · carry −$${x.swapped}` : "")
-    + (x.wake && x.wake > 0 && !/\bwake\b|heir purse/.test(x.text) ? /* copy:callout */ ` · heir purse +$${x.wake}` : "")
+    + (x.swapped && x.swapped > 0 && !opts.lean && !/\bswapped\b/.test(x.text) ? x.swap_left?.length ? /* copy:callout */ ` · swapped out ${shelvedText(x.swap_left.map((b) => ({ kind: name(b.kind), n: b.n })))}${opts.lean ? "" : ` · paid $${x.swapped}`}` : opts.lean ? "" : /* copy:callout */ ` · swapped · paid $${x.swapped}` : "")
+    + (x.wake && x.wake > 0 && !/\bwake\b|heir purse/.test(x.text) ? /* copy:callout */ ` · next heir +$${x.wake}` : "")
     // QA 912e135 (qaW: `no top-up` on every line — "the top-up it refers to is never shown"); QA 0c6e126 (qaY: `heir purse ≥$40` — "the
     // `≥` has no source", twelve of them against one `+$20 heir purse` in the ledger): only a top-up the ledger carries is named (`wake`)
     // QA 0c6e126 (qaZ: "no shelf appears anywhere"): the loadout's list is SUPPLIES
     + (x.shelved?.length && !/→ (shelf|supplies)\b/.test(x.text) ? /* copy:callout */ ` · found ${shelvedText(x.shelved)} → supplies` : "")
-    + fatesText(x.found, x.bones ? undefined : "bones", opts.brief)
+    + (opts.lean ? "" : fatesText(x.found, x.bones ? undefined : "bones", opts.brief))
     // QA 912e135 (qaW: `bones: 12 items on D6` listing 14 — `leash ×3` counted charges; `11 items` listing 10 — only the finds): the
     // pile the count counts, one an item (`ExitLine.bones`, the core's); an older line keeps its finds' list
     // QA 0c6e126 (qaY: `bones leash, violet potion?, …` — "`bones leash` reads as one item"): the pile's list after a colon; brief, the
@@ -93,19 +94,23 @@ export const lineShown = (x: ExitLine, name?: (label: string) => string, opts: E
 };
 
 export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false, from?: { report: ReturnReport; absence?: boolean }): Mounted {
+  setRefRows(() => d.rules?.rows ?? app.rules.rows);   // docs/COPY.md §2: the core's `R2` on this screen names the rules that ran
   const drove = isDriven(d) ? d.line!.driven! : undefined;   // Cut 26 §6: a drive-off's verdict (below)
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
   const seg = headlineMargin(d.margin ?? "");
   const margin = seg ? ` · ${seg}` : "";
   // Cut 19 §4: a `row` verdict — the player's own row was the dying action; the headline names it (`R2 drink unknown`), the seal reads ROW
   // Cut 25 §2: an `order` verdict names both rows — the one that would have acted and the one above that won every tick (`R5 under R2`)
-  const causeRow = d.verdict === "row" && d.cause_row !== undefined ? rowName(d.cause_row, (d.rules?.rows ?? app.rules.rows)[d.cause_row])
-    : d.verdict === "order" && d.cause_row !== undefined && d.order_over !== undefined ? /* copy:death_line */ `R${d.cause_row + 1} under R${d.order_over + 1}`
+  const causeRow = d.verdict === "row" && d.cause_row !== undefined ? rowName(d.cause_row, (d.rules?.rows ?? app.rules.rows)[d.cause_row], d.rules?.rows ?? app.rules.rows)
+    : d.verdict === "order" && d.cause_row !== undefined && d.order_over !== undefined ? /* copy:death_line */ `${refName(d.cause_row)} under ${refName(d.order_over)}`
     // Cut 26 (core, risks): a `route` verdict — the far stair the set's route took (`D5 fens`), named like a row
     : d.verdict === "route" && d.route_cause ? /* copy:death_line */ `D${d.route_cause.fork} ${d.route_cause.taken}` : "";
   // Cut 17 §4: the line is laid on the defeat banner — the cause and depth in the display face, the verdict in the seal under it
   // (one word, engine data: `gap` · `dice` · `stall`); the text reads as before (`goblin archer · D6 · gap`)
-  const causeText = /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}`;
+  // docs/COPY.md pass 3 (`UNANSWERED` under `goblin warlord · D8` read as "boss not beaten yet" 4/4): a gap whose margin does not say
+  // what went unmet says it (`no rule for it`)
+  const gapWord = d.verdict === "gap" && !/unanswered|unused|unmet/.test(margin) ? /* copy:death_line */ " · no rule for it" : "";
+  const causeText = /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}${gapWord}`;
   // QA 1a2a4a9 (P: `STALLED · R2 RETREAT ↔ EXPLORE · D6 · KEEPS $0` ran off both edges at 400 px): a stall's headline wraps between its
   // ` · ` segments (each whole: the loop `R2 retreat ↔ explore` never breaks) and steps its face down until the widest segment fits
   const causeEl = d.verdict === "stall"
@@ -118,12 +123,16 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const leanCounts = (d.verdict === "gap" || d.verdict === "row" || d.verdict === "order") && (d.replays ? Math.round((d.baseline ?? 0) * d.replays) * 2 > d.replays : (d.baseline ?? 0) > 0.5);
   const lean = !drove && (d.lean === "dice" || leanCounts);
   const word = d.verdict;
+  // docs/COPY.md §2: the stamp blames the right thing in a plain word — `dice` is luck, `row` the player's own rule
+  // passes 2–3: `gap` alone read "no idea" 4/4; `unanswered` did not fit the seal and `unmet` read "a goal not met" 6/6 — the seal keeps
+  // `gap` and the headline says what it means (`no rule for it`, or the core's `telegraph unanswered`)
+  const stamp = word === "dice" ? /* copy:verdict */ "luck" : word === "row" ? /* copy:verdict */ "rule" : (word as string) === "driven" ? /* copy:verdict */ "repelled" : word;
   // Cut 28 §2 (AU: `8/12 live unpatched` deaths "felt like the dungeon's decision"; AV: `10/12 live unpatched` under GAP read as blame): a
   // death most of whose replays live — or a `dice` — leads with the event that killed him and its odds (`goblin −6 at 6 hp · 1 in 6`), over
   // the stamp, which steps back (the patches still answer it)
   const luck = !drove && d.verdict !== "stall" && d.verdict !== "route" && (lean || word === "dice") ? luckOf(d) : null;
   const luckLead = luck ? h("div", { class: "luck-lead num" }, h("span", { class: "luck-event" }, luck.event), h("span", { class: "luck-odds" }, /* copy:callout */ ` · 1 in ${luck.oneIn}`)) : null;
-  const seal = h("button", { class: /* copy:none */ `verdict ${word}${luck ? " lean-seal" : ""}`, onclick: () => { patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } }, word);
+  const seal = h("button", { class: /* copy:none */ `verdict ${word}${luck ? " lean-seal" : ""}`, onclick: () => { patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } , "data-size": stamp.length > 6 ? "l" : stamp.length > 3 ? "m" : undefined }, stamp);
   // QA 524827b (qaAB: tapped `gas · D6` expecting the clip; it only scrolled to the trace): the cause opens the moment — the killing
   // blow's replay when this session still holds the run — else brings up the trace
   const moment = d.trace.blow ? { text: d.cause.replace(/_/g, " "), t: d.trace.blow.t, depth: d.depth } : null;
@@ -131,7 +140,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const line = h("h1", { class: "death-line" }, h("button", { class: "cause-btn", onclick: onCause }, causeEl), h("span", { class: "sep" }, " · "), seal,
     // QA 308f045 (qaAD: `GAP` over `dice-leaning` — "two verdicts on one death"): beside the stamp the lean is the count it rests on, a fact
     // and not a second verdict (`10/12 live unpatched`; without the count, `most live unpatched`)
-    lean ? h("small", { class: "lean num" }, d.replays ? /* copy:callout */ `${Math.round((d.baseline ?? 0) * d.replays)}/${d.replays} live unpatched` : /* copy:callout */ "most live unpatched") : "");
+    lean ? h("small", { class: "lean num" }, d.replays ? /* copy:callout */ `${Math.round((d.baseline ?? 0) * d.replays)}/${d.replays} replays survive` : /* copy:callout */ "most replays survive") : "");
   // Cut 13 §4: the run's last two notes, engine data verbatim (`The green one: fire. Gambled: fire potion.`)
   // QA 92eb880: never a `… saved him.` over a death (M, N: read as the verdict), nor the cage's loot beat (`Took the axe +1 from the cage.`,
   // M: "unrelated to the ogre") — the core filters the first; the client keeps both off whatever the build
@@ -140,7 +149,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const noteLine = (n: string): string => /^[A-Z][a-z]+(?: [a-z]+)?: [a-z_]+\.$/.test(n) ? /* copy:callout */ `learned ${noteText(n)}` : noteText(n);
   // Cut 24 §2: what was new this run (the core's `ExitLine.news`: a first, a record, a named kill), under the banner before the notes —
   // a death that also slew the Warlord says so; the `differ` line of a run with nothing new is left to the report
-  const newsTexts = mergeFinds((d.line?.news ?? []).filter((n) => n.k !== "differ")).map((n) => n.text);
+  // docs/COPY.md pass 7 (`LEARNED 3` read as "3 things" 4/4): the count names what it counts
+  const newsTexts = mergeFinds((d.line?.news ?? []).filter((n) => n.k !== "differ")).map((n) => n.text.replace(/^learned (\d+)$/, /* copy:callout */ "$1 facts learned"));
   const news = newsTexts.length && !kept ? h("div", { class: "death-news num" }, newsTexts.slice(0, 3).join(" · ")) : null;
   // Cut 26 §6 (AP: "a drive-off at 25/36 hp"): the hp he was driven off at
   const drivenHp = drove && drove.hp !== undefined && drove.max_hp ? h("div", { class: "death-news num driven-hp" }, /* copy:callout */ `driven at ${drove.hp}/${drove.max_hp} hp`) : null;
@@ -154,7 +164,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Cut 20 §4 (AC: "$80 gone after death, `repeat · $80` — only understood when removing refunded $40"): the loadout's re-pack for
   // the next heir, charged at this exit, is a line under it (`repeat −$80`) — the gold sheet it opens lists it too
   const repeat = kept ? 0 : repeatAfterExit(app.lineage.gold_ledger ?? []);
-  const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, d.line) }, lineShown(d.line, renamer(app.lineage))),
+  const ledger = d.line?.text ? h("div", { class: "ledger-line num dim" }, h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, d.line) }, lineShown(d.line, renamer(app.lineage), { brief: true, lean: true })),   // docs/COPY.md pass 2: counts, not item lists (the gold sheet under the tap lists them)
     repeat > 0 ? h("button", { class: "ledger-btn repeat-line down", onclick: () => openGoldSheet(app, d.line) }, /* copy:callout */ `repeat −$${repeat}`) : "") : null;
   // The trace holds one row per hero action (~10 ticks apart at base speed); the last five, with the row accounting of
   // the last action under it (Cut 6 §3). Cut 9 §5: the table lives in ui/trace.ts, shared with every exit.
@@ -214,7 +224,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, "…"), h("small", { class: "gem-w" }, /* copy:label */ "measuring")), cls: "patch-gem pending", onclick: () => undefined })
     : top
     // QA 23ed91f (K: "the gem reads `100%` with no label … I read it as the run's result"): the number, and the word the tap does under it
-    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" && top.label !== "edit" && top.label !== "write" && top.label !== "move" ? h("small", { class: "gem-w" }, top.btn.classList.contains("harms") ? /* copy:label */ "harms" : /* copy:label */ "apply") : ""), cls: `patch-gem${top.btn.classList.contains("harms") ? " harms" : ""}`, pulse: !top.btn.classList.contains("harms"), onclick: () => { if (top) void applyOf.get(top.btn)?.(); } })
+    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" && top.label !== "edit" && top.label !== "write" && top.label !== "move" ? h("small", { class: "gem-w" }, top.btn.classList.contains("harms") ? /* copy:label */ "risky" : /* copy:label */ "apply") : ""), cls: `patch-gem${top.btn.classList.contains("harms") ? " harms" : ""}`, pulse: !top.btn.classList.contains("harms"), onclick: () => { if (top) void applyOf.get(top.btn)?.(); } })
     : gem({ label: /* copy:button */ "edit", pulse: true, onclick: () => app.go({ kind: "camp" }) });
   let gemBtn = makeGem();
   const cons = renderConsole({ portrait: face.el, gem: gemBtn, tiles: [
@@ -231,7 +241,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     // QA 23ed91f (K: "the patches sit below the fold, under the console"): the patches, the screen's point, before the trace
     patches,
     tracePanel);
-  const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}` }, bar.el, well, cons.el);
+  const wide = wideCols(app);   // desktop: the rules left, the shaft right (wide.css)
+  const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}` }, bar.el, well, cons.el, ...wide.els);
   // Cut 18 §4: a stall's cause is the rows' loop (`R2 retreat ↔ explore`) — it reads whole on one line: the face steps down until it fits
   if (d.verdict === "stall") { line.classList.add("loop"); fitLine(line.querySelector<HTMLElement>(".cause")); }
   // QA 23ed91f: the patches' reach is the camp's own measure, landing after the paint (`deathDeltas`: seconds in wasm) — the
@@ -304,7 +315,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
       measuring = false; const g2 = makeGem(); gemBtn.replaceWith(g2); gemBtn = g2;
     }).catch((e) => { console.warn("deathDeltas", e); measuring = false; const g2 = makeGem(); gemBtn.replaceWith(g2); gemBtn = g2; }); }, 0);
   }
-  return { el, dispose: () => { gone = true; bar.dispose(); } };
+  return { el, dispose: () => { gone = true; bar.dispose(); wide.dispose(); } };
 }
 
 /** QA 0c6e126 (qaZ): a rule row named under a death's trace — the row, how often it acted in the trace's turns and why it did not
@@ -314,7 +325,7 @@ function openRowSheet(app: App, d: Death, i: number): void {
   const turns = d.trace.turns, acted = turns.filter((t) => t.row === i).length;
   const last = turns[turns.length - 1], why = last?.row === i ? /* copy:callout */ "fired" : last?.rows?.find((w) => w.row === i)?.why;
   openSheet((close) => h("div", { class: "sheet-body row-sheet" },
-    h("div", { class: "label row-label" }, `R${i + 1}`, " ", h("small", { class: "dim" }, rowLabel(row)), closeX(close)),
+    h("div", { class: "label row-label" }, h("small", { class: "dim" }, rowLabel(row)), closeX(close)),
     h("div", { class: "num dim row-acted" }, /* copy:callout */ `acted ${acted}/${turns.length}`, why ? ` · ${why}` : ""),
     h("button", { class: "chip row-edit", onclick: () => { close(); app.editing = true; app.go({ kind: "camp", highlight: i }); } }, /* copy:button */ "edit")));
 }
@@ -327,9 +338,9 @@ export function repeatAfterExit(ledger: { delta: number; why: string }[]): numbe
 }
 
 /** Cut 19 §4: the row a `row` verdict names — `R2 drink unknown` (its verb, two words at most), `R2` alone when the row is not known. */
-export function rowName(i: number, row?: Row): string {
-  const v = row ? verbLabel(row.verb).trim().split(/\s+/).slice(0, 2).join(" ") : "";
-  return `R${i + 1}${v ? ` ${v}` : ""}`;
+export function rowName(i: number, row?: Row, rows?: Row[]): string {
+  if (rows?.[i]) return ruleName(rows, i);
+  return row ? verbLabel(row.verb) : refName(i);
 }
 
 /** Cut 18 §4: shrink a one-line headline's face until it fits its box (from its CSS size down to 12 px), once it is laid out. */
@@ -393,8 +404,8 @@ function drivenBlock(app: App, dv: DrivenOff, select: (b: HTMLButtonElement) => 
   const moveIt = have >= 0 && over >= 0;
   const btn: HTMLButtonElement = h("button", { class: `patch tablet driven-line${have >= 0 && !moveIt ? " held" : ""}${moveIt ? " move" : ""}`, onclick: () => select(btn), "data-gem": moveIt ? /* copy:button */ "move" : have >= 0 ? /* copy:button */ "edit" : /* copy:button */ "write" },
     h("b", { class: "rank num", "aria-hidden": "true" }, "1."),
-    h("span", { class: "patch-main" }, h("span", { class: "chips-inline" }, moveIt ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move R${have + 1} above R${over + 1} `) : "", rowLabel(dv.row))),
-    h("span", { class: "patch-nums" }, h("span", { class: "num surv" }, moveIt ? /* copy:callout */ `R${have + 1} under R${over + 1}` : have >= 0 ? /* copy:callout */ `at R${have + 1}` : /* copy:callout */ `try: ${dv.counter}`)));
+    h("span", { class: "patch-main" }, h("span", { class: "chips-inline" }, moveIt ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move above ${ruleName(app.rules.rows, over)} `) : "", rowLabel(dv.row))),
+    h("span", { class: "patch-nums" }, h("span", { class: "num surv" }, moveIt ? /* copy:callout */ `under ${ruleName(app.rules.rows, over)}` : have >= 0 ? /* copy:callout */ "already written" : /* copy:callout */ `try: ${dv.counter}`)));
   applyOf.set(btn, write);
   return h("div", { class: "patches driven" }, h("div", { class: "patches-moment num dim" }, have >= 0 ? /* copy:callout */ `D${dv.depth} · order` : /* copy:callout */ `D${dv.depth} · counter unwritten`), btn);
 }
@@ -417,9 +428,9 @@ function routeBlock(app: App, d: Death, select: (b: HTMLButtonElement) => void):
   const write = (): void => { if (!same) { if (rc.route.length) app.rules.route = [...rc.route]; else delete app.rules.route; app.rulesChanged(); } app.go({ kind: "camp" }); };
   const btn: HTMLButtonElement = h("button", { class: "patch tablet route-fix", onclick: () => select(btn), "data-gem": cnt(rc.survive) },
     h("b", { class: "rank num", "aria-hidden": "true" }, "1."),
-    h("span", { class: "patch-main" }, h("span", { class: "chips-inline" }, h("small", { class: "target move-tag" }, /* copy:death_line */ `⑂ D${rc.fork} `), /* copy:callout */ `take ${rc.other}`)),
+    h("span", { class: "patch-main" }, h("span", { class: "chips-inline" }, h("small", { class: "target move-tag" }, /* copy:death_line */ `fork D${rc.fork} `), /* copy:callout */ `take ${rc.other}`)),
     h("span", { class: "patch-nums" }, h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, rc.survive)) * 100)}%` })),
-      h("span", { class: "num surv" }, /* copy:callout */ `survives ${cnt(rc.survive)} · unpatched ${cnt(d.baseline ?? 0)}`)));
+      h("span", { class: "num surv" }, /* copy:callout */ `survives ${cnt(rc.survive)} · was ${cnt(d.baseline ?? 0)}`)));
   applyOf.set(btn, write);
   const rest = patchRows(app, d.patches, d.baseline ?? 0, d.trace, { select, moment: d.depth, replays: d.replays });
   rest.insertBefore(btn, rest.querySelector(":scope > button.patch"));
@@ -433,7 +444,8 @@ function routeBlock(app: App, d: Death, select: (b: HTMLButtonElement) => void):
 export function luckOf(d: Death): { event: string; oneIn: string } {
   const core = (d as Death & { luck?: { text?: string; one_in?: number; odds?: number } }).luck;
   const blow = d.trace.blows?.length ? d.trace.blows[d.trace.blows.length - 1] : d.trace.blow;
-  const event = core?.text ?? (blow ? /* copy:callout */ `${blow.by.replace(/_/g, " ")} −${blow.dmg} at ${blow.hp + blow.dmg} hp` : d.cause.replace(/_/g, " "));
+  // docs/COPY.md pass 2 (`a max hit at 4 hp` read "hit for 4", 2/2): the roll is named as one — `max-damage hit at 4 hp`
+  const event = core?.text?.replace(/^a max hit at\b/, /* copy:callout */ "max-damage hit at") ?? (blow ? /* copy:callout */ `${blow.by.replace(/_/g, " ")} −${blow.dmg} at ${blow.hp + blow.dmg} hp` : d.cause.replace(/_/g, " "));
   const n = d.replays ?? 12, died = n - Math.round((d.baseline ?? 0) * n);
   const one = core?.one_in ?? (core?.odds ? Math.max(1, Math.round(1 / core.odds)) : undefined);
   return { event, oneIn: one !== undefined ? `${one}` : died > 0 ? `${Math.max(1, Math.round(n / died))}` : `${n}+` };

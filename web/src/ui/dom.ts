@@ -1,4 +1,5 @@
 // Tiny DOM helpers. No framework.
+import { nameRefs } from "./tokens";
 type Child = Node | string | number | null | undefined | false;
 type Attrs = Record<string, string | number | boolean | ((e: Event) => void) | undefined>;
 
@@ -14,10 +15,12 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs?: Attrs |
   append(el, children);
   return el;
 }
+/** docs/COPY.md §2: every string reaches the screen through here, so a rule the core wrote as `R2` is named by what it says
+ *  (`tokens.nameRefs`) whoever wrote it. */
 export function append(el: Node, children: Child[]): void {
   for (const c of children) {
     if (c === null || c === undefined || c === false) continue;
-    el.appendChild(typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c);
+    el.appendChild(typeof c === "string" ? document.createTextNode(nameRefs(c)) : typeof c === "number" ? document.createTextNode(String(c)) : c);
   }
 }
 export function clear(el: Element): void { while (el.firstChild) el.removeChild(el.firstChild); }

@@ -52,20 +52,26 @@ export function wallCounter(app: Pick<App, "lineage">, kind: string, d?: { count
   const name = wallName(kind), key = kind.replace(/ /g, "_");
   // the core's wall (`Lineage.walls`): the counter as the lineage knows it (`mother: fire`, `mother: ?`)
   const w = (app.lineage.walls ?? []).find((x) => x.boss === key || key.endsWith(x.boss) || x.boss.endsWith(key));
-  if (w?.fact) return w.fact;
   const known = (app.lineage.counters ?? []).find((c) => c.boss === key || key.endsWith(c.boss) || c.boss.endsWith(name));
+  // docs/COPY.md pass 2 (both readers took `warlord: aim` for the boss's move): a known counter reads as the rule that beats him
+  // (`counter: attack boss`), under the notch that names him (`behind warlord`)
+  if (known?.text) return /* copy:callout */ `counter: ${known.text}`;
+  // (a known word the lineage has no counter row for: `warlord: aim` → `counter: aim`; an unknown one stays `mother: ?`)
+  if (w?.fact) return w.fact.replace(/^[^:]+: (?!\?)/, /* copy:callout */ "counter: ");
   const text = d?.counter ?? known?.text?.replace(/,? ?boss$/, "").replace(/^(attack|throw|read|drink) /, "") ?? (d?.counter_hint ? `${d.counter_hint.replace(/\?$/, "")}?` : "?");
   return `${name}: ${text}`;
 }
 /** Cut 28 §1 (AV: `bounty D13 · missed` never said what it pays or needs): the bounty says both — `bounty · D13 · $×2 · reach` (its
  *  multiplier, and what it needs: the floor reached; the core's `needs` when it sends one, e.g. `mother: fire`). */
 export function bountyText(b: { depth: number; mult?: number; needs?: string; pays?: string; fact?: string }): string {
-  return /* copy:callout */ `bounty · D${b.depth} · ${b.pays ?? `$×${b.mult && b.mult > 1 ? b.mult : 2}`} · ${b.needs ?? "reach"}${b.fact ? ` · ${b.fact}` : ""}`;
+  // docs/COPY.md pass 4 (`bounty · $×2 · item · reach · warlord: aim`): what it pays, and a need only when it is more than getting there
+  const needs = b.needs && b.needs !== "reach" ? /* copy:callout */ ` · needs ${b.needs}` : "";
+  return /* copy:callout */ `bounty · D${b.depth} · ${b.pays?.replace(/\$×(\d+)/, "$1× gold") ?? `${b.mult && b.mult > 1 ? b.mult : 2}× gold`}${needs}`;
 }
 /** Cut 20 §5: the bounty's multiplier as the notch reads it (`×2`; a number on the wire above 1 is the multiplier). */
 /** QA 912e135 (qaW: `D8 ×2` in the shaft — "no source"): the multiplier says what it multiplies — the floor's gold (`$×2`). */
 /** QA 524827b (qaAA: `D8 $×2 · warlord` unexplained): the multiplier names itself (`bounty $×2`). */
-export const bountyMult = (b: boolean | number | undefined): string => /* copy:callout */ `bounty $×${typeof b === "number" && b > 1 ? b : 2}`;
+export const bountyMult = (b: boolean | number | undefined): string => /* copy:callout */ `bounty ${typeof b === "number" && b > 1 ? b : 2}× gold`;   // docs/COPY.md pass 5: `$×2` read as "$2"
 
 /** Cut 9 §3: the half-width (a 0..1 fraction like `reach`) in percentage points, never `±0` — a forecast is never exact. */
 export const pmPts = (pm: number): number => Math.max(1, Math.round(pm * 100));
@@ -106,14 +112,15 @@ export function moveOf(m: VsMove | number | undefined): { pts: number; text: str
   // difference (`29% → 61%` is `▲32`, never `▲31` by rounding the delta alone)
   const pts = typeof mv.base === "number" ? Math.round((mv.base + mv.delta) * 100) - Math.round(mv.base * 100) : Math.round(mv.delta * 100);
   const flat = pts === 0 || (mv.pm !== undefined && Math.abs(mv.delta) <= mv.pm);
-  return flat ? { pts, text: mv.pm ? `≈ ±${pmPts(mv.pm)}` : "≈", dir: "flat" } : { pts, text: signedPts(pts), dir: pts > 0 ? "up" : "down" };
+  // docs/COPY.md pass 2: a move inside its ± reads `same` (the `≈ ±N` of a no-call read as a value and a spread)
+  return flat ? { pts, text: /* copy:callout */ "same", dir: "flat" } : { pts, text: signedPts(pts), dir: pts > 0 ? "up" : "down" };
 }
 /** Cut 22 §3: a notch's or a gem's move as a tiny mark — `▲6`, `▼3` (nothing inside its ±). */
 export function moveMark(m: VsMove | number | undefined, bare = false, worse = false): HTMLElement | "" {
   // a move inside its ± marks nothing on a notch, a bar or a gem (a column of `≈` is noise); the line's `D8 ≈` says it
   const v = moveOf(m); if (!v || v.dir === "flat") return "";
   // `bare`: the arrow alone (a gem in the narrow shaft; its number is on the line under it)
-  return h("i", { class: `vsm dlt ${tone(v.dir, worse)}` }, `${v.dir === "up" ? "▲" : "▼"}${bare ? "" : Math.abs(v.pts)}`);
+  return h("i", { class: `vsm dlt ${tone(v.dir, worse)}` }, bare ? (v.dir === "up" ? "▲" : "▼") : `${v.dir === "up" ? "+" : "−"}${Math.abs(v.pts)}`);
 }
 /** QA 778fa1b (qaV: `death −90` and `death 9% ▼` drawn red — "a drop in death drawn as good"): the colour says good or bad, the arrow
  *  and the sign say which way — a share where more is worse (death) takes the other colour. */
@@ -122,7 +129,7 @@ const tone = (dir: "up" | "down" | "flat", worse: boolean): string => !worse || 
  *  frontier's, `D8 ≈`), the bank's move when the gems show, and the death's when it clears its ±. Null without a move to show. */
 export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, withEnds: boolean): HTMLElement | null {
   // QA 778fa1b (qaV): an edit whose move is still being measured reads `vs sent …`, never the last move or a hollow `≈`
-  if (!vs) return app.vsPending() ? h("div", { class: "shaft-vs num rough pending" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs sent", "…")) : null;
+  if (!vs) return app.vsPending() ? h("div", { class: "shaft-vs num rough pending" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs last run", "…")) : null;
   const rough = vs.refined === false;
   const start = forecastStart(app, f), next = Math.max(start, app.lineage.best_depth + 1);
   const ds = vs.depths.filter((d) => d.depth >= start && d.depth <= (f?.known_to ?? Infinity));
@@ -156,7 +163,7 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
   if (!terms.length) return null;
   // QA 778fa1b (qaU: `death −10` stayed while the refine beside it read 22 → 27 %): a move paired on the first pass trails `…` and
   // reads dim until the refine's is asked again and lands (`ForecastVs.refined`; absent on an older core: no mark)
-  return h("div", { class: `shaft-vs num${rough ? " rough" : ""}`, "data-refined": rough ? "0" : vs.refined ? "1" : "" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs sent", rough ? "…" : ""), ...terms);
+  return h("div", { class: `shaft-vs num${rough ? " rough" : ""}`, "data-refined": rough ? "0" : vs.refined ? "1" : "" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs last run", rough ? "…" : ""), ...terms);
 }
 
 /** Cut 28 §2 (AV: "death jumped 14 → 36 %; I blamed my new rows — the real cause was the party dying"): the state's part of the move
@@ -218,7 +225,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
     const n = app.playerRows(), m = app.ownRows(), combos = app.combos();
-    replace(yours, h("span", { class: n ? "" : "dim" }, /* copy:callout */ `written: ${n} of ${m} row${m === 1 ? "" : "s"}`),
+    replace(yours, h("span", { class: n ? "" : "dim" }, /* copy:callout */ `written: ${n} of ${m} rule${m === 1 ? "" : "s"}`),
       combos.length ? h("span", { class: "combos" }, ` · ${combos.map((c) => c.name).join(" · ")}`) : "");
   };
   // Cut 12 §3: `bank 40% · return 35% · death 25% · ~$54` — the three shown always so the trade reads; absent on an older core
@@ -232,7 +239,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     const epm = pmShown(e.death, e.pm);
     const pm = epm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${epm}${f.refined === false ? "…" : ""}`) : "";
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
-    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${eh(e.bank)} · return ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}`));
+    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${eh(e.bank)} · return ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}/run`));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -283,7 +290,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         // wall says what it does (the boss above seals the stairs)
         cause ? h("small", { class: "dim" }, /* copy:callout */ ` · killer: ${cause.replace(/_/g, " ")}`) : "",
         boss ? h("small", { class: "boss-here" }, ` · ${boss}`) : "",
-        wall ? h("small", { class: "wall" }, /* copy:callout */ ` · sealed by ${wall}`) : "",
+        wall ? h("small", { class: "wall" }, /* copy:callout */ ` · behind ${wall}`) : "",
         wall ? h("small", { class: "wall-counter" }, ` · ${wallCounter(app, d.wall!, d as { counter?: string; counter_hint?: string })}`) : "",   // Cut 28 §1: the wall's path
         // Cut 20 §5: the bounty floor; Cut 28 §1: what it pays and needs (`bounty · $×2 · item · reach`)
         d.bounty ? h("small", { class: "bounty-x" }, ` · ${app.lineage.bounty?.depth === d.depth && (app.lineage.bounty.pays || app.lineage.bounty.needs) ? bountyText({ ...app.lineage.bounty, depth: d.depth }).replace(/^bounty · D\d+ · /, /* copy:callout */ "bounty · ") : bountyMult(d.bounty)}`) : "",
@@ -353,7 +360,8 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   const vsHost = h("div", { class: "shaft-vs-host", hidden: true });
   // Cut 28 §1: the sworn oath rides the shaft, under the notches, with the forecast's share of keeping it
   const oathEl = h("div", { class: "shaft-oath-host" });
-  const el = h("button", { class: "shaft", onclick: () => onOpen() }, oathEl, notches, ends);
+  // docs/COPY.md pass 2 (the notches' % read as "success" or "clear rate"): the column says what its numbers are
+  const el = h("button", { class: "shaft", onclick: () => onOpen() }, oathEl, h("small", { class: "shaft-head dim" }, /* copy:label */ "reach"), notches, ends);
   let last: Forecast | null = app.lastForecast;
   // notches shown at most: D1 … the deepest (best+1, or the bounty floor). QA e75ec29 (R: "the column starts at D7 but the run starts
   // on D1"): past MAX the shallow floors fold into one notch (`D1–6`, lit by its deepest floor's reach — they are the ones every run
@@ -407,7 +415,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       // Cut 24 §5: the floor he stands on names him too (`D8 · warlord`); his wall below keeps its own mark
       const bossHere = d?.boss && !wall ? wallName(d.boss) : undefined;
       // QA 0c6e126 (qaY: `D8 · warlord` over `D9 · warlord` — "two warlords"): under a notch that names him the wall reads `· wall`
-      const above = byDepth.get(depth - 1), wallText = wall && above?.boss && !above.wall && depth - 1 >= from ? /* copy:callout */ "sealed" : wall;   // QA 524827b (qaAA: `D9 · wall <1%` unexplained): the boss above seals the stairs
+      const wallText = wall ? /* copy:callout */ `behind ${wall}` : wall;   // docs/COPY.md pass 2 (`sealed` read as "D9 locked", no boss): who holds the stairs   // QA 524827b (qaAA: `D9 · wall <1%` unexplained): the boss above seals the stairs
       // QA 92eb880 (N: "D7 and D8 read 0% … the D8 label stays gold at 0%"): a notch nobody reaches is dim, label and all; a floor past
       // the set's own `depth ≥ N → bank` row is capped (dim), and the bank floor says so (`D6 · bank`)
       const zero = !!d && Math.round(d.reach * 100) === 0;
@@ -421,7 +429,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       // QA 308f045 (qaAC: `fens · D5 · ?` — "what the `?` asks"): a lane never entered says so (`untried`)
       if (wall && d?.wall) n.appendChild(h("small", { class: "wall-counter num" }, wallCounter(app, d.wall, d as { counter?: string; counter_hint?: string })));   // Cut 28 §1
-      if (fr) n.appendChild(h("small", { class: `frontier${fr.entered ? " entered" : ""}`, "data-biome": fr.biome }, /* copy:callout */ `${fr.biome} · D${fr.fork}${fr.entered ? "" : " · untried"}`));
+      if (fr) n.appendChild(h("small", { class: `frontier${fr.entered ? " entered" : ""}`, "data-biome": fr.biome }, /* copy:callout */ `or ${fr.biome}${fr.entered ? "" : " · untried"}`   /* docs/COPY.md pass 7: the other stair at this fork (`fens · D5 · untried` read "[elsewhere]" 2/2) */));
       return n;
     }),
     // QA 912e135 (qaW: the first camp's shaft was `D1 100%` alone, then D1–D7 after a death): the floors below the shaft's last are
@@ -438,7 +446,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
       h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true))),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
-      h("span", { class: "end gold" }, `~$${Math.round(e.gold)}`, rough ? h("i", { class: "settling" }, "…") : ""));
+      h("span", { class: "end gold" }, /* copy:callout */ `~$${Math.round(e.gold)}/run`, rough ? h("i", { class: "settling" }, "…") : ""));
     replace(oathEl, shaftOath(app)); oathEl.hidden = !oathEl.childElementCount;
     const line = vsLine(app, vs, last, !!e && showEnds()), lm = lmoveLine(app, last), st = stateLine(app);
     vsHost.hidden = !line && !lm && !st; replace(vsHost, st ?? "", lm ?? "", line ?? "");

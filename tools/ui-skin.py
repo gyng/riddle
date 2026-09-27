@@ -16,7 +16,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC_F, SRC_I, SRC_P = ROOT / "art/ui/frames", ROOT / "art/ui/icons", ROOT / "art/ui/portraits"
+SRC_F, SRC_I, SRC_P, SRC_B, SRC_D = ROOT / "art/ui/frames", ROOT / "art/ui/icons", ROOT / "art/ui/portraits", ROOT / "art/ui/backdrops", ROOT / "art/ui/deco"
 OUT = ROOT / "web/public/ui"
 MANIFEST = ROOT / "web/src/ui/skin.json"
 
@@ -27,6 +27,7 @@ FRAMES = {
     "banner": (0.5, None), "gauge": (0.5, 16), "stud": (1.0, None), "seal": (0.5, None),
 }
 ICON_PX = 96   # 48 CSS px at 2x
+BACKDROP_W = 720   # gfx round 1: painted backdrops behind a place (death, report), 1024×1536 opaque portraits from Codex
 PORTRAIT_PX = 256   # art pass: the well's face is 56 CSS px (168 device px at 3x); square, opaque — the CSS circle masks it
 
 
@@ -71,8 +72,28 @@ def main() -> None:
             continue
         im.resize((PORTRAIT_PX, PORTRAIT_PX), Image.LANCZOS).save(OUT / "portraits" / f"{p.stem}.webp", quality=88, method=6)
         portraits.append(p.stem)
-    MANIFEST.write_text(json.dumps({"frames": frames, "icons": icons, "portraits": portraits}, indent=1) + "\n")
-    print(f"ui-skin: {len(frames)} frames, {len(icons)} icons, {len(portraits)} portraits -> web/public/ui/" + (f"; unusable: {', '.join(bad)}" if bad else ""))
+    (OUT / "backdrops").mkdir(parents=True, exist_ok=True)
+    backdrops = []
+    for p in sorted(SRC_B.glob("*.png")) if SRC_B.exists() else []:
+        im = Image.open(p).convert("RGB")
+        if im.height < im.width or im.width < 512:
+            bad.append(str(p.relative_to(ROOT)))
+            continue
+        im.resize((BACKDROP_W, round(im.height * BACKDROP_W / im.width)), Image.LANCZOS).save(OUT / "backdrops" / f"{p.stem}.webp", quality=82, method=6)
+        backdrops.append(p.stem)
+    # gfx round 4: decoration (the desktop columns' carved pillar, the camp's braziers): half size, alpha kept where it has one
+    (OUT / "deco").mkdir(parents=True, exist_ok=True)
+    deco = []
+    for p in sorted(SRC_D.glob("*.png")) if SRC_D.exists() else []:
+        im = Image.open(p)
+        im = im.convert("RGBA") if im.mode in ("RGBA", "LA", "P") else im.convert("RGB")
+        if im.mode == "RGBA" and not usable(im):
+            bad.append(str(p.relative_to(ROOT)))
+            continue
+        im.resize((im.width * 3 // 4, im.height * 3 // 4), Image.LANCZOS).save(OUT / "deco" / f"{p.stem}.webp", quality=84, method=6)
+        deco.append(p.stem)
+    MANIFEST.write_text(json.dumps({"frames": frames, "icons": icons, "portraits": portraits, "backdrops": backdrops, "deco": deco}, indent=1) + "\n")
+    print(f"ui-skin: {len(frames)} frames, {len(icons)} icons, {len(portraits)} portraits, {len(backdrops)} backdrops, {len(deco)} deco -> web/public/ui/" + (f"; unusable: {', '.join(bad)}" if bad else ""))
 
 
 if __name__ == "__main__":

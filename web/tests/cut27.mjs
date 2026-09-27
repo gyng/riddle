@@ -166,12 +166,12 @@ try {
     }
     const s = await scene();
     const dur = (s.dev.doneAt ?? NaN) - (s.dev.playAt ?? NaN), lat = (s.dev.playAt ?? NaN) - (s.dev.refineAt ?? NaN);
-    check(seen.sent === "sent · R2" && seen.new === "R5 now", `the scene plays the sent branch, then the edited one ("${seen.sent}" → "${seen.new}")`);
+    check(seen.sent === "last run · attack nearest" && seen.new === "a rule now", `the scene plays the sent branch, then the edited one ("${seen.sent}" → "${seen.new}")`);
     const ends = s.dev.ends ?? seen.ends;
     check(ends.join(" | ") === "dies · D7 | lives · D9", `each branch ends on its run's end (${ends.join(" | ")})`);
     check(dur >= 3000 && dur <= 5000, `the scene takes 3–5 s (${Math.round(dur)} ms)`);
     check(lat <= 1500, `the scene starts ≤ 1.5 s after the refine (fake: ${Math.round(lat)} ms)`);
-    check(s.line === "R5 now → lives · D9 · vs dies · D7" && !s.shown, `its line stays under \`vs sent\` ("${s.line}")`);
+    check(s.line === "a rule now → lives · D9 · was dies · D7" && !s.shown, `its line stays under \`vs sent\` ("${s.line}")`);
     await shot("cut27-scene-line");
     // a tap on the line plays it again; a tap on the scene lets it go (the line stays)
     await page.locator(".camp .div-line").click({ timeout: 10_000 });
@@ -184,9 +184,9 @@ try {
     // an `≈` edit with a divergence says what changed
     await stubDivergence({ moved: 0.02, inside: true, fires: [{ sent_row: 2, new_row: 2, text: "R3 drink heal", sent: 0.5, new: 2.1 }] });
     await edit(5);
-    await page.waitForFunction(() => { const l = document.querySelector(".camp .div-line"); return l && !l.hidden && /≈/.test(l.textContent); }, null, { timeout: 15_000 }).catch(() => {});
+    await page.waitForFunction(() => { const l = document.querySelector(".camp .div-line"); return l && !l.hidden && /^same/.test(l.textContent.trim()); }, null, { timeout: 15_000 }).catch(() => {});
     const flat = await scene();
-    check(/^≈( ±\d+)? · R3 fires 4× more · R5 now → lives · D9 · vs dies · D7$/.test(flat.line) && flat.shown, `an \`≈\` edit plays too and says what changed ("${flat.line}")`);
+    check(/^same · drink heal fires 4× more · a rule now → lives · D9 · was dies · D7$/.test(flat.line) && flat.shown, `an \`≈\` edit plays too and says what changed ("${flat.line}")`);
     // a move under the bar outside its ± is the number's alone (no scene)
     await stubDivergence({ moved: 0.03, inside: false });
     await edit(5);
@@ -262,7 +262,7 @@ try {
     });
     await sleep(300);
     const dv = await page.evaluate(() => ({ head: document.querySelector(".death .patches.driven .patches-moment")?.textContent, surv: document.querySelector(".death .patches.driven .surv")?.textContent, gem: document.querySelector(".console .patch-gem")?.textContent ?? document.querySelector(".console .gem")?.textContent }));
-    check(dv.head === "D8 · order" && dv.surv === "R3 under R1" && /move/.test(dv.gem ?? ""), `a drive-off with its counter held reads order ("${dv.head}" · "${dv.surv}" · gem "${dv.gem}")`);
+    check(dv.head === "D8 · order" && dv.surv === "under attack" && /move/.test(dv.gem ?? ""), `a drive-off with its counter held reads order ("${dv.head}" · "${dv.surv}" · gem "${dv.gem}")`);
     await page.evaluate(() => document.querySelector(".console .patch-gem")?.click());
     await sleep(300);
     const moved = await page.evaluate(() => ({ screen: window.__riddle.screen, r1: window.__riddle.rules.rows[0]?.verb.a ?? window.__riddle.rules.rows[0]?.verb.v }));

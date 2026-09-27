@@ -25,7 +25,7 @@ pub fn learn(run: &mut Run, cx: &mut Ctx, fact: String) -> bool {
 /// `TWO STAIRS` callout, once per run and fork. The route decides which stair the hero takes.
 pub fn fork_seen(run: &mut Run, cx: &mut Ctx) {
     let next = run.depth + 1;
-    if run.fork_seen >= next || !crate::descent::OPEN_FORKS.contains(&next) || !run.route.fork_open(next) || !run.floor.map.is_visible(run.floor.stairs_down) {
+    if run.fork_seen >= next || !crate::descent::fork_open_for(run.route2, next) || !run.route.fork_open(next) || !run.floor.map.is_visible(run.floor.stairs_down) {
         return;
     }
     run.fork_seen = next;
@@ -238,6 +238,11 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
         if m.has_tag("boss") && want("boss") {
             sight_facts.push(format!("foe:{kind}:boss"));
         }
+        // Cut 29 (the D28 probe: `noise_discipline`'s `fact: blind` was never learned, the card unbuyable):
+        // a blind hunter is seen to hunt by sound — the tag is a sight fact.
+        if m.has_tag("blind") && m.hostile() && want("blind") {
+            sight_facts.push(format!("foe:{kind}:blind"));
+        }
         if m.has_tag("ally") && m.neutral && want("ally") {
             sight_facts.push(format!("foe:{kind}:ally"));
         }
@@ -267,6 +272,7 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
         if run.monsters[i].is_boss() && run.boss_seen_t.is_none() {
             run.boss_seen_t = Some(run.turn);
             run.hurt_since_boss = false;
+            run.wall_seen = true;   // Cut 28b: the oath board opens (`LineageState::oath_open`)
             let title = run.monsters[i].title();
             cx.events.push(Ev::Callout { t: run.turn, text: title.clone(), why: None });
             crate::chronicle::note(run, cx, format!("The {title} waits."));

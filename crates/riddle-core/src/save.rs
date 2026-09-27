@@ -25,6 +25,12 @@ pub fn load(text: &str) -> Result<Game, String> {
     g.bounty_seen = g.lineage.bounty;
     // Cut 28 §1: a lineage from before the oaths draws its board.
     crate::oath::refresh(&mut g.lineage);
+    // Cut 29: a save from before the curriculum (no system open) owns the free vocabulary its gates
+    // opened and opens the systems it has used (a later save keeps what it holds: a load is no event).
+    if g.lineage.systems.is_empty() {
+        crate::meta::grant_free(&mut g.lineage);
+        crate::systems::upgrade(&mut g.lineage);
+    }
     // Cut 21 §1: a lineage from before the waystones lights them from its banks.
     if g.lineage.waystones.is_empty() {
         if let Some(&d) = g.lineage.banked_depths.iter().next_back() {

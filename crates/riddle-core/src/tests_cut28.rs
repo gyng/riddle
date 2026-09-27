@@ -83,10 +83,12 @@ fn the_oath_board_stands_three_and_swearing_is_a_gold_sink() {
 fn an_oath_kept_grants_its_reward_and_the_board_refills() {
     let mut g = edited(5, 9);
     g.lineage.gold = 5000;
+    // (Cut 29 §1: `lean`'s first card, gas step, opens at T3 — the Mother met)
+    g.lineage.facts.insert("foe:bloat_mother".into());
     let o = crate::oath::draw_kind(&g.lineage, "lean", 77).unwrap();
     assert_eq!(o.depth, 9, "the record, without rest");
     assert_eq!(o.reward.kind, "card");
-    assert_eq!(crate::oath::chips(&o), vec!["D9".to_string(), "no rest".to_string()]);
+    assert_eq!(crate::oath::chips(&o), vec!["reach D9".to_string(), "no rest".to_string()]);
     g.lineage.oaths = vec![o.clone()];
     crate::oath::refresh(&mut g.lineage);
     assert_eq!(g.lineage.oaths.len(), 3);
@@ -270,7 +272,7 @@ fn traces_carry_max_hp_and_its_steps() {
 #[test]
 fn luck_deaths_name_the_event() {
     let blow = |t, by: &str, dmg, hp| TraceBlow { t, by: by.into(), dmg, hp };
-    let mut d = Death { run_id: 1, depth: 6, cause: "goblin".into(), margin: "2 hp short".into(), verdict: "dice".into(), baseline: 10.0 / 12.0, replays: 12, trace: Trace::default(), patches: Vec::new(), morgue: String::new(), line: None, chain: None, rules: None, notes: Vec::new(), nothing_beats_base: false, cause_row: None, order_over: None, route_cause: None, lean: None, luck: None };
+    let mut d = Death { run_id: 1, depth: 6, cause: "goblin".into(), margin: "2 hp short".into(), verdict: "dice".into(), baseline: 10.0 / 12.0, replays: 12, trace: Trace::default(), patches: Vec::new(), morgue: String::new(), line: None, chain: None, rules: None, notes: Vec::new(), nothing_beats_base: false, cause_row: None, order_over: None, route_cause: None, lean: None, luck: None, fight: None };
     d.trace.turns.push(TraceTurn { max_hp: 36, t: 100, row: 0, verb: Verb::new("attack"), hp: 6, foes: 2, rule_foes: 2, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
     d.trace.blow = Some(blow(105, "goblin", 6, 0));
     let l = crate::trace::luck_of(&d).expect("most replays live");
@@ -418,4 +420,126 @@ fn the_kite_archers_card_is_priced_at_every_place() {
             assert!(panel.iter().all(|r| r.ticks <= crate::forecast::SIM_MAX_TICKS));
         }
     }
+}
+
+/// Cut 28b (owner: "it's not clear what oaths do"): a sworn oath's fate is said once in every
+/// send, as it happens (`Ev::Oath`) — kept the moment its condition is met, broken at the row that
+/// used the tool it forbids (`R2 return`, `rest`), missed at an end short of it — and always agrees
+/// with the settle: the batch's tally, the exit line's news (`oath broken: R2 return`), the run's
+/// notes (`Broke the oath: R2 return.`), the report's line.
+#[test]
+fn a_sworn_oath_says_its_fate_once_and_the_settle_agrees() {
+    let mut seen: std::collections::BTreeMap<(String, &str), u32> = Default::default();
+    for kind in ["lean", "bold", "tamer"] {
+        for seed in 1..13u64 {
+            let mut g = edited(seed, 3);
+            g.lineage.gold = 5000;
+            let Some(o) = crate::oath::draw_kind(&g.lineage, kind, 900 + seed as u32) else { continue };
+            g.lineage.oaths = vec![o.clone()];
+            crate::oath::refresh(&mut g.lineage);
+            g.swear_oath(&o.id).unwrap();
+            g.send();
+            let mut evs = Vec::new();
+            for _ in 0..4000 {
+                let r = g.step(40);
+                evs.extend(r.events);
+                if r.run_over {
+                    break;
+                }
+            }
+            let said: Vec<(bool, i32, String)> = evs.iter().filter_map(|e| match e { Ev::Oath { kept, row, cause, .. } => Some((*kept, *row, cause.clone())), _ => None }).collect();
+            assert_eq!(said.len(), 1, "{kind} seed {seed}: said once ({said:?})");
+            let (ok, row, cause) = said[0].clone();
+            // the event comes before the exit's
+            let at = evs.iter().position(|e| matches!(e, Ev::Oath { .. })).unwrap();
+            assert!(evs[at..].iter().any(|e| matches!(e, Ev::Exit { .. })), "{kind} seed {seed}: the oath before the exit");
+            let (_, runs, kept, _) = g.batch.oath.clone().unwrap();
+            assert_eq!((runs, kept), (1, ok as u32), "{kind} seed {seed}: the settle agrees ({said:?})");
+            let news: Vec<String> = evs.iter().filter_map(|e| match e { Ev::Exit { line: Some(l), .. } => Some(l.news.iter().map(|n| n.text.clone()).collect::<Vec<_>>()), _ => None }).flatten().collect();
+            let notes: Vec<String> = evs.iter().filter_map(|e| match e { Ev::Note { text, .. } => Some(text.clone()), _ => None }).collect();
+            let state = if ok {
+                assert!(news.iter().any(|n| n.starts_with("oath kept")), "{news:?}");
+                assert!(notes.iter().any(|n| n == "Kept the oath."), "{notes:?}");
+                "kept"
+            } else if !cause.is_empty() {
+                let text = if row >= 0 { format!("R{} {cause}", row + 1) } else { cause.clone() };
+                assert!(matches!(cause.as_str(), "rest" | "return" | "stalled" | "driven"), "{cause}");
+                assert!(news.contains(&format!("oath broken: {text}")), "{kind} seed {seed}: {news:?}");
+                assert!(notes.contains(&format!("Broke the oath: {text}.")), "{notes:?}");
+                assert_eq!(g.batch.oath_breaks.get(&text), Some(&1));
+                // the chronicle keeps it (the heir's deeds, or his line once he fell)
+                let chron = serde_json::to_string(&g.lineage.chronicle).unwrap();
+                assert!(g.lineage.heir_deeds.iter().any(|d| d.starts_with("broke the oath")) || chron.contains("broke the oath"), "{:?} {chron}", g.lineage.heir_deeds);
+                assert!(crate::rules::word_count(&text) <= 3);
+                "broken"
+            } else {
+                assert!(!news.iter().any(|n| n.starts_with("oath")) && !notes.iter().any(|n| n.contains("oath")), "a miss is quiet");
+                "missed"
+            };
+            // a kept oath is off the board, a broken or missed one still sworn (the stake rides)
+            assert_eq!(g.lineage.oath_sworn.is_some(), !ok, "{kind} seed {seed}");
+            *seen.entry((kind.to_string(), state)).or_insert(0) += 1;
+        }
+    }
+    assert!(seen.keys().any(|(k, s)| k == "lean" && *s == "broken"), "a rest breaks `no rest` somewhere: {seen:?}");
+    assert!(seen.keys().any(|(_, s)| *s == "kept"), "some send keeps one: {seen:?}");
+}
+
+/// Cut 28b: the oath board opens when it has something to answer — a band boss seen or a plateau
+/// met — not when the purse first covers a price; an old save with an oath sworn or kept stays open.
+#[test]
+fn the_oath_board_opens_at_a_wall_or_a_plateau() {
+    let mut g = edited(4, 2);
+    assert!(!g.lineage().oath_open, "a young lineage");
+    g.lineage.gold = 100_000;
+    assert!(!g.lineage().oath_open, "gold alone opens nothing");
+    g.lineage.facts.insert(crate::facts::boss_counter_fact("goblin_warlord"));
+    assert!(g.lineage().oath_open, "a wall known");
+    let mut g = edited(4, 2);
+    g.lineage.oath_open = true;
+    let back = Game::load(&g.save()).unwrap();
+    assert!(back.lineage().oath_open, "rides the save");
+    // a run that sees a band boss opens it
+    let mut g = edited(6, 7);
+    g.send();
+    g.descend_to(8);
+    for _ in 0..3000 {
+        if g.step(20).run_over {
+            break;
+        }
+    }
+    assert!(g.lineage.oath_open, "a run at the Warlord's floor opens the board");
+    // a plateau: the stall window's runs
+    let mut g = edited(4, 2);
+    g.stall.runs = crate::offline::STALL_MIN_RUNS;
+    let _ = crate::offline::run_offline_quick(&mut g, 60);
+    assert!(g.lineage.oath_open, "a plateau opens it");
+}
+
+/// Cut 28b (AW: "the Mother oath sat at 9% ±8 with no lever I could find"; AX: "never understood
+/// what `D3 · no return` required"): a depth oath's floor reads as a goal (`reach D3`), and the
+/// sworn oath's panel names its steps — the floor reached, the boss met, the boss burned — each a
+/// share of the sends, ordered as a funnel.
+#[test]
+fn a_sworn_oath_panel_names_its_steps() {
+    let mut g = edited(8, 12);
+    let bold = crate::oath::draw_kind(&g.lineage, "bold", 1).unwrap();
+    assert_eq!(crate::oath::chips(&bold)[0], "reach D13");
+    let mut o = crate::oath::draw_kind(&g.lineage, "fire", 2).unwrap();
+    o.boss = Some("bloat_mother".into());
+    o.depth = 13;
+    assert_eq!(crate::oath::step_names(&o).iter().map(|s| s.0.as_str()).collect::<Vec<_>>(), vec!["D13", "met", "burned"]);
+    g.lineage.oaths = vec![o.clone()];
+    g.lineage.oath_sworn = Some(o.id.clone());
+    let f = crate::forecast::forecast(&g);
+    let s = f.oath.expect("the sworn oath's share");
+    assert_eq!(s.steps.len(), 3);
+    assert!(s.steps.windows(2).all(|w| w[0].share + 1e-9 >= w[1].share), "a funnel: {:?}", s.steps);
+    assert!(s.steps[2].share + 1e-9 >= s.share, "kept needs burned: {s:?}");
+    // a run's bits
+    g.start_run(None);
+    let run = g.run.as_mut().unwrap();
+    run.max_depth = 13;
+    run.burned.push("bloat_mother".into());
+    assert_eq!(crate::oath::steps(&o, run), crate::oath::STEP_FLOOR | crate::oath::STEP_MET | crate::oath::STEP_BURNED);
 }

@@ -45,7 +45,7 @@ const camp = () => page.evaluate(() => ({
   plus: !!document.querySelector(".rows-foot .btn.ghost"),
   yours: document.querySelector(".fc-yours")?.textContent ?? "",
   ends: document.querySelector(".fc-ends:not([hidden])")?.textContent ?? "",
-  rowCard: [...document.querySelectorAll(".unlocks .card")].map((c) => c.innerText.replace(/\s+/g, " ").trim()).find((t) => t.startsWith("+1 row")) ?? "",
+  rowCard: [...document.querySelectorAll(".unlocks .card")].map((c) => c.innerText.replace(/\s+/g, " ").trim()).find((t) => t.startsWith("+1 rule")) ?? "",
   supplies: [...document.querySelectorAll(".supplies .chip.item")].map((c) => c.innerText.replace(/\s+/g, " ").trim()),
   supplyCount: document.querySelector(".supplies .row-label .num")?.textContent ?? "",
 }));
@@ -73,9 +73,9 @@ try {
   let c = await camp();
   await page.keyboard.press("Escape"); await sleep(100);   // the panel closes over the tablets
   check(c.count === "2/4" && c.rows.length === 2, `the preset reads ${c.count}, ${c.rows.length} rows`);
-  check(/^written: 0 of 2 rows · gambler$/.test(c.yours), `the yours line names the combo: "${c.yours}"`);
-  check(/^ends bank <?\d+% · return <?\d+%( · stall <?\d+%)? · death <?\d+%( ±\d+…?)? · ~\$\d+$/.test(c.ends), `the forecast's ends line: "${c.ends}"`);
-  check(/⊘ fill rows/.test(c.rowCard) && !/rows full/.test(c.rowCard), `+1 row waits on the rows at 2/4, as a requirement: "${c.rowCard}"`);
+  check(/^written: 0 of 2 rules · gambler$/.test(c.yours), `the yours line names the combo: "${c.yours}"`);
+  check(/^ends bank <?\d+% · return <?\d+%( · stall <?\d+%)? · death <?\d+%( ±\d+…?)? · ~\$\d+\/run$/.test(c.ends), `the forecast's ends line: "${c.ends}"`);
+  check(/⊘ fill rules/.test(c.rowCard) && !/rows full/.test(c.rowCard), `+1 row waits on the rows at 2/4, as a requirement: "${c.rowCard}"`);
   check(c.supplies.length === 1 && /^leash · free ×$/.test(c.supplies[0]), `the kennel's leash reads free (QA 92eb880: kennel was unexplained): "${c.supplies[0]}"`);
 
   // §1: a bought card's row goes before the engagement row (the attack row), and never counts
@@ -85,13 +85,13 @@ try {
   await sleep(700);
   c = await camp();
   check(c.rows.length === 3 && c.rows[1].card && /thief guard/.test(c.rows[1].text) && /attack/.test(c.rows[2].text), `the card sits at R2, above attack: ${c.rows.map((r) => r.text.slice(0, 24)).join(" | ")}`);
-  check(c.count === "2/4 rows + 1 card", `the chip counts own rows and the card beside: "${c.count}"`);
-  check(/^written: 0 of 2 rows/.test(c.yours) && !/card R\d+ first/.test(c.yours), `yours counts own rows, no "card R2 first" (a card sits before attack on purpose): "${c.yours}"`);
+  check(c.count === "2/4 rules + 1 tactic", `the chip counts own rows and the card beside: "${c.count}"`);
+  check(/^written: 0 of 2 rules/.test(c.yours) && !/card R\d+ first/.test(c.yours), `yours counts own rows, no "card R2 first" (a card sits before attack on purpose): "${c.yours}"`);
   await page.evaluate(() => window.__riddle.buy("pack_break"));
   await sleep(700);
   c = await camp();
   check(c.rows.length === 4 && c.rows[2].card && /pack break/.test(c.rows[2].text) && /attack/.test(c.rows[3].text), `the second card also sits above attack: ${c.rows.map((r) => r.text.slice(0, 24)).join(" | ")}`);
-  check(c.count === "2/4 rows + 2 cards" && !c.countRed && c.sendDisabled === false, `two cards, still 2/4: "${c.count}", send ${c.sendDisabled ? "disabled" : "enabled"}`);
+  check(c.count === "2/4 rules + 2 tactics" && !c.countRed && c.sendDisabled === false, `two cards, still 2/4: "${c.count}", send ${c.sendDisabled ? "disabled" : "enabled"}`);
   await shot("01-cards-above-attack");
 
   // four own rows + two cards: full, sends; the fifth own row is refused as `5/4 · drop one` with the mark on an own row
@@ -100,16 +100,16 @@ try {
   await page.waitForFunction(() => window.__riddle.unlockCat.length > 0, null, { timeout: 10_000 });
   await sleep(1200);
   c = await camp();
-  check(/^ends bank <?\d+% · return [1-9]\d*%( · stall <?\d+%)? · death <?\d+%( ±\d+…?)? · ~\$\d+$/.test(c.ends), `with a return row the ends line shows a return share: "${c.ends}"`);
-  check(c.count === "4/4 rows + 2 cards" && !c.countRed && c.sendDisabled === false && !c.plus, `4 own + 2 cards: "${c.count}", send enabled, no +`);
-  check(!/fill rows|rows full/.test(c.rowCard) && /\+1 row/.test(c.rowCard), `+1 row lifted at 4/4 without a run: "${c.rowCard}"`);
+  check(/^ends bank <?\d+% · return [1-9]\d*%( · stall <?\d+%)? · death <?\d+%( ±\d+…?)? · ~\$\d+\/run$/.test(c.ends), `with a return row the ends line shows a return share: "${c.ends}"`);
+  check(c.count === "4/4 rules + 2 tactics" && !c.countRed && c.sendDisabled === false && !c.plus, `4 own + 2 cards: "${c.count}", send enabled, no +`);
+  check(!/fill rules|rows full/.test(c.rowCard) && /\+1 rule/.test(c.rowCard), `+1 row lifted at 4/4 without a run: "${c.rowCard}"`);
   const engineRows = await page.evaluate(async () => (await window.__riddle.engine.lineage()).sets[window.__riddle.active].rows.length);
   check(engineRows === 6, `the engine took all six rows (${engineRows})`);
   await shot("02-four-own-two-cards");
   await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [{ k: "alert>=", n: 5 }], verb: { v: "return" } }, r.rules.rows.length); r.go({ kind: "camp" }); });
   await sleep(600);
   c = await camp();
-  check(c.count === "5/4 rows + 2 cards" && c.countRed && c.sendDisabled === true && c.send === "5/4 · drop one", `the fifth own row: "${c.count}" red, send "${c.send}"`);
+  check(c.count === "5/4 rules + 2 tactics" && c.countRed && c.sendDisabled === true && c.send === "5/4 · drop one", `the fifth own row: "${c.count}" red, send "${c.send}"`);
   check(c.rows.filter((r) => r.drop).length === 1 && c.rows[6].drop && !c.rows[6].card, "the drop mark is on the last own row, never a card");
   await shot("03-fifth-own-row");
   await page.locator(".editor .row.drop .x").first().click({ timeout: 5000 });   // QA 0c6e126 (qaY): a row's × takes two taps — the first arms it
@@ -117,13 +117,13 @@ try {
   await page.locator(".editor .row.drop .x").first().click({ timeout: 5000 });
   await sleep(300);
   c = await camp();
-  check(c.count === "4/4 rows + 2 cards" && c.sendDisabled === false, `after ×: "${c.count}", send enabled`);
+  check(c.count === "4/4 rules + 2 tactics" && c.sendDisabled === false, `after ×: "${c.count}", send enabled`);
 
   // §1: the verb picker — a card another row holds is not offered; picking a card verb clears the row's conds
   await page.locator(".editor .row").nth(4).locator(".chip.verb").click({ timeout: 5000 });   // R5 `hp > 90% → rest`, an own row
   await sleep(200);
   let verbs = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .chip.verb")].map((b) => b.textContent.trim()));
-  check(!verbs.includes("card thief guard") && !verbs.includes("card pack break"), `cards the set holds are not offered (${verbs.filter((v) => v.startsWith("card")).join(", ") || "no cards"})`);
+  check(!verbs.includes("tactic thief guard") && !verbs.includes("tactic pack break"), `cards the set holds are not offered (${verbs.filter((v) => v.startsWith("tactic")).join(", ") || "no cards"})`);
   await page.keyboard.press("Escape"); await sleep(200);
   await page.locator(".editor .row").nth(1).locator(".x").click({ timeout: 5000 }); await sleep(150);   // (two taps: arm, then drop)
   await page.locator(".editor .row").nth(1).locator(".x").click({ timeout: 5000 });   // drop the thief guard row
@@ -131,12 +131,12 @@ try {
   await page.locator(".editor .row").nth(3).locator(".chip.verb").click({ timeout: 5000 });   // R4 `hp > 90% → rest`
   await sleep(200);
   verbs = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .chip.verb")].map((b) => b.textContent.trim()));
-  check(verbs.includes("card thief guard") && !verbs.includes("card pack break"), "the freed card is offered again, the held one is not");
-  await page.locator(".sheet-wrap .chip.verb", { hasText: "card thief guard" }).first().click({ timeout: 5000 });
+  check(verbs.includes("tactic thief guard") && !verbs.includes("tactic pack break"), "the freed card is offered again, the held one is not");
+  await page.locator(".sheet-wrap .chip.verb", { hasText: "tactic thief guard" }).first().click({ timeout: 5000 });
   await sleep(400);
   c = await camp();
   check(c.rows[3].card && c.rows[3].conds === 0 && /thief guard/.test(c.rows[3].text) && !/hp >/.test(c.rows[3].text), `picking a card verb cleared the conds: "${c.rows[3].text.slice(0, 40)}"`);
-  check(c.count === "3/4 rows + 2 cards", `the row moved from own to card: "${c.count}"`);
+  check(c.count === "3/4 rules + 2 tactics", `the row moved from own to card: "${c.count}"`);
   await shot("04-card-verb-cleared-conds");
 
   // §6: a supply line's × removes that line only (the fake has `dropSupply`); the fallback (an engine without it) rebuys the rest

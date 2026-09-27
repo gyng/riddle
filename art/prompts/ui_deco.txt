@@ -1,0 +1,18 @@
+You are painting DECORATIVE UI ART for the game "Riddle" (a roguelike with a Warcraft III / StarCraft II carved-stone-and-iron UI).
+LOOK FIRST at /home/g/p/riddle/art/ui/targets/camp.png, /home/g/p/riddle/art/ui/targets/watch.png and
+/home/g/p/riddle/art/ui/targets/death.png (you may read those three images; read nothing else in the repository). Match their
+painted dark-fantasy look exactly: carved umber/charcoal stone, wrought iron, warm torchlight, ink-and-wash detail. No text, no letters.
+
+Use your built-in image_gen tool, one call per image. Do NOT modify anything outside /home/g/p/riddle/art/ui/deco/. Resample with
+PIL (Lanczos) to the exact sizes below. Delete any scratch/inspection files you create.
+
+/home/g/p/riddle/art/ui/deco/pillar.png — 512 wide x 1536 tall, OPAQUE RGB. A tall carved stone wall panel seen straight on, filling the
+whole canvas: at the bottom a hooded stone knight statue in an alcove resting both hands on a sword (like the hooded statues at the
+bottom corners of camp.png), above it a hanging tattered dark-red banner on an iron rod, above that an iron torch sconce with a small
+flame, the rest carved stone blocks with worn relief ornament. Keep it DARK and low-contrast overall (it sits behind UI panels): mostly
+values between 8 % and 35 % brightness, the flame and a few rim lights the only bright spots. Seamless-looking stone at the top edge.
+
+/home/g/p/riddle/art/ui/deco/brazier.png — 256 wide x 384 tall, RGBA with a TRUE TRANSPARENT background (all four corners alpha 0):
+an iron tripod brazier with a bowl of burning coals and tall orange-yellow flames (like the flame braziers on the sides of camp.png's
+vista), the object centred, filling ~85 % of the height, no ground, no shadow outside the silhouette. Regenerate once if the background
+is not transparent.
