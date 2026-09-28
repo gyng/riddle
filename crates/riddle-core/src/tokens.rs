@@ -96,6 +96,8 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
             conds.push(Cond::t("in", b.name()));
         }
     }
+    // Cut 30 §4: `trait <head>` per learned trait, `gift live` once any is.
+    crate::traits::vocab_conds(l, &mut conds);
     if l.all_companions().next().is_some() && owned("party_hp<") {
         conds.push(Cond::n("party_hp<", 50));
     }

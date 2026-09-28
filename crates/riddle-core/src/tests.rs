@@ -7902,7 +7902,7 @@ fn a_stall_names_the_rules_loop_and_its_first_patch_addresses_the_row() {
 /// moving row alone; a targeting row alone, a trait's step or three actors are no loop.
 #[test]
 fn row_loop_reads_two_actors_or_one_moving_row() {
-    let turn = |row: i32, verb: Verb| TraceTurn { max_hp: 0, t: 0, row, verb, hp: 18, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() };
+    let turn = |row: i32, verb: Verb| TraceTurn { max_hp: 0, t: 0, row, verb, hp: 18, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None };
     let alt = |a: TraceTurn, b: TraceTurn| (0..6).flat_map(|_| [a.clone(), b.clone()]).collect::<Vec<_>>();
     let tr = alt(turn(1, Verb::new("retreat")), turn(-2, Verb::new("explore")));
     assert_eq!(crate::turn::row_loop(&tr), Some(("R2 retreat ↔ explore".to_string(), 1)));
@@ -9659,8 +9659,8 @@ fn a_gambles_harm_that_made_the_difference_names_its_row() {
         let rec = {
             let run = g.run.as_mut().unwrap();
             run.turn = 500;
-            run.trace.push(TraceTurn { max_hp: 0, t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
-            run.trace.push(TraceTurn { max_hp: 0, t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
+            run.trace.push(TraceTurn { max_hp: 0, t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None });
+            run.trace.push(TraceTurn { max_hp: 0, t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None });
             run.gambles.push((400, "poison".into(), true));
             run.gamble_harm = harm;
             run.death_short = short;
@@ -11685,7 +11685,7 @@ fn a_stamp_never_contradicts_its_counts() {
 fn the_chain_keeps_each_rows_newest_reason() {
     use crate::wire::{Because, RowWhy, TraceTurn};
     let b = |text: &str, t: u32| Some(Because { text: text.into(), t, depth: 8 });
-    let turn = |t: u32, row: i32, rows: Vec<RowWhy>| TraceTurn { max_hp: 0, t, row, verb: Verb::new("attack"), hp: 10, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: Some(rows), blows: Vec::new() };
+    let turn = |t: u32, row: i32, rows: Vec<RowWhy>| TraceTurn { max_hp: 0, t, row, verb: Verb::new("attack"), hp: 10, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: Some(rows), blows: Vec::new(), gift: None };
     let turns = vec![
         // R1 (`attack boss`) never met the boss, R2's heal was drunk by R4
         turn(10, 2, vec![RowWhy { row: 0, why: "not in view".into(), because: b("never met", 10) }, RowWhy { row: 1, why: "no item".into(), because: b("R4 drank heal at 17/36 hp", 5) }]),

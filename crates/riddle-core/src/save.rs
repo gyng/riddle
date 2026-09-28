@@ -37,5 +37,7 @@ pub fn load(text: &str) -> Result<Game, String> {
             g.lineage.light_waystones(d);
         }
     }
+    // Cut 30 §1: a save from before the traits maps its temperament onto a shape.
+    crate::traits::upgrade(&mut g.lineage);
     Ok(g)
 }

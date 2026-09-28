@@ -828,7 +828,9 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
 /// Rest: +4 HP with no foe in view, not poisoned, not in a hazard. Every rest is a noise.
 fn verb_rest(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     if run.hero.hp < run.hero.max_hp && v.foes.is_empty() && run.hero.poison.1 == 0 && !in_hazard(run, run.hero.pos) {
-        run.hero.hp = (run.hero.hp + 4).min(run.hero.max_hp);
+        // Cut 30: `rested` — a live gift heals more on a rest.
+        let extra = crate::traits::rest_extra_now(run, cx);
+        run.hero.hp = (run.hero.hp + 4 + extra).min(run.hero.max_hp);
         crate::turn::rest_clock(run, cx);
         true
     } else {
@@ -1559,7 +1561,8 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
     let boost = 100 + 25 * item.enchant.max(0);
     let outcome = match kind.as_str() {
         "heal" => {
-            let add = run.hero.max_hp / 2 * boost / 100;
+            // Cut 30: `thin` — a heal potion heals ⅔.
+            let add = run.hero.max_hp / 2 * boost / 100 * crate::traits::heal_pct(run) / 100;
             run.hero.hp = (run.hero.hp + add).min(run.hero.max_hp);
             run.hero.poison = (0, 0);
             run.drank_heal = true;
@@ -1614,6 +1617,8 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
         }
         _ => "nothing".into(),
     };
+    // Cut 30: `iron gut` — a malevolent drink harms half.
+    crate::traits::after_drink(run, cx, &kind);
     // Cut 13 §3: a use to no effect (a heal at full HP, a kind with nothing to do) is not
     // rebought by the restock.
     if outcome == "nothing" || (kind == "heal" && hp >= run.hero.max_hp) {

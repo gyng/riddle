@@ -105,3 +105,38 @@ Chip: `<head> · <cost>` (≤ 3 words). Card formula: `[when] → gift +N · cos
   the Deep, and the strict gate (interaction ≥ 2 × ± on ≥ 256 sends, neutral gain ≤ 5 pts) decides the table.
   The count bar (≥ 24 shapes ship) is provisional until `examples/traits.rs` measures the v1 parts; a short
   table (≥ 12, ≥ 3 `when`s) ships rather than a stat.
+
+## Status (2026-09-28 — paused by the idle-first pivot, `docs/IDLE_FIRST.md`)
+
+Core half, first checkpoint only; stopped on the coordinator's word (traits are being re-scoped as
+*packages*). Committed on `cut29-wip`, inert in play: the table (`src/traits.json`) ships **0 shapes**, so no
+heir draws a trait, and the four temperaments still act (their overrides were not yet removed).
+
+Built (`crates/riddle-core/src/traits.rs`, tests `src/tests_cut30.rs`, 8 tests):
+- Parts and lexicon: 6 `when` × 6 `gift` (fury, guard, quick, mend, rested, sure) × 4 costs (frail, slow,
+  thin, dim) + 3 rare twists (iron gut, light hands, grudge); static filters (quiet × fury/guard, crowded/boss
+  × rested, deep × quick · slow, rested · thin); chips, formulas (`[hurt] → fury +1 · frail`, `?` unlearned),
+  stamps, fact per gift (`trait:<head>`).
+- The measured-table loader (`traits.json` → `Table`/`Entry`: build, diff, gains, ±, bound, lever ratio) —
+  the runtime draws only from it (`wake_from` takes any pool, for tests and a measurement harness).
+- Inheritance: blood + born slots (`LineageState.heirs`), the wake's three cards with distinct `when`s (a
+  twist of the dead heir's born trait + fresh draws; the first card ever a common with a cost), tiers
+  70/25/5, fade (uncommon → common → gone when unused in a banked run), cut, bloodline (heir 12 / ascension,
+  half of fresh draws), a marked `grudge` when one kind killed three heirs running; deterministic offers
+  (`Rng::derive(seed, "heir_traits" ^ heir)`); bots neutral (`traits::neutral`, `metrics::setup`).
+- Arrival on the Cut 29 ladder: systems `traits` (heir 3 / a death past D5) and `blood` (heir 5).
+- Runtime (never a verb): `Hero.gift` mods read by `atk`/`def`/`blunt`/`speed`; `mend` in the action hook,
+  `rested` at the rest, `sure`/`light hands` energy back after the verb, `thin` at the heal, `dim` in the
+  Deep's vision, `frail` at the send, `iron gut` after a malevolent drink; first live turn → fact + stamp
+  callout (once a floor per slot); `TraceTurn.gift` mark.
+- Conditions `trait <head>` / `gift_live`, fact-gated (not marks — deviation), in the vocabulary once learned.
+- Old saves map their temperament (`traits::upgrade`); the forecast's cache key and the `heir` part's words
+  read the traits; `Death` neutral counterfactual helper (`traits::neutralize`).
+- Wire: `Lineage.heir_traits` (`HeirTraitsWire`), `TraceTurn.gift` (TS types not yet written).
+
+Not done: the temperaments' removal from `turn::choose_and_act` (and the wire `trait`/`trait_offer` switch
+to the cards), the measurement example (`examples/traits.rs`) and so the table, the verdict's ≥ 6/12
+neutral-heir counterfactual in `trace.rs`, the metrics rows, `gates --full`, the TS wire fields, the shrine's
+`pray trait` (a cost lift is written: `traits::shrine_lift`, unhooked). Deviations: `deep` = D9+ (the
+prototype's, not "Fens and below"); rare = twists only (no-cost shapes measured as numbers); `hoarder` and
+the boss-slain marked `unbowed` not built.

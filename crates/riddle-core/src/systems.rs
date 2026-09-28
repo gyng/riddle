@@ -44,6 +44,10 @@ pub const SYSTEMS: &[SystemDef] = &[
     sys("route2", "an oath kept"),
     sys("heir_pick", "an oath kept"),
     sys("class", "second class"),
+    // Cut 30: heir traits — the born slot and the wake's cards (heir 3, or a death past D5); the
+    // blood slot and the trait conditions (heir 5).
+    sys("traits", "heir 3"),
+    sys("blood", "heir 5"),
 ];
 
 /// The systems open on day 0.
@@ -69,6 +73,8 @@ fn triggered(l: &LineageState, id: &str, plateau: bool) -> bool {
         "automations" => crate::meta::bosses_met(l) >= 3,
         "route2" => l.unlocks.contains("route2"),
         "heir_pick" => l.unlocks.contains("heir_pick"),
+        "traits" => crate::traits::arrived(l),
+        "blood" => crate::traits::blood_open(l),
         "class" => ["ranger", "caster"].iter().any(|c| l.unlocks.contains(*c)) || l.classes.iter().any(|(k, c)| k != "fighter" && (c.xp > 0 || c.level > 1)),
         _ => false,
     }

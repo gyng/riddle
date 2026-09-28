@@ -180,6 +180,11 @@ pub struct Run {
     pub floor: Floor,
     pub hero: Hero,
     pub trait_: Trait,
+    /// Cut 30: the heir's traits on this run and the gift's state (`traits::Worn`, `GiftRun`).
+    #[serde(default, skip_serializing_if = "crate::traits::Worn::is_empty")]
+    pub worn: crate::traits::Worn,
+    #[serde(default)]
+    pub gift: crate::traits::GiftRun,
     pub monsters: Vec<Monster>,
     pub items: Vec<FloorItem>,
     pub overlays: Vec<Overlay>,
@@ -977,7 +982,7 @@ impl Run {
     /// `lantern_rig` automation.
     pub fn vision(&self, unlocks: &BTreeSet<String>) -> i32 {
         let lantern = self.hero.inv.iter().any(|i| i.kind == "lantern") || unlocks.contains("lantern_rig");
-        self.floor.vision + if lantern { 2 } else { 0 }
+        self.floor.vision + if lantern { 2 } else { 0 } - crate::traits::dim(self)
     }
     /// A blind foe seen on this floor is still alive (`noise_discipline` holds the rest).
     pub fn blind_foe_known(&self) -> bool {
@@ -1161,6 +1166,10 @@ pub struct LineageState {
     /// empties it.
     #[serde(default)]
     pub trait_offer: Vec<Trait>,
+    /// Cut 30: the heir's traits (blood and born), the wake's cards, the family's lean
+    /// (`traits::HeirTraits`); the temperament above is kept only to map an older save.
+    #[serde(default)]
+    pub heirs: crate::traits::HeirTraits,
     /// QA on 56f2a1d: the kennel's free leash, dropped from the shelf, came back after every
     /// run. A drop declines the kennel until a leash is bought or a kind is tamed.
     #[serde(default)]
@@ -1518,6 +1527,7 @@ impl LineageState {
             gold_ledger: Vec::new(),
             reel_pairs: Vec::new(),
             trait_offer: offer.to_vec(),
+            heirs: crate::traits::fresh(),
             kennel_declined: false,
             last_wasted: Vec::new(),
             repeat_short: Vec::new(),
@@ -1784,6 +1794,7 @@ impl LineageState {
             heir: self.heir,
             trait_: self.trait_.name().into(),
             trait_offer: self.trait_offer.iter().map(|t| t.name().to_string()).collect(),
+            heir_traits: crate::traits::wire(self),
             class: self.class.name().into(),
             best_depth: self.best_depth,
             marks: self.marks,
@@ -2080,6 +2091,8 @@ impl LineageState {
                 self.trait_offer.push(rest[r.below(rest.len() as u32) as usize]);
             }
         }
+        // Cut 30 §3: the wake offers trait cards and passes the blood (`traits::wake`).
+        crate::traits::wake(self);
     }
     /// Cut 16 §1: a floor's freshness at `depth`, in permille. The deepest depth the lineage
     /// has reached (and anything below it) is always fresh.
@@ -2141,6 +2154,10 @@ impl LineageState {
     /// Cut 13 §2: pick one of the offered traits (the chip beside `♟3`); refused when it is
     /// not on offer (a send without a pick keeps the first).
     pub fn set_trait(&mut self, name: &str) -> Result<(), String> {
+        // Cut 30 §3: a trait card by chip or head; else (until the temperaments go) the old offer's.
+        if crate::traits::pick(self, name).is_ok() {
+            return Ok(());
+        }
         let t = self.trait_offer.iter().copied().find(|t| t.name() == name).ok_or_else(|| "not on offer".to_string())?;
         self.trait_ = t;
         Ok(())
@@ -3222,6 +3239,7 @@ impl Game {
         let offer = trait_offer(l.seed, l.heir + 1000 * l.ascension, Some(l.trait_), first);
         l.trait_ = offer[0];
         l.trait_offer = offer.to_vec();
+        crate::traits::wake(l);
         // The hunter: the deepest grudge of the last lineage (or its last killer).
         l.hunter = if variant == "hunted" { l.grudges.iter().max_by_key(|g| (g.depth, g.heir)).cloned() } else { None };
         l.grudges.clear();
@@ -3321,6 +3339,7 @@ impl Game {
         self.prov.clear();
         // Cut 13 §2: the send settles the heir's trait; the offer is spent.
         self.lineage.trait_offer.clear();
+        crate::traits::on_send(&mut self.lineage);
         let id = self.lineage.next_run_id;
         self.lineage.next_run_id += 1;
         let seed = seed_override.unwrap_or_else(|| self.run_seed(id));
@@ -3422,6 +3441,8 @@ impl Game {
             floor,
             hero,
             trait_: self.lineage.trait_,
+            worn: crate::traits::Worn::default(),
+            gift: crate::traits::GiftRun::default(),
             monsters: Vec::new(),
             items: Vec::new(),
             overlays: Vec::new(),
@@ -3619,6 +3640,8 @@ impl Game {
             packed: Vec::new(),
             bought_leashes: Vec::new(),
         };
+        // Cut 30 §1: the heir's traits go on the run (`frail` takes its max hp here).
+        crate::traits::wear(&mut run, &self.lineage);
         for s in std::mem::take(&mut self.lineage.supplies) {
             let mut it = s;
             it.id = run.new_item_id() + 5000;
@@ -4278,6 +4301,8 @@ impl Game {
         if let Some((_, k)) = run.tamed.first() {
             self.lineage.heir_deed(format!("tamed a {}", kind_title(k)));
         }
+        // Cut 30 §3: a gift that acted in a banked run keeps its tier at the next wake.
+        crate::traits::on_run_end(&mut self.lineage, &run, tier == ExitTier::Bank);
         match tier {
             ExitTier::Bank => {
                 self.batch.banked += 1;

@@ -31,6 +31,7 @@ pub mod meters;
 pub mod tiles;
 pub mod tokens;
 pub mod trace;
+pub mod traits;
 pub mod turn;
 pub mod wire;
 
@@ -181,3 +182,5 @@ mod tests_cut27_seams;
 mod tests_cut28;
 #[cfg(test)]
 mod tests_cut29;
+#[cfg(test)]
+mod tests_cut30;

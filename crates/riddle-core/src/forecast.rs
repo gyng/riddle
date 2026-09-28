@@ -1018,6 +1018,10 @@ fn part_text(kind: &str, was: &crate::engine::LineageState, now: &crate::engine:
         _ => {
             if was.heir != now.heir {
                 "new heir".into()
+            } else if crate::traits::key(was) != crate::traits::key(now) {
+                // Cut 30 §4: a trait's move is the heir's (`heir wrathful · frail`)
+                let c = crate::traits::chip(now);
+                if c.is_empty() { "heir neutral".into() } else { format!("heir {c}") }
             } else if was.trait_ != now.trait_ || was.class != now.class {
                 format!("heir {}", now.trait_.name())
             } else if was.class_level() != now.class_level() {
@@ -1253,6 +1257,7 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&l.seed.to_string());
     feed(&l.heir.to_string());
     feed(l.trait_.name());
+    feed(&crate::traits::key(l));
     feed(l.class.name());
     feed(&l.class_level().to_string());
     feed(&format!("{:?}", l.facts));

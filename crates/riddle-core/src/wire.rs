@@ -851,6 +851,9 @@ pub struct TraceTurn {
     /// max hp at this action.
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub max_hp: i32,
+    /// Cut 30 §4: the heir's gift that acted at this action (`fury +1`, `mend +1 · sure 50%`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gift: Option<String>,
 }
 
 /// Cut 28 §2: one step of the hero's max hp (`Trace.max_steps`): the tick, the max after it, the
@@ -1613,6 +1616,11 @@ pub struct Lineage {
     /// a pick keeps the first.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trait_offer: Vec<String>,
+    /// Cut 30: the heir's traits — blood and born slots, the wake's three cards (chip, formula
+    /// with `?` for an unlearned gift, tier, source), the blood/bloodline gates, the last fade.
+    /// Absent for the neutral heir before traits arrive (heir 3 / a death past D5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub heir_traits: Option<crate::traits::HeirTraitsWire>,
     pub class: String,
     pub best_depth: u32,
     pub marks: u32,

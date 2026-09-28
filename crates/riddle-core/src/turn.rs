@@ -308,6 +308,8 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     // Cut 7 §3: the thief's den pounces on a hero at the stairs.
     crate::situations::before_action(run, cx);
     let v = view(run);
+    // Cut 30 §1: which of the heir's gifts are live at this action (never a verb).
+    crate::traits::on_action(run, cx, &v.foes);
     // Cut 5 §3: the fight clock (no hero lines in a fight's first ten ticks).
     if v.foes.is_empty() {
         run.fight_t = None;
@@ -433,6 +435,8 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     // and a stacked potion leave the pack's slots as they were — counted as dry, a sweep's 40th
     // coin gave the floor's heals up (FULL's deaths, `dice` 19.8 → 27.4%).
     let took = inv_after > inv_before || cx.events.get(ev_before..).is_some_and(|es| es.iter().any(|e| matches!(e, Ev::Pickup { id: HERO_ID, .. })));
+    // Cut 30 §1: `sure` and `light hands` act after the verb (energy back); never choose it.
+    crate::traits::after_action(run, cx, &verb, took, &v.foes);
     if took {
         run.pickup_dry = 0;
     } else if verb.v == "pick_up" && row == -2 {
@@ -457,7 +461,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     let whys = std::mem::take(&mut run.rows_why);
     let rows = if whys.is_empty() { None } else { Some(whys) };
     let before: Vec<crate::wire::TraceBlow> = run.blows.drain(..blows_before.min(run.blows.len())).collect();
-    let mut turn = TraceTurn { max_hp: run.hero.max_hp, t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows, blows: before };
+    let mut turn = TraceTurn { max_hp: run.hero.max_hp, t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows, blows: before, gift: run.gift.mark.take() };
     foe_reasons(&mut turn, (seen_before - v.foes.len() as i32).max(0));
     run.trace.push(turn);
     if run.trace.len() > 16 {
@@ -963,6 +967,10 @@ fn row_usable(cx: &Ctx, c: &Cond) -> bool {
     if c.k == "on_see" && c.t.as_deref().is_some_and(|t| !t.is_empty()) {
         return c.t.as_deref().is_some_and(|t| cx.facts.contains(t));
     }
+    // Cut 30 §4: `trait <head>` / `gift live` are gated by the trait's fact.
+    if matches!(c.k.as_str(), crate::traits::COND_TRAIT | crate::traits::COND_LIVE) {
+        return crate::traits::cond_usable(cx.facts, c);
+    }
     crate::meta::cond_unlock(&c.k).is_none_or(|u| cx.unlocks.contains(u))
 }
 
@@ -984,6 +992,9 @@ fn cond_reason(run: &Run, cx: &Ctx, c: &Cond) -> String {
     // offered): `on_see: K` is the situation's fact's, not the bare cond's unlock — it reads `no
     // hunger seen` (or `locked cond` while the fact is unknown, as the run holds it).
     let tagged_see = c.k == "on_see" && !t.is_empty();
+    if matches!(c.k.as_str(), crate::traits::COND_TRAIT | crate::traits::COND_LIVE) {
+        return crate::traits::cond_reason(cx, c);
+    }
     if (tagged_see && !cx.facts.contains(t)) || (!tagged_see && crate::meta::cond_unlock(&c.k).is_some_and(|u| !cx.unlocks.contains(u))) {
         return "locked cond".into();
     }
@@ -1395,6 +1406,10 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
     // not by the `cond_on_see` unlock).
     if c.k == "on_see" && !t.is_empty() {
         return cx.facts.contains(t) && run.sees_situation(t);
+    }
+    // Cut 30 §4: the heir's trait and its gift live (fact-gated).
+    if matches!(c.k.as_str(), crate::traits::COND_TRAIT | crate::traits::COND_LIVE) {
+        return crate::traits::cond_holds(run, cx, c);
     }
     // Cut 2 §3: some condition tokens are unlocks; a row using one the lineage does not own
     // never fires.

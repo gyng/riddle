@@ -222,6 +222,10 @@ pub struct Hero {
     /// Cut 3: max HP before any drain (the level's), recovered a floor at a time.
     #[serde(default)]
     pub max_hp_base: i32,
+    /// Cut 30 §1: the heir's live trait modifiers (`traits::on_action` sets them at every action;
+    /// `atk`, `def`, `blunt` and `speed` read them).
+    #[serde(default, skip_serializing_if = "crate::traits::Mods::is_zero")]
+    pub gift: crate::traits::Mods,
 }
 
 /// Cut 25 §1: what a piece of armour is worth to wear — twice its armour, a forged piece's
@@ -271,6 +275,7 @@ impl Hero {
             clarity_t: 0,
             mirror_charge: 0,
             max_hp_base: max_hp,
+            gift: crate::traits::Mods::default(),
         }
     }
     /// Apply a class level: +2 max_hp per level past 1, +1 atk at L3/L6/L9.
@@ -284,10 +289,10 @@ impl Hero {
     }
     pub fn atk(&self) -> (i32, i32) {
         let (lo, hi) = self.weapon.as_ref().map(|w| w.atk()).unwrap_or(self.base_atk);
-        (lo + self.str_bonus, hi + self.str_bonus)
+        (lo + self.str_bonus + self.gift.fury, hi + self.str_bonus + self.gift.fury)
     }
     pub fn def(&self) -> i32 {
-        self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0) + if self.bulwark_t > 0 { 3 } else { 0 } + if self.ward_t > 0 { 2 } else { 0 }
+        self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0) + if self.bulwark_t > 0 { 3 } else { 0 } + if self.ward_t > 0 { 2 } else { 0 } + self.gift.guard
     }
     /// Cut 25 §1 (AN: three forge buys took bank 40 → 95 %, more than any row): the forged
     /// armour blunts a blow, never negates it — a third of a blow (rounded) always lands through
@@ -296,7 +301,7 @@ impl Hero {
     pub fn blunt(&self, roll: i32) -> i32 {
         let armour = self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0).max(0);
         let forged = self.armour.as_ref().is_some_and(|a| crate::kit::is_kit_id(a.id));
-        let guard = if self.bulwark_t > 0 { 3 } else { 0 } + if self.ward_t > 0 { 2 } else { 0 };
+        let guard = if self.bulwark_t > 0 { 3 } else { 0 } + if self.ward_t > 0 { 2 } else { 0 } + self.gift.guard;
         let through = if forged { (roll - armour).max((roll + 1) / 3) } else { (roll - armour).max(0) };
         (through - guard).max(0)
     }
@@ -320,7 +325,7 @@ impl Hero {
         if self.speed_t > 0 {
             s += 5;
         }
-        s
+        s + self.gift.quick - self.gift.slow
     }
     pub fn ranged(&self) -> bool {
         self.weapon.as_ref().is_some_and(|w| w.def().ranged)

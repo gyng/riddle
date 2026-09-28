@@ -796,6 +796,8 @@ fn setup(bot: Bot, seed: u64) -> Game {
     // Cut 29 §2: the bots play with every system open (the curriculum gates the editor and the camp,
     // never a sim: their play is what it was).
     riddle_core::systems::open_all(&mut g.lineage);
+    // Cut 30: every bot runs the neutral heir (no trait now or at any wake).
+    riddle_core::traits::neutral(&mut g.lineage);
     match bot {
         Bot::Default => {}
         Bot::Edited => {
