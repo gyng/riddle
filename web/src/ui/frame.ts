@@ -2,6 +2,8 @@
 // the top bar (iron plate: the heir, `$`, `◆`, `★`, the best depth, the settings stud), the well (the place itself), and the
 // console (carved stone: the portrait well with its hp ring, a 4 × 2 command card of tiles, the primary gem). Each screen builds
 // its frame from these parts (so `main.<screen>` holds its console: the tiles are the screen's buttons).
+import { conceptCap, type Concept } from "./concepts";
+const withCap = (el: HTMLElement | "", c: Concept): HTMLElement | "" => { if (el) { const cap = conceptCap(c); if (cap) el.appendChild(cap); } return el; };
 import type { App } from "../app";
 import type { Row } from "../engine/types";
 import { h, replace } from "./dom";
@@ -40,8 +42,8 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
         // QA 912e135 (qaW: "the header `$40` is not a button on the death screen; on camp it opens GOLD"): the purse opens the ledger on
         // every screen but the watch (a sheet over the run is the exit sheet's place)
         !opts.watch ? h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), `$${L.gold}`) : h("span", { class: "num stat gold" }, icon("gold"), `$${L.gold}`),
-        stat("marks", "mark", "◆", L.marks, R.has("unlocks")),
-        stat("rank", "renown", "★", L.rank ?? 0, R.has("rank") && !past),
+        withCap(stat("marks", "mark", "◆", L.marks, R.has("unlocks")), "marks"),   // Cut 29 (owner): a world concept's first-time caption
+        withCap(stat("rank", "renown", "★", L.rank ?? 0, R.has("rank") && !past), "renown"),
         stat("best", "depth", "", /* copy:callout */ `best D${L.best_depth}`, R.has("depth") && !past),   // docs/COPY.md pass 2 (`D8` read as "current depth")
       ),
       h("button", { class: "gear stud", "aria-label": "settings", onclick: () => openSettings(app) }, icon("settings", "⚙")),

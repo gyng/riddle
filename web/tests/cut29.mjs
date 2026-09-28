@@ -307,13 +307,27 @@ try {
     const last = page.locator(".editor .row.tablet").last(), first = page.locator(".editor .row.tablet").first();
     const lb = await last.locator(".chip.verb").boundingBox(), fb = await first.boundingBox();
     await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2); await page.mouse.down();
-    await sleep(650);
-    const lifted = await page.evaluate(() => !!document.querySelector(".editor .row.tablet.lifted"));
+    const lifted = await until(() => !!document.querySelector(".editor .row.tablet.lifted"), "the lift", 3000).catch(() => false);
     for (let k = 1; k <= 8; k++) { await page.mouse.move(lb.x + lb.width / 2, lb.y + (fb.y + 4 - lb.y) * k / 8); await sleep(30); }
     await page.mouse.up(); await sleep(400);
     const after = await page.evaluate(() => ({ rows: window.__riddle.rules.rows.map((r) => r.verb.v), sheet: !!document.querySelector(".sheet-wrap") }));
     check(lifted && after.rows[0] === before[before.length - 1] && after.rows.length === before.length && !after.sheet,
       `a long press lifts the last tablet and drops it at the top (lifted ${lifted}; ${before.join(" · ")} → ${after.rows.join(" · ")}; sheet ${after.sheet})`);
+  }
+  // ---- owner: a world concept's icon and its caption, once
+  if (part("concepts")) {
+    await boot(2911);
+    await page.evaluate(() => localStorage.removeItem("riddle.concepts"));
+    await page.reload({ waitUntil: "domcontentloaded" }); await camp();   // (the module keeps what it read at its first caption)
+    await withState((e) => { Object.assign(e.lineage, { marks: 3, heir: 2 }); });
+    await camp();
+    const c1 = await page.evaluate(() => document.querySelector(".topbar .stat.marks .concept-cap")?.dataset.cap ?? null);
+    check(c1 === "buys unlocks", `the marks' first appearance carries its caption ("${c1}")`);
+    await shot("cut29-concept");
+    await sleep(2600);
+    await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await camp();
+    const c2 = await page.evaluate(() => ({ cap: !!document.querySelector(".topbar .stat.marks .concept-cap"), ico: !!document.querySelector(".topbar .stat.marks .ico") }));
+    check(!c2.cap && c2.ico, `once seen, the icon stands alone (caption ${c2.cap}, icon ${c2.ico})`);
   }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);

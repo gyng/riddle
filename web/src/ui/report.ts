@@ -9,6 +9,7 @@
 // Cut 14 §4: every exit's `trace` chip carries its exit (`D5 · died · trace`; the depth off the ledger line the exit claims, else
 // off the line's own text) — rater S: "the seventh unlabelled TRACE button"; the stalled tile carries what the stalls cost
 // (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
+import { conceptTag } from "./concepts";
 import { wallOffer, wallTablet } from "./wall";
 import { meterPanel } from "./meters";
 import { systemIcon, systemLabel } from "./systems";
@@ -522,7 +523,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       // word); each chip names what went, coins as `coins`
       r.stolen_gold ? h("span", { class: "chip stolen gold num" }, /* copy:callout */ `carry −$${r.stolen_gold}`) : "",
       ...mergeRows((r.stolen ?? []).map((x) => ({ kind: named(x.label.replace(/\s*\(\d+\)$/, "")), n: x.n, gold: x.gold ?? 0 }))).map((x) => h("span", { class: "chip stolen" }, x.kind === "gold" ? /* copy:label */ "coins" : x.kind, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : ""))) : null),
-    section(/* copy:label */ "bones", lines((r.bones_found ?? []).map(bonesLine))),
+    section(/* copy:label */ "bones", (r.bones_found ?? []).length ? h("div", null, conceptTag("bones"), lines((r.bones_found ?? []).map(bonesLine))) : null),
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
     // Cut 24 §5 (AK, AL: the tapped chip read as salvaged — a twin or the return's cut sold, the kept one renamed by the vault): what
     // the keep sheet sent to the vault leads the sell-off

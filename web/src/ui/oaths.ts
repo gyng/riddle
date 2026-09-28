@@ -16,6 +16,7 @@
 //   Forecast.oath: OathShare        the sworn oath's share of the sims that keep it (with ±)
 //   ReturnReport.oath: OathReport   the sworn oath's night: kept or not, its progress words, done → the reward
 //   engine.swearOath(id) / engine.forswearOath()
+import { conceptCap } from "./concepts";
 import type { App } from "../app";
 import type { Forecast, Lineage, Oath, OathReport, OathReward, OathShare, ReturnReport, Row } from "../engine/types";
 import { ruleName } from "./tokens";
@@ -111,7 +112,7 @@ export function paintOathTab(app: App, tab: HTMLElement): void {
   tab.classList.toggle("sworn", !!o);
   replace(tab, h("span", { class: "rn num" }, seal()),
     o ? h("span", { class: "rtext" }, formula(chipsOf(o), rewardIcon(o.reward), "tab"), " ", shareEl(app, o), swornAll(L).length > 1 ? h("small", { class: "num dim more" }, ` +${swornAll(L).length - 1}`) : "")
-      : h("span", { class: "rtext" }, /* copy:rule_token */ "oaths", " ", h("small", { class: "num dim" }, `${board.length}`)));
+      : h("span", { class: "rtext" }, /* copy:rule_token */ "oaths", " ", h("small", { class: "num dim" }, `${board.length}`), conceptCap("oaths")));
 }
 
 /** The oath board: three carved tablets on the parchment, each its deal as a formula (constraint chips → reward) and its stake (two taps

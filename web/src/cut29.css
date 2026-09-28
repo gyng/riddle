@@ -90,3 +90,18 @@
 .gem.patch-gem .gem-in:has(.gem-w) .gem-n { display: none; }
 .gem.patch-gem .gem-in:has(.gem-w) .gem-w { font-size: 17px; }
 .patch.top .surv { font-weight: 700; }
+/* Cut 29 (owner): a world concept's icon, and its caption the first time a viewer sees it */
+.concept { display: inline-flex; align-items: center; gap: 4px; }
+.concept-ico { vertical-align: middle; }
+.ico.concept-ico { width: 18px; height: 18px; }
+.ico.glyph.concept-ico::before { font-size: 14px; line-height: 18px; }
+.row.tablet .rn .ico.concept-ico { width: 26px; height: 26px; }
+.concept-cap { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 8px; font: italic 500 11px/1.5 var(--sans); letter-spacing: .02em;
+  color: #f3d9a6; background: rgba(240, 180, 74, .16); box-shadow: inset 0 0 0 1px rgba(240, 180, 74, .4); white-space: nowrap; vertical-align: middle; text-transform: none; }
+:is(.sheet, .panel, .parchment) .concept-cap { color: #6a4516; background: rgba(160, 110, 40, .14); box-shadow: inset 0 0 0 1px rgba(120, 80, 30, .35); }
+.stat .concept-cap { margin-left: 4px; font-size: 10px; }
+.topbar .stat { position: relative; }
+.topbar .stat .concept-cap { position: absolute; top: calc(100% + 3px); left: 50%; transform: translateX(-50%); margin: 0; z-index: 6; pointer-events: none; }
+.notch .concept-cap, .forecast .concept-cap { display: table; margin: 2px 0 0; white-space: normal; }
+.notch .concept-cap { white-space: nowrap; font-size: 9.5px; padding: 0 4px; margin-left: -2px; }
+.concept-cap::after { content: attr(data-cap); }

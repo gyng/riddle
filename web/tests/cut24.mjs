@@ -167,7 +167,7 @@ try {
     });
     await sleep(300);
     const t = await page.evaluate(() => ({ tiles: [...document.querySelectorAll(".report .tiles .tile")].map((x) => `${x.querySelector(".label")?.textContent} ${x.querySelector("b")?.textContent}`), leads: [...document.querySelectorAll(".report .exit-lines .ledger-btn")].map((b) => b.querySelector(".news-lead")?.textContent ?? "-") }));
-    check(t.tiles.includes("returned 2/3") && t.tiles.includes("repelled 1/3"), `a drive-off is counted apart from the returns (${t.tiles.join(" · ")})`);
+    check(t.tiles.includes("runs returned 2/3") && t.tiles.includes("repelled 1/3"), `a drive-off is counted apart from the returns (${t.tiles.join(" · ")})`);
     check(t.leads.join(" | ") === "repelled by Warlord | - | record: D9", `each exit line leads with its run's news, newest first (${t.leads.join(" | ")})`);
   }
 

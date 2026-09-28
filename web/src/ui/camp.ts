@@ -15,6 +15,7 @@
 // Cut 16 §2: beside them, while `Lineage.class_offer` stands, a chip per owned class with its signature verb (`rogue · vanish`;
 // one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
 // row stands in for the class button while it is up.
+import { conceptCap, conceptIcon } from "./concepts";
 import { wallTablet } from "./wall";
 import { meterCompare, meterPanel } from "./meters";
 import { anyNew, hasCurriculum, sysOpen } from "./systems";
@@ -373,7 +374,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // keep preference for offline exits
     // QA 23ed91f: two rows that cannot be confused — `home` (what an unwatched exit keeps for the vault) and `cage` (what an
     // unanswered cage in the dungeon takes); K set `vault potion` as "what the home vault keeps"
-    const prefs = h("div", { class: "chips prefs home" }, h("span", { class: "dim" }, /* copy:callout */ "keep for heirs"),   // docs/COPY.md pass 3: `keep weapon` read as "keep it as a weapon"
+    const prefs = h("div", { class: "chips prefs home" }, h("span", { class: "dim" }, conceptIcon("vault"), /* copy:callout */ "keep for heirs", conceptCap("vault")),   // docs/COPY.md pass 3: `keep weapon` read as "keep it as a weapon"
       /* copy:label */ ...[["best_weapon", "weapon"], ["best_armour", "armour"], ["none", "none"]].map(([id, lbl]) =>
         h("button", { class: `chip${(L.keep_pref ?? "best_weapon") === id ? " on" : ""}`, onclick: () => void app.mutate(() => app.engine.setKeepPref(id)) }, lbl)));
     // what the home pref does at an unwatched exit, on its row (the core's `keep_auto`, in order: `keeps armour · weapon`)
@@ -402,10 +403,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const on = revealed(app).has("cage");
     cageTab.hidden = !on || ordersOn();
     if (!on) return;
-    replace(cageTab, h("span", { class: "rn num" }, icon("vault", "▣")),
+    replace(cageTab, h("span", { class: "rn num" }, conceptIcon("cage")),
       // QA 524827b (qaAA: `cage → weapon` after the first death, "no source" for the D4 cage's "take one, leave two"): the tablet names
       // what it sets — the pick at a cage (`cage pick → weapon`)
-      h("span", { class: "rtext" }, /* copy:rule_token */ "from cages", h("span", { class: "arrow" }, " → "), app.lineage.vault_pref ?? "weapon"));
+      h("span", { class: "rtext" }, /* copy:rule_token */ "from cages", h("span", { class: "arrow" }, " → "), app.lineage.vault_pref ?? "weapon", conceptCap("cage")));
   }
   /** Cut 19 §1: the picker — the four preferences, each with its forecast delta against the current one (`armour +36%`); the tap sets it.
    *  The deltas are `cageForecast()` (three extra camp panels, memoised by the core; seconds in wasm): the last measure paints at once
@@ -443,11 +444,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const pass = st > 1 && (L.start_pass === true || o?.pass === true);
     const short = !pass && startShort(L, st, o);
     startTab.classList.toggle("short", short);
-    replace(startTab, h("span", { class: "rn num" }, icon("depth", "▼")),
+    replace(startTab, h("span", { class: "rn num" }, conceptIcon("waystone")),
       h("span", { class: "rtext" }, /* copy:rule_token */ "start", h("span", { class: "arrow" }, " → "), h("span", { class: "num" }, `D${st}`),
         st > 1 && seenForks(L).length && laneOf(st, o) ? h("span", { class: "lane" }, ` ${laneOf(st, o)}`) : "",
         pass ? h("small", { class: "num toll pass dim" }, /* copy:rule_token */ " · pass")
-          : toll > 0 ? h("small", { class: `num toll${short ? " short warn" : " dim"}` }, short ? /* copy:rule_token */ ` · $${toll} short` : ` · $${toll}`) : ""));
+          : toll > 0 ? h("small", { class: `num toll${short ? " short warn" : " dim"}` }, short ? /* copy:rule_token */ ` · $${toll} short` : ` · $${toll}`) : "", conceptCap("waystone")));
   }
   /** Cut 21 §1: the start picker — D1 and each lit waystone, each with its forecast move against the current start (`bank +12%`, the
    *  cage picker's measure) and its toll (`D9 · bank +12% · $90`); the tap is `setStart`. The moves are `startForecast()` (extra camp

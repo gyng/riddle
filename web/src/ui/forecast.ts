@@ -14,6 +14,7 @@
 // Cut 13 §5: the first paint (`Forecast.refined` false) carries `…` after each `±` so the refine's landing does not read as a
 // re-roll; the ends line has its own `±` on the death share (`death 5% ±4`, `ForecastEnds.pm`).
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
+import { conceptCap, conceptIcon } from "./concepts";
 import { meterCompare } from "./meters";
 import { isWide } from "./frame";
 import { sysOpen } from "./systems";
@@ -438,14 +439,14 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const capped = cap !== undefined && depth > cap, bankHere = cap === depth && !wall;
       const bounty = depth === bountyD;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${depth === start && start > 1 ? " start" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, lane ? h("i", { class: "lane", "data-biome": lane }, ` ${lane}`) : "", lane && laneEnd(depth) ? h("i", { class: "lane-to dim" }, ` → D${laneEnd(depth)}`) : "", bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wallText}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, lane ? h("i", { class: "lane", "data-biome": lane }, ` ${lane}`) : "", lane && laneEnd(depth) ? h("i", { class: "lane-to dim" }, ` → D${laneEnd(depth)}`) : "", bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`, conceptCap("bounty")) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wallText}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
         h("small", { class: "dp" }, d ? share(d.reach, lowOf(last)) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm band", style: bandW(pmShown(d.reach, d.pm)!), title: `±${pmShown(d.reach, d.pm)}` }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : "",
           d ? moveMark(vsBy.get(depth)) : ""));   // Cut 22 §3: the edit's move on the notch (`▲6`, `≈`)
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       // QA 308f045 (qaAC: `fens · D5 · ?` — "what the `?` asks"): a lane never entered says so (`untried`)
       if (wall && d?.wall && sysOpen(app.lineage, "walls")) n.appendChild(h("small", { class: "wall-counter num" }, wallCounter(app, d.wall, d as { counter?: string; counter_hint?: string })));   // Cut 28 §1
-      if (fr) n.appendChild(h("small", { class: `frontier${fr.entered ? " entered" : ""}`, "data-biome": fr.biome }, /* copy:callout */ `or ${fr.biome}${fr.entered ? "" : " · untried"}`   /* docs/COPY.md pass 7: the other stair at this fork (`fens · D5 · untried` read "[elsewhere]" 2/2) */));
+      if (fr) n.appendChild(h("small", { class: `frontier${fr.entered ? " entered" : ""}`, "data-biome": fr.biome }, conceptIcon("fork"), /* copy:callout */ `or ${fr.biome}${fr.entered ? "" : " · untried"}`, conceptCap("fork")   /* docs/COPY.md pass 7: the other stair at this fork (`fens · D5 · untried` read "[elsewhere]" 2/2) */));
       return n;
     }),
     // QA 912e135 (qaW: the first camp's shaft was `D1 100%` alone, then D1–D7 after a death): the floors below the shaft's last are
