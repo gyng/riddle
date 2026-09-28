@@ -145,13 +145,14 @@ E1 (the wall search) broke the D17 wall: dayplayer D18·17·17 → D28·33·28. 
 Also done this round: `noise_discipline` is now earnable (a blind foe in view teaches `foe:<kind>:blind`);
 the repeat offers a `throw` row's kind as one tap (`Lineage.repeat_added`) instead of adding it.
 
-### Gfx/UI eval (painted 16×16 register done; rounds 18–20: 6.31 · 6.39 · 6.23 — stopped on the rule again; best overall 6.50 at r14)
-The owner's painted tile register is in (`art/painted.py`, 105 Codex pieces across 7 biomes, converted over the ramp register which stays
-the fallback; `docs/JUICE.md` §10.10), with the Cut 29 client's UI list and the boss asks (HP bar under the plate, stagger, loot burst,
-killer portraits in KILLERS). The dungeon moments rose (the Warrens watch 6.20, the Fens 5.70) but the mean did not clear +0.2 for three
-rounds. At or over 7: death 7.20, forecast 7.10. Blockers, each for someone else: still-screen motion invisible to the strip on desktop
-(the camp goes to the Cut 30 town); the oath board's layout (three identical cards); a pixel-register shield and coin sprites (art); room
-set-dressing density and wall shadows (a renderer/art pass on the dungeon's dressing, not the tile register).
+### Gfx/UI eval (paused for the owner's stop after round 21; motion-aware baseline 6.74, round 21 6.68)
+The harness now shows raters full-resolution motion (`-motion.png`: changed pixels in red) and each moment's intended movement; round 20's
+build re-rated under it is the new baseline **6.74** (death 7.90, boss entrance 7.70, forecast 7.40). Round 21 (c6008ad: 35 more painted
+props, denser dressing, deeper wall-foot shadow, pixel-register boss shield, coin sprites) scored **6.68**. Bar 8.0 not met.
+`docs/JUICE.md` §10.10–10.11 has the tables. Next, in order: the Fens (5.50: its own props, a warmer hero pool); the boss break (the pixel
+shield muddles him: offset the split above him, bigger halves, a crack flash); early-floor camera framing; the IA asks (report OPENED chips,
+the scene inset over the route row, desktop meters). The oath board is skipped: Cut 30 redesigns it as a quest board (the reward vignettes
+painted for it wait, uncommitted, in `art/ui/oath/`).
 Resume: `tools/gfx-round.sh scratchpad/gfx-eval/roundN`, two fresh raters (`roundN/rater/prompt.txt`), `python3 scratchpad/gfx-eval/score.py roundN`.
 
 ### Cut 29 client (2026-09-28 — every numbered item below is closed and committed on cut29-wip; `web/tests/cut29.mjs`, 34 checks)

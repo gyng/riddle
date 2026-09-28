@@ -606,3 +606,34 @@ capstones now read as built") but the mean did not: three rounds under +0.2, so 
 4. **Coins as square motes** ("debug pixels, not coins"): a coin sprite for the particle system.
 5. **The dungeon**: raters now ask for set dressing density and wall shadows (the rooms read "bare grey tile fields"), not the tile
    register itself.
+
+### 10.11 Round 21 and the motion-aware harness (2026-09-28; stopped here for the owner's pause)
+
+**The harness now sees motion** (`tools/gfx-eval.mjs`, `tools/gfx-rater-prompt.txt`): the screencast runs at full device resolution and each
+moment gets a `-motion.png` — its first frame beside (phone) or above (desktop) the same frame dimmed with every pixel that changed within
+~1 s in red — and the prompt lists what each moment is meant to move (`moves: …`). Round 20's build re-rated under it (raters AS, AT) is the
+new baseline: **6.74** (the old harness read 6.23) — death 7.90, boss entrance 7.70, forecast 7.40, report 7.10, desktop camp 7.10; rounds
+before 20b are not comparable with it.
+
+**Round 21** (raters AU, AV): **6.68** (−0.06 on the baseline; rater spread 6.49 · 6.87). Committed (c6008ad): five more painted props per
+biome (skulls, chest, rack, statue, bones — 35 Codex pieces), denser dressing at corners and walls, bones on open floor, a deeper wall-foot
+shadow (AO 0.32 → 0.5, the wall above weighted 2.2); the boss's shield and shards cut to the sprites' pixel register (`_px`, pixelated);
+the loot burst's coins a spinning 6×6 coin sprite; a prop-conversion fix (a wrapped rim drew a stray dash over every prop). The oath board's
+reward vignettes were built and then withdrawn (the board is redesigned as a quest board in Cut 30); their Codex sources stay uncommitted
+in `art/ui/oath/` for that cut.
+
+| moment | 20b (baseline) | 21 |
+|---|---|---|
+| watch-warrens | 5.60 | 6.05 |
+| watch-fens | 5.40 | 5.50 |
+| fight | 6.50 | 6.70 |
+| boss-break | 6.90 | 6.30 |
+| boss-fall | 7.00 | 7.05 |
+| death | 7.90 | 7.55 |
+| **mean** | **6.74** | **6.68** |
+
+**Next steps** (in order): (1) the Fens (5.50) — raters still read a "flat undressed teal field": dress it with its own props (reeds,
+ruins, water edges) and warm the hero's pool further; (2) the boss break fell with the pixel shield ("shards hard to parse", "the shield over
+the boss muddles him") — offset the split above him, bigger halves in clear arcs, a crack flash; (3) the camera framing on early floors
+("the void eats 40 %"); (4) the IA asks the raters repeat (the report's OPENED chips, the scene inset over the route row, desktop meters);
+(5) the oath board → Cut 30's quest board.
