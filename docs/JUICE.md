@@ -566,3 +566,43 @@ Session arc: 5.97 (r6) → 6.49 (r17), best 6.50 (r14); lowest 5.00 → 5.40. Mo
    being replaced by the Cut 30 town, so no more effort there.
 4. **Art the raters keep naming**: a boss HP bar under the name plate, a loot/coin burst on a boss kill, a stagger pose, killer portraits
    in the forecast's KILLERS line, death-scene sprites behind the banner (the killer medallion helped: desktop death target 7.5–8).
+
+### 10.10 Rounds 18–20 (2026-09-28): the painted 16×16 tile register (the owner's call) and the Cut 29 client's UI list — stopped on the rule
+
+**The register** (`art/painted.py`): 15 pieces per biome (4 floors, 2 wall faces, wall top, door, stairs down/up, water, chasm, barrel,
+crate, pot) × 7 biomes = 105 Codex paintings in the target's lit-stone language (the Burrows warm earth and timber, the Fens a cool
+teal boardwalk — kept apart; the Crypt blue granite, the Foundry soot and ember seams, the Deep navy cave rock, the Sanctum cream marble),
+each QC'd by eye as a sample room at game zoom (`scratchpad/gfx-eval/paint/room.py`). Conversion (`make_env.py` → `painted.convert_all`):
+a box downscale to 16×16, a small local-contrast lift, ≤ 24 colours per tile (art-qc reads `art/tiles/_painted.json` for that cap), written
+over the ramp register's `<biome>_env_<name>` — the renderer's ids are unchanged, the 8-colour ramp tiles stay the fallback for any piece
+not painted, and a tile stays 16 texels on the sprite grid (1:1 with the sprites; the hero 1.5 tiles at SPRITE_SCALE 0.5, bosses 0.75 —
+no zoom change was needed). The wall tops were redrawn once as lit capstone masonry (the first pass, "the darkest", read as void); the
+renderer darkens them a step under the floor and lights a one-texel bevel on every edge that meets open ground. The Warrens' grade is now
+neutral (the old one was tuned for the ramp), the ramp decals at 40 %, the Fens' torches lantern-warm and its mist lighter.
+
+**UI and asks**: the report's headline balanced to its width, its other lines one paragraph, OPENED as small plaques; the forecast's try row
+keeps only whose floor it is (the pill tighter) and KILLERS carry the foes' portraits (unmet ones stay faceless); the scene plays over the
+phone's vista, clear of the rules; the desktop meters wrap; no empty console slots on desktop; a boss's name plate carries a long framed
+HP bar; the break is a stagger (a big squash-reel) and the shield halves fly from 6 %; the fall throws twice the coins; a one-texel walking
+bob; fewer blood drops off the hero; frames and backdrops decode at boot. (The WHY sheet was already anchored by the Cut 29 client.)
+
+| moment | r17 | r18 | r19 | r20 |
+|---|---|---|---|---|
+| watch-warrens | 5.85 | 5.70 | 5.65 | 6.20 |
+| watch-fens | 5.40 | 5.40 | 5.45 | 5.70 |
+| forecast | 6.90 | 7.05 | 7.05 | 7.10 |
+| death | 7.10 | 6.95 | 7.10 | 7.20 |
+| **mean** | **6.49** | **6.31** | **6.39** | **6.23** |
+
+Raters AM AN · AO AP · AQ AR2. The dungeon moments moved (the Warrens watch 5.85 → 6.20, the Fens 5.40 → 5.70: "painted walls with lit
+capstones now read as built") but the mean did not: three rounds under +0.2, so the eval stops again.
+
+**What blocks the next gain** (every rater, every round):
+1. **Motion on the still screens** scores 3–4.5 on desktop (camp, report, death) — the strip cannot see ambient CSS at quarter size; the
+   camp becomes the Cut 30 town.
+2. **The oath board** (5.7): "three identical cards, big empty wood" — a layout/content change (reward art per oath) the board's owner
+   should take.
+3. **The painted shield over pixel sprites** ("a style clash", "hides the boss"): a pixel-register shield at sprite scale.
+4. **Coins as square motes** ("debug pixels, not coins"): a coin sprite for the particle system.
+5. **The dungeon**: raters now ask for set dressing density and wall shadows (the rooms read "bare grey tile fields"), not the tile
+   register itself.

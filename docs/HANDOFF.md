@@ -140,19 +140,13 @@ E1 (the wall search) broke the D17 wall: dayplayer D18·17·17 → D28·33·28. 
 Also done this round: `noise_discipline` is now earnable (a blind foe in view teaches `foe:<kind>:blind`);
 the repeat offers a `throw` row's kind as one tap (`Lineage.repeat_added`) instead of adding it.
 
-### Gfx/UI eval (stopped on the rule after round 17; best 6.50 at r14, r17 6.49)
-Rounds 10–17 after the coordinator's unblock: 6.07 · 6.41 · 6.16 · 6.28 · **6.50** · 6.26 · 6.43 · 6.49 (bar 8.0; from 5.97 at r6). Three
-rounds in a row under +0.2 (r15–r17), so the eval stopped and names its blockers. At or over 7: boss entrance 7.40, death 7.10, boss fall
-7.00; the floor: the Fens 5.40, the Warrens watch 5.85. Every change and the per-moment tables: `docs/JUICE.md` §10.8–10.9.
-Blockers for the next gain (each needs someone else):
-1. **The watch's rooms** read as "flat sepia / teal soup, half black void" (5.4–6.2): a design call on the tile register (painted 16×16 at
-   1:1, or a framing zoom/letterbox on the seen rooms). One Codex redraw of the Fens floor scored worse and was reverted.
-2. **IA on the UI screens** (Cut 29 client, hierarchy 5.5–6.5 every round): the report's title and four sub-lines, the `OPENED` chips at
-   the fold, the forecast's D8 row, the scene inset over the rules, the WHY sheet anchored to its tablet, the desktop meters' clipped
-   text, empty console slots. Also: `cut29.css` thinned the forecast bars to 4 px; `styles.css` now overrides them as brass troughs.
-3. **Art/renderer asks**: a boss HP bar under his plate, a loot burst on a boss kill, a stagger pose, killer portraits in the forecast
-   (`web/public/ui/foes`, skin.json `foes`, `foeSrc()` in `ui/skin.ts` are ready), sprites of the death behind the banner.
-4. Still-screen motion on desktop is invisible at the strip's quarter size; the camp is going away (Cut 30 town).
+### Gfx/UI eval (painted 16×16 register done; rounds 18–20: 6.31 · 6.39 · 6.23 — stopped on the rule again; best overall 6.50 at r14)
+The owner's painted tile register is in (`art/painted.py`, 105 Codex pieces across 7 biomes, converted over the ramp register which stays
+the fallback; `docs/JUICE.md` §10.10), with the Cut 29 client's UI list and the boss asks (HP bar under the plate, stagger, loot burst,
+killer portraits in KILLERS). The dungeon moments rose (the Warrens watch 6.20, the Fens 5.70) but the mean did not clear +0.2 for three
+rounds. At or over 7: death 7.20, forecast 7.10. Blockers, each for someone else: still-screen motion invisible to the strip on desktop
+(the camp goes to the Cut 30 town); the oath board's layout (three identical cards); a pixel-register shield and coin sprites (art); room
+set-dressing density and wall shadows (a renderer/art pass on the dungeon's dressing, not the tile register).
 Resume: `tools/gfx-round.sh scratchpad/gfx-eval/roundN`, two fresh raters (`roundN/rater/prompt.txt`), `python3 scratchpad/gfx-eval/score.py roundN`.
 
 ### Cut 29 client (2026-09-28 — every numbered item below is closed and committed on cut29-wip; `web/tests/cut29.mjs`, 34 checks)
