@@ -372,6 +372,13 @@ def main() -> int:
         if n > 8:
             print(f"FAIL {k}: {n} colours")
             return 1
+    # gfx round 18: the painted register (art/painted.py) is drawn over the ramp register where a piece is painted
+    from painted import convert_all  # noqa: E402
+    painted = convert_all(SRC, OUT, key_source)
+    for tid in painted:
+        written[tid] = Image.open(OUT / f"{tid}.png")
+    if painted:
+        print(f"painted: {len(painted)} tiles over the ramp register")
     sheet(written).save(OUT / "_env_sheet.png")
     print(f"wrote {len(written)} env tiles -> {OUT}")
     if missing:

@@ -144,3 +144,13 @@
   .meters-slot { background: rgba(8, 6, 4, .28); box-shadow: inset 0 0 0 1px rgba(110, 85, 55, .45), inset 0 0 16px rgba(0, 0, 0, .7); }
   .skin-deco-pillar main.camp .camp-main > .meters-slot { background: linear-gradient(rgba(14, 10, 7, .55), rgba(14, 10, 7, .1)), url(/ui/deco/pillar.webp) center bottom / 100% auto no-repeat, #16110c; }
 }
+/* gfx round 18 (raters: the desktop meters' text clipped — "trav", "3 hit"): in the side column the meters wrap instead of running out */
+@media (min-width: 1024px) {
+  .side-col .meters, .meters-slot .meters { font-size: 13px; }
+  .side-col .meters .mrow, .meters-slot .meters .mrow { grid-template-columns: 50px minmax(0, 1fr); }
+  .side-col .meters .msplit, .meters-slot .meters .msplit { min-width: 0; }
+  .side-col .meters :is(.mval, .mrule, .msplit-key), .meters-slot .meters :is(.mval, .mrule, .msplit-key) { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+}
+/* gfx round 18 (raters: "the console is a long brown shelf of empty slots"): on the wide frame the empty slots go; the tiles group by the
+   portrait (a phone keeps its faint rune sockets, the target's) */
+@media (min-width: 1024px) { .console .cmd .tile.empty { display: none; } }

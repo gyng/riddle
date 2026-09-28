@@ -4,7 +4,7 @@
 // The layer is a sibling of the canvas with the canvas's offset box, so the viewer's CSS coordinates (`toCss`) are its own.
 // Pooled elements; a frame writes only what changed. Cut 19: the serif is Alegreya (Google Fonts, index.html), Georgia before it loads.
 
-export type Tag = { id: number; text: string; x: number; y: number; w: number; hp: number; ally?: boolean;
+export type Tag = { id: number; text: string; x: number; y: number; w: number; hp: number; ally?: boolean; boss?: boolean;
                     stair?: "taken" | "other" };   // Cut 26 §2: a fork floor's stair plate (its lane), the route's stair lit   // x centre, y bottom (CSS px); hp 0..1, <0 = no bar; ally: the green plate
 
 /** QA e75ec29: an ally's plate — its kind's last word and its name (`jackal Skog`), a nameless (summoned) ally its kind alone. */
@@ -33,6 +33,10 @@ const CSS = `
 .rtag i { display: block; width: 24px; height: 4px; margin-top: 2px; background: #1a0f0c; border: 1px solid #0b0706; box-shadow: 0 0 0 1px rgba(120,90,60,.45); box-sizing: border-box; }
 .rtag i > s { display: block; height: 100%; background: linear-gradient(#e0433c, #9e1f1c); text-decoration: none; }
 .rtag.nobar i { display: none; }
+/* gfx round 18 (raters, every round: "a boss HP bar under his name plate"): a boss's plate carries a long framed bar with its notches */
+.rtag.boss b { font-size: 14px; color: #ffd98a; letter-spacing: .06em; font-variant-caps: all-small-caps; }
+.rtag.boss i { width: 84px; height: 8px; border: 1px solid #000; box-shadow: 0 0 0 1px #a8742e, 0 0 0 2px #1a0808, 0 0 10px rgba(220, 80, 30, .45); }
+.rtag.boss i > s { background: linear-gradient(#ff6a4a, #c0261e 55%, #6a0e0a); box-shadow: inset 0 1px 0 rgba(255, 220, 190, .5); }
 .rtag.ally b { color: #b9f0a4; }
 .rtag.ally i { box-shadow: 0 0 0 1px rgba(90,150,70,.55); }
 .rtag.ally i > s { background: linear-gradient(#6fd35a, #2f8a2a); }
@@ -127,13 +131,13 @@ export class TagLayer {
       const e = this.els[i]!, t = tags[i];
       if (!t) { if (e.key !== "") { e.el.style.display = "none"; e.key = ""; } continue; }
       const hp = t.hp < 0 ? -1 : Math.max(0, Math.min(1, t.hp));
-      const key = `${t.ally ? 1 : 0}|${t.stair ?? ""}|${t.text}|${Math.round(t.x)}|${Math.round(t.y)}|${Math.round(t.w)}|${hp.toFixed(2)}`;
+      const key = `${t.ally ? 1 : 0}${t.boss ? 1 : 0}|${t.stair ?? ""}|${t.text}|${Math.round(t.x)}|${Math.round(t.y)}|${Math.round(t.w)}|${hp.toFixed(2)}`;
       if (key === e.key) continue;
       e.key = key;
       e.el.style.display = "";
       if (e.name.textContent !== t.text) e.name.textContent = t.text;
       e.el.classList.toggle("nobar", hp < 0);
-      e.el.classList.toggle("ally", !!t.ally);
+      e.el.classList.toggle("ally", !!t.ally); e.el.classList.toggle("boss", !!t.boss);
       e.el.classList.toggle("stair", !!t.stair); e.el.classList.toggle("taken", t.stair === "taken"); e.el.classList.toggle("other", t.stair === "other");
       if (hp >= 0) e.fill.style.width = `${Math.round(hp * 100)}%`;
       e.el.style.width = `${Math.round(t.w)}px`;

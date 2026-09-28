@@ -22,6 +22,7 @@ import numpy as np
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent
+PAINTED = set(json.loads((ROOT / "tiles/_painted.json").read_text())) if (ROOT / "tiles/_painted.json").exists() else set()   # gfx round 18
 GENERATED = ROOT / "generated"
 TILES = ROOT / "tiles"
 PUBLISHED = ROOT.parent / "web" / "public" / "art"
@@ -42,7 +43,10 @@ def main() -> int:
     generated_ids = {p.stem for p in GENERATED.glob("*.png")}
     tile_ids = {p.stem for p in TILES.glob("*.png") if not p.name.startswith("_")}
 
-    missing_sources = sorted(manifest_ids - generated_ids)
+    optional = {a["id"] for a in assets if a.get("register") == "painted"}   # gfx round 18: a painted piece not yet drawn falls back to the ramp tile
+    if optional - generated_ids:
+        warnings.append(f"painted register: {len(optional - generated_ids)} pieces not drawn yet (the ramp register stands in)")
+    missing_sources = sorted(manifest_ids - generated_ids - optional)
     if missing_sources:
         failures.append(f"missing generated sources: {', '.join(missing_sources)}")
     orphans = sorted(generated_ids - manifest_ids)
@@ -106,8 +110,9 @@ def main() -> int:
             if (w, h) != (8, 8) and not (env and w == 16 and 16 <= h <= 32):
                 failures.append(f"{fid}: tile frame {w}x{h}, expected {'16x16..16x32' if env else '8x8'}")
             colours = {tuple(p) for p in fr.reshape(-1, 4) if p[3] > 0}
-            if len(colours) > 8:
-                failures.append(f"{fid}: tile uses {len(colours)} colours (> 8)")
+            cap = 24 if fid in PAINTED else 8   # gfx round 18: the painted register (art/painted.py) keeps <= 24
+            if len(colours) > cap:
+                failures.append(f"{fid}: tile uses {len(colours)} colours (> {cap})")
             if alpha.max() == 0:
                 failures.append(f"{fid}: empty tile")
             continue

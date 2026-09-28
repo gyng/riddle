@@ -138,7 +138,7 @@ export type JuiceCtx = {
 
 type Num = { x: number; y: number; text: string; col: Rgb; t0: number; big: boolean; id?: number; n?: number };
 type Pop = { x: number; y: number; r: number; c: Rgb; t0: number; life: number };
-type Squash = { t0: number; kind: "hurt" | "lunge" | "spawn" | "die" | "drop"; ax: number; ay: number };
+type Squash = { t0: number; kind: "hurt" | "lunge" | "spawn" | "die" | "drop" | "stagger"; ax: number; ay: number };
 
 export class Juice {
   readonly emit: TintLayer;
@@ -239,6 +239,8 @@ export class Juice {
     if (s.kind === "hurt") { const p = dt / 2.5; if (p >= 1 || p < 0) return [1, 1]; const e = (1 - p) * Math.cos(p * Math.PI * 1.5); return [1 + 0.16 * e, 1 - 0.14 * e]; }
     if (s.kind === "lunge") { const p = dt / 3; if (p >= 1 || p < 0) return [1, 1]; const e = Math.sin(p * Math.PI) * (1 - p * 0.5); return [1 + 0.12 * e * s.ax - 0.05 * e * s.ay, 1 + 0.1 * e * s.ay - 0.05 * e * s.ax]; }
     if (s.kind === "spawn") { const p = dt / 3; if (p >= 1 || p < 0) return [1, 1]; const b = 1 + 2.7 * Math.pow(p - 1, 3) + 1.7 * Math.pow(p - 1, 2); return [0.7 + 0.3 * b, 0.4 + 0.6 * b]; }
+    // gfx round 18 (raters: "stagger the boss at his break"): a big reel — crushed down and wide, then two wobbles back up over 8 ticks
+    if (s.kind === "stagger") { const p = dt / 8; if (p >= 1 || p < 0) return [1, 1]; const e = (1 - p) * Math.cos(p * Math.PI * 2.5); return [1 + 0.26 * e, 1 - 0.3 * e]; }
     if (s.kind === "drop") {   // falling (stretched), the landing (squashed), the settle
       if (dt < 0 || dt >= 7) return [1, 1];
       if (dt < 3) return [0.9, 1.12];
@@ -371,7 +373,8 @@ export class Juice {
           this.burst(10, cx, e.y + e.h * 0.7, 8, bc, 0.9, 0.5, { glow: true, drag: 0.6, sway: 5 }, 18);
           this.pop(cx, cy, 3.5, [bc[0] * 0.8, bc[1] * 0.8, bc[2] * 0.8], 420, now);
           // gfx round 1 (raters: "a boss kill deserves a loot burst"): his hoard spills — gold fountains up and rains down around him
-          for (let i = 0; i < 26; i++) { const a = -Math.PI / 2 + (this.rand() - 0.5) * 2.2; const sp = 50 + this.rand() * 60; this.spawn(cx + (this.rand() - 0.5) * 6, e.y + e.h * 0.5, Math.cos(a) * sp * 0.6, -Math.sin(a) * sp, 1.4 + this.rand() * 0.8, this.rand() < 0.5 ? 1 : 0.5, C.gold, { glow: true, grav: -150, floor: e.y - 3 - this.rand() * 8, drag: 0.5 }); }
+          // gfx round 18 (raters, every round: "a loot burst from the corpse"): twice the coins, bigger, spilling wider and lying glinting
+          for (let i = 0; i < 52; i++) { const a = -Math.PI / 2 + (this.rand() - 0.5) * 2.6; const sp = 55 + this.rand() * 75; this.spawn(cx + (this.rand() - 0.5) * 8, e.y + e.h * 0.5, Math.cos(a) * sp * 0.75, -Math.sin(a) * sp, 2.2 + this.rand() * 1.4, this.rand() < 0.55 ? 2 : 1, C.gold, { glow: true, grav: -150, floor: e.y - 3 - this.rand() * 10, drag: 0.5 }); }
         }
         else if (x.speed <= 1.5) this.hitStop(55, now);
         break;
@@ -425,7 +428,7 @@ export class Juice {
           this.pop(cx, cy, 3, [0.9, 0.45, 0.14], 380, now);
           this.flashVig([1, 0.5, 0.12], 0.3, 420, now); this.kickShake(3, 380, now);
           if (x.speed <= 1.5) this.hitStop(110, now);
-          this.squashes.set(this.lastBoss, { t0: this.clock, kind: "hurt", ax: 0, ay: 0 });
+          this.squashes.set(this.lastBoss, { t0: this.clock, kind: "stagger", ax: 0, ay: 0 });
           this.breaks.push(this.lastBoss);   // gfx round 1: the viewer draws his guard shattering over him (tags.ts `shatter`)
         }
         break;

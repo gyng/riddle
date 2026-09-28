@@ -15,6 +15,7 @@
 // re-roll; the ends line has its own `±` on the death share (`death 5% ±4`, `ForecastEnds.pm`).
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
 import { conceptCap, conceptIcon } from "./concepts";
+import { foeSrc } from "./skin";
 import { meterCompare } from "./meters";
 import { isWide } from "./frame";
 import { sysOpen } from "./systems";
@@ -317,7 +318,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         h("span", { class: "d num" }, h("span", { class: "hex", style: `--reach:${d.reach.toFixed(3)}`, "aria-hidden": "true" }), `D${d.depth}`),
         tr ? h("span", { class: "track-cell" }, track, h("small", { class: "try" }, /* copy:none */ `try: ${tr.text}`)) : track,
         // a `try` row keeps one line (its hint rides the track; the boss beside the number, as before)
-        h("span", { class: "n num" }, share(d.reach, lowOf(f)), dpm !== undefined ? h("small", { class: "dim pm band", style: bandW(dpm), title: `±${dpm}` }, /* copy:none */ ` ±${dpm}${first}`) : "", moveMark(vsBy.get(d.depth)), ...(tr ? why : [])),
+        h("span", { class: "n num" }, share(d.reach, lowOf(f)), dpm !== undefined ? h("small", { class: "dim pm band", style: bandW(dpm), title: `±${dpm}` }, /* copy:none */ ` ±${dpm}${first}`) : "", moveMark(vsBy.get(d.depth)), ...(tr ? why.filter((w) => w instanceof HTMLElement && (w.classList.contains("boss-here") || w.classList.contains("wall"))) : [])),   // gfx round 18 (raters: "the D8 row crams a pill, deltas and tags"): a try row keeps only whose floor it is
         // QA 778fa1b (qaU: a leading `· goblin archer` under the D1 bar): on a line of its own the first cause drops its separator
         !tr && why.length ? h("span", { class: "why num" }, ...why.map((w) => { if (w instanceof HTMLElement && w.firstChild?.nodeType === 3 && /^ · /.test(w.firstChild.textContent ?? "")) { w.firstChild.textContent = (w.firstChild.textContent ?? "").slice(3); w.prepend(h("i", { class: "sep" }, " · ")); } return w; })) : "",
       ];
@@ -334,7 +335,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     if (f.causes.length) causes.appendChild(h("span", { class: "label causes-label" }, /* copy:label */ "killers"));
     // QA 912e135 (qaX: `KILLERS goblin warlord 38%` while the ledger had him unseen, no screen naming him): a killer the lineage has not met
     // reads as one — `unmet warlord`
-    for (const c of f.causes) causes.appendChild(h("span", { class: "cause" }, killerName(app, c.cause), " ", h("b", { class: "num" }, share(c.share * per, lowOf(f)))));
+    // gfx round 18 (raters, every round: "give KILLERS small monster portraits"): a met killer shows its face (tools/foe-portraits.py)
+    for (const c of f.causes) { const nm = killerName(app, c.cause), src = /unmet/.test(String(nm)) ? null : foeSrc(c.cause); causes.appendChild(h("span", { class: "cause" }, src ? h("img", { class: "foe-face", src, alt: "", draggable: "false", "aria-hidden": "true" }) : "", nm, " ", h("b", { class: "num" }, share(c.share * per, lowOf(f))))); }
   };
   // until the first forecast arrives (≈1 s in the worker): the unknown row only
   bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, "…"), h("span", { class: "track" }), h("span", { class: "n" }, "?")));

@@ -140,7 +140,8 @@ const CORPSE_T = 4;                // gfx round 10: ticks after a boss's killing
 const fadeDim = (e: { fade: number }): number => e.fade <= 0 ? 1 : Math.max(0.12, 1 - e.fade * 0.9);
 /** the cast of the hero's and the torches' light per biome (rgb multipliers on the warm amber; the Warrens and the Burrows keep it) */
 const LIGHT_TINT: Record<string, [number, number, number]> = {
-  default: [1, 1, 1], fens: [0.6, 1, 1.1], crypt: [0.8, 0.88, 1.2], deep: [0.7, 0.85, 1.25], sanctum: [0.95, 0.95, 1.05], foundry: [1.08, 0.9, 0.8],
+  default: [1, 1, 1], fens: [0.95, 0.92, 0.8],   // gfx round 18 (raters: the Fens "no light source, the room feels dead"): lantern-warm torches (was cold 0.6/1/1.1)
+  crypt: [0.8, 0.88, 1.2], deep: [0.7, 0.85, 1.25], sanctum: [0.95, 0.95, 1.05], foundry: [1.08, 0.9, 0.8],
 };
 const HERO_Z = 3.2, HERO_COVER = 0.3, BOSS_COVER = 0.1, HIDDEN_MAX = 0.5; // Cut 18 §2: the hero's depth (over every sprite, under the glyphs) and the most of his rect a sprite may cover
 const MAX_LIGHTS = 12;             // art pass: torches lighting the blit (nearest the camera)
@@ -539,7 +540,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const f = atlas.hue("brazier");
       if (f) { L.decorHue.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, Math.max(dim, 0.9)); if (dim > 0.5) lights.push([wx, wy + f.h / 2 - 2]); return; }
     }
-    const hd = hash2(x, y, 9), near = walls > 0 ? 0.1 : 0;
+    // gfx round 18: the painted floors carry their own wear — the ramp register's decals at 40 % of their old density
+    const hd = hash2(x, y, 9) / 0.4, near = walls > 0 ? 0.1 : 0;
     const pick = hd < 0.07 + near ? "moss_" + (hash2(x, y, 10) < 0.5 ? 0 : 1)
       : hd < 0.12 + near ? "crack" : hd < 0.16 + near ? "rubble" : hd < 0.19 + near ? "blood" : hd < 0.205 + near ? "bones" : null;
     if (!pick) return;
@@ -839,7 +841,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
           tagBoxes.push([nx - nw / 2, ny, nx + nw / 2, ny + th]);
           const [cx, cy] = toCss(nx, ny);
           labels.push({ text: tagText, x: cx, y: cy, id: e.id, w: (nw * k) / dpr, h: TAG_H });
-          tags.push({ id: e.id, text: tagText, x: cx, y: cy, w: (nw * k) / dpr, hp: e.maxHp > 0 ? e.hp / e.maxHp : -1, ally: e.ally });
+          tags.push({ id: e.id, text: tagText, x: cx, y: cy, w: (nw * k) / dpr, hp: e.maxHp > 0 ? e.hp / e.maxHp : -1, ally: e.ally, boss: !!e.boss });
           top = ny + th + 1;
         }
       }

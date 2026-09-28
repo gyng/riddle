@@ -1583,3 +1583,19 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#0
 /* gfx round 17 (raters, the Fens and the fight: "the top bar's 'buys unlocks' / 'rank from deeds' labels collide"): two first-time captions
    under neighbouring stats take two rows */
 .topbar .stats .stat:nth-child(even) .concept-cap { top: calc(100% + 19px); }
+/* gfx round 18 (raters: "the D8 row's 'try: attac…' pill is truncated"): the hint pill tighter so it reads whole on the track */
+.bar.try .try { padding: 0 4px; font-size: 10.5px; letter-spacing: -.01em; }
+.fc-causes .cause { display: inline-flex; align-items: center; gap: 3px; }
+.fc-causes .foe-face { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 1px #8a6a3a, 0 0 0 2px #140e0a, 0 1px 2px rgba(0, 0, 0, .6); }
+/* gfx round 18 (raters, every round: "the title wraps 'ATTACK / BOSS'", "four grey sub-lines before any stat"): the headline fits its width
+   (balanced, a size down on a phone), the lines under it run on as one paragraph separated by dots */
+.report .news-line.lead { font-size: clamp(15px, 4.4vw, 21px); text-wrap: balance; }
+.report .news-line:not(.lead) { display: inline; }
+.report .news-line:not(.lead) + .news-line:not(.lead)::before { content: " · "; opacity: .6; }
+/* (raters: "the OPENED chips are cut off at the fold"): the opened systems as a compact row of small plaques */
+.report .sys-opened { gap: 4px; margin: 4px 0; }
+.report .sys-opened .sys-plaque { padding: 1px 6px 1px 3px; font-size: 11px; min-height: 0; }
+.report .sys-opened .sys-plaque .ico { width: 16px; height: 16px; }
+/* gfx round 18 (raters, every round: "the scene inset covers the rule list mid-row"): on a phone the scene plays over the camp's vista at the
+   top of the well, clear of the rule tablets */
+@media (max-width: 1023px) { .camp .well-wrap > .div-scene { align-self: start; margin: 2px 8px 0; height: 196px; } }
