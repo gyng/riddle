@@ -264,7 +264,7 @@ const GRADES: Record<string, [number, number, number, number, number, number]> =
 };
 
 /** gfx round 10: the world's contrast per biome (FX > 0; the Fens' plank stripes and the Warrens' flagstones read as noise behind the cast) */
-const CONTRAST: Record<string, number> = { fens: 0.6, warrens: 0.78, burrows: 0.82, crypt: 0.8, foundry: 0.85, deep: 0.85 };
+const CONTRAST: Record<string, number> = { fens: 0.45, warrens: 0.78, burrows: 0.82, crypt: 0.8, foundry: 0.85, deep: 0.85 };
 
 const MIST: Record<string, number> = { fens: 0.42, crypt: 0.16, deep: 0.18 };   // gfx round 11: ground mist per biome (FX > 0)
 
