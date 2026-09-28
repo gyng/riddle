@@ -557,6 +557,10 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
     let mut stalled_days = 0usize;
     let mut counters_done: Vec<String> = Vec::new();
     for day in 0..days {
+        // `PROG_SNAP=dir`: the lineage's save at each day's start (`dir/<name>-s<seed>-d<day>.json`, day 1-based) — the probes' input
+        if let Ok(dir) = std::env::var("PROG_SNAP") {
+            let _ = std::fs::write(format!("{dir}/{}-s{seed}-d{}.json", name.replace(['/', ' '], "_"), day + 1), g.save());
+        }
         let mut d = DayRec::default();
         let best0 = g.lineage.best_depth;
         for (ci, &elapsed) in schedule.iter().enumerate() {

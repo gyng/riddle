@@ -405,7 +405,7 @@ fn boss_of(run: &Run, cause: &str) -> Option<String> {
 /// somewhere is not patched with a second copy). Whether it fires from the checkpoint is the
 /// replays' call (`FIRED_BAR`).
 pub fn pinnable_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
-    let kind = rec.boss.clone()?;
+    let Some(kind) = rec.boss.clone() else { return card_counter(game, rec) };
     let row = crate::facts::boss_counter_row(&game.lineage.facts, &kind)?;
     // QA on 778fa1b (qaU: `foe: boss → attack boss` beside an editor whose lists had neither):
     // the counter is offered only as a row the editor can write — its verb and every cond in
@@ -416,6 +416,25 @@ pub fn pinnable_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
         return None;
     }
     Some(row)
+}
+
+/// Cut 29 (the Foundry wall: rater lineages died to iron golems at D19 for ten days with the
+/// `reflect_read` card owned and the golem's fact known — no death offered the card): a death to a
+/// foe that reflects melee, with the card owned and the tag in the lineage's words, pins the
+/// card's row (`foe: reflect_melee → reflect read`) as a boss's counter is pinned.
+fn card_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
+    let kind = rec.death.cause.as_str();
+    let def = crate::defs::MONSTERS.iter().find(|m| m.kind == kind)?;
+    let l = &game.lineage;
+    if !def.tags.contains(&"reflect_melee") || !l.unlocks.contains("reflect_read") || !crate::facts::tag_known(&l.facts, kind, "reflect_melee") {
+        return None;
+    }
+    if rec.rules.rows.iter().any(|r| r.card() == Some("reflect_read")) {
+        return None;
+    }
+    let row = Row::new(vec![Cond::t("foe_tag", "reflect_melee")], crate::rules::Verb::arg("tactic", "reflect_read"));
+    let v = game.vocabulary();
+    row.conds.iter().all(|c| v.conds.iter().any(|x| x.same_token(c))).then_some(row)
 }
 
 /// A row with the counter's verb (`attack tag:boss` under any conditions) is in the set.

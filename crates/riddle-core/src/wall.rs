@@ -57,6 +57,9 @@ fn stock(best: u32) -> Vec<Row> {
         // the Lurker Queen's counter on the lurkers she calls (the D28 probe: past her 0 → 6.5–10 %)
         Row::new(vec![Cond::t("foe_tag", "summoned"), Cond::n("depth>=", 28)], Verb::arg("read", "silence")),
         Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", best as i32)], Verb::arg("read", "silence")),
+        // the Foundry's counter card on the iron golems and their master (the rater lineages' D19–23
+        // wall: every one owned the card and knew the fact, no goal set wrote it — reach D23 0.3 % → 90 %)
+        Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read")),
     ]
 }
 
@@ -65,7 +68,12 @@ fn stock(best: u32) -> Vec<Row> {
 pub fn edits(g: &Game, set: &RuleSet) -> Vec<(String, RuleSet)> {
     let vocab = g.vocabulary();
     let max_rows = g.lineage.max_rows();
-    let writable = |r: &Row| r.is_card() || (r.conds.iter().all(|c| vocab.conds.iter().any(|v| v.same_token(c)) && !vocab.locked.iter().any(|l| l.cond.same_token(c))) && vocab.verbs.contains(&r.verb));
+    let conds_ok = |r: &Row| r.conds.iter().all(|c| vocab.conds.iter().any(|v| v.same_token(c)) && !vocab.locked.iter().any(|l| l.cond.same_token(c)));
+    // a card row: the card owned and not already in the set (its conditions the lineage's words)
+    let writable = |r: &Row| match r.card() {
+        Some(card) => g.lineage.unlocks.contains(card) && !set.rows.iter().any(|x| x.card() == Some(card)) && conds_ok(r),
+        None => conds_ok(r) && vocab.verbs.contains(&r.verb),
+    };
     let mut out: Vec<(String, RuleSet)> = Vec::new();
     let mut push = |label: String, s: RuleSet| {
         if s != *set && s.validate().is_ok() && s.own_rows() <= max_rows && !out.iter().any(|(_, o)| *o == s) {
