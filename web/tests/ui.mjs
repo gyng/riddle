@@ -622,7 +622,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [{ k: "hp<", n: 50 }], verb: { v: "attack", a: "nearest" } }, 2); r.go({ kind: "camp" }); });
   await page.waitForFunction(() => document.querySelector(".shaft .shaft-ends")?.hidden === false, null, { timeout: 15_000 }).catch(() => {});
   const ends = await page.evaluate(() => [...document.querySelectorAll(".shaft .shaft-ends .end")].map((e) => e.textContent.replace(/\s+/g, " ").trim()));
-  check(ends.length === 4 && /^bank <?\d+%$/.test(ends[0]) && /^return <?\d+%$/.test(ends[1]) && /^death [<>]?\d+%$/.test(ends[2]) && /^~\$\d+\/run…?$/.test(ends[3]), `a 3rd row lights the shaft's gems (QA 778fa1b: \`…\` on the first pass): ${ends.join(" · ")}`);
+  check(ends.length === 4 && /^bank <?\d+%$/.test(ends[0]) && /^return <?\d+%$/.test(ends[1]) && /^death [<>]?\d+%$/.test(ends[2]) && /^avg \$\d+\/run…?$/.test(ends[3]), `a 3rd row lights the shaft's gems (QA 778fa1b: \`…\` on the first pass): ${ends.join(" · ")}`);
   // 5 heirs: ledger, chronicle, the set tabs
   check(!(await tileIds()).includes("ledger") && !(await page.locator(".tabs:not([hidden]) .tab").count()), "before the 5th heir: no ledger, no chronicle, no set tabs");
   check(await patchSave((e) => { e.lineage.heir = 5; }), "the lineage took its 5th heir");

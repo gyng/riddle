@@ -105,3 +105,7 @@
 .notch .concept-cap, .forecast .concept-cap { display: table; margin: 2px 0 0; white-space: normal; }
 .notch .concept-cap { white-space: nowrap; font-size: 9.5px; padding: 0 4px; margin-left: -2px; }
 .concept-cap::after { content: attr(data-cap); }
+/* blind pass 9: the watch's `fights only` tile was cut to `fights o…` — a two-word label wraps in its tile */
+.cmd .tile .tl { white-space: normal; line-height: 1.05; overflow-wrap: anywhere; text-align: center; }
+/* blind pass 9: the shaft's `D1` in the display face read `DI` — the floor numbers take the condensed face (its 1 has a flag) */
+.notch .dl { font-family: var(--sans); font-weight: 700; letter-spacing: .01em; }

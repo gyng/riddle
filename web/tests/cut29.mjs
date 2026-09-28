@@ -266,7 +266,7 @@ try {
       r.rulesChanged(); r.go({ kind: "camp" }); });
     await camp();
     const g = await until(() => { const x = document.querySelector(".shaft .end.gold"); return x && /passage$/.test(x.textContent.trim()) ? x.textContent.replace(/\s+/g, " ").trim() : null; }, "the passage on the shaft", 8000).catch(() => null);
-    check(g === "~$125/run +$135 passage", `the shaft's gold is a run's, the passage apart ("${g}")`);
+    check(g === "avg $125/run +$135 passage", `the shaft's gold is a run's, the passage apart ("${g}")`);
     await page.evaluate(() => { window.__riddle.go({ kind: "report", report: { elapsed_s: 3600, runs: 4, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, tamed: [], hatched: [], lost: [], xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, live: false, banked: 2, returned: 2,
       fallen: [{ name: "Greth", kind: "ogre", level: 5, depth: 12, why: "fell D12 to lurker", heir: 3 }] } }); });
     const f = await until(() => document.querySelector(".fallen-sec .fallen-line")?.textContent.replace(/\s+/g, " ").trim() ?? null, "the fallen line");

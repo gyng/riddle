@@ -253,9 +253,9 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     const stall = e.stall && Math.round(e.stall * 100) > 0 ? /* copy:callout */ ` · stall ${pct(e.stall)}` : "";
     const lo = lowOf(f), eh = (x: number): string => endShare(x, lo);
     const epm = pmShown(e.death, e.pm);
-    const pm = epm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${epm}${f.refined === false ? "…" : ""}`) : "";
+    const pm = epm !== undefined ? h("small", { class: "dim pm band", style: bandW(epm), title: `±${epm}` }, /* copy:none */ ` ±${epm}${f.refined === false ? "…" : ""}`) : "";   // Cut 29: `±6` read as −6 — a band
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
-    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${eh(e.bank)} · return ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)));
+    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${eh(e.bank)} · return ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, /* copy:callout */ ` · avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -463,7 +463,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
       h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true))),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
-      h("span", { class: "end gold" }, /* copy:callout */ `~$${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), rough ? h("i", { class: "settling" }, "…") : ""));
+      h("span", { class: "end gold" }, /* copy:callout */ `avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), rough ? h("i", { class: "settling" }, "…") : ""));
     replace(oathEl, shaftOath(app)); oathEl.hidden = !oathEl.childElementCount;
     const line = vsLine(app, vs, last, !!e && showEnds()), lm = lmoveLine(app, last), st = stateLine(app);
     vsHost.hidden = !line && !lm && !st; replace(vsHost, st ?? "", lm ?? "", line ?? "");

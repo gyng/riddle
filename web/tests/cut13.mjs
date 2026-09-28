@@ -292,7 +292,7 @@ try {
   // QA e75ec29 (Q: `D1 100% ±1`): a share that reads 0 % or 100 % carries no ± — the ± is asked of the rows strictly between
   const fc = () => page.evaluate(() => { const L = window.__riddle.lastForecast; const inside = (x) => { const r = Math.round(x * 100); return r > 0 && r < 100; };
     return { refined: document.querySelector(".forecast")?.dataset.refined, pms: [...document.querySelectorAll(".fc-bars .pm")].map((e) => e.textContent), want: (L?.depths ?? []).filter((d) => d.pm !== undefined && inside(d.reach)).length, deathInside: !!L?.ends && inside(L.ends.death), ends: document.querySelector(".fc-ends:not([hidden])")?.textContent ?? "", stale: document.querySelector(".forecast")?.classList.contains("stale") }; });
-  const endsOk = (f, tail) => f.deathInside ? new RegExp(` · death \\d+% ±\\d+${tail} · ~\\$\\d+\\/run$`).test(f.ends) : / · death (0|100|[<>]\d+)% · ~\$\d+\/run$/.test(f.ends);
+  const endsOk = (f, tail) => f.deathInside ? new RegExp(` · death \\d+% ±\\d+${tail} · avg \\$\\d+\\/run$`).test(f.ends) : / · death (0|100|[<>]\d+)% · avg \$\d+\/run$/.test(f.ends);
   await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "0", null, { timeout: 15_000 });
   let f = await fc();
   check(f.refined === "0" && f.pms.length === f.want && f.pms.every((p) => /^ ±\d+…$/.test(p)), `the first paint's ± trail …, one per share strictly inside 0–100 %: ${f.pms.join(",")} (${f.want} wanted)`);
