@@ -799,7 +799,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         const byGold = !u.available && goldAffordable(u, app.lineage.gold);
         grid.appendChild(h("button", { class: `card${u.available ? " buyable" : byGold ? " buyable gold-ok" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u) },
           // QA 92eb880 (N: "`AUTO: RESTOCK · ⊘ ◆1 more` while `$ buy` is enabled"): a marks shortfall the gold covers carries no `⊘`
-          h("span", { class: "card-main" }, h("span", null, u.label), u.carries ? h("small", { class: "carries dim" }, u.carries) : "", u.needs ? h("small", { class: "needs dim" }, u.gated && !byGold ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
+          h("span", { class: "card-main" }, h("span", null, u.label), u.carries ? h("small", { class: "carries dim" }, u.carries) : "", u.needs ? h("small", { class: "needs dim" }, u.gated && !byGold && !/^\$\d+ more$/.test(u.needs) ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
             d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d, app.rules.rows.length)) : "",
             stallLabel(u) ? h("small", { class: "num delta down stall-risk" }, stallLabel(u)) : ""),   // QA 92eb880: the stall risk before buying
           h("span", { class: "num cost" }, priceLabel(u))));

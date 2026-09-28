@@ -74,3 +74,5 @@
 .forecast .bar.unknown .hex { background: #15100c; box-shadow: inset 0 0 0 1px #3a2e22; }
 .forecast .bar .track { height: 4px; border-radius: 2px; }
 .forecast .bar .track .fill { background: linear-gradient(90deg, #a8601a, #f0b44a); }
+/* Cut 29 §4: a tablet lifted by a long press */
+.editor .row.tablet.lifted { box-shadow: 0 8px 18px rgba(0, 0, 0, .7), 0 0 0 2px var(--acc); z-index: 5; position: relative; }

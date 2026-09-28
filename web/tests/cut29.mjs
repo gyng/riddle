@@ -293,6 +293,28 @@ try {
     const rows = await page.evaluate(() => window.__riddle.rules.rows.map((r) => `${r.conds.map((c) => c.k + (c.n ?? "")).join("&")}>${r.verb.v}`));
     check(rows[1] === "hp<90>rest", `apply takes the measured set (${rows.join(" · ")})`);
   }
+  // ---- §4: a long press lifts a tablet and it moves any distance
+  if (part("reorder")) {
+    await boot(2910);
+    await withState((e) => {
+      e.sys29 = { open: ["send", "dial", "headline", "edit", "death", "reorder", "vs"], fresh: [], plateau: true, works: [], meters: [], insure: true };
+      Object.assign(e.lineage, { heir: 2, graveyard: [{ heir: 1, depth: 2, cause: "rat", deeds: [] }], unlocks: [...e.lineage.unlocks, "row5"] });
+      e.rules.rows.push({ conds: [{ k: "foes>=", n: 3 }], verb: { v: "retreat" }, origin: "player" }, { conds: [{ k: "hp<", n: 50 }], verb: { v: "rest" }, origin: "player" });
+    });
+    await camp();
+    await page.evaluate(() => { window.__riddle.editing = true; window.__riddle.go({ kind: "camp" }); }); await camp();
+    const before = await page.evaluate(() => window.__riddle.rules.rows.map((r) => r.verb.v));
+    const last = page.locator(".editor .row.tablet").last(), first = page.locator(".editor .row.tablet").first();
+    const lb = await last.locator(".chip.verb").boundingBox(), fb = await first.boundingBox();
+    await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2); await page.mouse.down();
+    await sleep(650);
+    const lifted = await page.evaluate(() => !!document.querySelector(".editor .row.tablet.lifted"));
+    for (let k = 1; k <= 8; k++) { await page.mouse.move(lb.x + lb.width / 2, lb.y + (fb.y + 4 - lb.y) * k / 8); await sleep(30); }
+    await page.mouse.up(); await sleep(400);
+    const after = await page.evaluate(() => ({ rows: window.__riddle.rules.rows.map((r) => r.verb.v), sheet: !!document.querySelector(".sheet-wrap") }));
+    check(lifted && after.rows[0] === before[before.length - 1] && after.rows.length === before.length && !after.sheet,
+      `a long press lifts the last tablet and drops it at the top (lifted ${lifted}; ${before.join(" · ")} → ${after.rows.join(" · ")}; sheet ${after.sheet})`);
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 }

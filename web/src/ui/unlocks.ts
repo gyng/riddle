@@ -138,8 +138,9 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
     // (QA B on 952e306: "CLASS: RANGER ◆6 · ⊘ ◆2 more has an active buy; tapping it did nothing"); any `needs` or a marks
     // shortfall against the live lineage turns `buy` off
     const short = Math.max(0, u.cost - app.lineage.marks);
-    const gateNeeds = u.needs && !/^◆\d+ more$/.test(u.needs) ? u.needs : undefined;   // a gate that is not the marks
-    const needs = gateNeeds ?? (short ? /* copy:unlock_card */ `◆${short} more` : undefined);
+    // Cut 29 §1: an automation short of gold reads the core's `$N more` — a price, not a lock (the `$ buy`'s `$N short` says it)
+    const gateNeeds = u.needs && !/^[◆$]\d+ more$/.test(u.needs) ? u.needs : undefined;   // a gate that is not the marks or the purse
+    const needs = gateNeeds ?? (short && !u.gold_only ? /* copy:unlock_card */ `◆${short} more` : undefined);
     const can = (u.available || (!!u.needs && !gateNeeds)) && !needs;
     // gold buys past a marks shortfall, never past another gate (a fact, a prerequisite, `fill rows`)
     const gold = goldPrice(u), canGold = gold > 0 && !gateNeeds && app.lineage.gold >= gold;
@@ -155,11 +156,12 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       if (sent) return; sent = true;
       void app.buy(u.id, withGold, isCard(u) ? { join: freeCard || u.auto_insert === true, at: joinAt } : undefined).then((ok) => { close(); if (ok) after?.(); });   // QA a946e04: the buy does what the sheet said, where it said
     };
-    const buy = freeCard ? h("button", { class: "btn primary buy marks free-add", onclick: go(false) }, /* copy:button */ "add")
+    // Cut 29 §1: an automation is bought with gold only (at the Lich) — no `◆ buy`
+    const buy = u.gold_only ? "" : freeCard ? h("button", { class: "btn primary buy marks free-add", onclick: go(false) }, /* copy:button */ "add")
       : h("button", { class: `btn primary buy marks${can ? "" : " off"}`, disabled: !can, onclick: go(false) }, "◆ ", /* copy:button */ "buy");
     const buyGold = gold ? h("button", { class: `btn buy gold${canGold ? "" : " off"}`, disabled: !canGold, onclick: go(true) }, "$ ", /* copy:button */ "buy") : "";
     return h("div", { class: "sheet-body unlock-sheet" },
-      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`, gold ? h("span", { class: "gold-price" }, /* copy:label */ ` or $${gold}`) : "")),
+      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, u.gold_only ? `$${gold}` : `◆${u.cost}`, gold && !u.gold_only ? h("span", { class: "gold-price" }, /* copy:label */ ` or $${gold}`) : "")),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r))))
         : VERB_OF[u.id] ? h("div", { class: "card-rows" }, h("div", { class: "row locked" }, h("div", { class: "chips" }, h("span", { class: "chip verb locked" }, VERB_OF[u.id]), VERB_DOES[u.id] ? h("small", { class: "dim verb-does" }, ` ${VERB_DOES[u.id]}`) : ""))) : "",
       effectLine(app, u) ? h("div", { class: "effect-line num" }, effectLine(app, u)!) : "",

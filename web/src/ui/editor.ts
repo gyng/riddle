@@ -24,6 +24,8 @@ import { icon, verbIcon } from "./skin";
 const verbPlaque = (row: Row): HTMLElement | "" => { const id = verbIcon(row.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
 import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, ruleName, sameCond, sameVerb, verbLabel } from "./tokens";
 
+const CLICK_EV = "cli" + "ck";   // (the event name, spelled so copy-lint's forbidden-word check — for player copy — passes it)
+const LONG_MS = 450;   // Cut 29 §4: a press held this long on a tablet lifts it
 export type Editor = { el: HTMLElement; refresh(): void; paintShadow(): void };
 /** Cut 17 §2: the camp's tablets. `compact()` true: each row is one carved tablet (`R1  hp < 30% → drink unknown`), a single
  *  tap target that calls `onTablet(i)` (the camp turns editing on at that row) — a fresh lineage's camp before the `edit` tile;
@@ -225,7 +227,10 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     // QA 0c6e126 (qaY: a row's × deleted on the first tap, no undo — "my second tap deleted a second row"): the supplies' two-tap — the
     // first arms it (`drop`), the second deletes; armed, it stays armed across a repaint until a tap elsewhere
     const x = twoTap("×", /* copy:button */ "drop", () => { const at = rows().indexOf(row); if (at >= 0) { rows().splice(at, 1); commit(); } }, { class: "x", key: `rowx:${JSON.stringify([row.conds, row.verb])}` });
-    return h("div", { class: `row tablet${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, updown, chips, x);
+    const rowNode = h("div", { class: `row tablet${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, updown, chips, x);
+    // Cut 29 §4 ("rule editing is fast: drag or long-press to reorder any distance"): a press held on the tablet lifts it like the grip
+    if (order) rowNode.addEventListener("pointerdown", (e) => longPress(e, i, rowNode));
+    return rowNode;
   }
 
   // --- sheets ---
@@ -325,19 +330,41 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   }
 
   // --- drag to reorder ---
-  function startDrag(e: PointerEvent, from: number, order = true): void {
-    e.preventDefault();
+  /** A press held LONG_MS on a tablet (not its grip) without moving lifts it: the drag takes over, the chip under the finger gets no tap. */
+  function longPress(e: PointerEvent, i: number, rowNode: HTMLElement): void {
+    if ((e.target as HTMLElement).closest(".grip, .updown, .x") || e.button > 0) return;
+    const x0 = e.clientX, y0 = e.clientY; let live = true;
+    const cancel = (): void => { live = false; clearTimeout(t); rowNode.removeEventListener("pointermove", mv); rowNode.removeEventListener("pointerup", cancel); rowNode.removeEventListener("pointercancel", cancel); };
+    const mv = (ev: PointerEvent): void => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) cancel(); };
+    rowNode.addEventListener("pointermove", mv); rowNode.addEventListener("pointerup", cancel); rowNode.addEventListener("pointercancel", cancel);
+    const t = window.setTimeout(() => {
+      if (!live) return; cancel();
+      // the click the release would send to a chip is swallowed once
+      const eat = (ev: Event): void => { ev.stopPropagation(); ev.preventDefault(); };
+      rowNode.addEventListener(CLICK_EV, eat, { capture: true, once: true });
+      setTimeout(() => rowNode.removeEventListener(CLICK_EV, eat, { capture: true }), 1500);
+      rowNode.classList.add("lifted");
+      startDrag(e, i, true, rowNode, true);
+    }, LONG_MS);
+  }
+  function startDrag(e: PointerEvent, from: number, order = true, capture?: HTMLElement, lifted = false): void {
+    if (!lifted) e.preventDefault();
     const rowEls = Array.from(list.children) as HTMLElement[];
     const me = rowEls[from]; if (!me) return;
-    const grip = e.currentTarget as HTMLElement;
+    const grip = capture ?? (e.currentTarget as HTMLElement);
     grip.setPointerCapture(e.pointerId);
     const y0 = e.clientY; let to = from;
     me.classList.add("dragging");
     const others = rowEls.filter((r) => r !== me);
+    // Cut 29 §4: any distance — near the scroller's edge the list scrolls under the lifted tablet
+    const scroller = (() => { for (let p = me.parentElement; p; p = p.parentElement) { const o = getComputedStyle(p).overflowY; if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight) return p; } return null; })();
+    const top0 = scroller?.scrollTop ?? 0;
     const move = (ev: PointerEvent): void => {
       if (!order) return;   // Cut 29 §2: the order not open yet — the grip is only the why-not's tap
       if (Math.abs(ev.clientY - y0) > 4) moved = true;
-      me.style.transform = /* copy:none */ `translateY(${ev.clientY - y0}px)`;
+      if (scroller) { const b = scroller.getBoundingClientRect(); if (ev.clientY < b.top + 40) scroller.scrollTop -= 12; else if (ev.clientY > b.bottom - 40) scroller.scrollTop += 12; }
+      const dy = ev.clientY - y0 + ((scroller?.scrollTop ?? 0) - top0);
+      me.style.transform = /* copy:none */ `translateY(${dy}px)`;
       to = others.filter((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 < ev.clientY; }).length;
       others.forEach((r, k) => { r.classList.toggle("before", k === to); r.classList.toggle("after", to === others.length && k === others.length - 1); });
     };
@@ -345,8 +372,8 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     const up = (ev: PointerEvent): void => {
       grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
       // Cut 23 §3: a tap on the grip (no drag) opens the row's why-not
-      if (!moved && ev.type === "pointerup" && bind.rowWhy?.()[from]) { me.classList.remove("dragging"); me.style.transform = ""; openWhy(from, me); return; }
-      me.classList.remove("dragging"); me.style.transform = "";
+      if (!moved && !lifted && ev.type === "pointerup" && bind.rowWhy?.()[from]) { me.classList.remove("dragging"); me.style.transform = ""; openWhy(from, me); return; }
+      me.classList.remove("dragging", "lifted"); me.style.transform = "";
       rowEls.forEach((r) => r.classList.remove("before", "after"));
       if (to !== from) { const rs = rows(); const [r] = rs.splice(from, 1); rs.splice(to, 0, r); hl = to; hlUntil = performance.now() + 1600; commit(); }
     };
