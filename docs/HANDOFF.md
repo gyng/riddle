@@ -1,5 +1,15 @@
 # Handoff — where Riddle stands and how to resume
 
+> **Session end, 2026-09-28 — stopped before Cut 30 (owner's call).** All work is on **`cut29-wip`**
+> (last `b3d1d46` + parked oath art); `main` has this doc. Cut 29 is built end to end (core + client +
+> copy decisions + YOU DIED) but **not merged**: `node tools/gates.mjs --full` still fails the rows Cut 29
+> made hard — dayplayer unlock days 7.0/10, stall 9/3 d; progression unlock days 8.3/10, stall ≤ 3 on
+> 11/18 (bar 13), marks unspent 13 (bar 8), purse 1.82× (bar 1). Everything else passes (450 tests,
+> clippy, qa, bots, walls, lever). Gfx/UI blind mean 6.74 on the motion-aware harness (bar 8.0). Next:
+> finish the four §6 "Cut 29 core" items (lucky records, the cadence card, a late marks sink, commissions
+> priced to income), merge, then Cut 30 (the idle-first pivot, §0). Resume: `git switch cut29-wip`.
+
+
 *Written 2026-09-27 at the end of a long session. Read this, then `AGENTS.md`, then `docs/CUT29.md`.*
 
 

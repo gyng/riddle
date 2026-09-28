@@ -1,0 +1,23 @@
+You are painting REWARD VIGNETTES for the oath board of the game "Riddle" (a dark-fantasy phone roguelike). LOOK FIRST at
+/home/g/p/riddle/art/ui/targets/report.png and camp.png (you may read those two images; read nothing else in the repository):
+match their painterly Warcraft III style, warm torchlight, dark umber, worn gold.
+
+Use your built-in image_gen tool, one call per image. Do NOT write code beyond a PIL resample. Do NOT touch anything outside
+/home/g/p/riddle/art/ui/oath/. Save each as a 512x512 OPAQUE PNG at the exact path. Each is a small square painted miniature, one
+bold central subject that reads at 56 px, a dark vignetted background, warm rim light, no text, no letters, no frame, no border.
+The eight must differ at a glance: different subject, silhouette and dominant colour.
+
+1) /home/g/p/riddle/art/ui/oath/card.png — a TACTIC CARD: an old parchment card with a red wax seal, a sword and a shield sketched on it,
+   fanned over two other cards (dominant: parchment cream and red).
+2) /home/g/p/riddle/art/ui/oath/slot.png — a NEW COMPANION: a loyal hound's head beside an empty iron collar and a leash on a peg
+   (dominant: warm brown fur).
+3) /home/g/p/riddle/art/ui/oath/title.png — a TITLE: a laurel wreath around a gold star medal on a crimson ribbon (dominant: gold).
+4) /home/g/p/riddle/art/ui/oath/waystone.png — a WAYSTONE: a tall carved standing stone with a glowing cyan rune at a dark stairway
+   mouth (dominant: cyan glow on grey stone).
+5) /home/g/p/riddle/art/ui/oath/verb.png — a NEW ACTION: an open spellbook with a glowing quill writing a sigil (dominant: violet glow).
+6) /home/g/p/riddle/art/ui/oath/row.png — an EXTRA RULE: a carved stone tablet with an iron plus-shaped inlay, a chisel beside it
+   (dominant: grey stone and iron).
+7) /home/g/p/riddle/art/ui/oath/route.png — A NEW ROUTE: a forked path at a signpost with two lanterns, one path lit warm, one cold
+   (dominant: amber and teal split).
+8) /home/g/p/riddle/art/ui/oath/heir.png — AN HEIR'S CHOICE: three small hooded portrait cameos on a velvet cushion under a crown
+   (dominant: deep green velvet and gold).
