@@ -149,6 +149,43 @@ try {
     check(pl.join() === "forge:forge*,oaths:oaths*", `the report plaques the systems opened, glinting (${pl.join(" · ")})`);
     await shot("cut29-report-opened");
   }
+  // ---- §3: the meters — the watch's toggle, the death's fight, the report's night, the camp's two runs; units always
+  if (part("meters")) {
+    await boot(2903);
+    await page.evaluate(() => { localStorage.removeItem("riddle.meters"); window.__riddle.go({ kind: "watch" }); });
+    await until(() => window.__riddle.screen === "watch" && document.querySelector(".cmd .tile[data-tile=meters]"), "the watch's meters tile");
+    const off = await page.evaluate(() => document.querySelector(".meter-box")?.hidden);
+    await page.locator(".cmd .tile[data-tile=meters]").click();
+    const line = await until(() => { const b = document.querySelector(".meter-box"); return b && !b.hidden && b.textContent.trim() ? b.textContent.replace(/\s+/g, " ").trim() : null; }, "the compact meter", 20_000);
+    check(off === true && /^(fight|run) dealt [\d.]+ dps.* taken [\d.]+ dps/.test(line), `the watch's meter is off until toggled, then one line with its units ("${line}")`);
+    const kept = await page.evaluate(() => localStorage.getItem("riddle.meters"));
+    check(kept === "1", `the toggle is remembered (${kept})`);
+    await shot("cut29-watch-meter");
+    const fightM = { seconds: 8.4, dealt: { hero: 31, pets: 0, foes: 44 }, taken: { hero: 38, pets: 0, foes: 31 }, dps_dealt: { hero: 3.7, pets: 0, foes: 5.2 }, dps_taken: { hero: 4.5, pets: 0, foes: 3.7 },
+      healed: [{ src: "potion", total: 12, per_s: 1.4 }], hps: 1.4, time: { fight: 84, travel: 0, chores: 0, rest: 0 }, time_s: { fight: 8.4, travel: 0, chores: 0, rest: 0 },
+      rows: [{ row: 1, fires: 7, share: 0.7 }, { row: 0, fires: 3, share: 0.3 }], actions: 10, supplies: { heal: 1 }, gold: 0, gold_per_min: 0, hits_hero: 9, hits_pets: 0, fights: 1 };
+    await page.evaluate((m) => { const r = window.__riddle; r.go({ kind: "death", death: { run_id: 0, depth: 7, cause: "ogre", margin: "", verdict: "gap", baseline: 0.25, replays: 12, trace: { turns: [] }, patches: [], morgue: "t1", fight: m, rules: r.rules } }); }, fightM);
+    const dm = await until(() => { const x = document.querySelector(".fight-meters"); return x ? [...x.querySelectorAll(".mrow")].map((r) => r.textContent.replace(/\s+/g, " ").trim()) : null; }, "the death's fight meter");
+    const rules = await page.evaluate(() => window.__riddle.rules.rows.length);
+    check(dm.some((x) => /^dealt 3\.7 dps/.test(x)) && dm.some((x) => /^taken 4\.5 dps .*9 hits/.test(x)) && dm.some((x) => /^healed 1\.4 hp\/s .*potion 12 hp/.test(x)) && dm.some((x) => /^rules .*70%/.test(x) && !/\bR\d/.test(x)),
+      `the death screen breaks down the fight, units on every figure, rules by their words (${dm.join(" | ")}; ${rules} rules)`);
+    await shot("cut29-death-fight");
+    await page.evaluate((m) => { const r = window.__riddle; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 6, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, tamed: [], hatched: [], lost: [], xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, live: false, banked: 3, returned: 3, meters: { ...m, seconds: 900, time_s: { fight: 120, travel: 600, chores: 80, rest: 100 }, gold: 300, gold_per_min: 20 } } }); }, fightM);
+    await until(() => window.__riddle.screen === "report", "the report");
+    await page.locator(".details-fold").click();
+    const rm = await until(() => { const x = document.querySelector(".report-details .meters"); return x ? x.textContent.replace(/\s+/g, " ").trim() : null; }, "the night's meter");
+    check(/^this night · 15m/.test(rm) && /gold \$20\/min/.test(rm) && /fight 13%/.test(rm) && /travel 67%/.test(rm), `the report meters the night ("${rm.slice(0, 160)}")`);
+    // the camp: the last two runs side by side (the forecast panel on a phone)
+    await withState((e) => { e.sys29 ??= { open: ["send", "dial", "headline"], fresh: [], plateau: false, works: [], meters: [], insure: true };
+      const m = (dps, g) => ({ seconds: 60, dealt: { hero: dps * 60, pets: 0, foes: 10 }, taken: { hero: 30, pets: 0, foes: 10 }, dps_dealt: { hero: dps, pets: 0, foes: 0.2 }, dps_taken: { hero: 0.5, pets: 0, foes: 0.2 }, healed: [], hps: 0,
+        time: { fight: 100, travel: 500, chores: 0, rest: 0 }, time_s: { fight: 10, travel: 50, chores: 0, rest: 0 }, rows: [], actions: 0, supplies: {}, gold: g, gold_per_min: g, hits_hero: 3, hits_pets: 0, fights: 2 });
+      e.sys29.meters = [m(4, 20), m(6, 35)]; });
+    await camp();
+    await page.locator(".shaft").first().click();
+    const cmp = await until(() => { const x = document.querySelector(".forecast .mcmp"); return x ? [...x.querySelectorAll(".mcmp-row")].map((r) => r.textContent.replace(/\s+/g, " ").trim()) : null; }, "the two-run comparison");
+    check(cmp.some((x) => /^dealt 4 → 6 dps \+2$/.test(x)) && cmp.some((x) => /^gold 20 → 35 \$\/min \+15$/.test(x)), `the camp compares the last two runs (${cmp.join(" | ")})`);
+    await shot("cut29-camp-compare");
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 }

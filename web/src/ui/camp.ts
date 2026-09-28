@@ -15,6 +15,7 @@
 // Cut 16 §2: beside them, while `Lineage.class_offer` stands, a chip per owned class with its signature verb (`rogue · vanish`;
 // one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
 // row stands in for the class button while it is up.
+import { meterCompare, meterPanel } from "./meters";
 import { anyNew, sysOpen } from "./systems";
 import { lookStud } from "./look";
 import type { App, Mounted } from "../app";
@@ -100,6 +101,12 @@ export function ruleShort(rule: string): string | undefined {
 }
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
+/** Cut 29 §3: the camp's meters (the desktop's column under the shaft): the last two runs compared, else the last run's breakdown. */
+function campMeters(app: App): HTMLElement | null {
+  const runs = app.lineage.meters?.runs ?? [];
+  if (runs.length >= 2) return meterCompare(runs[runs.length - 2], runs[runs.length - 1]);
+  return runs.length ? meterPanel(runs[0], app.rules.rows, { title: /* copy:label */ "last run" }) : null;
+}
 const SEND_ARM_MS = 800;
 const SEEN_MS = 1800;   // Cut 29 §2: a new system's glint plays before the core clears its `new`
 /** QA 92eb880 (M: "kept `sealed scroll?` … reappear as `summon ally scroll` with no line saying they were identified"): an identified
@@ -182,7 +189,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab, oathTab), shaft.el, metersSlot()));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   const restLine = h("div", { class: "rest-line" }, rest);

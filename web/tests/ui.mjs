@@ -709,8 +709,8 @@ try {
   });
   f = await frame();
   check(f.bar && f.console && f.gem?.visible && ["⏸", "▶"].includes(f.gem.text), `watch: bar + console, ⏸ in the gem (${JSON.stringify(f.gem)})`);
-  const cmd = await page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile.hud-btn")].map((b) => b.textContent.trim()));
-  check(cmd.join(" · ") === "highlights · fast · normal · ▶▶| · bail", `watch: the command card is highlights · fast · normal · ▶▶| · bail (Cut 25 §3) (${cmd.join(" · ")})`);
+  const cmd = await page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((b) => b.textContent.trim()));
+  check(cmd.join(" · ") === "highlights · fast · normal · ▶▶| · bail · meters", `watch: the command card is highlights · fast · normal · ▶▶| · bail · meters (Cut 25 §3, Cut 29 §3) (${cmd.join(" · ")})`);
   await shot("ui-watch");
   let s = await state(); const tw = Date.now();
   while (s?.screen === "watch" && Date.now() - tw < 90_000) { await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); }); await sleep(250); s = await state(); }

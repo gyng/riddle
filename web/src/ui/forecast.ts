@@ -14,6 +14,8 @@
 // Cut 13 §5: the first paint (`Forecast.refined` false) carries `…` after each `±` so the refine's landing does not read as a
 // re-roll; the ends line has its own `±` on the death share (`death 5% ±4`, `ForecastEnds.pm`).
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
+import { meterCompare } from "./meters";
+import { isWide } from "./frame";
 import { sysOpen } from "./systems";
 import { BANDS, FORKS, biomeAt, frontiers, routeChips, routeForks } from "./route";
 import type { App } from "../app";
@@ -223,7 +225,11 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   // QA 778fa1b (qaU: 94/78/42 then 95/73/36 for the same rules, "no sign it was settling"): the first pass's label trails `…`
   const settling = h("span", { class: "fc-settling", hidden: true }, "…");
   // QA 778fa1b (qaV: `D1 100%` beside `death 100%` read as dying on D1): the bars say what they count — the share that reaches each floor
-  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast", settling), h("div", { class: "label reach-label dim" }, /* copy:label */ "reach"), bars, ends, vsHost, picked, yours, causes);
+  // Cut 29 §3: the last two runs side by side (the core's `Lineage.meters.runs`, older first) — the phone's under the forecast (the desktop's
+  // is the right column's meters)
+  const runs = app.lineage.meters?.runs ?? [];
+  const cmp = runs.length >= 2 && !isWide() ? meterCompare(runs[runs.length - 2], runs[runs.length - 1]) : null;
+  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast", settling), h("div", { class: "label reach-label dim" }, /* copy:label */ "reach"), bars, ends, vsHost, picked, yours, causes, cmp);
   // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {

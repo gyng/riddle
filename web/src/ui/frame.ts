@@ -157,20 +157,21 @@ export const stud = (close: () => void): HTMLButtonElement => h("button", { clas
 export const WIDE_MQ = "(min-width: 1024px)";
 export const isWide = (): boolean => typeof matchMedia !== "undefined" && matchMedia(WIDE_MQ).matches;
 /** An empty slot under the shaft for the diagnostics meters (no words; the next cut fills it). */
-export const metersSlot = (): HTMLElement => h("div", { class: "meters-slot", "aria-hidden": "true" });
+export const metersSlot = (content?: HTMLElement | null): HTMLElement => content ? h("div", { class: "meters-slot filled" }, content) : h("div", { class: "meters-slot", "aria-hidden": "true" });   // Cut 29 §3: the meters fill it
 /** Desktop: the columns around a screen's well — the rules left (the set's tablets, read-only: the camp's own are its editor) and the
  *  shaft right with the meters' slot under it. Built only on a wide screen (a phone's DOM is unchanged); `els` go straight into the
  *  screen's `main.frame` (wide.css places them), `dispose` unhooks the shaft. */
-export function wideCols(app: App): { els: HTMLElement[]; dispose(): void } {
+export function wideCols(app: App, meters?: HTMLElement | null): { els: HTMLElement[]; dispose(): void; slot?: HTMLElement } {
   if (!isWide()) return { els: [], dispose: () => undefined };
   const plaque = (r: Row): HTMLElement | "" => { const id = verbIcon(r.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };   // gfx round 2: as the camp's tablets
   const rows = h("div", { class: "rows" }, ...app.rules.rows.map((r, i) => h("div", { class: "row tablet compact ro", "data-i": i }, h("span", { class: "rn num" }, `${i + 1}`), h("span", { class: "rtext" }, rowLabel(r)), plaque(r))));
   const left = h("aside", { class: "rules-col" }, h("section", { class: "editor compact" }, h("small", { class: "rows-head dim" }, /* copy:label */ "priority"), rows));
   const shaft = renderShaft(app, () => undefined, () => revealed(app).has("gems"));
   shaft.el.tabIndex = -1;
-  const right = h("aside", { class: "side-col" }, shaft.el, metersSlot());
+  const slot = metersSlot(meters);
+  const right = h("aside", { class: "side-col" }, shaft.el, slot);
   // gfx round 2 (raters: "a reach of '?' clutter" on the desktop death and report): a screen booted straight into them has no forecast
   // yet — the shaft asks for the rules' one (desktop only; its listener is the shaft's)
   if (!app.lastForecast) setTimeout(() => { if (shaft.el.isConnected && !app.lastForecast) void app.emitForecast(); }, 1500);
-  return { els: [left, right], dispose: shaft.dispose };
+  return { els: [left, right], dispose: shaft.dispose, slot };
 }

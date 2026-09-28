@@ -9,6 +9,7 @@
 // the patches like a death's. §4: the run's last two notes (`Death.notes`, engine data verbatim) sit under the headline.
 // §5: a `dice` death names what the forecast said for that depth — the camp's own reach line, verbatim (`forecast said D4 100%`)
 // when the last forecast knows the floor (QA on 50bb162: "`forecast said 36%` while the camp forecast read `D4 100% ±1`").
+import { meterPanel } from "./meters";
 import type { App, Mounted } from "../app";
 import type { Death, DrivenOff, ExitLine, Patch, ReturnReport, Row } from "../engine/types";
 import { morgueVerbs } from "./chain";
@@ -19,7 +20,7 @@ import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
 import { applyOf, fillReach, leadFirst, openDropSheet, patchRows, sinkHarms } from "./patches";
 import { closeX, openSheet } from "./sheet";
-import { gem, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
+import { gem, portrait, renderBar, renderConsole, tile, wideCols, isWide } from "./frame";
 import { lostLabel, noteText, refName, rowLabel, ruleName, setRefRows, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
@@ -242,8 +243,10 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}` }, luckLead, line), news, drivenHp, notes, forecastLine, ledger, eggs, bones),
     // QA 23ed91f (K: "the patches sit below the fold, under the console"): the patches, the screen's point, before the trace
     patches,
-    tracePanel);
-  const wide = wideCols(app);   // desktop: the rules left, the shaft right (wide.css)
+    tracePanel,
+    // Cut 29 §3: the fight he died in, metered — on the phone under the trace, on the desktop in the right column under the shaft
+    d.fight && !isWide() ? h("div", { class: "parchment fight-meters" }, meterPanel(d.fight, d.rules?.rows ?? app.rules.rows, { title: /* copy:label */ "last fight" })) : null);
+  const wide = wideCols(app, d.fight ? meterPanel(d.fight, d.rules?.rows ?? app.rules.rows, { title: /* copy:label */ "last fight" }) : null);   // desktop: the rules left, the shaft right (wide.css)
   const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}` }, bar.el, well, cons.el, ...wide.els);
   // Cut 18 §4: a stall's cause is the rows' loop (`R2 retreat ↔ explore`) — it reads whole on one line: the face steps down until it fits
   if (d.verdict === "stall") { line.classList.add("loop"); fitLine(line.querySelector<HTMLElement>(".cause")); }

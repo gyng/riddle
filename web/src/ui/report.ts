@@ -9,6 +9,7 @@
 // Cut 14 §4: every exit's `trace` chip carries its exit (`D5 · died · trace`; the depth off the ledger line the exit claims, else
 // off the line's own text) — rater S: "the seventh unlabelled TRACE button"; the stalled tile carries what the stalls cost
 // (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
+import { meterPanel } from "./meters";
 import { systemIcon, systemLabel } from "./systems";
 import { measureKit, openForge } from "./forge";
 import type { App, Mounted } from "../app";
@@ -22,7 +23,7 @@ import { heirOrd, lostLabel, noteText, rowLabel, setRefRows } from "./tokens";
 import { traceChip } from "./trace";
 import { closeAllSheets } from "./sheet";
 import { openGoldSheet, runRange } from "./gold";
-import { gem, portrait, renderBar, renderConsole, tile as cmdTile, wideCols } from "./frame";
+import { gem, portrait, renderBar, renderConsole, tile as cmdTile, wideCols, isWide } from "./frame";
 import { icon } from "./skin";
 import { revealed } from "./reveal";
 import { openLedger } from "./party";
@@ -488,7 +489,11 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const sheet = h("div", { class: "parchment report-sheet" },
     newsBlock(r, named, L.counters ?? []), opened(r), tiles, oathProgress(app, r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
-  details.append(...[goldLine(), picked, exitLines, rested,
+  // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
+  // shaft on the desktop
+  const meterOf = r.meters ?? (r.exits?.length === 1 ? r.exits[0].meters : undefined);
+  const meterTitle = r.runs > 1 ? /* copy:label */ "this night" : /* copy:label */ "this run";
+  details.append(...[meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null, goldLine(), picked, exitLines, rested,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
     section(/* copy:label */ "learned", factChips(learnedFacts.filter((f) => !counterFacts.includes(f)), L.counters ?? [], (app.vocab?.locked ?? []).find((l) => l.cond.k === "alert>=" && /^◆\d+/.test(l.needs))?.needs)),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
@@ -528,7 +533,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "reel", reel(r.reel.map((x) => ({ text: noteText(x.text), n: x.n })))),
   ].filter((x): x is HTMLElement => !!x));
   detailsBtn.hidden = !details.childElementCount;
-  const wide = wideCols(app);   // desktop: the rules left, the shaft right (wide.css)
+  const wide = wideCols(app, meterOf ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null);   // desktop: the rules left, the shaft right (wide.css)
   const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el, ...wide.els);
   return { el, dispose: () => { bar.dispose(); wide.dispose(); } };
 }

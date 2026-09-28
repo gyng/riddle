@@ -114,8 +114,9 @@
 // ticks after the last of those stops holding. Entry and exit are released at the viewer's clock (the engine runs ahead),
 // so the cut lands when the foes are on screen. The fight frame runs at 1× whatever the mode; the map frame keeps the
 // cadence above. `data-frame="map|fight"` on the element for tooling.
+import { compactLine, meterPanel } from "./meters";
 import type { App, Mounted } from "../app";
-import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, Trace, VaultChoice } from "../engine/types";
+import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Row, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, clear, items, replace, spanOf } from "./dom";
 import { gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
 import { icon } from "./skin";
@@ -240,6 +241,10 @@ const BOSS_BANNER_MS = 3000;
 const FOLD_MIN_MS = 1400, FOLD_WALL_MS = 8000, FOLD_DOCK_MS = 5000;        // Cut 2 §7: `counter: known|unknown` on first sight (Cut 22: the boss bar's lit second line)
 const REST_BEAT_MS = 1400;
 const REST_BEAT_FAST_MS = 700;      // QA e75ec29: in `fast` the rest line holds 0.7 s — `fights` on D1–3 ramps its travel now, and `fast` keeps ≤ 0.4 of it (Cut 20 §3)
+const METER_PAINT_MS = 400;          // Cut 29 §3: the compact meter repaints at most this often (its numbers move every snapshot)
+const METERS_KEY = "riddle.meters";
+const readMetersOn = (): boolean => { try { return localStorage.getItem(METERS_KEY) === "1"; } catch { return false; } };
+const writeMetersOn = (on: boolean): void => { try { localStorage.setItem(METERS_KEY, on ? "1" : "0"); } catch { /* a per-viewer convenience */ } };
 const VAULT_FULL_MS = 1200;         // QA e75ec29: `vault full` before the report when the preference kept (no sheet)          // Cut 2 §1: `rest 12m` after the exit, before the exit flow continues
 const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "descend", pick_up: /* copy:callout */ "pick up" }; // explore never (Cut 4 §4)
 const CORE_LINE_MS = 1000, CAPTION_LINE_MS = 1500;   // Cut 18 §2: the renderer's callout and caption lifetimes (render/state.ts)
@@ -363,12 +368,26 @@ export function renderWatch(app: App): Mounted {
   const scrub = h("div", { class: "scrub", hidden: true }, scrubHead, scrubDot);
   const bar = renderBar(app, { watch: true });
   const busyHost = h("span", { hidden: true });   // the engine's busy label at the end (the next gem says it): not in the corner
-  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail], gem: pause, top: scrub });
-  const wide = wideCols(app);   // desktop: the rules left, the shaft right (wide.css)
+  // Cut 29 §3: the compact meter over the stage (the fight in progress, else the run so far), toggled from the command card and
+  // remembered per viewer; the desktop's right column carries the run's whole breakdown
+  let metersOn = readMetersOn(), lastMeters: SnapMeters | undefined, meterPaintAt = 0;
+  const meterBox = h("div", { class: "meter-box", hidden: !metersOn });
+  const meterTile = tile({ id: "meters", cls: "meter-btn", on: metersOn, icon: "meters", glyph: "▤", label: /* copy:button */ "meters", onclick: () => {
+    metersOn = !metersOn; writeMetersOn(metersOn); meterTile.classList.toggle("on", metersOn); meterBox.hidden = !metersOn; paintMeters(true);
+  } });
+  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, meterTile], gem: pause, top: scrub });
+  const wideMeters = h("div", { class: "meters-live" });
+  const wide = wideCols(app, wideMeters);   // desktop: the rules left, the shaft right (wide.css) — the run's meters under the shaft
+  function paintMeters(now = false): void {
+    if (!lastMeters) return;
+    const t = performance.now(); if (!now && t - meterPaintAt < METER_PAINT_MS) return; meterPaintAt = t;
+    if (metersOn) replace(meterBox, compactLine(lastMeters));
+    if (wide.slot) replace(wideMeters, meterPanel(lastMeters.run, app.rules.rows, { title: /* copy:label */ "this run" }));
+  }
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
       h("div", { class: "hud top" }, depth, alert, bossBar, stake),
-      banner, ticker, whyTip),
+      meterBox, banner, ticker, whyTip),
     cons.el, ...wide.els);
 
   let viewer: Viewer | null = null;
@@ -568,6 +587,7 @@ export function renderWatch(app: App): Mounted {
     // older snapshot of the same run is behind what the strip already shows, and never reads as a fall
     if (s.stake && s.run.id === lastLootRun && s.turn < lastLootTurn) return;
     hudSnap = s;
+    if (s.meters) { lastMeters = s.meters; paintMeters(); }   // Cut 29 §3: the meter as the viewer reaches the batch
     if (cardUp) paintCardText();
     const st = s.stake;
     stake.hidden = !st;
