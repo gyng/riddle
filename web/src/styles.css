@@ -1210,6 +1210,7 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 .death .death-line .verdict[data-size] { letter-spacing: 0; white-space: nowrap; }   /* docs/COPY.md: the seal's word on one line */
 .death .death-line .verdict[data-size="m"] { font-size: 19px; }
 .death .death-line .verdict[data-size="l"] { font-size: 14px; }
+.death .death-line .verdict[data-size="w2"] { font-size: 20px; line-height: .95; white-space: normal; word-spacing: 100vw; text-align: center; }   /* Cut 29: a two-word seal (YOU DIED) stacks */
 /* QA 524827b: a patch's whole-run move under its reach (`death −8 ±8 · risk fire`) */
 .patch-nums .whole { font-size: 12px; }
 .patch-nums .whole:empty { display: none; }

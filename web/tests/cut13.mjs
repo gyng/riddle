@@ -342,11 +342,11 @@ try {
   // Cut 17: the verdict screen's buttons are its console — the command card (morgue · camp, docs/CUT17.md §1) and the gem (edit,
   // with no patch to apply)
   const btns = await page.evaluate(() => [...document.querySelectorAll("main.death .console button")].map((b) => b.textContent.trim()));
-  check(d.line === "goblin archer · D3 · no rule for it · gap", `the headline drops the hp margin: "${d.line}"`);
+  check(d.line === "goblin archer · D3 · no rule for it · you died", `the headline drops the hp margin: "${d.line}"`);
   check(btns.join() === "morgue,camp,edit", `the verdict screen's buttons are morgue · camp and the edit gem only: [${btns.join(", ")}]`);
   await fakeDeath({ margin: "3 over" });
   await sleep(100); d = await deathScreen();
-  check(d.line === "goblin archer · D3 · no rule for it · gap", `the core's \`3 over\` is dropped too: "${d.line}"`);
+  check(d.line === "goblin archer · D3 · no rule for it · you died", `the core's \`3 over\` is dropped too: "${d.line}"`);
   await fakeDeath({ cause: "stalled", margin: "archer, no path", verdict: "stall" });
   await sleep(100); d = await deathScreen();
   check(d.line === "stalled · D3 · archer, no path · stall", `a stall keeps the guard's reason: "${d.line}"`);

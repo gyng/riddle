@@ -126,13 +126,15 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // docs/COPY.md §2: the stamp blames the right thing in a plain word — `dice` is luck, `row` the player's own rule
   // passes 2–3: `gap` alone read "no idea" 4/4; `unanswered` did not fit the seal and `unmet` read "a goal not met" 6/6 — the seal keeps
   // `gap` and the headline says what it means (`no rule for it`, or the core's `telegraph unanswered`)
-  const stamp = word === "dice" ? /* copy:verdict */ "luck" : word === "row" ? /* copy:verdict */ "rule" : (word as string) === "driven" ? /* copy:verdict */ "repelled" : word;
+  // Cut 29 (owner, 2026-09-28): the gap's seal reads YOU DIED — the headline's `no rule for it` under it keeps what it means (the report,
+  // reel, trace and patches keep their own words for a gap)
+  const stamp = word === "gap" ? /* copy:verdict */ "you died" : word === "dice" ? /* copy:verdict */ "luck" : word === "row" ? /* copy:verdict */ "rule" : (word as string) === "driven" ? /* copy:verdict */ "repelled" : word;
   // Cut 28 §2 (AU: `8/12 live unpatched` deaths "felt like the dungeon's decision"; AV: `10/12 live unpatched` under GAP read as blame): a
   // death most of whose replays live — or a `dice` — leads with the event that killed him and its odds (`goblin −6 at 6 hp · 1 in 6`), over
   // the stamp, which steps back (the patches still answer it)
   const luck = !drove && d.verdict !== "stall" && d.verdict !== "route" && (lean || word === "dice") ? luckOf(d) : null;
   const luckLead = luck ? h("div", { class: "luck-lead num" }, h("span", { class: "luck-event" }, luck.event), h("span", { class: "luck-odds" }, /* copy:callout */ ` · 1 in ${luck.oneIn}`)) : null;
-  const seal = h("button", { class: /* copy:none */ `verdict ${word}${luck ? " lean-seal" : ""}`, onclick: () => { patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } , "data-size": stamp.length > 6 ? "l" : stamp.length > 3 ? "m" : undefined }, stamp);
+  const seal = h("button", { class: /* copy:none */ `verdict ${word}${luck ? " lean-seal" : ""}`, onclick: () => { patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } , "data-size": stamp.includes(" ") ? "w2" : stamp.length > 6 ? "l" : stamp.length > 3 ? "m" : undefined }, stamp);
   // QA 524827b (qaAB: tapped `gas · D6` expecting the clip; it only scrolled to the trace): the cause opens the moment — the killing
   // blow's replay when this session still holds the run — else brings up the trace
   const moment = d.trace.blow ? { text: d.cause.replace(/_/g, " "), t: d.trace.blow.t, depth: d.depth } : null;

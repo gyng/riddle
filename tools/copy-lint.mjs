@@ -15,7 +15,10 @@ import { join, relative, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const BUDGETS = JSON.parse(readFileSync(join(ROOT, "eval/copy-budgets.json"), "utf8")).surfaces;
+const BUDGET_FILE = JSON.parse(readFileSync(join(ROOT, "eval/copy-budgets.json"), "utf8"));
+const BUDGETS = BUDGET_FILE.surfaces;
+// Cut 29: phrases the owner cleared past the forbidden words (`you died`, the death seal), matched whole and case-insensitive
+const ALLOW = (BUDGET_FILE.allowPhrases ?? []).map((p) => new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi"));
 const UI_DIR = join(ROOT, "web/src/ui");
 const FORBIDDEN = [/\byou\b/i, /\byour\b/i, /\bclick\b/i, /\btap\b/i, /\bthis shows\b/i];
 
@@ -108,7 +111,8 @@ function lintFile(file) {
   for (const t of toks) {
     if (t.type !== "string") continue;
     const lit = t.literal;
-    for (const f of FORBIDDEN) if (f.test(lit)) errs.push(`${rel}:${t.line} forbidden word in ${t.text}`);
+    const bare = ALLOW.reduce((x, a) => x.replace(a, ""), lit);
+    for (const f of FORBIDDEN) if (f.test(bare)) errs.push(`${rel}:${t.line} forbidden word in ${t.text}`);
     if (t.surface === "none") continue;
     if (t.surface) {
       const b = BUDGETS[t.surface]; const w = words(lit);

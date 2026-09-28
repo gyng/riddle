@@ -161,12 +161,12 @@ try {
     await page.evaluate((d) => window.__riddle.go({ kind: "death", death: d }), death(10 / 12));
     await waitFor((x) => x?.screen === "death", "the lucky gap"); await sleep(300);
     const a = await page.evaluate(() => ({ seal: document.querySelector(".death-line .verdict")?.textContent, lean: document.querySelector(".death-line .lean")?.textContent, surv: document.querySelector("button.patch .surv")?.textContent, reach: document.querySelector("button.patch .delta")?.textContent.replace(/\s+/g, " ").trim() }));
-    check(a.seal === "gap" && a.lean === "10/12 replays survive" && /was 10\/12/.test(a.surv ?? ""), `a gap 10 of 12 unpatched replays survive reads \`${a.seal} · ${a.lean}\` beside "${a.surv}" (the stamp and its counts agree)`);
+    check(a.seal === "you died" && a.lean === "10/12 replays survive" && /was 10\/12/.test(a.surv ?? ""), `a gap 10 of 12 unpatched replays survive reads \`${a.seal} · ${a.lean}\` beside "${a.surv}" (the stamp and its counts agree)`);
     check(a.reach === "reach D5 80→4%", `a patch's reach reads from→to ("${a.reach}"; AP: \`reach D5 −76\`)`);
     await shot("cut26-dice-lean");
     await page.evaluate((d) => window.__riddle.go({ kind: "death", death: d }), death(2 / 12)); await sleep(300);
     const b = await txt(".death-line .verdict"), bl = await txt(".death-line .lean");
-    check(b === "gap" && bl === null, `a gap 2 of 12 unpatched replays survive reads \`${b}\`, no lean`);
+    check(b === "you died" && bl === null, `a gap 2 of 12 unpatched replays survive reads \`${b}\`, no lean`);
     // the core's own `lean` stands whatever the counts
     await page.evaluate((d) => window.__riddle.go({ kind: "death", death: { ...d, lean: "dice" } }), death(5 / 12)); await sleep(300);
     const c = await txt(".death-line .lean");
