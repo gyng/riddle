@@ -1415,7 +1415,7 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 .report .news-line:not(.lead) { font-size: 12px; letter-spacing: .01em; opacity: .85; }
 /* gfx round 1: the places' back walls — painted backdrops (art/ui/backdrops, packed by tools/ui-skin.py; `skin-bd-*` only when packed) behind
    the death well (where he fell: his sword and shield on the stones) and the report (the tent's table at night), darkened where text sits */
-.skin-bd-death main.death > .well { background: linear-gradient(rgba(10, 7, 5, .78), rgba(10, 7, 5, .42) 42%, rgba(10, 7, 5, .5) 70%, rgba(10, 7, 5, .82)),
+.skin-bd-death main.death > .well { background: linear-gradient(rgba(10, 7, 5, .7), rgba(10, 7, 5, .26) 42%, rgba(10, 7, 5, .38) 70%, rgba(10, 7, 5, .78)),   /* gfx round 10: lighter (raters: "the backdrop reads as brown mud") */
   url(/ui/backdrops/death.webp) 50% 85% / cover no-repeat, #0d0a08; }
 .skin-bd-report main.report > .well { background: linear-gradient(rgba(10, 7, 5, .55), rgba(10, 7, 5, .3) 50%, rgba(10, 7, 5, .65)),
   url(/ui/backdrops/report.webp) 50% 80% / cover no-repeat, #0d0a08; }
@@ -1538,4 +1538,16 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#0
 @media (prefers-reduced-motion: no-preference) {
   html[data-juice="on"] .death.arrived .banner-cloth > img.killer { animation: j-killer .5s cubic-bezier(.3, 1.5, .5, 1) .25s backwards; }
   @keyframes j-killer { from { transform: scale(1.8); opacity: 0; filter: brightness(2); } to { transform: none; opacity: 1; } }
+}
+/* gfx round 10 (raters, every round: "a flat inset pasted over the list, no carved frame — frame it like the console"): the scene sits in
+   the console's own riveted iron bezel, a vignette inside it */
+.skin-console .camp .well-wrap > .div-scene { border: 12px solid transparent; border-image: url(/ui/frames/console.png) 48 fill / 12px stretch; background-clip: padding-box;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .9); }
+.camp .well-wrap > .div-scene::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 55%, rgba(0, 0, 0, .7)); }
+/* gfx round 10 (raters: "light the most important plaque"): the send's deepest floor carries a gilt rim and a slow glow */
+.report .tiles > .tile.plaque:nth-child(2) { box-shadow: 0 0 0 1px #d8b060, 0 0 14px rgba(255, 190, 80, .45); }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-juice="on"] .report.arrived .tiles > .tile.plaque:nth-child(2) { animation: j-plaque .52s cubic-bezier(.3, 1.2, .5, 1) .07s backwards, j-gilt 2.8s ease-in-out 1s infinite; }
+  @keyframes j-gilt { 0%, 100% { box-shadow: 0 0 0 1px #d8b060, 0 0 10px rgba(255, 190, 80, .3); } 50% { box-shadow: 0 0 0 1px #f0cc78, 0 0 22px rgba(255, 190, 80, .7); } }
 }

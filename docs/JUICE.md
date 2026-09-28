@@ -456,27 +456,33 @@ a ≤ 204 × 294 target. A quiet-window desktop measurement is still owed.
   in once it is presented (`.arrived` on `.sheet-wrap`, juice.ts).
 - **Harness**: the boss stills are shot before their strips (the strip's 1.5 s outlived the shatter and the stamp).
 
-| moment | r9 | r10 |
-|---|---|---|
-| watch-warrens | 6.20 | 5.65 |
-| report | 6.10 | 6.45 |
-| death | 7.05 | 6.90 |
-| camp | 6.40 | 6.00 |
-| scene | 5.85 | 5.55 |
-| edit | 6.10 | 6.05 |
-| forecast | 6.10 | 5.95 |
-| oaths | 5.50 | 6.05 |
-| watch-fens | 5.55 | 5.20 |
-| fight | 6.70 | 6.05 |
-| boss-in | 6.90 | 6.90 |
-| boss-break | 5.60 | 6.35 |
-| boss-fall | 6.10 | 6.65 |
-| d-watch | 5.75 | 5.55 |
-| d-report | 5.75 | 5.85 |
-| d-death | 6.25 | 6.35 |
-| d-camp | 6.35 | 5.95 |
-| d-edit | 5.85 | 5.85 |
-| **mean** | **6.12** | **6.07** |
+| moment | r9 | r10 | r11 |
+|---|---|---|---|
+| watch-warrens | 6.20 | 5.65 | 6.10 |
+| report | 6.10 | 6.45 | 6.60 |
+| death | 7.05 | 6.90 | 7.25 |
+| camp | 6.40 | 6.00 | 6.15 |
+| scene | 5.85 | 5.55 | 6.00 |
+| edit | 6.10 | 6.05 | 6.35 |
+| forecast | 6.10 | 5.95 | 6.30 |
+| oaths | 5.50 | 6.05 | 6.65 |
+| watch-fens | 5.55 | 5.20 | 5.35 |
+| fight | 6.70 | 6.05 | 6.30 |
+| boss-in | 6.90 | 6.90 | 7.05 |
+| boss-break | 5.60 | 6.35 | 6.90 |
+| boss-fall | 6.10 | 6.65 | 6.95 |
+| d-watch | 5.75 | 5.55 | 5.90 |
+| d-report | 5.75 | 5.85 | 6.15 |
+| d-death | 6.25 | 6.35 | 6.95 |
+| d-camp | 6.35 | 5.95 | 6.45 |
+| d-edit | 5.85 | 5.85 | 5.90 |
+| **mean** | **6.12** | **6.07** | **6.41** |
 
 Raters W, X. The targeted moments rose (boss break +0.75, fall +0.55, oaths +0.55, report +0.35); the watch moments fell on capture
 variance (the run's frame differs each round: W and X both saw "the top half black void" and a "hero smudge" in this round's D1 frame).
+
+**Round 11** (raters Y, Z; **6.41**, +0.34, the session's best — lowest 5.35, the Fens): the world's contrast per biome (`blit.ts CONTRAST`,
+FX > 0: the Fens 0.6, the Warrens 0.78 — "the floor is louder than the actors"), the rock mass kept in view further out (the void's
+floor 0.15 → 0.3, fade over 11 tiles), the hero's hurt flash 0.28 → 0.16, the edit's scene in the console's riveted bezel with a vignette,
+the death backdrop lifted, the report's deepest plaque gilt. Death 7.25, boss entrance 7.05, fall 6.95, break 6.90, oaths 6.65. The fights
+suite's `fast: the break is a beat` check fails only when run beside three other suites (load); alone it passes (48/48).

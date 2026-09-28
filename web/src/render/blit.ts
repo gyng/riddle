@@ -38,6 +38,7 @@ uniform float uAmbient;   // world light away from any torch
 uniform float uLiftK;     // torch/hero pool strength on the world
 uniform vec3 uLightCol;   // the torch colour
 uniform float uSat;       // the world's saturation (1 = the ramp's own)
+uniform float uCon;       // gfx round 10: the world's contrast (1 = the ramp's own; lower pulls the floor's texture toward its mid tone)
 #if FX > 0
 // juice (docs/JUICE.md): the light field (light.ts), bloom (bloom.ts), the vignette and the death's desaturation
 uniform sampler2D uLightMap;  // rgb = light / 2, a = wall-foot AO; S texels per tile, row space
@@ -117,7 +118,9 @@ void main() {
   // steps: the memory dim and the fog darken stone, they no longer break it into speckle.
 #if FX > 0
   float shrink = 1.0 - 0.75 * smoothstep(0.25, 0.8, lum);
-  vec3 wc = mix(vec3(lum), s.rgb, uSat) * uGrade * fog * mix(1.0, lm.a, world_) * (uAmbient * uAmbK + uLiftK * 1.15 * shrink * LF);
+  // gfx round 10 (raters, every round: "the floor's texture is louder than the actors"): the world's luminance pulled toward a mid tone
+  vec3 sc = s.rgb * (mix(0.3, lum, uCon) / max(lum, 0.02));
+  vec3 wc = mix(vec3(dot(sc, vec3(0.2126, 0.7152, 0.0722))), sc, uSat) * uGrade * fog * mix(1.0, lm.a, world_) * (uAmbient * uAmbK + uLiftK * 1.15 * shrink * LF);
 #if FX > 1
   // the stone's relief under the light: the luma as a height, embossed along the light's gradient (high)
   vec2 gl2 = vec2(dot(texture2D(uLightMap, luv + vec2(0.5 / (4.0 * uMap.x), 0.0)).rgb - texture2D(uLightMap, luv - vec2(0.5 / (4.0 * uMap.x), 0.0)).rgb, vec3(1.0)),
@@ -181,7 +184,7 @@ void main() {
     float g = fract(sin(dot(wt, vec2(39.3468, 11.1353))) * 24634.6345);
     vec3 rock = mix(uPal[0], uPal[1], 0.16 + 0.3 * n + 0.08 * g) * mix(1.0, 0.45, crack) * (1.0 - 0.25 * smoothstep(1.0, 3.5, f1) * n);
     vec3 rockC = rock;
-    rock *= 0.62 * (0.15 + 0.85 * (1.0 - smoothstep(1.5, 7.0, d)));   // gfx round 4: the rock shows at the lit edge, fading to black (raters: "a flat black pattern")
+    rock *= 0.62 * (0.3 + 0.7 * (1.0 - smoothstep(1.5, 11.0, d)));   // gfx round 10: the rock mass stays in view further out ("top half black void")   // gfx round 4: the rock shows at the lit edge, fading to black (raters: "a flat black pattern")
     // gfx round 7 (the lit fog edge; raters, every round: "half the view is void"): the rock face at the explored edge catches the light
     // of the seen ground beside it — eight directions, one to three half-tiles out; only drawn world texels (seen tiles) lend their light,
     // so an unseen room's light never shows through the rock
@@ -245,6 +248,9 @@ const GRADES: Record<string, [number, number, number, number, number, number]> =
   boss_flash: [1, 1, 1, 1, 0.3, 1],
 };
 
+/** gfx round 10: the world's contrast per biome (FX > 0; the Fens' plank stripes and the Warrens' flagstones read as noise behind the cast) */
+const CONTRAST: Record<string, number> = { fens: 0.6, warrens: 0.78, burrows: 0.82, crypt: 0.8, foundry: 0.85, deep: 0.85 };
+
 export class Blit {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -276,7 +282,7 @@ export class Blit {
         uAmbient: { value: 0.86 },
         uLiftK: { value: 0.6 },
         uLightCol: { value: new THREE.Vector3(1.0, 0.72, 0.4) },
-        uSat: { value: 1 },
+        uSat: { value: 1 }, uCon: { value: 1 },
         // juice (docs/JUICE.md): read only when FX > 0
         uLightMap: { value: null }, uMap: { value: new THREE.Vector2(1, 1) }, uBloom: { value: null }, uBloomK: { value: 0 },
         uTexel: { value: new THREE.Vector2(1, 1) }, uVig: { value: new THREE.Vector4(0, 0, 0, 0) }, uVigBase: { value: 0 }, uDesat: { value: 0 },
@@ -303,7 +309,7 @@ export class Blit {
   setGrade(biome: string): void {
     const g = GRADES[biome] ?? GRADES.default!, u = this.material.uniforms;
     (u.uGrade!.value as THREE.Vector3).set(g[0], g[1], g[2]);
-    u.uAmbient!.value = g[3]; u.uLiftK!.value = g[4]; u.uSat!.value = g[5];
+    u.uAmbient!.value = g[3]; u.uLiftK!.value = g[4]; u.uSat!.value = g[5]; u.uCon!.value = CONTRAST[biome] ?? 1;
   }
 
   /** art pass: this frame's torch flames (world env texels; the first 12 are used) and the flicker scale */
