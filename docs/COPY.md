@@ -312,6 +312,32 @@ what would unblock each:
    future surfaces) in the old words. Unblock: move those strings to the glossary's words in the core
    (chronicle.rs, sifter.rs, offline.rs, turn.rs, oath.rs, trace.rs) with their tests — a core pass.
 
+### Pass 9 and 10 (Cut 29 client + the owner's three copy decisions, 2026-09-28)
+
+The owner's decisions: labels/buttons/verdicts may be 2 words (`eval/copy-budgets.json`; `allowPhrases` clears `you died`); the
+death screen's gap seal reads **YOU DIED** (the headline's `no rule for it` under it); world concepts carry one icon and a ≤ 3-word
+caption the first time a viewer sees it (`ui/concepts.ts`); misread numbers restyled — the ± as a noise band, the move as a signed
+chip, the death gem says `apply` with the count on its fix. Also `runs banked / runs returned / runs stalled`, `fights only`.
+
+| Surface | p8 | p9 (13 screens, all changed) | p10 (4 re-read after the p9 fixes) |
+|---|---|---|---|
+| camp · forecast | 79 / 82 | 76 / 76 | **80 / 82** |
+| watch | 81 / 100 | 75 / 100 | 75 / 100 |
+| death | 92 / 96 | **98.5 / 97** | — |
+| report | 84 / 82 | 86 / 78 | — |
+| sheets (why · vault) | 92 / 83 | **90 / 90** | — |
+| unlocks | 100 / 100 | 100 / 100 | — |
+| oaths | 100 / 50 | 67 / 33 | — |
+| overall | 87.1 / 88.2 | 87.2 / 85.6 | camp+watch 79.3 / 84.5 (p9 75.9 / 79.3) |
+
+Pass-9 fixes re-read in pass 10: `~$114/run` read as a loss → `avg $114/run` (0 → 1 for both readers); `D1` read `DI` in the
+display face → the shaft's floor numbers take the condensed face (0.5 → 1); `fights o…` truncated → a two-word tile steps its face
+down (all four readers then read the filter). Still failing (the next pass's list): the ± band is not read as a spread at all (it
+is seen as a dash); `fights only` under SEND reads as "a combat-only run"; `counter: attack boss` on the oath board reads as a tally
+(the glossary word is used on six surfaces and pinned by tests — a rename is a glossary call); `▶▶|` reads as "next event"; the
+meters' `last runs` rows read as total/rate, not before → after; `bank` still read as "banking loot"; the oath board's `WAYSTONE
+D9` and the report's opened `cages`/`boss walls` need their concept captions there too. Files: `scratchpad/copy/pass9`, `pass10`.
+
 ### Word count
 
 Rendered copy on the screens the capture makes deterministic (watch ×2, the two deaths, the two reports and the
