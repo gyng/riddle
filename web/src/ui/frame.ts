@@ -127,7 +127,7 @@ export type TileSpec = { id: string; label: string; icon: string; glyph?: string
 /** A command tile: the icon, its one word under it. Pressed on tap (`:active`), `on` while its panel or mode is up. */
 export function tile(t: TileSpec): HTMLButtonElement {
   return h("button", { class: `tile${t.cls ? ` ${t.cls}` : ""}${t.on ? " on" : ""}${t.fresh ? " reveal" : ""}`, "data-tile": t.id, disabled: !!t.disabled, onclick: t.onclick },
-    icon(t.icon, t.glyph), h("span", { class: "tl" }, t.label));
+    icon(t.icon, t.glyph), h("span", { class: `tl${/\s/.test(t.label.trim()) ? " two" : ""}` }, t.label));   // a two-word label steps its face down (blind pass 9: `fights o…`)
 }
 /** The primary gem (`red` for bail's danger), its one word laid over the stone. `pulse` while its action waits. */
 export function gem(o: { label: Node | string; onclick: (e: Event) => void; cls?: string; red?: boolean; pulse?: boolean }): HTMLButtonElement {
