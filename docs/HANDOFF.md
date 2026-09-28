@@ -24,6 +24,11 @@
   cohort on the pre-pivot build under `idle-hybrid` before judging Cut 30.
 - The earlier Cut 30 traits design (`docs/TRAITS.md`) is superseded: its data, wake cards and reveal are
   reused as packages. Cut 31 (specialisation forks, weapon properties) needs re-scoping under the pivot.
+- **Oaths are still unclear to the owner** (2026-09-28), even after the Cut 28b clarity pass whose
+  blind probe scored 9/9 — an agent-reader pass is not a human pass. In Cut 30, redesign oaths as a
+  simple **quest board**: one plain goal line (`reach D10 · no return`), the reward as a picture, a
+  progress bar; no stake mechanic; arriving late on the ladder, or cut if it doesn't fit the four tracks.
+  Validate with the owner, not only blind agent readers.
 - Death screen: the `gap` seal reads **YOU DIED** (score screen only; `no rule for it` stays under it).
 
 ## 1. The goal and the honest target
