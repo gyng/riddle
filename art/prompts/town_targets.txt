@@ -1,0 +1,105 @@
+You are painting UI TARGET MOCKUPS for the game "Riddle": the HOME SCREEN as a living TOWN HUB.
+Use your built-in image_gen tool, one call per image. Do NOT write code. You MAY look at these reference
+images (read nothing else in the repository): /home/g/p/riddle/art/ui/targets/camp.png (the frame: top bar,
+carved console, portrait well, command card, SEND gem) and /home/g/p/riddle/art/ui/targets/watch.png (the
+in-world pixel style: chunky crisply outlined sprites on a pixel diorama). Match their frame language and
+palette exactly. Do NOT modify anything outside /home/g/p/riddle/art/ui/targets/town/. Save each final PNG
+(opaque sRGB RGB, no alpha) to the exact path given; if the generated image is not the stated size, resample
+to it with PIL (Lanczos). Delete any scratch or _inspection_ files you create. Overwrite existing outputs.
+
+=== WHAT THE GAME IS ===
+An idle roguelike. Heroes go down into a dungeon on their own while the player is away, and come home
+with gold and loot. The player never steers a hero; at home they spend gold on buildings, gear and heroes
+and press SEND. The home screen is a small settlement at the mouth of the dungeon that GROWS over days of
+play: a campfire and one tent on day 0, a village of a few buildings after a day, a walled town after a
+week. It should feel like a GARDEN WITH THINGS MOVING: heroes walking dirt paths between buildings and the
+dungeon mouth, a returning party carrying a loot sack, chimney smoke, banners, a dog, townsfolk.
+
+=== THE STYLE ===
+The SCENE (the town, filling the middle of the screen): a painted pixel-art diorama seen from a high
+three-quarter top-down angle (like a classic RPG town / Warcraft III base seen from above), in the game's
+WATERCOLOUR-INSPIRED PIXEL style: chunky readable pixel buildings and characters with a dark ink outline,
+three tones per material, a subtle watercolour wash texture inside the fills (granulation, pigment
+variation), never smooth digital gradients. Grounded earthy dark-fantasy palette: moss and olive grass,
+umber dirt paths, grey stone, warm timber, thatch, oxblood and crimson banners, bone ivory, one amber
+accent of firelight. Characters are small (about 1/25 of the screen height), chunky, with a readable
+silhouette and a gentle anime flavour. The DUNGEON MOUTH is always the same landmark at the TOP of the
+scene: a dark stone archway/stair cut into a rocky hillside, two torches, black inside. Buildings sit on
+a grassy clearing, joined by dirt paths that all lead to the dungeon mouth. Each building must be
+distinct in silhouette: blacksmith (open forge, anvil, glowing coals, chimney), tavern (two storeys, a
+hanging sign with a mug, warm windows), bank (small stone vault with columns and a gold coin sign),
+house (timber cottage), kennel (a low shed with a fenced pen and a dog), library/shrine (a small stone
+tower with a blue-teal lit window and a book sign), watchtower (a tall timber tower with a flag), chronicle
+hall (a long hall with banners). No text on buildings; icons only.
+
+The FRAME (the chrome, identical in language to camp.png): Warcraft III / StarCraft II skeuomorphic,
+diegetic game UI. Carved dark umber stone and blackened hammered iron with rivets and corner caps. A thin
+iron RESOURCE BAR across the top with engraved icons and condensed numbers. A heavy carved stone CONSOLE
+across the bottom: a round PORTRAIT WELL at the left (an anime-styled young fighter with a red cloak, a
+teal health ring), a COMMAND CARD grid of square engraved icon tiles in the middle, and a big round
+glowing amber GEM button at the right reading "SEND". Warm torchlight on metal edges, bevels, worn gilding.
+Readable, NOT cluttered. Any text: single short words and numbers only (a carved serif like Cinzel for
+words, a condensed sans for numbers), never sentences. NOT flat web design, NOT a mobile gacha UI, no
+logos, no watermarks, no brand names, no tutorial text, no speech bubbles.
+
+Small floating in-world markers are allowed (and wanted) above buildings: a tiny gold coin icon, a small
+glinting "!" rune, a tiny sword icon — at most three per image.
+
+=== THE IMAGES ===
+
+--- BATCH A ---
+
+1) /home/g/p/riddle/art/ui/targets/town/phone_day0.png — 1024 x 2048 portrait. DAY 0: almost nothing.
+Top bar: only a tiny round portrait and "$ 0" at the left, a small cog at the right; the rest of the bar
+is empty carved iron. Scene (the middle ~65 % of the screen): early evening, a small dark forest clearing.
+At the top, the dungeon mouth in the hillside with two torches. In the middle, a crackling CAMPFIRE with
+a thin column of smoke, ONE small patched canvas TENT beside it, a bedroll, a wooden supply crate, a
+sword stuck in the ground. The LONE HERO (a red-cloaked young fighter) stands by the fire looking toward
+the dungeon. One narrow worn footpath from the fire up to the dungeon mouth. Fireflies. Lots of empty,
+quiet grassy space around the clearing, dark forest edges: room to grow. Console: portrait well
+("fighter L1" on a small plate under it), the command card has only ONE lit tile (a satchel icon); the
+other seven tile slots are empty sockets of dark stone. SEND gem glowing and pulsing.
+
+2) /home/g/p/riddle/art/ui/targets/town/phone_village.png — 1024 x 2048 portrait. MID-GAME VILLAGE, day.
+Top bar: tiny portrait, "$ 3 240", a diamond "12", a star "4", "D11". Scene: bright afternoon. The
+dungeon mouth at the top. The campfire is now a stone fire ring in a small central square. Around it,
+six distinct buildings on dirt paths: blacksmith (glowing forge, smoke, sparks), a bank (small stone vault
+with a gold coin sign, a tiny gold coin floating above it), a kennel with a fenced pen and a brown dog,
+two timber houses with thatch roofs and chimney smoke, and a half-built tavern (timber scaffold, a
+ladder). MOTION: a hero walking up the path into the dungeon mouth; a returning party of two (a hero and
+a rogue) coming out of the dungeon carrying a bulging loot sack; a dog trotting beside the kennel; the
+blacksmith figure hammering at the anvil; a banner on a pole in the square. Console: portrait well, the
+command card has four lit tiles (satchel, anvil, paw, coins) and four empty sockets. SEND gem.
+
+3) /home/g/p/riddle/art/ui/targets/town/phone_village_night.png — 1024 x 2048 portrait. The SAME village
+as image 2, but at NIGHT: deep blue-black sky, warm amber windows, the forge glowing, torches on posts
+along the paths casting round warm light pools, the dungeon mouth's torches bright, a party of three
+returning from the dungeon along the torch-lit path carrying a glowing chest between two of them, a small
+glinting "!" rune floating over the blacksmith. Top bar and console as in image 2.
+
+--- BATCH B ---
+
+4) /home/g/p/riddle/art/ui/targets/town/phone_town.png — 1024 x 2048 portrait. LATE TOWN, morning.
+Top bar: tiny portrait, "$ 48 900", a diamond "86", a star "19", a small hero-count icon "4", "D23".
+Scene: a small walled town with a low stone wall and a gate; the dungeon mouth at the top is now framed
+by a carved stone gatehouse with two crimson banners. Inside: a central square with a stone well and a
+market stall; the tavern (finished, two storeys, a mug sign, warm windows); the blacksmith with a large
+forge; the bank (stone, columns, a gold dome); three houses; the kennel with two pets; a library/shrine
+tower with a teal-lit window; a tall timber watchtower with a flag; a long chronicle hall with banners.
+MOTION everywhere: two parties at once (one going in, one coming out with loot), several townsfolk
+(a merchant, children, a cart pulled by a mule), smoke from three chimneys, flags blowing, birds.
+Busy but readable: the paths still lead the eye to the dungeon mouth. Console: portrait well, a full
+command card of eight lit tiles (satchel, anvil, paw, coins, mug, book, tower, scroll), SEND gem.
+
+5) /home/g/p/riddle/art/ui/targets/town/desktop_town.png — 2048 x 1280 LANDSCAPE (desktop 1440 x 900).
+The SAME late town as image 4, laid out wide: the scene fills the whole middle, the dungeon mouth and its
+gatehouse at the TOP CENTRE, the town spreading left and right below it with room for all buildings plus
+fields and a river with a small bridge at the left edge and forest at the right edge. Top bar: a long thin
+iron bar across the full width, the resource icons and numbers at the left ("$ 48 900", diamond "86", star
+"19", hero-count "4", "D23"), a cog at the far right. Console: across the bottom, NOT full width — a
+carved stone console centred along the bottom quarter, WC3-style: the portrait well at its left, the
+command card of 8 tiles in the middle, the SEND gem at its right; at the far bottom-left corner a small
+square minimap-like carved plaque showing a tiny map of the town and the dungeon mouth; at the far bottom
+right an iron-framed parchment plaque listing three heroes as small portraits with a short word under each
+("away", "home", "away"). A framed parchment TOOLTIP panel is open, anchored above the tavern, titled
+"TAVERN" with two small hero portrait cards and a coin price "600"; it has a small close stud (x).
