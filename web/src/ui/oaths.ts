@@ -33,6 +33,15 @@ export const oathShareOf = (f: Forecast | null | undefined, o: Oath | undefined)
   const s = f?.oath;
   return s && o && (!s.id || s.id === o.id) ? s : undefined;
 };
+/** Cut 29 §1: every sworn oath (the extra slots' too): the core's `sworn` ids, else the board's flags, else the one `oath`. */
+export const swornAll = (L: Lineage | null | undefined): Oath[] => {
+  const os = oathsOf(L), ids = L?.sworn;
+  if (ids?.length) return ids.map((id) => os.find((o) => o.id === id)).filter((o): o is Oath => !!o);
+  const flagged = os.filter((o) => o.sworn); if (flagged.length) return flagged;
+  const one = swornOf(L); return one ? [one] : [];
+};
+/** Cut 29 §1: oaths that may stand sworn at once (1–3). */
+export const slotsOf = (L: Lineage | null | undefined): number => Math.max(1, L?.oath_slots ?? 1);
 export const oathReportOf = (r: ReturnReport): OathReport | undefined => r.oath;
 /** Cut 28b: the board is carved at the lineage's first wall or plateau (the core's `oath_open`), or once one is sworn or kept. */
 export const oathsEarned = (L: Lineage): boolean => oathsOf(L).length > 0 && (!!L.oath_open || oathsOf(L).some((o) => o.sworn) || !!L.oath || (L.titles?.length ?? 0) > 0);
@@ -46,7 +55,7 @@ export const chipsOf = (o: Pick<Oath, "chips" | "text"> & { kind?: string }): st
 const rewardOf = (r: OathReward | string | undefined): { kind: string; label: string } | undefined => (typeof r === "string" ? { kind: r.split(/[\s:]/)[0], label: r } : r);
 /** Each reward kind's icon (the console's own sprites) and glyph fallback. */
 const REWARD_ICON: Record<string, [string, string]> = { card: ["unlocks", "▤"], slot: ["party", "◯"], party: ["party", "◯"], title: ["renown", "★"], trophy: ["renown", "★"],
-  waystone: ["depth", "▼"], verb: ["edit", "✎"], row: ["edit", "✎"] };
+  waystone: ["depth", "▼"], verb: ["edit", "✎"], row: ["edit", "✎"], route: ["depth", "⑂"], heir: ["renown", "♛"] };   // Cut 29 §1: route2, heir pick
 export function rewardEl(r: OathReward | string | undefined): HTMLElement | "" {
   const w = rewardOf(r); if (!w) return "";
   const [ico, glyph] = REWARD_ICON[w.kind] ?? ["renown", "★"];
@@ -101,7 +110,7 @@ export function paintOathTab(app: App, tab: HTMLElement): void {
   const o = swornOf(L);
   tab.classList.toggle("sworn", !!o);
   replace(tab, h("span", { class: "rn num" }, seal()),
-    o ? h("span", { class: "rtext" }, formula(chipsOf(o), rewardIcon(o.reward), "tab"), " ", shareEl(app, o))
+    o ? h("span", { class: "rtext" }, formula(chipsOf(o), rewardIcon(o.reward), "tab"), " ", shareEl(app, o), swornAll(L).length > 1 ? h("small", { class: "num dim more" }, ` +${swornAll(L).length - 1}`) : "")
       : h("span", { class: "rtext" }, /* copy:rule_token */ "oaths", " ", h("small", { class: "num dim" }, `${board.length}`)));
 }
 
@@ -111,16 +120,17 @@ export function openOathBoard(app: App, anchor: HTMLElement): void {
   openSheet(() => {
     const list = h("div", { class: "oath-board" });
     const paint = (): void => {
-      const L = app.lineage, board = oathsOf(L), sworn = swornOf(L);
+      const L = app.lineage, board = oathsOf(L), sworn = swornAll(L), slots = slotsOf(L), full = sworn.length >= slots;
       replace(list, ...board.map((o) => {
-        const isSworn = sworn?.id === o.id, short = L.gold < o.price;
+        const isSworn = sworn.some((x) => x.id === o.id), short = L.gold < o.price;
         const sh = isSworn ? oathShareOf(app.lastForecast, o) : undefined;
         const foot = isSworn
           ? [h("span", { class: "oath-fate num", "data-oath": o.id }, h("b", { class: "stake" }, `$${o.price}`), " · ", h("b", { class: "tally" }, "0/1"), " ", shareEl(app, o),
               sh ? h("small", { class: "dim oath-night" }, /* copy:callout */ ` · night ${share(sh.night, lowOf(app.lastForecast))}`) : ""),
-            eng(app).forswearOath ? twoTap(/* copy:button */ `forswear +$${refundOf(o)}`, /* copy:button */ `ok +$${refundOf(o)}`, () => void app.mutate(() => eng(app).forswearOath!(), /* copy:callout */ "oath").then(paint), { class: "chip mini forswear num", key: `forswear:${o.id}` }) : ""]
+            // Cut 29 §1: with two or three slots the forswear names its oath (`forswearOathId`)
+            eng(app).forswearOathId || eng(app).forswearOath ? twoTap(/* copy:button */ `forswear +$${refundOf(o)}`, /* copy:button */ `ok +$${refundOf(o)}`, () => void app.mutate(() => eng(app).forswearOathId ? eng(app).forswearOathId!(o.id) : eng(app).forswearOath!(), /* copy:callout */ "oath").then(paint), { class: "chip mini forswear num", key: `forswear:${o.id}` }) : ""]
           : [twoTap(/* copy:button */ `stake $${o.price}`, /* copy:button */ `ok $${o.price}`, () => void app.mutate(() => eng(app).swearOath!(o.id), /* copy:callout */ "oath").then(paint),
-              { class: "chip swear num", disabled: short || !eng(app).swearOath || !!sworn, key: `swear:${o.id}` }),
+              { class: "chip swear num", disabled: short || !eng(app).swearOath || full, key: `swear:${o.id}` }),
             short ? h("small", { class: "num dim why" }, /* copy:callout */ `$${o.price - L.gold} short`) : ""];
         return h("div", { class: `oath tablet${isSworn ? " sworn" : ""}${short && !isSworn ? " short" : ""}`, "data-oath": o.id, "data-kind": o.kind },
           isSworn ? seal() : "",
@@ -132,15 +142,32 @@ export function openOathBoard(app: App, anchor: HTMLElement): void {
           // (not on an oath that names its own means — `slay Warlord · with fire` beside `counter: attack boss` read as a contradiction)
           o.counter && o.kind !== "fire" ? h("small", { class: `num oath-counter${/\?$/.test(o.counter) ? " unknown" : ""}` }, counterShown(L, o.counter)) : "");
       }));
+      if (sinks.isConnected) paintSinks();   // the slots' count follows a swear
     };
-    paint();
+    // Cut 29 §1/§5: the late sinks under the board — the slots sworn of the slots owned, a fresh oath drawn for marks (`drawOath`), and the
+    // next work commissioned for gold (`commission`, policy-neutral)
+    const sinks = h("div", { class: "oath-sinks" });
+    const paintSinks = (): void => {
+      const L = app.lineage, d = L.oath_draw, c = L.commission, works = L.works ?? [];
+      replace(sinks,
+        slotsOf(L) > 1 ? h("div", { class: "oath-slots num" }, /* copy:label */ "sworn ", h("b", null, `${swornAll(L).length}/${slotsOf(L)}`)) : "",
+        d && eng(app).drawOath ? h("div", { class: "oath-draw" },
+          twoTap(/* copy:button */ `draw ◆${d.cost}`, /* copy:button */ `ok ◆${d.cost}`, () => void app.mutate(() => eng(app).drawOath!(), /* copy:callout */ "oath").then(() => { paint(); paintSinks(); }), { class: "chip draw num", disabled: !d.available, key: "draw" }),
+          !d.available && d.needs ? h("small", { class: "num dim why" }, ` ⊘ ${d.needs}`) : "") : "",
+        c && eng(app).commission ? h("div", { class: "oath-works" },
+          h("span", { class: "label dim" }, /* copy:label */ "works"), " ",
+          works.length ? h("span", { class: "works-built num" }, works.join(" · "), " ") : "",
+          twoTap(/* copy:button */ `build ${c.label} $${c.price}`, /* copy:button */ `ok $${c.price}`, () => void app.mutate(() => eng(app).commission!(), /* copy:callout */ "works").then(paintSinks), { class: "chip commission num", disabled: !c.available, key: "commission" }),
+          !c.available ? h("small", { class: "num dim why" }, /* copy:callout */ ` $${Math.max(0, c.price - L.gold)} short`) : "") : "");
+    };
+    paint(); paintSinks();
     const off = app.onForecast(() => { if (list.isConnected) paint(); else off(); });
-    return h("div", { class: "sheet-body oath-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "oaths"), list);
+    return h("div", { class: "sheet-body oath-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "oaths"), list, sinks);
   }, { anchor });
 }
 /** `warlord: aim` → `counter: attack boss` when the lineage knows the counter's rule; the core's fact otherwise (`mother: ?`). */
 const counterShown = (L: Lineage, fact: string): string => { const boss = fact.split(":")[0].trim(); const c = (L.counters ?? []).find((x) => x.boss.endsWith(boss.replace(/ /g, "_")) || x.boss.endsWith(boss)); return c?.text ? /* copy:callout */ `counter: ${c.text}` : fact; };
-const eng = (app: App): Pick<App["engine"], "swearOath" | "forswearOath"> => app.engine;
+const eng = (app: App): Pick<App["engine"], "swearOath" | "forswearOath" | "forswearOathId" | "drawOath" | "commission"> => app.engine;
 
 /** The sworn oath on the shaft: the seal and the share, then its formula (`D3 no rest → ▤`). */
 export function shaftOath(app: App): HTMLElement | "" {
@@ -162,5 +189,7 @@ export function oathProgress(app: App, r: ReturnReport): HTMLElement | null {
       h("div", { class: "oath-foot num" },
         h("b", { class: `oath-tally ${x.kept > 0 ? "up" : "dim"}` }, /* copy:callout */ `kept ${x.kept}/${x.runs}`),
         x.done ? h("span", { class: "oath-kept" }, /* copy:callout */ " · granted") : "",
-        !x.done && (x.broken ?? 0) > 0 ? h("span", { class: "oath-broke" }, /* copy:callout */ ` · broken ${x.broken}`, x.cause ? ` · ${x.cause}` : "") : "")));
+        !x.done && (x.broken ?? 0) > 0 ? h("span", { class: "oath-broke" }, /* copy:callout */ ` · broken ${x.broken}`, x.cause ? ` · ${x.cause}` : "") : "")),
+    // Cut 29 §1: the extra slots' oaths kept this absence, each its reward
+    ...(r.oaths_kept ?? []).map((k) => h("div", { class: "oath-kept-extra num" }, seal(), h("b", null, /* copy:callout */ "kept "), rewardEl(k))));
 }

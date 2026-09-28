@@ -208,6 +208,33 @@ try {
     const after = await page.evaluate(() => ({ on: [...document.querySelectorAll(".sheet-wrap .chip.order.on")].map((c) => c.textContent.trim()), tab: document.querySelector(".orders-tab")?.textContent.replace(/\s+/g, " ").trim() }));
     check(after.on.includes("armour") && after.on.includes("off") && /keep armour/.test(after.tab) && /no repeat/.test(after.tab), `a tap sets an order through setOrders; the sheet and the tablet follow (${after.on.join(" · ")}; "${after.tab}")`);
   }
+  // ---- §1/§5: the oath board's slots, the draw, the works
+  if (part("oaths")) {
+    await boot(2906);
+    await withState((e) => {
+      e.sys29 = { open: ["send", "dial", "headline", "edit", "death", "exits", "loadout", "unlocks", "oaths", "walls"], fresh: [], plateau: true, works: [], meters: [], insure: true };
+      Object.assign(e.lineage, { heir: 3, gold: 5000, best_depth: 9, marks: 5, unlocks: [...e.lineage.unlocks, "oath_slot_2"], gold_ledger: [{ t: 1, delta: 5000, why: "bank D9" }] });
+    });
+    await camp();
+    await page.locator(".oath-tab").click();
+    await until(() => document.querySelectorAll(".sheet-wrap .oath.tablet").length === 3, "the oath board");
+    const swear = page.locator(".sheet-wrap .oath.tablet .chip.swear").first();
+    await swear.click(); await sleep(120); await page.locator(".sheet-wrap .oath.tablet .chip.swear").first().click();
+    await until(() => (window.__riddle.lineage.sworn ?? []).length === 1, "one oath sworn");
+    const b1 = await page.evaluate(() => ({ slots: document.querySelector(".sheet-wrap .oath-slots")?.textContent.replace(/\s+/g, " ").trim(), open: [...document.querySelectorAll(".sheet-wrap .oath.tablet:not(.sworn) .chip.swear")].filter((b) => !b.disabled).length,
+      draw: document.querySelector(".sheet-wrap .chip.draw")?.textContent.trim(), works: document.querySelector(".sheet-wrap .chip.commission")?.textContent.trim() }));
+    check(b1.slots === "sworn 1/2" && b1.open === 2, `with a second slot one sworn oath leaves the others swearable (${b1.slots}; ${b1.open} open)`);
+    await shot("cut29-oaths");
+    const m0 = await page.evaluate(() => window.__riddle.lineage.marks);
+    await page.locator(".sheet-wrap .chip.draw").click(); await sleep(120); await page.locator(".sheet-wrap .chip.draw").click();
+    await until((m) => window.__riddle.lineage.marks === m - 2, "the draw paid", 10_000, m0);
+    check(/^draw ◆2$/.test(b1.draw ?? ""), `a fresh oath is drawn for ◆2 ("${b1.draw}", marks ${m0} → ${m0 - 2})`);
+    const g0 = await page.evaluate(() => window.__riddle.lineage.gold);
+    await page.locator(".sheet-wrap .chip.commission").click(); await sleep(120); await page.locator(".sheet-wrap .chip.commission").click();
+    const built = await until(() => (window.__riddle.lineage.works ?? []).length ? window.__riddle.lineage.works : null, "the work built");
+    const g1 = await page.evaluate(() => window.__riddle.lineage.gold);
+    check(/^build .+ \$\d+$/.test(b1.works ?? "") && g1 < g0 && built.length === 1, `a work is commissioned for gold ("${b1.works}": $${g0} → $${g1}, works ${built.join(" · ")})`);
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 }
