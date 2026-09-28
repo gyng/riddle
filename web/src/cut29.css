@@ -51,3 +51,6 @@
 .oath-sinks .why { margin-left: 4px; }
 .oath-works .works-built { font-size: 13px; }
 .oath-kept-extra { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+/* Cut 29 §4: the repeat's missing kind, one tap */
+.repeat-add { margin: 4px 0; }
+.repeat-add .repeat-add-chip { border-style: dashed; }

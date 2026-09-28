@@ -235,6 +235,23 @@ try {
     const g1 = await page.evaluate(() => window.__riddle.lineage.gold);
     check(/^build .+ \$\d+$/.test(b1.works ?? "") && g1 < g0 && built.length === 1, `a work is commissioned for gold ("${b1.works}": $${g0} → $${g1}, works ${built.join(" · ")})`);
   }
+  // ---- §4: the repeat's missing kind is one tap
+  if (part("repeat")) {
+    await boot(2907);
+    await withState((e) => {
+      e.sys29 = { open: ["send", "dial", "headline", "edit", "death", "exits", "loadout"], fresh: [], plateau: false, works: [], meters: [], insure: true };
+      Object.assign(e.lineage, { heir: 2, gold: 500, gold_ledger: [{ t: 1, delta: 500, why: "bank D3" }], supplies: [], facts: [...e.lineage.facts, "item:ruby=fire"] });
+      e.rules.rows.push({ conds: [{ k: "foes>=", n: 2 }], verb: { v: "throw", a: "fire" }, origin: "player" });
+    });
+    await camp();
+    const chip = await until(() => document.querySelector(".repeat-add:not([hidden]) .repeat-add-chip")?.textContent.replace(/\s+/g, " ").trim() ?? null, "the repeat's one tap");
+    check(chip === "+ fire · for throw fire", `a throw row's kind the repeat lacks is offered as one tap ("${chip}")`);
+    await shot("cut29-repeat-add");
+    await page.locator(".repeat-add-chip").click();
+    await until(() => (window.__riddle.lineage.supplies ?? []).some((s) => s.kind === "fire"), "fire packed");
+    const gone = await page.evaluate(() => !document.querySelector(".repeat-add:not([hidden]) .repeat-add-chip"));
+    check(gone, `one tap packs it (buySupply) and the offer leaves (${gone})`);
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 }

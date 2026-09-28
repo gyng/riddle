@@ -154,6 +154,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 29 §4: the standing orders in one tablet (the exit's keep, the cage's pick, the start, the repeat, insuring) — with a Cut 29
   // core the cage and start tablets fold into it; the tap opens the orders sheet
   const ordersTab = h("button", { class: "row tablet compact orders-tab", hidden: true, onclick: () => openOrders() });
+  // Cut 29 §4: a kind a `throw` row names that the repeat lacks — one tap packs it (`+ fire · for throw fire`), the repeat keeps it after
+  const repeatAdd = h("div", { class: "chips repeat-add", hidden: true });
   // Cut 28 §1: the oath board — its own tablet under the start's (`oath → D10 no drink · 34%`, or `oaths 3`), carved when an oath is
   // first affordable; the tap opens the board (three oaths, each its chips, its reward, its price)
   const oathTab: HTMLButtonElement = h("button", { class: "row tablet compact oath-tab", hidden: true, onclick: () => openOathBoard(app, oathTab) });
@@ -196,7 +198,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, ordersTab, cageTab, startTab, oathTab), shaft.el, metersSlot(campMeters(app))));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, repeatAdd, ordersTab, cageTab, startTab, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   const restLine = h("div", { class: "rest-line" }, rest);
@@ -635,6 +637,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   function paintSupplies(): void {
     const L = app.lineage; const picks = L.supplies ?? []; const cap = L.supply_cap ?? supplyCap(L.unlocks); const full = picks.length >= cap;   // Cut 29 §6 (AX: `pack 4` bought, the shelf read 3/3): the core's cap (forge pack steps included)
+    const adds = (L.repeat_added ?? []).filter((a) => !picks.some((p) => p.kind === a.kind));
+    repeatAdd.hidden = !adds.length || !revealed(app).has("loadout");
+    replace(repeatAdd, ...adds.map((a) => h("button", { class: "chip repeat-add-chip num", "data-kind": a.kind, disabled: full, onclick: () => void app.mutate(() => app.engine.buySupply(a.kind), /* copy:callout */ "buy") },
+      h("b", null, `+ ${a.kind.replace(/_/g, " ")}`), h("small", { class: "dim" }, /* copy:callout */ ` · for ${a.row}`))));
     clear(supplies);
     supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/${cap}`)));
     // Cut 23 §4 (AJ: "a layout jump bought a confusion potion"): the shelf is `cap` fixed slots (a bought line fills the next empty one)
