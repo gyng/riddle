@@ -59,7 +59,7 @@ const camp = async () => { await waitFor((s) => s?.booted && s.screen === "camp"
 
 try {
   const rules = encodeURIComponent("hp<30% → drink heal\nfoes>=1 → attack nearest\nfoe:ranged → throw fire");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=231&rules=${rules}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=231&rules=${rules}`, { waitUntil: "domcontentloaded" });
   await camp();
   await page.evaluate(() => { localStorage.removeItem("riddle.reveal"); localStorage.setItem("riddle.editing", "0"); });
 

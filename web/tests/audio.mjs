@@ -2,7 +2,7 @@
 // Cut 10 §4 gate: every cue schedules ≤ 200 ms from at most two oscillators and one gain envelope (the death note is the
 // one exception: a single low note fading over 1 s); nothing schedules while muted; the mute persists; the camp drone is up
 // while the camp is open and gone in a run; cues fire on their events in a watched fake run. Runs on the GPU harness
-// (tools/browser.mjs) against the dev server (tools/dev.sh, :5219) with the fake engine (`?engine=fake&dev=1`).
+// (tools/browser.mjs) against the dev server (tools/dev.sh, :5219) with the fake engine (`?engine=fake&systems=none&dev=1`).
 //
 //   node web/tests/audio.mjs        (part of `pnpm test` in web/)
 //
@@ -68,7 +68,7 @@ async function cue(name, opts) {
 const span = (nodes) => Math.max(0, ...nodes.filter((n) => n.kind === "osc").map((n) => n.stop - n.start));
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   check(await page.evaluate(() => !!window.__audio), "window.__audio is exposed in dev");
   check(!(await page.evaluate(() => window.__audio.unlocked)), "the context is not created before a gesture");

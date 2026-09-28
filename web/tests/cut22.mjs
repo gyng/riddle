@@ -63,7 +63,7 @@ const pctOf = (x) => `${Math.round(x * 100)}%`;
 try {
   // ---- §3: the edit's paired move
   const rules3 = encodeURIComponent("hp<30% → drink heal\nfoes>=1 → attack nearest\ndepth>=6 → bank");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=221&rules=${rules3}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=221&rules=${rules3}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await patchLineage({ best_depth: 5, heir: 3 });
   await until(() => page.evaluate(() => document.querySelector(".camp .shaft")?.dataset.fc), "the first forecast");
@@ -152,7 +152,7 @@ try {
 
   // ---- §4: the start picker's death share; signed deltas
   const bankRules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=12 → bank");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=222&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=222&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await patchLineage({ best_depth: 12, heir: 3, gold: 500, waystones: [5, 9], start: 1, facts: ["item:leash", "vault"] });
   await until(() => page.evaluate(() => document.querySelector(".camp .shaft")?.dataset.fc), "the forecast"); await sleep(300);
@@ -201,7 +201,7 @@ try {
   check(sendFights === "send▸ highlights", `\`fights\` is named on the send too (Cut 28 §3: "${sendFights}")`);
 
   // ---- AH: the boss moment — one line wins
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=223`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=223`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   // the engine's first batch after tick 20 puts the warlord and a horde of goblins around the hero, the warlord's rally and his break
   await page.evaluate(() => {

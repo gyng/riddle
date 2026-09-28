@@ -42,7 +42,7 @@ const deathOf = (o = {}) => ({ run_id: 0, depth: 9, cause: "gas", margin: "", ve
 const go = async (d) => { await page.evaluate((d) => window.__riddle.go({ kind: "death", death: d }), d); await waitScreen("death"); await sleep(300); };
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=3102`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=3102`, { waitUntil: "domcontentloaded" });
   await waitScreen("camp");
   await page.evaluate((rows) => { const r = window.__riddle; r.rules.rows = rows; r.rulesChanged(); }, ROWS);
 

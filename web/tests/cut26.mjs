@@ -48,7 +48,7 @@ const withLineage = (patch) => page.evaluate((patch) => { const r = window.__rid
 
 try {
   // ---- §2: the route chip line — only after the fork fact (a fresh lineage has seen none)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=26`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=26`, { waitUntil: "domcontentloaded" });
   await camp();
   {
     await withLineage({ best_depth: 9, gold: 400 }); await sleep(300);
@@ -56,7 +56,7 @@ try {
     check(!before.shown && before.forks === 0, `no route line before a fork is seen (${before.shown ? "shown" : "hidden"}; forks ${before.forks})`);
   }
   // the fake's descent forks at D4 (`?fake_fork=1`: the D4 fork seen at boot, both lanes entered)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=26&fake_fork=1`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=26&fake_fork=1`, { waitUntil: "domcontentloaded" });
   await camp();
   {
     await page.evaluate(async () => { const r = window.__riddle, b = JSON.parse(r.exportSave()), e = JSON.parse(b.engine); Object.assign(e.lineage, { best_depth: 7, gold: 400 }); b.engine = JSON.stringify(e); await r.importSave(JSON.stringify(b)); });

@@ -39,7 +39,7 @@ const gemText = () => page.evaluate(() => { const g = document.querySelector(".g
 
 try {
   // ---- §3: the send gem names the mode, the pill steps it (never a send), a reload keeps it
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=41`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=41`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp");
   await sleep(300);
   const g0 = await gemText();
@@ -51,7 +51,7 @@ try {
   await shot("cut28w-send-mode");
   await page.evaluate(() => window.__riddle.flush?.());
   await sleep(1200);   // the save's debounce
-  await page.goto(`${url}?dev=1&engine=fake&seed=41`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&seed=41`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp after a reload");
   await sleep(300);
   const g2 = await gemText();
@@ -61,7 +61,7 @@ try {
   // ---- §4: no pixel text on the DOM chips, no plate on either
   const tally = { frames: 0, callouts: 0, captions: 0, plates: 0, docked: 0, hits: [] };
   for (const [seed, fold] of [[26, 2], [157, 0], [5, 2]]) {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}${fold ? `&fake_fold=${fold}` : ""}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=${seed}${fold ? `&fake_fold=${fold}` : ""}`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", `the camp (seed ${seed})`);
     if (fold) await page.waitForFunction(() => window.__riddle.lastForecast?.fold_to !== undefined, null, { timeout: 15_000 }).catch(() => {});
     await page.evaluate(() => document.querySelector("button.gem.send")?.click());

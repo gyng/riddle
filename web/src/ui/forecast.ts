@@ -14,6 +14,7 @@
 // Cut 13 §5: the first paint (`Forecast.refined` false) carries `…` after each `±` so the refine's landing does not read as a
 // re-roll; the ends line has its own `±` on the death share (`death 5% ±4`, `ForecastEnds.pm`).
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
+import { sysOpen } from "./systems";
 import { BANDS, FORKS, biomeAt, frontiers, routeChips, routeForks } from "./route";
 import type { App } from "../app";
 import type { Forecast, ForecastTry, ForecastVs, Row, VsMove } from "../engine/types";
@@ -128,6 +129,7 @@ const tone = (dir: "up" | "down" | "flat", worse: boolean): string => !worse || 
 /** Cut 22 §3: the line under the shaft — `vs last · D8 +6 · bank +4`: the depth whose move is the largest outside its ± (else the
  *  frontier's, `D8 ≈`), the bank's move when the gems show, and the death's when it clears its ±. Null without a move to show. */
 export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, withEnds: boolean): HTMLElement | null {
+  if (!sysOpen(app.lineage, "vs")) return null;   // Cut 29 §2: the vs line opens at the first plateau
   // QA 778fa1b (qaV): an edit whose move is still being measured reads `vs sent …`, never the last move or a hollow `≈`
   if (!vs) return app.vsPending() ? h("div", { class: "shaft-vs num rough pending" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs last run", "…")) : null;
   const rough = vs.refined === false;
@@ -169,6 +171,7 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
 /** Cut 28 §2 (AV: "death jumped 14 → 36 %; I blamed my new rows — the real cause was the party dying"): the state's part of the move
  *  since the send, its own line (`party −2 jackals · death +24`), apart from the rows' `vs sent` (app.ts `smove`, ui/attrib.ts). */
 export function stateLine(app: App): HTMLElement | null {
+  if (!sysOpen(app.lineage, "vs")) return null;   // Cut 29 §2: the state's part of the move is the vs line's — open with it
   // the core's attribution (`forecastMove`): one line per state part whose move clears its ± (the two largest), each its headline term
   const fm = app.fmove;
   if (fm) {
@@ -291,7 +294,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         cause ? h("small", { class: "dim" }, /* copy:callout */ ` · killer: ${cause.replace(/_/g, " ")}`) : "",
         boss ? h("small", { class: "boss-here" }, ` · ${boss}`) : "",
         wall ? h("small", { class: "wall" }, /* copy:callout */ ` · behind ${wall}`) : "",
-        wall ? h("small", { class: "wall-counter" }, ` · ${wallCounter(app, d.wall!, d as { counter?: string; counter_hint?: string })}`) : "",   // Cut 28 §1: the wall's path
+        wall && sysOpen(app.lineage, "walls") ? h("small", { class: "wall-counter" }, ` · ${wallCounter(app, d.wall!, d as { counter?: string; counter_hint?: string })}`) : "",   // Cut 28 §1: the wall's path
         // Cut 20 §5: the bounty floor; Cut 28 §1: what it pays and needs (`bounty · $×2 · item · reach`)
         d.bounty ? h("small", { class: "bounty-x" }, ` · ${app.lineage.bounty?.depth === d.depth && (app.lineage.bounty.pays || app.lineage.bounty.needs) ? bountyText({ ...app.lineage.bounty, depth: d.depth }).replace(/^bounty · D\d+ · /, /* copy:callout */ "bounty · ") : bountyMult(d.bounty)}`) : "",
         counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "",
@@ -428,7 +431,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       // QA 308f045 (qaAC: `fens · D5 · ?` — "what the `?` asks"): a lane never entered says so (`untried`)
-      if (wall && d?.wall) n.appendChild(h("small", { class: "wall-counter num" }, wallCounter(app, d.wall, d as { counter?: string; counter_hint?: string })));   // Cut 28 §1
+      if (wall && d?.wall && sysOpen(app.lineage, "walls")) n.appendChild(h("small", { class: "wall-counter num" }, wallCounter(app, d.wall, d as { counter?: string; counter_hint?: string })));   // Cut 28 §1
       if (fr) n.appendChild(h("small", { class: `frontier${fr.entered ? " entered" : ""}`, "data-biome": fr.biome }, /* copy:callout */ `or ${fr.biome}${fr.entered ? "" : " · untried"}`   /* docs/COPY.md pass 7: the other stair at this fork (`fens · D5 · untried` read "[elsewhere]" 2/2) */));
       return n;
     }),

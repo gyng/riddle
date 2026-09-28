@@ -71,7 +71,7 @@ try {
   const CORE_KIND = { stolen: "theft", found: "find", learned: "fact", hp: "dip", max_hp: "max_hp", level: "level", bones: "bones", pet: "pet" };
   for (const [seed, path] of [[26, "core"], [26, "client"], [157, "client"], [31, "core"], [12, "client"]]) {
     if (seed !== 26 && landings >= 2) break;
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&fake_fold=2`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=${seed}&fake_fold=2`, { waitUntil: "domcontentloaded" });
     await camp();
     await page.evaluate(async ({ fc, rows, path }) => {
       const r = window.__riddle; window.__steps = []; window.__foldRes = null;
@@ -126,7 +126,7 @@ try {
   check(landings >= 1, `a fold landed below the bar on at least one seed (${landings})`);
   // `?fold=0`: nothing folds (dev)
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&fold=0`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&fold=0`, { waitUntil: "domcontentloaded" });
     await camp();
     await page.evaluate((fc) => { window.__riddle.forecastOfRules = () => fc; }, FOLD_FC);
     await page.evaluate(() => document.querySelector("button.gem.send")?.click());
@@ -148,7 +148,7 @@ try {
   const edit = (k) => page.evaluate((k) => { const r = window.__riddle; const c = r.rules.rows.flatMap((x) => x.conds).find((x) => x.n !== undefined); if (c) c.n = Math.max(5, c.n + k); else r.rules.rows[0].conds.push({ k: "hp<", n: 40 }); r.rulesChanged(); }, k);
   const scene = () => page.evaluate(() => { const e = document.querySelector(".camp .div-scene"), l = document.querySelector(".camp .div-line"); return { shown: !!e && !e.hidden, state: e?.dataset.state ?? "", phase: e?.dataset.phase ?? "", tag: e?.querySelector(".div-tag")?.textContent ?? "", end: e?.querySelector(".div-end.show")?.textContent ?? "", line: l && !l.hidden ? l.textContent.replace(/\s+/g, " ").trim() : "", stills: e?.querySelectorAll(".div-still").length ?? 0, dev: window.__scene ?? {} }; });
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=27`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=27`, { waitUntil: "domcontentloaded" });
     await camp();
     await page.waitForFunction(() => window.__riddle.lastForecast?.refined === true, null, { timeout: 15_000 }).catch(() => {});
     await stubDivergence({});
@@ -208,7 +208,7 @@ try {
 
   // ---- §4: the stall screen's gem — measured before it offers a patch, never a harming one, the first tablet shown
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=41`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=41`, { waitUntil: "domcontentloaded" });
     await camp();
     await page.evaluate(() => {
       const r = window.__riddle;

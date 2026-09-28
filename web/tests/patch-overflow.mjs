@@ -5,7 +5,7 @@
 // gone and the patch lands at its measured `insert_at` (one up when the dropped row sat above it); dismissing the sheet leaves the
 // set whole on the death screen. A patch the set already holds reads `at R1` and inserts nothing; a stall `replace` never overflows.
 // Runs on the browser harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219) with the fake engine
-// (`?engine=fake&dev=1`; the fake's max_rows is 4 without row unlocks).
+// (`?engine=fake&systems=none&dev=1`; the fake's max_rows is 4 without row unlocks).
 //
 //   node web/tests/patch-overflow.mjs        (or `pnpm test` in web/)
 //
@@ -45,7 +45,7 @@ const editor = () => page.evaluate(() => ({
 }));
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
 

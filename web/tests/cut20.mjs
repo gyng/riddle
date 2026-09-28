@@ -42,7 +42,7 @@ const closeSheets = async () => { await page.keyboard.press("Escape"); await sle
 try {
   // ---- §4 the stake line, watched: a bank row (`depth>=9 → bank`) and the fake's death keep (0)
   const bankRules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=9 → bank");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
   const stakes = await page.evaluate(() => new Promise((res) => {
     const seen = new Set(), t0 = performance.now();
@@ -56,7 +56,7 @@ try {
   await shot("cut20-stake");
 
   // ---- the camp: the bounty notch on the shaft (the fake's bounty floor is best + 2)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   // a fresh lineage has no best, so no bounty (its shaft is D1 alone): a lineage with best D4 through the save
   await page.evaluate(async () => {

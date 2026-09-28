@@ -70,7 +70,7 @@ try {
   // (a) a lost context mid-watch (the fake engine: its early floors last), restored, lost again and skipped to the exit
   {
     const p = await open();
-    await p.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1`, { waitUntil: "domcontentloaded" });
+    await p.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1`, { waitUntil: "domcontentloaded" });
     await waitFor(p, async () => (await screen(p)) === "watch" && !!(await stats(p)), "the watch (fake)");
     await p.evaluate(() => document.querySelector('button[data-tile="one"]')?.click());   // normal: the run lasts
     await sleep(1200);

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Cut 13 gates, client side (docs/CUT13.md §1–§5), on the fake engine (`?engine=fake&dev=1`) through the browser harness
+// Cut 13 gates, client side (docs/CUT13.md §1–§5), on the fake engine (`?engine=fake&systems=none&dev=1`) through the browser harness
 // (tools/browser.mjs; `--shots` runs headed on the GPU and writes scratchpad/cut13/*.png at 400×800×3) against the dev
 // server (tools/dev.sh, :5219):
 //   §1  the stake reads `stalling` (QA 92eb880: no `keeps $0` before the run ends) while the guard has fired (`Stake.stalling`, the fake's `?fake_stall=N` chore loop);
@@ -79,7 +79,7 @@ const fakeDeath = (extra) => page.evaluate((extra) => {
 try {
   // ---- §1: the stake while stalling, then the stall verdict screen (the fake's chore loop after 20 turns on the floor)
   const stallRules = encodeURIComponent("depth>=9 → return\nfoes>=1 → attack nearest");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=21&fake_stall=20&rules=${stallRules}&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=21&fake_stall=20&rules=${stallRules}&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   let s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "the stalling run");
   s = await waitFor((x) => x?.screen !== "watch" || /stalling/.test(x.stake), "the stalling stake", 30_000);
   // QA 92eb880 (N: `keeps $0 · stalling` for 10 s on a run that returned keeping 60 %): `stalling` alone while the run may still come home
@@ -127,7 +127,7 @@ try {
   check(d.pill === "stall" && d.line === "stalled · D2 · archer, no path · stall" && d.notes.length === 2, `the report's open shows the stall verdict: "${d.line}"`);
 
   // ---- §2: the heir's trait is chosen
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && x.screen === "camp", "camp");
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   await sleep(300);
@@ -185,7 +185,7 @@ try {
     return r.lineage.supplies.some((s) => s.kind === "leash" && !s.free);
   });
   check(restocked, "the lineage packed a bought leash under auto: restock");
-  await page.goto(`${url}?dev=1&engine=fake&absent=2h`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&absent=2h`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "report" && !x.busy, "the 2 h report", 120_000);
   await sleep(300);
   rp = await rep();
@@ -194,7 +194,7 @@ try {
   await shot("05-report-absence");
 
   // ---- §4: the beats are on screen (fast, then fights), the death notes, the ticker
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "the fast run");
   // a den note injected on the next quiet batch (no hostile adjacent, the frame on the map): the frame cuts in for its beat
   const inject = (note) => page.evaluate((note) => {
@@ -227,7 +227,7 @@ try {
     check(gone !== null && gone <= 6500, `the beat's line is gone within 6 s (${gone === null ? "still up at 8 s" : `${gone} ms`})`);
   }
   // in `fights`: the beat cuts in from under the card
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fights", "the fights run");
   await inject("A cage: three inside, one to take.");
   s = await waitFor((x) => x?.screen !== "watch" || (x.beats >= 1 && x.frame === "fight"), "the beat's cut in fights", 20_000);
@@ -240,7 +240,7 @@ try {
   check(!!s, "the frame moved on after the beat");
   // the ticker: a 40-char callout renders whole at 400 px; two callouts on one tick both show, one after the other — injected
   // in `fast` on the map (no card to swallow them) on a batch whose ticker is idle (an ambient line holds it for its 1.5 s)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for the ticker");
   const long = "the goblin conjurer summons three blades"; // 40 chars
   // the two land at the viewer's own tick and the clock is paused in the same task, so nothing else competes for the ticker
@@ -287,7 +287,7 @@ try {
   await shot("08-death-notes");
 
   // ---- §5: the forecast's noise shown as noise
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && x.screen === "camp", "camp");
   // QA e75ec29 (Q: `D1 100% ±1`): a share that reads 0 % or 100 % carries no ± — the ± is asked of the rows strictly between
   const fc = () => page.evaluate(() => { const L = window.__riddle.lastForecast; const inside = (x) => { const r = Math.round(x * 100); return r > 0 && r < 100; };
@@ -384,7 +384,7 @@ try {
   await shot("12-trace-sheet");
   await page.keyboard.press("Escape"); await sleep(100);
   // the camp: the rule-set tabs, the empty forge
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && x.screen === "camp", "camp");
   await sleep(300);
   const tabsT = await page.evaluate(() => [...document.querySelectorAll(".tabs .tab:not(.edit)")].map((t) => t.textContent.replace(/\s+/g, " ").trim()));
@@ -405,7 +405,7 @@ try {
   await shot("13-forge-empty");
   await page.keyboard.press("Escape"); await sleep(100);
   // the death frame: at the run's end the floor stays lit, the run controls are dead, ⏸ is gone while `verdict` runs
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for the death frame");
   await page.evaluate(() => {
     const e = window.__riddle.engine; const real = e.step.bind(e); let done = false;
@@ -440,7 +440,7 @@ try {
   await waitFor((x) => x?.screen === "death", "the death screen after the verdict", 30_000);
 
   // ---- QA on 50bb162 (qaF): the camp at 400 px
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && x.screen === "camp", "camp for qaF");
   // marks, the card gates met, a boss counter known past the best (the forecast's `try` row)
   await page.evaluate(async () => {
@@ -495,7 +495,7 @@ try {
   // ---- QA on 50bb162 (qaF): the watch — ▶▶| in `fast` is the run's end; a beat's line clears at a floor change and within 6 s
   // (wall-clock readings: on a loaded machine `measured` takes each scene once more, the bars unchanged — tests/lib/load.mjs)
   const beatScene = await measured(async () => {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for the beat's clearing");
   // a den note on a quiet map batch, then a floor change (the same floor's snapshot) on the batch after: the beat's line goes
   await page.evaluate(() => {
@@ -533,7 +533,7 @@ try {
   check(beatScene.cleared.ok, beatScene.cleared.line);
   // ▶▶| in `fast`: one press reaches the run's end (the ending, or the screen after it) — not the next fight
   const skipScene = await measured(async () => {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for ▶▶|");
   await sleep(300);   // Cut 20's fast can reach the fake run's last tick inside 1.5 s: press early
   const t0 = Date.now();

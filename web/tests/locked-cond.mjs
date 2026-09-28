@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Cut 9 §1 gate: the vocabulary sheet never offers a locked token. Runs on the GPU harness (tools/browser.mjs) against
-// the dev server (tools/dev.sh, :5219) with the fake engine (`?engine=fake&dev=1`; a fresh fake lineage owns no cond
+// the dev server (tools/dev.sh, :5219) with the fake engine (`?engine=fake&systems=none&dev=1`; a fresh fake lineage owns no cond
 // unlock, so `alert ≥`, `turns >`, `loot ≥`, `on kill`, `on see` are in `Vocabulary.locked`).
 //
 //   node web/tests/locked-cond.mjs        (part of `pnpm test` in web/)
@@ -50,7 +50,7 @@ const rowText = (i) => page.evaluate((i) => document.querySelectorAll(".editor .
 const engineRows = () => page.evaluate(async () => JSON.stringify((await window.__riddle.engine.lineage()).sets[window.__riddle.active].rows));
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   const vocab = await page.evaluate(() => { const v = window.__riddle.vocab; return { locked: (v.locked ?? []).map((l) => ({ k: l.cond.k, needs: l.needs })), offered: v.conds.map((c) => c.k) }; });

@@ -3,7 +3,7 @@
 // the engine runs the travel underneath; a fight cuts in at 1× (frame `fight`, speed 1); `▶▶|` under the card reaches the
 // next fight in one press; `▶▶|` inside a fight jumps to its end; tapping the card holds the map at 8× until the next fight;
 // `fast` is the old auto. Runs on the GPU harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219) with the
-// fake engine (`?engine=fake&dev=1`; the fake's fights are frequent and its hero takes hits, so fights are shown).
+// fake engine (`?engine=fake&systems=none&dev=1`; the fake's fights are frequent and its hero takes hits, so fights are shown).
 // Cut 12 §4: from D3 the card names the floor's situation (`D4 · 9 rooms · a nest`). Cut 12 §6: a second run in `fast` — travel
 // at 16×, a fight at 2×. QA on 50bb162: `▶▶|` in `fast` reaches the run's END in one press (the engine steps to `run_over`, the
 // ending plays at 1×) — five players read the old "next fight" press as "plays faster"; in `fights` it stays the next fight.
@@ -59,7 +59,7 @@ const inRun = (s) => s?.screen === "watch";
 try {
   // Cut 20 §3: on D1–D3 `fights` shows no card — the travel at 8×, every fight at 1.5× (early runs were card-skipped travel "too short
   // to follow"); the card's own checks below turn that off (`early=0`)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1`, { waitUntil: "domcontentloaded" });
   {
     const early = await page.evaluate(() => new Promise((res) => {
       const t0 = performance.now(), seen = { card: 0, map: new Set(), fight: new Set(), depth: "" };
@@ -79,7 +79,7 @@ try {
     check(early.card === 0 && early.map.includes(8) && early.map.every((r) => r >= 8 || r === 1) && early.fight.includes(1.5), `fights on ${early.depth || "D1"}: no card, the map from 8× up, a fight at 1.5× (card frames ${early.card}; map ${early.map.join("/")}; fight ${early.fight.map((r) => Math.round(r * 100) / 100).join("/")})`);
   }
   // (the fake's D4 kills a hero in his first costly fight: the card's gates run on its gentle D1 with the first floors' mode off, `early=0`)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
   let s = await waitFor((x) => x?.booted && inRun(x) && x.mode, "the watch");
   check(s.mode === "fights" && s.on.join() === "highlights", `fights is the default mode (on: ${s.on.join(", ")})`);
   check(s.buttons.join(" ") === "highlights fast normal ▶▶| bail", `the buttons read highlights · fast · normal · ▶▶| · bail (Cut 25 §3: the plain 1×, docs/COPY.md: its word \`normal\`) (${s.buttons.join(" · ")})`);
@@ -127,7 +127,7 @@ try {
   check(["exit", "death", "report", "camp"].includes(s.screen), `the run reached its end (${s.screen})`);
 
   // Cut 12 §6: a second run in `fast` (seed 157, rater P's): travel 16×, fights 2×; QA on 50bb162: ▶▶| reaches the END
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && inRun(x) && x.mode === "fast", "the fast run");
   check(s.mode === "fast" && s.card === "0", `fast from boot (card ${s.card})`);
   s = await waitFor((x) => !inRun(x) || x.speed >= 32, "32× travel", 8000);
@@ -150,7 +150,7 @@ try {
 
   // Cut 14 §3: a stack fans in the map frame and its names take two rows — two foes put on the hero's tile in the viewer (the
   // fake keeps its monsters apart), the clock paused, the viewer sought so the spawns apply; then the labels the frame drew
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   // the map frame, paused (a fight can open between the sample and the press: unpause and wait for the map again)
   for (let tries = 0; tries < 6; tries++) {
     s = await waitFor((x) => x?.booted && inRun(x) && x.frame === "map" && x.tick > 30, "the map frame in fast", 20_000);
@@ -176,7 +176,7 @@ try {
   // Cut 14 §3: a bank is a beat — the fight frame opens on the stairs with `BANKED $N` as the callout before the exit sheet (the
   // hero starts on the up stairs, so `depth>=1 → bank` banks on its first action), in `fights`
   const bankRules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=1 → bank");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
   const ticker = () => page.evaluate(() => document.querySelector(".ticker.show")?.textContent ?? "");
   let beat = null;
   const tb = Date.now();
@@ -199,7 +199,7 @@ try {
   // ~SCENE_MS, in `fast` and in `fights` (under the card: the beat never waits on it). The fake has no boss kill on D1, so the
   // engine's next batch after tick 20 carries a warlord's spawn beside the hero and its `die`.
   for (const mode of ["fast", "fights"]) {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
     await waitFor((x) => x?.booted && inRun(x) && x.mode === mode, `the ${mode} run for the boss kill`);
     await page.evaluate(() => {
       const r = window.__riddle, orig = r.engine.step.bind(r.engine); let done = false;
@@ -233,7 +233,7 @@ try {
   // a second": the descend cut the line and faded the frame) keeps the fight frame and its line ≥ 2.5 s of wall time, in both modes;
   // the next floor waits for it. Measured in the page, per animation frame.
   for (const mode of ["fast", "fights"]) {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
     await waitFor((x) => x?.booted && inRun(x) && x.mode === mode, `the ${mode} run for the kill before the stairs`);
     const held = await page.evaluate(() => new Promise((res) => {
       const r = window.__riddle, orig = r.engine.step.bind(r.engine); let done = false;
@@ -270,7 +270,7 @@ try {
     const ratio = await measured(async () => {
     const wall = {};
     for (const mode of ["fights", "fast"]) {
-      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
       await waitFor((x) => x?.booted && inRun(x) && x.mode === mode && x.frame, `the ${mode} run for the wall time`);
       const t0 = Date.now();
       const s2 = await waitFor((x) => x && x.screen !== "watch", `the end of the ${mode} run`, 120_000);
@@ -285,7 +285,7 @@ try {
   // Cut 16 §4: the boss bar and the break beat. From tick 20 the engine's snapshots carry a warlord beside the hero (in view) for
   // 80 ticks; the first such batch has his spawn at 30/30, a blow taking him to 14, and the core's `warlord breaks` + note.
   for (const mode of ["fights", "fast"]) {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=${mode}`, { waitUntil: "domcontentloaded" });
     await waitFor((x) => x?.booted && inRun(x) && x.mode === mode, `the ${mode} run for the break`);
     await page.evaluate(() => {
       const r = window.__riddle, orig = r.engine.step.bind(r.engine); let from = -1;
@@ -326,7 +326,7 @@ try {
 
   // Cut 15 §4: name tags never overlap — two hostiles with 12-letter names on adjacent tiles of one row in the fight frame (their
   // tags would share a row and intersect) draw on two rows, their boxes apart
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   for (let tries = 0; tries < 6; tries++) {
     s = await waitFor((x) => x?.booted && inRun(x) && x.frame === "fight", "a fight frame for the tags", 30_000);
     await press("⏸"); await sleep(150);
@@ -353,7 +353,7 @@ try {
   // (the rects are read two frames after the seek, the sprites still easing to their tiles on a loaded machine: `measured` takes
   // the scene once more then — tests/lib/load.mjs)
   const cover = await measured(async () => {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   for (let tries = 0; tries < 6; tries++) {
     s = await waitFor((x) => x?.booted && inRun(x) && x.frame === "fight", "a fight frame for the hero's rect", 30_000);
     await press("⏸"); await sleep(150);
@@ -389,7 +389,7 @@ try {
   // engine's snapshots from tick 20 (the fight frame), its `attack` and the two callouts on one tick.
   // (read off frames as they come: `measured` takes the scene once more on a loaded machine)
   const callout = await measured(async () => {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && inRun(x) && x.mode === "fights", "the fights run for the callout line");
   const lines = await page.evaluate(() => new Promise((res) => {
     const r = window.__riddle, orig = r.engine.step.bind(r.engine); let from = -1;
@@ -434,7 +434,7 @@ try {
   // (wall-clock readings: on a loaded machine `measured` takes the scene once more, the bar unchanged — tests/lib/load.mjs)
   for (const m of ["fights", "fast"]) {
     const dead = await measured(async () => {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&fake_shrug=100`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&fake_shrug=100`, { waitUntil: "domcontentloaded" });
     await waitFor((x) => x?.booted && inRun(x) && x.mode, `the watch (${m}, shrug)`);
     if (m === "fast") await press("fast");
     const d = await page.evaluate(() => new Promise((res) => {
@@ -462,7 +462,7 @@ try {
   // the rest plays at the travel rate; a run read up to 60 s
   {
     const one = await measured(async () => {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1`, { waitUntil: "domcontentloaded" });
     await waitFor((x) => x?.booted && inRun(x) && x.mode, "the watch (1×)");
     await press("normal");
     const d = await page.evaluate(() => new Promise((res) => {
@@ -490,7 +490,7 @@ try {
   // on the fold line and lands below it; the screen time on the folded floors is ≤ 5 s a floor, in `fights` and `fast` alike
   for (const m of ["fights", "fast"]) {
     const fold = await measured(async () => {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=26&fake_fold=2`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=26&fake_fold=2`, { waitUntil: "domcontentloaded" });
     await waitFor((x) => x?.booted && x.screen === "camp", "the camp (fold)");
     await page.evaluate((m) => { window.__riddle.watchMode = m; }, m);
     await page.waitForFunction(() => window.__riddle.lastForecast?.fold_to !== undefined, null, { timeout: 15_000 }).catch(() => {});

@@ -1,0 +1,12 @@
+/* Cut 29 client (docs/CUT29.md): the curriculum's reveals, the meters, the standing orders, the late sinks — kept apart from styles.css
+   (other tracks edit it at the same time) */
+/* Cut 29 §2: the report's `opened` plaques — the systems an absence opened, each glinting once */
+.sys-opened { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+.sys-opened > .label { margin-right: 2px; }
+.sys-plaque { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 4px; border-radius: 6px;
+  border: 1px solid rgba(255, 210, 120, .45); background: rgba(40, 28, 12, .55); color: var(--acc); font-size: 13px; }
+.sys-plaque .ico { width: 20px; height: 20px; }
+.sys-plaque .ico.glyph::before { font-size: 15px; line-height: 20px; }
+.sys-plaque.reveal { animation: carve .7s ease-out both; }
+.sys-plaque.reveal::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 230, 160, .7) 50%, transparent 70%);
+  transform: translateX(-120%); animation: glint 1.1s .35s ease-out both; pointer-events: none; }

@@ -44,7 +44,7 @@ const camp = async () => { await waitFor((s) => s?.booted && s.screen === "camp"
 const section = (label) => page.evaluate((l) => { const s = [...document.querySelectorAll(".report .rsec")].find((x) => x.querySelector(".label")?.textContent === l); return s ? s.innerText.replace(/\s+/g, " ").trim().toLowerCase() : null; }, label);   // (labels and some chips are upper-cased by CSS)
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=24`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=24`, { waitUntil: "domcontentloaded" });
   await camp();
 
   // ---- §3 / §4: the forge's move and `≈ ±N`, from the modules themselves (the same functions the sheets paint with)
@@ -196,7 +196,7 @@ try {
   // ---- §5: the keep sheet keeps the tapped chip (a fake run that returns with items: seed 13, return at D3)
   {
     const rules = encodeURIComponent("depth>=3 → return\nfoes>=1 → attack nearest");
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=13&rules=${rules}&autosend=1&early=0&speed=fast`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=13&rules=${rules}&autosend=1&early=0&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
     const t0 = Date.now(); let s = await state();
     while (s?.screen === "watch" && Date.now() - t0 < 120_000) { await page.locator(".cmd .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {}); await sleep(300); s = await state(); }

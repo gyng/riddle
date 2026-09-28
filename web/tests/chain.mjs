@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Cut 11 §2 / §5 gates on the client: the death screen's chain, its replay links, root / below-bar / unlock patches, and the
 // gold sheet filtered to a run. Runs on the GPU harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219)
-// with the fake engine (`?engine=fake&dev=1`).
+// with the fake engine (`?engine=fake&systems=none&dev=1`).
 //
 //   node web/tests/chain.mjs        (part of `pnpm test` in web/)
 //
@@ -43,7 +43,7 @@ const text = (sel) => page.evaluate((sel) => [...document.querySelectorAll(sel)]
 const shot = async (name) => { if (shots) await page.screenshot({ path: resolve(shots, name) }); };
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&fake_depth=4`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&fake_depth=4`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
   // drive the run to its end: ▶▶| every 400 ms (under the card it waives the minimum, in a fight it jumps to its end)
   const t0 = Date.now();

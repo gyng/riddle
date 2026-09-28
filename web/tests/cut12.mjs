@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Cut 12 gates, client side (docs/CUT12.md §1, §3, §6), on the fake engine (`?engine=fake&dev=1`) through the GPU harness
+// Cut 12 gates, client side (docs/CUT12.md §1, §3, §6), on the fake engine (`?engine=fake&systems=none&dev=1`) through the GPU harness
 // (tools/browser.mjs) against the dev server (tools/dev.sh, :5219):
 //   §1  the editor chip counts own rows (`2/4 · 2 cards`); a bought card's row goes before the engagement row (`insert_at`);
 //       card rows never count against `max_rows` (four own rows + two cards send; the fifth own row is `5/4 · drop one`, the
@@ -52,7 +52,7 @@ const camp = () => page.evaluate(() => ({
 const shot = async (name) => { if (shots) await page.screenshot({ path: `${shots}/${name}.png`, fullPage: true }); };
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   // a lineage with marks, the card gates met, a potion identified (so the supply catalogue sells it) and gold

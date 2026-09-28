@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Cut 10 §2–§3 client rows, each one assertion on the fake (`?engine=fake&dev=1`), on the GPU harness (tools/browser.mjs)
+// Cut 10 §2–§3 client rows, each one assertion on the fake (`?engine=fake&systems=none&dev=1`), on the GPU harness (tools/browser.mjs)
 // against the dev server (tools/dev.sh, :5219):
 //   §2  the forecast's boss floor reads `D5 0% · goblin warlord · try: attack boss` when the counter fact is known and the row
 //       is absent; tapping it inserts the row at the top of the active set (and the bestiary chip inserts at the top too)
@@ -56,7 +56,7 @@ const engineRows = () => page.evaluate(async () => (await window.__riddle.engine
 
 try {
   if (part("core")) {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   await settle();
@@ -176,7 +176,7 @@ try {
   // Cut 14 §4: a repeated chore callout coalesces on its line — `pick up ×8` — instead of eight `pick up` reads (the fake emits
   // no chore rows, so every engine batch gets one appended; the ticker is sampled every 40 ms through the run)
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
     await page.evaluate(() => {
       const r = window.__riddle, orig = r.engine.step.bind(r.engine);
@@ -199,7 +199,7 @@ try {
   // Cut 14: the `slowdowns` toggle off (settings; `riddle.slowdowns`) — the clock stays at the mode's flat 16× through a fake fight in
   // `fast` (the fight frame still opens); on again, the fight runs at 4×
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "camp");
     await page.locator("button.gear").click({ timeout: 5000 }); await sleep(250);
     const before = await page.evaluate(() => { const b = document.querySelector(".sheet-wrap .btn.slowdowns"); return { text: b?.textContent.trim(), on: b?.classList.contains("on"), row: b?.closest(".srow")?.querySelector(".label")?.textContent.trim() }; });
@@ -207,7 +207,7 @@ try {
     const after = await page.evaluate(() => { const b = document.querySelector(".sheet-wrap .btn.slowdowns"); return { text: b?.textContent.trim(), on: b?.classList.contains("on"), stored: localStorage.getItem("riddle.slowdowns"), app: window.__riddle.slowdowns }; });
     check(before.row === "slowdowns" && before.text === "on" && before.on && after.text === "off" && !after.on && after.stored === "0" && after.app === false, `the settings row toggles slowdowns: ${before.text} → ${after.text} (stored ${after.stored})`);
     await page.keyboard.press("Escape"); await sleep(150);
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
     const watch = () => page.evaluate(() => { const w = document.querySelector(".watch"); return { frame: w?.dataset.frame, speed: Number(w?.dataset.speed), ending: w?.dataset.ending === "1", slow: window.__riddle.slowdowns, held: !!w?.dataset.hold }; });
     let fightSpeeds = [], seenFight = false; const t0 = Date.now();
@@ -222,7 +222,7 @@ try {
     await page.evaluate(() => window.__riddle.setSlowdowns(true));
     // (frames sampled as they come: `measured` takes the run once more on a loaded machine — tests/lib/load.mjs)
     const slow = await measured(async () => {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch again");
     fightSpeeds = []; const t1 = Date.now();
     // (one round trip a sample, the screen with the frame: two a sample and a 60 ms sleep caught two samples of a short fight
@@ -248,7 +248,7 @@ try {
     const watch = () => page.evaluate(() => { const w = document.querySelector(".watch"), h = document.querySelector(".scrub .head"); return { screen: window.__riddle.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), tick: Number(w?.dataset.tick), frontier: Number(w?.dataset.frontier), pulses: Number(w?.dataset.pulses), ending: w?.dataset.ending === "1", card: w?.dataset.card, head: h ? parseFloat(h.style.left) : NaN, strip: !!document.querySelector(".scrub:not([hidden])") }; });
     const press = (l) => page.evaluate((l) => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === l) { b.click(); return true; } return false; }, l);
     // paused in a shown fight (`fights`): the picture holds, the world goes on
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=5&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
     let w = null; const t0 = Date.now();
     while (Date.now() - t0 < 30_000) { w = await watch(); if (w.screen !== "watch" || (w.frame === "fight" && w.tick > 0)) break; await sleep(50); }
@@ -262,7 +262,7 @@ try {
     const l1 = await watch();
     check(l1.tick >= F - 1 && (l1.speed > 0 || l1.card === "1"), `▶▶| from behind lands on the frontier (tick ${l1.tick} ≥ ${F}, speed ${l1.speed}, card ${l1.card})`);
     // a hidden tab: the picture freezes, the world runs on wall time; back, the viewer is live again
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the fast watch");
     await sleep(1500);
     const setHidden = (v) => page.evaluate((v) => { Object.defineProperty(document, "hidden", { value: v, configurable: true }); document.dispatchEvent(new Event("visibilitychange")); }, v);
@@ -273,7 +273,7 @@ try {
     check(h1.tick === h0.tick && h1.frontier >= h0.frontier + 40, `hidden 5 s: the picture held at ${h0.tick} while the world ran ${h0.frontier} → ${h1.frontier}`);
     check(h2.speed > 0 && h2.frontier - h2.tick <= 60, `back, the viewer is live (tick ${h2.tick}, frontier ${h2.frontier}, speed ${h2.speed})`);
     // a run that ends while paused (seed 157's default set dies on D1): the world reaches the exit; the exit waits for the replay
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the dying watch");
     const t1 = Date.now(); let e = null;
     while (Date.now() - t1 < 10_000) { e = await watch(); if (e.screen !== "watch" || e.tick >= 30) break; await sleep(20); }
@@ -306,7 +306,7 @@ try {
     });
     const press = (l) => page.evaluate((l) => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === l) { b.click(); return true; } return false; }, l);
     for (const seed of [516, 5]) {
-      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
       for (const wait of [3000, "card", 1200, "card", 700]) {
         // a number: a tap that long after the last; "card": a tap while the floor card is up (the travel runs under it)
@@ -327,7 +327,7 @@ try {
   // a `fights` run
   {
     for (const seed of [516, 7]) {
-      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
       let samples = 0, cards = 0; const bad = []; const t0 = Date.now();
       while (Date.now() - t0 < 20_000) {
@@ -353,7 +353,7 @@ try {
   // Cut 14 §4: the `rest 20m` banner never covers the death frame's callout line — it sits low (`.banner.rest`), under every
   // sprite and name the frame drew (rater S: `rest 20m` over `OGRE WINDS UP`)
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
     await sleep(500);
     await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); });
@@ -383,7 +383,7 @@ try {
     // (the chip and the clock read in one sample, as frames come: `measured` takes the run once more on a loaded machine)
     for (const mode of ["fast", "fights"]) {
       const lit = await measured(async () => {
-      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);
       const seen = new Map(); let bad = null; const t0 = Date.now();
       const word = mode === "fights" ? "highlights" : mode;   // (the mode id stays `fights`; its button reads `highlights`)
@@ -405,7 +405,7 @@ try {
     // (a wall-clock reading: `measured` takes a seed's run once more on a loaded machine, the bar unchanged — tests/lib/load.mjs)
     for (const seed of [516, 7]) {
       const card = await measured(async () => {
-      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
       await page.evaluate(() => {
         const w = document.querySelector(".watch"); const log = window.__cardLog = { spans: [], over: 0, since: w.dataset.card === "1" ? performance.now() : null };
@@ -431,7 +431,7 @@ try {
   // fake has no vaults: one engine batch after tick 20 carries a `vault_choice`.
   {
     for (const mode of ["fast", "fights"]) {
-      await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);
       await page.evaluate(() => {
         const r = window.__riddle, orig = r.engine.step.bind(r.engine), origChoose = r.engine.choose.bind(r.engine); let done = false;
@@ -476,7 +476,7 @@ try {
   // (wall-clock readings, here and below: `measured` takes the scene once more on a loaded machine, the bars unchanged)
   {
     const paint = await measured(async () => {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&fake_lag=1`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&fake_lag=1`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "camp (lagged)", 30_000);
     const t = await page.evaluate(async () => {
       const r = window.__riddle, log = [];

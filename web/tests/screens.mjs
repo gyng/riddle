@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Cut 13 §6 — the screen lint: the QA brief's itinerary walked on the fake engine (`?engine=fake&dev=1`, headless through
+// Cut 13 §6 — the screen lint: the QA brief's itinerary walked on the fake engine (`?engine=fake&systems=none&dev=1`, headless through
 // tools/browser.mjs against the dev server, tools/dev.sh :5219) and, on EVERY screen and sheet it opens, the checks the four
 // QA players reconciled by hand:
 //   · the text holds no `undefined` / `NaN` / `[object`
@@ -147,7 +147,7 @@ const rowsText = () => page.evaluate(() => [...document.querySelectorAll(".edito
 const t0 = Date.now();
 try {
   // 1. fresh camp (marks and gold so the shelf and the shop have something to sell)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   const seeded = await page.evaluate(async () => {
@@ -272,7 +272,7 @@ try {
   await lintScreen("camp (supply dropped)");
   await page.evaluate(() => window.__riddle.flush());
   // 10. the absence: the report, its buttons, the worst death
-  await page.goto(`${url}?dev=1&engine=fake&absent=8h`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&absent=8h`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && (x.screen === "report" || x.screen === "ending"), "the 8 h report", 120_000);
   await settle();
   await lintScreen("report (8 h)");

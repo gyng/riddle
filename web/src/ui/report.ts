@@ -9,6 +9,7 @@
 // Cut 14 §4: every exit's `trace` chip carries its exit (`D5 · died · trace`; the depth off the ledger line the exit claims, else
 // off the line's own text) — rater S: "the seventh unlabelled TRACE button"; the stalled tile carries what the stalls cost
 // (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
+import { systemIcon, systemLabel } from "./systems";
 import { measureKit, openForge } from "./forge";
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
@@ -457,7 +458,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // leaves the watch's own counts
   const usage = r.pending.map((p) => /^R(\d+) fired (\d+) of (\d+) runs/.exec(p)).filter((m): m is RegExpExecArray => !!m);
   if (usage.length) { const fires = app.rules.rows.map(() => 0); for (const m of usage) if (Number(m[1]) - 1 < fires.length) fires[Number(m[1]) - 1] = Number(m[2]); app.rowFires = fires; app.rowFiresOf = Number(usage[0][3]); }
-  void app.engine.unlocks().then((cat) => paintPending(visible(cat).filter((u) => u.available))).catch(() => { /* lines only */ });
+  void app.engine.unlocks().then((cat) => paintPending(visible(cat, app.lineage).filter((u) => u.available))).catch(() => { /* lines only */ });
   // Cut 17 §4: the console — `open` (the worst death's verdict) · `gold` (the ledger of this absence's gold) · `ledger` (the
   // bestiary, from the 5th heir); the gem is `camp`
   const bar = renderBar(app);
@@ -485,7 +486,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const learnedFacts = r.learned.filter((f) => !/^bones:\d+$/.test(f));
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
-    newsBlock(r, named, L.counters ?? []), tiles, oathProgress(app, r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    newsBlock(r, named, L.counters ?? []), opened(r), tiles, oathProgress(app, r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
   details.append(...[goldLine(), picked, exitLines, rested,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
@@ -530,6 +531,15 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const wide = wideCols(app);   // desktop: the rules left, the shaft right (wide.css)
   const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el, ...wide.els);
   return { el, dispose: () => { bar.dispose(); wide.dispose(); } };
+}
+
+/** Cut 29 §2: the systems this absence opened — each its icon and name on a plaque that glints once (no tutorial text: the camp's tile or
+ *  tablet is where it is used). */
+function opened(r: ReturnReport): HTMLElement | null {
+  const ids = (r.systems_opened ?? []).filter((id) => !["send", "dial", "headline"].includes(id));
+  if (!ids.length) return null;
+  return h("div", { class: "sys-opened" }, h("small", { class: "label dim" }, /* copy:label */ "opened"),
+    ...ids.map((id, i) => { const [ic, gl] = systemIcon(id); return h("span", { class: "sys-plaque reveal", "data-sys": id, style: `animation-delay:${0.15 * i}s` }, icon(ic, gl), h("span", { class: "sys-name" }, systemLabel(id))); }));
 }
 
 /** QA 524827b (qaAB: kept `crimson scroll?`, the report's KEPT `summon ally scroll → vault` — "no line that it was identified"): a kept

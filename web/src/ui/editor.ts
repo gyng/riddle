@@ -18,6 +18,7 @@ import type { App } from "../app";
 import type { Cond, Row, RowWhy, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash, twoTap } from "./dom";
 import { openSheet } from "./sheet";
+import { hasCurriculum, sysOpen } from "./systems";
 import { icon, verbIcon } from "./skin";
 /** gfx round 1: the action's icon plaque at a tablet's right end (camp.png); nothing when its icon is not packed. */
 const verbPlaque = (row: Row): HTMLElement | "" => { const id = verbIcon(row.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
@@ -34,7 +35,8 @@ export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; 
                         nums?(k: string): number[] | undefined;   // Cut 21 §3: a cond's values read off the lineage (`depth ≥` to best + 2); else the table's
                         rowWhy?(): (RowWhy | null)[];             // Cut 23 §3: per row, what it did over the recent sends and why not (the core's `row_why`)
                         inert?(row: Row): string | undefined;
-                        lockedGate?(row: Row, i: number): string | undefined };   // Cut 26 §6: the core's gate for a row's locked cond (`Lineage.locked_rows`)   // QA 912e135: a row that cannot act yet, and what it waits on (`identify heal`)
+                        lockedGate?(row: Row, i: number): string | undefined;
+                        canReorder?(): boolean };   // Cut 29 §2: the order opens at the first plateau (`systems` reorder) — ▲▼ and the grip's drag until then absent   // Cut 26 §6: the core's gate for a row's locked cond (`Lineage.locked_rows`)   // QA 912e135: a row that cannot act yet, and what it waits on (`identify heal`)
 /** QA 912e135 (qaW: the default `hp < 30% → drink heal` ran inert all night — `0/760 · blocked · unknown item` — while `has: heal` read
  *  `⊘ identify heal` in the cond sheet): a row whose verb uses a kind the lineage has not identified (the vocabulary's locked `has:`) and
  *  no packed supply of it (a bought one is known) waits on it — `identify heal` on the tablet. */
@@ -59,10 +61,20 @@ export function rowLocked(V: Vocabulary | undefined, r: Row): string | undefined
   for (const c of r.conds) { const n = lockedOf(V, c); if (n !== undefined) return /* copy:callout */ `locked · ${n}`; }
   return undefined;
 }
-export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id), shadowedBy: () => app.shadowedBy(),
+export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => gateVocab(app.vocab, app.lineage), changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id), shadowedBy: () => app.shadowedBy(),
   nums: (k) => k === "depth>=" ? depthNums(app.lineage?.best_depth ?? 0, app.vocab) : undefined, rowWhy: () => app.rowWhy(), inert: (r) => inertOf(app, r),
   // the core's read of the set it holds — the row at `i` there must be this row (an edit since has not reached it yet)
-  lockedGate: (r, i) => { const L = app.lineage, held = L?.sets?.[L.active_set ?? 0]?.rows[i]; return held && JSON.stringify([held.conds, held.verb]) === JSON.stringify([r.conds, r.verb]) ? L.locked_rows?.[i] ?? undefined : undefined; } });
+  lockedGate: (r, i) => { const L = app.lineage, held = L?.sets?.[L.active_set ?? 0]?.rows[i]; return held && JSON.stringify([held.conds, held.verb]) === JSON.stringify([r.conds, r.verb]) ? L.locked_rows?.[i] ?? undefined : undefined; },
+  canReorder: () => sysOpen(app.lineage, "reorder") });
+/** Cut 29 §2: the editor offers what the curriculum has opened — the foe tags (`foe: caster`, `attack tag:`) from the first foe fact, the
+ *  exits (`bank` · `return` · `rest`) from the first gold home. A row already holding one keeps it (the verb sheet lights a row's own). */
+export function gateVocab(V: Vocabulary, L: App["lineage"] | undefined): Vocabulary {
+  if (!V || !hasCurriculum(L)) return V;
+  const tags = sysOpen(L, "tags"), exits = sysOpen(L, "exits");
+  if (tags && exits) return V;
+  return { ...V, conds: V.conds.filter((c) => tags || c.k !== "foe_tag"),
+    verbs: V.verbs.filter((v) => (tags || !(v.a ?? "").startsWith("tag:")) && (exits || !["bank", "return", "rest"].includes(v.v))) };
+}
 
 /** Cut 6 §6: a row as read-only chips (`foe: ranged → kite`), shared by the card sheet and the shelf. */
 export function rowChips(row: Row): HTMLElement {
@@ -203,10 +215,11 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       chips.appendChild(h("span", { class: "arrow" }, "→"));
       chips.appendChild(h("button", { class: "chip verb", onclick: (e: Event) => pickVerb(row, rowOf(e)) }, verbLabel(row.verb)));
     }
-    const grip = h("button", { class: "grip", onpointerdown: (e) => startDrag(e as PointerEvent, i) }, "≡", h("small", { class: "rn num" }, `${i + 1}`));
+    const order = bind.canReorder?.() ?? true;
+    const grip = h("button", { class: `grip${order ? "" : " still"}`, onpointerdown: (e) => startDrag(e as PointerEvent, i, order) }, order ? "≡" : "", h("small", { class: "rn num" }, `${i + 1}`));
     const n = rows().length;
     const swap = (to: number): void => { const rs = rows(); const [r] = rs.splice(i, 1); rs.splice(to, 0, r); hl = to; hlUntil = performance.now() + 1600; commit(); };
-    const updown = h("div", { class: "updown" },
+    const updown = !order ? "" : h("div", { class: "updown" },
       h("button", { class: "step up", disabled: i === 0, onclick: () => swap(i - 1) }, "▲"),
       h("button", { class: "step down", disabled: i >= n - 1, onclick: () => swap(i + 1) }, "▼"));
     // QA 0c6e126 (qaY: a row's × deleted on the first tap, no undo — "my second tap deleted a second row"): the supplies' two-tap — the
@@ -312,7 +325,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   }
 
   // --- drag to reorder ---
-  function startDrag(e: PointerEvent, from: number): void {
+  function startDrag(e: PointerEvent, from: number, order = true): void {
     e.preventDefault();
     const rowEls = Array.from(list.children) as HTMLElement[];
     const me = rowEls[from]; if (!me) return;
@@ -322,6 +335,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     me.classList.add("dragging");
     const others = rowEls.filter((r) => r !== me);
     const move = (ev: PointerEvent): void => {
+      if (!order) return;   // Cut 29 §2: the order not open yet — the grip is only the why-not's tap
       if (Math.abs(ev.clientY - y0) > 4) moved = true;
       me.style.transform = /* copy:none */ `translateY(${ev.clientY - y0}px)`;
       to = others.filter((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 < ev.clientY; }).length;

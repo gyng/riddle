@@ -48,7 +48,7 @@ const withLineage = (fn) => page.evaluate(async (src) => {
 const words = (s) => s.trim().split(/\s+/).filter((w) => /\p{L}/u.test(w)).length;
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=2801`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=2801`, { waitUntil: "domcontentloaded" });
   await camp();
   // ---- §1: the ladder — a fresh purse affords no oath, so no board
   const fresh = await page.evaluate(() => ({ tab: !!document.querySelector(".oath-tab:not([hidden])"), board: (window.__riddle.lineage.oaths ?? []).length, gold: window.__riddle.lineage.gold, price: Math.min(...(window.__riddle.lineage.oaths ?? []).map((o) => o.price)) }));

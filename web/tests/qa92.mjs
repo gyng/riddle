@@ -54,7 +54,7 @@ const text = (sel) => page.evaluate((s) => [...document.querySelectorAll(s)].map
 
 const t0 = Date.now();
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=11`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=11`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await page.evaluate(() => { localStorage.removeItem("riddle.unlocks.all"); });
   await settle();

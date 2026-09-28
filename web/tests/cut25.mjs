@@ -47,7 +47,7 @@ const camp = async () => { await waitFor((s) => s?.booted && s.screen === "camp"
 const richSave = (gold, marks) => page.evaluate(async ([gold, marks]) => { const b = JSON.parse(window.__riddle.exportSave()); const e = JSON.parse(b.engine); e.lineage.gold = gold; if (marks !== undefined) e.lineage.marks = marks; e.lineage.best_depth = Math.max(5, e.lineage.best_depth); b.engine = JSON.stringify(e); return window.__riddle.importSave(JSON.stringify(b)); }, [gold, marks]);
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=25`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=25`, { waitUntil: "domcontentloaded" });
   await camp();
 
   // ---- §2: the `order` verdict
@@ -106,7 +106,7 @@ try {
   // (a wall-clock reading: `measured` takes the mode's run once more on a loaded machine, the bar unchanged — tests/lib/load.mjs)
   for (const m of ["fights", "fast", "one"]) {
     const drain = await measured(async () => {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=9&fake_drain=1`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=9&fake_drain=1`, { waitUntil: "domcontentloaded" });
     await camp();
     await page.evaluate((m) => { window.__riddle.watchMode = m; window.__riddle.go({ kind: "watch" }); }, m);
     const d = await page.evaluate(() => new Promise((res) => {
@@ -141,7 +141,7 @@ try {
   }
   // the plain 1×: a tile beside fights/fast; the chip's clock reads 1×; the mode is remembered and the send gem says it
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=9`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=9`, { waitUntil: "domcontentloaded" });
     await camp();
     await page.evaluate(() => { window.__riddle.watchMode = "fights"; window.__riddle.go({ kind: "watch" }); });
     await sleep(600);
@@ -159,7 +159,7 @@ try {
 
   // ---- §4: the forge's measure never waits behind the unlock shelf's
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=25&fake_lag=1`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=25&fake_lag=1`, { waitUntil: "domcontentloaded" });
     await camp(); await sleep(8000);   // the camp's own measures settle
     const t = await page.evaluate(async () => {
       const E = window.__riddle.engine, t0 = performance.now(), at = {};
@@ -171,7 +171,7 @@ try {
 
   // ---- §6: sheets — one at a time, with a back
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=25`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=25`, { waitUntil: "domcontentloaded" });
     await camp();
     const s = await page.evaluate(async () => {
       const { openSheet } = await import("/src/ui/sheet.ts"); const { h } = await import("/src/ui/dom.ts");

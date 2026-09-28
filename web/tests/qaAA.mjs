@@ -57,7 +57,7 @@ const tied = () => page.evaluate(() => !!document.querySelector(".patches-moment
 const gemText = () => page.evaluate(() => document.querySelector(".patch-gem, .gem")?.textContent.trim() ?? "");
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=26`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=26`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp"); await sleep(250);
 
   // ---- a lead that harms whole runs yields; the whole-run move reads beside the count

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// QA lapses on build 952e306 (scratchpad/qaA, qaB), client side, on the fake engine (`?engine=fake&dev=1`) through the GPU
+// QA lapses on build 952e306 (scratchpad/qaA, qaB), client side, on the fake engine (`?engine=fake&systems=none&dev=1`) through the GPU
 // harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219):
 //   1  a screen change closes every open sheet; a kept death (the chronicle's ▸) goes back to the camp on Escape (a fresh death does not)
 //   2  an owned card's chip reads `card: thief guard · owned`; its sheet carries the title and, once the row is dropped, `insert`
@@ -72,7 +72,7 @@ const fakeDeath = (kept) => page.evaluate((kept) => {
 }, kept);
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   check(await setLineage([], false), "the lineage took marks, gold, the thief fact and an empty chronicle");
@@ -281,7 +281,7 @@ try {
   // before two cards were read and `fast` picked; `measured` plays it once more then — tests/lib/load.mjs)
   const firstRun = await measured(async () => {
   cardSamples.length = 0; picked = false;
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=13&rules=${rules}&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=13&rules=${rules}&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
   const s2 = await drive(true);
   const ended = { ok: s2?.screen === "exit", line: `the run ended on the keep sheet (${s2?.screen})` };

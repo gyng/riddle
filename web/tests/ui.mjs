@@ -290,7 +290,7 @@ async function qaL() {
 /** QA 23ed91f (L): ▶▶| always moves the picture — a world that never ends (a summoner stall) and never opens a fight: each press
  *  returns within its wall budget and lands further on; a stalling run is watched at the flat rate. */
 async function stallSkip() {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&speed=fights`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "watch", "the watch for the stall", 30_000);
   await page.evaluate(() => {
     const r = window.__riddle, orig = r.engine.step.bind(r.engine); let S = null, T = 0;
@@ -325,7 +325,7 @@ async function stallSkip() {
 async function autoKeepCheck() {
   const rules = encodeURIComponent("depth>=3 → return\nfoes>=1 → attack nearest");   // qa9's run that comes home with items
   const run = async (full) => {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=13&autosend=1&speed=fast&rules=${rules}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=13&autosend=1&speed=fast&rules=${rules}`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch for the keep");
     await page.evaluate((full) => {
       const r = window.__riddle; r.__ak = 0; r.__keep = []; r.__pending = null;
@@ -364,7 +364,7 @@ async function autoKeepCheck() {
 /** Cut 19: the cage tablet and its picker's deltas; the loadout's `repeat · $120` toggle; the pinned `+1 row`; `restock capped`;
  *  the `row` verdict (seal ROW, the headline names R2); `+ drop R5` on a full set; the stake's `returning` on a return row. */
 async function cut19() {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp for Cut 19"); await settle();
   // ---- §1: no cage seen, no tablet; a `vault` fact carves it (`cage pick → weapon`)
   const cageTab = () => page.evaluate(() => { const t = document.querySelector(".camp .cage-tab"); return t && !t.hidden && t.getClientRects().length ? t.textContent.replace(/\s+/g, " ").trim() : null; });
@@ -459,7 +459,7 @@ async function cut19() {
   const applied = await page.evaluate(() => ({ screen: window.__riddle.screen, sheet: !!document.querySelector(".sheet-wrap .drop-sheet"), rows: window.__riddle.rules.rows.map((r) => r.verb.v).join(",") }));
   check(applied.screen === "camp" && !applied.sheet && applied.rows === "drink,retreat,attack,explore,rest", `the gem applies the named drop, no sheet (${JSON.stringify(applied)})`);
   // ---- §2: a return row firing turns the stake's `return at 20%` into `returning`
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp for the return walk"); await settle();
   await page.evaluate(() => {
     const r = window.__riddle, orig = r.engine.step.bind(r.engine); let n = 0;
@@ -474,7 +474,7 @@ async function cut19() {
 }
 
 async function cut18() {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp for Cut 18"); await settle();
   // ---- APPLY: two quick taps on the gem slot
   const rows0 = await page.evaluate(() => window.__riddle.rules.rows.length);
@@ -494,7 +494,7 @@ async function cut18() {
   const s2 = await page.evaluate(() => window.__riddle.screen);
   check(sent === "camp" && s2 === "watch", `the player sends: a later tap on \`send\` starts the run (${s2})`);
   // ---- the unlock tiles: both prices, the gold glow, a noise card's situation
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp for the tiles"); await settle();
   await page.evaluate(() => {
     const r = window.__riddle;
@@ -557,7 +557,7 @@ async function cut18() {
 const t0 = Date.now();
 try {
   // ---- a fresh lineage: heir 1, nothing earned (the fake seeds a chronicle and a free unlock; strip them)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await page.evaluate(() => { localStorage.removeItem("riddle.reveal"); localStorage.removeItem("riddle.unlocks.all"); });
   check(await patchSave((e) => {
@@ -748,7 +748,7 @@ try {
     check(await page.locator(".sheet-wrap .sheet > .close-stud").count() === 1, "the morgue sheet has its close stud");
     await page.keyboard.press("Escape"); await sleep(100);
   } else check(false, "no death to check the death's frame on");
-  await page.goto(`${url}?dev=1&engine=fake&absent=2h`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&absent=2h`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && (x.screen === "report" || x.screen === "ending"), "the report", 120_000); await settle();
   f = await frame();
   const plaques = await page.locator(".report .parchment .tile.plaque").count();

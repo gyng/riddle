@@ -15,6 +15,7 @@
 // Cut 16 §2: beside them, while `Lineage.class_offer` stands, a chip per owned class with its signature verb (`rogue · vanish`;
 // one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
 // row stands in for the class button while it is up.
+import { anyNew, sysOpen } from "./systems";
 import { lookStud } from "./look";
 import type { App, Mounted } from "../app";
 import type { CageOption, ForkOption, Lineage, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
@@ -100,6 +101,7 @@ export function ruleShort(rule: string): string | undefined {
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
 const SEND_ARM_MS = 800;
+const SEEN_MS = 1800;   // Cut 29 §2: a new system's glint plays before the core clears its `new`
 /** QA 92eb880 (M: "kept `sealed scroll?` … reappear as `summon ally scroll` with no line saying they were identified"): an identified
  *  item's flavour off the lineage's facts (`item:sealed=summon_ally` → `sealed`); undefined while unknown or unmatched. */
 export function keptAs(facts: string[], it: { kind: string; known: boolean }): string | undefined {
@@ -490,7 +492,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   function paintRoute(): void {
     const chips = routeChips(app.rules, app.lineage);
-    routeTab.hidden = !chips.length;
+    routeTab.hidden = !chips.length || !sysOpen(app.lineage, "route");   // Cut 29 §2: the route opens with the D5 fork seen twice
     if (!chips.length) return;
     // a fork the stair above closed (its biome deferred here) is no choice: its chip is dim
     // docs/COPY.md pass 3: the `⑂` read "no idea" 8/8, the chip `D5 burrows` as "on floor 5" — the tablet says what it sets: the route taken
@@ -668,7 +670,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       was.forEach((x, i) => { if (x > (cellHeights[i] ?? 0)) cellHeights[i] = x; });
       clear(unlocks);
       // Cut 10 §3: `+1 row` waits for the rows to fill (a client-side gate; the core may send the same `needs`)
-      const list = visible(cat).map((u) => withRowsGate(u, app.ownRows(), app.vocab.max_rows));   // Cut 12 §1: own rows
+      const list = visible(cat, app.lineage).map((u) => withRowsGate(u, app.ownRows(), app.vocab.max_rows));   // Cut 12 §1: own rows
       // Cut 6 §6: owned cards and automations stay on the shelf as chips that open their rows
       const owned = ownedRows(cat);
       if (!list.length && !owned.length) return;
@@ -779,5 +781,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     editor.paintShadow(); clearTimeout(kitTimer); paintOath();
     if (f.refined && kitAffordable(app.lineage) > 0 && (revealed(app).has("forge") || revealed(app).has("kit"))) { const seq = app.forecastSeq, rows = JSON.stringify(app.rules.rows); kitTimer = window.setTimeout(() => { if (seq === app.forecastSeq && rows === JSON.stringify(app.rules.rows) && el.isConnected) void measureKit(app)?.catch(() => undefined); }, KIT_QUIET_MS); }
   });   // QA 92eb880: a shadowed row's mark lands with the forecast of the rules now
-  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  // Cut 29 §2: the systems the core opened since the camp last looked glint on this paint (reveal.ts reads `new`); once shown the core
+  // forgets them (`seenSystems`), quietly — the next paint is an ordinary one
+  const seenTimer = anyNew(app.lineage) && app.engine.seenSystems ? window.setTimeout(() => { void app.engine.seenSystems!().then((L) => { if (L) app.lineage = L; }).catch(() => undefined); }, SEEN_MS) : 0;
+  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); clearTimeout(seenTimer); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

@@ -47,7 +47,7 @@ const patchLineage = (patch) => page.evaluate(async (p) => {
 
 try {
   const rules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=12 → bank");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=31&rules=${rules}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=31&rules=${rules}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await sleep(300);
 
@@ -127,7 +127,7 @@ try {
 
   await shot("qa21-toll-short-watch");
   }
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=32&rules=${rules}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=32&rules=${rules}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
 
   // ---- 2: one forecast on the shaft and the panel — the first pass, then the refine

@@ -39,7 +39,7 @@ async function measure(seed) {
   page.on("pageerror", (e) => errors.push(`seed ${seed}: pageerror: ${e.message}`));
   const row = { seed, screenS: null, fights: 0, exit: null, depth: null, vaults: 0, error: null };
   try {
-    await page.goto(`${url}?dev=1&fresh=1&seed=${seed}&autosend=1${opt.engine === "fake" ? "&engine=fake" : ""}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&fresh=1&seed=${seed}&autosend=1${opt.engine === "fake" ? "&engine=fake&systems=none" : ""}`, { waitUntil: "domcontentloaded" });
     const st = () => page.evaluate(() => {
       const r = window.__riddle, w = document.querySelector(".watch");
       return r ? { screen: r.screen, booted: r.booted, fights: Number(w?.dataset.fights ?? 0), depth: document.querySelector(".watch .depth")?.textContent ?? null, vault: !!document.querySelector(".sheet-wrap .vault-choice .chip") } : null;

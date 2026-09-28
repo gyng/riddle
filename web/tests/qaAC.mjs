@@ -58,7 +58,7 @@ const tablets = () => page.evaluate(() => [...document.querySelectorAll(".patche
 const gemText = () => page.evaluate(() => document.querySelector(".patch-gem, .gem")?.textContent.replace(/\s+/g, " ").trim() ?? "");
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=26`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=26`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp"); await sleep(250);
 
   // ---- the gem waits for the whole-run measure; the landing is matched patch by patch; an exit reads its price

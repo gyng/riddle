@@ -5,6 +5,7 @@
 // `vs sent` line: `R5 now → lives · D9 · vs dies · D7` (a tap plays it again). A move inside its ± plays too when the sets act
 // differently somewhere, and its line says what changed (`≈ ±6 · R3 fires 4× more`). Under `prefers-reduced-motion` the scene is the
 // two branches' end frames side by side, still. Shown for a move ≥ SCENE_MOVE outside its ±, or any `≈` move with a divergence.
+import { sysOpen } from "./systems";
 import type { App } from "../app";
 import type { Divergence, DivergenceBranch, DivergenceEnd, Row, RowFires, RuleSet } from "../engine/types";
 import { h, replace } from "./dom";
@@ -136,6 +137,7 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
     if (gen !== rulesGen) return;
     const f = app.lastForecast, prev: RuleSet | null = app.sentSet();
     if (!f || f.refined !== true || !prev || !app.engine.divergence) return;
+    if (!sysOpen(app.lineage, "divergence")) return;   // Cut 29 §2: the scene opens with the Warlord met
     // Cut 28 §2 (AV: the scene said `R2 now → dies` when the pets had died): the scene is a row edit's — a route or any state change
     // is not a row that fires differently (the state's part is its own line, `party −2 jackals · death +24`)
     if (JSON.stringify(prev.rows.map((r) => [r.conds, r.verb])) === JSON.stringify(app.rules.rows.map((r) => [r.conds, r.verb]))) return;

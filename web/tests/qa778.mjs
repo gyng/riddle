@@ -43,7 +43,7 @@ const txt = (sel) => page.evaluate((s) => { const e = document.querySelector(s);
 
 try {
   const rules = encodeURIComponent("hp<30% → drink heal\nfoes>=1 → attack nearest\ndepth>=6 → bank");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=778&rules=${rules}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=778&rules=${rules}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await until(() => page.evaluate(() => document.querySelector(".camp .shaft")?.dataset.fc), "the first forecast");
   await sleep(300);

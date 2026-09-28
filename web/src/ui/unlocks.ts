@@ -3,6 +3,7 @@
 // hidden until row5 is owned, etc.) so the camp shows one step at a time.
 // Cut 9 §2: every buy goes through `openUnlockSheet` — the card's rows / effect, `◆cost`, `needs` when gated, `reach ±N%`
 // when known, then `buy`. No card buys on its own tap; a disabled card still opens the sheet to show its gate.
+import { sysOpen } from "./systems";
 import type { App } from "../app";
 import { revealed } from "./reveal";
 import { engagementRow, safetyEnd } from "../app";
@@ -49,10 +50,11 @@ export function withRowsGate(u: UnlockCard, rows: number, max: number): UnlockCa
 
 /** Catalogue entries worth showing: not owned, and the previous step of a chain owned.
  *  `gated`: unavailable with a `needs` gate still missing (the core sends `needs` only while unmet). */
-export function visible(catalogue: UnlockInfo[]): UnlockCard[] {
+export function visible(catalogue: UnlockInfo[], L?: Pick<Lineage, "systems">): UnlockCard[] {
   const owned = new Set(catalogue.filter((u) => u.owned).map((u) => u.id));
+  const autos = sysOpen(L, "automations");   // Cut 29 §2: the automations (gold) open with the Lich met
   return catalogue
-    .filter((u) => !u.owned && (!AFTER[u.id] || owned.has(AFTER[u.id])))
+    .filter((u) => !u.owned && (!AFTER[u.id] || owned.has(AFTER[u.id])) && (autos || !u.gold_only))
     .map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " "), gated: !u.available && !!u.needs }));
 }
 /** Cut 10 §3 / Cut 12 §1: a card's reach delta says where the card goes — `reach +4% at R3` (the catalogue's `insert_at`), else
