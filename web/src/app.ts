@@ -15,6 +15,7 @@ import { lastRun, type RunLog } from "./ui/runlog";
 import { showBusy } from "./ui/progress";
 import { audio } from "./audio";
 import { applySkin } from "./ui/skin";
+import { mergeMeters } from "./ui/meters";
 import { basesOf, linSum, readSnap, rulesKey, sharesOf, stateLabel, stateTerms, writeSnap, type StateMove, type StateSnap } from "./ui/attrib";
 
 export type Screen =
@@ -925,6 +926,14 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     spent: spent ? [...spent].map(([kind, v]) => ({ kind, ...v })) : undefined,
     renown: { gained: a.renown.gained + b.renown.gained, rank: b.renown.rank, ranks_up: a.renown.ranks_up + b.renown.ranks_up },
     ...mergeLead(a, b),
+    // Cut 29: the night's mark adds up; systems opened in curriculum order (a later slice's after the earlier's); the extra slots'
+    // kept oaths and the fallen companions in order; the wall is a state — the last slice knows; the night's meter field by field
+    night_marks: sum(a.night_marks, b.night_marks),
+    systems_opened: a.systems_opened || b.systems_opened ? union(a.systems_opened ?? [], b.systems_opened ?? []) : undefined,
+    oaths_kept: cat(a.oaths_kept, b.oaths_kept),
+    fallen: cat(a.fallen, b.fallen),
+    wall: b.wall,
+    meters: mergeMeters(a.meters, b.meters),
   };
 }
 /** Cut 28 §1–2: the sworn oath's night adds up across slices of one oath (a kept one wins: its reward was granted), and the report's
