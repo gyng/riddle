@@ -252,6 +252,24 @@ try {
     const gone = await page.evaluate(() => !document.querySelector(".repeat-add:not([hidden]) .repeat-add-chip"));
     check(gone, `one tap packs it (buySupply) and the offer leaves (${gone})`);
   }
+  // ---- §6: the passage apart from a run's gold; the fallen by name
+  if (part("lines")) {
+    await boot(2908);
+    await withState((e) => { e.sys29 = { open: ["send", "dial", "headline", "edit", "death", "exits", "loadout", "walls"], fresh: [], plateau: false, works: [], meters: [], insure: true }; Object.assign(e.lineage, { best_depth: 9, heir: 3 }); });
+    await camp();
+    await until(() => window.__riddle.lastForecast?.ends, "the forecast's ends");
+    await page.evaluate(() => { const r = window.__riddle;
+      for (const m of ["forecast", "forecastRefine"]) { const o = r.engine[m]?.bind(r.engine); if (o) r.engine[m] = async (...a) => { const f = await o(...a); return f?.ends ? { ...f, ends: { ...f.ends, gold: 260, passage: 135 } } : f; }; }
+      r.rulesChanged(); r.go({ kind: "camp" }); });
+    await camp();
+    const g = await until(() => { const x = document.querySelector(".shaft .end.gold"); return x && /passage$/.test(x.textContent.trim()) ? x.textContent.replace(/\s+/g, " ").trim() : null; }, "the passage on the shaft", 8000).catch(() => null);
+    check(g === "~$125/run +$135 passage", `the shaft's gold is a run's, the passage apart ("${g}")`);
+    await page.evaluate(() => { window.__riddle.go({ kind: "report", report: { elapsed_s: 3600, runs: 4, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, tamed: [], hatched: [], lost: [], xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, live: false, banked: 2, returned: 2,
+      fallen: [{ name: "Greth", kind: "ogre", level: 5, depth: 12, why: "fell D12 to lurker", heir: 3 }] } }); });
+    const f = await until(() => document.querySelector(".fallen-sec .fallen-line")?.textContent.replace(/\s+/g, " ").trim() ?? null, "the fallen line");
+    check(f === "Greth · ogre L5 · fell D12 to lurker", `a fallen companion is a named line among the decisions ("${f}")`);
+    await shot("cut29-fallen");
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 }

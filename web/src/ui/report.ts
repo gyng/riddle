@@ -487,7 +487,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const learnedFacts = r.learned.filter((f) => !/^bones:\d+$/.test(f));
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
-    newsBlock(r, named, L.counters ?? []), opened(r), tiles, oathProgress(app, r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    newsBlock(r, named, L.counters ?? []), opened(r), tiles, oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
@@ -536,6 +536,15 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const wide = wideCols(app, meterOf ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null);   // desktop: the rules left, the shaft right (wide.css)
   const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el, ...wide.els);
   return { el, dispose: () => { bar.dispose(); wide.dispose(); } };
+}
+
+/** Cut 29 §6 (AX: Greth the tamed ogre, L5, gone with only `party −1 ogre`): each companion that fell, by name — `Greth · ogre L5 · fell D12
+ *  to lurker` — among the decisions, not the ledger. */
+function fallenLines(r: ReturnReport): HTMLElement | null {
+  const f = r.fallen ?? [];
+  if (!f.length) return null;
+  return h("section", { class: "rsec fallen-sec" }, h("div", { class: "label" }, /* copy:label */ "fallen"),
+    h("ul", { class: "lines fallen" }, ...f.map((x) => h("li", { class: "fallen-line num" }, h("b", null, x.name), ` · ${x.kind.replace(/_/g, " ")} L${x.level} · `, h("span", { class: "dim" }, x.why)))));
 }
 
 /** Cut 29 §2: the systems this absence opened — each its icon and name on a plaque that glints once (no tutorial text: the camp's tile or

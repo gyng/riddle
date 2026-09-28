@@ -211,6 +211,9 @@ export function lmoveLine(app: App, f: Forecast | null): HTMLElement | null {
   const m = moveOf({ delta: d.delta, pm: d.pm }); if (!m) return null;
   return h("div", { class: `shaft-lm num dlt-line`, "data-k": lm.label }, h("span", { class: "vs-label" }, lm.label), h("span", { class: "vs-term" }, h("i", { class: "sep" }, " · "), `D${d.depth} `, h("b", { class: `dlt ${m.dir}` }, m.text)));
 }
+/** Cut 29 §6 (AX: `$81` banked under `~$260`): the waystone passage the send pays into the purse is apart from what a run brings home —
+ *  `~$125/run +$135 passage`. */
+const passageEl = (p: number | undefined): HTMLElement | "" => p && p > 0 ? h("small", { class: "passage dim" }, /* copy:callout */ ` +$${Math.round(p)} passage`) : "";
 export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const bars = h("div", { class: "fc-bars" });
   const causes = h("div", { class: "fc-causes" });
@@ -248,7 +251,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     const epm = pmShown(e.death, e.pm);
     const pm = epm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${epm}${f.refined === false ? "…" : ""}`) : "";
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
-    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${eh(e.bank)} · return ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold)}/run`));
+    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${eh(e.bank)} · return ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, ` · ~$${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -455,7 +458,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
       h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true))),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
-      h("span", { class: "end gold" }, /* copy:callout */ `~$${Math.round(e.gold)}/run`, rough ? h("i", { class: "settling" }, "…") : ""));
+      h("span", { class: "end gold" }, /* copy:callout */ `~$${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), rough ? h("i", { class: "settling" }, "…") : ""));
     replace(oathEl, shaftOath(app)); oathEl.hidden = !oathEl.childElementCount;
     const line = vsLine(app, vs, last, !!e && showEnds()), lm = lmoveLine(app, last), st = stateLine(app);
     vsHost.hidden = !line && !lm && !st; replace(vsHost, st ?? "", lm ?? "", line ?? "");
