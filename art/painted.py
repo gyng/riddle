@@ -37,6 +37,12 @@ PIECES: dict[str, tuple[str, str, str]] = {
     "barrel": ("env_keyed", "16x16", "a wooden BARREL standing upright, its round lid visible on top, two dark iron hoops, lit upper-left; the object only, on flat pure blue #0000FF"),
     "crate": ("env_keyed", "16x16", "a wooden CRATE with a diagonal cross-brace and iron corner plates, lit upper-left; the object only, on flat pure blue #0000FF"),
     "pot": ("env_keyed", "16x16", "a clay POT / urn with a dark mouth and a cracked lip, lit upper-left; the object only, on flat pure blue #0000FF"),
+    # gfx round 21 (raters: "rooms are bare grey tile fields"): the dressing — the renderer's prop names, painted per biome
+    "skulls": ("env_keyed", "16x16", "a low PILE OF SKULLS AND BONES, four or five skulls with dark eye sockets and a few long bones, lit upper-left; the object only, on flat pure blue #0000FF"),
+    "chest": ("env_keyed", "16x16", "a closed TREASURE CHEST with iron bands and a lock plate, domed lid, lit upper-left; the object only, on flat pure blue #0000FF"),
+    "rack": ("env_keyed", "16x20", "a WEAPON RACK standing against a wall, front view: two spears and a sword upright in a wooden frame, a round shield leaning at its foot; the object only, on flat pure blue #0000FF"),
+    "statue": ("env_keyed", "16x24", "a small broken STATUE on a square plinth, front view: a hooded kneeling knight carved in the biome's stone, one arm broken off; the object only, on flat pure blue #0000FF"),
+    "bones": ("env_keyed", "16x16", "a scatter of old BONES and a cracked skull lying flat on the floor, seen from above; the object only, on flat pure blue #0000FF"),
 }
 
 # per biome: the materials and light; the Burrows and the Fens (the D5 fork) stay distinct at a glance
@@ -119,8 +125,21 @@ def convert(src: Path, bg: str, texels: tuple[int, int], key_source) -> Image.Im
         im = Image.fromarray(a.astype(np.uint8), "RGB").quantize(PAINT_COLOURS, method=Image.Quantize.MEDIANCUT).convert("RGBA")
         return im
     rgba = key_source(src)
-    ys, xs = np.where(rgba[..., 3] > 16)
-    rgba = rgba[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    m = rgba[..., 3] > 16
+    # (stray specks and dashes Codex leaves on the key are not the object): the band of rows, then of columns, holding the most pixels
+    def band(counts: np.ndarray) -> tuple[int, int]:
+        on = counts > 0; best, cur, bs, s0 = (0, len(counts) - 1), 0, -1, 0
+        for i, v in enumerate(list(on) + [False]):
+            if v and cur == 0: s0 = i
+            if v: cur += int(counts[i])
+            elif cur: 
+                if cur > bs: bs, best = cur, (s0, i - 1)
+                cur = 0
+        return best
+    r0, r1 = band(m.sum(1)); m2 = m[r0:r1 + 1]; c0, c1 = band(m2.sum(0))
+    rgba = rgba[r0:r1 + 1, c0:c1 + 1].copy()
+    lab = rgba[..., 3] > 16
+    rgba[..., 3] = np.where(lab, rgba[..., 3], 0)
     h, w = rgba.shape[:2]
     s = min((tw - 2) / w, (th - 1) / h)
     nw, nh = max(1, round(w * s)), max(1, round(h * s))
@@ -132,8 +151,8 @@ def convert(src: Path, bg: str, texels: tuple[int, int], key_source) -> Image.Im
     out[y0:y0 + nh, x0:x0 + nw] = o
     solid = out[..., 3] > 0
     rim = np.zeros_like(solid)
-    for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
-        rim |= np.roll(solid, (dy, dx), (0, 1))
+    pad = np.pad(solid, 1)   # (np.roll wrapped the bottom row's rim onto the top row: a stray dash over every prop)
+    rim |= pad[1:-1, 2:] | pad[1:-1, :-2] | pad[2:, 1:-1] | pad[:-2, 1:-1]
     rim &= ~solid
     out[rim] = (14, 10, 8, 255)
     im = Image.fromarray(out, "RGBA")

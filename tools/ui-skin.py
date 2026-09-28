@@ -104,6 +104,23 @@ def main() -> None:
         sc = 256 / max(im.size)
         im.resize((round(im.width * sc), round(im.height * sc)), Image.LANCZOS).save(OUT / "fx" / f"{p.stem}.webp", quality=88, method=6)
         fx.append(p.stem)
+        # gfx round 21 (raters: "the painted shield clashes with the pixel sprites"): the same art cut to the sprites' pixel register — a box
+        # downscale (the shield 28 px, a shard 12 px), <= 16 colours, a hard alpha and a 1-px dark outline; drawn `pixelated` 3x in the view
+        px = 32 if p.stem == "shield" else 14
+        s2 = px / max(im.size)
+        small = im.resize((max(1, round(im.width * s2)), max(1, round(im.height * s2))), Image.BOX)
+        a = small.getchannel("A").point(lambda v: 255 if v >= 110 else 0)
+        from PIL import ImageEnhance
+        rgb = ImageEnhance.Contrast(ImageEnhance.Brightness(small.convert("RGB")).enhance(1.35)).enhance(1.4)   # (a box average goes muddy at 28 px)
+        rgb = rgb.quantize(16, method=Image.Quantize.MEDIANCUT).convert("RGB")
+        pix = Image.new("RGBA", small.size, (0, 0, 0, 0))
+        pix.paste(rgb, (0, 0), a)
+        edge = Image.new("RGBA", (small.width + 2, small.height + 2), (0, 0, 0, 0))
+        for dx, dy in ((0, 1), (2, 1), (1, 0), (1, 2)):
+            edge.paste((16, 10, 8, 255), (dx, dy), a)
+        edge.alpha_composite(pix, (1, 1))
+        edge.save(OUT / "fx" / f"{p.stem}_px.png")
+        fx.append(f"{p.stem}_px")
     # keys other tools own (tools/foe-portraits.py `foes`) are kept
     old = json.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
     old.update({"frames": frames, "icons": icons, "portraits": portraits, "backdrops": backdrops, "deco": deco, "fx": fx})

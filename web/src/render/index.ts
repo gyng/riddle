@@ -227,7 +227,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   const quality = new Quality(renderer.getContext());
   const field = new LightField();
   const bloom = new Bloom(rt.texture);
-  const juice = new Juice(env, quality, () => atlas.solid("#ffffff"), (ch) => atlas.font(ch));
+  const juice = new Juice(env, quality, () => atlas.solid("#ffffff"), (ch) => atlas.font(ch), () => atlas.coin());
   const normals = new SpriteNormals(spr);   // juice pass 2: derived sprite normals, drawn by a twin of the entity layer (high)
   normals.add(L.ents.twin(normals.material));
   scene.add(juice.emit.mesh, juice.matte.mesh, juice.nums.mesh);
@@ -520,20 +520,25 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const walls = +n + +sw + +e + +w, corner = (n || sw) && (e || w);
     const hp = hash2(x, y, 7);
     const free = !st.items.some((it) => it.x === x && it.y === y);
-    if (walls >= 1 && walls <= 2 && (corner ? hp < 0.55 : hp < 0.07) && free) {   // gfx round 2: props at more corners and along walls
+    if (walls >= 1 && walls <= 2 && (corner ? hp < 0.78 : hp < 0.15) && free) {   // (round 21: set dressing denser — raters: "bare grey tile fields")   // gfx round 2: props at more corners and along walls
       // gfx round 10 (raters: "rooms are empty brown grids — barrels, bones, banners"): skull piles and chests join the corners
       const k = hash2(x, y, 8), name = k < 0.34 ? "barrel" : k < 0.6 ? "crate" : k < 0.74 ? "pot" : k < 0.9 ? "skulls" : "chest";
       const f = atlas.envTile(b, name) ?? atlas.envTile(b, "barrel");
       if (f) { L.decor.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
     }
     // gfx round 10: against a north wall, now and then a weapon rack or a broken statue; candles at a wall's foot (a small warm light)
-    if (n && !sw && !e && !w && free && hp > 0.55 && hp < 0.62) {
+    if (n && !sw && !e && !w && free && hp > 0.5 && hp < 0.66) {
       const f = atlas.envTile(b, hash2(x, y, 13) < 0.5 ? "rack" : "statue");
       if (f) { L.decor.push(wx, wy + 1, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
     }
     if (walls >= 1 && free && hp > 0.9 && hp < 0.935) {
       const f = atlas.hue("candles");
       if (f) { L.decorHue.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, Math.max(dim, 0.9)); if (dim > 0.5) candles.push([wx, wy + 3]); return; }
+    }
+    // gfx round 21: the odd bones or skull heap on the open floor (floor detail, painted per biome)
+    if (walls === 0 && free && hash2(x, y, 15) < 0.025) {
+      const f = atlas.envTile(b, hash2(x, y, 16) < 0.6 ? "bones" : "skulls");
+      if (f) { L.decor.push(wx, wy, 0.25, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
     }
     // a standing brazier in the open floor of a big room (its fire lights the room)
     if (walls === 0 && free && hash2(x, y, 14) < 0.018 && !isWall(x - 2, y) && !isWall(x + 2, y) && !isWall(x, y - 2) && !isWall(x, y + 2)) {

@@ -180,9 +180,14 @@
  ],
  "fx": [
   "shard_0",
+  "shard_0_px",
   "shard_1",
+  "shard_1_px",
   "shard_2",
+  "shard_2_px",
   "shard_3",
-  "shield"
+  "shard_3_px",
+  "shield",
+  "shield_px"
  ]
 }

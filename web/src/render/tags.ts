@@ -62,6 +62,9 @@ const CSS = `
 .rshatter::before { content: ""; position: absolute; inset: -30%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 230, 170, .85), rgba(255, 150, 60, .35) 40%, transparent 70%); animation: rsh-glow 1.1s ease-out both; }
 @keyframes rsh-glow { 0% { opacity: 0; transform: scale(.4); } 15% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
 .rshatter { width: 120px; height: 120px; }
+.rshatter.px { width: 96px; height: 96px; }
+.rshatter.px i, .rshatter.px b { image-rendering: pixelated; filter: drop-shadow(0 2px 0 #000); }
+.rshatter.px b { width: 42px; height: 42px; left: 27px; top: 27px; }
 .rshatter b { position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; background: center / contain no-repeat; filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 5px rgba(255, 200, 120, .7));
   animation: rsh-shard 1.3s cubic-bezier(.15, .7, .35, 1) .18s both; }
 @keyframes rsh-shard { 0% { opacity: 0; transform: scale(.6); } 8% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 40px)) rotate(var(--rot)) scale(.9); } }
@@ -86,8 +89,10 @@ const CSS = `
 import skin from "../ui/skin.json";
 /** gfx round 10: the painted boss shield and its shards (art/ui/fx, Codex) when packed; else the verb icon split in two */
 const FX = new Set<string>((skin as { fx?: string[] }).fx ?? []);
-const SHIELD = FX.has("shield") ? "/ui/fx/shield.webp" : "/ui/icons/v_shield.png";
-const SHARDS = [0, 1, 2, 3].filter((i) => FX.has(`shard_${i}`)).map((i) => `/ui/fx/shard_${i}.webp`);
+// gfx round 21 (raters: "the painted shield clashes with the pixel sprites"): the pixel-register cut (tools/ui-skin.py `_px`), drawn pixelated
+const PX = FX.has("shield_px");
+const SHIELD = PX ? "/ui/fx/shield_px.png" : FX.has("shield") ? "/ui/fx/shield.webp" : "/ui/icons/v_shield.png";
+const SHARDS = [0, 1, 2, 3].filter((i) => FX.has(`shard_${i}${PX ? "_px" : ""}`)).map((i) => `/ui/fx/shard_${i}${PX ? "_px.png" : ".webp"}`);
 let shieldOk = false;
 if (typeof Image !== "undefined") { const im = new Image(); im.onload = () => { shieldOk = true; }; im.src = SHIELD; for (const u of SHARDS) new Image().src = u; }
 
@@ -169,8 +174,8 @@ export class TagLayer {
    *  falls away (CSS, 0.8 s). Only once the icon has loaded (art never blocks: no icon, no shatter). */
   shatter(x: number, y: number): void {
     const r = this.root; if (!r || !shieldOk) return;
-    const el = document.createElement("div"); el.className = "rshatter";
-    el.style.transform = `translate(${Math.round(x - 60)}px, ${Math.round(y - 96)}px)`;   // (round 14: above his head, not over his face)
+    const el = document.createElement("div"); el.className = PX ? "rshatter px" : "rshatter";
+    el.style.transform = `translate(${Math.round(x - (PX ? 48 : 60))}px, ${Math.round(y - (PX ? 84 : 96))}px)`;   // (round 14: above his head, not over his face)
     for (let i = 0; i < 2; i++) { const h = document.createElement("i"); h.style.backgroundImage = `url(${SHIELD})`; el.appendChild(h); }
     // gfx round 10 (raters: "burst the shield into big shards"): the painted shards fly out, spinning, and fall
     SHARDS.forEach((u, i) => { const b = document.createElement("b"); b.style.backgroundImage = `url(${u})`; b.style.setProperty("--dx", `${[-70, 64, -34, 44][i]}px`); b.style.setProperty("--dy", `${[-30, -44, 60, 38][i]}px`); b.style.setProperty("--rot", `${[-220, 260, -140, 190][i]}deg`); el.appendChild(b); });

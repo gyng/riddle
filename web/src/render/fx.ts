@@ -175,7 +175,10 @@ export class Juice {
   private emitAcc = 0;
   clock = 0;   // the replay clock (ticks) as of the last update: squash is timed in ticks
 
-  constructor(env: THREE.Texture, q: Quality, white: () => Slot, font: (ch: string) => Slot) {
+  private coinSlot: (() => Slot) | null = null;
+  private coin = new Uint8Array(POOL);   // gfx round 21: a particle drawn as the coin sprite, spinning
+  constructor(env: THREE.Texture, q: Quality, white: () => Slot, font: (ch: string) => Slot, coin?: () => Slot) {
+    this.coinSlot = coin ?? null;
     this.q = q;
     this.emit = new TintLayer(env, POOL, EMISSIVE_TAG, false, 8);
     this.matte = new TintLayer(env, POOL, 0.5, false, 8);
@@ -277,13 +280,13 @@ export class Juice {
 
   private pop(x: number, y: number, r: number, c: Rgb, life: number, now: number): void { if (this.pops.length < 16) this.pops.push({ x, y, r, c, t0: now, life }); }
 
-  private spawn(x: number, y: number, vx: number, vy: number, life: number, size: number, c: Rgb, o: { glow?: boolean; grav?: number; floor?: number; drag?: number; disc?: boolean; alpha?: number; fadeTo?: number; sway?: number } = {}): void {
+  private spawn(x: number, y: number, vx: number, vy: number, life: number, size: number, c: Rgb, o: { glow?: boolean; grav?: number; floor?: number; drag?: number; disc?: boolean; alpha?: number; fadeTo?: number; sway?: number; coin?: boolean } = {}): void {
     if (this.live >= POOL) return;
     const i = this.live++;
     this.px[i] = x; this.py[i] = y; this.vx[i] = vx; this.vy[i] = vy; this.life[i] = life; this.max[i] = life; this.size[i] = size;
     this.r0[i] = c[0]; this.g0[i] = c[1]; this.b0[i] = c[2];
     this.glow[i] = o.glow ? 1 : 0; this.grav[i] = o.grav ?? 0; this.floor[i] = o.floor ?? -1e9; this.drag[i] = o.drag ?? 0;
-    this.disc[i] = o.disc ? 1 : 0; this.alpha[i] = o.alpha ?? 1; this.fadeTo[i] = o.fadeTo ?? 1; this.sway[i] = o.sway ?? 0;
+    this.disc[i] = o.disc ? 1 : 0; this.coin[i] = o.coin ? 1 : 0; this.alpha[i] = o.alpha ?? 1; this.fadeTo[i] = o.fadeTo ?? 1; this.sway[i] = o.sway ?? 0;
   }
 
   private burst(n: number, x: number, y: number, speed: number, c: Rgb, life: number, size: number, o: Parameters<Juice["spawn"]>[7] = {}, up = 0): void {
@@ -374,7 +377,7 @@ export class Juice {
           this.pop(cx, cy, 3.5, [bc[0] * 0.8, bc[1] * 0.8, bc[2] * 0.8], 420, now);
           // gfx round 1 (raters: "a boss kill deserves a loot burst"): his hoard spills — gold fountains up and rains down around him
           // gfx round 18 (raters, every round: "a loot burst from the corpse"): twice the coins, bigger, spilling wider and lying glinting
-          for (let i = 0; i < 52; i++) { const a = -Math.PI / 2 + (this.rand() - 0.5) * 2.6; const sp = 55 + this.rand() * 75; this.spawn(cx + (this.rand() - 0.5) * 8, e.y + e.h * 0.5, Math.cos(a) * sp * 0.75, -Math.sin(a) * sp, 2.2 + this.rand() * 1.4, this.rand() < 0.55 ? 2 : 1, C.gold, { glow: true, grav: -150, floor: e.y - 3 - this.rand() * 10, drag: 0.5 }); }
+          for (let i = 0; i < 52; i++) { const a = -Math.PI / 2 + (this.rand() - 0.5) * 2.6; const sp = 55 + this.rand() * 75; this.spawn(cx + (this.rand() - 0.5) * 8, e.y + e.h * 0.5, Math.cos(a) * sp * 0.75, -Math.sin(a) * sp, 2.2 + this.rand() * 1.4, this.rand() < 0.55 ? 2 : 1, C.gold, { glow: i % 3 === 0, coin: i % 3 !== 0, grav: -150, floor: e.y - 3 - this.rand() * 10, drag: 0.5 }); }   // (round 21: two in three are coin sprites, the rest glints)
         }
         else if (x.speed <= 1.5) this.hitStop(55, now);
         break;
@@ -525,6 +528,10 @@ export class Juice {
       const L = this.glow[i] ? this.emit : this.matte;
       // whole target pixels (half env texels): crisp
       const X = Math.round(this.px[i]! * 2) / 2, Y = Math.round(this.py[i]! * 2) / 2;
+      if (this.coin[i] && this.coinSlot) {   // a coin: its own sprite at 3 world units (6 target pixels, 1:1), spinning on its axis
+        const sp = Math.abs(Math.cos(this.life[i]! * 9 + i)), cw = Math.max(1, Math.round(6 * sp)) / 2;
+        this.matte.push(X, Y, 3.9, cw, 3, this.coinSlot(), k, k, k, a, 0); continue;
+      }
       L.push(X, Y, 3.9, s, s, w, this.r0[i]! * k, this.g0[i]! * k, this.b0[i]! * k, a, this.disc[i]!);
     }
     // numbers: pop in at 2× for 90 ms, then rise and dissolve over 800 ms

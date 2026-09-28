@@ -98,13 +98,20 @@ async function castStrip(page, name, trigger = null) {
   cdp.on("Page.screencastFrame", (f) => { got.push({ t: f.metadata.timestamp * 1000, data: f.data }); cdp.send("Page.screencastFrameAck", { sessionId: f.sessionId }).catch(() => {}); });
   // (half-size JPEG frames: a full-size PNG took ~100 ms to encode on a loaded machine and the frames arrived after the window closed)
   const vp = page.viewportSize();
-  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 85, maxWidth: vp.width, maxHeight: vp.height, everyNthFrame: 1 });
+  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 90, maxWidth: Math.round(vp.width * (await page.evaluate(() => devicePixelRatio))), maxHeight: Math.round(vp.height * (await page.evaluate(() => devicePixelRatio))), everyNthFrame: 1 });   // gfx round 21: full device resolution (the motion image)
   await sleep(150);
   const start = Date.now(); if (trigger) await trigger();
   await sleep(1400);   // the window is 540 ms; the rest lets the last frames arrive
   await cdp.send("Page.stopScreencast").catch(() => {});
   await cdp.detach().catch(() => {});
   const base = join(out, name);
+  // gfx round 21 (the coordinator: raters could not see ambient motion in quarter-size strips): two more frames 0.5 s and 1 s on, for the
+  // full-resolution motion image (`-motion.png`: the first frame, and it dimmed with every pixel that changed in red)
+  for (const [k, dt] of [["m1", 500], ["m2", 1000]]) {
+    const want = start + dt; let best = got[0];
+    for (const f of got) if (Math.abs(f.t - want) < Math.abs((best?.t ?? 0) - want)) best = f;
+    if (best) writeFileSync(`${base}-${k}.jpg`, Buffer.from(best.data, "base64"));
+  }
   for (let i = 0; i < 4; i++) {
     const want = start + i * 180; let best = got[0];
     for (const f of got) if (Math.abs(f.t - want) < Math.abs((best?.t ?? 0) - want)) best = f;
@@ -114,6 +121,22 @@ async function castStrip(page, name, trigger = null) {
   return got.length;
 }
 const stripNow = (page, name) => castStrip(page, name);
+/** gfx round 21: what each moment is meant to show moving (the rater prompt quotes it) */
+const MOVES = {
+  "watch": "the hero and foes walking and fighting, attack flashes, damage numbers, callout plates, torch flicker, ghost bob, mist",
+  "fight": "the exchange of blows: lunges, hit flashes, damage numbers, blood, a death",
+  "boss-in": "the boss dropping into his arena, the summoning ring, the purple wash, his name plate, fire",
+  "boss-break": "the shield splitting and its shards flying, the BROKEN stamp slamming, the boss staggering, sparks",
+  "boss-fall": "the boss falling into his death pose, the SLAIN stamp, the coin burst, the white flash",
+  "report": "the plaques stamping in on arrival, drifting embers, the CAMP gem's pulse, the gilt plaque's glow",
+  "death": "the banner dropping and swaying, the seal stamping, the killer medallion, the fix rows sliding in, embers, the APPLY gem",
+  "camp": "the braziers' flames and their glow, drifting embers, the SEND gem's pulse",
+  "scene": "the replay inside the inset (the hero moving), the verdict plate",
+  "edit": "the sheet dropping in and settling, the candle light on the parchment",
+  "forecast": "the sheet settling, the reach bars filling with molten fill and hot tips",
+  "oaths": "the cards dropping in one after another, the wax seals pressing, the candle light",
+};
+const movesOf = (name) => MOVES[Object.keys(MOVES).find((k) => name.replace(/^d-/, "").startsWith(k)) ?? ""] ?? "";
 async function shoot(page, name, what, { strip = true, full = false, lay = true, pre = false } = {}) {
   const base = join(out, name);
   if (strip && !pre) await castStrip(page, name);
@@ -351,10 +374,36 @@ for n in names:
     im = Image.new("RGB", (W * 4 + 30, H), (40, 40, 40))
     for i, f in enumerate(fr): im.paste(f.resize((W, H), Image.LANCZOS), (i * (W + 10), 0))
     im.save(f"{out}/{n}-strip.png")
+    # the full-resolution motion image: frame 0, and frame 0 dimmed with the pixels that changed over ~1 s in red
+    try:
+        import numpy as np
+        from PIL import ImageFilter
+        a0 = fr[0]
+        others = [Image.open(f"{out}/{n}-{k}.jpg").convert("RGB") for k in ("m1", "m2") if os.path.exists(f"{out}/{n}-{k}.jpg")]
+        if others:
+            A = np.asarray(a0.filter(ImageFilter.BoxBlur(1)), np.int16)
+            d = np.zeros(A.shape[:2], np.int16)
+            for o in others:
+                B = np.asarray(o.resize(a0.size).filter(ImageFilter.BoxBlur(1)), np.int16)
+                d = np.maximum(d, np.abs(A - B).max(axis=2))
+            moving = d > 26
+            g = np.asarray(a0.convert("L"), np.float32)[..., None] * 0.38
+            ov = np.repeat(g, 3, axis=2)
+            ov[moving] = [235, 40, 30]
+            ovi = Image.fromarray(ov.astype(np.uint8), "RGB")
+            W0, H0 = a0.size
+            side = W0 < H0
+            mi = Image.new("RGB", (W0 * 2 + 12, H0) if side else (W0, H0 * 2 + 12), (30, 30, 30))
+            mi.paste(a0, (0, 0)); mi.paste(ovi, (W0 + 12, 0) if side else (0, H0 + 12))
+            mi.save(f"{out}/{n}-motion.png")
+    except Exception as e:
+        print("motion image", n, e)
     import os
     for i in range(4):
         for ext in ("jpg", "png"):
             if os.path.exists(f"{out}/{n}-f{i}.{ext}"): os.remove(f"{out}/{n}-f{i}.{ext}")
+    for k in ("m1", "m2"):
+        if os.path.exists(f"{out}/{n}-{k}.jpg"): os.remove(f"{out}/{n}-{k}.jpg")
 `;
 execFileSync("python3", ["-c", py, out, JSON.stringify(shots.filter((s) => s.strip).map((s) => s.name))]);
 
@@ -376,6 +425,7 @@ shots.forEach((s, i) => {
   const m = `m${String(i + 1).padStart(2, "0")}`;
   copyFileSync(join(out, `${s.name}.png`), join(rd, `${m}.png`));
   if (s.strip) try { copyFileSync(join(out, `${s.name}-strip.png`), join(rd, `${m}-strip.png`)); } catch {}
+  if (s.strip) try { copyFileSync(join(out, `${s.name}-motion.png`), join(rd, `${m}-motion.png`)); } catch {}
   key.push({ m, name: s.name, what: s.what });
 });
 writeFileSync(join(out, "moments.json"), JSON.stringify(key, null, 1));
@@ -383,7 +433,7 @@ writeFileSync(join(out, "frames.json"), JSON.stringify(frames, null, 1));
 writeFileSync(join(out, "anims.json"), JSON.stringify(anims, null, 1));
 writeFileSync(join(out, "layout.json"), JSON.stringify(layout, null, 1));
 const tpl = readFileSync(join(ROOT, "tools/gfx-rater-prompt.txt"), "utf8");
-const list = key.map((k) => `- ${rd}/${k.m}.png${shots.find((s) => s.name === k.name)?.strip ? ` and ${rd}/${k.m}-strip.png` : ""} — ${k.what}`).join("\n");
+const list = key.map((k) => { const st = shots.find((s) => s.name === k.name)?.strip; const mv = movesOf(k.name); return `- ${rd}/${k.m}.png${st ? `, ${rd}/${k.m}-strip.png and ${rd}/${k.m}-motion.png` : ""} — ${k.what}${mv ? ` — moves: ${mv}` : ""}`; }).join("\n");
 writeFileSync(join(rd, "prompt.txt"), tpl.replaceAll("{{LIST}}", list).replaceAll("{{TARGETS}}", join(ROOT, "art/ui/targets")));
 log(`\n${shots.length} moments → ${out}`);
 const bad = Object.entries(layout).filter(([, r]) => !r.ok).map(([n]) => n);
