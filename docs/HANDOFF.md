@@ -2,6 +2,30 @@
 
 *Written 2026-09-27 at the end of a long session. Read this, then `AGENTS.md`, then `docs/CUT29.md`.*
 
+
+## 0. Owner decisions, 2026-09-28 — the idle-first pivot (read first)
+
+- **Adopted: idle-first** (`docs/IDLE_FIRST.md`). Fun and a sense of progression are the north star.
+  Idling alone progresses; rules and builds help and are fun but are never required. Rules become a
+  late-game unlock for micro-tweaks; traits/arts/stances become **packages** (pre-written rule bundles that
+  level from runs). Progression is four parallel tracks that open stage by stage: **character** (one
+  default warrior → classes → pets → advanced classes), **items** (inventory → blacksmith → loot),
+  **scale** (one hero → many → aggregate), **town** (tavern, bank, houses…). Start simple; add simple,
+  coherent, fun systems.
+- **Order**: finish **Cut 29 as written** (the owner's choice), then **Cut 30 = the pivot's first cut**
+  (IDLE_FIRST.md's draft: the idle floor, packages, a day-0 camp → town strip with a bank, a tracks panel,
+  the new gates). **Hold before Cut 31** and update this doc. The hard invariants in AGENTS.md/PLAN.md
+  ("policy is never optional", DEFAULT must fail, ~20 "not engaging fails" rows) are **replaced in Cut 30**
+  by the idle gates (idle alone reaches D8 on day 1 and D23 by day 12, gold every day; packages ≥ 1.5×
+  faster; rules ≥ 1.5× again; nothing required) — not before, so Cut 29's gates stay as written.
+- **Scoring preset: `idle-hybrid`** (`eval/presets.json`, the mean of idle-roguelike and idle-rpg). Cards
+  from the pivot on use `"genre": "idle-hybrid"` (update `eval/SCORECARD.template.json` and the rater
+  prompt when cohorts resume). Cohort 24 re-scored under it: 74.6 · 71.1 = **72.85**. Run a control
+  cohort on the pre-pivot build under `idle-hybrid` before judging Cut 30.
+- The earlier Cut 30 traits design (`docs/TRAITS.md`) is superseded: its data, wake cards and reveal are
+  reused as packages. Cut 31 (specialisation forks, weapon properties) needs re-scoping under the pivot.
+- Death screen: the `gap` seal reads **YOU DIED** (score screen only; `no rule for it` stays under it).
+
 ## 1. The goal and the honest target
 
 The owner's standing goal: keep cutting, improve the UI (WC3/SC2 skeuomorphic skin, UX/IA), speed up
