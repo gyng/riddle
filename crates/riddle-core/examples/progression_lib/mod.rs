@@ -620,8 +620,9 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
                             }
                         }
                     }
-                    // Cut 29 §1 (E1): the wall's edit, taken as the client offers it
-                    if let Some(w) = &rep.wall {
+                    // Cut 29 §1 (E1): the wall's edit, taken as the client offers it (`Game::wall_edit`, lazy; fresh once a day)
+                    let fresh = g.lineage.wall_day != Some(g.lineage.day);
+                    if let Some(w) = &g.wall_edit().filter(|_| fresh) {
                         if g.set_rules(w.rules.clone()).is_ok() {
                             d.wall_taken.push(w.edits.join(" ; "));
                             stalled_days = 0;
@@ -723,7 +724,8 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
                 }
                 Mode::Rater(_) => {
                     // Cut 29 §1 (E1): the wall's edit, taken as the client offers it — the goal set becomes the set with it
-                    if let Some(w) = &rep.wall {
+                    let fresh = g.lineage.wall_day != Some(g.lineage.day);
+                    if let Some(w) = &g.wall_edit().filter(|_| fresh) {
                         goal = Some(w.rules.clone());
                         d.wall_taken.push(w.edits.join(" ; "));
                     }

@@ -3,7 +3,7 @@
 import type {
   BonesPile, CageOption, Divergence, DivergenceBranch, DivergenceEnd, FoldBeat, FoldFloor, FoldLine, RowFires, StartOption, ForkOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
-  Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead, MeterWire, SystemInfo, StandingOrders,
+  Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead, MeterWire, SystemInfo, StandingOrders, WallEdit,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 import { combosIn } from "../ui/tokens";
@@ -2170,6 +2170,7 @@ function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; wo
   };
   const fc = P.forecast; P.forecast = function (this: Fk29): Forecast { const f = fc.call(this) as Forecast; return f.ends ? { ...f, ends: { ...f.ends, passage: 0 } } : f; };
   P.seenSystems = function (this: Fk29): Lineage { sys29(this).fresh = []; return this.lineage(); };
+  P.wallEdit = function (this: Fk29): WallEdit | null { return this.lineage().wall ?? null; };   // Cut 29 §1: the lazy wall search (was `ReturnReport.wall`)
   P.setOrders = function (this: Fk29, o: unknown): Lineage {
     const x = o as StandingOrders; const L = this.s.lineage;
     if (!["best_weapon", "best_armour", "none"].includes(x.keep)) throw new Error("unknown keep_pref");

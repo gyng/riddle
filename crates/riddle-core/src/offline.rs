@@ -244,13 +244,8 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
     let worst_death = if full { worst_death_id.and_then(|id| crate::trace::death(game, id)) } else { None };
     let pending = crate::meta::pending(game);
     let stall = if with_stall { stall_verdict(game) } else { None };
-    // Cut 29 §1 (E1): a wall held two days — the edit that passes it, searched once a day.
-    let mut wall = None;
-    if with_stall && crate::wall::at_wall(&game.lineage) && game.lineage.wall_day != Some(game.lineage.day) {
-        game.lineage.wall_day = Some(game.lineage.day);
-        game.lineage.wall_offer = crate::wall::search(game);
-        wall = game.lineage.wall_offer.clone();
-    }
+    // Cut 29 §1 (E1): the wall's edit is not searched here (20–60 s native at a wall, minutes in
+    // wasm, inside an offline slice): the client asks `Game::wall_edit` on the report.
     // Cut 28b: the lineage's first plateau (the stall's window, verdict or not) opens the oath board
     game.lineage.oath_open |= game.stall.runs >= STALL_MIN_RUNS;
     // Cut 29 §2: the first plateau opens the order and the vs line (and the oaths).
@@ -312,7 +307,6 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
         marks_earned: b.marks,
         night_marks: b.night_marks,
         systems_opened: b.systems_opened.clone(),
-        wall,
         meters: (!b.meters.is_empty()).then(|| crate::meters::wire(&b.meters)),
         fallen: b.fallen.clone(),
         oaths_kept: b.oaths_kept.iter().map(|o| crate::wire::OathReward { kind: o.kind.clone(), id: o.id.clone(), label: crate::oath::text(o) }).collect(),

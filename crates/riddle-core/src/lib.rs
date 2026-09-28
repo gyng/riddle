@@ -127,6 +127,20 @@ impl Game {
     pub fn commission(&mut self) -> Result<String, String> {
         kit::commission(self)
     }
+    /// Cut 29 §1 (E1): at a wall (the best depth held `wall::WALL_DAYS` days), the edit that passes
+    /// it — searched once a day of the lineage's clock (`wall::search`, seconds natively, far more in
+    /// wasm: the client asks it on the report, off the foreground), then the cached offer
+    /// (`Lineage.wall`) until a new best clears it. `None` off a wall or when no edit passes.
+    pub fn wall_edit(&mut self) -> Option<crate::wire::WallEdit> {
+        if !crate::wall::at_wall(&self.lineage) {
+            return None;
+        }
+        if self.lineage.wall_day != Some(self.lineage.day) {
+            self.lineage.wall_day = Some(self.lineage.day);
+            self.lineage.wall_offer = crate::wall::search(self);
+        }
+        self.lineage.wall_offer.clone()
+    }
     /// Cut 29 §2: the camp has shown the systems opened since it last looked (the glint is spent).
     pub fn seen_systems(&mut self) {
         self.lineage.systems_new.clear();

@@ -927,12 +927,11 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     renown: { gained: a.renown.gained + b.renown.gained, rank: b.renown.rank, ranks_up: a.renown.ranks_up + b.renown.ranks_up },
     ...mergeLead(a, b),
     // Cut 29: the night's mark adds up; systems opened in curriculum order (a later slice's after the earlier's); the extra slots'
-    // kept oaths and the fallen companions in order; the wall is a state — the last slice knows; the night's meter field by field
+    // kept oaths and the fallen companions in order (the wall's edit is `engine.wallEdit()`, asked on the report); the night's meter field by field
     night_marks: sum(a.night_marks, b.night_marks),
     systems_opened: a.systems_opened || b.systems_opened ? union(a.systems_opened ?? [], b.systems_opened ?? []) : undefined,
     oaths_kept: cat(a.oaths_kept, b.oaths_kept),
     fallen: cat(a.fallen, b.fallen),
-    wall: b.wall,
     meters: mergeMeters(a.meters, b.meters),
   };
 }

@@ -372,7 +372,6 @@ export type ReturnReport = {
   night_marks?: number;                                                       // Cut 29 §1 (core): of `marks_earned`, the night's mark (◆1 per day whose absences brought a send home; the frontier mark is gone)
   systems_opened?: string[];                                                  // Cut 29 §2 (core): the systems this absence opened, in curriculum order — glint them (no text)
   oaths_kept?: OathReward[];                                                  // Cut 29 §1 (core): the extra slots' oaths kept (`label` the oath's text); `oath` stays the first slot's
-  wall?: WallEdit;                                                            // Cut 29 §1 (core; E1): at a best depth held 2 days, the one-row edit that passes it — offer it as a patch (`rules` is the whole set with it)
   meters?: MeterWire;                                                         // Cut 29 §3 (core): the absence's real runs metered, summed (the report's per-night meter)
   fallen?: Fallen[];                                                          // Cut 29 §6 (core; AX: Greth gone with only `party −1 ogre`): each companion that fell, named — `Greth · ogre L5 · fell D12 to lurker`
 };
@@ -526,6 +525,10 @@ export interface Engine {
   forswearOathId?(id: string): Lineage;   // Cut 29 §1: forswear the sworn oath `id` (either slot; half back)
   commission?(): Lineage;              // Cut 29 §5: the next work, for gold (`Lineage.commission`)
   seenSystems?(): Lineage;             // Cut 29 §2: the camp showed the newly opened systems (clears `systems[].new`)
+  /** Cut 29 §1 (core; E1): at a best depth held 2 days, the one-row edit that passes it — offer it as a patch (`rules` is the whole set with it);
+   *  null off a wall or when no edit passes. Was `ReturnReport.wall`: the search is seconds natively, up to minutes in wasm, so it left the
+   *  offline run — call it after the report paints (background lane); searched once a day, then cached (`Lineage.wall`). */
+  wallEdit?(): WallEdit | null;
   setOrders?(orders: StandingOrders): Lineage;   // Cut 29 §4: the standing orders at once (each through its own rules)
   forecastMove?(prev: RuleSet): ForecastMove | null;   // Cut 28 §2: the move against `prev` (the set sent) attributed to state and rows — background lane, after the forecast (2–6 extra panels when the state changed)
   swearOath?(id: string): Lineage;     // Cut 28 §1: swear a standing oath (pays `price`; one at a time — swearing another forswears the first)

@@ -1230,10 +1230,6 @@ pub struct ReturnReport {
     /// Cut 29 §3: the absence's real runs metered, summed (the report's per-night meter).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub meters: Option<crate::meters::MeterWire>,
-    /// Cut 29 §1 (E1): at a wall held two days, the edit that passes it (`wall::search`; once a
-    /// day, the absence that finds the wall held).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub wall: Option<WallEdit>,
     /// Cut 29 §2: the systems the absence opened, in order (the reveal's glint).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub systems_opened: Vec<String>,
@@ -1571,7 +1567,7 @@ pub struct Grave {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Lineage {
-    /// Cut 29 §1 (E1): the wall's edit on offer (`ReturnReport.wall`) while the best depth holds.
+    /// Cut 29 §1 (E1): the wall's edit on offer (`Game::wall_edit`, cached a day) while the best depth holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wall: Option<WallEdit>,
     /// Cut 29 §3: the meters — the last two runs (oldest first: the camp's two-run comparison),

@@ -431,6 +431,14 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 29 §1 (E1): at a wall, the one-row edit that passes it (`WallEdit` JSON, or `null`) —
+    /// searched once a day (seconds to minutes in wasm: call it on the report, off the foreground),
+    /// the cached offer after (`Lineage.wall`).
+    #[wasm_bindgen(js_name = wallEdit)]
+    pub fn wall_edit(&mut self) -> String {
+        js(&self.inner.wall_edit())
+    }
+
     /// Cut 29 §2: the camp showed the newly opened systems (clears `Lineage.systems[].new`); returns the Lineage.
     #[wasm_bindgen(js_name = seenSystems)]
     pub fn seen_systems(&mut self) -> String {

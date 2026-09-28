@@ -29,6 +29,7 @@ const METHODS: (keyof Engine)[] = [
   "forecastMove",     // Cut 28 §2: optional likewise (the move against the sent set attributed to state and rows)
   "swearOath",        // Cut 28 §1: optional likewise (no oath board without it)
   "forswearOath",     // Cut 28 §1: optional likewise
+  "wallEdit",         // Cut 29 §1: optional likewise (no wall patch without it; was `ReturnReport.wall`)
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

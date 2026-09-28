@@ -14,7 +14,7 @@ import type { AsyncEngine } from "./types";
 /** The calls that run on the refine lane when there is one (latest only per call). */
 export const REFINE = new Set<string>(["forecastRefine", "forecastVsRefined"]);
 /** The calls that run on the background lane. */
-export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas", "startForecast", "forkForecast", "forecastMove"]);   // Cut 28 §2: `forecastMove` (2–6 camp panels)
+export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas", "startForecast", "forkForecast", "forecastMove", "wallEdit"]);   // Cut 28 §2: `forecastMove` (2–6 camp panels); Cut 29 §1: `wallEdit` (the wall's search: many camp panels, once a day)
 // Cut 25 §4 (AM: "~8 s for forge estimates on a D11 lineage after an absence"): measured on a D11 lineage after an 8 h absence (headed,
 // real wasm) the forge's `kitDeltas` (~6 s there) queued behind the camp's `unlockDeltas` (~9.7 s) on the one background lane — 15 s
 // from the camp's paint; `startForecast` ran on the foreground, ahead of an edit's forecast. The slow measures now run on lanes of their
@@ -49,7 +49,7 @@ export function twoLanes(fg: AsyncEngine, bgOf: () => Promise<AsyncEngine | null
       }
       ready = true;
       const r = await b[m](...a);
-      if (opts.mirror && m === "deathDeltas") mirrorGen = -1;   // `&mut` (it caches the verdict): the next sync reloads
+      if (opts.mirror && (m === "deathDeltas" || m === "wallEdit")) mirrorGen = -1;   // `&mut` (it caches the verdict / the day's search): the next sync reloads
       return r;
     };
     /** Cut 25 §4: up and in step but for the rules (its sync is a `setRules`, never a save through the foreground). */

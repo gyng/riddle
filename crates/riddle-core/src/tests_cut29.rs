@@ -233,3 +233,29 @@ fn seams_of_cohort_24() {
     g.finish_run();
     assert!(g.lineage.grudges[0].tamed && !g.lineage.grudges[0].avenged);
 }
+
+/// §1 (E1): the wall's search is lazy — never inside an offline run (it was 20–60 s native at a
+/// wall, minutes in wasm); `wall_edit` searches once a day at a wall and answers the cached offer
+/// after; off a wall it answers nothing.
+#[test]
+fn wall_edit_is_lazy_and_cached() {
+    let mut g = Game::new(21);
+    assert_eq!(g.wall_edit(), None, "no best depth: no wall");
+    g.lineage.best_depth = 9;
+    g.lineage.best_day = 3;
+    g.lineage.day = 4;
+    assert_eq!(g.wall_edit(), None, "held one day: not a wall yet");
+    assert_eq!(g.lineage.wall_day, None, "off a wall nothing is searched");
+    // at the wall, searched today already: the cached offer, no search
+    g.lineage.day = 5;
+    g.lineage.wall_day = Some(5);
+    let offer = crate::wire::WallEdit { depth: 9, edits: vec!["drop R6".into()], rules: g.lineage.rules().clone(), before: 0.0, after: 0.2, sims: 48 };
+    g.lineage.wall_offer = Some(offer.clone());
+    assert_eq!(g.wall_edit(), Some(offer.clone()));
+    assert_eq!(g.lineage().wall, Some(offer));
+    // an offline run leaves the day's search alone (and its report carries no wall)
+    let day = g.lineage.day;
+    let rep = serde_json::to_value(crate::offline::run_offline_quick(&mut g, 60)).unwrap();
+    assert!(rep.get("wall").is_none());
+    assert!(g.lineage.wall_day == Some(5) || g.lineage.day != day);
+}

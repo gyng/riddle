@@ -292,10 +292,13 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                 }
             }
             // 1c. Cut 29 §1 (E1): at a wall held two days the report offers the edit that passes it
-            //     (`ReturnReport.wall`: the plateau search's best one-row edit); a human who reads it
+            //     (`Game::wall_edit`: the plateau search's best one-row edit); a human who reads it
             //     takes it, as the client offers it.
+            //     The search is lazy (`Game::wall_edit`, the client's call on the report): asked after
+            //     every report, taken on the day it is found (once a day, as the offer arrives).
             if std::env::var("DP_NO_WALL").is_err() {
-                if let Some(w) = &rep.wall {
+                let fresh = g.lineage.wall_day != Some(g.lineage.day);
+                if let Some(w) = &g.wall_edit().filter(|_| fresh) {
                     if g.set_rules(w.rules.clone()).is_ok() {
                         if verbose {
                             eprintln!("  day {} wall D{}: {} ({:.2} → {:.2})", day + 1, w.depth, w.edits.join(" ; "), w.before, w.after);

@@ -101,10 +101,12 @@ E1 (the wall search) broke the D17 wall: dayplayer D18·17·17 → D28·33·28. 
    `/tmp/claude-1000/-home-g-p-riddle/205f7863-43f1-46df-a1c8-ce180d81d61e/scratchpad/d28` (may be gone —
    rebuild: count held silence scrolls per floor; past-D28 share per seed), then FULL−D28, COUNTERED, lever.
 2. Don't offer `telegraph → retreat` death patches against a telegraph boss whose counter is known (`trace.rs`).
-3. **Make the wall search lazy** — it runs inside `run_offline*` whenever the stall verdict runs (20–60 s
-   native, far more in wasm): a `Game::wall_edit()` / wasm `wallEdit()` the client calls on the report; the
-   dayplayer and `progression_lib` call it explicitly. **Do not ship a build before this** (an offline slice at
-   a wall could take minutes in the browser).
+3. ~~**Make the wall search lazy**~~ — **done (2026-09-28)**: `Game::wall_edit()` / wasm `wallEdit()` (searched
+   once a day at a wall, then cached as `Lineage.wall`); `ReturnReport.wall` is gone (the client's `mergeReports`
+   line dropped). `wallEdit` runs on a background lane (`lanes.ts`, a mirror reload after it). The dayplayer and
+   `progression_lib` call it after each report and take a fresh offer (same semantics as before). Measured in
+   wasm (node, fast build) on `deep.json` pushed to a wall: 8 h offline in 16 slices 4.9 s; `wallEdit` alone 67 s —
+   the client must ask it after the report paints and never block on it.
 4. Probe the Foundry wall (D21–23; holds rater lineages 4–10 days) like the Queen: pack census, counter
    facts (reflect_read / buffer), harmful patch rows.
 5. Unlock days: rater lineages buy the whole catalogue by day 3–5 and open 20–21/23 systems by day 2 —
