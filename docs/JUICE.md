@@ -518,3 +518,51 @@ suite's `fast: the break is a beat` check fails only when run beside three other
 | d-camp | 6.45 | 6.45 | 6.40 | 6.65 |
 | d-edit | 5.90 | 5.95 | 6.35 | 6.60 |
 | **mean** | **6.41** | **6.16** | **6.28** | **6.50** |
+
+**Rounds 15–17** (raters AG AH · AI AJ · AK AL): 6.26 · 6.43 · 6.49 — stopped on the rule (three rounds under +0.2 after r14's 6.50).
+- r15 (reverted in part): a Codex redraw of the Fens floor as two calm planks per tile took the Fens to 5.00 ("hero and floor one murky
+  teal") — reverted, as was an edge-only hurt vignette; kept: the shield splits from 20 % of its fall, over the boss's head, BROKEN above it.
+- r16: the forecast's bars as brass troughs with a molten fill and a hot tip (cut29.css had thinned them to 4 px), a gilt iron EDIT, the
+  oath rewards a size up, the hero's own light warm in every biome and a touch brighter, a darker Fens room, a white burst on a boss's
+  killing blow.
+- r17: in the Fens a sprite takes less of the light's hue (0.15, was 0.5: "a teal hero on a teal floor"); two first-time captions under
+  neighbouring top-bar stats take two rows.
+
+| moment | r14 | r15 | r16 | r17 |
+|---|---|---|---|---|
+| watch-warrens | 6.20 | 5.65 | 5.85 | 5.85 |
+| report | 6.70 | 6.45 | 6.80 | 6.60 |
+| death | 7.10 | 6.75 | 7.15 | 7.10 |
+| camp | 6.25 | 6.05 | 6.25 | 6.25 |
+| scene | 6.05 | 6.10 | 6.10 | 6.05 |
+| edit | 6.75 | 6.55 | 6.40 | 6.70 |
+| forecast | 6.35 | 6.10 | 6.35 | 6.90 |
+| oaths | 6.30 | 6.10 | 6.40 | 6.15 |
+| watch-fens | 5.60 | 5.00 | 5.30 | 5.40 |
+| fight | 6.50 | 6.15 | 6.65 | 6.40 |
+| boss-in | 7.15 | 7.10 | 7.45 | 7.40 |
+| boss-break | 6.85 | 6.65 | 6.70 | 6.90 |
+| boss-fall | 6.90 | 6.75 | 7.05 | 7.00 |
+| d-watch | 6.00 | 5.70 | 5.85 | 5.95 |
+| d-report | 6.20 | 6.10 | 6.20 | 6.45 |
+| d-death | 6.85 | 6.50 | 6.45 | 6.75 |
+| d-camp | 6.65 | 6.65 | 6.45 | 6.55 |
+| d-edit | 6.60 | 6.35 | 6.35 | 6.40 |
+| **mean** | **6.50** | **6.26** | **6.43** | **6.49** |
+
+Session arc: 5.97 (r6) → 6.49 (r17), best 6.50 (r14); lowest 5.00 → 5.40. Moments at or over 7: death 7.10, boss entrance 7.40, boss fall
+7.00. Frame times: see §10.8 (phone 16.7/16.7–16.8 on a quiet box); the added shader work (ghost layer, mist, contrast, edge light) runs on a
+≤ 204 × 294 target and the viewer's CPU stays ~1.6–1.9 ms.
+
+**What blocks the next gain (the bar is 8.0 / no moment < 7.0; the remaining asks are the same every round):**
+1. **The watch's own look (5.4–6.2, the floor of the table)**: raters want the painted target's lit stone rooms — "the floor is flat sepia
+   mush", "the Fens a teal soup", "half the view black void". The 8×8-texel tile register at the pick raters' zoom cannot carry that
+   detail; a zoom/letterbox that frames the seen rooms, or a new tile register (painted 16×16 at 1:1), is a design call. A first Codex
+   redraw of the Fens floor (calmer planks) scored worse and was reverted.
+2. **IA on every UI screen** (hierarchy 5.5–6.5; Cut 29 client): the report's two-line title and four sub-lines, the `OPENED` chips cut off
+   at the fold, the forecast's D8 row, the scene inset overlapping the rules, the WHY sheet not anchored to its tablet, the desktop meters'
+   clipped text ('trav', '3 hit'), empty console slots.
+3. **Still screens' motion** (desktop camp/report/death 4.5–5.5): the strip at quarter size cannot see ambient CSS motion; the camp is
+   being replaced by the Cut 30 town, so no more effort there.
+4. **Art the raters keep naming**: a boss HP bar under the name plate, a loot/coin burst on a boss kill, a stagger pose, killer portraits
+   in the forecast's KILLERS line, death-scene sprites behind the banner (the killer medallion helped: desktop death target 7.5–8).

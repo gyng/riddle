@@ -38,6 +38,7 @@ uniform float uAmbient;   // world light away from any torch
 uniform float uLiftK;     // torch/hero pool strength on the world
 uniform vec3 uLightCol;   // the torch colour
 uniform float uSat;       // the world's saturation (1 = the ramp's own)
+uniform float uSprHue;    // gfx round 17: how much of the light's hue a sprite takes (0.5; the Fens 0.15)
 uniform float uMist;      // gfx round 11: a drifting ground mist over the world (the Fens), 0 = none
 uniform float uCon;       // gfx round 10: the world's contrast (1 = the ramp's own; lower pulls the floor's texture toward its mid tone)
 #if FX > 0
@@ -139,7 +140,7 @@ void main() {
   // SPRITES (a=0.5) and ENV CHROME (a=0.875): as before — sprites lifted and tinted 30 % toward the ramp, chrome quantised
   vec3 c = s.rgb * fog * (1.0 + 0.9 * lift);
 #if FX > 0
-  c *= mix(vec3(1.0), 0.75 + 0.5 * normalize(LF + vec3(0.05)), min(1.0, lfl) * 0.5);   // a sprite takes the light's hue (fire reads orange on a foe)
+  c *= mix(vec3(1.0), 0.75 + 0.5 * normalize(LF + vec3(0.05)), min(1.0, lfl) * uSprHue);   // a sprite takes the light's hue (fire reads orange on a foe); round 17: less in the Fens ("a teal hero on a teal floor")
 #endif
 #if FX > 1
   {  // rim light: a sprite's edge that faces the light catches it (high)
@@ -299,7 +300,7 @@ export class Blit {
         uAmbient: { value: 0.86 },
         uLiftK: { value: 0.6 },
         uLightCol: { value: new THREE.Vector3(1.0, 0.72, 0.4) },
-        uSat: { value: 1 }, uCon: { value: 1 }, uMist: { value: 0 },
+        uSat: { value: 1 }, uCon: { value: 1 }, uMist: { value: 0 }, uSprHue: { value: 0.5 },
         // juice (docs/JUICE.md): read only when FX > 0
         uLightMap: { value: null }, uMap: { value: new THREE.Vector2(1, 1) }, uBloom: { value: null }, uBloomK: { value: 0 },
         uTexel: { value: new THREE.Vector2(1, 1) }, uVig: { value: new THREE.Vector4(0, 0, 0, 0) }, uVigBase: { value: 0 }, uDesat: { value: 0 },
@@ -326,7 +327,7 @@ export class Blit {
   setGrade(biome: string): void {
     const g = GRADES[biome] ?? GRADES.default!, u = this.material.uniforms;
     (u.uGrade!.value as THREE.Vector3).set(g[0], g[1], g[2]);
-    u.uAmbient!.value = g[3]; u.uLiftK!.value = g[4]; u.uSat!.value = g[5]; u.uCon!.value = CONTRAST[biome] ?? 1; u.uMist!.value = MIST[biome] ?? 0;
+    u.uAmbient!.value = g[3]; u.uLiftK!.value = g[4]; u.uSat!.value = g[5]; u.uCon!.value = CONTRAST[biome] ?? 1; u.uMist!.value = MIST[biome] ?? 0; u.uSprHue!.value = biome === "fens" ? 0.15 : 0.5;
   }
 
   /** art pass: this frame's torch flames (world env texels; the first 12 are used) and the flicker scale */

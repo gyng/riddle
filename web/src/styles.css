@@ -1580,3 +1580,6 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#0
   text-shadow: 0 1px 0 #000, 0 0 10px rgba(255, 180, 70, .6); box-shadow: inset 0 1px 0 rgba(255, 230, 170, .45), 0 0 0 2px #140e0a, 0 0 16px rgba(255, 170, 60, .35), 0 4px 8px rgba(0, 0, 0, .6); }
 /* (raters: "the oath cards are mostly empty wood — put the reward large"): the reward's icon a size up in its plaque */
 .oath-board .oath-formula .oath-reward .ico { width: 50px; height: 50px; padding: 5px; }
+/* gfx round 17 (raters, the Fens and the fight: "the top bar's 'buys unlocks' / 'rank from deeds' labels collide"): two first-time captions
+   under neighbouring stats take two rows */
+.topbar .stats .stat:nth-child(even) .concept-cap { top: calc(100% + 19px); }
