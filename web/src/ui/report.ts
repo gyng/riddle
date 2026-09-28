@@ -223,8 +223,11 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const deathsN = r.deaths.reduce((n, d) => n + d.n, 0);
   // Cut 17 §4: the tiles are engraved score plaques on the parchment (an icon per count)
   const PLAQUE: Record<string, string> = { runs: "fast", deaths: "morgue", deepest: "depth", best: "depth", marks: "mark", banked: "gold", returned: "bail", stalled: "pause", driven: "bail" };
-  const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile plaque" }, icon(PLAQUE[label] ?? "depth"),
-    h("b", { class: "num" }, ...(n.startsWith("◆") ? [h("span", { class: "g" }, "◆"), n.slice(1)] : [n])), h("span", { class: "label" }, label));
+  // Cut 29 (owner: labels may be 2 words; docs/COPY.md §4 blocker 2 — `0/16 BANKED` still read as "some exit type"): an exit tile says
+  // what it counts, `runs banked` (the key stays the one word, `data-k`)
+  const SAYS: Record<string, string> = /* copy:label */ { banked: "runs banked", returned: "runs returned", stalled: "runs stalled" };
+  const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile plaque", "data-k": label }, icon(PLAQUE[label] ?? "depth"),
+    h("b", { class: "num" }, ...(n.startsWith("◆") ? [h("span", { class: "g" }, "◆"), n.slice(1)] : [n])), h("span", { class: "label" }, SAYS[label] ?? label));
   // Cut 2 §1: `banked · returned · deaths` as a second row of three when the core reports exits; else the Cut 1 four
   const exits = r.banked !== undefined || r.returned !== undefined;
   // a stall is inside the core's `returned` (a return that kept nothing); the tiles count it apart — `returned` is the returns

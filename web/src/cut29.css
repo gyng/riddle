@@ -76,3 +76,17 @@
 .forecast .bar .track .fill { background: linear-gradient(90deg, #a8601a, #f0b44a); }
 /* Cut 29 §4: a tablet lifted by a long press */
 .editor .row.tablet.lifted { box-shadow: 0 8px 18px rgba(0, 0, 0, .7), 0 0 0 2px var(--acc); z-index: 5; position: relative; }
+/* Cut 29 (owner): the forecast's ± as a noise band (a blurred bar as wide as the spread; the `±7` text stays for readers and tools, unseen),
+   the move as a signed chip — a tinted pill, `+6` / `−4` */
+.pm.band { display: inline-block; vertical-align: middle; width: calc(var(--pmw, 8) * 1px); height: 4px; margin: 0 3px; border-radius: 2px;
+  font-size: 0 !important; color: transparent; overflow: hidden; opacity: .75;
+  background: linear-gradient(90deg, transparent, rgba(240, 180, 74, .7) 30%, rgba(240, 180, 74, .7) 70%, transparent); }
+:is(.sheet, .panel, .parchment) .pm.band { background: linear-gradient(90deg, transparent, rgba(110, 72, 30, .65) 30%, rgba(110, 72, 30, .65) 70%, transparent); }
+.vsm.dlt { display: inline-block; padding: 0 4px; border-radius: 7px; font-style: normal; font-weight: 700; line-height: 1.35; }
+.vsm.dlt.up { background: rgba(95, 191, 122, .2); color: #7fdc98; box-shadow: inset 0 0 0 1px rgba(95, 191, 122, .45); }
+.vsm.dlt.down { background: rgba(217, 72, 74, .2); color: #ff8a7a; box-shadow: inset 0 0 0 1px rgba(217, 72, 74, .45); }
+:is(.sheet, .panel, .parchment) .vsm.dlt.up { color: #2f7a45; } :is(.sheet, .panel, .parchment) .vsm.dlt.down { color: #a0302e; }
+/* Cut 29 (owner: `12/12` beside its fix): the death gem says `apply`; the count stays on the lit fix tablet (`survives 12/12`) */
+.gem.patch-gem .gem-in:has(.gem-w) .gem-n { display: none; }
+.gem.patch-gem .gem-in:has(.gem-w) .gem-w { font-size: 17px; }
+.patch.top .surv { font-weight: 700; }

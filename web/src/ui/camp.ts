@@ -832,7 +832,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     send.dataset.mode = app.watchMode;
     const MODES = ["fights", "one", "fast"] as const;
     /* copy:label */
-    const MODE_LABEL: Record<string, string> = { fights: "highlights", one: "normal", fast: "fast" };
+    const MODE_LABEL: Record<string, string> = { fights: "fights only", one: "normal", fast: "fast" };
     const pill = h("small", { class: "send-mode", role: "switch", "aria-checked": "true", "data-mode": app.watchMode, title: "watch pace",
       onclick: (e: Event) => { e.stopPropagation(); e.preventDefault(); app.watchMode = MODES[(MODES.indexOf(app.watchMode) + 1) % MODES.length]; app.persist(); paintSend(); } },
       /* copy:none */ "▸ ", MODE_LABEL[app.watchMode] ?? app.watchMode);

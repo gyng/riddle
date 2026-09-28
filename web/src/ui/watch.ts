@@ -350,7 +350,7 @@ export function renderWatch(app: App): Mounted {
   // the last chosen mode is the next run's (app.watchMode, persisted — QA on e0f87e7: "`fast` chosen in run 3 was not remembered")
   const mode0: Mode = app.watchMode === "fast" || app.watchMode === "one" ? app.watchMode : "fights";
   const modeBtn: Record<Mode, HTMLButtonElement> = {
-    fights: tile({ id: "fights", cls: "hud-btn", on: mode0 === "fights", icon: "fights", label: /* copy:button */ "highlights", onclick: () => setMode("fights") }),   // docs/COPY.md pass 3: `fights` read as a combat log 6/6
+    fights: tile({ id: "fights", cls: "hud-btn", on: mode0 === "fights", icon: "fights", label: /* copy:button */ "fights only", onclick: () => setMode("fights") }),   // docs/COPY.md pass 3: `fights` read as a combat log 6/6
     fast: tile({ id: "fast", cls: "hud-btn", on: mode0 === "fast", icon: "fast", label: /* copy:button */ "fast", onclick: () => setMode("fast") }),
     one: tile({ id: "one", cls: "hud-btn", on: mode0 === "one", icon: "one", glyph: "1×", label: /* copy:button */ "normal", onclick: () => setMode("one") }),   // docs/COPY.md pass 5: `1` over `1×` read "no idea"
   };

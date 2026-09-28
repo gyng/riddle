@@ -43,7 +43,7 @@ try {
   await waitFor((s) => s?.booted && s.screen === "camp", "the camp");
   await sleep(300);
   const g0 = await gemText();
-  check(g0.text === "send▸ highlights" && g0.mode === "fights", `a fresh camp's gem names the default mode (${JSON.stringify(g0)})`);
+  check(g0.text === "send▸ fights only" && g0.mode === "fights", `a fresh camp's gem names the default mode (${JSON.stringify(g0)})`);
   await page.locator(".gem.send .send-mode").click();
   await sleep(200);
   const g1 = await gemText(), s1 = await screen();

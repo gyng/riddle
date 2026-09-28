@@ -81,8 +81,8 @@ try {
   // (the fake's D4 kills a hero in his first costly fight: the card's gates run on its gentle D1 with the first floors' mode off, `early=0`)
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
   let s = await waitFor((x) => x?.booted && inRun(x) && x.mode, "the watch");
-  check(s.mode === "fights" && s.on.join() === "highlights", `fights is the default mode (on: ${s.on.join(", ")})`);
-  check(s.buttons.join(" ") === "highlights fast normal ▶▶| bail", `the buttons read highlights · fast · normal · ▶▶| · bail (Cut 25 §3: the plain 1×, docs/COPY.md: its word \`normal\`) (${s.buttons.join(" · ")})`);
+  check(s.mode === "fights" && s.on.join() === "fights only", `fights is the default mode (on: ${s.on.join(", ")})`);
+  check(s.buttons.join(" ") === "fights only fast normal ▶▶| bail", `the buttons read fights only · fast · normal · ▶▶| · bail (Cut 25 §3: the plain 1×, docs/COPY.md: its word \`normal\`) (${s.buttons.join(" · ")})`);
   // the card: the ambient line over the map, the clock held; then the first fight at 1×
   // Cut 15 §4: the card is short (≤ 1.2 s; 0.5 s before a beat — seed 5 opens on a situation), so the tap is made in the page the
   // frame the card is seen
@@ -118,9 +118,9 @@ try {
     await press("fast");
     s = await waitFor((x) => !inRun(x) || (x.mode === "fast" && x.card === "0"), "fast mode", 2000);
     check(s.mode === "fast" && s.on.join() === "fast" && s.card === "0" && (s.speed >= 16 || s.speed === 4 || s.speed === 1 || (s.held && s.speed <= 4)), `fast: the card is gone and the clock runs 16× / 4× (speed ${s.speed}${s.held ? ", a beat held" : ""})`);
-    await press("highlights");
+    await press("fights only");
     s = await waitFor((x) => !inRun(x) || x.mode === "fights", "fights mode again", 2000);
-    check(s.mode === "fights" && s.on.join() === "highlights", "fights again");
+    check(s.mode === "fights" && s.on.join() === "fights only", "fights again");
   }
   // the run ends on its own within the budget
   s = await waitFor((x) => x && x.screen !== "watch", "the run's end", 120_000);

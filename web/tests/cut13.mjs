@@ -113,7 +113,7 @@ try {
   const exitLine = await page.evaluate(() => document.querySelector(".report .exit-lines .ledger-btn")?.textContent ?? "");
   check(s.screen === "report" && /^returned \$0 · .* · stalled/.test(exitLine), `without a stall record the report shows the run (${s.screen}: "${exitLine}")`);
   const plaques = await page.evaluate(() => [...document.querySelectorAll(".report .tile.plaque")].map((t) => `${t.querySelector("b")?.textContent} ${t.querySelector(".label")?.textContent}`.toUpperCase()));
-  check(plaques.includes("1 RUNS") && plaques.includes("1/1 STALLED"), `the report after one stall reads RUNS 1 · STALLED 1 (${plaques.join(" · ")})`);
+  check(plaques.includes("1 RUNS") && plaques.includes("1/1 RUNS STALLED"), `the report after one stall reads RUNS 1 · STALLED 1 (${plaques.join(" · ")})`);
   // the report's `open` shows a stall verdict too
   await page.evaluate(() => {
     const r = window.__riddle; const L = r.lineage;
@@ -425,7 +425,7 @@ try {
     const w = document.querySelector(".watch"); const v = window.__viewer;
     const btn = (t) => [...document.querySelectorAll("main.watch .hud-btn")].find((b) => b.textContent === t);
     return { screen: window.__riddle.screen, busy: window.__riddle.engineBusy, over: w?.dataset.over ?? "0", fade: v?.stats?.().fade ?? null,
-      dead: ["highlights", "fast", "▶▶|", "bail"].map((t) => btn(t)?.disabled ?? null), pause: btn("⏸")?.hidden ?? btn("▶")?.hidden ?? "gone", label: document.querySelector(".busy-label")?.textContent ?? "",
+      dead: ["fights only", "fast", "▶▶|", "bail"].map((t) => btn(t)?.disabled ?? null), pause: btn("⏸")?.hidden ?? btn("▶")?.hidden ?? "gone", label: document.querySelector(".busy-label")?.textContent ?? "",
       gem: document.querySelector("main.watch .gem-slot > .gem")?.textContent ?? "", heir: document.querySelector("main.watch .topbar .heir")?.textContent ?? "" };
   });
   s = await waitFor((x) => x?.screen !== "watch" || x.busy, "the verdict's busy window", 40_000);
@@ -580,16 +580,16 @@ try {
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 4, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, stalled: 1 } }); });
   await sleep(150);
   let tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "stalled 1/4 · returned 2/4 · deaths 1/4", `no banks: the stall tile takes banked's place, returned counts the rest (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "runs stalled 1/4 · runs returned 2/4 · deaths 1/4", `no banks: the stall tile takes banked's place, returned counts the rest (${tiles.slice(3).join(" · ")})`);
   await shot("qaF-report-stalled");
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 6, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 2, returned: 3, stalled: 1 } }); });
   await sleep(150);
   tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "returned 2/6 · banked 2/6 · stalled 1/6 · deaths 1/6" || tiles.slice(3).join(" · ") === "banked 2/6 · returned 2/6 · stalled 1/6 · deaths 1/6", `with banks nothing is dropped (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "runs returned 2/6 · runs banked 2/6 · runs stalled 1/6 · deaths 1/6" || tiles.slice(3).join(" · ") === "runs banked 2/6 · runs returned 2/6 · runs stalled 1/6 · deaths 1/6", `with banks nothing is dropped (${tiles.slice(3).join(" · ")})`);
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3 } }); });
   await sleep(150);
   tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "banked 0/3 · returned 3/3 · deaths 0/3", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "runs banked 0/3 · runs returned 3/3 · deaths 0/3", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
   const fakeStalled = await page.evaluate(async () => { const rep = await window.__riddle.engine.runOfflineQuick(600); return typeof rep.stalled; });
   check(fakeStalled === "number", `the fake's report carries stalled (${fakeStalled})`);
   // the pile once: the exit line's `bones: 8 items on D4` stands alone; the client's `bones left` line only without it

@@ -198,7 +198,7 @@ try {
   await shot("cut22-send-fast");
   await page.evaluate(() => { const r = window.__riddle; r.watchMode = "fights"; r.go({ kind: "camp" }); }); await sleep(250);
   const sendFights = await page.evaluate(() => document.querySelector(".gem.send")?.textContent.trim());
-  check(sendFights === "send▸ highlights", `\`fights\` is named on the send too (Cut 28 §3: "${sendFights}")`);
+  check(sendFights === "send▸ fights only", `\`fights\` is named on the send too (Cut 28 §3: "${sendFights}")`);
 
   // ---- AH: the boss moment — one line wins
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=223`, { waitUntil: "domcontentloaded" });

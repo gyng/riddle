@@ -583,7 +583,7 @@ try {
     }));
     check(f.stats.length === 1 && /\bgold\b/.test(f.stats[0]), `the bar shows $ only (${f.stats.join(", ")})`);
     check(f.tablets === 2 && f.notches.join(",") === "D1" && !f.ends, `two compact tablets, the shaft at D1 alone, no gems (${f.tablets} tablets, notches ${f.notches.join(",")}, ends ${f.ends})`);
-    check(/^send(▸ highlights)?$/i.test(f.gem ?? "") && f.tiles === 0 && !f.tabs && !f.cls, `the gem SEND and nothing else: no tile, no set tab, no class picker (gem "${f.gem}", ${f.tiles} tiles)`);
+    check(/^send(▸ fights only)?$/i.test(f.gem ?? "") && f.tiles === 0 && !f.tabs && !f.cls, `the gem SEND and nothing else: no tile, no set tab, no class picker (gem "${f.gem}", ${f.tiles} tiles)`);
     // a tablet is one tap: it opens the tablets for editing at that row
     await page.locator(".editor .row.tablet.compact").first().click({ timeout: 5000 }); await sleep(200);
     check(await page.locator(".editor .row .chip.cond").count() > 0, "a tap on a compact tablet opens it for editing (its chips)");
@@ -697,7 +697,7 @@ try {
     return { main: m?.className ?? "", bar: !!m?.querySelector(":scope > header.topbar"), console: !!m?.querySelector(":scope > footer.console"), gem: g ? { text: g.textContent.trim(), cls: g.className, visible: !!g.getClientRects().length && getComputedStyle(g).visibility !== "hidden" } : null };
   });
   let f = await frame();
-  check(f.bar && f.console && f.gem?.visible && /\bsend\b/.test(f.gem.cls) && /^send▸ (highlights|fast|normal)$/.test(f.gem.text), `camp: bar + console, \`send\` in the gem (${JSON.stringify(f.gem)})`);
+  check(f.bar && f.console && f.gem?.visible && /\bsend\b/.test(f.gem.cls) && /^send▸ (fights only|fast|normal)$/.test(f.gem.text), `camp: bar + console, \`send\` in the gem (${JSON.stringify(f.gem)})`);
   await page.locator("button.send").click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "watch", "the watch"); await sleep(1500);
   // QA 23ed91f: the last frame — record the bar's heir and the gem the moment the run is over (the exit's refresh follows)
@@ -710,7 +710,7 @@ try {
   f = await frame();
   check(f.bar && f.console && f.gem?.visible && ["⏸", "▶"].includes(f.gem.text), `watch: bar + console, ⏸ in the gem (${JSON.stringify(f.gem)})`);
   const cmd = await page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((b) => b.textContent.trim()));
-  check(cmd.join(" · ") === "highlights · fast · normal · ▶▶| · bail · meters", `watch: the command card is highlights · fast · normal · ▶▶| · bail · meters (Cut 25 §3, Cut 29 §3) (${cmd.join(" · ")})`);
+  check(cmd.join(" · ") === "fights only · fast · normal · ▶▶| · bail · meters", `watch: the command card is fights only · fast · normal · ▶▶| · bail · meters (Cut 25 §3, Cut 29 §3) (${cmd.join(" · ")})`);
   await shot("ui-watch");
   let s = await state(); const tw = Date.now();
   while (s?.screen === "watch" && Date.now() - tw < 90_000) { await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); }); await sleep(250); s = await state(); }

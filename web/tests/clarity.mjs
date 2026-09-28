@@ -163,7 +163,7 @@ try {
       exits: [...document.querySelectorAll(".report .exit-lines .ledger-line")].map((l) => l.textContent.replace(/\s+/g, " ").trim()),
       lost: document.querySelector(".report .chip.egg")?.textContent.replace(/\s+/g, " ").trim(),
     }));
-    check(rep.labels.join(" ") === "runs best marks banked returned deaths", `tiles in one order whatever leads (QA 92eb880): ${rep.labels.join(" · ")}`);
+    check(rep.labels.join(" ") === "runs best marks runs banked runs returned deaths", `tiles in one order whatever leads (QA 92eb880): ${rep.labels.join(" · ")}`);
     // QA 23ed91f: the run rows read newest first (the gold sheet's order), so the later bank leads
     check(rep.exits[1]?.startsWith("returned $61 · $102 carried") && rep.exits[0]?.startsWith("banked $84 · "), `exit lines lead with the tier and the sum, newest first: "${rep.exits[0]}" · "${rep.exits[1]}"`);
     check(rep.lost === "◯ jackal Ashar fell", `the report's lost chip reads "${rep.lost}"`);
@@ -171,7 +171,7 @@ try {
     await page.evaluate((b) => { const r = window.__riddle; b.live = r.lineage.live ?? null; r.go({ kind: "report", report: { ...b, banked: 3, returned: 1 } }); }, base);
     await sleep(200);
     const rep2 = await page.evaluate(() => ({ labels: [...document.querySelectorAll(".report .tiles .tile .label")].map((l) => l.textContent.trim()), fade: document.querySelector(".report .tiles")?.classList.contains("fade-in") }));
-    check(rep2.labels.join(" ") === "runs best marks banked returned deaths" && rep2.fade === false, `the same order when banks lead; a watched run's tiles do not fade (${rep2.labels.slice(3).join(" · ")})`);
+    check(rep2.labels.join(" ") === "runs best marks runs banked runs returned deaths" && rep2.fade === false, `the same order when banks lead; a watched run's tiles do not fade (${rep2.labels.slice(3).join(" · ")})`);
   }
   // Cut 14 §4: a repeated chore callout coalesces on its line — `pick up ×8` — instead of eight `pick up` reads (the fake emits
   // no chore rows, so every engine batch gets one appended; the ticker is sampled every 40 ms through the run)
@@ -386,7 +386,7 @@ try {
       await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);
       const seen = new Map(); let bad = null; const t0 = Date.now();
-      const word = mode === "fights" ? "highlights" : mode;   // (the mode id stays `fights`; its button reads `highlights`)
+      const word = mode === "fights" ? "fights only" : mode;   // (the mode id stays `fights`; its button reads `fights only`)
       while (Date.now() - t0 < 25_000 && !(seen.has("fight") && seen.has("map"))) {
         const c = await chip(); if (c.screen !== "watch") break;
         const want = c.speed > 0 ? (c.speed >= 2 ? String(Math.round(c.speed)) : String(Math.round(c.speed * 10) / 10)) : c.card === "1" ? "16" : "";   // QA 92eb880: the chip's rate rounds (`7`, never `6.666…`)

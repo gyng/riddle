@@ -246,7 +246,7 @@ try {
     await go({ kind: "report", report: { ...base, banked: b, returned: rt } }); await waitFor((s) => s?.screen === "report", "report"); await sleep(250);
     tileOrder.push((await text(".report .tiles .tile .label")).join(" "));
   }
-  check(tileOrder.every((t) => t === "runs best marks banked returned deaths"), `the tiles keep one order whichever leads (${tileOrder.join(" / ")})`);
+  check(tileOrder.every((t) => t === "runs best marks runs banked runs returned deaths"), `the tiles keep one order whichever leads (${tileOrder.join(" / ")})`);
   const rep = await page.evaluate(() => {
     const sec = (l) => [...document.querySelectorAll(".report .rsec")].find((x) => new RegExp(l, "i").test(x.querySelector(".label")?.textContent ?? ""));
     return { pending: [...(sec("pending")?.querySelectorAll("li") ?? [])].map((l) => l.textContent), items: [...(sec("learned")?.querySelectorAll(".chips.items .chip") ?? [])].map((c) => c.textContent),
