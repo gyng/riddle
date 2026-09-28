@@ -804,7 +804,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const lift = juice.lift(e.id, st.clock);   // gfx round 5: a boss drops into his arena
       const ghost = fxLevel > 0 && !e.hero && ETHEREAL.has(e.kind);
       if (ghost) ghostAt.push([fx, fy + h / 2]);
-      (ghost ? L.ghosts : L.ents).push(fx, fy + lift + (ghost ? Math.round(Math.sin(now / 380 + e.id) * 1.5) + 1 : 0), z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.ally && !e.hero ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);
+      (ghost ? L.ghosts : L.ents).push(fx, fy + lift + (ghost ? Math.round(Math.sin(now / 380 + e.id) * 1.5) + 1 : 0), z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.hero ? 1.12 : e.ally ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);   // (round 16: the hero a touch brighter — "muddy on the ochre floor")
       // Cut 8A: in the fight frame the hero and his allies carry an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
       // above the sprite; glyphs sit above the bar. Second art pass: a hostile's bar is on its name tag instead.
       let top = fy + h + 2;
@@ -981,7 +981,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // 307dbed control rater AR ("the Fens looked like the Burrows"): the pools were one warm amber everywhere, and an amber pool on the
       // Fens' teal reads as the Burrows' clay — the hero's and the torches' light take the biome's own cast (the flames stay flames)
       const tint = LIGHT_TINT[st.biome] ?? LIGHT_TINT.default!;
-      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(7, st.vision + 1.5), c: [0.92 * tint[0], 0.75 * tint[1], 0.52 * tint[2]] }); }   // gfx round 1: a wider, warmer pool ("dim flat lighting", "brown mush")
+      // gfx round 16 (raters, the Fens: "light the hero with a warm radius"): the hero's own light stays warm in every biome (torches keep the cast)
+      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(7, st.vision + 1.5), c: [0.95, 0.74, 0.48] }); }   // gfx round 1: a wider, warmer pool ("dim flat lighting", "brown mush")
       juice.lights(now, fieldLights);
       for (const [px, py] of st.projectilePositions()) fieldLights.push({ x: px + 0.5, y: py + 0.5, r: 2, c: [0.7, 0.6, 0.4] });
       for (const [cx, cy] of candles.slice(0, 3)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: cx / TILE, y: -cy / TILE, r: 2.2, c: [0.7, 0.45, 0.2] });

@@ -255,7 +255,7 @@ const GRADES: Record<string, [number, number, number, number, number, number]> =
   warrens: [1.14, 0.96, 0.78, 0.84, 0.95, 0.78],   // gfx round 1: saturation 0.55 → 0.78 (the floor read as "brown mush")
   // juice pass 3: the fork's two lanes apart at a glance — the Burrows warm ochre (full saturation), the Fens cool teal
   burrows: [1, 0.92, 0.8, 0.78, 0.72, 1],
-  fens: [0.88, 1, 1.06, 0.72, 0.7, 0.86],   // gfx round 7 (raters Q, R: "teal-on-teal floor swamps the sprites"): a darker room, the light pools read, a little less saturation
+  fens: [0.88, 1, 1.06, 0.62, 0.78, 0.86],   // round 16: a darker room, a stronger pool (the hero's warm light reads)   // gfx round 7 (raters Q, R: "teal-on-teal floor swamps the sprites"): a darker room, the light pools read, a little less saturation
   crypt: [1, 1, 1.02, 0.82, 0.65, 0.9],
   foundry: [1, 0.94, 0.88, 0.82, 0.6, 0.9],
   deep: [1, 1, 1, 0.9, 0.7, 1],

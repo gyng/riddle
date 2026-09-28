@@ -366,6 +366,7 @@ export class Juice {
           this.falls.push(ev.id);
           if (mv) { this.slowUntil = now + 700; this.slowRate = 0.3; }
           this.kickShake(3, 420, now); this.flashVig(bc, 0.3, 480, now);
+          this.pop(cx, cy, 7, [1.4, 1.35, 1.2], 170, now);   // (round 16, raters: "a white flash on the killing blow"): a short white burst of light
           this.ring(28, cx, e.y + 1, 60, x.dust, 0.6, false); this.ring(16, cx, e.y + 1, 32, bc, 0.5, true);
           this.burst(10, cx, e.y + e.h * 0.7, 8, bc, 0.9, 0.5, { glow: true, drag: 0.6, sway: 5 }, 18);
           this.pop(cx, cy, 3.5, [bc[0] * 0.8, bc[1] * 0.8, bc[2] * 0.8], 420, now);

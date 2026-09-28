@@ -1567,3 +1567,16 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#0
 .report .tiles.six > .tile.plaque:nth-child(2) .num { font-size: 1.3em; }
 /* (raters: "MEASURING overflows the APPLY gem"): the pending word fits inside the gem */
 .gem.patch-gem.pending .gem-w { font-size: 9.5px; letter-spacing: .04em; padding: 1px 3px; }
+/* gfx round 16 (raters, every round: "the bars are thin web progress lines — engraved troughs with a molten fill"): the forecast's reach
+   bars as sunken brass troughs (cut29.css thinned them to 4 px) with a molten gold fill and a hot tip */
+:is(.sheet, .panel, .parchment) .forecast .bar .track { height: 9px; border-radius: 2px; background: linear-gradient(#2a1c10, #4a3420);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, .85), 0 0 0 1px #8a6a3a, 0 1px 0 rgba(255, 244, 214, .5); }
+:is(.sheet, .panel, .parchment) .forecast .bar .track .fill { background: linear-gradient(#ffe7a8, #f3b24a 40%, #c26d18 60%, #7a3c0a);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 240, .7), 0 0 6px rgba(255, 170, 60, .6); }
+:is(.sheet, .panel, .parchment) .forecast .bar .track .fill::before { content: ""; position: absolute; right: -2px; top: -2px; bottom: -2px; width: 4px; border-radius: 2px;
+  background: #fff4c8; box-shadow: 0 0 6px 2px rgba(255, 200, 90, .9); }
+/* (raters: "the EDIT slab is a plain dark bar — a carved gold button with a glow"): the why sheet's EDIT is a gilt-edged iron plate */
+:is(.sheet, .panel, .parchment) button.btn.primary.why-edit { background: linear-gradient(#5a4128, #2c1e12 55%, #1e140b); color: #ffe2a0; border: 2px solid #c9a050;
+  text-shadow: 0 1px 0 #000, 0 0 10px rgba(255, 180, 70, .6); box-shadow: inset 0 1px 0 rgba(255, 230, 170, .45), 0 0 0 2px #140e0a, 0 0 16px rgba(255, 170, 60, .35), 0 4px 8px rgba(0, 0, 0, .6); }
+/* (raters: "the oath cards are mostly empty wood — put the reward large"): the reward's icon a size up in its plaque */
+.oath-board .oath-formula .oath-reward .ico { width: 50px; height: 50px; padding: 5px; }
