@@ -38,6 +38,7 @@ uniform float uAmbient;   // world light away from any torch
 uniform float uLiftK;     // torch/hero pool strength on the world
 uniform vec3 uLightCol;   // the torch colour
 uniform float uSat;       // the world's saturation (1 = the ramp's own)
+uniform float uMist;      // gfx round 11: a drifting ground mist over the world (the Fens), 0 = none
 uniform float uCon;       // gfx round 10: the world's contrast (1 = the ramp's own; lower pulls the floor's texture toward its mid tone)
 #if FX > 0
 // juice (docs/JUICE.md): the light field (light.ts), bloom (bloom.ts), the vignette and the death's desaturation
@@ -221,6 +222,20 @@ void main() {
       o *= 1.0 - 0.6 * min(1.0, nbS);
     }
   }
+  if (uMist > 0.0) {   // gfx round 11 (raters: "add fog layers so the Fens feel wet"): two slow octaves of value noise in world space
+    vec2 mp = world / 26.0 + vec2(uTime * 0.035, uTime * 0.012);
+    vec2 mi = floor(mp), mf = fract(mp); mf = mf * mf * (3.0 - 2.0 * mf);
+    float h00 = fract(sin(dot(mi, vec2(127.1, 311.7))) * 43758.5), h10 = fract(sin(dot(mi + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5);
+    float h01 = fract(sin(dot(mi + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5), h11 = fract(sin(dot(mi + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5);
+    float n1 = mix(mix(h00, h10, mf.x), mix(h01, h11, mf.x), mf.y);
+    vec2 mp2 = world / 11.0 - vec2(uTime * 0.05, 0.0);
+    vec2 ni = floor(mp2), nf = fract(mp2); nf = nf * nf * (3.0 - 2.0 * nf);
+    float g00 = fract(sin(dot(ni, vec2(269.5, 183.3))) * 43758.5), g10 = fract(sin(dot(ni + vec2(1.0, 0.0), vec2(269.5, 183.3))) * 43758.5);
+    float g01 = fract(sin(dot(ni + vec2(0.0, 1.0), vec2(269.5, 183.3))) * 43758.5), g11 = fract(sin(dot(ni + vec2(1.0, 1.0), vec2(269.5, 183.3))) * 43758.5);
+    float n2 = mix(mix(g00, g10, nf.x), mix(g01, g11, nf.x), nf.y);
+    float m = smoothstep(0.35, 0.85, n1 * 0.65 + n2 * 0.35) * uMist * step(0.25, s.a);
+    o = mix(o, vec3(0.55, 0.68, 0.66) * (0.35 + 0.65 * min(1.0, lfl + 0.3)), m);
+  }
   o += texture2D(uBloom, tuv).rgb * uBloomK * fog;
   float vr = length((vUv - 0.5) * vec2(0.9, 1.0));
   float vg = smoothstep(0.32, 0.78, vr);
@@ -250,6 +265,8 @@ const GRADES: Record<string, [number, number, number, number, number, number]> =
 
 /** gfx round 10: the world's contrast per biome (FX > 0; the Fens' plank stripes and the Warrens' flagstones read as noise behind the cast) */
 const CONTRAST: Record<string, number> = { fens: 0.6, warrens: 0.78, burrows: 0.82, crypt: 0.8, foundry: 0.85, deep: 0.85 };
+
+const MIST: Record<string, number> = { fens: 0.42, crypt: 0.16, deep: 0.18 };   // gfx round 11: ground mist per biome (FX > 0)
 
 export class Blit {
   readonly scene = new THREE.Scene();
@@ -282,7 +299,7 @@ export class Blit {
         uAmbient: { value: 0.86 },
         uLiftK: { value: 0.6 },
         uLightCol: { value: new THREE.Vector3(1.0, 0.72, 0.4) },
-        uSat: { value: 1 }, uCon: { value: 1 },
+        uSat: { value: 1 }, uCon: { value: 1 }, uMist: { value: 0 },
         // juice (docs/JUICE.md): read only when FX > 0
         uLightMap: { value: null }, uMap: { value: new THREE.Vector2(1, 1) }, uBloom: { value: null }, uBloomK: { value: 0 },
         uTexel: { value: new THREE.Vector2(1, 1) }, uVig: { value: new THREE.Vector4(0, 0, 0, 0) }, uVigBase: { value: 0 }, uDesat: { value: 0 },
@@ -309,7 +326,7 @@ export class Blit {
   setGrade(biome: string): void {
     const g = GRADES[biome] ?? GRADES.default!, u = this.material.uniforms;
     (u.uGrade!.value as THREE.Vector3).set(g[0], g[1], g[2]);
-    u.uAmbient!.value = g[3]; u.uLiftK!.value = g[4]; u.uSat!.value = g[5]; u.uCon!.value = CONTRAST[biome] ?? 1;
+    u.uAmbient!.value = g[3]; u.uLiftK!.value = g[4]; u.uSat!.value = g[5]; u.uCon!.value = CONTRAST[biome] ?? 1; u.uMist!.value = MIST[biome] ?? 0;
   }
 
   /** art pass: this frame's torch flames (world env texels; the first 12 are used) and the flicker scale */

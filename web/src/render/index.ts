@@ -889,7 +889,15 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         motes: !!hh && !!roomLit[hh.y * st.w + hh.x], dust: [dustC[0], dustC[1], dustC[2]],
       });
       numCss.length = 0;
-      for (const n of juice.shown) { const [cx, cy] = toCss(n.x, n.y); numCss.push({ ...n, x: cx, y: cy }); }
+      // gfx round 11 (raters Y, Z: "the red '1' sits on top of 'DRAINED'"): a number that would land on the callout plate or a name plate
+      // steps beside it (world texels; a number is ~2.5 CSS glyphs wide)
+      const npx = dpr / k, nw = 22 * npx, nh = 20 * npx;
+      const boxes = [calloutBox, ...tagBoxes].filter((b): b is [number, number, number, number] => !!b);
+      for (const n of juice.shown) {
+        let x = n.x;
+        for (const b of boxes) if (x + nw / 2 > b[0] && x - nw / 2 < b[2] && n.y + nh > b[1] && n.y < b[3]) x = x < (b[0] + b[2]) / 2 ? b[0] - nw / 2 - 2 * npx : b[2] + nw / 2 + 2 * npx;
+        const [cx, cy] = toCss(x, n.y); numCss.push({ ...n, x: cx, y: cy });
+      }
       for (const id of juice.breaks.splice(0)) { const e = st.ents.get(id); if (e) { const [x, y] = feet(e); const [cx, cy] = toCss(x, y + atlas.entity(e.kind).h / 2 * 0.95); tagLayer.shatter(cx, cy); const [sx, sy] = toCss(x, y + atlas.entity(e.kind).h / 2 + 10); tagLayer.stamp(/* copy:callout */ "BROKEN", sx, sy - 24, "broken"); } }
       for (const id of juice.falls.splice(0)) { const e = st.ents.get(id); if (e) { const [x, y] = feet(e); const [sx, sy] = toCss(x, y + atlas.entity(e.kind).h / 2 + 8); tagLayer.stamp(/* copy:callout */ "SLAIN", sx, sy - 24, "slain"); } }
     } else { juice.falls.length = 0; juice.update(0, now, st.clock, { ent: () => null, heroId: -1, speed: 0, fight, quiet, cam: [0, 0], half: [0, 0], fires, gases, waters, torches: lights, motes: false, dust: [0, 0, 0] }); }

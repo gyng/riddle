@@ -37,7 +37,7 @@ export async function makeViewer(canvas: HTMLCanvasElement): Promise<{ viewer: V
       // gfx round 7 (raters Q, R on the edit's scene, ~210 CSS px tall: "tiny sprites in a black box — zoom the inset so the hero and
       // foe are twice their size"): a view under 320 CSS px shows about half the texels
       const base = short < 600 ? PHONE_TEXELS : DESK_TEXELS;
-      return { viewer: m.createViewer(canvas, dev ? { baseTexels: dev } : { baseTexels: short < 320 ? Math.round(base * 0.55) : base }), real: true };
+      return { viewer: m.createViewer(canvas, dev ? { baseTexels: dev } : { baseTexels: short < 320 ? Math.round(base * 0.45) : base }), real: true };
     }
     catch (e) { console.warn(/* copy:none */ "renderer unavailable, 2D view", e); }
   }
