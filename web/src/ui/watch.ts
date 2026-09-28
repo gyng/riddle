@@ -454,7 +454,7 @@ export function renderWatch(app: App): Mounted {
   // viewer behind the world slows where the events are, not where the engine is (`slowUntil` / `sceneUntil` stay the world's)
   const nearTicks: number[] = [], scenes: { from: number; until: number }[] = [];
   let exitTier: Tier | null = null, exitAt = 0;
-  let pendingExit: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] } | undefined;
+  let pendingExit: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[]; decide?: boolean; note?: string } | undefined;
   // what the exit sheet let go, at the engine's worth — the report's `salvaged` rows (QA on 952e306: "camp $76 after
   // 'Returned with $57'; only the gold sheet shows +$19 salvage"); the deepest floor this send reached (its `deepest` tile)
   let salvagedRows: { kind: string; n: number; gold: number }[] = [];
@@ -2011,9 +2011,14 @@ export function renderWatch(app: App): Mounted {
       const fresh = pendingExit?.items.length ? await bounded(app.engine.lineage(), 4000, "lineage at exit") : undefined;
       const vaultNow = fresh ?? app.lineage;
       const freeSlots = Math.max(0, vaultSlots(vaultNow.unlocks) - vaultNow.vault.length);
-      if (pendingExit && pendingExit.items.length && freeSlots > 0) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, freeSlots, () => { done = false; void finish(tier); }); return; }
+      // Cut 29 §4 (AW: "one ▲ per tap"): the core says whether the sheet is a decision (`decide`: a find beats something in the full
+      // vault, or finds outnumber its free slots). Not one → settled by the standing order (`autoKeep`) with its one line (`note`).
+      // A decision on a full vault opens the sheet as a swap: one pick, which the core keeps in place of the vault's weakest.
+      const decide = pendingExit?.decide;
+      if (pendingExit && pendingExit.items.length && (decide === undefined ? freeSlots > 0 : decide)) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, Math.max(1, freeSlots), () => { done = false; void finish(tier); }, freeSlots === 0); return; }
+      const settledNote = decide === false ? pendingExit?.note : undefined;
       // the vault full: the preference keeps (as designed) — and the screen says so before the report (R: "keep chosen for me?")
-      const vaultFull = !!(pendingExit?.items.length && fresh);
+      const vaultFull = !!(pendingExit?.items.length && fresh && (decide === false ? true : freeSlots === 0));
       // the sheet skipped (the vault full): the engine keeps by preference and the rest is salvage all the same — its rows
       // are built here too (QA on e0f87e7: "no SALVAGED block at all when the vault is full … yet the gold sheet shows +$16
       // salvage"); what the vault gained across the keep is what was kept, matched to the pending items by kind
@@ -2028,8 +2033,12 @@ export function renderWatch(app: App): Mounted {
       // `axe +1 → vault` — and `vault full` stands alone only when nothing went in
       if (vaultFull) {
         const inVault = app.lineage.vault.filter((v) => !vaultBefore.has(v.id)).map((v) => v.label);
-        showBanner(inVault.length ? /* copy:callout */ `${inVault.join(", ")} → vault` : /* copy:callout */ "vault full", VAULT_FULL_MS, "rest");
-        await new Promise((r) => setTimeout(r, VAULT_FULL_MS));
+        // Cut 29 §4: a settled exit says its one line (`kept leather +1`); with nothing new kept it says nothing unless the vault is full
+        const full = vaultSlots(app.lineage.unlocks) <= app.lineage.vault.length;
+        if (settledNote || inVault.length || full) {
+          showBanner(settledNote ?? (inVault.length ? /* copy:callout */ `${inVault.join(", ")} → vault` : /* copy:callout */ "vault full"), VAULT_FULL_MS, "rest keep-note");
+          await new Promise((r) => setTimeout(r, VAULT_FULL_MS));
+        }
       }
       if (skipped) {
         const kept = new Set<number>();
@@ -2130,7 +2139,7 @@ export function renderWatch(app: App): Mounted {
   }
   const spentRows = (ledger: { t: number; delta: number; why: string; n?: number }[]): { kind: string; n: number; gold: number }[] => spentOf(ledger, app.supplyCat);
   // Addendum D: choose what to keep before the run settles
-  function exitSheet(p: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] }, free: number, then: () => void): void {
+  function exitSheet(p: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] }, free: number, then: () => void, swap = false): void {
     // QA 23ed91f: the owned automations' picks come pre-ticked (`ExitPending.auto_keep`), as many as the free slots take
     const keep = new Set<number>((p.auto_keep ?? []).filter((id) => p.items.some((it) => it.id === id)).slice(0, free));
     let sent = false;
@@ -2177,7 +2186,8 @@ export function renderWatch(app: App): Mounted {
         exitLine.salvaged.map((r) => `${r.kind.replace(/_/g, " ")}${r.n > 1 ? ` ×${r.n}` : ""} $${r.gold}`).join(" · ")) : null;
       return h("div", { class: "sheet-body" },
         // QA 0c6e126 (qaZ: `KEEP 1/1` after a bought slot, read as "the vault is one slot"): the count is of the free slots — `keep 1/1 free`
-        h("div", { class: "label row-label" }, /* copy:label */ "keep", " ", count, h("small", { class: "dim" }, /* copy:label */ " free"), trace),
+        // Cut 29 §4: a full vault's decision is a swap — the pick replaces the vault's weakest (the core's `keep`)
+        h("div", { class: "label row-label" }, /* copy:label */ "keep", " ", count, h("small", { class: "dim" }, swap ? /* copy:label */ " swap" : /* copy:label */ " free"), trace),
         chips, legend, cut, bones, news, ledger, traceBox,
         h("button", { class: "btn primary wide", onclick: () => {
           if (sent) return; sent = true;

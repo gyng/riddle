@@ -331,6 +331,8 @@ try {
   // the fake's worths equal the client's table, so the ledger is skewed through the lineage the client refreshes at the exit:
   // one more `+$9 salvage` line at the exit's tick — the rows must move to it (the largest row takes the difference)
   await page.evaluate(() => { const e = window.__riddle.engine; const real = e.lineage.bind(e); e.lineage = async () => { const L = await real(); const g = L.gold_ledger ?? []; const last = g[g.length - 1]; if (last && /^salvage/.test(last.why) && !g.some((x) => x.why === "salvage")) g.push({ t: last.t, delta: 9, why: "salvage" }); return L; }; });
+  // Cut 29 §4: the core's `decide` — the vault full and no find beats what it holds: settled without a sheet
+  await page.evaluate(() => { const e = window.__riddle.engine; const st = e.step.bind(e); e.step = async (n) => { const r = await st(n); if (r.exit_pending) r.exit_pending.decide = false; return r; }; });
   s2 = await drive();
   check(s2?.screen === "report", `the vault full: the run went straight to the report (${s2?.screen})`);
   await waitFor((x) => x && !x.busy, "the engine idle", 30_000); await sleep(300);

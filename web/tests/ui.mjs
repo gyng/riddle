@@ -334,7 +334,7 @@ async function autoKeepCheck() {
       const ak = r.engine.autoKeep?.bind(r.engine), k = r.engine.keep.bind(r.engine), st = r.engine.step.bind(r.engine);
       r.engine.autoKeep = async () => { r.__ak++; return ak ? ak() : k([]); };
       r.engine.keep = async (ids) => { r.__keep.push(ids); return k(ids); };
-      r.engine.step = async (n) => { const res = await st(n); if (res.exit_pending?.items?.length) { res.exit_pending.auto_keep = [res.exit_pending.items[0].id]; r.__pending = res.exit_pending.items.length; } return res; };
+      r.engine.step = async (n) => { const res = await st(n); if (res.exit_pending?.items?.length) { res.exit_pending.auto_keep = [res.exit_pending.items[0].id]; r.__pending = res.exit_pending.items.length; if (full) res.exit_pending.decide = false; } return res; };
     }, full);
     const t = Date.now(); let s = null;
     while (Date.now() - t < 60_000) {
