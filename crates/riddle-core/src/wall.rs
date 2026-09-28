@@ -63,6 +63,23 @@ fn stock(best: u32) -> Vec<Row> {
     ]
 }
 
+/// The counter row of the band boss at the wall (on the record's floor or the next), when its
+/// counter fact is held — as the fact reads, and gated to his floor (the rater lineages' D33 wall:
+/// the Mirror King's `cadence` owned and known, written by no goal set).
+fn counters(g: &Game) -> Vec<Row> {
+    let best = g.lineage.best_depth;
+    let mut out = Vec::new();
+    for &(kind, depth) in crate::descent::BOSS_DEPTHS.iter().filter(|(_, d)| *d == best || *d == best + 1) {
+        if let Some(row) = crate::facts::boss_counter_row(&g.lineage.facts, kind) {
+            let mut gated = row.clone();
+            gated.conds.push(Cond::n("depth>=", depth as i32));
+            out.push(row);
+            out.push(gated);
+        }
+    }
+    out
+}
+
 /// Every one-row edit of `set` the search weighs, writable by this lineage (its vocabulary, its row
 /// cap), labelled (`drop R6`, `R2 above R1`, `R3 hp<40`, `+ hp < 90% → rest at R1`, `R4 → …`).
 pub fn edits(g: &Game, set: &RuleSet) -> Vec<(String, RuleSet)> {
@@ -113,7 +130,7 @@ pub fn edits(g: &Game, set: &RuleSet) -> Vec<(String, RuleSet)> {
             }
         }
     }
-    for r in stock(g.lineage.best_depth).into_iter().filter(|r| writable(r)) {
+    for r in stock(g.lineage.best_depth).into_iter().chain(counters(g)).filter(|r| writable(r)) {
         if set.rows.contains(&r) {
             continue;
         }
