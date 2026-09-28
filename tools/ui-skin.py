@@ -93,8 +93,22 @@ def main() -> None:
             continue
         im.resize((im.width * 3 // 4, im.height * 3 // 4), Image.LANCZOS).save(OUT / "deco" / f"{p.stem}.webp", quality=84, method=6)
         deco.append(p.stem)
-    MANIFEST.write_text(json.dumps({"frames": frames, "icons": icons, "portraits": portraits, "backdrops": backdrops, "deco": deco}, indent=1) + "\n")
-    print(f"ui-skin: {len(frames)} frames, {len(icons)} icons, {len(portraits)} portraits, {len(backdrops)} backdrops, {len(deco)} deco -> web/public/ui/" + (f"; unusable: {', '.join(bad)}" if bad else ""))
+    # gfx round 10: effect art (the boss's shield and its shards, art/ui/fx): 256 px on its long side, alpha kept
+    (OUT / "fx").mkdir(parents=True, exist_ok=True)
+    fx = []
+    for p in sorted((ROOT / "art/ui/fx").glob("*.png")) if (ROOT / "art/ui/fx").exists() else []:
+        im = Image.open(p).convert("RGBA")
+        if not usable(im):
+            bad.append(str(p.relative_to(ROOT)))
+            continue
+        sc = 256 / max(im.size)
+        im.resize((round(im.width * sc), round(im.height * sc)), Image.LANCZOS).save(OUT / "fx" / f"{p.stem}.webp", quality=88, method=6)
+        fx.append(p.stem)
+    # keys other tools own (tools/foe-portraits.py `foes`) are kept
+    old = json.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
+    old.update({"frames": frames, "icons": icons, "portraits": portraits, "backdrops": backdrops, "deco": deco, "fx": fx})
+    MANIFEST.write_text(json.dumps(old, indent=1) + "\n")
+    print(f"ui-skin: {len(frames)} frames, {len(icons)} icons, {len(portraits)} portraits, {len(backdrops)} backdrops, {len(deco)} deco, {len(fx)} fx -> web/public/ui/" + (f"; unusable: {', '.join(bad)}" if bad else ""))
 
 
 if __name__ == "__main__":

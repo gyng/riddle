@@ -58,14 +58,20 @@ RAMP: dict[str, tuple[list[int], list[float]]] = {
     "barrel": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
     "crate": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
     "pot": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
+    # gfx round 10: skull piles, chests, weapon racks, broken statues (the ramp's props); braziers and candles are HUE
+    "skulls": ([0, 1, 3, 5, 6, 7], [0.12, 0.28, 0.45, 0.62, 0.8]),
+    "chest": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
+    "rack": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
+    "statue": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
     "bones": ([0, 3, 5, 6, 7], [0.2, 0.4, 0.65, 0.88]),
     # second art pass: the Cut 5 situation props at the 16-texel density (the 8x8 register stays the fallback)
     "vault": ([0, 1, 2, 3, 4, 6], [0.2, 0.36, 0.52, 0.72, 0.9]),
     "vault_open": ([0, 1, 2, 3, 4, 6], [0.3, 0.45, 0.6, 0.78, 0.92]),
     "nest": ([0, 1, 2, 3, 4, 5, 6], [0.12, 0.25, 0.42, 0.62, 0.82, 0.95]),
 }
-HUE = {"blood_0", "blood_1", "torch", "banner", "shrine", "item_potion", "item_scroll", "item_weapon", "item_armour", "item_gold"}
-PROPS = {"barrel", "crate", "pot", "bones", "torch", "banner", "shrine", "vault", "vault_open", "nest", "item_gold"}   # bottom-anchored, 1-texel dark rim
+HUE = {"blood_0", "blood_1", "torch", "banner", "shrine", "item_potion", "item_scroll", "item_weapon", "item_armour", "item_gold",
+       "brazier", "candles"}   # gfx round 10: fire keeps its colour
+PROPS = {"barrel", "crate", "pot", "skulls", "chest", "rack", "statue", "brazier", "candles", "bones", "torch", "banner", "shrine", "vault", "vault_open", "nest", "item_gold"}   # bottom-anchored, 1-texel dark rim
 # a biome whose ramp roles differ from the warrens' shape: ramp index -> this biome's index
 BIOME_REMAP: dict[str, dict[int, int]] = {
     # pale dressed stone: slate mortar, pale field (the old sanctum floor's field was 5)

@@ -73,6 +73,14 @@ export const SPRITE_SCALE: number = (() => {
   return 0.5;   // two fresh pick raters (O, P), four candidates blind: 0.5 at the watch's zoom unchanged, both first ("one world at one density")
 })();
 
+/** gfx round 10 (the coordinator: "bosses read as bosses"; r9 raters: the break and the fall "read small" at half size): a boss's own scale */
+export const BOSS_SCALE: number = 0.75;
+export const BOSS_KINDS = new Set(["goblin_warlord", "bloat_mother", "lich", "foundry_master", "lurker_queen", "mirror_king"]);
+/** gfx round 10 (raters, every round: "wraiths are grey static blobs"): the ethereal kinds — drawn half-translucent, cold, with their own
+ *  faint light (index.ts `L.ghosts`; the `low` tier draws them as any sprite) */
+export const ETHEREAL = new Set(["wraith", "mirror_shade", "echo", "spectral_blade", "spectral_hound", "siren"]);
+export const spriteScale = (kind: string): number => (BOSS_KINDS.has(kind.replace(/_dead$/, "")) ? BOSS_SCALE : SPRITE_SCALE);
+
 export const ENTITY_SIZE: Record<string, [number, number]> = {
   // sprite texels; 48 tall = 3 tiles, 32 tall = 2 tiles
   hero_fighter: [24, 48], hero_rogue: [24, 48], hero_ranger: [24, 48], hero_caster: [24, 48],

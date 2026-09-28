@@ -1571,6 +1571,108 @@
       "biome": "sanctum",
       "name": "pot",
       "description": "A tall elegant AMPHORA vase with two curled handles and a narrow neck, a decorated band, three-quarter view, lit upper-left. Flat #0000FF background."
+    },
+    {
+      "id": "boss_goblin_warlord_dead",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "DEATH POSE of the Goblin Warlord (bright moss-green skin, jagged iron crown, fur mantle, huge cleaver, red war-banner strip), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+    },
+    {
+      "id": "boss_bloat_mother_dead",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "DEATH POSE of the Bloat Mother (a huge swollen sickly yellow-green bloated brood-mother, pustules, tiny limbs), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+    },
+    {
+      "id": "boss_lich_dead",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "DEATH POSE of the Lich (a gaunt skeletal sorcerer in tattered violet-black robes, bone crown, a staff with a dim crystal), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+    },
+    {
+      "id": "boss_foundry_master_dead",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "DEATH POSE of the Foundry Master (a hulking smith-golem of dark iron plates with glowing orange seams, a great hammer), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+    },
+    {
+      "id": "boss_lurker_queen_dead",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "DEATH POSE of the Lurker Queen (a pale many-limbed cave horror, long clawed limbs, eyeless head, chitin plates), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+    },
+    {
+      "id": "boss_mirror_king_dead",
+      "kind": "boss",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "DEATH POSE of the Mirror King (a regal figure in cracked silver-glass armour, a shattered mirror crown, a long cape), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+    },
+    {
+      "id": "env_skulls",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A PILE OF SKULLS AND BONES on the floor, top-down three-quarter view: four or five ivory skulls stacked in a low mound with a few long bones sticking out, dark eye sockets clearly visible, lit on the upper-left. Flat #0000FF background."
+    },
+    {
+      "id": "env_chest",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A closed wooden TREASURE CHEST with dark iron bands and a big iron lock plate, domed lid, seen from a top-down three-quarter camera, lit on the upper-left. Flat #0000FF background."
+    },
+    {
+      "id": "env_rack",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x20",
+      "description": "A wooden WEAPON RACK standing against a wall, front view: a simple frame holding two spears and a sword upright, a round shield leaning at its foot. Flat #0000FF background."
+    },
+    {
+      "id": "env_statue",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x24",
+      "description": "A small broken STONE STATUE on a square plinth, front view: a hooded kneeling knight carved in dark stone, one arm broken off, cracks, moss at the base. Flat #0000FF background."
+    },
+    {
+      "id": "env_brazier",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x20",
+      "description": "A standing iron FLOOR BRAZIER burning: a wide iron bowl on three legs heaped with glowing coals and a bright fire (white-yellow core, orange body, red tips); the flame fills the top half. Flat #0000FF background."
+    },
+    {
+      "id": "env_candles",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "description": "A cluster of five melted wax CANDLES of different heights on the floor, puddled wax, each with a small bright flame (white-yellow core, orange tip), seen from a top-down three-quarter camera. Flat #0000FF background."
     }
   ]
 }

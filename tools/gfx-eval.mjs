@@ -281,8 +281,10 @@ async function bossDemo() {
   const at = async (tick) => { while ((await page.evaluate(() => window.viewer.stats().tick)) < tick) await sleep(30); };
   await at(10); await castStrip(page, "boss-in"); await shoot(page, "boss-in", "a boss comes into view (the entrance), dungeon view only", { lay: false, pre: true });
   await sampleFrames(page, "boss-fight", 2000);
-  await at(89); await shoot(page, "boss-break", "the boss breaks (his guard shattered), dungeon view only", { lay: false });
-  await at(151); await shoot(page, "boss-fall", "the boss falls (the killing blow), dungeon view only", { lay: false });
+  // (gfx round 10: the break's shatter and stamp play just after its beat, the fall's stamp and death pose after his: shot a few ticks on)
+  // (the still first, then the strip: the strip's 1.5 s outlived the shatter and the stamp and the still missed them)
+  await at(91); await shoot(page, "boss-break", "the boss breaks (his guard shattered), dungeon view only", { lay: false, pre: true }); await castStrip(page, "boss-break");
+  await at(153); await shoot(page, "boss-fall", "the boss falls (the killing blow), dungeon view only", { lay: false, pre: true }); await castStrip(page, "boss-fall");
   await page.close();
 }
 

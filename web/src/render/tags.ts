@@ -57,6 +57,16 @@ const CSS = `
 .rshatter { position: absolute; left: 0; top: 0; width: 92px; height: 92px; pointer-events: none; }
 .rshatter::before { content: ""; position: absolute; inset: -30%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 230, 170, .85), rgba(255, 150, 60, .35) 40%, transparent 70%); animation: rsh-glow 1.1s ease-out both; }
 @keyframes rsh-glow { 0% { opacity: 0; transform: scale(.4); } 15% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
+.rshatter { width: 120px; height: 120px; }
+.rshatter b { position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; background: center / contain no-repeat; filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 5px rgba(255, 200, 120, .7));
+  animation: rsh-shard 1.3s cubic-bezier(.15, .7, .35, 1) .18s both; }
+@keyframes rsh-shard { 0% { opacity: 0; transform: scale(.6); } 8% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 40px)) rotate(var(--rot)) scale(.9); } }
+.rstamp { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; padding: 4px 14px 3px;
+  font: 700 22px/1 "Cinzel", "Trajan Pro", Georgia, serif; letter-spacing: .14em; color: #ffe2a0; text-shadow: 0 2px 0 #000, 0 0 14px rgba(255, 150, 50, .9);
+  background: linear-gradient(#3a1510, #1a0806); border: 2px solid #a8742e; box-shadow: inset 0 0 0 1px #000, 0 0 0 2px #1a0808, 0 0 26px rgba(220, 90, 30, .6), 0 6px 14px rgba(0, 0, 0, .8);
+  animation: rstamp 1.6s cubic-bezier(.2, 1.4, .4, 1) both; }
+.rstamp.slain { color: #fff0c8; border-color: #d8b060; background: linear-gradient(#4a3010, #1e1206); box-shadow: inset 0 0 0 1px #000, 0 0 0 2px #1a1008, 0 0 30px rgba(255, 200, 90, .7), 0 6px 14px rgba(0, 0, 0, .8); }
+@keyframes rstamp { 0% { opacity: 0; scale: 2.2; rotate: -6deg; } 14% { opacity: 1; scale: .94; rotate: -3deg; } 22% { scale: 1; } 78% { opacity: 1; } 100% { opacity: 0; scale: 1.04; rotate: -3deg; } }
 .rshatter i { position: absolute; inset: 0; background: center / 100% 100% no-repeat; filter: drop-shadow(0 0 6px rgba(255, 220, 160, .9)) drop-shadow(0 2px 2px #000); }
 .rshatter i:first-child { clip-path: polygon(0 0, 58% 0, 44% 38%, 56% 62%, 40% 100%, 0 100%); animation: rsh-l 1.2s cubic-bezier(.2, .7, .4, 1) both; }
 .rshatter i:last-child { clip-path: polygon(58% 0, 100% 0, 100% 100%, 40% 100%, 56% 62%, 44% 38%); animation: rsh-r 1.2s cubic-bezier(.2, .7, .4, 1) both; }
@@ -69,9 +79,13 @@ const CSS = `
 @keyframes rcall-in { from { opacity: 0; scale: .7; } to { opacity: 1; scale: 1; } }
 `;
 
-const SHIELD = "/ui/icons/v_shield.png";
+import skin from "../ui/skin.json";
+/** gfx round 10: the painted boss shield and its shards (art/ui/fx, Codex) when packed; else the verb icon split in two */
+const FX = new Set<string>((skin as { fx?: string[] }).fx ?? []);
+const SHIELD = FX.has("shield") ? "/ui/fx/shield.webp" : "/ui/icons/v_shield.png";
+const SHARDS = [0, 1, 2, 3].filter((i) => FX.has(`shard_${i}`)).map((i) => `/ui/fx/shard_${i}.webp`);
 let shieldOk = false;
-if (typeof Image !== "undefined") { const im = new Image(); im.onload = () => { shieldOk = true; }; im.src = SHIELD; }
+if (typeof Image !== "undefined") { const im = new Image(); im.onload = () => { shieldOk = true; }; im.src = SHIELD; for (const u of SHARDS) new Image().src = u; }
 
 export class TagLayer {
   private root: HTMLDivElement | null = null;
@@ -154,7 +168,18 @@ export class TagLayer {
     const el = document.createElement("div"); el.className = "rshatter";
     el.style.transform = `translate(${Math.round(x - 46)}px, ${Math.round(y - 46)}px)`;
     for (let i = 0; i < 2; i++) { const h = document.createElement("i"); h.style.backgroundImage = `url(${SHIELD})`; el.appendChild(h); }
-    r.appendChild(el); setTimeout(() => el.remove(), 1300);
+    // gfx round 10 (raters: "burst the shield into big shards"): the painted shards fly out, spinning, and fall
+    SHARDS.forEach((u, i) => { const b = document.createElement("b"); b.style.backgroundImage = `url(${u})`; b.style.setProperty("--dx", `${[-70, 64, -34, 44][i]}px`); b.style.setProperty("--dy", `${[-30, -44, 60, 38][i]}px`); b.style.setProperty("--rot", `${[-220, 260, -140, 190][i]}deg`); el.appendChild(b); });
+    r.appendChild(el); setTimeout(() => el.remove(), 1500);
+  }
+
+  /** gfx round 10 (the coordinator approved `BROKEN` / `SLAIN`; raters: "a 'BROKEN' stamp", "a 'WARLORD SLAIN' plaque"): a word stamped
+   *  over a boss at his break or his fall — slams in, holds, fades (CSS, 1.6 s) */
+  stamp(text: string, x: number, y: number, kind: "broken" | "slain"): void {
+    const r = this.root; if (!r) return;
+    const el = document.createElement("div"); el.className = `rstamp ${kind}`; el.textContent = text;
+    el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -50%)`;
+    r.appendChild(el); setTimeout(() => el.remove(), 1700);
   }
 
   private nums: { el: HTMLDivElement; key: string }[] = [];

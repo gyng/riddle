@@ -3,7 +3,7 @@
 // the whole view of `createFallbackViewer` when no GL context can be made at all. The atlas' own frames (full colour) drawn with
 // drawImage, nearest-neighbour: the same tiles and sprites as the GL view, without its lighting and effects. Never game truth.
 import type { ReplayState, EntState } from "./state";
-import { paletteFor, css, SPRITE_SCALE } from "./palette";
+import { paletteFor, css, spriteScale } from "./palette";
 import { heroBase } from "./look";
 
 type Frame = { x: number; y: number; w: number; h: number };
@@ -145,9 +145,9 @@ export class View2D {
     g.globalAlpha = e.remembered ? 0.5 : Math.max(0.12, 1 - e.fade * 0.9);
     let top = fy - T;
     if (f) {
-      // the sprite's runtime height (atlas `texel_h` sprite texels, the masters are 2×) × the GL view's SPRITE_SCALE
+      // the sprite's runtime height (atlas `texel_h` sprite texels, the masters are 2×) × the GL view's scale for its kind
       const id = ids.find((x) => this.frame(x))!, th = sheet?.texelH[id] ?? f.h / 2;
-      const h = th * s * SPRITE_SCALE, w = (f.w / f.h) * h; top = fy - h;
+      const h = th * s * spriteScale(e.kind), w = (f.w / f.h) * h; top = fy - h;
       if (!e.remembered && !e.dying) { g.fillStyle = "rgba(0,0,0,0.35)"; g.beginPath(); g.ellipse(fx, fy - s, Math.min(w * 0.35, T * 0.45), s * 2.5, 0, 0, Math.PI * 2); g.fill(); }
       blit(id, Math.round(fx - w / 2), Math.round(top), Math.round(w), Math.round(h), e.flip);
     } else {

@@ -438,3 +438,45 @@ a ≤ 204 × 294 target. A quiet-window desktop measurement is still owed.
    mid-row; the desktop death banner's `D8 · NO` wrap; the WHY sheet anchored to its tablet.
 4. **Boss break and fall** fell 6.8 → 5.6 and 6.65 → 6.1 at half-size sprites: the break's shield and the fall read small. This wants
    bigger boss sprites (a boss-only scale, e.g. 0.75) and the break/slain plates. The copy owner must approve `BROKEN`/`SLAIN` as words.
+
+### 10.9 Rounds 10+ (2026-09-28, unblocked by the coordinator: an art batch, a boss-only scale, `.arrived` everywhere, `BROKEN`/`SLAIN`)
+
+- **Art (Codex, each QC'd by eye; art-qc 0/0)**: six boss death poses (`boss_<kind>_dead`, 1536×1024 masters → atlas `ent:<kind>_dead`), six
+  room props (`env_skulls`, `env_chest`, `env_rack`, `env_statue` in each biome's ramp; `env_brazier`, `env_candles` keep their fire —
+  `make_env.py` HUE), the boss's painted shield and four shards (`art/ui/fx` → `web/public/ui/fx`, `ui-skin.py` `fx`), and a painted room
+  behind the report's scroll (banner, sword and helmet on gold at the left, a torch, candle, books and skull at the right). Killer
+  portraits are cut from the monsters' own masters (`tools/foe-portraits.py` → `web/public/ui/foes`, skin.json `foes`: 37 heads).
+- **Renderer**: bosses at `BOSS_SCALE` 0.75 (`palette.ts spriteScale`; the atlas, the procedural fallback and the 2D view); a fallen
+  boss lies in his death pose from 4 ticks after the blow for the rest of the floor (state keeps his body; no art → he dissolves as before);
+  ethereal kinds (wraith, mirror shade, echo, siren, spectral blade and hound) draw in their own layer (`layers.ts` ghost: a 50/50 blend
+  whose alpha stays the sprite tag, cold-tinted, bobbing) with a faint cold light in the field — FX > 0 only, `low` unchanged; the new props
+  dress corners, north walls and big rooms, a brazier and candles light the field.
+- **UI**: `BROKEN` and `SLAIN` stamps slam over the boss (`tags.ts stamp`), the break throws the painted shield's shards; the killer's
+  portrait hangs in an iron medallion on the death banner; sheets and the oath board are drawn at rest in their first frame and settle / deal
+  in once it is presented (`.arrived` on `.sheet-wrap`, juice.ts).
+- **Harness**: the boss stills are shot before their strips (the strip's 1.5 s outlived the shatter and the stamp).
+
+| moment | r9 | r10 |
+|---|---|---|
+| watch-warrens | 6.20 | 5.65 |
+| report | 6.10 | 6.45 |
+| death | 7.05 | 6.90 |
+| camp | 6.40 | 6.00 |
+| scene | 5.85 | 5.55 |
+| edit | 6.10 | 6.05 |
+| forecast | 6.10 | 5.95 |
+| oaths | 5.50 | 6.05 |
+| watch-fens | 5.55 | 5.20 |
+| fight | 6.70 | 6.05 |
+| boss-in | 6.90 | 6.90 |
+| boss-break | 5.60 | 6.35 |
+| boss-fall | 6.10 | 6.65 |
+| d-watch | 5.75 | 5.55 |
+| d-report | 5.75 | 5.85 |
+| d-death | 6.25 | 6.35 |
+| d-camp | 6.35 | 5.95 |
+| d-edit | 5.85 | 5.85 |
+| **mean** | **6.12** | **6.07** |
+
+Raters W, X. The targeted moments rose (boss break +0.75, fall +0.55, oaths +0.55, report +0.35); the watch moments fell on capture
+variance (the run's frame differs each round: W and X both saw "the top half black void" and a "hero smudge" in this round's D1 frame).

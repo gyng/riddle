@@ -284,3 +284,25 @@
       radial-gradient(2.4px 2.4px at 85% 15%, rgba(255, 206, 106, .9), transparent 72%),
       radial-gradient(2px 2px at 10% 70%, rgba(255, 230, 160, .85), transparent 72%); }
 }
+
+/* ===== gfx round 10: openings survive the first frame's raster stall (docs/JUICE.md §10.8: on this box a new sheet's first frame rasters
+   for up to ~0.5 s and the timeline does not advance, so an opening from nothing lands finished). A sheet is drawn whole and at rest in
+   its first frame; once presented (`.arrived`, juice.ts) it settles with a drop and an overshoot and its cards deal in — transforms only,
+   nothing hidden ===== */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-juice="on"] .sheet-wrap:not(.arrived), html[data-juice="on"] .sheet-wrap:not(.arrived) > .sheet,
+  html[data-juice="on"] .sheet-wrap:not(.arrived) .oath-board > .oath { animation: none; }
+  html[data-juice="on"] .sheet-wrap.arrived { animation: none; }
+  html[data-juice="on"] .sheet-wrap.arrived > .sheet { animation: j-settle .46s cubic-bezier(.25, 1.35, .45, 1) both; }
+  @keyframes j-settle { from { transform: translateY(-18px) scale(.975); filter: brightness(1.25); } 55% { transform: translateY(4px) scale(1.005); } to { transform: none; filter: none; } }
+  html[data-juice="on"] .sheet-wrap.arrived .oath-board > .oath { animation: j-deal2 .5s cubic-bezier(.25, 1.35, .4, 1) backwards; }
+  html[data-juice="on"] .sheet-wrap.arrived .oath-board > .oath:nth-child(2) { animation-delay: .09s; }
+  html[data-juice="on"] .sheet-wrap.arrived .oath-board > .oath:nth-child(3) { animation-delay: .18s; }
+  html[data-juice="on"] .sheet-wrap.arrived .oath-board > .oath:nth-child(n+4) { animation-delay: .27s; }
+  @keyframes j-deal2 { from { transform: translateX(46px) rotate(4deg); filter: brightness(1.4); } 60% { transform: translateX(-4px) rotate(-.5deg); } to { transform: none; filter: none; } }
+  /* the seal of each oath presses in after its card lands */
+  html[data-juice="on"] .sheet-wrap.arrived .oath.tablet:not(.sworn)::before { animation: j-press .4s cubic-bezier(.3, 1.7, .45, 1) .35s backwards; }
+  @keyframes j-press { from { transform: rotate(-8deg) scale(1.9); filter: grayscale(.2) brightness(1.8); } to { transform: rotate(-8deg); } }
+  /* the boss stamps: steady under reduced motion (below) */
+}
+@media (prefers-reduced-motion: reduce) { .rstamp { animation: none !important; } }

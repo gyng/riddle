@@ -18,7 +18,7 @@ import { heroBase } from "./look";
  *  as a magenta placeholder jug) */
 const KIND_ALIAS: Record<string, string> = { blade: "spectral_blade" };
 import * as THREE from "three";
-import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, PALETTES, paletteFor, setPalettes, SPRITE_SCALE, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
+import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, PALETTES, paletteFor, setPalettes, spriteScale, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
 import { FONT_CELL_H, FONT_CELL_W, FONT_H, FONT_W, glyphBits } from "./font";
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -159,6 +159,8 @@ export class Atlas {
   }
   // ---- sprite-density ids -------------------------------------------------------------------
   // hero looks: `hero_<class>_<look>` when packed, else `hero_<class>` (atlas or procedural)
+  /** gfx round 10: a boss's death pose (`boss_<kind>_dead`, packed as `ent:<kind>_dead`), when the atlas has one */
+  corpse(kind: string): Slot | undefined { return this.sprite.get(`ent:${kind}_dead`); }
   entity(kind: string): Slot { kind = KIND_ALIAS[kind] ?? kind; const base = heroBase(kind); return (base && this.sprite.get(`ent:${kind}`)) || this.spriteSlot(`ent:${base ?? kind}`); }
 
   private envSlot(id: string): Slot {
@@ -211,11 +213,12 @@ export class Atlas {
     if (s) return s;
     const kind = id.slice(4);
     const [w, h] = ENTITY_SIZE[kind] ?? [16, 32];
-    if (SPRITE_SCALE === 1) { const slot = this.sprite.alloc(id, w, h); drawEntity(this.sprite.ctx, slot, kind); return slot; }
+    const ks = spriteScale(kind);
+    if (ks === 1) { const slot = this.sprite.alloc(id, w, h); drawEntity(this.sprite.ctx, slot, kind); return slot; }
     // gfx round 7: drawn at its authored size, then cut down by area like a loaded sprite
     const c = document.createElement("canvas"); c.width = w; c.height = h;
     drawEntity(c.getContext("2d")!, { x: 0, y: 0, w, h, u0: 0, v0: 0, u1: 1, v1: 1 }, kind);
-    return putDown(this.sprite, id, c, { x: 0, y: 0, w, h }, Math.max(1, Math.round(w * SPRITE_SCALE)), Math.max(1, Math.round(h * SPRITE_SCALE)));
+    return putDown(this.sprite, id, c, { x: 0, y: 0, w, h }, Math.max(1, Math.round(w * ks)), Math.max(1, Math.round(h * ks)));
   }
 
   // ---- external atlas ----------------------------------------------------------------------
@@ -296,7 +299,7 @@ export class Atlas {
       // meta.sprites[id].texel_h is the intended runtime height in sprite texels (masters are 2×)
       const kind = id.replace(/^boss_/, "");
       const [bw, bh] = ENTITY_BOX[kind] ?? [32, 32];
-      const sc = (texelH ? texelH / r.h : Math.min(bw / r.w, bh / r.h)) * SPRITE_SCALE;
+      const sc = (texelH ? texelH / r.h : Math.min(bw / r.w, bh / r.h)) * spriteScale(kind);
       putDown(this.sprite, `ent:${kind}`, img, r, Math.max(1, Math.round(r.w * sc)), Math.max(1, Math.round(r.h * sc)));
     } else if (ovm) {
       const frames = ovm[2] === undefined ? [0, 1] : [Number(ovm[2])];

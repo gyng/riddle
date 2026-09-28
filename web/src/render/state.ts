@@ -532,7 +532,7 @@ export class ReplayState {
         // QA e75ec29 (Q: "final frame shows no hero sprite at 0/36 … the body stays where he fell"): the fallen hero dims to
         // HERO_FALLEN_FADE and stays drawn where he fell through the walk-out; only foes dissolve away
         e.fade = e.hero ? Math.min(HERO_FALLEN_FADE, Math.floor(p * 4) / 4) : Math.floor(p * 4) / 4;
-        if (p >= 1 && !e.hero) this.ents.delete(id);
+        if (p >= 1 && !e.hero && !e.boss) this.ents.delete(id);   // gfx round 10: a boss's body stays (the renderer draws his death pose, or nothing)
       } else if (e.spawning) {
         const p = Math.min(1, (c - e.spawning.t0) / SPAWN_T);
         e.fade = 1 - Math.floor(p * 4) / 4;

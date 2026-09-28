@@ -1532,3 +1532,10 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#0
   border-image: url(/ui/frames/scroll.png) 80 36 80 36 fill / 40px 18px 40px 18px stretch; background: none; box-shadow: none; padding: 0 10px; }
 /* (round 8: the seal inside the corner sat over a long reward's words — the formula keeps clear of it) */
 .oath-board .oath.tablet .oath-formula { padding-right: 38px; }
+/* gfx round 10 (raters, every round: "show the killer"): the killer's portrait in an iron medallion pinned to the banner, over its words */
+.banner-cloth > img.killer { display: block; flex: none; width: 58px; height: 58px; margin: -18px auto 6px; border-radius: 50%; object-fit: cover;
+  border: 3px solid #2a2018; box-shadow: 0 0 0 2px #8a6a3a, 0 0 0 4px #140e0a, 0 4px 10px rgba(0, 0, 0, .8), inset 0 0 8px #000; filter: saturate(.9) contrast(1.05); }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-juice="on"] .death.arrived .banner-cloth > img.killer { animation: j-killer .5s cubic-bezier(.3, 1.5, .5, 1) .25s backwards; }
+  @keyframes j-killer { from { transform: scale(1.8); opacity: 0; filter: brightness(2); } to { transform: none; opacity: 1; } }
+}

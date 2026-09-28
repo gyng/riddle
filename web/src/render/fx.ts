@@ -169,6 +169,7 @@ export class Juice {
   private bossPlayed = new Set<number>();
   private rnd = 0x2545f491;
   readonly breaks: number[] = [];
+  readonly falls: number[] = [];   // gfx round 10: bosses fallen this frame (the viewer stamps `SLAIN`)
   domNums = true;   // gfx round 6: numbers drawn by the viewer's DOM layer (the list below), not as bitmap quads
   readonly shown: { x: number; y: number; text: string; col: Rgb; sc: number; a: number; big: boolean }[] = [];   // gfx round 1: bosses whose guard broke this frame (the viewer drains it)
   private emitAcc = 0;
@@ -362,6 +363,7 @@ export class Juice {
           // "pale blob": a cream plume, a white-gold light and a long flash washed the Warlord out before he fell): all in the boss's own
           // colour, smaller and shorter — the light a small pop at his chest, the motes few and rising off him, the flash and slow-mo brief
           const bc = bossCol(e.kind);
+          this.falls.push(ev.id);
           if (mv) { this.slowUntil = now + 700; this.slowRate = 0.3; }
           this.kickShake(3, 420, now); this.flashVig(bc, 0.3, 480, now);
           this.ring(28, cx, e.y + 1, 60, x.dust, 0.6, false); this.ring(16, cx, e.y + 1, 32, bc, 0.5, true);

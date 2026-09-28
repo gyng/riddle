@@ -44,7 +44,7 @@ import { Atlas, type Slot } from "./atlas";
 import { Blit } from "./blit";
 import { QuadLayer } from "./layers";
 import { GpuTimer, Hist } from "./gputimer";
-import { paletteFor, SPRITE_SCALE } from "./palette";
+import { ETHEREAL, paletteFor, SPRITE_SCALE } from "./palette";
 import { CALL_CHAR, CALL_H, CALL_PAD, TAG_CHAR, TAG_H, TAG_PAD, TagLayer, allyName, type Plate, type Tag } from "./tags";
 import { PROPS, ReplayState, type EntState } from "./state";
 import { Quality } from "./quality";
@@ -136,6 +136,7 @@ const ROOM_MAX = 600;              // Cut 14 §3: the room flood's cap in tiles 
 /** 307dbed control rater AR ("the ogre drew as a checkerboard blob"): a sprite's fade (a death's dissolve, a spawn, the fallen hero's
  *  half) was a screen door on the pixel grid — at ½ a checkerboard over the sprite, held on a paused last frame. It darkens instead:
  *  the sprite stays whole and readable, its light going (the fallen hero at ½ reads dimmed, never checkered). */
+const CORPSE_T = 4;                // gfx round 10: ticks after a boss's killing blow before his death pose replaces him
 const fadeDim = (e: { fade: number }): number => e.fade <= 0 ? 1 : Math.max(0.12, 1 - e.fade * 0.9);
 /** the cast of the hero's and the torches' light per biome (rgb multipliers on the warm amber; the Warrens and the Burrows keep it) */
 const LIGHT_TINT: Record<string, [number, number, number]> = {
@@ -190,6 +191,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     hud: new QuadLayer(env, 128, 0.5, 7), // Cut 8A: hp bars (sprite-tagged so the red keeps its hue in every biome)
     decor: new QuadLayer(env, 512, 1, 0),       // art pass: floor decals (moss, cracks, rubble, bones) and props (barrel, crate, pot)
     decorHue: new QuadLayer(env, 256, 0.5, 1),  // art pass: blood, torches, banners — sprite-tagged so red and flame keep their hue
+    ghosts: new QuadLayer(spr, 64, 0.5, 4, true),  // gfx round 10: ethereal sprites, half over what is under them (FX > 0; `low` draws them in `ents`)
   };
   for (const l of Object.values(L)) scene.add(l.mesh);
   const blit = new Blit(rt.texture);
@@ -206,6 +208,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   // Cut 14 §3: the hero's room, lit whole once seen — a flood from the hero's tile over room tiles (index → 1), recomputed when
   // the hero's logical tile changes (or the floor reloads); empty in a corridor
   let roomLit = new Uint8Array(0), roomKey = "";
+  const ghostAt: [number, number][] = [];   // gfx round 10: this frame's ethereal sprites (world), for their light
   const rects: DebugRect[] = [], labels: DebugLabel[] = [];   // Cut 14 §3: what this frame drew, for the gates
   const texts: { kind: "callout" | "caption"; text: string; x?: number; y?: number; w?: number; h?: number }[] = [];   // Cut 18 §2
   // Cut 28 §4 (AU, AV: `R3 BANK` over the docked fold chips `gas>pack · bp 5/40`; `archer` printed across `R7 ATTACK ARCHER`): the
@@ -217,6 +220,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   const numCss: { x: number; y: number; text: string; col: readonly number[]; sc: number; a: number; big: boolean }[] = [];   // gfx round 6: this frame's numbers (CSS px)
   let bossTitle: { text: string; until: number } | null = null; const bossTitled = new Set<number>();   // gfx round 1: the boss's title plate   // second art pass: the hostiles' serif name plates (DOM)
   const lights: [number, number][] = [];   // art pass: this frame's torch flames (world env texels)
+  const candles: [number, number][] = [];   // gfx round 10: candle clusters (a small warm light each)
   const syncPx = new Uint8Array(4);
   // juice (docs/JUICE.md): the effects tier, the light field, bloom and the event-driven feedback; `low` keeps the pre-juice look
   const quality = new Quality(renderer.getContext());
@@ -514,10 +518,26 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const n = isWall(x, y - 1), sw = isWall(x, y + 1), e = isWall(x + 1, y), w = isWall(x - 1, y);
     const walls = +n + +sw + +e + +w, corner = (n || sw) && (e || w);
     const hp = hash2(x, y, 7);
-    if (walls >= 1 && walls <= 2 && (corner ? hp < 0.55 : hp < 0.07) && !st.items.some((it) => it.x === x && it.y === y)) {   // gfx round 2: props at more corners and along walls
-      const k = hash2(x, y, 8), name = k < 0.45 ? "barrel" : k < 0.8 ? "crate" : "pot";
-      const f = atlas.envTile(b, name);
+    const free = !st.items.some((it) => it.x === x && it.y === y);
+    if (walls >= 1 && walls <= 2 && (corner ? hp < 0.55 : hp < 0.07) && free) {   // gfx round 2: props at more corners and along walls
+      // gfx round 10 (raters: "rooms are empty brown grids — barrels, bones, banners"): skull piles and chests join the corners
+      const k = hash2(x, y, 8), name = k < 0.34 ? "barrel" : k < 0.6 ? "crate" : k < 0.74 ? "pot" : k < 0.9 ? "skulls" : "chest";
+      const f = atlas.envTile(b, name) ?? atlas.envTile(b, "barrel");
       if (f) { L.decor.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
+    }
+    // gfx round 10: against a north wall, now and then a weapon rack or a broken statue; candles at a wall's foot (a small warm light)
+    if (n && !sw && !e && !w && free && hp > 0.55 && hp < 0.62) {
+      const f = atlas.envTile(b, hash2(x, y, 13) < 0.5 ? "rack" : "statue");
+      if (f) { L.decor.push(wx, wy + 1, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
+    }
+    if (walls >= 1 && free && hp > 0.9 && hp < 0.935) {
+      const f = atlas.hue("candles");
+      if (f) { L.decorHue.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, Math.max(dim, 0.9)); if (dim > 0.5) candles.push([wx, wy + 3]); return; }
+    }
+    // a standing brazier in the open floor of a big room (its fire lights the room)
+    if (walls === 0 && free && hash2(x, y, 14) < 0.018 && !isWall(x - 2, y) && !isWall(x + 2, y) && !isWall(x, y - 2) && !isWall(x, y + 2)) {
+      const f = atlas.hue("brazier");
+      if (f) { L.decorHue.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, Math.max(dim, 0.9)); if (dim > 0.5) lights.push([wx, wy + f.h / 2 - 2]); return; }
     }
     const hd = hash2(x, y, 9), near = walls > 0 ? 0.1 : 0;
     const pick = hd < 0.07 + near ? "moss_" + (hash2(x, y, 10) < 0.5 ? 0 : 1)
@@ -539,7 +559,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const b = st.biome;
     const fight = mode === "fight";
     updateRoom();
-    rects.length = 0; labels.length = 0; texts.length = 0; tags.length = 0; plates.fill(null);
+    rects.length = 0; labels.length = 0; texts.length = 0; tags.length = 0; plates.fill(null); ghostAt.length = 0;
     const bright = p[p.length - 1]!;
     // Cut 8A: a hit flashes to the palette's brightest in the fight frame; the map keeps its paper white
     if (fight) L.ents.setFlash(bright[0], bright[1], bright[2]); else L.ents.setFlash(0.98, 0.95, 0.9);
@@ -550,7 +570,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const torchFrame = Math.floor(now / 180) & 1;
     const hd = atlas.envTile(b, "floor_0") !== undefined;   // art pass: register 3 loaded for this biome
     L.tiles.begin(); L.decor.begin(); L.decorHue.begin();
-    lights.length = 0;
+    lights.length = 0; candles.length = 0;
     stairsSeen.length = 0;
     for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) {
       const i = y * st.w + x;
@@ -608,7 +628,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
     // entities (sprite density: 1 sprite texel = 0.5 world), shadows, glyphs. A remembered foe (Cut 4 §3) is drawn
     // at its last seen tile dimmed like a memory tile: no shadow, no flash, no telegraph glyph.
-    L.shadows.begin(); L.ents.begin(); L.glyphs.begin(); L.hud.begin(); L.text.begin();
+    L.shadows.begin(); L.ents.begin(); L.ghosts.begin(); L.glyphs.begin(); L.hud.begin(); L.text.begin();
     stats.ents = st.ents.size; stats.drawn = 0;
     // Cut 13 §4: the callout's box (clamped inside the frame, see `textX`), so a hostile's name never shares its line (rater Q's
     // `JACKALCKAL`: the callout above the hero and the name under a foe one tile up, on one row)
@@ -706,6 +726,13 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // QA 1a2a4a9 (P: jackal silhouettes on black left of a wall): a remembered foe is drawn only over a tile the map draws
       if (!e.hero && !st.visible[vi] && !(e.remembered && st.seen[vi])) continue;
       stats.drawn++;
+      // gfx round 10 (raters: the fallen boss "a dark smear"): a boss's body lies in its death pose from CORPSE_T ticks after the blow, for
+      // the rest of the floor; without the art he dissolves as before (then is not drawn)
+      if (e.boss && e.dying) {
+        const dead = st.clock - e.dying.t0 >= CORPSE_T ? atlas.corpse(e.kind) : undefined;
+        if (dead) { const [cx, cy] = feet(e); L.ents.push(cx, cy, 1.9, dead.w / 2, dead.h / 2, dead.u0, dead.v0, dead.u1, dead.v1, 0.92, 0, 0, e.flip ? 1 : 0); continue; }
+        if (e.fade >= 1) continue;
+      }
       let [fx, fy] = feet(e);
       const fx0 = fx;
       const group = stacks.get(vi), stackN = group?.length ?? 1, stackI = group ? group.indexOf(e.id) : 0;
@@ -775,7 +802,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // juice: squash & stretch (a hit, a lunge, a spawn's pop, a death's slump) — the feet stay put; `rects` keep the true size
       const [sqx, sqy] = juice.squash(e.id, st.clock);
       const lift = juice.lift(e.id, st.clock);   // gfx round 5: a boss drops into his arena
-      L.ents.push(fx, fy + lift, z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.ally && !e.hero ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);
+      const ghost = fxLevel > 0 && !e.hero && ETHEREAL.has(e.kind);
+      if (ghost) ghostAt.push([fx, fy + h / 2]);
+      (ghost ? L.ghosts : L.ents).push(fx, fy + lift + (ghost ? Math.round(Math.sin(now / 380 + e.id) * 1.5) + 1 : 0), z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.ally && !e.hero ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);
       // Cut 8A: in the fight frame the hero and his allies carry an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
       // above the sprite; glyphs sit above the bar. Second art pass: a hostile's bar is on its name tag instead.
       let top = fy + h + 2;
@@ -842,7 +871,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         L.glyphs.push(Math.round(px * TILE) + TILE / 2, -Math.round(py * TILE) - TILE / 2 - 1, 3.6, 2, 2, d.u0, d.v0, d.u1, d.v1);
       }
     }
-    L.shadows.end(); L.ents.end(); L.glyphs.end(); L.hud.end();
+    L.shadows.end(); L.ents.end(); L.ghosts.end(); L.glyphs.end(); L.hud.end();
     // juice: particles, numbers and this frame's events (fx.ts); nothing at `low`
     fires.length = 0; gases.length = 0;
     if (fxLevel > 0) {
@@ -861,8 +890,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       });
       numCss.length = 0;
       for (const n of juice.shown) { const [cx, cy] = toCss(n.x, n.y); numCss.push({ ...n, x: cx, y: cy }); }
-      for (const id of juice.breaks.splice(0)) { const e = st.ents.get(id); if (e) { const [x, y] = feet(e); const [cx, cy] = toCss(x, y + atlas.entity(e.kind).h / 2 * 0.95); tagLayer.shatter(cx, cy); } }
-    } else juice.update(0, now, st.clock, { ent: () => null, heroId: -1, speed: 0, fight, quiet, cam: [0, 0], half: [0, 0], fires, gases, waters, torches: lights, motes: false, dust: [0, 0, 0] });
+      for (const id of juice.breaks.splice(0)) { const e = st.ents.get(id); if (e) { const [x, y] = feet(e); const [cx, cy] = toCss(x, y + atlas.entity(e.kind).h / 2 * 0.95); tagLayer.shatter(cx, cy); const [sx, sy] = toCss(x, y + atlas.entity(e.kind).h / 2 + 10); tagLayer.stamp(/* copy:callout */ "BROKEN", sx, sy - 24, "broken"); } }
+      for (const id of juice.falls.splice(0)) { const e = st.ents.get(id); if (e) { const [x, y] = feet(e); const [sx, sy] = toCss(x, y + atlas.entity(e.kind).h / 2 + 8); tagLayer.stamp(/* copy:callout */ "SLAIN", sx, sy - 24, "slain"); } }
+    } else { juice.falls.length = 0; juice.update(0, now, st.clock, { ent: () => null, heroId: -1, speed: 0, fight, quiet, cam: [0, 0], half: [0, 0], fires, gases, waters, torches: lights, motes: false, dust: [0, 0, 0] }); }
 
     // callout: bitmap text above the hero (env density)
     const hero = st.hero;
@@ -946,6 +976,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(7, st.vision + 1.5), c: [0.92 * tint[0], 0.75 * tint[1], 0.52 * tint[2]] }); }   // gfx round 1: a wider, warmer pool ("dim flat lighting", "brown mush")
       juice.lights(now, fieldLights);
       for (const [px, py] of st.projectilePositions()) fieldLights.push({ x: px + 0.5, y: py + 0.5, r: 2, c: [0.7, 0.6, 0.4] });
+      for (const [cx, cy] of candles.slice(0, 3)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: cx / TILE, y: -cy / TILE, r: 2.2, c: [0.7, 0.45, 0.2] });
+      for (const [gx, gy] of ghostAt.slice(0, 4)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: gx / TILE, y: -gy / TILE, r: 2.4, c: [0.22, 0.32, 0.55] });   // gfx round 10: a ghost's own cold glow
       const fl = (i: number, a: number, b: number): number => quality.at("high") ? 0.88 + 0.08 * Math.sin(now * a + i * 1.7) + 0.05 * Math.sin(now * b + i * 4.1) : 1;
       fires.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD - 4) { const k = fl(i, 0.017, 0.041) * 0.9; fieldLights.push({ x: x / TILE, y: -y / TILE, r: 3, c: [1 * k, 0.5 * k, 0.15 * k] }); } });
       gases.slice(0, 4).forEach(([x, y]) => fieldLights.push({ x: x / TILE, y: -y / TILE, r: 1.8, c: [0.12, 0.2, 0.03] }));

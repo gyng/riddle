@@ -135,6 +135,10 @@ function arrivals(): void {
     }
   }).observe(app, { childList: true, subtree: true });
   for (const v of app.querySelectorAll(".vista")) flames(v);
+  // gfx round 10 (the coordinator: the `.arrived` pattern on every opening — the oath board's strip was "only the camp dimming"): a sheet
+  // is drawn at rest in its first frame and settles once that frame is presented (juice.css)
+  const sheet = (n: Node): void => { if (n instanceof HTMLElement && n.classList.contains("sheet-wrap")) requestAnimationFrame(() => requestAnimationFrame(() => n.classList.add("arrived"))); };
+  new MutationObserver((ms) => { for (const m of ms) m.addedNodes.forEach(sheet); }).observe(document.body, { childList: true });
 }
 if (typeof MutationObserver !== "undefined" && on) {
   if (document.getElementById("app")) arrivals(); else addEventListener("DOMContentLoaded", arrivals, { once: true });

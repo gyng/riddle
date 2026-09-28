@@ -24,6 +24,7 @@ import { gem, portrait, renderBar, renderConsole, tile, wideCols, isWide } from 
 import { lostLabel, noteText, refName, rowLabel, ruleName, setRefRows, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
+import { foeSrc } from "./skin";
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
@@ -237,9 +238,12 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     from ? tile({ id: "report", label: /* copy:button */ "report", icon: "trace", onclick: () => app.go({ kind: "report", report: from.report }) }) : null,
     tile({ id: "camp", label: /* copy:button */ "camp", icon: "camp", onclick: () => app.go({ kind: "camp" }) }),
   ] });
+  const killerSrc = drove ? null : foeSrc(d.cause);
   const tracePanel = h("div", { class: "parchment trace-panel", hidden: !!drove && !d.trace.turns.length }, ...trace);   // a drive-off's line may carry no trace
   const well = h("div", { class: "well death-well" },
-    h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}` }, luckLead, line), news, drivenHp, notes, forecastLine, ledger, eggs, bones),
+    h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerSrc ? " has-killer" : ""}` },
+      // gfx round 10 (raters, every round: "show the killer behind the banner"): the killer's portrait in an iron medallion on the cloth
+      killerSrc ? h("img", { class: "killer", src: killerSrc, alt: "", draggable: "false", "aria-hidden": "true" }) : null, luckLead, line), news, drivenHp, notes, forecastLine, ledger, eggs, bones),
     // QA 23ed91f (K: "the patches sit below the fold, under the console"): the patches, the screen's point, before the trace
     patches,
     tracePanel,
