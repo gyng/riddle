@@ -2775,7 +2775,7 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
     // Several items may share a tile (a recovered kit that did not fit): take the first
     // that would change anything.
     let here = run.hero.pos;
-    let Some(ii) = run.items.iter().position(|fi| fi.pos == here && can_take(&run.hero, &fi.item)) else { return };
+    let Some(ii) = run.items.iter().position(|fi| fi.pos == here && (can_take(&run.hero, &fi.item) || (queen_wants(run, &fi.item) && queen_slot(run, cx).is_some()))) else { return };
     let item = &run.items[ii].item;
     if item.kind == "bones" {
         recover_bones(run, cx, ii);
@@ -2842,6 +2842,15 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
         learn(run, cx, "item:leash".into());
         return;
     }
+    // Cut 29 (the Lurker Queen, D28): a full pack of enchanted summons and spares walked past
+    // every silence scroll from D24 (205 floors, none held) — its value (18) is under an
+    // enchanted scroll's. From D24 a silence takes the slot of an unread summon or a spare.
+    if run.hero.inv_full() && queen_wants(run, item) {
+        if let Some(k) = queen_slot(run, cx) {
+            swap_in(run, cx, ii, k);
+            return;
+        }
+    }
     if run.hero.inv_full() && !item_replaces_gear(&run.hero, item) {
         // Cut 3: a full pack keeps one spare weapon and one spare armour; a second spare makes
         // way for a consumable or a bow (spares are salvage; potions and scrolls are the run).
@@ -2880,8 +2889,8 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
         // Cut 12 §2: never what a row needs — a kind a `drink` / `read` / `throw` row names,
         // or a supply packed at camp (rater O: `swapped for the poison` took the bought heal
         // `hp<30 → drink heal` was written for).
-        let dup = duplicate_slot(&run.hero, item).filter(|&k| !row_needs(run, cx, &run.hero.inv[k]));
-        let swap = dup.or_else(|| run.hero.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
+        let dup = duplicate_slot(&run.hero, item).filter(|&k| !row_needs(run, cx, &run.hero.inv[k]) && !queen_keeps(run, &run.hero.inv[k]));
+        let swap = dup.or_else(|| run.hero.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i) && !queen_keeps(run, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
         let swap = swap.map(|k| (k, if dup.is_some() { i32::MIN } else { run.hero.inv[k].value() }));
         match swap {
             Some((k, v)) if item.is_consumable() && item.value() > v => {
@@ -2917,6 +2926,47 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
             drop_near(run, here, old);
         }
     }
+    cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
+}
+
+/// Cut 29: the band where the Lurker Queen's counter (a silence scroll) earns a pack slot.
+pub const QUEEN_PACK_DEPTH: u32 = 24;
+
+/// Cut 29: from `QUEEN_PACK_DEPTH`, a silence scroll is worth a slot while the pack holds fewer
+/// than two (the Queen's summons are read down one scroll at a time).
+pub fn queen_wants(run: &Run, item: &Item) -> bool {
+    item.kind == "silence" && run.depth >= QUEEN_PACK_DEPTH && run.hero.inv.iter().filter(|i| i.kind == "silence").count() < 2
+}
+
+/// Whether a held item is the Queen's counter the pack keeps (never swapped out for a dearer
+/// consumable: a silence taken for a summon would be traded back for it on the next step).
+fn queen_keeps(run: &Run, it: &Item) -> bool {
+    it.kind == "silence" && run.depth >= QUEEN_PACK_DEPTH
+}
+
+/// The slot a silence takes (`queen_wants`): an unread summon (no row names it, not packed at
+/// camp) first, else a spare weapon or armour (not the forged kit, not a bow, not brought from the
+/// vault) — the cheapest.
+pub fn queen_slot(run: &Run, cx: &Ctx) -> Option<usize> {
+    let free = |i: &Item| !row_needs(run, cx, i) && !crate::kit::is_kit_id(i.id) && !run.brought.contains(&i.id);
+    let pick = |f: &dyn Fn(&Item) -> bool| run.hero.inv.iter().enumerate().filter(|(_, i)| free(i) && f(i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k);
+    pick(&|i| i.kind == "summon_ally").or_else(|| pick(&|i| matches!(i.cat(), Cat::Weapon | Cat::Armour) && !i.def().ranged))
+}
+
+/// A full pack puts down its slot `k` and takes the floor item `ii` in its place (a chore).
+fn swap_in(run: &mut Run, cx: &mut Ctx, ii: usize, k: usize) {
+    let dropped = run.hero.inv.remove(k);
+    let here = run.hero.pos;
+    let it = run.items.remove(ii).item;
+    let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
+    let raw = it.value() - run.loot_value(&dropped);
+    swap_loot(run, cx, raw, &dropped);
+    crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
+    crate::provenance::found(run, cx, &it.kind, &label);
+    run.note_gone(dropped.id, &dropped.kind, "left", dropped.amount.max(1));
+    run.note_found(it.id, &it.kind, 1);
+    run.hero.inv.push(it);
+    run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
     cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
 }
 
@@ -3017,10 +3067,13 @@ fn duplicate_slot(h: &crate::hero::Hero, item: &Item) -> Option<usize> {
 /// gripe: "the most expensive outcome in the game").
 pub fn would_take(run: &Run, cx: &Ctx, item: &Item) -> bool {
     let h = &run.hero;
-    if !can_take(h, item) {
+    if !(can_take(h, item) || (queen_wants(run, item) && queen_slot(run, cx).is_some())) {
         return false;
     }
     if !h.inv_full() || item.kind == "bones" || item.cat() == Cat::Gold || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash")) || item_replaces_gear(h, item) {
+        return true;
+    }
+    if queen_wants(run, item) && queen_slot(run, cx).is_some() {
         return true;
     }
     if item.is_consumable() || item.def().ranged {
@@ -3032,8 +3085,8 @@ pub fn would_take(run: &Run, cx: &Ctx, item: &Item) -> bool {
             return true;
         }
     }
-    let dup = duplicate_slot(h, item).filter(|&k| !row_needs(run, cx, &h.inv[k]));
-    let swap = dup.or_else(|| h.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
+    let dup = duplicate_slot(h, item).filter(|&k| !row_needs(run, cx, &h.inv[k]) && !queen_keeps(run, &h.inv[k]));
+    let swap = dup.or_else(|| h.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i) && !queen_keeps(run, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
     let swap = swap.map(|k| if dup.is_some() { i32::MIN } else { h.inv[k].value() });
     matches!(swap, Some(v) if item.is_consumable() && item.value() > v)
 }

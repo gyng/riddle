@@ -6794,7 +6794,7 @@ fn dice_seed(seed: u64) -> Option<(u64, u32, crate::wire::Death, Vec<Row>)> {
             let telegraphed = d.trace.turns.iter().any(|t| !t.telegraphs.is_empty());
             if telegraphed && found.is_none() {
                 let rec = g.deaths.get(&id).unwrap();
-                if crate::trace::telegraph_row(&rec.vocab, &d.trace).is_some() {
+                if crate::trace::telegraph_row(&rec.vocab, &d.trace, &rec.t10_facts).is_some() {
                     let cands = crate::trace::candidates(&rec.vocab, &rec.rules, rec.t10.as_ref().unwrap(), &rec.t10_facts, &g.lineage.flavours, &d.trace);
                     found = Some((seed, id, d.clone(), cands));
                 }
@@ -11335,6 +11335,11 @@ fn saves_from_307dbed_send_identically() {
     assert!(g.lineage.rules().route.is_empty());
     // (Cut 29 §1: re-recorded — the frontier mark and its words left the exit lines; with the old
     // mark's text restored the stream hashed to 307dbed's d59e321d76373469 exactly)
+    // (Cut 29, the Queen's silence slot: re-recorded `21e701bd6e6b9c2d` → `3754cfc8a2604f4b` — the
+    // full event diff of the 10 sends against the tree before it first differs at send 6, t 42131, on
+    // D28: a `pick_up` chore walks to a silence scroll the full pack now takes (`turn::queen_slot`)
+    // where it explored; everything before is identical, and with `QUEEN_PACK_DEPTH` out of reach
+    // the save hashes to `21e701bd6e6b9c2d` again)
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }

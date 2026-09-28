@@ -219,6 +219,10 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
     let mut stall_best = 0usize;
     let mut stall_cur = 0usize;
     for day in 0..days {
+        // `DP_SNAP=dir`: the lineage's save at each day's start (`dir/s<seed>-d<day>.json`, day 1-based) — the probes' input
+        if let Ok(dir) = std::env::var("DP_SNAP") {
+            let _ = std::fs::write(format!("{dir}/s{seed}-d{}.json", day + 1), g.save());
+        }
         let mut d = Day::default();
         for _ in 0..checkins {
             let rep = riddle_core::offline::run_offline_quick(&mut g, interval);
