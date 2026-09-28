@@ -41,6 +41,7 @@
 .watch .meter-line[data-scope="fight"] .m-scope { color: var(--hp); }
 .watch .meter-line .dealt b { color: var(--acc); } .watch .meter-line .taken b { color: #ff8a7a; } .watch .meter-line .healed b { color: var(--ok); }
 /* Cut 29 §4: the standing orders — one tablet, one sheet */
+.row.tablet.compact.orders-tab[hidden], .repeat-add[hidden], .wall-host[hidden] { display: none; }
 .orders-tab .orders-head { font-weight: 600; margin-right: 4px; }
 .orders-tab .orders-sum { font-size: 13px; }
 .orders-sheet .order-rows { display: grid; gap: 8px; margin-top: 6px; }
