@@ -15,6 +15,7 @@
 // Cut 16 §2: beside them, while `Lineage.class_offer` stands, a chip per owned class with its signature verb (`rogue · vanish`;
 // one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
 // row stands in for the class button while it is up.
+import { wallTablet } from "./wall";
 import { meterCompare, meterPanel } from "./meters";
 import { anyNew, hasCurriculum, sysOpen } from "./systems";
 import { lookStud } from "./look";
@@ -156,6 +157,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const ordersTab = h("button", { class: "row tablet compact orders-tab", hidden: true, onclick: () => openOrders() });
   // Cut 29 §4: a kind a `throw` row names that the repeat lacks — one tap packs it (`+ fire · for throw fire`), the repeat keeps it after
   const repeatAdd = h("div", { class: "chips repeat-add", hidden: true });
+  // Cut 29 §1 (E1): the wall's edit the core cached for the day (`Lineage.wall`) as a patch tablet under the rules
+  const wallBox = h("div", { class: "wall-host", hidden: true });
+  const paintWall = (): void => { const w = app.lineage.wall && JSON.stringify(app.lineage.wall.rules.rows.map((r) => [r.conds, r.verb])) !== JSON.stringify(app.rules.rows.map((r) => [r.conds, r.verb])) ? app.lineage.wall : undefined; wallBox.hidden = !w; if (w) replace(wallBox, wallTablet(app, w, () => undefined)); };
   // Cut 28 §1: the oath board — its own tablet under the start's (`oath → D10 no drink · 34%`, or `oaths 3`), carved when an oath is
   // first affordable; the tap opens the board (three oaths, each its chips, its reward, its price)
   const oathTab: HTMLButtonElement = h("button", { class: "row tablet compact oath-tab", hidden: true, onclick: () => openOathBoard(app, oathTab) });
@@ -198,7 +202,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, repeatAdd, ordersTab, cageTab, startTab, oathTab), shaft.el, metersSlot(campMeters(app))));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, wallBox, repeatAdd, ordersTab, cageTab, startTab, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   const restLine = h("div", { class: "rest-line" }, rest);
@@ -832,7 +836,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     fn();
     boxes.forEach((b, i) => { if (b && b.scrollTop !== tops[i]) b.scrollTop = tops[i]; });
   }
-  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintOrders(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintOrders(); paintWall(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);

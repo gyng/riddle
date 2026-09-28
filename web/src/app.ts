@@ -666,6 +666,14 @@ export class App {
     if (drop >= 0 && drop < rows.length) rows.splice(drop, 1);
     return this.insertRow(p.row, drop >= 0 && drop < p.insert_at ? p.insert_at - 1 : p.insert_at, p.row.origin ?? "patch");
   }
+  /** Cut 29 §1 (E1): a whole set measured by the core (the wall's edit) replaces the active one's rows; a row the set already held keeps
+   *  its origin, a new one is the patch's. */
+  applyRules(set: RuleSet): void {
+    const was = this.rules.rows;
+    this.sets[this.active] = { ...this.sets[this.active], rows: set.rows.map((r) => { const k = rowKey(r); const old = was.find((x) => rowKey(x) === k); return { ...cloneRow(r), origin: old?.origin ?? r.origin ?? "patch" }; }), ...routeOf(set) };
+    this.rulesChanged();
+    this.emitChange();
+  }
   async setRulesText(text: string): Promise<void> {
     const set = await this.engine.importRules(text);
     this.sets[this.active] = { rows: set.rows.map((r) => ({ ...cloneRow(r), origin: r.origin ?? "player" })), name: this.sets[this.active]?.name, ...routeOf(set) };   // Cut 26 §2: an export carries its route

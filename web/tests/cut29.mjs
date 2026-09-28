@@ -270,6 +270,26 @@ try {
     check(f === "Greth · ogre L5 · fell D12 to lurker", `a fallen companion is a named line among the decisions ("${f}")`);
     await shot("cut29-fallen");
   }
+  // ---- §1 (E1): the wall's edit lands as a patch after the report paints, and applies the whole measured set
+  if (part("wall")) {
+    await boot(2909);
+    const t = await page.evaluate(async () => {
+      const r = window.__riddle; const rows = r.rules.rows;
+      const set = { rows: [...rows.slice(0, 1), { conds: [{ k: "hp<", n: 90 }], verb: { v: "rest" }, origin: "patch" }, ...rows.slice(1)] };
+      r.engine.wallEdit = () => new Promise((res) => setTimeout(() => res({ depth: 17, edits: ["R1 → hp < 90% → rest"], rules: set, before: 0.12, after: 0.38, sims: 48 }), 700));
+      const t0 = performance.now();
+      r.go({ kind: "report", report: { elapsed_s: 3600, runs: 4, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, tamed: [], hatched: [], lost: [], xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, live: false, banked: 2, returned: 2 } });
+      return { painted: !!document.querySelector("main.report .tiles, main.report .report-sheet"), wallAtOnce: !!document.querySelector(".wall-edit"), t0 };
+    });
+    check(t.painted && !t.wallAtOnce, `the report paints without waiting on the wall search (painted ${t.painted}, tablet at once ${t.wallAtOnce})`);
+    const w = await until(() => document.querySelector(".wall-host .wall-edit")?.textContent.replace(/\s+/g, " ").trim() ?? null, "the wall's tablet");
+    check(/^wall D17 · 48 sends/.test(w) && /past D17 12%→38%/.test(w) && !/\bR\d/.test(w), `the wall's edit is a patch tablet, its rule named by its words ("${w}")`);
+    await shot("cut29-wall");
+    await page.locator(".wall-apply").click();
+    await camp();
+    const rows = await page.evaluate(() => window.__riddle.rules.rows.map((r) => `${r.conds.map((c) => c.k + (c.n ?? "")).join("&")}>${r.verb.v}`));
+    check(rows[1] === "hp<90>rest", `apply takes the measured set (${rows.join(" · ")})`);
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 }

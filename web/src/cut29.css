@@ -54,3 +54,10 @@
 /* Cut 29 §4: the repeat's missing kind, one tap */
 .repeat-add { margin: 4px 0; }
 .repeat-add .repeat-add-chip { border-style: dashed; }
+/* Cut 29 §1 (E1): the wall's edit as a patch tablet */
+.wall-host:empty { display: none; }
+.patch.tablet.wall-edit { display: grid; gap: 6px; padding: 10px 12px; text-align: left; }
+.wall-edit .wall-edits .chip { font-size: 13px; }
+.wall-edit .wall-foot { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.wall-edit .wall-foot .up { color: var(--ok); }
+.wall-edit .wall-apply { margin-left: auto; }

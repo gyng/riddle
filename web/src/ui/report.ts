@@ -9,12 +9,13 @@
 // Cut 14 §4: every exit's `trace` chip carries its exit (`D5 · died · trace`; the depth off the ledger line the exit claims, else
 // off the line's own text) — rater S: "the seventh unlabelled TRACE button"; the stalled tile carries what the stalls cost
 // (`2 STALLED · $161 lost`, the stalled lines' `carried`); the `R1 fired n of m runs` lines go to `app.rowFires`.
+import { wallOffer, wallTablet } from "./wall";
 import { meterPanel } from "./meters";
 import { systemIcon, systemLabel } from "./systems";
 import { measureKit, openForge } from "./forge";
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
-import { h, items, spanOf } from "./dom";
+import { h, replace, items, spanOf } from "./dom";
 import { openDropSheet, patchRows } from "./patches";
 import { BANDS, laneTitle, lanes, routeForks, seenForks } from "./route";
 import { drivenDeath, exitExtras, wakeShown } from "./death";
@@ -480,6 +481,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 28 §2 (AU: "the report is a wall of salvage/found lines before anything to decide"): the first screen is what changed and what
   // to do — the news, the tiles, the oath's progress, the plateau, a boss's counter (driven off, or newly learned), the bounty, pending;
   // the ledger (exits, gold, salvage, bones, finds, the reel) folds under one `details` tap
+  // Cut 29 §1 (E1): the wall's edit lands here when the core's search answers (after the paint; never waited on)
+  const wallHost = h("div", { class: "wall-host" });
+  void wallOffer(app).then((w) => { if (w && wallHost.isConnected) replace(wallHost, h("div", { class: "label" }, /* copy:label */ "wall fix"), wallTablet(app, w, () => app.go({ kind: "camp" }))); });
   const details = h("div", { class: "report-details", hidden: true });
   const detailsBtn: HTMLButtonElement = h("button", { class: "details-fold num", "aria-expanded": "false", onclick: () => {
     details.hidden = !details.hidden; detailsBtn.setAttribute("aria-expanded", details.hidden ? "false" : "true"); detailsBtn.classList.toggle("on", !details.hidden);
@@ -487,7 +491,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const learnedFacts = r.learned.filter((f) => !/^bones:\d+$/.test(f));
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
-    newsBlock(r, named, L.counters ?? []), opened(r), tiles, oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    newsBlock(r, named, L.counters ?? []), opened(r), tiles, wallHost, oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
