@@ -157,8 +157,13 @@ Next, in order (the agent's own list):
 7. Clean frame times: `tools/gfx-round.sh scratchpad/gfx-eval/round7` on a quiet box.
 Each round: two fresh raters (`round*/rater/prompt.txt`), `python3 scratchpad/gfx-eval/score.py roundN`.
 
-### Cut 29 client (barely started — only the pack-4 fix landed)
-Done: `web/src/ui/camp.ts` reads `Lineage.supply_cap` (the pack 4 → 3/3 bug). Everything else is open;
+### Cut 29 client (in progress, 2026-09-28 — closed items committed on cut29-wip; `web/tests/cut29.mjs`)
+**Closed:** 1 `mergeReports` (`ui/meters.ts mergeMeters`) · 2 keep sheet (`decide`/`note`; a full vault's decision is a
+`swap` sheet) · 3 systems (`ui/systems.ts`; reveal steps follow `Lineage.systems`; reorder/vs/divergence/walls/route/
+automations/tags/exit verbs gated; report `opened` plaques; `seenSystems` after the glint; the proxy now lists the Cut 29
+methods; fake `?systems=all|none` — the older suites run with `none`) · 4 meters (watch toggle, death fight, report
+night, camp two-run compare, desktop slot) · owner copy: the gap seal reads YOU DIED (death screen only), budgets 2 words.
+Done earlier: `web/src/ui/camp.ts` reads `Lineage.supply_cap` (the pack 4 → 3/3 bug). The rest below is open;
 the fake engine (`web/src/engine/fake.ts` ~2082–2195) already has Cut 29 stand-ins, so build against it:
 1. `mergeReports` in `app.ts` must carry the Cut 29 fields (sum `night_marks`, union `systems_opened`,
    concat `oaths_kept`/`fallen`, last slice's `wall`, `meters` field by field) — else offline reports drop them.
