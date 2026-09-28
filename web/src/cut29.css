@@ -62,3 +62,15 @@
 .wall-edit .wall-foot { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .wall-edit .wall-foot .up { color: var(--ok); }
 .wall-edit .wall-apply { margin-left: auto; }
+/* gfx raters: a death headline wraps between its ` · ` segments, never inside one (`D8 · NO / RULE FOR IT`) */
+.death .death-line .cause .seg { display: inline-block; }
+/* gfx raters: the desktop column's shaft waits for a forecast past its first floor (no column of `?`) */
+.side-col > .shaft.unknown { visibility: hidden; }
+/* gfx raters (every round: the forecast panel read as "web bars"): each floor is the shaft's hex gem lit by its reach, the track a thin rail */
+.forecast .bar { grid-template-columns: 62px 1fr 64px; }
+.forecast .bar .d { display: inline-flex; align-items: center; gap: 5px; }
+.forecast .bar .hex { flex: none; width: 18px; height: 20px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); --reach: 0;
+  background: radial-gradient(circle at 42% 36%, rgb(255 226 150 / calc(var(--reach) * .95)), rgb(226 132 32 / calc(.12 + var(--reach) * .85)) 58%, rgb(58 36 18 / .95) 100%), #1e1510; }
+.forecast .bar.unknown .hex { background: #15100c; box-shadow: inset 0 0 0 1px #3a2e22; }
+.forecast .bar .track { height: 4px; border-radius: 2px; }
+.forecast .bar .track .fill { background: linear-gradient(90deg, #a8601a, #f0b44a); }

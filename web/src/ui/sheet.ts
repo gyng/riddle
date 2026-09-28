@@ -126,7 +126,13 @@ function placeBeside(wrap: HTMLElement, panel: HTMLElement, anchor: HTMLElement)
   const top = above > below;
   wrap.classList.toggle("anchored-top", top);
   wrap.classList.add("anchored");
-  panel.style.maxHeight = `${Math.max(120, Math.floor(top ? above : below))}px`;
+  const room = Math.max(120, Math.floor(top ? above : below));
+  panel.style.maxHeight = `${room}px`;
+  // gfx raters ("anchor the WHY sheet to the tablet that opened it"): the panel meets its anchor — hung above it, its foot on the anchor's
+  // top edge; below it, its head under the anchor's foot — not at the backdrop's far edge
+  const ph = Math.min(Math.max(panel.scrollHeight, panel.offsetHeight), room), slack = Math.max(0, room - ph);
+  panel.style.marginTop = top ? `${Math.floor(slack)}px` : "";
+  panel.style.marginBottom = top ? "" : `${Math.floor(slack)}px`;
   wrap.dataset.side = top ? "above" : "below";
 }
 window.addEventListener("keydown", (e) => { if (e.key !== "Escape") return; if (stack.length) closeSheet(); else if (!panelEscape?.()) idle?.(); });

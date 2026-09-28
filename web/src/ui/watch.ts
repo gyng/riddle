@@ -2220,6 +2220,7 @@ export function renderWatch(app: App): Mounted {
 
   async function init(): Promise<void> {
     let s: Snapshot;
+    if (app.seenPending && app.engine.seenSystems) { app.seenPending = false; try { app.lineage = await app.engine.seenSystems(); } catch { /* the glint repeats */ } }   // Cut 29 §2
     try { s = await app.engine.send(); } catch (e) { console.warn("send failed", e); if (!disposed) app.go({ kind: "camp" }); return; }
     if (disposed) return;
     snap = s; runId = s.run.id; engineTick = startTick = s.turn;

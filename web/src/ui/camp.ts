@@ -210,6 +210,18 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
   // Cut 27 §2: the edit as a scene — over the well's foot after an edit's refine (before · after on the renderer), then its line under `vs sent`
   const scene = renderScene(app);
+  // gfx raters ("the edit scene covers the rule list mid-row"): when the scene rises over the tablets its top edge moves to the nearest
+  // gap between two tablets (it shrinks to clear a row it would cut, or grows over it when shrinking would leave it too short)
+  const fitScene = (): void => {
+    const s0 = scene.el; if (s0.hidden) { s0.style.height = ""; return; }
+    s0.style.height = "";
+    const box = s0.getBoundingClientRect(), top = box.top;
+    const cut = [...el.querySelectorAll<HTMLElement>(".camp-main .tablets .row.tablet, .camp-main .tablets .orders-tab")].map((r) => r.getBoundingClientRect()).find((r) => r.height > 0 && r.top < top && r.bottom > top);
+    if (!cut) return;
+    const shrink = box.bottom - (cut.bottom + 4), grow = box.bottom - (cut.top - 4);
+    s0.style.height = `${Math.round(shrink >= 140 ? shrink : grow)}px`;
+  };
+  new MutationObserver(() => fitScene()).observe(scene.el, { attributes: true, attributeFilter: ["hidden"] });
   const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, scene.el, shaft.vsEl, scene.line, restLine, panelHost, panelStore), cons.el);
   setBusyHost(busyStrip);
   function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
@@ -849,6 +861,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   });   // QA 92eb880: a shadowed row's mark lands with the forecast of the rules now
   // Cut 29 §2: the systems the core opened since the camp last looked glint on this paint (reveal.ts reads `new`); once shown the core
   // forgets them (`seenSystems`), quietly — the next paint is an ordinary one
-  const seenTimer = anyNew(app.lineage) && app.engine.seenSystems ? window.setTimeout(() => { void app.engine.seenSystems!().then((L) => { if (L) app.lineage = L; }).catch(() => undefined); }, SEEN_MS) : 0;
-  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); clearTimeout(seenTimer); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  // (asked as the camp is left, never mid-edit: a mutating call re-syncs the forecast lanes, and one landing in a burst of edits cost the
+  // next edit's first pass ~1 s in wasm — clarity:paint)
+  const shownAt = anyNew(app.lineage) && app.engine.seenSystems ? performance.now() : -1;
+  const seen = (): void => { if (shownAt >= 0 && performance.now() - shownAt >= SEEN_MS) app.seenPending = true; };   // the send clears them (watch.ts)
+  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

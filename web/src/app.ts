@@ -511,6 +511,8 @@ export class App {
   }
 
   get rules(): RuleSet { return this.sets[this.active]; }
+  /** Cut 29 §2: the camp showed the newly opened systems; the next send tells the core (`seenSystems`) — never mid-edit. */
+  seenPending = false;
 
   // --- rules ---
   /** Cut 4 §1: more rows than the vocabulary allows. A patch never evicts a row; the editor shows `5/4` and `send`

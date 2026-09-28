@@ -114,9 +114,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const causeText = /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}${gapWord}`;
   // QA 1a2a4a9 (P: `STALLED · R2 RETREAT ↔ EXPLORE · D6 · KEEPS $0` ran off both edges at 400 px): a stall's headline wraps between its
   // ` · ` segments (each whole: the loop `R2 retreat ↔ explore` never breaks) and steps its face down until the widest segment fits
-  const causeEl = d.verdict === "stall"
-    ? h("span", { class: "cause" }, ...causeText.split(" · ").flatMap((seg, i, all) => [i ? " " : "", h("span", { class: "seg" }, seg, i < all.length - 1 ? " ·" : "")]))
-    : h("span", { class: "cause" }, causeText);
+  // gfx raters (the desktop banner broke `D8 · NO / RULE FOR IT`): every headline wraps between its segments, a segment kept whole
+  const causeEl = h("span", { class: "cause" }, ...causeText.split(" · ").flatMap((seg, i, all) => [i ? " " : "", h("span", { class: "seg" }, seg, i < all.length - 1 ? " ·" : "")]));
   // QA 912e135 (qaW: the seal `GAP` and the banner answered no tap): the seal names what the patches answer — a tap brings them up and
   // lights the first; the banner names the moment — a tap brings up the trace
   // Cut 26 §6 (AO: `GAP` beside `unpatched 10/12` — "my fault or luck?"): the stamp and its counts agree — a gap, row or order most of

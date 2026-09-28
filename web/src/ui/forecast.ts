@@ -309,7 +309,8 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "",
       ].filter((x) => x !== "");
       const inner = [
-        h("span", { class: "d num" }, `D${d.depth}`),
+        // gfx raters (every round: "web bars"): each floor is the shaft's hex gem, lit by its reach; the track under it is a thin rail
+        h("span", { class: "d num" }, h("span", { class: "hex", style: `--reach:${d.reach.toFixed(3)}`, "aria-hidden": "true" }), `D${d.depth}`),
         tr ? h("span", { class: "track-cell" }, track, h("small", { class: "try" }, /* copy:none */ `try: ${tr.text}`)) : track,
         // a `try` row keeps one line (its hint rides the track; the boss beside the number, as before)
         h("span", { class: "n num" }, share(d.reach, lowOf(f)), dpm !== undefined ? h("small", { class: "dim pm" }, /* copy:none */ ` ±${dpm}${first}`) : "", moveMark(vsBy.get(d.depth)), ...(tr ? why : [])),
@@ -321,7 +322,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         ? h("button", { class: `bar next try${wall ? " walled" : ""}`, onclick: () => { const i = app.applyPatch({ row: tr.row, insert_at: 0, survive: 0, forecast_delta: 0 }); closeAllSheets(); app.go({ kind: "camp", highlight: i }); } }, ...inner)
         : h("div", { class: `bar${cause || wall || boss ? " next" : ""}${wall ? " walled" : ""}` }, ...inner));
     }
-    bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, `D${f.known_to + 1}+`), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
+    bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, h("span", { class: "hex", "aria-hidden": "true" }), `D${f.known_to + 1}+`), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
     // QA 23ed91f (K: "`jackal 100%` beside `death 1%` — I read it as jackal kills 100%"): a cause's share of the deaths is shown as its
     // share of the sends when the ends are known (`jackal 1%` under `death 1%`), so the two lines speak one unit
     const per = f.ends ? f.ends.death : 1;

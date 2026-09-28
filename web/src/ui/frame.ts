@@ -173,5 +173,9 @@ export function wideCols(app: App, meters?: HTMLElement | null): { els: HTMLElem
   // gfx round 2 (raters: "a reach of '?' clutter" on the desktop death and report): a screen booted straight into them has no forecast
   // yet — the shaft asks for the rules' one (desktop only; its listener is the shaft's)
   if (!app.lastForecast) setTimeout(() => { if (shaft.el.isConnected && !app.lastForecast) void app.emitForecast(); }, 1500);
-  return { els: [left, right], dispose: shaft.dispose, slot };
+  // gfx raters (the desktop report: "an empty `?` reach column"): the shaft stands only once a forecast reads past its first floor
+  const known = (): void => { shaft.el.classList.toggle("unknown", !((app.lastForecast?.depths?.length ?? 0) > 1)); };
+  known();
+  const off = app.onForecast(() => known());
+  return { els: [left, right], dispose: () => { off(); shaft.dispose(); }, slot };
 }

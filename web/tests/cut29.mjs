@@ -118,9 +118,12 @@ try {
     check(t1.includes("edit*"), `the first death opens the edit tile, glinting (${t1.join(" · ")})`);
     const n1 = await page.evaluate(() => (window.__riddle.lineage.systems ?? []).filter((s) => s.new).map((s) => s.id));
     check(n1.includes("edit"), `the core marks it new until the camp has shown it (${n1.join(" · ")})`);
-    await sleep(2400);
-    const n2 = await page.evaluate(() => (window.__riddle.lineage.systems ?? []).filter((s) => s.new).map((s) => s.id));
-    check(n2.length === 0, `once shown the camp clears it (seenSystems): new ${JSON.stringify(n2)}`);
+    await sleep(2000);
+    await page.evaluate(async () => { const r = window.__riddle; r.go({ kind: "watch" }); });   // the camp left for a send after the glint
+    await until(() => window.__riddle.screen === "watch", "the watch");
+    const n2 = await until(() => { const n = (window.__riddle.lineage.systems ?? []).filter((s) => s.new).map((s) => s.id); return n.length ? null : n; }, "the new marks cleared", 5000).catch(() => ["still new"]);
+    check(n2.length === 0, `once shown, the next send clears it (seenSystems): new ${JSON.stringify(n2)}`);
+    await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await camp();
     // editing before the first plateau: no order yet (no ▲▼, the grip does not drag); the exits' verbs and the foe tags not offered
     await page.locator(".cmd .tile[data-tile=edit]").click();
     await until(() => !document.querySelector(".editor.compact") && document.querySelector(".editor .row.tablet"), "the editor");
