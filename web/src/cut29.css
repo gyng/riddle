@@ -40,3 +40,9 @@
 .watch .meter-line .m-scope { font: 600 10px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
 .watch .meter-line[data-scope="fight"] .m-scope { color: var(--hp); }
 .watch .meter-line .dealt b { color: var(--acc); } .watch .meter-line .taken b { color: #ff8a7a; } .watch .meter-line .healed b { color: var(--ok); }
+/* Cut 29 §4: the standing orders — one tablet, one sheet */
+.orders-tab .orders-head { font-weight: 600; margin-right: 4px; }
+.orders-tab .orders-sum { font-size: 13px; }
+.orders-sheet .order-rows { display: grid; gap: 8px; margin-top: 6px; }
+.orders-sheet .order-row { display: grid; grid-template-columns: 104px 1fr; gap: 8px; align-items: center; }
+.orders-sheet .olab { font: 600 12px/1.2 var(--sans); letter-spacing: .05em; text-transform: uppercase; opacity: .8; }

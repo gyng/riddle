@@ -186,6 +186,28 @@ try {
     check(cmp.some((x) => /^dealt 4 → 6 dps \+2$/.test(x)) && cmp.some((x) => /^gold 20 → 35 \$\/min \+15$/.test(x)), `the camp compares the last two runs (${cmp.join(" | ")})`);
     await shot("cut29-camp-compare");
   }
+  // ---- §4: the standing orders in one panel (setOrders)
+  if (part("orders")) {
+    await boot(2905);
+    await withState((e) => {
+      e.sys29 = { open: ["send", "dial", "headline", "edit", "death", "exits", "loadout", "unlocks", "cage", "forge", "start"], fresh: [], plateau: false, works: [], meters: [], insure: true };
+      Object.assign(e.lineage, { heir: 3, gold: 300, gold_ledger: [{ t: 1, delta: 300, why: "bank D9" }], facts: [...(e.lineage.facts ?? []), "vault"], waystones: [5], best_depth: 9 });
+    });
+    await camp();
+    const tabs = await page.evaluate(() => ({ orders: document.querySelector(".orders-tab:not([hidden])")?.textContent.replace(/\s+/g, " ").trim() ?? null, cage: !!document.querySelector(".cage-tab:not([hidden])"), start: !!document.querySelector(".start-tab:not([hidden])") }));
+    check(tabs.orders && /orders keep weapon · cages → weapon/.test(tabs.orders) && !tabs.cage && !tabs.start, `one orders tablet stands for the keep, the cage and the start ("${tabs.orders}"; cage tablet ${tabs.cage}, start tablet ${tabs.start})`);
+    await page.locator(".orders-tab").click();
+    const rows = await until(() => { const r = [...document.querySelectorAll(".sheet-wrap .order-row")].map((x) => x.textContent.replace(/\s+/g, " ").trim()); return r.length ? r : null; }, "the orders sheet");
+    check(rows.length === 5 && /^keep for heirs/.test(rows[0]) && rows.some((r) => /^from cages/.test(r)) && rows.some((r) => /^start D1/.test(r)) && rows.some((r) => /^repeat pack on off/.test(r)) && rows.some((r) => /^insure kit on off/.test(r)),
+      `the sheet holds the five orders (${rows.join(" | ")})`);
+    await shot("cut29-orders");
+    await page.locator(".sheet-wrap .order-row").first().locator(".chip", { hasText: "armour" }).click();
+    await until(() => window.__riddle.lineage.orders?.keep === "best_armour", "the keep order set");
+    await page.locator(".sheet-wrap .order-row", { hasText: "repeat" }).locator(".chip", { hasText: "off" }).click();
+    await until(() => window.__riddle.lineage.orders?.repeat === false, "the repeat order set");
+    const after = await page.evaluate(() => ({ on: [...document.querySelectorAll(".sheet-wrap .chip.order.on")].map((c) => c.textContent.trim()), tab: document.querySelector(".orders-tab")?.textContent.replace(/\s+/g, " ").trim() }));
+    check(after.on.includes("armour") && after.on.includes("off") && /keep armour/.test(after.tab) && /no repeat/.test(after.tab), `a tap sets an order through setOrders; the sheet and the tablet follow (${after.on.join(" · ")}; "${after.tab}")`);
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 }

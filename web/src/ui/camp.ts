@@ -16,10 +16,10 @@
 // one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
 // row stands in for the class button while it is up.
 import { meterCompare, meterPanel } from "./meters";
-import { anyNew, sysOpen } from "./systems";
+import { anyNew, hasCurriculum, sysOpen } from "./systems";
 import { lookStud } from "./look";
 import type { App, Mounted } from "../app";
-import type { CageOption, ForkOption, Lineage, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
+import type { CageOption, ForkOption, Lineage, StandingOrders, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
@@ -108,6 +108,10 @@ function campMeters(app: App): HTMLElement | null {
   return runs.length ? meterPanel(runs[0], app.rules.rows, { title: /* copy:label */ "last run" }) : null;
 }
 const SEND_ARM_MS = 800;
+/** Cut 29 §4: the exit's keep order, in the vault panel's words. */
+const KEEP_ORDERS = ["best_weapon", "best_armour", "none"];
+/* copy:label */
+const KEEP_WORD: Record<string, string> = { best_weapon: "weapon", best_armour: "armour", none: "none" };
 const SEEN_MS = 1800;   // Cut 29 §2: a new system's glint plays before the core clears its `new`
 /** QA 92eb880 (M: "kept `sealed scroll?` … reappear as `summon ally scroll` with no line saying they were identified"): an identified
  *  item's flavour off the lineage's facts (`item:sealed=summon_ally` → `sealed`); undefined while unknown or unmatched. */
@@ -147,6 +151,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 26 §2: the set's route — a chip line above the rows (`⑂ D5 fens · D14 crypt`), carved once a hero has stood on two stairs (the
   // fact `fork D5`); the tap opens the fork tablet (both stairs priced for this set)
   const routeTab = h("button", { class: "route-line", hidden: true, onclick: () => openRoutePicker() });
+  // Cut 29 §4: the standing orders in one tablet (the exit's keep, the cage's pick, the start, the repeat, insuring) — with a Cut 29
+  // core the cage and start tablets fold into it; the tap opens the orders sheet
+  const ordersTab = h("button", { class: "row tablet compact orders-tab", hidden: true, onclick: () => openOrders() });
   // Cut 28 §1: the oath board — its own tablet under the start's (`oath → D10 no drink · 34%`, or `oaths 3`), carved when an oath is
   // first affordable; the tap opens the board (three oaths, each its chips, its reward, its price)
   const oathTab: HTMLButtonElement = h("button", { class: "row tablet compact oath-tab", hidden: true, onclick: () => openOathBoard(app, oathTab) });
@@ -189,7 +196,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab, oathTab), shaft.el, metersSlot(campMeters(app))));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, ordersTab, cageTab, startTab, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   const restLine = h("div", { class: "rest-line" }, rest);
@@ -375,7 +382,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   function paintCage(): void {
     const on = revealed(app).has("cage");
-    cageTab.hidden = !on;
+    cageTab.hidden = !on || ordersOn();
     if (!on) return;
     replace(cageTab, h("span", { class: "rn num" }, icon("vault", "▣")),
       // QA 524827b (qaAA: `cage → weapon` after the first death, "no source" for the D4 cage's "take one, leave two"): the tablet names
@@ -385,7 +392,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   /** Cut 19 §1: the picker — the four preferences, each with its forecast delta against the current one (`armour +36%`); the tap sets it.
    *  The deltas are `cageForecast()` (three extra camp panels, memoised by the core; seconds in wasm): the last measure paints at once
    *  when it is this set's, `…` until the fresh one lands. */
-  function openCagePicker(): void {
+  function openCagePicker(anchor: HTMLElement = cageTab): void {
     // QA 0c6e126 (qaY: `weapon D5 72%` on the sheet beside the camp's D5 66% — the memo was measured before a purchase): the memo is
     // this set's under this lineage — what a sim starts from (`simKey`: the purse, the shelf, the vault, the kit, the facts…)
     // QA 524827b (qaAA: `weapon D6 6%` on the sheet under the camp's refined `D6 11%`; `armour 60% ▲54`, picked: `57% · cage +46`): the
@@ -406,11 +413,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       paint(memo, !memo && !!app.engine.cageForecast);
       if (!memo && app.engine.cageForecast) void app.engine.cageForecast(refined).then((opts) => { cageMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); }).catch((e) => { console.warn("cageForecast", e); if (list.isConnected) paint(null, false); });
       return h("div", { class: "sheet-body cage-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "cage"), list);
-    }, { anchor: cageTab });   // Cut 23 §4: beside the tablet it sets, never over it
+    }, { anchor: ordersOn() ? ordersTab : anchor });   // Cut 23 §4: beside the tablet it sets, never over it
   }
   function paintStart(): void {
     const L = app.lineage, on = revealed(app).has("start");
-    startTab.hidden = !on;
+    startTab.hidden = !on || ordersOn();
     if (!on) return;
     const st = L.start ?? 1, o = startMemo?.opts.find((x) => x.start === st && x.current), toll = L.start_toll ?? startToll(st, o);
     // QA a946e04 (T): a toll the purse cannot pay says so on the tablet — that send starts on D1 (`start → D5 · $50 short`)
@@ -484,7 +491,49 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       paint(memo, !memo && !!app.engine.startForecast);
       if (!memo && app.engine.startForecast) void app.engine.startForecast(refined).then((opts) => { startMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); paintStart(); }).catch((e) => { console.warn("startForecast", e); if (list.isConnected) paint(null, false); });
       return h("div", { class: "sheet-body start-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "start"), list);
-    }, { anchor: startTab });
+    }, { anchor: ordersOn() ? ordersTab : startTab });
+  }
+  /** Cut 29 §4: the orders tablet stands for the cage's and the start's when the core sends the orders with its curriculum. */
+  function ordersOn(): boolean { return !!app.lineage.orders && hasCurriculum(app.lineage) && !!app.engine.setOrders; }
+  function setOrder(patch: Partial<StandingOrders>, move: string): Promise<boolean> {
+    const cur = app.lineage.orders!;
+    return app.mutate(() => app.engine.setOrders!({ ...cur, ...patch }), move);
+  }
+  function paintOrders(): void {
+    const L = app.lineage, R = revealed(app);
+    const on = ordersOn() && (R.has("loadout") || R.has("vault") || R.has("cage") || R.has("start"));
+    ordersTab.hidden = !on;
+    if (!on) return;
+    const o = L.orders!;
+    const bits = [
+      /* copy:callout */ `keep ${KEEP_WORD[o.keep] ?? o.keep}`,
+      R.has("cage") ? /* copy:callout */ `cages → ${o.cage}` : "",
+      R.has("start") && o.start > 1 ? /* copy:callout */ `start D${o.start}` : "",
+      o.repeat ? "" : /* copy:callout */ "no repeat",
+      o.insure ? "" : /* copy:callout */ "no insure",
+    ].filter(Boolean);
+    replace(ordersTab, h("span", { class: "rn num" }, icon("ledger", "☰")), h("span", { class: "rtext" }, h("b", { class: "orders-head" }, /* copy:label */ "orders"), " ", h("span", { class: "orders-sum dim num" }, bits.join(" · "))));
+  }
+  function openOrders(): void {
+    openSheet((close) => {
+      const body = h("div", { class: "sheet-body orders-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "standing orders"));
+      const paint = (): void => {
+        const row = (label: string, ...chips: HTMLElement[]): HTMLElement => h("div", { class: "order-row" }, h("span", { class: "olab" }, label), " ", h("span", { class: "chips" }, ...chips.flatMap((c, i) => [i ? " " : "", c])));
+        const pick = <T,>(cur: T, v: T, text: string, set: () => void): HTMLElement => h("button", { class: `chip order${cur === v ? " on" : ""}`, "aria-pressed": cur === v ? "true" : "false", onclick: () => { if (cur !== v) set(); } }, text);
+        const act = (p: Partial<StandingOrders>, move: string) => (): void => { void setOrder(p, move).then(() => { if (body.isConnected) { replace(rows, ...build()); paintOrders(); } }); };
+        const build = (): HTMLElement[] => { const o = app.lineage.orders!, R = revealed(app); return [
+          row(/* copy:callout */ "keep for heirs", ...KEEP_ORDERS.map((k) => pick(o.keep, k, KEEP_WORD[k], act({ keep: k }, /* copy:callout */ "keep")))),
+          R.has("cage") ? row(/* copy:label */ "from cages", h("button", { class: "chip order on", onclick: () => { close(); openCagePicker(ordersTab); } }, o.cage, h("small", { class: "dim" }, " ▸"))) : null,
+          R.has("start") ? row(/* copy:label */ "start", h("button", { class: "chip order on", onclick: () => { close(); openStartPicker(); } }, `D${o.start}`, h("small", { class: "dim" }, " ▸"))) : null,
+          row(/* copy:label */ "repeat pack", pick(o.repeat, true, /* copy:button */ "on", act({ repeat: true }, /* copy:callout */ "repeat")), pick(o.repeat, false, /* copy:button */ "off", act({ repeat: false }, /* copy:callout */ "repeat"))),
+          row(/* copy:label */ "insure kit", pick(o.insure, true, /* copy:button */ "on", act({ insure: true }, /* copy:callout */ "insure")), pick(o.insure, false, /* copy:button */ "off", act({ insure: false }, /* copy:callout */ "insure"))),
+        ].filter((x): x is HTMLElement => !!x); };
+        const rows = h("div", { class: "order-rows" }, ...build());
+        body.appendChild(rows);
+      };
+      paint();
+      return body;
+    }, { anchor: ordersTab });
   }
   /** Cut 26 §2: the lane a start sits in for this set — the core's lit pair on this set's route (`onRoute`), the option's own biome, else
    *  the base order's table while the set takes every near stair */
@@ -777,7 +826,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     fn();
     boxes.forEach((b, i) => { if (b && b.scrollTop !== tops[i]) b.scrollTop = tops[i]; });
   }
-  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintOrders(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
