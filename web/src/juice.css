@@ -5,7 +5,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   /* a place arrives: the frame fades in (opacity only: a transform would re-anchor the fixed HUD inside it) */
-  html[data-juice="on"] #app > main:not(.watch) { animation: j-screen .26s ease-out both; }
+  html[data-juice="on"] #app > main:not(.watch):not(.report) { animation: j-screen .26s ease-out both; }   /* gfx round 7: the report arrives by its plaques (below) */
   @keyframes j-screen { from { opacity: .35; } to { opacity: 1; } }   /* gfx round 5: from a dim frame, never a black one */
   html[data-juice="on"] #app > main:not(.watch) > .well-wrap, html[data-juice="on"] #app > main:not(.watch) > .well { animation: j-rise .32s cubic-bezier(.2, .9, .3, 1.1) both; }
   @keyframes j-rise { from { transform: translateY(8px); } to { transform: none; } }
@@ -59,11 +59,13 @@
   @keyframes j-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
 
   /* report: the score parchment's lines settle in one after another */
-  html[data-juice="on"] .report :is(.rsec, .ledger-line, .plaque) { animation: j-in .28s ease-out both; }
-  html[data-juice="on"] .report :is(.rsec, .ledger-line, .plaque):nth-child(2) { animation-delay: .05s; }
-  html[data-juice="on"] .report :is(.rsec, .ledger-line, .plaque):nth-child(3) { animation-delay: .1s; }
-  html[data-juice="on"] .report :is(.rsec, .ledger-line, .plaque):nth-child(4) { animation-delay: .15s; }
-  html[data-juice="on"] .report :is(.rsec, .ledger-line, .plaque):nth-child(n+5) { animation-delay: .2s; }
+  /* gfx round 7: at rest in the first frame (it can stall ~0.5 s), then a nudge once presented (transform only: no fade from nothing) */
+  html[data-juice="on"] .report.arrived :is(.rsec, .ledger-line, .plaque) { animation: j-nudge .32s ease-out backwards; }
+  @keyframes j-nudge { from { transform: translateX(-8px); } to { transform: none; } }
+  html[data-juice="on"] .report.arrived :is(.rsec, .ledger-line, .plaque):nth-child(2) { animation-delay: .05s; }
+  html[data-juice="on"] .report.arrived :is(.rsec, .ledger-line, .plaque):nth-child(3) { animation-delay: .1s; }
+  html[data-juice="on"] .report.arrived :is(.rsec, .ledger-line, .plaque):nth-child(4) { animation-delay: .15s; }
+  html[data-juice="on"] .report.arrived :is(.rsec, .ledger-line, .plaque):nth-child(n+5) { animation-delay: .2s; }
 }
 
 /* ===== Juice pass 2 (2026-09-26) ===== */
@@ -195,15 +197,16 @@
 /* ===== gfx round 2 ===== */
 @media (prefers-reduced-motion: no-preference) {
   /* the report's plaques stamp in one after another (a drop, a flash of the metal), then a glint crosses the parchment */
-  html[data-juice="on"] .report .tile.plaque { animation: j-plaque .42s cubic-bezier(.3, 1.5, .5, 1) both; }
-  html[data-juice="on"] .report .tile.plaque:nth-child(1) { animation-delay: 0s; }
-  html[data-juice="on"] .report .tile.plaque:nth-child(2) { animation-delay: .07s; }
-  html[data-juice="on"] .report .tile.plaque:nth-child(3) { animation-delay: .14s; }
-  html[data-juice="on"] .report .tile.plaque:nth-child(4) { animation-delay: .21s; }
-  html[data-juice="on"] .report .tile.plaque:nth-child(5) { animation-delay: .28s; }
-  html[data-juice="on"] .report .tile.plaque:nth-child(6) { animation-delay: .35s; }
-  html[data-juice="on"] .report .tile.plaque:nth-child(n+7) { animation-delay: .42s; }
-  @keyframes j-plaque { from { opacity: 0; transform: translateY(-14px) scale(1.12); filter: brightness(1.8); } 60% { opacity: 1; filter: brightness(1.25); } to { opacity: 1; transform: none; filter: none; } }
+  /* gfx round 7: they sit at rest in the first frame (its raster can stall the timeline ~0.5 s) and hop and stamp once it is presented */
+  html[data-juice="on"] .report.arrived .tile.plaque { animation: j-plaque .52s cubic-bezier(.3, 1.2, .5, 1) backwards; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(1) { animation-delay: 0s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(2) { animation-delay: .07s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(3) { animation-delay: .14s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(4) { animation-delay: .21s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(5) { animation-delay: .28s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(6) { animation-delay: .35s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(n+7) { animation-delay: .42s; }
+  @keyframes j-plaque { from { transform: none; filter: none; } 35% { transform: translateY(-10px) scale(1.07); filter: brightness(1.8); } 70% { transform: translateY(1px) scale(.99); filter: brightness(1.2); } to { transform: none; filter: none; } }
   html[data-juice="on"] .report .tile.plaque .ico { animation: j-icon 3.6s ease-in-out 1s infinite; }
   @keyframes j-icon { 0%, 100% { filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 4px rgba(255, 190, 90, .2)); } 50% { filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 9px rgba(255, 200, 100, .6)); } }
   /* the death's seal lands with a thud: a harder slam and a ring of dust off the wax */
@@ -236,4 +239,48 @@
 @media (prefers-reduced-motion: no-preference) {
   /* a camp panel unrolls from its top edge too (its unfold from 30 % opacity read as "a double exposure" in the strip) */
   html[data-juice="on"] .panel-host.open > .panel { animation: j-sheet2 .38s cubic-bezier(.25, .9, .3, 1) both; transform-origin: 50% 0; }
+}
+
+/* ===== gfx round 7: the braziers burn (raters Q, R: the camp strip "four frames identical; the braziers don't even flicker"). Two tongues
+   of flame per brazier (juice.ts adds `i.j-flame` to the vista), sized off the vista's height like the brazier art (auto 78%, 2:3,
+   its fire in the top third); transforms and opacity only, stepped so each frame reads as a new shape ===== */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-juice="on"].skin-deco-brazier .vista { container-type: size; }
+  html[data-juice="on"] .vista > .j-flame { position: absolute; z-index: 1; pointer-events: none; top: calc(17cqh + 10px); width: 30cqh; height: 36cqh;
+    left: calc(26cqh - 6px - 15cqh); mix-blend-mode: screen; }
+  html[data-juice="on"] .vista > .j-flame.r { left: auto; right: calc(26cqh - 6px - 15cqh); }
+  html:not(.skin-deco-brazier) .vista > .j-flame { display: none; }
+  html[data-juice="on"] .vista > .j-flame::before, html[data-juice="on"] .vista > .j-flame::after { content: ""; position: absolute; transform-origin: 50% 100%;
+    border-radius: 50% 50% 46% 46% / 72% 72% 28% 28%; filter: blur(1.2px); will-change: transform, opacity; }
+  html[data-juice="on"] .vista > .j-flame::before { left: 22%; right: 22%; top: 8%; bottom: 0;
+    background: radial-gradient(ellipse 60% 55% at 50% 78%, rgba(255, 246, 200, .95), rgba(255, 176, 60, .85) 38%, rgba(236, 84, 16, .55) 66%, transparent 80%);
+    animation: j-tongue .66s steps(6) infinite; }
+  html[data-juice="on"] .vista > .j-flame::after { left: 30%; right: 12%; top: 26%; bottom: 4%;
+    background: radial-gradient(ellipse 55% 50% at 45% 80%, rgba(255, 226, 140, .9), rgba(255, 130, 30, .7) 45%, transparent 78%);
+    animation: j-tongue2 .5s steps(5) infinite; }
+  html[data-juice="on"] .vista > .j-flame.r::before { animation-delay: -.3s; }
+  html[data-juice="on"] .vista > .j-flame.r::after { left: 12%; right: 30%; animation-delay: -.2s; }
+  @keyframes j-tongue { 0% { transform: scale(1, 1); opacity: .9; } 17% { transform: scale(.86, 1.22) skewX(-7deg); opacity: 1; } 33% { transform: scale(1.06, .9) skewX(4deg); opacity: .8; }
+    50% { transform: scale(.9, 1.3) skewX(6deg); opacity: 1; } 67% { transform: scale(1.1, .95) skewX(-3deg); opacity: .85; } 83% { transform: scale(.92, 1.14) skewX(-8deg); opacity: .95; } 100% { transform: scale(1, 1); opacity: .9; } }
+  @keyframes j-tongue2 { 0% { transform: translate(0, 0) scale(1, 1); opacity: .7; } 20% { transform: translate(-8%, -10%) scale(.8, 1.3) skewX(10deg); opacity: .95; }
+    40% { transform: translate(6%, 0) scale(1.1, .85); opacity: .55; } 60% { transform: translate(-4%, -16%) scale(.7, 1.4) skewX(-9deg); opacity: .9; } 80% { transform: translate(4%, -4%) scale(1, 1.05); opacity: .75; } 100% { transform: translate(0, 0) scale(1, 1); opacity: .7; } }
+}
+
+/* ===== gfx round 8 (raters S, T: the camp's strip still "static; the flames don't flicker" — tongues ~20 px tall at the strip's half
+   size): the fire lights the painting — a warm pool round each brazier, pulsing in steps over a third of the vista (opacity only);
+   embers a size up and quicker ===== */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-juice="on"] .vista > .j-glow { position: absolute; z-index: 1; pointer-events: none; top: -10%; bottom: -20%; width: 70cqh; mix-blend-mode: screen;
+    background: radial-gradient(closest-side, rgba(255, 150, 50, .55), rgba(255, 110, 30, .22) 55%, transparent); animation: j-glow 1.1s steps(7) infinite; }
+  html[data-juice="on"] .vista > .j-glow.l { left: calc(26cqh - 6px - 35cqh); }
+  html[data-juice="on"] .vista > .j-glow.r { right: calc(26cqh - 6px - 35cqh); animation-delay: -.45s; }
+  html:not(.skin-deco-brazier) .vista > .j-glow { display: none; }
+  @keyframes j-glow { 0% { opacity: .45; } 14% { opacity: .95; } 28% { opacity: .55; } 42% { opacity: 1; } 57% { opacity: .4; } 71% { opacity: .85; } 85% { opacity: .6; } 100% { opacity: .45; } }
+  html[data-juice="on"] main.frame:not(.watch)::after { animation-duration: 8s; opacity: .9;
+    background-image:
+      radial-gradient(3.4px 3.4px at 20% 30%, rgba(255, 196, 92, 1), rgba(255, 120, 30, .45) 55%, transparent 75%),
+      radial-gradient(2.4px 2.4px at 70% 60%, rgba(255, 216, 130, .95), transparent 72%),
+      radial-gradient(4px 4px at 45% 80%, rgba(255, 160, 60, .95), rgba(255, 90, 20, .35) 55%, transparent 75%),
+      radial-gradient(2.4px 2.4px at 85% 15%, rgba(255, 206, 106, .9), transparent 72%),
+      radial-gradient(2px 2px at 10% 70%, rgba(255, 230, 160, .85), transparent 72%); }
 }

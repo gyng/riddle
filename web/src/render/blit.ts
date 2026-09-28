@@ -180,13 +180,44 @@ void main() {
     float crack = 1.0 - smoothstep(0.6, 1.4, f2 - f1);
     float g = fract(sin(dot(wt, vec2(39.3468, 11.1353))) * 24634.6345);
     vec3 rock = mix(uPal[0], uPal[1], 0.16 + 0.3 * n + 0.08 * g) * mix(1.0, 0.45, crack) * (1.0 - 0.25 * smoothstep(1.0, 3.5, f1) * n);
+    vec3 rockC = rock;
     rock *= 0.62 * (0.15 + 0.85 * (1.0 - smoothstep(1.5, 7.0, d)));   // gfx round 4: the rock shows at the lit edge, fading to black (raters: "a flat black pattern")
+    // gfx round 7 (the lit fog edge; raters, every round: "half the view is void"): the rock face at the explored edge catches the light
+    // of the seen ground beside it — eight directions, one to three half-tiles out; only drawn world texels (seen tiles) lend their light,
+    // so an unseen room's light never shows through the rock
+    vec3 edgeL = vec3(0.0);
+    for (int i = 0; i < 8; i++) {
+      float ang = float(i) * 0.7853982;
+      vec2 dir = vec2(cos(ang), sin(ang));
+      for (int j = 1; j <= 3; j++) {
+        float r = float(j) * 4.0;
+        vec4 s2 = texture2D(tex, tuv + dir * r / uTargetEnv);
+        if (s2.a > 0.95) {
+          vec2 w2 = world + dir * r;
+          vec3 L2 = texture2D(uLightMap, vec2(w2.x / (8.0 * uMap.x), 1.0 + w2.y / (8.0 * uMap.y))).rgb * 2.0 * uLightK;
+          edgeL = max(edgeL, L2 * (1.0 - r / 15.0));
+        }
+      }
+    }
+    rock += (rockC + 0.07) * min(edgeL, vec3(1.2)) * 1.7 * mix(1.0, 0.5, crack);
     o = mix(rock, o, step(0.25, s.a));
   }
 #else
   o = mix(uPal[0], o, step(0.25, s.a));   // the void is exactly the palette's darkest (as before the art pass)
 #endif
 #if FX > 0
+  {  // gfx round 7 (raters: "the hero doesn't pop against the busy teal floor"): a one-texel dark rim round every sprite, on the ground
+     // beside it (the classic pixel-art outline; the sprite itself is untouched)
+    float isSpr = 1.0 - step(0.03, abs(s.a - 0.5));
+    if (isSpr < 0.5) {
+      float nbS = 0.0;
+      nbS += 1.0 - step(0.03, abs(texture2D(tex, tuv + vec2(uTexel.x, 0.0)).a - 0.5));
+      nbS += 1.0 - step(0.03, abs(texture2D(tex, tuv - vec2(uTexel.x, 0.0)).a - 0.5));
+      nbS += 1.0 - step(0.03, abs(texture2D(tex, tuv + vec2(0.0, uTexel.y)).a - 0.5));
+      nbS += 1.0 - step(0.03, abs(texture2D(tex, tuv - vec2(0.0, uTexel.y)).a - 0.5));
+      o *= 1.0 - 0.6 * min(1.0, nbS);
+    }
+  }
   o += texture2D(uBloom, tuv).rgb * uBloomK * fog;
   float vr = length((vUv - 0.5) * vec2(0.9, 1.0));
   float vg = smoothstep(0.32, 0.78, vr);
@@ -206,7 +237,7 @@ const GRADES: Record<string, [number, number, number, number, number, number]> =
   warrens: [1.14, 0.96, 0.78, 0.84, 0.95, 0.78],   // gfx round 1: saturation 0.55 → 0.78 (the floor read as "brown mush")
   // juice pass 3: the fork's two lanes apart at a glance — the Burrows warm ochre (full saturation), the Fens cool teal
   burrows: [1, 0.92, 0.8, 0.78, 0.72, 1],
-  fens: [0.88, 1, 1.06, 0.82, 0.62, 1],
+  fens: [0.88, 1, 1.06, 0.72, 0.7, 0.86],   // gfx round 7 (raters Q, R: "teal-on-teal floor swamps the sprites"): a darker room, the light pools read, a little less saturation
   crypt: [1, 1, 1.02, 0.82, 0.65, 0.9],
   foundry: [1, 0.94, 0.88, 0.82, 0.6, 0.9],
   deep: [1, 1, 1, 0.9, 0.7, 1],

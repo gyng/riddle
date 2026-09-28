@@ -118,7 +118,7 @@ const SPARKY = /skeleton|golem|sentinel|warden|mirror|echo|bell|slag|forge_imp|i
 const GHOSTLY = /wraith|spectral|shade|lich|siren/;
 
 /** what the viewer tells juice about one entity this frame (world env texels: feet at x, y; h = drawn height) */
-export type EntView = { x: number; y: number; h: number; kind: string; hero: boolean; boss: boolean; maxHp: number; ally: boolean };
+export type EntView = { x: number; y: number; h: number; w?: number; kind: string; hero: boolean; boss: boolean; maxHp: number; ally: boolean };
 
 export type JuiceCtx = {
   ent(id: number): EntView | null;
@@ -331,7 +331,8 @@ export class Juice {
         // gfx round 1 (raters: "stacked '4' numbers"): blows on one body within 350 ms add up on one number (re-popped), not a stack
         const prev = this.numbers.find((m) => m.id === ev.id && now - m.t0 < 350);
         if (!x.quiet && prev) { prev.n = (prev.n ?? 0) + ev.dmg; prev.text = String(prev.n); prev.t0 = now; prev.big = prev.big || heavy; prev.x = cx; }
-        else if (!x.quiet) this.numbers.push({ x: cx, y: e.y + e.h + 1, text: String(ev.dmg), col: e.hero ? [1, 0.3, 0.22] : e.ally ? [0.7, 1, 0.6] : [1, 0.96, 0.85], t0: now, big: heavy, id: ev.id, n: ev.dmg });
+        // gfx round 7 (raters: "the hero hidden under a big '5'"): a number starts over the head's shoulder, not on the face
+        else if (!x.quiet) this.numbers.push({ x: cx + (e.hero ? -1 : 1) * Math.round((e.w ?? 8) * 0.3), y: e.y + e.h + 3, text: String(ev.dmg), col: e.hero ? [1, 0.3, 0.22] : e.ally ? [0.7, 1, 0.6] : [1, 0.96, 0.85], t0: now, big: heavy, id: ev.id, n: ev.dmg });
         if (this.numbers.length > 24) this.numbers.shift();
         break;
       }
@@ -527,7 +528,7 @@ export class Juice {
       const t = now - n.t0;
       // gfx round 1 (raters: "damage '4' tiny glyphs"): full env size, popping in at 2× (a heavy blow 1.4×)
       const sc = (t < 90 && this.q.motion ? 1.15 : 0.75) * (n.big ? 1.3 : 1);
-      const rise = this.q.motion ? 10 * (1 - Math.pow(1 - Math.min(1, t / 800), 3)) : 2;
+      const rise = this.q.motion ? 12 * (1 - Math.pow(1 - Math.min(1, t / 800), 3)) : 2;
       const a = t > 550 ? 1 - (t - 550) / 350 : 1;
       // gfx round 6 (raters, every round: "damage digits tiny/crude", "the 80 reads as '$0'"): the numbers are DOM glyphs in the game's
       // face with an outline (tags.ts `numbers`), placed from here; the bitmap quads stay for a viewer with no DOM layer

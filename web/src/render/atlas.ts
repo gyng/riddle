@@ -18,7 +18,7 @@ import { heroBase } from "./look";
  *  as a magenta placeholder jug) */
 const KIND_ALIAS: Record<string, string> = { blade: "spectral_blade" };
 import * as THREE from "three";
-import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, PALETTES, paletteFor, setPalettes, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
+import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, PALETTES, paletteFor, setPalettes, SPRITE_SCALE, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
 import { FONT_CELL_H, FONT_CELL_W, FONT_H, FONT_W, glyphBits } from "./font";
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -211,9 +211,11 @@ export class Atlas {
     if (s) return s;
     const kind = id.slice(4);
     const [w, h] = ENTITY_SIZE[kind] ?? [16, 32];
-    const slot = this.sprite.alloc(id, w, h);
-    drawEntity(this.sprite.ctx, slot, kind);
-    return slot;
+    if (SPRITE_SCALE === 1) { const slot = this.sprite.alloc(id, w, h); drawEntity(this.sprite.ctx, slot, kind); return slot; }
+    // gfx round 7: drawn at its authored size, then cut down by area like a loaded sprite
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    drawEntity(c.getContext("2d")!, { x: 0, y: 0, w, h, u0: 0, v0: 0, u1: 1, v1: 1 }, kind);
+    return putDown(this.sprite, id, c, { x: 0, y: 0, w, h }, Math.max(1, Math.round(w * SPRITE_SCALE)), Math.max(1, Math.round(h * SPRITE_SCALE)));
   }
 
   // ---- external atlas ----------------------------------------------------------------------
@@ -294,7 +296,7 @@ export class Atlas {
       // meta.sprites[id].texel_h is the intended runtime height in sprite texels (masters are 2×)
       const kind = id.replace(/^boss_/, "");
       const [bw, bh] = ENTITY_BOX[kind] ?? [32, 32];
-      const sc = texelH ? texelH / r.h : Math.min(bw / r.w, bh / r.h);
+      const sc = (texelH ? texelH / r.h : Math.min(bw / r.w, bh / r.h)) * SPRITE_SCALE;
       putDown(this.sprite, `ent:${kind}`, img, r, Math.max(1, Math.round(r.w * sc)), Math.max(1, Math.round(r.h * sc)));
     } else if (ovm) {
       const frames = ovm[2] === undefined ? [0, 1] : [Number(ovm[2])];
@@ -311,9 +313,9 @@ export class Atlas {
  *  keeps every other texel of its dither — the ogre's hide read as noise. A sprite is cut down by area: each texel the coverage-weighted
  *  mean of the master texels under it (colour weighted by alpha), kept where the master covers ≥ half of it (a crisp silhouette, the
  *  shader's alpha test unchanged). Same slot, same size; a master already at size is copied as before. */
-function putDown(sheet: Sheet, id: string, img: HTMLImageElement, r: Rect, w: number, h: number): void {
+function putDown(sheet: Sheet, id: string, img: CanvasImageSource, r: Rect, w: number, h: number): Slot {
   const slot = sheet.alloc(id, w, h);
-  if (w >= r.w && h >= r.h) { sheet.ctx.imageSmoothingEnabled = false; sheet.ctx.drawImage(img, r.x, r.y, r.w, r.h, slot.x, slot.y, w, h); return; }
+  if (w >= r.w && h >= r.h) { sheet.ctx.imageSmoothingEnabled = false; sheet.ctx.drawImage(img, r.x, r.y, r.w, r.h, slot.x, slot.y, w, h); return slot; }
   const src = document.createElement("canvas"); src.width = r.w; src.height = r.h;
   const sc = src.getContext("2d", { willReadFrequently: true })!; sc.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   const s = sc.getImageData(0, 0, r.w, r.h).data, out = sheet.ctx.createImageData(w, h), d = out.data;
@@ -335,6 +337,7 @@ function putDown(sheet: Sheet, id: string, img: HTMLImageElement, r: Rect, w: nu
     }
   }
   sheet.ctx.putImageData(out, slot.x, slot.y);
+  return slot;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

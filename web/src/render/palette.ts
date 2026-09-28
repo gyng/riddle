@@ -65,6 +65,14 @@ export const ENTITY_COLOURS: Record<string, [string, string]> = {
   lich:           ["#5a4f9a", "#e8e0c8"],
 };
 
+/** gfx round 7 (every rater, rounds 0–6: "the hero is 2–3 tiles tall, hides the foe he fights"): the entities' runtime size against the
+ *  tiles — a loaded sprite's height (atlas `texel_h`, or its box fit) and a procedural one's `ENTITY_SIZE` times this, cut down by area
+ *  (atlas.ts `putDown`, still on the sprite grid). Dev: `?sprite=0.5`. */
+export const SPRITE_SCALE: number = (() => {
+  try { if (import.meta.env?.DEV) { const q = Number(new URLSearchParams(location.search).get("sprite")); if (q > 0 && q <= 1) return q; } } catch { /* no location */ }
+  return 0.5;   // two fresh pick raters (O, P), four candidates blind: 0.5 at the watch's zoom unchanged, both first ("one world at one density")
+})();
+
 export const ENTITY_SIZE: Record<string, [number, number]> = {
   // sprite texels; 48 tall = 3 tiles, 32 tall = 2 tiles
   hero_fighter: [24, 48], hero_rogue: [24, 48], hero_ranger: [24, 48], hero_caster: [24, 48],

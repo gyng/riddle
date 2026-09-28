@@ -19,7 +19,7 @@ export interface Viewer {
 }
 type RenderMod = { createViewer(canvas: HTMLCanvasElement, opts?: { baseTexels?: number }): Viewer; createFallbackViewer(canvas: HTMLCanvasElement): Viewer };
 const PHONE_TEXELS = 100;   // gfx round 1 (raters: "half the viewport is empty void"; watch.png's ~9 tiles across): k 6 → 8 at 400 px × 2 (was 120)
-const DESK_TEXELS = 112;    // gfx round 1: the desktop frame's centre well (~680 px short side): k 4 → 6 (the renderer's default 160 read "tiny")
+const DESK_TEXELS = 84;     // gfx round 1: the desktop frame's centre well (~680 px short side): k 4 → 6 (the renderer's default 160 read "tiny"); round 7: 112 → 84 (k 8) with the half-size sprites (raters Q, R: "sprites tiny at 1440")
 const mods = import.meta.glob<RenderMod>("../render/index.ts");
 
 export async function makeViewer(canvas: HTMLCanvasElement): Promise<{ viewer: Viewer; real: boolean }> {
@@ -34,7 +34,10 @@ export async function makeViewer(canvas: HTMLCanvasElement): Promise<{ viewer: V
       // ~15 across, a rat 27 px tall in the map frame; k = 6 at dpr 2); desktop takes the renderer's default
       const short = Math.min(canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight);
       const dev = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get("texels")) || 0 : 0;   // dev: `?texels=N` tries a texel base
-      return { viewer: m.createViewer(canvas, dev ? { baseTexels: dev } : { baseTexels: short < 600 ? PHONE_TEXELS : DESK_TEXELS }), real: true };
+      // gfx round 7 (raters Q, R on the edit's scene, ~210 CSS px tall: "tiny sprites in a black box — zoom the inset so the hero and
+      // foe are twice their size"): a view under 320 CSS px shows about half the texels
+      const base = short < 600 ? PHONE_TEXELS : DESK_TEXELS;
+      return { viewer: m.createViewer(canvas, dev ? { baseTexels: dev } : { baseTexels: short < 320 ? Math.round(base * 0.55) : base }), real: true };
     }
     catch (e) { console.warn(/* copy:none */ "renderer unavailable, 2D view", e); }
   }

@@ -360,3 +360,81 @@ sets those. The `low` tier's shader path is unchanged (the rock is `FX > 0`). A 
    words, `fired 19/13754 turns`, the fix tablets' three numbers, `highlig…` truncated in the console. Needs the copy owner.
 6. **Fake-engine moments**: the Fens and the fight are shot from the fake engine (the real one never reached D5 in a scripted run); its
    crowds pile on the hero. A dev fixture (a real save that starts at D6) would rate the real game.
+
+### 10.8 Rounds 7–9 (2026-09-28, resumed from the HANDOFF list): sprite scale, real saves, arrivals, the scroll — stopped again on the rule
+
+| moment | r6 | r7 | r8 | r9 |
+|---|---|---|---|---|
+| watch-warrens | 5.75 | 5.60 | 6.25 | 6.20 |
+| report | 5.35 | 6.10 | 5.90 | 6.10 |
+| death | 7.20 | 6.90 | 6.95 | 7.05 |
+| camp | 5.40 | 6.00 | 5.90 | 6.40 |
+| scene | 5.45 | 5.00 | 5.50 | 5.85 |
+| edit | 6.10 | 6.20 | 6.25 | 6.10 |
+| forecast | 6.35 | 6.40 | 6.25 | 6.10 |
+| oaths | 6.25 | 5.80 | 5.85 | 5.50 |
+| watch-fens | 5.05 | 5.70 | 5.25 | 5.55 |
+| fight | 5.55 | 5.30 | 6.55 | 6.70 |
+| boss-in | 7.00 | 6.80 | 6.80 | 6.90 |
+| boss-break | 6.80 | 6.40 | 6.00 | 5.60 |
+| boss-fall | 6.65 | 6.80 | 6.40 | 6.10 |
+| d-watch | 5.90 | 5.90 | 6.35 | 5.75 |
+| d-report | 5.00 | 6.20 | 5.60 | 5.75 |
+| d-death | 6.60 | 6.70 | 6.50 | 6.25 |
+| d-camp | 5.75 | 6.70 | 6.15 | 6.35 |
+| d-edit | 5.35 | 5.80 | 6.15 | 5.85 |
+| **mean** | **5.97** | **6.13** | **6.14** | **6.12** |
+| min | 5.00 | 5.00 | 5.25 | 5.50 |
+
+Raters Q R (r7), S T (r8), U V (r9), fresh each round; the two raters' means agreed within 0.3 every round. The rounds moved +0.16, +0.01 and −0.02,
+so the stop rule applies again. The Fens and fight moments are real saves from r7 on, and the boss demo runs at the phone's 100 texels, so
+those rows are not strictly comparable with r0–r6.
+
+- **Sprite scale** (the #1 ask, rounds 0–6): `SPRITE_SCALE` (`render/palette.ts`, dev `?sprite=`) multiplies every entity's runtime size, cut
+  down by area on the sprite grid (`atlas.ts putDown`, the procedural fallbacks included); `HERO_TEXELS` and `view2d.ts` follow it (the 2D
+  view had drawn sprites at 2×: `texel_h` now comes from the atlas meta). A blind pick (raters O and P, four candidates: 1.0 at 100 texels,
+  0.62 at 80, 0.5 at 66, 0.5 at 100) put **0.5 at the watch's zoom unchanged** first for both ("one world at one density"). The fight
+  frame's zoom is ≤ 1.25× the map's (2× smeared the half-size sprites). The desktop's `DESK_TEXELS` is 112 → 84, and a view under 320 CSS px
+  (the edit's scene) shows ~half the texels. After a hero-cover push, a stack keeps its fan (fights.mjs's stack checks).
+  "Scale" was no longer named in r8–r9.
+- **Real saves** (`tools/gfx-eval.mjs phoneDeep`): `web/tests/fixtures/deep.json` imported, `setStart(9)` gives the Fens at D9 and `setStart(5)`
+  gives a fight at D6, shot in the fight frame with a foe in view and no title card. `--q` / `--qdemo` pass dev params. `d-edit`'s strip is
+  now its opening.
+- **The report's arrival**: the strip was a dim, empty parchment because the GPU rasters a new screen's first frame for ~0.5 s on this box
+  (LoAF: one 450–500 ms render frame; trace: `RasterDecoderImpl::DoEndRasterCHROMIUM` 400+ ms on the GPU process; no main-thread long
+  task). The document timeline does not advance meanwhile, so every fade-from-0 arrival sits invisible, then lands already finished. A
+  screen now gets `.arrived` two frames after it mounts (`juice.ts arrivals`). The report's plaques and lines draw at rest and hop or nudge
+  once the frame is presented. Plaques are visible at 33 ms (they were at 0 opacity until ~600 ms). The oath board's opening has the same
+  stall: its strip showed "only the camp dimming" in r9 (motion 3.5–4.5).
+- **The lit fog edge** (`blit.ts`, FX > 0): the rock beside explored ground takes the light of the seen texels next to it (8 directions,
+  1–3 half-tiles out; only drawn world texels lend light, so an unseen room never shows through). A 1-texel dark outline goes round every
+  sprite. The Fens grade is darker and less saturated.
+- **UI**: the report is a hanging scroll (`art/ui/frames/scroll.png`, Codex, QC'd; 9-slice rolls in `tools/ui-skin.py` → `skin-scroll`).
+  Sheets carry riveted iron corner brackets and a deep shadow. A rule's ordinal sits in a recessed stud. Oath seals sit whole inside the card,
+  rewards in icon plaques, a short purse in red. The four-stat topbar draws a size down at ≤ 440 px (a D11 save ran `best` under the gear).
+  The death and report wells fade at their foot instead of cutting a text line. `by heirs 2–14` stays on one line. Damage numbers start over
+  the shoulder, not the face.
+- **Still screens**: live flame tongues and a stepped fire-glow pool on the vista's braziers (`i.j-flame`/`i.j-glow`, container units,
+  transforms and opacity only), and embers a size up and quicker. Camp motion went 4 → 5.5 at best, but the desktop camp and report still
+  read "static" at the strip's half size.
+- **Harness**: `tools/gfx-round.sh` leaked its Vite server every round (`setsid` forked, and the trap's group kill missed it). The subshell
+  now `exec`s it.
+
+Frame times: a quiet window at the start of the session (load 0.5; `round7-base`) read p50/p95 **16.7/16.7–16.8 on every phone moment**
+(watch, Fens, fight, boss, camp, report, death). The desktop watch read 33/33.5 as the load rose to 23. Rounds 7–9 were captured at load
+35–100 (other agents' gates) and read 33/50–67; the viewer's CPU stays at 1.6–1.9 ms, and the added shader work (edge light, outline) runs on
+a ≤ 204 × 294 target. A quiet-window desktop measurement is still owed.
+
+**What blocks the next gain** (the same plateau: ~6.1, with rater noise about ±0.2):
+1. **Art that CSS cannot make**, asked for by every rater: corpse and death sprites for bosses ("a dark smear"), translucent spectral wraiths
+   ("grey static blobs": the renderer has no per-sprite alpha, since alpha is the layer tag), props in rooms (barrels, banners, bones), a
+   literal shield-shatter graphic with shards, a painted backdrop behind the report's scroll (candles, helmet, gold) as in `report.png`,
+   killer portraits. This needs a Codex batch of ~15–25 assets plus renderer hooks (a death pose frame, an ethereal flag).
+2. **The GPU raster stall on this box** hides every opening animation (report, oath board, sheets on desktop: motion 3.5–5). A real device
+   may not stall. The rubric measures it here, so either rate on a machine without the WSL D3D12 raster path, or pre-raster (keep screens
+   mounted and hidden) — a client architecture call.
+3. **Layout and IA asks** outside the gfx remit: the report's nine `OPENED` chips before the stat plaques (hierarchy 5–5.5 every round);
+   the forecast as the camp's hex-gem shaft, not web bars; the empty `?` reach column on the desktop report; the scene overlaying the rules
+   mid-row; the desktop death banner's `D8 · NO` wrap; the WHY sheet anchored to its tablet.
+4. **Boss break and fall** fell 6.8 → 5.6 and 6.65 → 6.1 at half-size sprites: the break's shield and the fall read small. This wants
+   bigger boss sprites (a boss-only scale, e.g. 0.75) and the break/slain plates. The copy owner must approve `BROKEN`/`SLAIN` as words.

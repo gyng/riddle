@@ -426,7 +426,7 @@ button.bar.try:active { background: var(--panel2); }
 .chip.buy .why { font-size: 10px; letter-spacing: .04em; }
 /* Cut 10 §3: exit lines lead with `returned $61`; after an absence the tiles fade in only once the merged report is complete */
 .exit-lines .lead { color: var(--fg); font-weight: 400; }
-.tiles.fade-in { animation: fadein .6s ease-out; }
+html:not([data-juice="on"]) .tiles.fade-in { animation: fadein .6s ease-out; }   /* gfx round 7: with juice the plaques stamp (juice.css) */
 @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 /* Cut 10 §4: the mute toggle */
 .btn.mute.on { border-color: var(--acc); color: var(--acc); }
@@ -1485,3 +1485,50 @@ html:not([data-juice="on"]).skin-deco-brazier .vista::after { content: ""; posit
 .notch .dp { font-size: 12.5px; }
 .notch .dl { font-size: 15px; }
 .notch .dl .lane-to, .notch .dp .pm { font-size: 10px; }
+/* gfx round 7 (a D11 save's four purse stats ran the `best D11` pill under the gear at 400 px): four stats on a phone draw a size down */
+@media (max-width: 440px) {
+  .topbar .stats:has(.stat + .stat + .stat + .stat) .stat { font-size: 15px; padding: 0 6px 0 3px; gap: 2px; }
+  .topbar .stats:has(.stat + .stat + .stat + .stat) .stat .ico { width: 16px; height: 16px; }
+  .topbar .stats:has(.stat + .stat + .stat + .stat) { gap: 3px; }
+}
+/* gfx round 7 (raters Q, R, the oath board: "wax seals clipped at the card corners", "stake buttons are muddy disabled blobs", "no clear
+   first choice"): the seal sits whole inside its card's corner, the reward's icon in a recessed plaque, a short purse in warning red */
+.oath.tablet:not(.sworn)::before { top: 8px; right: 10px; width: 34px; height: 34px; opacity: .78; filter: grayscale(.2) drop-shadow(0 2px 2px rgba(0, 0, 0, .7)); transform: rotate(-8deg); }
+.oath.tablet > .oath-seal { top: 6px; right: 8px; }
+.oath-board .oath-formula .oath-reward .ico { width: 34px; height: 34px; padding: 3px; border-radius: 4px;
+  background: radial-gradient(circle at 50% 40%, #2e241b, #120d09 75%); box-shadow: inset 0 2px 4px #000, inset 0 0 0 1px #5a4630, 0 1px 0 rgba(255, 220, 160, .12); }
+.oath-board .oath.tablet.short .oath-foot .why { color: #e8866a; }
+.oath-board .oath.tablet.short .chip.swear { opacity: .8; filter: saturate(.45) brightness(.85); }
+/* gfx round 7 (raters Q, R, the death: "the damage ledger is cut off under the console"): a scrolling well fades out at its foot instead
+   of cutting a line of text in half (the mask is visual only; the text and its scroll are unchanged) */
+main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#000 calc(100% - 30px), transparent); mask-image: linear-gradient(#000 calc(100% - 30px), transparent); padding-bottom: 34px; }
+/* gfx round 7 (raters Q, R: "the 'by heirs 2–14' wrap is broken"): the heirs line under RUNS stays on one line, across the plaque */
+.report .tile.plaque .heirs-ran { white-space: nowrap; grid-column: 1 / -1; justify-self: start; }
+/* gfx round 8 (raters Q–T, the why sheet and the editor: "a plain web modal", "iron corner brackets", "a drop shadow onto the camp"): a
+   sheet's parchment carries riveted iron L-brackets in its four corners and casts a deep shadow */
+.skin-panel .sheet-wrap > .sheet {
+  --irn: linear-gradient(#3a3028, #1a140f); --irv: linear-gradient(90deg, #3a3028, #1a140f);
+  --rv: #e0c080 0 1.8px, #4a3620 2.5px, transparent 3.2px;
+  background:
+    radial-gradient(circle at 9px 9px, var(--rv)), radial-gradient(circle at calc(100% - 9px) 9px, var(--rv)),
+    radial-gradient(circle at 9px calc(100% - 9px), var(--rv)), radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), var(--rv)),
+    var(--irn) left top / 24px 5px no-repeat, var(--irv) left top / 5px 24px no-repeat,
+    var(--irn) right top / 24px 5px no-repeat, var(--irv) right top / 5px 24px no-repeat,
+    var(--irn) left bottom / 24px 5px no-repeat, var(--irv) left bottom / 5px 24px no-repeat,
+    var(--irn) right bottom / 24px 5px no-repeat, var(--irv) right bottom / 5px 24px no-repeat,
+    radial-gradient(ellipse at 50% 40%, rgba(255, 248, 225, .45), transparent 70%), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(120, 80, 35, .32)), #dcc49a;
+  background-clip: padding-box; background-origin: padding-box;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .85), 0 4px 10px rgba(0, 0, 0, .7), 0 0 0 1px #000; }
+/* gfx round 8 (raters Q–T, the camp: "give each rule tablet a carved number plaque like the target"): a rule's ordinal sits in a recessed
+   iron stud (the same small ordinal: position, not a name) */
+.row.tablet.compact:not(.cage-tab):not(.start-tab):not(.oath-tab) > .grip .rn, .row.tablet.compact:not(.cage-tab):not(.start-tab):not(.oath-tab) > .rn {
+  display: inline-flex; align-items: center; justify-content: center; justify-self: center; width: 24px; height: 24px; border-radius: 50%; opacity: 1;
+  color: #e6c47a; font: 700 13px/1 var(--display); text-shadow: 0 1px 1px #000;
+  background: radial-gradient(circle at 50% 38%, #3a2d21, #120d09 72%);
+  box-shadow: inset 0 2px 3px #000, inset 0 0 0 1px #5a4630, 0 1px 0 rgba(255, 220, 160, .14); }
+/* gfx round 8 (raters Q–T, the report, every one: "a real scroll: rolled top and bottom, burnt edges", report.png's centre): the report's
+   parchment is a hanging scroll (art/ui/frames/scroll.png, Codex; 9-slice: its rolls stretch across, its ragged sides down) */
+.skin-scroll main.report .parchment.report-sheet { border-style: solid; border-color: transparent; border-width: 40px 16px 40px;
+  border-image: url(/ui/frames/scroll.png) 80 36 80 36 fill / 40px 18px 40px 18px stretch; background: none; box-shadow: none; padding: 0 10px; }
+/* (round 8: the seal inside the corner sat over a long reward's words — the formula keeps clear of it) */
+.oath-board .oath.tablet .oath-formula { padding-right: 38px; }

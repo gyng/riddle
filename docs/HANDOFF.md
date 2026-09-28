@@ -140,22 +140,22 @@ E1 (the wall search) broke the D17 wall: dayplayer D18·17·17 → D28·33·28. 
 Also done this round: `noise_discipline` is now earnable (a blind foe in view teaches `foe:<kind>:blind`);
 the repeat offers a `throw` row's kind as one tap (`Lineage.repeat_added`) instead of adding it.
 
-### Gfx/UI eval (stopped cleanly; resume from `scratchpad/gfx-eval/round6`)
-Round 6: mean **5.97** (bar 8.0), lowest 5.00 (desktop report). Best: death 7.20, boss entrance 7.00.
-Next, in order (the agent's own list):
-1. **Sprite scale** — no re-authoring needed: in `web/src/render/atlas.ts` `Atlas.override`, multiply the
-   loaded-sprite `sc` by a `SPRITE_SCALE` (dev `?sprite=`); derive `HERO_TEXELS` (24) in `render/index.ts`
-   from it; lower `PHONE_TEXELS` (100) / `DESK_TEXELS` (112) in `ui/viewer.ts` by the same factor. Try 0.5
-   (phone ≈ 66) and 0.62 (≈ 80); shoot both with `tools/gfx-round.sh`; fresh raters pick. Check
-   fights.mjs "a foe ≥ 24 CSS px" (the rat); `render/view2d.ts` needs the same factor. Codex re-author only
-   if downscaled masters read mushy.
-2. Real saves for the Fens/fight moments (`tools/gfx-eval.mjs` `phoneFake` → `web/tests/fixtures/deep.json`).
-3. Report arrival: render the plaques from data on hand before the async content (`ui/report.ts`).
-4. Still screens: bigger ambient motion (breathing portrait/tablets, parallax vista, mist; compositor-only).
-5. Fog: a lit texture on the explored edge (`blit.ts`, the `FX > 0` rock block); tighter room framing.
-6. Copy-bound asks: `docs/JUICE.md` §10.7 item 5.
-7. Clean frame times: `tools/gfx-round.sh scratchpad/gfx-eval/round7` on a quiet box.
-Each round: two fresh raters (`round*/rater/prompt.txt`), `python3 scratchpad/gfx-eval/score.py roundN`.
+### Gfx/UI eval (rounds 7–9 done 2026-09-28; stopped again on the rule: three rounds under +0.2)
+Round 9: mean **6.12** (bar 8.0; r6 5.97 → r7 6.13 → r8 6.14 → r9 6.12), lowest 5.50 (oath board). Best: death 7.05, boss entrance 6.90,
+fight 6.70. Every change and the full table are in `docs/JUICE.md` §10.8. Summary: sprite scale 0.5 (a blind pick by two raters), real
+saves for the Fens and the fight, the report's arrival (a GPU raster stall froze it), the lit fog edge, sprite outlines, a Codex scroll for
+the report, iron sheet brackets, brazier flames. Next, in order:
+1. **Art batch (Codex, ~15–25)**: boss death poses/corpses, spectral wraiths (plus a renderer ethereal flag: translucency and a cold glow),
+   room props, a shattering-shield graphic, a painted backdrop behind the report scroll, killer portraits.
+2. **Boss-only sprite scale** (~0.75): break and fall fell to 5.6 and 6.1 at half-size sprites. Also `BROKEN`/`SLAIN` plates (the copy owner
+   must approve the words).
+3. **Openings under the raster stall**: on this box a new screen's or sheet's first frame rasters for ~0.5 s and its CSS arrival lands
+   finished. `.arrived` (`juice.ts`) fixed the report; the oath board and desktop sheets need the same (animate after the first frame).
+4. **Hand to the Cut 29 client agent (IA)**: the report's `OPENED` chips below the plaques, the forecast as the hex-gem shaft, the desktop
+   report's empty `?` reach column, the scene inset overlaying the rules mid-row, the desktop death banner's `D8 · NO` wrap, the WHY sheet
+   anchored to its tablet.
+5. Clean frame times on a quiet box. Phone p95 was 16.7–16.8 on every moment at load 0.5 (`round7-base`); the desktop is owed.
+Each round: `tools/gfx-round.sh scratchpad/gfx-eval/roundN`, two fresh raters (`roundN/rater/prompt.txt`), `python3 scratchpad/gfx-eval/score.py roundN`.
 
 ### Cut 29 client (in progress, 2026-09-28 — closed items committed on cut29-wip; `web/tests/cut29.mjs`)
 **Closed:** 1 `mergeReports` (`ui/meters.ts mergeMeters`) · 2 keep sheet (`decide`/`note`; a full vault's decision is a

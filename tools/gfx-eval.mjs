@@ -25,6 +25,8 @@ const port = arg("--port", process.env.RIDDLE_PORT ?? "5219");
 const only = arg("--only", "")?.split(",").filter(Boolean) ?? [];
 const want = (n) => !only.length || only.some((o) => n.startsWith(o));
 const BASE = `http://localhost:${port}/`;
+// gfx round 7: extra dev query params for every app page (`--q "sprite=0.5&texels=66"`) and for render-demo.html (`--qdemo`)
+const XQ = arg("--q", ""), XQD = arg("--qdemo", "");
 mkdirSync(out, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const frames = [], anims = {}, layout = {}, shots = [];
@@ -47,7 +49,7 @@ async function waitFor(page, pred, label, timeout = 60000) {
   throw new Error(`timeout ${label} (${s?.screen})`);
 }
 async function settle(page, max = 15000) { const t = Date.now(); let c = 0; while (Date.now() - t < max) { const s = await state(page); c = s && s.booted && !s.busy ? c + 1 : 0; if (c >= 3) break; await sleep(200); } await sleep(500); }
-const goto = (page, q) => page.goto(`${BASE}?dev=1&${q}`, { waitUntil: "domcontentloaded" });
+const goto = (page, q) => page.goto(`${BASE}?dev=1&${q}${XQ ? `&${XQ}` : ""}`, { waitUntil: "domcontentloaded" });
 const pct = (a, p) => { const s = [...a].filter(Number.isFinite).sort((x, y) => x - y); return s.length ? +s[Math.min(s.length - 1, Math.floor(p * s.length))].toFixed(2) : null; };
 
 /** rAF intervals (and the viewer's cpuMs) for `ms`. */
@@ -240,10 +242,40 @@ async function phoneFake(name, depth, what, boss = false) {
   await page.close();
 }
 
-// ---- the boss moments: the renderer's own boss script (render-demo.html?boss=1): entrance t≈12, break t=90, fall t=152 (10 ticks/s)
+// ---- a real save (gfx round 7): web/tests/fixtures/deep.json (a D11 lineage, waystones D5 burrows · D9 fens) — the real engine at depth,
+// where the fake engine's crowds piled on the hero. `start` the waystone the send starts from; `fight`: wait for the fight frame (highlights)
+async function phoneDeep(name, start, what, fight = false) {
+  const page = await newPage(400, 800, 2);
+  await goto(page, `fresh=1&seed=2501`);
+  await waitFor(page, (s) => s?.booted && s.screen === "camp", "camp");
+  const engine = readFileSync(join(ROOT, "web/tests/fixtures/deep.json"), "utf8").trim();
+  await page.evaluate((engine) => window.__riddle.importSave(JSON.stringify({ v: 2, engine, loadout: [], last_seen: Date.now(), runs: 0 })), engine);
+  await waitFor(page, (s) => s?.booted && s.screen === "camp", "deep camp");
+  await page.evaluate(async (d) => { const r = window.__riddle; await r.mutate(() => r.engine.setStart(d)); }, start);
+  await settle(page);
+  await page.locator("button.send, .gem-slot .gem").first().click();
+  await waitFor(page, (s) => s?.screen === "watch", "watch");
+  await sleep(600);
+  if (!fight) {
+    await tileClick(page, "one"); await sleep(3500);
+    if ((await state(page))?.screen === "watch") { await sampleFrames(page, name, 3000); await shoot(page, name, what); }
+  } else {
+    // (round 7's strip caught the floor's title card over the fight: wait for the fight frame with no card up)
+    const card = () => page.evaluate(() => document.querySelector(".watch")?.dataset.card === "1" || !!document.querySelector(".interstitial:not([hidden])"));
+    const foe = () => page.evaluate(() => (window.__viewer?.debugRects?.() ?? []).some((r) => !r.hero)).catch(() => false);
+    const inFight = async () => (await state(page))?.frame === "fight" && !(await card()) && (await foe());
+    const t = Date.now(); let ok = false;
+    while (Date.now() - t < 60000) { if (await inFight()) { await sleep(450); if (await inFight()) { ok = true; break; } } await sleep(80); }
+    if (ok) { await shoot(page, name, what, { pre: true }); await castStrip(page, name); await sampleFrames(page, name, 1500); }   // (the still first: a fight can end in the strip's 1.5 s)
+  }
+  if (page.__errs.length) log(`page errors (${name}):`, page.__errs.slice(0, 5));
+  await page.close();
+}
+
+// ---- the boss moments (gfx round 7: at the phone watch's 100 env texels, was the demo's 160): the renderer's own boss script (render-demo.html?boss=1): entrance t≈12, break t=90, fall t=152 (10 ticks/s)
 async function bossDemo() {
   const page = await newPage(400, 800, 2);
-  await page.goto(`${BASE}render-demo.html?boss=1&biome=burrows&depth=8&speed=1&hud=0`);
+  await page.goto(`${BASE}render-demo.html?boss=1&biome=burrows&depth=8&speed=1&hud=0&texels=100${XQD ? `&${XQD}` : ""}`);
   await page.waitForFunction(() => !!window.viewer, null, { timeout: 30000 });
   await page.evaluate(() => { window.__viewer = window.viewer; });
   const at = async (tick) => { while ((await page.evaluate(() => window.viewer.stats().tick)) < tick) await sleep(30); };
@@ -279,8 +311,12 @@ async function desktop() {
   await page.evaluate((t) => window.__riddle.setRulesText(t), RICH); await sleep(6000); await settle(page);
   if (want("d-camp")) await shoot(page, "d-camp", "desktop 1440×900: the camp");
   await step("d-edit", async () => {
-    const r = page.locator("main.camp .row.tablet:not(.oath-tab)").first(); await r.click({ timeout: 3000 }).catch(() => {}); await settle(page);
-    if (want("d-edit")) await shoot(page, "d-edit", "desktop 1440×900: a rule tapped, the editor");
+    // gfx round 7: the strip is the tap's opening, like the phone's edit (it was four frames of the open sheet: raters read "no opening")
+    const r = page.locator("main.camp .row.tablet:not(.oath-tab)").first();
+    const tap = () => r.evaluate((e) => e.click()).catch(() => {});
+    if (want("d-edit")) await castStrip(page, "d-edit", tap); else await tap();
+    await settle(page);
+    if (want("d-edit")) await shoot(page, "d-edit", "desktop 1440×900: a rule tapped, the editor (strip: its opening)", { pre: true });
     await closeSheets(page);
   });
   await page.close();
@@ -290,8 +326,9 @@ const phone = !process.argv.includes("--no-phone"), desk = !process.argv.include
 try {
   if (phone) {
     await step("real", phoneReal);
-    if (want("watch-fens")) await step("fens", () => phoneFake("watch-fens", 6, "the watch at normal speed, D6 the Fens"));
-    if (want("fight")) await step("fight", () => phoneFake("watch-early", 2, "the watch, D2"));
+    // gfx round 7: the Fens and the fight from a real save (the fake engine: `phoneFake`, kept for a fixture-less tree)
+    if (want("watch-fens")) await step("fens", () => phoneDeep("watch-fens", 9, "the watch at normal speed, D9 the Fens (real engine)"));
+    if (want("fight")) await step("fight", () => phoneDeep("fight", 5, "a fight (the fight frame, highlights mode)", true));
     if (want("boss")) await step("boss", bossDemo);
   }
   if (desk) await step("desktop", desktop);

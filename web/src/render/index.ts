@@ -44,7 +44,7 @@ import { Atlas, type Slot } from "./atlas";
 import { Blit } from "./blit";
 import { QuadLayer } from "./layers";
 import { GpuTimer, Hist } from "./gputimer";
-import { paletteFor } from "./palette";
+import { paletteFor, SPRITE_SCALE } from "./palette";
 import { CALL_CHAR, CALL_H, CALL_PAD, TAG_CHAR, TAG_H, TAG_PAD, TagLayer, allyName, type Plate, type Tag } from "./tags";
 import { PROPS, ReplayState, type EntState } from "./state";
 import { Quality } from "./quality";
@@ -147,7 +147,7 @@ const ROOM_LOOK = 9;               // gfx round 5: the camera's lean looks this 
 const ATLAS_WAIT_MS = 1500;        // gfx round 6: the longest the first frame waits for the atlas
 const PLATE_MAX = 5;               // gfx round 1: name plates in a crowd (the nearest hostiles; round 6: 3 → 5, the stacking rule culls a pile)
 const BOSS_TITLE_MS = 2200;        // gfx round 1: the boss's title plate on his entrance
-const HERO_TEXELS = 24;            // Cut 14 §3: the hero sprite's height in env texels (48 sprite texels); the fight k keeps it ≤ 1/5 of the screen
+const HERO_TEXELS = 24 * SPRITE_SCALE;   // Cut 14 §3: the hero sprite's height in env texels (48 sprite texels; gfx round 7: × SPRITE_SCALE); the fight k keeps it ≤ 1/5 of the screen
 
 export type ViewerOpts = {
   atlasUrl?: string;   // default "/art/atlas.json" (+ atlas.png beside it)
@@ -309,7 +309,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // the hero take up to 2/5 of its height
     const small = (canvas.clientHeight || 1000) < 320;
     const cap = Math.floor(devH / ((small ? 2.5 : 5) * HERO_TEXELS));
-    const kf = Math.max(kMap, Math.min(2 * kMap, cap - (cap & 1)));
+    // gfx round 7 (pick raters O, P: at half-size sprites the fight's 2× zoom "smears the hero and rat into blocky noise"): ≤ 1.25× the map's
+    // (raters Q, R on the scene's inset: "zoom the inset so the hero and foe are twice their size" — ui/viewer.ts halves a small view's texels; under 480 CSS px 1.5×)
+    const most = small ? 2 * kMap : (canvas.clientHeight || 1000) < 480 ? Math.round(kMap * 1.5) : Math.max(kMap, Math.round(kMap * 1.25));
+    const kf = Math.max(kMap, Math.min(most - (most & 1), cap - (cap & 1)));
     if (!fixedFocus) return kf;
     const fit = Math.floor(Math.min(devW, devH) / ((2 * Math.max(1, fixedFocus.radius) + 1) * TILE));
     return Math.max(kMap, Math.min(kf, fit - (fit & 1)));
@@ -737,6 +740,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
           const cx = (x0 + x1) / 2, dir = fx !== cx ? Math.sign(fx - cx) : st.hero?.flip ? 1 : -1;
           const keep = Math.floor((cover * hw) / oy);   // the most of his width it may still cover
           fx = dir > 0 ? Math.ceil(x1 - keep + w / 2) : Math.floor(x0 + keep - w / 2);
+          // gfx round 7 (half-size sprites: a stack pushed off the hero landed its members on one x): they keep their fan, outward
+          if (stackN > 1 && stackI >= 0) fx += dir * stackI * Math.round(Math.max(STACK_SPREAD, w / 2));
         }
         // gfx round 5 (raters: "the rat hides under the hero"): the hero draws in front, so a small foe at his feet vanished behind him — a
         // live foe the hero's rect would hide more than HIDDEN_MAX of steps sideways, away from him, until at least half of it shows
@@ -850,7 +855,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
       const hh = st.hero, dustC = p[Math.min(3, p.length - 1)]!;
       juice.update(simDt, now, st.clock, {
-        ent: (id) => { const e = st.ents.get(id); if (!e) return null; const [x, y] = feet(e); return { x, y, h: atlas.entity(e.kind).h / 2, kind: e.kind, hero: e.hero, boss: e.boss, maxHp: e.maxHp, ally: e.ally }; },
+        ent: (id) => { const e = st.ents.get(id); if (!e) return null; const [x, y] = feet(e); return { x, y, h: atlas.entity(e.kind).h / 2, w: atlas.entity(e.kind).w / 2, kind: e.kind, hero: e.hero, boss: e.boss, maxHp: e.maxHp, ally: e.ally }; },
         heroId: st.heroId, speed: st.speed, fight, quiet, cam: [camSX, camSY], half: [iw / 2, ih / 2], fires, gases, waters, torches: lights,
         motes: !!hh && !!roomLit[hh.y * st.w + hh.x], dust: [dustC[0], dustC[1], dustC[2]],
       });
