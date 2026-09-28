@@ -26,7 +26,10 @@ export function applySkin(): void {
   const root = document.documentElement;
   for (const name of Object.keys(S.frames)) root.classList.add(`skin-${name.replace(/_/g, "-")}`);
   for (const name of S.backdrops ?? []) root.classList.add(`skin-bd-${name.replace(/_/g, "-")}`);   // gfx round 1: painted backdrops (a place's back wall)
-  for (const name of S.deco ?? []) root.classList.add(`skin-deco-${name.replace(/_/g, "-")}`);   // gfx round 4: the frame's carved pillar, the camp's braziers
+  for (const name of S.deco ?? []) root.classList.add(`skin-deco-${name.replace(/_/g, "-")}`);
+  // gfx round 19 (raters: the report's strip "starts as an empty black frame" — the scroll's frame decoded on first use): the frames and
+  // backdrops decode at boot
+  if (typeof Image !== "undefined") for (const u of [...Object.keys(S.frames).map((n) => `/ui/frames/${n}.png`), ...(S.backdrops ?? []).map((n) => `/ui/backdrops/${n}.webp`)]) { const im = new Image(); im.decoding = "async"; im.src = u; void im.decode?.().catch(() => undefined); }   // gfx round 4: the frame's carved pillar, the camp's braziers
 }
 
 /** An icon: the packed PNG, or a CSS-drawn glyph (no text node, so `textContent` is the caller's label alone). */

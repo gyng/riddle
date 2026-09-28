@@ -19,7 +19,7 @@ export interface Viewer {
 }
 type RenderMod = { createViewer(canvas: HTMLCanvasElement, opts?: { baseTexels?: number }): Viewer; createFallbackViewer(canvas: HTMLCanvasElement): Viewer };
 const PHONE_TEXELS = 100;   // gfx round 1 (raters: "half the viewport is empty void"; watch.png's ~9 tiles across): k 6 → 8 at 400 px × 2 (was 120)
-const DESK_TEXELS = 84;     // gfx round 1: the desktop frame's centre well (~680 px short side): k 4 → 6 (the renderer's default 160 read "tiny"); round 7: 112 → 84 (k 8) with the half-size sprites (raters Q, R: "sprites tiny at 1440")
+const DESK_TEXELS = 72;     // gfx round 1: the desktop frame's centre well (~680 px short side): k 4 → 6 (the renderer's default 160 read "tiny"); round 7: 112 → 84 (k 8) with the half-size sprites (raters Q, R: "sprites tiny at 1440")
 const mods = import.meta.glob<RenderMod>("../render/index.ts");
 
 export async function makeViewer(canvas: HTMLCanvasElement): Promise<{ viewer: Viewer; real: boolean }> {

@@ -803,7 +803,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const flash = !st.flashing(e) || st.speed <= 0 ? 0 : e.boss && e.dying ? BOSS_FALL_FLASH : e.hero ? HERO_FLASH : Math.max(FLASH_MIX, juice.hitFlash(e.id, st.clock, e.hero));
       // juice: squash & stretch (a hit, a lunge, a spawn's pop, a death's slump) — the feet stay put; `rects` keep the true size
       const [sqx, sqy] = juice.squash(e.id, st.clock);
-      const lift = juice.lift(e.id, st.clock);   // gfx round 5: a boss drops into his arena
+      // gfx round 20 (raters: "the hero only slides between tiles"): a walking step bobs one texel on each half of the move (FX > 0)
+      const step = fxLevel > 0 && e.move && !e.dying && !e.boss ? ((st.clock - e.move.t0) / Math.max(0.01, e.move.dur) < 0.5 ? 1 : 0) : 0;
+      const lift = juice.lift(e.id, st.clock) + step;   // gfx round 5: a boss drops into his arena
       const ghost = fxLevel > 0 && !e.hero && ETHEREAL.has(e.kind);
       if (ghost) ghostAt.push([fx, fy + h / 2]);
       (ghost ? L.ghosts : L.ents).push(fx, fy + lift + (ghost ? Math.round(Math.sin(now / 380 + e.id) * 1.5) + 1 : 0), z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.hero ? 1.12 : e.ally ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);   // (round 16: the hero a touch brighter — "muddy on the ochre floor")

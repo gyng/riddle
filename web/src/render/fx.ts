@@ -316,7 +316,7 @@ export class Juice {
         const heavy = e.maxHp > 0 && ev.dmg >= e.maxHp * 0.15;
         if (e.boss) this.lastBoss = ev.id;
         this.squashes.set(ev.id, { t0: ev.t, kind: "hurt", ax: 0, ay: 0 });
-        const n = Math.min(14, 5 + ev.dmg);
+        const n = e.hero ? Math.min(6, 2 + (ev.dmg >> 1)) : Math.min(14, 5 + ev.dmg);   // gfx round 19 (raters: "the hero a noisy red speckle"): fewer drops off the hero
         if (SPARKY.test(e.kind)) this.burst(n, cx, cy, 55, C.spark, 0.35, 0.5, { glow: true, grav: -90, drag: 2 }, 12);
         else if (GHOSTLY.test(e.kind)) this.burst(n, cx, cy, 22, C.soul, 0.7, 1, { glow: true, drag: 1.5, alpha: 0.8 }, 10);
         else if (/bloat|jelly|slime/.test(e.kind)) this.burst(n, cx, cy, 40, /pink/.test(e.kind) ? C.pink : C.goo, 0.8, 1, { grav: -160, floor: e.y - 2 - this.rand() * 3 }, 25);

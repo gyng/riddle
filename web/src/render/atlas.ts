@@ -139,17 +139,24 @@ export class Atlas {
     const id = `tile:${biome}_env_wall_top_${mask}`;
     const have = this.env.get(id); if (have) return have;
     const src = this.envTile(biome, "wall_top"); if (!src) return undefined;
-    if (!mask) return src;
     const g = this.env, w = src.w, h = src.h;
     const img = g.ctx.getImageData(src.x, src.y, w, h);
+    // gfx round 20 (raters: "walls and floor are the same grey-olive block"): the painted capstones a step darker than the floor, a lit
+    // bevel one texel inside every edge that meets open ground and a near-black outline on it
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) { d[i] = d[i]! * 0.72; d[i + 1] = d[i + 1]! * 0.72; d[i + 2] = d[i + 2]! * 0.74; }
+    const lit = (x: number, y: number) => { const i = (y * w + x) * 4; d[i] = Math.min(255, d[i]! * 1.9 + 18); d[i + 1] = Math.min(255, d[i + 1]! * 1.85 + 14); d[i + 2] = Math.min(255, d[i + 2]! * 1.7 + 8); };
+    for (let k = 0; k < w; k++) { if (mask & 1) lit(k, 1); if (mask & 4) lit(k, h - 2); }
+    for (let k = 0; k < h; k++) { if (mask & 8) lit(1, k); if (mask & 2) lit(w - 2, k); }
     const dst = g.alloc(id, w, h);
     g.ctx.putImageData(img, dst.x, dst.y);
+    g.version++;
     const p = paletteFor(biome), P = (i: number) => css(p[Math.min(i, p.length - 1)]!);
     const line = (x: number, y: number, lw: number, lh: number, col: string) => { g.ctx.fillStyle = col; g.ctx.fillRect(dst.x + x, dst.y + y, lw, lh); };
-    if (mask & 1) { line(0, 0, w, 1, P(0)); line(0, 1, w, 1, P(4)); }
-    if (mask & 8) { line(0, 0, 1, h, P(0)); line(1, 1, 1, h - 1, P(4)); }
-    if (mask & 2) { line(w - 1, 0, 1, h, P(0)); line(w - 2, 1, 1, h - 1, P(1)); }
-    if (mask & 4) { line(0, h - 1, w, 1, P(0)); line(0, h - 2, w, 1, P(1)); }
+    if (mask & 1) line(0, 0, w, 1, P(0));
+    if (mask & 8) line(0, 0, 1, h, P(0));
+    if (mask & 2) line(w - 1, 0, 1, h, P(0));
+    if (mask & 4) line(0, h - 1, w, 1, P(0));
     return dst;
   }
   // bones pile (Cut 2 §2): per-biome 2-frame tile art if the atlas has it, else the `bones` item

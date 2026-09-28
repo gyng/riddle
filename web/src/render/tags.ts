@@ -74,8 +74,8 @@ const CSS = `
 .rshatter i { position: absolute; inset: 0; background: center / 100% 100% no-repeat; filter: drop-shadow(0 0 6px rgba(255, 220, 160, .9)) drop-shadow(0 2px 2px #000); }
 .rshatter i:first-child { clip-path: polygon(0 0, 58% 0, 44% 38%, 56% 62%, 40% 100%, 0 100%); animation: rsh-l 1.2s cubic-bezier(.2, .7, .4, 1) both; }
 .rshatter i:last-child { clip-path: polygon(58% 0, 100% 0, 100% 100%, 40% 100%, 56% 62%, 44% 38%); animation: rsh-r 1.2s cubic-bezier(.2, .7, .4, 1) both; }
-@keyframes rsh-l { 0% { transform: scale(1.6); opacity: 0; } 8% { transform: scale(1); opacity: 1; } 20% { transform: translate(-8px, -2px) rotate(-8deg); opacity: 1; } 100% { transform: translate(-58px, 60px) rotate(-70deg); opacity: 0; } }
-@keyframes rsh-r { 0% { transform: scale(1.6); opacity: 0; } 8% { transform: scale(1); opacity: 1; } 20% { transform: translate(8px, -2px) rotate(8deg); opacity: 1; } 100% { transform: translate(58px, 66px) rotate(75deg); opacity: 0; } }   /* (round 14: split from 20 %, was 42 % — "the shield hangs static") */
+@keyframes rsh-l { 0% { transform: scale(1.6); opacity: 0; } 6% { transform: scale(1); opacity: 1; } 12% { transform: translate(-10px, -4px) rotate(-10deg); opacity: 1; } 55% { transform: translate(-50px, 30px) rotate(-55deg); opacity: 1; } 100% { transform: translate(-64px, 76px) rotate(-80deg); opacity: 0; } }
+@keyframes rsh-r { 0% { transform: scale(1.6); opacity: 0; } 6% { transform: scale(1); opacity: 1; } 12% { transform: translate(10px, -4px) rotate(10deg); opacity: 1; } 55% { transform: translate(50px, 34px) rotate(60deg); opacity: 1; } 100% { transform: translate(64px, 82px) rotate(85deg); opacity: 0; } }   /* (round 14: split from 20 %, was 42 % — "the shield hangs static") */
 @media (prefers-reduced-motion: reduce) { .rshatter i { animation-duration: .01s !important; } }
 @media (prefers-reduced-motion: no-preference) { html[data-juice="on"] .rcall.boss.fresh { animation: rboss-in 2.2s cubic-bezier(.2, 1.1, .3, 1) both; } }
 @keyframes rboss-in { 0% { opacity: 0; scale: 1.8; letter-spacing: .5em; } 14% { opacity: 1; scale: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
