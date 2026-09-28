@@ -1546,7 +1546,7 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#0
 .camp .well-wrap > .div-scene::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 55%, rgba(0, 0, 0, .7)); }
 /* gfx round 10 (raters: "light the most important plaque"): the send's deepest floor carries a gilt rim and a slow glow */
-.report .tiles > .tile.plaque:nth-child(2) { box-shadow: 0 0 0 1px #d8b060, 0 0 14px rgba(255, 190, 80, .45); }
+.report .tiles > .tile.plaque:nth-child(2), .skin-tile .report .tiles > .tile.plaque:nth-child(2) { box-shadow: 0 0 0 1px #d8b060, 0 0 14px rgba(255, 190, 80, .45); }
 @media (prefers-reduced-motion: no-preference) {
   html[data-juice="on"] .report.arrived .tiles > .tile.plaque:nth-child(2) { animation: j-plaque .52s cubic-bezier(.3, 1.2, .5, 1) .07s backwards, j-gilt 2.8s ease-in-out 1s infinite; }
   @keyframes j-gilt { 0%, 100% { box-shadow: 0 0 0 1px #d8b060, 0 0 10px rgba(255, 190, 80, .3); } 50% { box-shadow: 0 0 0 1px #f0cc78, 0 0 22px rgba(255, 190, 80, .7); } }
@@ -1561,3 +1561,9 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#0
 .skin-scroll.skin-panel .panel-host > .panel { border-style: solid; border-color: transparent; border-width: 30px 14px 30px; padding: 4px 14px 10px;
   border-image: url(/ui/frames/scroll.png) 80 36 80 36 fill / 30px 14px 30px 14px stretch; background: none; box-shadow: none;
   filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .85)); }
+/* gfx round 14 (raters: "seven same-weight plaques, no hero stat", "the empty eighth slot reads unfinished"): the send's deepest floor is
+   the hero plaque — across the row, its number a size up */
+.report .tiles.six > .tile.plaque:nth-child(2) { grid-column: 1 / -1; order: -1; }   /* (first, so the six under it pair up) */
+.report .tiles.six > .tile.plaque:nth-child(2) .num { font-size: 1.3em; }
+/* (raters: "MEASURING overflows the APPLY gem"): the pending word fits inside the gem */
+.gem.patch-gem.pending .gem-w { font-size: 9.5px; letter-spacing: .04em; padding: 1px 3px; }

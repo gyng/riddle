@@ -486,3 +486,35 @@ FX > 0: the Fens 0.6, the Warrens 0.78 — "the floor is louder than the actors"
 floor 0.15 → 0.3, fade over 11 tiles), the hero's hurt flash 0.28 → 0.16, the edit's scene in the console's riveted bezel with a vignette,
 the death backdrop lifted, the report's deepest plaque gilt. Death 7.25, boss entrance 7.05, fall 6.95, break 6.90, oaths 6.65. The fights
 suite's `fast: the break is a beat` check fails only when run beside three other suites (load); alone it passes (48/48).
+
+**Rounds 12–14** (raters AA AB · AC AD · AE AF): 6.16 · 6.28 · **6.50** (the session's best; lowest 5.60, the Fens).
+- r12: a drifting ground mist (value noise in world space; the Fens 0.42, the Crypt and the Deep lighter; FX > 0), ethereal foes drawn
+  violet-white at ~2× so a 50/50 blend still reads over the Fens' teal, damage numbers step clear of the callout and name plates, the scene
+  inset zoomed further (a view < 320 CSS px shows 0.45× the texels).
+- r13: every sheet and camp panel is the report's parchment scroll (`skin-scroll`: rolls across, ragged sides, a drop shadow); the Fens'
+  floor contrast 0.45.
+- r14: the report's deepest floor is the hero plaque (first, across the row, a size up, gilt — the other six pair up, no empty slot); the
+  oath cards drop in (the round-13 tilt read "skewed, glitchy"), their seals press less; `measuring` fits inside the APPLY gem; desktop
+  embers a size up (the strip is a quarter size at 1440).
+
+| moment | r11 | r12 | r13 | r14 |
+|---|---|---|---|---|
+| watch-warrens | 6.10 | 5.70 | 5.70 | 6.20 |
+| report | 6.60 | 6.30 | 6.45 | 6.70 |
+| death | 7.25 | 6.90 | 7.05 | 7.10 |
+| camp | 6.15 | 6.25 | 5.95 | 6.25 |
+| scene | 6.00 | 6.00 | 6.05 | 6.05 |
+| edit | 6.35 | 6.20 | 6.40 | 6.75 |
+| forecast | 6.30 | 5.75 | 6.15 | 6.35 |
+| oaths | 6.65 | 5.75 | 5.95 | 6.30 |
+| watch-fens | 5.35 | 5.25 | 5.65 | 5.60 |
+| fight | 6.30 | 6.40 | 6.15 | 6.50 |
+| boss-in | 7.05 | 7.05 | 7.10 | 7.15 |
+| boss-break | 6.90 | 6.65 | 6.65 | 6.85 |
+| boss-fall | 6.95 | 6.35 | 6.80 | 6.90 |
+| d-watch | 5.90 | 5.45 | 5.70 | 6.00 |
+| d-report | 6.15 | 5.95 | 5.70 | 6.20 |
+| d-death | 6.95 | 6.60 | 6.85 | 6.85 |
+| d-camp | 6.45 | 6.45 | 6.40 | 6.65 |
+| d-edit | 5.90 | 5.95 | 6.35 | 6.60 |
+| **mean** | **6.41** | **6.16** | **6.28** | **6.50** |
