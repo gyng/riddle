@@ -1,6 +1,45 @@
 # Handoff — where Riddle stands and how to resume
 
+> **Session end, 2026-09-28 — stopped before Cut 30 (owner's call).** All work is on **`cut29-wip`**
+> (last `b3d1d46` + parked oath art); `main` has this doc. Cut 29 is built end to end (core + client +
+> copy decisions + YOU DIED) but **not merged**: `node tools/gates.mjs --full` still fails the rows Cut 29
+> made hard — dayplayer unlock days 7.0/10, stall 9/3 d; progression unlock days 8.3/10, stall ≤ 3 on
+> 11/18 (bar 13), marks unspent 13 (bar 8), purse 1.82× (bar 1). Everything else passes (450 tests,
+> clippy, qa, bots, walls, lever). Gfx/UI blind mean 6.74 on the motion-aware harness (bar 8.0). Next:
+> finish the four §6 "Cut 29 core" items (lucky records, the cadence card, a late marks sink, commissions
+> priced to income), merge, then Cut 30 (the idle-first pivot, §0). Resume: `git switch cut29-wip`.
+
+
 *Written 2026-09-27 at the end of a long session. Read this, then `AGENTS.md`, then `docs/CUT29.md`.*
+
+
+## 0. Owner decisions, 2026-09-28 — the idle-first pivot (read first)
+
+- **Adopted: idle-first** (`docs/IDLE_FIRST.md`). Fun and a sense of progression are the north star.
+  Idling alone progresses; rules and builds help and are fun but are never required. Rules become a
+  late-game unlock for micro-tweaks; traits/arts/stances become **packages** (pre-written rule bundles that
+  level from runs). Progression is four parallel tracks that open stage by stage: **character** (one
+  default warrior → classes → pets → advanced classes), **items** (inventory → blacksmith → loot),
+  **scale** (one hero → many → aggregate), **town** (tavern, bank, houses…). Start simple; add simple,
+  coherent, fun systems.
+- **Order**: finish **Cut 29 as written** (the owner's choice), then **Cut 30 = the pivot's first cut**
+  (IDLE_FIRST.md's draft: the idle floor, packages, a day-0 camp → town strip with a bank, a tracks panel,
+  the new gates). **Hold before Cut 31** and update this doc. The hard invariants in AGENTS.md/PLAN.md
+  ("policy is never optional", DEFAULT must fail, ~20 "not engaging fails" rows) are **replaced in Cut 30**
+  by the idle gates (idle alone reaches D8 on day 1 and D23 by day 12, gold every day; packages ≥ 1.5×
+  faster; rules ≥ 1.5× again; nothing required) — not before, so Cut 29's gates stay as written.
+- **Scoring preset: `idle-hybrid`** (`eval/presets.json`, the mean of idle-roguelike and idle-rpg). Cards
+  from the pivot on use `"genre": "idle-hybrid"` (update `eval/SCORECARD.template.json` and the rater
+  prompt when cohorts resume). Cohort 24 re-scored under it: 74.6 · 71.1 = **72.85**. Run a control
+  cohort on the pre-pivot build under `idle-hybrid` before judging Cut 30.
+- The earlier Cut 30 traits design (`docs/TRAITS.md`) is superseded: its data, wake cards and reveal are
+  reused as packages. Cut 31 (specialisation forks, weapon properties) needs re-scoping under the pivot.
+- **Oaths are still unclear to the owner** (2026-09-28), even after the Cut 28b clarity pass whose
+  blind probe scored 9/9 — an agent-reader pass is not a human pass. In Cut 30, redesign oaths as a
+  simple **quest board**: one plain goal line (`reach D10 · no return`), the reward as a picture, a
+  progress bar; no stake mechanic; arriving late on the ladder, or cut if it doesn't fit the four tracks.
+  Validate with the owner, not only blind agent readers.
+- Death screen: the `gap` seal reads **YOU DIED** (score screen only; `no rule for it` stays under it).
 
 ## 1. The goal and the honest target
 
@@ -79,60 +118,88 @@ then QA → cohort 25. On the branch:
 
 ## 6. Open work, in order
 
-### Cut 29 core (built; the new hard gates still fail — resume here first)
-Green: 441 cargo tests, clippy -D warnings (incl. examples), wasm rebuilt, qa all pass, every bot / lever /
-dice / stall / dance / lane / divergence / oath / return gate; the client suite 36/36; tsc; copy-lint 0.
-`node tools/gates.mjs --full` exits 1 on the rows Cut 29 made hard:
+### Cut 29 core (built; the progression bars still fail — not mergeable; resume here first)
+State at `08a880b` (2026-09-28, core agent): 450 cargo tests (+1 ignored), clippy -D warnings (incl. examples), wasm rebuilt, qa all
+PASS, every bot / lever / oath / dice / stall / dance / lane / divergence / return gate PASS (FULL−D23/28/33 held 100 %,
+kitted too; COUNTERED ≥ D14 70 %; lever with every oath reward 4/4). `node tools/gates.mjs --full` exits 1 on exactly
+these rows (final run, 30 seeds, 1776 s):
 
-| Row | Now | Bar |
-|---|---|---|
-| Dayplayer: days with an unlock / oath kept / system opened | 7.3 (6 · 9 · 7) | ≥ 10/14 |
-| Dayplayer: longest stall, counter known | 8 d | ≤ 3 |
-| Progression: unlock days (18 rater lineages) | 5.5 | ≥ 10 |
-| Progression: marks unspent after day 2 | 11 (one lineage) | ≤ 8 |
-| Progression: stall ≤ 3 d | 2/18 | ≥ 13/18 |
-| Progression: purse vs the day's net | 1.11× (one lineage) | ≤ 1 |
+| Row | Handoff (27th) | Now | Bar |
+|---|---|---|---|
+| Dayplayer: days with an unlock / oath kept / system opened | 7.3 | 7.0 (9 · 7 · 5) | ≥ 10/14 |
+| Dayplayer: longest stall, counter known | 8 d | 9 d (final best D29 · 28 · 28) | ≤ 3 |
+| Progression: unlock days (18 rater lineages) | 5.5 (6.3 on the 28th's first run) | 8.3 | ≥ 10 |
+| Progression: stall ≤ 3 d | 2/18 | 11/18 | ≥ 13/18 |
+| Progression: marks unspent after day 2 | 11 (8 on the 28th's first run) | 13 | ≤ 8 |
+| Progression: purse vs the day's net | 1.11× (1.35×) | 1.82× | ≤ 1 |
 
-E1 (the wall search) broke the D17 wall: dayplayer D18·17·17 → D28·33·28. Next, in order:
-1. **Queen silence lever** — 205 floors at D24+ had a silence scroll on the floor and 0 heroes held one:
-   the pack is full (≈2 summon_ally, 2 spare mail, 2 spare swords, bow, fire, heal) so the full-pack swap in
-   `turn.rs` (`would_take`/`can_take` ~3000) never fires for it. From D24, silence takes a slot from an unread
-   summon_ally or a spare weapon/armour. Re-measure with the probes in
-   `/tmp/claude-1000/-home-g-p-riddle/205f7863-43f1-46df-a1c8-ce180d81d61e/scratchpad/d28` (may be gone —
-   rebuild: count held silence scrolls per floor; past-D28 share per seed), then FULL−D28, COUNTERED, lever.
-2. Don't offer `telegraph → retreat` death patches against a telegraph boss whose counter is known (`trace.rs`).
-3. **Make the wall search lazy** — it runs inside `run_offline*` whenever the stall verdict runs (20–60 s
-   native, far more in wasm): a `Game::wall_edit()` / wasm `wallEdit()` the client calls on the report; the
-   dayplayer and `progression_lib` call it explicitly. **Do not ship a build before this** (an offline slice at
-   a wall could take minutes in the browser).
-4. Probe the Foundry wall (D21–23; holds rater lineages 4–10 days) like the Queen: pack census, counter
-   facts (reflect_read / buffer), harmful patch rows.
-5. Unlock days: rater lineages buy the whole catalogue by day 3–5 and open 20–21/23 systems by day 2 —
-   gate later tiers/systems on deeper walls, count commissions and oath draws, add tier-gated oath rewards;
-   re-measure each change with `target/fast/examples/progression --bars --dp-seeds 0 --jobs 18` (~22 min).
-6. The marks (11) and purse (1.11×) outliers — one lineage each; find it in the per-lineage `progression` lines.
-Also done this round: `noise_discipline` is now earnable (a blind foe in view teaches `foe:<kind>:blind`);
-the repeat offers a `throw` row's kind as one tap (`Lineage.repeat_added`) instead of adding it.
+Rater lineages now end D20–D33 (were all D22–23): the stall and unlock rows moved; marks and purse got worse because the
+lineages now stand at the D33 wall with the whole catalogue bought (marks pile, no oath reward left to draw) and the
+commission price (10 units × 1.25ⁿ) outruns the purse bar's floor (10 units).
 
-### Gfx/UI eval (stopped cleanly; resume from `scratchpad/gfx-eval/round6`)
-Round 6: mean **5.97** (bar 8.0), lowest 5.00 (desktop report). Best: death 7.20, boss entrance 7.00.
-Next, in order (the agent's own list):
-1. **Sprite scale** — no re-authoring needed: in `web/src/render/atlas.ts` `Atlas.override`, multiply the
-   loaded-sprite `sc` by a `SPRITE_SCALE` (dev `?sprite=`); derive `HERO_TEXELS` (24) in `render/index.ts`
-   from it; lower `PHONE_TEXELS` (100) / `DESK_TEXELS` (112) in `ui/viewer.ts` by the same factor. Try 0.5
-   (phone ≈ 66) and 0.62 (≈ 80); shoot both with `tools/gfx-round.sh`; fresh raters pick. Check
-   fights.mjs "a foe ≥ 24 CSS px" (the rat); `render/view2d.ts` needs the same factor. Codex re-author only
-   if downscaled masters read mushy.
-2. Real saves for the Fens/fight moments (`tools/gfx-eval.mjs` `phoneFake` → `web/tests/fixtures/deep.json`).
-3. Report arrival: render the plaques from data on hand before the async content (`ui/report.ts`).
-4. Still screens: bigger ambient motion (breathing portrait/tablets, parallax vista, mist; compositor-only).
-5. Fog: a lit texture on the explored edge (`blit.ts`, the `FX > 0` rock block); tighter room framing.
-6. Copy-bound asks: `docs/JUICE.md` §10.7 item 5.
-7. Clean frame times: `tools/gfx-round.sh scratchpad/gfx-eval/round7` on a quiet box.
-Each round: two fresh raters (`round*/rater/prompt.txt`), `python3 scratchpad/gfx-eval/score.py roundN`.
+Done (in order of commits on `cut29-wip`):
+1. `9ac89d0` **Lazy wall search** — `Game::wall_edit()` / wasm `wallEdit()` (once a day at a wall, then cached as
+   `Lineage.wall`); `ReturnReport.wall` gone (`mergeReports` line dropped); `wallEdit` on a background lane (`lanes.ts`,
+   mirror reload after). 8 h offline on `deep.json` at a wall: 4.9 s in wasm; `wallEdit` alone 67 s — ask it after the
+   report paints, never block on it. The dayplayer and `progression_lib` call it after each report.
+2. `775540c` **Queen silence slot** (`turn.rs` `queen_wants/queen_slot/queen_keeps`, from D24): held silence at D28 0/40 →
+   40/42 on a D28 snapshot, past D28 0 → 28/48 with the counter row; FULL−D28 still held 100 %. The 307dbed save hash
+   re-recorded (event diff: first difference is that pickup, send 6, D28).
+   **No telegraph retreat against a countered boss** (`trace::telegraph_row` takes the facts).
+3. `a52fc21` **Foundry wall** — probe (rater snapshots): the wall is iron golems at D19–20 (reflect_melee), not the
+   Master; every lineage owned `reflect_read` and knew the tag, no goal set wrote it, no death offered it. With the card at
+   R1: reach D23 0.3 % → 90 %. `buffer · D19+ → attack buffer` is harmful (0/320). Fix: the card in the wall stock
+   (owned, not in the set) and pinned on a reflect-melee death (`trace::card_counter`). `PROG_SNAP=dir` snapshots.
+4. `08a880b` The wall stock carries the wall boss's known counter (plain and floor-gated): stall 9 → 11/18.
+Tried and reverted (patches in the session scratchpad `wall-fullmeasure-pin.patch`, `cadence-boss.patch`): measuring the
+wall's candidates on every sim (the camp's tick budget keeps ~9 of 48 at D33), `WALL_BAR` 0.10 → 0.06, and always
+measuring the floor-gated counter in full — 8–9/18, no better than 11 (noise ±2 between runs). `cadence` striking a boss
+in view first (tests green, not gate-measured) — see next 2.
 
-### Cut 29 client (barely started — only the pack-4 fix landed)
-Done: `web/src/ui/camp.ts` reads `Lineage.supply_cap` (the pack 4 → 3/3 bug). Everything else is open;
+Next, in order (measure each with `target/fast/examples/progression --bars --dp-seeds 0 --jobs 18`, ~25 min; single runs
+move ±2 lineages, so compare two runs before believing a move):
+1. **Record spikes.** Most remaining stalls are a lucky record, not a wall: e.g. rater AP s1 reached D33 on day 4 with a
+   set that reaches D33 on ~0–2 % of its sends (day 6), 14 % by day 10; the dayplayer's D28s come from sets that reach D28
+   on 0–1 % of sends (its later patches degrade the set: `always → cadence` and `telegraph → retreat` rows). The wall
+   search is blind there (share past/reaching the record ≈ 0 for every candidate). Options: a smoother search objective
+   (mean depth toward the record), or measure a wall from the deepest lit waystone below it.
+2. **Bare `cadence` card** (the client inserts a bought card bare: `always → cadence`): it pre-empts `boss focus` and hits
+   the Warlord's shield-goblins until he drives the hero off (dayplayer seed 3, every send, nine days). `cadence-boss.patch`
+   makes its plain blow go to a boss in view first; gate it (FULL's D33/D34 rows) before keeping.
+3. **Marks at the deepest wall**: once the catalogue is bought and the oath pool is dry (bold/lean titles are per depth,
+   fire per boss), draws fail and marks pile (AP s1: 25). Needs a repeatable late sink (e.g. `fire` naming any met boss
+   without its title; escalating titles), or the D33 wall passing (ascension resets the catalogue).
+4. **Purse**: the commission's 1.25ⁿ price outruns the bar's 10-unit floor at a stall (AS s1 $5959 on day 5). Price
+   commissions against income (e.g. ≤ one day's net) or record a deviation — never loosen the bar.
+5. Unlock days (item 5 of the old list) and the dayplayer bars were not worked on directly this session.
+Also done earlier: `noise_discipline` is earnable (a blind foe in view teaches `foe:<kind>:blind`); the repeat offers a
+`throw` row's kind as one tap (`Lineage.repeat_added`).
+
+### Gfx/UI eval (paused for the owner's stop after round 21; motion-aware baseline 6.74, round 21 6.68)
+The harness now shows raters full-resolution motion (`-motion.png`: changed pixels in red) and each moment's intended movement; round 20's
+build re-rated under it is the new baseline **6.74** (death 7.90, boss entrance 7.70, forecast 7.40). Round 21 (c6008ad: 35 more painted
+props, denser dressing, deeper wall-foot shadow, pixel-register boss shield, coin sprites) scored **6.68**. Bar 8.0 not met.
+`docs/JUICE.md` §10.10–10.11 has the tables. Next, in order: the Fens (5.50: its own props, a warmer hero pool); the boss break (the pixel
+shield muddles him: offset the split above him, bigger halves, a crack flash); early-floor camera framing; the IA asks (report OPENED chips,
+the scene inset over the route row, desktop meters). The oath board is skipped: Cut 30 redesigns it as a quest board (the reward vignettes
+painted for it wait, uncommitted, in `art/ui/oath/`).
+Resume: `tools/gfx-round.sh scratchpad/gfx-eval/roundN`, two fresh raters (`roundN/rater/prompt.txt`), `python3 scratchpad/gfx-eval/score.py roundN`.
+
+### Cut 29 client (2026-09-28 — every numbered item below is closed and committed on cut29-wip; `web/tests/cut29.mjs`, 34 checks)
+**Closed:** 1 `mergeReports` (`ui/meters.ts mergeMeters`) · 2 keep sheet (`decide`/`note`; a full vault's decision is a `swap`
+sheet) · 3 systems (`ui/systems.ts`; reveal steps follow `Lineage.systems`; reorder/vs/divergence/walls/route/automations/tags/
+exit verbs gated; report `opened` plaques; `seenSystems` at the next send — a mutating call mid-edit cost clarity:paint ~1 s; the
+proxy lists the Cut 29 methods; fake `?systems=all|none`, the older suites run with `none`) · 4 meters (watch toggle, death
+fight, report night, forecast two-run compare, desktop slot) · 5 standing orders (one tablet + sheet, `setOrders`) · 6 oath
+slots/draw/forswear-by-id/works · 7 `repeat_added` one tap · 8 passage (`~$125/run +$135 passage`) · 9 fallen lines · 10 wall
+edit as a patch (`ui/wall.ts`, lazy `wallEdit()` after the paint, `App.applyRules`) · 11 automation/tier labels, long-press
+reorder any distance · owner copy: YOU DIED seal (death screen only), budgets 2 words (`allowPhrases`), `runs banked`/`fights
+only`, concept icons + one-time captions (`ui/concepts.ts`), the ± as a noise band + the move as a signed chip, the gem says
+`apply` (count on its fix) · gfx raters' layout asks (opened under plaques, hex gems in the forecast panel, no `?` column,
+the scene never mid-row, headline wraps by segment, sheets meet their anchor). Blind protocol pass 9: `scratchpad/copy/pass9`.
+Known: core `keep()` on a full vault evicts the weakest item of any category (the swap sheet follows it; `auto_keep` evicts
+same-category only) — a core call.
+Done earlier: `web/src/ui/camp.ts` reads `Lineage.supply_cap` (the pack 4 → 3/3 bug). The rest below is open;
 the fake engine (`web/src/engine/fake.ts` ~2082–2195) already has Cut 29 stand-ins, so build against it:
 1. `mergeReports` in `app.ts` must carry the Cut 29 fields (sum `night_marks`, union `systems_opened`,
    concat `oaths_kept`/`fallen`, last slice's `wall`, `meters` field by field) — else offline reports drop them.
