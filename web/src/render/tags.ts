@@ -70,8 +70,8 @@ const CSS = `
 .rshatter i { position: absolute; inset: 0; background: center / 100% 100% no-repeat; filter: drop-shadow(0 0 6px rgba(255, 220, 160, .9)) drop-shadow(0 2px 2px #000); }
 .rshatter i:first-child { clip-path: polygon(0 0, 58% 0, 44% 38%, 56% 62%, 40% 100%, 0 100%); animation: rsh-l 1.2s cubic-bezier(.2, .7, .4, 1) both; }
 .rshatter i:last-child { clip-path: polygon(58% 0, 100% 0, 100% 100%, 40% 100%, 56% 62%, 44% 38%); animation: rsh-r 1.2s cubic-bezier(.2, .7, .4, 1) both; }
-@keyframes rsh-l { 0% { transform: scale(1.6); opacity: 0; } 10% { transform: scale(1); opacity: 1; } 42% { transform: translate(-3px, 0) rotate(-4deg); opacity: 1; } 100% { transform: translate(-40px, 46px) rotate(-50deg); opacity: 0; } }
-@keyframes rsh-r { 0% { transform: scale(1.6); opacity: 0; } 10% { transform: scale(1); opacity: 1; } 42% { transform: translate(3px, 0) rotate(4deg); opacity: 1; } 100% { transform: translate(40px, 52px) rotate(55deg); opacity: 0; } }
+@keyframes rsh-l { 0% { transform: scale(1.6); opacity: 0; } 8% { transform: scale(1); opacity: 1; } 20% { transform: translate(-8px, -2px) rotate(-8deg); opacity: 1; } 100% { transform: translate(-58px, 60px) rotate(-70deg); opacity: 0; } }
+@keyframes rsh-r { 0% { transform: scale(1.6); opacity: 0; } 8% { transform: scale(1); opacity: 1; } 20% { transform: translate(8px, -2px) rotate(8deg); opacity: 1; } 100% { transform: translate(58px, 66px) rotate(75deg); opacity: 0; } }   /* (round 14: split from 20 %, was 42 % — "the shield hangs static") */
 @media (prefers-reduced-motion: reduce) { .rshatter i { animation-duration: .01s !important; } }
 @media (prefers-reduced-motion: no-preference) { html[data-juice="on"] .rcall.boss.fresh { animation: rboss-in 2.2s cubic-bezier(.2, 1.1, .3, 1) both; } }
 @keyframes rboss-in { 0% { opacity: 0; scale: 1.8; letter-spacing: .5em; } 14% { opacity: 1; scale: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
@@ -166,7 +166,7 @@ export class TagLayer {
   shatter(x: number, y: number): void {
     const r = this.root; if (!r || !shieldOk) return;
     const el = document.createElement("div"); el.className = "rshatter";
-    el.style.transform = `translate(${Math.round(x - 46)}px, ${Math.round(y - 46)}px)`;
+    el.style.transform = `translate(${Math.round(x - 60)}px, ${Math.round(y - 96)}px)`;   // (round 14: above his head, not over his face)
     for (let i = 0; i < 2; i++) { const h = document.createElement("i"); h.style.backgroundImage = `url(${SHIELD})`; el.appendChild(h); }
     // gfx round 10 (raters: "burst the shield into big shards"): the painted shards fly out, spinning, and fall
     SHARDS.forEach((u, i) => { const b = document.createElement("b"); b.style.backgroundImage = `url(${u})`; b.style.setProperty("--dx", `${[-70, 64, -34, 44][i]}px`); b.style.setProperty("--dy", `${[-30, -44, 60, 38][i]}px`); b.style.setProperty("--rot", `${[-220, 260, -140, 190][i]}deg`); el.appendChild(b); });
