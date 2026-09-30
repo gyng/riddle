@@ -818,3 +818,9 @@ two grey slabs over the name plate" — the stamp lands after the strip's window
 the fight ("the goblin just vanishes: no death beat"), the desktop editor ("no sheet drop captured"). Raters of both rounds repeat:
 floors as busy as the actors in the Fens, a stray translucent box over the desktop camp's art, the BROKEN/SLAIN stamps too brief, the
 reward number clipped behind SLAIN, small secondary text. The Warrens watch, report, death, scene and edit went unrated.
+
+**Tiles, painterly pass** (after round 29; the owner: "more painterly, retain the readability, more similar to the original"): `art/refine.py
+painterly()` on the refined register (docs/ART_DIRECTION.md §4). Blind screenshot-only check, one reader, 7 sample rooms × 7 marked
+classes per version: every class identified in every version (49/49); readability round 26 5 · refined 7 · painterly 7; painterly-ness
+3 · 5 · 5. Sheet `scratchpad/style/phase2/tiles_painterly.png` (round 26 | refined | painterly), in-game rooms
+`scratchpad/style/phase2/tiles_painterly_ingame.png`. All 7 sample rooms pass `art-qc --style` (Burrows cast b* +9.1 ≤ 12).

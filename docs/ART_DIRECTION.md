@@ -58,6 +58,14 @@ DUSK-green skin, a slime's teal) inside the tint's family; a second saturated hu
   the face: phase 2 keeps a BONE face patch ≥ 2 texels and a MIST rim on the sword so the long figure still reads.
   This moves the hero away from ART.md's chunky 1/3-head proportion (§12).
 
+**Tiles, painterly pass (2026-09-30, the owner: "more painterly, retain the readability, more similar to the original but with
+more style")**: `art/refine.py painterly()` over the refined register — the round-26 value bands per class kept (the texel moves
+≤ 18/255), the old material colour partly back per place (Burrows earth to b* +9, Foundry heat, Sanctum pale stone, Fens teal),
+each stone a graded wash with pooled pigment at its foot, blotches, strokes along the grain, a band-limited smoothing (a soft wash,
+not mottle), hand-inked mortar lines and prop contours. A filter rather than Codex repaints: the phase-2 Codex paint lost the read
+(4.8) and a 1024 px brush stroke does not survive the 16×16 downscale. Blind check (one reader, 7 rooms × 7 marked classes):
+49/49 identified; readability round 26 5 · refined 7 · painterly 7; "painterly" 3 · 5 · 5 (first painterly cut, mottled: 4).
+
 ## 5. Texture
 
 - **Paper grain**: warm BONE paper shows through the lightest washes; a fine grain over the whole frame (screen-fixed,
