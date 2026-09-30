@@ -118,7 +118,15 @@ then QA → cohort 25. On the branch:
 
 ## 6. Open work, in order
 
-### Cut 29 core (built; the progression bars still fail — not mergeable; resume here first)
+### Cut 29 core (2026-09-30: every gate passes — ready to merge; the history below)
+**Final (c51f613 core + the two client fixes below):** `node tools/gates.mjs --full` exit 0 — 225 PASS, 0 FAIL (30 seeds,
+1957 s): progression unlock days 10.5 · marks 8 · stall 14/18 · purse 0.76× · frontier 0; dayplayer unlock days 10.0 · stall 3
+· marks 8; FULL ≥ D29 93 %, FULL−D33 100 %, dice 4.7 %, lever with every oath reward 4/4, oath gates 19/19; qa all PASS.
+`cargo test` 453 (+1 ignored), clippy -D warnings, wasm rebuilt. Client suite (`pnpm -s test`) 36/37 with `clarity:card` a
+timing flake (passes alone ×2). Client fixes: an anchored sheet re-places itself when its anchor moves (`ui/sheet.ts`;
+cut23's `R1's verb sheet leaves the row in view` failed 3 of 4 runs — the camp repainted under the open sheet, R1 rose
+63 px); `clarity:core,watch` expected `· killer:` on the try row, which gfx round 18 (83a1e6d) removed on purpose
+(failing since bdb9d25; the counter is the gate, the killer now optional).
 **2026-09-30 (core agent, resuming the list below).** Baseline re-measured at `bdb9d25`: the progression run is
 deterministic (8.3 · 13 · 11/18 · 1.82×, exactly the 28th's). Checkpoint 1 (items 1, 2, 4):
 - **Record spikes** (`wall.rs`): the wall's search measures from the deepest lit waystone at or above the record
