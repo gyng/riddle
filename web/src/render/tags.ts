@@ -62,7 +62,7 @@ const CSS = `
 .rshatter::before { content: ""; position: absolute; inset: -30%; border-radius: 50%; background: radial-gradient(circle, rgba(255, 230, 170, .85), rgba(255, 150, 60, .35) 40%, transparent 70%); animation: rsh-glow 1.1s ease-out both; }
 @keyframes rsh-glow { 0% { opacity: 0; transform: scale(.4); } 15% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.5); } }
 .rshatter { width: 120px; height: 120px; }
-.rshatter.px { width: 96px; height: 96px; }
+.rshatter.px { width: 104px; height: 104px; }
 .rshatter.px i, .rshatter.px b { image-rendering: pixelated; filter: drop-shadow(0 2px 0 #000); }
 .rshatter.px b { width: 42px; height: 42px; left: 27px; top: 27px; }
 .rshatter b { position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; background: center / contain no-repeat; filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 5px rgba(255, 200, 120, .7));
@@ -75,11 +75,32 @@ const CSS = `
 .rstamp.slain { color: #fff0c8; border-color: #d8b060; background: linear-gradient(#4a3010, #1e1206); box-shadow: inset 0 0 0 1px #000, 0 0 0 2px #1a1008, 0 0 30px rgba(255, 200, 90, .7), 0 6px 14px rgba(0, 0, 0, .8); }
 @keyframes rstamp { 0% { opacity: 0; scale: 2.2; rotate: -6deg; } 14% { opacity: 1; scale: .94; rotate: -3deg; } 22% { scale: 1; } 78% { opacity: 1; } 100% { opacity: 0; scale: 1.04; rotate: -3deg; } }
 .rshatter i { position: absolute; inset: 0; background: center / 100% 100% no-repeat; filter: drop-shadow(0 0 6px rgba(255, 220, 160, .9)) drop-shadow(0 2px 2px #000); }
-.rshatter i:first-child { clip-path: polygon(0 0, 58% 0, 44% 38%, 56% 62%, 40% 100%, 0 100%); animation: rsh-l 1.2s cubic-bezier(.2, .7, .4, 1) both; }
-.rshatter i:last-child { clip-path: polygon(58% 0, 100% 0, 100% 100%, 40% 100%, 56% 62%, 44% 38%); animation: rsh-r 1.2s cubic-bezier(.2, .7, .4, 1) both; }
+.rshatter i:first-of-type { clip-path: polygon(0 0, 58% 0, 44% 38%, 56% 62%, 40% 100%, 0 100%); animation: rsh-l 1.2s cubic-bezier(.2, .7, .4, 1) both; }
+.rshatter i:last-of-type { clip-path: polygon(58% 0, 100% 0, 100% 100%, 40% 100%, 56% 62%, 44% 38%); animation: rsh-r 1.2s cubic-bezier(.2, .7, .4, 1) both; }
 @keyframes rsh-l { 0% { transform: scale(1.6); opacity: 0; } 6% { transform: scale(1); opacity: 1; } 12% { transform: translate(-10px, -4px) rotate(-10deg); opacity: 1; } 55% { transform: translate(-50px, 30px) rotate(-55deg); opacity: 1; } 100% { transform: translate(-64px, 76px) rotate(-80deg); opacity: 0; } }
 @keyframes rsh-r { 0% { transform: scale(1.6); opacity: 0; } 6% { transform: scale(1); opacity: 1; } 12% { transform: translate(10px, -4px) rotate(10deg); opacity: 1; } 55% { transform: translate(50px, 34px) rotate(60deg); opacity: 1; } 100% { transform: translate(64px, 82px) rotate(85deg); opacity: 0; } }   /* (round 14: split from 20 %, was 42 % — "the shield hangs static") */
-@media (prefers-reduced-motion: reduce) { .rshatter i { animation-duration: .01s !important; } }
+/* gfx round 22 (raters: "the shield over the boss muddles him", "shards hard to parse"): the pixel shield sits clear above his head,
+   flashes white-hot and cracks (a glowing seam) before its halves split in wide arcs, growing as they fly; the shards leave on the split */
+.rshatter.px i { transform-origin: 50% 50%; }
+.rshatter.px i:first-of-type { animation: rshp-l 1.45s linear both; }
+.rshatter.px i:last-of-type { animation: rshp-r 1.45s linear both; }
+@keyframes rshp-l { 0% { transform: scale(1.5); opacity: 0; filter: brightness(4) drop-shadow(0 2px 0 #000); } 6% { transform: scale(1); opacity: 1; } 10% { filter: brightness(3) drop-shadow(0 0 8px #fff3c0) drop-shadow(0 2px 0 #000); }
+  14% { transform: translate(-2px, 1px); } 18% { transform: translate(1px, -1px); } 22% { transform: translate(0, 0); filter: brightness(1.15) drop-shadow(0 0 6px rgba(255, 210, 140, .9)) drop-shadow(0 2px 0 #000); animation-timing-function: linear; }
+  34% { transform: translate(-14px, -14px) rotate(-10deg) scale(1.05); } 50% { transform: translate(-33px, -18px) rotate(-24deg) scale(1.1); }
+  66% { transform: translate(-52px, -7px) rotate(-38deg) scale(1.15); } 82% { transform: translate(-71px, 20px) rotate(-52deg) scale(1.2); opacity: 1; }
+  100% { transform: translate(-92px, 66px) rotate(-68deg) scale(1.22); opacity: 0; filter: brightness(1) drop-shadow(0 2px 0 #000); } }
+@keyframes rshp-r { 0% { transform: scale(1.5); opacity: 0; filter: brightness(4) drop-shadow(0 2px 0 #000); } 6% { transform: scale(1); opacity: 1; } 10% { filter: brightness(3) drop-shadow(0 0 8px #fff3c0) drop-shadow(0 2px 0 #000); }
+  14% { transform: translate(2px, -1px); } 18% { transform: translate(-1px, 1px); } 22% { transform: translate(0, 0); filter: brightness(1.15) drop-shadow(0 0 6px rgba(255, 210, 140, .9)) drop-shadow(0 2px 0 #000); }
+  34% { transform: translate(15px, -15px) rotate(11deg) scale(1.05); } 50% { transform: translate(35px, -19px) rotate(26deg) scale(1.1); }
+  66% { transform: translate(55px, -8px) rotate(41deg) scale(1.15); } 82% { transform: translate(75px, 21px) rotate(56deg) scale(1.2); opacity: 1; }
+  100% { transform: translate(96px, 70px) rotate(72deg) scale(1.22); opacity: 0; filter: brightness(1) drop-shadow(0 2px 0 #000); } }
+.rshatter.px s { position: absolute; left: 41%; top: -6%; width: 20%; height: 112%; background: #fffbe8;
+  clip-path: polygon(50% 0, 80% 0, 45% 36%, 72% 38%, 30% 64%, 58% 66%, 22% 100%, 10% 100%, 38% 70%, 12% 68%, 52% 40%, 24% 38%);
+  filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 10px #ffb040); transform-origin: 50% 0; animation: rshp-crack 1.45s linear both; }
+@keyframes rshp-crack { 0% { opacity: 0; transform: scaleY(0); } 8% { opacity: 1; transform: scaleY(.2); } 16% { opacity: 1; transform: scaleY(1); } 24% { opacity: 1; } 32% { opacity: 0; transform: scaleY(1.1); } 100% { opacity: 0; } }
+.rshatter.px b { animation-delay: .32s; }
+.rshatter.px::before { animation-duration: 1.45s; }
+@media (prefers-reduced-motion: reduce) { .rshatter i, .rshatter s { animation-duration: .01s !important; } }
 @media (prefers-reduced-motion: no-preference) { html[data-juice="on"] .rcall.boss.fresh { animation: rboss-in 2.2s cubic-bezier(.2, 1.1, .3, 1) both; } }
 @keyframes rboss-in { 0% { opacity: 0; scale: 1.8; letter-spacing: .5em; } 14% { opacity: 1; scale: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: no-preference) { html[data-juice="on"] .rcall.fresh { animation: rcall-in .22s cubic-bezier(.2, 1.5, .4, 1) both; } }
@@ -94,6 +115,8 @@ const PX = FX.has("shield_px");
 const SHIELD = PX ? "/ui/fx/shield_px.png" : FX.has("shield") ? "/ui/fx/shield.webp" : "/ui/icons/v_shield.png";
 const SHARDS = [0, 1, 2, 3].filter((i) => FX.has(`shard_${i}${PX ? "_px" : ""}`)).map((i) => `/ui/fx/shard_${i}${PX ? "_px.png" : ".webp"}`);
 let shieldOk = false;
+/** gfx round 22: how far (CSS px) the pixel shield's centre sits above the point the viewer passes (his head) */
+export const SHIELD_LIFT = 84;
 if (typeof Image !== "undefined") { const im = new Image(); im.onload = () => { shieldOk = true; }; im.src = SHIELD; for (const u of SHARDS) new Image().src = u; }
 
 export class TagLayer {
@@ -175,11 +198,12 @@ export class TagLayer {
   shatter(x: number, y: number): void {
     const r = this.root; if (!r || !shieldOk) return;
     const el = document.createElement("div"); el.className = PX ? "rshatter px" : "rshatter";
-    el.style.transform = `translate(${Math.round(x - (PX ? 48 : 60))}px, ${Math.round(y - (PX ? 84 : 96))}px)`;   // (round 14: above his head, not over his face)
+    el.style.transform = `translate(${Math.round(x - (PX ? 52 : 60))}px, ${Math.round(y - (PX ? 52 + SHIELD_LIFT : 96))}px)`;   // (round 14: above his head, not over his face; round 22: clear of it)
     for (let i = 0; i < 2; i++) { const h = document.createElement("i"); h.style.backgroundImage = `url(${SHIELD})`; el.appendChild(h); }
+    if (PX) el.appendChild(document.createElement("s"));   // gfx round 22: the crack's white-hot seam
     // gfx round 10 (raters: "burst the shield into big shards"): the painted shards fly out, spinning, and fall
     SHARDS.forEach((u, i) => { const b = document.createElement("b"); b.style.backgroundImage = `url(${u})`; b.style.setProperty("--dx", `${[-70, 64, -34, 44][i]}px`); b.style.setProperty("--dy", `${[-30, -44, 60, 38][i]}px`); b.style.setProperty("--rot", `${[-220, 260, -140, 190][i]}deg`); el.appendChild(b); });
-    r.appendChild(el); setTimeout(() => el.remove(), 1500);
+    r.appendChild(el); setTimeout(() => el.remove(), 1600);
   }
 
   /** gfx round 10 (the coordinator approved `BROKEN` / `SLAIN`; raters: "a 'BROKEN' stamp", "a 'WARLORD SLAIN' plaque"): a word stamped

@@ -637,3 +637,35 @@ ruins, water edges) and warm the hero's pool further; (2) the boss break fell wi
 the boss muddles him") — offset the split above him, bigger halves in clear arcs, a crack flash; (3) the camera framing on early floors
 ("the void eats 40 %"); (4) the IA asks the raters repeat (the report's OPENED chips, the scene inset over the route row, desktop meters);
 (5) the oath board → Cut 30's quest board.
+
+### 10.12 Round 22 (2026-09-30, resumed from the HANDOFF list)
+
+**Changes** (raters AW, AX): the Fens get their own dressing (`art/painted.py OWN_PIECES`: reeds ×2, lily pads, a log, a stump, a ruined
+pillar, a lantern post — 7 Codex pieces, `art/prompts/paint_fens_own.txt`; `make_env.py` skips the ramp for pieces the ramp never had):
+lily pads on the water, reeds along its edge, logs/stumps/reeds in the corners, a ruin or a lit lantern (a warm light) against a north wall;
+the hero's pool in the Fens wider and warmer (r +1, [1.12, 0.8, 0.46]), the Fens' grade darker with a stronger lift (ambient 0.62 → 0.52,
+lift 0.78 → 1.0), contrast 0.8 → 0.92, mist 0.24 → 0.18. The boss break re-staged (`tags.ts`): the pixel shield sits `SHIELD_LIFT` 84 CSS px
+above his head, flashes white-hot, a jagged glowing crack runs down it (`.rshatter.px s`), then its halves fly apart in wide parabolic arcs
+growing to 1.22×, the shards leaving on the split (0.32 s). A bug fixed on the way: the halves were `:first-child`/`:last-child`, so any
+extra child left one half unclipped. The map camera frames the explored floor (`frameSeen`: centres on the seen tiles where they span less
+than the view, never runs past them where they span more, the hero kept in the middle ~45 %). On a phone the vista grows to the scene's
+height while it plays, so the route row moves down instead of being covered.
+
+| moment | 20b | 21 | 22 |
+|---|---|---|---|
+| watch-warrens | 5.60 | 6.05 | 6.20 |
+| watch-fens | 5.40 | 5.50 | 5.60 |
+| scene | — | 6.10 | 6.50 |
+| oaths | — | 6.10 | 6.75 |
+| boss-break | 6.90 | 6.30 | **7.05** |
+| boss-in | — | 7.35 | 7.00 |
+| death | 7.90 | 7.55 | 7.40 |
+| d-watch | — | 6.00 | 5.90 |
+| **mean** | **6.74** | **6.68** | **6.77** |
+
+Rater spread 6.63 · 6.91. The boss break is the round's gain (+0.75: "crack bolt and shard spray feel impactful"); the Fens barely moved
+("wraiths grey blobs", "noisy teal on teal", "no mist, fog or water shimmer", "thin out the weeds"). Frame p95 16.8 ms on the watch moments
+(the box loaded by a core agent's measurements; the desktop watch 33.4). Committed with the round-23 changes below, unscored at commit:
+the map camera holds its framing until it would move > 1/5 of the view across or 1/6 down (both raters: "the camera pan reds the whole
+map"); the report's OPENED as one row of bronze medallions past four; the desktop meters at 16 px; the Fens' water breathes low fog, each
+ethereal foe trails cold wisps and glows brighter and wider; the edge reeds thinned (0.6 → 0.34), the Fens' contrast 1.02.

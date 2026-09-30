@@ -3213,6 +3213,83 @@
       "name": "bones",
       "register": "painted",
       "description": "a scatter of old BONES and a cracked skull lying flat on the floor, seen from above; the object only, on flat pure blue #0000FF. Biome: a SANCTUM: pale cream marble flagstones with thin gold inlay lines, walls of polished pale stone with gilt trim, a calm ivory-and-gold palette (keep the values mid, never pure white)."
+    },
+    {
+      "id": "envp_fens_reeds",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x20",
+      "biome": "fens",
+      "name": "reeds",
+      "register": "painted",
+      "description": "a tall clump of marsh REEDS and two brown CATTAILS rising from a little tuft of wet grass, front view, pale straw-green blades with darker teal shadows, lit upper-left; the object only, on flat pure blue #0000FF. Biome: a drowned FEN, cool and wet (nothing ochre): the floor is a sunken BOARDWALK of weathered grey-green planks with dark teal bog water showing between them and reed tufts at the edges; walls of mossy piled stones and rotten logs; a cold teal-green palette with pale grey wood."
+    },
+    {
+      "id": "envp_fens_reeds_1",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "reeds_1",
+      "register": "painted",
+      "description": "a low tuft of marsh GRASS and short reeds, bushy, straw-green and teal, a few pale seed heads, lit upper-left; the object only, on flat pure blue #0000FF. Biome: a drowned FEN, cool and wet (nothing ochre): the floor is a sunken BOARDWALK of weathered grey-green planks with dark teal bog water showing between them and reed tufts at the edges; walls of mossy piled stones and rotten logs; a cold teal-green palette with pale grey wood."
+    },
+    {
+      "id": "envp_fens_lilies",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "lilies",
+      "register": "painted",
+      "description": "three round green LILY PADS floating flat, seen from straight above, one with a small pale pink-white flower, each pad with its notch, lit upper-left; the object only, on flat pure blue #0000FF. Biome: a drowned FEN, cool and wet (nothing ochre): the floor is a sunken BOARDWALK of weathered grey-green planks with dark teal bog water showing between them and reed tufts at the edges; walls of mossy piled stones and rotten logs; a cold teal-green palette with pale grey wood."
+    },
+    {
+      "id": "envp_fens_log",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "log",
+      "register": "painted",
+      "description": "a short fallen ROTTEN LOG lying left-to-right, mossy on top, a pale fungus bracket on its side, dark cut end showing rings, lit upper-left; the object only, on flat pure blue #0000FF. Biome: a drowned FEN, cool and wet (nothing ochre): the floor is a sunken BOARDWALK of weathered grey-green planks with dark teal bog water showing between them and reed tufts at the edges; walls of mossy piled stones and rotten logs; a cold teal-green palette with pale grey wood."
+    },
+    {
+      "id": "envp_fens_ruin",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x24",
+      "biome": "fens",
+      "name": "ruin",
+      "register": "painted",
+      "description": "a broken RUINED STONE PILLAR, front view: a short fluted column snapped off at an angle on a square base, green moss and hanging vines on it, weathered grey-green stone, lit upper-left; the object only, on flat pure blue #0000FF. Biome: a drowned FEN, cool and wet (nothing ochre): the floor is a sunken BOARDWALK of weathered grey-green planks with dark teal bog water showing between them and reed tufts at the edges; walls of mossy piled stones and rotten logs; a cold teal-green palette with pale grey wood."
+    },
+    {
+      "id": "envp_fens_lantern",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x24",
+      "biome": "fens",
+      "name": "lantern",
+      "register": "painted",
+      "description": "a crooked wooden POST driven into the ground with an iron LANTERN hanging from a hook at its top, the lantern glowing WARM AMBER-ORANGE (the brightest, warmest thing in the swamp), front view, lit upper-left; the object only, on flat pure blue #0000FF. Biome: a drowned FEN, cool and wet (nothing ochre): the floor is a sunken BOARDWALK of weathered grey-green planks with dark teal bog water showing between them and reed tufts at the edges; walls of mossy piled stones and rotten logs; a cold teal-green palette with pale grey wood."
+    },
+    {
+      "id": "envp_fens_stump",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "fens",
+      "name": "stump",
+      "register": "painted",
+      "description": "a short mossy TREE STUMP with gnarled roots spreading into the mud, a few small pale mushrooms on it, lit upper-left; the object only, on flat pure blue #0000FF. Biome: a drowned FEN, cool and wet (nothing ochre): the floor is a sunken BOARDWALK of weathered grey-green planks with dark teal bog water showing between them and reed tufts at the edges; walls of mossy piled stones and rotten logs; a cold teal-green palette with pale grey wood."
     }
   ]
 }

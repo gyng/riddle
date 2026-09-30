@@ -560,8 +560,10 @@ function fallenLines(r: ReturnReport): HTMLElement | null {
 function opened(r: ReturnReport): HTMLElement | null {
   const ids = (r.systems_opened ?? []).filter((id) => !["send", "dial", "headline"].includes(id));
   if (!ids.length) return null;
-  return h("div", { class: "sys-opened" }, h("small", { class: "label dim" }, /* copy:label */ "opened"),
-    ...ids.map((id, i) => { const [ic, gl] = systemIcon(id); return h("span", { class: "sys-plaque reveal", "data-sys": id, style: `animation-delay:${0.15 * i}s` }, icon(ic, gl), h("span", { class: "sys-name" }, systemLabel(id))); }));
+  // gfx round 22 (raters, every round: "OPENED chip rows are noisy" — "group them into one row of icons"): past four, one row of
+  // medallions (the names stay as their titles)
+  return h("div", { class: ids.length > 4 ? "sys-opened icons" : "sys-opened" }, h("small", { class: "label dim" }, /* copy:label */ "opened"),
+    ...ids.map((id, i) => { const [ic, gl] = systemIcon(id); return h("span", { class: "sys-plaque reveal", "data-sys": id, title: systemLabel(id), style: `animation-delay:${0.15 * i}s` }, icon(ic, gl), h("span", { class: "sys-name" }, systemLabel(id))); }));
 }
 
 /** QA 524827b (qaAB: kept `crimson scroll?`, the report's KEPT `summon ally scroll → vault` — "no line that it was identified"): a kept

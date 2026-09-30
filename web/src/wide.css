@@ -154,3 +154,10 @@
 /* gfx round 18 (raters: "the console is a long brown shelf of empty slots"): on the wide frame the empty slots go; the tiles group by the
    portrait (a phone keeps its faint rune sockets, the target's) */
 @media (min-width: 1024px) { .console .cmd .tile.empty { display: none; } }
+/* gfx round 22 (raters, rounds 18–22: "the side-panel stats are minuscule"): the desktop meters at desktop type */
+@media (min-width: 1024px) {
+  .side-col .meters, .meters-slot .meters { font-size: 16px; gap: 6px; line-height: 1.35; }
+  .side-col .meters .mlab, .meters-slot .meters .mlab { font-size: 12.5px; }
+  .side-col .meters .mrow, .meters-slot .meters .mrow { grid-template-columns: 62px minmax(0, 1fr); }
+  .side-col .meters .msplit, .meters-slot .meters .msplit { height: 10px; }
+}

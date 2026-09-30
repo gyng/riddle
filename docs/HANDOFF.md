@@ -175,7 +175,11 @@ move ±2 lineages, so compare two runs before believing a move):
 Also done earlier: `noise_discipline` is earnable (a blind foe in view teaches `foe:<kind>:blind`); the repeat offers a
 `throw` row's kind as one tap (`Lineage.repeat_added`).
 
-### Gfx/UI eval (paused for the owner's stop after round 21; motion-aware baseline 6.74, round 21 6.68)
+### Gfx/UI eval (resumed 2026-09-30: round 22 6.77 — boss break 6.30 → 7.05; the Fens still lowest at 5.60; JUICE §10.12)
+Round 22 (raters AW, AX): Fens props (7 Codex pieces) + a warmer pool, the boss break re-staged (shield above him, white-hot crack, arcs),
+the map camera frames the seen floor, the vista grows under the phone scene. Round 23's changes are committed unscored (camera hold,
+OPENED medallions, desktop meters 16 px, Fens fog + ghost wisps). The stop rule's count: 21 (−0.06), 22 (+0.09) — two rounds under +0.2.
+Earlier:
 The harness now shows raters full-resolution motion (`-motion.png`: changed pixels in red) and each moment's intended movement; round 20's
 build re-rated under it is the new baseline **6.74** (death 7.90, boss entrance 7.70, forecast 7.40). Round 21 (c6008ad: 35 more painted
 props, denser dressing, deeper wall-foot shadow, pixel-register boss shield, coin sprites) scored **6.68**. Bar 8.0 not met.

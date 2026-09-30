@@ -1,0 +1,32 @@
+You are painting ENVIRONMENT TILES for the game "Riddle" (a phone roguelike seen top-down). FIRST look at
+/home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read nothing else in the repository): its dungeon is
+the TARGET LOOK — painterly dark-fantasy pixel art, lit stone rooms, moss, torchlight, crisp readable forms.
+
+Use your built-in image_gen tool, one call per tile below. Do NOT write code beyond a PIL resample/alpha fix. Do NOT touch
+anything outside /home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind. If a file
+exists at an output path, OVERWRITE it.
+
+HOW THE TILES ARE USED (critical): each 1024x1024 image is box-downscaled to a 16x16 tile and drawn tiled edge to edge in a
+top-down room, beside hand-painted characters about 1.5 tiles tall. So:
+- Paint each tile as if it were a 16x16 pixel-art tile blown up 64x: BOLD shapes, 2-4 large forms, mortar / seam lines about
+  64 px thick at 1024, no fine hairline detail, no text, no frame, no border, no vignette, no drop shadow.
+- Opaque tiles fill the whole square edge to edge and must TILE SEAMLESSLY with themselves (floors and wall tops in every
+  direction, wall faces left-to-right). Keep the floors' overall value and hue the same across variants so they mix.
+- Floors are MID-DARK and calm (the characters must read on top of them); the wall tops are built masonry a little lighter than
+  the floor (never black); the wall faces' ledge is the brightest line in the tile set.
+- Light from the upper-left, warm; no strong cast shadows.
+- Keyed props (barrel, crate, pot): the object only, centred, filling about 70% of the tile, on a flat uniform pure blue
+  #0000FF background, no ground shadow, no blue on the object.
+Save each as a 1024x1024 PNG at the exact path.
+
+BIOME: a drowned FEN, cool and wet (nothing ochre): the floor is a sunken BOARDWALK of weathered grey-green planks with dark teal bog water showing between them and reed tufts at the edges; walls of mossy piled stones and rotten logs; a cold teal-green palette with pale grey wood.
+
+=== TILES ===
+
+1) /home/g/p/riddle/art/generated/envp_fens_reeds.png — a tall clump of marsh REEDS and two brown CATTAILS rising from a little tuft of wet grass, front view, pale straw-green blades with darker teal shadows, lit upper-left; the object only, on flat pure blue #0000FF.
+2) /home/g/p/riddle/art/generated/envp_fens_reeds_1.png — a low tuft of marsh GRASS and short reeds, bushy, straw-green and teal, a few pale seed heads, lit upper-left; the object only, on flat pure blue #0000FF.
+3) /home/g/p/riddle/art/generated/envp_fens_lilies.png — three round green LILY PADS floating flat, seen from straight above, one with a small pale pink-white flower, each pad with its notch, lit upper-left; the object only, on flat pure blue #0000FF.
+4) /home/g/p/riddle/art/generated/envp_fens_log.png — a short fallen ROTTEN LOG lying left-to-right, mossy on top, a pale fungus bracket on its side, dark cut end showing rings, lit upper-left; the object only, on flat pure blue #0000FF.
+5) /home/g/p/riddle/art/generated/envp_fens_ruin.png — a broken RUINED STONE PILLAR, front view: a short fluted column snapped off at an angle on a square base, green moss and hanging vines on it, weathered grey-green stone, lit upper-left; the object only, on flat pure blue #0000FF.
+6) /home/g/p/riddle/art/generated/envp_fens_lantern.png — a crooked wooden POST driven into the ground with an iron LANTERN hanging from a hook at its top, the lantern glowing WARM AMBER-ORANGE (the brightest, warmest thing in the swamp), front view, lit upper-left; the object only, on flat pure blue #0000FF.
+7) /home/g/p/riddle/art/generated/envp_fens_stump.png — a short mossy TREE STUMP with gnarled roots spreading into the mud, a few small pale mushrooms on it, lit upper-left; the object only, on flat pure blue #0000FF.

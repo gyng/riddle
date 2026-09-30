@@ -256,7 +256,7 @@ const GRADES: Record<string, [number, number, number, number, number, number]> =
   warrens: [1.05, 0.98, 0.9, 0.86, 0.95, 0.95],   // gfx round 18: the painted register is authored in the target's colours (was 1.14/0.96/0.78, sat 0.78: a grade for the 8-colour ramp)
   // juice pass 3: the fork's two lanes apart at a glance — the Burrows warm ochre (full saturation), the Fens cool teal
   burrows: [1, 0.92, 0.8, 0.78, 0.72, 1],
-  fens: [0.88, 1, 1.06, 0.62, 0.78, 0.86],   // round 16: a darker room, a stronger pool (the hero's warm light reads)   // gfx round 7 (raters Q, R: "teal-on-teal floor swamps the sprites"): a darker room, the light pools read, a little less saturation
+  fens: [0.9, 1, 1.04, 0.52, 1.0, 0.9],   // round 22: a darker room (0.62 → 0.52), a stronger pool (lift 0.78 → 1.0), a touch more colour   // round 16: a darker room, a stronger pool (the hero's warm light reads)   // gfx round 7 (raters Q, R: "teal-on-teal floor swamps the sprites"): a darker room, the light pools read, a little less saturation
   crypt: [1, 1, 1.02, 0.82, 0.65, 0.9],
   foundry: [1, 0.94, 0.88, 0.82, 0.6, 0.9],
   deep: [1, 1, 1, 0.9, 0.7, 1],
@@ -265,9 +265,9 @@ const GRADES: Record<string, [number, number, number, number, number, number]> =
 };
 
 /** gfx round 10: the world's contrast per biome (FX > 0; the Fens' plank stripes and the Warrens' flagstones read as noise behind the cast) */
-const CONTRAST: Record<string, number> = { fens: 0.8, warrens: 1, burrows: 1, crypt: 0.9, foundry: 0.9, deep: 0.9 };   // gfx round 18: the painted register carries its own values
+const CONTRAST: Record<string, number> = { fens: 1.02, warrens: 1, burrows: 1, crypt: 0.9, foundry: 0.9, deep: 0.9 };   // gfx round 18: the painted register carries its own values
 
-const MIST: Record<string, number> = { fens: 0.24, crypt: 0.12, deep: 0.14 };   // (round 18: 0.42 "flattens the floor, walls and items together")   // gfx round 11: ground mist per biome (FX > 0)
+const MIST: Record<string, number> = { fens: 0.18, crypt: 0.12, deep: 0.14 };   // (round 18: 0.42 "flattens the floor, walls and items together")   // gfx round 11: ground mist per biome (FX > 0)
 
 export class Blit {
   readonly scene = new THREE.Scene();

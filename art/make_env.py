@@ -314,7 +314,7 @@ def main() -> int:
     every = [a for a in manifest["assets"] if a["bg"].startswith("env")]
     assets = [a for a in every if not a.get("biome")]
     # juice pass 2: per-biome drawings (`env_<biome>_<name>`, manifest `biome`/`name`) replace the shared drawing for that biome
-    own: dict[tuple[str, str], dict] = {(a["biome"], a["name"]): a for a in every if a.get("biome") and (SRC / f"{a['id']}.png").exists()}
+    own: dict[tuple[str, str], dict] = {(a["biome"], a["name"]): a for a in every if a.get("biome") and (a.get("register") != "painted" or a["name"] in RAMP) and (SRC / f"{a['id']}.png").exists()}
     written: dict[str, Image.Image] = {}
     missing = []
     for a in assets:

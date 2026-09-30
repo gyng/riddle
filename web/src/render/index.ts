@@ -200,6 +200,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
   const st = new ReplayState();
   const cam = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0 };
+  let held: [number, number] | null = null;   // gfx round 22: the map camera's held framing (updateCamera)
   const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, frame: "map", kMap: 1, shake: [0, 0], glyphs: 0, caption: null, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, fade: 0, hero: [0, 0], projectiles: 0, ents: 0, drawn: 0, camera: [0, 0],
     cpuMs: NaN, cpuP95: NaN, buildMs: NaN, gpuMs: NaN, gpuP95: NaN, gpuTimer: gpu.available, fps: NaN, fx: "low", glLost: false };
   let k = 1, kMap = 1, iw = 1, ih = 1, W = 3, H = 3, devW = 0, devH = 0, dpr = 1;
@@ -390,6 +391,14 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         const [ox, oy] = seenLean(h);
         cam.tx = hx + Math.max(-iw / 6, Math.min(iw / 6, ox)); cam.ty = hy + Math.max(-ih / 6, Math.min(ih / 6, oy));
       }
+      if (mode !== "fight" && !fixedFocus) {
+        frameSeen(hx, hy);
+        // gfx round 22 (rater AW: "the camera pan reds the whole map", "the whole screen swims"): the map camera holds still while its
+        // framing moves less than a fifth of the view across / a sixth down, then glides to the new framing in one move — the room
+        // stays put while the hero and his foes move in it
+        if (!snapNow && held && Math.abs(cam.tx - held[0]) < iw * 0.2 && Math.abs(cam.ty - held[1]) < ih * 0.16) { cam.tx = held[0]; cam.ty = held[1]; }
+        else held = [cam.tx, cam.ty];
+      } else held = null;
     }
     if (snapNow) { cam.x = cam.tx; cam.y = cam.ty; cam.vx = cam.vy = 0; return; }
     // critically damped spring (ζ = 1), semi-implicit Euler, then snap when settled
@@ -403,6 +412,28 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
   }
 
+  /** gfx round 22 (raters: "on early floors the void eats 40 % of the screen"): the map camera keeps the explored floor in frame — on an
+   *  axis where the seen tiles span less than the view, the view centres on them; where they span more, its edge never passes theirs;
+   *  either way the hero stays within the middle ~45 % of the view. */
+  let boxKey = "", box: [number, number, number, number] = [0, 0, 0, 0];
+  function frameSeen(hx: number, hy: number): void {
+    const h = st.hero; if (!h) return;
+    const key = `${st.depth}:${h.x},${h.y}`;
+    if (key !== boxKey) {
+      boxKey = key;
+      let x0 = st.w, x1 = -1, y0 = st.h, y1 = -1;
+      for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) if (st.seen[y * st.w + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      box = x1 < 0 ? [0, 0, 0, 0] : [x0 * TILE, (x1 + 1) * TILE, -(y1 + 1.5) * TILE, -(y0 - 0.5) * TILE];   // world: left, right, bottom, top
+    }
+    if (box[1] <= box[0]) return;
+    const fit = (t: number, lo: number, hi: number, half: number, hero: number): number => {
+      const c = hi - lo <= 2 * half ? (lo + hi) / 2 : Math.max(lo + half, Math.min(hi - half, t));
+      const m = half * 0.45;   // the hero stays in the middle ~45 % of the view (a sixth put him under the top bar's lines)
+      return Math.max(hero - m, Math.min(hero + m, c));
+    };
+    cam.tx = fit(cam.tx, box[0], box[1], iw / 2, hx);
+    cam.ty = fit(cam.ty, box[2], box[3], ih / 2, hy);
+  }
   /** gfx round 5: half the offset (world units) from the hero to the centroid of the seen open tiles around him (cached per hero tile). */
   let leanKey = "", lean: [number, number] = [0, 0];
   function seenLean(h: EntState): [number, number] {
@@ -484,6 +515,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     if (t === "door" && !portcullis(x, y)) return atlas.envTile(b, h < 0.5 ? "floor_0" : "floor_1");   // an open doorway
     return atlas.envTile(b, t);   // door (portcullis), stairs, water, chasm
   }
+  const isWater = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < st.w && y < st.h && st.tiles[y * st.w + x] === "water";
   const isDoor = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < st.w && y < st.h && st.tiles[y * st.w + x] === "door";
   /** second art pass: a portcullis only where it reads as one — a door in a horizontal wall (wall or door on both sides); a run
    *  of doors (the generator's room mouths) gets one, at its middle; a door in a vertical wall is an open doorway (the
@@ -515,21 +547,45 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
       return;
     }
+    // gfx round 22 (raters, every round: the Fens "a flat undressed teal field"): the Fens dress with their own pieces — lily pads on
+    // the water, reeds along its edge, logs and stumps in the corners, a ruined pillar or a warm lantern post against a wall
+    const fens = b === "fens" && !!atlas.envTile(b, "reeds");
+    if (fens && t === "water" && hash2(x, y, 17) < 0.2) {
+      const f = atlas.envTile(b, "lilies");
+      if (f) L.decor.push(wx, wy, 0.2, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim);
+      return;
+    }
     if (t !== "floor") return;
     const n = isWall(x, y - 1), sw = isWall(x, y + 1), e = isWall(x + 1, y), w = isWall(x - 1, y);
     const walls = +n + +sw + +e + +w, corner = (n || sw) && (e || w);
     const hp = hash2(x, y, 7);
     const free = !st.items.some((it) => it.x === x && it.y === y);
+    if (fens && free) {
+      const wet = +isWater(x - 1, y) + +isWater(x + 1, y) + +isWater(x, y - 1) + +isWater(x, y + 1);
+      if (wet && hash2(x, y, 18) < 0.34) {   // (round 22b: 0.6 → 0.34, raters: "thin out the weed props")
+        const f = atlas.envTile(b, hash2(x, y, 19) < 0.55 ? "reeds" : "reeds_1");
+        if (f) { L.decor.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
+      }
+      if (walls === 0 && hash2(x, y, 20) < 0.05) {
+        const f = atlas.envTile(b, hash2(x, y, 21) < 0.7 ? "reeds_1" : "stump");
+        if (f) { L.decor.push(wx, wy, 0.25, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
+      }
+    }
     if (walls >= 1 && walls <= 2 && (corner ? hp < 0.78 : hp < 0.15) && free) {   // (round 21: set dressing denser — raters: "bare grey tile fields")   // gfx round 2: props at more corners and along walls
       // gfx round 10 (raters: "rooms are empty brown grids — barrels, bones, banners"): skull piles and chests join the corners
-      const k = hash2(x, y, 8), name = k < 0.34 ? "barrel" : k < 0.6 ? "crate" : k < 0.74 ? "pot" : k < 0.9 ? "skulls" : "chest";
+      const k = hash2(x, y, 8), name = fens ? (k < 0.22 ? "log" : k < 0.42 ? "stump" : k < 0.62 ? "reeds" : k < 0.76 ? "barrel" : k < 0.88 ? "pot" : "skulls")
+        : k < 0.34 ? "barrel" : k < 0.6 ? "crate" : k < 0.74 ? "pot" : k < 0.9 ? "skulls" : "chest";
       const f = atlas.envTile(b, name) ?? atlas.envTile(b, "barrel");
       if (f) { L.decor.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
     }
     // gfx round 10: against a north wall, now and then a weapon rack or a broken statue; candles at a wall's foot (a small warm light)
     if (n && !sw && !e && !w && free && hp > 0.5 && hp < 0.66) {
-      const f = atlas.envTile(b, hash2(x, y, 13) < 0.5 ? "rack" : "statue");
-      if (f) { L.decor.push(wx, wy + 1, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
+      const r = hash2(x, y, 13), f = atlas.envTile(b, fens ? (r < 0.5 ? "lantern" : "ruin") : r < 0.5 ? "rack" : "statue");
+      if (f) {
+        L.decor.push(wx, wy + 1, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, fens && r < 0.5 ? Math.max(dim, 0.9) : dim);
+        if (fens && r < 0.5 && dim > 0.5) lights.push([wx + 2, wy + f.h / 2 - 3]);   // the lantern's warm light
+        return;
+      }
     }
     if (walls >= 1 && free && hp > 0.9 && hp < 0.935) {
       const f = atlas.hue("candles");
@@ -894,7 +950,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const hh = st.hero, dustC = p[Math.min(3, p.length - 1)]!;
       juice.update(simDt, now, st.clock, {
         ent: (id) => { const e = st.ents.get(id); if (!e) return null; const [x, y] = feet(e); return { x, y, h: atlas.entity(e.kind).h / 2, w: atlas.entity(e.kind).w / 2, kind: e.kind, hero: e.hero, boss: e.boss, maxHp: e.maxHp, ally: e.ally }; },
-        heroId: st.heroId, speed: st.speed, fight, quiet, cam: [camSX, camSY], half: [iw / 2, ih / 2], fires, gases, waters, torches: lights,
+        heroId: st.heroId, speed: st.speed, fight, quiet, cam: [camSX, camSY], half: [iw / 2, ih / 2], fires, gases, waters, torches: lights, ghosts: ghostAt, fog: st.biome === "fens" ? 1 : 0,
         motes: !!hh && !!roomLit[hh.y * st.w + hh.x], dust: [dustC[0], dustC[1], dustC[2]],
       });
       numCss.length = 0;
@@ -991,11 +1047,13 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // Fens' teal reads as the Burrows' clay — the hero's and the torches' light take the biome's own cast (the flames stay flames)
       const tint = LIGHT_TINT[st.biome] ?? LIGHT_TINT.default!;
       // gfx round 16 (raters, the Fens: "light the hero with a warm radius"): the hero's own light stays warm in every biome (torches keep the cast)
-      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(7, st.vision + 1.5), c: [0.95, 0.74, 0.48] }); }   // gfx round 1: a wider, warmer pool ("dim flat lighting", "brown mush")
+      // (round 22, the Fens at 5.5: "warm the hero's pool further" — there it is wider and a lantern's amber against the cold water)
+      const fensHero = st.biome === "fens";
+      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(fensHero ? 8 : 7, st.vision + (fensHero ? 2.5 : 1.5)), c: fensHero ? [1.12, 0.8, 0.46] : [0.95, 0.74, 0.48] }); }   // gfx round 1: a wider, warmer pool ("dim flat lighting", "brown mush")
       juice.lights(now, fieldLights);
       for (const [px, py] of st.projectilePositions()) fieldLights.push({ x: px + 0.5, y: py + 0.5, r: 2, c: [0.7, 0.6, 0.4] });
       for (const [cx, cy] of candles.slice(0, 3)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: cx / TILE, y: -cy / TILE, r: 2.2, c: [0.7, 0.45, 0.2] });
-      for (const [gx, gy] of ghostAt.slice(0, 4)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: gx / TILE, y: -gy / TILE, r: 2.4, c: [0.22, 0.32, 0.55] });   // gfx round 10: a ghost's own cold glow
+      for (const [gx, gy] of ghostAt.slice(0, 4)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: gx / TILE, y: -gy / TILE, r: 3.2, c: [0.3, 0.5, 0.9] });   // gfx round 10: a ghost's own cold glow (round 22: brighter, wider)
       const fl = (i: number, a: number, b: number): number => quality.at("high") ? 0.88 + 0.08 * Math.sin(now * a + i * 1.7) + 0.05 * Math.sin(now * b + i * 4.1) : 1;
       fires.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD - 4) { const k = fl(i, 0.017, 0.041) * 0.9; fieldLights.push({ x: x / TILE, y: -y / TILE, r: 3, c: [1 * k, 0.5 * k, 0.15 * k] }); } });
       gases.slice(0, 4).forEach(([x, y]) => fieldLights.push({ x: x / TILE, y: -y / TILE, r: 1.8, c: [0.12, 0.2, 0.03] }));

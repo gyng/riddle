@@ -133,6 +133,8 @@ export type JuiceCtx = {
   waters: [number, number][];       // gfx round 5: visible water tiles (world centre): glints on the surface, a low mist
   torches: readonly (readonly [number, number])[];   // torch flames (world)
   motes: boolean;                   // the hero stands in a lit room (dust motes drift in it)
+  ghosts?: readonly (readonly [number, number])[];   // gfx round 22: ethereal foes (world, mid-body) — a cold wisp trails off each
+  fog?: number;                     // gfx round 22: the biome's low fog over its water (the Fens 1; 0 elsewhere)
   dust: Rgb;                        // a mid colour of the biome's ramp (death dust)
 };
 
@@ -488,6 +490,10 @@ export class Juice {
       if (this.rand() < 0.55 * dt) this.spawn(w[0] + (this.rand() - 0.5) * 7, w[1] + (this.rand() - 0.5) * 6, 0, 0, 0.35 + this.rand() * 0.35, this.rand() < 0.3 ? 1 : 0.5, [0.75, 0.95, 1], { glow: true, fadeTo: 0.2 });
       if (this.rand() < 0.08 * dt) this.spawn(w[0] + (this.rand() - 0.5) * 6, w[1] - 2, (this.rand() - 0.5) * 2, 1 + this.rand(), 2.5 + this.rand(), 2.5, [0.16, 0.22, 0.24], { disc: true, glow: true, drag: 0.3, sway: 1.5, fadeTo: 0.2 });
     }
+    // gfx round 22 (raters, the Fens: "no mist, fog or water shimmer in a fen"; "wraiths read as grey blobs — a glow and a trailing wisp")
+    const fog = x.fog ?? 0;
+    if (fog > 0) for (const w of x.waters) if (near(w) && this.rand() < 0.45 * fog * dt) this.spawn(w[0] + (this.rand() - 0.5) * 8, w[1] - 3 + this.rand() * 4, 2.5 + this.rand() * 2.5, 0.4 + this.rand() * 0.8, 3.5 + this.rand() * 2, 3 + this.rand() * 2, [0.2, 0.28, 0.28], { disc: true, glow: true, drag: 0.1, sway: 1.2, fadeTo: 0.1, alpha: 0.8 });
+    for (const g of x.ghosts ?? []) if (near(g) && this.rand() < 7 * dt) this.spawn(g[0] + (this.rand() - 0.5) * 6, g[1] - 4 + this.rand() * 6, (this.rand() - 0.5) * 3, 4 + this.rand() * 5, 0.7 + this.rand() * 0.5, this.rand() < 0.4 ? 1.5 : 1, [0.45, 0.7, 1], { glow: true, fadeTo: 0, sway: 3 });
     for (const t of x.torches) if (near(t) && this.rand() < 0.9 * dt) this.spawn(t[0] + (this.rand() - 0.5) * 2, t[1] + 2, (this.rand() - 0.5) * 3, 7 + this.rand() * 6, 0.6 + this.rand() * 0.5, 0.5, C.ember, { glow: true, fadeTo: 0.3, sway: 3 });
     if (x.motes && this.q.at("high")) {
       this.emitAcc += dt * 3;

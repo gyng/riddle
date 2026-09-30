@@ -45,6 +45,24 @@ PIECES: dict[str, tuple[str, str, str]] = {
     "bones": ("env_keyed", "16x16", "a scatter of old BONES and a cracked skull lying flat on the floor, seen from above; the object only, on flat pure blue #0000FF"),
 }
 
+# gfx round 22 (raters, every round: the Fens "a flat undressed teal field"): pieces only one biome has — its own dressing
+OWN_PIECES: dict[str, dict[str, tuple[str, str, str]]] = {
+    "fens": {
+        "reeds": ("env_keyed", "16x20", "a tall clump of marsh REEDS and two brown CATTAILS rising from a little tuft of wet grass, front view, pale straw-green blades with darker teal shadows, lit upper-left; the object only, on flat pure blue #0000FF"),
+        "reeds_1": ("env_keyed", "16x16", "a low tuft of marsh GRASS and short reeds, bushy, straw-green and teal, a few pale seed heads, lit upper-left; the object only, on flat pure blue #0000FF"),
+        "lilies": ("env_keyed", "16x16", "three round green LILY PADS floating flat, seen from straight above, one with a small pale pink-white flower, each pad with its notch, lit upper-left; the object only, on flat pure blue #0000FF"),
+        "log": ("env_keyed", "16x16", "a short fallen ROTTEN LOG lying left-to-right, mossy on top, a pale fungus bracket on its side, dark cut end showing rings, lit upper-left; the object only, on flat pure blue #0000FF"),
+        "ruin": ("env_keyed", "16x24", "a broken RUINED STONE PILLAR, front view: a short fluted column snapped off at an angle on a square base, green moss and hanging vines on it, weathered grey-green stone, lit upper-left; the object only, on flat pure blue #0000FF"),
+        "lantern": ("env_keyed", "16x24", "a crooked wooden POST driven into the ground with an iron LANTERN hanging from a hook at its top, the lantern glowing WARM AMBER-ORANGE (the brightest, warmest thing in the swamp), front view, lit upper-left; the object only, on flat pure blue #0000FF"),
+        "stump": ("env_keyed", "16x16", "a short mossy TREE STUMP with gnarled roots spreading into the mud, a few small pale mushrooms on it, lit upper-left; the object only, on flat pure blue #0000FF"),
+    },
+}
+
+
+def pieces(biome: str) -> dict[str, tuple[str, str, str]]:
+    return {**PIECES, **OWN_PIECES.get(biome, {})}
+
+
 # per biome: the materials and light; the Burrows and the Fens (the D5 fork) stay distinct at a glance
 BIOMES: dict[str, str] = {
     "warrens": "EXACTLY the target watch.png dungeon: grey-green dressed flagstones with olive moss in the seams, charcoal mortar, dried blood specks here and there, warm amber torchlight on grey stone. Walls: grey stone blocks with a pale capstone ledge.",
@@ -84,16 +102,16 @@ BIOME: {biome_desc}
 
 
 def ids(biome: str) -> list[str]:
-    return [f"envp_{biome}_{n}" for n in PIECES]
+    return [f"envp_{biome}_{n}" for n in pieces(biome)]
 
 
-def write_prompts(biomes: list[str]) -> None:
+def write_prompts(biomes: list[str], only: set[str] | None = None, tag: str = "") -> None:
     for b in biomes:
         lines = [HEADER.format(biome_desc=BIOMES[b])]
-        for i, (n, (bg, tx, what)) in enumerate(PIECES.items(), 1):
+        for i, (n, (bg, tx, what)) in enumerate(((n, v) for n, v in pieces(b).items() if not only or n in only), 1):
             lines.append(f"{i}) /home/g/p/riddle/art/generated/envp_{b}_{n}.png — {what}.")
-        (ROOT / "prompts" / f"paint_{b}.txt").write_text("\n".join(lines) + "\n")
-        print(f"art/prompts/paint_{b}.txt ({len(PIECES)} tiles)")
+        (ROOT / "prompts" / f"paint_{b}{tag}.txt").write_text("\n".join(lines) + "\n")
+        print(f"art/prompts/paint_{b}{tag}.txt ({len(lines) - 1} tiles)")
 
 
 def add_manifest() -> None:
@@ -102,7 +120,7 @@ def add_manifest() -> None:
     have = {a["id"] for a in m["assets"]}
     n = 0
     for b, bd in BIOMES.items():
-        for name, (bg, tx, what) in PIECES.items():
+        for name, (bg, tx, what) in pieces(b).items():
             aid = f"envp_{b}_{name}"
             if aid in have:
                 continue
@@ -182,6 +200,8 @@ if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "prompts":
         write_prompts(sys.argv[2:] or list(BIOMES))
+    elif cmd == "own":   # python3 art/painted.py own <biome>: a batch of only that biome's own pieces
+        write_prompts([sys.argv[2]], set(OWN_PIECES[sys.argv[2]]), "_own")
     elif cmd == "manifest":
         add_manifest()
     else:

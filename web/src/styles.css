@@ -1599,3 +1599,15 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#0
 /* gfx round 18 (raters, every round: "the scene inset covers the rule list mid-row"): on a phone the scene plays over the camp's vista at the
    top of the well, clear of the rule tablets */
 @media (max-width: 1023px) { .camp .well-wrap > .div-scene { align-self: start; margin: 2px 8px 0; height: 196px; } }
+/* gfx round 22 (raters, rounds 18–21: "the scene inset covers the route row"): while the scene plays on a phone the vista grows to its
+   height, so the route line and the rules move down under it instead of being covered */
+@media (max-width: 1023px) {
+  .camp .vista { transition: height .26s cubic-bezier(.2, 1, .3, 1); }
+  .camp .well-wrap:has(> .div-scene:not([hidden])) .vista { height: 200px; }
+}
+/* gfx round 22: many opened systems read as one row of bronze medallions (names as titles) */
+.report .sys-opened.icons { flex-wrap: nowrap; gap: 3px; }
+.report .sys-opened.icons .sys-plaque { width: 28px; height: 28px; padding: 0; justify-content: center; border-radius: 50%; flex: 0 1 28px; min-width: 20px;
+  background: radial-gradient(circle at 35% 30%, #6b5431, #3a2a16 70%); box-shadow: inset 0 0 0 1px #c9a45a, 0 0 0 1px #1a1008, 0 2px 3px rgba(0, 0, 0, .6); }
+.report .sys-opened.icons .sys-plaque .ico { width: 18px; height: 18px; }
+.report .sys-opened.icons .sys-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
