@@ -277,6 +277,15 @@ and runs `art-qc.py --style`. Codex batches: `art/prompts/p2_*.txt`, logs `art/l
    dirt ×3 + edge, plaza ×2, water, cliff, fence, low wall, gate, bridge, two trees); the `!` rune marker (`icons/alert`) and the
    minimap / roster plaques (`frames/plaque_*`, 9-slice 64). All keyed sprites are `kind: "town"` in the manifest (art-qc treats an
    undrawn one as optional: the town scene draws a block + its icon). Nothing renders them yet — Cut 30 wires the scene.
+7. **The look is the default** (`web/src/render/wash.ts`, `blit.ts`, `index.ts`, `tags.ts`): the wash pass on for FX > 0 (`?look=off`),
+   reworked for on-palette art; moonlit grades, EMBER torches everywhere, a MIST hero light, moon pools; in-world plates on the palette.
+   **Blind round 27** (JUICE §10.15, raters BG and BI against the style targets): **6.60** vs round 26's 6.84 (−0.24). Camp +0.35,
+   desktop camp +0.30, bosses held; the dungeon watches fell (Warrens 5.80 → 5.30, Fens 6.00 → 5.10, scene 6.35 → 5.30): darker frame,
+   the long hero reads small, the Fens' planks shimmer under the grain. Next, in order: calm the Fens floor (fewer stripes; no grain on
+   world texels under motion), lift the watch's ambient a step and the hero's MIST light, lighten the scene insets, bevel the navy
+   plaques, forecast bars back to a hot fill; then the camera-on-the-exchange blocker (needs the rule's target on the wire).
+   Before/after sheets: `scratchpad/style/phase2/` (`batch1_heroes_sprites`, `batch2_foes`, `batch3_tiles`, `rooms7`,
+   `phase2_before_after_phone`, `phase2_before_after_desktop`, `readtest/`).
 
 ### Gfx/UI eval (stopped on the rule again after round 26: 6.84, the best on the motion-aware harness — JUICE §10.14 has the blockers)
 Rounds 24–26 since the resume: 6.74 · 6.75 · 6.84. Kept: carved EDIT + candle + desktop sheet (edit 7.45), two-pane scene, plaque slams,

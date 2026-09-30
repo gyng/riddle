@@ -755,3 +755,40 @@ layout 55, fights 48, cut27 35, cut29 34); copy-lint 0; art pack + QC clean.
    out of scope (Cut 30's town and quest board).
 4. Smaller, repeated asks: a white flash and slow-motion beat on the boss fall, a proper death pose for the Warlord (a Codex sprite),
    the forecast's D8 `try` chip off the bar, the death gem's MEASURING label as a spinner.
+
+### 10.15 Round 27 (2026-09-30) — art direction phase 2 (the whole library in moonlit ink and wash, the look the default)
+
+Changes: every sprite, tile, prop, icon, frame, portrait and backdrop redrawn under `docs/ART_DIRECTION.md` (HANDOFF §6 "Art direction
+phase 2"); the wash pass on by default; moonlit grades, EMBER torches, a MIST hero light, moon pools; the CSS on the palette; the BLOOD gem.
+The raters were shown the **style targets** (`tools/gfx-eval.mjs --targets style`: watch_warrens, watch_fens, boss, death, town, ui_sheet),
+not round 26's four v2 mockups, so "target" is judged against a different picture. Raters BG, BI (BH never returned; both lost many image
+reads to a request limit and rated some moments from partial views — neither saw the town or ui_sheet targets).
+
+| moment | r26 | r27 | Δ |
+|---|---|---|---|
+| watch-warrens | 5.80 | 5.30 | −0.50 |
+| report | 7.15 | 7.00 | −0.15 |
+| death | 7.50 | 7.50 | 0 |
+| camp | 6.45 | 6.80 | +0.35 |
+| scene | 6.35 | 5.30 | −1.05 |
+| edit | 7.45 | 6.90 | −0.55 |
+| forecast | 6.60 | 6.50 | −0.10 |
+| oaths | 6.65 | 6.40 | −0.25 |
+| watch-fens | 6.00 | 5.10 | −0.90 |
+| fight | 6.40 | 6.40 | 0 |
+| boss-in | 7.30 | 7.10 | −0.20 |
+| boss-break | 7.45 | 7.50 | +0.05 |
+| boss-fall | 6.85 | 7.00 | +0.15 |
+| d-watch | 6.20 | 5.80 | −0.40 |
+| d-report | 7.00 | 6.60 | −0.40 |
+| d-death | 7.50 | 7.10 | −0.40 |
+| d-camp | 7.20 | 7.50 | +0.30 |
+| d-edit | 7.20 | 7.00 | −0.20 |
+| **mean** | **6.84** | **6.60** | **−0.24** |
+
+Rater spread 6.80 · 6.40. The camp moments rose (the new key art: "closest to the target"), the bosses held; the dungeon watches fell:
+the moonlit frame is darker and the long hero smaller-reading ("the hero a tiny grey blob", "half the screen near-black rock"), the Fens'
+new plank-and-water floor reads as "noisy blue stripes" and shimmers under the wash grain in the motion image, the scene insets are
+"murky dark grey". Asks the raters repeat: a closer, steadier camera on the exchange (the round-24 blocker — the rule's target on the
+wire); calmer Fens floor texture (fewer plank stripes, less grain under motion); lighter insets; bevelled/lit plaques instead of flat
+navy; molten forecast bars (the CSS pass made them MIST); a fallen hero under the death banner; parchment fix rows.
