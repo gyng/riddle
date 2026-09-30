@@ -161,3 +161,11 @@
   .side-col .meters .mrow, .meters-slot .meters .mrow { grid-template-columns: 62px minmax(0, 1fr); }
   .side-col .meters .msplit, .meters-slot .meters .msplit { height: 10px; }
 }
+/* gfx round 24 (the coordinator approved; raters: "the sheet small for a 1440 screen"): the sheet beside its tile is wider and its type
+   a step up on the desktop */
+@media (min-width: 1024px) {
+  .sheet-wrap.wide-beside > .sheet { width: min(700px, 50vw); font-size: 18px; }
+  .sheet-wrap.wide-beside > .sheet .why-line { font-size: 22px; }
+  .sheet-wrap.wide-beside > .sheet .why-row { font-size: 22px; }
+  .sheet-wrap.wide-beside > .sheet .why-gloss { font-size: 17px; }
+}

@@ -25,6 +25,7 @@ FRAMES = {
     "bar": (0.5, 40), "console": (0.5, 96), "panel": (0.5, 56), "tablet": (0.5, 48), "tablet_card": (0.5, 48),
     "tile": (0.5, 48), "tile_pressed": (0.5, 48), "well": (0.5, None), "gem": (0.5, None), "gem_red": (0.5, None),
     "banner": (0.5, None), "gauge": (0.5, 16), "stud": (1.0, None), "seal": (0.5, None),
+    "button": (0.5, None),   # gfx round 24: the carved primary button (the WHY sheet's EDIT): a 9-slice the CSS slices itself
     "scroll": (0.5, None),   # gfx round 8: the report's hanging scroll (9-slice top/bottom 160, sides 72 at source: the CSS writes its own slice)
 }
 ICON_PX = 96   # 48 CSS px at 2x

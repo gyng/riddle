@@ -318,3 +318,24 @@
       radial-gradient(3.5px 3.5px at 85% 15%, rgba(255, 206, 106, .9), transparent 72%),
       radial-gradient(3px 3px at 10% 70%, rgba(255, 230, 160, .85), transparent 72%); }
 }
+
+/* gfx round 24 (the coordinator approved; raters: "the stamp is soft — a dust puff and a small shake as each plaque lands"): each plaque
+   drops from above and slams, a puff of parchment dust spreads under it on impact, and the plaque grid thuds with the first landing */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-juice="on"] .report.arrived .tile.plaque { position: relative; animation-name: j-slamp; animation-duration: .5s; animation-timing-function: ease-in-out; }
+  /* (round 24b: never from opacity 0 — the plaques draw at rest before `.arrived`, and a fade-in blanked them in the strip: they lift, then slam) */
+  @keyframes j-slamp { from { transform: none; filter: none; } 28% { transform: translateY(-18px) scale(1.14); filter: brightness(1.5); } 55% { transform: translateY(0) scale(.96); filter: brightness(1.9); }
+    72% { transform: translateY(0) scale(1.02); filter: brightness(1.25); } to { transform: none; filter: none; } }
+  html[data-juice="on"] .report.arrived .tile.plaque::after { content: ""; position: absolute; left: -10%; right: -10%; bottom: -12px; height: 26px; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at 50% 60%, rgba(214, 186, 140, .75), rgba(160, 130, 90, .35) 45%, transparent 72%);
+    animation: j-dust .75s ease-out .27s backwards; }
+  @keyframes j-dust { from { opacity: .95; transform: scale(.4, .6); } to { opacity: 0; transform: scale(1.35, 1.1) translateY(-4px); } }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(2)::after { animation-delay: .34s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(3)::after { animation-delay: .41s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(4)::after { animation-delay: .48s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(5)::after { animation-delay: .55s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(6)::after { animation-delay: .62s; }
+  html[data-juice="on"] .report.arrived .tile.plaque:nth-child(n+7)::after { animation-delay: .69s; }
+  html[data-juice="on"] .report.arrived .tiles { animation: j-thud .5s ease-out .27s backwards; }
+  @keyframes j-thud { 0% { transform: none; } 12% { transform: translate(-2px, 3px); } 28% { transform: translate(2px, -1px); } 46% { transform: translate(-1px, 1px); } 100% { transform: none; } }
+}

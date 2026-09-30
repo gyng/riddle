@@ -703,3 +703,29 @@ Rater spread 6.76 · 6.79 (AY's strips for m01–m06 failed to load: it rated th
    EDIT button skin (a Codex piece) and a larger desktop sheet — a UI skin batch.
 4. **The scene inset** (6.0): "show before and after side by side", "zoom on the hero": a divergence-scene layout change.
 5. The report's motion (5–6): the plaques' stamp reads soft ("dust puff and a small shake on each plaque").
+
+### 10.14 Rounds 24+ (2026-09-30, resumed by the coordinator with approved items: zoom, carved EDIT, candle, desktop sheet, side-by-side scene, plaque stamps)
+
+**Round 24** (raters BA, BB; both lost some images to a "request limit" and rated those moments from what they saw): **6.74**. Built:
+the carved EDIT button (`art/ui/frames/button.png`, Codex, a 9-slice: iron end caps with a ruby, walnut face, gilt moulding) and a
+melted candle on the WHY sheet with a flickering warm pool (`art/ui/deco/candle.png`, Codex; `art/prompts/ui_round24.txt`); the desktop
+sheet beside its tile 700 px with desktop type; the divergence scene as two panes (the sent branch left, the edited one right, a carved
+seam; the waiting pane dims); report plaques that slam with a dust puff and a thud of the grid; the closer zoom (PHONE_TEXELS 100 → 80,
+DESK 72 → 58) and the scene's panes at FOCUS_R 2.
+
+| moment | 23 | 24 |
+|---|---|---|
+| edit | 6.60 | **7.20** |
+| d-edit | 6.40 | **7.00** |
+| death | 7.20 | 7.60 |
+| watch-warrens | 5.80 | 5.60 |
+| watch-fens | 6.00 | 5.75 |
+| d-watch | 6.00 | 5.55 |
+| fight | 7.10 | 6.75 |
+| scene | 6.00 | 6.20 |
+| **mean** | **6.77** | **6.74** |
+
+Kept: the carved button, the candle, the desktop sheet (both edit moments +0.6). **Reverted: the closer zoom** — every watch moment fell
+("long empty corridors, no foe in frame", "the camera pan repaints the whole frame"), and the panes' FOCUS_R 2 ("blurry upscaled pixels,
+sprites cut off"). Fixed for round 25: the plaque stamp started from opacity 0 and blanked the plaques in the strip (they draw at rest
+before `.arrived`), now they lift and slam; the sent pane replays beside the edited one (raters: "the before side is frozen").

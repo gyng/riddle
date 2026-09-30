@@ -1611,3 +1611,35 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#0
   background: radial-gradient(circle at 35% 30%, #6b5431, #3a2a16 70%); box-shadow: inset 0 0 0 1px #c9a45a, 0 0 0 1px #1a1008, 0 2px 3px rgba(0, 0, 0, .6); }
 .report .sys-opened.icons .sys-plaque .ico { width: 18px; height: 18px; }
 .report .sys-opened.icons .sys-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* gfx round 24: the scene's two panes — the sent branch left, the edited one right, a carved seam between; the pane not playing dims */
+.div-scene .div-view.a, .div-scene .div-view.b { width: calc(50% - 2px); }
+.div-scene .div-view.a { left: 0; right: auto; }
+.div-scene .div-view.b { left: auto; right: 0; }
+.div-scene:not([data-state="still"])::after { content: ""; position: absolute; top: 0; bottom: 0; left: calc(50% - 2px); width: 4px; background: linear-gradient(#6b5431, #3a2a16); box-shadow: 0 0 0 1px #000; }
+.div-scene .div-view { transition: filter .25s; }
+.div-scene[data-phase="sent"] .div-view.b { filter: brightness(.45) saturate(.5); }
+.div-scene[data-phase="new"] .div-view.a { filter: brightness(.75) saturate(.8); }
+.div-scene .div-tag { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.div-scene .div-ptag { position: absolute; top: 5px; max-width: calc(50% - 14px); padding: 2px 6px; border-radius: 3px; background: rgba(12, 9, 7, .8); font: 700 12px/1.25 var(--sans);
+  color: #e8d6b0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 1; }
+.div-scene[data-state="still"] .div-ptag { display: none; }
+.div-scene .div-ptag.a { left: 6px; } .div-scene .div-ptag.b { left: calc(50% + 6px); }
+.div-scene .div-ptag .was { color: #c9b48f; } .div-scene .div-ptag .now { color: #f3c25a; }
+.div-scene .div-end { font-size: 19px; padding: 3px 9px; white-space: nowrap; }
+.div-scene .div-end.a { left: 25%; } .div-scene .div-end.b { left: 75%; }
+/* gfx round 24 (the coordinator approved; raters: "EDIT a plain dark bar — a carved gilt button, a gem"): the painted carved plaque
+   (art/ui/frames/button.png, Codex) as a 9-slice — iron end caps with a ruby, walnut face, gilt moulding; it glows and sinks on press */
+.skin-button :is(.sheet, .panel, .parchment) button.btn.primary.why-edit { background: none; border: solid transparent; border-width: 11px 39px;
+  border-image: url(/ui/frames/button.png) 22 78 22 78 fill / 11px 39px stretch; box-shadow: none; min-height: 58px; padding: 0 8px;
+  font: 700 21px/1 var(--display); letter-spacing: .14em; color: #ffe6a8; text-shadow: 0 2px 0 #000, 0 0 12px rgba(255, 170, 60, .75);
+  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .55)) drop-shadow(0 0 8px rgba(255, 160, 60, .25)); transition: filter .15s, transform .1s; }
+.skin-button :is(.sheet, .panel, .parchment) button.btn.primary.why-edit:hover { filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .55)) drop-shadow(0 0 14px rgba(255, 170, 70, .55)) brightness(1.08); }
+.skin-button :is(.sheet, .panel, .parchment) button.btn.primary.why-edit:active { transform: translateY(1px) scale(.99); filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .6)) brightness(.95); }
+/* the WHY sheet by candlelight: a melted candle on its parchment (art/ui/deco/candle, Codex), its warm pool flickering on the paper */
+.skin-deco-candle .row-why { position: relative; }
+.skin-deco-candle .row-why::before { content: ""; position: absolute; right: 52px; top: 0; width: 34px; height: 51px; pointer-events: none;
+  background: url(/ui/deco/candle.webp) center / contain no-repeat; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .5)); z-index: 1; }
+.skin-deco-candle .row-why::after { content: ""; position: absolute; right: 0; top: 0; width: min(280px, 100%); height: min(200px, 100%); pointer-events: none; mix-blend-mode: soft-light;
+  background: radial-gradient(circle at 75% 14%, rgba(255, 196, 110, .75), rgba(255, 150, 60, .25) 35%, transparent 65%); animation: j-candle 2.6s ease-in-out infinite; }
+@keyframes j-candle { 0%, 100% { opacity: .85; } 18% { opacity: 1; } 31% { opacity: .78; } 52% { opacity: .95; } 70% { opacity: .82; } 84% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .skin-deco-candle .row-why::after { animation: none; } }
